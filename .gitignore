@@ -28,6 +28,11 @@ build/
 *.swp
 *.swo
 
+# Brand animation working files — editable Claude Design source + raw screen
+# recordings. The shipped outputs (docs/images/brand/demo.gif + logo-reveal.gif)
+# are committed; this folder is local scratch (re-exportable from Claude Design).
+docs/images/brand/Animation/
+
 # OS Generated Files
 .DS_Store
 .DS_Store?

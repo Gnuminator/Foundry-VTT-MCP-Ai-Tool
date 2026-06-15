@@ -1,15 +1,5 @@
-<!-- ════════════════════════════════════════════════════════════════════════
-     BRAND SLOT — drop a hero banner here once generated (see docs/BRAND-BRIEF.md).
-     When you have the asset, replace this comment block with:
-       <p align="center"><img src="docs/images/brand/banner.png" alt="Foundry AI Tool" width="100%"></p>
-     Until then the text hero below stands on its own (no broken image).
-════════════════════════════════════════════════════════════════════════ -->
-
-<h1 align="center">Foundry AI Tool</h1>
-
 <p align="center">
-  <strong>Give AI models live access to your Foundry VTT session —<br/>
-  and run the game from a real-time co-GM dashboard.</strong>
+  <img src="docs/images/brand/banner.png" alt="Foundry AI Tool — live AI access to your Foundry VTT game, and a real-time co-GM dashboard" width="100%">
 </p>
 
 <p align="center">

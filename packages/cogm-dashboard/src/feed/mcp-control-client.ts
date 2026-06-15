@@ -1,5 +1,6 @@
 import * as net from 'net';
 import { EventEmitter } from 'events';
+import type { ControlResponse, ToolResultPayload } from '@gnuminator/shared';
 import type { Logger } from '../logger.js';
 
 /**
@@ -65,16 +66,8 @@ interface PendingRequest {
   timer: NodeJS.Timeout;
 }
 
-interface ControlResponse {
-  id?: string;
-  result?: unknown;
-  error?: { message?: string };
-}
-
-interface ToolResultPayload {
-  content?: Array<{ type?: string; text?: string }>;
-  isError?: boolean;
-}
+// ControlResponse and ToolResultPayload are imported from @gnuminator/shared —
+// the single source of truth for the §3a control-channel frame shapes.
 
 export interface McpControlClientOptions {
   host: string;

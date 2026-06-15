@@ -8,6 +8,8 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 
 import { config } from './config.js';
 
+import type { ControlRequest, ControlResponse } from '@gnuminator/shared';
+
 import { spawn, ChildProcess } from 'child_process';
 
 import * as net from 'net';
@@ -24,9 +26,7 @@ const CONTROL_HOST = '127.0.0.1';
 
 const CONTROL_PORT = 31414;
 
-type BackendReq = { id: string; method: string; params?: any };
-
-type BackendRes = { id: string; result?: any; error?: { message: string } };
+// Control-channel frame shapes come from the shared contract (§3a).
 
 class BackendClient {
   private socket: net.Socket | null = null;
@@ -198,13 +198,21 @@ class BackendClient {
       if (!line) continue;
 
       try {
-        const msg = JSON.parse(line) as BackendRes;
+        const msg = JSON.parse(line) as ControlResponse;
 
         this.log('onData(): received response', {
           id: msg.id,
           hasError: !!msg.error,
           hasResult: !!msg.result,
         });
+
+        // An id-less frame is an uncorrelated protocol error — nothing to resolve.
+        if (msg.id === undefined) {
+          this.log('onData(): protocol message without id, ignoring', {
+            hasError: !!msg.error,
+          });
+          continue;
+        }
 
         const p = this.pending.get(msg.id);
 
@@ -246,7 +254,7 @@ class BackendClient {
 
       const id = Math.random().toString(36).slice(2);
 
-      const req: BackendReq = { id, method, params };
+      const req: ControlRequest = { id, method, params };
 
       this.pending.set(id, { resolve, reject });
 

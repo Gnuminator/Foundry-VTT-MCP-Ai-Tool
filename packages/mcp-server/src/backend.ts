@@ -12,6 +12,8 @@ import { evaluateLockFile } from './lock.js';
 
 import { config } from './config.js';
 
+import type { ControlRequest, ToolResultPayload } from '@gnuminator/shared';
+
 import { Logger } from './logger.js';
 
 import { FoundryClient } from './foundry-client.js';
@@ -1515,7 +1517,7 @@ async function startBackend(): Promise<void> {
         if (!line) continue;
 
         try {
-          const msg = JSON.parse(line) as { id: string; method: string; params?: any };
+          const msg = JSON.parse(line) as ControlRequest;
 
           if (msg.method === 'ping') {
             socket.write(JSON.stringify({ id: msg.id, result: { ok: true } }) + '\n');
@@ -1948,7 +1950,7 @@ async function startBackend(): Promise<void> {
                   throw new Error(`Unknown tool: ${name}`);
               }
 
-              const payload = {
+              const payload: ToolResultPayload = {
                 content: [
                   {
                     type: 'text',

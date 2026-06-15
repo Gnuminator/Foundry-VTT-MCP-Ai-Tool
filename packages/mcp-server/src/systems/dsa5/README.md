@@ -222,4 +222,4 @@ Same as parent project (foundry-vtt-mcp)
 
 - [DSA5 Foundry System](https://foundryvtt.com/packages/dsa5)
 - [Registry Pattern Design Doc](../../docs/registry-pattern.md) (if exists)
-- [GitHub Issue #11](https://github.com/adambdooley/foundry-vtt-mcp/issues/11) - Multi-system support discussion
+- [GitHub Issue #11](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/issues/11) - Multi-system support discussion

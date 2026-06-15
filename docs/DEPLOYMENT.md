@@ -15,7 +15,7 @@ The module is published as a GitHub Release on the fork, so it installs like any
 field → Install:
 
 ```
-https://github.com/Gnuminator/Foundry-VTT-MCP/releases/latest/download/module.json
+https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/module.json
 ```
 
 This works on hosted Foundry (Molten-Hosting) — no file-manager/SFTP access needed. Foundry reads the
@@ -74,6 +74,6 @@ Build it with `npm run build && npm run bundle:server`. Restart Claude Desktop a
 
 ## Repository
 
-- Remote `fork` → `https://github.com/Gnuminator/Foundry-VTT-MCP` (default branch `main`).
-- Remote `origin` → upstream `adambdooley/foundry-vtt-mcp` (for pulling upstream changes).
-- Push work with `git push fork <branch>:main`.
+- Remote `aitool` → `https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool` (canonical — push here).
+- Remote `fork` → `https://github.com/Gnuminator/Foundry-VTT-MCP` (old fork — retire/archive).
+- Push work with `git push aitool <branch>:main`.

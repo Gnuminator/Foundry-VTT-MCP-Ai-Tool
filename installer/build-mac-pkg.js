@@ -460,7 +460,7 @@ const conclusionHTML = `<!DOCTYPE html>
 <li>Launch Foundry VTT and enable "Foundry MCP Bridge" in Module Management</li>
 <li>Start chatting with Claude about your Foundry world!</li>
 </ol>
-<p>Documentation: <a href="https://github.com/adambdooley/foundry-vtt-mcp">github.com/adambdooley/foundry-vtt-mcp</a></p>
+<p>Documentation: <a href="https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool">github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool</a></p>
 </body>
 </html>
 `;

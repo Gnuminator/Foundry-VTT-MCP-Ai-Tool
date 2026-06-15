@@ -130,10 +130,10 @@ After installation:
 📖 DOCUMENTATION
 ═══════════════════════════════════════════════════════════════
 
-Full documentation: https://github.com/adambdooley/foundry-vtt-mcp
+Full documentation: https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool
 
 Need help? Report issues at:
-https://github.com/adambdooley/foundry-vtt-mcp/issues
+https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/issues
 
 ═══════════════════════════════════════════════════════════════
 © 2025 Foundry MCP Server

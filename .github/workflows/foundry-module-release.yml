@@ -14,11 +14,11 @@ jobs:
       - name: Create module zip
         run: |
           cd packages/foundry-module
-          zip -r ../../foundry-vtt-mcp.zip . -x ".*" -x "node_modules/*"
+          zip -r ../../foundry-ai-tool-module.zip . -x ".*" -x "node_modules/*"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: foundry-vtt-mcp.zip
+          files: foundry-ai-tool-module.zip
           generate_release_notes: true

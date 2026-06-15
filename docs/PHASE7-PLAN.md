@@ -76,6 +76,13 @@ verify links/images resolve and the page renders).
 
 ---
 
+### Decisions taken (2026‑06‑15)
+
+- **Scope now:** redesign the landing README (done). Showcase site deferred.
+- **Branding:** user drives it via Claude's design tool — see `docs/BRAND-BRIEF.md` (a ready-to-paste
+  prompt). README has marked slots for the banner/logo; badges + screenshots carry it until then.
+- **Demo motion:** static screenshots for now; a 10–15s GIF is a later pass (shot-list TBD).
+
 ## 4. Decisions to confirm before executing
 
 1. **How far to take Phase 7 now** — just this plan, or also redesign the README, and/or scaffold the
@@ -90,12 +97,13 @@ verify links/images resolve and the page renders).
 
 ## 5. Asset & deploy checklist (fill in as we go)
 
-- [ ] Brand: wordmark/logo SVG, color palette, hero banner
-- [ ] Badges: license, latest release, CI status, Foundry version
-- [ ] Demo GIF (10–15s) — recorded + optimized + embedded
-- [ ] README redesign merged
+- [x] **Badges:** license, latest release, CI status, Foundry version, system — in the README hero
+- [x] **README redesign merged** — hero, badges, three-parts, feature grid, Phase 6 section, docs index
+- [x] **Brand brief written** (`docs/BRAND-BRIEF.md`) — prompt for the user to generate assets
+- [ ] Brand assets generated (logo/wordmark SVG, hero banner) → drop in `docs/images/brand/`, uncomment the README slot
+- [ ] Demo GIF (10–15s) — recorded + optimized + embedded (later pass)
 - [ ] `/player` view screenshot (new in Phase 6)
-- [ ] Showcase site scaffold (`site/`) — built
+- [ ] Showcase site scaffold (`site/`) — built (deferred)
 - [ ] GitHub Pages enabled (if chosen) + custom domain (optional)
 - [ ] Cross-link README ↔ site ↔ docs
 

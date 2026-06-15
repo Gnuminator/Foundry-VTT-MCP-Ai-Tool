@@ -1,3 +1,79 @@
+# Changelog
+
+## v0.16.0 (2026-06-15) — First release as **Foundry AI Tool**
+
+This is the first release under the project's new identity. **Foundry AI Tool** is an MCP server +
+Foundry VTT module (plus an original co-GM dashboard) that gives AI models live access to a Foundry
+game. It began as a fork of [adambdooley/foundry-vtt-mcp](https://github.com/adambdooley/foundry-vtt-mcp)
+(MIT) and has since been detached into its own standalone project, trimmed to **Windows + D&D 5e**, and
+reimplemented behind stable contracts. See [CREDITS.md](CREDITS.md) for upstream attribution.
+
+### No breaking changes for existing installs
+
+The Foundry module **id is unchanged** (`foundry-mcp-bridge`), as are the socket channel, settings
+namespace, and query method names — so an existing install keeps working and upgrades in place. The
+only thing that moved is the **home repository**: releases now come from
+[Gnuminator/Foundry-VTT-MCP-Ai-Tool](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool), not the
+old `Gnuminator/Foundry-VTT-MCP` fork. To receive updates from the new repo, reinstall once from the new
+manifest — see **Migrating from the old repo** below.
+
+### New identity & project structure
+
+- Renamed to **Foundry AI Tool**; standalone repository (no longer a GitHub fork), clean history, new
+  README/CREDITS/LICENSE attribution.
+- npm scope is now `@gnuminator/*` (`@gnuminator/shared`, `@gnuminator/mcp-server`,
+  `@gnuminator/foundry-module`, `@gnuminator/cogm-dashboard`).
+- Authored `docs/ARCHITECTURE.md` describing the system from first principles (the MCP tool surface, the
+  Foundry-link socket bridge, the JSON-lines control channel, the D&D 5e system adapter, the job queue,
+  GM-gating, and the standalone co-GM dashboard).
+
+### Scope trim — Windows + D&D 5e only
+
+- **Removed non-D&D system adapters** — PF2e, DSA5 (Das Schwarze Auge 5), WFRP4e, and Cosmere RPG, along
+  with their system-specific tools (e.g. the DSA5 archetype character creator) and registry
+  registrations. The **D&D 5e** adapter remains cleanly behind the system-registry abstraction.
+- **Removed macOS support** (Windows-targeted: NSIS installer + standalone server ZIP).
+
+### Reimplementation behind stable contracts
+
+- Reimplemented the `shared` types/schemas/constants and codified both wire protocols
+  (control-channel + Foundry-link frames) in `shared/src/protocol.ts`, with the frozen wire identifiers
+  preserved byte-for-byte and a parity/contract-guard test suite wired into CI.
+- Migrated the control-channel endpoints (dashboard client, stdio wrapper, backend control server) onto
+  the shared protocol contract; deduped the WebRTC chunking constants to a single canonical source.
+- Shrank and cleaned the Foundry module's `data-access` layer (stripped all non-D&D remnants + dead
+  code).
+- Brought the MCP tool layer and the D&D 5e adapter under comprehensive test coverage — **1078 tests
+  total** (mcp-server 1017, shared 49, foundry-module 12) — as a parity net.
+
+### Co-GM dashboard
+
+- The original co-GM control surface (live session feed + GM control panel: combat panel, generic tool
+  runner, backend proxy, confirm-gated writes) ships as `packages/cogm-dashboard` — original work, not
+  derived from upstream.
+
+### Tooling
+
+- Single canonical release workflow (`build-complete-release.yml`): Windows NSIS installer + standalone
+  MCP server ZIP + Foundry module ZIP + GitHub Release + Foundry package-registry update, on tag push.
+- CI runs build + the three unit suites + schema smoke test + manifest validation on every push.
+
+### Migrating from the old repo
+
+If you have a previous version installed from `Gnuminator/Foundry-VTT-MCP`, your module keeps working —
+but Foundry checks the **old** repo for updates, because that URL is baked into the installed manifest.
+To switch to the new repo so future updates come from here, see
+[docs/MIGRATION.md](docs/MIGRATION.md) for the one-time reinstall steps. No data migration is required.
+
+---
+
+## Historical releases (pre-detach upstream lineage)
+
+> ⚠️ The entries below predate the detach, the rename to **Foundry AI Tool**, and the **D&D 5e-only**
+> trim. They describe the upstream-derived fork and reference systems that have since been **removed**
+> (PF2e, DSA5, WFRP4e, Cosmere RPG) and macOS support that is no longer included. They are kept for
+> historical lineage only — see the v0.16.0 entry above for what the current release actually contains.
+
 ## v0.8.2 (2026-06-07)
 
 ### New Features

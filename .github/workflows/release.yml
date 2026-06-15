@@ -1,13 +1,15 @@
-name: Release Foundry Module
+name: Release Foundry Module (module-only fallback)
 
-# Cut a release by pushing a tag, e.g.:  git tag v0.11.0 && git push fork v0.11.0
+# DEPRECATED as the primary release path. The canonical release workflow is
+# build-complete-release.yml (full distribution: installer + standalone server + module +
+# registry update), which fires on v* tag pushes. This workflow is kept as a MANUAL,
+# module-only fallback (dispatch-only) — its v* tag trigger was removed so it cannot
+# double-publish the same tag's GitHub Release as the canonical workflow.
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (e.g. v0.11.0)'
+        description: 'Tag to release (e.g. v0.16.0)'
         required: true
 
 permissions:

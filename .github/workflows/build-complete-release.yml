@@ -3,8 +3,11 @@ name: Build Complete Release
 # Canonical release workflow for Foundry AI Tool. Builds the Windows NSIS installer,
 # standalone MCP server ZIP, and Foundry module ZIP, then publishes a GitHub
 # Release and updates the Foundry VTT Package Registry. Trigger manually via
-# workflow_dispatch or automatically on tag pushes (handled by create-release job).
+# workflow_dispatch or automatically on tag pushes (the create-release job is gated on a v* tag ref).
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
@@ -119,14 +122,14 @@ jobs:
         # Create ZIP excluding hidden files and node_modules
         $compress = @{
           Path = Get-ChildItem -Path "." -Exclude ".*", "node_modules"
-          DestinationPath = "..\..\foundry-ai-tool-module.zip"
+          DestinationPath = "..\..\foundry-mcp-bridge.zip"
           CompressionLevel = "Optimal"
         }
         Compress-Archive @compress -Force
         
         # Verify ZIP was created
-        if (Test-Path "..\..\foundry-ai-tool-module.zip") {
-          $size = (Get-Item "..\..\foundry-ai-tool-module.zip").Length / 1KB
+        if (Test-Path "..\..\foundry-mcp-bridge.zip") {
+          $size = (Get-Item "..\..\foundry-mcp-bridge.zip").Length / 1KB
           Write-Host "✓ Foundry module ZIP created ($([math]::Round($size, 1)) KB)"
         } else {
           Write-Host "❌ Foundry module ZIP creation failed"
@@ -264,11 +267,23 @@ jobs:
         path: installer/build/
 
     - name: Create Foundry Module ZIP
+      # Asset name MUST stay foundry-mcp-bridge.zip — it matches the frozen `download`
+      # URL in packages/foundry-module/module.json. Renaming it 404s every Foundry install.
+      # Ships only the built module (dist minus sourcemaps/.d.ts + manifest + assets),
+      # wrapped in a foundry-mcp-bridge/ folder, matching the proven release.yml packaging.
       run: |
-        cd packages/foundry-module
-        zip -r ../../foundry-ai-tool-module.zip . -x ".*" -x "node_modules/*"
-        cd ../..
-        ls -lh foundry-ai-tool-module.zip
+        set -e
+        mkdir -p build/foundry-mcp-bridge
+        cp packages/foundry-module/module.json build/foundry-mcp-bridge/
+        cp -r packages/foundry-module/dist build/foundry-mcp-bridge/
+        for d in lang styles templates; do
+          if [ -d "packages/foundry-module/$d" ]; then
+            cp -r "packages/foundry-module/$d" build/foundry-mcp-bridge/
+          fi
+        done
+        find build/foundry-mcp-bridge/dist -type f \( -name '*.map' -o -name '*.d.ts' \) -delete
+        (cd build && zip -r ../foundry-mcp-bridge.zip foundry-mcp-bridge >/dev/null)
+        ls -lh foundry-mcp-bridge.zip
 
     - name: Create Standalone MCP Server ZIP
       run: |
@@ -365,7 +380,7 @@ jobs:
           For full documentation, visit: https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool
         files: |
           installer/build/FoundryMCPServer-Setup-${{ env.PACKAGE_VERSION }}.exe
-          foundry-ai-tool-module.zip
+          foundry-mcp-bridge.zip
           foundry-mcp-server-${{ env.PACKAGE_VERSION }}.zip
           packages/foundry-module/module.json
         generate_release_notes: true
@@ -373,8 +388,21 @@ jobs:
         prerelease: false
 
     - name: Update Foundry VTT Package Registry
+      # Non-fatal: the GitHub Release (with all artifacts) is already published above, so a
+      # missing/invalid FOUNDRY_PACKAGE_RELEASE_TOKEN must not fail the release. Honours the
+      # dry_run_foundry dispatch input and skips cleanly when the token secret is absent.
+      continue-on-error: true
+      env:
+        FOUNDRY_TOKEN: ${{ secrets.FOUNDRY_PACKAGE_RELEASE_TOKEN }}
+        DRY_RUN: ${{ github.event.inputs.dry_run_foundry }}
       run: |
         echo "🔄 Updating Foundry VTT Package Registry..."
+
+        if [ -z "$FOUNDRY_TOKEN" ]; then
+          echo "⚠️  FOUNDRY_PACKAGE_RELEASE_TOKEN is not set — skipping registry update."
+          echo "    The GitHub Release is published; submit to the Foundry registry manually if desired."
+          exit 0
+        fi
 
         # Extract package information
         PACKAGE_ID=$(node -p "require('./packages/foundry-module/module.json').id")
@@ -413,18 +441,23 @@ jobs:
         echo "🔧 Request Body:"
         echo "$REQUEST_BODY"
 
+        if [ "$DRY_RUN" = "true" ]; then
+          echo "🧪 dry_run_foundry=true — skipping the actual registry POST."
+          exit 0
+        fi
+
         # Make API call to Foundry VTT Package Registry
-        RESPONSE=$(curl -X POST \
+        RESPONSE=$(curl -sS -X POST \
           -H "Content-Type: application/json" \
-          -H "Authorization: ${{ secrets.FOUNDRY_PACKAGE_RELEASE_TOKEN }}" \
+          -H "Authorization: $FOUNDRY_TOKEN" \
           -d "$REQUEST_BODY" \
           https://foundryvtt.com/_api/packages/release_version/)
 
         if [ $? -eq 0 ]; then
-          echo "✅ Successfully updated Foundry VTT Package Registry"
+          echo "✅ Registry API call completed"
           echo "📄 Response: $RESPONSE"
         else
-          echo "❌ Failed to update Foundry VTT Package Registry"
+          echo "❌ Failed to reach Foundry VTT Package Registry"
           echo "🔍 Error: $RESPONSE"
           exit 1
         fi

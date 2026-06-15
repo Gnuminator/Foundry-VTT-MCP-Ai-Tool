@@ -61,6 +61,7 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
 - [x] Phase 0 — Identity decisions locked
 - [x] Phase 1 — Clean history built (baseline @dba53ec + 30 dev commits); pushed to new repo
 - [x] Phase 2 — Surface rebrand (module.json, package names, LICENSE/CREDITS, README)
+- [x] Phase 2.5 — Trim: Mac support removed; non-D&D adapters (dsa5, pf2e, wfrp4e, cosmere-rpg) removed; now Windows + D&D 5e only
 - [ ] Phase 3 — `docs/ARCHITECTURE.md` from first principles (switch to Opus 4.8)
 - [ ] Phase 4 — Staged reimplementation, module by module
 - [ ] Phase 5 — Cutover, migration notes, live smoke test

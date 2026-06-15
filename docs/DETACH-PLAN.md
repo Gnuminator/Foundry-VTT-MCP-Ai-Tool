@@ -177,6 +177,31 @@ Make the tool usable by you **and** your GM from outside your PC. Decisions lock
   **server-side** (the SSE stream + REST), not just in CSS, and gate the write surface server-side
   behind auth. The Anthropic API key stays server-side — never shipped to the browser.
 
+### Phase 6 prerequisite — patch the network stack before exposing it (dep security)
+
+`npm ci` during the v0.16.0 release surfaced 38 audit advisories (4 critical / 23 high). **Triaged
+2026-06-15 — almost all are dev/types-only and never ship or touch the network:**
+
+- **Non-shipping (ignore for runtime):** `handlebars` (critical) comes via `foundry-vtt-types` (a
+  TypeScript types devDep); `vitest` (critical) is the test runner; `vite`/`lint-staged` EBADENGINE
+  warnings are dev tooling. None reach the installer, the bundled server, or the compiled module.
+- **Dead dep (safe to delete anytime):** `socket.io-client@^4.7.0` is a **runtime dep of
+  `packages/foundry-module` that is not imported anywhere** in its `src/` — it drags in the
+  `socket.io-parser` (critical) + `engine.io-client` + `ws@8.2` chain for nothing, and wouldn't ship
+  regardless (the module is `tsc`-compiled, no bundler, browser-loaded). Removing it clears that whole
+  chain from the production audit.
+- **The only genuinely-shipping runtime advisories** are in **`packages/mcp-server`**'s WebRTC/socket
+  stack — `ws@8.18.3` (moderate; non-breaking `npm audit fix`) and **`werift@0.17.7` → the `uuid`
+  bounds-check advisory** (fix needs `werift@0.23.0`, a **breaking** bump → must be tested against the
+  live bridge). This bridge is **loopback-only today** (low real risk), but **Phase 6 puts it on the
+  internet** behind Cloudflare Access — so patch it here, before remote exposure.
+
+**Do as Phase 6 prep:** (1) remove the dead `socket.io-client`; (2) non-breaking `npm audit fix` for
+`ws`; (3) the breaking `werift` bump with a live-bridge smoke test; (4) bump the workflows' pinned
+`actions/setup-node` from `20.12.2` → `20.19.x`/`22.x` to clear EBADENGINE (the shipped runtime targets
+Node 18, so this is build-env hygiene only). Verify green + re-audit. (User decision 2026-06-15:
+**defer all of this**, not part of v0.16.0.)
+
 ## Phase 7 — Presentation (when functionality is polished)
 
 The current `docs/COGM-DASHBOARD.md` markdown showcase isn't enough. Build a real presentation —

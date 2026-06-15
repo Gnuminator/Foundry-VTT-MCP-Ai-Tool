@@ -44,16 +44,18 @@ export class DnD5eAdapter implements SystemAdapter {
   }
 
   /**
-   * Extract creature data from Foundry document for indexing
-   * This is called by the index builder in Foundry's browser context
+   * Creature-index extraction runs in the Foundry module's browser context
+   * (packages/foundry-module/src/data-access.ts), where the live compendium
+   * documents are available — not in this MCP-server adapter. This method
+   * exists only to satisfy the SystemAdapter interface and always throws.
    */
   extractCreatureData(
-    doc: any,
-    pack: any
+    _doc: any,
+    _pack: any
   ): { creature: SystemCreatureIndex; errors: number } | null {
-    // Implementation is in index-builder.ts since it runs in browser
-    // This method is here for type compliance but delegates to IndexBuilder
-    throw new Error('extractCreatureData should be called from DnD5eIndexBuilder, not the adapter');
+    throw new Error(
+      'extractCreatureData runs in the Foundry module browser index builder, not the MCP-server adapter'
+    );
   }
 
   getFilterSchema() {

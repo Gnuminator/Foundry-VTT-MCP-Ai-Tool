@@ -345,7 +345,20 @@ export function makeToken(opts: MakeTokenOptions = {}): AnyDoc {
     texture = { src: '' },
     ...rest
   } = opts;
-  return { id, name, x, y, width, height, hidden, disposition, texture, ...rest };
+  // A token is a document — it needs `update()` (moveToken/updateToken) and the
+  // embedded surface; `delete()` is bound when it lands in a scene collection.
+  return withDocumentMethods({
+    id,
+    name,
+    x,
+    y,
+    width,
+    height,
+    hidden,
+    disposition,
+    texture,
+    ...rest,
+  });
 }
 
 export function makeNote(
@@ -455,11 +468,16 @@ export interface MakeJournalOptions {
 
 export function makeJournal(opts: MakeJournalOptions = {}): AnyDoc {
   const { id = randomId('journal'), name = 'Journal', pages = [], ...rest } = opts;
+  // Foundry assigns ids to pages created without one. Mirror that so raw page
+  // data (`{type,name,text}`) doesn't collide on the empty-string key.
+  const pageDocs = pages.map(p =>
+    (p as any)?.id ? p : makeJournalPage(p as MakeJournalPageOptions)
+  );
   return withDocumentMethods({
     id,
     name,
     // `journal.pages` is a Foundry embedded collection (size/map/find/get).
-    pages: new MockCollection(pages),
+    pages: bindCollectionDeletes(new MockCollection(pageDocs)),
     ...rest,
   });
 }

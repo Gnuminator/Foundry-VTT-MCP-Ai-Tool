@@ -310,11 +310,31 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > listCreaturesByCriteria fallback + getCompendiumDocumentFull, 26) — **+94**.
 > foundry-module **139 → 233**; total **1247 → 1341**, green incl. wiped/clean build.
 > **Deferred:** the enhanced/persistent creature index (`PersistentCreatureIndex`,
-> file/`fetch` persistence) needs a storage+fetch mock — its own effort. **Next:**
-> wave 3 — write paths (actor/token/item creation, ownership, journal/world-item
-> writes), needing harness write extensions (`Actor.create`/`updateDocuments`/
-> embedded-doc CRUD + the `transaction-manager` rollback path), then the from-scratch
-> rewrite + modular reorg below.
+> file/`fetch` persistence) needs a storage+fetch mock — its own effort.
+>
+> **Write-domain fan-out wave 3 (2026‑06‑16)** — harness write surface added:
+> embedded-doc CRUD (`create/update/deleteEmbeddedDocuments`), top-level + embedded
+> `delete()`, static doc-class factories (`Actor/Item/Scene/Folder/JournalEntry` with
+> `create`/`createDocuments`/`updateDocuments`/`deleteDocuments` registering into the
+> world; `ChatMessage.create`/`getSpeaker`), `world.enableWrites()` for the permission
+> gate, unique `randomID`, tokens-as-documents, `game.world` flag accessors.
+> **TransactionManager characterized first** (25 tests, Opus) — the write-safety
+> rollback core and a Phase 9 rewrite target; its history-cap test caught a `randomID`
+> aliasing bug in the harness. Then 5 parallel Sonnet workers: `ownership` (20),
+> `token-manipulation` (move/update/deleteToken + toggleTokenCondition incl.
+> ACCESS_DENIED, 24), `world-items` (list/create/updateWorldItems, 29),
+> `journal-writes` (createJournalEntry/updateJournalContent all branches, 21),
+> `chat-resources` (sendChatMessage/updateCharacterResource/clearStaleConditions, 25)
+> — **+119** (+25 TM = +144). Three harness fidelity gaps the workers surfaced were
+> folded in (token `update()`, journal page-id collisions, world flag store).
+> foundry-module **258 → 377**; total **1366 → 1485**, green incl. wiped/clean build.
+> **Deferred write paths:** actor-creation-from-compendium + addActorsToScene (needs
+> `canvas` placement), combat-mutation (advanceCombatTurn/setInitiative/applyDamage/
+> rollSavingThrows/manageRest), scene-mood/map-note/loot/template writes,
+> requestPlayerRolls. **Next:** the from-scratch `data-access` rewrite + modular reorg,
+> now verifiable against the read+write net (377 tests); the `transaction-manager`
+> rewrite-to-parity is unblocked; plus the deferred persistent creature index and the
+> remaining write paths above.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

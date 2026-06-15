@@ -179,7 +179,20 @@ export class TestWorld {
       ready: true,
       version: this.options.foundryVersion,
       system: { id: this.options.systemId, version: this.options.systemVersion },
-      world: { id: this.options.worldId, title: this.options.worldTitle },
+      // `game.world` carries flag accessors — the write-path `auditLog` stores its
+      // audit trail in world flags, so exercising it keeps the write paths honest.
+      world: (() => {
+        const flags: Record<string, any> = {};
+        return {
+          id: this.options.worldId,
+          title: this.options.worldTitle,
+          getFlag: (scope: string, key: string) => flags[scope]?.[key],
+          setFlag: (scope: string, key: string, value: unknown) => {
+            (flags[scope] ??= {})[key] = value;
+            return Promise.resolve(value);
+          },
+        };
+      })(),
       user: this.options.currentUser,
       actors: this.actors,
       scenes: this.scenes,
@@ -329,16 +342,48 @@ export function installFoundryGlobals(world: TestWorld): () => void {
     call: (name: string, ...args: any[]) => (hooks[name] ?? []).forEach(cb => cb(...args)),
     callAll: (name: string, ...args: any[]) => (hooks[name] ?? []).forEach(cb => cb(...args)),
   };
-  // Document-class globals. The static `create` factories register the new
-  // document into the world (so it's findable + deletable, e.g. for rollback).
-  // Foundry's `create` accepts a single object or an array; mirror that.
+  // Document-class globals. The static factories register new documents into the
+  // world (so they're findable + deletable, e.g. for rollback). Foundry's `create`
+  // accepts a single object or an array; `createDocuments`/`updateDocuments`/
+  // `deleteDocuments` are the batched forms used by the world-item write paths.
   const firstOf = (data: any) => (Array.isArray(data) ? data[0] : data);
-  g.Actor = { create: async (data: any) => world.addActor(firstOf(data)) };
-  g.Item = { create: async (data: any) => world.addItem(firstOf(data)) };
-  g.Scene = { create: async (data: any) => world.addScene(firstOf(data)) };
-  g.Folder = { create: async (data: any) => world.addFolder(firstOf(data)) };
-  g.ChatMessage = { create: async (data: any) => world.addMessage(firstOf(data)) };
-  g.JournalEntry = { create: async (data: any) => world.addJournal(firstOf(data)) };
+  const asArray = (v: any) => (Array.isArray(v) ? v : v == null ? [] : [v]);
+  const docClass = (addOne: (d: any) => AnyDoc, coll: MockCollection<AnyDoc>) => ({
+    create: async (data: any) => addOne(firstOf(data)),
+    createDocuments: async (arr: any[] = []) => asArray(arr).map(d => addOne(d)),
+    updateDocuments: async (updates: any[] = []) => {
+      const out: AnyDoc[] = [];
+      for (const u of asArray(updates)) {
+        const doc = coll.get(u?._id ?? u?.id);
+        if (doc) {
+          const { _id, id, ...changes } = u;
+          await (doc as any).update(changes);
+          out.push(doc);
+        }
+      }
+      return out;
+    },
+    deleteDocuments: async (ids: string[] = []) => {
+      asArray(ids).forEach(id => coll.delete(id));
+      return ids;
+    },
+  });
+  g.Actor = docClass(d => world.addActor(d), world.actors);
+  g.Item = docClass(d => world.addItem(d), world.items);
+  g.Scene = docClass(d => world.addScene(d), world.scenes);
+  g.Folder = docClass(d => world.addFolder(d), world.folders);
+  g.JournalEntry = docClass(d => world.addJournal(d), world.journal);
+  g.ChatMessage = {
+    create: async (data: any) => world.addMessage(firstOf(data)),
+    // Foundry's getSpeaker({scene,actor,token,alias}) — we only need the alias
+    // (the world/GM voice falls back to actor.name) for the chat write paths.
+    getSpeaker: ({ actor, alias, token, scene }: any = {}) => ({
+      scene: scene?.id ?? null,
+      actor: actor?.id ?? null,
+      token: token?.id ?? null,
+      alias: alias ?? actor?.name ?? null,
+    }),
+  };
   g.Combat = function MockCombat() {};
   g.Roll = function MockRoll(formula: string) {
     return { formula, evaluate: async () => ({ total: 0 }), total: 0 };

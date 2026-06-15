@@ -51,26 +51,26 @@ See also: [BUILT.md](BUILT.md), [FIXES.md](FIXES.md), [FEATURE-IDEAS.md](FEATURE
   "while I'm chatting, keep me posted." The dashboard supersedes it for live/autonomous use; only
   build it if the in-chat loop is specifically wanted. Analysis below.
 
-### Make it my own (next major push — added 2026-06-15)
+### Make it my own (the detach + product push)
 
-- **Player vs. GM views (role split).** Two views of the dashboard: a **GM view** (everything —
-  Tool Runner + GM Actions — behind auth) and a **player view** showing only what players should see:
-  public combat order, the public feed, no diagnostics, no hidden enemy HP/notes, no write actions.
-  Critical: filter GM-only data **server-side** (the SSE stream and REST endpoints, _not_ just CSS),
-  and gate the write surface behind auth server-side. Players using it means exposing the dashboard
-  beyond `localhost` (LAN/tunnel), so auth + network binding become real security concerns — the
-  bridge can mutate the live game. Auth options to weigh: a shared GM password/token (cookie),
-  separate ports per role, or per-role tokens.
-- **Redesign the GitHub front page (README) from scratch.** The README is still the upstream one;
-  rewrite it around this fork's identity and the co-GM dashboard — what it is, the dashboard feature
-  set, screenshots (reuse the `docs/COGM-DASHBOARD.md` assets), install/run, supported systems.
-- **Detach from upstream & make it original.** Stop tracking the `origin` (adambdooley) remote and
-  reimplement the codebase as _its own thing built from the idea_ rather than a fork of the original
-  source. Licensing note (not legal advice — worth confirming): upstream is MIT-licensed, so a
-  genuine from-scratch reimplementation that shares no original code can carry your own
-  authorship/license; any retained original code must keep its MIT copyright + license. Also rebrand
-  the manifest (`module.json` authors/title/id) and docs. Large, staged effort — sequence it
-  module-by-module.
+Detached to the standalone repo **Gnuminator/Foundry-VTT-MCP-Ai-Tool** ("Foundry AI Tool"); the full
+staged plan + locked decisions live in [DETACH-PLAN.md](DETACH-PLAN.md). Status + what's left:
+
+- ✅ **Detach + rebrand** (Phases 0–2) — clean history (my 30 commits over a single upstream baseline,
+  no Adam-authored commits), surface rebrand, **README rewritten from scratch**, LICENSE/CREDITS.
+- **Trim scope** (do next, before the rewrite): remove Mac support (no Mac to test) and go **D&D-only**
+  (drop the pf2e/dsa5/wfrp4e/cosmere adapters + their tools) — less to document and reimplement.
+- **Architecture spec → staged reimplementation** (Phases 3–4): document the trimmed system from first
+  principles, then rebuild it module-by-module behind stable contracts. _(Opus for the spec + the
+  socket-bridge step; Sonnet for the grind.)_
+- **Standalone bridge + remote access** (Phase 6): decouple the bridge from Claude Desktop so the
+  dashboard runs without it; reach the **hosted** Foundry over the network; later move to a Pi/VPS;
+  expose to you + your GM via a **Cloudflare Tunnel + Access gate**; add the **player vs GM split**
+  (server-side-filtered, write surface behind auth).
+- **Presentation** (Phase 7, once polished): a real landing README (branding + demo GIF) **and** a
+  standalone showcase page; in-app visual polish later.
+- **Priority rule:** mobile/tablet support is **last** — never built in parallel; only after v1 desktop
+  is done.
 
 ---
 

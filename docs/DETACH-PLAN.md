@@ -3,6 +3,14 @@
 A staged plan to take this from "a fork of `adambdooley/foundry-vtt-mcp`" to **your own project**,
 safely, across multiple sessions. Open this cold in a new session and start at "Start here."
 
+> **Status (2026‑06‑15):** Phases 0–2 done — detached to the standalone repo, clean history (baseline +
+> my 30 commits), surface rebrand to **"Foundry AI Tool"**. Next: **Phase 2.5 (trim)** → Phase 3
+> (architecture) → Phase 4 (reimplement).
+>
+> **Priority rule — mobile/tablet is LAST.** Don't build mobile/tablet support in parallel; it comes
+> only when v1 desktop is DONE. Keep the responsiveness that already came free with the design, but
+> invest no further in mobile until then.
+
 ## The honest size of it
 
 | Package                   | Files | ~LOC    | Origin            |
@@ -75,12 +83,28 @@ commits. Fork point is `dba53ec`; the 30 commits in `dba53ec..HEAD` are all mine
   **Recommendation:** rebrand the _surface_ (name/title/docs/repo) first and keep the wire identifiers
   stable; do a true rename later as its own change with a migration note (it breaks existing installs).
 
+## Phase 2.5 — Trim scope: remove Mac support + go D&D-only (do BEFORE Phase 3)
+
+Shrinks what you have to document (Phase 3) and reimplement (Phase 4), and aligns the codebase with how
+you actually use it. Both are low-risk deletions — do them now.
+
+- **Remove Mac support** (no Mac to test): delete `packages/mcp-server/src/setup/mac-installer*.ts` and
+  `tools/mac-setup.ts`, strip Mac branches from platform utils, drop Mac CI jobs + installer bits +
+  Mac docs. Watch that `utils/platform.ts` keeps the Windows detection you still need.
+- **Go D&D-only** (you only play 5e): remove the `pf2e`, `dsa5`, `wfrp4e`, `cosmere-rpg` system adapters
+  under `packages/mcp-server/src/systems/`, their system-specific tools (e.g. the DSA5 character
+  creator/importer), and their registry/index registrations. Keep the **dnd5e** adapter cleanly behind
+  the registry abstraction (don't hard-code) so the design stays sound.
+- Verify green (typecheck/lint/build) + a mock-bridge smoke test after each removal.
+
 ## Phase 3 — Architecture from the idea (write the spec)
 
 - Author `docs/ARCHITECTURE.md` describing the system from first principles — the IDEA, not the code:
   an MCP server that exposes Foundry as tools; an in-Foundry module that bridges over a socket; the
-  JSON-lines control channel; system adapters; the job queue; security/GM-gating. This becomes the
-  spec you reimplement against and the evidence that the design is yours.
+  JSON-lines control channel; the (dnd5e-only, after Phase 2.5) system adapter; the job queue;
+  security/GM-gating; and the standalone co-GM dashboard. Document the **trimmed, Windows-targeted,
+  D&D-only** system you're keeping — it's the spec you reimplement against and the evidence the design
+  is yours.
 
 ## Phase 4 — Staged reimplementation (the long pole; many sessions)
 
@@ -93,7 +117,7 @@ Suggested order (low-risk → high-value):
 3. Foundry module `data-access` / `queries` layer.
 4. **Tool layer, domain-by-domain** (combat, scene, compendium, actor-creation, effects, …). Each is a
    self-contained chunk; use `TOOL_INVENTORY.md` as the parity checklist.
-5. System adapters (dnd5e / pf2e / dsa5 / wfrp4e / cosmere) **last, one at a time.**
+5. The **dnd5e** system adapter — last (the other systems are removed in Phase 2.5).
 
 Per chunk: capture current behavior in tests first → reimplement → verify parity (the test bench +
 a mock-bridge harness like the `temp/cogm-*.cjs` scripts) → ship. **Never leave it broken between
@@ -103,6 +127,42 @@ sessions.** Keep a "rewritten vs still-upstream" tracker so a fresh session resu
 
 - New README/CREDITS, migration notes (if the module id changed), release under the new identity,
   live smoke test (Foundry open + bridge connected + dashboard).
+
+## Phase 6 — Standalone bridge + remote access (product goal)
+
+Make the tool usable by you **and** your GM from outside your PC. Decisions locked 2026‑06‑15:
+
+- **Decouple the bridge from Claude Desktop first.** Today the control-channel backend
+  (`127.0.0.1:31414`) the dashboard needs is _spawned by_ Claude Desktop's MCP config. Make it a
+  standalone long-lived process (npm script / OS service) so the dashboard works with Claude Desktop
+  closed. (Near-term it can still run in your Claude Desktop/Code session — this just removes the hard
+  dependency.)
+- **Foundry is HOSTED (Forge/VPS), not localhost** — a real constraint. Wherever the bridge runs it must
+  reach the remote Foundry, and the in-Foundry module must reach the bridge. Confirm the module's
+  connection path (it dials out to the MCP server — check the WebRTC/socket handshake) works across the
+  network, not just on loopback.
+- **Later, move the bridge + dashboard to an always-on host** (Raspberry Pi or cheap VPS) so it's up
+  even when your PC is off. The "where does it live" answer evolves over time: Claude Desktop now →
+  standalone process → Pi/VPS.
+- **Remote access = Cloudflare Tunnel + Access gate** (chosen). New to it, so when we build this:
+  1. Install `cloudflared` on the host; `cloudflared tunnel login` (authorize your Cloudflare account).
+  2. `cloudflared tunnel create cogm` → creates the tunnel + a credentials file.
+  3. Route a hostname (e.g. `cogm.yourdomain`) to `http://localhost:3000` (config file or dashboard);
+     `cloudflared tunnel run cogm`.
+  4. Put **Cloudflare Access** in front of that hostname (email/SSO allow-list for you + your GM) so it
+     isn't open to the world. No port-forwarding, no exposed home IP.
+- **Player vs GM split** (composes here): a player view (public combat order + public feed only — no
+  diagnostics, hidden enemy HP/notes, or write actions) and a full GM view. Filter GM-only data
+  **server-side** (the SSE stream + REST), not just in CSS, and gate the write surface server-side
+  behind auth. The Anthropic API key stays server-side — never shipped to the browser.
+
+## Phase 7 — Presentation (when functionality is polished)
+
+The current `docs/COGM-DASHBOARD.md` markdown showcase isn't enough. Build a real presentation —
+**(1) a polished GitHub landing README** with branding + a 10–15s demo GIF/screen-capture, and **(2) a
+standalone showcase page/site**. Do this once there's polished functionality to show. **In-app visual
+polish** (beyond the current Modern Command Center pass) is a _given but later_ — after all
+functionality is in. (Mobile/tablet stays deferred per the priority rule up top.)
 
 ---
 
@@ -129,15 +189,14 @@ on the 40K-LOC grind.
 
 ---
 
-## Start here (new-session kickoff)
+## Start here (current state)
 
-1. Answer the **Phase 0** questions (identity, license, repo strategy, rewrite scope).
-2. Do **Phase 1** (git detach) and **Phase 2** (surface rebrand + README) — these alone make it feel
-   like yours, are low-risk, and ship in ~1 day.
-3. Only then decide whether to commit to **Phase 4** (the staged rewrite).
+Phases 0–2 are **done** (detached repo, clean history, surface rebrand to "Foundry AI Tool"). Remaining
+order:
 
-Suggested opening prompt for the new session:
-
-> "Read docs/DETACH-PLAN.md. Let's do Phase 0 + Phase 1 + Phase 2: help me pick the new identity,
-> detach the git remote, and rebrand the surface (module.json, package names, LICENSE/credits) while
-> keeping the wire identifiers stable. Use Sonnet; escalate to Opus only for the architecture spec."
+1. **Phase 2.5 — trim** (remove Mac + non-DnD) — do first; less to document/reimplement. _(Sonnet)_
+2. **Phase 3 — `docs/ARCHITECTURE.md`** from first principles, describing the trimmed system. _(Opus)_
+3. **Phase 4 — staged reimplementation**, module by module behind stable contracts. _(Sonnet grind;
+   Opus for the socket-bridge/protocol step + reviewing each chunk)_
+4. **Phase 5 — cutover**, then **Phase 6 — standalone bridge + Cloudflare remote access + player/GM
+   split**, then **Phase 7 — presentation**. Mobile/tablet last.

@@ -129,13 +129,27 @@ deferred) → (3) _optional_ dashboard design-system in Claude Design → I resk
 
 - [x] **Badges:** license, latest release, CI status, Foundry version, system — in the README hero
 - [x] **README redesign merged** — hero, badges, three-parts, feature grid, Phase 6 section, docs index
-- [x] **Brand brief written** (`docs/BRAND-BRIEF.md`) — prompt for the user to generate assets
-- [ ] Brand assets generated (logo/wordmark SVG, hero banner) → drop in `docs/images/brand/`, uncomment the README slot
-- [ ] Demo GIF (interim) — designed feature sizzle (Animation tile) → `docs/images/brand/demo.gif`, embedded in the README DEMO SLOT
+- [x] **Brand brief written** (`docs/BRAND-BRIEF.md`) — concept + pass-by-pass + export notes
+- [x] **Brand assets generated** (Arcane Node) — banner@2x hero, logo/wordmark SVGs, favicons (on the dashboard tabs); committed under `docs/images/brand/`
+- [x] **Demo GIF** — feature sizzle rendered headlessly (DC source → Chrome screencast → ffmpeg), 30fps/820px, in the README DEMO slot; **logo-reveal** 30fps loop as a closing flourish
+- [x] **Dashboard screenshots regenerated** (post feed-clip fix) — overview/combat-control/tool-runner/confirm; stacked `mobile.png` dropped
 - [ ] Real screen-capture demo — deferred until after Phases 7–8, then swap it in
 - [ ] `/player` view screenshot (new in Phase 6)
 - [ ] Showcase site scaffold (`site/`) — built (deferred)
 - [ ] GitHub Pages enabled (if chosen) + custom domain (optional)
-- [ ] Cross-link README ↔ site ↔ docs
 
 > Nothing here touches the code or the green baseline — Phase 7 is docs/assets/site only.
+
+## Revisit after the detach is complete
+
+> **TODO (revisit once the detach reimplementation is done — Phase 9 / "make it truly mine").** The brand
+> visuals are good enough to ship now, but do one more pass on them after the codebase reimplementation
+> lands:
+>
+> - **Re-record the demo + re-shoot screenshots from the _real_ live app** (current demo GIF is a headless
+>   render of the designed sizzle; screenshots are faithful headless renders with mock data — both should
+>   eventually be authentic captures of the finished product). Same filenames → they swap in place.
+> - **Re-evaluate the brand/animation** end-to-end once the product is final (dashboard reskin, any UI
+>   changes), and tighten the GIF trim/loop. The GIF pipeline (headless DC capture → ffmpeg) is documented
+>   in `docs/BRAND-BRIEF.md` §6 and reproducible.
+> - Decide the **showcase site** + GitHub Pages then, with final visuals.

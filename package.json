@@ -16,6 +16,8 @@
     "dev:cogm": "npm run dev --workspace=packages/cogm-dashboard",
     "build:cogm": "npm run build --workspace=packages/cogm-dashboard",
     "start:cogm": "npm run start --workspace=packages/cogm-dashboard",
+    "bridge:standalone": "npm run start:standalone --workspace=packages/mcp-server",
+    "test:standalone": "node scripts/standalone-smoke-test.mjs",
     "bundle:server": "npm run build:bundle --workspace=packages/mcp-server",
     "build:release": "npm run build:shared && npm run build:server && npm run bundle:server && npm run build:foundry",
     "installer:stage": "node installer/build-nsis.js --skip-download --skip-nsis",

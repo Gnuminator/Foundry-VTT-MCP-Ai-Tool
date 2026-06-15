@@ -39,5 +39,10 @@ jobs:
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs
 
+      - name: Standalone bridge smoke test
+        # Spawns the standalone entrypoint in control-only mode on a free port
+        # (never 31414/31415/31416) and asserts ping + list_tools over the wire.
+        run: node scripts/standalone-smoke-test.mjs
+
       - name: Validate Foundry module manifest
         run: node validate-manifest.js

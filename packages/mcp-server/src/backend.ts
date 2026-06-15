@@ -54,11 +54,27 @@ import { SceneControlTools } from './tools/scene-control.js';
 import { LootTools } from './tools/loot.js';
 import { DiagnosticsTools } from './tools/diagnostics.js';
 
-const CONTROL_HOST = '127.0.0.1';
+// Control channel bind target. Defaults to the frozen loopback contract
+// (127.0.0.1:31414) the stdio wrapper and dashboard expect, but is injectable so
+// the backend can run as a standalone process on an alternate port for testing
+// or a future remote-hosting topology. See `standalone.ts` / DETACH-PLAN Phase 6.
+const CONTROL_HOST = process.env.MCP_CONTROL_HOST || '127.0.0.1';
 
-const CONTROL_PORT = 31414;
+const CONTROL_PORT = parseInt(process.env.MCP_CONTROL_PORT || '31414', 10);
 
-const LOCK_FILE = path.join(os.tmpdir(), 'foundry-mcp-backend.lock');
+// When the Foundry link is disabled (MCP_FOUNDRY_LINK=off) the backend serves the
+// control channel ONLY — it does not bind the Foundry connector (WS 31415 / WebRTC
+// 31416) or auto-start ComfyUI. Used to smoke-test the standalone entrypoint on an
+// alternate port without colliding with a live bridge. Default: enabled (full backend).
+const FOUNDRY_LINK_ENABLED = !/^(off|false|0|no)$/i.test(process.env.MCP_FOUNDRY_LINK ?? '');
+
+// Lock file is port-scoped for non-default ports so an alternate-port standalone
+// instance never fights the live 31414 backend's lock. The default port keeps the
+// original lock name for exact backward compatibility.
+const LOCK_FILE = path.join(
+  os.tmpdir(),
+  CONTROL_PORT === 31414 ? 'foundry-mcp-backend.lock' : `foundry-mcp-backend-${CONTROL_PORT}.lock`
+);
 
 function getBundledPythonPath(): string {
   // Detect installation directory based on current executable location
@@ -1475,11 +1491,16 @@ async function startBackend(): Promise<void> {
     ...diagnosticsTools.getToolDefinitions(),
   ];
 
-  // Start Foundry connector (owns app port 31415)
+  // Start Foundry connector (owns app port 31415). Skipped in control-only mode
+  // so the standalone entrypoint can be smoke-tested without binding 31415/31416.
 
-  foundryClient.connect().catch(e => {
-    logger.error('Foundry connector failed to start', e);
-  });
+  if (FOUNDRY_LINK_ENABLED) {
+    foundryClient.connect().catch(e => {
+      logger.error('Foundry connector failed to start', e);
+    });
+  } else {
+    logger.info('Foundry link disabled (MCP_FOUNDRY_LINK=off) — serving control channel only');
+  }
 
   const autoStartComfyUI = async () => {
     try {
@@ -2001,7 +2022,7 @@ async function startBackend(): Promise<void> {
     server.on('error', reject);
   });
 
-  void autoStartComfyUI();
+  if (FOUNDRY_LINK_ENABLED) void autoStartComfyUI();
 
   // Shutdown hooks
 

@@ -30,6 +30,14 @@ direct, GM-gated access to actors, combat, scenes, compendiums, journals, and mo
 dashboard on a second screen and you get a live combat tracker, a streaming AI co-GM, and a tool
 runner for every bridge action — **no AI client required** to use it.
 
+<!-- ════════════════════════════════════════════════════════════════════════
+     DEMO SLOT — drop the looping demo GIF here once generated (see docs/BRAND-BRIEF.md §6).
+     For now this is the DESIGNED animation (Animation tile → feature sizzle) exported as a looping
+     GIF; GitHub autoplays/loops GIFs inline. Swap it for a real screen-capture later (post Phase 8).
+     When ready, replace this comment with:
+       <p align="center"><img src="docs/images/brand/demo.gif" alt="Foundry AI Tool — live demo" width="100%"></p>
+════════════════════════════════════════════════════════════════════════ -->
+
 ## The three parts
 
 | Part                                      | What it is                                                                                   | Runs in           |

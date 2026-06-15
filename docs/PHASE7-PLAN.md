@@ -42,10 +42,13 @@ short **demo GIF/video**, a tighter visual hierarchy, coverage of the **new Phas
 
 ### B. Needs assets (a capture step — partly user-driven)
 
-4. **Demo GIF/screen-capture (10–15s).** The headline asset. Needs the live app running (Foundry +
-   bridge + dashboard) and a screen recording. I can write a **shot-list/script** (what to show, in
-   what order, captions); the actual recording is user-driven (or via a scripted capture later). The
-   README/site embed a placeholder until it lands.
+4. **Demo motion.** Two-stage:
+   - **Interim (buildable now):** a **designed feature sizzle** from the Animation tile (built from the
+     existing screenshots, no live app), exported as a **looping GIF → `docs/images/brand/demo.gif`** in
+     the README's DEMO SLOT. GitHub autoplays/loops GIFs inline. See `docs/BRAND-BRIEF.md` §6 (Motion B).
+   - **Real screen-capture (deferred — after Phases 7–8):** a 10–15s recording of the live app
+     (Foundry + bridge + dashboard) from a shot-list I'll write; it _replaces_ the designed GIF when
+     ready. Recording is user-driven (OBS / ShareX).
 5. **Refreshed screenshots** if the UI has changed since the current ones (e.g. to show the `/player`
    view). Optional; the existing set is still representative.
 
@@ -101,7 +104,8 @@ verify links/images resolve and the page renders).
 - [x] **README redesign merged** — hero, badges, three-parts, feature grid, Phase 6 section, docs index
 - [x] **Brand brief written** (`docs/BRAND-BRIEF.md`) — prompt for the user to generate assets
 - [ ] Brand assets generated (logo/wordmark SVG, hero banner) → drop in `docs/images/brand/`, uncomment the README slot
-- [ ] Demo GIF (10–15s) — recorded + optimized + embedded (later pass)
+- [ ] Demo GIF (interim) — designed feature sizzle (Animation tile) → `docs/images/brand/demo.gif`, embedded in the README DEMO SLOT
+- [ ] Real screen-capture demo — deferred until after Phases 7–8, then swap it in
 - [ ] `/player` view screenshot (new in Phase 6)
 - [ ] Showcase site scaffold (`site/`) — built (deferred)
 - [ ] GitHub Pages enabled (if chosen) + custom domain (optional)

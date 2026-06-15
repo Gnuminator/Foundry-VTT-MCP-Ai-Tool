@@ -182,13 +182,14 @@ the very top** with:
 Same approach as the image passes: **one committed concept, broken into timed beats, with concrete
 motion direction.** Two real-vs-designed things to keep straight first:
 
+- **Designed motion** (polished brand, built in the **Animation — Motion & video** tile): an **Ignition**
+  logo reveal and a **feature sizzle** built from the dashboard screenshots. **For now this is the
+  README's demo** — export the sizzle as a looping GIF (see the export spec at the end of §6). Buildable
+  today, no live app needed.
 - **A real demo capture** (authentic — the actual app running): a 10–15s screen recording of Foundry +
-  the dashboard during combat. That is _not_ made in the Design tool — record it on your machine
-  (OBS Studio / ShareX / Xbox Game Bar). I'll write you a shot-list when you're ready
-  (`docs/PHASE7-PLAN.md` §2-B). **This stays the README's primary demo.**
-- **Designed motion** (polished brand, not live footage): the **Animation — Motion & video** tile.
-  Two deliverables below — an **Ignition** logo reveal and a **feature sizzle**. Use them for a site
-  hero / social clip, _alongside_ the real capture.
+  the dashboard during combat, recorded on your machine (OBS Studio / ShareX / Xbox Game Bar).
+  **Deferred — not until after Phases 7–8.** When you have it, it _replaces_ the designed GIF in the
+  README; I'll write you a shot-list then (`docs/PHASE7-PLAN.md` §2-B).
 
 ### How to use
 
@@ -201,8 +202,9 @@ to set the brief, then **Motion A**, iterate, and only then **Motion B** (it reu
 > ad — fast whooshes, neon bloom, spinning, bouncy overshoot, lens flares — push back hard: _"slower,
 > calmer, no whoosh, ease in-out only, the glow is the only effect."_
 
-> **GitHub note.** A README can't autoplay an MP4 inline. For the README use the **real screen-capture
-> GIF**; keep these designed pieces for a showcase site / social / the repo's social-preview image.
+> **GitHub note.** A README can't autoplay an MP4, but it **does autoplay & loop a GIF inline** — so
+> export the **feature sizzle (Motion B)** as a looping GIF and that becomes the README's demo for now.
+> Keep the MP4 too for a showcase site / social / the repo's social-preview image.
 
 ---
 
@@ -268,8 +270,17 @@ to set the brief, then **Motion A**, iterate, and only then **Motion B** (it reu
 **Audio (optional):** a low, quiet drone bed + a single soft "power-up" chime exactly on the 4.2s
 ignition; otherwise silent (site/README playback is muted anyway).
 
-**Where it goes:** site hero / social / the repo's **Settings → Social preview** image (export a still
-frame of the lit lockup for that). Not the README inline video — use the real-capture GIF there.
+**Where it goes:** export **Motion B as a looping, README-optimized GIF → `docs/images/brand/demo.gif`**
+— **this is the README demo for now** (GitHub autoplays & loops it; there's a marked DEMO SLOT in the
+README). Also keep the MP4 for a site / social, and export a **still frame of the lit lockup** for the
+repo's **Settings → Social preview** image. Swap the GIF for a real screen-capture once you have one
+(post Phase 8).
+
+> **README GIF export spec.** ~1200–1280px wide, **loop forever**, target **≤ ~6 MB** (GitHub gets
+> sluggish above that). The Animation tile likely exports MP4 — convert to an optimized GIF with
+> **gifski** (`gifski --fps 20 --width 1200 -o demo.gif in.mp4`), ffmpeg, or ezgif.com, dialing fps
+> (15–20) and colors down until it fits the budget. Ping me and I'll wire `demo.gif` into the README
+> DEMO SLOT for you.
 
 ---
 

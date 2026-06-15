@@ -1,0 +1,25 @@
+{
+  // Format with Prettier on save (matches the repo's .prettierrc + `npm run format:check`).
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  // Auto-apply ESLint fixes on save (uses .eslintrc.json).
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  // npm workspaces: let ESLint resolve the right config per package.
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+  // The repo is LF (see .gitattributes); keep new/edited files LF on Windows.
+  "files.eol": "\n",
+  // Use the workspace TypeScript (pinned ^5), not VS Code's bundled one.
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  // Keep search/quick-open out of build output + deps.
+  "search.exclude": {
+    "**/dist": true,
+    "**/node_modules": true,
+    "**/*.tsbuildinfo": true
+  },
+  "files.exclude": {
+    "**/*.tsbuildinfo": true
+  }
+}

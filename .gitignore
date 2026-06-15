@@ -21,7 +21,9 @@ build/
 **/*.tsbuildinfo
 
 # IDE Files
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo

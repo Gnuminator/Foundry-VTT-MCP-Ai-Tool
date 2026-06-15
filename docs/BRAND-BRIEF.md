@@ -195,8 +195,10 @@ motion direction.** Two real-vs-designed things to keep straight first:
 
 Open the **Animation — Motion & video** tile. **First import your finished brand assets** into that
 canvas — `docs/images/brand/logo.svg`, `wordmark.svg`, and for the sizzle the screenshots in
-`docs/images/cogm/` — so it animates the real marks, not redrawn approximations. Then paste **Motion 0**
-to set the brief, then **Motion A**, iterate, and only then **Motion B** (it reuses A's opening).
+`docs/images/cogm/` — so it animates the real marks, not redrawn approximations. It's **three pastes:
+Motion 0 → Motion A → Motion B**. After Motion A's first result, **refine it in place with short
+follow-ups** ("slower", "hold the pause longer", "softer glow") until you're happy — that refinement is
+what "iterate" means here, **not a separate prompt** — then paste **Motion B** (it reuses A's opening).
 
 > **Reality check on motion clichés.** The whole point is _restraint_. If a result feels like a crypto
 > ad — fast whooshes, neon bloom, spinning, bouncy overshoot, lens flares — push back hard: _"slower,

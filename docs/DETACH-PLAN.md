@@ -3,9 +3,10 @@
 A staged plan to take this from "a fork of `adambdooley/foundry-vtt-mcp`" to **your own project**,
 safely, across multiple sessions. Open this cold in a new session and start at "Start here."
 
-> **Status (2026‑06‑15):** Phases 0–2 done — detached to the standalone repo, clean history (baseline +
-> my 30 commits), surface rebrand to **"Foundry AI Tool"**. Next: **Phase 2.5 (trim)** → Phase 3
-> (architecture) → Phase 4 (reimplement).
+> **Status (2026‑06‑15):** Phases 0–2.5 done — detached to the standalone repo, clean history,
+> surface rebrand to **"Foundry AI Tool"**, Mac support removed, non-D&D system adapters removed
+> (dsa5, pf2e, wfrp4e, cosmere-rpg). Now **Windows-targeted + D&D 5e only**.
+> Next: **Phase 3 (architecture)** → Phase 4 (reimplement).
 >
 > **Priority rule — mobile/tablet is LAST.** Don't build mobile/tablet support in parallel; it comes
 > only when v1 desktop is DONE. Keep the responsiveness that already came free with the design, but

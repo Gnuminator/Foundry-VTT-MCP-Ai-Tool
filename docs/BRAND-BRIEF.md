@@ -208,6 +208,20 @@ what "iterate" means here, **not a separate prompt** — then paste **Motion B**
 > export the **feature sizzle (Motion B)** as a looping GIF and that becomes the README's demo for now.
 > Keep the MP4 too for a showcase site / social / the repo's social-preview image.
 
+### Exporting the HTML master to a file
+
+Claude Design outputs an **animated HTML master**, not an encoded video — it can't emit MP4/GIF/WebM
+directly (this is expected, not a bug). Two ways to get the actual file:
+
+- **Screen-capture (no tooling):** play the page full-screen and record it. **ShareX** can record
+  **straight to GIF** ("Screen record (GIF)") — ideal for the README; the 3s ignition loop makes a clean,
+  small looping GIF. Use ShareX/OBS "Screen record" for an MP4 (social/site). If the GIF is heavy
+  (> ~6 MB), shrink it at **ezgif.com** (resize ~1200px, drop fps/colors) — browser-only, no install.
+- **Hands-off (Claude Code renders it):** if Claude Design lets you **download the standalone `.html`**,
+  drop it in the repo and Claude Code can render it deterministically in headless Chrome and assemble the
+  GIF/MP4 itself — no cursor, no dropped frames, exact timing. This is also the **only** path that can
+  produce a **transparent (alpha) WebM** of the mark for overlays (screen-capture can't record alpha).
+
 ---
 
 ### Motion 0 — set the motion brief (paste first)

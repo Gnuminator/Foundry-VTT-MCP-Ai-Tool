@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/brand/banner.png" alt="Foundry AI Tool — live AI access to your Foundry VTT game, and a real-time co-GM dashboard" width="100%">
+  <img src="docs/images/brand/banner@2x.png" alt="Foundry AI Tool — live AI access to your Foundry VTT game, and a real-time co-GM dashboard" width="100%">
 </p>
 
 <p align="center">

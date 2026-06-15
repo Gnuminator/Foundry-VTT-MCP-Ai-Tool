@@ -34,6 +34,11 @@ export {
   makeNote,
   makeUser,
   makePack,
+  makeJournal,
+  makeJournalPage,
+  makeCombat,
+  makeCombatant,
+  makeModule,
   randomId,
   resetIdCounter,
   type MakeActorOptions,
@@ -43,6 +48,11 @@ export {
   type MakeTokenOptions,
   type MakeUserOptions,
   type MakePackOptions,
+  type MakeJournalOptions,
+  type MakeJournalPageOptions,
+  type MakeCombatOptions,
+  type MakeCombatantOptions,
+  type MakeModuleOptions,
 } from './documents.js';
 export {
   TestWorld,

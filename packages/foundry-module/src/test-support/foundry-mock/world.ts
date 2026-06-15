@@ -14,11 +14,17 @@
 import { MockCollection, type Identified } from './collection.js';
 import {
   makeActor,
+  makeCombat,
+  makeJournal,
+  makeModule,
   makePack,
   makeScene,
   makeUser,
   resetIdCounter,
   type MakeActorOptions,
+  type MakeCombatOptions,
+  type MakeJournalOptions,
+  type MakeModuleOptions,
   type MakePackOptions,
   type MakeSceneOptions,
   type MakeUserOptions,
@@ -51,11 +57,16 @@ export class TestWorld {
   readonly packs = new MockCollection<AnyDoc>();
   readonly folders = new MockCollection<AnyDoc>();
   readonly playlists = new MockCollection<AnyDoc>();
+  readonly combats = new MockCollection<AnyDoc>();
+  /** `game.modules` — a Map (Foundry's module registry has `.get`/`.values`). */
+  readonly modules = new Map<string, AnyDoc>();
 
   /** Module-setting store (`game.settings.get(module, key)`), keyed `module.key`. */
   readonly settings = new Map<string, unknown>();
   /** The scene `game.scenes.current` resolves to. */
   currentSceneId: string | null = null;
+  /** The combat `game.combat` resolves to (the active encounter). */
+  currentCombat: AnyDoc | null = null;
   /** Notifications captured from `ui.notifications.*`. */
   readonly notifications: Array<{ level: string; message: string }> = [];
 
@@ -88,6 +99,26 @@ export class TestWorld {
     return pack;
   }
 
+  addJournal(opts?: MakeJournalOptions): AnyDoc {
+    const journal = makeJournal(opts);
+    this.journal.add(journal);
+    return journal;
+  }
+
+  addModule(opts?: MakeModuleOptions): AnyDoc {
+    const module = makeModule(opts);
+    this.modules.set(module.id ?? '', module);
+    return module;
+  }
+
+  /** Set the active combat (`game.combat`) and register it under `game.combats`. */
+  setCombat(opts?: MakeCombatOptions): AnyDoc {
+    const combat = makeCombat(opts);
+    this.combats.add(combat);
+    this.currentCombat = combat;
+    return combat;
+  }
+
   /** Set the active scene (what `game.scenes.current` returns). */
   setActiveScene(sceneId: string): void {
     this.currentSceneId = sceneId;
@@ -109,7 +140,7 @@ export class TestWorld {
       configurable: true,
       get: () => (world.currentSceneId ? world.scenes.get(world.currentSceneId) : undefined),
     });
-    return {
+    const game: Record<string, any> = {
       ready: true,
       version: this.options.foundryVersion,
       system: { id: this.options.systemId, version: this.options.systemVersion },
@@ -124,7 +155,8 @@ export class TestWorld {
       packs: this.packs,
       folders: this.folders,
       playlists: this.playlists,
-      modules: new Map<string, any>(),
+      modules: this.modules,
+      combats: this.combats,
       socket: { emit: () => undefined, on: () => undefined },
       settings: {
         get: (moduleId: string, key: string) => this.settings.get(`${moduleId}.${key}`),
@@ -134,6 +166,12 @@ export class TestWorld {
         },
       },
     };
+    // `game.combat` is a live getter so tests can set the combat before or after install.
+    Object.defineProperty(game, 'combat', {
+      configurable: true,
+      get: () => world.currentCombat,
+    });
+    return game;
   }
 
   /** Install this world's globals onto `globalThis`. Returns an uninstall fn. */

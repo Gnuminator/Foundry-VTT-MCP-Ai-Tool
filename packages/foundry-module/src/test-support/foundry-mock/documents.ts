@@ -250,7 +250,14 @@ export interface MakeTokenOptions {
   actorId?: string;
   hidden?: boolean;
   disposition?: number;
-  texture?: { src?: string };
+  texture?: { src?: string; scaleX?: number };
+  rotation?: number;
+  alpha?: number;
+  elevation?: number;
+  lockRotation?: boolean;
+  actorLink?: boolean;
+  /** The token's linked actor document (token.actor) for detail reads. */
+  actor?: AnyDoc;
   [extra: string]: any;
 }
 
@@ -314,19 +321,143 @@ export function makePack(opts: MakePackOptions = {}): AnyDoc {
     ...rest
   } = opts;
   const docs = new MockCollection(documents);
+  // Foundry compendium index entries carry `_id` (the canonical id field), plus
+  // name/type/img and any configured index fields — NOT a bare `id`. Mirror that
+  // so consumers that read `entry._id` / `entry.img` behave as they do live.
+  const buildIndex = () =>
+    new MockCollection(
+      documents.map(d => {
+        const da = d as any;
+        return {
+          _id: d.id,
+          id: d.id,
+          name: d.name,
+          type: da.type,
+          ...(da.img !== undefined ? { img: da.img } : {}),
+          ...(da.system?.description !== undefined ? { description: da.system.description } : {}),
+        };
+      })
+    );
   return {
     // Foundry packs expose their identity through `metadata`.
     metadata: { id, label, type, system, private: isPrivate, packageName: id.split('.')[0] },
     documentName: type,
-    index: new MockCollection(
-      documents.map(d => ({ id: d.id, name: d.name, type: (d as any).type }))
-    ),
+    indexed: true,
+    index: buildIndex(),
     getDocuments: async () => docs.contents,
     getDocument: async (docId: string) => docs.get(docId),
-    getIndex: async () =>
-      new MockCollection(documents.map(d => ({ id: d.id, name: d.name, type: (d as any).type }))),
+    getIndex: async () => buildIndex(),
     ...rest,
   };
+}
+
+// --- Journals & pages --------------------------------------------------------
+
+export interface MakeJournalPageOptions {
+  id?: string;
+  name?: string;
+  /** 'text' (uses `text.content`) or e.g. 'image' (uses `src`). */
+  type?: string;
+  text?: { content?: string };
+  src?: string;
+  [extra: string]: any;
+}
+
+export function makeJournalPage(opts: MakeJournalPageOptions = {}): AnyDoc {
+  const { id = randomId('page'), name = 'Page', type = 'text', text, src, ...rest } = opts;
+  return {
+    id,
+    name,
+    type,
+    ...(text ? { text } : type === 'text' ? { text: { content: '' } } : {}),
+    ...(src !== undefined ? { src } : {}),
+    ...rest,
+  };
+}
+
+export interface MakeJournalOptions {
+  id?: string;
+  name?: string;
+  pages?: AnyDoc[];
+  [extra: string]: any;
+}
+
+export function makeJournal(opts: MakeJournalOptions = {}): AnyDoc {
+  const { id = randomId('journal'), name = 'Journal', pages = [], ...rest } = opts;
+  return withDocumentMethods({
+    id,
+    name,
+    // `journal.pages` is a Foundry embedded collection (size/map/find/get).
+    pages: new MockCollection(pages),
+    ...rest,
+  });
+}
+
+// --- Combat ------------------------------------------------------------------
+
+export interface MakeCombatantOptions {
+  id?: string;
+  name?: string;
+  initiative?: number | null;
+  actor?: AnyDoc;
+  token?: { disposition?: number; hidden?: boolean };
+  isDefeated?: boolean;
+  hidden?: boolean;
+  [extra: string]: any;
+}
+
+export function makeCombatant(opts: MakeCombatantOptions = {}): AnyDoc {
+  const { id = randomId('cbt'), name = 'Combatant', initiative = null, ...rest } = opts;
+  return { id, name, initiative, ...rest };
+}
+
+export interface MakeCombatOptions {
+  id?: string;
+  /** Combatants in initiative order; read as `combat.turns`. */
+  turns?: AnyDoc[];
+  turn?: number;
+  round?: number;
+  started?: boolean;
+  [extra: string]: any;
+}
+
+export function makeCombat(opts: MakeCombatOptions = {}): AnyDoc {
+  const {
+    id = randomId('combat'),
+    turns = [],
+    turn = 0,
+    round = 1,
+    started = true,
+    ...rest
+  } = opts;
+  return { id, turns, turn, round, started, ...rest };
+}
+
+// --- Modules -----------------------------------------------------------------
+
+export interface MakeModuleOptions {
+  id?: string;
+  title?: string;
+  version?: string;
+  active?: boolean;
+  compatibility?: { minimum?: string; verified?: string; maximum?: string };
+  relationships?: { requires?: any[] };
+  authors?: any[];
+  description?: string;
+  url?: string;
+  flags?: Record<string, any>;
+  [extra: string]: any;
+}
+
+export function makeModule(opts: MakeModuleOptions = {}): AnyDoc {
+  const {
+    id = randomId('module'),
+    title = 'Module',
+    version = '1.0.0',
+    active = true,
+    ...rest
+  } = opts;
+  return { id, title, version, active, ...rest };
 }
 
 // --- Deterministic ids -------------------------------------------------------

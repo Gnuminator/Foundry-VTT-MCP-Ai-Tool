@@ -296,12 +296,25 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > foundry-module suite **12 → 139**; total **1120 → 1247**, green incl. wiped/clean
 > build. Harness ergonomics gaps noted for an optional fold-in (typed `actor`/
 > `rotation`/`alpha`/`elevation`/`lockRotation`/`actorLink`/`texture.scaleX` on
-> `MakeTokenOptions`; label-only effects). **Next:** wave 2 — extend the harness for
-> the globals the remaining domains need (`game.combat`/`game.combats`, `game.journal`
-> docs + a journal builder, `game.modules` entries, `canvas` for token-geometry),
-> then characterize combat-state / journals / compendium-search / creature-index /
-> modules; finally the write paths (actor/token/item creation, ownership,
-> transaction-manager) before the from-scratch rewrite + modular reorg below.
+> `MakeTokenOptions`; label-only effects).
+>
+> **Read-domain fan-out wave 2 (2026‑06‑16)** — harness extended (live `game.combat`
+> getter + `game.combats`; `game.modules` registry; journal/page, combat/combatant,
+> module builders; the wave-1 token-field ergonomics folded in; **`makePack` index
+> fidelity fixed** — entries now carry `_id`/`img`/`description` like a real Foundry
+> compendium index, caught by the compendium worker pinning a harness artifact).
+> Then 4 parallel Sonnet workers: `combat` (getCombatState — categories/turn-order/
+> defeat/death-saves/conditions, 26), `journals` (listJournals/getJournalContent/
+> getJournalPageContent, 23), `modules` (getModules/getModuleManifest — dependency
+> resolution + compat issues + filters, 19), `compendium` (searchCompendium basic +
+> listCreaturesByCriteria fallback + getCompendiumDocumentFull, 26) — **+94**.
+> foundry-module **139 → 233**; total **1247 → 1341**, green incl. wiped/clean build.
+> **Deferred:** the enhanced/persistent creature index (`PersistentCreatureIndex`,
+> file/`fetch` persistence) needs a storage+fetch mock — its own effort. **Next:**
+> wave 3 — write paths (actor/token/item creation, ownership, journal/world-item
+> writes), needing harness write extensions (`Actor.create`/`updateDocuments`/
+> embedded-doc CRUD + the `transaction-manager` rollback path), then the from-scratch
+> rewrite + modular reorg below.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

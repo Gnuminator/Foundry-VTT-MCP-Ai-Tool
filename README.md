@@ -191,3 +191,9 @@ AI commentary needs one. To run it with Claude Desktop closed, start the bridge 
 Built on top of [foundry-vtt-mcp](https://github.com/adambdooley/foundry-vtt-mcp) by Adam Dooley (MIT).
 The MCP server and Foundry module packages are derived from that upstream project; the co-GM dashboard
 (`packages/cogm-dashboard`) is original work. Full attribution in [CREDITS.md](CREDITS.md).
+
+---
+
+<p align="center">
+  <img src="docs/images/brand/logo-reveal.gif" alt="Foundry AI Tool" width="540">
+</p>

@@ -154,6 +154,23 @@ sessions.** Keep a "rewritten vs still-upstream" tracker so a fresh session resu
 
 ## Phase 6 — Standalone bridge + remote access (product goal)
 
+> **Status (2026‑06‑15): prerequisite DONE; framework BUILT; infra TEMPLATED.**
+> The dep-security prerequisite is patched (see the prereq note below — DONE). The
+> infra-**independent** framework is built + green: **(A)** a standalone bridge entrypoint
+> (`packages/mcp-server/src/standalone.ts`; control host/port injectable via
+> `MCP_CONTROL_HOST/PORT`; `MCP_FOUNDRY_LINK=off` control-only mode; port-scoped lock; `npm run
+bridge:standalone`; `scripts/standalone-smoke-test.mjs` in CI) and **(B)** the server-side
+> player/GM split in the dashboard (`auth.ts` role resolution, `redact.ts` filtering, role-aware
+> SSE, `requireGm` on the write surface, `/player` view; unit tests + `scripts/cogm-split-smoke-test.mjs`
+> in CI). The infra-**dependent** parts are TEMPLATED, not deployed: **(C)** `docs/REMOTE-ACCESS.md`
+>
+> - `deploy/` (Cloudflare Tunnel/Access config, Dockerfile, compose, Windows service) and **(D)** the
+>   design/roadmap `docs/PHASE6-DESIGN.md` (seams inventory + "when the infra is ready" checklist).
+>   Test baseline now **1120** (shared 49, foundry-module 12, mcp-server 1030, cogm-dashboard 29).
+>   **Remaining (needs your infra):** stand up Cloudflare + a VPS/Pi + reach the hosted Foundry, then
+>   follow `docs/PHASE6-DESIGN.md` §6. The bridge currently still runs Claude-Desktop-spawned by default;
+>   the standalone entry removes the hard dependency.
+
 Make the tool usable by you **and** your GM from outside your PC. Decisions locked 2026‑06‑15:
 
 - **Decouple the bridge from Claude Desktop first.** Today the control-channel backend
@@ -202,8 +219,18 @@ Make the tool usable by you **and** your GM from outside your PC. Decisions lock
 **Do as Phase 6 prep:** (1) remove the dead `socket.io-client`; (2) non-breaking `npm audit fix` for
 `ws`; (3) the breaking `werift` bump with a live-bridge smoke test; (4) bump the workflows' pinned
 `actions/setup-node` from `20.12.2` → `20.19.x`/`22.x` to clear EBADENGINE (the shipped runtime targets
-Node 18, so this is build-env hygiene only). Verify green + re-audit. (User decision 2026-06-15:
-**defer all of this**, not part of v0.16.0.)
+Node 18, so this is build-env hygiene only). Verify green + re-audit.
+
+> **DONE (2026‑06‑15).** All four patched: dead `socket.io-client` removed; non-breaking `npm audit fix`
+> (`ws 8.14→8.21`, `axios 1.6→1.18`, `@modelcontextprotocol/sdk 1.7→1.29`, `body-parser`, `path-to-regexp`,
+> dashboard `express 4.19→4.22`); breaking **`werift 0.17.7→0.23.0`** (clears the `uuid` bounds-check;
+> type-compatible, esbuild bundle parses); `vitest 3.2.4→3.2.6` (dev critical); `setup-node` bumped.
+> **Audit: full 38→24 (remaining all dev/types via `foundry-vtt-types`), prod-only 15→3** (the 3 are the
+> single `ip` advisory via `werift-ice`, no upstream fix). Green incl. wiped build + 1078 tests at the time.
+> werift is the only shipping breaking bump and only affects the WebRTC path — **live confirm is
+> user-driven** (`docs/DEPENDENCY-PATCH-SMOKE-TEST.md`). **Decision: hold a v0.16.1 patch release until
+> that live WebRTC smoke passes, then cut it** (so users get the axios/MCP-SDK/ws/werift fixes). Tag only
+> on explicit confirm.
 
 ## Phase 7 — Presentation (when functionality is polished)
 

@@ -28,11 +28,15 @@ depends on.
 - `npm run build` (composite build — if a workspace emits nothing, delete stale `*.tsbuildinfo` and rebuild)
 - `npm test -w @gnuminator/shared` — 49 tests (shared parity + protocol contract)
 - `npm test -w @gnuminator/foundry-module` — 12 tests
-- `npm test -w @gnuminator/mcp-server` — 1017 tests (lock + all 23 tool suites + dnd5e adapter/filters)
+- `npm test -w @gnuminator/mcp-server` — 1030 tests (lock + all 23 tool suites + dnd5e adapter/filters + standalone-config)
+- `npm test -w @gnuminator/cogm-dashboard` — 29 tests (Phase 6 player/GM split: auth + redact)
 - `node scripts/mcp-schema-smoke-test.mjs`
+- `node scripts/standalone-smoke-test.mjs` (Phase 6-A: standalone bridge on a free port)
+- `node scripts/cogm-split-smoke-test.mjs` (Phase 6-B: server-side player/GM split over HTTP)
 - `node validate-manifest.js`
 
-CI (`​.github/workflows/ci.yml`) runs build + the three unit suites (shared, foundry-module, mcp-server) + smoke + manifest on every push to `main`.
+**1120 unit tests total** (shared 49 + foundry-module 12 + mcp-server 1030 + cogm-dashboard 29).
+CI (`​.github/workflows/ci.yml`) runs build + the four unit suites + the schema/standalone/split smokes + manifest on every push to `main`.
 
 ## Decisions
 

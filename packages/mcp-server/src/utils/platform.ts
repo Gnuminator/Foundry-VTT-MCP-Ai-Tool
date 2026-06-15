@@ -2,7 +2,7 @@
  * Cross-platform utilities for detecting OS and providing platform-specific paths
  */
 
-export type Platform = 'win32' | 'darwin' | 'linux';
+export type Platform = 'win32' | 'linux';
 
 export function getPlatform(): Platform {
   return process.platform as Platform;
@@ -10,10 +10,6 @@ export function getPlatform(): Platform {
 
 export function isWindows(): boolean {
   return process.platform === 'win32';
-}
-
-export function isMac(): boolean {
-  return process.platform === 'darwin';
 }
 
 export function isLinux(): boolean {
@@ -32,14 +28,11 @@ export function getClaudeConfigDir(): string {
         ? `${process.env.APPDATA}\\Claude`
         : 'C:\\Users\\Default\\AppData\\Roaming\\Claude';
 
-    case 'darwin':
-      return `${process.env.HOME}/Library/Application Support/Claude`;
-
     case 'linux':
       return `${process.env.HOME}/.config/Claude`;
 
     default:
-      throw new Error(`Unsupported platform: ${platform}`);
+      throw new Error(`Unsupported platform: ${platform as string}`);
   }
 }
 
@@ -55,14 +48,11 @@ export function getFoundryDataDir(): string {
         ? `${process.env.LOCALAPPDATA}\\FoundryVTT\\Data`
         : 'C:\\Users\\Default\\AppData\\Local\\FoundryVTT\\Data';
 
-    case 'darwin':
-      return `${process.env.HOME}/Library/Application Support/FoundryVTT/Data`;
-
     case 'linux':
       return `${process.env.HOME}/.local/share/FoundryVTT/Data`;
 
     default:
-      throw new Error(`Unsupported platform: ${platform}`);
+      throw new Error(`Unsupported platform: ${platform as string}`);
   }
 }
 
@@ -78,14 +68,11 @@ export function getAppDataDir(): string {
         ? `${process.env.LOCALAPPDATA}\\FoundryMCPServer`
         : 'C:\\Users\\Default\\AppData\\Local\\FoundryMCPServer';
 
-    case 'darwin':
-      return `${process.env.HOME}/Library/Application Support/FoundryMCPServer`;
-
     case 'linux':
       return `${process.env.HOME}/.local/share/FoundryMCPServer`;
 
     default:
-      throw new Error(`Unsupported platform: ${platform}`);
+      throw new Error(`Unsupported platform: ${platform as string}`);
   }
 }
 
@@ -116,24 +103,10 @@ export function getHiddenProcessSpawnOptions(): {
       windowsHide: true,
     };
   } else {
-    // Mac and Linux: detached + ignore stdio to prevent terminal window
+    // Linux: detached + ignore stdio to prevent terminal window
     return {
       detached: true,
       stdio: 'ignore',
     };
   }
-}
-
-/**
- * Check if running on Apple Silicon (ARM64 Mac)
- */
-export function isAppleSilicon(): boolean {
-  return process.platform === 'darwin' && process.arch === 'arm64';
-}
-
-/**
- * Check if running on Intel Mac
- */
-export function isIntelMac(): boolean {
-  return process.platform === 'darwin' && process.arch === 'x64';
 }

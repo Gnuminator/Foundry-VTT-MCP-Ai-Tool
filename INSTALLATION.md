@@ -95,7 +95,7 @@ Starting Claude Desktop will start the MCP Server.
 1. **Check MCP Server status** in the Foundry MCP Bridge Module settings paged
 2. **Verify port 31415** is listening:
    - **Windows**: `netstat -an | findstr 31415`
-   - **macOS/Linux**: `netstat -an | grep 31415`
+   - **Linux**: `netstat -an | grep 31415`
 
 ### 2. Test Foundry Module
 

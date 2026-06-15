@@ -1,7 +1,7 @@
 name: Build Complete Release
 
 # Canonical release workflow for Foundry AI Tool. Builds the Windows NSIS installer,
-# Mac DMG, standalone MCP server ZIP, and Foundry module ZIP, then publishes a GitHub
+# standalone MCP server ZIP, and Foundry module ZIP, then publishes a GitHub
 # Release and updates the Foundry VTT Package Registry. Trigger manually via
 # workflow_dispatch or automatically on tag pushes (handled by create-release job).
 on:
@@ -222,122 +222,8 @@ jobs:
         path: installer/build/FoundryMCPServer-Setup-${{ env.PACKAGE_VERSION }}.exe
         retention-days: 30
 
-  build-mac-pkg:
-    runs-on: macos-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: '20.12.2'
-
-    - name: Set Package Version
-      id: version
-      run: |
-        if [ -n "${{ github.event.inputs.version }}" ]; then
-          VERSION="${{ github.event.inputs.version }}"
-          echo "✓ Using manual input version: $VERSION"
-
-          # Validate version format
-          if ! echo "$VERSION" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+'; then
-            echo "❌ Invalid version format: '$VERSION'. Expected format: v0.0.0 or 0.0.0"
-            exit 1
-          fi
-        elif [ "${{ github.ref_type }}" = "tag" ]; then
-          VERSION="${{ github.ref_name }}"
-          echo "✓ Using tag version: $VERSION"
-
-          # Validate tag version format
-          if ! echo "$VERSION" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+'; then
-            echo "❌ Invalid tag version format: '$VERSION'. Expected format: v0.0.0"
-            exit 1
-          fi
-        else
-          echo "📋 Reading version from package.json..."
-
-          # Check if package.json exists
-          if [ ! -f "package.json" ]; then
-            echo "❌ package.json not found in repository root"
-            exit 1
-          fi
-
-          # Read and parse package.json (using node for JSON parsing)
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-
-          # Validate version field exists
-          if [ -z "$PACKAGE_VERSION" ]; then
-            echo "❌ No 'version' field found in package.json"
-            exit 1
-          fi
-
-          echo "📦 Found package.json version: $PACKAGE_VERSION"
-
-          # Validate version format
-          if ! echo "$PACKAGE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+'; then
-            echo "❌ Invalid package.json version format: '$PACKAGE_VERSION'. Expected format: 0.0.0"
-            exit 1
-          fi
-
-          VERSION="v$PACKAGE_VERSION"
-          echo "✓ Using package.json version: $VERSION"
-        fi
-
-        echo "🎯 Final PACKAGE_VERSION: $VERSION"
-        echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-    - name: Install workspace dependencies (CI)
-      run: npm ci --workspaces --include-workspace-root
-
-    - name: Build shared types
-      run: npm run build --workspace=shared
-
-    - name: Build MCP Server (Bundled)
-      run: npm run build:bundle --workspace=packages/mcp-server
-
-    - name: Build Foundry Module
-      run: npm run build --workspace=packages/foundry-module
-
-    - name: Build Mac PKG Installer
-      run: |
-        cd installer
-        node build-mac-pkg.js
-
-    - name: Build Mac DMG Distribution
-      run: |
-        cd installer
-        node build-dmg.js
-
-    - name: Verify Mac DMG
-      run: |
-        cd installer/build
-        ls -lh
-        # Strip 'v' prefix from version for filename check
-        VERSION="${{ env.PACKAGE_VERSION }}"
-        VERSION_NO_V="${VERSION#v}"
-        if [ -f "FoundryMCPServer-${VERSION_NO_V}.dmg" ]; then
-          echo "✓ Mac DMG distribution found"
-          SIZE=$(du -h "FoundryMCPServer-${VERSION_NO_V}.dmg" | cut -f1)
-          echo "📊 DMG size: $SIZE"
-          # Copy with v prefix for artifact upload consistency
-          cp "FoundryMCPServer-${VERSION_NO_V}.dmg" "FoundryMCPServer-${VERSION}.dmg"
-        else
-          echo "❌ Mac DMG not found (expected: FoundryMCPServer-${VERSION_NO_V}.dmg)"
-          exit 1
-        fi
-
-    - name: Upload Mac DMG as artifact
-      uses: actions/upload-artifact@v6
-      with:
-        name: foundry-mcp-server-dmg-${{ env.PACKAGE_VERSION }}
-        path: installer/build/FoundryMCPServer-${{ env.PACKAGE_VERSION }}.dmg
-        retention-days: 30
-
   create-release:
-    needs: [build-nsis, build-mac-pkg]
+    needs: [build-nsis]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
@@ -375,12 +261,6 @@ jobs:
       uses: actions/download-artifact@v6
       with:
         name: foundry-mcp-server-installer-${{ env.PACKAGE_VERSION }}
-        path: installer/build/
-
-    - name: Download Mac DMG artifact
-      uses: actions/download-artifact@v6
-      with:
-        name: foundry-mcp-server-dmg-${{ env.PACKAGE_VERSION }}
         path: installer/build/
 
     - name: Create Foundry Module ZIP
@@ -455,14 +335,7 @@ jobs:
           - Run installer (no admin rights required)
           - Automatic Claude Desktop configuration
 
-          **Mac Users:**
-          - Download `FoundryMCPServer-${{ github.ref_name }}.dmg`
-          - Open DMG and double-click the PKG installer
-          - Choose components: MCP Server (required), Foundry Module, ComfyUI AI Maps
-          - Automatic Claude Desktop configuration
-          - To uninstall: Double-click `Uninstall.tool` from the DMG
-
-          **Manual Installation (All Platforms):**
+          **Manual Installation:**
           - Download `foundry-mcp-server-${{ github.ref_name }}.zip`
           - Extract and run with Node.js 18+
           - Manual Claude Desktop configuration required
@@ -492,7 +365,6 @@ jobs:
           For full documentation, visit: https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool
         files: |
           installer/build/FoundryMCPServer-Setup-${{ env.PACKAGE_VERSION }}.exe
-          installer/build/FoundryMCPServer-${{ env.PACKAGE_VERSION }}.dmg
           foundry-ai-tool-module.zip
           foundry-mcp-server-${{ env.PACKAGE_VERSION }}.zip
           packages/foundry-module/module.json

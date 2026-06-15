@@ -177,31 +177,99 @@ the very top** with:
 
 ---
 
-## 6. Later — the demo motion piece (Animation tile)
+## 6. Motion — the animated brand pieces (Animation tile)
 
-You spotted the **Animation — Motion & video** tile. Two different things to keep straight:
+Same approach as the image passes: **one committed concept, broken into timed beats, with concrete
+motion direction.** Two real-vs-designed things to keep straight first:
 
 - **A real demo capture** (authentic — the actual app running): a 10–15s screen recording of Foundry +
   the dashboard during combat. That is _not_ made in the Design tool — record it on your machine
-  (OBS Studio / ShareX / Xbox Game Bar), then we optimize it to a GIF/MP4 and embed it. I'll write you a
-  shot-list when you're ready (see `docs/PHASE7-PLAN.md` §2-B).
-- **A stylized motion graphic** (polished — brand, not live footage): the **Animation** tile is great for
-  an **animated logo reveal** or a short **feature montage** built from the brand + your screenshots.
-  Use it for the top of a future showcase site or a social clip, _in addition to_ the real capture.
+  (OBS Studio / ShareX / Xbox Game Bar). I'll write you a shot-list when you're ready
+  (`docs/PHASE7-PLAN.md` §2-B). **This stays the README's primary demo.**
+- **Designed motion** (polished brand, not live footage): the **Animation — Motion & video** tile.
+  Two deliverables below — an **Ignition** logo reveal and a **feature sizzle**. Use them for a site
+  hero / social clip, _alongside_ the real capture.
 
-Starter prompt for the Animation tile (use it **after** the brand assets exist, and import the mark/
-banner/screenshots into that canvas first):
+### How to use
 
-> Make a **6–8 second animated logo reveal** for "Foundry AI Tool," 1280×720, dark `#0f1115`. Sequence:
-> (1) faint **hex-grid** fades in; (2) thin lines **draw on** to form the Arcane-Node mark; (3) the apex
-> node **ignites** in arcane blue `#4ea1ff` with a soft pulse + a single orange `#fe6a1f` spark;
-> (4) the **"Foundry AI Tool"** wordmark types/fades in beside it (Space Grotesk, "AI" in blue);
-> (5) hold, then a slow fade. Calm, precise, premium — easing in/out, no bouncy motion, no sci-fi
-> whoosh. Export as MP4 (and a looping GIF if available).
+Open the **Animation — Motion & video** tile. **First import your finished brand assets** into that
+canvas — `docs/images/brand/logo.svg`, `wordmark.svg`, and for the sizzle the screenshots in
+`docs/images/cogm/` — so it animates the real marks, not redrawn approximations. Then paste **Motion 0**
+to set the brief, then **Motion A**, iterate, and only then **Motion B** (it reuses A's opening).
+
+> **Reality check on motion clichés.** The whole point is _restraint_. If a result feels like a crypto
+> ad — fast whooshes, neon bloom, spinning, bouncy overshoot, lens flares — push back hard: _"slower,
+> calmer, no whoosh, ease in-out only, the glow is the only effect."_
+
+> **GitHub note.** A README can't autoplay an MP4 inline. For the README use the **real screen-capture
+> GIF**; keep these designed pieces for a showcase site / social / the repo's social-preview image.
+
+---
+
+### Motion 0 — set the motion brief (paste first)
+
+> You're now animating an existing brand, "Foundry AI Tool" (a dark "command center meets arcane
+> spellbook" identity for an AI-driven Foundry VTT tool). I've imported the mark and wordmark. Palette
+> on a near-black `#0f1115` base: structure off-white `#e6e9ef`, **primary accent arcane blue
+> `#4ea1ff`** (the glowing "active node"), one small **Foundry-orange `#fe6a1f`** spark; wordmark in
+> Space Grotesk with "AI" in blue; any captions in a muted mono (`#9aa3b2`).
 >
-> _(For a feature montage instead: import the dashboard screenshots from `docs/images/cogm/` and ask for
-> a 12–15s sequence that pans/cross-fades between them with short blue-accented captions —
-> "Live combat tracker," "AI co-GM," "Tool Runner," "Player view" — over the dark brand background.)_
+> **Motion principles, hold to these:** calm, precise, premium. **Cubic ease-in-out only — no overshoot,
+> no bounce, no motion blur, no whoosh/swoosh, no lens flare, no fast zoom-punches.** Deliberate timing.
+> **The node glow is the only "effect."** Think a high-end instrument booting up, not an ad. Confirm,
+> then wait — I'll send each scene.
+
+### Motion A — "Ignition" logo reveal (~8s)
+
+> Animate an **8-second logo reveal**, 1920×1080 (also export 1280×720), 30fps, on `#0f1115`. Concept:
+> the sigil is **inscribed**, then the AI node **comes online**. Beat sheet (timecodes):
+>
+> - **0.0–0.6s** — black; a faint hex grid fades up to ~12% across the frame (the "table").
+> - **0.6–2.6s** — the **hexagon outline draws on** as one continuous stroke (stroke-dashoffset draw),
+>   off-white, ease-in-out; it settles gently as it closes.
+> - **2.2–3.6s** — the **inner glyph lines draw on**, node to node (the rune being inscribed); inactive
+>   nodes appear as small off-white rings.
+> - **3.6–4.2s** — a held **beat of stillness** on the unlit sigil. (Don't skip this — the pause sells it.)
+> - **4.2–5.0s** — **IGNITION** (the hero moment): the apex node fills **arcane blue `#4ea1ff`** and a
+>   **soft radial glow blooms** outward (scale + fade), one quick **orange `#fe6a1f` spark** flicks on the
+>   accent edge, and a subtle pulse of light travels along the connecting lines once.
+> - **5.0–6.6s** — the **wordmark resolves** to the right of the mark via a left-to-right mask wipe
+>   (Space Grotesk); **"AI" tints blue a beat after** the rest.
+> - **6.0–6.8s** — the **tagline** fades in beneath in muted mono: _"Live AI access to your Foundry VTT
+>   game."_
+> - **6.8–8.0s** — hold the full lockup; the node glow **breathes once**, then a slow fade to black.
+>
+> Also produce a **3-second seamless loop** of just the ignition + glow-breath (4.2–6.6s eased back to
+> start) for a badge/hero loop. Export **MP4 (H.264)** + a **looping GIF** of the 3s loop; if possible a
+> **transparent-background WebM** of the mark animation alone (for overlaying on a site).
+
+### Motion B — "The Table, Live" feature sizzle (~16s)
+
+> Now a **16-second feature sizzle**, 1920×1080, 30fps, on `#0f1115`. Use my imported dashboard
+> screenshots as the content, each framed inside the dark brand world (thin `#272c38` hairline frame,
+> generous dark margin). Rhythm ~3s per feature, **cross-dissolves not hard cuts**, a slow ≤5% Ken-Burns
+> scale on each still — no spinning, no zoom-punches. Beat sheet:
+>
+> - **0.0–2.0s** — a compressed version of the **Ignition** mark; then the lockup shrinks to a small
+>   bottom-corner watermark and stays.
+> - **2.0–5.0s** — `overview.png` eases in; mono caption types in lower-left: **"Live combat tracker"**,
+>   a thin **blue underline draws** beneath it.
+> - **5.0–8.0s** — `combat-control.png`; caption **"Run the game from the dashboard"**; a soft blue
+>   highlight ring pulses once over the multi-select area.
+> - **8.0–11.0s** — `tool-runner.png`; caption **"Every Foundry tool, one form"**.
+> - **11.0–14.0s** — `confirm.png`; caption **"Safe by default — confirm before you act"**. _(Swap in a
+>   `/player` screenshot when it exists: **"Player view — server-filtered"**.)_
+> - **14.0–16.0s** — stills cross-dissolve back to the **centered lockup + tagline**, with a final mono
+>   call-to-action line: **`github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool`**; hold, slow fade.
+>
+> Captions: muted mono `#9aa3b2`, the keyword tinted blue. Keep one orange spark total across the whole
+> piece. Export **MP4** + a **muted ≤15s version** suitable for autoplay on a site/social.
+
+**Audio (optional):** a low, quiet drone bed + a single soft "power-up" chime exactly on the 4.2s
+ignition; otherwise silent (site/README playback is muted anyway).
+
+**Where it goes:** site hero / social / the repo's **Settings → Social preview** image (export a still
+frame of the lit lockup for that). Not the README inline video — use the real-capture GIF there.
 
 ---
 

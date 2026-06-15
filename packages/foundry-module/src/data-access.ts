@@ -12,17 +12,17 @@ interface CharacterInfo {
   system: Record<string, unknown>;
   items: CharacterItem[];
   effects: CharacterEffect[];
-  actions?: any[]; // PF2e actions (strikes, spells, etc.)
+  actions?: any[]; // system actions (strikes, spells, etc.)
   itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
   itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
-  spellcasting?: SpellcastingEntry[]; // PF2e/D&D 5e spellcasting entries
+  spellcasting?: SpellcastingEntry[]; // spellcasting entries
 }
 
 interface SpellcastingEntry {
   id: string;
   name: string;
-  tradition?: string | undefined; // arcane, divine, primal, occult (PF2e)
-  type: string; // prepared, spontaneous, innate, focus (PF2e) or class name (5e)
+  tradition?: string | undefined; // arcane, divine, etc.
+  type: string; // prepared, spontaneous, innate, focus, or class name (5e)
   ability?: string | undefined; // spellcasting ability (int, wis, cha)
   dc?: number | undefined;
   attack?: number | undefined;
@@ -96,65 +96,15 @@ interface DnD5eCreatureIndex {
   img?: string;
 }
 
-// Pathfinder 2e Enhanced Creature Index
-interface PF2eCreatureIndex {
-  id: string;
-  name: string;
-  type: string;
-  pack: string;
-  packLabel: string;
-  level: number; // PF2e: -1 to 25+
-  traits: string[]; // PF2e: ['dragon', 'fire', 'amphibious']
-  creatureType: string; // Primary trait extracted from traits array
-  rarity: string; // PF2e: 'common', 'uncommon', 'rare', 'unique'
-  size: string;
-  hitPoints: number;
-  armorClass: number;
-  hasSpells: boolean;
-  alignment: string;
-  description?: string;
-  img?: string;
-}
-
-// Cosmere RPG (Plotweaver) Enhanced Creature Index
-//
-// Plotweaver categorises adversaries by `tier` (1-4) and `role`
-// (minion/rival/boss) rather than CR or level — those are the primary
-// encounter-design dials. Defenses are split into phy/cog/spi instead
-// of a single AC, and Investiture is the Surge/Stormlight resource.
-interface CosmereRpgCreatureIndex {
-  id: string;
-  name: string;
-  type: string; // 'adversary' for compendium creatures
-  pack: string;
-  packLabel: string;
-  tier: number; // 1-4
-  role: string; // minion | rival | boss | (system-extended)
-  creatureType: string; // humanoid | animal | spren | …
-  subtype: string; // free-form secondary type
-  size: string;
-  hitPoints: number; // resources.hea.max (override-aware)
-  focus: number; // resources.foc.max
-  investiture: number; // resources.inv.max — typically 0
-  hasInvestiture: boolean;
-  defensePhysical: number;
-  defenseCognitive: number;
-  defenseSpiritual: number;
-  deflect: number;
-  walkSpeed: number;
-  description?: string;
-  img?: string;
-}
-
-// Union type across all supported systems
-type EnhancedCreatureIndex = DnD5eCreatureIndex | PF2eCreatureIndex | CosmereRpgCreatureIndex;
+// D&D 5e is the only supported system
+type EnhancedCreatureIndex = DnD5eCreatureIndex;
 
 interface PersistentIndexMetadata {
   version: string;
   timestamp: number;
   packFingerprints: Map<string, PackFingerprint>;
   totalCreatures: number;
-  gameSystem: string; // 'dnd5e' or 'pf2e'
+  gameSystem: string; // 'dnd5e'
 }
 
 interface PackFingerprint {
@@ -598,16 +548,12 @@ class PersistentCreatureIndex {
 
     console.log(`[${this.moduleId}] Building enhanced creature index for system: ${gameSystem}`);
 
-    // Route to system-specific builder
-    if (gameSystem === 'pf2e') {
-      return await this.buildPF2eIndex(force);
-    } else if (gameSystem === 'dnd5e') {
+    // Route to D&D 5e builder (only supported system)
+    if (gameSystem === 'dnd5e') {
       return await this.buildDnD5eIndex(force);
-    } else if (gameSystem === 'cosmere-rpg') {
-      return await this.buildCosmereRpgIndex(force);
     } else {
       throw new Error(
-        `Enhanced creature index not supported for system: ${gameSystem}. Only D&D 5e, Pathfinder 2e, and Cosmere RPG are currently supported.`
+        `Enhanced creature index is only supported for D&D 5e (detected system: ${gameSystem}).`
       );
     }
   }
@@ -966,527 +912,6 @@ class PersistentCreatureIndex {
       };
     }
   }
-
-  /**
-   * Build Pathfinder 2e enhanced creature index
-   */
-  private async buildPF2eIndex(_force = false): Promise<PF2eCreatureIndex[]> {
-    this.buildInProgress = true;
-
-    const startTime = Date.now();
-    let progressNotification: any = null;
-    let totalErrors = 0;
-
-    try {
-      const actorPacks = Array.from(game.packs.values()).filter(
-        pack => pack.metadata.type === 'Actor'
-      );
-      const enhancedCreatures: PF2eCreatureIndex[] = [];
-      const packFingerprints = new Map<string, PackFingerprint>();
-
-      ui.notifications?.info(
-        `Starting PF2e creature index build from ${actorPacks.length} packs...`
-      );
-
-      let currentPack = 0;
-      for (const pack of actorPacks) {
-        currentPack++;
-
-        if (progressNotification) {
-          progressNotification.remove();
-        }
-        progressNotification = ui.notifications?.info(
-          `Building PF2e index: Pack ${currentPack}/${actorPacks.length} (${pack.metadata.label})...`
-        );
-
-        const fingerprint = await this.generatePackFingerprint(pack);
-        packFingerprints.set(pack.metadata.id, fingerprint);
-
-        const result = await this.extractPF2eDataFromPack(pack);
-        enhancedCreatures.push(...result.creatures);
-        totalErrors += result.errors;
-      }
-
-      if (progressNotification) {
-        progressNotification.remove();
-      }
-      ui.notifications?.info(
-        `Saving PF2e index to world database... (${enhancedCreatures.length} creatures)`
-      );
-
-      const persistentIndex: PersistentEnhancedIndex = {
-        metadata: {
-          version: this.INDEX_VERSION,
-          timestamp: Date.now(),
-          packFingerprints,
-          totalCreatures: enhancedCreatures.length,
-          gameSystem: 'pf2e', // Mark as PF2e index
-        },
-        creatures: enhancedCreatures,
-      };
-
-      await this.savePersistedIndex(persistentIndex);
-
-      const buildTimeSeconds = Math.round((Date.now() - startTime) / 1000);
-      const errorText = totalErrors > 0 ? ` (${totalErrors} extraction errors)` : '';
-      const successMessage = `PF2e creature index complete! ${enhancedCreatures.length} creatures indexed from ${actorPacks.length} packs in ${buildTimeSeconds}s${errorText}`;
-
-      ui.notifications?.info(successMessage);
-
-      return enhancedCreatures;
-    } catch (error) {
-      if (progressNotification) {
-        progressNotification.remove();
-      }
-
-      const errorMessage = `Failed to build PF2e creature index: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      console.error(`[${this.moduleId}] ${errorMessage}`);
-      ui.notifications?.error(errorMessage);
-
-      throw error;
-    } finally {
-      this.buildInProgress = false;
-
-      if (progressNotification) {
-        progressNotification.remove();
-      }
-    }
-  }
-
-  /**
-   * Extract PF2e creature data from all documents in a pack
-   */
-  private async extractPF2eDataFromPack(
-    pack: any
-  ): Promise<{ creatures: PF2eCreatureIndex[]; errors: number }> {
-    const creatures: PF2eCreatureIndex[] = [];
-    let errors = 0;
-
-    try {
-      const documents = await pack.getDocuments();
-
-      for (const doc of documents) {
-        try {
-          // Support NPCs, characters, and creatures
-          if (doc.type !== 'npc' && doc.type !== 'character' && doc.type !== 'creature') {
-            continue;
-          }
-
-          const result = this.extractPF2eCreatureData(doc, pack);
-          if (result) {
-            creatures.push(result.creature);
-            errors += result.errors;
-          }
-        } catch (error) {
-          console.warn(
-            `[${this.moduleId}] Failed to extract PF2e data from ${doc.name} in ${pack.metadata.label}:`,
-            error
-          );
-          errors++;
-        }
-      }
-    } catch (error) {
-      console.warn(
-        `[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`,
-        error
-      );
-      errors++;
-    }
-
-    return { creatures, errors };
-  }
-
-  /**
-   * Extract Pathfinder 2e creature data from a single document
-   */
-  private extractPF2eCreatureData(
-    doc: any,
-    pack: any
-  ): { creature: PF2eCreatureIndex; errors: number } | null {
-    try {
-      const system = doc.system || {};
-
-      // Level extraction (PF2e primary power metric)
-      let level = system.details?.level?.value ?? 0;
-      level = Number(level) || 0;
-
-      // Traits extraction (PF2e uses array of traits)
-      const traitsValue = system.traits?.value || [];
-      const traits = Array.isArray(traitsValue) ? traitsValue : [];
-
-      // Extract primary creature type from traits
-      const creatureTraits = [
-        'aberration',
-        'animal',
-        'beast',
-        'celestial',
-        'construct',
-        'dragon',
-        'elemental',
-        'fey',
-        'fiend',
-        'fungus',
-        'humanoid',
-        'monitor',
-        'ooze',
-        'plant',
-        'undead',
-      ];
-      const creatureType =
-        traits.find((t: string) => creatureTraits.includes(t.toLowerCase()))?.toLowerCase() ||
-        'unknown';
-
-      // Rarity extraction (PF2e specific)
-      const rarity = system.traits?.rarity || 'common';
-
-      // Size extraction
-      let size = system.traits?.size?.value || 'med';
-      // Normalize PF2e size values (tiny, sm, med, lg, huge, grg)
-      const sizeMap: Record<string, string> = {
-        tiny: 'tiny',
-        sm: 'small',
-        med: 'medium',
-        lg: 'large',
-        huge: 'huge',
-        grg: 'gargantuan',
-      };
-      size = sizeMap[size.toLowerCase()] || 'medium';
-
-      // Hit Points
-      const hitPoints = system.attributes?.hp?.max || 0;
-
-      // Armor Class
-      const armorClass = system.attributes?.ac?.value || 10;
-
-      // Spellcasting detection (PF2e uses spellcasting entries)
-      const spellcasting = system.spellcasting || {};
-      const hasSpells = Object.keys(spellcasting).length > 0;
-
-      // Alignment
-      let alignment = system.details?.alignment?.value || 'N';
-      if (typeof alignment !== 'string') {
-        alignment = String(alignment || 'N');
-      }
-
-      return {
-        creature: {
-          id: doc._id,
-          name: doc.name,
-          type: doc.type,
-          pack: pack.metadata.id,
-          packLabel: pack.metadata.label,
-          level: level,
-          traits: traits,
-          creatureType: creatureType,
-          rarity: rarity,
-          size: size,
-          hitPoints: hitPoints,
-          armorClass: armorClass,
-          hasSpells: hasSpells,
-          alignment: alignment.toUpperCase(),
-          description: system.details?.publicNotes || system.details?.biography || '',
-          img: doc.img,
-        },
-        errors: 0,
-      };
-    } catch (error) {
-      console.warn(`[${this.moduleId}] Failed to extract PF2e data from ${doc.name}:`, error);
-
-      // Fallback with error count
-      return {
-        creature: {
-          id: doc._id,
-          name: doc.name,
-          type: doc.type,
-          pack: pack.metadata.id,
-          packLabel: pack.metadata.label,
-          level: 0,
-          traits: [],
-          creatureType: 'unknown',
-          rarity: 'common',
-          size: 'medium',
-          hitPoints: 1,
-          armorClass: 10,
-          hasSpells: false,
-          alignment: 'N',
-          description: 'Data extraction failed',
-          img: doc.img || '',
-        },
-        errors: 1,
-      };
-    }
-  }
-
-  /**
-   * Build Cosmere RPG (Plotweaver) enhanced creature index.
-   *
-   * Indexes `adversary`-type actors. Player characters are excluded —
-   * they're individual sheets, not encounter material.
-   */
-  private async buildCosmereRpgIndex(_force = false): Promise<CosmereRpgCreatureIndex[]> {
-    this.buildInProgress = true;
-
-    const startTime = Date.now();
-    let progressNotification: any = null;
-    let totalErrors = 0;
-
-    try {
-      const actorPacks = Array.from(game.packs.values()).filter(
-        pack => pack.metadata.type === 'Actor'
-      );
-      const enhancedCreatures: CosmereRpgCreatureIndex[] = [];
-      const packFingerprints = new Map<string, PackFingerprint>();
-
-      ui.notifications?.info(
-        `Starting Cosmere RPG creature index build from ${actorPacks.length} packs...`
-      );
-
-      for (let i = 0; i < actorPacks.length; i++) {
-        const pack = actorPacks[i];
-        const progressPercent = Math.round((i / actorPacks.length) * 100);
-
-        if (i % 3 === 0 || pack.metadata.label.toLowerCase().includes('adversar')) {
-          if (progressNotification) {
-            progressNotification.remove();
-          }
-          progressNotification = ui.notifications?.info(
-            `Building creature index... ${progressPercent}% (${i + 1}/${actorPacks.length}) Processing: ${pack.metadata.label}`
-          );
-        }
-
-        try {
-          if (!pack.indexed) {
-            await pack.getIndex({});
-          }
-
-          packFingerprints.set(pack.metadata.id, this.generatePackFingerprint(pack));
-
-          const packResult = await this.extractCosmereRpgDataFromPack(pack);
-          enhancedCreatures.push(...packResult.creatures);
-          totalErrors += packResult.errors;
-
-          if (i === 0 || (i + 1) % 5 === 0 || i === actorPacks.length - 1) {
-            const totalCreaturesSoFar = enhancedCreatures.length;
-            if (progressNotification) {
-              progressNotification.remove();
-            }
-            progressNotification = ui.notifications?.info(
-              `Index Progress: ${i + 1}/${actorPacks.length} packs complete, ${totalCreaturesSoFar} creatures indexed`
-            );
-          }
-        } catch (error) {
-          console.warn(`[${this.moduleId}] Failed to process pack ${pack.metadata.label}:`, error);
-          ui.notifications?.warn(
-            `Warning: Failed to index pack "${pack.metadata.label}" - continuing with other packs`
-          );
-        }
-      }
-
-      if (progressNotification) {
-        progressNotification.remove();
-      }
-      ui.notifications?.info(
-        `Saving enhanced index to world database... (${enhancedCreatures.length} creatures)`
-      );
-
-      const persistentIndex: PersistentEnhancedIndex = {
-        metadata: {
-          version: this.INDEX_VERSION,
-          timestamp: Date.now(),
-          packFingerprints,
-          totalCreatures: enhancedCreatures.length,
-          gameSystem: 'cosmere-rpg',
-        },
-        creatures: enhancedCreatures,
-      };
-
-      await this.savePersistedIndex(persistentIndex);
-
-      const buildTimeSeconds = Math.round((Date.now() - startTime) / 1000);
-      const errorText = totalErrors > 0 ? ` (${totalErrors} extraction errors)` : '';
-      const successMessage = `Cosmere RPG creature index complete! ${enhancedCreatures.length} creatures indexed from ${actorPacks.length} packs in ${buildTimeSeconds}s${errorText}`;
-
-      ui.notifications?.info(successMessage);
-
-      return enhancedCreatures;
-    } catch (error) {
-      if (progressNotification) {
-        progressNotification.remove();
-      }
-
-      const errorMessage = `Failed to build Cosmere RPG creature index: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      console.error(`[${this.moduleId}] ${errorMessage}`);
-      ui.notifications?.error(errorMessage);
-
-      throw error;
-    } finally {
-      this.buildInProgress = false;
-      if (progressNotification) {
-        progressNotification.remove();
-      }
-    }
-  }
-
-  /**
-   * Extract Cosmere RPG creatures from a single pack.
-   */
-  private async extractCosmereRpgDataFromPack(
-    pack: any
-  ): Promise<{ creatures: CosmereRpgCreatureIndex[]; errors: number }> {
-    const creatures: CosmereRpgCreatureIndex[] = [];
-    let errors = 0;
-
-    try {
-      const documents = await pack.getDocuments();
-
-      for (const doc of documents) {
-        try {
-          if (doc.type !== 'adversary') {
-            continue;
-          }
-
-          const result = this.extractCosmereRpgCreatureData(doc, pack);
-          if (result) {
-            creatures.push(result.creature);
-            errors += result.errors;
-          }
-        } catch (error) {
-          console.warn(
-            `[${this.moduleId}] Failed to extract Cosmere RPG data from ${doc.name} in ${pack.metadata.label}:`,
-            error
-          );
-          errors++;
-        }
-      }
-    } catch (error) {
-      console.warn(
-        `[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`,
-        error
-      );
-      errors++;
-    }
-
-    return { creatures, errors };
-  }
-
-  /**
-   * Resolve a Cosmere DerivedValueField (`{value, derived, override?, useOverride, bonus?}`).
-   * Honours `useOverride: true` so manually-typed values (like Investiture max
-   * on a sheet the system can't auto-derive) come through correctly.
-   */
-  private readDerived(field: any): number | undefined {
-    if (field == null) return undefined;
-    if (typeof field === 'number') return field;
-    if (typeof field === 'object') {
-      if (field.useOverride === true && typeof field.override === 'number') {
-        return field.override;
-      }
-      if (typeof field.value === 'number') return field.value;
-      if (typeof field.derived === 'number') return field.derived;
-    }
-    return undefined;
-  }
-
-  /**
-   * Extract a single Cosmere RPG adversary into the creature index format.
-   */
-  private extractCosmereRpgCreatureData(
-    doc: any,
-    pack: any
-  ): { creature: CosmereRpgCreatureIndex; errors: number } | null {
-    try {
-      const system = doc.system ?? {};
-
-      const tier = typeof system.tier === 'number' ? system.tier : 0;
-      const role =
-        typeof system.role === 'string' && system.role.length > 0
-          ? system.role.toLowerCase()
-          : 'unknown';
-
-      const size =
-        typeof system.size === 'string' && system.size.length > 0
-          ? system.size.toLowerCase()
-          : 'medium';
-
-      const creatureType =
-        typeof system.type?.id === 'string' && system.type.id.length > 0
-          ? system.type.id.toLowerCase()
-          : 'unknown';
-
-      const subtype =
-        typeof system.type?.subtype === 'string' && system.type.subtype.length > 0
-          ? system.type.subtype
-          : '';
-
-      const hitPoints = this.readDerived(system.resources?.hea?.max) ?? 0;
-      const focus = this.readDerived(system.resources?.foc?.max) ?? 0;
-      const investiture = this.readDerived(system.resources?.inv?.max) ?? 0;
-
-      const defensePhysical = this.readDerived(system.defenses?.phy) ?? 0;
-      const defenseCognitive = this.readDerived(system.defenses?.cog) ?? 0;
-      const defenseSpiritual = this.readDerived(system.defenses?.spi) ?? 0;
-
-      const deflect = this.readDerived(system.deflect) ?? 0;
-      const walkSpeed = this.readDerived(system.movement?.walk?.rate) ?? 0;
-
-      return {
-        creature: {
-          id: doc._id,
-          name: doc.name,
-          type: doc.type,
-          pack: pack.metadata.id,
-          packLabel: pack.metadata.label,
-          tier,
-          role,
-          creatureType,
-          subtype,
-          size,
-          hitPoints,
-          focus,
-          investiture,
-          hasInvestiture: investiture > 0,
-          defensePhysical,
-          defenseCognitive,
-          defenseSpiritual,
-          deflect,
-          walkSpeed,
-          img: doc.img,
-        },
-        errors: 0,
-      };
-    } catch (error) {
-      console.warn(
-        `[${this.moduleId}] Failed to extract Cosmere RPG data from ${doc.name}:`,
-        error
-      );
-      return {
-        creature: {
-          id: doc._id,
-          name: doc.name,
-          type: doc.type,
-          pack: pack.metadata.id,
-          packLabel: pack.metadata.label,
-          tier: 0,
-          role: 'unknown',
-          creatureType: 'unknown',
-          subtype: '',
-          size: 'medium',
-          hitPoints: 0,
-          focus: 0,
-          investiture: 0,
-          hasInvestiture: false,
-          defensePhysical: 0,
-          defenseCognitive: 0,
-          defenseSpiritual: 0,
-          deflect: 0,
-          walkSpeed: 0,
-          description: 'Data extraction failed',
-          img: doc.img || '',
-        },
-        errors: 1,
-      };
-    }
-  }
 }
 
 export class FoundryDataAccess {
@@ -1578,10 +1003,9 @@ export class FoundryDataAccess {
       }),
     };
 
-    // Add PF2e-specific data if available
     const actorAny = actor as any;
 
-    // Include actions (PF2e strikes, spells, etc.)
+    // Include actions (strikes, spells, etc.)
     if (actorAny.system?.actions) {
       characterData.actions = actorAny.system.actions.map((action: any) => ({
         name: action.label || action.name,
@@ -1657,7 +1081,7 @@ export class FoundryDataAccess {
       characterData.itemToggles = itemToggles;
     }
 
-    // Extract spellcasting data (PF2e and D&D 5e)
+    // Extract spellcasting data
     const spellcastingEntries = this.extractSpellcastingData(actor);
     if (spellcastingEntries.length > 0) {
       characterData.spellcasting = spellcastingEntries;
@@ -1774,31 +1198,12 @@ export class FoundryDataAccess {
         result.expended = itemSystem?.location?.expended;
 
         // Get targeting info
-        if (systemId === 'pf2e') {
-          const targeting = this.extractPF2eSpellTargeting(itemSystem);
-          if (targeting.range) result.range = targeting.range;
-          if (targeting.target) result.target = targeting.target;
-          if (targeting.area) result.area = targeting.area;
-          result.actionCost = this.formatPF2eActionCost(itemSystem?.time?.value);
-          result.traits = itemSystem?.traits?.value || [];
-        } else if (systemId === 'dnd5e') {
+        if (systemId === 'dnd5e') {
           const targeting = this.extractDnD5eSpellTargeting(itemSystem);
           if (targeting.range) result.range = targeting.range;
           if (targeting.target) result.target = targeting.target;
           if (targeting.area) result.area = targeting.area;
           result.actionCost = itemSystem?.activation?.type;
-        } else if (systemId === 'dsa5') {
-          const targeting = this.extractDSA5SpellTargeting(itemSystem);
-          if (targeting.range) result.range = targeting.range;
-          if (targeting.target) result.target = targeting.target;
-          if (targeting.area) result.area = targeting.area;
-          result.actionCost = itemSystem?.castingTime?.value;
-        } else if (systemId === 'wfrp4e') {
-          // WFRP4e spells use a Casting Number (CN) rather than levels/slots.
-          if (itemSystem?.range?.value) result.range = itemSystem.range.value;
-          if (itemSystem?.target?.value) result.target = itemSystem.target.value;
-          const cn = itemSystem?.cn?.value;
-          if (cn !== undefined && cn !== null) result.actionCost = `CN ${cn}`;
         }
 
         // Category filter for spells
@@ -1828,41 +1233,9 @@ export class FoundryDataAccess {
         }
       }
 
-      // WFRP4e equipment fields (British 'armour'; 'trapping' is generic gear)
-      if (
-        systemId === 'wfrp4e' &&
-        ['weapon', 'armour', 'trapping', 'ammunition', 'container'].includes(item.type)
-      ) {
-        result.quantity = itemSystem?.quantity?.value ?? 1;
-        result.equipped = itemSystem?.equipped?.value ?? (item as any).isEquipped ?? false;
+      // Feat/feature fields — no additional extraction needed for D&D 5e
 
-        if (searchCategory === 'equipped' && !result.equipped) continue;
-      }
-
-      // WFRP4e prayer targeting (divine magic; item type 'prayer')
-      if (systemId === 'wfrp4e' && item.type === 'prayer') {
-        if (itemSystem?.range?.value) result.range = itemSystem.range.value;
-        if (itemSystem?.target?.value) result.target = itemSystem.target.value;
-      }
-
-      // Feat/feature fields
-      if (['feat', 'feature', 'class', 'ancestry', 'heritage', 'background'].includes(item.type)) {
-        if (systemId === 'pf2e') {
-          result.traits = itemSystem?.traits?.value || [];
-          result.level = itemSystem?.level?.value ?? undefined;
-          result.actionCost = this.formatPF2eActionCost(itemSystem?.actionType?.value);
-        }
-      }
-
-      // Action fields
-      if (item.type === 'action') {
-        if (systemId === 'pf2e') {
-          result.traits = itemSystem?.traits?.value || [];
-          result.actionCost = this.formatPF2eActionCost(
-            itemSystem?.actionType?.value || itemSystem?.actions?.value
-          );
-        }
-      }
+      // Action fields — no additional extraction needed for D&D 5e
 
       matches.push(result);
 
@@ -1886,11 +1259,6 @@ export class FoundryDataAccess {
           type: 'action',
           actionType: action.type || action.actionType || 'action',
         };
-
-        if (systemId === 'pf2e') {
-          result.traits = action.traits || [];
-          result.actionCost = this.formatPF2eActionCost(action.actionCost?.value || action.actions);
-        }
 
         matches.push(result);
       }
@@ -1949,7 +1317,7 @@ export class FoundryDataAccess {
   }
 
   /**
-   * Extract spellcasting data from an actor (supports PF2e, D&D 5e, DSA5, and WFRP4e)
+   * Extract spellcasting data from an actor (D&D 5e)
    */
   private extractSpellcastingData(actor: Actor): SpellcastingEntry[] {
     const entries: SpellcastingEntry[] = [];
@@ -1959,117 +1327,7 @@ export class FoundryDataAccess {
     // Get all spell items from the actor
     const spellItems = actor.items.filter(item => item.type === 'spell');
 
-    if (systemId === 'pf2e') {
-      // PF2e: Extract from spellcastingEntries
-      const spellcastingEntries =
-        actorAny.spellcasting?.contents ||
-        actorAny.items?.filter((i: any) => i.type === 'spellcastingEntry') ||
-        [];
-
-      for (const entry of spellcastingEntries) {
-        const entryData = entry.system || entry;
-        const entrySpells: SpellInfo[] = [];
-
-        // Get spells associated with this entry
-        // In PF2e, spells have a location property pointing to their spellcasting entry
-        const entryId = entry.id;
-        const associatedSpells = spellItems.filter((spell: any) => {
-          const spellSystem = spell.system as any;
-          return spellSystem?.location?.value === entryId || spellSystem?.location === entryId;
-        });
-
-        for (const spell of associatedSpells) {
-          const spellSystem = spell.system as any;
-          const targeting = this.extractPF2eSpellTargeting(spellSystem);
-          entrySpells.push({
-            id: spell.id || '',
-            name: spell.name || '',
-            level: spellSystem?.level?.value ?? spellSystem?.rank ?? 0,
-            prepared: spellSystem?.location?.prepared ?? true,
-            expended: spellSystem?.location?.expended ?? false,
-            traits: spellSystem?.traits?.value || [],
-            actionCost: this.formatPF2eActionCost(spellSystem?.time?.value),
-            range: targeting.range,
-            target: targeting.target,
-            area: targeting.area,
-          });
-        }
-
-        // Also check for spells in the entry's spell collection
-        if (entry.spells) {
-          for (const [levelKey, levelData] of Object.entries(entry.spells as Record<string, any>)) {
-            const spellsAtLevel = levelData?.value || levelData || [];
-            if (Array.isArray(spellsAtLevel)) {
-              for (const spellRef of spellsAtLevel) {
-                // Skip if we already have this spell
-                if (entrySpells.some(s => s.id === spellRef.id)) continue;
-
-                const spellItem = actor.items.get(spellRef.id || spellRef);
-                if (spellItem) {
-                  const spellSystem = spellItem.system as any;
-                  const targeting = this.extractPF2eSpellTargeting(spellSystem);
-                  entrySpells.push({
-                    id: spellItem.id || '',
-                    name: spellItem.name || '',
-                    level:
-                      parseInt(levelKey.replace('spell', '')) || spellSystem?.level?.value || 0,
-                    prepared: spellRef.prepared ?? true,
-                    expended: spellRef.expended ?? false,
-                    traits: spellSystem?.traits?.value || [],
-                    actionCost: this.formatPF2eActionCost(spellSystem?.time?.value),
-                    range: targeting.range,
-                    target: targeting.target,
-                    area: targeting.area,
-                  });
-                }
-              }
-            }
-          }
-        }
-
-        entries.push({
-          id: entry.id || '',
-          name: entry.name || 'Spellcasting',
-          tradition: entryData?.tradition?.value || entryData?.tradition || undefined,
-          type: entryData?.prepared?.value || entryData?.prepared || 'prepared',
-          ability: entryData?.ability?.value || entryData?.ability || undefined,
-          dc: entryData?.spelldc?.dc || entryData?.dc?.value || undefined,
-          attack: entryData?.spelldc?.value || entryData?.attack?.value || undefined,
-          slots: this.extractPF2eSpellSlots(entryData),
-          spells: entrySpells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
-        });
-      }
-
-      // Also capture focus spells and innate spells that might not be in entries
-      const focusSpells = spellItems.filter((spell: any) => {
-        const spellSystem = spell.system as any;
-        return (
-          spellSystem?.traits?.value?.includes('focus') || spellSystem?.category?.value === 'focus'
-        );
-      });
-
-      if (focusSpells.length > 0 && !entries.some(e => e.type === 'focus')) {
-        entries.push({
-          id: 'focus-spells',
-          name: 'Focus Spells',
-          type: 'focus',
-          spells: focusSpells.map((spell: any) => {
-            const spellSystem = spell.system as any;
-            const targeting = this.extractPF2eSpellTargeting(spellSystem);
-            return {
-              id: spell.id || '',
-              name: spell.name || '',
-              level: spellSystem?.level?.value || 0,
-              traits: spellSystem?.traits?.value || [],
-              actionCost: this.formatPF2eActionCost(spellSystem?.time?.value),
-              range: targeting.range,
-              target: targeting.target,
-              area: targeting.area,
-            };
-          }),
-        });
-      }
-    } else if (systemId === 'dnd5e') {
+    if (systemId === 'dnd5e') {
       // D&D 5e: Extract from classes with spellcasting
       const classes = actor.items.filter(item => item.type === 'class');
       const spellSlots = actorAny.system?.spells || {};
@@ -2154,196 +1412,9 @@ export class FoundryDataAccess {
           spells: allSpells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
         });
       }
-    } else if (systemId === 'dsa5') {
-      // DSA5: Extract Zauber (spells), Liturgien (liturgies), Zeremonien (ceremonies), Rituale (rituals)
-      const astralSpells = actor.items.filter(item => item.type === 'spell');
-      const karmaSpells = actor.items.filter(item => ['liturgy', 'ceremony'].includes(item.type));
-      const rituals = actor.items.filter(item => item.type === 'ritual');
-
-      // Get AsP and KaP from actor
-      const asp = actorAny.system?.status?.astralenergy || actorAny.system?.astralenergy;
-      const kap = actorAny.system?.status?.karmaenergy || actorAny.system?.karmaenergy;
-
-      // Zauber (Arcane spells using AsP)
-      if (astralSpells.length > 0) {
-        entries.push({
-          id: 'zauber',
-          name: 'Zauber (Spells)',
-          type: 'arcane',
-          slots: asp
-            ? {
-                asp: { value: asp.value ?? 0, max: asp.max ?? 0 },
-              }
-            : undefined,
-          spells: astralSpells
-            .map((spell: any) => {
-              const spellSystem = spell.system as any;
-              const targeting = this.extractDSA5SpellTargeting(spellSystem);
-              return {
-                id: spell.id || '',
-                name: spell.name || '',
-                level: spellSystem?.level?.value ?? spellSystem?.level ?? 0,
-                traits: spellSystem?.effect?.attributes || [],
-                actionCost: spellSystem?.castingTime?.value || undefined,
-                range: targeting.range,
-                target: targeting.target,
-                area: targeting.area,
-              };
-            })
-            .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
-        });
-      }
-
-      // Liturgien & Zeremonien (Divine spells using KaP)
-      if (karmaSpells.length > 0) {
-        entries.push({
-          id: 'liturgien',
-          name: 'Liturgien & Zeremonien (Liturgies)',
-          type: 'divine',
-          slots: kap
-            ? {
-                kap: { value: kap.value ?? 0, max: kap.max ?? 0 },
-              }
-            : undefined,
-          spells: karmaSpells
-            .map((spell: any) => {
-              const spellSystem = spell.system as any;
-              const targeting = this.extractDSA5SpellTargeting(spellSystem);
-              return {
-                id: spell.id || '',
-                name: spell.name || '',
-                level: spellSystem?.level?.value ?? spellSystem?.level ?? 0,
-                traits: spellSystem?.effect?.attributes || [],
-                actionCost: spellSystem?.castingTime?.value || undefined,
-                range: targeting.range,
-                target: targeting.target,
-                area: targeting.area,
-              };
-            })
-            .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
-        });
-      }
-
-      // Rituale (Rituals - can use either AsP or KaP depending on tradition)
-      if (rituals.length > 0) {
-        entries.push({
-          id: 'rituale',
-          name: 'Rituale (Rituals)',
-          type: 'ritual',
-          spells: rituals
-            .map((spell: any) => {
-              const spellSystem = spell.system as any;
-              const targeting = this.extractDSA5SpellTargeting(spellSystem);
-              return {
-                id: spell.id || '',
-                name: spell.name || '',
-                level: spellSystem?.level?.value ?? spellSystem?.level ?? 0,
-                traits: spellSystem?.effect?.attributes || [],
-                actionCost: spellSystem?.castingTime?.value || undefined,
-                range: targeting.range,
-                target: targeting.target,
-                area: targeting.area,
-              };
-            })
-            .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
-        });
-      }
-    } else if (systemId === 'wfrp4e') {
-      // WFRP4e: arcane spells grouped by Lore, divine prayers grouped by God.
-      // WFRP4e has no spell levels or slots; spells use a Casting Number (CN).
-      const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-
-      // Arcane spells, grouped by lore
-      const spellsByLore = new Map<string, SpellInfo[]>();
-      for (const spell of actor.items.filter(item => item.type === 'spell')) {
-        const spellSystem = spell.system as any;
-        const loreRaw = spellSystem?.lore?.value;
-        const lore = String((Array.isArray(loreRaw) ? loreRaw[0] : loreRaw) || 'arcane');
-        const cn = spellSystem?.cn?.value;
-        const info: SpellInfo = {
-          id: spell.id || '',
-          name: spell.name || '',
-          level: 0,
-          actionCost: cn !== undefined && cn !== null ? `CN ${cn}` : undefined,
-          range: spellSystem?.range?.value || undefined,
-          target: spellSystem?.target?.value || undefined,
-        };
-        if (!spellsByLore.has(lore)) spellsByLore.set(lore, []);
-        spellsByLore.get(lore)!.push(info);
-      }
-      for (const [lore, loreSpells] of spellsByLore) {
-        entries.push({
-          id: `lore-${lore}`,
-          name: `Lore of ${cap(lore)}`,
-          type: 'arcane',
-          tradition: 'arcane',
-          spells: loreSpells.sort((a, b) => a.name.localeCompare(b.name)),
-        });
-      }
-
-      // Divine prayers, grouped by god
-      const prayersByGod = new Map<string, SpellInfo[]>();
-      for (const prayer of actor.items.filter(item => item.type === 'prayer')) {
-        const praySystem = prayer.system as any;
-        const god = String(praySystem?.god?.value || 'divine');
-        const info: SpellInfo = {
-          id: prayer.id || '',
-          name: prayer.name || '',
-          level: 0,
-          range: praySystem?.range?.value || undefined,
-          target: praySystem?.target?.value || undefined,
-        };
-        if (!prayersByGod.has(god)) prayersByGod.set(god, []);
-        prayersByGod.get(god)!.push(info);
-      }
-      for (const [god, godPrayers] of prayersByGod) {
-        entries.push({
-          id: `prayers-${god}`,
-          name: god === 'divine' ? 'Prayers' : `Prayers (${cap(god)})`,
-          type: 'divine',
-          tradition: 'divine',
-          spells: godPrayers.sort((a, b) => a.name.localeCompare(b.name)),
-        });
-      }
     }
 
     return entries;
-  }
-
-  /**
-   * Format PF2e action cost to human-readable string
-   */
-  private formatPF2eActionCost(actionValue: any): string | undefined {
-    if (!actionValue) return undefined;
-    if (typeof actionValue === 'number') {
-      return actionValue === 1 ? '1 action' : `${actionValue} actions`;
-    }
-    if (actionValue === 'reaction') return 'reaction';
-    if (actionValue === 'free') return 'free action';
-    return String(actionValue);
-  }
-
-  /**
-   * Extract PF2e spell slots from spellcasting entry data
-   */
-  private extractPF2eSpellSlots(
-    entryData: any
-  ): Record<string, { value: number; max: number }> | undefined {
-    const slots: Record<string, { value: number; max: number }> = {};
-
-    // PF2e stores slots per rank
-    for (let rank = 1; rank <= 10; rank++) {
-      const slotKey = `slot${rank}`;
-      const slotData = entryData?.slots?.[slotKey] || entryData?.[slotKey];
-      if (slotData && (slotData.max > 0 || slotData.value > 0)) {
-        slots[`rank${rank}`] = {
-          value: slotData.value ?? 0,
-          max: slotData.max ?? 0,
-        };
-      }
-    }
-
-    return Object.keys(slots).length > 0 ? slots : undefined;
   }
 
   /**
@@ -2429,79 +1500,6 @@ export class FoundryDataAccess {
       if (!result.target || result.target === 'point') {
         result.target = 'area';
       }
-    }
-
-    return result;
-  }
-
-  /**
-   * Extract spell targeting info for PF2e
-   * PF2e spells have: target (string), range.value, area.type, area.value
-   */
-  private extractPF2eSpellTargeting(spellSystem: any): {
-    range?: string;
-    target?: string;
-    area?: string;
-  } {
-    const result: { range?: string; target?: string; area?: string } = {};
-
-    // Range (e.g., "30 feet", "touch")
-    const rangeValue = spellSystem?.range?.value;
-    if (rangeValue) {
-      result.range = String(rangeValue);
-    }
-
-    // Target (PF2e has a descriptive target string)
-    const targetValue = spellSystem?.target?.value;
-    if (targetValue) {
-      result.target = String(targetValue);
-    }
-
-    // Area (e.g., "15-foot emanation", "30-foot cone")
-    const areaType = spellSystem?.area?.type;
-    const areaValue = spellSystem?.area?.value;
-    if (areaType) {
-      if (areaValue) {
-        result.area = `${areaValue}-foot ${areaType}`;
-      } else {
-        result.area = areaType;
-      }
-      // If has area but no explicit target, it's an area spell
-      if (!result.target) {
-        result.target = 'area';
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * Extract spell targeting info for DSA5
-   * DSA5 spells have: targetCategory, range, etc.
-   */
-  private extractDSA5SpellTargeting(spellSystem: any): {
-    range?: string;
-    target?: string;
-    area?: string;
-  } {
-    const result: { range?: string; target?: string; area?: string } = {};
-
-    // Range
-    const rangeValue = spellSystem?.range?.value || spellSystem?.Reichweite;
-    if (rangeValue) {
-      result.range = String(rangeValue);
-    }
-
-    // Target category
-    const targetCategory = spellSystem?.targetCategory?.value || spellSystem?.Zielkategorie;
-    if (targetCategory) {
-      result.target = String(targetCategory);
-    }
-
-    // Area (Wirkungsbereich)
-    const areaValue = spellSystem?.effectRadius?.value || spellSystem?.Wirkungsbereich;
-    if (areaValue) {
-      result.area = String(areaValue);
     }
 
     return result;
@@ -2944,17 +1942,11 @@ export class FoundryDataAccess {
         this.passesEnhancedCriteria(creature, criteria)
       );
 
-      // Sort by power level then name for consistent ordering (system-aware).
-      // Power-level dial: tier (cosmere), level (pf2e), challengeRating (dnd5e).
-      const powerLevel = (c: EnhancedCreatureIndex): number => {
-        if ('tier' in c) return (c as CosmereRpgCreatureIndex).tier;
-        if ('level' in c) return (c as PF2eCreatureIndex).level;
-        return (c as DnD5eCreatureIndex).challengeRating;
-      };
+      // Sort by challenge rating then name for consistent ordering.
       filteredCreatures.sort((a, b) => {
-        const powerA = powerLevel(a);
-        const powerB = powerLevel(b);
-        if (powerA !== powerB) return powerA - powerB;
+        const crA = (a as DnD5eCreatureIndex).challengeRating;
+        const crB = (b as DnD5eCreatureIndex).challengeRating;
+        if (crA !== crB) return crA - crB;
         return a.name.localeCompare(b.name);
       });
 
@@ -2963,62 +1955,20 @@ export class FoundryDataAccess {
         filteredCreatures = filteredCreatures.slice(0, limit);
       }
 
-      // Convert enhanced creatures to result format (system-aware)
+      // Convert enhanced creatures to result format (D&D 5e)
       const results = filteredCreatures.map(creature => {
-        const isCosmere = 'tier' in creature;
-        const isPF2e = !isCosmere && 'level' in creature;
-
-        const base = {
-          id: creature.id,
-          name: creature.name,
-          type: creature.type,
-          pack: creature.pack,
-          packLabel: creature.packLabel,
-          description: creature.description || '',
-          hasImage: !!creature.img,
-          creatureType: creature.creatureType,
-          size: creature.size,
-          hitPoints: creature.hitPoints,
-        };
-
-        if (isCosmere) {
-          const c = creature as CosmereRpgCreatureIndex;
-          return {
-            ...base,
-            summary: `Tier ${c.tier} ${c.role} ${c.creatureType} from ${c.packLabel}`,
-            tier: c.tier,
-            role: c.role,
-            subtype: c.subtype,
-            focus: c.focus,
-            investiture: c.investiture,
-            hasInvestiture: c.hasInvestiture,
-            defenses: {
-              physical: c.defensePhysical,
-              cognitive: c.defenseCognitive,
-              spiritual: c.defenseSpiritual,
-            },
-            deflect: c.deflect,
-            walkSpeed: c.walkSpeed,
-          };
-        }
-
-        if (isPF2e) {
-          const p = creature as PF2eCreatureIndex;
-          return {
-            ...base,
-            armorClass: p.armorClass,
-            hasSpells: p.hasSpells,
-            alignment: p.alignment,
-            summary: `Level ${p.level} ${p.creatureType} (${p.rarity}) from ${p.packLabel}`,
-            level: p.level,
-            traits: p.traits,
-            rarity: p.rarity,
-          };
-        }
-
         const d = creature as DnD5eCreatureIndex;
         return {
-          ...base,
+          id: d.id,
+          name: d.name,
+          type: d.type,
+          pack: d.pack,
+          packLabel: d.packLabel,
+          description: d.description || '',
+          hasImage: !!d.img,
+          creatureType: d.creatureType,
+          size: d.size,
+          hitPoints: d.hitPoints,
           armorClass: d.armorClass,
           hasSpells: d.hasSpells,
           alignment: d.alignment,
@@ -3071,98 +2021,10 @@ export class FoundryDataAccess {
   }
 
   /**
-   * Check if enhanced creature passes all specified criteria (system-aware routing).
-   *
-   * Discriminator order matters: cosmere-rpg has a `tier` field, pf2e has
-   * `level`, dnd5e has `challengeRating`. Check cosmere first (tier is the
-   * narrowest signal), then pf2e, then fall through to dnd5e.
+   * Check if enhanced creature passes all specified criteria (D&D 5e only).
    */
   private passesEnhancedCriteria(creature: EnhancedCreatureIndex, criteria: any): boolean {
-    if ('tier' in creature) {
-      return this.passesCosmereRpgCriteria(creature as CosmereRpgCreatureIndex, criteria);
-    }
-    if ('level' in creature) {
-      return this.passesPF2eCriteria(creature as PF2eCreatureIndex, criteria);
-    }
     return this.passesDnD5eCriteria(creature as DnD5eCreatureIndex, criteria);
-  }
-
-  /**
-   * Cosmere RPG criteria filter — tier, role, creatureType, size,
-   * hasInvestiture, hitPoints range, defenses minimums, deflect minimum.
-   */
-  private passesCosmereRpgCriteria(
-    creature: CosmereRpgCreatureIndex,
-    criteria: {
-      tier?: number | { min?: number; max?: number };
-      role?: string;
-      creatureType?: string;
-      size?: string;
-      hasInvestiture?: boolean;
-      hitPoints?: number | { min?: number; max?: number };
-      health?: number | { min?: number; max?: number };
-      defensesMin?: { phy?: number; cog?: number; spi?: number };
-      deflectMin?: number;
-    }
-  ): boolean {
-    if (criteria.tier !== undefined) {
-      if (typeof criteria.tier === 'number') {
-        if (creature.tier !== criteria.tier) return false;
-      } else {
-        const { min, max } = criteria.tier;
-        if (min !== undefined && creature.tier < min) return false;
-        if (max !== undefined && creature.tier > max) return false;
-      }
-    }
-
-    if (criteria.role && creature.role.toLowerCase() !== criteria.role.toLowerCase()) {
-      return false;
-    }
-
-    if (
-      criteria.creatureType &&
-      creature.creatureType.toLowerCase() !== criteria.creatureType.toLowerCase()
-    ) {
-      return false;
-    }
-
-    if (criteria.size && creature.size.toLowerCase() !== criteria.size.toLowerCase()) {
-      return false;
-    }
-
-    if (
-      criteria.hasInvestiture !== undefined &&
-      creature.hasInvestiture !== criteria.hasInvestiture
-    ) {
-      return false;
-    }
-
-    // Accept either `hitPoints` or `health` from callers — they're synonyms
-    // here (hitPoints is the cross-system convention; health is the cosmere-
-    // native term).
-    const hpRange = criteria.hitPoints ?? criteria.health;
-    if (hpRange !== undefined) {
-      if (typeof hpRange === 'number') {
-        if (creature.hitPoints !== hpRange) return false;
-      } else {
-        const { min, max } = hpRange;
-        if (min !== undefined && creature.hitPoints < min) return false;
-        if (max !== undefined && creature.hitPoints > max) return false;
-      }
-    }
-
-    if (criteria.defensesMin) {
-      const { phy, cog, spi } = criteria.defensesMin;
-      if (phy !== undefined && creature.defensePhysical < phy) return false;
-      if (cog !== undefined && creature.defenseCognitive < cog) return false;
-      if (spi !== undefined && creature.defenseSpiritual < spi) return false;
-    }
-
-    if (criteria.deflectMin !== undefined && creature.deflect < criteria.deflectMin) {
-      return false;
-    }
-
-    return true;
   }
 
   /**
@@ -3221,70 +2083,6 @@ export class FoundryDataAccess {
       if (creature.hasLegendaryActions !== criteria.hasLegendaryActions) {
         return false;
       }
-    }
-
-    return true;
-  }
-
-  /**
-   * Check if PF2e creature passes all specified criteria
-   */
-  private passesPF2eCriteria(
-    creature: PF2eCreatureIndex,
-    criteria: {
-      level?: number | { min?: number; max?: number };
-      traits?: string[];
-      rarity?: string;
-      creatureType?: string;
-      size?: string;
-      hasSpells?: boolean;
-    }
-  ): boolean {
-    // Level filter
-    if (criteria.level !== undefined) {
-      if (typeof criteria.level === 'number') {
-        if (creature.level !== criteria.level) {
-          return false;
-        }
-      } else if (typeof criteria.level === 'object') {
-        const { min = -1, max = 25 } = criteria.level;
-        if (creature.level < min || creature.level > max) {
-          return false;
-        }
-      }
-    }
-
-    // Traits filter (creature must have ALL specified traits)
-    if (criteria.traits && criteria.traits.length > 0) {
-      const hasAllTraits = criteria.traits.every(requiredTrait =>
-        creature.traits.some(t => t.toLowerCase() === requiredTrait.toLowerCase())
-      );
-      if (!hasAllTraits) {
-        return false;
-      }
-    }
-
-    // Rarity filter
-    if (criteria.rarity && creature.rarity !== criteria.rarity) {
-      return false;
-    }
-
-    // Creature type filter
-    if (
-      criteria.creatureType &&
-      creature.creatureType.toLowerCase() !== criteria.creatureType.toLowerCase()
-    ) {
-      return false;
-    }
-
-    // Size filter
-    if (criteria.size && creature.size.toLowerCase() !== criteria.size.toLowerCase()) {
-      return false;
-    }
-
-    // Spellcasting filter
-    if (criteria.hasSpells !== undefined && creature.hasSpells !== criteria.hasSpells) {
-      return false;
     }
 
     return true;
@@ -4293,9 +3091,8 @@ export class FoundryDataAccess {
         );
       }
 
-      // Validate actor type - support all common actor types including DSA5 creatures
-      // and Cosmere RPG adversaries.
-      const validActorTypes = ['character', 'npc', 'creature', 'adversary'];
+      // Validate actor type - support D&D 5e actor types
+      const validActorTypes = ['character', 'npc'];
       if (!validActorTypes.includes(sourceDocument.type)) {
         throw new Error(
           `Document "${itemId}" has unsupported actor type: ${sourceDocument.type}. Supported types: ${validActorTypes.join(', ')}`
@@ -6792,27 +5589,14 @@ export class FoundryDataAccess {
       }
 
       if (data.active) {
-        // Add the condition - handle DSA5 and other systems
+        // Add the condition
         const effectData: any = {
           name: condition.name || condition.label || condition.id,
           icon: condition.icon || condition.img,
         };
 
-        // Add statuses for systems that support it (D&D5e, PF2e)
         if (condition.id) {
           effectData.statuses = [condition.id];
-        }
-
-        // DSA5-specific: Copy all properties from the condition
-        // DSA5 conditions have different structure than D&D5e/PF2e
-        if ((game.system as any)?.id === 'dsa5') {
-          // For DSA5, use the condition's full data structure
-          Object.assign(effectData, {
-            flags: condition.flags || {},
-            changes: condition.changes || [],
-            duration: condition.duration || {},
-            origin: condition.origin,
-          });
         }
 
         await actor.createEmbeddedDocuments('ActiveEffect', [effectData]);
@@ -6820,11 +5604,11 @@ export class FoundryDataAccess {
         // Remove the condition
         const effects = actor.effects?.contents || [];
         const effectsToRemove = effects.filter((effect: any) => {
-          // Check by status (D&D5e, PF2e)
+          // Check by status
           if (effect.statuses?.has(data.conditionId)) {
             return true;
           }
-          // Check by name (fallback for all systems including DSA5)
+          // Check by name (fallback)
           if (effect.name?.toLowerCase() === data.conditionId.toLowerCase()) {
             return true;
           }
@@ -7006,7 +5790,7 @@ export class FoundryDataAccess {
       // we fire-and-forget to avoid timeout issues. The GM will interact
       // with the dialog in Foundry, and the result appears in chat.
 
-      // Check if item has a use() method (common in D&D 5e, PF2e)
+      // Check if item has a use() method (D&D 5e)
       if (typeof itemAny.use === 'function') {
         // D&D 5e and similar systems
         // Only pass options that D&D 5e's item.use() expects
@@ -7034,7 +5818,6 @@ export class FoundryDataAccess {
           console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
         });
       } else if (typeof itemAny.toChat === 'function') {
-        // PF2e and some other systems use toChat
         if (typeof itemAny.toMessage === 'function') {
           itemAny.toMessage(undefined, { create: true }).catch((err: Error) => {
             console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
@@ -7049,38 +5832,6 @@ export class FoundryDataAccess {
         itemAny.roll().catch((err: Error) => {
           console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
         });
-      } else if (systemId === 'dsa5') {
-        // DSA5 specific handling
-        if (
-          item.type === 'spell' ||
-          item.type === 'liturgy' ||
-          item.type === 'ceremony' ||
-          item.type === 'ritual'
-        ) {
-          if (typeof itemAny.postItem === 'function') {
-            itemAny.postItem().catch((err: Error) => {
-              console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
-            });
-          } else if (typeof itemAny.setupEffect === 'function') {
-            itemAny.setupEffect().catch((err: Error) => {
-              console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
-            });
-          } else {
-            // Fallback: create a chat message describing the item
-            const chatData = {
-              user: game.user?.id,
-              speaker: ChatMessage.getSpeaker({ actor }),
-              content: `<h3>${item.name}</h3><p>${actor.name} uses ${item.name}.</p>`,
-            };
-            ChatMessage.create(chatData);
-          }
-        } else {
-          if (typeof itemAny.postItem === 'function') {
-            itemAny.postItem().catch((err: Error) => {
-              console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
-            });
-          }
-        }
       } else {
         // Generic fallback: create a chat message
         const chatData = {

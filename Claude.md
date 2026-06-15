@@ -63,7 +63,7 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
 - [x] Phase 2 — Surface rebrand (module.json, package names, LICENSE/CREDITS, README)
 - [x] Phase 2.5 — Trim: Mac support removed; non-D&D adapters (dsa5, pf2e, wfrp4e, cosmere-rpg) removed; now Windows + D&D 5e only
 - [x] Phase 3 — `docs/ARCHITECTURE.md` from first principles (Opus 4.8)
-- [ ] Phase 4 — Staged reimplementation, module by module (IN PROGRESS — see `docs/PHASE4-TRACKER.md`). Done: `shared` (chunk 1), wire-protocol contract + control-channel migration (chunk 2).
+- [ ] Phase 4 — Staged reimplementation, module by module (IN PROGRESS — see `docs/PHASE4-TRACKER.md`). Done: `shared` (chunk 1), wire-protocol contract + control-channel migration (chunk 2). In progress: chunk 3 — Foundry module data-access (non-dnd5e remnants removed; reimplementation pending).
 - [ ] Phase 5 — Cutover, migration notes, live smoke test
 
 ## Model guidance

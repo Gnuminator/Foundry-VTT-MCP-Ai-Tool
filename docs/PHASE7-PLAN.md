@@ -79,6 +79,33 @@ verify links/images resolve and the page renders).
 
 ---
 
+### Using Claude Design for the look — division of labor
+
+**Yes, lean on Claude Design for the visuals — but keep a clean design→code handoff; don't let the
+design tool try to _be_ the app.** The dashboard is a live, wired app (`packages/cogm-dashboard/public/`,
+vanilla HTML/CSS/JS, no build step) — Claude Design produces _design artifacts_, not the SSE/feed/state
+logic. So:
+
+- **Claude Design owns the look:** a cohesive **design system** (color tokens, type scale, component
+  styles + states, spacing), pane mockups, the brand stills/animation, and the showcase site.
+- **Claude Code (me) owns implementation:** port that design into the real `styles.css` / `index.html` /
+  `player.html`, keeping the live wiring green. A CSS/markup reskin is low-risk here (no build step,
+  logic untouched).
+- **The formal bridge exists:** the `/design-sync` skill + DesignSync tool sync a Claude **Design System**
+  project into the repo one component at a time — which is exactly why a "Design System" project is the
+  right type to be working in.
+
+**Scope it as a brand-consistent reskin, not a ground-up rebuild.** The dashboard already looks strong;
+per the priority rule, deep in-app polish comes _after_ functionality. The high-value, bounded move
+once the brand exists: apply the new identity (arcane-node palette/type, logo in the header, favicon,
+shared tokens) to the _existing_ UI, then re-screenshot. A speculative full redesign waits until more
+functionality lands.
+
+**Recommended sequence:** (1) finish brand stills + animation → (2) I wire banner/favicon/demo-GIF into
+the README + refresh screenshots (the stacked `mobile.png` is dropped — reads as broken, and mobile is
+deferred) → (3) _optional_ dashboard design-system in Claude Design → I reskin the live app via
+`/design-sync` → re-screenshot → (4) build the showcase site (designed in Claude Design, implemented by me).
+
 ### Decisions taken (2026‑06‑15)
 
 - **Scope now:** redesign the landing README (done). Showcase site deferred.

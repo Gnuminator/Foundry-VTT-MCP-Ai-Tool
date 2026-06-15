@@ -53,12 +53,6 @@ game as it happens — and now lets you **run the game from the dashboard**, too
 - **Every write asks for confirmation**, and **destructive actions** (like deleting tokens) require
   an explicit second confirm — no accidental table-wipes.
 
-### Works on a tablet or second screen
-
-![Responsive layout on a phone](images/cogm/mobile.png)
-
-The layout adapts down to phone width, so you can keep it open on a tablet beside you at the table.
-
 ---
 
 ## Running it

@@ -32,6 +32,10 @@ jobs:
         # Scoped to the module suite by workspace name (npm scope is @gnuminator/*).
         run: npm test -w @gnuminator/foundry-module
 
+      - name: Unit tests (mcp-server)
+        # Tool-layer + lock suites. vitest auto-runs once in CI (non-TTY).
+        run: npm test -w @gnuminator/mcp-server
+
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs
 

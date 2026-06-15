@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.16.1 (2026-06-15) — Dependency-security patch
+
+Patches the shipping network/runtime dependencies ahead of the Phase 6 remote-access work. **No behavior
+changes for existing installs** — the Foundry module id and all wire contracts are unchanged.
+
+### Security / dependency fixes
+
+- **werift 0.17.7 → 0.23.0** (the WebRTC stack for the HTTPS/remote Foundry link) — clears the `uuid`
+  bounds-check advisory. The only breaking dependency bump; **validated live** against a real Foundry
+  world (Foundry 14, HTTPS) over the WebRTC DataChannel.
+- **@modelcontextprotocol/sdk 1.7 → 1.29** (DNS-rebinding / ReDoS), **axios 1.6 → 1.18** (SSRF / ReDoS),
+  **ws 8.14 → 8.21**, plus `body-parser`, `path-to-regexp`, and the dashboard's **express 4.19 → 4.22** —
+  all in-range and behavior-preserving.
+- Removed an unused `socket.io-client` dependency from the Foundry module.
+- Production-only `npm audit`: **15 → 3** advisories (the remaining 3 are a single upstream-unpatched
+  `ip` advisory inside the WebRTC ICE stack, with no fix available).
+
+### Build / CI
+
+- Bumped `actions/setup-node` to `20.19` across the release workflows (clears EBADENGINE; the shipped
+  runtime still targets Node 18).
+
 ## v0.16.0 (2026-06-15) — First release as **Foundry AI Tool**
 
 This is the first release under the project's new identity. **Foundry AI Tool** is an MCP server +

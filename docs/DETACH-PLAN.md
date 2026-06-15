@@ -119,7 +119,7 @@ Live status + done log lives in **`docs/PHASE4-TRACKER.md`** (read it to resume)
    carefully (this is the part most worth Opus-level attention).
 3. Foundry module `data-access` / `queries` layer.
 4. **Tool layer, domain-by-domain** (combat, scene, compendium, actor-creation, effects, …). Each is a
-   self-contained chunk; use `TOOL_INVENTORY.md` as the parity checklist.
+   self-contained chunk; use `docs/TOOL_INVENTORY.md` as the parity checklist.
 5. The **dnd5e** system adapter — last (the other systems are removed in Phase 2.5).
 
 Per chunk: capture current behavior in tests first → reimplement → verify parity (the test bench +
@@ -257,12 +257,15 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
   module-by-module (each rewritten file gets a fresh, descriptive last-commit). No history rewrite
   needed; just let the reimplementation commits land. Optionally shorten the baseline commit's
   subject line if a history rewrite happens for another reason.
-- **Root-directory clutter.** Many loose top-level `.md` files (`ADDING_NEW_SYSTEMS.md`,
-  `BRANCH_COMPARISON_SUMMARY.md`, `DOCUMENTATION_COMPARISON.md`, `IMPLEMENTATION_ORDER.md`,
-  `MIGRATION_PLAN.md`, `MISSING_TOOLS.md`, `MCP_*_TEST_PROMPT.md`, etc.) — many are upstream or
-  transient working notes. Move the keepers under `docs/`, delete the dead ones, and leave the root
-  to just `README.md`, `LICENSE`, `CREDITS.md`, `CHANGELOG.md`, `CLAUDE.md`, and config files. Tidy
-  in one focused commit so the diff is easy to review.
+- **Root-directory clutter.** ✅ **DONE (2026‑06‑15).** Deleted 15 dead/transient upstream working
+  notes (`ADDING_NEW_SYSTEMS.md`, `BRANCH_COMPARISON_SUMMARY.md`, `DOCUMENTATION_COMPARISON.md`,
+  `IMPLEMENTATION_ORDER.md`, `MCP_FOUNDRY_TEST_PROMPT.md`, `MCP_TEST_PROMPT.md`, `MIGRATION_PLAN.md`,
+  `MISSING_TOOLS.md`, `PR4_ANALYSIS.md`, `PR4_USEFUL_PATTERNS.md`, `QUICK_START.md`,
+  `REGISTRY_PATTERN_TEST.md`, `RISK_ANALYSIS.md`, `TEST_PROMPT.md`, `TEST_RESULTS.md`) + the two dead
+  Mac dev scripts (`update-backend-now.sh`, `update-wrapper.sh`) + the stale upstream `INSTALLATION.md`
+  (README's Installation section is canonical). Moved `TOOL_INVENTORY.md` → `docs/`. Root now holds
+  only `README.md`, `LICENSE`, `CREDITS.md`, `CHANGELOG.md`, `Claude.md`, and config files. All
+  removed files remain recoverable in git history; done in one focused commit.
 
 ## Phase 9 — Deep reimplementation (deferred; own phase)
 

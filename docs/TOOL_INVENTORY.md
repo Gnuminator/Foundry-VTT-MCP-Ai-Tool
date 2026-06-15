@@ -486,8 +486,7 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 
 ---
 
-**See Also:**
-
-- `MISSING_TOOLS.md` - Detailed analysis of the 7 missing tools
-- `MIGRATION_PLAN.md` - Step-by-step implementation guide
-- `IMPLEMENTATION_ORDER.md` - Recommended migration sequence
+> **Historical note:** This inventory predates the detach — it compares the old upstream
+> baseline/master/broken branches (and the since-removed non-D&D adapters). Kept under `docs/`
+> as the Phase 4 parity reference; see `docs/DETACH-PLAN.md` and `docs/PHASE4-TRACKER.md` for the
+> current, trimmed (Windows + D&D 5e only) tool set.

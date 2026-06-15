@@ -36,8 +36,6 @@ import { MapGenerationTools } from './tools/map-generation.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
-import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
-
 import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
 import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
 import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
@@ -1176,17 +1174,9 @@ async function startBackend(): Promise<void> {
   // Initialize system registry and register adapters
   const { getSystemRegistry } = await import('./systems/index.js');
   const { DnD5eAdapter } = await import('./systems/dnd5e/adapter.js');
-  const { PF2eAdapter } = await import('./systems/pf2e/adapter.js');
-  const { DSA5Adapter } = await import('./systems/dsa5/adapter.js');
-  const { CosmereRpgAdapter } = await import('./systems/cosmere-rpg/adapter.js');
-  const { WFRP4eAdapter } = await import('./systems/wfrp4e/adapter.js');
 
   const systemRegistry = getSystemRegistry(logger);
   systemRegistry.register(new DnD5eAdapter());
-  systemRegistry.register(new PF2eAdapter());
-  systemRegistry.register(new DSA5Adapter());
-  systemRegistry.register(new CosmereRpgAdapter());
-  systemRegistry.register(new WFRP4eAdapter());
 
   logger.info('System registry initialized', {
     supportedSystems: systemRegistry.getSupportedSystems(),
@@ -1199,8 +1189,6 @@ async function startBackend(): Promise<void> {
   const sceneTools = new SceneTools({ foundryClient, logger });
 
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-
-  const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
 
   const dnd5eAddFeatureTool = new DnD5eAddFeatureTool({ foundryClient, logger });
   const dnd5eNpcTools = new DnD5eNpcTools({ foundryClient, logger });
@@ -1446,8 +1434,6 @@ async function startBackend(): Promise<void> {
 
     ...actorCreationTools.getToolDefinitions(),
 
-    ...dsa5CharacterCreator.getToolDefinitions(),
-
     ...dnd5eAddFeatureTool.getToolDefinitions(),
     ...dnd5eNpcTools.getToolDefinitions(),
     ...dnd5eFeaturesFromCompendiumTools.getToolDefinitions(),
@@ -1625,18 +1611,6 @@ async function startBackend(): Promise<void> {
 
                 case 'get-compendium-entry-full':
                   result = await actorCreationTools.handleGetCompendiumEntryFull(args);
-
-                  break;
-
-                // DSA5 character creation tools
-
-                case 'create-dsa5-character-from-archetype':
-                  result = await dsa5CharacterCreator.handleCreateCharacterFromArchetype(args);
-
-                  break;
-
-                case 'list-dsa5-archetypes':
-                  result = await dsa5CharacterCreator.handleListArchetypes(args);
 
                   break;
 

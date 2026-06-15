@@ -12,9 +12,6 @@ export type {
   SystemAdapter,
   IndexBuilder,
   DnD5eCreatureIndex,
-  PF2eCreatureIndex,
-  DSA5CreatureIndex,
-  WFRP4eCreatureIndex,
   GenericCreatureIndex,
   AnyCreatureIndex,
 } from './types.js';

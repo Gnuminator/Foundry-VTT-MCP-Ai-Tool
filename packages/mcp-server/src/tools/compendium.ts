@@ -16,7 +16,6 @@ import {
   describeFilters,
   type GenericFilters,
 } from '../utils/compendium-filters.js';
-import { readDerived } from '../systems/cosmere-rpg/constants.js';
 
 export interface CompendiumToolsOptions {
   foundryClient: FoundryClient;
@@ -845,89 +844,20 @@ export class CompendiumTools {
       summary: this.createItemSummary(item),
     };
 
-    // Add key stats for actors/creatures to reduce need for detail calls.
-    // `adversary` is Cosmere RPG's NPC equivalent.
-    if (item.type === 'npc' || item.type === 'character' || item.type === 'adversary') {
+    if (item.type === 'npc' || item.type === 'character') {
       const stats: any = {};
 
-      // Use system detection utilities for accurate stat extraction
-      if (gameSystem === 'cosmere-rpg') {
-        const system = item.system || {};
-
-        if (typeof system.tier === 'number') stats.tier = system.tier;
-        if (typeof system.level === 'number') stats.level = system.level;
-        if (typeof system.role === 'string' && system.role) stats.role = system.role.toLowerCase();
-        if (typeof system.type?.id === 'string' && system.type.id) {
-          stats.creatureType = system.type.id.toLowerCase();
-        }
-        if (typeof system.type?.subtype === 'string' && system.type.subtype) {
-          stats.subtype = system.type.subtype;
-        }
-        if (typeof system.size === 'string' && system.size) stats.size = system.size.toLowerCase();
-
-        const hpCurrent =
-          typeof system.resources?.hea?.value === 'number' ? system.resources.hea.value : undefined;
-        const hpMax = readDerived(system.resources?.hea?.max);
-        if (hpCurrent !== undefined || hpMax !== undefined) {
-          stats.hitPoints = { current: hpCurrent, max: hpMax };
-        }
-
-        const phy = readDerived(system.defenses?.phy);
-        const cog = readDerived(system.defenses?.cog);
-        const spi = readDerived(system.defenses?.spi);
-        if (phy !== undefined || cog !== undefined || spi !== undefined) {
-          stats.defenses = { phy, cog, spi };
-        }
-
-        const deflect = readDerived(system.deflect);
-        if (deflect !== undefined) stats.deflect = deflect;
-
-        const investitureMax = readDerived(system.resources?.inv?.max) ?? 0;
-        if (investitureMax > 0) stats.hasInvestiture = true;
-      } else if (gameSystem) {
-        // Level/CR (system-specific)
+      if (gameSystem === 'dnd5e') {
+        // Level/CR
         const level = getCreatureLevel(item, gameSystem);
         if (level !== undefined) {
-          if (gameSystem === 'dnd5e') {
-            stats.challengeRating = level;
-          } else if (gameSystem === 'pf2e') {
-            stats.level = level;
-          }
+          stats.challengeRating = level;
         }
 
-        // Creature type/traits
+        // Creature type
         const creatureType = getCreatureType(item, gameSystem);
-        if (creatureType) {
-          if (gameSystem === 'pf2e' && Array.isArray(creatureType)) {
-            stats.traits = creatureType;
-            // Also extract primary creature type from traits if available
-            const creatureTraits = [
-              'aberration',
-              'animal',
-              'beast',
-              'celestial',
-              'construct',
-              'dragon',
-              'elemental',
-              'fey',
-              'fiend',
-              'fungus',
-              'humanoid',
-              'monitor',
-              'ooze',
-              'plant',
-              'undead',
-            ];
-            const primaryType = creatureType.find((t: string) =>
-              creatureTraits.includes(t.toLowerCase())
-            );
-            if (primaryType) stats.creatureType = primaryType;
-          } else {
-            stats.creatureType = creatureType;
-          }
-        }
+        if (creatureType) stats.creatureType = creatureType;
 
-        // System-agnostic stats (similar paths in both systems)
         const system = item.system || {};
 
         // Hit Points
@@ -941,20 +871,14 @@ export class CompendiumTools {
         const ac = system.attributes?.ac?.value;
         if (ac !== undefined) stats.armorClass = ac;
 
-        // Size (similar in both systems)
+        // Size
         const size = system.traits?.size?.value || system.traits?.size || system.size;
         if (size) stats.size = size;
 
-        // Alignment (different paths but similar concept)
+        // Alignment
         const alignment =
           system.details?.alignment?.value || system.details?.alignment || system.alignment;
         if (alignment) stats.alignment = alignment;
-
-        // PF2e specific: Rarity
-        if (gameSystem === 'pf2e') {
-          const rarity = system.traits?.rarity;
-          if (rarity) stats.rarity = rarity;
-        }
       } else {
         // Fallback: Legacy D&D 5e extraction
         const system = item.system || {};

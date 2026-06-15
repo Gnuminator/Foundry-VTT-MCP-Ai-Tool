@@ -25,7 +25,7 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 - **Output:** Full character data including stats, resources, skills, items
 - **File:** `packages/mcp-server/src/tools/character.ts`
 - **Status:** ✅ Working
-- **System Support:** D&D5e, PF2e, DSA5
+- **System Support:** D&D5e
 
 #### 2. list-characters
 
@@ -34,7 +34,7 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 - **Output:** Array of character summaries
 - **File:** `packages/mcp-server/src/tools/character.ts`
 - **Status:** ✅ Working
-- **System Support:** D&D5e, PF2e, DSA5
+- **System Support:** D&D5e
 
 ### Compendium Tools (4)
 
@@ -60,7 +60,6 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 - **Output:** Complete item data with description and stats
 - **File:** `packages/mcp-server/src/tools/compendium.ts`
 - **Status:** ✅ Working
-- **Notes:** Handles DSA5 items correctly in baseline
 
 #### 5. list-creatures-by-criteria
 
@@ -70,7 +69,6 @@ This document provides a comprehensive inventory of all MCP tools across the thr
   - `creatureType` (string, optional) - Creature type
   - `size` (string, optional) - Size category
   - `alignment` (string, optional) - Alignment
-  - **DSA5:** `level`, `species`, `culture`, `hasSpells`
 - **Output:** Array of creatures matching criteria
 - **File:** `packages/mcp-server/src/tools/compendium.ts`
 - **Status:** ✅ Working
@@ -118,7 +116,7 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 - **Output:** Created actor data
 - **File:** `packages/mcp-server/src/tools/actor-creation.ts`
 - **Status:** ✅ Working
-- **System Support:** D&D5e, PF2e, DSA5
+- **System Support:** D&D5e
 
 #### 10. get-compendium-entry-full
 
@@ -130,34 +128,6 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 - **File:** `packages/mcp-server/src/tools/actor-creation.ts`
 - **Status:** ✅ Working
 - **System Support:** All systems
-
-### DSA5 Character Creation Tools (2)
-
-#### 11. create-dsa5-character-from-archetype
-
-- **Description:** Create a DSA5 character from an archetype template
-- **Input:**
-  - `archetypeName` (string) - Archetype name
-  - `characterName` (string) - Character name
-  - `age` (number, optional) - Character age
-  - `biography` (string, optional) - Background story
-  - `gender` (string, optional) - Gender
-  - `eyeColor`, `hairColor`, `height`, `weight` (optional) - Appearance
-  - `species`, `culture`, `profession` (optional) - Overrides
-- **Output:** Created character data
-- **File:** `packages/mcp-server/src/systems/dsa5/character-creator.ts`
-- **Status:** ✅ Working
-- **System Support:** DSA5 only
-
-#### 12. list-dsa5-archetypes
-
-- **Description:** List available DSA5 character archetypes
-- **Input:**
-  - `species` (string, optional) - Filter by species
-- **Output:** Array of archetype info
-- **File:** `packages/mcp-server/src/systems/dsa5/character-creator.ts`
-- **Status:** ✅ Working
-- **System Support:** DSA5 only
 
 ### Quest/Journal Tools (5)
 
@@ -337,12 +307,9 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 
 ## MASTER BRANCH TOOLS (23 Total)
 
-**All baseline tools EXCEPT:**
+**All baseline tools.**
 
-- ❌ create-dsa5-character-from-archetype
-- ❌ list-dsa5-archetypes
-
-**Total:** 25 tools (baseline) - 2 DSA5 tools = 23 tools
+**Total:** 25 tools
 
 ---
 
@@ -361,7 +328,7 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 - **Output:** Complete entity data with description and all system properties
 - **File:** `packages/mcp-server/src/tools/character.ts`
 - **Status:** ⚠️ In broken branch
-- **System Support:** D&D5e, PF2e, DSA5
+- **System Support:** D&D5e
 - **Use Case:** Lazy-loading pattern - get-character returns minimal item metadata, use this for full details
 
 ### NEW: Token Manipulation Tools (+6) ⭐
@@ -433,7 +400,7 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 - **Output:** Updated token with conditions
 - **File:** `packages/mcp-server/src/tools/token-manipulation.ts`
 - **Status:** ⚠️ In broken branch
-- **System Support:** D&D5e, PF2e, DSA5 (system-specific conditions)
+- **System Support:** D&D5e (system-specific conditions)
 
 #### 34. get-available-conditions ⭐ NEW
 
@@ -442,48 +409,47 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 - **Output:** Array of condition info (id, label, icon)
 - **File:** `packages/mcp-server/src/tools/token-manipulation.ts`
 - **Status:** ⚠️ In broken branch
-- **System Support:** D&D5e, PF2e, DSA5
+- **System Support:** D&D5e
 
 ---
 
 ## Tool Comparison Matrix
 
-| Tool Name                            | Baseline | Master | Broken | Category      | Priority   |
-| ------------------------------------ | -------- | ------ | ------ | ------------- | ---------- |
-| get-character                        | ✅       | ✅     | ✅     | Character     | -          |
-| list-characters                      | ✅       | ✅     | ✅     | Character     | -          |
-| search-compendium                    | ✅       | ✅     | ✅     | Compendium    | -          |
-| get-compendium-item                  | ✅       | ✅     | ✅     | Compendium    | -          |
-| list-creatures-by-criteria           | ✅       | ✅     | ✅     | Compendium    | -          |
-| list-compendium-packs                | ✅       | ✅     | ✅     | Compendium    | -          |
-| get-current-scene                    | ✅       | ✅     | ✅     | Scene         | -          |
-| get-world-info                       | ✅       | ✅     | ✅     | Scene         | -          |
-| create-actor-from-compendium         | ✅       | ✅     | ✅     | Actor         | -          |
-| get-compendium-entry-full            | ✅       | ✅     | ✅     | Actor         | -          |
-| create-dsa5-character-from-archetype | ✅       | ❌     | ✅     | DSA5          | -          |
-| list-dsa5-archetypes                 | ✅       | ❌     | ✅     | DSA5          | -          |
-| create-quest-journal                 | ✅       | ✅     | ✅     | Journal       | -          |
-| link-quest-to-npc                    | ✅       | ✅     | ✅     | Journal       | -          |
-| update-quest-journal                 | ✅       | ✅     | ✅     | Journal       | -          |
-| list-journals                        | ✅       | ✅     | ✅     | Journal       | -          |
-| search-journals                      | ✅       | ✅     | ✅     | Journal       | -          |
-| request-player-rolls                 | ✅       | ✅     | ✅     | Dice          | -          |
-| create-campaign-dashboard            | ✅       | ✅     | ✅     | Campaign      | -          |
-| assign-actor-ownership               | ✅       | ✅     | ✅     | Ownership     | -          |
-| remove-actor-ownership               | ✅       | ✅     | ✅     | Ownership     | -          |
-| list-actor-ownership                 | ✅       | ✅     | ✅     | Ownership     | -          |
-| generate-map                         | ✅       | ✅     | ✅     | Map           | -          |
-| check-map-status                     | ✅       | ✅     | ✅     | Map           | -          |
-| cancel-map-job                       | ✅       | ✅     | ✅     | Map           | -          |
-| list-scenes                          | ✅       | ✅     | ✅     | Map           | -          |
-| switch-scene                         | ✅       | ✅     | ✅     | Map           | -          |
-| **get-character-entity**             | ❌       | ❌     | **✅** | **Character** | **MEDIUM** |
-| **move-token**                       | ❌       | ❌     | **✅** | **Token**     | **HIGH**   |
-| **update-token**                     | ❌       | ❌     | **✅** | **Token**     | **HIGH**   |
-| **delete-tokens**                    | ❌       | ❌     | **✅** | **Token**     | **HIGH**   |
-| **get-token-details**                | ❌       | ❌     | **✅** | **Token**     | **HIGH**   |
-| **toggle-token-condition**           | ❌       | ❌     | **✅** | **Token**     | **HIGH**   |
-| **get-available-conditions**         | ❌       | ❌     | **✅** | **Token**     | **HIGH**   |
+| Tool Name                    | Baseline | Master | Broken | Category   | Priority |
+| ---------------------------- | -------- | ------ | ------ | ---------- | -------- |
+| get-character                | ✅       | ✅     | ✅     | Character  | -        |
+| list-characters              | ✅       | ✅     | ✅     | Character  | -        |
+| search-compendium            | ✅       | ✅     | ✅     | Compendium | -        |
+| get-compendium-item          | ✅       | ✅     | ✅     | Compendium | -        |
+| list-creatures-by-criteria   | ✅       | ✅     | ✅     | Compendium | -        |
+| list-compendium-packs        | ✅       | ✅     | ✅     | Compendium | -        |
+| get-current-scene            | ✅       | ✅     | ✅     | Scene      | -        |
+| get-world-info               | ✅       | ✅     | ✅     | Scene      | -        |
+| create-actor-from-compendium | ✅       | ✅     | ✅     | Actor      | -        |
+| get-compendium-entry-full    | ✅       | ✅     | ✅     | Actor      | -        |
+
+| create-quest-journal | ✅ | ✅ | ✅ | Journal | - |
+| link-quest-to-npc | ✅ | ✅ | ✅ | Journal | - |
+| update-quest-journal | ✅ | ✅ | ✅ | Journal | - |
+| list-journals | ✅ | ✅ | ✅ | Journal | - |
+| search-journals | ✅ | ✅ | ✅ | Journal | - |
+| request-player-rolls | ✅ | ✅ | ✅ | Dice | - |
+| create-campaign-dashboard | ✅ | ✅ | ✅ | Campaign | - |
+| assign-actor-ownership | ✅ | ✅ | ✅ | Ownership | - |
+| remove-actor-ownership | ✅ | ✅ | ✅ | Ownership | - |
+| list-actor-ownership | ✅ | ✅ | ✅ | Ownership | - |
+| generate-map | ✅ | ✅ | ✅ | Map | - |
+| check-map-status | ✅ | ✅ | ✅ | Map | - |
+| cancel-map-job | ✅ | ✅ | ✅ | Map | - |
+| list-scenes | ✅ | ✅ | ✅ | Map | - |
+| switch-scene | ✅ | ✅ | ✅ | Map | - |
+| **get-character-entity** | ❌ | ❌ | **✅** | **Character** | **MEDIUM** |
+| **move-token** | ❌ | ❌ | **✅** | **Token** | **HIGH** |
+| **update-token** | ❌ | ❌ | **✅** | **Token** | **HIGH** |
+| **delete-tokens** | ❌ | ❌ | **✅** | **Token** | **HIGH** |
+| **get-token-details** | ❌ | ❌ | **✅** | **Token** | **HIGH** |
+| **toggle-token-condition** | ❌ | ❌ | **✅** | **Token** | **HIGH** |
+| **get-available-conditions** | ❌ | ❌ | **✅** | **Token** | **HIGH** |
 
 ---
 
@@ -497,14 +463,14 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 | Compendium     | 4        | 4      | 4      | 0             |
 | Scene          | 2        | 2      | 2      | 0             |
 | Actor Creation | 2        | 2      | 2      | 0             |
-| DSA5 Character | 2        | 0      | 2      | 0             |
-| Quest/Journal  | 5        | 5      | 5      | 0             |
-| Dice Roll      | 1        | 1      | 1      | 0             |
-| Campaign       | 1        | 1      | 1      | 0             |
-| Ownership      | 3        | 3      | 3      | 0             |
-| **Token**      | **0**    | **0**  | **6**  | **+6**        |
-| Map Generation | 5        | 5      | 5      | 0             |
-| **TOTAL**      | **26**   | **23** | **32** | **+7**        |
+
+| Quest/Journal | 5 | 5 | 5 | 0 |
+| Dice Roll | 1 | 1 | 1 | 0 |
+| Campaign | 1 | 1 | 1 | 0 |
+| Ownership | 3 | 3 | 3 | 0 |
+| **Token** | **0** | **0** | **6** | **+6** |
+| Map Generation | 5 | 5 | 5 | 0 |
+| **TOTAL** | **26** | **23** | **32** | **+7** |
 
 ### Migration Candidates
 

@@ -11,7 +11,7 @@ import { z } from 'zod';
  * Supported game system identifiers
  * Extend this type when adding new systems
  */
-export type SystemId = 'dnd5e' | 'pf2e' | 'dsa5' | 'cosmere-rpg' | 'wfrp4e' | 'other';
+export type SystemId = 'dnd5e' | 'other';
 
 /**
  * System metadata returned by adapters
@@ -193,112 +193,6 @@ export interface DnD5eCreatureIndex extends SystemCreatureIndex {
 }
 
 /**
- * Pathfinder 2e specific creature index structure
- */
-export interface PF2eCreatureIndex extends SystemCreatureIndex {
-  system: 'pf2e';
-  systemData: {
-    level?: number;
-    traits?: string[];
-    size?: string;
-    alignment?: string;
-    rarity?: string;
-    hasSpellcasting: boolean;
-    hitPoints?: number;
-    armorClass?: number;
-  };
-}
-
-/**
- * DSA5 (Das Schwarze Auge 5) specific creature index structure
- */
-export interface DSA5CreatureIndex extends SystemCreatureIndex {
-  system: 'dsa5';
-  systemData: {
-    level?: number; // Experience level 1-7
-    species?: string; // Spezies (Human, Elf, Dwarf, etc.)
-    culture?: string; // Kultur
-    profession?: string; // Profession (career)
-    size?: string; // Size category
-    hasSpells: boolean; // Has spellcasting abilities
-    hasAstralEnergy?: boolean; // Has AsP (Astralenergie)
-    hasKarmaEnergy?: boolean; // Has KaP (Karmaenergie)
-    traits?: string[]; // Special abilities/traits
-    hitPoints?: number; // Deprecated, use lifePoints
-    lifePoints?: number; // LeP (Lebensenergie)
-    experiencePoints?: number; // Abenteuerpunkte (AP)
-    meleeDefense?: number; // Parry defense (PAW)
-    rangedDefense?: number; // Dodge defense (AW)
-    armor?: number; // Armor rating (RS)
-    rarity?: string; // Rarity classification
-  };
-}
-
-/**
- * Cosmere RPG specific creature index structure
- *
- * Schema reference: github.com/the-metalworks/cosmere-rpg
- *
- * Most cosmere-rpg compendium creatures are `adversary`-type actors. The
- * fields below are extracted from the live (post-derive) `system.*` block
- * so DerivedValueField overrides (e.g. health max set via the sheet) are
- * resolved before indexing — see `readDerived` in ./cosmere-rpg/constants.ts.
- */
-export interface CosmereRpgCreatureIndex extends SystemCreatureIndex {
-  system: 'cosmere-rpg';
-  systemData: {
-    /** Player-character level (rare in compendium adversaries). */
-    level?: number;
-    /** Adversary tier — 1 (minion-tier) to 4 (legendary). Primary power-level proxy. */
-    tier?: number;
-    /** Adversary role — `minion` | `rival` | `boss` (and any system-defined extension). */
-    role?: string;
-    /** Size category (tiny/small/medium/large/huge/gargantuan). */
-    size?: string;
-    /** Primary creature type (`humanoid`, `animal`, `spren`, `parshendi`, ...). */
-    creatureType?: string;
-    /** Free-form subtype (e.g. specific singer form, beast variant). */
-    subtype?: string;
-    /** Health max (resources.hea.max, override-aware). */
-    health?: number;
-    /** Focus max (resources.foc.max, override-aware). */
-    focus?: number;
-    /** Investiture max (resources.inv.max, override-aware) — usually 0 for non-Surge-users. */
-    investiture?: number;
-    /** Convenience flag: `investiture > 0`. */
-    hasInvestiture?: boolean;
-    /** Final defense values (post-derive). */
-    defenses?: {
-      phy?: number;
-      cog?: number;
-      spi?: number;
-    };
-    /** Deflect rating. */
-    deflect?: number;
-    /** Walk speed in feet (movement.walk.rate, override-aware). */
-    walkSpeed?: number;
-  };
-}
-
-/**
- * WFRP4e (Warhammer Fantasy Roleplay 4e) specific creature index structure.
- *
- * Character-focused adapter: the creature index is intentionally lightweight
- * (WFRP4e has no Challenge Rating / level metric).
- */
-export interface WFRP4eCreatureIndex extends SystemCreatureIndex {
-  system: 'wfrp4e';
-  systemData: {
-    species?: string; // Species/race (Human, Beastman, Goblin, ...)
-    size?: string; // Normalized size label
-    wounds?: number; // Maximum wounds
-    hasSpells: boolean; // Has arcane spell items
-    hasPrayers: boolean; // Has divine prayer items
-    traits?: string[]; // Creature trait item names
-  };
-}
-
-/**
  * Generic creature index for unsupported systems
  */
 export interface GenericCreatureIndex extends SystemCreatureIndex {
@@ -309,10 +203,4 @@ export interface GenericCreatureIndex extends SystemCreatureIndex {
 /**
  * Union type of all creature index types
  */
-export type AnyCreatureIndex =
-  | DnD5eCreatureIndex
-  | PF2eCreatureIndex
-  | DSA5CreatureIndex
-  | CosmereRpgCreatureIndex
-  | WFRP4eCreatureIndex
-  | GenericCreatureIndex;
+export type AnyCreatureIndex = DnD5eCreatureIndex | GenericCreatureIndex;

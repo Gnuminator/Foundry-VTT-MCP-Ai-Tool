@@ -16,5 +16,5 @@
     }
   },
   "include": ["src/**/*", "types/**/*"],
-  "exclude": ["dist", "**/*.test.*", "**/*.spec.*"]
+  "exclude": ["dist", "**/*.test.*", "**/*.spec.*", "src/test-support/**"]
 }

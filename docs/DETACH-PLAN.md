@@ -269,6 +269,26 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 
 ## Phase 9 — Deep reimplementation (deferred; own phase)
 
+> **Status (2026‑06‑15): STARTED — mock-harness prerequisite landed.** The
+> Foundry/browser mock harness (the stated prereq below) is built and proven:
+> `packages/foundry-module/src/test-support/foundry-mock/` — a `MockCollection`
+> (Foundry `Collection`/embedded-collection semantics), duck-typed document
+> builders (`makeActor/makeItem/makeEffect/makeScene/makeToken/makePack/makeUser`),
+> and `createTestWorld()` + `installFoundryGlobals()` that wire `game`/`ui`/`CONST`/
+> `CONFIG`/`foundry.utils`/`Hooks`/document-class globals onto `globalThis` and tear
+> them down. It's **test-only** (excluded from the shipped `tsc` build via
+> `tsconfig.json` `src/test-support/**`), consistent with how `*.test.*` is already
+> excluded; the module is `tsc`-compiled with no bundler so nothing leaks into
+> `dist/`. First characterization slice shipped: `data-access.reads.test.ts` (12
+> tests) pins the read surface (`listActors`, `getWorldInfo`, `getActiveScene`,
+> `getAvailablePacks`, `getCharacterInfo` incl. items/effects/equipped-toggle/dnd5e
+> spellcasting), driving the **real** `FoundryDataAccess` end-to-end — proof the
+> harness works. foundry-module suite **12 → 24**; total **1120 → 1132**, green
+> incl. wiped/clean build. **Next:** fan out characterization per data-access domain
+> (scenes/tokens, journals, compendium search, creature index, combat, write paths —
+> extend the harness's document write-methods as those domains need), building the
+> parity net before the from-scratch rewrite + modular reorg below.
+
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and
 not runtime-testable in a dev session). The deeper "make it truly mine" reimplementation of the module

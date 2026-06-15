@@ -110,9 +110,11 @@ you actually use it. Both are low-risk deletions — do them now.
 ## Phase 4 — Staged reimplementation (the long pole; many sessions)
 
 Reimplement **behind stable external contracts** so the dashboard + Foundry keep working throughout.
-Suggested order (low-risk → high-value):
+Live status + done log lives in **`docs/PHASE4-TRACKER.md`** (read it to resume). Suggested order
+(low-risk → high-value):
 
-1. `shared` types — small; sets the vocabulary.
+1. ✅ `shared` types — small; sets the vocabulary. **DONE** (2026-06-15) — reimplemented behind its
+   frozen public surface, 34-test parity/contract guard added + wired into CI.
 2. **Control-channel / socket-bridge protocol** — the contract everything depends on. Design + rewrite
    carefully (this is the part most worth Opus-level attention).
 3. Foundry module `data-access` / `queries` layer.

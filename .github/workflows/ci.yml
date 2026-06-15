@@ -24,6 +24,10 @@ jobs:
       - name: Build (all workspaces)
         run: npm run build
 
+      - name: Unit tests (shared)
+        # Parity + frozen-wire-contract guard for the @gnuminator/shared package.
+        run: npm test -w @gnuminator/shared
+
       - name: Unit tests (foundry module)
         # Scoped to the module suite by workspace name (npm scope is @gnuminator/*).
         run: npm test -w @gnuminator/foundry-module

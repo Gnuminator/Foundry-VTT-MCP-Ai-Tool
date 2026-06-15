@@ -1,10 +1,29 @@
-// Zod schemas for validation of shared types
+/**
+ * @module schemas
+ *
+ * Zod validation schemas for every domain type defined in `types.ts`.
+ *
+ * Design rules:
+ *   - Schemas and TypeScript interfaces are kept as parallel explicit
+ *     definitions rather than using `z.infer<>`. This is intentional:
+ *     schemas with `.default(…)` change the inferred input/output type,
+ *     which would silently break callers that depend on the hand-written
+ *     interface shapes.
+ *   - Validation bounds and default values are part of the public contract.
+ *     Do not change them without updating the corresponding interface and
+ *     the test suite in `shared.test.ts`.
+ *   - `.default(…)` on scalar fields means the field is optional at parse
+ *     time and the default is filled in on the output. This matches
+ *     behaviour callers already rely on (e.g. `scaling: ScalingOptionsSchema
+ *     .default({})` inside CampaignPartSchema).
+ */
 
 import { z } from 'zod';
 
-/**
- * MCP Query schemas
- */
+// ---------------------------------------------------------------------------
+// 1. Wire-protocol schemas
+// ---------------------------------------------------------------------------
+
 export const MCPQuerySchema = z.object({
   method: z.string(),
   data: z.unknown().optional(),
@@ -16,9 +35,10 @@ export const MCPResponseSchema = z.object({
   error: z.string().optional(),
 });
 
-/**
- * Character schemas
- */
+// ---------------------------------------------------------------------------
+// 2. Actor / Character schemas
+// ---------------------------------------------------------------------------
+
 export const CharacterItemSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -51,9 +71,10 @@ export const CharacterInfoSchema = z.object({
   effects: z.array(CharacterEffectSchema),
 });
 
-/**
- * Compendium schemas
- */
+// ---------------------------------------------------------------------------
+// 3. Compendium schemas
+// ---------------------------------------------------------------------------
+
 export const CompendiumSearchResultSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -72,9 +93,10 @@ export const CompendiumPackSchema = z.object({
   private: z.boolean(),
 });
 
-/**
- * Scene schemas
- */
+// ---------------------------------------------------------------------------
+// 4. Scene / Token schemas
+// ---------------------------------------------------------------------------
+
 export const SceneTokenSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -113,7 +135,9 @@ export const SceneInfoSchema = z.object({
 });
 
 /**
- * Token Manipulation schemas
+ * Token mutation request for a batch-update operation.
+ * Bounds on `width`, `height`, and `rotation` are enforced here to catch
+ * bad input early rather than letting Foundry silently clamp it.
  */
 export const TokenUpdateSchema = z.object({
   tokenId: z.string(),
@@ -131,6 +155,9 @@ export const TokenUpdateSchema = z.object({
   }),
 });
 
+/**
+ * `animate` defaults to false so callers can omit it for instant moves.
+ */
 export const TokenMoveRequestSchema = z.object({
   tokenId: z.string(),
   x: z.number(),
@@ -152,6 +179,10 @@ export const TokenDeleteResultSchema = z.object({
   errors: z.array(z.string()).optional(),
 });
 
+/**
+ * Extends SceneTokenSchema with the extra fields the detail view exposes.
+ * Using `.extend` keeps the base token validation intact.
+ */
 export const TokenDetailsSchema = SceneTokenSchema.extend({
   rotation: z.number(),
   elevation: z.number(),
@@ -168,8 +199,13 @@ export const TokenDetailsSchema = SceneTokenSchema.extend({
     .optional(),
 });
 
+// ---------------------------------------------------------------------------
+// 5. Configuration schemas
+// ---------------------------------------------------------------------------
+
 /**
- * Configuration schemas
+ * `mcpPort` must be a user-assignable port (1024–65535).
+ * `connectionTimeout` is clamped to a practical 5–60 second range.
  */
 export const FoundryMCPConfigSchema = z.object({
   enabled: z.boolean(),
@@ -190,9 +226,10 @@ export const MCPServerConfigSchema = z.object({
   }),
 });
 
-/**
- * World info schemas
- */
+// ---------------------------------------------------------------------------
+// 6. World / Status schemas
+// ---------------------------------------------------------------------------
+
 export const WorldUserSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -209,17 +246,19 @@ export const WorldInfoSchema = z.object({
   users: z.array(WorldUserSchema),
 });
 
-/**
- * Bridge status schema
- */
 export const BridgeStatusSchema = z.object({
   isRunning: z.boolean(),
   config: FoundryMCPConfigSchema,
   timestamp: z.number(),
 });
 
+// ---------------------------------------------------------------------------
+// 7. Campaign schemas
+// ---------------------------------------------------------------------------
+
 /**
- * Multipart Campaign schemas
+ * Valid lifecycle states for a campaign part.
+ * Used by the journal renderer to drive progress indicators.
  */
 export const CampaignPartStatusSchema = z.enum([
   'not_started',
@@ -228,6 +267,10 @@ export const CampaignPartStatusSchema = z.enum([
   'skipped',
 ]);
 
+/**
+ * Structural classification of a campaign part.
+ * Drives rendering and navigation depth in the dashboard journal.
+ */
 export const CampaignPartTypeSchema = z.enum([
   'main_part',
   'sub_part',
@@ -236,6 +279,9 @@ export const CampaignPartTypeSchema = z.enum([
   'optional',
 ]);
 
+/**
+ * D&D 5e character level range [1, 20] for pacing guidance.
+ */
 export const LevelRecommendationSchema = z.object({
   start: z.number().min(1).max(20),
   end: z.number().min(1).max(20),
@@ -247,13 +293,21 @@ export const NPCReferenceSchema = z.object({
   actorId: z.string().optional(),
 });
 
+/**
+ * Encounter-scaling parameters.
+ * `difficultyModifier` is clamped to [-2, 2]; boolean flags default to true
+ * so a bare `{}` input yields fully-enabled adaptive scaling.
+ */
 export const ScalingOptionsSchema = z.object({
   adjustForPartySize: z.boolean().default(true),
   adjustForLevel: z.boolean().default(true),
   difficultyModifier: z.number().min(-2).max(2).default(0),
 });
 
-// Sub-part schema (no further nesting)
+/**
+ * Leaf-level campaign unit. No further nesting.
+ * `status` defaults to `'not_started'` when the field is omitted.
+ */
 export const CampaignSubPartSchema = z.object({
   id: z.string(),
   title: z.string().min(1),
@@ -265,7 +319,16 @@ export const CampaignSubPartSchema = z.object({
   completedAt: z.number().optional(),
 });
 
-// Main campaign part schema with optional sub-parts
+/**
+ * Top-level structural unit in a campaign.
+ *
+ * Notable defaults (verified by the test suite):
+ *   - `status` → `'not_started'`
+ *   - `dependencies` → `[]`
+ *   - `gmNotes` → `''`
+ *   - `playerContent` → `''`
+ *   - `scaling` → `{ adjustForPartySize: true, adjustForLevel: true, difficultyModifier: 0 }`
+ */
 export const CampaignPartSchema = z.object({
   id: z.string(),
   title: z.string().min(1),
@@ -284,6 +347,10 @@ export const CampaignPartSchema = z.object({
   completedAt: z.number().optional(),
 });
 
+/**
+ * Campaign-wide metadata.
+ * `tags` defaults to `[]` when the field is omitted.
+ */
 export const CampaignMetadataSchema = z.object({
   defaultQuestGiver: NPCReferenceSchema.optional(),
   defaultLocation: z.string().optional(),
@@ -293,6 +360,10 @@ export const CampaignMetadataSchema = z.object({
   tags: z.array(z.string()).default([]),
 });
 
+/**
+ * Root campaign document. `title` must be non-empty (`.min(1)`).
+ * `createdAt` and `updatedAt` are required epoch-ms timestamps.
+ */
 export const CampaignStructureSchema = z.object({
   id: z.string(),
   title: z.string().min(1),
@@ -304,6 +375,12 @@ export const CampaignStructureSchema = z.object({
   updatedAt: z.number(),
 });
 
+/**
+ * Blueprint for pre-populating a new campaign with a standard part layout.
+ * `metadata` is `.partial()` — callers supply only the fields they know.
+ * The inline part schema deliberately omits fields that are filled in at
+ * campaign-creation time (id, status, gmNotes, etc.).
+ */
 export const CampaignTemplateSchema = z.object({
   id: z.string(),
   name: z.string(),

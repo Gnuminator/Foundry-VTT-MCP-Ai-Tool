@@ -2,17 +2,19 @@
   "name": "@gnuminator/shared",
   "version": "0.15.0",
   "author": "Gnuminator <gnuminator@users.noreply.github.com>",
-  "description": "Shared TypeScript types and constants for Foundry MCP Integration",
+  "description": "Shared TypeScript types and constants for Foundry AI Tool",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "zod": "^3.22.0"

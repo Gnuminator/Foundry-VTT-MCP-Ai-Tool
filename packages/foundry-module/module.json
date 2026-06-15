@@ -1,7 +1,7 @@
 {
   "id": "foundry-mcp-bridge",
-  "title": "Foundry MCP Bridge",
-  "description": "Connect Foundry VTT to AI models through MCP protocol. Enable AI-powered actor creation, intelligent compendium search, campaign analysis, and interactive dice roll coordination. Adds combat play-by-play, a live chat-log buffer, in-character chat, resource/spell-slot tracking, active-effect & condition management, an initiative/turn tracker, token positioning & distance measurement, and a persistent session event log. Supports Claude, local LLMs, and future AI models with comprehensive GM-only security.",
+  "title": "Foundry AI Tool",
+  "description": "MCP server bridge for Foundry VTT: gives AI models (Claude and others) live access to actors, combat, scenes, compendiums, and session events. Includes a co-GM dashboard for real-time session control. Supports D&D 5e, Pathfinder 2e, DSA5, Cosmere RPG, and WFRP4e. GM-only security gating.",
   "version": "0.15.0",
   "compatibility": {
     "minimum": "13",
@@ -10,16 +10,15 @@
   },
   "authors": [
     {
-      "name": "Adam Dooley",
-      "email": "adambriandooley@gmail.com",
-      "url": "https://github.com/adambdooley"
+      "name": "Gnuminator",
+      "url": "https://github.com/Gnuminator"
     }
   ],
-  "url": "https://github.com/Gnuminator/Foundry-VTT-MCP",
-  "bugs": "https://github.com/Gnuminator/Foundry-VTT-MCP/issues",
-  "changelog": "https://github.com/Gnuminator/Foundry-VTT-MCP/releases",
-  "readme": "https://github.com/Gnuminator/Foundry-VTT-MCP/blob/main/README.md",
-  "license": "https://github.com/Gnuminator/Foundry-VTT-MCP/blob/main/LICENSE",
+  "url": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool",
+  "bugs": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/issues",
+  "changelog": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases",
+  "readme": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/blob/main/README.md",
+  "license": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/blob/main/LICENSE",
   "esmodules": ["dist/main.js"],
   "styles": ["styles/module.css", "styles/enhanced-creature-index.css"],
   "languages": [
@@ -30,8 +29,8 @@
     }
   ],
   "socket": true,
-  "manifest": "https://github.com/Gnuminator/Foundry-VTT-MCP/releases/latest/download/module.json",
-  "download": "https://github.com/Gnuminator/Foundry-VTT-MCP/releases/latest/download/foundry-mcp-bridge.zip",
+  "manifest": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/module.json",
+  "download": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-mcp-bridge.zip",
   "protected": false,
   "coreTranslation": false,
   "library": false,

@@ -53,7 +53,7 @@ The layout adapts to phone/tablet width — keep it open on a second screen at t
 
 ### MCP Tools
 
-26 tools across 9 categories, exposed to any MCP-compatible AI client:
+A selection of the tools, across 8 categories, exposed to any MCP-compatible AI client:
 
 | Category        | Tools                                                                                         |
 | --------------- | --------------------------------------------------------------------------------------------- |
@@ -66,21 +66,18 @@ The layout adapts to phone/tablet width — keep it open on a second screen at t
 | Ownership       | assign-actor-ownership, remove-actor-ownership, list-actor-ownership                          |
 | Dice            | request-player-rolls                                                                          |
 | Map generation  | generate-map, check-map-status, cancel-map-job                                                |
-| DSA5            | create-dsa5-character-from-archetype, list-dsa5-archetypes                                    |
 
-Map generation requires a ComfyUI backend. DSA5 tools require the DSA5 game system.
+Map generation requires a ComfyUI backend.
 
 ---
 
 ### Supported Systems
 
 - Dungeons & Dragons 5th Edition
-- Pathfinder 2nd Edition
-- Das Schwarze Auge 5th Edition (DSA5)
-- Cosmere RPG
-- Warhammer Fantasy Roleplay 4th Edition
 
-Most tools are system-agnostic or system-aware. A handful are DSA5-specific.
+Built for D&D 5e. System-specific logic (creature indexing, stat extraction, filters) lives
+behind a registry + adapter interface, so support for another system is an adapter away — but
+only the D&D 5e adapter ships today.
 
 ---
 

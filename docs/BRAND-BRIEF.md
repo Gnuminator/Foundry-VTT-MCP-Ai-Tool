@@ -18,6 +18,11 @@ lo-fi screens, and documents). The **Animation — Motion & video** tile is for 
 what you want" message box** (the compose field where you talk to the design model), one pass at a
 time. Send Pass 0 first to set the brief, then Pass 1, etc. After each result:
 
+> **Heads-up:** after Pass 0 the model will reply with something like _"brief locked — ready, send me
+> the first asset."_ That means **"paste your next prompt (Pass 1)"** — it is **not** asking you to
+> upload a file. Just paste Pass 1 into the same box and hit Send. (If it ever literally asks for an
+> upload, reply: _"I'm not uploading anything — generate it from the brief."_)
+
 - **Iterate in the same thread** with short nudges: _"simpler — fewer internal lines,"_ _"show it at
   16px next to the full size,"_ _"more negative space,"_ _"make the active node glow softer,"_ _"tighten
   the letter-spacing."_ Two or three rounds per asset beats one big ask.
@@ -95,8 +100,9 @@ Accent rule: **arcane blue leads; orange is a single spark.** Never a rainbow.
 > type: a mono (Space Mono / JetBrains Mono), muted `#9aa3b2`.
 >
 > Style: **flat, monoline, geometric, lots of dark negative space, no drop shadows, no gradients beyond
-> a soft node glow, no AI/robot clichés.** Confirm you've got the brief, then wait — I'll ask for one
-> asset at a time.
+> a soft node glow, no AI/robot clichés.** Confirm you've captured the brief in your own words, then
+> stop and wait — **I'll paste the next instruction (Pass 1) myself. Don't ask me to upload anything;
+> generate every asset from this brief.**
 
 ## Pass 1 — the app mark (logo glyph)
 

@@ -1,0 +1,71 @@
+# ============================================================================
+#  Cloudflare Tunnel config — TEMPLATE (not deployed)
+#  Copy this to ~/.cloudflared/config.yml on your always-on host and fill in
+#  every <PLACEHOLDER> before running cloudflared.
+#
+#  Prerequisites:
+#    1. A domain managed on Cloudflare (NS must point to Cloudflare).
+#    2. cloudflared installed: https://developers.cloudflare.com/cloudflare-one/
+#    3. cloudflared tunnel login  (saves cert.pem to ~/.cloudflared/)
+#    4. cloudflared tunnel create cogm  (saves credentials JSON, prints UUID)
+#    5. cloudflared tunnel route dns cogm cogm.<YOUR_DOMAIN>
+#
+#  After filling in this file:
+#    cloudflared tunnel run cogm
+#  Or install as a system service:
+#    sudo cloudflared service install
+#
+#  See docs/REMOTE-ACCESS.md §3 for the full setup walkthrough.
+# ============================================================================
+
+# ── Tunnel identity ──────────────────────────────────────────────────────────
+
+# UUID printed by "cloudflared tunnel create cogm".
+# Example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+tunnel: <TUNNEL_UUID>
+
+# Path to the JSON credentials file cloudflared wrote when you ran
+# "cloudflared tunnel create cogm". The default location is shown below;
+# adjust if you saved it elsewhere or are running as a non-standard user.
+credentials-file: /home/<YOUR_LINUX_USER>/.cloudflared/<TUNNEL_UUID>.json
+
+# ── Ingress rules ────────────────────────────────────────────────────────────
+#
+# Rule evaluation is top-to-bottom; the first match wins.
+# The ONLY service exposed here is the co-GM dashboard (PORT=3000 by default).
+#
+# The MCP control channel (31414), the Foundry WebSocket connector (31415), and
+# the WebRTC signaling endpoint (31416) are intentionally NOT listed — they must
+# stay on loopback or be firewalled; they are NOT fronted by this tunnel.
+# The Anthropic API key lives in the Node process on this host and never transits
+# this tunnel in either direction.
+
+ingress:
+  # ── Co-GM dashboard ────────────────────────────────────────────────────────
+  #
+  # Replace <YOUR_DOMAIN> with the domain you routed (e.g. example.com → cogm.example.com).
+  # The dashboard must be running and bound to localhost:3000 before cloudflared
+  # will successfully proxy requests.
+  #
+  # Cloudflare Access (set up separately in the Zero Trust dashboard) gates this
+  # hostname and injects "cf-access-authenticated-user-email" into every request
+  # before it reaches the dashboard server. The dashboard maps that email against
+  # GM_EMAILS to assign the GM role.
+  #
+  - hostname: cogm.<YOUR_DOMAIN>
+    service: http://localhost:3000
+    # Optional: set HTTP/2 origin connection (good for SSE streams).
+    # originRequest:
+    #   http2Origin: true
+    #   noTLSVerify: false   # keep true unless your local service has a self-signed cert
+
+  # ── Catch-all (required by cloudflared) ────────────────────────────────────
+  #
+  # Any request that does not match a hostname rule above gets a 404. Do not
+  # delete this rule — cloudflared requires at least one catch-all.
+  - service: http_status:404
+
+# ── Optional: logging ─────────────────────────────────────────────────────────
+# Uncomment to write cloudflared logs to a file (useful for always-on deployments).
+# loglevel: info
+# logfile: /var/log/cloudflared.log

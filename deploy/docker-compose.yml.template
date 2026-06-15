@@ -1,0 +1,134 @@
+# =============================================================================
+#  Foundry AI Tool — docker-compose TEMPLATE
+#  NOT deployed / not tested. Scaffold for the remote-hosting topology.
+#
+#  Services:
+#    app       — bridge backend + co-GM dashboard (built from deploy/Dockerfile)
+#    cloudflared — Cloudflare Tunnel sidecar that fronts the dashboard
+#
+#  Usage:
+#    1. Fill in every <PLACEHOLDER> below (see also docs/REMOTE-ACCESS.md §5).
+#    2. Copy deploy/cloudflare/config.yml.template → ./cloudflare/config.yml and
+#       fill in the tunnel UUID + credentials path inside that file.
+#    3. docker compose up -d
+#
+#  Secrets:
+#    The .env file approach is shown here for clarity. In a real deployment,
+#    prefer Docker Secrets (secrets: block) or a secrets manager so plaintext
+#    API keys do not sit on disk. The key must NEVER be baked into the image.
+#
+#  See deploy/README.md for an index of all templates in this folder.
+# =============================================================================
+
+name: foundry-ai-tool
+
+# ── Shared network ────────────────────────────────────────────────────────────
+networks:
+  internal:
+    driver: bridge
+    # Internal-only network between app and cloudflared. Nothing on this network
+    # is reachable from the host unless explicitly port-mapped below.
+
+# ── Services ──────────────────────────────────────────────────────────────────
+services:
+
+  # ── app: bridge + dashboard ────────────────────────────────────────────────
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: foundry-ai-tool:latest
+    restart: unless-stopped
+
+    networks:
+      - internal
+
+    # Expose the Foundry connector ports to the host so the hosted Foundry
+    # module can dial in. The dashboard port (3000) is intentionally NOT mapped
+    # to the host — it is only reachable via the cloudflared tunnel.
+    ports:
+      - "31415:31415"   # Foundry WebSocket connector (HTTP-hosted Foundry)
+      - "31416:31416"   # Foundry WebRTC signaling endpoint (HTTPS-hosted Foundry)
+
+    environment:
+      # ── Dashboard ──────────────────────────────────────────────────────────
+      PORT: "3000"
+
+      # !! Runtime secrets — do NOT hardcode here; pass via .env or Docker Secrets !!
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+      GM_DASHBOARD_TOKEN: "${GM_DASHBOARD_TOKEN}"
+      PLAYER_DASHBOARD_TOKEN: "${PLAYER_DASHBOARD_TOKEN}"
+      GM_EMAILS: "${GM_EMAILS}"
+
+      # Cloudflare Access injects this header; default is correct unless you
+      # reconfigured it in the Access application settings.
+      CF_ACCESS_EMAIL_HEADER: "cf-access-authenticated-user-email"
+
+      # Player-view visibility options (edit to taste).
+      PLAYER_SHOW_ENEMY_CONDITIONS: "true"
+      PLAYER_SHOW_ENEMY_HP_BANDS: "false"
+
+      # ── Bridge / backend ───────────────────────────────────────────────────
+      MCP_CONTROL_HOST: "127.0.0.1"    # keep loopback — internal to container
+      MCP_CONTROL_PORT: "31414"
+      FOUNDRY_REMOTE_MODE: "true"
+      FOUNDRY_CONNECTION_TYPE: "auto"   # auto | websocket | webrtc
+
+      # Override STUN servers if Google's are blocked or you need your own.
+      # FOUNDRY_STUN_SERVERS: "stun:<YOUR_STUN_HOST>:3478,stun:<BACKUP>:3478"
+
+      # ── Logging ───────────────────────────────────────────────────────────
+      LOG_LEVEL: "info"
+      NODE_ENV: "production"
+
+    # Healthcheck: ping the control channel or the dashboard HTTP port.
+    # Adjust the interval to suit your restart policy.
+    healthcheck:
+      test: ["CMD", "node", "-e",
+             "require('http').get('http://localhost:3000/api/health', r => process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ── cloudflared: Cloudflare Tunnel sidecar ─────────────────────────────────
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+
+    networks:
+      - internal
+
+    # The tunnel config file must be placed at /etc/cloudflared/config.yml inside
+    # the container. Fill in config.yml.template and mount it here.
+    volumes:
+      - ./cloudflare/config.yml:/etc/cloudflared/config.yml:ro
+      # The credentials JSON cloudflared wrote when you ran "tunnel create cogm".
+      # Mount the host path where you saved it.
+      - /home/<YOUR_LINUX_USER>/.cloudflared/<TUNNEL_UUID>.json:/etc/cloudflared/<TUNNEL_UUID>.json:ro
+
+    environment:
+      # Alternative to a config.yml: set TUNNEL_TOKEN to the token shown in the
+      # Zero Trust dashboard ("Configure" → your tunnel → "Install and run connector").
+      # If you use this, comment out the volumes above and the config.yml approach.
+      # TUNNEL_TOKEN: "${TUNNEL_TOKEN}"
+      #
+      # Leave commented if you are using the config.yml + credentials file approach.
+      NO_AUTOUPDATE: "true"
+
+    depends_on:
+      app:
+        condition: service_healthy
+
+# ── .env file (example — do not commit with real values) ─────────────────────
+#
+# Create a file named `.env` next to this compose file and populate:
+#
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   GM_DASHBOARD_TOKEN=<openssl rand -hex 32>
+#   PLAYER_DASHBOARD_TOKEN=<openssl rand -hex 32>
+#   GM_EMAILS=you@example.com,cogm@example.com
+#   TUNNEL_TOKEN=<optional — only if not using config.yml approach>
+#
+# .env is git-ignored. Never commit API keys or tokens to the repo.

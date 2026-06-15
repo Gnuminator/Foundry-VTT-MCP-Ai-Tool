@@ -13,7 +13,7 @@ const fail = (message) => {
 
 if (!fs.existsSync(distDir)) {
   fail(
-    `Build output not found at ${distDir}. Run "npm -w @foundry-mcp/server run build" and re-run this test.`,
+    `Build output not found at ${distDir}. Run "npm -w @gnuminator/mcp-server run build" and re-run this test.`,
   );
 }
 
@@ -26,7 +26,7 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
   { ChatLogTools }, { ResourceTools }, { EffectsTools }, { CombatTools }, { MovementTools },
   { SessionLogTools }, { CombatResolutionTools }, { EncounterTools }, { SceneControlTools },
   { LootTools }, { DiagnosticsTools }, { getSystemRegistry },
-  { DnD5eAdapter }, { PF2eAdapter }, { DSA5Adapter }, { CosmereRpgAdapter }] = await Promise.all([
+  { DnD5eAdapter }] = await Promise.all([
   importDist('config.js'),
   importDist('logger.js'),
   importDist('foundry-client.js'),
@@ -53,9 +53,6 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
   importDist('tools/diagnostics.js'),
   importDist('systems/index.js'),
   importDist('systems/dnd5e/adapter.js'),
-  importDist('systems/pf2e/adapter.js'),
-  importDist('systems/dsa5/adapter.js'),
-  importDist('systems/cosmere-rpg/adapter.js'),
 ]);
 
 const logger = new Logger({ level: 'error', enableConsole: false, enableFile: false });
@@ -63,9 +60,6 @@ const foundryClient = new FoundryClient(config.foundry, logger);
 
 const systemRegistry = getSystemRegistry(logger);
 systemRegistry.register(new DnD5eAdapter());
-systemRegistry.register(new PF2eAdapter());
-systemRegistry.register(new DSA5Adapter());
-systemRegistry.register(new CosmereRpgAdapter());
 
 const tools = [
   ...new CharacterTools({ foundryClient, logger, systemRegistry }).getToolDefinitions(),

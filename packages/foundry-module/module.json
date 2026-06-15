@@ -1,7 +1,7 @@
 {
   "id": "foundry-mcp-bridge",
   "title": "Foundry AI Tool",
-  "description": "MCP server bridge for Foundry VTT: gives AI models (Claude and others) live access to actors, combat, scenes, compendiums, and session events. Includes a co-GM dashboard for real-time session control. Supports D&D 5e, Pathfinder 2e, DSA5, Cosmere RPG, and WFRP4e. GM-only security gating.",
+  "description": "MCP server bridge for Foundry VTT: gives AI models (Claude and others) live access to actors, combat, scenes, compendiums, and session events. Includes a co-GM dashboard for real-time session control. Built for D&D 5e. GM-only security gating.",
   "version": "0.15.0",
   "compatibility": {
     "minimum": "13",

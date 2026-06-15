@@ -165,6 +165,24 @@ standalone showcase page/site**. Do this once there's polished functionality to 
 polish** (beyond the current Modern Command Center pass) is a _given but later_ — after all
 functionality is in. (Mobile/tablet stays deferred per the priority rule up top.)
 
+## Phase 8 — Repo tidy (cosmetic; low priority, do alongside Phase 4/5)
+
+The repo currently reads as a fresh fork, and the root is cluttered. Two things to fix:
+
+- **"Baseline: forked from adambdooley…" on every file.** GitHub shows the last commit that
+  touched each file, and most files were last touched by the single baseline squash commit, so the
+  file list is wall-to-wall "Baseline: forked from…". This is cosmetic and inherent to the
+  clean-history approach — it **resolves itself naturally** as Phase 4 reimplements files
+  module-by-module (each rewritten file gets a fresh, descriptive last-commit). No history rewrite
+  needed; just let the reimplementation commits land. Optionally shorten the baseline commit's
+  subject line if a history rewrite happens for another reason.
+- **Root-directory clutter.** Many loose top-level `.md` files (`ADDING_NEW_SYSTEMS.md`,
+  `BRANCH_COMPARISON_SUMMARY.md`, `DOCUMENTATION_COMPARISON.md`, `IMPLEMENTATION_ORDER.md`,
+  `MIGRATION_PLAN.md`, `MISSING_TOOLS.md`, `MCP_*_TEST_PROMPT.md`, etc.) — many are upstream or
+  transient working notes. Move the keepers under `docs/`, delete the dead ones, and leave the root
+  to just `README.md`, `LICENSE`, `CREDITS.md`, `CHANGELOG.md`, `CLAUDE.md`, and config files. Tidy
+  in one focused commit so the diff is easy to review.
+
 ---
 
 ## Working method (safe + resumable)

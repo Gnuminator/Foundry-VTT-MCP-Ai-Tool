@@ -9,10 +9,16 @@ once; go pass by pass and iterate.
 
 ## How to use this (read first)
 
-**Where to start in the Design tool.** On the **"Make something new"** screen, click the first tile —
-**"Start anywhere — Add a file and design"** (the blank canvas). It is the right surface for logo/brand
-graphics. _Don't_ use Slides / Prototype / Product wireframe / Doc (those are for decks, clickable UI,
-lo-fi screens, and documents). The **Animation — Motion & video** tile is for the demo later (see §6).
+**Where to start in the Design tool.** You do **not** need to upload any file — every asset is generated
+from the text brief below. The goal is just to reach a **blank design chat** and paste Pass 0:
+
+- **Simplest:** a plain new design chat / project (a "Design System" project works fine — it'll treat
+  this brief as its system). If you already opened one and pasted Pass 0, **just stay there.**
+- The **"Start anywhere — Add a file and design"** tile asks you to **upload a seed file first** — skip
+  it for a from-scratch logo (you have nothing to seed it with). _Optional:_ if a tile insists on a file,
+  upload `docs/images/cogm/overview.png` (your dashboard screenshot) purely as a color/vibe reference.
+- _Don't_ use Slides / Prototype / Product wireframe / Doc (decks, clickable UI, lo-fi screens,
+  documents). The **Animation — Motion & video** tile is for the demo later (see §6).
 
 **Where to paste.** Once the blank canvas opens, paste each prompt below into the **chat / "describe
 what you want" message box** (the compose field where you talk to the design model), one pass at a

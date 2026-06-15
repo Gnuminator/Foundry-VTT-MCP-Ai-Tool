@@ -27,8 +27,41 @@ function deepClone<T>(value: T): T {
 }
 
 /**
- * Attach the common Foundry document instance methods (mutating, in-memory).
- * Kept intentionally small — extend per-domain as write characterization needs.
+ * Foundry embedded-document type → the parent property that holds its collection.
+ * Matches the embedded names data-access passes to `createEmbeddedDocuments` etc.
+ */
+const EMBEDDED_COLLECTIONS: Record<string, string> = {
+  Item: 'items',
+  ActiveEffect: 'effects',
+  Token: 'tokens',
+  Note: 'notes',
+  MeasuredTemplate: 'templates',
+  JournalEntryPage: 'pages',
+  Wall: 'walls',
+  AmbientLight: 'lights',
+  AmbientSound: 'sounds',
+};
+
+/** Give each member of an embedded collection a `delete()` bound to that collection. */
+function bindCollectionDeletes(coll: MockCollection<AnyDoc>): MockCollection<AnyDoc> {
+  coll.forEach(member => {
+    const m = member as any;
+    if (typeof m.delete !== 'function') {
+      m.delete = () => {
+        coll.delete(m.id);
+        return Promise.resolve(m);
+      };
+    }
+  });
+  return coll;
+}
+
+/**
+ * Attach the common Foundry document instance methods (mutating, in-memory):
+ * flag accessors, `update`, `toObject`, and the embedded-document CRUD
+ * (`create/update/deleteEmbeddedDocuments`) the write paths exercise. A
+ * top-level `delete()` is attached by the world when the doc is registered
+ * (a document can't know its parent collection at build time).
  */
 function withDocumentMethods<T extends AnyDoc>(doc: T): T {
   const d = doc as any;
@@ -47,6 +80,43 @@ function withDocumentMethods<T extends AnyDoc>(doc: T): T {
     return Promise.resolve(d);
   };
   d.toObject = () => stripMethods(d);
+
+  d.createEmbeddedDocuments = (type: string, dataArray: any[] = []) => {
+    const key = EMBEDDED_COLLECTIONS[type] ?? `${type.toLowerCase()}s`;
+    const coll: MockCollection<AnyDoc> = (d[key] ??= new MockCollection<AnyDoc>());
+    const created = dataArray.map(data => {
+      const childId = data._id ?? data.id ?? randomId(type.toLowerCase());
+      const child = withDocumentMethods({ ...data, id: childId, _id: childId });
+      (child as any).delete = () => {
+        coll.delete(childId);
+        return Promise.resolve(child);
+      };
+      coll.add(child);
+      return child;
+    });
+    return Promise.resolve(created);
+  };
+  d.updateEmbeddedDocuments = (type: string, updates: any[] = []) => {
+    const key = EMBEDDED_COLLECTIONS[type] ?? `${type.toLowerCase()}s`;
+    const coll: MockCollection<AnyDoc> | undefined = d[key];
+    const updated: AnyDoc[] = [];
+    for (const u of updates) {
+      const child = coll?.get(u._id ?? u.id);
+      if (child) {
+        const { _id, id, ...changes } = u;
+        applyFlatChanges(child, changes);
+        updated.push(child);
+      }
+    }
+    return Promise.resolve(updated);
+  };
+  d.deleteEmbeddedDocuments = (type: string, ids: string[] = []) => {
+    const key = EMBEDDED_COLLECTIONS[type] ?? `${type.toLowerCase()}s`;
+    const coll: MockCollection<AnyDoc> | undefined = d[key];
+    ids.forEach(id => coll?.delete(id));
+    return Promise.resolve(ids);
+  };
+
   return doc;
 }
 
@@ -175,8 +245,8 @@ export function makeActor(opts: MakeActorOptions = {}): AnyDoc {
     type,
     ...(img ? { img } : {}),
     system,
-    items: new MockCollection(items),
-    effects: new MockCollection(effects),
+    items: bindCollectionDeletes(new MockCollection(items)),
+    effects: bindCollectionDeletes(new MockCollection(effects)),
     ...(ownership ? { ownership } : {}),
     _source: _source ?? { system: deepClone(system) },
     ...rest,
@@ -230,11 +300,12 @@ export function makeScene(opts: MakeSceneOptions = {}): AnyDoc {
     padding,
     active,
     navigation,
-    tokens: new MockCollection(tokens),
-    walls: new MockCollection(walls),
-    lights: new MockCollection(lights),
-    sounds: new MockCollection(sounds),
-    notes: new MockCollection(notes),
+    tokens: bindCollectionDeletes(new MockCollection(tokens)),
+    walls: bindCollectionDeletes(new MockCollection(walls)),
+    lights: bindCollectionDeletes(new MockCollection(lights)),
+    sounds: bindCollectionDeletes(new MockCollection(sounds)),
+    notes: bindCollectionDeletes(new MockCollection(notes)),
+    templates: bindCollectionDeletes(new MockCollection<AnyDoc>()),
     _source: _source ?? { background: { src: img ?? null } },
     ...rest,
   });
@@ -458,6 +529,19 @@ export function makeModule(opts: MakeModuleOptions = {}): AnyDoc {
     ...rest
   } = opts;
   return { id, title, version, active, ...rest };
+}
+
+// --- Generic document --------------------------------------------------------
+
+/**
+ * A generic Foundry document with the standard instance methods — for the
+ * world-level collections that don't need a specialized builder (world items,
+ * folders, chat messages). Honors a provided `id`/`_id`, else generates one.
+ */
+export function makeDocument(opts: Record<string, any> = {}): AnyDoc {
+  const { id, _id, ...rest } = opts;
+  const docId = id ?? _id ?? randomId('doc');
+  return withDocumentMethods({ id: docId, _id: docId, ...rest });
 }
 
 // --- Deterministic ids -------------------------------------------------------

@@ -15,6 +15,7 @@ import { MockCollection, type Identified } from './collection.js';
 import {
   makeActor,
   makeCombat,
+  makeDocument,
   makeJournal,
   makeModule,
   makePack,
@@ -74,15 +75,25 @@ export class TestWorld {
     readonly options: Required<Omit<TestWorldOptions, 'currentUser'>> & { currentUser: AnyDoc }
   ) {}
 
+  /**
+   * Register a document into a world collection and give it a top-level
+   * `delete()` bound to that collection (used by rollback / delete paths).
+   */
+  private register(coll: MockCollection<AnyDoc>, doc: AnyDoc): AnyDoc {
+    coll.add(doc);
+    (doc as any).delete = () => {
+      coll.delete(doc.id ?? '');
+      return Promise.resolve(doc);
+    };
+    return doc;
+  }
+
   addActor(opts?: MakeActorOptions): AnyDoc {
-    const actor = makeActor(opts);
-    this.actors.add(actor);
-    return actor;
+    return this.register(this.actors, makeActor(opts));
   }
 
   addScene(opts?: MakeSceneOptions): AnyDoc {
-    const scene = makeScene(opts);
-    this.scenes.add(scene);
+    const scene = this.register(this.scenes, makeScene(opts));
     if (scene.active && this.currentSceneId === null) this.currentSceneId = scene.id ?? null;
     return scene;
   }
@@ -100,9 +111,22 @@ export class TestWorld {
   }
 
   addJournal(opts?: MakeJournalOptions): AnyDoc {
-    const journal = makeJournal(opts);
-    this.journal.add(journal);
-    return journal;
+    return this.register(this.journal, makeJournal(opts));
+  }
+
+  /** Register a generic world item (`game.items`). */
+  addItem(opts?: Record<string, any>): AnyDoc {
+    return this.register(this.items, makeDocument(opts));
+  }
+
+  /** Register a folder (`game.folders`). */
+  addFolder(opts?: Record<string, any>): AnyDoc {
+    return this.register(this.folders, makeDocument(opts));
+  }
+
+  /** Register a chat message (`game.messages`). */
+  addMessage(opts?: Record<string, any>): AnyDoc {
+    return this.register(this.messages, makeDocument(opts));
   }
 
   addModule(opts?: MakeModuleOptions): AnyDoc {
@@ -126,6 +150,17 @@ export class TestWorld {
 
   setSetting(moduleId: string, key: string, value: unknown): void {
     this.settings.set(`${moduleId}.${key}`, value);
+  }
+
+  /**
+   * Satisfy the write-permission gate (`permissionManager.checkWritePermission`
+   * reads `allowWriteOperations`). Call before exercising a write path; omit it
+   * to characterize the ACCESS_DENIED branch. Returns `this` for chaining.
+   */
+  enableWrites(maxActorsPerRequest = 20): this {
+    this.setSetting('foundry-mcp-bridge', 'allowWriteOperations', true);
+    this.setSetting('foundry-mcp-bridge', 'maxActorsPerRequest', maxActorsPerRequest);
+    return this;
   }
 
   /** Build the `game` global from the current world state. */
@@ -232,6 +267,8 @@ export function installFoundryGlobals(world: TestWorld): () => void {
   const g = globalThis as any;
   const saved = new Map<string, unknown>();
   for (const key of FOUNDRY_GLOBAL_KEYS) saved.set(key, g[key]);
+  // Per-install counter for foundry.utils.randomID (stable within a test).
+  let randomIdSeq = 0;
 
   g.game = world.buildGame();
   g.ui = {
@@ -257,7 +294,10 @@ export function installFoundryGlobals(world: TestWorld): () => void {
     utils: {
       deepClone: <T>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v))),
       duplicate: <T>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v))),
-      randomID: (length = 16): string => 'x'.repeat(length),
+      // Unique per call (transaction ids and created-doc ids must not collide).
+      // Fixed-width zero-padded counter so e.g. seq 1 and 10 never alias.
+      randomID: (length = 16): string =>
+        `r${String((randomIdSeq += 1)).padStart(Math.max(1, length - 1), '0')}`.slice(0, length),
       mergeObject: (original: any, other: any = {}) => ({ ...original, ...other }),
       getProperty: (obj: any, path: string) =>
         path.split('.').reduce((node, key) => (node == null ? undefined : node[key]), obj),
@@ -289,14 +329,16 @@ export function installFoundryGlobals(world: TestWorld): () => void {
     call: (name: string, ...args: any[]) => (hooks[name] ?? []).forEach(cb => cb(...args)),
     callAll: (name: string, ...args: any[]) => (hooks[name] ?? []).forEach(cb => cb(...args)),
   };
-  // Document-class globals. Read paths never construct these; write-path
-  // domains stub `.create`/`.updateDocuments` per-test as needed.
-  g.Actor = { create: async (data: any) => world.addActor(data) };
-  g.Item = { create: async (data: any) => data };
-  g.Scene = { create: async (data: any) => world.addScene(data) };
-  g.Folder = { create: async (data: any) => ({ id: 'folder', ...data }) };
-  g.ChatMessage = { create: async (data: any) => ({ id: 'msg', ...data }) };
-  g.JournalEntry = { create: async (data: any) => ({ id: 'journal', ...data }) };
+  // Document-class globals. The static `create` factories register the new
+  // document into the world (so it's findable + deletable, e.g. for rollback).
+  // Foundry's `create` accepts a single object or an array; mirror that.
+  const firstOf = (data: any) => (Array.isArray(data) ? data[0] : data);
+  g.Actor = { create: async (data: any) => world.addActor(firstOf(data)) };
+  g.Item = { create: async (data: any) => world.addItem(firstOf(data)) };
+  g.Scene = { create: async (data: any) => world.addScene(firstOf(data)) };
+  g.Folder = { create: async (data: any) => world.addFolder(firstOf(data)) };
+  g.ChatMessage = { create: async (data: any) => world.addMessage(firstOf(data)) };
+  g.JournalEntry = { create: async (data: any) => world.addJournal(firstOf(data)) };
   g.Combat = function MockCombat() {};
   g.Roll = function MockRoll(formula: string) {
     return { formula, evaluate: async () => ({ total: 0 }), total: 0 };

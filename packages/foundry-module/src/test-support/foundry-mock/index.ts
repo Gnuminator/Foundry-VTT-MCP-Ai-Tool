@@ -39,6 +39,7 @@ export {
   makeCombat,
   makeCombatant,
   makeModule,
+  makeDocument,
   randomId,
   resetIdCounter,
   type MakeActorOptions,

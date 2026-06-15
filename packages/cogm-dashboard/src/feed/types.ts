@@ -53,6 +53,12 @@ export interface Combatant {
   category: string; // 'pc' | 'npc' | 'enemy'
   defeated: boolean;
   deathSaves: DeathSaves | null;
+  /**
+   * GM-hidden combatant (token hidden in the tracker). Surfaced by the bridge's
+   * get-combat-state so the dashboard can drop it from the player view server-side.
+   * Optional for forward-compatibility: undefined ⇒ treated as not hidden.
+   */
+  hidden?: boolean;
 }
 
 export interface CombatState {

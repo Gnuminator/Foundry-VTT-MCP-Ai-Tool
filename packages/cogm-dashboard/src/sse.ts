@@ -1,14 +1,26 @@
 import type { Response } from 'express';
 import type { Logger } from './logger.js';
+import type { Role } from './auth.js';
+
+/**
+ * A per-client redactor: given a broadcast payload and the client's role, return
+ * the payload that client should receive, or `undefined` to send them nothing
+ * (used for GM-only events, and for player-side redaction). See redact.ts.
+ */
+export type SseRedactor = (payload: unknown, role: Role) => unknown;
 
 /**
  * Tiny Server-Sent Events hub. Each connected dashboard tab is a long-lived
  * `text/event-stream` response; the server pushes named events to all of them.
  * A periodic comment-line heartbeat keeps proxies and browsers from closing an
  * idle connection.
+ *
+ * Each client carries a **role** (Phase 6). `broadcast` can take a redactor that
+ * computes the per-role payload server-side, so a player's stream never carries
+ * GM-only data — the filtering is here, not in the browser.
  */
 export class SseHub {
-  private readonly clients = new Set<Response>();
+  private readonly clients = new Map<Response, Role>();
   private heartbeat: NodeJS.Timeout | null = null;
   private readonly logger: Logger;
 
@@ -16,7 +28,7 @@ export class SseHub {
     this.logger = logger.child('sse');
   }
 
-  add(res: Response): void {
+  add(res: Response, role: Role = 'gm'): void {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
@@ -24,8 +36,8 @@ export class SseHub {
       'X-Accel-Buffering': 'no',
     });
     res.write(': connected\n\n');
-    this.clients.add(res);
-    this.logger.debug('Client connected', { clients: this.clients.size });
+    this.clients.set(res, role);
+    this.logger.debug('Client connected', { clients: this.clients.size, role });
 
     res.on('close', () => {
       this.clients.delete(res);
@@ -44,7 +56,7 @@ export class SseHub {
       clearInterval(this.heartbeat);
       this.heartbeat = null;
     }
-    for (const res of this.clients) {
+    for (const res of this.clients.keys()) {
       try {
         res.end();
       } catch {
@@ -63,10 +75,26 @@ export class SseHub {
     }
   }
 
-  /** Broadcast a named event to every connected client. */
-  broadcast(type: string, payload: unknown): void {
-    const frame = `event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`;
-    for (const res of this.clients) {
+  /**
+   * Broadcast a named event to every connected client. With a `redactor`, each
+   * client receives the role-specific payload; a redactor returning `undefined`
+   * skips that client entirely (GM-only events). The redactor runs at most once
+   * per distinct role per broadcast.
+   */
+  broadcast(type: string, payload: unknown, redactor?: SseRedactor): void {
+    const perRole = new Map<Role, string | null>();
+    const frameFor = (role: Role): string | null => {
+      if (perRole.has(role)) return perRole.get(role)!;
+      const value = redactor ? redactor(payload, role) : payload;
+      const frame =
+        value === undefined ? null : `event: ${type}\ndata: ${JSON.stringify(value)}\n\n`;
+      perRole.set(role, frame);
+      return frame;
+    };
+
+    for (const [res, role] of this.clients) {
+      const frame = frameFor(role);
+      if (frame === null) continue;
       try {
         res.write(frame);
       } catch {
@@ -76,7 +104,7 @@ export class SseHub {
   }
 
   private ping(): void {
-    for (const res of this.clients) {
+    for (const res of this.clients.keys()) {
       try {
         res.write(': ping\n\n');
       } catch {

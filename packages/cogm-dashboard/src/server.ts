@@ -3,13 +3,26 @@ import { config, type Tone } from './config.js';
 import { Logger } from './logger.js';
 import { McpControlClient, ToolError, TimeoutError } from './feed/mcp-control-client.js';
 import { PollingGameFeed } from './feed/polling-feed.js';
-import type { BridgeStatus, CombatState, GameFeedHandlers, WorldInfo } from './feed/types.js';
+import type {
+  BridgeStatus,
+  CombatState,
+  GameFeedHandlers,
+  SessionEvent,
+  WorldInfo,
+} from './feed/types.js';
 import { GameState } from './state.js';
 import { CoGm } from './ai/anthropic-co-gm.js';
 import { CommentaryEngine } from './ai/commentary.js';
 import { ErrorCommentaryEngine } from './ai/error-commentary.js';
 import { buildAskUserMessage } from './ai/prompt.js';
-import { SseHub } from './sse.js';
+import { SseHub, type SseRedactor } from './sse.js';
+import { resolveRole, isGm } from './auth.js';
+import {
+  redactCombatForPlayer,
+  redactEventsForPlayer,
+  redactStatusForPlayer,
+  redactWorldForPlayer,
+} from './redact.js';
 
 /**
  * Co-GM dashboard server. Pulls the live game feed off the MCP control channel,
@@ -55,7 +68,8 @@ const commentary = new CommentaryEngine({
   coGm,
   state,
   logger,
-  broadcast: (type: string, payload: unknown): void => sse.broadcast(type, payload),
+  // AI commentary is GM-facing — never streamed to a player.
+  broadcast: (type: string, payload: unknown): void => sse.broadcast(type, payload, gmOnly),
   settings: {
     getTone: (): Tone => settings.tone,
     getModel: (): string => settings.model,
@@ -69,7 +83,8 @@ const commentary = new CommentaryEngine({
 const errorCommentary = new ErrorCommentaryEngine({
   coGm,
   logger,
-  broadcast: (type: string, payload: unknown): void => sse.broadcast(type, payload),
+  // Diagnostics commentary is GM-facing — never streamed to a player.
+  broadcast: (type: string, payload: unknown): void => sse.broadcast(type, payload, gmOnly),
   settings: {
     getModel: (): string => settings.model,
     isEnabled: (): boolean => settings.commentOnErrors,
@@ -107,7 +122,44 @@ function settingsPayload(): Record<string, unknown> {
 }
 
 function broadcastSettings(): void {
-  sse.broadcast('settings', settingsPayload());
+  // Settings are the GM control-panel state — never sent to a player stream.
+  sse.broadcast('settings', settingsPayload(), gmOnly);
+}
+
+// --- Player/GM split: server-side redactors (Phase 6) ------------------------
+// Each broadcast carries a redactor so a player's SSE stream is filtered HERE,
+// not in the browser. `gmOnly` payloads are skipped entirely for players; the
+// dual ones return a redacted shape (see redact.ts).
+const gmOnly: SseRedactor = (payload, role) => (role === 'gm' ? payload : undefined);
+
+const statusRedactor: SseRedactor = (payload, role) =>
+  role === 'gm' ? payload : redactStatusForPlayer(payload as BridgeStatus);
+
+const worldRedactor: SseRedactor = (payload, role) =>
+  role === 'gm' ? payload : redactWorldForPlayer(payload as WorldInfo | null);
+
+const combatRedactor: SseRedactor = (payload, role) => {
+  if (role === 'gm') return payload;
+  const { combat } = payload as { combat: CombatState | null };
+  return { combat: redactCombatForPlayer(combat, config.playerView) };
+};
+
+const eventsRedactor: SseRedactor = (payload, role) => {
+  if (role === 'gm') return payload;
+  const { events, initial } = payload as { events: SessionEvent[]; initial?: boolean };
+  return { events: redactEventsForPlayer(events), initial };
+};
+
+/** Express middleware: 401/403 unless the caller resolves to the GM role. */
+function requireGm(req: Request, res: Response, next: () => void): void {
+  const role = resolveRole(req, config.auth);
+  if (!isGm(role)) {
+    res
+      .status(role ? 403 : 401)
+      .json({ code: 'gm-required', error: 'GM access is required for this action.' });
+    return;
+  }
+  next();
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -202,7 +254,7 @@ async function refreshWorld(attempt = 0): Promise<void> {
     const raw = await client.callTool('get-world-info');
     world = mapWorld(raw);
     coGm.setWorld(world);
-    sse.broadcast('world', world);
+    sse.broadcast('world', world, worldRedactor);
     logger.info('World info loaded', { title: world.title, system: world.systemId });
   } catch (error) {
     logger.debug('world-info fetch failed', {
@@ -233,7 +285,7 @@ const handlers: GameFeedHandlers = {
     const wasReachable = currentStatus.foundry === 'reachable';
     const becameReachable = status.foundry === 'reachable' && !wasReachable;
     currentStatus = status;
-    sse.broadcast('status', status);
+    sse.broadcast('status', status, statusRedactor);
     if (becameReachable) {
       void refreshWorld();
     } else if (status.foundry !== 'reachable' && world !== null) {
@@ -241,19 +293,20 @@ const handlers: GameFeedHandlers = {
       // path (which targets world.gmNames) never act on a world that may be gone.
       world = null;
       coGm.setWorld(null);
-      sse.broadcast('world', null);
+      sse.broadcast('world', null, worldRedactor);
     }
   },
   onEvents(events, meta) {
     const added = state.addEvents(events);
     if (added.length === 0) return;
-    sse.broadcast('events', { events: added, initial: meta.initial });
+    sse.broadcast('events', { events: added, initial: meta.initial }, eventsRedactor);
     if (!meta.initial) commentary.notifyEvents(added);
   },
   onErrors(errors, meta) {
     const added = state.addErrors(errors);
     if (added.length === 0) return;
-    sse.broadcast('errors', { errors: added, initial: meta.initial });
+    // Module diagnostics are GM-only.
+    sse.broadcast('errors', { errors: added, initial: meta.initial }, gmOnly);
     if (!meta.initial) errorCommentary.notifyErrors(added);
   },
   onCombat(combat: CombatState | null) {
@@ -263,7 +316,7 @@ const handlers: GameFeedHandlers = {
     const json = JSON.stringify(combat);
     if (json !== lastCombatJson) {
       lastCombatJson = json;
-      sse.broadcast('combat', { combat });
+      sse.broadcast('combat', { combat }, combatRedactor);
     }
 
     const signature = state.combatSignature();
@@ -287,12 +340,38 @@ const app = express();
 app.use(express.json({ limit: '256kb' }));
 app.use(express.static(config.publicDir));
 
-app.get('/api/health', (_req: Request, res: Response) => {
-  res.json({ ok: true, controlChannel: currentStatus.controlChannel, aiEnabled: coGm.enabled });
+// Clean URL for the read-only player view (the static file is also at /player.html).
+app.get('/player', (_req: Request, res: Response) => {
+  res.sendFile('player.html', { root: config.publicDir });
 });
 
-app.get('/api/state', (_req: Request, res: Response) => {
+app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
+    ok: true,
+    controlChannel: currentStatus.controlChannel,
+    aiEnabled: coGm.enabled,
+    splitEnabled: config.auth.splitEnabled,
+  });
+});
+
+app.get('/api/state', (req: Request, res: Response) => {
+  const role = resolveRole(req, config.auth);
+  if (!role) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  if (role === 'player') {
+    res.json({
+      role,
+      status: redactStatusForPlayer(currentStatus),
+      combat: redactCombatForPlayer(state.combat, config.playerView),
+      events: redactEventsForPlayer(state.recentEvents),
+      world: redactWorldForPlayer(world),
+    });
+    return;
+  }
+  res.json({
+    role,
     status: currentStatus,
     combat: state.combat,
     events: state.recentEvents,
@@ -302,18 +381,29 @@ app.get('/api/state', (_req: Request, res: Response) => {
   });
 });
 
-app.get('/api/stream', (_req: Request, res: Response) => {
-  sse.add(res);
-  // Push the current snapshot immediately so a freshly opened tab is populated.
-  sse.send(res, 'status', currentStatus);
-  if (world) sse.send(res, 'world', world);
-  sse.send(res, 'settings', settingsPayload());
-  if (state.combat) sse.send(res, 'combat', { combat: state.combat });
-  sse.send(res, 'events', { events: state.recentEvents, initial: true });
-  sse.send(res, 'errors', { errors: state.recentErrors, initial: true });
+app.get('/api/stream', (req: Request, res: Response) => {
+  const role = resolveRole(req, config.auth);
+  if (!role) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  sse.add(res, role);
+  const player = role === 'player';
+  // Push the current snapshot immediately, redacted server-side for players.
+  sse.send(res, 'role', { role });
+  sse.send(res, 'status', player ? redactStatusForPlayer(currentStatus) : currentStatus);
+  if (world) sse.send(res, 'world', player ? redactWorldForPlayer(world) : world);
+  if (!player) sse.send(res, 'settings', settingsPayload()); // GM-only control state
+  const combat = player ? redactCombatForPlayer(state.combat, config.playerView) : state.combat;
+  if (combat) sse.send(res, 'combat', { combat });
+  sse.send(res, 'events', {
+    events: player ? redactEventsForPlayer(state.recentEvents) : state.recentEvents,
+    initial: true,
+  });
+  if (!player) sse.send(res, 'errors', { errors: state.recentErrors, initial: true }); // GM-only
 });
 
-app.post('/api/ask', (req: Request, res: Response) => {
+app.post('/api/ask', requireGm, (req: Request, res: Response) => {
   const question = readStr(asRecord(req.body).question, '').trim();
   if (!question) {
     res.status(400).json({ error: 'A non-empty "question" is required.' });
@@ -330,31 +420,41 @@ app.post('/api/ask', (req: Request, res: Response) => {
   res.json({ accepted: true, id: genId });
 
   // A direct question preempts any in-flight auto-comment (latest-wins).
+  // Commentary is GM-only — players never receive comment.* frames.
   const context = state.buildContext();
-  sse.broadcast('comment.start', { id: genId, kind: 'ask', tone, model, trigger: question });
+  sse.broadcast(
+    'comment.start',
+    { id: genId, kind: 'ask', tone, model, trigger: question },
+    gmOnly
+  );
   void coGm
     .stream({
       model,
       maxTokens: config.askMaxTokens,
       userMessage: buildAskUserMessage(tone, context, question),
-      onDelta: text => sse.broadcast('comment.delta', { id: genId, text }),
+      onDelta: text => sse.broadcast('comment.delta', { id: genId, text }, gmOnly),
     })
     .then(result => {
       if (result.aborted) {
-        sse.broadcast('comment.aborted', { id: genId });
+        sse.broadcast('comment.aborted', { id: genId }, gmOnly);
       } else {
-        sse.broadcast('comment.done', { id: genId, text: result.text, usage: result.usage });
+        sse.broadcast(
+          'comment.done',
+          { id: genId, text: result.text, usage: result.usage },
+          gmOnly
+        );
       }
     })
     .catch((error: unknown) => {
-      sse.broadcast('comment.error', {
-        id: genId,
-        message: error instanceof Error ? error.message : 'AI error',
-      });
+      sse.broadcast(
+        'comment.error',
+        { id: genId, message: error instanceof Error ? error.message : 'AI error' },
+        gmOnly
+      );
     });
 });
 
-app.post('/api/control', (req: Request, res: Response) => {
+app.post('/api/control', requireGm, (req: Request, res: Response) => {
   const body = asRecord(req.body);
   const action = readStr(body.action, '');
   const value = body.value;
@@ -396,7 +496,7 @@ app.post('/api/control', (req: Request, res: Response) => {
   res.json(settingsPayload());
 });
 
-app.post('/api/post-chat', (req: Request, res: Response) => {
+app.post('/api/post-chat', requireGm, (req: Request, res: Response) => {
   const text = readStr(asRecord(req.body).text, '').trim();
   if (!text) {
     res.status(400).json({ error: 'A non-empty "text" is required.' });
@@ -421,7 +521,7 @@ app.post('/api/post-chat', (req: Request, res: Response) => {
 });
 
 // --- GM Actions: list + invoke bridge tools ----------------------------------
-app.get('/api/tools', (req: Request, res: Response) => {
+app.get('/api/tools', requireGm, (req: Request, res: Response) => {
   getToolCatalog(req.query.refresh === '1')
     .then(tools => res.json({ tools, gmActionsEnabled: settings.gmActionsEnabled }))
     .catch((error: unknown) => {
@@ -431,7 +531,7 @@ app.get('/api/tools', (req: Request, res: Response) => {
     });
 });
 
-app.post('/api/tool', (req: Request, res: Response) => {
+app.post('/api/tool', requireGm, (req: Request, res: Response) => {
   const body = asRecord(req.body);
   const name = readStr(body.name, '').trim();
   if (!name) {
@@ -487,6 +587,9 @@ const server = app.listen(config.port, () => {
     mcp: `${config.mcpHost}:${config.mcpPort}`,
     model: config.anthropicModel,
     aiEnabled: coGm.enabled,
+    playerGmSplit: config.auth.splitEnabled
+      ? 'enabled (GM auth required; /player is read-only)'
+      : 'disabled (single-user GM)',
   });
 });
 

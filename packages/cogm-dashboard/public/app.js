@@ -2,6 +2,30 @@
 // Connects to the server's SSE stream and renders three live panes plus the
 // "ask the co-GM" control. All mutations go through the server's REST endpoints.
 
+// --- GM auth token (Phase 6 player/GM split) -------------------------------
+// Legacy/single-user mode needs no token. When the server-side split is enabled,
+// open this GM page once with ?token=<GM_DASHBOARD_TOKEN>; we persist it so
+// refreshes keep working. Sent as a header on REST calls and as a query param on
+// the EventSource (which cannot set headers). The server enforces the role — this
+// only forwards the credential.
+const COGM_TOKEN = (() => {
+  const fromUrl = new URL(location.href).searchParams.get('token');
+  if (fromUrl) {
+    try {
+      localStorage.setItem('cogm_token', fromUrl);
+    } catch {}
+    return fromUrl;
+  }
+  try {
+    return localStorage.getItem('cogm_token') || '';
+  } catch {
+    return '';
+  }
+})();
+const authHeaders = () => (COGM_TOKEN ? { 'X-CoGM-Token': COGM_TOKEN } : {});
+const streamUrl = () =>
+  '/api/stream' + (COGM_TOKEN ? '?token=' + encodeURIComponent(COGM_TOKEN) : '');
+
 const $ = id => document.getElementById(id);
 
 const els = {
@@ -79,7 +103,7 @@ let confirmResolver = null;
 async function postJson(path, body) {
   const res = await fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
   return res.ok ? res.json() : Promise.reject(new Error(`${path} -> ${res.status}`));
@@ -388,7 +412,7 @@ function commentAborted(d) {
 // SSE wiring
 // ---------------------------------------------------------------------------
 function connect() {
-  const es = new EventSource('/api/stream');
+  const es = new EventSource(streamUrl());
   const on = (type, fn) => es.addEventListener(type, e => fn(JSON.parse(e.data)));
 
   on('status', renderStatus);
@@ -523,7 +547,7 @@ function showBrowser() {
 // --- Tool catalog + list ---
 async function loadTools(force) {
   try {
-    const res = await fetch('/api/tools' + (force ? '?refresh=1' : ''));
+    const res = await fetch('/api/tools' + (force ? '?refresh=1' : ''), { headers: authHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     toolCatalog = Array.isArray(data.tools) ? data.tools : [];
@@ -782,7 +806,7 @@ async function runTool(name, args, mutates, opts = {}) {
   try {
     const res = await fetch('/api/tool', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ name, args: args || {}, ...confirmFlags }),
     });
     const data = await res.json().catch(() => ({}));

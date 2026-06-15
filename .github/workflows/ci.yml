@@ -36,6 +36,10 @@ jobs:
         # Tool-layer + lock suites. vitest auto-runs once in CI (non-TTY).
         run: npm test -w @gnuminator/mcp-server
 
+      - name: Unit tests (cogm-dashboard)
+        # Player/GM split: auth role-resolution + server-side redaction.
+        run: npm test -w @gnuminator/cogm-dashboard
+
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs
 
@@ -43,6 +47,11 @@ jobs:
         # Spawns the standalone entrypoint in control-only mode on a free port
         # (never 31414/31415/31416) and asserts ping + list_tools over the wire.
         run: node scripts/standalone-smoke-test.mjs
+
+      - name: Player/GM split smoke test
+        # Runs the dashboard against a mock bridge and asserts server-side
+        # redaction (GM vs player) + the write-surface auth gate over HTTP.
+        run: node scripts/cogm-split-smoke-test.mjs
 
       - name: Validate Foundry module manifest
         run: node validate-manifest.js

@@ -64,6 +64,40 @@ export interface Config {
   readonly publicDir: string;
   /** Log verbosity. */
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
+  /** Player/GM split + auth (Phase 6). */
+  readonly auth: AuthConfig;
+  /** What a player view is allowed to see of GM-only combat data (Phase 6). */
+  readonly playerView: PlayerViewConfig;
+}
+
+/**
+ * Player/GM split + auth configuration.
+ *
+ * The split is OPT-IN: with no GM token and no GM email allow-list configured,
+ * `splitEnabled` is false and the dashboard runs in legacy single-user GM mode
+ * (every request is the GM, zero config — today's localhost behavior). Setting
+ * `GM_DASHBOARD_TOKEN` and/or `GM_EMAILS` turns the split on, after which a
+ * caller must prove GM identity (token or Cloudflare Access email) to reach the
+ * GM surface; everyone else gets the read-only player view.
+ */
+export interface AuthConfig {
+  /** Derived: true once a GM token or GM email allow-list is configured. */
+  readonly splitEnabled: boolean;
+  /** Shared GM secret. Presenting it (header/query/cookie) ⇒ GM role. '' = unset. */
+  readonly gmToken: string;
+  /** Optional second factor for players. '' = the player view is open to non-GMs. */
+  readonly playerToken: string;
+  /** Cloudflare Access email allow-list that maps to the GM role. */
+  readonly gmEmails: readonly string[];
+  /** Request header Cloudflare Access injects with the authenticated user email. */
+  readonly cfAccessEmailHeader: string;
+}
+
+export interface PlayerViewConfig {
+  /** Show (publicly-visible) status conditions on enemy/NPC combatants. */
+  readonly showEnemyConditions: boolean;
+  /** Show a coarse HP band (e.g. "bloodied") on enemies — never exact numbers. */
+  readonly showEnemyHpBands: boolean;
 }
 
 function readNumber(name: string, fallback: number): number {
@@ -83,6 +117,28 @@ function readBool(name: string, fallback: boolean): boolean {
   if (raw === undefined || raw.trim() === '') return fallback;
   return /^(1|true|yes|on)$/i.test(raw.trim());
 }
+
+function readList(name: string): string[] {
+  const raw = process.env[name];
+  if (raw === undefined) return [];
+  return raw
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s !== '');
+}
+
+const gmToken = readString('GM_DASHBOARD_TOKEN', '');
+const gmEmails = readList('GM_EMAILS').map(e => e.toLowerCase());
+const auth: AuthConfig = {
+  splitEnabled: gmToken !== '' || gmEmails.length > 0,
+  gmToken,
+  playerToken: readString('PLAYER_DASHBOARD_TOKEN', ''),
+  gmEmails,
+  cfAccessEmailHeader: readString(
+    'CF_ACCESS_EMAIL_HEADER',
+    'cf-access-authenticated-user-email'
+  ).toLowerCase(),
+};
 
 const pollIntervalMs = readNumber('POLL_INTERVAL_MS', 4000);
 
@@ -119,4 +175,9 @@ export const config: Config = {
   controlStalenessThresholdMs: readNumber('MCP_STALENESS_THRESHOLD_MS', 30000),
   publicDir: path.join(moduleDir, '..', 'public'),
   logLevel,
+  auth,
+  playerView: {
+    showEnemyConditions: readBool('PLAYER_SHOW_ENEMY_CONDITIONS', true),
+    showEnemyHpBands: readBool('PLAYER_SHOW_ENEMY_HP_BANDS', false),
+  },
 };

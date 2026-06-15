@@ -7810,6 +7810,9 @@ export class FoundryDataAccess {
           hp && (hp.value ?? 1) <= 0
             ? { successes: death?.success ?? 0, failures: death?.failure ?? 0 }
             : null,
+        // GM-hidden combatant (token hidden in the tracker). Surfaced so the
+        // co-GM dashboard can drop it from the player view server-side (Phase 6).
+        hidden: c.hidden ?? c.token?.hidden ?? false,
       };
     });
 

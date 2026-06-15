@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Player View — Co-GM</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel: #171a21;
+        --panel-2: #1d212b;
+        --line: #272c38;
+        --text: #e6e9ef;
+        --muted: #9aa3b2;
+        --pc: #4ea1ff;
+        --enemy: #ff6b6b;
+        --npc: #c9a227;
+        --green: #46c46a;
+        --red: #ef5350;
+        --amber: #e0a106;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px/1.5 system-ui,
+          Segoe UI,
+          Roboto,
+          sans-serif;
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+      header h1 {
+        font-size: 16px;
+        margin: 0;
+      }
+      .badge {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 2px 8px;
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .wrap {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        padding: 16px 18px;
+        max-width: 1100px;
+      }
+      @media (max-width: 760px) {
+        .wrap {
+          grid-template-columns: 1fr;
+        }
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .card h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--muted);
+        margin: 0;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel-2);
+      }
+      .card .body {
+        padding: 8px 10px;
+        max-height: 70vh;
+        overflow: auto;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 8px;
+        border-radius: 8px;
+      }
+      .row + .row {
+        margin-top: 2px;
+      }
+      .row.current {
+        background: rgba(78, 161, 255, 0.12);
+        outline: 1px solid rgba(78, 161, 255, 0.3);
+      }
+      .row.defeated {
+        opacity: 0.5;
+        text-decoration: line-through;
+      }
+      .init {
+        width: 26px;
+        text-align: center;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .name {
+        flex: 1;
+        font-weight: 600;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .pc {
+        background: var(--pc);
+      }
+      .enemy {
+        background: var(--enemy);
+      }
+      .npc {
+        background: var(--npc);
+      }
+      .hpbar {
+        width: 96px;
+        height: 8px;
+        background: #2a2f3a;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .hpbar > i {
+        display: block;
+        height: 100%;
+        background: var(--green);
+      }
+      .hp-muted {
+        color: var(--muted);
+        font-size: 12px;
+        width: 96px;
+        text-align: right;
+      }
+      .cond {
+        font-size: 11px;
+        color: var(--amber);
+      }
+      .event {
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--line);
+      }
+      .event .t {
+        color: var(--muted);
+        font-size: 11px;
+        margin-right: 6px;
+      }
+      .empty {
+        color: var(--muted);
+        padding: 14px;
+        text-align: center;
+      }
+      footer {
+        color: var(--muted);
+        font-size: 12px;
+        padding: 8px 18px 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🎲 Player View</h1>
+      <span id="world" class="sub">—</span>
+      <span style="flex: 1"></span>
+      <span id="status" class="badge">connecting…</span>
+    </header>
+
+    <div class="wrap">
+      <section class="card">
+        <h2>Combat order</h2>
+        <div id="combat" class="body"><div class="empty">No active combat.</div></div>
+      </section>
+      <section class="card">
+        <h2>Session feed</h2>
+        <div id="feed" class="body"><div class="empty">Waiting for events…</div></div>
+      </section>
+    </div>
+
+    <footer>
+      Read-only player view. Hidden enemies, exact enemy HP, GM notes, diagnostics, and the GM
+      controls are filtered out on the server — they never reach this page.
+    </footer>
+
+    <script src="player.js" type="module"></script>
+  </body>
+</html>

@@ -127,6 +127,30 @@ Additional knobs (all optional — defaults shown; see `.env.example`):
 | `MCP_HEARTBEAT_INTERVAL_MS`     | `10000` | Heartbeat ping cadence (half-open detection)           |
 | `MCP_STALENESS_THRESHOLD_MS`    | `30000` | Window after last reply before the channel reads stale |
 
+## Player vs GM split (Phase 6)
+
+The dashboard can serve a **read-only player view** alongside the full **GM view**, with all
+GM-only data filtered **server-side** (never just hidden in the browser).
+
+- **Opt-in.** With no `GM_DASHBOARD_TOKEN` and no `GM_EMAILS` set, the dashboard stays in
+  single-user GM mode (today's zero-config localhost behavior). Setting either turns the split on.
+- **GM view** (`/`) — everything, as before. When the split is on, open it once with
+  `http://host:3000/?token=<GM_DASHBOARD_TOKEN>`; the token is remembered in that browser.
+- **Player view** (`/player`) — public **combat order** + public **event feed** only. Filtered
+  server-side: exact enemy/NPC HP is removed, GM-hidden combatants are dropped, event details
+  (which carry HP before/after) are stripped, and module diagnostics, settings, the AI commentary,
+  and the entire write/GM-action surface are never sent. Players still see the party's HP and the
+  public feed.
+- **Auth.** GM identity is proven by a token (header `X-CoGM-Token`, `?token=` query, or `cogm_token`
+  cookie) **or** a Cloudflare Access email in `GM_EMAILS`. The write endpoints (`/api/ask`,
+  `/api/control`, `/api/post-chat`, `/api/tools`, `/api/tool`) return 403 for non-GMs. The Anthropic
+  key always stays server-side.
+
+Configure via `.env` (see `.env.example`): `GM_DASHBOARD_TOKEN`, `PLAYER_DASHBOARD_TOKEN`,
+`GM_EMAILS`, `CF_ACCESS_EMAIL_HEADER`, `PLAYER_SHOW_ENEMY_CONDITIONS`, `PLAYER_SHOW_ENEMY_HP_BANDS`.
+For exposing this to a remote GM/players behind Cloudflare Access, see
+[`docs/REMOTE-ACCESS.md`](../../docs/REMOTE-ACCESS.md).
+
 ## Cost control
 
 - **Prompt caching.** The large static persona + 5e reference + campaign context

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
+import { WEBRTC_LIMITS } from '@gnuminator/shared';
 import { getFoundryDataDir, getDefaultComfyUIDir } from './utils/platform.js';
 
 dotenv.config();
@@ -97,50 +98,12 @@ const rawConfig = {
 export const config = ConfigSchema.parse(rawConfig);
 
 /**
- * WebRTC Protocol Constants
+ * WebRTC SCTP / chunking limits.
  *
- * SCTP (Stream Control Transmission Protocol) limits for WebRTC data channels
+ * The canonical definition now lives in `@gnuminator/shared` (`WEBRTC_LIMITS`)
+ * so the MCP server's reassembly path (webrtc-peer.ts) and the Foundry module's
+ * send path (webrtc-connection.ts) reference one source of truth instead of
+ * keeping separate hand-synced copies. Re-exported here under the established
+ * `WEBRTC_CONSTANTS` name that webrtc-peer.ts imports.
  */
-export const WEBRTC_CONSTANTS = {
-  /**
-   * SCTP maxMessageSize limit - hard limit imposed by WebRTC specification
-   * Messages exceeding this size will fail with "OperationError: Failure to send data"
-   */
-  MAX_MESSAGE_SIZE: 65536, // 64KB in bytes
-
-  /**
-   * Safe chunk size threshold for splitting large messages
-   * Set below MAX_MESSAGE_SIZE to account for:
-   * - JSON stringification overhead (~1-2KB for chunk metadata)
-   * - String escaping (quotes, backslashes, unicode) can increase size 5-20%
-   * - Safety buffer to prevent edge cases
-   *
-   * Testing showed 50KB provides reliable chunking with ~14KB headroom
-   */
-  CHUNK_SIZE: 50 * 1024, // 50KB in bytes
-
-  /**
-   * Timeout for incomplete chunked messages (milliseconds)
-   * After this time, pending chunks are cleaned up to prevent memory leaks
-   *
-   * Network issues or client disconnects can leave incomplete messages
-   * Set to 30 seconds - longer than typical query timeout (10s) but prevents indefinite storage
-   */
-  CHUNK_TIMEOUT_MS: 30000, // 30 seconds
-
-  /**
-   * Maximum chunks allowed per message
-   * Security limit to prevent "chunk bomb" attacks where malicious clients
-   * send huge totalChunks values to trigger memory allocation attacks
-   *
-   * 1000 chunks * 50KB = 50MB maximum message size
-   * This is far larger than any legitimate Foundry VTT data
-   */
-  MAX_CHUNKS_PER_MESSAGE: 1000,
-
-  /**
-   * Interval for cleanup of timed-out chunks (milliseconds)
-   * Background task runs periodically to remove incomplete messages
-   */
-  CHUNK_CLEANUP_INTERVAL_MS: 10000, // 10 seconds
-} as const;
+export const WEBRTC_CONSTANTS = WEBRTC_LIMITS;

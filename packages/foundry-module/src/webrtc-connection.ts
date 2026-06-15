@@ -202,7 +202,10 @@ export class WebRTCConnection {
       const json = JSON.stringify(message);
       const size = json.length;
 
-      // WebRTC SCTP constants (keep in sync with server config.ts WEBRTC_CONSTANTS)
+      // WebRTC SCTP constants. Canonical source: @gnuminator/shared WEBRTC_LIMITS.
+      // The module is tsc-built ESM loaded directly by Foundry (no bundler), so it
+      // can't import the shared runtime value here — these are a local mirror and
+      // must match WEBRTC_LIMITS.{MAX_MESSAGE_SIZE,CHUNK_SIZE}.
       const MAX_MESSAGE_SIZE = 65536; // 64KB - SCTP hard limit
       const CHUNK_SIZE = 50 * 1024; // 50KB - safe threshold for chunking
 

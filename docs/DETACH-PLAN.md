@@ -145,9 +145,12 @@ sessions.** Keep a "rewritten vs still-upstream" tracker so a fresh session resu
 >
 > - honour `dry_run_foundry`). GitHub Release + all 4 assets published and verified;
 >   `releases/latest/download/{module.json,foundry-mcp-bridge.zip}` resolve (200).
->   **Remaining: the user-driven live smoke test** — install the build, restart Claude Desktop, confirm
->   the bridge connects + the dashboard live feed + a read tool. Can't be run from a session inside
->   Claude Desktop (the restart ends it).
+>   **Live smoke test PASSED (2026-06-15).** User did steps 1–4 (install build, reinstall module from
+>   the new manifest, restart Claude Desktop, open Foundry as GM) — the module settings show the MCP
+>   Bridge **Connected**. Dashboard verified: `npm run dev:cogm` bound http://localhost:3000, connected
+>   to the live bridge on `127.0.0.1:31414`, and read real world data ("Rime of the Frostmaiden", dnd5e)
+>   — the full Foundry → bridge → control-channel → dashboard read path works end-to-end. **Phase 5
+>   cutover complete.** Next: Phase 6 (do the dep-security prereq below first).
 
 ## Phase 6 — Standalone bridge + remote access (product goal)
 

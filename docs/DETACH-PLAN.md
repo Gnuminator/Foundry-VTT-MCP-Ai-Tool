@@ -131,6 +131,24 @@ sessions.** Keep a "rewritten vs still-upstream" tracker so a fresh session resu
 - New README/CREDITS, migration notes (if the module id changed), release under the new identity,
   live smoke test (Foundry open + bridge connected + dashboard).
 
+> **Status (2026‑06‑15): v0.16.0 released on `aitool`** — first release under the new identity.
+> Version bumped (root `package.json` + `module.json`); CHANGELOG rewritten (real v0.16.0 entry; the
+> pre-detach multi-system entries bannered as historical lineage); `docs/MIGRATION.md` (module id
+> unchanged → no breaking migration; existing installs reinstall once from the new manifest to repoint
+> Foundry's update check from the old repo to the new one); `docs/SMOKE-TEST.md` (the user-driven live
+> check). **Release workflow fixes** (the canonical path is `build-complete-release.yml`): module zip
+> renamed `foundry-ai-tool-module.zip` → `foundry-mcp-bridge.zip` to match the frozen `download` URL
+> (the old name 404s every install); added the `v*` tag-push trigger (it was dispatch-only and could
+> never publish the full distribution on a tag); made `release.yml` a dispatch-only module-only
+> fallback so it can't double-publish; added `permissions: contents: write` to the release job (the
+> first run 403'd without it); hardened the Foundry-registry step (continue-on-error + skip-if-no-token
+>
+> - honour `dry_run_foundry`). GitHub Release + all 4 assets published and verified;
+>   `releases/latest/download/{module.json,foundry-mcp-bridge.zip}` resolve (200).
+>   **Remaining: the user-driven live smoke test** — install the build, restart Claude Desktop, confirm
+>   the bridge connects + the dashboard live feed + a read tool. Can't be run from a session inside
+>   Claude Desktop (the restart ends it).
+
 ## Phase 6 — Standalone bridge + remote access (product goal)
 
 Make the tool usable by you **and** your GM from outside your PC. Decisions locked 2026‑06‑15:

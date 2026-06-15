@@ -234,6 +234,12 @@ Node 18, so this is build-env hygiene only). Verify green + re-audit.
 
 ## Phase 7 — Presentation (when functionality is polished)
 
+> **Scoped 2026‑06‑15 → `docs/PHASE7-PLAN.md`.** Current state assessed (README already rebranded with
+> 5 screenshots; `COGM-DASHBOARD.md` showcase exists). The plan splits the work into buildable-now
+> (README redesign, showcase-site scaffold, wordmark), needs-assets (a 10–15s demo GIF — user-recorded
+> from a shot-list), and needs-decisions (branding, scope, hosting). Phase 6 capabilities aren't in the
+> README yet — fold them in. Mobile/tablet still deferred.
+
 The current `docs/COGM-DASHBOARD.md` markdown showcase isn't enough. Build a real presentation —
 **(1) a polished GitHub landing README** with branding + a 10–15s demo GIF/screen-capture, and **(2) a
 standalone showcase page/site**. Do this once there's polished functionality to show. **In-app visual

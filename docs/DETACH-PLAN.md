@@ -283,11 +283,25 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > tests) pins the read surface (`listActors`, `getWorldInfo`, `getActiveScene`,
 > `getAvailablePacks`, `getCharacterInfo` incl. items/effects/equipped-toggle/dnd5e
 > spellcasting), driving the **real** `FoundryDataAccess` end-to-end — proof the
-> harness works. foundry-module suite **12 → 24**; total **1120 → 1132**, green
-> incl. wiped/clean build. **Next:** fan out characterization per data-access domain
-> (scenes/tokens, journals, compendium search, creature index, combat, write paths —
-> extend the harness's document write-methods as those domains need), building the
-> parity net before the from-scratch rewrite + modular reorg below.
+> harness works.
+>
+> **Read-domain fan-out wave 1 (2026‑06‑15)** — 6 parallel Sonnet workers each
+> characterized one read domain against the frozen harness (each wrote only its own
+> `*.test.ts`, no shared-harness edits — gaps were filled locally via builder
+> rest-spread / `globalThis.CONFIG` mutation): `players` (getFriendlyNPCs/
+> getPartyCharacters/getConnectedPlayers/findPlayers/findActor, 20), `resources`
+> (getCharacterResources, 25), `effects` (getActiveEffects/getAvailableConditions,
+> 20), `character-search` (searchCharacterItems, 20), `character-entity`
+> (getCharacterEntity, 14), `scenes` (listScenes/getTokenDetails, 16) — **+115**.
+> foundry-module suite **12 → 139**; total **1120 → 1247**, green incl. wiped/clean
+> build. Harness ergonomics gaps noted for an optional fold-in (typed `actor`/
+> `rotation`/`alpha`/`elevation`/`lockRotation`/`actorLink`/`texture.scaleX` on
+> `MakeTokenOptions`; label-only effects). **Next:** wave 2 — extend the harness for
+> the globals the remaining domains need (`game.combat`/`game.combats`, `game.journal`
+> docs + a journal builder, `game.modules` entries, `canvas` for token-geometry),
+> then characterize combat-state / journals / compendium-search / creature-index /
+> modules; finally the write paths (actor/token/item creation, ownership,
+> transaction-manager) before the from-scratch rewrite + modular reorg below.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

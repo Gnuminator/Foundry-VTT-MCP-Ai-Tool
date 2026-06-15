@@ -185,6 +185,29 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
   to just `README.md`, `LICENSE`, `CREDITS.md`, `CHANGELOG.md`, `CLAUDE.md`, and config files. Tidy
   in one focused commit so the diff is easy to review.
 
+## Phase 9 — Deep Foundry-module reimplementation (deferred; own phase)
+
+Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
+(removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and
+not runtime-testable in a dev session). The deeper "make it truly mine" reimplementation of the module
+is split out here as its own phase, to tackle when there's appetite for it. Decided order (2026-06-15):
+
+1. **Full from-scratch reimplementation of `data-access` (and `queries`) from the idea**, domain by
+   domain, behind the now-stable `shared` contract. High effort/risk because it's untestable browser
+   plumbing — needs a Foundry-mock test harness built first (characterize current behavior, then
+   reimplement to parity). This is the big one; treat as multi-session.
+2. **Then reorganize** the result into cohesive domain modules (creature-index, characters,
+   scenes/tokens, journals, spells, combat-resolution, …) instead of one monolith.
+
+Also folds in the two items deferred from chunk 3 (they live in the module / browser side):
+
+- **`transaction-manager` rewrite** (write-safety rollback; currently used by actor/token creation).
+- **Foundry-link `import type` adoption** in `socket-bridge`/`webrtc-connection` (per the bundler
+  policy in `docs/PHASE4-TRACKER.md` → Decisions: `import type` only, no runtime value imports).
+
+Prereq worth doing first: a **browser/Foundry mock harness** so the module finally has real test
+coverage — without it, a from-scratch rewrite of ~9.5k LOC can't be verified to parity.
+
 ---
 
 ## Working method (safe + resumable)

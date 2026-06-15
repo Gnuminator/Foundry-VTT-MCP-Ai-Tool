@@ -461,6 +461,13 @@ body {
   gap: 0.4rem;
 }
 
+/* List rows keep their natural height — the pane scrolls instead of
+   flex-shrinking each row to fit. Without this, a full feed squished every
+   .event and its `overflow: hidden` clipped the footer (badge + timestamp). */
+.pane-body > * {
+  flex-shrink: 0;
+}
+
 .empty {
   color: var(--text-dim);
   font-size: var(--fs-sm);

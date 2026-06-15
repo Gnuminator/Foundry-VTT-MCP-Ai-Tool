@@ -1,6 +1,7 @@
 {
-  "name": "@foundry-mcp/shared",
+  "name": "@gnuminator/shared",
   "version": "0.15.0",
+  "author": "Gnuminator <gnuminator@users.noreply.github.com>",
   "description": "Shared TypeScript types and constants for Foundry MCP Integration",
   "type": "module",
   "main": "dist/index.js",

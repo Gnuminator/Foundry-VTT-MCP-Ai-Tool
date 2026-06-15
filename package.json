@@ -1,7 +1,7 @@
 {
-  "name": "foundry-mcp-integration",
+  "name": "foundry-ai-tool",
   "version": "0.15.0",
-  "description": "MCP server that bridges Foundry VTT game data with Claude Desktop",
+  "description": "Foundry AI Tool — MCP server + Foundry module + co-GM dashboard for AI-powered Foundry VTT integration",
   "private": true,
   "workspaces": [
     "packages/*",
@@ -53,11 +53,11 @@
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
   },
-  "author": "Adam Dooley",
+  "author": "Gnuminator <gnuminator@users.noreply.github.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/adambdooley/foundry-vtt-mcp.git"
+    "url": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git"
   },
   "keywords": [
     "foundry-vtt",

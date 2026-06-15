@@ -10,8 +10,8 @@ import {
   CampaignPartSchema,
   CampaignTemplateSchema,
   CampaignPartTypeSchema,
-} from '@foundry-mcp/shared';
-import type { CampaignStructure, CampaignPart, CampaignTemplate } from '@foundry-mcp/shared';
+} from '@gnuminator/shared';
+import type { CampaignStructure, CampaignPart, CampaignTemplate } from '@gnuminator/shared';
 
 export class CampaignManagementTools {
   private foundryClient: FoundryClient;

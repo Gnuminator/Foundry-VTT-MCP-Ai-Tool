@@ -12,7 +12,7 @@
     "lib": ["ES2022", "DOM"],
     "types": ["@league-of-foundry-developers/foundry-vtt-types"],
     "paths": {
-      "@foundry-mcp/shared": ["../../shared/src"]
+      "@gnuminator/shared": ["../../shared/src"]
     }
   },
   "include": ["src/**/*", "types/**/*"],

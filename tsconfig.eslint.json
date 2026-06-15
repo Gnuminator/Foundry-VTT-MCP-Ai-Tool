@@ -20,7 +20,7 @@
       "@shared/*": ["./shared/*"],
       "@foundry-module/*": ["./packages/foundry-module/*"],
       "@mcp-server/*": ["./packages/mcp-server/src/*"],
-      "@foundry-mcp/shared": ["./shared/src"]
+      "@gnuminator/shared": ["./shared/src"]
     },
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },

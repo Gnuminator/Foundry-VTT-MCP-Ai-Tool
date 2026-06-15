@@ -1,12 +1,13 @@
 {
-  "name": "@foundry-mcp/server",
+  "name": "@gnuminator/mcp-server",
   "version": "0.15.0",
+  "author": "Gnuminator <gnuminator@users.noreply.github.com>",
   "description": "MCP server for Foundry VTT integration with Claude Desktop",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "npm -w @foundry-mcp/shared run build && tsc",
+    "build": "npm -w @gnuminator/shared run build && tsc",
     "build:bundle": "tsc && esbuild dist/index.js --bundle --platform=node --target=node18 --outfile=dist/index.bundle.cjs --format=cjs --define:import.meta.url='\"bundled\"' && esbuild dist/backend.js --bundle --platform=node --target=node18 --outfile=dist/backend.bundle.cjs --format=cjs --define:import.meta.url='\"bundled\"'",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
@@ -19,7 +20,7 @@
     "lint:fix": "eslint src --ext .ts --fix"
   },
   "dependencies": {
-    "@foundry-mcp/shared": "*",
+    "@gnuminator/shared": "*",
     "@modelcontextprotocol/sdk": "^1.7.0",
     "axios": "^1.6.0",
     "dotenv": "^16.3.0",

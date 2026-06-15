@@ -185,7 +185,7 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
   to just `README.md`, `LICENSE`, `CREDITS.md`, `CHANGELOG.md`, `CLAUDE.md`, and config files. Tidy
   in one focused commit so the diff is easy to review.
 
-## Phase 9 — Deep Foundry-module reimplementation (deferred; own phase)
+## Phase 9 — Deep reimplementation (deferred; own phase)
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and
@@ -207,6 +207,15 @@ Also folds in the two items deferred from chunk 3 (they live in the module / bro
 
 Prereq worth doing first: a **browser/Foundry mock harness** so the module finally has real test
 coverage — without it, a from-scratch rewrite of ~9.5k LOC can't be verified to parity.
+
+**Also deferred here (Phase 4 chunk 4 decision, 2026-06-15): the 4 large mcp-server tool files.**
+`character` (~1034), `dnd5e/add-feature` (~1038), `compendium` (~1329), `quest-creation` (~1380) are
+**large-but-clean** (no cruft) and dominated by output-formatting helpers, so a from-scratch rewrite is
+mostly transcription (the output format is the spec) — high-effort/low-value churn. They were given
+**full characterization test suites** in chunk 4 (parity net pinning their exact output), so unlike
+data-access these CAN be reimplemented verifiably whenever desired. Until then the whole tool layer is
+**owned-via-tests** (824 mcp-server tests, all 23 tool files covered). Reimplement these only if the
+ownership purity is wanted; the tests make it safe and the value is low, so it's genuinely optional.
 
 ---
 

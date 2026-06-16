@@ -86,36 +86,48 @@ lines, 0 eslint errors (was carrying verbatim `any`-error debt). Quirks delibera
 
 ## Coverage map — characterized vs. deferred
 
-A domain may only be rewritten once it has a parity net. Status as of the journals pilot (sizes =
-current module LOC; tests = `it()` count in the listed file(s)):
+A domain may only be rewritten once it has a parity net — and that bar is **per method**, not per
+domain. The fan-out coverage check (2026‑06‑16) found two domains whose headline methods are pinned but
+which carry **uncharacterized sibling methods**: `chat` (`getChatLog` has no data-access net — only
+`sendChatMessage` is pinned) and `modules` (`getModuleErrors`/`clearModuleErrors` have no net — only
+`getModules`/`getModuleManifest` are pinned). Both are therefore moved to "characterize first". Status
+(sizes = current module LOC; tests = `it()` count in the listed file(s)):
 
-### Ready now — characterized (rewrite directly, order small → large)
+### Done — rewritten to parity ✅
+
+| Domain              | LOC (before → after) | Verified by                                                                                   |
+| ------------------- | -------------------- | --------------------------------------------------------------------------------------------- |
+| `journals` (pilot)  | 276 → 247            | `journals.test.ts` (23) + `journal-writes.test.ts` (21)                                       |
+| `world-reads`       | 97 → 142             | `reads.test.ts` (12; world-reads slice)                                                       |
+| `ownership-players` | 218 → 292            | `ownership.test.ts` (20) + `players.test.ts` (20)                                             |
+| `world-items`       | 265 → 317            | `world-items.test.ts` (29)                                                                    |
+| `resources-effects` | 373 → 470            | `resources.test.ts` (25) + `effects.test.ts` (20) + `chat-resources.test.ts` (resource slice) |
+
+> LOC grew in every case — the rewrites trade inline duplication for extracted helpers + fuller JSDoc;
+> logic density dropped. All five: no behavior change, no test edits, 0 eslint errors.
+
+### Ready now — fully characterized (rewrite directly, order small → large)
 
 | Domain                | LOC | Characterization test(s)                                                                                 |
 | --------------------- | --- | -------------------------------------------------------------------------------------------------------- |
-| `world-reads`         | 90  | `reads.test.ts` (12; also exercises `getCharacterInfo`)                                                  |
-| `chat`                | 98  | `chat-resources.test.ts` (`sendChatMessage`)                                                             |
-| `modules`             | 124 | `modules.test.ts` (19)                                                                                   |
-| `ownership-players`   | 218 | `ownership.test.ts` (20) + `players.test.ts` (20)                                                        |
-| `world-items`         | 233 | `world-items.test.ts` (29)                                                                               |
-| **`journals`** ✅     | 247 | `journals.test.ts` (23) + `journal-writes.test.ts` (21) — **DONE (pilot)**                               |
-| `resources-effects`   | 339 | `resources.test.ts` (25) + `effects.test.ts` (20) + `chat-resources.test.ts`                             |
 | `compendium`          | 560 | `compendium.test.ts` (26; basic search + `listByCriteria` fallback + `getDocFull`)                       |
 | `scenes-tokens`       | 558 | `scenes.test.ts` (16) + `token-manipulation.test.ts` (24)                                                |
 | `characters`          | 585 | `reads.test.ts` (`getCharacterInfo`) + `character-search.test.ts` (20) + `character-entity.test.ts` (14) |
 | `combat` (reads only) | 416 | `combat.test.ts` (26; `getCombatState`/`getCombatPlayByPlay` **read** only)                              |
 
-### Characterize first, then rewrite (deferred — no net yet)
+### Characterize first, then rewrite (deferred / partial — net missing for the noted methods)
 
-| Domain / surface                             | LOC  | What a net needs first                                                                                       |
-| -------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------ |
-| `session-log`                                | 48   | characterize `getSessionLog` / `getRecentEvents`                                                             |
-| `scene-fx` (all writes)                      | 333  | `setSceneMood`/`addMapNote`/`dropLoot`/measured-templates — needs `canvas`                                   |
-| `actor-creation`                             | 561  | `createActorFromCompendium`/`addActorsToScene` — needs canvas token placement                                |
-| `combat` **mutation**                        | —    | `advanceCombatTurn`/`setInitiative`/`applyDamageAndHealing`/`rollSavingThrows`/`manageRest` (in `combat.ts`) |
-| `creature-index` (`PersistentCreatureIndex`) | 585  | needs a storage + `fetch` mock                                                                               |
-| `player-rolls`                               | 884  | `requestPlayerRolls`/roll-button handlers/`rollNpcCheck` — needs socket + chat-button mock                   |
-| `actor-builder`                              | 1790 | `useItem`/`createNpcActor`/`addAttack*`/`addSpells*`/… — large; needs compendium + item-creation depth       |
+| Domain / surface                             | LOC  | What a net needs first                                                                                         |
+| -------------------------------------------- | ---- | -------------------------------------------------------------------------------------------------------------- |
+| `session-log`                                | 48   | characterize `getSessionLog` / `getRecentEvents` (no test file yet)                                            |
+| `chat` (`getChatLog`)                        | 98   | `sendChatMessage` is pinned; **`getChatLog` is not** — characterize the read before rewriting the domain       |
+| `modules` (error methods)                    | 124  | `getModules`/`getModuleManifest` pinned; **`getModuleErrors`/`clearModuleErrors` are not** — characterize them |
+| `scene-fx` (all writes)                      | 333  | `setSceneMood`/`addMapNote`/`dropLoot`/measured-templates — needs `canvas`                                     |
+| `actor-creation`                             | 561  | `createActorFromCompendium`/`addActorsToScene` — needs canvas token placement                                  |
+| `combat` **mutation**                        | —    | `advanceCombatTurn`/`setInitiative`/`applyDamageAndHealing`/`rollSavingThrows`/`manageRest` (in `combat.ts`)   |
+| `creature-index` (`PersistentCreatureIndex`) | 585  | needs a storage + `fetch` mock                                                                                 |
+| `player-rolls`                               | 884  | `requestPlayerRolls`/roll-button handlers/`rollNpcCheck` — needs socket + chat-button mock                     |
+| `actor-builder`                              | 1790 | `useItem`/`createNpcActor`/`addAttack*`/`addSpells*`/… — large; needs compendium + item-creation depth         |
 
 Building a deferred domain's net is its own sub-task (mirror the wave-1/2/3 characterization fan-outs in
 `docs/DETACH-PLAN.md`): extend the harness as needed, write the `data-access.<domain>.test.ts` pinning
@@ -126,20 +138,19 @@ current behavior, _then_ rewrite. Don't rewrite ahead of the net.
 Order: characterized small→large first; each deferred domain gets a "characterize first" sub-task.
 
 - [x] `journals` — rewrite to parity (pilot + this recipe)
-- [ ] `world-reads` — rewrite to parity
-- [ ] `chat` — rewrite to parity (note: `chat-resources.test.ts` pins `sendChatMessage`; confirm
-      `getChatLog`/`getCombatPlayByPlay` coverage before relying on it — `getCombatPlayByPlay` lives in
-      `combat.ts`, not here)
-- [ ] `modules` — rewrite to parity
-- [ ] `ownership-players` — rewrite to parity
-- [ ] `world-items` — rewrite to parity
-- [ ] `resources-effects` — rewrite to parity
+- [x] `world-reads` — rewrite to parity (Sonnet, Opus-reviewed)
+- [x] `ownership-players` — rewrite to parity (Sonnet, Opus-reviewed)
+- [x] `world-items` — rewrite to parity (Sonnet, Opus-reviewed)
+- [x] `resources-effects` — rewrite to parity (Sonnet, Opus-reviewed)
 - [ ] `compendium` — rewrite to parity (ctor-injected `persistentIndex`; only the basic-search /
       `listCreaturesByCriteria` fallback / `getCompendiumDocumentFull` paths are characterized — the
       enhanced creature-index path depends on the deferred `PersistentCreatureIndex` net)
 - [ ] `scenes-tokens` — rewrite to parity
 - [ ] `characters` — rewrite to parity
 - [ ] `combat` (reads) — rewrite `getCombatState`/`getCombatPlayByPlay` to parity
+- [ ] `chat` — **characterize `getChatLog` first** (`sendChatMessage` already pinned), then rewrite
+- [ ] `modules` — **characterize `getModuleErrors`/`clearModuleErrors` first** (`getModules`/
+      `getModuleManifest` already pinned), then rewrite
 - [ ] `session-log` — **characterize first**, then rewrite
 - [ ] `scene-fx` — **characterize first** (canvas), then rewrite
 - [ ] `actor-creation` — **characterize first** (canvas placement; ctor-injected `compendium`), then rewrite
@@ -150,10 +161,28 @@ Order: characterized small→large first; each deferred domain gets a "character
 
 ## Model guidance
 
-- **Pilot + recipe: Opus** (done).
-- **Well-characterized small domains** (`world-reads`, `chat`, `modules`, `ownership-players`,
-  `world-items`, `resources-effects`): fan out **Sonnet** workers — one domain per worker, each given
-  this recipe + its test file(s) — with **Opus review** of each rewrite before commit.
+- **Pilot + recipe: Opus** (done — `journals`).
+- **Well-characterized small domains: Sonnet, Opus-reviewed.** Proven on the first fan-out wave
+  (`world-reads`, `ownership-players`, `world-items`, `resources-effects`, 2026‑06‑16): four parallel
+  Sonnet workers, one domain per worker, each given this recipe + its test file(s) + the `journals` pilot
+  as a style reference, each editing only its own module and verifying (typecheck + its tests + full
+  377-suite) but **not committing** — Opus reviewed each file (faithful contract, preserved quirks, no
+  scope creep, no test edits), ran the authoritative gates once with all four applied, and committed one
+  domain per commit. Workers were told **not** to run `npm run build` (it writes `dist/` and would
+  contend across parallel workers); Opus runs the build during review.
 - **Big / risky targets** (`compendium`, `scenes-tokens`, `characters`, and every deferred domain —
   especially `actor-builder`, `creature-index`, `player-rolls`, `combat` mutation, `actor-creation`,
   `scene-fx`): stay **Opus**, and build their characterization nets first.
+
+## Lessons from the first fan-out wave (2026‑06‑16)
+
+- **Verify per-method coverage before dispatching.** "The domain is characterized" is not enough — check
+  every public method has assertions. This wave demoted `chat` (`getChatLog` unpinned) and `modules`
+  (`getModuleErrors`/`clearModuleErrors` unpinned) from the ready list to "characterize first".
+- **Parallel rewrites are conflict-free** because each worker edits exactly one module file (never tests,
+  the facade, `shared.ts`, `queries.ts`, or a sibling domain). After the wave, confirm `git status` shows
+  only the intended N files changed and **zero test edits** — the cheapest guard against a worker
+  "fixing" a test to pass.
+- **Workers verify; Opus is the gate.** Have workers run typecheck + their tests + the full module suite,
+  but treat their green as provisional. Opus re-runs typecheck + full suite + build with all rewrites
+  applied, then reads each file against the contract before committing.

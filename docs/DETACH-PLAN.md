@@ -368,11 +368,25 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > private helpers deduping page-mapping/note/embedded-create/permission-gate/error logic; reads-then-writes;
 > consolidated success `auditLog`); **no behavior change, no test edits**; three upstream quirks deliberately
 > preserved (see the doc). 276 → 247 lines, **0 eslint errors**. foundry-module 377 + typecheck + build green;
-> total still 1485. Next: fan out **Sonnet** workers (Opus review) for the ready small characterized domains
-> (`world-reads`, `chat`, `modules`, `ownership-players`, `world-items`, `resources-effects`); the
-> big/risky + deferred targets (`compendium`, `scenes-tokens`, `characters`, `actor-builder`,
-> `creature-index`, `player-rolls`, `combat` mutation, `actor-creation`, `scene-fx`, `session-log`) stay
-> Opus and need their characterization nets built first.
+> total still 1485.
+>
+> **Fan-out wave 1 — 4 small domains (Sonnet workers, Opus-reviewed, 2026‑06‑16).** A per-method coverage
+> check first demoted `chat` (`getChatLog` unpinned) and `modules` (`getModuleErrors`/`clearModuleErrors`
+> unpinned) from the ready list to "characterize first". Then 4 parallel Sonnet workers each rewrote one
+> fully-characterized domain from first principles, editing only its own module (no tests/facade/shared/
+> queries/sibling touched) and verifying typecheck + its tests + the full 377-suite, but not committing:
+> **`world-reads`** (97→142; reads.test 12), **`ownership-players`** (218→292; ownership 20 + players 20),
+> **`world-items`** (265→317; world-items 29), **`resources-effects`** (373→470; resources 25 + effects 20
+>
+> - chat-resources resource slice). Each grew (inline duplication → extracted helpers + fuller JSDoc),
+>   with **no behavior change, no test edits, 0 eslint errors**. Opus reviewed every file against the
+>   contract (preserved quirks, no scope creep), re-ran typecheck + full suite + build with all 4 applied
+>   (377 green, only the 4 intended files changed), and committed one domain per commit. **5 of 16 domains
+>   rewritten** (journals + these 4); total still 1485. Next: the remaining fully-characterized domains —
+>   `compendium` (injects `persistentIndex`), `scenes-tokens`, `characters`, `combat` reads — stay **Opus**
+>   (larger/riskier); the deferred/partial targets (`chat` getChatLog, `modules` error methods,
+>   `session-log`, `scene-fx`, `actor-creation`, `combat` mutation, `creature-index`, `player-rolls`,
+>   `actor-builder`) need their characterization nets built first.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

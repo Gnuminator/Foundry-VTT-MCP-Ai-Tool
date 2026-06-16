@@ -391,11 +391,21 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > decision the leftover pre-trim **pf2e branches were RETAINED verbatim** (unpinned: actor `system.actions`
 > extraction, ChoiceSet/RollOption itemVariants, rule-element toggles, search rank/traits/focus/invested/
 > slug fallbacks) — a dnd5e-only prune is a deferred follow-up that must characterize the dnd5e paths first.
-> Cleared the file's inherited eslint errors (14→0). 585→646 lines. **6 of 16 domains rewritten**; total
-> still 1485. Next fully-characterized Opus targets: `compendium` (injects `persistentIndex`),
-> `scenes-tokens` (confirm per-method coverage first), `combat` reads. Deferred/partial targets (`chat`
-> getChatLog, `modules` error methods, `session-log`, `scene-fx`, `actor-creation`, `combat` mutation,
-> `creature-index`, `player-rolls`, `actor-builder`) need their characterization nets built first.
+> Cleared the file's inherited eslint errors (14→0). 585→646 lines.
+>
+> **`compendium` — second Opus-tier domain (2026‑06‑16).** Rewritten behind `compendium.test.ts` (26):
+> searchCompendium decomposed into a validate → `tryEnhancedActorSearch` (fast path, returns null to fall
+> through) → `basicNameSearch` pipeline with extracted helpers (searchablePacks / nameMatchesAllTerms /
+> toIndexResult / compareSearchResults / passesActorNameFilters); listCreaturesByCriteria enhanced path
+> extracted to toEnhancedResult / buildEnhancedSummary; getDocFull preserved. **Faithful parity** (no
+> behavior change, no test edits): the **enhanced creature-index path is gated behind the
+> `enableEnhancedCreatureIndex` setting (OFF in the harness) → unpinned, retained verbatim** (covered later
+> by the deferred `PersistentCreatureIndex` net); the ctor-injected `persistentIndex` dep is kept. Dropped
+> only no-op dead code; eslint 7→0. 560→539 lines (shrank). **7 of 16 domains rewritten**; total still 1485. Next fully-characterized Opus targets: `scenes-tokens` (confirm per-method coverage first —
+> `switchScene`/`getTokenPositions`/`measureDistance`/`getTargets`/`setTokenVisionLight` unconfirmed),
+> `combat` reads. Deferred/partial targets (`chat` getChatLog, `modules` error methods, `session-log`,
+> `scene-fx`, `actor-creation`, `combat` mutation, `creature-index`, `player-rolls`, `actor-builder`) +
+> the `characters` pf2e-prune follow-up need their characterization nets built first.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

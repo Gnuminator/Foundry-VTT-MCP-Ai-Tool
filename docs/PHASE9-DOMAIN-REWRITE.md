@@ -103,9 +103,11 @@ which carry **uncharacterized sibling methods**: `chat` (`getChatLog` has no dat
 | `world-items`       | 265 → 317            | `world-items.test.ts` (29)                                                                               |
 | `resources-effects` | 373 → 470            | `resources.test.ts` (25) + `effects.test.ts` (20) + `chat-resources.test.ts` (resource slice)            |
 | `characters`        | 585 → 646            | `reads.test.ts` (`getCharacterInfo`) + `character-search.test.ts` (20) + `character-entity.test.ts` (14) |
+| `compendium`        | 560 → 539            | `compendium.test.ts` (26; basic search + `listByCriteria` fallback + `getDocFull`)                       |
 
-> LOC grew in every case — the rewrites trade inline duplication for extracted helpers + fuller JSDoc;
-> logic density dropped. All six: no behavior change, no test edits, 0 eslint errors.
+> Most rewrites grew slightly (inline duplication → extracted helpers + fuller JSDoc; logic density
+> dropped); `compendium` shrank by dropping no-op dead code. All seven: no behavior change, no test
+> edits, 0 eslint errors.
 >
 > **`characters` (first Opus-tier/large domain) — faithful parity, pf2e cruft RETAINED.** The module
 > carries pre-trim multi-system branches the tests don't pin (actor `system.actions` extraction,
@@ -114,14 +116,22 @@ which carry **uncharacterized sibling methods**: `chat` (`getChatLog` has no dat
 > kept verbatim (default = preserve), not pruned — a **dnd5e-only prune is a deferred follow-up** that
 > should first add dnd5e-path characterization for the branches being removed, then drop the pf2e ones in
 > its own commit. (The `system.actions` array branch in `getCharacterEntity` IS pinned — keep it.)
+>
+> **`compendium` — enhanced-index fast path RETAINED (unpinned).** The `searchCompendium` enhanced
+> branch and the `listCreaturesByCriteria` enhanced path both gate on the `enableEnhancedCreatureIndex`
+> setting, which is OFF in the harness — so the 26 tests pin only the basic name search, the
+> `fallbackBasicCreatureSearch` path, and `getDocFull`. The enhanced path (which calls the injected
+> `persistentIndex.getEnhancedIndex()`) was preserved verbatim; it'll be covered when the deferred
+> `PersistentCreatureIndex` net lands. The unpinned filter/relevance-scoring helpers
+> (`shouldApplyFilters`/`calculateRelevanceScore`/`passesActorNameFilters`/`matchesSearchCriteria`) were
+> likewise kept.
 
 ### Ready now — fully characterized (rewrite directly, order small → large)
 
-| Domain                | LOC | Characterization test(s)                                                           |
-| --------------------- | --- | ---------------------------------------------------------------------------------- |
-| `compendium`          | 560 | `compendium.test.ts` (26; basic search + `listByCriteria` fallback + `getDocFull`) |
-| `scenes-tokens`       | 558 | `scenes.test.ts` (16) + `token-manipulation.test.ts` (24)                          |
-| `combat` (reads only) | 416 | `combat.test.ts` (26; `getCombatState`/`getCombatPlayByPlay` **read** only)        |
+| Domain                | LOC | Characterization test(s)                                                    |
+| --------------------- | --- | --------------------------------------------------------------------------- |
+| `scenes-tokens`       | 558 | `scenes.test.ts` (16) + `token-manipulation.test.ts` (24)                   |
+| `combat` (reads only) | 416 | `combat.test.ts` (26; `getCombatState`/`getCombatPlayByPlay` **read** only) |
 
 > ⚠️ Verify per-method coverage before starting any of these (the wave-1 lesson). In particular
 > `scenes-tokens` has methods beyond `listScenes`/`getTokenDetails`/the token-manipulation set
@@ -157,9 +167,8 @@ Order: characterized small→large first; each deferred domain gets a "character
 - [x] `resources-effects` — rewrite to parity (Sonnet, Opus-reviewed)
 - [x] `characters` — rewrite to parity (Opus; faithful parity, pf2e cruft retained — see note above; a
       dnd5e-only prune is a deferred follow-up)
-- [ ] `compendium` — rewrite to parity (ctor-injected `persistentIndex`; only the basic-search /
-      `listCreaturesByCriteria` fallback / `getCompendiumDocumentFull` paths are characterized — the
-      enhanced creature-index path depends on the deferred `PersistentCreatureIndex` net)
+- [x] `compendium` — rewrite to parity (Opus; ctor-injected `persistentIndex`; faithful parity, enhanced
+      creature-index path retained verbatim — unpinned, waits on the deferred `PersistentCreatureIndex` net)
 - [ ] `scenes-tokens` — rewrite to parity (confirm per-method coverage first — see ⚠️ above)
 - [ ] `combat` (reads) — rewrite `getCombatState`/`getCombatPlayByPlay` to parity
 - [ ] `chat` — **characterize `getChatLog` first** (`sendChatMessage` already pinned), then rewrite

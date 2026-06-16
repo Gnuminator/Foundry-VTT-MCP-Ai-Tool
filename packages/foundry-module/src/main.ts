@@ -336,8 +336,8 @@ class FoundryMCPBridge {
 
     const interval = this.settings.getSetting('heartbeatInterval') * 1000; // Convert to milliseconds
 
-    this.heartbeatInterval = window.setInterval(async () => {
-      await this.performHeartbeat();
+    this.heartbeatInterval = window.setInterval(() => {
+      void this.performHeartbeat();
     }, interval);
 
     console.log(`[${MODULE_ID}] Heartbeat monitoring started (${interval}ms interval)`);
@@ -400,7 +400,7 @@ class FoundryMCPBridge {
    */
   updateLastActivity(): void {
     this.lastActivity = new Date();
-    this.settings.setSetting('lastActivity', this.lastActivity.toISOString());
+    void this.settings.setSetting('lastActivity', this.lastActivity.toISOString());
   }
 
   /**
@@ -461,7 +461,7 @@ class FoundryMCPBridge {
           }
 
           // Continue checking
-          setTimeout(checkStatus, checkInterval);
+          setTimeout(() => void checkStatus(), checkInterval);
         } catch (error) {
           console.error(`[${MODULE_ID}] ComfyUI status check failed:`, error);
 
@@ -473,12 +473,12 @@ class FoundryMCPBridge {
           }
 
           // Continue checking despite errors (ComfyUI might still be starting)
-          setTimeout(checkStatus, checkInterval);
+          setTimeout(() => void checkStatus(), checkInterval);
         }
       };
 
       // Start monitoring
-      setTimeout(checkStatus, 2000); // Initial 2-second delay to let backend start
+      setTimeout(() => void checkStatus(), 2000); // Initial 2-second delay to let backend start
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to start ComfyUI monitoring:`, error);
       ui.notifications?.warn(
@@ -526,7 +526,7 @@ Hooks.once('ready', async () => {
 
     // Register socket listener for roll state management (after game.user is available)
 
-    game.socket?.on('module.foundry-mcp-bridge', async data => {
+    const onRollSocketMessage = async (data: any): Promise<void> => {
       try {
         // Handle ChatMessage update requests (GM only)
         if (data.type === 'requestMessageUpdate' && data.buttonId && data.messageId) {
@@ -535,7 +535,7 @@ Hooks.once('ready', async () => {
             try {
               // Get the data access instance to update the message
               const queryHandlers = foundryMCPBridge['queryHandlers'] as any;
-              if (queryHandlers && queryHandlers.dataAccess) {
+              if (queryHandlers?.dataAccess) {
                 await queryHandlers.dataAccess.updateRollButtonMessage(
                   data.buttonId,
                   data.userId,
@@ -551,7 +551,6 @@ Hooks.once('ready', async () => {
                 );
               }
             }
-          } else {
           }
           return;
         }
@@ -563,7 +562,7 @@ Hooks.once('ready', async () => {
             try {
               // Get the data access instance to save the roll state
               const queryHandlers = foundryMCPBridge['queryHandlers'] as any;
-              if (queryHandlers && queryHandlers.dataAccess) {
+              if (queryHandlers?.dataAccess) {
                 await queryHandlers.dataAccess.saveRollState(
                   data.buttonId,
                   data.rollState.rolledBy
@@ -578,7 +577,6 @@ Hooks.once('ready', async () => {
                 );
               }
             }
-          } else {
           }
           return;
         }
@@ -592,7 +590,8 @@ Hooks.once('ready', async () => {
       } catch (error) {
         console.error(`[${MODULE_ID}] Error handling socket message:`, error);
       }
-    });
+    };
+    game.socket?.on('module.foundry-mcp-bridge', (data: any) => void onRollSocketMessage(data));
   } catch (error) {
     console.error(`[${MODULE_ID}] Ready failed:`, error);
   }
@@ -633,9 +632,9 @@ Hooks.on('renderChatMessageHTML', (message: any, html: HTMLElement) => {
     if (rollButtons) {
       // Get the data access instance
       const queryHandlers = foundryMCPBridge['queryHandlers'] as any;
-      if (queryHandlers && queryHandlers.dataAccess) {
+      if (queryHandlers?.dataAccess) {
         // Check if any buttons in this message are already rolled
-        for (const [_buttonId, buttonData] of Object.entries(rollButtons as any)) {
+        for (const [_buttonId, buttonData] of Object.entries(rollButtons)) {
           if (buttonData && typeof buttonData === 'object' && (buttonData as any).rolled) {
             break;
           }
@@ -652,7 +651,7 @@ Hooks.on('renderChatMessageHTML', (message: any, html: HTMLElement) => {
       // Legacy message without flags - fall back to old behavior
 
       const queryHandlers = foundryMCPBridge['queryHandlers'] as any;
-      if (queryHandlers && queryHandlers.dataAccess) {
+      if (queryHandlers?.dataAccess) {
         queryHandlers.dataAccess.attachRollButtonHandlers($html);
 
         // Check for legacy roll states

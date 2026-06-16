@@ -65,7 +65,7 @@ export const PUBLIC_EVENT_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 function hpBand(hp: CombatantHp | null): PublicCombatant['hpBand'] {
-  if (!hp || !hp.max) return null;
+  if (!hp?.max) return null;
   if (hp.value <= 0) return 'down';
   const ratio = hp.value / hp.max;
   if (ratio <= 0.25) return 'critical';

@@ -13,11 +13,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
-import {
-  createTestWorld,
-  makeDocument,
-  type TestWorld,
-} from './test-support/foundry-mock/index.js';
+import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 
 let world: TestWorld;
@@ -73,7 +69,7 @@ describe('FoundryDataAccess — listWorldItems', () => {
     const result = await da.listWorldItems({ type: 'weapon' });
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.id).toBe('i1');
+    expect(result[0].id).toBe('i1');
   });
 
   it('filters by folder name — items in that folder are returned', async () => {
@@ -89,9 +85,9 @@ describe('FoundryDataAccess — listWorldItems', () => {
     const result = await da.listWorldItems({ folder: 'Gear' });
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.id).toBe('i1');
-    expect(result[0]!.folderId).toBe('f1');
-    expect(result[0]!.folderName).toBe('Gear');
+    expect(result[0].id).toBe('i1');
+    expect(result[0].folderId).toBe('f1');
+    expect(result[0].folderName).toBe('Gear');
   });
 
   it('filters by folder id', async () => {
@@ -107,7 +103,7 @@ describe('FoundryDataAccess — listWorldItems', () => {
     const result = await da.listWorldItems({ folder: 'f1' });
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.id).toBe('i1');
+    expect(result[0].id).toBe('i1');
   });
 
   it('returns [] when folder param is given but folder does not exist', async () => {
@@ -125,7 +121,7 @@ describe('FoundryDataAccess — listWorldItems', () => {
     const result = await da.listWorldItems({ nameFilter: 'LONG' });
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.id).toBe('i1');
+    expect(result[0].id).toBe('i1');
   });
 
   it('combines type and nameFilter', async () => {
@@ -201,7 +197,7 @@ describe('FoundryDataAccess — updateWorldItems', () => {
       updates: [{ id: 'i1', folder: 'Gear' }],
     });
 
-    expect(result.updated[0]!.id).toBe('i1');
+    expect(result.updated[0].id).toBe('i1');
     // The item's folder field should now be the resolved folder id
     const doc = (globalThis as any).game.items.get('i1');
     expect(doc.folder).toBe('f1');
@@ -277,7 +273,7 @@ describe('FoundryDataAccess — createWorldItems', () => {
     const result = await da.createWorldItems({ items: [{ name: 'Dagger', type: 'weapon' }] });
 
     expect(result.created).toHaveLength(1);
-    expect(result.created[0]!.name).toBe('Dagger');
+    expect(result.created[0].name).toBe('Dagger');
 
     delete (globalThis as any).game.system.documentTypes;
   });
@@ -291,7 +287,7 @@ describe('FoundryDataAccess — createWorldItems', () => {
     expect(result.folderName).toBeNull();
     expect(result.created).toHaveLength(1);
     expect(result.created[0]).toMatchObject({ name: 'Potion', type: 'consumable' });
-    expect(typeof result.created[0]!.id).toBe('string');
+    expect(typeof result.created[0].id).toBe('string');
   });
 
   it('registers created items in game.items so subsequent reads find them', async () => {
@@ -299,7 +295,7 @@ describe('FoundryDataAccess — createWorldItems', () => {
       items: [{ name: 'Torch', type: 'consumable' }],
     });
 
-    const id = result.created[0]!.id;
+    const id = result.created[0].id;
     const doc = (globalThis as any).game.items.get(id);
     expect(doc).toBeDefined();
     expect(doc.name).toBe('Torch');
@@ -315,7 +311,7 @@ describe('FoundryDataAccess — createWorldItems', () => {
 
     expect(result.folderId).toBe('f1');
     expect(result.folderName).toBe('Gear');
-    const doc = (globalThis as any).game.items.get(result.created[0]!.id);
+    const doc = (globalThis as any).game.items.get(result.created[0].id);
     expect(doc.folder).toBe('f1');
   });
 
@@ -361,7 +357,7 @@ describe('FoundryDataAccess — createWorldItems', () => {
       ],
     });
 
-    const id = result.created[0]!.id;
+    const id = result.created[0].id;
     const doc = (globalThis as any).game.items.get(id);
     expect(doc.img).toBe('magic-sword.webp');
     expect(doc.system).toMatchObject({ damage: '1d8' });

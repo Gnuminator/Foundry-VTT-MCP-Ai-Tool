@@ -8,7 +8,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestWorld, makeModule, type TestWorld } from './test-support/foundry-mock/index.js';
+import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 
 let world: TestWorld;
@@ -182,7 +182,7 @@ describe('FoundryDataAccess — getModules compatibility issues', () => {
       const toNum = (v: string) => v.split('.').map(Number);
       const [aMaj, aMin = 0] = toNum(a);
       const [bMaj, bMin = 0] = toNum(b);
-      return aMaj !== bMaj ? aMaj! > bMaj! : aMin > bMin;
+      return aMaj !== bMaj ? aMaj > bMaj : aMin > bMin;
     };
 
     const result = await da.getModules({});
@@ -205,7 +205,7 @@ describe('FoundryDataAccess — getModules compatibility issues', () => {
       const toNum = (v: string) => v.split('.').map(Number);
       const [aMaj, aMin = 0] = toNum(a);
       const [bMaj, bMin = 0] = toNum(b);
-      return aMaj !== bMaj ? aMaj! > bMaj! : aMin > bMin;
+      return aMaj !== bMaj ? aMaj > bMaj : aMin > bMin;
     };
 
     const result = await da.getModules({});

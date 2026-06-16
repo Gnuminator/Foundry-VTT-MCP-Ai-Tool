@@ -56,10 +56,12 @@ export class ComfyUIManager {
       const errorMessage = `Failed to start ComfyUI service: ${error instanceof Error ? error.message : 'Unknown error'}`;
       const helpMessage =
         error instanceof Error && error.message.includes('timeout')
-          ? errorMessage +
-            ' This is normal for first-time startup. Try checking the service status in a few minutes.'
-          : errorMessage +
-            ' Check the console for more details and verify your ComfyUI installation.';
+          ? `${
+              errorMessage
+            } This is normal for first-time startup. Try checking the service status in a few minutes.`
+          : `${
+              errorMessage
+            } Check the console for more details and verify your ComfyUI installation.`;
 
       ui.notifications?.error(helpMessage);
       console.error(`[${MODULE_ID}] Service start error:`, error);
@@ -328,7 +330,7 @@ export class ComfyUIManager {
         const request = {
           type,
           requestId,
-          data: data,
+          data,
         };
 
         bridge.socketBridge.sendMessage(request);

@@ -84,7 +84,7 @@ export class CampaignHooks {
       const $html = html.jquery ? html : $(html);
 
       // Additional DOM validation - ensure the HTML element exists and is connected
-      if (!$html[0] || !$html[0].isConnected) {
+      if (!$html[0]?.isConnected) {
         return;
       }
 
@@ -152,7 +152,7 @@ export class CampaignHooks {
 
       // Attach click handlers to each toggle
       statusToggles.on('click', (event: JQuery.ClickEvent) => {
-        this.onStatusToggleClick(event, entry, statusFlags);
+        void this.onStatusToggleClick(event, entry, statusFlags);
       });
     } catch (error) {
       console.error('Error setting up campaign dashboard interactivity:', error);

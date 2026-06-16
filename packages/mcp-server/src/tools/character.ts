@@ -167,7 +167,8 @@ export class CharacterTools {
                   name: { type: 'string', description: 'Display name of the item' },
                   type: {
                     type: 'string',
-                    description: 'Item type valid for the active system (e.g. "action", "talent", "weapon")',
+                    description:
+                      'Item type valid for the active system (e.g. "action", "talent", "weapon")',
                   },
                   img: {
                     type: 'string',
@@ -175,7 +176,8 @@ export class CharacterTools {
                   },
                   system: {
                     type: 'object',
-                    description: 'System-specific data (free-form). Passed through to Foundry\'s DataModel layer.',
+                    description:
+                      "System-specific data (free-form). Passed through to Foundry's DataModel layer.",
                     additionalProperties: true,
                   },
                 },
@@ -195,7 +197,8 @@ export class CharacterTools {
                   img: { type: 'string', description: 'New icon path' },
                   system: {
                     type: 'object',
-                    description: 'System-specific fields to update (merged into existing system data)',
+                    description:
+                      'System-specific fields to update (merged into existing system data)',
                     additionalProperties: true,
                   },
                   folder: {
@@ -213,7 +216,8 @@ export class CharacterTools {
             },
             type: {
               type: 'string',
-              description: 'For "list": filter by item type (e.g. "action", "talent"). Omit to return all types.',
+              description:
+                'For "list": filter by item type (e.g. "action", "talent"). Omit to return all types.',
             },
             nameFilter: {
               type: 'string',
@@ -550,15 +554,18 @@ export class CharacterTools {
     });
 
     try {
-      const result = await this.foundryClient.query('foundry-mcp-bridge.updateWorldItems', { updates });
+      const result = await this.foundryClient.query('foundry-mcp-bridge.updateWorldItems', {
+        updates,
+      });
 
       this.logger.debug('Successfully updated world items', { count: result.updated?.length ?? 0 });
 
       return result;
-
     } catch (error) {
       this.logger.error('Failed to update world items', error);
-      throw new Error(`Failed to update world items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to update world items: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -571,7 +578,11 @@ export class CharacterTools {
 
     const { type, folder, nameFilter } = schema.parse(args);
 
-    this.logger.info('Listing world items', { type: type ?? null, folder: folder ?? null, nameFilter: nameFilter ?? null });
+    this.logger.info('Listing world items', {
+      type: type ?? null,
+      folder: folder ?? null,
+      nameFilter: nameFilter ?? null,
+    });
 
     try {
       const items = await this.foundryClient.query('foundry-mcp-bridge.listWorldItems', {
@@ -586,10 +597,11 @@ export class CharacterTools {
         items: items ?? [],
         total: items?.length ?? 0,
       };
-
     } catch (error) {
       this.logger.error('Failed to list world items', error);
-      throw new Error(`Failed to list world items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to list world items: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -626,15 +638,18 @@ export class CharacterTools {
       });
 
       return result;
-
     } catch (error) {
       this.logger.error('Failed to create world items', error);
-      throw new Error(`Failed to create world items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create world items: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   async handleManageWorldItems(args: any): Promise<any> {
-    const { action } = z.object({ action: z.enum(['create', 'list', 'update', 'add-to-actor']) }).parse(args);
+    const { action } = z
+      .object({ action: z.enum(['create', 'list', 'update', 'add-to-actor']) })
+      .parse(args);
 
     switch (action) {
       case 'create':
@@ -1029,6 +1044,6 @@ export class CharacterTools {
     if (!text || text.length <= maxLength) {
       return text;
     }
-    return text.substring(0, maxLength - 3) + '...';
+    return `${text.substring(0, maxLength - 3)}...`;
   }
 }

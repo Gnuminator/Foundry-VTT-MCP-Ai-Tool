@@ -69,7 +69,7 @@ export class Logger {
     this.logger.warn(message, meta);
   }
 
-  error(message: string, error?: Error | any): void {
+  error(message: string, error?: any): void {
     if (error instanceof Error) {
       this.logger.error(message, { error: error.message, stack: error.stack });
     } else if (error) {

@@ -425,7 +425,7 @@ describe('FoundryDataAccess.toggleTokenCondition — allowed', () => {
     // An effect was created on the actor
     expect(actor.effects.size).toBe(before + 1);
     // The effect should carry the statuses set
-    const added = actor.effects.contents[0] as any;
+    const added = actor.effects.contents[0];
     expect(added.statuses).toContain('prone');
   });
 

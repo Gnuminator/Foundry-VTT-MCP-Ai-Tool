@@ -450,7 +450,6 @@ describe('QuestCreationTools.handleLinkQuestToNPC — dispatch', () => {
     '</div></section>';
 
   function makeLinker(content = JOURNAL_CONTENT) {
-    let callCount = 0;
     const queryImpl = (method: string, _data: unknown) => {
       if (method === 'foundry-mcp-bridge.getJournalContent') {
         return { content, name: 'Test Quest', success: true };
@@ -458,7 +457,6 @@ describe('QuestCreationTools.handleLinkQuestToNPC — dispatch', () => {
       if (method === 'foundry-mcp-bridge.updateJournalContent') {
         return { success: true };
       }
-      callCount++;
       return { success: true };
     };
     return makeTools(queryImpl);
@@ -778,7 +776,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal — no-pageId path (first 
   });
 
   it('update type progress adds Progress Update marker to updated content', async () => {
-    const progressContent = EXISTING_CONTENT + '<h2 class="spaced">Progress Update';
+    const progressContent = `${EXISTING_CONTENT}<h2 class="spaced">Progress Update`;
     const { tools, query } = makeFirstPageUpdater(EXISTING_CONTENT, progressContent);
     await tools.handleUpdateQuestJournal({
       journalId: 'j1',
@@ -790,7 +788,7 @@ describe('QuestCreationTools.handleUpdateQuestJournal — no-pageId path (first 
   });
 
   it('update type failure adds Quest Failed marker to updated content', async () => {
-    const failContent = EXISTING_CONTENT + '<h2 class="spaced">Quest Failed';
+    const failContent = `${EXISTING_CONTENT}<h2 class="spaced">Quest Failed`;
     const { tools, query } = makeFirstPageUpdater(EXISTING_CONTENT, failContent);
     await tools.handleUpdateQuestJournal({
       journalId: 'j1',
@@ -1048,10 +1046,8 @@ describe('QuestCreationTools.handleListJournals — list mode (no journalId)', (
   });
 
   it('includes contentPreview when includeContent:true (makes additional getJournalContent calls)', async () => {
-    let listCalled = false;
     const { tools, query } = makeTools((method: string, _data: unknown) => {
       if (method === 'foundry-mcp-bridge.listJournals') {
-        listCalled = true;
         return [{ id: 'j1', name: 'The Quest', pages: [] }];
       }
       if (method === 'foundry-mcp-bridge.getJournalContent') {
@@ -1124,7 +1120,7 @@ describe('QuestCreationTools.handleSearchJournals — dispatch and result shapin
   ];
 
   function makeSearcher(pageContent = 'The party slew the dragon and found treasure.') {
-    const queryImpl = (method: string, data: any) => {
+    const queryImpl = (method: string, _data: any) => {
       if (method === 'foundry-mcp-bridge.listJournals') {
         return JOURNALS_WITH_PAGES;
       }
@@ -1223,10 +1219,8 @@ describe('QuestCreationTools.handleSearchJournals — dispatch and result shapin
         ],
       },
     ];
-    let listCalled = false;
     const { tools, query } = makeTools((method: string, _data: unknown) => {
       if (method === 'foundry-mcp-bridge.listJournals') {
-        listCalled = true;
         return journalsWithImagePage;
       }
       if (method === 'foundry-mcp-bridge.getJournalPageContent') {
@@ -1312,7 +1306,6 @@ describe('QuestCreationTools.handleSearchJournals — failure handling', () => {
   });
 
   it('skips pages that error during content fetch (no throw)', async () => {
-    let callCount = 0;
     const { tools } = makeTools((method: string, _data: unknown) => {
       if (method === 'foundry-mcp-bridge.listJournals') {
         return [

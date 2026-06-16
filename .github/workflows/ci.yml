@@ -21,6 +21,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Typecheck and lint (green-gate)
+        # Documented green-gate: a type/lint error that doesn't break the build
+        # must still fail CI. Runs before build to fail fast.
+        run: npm run typecheck && npm run lint
+
       - name: Build (all workspaces)
         run: npm run build
 

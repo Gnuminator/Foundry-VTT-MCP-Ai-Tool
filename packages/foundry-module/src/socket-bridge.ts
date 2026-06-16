@@ -129,7 +129,7 @@ export class SocketBridge {
           const isFirstAttempt = this.reconnectAttempts === 0;
           const errorMsg = isFirstAttempt
             ? "MCP server not available (this is normal if server isn't running)"
-            : `Connection error after ${this.reconnectAttempts} attempts: ${error}`;
+            : `Connection error after ${this.reconnectAttempts} attempts: ${error instanceof Error ? error.message : 'connection failed'}`;
           this.log(errorMsg);
           this.connectionState = CONNECTION_STATES.DISCONNECTED;
           this.scheduleReconnect();
@@ -183,7 +183,7 @@ export class SocketBridge {
     this.ws.onmessage = event => {
       try {
         const message = JSON.parse(event.data);
-        this.handleMessage(message);
+        void this.handleMessage(message);
       } catch (error) {
         this.log(`Failed to parse message: ${error}`);
       }
@@ -465,12 +465,10 @@ export class SocketBridge {
     this.log(`Scheduling reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
     this.connectionState = CONNECTION_STATES.RECONNECTING;
 
-    this.reconnectTimer = setTimeout(async () => {
-      try {
-        await this.connect();
-      } catch (error) {
+    this.reconnectTimer = setTimeout(() => {
+      void this.connect().catch(() => {
         // Connection failed, scheduleReconnect will be called again from connect()
-      }
+      });
     }, delay);
   }
 
@@ -498,7 +496,7 @@ export class SocketBridge {
   emitToServer(event: string, data?: any): void {
     this.sendMessage({
       type: event,
-      data: data,
+      data,
       timestamp: Date.now(),
     });
   }

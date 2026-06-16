@@ -81,7 +81,9 @@ export class WebRTCConnection {
     };
 
     this.dataChannel.onerror = error => {
-      this.log(`WebRTC data channel error: ${error}`);
+      this.log(
+        `WebRTC data channel error: ${error instanceof Error ? error.message : 'data channel error'}`
+      );
     };
 
     this.dataChannel.onmessage = async event => {
@@ -225,10 +227,10 @@ export class WebRTCConnection {
 
           const chunkMessage = {
             type: 'chunked-message',
-            chunkId: chunkId,
+            chunkId,
             chunkIndex: i,
-            totalChunks: totalChunks,
-            chunk: chunk,
+            totalChunks,
+            chunk,
             originalType: message.type,
             originalId: message.id,
           };

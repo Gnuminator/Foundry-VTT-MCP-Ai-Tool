@@ -8,12 +8,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  createTestWorld,
-  makeActor,
-  makePack,
-  type TestWorld,
-} from './test-support/foundry-mock/index.js';
+import { createTestWorld, makeActor, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 
 let world: TestWorld;
@@ -99,7 +94,7 @@ describe('FoundryDataAccess — searchCompendium — name matching', () => {
       summary: 'npc from Monsters',
     });
     // img should be absent (no image on the actor)
-    expect(results[0]!.img).toBeUndefined();
+    expect(results[0].img).toBeUndefined();
   });
 
   it('returns multiple entries that all match the query', async () => {
@@ -131,7 +126,7 @@ describe('FoundryDataAccess — searchCompendium — name matching', () => {
     const results = await da.searchCompendium('CAVE TROLL');
 
     expect(results).toHaveLength(1);
-    expect(results[0]!.name).toBe('Cave Troll');
+    expect(results[0].name).toBe('Cave Troll');
   });
 
   it('requires ALL query terms to appear in the name (AND semantics)', async () => {
@@ -149,7 +144,7 @@ describe('FoundryDataAccess — searchCompendium — name matching', () => {
     const results = await da.searchCompendium('ancient red');
 
     expect(results).toHaveLength(1);
-    expect(results[0]!.name).toBe('Ancient Red Dragon');
+    expect(results[0].name).toBe('Ancient Red Dragon');
   });
 
   it('returns empty array when no packs are loaded', async () => {
@@ -184,8 +179,8 @@ describe('FoundryDataAccess — searchCompendium — name matching', () => {
 
     // Document with img: index carries it → hasImage true, img populated
     expect(results).toHaveLength(1);
-    expect(results[0]!.hasImage).toBe(true);
-    expect(results[0]!.img).toBe('sword.webp');
+    expect(results[0].hasImage).toBe(true);
+    expect(results[0].img).toBe('sword.webp');
   });
 
   it('yields hasImage:false and no img when the document has no img field', async () => {
@@ -199,8 +194,8 @@ describe('FoundryDataAccess — searchCompendium — name matching', () => {
     const results = await da.searchCompendium('iron shield', 'Item');
 
     expect(results).toHaveLength(1);
-    expect(results[0]!.hasImage).toBe(false);
-    expect(results[0]!.img).toBeUndefined();
+    expect(results[0].hasImage).toBe(false);
+    expect(results[0].img).toBeUndefined();
   });
 
   it('filters by packType — Actor packs only', async () => {
@@ -220,7 +215,7 @@ describe('FoundryDataAccess — searchCompendium — name matching', () => {
     const results = await da.searchCompendium('goblin', 'Actor');
 
     expect(results).toHaveLength(1);
-    expect(results[0]!.pack).toBe('world.actors');
+    expect(results[0].pack).toBe('world.actors');
   });
 
   it('excludes Scene packs even when no packType filter is specified', async () => {
@@ -241,7 +236,7 @@ describe('FoundryDataAccess — searchCompendium — name matching', () => {
 
     // Only the Actor pack result (Scene pack excluded)
     expect(results).toHaveLength(1);
-    expect(results[0]!.pack).toBe('world.actors');
+    expect(results[0].pack).toBe('world.actors');
   });
 
   it('sorts exact name matches before partial matches', async () => {
@@ -258,7 +253,7 @@ describe('FoundryDataAccess — searchCompendium — name matching', () => {
     const results = await da.searchCompendium('goblin');
 
     // Exact match 'Goblin' should come first
-    expect(results[0]!.name).toBe('Goblin');
+    expect(results[0].name).toBe('Goblin');
   });
 });
 

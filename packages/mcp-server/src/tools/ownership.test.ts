@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { OwnershipTools } from './ownership.js';
 
@@ -403,8 +403,7 @@ describe("OwnershipTools.handleToolCall('list-actor-ownership')", () => {
   });
 
   it('returns success:false (not throws) when foundry query throws', async () => {
-    let consoleErr: ReturnType<typeof vi.spyOn>;
-    consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { tools } = makeTools(() => {
       throw new Error('bridge unavailable');
@@ -418,8 +417,7 @@ describe("OwnershipTools.handleToolCall('list-actor-ownership')", () => {
   });
 
   it('returns success:false with generic error string when a non-Error is thrown', async () => {
-    let consoleErr: ReturnType<typeof vi.spyOn>;
-    consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { tools } = makeTools(() => {
       // eslint-disable-next-line @typescript-eslint/no-throw-literal

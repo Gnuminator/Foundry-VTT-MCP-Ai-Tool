@@ -100,7 +100,7 @@ describe('FoundryDataAccess — listJournals', () => {
 
     const result = await da.listJournals();
 
-    expect(result[0]!.pages[0]!.type).toBe('text');
+    expect(result[0].pages[0].type).toBe('text');
   });
 
   it('reports pageCount of 0 for a journal with no pages', async () => {
@@ -263,7 +263,7 @@ describe('FoundryDataAccess — getJournalContent', () => {
 
     const result = await da.getJournalContent('j1');
 
-    expect(result!.allPages[0]!.type).toBe('text');
+    expect(result!.allPages[0].type).toBe('text');
   });
 });
 

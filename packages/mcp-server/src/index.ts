@@ -45,7 +45,7 @@ class BackendClient {
 
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-      const line = `[${new Date().toISOString()}] ${msg}${meta ? ' ' + JSON.stringify(meta) : ''}\n`;
+      const line = `[${new Date().toISOString()}] ${msg}${meta ? ` ${JSON.stringify(meta)}` : ''}\n`;
 
       fs.appendFileSync(this.logFile, line);
     } catch {}
@@ -126,63 +126,59 @@ class BackendClient {
     }
   }
 
-  private startBackend(): Promise<void> {
-    return new Promise(async resolve => {
-      let backendPath: string | null = null;
+  private async startBackend(): Promise<void> {
+    let backendPath: string | null = null;
 
-      try {
-        const backendUrl = new URL('./backend.js', import.meta.url as any);
+    try {
+      const backendUrl = new URL('./backend.js', import.meta.url as any);
 
-        backendPath = fileURLToPath(backendUrl);
-      } catch {
-        const pathMod = await import('path');
+      backendPath = fileURLToPath(backendUrl);
+    } catch {
+      const pathMod = await import('path');
 
-        const fsMod = await import('fs');
+      const fsMod = await import('fs');
 
-        const baseDir =
-          typeof __dirname !== 'undefined'
-            ? __dirname
-            : pathMod.dirname((process.argv && process.argv[1]) || process.cwd());
+      const baseDir =
+        typeof __dirname !== 'undefined'
+          ? __dirname
+          : pathMod.dirname(process.argv?.[1] || process.cwd());
 
-        // Prefer bundled backend when present (contains deps), fallback to ESM
+      // Prefer bundled backend when present (contains deps), fallback to ESM
 
-        const bundleCandidate = pathMod.join(baseDir, 'backend.bundle.cjs');
+      const bundleCandidate = pathMod.join(baseDir, 'backend.bundle.cjs');
 
-        const jsCandidate = pathMod.join(baseDir, 'backend.js');
+      const jsCandidate = pathMod.join(baseDir, 'backend.js');
 
-        backendPath = fsMod.existsSync(bundleCandidate) ? bundleCandidate : jsCandidate;
-      }
+      backendPath = fsMod.existsSync(bundleCandidate) ? bundleCandidate : jsCandidate;
+    }
 
-      this.log('startBackend(): spawning', { path: backendPath });
+    this.log('startBackend(): spawning', { path: backendPath });
 
-      const child = spawn(process.execPath, [backendPath!], {
-        detached: false, // Stay attached to monitor backend
+    const child = spawn(process.execPath, [backendPath], {
+      detached: false, // Stay attached to monitor backend
 
-        stdio: ['ignore', 'ignore', 'pipe'], // Capture stderr to detect exit
-      });
-
-      // Store reference for cleanup
-
-      this.backendProcess = child;
-
-      // Monitor backend exit - if it exits cleanly (code 0), this wrapper should also exit
-
-      child.on('exit', code => {
-        this.backendProcess = null; // Clear reference when backend exits
-
-        if (code === 0) {
-          this.log('startBackend(): backend exited cleanly (likely lock failure), exiting wrapper');
-
-          process.exit(0); // Exit wrapper when backend fails to acquire lock
-        } else if (code !== null) {
-          this.log('startBackend(): backend exited unexpectedly', { exitCode: code });
-        }
-      });
-
-      // Don't unref since we want to monitor the process
-
-      resolve();
+      stdio: ['ignore', 'ignore', 'pipe'], // Capture stderr to detect exit
     });
+
+    // Store reference for cleanup
+
+    this.backendProcess = child;
+
+    // Monitor backend exit - if it exits cleanly (code 0), this wrapper should also exit
+
+    child.on('exit', code => {
+      this.backendProcess = null; // Clear reference when backend exits
+
+      if (code === 0) {
+        this.log('startBackend(): backend exited cleanly (likely lock failure), exiting wrapper');
+
+        process.exit(0); // Exit wrapper when backend fails to acquire lock
+      } else if (code !== null) {
+        this.log('startBackend(): backend exited unexpectedly', { exitCode: code });
+      }
+    });
+
+    // Don't unref since we want to monitor the process
   }
 
   private onData(chunk: string) {
@@ -243,32 +239,34 @@ class BackendClient {
   }
 
   send(method: string, params: any): Promise<any> {
-    return new Promise(async (resolve, reject) => {
-      try {
-        await this.ensure();
-      } catch (e) {
-        this.log('send(): ensure failed', { error: (e as any)?.message });
+    return new Promise((resolve, reject) => {
+      void (async () => {
+        try {
+          await this.ensure();
+        } catch (e) {
+          this.log('send(): ensure failed', { error: (e as any)?.message });
 
-        return reject(e);
-      }
+          return reject(e);
+        }
 
-      const id = Math.random().toString(36).slice(2);
+        const id = Math.random().toString(36).slice(2);
 
-      const req: ControlRequest = { id, method, params };
+        const req: ControlRequest = { id, method, params };
 
-      this.pending.set(id, { resolve, reject });
+        this.pending.set(id, { resolve, reject });
 
-      try {
-        this.log('send(): write', { method });
+        try {
+          this.log('send(): write', { method });
 
-        this.socket!.write(JSON.stringify(req) + '\n', 'utf8');
-      } catch (e) {
-        this.pending.delete(id);
+          this.socket!.write(`${JSON.stringify(req)}\n`, 'utf8');
+        } catch (e) {
+          this.pending.delete(id);
 
-        this.log('send(): write error', { error: (e as any)?.message });
+          this.log('send(): write error', { error: (e as any)?.message });
 
-        reject(e);
-      }
+          reject(e);
+        }
+      })();
     });
   }
 

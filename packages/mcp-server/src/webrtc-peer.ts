@@ -1,4 +1,4 @@
-import { RTCPeerConnection, RTCSessionDescription } from 'werift';
+import { RTCPeerConnection } from 'werift';
 import { Logger } from './logger.js';
 import type { Config } from './config.js';
 import { WEBRTC_CONSTANTS } from './config.js';
@@ -385,7 +385,7 @@ export class WebRTCPeer {
     }
 
     if (this.peerConnection) {
-      this.peerConnection.close();
+      void this.peerConnection.close();
       this.peerConnection = null;
     }
 

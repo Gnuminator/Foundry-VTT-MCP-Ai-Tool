@@ -13,7 +13,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ERROR_MESSAGES } from './constants.js';
 import {
   createTestWorld,
-  makeActor,
   makeEffect,
   makeItem,
   type TestWorld,

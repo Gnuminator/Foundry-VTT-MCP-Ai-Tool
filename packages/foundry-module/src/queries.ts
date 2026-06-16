@@ -1077,7 +1077,7 @@ export class QueryHandlers {
         scene_name: data.scene_name.trim(),
         size: data.size || 'medium',
         grid_size: data.grid_size || 70,
-        quality: quality,
+        quality,
       };
 
       // Use ComfyUIManager to communicate with backend via WebSocket
@@ -1224,7 +1224,7 @@ export class QueryHandlers {
 
       console.log(`[${MODULE_ID}] Validating filename...`);
       // Validate filename for security (prevent path traversal)
-      const safeFilename = data.filename.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+      const safeFilename = data.filename.replace(/[^a-zA-Z0-9_\-.]/g, '_');
       if (
         !safeFilename.endsWith('.png') &&
         !safeFilename.endsWith('.jpg') &&

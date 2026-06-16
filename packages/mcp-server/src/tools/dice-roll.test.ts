@@ -133,7 +133,7 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
     const { tools, query } = makeTools();
     const result = await tools.handleRequestAbilityCheck({ targetPlayer: 'Alice', isPublic: true });
     expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    expect(result).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -145,7 +145,7 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
       isPublic: true,
     });
     expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    expect(result).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -194,7 +194,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
       isPublic: true,
     });
     expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    expect(result).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -205,7 +205,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
       isPublic: false,
     });
     expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    expect(result).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -213,7 +213,7 @@ describe('DiceRollTools.handleRequestAttackRoll', () => {
     const { tools, query } = makeTools();
     const result = await tools.handleRequestAttackRoll(undefined);
     expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    expect(result).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -394,7 +394,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
       userConfirmedVisibility: true,
     });
     expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    expect(result).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -408,7 +408,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
       userConfirmedVisibility: false,
     });
     expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    expect(result).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -422,7 +422,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
       userConfirmedVisibility: true,
     });
     expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    expect(result).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -430,7 +430,7 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
     const { tools, query } = makeTools();
     const result = await tools.handleRequestPlayerRolls(undefined);
     expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
+    expect(result).toMatch(/Parameter error/i);
     expect(query).not.toHaveBeenCalled();
   });
 

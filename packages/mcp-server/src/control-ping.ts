@@ -44,7 +44,7 @@ function sendControlRequest(
     );
     timer.unref();
 
-    socket.on('connect', () => socket.write(JSON.stringify(request) + '\n'));
+    socket.on('connect', () => socket.write(`${JSON.stringify(request)}\n`));
     socket.on('data', chunk => {
       buffer += chunk.toString('utf8');
       const newline = buffer.indexOf('\n');

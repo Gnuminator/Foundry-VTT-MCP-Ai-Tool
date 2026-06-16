@@ -194,7 +194,7 @@ export class TokenManipulationTools {
     this.logger.info('Moving token', { tokenId, x, y, animate });
 
     try {
-      const result = await this.foundryClient.query('foundry-mcp-bridge.move-token', {
+      await this.foundryClient.query('foundry-mcp-bridge.move-token', {
         tokenId,
         x,
         y,
@@ -405,7 +405,7 @@ export class TokenManipulationTools {
     }
   }
 
-  async handleGetAvailableConditions(args: any): Promise<any> {
+  async handleGetAvailableConditions(_args: any): Promise<any> {
     this.logger.info('Getting available conditions');
 
     try {

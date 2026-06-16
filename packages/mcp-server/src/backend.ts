@@ -616,7 +616,7 @@ async function handleGenerateMapRequest(
 
     return {
       status: 'success',
-      jobId: jobId,
+      jobId,
       message: 'Map generation started',
       estimatedTime: 'varies by hardware and quality setting',
     };
@@ -774,7 +774,7 @@ async function processMapGenerationInBackend(
     );
     foundryClient.sendMessage({
       type: 'map-generation-progress',
-      jobId: jobId,
+      jobId,
       progress: 10,
       stage: 'Starting processing...',
     });
@@ -796,7 +796,7 @@ async function processMapGenerationInBackend(
     await jobQueue.updateJobProgress(jobId, 25, 'Submitting to ComfyUI...');
     foundryClient.sendMessage({
       type: 'map-generation-progress',
-      jobId: jobId,
+      jobId,
       progress: 25,
       stage: 'Submitting to ComfyUI...',
     });
@@ -806,7 +806,7 @@ async function processMapGenerationInBackend(
       processDebugLog,
       `[${new Date().toISOString()}] Submitting job to ComfyUI...\n`
     );
-    const sizePixels = comfyuiClient.getSizePixels(job.params.size as any);
+    const sizePixels = comfyuiClient.getSizePixels(job.params.size);
     await fs2.appendFile(
       processDebugLog,
       `[${new Date().toISOString()}] Size pixels: ${sizePixels}\n`
@@ -846,7 +846,7 @@ async function processMapGenerationInBackend(
     await jobQueue.updateJobProgress(jobId, 50, 'Generating battlemap...');
     foundryClient.sendMessage({
       type: 'map-generation-progress',
-      jobId: jobId,
+      jobId,
       progress: 50,
       stage: 'Generating battlemap...',
     });
@@ -875,7 +875,7 @@ async function processMapGenerationInBackend(
         foundryClient.sendMessage({
           type: 'map-generation-progress',
           data: {
-            jobId: jobId,
+            jobId,
             progress: 50 + progressPercent / 2, // Map 0-100% to 50-100% (since we're at 50% when generation starts)
             status: 'AI generating battlemap...',
             queueInfo: {
@@ -986,7 +986,6 @@ async function processMapGenerationInBackend(
     );
     const timestamp = Date.now();
     const filename = `map_${jobId}_${timestamp}.png`;
-    let webPath: string;
 
     // ALWAYS upload images via Foundry query instead of direct filesystem write
     // Reason: MCP server and Foundry may be on different machines or have different paths
@@ -1044,7 +1043,7 @@ async function processMapGenerationInBackend(
     let uploadResult: any;
     try {
       uploadResult = await foundryClient.query('foundry-mcp-bridge.upload-generated-map', {
-        filename: filename,
+        filename,
         imageData: base64Image,
       });
 
@@ -1061,14 +1060,14 @@ async function processMapGenerationInBackend(
     }
 
     await debugLog(`Extracting path from uploadResult...`);
-    webPath = uploadResult.path;
+    const webPath = uploadResult.path;
     await debugLog(`webPath extracted: ${webPath}`);
     logger.info('Image uploaded successfully to Foundry', { path: webPath });
 
     await jobQueue.updateJobProgress(jobId, 95, 'Creating scene data...');
 
     // Create scene data payload (simplified version of mapgen's FoundryIntegrator)
-    const sceneSize = comfyuiClient.getSizePixels(job.params.size as any);
+    const sceneSize = comfyuiClient.getSizePixels(job.params.size);
     // Debug: Log what we received
     logger.info('Job params received', {
       scene_name: job.params.scene_name,
@@ -1129,7 +1128,7 @@ async function processMapGenerationInBackend(
     // Broadcast completion with scene data (like mapgen does)
     foundryClient.broadcastMessage({
       type: 'job-completed', // Use mapgen's message type
-      jobId: jobId,
+      jobId,
       data: {
         status: 'completed',
         result: sceneData, // Complete scene payload
@@ -1156,7 +1155,7 @@ async function processMapGenerationInBackend(
     // Emit failure to Foundry module
     foundryClient.sendMessage({
       type: 'map-generation-failed',
-      jobId: jobId,
+      jobId,
       error: error.message,
     });
   }
@@ -1269,12 +1268,12 @@ async function startBackend(): Promise<void> {
     logger.info('Map generation backend components initialized (ComfyUI on localhost:31411)');
 
     // Auto-start ComfyUI if installed and autoStart is enabled
-    if (mapGenerationComfyUIClient && (mapGenerationComfyUIClient as any).config?.autoStart) {
-      const isInstalled = await (mapGenerationComfyUIClient as any).checkInstallation();
+    if (mapGenerationComfyUIClient?.config?.autoStart) {
+      const isInstalled = await mapGenerationComfyUIClient.checkInstallation();
       if (isInstalled) {
         logger.info('Auto-starting ComfyUI service...');
         try {
-          await (mapGenerationComfyUIClient as any).startService();
+          await mapGenerationComfyUIClient.startService();
           logger.info('ComfyUI service auto-started successfully');
         } catch (error) {
           logger.warn('Failed to auto-start ComfyUI service', { error });
@@ -1525,7 +1524,7 @@ async function startBackend(): Promise<void> {
 
     let buffer = '';
 
-    socket.on('data', async (chunk: string) => {
+    const onControlData = async (chunk: string): Promise<void> => {
       buffer += chunk;
 
       let idx: number;
@@ -1541,13 +1540,13 @@ async function startBackend(): Promise<void> {
           const msg = JSON.parse(line) as ControlRequest;
 
           if (msg.method === 'ping') {
-            socket.write(JSON.stringify({ id: msg.id, result: { ok: true } }) + '\n');
+            socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true } })}\n`);
 
             continue;
           }
 
           if (msg.method === 'list_tools') {
-            socket.write(JSON.stringify({ id: msg.id, result: { tools: allTools } }) + '\n');
+            socket.write(`${JSON.stringify({ id: msg.id, result: { tools: allTools } })}\n`);
 
             continue;
           }
@@ -1980,18 +1979,18 @@ async function startBackend(): Promise<void> {
                 ],
               };
 
-              socket.write(JSON.stringify({ id: msg.id, result: payload }) + '\n');
+              socket.write(`${JSON.stringify({ id: msg.id, result: payload })}\n`);
             } catch (e: any) {
               const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
 
               socket.write(
-                JSON.stringify({
+                `${JSON.stringify({
                   id: msg.id,
                   result: {
                     content: [{ type: 'text', text: `Error: ${errorMessage}` }],
                     isError: true,
                   },
-                }) + '\n'
+                })}\n`
               );
             }
 
@@ -2000,16 +1999,17 @@ async function startBackend(): Promise<void> {
 
           // Unknown method
 
-          socket.write(JSON.stringify({ id: msg.id, error: { message: 'Unknown method' } }) + '\n');
+          socket.write(`${JSON.stringify({ id: msg.id, error: { message: 'Unknown method' } })}\n`);
         } catch (e: any) {
           try {
             socket.write(
-              JSON.stringify({ error: { message: e?.message || 'Bad request' } }) + '\n'
+              `${JSON.stringify({ error: { message: e?.message || 'Bad request' } })}\n`
             );
           } catch {}
         }
       }
-    });
+    };
+    socket.on('data', (chunk: string) => void onControlData(chunk));
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -2044,7 +2044,7 @@ async function startBackend(): Promise<void> {
 // This prevents Claude Desktop from seeing a "server closed" error
 const hasLock = acquireLock();
 
-(async function main() {
+void (async function main() {
   if (!hasLock) {
     // Another backend is running - wait forever without doing anything
     // This keeps the process alive so Claude doesn't see an error

@@ -5,13 +5,8 @@ import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { ErrorHandler } from '../utils/error-handler.js';
 import { Logger } from '../logger.js';
-import {
-  CampaignStructureSchema,
-  CampaignPartSchema,
-  CampaignTemplateSchema,
-  CampaignPartTypeSchema,
-} from '@gnuminator/shared';
-import type { CampaignStructure, CampaignPart, CampaignTemplate } from '@gnuminator/shared';
+import { CampaignPartTypeSchema } from '@gnuminator/shared';
+import type { CampaignStructure, CampaignPart } from '@gnuminator/shared';
 
 export class CampaignManagementTools {
   private foundryClient: FoundryClient;
@@ -161,7 +156,7 @@ export class CampaignManagementTools {
         campaignId: campaignStructure.id,
         dashboardJournalId: journalResult.id,
         dashboardName: journalResult.name,
-        campaignStructure: campaignStructure,
+        campaignStructure,
         message: `Campaign dashboard "${request.campaignTitle}" created successfully with ${campaignStructure.parts.length} parts`,
       };
     } catch (error) {
@@ -512,7 +507,6 @@ export class CampaignManagementTools {
     partNumber: number,
     campaign: CampaignStructure
   ): string {
-    const statusIcon = this.getStatusIcon(part.status);
     const isLocked = this.isPartLocked(part, campaign);
     const lockIcon = isLocked ? '[LOCKED] ' : '';
 
@@ -577,7 +571,7 @@ export class CampaignManagementTools {
   /**
    * Generate interactive status toggle element for Foundry hook system
    */
-  private generateStatusTracker(part: CampaignPart | any, campaignId: string): string {
+  private generateStatusTracker(part: any, campaignId: string): string {
     const statusIcon = this.getStatusIcon(part.status);
     const statusDisplay = this.formatStatus(part.status);
     const statusClass = part.status.replace('_', '-'); // Convert to CSS class format

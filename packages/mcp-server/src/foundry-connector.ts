@@ -53,7 +53,7 @@ export class FoundryConnector {
 
     // Create SEPARATE HTTP server for WebRTC signaling (port 31416)
     const WEBRTC_PORT = 31416;
-    this.webrtcSignalingServer = createServer(async (req, res) => {
+    this.webrtcSignalingServer = createServer((req, res) => {
       // Set CORS headers for all requests
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -68,13 +68,11 @@ export class FoundryConnector {
 
       // Only handle POST to /webrtc-offer
       if (req.method === 'POST' && req.url === '/webrtc-offer') {
-        try {
-          await this.handleWebRTCOfferHTTP(req, res);
-        } catch (error) {
+        void this.handleWebRTCOfferHTTP(req, res).catch(error => {
           this.logger.error('WebRTC offer handling failed', error);
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Internal server error' }));
-        }
+        });
       } else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not found' }));
@@ -139,9 +137,9 @@ export class FoundryConnector {
         }
       });
 
-      ws.on('message', async data => {
+      const onWsMessage = async (data: unknown): Promise<void> => {
         try {
-          const message = JSON.parse(data.toString());
+          const message = JSON.parse((data as Buffer).toString());
 
           // Check if this is WebRTC signaling
           if (message.type === 'webrtc-offer') {
@@ -153,7 +151,8 @@ export class FoundryConnector {
         } catch (error) {
           this.logger.error('Failed to parse message', error);
         }
-      });
+      };
+      ws.on('message', data => void onWsMessage(data));
 
       ws.on('error', error => {
         this.logger.error('WebSocket error', error);
@@ -279,7 +278,7 @@ export class FoundryConnector {
       signalingWs.send(
         JSON.stringify({
           type: 'webrtc-answer',
-          answer: answer,
+          answer,
         })
       );
 

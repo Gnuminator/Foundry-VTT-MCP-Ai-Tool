@@ -106,7 +106,7 @@ export class PlayerRollsDataAccess {
             rollButtons: {
               [buttonId]: {
                 rolled: false,
-                rollFormula: rollFormula,
+                rollFormula,
                 rollLabel: buttonLabel,
                 isPublic: data.isPublic,
                 characterId: playerInfo.character?.id || '',
@@ -190,7 +190,7 @@ export class PlayerRollsDataAccess {
     // Try partial player name match (active and inactive users)
     if (!user) {
       user = allUsers.find((u: User) => {
-        return Boolean(u.name && u.name.toLowerCase().includes(searchTerm));
+        return Boolean(u.name?.toLowerCase().includes(searchTerm));
       });
 
       if (user) {
@@ -227,19 +227,11 @@ export class PlayerRollsDataAccess {
       (actor: Actor) => actor.name?.toLowerCase() === searchTerm && actor.hasPlayerOwner
     );
 
-    if (character) {
-    }
-
     // If no exact character match, try partial match
     if (!character) {
       character = game.actors?.find((actor: Actor) => {
-        return Boolean(
-          actor.name && actor.name.toLowerCase().includes(searchTerm) && actor.hasPlayerOwner
-        );
+        return Boolean(actor.name?.toLowerCase().includes(searchTerm) && actor.hasPlayerOwner);
       });
-
-      if (character) {
-      }
     }
 
     if (character) {
@@ -395,7 +387,7 @@ export class PlayerRollsDataAccess {
     }
 
     // Add modifier if provided
-    if (rollModifier && rollModifier.trim()) {
+    if (rollModifier?.trim()) {
       const modifier =
         rollModifier.startsWith('+') || rollModifier.startsWith('-')
           ? rollModifier
@@ -528,7 +520,7 @@ export class PlayerRollsDataAccess {
     });
 
     // Attach click handlers to roll buttons
-    html.find('.mcp-roll-button').on('click', async event => {
+    const onRollButtonClick = async (event: any): Promise<void> => {
       const button = $(event.currentTarget);
 
       // Ignore clicks on disabled buttons
@@ -626,7 +618,7 @@ export class PlayerRollsDataAccess {
         // Use roll.toMessage() with proper rollMode
         await roll.toMessage(messageData, {
           create: true,
-          rollMode: rollMode,
+          rollMode,
         });
 
         // Update the ChatMessage to reflect rolled state
@@ -662,7 +654,8 @@ export class PlayerRollsDataAccess {
           this.setRollButtonProcessing(buttonId, false);
         }
       }
-    });
+    };
+    html.find('.mcp-roll-button').on('click', (event: any) => void onRollButtonClick(event));
   }
 
   /**
@@ -705,7 +698,7 @@ export class PlayerRollsDataAccess {
     try {
       const buttonMessageMap = game.settings.get(MODULE_ID, 'buttonMessageMap') || {};
       buttonMessageMap[buttonId] = messageId;
-      game.settings.set(MODULE_ID, 'buttonMessageMap', buttonMessageMap);
+      void game.settings.set(MODULE_ID, 'buttonMessageMap', buttonMessageMap);
     } catch (error) {
       console.error(`[${MODULE_ID}] Error saving button-message mapping:`, error);
     }
@@ -779,10 +772,10 @@ export class PlayerRollsDataAccess {
         if (game.socket) {
           game.socket.emit('module.foundry-mcp-bridge', {
             type: 'requestMessageUpdate',
-            buttonId: buttonId,
-            userId: userId,
-            rollLabel: rollLabel,
-            messageId: messageId,
+            buttonId,
+            userId,
+            rollLabel,
+            messageId,
             fromUserId: game.user.id,
             targetGM: onlineGM.id,
           });
@@ -801,7 +794,7 @@ export class PlayerRollsDataAccess {
         ...rollButtons[buttonId],
         rolled: true,
         rolledBy: userId,
-        rolledByName: rolledByName,
+        rolledByName,
         timestamp: Date.now(),
       };
 
@@ -820,7 +813,7 @@ export class PlayerRollsDataAccess {
           ...currentFlags,
           [MODULE_ID]: {
             ...moduleFlags,
-            rollButtons: rollButtons,
+            rollButtons,
           },
         },
       });
@@ -968,7 +961,7 @@ export class PlayerRollsDataAccess {
           i.name.toLowerCase().includes(data.rollTarget.toLowerCase())
       );
       let bonus = '';
-      const toHit = (item as any)?.labels?.toHit;
+      const toHit = item?.labels?.toHit;
       if (toHit && typeof toHit === 'string') {
         const trimmed = toHit.replace(/\s+/g, '');
         bonus = trimmed.startsWith('+') || trimmed.startsWith('-') ? trimmed : `+${trimmed}`;
@@ -979,7 +972,7 @@ export class PlayerRollsDataAccess {
     }
 
     const RollCls: any = (globalThis as any).Roll;
-    const roll = new RollCls(formula, (actor as any).getRollData());
+    const roll = new RollCls(formula, actor.getRollData());
     await roll.evaluate();
 
     const speaker = (ChatMessage as any).getSpeaker({ actor });

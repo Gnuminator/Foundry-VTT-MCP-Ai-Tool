@@ -558,7 +558,7 @@ export class EventTracker {
       const spells = this.getProp(changed, 'system.spells');
       if (spells && typeof spells === 'object') {
         for (const [key, value] of Object.entries(spells as Record<string, any>)) {
-          const newVal = (value as any)?.value;
+          const newVal = value?.value;
           if (typeof newVal !== 'number') continue;
           const cacheKey = `${actor.id}:spells.${key}`;
           const prev = this.resourceCache.get(cacheKey);
@@ -580,7 +580,7 @@ export class EventTracker {
       const resources = this.getProp(changed, 'system.resources');
       if (resources && typeof resources === 'object') {
         for (const [key, value] of Object.entries(resources as Record<string, any>)) {
-          const newVal = (value as any)?.value;
+          const newVal = value?.value;
           if (typeof newVal !== 'number') continue;
           const cacheKey = `${actor.id}:resources.${key}`;
           const prev = this.resourceCache.get(cacheKey);
@@ -738,7 +738,7 @@ export class EventTracker {
 
     const combatStarts = sessionEvents.filter(e => e.eventType === 'combat-start');
     const startMs = combatStarts.length
-      ? combatStarts[combatStarts.length - 1]!.timestampMs
+      ? combatStarts[combatStarts.length - 1].timestampMs
       : (timeline[0]?.timestampMs ?? 0);
 
     const relevant = chat.filter(e => e.timestampMs >= startMs && (e.isRoll || e.damage !== null));

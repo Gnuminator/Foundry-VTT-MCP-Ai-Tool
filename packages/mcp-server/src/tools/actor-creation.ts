@@ -261,7 +261,7 @@ export class ActorCreationTools {
     result: any,
     packId: string,
     itemId: string,
-    customNames: string[]
+    _customNames: string[]
   ): any {
     const summary = `✅ Created ${result.totalCreated} of ${result.totalRequested} requested actors`;
 
@@ -288,7 +288,7 @@ export class ActorCreationTools {
         tokensPlaced: result.tokensPlaced || 0,
         errors: result.errors,
       },
-      message: summary + '\n\n' + details + sceneInfo + errorInfo,
+      message: `${summary}\n\n${details}${sceneInfo}${errorInfo}`,
     };
   }
 }

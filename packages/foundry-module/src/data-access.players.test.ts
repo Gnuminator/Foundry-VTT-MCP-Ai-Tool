@@ -11,12 +11,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  createTestWorld,
-  makeActor,
-  makeToken,
-  type TestWorld,
-} from './test-support/foundry-mock/index.js';
+import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 
 let world: TestWorld;
@@ -212,7 +207,7 @@ describe('FoundryDataAccess — findPlayers', () => {
   });
 
   it('falls back to character-owner lookup when no direct user match (includeCharacterOwners default true)', async () => {
-    const player = world.addUser({ id: 'p1', name: 'Alice', active: true, isGM: false });
+    world.addUser({ id: 'p1', name: 'Alice', active: true, isGM: false });
     world.addActor({
       id: 'actor1',
       name: 'Silvera',

@@ -98,7 +98,7 @@ export class Diagnostics {
           this.capture({
             level: 'error',
             kind: 'unhandledrejection',
-            message: (reason && reason.message) || String(reason ?? 'Unhandled promise rejection'),
+            message: reason?.message || String(reason ?? 'Unhandled promise rejection'),
             stack: reason?.stack ?? null,
             source: null,
           });
@@ -168,7 +168,7 @@ export class Diagnostics {
 
   /** Parse the first /modules|systems|worlds/<id>/ path out of a stack/message. */
   private attribute(haystack: string): string | null {
-    const m = /\/(modules|systems|worlds)\/([A-Za-z0-9_.\-]+)\//.exec(haystack || '');
+    const m = /\/(modules|systems|worlds)\/([A-Za-z0-9_.-]+)\//.exec(haystack || '');
     if (!m) return null;
     const kind = m[1] === 'modules' ? 'module' : m[1] === 'systems' ? 'system' : 'world';
     return `${kind}:${m[2]}`;

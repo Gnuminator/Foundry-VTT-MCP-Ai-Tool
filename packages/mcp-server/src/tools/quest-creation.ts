@@ -29,13 +29,6 @@ interface QuestJournalRequest {
   rewards?: string | undefined;
 }
 
-interface QuestJournalResult {
-  journalId: string;
-  journalName: string;
-  content: string;
-  success: boolean;
-}
-
 export class QuestCreationTools {
   private foundryClient: FoundryClient;
   private logger: Logger;
@@ -590,7 +583,7 @@ export class QuestCreationTools {
             const content = await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
               journalId: journal.id,
             });
-            journal.contentPreview = content?.content?.substring(0, 150) + '...' || '';
+            journal.contentPreview = `${content?.content?.substring(0, 150)}...` || '';
           } catch (error) {
             journal.contentPreview = 'Error loading content';
           }
@@ -755,7 +748,7 @@ export class QuestCreationTools {
     // Background section (if we have enough detail to warrant it)
     if (request.location || request.questGiver || request.npcName) {
       htmlBody += '<h2>Background</h2>';
-      let backgroundText = this.generateBackgroundText(request);
+      const backgroundText = this.generateBackgroundText(request);
       htmlBody += `<p>${backgroundText}</p>`;
     }
 
@@ -892,7 +885,7 @@ export class QuestCreationTools {
       } else {
         // If no grid exists, add a new GM note section for NPCs
         const npcSection = `<div class="gmnote"><p><strong>Related NPCs:</strong> ${npcName} (${relationshipText})</p></div>`;
-        return content.replace('</div></section>', npcSection + '</div></section>');
+        return content.replace('</div></section>', `${npcSection}</div></section>`);
       }
     }
   }
@@ -990,10 +983,10 @@ export class QuestCreationTools {
     if (currentContent.includes('</div>\n    </section>')) {
       return currentContent.replace(
         '</div>\n    </section>',
-        updateSection + '</div>\n    </section>'
+        `${updateSection}</div>\n    </section>`
       );
     } else {
-      return currentContent.replace('</div></section>', updateSection + '</div></section>');
+      return currentContent.replace('</div></section>', `${updateSection}</div></section>`);
     }
   }
 
@@ -1002,7 +995,7 @@ export class QuestCreationTools {
    */
   private formatTextForFoundry(text: string): string {
     // Escape HTML to prevent injection
-    let escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Convert line breaks to paragraphs
     const paragraphs = escaped.split('\n\n').filter(p => p.trim().length > 0);
@@ -1076,7 +1069,7 @@ export class QuestCreationTools {
     const start = Math.max(0, index - 50);
     const end = Math.min(content.length, index + maxLength);
 
-    return '...' + content.substring(start, end) + '...';
+    return `...${content.substring(start, end)}...`;
   }
 
   /**

@@ -146,7 +146,7 @@ export class PermissionManager {
     parameters: any
   ): { valid: boolean; errors: string[]; sanitized?: any } {
     const errors: string[] = [];
-    let sanitized = { ...parameters };
+    const sanitized = { ...parameters };
 
     switch (operationName) {
       case 'createActor':

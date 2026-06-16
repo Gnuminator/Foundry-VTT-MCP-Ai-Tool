@@ -87,7 +87,7 @@ function withDocumentMethods<T extends AnyDoc>(doc: T): T {
     const created = dataArray.map(data => {
       const childId = data._id ?? data.id ?? randomId(type.toLowerCase());
       const child = withDocumentMethods({ ...data, id: childId, _id: childId });
-      (child as any).delete = () => {
+      child.delete = () => {
         coll.delete(childId);
         return Promise.resolve(child);
       };
@@ -126,9 +126,7 @@ function stripMethods(doc: AnyDoc): AnyDoc {
   for (const [k, v] of Object.entries(doc)) {
     if (typeof v === 'function') continue;
     if (v instanceof MockCollection) {
-      out[k] = v.map(child =>
-        typeof (child as any).toObject === 'function' ? (child as any).toObject() : child
-      );
+      out[k] = v.map(child => (typeof child.toObject === 'function' ? child.toObject() : child));
     } else {
       out[k] = v;
     }
@@ -147,10 +145,10 @@ function applyFlatChanges(target: AnyDoc, changes: Record<string, any>): void {
       const parts = path.split('.');
       let node: any = target;
       for (let i = 0; i < parts.length - 1; i++) {
-        node[parts[i]!] ??= {};
-        node = node[parts[i]!];
+        node[parts[i]] ??= {};
+        node = node[parts[i]];
       }
-      node[parts[parts.length - 1]!] = value;
+      node[parts[parts.length - 1]] = value;
     } else {
       target[path] = value;
     }
@@ -578,5 +576,5 @@ export function resetIdCounter(): void {
 export function randomId(prefix = 'doc'): string {
   idCounter += 1;
   const base = `${prefix}${idCounter}`;
-  return (base + 'xxxxxxxxxxxxxxxx').slice(0, 16);
+  return `${base}xxxxxxxxxxxxxxxx`.slice(0, 16);
 }

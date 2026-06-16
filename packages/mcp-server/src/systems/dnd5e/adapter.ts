@@ -11,12 +11,7 @@ import type {
   SystemCreatureIndex,
   DnD5eCreatureIndex,
 } from '../types.js';
-import {
-  DnD5eFiltersSchema,
-  matchesDnD5eFilters,
-  describeDnD5eFilters,
-  type DnD5eFilters,
-} from './filters.js';
+import { DnD5eFiltersSchema, matchesDnD5eFilters, describeDnD5eFilters } from './filters.js';
 
 /**
  * D&D 5e system adapter
@@ -69,7 +64,7 @@ export class DnD5eAdapter implements SystemAdapter {
       return false;
     }
 
-    return matchesDnD5eFilters(creature, validated.data as DnD5eFilters);
+    return matchesDnD5eFilters(creature, validated.data);
   }
 
   getDataPaths(): Record<string, string | null> {
@@ -186,7 +181,7 @@ export class DnD5eAdapter implements SystemAdapter {
       return 'invalid filters';
     }
 
-    return describeDnD5eFilters(validated.data as DnD5eFilters);
+    return describeDnD5eFilters(validated.data);
   }
 
   getPowerLevel(creature: SystemCreatureIndex): number | undefined {

@@ -41,7 +41,7 @@ describe('TransactionManager — lifecycle', () => {
       rolledBack: false,
       actions: [],
     });
-    expect(active[0]!.timestamp).toBeInstanceOf(Date);
+    expect(active[0].timestamp).toBeInstanceOf(Date);
   });
 
   it('issues distinct ids for distinct transactions', () => {
@@ -54,7 +54,7 @@ describe('TransactionManager — lifecycle', () => {
   it('adds actions to an active transaction', () => {
     const id = tm.startTransaction('t');
     tm.addAction(id, { type: 'create', entityType: 'Actor', entityId: 'a1' });
-    expect(tm.getActiveTransactions()[0]!.actions).toHaveLength(1);
+    expect(tm.getActiveTransactions()[0].actions).toHaveLength(1);
   });
 
   it('throws when adding an action to an unknown transaction', () => {
@@ -93,7 +93,7 @@ describe('TransactionManager — lifecycle', () => {
     const history = tm.getTransactionHistory();
     expect(history).toHaveLength(50);
     expect(history.find(t => t.id === ids[0])).toBeUndefined();
-    expect(history[history.length - 1]!.id).toBe(ids[50]);
+    expect(history[history.length - 1].id).toBe(ids[50]);
   });
 
   it('getTransactionHistory / clearHistory', () => {

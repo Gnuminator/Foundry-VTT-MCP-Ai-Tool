@@ -1,8 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
-import { promises as fs } from 'fs';
 import * as fss from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import axios from 'axios';
 import WebSocket from 'ws';
 import { Logger } from './logger.js';
@@ -105,7 +103,7 @@ export class ComfyUIClient {
 
       this.ws.on('message', (data: WebSocket.Data) => {
         try {
-          const message = JSON.parse(data.toString());
+          const message = JSON.parse((data as Buffer | string).toString());
           this.handleWebSocketMessage(message);
         } catch (error) {
           this.logger.error('Failed to parse WebSocket message', { error });
@@ -255,7 +253,7 @@ export class ComfyUIClient {
       port: this.config.port,
     });
 
-    const mainPyPath = path.join(this.config.installPath!, 'main.py');
+    const mainPyPath = path.join(this.config.installPath, 'main.py');
 
     // Create log file for ComfyUI output (keeps process hidden on all platforms)
     const logPath = path.join(getAppDataDir(), 'comfyui.log');
@@ -476,13 +474,12 @@ export class ComfyUIClient {
         // Extract workflow info to determine total steps
         const workflow = runningItem[2];
         let totalSteps = 8; // Default optimized step count
-        if (workflow && workflow['5'] && workflow['5'].inputs && workflow['5'].inputs.steps) {
+        if (workflow?.['5']?.inputs?.steps) {
           totalSteps = workflow['5'].inputs.steps;
         }
 
         // Estimate current step based on time (rough estimate: 15-20 seconds per step on M4)
         const estimatedSecondsPerStep = 18; // Average for M4 MPS
-        const estimatedTotalTime = totalSteps * estimatedSecondsPerStep;
         const currentStep = Math.min(totalSteps, Math.floor(Math.random() * totalSteps) + 1); // Placeholder - ComfyUI doesn't expose real-time step progress
         const estimatedTimeRemaining = (totalSteps - currentStep) * estimatedSecondsPerStep;
 
@@ -495,10 +492,7 @@ export class ComfyUIClient {
       }
 
       // Check pending queue
-      if (
-        queueData.queue_pending &&
-        queueData.queue_pending.some((item: any) => item[1] === promptId)
-      ) {
+      if (queueData.queue_pending?.some((item: any) => item[1] === promptId)) {
         this.logger.info('Job found in pending queue', { promptId });
         return { status: 'queued' };
       }
@@ -527,7 +521,7 @@ export class ComfyUIClient {
       }
 
       const jobData = history[promptId];
-      if (!jobData || !jobData.outputs) {
+      if (!jobData?.outputs) {
         return [];
       }
 
@@ -535,7 +529,7 @@ export class ComfyUIClient {
       const imageFilenames: string[] = [];
       for (const nodeId of Object.keys(jobData.outputs)) {
         const nodeOutput = jobData.outputs[nodeId];
-        if (nodeOutput && nodeOutput.images && Array.isArray(nodeOutput.images)) {
+        if (nodeOutput?.images && Array.isArray(nodeOutput.images)) {
           for (const image of nodeOutput.images) {
             if (image.filename) {
               imageFilenames.push(image.filename);
@@ -642,7 +636,7 @@ export class ComfyUIClient {
         // KSampler - Configurable quality via steps
         inputs: {
           seed: input.seed || Math.floor(Math.random() * 1000000),
-          steps: steps, // low=8, medium=20, high=35
+          steps, // low=8, medium=20, high=35
           cfg: 2.5, // Lower CFG for faster convergence
           denoise: 1.0,
           sampler_name: 'dpmpp_2m_sde', // SDE variant for better quality at low steps

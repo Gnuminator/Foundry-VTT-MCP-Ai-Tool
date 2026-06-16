@@ -346,8 +346,8 @@ describe('EventTracker combat play-by-play', () => {
     expect(pbp.combatActive).toBe(true);
     expect(pbp.totalRounds).toBe(1);
     expect(pbp.rounds).toHaveLength(1);
-    expect(pbp.rounds[0]!.turns[0].combatant).toBe('Silvera');
-    expect(pbp.rounds[0]!.turns[0].actions).toHaveLength(2);
+    expect(pbp.rounds[0].turns[0].combatant).toBe('Silvera');
+    expect(pbp.rounds[0].turns[0].actions).toHaveLength(2);
     expect(pbp.summary.damageByActor).toEqual({ Silvera: 9 });
     expect(pbp.summary.note).toBeNull();
   });
@@ -362,7 +362,7 @@ describe('EventTracker combat play-by-play', () => {
     expect(pbp.combatActive).toBe(false);
     expect(pbp.totalRounds).toBe(2);
     expect(pbp.rounds).toHaveLength(1);
-    expect(pbp.rounds[0]!.turns[0].combatant).toBe('(unattributed)');
+    expect(pbp.rounds[0].turns[0].combatant).toBe('(unattributed)');
     expect(pbp.summary.note).toMatch(/no per-turn timeline/i);
     expect(pbp.summary.damageByActor).toEqual({ Silvera: 9 });
   });

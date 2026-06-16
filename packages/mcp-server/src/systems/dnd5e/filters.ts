@@ -93,7 +93,7 @@ export function matchesDnD5eFilters(creature: any, filters: DnD5eFilters): boole
   // Alignment filter
   if (filters.alignment) {
     const alignment = creature.systemData?.alignment;
-    if (!alignment || !alignment.toLowerCase().includes(filters.alignment.toLowerCase())) {
+    if (!alignment?.toLowerCase().includes(filters.alignment.toLowerCase())) {
       return false;
     }
   }

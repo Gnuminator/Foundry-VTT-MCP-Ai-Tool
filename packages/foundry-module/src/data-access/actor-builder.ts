@@ -65,7 +65,7 @@ export class ActorBuilderDataAccess {
       throw new Error(`Item "${itemIdentifier}" not found on actor "${actor.name}"`);
     }
 
-    const itemAny = item as any;
+    const itemAny = item;
     const systemId = (game.system as any).id;
 
     // Handle targeting if targets are specified
@@ -784,7 +784,7 @@ export class ActorBuilderDataAccess {
                 flat: false,
                 type: {
                   value: data.attackType ?? 'melee',
-                  classification: classification,
+                  classification,
                 },
                 ...abilityField,
               },
@@ -1614,7 +1614,7 @@ export class ActorBuilderDataAccess {
         }
 
         // 4. Prepare data for embedding
-        const spellData = (document as any).toObject() as Record<string, unknown>;
+        const spellData = document.toObject() as Record<string, unknown>;
         delete spellData._id; // Let Foundry assign a new local id; prevents id clash
 
         // 5. Embed individually — per-spell error isolation
@@ -1800,7 +1800,7 @@ export class ActorBuilderDataAccess {
         }
 
         // 4. Prepare data for embedding
-        const featureData = (document as any).toObject() as Record<string, unknown>;
+        const featureData = document.toObject() as Record<string, unknown>;
         delete featureData._id; // Let Foundry assign a new local id; prevents id clash
 
         // 5. Embed individually — per-feature error isolation
@@ -1886,7 +1886,7 @@ export class ActorBuilderDataAccess {
     let attackSucceeded: boolean | null = null;
 
     if (major >= 4) {
-      const activities = (item as any).system?.activities;
+      const activities = item.system?.activities;
       const attackAct =
         activities?.getByType?.('attack')?.[0] ||
         (activities?.contents ?? []).find((a: any) => a.type === 'attack');
@@ -1909,26 +1909,26 @@ export class ActorBuilderDataAccess {
           : (dmgOut?.total ?? null);
       } else {
         // No attack activity — just use the item (posts its card).
-        await (item as any).use({}, { configure: false }, { create: true });
+        await item.use({}, { configure: false }, { create: true });
       }
     } else {
       // dnd5e v3 — Item-level rolls
       const atkOpts: any = { fastForward: true };
       if (data.targetAC != null) atkOpts.targetValue = data.targetAC;
-      const atk = await (item as any).rollAttack(atkOpts);
+      const atk = await item.rollAttack(atkOpts);
       if (atk) {
         usedActivity = true;
         attackTotal = atk.total ?? null;
         isCritical = atk.isCritical ?? false;
         formula = atk.formula ?? null;
         attackSucceeded = typeof atk?.isSuccess === 'boolean' ? atk.isSuccess : null;
-        const dmg = await (item as any).rollDamage({
+        const dmg = await item.rollDamage({
           critical: isCritical,
           options: { fastForward: true },
         });
         damageTotal = dmg?.total ?? null;
       } else {
-        await (item as any).use({}, { configureDialog: false, createMessage: true });
+        await item.use({}, { configureDialog: false, createMessage: true });
       }
     }
 

@@ -248,7 +248,7 @@ describe('FoundryDataAccess — getCharacterInfo', () => {
     const info = await da.getCharacterInfo('Silvera');
 
     expect(info.spellcasting).toHaveLength(1);
-    const entry = info.spellcasting![0]!;
+    const entry = info.spellcasting![0];
     expect(entry.name).toBe('Wizard Spellcasting');
     expect(entry.ability).toBe('int');
     expect(entry.spells.map(s => s.name)).toEqual(['Fireball']);

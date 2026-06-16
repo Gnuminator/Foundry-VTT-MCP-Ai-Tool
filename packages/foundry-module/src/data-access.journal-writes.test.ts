@@ -20,11 +20,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  createTestWorld,
-  makeJournalPage,
-  type TestWorld,
-} from './test-support/foundry-mock/index.js';
+import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 
 // ---------------------------------------------------------------------------
@@ -271,7 +267,7 @@ describe('FoundryDataAccess — updateJournalContent — Mode 3: update first te
   });
 
   it('updates the first text page content and returns { success, pageId, pageName }', async () => {
-    const journal = await addJournalWithPages('j-mode3', 'Mode3 Journal', [
+    await addJournalWithPages('j-mode3', 'Mode3 Journal', [
       { id: 'page-a', name: 'Quest Details', content: 'Original.' },
     ]);
 

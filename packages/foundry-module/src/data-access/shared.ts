@@ -103,7 +103,7 @@ export function removeSensitiveFields(
       }
 
       // Recursively sanitize the value (read only after filter to avoid getter-triggered warnings)
-      sanitized[key] = removeSensitiveFields((obj as any)[key], visited, depth + 1);
+      sanitized[key] = removeSensitiveFields(obj[key], visited, depth + 1);
     }
 
     return sanitized;
@@ -189,7 +189,7 @@ export function getTokenDisposition(disposition: any): number {
 
 /** Assert Foundry is ready with an active world + user, else throw. */
 export function validateFoundryState(): void {
-  if (!game || !game.ready) {
+  if (!game?.ready) {
     throw new Error('Foundry VTT is not ready');
   }
 
@@ -297,8 +297,8 @@ export async function getOrCreateFolder(
     // Create new folder
     const folderData = {
       name: folderName,
-      type: type,
-      description: description,
+      type,
+      description,
       color: type === 'Actor' ? '#4a90e2' : '#f39c12', // Blue for actors, orange for journals
       sort: 0,
       parent: null,
@@ -342,7 +342,7 @@ export function rollModeFor(isPublic: boolean | undefined): string {
 export function actorConditionNames(actor: any): string[] {
   if (!actor) return [];
   try {
-    const effs = (actor.effects as any)?.contents ?? actor.effects ?? [];
+    const effs = actor.effects?.contents ?? actor.effects ?? [];
     return effs
       .filter((e: any) => (e.statuses?.size ?? 0) > 0 && !e.disabled)
       .map((e: any) => e.name || e.label)

@@ -86,7 +86,7 @@ export class PersistentCreatureIndex {
 
       // Convert Map data back from JSON
       const metadata = rawData.metadata;
-      if (metadata && metadata.packFingerprints) {
+      if (metadata?.packFingerprints) {
         metadata.packFingerprints = new Map(metadata.packFingerprints);
       }
 
@@ -121,8 +121,7 @@ export class PersistentCreatureIndex {
         foundry as any
       ).applications.apps.FilePicker.implementation.upload('data', `worlds/${game.world.id}`, file);
 
-      if (uploadResponse) {
-      } else {
+      if (!uploadResponse) {
         throw new Error('File upload failed');
       }
     } catch (error) {
@@ -189,7 +188,7 @@ export class PersistentCreatureIndex {
         document.pack &&
         (document.type === 'npc' || document.type === 'character' || document.type === 'creature')
       ) {
-        this.invalidateIndex();
+        void this.invalidateIndex();
       }
     });
 
@@ -198,7 +197,7 @@ export class PersistentCreatureIndex {
         document.pack &&
         (document.type === 'npc' || document.type === 'character' || document.type === 'creature')
       ) {
-        this.invalidateIndex();
+        void this.invalidateIndex();
       }
     });
 
@@ -207,20 +206,20 @@ export class PersistentCreatureIndex {
         document.pack &&
         (document.type === 'npc' || document.type === 'character' || document.type === 'creature')
       ) {
-        this.invalidateIndex();
+        void this.invalidateIndex();
       }
     });
 
     // Listen for pack creation/deletion
     Hooks.on('createCompendium', (pack: any) => {
       if (pack.metadata.type === 'Actor') {
-        this.invalidateIndex();
+        void this.invalidateIndex();
       }
     });
 
     Hooks.on('deleteCompendium', (pack: any) => {
       if (pack.metadata.type === 'Actor') {
-        this.invalidateIndex();
+        void this.invalidateIndex();
       }
     });
 
@@ -275,7 +274,7 @@ export class PersistentCreatureIndex {
     return {
       packId: pack.metadata.id,
       packLabel: pack.metadata.label,
-      lastModified: lastModified,
+      lastModified,
       documentCount: pack.index?.size || 0,
       checksum: this.generatePackChecksum(pack),
     };
@@ -635,13 +634,13 @@ export class PersistentCreatureIndex {
           type: doc.type,
           pack: pack.metadata.id,
           packLabel: pack.metadata.label,
-          challengeRating: challengeRating,
+          challengeRating,
           creatureType: creatureType.toLowerCase(),
           size: size.toLowerCase(),
-          hitPoints: hitPoints,
-          armorClass: armorClass,
-          hasSpells: hasSpells,
-          hasLegendaryActions: hasLegendaryActions,
+          hitPoints,
+          armorClass,
+          hasSpells,
+          hasLegendaryActions,
           alignment: alignment.toLowerCase(),
           description: doc.system?.details?.biography || doc.system?.description || '',
           img: doc.img,

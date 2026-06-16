@@ -4,18 +4,12 @@ import { Logger } from '../logger.js';
 import { SystemRegistry } from '../systems/system-registry.js';
 import {
   detectGameSystem,
-  getSystemPaths,
   getCreatureLevel,
   getCreatureType,
   hasSpellcasting,
-  formatSystemError,
   type GameSystem,
 } from '../utils/system-detection.js';
-import {
-  GenericFiltersSchema,
-  describeFilters,
-  type GenericFilters,
-} from '../utils/compendium-filters.js';
+import { GenericFiltersSchema, describeFilters } from '../utils/compendium-filters.js';
 
 export interface CompendiumToolsOptions {
   foundryClient: FoundryClient;
@@ -444,7 +438,7 @@ export class CompendiumTools {
     try {
       // Use the proper document retrieval method that already exists in actor creation
       const item = await this.foundryClient.query('foundry-mcp-bridge.getCompendiumDocumentFull', {
-        packId: packId,
+        packId,
         documentId: itemId,
       });
 
@@ -1284,7 +1278,7 @@ export class CompendiumTools {
     return sanitized;
   }
 
-  private stripHtml(text: string | any): string {
+  private stripHtml(text: any): string {
     if (!text) return '';
 
     // Handle objects with value property (e.g., {value: "text"})
@@ -1324,6 +1318,6 @@ export class CompendiumTools {
     if (!text || text.length <= maxLength) {
       return text;
     }
-    return text.substring(0, maxLength - 3) + '...';
+    return `${text.substring(0, maxLength - 3)}...`;
   }
 }

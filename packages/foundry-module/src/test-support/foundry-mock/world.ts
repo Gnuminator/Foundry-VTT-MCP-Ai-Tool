@@ -165,15 +165,14 @@ export class TestWorld {
 
   /** Build the `game` global from the current world state. */
   buildGame(): Record<string, any> {
-    const world = this;
     // `game.scenes.current` is a live getter on the scenes collection.
     Object.defineProperty(this.scenes, 'current', {
       configurable: true,
-      get: () => (world.currentSceneId ? world.scenes.get(world.currentSceneId) : undefined),
+      get: () => (this.currentSceneId ? this.scenes.get(this.currentSceneId) : undefined),
     });
     Object.defineProperty(this.scenes, 'active', {
       configurable: true,
-      get: () => (world.currentSceneId ? world.scenes.get(world.currentSceneId) : undefined),
+      get: () => (this.currentSceneId ? this.scenes.get(this.currentSceneId) : undefined),
     });
     const game: Record<string, any> = {
       ready: true,
@@ -217,7 +216,7 @@ export class TestWorld {
     // `game.combat` is a live getter so tests can set the combat before or after install.
     Object.defineProperty(game, 'combat', {
       configurable: true,
-      get: () => world.currentCombat,
+      get: () => this.currentCombat,
     });
     return game;
   }
@@ -317,8 +316,8 @@ export function installFoundryGlobals(world: TestWorld): () => void {
       setProperty: (obj: any, path: string, value: unknown) => {
         const parts = path.split('.');
         let node = obj;
-        for (let i = 0; i < parts.length - 1; i++) node = node[parts[i]!] ??= {};
-        node[parts[parts.length - 1]!] = value;
+        for (let i = 0; i < parts.length - 1; i++) node = node[parts[i]] ??= {};
+        node[parts[parts.length - 1]] = value;
         return true;
       },
       isEmpty: (v: any) => v == null || (typeof v === 'object' && Object.keys(v).length === 0),
@@ -327,8 +326,8 @@ export function installFoundryGlobals(world: TestWorld): () => void {
         for (const [path, value] of Object.entries(flat)) {
           const parts = path.split('.');
           let node = out;
-          for (let i = 0; i < parts.length - 1; i++) node = node[parts[i]!] ??= {};
-          node[parts[parts.length - 1]!] = value;
+          for (let i = 0; i < parts.length - 1; i++) node = node[parts[i]] ??= {};
+          node[parts[parts.length - 1]] = value;
         }
         return out;
       },

@@ -468,14 +468,13 @@ export class ActorCreationDataAccess {
               `[${MODULE_ID}] Token texture still has remote URL, clearing: ${tokenDoc.texture.src}`
             );
             tokenDoc.texture.src = null; // Use Foundry's fallback
-          } else {
           }
 
           tokenData.push({
             ...tokenDoc,
             x: position.x,
             y: position.y,
-            actorId: actorId,
+            actorId,
             hidden: placement.hidden,
           });
         } catch (error) {
@@ -577,7 +576,7 @@ export class ActorCreationDataAccess {
       // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
       const folderId = await shared.getOrCreateFolder('Foundry MCP Creatures', 'Actor');
       if (folderId) {
-        (actorData as any).folder = folderId;
+        actorData.folder = folderId;
       }
 
       // Create the new actor
@@ -605,8 +604,8 @@ export class ActorCreationDataAccess {
     const gridSize = scene.grid?.size || 100;
 
     switch (placement) {
-      case 'coordinates':
-        if (coordinates && coordinates[index]) {
+      case 'coordinates': {
+        if (coordinates?.[index]) {
           return coordinates[index];
         }
         // Fallback to grid if coordinates not provided or insufficient
@@ -617,6 +616,7 @@ export class ActorCreationDataAccess {
           x: gridSize + fallbackCol * gridSize * 2,
           y: gridSize + fallbackRow * gridSize * 2,
         };
+      }
 
       case 'center':
         return {
@@ -624,7 +624,7 @@ export class ActorCreationDataAccess {
           y: scene.height / 2,
         };
 
-      case 'grid':
+      case 'grid': {
         const cols = Math.ceil(Math.sqrt(index + 1));
         const row = Math.floor(index / cols);
         const col = index % cols;
@@ -632,6 +632,7 @@ export class ActorCreationDataAccess {
           x: gridSize + col * gridSize * 2,
           y: gridSize + row * gridSize * 2,
         };
+      }
 
       case 'random':
       default:

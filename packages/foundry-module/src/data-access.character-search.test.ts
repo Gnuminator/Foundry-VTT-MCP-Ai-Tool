@@ -197,8 +197,8 @@ describe('searchCharacterItems — type filter', () => {
     const result = await da.searchCharacterItems({ characterIdentifier: 'Aldric', type: 'weapon' });
 
     expect(result.matches).toHaveLength(1);
-    expect(result.matches[0]!.name).toBe('Longsword');
-    expect(result.matches[0]!.type).toBe('weapon');
+    expect(result.matches[0].name).toBe('Longsword');
+    expect(result.matches[0].type).toBe('weapon');
   });
 
   it('includes effects when type filter is absent', async () => {
@@ -227,7 +227,7 @@ describe('searchCharacterItems — query filter', () => {
     const result = await da.searchCharacterItems({ characterIdentifier: 'Aldric', query: 'SWORD' });
 
     expect(result.matches).toHaveLength(1);
-    expect(result.matches[0]!.name).toBe('Longsword');
+    expect(result.matches[0].name).toBe('Longsword');
   });
 
   it('matches spells by description substring', async () => {
@@ -239,7 +239,7 @@ describe('searchCharacterItems — query filter', () => {
     });
 
     expect(result.matches).toHaveLength(1);
-    expect(result.matches[0]!.name).toBe('Fireball');
+    expect(result.matches[0].name).toBe('Fireball');
   });
 
   it('returns empty matches when query matches nothing', async () => {
@@ -261,7 +261,7 @@ describe('searchCharacterItems — query filter', () => {
     });
 
     expect(result.matches).toHaveLength(1);
-    expect(result.matches[0]!.name).toBe('Fireball');
+    expect(result.matches[0].name).toBe('Fireball');
   });
 });
 
@@ -279,7 +279,7 @@ describe('searchCharacterItems — spell fields (dnd5e)', () => {
     });
 
     expect(result.matches).toHaveLength(1);
-    const fb = result.matches[0]!;
+    const fb = result.matches[0];
     expect(fb.type).toBe('spell');
     expect(fb.level).toBe(3);
     expect(fb.actionCost).toBe('action');
@@ -301,7 +301,7 @@ describe('searchCharacterItems — spell fields (dnd5e)', () => {
     });
 
     expect(result.matches).toHaveLength(1);
-    expect(result.matches[0]!.range).toBe('Touch');
+    expect(result.matches[0].range).toBe('Touch');
   });
 
   it('level=0 for cantrips', async () => {
@@ -313,7 +313,7 @@ describe('searchCharacterItems — spell fields (dnd5e)', () => {
     });
 
     expect(result.matches).toHaveLength(1);
-    expect(result.matches[0]!.level).toBe(0);
+    expect(result.matches[0].level).toBe(0);
   });
 
   it('category="cantrip" returns only level-0 spells', async () => {
@@ -342,7 +342,7 @@ describe('searchCharacterItems — equipment fields', () => {
     });
 
     expect(result.matches).toHaveLength(1);
-    const sword = result.matches[0]!;
+    const sword = result.matches[0];
     expect(sword.quantity).toBe(1);
     expect(sword.equipped).toBe(true);
   });

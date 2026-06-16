@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
 import { WEBRTC_LIMITS } from '@gnuminator/shared';
-import { getFoundryDataDir, getDefaultComfyUIDir } from './utils/platform.js';
+import { getDefaultComfyUIDir } from './utils/platform.js';
 
 dotenv.config();
 

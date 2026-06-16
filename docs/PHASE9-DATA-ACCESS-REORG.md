@@ -215,9 +215,28 @@ Run after **every** stage: `npx vitest run packages/foundry-module` (377 tests) 
         `dnd5e-tables` import block (actor-builder was its last facade user) and the `auditLog`,
         `getOrCreateFolder`, `systemMajor`, `requireDnd5e` shared wrappers (last `this.` callers moved
         out). `data-access.ts` 3,687 → 1,851 lines; 377 tests + typecheck + build green.
-  - [ ] **Batch 8 (last domain, `player-rolls`):** `PlayerRollsDataAccess` — owns the
-        `rollButtonProcessingStates` Map + roll-button helpers. Depends only on `shared.*` + same-domain
-        (no cross-domain method edges).
+  - [x] **Batch 8 (last domain, `player-rolls`):** `PlayerRollsDataAccess` (owns the
+        `rollButtonProcessingStates` Map): requestPlayerRolls, attachRollButtonHandlers, saveRollState,
+        getRollState, saveRollButtonMessageId, getRollButtonMessageId, getRollStateFromMessage,
+        updateRollButtonMessage, requestRollStateSave, broadcastRollState, cleanOldRollStates,
+        requestAbilityCheck, requestAttackRoll, rollNpcCheck + private resolveTargetPlayer /
+        buildRollFormula / getSkillCode / buildRollButtonLabel / isRollButtonProcessing /
+        setRollButtonProcessing + the `rollButtonProcessingStates` field. Depends only on `shared.*`
+        (validateFoundryState/findActorByIdentifier) + same-domain; uses `MODULE_ID` directly;
+        `game.socket` stays a Foundry global. Bodies byte-identical to originals (one HTML
+        template-literal in requestPlayerRolls had trailing whitespace re-stripped by the transcription
+        agent — restored to exact bytes). Dropped now-dead facade pieces: the `ERROR_MESSAGES` import
+        and the `findActorByIdentifier` shared wrapper (their last facade users moved out).
+        `data-access.ts` 1,851 → 935 lines; 377 tests + typecheck + build green.
+
+- [x] **R3 complete.** All 16 domains extracted. `data-access.ts` is now a thin facade: `moduleId` +
+      `persistentIndex` + 16 domain-handler fields, a constructor, the two creature-index delegators
+      (`rebuildEnhancedCreatureIndex`, `getEnhancedCreatureIndex`), the public `validateWritePermissions`,
+      one residual **public** shared wrapper (`validateFoundryState`, kept because it is on the surface and
+      is called by `validateWritePermissions` + `getEnhancedCreatureIndex`), and one-line delegators for
+      every other public method. Net: **9,503 → 935 lines** across R1–R3 (8,568 lines moved into the
+      `data-access/` package). The public surface + all 18 `data-access.*.test.ts` files + `queries.ts`
+      are unchanged; 377 tests + typecheck + build green throughout.
 
 > **Assembly hazard (learned in batch 2):** the R2 `shared.*` delegating wrappers
 > (`findActorByIdentifier`, `resolveTargetActor`, `systemMajor`, `requireDnd5e`, `rollModeFor`,

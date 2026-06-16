@@ -502,6 +502,25 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > `actor-builder` + the `creature-index` class — all now net-backed and ready); foundry-module
 > **523 → 725** (+202), total **1631 → 1833**, full suite + typecheck + build green. Next: the four
 > remaining rewrites (all Opus-tier, now unblocked) + the `characters` pf2e-prune follow-up.
+>
+> **Phase 9 data-access ✅ COMPLETE — last 4 rewrites + `characters` pf2e-prune (2026‑06‑16).** The four
+> formerly-deferred large domains were rewritten/refactored to parity behind their frozen nets:
+> `creature-index` (253a17b — rewrite from first principles; `PersistentCreatureIndex`, unblocks the
+> `compendium` enhanced path), `actor-creation` (c478d1e — rewrite; kept the ctor-injected `compendium`),
+> `player-rolls` (994afbc — rewrite; jQuery-DOM `attachRollButtonHandlers` left uncharacterized), and
+> `actor-builder` (ad62281 — targeted refactor to parity, 1779 lines). Then the **`characters` pf2e-prune**
+> finished: 4edb7e5 dropped the dead pf2e branches from `getCharacterInfo`/`getCharacterEntity`; 3a2fce2
+> dropped the `searchCharacterItems` inline fallbacks (`rank`, `location.prepared`/`location.expended`, the
+> `traits`/`category` focus check, the `invested` branch) — characterized first in a NEW
+> `data-access.character-search-extra.test.ts` (+7) pinning the dnd5e contract, the frozen
+> `character-search.test.ts` untouched. This is the **one intentional behavior change** of the phase: pf2e
+> `category=focus`/`invested` carry no dnd5e data, so they went from matching-nothing to **inert**
+> (unrecognized category → no filter). **All 16 data-access domains are now rewritten** (faithful parity
+> except the documented characters prune); foundry-module **725 → 732**; every commit typecheck + full suite
+>
+> - build + 0 eslint errors. Remaining optional purity = the 4 large mcp-server tool files (owned-via-tests).
+>   (Same session also landed Section A quick wins: release-workflow `@v6→@v4`, a `typecheck && lint` CI gate,
+>   pf2e/cosmere dead-code prune in mcp-server, and the `combat-resolution.ts` test.)
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

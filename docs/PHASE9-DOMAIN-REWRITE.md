@@ -1,5 +1,11 @@
 # Phase 9 — `data-access` from-scratch domain rewrites
 
+> **STATUS — ✅ COMPLETE (2026‑06‑16): all 16 data-access domains rewritten/refactored to parity.** The last
+> four large domains (`creature-index`, `actor-creation`, `player-rolls`, `actor-builder`) and the
+> `characters` pf2e-prune landed on `aitool/main`. The whole phase is faithful parity except the one
+> intentional `characters` behavior change (pf2e `category=focus`/`invested` now inert). The recipe + notes
+> below are retained as the record of how it was done.
+
 The step _after_ the modular reorg (`docs/PHASE9-DATA-ACCESS-REORG.md`, R1–R3 complete). The reorg was
 a **behavior-preserving physical move**: every one of the 16 `data-access/` domain modules is still
 upstream-derived code, just relocated behind a thin facade. This phase makes each domain **truly ours** —
@@ -39,7 +45,7 @@ see **Model guidance** for how later domains fan out.
    commit; **default is preserve** (the net is the contract).
 4. **Keep it green.** After the rewrite:
    `npm run typecheck --workspace=@gnuminator/foundry-module` + the domain's test file(s) + the full
-   `npx vitest run packages/foundry-module` (was 377; **725** now that every domain is characterized — the
+   `npx vitest run packages/foundry-module` (was 377; **732** now that every domain is characterized — the
    count grew as each net landed), then `npm run build`. Run the full root
    `npm run typecheck && npm run build` before any push.
 5. **Commit** `refactor(phase9): rewrite <domain> from first principles to parity`, noting any
@@ -98,26 +104,32 @@ listed file(s)):
 
 ### Done — rewritten to parity ✅
 
-| Domain              | LOC (before → after) | Verified by                                                                                                  |
-| ------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `journals` (pilot)  | 276 → 247            | `journals.test.ts` (23) + `journal-writes.test.ts` (21)                                                      |
-| `world-reads`       | 97 → 142             | `reads.test.ts` (12; world-reads slice)                                                                      |
-| `ownership-players` | 218 → 292            | `ownership.test.ts` (20) + `players.test.ts` (20)                                                            |
-| `world-items`       | 265 → 317            | `world-items.test.ts` (29)                                                                                   |
-| `resources-effects` | 373 → 470            | `resources.test.ts` (25) + `effects.test.ts` (20) + `chat-resources.test.ts` (resource slice)                |
-| `characters`        | 585 → 646            | `reads.test.ts` (`getCharacterInfo`) + `character-search.test.ts` (20) + `character-entity.test.ts` (14)     |
-| `compendium`        | 560 → 539            | `compendium.test.ts` (26; basic search + `listByCriteria` fallback + `getDocFull`)                           |
-| `scenes-tokens`     | 558 → 566            | `scenes.test.ts` (16) + `token-manipulation.test.ts` (24) + **`scenes-tokens-extra.test.ts` (22, new)** = 62 |
-| `combat` (full)     | 458 → 493            | `combat.test.ts` (26) + `combat-playbyplay.test.ts` (4) + **`combat-mutation.test.ts` (37, new)** = 67       |
-| `session-log`       | 55 → 98              | `session-log.test.ts` (20; `getSessionLog` + `getRecentEvents`)                                              |
-| `chat`              | 112 → 220            | `chat-log.test.ts` (11; `getChatLog`) + `chat-resources.test.ts` (`sendChatMessage` slice)                   |
-| `modules`           | 137 → 247            | `modules.test.ts` (`getModules`/`getModuleManifest`) + `module-errors.test.ts` (15; error methods)           |
-| `scene-fx`          | 333 → 430            | `scene-fx.test.ts` (37; templates + AoE geometry, mood, map notes, loot, deletes)                            |
+| Domain              | LOC (before → after) | Verified by                                                                                                                                                           |
+| ------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `journals` (pilot)  | 276 → 247            | `journals.test.ts` (23) + `journal-writes.test.ts` (21)                                                                                                               |
+| `world-reads`       | 97 → 142             | `reads.test.ts` (12; world-reads slice)                                                                                                                               |
+| `ownership-players` | 218 → 292            | `ownership.test.ts` (20) + `players.test.ts` (20)                                                                                                                     |
+| `world-items`       | 265 → 317            | `world-items.test.ts` (29)                                                                                                                                            |
+| `resources-effects` | 373 → 470            | `resources.test.ts` (25) + `effects.test.ts` (20) + `chat-resources.test.ts` (resource slice)                                                                         |
+| `characters`        | 585 → 643            | `reads.test.ts` (`getCharacterInfo`) + `character-search.test.ts` (20) + `character-entity.test.ts` (14) + **`character-search-extra.test.ts` (7, new — pf2e-prune)** |
+| `compendium`        | 560 → 539            | `compendium.test.ts` (26; basic search + `listByCriteria` fallback + `getDocFull`)                                                                                    |
+| `scenes-tokens`     | 558 → 566            | `scenes.test.ts` (16) + `token-manipulation.test.ts` (24) + **`scenes-tokens-extra.test.ts` (22, new)** = 62                                                          |
+| `combat` (full)     | 458 → 493            | `combat.test.ts` (26) + `combat-playbyplay.test.ts` (4) + **`combat-mutation.test.ts` (37, new)** = 67                                                                |
+| `session-log`       | 55 → 98              | `session-log.test.ts` (20; `getSessionLog` + `getRecentEvents`)                                                                                                       |
+| `chat`              | 112 → 220            | `chat-log.test.ts` (11; `getChatLog`) + `chat-resources.test.ts` (`sendChatMessage` slice)                                                                            |
+| `modules`           | 137 → 247            | `modules.test.ts` (`getModules`/`getModuleManifest`) + `module-errors.test.ts` (15; error methods)                                                                    |
+| `scene-fx`          | 333 → 430            | `scene-fx.test.ts` (37; templates + AoE geometry, mood, map notes, loot, deletes)                                                                                     |
+| `creature-index`    | 585 → 585            | `creature-index.test.ts` (31; `PersistentCreatureIndex` build/persist/staleness/hooks)                                                                                |
+| `actor-creation`    | 561 → 617            | `actor-creation.test.ts` (42; create-from-compendium/-entry, addActorItems, addActorsToScene)                                                                         |
+| `player-rolls`      | 884 → 925            | `player-rolls.test.ts` (34; request/rollNpcCheck/id-map/state/relay; DOM handlers skipped)                                                                            |
+| `actor-builder`     | 1790 → 1779          | `actor-builder-{npc,items,activity}.test.ts` (52+34+9 = 95; all 11 facade methods)                                                                                    |
 
 > Most rewrites grew slightly (inline duplication → extracted helpers + fuller JSDoc; logic density
-> dropped); `compendium` shrank by dropping no-op dead code. All thirteen domains (incl. `combat` reads +
-> mutation, `scene-fx`): no behavior change, no existing-test edits, 0 eslint errors (`scenes-tokens` +22 and
-> `combat` +4/+37 each added a per-method net first).
+> dropped); `compendium` shrank by dropping no-op dead code. **All 16 domains are now done** (incl. `combat`
+> reads + mutation, `scene-fx`, and the four formerly-deferred large domains): no existing-test edits, 0
+> eslint errors (`scenes-tokens` +22 and `combat` +4/+37 each added a per-method net first). The only
+> intentional behavior change in the whole phase is the `characters` pf2e-prune (see its note below); every
+> other domain is faithful parity.
 >
 > **`session-log` / `chat` / `modules` (second Sonnet fan-out, Opus-reviewed — 2026‑06‑16).** Three
 > parallel Sonnet workers, one fully-characterized domain each, editing only their module and verifying
@@ -131,13 +143,18 @@ listed file(s)):
 > (`summarizeModule`/`resolveRequires`/`collectCompatIssues`, preserving the count invariants:
 > `activeCount`/`modulesWithIssues` over the full set, `moduleCount` over the filtered list).
 >
-> **`characters` (first Opus-tier/large domain) — faithful parity, pf2e cruft RETAINED.** The module
-> carries pre-trim multi-system branches the tests don't pin (actor `system.actions` extraction,
-> ChoiceSet/RollOption `itemVariants`, rule-element toggles in `getCharacterInfo`; `rank`/`traits`/`focus`/
-> `invested`/`slug`/action-search fallbacks in `searchCharacterItems`). Per an explicit decision these were
-> kept verbatim (default = preserve), not pruned — a **dnd5e-only prune is a deferred follow-up** that
-> should first add dnd5e-path characterization for the branches being removed, then drop the pf2e ones in
-> its own commit. (The `system.actions` array branch in `getCharacterEntity` IS pinned — keep it.)
+> **`characters` (first Opus-tier/large domain) — rewritten to parity, then pf2e-pruned (DONE).** The
+> rewrite itself was faithful parity (no behavior change). The pre-trim multi-system cruft was then removed
+> in two passes: `getCharacterInfo`'s rule-element toggles + ChoiceSet/RollOption `itemVariants` and the
+> `getCharacterEntity` non-dnd5e branches in **4edb7e5**, and the `searchCharacterItems` inline fallbacks in
+> **3a2fce2** — `rank` (spell-level chain), `location.prepared`/`location.expended`, the `traits`/`category`
+> focus check + `category=focus` branch, and the `invested` field + `category=invested` branch. The B5 prune
+> **does change observable dnd5e behavior**: `category=focus`/`invested` carry no dnd5e data, so they used to
+> match nothing and are now inert (an unrecognized category applies no filter). It was characterized first in
+> a NEW `data-access.character-search-extra.test.ts` (+7) pinning the dnd5e contract (level from
+> `system.level`, prepared from raw `preparation.prepared`, cantrip/prepared honored, focus/invested inert);
+> the frozen `character-search.test.ts` was untouched. (The `system.actions` array branch in
+> `getCharacterEntity` IS pinned — kept.)
 >
 > **`compendium` — enhanced-index fast path RETAINED (unpinned).** The `searchCompendium` enhanced
 > branch and the `listCreaturesByCriteria` enhanced path both gate on the `enableEnhancedCreatureIndex`
@@ -190,23 +207,20 @@ null` + descriptor passthrough via a spied `buildPlayByPlay`). The two **read** 
 > loot announce. The "needs canvas" worry was unfounded (pure geometry + `createEmbeddedDocuments`). No
 > write-permission gate exists on this domain. 333 → 430 lines.
 
-### Ready now — characterized, ready to rewrite (order small → large)
+### Formerly deferred — now rewritten ✅ (2026‑06‑16)
 
-| Domain           | LOC  | Characterization test(s)                                                                      |
-| ---------------- | ---- | --------------------------------------------------------------------------------------------- |
-| `actor-creation` | 561  | `actor-creation.test.ts` (42; create-from-compendium/-entry, addActorItems, addActorsToScene) |
-| `creature-index` | 585  | `creature-index.test.ts` (31; `PersistentCreatureIndex` — build/persist/staleness/hooks)      |
-| `player-rolls`   | 884  | `player-rolls.test.ts` (34; request/rollNpcCheck/id-map/state/relay; DOM handlers skipped)    |
-| `actor-builder`  | 1790 | `actor-builder-{npc,items,activity}.test.ts` (52+34+9 = 95; all 11 facade methods)            |
+The last four large domains have all been rewritten/refactored to parity behind their nets (see the **Done**
+table above for sizes/tests):
 
-> ✅ **Coverage map complete — every data-access domain is now characterized.** These four are net-backed
-> and ready to rewrite (all Opus-tier). `actor-creation` injects `compendium` (keep the injection);
-> `creature-index` is the standalone `PersistentCreatureIndex` class (unblocks the `compendium` enhanced
-> path retained earlier); `player-rolls`'s `attachRollButtonHandlers` is jQuery/DOM-only (not characterizable
-> without a DOM harness — covered live); `actor-builder` is the 1790-line monster (3 net files).
+| Domain           | Disposition                     | Commit  | Notes                                                                          |
+| ---------------- | ------------------------------- | ------- | ------------------------------------------------------------------------------ |
+| `creature-index` | rewritten from first principles | 253a17b | standalone `PersistentCreatureIndex`; unblocked the `compendium` enhanced path |
+| `actor-creation` | rewritten from first principles | c478d1e | kept the ctor-injected `compendium`                                            |
+| `player-rolls`   | rewritten from first principles | 994afbc | `attachRollButtonHandlers` stays uncharacterized (jQuery/DOM, covered live)    |
+| `actor-builder`  | targeted refactor to parity     | ad62281 | largest (1779 lines); net was split 3 ways, refactor stayed conservative       |
 
-_(empty — every domain now has a parity net.)_ The 2026‑06‑16 fan-out closed the last four
-(`actor-creation`, `creature-index`, `player-rolls`, `actor-builder`); see **Ready now**. Each was
+Every domain has a parity net, and all are now rewritten. The 2026‑06‑16 fan-out closed the last four
+(`actor-creation`, `creature-index`, `player-rolls`, `actor-builder`); see the table above. Each was
 characterized with **local stubs only** (no shared-harness edits), disproving the earlier "needs
 canvas/fetch/socket/DOM-harness" worries: canvas/fetch/FilePicker/`game.user.targets` are all set on the
 ambient globals per-test and restored on teardown. The only genuinely un-characterizable surface found was
@@ -226,8 +240,9 @@ Order: characterized small→large first; each deferred domain gets a "character
 - [x] `ownership-players` — rewrite to parity (Sonnet, Opus-reviewed)
 - [x] `world-items` — rewrite to parity (Sonnet, Opus-reviewed)
 - [x] `resources-effects` — rewrite to parity (Sonnet, Opus-reviewed)
-- [x] `characters` — rewrite to parity (Opus; faithful parity, pf2e cruft retained — see note above; a
-      dnd5e-only prune is a deferred follow-up)
+- [x] `characters` — rewrite to parity (Opus) **+ pf2e-prune done** (4edb7e5 getCharacterInfo/Entity;
+      3a2fce2 searchCharacterItems, characterized first in `character-search-extra.test.ts` +7 — the one
+      intentional behavior change in the phase: `category=focus`/`invested` now inert; see note above)
 - [x] `compendium` — rewrite to parity (Opus; ctor-injected `persistentIndex`; faithful parity, enhanced
       creature-index path retained verbatim — unpinned, waits on the deferred `PersistentCreatureIndex` net)
 - [x] `scenes-tokens` — rewrite to parity (Opus; per-method coverage check → characterized the 5 unpinned
@@ -240,14 +255,13 @@ Order: characterized small→large first; each deferred domain gets a "character
 - [x] `modules` — rewrite to parity (Sonnet, Opus-reviewed; dependency resolution + count invariants preserved)
 - [x] `scene-fx` — rewrite to parity (Opus; `requireCurrentScene`/`findToken`/`runPlaylist`/loot helpers;
       `tokensInTemplate` geometry preserved verbatim; no canvas needed after all)
-- [ ] `actor-creation` — **net built** (`actor-creation.test.ts`, +42; Opus); ready to rewrite (keep the
-      ctor-injected `compendium`)
-- [ ] `creature-index` — **net built** (`creature-index.test.ts`, +31; Opus; `PersistentCreatureIndex`
-      class); ready to rewrite — also unblocks the `compendium` enhanced-index path
-- [ ] `player-rolls` — **net built** (`player-rolls.test.ts`, +34; Opus); ready to rewrite
-      (`attachRollButtonHandlers` stays uncharacterized — jQuery/DOM only)
-- [ ] `actor-builder` — **net built** (`actor-builder-{npc,items,activity}.test.ts`, +95; Opus; all 11
-      methods); ready to rewrite (largest — consider splitting the rewrite as the net was split)
+- [x] `actor-creation` — rewrite from first principles (Opus, c478d1e; kept the ctor-injected `compendium`)
+- [x] `creature-index` — rewrite from first principles (Opus, 253a17b; `PersistentCreatureIndex` class —
+      also unblocked the `compendium` enhanced-index path)
+- [x] `player-rolls` — rewrite from first principles (Opus, 994afbc; `attachRollButtonHandlers` stays
+      uncharacterized — jQuery/DOM only, covered live)
+- [x] `actor-builder` — targeted refactor to parity (Opus, ad62281; largest at 1779 lines; net was split 3
+      ways, refactor stayed conservative)
 
 ## Model guidance
 

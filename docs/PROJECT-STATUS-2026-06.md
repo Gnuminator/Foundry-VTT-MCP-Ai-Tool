@@ -5,10 +5,12 @@ backlog, code-quality, test/CI health). This is a point-in-time **map + prioriti
 from — not a plan of record. The plans of record remain `docs/DETACH-PLAN.md` (master log) and
 `docs/PHASE9-DOMAIN-REWRITE.md` (the data-access rewrite checklist).
 
-**Headline:** the project is functionally live (v0.16.0 released + live-smoke-passed; ~1,830 tests green
-across the monorepo). It is **ahead of upstream** in features, not behind. The most actionable findings are
-(1) the GitHub **release workflow is broken** (trivial fix), (2) Phase 9 has **4 data-access rewrites left**
-(all net-backed), and (3) the highest-risk code (`socket-bridge.ts`, `queries.ts`, WebRTC) is **untested**.
+**Headline:** the project is functionally live (v0.16.0 released + live-smoke-passed; ~1,874 tests green
+across the monorepo). It is **ahead of upstream** in features, not behind. Since this audit was written,
+(1) the GitHub **release workflow fix** + a `typecheck && lint` CI gate landed, and (2) **Phase 9
+data-access is now complete (16/16 domains rewritten/refactored to parity)** including the `characters`
+pf2e-prune. The top remaining finding is (3): the highest-risk code (`socket-bridge.ts`, `queries.ts`,
+WebRTC) is still **untested**.
 
 ---
 
@@ -32,17 +34,17 @@ Frozen wire IDs: module id `foundry-mcp-bridge`, socket channel `module.foundry-
 `foundry-mcp-bridge.*`, control port `31414`, Foundry-link WS `31415`, WebRTC signaling `31416`,
 ComfyUI `31411`.
 
-| Package          | LOC   | Purpose                                                             | Maturity                           |
-| ---------------- | ----- | ------------------------------------------------------------------- | ---------------------------------- |
-| `shared`         | ~740  | Wire contracts (constants/protocol/types/zod schemas)               | Solid (rewritten); ~42 tests       |
-| `mcp-server`     | ~22k  | MCP stdio wrapper + backend engine; 57 tools; ComfyUI map pipeline  | Upstream-derived; ~1,030 tests     |
-| `foundry-module` | ~18k  | In-browser Foundry ESModule; only component with live Foundry API   | data-access heavily rewritten (P9) |
-| `cogm-dashboard` | ~2.4k | Express + SSE co-GM dashboard; Anthropic narration; player/GM split | Original work; ~28 tests           |
+| Package          | LOC   | Purpose                                                             | Maturity                               |
+| ---------------- | ----- | ------------------------------------------------------------------- | -------------------------------------- |
+| `shared`         | ~740  | Wire contracts (constants/protocol/types/zod schemas)               | Solid (rewritten); ~42 tests           |
+| `mcp-server`     | ~22k  | MCP stdio wrapper + backend engine; 57 tools; ComfyUI map pipeline  | Upstream-derived; ~1,030 tests         |
+| `foundry-module` | ~18k  | In-browser Foundry ESModule; only component with live Foundry API   | data-access fully rewritten (P9 16/16) |
+| `cogm-dashboard` | ~2.4k | Express + SSE co-GM dashboard; Anthropic narration; player/GM split | Original work; ~28 tests               |
 
 Cross-cutting: `permissions.ts` (LOW/MED/HIGH write-gate + `validateGMAccess`), `transaction-manager.ts`
 (rollback ledger — Actor/Token implemented; Scene/Item/Delete are intentional stubs), `session-events.ts`
 (rolling chat/event buffers powering the log tools), the Foundry-mock harness (`foundry-module/src/
-test-support/foundry-mock/`) that makes ~725 in-memory data-access tests possible.
+test-support/foundry-mock/`) that makes ~732 in-memory data-access tests possible.
 
 ---
 
@@ -57,32 +59,33 @@ combat, movement, session-log, combat-resolution, encounter/scene-fx, loot, diag
   (`check-mac-setup-status`/`run-mac-setup`/`get-mac-setup-progress`) so Claude can install ComfyUI for the
   user; the Windows-only fork has no equivalent (`win-setup.ts` would be net-new). Optional, MED value.
 - **Trim collateral to verify (not confirmed broken):** possible macOS paths in
-  `foundry-module/src/comfyui-manager.ts`; dead branches in `mcp-server/src/utils/system-detection.ts` and
-  `utils/compendium-filters.ts` (still carry pf2e/cosmere logic).
+  `foundry-module/src/comfyui-manager.ts`. (The pf2e/cosmere dead branches in
+  `mcp-server/src/utils/system-detection.ts` + `utils/compendium-filters.ts` were pruned in Section A,
+  2026‑06‑16.)
 
 ---
 
 ## 3. Health & risks — prioritized
 
-1. **🔴 Release workflow broken (CONFIRMED).** `.github/workflows/build-complete-release.yml` pins
-   `actions/{checkout,setup-node,upload-artifact,download-artifact}@v6` (lines 29/32/222/239/242/268) — `@v6`
-   does not exist (current stable `@v4`), so the canonical release fails on any tag push.
-   `foundry-module-release.yml:11` has the same `@v6` (legacy workflow). **Fix:** `@v6 → @v4`. Effort: S.
-2. **🟠 CI doesn't gate typecheck/lint.** `ci.yml` runs build + tests + smoke, but the documented green-gate
-   `npm run typecheck && npm run lint` is NOT an explicit CI step — a type/lint error that doesn't break the
-   build slips through. **Fix:** add the step. Effort: S.
+1. **✅ RESOLVED (2026‑06‑16).** ~~🔴 Release workflow broken (CONFIRMED).~~ The canonical
+   `build-complete-release.yml` (+ legacy `foundry-module-release.yml`) `@v6 → @v4` pin fix landed in
+   Section A. (Original finding: `@v6` doesn't exist, so the release failed on any tag push.)
+2. **✅ RESOLVED (2026‑06‑16).** ~~🟠 CI doesn't gate typecheck/lint.~~ The `typecheck && lint` green-gate is
+   now an explicit `ci.yml` step (and the lint baseline was cleaned 640→0 errors). (Original finding: a
+   type/lint error that didn't break the build could slip through.)
 3. **🟠 Highest-risk untested code.** `foundry-module/src/socket-bridge.ts` (live wire contract) and
    `queries.ts` (MCP→data-access dispatch router) have zero tests; a regression there breaks the bridge
    silently and the data-access tests won't catch it. WebRTC path (`webrtc-connection.ts` / `webrtc-peer.ts`,
-   werift 0.23.0) is gated only by a manual live smoke. `mcp-server/src/tools/combat-resolution.ts` is the
-   one tool file with no test (other 23 covered). Dashboard `server.ts`/`sse.ts`/AI layer untested.
+   werift 0.23.0) is gated only by a manual live smoke. (Section A closed the `combat-resolution.ts` gap, so
+   all 24 tool files are now covered.) Dashboard `server.ts`/`sse.ts`/AI layer untested. **Top remaining
+   item.**
 4. **🟡 `queries.ts` dual handler registration (verify intent).** The 6 token-manipulation handlers are
    registered twice — camelCase and kebab-case (`queries.ts` ~lines 91–99 vs 123–130). Likely intentional
    dual-format support (production works), but confirm the protocol and drop one side if redundant.
-5. **🟡 Residual multi-system dead code (policy violation).** `mcp-server/src/utils/system-detection.ts`
-   (`GameSystem` still has `'pf2e' | 'cosmere-rpg'`, PF2e SystemPaths), `utils/compendium-filters.ts`
-   (PF2e types/schema/convert logic), `tools/compendium.ts` (live pf2e/cosmere branches, ~6 sites). The repo
-   is D&D-only; this is executable dead weight. Prune behind a typecheck pass. Effort: M.
+5. **✅ RESOLVED (2026‑06‑16).** ~~🟡 Residual multi-system dead code (policy violation).~~ Section A pruned
+   the pf2e/cosmere dead code from `mcp-server` (`utils/system-detection.ts` — `GameSystem` → `'dnd5e' |
+'other'`, `utils/compendium-filters.ts`, `tools/compendium.ts`), behind a typecheck pass. (Original
+   finding: those three files still carried executable pf2e/cosmere logic in a D&D-only repo.)
 6. **🟡 `backend.ts` (1,555 lines) — zero tests + mixed concerns + swallowed errors** (process lock, ComfyUI
    lifecycle, job queue, WS server, tool registration in one file; bare `catch`/`console.error` at a few
    sites). Decompose before testing. Effort: L.
@@ -98,19 +101,23 @@ interface would narrow many casts (`actor-builder.ts` alone has 43).
 
 ## 4. Backlog
 
-### Phase 9 — data-access rewrites (4 remaining; all net-backed, Opus-tier)
+### Phase 9 — data-access rewrites ✅ COMPLETE (16/16 domains, 2026‑06‑16)
 
-See `docs/PHASE9-DOMAIN-REWRITE.md` (per-domain checklist). 13/16 modules rewritten; coverage map complete.
+See `docs/PHASE9-DOMAIN-REWRITE.md` (per-domain checklist). All 16 modules are now rewritten/refactored
+from first principles behind their frozen characterization nets. The last four deferred domains landed
+2026‑06‑16:
 
-| Domain           | LOC  | Net                                                                             |
-| ---------------- | ---- | ------------------------------------------------------------------------------- |
-| `actor-creation` | 561  | `data-access.actor-creation.test.ts` (42)                                       |
-| `creature-index` | 585  | `data-access.creature-index.test.ts` (31) — unblocks `compendium` enhanced path |
-| `player-rolls`   | 884  | `data-access.player-rolls.test.ts` (34)                                         |
-| `actor-builder`  | 1790 | `data-access.actor-builder-{npc,items,activity}.test.ts` (95)                   |
+| Domain           | Disposition                    | Net                                                                             |
+| ---------------- | ------------------------------ | ------------------------------------------------------------------------------- |
+| `creature-index` | rewritten (253a17b)            | `data-access.creature-index.test.ts` (31) — unblocks `compendium` enhanced path |
+| `actor-creation` | rewritten (c478d1e)            | `data-access.actor-creation.test.ts` (42)                                       |
+| `player-rolls`   | rewritten (994afbc)            | `data-access.player-rolls.test.ts` (34)                                         |
+| `actor-builder`  | refactored to parity (ad62281) | `data-access.actor-builder-{npc,items,activity}.test.ts` (95)                   |
 
-Plus the **`characters` pf2e-prune** follow-up (characterize dnd5e paths, then drop retained pf2e branches),
-and (optional purity) the 4 large mcp-server tool files owned-via-tests only.
+The **`characters` pf2e-prune** follow-up is also done (3a2fce2, after the 4edb7e5 partial prune):
+`data-access.character-search-extra.test.ts` (+7) pins the dnd5e category/level/prepared contract, then the
+inert pf2e fallbacks (`rank`, `location.prepared`/`location.expended`, the `focus` check, the `invested`
+branch) were dropped. Only remaining purity item: the 4 large mcp-server tool files owned-via-tests only.
 
 ### Phase 6 — remote access / standalone / player-GM split (templated, NOT deployed)
 
@@ -122,8 +129,8 @@ server for WebRTC-across-NAT; per-event hidden-combatant suppression in `redact.
 ### Release
 
 **v0.16.1 queued** — gated on the user running the live werift WebRTC smoke
-(`docs/DEPENDENCY-PATCH-SMOKE-TEST.md`), then tag. NOTE: fix the release workflow (#1 above) first or the
-tag build fails.
+(`docs/DEPENDENCY-PATCH-SMOKE-TEST.md`), then tag. The release-workflow `@v6→@v4` fix is already in (risk #1
+resolved), so the tag build is unblocked.
 
 ### Phase 7 — presentation (partial): live demo GIF, `/player` screenshot, showcase site, Pages deploy.
 
@@ -131,12 +138,12 @@ tag build fails.
 
 ## 5. Recommended next sequence
 
-1. **Quick wins (S):** fix release-workflow `@v6→@v4`; add `typecheck && lint` to `ci.yml`; prune the
-   residual pf2e/cosmere dead code in `mcp-server/src/utils` + `tools/compendium.ts`; add the
-   `combat-resolution.ts` test.
-2. **Finish Phase 9 (M–L each):** rewrite the 4 remaining data-access domains (suggest order:
-   `creature-index` → `actor-creation` → `player-rolls` → `actor-builder`), then the `characters` pf2e-prune.
-   Same recipe as the 13 done: rewrite behind the frozen net, keep green, one commit per domain.
+1. ~~**Quick wins (S):**~~ **DONE (2026‑06‑16):** release-workflow `@v6→@v4`; `typecheck && lint` gate added
+   to `ci.yml`; pruned the residual pf2e/cosmere dead code in `mcp-server`; added the `combat-resolution.ts`
+   test.
+2. ~~**Finish Phase 9 (M–L each):**~~ **DONE (2026‑06‑16):** all 4 remaining data-access domains rewritten/
+   refactored to parity (`creature-index` → `actor-creation` → `player-rolls` → `actor-builder`), then the
+   `characters` pf2e-prune. Phase 9 data-access is complete (16/16). **Next active item is #3.**
 3. **Close the top test gaps (M):** `socket-bridge.ts` + `queries.ts` (mock `game.socket`; assert dispatch
    routing — the Foundry-mock harness is already in place); a minimal dashboard `server.ts` SSE/route test.
 4. **Release v0.16.1** once the user runs the WebRTC smoke.

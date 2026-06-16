@@ -92,8 +92,9 @@ A domain may only be rewritten once it has a parity net — and that bar is **pe
 domain. The fan-out coverage check (2026‑06‑16) found two domains whose headline methods are pinned but
 which carry **uncharacterized sibling methods**: `chat` (`getChatLog` has no data-access net — only
 `sendChatMessage` is pinned) and `modules` (`getModuleErrors`/`clearModuleErrors` have no net — only
-`getModules`/`getModuleManifest` are pinned). Both are therefore moved to "characterize first". Status
-(sizes = current module LOC; tests = `it()` count in the listed file(s)):
+`getModules`/`getModuleManifest` are pinned). Both were therefore moved to "characterize first" — and have
+**since been characterized** (along with `session-log`) in the 2026‑06‑16 fan-out, so they now sit under
+**Ready now**. Status (sizes = current module LOC; tests = `it()` count in the listed file(s)):
 
 ### Done — rewritten to parity ✅
 

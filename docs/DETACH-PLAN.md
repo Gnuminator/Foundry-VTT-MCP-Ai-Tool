@@ -485,6 +485,23 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > 1631**, full suite + typecheck + build green. Remaining deferred nets: `actor-creation` (canvas placement +
 > injected compendium), `creature-index` (storage + fetch), `player-rolls` (socket + chat buttons),
 > `actor-builder` (largest); plus the `scene-fx` rewrite + the `characters` pf2e-prune.
+>
+> **scene-fx rewrite + final deferred-net fan-out — COVERAGE MAP COMPLETE (2026‑06‑16).** Two commits.
+> **(1) `scene-fx` rewritten to parity** (Opus, 13/16 domains) behind its 37-test net: extracted
+> `requireCurrentScene` / `findToken` / `runPlaylist` / `grantCurrency` / `grantItems` / `lootSummary`; the
+> pure `tokensInTemplate` AoE geometry kept verbatim. Faithful parity, no behavior change. **(2) The last
+> four deferred domains characterized** by **5 parallel Opus net-builders** (Opus-reviewed) + 1 follow-up,
+> each a new test file only (no production / shared-harness / existing-test edits), stubbing harness gaps
+> locally — disproving the "needs canvas/fetch/socket" worries (all set on ambient globals per-test +
+> restored): `actor-creation.test.ts` (+42), `creature-index.test.ts` (+31; `PersistentCreatureIndex` —
+> file-based persistence via local FilePicker/fetch stubs), `player-rolls.test.ts` (+34; socket/chat spies;
+> jQuery-DOM `attachRollButtonHandlers` skipped), and `actor-builder` split 2 ways by theme
+> (`-npc` +52, `-items` +34) — the blind split left `useNpcActivity` ceded by both, so Opus added
+> `-activity` (+9) to close it (all 11 facade methods now covered). **Every data-access domain is now
+> characterized.** **13 of 16 modules rewritten** (remaining: `actor-creation`, `player-rolls`,
+> `actor-builder` + the `creature-index` class — all now net-backed and ready); foundry-module
+> **523 → 725** (+202), total **1631 → 1833**, full suite + typecheck + build green. Next: the four
+> remaining rewrites (all Opus-tier, now unblocked) + the `characters` pf2e-prune follow-up.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

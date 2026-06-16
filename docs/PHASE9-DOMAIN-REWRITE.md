@@ -39,9 +39,9 @@ see **Model guidance** for how later domains fan out.
    commit; **default is preserve** (the net is the contract).
 4. **Keep it green.** After the rewrite:
    `npm run typecheck --workspace=@gnuminator/foundry-module` + the domain's test file(s) + the full
-   `npx vitest run packages/foundry-module` (was 377; **523** after the `scenes-tokens`, `combat` (reads +
-   mutation), `session-log`, `chat`, `modules`, and `scene-fx` nets — the count grows as new characterization
-   nets land), then `npm run build`. Run the full root `npm run typecheck && npm run build` before any push.
+   `npx vitest run packages/foundry-module` (was 377; **725** now that every domain is characterized — the
+   count grew as each net landed), then `npm run build`. Run the full root
+   `npm run typecheck && npm run build` before any push.
 5. **Commit** `refactor(phase9): rewrite <domain> from first principles to parity`, noting any
    intentional behavior change and any test edits.
 
@@ -112,11 +112,12 @@ listed file(s)):
 | `session-log`       | 55 → 98              | `session-log.test.ts` (20; `getSessionLog` + `getRecentEvents`)                                              |
 | `chat`              | 112 → 220            | `chat-log.test.ts` (11; `getChatLog`) + `chat-resources.test.ts` (`sendChatMessage` slice)                   |
 | `modules`           | 137 → 247            | `modules.test.ts` (`getModules`/`getModuleManifest`) + `module-errors.test.ts` (15; error methods)           |
+| `scene-fx`          | 333 → 430            | `scene-fx.test.ts` (37; templates + AoE geometry, mood, map notes, loot, deletes)                            |
 
 > Most rewrites grew slightly (inline duplication → extracted helpers + fuller JSDoc; logic density
-> dropped); `compendium` shrank by dropping no-op dead code. All twelve domains (incl. `combat` reads +
-> mutation): no behavior change, no existing-test edits, 0 eslint errors (`scenes-tokens` +22 and `combat`
-> +4/+37 each added a per-method net first).
+> dropped); `compendium` shrank by dropping no-op dead code. All thirteen domains (incl. `combat` reads +
+> mutation, `scene-fx`): no behavior change, no existing-test edits, 0 eslint errors (`scenes-tokens` +22 and
+> `combat` +4/+37 each added a per-method net first).
 >
 > **`session-log` / `chat` / `modules` (second Sonnet fan-out, Opus-reviewed — 2026‑06‑16).** Three
 > parallel Sonnet workers, one fully-characterized domain each, editing only their module and verifying
@@ -180,30 +181,41 @@ null` + descriptor passthrough via a spied `buildPlayByPlay`). The two **read** 
 > batch methods), `hpValueTemp`, `applyHpChange`, and the `rollDnd5eV4`/`rollDnd5eV3` dispatch split.
 > `suggestBalancedEncounter` was left as-is (already original; its 2014-DMG XP table is data, kept verbatim).
 > **The combat domain is now fully rewritten + characterized** (reads + mutation, 67 tests). 458 → 493 lines.
+>
+> **`scene-fx` (Opus).** Rewritten behind its 37-test net — extracted `requireCurrentScene` (the
+> `SCENE_NOT_FOUND` gate repeated across 5 methods), `findToken` (name/id lookup shared by template + map
+> note), `runPlaylist`, and `grantCurrency`/`grantItems`/`lootSummary` (the dropLoot sub-steps); the pure
+> `tokensInTemplate` AoE geometry (circle/ray/cone/rect) is preserved verbatim. **Faithful parity** — v13
+> `environment.*` vs pre-v13 flat schema, darkness clamp with raw-value echo, shape defaults, whisper-free
+> loot announce. The "needs canvas" worry was unfounded (pure geometry + `createEmbeddedDocuments`). No
+> write-permission gate exists on this domain. 333 → 430 lines.
 
-### Ready now — fully characterized (rewrite directly, order small → large)
+### Ready now — characterized, ready to rewrite (order small → large)
 
-| Domain     | LOC | Characterization test(s)                                                          |
-| ---------- | --- | --------------------------------------------------------------------------------- |
-| `scene-fx` | 333 | `scene-fx.test.ts` (37; templates + AoE geometry, mood, map notes, loot, deletes) |
+| Domain           | LOC  | Characterization test(s)                                                                      |
+| ---------------- | ---- | --------------------------------------------------------------------------------------------- |
+| `actor-creation` | 561  | `actor-creation.test.ts` (42; create-from-compendium/-entry, addActorItems, addActorsToScene) |
+| `creature-index` | 585  | `creature-index.test.ts` (31; `PersistentCreatureIndex` — build/persist/staleness/hooks)      |
+| `player-rolls`   | 884  | `player-rolls.test.ts` (34; request/rollNpcCheck/id-map/state/relay; DOM handlers skipped)    |
+| `actor-builder`  | 1790 | `actor-builder-{npc,items,activity}.test.ts` (52+34+9 = 95; all 11 facade methods)            |
 
-> ✅ `scene-fx` is now **fully characterized** (`scene-fx.test.ts`, 37) — the "needs canvas" worry was
-> unfounded (pure geometry + `createEmbeddedDocuments`; only local playlist / `fromUuid` / `game.version`
-> stubs). Ready to rewrite **in place** (no write-permission gate to preserve). `combat` (mutation),
-> `session-log` / `chat` / `modules` graduated from this table to Done.
+> ✅ **Coverage map complete — every data-access domain is now characterized.** These four are net-backed
+> and ready to rewrite (all Opus-tier). `actor-creation` injects `compendium` (keep the injection);
+> `creature-index` is the standalone `PersistentCreatureIndex` class (unblocks the `compendium` enhanced
+> path retained earlier); `player-rolls`'s `attachRollButtonHandlers` is jQuery/DOM-only (not characterizable
+> without a DOM harness — covered live); `actor-builder` is the 1790-line monster (3 net files).
 
-### Characterize first, then rewrite (deferred / partial — net missing for the noted methods)
+_(empty — every domain now has a parity net.)_ The 2026‑06‑16 fan-out closed the last four
+(`actor-creation`, `creature-index`, `player-rolls`, `actor-builder`); see **Ready now**. Each was
+characterized with **local stubs only** (no shared-harness edits), disproving the earlier "needs
+canvas/fetch/socket/DOM-harness" worries: canvas/fetch/FilePicker/`game.user.targets` are all set on the
+ambient globals per-test and restored on teardown. The only genuinely un-characterizable surface found was
+`player-rolls.attachRollButtonHandlers` (live jQuery/DOM click handlers).
 
-| Domain / surface                             | LOC  | What a net needs first                                                                                 |
-| -------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------ |
-| `actor-creation`                             | 561  | `createActorFromCompendium`/`addActorsToScene` — needs canvas token placement                          |
-| `creature-index` (`PersistentCreatureIndex`) | 585  | needs a storage + `fetch` mock                                                                         |
-| `player-rolls`                               | 884  | `requestPlayerRolls`/roll-button handlers/`rollNpcCheck` — needs socket + chat-button mock             |
-| `actor-builder`                              | 1790 | `useItem`/`createNpcActor`/`addAttack*`/`addSpells*`/… — large; needs compendium + item-creation depth |
-
-Building a deferred domain's net is its own sub-task (mirror the wave-1/2/3 characterization fan-outs in
-`docs/DETACH-PLAN.md`): extend the harness as needed, write the `data-access.<domain>.test.ts` pinning
-current behavior, _then_ rewrite. Don't rewrite ahead of the net.
+The historical recipe for a deferred net (kept for reference): mirror the wave-1/2/3 characterization
+fan-outs in `docs/DETACH-PLAN.md` — write the `data-access.<domain>.test.ts` pinning current behavior
+(stubbing missing globals locally), verify it passes against current, _then_ rewrite. Don't rewrite ahead
+of the net.
 
 ## Per-domain checklist
 
@@ -226,11 +238,16 @@ Order: characterized small→large first; each deferred domain gets a "character
 - [x] `session-log` — rewrite to parity (Sonnet, Opus-reviewed; `buildFilters` helper)
 - [x] `chat` — rewrite to parity (Sonnet, Opus-reviewed; whisper-safety fallback + style mapping preserved)
 - [x] `modules` — rewrite to parity (Sonnet, Opus-reviewed; dependency resolution + count invariants preserved)
-- [ ] `scene-fx` — **net built** (`scene-fx.test.ts`, +37; Opus; no canvas needed); ready to rewrite in place
-- [ ] `actor-creation` — **characterize first** (canvas placement; ctor-injected `compendium`), then rewrite
-- [ ] `creature-index` — **characterize first** (storage + fetch mock), then rewrite
-- [ ] `player-rolls` — **characterize first** (socket + chat buttons; owns `rollButtonProcessingStates`), then rewrite
-- [ ] `actor-builder` — **characterize first** (largest; compendium + item depth), then rewrite
+- [x] `scene-fx` — rewrite to parity (Opus; `requireCurrentScene`/`findToken`/`runPlaylist`/loot helpers;
+      `tokensInTemplate` geometry preserved verbatim; no canvas needed after all)
+- [ ] `actor-creation` — **net built** (`actor-creation.test.ts`, +42; Opus); ready to rewrite (keep the
+      ctor-injected `compendium`)
+- [ ] `creature-index` — **net built** (`creature-index.test.ts`, +31; Opus; `PersistentCreatureIndex`
+      class); ready to rewrite — also unblocks the `compendium` enhanced-index path
+- [ ] `player-rolls` — **net built** (`player-rolls.test.ts`, +34; Opus); ready to rewrite
+      (`attachRollButtonHandlers` stays uncharacterized — jQuery/DOM only)
+- [ ] `actor-builder` — **net built** (`actor-builder-{npc,items,activity}.test.ts`, +95; Opus; all 11
+      methods); ready to rewrite (largest — consider splitting the rewrite as the net was split)
 
 ## Model guidance
 

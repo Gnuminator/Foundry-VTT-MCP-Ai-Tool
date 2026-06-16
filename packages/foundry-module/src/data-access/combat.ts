@@ -5,75 +5,86 @@ import { eventTracker } from '../session-events.js';
 export class CombatDataAccess {
   /**
    * Build a structured, human-readable play-by-play of the current/most-recent
-   * combat from the chat-log buffer and the recorded combat timeline.
+   * combat. The narrative synthesis lives in the pure, separately-tested
+   * EventTracker; this method only resolves the combat document and forwards the
+   * lightweight `{ round, started }` descriptor (or null when there is none).
    */
   async getCombatPlayByPlay(): Promise<any> {
     shared.validateFoundryState();
 
-    const combat: any =
-      (game as any).combat ||
-      (Array.from((game as any).combats ?? []) as any[]).slice(-1)[0] ||
-      null;
-
-    // Synthesis lives in the (pure, unit-tested) EventTracker; we only pass the
-    // lightweight combat descriptor read from Foundry's live combat document.
+    const combat = this.resolveActiveOrRecentCombat();
     return eventTracker.buildPlayByPlay(
       combat ? { round: combat.round, started: combat.started } : null
     );
   }
 
+  /**
+   * Snapshot of the current/most-recent encounter for the co-GM dashboard:
+   * per-combatant turn state, HP, conditions, defeat/death-save status, and
+   * category (pc / enemy / npc). Returns `{ active: false }` with a message when
+   * no encounter exists.
+   */
   async getCombatState(): Promise<any> {
     shared.validateFoundryState();
 
-    const combat: any =
-      (game as any).combat ||
-      (Array.from((game as any).combats ?? []) as any[]).slice(-1)[0] ||
-      null;
-
+    const combat = this.resolveActiveOrRecentCombat();
     if (!combat) {
       return { success: true, active: false, message: 'No active or recent combat encounter.' };
     }
 
     const turns: any[] = combat.turns ?? [];
     const currentIndex = combat.turn ?? 0;
+    const started = combat.started ?? false;
 
-    const combatants = turns.map((c: any, idx: number) => {
-      const actor = c.actor;
-      const hp = actor?.system?.attributes?.hp;
-      const isPC = !!actor?.hasPlayerOwner && actor?.type === 'character';
-      const defeated = c.isDefeated ?? (hp ? (hp.value ?? 0) <= 0 : false);
-      const death = actor?.system?.attributes?.death;
-      return {
-        id: c.id,
-        name: c.name,
-        initiative: c.initiative,
-        isCurrentTurn: idx === currentIndex,
-        // True if this combatant has already taken its turn THIS round. The turn
-        // index resets to 0 each round, so `idx < currentIndex` holds per-round.
-        actedThisRound: combat.started ? idx < currentIndex : false,
-        hp: hp ? { value: hp.value ?? null, max: hp.max ?? null, temp: hp.temp ?? 0 } : null,
-        conditions: shared.actorConditionNames(actor),
-        isPC,
-        category: isPC ? 'pc' : c.token?.disposition === -1 ? 'enemy' : 'npc',
-        defeated,
-        deathSaves:
-          hp && (hp.value ?? 1) <= 0
-            ? { successes: death?.success ?? 0, failures: death?.failure ?? 0 }
-            : null,
-        // GM-hidden combatant (token hidden in the tracker). Surfaced so the
-        // co-GM dashboard can drop it from the player view server-side (Phase 6).
-        hidden: c.hidden ?? c.token?.hidden ?? false,
-      };
-    });
+    const combatants = turns.map((c: any, idx: number) =>
+      this.summarizeCombatant(c, idx, currentIndex, started)
+    );
 
     return {
       success: true,
-      active: combat.started ?? false,
+      active: started,
       round: combat.round ?? 0,
       turn: currentIndex,
       current: combatants[currentIndex] ?? null,
       combatants,
       downed: combatants.filter((c: any) => c.defeated),
+    };
+  }
+
+  /** The live combat, else the most recently registered encounter, else null. */
+  private resolveActiveOrRecentCombat(): any {
+    return (game as any).combat || Array.from((game as any).combats ?? []).slice(-1)[0] || null;
+  }
+
+  /**
+   * Build one combatant's snapshot. `defeated` honours an explicit `isDefeated`,
+   * otherwise treats 0-or-less HP as down; `deathSaves` surface only while a
+   * combatant is at 0 HP. `actedThisRound` is index-based — the turn index
+   * resets to 0 each round, so any combatant before the current index has
+   * already acted. `hidden` mirrors the tracker's GM-hidden flag (falling back
+   * to the token) so the dashboard can drop it from the player view (Phase 6).
+   */
+  private summarizeCombatant(c: any, idx: number, currentIndex: number, started: any): any {
+    const actor = c.actor;
+    const hp = actor?.system?.attributes?.hp;
+    const isPC = !!actor?.hasPlayerOwner && actor?.type === 'character';
+    const death = actor?.system?.attributes?.death;
+    return {
+      id: c.id,
+      name: c.name,
+      initiative: c.initiative,
+      isCurrentTurn: idx === currentIndex,
+      actedThisRound: started ? idx < currentIndex : false,
+      hp: hp ? { value: hp.value ?? null, max: hp.max ?? null, temp: hp.temp ?? 0 } : null,
+      conditions: shared.actorConditionNames(actor),
+      isPC,
+      category: isPC ? 'pc' : c.token?.disposition === -1 ? 'enemy' : 'npc',
+      defeated: c.isDefeated ?? (hp ? (hp.value ?? 0) <= 0 : false),
+      deathSaves:
+        hp && (hp.value ?? 1) <= 0
+          ? { successes: death?.success ?? 0, failures: death?.failure ?? 0 }
+          : null,
+      hidden: c.hidden ?? c.token?.hidden ?? false,
     };
   }
 

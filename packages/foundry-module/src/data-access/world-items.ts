@@ -193,7 +193,7 @@ export class WorldItemsDataAccess {
         throw new Error(`items[${idx}] ("${it.name}"): "type" is required`);
       }
       if (validTypes && !validTypes.includes(it.type)) {
-        const systemId = (game.system as any)?.id;
+        const systemId = game.system?.id;
         throw new Error(
           `items[${idx}] ("${it.name}"): unknown type "${it.type}" for system "${systemId}". ` +
             `Valid Item types: ${validTypes.join(', ')}`

@@ -119,7 +119,7 @@ export class CharacterDataAccess {
       throw new Error(`Character not found: ${characterIdentifier}`);
     }
 
-    const systemId = (game.system as any).id;
+    const systemId = game.system.id;
     const matches: Array<any> = [];
 
     const searchQuery = query?.toLowerCase().trim();
@@ -493,7 +493,7 @@ export class CharacterDataAccess {
   private extractSpellcastingData(actor: Actor): SpellcastingEntry[] {
     const entries: SpellcastingEntry[] = [];
     const actorAny = actor as any;
-    const systemId = (game.system as any).id;
+    const systemId = game.system.id;
 
     const spellItems = actor.items.filter(item => item.type === 'spell');
     if (systemId !== 'dnd5e') {

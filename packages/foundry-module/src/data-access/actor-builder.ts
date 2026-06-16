@@ -74,7 +74,7 @@ export class ActorBuilderDataAccess {
     }
 
     const itemAny = item;
-    const systemId = (game.system as any).id;
+    const systemId = game.system.id;
 
     // Handle targeting if targets are specified
     const resolvedTargetNames: string[] = [];
@@ -267,10 +267,9 @@ export class ActorBuilderDataAccess {
       }
 
       // 2. System guard
-      if ((game.system as any).id !== 'dnd5e') {
+      if (game.system.id !== 'dnd5e') {
         throw new Error(
-          `addSaveFeatureToActor requires D&D 5e. ` +
-            `Current system: "${(game.system as any).id}".`
+          `addSaveFeatureToActor requires D&D 5e. ` + `Current system: "${game.system.id}".`
         );
       }
 
@@ -284,7 +283,7 @@ export class ActorBuilderDataAccess {
       }
 
       // 4. Generate activity ID
-      const activityId: string = (foundry.utils as any).randomID(16);
+      const activityId: string = foundry.utils.randomID(16);
 
       // 5. Slug identifier
       const identifier = slugify(data.featureName);
@@ -439,9 +438,9 @@ export class ActorBuilderDataAccess {
 
     try {
       // 1. System guard
-      if ((game.system as any).id !== 'dnd5e') {
+      if (game.system.id !== 'dnd5e') {
         throw new Error(
-          `createNpcActor requires D&D 5e. ` + `Current system: "${(game.system as any).id}".`
+          `createNpcActor requires D&D 5e. ` + `Current system: "${game.system.id}".`
         );
       }
 
@@ -641,7 +640,7 @@ export class ActorBuilderDataAccess {
       }
 
       // 4. Generate activity ID
-      const activityId: string = (foundry.utils as any).randomID(16);
+      const activityId: string = foundry.utils.randomID(16);
 
       // 5. Damage parts for the activity (all except the first — which is system.damage.base)
       const activityDamageParts = (
@@ -863,7 +862,7 @@ export class ActorBuilderDataAccess {
       const mappedAreaType: string = data.areaType === 'emanation' ? 'radius' : data.areaType;
 
       // 5. Generate activity ID
-      const activityId: string = (foundry.utils as any).randomID(16);
+      const activityId: string = foundry.utils.randomID(16);
 
       // 6. Slug identifier
       const identifier = slugify(data.featureName as string);
@@ -1110,8 +1109,8 @@ export class ActorBuilderDataAccess {
       }
 
       // 4. Generate two distinct activity IDs
-      const attackActivityId: string = (foundry.utils as any).randomID(16);
-      const saveActivityId: string = (foundry.utils as any).randomID(16);
+      const attackActivityId: string = foundry.utils.randomID(16);
+      const saveActivityId: string = foundry.utils.randomID(16);
 
       // 5. Attack activity damage parts: damageParts[1+] (base is in system.damage.base)
       const activityDamageParts = (

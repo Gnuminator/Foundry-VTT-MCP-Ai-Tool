@@ -489,7 +489,7 @@ export class ActorCreationDataAccess {
     }
     if (validTypes && !validTypes.includes(it.type)) {
       throw new Error(
-        `items[${idx}] ("${it.name}"): unknown type "${it.type}" for system "${(game.system as any)?.id}". ` +
+        `items[${idx}] ("${it.name}"): unknown type "${it.type}" for system "${game.system?.id}". ` +
           `Valid Item types: ${validTypes.join(', ')}`
       );
     }

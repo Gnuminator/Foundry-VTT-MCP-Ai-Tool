@@ -322,12 +322,12 @@ export async function getOrCreateFolder(
 
 /** Major version number of the active game system (0 if unparseable). */
 export function systemMajor(): number {
-  return parseInt(String((game.system as any)?.version || '0').split('.')[0], 10) || 0;
+  return parseInt(String(game.system?.version || '0').split('.')[0], 10) || 0;
 }
 
 /** Throw unless the active game system is dnd5e. */
 export function requireDnd5e(toolName: string): void {
-  if ((game.system as any)?.id !== 'dnd5e') {
+  if (game.system?.id !== 'dnd5e') {
     throw new Error(`${toolName} requires the dnd5e game system`);
   }
 }

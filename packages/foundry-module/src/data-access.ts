@@ -2,9 +2,14 @@ import { MODULE_ID, ERROR_MESSAGES } from './constants.js';
 import { permissionManager } from './permissions.js';
 import { transactionManager } from './transaction-manager.js';
 import { eventTracker } from './session-events.js';
-import { diagnostics } from './diagnostics.js';
 import { PersistentCreatureIndex } from './data-access/creature-index.js';
 import * as shared from './data-access/shared.js';
+import { ModulesDataAccess } from './data-access/modules.js';
+import { SessionLogDataAccess } from './data-access/session-log.js';
+import { WorldReadsDataAccess } from './data-access/world-reads.js';
+import { JournalDataAccess } from './data-access/journals.js';
+import { WorldItemsDataAccess } from './data-access/world-items.js';
+import { ChatDataAccess } from './data-access/chat.js';
 import {
   slugify,
   NPC_DAMAGE_CANONICAL,
@@ -42,6 +47,12 @@ import type {
 export class FoundryDataAccess {
   private moduleId: string = MODULE_ID;
   private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
+  private modules = new ModulesDataAccess();
+  private sessionLog = new SessionLogDataAccess();
+  private worldReads = new WorldReadsDataAccess();
+  private journals = new JournalDataAccess();
+  private worldItems = new WorldItemsDataAccess();
+  private chat = new ChatDataAccess();
 
   constructor() {}
 
@@ -1193,95 +1204,20 @@ export class FoundryDataAccess {
     return true;
   }
 
-  /**
-   * List all actors with basic information
-   */
   async listActors(): Promise<Array<{ id: string; name: string; type: string; img?: string }>> {
-    return game.actors.map(actor => ({
-      id: actor.id || '',
-      name: actor.name || '',
-      type: actor.type,
-      ...(actor.img ? { img: actor.img } : {}),
-    }));
+    return this.worldReads.listActors();
   }
 
-  /**
-   * Get active scene information
-   */
   async getActiveScene(): Promise<SceneInfo> {
-    const scene = (game.scenes as any).current;
-    if (!scene) {
-      throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
-    }
-
-    const sceneData: SceneInfo = {
-      id: scene.id,
-      name: scene.name,
-      img: scene.img || undefined,
-      background: scene._source?.background?.src || undefined,
-      width: scene.width,
-      height: scene.height,
-      padding: scene.padding,
-      active: scene.active,
-      navigation: scene.navigation,
-      tokens: scene.tokens.map((token: any) => ({
-        id: token.id,
-        name: token.name,
-        x: token.x,
-        y: token.y,
-        width: token.width,
-        height: token.height,
-        actorId: token.actorId || undefined,
-        img: token.texture?.src || '',
-        hidden: token.hidden,
-        disposition: this.getTokenDisposition(token.disposition),
-      })),
-      walls: scene.walls.size,
-      lights: scene.lights.size,
-      sounds: scene.sounds.size,
-      notes: scene.notes.map((note: any) => ({
-        id: note.id,
-        text: note.text || '',
-        x: note.x,
-        y: note.y,
-      })),
-    };
-
-    return sceneData;
+    return this.worldReads.getActiveScene();
   }
 
-  /**
-   * Get world information
-   */
   async getWorldInfo(): Promise<WorldInfo> {
-    // World info doesn't require special permissions as it's basic metadata
-
-    return {
-      id: game.world.id,
-      title: game.world.title,
-      system: game.system.id,
-      systemVersion: game.system.version,
-      foundryVersion: game.version,
-      users: game.users.map(user => ({
-        id: user.id || '',
-        name: user.name || '',
-        active: user.active,
-        isGM: user.isGM,
-      })),
-    };
+    return this.worldReads.getWorldInfo();
   }
 
-  /**
-   * Get available compendium packs
-   */
   async getAvailablePacks() {
-    return Array.from(game.packs.values()).map(pack => ({
-      id: pack.metadata.id,
-      label: pack.metadata.label,
-      type: pack.metadata.type,
-      system: pack.metadata.system,
-      private: pack.metadata.private,
-    }));
+    return this.worldReads.getAvailablePacks();
   }
 
   /**
@@ -1289,11 +1225,6 @@ export class FoundryDataAccess {
    */
   private sanitizeData(data: any): any {
     return shared.sanitizeData(data);
-  }
-
-  /** Coerce a token disposition to a number (delegates to shared core). */
-  private getTokenDisposition(disposition: any): number {
-    return shared.getTokenDisposition(disposition);
   }
 
   /** Assert Foundry is ready with an active world + user (delegates to shared core). */
@@ -1313,86 +1244,15 @@ export class FoundryDataAccess {
 
   // ===== PHASE 2 & 3: WRITE OPERATIONS =====
 
-  /**
-   * Create journal entry for quests, with optional additional pages
-   */
   async createJournalEntry(request: {
     name: string;
     content: string;
     folderName?: string;
     additionalPages?: Array<{ name: string; content: string }>;
   }): Promise<{ id: string; name: string; pageCount: number }> {
-    this.validateFoundryState();
-
-    // Use permission system for journal creation
-    const permissionCheck = permissionManager.checkWritePermission('createActor', {
-      quantity: 1, // Treat journal creation similar to actor creation for permissions
-    });
-
-    if (!permissionCheck.allowed) {
-      throw new Error(`Journal creation denied: ${permissionCheck.reason}`);
-    }
-
-    try {
-      // Build pages array: main page + any additional pages
-      const pages: Array<{ type: string; name: string; text: { content: string } }> = [
-        {
-          type: 'text',
-          name: 'Quest Details',
-          text: {
-            content: request.content,
-          },
-        },
-      ];
-
-      if (request.additionalPages) {
-        for (const page of request.additionalPages) {
-          pages.push({
-            type: 'text',
-            name: page.name,
-            text: {
-              content: page.content,
-            },
-          });
-        }
-      }
-
-      // Create journal entry with proper Foundry v13 structure
-      const journalData = {
-        name: request.name,
-        pages,
-        ownership: { default: 0 }, // GM only by default
-        folder: await this.getOrCreateFolder(request.folderName || request.name, 'JournalEntry'),
-      };
-
-      const journal = await JournalEntry.create(journalData);
-
-      if (!journal) {
-        throw new Error('Failed to create journal entry');
-      }
-
-      const result = {
-        id: journal.id,
-        name: journal.name || request.name,
-        pageCount: pages.length,
-      };
-
-      this.auditLog('createJournalEntry', request, 'success');
-      return result;
-    } catch (error) {
-      this.auditLog(
-        'createJournalEntry',
-        request,
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw error;
-    }
+    return this.journals.createJournalEntry(request);
   }
 
-  /**
-   * List all journal entries with page metadata
-   */
   async listJournals(): Promise<
     Array<{
       id: string;
@@ -1402,25 +1262,9 @@ export class FoundryDataAccess {
       pages: Array<{ id: string; name: string; type: string }>;
     }>
   > {
-    this.validateFoundryState();
-
-    return game.journal.map((journal: any) => ({
-      id: journal.id || '',
-      name: journal.name || '',
-      type: 'JournalEntry',
-      pageCount: journal.pages?.size || 0,
-      pages:
-        journal.pages?.map((page: any) => ({
-          id: page.id || '',
-          name: page.name || '',
-          type: page.type || 'text',
-        })) || [],
-    }));
+    return this.journals.listJournals();
   }
 
-  /**
-   * Get journal entry content (first text page + page manifest)
-   */
   async getJournalContent(journalId: string): Promise<{
     content: string;
     currentPage?: { id: string; name: string } | undefined;
@@ -1428,158 +1272,23 @@ export class FoundryDataAccess {
     pageCount: number;
     note?: string | undefined;
   } | null> {
-    this.validateFoundryState();
-
-    const journal = game.journal.get(journalId);
-    if (!journal) {
-      return null;
-    }
-
-    const allPages =
-      journal.pages?.map((page: any) => ({
-        id: page.id || '',
-        name: page.name || '',
-        type: page.type || 'text',
-      })) || [];
-    const pageCount = allPages.length;
-
-    // Get first text page content
-    const firstPage = journal.pages.find((page: any) => page.type === 'text');
-    if (!firstPage) {
-      return { content: '', allPages, pageCount };
-    }
-
-    return {
-      content: firstPage.text?.content || '',
-      currentPage: { id: firstPage.id || '', name: firstPage.name || '' },
-      allPages,
-      pageCount,
-      note:
-        pageCount > 1
-          ? `This journal has ${pageCount} pages. Use list-journals with journalId and pageId to read other pages: ${allPages.map((p: any) => `"${p.name}" (${p.id})`).join(', ')}`
-          : undefined,
-    };
+    return this.journals.getJournalContent(journalId);
   }
 
-  /**
-   * Get a specific journal page's content by ID
-   */
   async getJournalPageContent(
     journalId: string,
     pageId: string
   ): Promise<{ id: string; name: string; type: string; content: string } | null> {
-    this.validateFoundryState();
-
-    const journal = game.journal.get(journalId);
-    if (!journal) {
-      return null;
-    }
-
-    const page = journal.pages.get(pageId);
-    if (!page) {
-      return null;
-    }
-
-    return {
-      id: page.id || '',
-      name: page.name || '',
-      type: page.type || 'text',
-      content: page.type === 'text' ? page.text?.content || '' : page.src || '',
-    };
+    return this.journals.getJournalPageContent(journalId, pageId);
   }
 
-  /**
-   * Update journal entry content
-   * - No pageId/newPageName: update first text page (backward compat)
-   * - With pageId: update that specific page
-   * - With newPageName (no pageId): create a new page
-   */
   async updateJournalContent(request: {
     journalId: string;
     content: string;
     pageId?: string | undefined;
     newPageName?: string | undefined;
   }): Promise<{ success: boolean; pageId?: string | undefined; pageName?: string | undefined }> {
-    this.validateFoundryState();
-
-    // Use permission system for journal updates - treating as createActor permission level
-    const permissionCheck = permissionManager.checkWritePermission('createActor', {
-      quantity: 1, // Treat journal updates similar to actor creation for permissions
-    });
-
-    if (!permissionCheck.allowed) {
-      throw new Error(`Journal update denied: ${permissionCheck.reason}`);
-    }
-
-    try {
-      const journal = game.journal.get(request.journalId);
-      if (!journal) {
-        throw new Error('Journal entry not found');
-      }
-
-      // Mode 1: Create a new page
-      if (request.newPageName) {
-        const created = await journal.createEmbeddedDocuments('JournalEntryPage', [
-          {
-            type: 'text',
-            name: request.newPageName,
-            text: {
-              content: request.content,
-            },
-          },
-        ]);
-        const newPage = created?.[0];
-        this.auditLog('updateJournalContent', request, 'success');
-        return { success: true, pageId: newPage?.id || '', pageName: request.newPageName };
-      }
-
-      // Mode 2: Update a specific page by ID
-      if (request.pageId) {
-        const page = journal.pages.get(request.pageId);
-        if (!page) {
-          throw new Error(`Page not found: ${request.pageId}`);
-        }
-        await page.update({
-          'text.content': request.content,
-        });
-        this.auditLog('updateJournalContent', request, 'success');
-        return { success: true, pageId: page.id, pageName: page.name };
-      }
-
-      // Mode 3: Update first text page or create one if none exists (backward compat)
-      const firstPage = journal.pages.find((page: any) => page.type === 'text');
-
-      if (firstPage) {
-        // Update existing page
-        await firstPage.update({
-          'text.content': request.content,
-        });
-        this.auditLog('updateJournalContent', request, 'success');
-        return { success: true, pageId: firstPage.id, pageName: firstPage.name };
-      } else {
-        // Create new text page
-        const created = await journal.createEmbeddedDocuments('JournalEntryPage', [
-          {
-            type: 'text',
-            name: 'Quest Details',
-            text: {
-              content: request.content,
-            },
-          },
-        ]);
-        const newPage = created?.[0];
-        this.auditLog('updateJournalContent', request, 'success');
-        return { success: true, pageId: newPage?.id || '', pageName: 'Quest Details' };
-      }
-    } catch (error) {
-      this.auditLog(
-        'updateJournalContent',
-        request,
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw error;
-    }
+    return this.journals.updateJournalContent(request);
   }
 
   /**
@@ -1979,10 +1688,6 @@ export class FoundryDataAccess {
     }
   }
 
-  /**
-   * List world-level Item documents from the Items sidebar.
-   * Optionally filters by type, folder (name or id), or a case-insensitive name substring.
-   */
   async listWorldItems(params: { type?: string; folder?: string; nameFilter?: string }): Promise<
     Array<{
       id: string;
@@ -1993,61 +1698,9 @@ export class FoundryDataAccess {
       folderName: string | null;
     }>
   > {
-    this.validateFoundryState();
-
-    const { type, folder, nameFilter } = params;
-    const nameLower = nameFilter ? nameFilter.toLowerCase() : null;
-
-    // Resolve folder filter to an id if a name/id was provided
-    let folderId: string | null = null;
-    if (folder && folder.trim().length > 0) {
-      const folderTrimmed = folder.trim();
-      const folderDoc =
-        (game as any).folders?.find(
-          (f: any) => f.type === 'Item' && (f.name === folderTrimmed || f.id === folderTrimmed)
-        ) ?? null;
-      if (!folderDoc) {
-        return [];
-      }
-      folderId = folderDoc.id;
-    }
-
-    const result: Array<{
-      id: string;
-      name: string;
-      type: string;
-      img?: string;
-      folderId: string | null;
-      folderName: string | null;
-    }> = [];
-
-    for (const item of (game as any).items) {
-      if (type && item.type !== type) continue;
-      if (folderId && item.folder?.id !== folderId) continue;
-      if (nameLower && !(item.name ?? '').toLowerCase().includes(nameLower)) continue;
-
-      result.push({
-        id: item.id ?? '',
-        name: item.name ?? '',
-        type: item.type,
-        ...(item.img ? { img: item.img } : {}),
-        folderId: item.folder?.id ?? null,
-        folderName: item.folder?.name ?? null,
-      });
-    }
-
-    return result;
+    return this.worldItems.listWorldItems(params);
   }
 
-  /**
-   * Update one or more existing world-level Item documents.
-   *
-   * Each entry must supply an `id` plus at least one field to change (name,
-   * img, system, folder). Uses Item.updateDocuments() for a single batched
-   * write. Folder may be supplied as a name or id; if a name is given that
-   * does not exist, it is created automatically (same behaviour as
-   * createWorldItems).
-   */
   async updateWorldItems(params: {
     updates: Array<{
       id: string;
@@ -2059,90 +1712,9 @@ export class FoundryDataAccess {
   }): Promise<{
     updated: Array<{ id: string; name: string; type: string }>;
   }> {
-    this.validateFoundryState();
-
-    const { updates } = params;
-
-    if (!Array.isArray(updates) || updates.length === 0) {
-      throw new Error('updates array is required and must contain at least one entry');
-    }
-
-    // Cache folder resolutions so we only look up / create each folder once
-    const folderCache = new Map<string, string>(); // folder param → folder id
-
-    const resolveFolderId = async (folder: string): Promise<string> => {
-      if (folderCache.has(folder)) return folderCache.get(folder)!;
-      const folderTrimmed = folder.trim();
-      let folderDoc =
-        (game as any).folders?.find(
-          (f: any) => f.type === 'Item' && (f.name === folderTrimmed || f.id === folderTrimmed)
-        ) ?? null;
-      if (!folderDoc) {
-        folderDoc = await (Folder as any).create({
-          name: folderTrimmed,
-          type: 'Item',
-          parent: null,
-        });
-      }
-      folderCache.set(folder, folderDoc.id);
-      return folderDoc.id;
-    };
-
-    const payload: Array<Record<string, any>> = [];
-
-    for (let idx = 0; idx < updates.length; idx++) {
-      const upd = updates[idx];
-      if (!upd || typeof upd.id !== 'string' || upd.id.trim().length === 0) {
-        throw new Error(`updates[${idx}]: "id" is required and must be a non-empty string`);
-      }
-
-      const item = (game as any).items?.get(upd.id);
-      if (!item) {
-        throw new Error(`updates[${idx}]: Item "${upd.id}" not found in world`);
-      }
-
-      const patch: Record<string, any> = { _id: upd.id };
-      if (upd.name !== undefined) patch.name = upd.name;
-      if (upd.img !== undefined) patch.img = upd.img;
-      if (upd.system !== undefined) patch.system = upd.system;
-      if (upd.folder !== undefined && upd.folder.trim().length > 0) {
-        patch.folder = await resolveFolderId(upd.folder.trim());
-      }
-
-      payload.push(patch);
-    }
-
-    try {
-      const updated = await (Item as any).updateDocuments(payload);
-
-      const result = {
-        updated: (updated || []).map((doc: any) => ({
-          id: doc.id,
-          name: doc.name,
-          type: doc.type,
-        })),
-      };
-
-      this.auditLog('updateWorldItems', { count: payload.length }, 'success');
-      return result;
-    } catch (error) {
-      this.auditLog(
-        'updateWorldItems',
-        { count: payload.length },
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw error;
-    }
+    return this.worldItems.updateWorldItems(params);
   }
 
-  /**
-   * Create one or more world-level Item documents (Items sidebar, not embedded on an actor).
-   *
-   * Uses Item.createDocuments() with no parent so items appear in the Foundry
-   * Items sidebar and can be dragged onto any actor sheet. Optionally places
-   * items inside a named/id-resolved folder, creating the folder if necessary.
-   */
   async createWorldItems(params: {
     items: Array<{
       name: string;
@@ -2156,88 +1728,7 @@ export class FoundryDataAccess {
     folderName: string | null;
     created: Array<{ id: string; name: string; type: string }>;
   }> {
-    this.validateFoundryState();
-
-    const { items, folder } = params;
-
-    if (!Array.isArray(items) || items.length === 0) {
-      throw new Error('items array is required and must contain at least one entry');
-    }
-
-    const itemDocTypes = (game as any).system?.documentTypes?.Item;
-    const validTypes: string[] | null =
-      itemDocTypes && typeof itemDocTypes === 'object' ? Object.keys(itemDocTypes) : null;
-
-    const payload = items.map((it, idx) => {
-      if (!it || typeof it.name !== 'string' || it.name.trim().length === 0) {
-        throw new Error(`items[${idx}]: "name" is required and must be a non-empty string`);
-      }
-      if (typeof it.type !== 'string' || it.type.trim().length === 0) {
-        throw new Error(`items[${idx}] ("${it.name}"): "type" is required`);
-      }
-      if (validTypes && !validTypes.includes(it.type)) {
-        throw new Error(
-          `items[${idx}] ("${it.name}"): unknown type "${it.type}" for system "${(game.system as any)?.id}". ` +
-            `Valid Item types: ${validTypes.join(', ')}`
-        );
-      }
-
-      const doc: Record<string, any> = { name: it.name, type: it.type };
-      if (it.img) doc.img = it.img;
-      if (it.system && typeof it.system === 'object') doc.system = it.system;
-      return doc;
-    });
-
-    // Resolve or create the target folder
-    let folderDoc: any = null;
-    if (folder && folder.trim().length > 0) {
-      const folderTrimmed = folder.trim();
-      folderDoc =
-        (game as any).folders?.find(
-          (f: any) => f.type === 'Item' && (f.name === folderTrimmed || f.id === folderTrimmed)
-        ) ?? null;
-
-      if (!folderDoc) {
-        folderDoc = await (Folder as any).create({
-          name: folderTrimmed,
-          type: 'Item',
-          parent: null,
-        });
-      }
-
-      for (const doc of payload) {
-        doc.folder = folderDoc.id;
-      }
-    }
-
-    try {
-      const created = await (Item as any).createDocuments(payload);
-
-      const result = {
-        folderId: folderDoc ? folderDoc.id : null,
-        folderName: folderDoc ? folderDoc.name : null,
-        created: (created || []).map((doc: any) => ({
-          id: doc.id,
-          name: doc.name,
-          type: doc.type,
-        })),
-      };
-
-      this.auditLog(
-        'createWorldItems',
-        { folder: folder ?? null, count: payload.length },
-        'success'
-      );
-      return result;
-    } catch (error) {
-      this.auditLog(
-        'createWorldItems',
-        { folder: folder ?? null, count: payload.length },
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw error;
-    }
+    return this.worldItems.createWorldItems(params);
   }
 
   /**
@@ -6149,34 +5640,13 @@ export class FoundryDataAccess {
   // 3A: Chat log / combat play-by-play / in-character chat
   // ===========================================================================
 
-  /**
-   * Return the buffered chat log captured by the EventTracker, with filters.
-   */
   async getChatLog(data: {
     limit?: number;
     speakerName?: string;
     messageType?: string;
     sinceTimestamp?: string;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    const filters: {
-      limit?: number;
-      speakerName?: string;
-      messageType?: string;
-      sinceTimestamp?: string;
-    } = {};
-    if (data.limit !== undefined) filters.limit = data.limit;
-    if (data.speakerName !== undefined) filters.speakerName = data.speakerName;
-    if (data.messageType !== undefined) filters.messageType = data.messageType;
-    if (data.sinceTimestamp !== undefined) filters.sinceTimestamp = data.sinceTimestamp;
-
-    const messages = eventTracker.getChatLog(filters);
-    return {
-      success: true,
-      count: messages.length,
-      messages,
-    };
+    return this.chat.getChatLog(data);
   }
 
   /**
@@ -6198,9 +5668,6 @@ export class FoundryDataAccess {
     );
   }
 
-  /**
-   * Post a chat message as a specific actor (or the GM/world).
-   */
   async sendChatMessage(data: {
     message: string;
     speakerActorId?: string;
@@ -6208,71 +5675,7 @@ export class FoundryDataAccess {
     messageType?: string;
     whisperTargets?: string[];
   }): Promise<any> {
-    this.validateFoundryState();
-
-    if (!data.message || typeof data.message !== 'string') {
-      throw new Error('message is required');
-    }
-
-    let actor: any = null;
-    if (data.speakerActorId) {
-      actor = game.actors?.get(data.speakerActorId) || null;
-    }
-    if (!actor && data.speakerActorName) {
-      actor = this.findActorByIdentifier(data.speakerActorName);
-    }
-
-    // getSpeaker takes {scene, actor, token, alias} — NOT {user}. For the
-    // GM/world voice, set the alias explicitly to the current user's name.
-    const speaker = actor
-      ? (ChatMessage as any).getSpeaker({ actor })
-      : (ChatMessage as any).getSpeaker({ alias: game.user?.name });
-
-    const type = (data.messageType || 'ic').toLowerCase();
-    const CMS: any = (CONST as any).CHAT_MESSAGE_STYLES || (CONST as any).CHAT_MESSAGE_TYPES || {};
-
-    let style = CMS.IC ?? 2;
-    if (type === 'ooc') style = CMS.OOC ?? 1;
-    else if (type === 'emote') style = CMS.EMOTE ?? 3;
-    else if (type === 'whisper') style = CMS.OTHER ?? 0;
-
-    let content = data.message;
-    if (type === 'emote') content = `<em>${data.message}</em>`;
-
-    let warning: string | null = null;
-    const whisper: string[] = [];
-    if (type === 'whisper') {
-      for (const name of Array.isArray(data.whisperTargets) ? data.whisperTargets : []) {
-        const user = game.users?.find(
-          (u: any) => u.name?.toLowerCase() === String(name).toLowerCase()
-        );
-        if (user?.id) whisper.push(user.id);
-      }
-      // SAFETY: never let a "whisper" become a public message. If no targets
-      // resolved, fall back to whispering to the GM(s) and report it.
-      if (whisper.length === 0) {
-        const gmIds = (game.users?.filter((u: any) => u.isGM) ?? [])
-          .map((u: any) => u.id)
-          .filter(Boolean);
-        whisper.push(...gmIds);
-        warning =
-          'No whisper targets resolved; message was whispered to the GM(s) to avoid posting it publicly.';
-      }
-    }
-
-    const messageData: any = { content, speaker, style };
-    if (whisper.length > 0) messageData.whisper = whisper;
-
-    const created: any = await (ChatMessage as any).create(messageData);
-
-    return {
-      success: true,
-      messageId: created?.id ?? null,
-      speaker: speaker?.alias ?? null,
-      messageType: type,
-      whisperedTo: whisper.length > 0 ? (data.whisperTargets ?? []) : [],
-      ...(warning ? { warning } : {}),
-    };
+    return this.chat.sendChatMessage(data);
   }
 
   // ===========================================================================
@@ -6972,49 +6375,15 @@ export class FoundryDataAccess {
     eventType?: string;
     actorName?: string;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    const filters: { limit?: number; eventType?: string; actorName?: string } = {};
-    if (data.limit !== undefined) filters.limit = data.limit;
-    if (data.eventType !== undefined) filters.eventType = data.eventType;
-    if (data.actorName !== undefined) filters.actorName = data.actorName;
-
-    const events = eventTracker.getSessionLog(filters);
-    return {
-      success: true,
-      count: events.length,
-      events,
-    };
+    return this.sessionLog.getSessionLog(data);
   }
 
-  /**
-   * Low-latency "what happened since timestamp X" delta over the tracked events.
-   * Returns `latestTimestamp` so a caller can poll incrementally by passing it
-   * back as `sinceTimestamp` on the next call.
-   */
   async getRecentEvents(data: {
     sinceTimestamp?: string;
     limit?: number;
     eventType?: string;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    const filters: { sinceTimestamp?: string; limit?: number; eventType?: string } = {};
-    if (data.sinceTimestamp !== undefined) filters.sinceTimestamp = data.sinceTimestamp;
-    if (data.limit !== undefined) filters.limit = data.limit;
-    if (data.eventType !== undefined) filters.eventType = data.eventType;
-
-    const events = eventTracker.getSessionLog(filters);
-    const latestTimestamp =
-      events.length > 0 ? events[events.length - 1]!.timestamp : (data.sinceTimestamp ?? null);
-
-    return {
-      success: true,
-      count: events.length,
-      events,
-      latestTimestamp,
-      serverTime: new Date().toISOString(),
-    };
+    return this.sessionLog.getRecentEvents(data);
   }
 
   // ===========================================================================
@@ -7924,135 +7293,24 @@ export class FoundryDataAccess {
   // Diagnostics (module troubleshooting)
   // ===========================================================================
 
-  /**
-   * Inventory of installed modules with versions, active state, compatibility,
-   * dependency satisfaction, and an `issues` list — plus core/system versions.
-   */
   async getModules(data: { activeOnly?: boolean; withIssuesOnly?: boolean }): Promise<any> {
-    this.validateFoundryState();
-
-    const fu = (globalThis as any).foundry?.utils;
-    const isNewer = (a: any, b: any): boolean => {
-      try {
-        return !!(a && b && fu?.isNewerVersion?.(a, b));
-      } catch {
-        return false;
-      }
-    };
-
-    const sys = game.system as any;
-    const coreVer = game.version;
-
-    const all = Array.from((game.modules as any).values()).map((m: any) => {
-      const issues: string[] = [];
-      const rel = m.relationships || {};
-      const requiresRaw = Array.from(rel.requires ?? []);
-      const requires = requiresRaw.map((r: any) => {
-        const depId = r.id ?? r;
-        const dep = (game.modules as any).get(depId) || (depId === sys?.id ? sys : null);
-        const installed = !!dep;
-        const active = dep?.active ?? (depId === sys?.id ? true : null);
-        if (!installed) issues.push(`missing required dependency: ${depId}`);
-        else if (active === false) issues.push(`required dependency inactive: ${depId}`);
-        return { id: depId, installed, active, version: dep?.version ?? null };
-      });
-
-      const comp = m.compatibility || {};
-      if (comp.maximum && isNewer(coreVer, comp.maximum)) {
-        issues.push(`may be incompatible: declares max core ${comp.maximum}, running ${coreVer}`);
-      }
-      if (comp.minimum && isNewer(comp.minimum, coreVer)) {
-        issues.push(`may be incompatible: declares min core ${comp.minimum}, running ${coreVer}`);
-      }
-
-      return {
-        id: m.id,
-        title: m.title,
-        version: m.version,
-        active: m.active,
-        compatibility: {
-          minimum: comp.minimum ?? null,
-          verified: comp.verified ?? null,
-          maximum: comp.maximum ?? null,
-        },
-        requires,
-        issues,
-      };
-    });
-
-    let modules = all;
-    if (data.activeOnly) modules = modules.filter(m => m.active);
-    if (data.withIssuesOnly) modules = modules.filter(m => m.issues.length > 0);
-
-    return {
-      success: true,
-      foundryVersion: coreVer,
-      system: { id: sys?.id ?? null, version: sys?.version ?? null },
-      moduleCount: modules.length,
-      activeCount: all.filter(m => m.active).length,
-      modulesWithIssues: all.filter(m => m.issues.length > 0).length,
-      modules,
-    };
+    return this.modules.getModules(data);
   }
 
-  /**
-   * Captured runtime errors/warnings (from the diagnostics buffer), with filters.
-   * Includes a triage summary of counts by module and level.
-   */
   async getModuleErrors(data: {
     level?: 'error' | 'warn';
     moduleId?: string;
     sinceTimestamp?: string;
     limit?: number;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    const filters: {
-      level?: 'error' | 'warn';
-      moduleId?: string;
-      sinceTimestamp?: string;
-      limit?: number;
-    } = {};
-    if (data.level !== undefined) filters.level = data.level;
-    if (data.moduleId !== undefined) filters.moduleId = data.moduleId;
-    if (data.sinceTimestamp !== undefined) filters.sinceTimestamp = data.sinceTimestamp;
-    if (data.limit !== undefined) filters.limit = data.limit;
-
-    const errors = diagnostics.getErrors(filters);
-    return {
-      success: true,
-      count: errors.length,
-      summary: diagnostics.summary(),
-      errors,
-    };
+    return this.modules.getModuleErrors(data);
   }
 
-  /** Clear the captured diagnostics buffer. */
   async clearModuleErrors(): Promise<any> {
-    this.validateFoundryState();
-    const cleared = diagnostics.clear();
-    return { success: true, cleared };
+    return this.modules.clearModuleErrors();
   }
 
-  /** Full manifest of a single installed module, for deeper inspection. */
   async getModuleManifest(data: { moduleId: string }): Promise<any> {
-    this.validateFoundryState();
-    const m = (game.modules as any).get(data.moduleId);
-    if (!m) throw new Error(`Module not found: ${data.moduleId}`);
-    return {
-      success: true,
-      manifest: {
-        id: m.id,
-        title: m.title,
-        version: m.version,
-        active: m.active,
-        compatibility: this.sanitizeData(m.compatibility),
-        relationships: this.sanitizeData(m.relationships),
-        authors: this.sanitizeData(m.authors),
-        description: m.description,
-        url: m.url,
-        flags: this.sanitizeData(m.flags),
-      },
-    };
+    return this.modules.getModuleManifest(data);
   }
 }

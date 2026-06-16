@@ -146,6 +146,20 @@ Run after **every** stage: `npx vitest run packages/foundry-module` (377 tests) 
       keeps thin `shared.*` delegating wrappers so its ~193 call sites are untouched. `data-access.ts`
       8,326 → 8,058 lines; 377 tests + typecheck + build green. (R3 domains import `shared.ts`
       directly; the facade wrappers get removed by attrition as their last callers move out.)
-- [ ] R3 — domain modules (16 modules; see order above).
+- [~] R3 — domain modules (16 modules; see order above).
+  - [x] **Batch 1 (6 leaf domains, Sonnet fan-out):** `modules`, `session-log`, `world-reads`,
+        `journals`, `world-items`, `chat` — all confirmed to depend only on `shared.ts` (zero
+        cross-domain calls). Each extracted to a handler class (`ModulesDataAccess`,
+        `SessionLogDataAccess`, `WorldReadsDataAccess`, `JournalDataAccess`, `WorldItemsDataAccess`,
+        `ChatDataAccess`); facade delegates via a field per domain. Dropped the now-dead
+        `getTokenDisposition` facade wrapper + `diagnostics` import. `data-access.ts` 8,058 → 7,316
+        lines; 377 tests + typecheck + build green. (`chat` skipped the interleaved
+        `getCombatPlayByPlay`, which stays with `combat`.)
+  - [ ] **Batch 2+ (remaining 10):** `ownership-players`, `scenes-tokens`, `scene-fx`,
+        `resources-effects`, `compendium`, `characters`, `combat`, `actor-creation`, `actor-builder`,
+        `player-rolls`. These have more cross-domain edges / shared roll-state (`player-rolls` owns
+        `rollButtonProcessingStates`); scan each for cross-domain calls before fan-out and inject
+        per the cross-domain protocol above. When the last facade method that calls a `shared.*`
+        wrapper moves out, drop that wrapper too (as done for `getTokenDisposition`).
 
 Each stage = its own commit, `refactor(phase9): ...`, all suites green.

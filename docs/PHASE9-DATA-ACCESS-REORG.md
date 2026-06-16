@@ -139,7 +139,13 @@ Run after **every** stage: `npx vitest run packages/foundry-module` (377 tests) 
 - [x] Architecture decided; this doc.
 - [x] R1 — foundation (`types` / `dnd5e-tables` / `creature-index`). `data-access.ts` 9,503 → 8,326
       lines; 377 tests + typecheck + build green; lint-neutral (byte-identical slice).
-- [ ] R2 — `shared.ts` core.
+- [x] R2 — `shared.ts` core. 13 stateless helpers lifted to free functions (`sanitizeData` +
+      `removeSensitiveFields` + `isSensitiveOrProblematicField` + `safeJSONStringify`,
+      `getTokenDisposition`, `validateFoundryState`, `auditLog`, `findActorByIdentifier`,
+      `resolveTargetActor`, `getOrCreateFolder`, `systemMajor`, `requireDnd5e`, `rollModeFor`); facade
+      keeps thin `shared.*` delegating wrappers so its ~193 call sites are untouched. `data-access.ts`
+      8,326 → 8,058 lines; 377 tests + typecheck + build green. (R3 domains import `shared.ts`
+      directly; the facade wrappers get removed by attrition as their last callers move out.)
 - [ ] R3 — domain modules (16 modules; see order above).
 
 Each stage = its own commit, `refactor(phase9): ...`, all suites green.

@@ -194,10 +194,20 @@ Run after **every** stage: `npx vitest run packages/foundry-module` (377 tests) 
         `this.` callers moved out) and the `eventTracker` import (combat was its last facade user).
         `requireDnd5e` + `systemMajor` wrappers stay (still called by not-yet-extracted actor-builder).
         `data-access.ts` 4,675 → 4,271 lines; 377 tests + typecheck + build green.
-  - [ ] **Batch 6+ (remaining 3):** `actor-creation`, `actor-builder`, `player-rolls`.
-        `player-rolls` owns the `rollButtonProcessingStates` Map. `actor-creation` calls
-        `getCompendiumDocumentFull` + `searchCompendium` (compendium, now extracted) — **inject**
-        `compendium`. Scan each for cross-domain calls before fan-out.
+  - [x] **Batch 6 (1 domain, `actor-creation`):** `ActorCreationDataAccess`:
+        createActorFromCompendium / createActorFromCompendiumEntry / addActorItems / addActorsToScene +
+        private findBestCompendiumMatch / createActorFromSource / calculateTokenPosition. Cross-domain
+        edge: it calls `getCompendiumDocumentFull` + `searchCompendium` (compendium) — `compendium` is
+        **injected** via ctor (`new ActorCreationDataAccess(this.compendium)`), and those two call sites
+        were rewritten to `this.compendium.*`. Otherwise `shared.*`
+        (auditLog/validateFoundryState/findActorByIdentifier/getOrCreateFolder) + `permissionManager` +
+        `transactionManager`. Dropped now-dead facade pieces: the `transactionManager` import
+        (actor-creation was its last facade user) and the now-unused `CreatedActorInfo` type import.
+        `data-access.ts` 4,271 → 3,687 lines; 377 tests + typecheck + build green.
+  - [ ] **Batch 7+ (remaining 2):** `actor-builder`, `player-rolls`. `actor-builder` is the large one
+        (11 methods, imports `dnd5e-tables.ts`); `player-rolls` owns the `rollButtonProcessingStates`
+        Map + roll-button helpers. Both depend only on `shared.*` + same-domain (no cross-domain
+        method edges). Scan each before fan-out.
 
 > **Assembly hazard (learned in batch 2):** the R2 `shared.*` delegating wrappers
 > (`findActorByIdentifier`, `resolveTargetActor`, `systemMajor`, `requireDnd5e`, `rollModeFor`,

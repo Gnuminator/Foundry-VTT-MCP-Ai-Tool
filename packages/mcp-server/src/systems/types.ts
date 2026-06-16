@@ -146,35 +146,6 @@ export interface SystemAdapter {
 }
 
 /**
- * Index Builder Interface
- *
- * Handles building the enhanced creature index in Foundry's browser context.
- * Separate from SystemAdapter because this runs in Foundry module (browser),
- * while SystemAdapter runs in MCP server (Node.js).
- */
-export interface IndexBuilder {
-  /**
-   * Get the system ID this builder handles
-   */
-  getSystemId(): SystemId;
-
-  /**
-   * Build enhanced creature index from compendium packs
-   * @param packs - Array of compendium packs to index
-   * @param force - Force rebuild even if cache exists
-   * @returns Array of indexed creatures
-   */
-  buildIndex(packs: any[], force?: boolean): Promise<SystemCreatureIndex[]>;
-
-  /**
-   * Extract creature data from a single compendium pack
-   * @param pack - Compendium pack to process
-   * @returns Creatures and error count
-   */
-  extractDataFromPack(pack: any): Promise<{ creatures: SystemCreatureIndex[]; errors: number }>;
-}
-
-/**
  * D&D 5e specific creature index structure
  */
 export interface DnD5eCreatureIndex extends SystemCreatureIndex {
@@ -191,16 +162,3 @@ export interface DnD5eCreatureIndex extends SystemCreatureIndex {
     armorClass?: number;
   };
 }
-
-/**
- * Generic creature index for unsupported systems
- */
-export interface GenericCreatureIndex extends SystemCreatureIndex {
-  system: 'other';
-  systemData: Record<string, any>;
-}
-
-/**
- * Union type of all creature index types
- */
-export type AnyCreatureIndex = DnD5eCreatureIndex | GenericCreatureIndex;

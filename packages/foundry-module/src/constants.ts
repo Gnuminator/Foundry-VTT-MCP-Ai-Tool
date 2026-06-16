@@ -4,18 +4,6 @@
  * Module constants
  */
 export const MODULE_ID = 'foundry-mcp-bridge';
-export const MODULE_TITLE = 'Foundry MCP Bridge';
-
-/**
- * Socket event names
- */
-export const SOCKET_EVENTS = {
-  MCP_QUERY: 'mcp-query',
-  MCP_RESPONSE: 'mcp-response',
-  BRIDGE_STATUS: 'bridge-status',
-  PING: 'ping',
-  PONG: 'pong',
-} as const;
 
 /**
  * Default configuration values

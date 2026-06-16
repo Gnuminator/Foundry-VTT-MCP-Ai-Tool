@@ -48,17 +48,8 @@ export class CharacterDataAccess {
       effects: actor.effects.map(effect => this.summarizeEffect(effect)),
     };
 
-    // Actor-level actions (strikes/activities in systems that expose them).
-    const actions = this.extractActions(actor);
-    if (actions) {
-      characterData.actions = actions;
-    }
-
-    // Rule-element variants/toggles + the dnd5e equipped toggle.
-    const { variants, toggles } = this.extractItemRulesAndToggles(actor);
-    if (variants.length > 0) {
-      characterData.itemVariants = variants;
-    }
+    // dnd5e equipped-item toggles.
+    const toggles = this.extractEquippedToggles(actor);
     if (toggles.length > 0) {
       characterData.itemToggles = toggles;
     }
@@ -127,7 +118,6 @@ export class CharacterDataAccess {
       throw new Error(`Character not found: ${characterIdentifier}`);
     }
 
-    const actorAny = actor;
     const systemId = (game.system as any).id;
     const matches: Array<any> = [];
 
@@ -167,23 +157,6 @@ export class CharacterDataAccess {
       }
 
       matches.push(result);
-    }
-
-    // --- Actions (when no type filter, or type === 'action') ---
-    if (!searchType || searchType === 'action') {
-      const actions =
-        actorAny.system?.actions || actorAny.items?.filter((i: any) => i.type === 'action') || [];
-      for (const action of actions) {
-        if (matches.length >= limit) break;
-        const actionName = action.name || action.label || '';
-        if (!matchesQuery(actionName)) continue;
-        matches.push({
-          id: action.id || action.slug || actionName,
-          name: actionName,
-          type: 'action',
-          actionType: action.type || action.actionType || 'action',
-        });
-      }
     }
 
     // --- Effects (when no type filter, or type === 'effect') ---
@@ -322,68 +295,15 @@ export class CharacterDataAccess {
     };
   }
 
-  /** Actor-level actions (e.g. strikes), or `undefined` when none are present. */
-  private extractActions(actor: any): any[] | undefined {
-    const actions = actor.system?.actions;
-    if (!actions) return undefined;
-
-    return actions.map((action: any) => ({
-      name: action.label || action.name,
-      type: action.type,
-      ...(action.item ? { itemId: action.item.id } : {}),
-      ...(action.variants
-        ? {
-            variants: action.variants.map((v: any) => ({
-              label: v.label,
-              ...(v.traits ? { traits: v.traits } : {}),
-            })),
-          }
-        : {}),
-      ...(action.ready !== undefined ? { ready: action.ready } : {}),
-    }));
-  }
-
   /**
-   * Collect item rule-element variants/toggles plus the dnd5e equipped toggle.
-   * Variants: ChoiceSet or choice-bearing RollOption rules. Toggles: toggleable
-   * RollOption / ToggleProperty rules, and any item exposing `system.equipped`.
+   * dnd5e equipped-item toggles: any item exposing `system.equipped` is reported
+   * as a toggle carrying its current equipped state.
    */
-  private extractItemRulesAndToggles(actor: any): { variants: any[]; toggles: any[] } {
-    const variants: any[] = [];
+  private extractEquippedToggles(actor: any): any[] {
     const toggles: any[] = [];
 
     actor.items.forEach((item: any) => {
       const sys = item.system;
-
-      if (sys?.rules) {
-        sys.rules.forEach((rule: any, ruleIndex: number) => {
-          if (rule.key === 'ChoiceSet' || (rule.key === 'RollOption' && rule.choices)) {
-            variants.push({
-              itemId: item.id,
-              itemName: item.name,
-              ruleIndex,
-              ruleKey: rule.key,
-              label: rule.label || rule.prompt,
-              ...(rule.selection ? { selected: rule.selection } : {}),
-              ...(rule.choices ? { choices: rule.choices } : {}),
-            });
-          }
-
-          if ((rule.key === 'RollOption' && rule.toggleable) || rule.key === 'ToggleProperty') {
-            toggles.push({
-              itemId: item.id,
-              itemName: item.name,
-              ruleIndex,
-              ruleKey: rule.key,
-              label: rule.label,
-              option: rule.option,
-              ...(rule.value !== undefined ? { enabled: rule.value } : {}),
-              ...(rule.toggleable !== undefined ? { toggleable: rule.toggleable } : {}),
-            });
-          }
-        });
-      }
-
       if (sys?.equipped !== undefined) {
         toggles.push({
           itemId: item.id,
@@ -394,7 +314,7 @@ export class CharacterDataAccess {
       }
     });
 
-    return { variants, toggles };
+    return toggles;
   }
 
   // ===== searchCharacterItems internals =====

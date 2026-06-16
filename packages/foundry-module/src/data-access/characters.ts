@@ -248,16 +248,44 @@ export class CharacterDataAccess {
 
   // ===== getCharacterInfo internals =====
 
-  /** Resolve an actor: 16-char identifier as id first, else exact name (ci). */
+  /**
+   * Resolve an actor by identifier, forgivingly. Order:
+   *   1. a 16-character identifier is tried as an actor id;
+   *   2. exact name match (case-insensitive) — wins even with duplicate names
+   *      (returns the first), preserving the original behavior;
+   *   3. a *unique* case-insensitive partial (substring) match — so "Silvera"
+   *      resolves to "Silvera Frostmantle" without the caller knowing the full name;
+   *   4. if a partial matches more than one actor it's ambiguous: throw a
+   *      "did you mean …" error listing the candidates (name + id) so the caller
+   *      can disambiguate with the full name or the id;
+   *   5. otherwise `CHARACTER_NOT_FOUND`.
+   */
   private resolveActorById16OrName(identifier: string): Actor {
-    let actor = identifier.length === 16 ? game.actors.get(identifier) : undefined;
-    if (!actor) {
-      actor = game.actors.find(a => a.name?.toLowerCase() === identifier.toLowerCase());
+    if (identifier.length === 16) {
+      const byId = game.actors.get(identifier);
+      if (byId) return byId;
     }
-    if (!actor) {
-      throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${identifier}`);
+
+    const needle = identifier.toLowerCase();
+
+    const exact = game.actors.find(a => a.name?.toLowerCase() === needle);
+    if (exact) return exact;
+
+    const partial = game.actors.filter(a => a.name?.toLowerCase().includes(needle) ?? false);
+    if (partial.length === 1) return partial[0]!;
+    if (partial.length > 1) {
+      const shown = partial
+        .slice(0, 10)
+        .map(a => `${a.name} (${a.id})`)
+        .join(', ');
+      const more = partial.length > 10 ? `, …(+${partial.length - 10} more)` : '';
+      throw new Error(
+        `Multiple characters match "${identifier}": ${shown}${more}. ` +
+          `Use the exact name or the 16-character id.`
+      );
     }
-    return actor;
+
+    throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${identifier}`);
   }
 
   /** Item summary for the dossier: identity + sanitized system data. */

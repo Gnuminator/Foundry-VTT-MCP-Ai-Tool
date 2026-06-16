@@ -341,16 +341,22 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > to resume). Done so far, each a green commit (377 tests + typecheck + build throughout):
 > **(1) `transaction-manager` rewritten to parity** from first principles behind its 25-test net
 > (same contract + pinned error strings; ledger model + typed revert dispatch). **(2) Reorg R1–R2 +
-> R3 batches 1–2:** `FoundryDataAccess` is now a **facade** delegating to a `data-access/` package —
-> `types.ts`, `dnd5e-tables.ts`, `creature-index.ts` (`PersistentCreatureIndex`), `shared.ts` (14
-> stateless cross-cutting helpers as free functions), and **8 of 16 domain modules** extracted via
-> parallel Sonnet workers: `modules`, `session-log`, `world-reads`, `journals`, `world-items`, `chat`
-> (batch 1) + `ownership-players`, `resources-effects` (batch 2). `data-access.ts` **9,503 → 6,751
-> lines**; the public surface + all 18 test files + `queries.ts` are unchanged. **Remaining 8 domains**
-> (batch 3+, the entangled/large ones): `scenes-tokens`+`scene-fx` (interleaved → do together),
-> `compendium` (inject `persistentIndex`), `characters`, `combat`, `actor-creation`, `actor-builder`,
-> `player-rolls` (owns `rollButtonProcessingStates`). Recipe + the interleaved-wrapper assembly hazard
-> are documented in the reorg doc.
+> R3 COMPLETE (all 16 domains, 2026‑06‑16):** `FoundryDataAccess` is now a thin **facade** delegating
+> to a `data-access/` package — `types.ts`, `dnd5e-tables.ts`, `creature-index.ts`
+> (`PersistentCreatureIndex`), `shared.ts` (cross-cutting helpers as free functions), and **all 16
+> domain modules** extracted via parallel Sonnet workers, each a green commit (377 tests + typecheck +
+> build throughout): `modules`, `session-log`, `world-reads`, `journals`, `world-items`, `chat` (b1);
+> `ownership-players`, `resources-effects` (b2); `characters`, `scenes-tokens`, `scene-fx` (b3);
+> `compendium` (b4, injects `persistentIndex`); `combat` (b5); `actor-creation` (b6, injects
+> `compendium`); `actor-builder` (b7); `player-rolls` (b8, owns `rollButtonProcessingStates`). Every
+> moved method body is **byte-identical** to the original after the mechanical `this.<helper>` →
+> `shared.<helper>` / `this.moduleId` → `MODULE_ID` rewrites (verified per batch). Cross-domain edges
+> were injected via ctor; all but the public `validateFoundryState` shared wrapper were dropped as their
+> last facade callers moved out. `data-access.ts` **9,503 → 935 lines** (8,568 lines moved into the
+> package); the facade itself is now **0 lint errors** (was ~44; the verbatim debt rode out with the
+> moved bodies). The public surface + all 18 `data-access.*.test.ts` files + `queries.ts` are unchanged.
+> Full suite green (1485 tests). Next under Phase 9: the deeper from-scratch domain rewrites — now
+> unblocked, since each domain is its own module with explicit dependencies.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

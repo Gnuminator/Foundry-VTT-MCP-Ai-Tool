@@ -18,7 +18,15 @@ import {
   WARLOCK_PACT_TABLE,
 } from './dnd5e-tables.js';
 
-/** Actor-builder domain — extracted from FoundryDataAccess. */
+/**
+ * Actor-builder domain (D&D 5e). Builds and populates combat-ready actors: NPC
+ * stat blocks, weapon/feat activities (attack, attack+save, aura, save, passive),
+ * spellcasting slot tables, and compendium spell/feature imports, plus using an
+ * item or an NPC activity. Most builders emit large dnd5e item-schema literals
+ * verified field-for-field against real dnd5e output — those literals are the
+ * spec and are kept verbatim; the shared boilerplate (system guard, dup check,
+ * compendium import, error formatting) is factored into the helpers below.
+ */
 export class ActorBuilderDataAccess {
   /**
    * Use an item on a character (cast spell, use ability, consume item, etc.)
@@ -222,12 +230,10 @@ export class ActorBuilderDataAccess {
           itemId: item.id,
         },
         'failure',
-        error instanceof Error ? error.message : 'Unknown error'
+        this.errorMessage(error)
       );
 
-      throw new Error(
-        `Failed to use item "${item.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      throw new Error(`Failed to use item "${item.name}": ${this.errorMessage(error)}`);
     }
   }
 
@@ -385,7 +391,7 @@ export class ActorBuilderDataAccess {
         'addSaveFeatureToActor',
         { actorIdentifier: data.actorIdentifier, featureName: data.featureName },
         'failure',
-        error instanceof Error ? error.message : 'Unknown error'
+        this.errorMessage(error)
       );
       throw error;
     }
@@ -588,12 +594,7 @@ export class ActorBuilderDataAccess {
       };
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to create NPC actor`, error);
-      shared.auditLog(
-        'createNpcActor',
-        { name: data.name },
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
+      shared.auditLog('createNpcActor', { name: data.name }, 'failure', this.errorMessage(error));
       throw error;
     }
   }
@@ -605,9 +606,7 @@ export class ActorBuilderDataAccess {
   async addAttackToActor(data: any): Promise<any> {
     shared.validateFoundryState();
 
-    if ((game.system as any).id !== 'dnd5e') {
-      throw new Error('addAttackToActor requires the dnd5e game system');
-    }
+    shared.requireDnd5e('addAttackToActor');
 
     try {
       // 1. Resolve actor
@@ -617,15 +616,7 @@ export class ActorBuilderDataAccess {
       }
 
       // 2. Duplicate check
-      const existing = actor.items.find(
-        (i: any) => i.name.toLowerCase() === data.featureName.toLowerCase()
-      );
-      if (existing) {
-        throw new Error(
-          `An item named "${data.featureName}" already exists on actor "${actor.name}". ` +
-            `Remove or rename it first.`
-        );
-      }
+      this.requireNoExistingItem(actor, data.featureName);
 
       // 3. Soft validation — collect warnings, never block
       const warnings: string[] = [];
@@ -826,7 +817,7 @@ export class ActorBuilderDataAccess {
         'addAttackToActor',
         { actorIdentifier: data.actorIdentifier, featureName: data.featureName },
         'failure',
-        error instanceof Error ? error.message : 'Unknown error'
+        this.errorMessage(error)
       );
       throw error;
     }
@@ -840,9 +831,7 @@ export class ActorBuilderDataAccess {
   async addAuraToActor(data: any): Promise<any> {
     shared.validateFoundryState();
 
-    if ((game.system as any).id !== 'dnd5e') {
-      throw new Error('addAuraToActor requires the dnd5e game system');
-    }
+    shared.requireDnd5e('addAuraToActor');
 
     try {
       // 1. Resolve actor
@@ -852,15 +841,7 @@ export class ActorBuilderDataAccess {
       }
 
       // 2. Duplicate check (case-insensitive name match)
-      const existing = actor.items.find(
-        (i: any) => i.name.toLowerCase() === data.featureName.toLowerCase()
-      );
-      if (existing) {
-        throw new Error(
-          `An item named "${data.featureName}" already exists on actor "${actor.name}". ` +
-            `Remove or rename it first.`
-        );
-      }
+      this.requireNoExistingItem(actor, data.featureName);
 
       // 3. Soft validation — collect warnings, never block
       const warnings: string[] = [];
@@ -1004,7 +985,7 @@ export class ActorBuilderDataAccess {
         'addAuraToActor',
         { actorIdentifier: data.actorIdentifier, featureName: data.featureName },
         'failure',
-        error instanceof Error ? error.message : 'Unknown error'
+        this.errorMessage(error)
       );
       throw error;
     }
@@ -1018,9 +999,7 @@ export class ActorBuilderDataAccess {
   async addPassiveFeatureToActor(data: any): Promise<any> {
     shared.validateFoundryState();
 
-    if ((game.system as any).id !== 'dnd5e') {
-      throw new Error('addPassiveFeatureToActor requires the dnd5e game system');
-    }
+    shared.requireDnd5e('addPassiveFeatureToActor');
 
     try {
       // 1. Resolve actor
@@ -1030,15 +1009,7 @@ export class ActorBuilderDataAccess {
       }
 
       // 2. Duplicate check (case-insensitive)
-      const existing = actor.items.find(
-        (i: any) => i.name.toLowerCase() === data.featureName.toLowerCase()
-      );
-      if (existing) {
-        throw new Error(
-          `An item named "${data.featureName}" already exists on actor "${actor.name}". ` +
-            `Remove or rename it first.`
-        );
-      }
+      this.requireNoExistingItem(actor, data.featureName);
 
       // 3. Slug identifier
       const identifier = slugify(data.featureName as string);
@@ -1097,7 +1068,7 @@ export class ActorBuilderDataAccess {
         'addPassiveFeatureToActor',
         { actorIdentifier: data.actorIdentifier, featureName: data.featureName },
         'failure',
-        error instanceof Error ? error.message : 'Unknown error'
+        this.errorMessage(error)
       );
       throw error;
     }
@@ -1112,9 +1083,7 @@ export class ActorBuilderDataAccess {
   async addAttackWithSaveToActor(data: any): Promise<any> {
     shared.validateFoundryState();
 
-    if ((game.system as any).id !== 'dnd5e') {
-      throw new Error('addAttackWithSaveToActor requires the dnd5e game system');
-    }
+    shared.requireDnd5e('addAttackWithSaveToActor');
 
     try {
       // 1. Resolve actor
@@ -1124,15 +1093,7 @@ export class ActorBuilderDataAccess {
       }
 
       // 2. Duplicate check
-      const existing = actor.items.find(
-        (i: any) => i.name.toLowerCase() === data.featureName.toLowerCase()
-      );
-      if (existing) {
-        throw new Error(
-          `An item named "${data.featureName}" already exists on actor "${actor.name}". ` +
-            `Remove or rename it first.`
-        );
-      }
+      this.requireNoExistingItem(actor, data.featureName);
 
       // 3. Soft validation — both damage groups unified
       const warnings: string[] = [];
@@ -1375,7 +1336,7 @@ export class ActorBuilderDataAccess {
         'addAttackWithSaveToActor',
         { actorIdentifier: data.actorIdentifier, featureName: data.featureName },
         'failure',
-        error instanceof Error ? error.message : 'Unknown error'
+        this.errorMessage(error)
       );
       throw error;
     }
@@ -1388,9 +1349,7 @@ export class ActorBuilderDataAccess {
   async setActorSpellcasting(data: any): Promise<any> {
     shared.validateFoundryState();
 
-    if ((game.system as any).id !== 'dnd5e') {
-      throw new Error('setActorSpellcasting requires the dnd5e game system');
-    }
+    shared.requireDnd5e('setActorSpellcasting');
 
     try {
       // 1. Resolve actor
@@ -1481,7 +1440,7 @@ export class ActorBuilderDataAccess {
         'setActorSpellcasting',
         { actorIdentifier: data.actorIdentifier, spellcastingClass: data.spellcastingClass },
         'failure',
-        error instanceof Error ? error.message : 'Unknown error'
+        this.errorMessage(error)
       );
       throw error;
     }
@@ -1492,179 +1451,16 @@ export class ActorBuilderDataAccess {
   // ---------------------------------------------------------------------------
 
   async addSpellsToActor(data: any): Promise<any> {
-    shared.validateFoundryState();
-
-    if ((game.system as any).id !== 'dnd5e') {
-      throw new Error('addSpellsToActor requires the dnd5e game system');
-    }
-
-    try {
-      // 1. Resolve actor
-      const actor = shared.findActorByIdentifier(data.actorIdentifier);
-      if (!actor) {
-        throw new Error(`Actor not found: "${data.actorIdentifier}"`);
-      }
-
-      const spellNames: string[] = data.spellNames;
-      const compendiumPacks: string[] = data.compendiumPacks ?? ['dnd5e.spells'];
-      const warnings: string[] = [];
-
-      // ── Phase A: deduplicate input (case-insensitive) ─────────────────────
-      const seen = new Set<string>();
-      const unique: string[] = [];
-      const skipped: Array<{ name: string; reason: string }> = [];
-
-      for (const name of spellNames) {
-        const key = name.toLowerCase();
-        if (seen.has(key)) {
-          skipped.push({ name, reason: 'duplicate in input' });
-        } else {
-          seen.add(key);
-          unique.push(name);
-        }
-      }
-
-      // ── Phase B: build pack index maps (once per pack) ────────────────────
-      interface PackMap {
-        packId: string;
-        packLabel: string;
-        nameMap: Map<string, string>; // lowercase name → _id
-      }
-      const packMaps: PackMap[] = [];
-
-      for (const packId of compendiumPacks) {
-        const pack = game.packs.get(packId);
-        if (!pack) {
-          warnings.push(`Compendium pack "${packId}" not found — skipped`);
-          continue;
-        }
-
-        // Q6: type guard — Item packs only
-        if (pack.metadata.type !== 'Item') {
-          warnings.push(
-            `Pack "${packId}" has type "${pack.metadata.type}", expected "Item" — skipped`
-          );
-          continue;
-        }
-
-        if (!pack.indexed) {
-          await pack.getIndex({});
-        }
-
-        const nameMap = new Map<string, string>();
-        for (const entry of pack.index.values() as IterableIterator<any>) {
-          if (entry.name) {
-            nameMap.set((entry.name as string).toLowerCase(), entry._id as string);
-          }
-        }
-
-        packMaps.push({ packId, packLabel: pack.metadata.label as string, nameMap });
-      }
-
-      if (packMaps.length === 0) {
-        throw new Error(
-          'No valid compendium packs available — check the compendiumPacks parameter. ' +
-            'Valid pack IDs for D&D 5e: "dnd5e.spells" (2014) or "dnd5e.spells24" (2024).'
-        );
-      }
-
-      // ── Phase C: per-spell search + import ───────────────────────────────
-      const added: Array<{ name: string; packId: string; packLabel: string; itemId: string }> = [];
-      const notFound: string[] = [];
-      const failed: Array<{ name: string; error: string }> = [];
-
-      for (const name of unique) {
-        const normalizedName = name.toLowerCase();
-
-        // 1. Duplicate check on actor (only items of type 'spell')
-        const existing = (actor.items as any[]).find(
-          (i: any) => i.type === 'spell' && i.name?.toLowerCase() === normalizedName
-        );
-        if (existing) {
-          skipped.push({ name, reason: 'already on actor' });
-          continue;
-        }
-
-        // 2. Lookup across packs — first-pack-wins
-        let found: { packId: string; packLabel: string; entryId: string } | null = null;
-        for (const pm of packMaps) {
-          const entryId = pm.nameMap.get(normalizedName);
-          if (entryId) {
-            found = { packId: pm.packId, packLabel: pm.packLabel, entryId };
-            break;
-          }
-        }
-
-        if (!found) {
-          notFound.push(name);
-          continue;
-        }
-
-        // 3. Fetch full document from compendium
-        const pack = game.packs.get(found.packId);
-        const document = await (pack as any).getDocument(found.entryId);
-
-        if (!document) {
-          // Entry was in index but document is missing (shouldn't happen, defensive)
-          notFound.push(name);
-          warnings.push(
-            `"${name}" found in index but document missing in pack "${found.packId}" — skipped`
-          );
-          continue;
-        }
-
-        // 4. Prepare data for embedding
-        const spellData = document.toObject() as Record<string, unknown>;
-        delete spellData._id; // Let Foundry assign a new local id; prevents id clash
-
-        // 5. Embed individually — per-spell error isolation
-        try {
-          const [created] = (await actor.createEmbeddedDocuments('Item', [spellData])) as any[];
-          added.push({
-            name,
-            packId: found.packId,
-            packLabel: found.packLabel,
-            itemId: created.id,
-          });
-        } catch (embedErr) {
-          failed.push({
-            name,
-            error: embedErr instanceof Error ? embedErr.message : 'Unknown error',
-          });
-        }
-      }
-
-      // ── Phase D: audit + return ───────────────────────────────────────────
-      shared.auditLog(
-        'addSpellsToActor',
-        {
-          actorId: actor.id,
-          added: added.length,
-          skipped: skipped.length,
-          notFound: notFound.length,
-          failed: failed.length,
-        },
-        'success'
-      );
-
-      return {
-        actor: { id: actor.id, name: actor.name },
-        added,
-        skipped,
-        notFound,
-        failed,
-        warnings,
-      };
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Failed to add spells to actor`, error);
-      shared.auditLog(
-        'addSpellsToActor',
-        { actorIdentifier: data.actorIdentifier },
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw error;
-    }
+    return this.importFromCompendium(data, data.spellNames, {
+      defaultPacks: ['dnd5e.spells'],
+      noValidPacksMessage:
+        'No valid compendium packs available — check the compendiumPacks parameter. ' +
+        'Valid pack IDs for D&D 5e: "dnd5e.spells" (2014) or "dnd5e.spells24" (2024).',
+      // Only an existing item of type 'spell' counts as a duplicate.
+      isDuplicate: (i: any, normalizedName: string) =>
+        i.type === 'spell' && i.name?.toLowerCase() === normalizedName,
+      auditOp: 'addSpellsToActor',
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -1672,185 +1468,17 @@ export class ActorBuilderDataAccess {
   // ---------------------------------------------------------------------------
 
   async addFeaturesFromCompendium(data: any): Promise<any> {
-    shared.validateFoundryState();
-
-    if ((game.system as any).id !== 'dnd5e') {
-      throw new Error('addFeaturesFromCompendium requires the dnd5e game system');
-    }
-
-    try {
-      // 1. Resolve actor
-      const actor = shared.findActorByIdentifier(data.actorIdentifier);
-      if (!actor) {
-        throw new Error(`Actor not found: "${data.actorIdentifier}"`);
-      }
-
-      const featureNames: string[] = data.featureNames;
-      const compendiumPacks: string[] = data.compendiumPacks ?? [
-        'dnd5e.monsterfeatures',
-        'dnd5e.classfeatures',
-      ];
-      const warnings: string[] = [];
-
-      // ── Phase A: deduplicate input (case-insensitive) ─────────────────────
-      const seen = new Set<string>();
-      const unique: string[] = [];
-      const skipped: Array<{ name: string; reason: string }> = [];
-
-      for (const name of featureNames) {
-        const key = name.toLowerCase();
-        if (seen.has(key)) {
-          skipped.push({ name, reason: 'duplicate in input' });
-        } else {
-          seen.add(key);
-          unique.push(name);
-        }
-      }
-
-      // ── Phase B: build pack index maps (once per pack) ────────────────────
-      interface PackMap {
-        packId: string;
-        packLabel: string;
-        nameMap: Map<string, string>; // lowercase name → _id
-      }
-      const packMaps: PackMap[] = [];
-
-      for (const packId of compendiumPacks) {
-        const pack = game.packs.get(packId);
-        if (!pack) {
-          warnings.push(`Compendium pack "${packId}" not found — skipped`);
-          continue;
-        }
-
-        // Type guard — Item packs only
-        if (pack.metadata.type !== 'Item') {
-          warnings.push(
-            `Pack "${packId}" has type "${pack.metadata.type}", expected "Item" — skipped`
-          );
-          continue;
-        }
-
-        if (!pack.indexed) {
-          await pack.getIndex({});
-        }
-
-        const nameMap = new Map<string, string>();
-        for (const entry of pack.index.values() as IterableIterator<any>) {
-          if (entry.name) {
-            nameMap.set((entry.name as string).toLowerCase(), entry._id as string);
-          }
-        }
-
-        packMaps.push({ packId, packLabel: pack.metadata.label as string, nameMap });
-      }
-
-      if (packMaps.length === 0) {
-        throw new Error(
-          'No valid compendium packs available — check the compendiumPacks parameter. ' +
-            'Valid pack IDs for D&D 5e: "dnd5e.monsterfeatures" or "dnd5e.classfeatures" (2014), ' +
-            '"dnd5e.monsterfeatures24" (2024 monster features). ' +
-            'Note: 2024 class features are embedded in class items and cannot be imported with this tool.'
-        );
-      }
-
-      // ── Phase C: per-feature search + import ─────────────────────────────
-      const added: Array<{ name: string; packId: string; packLabel: string; itemId: string }> = [];
-      const notFound: string[] = [];
-      const failed: Array<{ name: string; error: string }> = [];
-
-      for (const name of unique) {
-        const normalizedName = name.toLowerCase();
-
-        // 1. Duplicate check on actor — name-only, any item type
-        //    (feature names are semantically unique on an actor regardless of stored type)
-        const existing = (actor.items as any[]).find(
-          (i: any) => i.name?.toLowerCase() === normalizedName
-        );
-        if (existing) {
-          skipped.push({ name, reason: 'already on actor' });
-          continue;
-        }
-
-        // 2. Lookup across packs — first-pack-wins
-        let found: { packId: string; packLabel: string; entryId: string } | null = null;
-        for (const pm of packMaps) {
-          const entryId = pm.nameMap.get(normalizedName);
-          if (entryId) {
-            found = { packId: pm.packId, packLabel: pm.packLabel, entryId };
-            break;
-          }
-        }
-
-        if (!found) {
-          notFound.push(name);
-          continue;
-        }
-
-        // 3. Fetch full document from compendium
-        const pack = game.packs.get(found.packId);
-        const document = await (pack as any).getDocument(found.entryId);
-
-        if (!document) {
-          // Entry was in index but document is missing (shouldn't happen, defensive)
-          notFound.push(name);
-          warnings.push(
-            `"${name}" found in index but document missing in pack "${found.packId}" — skipped`
-          );
-          continue;
-        }
-
-        // 4. Prepare data for embedding
-        const featureData = document.toObject() as Record<string, unknown>;
-        delete featureData._id; // Let Foundry assign a new local id; prevents id clash
-
-        // 5. Embed individually — per-feature error isolation
-        try {
-          const [created] = (await actor.createEmbeddedDocuments('Item', [featureData])) as any[];
-          added.push({
-            name,
-            packId: found.packId,
-            packLabel: found.packLabel,
-            itemId: created.id,
-          });
-        } catch (embedErr) {
-          failed.push({
-            name,
-            error: embedErr instanceof Error ? embedErr.message : 'Unknown error',
-          });
-        }
-      }
-
-      // ── Phase D: audit + return ───────────────────────────────────────────
-      shared.auditLog(
-        'addFeaturesFromCompendium',
-        {
-          actorId: actor.id,
-          added: added.length,
-          skipped: skipped.length,
-          notFound: notFound.length,
-          failed: failed.length,
-        },
-        'success'
-      );
-
-      return {
-        actor: { id: actor.id, name: actor.name },
-        added,
-        skipped,
-        notFound,
-        failed,
-        warnings,
-      };
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Failed to add features from compendium`, error);
-      shared.auditLog(
-        'addFeaturesFromCompendium',
-        { actorIdentifier: data.actorIdentifier },
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw error;
-    }
+    return this.importFromCompendium(data, data.featureNames, {
+      defaultPacks: ['dnd5e.monsterfeatures', 'dnd5e.classfeatures'],
+      noValidPacksMessage:
+        'No valid compendium packs available — check the compendiumPacks parameter. ' +
+        'Valid pack IDs for D&D 5e: "dnd5e.monsterfeatures" or "dnd5e.classfeatures" (2014), ' +
+        '"dnd5e.monsterfeatures24" (2024 monster features). ' +
+        'Note: 2024 class features are embedded in class items and cannot be imported with this tool.',
+      // A feature name is semantically unique on an actor regardless of item type.
+      isDuplicate: (i: any, normalizedName: string) => i.name?.toLowerCase() === normalizedName,
+      auditOp: 'addFeaturesFromCompendium',
+    });
   }
 
   /**
@@ -1962,5 +1590,190 @@ export class ActorBuilderDataAccess {
       damageTotal,
       formula,
     };
+  }
+
+  // ---- private helpers ------------------------------------------------------
+
+  /** Extract a human-readable message from an unknown thrown value. */
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : 'Unknown error';
+  }
+
+  /** Throw if the actor already carries an item with this name (case-insensitive). */
+  private requireNoExistingItem(actor: any, featureName: string): void {
+    const existing = actor.items.find(
+      (i: any) => i.name.toLowerCase() === featureName.toLowerCase()
+    );
+    if (existing) {
+      throw new Error(
+        `An item named "${featureName}" already exists on actor "${actor.name}". ` +
+          `Remove or rename it first.`
+      );
+    }
+  }
+
+  /**
+   * Shared compendium-import engine for {@link addSpellsToActor} /
+   * {@link addFeaturesFromCompendium}. Deduplicates the requested names
+   * (case-insensitive), indexes each requested Item-typed pack once, then per
+   * name: skips on-actor duplicates (per `opts.isDuplicate`) and input
+   * duplicates, resolves the name first-pack-wins, fetches the document, strips
+   * its `_id`, and embeds it (per-item error isolation). Returns the
+   * added/skipped/notFound/failed/warnings breakdown.
+   */
+  private async importFromCompendium(
+    data: { actorIdentifier: string; compendiumPacks?: string[] },
+    names: string[],
+    opts: {
+      defaultPacks: string[];
+      noValidPacksMessage: string;
+      isDuplicate: (item: any, normalizedName: string) => boolean;
+      auditOp: string;
+    }
+  ): Promise<any> {
+    shared.validateFoundryState();
+    shared.requireDnd5e(opts.auditOp);
+
+    try {
+      const actor = shared.findActorByIdentifier(data.actorIdentifier);
+      if (!actor) {
+        throw new Error(`Actor not found: "${data.actorIdentifier}"`);
+      }
+
+      const compendiumPacks: string[] = data.compendiumPacks ?? opts.defaultPacks;
+      const warnings: string[] = [];
+
+      // Phase A: deduplicate input (case-insensitive).
+      const seen = new Set<string>();
+      const unique: string[] = [];
+      const skipped: Array<{ name: string; reason: string }> = [];
+      for (const name of names) {
+        const key = name.toLowerCase();
+        if (seen.has(key)) {
+          skipped.push({ name, reason: 'duplicate in input' });
+        } else {
+          seen.add(key);
+          unique.push(name);
+        }
+      }
+
+      // Phase B: index each valid Item-typed pack once (lowercase name → _id).
+      const packMaps: Array<{ packId: string; packLabel: string; nameMap: Map<string, string> }> =
+        [];
+      for (const packId of compendiumPacks) {
+        const pack = game.packs.get(packId);
+        if (!pack) {
+          warnings.push(`Compendium pack "${packId}" not found — skipped`);
+          continue;
+        }
+        if (pack.metadata.type !== 'Item') {
+          warnings.push(
+            `Pack "${packId}" has type "${pack.metadata.type}", expected "Item" — skipped`
+          );
+          continue;
+        }
+        if (!pack.indexed) {
+          await pack.getIndex({});
+        }
+        const nameMap = new Map<string, string>();
+        for (const entry of pack.index.values() as IterableIterator<any>) {
+          if (entry.name) {
+            nameMap.set((entry.name as string).toLowerCase(), entry._id as string);
+          }
+        }
+        packMaps.push({ packId, packLabel: pack.metadata.label as string, nameMap });
+      }
+
+      if (packMaps.length === 0) {
+        throw new Error(opts.noValidPacksMessage);
+      }
+
+      // Phase C: per-name search + import.
+      const added: Array<{ name: string; packId: string; packLabel: string; itemId: string }> = [];
+      const notFound: string[] = [];
+      const failed: Array<{ name: string; error: string }> = [];
+
+      for (const name of unique) {
+        const normalizedName = name.toLowerCase();
+
+        const existing = (actor.items as any[]).find((i: any) =>
+          opts.isDuplicate(i, normalizedName)
+        );
+        if (existing) {
+          skipped.push({ name, reason: 'already on actor' });
+          continue;
+        }
+
+        // Resolve first-pack-wins.
+        let found: { packId: string; packLabel: string; entryId: string } | null = null;
+        for (const pm of packMaps) {
+          const entryId = pm.nameMap.get(normalizedName);
+          if (entryId) {
+            found = { packId: pm.packId, packLabel: pm.packLabel, entryId };
+            break;
+          }
+        }
+        if (!found) {
+          notFound.push(name);
+          continue;
+        }
+
+        const pack = game.packs.get(found.packId);
+        const document = await (pack as any).getDocument(found.entryId);
+        if (!document) {
+          // In the index but the document is missing (defensive).
+          notFound.push(name);
+          warnings.push(
+            `"${name}" found in index but document missing in pack "${found.packId}" — skipped`
+          );
+          continue;
+        }
+
+        const itemData = document.toObject() as Record<string, unknown>;
+        delete itemData._id; // Let Foundry assign a fresh local id; prevents id clash.
+
+        try {
+          const [created] = (await actor.createEmbeddedDocuments('Item', [itemData])) as any[];
+          added.push({
+            name,
+            packId: found.packId,
+            packLabel: found.packLabel,
+            itemId: created.id,
+          });
+        } catch (embedErr) {
+          failed.push({ name, error: this.errorMessage(embedErr) });
+        }
+      }
+
+      shared.auditLog(
+        opts.auditOp,
+        {
+          actorId: actor.id,
+          added: added.length,
+          skipped: skipped.length,
+          notFound: notFound.length,
+          failed: failed.length,
+        },
+        'success'
+      );
+
+      return {
+        actor: { id: actor.id, name: actor.name },
+        added,
+        skipped,
+        notFound,
+        failed,
+        warnings,
+      };
+    } catch (error) {
+      console.error(`[${MODULE_ID}] ${opts.auditOp} failed`, error);
+      shared.auditLog(
+        opts.auditOp,
+        { actorIdentifier: data.actorIdentifier },
+        'failure',
+        this.errorMessage(error)
+      );
+      throw error;
+    }
   }
 }

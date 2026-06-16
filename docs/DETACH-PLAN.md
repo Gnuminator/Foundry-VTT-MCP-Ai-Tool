@@ -335,6 +335,22 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > now verifiable against the read+write net (377 tests); the `transaction-manager`
 > rewrite-to-parity is unblocked; plus the deferred persistent creature index and the
 > remaining write paths above.
+>
+> **transaction-manager rewrite + data-access modular reorg started (2026‑06‑16).** Full plan +
+> domain ownership table + extraction recipe live in **`docs/PHASE9-DATA-ACCESS-REORG.md`** (read it
+> to resume). Done so far, each a green commit (377 tests + typecheck + build throughout):
+> **(1) `transaction-manager` rewritten to parity** from first principles behind its 25-test net
+> (same contract + pinned error strings; ledger model + typed revert dispatch). **(2) Reorg R1–R2 +
+> R3 batches 1–2:** `FoundryDataAccess` is now a **facade** delegating to a `data-access/` package —
+> `types.ts`, `dnd5e-tables.ts`, `creature-index.ts` (`PersistentCreatureIndex`), `shared.ts` (14
+> stateless cross-cutting helpers as free functions), and **8 of 16 domain modules** extracted via
+> parallel Sonnet workers: `modules`, `session-log`, `world-reads`, `journals`, `world-items`, `chat`
+> (batch 1) + `ownership-players`, `resources-effects` (batch 2). `data-access.ts` **9,503 → 6,751
+> lines**; the public surface + all 18 test files + `queries.ts` are unchanged. **Remaining 8 domains**
+> (batch 3+, the entangled/large ones): `scenes-tokens`+`scene-fx` (interleaved → do together),
+> `compendium` (inject `persistentIndex`), `characters`, `combat`, `actor-creation`, `actor-builder`,
+> `player-rolls` (owns `rollButtonProcessingStates`). Recipe + the interleaved-wrapper assembly hazard
+> are documented in the reorg doc.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

@@ -467,6 +467,24 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > aitool. Next: the `combat`-mutation rewrite (Opus, in place) + the remaining deferred nets (`scene-fx`,
 > `actor-creation`, `creature-index`, `player-rolls`, `actor-builder` — each needs canvas / fetch / socket /
 > compendium harness work) + the `characters` pf2e-prune.
+>
+> **combat-mutation rewrite + scene-fx net (2026‑06‑16).** Two commits (Opus). **(1) combat mutation
+> rewritten to parity in place** behind the 37-test net — the 6 mutation methods reimplemented with
+> extracted `requireActiveCombat` (live combat or throw, distinct from the reads' recent-fallback resolver),
+> `forEachTarget` (resolve + per-target try/catch dedup across applyDamageAndHealing / rollSavingThrows /
+> manageRest), `hpValueTemp`, `applyHpChange`, and a `rollDnd5eV4`/`rollDnd5eV3` dispatch split (+
+> `SaveRollRequest` type); `suggestBalancedEncounter` left as-is (already original; 2014-DMG XP table is data,
+> kept verbatim). Faithful parity, no behavior change, no existing-test edits; the rewritten reads untouched.
+> **Combat domain now fully rewritten + characterized** (reads + mutation, 67 tests). **(2) scene-fx
+> characterized**: new `data-access.scene-fx.test.ts` (+37) pinning all 7 methods — placeMeasuredTemplate +
+> the AoE geometry for all four shapes (circle/cone/ray/rect, in+out), setSceneMood (v13 vs pre-v13 schema +
+> playlist), addMapNote, dropLoot (currency/items/announce), deleteMeasuredTemplate, deleteMapNote. The
+> "needs canvas" worry was unfounded (pure geometry + `createEmbeddedDocuments`; only local playlist /
+> `fromUuid` / `game.version` stubs) — scene-fx moves to ready-to-rewrite (no write-permission gate).
+> **12 of 16 modules fully rewritten**; foundry-module **486 → 523** (+37 scene-fx net), total **1594 →
+> 1631**, full suite + typecheck + build green. Remaining deferred nets: `actor-creation` (canvas placement +
+> injected compendium), `creature-index` (storage + fetch), `player-rolls` (socket + chat buttons),
+> `actor-builder` (largest); plus the `scene-fx` rewrite + the `characters` pf2e-prune.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

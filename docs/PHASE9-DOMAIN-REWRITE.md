@@ -39,9 +39,9 @@ see **Model guidance** for how later domains fan out.
    commit; **default is preserve** (the net is the contract).
 4. **Keep it green.** After the rewrite:
    `npm run typecheck --workspace=@gnuminator/foundry-module` + the domain's test file(s) + the full
-   `npx vitest run packages/foundry-module` (was 377; **486** after the `scenes-tokens`, `combat` reads +
-   mutation, `session-log`, `chat`, and `modules` nets — the count grows as new characterization nets land),
-   then `npm run build`. Run the full root `npm run typecheck && npm run build` before any push.
+   `npx vitest run packages/foundry-module` (was 377; **523** after the `scenes-tokens`, `combat` (reads +
+   mutation), `session-log`, `chat`, `modules`, and `scene-fx` nets — the count grows as new characterization
+   nets land), then `npm run build`. Run the full root `npm run typecheck && npm run build` before any push.
 5. **Commit** `refactor(phase9): rewrite <domain> from first principles to parity`, noting any
    intentional behavior change and any test edits.
 
@@ -98,25 +98,25 @@ listed file(s)):
 
 ### Done — rewritten to parity ✅
 
-| Domain              | LOC (before → after) | Verified by                                                                                                          |
-| ------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `journals` (pilot)  | 276 → 247            | `journals.test.ts` (23) + `journal-writes.test.ts` (21)                                                              |
-| `world-reads`       | 97 → 142             | `reads.test.ts` (12; world-reads slice)                                                                              |
-| `ownership-players` | 218 → 292            | `ownership.test.ts` (20) + `players.test.ts` (20)                                                                    |
-| `world-items`       | 265 → 317            | `world-items.test.ts` (29)                                                                                           |
-| `resources-effects` | 373 → 470            | `resources.test.ts` (25) + `effects.test.ts` (20) + `chat-resources.test.ts` (resource slice)                        |
-| `characters`        | 585 → 646            | `reads.test.ts` (`getCharacterInfo`) + `character-search.test.ts` (20) + `character-entity.test.ts` (14)             |
-| `compendium`        | 560 → 539            | `compendium.test.ts` (26; basic search + `listByCriteria` fallback + `getDocFull`)                                   |
-| `scenes-tokens`     | 558 → 566            | `scenes.test.ts` (16) + `token-manipulation.test.ts` (24) + **`scenes-tokens-extra.test.ts` (22, new)** = 62         |
-| `combat` (reads)    | reads only (2 of 9)  | `combat.test.ts` (26) + **`combat-playbyplay.test.ts` (4, new)** = 30 (mutation/compute methods left byte-identical) |
-| `session-log`       | 55 → 98              | `session-log.test.ts` (20; `getSessionLog` + `getRecentEvents`)                                                      |
-| `chat`              | 112 → 220            | `chat-log.test.ts` (11; `getChatLog`) + `chat-resources.test.ts` (`sendChatMessage` slice)                           |
-| `modules`           | 137 → 247            | `modules.test.ts` (`getModules`/`getModuleManifest`) + `module-errors.test.ts` (15; error methods)                   |
+| Domain              | LOC (before → after) | Verified by                                                                                                  |
+| ------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `journals` (pilot)  | 276 → 247            | `journals.test.ts` (23) + `journal-writes.test.ts` (21)                                                      |
+| `world-reads`       | 97 → 142             | `reads.test.ts` (12; world-reads slice)                                                                      |
+| `ownership-players` | 218 → 292            | `ownership.test.ts` (20) + `players.test.ts` (20)                                                            |
+| `world-items`       | 265 → 317            | `world-items.test.ts` (29)                                                                                   |
+| `resources-effects` | 373 → 470            | `resources.test.ts` (25) + `effects.test.ts` (20) + `chat-resources.test.ts` (resource slice)                |
+| `characters`        | 585 → 646            | `reads.test.ts` (`getCharacterInfo`) + `character-search.test.ts` (20) + `character-entity.test.ts` (14)     |
+| `compendium`        | 560 → 539            | `compendium.test.ts` (26; basic search + `listByCriteria` fallback + `getDocFull`)                           |
+| `scenes-tokens`     | 558 → 566            | `scenes.test.ts` (16) + `token-manipulation.test.ts` (24) + **`scenes-tokens-extra.test.ts` (22, new)** = 62 |
+| `combat` (full)     | 458 → 493            | `combat.test.ts` (26) + `combat-playbyplay.test.ts` (4) + **`combat-mutation.test.ts` (37, new)** = 67       |
+| `session-log`       | 55 → 98              | `session-log.test.ts` (20; `getSessionLog` + `getRecentEvents`)                                              |
+| `chat`              | 112 → 220            | `chat-log.test.ts` (11; `getChatLog`) + `chat-resources.test.ts` (`sendChatMessage` slice)                   |
+| `modules`           | 137 → 247            | `modules.test.ts` (`getModules`/`getModuleManifest`) + `module-errors.test.ts` (15; error methods)           |
 
 > Most rewrites grew slightly (inline duplication → extracted helpers + fuller JSDoc; logic density
-> dropped); `compendium` shrank by dropping no-op dead code. All eleven full domains + `combat` reads: no
-> behavior change, no existing-test edits, 0 eslint errors (`scenes-tokens` and `combat` each added a new
-> per-method net first — +22 and +4).
+> dropped); `compendium` shrank by dropping no-op dead code. All twelve domains (incl. `combat` reads +
+> mutation): no behavior change, no existing-test edits, 0 eslint errors (`scenes-tokens` +22 and `combat`
+> +4/+37 each added a per-method net first).
 >
 > **`session-log` / `chat` / `modules` (second Sonnet fan-out, Opus-reviewed — 2026‑06‑16).** Three
 > parallel Sonnet workers, one fully-characterized domain each, editing only their module and verifying
@@ -174,26 +174,28 @@ null` + descriptor passthrough via a spied `buildPlayByPlay`). The two **read** 
 > are **left byte-identical** — not yet characterized (see `combat` **mutation** in the deferred table).
 > Cleared an inherited redundant `as any[]` cast (eslint 1→0). **Update:** those 7 methods were
 > subsequently **characterized** in `data-access.combat-mutation.test.ts` (+37, Opus; local stubs for the
-> combat/actor methods, v3-vs-v4+ roll dispatch via `game.system` overrides, 2014-DMG XP-budget path), so
-> the combat domain is now **fully characterized** (30 reads + 37 mutation = 67) and the combat-mutation
-> rewrite is ready (see Ready now).
+> combat/actor methods, v3-vs-v4+ roll dispatch via `game.system` overrides, 2014-DMG XP-budget path) and
+> then **rewritten in place** — extracted `requireActiveCombat` (live combat or throw — distinct from the
+> reads' recent-fallback resolver), `forEachTarget` (resolve + per-target try/catch dedup across the 3 dnd5e
+> batch methods), `hpValueTemp`, `applyHpChange`, and the `rollDnd5eV4`/`rollDnd5eV3` dispatch split.
+> `suggestBalancedEncounter` was left as-is (already original; its 2014-DMG XP table is data, kept verbatim).
+> **The combat domain is now fully rewritten + characterized** (reads + mutation, 67 tests). 458 → 493 lines.
 
 ### Ready now — fully characterized (rewrite directly, order small → large)
 
-| Domain              | LOC | Characterization test(s)                                                                           |
-| ------------------- | --- | -------------------------------------------------------------------------------------------------- |
-| `combat` (mutation) | —   | `combat-mutation.test.ts` (37; the 7 mutation/compute methods in `combat.ts`, left byte-identical) |
+| Domain     | LOC | Characterization test(s)                                                          |
+| ---------- | --- | --------------------------------------------------------------------------------- |
+| `scene-fx` | 333 | `scene-fx.test.ts` (37; templates + AoE geometry, mood, map notes, loot, deletes) |
 
-> ✅ The combat reads were already rewritten; the **7 mutation/compute methods** in the same `combat.ts`
-> are now characterized (`combat-mutation.test.ts`, 37) and ready to rewrite **in place** (leave the rewritten
-> reads untouched). Opus-tier (dnd5e roll/rest/damage dispatch, v3-vs-v4+ branches). `session-log` / `chat` /
-> `modules` graduated from this table to Done in the 2026‑06‑16 Sonnet fan-out.
+> ✅ `scene-fx` is now **fully characterized** (`scene-fx.test.ts`, 37) — the "needs canvas" worry was
+> unfounded (pure geometry + `createEmbeddedDocuments`; only local playlist / `fromUuid` / `game.version`
+> stubs). Ready to rewrite **in place** (no write-permission gate to preserve). `combat` (mutation),
+> `session-log` / `chat` / `modules` graduated from this table to Done.
 
 ### Characterize first, then rewrite (deferred / partial — net missing for the noted methods)
 
 | Domain / surface                             | LOC  | What a net needs first                                                                                 |
 | -------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------ |
-| `scene-fx` (all writes)                      | 333  | `setSceneMood`/`addMapNote`/`dropLoot`/measured-templates — needs `canvas`                             |
 | `actor-creation`                             | 561  | `createActorFromCompendium`/`addActorsToScene` — needs canvas token placement                          |
 | `creature-index` (`PersistentCreatureIndex`) | 585  | needs a storage + `fetch` mock                                                                         |
 | `player-rolls`                               | 884  | `requestPlayerRolls`/roll-button handlers/`rollNpcCheck` — needs socket + chat-button mock             |
@@ -218,15 +220,13 @@ Order: characterized small→large first; each deferred domain gets a "character
       creature-index path retained verbatim — unpinned, waits on the deferred `PersistentCreatureIndex` net)
 - [x] `scenes-tokens` — rewrite to parity (Opus; per-method coverage check → characterized the 5 unpinned
       methods first in `scenes-tokens-extra.test.ts` (+22), then full-domain rewrite; canvas branches retained)
-- [x] `combat` (reads) — rewrote `getCombatState`/`getCombatPlayByPlay` to parity (Opus; characterized
-      `getCombatPlayByPlay` first in `combat-playbyplay.test.ts` (+4); 7 mutation/compute methods left
-      byte-identical — see `combat` mutation below)
+- [x] `combat` — rewrite to parity, full domain (Opus; reads in `combat-playbyplay.test.ts` +4, mutation in
+      `combat-mutation.test.ts` +37; `requireActiveCombat`/`forEachTarget`/`rollDnd5eV4`/`rollDnd5eV3`
+      helpers; `suggestBalancedEncounter` kept as-is, 2014-DMG table verbatim)
 - [x] `session-log` — rewrite to parity (Sonnet, Opus-reviewed; `buildFilters` helper)
 - [x] `chat` — rewrite to parity (Sonnet, Opus-reviewed; whisper-safety fallback + style mapping preserved)
 - [x] `modules` — rewrite to parity (Sonnet, Opus-reviewed; dependency resolution + count invariants preserved)
-- [ ] `combat` (mutation) — **net built** (`combat-mutation.test.ts`, +37; Opus); ready to rewrite the 7
-      methods in place (leave the rewritten reads untouched)
-- [ ] `scene-fx` — **characterize first** (canvas), then rewrite
+- [ ] `scene-fx` — **net built** (`scene-fx.test.ts`, +37; Opus; no canvas needed); ready to rewrite in place
 - [ ] `actor-creation` — **characterize first** (canvas placement; ctor-injected `compendium`), then rewrite
 - [ ] `creature-index` — **characterize first** (storage + fetch mock), then rewrite
 - [ ] `player-rolls` — **characterize first** (socket + chat buttons; owns `rollButtonProcessingStates`), then rewrite

@@ -427,6 +427,28 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > getChatLog, `modules` error methods, `session-log`, `scene-fx`, `actor-creation`, `combat` mutation,
 > `creature-index`, `player-rolls`, `actor-builder`) + the `characters` pf2e-prune follow-up still need
 > their nets built first.
+>
+> **`combat` reads + 3 deferred-domain nets in parallel (2026‑06‑16).** Two commits. **(1) `combat` reads
+> rewritten to parity (Opus):** `getCombatState` was pinned by `combat.test.ts` (26) but
+> `getCombatPlayByPlay` was not (only the pure `EventTracker.buildPlayByPlay` it delegates to is, in
+> `session-events.test.ts`), so it was **characterized first** in a new `data-access.combat-playbyplay.test.ts`
+> (+4: combat resolution `game.combat → most-recent game.combats → null` + descriptor passthrough via a
+> spied `buildPlayByPlay`). The two read methods were rewritten **in place** (extracted
+> `resolveActiveOrRecentCombat`/`summarizeCombatant`), preserving the two distinct `hp.value` defaults
+> (`defeated` `?? 0` vs `deathSaves` `?? 1`) + index-based `actedThisRound`; the **7 mutation/compute methods**
+> (`advanceCombatTurn`/`setInitiative`/`rollInitiativeForNpcs`/`applyDamageAndHealing`/`rollSavingThrows`/
+> `manageRest`/`suggestBalancedEncounter`) left **byte-identical** (not yet characterized). eslint 1→0.
+> **(2) 3 deferred-domain characterization nets** built by **parallel background Sonnet workers**
+> (Opus-reviewed + lint-cleaned), each pinning a thin singleton-delegating wrapper's own logic (filters-object
+> omission + return-shape passthrough), each a new test file only — no production/shared/existing-test edits:
+> `session-log.test.ts` (20; `getSessionLog`+`getRecentEvents`, spies `eventTracker`), `chat-log.test.ts`
+> (11; `getChatLog`, spies `eventTracker`), `module-errors.test.ts` (15; `getModuleErrors`+`clearModuleErrors`,
+> spies `diagnostics`). These move `session-log`/`chat`/`modules` from "characterize first" to **ready** (full
+> per-method coverage). **9 of 16 domains rewritten** (8 full + `combat` reads); foundry-module **399 → 449**
+> (+4 playbyplay, +46 nets), total **1507 → 1557**, full suite + typecheck + build green. Next Opus targets:
+> the remaining deferred nets (`scene-fx`, `actor-creation`, `combat` mutation, `creature-index`,
+> `player-rolls`, `actor-builder`) + the `characters` pf2e-prune; `session-log`/`chat`/`modules` rewrites are
+> now Sonnet-ready.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

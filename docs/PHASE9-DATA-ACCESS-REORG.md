@@ -175,11 +175,20 @@ Run after **every** stage: `npx vitest run packages/foundry-module` (377 tests) 
         on `shared.*` (no cross-domain method edges; scenes-tokens also imports `permissionManager`).
         Dropped now-unused `SpellcastingEntry`/`SpellInfo` type imports from the facade.
         `data-access.ts` 6,751 → 5,266 lines; 377 tests + typecheck + build green.
-  - [ ] **Batch 4+ (remaining 5):** `compendium`, `combat`, `actor-creation`, `actor-builder`,
-        `player-rolls`. `player-rolls` owns the `rollButtonProcessingStates` Map. `compendium` calls
-        `this.persistentIndex` (creature-index) — inject it. `actor-creation` calls
-        `getCompendiumDocumentFull` + `searchCompendium` (compendium) — extract `compendium` first,
-        inject it. Scan each for cross-domain calls before fan-out.
+  - [x] **Batch 4 (1 domain, `compendium`):** `CompendiumDataAccess`: searchCompendium /
+        listCreaturesByCriteria / getCompendiumDocumentFull + 6 private filter/scoring helpers
+        (shouldApplyFilters, calculateRelevanceScore, passesEnhancedCriteria, passesDnD5eCriteria,
+        fallbackBasicCreatureSearch, matchesSearchCriteria). Cross-domain edge: it calls
+        `this.persistentIndex.getEnhancedIndex()` — `PersistentCreatureIndex` is **injected** via ctor
+        (`new CompendiumDataAccess(this.persistentIndex)`); otherwise `shared.sanitizeData` +
+        same-domain only. Dropped the now-dead `sanitizeData` facade wrapper (last `this.sanitizeData`
+        caller, getCompendiumDocumentFull, moved out) and the now-unused `DnD5eCreatureIndex` /
+        `EnhancedCreatureIndex` type imports. `data-access.ts` 5,266 → 4,675 lines; 377 tests +
+        typecheck + build green.
+  - [ ] **Batch 5+ (remaining 4):** `combat`, `actor-creation`, `actor-builder`, `player-rolls`.
+        `player-rolls` owns the `rollButtonProcessingStates` Map. `actor-creation` calls
+        `getCompendiumDocumentFull` + `searchCompendium` (compendium, now extracted) — **inject**
+        `compendium`. Scan each for cross-domain calls before fan-out.
 
 > **Assembly hazard (learned in batch 2):** the R2 `shared.*` delegating wrappers
 > (`findActorByIdentifier`, `resolveTargetActor`, `systemMajor`, `requireDnd5e`, `rollModeFor`,

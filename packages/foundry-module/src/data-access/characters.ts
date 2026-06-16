@@ -20,10 +20,10 @@ import type {
  *
  * Foundry documents are duck-typed throughout (`game.actors`, `actor.items`,
  * `actor.effects` are Collections; `system` is system-specific), so reads use
- * defensive `?.`/`||` fallbacks. Some extraction branches (rule-element
- * variants/toggles, actor `system.actions`) are retained from the pre-trim
- * multi-system code; on the current dnd5e-only build they're inert but harmless,
- * and the characterization net pins the dnd5e paths that matter.
+ * defensive `?.`/`||` fallbacks. This is a dnd5e-only build — the extraction
+ * logic targets the dnd5e schema (spell level/preparation, equipped-item
+ * toggles, class-based spellcasting), and the characterization nets pin the
+ * paths that matter.
  */
 export class CharacterDataAccess {
   /**
@@ -69,10 +69,11 @@ export class CharacterDataAccess {
    * entries are needed.
    *
    * Filters (all optional, AND-combined): `query` (case-insensitive substring on
-   * name or description), `type` (exact item/entry type), `category` (spell:
-   * cantrip/prepared/focus; equipment: equipped/invested). `limit` (default 20)
-   * caps the total matches across all three sources. The supplied query/type/
-   * category are echoed back into the envelope only when provided.
+   * name or description), `type` (exact item/entry type), `category` (dnd5e
+   * spell: cantrip/prepared; equipment: equipped — any other value is inert).
+   * `limit` (default 20) caps the total matches across all three sources. The
+   * supplied query/type/category are echoed back into the envelope only when
+   * provided.
    */
   async searchCharacterItems(params: {
     characterIdentifier: string;
@@ -347,11 +348,9 @@ export class CharacterDataAccess {
     systemId: string,
     searchCategory?: string
   ): boolean {
-    result.level = itemSystem?.level?.value ?? itemSystem?.level ?? itemSystem?.rank ?? 0;
+    result.level = itemSystem?.level?.value ?? itemSystem?.level ?? 0;
     const itemRaw = item._source?.system;
-    result.prepared =
-      itemSystem?.prepared ?? itemRaw?.preparation?.prepared ?? itemSystem?.location?.prepared;
-    result.expended = itemSystem?.location?.expended;
+    result.prepared = itemSystem?.prepared ?? itemRaw?.preparation?.prepared;
 
     if (systemId === 'dnd5e') {
       const targeting = this.extractDnD5eSpellTargeting(itemSystem);
@@ -361,16 +360,13 @@ export class CharacterDataAccess {
       result.actionCost = itemSystem?.activation?.type;
     }
 
+    // dnd5e recognizes only cantrip/prepared; any other category is inert.
     if (searchCategory) {
-      const spellLevel = result.level || 0;
+      const isCantrip = (result.level || 0) === 0;
       const isPrepared = result.prepared !== false;
-      const isCantrip = spellLevel === 0;
-      const isFocus =
-        itemSystem?.traits?.value?.includes('focus') || itemSystem?.category?.value === 'focus';
 
       if (searchCategory === 'cantrip' && !isCantrip) return false;
       if (searchCategory === 'prepared' && !isPrepared) return false;
-      if (searchCategory === 'focus' && !isFocus) return false;
     }
 
     return true;
@@ -383,11 +379,10 @@ export class CharacterDataAccess {
   private applyEquipmentFields(result: any, itemSystem: any, searchCategory?: string): boolean {
     result.quantity = itemSystem?.quantity ?? 1;
     result.equipped = itemSystem?.equipped ?? false;
-    result.invested = itemSystem?.equipped?.invested ?? itemSystem?.invested ?? undefined;
 
+    // dnd5e recognizes only `equipped`; any other category is inert.
     if (searchCategory) {
       if (searchCategory === 'equipped' && !result.equipped) return false;
-      if (searchCategory === 'invested' && !result.invested) return false;
     }
 
     return true;

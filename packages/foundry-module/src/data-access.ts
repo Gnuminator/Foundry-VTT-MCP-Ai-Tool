@@ -10,6 +10,8 @@ import { WorldReadsDataAccess } from './data-access/world-reads.js';
 import { JournalDataAccess } from './data-access/journals.js';
 import { WorldItemsDataAccess } from './data-access/world-items.js';
 import { ChatDataAccess } from './data-access/chat.js';
+import { OwnershipPlayersDataAccess } from './data-access/ownership-players.js';
+import { ResourcesEffectsDataAccess } from './data-access/resources-effects.js';
 import {
   slugify,
   NPC_DAMAGE_CANONICAL,
@@ -53,6 +55,8 @@ export class FoundryDataAccess {
   private journals = new JournalDataAccess();
   private worldItems = new WorldItemsDataAccess();
   private chat = new ChatDataAccess();
+  private ownership = new OwnershipPlayersDataAccess();
+  private resources = new ResourcesEffectsDataAccess();
 
   constructor() {}
 
@@ -1230,6 +1234,11 @@ export class FoundryDataAccess {
   /** Assert Foundry is ready with an active world + user (delegates to shared core). */
   validateFoundryState(): void {
     shared.validateFoundryState();
+  }
+
+  /** Resolve an actor by id, exact name, or partial name (delegates to shared core). */
+  private findActorByIdentifier(identifier: string): any {
+    return shared.findActorByIdentifier(identifier);
   }
 
   /** Append an audit record for a write operation (delegates to shared core). */
@@ -2938,259 +2947,43 @@ export class FoundryDataAccess {
     }
   }
 
-  /**
-   * Set actor ownership permission for a user
-   */
   async setActorOwnership(data: {
     actorId: string;
     userId: string;
     permission: number;
   }): Promise<{ success: boolean; message: string; error?: string }> {
-    this.validateFoundryState();
-
-    try {
-      const actor = game.actors?.get(data.actorId);
-      if (!actor) {
-        return { success: false, error: `Actor not found: ${data.actorId}`, message: '' };
-      }
-
-      const user = game.users?.get(data.userId);
-      if (!user) {
-        return { success: false, error: `User not found: ${data.userId}`, message: '' };
-      }
-
-      // Get current ownership
-      const currentOwnership = (actor as any).ownership || {};
-      const newOwnership = { ...currentOwnership };
-
-      // Set the new permission level
-      newOwnership[data.userId] = data.permission;
-
-      // Update the actor
-      await actor.update({ ownership: newOwnership });
-
-      const permissionNames = { 0: 'NONE', 1: 'LIMITED', 2: 'OBSERVER', 3: 'OWNER' };
-      const permissionName =
-        permissionNames[data.permission as keyof typeof permissionNames] ||
-        data.permission.toString();
-
-      return {
-        success: true,
-        message: `Set ${actor.name} ownership to ${permissionName} for ${user.name}`,
-      };
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Error setting actor ownership:`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        message: '',
-      };
-    }
+    return this.ownership.setActorOwnership(data);
   }
 
-  /**
-   * Get actor ownership information
-   */
   async getActorOwnership(data: {
     actorIdentifier?: string;
     playerIdentifier?: string;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    try {
-      const actors = data.actorIdentifier
-        ? data.actorIdentifier === 'all'
-          ? Array.from(game.actors || [])
-          : [this.findActorByIdentifier(data.actorIdentifier)].filter(Boolean)
-        : Array.from(game.actors || []);
-
-      const users = data.playerIdentifier
-        ? [
-            game.users?.getName(data.playerIdentifier) || game.users?.get(data.playerIdentifier),
-          ].filter(Boolean)
-        : Array.from(game.users || []);
-
-      const ownershipInfo = [];
-      const permissionNames = { 0: 'NONE', 1: 'LIMITED', 2: 'OBSERVER', 3: 'OWNER' };
-
-      for (const actor of actors) {
-        const actorInfo: any = {
-          id: actor.id,
-          name: actor.name,
-          type: actor.type,
-          ownership: [],
-        };
-
-        for (const user of users.filter(u => u && !u.isGM)) {
-          const permission = actor.testUserPermission(user, 'OWNER')
-            ? 3
-            : actor.testUserPermission(user, 'OBSERVER')
-              ? 2
-              : actor.testUserPermission(user, 'LIMITED')
-                ? 1
-                : 0;
-
-          actorInfo.ownership.push({
-            userId: user!.id,
-            userName: user!.name,
-            permission: permissionNames[permission as keyof typeof permissionNames],
-            numericPermission: permission,
-          });
-        }
-
-        ownershipInfo.push(actorInfo);
-      }
-
-      return ownershipInfo;
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Error getting actor ownership:`, error);
-      throw error;
-    }
+    return this.ownership.getActorOwnership(data);
   }
 
-  /** Resolve an actor by id, exact name, or partial name (delegates to shared core). */
-  private findActorByIdentifier(identifier: string): any {
-    return shared.findActorByIdentifier(identifier);
-  }
-
-  /**
-   * Get friendly NPCs from current scene
-   */
   async getFriendlyNPCs(): Promise<Array<{ id: string; name: string }>> {
-    this.validateFoundryState();
-
-    try {
-      const scene = game.scenes?.find(s => s.active);
-      if (!scene) {
-        return [];
-      }
-
-      const friendlyTokens = scene.tokens.filter(
-        (token: any) => token.disposition === 1 // FRIENDLY disposition
-      );
-
-      return friendlyTokens
-        .map((token: any) => ({
-          id: token.actor?.id || token.id || '',
-          name: token.name || token.actor?.name || 'Unknown',
-        }))
-        .filter(t => t.id);
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Error getting friendly NPCs:`, error);
-      return [];
-    }
+    return this.ownership.getFriendlyNPCs();
   }
 
-  /**
-   * Get party characters (player-owned actors)
-   */
   async getPartyCharacters(): Promise<Array<{ id: string; name: string }>> {
-    this.validateFoundryState();
-
-    try {
-      const partyCharacters = Array.from(game.actors || []).filter(
-        actor => actor.hasPlayerOwner && actor.type === 'character'
-      );
-
-      return partyCharacters
-        .map(actor => ({
-          id: actor.id || '',
-          name: actor.name || 'Unknown',
-        }))
-        .filter(c => c.id);
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Error getting party characters:`, error);
-      return [];
-    }
+    return this.ownership.getPartyCharacters();
   }
 
-  /**
-   * Get connected players (excluding GM)
-   */
   async getConnectedPlayers(): Promise<Array<{ id: string; name: string }>> {
-    this.validateFoundryState();
-
-    try {
-      const connectedPlayers = Array.from(game.users || []).filter(
-        user => user.active && !user.isGM
-      );
-
-      return connectedPlayers
-        .map(user => ({
-          id: user.id || '',
-          name: user.name || 'Unknown',
-        }))
-        .filter(u => u.id);
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Error getting connected players:`, error);
-      return [];
-    }
+    return this.ownership.getConnectedPlayers();
   }
 
-  /**
-   * Find players by identifier with partial matching
-   */
   async findPlayers(data: {
     identifier: string;
     allowPartialMatch?: boolean;
     includeCharacterOwners?: boolean;
   }): Promise<Array<{ id: string; name: string }>> {
-    this.validateFoundryState();
-
-    try {
-      const { identifier, allowPartialMatch = true, includeCharacterOwners = true } = data;
-      const searchTerm = identifier.toLowerCase();
-      const players = [];
-
-      // Direct user name matching
-      for (const user of game.users || []) {
-        if (user.isGM) continue;
-
-        const userName = user.name?.toLowerCase() || '';
-        if (userName === searchTerm || (allowPartialMatch && userName.includes(searchTerm))) {
-          players.push({ id: user.id || '', name: user.name || 'Unknown' });
-        }
-      }
-
-      // Character name matching (find owner of character)
-      if (includeCharacterOwners && players.length === 0) {
-        for (const actor of game.actors || []) {
-          if (actor.type !== 'character') continue;
-
-          const actorName = actor.name?.toLowerCase() || '';
-          if (actorName === searchTerm || (allowPartialMatch && actorName.includes(searchTerm))) {
-            // Find the player owner of this character
-            const owner = game.users?.find(
-              user => actor.testUserPermission(user, 'OWNER') && !user.isGM
-            );
-
-            if (owner && !players.some(p => p.id === owner.id)) {
-              players.push({ id: owner.id || '', name: owner.name || 'Unknown' });
-            }
-          }
-        }
-      }
-
-      return players.filter(p => p.id);
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Error finding players:`, error);
-      return [];
-    }
+    return this.ownership.findPlayers(data);
   }
 
-  /**
-   * Find single actor by identifier
-   */
   async findActor(data: { identifier: string }): Promise<{ id: string; name: string } | null> {
-    this.validateFoundryState();
-
-    try {
-      const actor = this.findActorByIdentifier(data.identifier);
-      return actor ? { id: actor.id, name: actor.name } : null;
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Error finding actor:`, error);
-      return null;
-    }
+    return this.ownership.findActor(data);
   }
 
   // Private storage for tracking roll button processing states
@@ -3773,30 +3566,8 @@ export class FoundryDataAccess {
     }
   }
 
-  /**
-   * Get all available conditions for the current game system
-   */
   async getAvailableConditions(): Promise<any> {
-    this.validateFoundryState();
-
-    try {
-      const conditions = (CONFIG as any).statusEffects || [];
-
-      return {
-        success: true,
-        gameSystem: game.system?.id,
-        conditions: conditions.map((condition: any) => ({
-          id: condition.id,
-          name: condition.name || condition.label || condition.id,
-          icon: condition.icon || condition.img,
-          description: condition.description || '',
-        })),
-      };
-    } catch (error) {
-      throw new Error(
-        `Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    return this.resources.getAvailableConditions();
   }
 
   /**
@@ -5683,141 +5454,7 @@ export class FoundryDataAccess {
   // ===========================================================================
 
   async getCharacterResources(data: { identifier: string }): Promise<any> {
-    this.validateFoundryState();
-
-    const actor = this.findActorByIdentifier(data.identifier);
-    if (!actor) {
-      throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.identifier}`);
-    }
-    const sys = (actor as any).system || {};
-
-    // --- Spell slots ---
-    const spellSlots: Record<string, any> = {};
-    const spells = sys.spells || {};
-    for (let i = 1; i <= 9; i++) {
-      const slot = spells[`spell${i}`];
-      if (slot && ((slot.max ?? 0) > 0 || (slot.value ?? 0) > 0)) {
-        const max = slot.max ?? 0;
-        const current = slot.value ?? 0;
-        spellSlots[`level${i}`] = { max, current, expended: Math.max(0, max - current) };
-      }
-    }
-    if (spells.pact && (spells.pact.max ?? 0) > 0) {
-      const max = spells.pact.max ?? 0;
-      const current = spells.pact.value ?? 0;
-      spellSlots['pact'] = {
-        max,
-        current,
-        expended: Math.max(0, max - current),
-        level: spells.pact.level ?? null,
-      };
-    }
-
-    // --- Class resources (primary / secondary / tertiary) ---
-    const classResources: any[] = [];
-    const resources = sys.resources || {};
-    for (const key of ['primary', 'secondary', 'tertiary']) {
-      const r = resources[key];
-      if (!r) continue;
-      const hasLabel = !!r.label;
-      const hasMax = r.max != null && r.max !== 0;
-      if (!hasLabel && !hasMax) continue;
-      classResources.push({
-        key,
-        label: r.label || key,
-        max: r.max ?? null,
-        current: r.value ?? null,
-      });
-    }
-
-    // --- Item charges ---
-    const itemCharges: any[] = [];
-    for (const item of actor.items) {
-      const uses = (item as any).system?.uses;
-      if (!uses) continue;
-      const max = Number(uses.max);
-      if (!Number.isFinite(max) || max <= 0) continue;
-      // dnd5e v3 tracks `spent`; older versions track `value`
-      const current =
-        uses.value != null ? Number(uses.value) : Math.max(0, max - (Number(uses.spent) || 0));
-      const recharge =
-        uses.per ||
-        (Array.isArray(uses.recovery) ? uses.recovery[0]?.period : undefined) ||
-        (item as any).system?.recharge?.value ||
-        null;
-      itemCharges.push({ itemName: item.name, charges: current, max, recharge });
-    }
-
-    // --- Concentration ---
-    let concentration: any = { active: false };
-    try {
-      const effects = (actor.effects as any)?.contents ?? actor.effects ?? [];
-      const conc = effects.find(
-        (e: any) =>
-          e.statuses?.has?.('concentrating') ||
-          /concentrat/i.test(e.name || e.label || '') ||
-          !!e.flags?.dnd5e?.itemData
-      );
-      if (conc) {
-        const spellName =
-          conc.flags?.dnd5e?.item?.name ||
-          (conc.name || '').replace(/concentrating:?\s*/i, '').trim() ||
-          null;
-        concentration = {
-          active: true,
-          spell: spellName || null,
-          remaining: conc.duration?.remaining ?? conc.duration?.seconds ?? null,
-        };
-      }
-    } catch {
-      // best-effort
-    }
-
-    // --- Hit dice ---
-    let hitDice: any = null;
-    const hd = sys.attributes?.hd;
-    if (hd && typeof hd === 'object') {
-      const max = hd.max ?? null;
-      const value = hd.value ?? null;
-      if (max != null || value != null) {
-        hitDice = { total: max, available: value, dieType: hd.denomination || null };
-      }
-    }
-    if (!hitDice) {
-      let total = 0;
-      let available = 0;
-      let dieType: string | null = null;
-      for (const item of actor.items) {
-        if (item.type === 'class') {
-          const c = (item as any).system || {};
-          total += c.levels ?? 0;
-          available += (c.levels ?? 0) - (c.hitDiceUsed ?? 0);
-          dieType = c.hitDice || dieType;
-        }
-      }
-      if (total > 0) hitDice = { total, available, dieType };
-    }
-
-    // --- Death saves (only relevant at 0 HP) ---
-    let deathSaves: any = null;
-    const hp = sys.attributes?.hp;
-    if (hp && (hp.value ?? 1) <= 0) {
-      const death = sys.attributes?.death;
-      deathSaves = { successes: death?.success ?? 0, failures: death?.failure ?? 0 };
-    }
-
-    return {
-      success: true,
-      actorId: actor.id,
-      actorName: actor.name,
-      system: game.system?.id,
-      spellSlots,
-      classResources,
-      itemCharges,
-      concentration,
-      hitDice,
-      deathSaves,
-    };
+    return this.resources.getCharacterResources(data);
   }
 
   async updateCharacterResource(data: {
@@ -5825,220 +5462,18 @@ export class FoundryDataAccess {
     resourceName: string;
     newValue: number;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    const actor = this.findActorByIdentifier(data.identifier);
-    if (!actor) {
-      throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.identifier}`);
-    }
-    const sys = (actor as any).system || {};
-
-    const name = String(data.resourceName).toLowerCase().trim();
-    const newValue = Number(data.newValue);
-    if (!Number.isFinite(newValue) || newValue < 0) {
-      throw new Error('newValue must be a non-negative integer');
-    }
-
-    let updatePath: string | null = null;
-    let max: number | null = null;
-
-    // Spell slots: "spell3" / "level 3" / "slot3" / "3rd level"
-    const slotMatch =
-      name.match(/(?:spell|slot|level)\s*([1-9])/) || name.match(/^([1-9])(?:st|nd|rd|th)?$/);
-    if (slotMatch) {
-      const lvl = slotMatch[1];
-      const slot = sys.spells?.[`spell${lvl}`];
-      if (!slot) throw new Error(`No spell${lvl} slot found on ${actor.name}`);
-      updatePath = `system.spells.spell${lvl}.value`;
-      max = slot.max ?? 0;
-    } else if (name === 'pact' || name === 'pact magic') {
-      if (!sys.spells?.pact) throw new Error(`No pact magic slots on ${actor.name}`);
-      updatePath = 'system.spells.pact.value';
-      max = sys.spells.pact.max ?? 0;
-    } else {
-      // Class resources by key or label
-      for (const key of ['primary', 'secondary', 'tertiary']) {
-        const r = sys.resources?.[key];
-        if (!r) continue;
-        const label = (r.label || '').toLowerCase();
-        if (key === name || label === name || (label && label.includes(name))) {
-          updatePath = `system.resources.${key}.value`;
-          max = r.max ?? null;
-          break;
-        }
-      }
-
-      // Item charges by name
-      if (!updatePath) {
-        const item = actor.items.find(
-          (i: any) => i.name.toLowerCase() === name || i.name.toLowerCase().includes(name)
-        );
-        if (item && (item as any).system?.uses) {
-          const uses = (item as any).system.uses;
-          const itemMax = Number(uses.max);
-          if (Number.isFinite(itemMax) && newValue > itemMax) {
-            throw new Error(`newValue ${newValue} exceeds max ${itemMax} for item "${item.name}"`);
-          }
-          // dnd5e v3+ stores `spent` and exposes `value` as a derived,
-          // read-only getter (max - spent). Prefer writing `spent` when present
-          // so the update actually takes; fall back to `value` for legacy data.
-          if (uses.spent !== undefined && Number.isFinite(itemMax)) {
-            await (item as any).update({ 'system.uses.spent': Math.max(0, itemMax - newValue) });
-          } else {
-            await (item as any).update({ 'system.uses.value': newValue });
-          }
-          this.auditLog('updateCharacterResource', { ...data, type: 'item' }, 'success');
-          return {
-            success: true,
-            actorId: actor.id,
-            actorName: actor.name,
-            resourceName: item.name,
-            newValue,
-            max: Number.isFinite(itemMax) ? itemMax : null,
-            type: 'item',
-          };
-        }
-      }
-    }
-
-    if (!updatePath) {
-      throw new Error(
-        `Resource not found: "${data.resourceName}". Try a spell level (e.g. "spell3"), a class resource label, or an item name.`
-      );
-    }
-
-    if (max != null && newValue > max) {
-      throw new Error(`newValue ${newValue} exceeds max ${max} for "${data.resourceName}"`);
-    }
-
-    await (actor as any).update({ [updatePath]: newValue });
-    this.auditLog('updateCharacterResource', data, 'success');
-
-    return {
-      success: true,
-      actorId: actor.id,
-      actorName: actor.name,
-      resourceName: data.resourceName,
-      newValue,
-      max,
-    };
-  }
-
-  // ===========================================================================
-  // 3D: Active effects / conditions (read + clear)
-  // ===========================================================================
-
-  private actorConditionNames(actor: any): string[] {
-    if (!actor) return [];
-    try {
-      const effs = (actor.effects as any)?.contents ?? actor.effects ?? [];
-      return effs
-        .filter((e: any) => (e.statuses?.size ?? 0) > 0 && !e.disabled)
-        .map((e: any) => e.name || e.label)
-        .filter((n: any): n is string => typeof n === 'string');
-    } catch {
-      return [];
-    }
+    return this.resources.updateCharacterResource(data);
   }
 
   async getActiveEffects(data: { identifier: string }): Promise<any> {
-    this.validateFoundryState();
-
-    const actor = this.findActorByIdentifier(data.identifier);
-    if (!actor) {
-      throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.identifier}`);
-    }
-
-    const statusIds = new Set<string>(
-      ((CONFIG as any).statusEffects ?? []).map((s: any) => s.id).filter(Boolean)
-    );
-
-    const effs = (actor.effects as any)?.contents ?? actor.effects ?? [];
-    const effects = effs.map((e: any) => {
-      const statuses: string[] = Array.from(e.statuses ?? []);
-      // A condition is an effect whose status id is a registered game condition
-      // (CONFIG.statusEffects). Don't treat every status-bearing effect (e.g. a
-      // spell that applies "concentrating") as a condition.
-      const isCondition = statuses.some(s => statusIds.has(s));
-      const dur = e.duration || {};
-      const changes = (e.changes ?? []).map((c: any) => ({
-        key: c.key,
-        mode: c.mode,
-        value: c.value,
-      }));
-      const requiresConcentration =
-        !!e.flags?.dnd5e?.concentration || /concentrat/i.test(e.name || e.label || '');
-      return {
-        id: e.id,
-        name: e.name || e.label || 'Unknown Effect',
-        icon: e.icon || e.img || null,
-        disabled: e.disabled ?? false,
-        isCondition,
-        type: isCondition ? 'condition' : 'buff/debuff',
-        statuses,
-        duration: {
-          rounds: dur.rounds ?? null,
-          turns: dur.turns ?? null,
-          seconds: dur.seconds ?? null,
-          remaining: dur.remaining ?? null,
-        },
-        changes,
-        requiresConcentration,
-      };
-    });
-
-    return {
-      success: true,
-      actorId: actor.id,
-      actorName: actor.name,
-      count: effects.length,
-      effects,
-    };
+    return this.resources.getActiveEffects(data);
   }
 
   async clearStaleConditions(data: {
     identifier: string;
     conditionNames?: string[];
   }): Promise<any> {
-    this.validateFoundryState();
-
-    const actor = this.findActorByIdentifier(data.identifier);
-    if (!actor) {
-      throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.identifier}`);
-    }
-
-    const names = (data.conditionNames ?? []).map(n => String(n).toLowerCase());
-    const effs = (actor.effects as any)?.contents ?? actor.effects ?? [];
-
-    const toRemove = effs.filter((e: any) => {
-      const ename = (e.name || e.label || '').toLowerCase();
-      const statuses: string[] = Array.from(e.statuses ?? []).map((s: any) =>
-        String(s).toLowerCase()
-      );
-      if (names.length > 0) {
-        return names.includes(ename) || statuses.some(s => names.includes(s));
-      }
-      // No explicit list: remove expired conditions only
-      const rem = e.duration?.remaining;
-      return rem != null && rem <= 0;
-    });
-
-    if (toRemove.length > 0) {
-      await (actor as any).deleteEmbeddedDocuments(
-        'ActiveEffect',
-        toRemove.map((e: any) => e.id)
-      );
-    }
-
-    this.auditLog('clearStaleConditions', data, 'success');
-
-    return {
-      success: true,
-      actorId: actor.id,
-      actorName: actor.name,
-      removedCount: toRemove.length,
-      removed: toRemove.map((e: any) => e.name || e.label),
-    };
+    return this.resources.clearStaleConditions(data);
   }
 
   // ===========================================================================
@@ -6075,7 +5510,7 @@ export class FoundryDataAccess {
         // index resets to 0 each round, so `idx < currentIndex` holds per-round.
         actedThisRound: combat.started ? idx < currentIndex : false,
         hp: hp ? { value: hp.value ?? null, max: hp.max ?? null, temp: hp.temp ?? 0 } : null,
-        conditions: this.actorConditionNames(actor),
+        conditions: shared.actorConditionNames(actor),
         isPC,
         category: isPC ? 'pc' : c.token?.disposition === -1 ? 'enemy' : 'npc',
         defeated,
@@ -6181,7 +5616,7 @@ export class FoundryDataAccess {
         category: isPC ? 'pc' : t.disposition === -1 ? 'enemy' : 'npc',
         hidden: t.hidden ?? false,
         hp: hp ? { value: hp.value ?? null, max: hp.max ?? null } : null,
-        conditions: this.actorConditionNames(actor),
+        conditions: shared.actorConditionNames(actor),
       };
     });
 

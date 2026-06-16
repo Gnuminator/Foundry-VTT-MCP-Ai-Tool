@@ -155,11 +155,27 @@ Run after **every** stage: `npx vitest run packages/foundry-module` (377 tests) 
         `getTokenDisposition` facade wrapper + `diagnostics` import. `data-access.ts` 8,058 → 7,316
         lines; 377 tests + typecheck + build green. (`chat` skipped the interleaved
         `getCombatPlayByPlay`, which stays with `combat`.)
-  - [ ] **Batch 2+ (remaining 10):** `ownership-players`, `scenes-tokens`, `scene-fx`,
-        `resources-effects`, `compendium`, `characters`, `combat`, `actor-creation`, `actor-builder`,
-        `player-rolls`. These have more cross-domain edges / shared roll-state (`player-rolls` owns
-        `rollButtonProcessingStates`); scan each for cross-domain calls before fan-out and inject
-        per the cross-domain protocol above. When the last facade method that calls a `shared.*`
-        wrapper moves out, drop that wrapper too (as done for `getTokenDisposition`).
+  - [x] **Batch 2 (2 domains, Sonnet fan-out):** `ownership-players` (`OwnershipPlayersDataAccess`:
+        setActorOwnership/getActorOwnership/getFriendlyNPCs/getPartyCharacters/getConnectedPlayers/
+        findPlayers/findActor) + `resources-effects` (`ResourcesEffectsDataAccess`:
+        getAvailableConditions/getCharacterResources/updateCharacterResource/getActiveEffects/
+        clearStaleConditions). Prereq: promoted `actorConditionNames` to `shared.ts` (it's called by
+        `combat` + `scenes-tokens`, not by resources itself). `data-access.ts` 7,316 → 6,751 lines;
+        377 tests + typecheck + build green.
+  - [ ] **Batch 3+ (remaining 8):** `scenes-tokens`, `scene-fx`, `compendium`, `characters`, `combat`,
+        `actor-creation`, `actor-builder`, `player-rolls`. `scenes-tokens` and `scene-fx` are
+        physically interleaved (e.g. `setTokenVisionLight`/`getTargets`/`getTokenPositions` sit among
+        the scene-fx methods) — extract them as one batch so nothing stays interleaved. `player-rolls`
+        owns the `rollButtonProcessingStates` Map. `compendium` likely calls `this.persistentIndex`
+        (creature-index) — inject it. Scan each for cross-domain calls before fan-out.
+
+> **Assembly hazard (learned in batch 2):** the R2 `shared.*` delegating wrappers
+> (`findActorByIdentifier`, `resolveTargetActor`, `systemMajor`, `requireDnd5e`, `rollModeFor`,
+> `getOrCreateFolder`, `auditLog`, `sanitizeData`) sit at their _original_ scattered positions and can
+> be **interleaved inside a domain's method span** (e.g. `findActorByIdentifier` lived between
+> `getActorOwnership` and `getFriendlyNPCs`). A block-replace of `[firstMethod..lastMethod]` will
+> delete an interleaved wrapper. After each batch, if typecheck reports a missing `this.<helper>`,
+> re-add that wrapper (it's still needed by not-yet-extracted methods). Only drop a wrapper once it has
+> zero remaining `this.` callers (as with `getTokenDisposition` in batch 1).
 
 Each stage = its own commit, `refactor(phase9): ...`, all suites green.

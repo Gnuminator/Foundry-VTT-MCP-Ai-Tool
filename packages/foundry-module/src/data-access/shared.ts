@@ -337,3 +337,17 @@ export function rollModeFor(isPublic: boolean | undefined): string {
   const modes: any = (CONST as any).DICE_ROLL_MODES || {};
   return isPublic ? (modes.PUBLIC ?? 'publicroll') : (modes.PRIVATE ?? 'gmroll');
 }
+
+/** Names of an actor's active, status-bearing (non-disabled) condition effects. */
+export function actorConditionNames(actor: any): string[] {
+  if (!actor) return [];
+  try {
+    const effs = (actor.effects as any)?.contents ?? actor.effects ?? [];
+    return effs
+      .filter((e: any) => (e.statuses?.size ?? 0) > 0 && !e.disabled)
+      .map((e: any) => e.name || e.label)
+      .filter((n: any): n is string => typeof n === 'string');
+  } catch {
+    return [];
+  }
+}

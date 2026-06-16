@@ -178,49 +178,18 @@ async function processMapGenerationInBackend(
   logger: Logger,
   foundryClient: any
 ): Promise<void> {
-  // CRITICAL: Log entry to file IMMEDIATELY
-  const fs2 = await import('fs').then(m => m.promises);
-  const path2 = await import('path');
-  const os2 = await import('os');
-  const processDebugLog = path2.join(os2.tmpdir(), 'process-mapgen-debug.log');
-  await fs2.appendFile(
-    processDebugLog,
-    `[${new Date().toISOString()}] processMapGenerationInBackend ENTERED - jobId: ${jobId}\n`
-  );
-
   try {
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Getting job from queue...\n`
-    );
     const job = await jobQueue.getJob(jobId);
     if (!job) {
-      await fs2.appendFile(
-        processDebugLog,
-        `[${new Date().toISOString()}] ERROR: Job not found!\n`
-      );
       throw new Error(`Job ${jobId} not found`);
     }
 
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Job retrieved: ${JSON.stringify(job.params)}\n`
-    );
     logger.info('Starting background map generation processing', { jobId, params: job.params });
 
     // Mark job as started (mapgen style)
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Marking job as started...\n`
-    );
     await jobQueue.markJobStarted(jobId);
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Job marked as started\n`);
 
     // Emit progress to Foundry module
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Sending initial progress...\n`
-    );
     foundryClient.sendMessage({
       type: 'map-generation-progress',
       jobId,
@@ -229,15 +198,7 @@ async function processMapGenerationInBackend(
     });
 
     // Ensure ComfyUI is running
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Checking ComfyUI health...\n`
-    );
     const healthInfo = await comfyuiClient.checkHealth();
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Health check: ${JSON.stringify(healthInfo)}\n`
-    );
     if (!healthInfo.available) {
       await comfyuiClient.startService();
     }
@@ -251,44 +212,18 @@ async function processMapGenerationInBackend(
     });
 
     // Submit to ComfyUI (using mapgen's client)
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Submitting job to ComfyUI...\n`
-    );
     const sizePixels = comfyuiClient.getSizePixels(job.params.size);
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Size pixels: ${sizePixels}\n`
-    );
+    const comfyuiJob = await comfyuiClient.submitJob({
+      prompt: job.params.prompt,
+      width: sizePixels,
+      height: sizePixels,
+      quality: job.params.quality,
+    });
 
-    let comfyuiJob;
-    try {
-      comfyuiJob = await comfyuiClient.submitJob({
-        prompt: job.params.prompt,
-        width: sizePixels,
-        height: sizePixels,
-        quality: job.params.quality,
-      });
-      await fs2.appendFile(
-        processDebugLog,
-        `[${new Date().toISOString()}] ComfyUI job submitted: ${comfyuiJob.prompt_id}\n`
-      );
-
-      // Store ComfyUI prompt_id in job for cancellation support
-      const currentJob = await jobQueue.getJob(jobId);
-      if (currentJob) {
-        currentJob.comfyui_job_id = comfyuiJob.prompt_id;
-      }
-    } catch (submitError: any) {
-      await fs2.appendFile(
-        processDebugLog,
-        `[${new Date().toISOString()}] ERROR submitting to ComfyUI: ${submitError.message}\n`
-      );
-      await fs2.appendFile(
-        processDebugLog,
-        `[${new Date().toISOString()}] Error stack: ${submitError.stack}\n`
-      );
-      throw submitError;
+    // Store ComfyUI prompt_id in job for cancellation support
+    const currentJob = await jobQueue.getJob(jobId);
+    if (currentJob) {
+      currentJob.comfyui_job_id = comfyuiJob.prompt_id;
     }
 
     // Wait for completion (mapgen style)
@@ -299,11 +234,6 @@ async function processMapGenerationInBackend(
       progress: 50,
       stage: 'Generating battlemap...',
     });
-
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Starting status polling with WebSocket progress...\n`
-    );
 
     // Register WebSocket callback for real-time progress updates
     comfyuiClient.registerProgressCallback(
@@ -339,10 +269,6 @@ async function processMapGenerationInBackend(
 
     let status = await comfyuiClient.getJobStatus(comfyuiJob.prompt_id);
     logger.info('Initial job status', { jobId, promptId: comfyuiJob.prompt_id, status });
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Initial status: ${status}\n`
-    );
 
     let pollCount = 0;
     while (status === 'queued' || status === 'running') {
@@ -374,155 +300,59 @@ async function processMapGenerationInBackend(
       finalStatus: status,
       totalPolls: pollCount,
     });
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Polling complete, status: ${status}\n`
-    );
 
     if (status === 'failed') {
       throw new Error('ComfyUI generation failed');
     }
 
     // Download and save the generated image (like mapgen does)
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Getting job images...\n`);
     await jobQueue.updateJobProgress(jobId, 85, 'Downloading image...');
 
     // Get the generated image filenames from ComfyUI history
     const imageFilenames = await comfyuiClient.getJobImages(comfyuiJob.prompt_id);
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Images: ${JSON.stringify(imageFilenames)}\n`
-    );
     if (!imageFilenames || imageFilenames.length === 0) {
       throw new Error('No images found in ComfyUI job output');
     }
 
     // Download the first generated image
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Downloading image: ${imageFilenames[0]}\n`
-    );
     const firstImageFilename = imageFilenames[0];
     const imageBuffer = await comfyuiClient.downloadImage(firstImageFilename);
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Downloaded, buffer size: ${imageBuffer?.length || 0}\n`
-    );
     if (!imageBuffer) {
       throw new Error(`Failed to download generated image: ${firstImageFilename}`);
     }
 
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Updating progress to 90%...\n`
-    );
     await jobQueue.updateJobProgress(jobId, 90, 'Saving image...');
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Progress updated\n`);
 
-    // Save image to Foundry-accessible location
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] About to import fs/path/os for upload...\n`
-    );
-    const fs = await import('fs').then(m => m.promises);
-    const path = await import('path');
-    const os = await import('os');
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Imports complete\n`);
-
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Creating filename and checking connection type...\n`
-    );
     const timestamp = Date.now();
     const filename = `map_${jobId}_${timestamp}.png`;
 
-    // ALWAYS upload images via Foundry query instead of direct filesystem write
-    // Reason: MCP server and Foundry may be on different machines or have different paths
-    // The Foundry module's upload handler knows the correct local path
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] foundryClient exists: ${!!foundryClient}, type: ${typeof foundryClient}\n`
-    );
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] About to call getConnectionType()...\n`
-    );
-    let connectionType: 'websocket' | 'webrtc' | null = null;
-    try {
-      connectionType = foundryClient.getConnectionType();
-      await fs2.appendFile(
-        processDebugLog,
-        `[${new Date().toISOString()}] getConnectionType() returned: ${connectionType}\n`
-      );
-    } catch (err) {
-      await fs2.appendFile(
-        processDebugLog,
-        `[${new Date().toISOString()}] getConnectionType() threw error: ${err}\n`
-      );
-      connectionType = 'webrtc'; // Assume WebRTC since we're here
-    }
-
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Using upload method for all connections\n`
-    );
-
-    // ALWAYS write debug log to trace execution
-    const debugLog = async (msg: string) => {
-      const logPath = path.join(os.tmpdir(), 'foundry-mcp-upload-debug.log');
-      await fs.appendFile(logPath, `[${new Date().toISOString()}] ${msg}\n`);
-    };
-
-    await debugLog(`=== MAP GENERATION DEBUG START ===`);
-    await debugLog(`JobId: ${jobId}, Filename: ${filename}`);
-    await debugLog(`Connection type: ${connectionType}`);
-    await debugLog(`Image size: ${imageBuffer.length} bytes`);
-    await debugLog(`Using upload method (always) - imageSize: ${imageBuffer.length} bytes`);
+    // ALWAYS upload images via Foundry query instead of direct filesystem write.
+    // Reason: MCP server and Foundry may be on different machines or have different
+    // paths; the Foundry module's upload handler knows the correct local path.
+    logger.info('Uploading generated map to Foundry', {
+      jobId,
+      filename,
+      imageBytes: imageBuffer.length,
+    });
 
     // Convert image buffer to base64 for transmission
     const base64Image = imageBuffer.toString('base64');
-    await debugLog(
-      `Base64 conversion complete - size: ${base64Image.length} bytes (${(base64Image.length / 1024 / 1024).toFixed(2)} MB)`
-    );
 
-    // Upload to Foundry via WebRTC/WebSocket query
-    // The Foundry module's upload handler knows the correct local path
-    await debugLog('Sending upload query to Foundry...');
-
-    let uploadResult: any;
-    try {
-      uploadResult = await foundryClient.query('foundry-mcp-bridge.upload-generated-map', {
-        filename,
-        imageData: base64Image,
-      });
-
-      await debugLog(`Upload query completed - success: ${uploadResult.success}`);
-      await debugLog(`Full uploadResult: ${JSON.stringify(uploadResult)}`);
-
-      if (!uploadResult.success) {
-        await debugLog(`Upload failed - error: ${uploadResult.error}`);
-        throw new Error(`Failed to upload image to Foundry: ${uploadResult.error}`);
-      }
-    } catch (error) {
-      await debugLog(`Upload exception: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
+    const uploadResult: any = await foundryClient.query('foundry-mcp-bridge.upload-generated-map', {
+      filename,
+      imageData: base64Image,
+    });
+    if (!uploadResult.success) {
+      throw new Error(`Failed to upload image to Foundry: ${uploadResult.error}`);
     }
 
-    await debugLog(`Extracting path from uploadResult...`);
     const webPath = uploadResult.path;
-    await debugLog(`webPath extracted: ${webPath}`);
     logger.info('Image uploaded successfully to Foundry', { path: webPath });
 
     await jobQueue.updateJobProgress(jobId, 95, 'Creating scene data...');
 
     // Create scene data payload (simplified version of mapgen's FoundryIntegrator)
     const sceneSize = comfyuiClient.getSizePixels(job.params.size);
-    // Debug: Log what we received
-    logger.info('Job params received', {
-      scene_name: job.params.scene_name,
-      prompt: job.params.prompt,
-      all_params: job.params,
-    });
 
     if (!job.params.scene_name) {
       throw new Error(
@@ -588,16 +418,6 @@ async function processMapGenerationInBackend(
 
     logger.info('Map generation completed successfully', { jobId });
   } catch (error: any) {
-    // Log to debug file first
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] ERROR in processMapGenerationInBackend: ${error.message}\n`
-    );
-    await fs2.appendFile(
-      processDebugLog,
-      `[${new Date().toISOString()}] Error stack: ${error.stack}\n`
-    );
-
     logger.error('Background map generation processing failed', { jobId, error });
     await jobQueue.markJobFailed(jobId, error.message);
 

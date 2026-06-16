@@ -5,16 +5,11 @@
  * server bootstrap at import time and so can't be loaded in a test. Pulled into
  * their own module, the three request handlers are unit-testable with stub
  * jobQueue / comfyuiClient / foundryClient. The background pipeline
- * (processMapGenerationInBackend) is detached fire-and-forget; `fs` is mocked so
- * its debug-log writes are no-ops.
+ * (processMapGenerationInBackend) is detached fire-and-forget and pure
+ * orchestration (no filesystem access).
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-vi.mock('fs', () => {
-  const promises = { appendFile: vi.fn().mockResolvedValue(undefined) };
-  return { promises, default: { promises } };
-});
 
 import {
   handleGenerateMapRequest,

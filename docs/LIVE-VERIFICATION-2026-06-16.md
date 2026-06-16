@@ -66,9 +66,30 @@ resolver only did id / exact-name lookup → `Character not found`. Fixed
 on ambiguity** (commit in this session; characterized in
 `data-access.character-resolve.test.ts`). Exact/id/not-found behavior unchanged.
 
-## Not yet verified (need a live writer or specific inputs)
+## Write path — sampled live (safe, self-cleaning round-trips)
 
-- **Write tools (35)** — not exercised; they mutate the live game and were left
-  for explicit, per-action GM confirmation.
+With GM Actions toggled on for the run (and restored to **off** in a `finally`),
+a representative set of writes was exercised through `POST /api/tool` with the
+confirm flags, choosing operations that revert to zero residue:
+
+| Tool                         | Result | Notes                                                                                                       |
+| ---------------------------- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| send-chat-message            | ✅     | GM-only **whisper** (to "Silvera (Christian)"), returns `messageId`. The one intentional trace left behind. |
+| add-map-note                 | ✅     | created note `Tt4e3OHf9oxPGC1Q` at (200,200)                                                                |
+| delete-map-note              | ✅     | removed it (`deletedCount: 1`) — note round-trip leaves nothing                                             |
+| toggle-token-condition (ON)  | ✅     | `prone` applied to "Tribal Warrior" (enemy token)                                                           |
+| toggle-token-condition (OFF) | ✅     | reverted — `isActive: false` (its pre-existing Bloodied/Dead are HP-derived, untouched)                     |
+
+This confirms the write surface end-to-end: the GM-Actions gate, the per-action
+confirm, the destructive double-confirm (delete-map-note), and that creates/
+toggles both apply and revert. The write helper was a one-off (not committed) —
+it mutates the live game, so it isn't a reusable artifact like the read sweep.
+
+## Not yet verified
+
+- **The other ~30 write tools** — only the sample above was run. The rest
+  (damage/healing, actor/NPC creation, ownership, token moves, loot, encounter
+  placement, etc.) mutate shared/visible game state and were left for explicit,
+  per-action GM confirmation during a non-live moment.
 - **Map generation** — needs ComfyUI running.
 - The 5 skipped reads — re-run with real ids.

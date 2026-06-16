@@ -357,6 +357,22 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > moved bodies). The public surface + all 18 `data-access.*.test.ts` files + `queries.ts` are unchanged.
 > Full suite green (1485 tests). Next under Phase 9: the deeper from-scratch domain rewrites — now
 > unblocked, since each domain is its own module with explicit dependencies.
+>
+> **From-scratch domain rewrites STARTED — pilot + recipe (2026‑06‑16).** Recipe, safety rails,
+> characterized-vs-deferred coverage map, and the per-domain checklist live in
+> **`docs/PHASE9-DOMAIN-REWRITE.md`** (read it to resume). Unlike the reorg (mechanical move → byte-identical
+> bodies), each rewrite reimplements a domain **from first principles** — from its characterization tests +
+> the tool's purpose — behind the frozen public signatures, verified to parity by that domain's net.
+> **Pilot: `journals` rewritten to parity** (Opus) behind `data-access.journals.test.ts` (23) +
+> `data-access.journal-writes.test.ts` (21) = 44 tests. Original structure (new `PageSummary` type + 5
+> private helpers deduping page-mapping/note/embedded-create/permission-gate/error logic; reads-then-writes;
+> consolidated success `auditLog`); **no behavior change, no test edits**; three upstream quirks deliberately
+> preserved (see the doc). 276 → 247 lines, **0 eslint errors**. foundry-module 377 + typecheck + build green;
+> total still 1485. Next: fan out **Sonnet** workers (Opus review) for the ready small characterized domains
+> (`world-reads`, `chat`, `modules`, `ownership-players`, `world-items`, `resources-effects`); the
+> big/risky + deferred targets (`compendium`, `scenes-tokens`, `characters`, `actor-builder`,
+> `creature-index`, `player-rolls`, `combat` mutation, `actor-creation`, `scene-fx`, `session-log`) stay
+> Opus and need their characterization nets built first.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

@@ -23,8 +23,11 @@ jobs:
 
       - name: Typecheck and lint (green-gate)
         # Documented green-gate: a type/lint error that doesn't break the build
-        # must still fail CI. Runs before build to fail fast.
-        run: npm run typecheck && npm run lint
+        # must still fail CI. Runs before build to fail fast. `--quiet` on lint
+        # suppresses the accepted Foundry-`any` warning baseline (the harness
+        # duck-types every Foundry document as `any`, ~11.8k warnings) so CI logs
+        # stay readable — the gate still FAILS on any eslint *error* (exit 1).
+        run: npm run typecheck && npm run lint -- --quiet
 
       - name: Build (all workspaces)
         run: npm run build

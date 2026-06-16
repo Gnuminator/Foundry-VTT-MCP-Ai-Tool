@@ -449,6 +449,24 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > the remaining deferred nets (`scene-fx`, `actor-creation`, `combat` mutation, `creature-index`,
 > `player-rolls`, `actor-builder`) + the `characters` pf2e-prune; `session-log`/`chat`/`modules` rewrites are
 > now Sonnet-ready.
+>
+> **3 Sonnet rewrites + combat-mutation net (2026‑06‑16).** Four commits. **(1–3) `session-log` / `chat` /
+> `modules` rewritten to parity** by three parallel Sonnet workers (one fully-characterized domain each,
+> editing only their module, not committing), Opus-reviewed against the contract + lint/prettier-cleaned,
+> one commit per domain: `session-log` (55→98; `buildFilters` helper), `chat` (112→220; `resolveSpeaker`/
+> `resolveStyle`/`resolveWhisperTargets`, whisper-safety GM fallback + `warning` preserved), `modules`
+> (137→247; `summarizeModule`/`resolveRequires`/`collectCompatIssues`/`buildErrorFilters`, dependency
+> resolution + count invariants preserved). **Faithful parity, no behavior change, no existing-test edits,
+> 0 eslint errors.** **(4) `combat` mutation characterized** (Opus): new `data-access.combat-mutation.test.ts`
+> (+37) pinning the 7 methods the combat-reads rewrite left byte-identical (advanceCombatTurn/setInitiative/
+> rollInitiativeForNpcs/applyDamageAndHealing/rollSavingThrows/manageRest/suggestBalancedEncounter) via
+> local combat/actor stubs + `game.system` overrides (v3-vs-v4+ roll dispatch, requireDnd5e guard, 2014-DMG
+> XP path) — so the **combat domain is now fully characterized** (30 reads + 37 mutation = 67) and the
+> mutation rewrite is unblocked. **11 of 16 modules fully rewritten** (+ `combat` reads); foundry-module
+> **449 → 486** (+37 mutation net), total **1557 → 1594**, full suite + typecheck + build green; pushed to
+> aitool. Next: the `combat`-mutation rewrite (Opus, in place) + the remaining deferred nets (`scene-fx`,
+> `actor-creation`, `creature-index`, `player-rolls`, `actor-builder` — each needs canvas / fetch / socket /
+> compendium harness work) + the `characters` pf2e-prune.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

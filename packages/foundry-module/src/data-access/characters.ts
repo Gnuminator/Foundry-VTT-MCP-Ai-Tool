@@ -1,157 +1,87 @@
 import { ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
-import type { CharacterInfo, SpellcastingEntry, SpellInfo } from './types.js';
+import type {
+  CharacterEffect,
+  CharacterInfo,
+  CharacterItem,
+  SpellcastingEntry,
+  SpellInfo,
+} from './types.js';
 
-/** Character info + item search domain — extracted from FoundryDataAccess. */
+/**
+ * Character/actor inspection domain for `FoundryDataAccess`.
+ *
+ * Three read surfaces an AI model uses to reason about a single actor:
+ *   - {@link getCharacterInfo} — the full dossier (system data, items, effects,
+ *     toggles, and dnd5e spellcasting), sanitized for tool output.
+ *   - {@link searchCharacterItems} — a token-efficient filtered slice of an
+ *     actor's items/spells/actions/effects (by query, type, and category).
+ *   - {@link getCharacterEntity} — one specific item/action/effect in full.
+ *
+ * Foundry documents are duck-typed throughout (`game.actors`, `actor.items`,
+ * `actor.effects` are Collections; `system` is system-specific), so reads use
+ * defensive `?.`/`||` fallbacks. Some extraction branches (rule-element
+ * variants/toggles, actor `system.actions`) are retained from the pre-trim
+ * multi-system code; on the current dnd5e-only build they're inert but harmless,
+ * and the characterization net pins the dnd5e paths that matter.
+ */
 export class CharacterDataAccess {
   /**
-   * Get character/actor information by name or ID
+   * Build the full character dossier by name or 16-char id.
+   *
+   * Lookup order: a 16-character identifier is tried as an actor id first, then
+   * any identifier is matched against actor names (case-insensitive, exact).
+   * Throws `CHARACTER_NOT_FOUND` when nothing matches. `system` and every item's
+   * `system` are passed through {@link shared.sanitizeData} so tool output is
+   * free of cycles, sensitive fields, and deprecated-accessor warnings.
    */
   async getCharacterInfo(identifier: string): Promise<CharacterInfo> {
-    let actor: Actor | undefined;
+    const actor = this.resolveActorById16OrName(identifier);
 
-    // Try to find by ID first, then by name
-    if (identifier.length === 16) {
-      // Foundry ID length
-      actor = game.actors.get(identifier);
-    }
-
-    if (!actor) {
-      actor = game.actors.find(a => a.name?.toLowerCase() === identifier.toLowerCase());
-    }
-
-    if (!actor) {
-      throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${identifier}`);
-    }
-
-    // Build character data structure
     const characterData: CharacterInfo = {
       id: actor.id || '',
       name: actor.name || '',
       type: actor.type,
       ...(actor.img ? { img: actor.img } : {}),
       system: shared.sanitizeData((actor as any).system),
-      items: actor.items.map(item => {
-        return {
-          id: item.id,
-          name: item.name,
-          type: item.type,
-          ...(item.img ? { img: item.img } : {}),
-          system: shared.sanitizeData(item.system),
-        };
-      }),
-      effects: actor.effects.map(effect => {
-        const eff = effect as any;
-        const dur = eff.duration;
-        const durRaw = eff._source?.duration;
-        return {
-          id: effect.id,
-          name: eff.name || eff.label || 'Unknown Effect',
-          ...(eff.icon ? { icon: eff.icon } : {}),
-          disabled: eff.disabled,
-          ...(dur
-            ? {
-                duration: {
-                  type: dur.units ?? durRaw?.type ?? 'none',
-                  duration: dur.seconds ?? durRaw?.duration,
-                  remaining: dur.remaining,
-                },
-              }
-            : {}),
-        };
-      }),
+      items: actor.items.map(item => this.summarizeItem(item)),
+      effects: actor.effects.map(effect => this.summarizeEffect(effect)),
     };
 
-    const actorAny = actor as any;
-
-    // Include actions (strikes, spells, etc.)
-    if (actorAny.system?.actions) {
-      characterData.actions = actorAny.system.actions.map((action: any) => ({
-        name: action.label || action.name,
-        type: action.type,
-        ...(action.item ? { itemId: action.item.id } : {}),
-        ...(action.variants
-          ? {
-              variants: action.variants.map((v: any) => ({
-                label: v.label,
-                ...(v.traits ? { traits: v.traits } : {}),
-              })),
-            }
-          : {}),
-        ...(action.ready !== undefined ? { ready: action.ready } : {}),
-      }));
+    // Actor-level actions (strikes/activities in systems that expose them).
+    const actions = this.extractActions(actor);
+    if (actions) {
+      characterData.actions = actions;
     }
 
-    // Include item variants and toggles
-    const itemVariants: any[] = [];
-    const itemToggles: any[] = [];
-
-    actor.items.forEach(item => {
-      const itemAny = item as any;
-
-      // Extract rule element variants (e.g., weapon variants, stance toggles)
-      if (itemAny.system?.rules) {
-        itemAny.system.rules.forEach((rule: any, ruleIndex: number) => {
-          // Variants (ChoiceSet, RollOption with choices)
-          if (rule.key === 'ChoiceSet' || (rule.key === 'RollOption' && rule.choices)) {
-            itemVariants.push({
-              itemId: item.id,
-              itemName: item.name,
-              ruleIndex: ruleIndex,
-              ruleKey: rule.key,
-              label: rule.label || rule.prompt,
-              ...(rule.selection ? { selected: rule.selection } : {}),
-              ...(rule.choices ? { choices: rule.choices } : {}),
-            });
-          }
-
-          // Toggles (RollOption toggleable, ToggleProperty)
-          if ((rule.key === 'RollOption' && rule.toggleable) || rule.key === 'ToggleProperty') {
-            itemToggles.push({
-              itemId: item.id,
-              itemName: item.name,
-              ruleIndex: ruleIndex,
-              ruleKey: rule.key,
-              label: rule.label,
-              option: rule.option,
-              ...(rule.value !== undefined ? { enabled: rule.value } : {}),
-              ...(rule.toggleable !== undefined ? { toggleable: rule.toggleable } : {}),
-            });
-          }
-        });
-      }
-
-      // Also check for item-level toggles (e.g., equipped, identified)
-      if (itemAny.system?.equipped !== undefined) {
-        itemToggles.push({
-          itemId: item.id,
-          itemName: item.name,
-          type: 'equipped',
-          enabled: itemAny.system.equipped,
-        });
-      }
-    });
-
-    // Add to character data if any found
-    if (itemVariants.length > 0) {
-      characterData.itemVariants = itemVariants;
+    // Rule-element variants/toggles + the dnd5e equipped toggle.
+    const { variants, toggles } = this.extractItemRulesAndToggles(actor);
+    if (variants.length > 0) {
+      characterData.itemVariants = variants;
     }
-    if (itemToggles.length > 0) {
-      characterData.itemToggles = itemToggles;
+    if (toggles.length > 0) {
+      characterData.itemToggles = toggles;
     }
 
-    // Extract spellcasting data
-    const spellcastingEntries = this.extractSpellcastingData(actor);
-    if (spellcastingEntries.length > 0) {
-      characterData.spellcasting = spellcastingEntries;
+    // dnd5e class-based spellcasting (slots + per-class spell lists).
+    const spellcasting = this.extractSpellcastingData(actor);
+    if (spellcasting.length > 0) {
+      characterData.spellcasting = spellcasting;
     }
 
     return characterData;
   }
 
   /**
-   * Search within a character's items, spells, actions, and effects
-   * More token-efficient than getCharacterInfo when you need specific items
+   * Search within a character's items, spells, actions, and effects — a
+   * token-efficient alternative to {@link getCharacterInfo} when only specific
+   * entries are needed.
+   *
+   * Filters (all optional, AND-combined): `query` (case-insensitive substring on
+   * name or description), `type` (exact item/entry type), `category` (spell:
+   * cantrip/prepared/focus; equipment: equipped/invested). `limit` (default 20)
+   * caps the total matches across all three sources. The supplied query/type/
+   * category are echoed back into the envelope only when provided.
    */
   async searchCharacterItems(params: {
     characterIdentifier: string;
@@ -192,146 +122,76 @@ export class CharacterDataAccess {
 
     const { characterIdentifier, query, type, category, limit = 20 } = params;
 
-    // Find the actor
     const actor = shared.findActorByIdentifier(characterIdentifier);
     if (!actor) {
       throw new Error(`Character not found: ${characterIdentifier}`);
     }
 
-    const actorAny = actor as any;
+    const actorAny = actor;
     const systemId = (game.system as any).id;
     const matches: Array<any> = [];
 
-    // Normalize search query
     const searchQuery = query?.toLowerCase().trim();
     const searchType = type?.toLowerCase().trim();
     const searchCategory = category?.toLowerCase().trim();
 
-    // Helper to check if text matches query (safely handles non-strings)
+    // Empty query matches everything; non-string fields never match.
     const matchesQuery = (text: unknown): boolean => {
       if (!searchQuery) return true;
       if (typeof text !== 'string') return false;
       return text.toLowerCase().includes(searchQuery);
     };
+    const matchesType = (itemType: string): boolean =>
+      !searchType || itemType.toLowerCase() === searchType;
 
-    // Helper to check if item matches type filter
-    const matchesType = (itemType: string): boolean => {
-      if (!searchType) return true;
-      return itemType.toLowerCase() === searchType;
-    };
-
-    // Search items
+    // --- Items (and embedded spells/equipment) ---
     for (const item of actor.items) {
-      const itemSystem = item.system as any;
-
-      // Check type filter
+      if (matches.length >= limit) break;
       if (!matchesType(item.type)) continue;
 
-      // Check query filter (name or description)
-      // Ensure description is a string (could be an object in some systems)
-      let description = itemSystem?.description?.value || itemSystem?.description;
-      if (typeof description !== 'string') description = '';
+      const itemSystem = item.system;
+      const description = this.itemDescription(itemSystem);
       if (!matchesQuery(item.name) && !matchesQuery(description)) continue;
 
-      // Build result based on item type
-      const result: any = {
-        id: item.id,
-        name: item.name,
-        type: item.type,
-      };
-
-      // Add description (truncated for token efficiency)
+      const result: any = { id: item.id, name: item.name, type: item.type };
       if (description) {
-        // Strip HTML and truncate
-        const plainText = description.replace(/<[^>]*>/g, '').trim();
-        result.description =
-          plainText.length > 300 ? plainText.substring(0, 300) + '...' : plainText;
+        result.description = this.truncateDescription(description);
       }
 
-      // Spell-specific fields
+      // Type-specific fields + category filtering. A category mismatch skips
+      // the item entirely (mirrors the original `continue`-based control flow).
       if (item.type === 'spell') {
-        result.level = itemSystem?.level?.value ?? itemSystem?.level ?? itemSystem?.rank ?? 0;
-        const itemRaw = (item as any)._source?.system;
-        result.prepared =
-          itemSystem?.prepared ?? itemRaw?.preparation?.prepared ?? itemSystem?.location?.prepared;
-        result.expended = itemSystem?.location?.expended;
-
-        // Get targeting info
-        if (systemId === 'dnd5e') {
-          const targeting = this.extractDnD5eSpellTargeting(itemSystem);
-          if (targeting.range) result.range = targeting.range;
-          if (targeting.target) result.target = targeting.target;
-          if (targeting.area) result.area = targeting.area;
-          result.actionCost = itemSystem?.activation?.type;
-        }
-
-        // Category filter for spells
-        if (searchCategory) {
-          const spellLevel = result.level || 0;
-          const isPrepared = result.prepared !== false;
-          const isCantrip = spellLevel === 0;
-          const isFocus =
-            itemSystem?.traits?.value?.includes('focus') || itemSystem?.category?.value === 'focus';
-
-          if (searchCategory === 'cantrip' && !isCantrip) continue;
-          if (searchCategory === 'prepared' && !isPrepared) continue;
-          if (searchCategory === 'focus' && !isFocus) continue;
-        }
+        if (!this.applySpellFields(result, item, itemSystem, systemId, searchCategory)) continue;
+      } else if (this.isEquipmentType(item.type)) {
+        if (!this.applyEquipmentFields(result, itemSystem, searchCategory)) continue;
       }
-
-      // Equipment-specific fields
-      if (['weapon', 'armor', 'equipment', 'consumable', 'backpack', 'loot'].includes(item.type)) {
-        result.quantity = itemSystem?.quantity ?? 1;
-        result.equipped = itemSystem?.equipped ?? false;
-        result.invested = itemSystem?.equipped?.invested ?? itemSystem?.invested ?? undefined;
-
-        // Category filter for equipment
-        if (searchCategory) {
-          if (searchCategory === 'equipped' && !result.equipped) continue;
-          if (searchCategory === 'invested' && !result.invested) continue;
-        }
-      }
-
-      // Feat/feature fields — no additional extraction needed for D&D 5e
-
-      // Action fields — no additional extraction needed for D&D 5e
 
       matches.push(result);
-
-      // Stop if we've reached the limit
-      if (matches.length >= limit) break;
     }
 
-    // Also search actions if type filter includes 'action' or is empty
+    // --- Actions (when no type filter, or type === 'action') ---
     if (!searchType || searchType === 'action') {
       const actions =
         actorAny.system?.actions || actorAny.items?.filter((i: any) => i.type === 'action') || [];
       for (const action of actions) {
         if (matches.length >= limit) break;
-
         const actionName = action.name || action.label || '';
         if (!matchesQuery(actionName)) continue;
-
-        const result: any = {
+        matches.push({
           id: action.id || action.slug || actionName,
           name: actionName,
           type: 'action',
           actionType: action.type || action.actionType || 'action',
-        };
-
-        matches.push(result);
+        });
       }
     }
 
-    // Search effects if type filter includes 'effect' or is empty
+    // --- Effects (when no type filter, or type === 'effect') ---
     if (!searchType || searchType === 'effect') {
-      const effects = actor.effects || [];
-      for (const effect of effects) {
+      for (const effect of actor.effects || []) {
         if (matches.length >= limit) break;
-
-        const effectAny = effect as any;
+        const effectAny = effect;
         if (!matchesQuery(effectAny.name || effectAny.label)) continue;
-
         matches.push({
           id: effectAny.id,
           name: effectAny.name || effectAny.label,
@@ -343,13 +203,7 @@ export class CharacterDataAccess {
 
     shared.auditLog(
       'searchCharacterItems',
-      {
-        characterId: actor.id,
-        query,
-        type,
-        category,
-        matchCount: matches.length,
-      },
+      { characterId: actor.id, query, type, category, matchCount: matches.length },
       'success'
     );
 
@@ -376,141 +230,453 @@ export class CharacterDataAccess {
   }
 
   /**
-   * Extract spellcasting data from an actor (D&D 5e)
+   * Fetch one entity (item, action, or effect) belonging to a character, in
+   * full. The character is resolved by id or case-insensitive name; the entity
+   * by id or case-insensitive name, searched items → actions → effects in that
+   * order. Both "character not found" and "entity not found" surface wrapped in
+   * a `Failed to get character entity: …` error.
+   */
+  async getCharacterEntity(data: {
+    characterIdentifier: string;
+    entityIdentifier: string;
+  }): Promise<any> {
+    shared.validateFoundryState();
+
+    try {
+      const actors = game.actors?.contents || [];
+      const character = actors.find(
+        (actor: any) =>
+          actor.id === data.characterIdentifier ||
+          actor.name.toLowerCase() === data.characterIdentifier.toLowerCase()
+      );
+      if (!character) {
+        throw new Error(`Character not found: "${data.characterIdentifier}"`);
+      }
+
+      const found =
+        this.findItemEntity(character, data.entityIdentifier) ??
+        this.findActionEntity(character, data.entityIdentifier) ??
+        this.findEffectEntity(character, data.entityIdentifier);
+
+      if (found) {
+        return found;
+      }
+
+      throw new Error(
+        `Entity not found: "${data.entityIdentifier}" in character "${character.name}"`
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to get character entity: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // ===== getCharacterInfo internals =====
+
+  /** Resolve an actor: 16-char identifier as id first, else exact name (ci). */
+  private resolveActorById16OrName(identifier: string): Actor {
+    let actor = identifier.length === 16 ? game.actors.get(identifier) : undefined;
+    if (!actor) {
+      actor = game.actors.find(a => a.name?.toLowerCase() === identifier.toLowerCase());
+    }
+    if (!actor) {
+      throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${identifier}`);
+    }
+    return actor;
+  }
+
+  /** Item summary for the dossier: identity + sanitized system data. */
+  private summarizeItem(item: any): CharacterItem {
+    return {
+      id: item.id,
+      name: item.name,
+      type: item.type,
+      ...(item.img ? { img: item.img } : {}),
+      system: shared.sanitizeData(item.system),
+    };
+  }
+
+  /**
+   * Effect summary for the dossier. The `duration` block is only included when
+   * the effect carries a live duration, and its fields fall back from the
+   * derived `duration` to the raw `_source.duration`.
+   */
+  private summarizeEffect(effect: any): CharacterEffect {
+    const dur = effect.duration;
+    const durRaw = effect._source?.duration;
+    return {
+      id: effect.id,
+      name: effect.name || effect.label || 'Unknown Effect',
+      ...(effect.icon ? { icon: effect.icon } : {}),
+      disabled: effect.disabled,
+      ...(dur
+        ? {
+            duration: {
+              type: dur.units ?? durRaw?.type ?? 'none',
+              duration: dur.seconds ?? durRaw?.duration,
+              remaining: dur.remaining,
+            },
+          }
+        : {}),
+    };
+  }
+
+  /** Actor-level actions (e.g. strikes), or `undefined` when none are present. */
+  private extractActions(actor: any): any[] | undefined {
+    const actions = actor.system?.actions;
+    if (!actions) return undefined;
+
+    return actions.map((action: any) => ({
+      name: action.label || action.name,
+      type: action.type,
+      ...(action.item ? { itemId: action.item.id } : {}),
+      ...(action.variants
+        ? {
+            variants: action.variants.map((v: any) => ({
+              label: v.label,
+              ...(v.traits ? { traits: v.traits } : {}),
+            })),
+          }
+        : {}),
+      ...(action.ready !== undefined ? { ready: action.ready } : {}),
+    }));
+  }
+
+  /**
+   * Collect item rule-element variants/toggles plus the dnd5e equipped toggle.
+   * Variants: ChoiceSet or choice-bearing RollOption rules. Toggles: toggleable
+   * RollOption / ToggleProperty rules, and any item exposing `system.equipped`.
+   */
+  private extractItemRulesAndToggles(actor: any): { variants: any[]; toggles: any[] } {
+    const variants: any[] = [];
+    const toggles: any[] = [];
+
+    actor.items.forEach((item: any) => {
+      const sys = item.system;
+
+      if (sys?.rules) {
+        sys.rules.forEach((rule: any, ruleIndex: number) => {
+          if (rule.key === 'ChoiceSet' || (rule.key === 'RollOption' && rule.choices)) {
+            variants.push({
+              itemId: item.id,
+              itemName: item.name,
+              ruleIndex,
+              ruleKey: rule.key,
+              label: rule.label || rule.prompt,
+              ...(rule.selection ? { selected: rule.selection } : {}),
+              ...(rule.choices ? { choices: rule.choices } : {}),
+            });
+          }
+
+          if ((rule.key === 'RollOption' && rule.toggleable) || rule.key === 'ToggleProperty') {
+            toggles.push({
+              itemId: item.id,
+              itemName: item.name,
+              ruleIndex,
+              ruleKey: rule.key,
+              label: rule.label,
+              option: rule.option,
+              ...(rule.value !== undefined ? { enabled: rule.value } : {}),
+              ...(rule.toggleable !== undefined ? { toggleable: rule.toggleable } : {}),
+            });
+          }
+        });
+      }
+
+      if (sys?.equipped !== undefined) {
+        toggles.push({
+          itemId: item.id,
+          itemName: item.name,
+          type: 'equipped',
+          enabled: sys.equipped,
+        });
+      }
+    });
+
+    return { variants, toggles };
+  }
+
+  // ===== searchCharacterItems internals =====
+
+  private isEquipmentType(type: string): boolean {
+    return ['weapon', 'armor', 'equipment', 'consumable', 'backpack', 'loot'].includes(type);
+  }
+
+  /** A string description for query matching (handles `description.value` shapes). */
+  private itemDescription(itemSystem: any): string {
+    const raw = itemSystem?.description?.value || itemSystem?.description;
+    return typeof raw === 'string' ? raw : '';
+  }
+
+  /** Strip HTML and cap a description at 300 chars for token efficiency. */
+  private truncateDescription(description: string): string {
+    const plainText = description.replace(/<[^>]*>/g, '').trim();
+    return plainText.length > 300 ? `${plainText.substring(0, 300)}...` : plainText;
+  }
+
+  /**
+   * Populate spell-specific fields on a search result and apply the spell
+   * category filter. Returns `false` when the item should be skipped (category
+   * mismatch).
+   */
+  private applySpellFields(
+    result: any,
+    item: any,
+    itemSystem: any,
+    systemId: string,
+    searchCategory?: string
+  ): boolean {
+    result.level = itemSystem?.level?.value ?? itemSystem?.level ?? itemSystem?.rank ?? 0;
+    const itemRaw = item._source?.system;
+    result.prepared =
+      itemSystem?.prepared ?? itemRaw?.preparation?.prepared ?? itemSystem?.location?.prepared;
+    result.expended = itemSystem?.location?.expended;
+
+    if (systemId === 'dnd5e') {
+      const targeting = this.extractDnD5eSpellTargeting(itemSystem);
+      if (targeting.range) result.range = targeting.range;
+      if (targeting.target) result.target = targeting.target;
+      if (targeting.area) result.area = targeting.area;
+      result.actionCost = itemSystem?.activation?.type;
+    }
+
+    if (searchCategory) {
+      const spellLevel = result.level || 0;
+      const isPrepared = result.prepared !== false;
+      const isCantrip = spellLevel === 0;
+      const isFocus =
+        itemSystem?.traits?.value?.includes('focus') || itemSystem?.category?.value === 'focus';
+
+      if (searchCategory === 'cantrip' && !isCantrip) return false;
+      if (searchCategory === 'prepared' && !isPrepared) return false;
+      if (searchCategory === 'focus' && !isFocus) return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Populate equipment-specific fields on a search result and apply the
+   * equipment category filter. Returns `false` when the item should be skipped.
+   */
+  private applyEquipmentFields(result: any, itemSystem: any, searchCategory?: string): boolean {
+    result.quantity = itemSystem?.quantity ?? 1;
+    result.equipped = itemSystem?.equipped ?? false;
+    result.invested = itemSystem?.equipped?.invested ?? itemSystem?.invested ?? undefined;
+
+    if (searchCategory) {
+      if (searchCategory === 'equipped' && !result.equipped) return false;
+      if (searchCategory === 'invested' && !result.invested) return false;
+    }
+
+    return true;
+  }
+
+  // ===== getCharacterEntity internals =====
+
+  /** Find an item by id or name and return the item entity envelope, else null. */
+  private findItemEntity(character: any, entityIdentifier: string): any {
+    const items = character.items?.contents || [];
+    const entity = items.find(
+      (item: any) =>
+        item.id === entityIdentifier || item.name.toLowerCase() === entityIdentifier.toLowerCase()
+    );
+    if (!entity) return null;
+
+    return {
+      success: true,
+      entityType: 'item',
+      entity: {
+        id: entity.id,
+        name: entity.name,
+        type: entity.type,
+        img: entity.img,
+        description: entity.system?.description?.value || entity.system?.description || '',
+        system: entity.system,
+      },
+    };
+  }
+
+  /** Find an action in `system.actions` (array or record) and return it, else null. */
+  private findActionEntity(character: any, entityIdentifier: string): any {
+    const rawActions = character.system?.actions;
+    if (!rawActions) return null;
+
+    const actions = Array.isArray(rawActions) ? rawActions : Object.values(rawActions || {});
+    const entity = actions.find(
+      (action: any) =>
+        action.id === entityIdentifier ||
+        action.name?.toLowerCase() === entityIdentifier.toLowerCase()
+    );
+    if (!entity) return null;
+
+    return { success: true, entityType: 'action', entity };
+  }
+
+  /** Find an effect by id or name and return the effect entity envelope, else null. */
+  private findEffectEntity(character: any, entityIdentifier: string): any {
+    const effects = character.effects?.contents || [];
+    const entity = effects.find(
+      (effect: any) =>
+        effect.id === entityIdentifier ||
+        effect.name?.toLowerCase() === entityIdentifier.toLowerCase()
+    );
+    if (!entity) return null;
+
+    return {
+      success: true,
+      entityType: 'effect',
+      entity: {
+        id: entity.id,
+        name: entity.name || entity.label,
+        icon: entity.icon,
+        disabled: entity.disabled,
+        duration: entity.duration,
+        changes: entity.changes,
+      },
+    };
+  }
+
+  // ===== dnd5e spellcasting extraction =====
+
+  /**
+   * Build dnd5e spellcasting entries. Spells are grouped by their source class
+   * (via `sourceItem`/`sourceClass`, defaulting to `general`); one entry is
+   * emitted per spellcasting class (progression !== 'none') carrying that
+   * class's slots + spells. When no class-based entry can be formed but the
+   * actor has spells, a single general "Spellcasting" entry is emitted instead.
    */
   private extractSpellcastingData(actor: Actor): SpellcastingEntry[] {
     const entries: SpellcastingEntry[] = [];
     const actorAny = actor as any;
     const systemId = (game.system as any).id;
 
-    // Get all spell items from the actor
     const spellItems = actor.items.filter(item => item.type === 'spell');
+    if (systemId !== 'dnd5e') {
+      return entries;
+    }
 
-    if (systemId === 'dnd5e') {
-      // D&D 5e: Extract from classes with spellcasting
-      const classes = actor.items.filter(item => item.type === 'class');
-      const spellSlots = actorAny.system?.spells || {};
+    const classes = actor.items.filter(item => item.type === 'class');
+    const spellSlots = actorAny.system?.spells || {};
 
-      // Group spells by their source class or create a general entry
-      const spellsByClass: Record<string, SpellInfo[]> = {};
+    // Bucket each spell under its originating class (or 'general').
+    const spellsByClass: Record<string, SpellInfo[]> = {};
+    for (const spell of spellItems) {
+      const spellSystem = spell.system as any;
+      const spellRaw = (spell as any)._source?.system || spellSystem;
+      const sourceItem = spellSystem?.sourceItem;
+      const sourceClass =
+        (sourceItem
+          ? typeof sourceItem === 'string'
+            ? sourceItem
+            : sourceItem.identifier || sourceItem.id
+          : spellRaw?.sourceClass) || 'general';
 
-      for (const spell of spellItems) {
-        const spellSystem = spell.system as any;
-        const spellRaw = (spell as any)._source?.system || spellSystem;
-        const sourceItem = spellSystem?.sourceItem;
-        const sourceClass =
-          (sourceItem
-            ? typeof sourceItem === 'string'
-              ? sourceItem
-              : sourceItem.identifier || sourceItem.id
-            : spellRaw?.sourceClass) || 'general';
+      (spellsByClass[sourceClass] ??= []).push(this.toClassSpellInfo(spell, spellSystem, spellRaw));
+    }
 
-        if (!spellsByClass[sourceClass]) {
-          spellsByClass[sourceClass] = [];
-        }
-
-        const targeting = this.extractDnD5eSpellTargeting(spellSystem);
-        spellsByClass[sourceClass].push({
-          id: spell.id || '',
-          name: spell.name || '',
-          level: spellSystem?.level || 0,
-          prepared: spellSystem?.prepared ?? spellRaw?.preparation?.prepared ?? true,
-          traits: [], // D&D 5e doesn't use traits the same way
-          actionCost: spellSystem?.activation?.type || undefined,
-          range: targeting.range,
-          target: targeting.target,
-          area: targeting.area,
-        });
-      }
-
-      // Create entries for each spellcasting class
-      for (const classItem of classes) {
-        const classSystem = classItem.system as any;
-        if (
-          classSystem?.spellcasting?.progression &&
-          classSystem.spellcasting.progression !== 'none'
-        ) {
-          const className = classItem.name || 'Unknown';
-          const classSpells =
-            spellsByClass[classItem.id || ''] || spellsByClass[className.toLowerCase()] || [];
-
-          entries.push({
-            id: classItem.id || '',
-            name: `${className} Spellcasting`,
-            type: classSystem?.spellcasting?.type || 'prepared',
-            ability: classSystem?.spellcasting?.ability || undefined,
-            slots: this.extractDnD5eSpellSlots(spellSlots),
-            spells: classSpells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
-          });
-        }
-      }
-
-      // If no class-based entries found but we have spells, create a general entry
-      if (entries.length === 0 && spellItems.length > 0) {
-        const allSpells: SpellInfo[] = [];
-        for (const spell of spellItems) {
-          const spellSystem = spell.system as any;
-          const targeting = this.extractDnD5eSpellTargeting(spellSystem);
-          allSpells.push({
-            id: spell.id || '',
-            name: spell.name || '',
-            level: spellSystem?.level || 0,
-            prepared: spellSystem?.preparation?.prepared ?? true,
-            actionCost: spellSystem?.activation?.type || undefined,
-            range: targeting.range,
-            target: targeting.target,
-            area: targeting.area,
-          });
-        }
+    // One entry per spellcasting class.
+    for (const classItem of classes) {
+      const classSystem = classItem.system as any;
+      if (
+        classSystem?.spellcasting?.progression &&
+        classSystem.spellcasting.progression !== 'none'
+      ) {
+        const className = classItem.name || 'Unknown';
+        const classSpells =
+          spellsByClass[classItem.id || ''] || spellsByClass[className.toLowerCase()] || [];
 
         entries.push({
-          id: 'spellcasting',
-          name: 'Spellcasting',
-          type: 'prepared',
+          id: classItem.id || '',
+          name: `${className} Spellcasting`,
+          type: classSystem?.spellcasting?.type || 'prepared',
+          ability: classSystem?.spellcasting?.ability || undefined,
           slots: this.extractDnD5eSpellSlots(spellSlots),
-          spells: allSpells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
+          spells: classSpells.sort(this.bySpellLevelThenName),
         });
       }
+    }
+
+    // Fallback: a general entry when there are spells but no class entry formed.
+    if (entries.length === 0 && spellItems.length > 0) {
+      const allSpells = spellItems.map(spell => this.toGeneralSpellInfo(spell, spell.system));
+      entries.push({
+        id: 'spellcasting',
+        name: 'Spellcasting',
+        type: 'prepared',
+        slots: this.extractDnD5eSpellSlots(spellSlots),
+        spells: allSpells.sort(this.bySpellLevelThenName),
+      });
     }
 
     return entries;
   }
 
+  /** Stable spell ordering: by level, then alphabetically by name. */
+  private bySpellLevelThenName = (a: SpellInfo, b: SpellInfo): number =>
+    a.level - b.level || a.name.localeCompare(b.name);
+
+  /** SpellInfo for a class-grouped spell (prefers raw preparation data). */
+  private toClassSpellInfo(spell: any, spellSystem: any, spellRaw: any): SpellInfo {
+    const targeting = this.extractDnD5eSpellTargeting(spellSystem);
+    return {
+      id: spell.id || '',
+      name: spell.name || '',
+      level: spellSystem?.level || 0,
+      prepared: spellSystem?.prepared ?? spellRaw?.preparation?.prepared ?? true,
+      traits: [], // dnd5e doesn't use pf2e-style traits
+      actionCost: spellSystem?.activation?.type || undefined,
+      range: targeting.range,
+      target: targeting.target,
+      area: targeting.area,
+    };
+  }
+
+  /** SpellInfo for the general (no-class) fallback entry. */
+  private toGeneralSpellInfo(spell: any, spellSystem: any): SpellInfo {
+    const targeting = this.extractDnD5eSpellTargeting(spellSystem);
+    return {
+      id: spell.id || '',
+      name: spell.name || '',
+      level: spellSystem?.level || 0,
+      prepared: spellSystem?.preparation?.prepared ?? true,
+      actionCost: spellSystem?.activation?.type || undefined,
+      range: targeting.range,
+      target: targeting.target,
+      area: targeting.area,
+    };
+  }
+
   /**
-   * Extract D&D 5e spell slots from actor system data
+   * Extract dnd5e spell slots (`spell1`..`spell9` plus warlock `pact`) from the
+   * actor's `system.spells`. Only slots with a non-zero max or current value are
+   * included; returns `undefined` when there are none.
    */
   private extractDnD5eSpellSlots(
     spellsData: any
   ): Record<string, { value: number; max: number }> | undefined {
     const slots: Record<string, { value: number; max: number }> = {};
 
-    // D&D 5e stores slots as spell1, spell2, etc.
     for (let level = 1; level <= 9; level++) {
-      const slotKey = `spell${level}`;
-      const slotData = spellsData?.[slotKey];
+      const slotData = spellsData?.[`spell${level}`];
       if (slotData && (slotData.max > 0 || slotData.value > 0)) {
-        slots[`level${level}`] = {
-          value: slotData.value ?? 0,
-          max: slotData.max ?? 0,
-        };
+        slots[`level${level}`] = { value: slotData.value ?? 0, max: slotData.max ?? 0 };
       }
     }
 
-    // Also check for pact slots (warlock)
     const pactSlot = spellsData?.pact;
     if (pactSlot && (pactSlot.max > 0 || pactSlot.value > 0)) {
-      slots['pact'] = {
-        value: pactSlot.value ?? 0,
-        max: pactSlot.max ?? 0,
-      };
+      slots['pact'] = { value: pactSlot.value ?? 0, max: pactSlot.max ?? 0 };
     }
 
     return Object.keys(slots).length > 0 ? slots : undefined;
   }
 
   /**
-   * Extract spell targeting info for D&D 5e
-   * D&D 5e spells have: target.type ("self", "creature", "point", etc.), range.value, range.units
+   * Derive human-readable range/target/area strings from a dnd5e spell's
+   * `range`/`target`/`target.template` data. Area-template spells whose target
+   * is unset or "point" are reported as targeting an "area".
    */
   private extractDnD5eSpellTargeting(spellSystem: any): {
     range?: string;
@@ -519,7 +685,6 @@ export class CharacterDataAccess {
   } {
     const result: { range?: string; target?: string; area?: string } = {};
 
-    // Range (e.g., "60 feet", "Self", "Touch")
     const rangeValue = spellSystem?.range?.value;
     const rangeUnits = spellSystem?.range?.units;
     if (rangeUnits === 'self') {
@@ -532,7 +697,6 @@ export class CharacterDataAccess {
       result.range = `${rangeValue} ${rangeUnits}`;
     }
 
-    // Target type (e.g., "1 creature", "self", "area")
     const targetType = spellSystem?.target?.type;
     const targetValue = spellSystem?.target?.value;
     if (targetType === 'self') {
@@ -549,117 +713,16 @@ export class CharacterDataAccess {
       result.target = targetType;
     }
 
-    // Area (for AoE spells - e.g., "20-foot radius", "30-foot cone")
     const areaType = spellSystem?.target?.template?.type;
     const areaSize = spellSystem?.target?.template?.size;
     const areaUnits = spellSystem?.target?.template?.units || 'ft';
     if (areaType && areaSize) {
       result.area = `${areaSize}-${areaUnits} ${areaType}`;
-      // If spell has area, target is usually "area"
       if (!result.target || result.target === 'point') {
         result.target = 'area';
       }
     }
 
     return result;
-  }
-
-  /**
-   * Get detailed information about a specific entity within a character (item, action, or effect)
-   */
-  async getCharacterEntity(data: {
-    characterIdentifier: string;
-    entityIdentifier: string;
-  }): Promise<any> {
-    shared.validateFoundryState();
-
-    try {
-      // Find the character first
-      const actors = game.actors?.contents || [];
-      const character = actors.find(
-        (actor: any) =>
-          actor.id === data.characterIdentifier ||
-          actor.name.toLowerCase() === data.characterIdentifier.toLowerCase()
-      );
-
-      if (!character) {
-        throw new Error(`Character not found: "${data.characterIdentifier}"`);
-      }
-
-      // Search in items first (by ID or name)
-      const items = character.items?.contents || [];
-      let entity = items.find(
-        (item: any) =>
-          item.id === data.entityIdentifier ||
-          item.name.toLowerCase() === data.entityIdentifier.toLowerCase()
-      );
-
-      if (entity) {
-        return {
-          success: true,
-          entityType: 'item',
-          entity: {
-            id: entity.id,
-            name: entity.name,
-            type: entity.type,
-            img: entity.img,
-            description: entity.system?.description?.value || entity.system?.description || '',
-            system: entity.system,
-          },
-        };
-      }
-
-      // Search in actions (for systems that have actions as separate entities)
-      if ((character as any).system?.actions) {
-        const actions = Array.isArray((character as any).system.actions)
-          ? (character as any).system.actions
-          : Object.values((character as any).system.actions || {});
-
-        entity = actions.find(
-          (action: any) =>
-            action.id === data.entityIdentifier ||
-            action.name?.toLowerCase() === data.entityIdentifier.toLowerCase()
-        );
-
-        if (entity) {
-          return {
-            success: true,
-            entityType: 'action',
-            entity,
-          };
-        }
-      }
-
-      // Search in effects
-      const effects = character.effects?.contents || [];
-      entity = effects.find(
-        (effect: any) =>
-          effect.id === data.entityIdentifier ||
-          effect.name?.toLowerCase() === data.entityIdentifier.toLowerCase()
-      );
-
-      if (entity) {
-        return {
-          success: true,
-          entityType: 'effect',
-          entity: {
-            id: entity.id,
-            name: entity.name || entity.label,
-            icon: entity.icon,
-            disabled: entity.disabled,
-            duration: entity.duration,
-            changes: entity.changes,
-          },
-        };
-      }
-
-      throw new Error(
-        `Entity not found: "${data.entityIdentifier}" in character "${character.name}"`
-      );
-    } catch (error) {
-      throw new Error(
-        `Failed to get character entity: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
   }
 }

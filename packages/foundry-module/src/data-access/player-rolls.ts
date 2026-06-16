@@ -1,13 +1,39 @@
 import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 
-/** Player roll requests + roll button lifecycle domain — extracted from FoundryDataAccess. */
+/** Outcome of resolving a roll-request target (a player user and/or character). */
+interface ResolveResult {
+  found: boolean;
+  user?: User;
+  character?: Actor;
+  targetName: string;
+  errorType?: 'PLAYER_OFFLINE' | 'PLAYER_NOT_FOUND' | 'CHARACTER_NOT_FOUND';
+  errorMessage?: string;
+}
+
+/**
+ * Player-roll-request + roll-button lifecycle domain.
+ *
+ * The flow: an AI-issued roll request resolves a target player/character, builds
+ * a dnd5e roll formula, and posts a chat message carrying a clickable roll
+ * button (state stored in the message's module flags). Players click the button
+ * (handled live in {@link attachRollButtonHandlers}); the message is then
+ * rewritten to a "completed" state, relayed through an online GM over the socket
+ * when the clicking player lacks update permission.
+ */
 export class PlayerRollsDataAccess {
-  // Private storage for tracking roll button processing states
+  /** Per-button "currently rolling" guard, mutated only by the live click handler. */
   private rollButtonProcessingStates: Map<string, boolean> = new Map();
 
+  // ===========================================================================
+  // Roll requests
+  // ===========================================================================
+
   /**
-   * Request player rolls - creates interactive roll buttons in chat
+   * Resolve a target player/character, build the roll formula + button, and post
+   * it as a chat message (public → visible to all; private → whispered to the
+   * target player and all active GMs). Returns a structured `{ success, message,
+   * error? }` (never throws) so the MCP layer can surface a clear reason.
    */
   async requestPlayerRolls(data: {
     rollType: string;
@@ -20,44 +46,34 @@ export class PlayerRollsDataAccess {
     shared.validateFoundryState();
 
     try {
-      // Resolve target player from character name or player name with enhanced error handling
       const playerInfo = this.resolveTargetPlayer(data.targetPlayer);
       if (!playerInfo.found) {
-        // Provide structured error message for MCP that Claude Desktop can understand
-        const errorMessage =
-          playerInfo.errorMessage || `Could not find player or character: ${data.targetPlayer}`;
-
         return {
           success: false,
           message: '',
-          error: errorMessage,
+          error:
+            playerInfo.errorMessage || `Could not find player or character: ${data.targetPlayer}`,
         };
       }
 
-      // Build roll formula based on type and target
       const rollFormula = this.buildRollFormula(
         data.rollType,
         data.rollTarget,
         data.rollModifier,
         playerInfo.character
       );
-
-      // Generate roll button HTML
       const buttonId = foundry.utils.randomID();
       const buttonLabel = this.buildRollButtonLabel(data.rollType, data.rollTarget, data.isPublic);
-
-      // Check if this type of roll was already performed (optional: could check for duplicate recent rolls)
-      // For now, we'll just create the button and let the rendering logic handle the state restoration
 
       const rollButtonHtml = `
         <div class="mcp-roll-request" style="margin: 12px 0; padding: 12px; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9;">
           <p><strong>Roll Request:</strong> ${buttonLabel}</p>
           <p><strong>Target:</strong> ${playerInfo.targetName} ${playerInfo.character ? `(${playerInfo.character.name})` : ''}</p>
           ${data.flavor ? `<p><strong>Context:</strong> ${data.flavor}</p>` : ''}
-          
+
           <div style="text-align: center; margin-top: 8px;">
             <!-- Single Roll Button (clickable by both character owner and GM) -->
-            <button class="mcp-roll-button mcp-button-active" 
+            <button class="mcp-roll-button mcp-button-active"
                     data-button-id="${buttonId}"
                     data-roll-formula="${rollFormula}"
                     data-roll-label="${buttonLabel}"
@@ -70,31 +86,8 @@ export class PlayerRollsDataAccess {
         </div>
       `;
 
-      // Create chat message with roll button
-      // For PUBLIC rolls: both roll request and results visible to all players
-      // For PRIVATE rolls: both roll request and results visible to target player + GM only
-      const whisperTargets: string[] = [];
-
-      if (!data.isPublic) {
-        // Private roll request: whisper to target player + GM only
-
-        // Always whisper to the character owner if they exist
-        if (playerInfo.user?.id) {
-          whisperTargets.push(playerInfo.user.id);
-        }
-
-        // Also send to GM (GMs can see all whispered messages anyway, but this ensures they see it)
-        const gmUsers = game.users?.filter((u: User) => u.isGM && u.active);
-        if (gmUsers) {
-          for (const gm of gmUsers) {
-            if (gm.id && !whisperTargets.includes(gm.id)) {
-              whisperTargets.push(gm.id);
-            }
-          }
-        }
-      } else {
-        // Public roll request: visible to all players (empty whisperTargets array)
-      }
+      // Public → visible to all (empty whisper). Private → target player + GMs.
+      const whisperTargets = data.isPublic ? [] : this.collectWhisperTargets(playerInfo.user?.id);
 
       const messageData = {
         content: rollButtonHtml,
@@ -118,13 +111,10 @@ export class PlayerRollsDataAccess {
       };
 
       const chatMessage = await ChatMessage.create(messageData);
-
-      // Store message ID for later updates
       this.saveRollButtonMessageId(buttonId, chatMessage.id);
 
-      // Note: Click handlers are attached globally via renderChatMessageHTML hook in main.ts
-      // This ensures all users get the handlers when they see the message
-
+      // Click handlers are attached globally via the renderChatMessageHTML hook
+      // in main.ts, so every client wires them up when it renders the message.
       return {
         success: true,
         message: `Roll request sent to ${playerInfo.targetName}. ${data.isPublic ? 'Public roll' : 'Private roll'} button created in chat.`,
@@ -139,327 +129,107 @@ export class PlayerRollsDataAccess {
     }
   }
 
+  /** Convenience wrapper: request an ability check, folding reason + DC into the flavor. */
+  async requestAbilityCheck(data: {
+    targetPlayer: string;
+    ability: string;
+    dc?: number;
+    isPublic: boolean;
+    reason?: string;
+  }): Promise<any> {
+    const flavorParts: string[] = [];
+    if (data.reason) flavorParts.push(data.reason);
+    if (data.dc != null) flavorParts.push(`DC ${data.dc}`);
+
+    return this.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: data.ability,
+      targetPlayer: data.targetPlayer,
+      isPublic: data.isPublic,
+      rollModifier: '',
+      flavor: flavorParts.join(' — '),
+    });
+  }
+
+  /** Convenience wrapper: request an attack roll for a named weapon/spell. */
+  async requestAttackRoll(data: {
+    targetPlayer: string;
+    weaponOrSpellName: string;
+    isPublic: boolean;
+  }): Promise<any> {
+    return this.requestPlayerRolls({
+      rollType: 'attack',
+      rollTarget: data.weaponOrSpellName,
+      targetPlayer: data.targetPlayer,
+      isPublic: data.isPublic,
+      rollModifier: '',
+      flavor: `${data.weaponOrSpellName} attack`,
+    });
+  }
+
   /**
-   * Enhanced player resolution with offline/non-existent player detection
-   * Supports partial matching and provides structured error messages for MCP
+   * Roll a check directly for a GM-controlled actor (no player button) and post
+   * the result. Attacks read the matched item's `labels.toHit`; everything else
+   * uses {@link buildRollFormula} against the actor's roll data.
    */
-  private resolveTargetPlayer(targetPlayer: string): {
-    found: boolean;
-    user?: User;
-    character?: Actor;
-    targetName: string;
-    errorType?: 'PLAYER_OFFLINE' | 'PLAYER_NOT_FOUND' | 'CHARACTER_NOT_FOUND';
-    errorMessage?: string;
-  } {
-    const searchTerm = targetPlayer.toLowerCase().trim();
+  async rollNpcCheck(data: {
+    actorName: string;
+    rollType: string;
+    rollTarget: string;
+    isPublic: boolean;
+  }): Promise<any> {
+    shared.validateFoundryState();
 
-    // FIRST: Check all registered users (both active and inactive) for player name match
-    const allUsers = Array.from(game.users?.values() || []);
-
-    // Try exact player name match first (active and inactive users)
-    let user = allUsers.find((u: User) => u.name?.toLowerCase() === searchTerm);
-
-    if (user) {
-      const isActive = user.active;
-
-      if (!isActive) {
-        // Player exists but is offline
-        return {
-          found: false,
-          user,
-          targetName: user.name || 'Unknown Player',
-          errorType: 'PLAYER_OFFLINE',
-          errorMessage: `Player "${user.name}" is registered but not currently logged in. They need to be online to receive roll requests.`,
-        };
-      }
-
-      // Find the player's character for roll calculations
-      const playerCharacter = game.actors?.find((actor: Actor) => {
-        if (!user) return false;
-        return actor.testUserPermission(user, 'OWNER') && !user.isGM;
-      });
-
-      return {
-        found: true,
-        user,
-        ...(playerCharacter && { character: playerCharacter }), // Include character only if found
-        targetName: user.name || 'Unknown Player',
-      };
+    const actor = shared.findActorByIdentifier(data.actorName);
+    if (!actor) {
+      throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.actorName}`);
     }
 
-    // Try partial player name match (active and inactive users)
-    if (!user) {
-      user = allUsers.find((u: User) => {
-        return Boolean(u.name?.toLowerCase().includes(searchTerm));
-      });
-
-      if (user) {
-        const isActive = user.active;
-
-        if (!isActive) {
-          // Player exists but is offline
-          return {
-            found: false,
-            user,
-            targetName: user.name || 'Unknown Player',
-            errorType: 'PLAYER_OFFLINE',
-            errorMessage: `Player "${user.name}" is registered but not currently logged in. They need to be online to receive roll requests.`,
-          };
-        }
-
-        // Find the player's character for roll calculations
-        const playerCharacter = game.actors?.find((actor: Actor) => {
-          if (!user) return false;
-          return actor.testUserPermission(user, 'OWNER') && !user.isGM;
-        });
-
-        return {
-          found: true,
-          user,
-          ...(playerCharacter && { character: playerCharacter }), // Include character only if found
-          targetName: user.name || 'Unknown Player',
-        };
+    let formula: string;
+    if (data.rollType === 'attack') {
+      const item = actor.items.find(
+        (i: any) =>
+          i.name.toLowerCase() === data.rollTarget.toLowerCase() ||
+          i.name.toLowerCase().includes(data.rollTarget.toLowerCase())
+      );
+      let bonus = '';
+      const toHit = item?.labels?.toHit;
+      if (toHit && typeof toHit === 'string') {
+        const trimmed = toHit.replace(/\s+/g, '');
+        bonus = trimmed.startsWith('+') || trimmed.startsWith('-') ? trimmed : `+${trimmed}`;
       }
+      formula = `1d20${bonus}`;
+    } else {
+      formula = this.buildRollFormula(data.rollType, data.rollTarget, '', actor);
     }
 
-    // SECOND: Try to find by character name (exact match, then partial match)
-    let character = game.actors?.find(
-      (actor: Actor) => actor.name?.toLowerCase() === searchTerm && actor.hasPlayerOwner
+    const RollCls: any = (globalThis as any).Roll;
+    const roll = new RollCls(formula, actor.getRollData());
+    await roll.evaluate();
+
+    const speaker = (ChatMessage as any).getSpeaker({ actor });
+    const modes: any = (CONST as any).DICE_ROLL_MODES || {};
+    const rollMode = data.isPublic ? (modes.PUBLIC ?? 'publicroll') : (modes.PRIVATE ?? 'gmroll');
+
+    await roll.toMessage(
+      { speaker, flavor: `${data.rollTarget} (${data.rollType})` },
+      { rollMode }
     );
 
-    // If no exact character match, try partial match
-    if (!character) {
-      character = game.actors?.find((actor: Actor) => {
-        return Boolean(actor.name?.toLowerCase().includes(searchTerm) && actor.hasPlayerOwner);
-      });
-    }
-
-    if (character) {
-      // Find the actual player owner (not GM) of this character
-      const ownerUser = allUsers.find(
-        (u: User) => character.testUserPermission(u, 'OWNER') && !u.isGM
-      );
-
-      if (ownerUser) {
-        const isOwnerActive = ownerUser.active;
-
-        if (!isOwnerActive) {
-          // Character owner exists but is offline
-          return {
-            found: false,
-            user: ownerUser,
-            character,
-            targetName: ownerUser.name || 'Unknown Player',
-            errorType: 'PLAYER_OFFLINE',
-            errorMessage: `Player "${ownerUser.name}" (owner of character "${character.name}") is registered but not currently logged in. They need to be online to receive roll requests.`,
-          };
-        }
-
-        return {
-          found: true,
-          user: ownerUser,
-          character,
-          targetName: ownerUser.name || 'Unknown Player',
-        };
-      } else {
-        // No player owner found - character is GM-only controlled
-        // Still return found=true but without user, GM can still roll for it
-        return {
-          found: true,
-          character,
-          targetName: character.name || 'Unknown Character',
-          // user is omitted (undefined) for GM-only characters
-        };
-      }
-    }
-
-    // THIRD: Check if the search term might be a character that exists but has no player owner
-    const anyCharacter = game.actors?.find((actor: Actor) => {
-      if (!actor.name) return false;
-      return (
-        actor.name.toLowerCase() === searchTerm || actor.name.toLowerCase().includes(searchTerm)
-      );
-    });
-
-    if (anyCharacter && !anyCharacter.hasPlayerOwner) {
-      return {
-        found: true,
-        character: anyCharacter,
-        targetName: anyCharacter.name || 'Unknown Character',
-        // No user for GM-controlled characters
-      };
-    }
-
-    // No player or character found at all
-
     return {
-      found: false,
-      targetName: targetPlayer,
-      errorType: 'PLAYER_NOT_FOUND',
-      errorMessage: `No player or character named "${targetPlayer}" found. Available players: ${
-        allUsers
-          .filter(u => !u.isGM)
-          .map(u => u.name)
-          .join(', ') || 'none'
-      }`,
+      success: true,
+      actorName: actor.name,
+      rollType: data.rollType,
+      rollTarget: data.rollTarget,
+      formula: roll.formula,
+      total: roll.total,
+      isPublic: data.isPublic,
     };
   }
 
-  /**
-   * Build roll formula based on roll type and target using Foundry's roll data system
-   */
-  private buildRollFormula(
-    rollType: string,
-    rollTarget: string,
-    rollModifier: string,
-    character?: Actor
-  ): string {
-    let baseFormula = '1d20';
-
-    // Coerce a roll-data field to a finite number. In dnd5e v5 some fields that
-    // were plain numbers are now objects (e.g. abilities.<x>.save), so a naive
-    // `1d20+${field}` produced "1d20+[object Object]" and broke Roll parsing.
-    const toMod = (v: any): number => {
-      if (v == null) return 0;
-      if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
-      if (typeof v === 'object') {
-        const inner = v.value ?? v.total ?? v.mod ?? v.bonus;
-        const n = Number(inner);
-        return Number.isFinite(n) ? n : 0;
-      }
-      const n = Number(v);
-      return Number.isFinite(n) ? n : 0;
-    };
-    // Format a modifier with an explicit sign so negatives don't produce "+-2".
-    const signed = (n: number): string => `${n >= 0 ? '+' : ''}${n}`;
-
-    if (character) {
-      // Use Foundry's getRollData() to get calculated modifiers including active effects
-      const rollData = character.getRollData() as any; // Type assertion for Foundry's dynamic roll data
-
-      switch (rollType) {
-        case 'ability': {
-          const abilityMod = toMod(rollData.abilities?.[rollTarget]?.mod);
-          baseFormula = `1d20${signed(abilityMod)}`;
-          break;
-        }
-
-        case 'skill': {
-          // Map skill name to skill code (D&D 5e uses 3-letter codes)
-          const skillCode = this.getSkillCode(rollTarget);
-          const skillMod = toMod(rollData.skills?.[skillCode]?.total);
-          baseFormula = `1d20${signed(skillMod)}`;
-          break;
-        }
-
-        case 'save': {
-          // dnd5e v5: abilities.<x>.save is an object (not a flat bonus), so we
-          // compute the save modifier from ability mod + proficiency rather than
-          // reading `.save` directly (which omitted save proficiency, e.g. a
-          // creature's DEX save came out +2 instead of +7).
-          const ability = rollData.abilities?.[rollTarget] ?? {};
-          const mod = toMod(ability.mod);
-          const prof = toMod(rollData.attributes?.prof ?? rollData.prof);
-          const proficient = toMod(ability.proficient); // 0 / 0.5 / 1 / 2
-          const computed = mod + Math.round(proficient * prof);
-          // Prefer a directly-exposed numeric save total if it's larger (covers
-          // misc save bonuses); otherwise use the computed value.
-          const saveMod = Math.max(computed, toMod(ability.save));
-          baseFormula = `1d20${signed(saveMod)}`;
-          break;
-        }
-
-        case 'initiative': {
-          const initMod = toMod(rollData.attributes?.init?.mod ?? rollData.abilities?.dex?.mod);
-          baseFormula = `1d20${signed(initMod)}`;
-          break;
-        }
-
-        case 'custom':
-          baseFormula = rollTarget; // Use rollTarget as the formula directly
-          break;
-
-        default:
-          baseFormula = '1d20';
-      }
-    } else {
-      console.warn(`[${MODULE_ID}] No character provided for roll formula, using base 1d20`);
-    }
-
-    // Add modifier if provided
-    if (rollModifier?.trim()) {
-      const modifier =
-        rollModifier.startsWith('+') || rollModifier.startsWith('-')
-          ? rollModifier
-          : `+${rollModifier}`;
-      baseFormula += modifier;
-    }
-
-    return baseFormula;
-  }
-
-  /**
-   * Map skill names to D&D 5e skill codes
-   */
-  private getSkillCode(skillName: string): string {
-    const skillMap: { [key: string]: string } = {
-      acrobatics: 'acr',
-      'animal handling': 'ani',
-      animalhandling: 'ani',
-      arcana: 'arc',
-      athletics: 'ath',
-      deception: 'dec',
-      history: 'his',
-      insight: 'ins',
-      intimidation: 'itm',
-      investigation: 'inv',
-      medicine: 'med',
-      nature: 'nat',
-      perception: 'prc',
-      performance: 'prf',
-      persuasion: 'per',
-      religion: 'rel',
-      'sleight of hand': 'slt',
-      sleightofhand: 'slt',
-      stealth: 'ste',
-      survival: 'sur',
-    };
-
-    const normalizedName = skillName.toLowerCase().replace(/\s+/g, '');
-    const skillCode =
-      skillMap[normalizedName] || skillMap[skillName.toLowerCase()] || skillName.toLowerCase();
-
-    return skillCode;
-  }
-
-  /**
-   * Build roll button label
-   */
-  private buildRollButtonLabel(rollType: string, rollTarget: string, isPublic: boolean): string {
-    const visibility = isPublic ? 'Public' : 'Private';
-
-    switch (rollType) {
-      case 'ability':
-        return `${rollTarget.toUpperCase()} Ability Check (${visibility})`;
-      case 'skill':
-        return `${rollTarget.charAt(0).toUpperCase() + rollTarget.slice(1)} Skill Check (${visibility})`;
-      case 'save':
-        return `${rollTarget.toUpperCase()} Saving Throw (${visibility})`;
-      case 'attack':
-        return `${rollTarget} Attack (${visibility})`;
-      case 'initiative':
-        return `Initiative Roll (${visibility})`;
-      case 'custom':
-        return `Custom Roll (${visibility})`;
-      default:
-        return `Roll (${visibility})`;
-    }
-  }
-
-  /**
-   * Restore roll button states from persistent storage
-   * Called when chat messages are rendered to maintain state across sessions
-   */
+  // ===========================================================================
+  // Live DOM click handlers (verified live, not in the in-memory harness)
+  // ===========================================================================
 
   /**
    * Attach click handlers to roll buttons and handle visibility
@@ -658,25 +428,26 @@ export class PlayerRollsDataAccess {
     html.find('.mcp-roll-button').on('click', (event: any) => void onRollButtonClick(event));
   }
 
+  // ===========================================================================
+  // Roll-button state + message persistence
+  // ===========================================================================
+
   /**
-   * Save roll button state to persistent storage
+   * LEGACY: persist a button's rolled state. Redirects to the modern
+   * {@link updateRollButtonMessage} path; failures are swallowed (never throws)
+   * to avoid breaking the legacy callers.
    */
   async saveRollState(buttonId: string, userId: string): Promise<void> {
-    // LEGACY METHOD - Redirecting to new ChatMessage.update() system
-
     try {
-      // Use the new ChatMessage.update() approach instead
-      const rollLabel = 'Legacy Roll'; // We don't have the label here, use generic
+      const rollLabel = 'Legacy Roll'; // No label available here; use a generic one.
       await this.updateRollButtonMessage(buttonId, userId, rollLabel);
     } catch (error) {
       console.error(`[${MODULE_ID}] Legacy saveRollState redirect failed:`, error);
-      // Don't throw - we don't want to break the old system completely
+      // Don't throw — we don't want to break the old system completely.
     }
   }
 
-  /**
-   * Get roll button state from persistent storage
-   */
+  /** Read a button's persisted roll state from settings, or null. */
   getRollState(
     buttonId: string
   ): { rolled: boolean; rolledBy?: string; rolledByName?: string; timestamp?: number } | null {
@@ -691,9 +462,7 @@ export class PlayerRollsDataAccess {
     }
   }
 
-  /**
-   * Save button ID to message ID mapping for ChatMessage updates
-   */
+  /** Persist a buttonId → messageId mapping (so the message can be rewritten later). */
   saveRollButtonMessageId(buttonId: string, messageId: string): void {
     try {
       const buttonMessageMap = game.settings.get(MODULE_ID, 'buttonMessageMap') || {};
@@ -704,9 +473,7 @@ export class PlayerRollsDataAccess {
     }
   }
 
-  /**
-   * Get message ID for a roll button
-   */
+  /** Look up the message id mapped to a roll button, or null. */
   getRollButtonMessageId(buttonId: string): string | null {
     try {
       const buttonMessageMap = game.settings.get(MODULE_ID, 'buttonMessageMap') || {};
@@ -717,9 +484,7 @@ export class PlayerRollsDataAccess {
     }
   }
 
-  /**
-   * Get roll button state from ChatMessage flags
-   */
+  /** Read a button's roll state from a chat message's module flags, or null. */
   getRollStateFromMessage(chatMessage: any, buttonId: string): any {
     try {
       const rollButtons = chatMessage.getFlag(MODULE_ID, 'rollButtons');
@@ -731,7 +496,9 @@ export class PlayerRollsDataAccess {
   }
 
   /**
-   * Update the ChatMessage to replace button with rolled state
+   * Rewrite a roll-request message to its completed state (content + flags). When
+   * the current user is a non-GM who cannot modify the message, relay the request
+   * to an online GM over the socket instead (throwing if no GM is online).
    */
   async updateRollButtonMessage(
     buttonId: string,
@@ -739,16 +506,12 @@ export class PlayerRollsDataAccess {
     rollLabel: string
   ): Promise<void> {
     try {
-      // Get the message ID for this button
       const messageId = this.getRollButtonMessageId(buttonId);
-
       if (!messageId) {
         throw new Error(`No message ID found for button ${buttonId}`);
       }
 
-      // Get the chat message
       const chatMessage = game.messages?.get(messageId);
-
       if (!chatMessage) {
         throw new Error(`ChatMessage ${messageId} not found`);
       }
@@ -756,40 +519,32 @@ export class PlayerRollsDataAccess {
       const rolledByName = game.users?.get(userId)?.name || 'Unknown';
       const timestamp = new Date().toLocaleString();
 
-      // Check permissions before attempting update
+      // Non-GM users who can't modify the message relay it to an online GM.
       const canUpdate = chatMessage.canUserModify(game.user, 'update');
-
       if (!canUpdate && !game.user?.isGM) {
-        // Non-GM user cannot update message - request GM to do it via socket
-
-        // Find online GM
         const onlineGM = game.users?.find(u => u.isGM && u.active);
         if (!onlineGM) {
           throw new Error('No Game Master is online to update the chat message');
         }
-
-        // Send socket request to GM
-        if (game.socket) {
-          game.socket.emit('module.foundry-mcp-bridge', {
-            type: 'requestMessageUpdate',
-            buttonId,
-            userId,
-            rollLabel,
-            messageId,
-            fromUserId: game.user.id,
-            targetGM: onlineGM.id,
-          });
-          return; // Exit early - GM will handle the update
-        } else {
+        if (!game.socket) {
           throw new Error('Socket not available for GM communication');
         }
+        game.socket.emit('module.foundry-mcp-bridge', {
+          type: 'requestMessageUpdate',
+          buttonId,
+          userId,
+          rollLabel,
+          messageId,
+          fromUserId: game.user.id,
+          targetGM: onlineGM.id,
+        });
+        return; // GM will perform the update.
       }
 
-      // Update the message flags to mark button as rolled
+      // Mark the button rolled in the message flags.
       const currentFlags = chatMessage.flags || {};
       const moduleFlags = currentFlags[MODULE_ID] || {};
       const rollButtons = moduleFlags.rollButtons || {};
-
       rollButtons[buttonId] = {
         ...rollButtons[buttonId],
         rolled: true,
@@ -798,7 +553,6 @@ export class PlayerRollsDataAccess {
         timestamp: Date.now(),
       };
 
-      // Create the rolled state HTML
       const rolledHtml = `
         <div class="mcp-roll-request" style="margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background: #f9f9f9;">
           <p><strong>Roll Request:</strong> ${rollLabel}</p>
@@ -806,7 +560,6 @@ export class PlayerRollsDataAccess {
         </div>
       `;
 
-      // Update the message content and flags
       await chatMessage.update({
         content: rolledHtml,
         flags: {
@@ -825,19 +578,16 @@ export class PlayerRollsDataAccess {
   }
 
   /**
-   * Request GM to save roll state (for non-GM users who can't write to world settings)
+   * LEGACY: request a GM to save roll state (for non-GM users). Redirects to
+   * {@link updateRollButtonMessage}; fire-and-forget (returns void, logs on fail).
    */
   requestRollStateSave(buttonId: string, userId: string): void {
-    // LEGACY METHOD - Redirecting to new ChatMessage.update() system
-
     try {
-      // Use the new ChatMessage.update() approach instead
-      const rollLabel = 'Legacy Roll'; // We don't have the label here, use generic
+      const rollLabel = 'Legacy Roll'; // No label available here; use a generic one.
       this.updateRollButtonMessage(buttonId, userId, rollLabel)
         .then(() => {})
         .catch(error => {
           console.error(`[${MODULE_ID}] Legacy requestRollStateSave redirect failed:`, error);
-          // If the new system fails, just log it - don't use the old socket system
         });
     } catch (error) {
       console.error(`[${MODULE_ID}] Error in legacy requestRollStateSave redirect:`, error);
@@ -845,16 +595,16 @@ export class PlayerRollsDataAccess {
   }
 
   /**
-   * Broadcast roll state change to all connected users for real-time sync
+   * LEGACY: no-op. ChatMessage.update() already broadcasts to every client, so
+   * an explicit roll-state broadcast is no longer needed.
    */
   broadcastRollState(_buttonId: string, _rollState: any): void {
-    // LEGACY METHOD - No longer needed with ChatMessage.update() system
-    // ChatMessage.update() automatically broadcasts to all clients, so this method is no longer needed
+    // Intentionally empty — superseded by ChatMessage.update() auto-sync.
   }
 
   /**
-   * Clean up old roll states (optional maintenance)
-   * Removes roll states older than 30 days to prevent storage bloat
+   * Prune roll states older than 30 days from settings to prevent storage bloat.
+   * Returns the number of entries removed.
    */
   async cleanOldRollStates(): Promise<number> {
     shared.validateFoundryState();
@@ -864,7 +614,6 @@ export class PlayerRollsDataAccess {
       const rollStates = game.settings.get(MODULE_ID, 'rollStates') || {};
       let cleanedCount = 0;
 
-      // Remove old roll states
       for (const [buttonId, rollState] of Object.entries(rollStates)) {
         if (rollState && typeof rollState === 'object' && 'timestamp' in rollState) {
           const timestamp = (rollState as any).timestamp;
@@ -886,115 +635,291 @@ export class PlayerRollsDataAccess {
     }
   }
 
+  // ===========================================================================
+  // Private helpers
+  // ===========================================================================
+
   /**
-   * Check if a roll button is currently being processed
+   * Resolve a roll-request target to a player user and/or character. Resolution
+   * order: a user by name (exact, then partial) → a player-owned character by
+   * name (exact, then partial) → any character with no player owner (GM rolls it)
+   * → not found. Offline players resolve to a structured PLAYER_OFFLINE error.
    */
+  private resolveTargetPlayer(targetPlayer: string): ResolveResult {
+    const searchTerm = targetPlayer.toLowerCase().trim();
+    const allUsers = Array.from(game.users?.values() || []);
+
+    // 1) Registered user by name (exact wins over partial).
+    const userByName =
+      allUsers.find((u: User) => u.name?.toLowerCase() === searchTerm) ??
+      allUsers.find((u: User) => Boolean(u.name?.toLowerCase().includes(searchTerm)));
+    if (userByName) {
+      return this.resultForUser(userByName);
+    }
+
+    // 2) Player-owned character by name (exact wins over partial).
+    const character =
+      game.actors?.find(
+        (actor: Actor) => actor.name?.toLowerCase() === searchTerm && actor.hasPlayerOwner
+      ) ??
+      game.actors?.find((actor: Actor) =>
+        Boolean(actor.name?.toLowerCase().includes(searchTerm) && actor.hasPlayerOwner)
+      );
+    if (character) {
+      const ownerUser = allUsers.find(
+        (u: User) => character.testUserPermission(u, 'OWNER') && !u.isGM
+      );
+      if (ownerUser) {
+        if (!ownerUser.active) {
+          return {
+            found: false,
+            user: ownerUser,
+            character,
+            targetName: ownerUser.name || 'Unknown Player',
+            errorType: 'PLAYER_OFFLINE',
+            errorMessage: `Player "${ownerUser.name}" (owner of character "${character.name}") is registered but not currently logged in. They need to be online to receive roll requests.`,
+          };
+        }
+        return {
+          found: true,
+          user: ownerUser,
+          character,
+          targetName: ownerUser.name || 'Unknown Player',
+        };
+      }
+      // No (non-GM) player owner — the GM can still roll for this character.
+      return {
+        found: true,
+        character,
+        targetName: character.name || 'Unknown Character',
+      };
+    }
+
+    // 3) Any character that exists but has no player owner at all.
+    const anyCharacter = game.actors?.find((actor: Actor) => {
+      if (!actor.name) return false;
+      return (
+        actor.name.toLowerCase() === searchTerm || actor.name.toLowerCase().includes(searchTerm)
+      );
+    });
+    if (anyCharacter && !anyCharacter.hasPlayerOwner) {
+      return {
+        found: true,
+        character: anyCharacter,
+        targetName: anyCharacter.name || 'Unknown Character',
+      };
+    }
+
+    // 4) Nothing matched.
+    return {
+      found: false,
+      targetName: targetPlayer,
+      errorType: 'PLAYER_NOT_FOUND',
+      errorMessage: `No player or character named "${targetPlayer}" found. Available players: ${
+        allUsers
+          .filter(u => !u.isGM)
+          .map(u => u.name)
+          .join(', ') || 'none'
+      }`,
+    };
+  }
+
+  /** Resolve a matched user: PLAYER_OFFLINE when inactive, else found (with owned character). */
+  private resultForUser(user: User): ResolveResult {
+    if (!user.active) {
+      return {
+        found: false,
+        user,
+        targetName: user.name || 'Unknown Player',
+        errorType: 'PLAYER_OFFLINE',
+        errorMessage: `Player "${user.name}" is registered but not currently logged in. They need to be online to receive roll requests.`,
+      };
+    }
+    // The user's owned character (non-GM), if any — drives roll-data lookups.
+    const playerCharacter = game.actors?.find(
+      (actor: Actor) => actor.testUserPermission(user, 'OWNER') && !user.isGM
+    );
+    return {
+      found: true,
+      user,
+      ...(playerCharacter && { character: playerCharacter }),
+      targetName: user.name || 'Unknown Player',
+    };
+  }
+
+  /** Whisper recipients for a private roll: the target user (if any) + all active GMs. */
+  private collectWhisperTargets(targetUserId?: string | null): string[] {
+    const targets: string[] = [];
+    if (targetUserId) {
+      targets.push(targetUserId);
+    }
+    const gmUsers = game.users?.filter((u: User) => u.isGM && u.active);
+    if (gmUsers) {
+      for (const gm of gmUsers) {
+        if (gm.id && !targets.includes(gm.id)) {
+          targets.push(gm.id);
+        }
+      }
+    }
+    return targets;
+  }
+
+  /**
+   * Build a `1d20`-based roll formula for the given roll type against a
+   * character's roll data (dnd5e). Modifiers are coerced to finite numbers
+   * (dnd5e v5 turned some flat fields into objects) and signed; an explicit
+   * `rollModifier` is appended last.
+   */
+  private buildRollFormula(
+    rollType: string,
+    rollTarget: string,
+    rollModifier: string,
+    character?: Actor
+  ): string {
+    let baseFormula = '1d20';
+
+    // Coerce a roll-data field to a finite number. In dnd5e v5 some fields that
+    // were plain numbers are now objects (e.g. abilities.<x>.save), so a naive
+    // `1d20+${field}` produced "1d20+[object Object]" and broke Roll parsing.
+    const toMod = (v: any): number => {
+      if (v == null) return 0;
+      if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+      if (typeof v === 'object') {
+        const inner = v.value ?? v.total ?? v.mod ?? v.bonus;
+        const n = Number(inner);
+        return Number.isFinite(n) ? n : 0;
+      }
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+    // Format a modifier with an explicit sign so negatives don't produce "+-2".
+    const signed = (n: number): string => `${n >= 0 ? '+' : ''}${n}`;
+
+    if (character) {
+      // Foundry's getRollData() gives calculated modifiers (incl. active effects).
+      const rollData = character.getRollData() as any;
+
+      switch (rollType) {
+        case 'ability': {
+          const abilityMod = toMod(rollData.abilities?.[rollTarget]?.mod);
+          baseFormula = `1d20${signed(abilityMod)}`;
+          break;
+        }
+
+        case 'skill': {
+          const skillCode = this.getSkillCode(rollTarget);
+          const skillMod = toMod(rollData.skills?.[skillCode]?.total);
+          baseFormula = `1d20${signed(skillMod)}`;
+          break;
+        }
+
+        case 'save': {
+          // dnd5e v5: abilities.<x>.save is an object (not a flat bonus), so we
+          // compute the save modifier from ability mod + proficiency rather than
+          // reading `.save` directly (which omitted save proficiency, e.g. a
+          // creature's DEX save came out +2 instead of +7).
+          const ability = rollData.abilities?.[rollTarget] ?? {};
+          const mod = toMod(ability.mod);
+          const prof = toMod(rollData.attributes?.prof ?? rollData.prof);
+          const proficient = toMod(ability.proficient); // 0 / 0.5 / 1 / 2
+          const computed = mod + Math.round(proficient * prof);
+          // Prefer a directly-exposed numeric save total if it's larger (covers
+          // misc save bonuses); otherwise use the computed value.
+          const saveMod = Math.max(computed, toMod(ability.save));
+          baseFormula = `1d20${signed(saveMod)}`;
+          break;
+        }
+
+        case 'initiative': {
+          const initMod = toMod(rollData.attributes?.init?.mod ?? rollData.abilities?.dex?.mod);
+          baseFormula = `1d20${signed(initMod)}`;
+          break;
+        }
+
+        case 'custom':
+          baseFormula = rollTarget; // Use rollTarget as the formula directly
+          break;
+
+        default:
+          baseFormula = '1d20';
+      }
+    } else {
+      console.warn(`[${MODULE_ID}] No character provided for roll formula, using base 1d20`);
+    }
+
+    if (rollModifier?.trim()) {
+      const modifier =
+        rollModifier.startsWith('+') || rollModifier.startsWith('-')
+          ? rollModifier
+          : `+${rollModifier}`;
+      baseFormula += modifier;
+    }
+
+    return baseFormula;
+  }
+
+  /** Map a (possibly spaced) D&D 5e skill name to its 3-letter code. */
+  private getSkillCode(skillName: string): string {
+    const skillMap: { [key: string]: string } = {
+      acrobatics: 'acr',
+      'animal handling': 'ani',
+      animalhandling: 'ani',
+      arcana: 'arc',
+      athletics: 'ath',
+      deception: 'dec',
+      history: 'his',
+      insight: 'ins',
+      intimidation: 'itm',
+      investigation: 'inv',
+      medicine: 'med',
+      nature: 'nat',
+      perception: 'prc',
+      performance: 'prf',
+      persuasion: 'per',
+      religion: 'rel',
+      'sleight of hand': 'slt',
+      sleightofhand: 'slt',
+      stealth: 'ste',
+      survival: 'sur',
+    };
+
+    const normalizedName = skillName.toLowerCase().replace(/\s+/g, '');
+    return skillMap[normalizedName] || skillMap[skillName.toLowerCase()] || skillName.toLowerCase();
+  }
+
+  /** Human-readable button label for a roll request. */
+  private buildRollButtonLabel(rollType: string, rollTarget: string, isPublic: boolean): string {
+    const visibility = isPublic ? 'Public' : 'Private';
+
+    switch (rollType) {
+      case 'ability':
+        return `${rollTarget.toUpperCase()} Ability Check (${visibility})`;
+      case 'skill':
+        return `${rollTarget.charAt(0).toUpperCase() + rollTarget.slice(1)} Skill Check (${visibility})`;
+      case 'save':
+        return `${rollTarget.toUpperCase()} Saving Throw (${visibility})`;
+      case 'attack':
+        return `${rollTarget} Attack (${visibility})`;
+      case 'initiative':
+        return `Initiative Roll (${visibility})`;
+      case 'custom':
+        return `Custom Roll (${visibility})`;
+      default:
+        return `Roll (${visibility})`;
+    }
+  }
+
+  /** Whether a roll button is mid-roll (guards against concurrent clicks). */
   private isRollButtonProcessing(buttonId: string): boolean {
     return this.rollButtonProcessingStates.get(buttonId) || false;
   }
 
-  /**
-   * Set roll button processing state
-   */
+  /** Set/clear a roll button's "currently rolling" guard. */
   private setRollButtonProcessing(buttonId: string, processing: boolean): void {
     if (processing) {
       this.rollButtonProcessingStates.set(buttonId, true);
     } else {
       this.rollButtonProcessingStates.delete(buttonId);
     }
-  }
-
-  async requestAbilityCheck(data: {
-    targetPlayer: string;
-    ability: string;
-    dc?: number;
-    isPublic: boolean;
-    reason?: string;
-  }): Promise<any> {
-    const flavorParts: string[] = [];
-    if (data.reason) flavorParts.push(data.reason);
-    if (data.dc != null) flavorParts.push(`DC ${data.dc}`);
-
-    return this.requestPlayerRolls({
-      rollType: 'ability',
-      rollTarget: data.ability,
-      targetPlayer: data.targetPlayer,
-      isPublic: data.isPublic,
-      rollModifier: '',
-      flavor: flavorParts.join(' — '),
-    });
-  }
-
-  async requestAttackRoll(data: {
-    targetPlayer: string;
-    weaponOrSpellName: string;
-    isPublic: boolean;
-  }): Promise<any> {
-    return this.requestPlayerRolls({
-      rollType: 'attack',
-      rollTarget: data.weaponOrSpellName,
-      targetPlayer: data.targetPlayer,
-      isPublic: data.isPublic,
-      rollModifier: '',
-      flavor: `${data.weaponOrSpellName} attack`,
-    });
-  }
-
-  async rollNpcCheck(data: {
-    actorName: string;
-    rollType: string;
-    rollTarget: string;
-    isPublic: boolean;
-  }): Promise<any> {
-    shared.validateFoundryState();
-
-    const actor = shared.findActorByIdentifier(data.actorName);
-    if (!actor) {
-      throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.actorName}`);
-    }
-
-    let formula: string;
-    if (data.rollType === 'attack') {
-      const item = actor.items.find(
-        (i: any) =>
-          i.name.toLowerCase() === data.rollTarget.toLowerCase() ||
-          i.name.toLowerCase().includes(data.rollTarget.toLowerCase())
-      );
-      let bonus = '';
-      const toHit = item?.labels?.toHit;
-      if (toHit && typeof toHit === 'string') {
-        const trimmed = toHit.replace(/\s+/g, '');
-        bonus = trimmed.startsWith('+') || trimmed.startsWith('-') ? trimmed : `+${trimmed}`;
-      }
-      formula = `1d20${bonus}`;
-    } else {
-      formula = this.buildRollFormula(data.rollType, data.rollTarget, '', actor);
-    }
-
-    const RollCls: any = (globalThis as any).Roll;
-    const roll = new RollCls(formula, actor.getRollData());
-    await roll.evaluate();
-
-    const speaker = (ChatMessage as any).getSpeaker({ actor });
-    const modes: any = (CONST as any).DICE_ROLL_MODES || {};
-    const rollMode = data.isPublic ? (modes.PUBLIC ?? 'publicroll') : (modes.PRIVATE ?? 'gmroll');
-
-    await roll.toMessage(
-      {
-        speaker,
-        flavor: `${data.rollTarget} (${data.rollType})`,
-      },
-      { rollMode }
-    );
-
-    return {
-      success: true,
-      actorName: actor.name,
-      rollType: data.rollType,
-      rollTarget: data.rollTarget,
-      formula: roll.formula,
-      total: roll.total,
-      isPublic: data.isPublic,
-    };
   }
 }

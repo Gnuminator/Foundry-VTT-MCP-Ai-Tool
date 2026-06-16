@@ -381,12 +381,21 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > - chat-resources resource slice). Each grew (inline duplication → extracted helpers + fuller JSDoc),
 >   with **no behavior change, no test edits, 0 eslint errors**. Opus reviewed every file against the
 >   contract (preserved quirks, no scope creep), re-ran typecheck + full suite + build with all 4 applied
->   (377 green, only the 4 intended files changed), and committed one domain per commit. **5 of 16 domains
->   rewritten** (journals + these 4); total still 1485. Next: the remaining fully-characterized domains —
->   `compendium` (injects `persistentIndex`), `scenes-tokens`, `characters`, `combat` reads — stay **Opus**
->   (larger/riskier); the deferred/partial targets (`chat` getChatLog, `modules` error methods,
->   `session-log`, `scene-fx`, `actor-creation`, `combat` mutation, `creature-index`, `player-rolls`,
->   `actor-builder`) need their characterization nets built first.
+>   (377 green, only the 4 intended files changed), and committed one domain per commit.
+>
+> **`characters` — first large/Opus-tier domain (2026‑06‑16).** Rewritten from first principles behind
+> `reads.test.ts` (getCharacterInfo) + `character-search.test.ts` (20) + `character-entity.test.ts` (14) =
+> 46 tests: getCharacterInfo/searchCharacterItems/getCharacterEntity + the dnd5e spell helpers decomposed
+> into documented private helpers (the three distinct actor lookups + the getCharacterEntity items→actions→
+> effects search-and-wrap preserved). **Faithful parity** (no behavior change, no test edits): by explicit
+> decision the leftover pre-trim **pf2e branches were RETAINED verbatim** (unpinned: actor `system.actions`
+> extraction, ChoiceSet/RollOption itemVariants, rule-element toggles, search rank/traits/focus/invested/
+> slug fallbacks) — a dnd5e-only prune is a deferred follow-up that must characterize the dnd5e paths first.
+> Cleared the file's inherited eslint errors (14→0). 585→646 lines. **6 of 16 domains rewritten**; total
+> still 1485. Next fully-characterized Opus targets: `compendium` (injects `persistentIndex`),
+> `scenes-tokens` (confirm per-method coverage first), `combat` reads. Deferred/partial targets (`chat`
+> getChatLog, `modules` error methods, `session-log`, `scene-fx`, `actor-creation`, `combat` mutation,
+> `creature-index`, `player-rolls`, `actor-builder`) need their characterization nets built first.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

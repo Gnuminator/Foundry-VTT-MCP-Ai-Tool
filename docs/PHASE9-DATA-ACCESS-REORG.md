@@ -185,7 +185,16 @@ Run after **every** stage: `npx vitest run packages/foundry-module` (377 tests) 
         caller, getCompendiumDocumentFull, moved out) and the now-unused `DnD5eCreatureIndex` /
         `EnhancedCreatureIndex` type imports. `data-access.ts` 5,266 → 4,675 lines; 377 tests +
         typecheck + build green.
-  - [ ] **Batch 5+ (remaining 4):** `combat`, `actor-creation`, `actor-builder`, `player-rolls`.
+  - [x] **Batch 5 (1 domain, `combat`):** `CombatDataAccess`: getCombatPlayByPlay, getCombatState,
+        advanceCombatTurn, setInitiative, rollInitiativeForNpcs, applyDamageAndHealing,
+        rollSavingThrows, manageRest, suggestBalancedEncounter. Depends only on `shared.*`
+        (validateFoundryState/auditLog/requireDnd5e/resolveTargetActor/rollModeFor/systemMajor +
+        `shared.actorConditionNames`) and `eventTracker`; no cross-domain edges, no private helpers.
+        Dropped now-dead facade pieces: the `resolveTargetActor` + `rollModeFor` shared wrappers (last
+        `this.` callers moved out) and the `eventTracker` import (combat was its last facade user).
+        `requireDnd5e` + `systemMajor` wrappers stay (still called by not-yet-extracted actor-builder).
+        `data-access.ts` 4,675 → 4,271 lines; 377 tests + typecheck + build green.
+  - [ ] **Batch 6+ (remaining 3):** `actor-creation`, `actor-builder`, `player-rolls`.
         `player-rolls` owns the `rollButtonProcessingStates` Map. `actor-creation` calls
         `getCompendiumDocumentFull` + `searchCompendium` (compendium, now extracted) — **inject**
         `compendium`. Scan each for cross-domain calls before fan-out.

@@ -12,6 +12,9 @@ import { WorldItemsDataAccess } from './data-access/world-items.js';
 import { ChatDataAccess } from './data-access/chat.js';
 import { OwnershipPlayersDataAccess } from './data-access/ownership-players.js';
 import { ResourcesEffectsDataAccess } from './data-access/resources-effects.js';
+import { CharacterDataAccess } from './data-access/characters.js';
+import { ScenesTokensDataAccess } from './data-access/scenes-tokens.js';
+import { SceneFxDataAccess } from './data-access/scene-fx.js';
 import {
   slugify,
   NPC_DAMAGE_CANONICAL,
@@ -31,8 +34,6 @@ import {
 } from './data-access/dnd5e-tables.js';
 import type {
   CharacterInfo,
-  SpellcastingEntry,
-  SpellInfo,
   CompendiumSearchResult,
   DnD5eCreatureIndex,
   EnhancedCreatureIndex,
@@ -57,6 +58,9 @@ export class FoundryDataAccess {
   private chat = new ChatDataAccess();
   private ownership = new OwnershipPlayersDataAccess();
   private resources = new ResourcesEffectsDataAccess();
+  private characters = new CharacterDataAccess();
+  private scenesTokens = new ScenesTokensDataAccess();
+  private sceneFx = new SceneFxDataAccess();
 
   constructor() {}
 
@@ -85,155 +89,10 @@ export class FoundryDataAccess {
     }
   }
 
-  /**
-   * Get character/actor information by name or ID
-   */
   async getCharacterInfo(identifier: string): Promise<CharacterInfo> {
-    let actor: Actor | undefined;
-
-    // Try to find by ID first, then by name
-    if (identifier.length === 16) {
-      // Foundry ID length
-      actor = game.actors.get(identifier);
-    }
-
-    if (!actor) {
-      actor = game.actors.find(a => a.name?.toLowerCase() === identifier.toLowerCase());
-    }
-
-    if (!actor) {
-      throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${identifier}`);
-    }
-
-    // Build character data structure
-    const characterData: CharacterInfo = {
-      id: actor.id || '',
-      name: actor.name || '',
-      type: actor.type,
-      ...(actor.img ? { img: actor.img } : {}),
-      system: this.sanitizeData((actor as any).system),
-      items: actor.items.map(item => {
-        return {
-          id: item.id,
-          name: item.name,
-          type: item.type,
-          ...(item.img ? { img: item.img } : {}),
-          system: this.sanitizeData(item.system),
-        };
-      }),
-      effects: actor.effects.map(effect => {
-        const eff = effect as any;
-        const dur = eff.duration;
-        const durRaw = eff._source?.duration;
-        return {
-          id: effect.id,
-          name: eff.name || eff.label || 'Unknown Effect',
-          ...(eff.icon ? { icon: eff.icon } : {}),
-          disabled: eff.disabled,
-          ...(dur
-            ? {
-                duration: {
-                  type: dur.units ?? durRaw?.type ?? 'none',
-                  duration: dur.seconds ?? durRaw?.duration,
-                  remaining: dur.remaining,
-                },
-              }
-            : {}),
-        };
-      }),
-    };
-
-    const actorAny = actor as any;
-
-    // Include actions (strikes, spells, etc.)
-    if (actorAny.system?.actions) {
-      characterData.actions = actorAny.system.actions.map((action: any) => ({
-        name: action.label || action.name,
-        type: action.type,
-        ...(action.item ? { itemId: action.item.id } : {}),
-        ...(action.variants
-          ? {
-              variants: action.variants.map((v: any) => ({
-                label: v.label,
-                ...(v.traits ? { traits: v.traits } : {}),
-              })),
-            }
-          : {}),
-        ...(action.ready !== undefined ? { ready: action.ready } : {}),
-      }));
-    }
-
-    // Include item variants and toggles
-    const itemVariants: any[] = [];
-    const itemToggles: any[] = [];
-
-    actor.items.forEach(item => {
-      const itemAny = item as any;
-
-      // Extract rule element variants (e.g., weapon variants, stance toggles)
-      if (itemAny.system?.rules) {
-        itemAny.system.rules.forEach((rule: any, ruleIndex: number) => {
-          // Variants (ChoiceSet, RollOption with choices)
-          if (rule.key === 'ChoiceSet' || (rule.key === 'RollOption' && rule.choices)) {
-            itemVariants.push({
-              itemId: item.id,
-              itemName: item.name,
-              ruleIndex: ruleIndex,
-              ruleKey: rule.key,
-              label: rule.label || rule.prompt,
-              ...(rule.selection ? { selected: rule.selection } : {}),
-              ...(rule.choices ? { choices: rule.choices } : {}),
-            });
-          }
-
-          // Toggles (RollOption toggleable, ToggleProperty)
-          if ((rule.key === 'RollOption' && rule.toggleable) || rule.key === 'ToggleProperty') {
-            itemToggles.push({
-              itemId: item.id,
-              itemName: item.name,
-              ruleIndex: ruleIndex,
-              ruleKey: rule.key,
-              label: rule.label,
-              option: rule.option,
-              ...(rule.value !== undefined ? { enabled: rule.value } : {}),
-              ...(rule.toggleable !== undefined ? { toggleable: rule.toggleable } : {}),
-            });
-          }
-        });
-      }
-
-      // Also check for item-level toggles (e.g., equipped, identified)
-      if (itemAny.system?.equipped !== undefined) {
-        itemToggles.push({
-          itemId: item.id,
-          itemName: item.name,
-          type: 'equipped',
-          enabled: itemAny.system.equipped,
-        });
-      }
-    });
-
-    // Add to character data if any found
-    if (itemVariants.length > 0) {
-      characterData.itemVariants = itemVariants;
-    }
-    if (itemToggles.length > 0) {
-      characterData.itemToggles = itemToggles;
-    }
-
-    // Extract spellcasting data
-    const spellcastingEntries = this.extractSpellcastingData(actor);
-    if (spellcastingEntries.length > 0) {
-      characterData.spellcasting = spellcastingEntries;
-    }
-
-    return characterData;
+    return this.characters.getCharacterInfo(identifier);
   }
 
-  /**
-   * Search within a character's items, spells, actions, and effects
-   * More token-efficient than getCharacterInfo when you need specific items
-   */
   async searchCharacterItems(params: {
     characterIdentifier: string;
     query?: string | undefined;
@@ -251,7 +110,6 @@ export class FoundryDataAccess {
       name: string;
       type: string;
       description?: string;
-      // For spells
       level?: number;
       prepared?: boolean;
       expended?: boolean;
@@ -260,389 +118,14 @@ export class FoundryDataAccess {
       area?: string;
       actionCost?: string;
       traits?: string[];
-      // For items
       quantity?: number;
       equipped?: boolean;
       invested?: boolean;
-      // For actions
       actionType?: string;
     }>;
     totalMatches: number;
   }> {
-    this.validateFoundryState();
-
-    const { characterIdentifier, query, type, category, limit = 20 } = params;
-
-    // Find the actor
-    const actor = this.findActorByIdentifier(characterIdentifier);
-    if (!actor) {
-      throw new Error(`Character not found: ${characterIdentifier}`);
-    }
-
-    const actorAny = actor as any;
-    const systemId = (game.system as any).id;
-    const matches: Array<any> = [];
-
-    // Normalize search query
-    const searchQuery = query?.toLowerCase().trim();
-    const searchType = type?.toLowerCase().trim();
-    const searchCategory = category?.toLowerCase().trim();
-
-    // Helper to check if text matches query (safely handles non-strings)
-    const matchesQuery = (text: unknown): boolean => {
-      if (!searchQuery) return true;
-      if (typeof text !== 'string') return false;
-      return text.toLowerCase().includes(searchQuery);
-    };
-
-    // Helper to check if item matches type filter
-    const matchesType = (itemType: string): boolean => {
-      if (!searchType) return true;
-      return itemType.toLowerCase() === searchType;
-    };
-
-    // Search items
-    for (const item of actor.items) {
-      const itemSystem = item.system as any;
-
-      // Check type filter
-      if (!matchesType(item.type)) continue;
-
-      // Check query filter (name or description)
-      // Ensure description is a string (could be an object in some systems)
-      let description = itemSystem?.description?.value || itemSystem?.description;
-      if (typeof description !== 'string') description = '';
-      if (!matchesQuery(item.name) && !matchesQuery(description)) continue;
-
-      // Build result based on item type
-      const result: any = {
-        id: item.id,
-        name: item.name,
-        type: item.type,
-      };
-
-      // Add description (truncated for token efficiency)
-      if (description) {
-        // Strip HTML and truncate
-        const plainText = description.replace(/<[^>]*>/g, '').trim();
-        result.description =
-          plainText.length > 300 ? plainText.substring(0, 300) + '...' : plainText;
-      }
-
-      // Spell-specific fields
-      if (item.type === 'spell') {
-        result.level = itemSystem?.level?.value ?? itemSystem?.level ?? itemSystem?.rank ?? 0;
-        const itemRaw = (item as any)._source?.system;
-        result.prepared =
-          itemSystem?.prepared ?? itemRaw?.preparation?.prepared ?? itemSystem?.location?.prepared;
-        result.expended = itemSystem?.location?.expended;
-
-        // Get targeting info
-        if (systemId === 'dnd5e') {
-          const targeting = this.extractDnD5eSpellTargeting(itemSystem);
-          if (targeting.range) result.range = targeting.range;
-          if (targeting.target) result.target = targeting.target;
-          if (targeting.area) result.area = targeting.area;
-          result.actionCost = itemSystem?.activation?.type;
-        }
-
-        // Category filter for spells
-        if (searchCategory) {
-          const spellLevel = result.level || 0;
-          const isPrepared = result.prepared !== false;
-          const isCantrip = spellLevel === 0;
-          const isFocus =
-            itemSystem?.traits?.value?.includes('focus') || itemSystem?.category?.value === 'focus';
-
-          if (searchCategory === 'cantrip' && !isCantrip) continue;
-          if (searchCategory === 'prepared' && !isPrepared) continue;
-          if (searchCategory === 'focus' && !isFocus) continue;
-        }
-      }
-
-      // Equipment-specific fields
-      if (['weapon', 'armor', 'equipment', 'consumable', 'backpack', 'loot'].includes(item.type)) {
-        result.quantity = itemSystem?.quantity ?? 1;
-        result.equipped = itemSystem?.equipped ?? false;
-        result.invested = itemSystem?.equipped?.invested ?? itemSystem?.invested ?? undefined;
-
-        // Category filter for equipment
-        if (searchCategory) {
-          if (searchCategory === 'equipped' && !result.equipped) continue;
-          if (searchCategory === 'invested' && !result.invested) continue;
-        }
-      }
-
-      // Feat/feature fields — no additional extraction needed for D&D 5e
-
-      // Action fields — no additional extraction needed for D&D 5e
-
-      matches.push(result);
-
-      // Stop if we've reached the limit
-      if (matches.length >= limit) break;
-    }
-
-    // Also search actions if type filter includes 'action' or is empty
-    if (!searchType || searchType === 'action') {
-      const actions =
-        actorAny.system?.actions || actorAny.items?.filter((i: any) => i.type === 'action') || [];
-      for (const action of actions) {
-        if (matches.length >= limit) break;
-
-        const actionName = action.name || action.label || '';
-        if (!matchesQuery(actionName)) continue;
-
-        const result: any = {
-          id: action.id || action.slug || actionName,
-          name: actionName,
-          type: 'action',
-          actionType: action.type || action.actionType || 'action',
-        };
-
-        matches.push(result);
-      }
-    }
-
-    // Search effects if type filter includes 'effect' or is empty
-    if (!searchType || searchType === 'effect') {
-      const effects = actor.effects || [];
-      for (const effect of effects) {
-        if (matches.length >= limit) break;
-
-        const effectAny = effect as any;
-        if (!matchesQuery(effectAny.name || effectAny.label)) continue;
-
-        matches.push({
-          id: effectAny.id,
-          name: effectAny.name || effectAny.label,
-          type: 'effect',
-          description: effectAny.description || undefined,
-        });
-      }
-    }
-
-    this.auditLog(
-      'searchCharacterItems',
-      {
-        characterId: actor.id,
-        query,
-        type,
-        category,
-        matchCount: matches.length,
-      },
-      'success'
-    );
-
-    const result: {
-      characterId: string;
-      characterName: string;
-      query?: string;
-      type?: string;
-      category?: string;
-      matches: any[];
-      totalMatches: number;
-    } = {
-      characterId: actor.id || '',
-      characterName: actor.name || '',
-      matches,
-      totalMatches: matches.length,
-    };
-
-    if (query) result.query = query;
-    if (type) result.type = type;
-    if (category) result.category = category;
-
-    return result;
-  }
-
-  /**
-   * Extract spellcasting data from an actor (D&D 5e)
-   */
-  private extractSpellcastingData(actor: Actor): SpellcastingEntry[] {
-    const entries: SpellcastingEntry[] = [];
-    const actorAny = actor as any;
-    const systemId = (game.system as any).id;
-
-    // Get all spell items from the actor
-    const spellItems = actor.items.filter(item => item.type === 'spell');
-
-    if (systemId === 'dnd5e') {
-      // D&D 5e: Extract from classes with spellcasting
-      const classes = actor.items.filter(item => item.type === 'class');
-      const spellSlots = actorAny.system?.spells || {};
-
-      // Group spells by their source class or create a general entry
-      const spellsByClass: Record<string, SpellInfo[]> = {};
-
-      for (const spell of spellItems) {
-        const spellSystem = spell.system as any;
-        const spellRaw = (spell as any)._source?.system || spellSystem;
-        const sourceItem = spellSystem?.sourceItem;
-        const sourceClass =
-          (sourceItem
-            ? typeof sourceItem === 'string'
-              ? sourceItem
-              : sourceItem.identifier || sourceItem.id
-            : spellRaw?.sourceClass) || 'general';
-
-        if (!spellsByClass[sourceClass]) {
-          spellsByClass[sourceClass] = [];
-        }
-
-        const targeting = this.extractDnD5eSpellTargeting(spellSystem);
-        spellsByClass[sourceClass].push({
-          id: spell.id || '',
-          name: spell.name || '',
-          level: spellSystem?.level || 0,
-          prepared: spellSystem?.prepared ?? spellRaw?.preparation?.prepared ?? true,
-          traits: [], // D&D 5e doesn't use traits the same way
-          actionCost: spellSystem?.activation?.type || undefined,
-          range: targeting.range,
-          target: targeting.target,
-          area: targeting.area,
-        });
-      }
-
-      // Create entries for each spellcasting class
-      for (const classItem of classes) {
-        const classSystem = classItem.system as any;
-        if (
-          classSystem?.spellcasting?.progression &&
-          classSystem.spellcasting.progression !== 'none'
-        ) {
-          const className = classItem.name || 'Unknown';
-          const classSpells =
-            spellsByClass[classItem.id || ''] || spellsByClass[className.toLowerCase()] || [];
-
-          entries.push({
-            id: classItem.id || '',
-            name: `${className} Spellcasting`,
-            type: classSystem?.spellcasting?.type || 'prepared',
-            ability: classSystem?.spellcasting?.ability || undefined,
-            slots: this.extractDnD5eSpellSlots(spellSlots),
-            spells: classSpells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
-          });
-        }
-      }
-
-      // If no class-based entries found but we have spells, create a general entry
-      if (entries.length === 0 && spellItems.length > 0) {
-        const allSpells: SpellInfo[] = [];
-        for (const spell of spellItems) {
-          const spellSystem = spell.system as any;
-          const targeting = this.extractDnD5eSpellTargeting(spellSystem);
-          allSpells.push({
-            id: spell.id || '',
-            name: spell.name || '',
-            level: spellSystem?.level || 0,
-            prepared: spellSystem?.preparation?.prepared ?? true,
-            actionCost: spellSystem?.activation?.type || undefined,
-            range: targeting.range,
-            target: targeting.target,
-            area: targeting.area,
-          });
-        }
-
-        entries.push({
-          id: 'spellcasting',
-          name: 'Spellcasting',
-          type: 'prepared',
-          slots: this.extractDnD5eSpellSlots(spellSlots),
-          spells: allSpells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
-        });
-      }
-    }
-
-    return entries;
-  }
-
-  /**
-   * Extract D&D 5e spell slots from actor system data
-   */
-  private extractDnD5eSpellSlots(
-    spellsData: any
-  ): Record<string, { value: number; max: number }> | undefined {
-    const slots: Record<string, { value: number; max: number }> = {};
-
-    // D&D 5e stores slots as spell1, spell2, etc.
-    for (let level = 1; level <= 9; level++) {
-      const slotKey = `spell${level}`;
-      const slotData = spellsData?.[slotKey];
-      if (slotData && (slotData.max > 0 || slotData.value > 0)) {
-        slots[`level${level}`] = {
-          value: slotData.value ?? 0,
-          max: slotData.max ?? 0,
-        };
-      }
-    }
-
-    // Also check for pact slots (warlock)
-    const pactSlot = spellsData?.pact;
-    if (pactSlot && (pactSlot.max > 0 || pactSlot.value > 0)) {
-      slots['pact'] = {
-        value: pactSlot.value ?? 0,
-        max: pactSlot.max ?? 0,
-      };
-    }
-
-    return Object.keys(slots).length > 0 ? slots : undefined;
-  }
-
-  /**
-   * Extract spell targeting info for D&D 5e
-   * D&D 5e spells have: target.type ("self", "creature", "point", etc.), range.value, range.units
-   */
-  private extractDnD5eSpellTargeting(spellSystem: any): {
-    range?: string;
-    target?: string;
-    area?: string;
-  } {
-    const result: { range?: string; target?: string; area?: string } = {};
-
-    // Range (e.g., "60 feet", "Self", "Touch")
-    const rangeValue = spellSystem?.range?.value;
-    const rangeUnits = spellSystem?.range?.units;
-    if (rangeUnits === 'self') {
-      result.range = 'Self';
-    } else if (rangeUnits === 'touch') {
-      result.range = 'Touch';
-    } else if (rangeUnits === 'spec') {
-      result.range = spellSystem?.range?.special || 'Special';
-    } else if (rangeValue && rangeUnits) {
-      result.range = `${rangeValue} ${rangeUnits}`;
-    }
-
-    // Target type (e.g., "1 creature", "self", "area")
-    const targetType = spellSystem?.target?.type;
-    const targetValue = spellSystem?.target?.value;
-    if (targetType === 'self') {
-      result.target = 'self';
-    } else if (targetType === 'creature' || targetType === 'ally' || targetType === 'enemy') {
-      result.target = targetValue
-        ? `${targetValue} ${targetType}${targetValue > 1 ? 's' : ''}`
-        : targetType;
-    } else if (targetType === 'object') {
-      result.target = targetValue ? `${targetValue} object${targetValue > 1 ? 's' : ''}` : 'object';
-    } else if (targetType === 'space' || targetType === 'point') {
-      result.target = 'point';
-    } else if (targetType) {
-      result.target = targetType;
-    }
-
-    // Area (for AoE spells - e.g., "20-foot radius", "30-foot cone")
-    const areaType = spellSystem?.target?.template?.type;
-    const areaSize = spellSystem?.target?.template?.size;
-    const areaUnits = spellSystem?.target?.template?.units || 'ft';
-    if (areaType && areaSize) {
-      result.area = `${areaSize}-${areaUnits} ${areaType}`;
-      // If spell has area, target is usually "area"
-      if (!result.target || result.target === 'point') {
-        result.target = 'area';
-      }
-    }
-
-    return result;
+    return this.characters.searchCharacterItems(params);
   }
 
   /**
@@ -3015,555 +2498,52 @@ export class FoundryDataAccess {
     return shared.getOrCreateFolder(folderName, type);
   }
 
-  /**
-   * List all scenes with filtering options
-   */
   async listScenes(
     options: { filter?: string; include_active_only?: boolean } = {}
   ): Promise<any[]> {
-    this.validateFoundryState();
-
-    try {
-      let scenes = game.scenes?.contents || [];
-
-      // Filter by active only if requested
-      if (options.include_active_only) {
-        scenes = scenes.filter((scene: any) => scene.active);
-      }
-
-      // Filter by name if provided
-      if (options.filter) {
-        const filterLower = options.filter.toLowerCase();
-        scenes = scenes.filter((scene: any) => scene.name.toLowerCase().includes(filterLower));
-      }
-
-      // Map to consistent format
-      return scenes.map((scene: any) => ({
-        id: scene.id,
-        name: scene.name,
-        active: scene.active,
-        dimensions: {
-          width: scene.dimensions?.width || (scene as any).width || 0,
-          height: scene.dimensions?.height || (scene as any).height || 0,
-        },
-        gridSize: scene.grid?.size || 100,
-        background: scene._source?.background?.src || scene.img || '',
-        walls: scene.walls?.size || 0,
-        tokens: scene.tokens?.size || 0,
-        lighting: scene.lights?.size || 0,
-        sounds: scene.sounds?.size || 0,
-        navigation: scene.navigation || false,
-      }));
-    } catch (error) {
-      throw new Error(
-        `Failed to list scenes: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    return this.scenesTokens.listScenes(options);
   }
 
-  /**
-   * Switch to a different scene
-   */
   async switchScene(options: { scene_identifier: string; optimize_view?: boolean }): Promise<any> {
-    this.validateFoundryState();
-
-    try {
-      // Find the target scene by ID or name
-      const scenes = game.scenes?.contents || [];
-      const targetScene = scenes.find(
-        (scene: any) =>
-          scene.id === options.scene_identifier ||
-          scene.name.toLowerCase() === options.scene_identifier.toLowerCase()
-      );
-
-      if (!targetScene) {
-        throw new Error(`Scene not found: "${options.scene_identifier}"`);
-      }
-
-      // Activate the scene
-      await targetScene.activate();
-
-      // Optimize view if requested (default true)
-      if (options.optimize_view !== false && typeof canvas !== 'undefined' && canvas?.scene) {
-        const dimensions = targetScene.dimensions || {
-          width: (targetScene as any).width || 0,
-          height: (targetScene as any).height || 0,
-        };
-        const width = (dimensions as any).width || 0;
-        const height = (dimensions as any).height || 0;
-
-        if (width && height) {
-          // Center the view on the scene
-          await canvas.pan({
-            x: width / 2,
-            y: height / 2,
-            scale: Math.min(
-              (canvas as any).screenDimensions?.[0] / width || 1,
-              (canvas as any).screenDimensions?.[1] / height || 1,
-              1
-            ),
-          });
-        }
-      }
-
-      return {
-        success: true,
-        sceneId: targetScene.id,
-        sceneName: targetScene.name,
-        dimensions: {
-          width: (targetScene.dimensions as any)?.width || (targetScene as any).width || 0,
-          height: (targetScene.dimensions as any)?.height || (targetScene as any).height || 0,
-        },
-      };
-    } catch (error) {
-      throw new Error(
-        `Failed to switch scene: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    return this.scenesTokens.switchScene(options);
   }
 
   // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
 
-  /**
-   * Get detailed information about a specific entity within a character (item, action, or effect)
-   */
   async getCharacterEntity(data: {
     characterIdentifier: string;
     entityIdentifier: string;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    try {
-      // Find the character first
-      const actors = game.actors?.contents || [];
-      const character = actors.find(
-        (actor: any) =>
-          actor.id === data.characterIdentifier ||
-          actor.name.toLowerCase() === data.characterIdentifier.toLowerCase()
-      );
-
-      if (!character) {
-        throw new Error(`Character not found: "${data.characterIdentifier}"`);
-      }
-
-      // Search in items first (by ID or name)
-      const items = character.items?.contents || [];
-      let entity = items.find(
-        (item: any) =>
-          item.id === data.entityIdentifier ||
-          item.name.toLowerCase() === data.entityIdentifier.toLowerCase()
-      );
-
-      if (entity) {
-        return {
-          success: true,
-          entityType: 'item',
-          entity: {
-            id: entity.id,
-            name: entity.name,
-            type: entity.type,
-            img: entity.img,
-            description: entity.system?.description?.value || entity.system?.description || '',
-            system: entity.system,
-          },
-        };
-      }
-
-      // Search in actions (for systems that have actions as separate entities)
-      if ((character as any).system?.actions) {
-        const actions = Array.isArray((character as any).system.actions)
-          ? (character as any).system.actions
-          : Object.values((character as any).system.actions || {});
-
-        entity = actions.find(
-          (action: any) =>
-            action.id === data.entityIdentifier ||
-            action.name?.toLowerCase() === data.entityIdentifier.toLowerCase()
-        );
-
-        if (entity) {
-          return {
-            success: true,
-            entityType: 'action',
-            entity,
-          };
-        }
-      }
-
-      // Search in effects
-      const effects = character.effects?.contents || [];
-      entity = effects.find(
-        (effect: any) =>
-          effect.id === data.entityIdentifier ||
-          effect.name?.toLowerCase() === data.entityIdentifier.toLowerCase()
-      );
-
-      if (entity) {
-        return {
-          success: true,
-          entityType: 'effect',
-          entity: {
-            id: entity.id,
-            name: entity.name || entity.label,
-            icon: entity.icon,
-            disabled: entity.disabled,
-            duration: entity.duration,
-            changes: entity.changes,
-          },
-        };
-      }
-
-      throw new Error(
-        `Entity not found: "${data.entityIdentifier}" in character "${character.name}"`
-      );
-    } catch (error) {
-      throw new Error(
-        `Failed to get character entity: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    return this.characters.getCharacterEntity(data);
   }
 
-  /**
-   * Move a token to a new position on the scene
-   */
   async moveToken(data: {
     tokenId: string;
     x: number;
     y: number;
     animate?: boolean;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    // Use permission system
-    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
-      targetIds: [data.tokenId],
-    });
-
-    if (!permissionCheck.allowed) {
-      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
-    }
-
-    try {
-      const scene = (game.scenes as any).current;
-      if (!scene) {
-        throw new Error('No active scene found');
-      }
-
-      const token = scene.tokens.get(data.tokenId);
-      if (!token) {
-        throw new Error(`Token ${data.tokenId} not found in current scene`);
-      }
-
-      // Update token position
-      await token.update(
-        {
-          x: data.x,
-          y: data.y,
-        },
-        { animate: data.animate !== false }
-      );
-
-      this.auditLog('moveToken', data, 'success');
-
-      return {
-        success: true,
-        tokenId: token.id,
-        tokenName: token.name,
-        newPosition: { x: data.x, y: data.y },
-        animated: data.animate !== false,
-      };
-    } catch (error) {
-      this.auditLog(
-        'moveToken',
-        data,
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw new Error(
-        `Failed to move token: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    return this.scenesTokens.moveToken(data);
   }
 
-  /**
-   * Update token properties
-   */
   async updateToken(data: { tokenId: string; updates: Record<string, any> }): Promise<any> {
-    this.validateFoundryState();
-
-    // Use permission system
-    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
-      targetIds: [data.tokenId],
-    });
-
-    if (!permissionCheck.allowed) {
-      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
-    }
-
-    try {
-      const scene = (game.scenes as any).current;
-      if (!scene) {
-        throw new Error('No active scene found');
-      }
-
-      const token = scene.tokens.get(data.tokenId);
-      if (!token) {
-        throw new Error(`Token ${data.tokenId} not found in current scene`);
-      }
-
-      // Filter out undefined values
-      const cleanUpdates = Object.fromEntries(
-        Object.entries(data.updates).filter(([_, v]) => v !== undefined)
-      );
-
-      // Apply updates
-      await token.update(cleanUpdates);
-
-      this.auditLog('updateToken', { tokenId: data.tokenId, updates: cleanUpdates }, 'success');
-
-      return {
-        success: true,
-        tokenId: token.id,
-        tokenName: token.name,
-        updatedProperties: Object.keys(cleanUpdates),
-      };
-    } catch (error) {
-      this.auditLog(
-        'updateToken',
-        data,
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw new Error(
-        `Failed to update token: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    return this.scenesTokens.updateToken(data);
   }
 
-  /**
-   * Delete one or more tokens from the scene
-   */
   async deleteTokens(data: { tokenIds: string[] }): Promise<any> {
-    this.validateFoundryState();
-
-    // Use permission system
-    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
-      targetIds: data.tokenIds,
-    });
-
-    if (!permissionCheck.allowed) {
-      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
-    }
-
-    try {
-      const scene = (game.scenes as any).current;
-      if (!scene) {
-        throw new Error('No active scene found');
-      }
-
-      const deletedTokens: string[] = [];
-      const failedTokens: string[] = [];
-
-      for (const tokenId of data.tokenIds) {
-        try {
-          const token = scene.tokens.get(tokenId);
-          if (token) {
-            await token.delete();
-            deletedTokens.push(tokenId);
-          } else {
-            failedTokens.push(tokenId);
-          }
-        } catch (error) {
-          failedTokens.push(tokenId);
-        }
-      }
-
-      this.auditLog(
-        'deleteTokens',
-        { tokenIds: data.tokenIds, deletedCount: deletedTokens.length },
-        'success'
-      );
-
-      return {
-        success: true,
-        deletedCount: deletedTokens.length,
-        deletedTokens,
-        failedTokens: failedTokens.length > 0 ? failedTokens : undefined,
-      };
-    } catch (error) {
-      this.auditLog(
-        'deleteTokens',
-        data,
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw new Error(
-        `Failed to delete tokens: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    return this.scenesTokens.deleteTokens(data);
   }
 
-  /**
-   * Get detailed information about a token
-   */
   async getTokenDetails(data: { tokenId: string }): Promise<any> {
-    this.validateFoundryState();
-
-    try {
-      const scene = (game.scenes as any).current;
-      if (!scene) {
-        throw new Error('No active scene found');
-      }
-
-      const token = scene.tokens.get(data.tokenId);
-      if (!token) {
-        throw new Error(`Token ${data.tokenId} not found in current scene`);
-      }
-
-      // Return flat structure that matches MCP server expectations
-      return {
-        success: true,
-        id: token.id,
-        name: token.name,
-        x: token.x,
-        y: token.y,
-        width: token.width,
-        height: token.height,
-        rotation: token.rotation,
-        scale: token.texture?.scaleX || 1,
-        alpha: token.alpha,
-        hidden: token.hidden,
-        disposition: token.disposition,
-        elevation: token.elevation,
-        lockRotation: token.lockRotation,
-        img: token.texture?.src,
-        actorId: token.actor?.id,
-        actorData: token.actor
-          ? {
-              name: token.actor.name,
-              type: token.actor.type,
-              img: token.actor.img,
-            }
-          : null,
-        actorLink: token.actorLink,
-      };
-    } catch (error) {
-      throw new Error(
-        `Failed to get token details: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    return this.scenesTokens.getTokenDetails(data);
   }
 
-  /**
-   * Toggle a status condition on a token
-   */
   async toggleTokenCondition(data: {
     tokenId: string;
     conditionId: string;
     active: boolean;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    // Use permission system
-    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
-      targetIds: [data.tokenId],
-    });
-
-    if (!permissionCheck.allowed) {
-      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
-    }
-
-    try {
-      const scene = (game.scenes as any).current;
-      if (!scene) {
-        throw new Error('No active scene found');
-      }
-
-      const token = scene.tokens.get(data.tokenId);
-      if (!token) {
-        throw new Error(`Token ${data.tokenId} not found in current scene`);
-      }
-
-      const actor = token.actor;
-      if (!actor) {
-        throw new Error(`Token ${data.tokenId} has no associated actor`);
-      }
-
-      // Get the condition configuration for the game system
-      const conditions = (CONFIG as any).statusEffects || [];
-      const condition = conditions.find(
-        (c: any) =>
-          c.id === data.conditionId || c.name?.toLowerCase() === data.conditionId.toLowerCase()
-      );
-
-      if (!condition) {
-        throw new Error(`Condition not found: ${data.conditionId}`);
-      }
-
-      if (data.active) {
-        // Add the condition
-        const effectData: any = {
-          name: condition.name || condition.label || condition.id,
-          icon: condition.icon || condition.img,
-        };
-
-        if (condition.id) {
-          effectData.statuses = [condition.id];
-        }
-
-        await actor.createEmbeddedDocuments('ActiveEffect', [effectData]);
-      } else {
-        // Remove the condition
-        const effects = actor.effects?.contents || [];
-        const effectsToRemove = effects.filter((effect: any) => {
-          // Check by status
-          if (effect.statuses?.has(data.conditionId)) {
-            return true;
-          }
-          // Check by name (fallback)
-          if (effect.name?.toLowerCase() === data.conditionId.toLowerCase()) {
-            return true;
-          }
-          // Check by label (some systems use label instead of name)
-          if (effect.label?.toLowerCase() === data.conditionId.toLowerCase()) {
-            return true;
-          }
-          return false;
-        });
-
-        if (effectsToRemove.length > 0) {
-          await actor.deleteEmbeddedDocuments(
-            'ActiveEffect',
-            effectsToRemove.map((e: any) => e.id)
-          );
-        }
-      }
-
-      this.auditLog('toggleTokenCondition', data, 'success');
-
-      return {
-        success: true,
-        tokenId: token.id,
-        tokenName: token.name,
-        conditionId: data.conditionId,
-        conditionName: condition.name || condition.label || condition.id,
-        isActive: data.active,
-        active: data.active,
-        message: data.active
-          ? `Applied ${data.conditionId} to ${token.name}`
-          : `Removed ${data.conditionId} from ${token.name}`,
-      };
-    } catch (error) {
-      this.auditLog(
-        'toggleTokenCondition',
-        data,
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw new Error(
-        `Failed to toggle token condition: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    return this.scenesTokens.toggleTokenCondition(data);
   }
 
   async getAvailableConditions(): Promise<any> {
@@ -5592,115 +4572,11 @@ export class FoundryDataAccess {
   // ===========================================================================
 
   async getTokenPositions(data: { sceneId?: string }): Promise<any> {
-    this.validateFoundryState();
-
-    const scene: any = data.sceneId ? game.scenes?.get(data.sceneId) : (game.scenes as any).current;
-    if (!scene) throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
-
-    const grid = scene.grid || {};
-    const gridSize = grid.size || 100;
-
-    const tokens = scene.tokens.map((t: any) => {
-      const actor = t.actor;
-      const hp = actor?.system?.attributes?.hp;
-      const isPC = !!actor?.hasPlayerOwner && actor?.type === 'character';
-      return {
-        tokenId: t.id,
-        name: t.name,
-        actorId: t.actorId || actor?.id || null,
-        x: t.x,
-        y: t.y,
-        gridX: Math.floor(t.x / gridSize),
-        gridY: Math.floor(t.y / gridSize),
-        elevation: t.elevation ?? 0,
-        category: isPC ? 'pc' : t.disposition === -1 ? 'enemy' : 'npc',
-        hidden: t.hidden ?? false,
-        hp: hp ? { value: hp.value ?? null, max: hp.max ?? null } : null,
-        conditions: shared.actorConditionNames(actor),
-      };
-    });
-
-    return {
-      success: true,
-      sceneId: scene.id,
-      sceneName: scene.name,
-      gridSize,
-      gridDistance: grid.distance ?? null,
-      gridUnits: grid.units ?? 'ft',
-      tokenCount: tokens.length,
-      tokens,
-    };
+    return this.scenesTokens.getTokenPositions(data);
   }
 
   async measureDistance(data: { fromTokenName: string; toTokenName: string }): Promise<any> {
-    this.validateFoundryState();
-
-    const scene: any = (game.scenes as any).current;
-    if (!scene) throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
-
-    const grid = scene.grid || {};
-    const gridSize = grid.size || 100;
-    const gridDistance = grid.distance ?? 5;
-    const units = grid.units || 'ft';
-
-    const findToken = (name: string): any =>
-      scene.tokens.find((t: any) => t.name?.toLowerCase() === name.toLowerCase()) ||
-      scene.tokens.find((t: any) => t.name?.toLowerCase().includes(name.toLowerCase()));
-
-    const from = findToken(data.fromTokenName);
-    if (!from) throw new Error(`Token not found: ${data.fromTokenName}`);
-    const to = findToken(data.toTokenName);
-    if (!to) throw new Error(`Token not found: ${data.toTokenName}`);
-
-    const center = (t: any) => ({
-      x: t.x + ((t.width ?? 1) * gridSize) / 2,
-      y: t.y + ((t.height ?? 1) * gridSize) / 2,
-    });
-    const fromCenter = center(from);
-    const toCenter = center(to);
-
-    let distance: number | null = null;
-    let approximate = false;
-
-    // Prefer Foundry's grid measurement when the scene is the one on the canvas
-    try {
-      const canvasAny = (globalThis as any).canvas;
-      if (
-        canvasAny?.ready &&
-        canvasAny.scene?.id === scene.id &&
-        typeof canvasAny.grid?.measurePath === 'function'
-      ) {
-        const result = canvasAny.grid.measurePath([fromCenter, toCenter]);
-        distance = result?.distance ?? null;
-      }
-    } catch {
-      // fall through to manual calculation
-    }
-
-    if (distance == null) {
-      const dx = Math.abs(toCenter.x - fromCenter.x);
-      const dy = Math.abs(toCenter.y - fromCenter.y);
-      const unitsPerPixel = gridDistance / gridSize;
-      // Square grid (type 1) and gridless (0): D&D 5e uses Chebyshev distance.
-      if (grid.type === 1 || grid.type === 0 || grid.type == null) {
-        distance = Math.max(dx, dy) * unitsPerPixel;
-      } else {
-        // Hex (types 2-5): a Euclidean approximation. True hex distance needs
-        // Foundry's grid math, which is only available for the on-canvas scene.
-        distance = Math.hypot(dx, dy) * unitsPerPixel;
-        approximate = true;
-      }
-      distance = Math.round(distance);
-    }
-
-    return {
-      success: true,
-      from: from.name,
-      to: to.name,
-      distance,
-      units,
-      ...(approximate ? { approximate: true } : {}),
-    };
+    return this.scenesTokens.measureDistance(data);
   }
 
   // ===========================================================================
@@ -6289,52 +5165,6 @@ export class FoundryDataAccess {
     };
   }
 
-  /** Geometric token-in-template test (no canvas dependency). */
-  private tokensInTemplate(scene: any, tpl: any): any[] {
-    const grid = scene.grid || {};
-    const size = grid.size || 100;
-    const px = size / (grid.distance || 5); // pixels per distance unit
-    const cx = tpl.x;
-    const cy = tpl.y;
-    const toRad = (d: number) => (d * Math.PI) / 180;
-    return scene.tokens.filter((td: any) => {
-      const tx = td.x + ((td.width ?? 1) * size) / 2;
-      const ty = td.y + ((td.height ?? 1) * size) / 2;
-      const dx = tx - cx;
-      const dy = ty - cy;
-      const distUnits = Math.hypot(dx, dy) / px;
-      if (tpl.t === 'circle') return distUnits <= tpl.distance;
-      if (tpl.t === 'ray') {
-        const a = toRad(tpl.direction || 0);
-        const lx = (dx * Math.cos(a) + dy * Math.sin(a)) / px;
-        const ly = (-dx * Math.sin(a) + dy * Math.cos(a)) / px;
-        return lx >= 0 && lx <= tpl.distance && Math.abs(ly) <= (tpl.width || 5) / 2;
-      }
-      if (tpl.t === 'cone') {
-        if (distUnits > tpl.distance) return false;
-        let ang = (Math.atan2(dy, dx) * 180) / Math.PI - (tpl.direction || 0);
-        ang = ((ang + 540) % 360) - 180;
-        return Math.abs(ang) <= (tpl.angle || 53.13) / 2;
-      }
-      if (tpl.t === 'rect') {
-        const a = toRad(tpl.direction || 0);
-        const ex = cx + Math.cos(a) * tpl.distance * px;
-        const ey = cy + Math.sin(a) * tpl.distance * px;
-        return (
-          tx >= Math.min(cx, ex) &&
-          tx <= Math.max(cx, ex) &&
-          ty >= Math.min(cy, ey) &&
-          ty <= Math.max(cy, ey)
-        );
-      }
-      return false;
-    });
-  }
-
-  /**
-   * Place an AoE measured template on the active scene and report which tokens
-   * it covers. Origin is x/y pixels or the center of a named token.
-   */
   async placeMeasuredTemplate(data: {
     shape: 'circle' | 'cone' | 'ray' | 'rect';
     distance: number;
@@ -6346,118 +5176,18 @@ export class FoundryDataAccess {
     width?: number;
     fillColor?: string;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    const scene: any = (game.scenes as any)?.current;
-    if (!scene) throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
-    const grid = scene.grid || {};
-    const size = grid.size || 100;
-
-    let x = data.x;
-    let y = data.y;
-    if ((x == null || y == null) && data.originTokenName) {
-      const t = scene.tokens.find(
-        (tok: any) =>
-          tok.name?.toLowerCase() === data.originTokenName!.toLowerCase() ||
-          tok.id === data.originTokenName
-      );
-      if (t) {
-        x = t.x + ((t.width ?? 1) * size) / 2;
-        y = t.y + ((t.height ?? 1) * size) / 2;
-      }
-    }
-    if (x == null || y == null) throw new Error('Provide x/y or a valid originTokenName.');
-
-    const tdata: any = {
-      t: data.shape,
-      x,
-      y,
-      distance: data.distance,
-      direction: data.direction ?? 0,
-      fillColor: data.fillColor || (game.user as any)?.color || '#ff0000',
-    };
-    if (data.shape === 'cone') {
-      tdata.angle = data.angle ?? (CONFIG as any).MeasuredTemplate?.defaults?.angle ?? 53.13;
-    }
-    if (data.shape === 'ray') tdata.width = data.width ?? 5;
-    if (data.shape === 'rect' && data.direction == null) tdata.direction = 45;
-
-    const created = await scene.createEmbeddedDocuments('MeasuredTemplate', [tdata]);
-    const tpl = Array.isArray(created) ? created[0] : created;
-    const inside = this.tokensInTemplate(scene, tpl);
-
-    this.auditLog('placeMeasuredTemplate', data, 'success');
-    return {
-      success: true,
-      templateId: tpl.id,
-      shape: data.shape,
-      origin: { x, y },
-      distance: data.distance,
-      tokensInside: inside.map((t: any) => ({
-        name: t.name,
-        actorId: t.actorId || t.actor?.id || null,
-      })),
-    };
+    return this.sceneFx.placeMeasuredTemplate(data);
   }
 
-  /**
-   * Set scene mood: darkness / global light (Foundry v13 environment schema with
-   * a pre-v13 fallback) and optional playlist play/stop.
-   */
   async setSceneMood(data: {
     darkness?: number;
     globalLight?: boolean;
     playlistName?: string;
     playlistAction?: 'play' | 'stop';
   }): Promise<any> {
-    this.validateFoundryState();
-
-    const scene: any = (game.scenes as any)?.current;
-    if (!scene) throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
-
-    const v13plus = parseInt(String(game.version || '0').split('.')[0], 10) >= 13;
-    const update: any = {};
-    if (data.darkness != null) {
-      const d = Math.max(0, Math.min(1, data.darkness));
-      if (v13plus) update['environment.darknessLevel'] = d;
-      else update.darkness = d;
-    }
-    if (data.globalLight != null) {
-      if (v13plus) update['environment.globalLight.enabled'] = data.globalLight;
-      else update.globalLight = data.globalLight;
-    }
-    if (Object.keys(update).length > 0) await scene.update(update);
-
-    let playlist: string | null = null;
-    if (data.playlistName) {
-      const pl =
-        (game.playlists as any)?.getName?.(data.playlistName) ||
-        (game.playlists as any)?.find?.(
-          (p: any) => p.name?.toLowerCase() === data.playlistName!.toLowerCase()
-        );
-      if (!pl) {
-        playlist = `Playlist not found: ${data.playlistName}`;
-      } else {
-        if ((data.playlistAction || 'play') === 'stop') await pl.stopAll();
-        else await pl.playAll();
-        playlist = `${data.playlistAction || 'play'} "${pl.name}"`;
-      }
-    }
-
-    this.auditLog('setSceneMood', data, 'success');
-    return {
-      success: true,
-      sceneId: scene.id,
-      darkness: data.darkness ?? null,
-      globalLight: data.globalLight ?? null,
-      playlist,
-    };
+    return this.sceneFx.setSceneMood(data);
   }
 
-  /**
-   * Drop a labeled, journal-linked map pin (Note) on the active scene. Position
-   * is x/y pixels or the position of a named token.
-   */
   async addMapNote(data: {
     text?: string;
     x?: number;
@@ -6468,64 +5198,9 @@ export class FoundryDataAccess {
     icon?: string;
     iconSize?: number;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    const scene: any = (game.scenes as any)?.current;
-    if (!scene) throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
-
-    let x = data.x;
-    let y = data.y;
-    if ((x == null || y == null) && data.tokenName) {
-      const t = scene.tokens.find(
-        (tok: any) =>
-          tok.name?.toLowerCase() === data.tokenName!.toLowerCase() || tok.id === data.tokenName
-      );
-      if (t) {
-        x = t.x;
-        y = t.y;
-      }
-    }
-    if (x == null || y == null) throw new Error('Provide x/y or a valid tokenName.');
-
-    let entryId = data.entryId;
-    if (!entryId && data.journalName) {
-      const j =
-        (game.journal as any)?.getName?.(data.journalName) ||
-        (game.journal as any)?.find?.(
-          (e: any) => e.name?.toLowerCase() === data.journalName!.toLowerCase()
-        );
-      entryId = j?.id;
-    }
-
-    const noteData: any = {
-      x,
-      y,
-      iconSize: data.iconSize ?? 40,
-      fontSize: 24,
-      textAnchor: (CONST as any).TEXT_ANCHOR_POINTS?.BOTTOM ?? 1,
-      texture: { src: data.icon || 'icons/svg/book.svg' },
-    };
-    if (entryId) noteData.entryId = entryId;
-    if (data.text) noteData.text = data.text;
-
-    const created = await scene.createEmbeddedDocuments('Note', [noteData]);
-    const note = Array.isArray(created) ? created[0] : created;
-
-    this.auditLog('addMapNote', data, 'success');
-    return {
-      success: true,
-      noteId: note.id,
-      x,
-      y,
-      entryId: entryId ?? null,
-      text: data.text ?? null,
-    };
+    return this.sceneFx.addMapNote(data);
   }
 
-  /**
-   * Set a token's vision and/or light (e.g. give it a torch, or toggle sight for
-   * a blinded creature) on the active scene.
-   */
   async setTokenVisionLight(data: {
     tokenName: string;
     sightEnabled?: boolean;
@@ -6536,192 +5211,32 @@ export class FoundryDataAccess {
     lightColor?: string;
     lightAnimation?: string;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    const scene: any = (game.scenes as any)?.current;
-    if (!scene) throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
-    const token = scene.tokens.find(
-      (t: any) => t.id === data.tokenName || t.name?.toLowerCase() === data.tokenName.toLowerCase()
-    );
-    if (!token) throw new Error(`Token not found: ${data.tokenName}`);
-
-    const update: any = {};
-    if (data.sightEnabled != null) update['sight.enabled'] = data.sightEnabled;
-    if (data.sightRange != null) update['sight.range'] = data.sightRange;
-    if (data.visionMode) update['sight.visionMode'] = data.visionMode;
-    if (data.lightDim != null) update['light.dim'] = data.lightDim;
-    if (data.lightBright != null) update['light.bright'] = data.lightBright;
-    if (data.lightColor) update['light.color'] = data.lightColor;
-    if (data.lightAnimation) update['light.animation.type'] = data.lightAnimation;
-
-    if (Object.keys(update).length === 0) {
-      throw new Error('No vision/light fields provided.');
-    }
-    await token.update(update);
-
-    this.auditLog('setTokenVisionLight', { tokenId: token.id, updates: update }, 'success');
-    return {
-      success: true,
-      tokenId: token.id,
-      tokenName: token.name,
-      updated: Object.keys(update),
-    };
+    return this.scenesTokens.setTokenVisionLight(data);
   }
 
-  /**
-   * Award loot: add currency and/or compendium items (by UUID) to a character,
-   * and/or announce the loot in chat.
-   */
   async dropLoot(data: {
     targetCharacter?: string;
     currency?: Record<string, number>;
     itemUuids?: string[];
     announce?: boolean;
   }): Promise<any> {
-    this.validateFoundryState();
-
-    const actor = data.targetCharacter ? this.resolveTargetActor(data.targetCharacter) : null;
-    if (data.targetCharacter && !actor) {
-      throw new Error(`Target not found: ${data.targetCharacter}`);
-    }
-
-    const itemsAdded: string[] = [];
-    if (actor) {
-      if (data.currency) {
-        const upd: any = {};
-        for (const k of ['pp', 'gp', 'ep', 'sp', 'cp']) {
-          if (data.currency[k] != null) {
-            upd[`system.currency.${k}`] =
-              (actor.system?.currency?.[k] ?? 0) + Number(data.currency[k]);
-          }
-        }
-        if (Object.keys(upd).length > 0) await actor.update(upd);
-      }
-      if (Array.isArray(data.itemUuids) && data.itemUuids.length > 0) {
-        const fromUuidFn = (globalThis as any).fromUuid;
-        const itemData: any[] = [];
-        for (const uuid of data.itemUuids) {
-          try {
-            const doc = fromUuidFn ? await fromUuidFn(uuid) : null;
-            if (doc) {
-              const obj = doc.toObject();
-              delete obj._id;
-              itemData.push(obj);
-              itemsAdded.push(obj.name);
-            }
-          } catch {
-            // skip bad uuid
-          }
-        }
-        if (itemData.length > 0) await actor.createEmbeddedDocuments('Item', itemData);
-      }
-    }
-
-    const parts: string[] = [];
-    if (data.currency) {
-      const coins = Object.entries(data.currency)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${v} ${k}`)
-        .join(', ');
-      if (coins) parts.push(coins);
-    }
-    if (itemsAdded.length) parts.push(itemsAdded.join(', '));
-    const summary = parts.join(' + ');
-
-    if (data.announce !== false) {
-      await (ChatMessage as any).create({
-        content: `<b>Loot${actor ? ` for ${actor.name}` : ''}:</b> ${summary || '(nothing)'}`,
-        speaker: (ChatMessage as any).getSpeaker({ alias: 'Loot' }),
-      });
-    }
-
-    this.auditLog('dropLoot', data, 'success');
-    return {
-      success: true,
-      target: actor?.name ?? null,
-      currency: data.currency ?? null,
-      itemsAdded,
-      summary,
-    };
+    return this.sceneFx.dropLoot(data);
   }
 
   // ===========================================================================
   // Cleanup & targeting helpers
   // ===========================================================================
 
-  /**
-   * Delete a measured template from the active scene by id, or clear all
-   * templates when `all` is set. Pairs with place-measured-template.
-   */
   async deleteMeasuredTemplate(data: { templateId?: string; all?: boolean }): Promise<any> {
-    this.validateFoundryState();
-
-    const scene: any = (game.scenes as any)?.current;
-    if (!scene) throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
-
-    let ids: string[] = [];
-    if (data.all) {
-      ids = (scene.templates?.contents ?? scene.templates ?? []).map((t: any) => t.id);
-    } else if (data.templateId) {
-      ids = [data.templateId];
-    } else {
-      throw new Error('Provide templateId or set all=true.');
-    }
-
-    if (ids.length > 0) await scene.deleteEmbeddedDocuments('MeasuredTemplate', ids);
-    this.auditLog('deleteMeasuredTemplate', data, 'success');
-    return { success: true, deletedCount: ids.length, templateIds: ids };
+    return this.sceneFx.deleteMeasuredTemplate(data);
   }
 
-  /**
-   * Delete a map pin (Note) from the active scene by id, or by matching label
-   * text. (Does not support deleting all notes, to protect pre-existing pins.)
-   */
   async deleteMapNote(data: { noteId?: string; text?: string }): Promise<any> {
-    this.validateFoundryState();
-
-    const scene: any = (game.scenes as any)?.current;
-    if (!scene) throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
-
-    const notes = scene.notes?.contents ?? scene.notes ?? [];
-    let ids: string[] = [];
-    if (data.noteId) {
-      ids = [data.noteId];
-    } else if (data.text) {
-      const needle = data.text.toLowerCase();
-      ids = notes.filter((n: any) => (n.text || '').toLowerCase() === needle).map((n: any) => n.id);
-      if (ids.length === 0) throw new Error(`No map note found with text "${data.text}".`);
-    } else {
-      throw new Error('Provide noteId or text.');
-    }
-
-    await scene.deleteEmbeddedDocuments('Note', ids);
-    this.auditLog('deleteMapNote', data, 'success');
-    return { success: true, deletedCount: ids.length, noteIds: ids };
+    return this.sceneFx.deleteMapNote(data);
   }
 
-  /**
-   * Return the tokens the GM currently has targeted (game.user.targets), with
-   * AC and HP — used to resolve attack targets without passing coordinates/AC.
-   */
   async getTargets(): Promise<any> {
-    this.validateFoundryState();
-
-    const targets = Array.from((game.user as any)?.targets ?? []);
-    return {
-      success: true,
-      count: targets.length,
-      targets: targets.map((t: any) => {
-        const hp = t.actor?.system?.attributes?.hp;
-        return {
-          tokenId: t.id,
-          name: t.name,
-          actorId: t.actor?.id ?? null,
-          ac: t.actor?.system?.attributes?.ac?.value ?? null,
-          hp: hp ? { value: hp.value ?? null, max: hp.max ?? null } : null,
-        };
-      }),
-    };
+    return this.scenesTokens.getTargets();
   }
 
   // ===========================================================================

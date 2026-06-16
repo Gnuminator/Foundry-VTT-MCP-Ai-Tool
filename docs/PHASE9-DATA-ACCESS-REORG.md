@@ -162,12 +162,24 @@ Run after **every** stage: `npx vitest run packages/foundry-module` (377 tests) 
         clearStaleConditions). Prereq: promoted `actorConditionNames` to `shared.ts` (it's called by
         `combat` + `scenes-tokens`, not by resources itself). `data-access.ts` 7,316 → 6,751 lines;
         377 tests + typecheck + build green.
-  - [ ] **Batch 3+ (remaining 8):** `scenes-tokens`, `scene-fx`, `compendium`, `characters`, `combat`,
-        `actor-creation`, `actor-builder`, `player-rolls`. `scenes-tokens` and `scene-fx` are
-        physically interleaved (e.g. `setTokenVisionLight`/`getTargets`/`getTokenPositions` sit among
-        the scene-fx methods) — extract them as one batch so nothing stays interleaved. `player-rolls`
-        owns the `rollButtonProcessingStates` Map. `compendium` likely calls `this.persistentIndex`
-        (creature-index) — inject it. Scan each for cross-domain calls before fan-out.
+  - [x] **Batch 3 (3 domains, Sonnet fan-out):** `characters` (`CharacterDataAccess`:
+        getCharacterInfo/searchCharacterItems/getCharacterEntity + the 3 private spell helpers
+        extractSpellcastingData/extractDnD5eSpellSlots/extractDnD5eSpellTargeting) + `scenes-tokens`
+        (`ScenesTokensDataAccess`: listScenes/switchScene/moveToken/updateToken/deleteTokens/
+        getTokenDetails/toggleTokenCondition/getTokenPositions/measureDistance/getTargets/
+        setTokenVisionLight) + `scene-fx` (`SceneFxDataAccess`: placeMeasuredTemplate/setSceneMood/
+        addMapNote/dropLoot/deleteMeasuredTemplate/deleteMapNote + private tokensInTemplate).
+        `getCharacterEntity` (characters) was interleaved among the scene methods; `setTokenVisionLight`/
+        `getTargets`/`getTokenPositions` (scenes-tokens) were interleaved among scene-fx — the
+        name-based splicer relocates each by name so interleaving is a non-issue. All three depend only
+        on `shared.*` (no cross-domain method edges; scenes-tokens also imports `permissionManager`).
+        Dropped now-unused `SpellcastingEntry`/`SpellInfo` type imports from the facade.
+        `data-access.ts` 6,751 → 5,266 lines; 377 tests + typecheck + build green.
+  - [ ] **Batch 4+ (remaining 5):** `compendium`, `combat`, `actor-creation`, `actor-builder`,
+        `player-rolls`. `player-rolls` owns the `rollButtonProcessingStates` Map. `compendium` calls
+        `this.persistentIndex` (creature-index) — inject it. `actor-creation` calls
+        `getCompendiumDocumentFull` + `searchCompendium` (compendium) — extract `compendium` first,
+        inject it. Scan each for cross-domain calls before fan-out.
 
 > **Assembly hazard (learned in batch 2):** the R2 `shared.*` delegating wrappers
 > (`findActorByIdentifier`, `resolveTargetActor`, `systemMajor`, `requireDnd5e`, `rollModeFor`,

@@ -93,3 +93,32 @@ it mutates the live game, so it isn't a reusable artifact like the read sweep.
   per-action GM confirmation during a non-live moment.
 - **Map generation** — needs ComfyUI running.
 - The 5 skipped reads — re-run with real ids.
+
+## Queued fixes (found via the dashboard's MODULE DIAGNOSTICS + LIVE FEED)
+
+Triaged from live dashboard screenshots. The "5 errors / 22 warns" panel is
+**mostly third-party / environment, not ours** — dnd5e `renderChatMessage`
+deprecation, calendaria, combat-tracker-dock, dice-so-nice (missing
+`celticlynx/d2-2b.webp`), automated-conditions-5e, and a core
+"window too small (525×1993, needs ≥1024×768)" error (your Foundry browser
+window). Only two diagnostics are ours, plus one UX gap:
+
+- [ ] **A — Duplicate condition events.** Live feed shows the same "gained" /
+      "lost" condition event **twice** per single toggle. `registerHooks()` is
+      guarded, so it's not
+      double-registration — it's two `ActiveEffect` docs per logical condition
+      (Automated Conditions 5e mirrors dnd5e conditions). Fix: dedupe in
+      `session-events.ts onActiveEffect` by `(actorId, effectName, eventType)`
+      within ~1.5s. (foundry-module; needs module rebuild+reinstall.)
+- [ ] **B — ComfyUI startup noise.** `main.ts startComfyUIMonitoring` emits
+      `ui.notifications.warn` + `console.warn` (→ diagnostics) after a 2-min
+      poll when ComfyUI isn't installed but `mapGenAutoStart` is on. Fix:
+      short-circuit when not installed + downgrade the outcome to info.
+      Immediate workaround: turn OFF the `mapGenAutoStart` setting (no deploy).
+- [ ] **C — (enhancement) agentic co-GM "ask".** `/api/ask` only reasons over
+      the event/combat snapshot, so "what weapon does Silvera have equipped?"
+      can't be answered. Give the ask read-tool access (`get-character`,
+      `search-character-items`). (cogm-dashboard; dashboard-only, no module redeploy.)
+
+A + B batch with the earlier `get-character` partial-name fix into **one module
+rebuild** (reinstall once). C is independent.

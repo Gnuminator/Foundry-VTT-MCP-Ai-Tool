@@ -1,6 +1,14 @@
 import * as shared from './shared.js';
 import { eventTracker } from '../session-events.js';
 
+/** The roll-shape fields `rollSavingThrows` forwards to the dnd5e roll dispatch. */
+interface SaveRollRequest {
+  rollType: 'save' | 'check' | 'skill';
+  ability?: string;
+  skill?: string;
+  dc?: number;
+}
+
 /** Combat tracker + resolution domain — extracted from FoundryDataAccess. */
 export class CombatDataAccess {
   /**
@@ -88,11 +96,14 @@ export class CombatDataAccess {
     };
   }
 
+  /**
+   * Advance the encounter. With `skipTo`, jump straight to the named combatant
+   * (matched by combatant name or actor id); otherwise step to the next turn and
+   * let Foundry handle round rollover.
+   */
   async advanceCombatTurn(data: { skipTo?: string }): Promise<any> {
     shared.validateFoundryState();
-
-    const combat: any = (game as any).combat;
-    if (!combat) throw new Error('No active combat encounter.');
+    const combat = this.requireActiveCombat();
 
     if (data.skipTo) {
       const target = (combat.turns ?? []).findIndex(
@@ -118,16 +129,18 @@ export class CombatDataAccess {
     };
   }
 
+  /**
+   * Set a combatant's initiative. The combatant is matched (case-insensitively)
+   * by its own name or its actor's name, preferring the live `combatants`
+   * collection and falling back to the ordered `turns`.
+   */
   async setInitiative(data: { combatantName: string; initiative: number }): Promise<any> {
     shared.validateFoundryState();
+    const combat = this.requireActiveCombat();
 
-    const combat: any = (game as any).combat;
-    if (!combat) throw new Error('No active combat encounter.');
-
+    const wanted = data.combatantName.toLowerCase();
     const combatant = (combat.combatants?.contents ?? combat.turns ?? []).find(
-      (c: any) =>
-        c.name?.toLowerCase() === data.combatantName.toLowerCase() ||
-        c.actor?.name?.toLowerCase() === data.combatantName.toLowerCase()
+      (c: any) => c.name?.toLowerCase() === wanted || c.actor?.name?.toLowerCase() === wanted
     );
     if (!combatant) throw new Error(`Combatant not found: ${data.combatantName}`);
 
@@ -148,9 +161,7 @@ export class CombatDataAccess {
    */
   async rollInitiativeForNpcs(data: { scope?: 'npcs' | 'all' | 'missing' }): Promise<any> {
     shared.validateFoundryState();
-
-    const combat: any = (game as any).combat;
-    if (!combat) throw new Error('No active combat encounter.');
+    const combat = this.requireActiveCombat();
 
     const scope = data.scope || 'npcs';
 
@@ -203,41 +214,11 @@ export class CombatDataAccess {
     }
     const kind = data.kind || 'damage';
 
-    const results: any[] = [];
-    for (const id of data.targets) {
-      const actor = shared.resolveTargetActor(id);
-      if (!actor) {
-        results.push({ target: id, error: 'actor/token not found' });
-        continue;
-      }
-      const hp = actor.system?.attributes?.hp;
-      const before = { value: hp?.value ?? null, temp: hp?.temp ?? 0 };
-      try {
-        if (kind === 'temp') {
-          await actor.applyTempHP(amount);
-        } else if (kind === 'healing') {
-          await actor.applyDamage([{ value: amount, type: 'healing' }]);
-        } else {
-          const opts: any = {};
-          if (data.multiplier != null) opts.multiplier = data.multiplier;
-          if (data.ignoreResistance) opts.ignore = true;
-          // Typed damage → dnd5e applies the actor's DR/DV/DI automatically.
-          await actor.applyDamage([{ value: amount, type: data.type || '' }], opts);
-        }
-        const after = actor.system?.attributes?.hp;
-        results.push({
-          target: actor.name,
-          kind,
-          hpBefore: before,
-          hpAfter: { value: after?.value ?? null, temp: after?.temp ?? 0 },
-        });
-      } catch (err) {
-        results.push({
-          target: actor.name,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
+    const results = await this.forEachTarget(data.targets, async (actor: any) => {
+      const hpBefore = this.hpValueTemp(actor);
+      await this.applyHpChange(actor, kind, amount, data);
+      return { target: actor.name, kind, hpBefore, hpAfter: this.hpValueTemp(actor) };
+    });
 
     shared.auditLog('applyDamageAndHealing', data, 'success');
     return { success: true, kind, amount, type: data.type ?? null, results };
@@ -271,53 +252,20 @@ export class CombatDataAccess {
 
     const major = shared.systemMajor();
     const rollMode = shared.rollModeFor(data.isPublic);
-    const results: any[] = [];
 
-    for (const id of data.targets) {
-      const actor = shared.resolveTargetActor(id);
-      if (!actor) {
-        results.push({ target: id, error: 'actor/token not found' });
-        continue;
+    const results = await this.forEachTarget(data.targets, async (actor: any) => {
+      const roll =
+        major >= 4
+          ? await this.rollDnd5eV4(actor, data, rollMode)
+          : await this.rollDnd5eV3(actor, data, rollMode);
+      const total = roll?.total ?? null;
+      // Prefer the system's own pass/fail verdict; otherwise compare to the DC.
+      let success: boolean | null = null;
+      if (data.dc != null && total != null) {
+        success = typeof roll?.isSuccess === 'boolean' ? roll.isSuccess : total >= data.dc;
       }
-      try {
-        let roll: any;
-        if (major >= 4) {
-          const config: any = {};
-          if (data.rollType === 'skill') config.skill = data.skill;
-          else config.ability = data.ability;
-          if (data.dc != null) config.target = data.dc;
-          const dialog = { configure: false };
-          const message = { create: true, rollMode };
-          const out =
-            data.rollType === 'save'
-              ? await actor.rollSavingThrow(config, dialog, message)
-              : data.rollType === 'skill'
-                ? await actor.rollSkill(config, dialog, message)
-                : await actor.rollAbilityCheck(config, dialog, message);
-          roll = Array.isArray(out) ? out[0] : out;
-        } else {
-          const opts: any = { fastForward: true, chatMessage: true, rollMode };
-          if (data.dc != null) opts.targetValue = data.dc;
-          roll =
-            data.rollType === 'save'
-              ? await actor.rollAbilitySave(data.ability, opts)
-              : data.rollType === 'skill'
-                ? await actor.rollSkill(data.skill, opts)
-                : await actor.rollAbilityTest(data.ability, opts);
-        }
-        const total = roll?.total ?? null;
-        let outcome: boolean | null = null;
-        if (data.dc != null && total != null) {
-          outcome = typeof roll?.isSuccess === 'boolean' ? roll.isSuccess : total >= data.dc;
-        }
-        results.push({ target: actor.name, total, success: outcome });
-      } catch (err) {
-        results.push({
-          target: actor.name,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
+      return { target: actor.name, total, success };
+    });
 
     return {
       success: true,
@@ -344,26 +292,54 @@ export class CombatDataAccess {
     }
     const restType = data.restType === 'short' ? 'short' : 'long';
 
+    const results = await this.forEachTarget(data.targets, async (actor: any) => {
+      const cfg = {
+        dialog: false,
+        chat: false,
+        autoHD: true,
+        // Default a long rest to a new day (recovers daily uses); honor an explicit flag.
+        newDay: data.newDay != null ? data.newDay : restType === 'long',
+      };
+      const res = restType === 'short' ? await actor.shortRest(cfg) : await actor.longRest(cfg);
+      const hp = actor.system?.attributes?.hp;
+      return {
+        target: actor.name,
+        // dnd5e v4+ reports recovery under `deltas`; v3 used `dhp`/`dhd`.
+        hpRecovered: res?.deltas?.hitPoints ?? res?.dhp ?? null,
+        hitDiceRecovered: res?.deltas?.hitDice ?? res?.dhd ?? null,
+        hp: hp ? { value: hp.value ?? null, max: hp.max ?? null } : null,
+      };
+    });
+
+    shared.auditLog('manageRest', data, 'success');
+    return { success: true, restType, results };
+  }
+
+  // --- Mutation internals ----------------------------------------------------
+
+  /** The live combat (`game.combat`), or throw — mutation needs an *active* encounter. */
+  private requireActiveCombat(): any {
+    const combat = (game as any).combat;
+    if (!combat) throw new Error('No active combat encounter.');
+    return combat;
+  }
+
+  /**
+   * Resolve each target id/name to an actor (via {@link shared.resolveTargetActor})
+   * and run `fn`, collecting one result per target. Unresolved targets become
+   * `{ target, error: 'actor/token not found' }` and a thrown `fn` becomes
+   * `{ target, error }`, so one bad target never aborts the batch.
+   */
+  private async forEachTarget(targets: string[], fn: (actor: any) => Promise<any>): Promise<any[]> {
     const results: any[] = [];
-    for (const id of data.targets) {
+    for (const id of targets) {
       const actor = shared.resolveTargetActor(id);
       if (!actor) {
         results.push({ target: id, error: 'actor/token not found' });
         continue;
       }
       try {
-        const cfg: any = { dialog: false, chat: false, autoHD: true };
-        cfg.newDay = data.newDay != null ? data.newDay : restType === 'long';
-        const res = restType === 'short' ? await actor.shortRest(cfg) : await actor.longRest(cfg);
-        const hpDelta = res?.deltas?.hitPoints ?? res?.dhp ?? null;
-        const hdDelta = res?.deltas?.hitDice ?? res?.dhd ?? null;
-        const hp = actor.system?.attributes?.hp;
-        results.push({
-          target: actor.name,
-          hpRecovered: hpDelta,
-          hitDiceRecovered: hdDelta,
-          hp: hp ? { value: hp.value ?? null, max: hp.max ?? null } : null,
-        });
+        results.push(await fn(actor));
       } catch (err) {
         results.push({
           target: actor.name,
@@ -371,9 +347,68 @@ export class CombatDataAccess {
         });
       }
     }
+    return results;
+  }
 
-    shared.auditLog('manageRest', data, 'success');
-    return { success: true, restType, results };
+  /** `{ value, temp }` snapshot of an actor's hp (nulls for gaps) — for damage reporting. */
+  private hpValueTemp(actor: any): { value: any; temp: any } {
+    const hp = actor.system?.attributes?.hp;
+    return { value: hp?.value ?? null, temp: hp?.temp ?? 0 };
+  }
+
+  /** Dispatch a single damage / healing / temp-HP change to the dnd5e actor API. */
+  private async applyHpChange(
+    actor: any,
+    kind: string,
+    amount: number,
+    data: { type?: string; multiplier?: number; ignoreResistance?: boolean }
+  ): Promise<void> {
+    if (kind === 'temp') {
+      await actor.applyTempHP(amount);
+    } else if (kind === 'healing') {
+      await actor.applyDamage([{ value: amount, type: 'healing' }]);
+    } else {
+      const opts: any = {};
+      if (data.multiplier != null) opts.multiplier = data.multiplier;
+      if (data.ignoreResistance) opts.ignore = true;
+      // Typed damage → dnd5e applies the actor's DR/DV/DI automatically.
+      await actor.applyDamage([{ value: amount, type: data.type || '' }], opts);
+    }
+  }
+
+  /**
+   * dnd5e v4/v5 roll dispatch: three config objects, with a possible array
+   * return. `config = { ability|skill, target?: dc }`, `dialog = { configure:
+   * false }`, `message = { create: true, rollMode }`.
+   */
+  private async rollDnd5eV4(actor: any, data: SaveRollRequest, rollMode: string): Promise<any> {
+    const config: any = {};
+    if (data.rollType === 'skill') config.skill = data.skill;
+    else config.ability = data.ability;
+    if (data.dc != null) config.target = data.dc;
+    const dialog = { configure: false };
+    const message = { create: true, rollMode };
+    const out =
+      data.rollType === 'save'
+        ? await actor.rollSavingThrow(config, dialog, message)
+        : data.rollType === 'skill'
+          ? await actor.rollSkill(config, dialog, message)
+          : await actor.rollAbilityCheck(config, dialog, message);
+    return Array.isArray(out) ? out[0] : out;
+  }
+
+  /**
+   * dnd5e v3 roll dispatch: a positional ability/skill key plus one flat options
+   * object (`{ fastForward, chatMessage, rollMode, targetValue? }`); single roll.
+   */
+  private async rollDnd5eV3(actor: any, data: SaveRollRequest, rollMode: string): Promise<any> {
+    const opts: any = { fastForward: true, chatMessage: true, rollMode };
+    if (data.dc != null) opts.targetValue = data.dc;
+    return data.rollType === 'save'
+      ? await actor.rollAbilitySave(data.ability, opts)
+      : data.rollType === 'skill'
+        ? await actor.rollSkill(data.skill, opts)
+        : await actor.rollAbilityTest(data.ability, opts);
   }
 
   /**

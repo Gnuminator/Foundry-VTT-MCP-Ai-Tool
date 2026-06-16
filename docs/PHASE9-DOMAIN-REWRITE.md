@@ -39,7 +39,8 @@ see **Model guidance** for how later domains fan out.
    commit; **default is preserve** (the net is the contract).
 4. **Keep it green.** After the rewrite:
    `npm run typecheck --workspace=@gnuminator/foundry-module` + the domain's test file(s) + the full
-   `npx vitest run packages/foundry-module` (377) + `npm run build`. Run the full root
+   `npx vitest run packages/foundry-module` (was 377; **399** after the `scenes-tokens` net — the count
+   grows as new characterization nets land) + `npm run build`. Run the full root
    `npm run typecheck && npm run build` before any push.
 5. **Commit** `refactor(phase9): rewrite <domain> from first principles to parity`, noting any
    intentional behavior change and any test edits.
@@ -95,19 +96,20 @@ which carry **uncharacterized sibling methods**: `chat` (`getChatLog` has no dat
 
 ### Done — rewritten to parity ✅
 
-| Domain              | LOC (before → after) | Verified by                                                                                              |
-| ------------------- | -------------------- | -------------------------------------------------------------------------------------------------------- |
-| `journals` (pilot)  | 276 → 247            | `journals.test.ts` (23) + `journal-writes.test.ts` (21)                                                  |
-| `world-reads`       | 97 → 142             | `reads.test.ts` (12; world-reads slice)                                                                  |
-| `ownership-players` | 218 → 292            | `ownership.test.ts` (20) + `players.test.ts` (20)                                                        |
-| `world-items`       | 265 → 317            | `world-items.test.ts` (29)                                                                               |
-| `resources-effects` | 373 → 470            | `resources.test.ts` (25) + `effects.test.ts` (20) + `chat-resources.test.ts` (resource slice)            |
-| `characters`        | 585 → 646            | `reads.test.ts` (`getCharacterInfo`) + `character-search.test.ts` (20) + `character-entity.test.ts` (14) |
-| `compendium`        | 560 → 539            | `compendium.test.ts` (26; basic search + `listByCriteria` fallback + `getDocFull`)                       |
+| Domain              | LOC (before → after) | Verified by                                                                                                  |
+| ------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `journals` (pilot)  | 276 → 247            | `journals.test.ts` (23) + `journal-writes.test.ts` (21)                                                      |
+| `world-reads`       | 97 → 142             | `reads.test.ts` (12; world-reads slice)                                                                      |
+| `ownership-players` | 218 → 292            | `ownership.test.ts` (20) + `players.test.ts` (20)                                                            |
+| `world-items`       | 265 → 317            | `world-items.test.ts` (29)                                                                                   |
+| `resources-effects` | 373 → 470            | `resources.test.ts` (25) + `effects.test.ts` (20) + `chat-resources.test.ts` (resource slice)                |
+| `characters`        | 585 → 646            | `reads.test.ts` (`getCharacterInfo`) + `character-search.test.ts` (20) + `character-entity.test.ts` (14)     |
+| `compendium`        | 560 → 539            | `compendium.test.ts` (26; basic search + `listByCriteria` fallback + `getDocFull`)                           |
+| `scenes-tokens`     | 558 → 566            | `scenes.test.ts` (16) + `token-manipulation.test.ts` (24) + **`scenes-tokens-extra.test.ts` (22, new)** = 62 |
 
 > Most rewrites grew slightly (inline duplication → extracted helpers + fuller JSDoc; logic density
-> dropped); `compendium` shrank by dropping no-op dead code. All seven: no behavior change, no test
-> edits, 0 eslint errors.
+> dropped); `compendium` shrank by dropping no-op dead code. All eight: no behavior change, no
+> existing-test edits, 0 eslint errors (`scenes-tokens` additionally added a new 22-test net first).
 >
 > **`characters` (first Opus-tier/large domain) — faithful parity, pf2e cruft RETAINED.** The module
 > carries pre-trim multi-system branches the tests don't pin (actor `system.actions` extraction,
@@ -125,18 +127,33 @@ which carry **uncharacterized sibling methods**: `chat` (`getChatLog` has no dat
 > `PersistentCreatureIndex` net lands. The unpinned filter/relevance-scoring helpers
 > (`shouldApplyFilters`/`calculateRelevanceScore`/`passesActorNameFilters`/`matchesSearchCriteria`) were
 > likewise kept.
+>
+> **`scenes-tokens` (third Opus-tier domain — net extended first).** A per-method coverage check
+> confirmed the existing nets pinned only 6 of 11 methods, so the 5 unpinned ones (`switchScene`,
+> `getTokenPositions`, `measureDistance`, `getTargets`, `setTokenVisionLight`) were **characterized first**
+> in a new `data-access.scenes-tokens-extra.test.ts` (+22) before any rewrite — the whole domain surface
+> now has a parity net. Rewritten behind the frozen signatures with extracted helpers
+> (`requireCurrentScene`/`requireToken`/`requireScenePermission`/`hpSnapshot`,
+> `buildConditionEffect`/`effectMatchesCondition`, `panCanvasToScene`) deduping the scene+token lookup,
+> permission gate, and hp-snapshot boilerplate; reads-then-writes. **Faithful parity** (no behavior change,
+> no existing-test edits): preserved both error conventions (the write group's wrapped `Failed to …` +
+> `No active scene found` vs the tactical group's raw `SCENE_NOT_FOUND`), the permission-gate-before-try
+> quirk, and `setTokenVisionLight`'s `!= null` vs truthy field semantics. The **two canvas-gated branches**
+> (`switchScene` `optimize_view` pan, `measureDistance` `grid.measurePath` fast path) are **unpinned** (no
+> `canvas` in the harness) and were **preserved verbatim-equivalent** — covered live, not in the mock.
+> Cleared inherited redundant `as any` casts (eslint 6→0). 558 → 566 lines.
 
 ### Ready now — fully characterized (rewrite directly, order small → large)
 
 | Domain                | LOC | Characterization test(s)                                                    |
 | --------------------- | --- | --------------------------------------------------------------------------- |
-| `scenes-tokens`       | 558 | `scenes.test.ts` (16) + `token-manipulation.test.ts` (24)                   |
 | `combat` (reads only) | 416 | `combat.test.ts` (26; `getCombatState`/`getCombatPlayByPlay` **read** only) |
 
-> ⚠️ Verify per-method coverage before starting any of these (the wave-1 lesson). In particular
-> `scenes-tokens` has methods beyond `listScenes`/`getTokenDetails`/the token-manipulation set
-> (`switchScene`, `getTokenPositions`, `measureDistance`, `getTargets`, `setTokenVisionLight`) whose
-> coverage hasn't been confirmed — characterize any unpinned ones first.
+> ⚠️ Verify per-method coverage before starting any of these (the wave-1 lesson). For `combat`, only the
+> two **read** methods are pinned — `combat.ts` also holds the uncharacterized mutation methods
+> (`advanceCombatTurn`/`setInitiative`/`applyDamageAndHealing`/`rollSavingThrows`/`manageRest`), so rewrite
+> the reads to parity and leave mutation untouched, or build the mutation net first.
+> (`scenes-tokens` followed this rule — its 5 unpinned methods were characterized first; see Done above.)
 
 ### Characterize first, then rewrite (deferred / partial — net missing for the noted methods)
 
@@ -169,7 +186,8 @@ Order: characterized small→large first; each deferred domain gets a "character
       dnd5e-only prune is a deferred follow-up)
 - [x] `compendium` — rewrite to parity (Opus; ctor-injected `persistentIndex`; faithful parity, enhanced
       creature-index path retained verbatim — unpinned, waits on the deferred `PersistentCreatureIndex` net)
-- [ ] `scenes-tokens` — rewrite to parity (confirm per-method coverage first — see ⚠️ above)
+- [x] `scenes-tokens` — rewrite to parity (Opus; per-method coverage check → characterized the 5 unpinned
+      methods first in `scenes-tokens-extra.test.ts` (+22), then full-domain rewrite; canvas branches retained)
 - [ ] `combat` (reads) — rewrite `getCombatState`/`getCombatPlayByPlay` to parity
 - [ ] `chat` — **characterize `getChatLog` first** (`sendChatMessage` already pinned), then rewrite
 - [ ] `modules` — **characterize `getModuleErrors`/`clearModuleErrors` first** (`getModules`/

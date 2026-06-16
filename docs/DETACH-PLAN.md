@@ -406,6 +406,27 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > `combat` reads. Deferred/partial targets (`chat` getChatLog, `modules` error methods, `session-log`,
 > `scene-fx`, `actor-creation`, `combat` mutation, `creature-index`, `player-rolls`, `actor-builder`) +
 > the `characters` pf2e-prune follow-up need their characterization nets built first.
+>
+> **`scenes-tokens` — third Opus-tier domain; net extended first (2026‑06‑16).** A per-method coverage
+> check found the existing nets pinned only 6 of 11 methods, so the 5 unpinned ones (`switchScene`,
+> `getTokenPositions`, `measureDistance`, `getTargets`, `setTokenVisionLight`) were **characterized first**
+> in a new `data-access.scenes-tokens-extra.test.ts` (+22) — giving the whole domain surface a parity net
+> before any code changed — then the module was rewritten behind the frozen signatures. Extracted helpers
+> (`requireCurrentScene`/`requireToken`/`requireScenePermission`/`hpSnapshot`, `buildConditionEffect`/
+> `effectMatchesCondition`, `panCanvasToScene`) dedupe the scene+token lookup, permission gate, and
+> hp-snapshot boilerplate; reads-then-writes ordering. **Faithful parity** (no behavior change, no
+> existing-test edits): preserved both error conventions (the write group's wrapped `Failed to …` +
+> `No active scene found` vs the tactical group's raw `SCENE_NOT_FOUND`), the permission-gate-before-try
+> quirk, and `setTokenVisionLight`'s `!= null` vs truthy field semantics. The two **canvas-gated branches**
+> (`switchScene` `optimize_view` pan, `measureDistance` `grid.measurePath` fast path) are **unpinned** (no
+> `canvas` in the harness) and were **preserved verbatim-equivalent** — covered live, not in the mock.
+> Cleared inherited redundant `as any` casts (eslint 6→0). 558→566 lines. **8 of 16 domains rewritten**;
+> foundry-module **377 → 399** (the +22 net), total **1485 → 1507**, full suite + typecheck + build green.
+> Next fully-characterized Opus target: `combat` reads (`getCombatState`/`getCombatPlayByPlay`; leave the
+> uncharacterized combat-mutation methods untouched or net them first). Deferred/partial targets (`chat`
+> getChatLog, `modules` error methods, `session-log`, `scene-fx`, `actor-creation`, `combat` mutation,
+> `creature-index`, `player-rolls`, `actor-builder`) + the `characters` pf2e-prune follow-up still need
+> their nets built first.
 
 Phase 4 chunk 3 deliberately stopped at **shrink + clean** for the Foundry module's `data-access.ts`
 (removed all non-dnd5e remnants + dead code; the file is working, but it's large, browser-bound, and

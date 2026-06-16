@@ -13,38 +13,49 @@ import type {
   TokenPlacementResult,
 } from './types.js';
 
-/** Actor-creation domain — extracted from FoundryDataAccess. */
+/** Actor folder that all AI-created creatures are filed under. */
+const CREATURES_FOLDER = 'Foundry MCP Creatures';
+
+/**
+ * Actor-creation domain — spawning actors from compendium content (by
+ * creature-type search or by explicit pack/item id), authoring embedded items
+ * onto an existing actor, and dropping actor prototype tokens onto the scene.
+ *
+ * The compendium domain is injected (creature-type search + full-document
+ * fetch), so this domain never reaches into compendium internals directly.
+ */
 export class ActorCreationDataAccess {
   constructor(private compendium: CompendiumDataAccess) {}
 
+  // ---- public API ----------------------------------------------------------
+
   /**
-   * Create actors from compendium entries with custom names
+   * Create one or more actors by searching the compendium for a creature type,
+   * cloning the best match, and (optionally) dropping them onto the scene.
+   *
+   * Wrapped in a rollback transaction: if more than half the requested actors
+   * fail to create, the whole batch is rolled back and the call throws;
+   * otherwise it commits and reports per-actor errors non-fatally.
    */
   async createActorFromCompendium(request: ActorCreationRequest): Promise<ActorCreationResult> {
     shared.validateFoundryState();
 
-    // Use new permission system
     const permissionCheck = permissionManager.checkWritePermission('createActor', {
       quantity: request.quantity || 1,
     });
-
     if (!permissionCheck.allowed) {
       throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
     }
-
-    // Audit the permission check
     permissionManager.auditPermissionCheck('createActor', permissionCheck, request);
 
     const maxActors = game.settings.get(MODULE_ID, 'maxActorsPerRequest') as number;
     const quantity = Math.min(request.quantity || 1, maxActors);
 
-    // Start transaction for rollback capability
     const transactionId = transactionManager.startTransaction(
       `Create ${quantity} actor(s) from compendium: ${request.creatureType}`
     );
 
     try {
-      // Find matching compendium entry
       const compendiumEntry = await this.findBestCompendiumMatch(
         request.creatureType,
         request.packPreference
@@ -53,7 +64,6 @@ export class ActorCreationDataAccess {
         throw new Error(`No compendium entry found for "${request.creatureType}"`);
       }
 
-      // Get full compendium document
       const sourceDoc = await this.compendium.getCompendiumDocumentFull(
         compendiumEntry.pack,
         compendiumEntry.id
@@ -62,7 +72,6 @@ export class ActorCreationDataAccess {
       const createdActors: CreatedActorInfo[] = [];
       const errors: string[] = [];
 
-      // Create actors with custom names
       for (let i = 0; i < quantity; i++) {
         try {
           const customName =
@@ -71,7 +80,6 @@ export class ActorCreationDataAccess {
 
           const newActor = await this.createActorFromSource(sourceDoc, customName);
 
-          // Track actor creation for rollback
           transactionManager.addAction(
             transactionId,
             transactionManager.createActorCreationAction(newActor.id)
@@ -87,54 +95,43 @@ export class ActorCreationDataAccess {
             img: newActor.img,
           });
         } catch (error) {
-          errors.push(
-            `Failed to create actor ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`
-          );
+          errors.push(`Failed to create actor ${i + 1}: ${this.errorMessage(error)}`);
         }
       }
 
       let tokensPlaced = 0;
-
-      // Add to scene if requested and permission allows
       if (request.addToScene && createdActors.length > 0) {
         try {
           const scenePermissionCheck = permissionManager.checkWritePermission('modifyScene', {
             targetIds: createdActors.map(a => a.id),
           });
-
           if (!scenePermissionCheck.allowed) {
             errors.push(`Cannot add to scene: ${scenePermissionCheck.reason}`);
           } else {
             const tokenResult = await this.addActorsToScene(
-              {
-                actorIds: createdActors.map(a => a.id),
-                placement: 'random',
-                hidden: false,
-              },
+              { actorIds: createdActors.map(a => a.id), placement: 'random', hidden: false },
               transactionId
             );
             tokensPlaced = tokenResult.tokensCreated;
           }
         } catch (error) {
-          errors.push(
-            `Failed to add actors to scene: ${error instanceof Error ? error.message : 'Unknown error'}`
-          );
+          errors.push(`Failed to add actors to scene: ${this.errorMessage(error)}`);
         }
       }
 
-      // If we had partial failure, decide whether to rollback
-      if (errors.length > 0 && createdActors.length < quantity) {
-        // Rollback if we failed to create more than half the requested actors
-        if (createdActors.length < quantity / 2) {
-          console.warn(
-            `[${MODULE_ID}] Rolling back due to significant failures (${createdActors.length}/${quantity} created)`
-          );
-          await transactionManager.rollbackTransaction(transactionId);
-          throw new Error(`Actor creation failed: ${errors.join(', ')}`);
-        }
+      // Roll back the whole batch only when most of the request failed.
+      if (
+        errors.length > 0 &&
+        createdActors.length < quantity &&
+        createdActors.length < quantity / 2
+      ) {
+        console.warn(
+          `[${MODULE_ID}] Rolling back due to significant failures (${createdActors.length}/${quantity} created)`
+        );
+        await transactionManager.rollbackTransaction(transactionId);
+        throw new Error(`Actor creation failed: ${errors.join(', ')}`);
       }
 
-      // Commit transaction
       transactionManager.commitTransaction(transactionId);
 
       const result: ActorCreationResult = {
@@ -149,25 +146,21 @@ export class ActorCreationDataAccess {
       shared.auditLog('createActorFromCompendium', request, 'success');
       return result;
     } catch (error) {
-      // Rollback on complete failure
       try {
         await transactionManager.rollbackTransaction(transactionId);
       } catch (rollbackError) {
         console.error(`[${MODULE_ID}] Failed to rollback transaction:`, rollbackError);
       }
-
-      shared.auditLog(
-        'createActorFromCompendium',
-        request,
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
+      shared.auditLog('createActorFromCompendium', request, 'failure', this.errorMessage(error));
       throw error;
     }
   }
 
   /**
-   * Create actor from specific compendium entry using pack/item IDs
+   * Create actors from a specific compendium document (explicit pack + item id),
+   * copying its system/items/effects/prototype-token. No compendium search —
+   * the caller already knows exactly which document to clone. No rollback
+   * transaction; per-actor failures are reported non-fatally.
    */
   async createActorFromCompendiumEntry(request: {
     packId: string;
@@ -185,31 +178,25 @@ export class ActorCreationDataAccess {
     try {
       const { packId, itemId, customNames, quantity = 1, addToScene = false, placement } = request;
 
-      // Validate inputs
       if (!packId || !itemId) {
         throw new Error('Both packId and itemId are required');
       }
 
-      // Get the pack
       const pack = game.packs.get(packId);
       if (!pack) {
         throw new Error(`Compendium pack "${packId}" not found`);
       }
 
-      // Get the specific document
       const sourceDocument = await pack.getDocument(itemId);
       if (!sourceDocument) {
         throw new Error(`Document "${itemId}" not found in pack "${packId}"`);
       }
-
-      // Validate that the document is an Actor (supports character, npc, creature, etc.)
       if (sourceDocument.documentName !== 'Actor') {
         throw new Error(
           `Document "${itemId}" is not an Actor (documentName: ${sourceDocument.documentName}, type: ${sourceDocument.type})`
         );
       }
 
-      // Validate actor type - support D&D 5e actor types
       const validActorTypes = ['character', 'npc'];
       if (!validActorTypes.includes(sourceDocument.type)) {
         throw new Error(
@@ -219,20 +206,18 @@ export class ActorCreationDataAccess {
 
       const sourceActor = sourceDocument as Actor;
 
-      // Prepare custom names
+      // Default to one "<name> Copy"; otherwise cap quantity at the names given.
       const names = customNames.length > 0 ? customNames : [`${sourceActor.name} Copy`];
       const finalQuantity = Math.min(quantity, names.length);
 
       const createdActors: any[] = [];
       const errors: string[] = [];
 
-      // Create actors
       for (let i = 0; i < finalQuantity; i++) {
         try {
           const customName = names[i] || `${sourceActor.name} ${i + 1}`;
-
-          // Create actor data with full system, items, and effects
           const sourceData = sourceActor.toObject() as any;
+
           const actorData = {
             name: customName,
             type: sourceData.type,
@@ -240,22 +225,17 @@ export class ActorCreationDataAccess {
             system: sourceData.system || sourceData.data || {},
             items: sourceData.items || [],
             effects: sourceData.effects || [],
-            folder: null, // Don't inherit folder
-            prototypeToken: sourceData.prototypeToken, // Include prototype token
+            folder: null as string | null, // Don't inherit the source folder.
+            prototypeToken: sourceData.prototypeToken,
           };
 
-          // Fix remote image URLs - normalize to local paths
-          if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
-            actorData.prototypeToken.texture.src = null; // Clear remote URL
-          }
+          this.clearRemoteTexture(actorData.prototypeToken);
 
-          // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
-          const folderId = await shared.getOrCreateFolder('Foundry MCP Creatures', 'Actor');
+          const folderId = await this.creaturesFolderId();
           if (folderId) {
-            (actorData as any).folder = folderId;
+            actorData.folder = folderId;
           }
 
-          // Create the actor
           const newActor = await Actor.create(actorData);
           if (!newActor) {
             throw new Error(`Failed to create actor "${customName}"`);
@@ -268,13 +248,12 @@ export class ActorCreationDataAccess {
             sourcePackLabel: pack.metadata.label,
           });
         } catch (error) {
-          const errorMsg = `Failed to create actor ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          const errorMsg = `Failed to create actor ${i + 1}: ${this.errorMessage(error)}`;
           errors.push(errorMsg);
           console.error(`[${MODULE_ID}] ${errorMsg}`, error);
         }
       }
 
-      // Add to scene if requested
       let tokensPlaced = 0;
       if (addToScene && createdActors.length > 0) {
         try {
@@ -286,9 +265,7 @@ export class ActorCreationDataAccess {
           });
           tokensPlaced = sceneResult.success ? sceneResult.tokensCreated : 0;
         } catch (error) {
-          errors.push(
-            `Failed to add actors to scene: ${error instanceof Error ? error.message : 'Unknown error'}`
-          );
+          errors.push(`Failed to add actors to scene: ${this.errorMessage(error)}`);
         }
       }
 
@@ -309,7 +286,7 @@ export class ActorCreationDataAccess {
         'createActorFromCompendiumEntry',
         request,
         'failure',
-        error instanceof Error ? error.message : 'Unknown error'
+        this.errorMessage(error)
       );
       throw error;
     }
@@ -318,16 +295,14 @@ export class ActorCreationDataAccess {
   /**
    * Add one or more freshly-authored Item documents to an existing Actor.
    *
-   * Unlike `createActorFromCompendium*`, the items here are constructed from
-   * caller-supplied data — no compendium lookup. This is the path used to
-   * push planner-authored content (talents, actions, powers, custom gear)
-   * onto a PC or NPC sheet.
+   * Unlike the `createActorFromCompendium*` paths, the items here are built from
+   * caller-supplied data — no compendium lookup. This is how planner-authored
+   * content (talents, actions, powers, custom gear) is pushed onto a sheet.
    *
-   * Validation is intentionally light: name + type are required, and the
-   * type is checked against the active system's declared Item document
-   * types when available. Everything else (system schema validation,
-   * required sub-fields) is delegated to Foundry's DataModel layer, which
-   * will fill defaults or throw a meaningful error.
+   * Validation is intentionally light: name + type are required, and the type is
+   * checked against the active system's declared Item document types when those
+   * are available. Everything else (schema validation, sub-field defaults) is
+   * left to Foundry's DataModel layer.
    */
   async addActorItems(params: {
     actorIdentifier: string;
@@ -358,31 +333,12 @@ export class ActorCreationDataAccess {
       throw new Error(`Actor not found: ${actorIdentifier}`);
     }
 
-    // Discover the active system's declared Item types so we can give a
-    // useful error before sending the doc to Foundry's DataModel layer.
+    // The active system's declared Item types, for a useful pre-flight error.
     const itemDocTypes = (game as any).system?.documentTypes?.Item;
     const validTypes: string[] | null =
       itemDocTypes && typeof itemDocTypes === 'object' ? Object.keys(itemDocTypes) : null;
 
-    const payload = items.map((it, idx) => {
-      if (!it || typeof it.name !== 'string' || it.name.trim().length === 0) {
-        throw new Error(`items[${idx}]: "name" is required and must be a non-empty string`);
-      }
-      if (typeof it.type !== 'string' || it.type.trim().length === 0) {
-        throw new Error(`items[${idx}] ("${it.name}"): "type" is required`);
-      }
-      if (validTypes && !validTypes.includes(it.type)) {
-        throw new Error(
-          `items[${idx}] ("${it.name}"): unknown type "${it.type}" for system "${(game.system as any)?.id}". ` +
-            `Valid Item types: ${validTypes.join(', ')}`
-        );
-      }
-
-      const doc: Record<string, any> = { name: it.name, type: it.type };
-      if (it.img) doc.img = it.img;
-      if (it.system && typeof it.system === 'object') doc.system = it.system;
-      return doc;
-    });
+    const payload = items.map((it, idx) => this.buildItemPayload(it, idx, validTypes));
 
     try {
       const created = await actor.createEmbeddedDocuments('Item', payload);
@@ -408,14 +364,17 @@ export class ActorCreationDataAccess {
         'addActorItems',
         { actorIdentifier, actorId: actor.id, count: payload.length },
         'failure',
-        error instanceof Error ? error.message : 'Unknown error'
+        this.errorMessage(error)
       );
       throw error;
     }
   }
 
   /**
-   * Add actors to the current scene as tokens
+   * Add actors to the current scene as tokens. Each actor's prototype token is
+   * cloned, positioned per the placement strategy, and created on the scene.
+   * Per-actor failures (unknown id, bad prototype) are recorded and skipped; a
+   * `transactionId` (when supplied) ties the created tokens to a rollback ledger.
    */
   async addActorsToScene(
     placement: SceneTokenPlacement,
@@ -423,16 +382,12 @@ export class ActorCreationDataAccess {
   ): Promise<TokenPlacementResult> {
     shared.validateFoundryState();
 
-    // Use new permission system
     const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
       targetIds: placement.actorIds,
     });
-
     if (!permissionCheck.allowed) {
       throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
     }
-
-    // Audit the permission check
     permissionManager.auditPermissionCheck('modifyScene', permissionCheck, placement);
 
     const scene = (game.scenes as any).current;
@@ -461,14 +416,7 @@ export class ActorCreationDataAccess {
             tokenData.length,
             placement.coordinates
           );
-
-          // Fix token texture if it's still a remote URL (Foundry may have overridden our actor creation fix)
-          if (tokenDoc.texture?.src?.startsWith('http')) {
-            console.error(
-              `[${MODULE_ID}] Token texture still has remote URL, clearing: ${tokenDoc.texture.src}`
-            );
-            tokenDoc.texture.src = null; // Use Foundry's fallback
-          }
+          this.clearRemoteTexture(tokenDoc);
 
           tokenData.push({
             ...tokenDoc,
@@ -478,15 +426,12 @@ export class ActorCreationDataAccess {
             hidden: placement.hidden,
           });
         } catch (error) {
-          errors.push(
-            `Failed to prepare token for actor ${actorId}: ${error instanceof Error ? error.message : 'Unknown error'}`
-          );
+          errors.push(`Failed to prepare token for actor ${actorId}: ${this.errorMessage(error)}`);
         }
       }
 
       const createdTokens = await scene.createEmbeddedDocuments('Token', tokenData);
 
-      // Track token creation for rollback if transaction is active
       if (transactionId && createdTokens.length > 0) {
         for (const token of createdTokens) {
           transactionManager.addAction(
@@ -506,85 +451,109 @@ export class ActorCreationDataAccess {
       shared.auditLog('addActorsToScene', placement, 'success');
       return result;
     } catch (error) {
-      shared.auditLog(
-        'addActorsToScene',
-        placement,
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
+      shared.auditLog('addActorsToScene', placement, 'failure', this.errorMessage(error));
       throw error;
     }
   }
 
+  // ---- private helpers ------------------------------------------------------
+
+  /** Extract a human-readable message from an unknown thrown value. */
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : 'Unknown error';
+  }
+
+  /** Resolve, find-or-create, the shared "Foundry MCP Creatures" Actor folder. */
+  private async creaturesFolderId(): Promise<string | null> {
+    return shared.getOrCreateFolder(CREATURES_FOLDER, 'Actor');
+  }
+
+  /** Null out a token / prototype-token texture src that is still a remote http(s) URL. */
+  private clearRemoteTexture(holder: any): void {
+    if (holder?.texture?.src?.startsWith('http')) {
+      holder.texture.src = null;
+    }
+  }
+
+  /** Validate + shape one caller-supplied item into a Foundry create payload. */
+  private buildItemPayload(
+    it: { name: string; type: string; img?: string; system?: Record<string, any> },
+    idx: number,
+    validTypes: string[] | null
+  ): Record<string, any> {
+    if (!it || typeof it.name !== 'string' || it.name.trim().length === 0) {
+      throw new Error(`items[${idx}]: "name" is required and must be a non-empty string`);
+    }
+    if (typeof it.type !== 'string' || it.type.trim().length === 0) {
+      throw new Error(`items[${idx}] ("${it.name}"): "type" is required`);
+    }
+    if (validTypes && !validTypes.includes(it.type)) {
+      throw new Error(
+        `items[${idx}] ("${it.name}"): unknown type "${it.type}" for system "${(game.system as any)?.id}". ` +
+          `Valid Item types: ${validTypes.join(', ')}`
+      );
+    }
+
+    const doc: Record<string, any> = { name: it.name, type: it.type };
+    if (it.img) doc.img = it.img;
+    if (it.system && typeof it.system === 'object') doc.system = it.system;
+    return doc;
+  }
+
   /**
-   * Find best matching compendium entry for creature type
+   * Resolve the best compendium match for a creature type: an exact
+   * (case-insensitive) name match wins; otherwise a result from the preferred
+   * pack; otherwise the first (fuzzy) result, or null when nothing matches.
    */
   private async findBestCompendiumMatch(
     creatureType: string,
     packPreference?: string
   ): Promise<CompendiumSearchResult | null> {
-    // First try exact search
-    const exactResults = await this.compendium.searchCompendium(creatureType, 'Actor');
+    const results = await this.compendium.searchCompendium(creatureType, 'Actor');
 
-    // Look for exact name match first
-    const exactMatch = exactResults.find(
-      result => result.name.toLowerCase() === creatureType.toLowerCase()
-    );
+    const exactMatch = results.find(r => r.name.toLowerCase() === creatureType.toLowerCase());
     if (exactMatch) return exactMatch;
 
-    // Look for partial matches, preferring specified pack
     if (packPreference) {
-      const packMatch = exactResults.find(result => result.pack === packPreference);
+      const packMatch = results.find(r => r.pack === packPreference);
       if (packMatch) return packMatch;
     }
 
-    // Return best fuzzy match
-    return exactResults.length > 0 ? exactResults[0] : null;
+    return results.length > 0 ? results[0] : null;
   }
 
   /**
-   * Create actor from source document with custom name
+   * Clone a full compendium document into a new world Actor with a custom name,
+   * stripping source identifiers, clearing remote token textures, and filing it
+   * under the creatures folder.
    */
   private async createActorFromSource(
     sourceDoc: CompendiumEntryFull,
     customName: string
   ): Promise<any> {
     try {
-      // Clone the source data
       const actorData = foundry.utils.deepClone(sourceDoc.fullData) as any;
 
-      // Apply customizations
       actorData.name = customName;
+      this.clearRemoteTexture(actorData.prototypeToken);
 
-      // Fix only token texture - leave portrait (actor.img) alone
-      if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
-        console.error(
-          `[${MODULE_ID}] Removing remote token texture URL: ${actorData.prototypeToken.texture.src}`
-        );
-        actorData.prototypeToken.texture.src = null; // Let Foundry use fallback
-      }
-
-      // Remove source-specific identifiers
+      // Drop source-specific identifiers so Foundry assigns fresh ones.
       delete actorData._id;
       delete actorData.folder;
       delete actorData.sort;
 
-      // Ensure required fields are present
       if (!actorData.name) actorData.name = customName;
       if (!actorData.type) actorData.type = sourceDoc.type || 'npc';
 
-      // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
-      const folderId = await shared.getOrCreateFolder('Foundry MCP Creatures', 'Actor');
+      const folderId = await this.creaturesFolderId();
       if (folderId) {
         actorData.folder = folderId;
       }
 
-      // Create the new actor
       const createdDocs = await Actor.createDocuments([actorData]);
       if (!createdDocs || createdDocs.length === 0) {
         throw new Error('Failed to create actor document');
       }
-
       return createdDocs[0];
     } catch (error) {
       console.error(`[${MODULE_ID}] Actor creation failed:`, error);
@@ -593,7 +562,10 @@ export class ActorCreationDataAccess {
   }
 
   /**
-   * Calculate token position based on placement strategy
+   * Compute a token position for the given placement strategy. `coordinates`
+   * uses the per-index point (falling back to a grid layout when absent);
+   * `center` fans out along the scene midline; `grid` (and the default) lay out
+   * a square grid; `random` scatters within scene bounds.
    */
   private calculateTokenPosition(
     placement: 'random' | 'grid' | 'center' | 'coordinates',
@@ -608,7 +580,7 @@ export class ActorCreationDataAccess {
         if (coordinates?.[index]) {
           return coordinates[index];
         }
-        // Fallback to grid if coordinates not provided or insufficient
+        // No coordinate for this index → fall back to a grid layout.
         const fallbackCols = Math.ceil(Math.sqrt(index + 1));
         const fallbackRow = Math.floor(index / fallbackCols);
         const fallbackCol = index % fallbackCols;

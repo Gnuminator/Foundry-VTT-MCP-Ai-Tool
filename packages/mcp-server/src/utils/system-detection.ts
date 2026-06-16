@@ -1,17 +1,19 @@
 /**
  * Game System Detection Utilities
  *
- * Detects the Foundry VTT game system (D&D 5e, Pathfinder 2e, etc.) and provides
- * system-specific data path mappings for cross-system compatibility.
+ * Detects whether the active Foundry VTT world is D&D 5e (the only system this
+ * tool supports) and provides D&D 5e data-path mappings for creature/actor stats.
+ * Any non-dnd5e world is reported as 'other' so tools can refuse it cleanly.
  */
 
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 
 /**
- * Supported game systems
+ * Supported game systems. This build targets D&D 5e only; every other system
+ * is reported as 'other'.
  */
-export type GameSystem = 'dnd5e' | 'pf2e' | 'cosmere-rpg' | 'other';
+export type GameSystem = 'dnd5e' | 'other';
 
 /**
  * Cache for system detection (avoid repeated queries)
@@ -20,8 +22,8 @@ let cachedSystem: GameSystem | null = null;
 let cachedSystemId: string | null = null;
 
 /**
- * Detect the active Foundry game system
- * Results are cached to avoid repeated queries
+ * Detect the active Foundry game system.
+ * Results are cached to avoid repeated queries.
  */
 export async function detectGameSystem(
   foundryClient: FoundryClient,
@@ -36,16 +38,7 @@ export async function detectGameSystem(
     const systemId = (worldInfo.system ?? '').toLowerCase();
 
     cachedSystemId = systemId;
-
-    if (systemId === 'dnd5e') {
-      cachedSystem = 'dnd5e';
-    } else if (systemId === 'pf2e') {
-      cachedSystem = 'pf2e';
-    } else if (systemId === 'cosmere-rpg') {
-      cachedSystem = 'cosmere-rpg';
-    } else {
-      cachedSystem = 'other';
-    }
+    cachedSystem = systemId === 'dnd5e' ? 'dnd5e' : 'other';
 
     if (logger) {
       logger.info('Game system detected', { systemId, detectedAs: cachedSystem });
@@ -77,11 +70,10 @@ export function clearSystemCache(): void {
 }
 
 /**
- * System-specific data paths for creature/actor stats
+ * D&D 5e data paths for creature/actor stats
  */
 export const SystemPaths = {
   dnd5e: {
-    // D&D 5e specific paths
     challengeRating: 'system.details.cr',
     creatureType: 'system.details.type.value',
     size: 'system.traits.size',
@@ -95,41 +87,7 @@ export const SystemPaths = {
     legendaryActions: 'system.resources.legact',
     legendaryResistances: 'system.resources.legres',
   },
-  pf2e: {
-    // Pathfinder 2e specific paths
-    level: 'system.details.level.value',
-    creatureType: 'system.traits.value', // Array of traits
-    size: 'system.traits.size.value',
-    alignment: 'system.details.alignment.value',
-    rarity: 'system.traits.rarity',
-    traits: 'system.traits.value', // All traits as array
-    hitPoints: 'system.attributes.hp',
-    armorClass: 'system.attributes.ac.value',
-    abilities: 'system.abilities',
-    skills: 'system.skills',
-    perception: 'system.perception',
-    saves: 'system.saves',
-    // PF2e doesn't have CR or legendary actions
-    challengeRating: null,
-    legendaryActions: null,
-  },
 } as const;
-
-/**
- * Get system-specific data paths based on detected system.
- *
- * Returns null for systems without registered paths (cosmere-rpg, dsa5, other).
- * Callers must branch on `system` for those — falling back to dnd5e paths
- * silently produces wrong values when called against a non-dnd5e actor.
- */
-export function getSystemPaths(system: GameSystem) {
-  if (system === 'dnd5e') {
-    return SystemPaths.dnd5e;
-  } else if (system === 'pf2e') {
-    return SystemPaths.pf2e;
-  }
-  return null;
-}
 
 /**
  * Extract a value from system data using a path string
@@ -154,73 +112,40 @@ export function extractSystemValue(data: any, path: string | null): any {
 }
 
 /**
- * Get creature level/CR based on system
- * Returns a normalized level value for D&D 5e, PF2e, and Cosmere RPG.
+ * Get creature level/CR (D&D 5e: CR first, then level).
  */
 export function getCreatureLevel(actorData: any, system: GameSystem): number | undefined {
   if (system === 'dnd5e') {
-    // D&D 5e: Try CR first, then level
     const cr = extractSystemValue(actorData, SystemPaths.dnd5e.challengeRating);
     if (cr !== undefined) return Number(cr);
 
     const level = extractSystemValue(actorData, SystemPaths.dnd5e.level);
     if (level !== undefined) return Number(level);
-  } else if (system === 'pf2e') {
-    // PF2e: Level is the primary metric
-    const level = extractSystemValue(actorData, SystemPaths.pf2e.level);
-    if (level !== undefined) return Number(level);
-  } else if (system === 'cosmere-rpg') {
-    // Cosmere: tier (1-4) for adversaries, level for player characters
-    const tier = extractSystemValue(actorData, 'system.tier');
-    if (typeof tier === 'number') return tier;
-
-    const level = extractSystemValue(actorData, 'system.level');
-    if (typeof level === 'number') return level;
   }
 
   return undefined;
 }
 
 /**
- * Get creature type/traits based on system
+ * Get creature type (D&D 5e: single creature-type string).
  */
 export function getCreatureType(actorData: any, system: GameSystem): string | string[] | undefined {
   if (system === 'dnd5e') {
-    // D&D 5e: Single creature type string
     return extractSystemValue(actorData, SystemPaths.dnd5e.creatureType);
-  } else if (system === 'pf2e') {
-    // PF2e: Array of traits
-    const traits = extractSystemValue(actorData, SystemPaths.pf2e.traits);
-    return Array.isArray(traits) ? traits : undefined;
   }
 
   return undefined;
 }
 
 /**
- * Check if creature has spellcasting based on system
+ * Check if a creature has spellcasting (D&D 5e: spells object or spellcasting level).
  */
 export function hasSpellcasting(actorData: any, system: GameSystem): boolean {
   if (system === 'dnd5e') {
-    // D&D 5e: Check for spells object or spellcasting level
     const spells = extractSystemValue(actorData, SystemPaths.dnd5e.spells);
     const spellLevel = extractSystemValue(actorData, 'system.details.spellLevel');
     return !!(spells || spellLevel);
-  } else if (system === 'pf2e') {
-    // PF2e: Check for spellcasting entries
-    const spellcasting = extractSystemValue(actorData, 'system.spellcasting');
-    return spellcasting && Object.keys(spellcasting).length > 0;
   }
 
   return false;
-}
-
-/**
- * Format system-specific error messages
- */
-export function formatSystemError(system: GameSystem, systemId: string | null): string {
-  if (system === 'other') {
-    return `This tool currently supports D&D 5e and Pathfinder 2e. Your world uses system: "${systemId || 'unknown'}". Please use a supported system or request support for additional systems.`;
-  }
-  return 'Unknown system error';
 }

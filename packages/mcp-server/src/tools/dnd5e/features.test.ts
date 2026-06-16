@@ -240,7 +240,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — v
 
 describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — system guard', () => {
   it('throws when system is not dnd5e', async () => {
-    mockDetectGameSystem.mockResolvedValue('pf2e');
+    mockDetectGameSystem.mockResolvedValue('other');
     const { tools, query } = makeTools();
 
     await expect(

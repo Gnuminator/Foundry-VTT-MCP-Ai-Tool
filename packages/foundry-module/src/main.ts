@@ -41,6 +41,17 @@ class FoundryMCPBridge {
   }
 
   /**
+   * Whether the current user may run the bridge. The GM always may; the
+   * `allowNonGmAccess` setting (locked on for this build) additionally lets any
+   * logged-in user start and use it. SECURITY: the bridge turns the running
+   * browser into an AI control surface — keep this GM-only before sharing a
+   * world publicly.
+   */
+  private isBridgeAllowedForUser(): boolean {
+    return this.isGMUser() || this.settings.getSetting('allowNonGmAccess') === true;
+  }
+
+  /**
    * Initialize the module during Foundry's init hook
    */
   async initialize(): Promise<void> {
@@ -77,8 +88,8 @@ class FoundryMCPBridge {
    */
   async onReady(): Promise<void> {
     try {
-      // SECURITY: Silent GM-only check - non-GM users get no access and no messages
-      if (!this.isGMUser()) {
+      // SECURITY: silent access gate. GM-only unless allowNonGmAccess is enabled.
+      if (!this.isBridgeAllowedForUser()) {
         console.log(`[${MODULE_ID}] Module ready (user access restricted)`);
         return;
       }
@@ -169,9 +180,9 @@ class FoundryMCPBridge {
       throw new Error('Module not initialized');
     }
 
-    // SECURITY: Double-check GM access (safety measure)
-    if (!this.isGMUser()) {
-      console.warn(`[${MODULE_ID}] Attempted to start bridge without GM access`);
+    // SECURITY: double-check access (safety measure). GM-only unless allowNonGmAccess is on.
+    if (!this.isBridgeAllowedForUser()) {
+      console.warn(`[${MODULE_ID}] Attempted to start bridge without access`);
       return;
     }
 

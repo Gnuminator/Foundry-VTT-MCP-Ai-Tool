@@ -171,6 +171,19 @@ describe('QueryHandlers — GM gate', () => {
 
     expect([...new Set(ungated)].sort()).toEqual(['ping']);
   });
+
+  // The allowNonGmAccess setting (locked on in this build) opens the same gate to
+  // non-GM callers: a standard handler then delegates instead of denying.
+  it('allows non-GM callers when allowNonGmAccess is enabled', async () => {
+    (globalThis as any).game.user.isGM = false;
+    await (globalThis as any).game.settings.set(MODULE_ID, 'allowNonGmAccess', true);
+    const da = stubDataAccess({ getCharacterInfo: vi.fn().mockResolvedValue({ name: 'Aldric' }) });
+
+    const res = await (qh as any).handleGetCharacterInfo({ characterName: 'Aldric' });
+
+    expect(da.getCharacterInfo).toHaveBeenCalledWith('Aldric');
+    expect(res).toEqual({ name: 'Aldric' });
+  });
 });
 
 // ---------------------------------------------------------------------------

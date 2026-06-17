@@ -12,14 +12,25 @@ export class QueryHandlers {
   }
 
   /**
-   * SECURITY: Validate GM access - returns silent failure for non-GM users
+   * SECURITY: Validate access - returns silent failure for disallowed users.
+   * The GM is always allowed; the `allowNonGmAccess` setting (locked on for this
+   * build) additionally permits any logged-in user.
    */
   private validateGMAccess(): { allowed: boolean; error?: any } {
-    if (!game.user?.isGM) {
-      // Silent failure - no error message for non-GM users
-      return { allowed: false };
+    if (game.user?.isGM || this.allowNonGmAccess()) {
+      return { allowed: true };
     }
-    return { allowed: true };
+    // Silent failure - no error message for disallowed users
+    return { allowed: false };
+  }
+
+  /** Whether non-GM callers are permitted (read defensively for early boot/tests). */
+  private allowNonGmAccess(): boolean {
+    try {
+      return game.settings.get(MODULE_ID, 'allowNonGmAccess') === true;
+    } catch {
+      return false;
+    }
   }
 
   /**

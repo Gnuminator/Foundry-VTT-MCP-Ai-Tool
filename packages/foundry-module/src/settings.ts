@@ -249,6 +249,20 @@ export class ModuleSettings {
       default: true,
     });
 
+    // Whether non-GM users may run the bridge. The bridge is GM-only by design
+    // (only the GM's browser becomes an AI control surface); enabling this lets
+    // ANY logged-in user start + use it. Locked ON for this personal build and
+    // greyed out in the UI (see lockNonGmAccessSetting). SECURITY: keep this
+    // GM-only before sharing the world publicly.
+    game.settings.register(this.moduleId, 'allowNonGmAccess', {
+      name: 'Allow Non-GM Users to Run the Bridge',
+      hint: 'When enabled, any logged-in user (not just the Gamemaster) can start and use the MCP bridge. Locked on for this build.',
+      scope: 'world',
+      config: true,
+      type: Boolean,
+      default: true,
+    });
+
     // ============================================================================
     // SECTION 3: SAFETY CONTROLS - Limits on AI model's Actions
     // ============================================================================
@@ -399,6 +413,31 @@ export class ModuleSettings {
       config: false,
       type: Object,
       default: {},
+    });
+
+    // Lock the "allow non-GM" toggle on in this build — visible but not flippable.
+    this.lockNonGmAccessSetting();
+  }
+
+  /**
+   * Render the `allowNonGmAccess` toggle as a locked (checked + disabled) control
+   * in the module config UI. The flag is wired through to the gate code but is
+   * fixed ON for this build, so this keeps it visible (and ready to become a real
+   * toggle later) without letting it be flipped on or off.
+   */
+  private lockNonGmAccessSetting(): void {
+    Hooks.on('renderSettingsConfig', (_app: unknown, element: unknown) => {
+      const el = element as HTMLElement | { 0?: HTMLElement } | null | undefined;
+      const root =
+        el instanceof HTMLElement ? el : el && el[0] instanceof HTMLElement ? el[0] : null;
+      const input = root?.querySelector(
+        `input[name="${this.moduleId}.allowNonGmAccess"]`
+      ) as HTMLInputElement | null;
+      if (input) {
+        input.checked = true;
+        input.disabled = true;
+        input.title = 'Locked on for this build';
+      }
     });
   }
 

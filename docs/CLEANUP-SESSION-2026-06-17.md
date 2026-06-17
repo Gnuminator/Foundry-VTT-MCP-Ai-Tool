@@ -96,6 +96,47 @@ existed). The rest is the **accepted baseline**, not reducible cruft:
 - **`call_tool` switch (~70 cases) → table-driven dispatch:** higher risk; do
   behind tests, keep stable.
 
+## Session 2 (2026-06-17 cont.) — Tier 3 + Tier 4 DONE
+
+Tree clean, all green: typecheck 0, lint `--quiet` 0 errors, build OK, **1955
+tests** (4 workspaces). Five more commits:
+
+### Tier 3 — `queries.ts` → `withGmGate` wrapper ✅
+
+- Added a `withGmGate(errorPrefix, body)` helper reproducing the standard
+  boilerplate exactly, then folded the **80 standard handlers** onto it.
+  **queries.ts −800 net lines.**
+- Safety: added a whole-surface characterization test FIRST (`queries.test.ts`
+  "gates every registered query for non-GM except the known ungated handlers" —
+  pins the exact ungated set: `ping`, `setActorSpellcasting`, `addSpellsToActor`,
+  `addFeaturesFromCompendium`). Passed before AND after → no gate added/dropped.
+- The conversion ran via a self-guarding codemod that preserved every handler
+  body verbatim and transformed only exact-match methods (80 done, 10 divergent
+  skipped: `handleQuery`, `ping`, 4 map-gen, `createJournalEntry`, 3 dnd5e).
+- **Open finding (NOT changed — would be behavior):** the 3 dnd5e writers
+  (`setActorSpellcasting`/`addSpellsToActor`/`addFeaturesFromCompendium`) have no
+  GM gate at the query layer, unlike siblings. Confirm whether the data-access
+  permission layer covers them.
+
+### Tier 4 — `backend.ts` decomposition ✅ (1479 → 678 lines, −54%)
+
+- **4a ComfyUIService** (`comfyui-service.ts` + 7 tests): the process lifecycle
+  (install/python lookup, spawn on 31411, readiness poll, stop, status) moved out
+  of module-global state into an injected-logger class; `{status,message,pid?}`
+  contract unchanged. backend −390 lines; now unit-tested where it had none.
+- **4b** removed the `backend-handler-debug.log` temp-file cruft from the ComfyUI
+  message handler (same pattern as the map-gen cruft).
+- **4c tool-router** (`tool-router.ts` + 5 tests): the ~70-case `call_tool` switch
+  → a declarative `buildToolRouter(deps)` name→handler map; backend does a table
+  lookup. 73 routes extracted mechanically + typecheck-verified against the tool
+  classes. Test pins the route count and both dispatch shapes (direct +
+  ownership's `handleToolCall`). backend −400 lines.
+
+**The Tier 1–4 cleanup plan is complete.** Possible future polish (not done,
+diminishing returns): the 4 large output-formatting tool files
+(`character`/`compendium`/`quest-creation`/`dnd5e-add-feature`); the dnd5e-gate
+finding above.
+
 ## Out of scope (separate track — do NOT touch unless redirected)
 
 Runtime fixes **A** (duplicate condition events), **B** (ComfyUI startup noise),

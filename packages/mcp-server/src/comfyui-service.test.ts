@@ -30,7 +30,10 @@ function fakeProcess() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  // resetAllMocks (not clearAllMocks) so a mockReturnValue set in one test
+  // doesn't leak its implementation into the next and make the suite
+  // order-dependent — mirrors the unstubAllGlobals teardown for fetch.
+  vi.resetAllMocks();
 });
 
 afterEach(() => {
@@ -69,6 +72,9 @@ describe('ComfyUIService.checkStatus', () => {
 
 describe('ComfyUIService.stop', () => {
   it('is a no-op when already stopped', async () => {
+    // Stub fetch so the test can't hit the real network if stop() ever grows a
+    // readiness probe; it currently early-returns before any await.
+    vi.stubGlobal('fetch', vi.fn());
     const svc = new ComfyUIService(logger);
     expect(await svc.stop()).toEqual({
       status: 'already_stopped',

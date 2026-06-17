@@ -99,17 +99,25 @@ export class ComfyUIService {
       // Wait for ComfyUI API to be ready
       await this.waitForReady();
 
+      // Snapshot the handle: the 'exit' listener nulls this.process if the
+      // process dies between becoming ready and here, which would otherwise make
+      // `this.process.pid` throw and mis-report a brief success as a failure.
+      const proc = this.process;
+      if (!proc) {
+        throw new Error('ComfyUI process exited before it became ready');
+      }
+
       this.status = 'running';
 
       this.logger.info('ComfyUI service started successfully', {
-        pid: this.process.pid,
+        pid: proc.pid,
         status: this.status,
       });
 
       return {
         status: 'running',
         message: 'ComfyUI service started successfully',
-        pid: this.process.pid,
+        pid: proc.pid,
       };
     } catch (error: any) {
       this.logger.error('ComfyUI service start failed', { error: error.message });
@@ -117,6 +125,9 @@ export class ComfyUIService {
       this.status = 'error';
 
       if (this.process) {
+        // Drop the 'exit' listener first so the kill below can't fire it and
+        // overwrite status back to 'stopped', contradicting the 'error' we return.
+        this.process.removeAllListeners();
         this.process.kill();
         this.process = null;
       }
@@ -193,7 +204,7 @@ export class ComfyUIService {
       error: 'ComfyUI service encountered an error',
     };
 
-    return statusMessages[status] || 'Unknown status';
+    return statusMessages[status];
   }
 
   private getBundledPythonPath(): string {

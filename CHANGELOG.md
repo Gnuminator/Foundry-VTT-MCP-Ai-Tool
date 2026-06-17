@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.17.0 (2026-06-17) — Non-GM access + internal cleanup
+
+Adds an opt-in for non-GM users to run the bridge, plus a large internal code-quality pass and the
+fixes from a full code review. **Wire contracts are unchanged** — module id, ports, query prefix, and
+the settings namespace are all the same, so existing installs update in place.
+
+### Features
+
+- **Allow non-GM users to run the bridge.** New `allowNonGmAccess` world setting: when enabled, any
+  logged-in user (not just the Gamemaster) can start and use the bridge — both the connect/start gate
+  and the per-query gate honor it. Shipped **locked on** (visible but greyed-out in the module config)
+  for now. **Security note:** this turns any user's browser into an AI control surface; it's intended
+  for single-user / personal worlds — keep the bridge GM-only before sharing a world publicly.
+
+### Fixes
+
+- **Tool-dispatch hardening.** The control-channel `call_tool` router is now a null-prototype map, so a
+  tool name matching an inherited `Object.prototype` key (`toString`, `constructor`, …) can no longer
+  slip past the "unknown tool" guard.
+- **ComfyUI service start() races.** The process handle is snapshotted after the readiness probe (no
+  more `pid` null-deref mis-reporting a brief start as a failure), and the status stays consistent on a
+  failed start.
+
+### Internal (no behavior change for existing GM installs)
+
+- Large "trim the hedges" cleanup: removed the map-generation temp-file debug logging and other dead
+  code; folded ~80 repetitive query handlers onto a single `withGmGate` wrapper (−800 lines in
+  `queries.ts`); and decomposed `backend.ts` (1,479 → ~680 lines) by extracting a unit-tested
+  `ComfyUIService` and a unit-tested table-driven tool router. **~1,200 net lines removed; ~1,957
+  tests** across the four workspaces.
+
 ## v0.16.1 (2026-06-15) — Dependency-security patch
 
 Patches the shipping network/runtime dependencies ahead of the Phase 6 remote-access work. **No behavior

@@ -29,9 +29,8 @@ export class QueryHandlers {
    * run the handler body → wrap any throw as `<errorPrefix>: <message>`.
    *
    * Handlers that diverge from this shape stay bespoke: `ping` (ungated),
-   * map-generation (returns error objects instead of throwing),
-   * `createJournalEntry` (no validateFoundryState), and the un-gated dnd5e
-   * spell/feature writers.
+   * map-generation (returns error objects instead of throwing), and
+   * `createJournalEntry` (no validateFoundryState).
    */
   private async withGmGate(errorPrefix: string, body: () => Promise<any>): Promise<any> {
     const gmCheck = this.validateGMAccess();
@@ -1382,7 +1381,7 @@ export class QueryHandlers {
   }
 
   private async handleSetActorSpellcasting(data: any): Promise<any> {
-    try {
+    return this.withGmGate('Failed to set actor spellcasting', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
       }
@@ -1401,15 +1400,11 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.setActorSpellcasting(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to set actor spellcasting: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   private async handleAddSpellsToActor(data: any): Promise<any> {
-    try {
+    return this.withGmGate('Failed to add spells to actor', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
       }
@@ -1421,15 +1416,11 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.addSpellsToActor(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to add spells to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   private async handleAddFeaturesFromCompendium(data: any): Promise<any> {
-    try {
+    return this.withGmGate('Failed to add features from compendium', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
       }
@@ -1441,11 +1432,7 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.addFeaturesFromCompendium(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to add features from compendium: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   // ===== 3A: CHAT LOG / PLAY-BY-PLAY / IN-CHARACTER CHAT =====

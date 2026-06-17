@@ -148,8 +148,9 @@ describe('QueryHandlers — GM gate', () => {
   });
 
   // Whole-surface gate contract: every registered query must silently deny
-  // non-GM callers, EXCEPT the handlers documented as ungated. Pins the exact
-  // set so the withGmGate consolidation can't silently add/drop a gate.
+  // non-GM callers, EXCEPT `ping` (intentionally ungated). Pins the exact set so
+  // the withGmGate consolidation can't silently add/drop a gate. (The 3 dnd5e
+  // spell/feature writers were brought under the gate for consistency.)
   it('gates every registered query for non-GM except the known ungated handlers', async () => {
     (globalThis as any).game.user.isGM = false;
     stubDataAccess();
@@ -168,9 +169,7 @@ describe('QueryHandlers — GM gate', () => {
       }
     }
 
-    expect([...new Set(ungated)].sort()).toEqual(
-      ['addFeaturesFromCompendium', 'addSpellsToActor', 'ping', 'setActorSpellcasting'].sort()
-    );
+    expect([...new Set(ungated)].sort()).toEqual(['ping']);
   });
 });
 

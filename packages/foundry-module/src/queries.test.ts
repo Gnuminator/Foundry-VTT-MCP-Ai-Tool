@@ -146,6 +146,32 @@ describe('QueryHandlers — GM gate', () => {
     expect(res.foundryVersion).toBeDefined();
     expect(res.worldId).toBeDefined();
   });
+
+  // Whole-surface gate contract: every registered query must silently deny
+  // non-GM callers, EXCEPT the handlers documented as ungated. Pins the exact
+  // set so the withGmGate consolidation can't silently add/drop a gate.
+  it('gates every registered query for non-GM except the known ungated handlers', async () => {
+    (globalThis as any).game.user.isGM = false;
+    stubDataAccess();
+    qh.registerHandlers();
+    const q = queries();
+
+    const ungated: string[] = [];
+    for (const fullName of Object.keys(q)) {
+      const short = fullName.slice(MODULE_ID.length + 1);
+      try {
+        const res = await q[fullName]({});
+        const denied = res && res.error === 'Access denied' && res.success === false;
+        if (!denied) ungated.push(short);
+      } catch {
+        ungated.push(short);
+      }
+    }
+
+    expect([...new Set(ungated)].sort()).toEqual(
+      ['addFeaturesFromCompendium', 'addSpellsToActor', 'ping', 'setActorSpellcasting'].sort()
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

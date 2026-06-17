@@ -23,6 +23,32 @@ export class QueryHandlers {
   }
 
   /**
+   * Shared wrapper for the GM-gated query handlers. Reproduces the convention
+   * shared by ~80 handlers exactly: silent GM gate (non-GM callers get an
+   * access-denied object and the body never runs) → validateFoundryState →
+   * run the handler body → wrap any throw as `<errorPrefix>: <message>`.
+   *
+   * Handlers that diverge from this shape stay bespoke: `ping` (ungated),
+   * map-generation (returns error objects instead of throwing),
+   * `createJournalEntry` (no validateFoundryState), and the un-gated dnd5e
+   * spell/feature writers.
+   */
+  private async withGmGate(errorPrefix: string, body: () => Promise<any>): Promise<any> {
+    const gmCheck = this.validateGMAccess();
+    if (!gmCheck.allowed) {
+      return { error: 'Access denied', success: false };
+    }
+    try {
+      this.dataAccess.validateFoundryState();
+      return await body();
+    } catch (error) {
+      throw new Error(
+        `${errorPrefix}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
    * Register all query handlers in CONFIG.queries
    */
   registerHandlers(): void {
@@ -253,41 +279,21 @@ export class QueryHandlers {
     characterName?: string;
     characterId?: string;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to get character info', async () => {
       const identifier = data.characterName || data.characterId;
       if (!identifier) {
         throw new Error('characterName or characterId is required');
       }
 
       return await this.dataAccess.getCharacterInfo(identifier);
-    } catch (error) {
-      throw new Error(
-        `Failed to get character info: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle list actors request
    */
   private async handleListActors(data: { type?: string }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to list actors', async () => {
       const actors = await this.dataAccess.listActors();
 
       // Filter by type if specified
@@ -296,11 +302,7 @@ export class QueryHandlers {
       }
 
       return actors;
-    } catch (error) {
-      throw new Error(
-        `Failed to list actors: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -318,15 +320,7 @@ export class QueryHandlers {
       spellcaster?: boolean;
     };
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to search compendium', async () => {
       // Add better parameter validation
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid data parameter structure');
@@ -337,11 +331,7 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.searchCompendium(data.query, data.packType, data.filters);
-    } catch (error) {
-      throw new Error(
-        `Failed to search compendium: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -355,86 +345,41 @@ export class QueryHandlers {
     hasLegendaryActions?: boolean;
     limit?: number;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to list creatures by criteria', async () => {
       const result = await this.dataAccess.listCreaturesByCriteria(data);
 
       // Handle the new format with search summary
       return {
         response: result,
       };
-    } catch (error) {
-      throw new Error(
-        `Failed to list creatures by criteria: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle get available packs request
    */
   private async handleGetAvailablePacks(): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get available packs', async () => {
       return await this.dataAccess.getAvailablePacks();
-    } catch (error) {
-      throw new Error(
-        `Failed to get available packs: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle get active scene request
    */
   private async handleGetActiveScene(): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get active scene', async () => {
       return await this.dataAccess.getActiveScene();
-    } catch (error) {
-      throw new Error(
-        `Failed to get active scene: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle get world info request
    */
   private async handleGetWorldInfo(): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get world info', async () => {
       return await this.dataAccess.getWorldInfo();
-    } catch (error) {
-      throw new Error(
-        `Failed to get world info: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -487,15 +432,7 @@ export class QueryHandlers {
         }
       | undefined;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to create actor from compendium', async () => {
       // Clean interface - direct pack/item reference only
       const requestData: any = {
         packId: data.packId,
@@ -510,11 +447,7 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.createActorFromCompendiumEntry(requestData);
-    } catch (error) {
-      throw new Error(
-        `Failed to create actor from compendium: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -524,15 +457,7 @@ export class QueryHandlers {
     packId: string;
     documentId: string;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to get compendium document', async () => {
       if (!data.packId) {
         throw new Error('packId is required');
       }
@@ -542,11 +467,7 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.getCompendiumDocumentFull(data.packId, data.documentId);
-    } catch (error) {
-      throw new Error(
-        `Failed to get compendium document: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -557,15 +478,7 @@ export class QueryHandlers {
     placement?: 'random' | 'grid' | 'center';
     hidden?: boolean;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to add actors to scene', async () => {
       if (!data.actorIds || !Array.isArray(data.actorIds) || data.actorIds.length === 0) {
         throw new Error('actorIds array is required and must not be empty');
       }
@@ -575,11 +488,7 @@ export class QueryHandlers {
         placement: data.placement || 'random',
         hidden: data.hidden || false,
       });
-    } catch (error) {
-      throw new Error(
-        `Failed to add actors to scene: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -588,25 +497,13 @@ export class QueryHandlers {
   private async handleValidateWritePermissions(data: {
     operation: 'createActor' | 'modifyScene';
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to validate write permissions', async () => {
       if (!data.operation) {
         throw new Error('operation is required');
       }
 
       return await this.dataAccess.validateWritePermissions(data.operation);
-    } catch (error) {
-      throw new Error(
-        `Failed to validate write permissions: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -644,60 +541,29 @@ export class QueryHandlers {
    * Handle list journals request
    */
   async handleListJournals(): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to list journals', async () => {
       return await this.dataAccess.listJournals();
-    } catch (error) {
-      throw new Error(
-        `Failed to list journals: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle get journal content request
    */
   async handleGetJournalContent(data: { journalId: string }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to get journal content', async () => {
       if (!data.journalId) {
         throw new Error('journalId is required');
       }
 
       return await this.dataAccess.getJournalContent(data.journalId);
-    } catch (error) {
-      throw new Error(
-        `Failed to get journal content: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle get specific journal page content request
    */
   async handleGetJournalPageContent(data: { journalId: string; pageId: string }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to get journal page content', async () => {
       if (!data.journalId) {
         throw new Error('journalId is required');
       }
@@ -706,11 +572,7 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.getJournalPageContent(data.journalId, data.pageId);
-    } catch (error) {
-      throw new Error(
-        `Failed to get journal page content: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -722,15 +584,7 @@ export class QueryHandlers {
     pageId?: string;
     newPageName?: string;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to update journal content', async () => {
       if (!data.journalId) {
         throw new Error('journalId is required');
       }
@@ -751,11 +605,7 @@ export class QueryHandlers {
       if (data.newPageName) updateRequest.newPageName = data.newPageName;
 
       return await this.dataAccess.updateJournalContent(updateRequest);
-    } catch (error) {
-      throw new Error(
-        `Failed to update journal content: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -769,46 +619,22 @@ export class QueryHandlers {
     rollModifier: string;
     flavor: string;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to request player rolls', async () => {
       if (!data.rollType || !data.rollTarget || !data.targetPlayer) {
         throw new Error('rollType, rollTarget, and targetPlayer are required');
       }
 
       return await this.dataAccess.requestPlayerRolls(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to request player rolls: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle get enhanced creature index request
    */
   async handleGetEnhancedCreatureIndex(): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to get enhanced creature index', async () => {
       return await this.dataAccess.getEnhancedCreatureIndex();
-    } catch (error) {
-      throw new Error(
-        `Failed to get enhanced creature index: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -819,15 +645,7 @@ export class QueryHandlers {
     partId: string;
     newStatus: string;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to update campaign progress', async () => {
       // For now, this is a pass-through to the MCP server
       // In the future, campaign data might be stored in Foundry world flags
       // Currently, the campaign dashboard regeneration happens server-side
@@ -839,215 +657,104 @@ export class QueryHandlers {
         partId: data.partId,
         newStatus: data.newStatus,
       };
-    } catch (error) {
-      throw new Error(
-        `Failed to update campaign progress: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle set actor ownership request
    */
   async handleSetActorOwnership(data: any): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to set actor ownership', async () => {
       if (!data.actorId || !data.userId || data.permission === undefined) {
         throw new Error('actorId, userId, and permission are required');
       }
 
       return await this.dataAccess.setActorOwnership(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to set actor ownership: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle get actor ownership request
    */
   async handleGetActorOwnership(data: any): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to get actor ownership', async () => {
       return await this.dataAccess.getActorOwnership(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to get actor ownership: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle get friendly NPCs request
    */
   async handleGetFriendlyNPCs(): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to get friendly NPCs', async () => {
       return await this.dataAccess.getFriendlyNPCs();
-    } catch (error) {
-      throw new Error(
-        `Failed to get friendly NPCs: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle get party characters request
    */
   async handleGetPartyCharacters(): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to get party characters', async () => {
       return await this.dataAccess.getPartyCharacters();
-    } catch (error) {
-      throw new Error(
-        `Failed to get party characters: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle get connected players request
    */
   async handleGetConnectedPlayers(): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to get connected players', async () => {
       return await this.dataAccess.getConnectedPlayers();
-    } catch (error) {
-      throw new Error(
-        `Failed to get connected players: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle find players request
    */
   async handleFindPlayers(data: any): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to find players', async () => {
       if (!data.identifier) {
         throw new Error('identifier is required');
       }
 
       return await this.dataAccess.findPlayers(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to find players: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle find actor request
    */
   async handleFindActor(data: any): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to find actor', async () => {
       if (!data.identifier) {
         throw new Error('identifier is required');
       }
 
       return await this.dataAccess.findActor(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to find actor: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle list scenes request
    */
   private async handleListScenes(data: any): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to list scenes', async () => {
       return await this.dataAccess.listScenes(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to list scenes: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle switch scene request
    */
   private async handleSwitchScene(data: any): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to switch scene', async () => {
       if (!data.scene_identifier) {
         throw new Error('scene_identifier is required');
       }
 
       return await this.dataAccess.switchScene(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to switch scene: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -1316,15 +1023,7 @@ export class QueryHandlers {
     y: number;
     animate?: boolean;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to move token', async () => {
       if (!data.tokenId) {
         throw new Error('tokenId is required');
       }
@@ -1333,11 +1032,7 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.moveToken(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to move token: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -1347,15 +1042,7 @@ export class QueryHandlers {
     tokenId: string;
     updates: Record<string, any>;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to update token', async () => {
       if (!data.tokenId) {
         throw new Error('tokenId is required');
       }
@@ -1364,61 +1051,33 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.updateToken(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to update token: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle delete tokens request
    */
   private async handleDeleteTokens(data: { tokenIds: string[] }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to delete tokens', async () => {
       if (!data.tokenIds || !Array.isArray(data.tokenIds) || data.tokenIds.length === 0) {
         throw new Error('tokenIds array is required and must not be empty');
       }
 
       return await this.dataAccess.deleteTokens(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to delete tokens: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle get token details request
    */
   private async handleGetTokenDetails(data: { tokenId: string }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to get token details', async () => {
       if (!data.tokenId) {
         throw new Error('tokenId is required');
       }
 
       return await this.dataAccess.getTokenDetails(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to get token details: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -1429,15 +1088,7 @@ export class QueryHandlers {
     conditionId: string;
     active: boolean;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to toggle token condition', async () => {
       if (!data.tokenId) {
         throw new Error('tokenId is required');
       }
@@ -1449,32 +1100,16 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.toggleTokenCondition(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to toggle token condition: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle get available conditions request
    */
   private async handleGetAvailableConditions(): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to get available conditions', async () => {
       return await this.dataAccess.getAvailableConditions();
-    } catch (error) {
-      throw new Error(
-        `Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -1491,15 +1126,7 @@ export class QueryHandlers {
       versatile?: boolean;
     };
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to use item', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
       }
@@ -1513,11 +1140,7 @@ export class QueryHandlers {
         targets: data.targets,
         options: data.options,
       });
-    } catch (error) {
-      throw new Error(
-        `Failed to use item: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -1530,15 +1153,7 @@ export class QueryHandlers {
     category?: string;
     limit?: number;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to search character items', async () => {
       if (!data.characterIdentifier) {
         throw new Error('characterIdentifier is required');
       }
@@ -1550,11 +1165,7 @@ export class QueryHandlers {
         category: data.category,
         limit: data.limit,
       });
-    } catch (error) {
-      throw new Error(
-        `Failed to search character items: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   private async handleAddActorItems(data: {
@@ -1566,15 +1177,7 @@ export class QueryHandlers {
       system?: Record<string, any>;
     }>;
   }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation - writes to actor sheets are GM-only
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to add actor items', async () => {
       if (!data?.actorIdentifier) {
         throw new Error('actorIdentifier is required');
       }
@@ -1586,11 +1189,7 @@ export class QueryHandlers {
         actorIdentifier: data.actorIdentifier,
         items: data.items,
       });
-    } catch (error) {
-      throw new Error(
-        `Failed to add actor items: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   private async handleUpdateWorldItems(data: {
@@ -1602,24 +1201,13 @@ export class QueryHandlers {
       folder?: string;
     }>;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to update world items', async () => {
       if (!Array.isArray(data?.updates) || data.updates.length === 0) {
         throw new Error('updates array is required and must contain at least one entry');
       }
 
       return await this.dataAccess.updateWorldItems({ updates: data.updates });
-    } catch (error) {
-      throw new Error(
-        `Failed to update world items: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   private async handleListWorldItems(data: {
@@ -1627,24 +1215,13 @@ export class QueryHandlers {
     folder?: string;
     nameFilter?: string;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to list world items', async () => {
       return await this.dataAccess.listWorldItems({
         ...(data.type !== undefined ? { type: data.type } : {}),
         ...(data.folder !== undefined ? { folder: data.folder } : {}),
         ...(data.nameFilter !== undefined ? { nameFilter: data.nameFilter } : {}),
       });
-    } catch (error) {
-      throw new Error(
-        `Failed to list world items: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   private async handleCreateWorldItems(data: {
@@ -1656,15 +1233,7 @@ export class QueryHandlers {
     }>;
     folder?: string;
   }): Promise<any> {
-    try {
-      // SECURITY: World item creation is GM-only
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to create world items', async () => {
       if (!Array.isArray(data?.items) || data.items.length === 0) {
         throw new Error('items array is required and must contain at least one entry');
       }
@@ -1673,11 +1242,7 @@ export class QueryHandlers {
         items: data.items,
         ...(data.folder !== undefined ? { folder: data.folder } : {}),
       });
-    } catch (error) {
-      throw new Error(
-        `Failed to create world items: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   // ===== D&D 5E HANDLERS =====
@@ -1686,15 +1251,7 @@ export class QueryHandlers {
    * Handle add save feature to actor request (D&D 5e only)
    */
   private async handleAddSaveFeatureToActor(data: any): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to add save feature to actor', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
       }
@@ -1703,26 +1260,14 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.addSaveFeatureToActor(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to add save feature to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle create NPC actor request (D&D 5e only)
    */
   private async handleCreateNpcActor(data: any): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to create NPC actor', async () => {
       if (!data.name) {
         throw new Error('name is required');
       }
@@ -1749,26 +1294,14 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.createNpcActor(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to create NPC actor: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle add attack feature to actor request (D&D 5e only)
    */
   private async handleAddAttackToActor(data: any): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to add attack to actor', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
       }
@@ -1783,26 +1316,14 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.addAttackToActor(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to add attack to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle add aura feature to actor request (D&D 5e only)
    */
   private async handleAddAuraToActor(data: any): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to add aura to actor', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
       }
@@ -1820,25 +1341,14 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.addAuraToActor(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to add aura to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle add passive feature to actor request (D&D 5e only)
    */
   private async handleAddPassiveFeatureToActor(data: any): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to add passive feature to actor', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
       }
@@ -1847,25 +1357,14 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.addPassiveFeatureToActor(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to add passive feature to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
    * Handle add attack+save feature to actor request (D&D 5e only)
    */
   private async handleAddAttackWithSaveToActor(data: any): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
+    return this.withGmGate('Failed to add attack+save to actor', async () => {
       if (!data.actorIdentifier) throw new Error('actorIdentifier is required');
       if (!data.featureName) throw new Error('featureName is required');
       if (!data.attackType) throw new Error('attackType is required');
@@ -1879,11 +1378,7 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.addAttackWithSaveToActor(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to add attack+save to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   private async handleSetActorSpellcasting(data: any): Promise<any> {
@@ -1961,33 +1456,15 @@ export class QueryHandlers {
     messageType?: string;
     sinceTimestamp?: string;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get chat log', async () => {
       return await this.dataAccess.getChatLog(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to get chat log: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleGetCombatPlayByPlay(): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get combat play-by-play', async () => {
       return await this.dataAccess.getCombatPlayByPlay();
-    } catch (error) {
-      throw new Error(
-        `Failed to get combat play-by-play: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleSendChatMessage(data: {
@@ -1997,41 +1474,23 @@ export class QueryHandlers {
     messageType?: string;
     whisperTargets?: string[];
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to send chat message', async () => {
       if (!data?.message) {
         throw new Error('message is required');
       }
       return await this.dataAccess.sendChatMessage(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to send chat message: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   // ===== 3C: RESOURCE TRACKING =====
 
   async handleGetCharacterResources(data: { identifier: string }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get character resources', async () => {
       if (!data?.identifier) {
         throw new Error('identifier is required');
       }
       return await this.dataAccess.getCharacterResources(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to get character resources: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleUpdateCharacterResource(data: {
@@ -2039,149 +1498,77 @@ export class QueryHandlers {
     resourceName: string;
     newValue: number;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to update character resource', async () => {
       if (!data?.identifier) throw new Error('identifier is required');
       if (!data?.resourceName) throw new Error('resourceName is required');
       if (data?.newValue === undefined || data?.newValue === null) {
         throw new Error('newValue is required');
       }
       return await this.dataAccess.updateCharacterResource(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to update character resource: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   // ===== 3D: ACTIVE EFFECTS / CONDITIONS =====
 
   async handleGetActiveEffects(data: { identifier: string }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get active effects', async () => {
       if (!data?.identifier) {
         throw new Error('identifier is required');
       }
       return await this.dataAccess.getActiveEffects(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to get active effects: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleClearStaleConditions(data: {
     identifier: string;
     conditionNames?: string[];
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to clear stale conditions', async () => {
       if (!data?.identifier) {
         throw new Error('identifier is required');
       }
       return await this.dataAccess.clearStaleConditions(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to clear stale conditions: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   // ===== 3E: COMBAT TRACKER =====
 
   async handleGetCombatState(): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get combat state', async () => {
       return await this.dataAccess.getCombatState();
-    } catch (error) {
-      throw new Error(
-        `Failed to get combat state: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleAdvanceCombatTurn(data: { skipTo?: string }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to advance combat turn', async () => {
       return await this.dataAccess.advanceCombatTurn(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to advance combat turn: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleSetInitiative(data: { combatantName: string; initiative: number }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to set initiative', async () => {
       if (!data?.combatantName) throw new Error('combatantName is required');
       if (data?.initiative === undefined || data?.initiative === null) {
         throw new Error('initiative is required');
       }
       return await this.dataAccess.setInitiative(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to set initiative: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   // ===== 3F: MOVEMENT AND POSITIONING =====
 
   async handleGetTokenPositions(data: { sceneId?: string }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get token positions', async () => {
       return await this.dataAccess.getTokenPositions(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to get token positions: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleMeasureDistance(data: { fromTokenName: string; toTokenName: string }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to measure distance', async () => {
       if (!data?.fromTokenName) throw new Error('fromTokenName is required');
       if (!data?.toTokenName) throw new Error('toTokenName is required');
       return await this.dataAccess.measureDistance(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to measure distance: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   // ===== 3G: EXTENDED ROLL REQUESTS / NPC ROLLS =====
@@ -2193,20 +1580,11 @@ export class QueryHandlers {
     isPublic: boolean;
     reason?: string;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to request ability check', async () => {
       if (!data?.targetPlayer) throw new Error('targetPlayer is required');
       if (!data?.ability) throw new Error('ability is required');
       return await this.dataAccess.requestAbilityCheck(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to request ability check: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleRequestAttackRoll(data: {
@@ -2214,20 +1592,11 @@ export class QueryHandlers {
     weaponOrSpellName: string;
     isPublic: boolean;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to request attack roll', async () => {
       if (!data?.targetPlayer) throw new Error('targetPlayer is required');
       if (!data?.weaponOrSpellName) throw new Error('weaponOrSpellName is required');
       return await this.dataAccess.requestAttackRoll(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to request attack roll: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleRollNpcCheck(data: {
@@ -2236,21 +1605,12 @@ export class QueryHandlers {
     rollTarget: string;
     isPublic: boolean;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to roll NPC check', async () => {
       if (!data?.actorName) throw new Error('actorName is required');
       if (!data?.rollType) throw new Error('rollType is required');
       if (!data?.rollTarget) throw new Error('rollTarget is required');
       return await this.dataAccess.rollNpcCheck(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to roll NPC check: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   // ===== 3H: SESSION EVENT LOG =====
@@ -2260,18 +1620,9 @@ export class QueryHandlers {
     eventType?: string;
     actorName?: string;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get session log', async () => {
       return await this.dataAccess.getSessionLog(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to get session log: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleGetRecentEvents(data: {
@@ -2279,44 +1630,21 @@ export class QueryHandlers {
     limit?: number;
     eventType?: string;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get recent events', async () => {
       return await this.dataAccess.getRecentEvents(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to get recent events: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   // ===== COMBAT RESOLUTION: INITIATIVE =====
 
   async handleRollInitiativeForNpcs(data: { scope?: 'npcs' | 'all' | 'missing' }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to roll initiative', async () => {
       return await this.dataAccess.rollInitiativeForNpcs(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to roll initiative: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleApplyDamageAndHealing(data: any): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to apply damage/healing', async () => {
       if (!Array.isArray(data?.targets) || data.targets.length === 0) {
         throw new Error('targets array is required');
       }
@@ -2324,227 +1652,106 @@ export class QueryHandlers {
         throw new Error('amount is required');
       }
       return await this.dataAccess.applyDamageAndHealing(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to apply damage/healing: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleRollSavingThrows(data: any): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to roll saving throws', async () => {
       if (!Array.isArray(data?.targets) || data.targets.length === 0) {
         throw new Error('targets array is required');
       }
       if (!data?.rollType) throw new Error('rollType is required');
       return await this.dataAccess.rollSavingThrows(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to roll saving throws: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleUseNpcActivity(data: any): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to use NPC activity', async () => {
       if (!data?.actorName) throw new Error('actorName is required');
       if (!data?.itemName) throw new Error('itemName is required');
       return await this.dataAccess.useNpcActivity(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to use NPC activity: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleManageRest(data: any): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to manage rest', async () => {
       if (!Array.isArray(data?.targets) || data.targets.length === 0) {
         throw new Error('targets array is required');
       }
       if (!data?.restType) throw new Error('restType is required');
       return await this.dataAccess.manageRest(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to manage rest: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   // ===== ENCOUNTER & SCENE TOOLS =====
 
   async handleSuggestBalancedEncounter(data: any): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to suggest encounter', async () => {
       return await this.dataAccess.suggestBalancedEncounter(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to suggest encounter: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handlePlaceMeasuredTemplate(data: any): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to place template', async () => {
       if (!data?.shape) throw new Error('shape is required');
       if (data?.distance === undefined || data?.distance === null) {
         throw new Error('distance is required');
       }
       return await this.dataAccess.placeMeasuredTemplate(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to place template: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleSetSceneMood(data: any): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to set scene mood', async () => {
       return await this.dataAccess.setSceneMood(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to set scene mood: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleAddMapNote(data: any): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to add map note', async () => {
       return await this.dataAccess.addMapNote(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to add map note: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleSetTokenVisionLight(data: any): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to set token vision/light', async () => {
       if (!data?.tokenName) throw new Error('tokenName is required');
       return await this.dataAccess.setTokenVisionLight(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to set token vision/light: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleDropLoot(data: any): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to drop loot', async () => {
       return await this.dataAccess.dropLoot(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to drop loot: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   // ===== CLEANUP & TARGETING =====
 
   async handleDeleteMeasuredTemplate(data: { templateId?: string; all?: boolean }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to delete template', async () => {
       return await this.dataAccess.deleteMeasuredTemplate(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to delete template: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleDeleteMapNote(data: { noteId?: string; text?: string }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to delete map note', async () => {
       return await this.dataAccess.deleteMapNote(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to delete map note: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleGetTargets(): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get targets', async () => {
       return await this.dataAccess.getTargets();
-    } catch (error) {
-      throw new Error(
-        `Failed to get targets: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   // ===== DIAGNOSTICS =====
 
   async handleGetModules(data: { activeOnly?: boolean; withIssuesOnly?: boolean }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get modules', async () => {
       return await this.dataAccess.getModules(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to get modules: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleGetModuleErrors(data: {
@@ -2553,48 +1760,21 @@ export class QueryHandlers {
     sinceTimestamp?: string;
     limit?: number;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get module errors', async () => {
       return await this.dataAccess.getModuleErrors(data || {});
-    } catch (error) {
-      throw new Error(
-        `Failed to get module errors: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleClearModuleErrors(): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to clear module errors', async () => {
       return await this.dataAccess.clearModuleErrors();
-    } catch (error) {
-      throw new Error(
-        `Failed to clear module errors: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async handleGetModuleManifest(data: { moduleId: string }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-      this.dataAccess.validateFoundryState();
+    return this.withGmGate('Failed to get module manifest', async () => {
       if (!data?.moduleId) throw new Error('moduleId is required');
       return await this.dataAccess.getModuleManifest(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to get module manifest: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 }

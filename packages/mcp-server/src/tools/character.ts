@@ -1039,11 +1039,4 @@ export class CharacterTools {
       hasIcon: !!effect.icon,
     }));
   }
-
-  private truncateText(text: string, maxLength: number): string {
-    if (!text || text.length <= maxLength) {
-      return text;
-    }
-    return `${text.substring(0, maxLength - 3)}...`;
-  }
 }

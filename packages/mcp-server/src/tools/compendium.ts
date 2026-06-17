@@ -662,17 +662,6 @@ export class CompendiumTools {
     return formatted;
   }
 
-  private formatDetailedCompendiumItem(item: any): any {
-    const formatted = this.formatCompendiumItem(item);
-
-    // Add more detailed information
-    formatted.system = this.sanitizeSystemData(item.system || {});
-    formatted.fullDescription = this.extractFullDescription(item);
-    formatted.properties = this.extractItemProperties(item);
-
-    return formatted;
-  }
-
   private extractDescription(item: any): string {
     const system = item.system || {};
 

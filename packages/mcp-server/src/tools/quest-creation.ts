@@ -991,29 +991,6 @@ export class QuestCreationTools {
   }
 
   /**
-   * Format text content for Foundry VTT (convert to proper HTML)
-   */
-  private formatTextForFoundry(text: string): string {
-    // Escape HTML to prevent injection
-    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-    // Convert line breaks to paragraphs
-    const paragraphs = escaped.split('\n\n').filter(p => p.trim().length > 0);
-
-    if (paragraphs.length === 0) {
-      return '<p></p>';
-    }
-
-    if (paragraphs.length === 1) {
-      // Single paragraph - handle line breaks within it
-      return `<p>${paragraphs[0].replace(/\n/g, '<br>')}</p>`;
-    }
-
-    // Multiple paragraphs
-    return paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
-  }
-
-  /**
    * Format update content for Foundry VTT (preserve HTML like create-quest-journal)
    * Allows custom section headings and themed content with proper CSS classes
    */
@@ -1070,62 +1047,6 @@ export class QuestCreationTools {
     const end = Math.min(content.length, index + maxLength);
 
     return `...${content.substring(start, end)}...`;
-  }
-
-  /**
-   * Determine if the named NPC is an antagonist based on quest description
-   */
-  private determineNPCRole(
-    questDescription: string,
-    npcName?: string
-  ): 'quest_giver' | 'antagonist' | 'neutral' {
-    if (!npcName) return 'neutral';
-
-    const desc = questDescription.toLowerCase();
-    const name = npcName.toLowerCase();
-
-    // Keywords that suggest antagonist role
-    const antagonistKeywords = [
-      'stop',
-      'defeat',
-      'confront',
-      'evil',
-      'corrupt',
-      'mad',
-      'insane',
-      'villain',
-      'enemy',
-      'threat',
-      'dangerous',
-      'rogue',
-      'gone wrong',
-      'obsessed',
-      'twisted',
-      'dark',
-      'forbidden',
-      'necro',
-      'tyrant',
-      'bandit',
-      'cultist',
-      'possessed',
-      'cursed',
-      'malevolent',
-    ];
-
-    // Check if the description mentions the NPC in an antagonistic context
-    const hasAntagonistContext = antagonistKeywords.some(
-      keyword => desc.includes(keyword) && desc.includes(name)
-    );
-
-    // Check for explicit antagonist phrasing
-    const explicitAntagonist =
-      desc.includes(`${name} has`) ||
-      desc.includes(`${name} is`) ||
-      desc.includes(`confront ${name}`) ||
-      desc.includes(`stop ${name}`) ||
-      desc.includes(`defeat ${name}`);
-
-    return hasAntagonistContext || explicitAntagonist ? 'antagonist' : 'quest_giver';
   }
 
   /**

@@ -159,22 +159,36 @@ export class CombatDataAccess {
    *  - 'all': everyone (Combat#rollAll)
    *  - 'missing': only combatants without an initiative value
    */
-  async rollInitiativeForNpcs(data: { scope?: 'npcs' | 'all' | 'missing' }): Promise<any> {
+  async rollInitiativeForNpcs(data: {
+    scope?: 'npcs' | 'all' | 'missing';
+    combatantIds?: string[];
+  }): Promise<any> {
     shared.validateFoundryState();
     const combat = this.requireActiveCombat();
 
-    const scope = data.scope || 'npcs';
+    const all = combat.combatants?.contents ?? combat.combatants ?? [];
+    let scope: string;
 
-    if (scope === 'all') {
-      await combat.rollAll();
-    } else if (scope === 'missing') {
-      const ids = (combat.combatants?.contents ?? combat.combatants ?? [])
-        .filter((c: any) => c.initiative === null || c.initiative === undefined)
-        .map((c: any) => c.id);
+    if (data.combatantIds && data.combatantIds.length > 0) {
+      // Explicit selection (the dashboard's "Roll init" on picked combatants)
+      // takes precedence over scope: roll separate initiative for just those.
+      const present = new Set(all.map((c: any) => c.id));
+      const ids = data.combatantIds.filter((id: string) => present.has(id));
       if (ids.length > 0) await combat.rollInitiative(ids);
+      scope = 'selected';
     } else {
-      // 'npcs' — Foundry core rolls initiative for all non-player-owned combatants
-      await combat.rollNPC();
+      scope = data.scope || 'npcs';
+      if (scope === 'all') {
+        await combat.rollAll();
+      } else if (scope === 'missing') {
+        const ids = all
+          .filter((c: any) => c.initiative === null || c.initiative === undefined)
+          .map((c: any) => c.id);
+        if (ids.length > 0) await combat.rollInitiative(ids);
+      } else {
+        // 'npcs' — Foundry core rolls initiative for all non-player-owned combatants
+        await combat.rollNPC();
+      }
     }
 
     const turns: any[] = combat.turns ?? [];

@@ -276,6 +276,35 @@ describe('FoundryDataAccess — rollInitiativeForNpcs', () => {
 
     expect(combat.rollInitiative).not.toHaveBeenCalled();
   });
+
+  it('combatantIds rolls separate initiative for only the selected combatants', async () => {
+    const combat = installCombat({ turns: [], round: 1 });
+    combat.combatants = {
+      contents: [
+        makeCombatant({ id: 'c1', name: 'Goblin 1', initiative: null }),
+        makeCombatant({ id: 'c2', name: 'Goblin 2', initiative: null }),
+        makeCombatant({ id: 'c3', name: 'Goblin 3', initiative: null }),
+      ],
+    };
+
+    const result = await da.rollInitiativeForNpcs({ combatantIds: ['c1', 'c3'] });
+
+    expect(combat.rollInitiative).toHaveBeenCalledWith(['c1', 'c3']);
+    expect(combat.rollNPC).not.toHaveBeenCalled();
+    expect(combat.rollAll).not.toHaveBeenCalled();
+    expect(result.scope).toBe('selected');
+  });
+
+  it('combatantIds ignores ids that are not in the active combat', async () => {
+    const combat = installCombat({ turns: [], round: 1 });
+    combat.combatants = {
+      contents: [makeCombatant({ id: 'c1', name: 'Goblin', initiative: null })],
+    };
+
+    await da.rollInitiativeForNpcs({ combatantIds: ['c1', 'ghost'] });
+
+    expect(combat.rollInitiative).toHaveBeenCalledWith(['c1']);
+  });
 });
 
 // ===========================================================================

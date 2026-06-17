@@ -56,7 +56,7 @@ export class CombatTools {
       {
         name: 'roll-initiative-for-npcs',
         description:
-          'Roll initiative for combatants in the active combat and populate the tracker. scope "npcs" (default) rolls for non-player combatants, "all" rolls for everyone, "missing" only rolls for combatants without an initiative value.',
+          'Roll initiative for combatants in the active combat and populate the tracker. scope "npcs" (default) rolls for non-player combatants, "all" rolls for everyone, "missing" only rolls for combatants without an initiative value. Pass combatantIds to roll separate initiative for exactly those combatants (overrides scope).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -64,6 +64,12 @@ export class CombatTools {
               type: 'string',
               enum: ['npcs', 'all', 'missing'],
               description: 'Which combatants to roll for (default "npcs").',
+            },
+            combatantIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'Optional: roll separate initiative for exactly these combatant ids (overrides scope).',
             },
           },
         },
@@ -124,7 +130,10 @@ export class CombatTools {
   }
 
   async handleRollInitiativeForNpcs(args: any) {
-    const schema = z.object({ scope: z.enum(['npcs', 'all', 'missing']).optional() });
+    const schema = z.object({
+      scope: z.enum(['npcs', 'all', 'missing']).optional(),
+      combatantIds: z.array(z.string()).optional(),
+    });
     try {
       const params = schema.parse(args ?? {});
       const response = await this.foundryClient.query(

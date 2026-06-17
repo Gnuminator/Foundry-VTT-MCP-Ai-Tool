@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.18.0 (2026-06-17) — Roll-init for selected combatants
+
+### Features
+
+- **Roll initiative for selected combatants from the co-GM dashboard.** The combat selection bar gains
+  a **Roll init** button: pick any combatants (click a row to toggle — non-contiguous selection like
+  1, 3, 5 works with plain clicks, no modifier key needed) and roll _separate_ initiative for exactly
+  those. Backed by a new optional `combatantIds` parameter on the `roll-initiative-for-npcs` tool,
+  which rolls for a specific set and overrides `scope`. The existing scope buttons — **NPCs / All /
+  Missing** — are unchanged.
+
+### Build / CI
+
+- Bumped the CI/release workflows from Node 20 to **Node 22** (build toolchain only; the shipped
+  runtime still targets Node 18).
+
 ## v0.17.0 (2026-06-17) — Non-GM access + internal cleanup
 
 Adds an opt-in for non-GM users to run the bridge, plus a large internal code-quality pass and the

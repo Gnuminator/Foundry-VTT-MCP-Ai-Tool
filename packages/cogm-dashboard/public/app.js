@@ -262,6 +262,7 @@ function renderCombatActions() {
         ? `
     <div class="ca-row ca-selection">
       <span class="ca-count"><strong>${n}</strong> selected</span>
+      <button type="button" class="ca-btn" data-sel="init">Roll init</button>
       <button type="button" class="ca-btn" data-sel="damage">Damage / Heal</button>
       <button type="button" class="ca-btn" data-sel="save">Roll save</button>
       <button type="button" class="ca-btn ghost" data-sel="clear">Clear</button>
@@ -875,6 +876,11 @@ els.combatActions.addEventListener('click', e => {
   if (action === 'clear') {
     selectedCombatants.clear();
     renderCombat(lastCombat);
+    return;
+  }
+  if (action === 'init') {
+    if (selectedCombatants.size === 0) return;
+    void runTool('roll-initiative-for-npcs', { combatantIds: [...selectedCombatants] }, 'write');
     return;
   }
   const names = selectedNames();

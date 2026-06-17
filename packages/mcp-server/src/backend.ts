@@ -10,6 +10,8 @@ import { evaluateLockFile } from './lock.js';
 
 import { ComfyUIService } from './comfyui-service.js';
 
+import { buildToolRouter } from './tool-router.js';
+
 import {
   handleGenerateMapRequest,
   handleCheckMapStatusRequest,
@@ -433,6 +435,34 @@ async function startBackend(): Promise<void> {
     backendComfyUIHandlers: (globalThis as any).backendComfyUIHandlers,
   });
 
+  // Control-channel call_tool dispatch table (see tool-router.ts).
+  const toolRouter = buildToolRouter({
+    characterTools,
+    compendiumTools,
+    sceneTools,
+    actorCreationTools,
+    questCreationTools,
+    diceRollTools,
+    campaignManagementTools,
+    mapGenerationTools,
+    tokenManipulationTools,
+    ownershipTools,
+    dnd5eAddFeatureTool,
+    dnd5eNpcTools,
+    dnd5eFeaturesFromCompendiumTools,
+    chatLogTools,
+    resourceTools,
+    effectsTools,
+    combatTools,
+    movementTools,
+    sessionLogTools,
+    combatResolutionTools,
+    encounterTools,
+    sceneControlTools,
+    lootTools,
+    diagnosticsTools,
+  });
+
   const allTools = [
     ...characterTools.getToolDefinitions(),
 
@@ -546,420 +576,11 @@ async function startBackend(): Promise<void> {
             const { name, args } = (msg.params || {}) as { name: string; args?: any };
 
             try {
-              let result: any;
-
-              switch (name) {
-                // Character tools
-
-                case 'get-character':
-                  result = await characterTools.handleGetCharacter(args);
-
-                  break;
-
-                case 'list-characters':
-                  result = await characterTools.handleListCharacters(args);
-
-                  break;
-
-                case 'get-character-entity':
-                  result = await characterTools.handleGetCharacterEntity(args);
-
-                  break;
-
-                case 'use-item':
-                  result = await characterTools.handleUseItem(args);
-
-                  break;
-
-                case 'search-character-items':
-                  result = await characterTools.handleSearchCharacterItems(args);
-
-                  break;
-
-                case 'manage-world-items':
-                  result = await characterTools.handleManageWorldItems(args);
-
-                  break;
-
-                // Compendium tools
-
-                case 'search-compendium':
-                  result = await compendiumTools.handleSearchCompendium(args);
-
-                  break;
-
-                case 'get-compendium-item':
-                  result = await compendiumTools.handleGetCompendiumItem(args);
-
-                  break;
-
-                case 'list-creatures-by-criteria':
-                  result = await compendiumTools.handleListCreaturesByCriteria(args);
-
-                  break;
-
-                case 'list-compendium-packs':
-                  result = await compendiumTools.handleListCompendiumPacks(args);
-
-                  break;
-
-                // Scene tools
-
-                case 'get-current-scene':
-                  result = await sceneTools.handleGetCurrentScene(args);
-
-                  break;
-
-                case 'get-world-info':
-                  result = await sceneTools.handleGetWorldInfo(args);
-
-                  break;
-
-                // Actor creation tools
-
-                case 'create-actor-from-compendium':
-                  result = await actorCreationTools.handleCreateActorFromCompendium(args);
-
-                  break;
-
-                case 'get-compendium-entry-full':
-                  result = await actorCreationTools.handleGetCompendiumEntryFull(args);
-
-                  break;
-
-                // D&D 5e tools
-
-                case 'dnd5e-add-feature':
-                  result = await dnd5eAddFeatureTool.handleAddFeature(args);
-
-                  break;
-
-                case 'dnd5e-create-npc':
-                  result = await dnd5eNpcTools.handleCreateNpc(args);
-
-                  break;
-
-                case 'dnd5e-add-features-from-compendium':
-                  result =
-                    await dnd5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium(args);
-
-                  break;
-
-                // Quest creation tools
-
-                case 'create-quest-journal':
-                  result = await questCreationTools.handleCreateQuestJournal(args);
-
-                  break;
-
-                case 'link-quest-to-npc':
-                  result = await questCreationTools.handleLinkQuestToNPC(args);
-
-                  break;
-
-                case 'update-quest-journal':
-                  result = await questCreationTools.handleUpdateQuestJournal(args);
-
-                  break;
-
-                case 'list-journals':
-                  result = await questCreationTools.handleListJournals(args);
-
-                  break;
-
-                case 'search-journals':
-                  result = await questCreationTools.handleSearchJournals(args);
-
-                  break;
-
-                // Dice roll tools
-
-                case 'request-player-rolls':
-                  result = await diceRollTools.handleRequestPlayerRolls(args);
-
-                  break;
-
-                // Campaign management tools
-
-                case 'create-campaign-dashboard':
-                  result = await campaignManagementTools.handleCreateCampaignDashboard(args);
-
-                  break;
-
-                // Ownership tools
-
-                case 'assign-actor-ownership':
-                  result = await ownershipTools.handleToolCall('assign-actor-ownership', args);
-
-                  break;
-
-                case 'remove-actor-ownership':
-                  result = await ownershipTools.handleToolCall('remove-actor-ownership', args);
-
-                  break;
-
-                case 'list-actor-ownership':
-                  result = await ownershipTools.handleToolCall('list-actor-ownership', args);
-
-                  break;
-
-                // Token manipulation tools
-
-                case 'move-token':
-                  result = await tokenManipulationTools.handleMoveToken(args);
-
-                  break;
-
-                case 'update-token':
-                  result = await tokenManipulationTools.handleUpdateToken(args);
-
-                  break;
-
-                case 'delete-tokens':
-                  result = await tokenManipulationTools.handleDeleteTokens(args);
-
-                  break;
-
-                case 'get-token-details':
-                  result = await tokenManipulationTools.handleGetTokenDetails(args);
-
-                  break;
-
-                case 'toggle-token-condition':
-                  result = await tokenManipulationTools.handleToggleTokenCondition(args);
-
-                  break;
-
-                case 'get-available-conditions':
-                  result = await tokenManipulationTools.handleGetAvailableConditions(args);
-
-                  break;
-
-                // Map generation tools
-
-                case 'generate-map':
-                  result = await mapGenerationTools.generateMap(args);
-
-                  break;
-
-                case 'check-map-status':
-                  result = await mapGenerationTools.checkMapStatus(args);
-
-                  break;
-
-                case 'cancel-map-job':
-                  result = await mapGenerationTools.cancelMapJob(args);
-
-                  break;
-
-                case 'list-scenes':
-                  result = await mapGenerationTools.listScenes(args);
-
-                  break;
-
-                case 'switch-scene':
-                  result = await mapGenerationTools.switchScene(args);
-
-                  break;
-
-                // Chat log / play-by-play / in-character chat (3A)
-
-                case 'get-chat-log':
-                  result = await chatLogTools.handleGetChatLog(args);
-
-                  break;
-
-                case 'get-combat-play-by-play':
-                  result = await chatLogTools.handleGetCombatPlayByPlay(args);
-
-                  break;
-
-                case 'send-chat-message':
-                  result = await chatLogTools.handleSendChatMessage(args);
-
-                  break;
-
-                // Resource tracking (3C)
-
-                case 'get-character-resources':
-                  result = await resourceTools.handleGetCharacterResources(args);
-
-                  break;
-
-                case 'update-character-resource':
-                  result = await resourceTools.handleUpdateCharacterResource(args);
-
-                  break;
-
-                // Active effects / conditions (3D)
-
-                case 'get-active-effects':
-                  result = await effectsTools.handleGetActiveEffects(args);
-
-                  break;
-
-                case 'clear-stale-conditions':
-                  result = await effectsTools.handleClearStaleConditions(args);
-
-                  break;
-
-                // Combat tracker (3E)
-
-                case 'get-combat-state':
-                  result = await combatTools.handleGetCombatState(args);
-
-                  break;
-
-                case 'advance-combat-turn':
-                  result = await combatTools.handleAdvanceCombatTurn(args);
-
-                  break;
-
-                case 'set-initiative':
-                  result = await combatTools.handleSetInitiative(args);
-
-                  break;
-
-                // Movement and positioning (3F)
-
-                case 'get-token-positions':
-                  result = await movementTools.handleGetTokenPositions(args);
-
-                  break;
-
-                case 'measure-distance':
-                  result = await movementTools.handleMeasureDistance(args);
-
-                  break;
-
-                case 'get-targets':
-                  result = await movementTools.handleGetTargets(args);
-
-                  break;
-
-                // Extended roll requests / NPC rolls (3G)
-
-                case 'request-ability-check':
-                  result = await diceRollTools.handleRequestAbilityCheck(args);
-
-                  break;
-
-                case 'request-attack-roll':
-                  result = await diceRollTools.handleRequestAttackRoll(args);
-
-                  break;
-
-                case 'roll-npc-check':
-                  result = await diceRollTools.handleRollNpcCheck(args);
-
-                  break;
-
-                // Session event log (3H)
-
-                case 'get-session-log':
-                  result = await sessionLogTools.handleGetSessionLog(args);
-
-                  break;
-
-                case 'get-recent-events':
-                  result = await sessionLogTools.handleGetRecentEvents(args);
-
-                  break;
-
-                case 'roll-initiative-for-npcs':
-                  result = await combatTools.handleRollInitiativeForNpcs(args);
-
-                  break;
-
-                // Combat resolution (dnd5e)
-
-                case 'apply-damage-and-healing':
-                  result = await combatResolutionTools.handleApplyDamageAndHealing(args);
-
-                  break;
-
-                case 'roll-saving-throws':
-                  result = await combatResolutionTools.handleRollSavingThrows(args);
-
-                  break;
-
-                case 'use-npc-activity':
-                  result = await combatResolutionTools.handleUseNpcActivity(args);
-
-                  break;
-
-                case 'manage-rest':
-                  result = await combatResolutionTools.handleManageRest(args);
-
-                  break;
-
-                // Encounter & scene tools
-
-                case 'suggest-balanced-encounter':
-                  result = await encounterTools.handleSuggestBalancedEncounter(args);
-
-                  break;
-
-                case 'place-measured-template':
-                  result = await encounterTools.handlePlaceMeasuredTemplate(args);
-
-                  break;
-
-                case 'delete-measured-template':
-                  result = await encounterTools.handleDeleteMeasuredTemplate(args);
-
-                  break;
-
-                case 'set-scene-mood':
-                  result = await sceneControlTools.handleSetSceneMood(args);
-
-                  break;
-
-                case 'add-map-note':
-                  result = await sceneControlTools.handleAddMapNote(args);
-
-                  break;
-
-                case 'set-token-vision-light':
-                  result = await sceneControlTools.handleSetTokenVisionLight(args);
-
-                  break;
-
-                case 'delete-map-note':
-                  result = await sceneControlTools.handleDeleteMapNote(args);
-
-                  break;
-
-                case 'drop-loot':
-                  result = await lootTools.handleDropLoot(args);
-
-                  break;
-
-                // Diagnostics (module troubleshooting)
-
-                case 'get-modules':
-                  result = await diagnosticsTools.handleGetModules(args);
-
-                  break;
-
-                case 'get-module-errors':
-                  result = await diagnosticsTools.handleGetModuleErrors(args);
-
-                  break;
-
-                case 'clear-module-errors':
-                  result = await diagnosticsTools.handleClearModuleErrors(args);
-
-                  break;
-
-                case 'get-module-manifest':
-                  result = await diagnosticsTools.handleGetModuleManifest(args);
-
-                  break;
-
-                default:
-                  throw new Error(`Unknown tool: ${name}`);
+              const route = toolRouter[name];
+              if (!route) {
+                throw new Error(`Unknown tool: ${name}`);
               }
+              const result = await route(args);
 
               const payload: ToolResultPayload = {
                 content: [

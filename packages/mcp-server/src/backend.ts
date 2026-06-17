@@ -309,16 +309,6 @@ async function startBackend(): Promise<void> {
 
   (globalThis as any).backendComfyUIHandlers = {
     handleMessage: async (message: any) => {
-      // CRITICAL DEBUG: Write to file IMMEDIATELY when this function is called
-      const fs = await import('fs').then(m => m.promises);
-      const path = await import('path');
-      const os = await import('os');
-      const debugLog = path.join(os.tmpdir(), 'backend-handler-debug.log');
-      await fs.appendFile(
-        debugLog,
-        `[${new Date().toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}\n`
-      );
-
       logger.info('Handling ComfyUI message', {
         requestId: message.requestId,
 
@@ -328,16 +318,6 @@ async function startBackend(): Promise<void> {
       });
 
       try {
-        // Debug: Log before switch
-        const fs = await import('fs').then(m => m.promises);
-        const path = await import('path');
-        const os = await import('os');
-        const debugLog = path.join(os.tmpdir(), 'backend-handler-debug.log');
-        await fs.appendFile(
-          debugLog,
-          `[${new Date().toISOString()}] About to switch on message.type: "${message.type}"\n`
-        );
-
         let result: any;
 
         switch (message.type) {
@@ -358,20 +338,12 @@ async function startBackend(): Promise<void> {
 
           // Map generation handlers (following existing tool pattern)
           case 'generate-map-request':
-            await fs.appendFile(
-              debugLog,
-              `[${new Date().toISOString()}] Matched generate-map-request case, calling handler...\n`
-            );
             result = await handleGenerateMapRequest(
               message,
               mapGenerationJobQueue,
               mapGenerationComfyUIClient,
               logger,
               foundryClient
-            );
-            await fs.appendFile(
-              debugLog,
-              `[${new Date().toISOString()}] Handler returned: ${JSON.stringify(result)}\n`
             );
             break;
 

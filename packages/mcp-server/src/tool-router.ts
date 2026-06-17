@@ -66,9 +66,13 @@ export type ToolHandler = (args: any) => Promise<any>;
  * Build the `call_tool` name → handler map. Unknown names are absent from the
  * map; the caller throws `Unknown tool: <name>` exactly as the switch's default
  * did.
+ *
+ * The map has a null prototype so a `name` like 'toString' / 'constructor' can't
+ * resolve to an inherited Object.prototype method and slip past that guard (the
+ * old switch sent every unlisted name to `default`).
  */
 export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandler> {
-  return {
+  const routes: Record<string, ToolHandler> = {
     'create-actor-from-compendium': args =>
       deps.actorCreationTools.handleCreateActorFromCompendium(args),
     'get-compendium-entry-full': args => deps.actorCreationTools.handleGetCompendiumEntryFull(args),
@@ -151,4 +155,6 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'get-available-conditions': args =>
       deps.tokenManipulationTools.handleGetAvailableConditions(args),
   };
+
+  return Object.assign(Object.create(null), routes);
 }

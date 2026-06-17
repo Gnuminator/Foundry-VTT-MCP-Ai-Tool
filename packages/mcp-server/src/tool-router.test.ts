@@ -77,4 +77,14 @@ describe('buildToolRouter', () => {
     const router = buildToolRouter(makeDeps());
     expect(router['definitely-not-a-tool']).toBeUndefined();
   });
+
+  // The map is null-prototype: inherited Object.prototype keys must not resolve
+  // to a (truthy) function and slip past the caller's `if (!route)` Unknown-tool
+  // guard, which the old switch's `default` arm caught.
+  it('does not dispatch Object.prototype keys as handlers', () => {
+    const router = buildToolRouter(makeDeps());
+    for (const key of ['toString', 'constructor', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
+      expect(router[key]).toBeUndefined();
+    }
+  });
 });

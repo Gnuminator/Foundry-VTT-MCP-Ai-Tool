@@ -13,8 +13,8 @@ export class QueryHandlers {
 
   /**
    * SECURITY: Validate access - returns silent failure for disallowed users.
-   * The GM is always allowed; the `allowNonGmAccess` setting (locked on for this
-   * build) additionally permits any logged-in user.
+   * The GM is always allowed; the `allowNonGmAccess` setting (default OFF)
+   * additionally permits any logged-in user when explicitly enabled.
    */
   private validateGMAccess(): { allowed: boolean; error?: any } {
     if (game.user?.isGM || this.allowNonGmAccess()) {

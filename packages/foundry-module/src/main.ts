@@ -42,10 +42,10 @@ class FoundryMCPBridge {
 
   /**
    * Whether the current user may run the bridge. The GM always may; the
-   * `allowNonGmAccess` setting (locked on for this build) additionally lets any
-   * logged-in user start and use it. SECURITY: the bridge turns the running
-   * browser into an AI control surface — keep this GM-only before sharing a
-   * world publicly.
+   * `allowNonGmAccess` setting (default OFF) additionally lets any logged-in
+   * user start and use it when explicitly enabled. SECURITY: the bridge turns
+   * the running browser into an AI control surface — keep this GM-only before
+   * sharing a world publicly.
    */
   private isBridgeAllowedForUser(): boolean {
     return this.isGMUser() || this.settings.getSetting('allowNonGmAccess') === true;

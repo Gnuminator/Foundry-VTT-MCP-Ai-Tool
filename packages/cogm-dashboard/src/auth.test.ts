@@ -9,6 +9,9 @@ function authConfig(overrides: Partial<AuthConfig> = {}): AuthConfig {
     playerToken: '',
     gmEmails: [],
     cfAccessEmailHeader: 'cf-access-authenticated-user-email',
+    // Default the CF-Access path ON in tests that exercise it; the gate itself is
+    // covered separately below.
+    cfAccessEnabled: true,
     ...overrides,
   };
 }
@@ -89,6 +92,19 @@ describe('resolveRole — Cloudflare Access email', () => {
       cfAccessEmailHeader: 'x-email',
     });
     expect(resolveRole(req({ 'x-email': 'gm@x.io' }), custom)).toBe('gm');
+  });
+
+  it('IGNORES the email header when cfAccessEnabled is false (forgeable header)', () => {
+    // gmEmails set but not behind Access: the header must NOT grant GM. With no
+    // GM token and an open player view, an allow-listed email falls back to player.
+    const notBehindAccess = authConfig({
+      gmToken: '',
+      gmEmails: ['gm@example.com'],
+      cfAccessEnabled: false,
+    });
+    expect(
+      resolveRole(req({ 'cf-access-authenticated-user-email': 'gm@example.com' }), notBehindAccess)
+    ).toBe('player');
   });
 });
 

@@ -70,7 +70,10 @@ export function resolveRole(req: AuthRequest, auth: AuthConfig): Role | null {
   if (!auth.splitEnabled) return 'gm';
 
   // 1. Cloudflare Access identity (header injected by the Access gate in front).
-  if (auth.gmEmails.length > 0) {
+  //    ONLY trusted when we're actually behind Access (cfAccessEnabled) — the
+  //    header is otherwise forgeable by anyone who reaches the dashboard directly
+  //    (code review H5). In the Tailscale topology this stays off.
+  if (auth.cfAccessEnabled && auth.gmEmails.length > 0) {
     const email = headerValue(req, auth.cfAccessEmailHeader)?.toLowerCase();
     if (email && auth.gmEmails.includes(email)) return 'gm';
   }

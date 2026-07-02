@@ -150,15 +150,75 @@ const eventsRedactor: SseRedactor = (payload, role) => {
   return { events: redactEventsForPlayer(events), initial };
 };
 
-/** Express middleware: 401/403 unless the caller resolves to the GM role. */
+// --- Brute-force guard on the GM auth path -----------------------------------
+// Small in-memory per-client limiter so a leaked URL / guessed token can't be
+// brute-forced against the GM-only endpoints. No tokens are ever recorded or
+// logged — only a failure count keyed by client address.
+const AUTH_MAX_FAILURES = 8; // failures within the window before lockout
+const AUTH_WINDOW_MS = 60_000; // rolling failure window
+const AUTH_LOCKOUT_MS = 5 * 60_000; // lockout duration once tripped
+
+interface AuthAttempt {
+  failures: number;
+  windowStart: number;
+  lockedUntil: number;
+}
+const authAttempts = new Map<string, AuthAttempt>();
+
+function clientKey(req: Request): string {
+  // req.ip honours `trust proxy` when configured; fall back to the socket.
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function recordAuthFailure(key: string, now: number): void {
+  const a = authAttempts.get(key) ?? { failures: 0, windowStart: now, lockedUntil: 0 };
+  if (now - a.windowStart > AUTH_WINDOW_MS) {
+    a.failures = 0;
+    a.windowStart = now;
+  }
+  a.failures += 1;
+  if (a.failures >= AUTH_MAX_FAILURES) {
+    a.lockedUntil = now + AUTH_LOCKOUT_MS;
+    a.failures = 0;
+    a.windowStart = now;
+    logger.warn('GM auth: client locked out after repeated failures', {
+      client: key,
+      lockoutMs: AUTH_LOCKOUT_MS,
+    });
+  }
+  authAttempts.set(key, a);
+}
+
+// Opportunistic prune so the map can't grow unbounded from one-off probers.
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, a] of authAttempts) {
+    if (a.lockedUntil < now && now - a.windowStart > AUTH_WINDOW_MS) authAttempts.delete(k);
+  }
+}, AUTH_WINDOW_MS).unref();
+
+/** Express middleware: 401/403 unless the caller resolves to the GM role; 429 when locked out. */
 function requireGm(req: Request, res: Response, next: () => void): void {
+  const key = clientKey(req);
+  const now = Date.now();
+  const attempt = authAttempts.get(key);
+  if (attempt && attempt.lockedUntil > now) {
+    res
+      .status(429)
+      .json({ code: 'locked-out', error: 'Too many failed attempts. Try again later.' });
+    return;
+  }
+
   const role = resolveRole(req, config.auth);
   if (!isGm(role)) {
+    recordAuthFailure(key, now);
     res
       .status(role ? 403 : 401)
       .json({ code: 'gm-required', error: 'GM access is required for this action.' });
     return;
   }
+
+  authAttempts.delete(key); // success clears the counter
   next();
 }
 
@@ -337,6 +397,10 @@ const feed = new PollingGameFeed(client, handlers, {
 
 // --- HTTP / SSE --------------------------------------------------------------
 const app = express();
+// Honour X-Forwarded-* only when explicitly told we're behind a trusted proxy /
+// tunnel, so req.ip is the real client for rate-limiting and we don't blindly
+// trust forwarded headers otherwise.
+if (config.trustProxy !== false) app.set('trust proxy', config.trustProxy);
 app.use(express.json({ limit: '256kb' }));
 app.use(express.static(config.publicDir));
 
@@ -580,10 +644,22 @@ app.post('/api/tool', requireGm, (req: Request, res: Response) => {
 });
 
 // --- Startup / shutdown ------------------------------------------------------
+
+// Fail closed: refuse to start a reachable-off-localhost dashboard that would
+// grant GM to every caller (split not configured). See config.requireAuth.
+if (config.requireAuth && !config.auth.splitEnabled) {
+  logger.error(
+    `Refusing to start: dashboard binds ${config.bindHost} (not loopback) but no GM/player ` +
+      `split is configured. Set GM_DASHBOARD_TOKEN (and optionally GM_EMAILS), or bind loopback, ` +
+      `or set REQUIRE_AUTH=false to override (NOT recommended when exposed).`
+  );
+  process.exit(1);
+}
+
 feed.start();
 
-const server = app.listen(config.port, () => {
-  logger.info(`Co-GM dashboard listening on http://localhost:${config.port}`, {
+const server = app.listen(config.port, config.bindHost, () => {
+  logger.info(`Co-GM dashboard listening on http://${config.bindHost}:${config.port}`, {
     mcp: `${config.mcpHost}:${config.mcpPort}`,
     model: config.anthropicModel,
     aiEnabled: coGm.enabled,

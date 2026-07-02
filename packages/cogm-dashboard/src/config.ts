@@ -18,6 +18,24 @@ export type Tone = 'tactical' | 'narrative';
 export interface Config {
   /** HTTP port the dashboard (and its SSE stream) listens on. */
   readonly port: number;
+  /**
+   * Interface the dashboard binds. Loopback by default so the only path in is via
+   * a front proxy / tunnel (Tailscale, cloudflared). Set BIND_HOST=0.0.0.0 only if
+   * you deliberately expose it (e.g. LAN testing) — and then auth is REQUIRED.
+   */
+  readonly bindHost: string;
+  /**
+   * Fail closed: when true, the server refuses to start unless the GM/player split
+   * is configured (a GM token or GM-email allow-list). Defaults true whenever the
+   * bind host is not loopback, so a non-localhost dashboard can never silently
+   * grant GM to everyone (code review H5). Override with REQUIRE_AUTH.
+   */
+  readonly requireAuth: boolean;
+  /**
+   * Value for Express `trust proxy` when behind a reverse proxy / tunnel (so
+   * req.ip and X-Forwarded-* are honoured for rate-limiting). Empty ⇒ not set.
+   */
+  readonly trustProxy: string | number | boolean;
   /** MCP backend control-channel host (JSON-lines TCP). */
   readonly mcpHost: string;
   /** MCP backend control-channel port. */
@@ -91,6 +109,13 @@ export interface AuthConfig {
   readonly gmEmails: readonly string[];
   /** Request header Cloudflare Access injects with the authenticated user email. */
   readonly cfAccessEmailHeader: string;
+  /**
+   * Only trust the Cloudflare-Access email header when we are ACTUALLY behind
+   * Access. Default false: the header is otherwise trivially forgeable by anyone
+   * who can reach the dashboard directly. Set CF_ACCESS_ENABLED=true only when a
+   * real Cloudflare Access gate is in front (code review H5).
+   */
+  readonly cfAccessEnabled: boolean;
 }
 
 export interface PlayerViewConfig {
@@ -138,7 +163,25 @@ const auth: AuthConfig = {
     'CF_ACCESS_EMAIL_HEADER',
     'cf-access-authenticated-user-email'
   ).toLowerCase(),
+  cfAccessEnabled: readBool('CF_ACCESS_ENABLED', false),
 };
+
+const bindHost = readString('BIND_HOST', '127.0.0.1');
+const isLoopbackBind =
+  bindHost === '127.0.0.1' || bindHost === '::1' || bindHost.toLowerCase() === 'localhost';
+// Fail closed off-loopback: a non-localhost bind requires the auth split unless
+// explicitly overridden. On loopback the legacy single-user default is fine.
+const requireAuth = readBool('REQUIRE_AUTH', !isLoopbackBind);
+
+/** Parse TRUST_PROXY into the shape Express `trust proxy` accepts. Empty ⇒ false. */
+function readTrustProxy(): string | number | boolean {
+  const raw = process.env.TRUST_PROXY;
+  if (raw === undefined || raw.trim() === '') return false;
+  const v = raw.trim();
+  if (/^(true|false)$/i.test(v)) return /^true$/i.test(v);
+  if (/^\d+$/.test(v)) return Number(v);
+  return v; // e.g. 'loopback' or a subnet
+}
 
 const pollIntervalMs = readNumber('POLL_INTERVAL_MS', 4000);
 
@@ -152,6 +195,9 @@ const logLevel: Config['logLevel'] =
 
 export const config: Config = {
   port: readNumber('PORT', 3000),
+  bindHost,
+  requireAuth,
+  trustProxy: readTrustProxy(),
   mcpHost: readString('MCP_CONTROL_HOST', '127.0.0.1'),
   mcpPort: readNumber('MCP_CONTROL_PORT', 31414),
   pollIntervalMs,

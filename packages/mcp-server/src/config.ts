@@ -13,6 +13,12 @@ const ConfigSchema = z.object({
   foundry: z.object({
     host: z.string().default('localhost'),
     port: z.number().min(1024).max(65535).default(31415),
+    // Interface the Foundry-link servers (WS 31415 + WebRTC signaling 31416) bind
+    // to. Loopback by default so nothing is reachable off-box; the on-Pi topology
+    // keeps these loopback (the module's headless browser is co-located). Set
+    // FOUNDRY_BIND_HOST=0.0.0.0 ONLY for the legacy cross-host topology where the
+    // Foundry host must reach the bridge over the network. See docs/REMOTE-ACCESS-PLAN.md.
+    bindHost: z.string().default('127.0.0.1'),
     namespace: z.string().default('/foundry-mcp'),
     reconnectAttempts: z.number().min(1).max(20).default(5),
     reconnectDelay: z.number().min(100).max(30000).default(1000),
@@ -63,6 +69,7 @@ const rawConfig = {
   foundry: {
     host: process.env.FOUNDRY_HOST || 'localhost',
     port: parseInt(process.env.FOUNDRY_PORT || '31415', 10),
+    bindHost: process.env.FOUNDRY_BIND_HOST || '127.0.0.1',
     namespace: process.env.FOUNDRY_NAMESPACE || '/foundry-mcp',
     reconnectAttempts: parseInt(process.env.FOUNDRY_RECONNECT_ATTEMPTS || '5', 10),
     reconnectDelay: parseInt(process.env.FOUNDRY_RECONNECT_DELAY || '1000', 10),

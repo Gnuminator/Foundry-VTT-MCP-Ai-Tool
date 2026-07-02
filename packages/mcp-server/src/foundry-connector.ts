@@ -79,11 +79,21 @@ export class FoundryConnector {
       }
     });
 
-    // Start WebRTC signaling server
+    // Start WebRTC signaling server.
+    // Bind host defaults to loopback (127.0.0.1); only a legacy cross-host
+    // topology sets FOUNDRY_BIND_HOST=0.0.0.0. Previously hard-coded to 0.0.0.0,
+    // which exposed unauthenticated WebRTC signaling to the whole LAN (code
+    // review B1). CORS stays permissive because the module's WebRTC offer POST is
+    // cross-origin from the (dynamic) Foundry page origin; the loopback bind is
+    // the actual exposure mitigation.
+    const bindHost = this.config.bindHost || '127.0.0.1';
     await new Promise<void>((resolve, reject) => {
-      this.webrtcSignalingServer.listen(WEBRTC_PORT, '0.0.0.0', () => {
-        this.logger.info(`WebRTC signaling server listening on port ${WEBRTC_PORT}`);
-        console.error(`[WebRTC] Server started on 0.0.0.0:${WEBRTC_PORT}`);
+      this.webrtcSignalingServer.listen(WEBRTC_PORT, bindHost, () => {
+        this.logger.info(`WebRTC signaling server listening`, {
+          host: bindHost,
+          port: WEBRTC_PORT,
+        });
+        console.error(`[WebRTC] Server started on ${bindHost}:${WEBRTC_PORT}`);
         resolve();
       });
       this.webrtcSignalingServer.on('error', (error: Error) => {
@@ -159,11 +169,12 @@ export class FoundryConnector {
       });
     });
 
-    // Start the HTTP server
+    // Start the HTTP/WebSocket server. Bind host defaults to loopback; a missing
+    // host arg previously let Node bind 0.0.0.0 (code review H1).
     await new Promise<void>((resolve, reject) => {
-      this.httpServer.listen(this.config.port, () => {
+      this.httpServer.listen(this.config.port, bindHost, () => {
         this.isStarted = true;
-        this.logger.info('Foundry connector listening', { port: this.config.port });
+        this.logger.info('Foundry connector listening', { host: bindHost, port: this.config.port });
         resolve();
       });
 

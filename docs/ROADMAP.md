@@ -130,29 +130,35 @@ Everything else outstanding is below, roughly in priority order.
 - [ ] Audit the unreviewed surfaces: `installer/` NSIS + `configure-claude.ps1`, the release workflows,
       `deploy/Dockerfile`.
 
-### Remote hosting for the GM — decisions & open questions (session 2)
+### Remote hosting for the GM — target architecture (session 2)
 
-Context that pins the topology:
+**Decided: run everything on the Raspberry Pi so the PC is never a requirement anywhere.**
 
-- **Foundry itself is NOT self-hosted** — the game runs on **molten-hosting** (a Foundry hosting
-  service), reached over the internet. The bridge module runs in a browser session connected to that
-  hosted game; the MCP backend currently runs on the PC (via Claude Desktop). So the game is already
-  remote — only the dashboard and backend placement are in play.
-- **The dashboard will be hosted on the Raspberry Pi / HA Green** (not the PC).
+- Foundry stays on **molten-hosting** (remote); a separate later todo covers migrating it off.
+- **On the Pi:** the **standalone MCP backend** (`standalone.ts`, Foundry-link ON) + a **persistent
+  headless-browser session** running the bridge module logged into the molten-hosted world + the
+  **co-GM dashboard**. All wire links (31414 control, 31415 WS, 31416 WebRTC) become **loopback on the
+  Pi** — which dissolves the earlier cross-host / 0.0.0.0 exposure problem for those ports. Only the
+  dashboard (:3000) is exposed externally, behind the reverse-proxy/tunnel + auth.
+- The dashboard is the AI surface (Anthropic API directly), so **Claude Desktop becomes optional**, not
+  a dependency. A human can still point Claude Desktop at the Pi's backend over the VPN when wanted.
+- Because the module-browser and backend are co-located on the Pi, the **WebRTC path (31416) may be
+  droppable** — plain WebSocket over loopback should suffice. Evaluate.
 - Auth is **not** a from-scratch build: `cogm-dashboard/src/auth.ts` already has a shared GM/player
-  token model (constant-time compared) + a Cloudflare-Access email path. The work is to _require +
-  harden_ it (fail-closed, strong random tokens, rate-limit/lockout, don't trust the CF header unless
-  actually behind Access).
-- Leaning toward **Pi reverse-proxy + port-forward** for exposure. Note for the session: Cloudflare
-  Tunnel + Access is effectively free at this scale (only cost is a domain ~$10/yr, which a
-  port-forward + TLS setup also wants), and `cloudflared` running _on the Pi_ gives Pi-hosting with
-  **no open router ports** — evaluate it fairly against port-forwarding before deciding.
-- **Key open problem:** the dashboard→backend link uses the unauthenticated control channel (31414).
-  With the dashboard on the Pi and the backend on the PC, that link crosses hosts — it must ride a
-  trusted path (Tailscale / SSH tunnel), never raw LAN, or the backend must move to the Pi.
+  token model (constant-time compared) + a Cloudflare-Access email path — _require + harden_ it (fail
+  closed, strong random tokens, rate-limit/lockout, don't trust the CF header unless actually behind
+  Access).
+- Exposure: leaning **Pi reverse-proxy + port-forward**; compare fairly against `cloudflared`-on-Pi
+  (free at this scale — only a domain ~$10/yr — and **no open router ports**) and Tailscale.
 
-- [ ] **Later / investigate:** migrating the Foundry game hosting off molten-hosting (e.g. self-host on
-      the Pi / HA Green or elsewhere). Feasibility unknown — figure out if it's possible and worth it.
+**Biggest new risk to validate: can the Pi run a headless Foundry client 24/7?** Foundry's canvas
+(PixiJS/WebGL) in headless Chromium is heavy on ARM. Check the Pi model/RAM; research
+Puppeteer/Playwright + software WebGL (SwiftShader) + Docker flags; keep a fallback host (mini-PC / VPS
+/ HA Green) if the Pi can't cope. The headless session also needs Foundry login creds stored as secrets
+on the Pi + auto-reconnect on disconnect/world-restart.
+
+- [ ] **Later / investigate:** migrating the Foundry _game server_ off molten-hosting (self-host on the
+      Pi / elsewhere). Feasibility unknown; separate from the headless-client work above.
 
 ---
 

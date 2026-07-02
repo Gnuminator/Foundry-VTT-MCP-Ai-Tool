@@ -130,6 +130,30 @@ Everything else outstanding is below, roughly in priority order.
 - [ ] Audit the unreviewed surfaces: `installer/` NSIS + `configure-claude.ps1`, the release workflows,
       `deploy/Dockerfile`.
 
+### Remote hosting for the GM — decisions & open questions (session 2)
+
+Context that pins the topology:
+
+- **Foundry itself is NOT self-hosted** — the game runs on **molten-hosting** (a Foundry hosting
+  service), reached over the internet. The bridge module runs in a browser session connected to that
+  hosted game; the MCP backend currently runs on the PC (via Claude Desktop). So the game is already
+  remote — only the dashboard and backend placement are in play.
+- **The dashboard will be hosted on the Raspberry Pi / HA Green** (not the PC).
+- Auth is **not** a from-scratch build: `cogm-dashboard/src/auth.ts` already has a shared GM/player
+  token model (constant-time compared) + a Cloudflare-Access email path. The work is to _require +
+  harden_ it (fail-closed, strong random tokens, rate-limit/lockout, don't trust the CF header unless
+  actually behind Access).
+- Leaning toward **Pi reverse-proxy + port-forward** for exposure. Note for the session: Cloudflare
+  Tunnel + Access is effectively free at this scale (only cost is a domain ~$10/yr, which a
+  port-forward + TLS setup also wants), and `cloudflared` running _on the Pi_ gives Pi-hosting with
+  **no open router ports** — evaluate it fairly against port-forwarding before deciding.
+- **Key open problem:** the dashboard→backend link uses the unauthenticated control channel (31414).
+  With the dashboard on the Pi and the backend on the PC, that link crosses hosts — it must ride a
+  trusted path (Tailscale / SSH tunnel), never raw LAN, or the backend must move to the Pi.
+
+- [ ] **Later / investigate:** migrating the Foundry game hosting off molten-hosting (e.g. self-host on
+      the Pi / HA Green or elsewhere). Feasibility unknown — figure out if it's possible and worth it.
+
 ---
 
 ## The "live update in a Claude session" question (why the dashboard exists)

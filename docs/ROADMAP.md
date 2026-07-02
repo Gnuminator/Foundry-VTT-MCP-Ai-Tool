@@ -72,6 +72,64 @@ staged plan + locked decisions live in [DETACH-PLAN.md](DETACH-PLAN.md). Status 
 - **Priority rule:** mobile/tablet support is **last** — never built in parallel; only after v1 desktop
   is done.
 
+### Code review 2026-07 — action backlog
+
+Full audit in [CODE-REVIEW-2026-07.md](CODE-REVIEW-2026-07.md) (HEAD `bfbc93b`, v0.18.0). The two biggest
+items are their own sessions: **decommission ComfyUI entirely** and **design remote hosting for the GM**.
+Everything else outstanding is below, roughly in priority order.
+
+**Security — before any non-localhost exposure (do with / right after the hosting session):**
+
+- [ ] Gate the `0.0.0.0` binds behind an explicit opt-in, loopback by default: WebRTC signaling
+      (`foundry-connector.ts:84`, **Blocker**), main WS server (`foundry-connector.ts:164`), dashboard
+      (`cogm-dashboard/src/server.ts:585`).
+- [ ] Flip `allowNonGmAccess` default to **false** and unlock the UI toggle (`foundry-module/src/settings.ts:257`, **Blocker**).
+- [ ] Add auth to the control channel (TCP :31414) — no allow-list / token today (`backend.ts:69`,`543`).
+- [ ] Verify the Cloudflare-Access email header (JWT/signature or `trust proxy` + upstream-IP), don't
+      trust it verbatim (`cogm-dashboard/src/auth.ts:74`).
+
+**Write-permission gate holes (High):**
+
+- [ ] Route through `permissionManager.checkWritePermission`: `setActorOwnership`
+      (`data-access/ownership-players.ts:58`), `createActorFromCompendiumEntry`
+      (`data-access/actor-creation.ts:165`), `addActorItems` (`:307`), `actor-builder` writes,
+      `setTokenVisionLight` (`data-access/scenes-tokens.ts:596`), `scene-fx` writes.
+- [ ] Enforce the HIGH_RISK tier: `checkWritePermission` should read `WriteOperation.requiresGM`; gate
+      `deleteTokens` under `deleteData`, not MEDIUM (`foundry-module/src/permissions.ts`).
+
+**Player-view leaks (High):**
+
+- [ ] Strip exact numbers/hidden names from the player event feed `description`
+      (`cogm-dashboard/src/redact.ts:141` + `foundry-module/src/session-events.ts:522`).
+- [ ] Filter journal reads by `ownership` so GM-only "secret" pages aren't returned
+      (`data-access/journals.ts:44`).
+- [ ] Server-side verify roll-completion attribution — don't trust client `userId` / DOM `data-*`
+      (`data-access/player-rolls.ts:532`, `foundry-module/src/main.ts:543`).
+
+**Correctness / functionality:**
+
+- [ ] Fix `link-quest-to-npc` silent no-op fallback (`tools/quest-creation.ts:888`) + real post-write verify.
+- [ ] Reject negative currency in `drop-loot` (`tools/loot.ts:64`).
+- [ ] `system-detection` — retry/expire the `'other'` cache instead of poisoning it forever (`utils/system-detection.ts:32`).
+- [ ] WebRTC incoming `chunked-message` reassembly (`foundry-module/src/webrtc-connection.ts`).
+- [ ] Fix the Foundry-mock 16-char-type id collision (`test-support/foundry-mock/documents.ts:88`).
+
+**Tests (High-risk untested files):**
+
+- [ ] Add coverage for `socket-bridge.ts`, `queries.ts`, `foundry-connector.ts`, `main.ts`, `index.ts`,
+      `job-queue.ts`, and the dashboard feed (`mcp-control-client.ts`, `polling-feed.ts`).
+
+**Housekeeping / drift:**
+
+- [ ] Decide the dead runtime Zod schemas in `shared/src/protocol.ts` — wire the validation or drop them.
+- [ ] Drop unused dep `axios` from `mcp-server`; resolve the `tslib` reference in `tsconfig.json`.
+- [ ] Sync workspace `package.json` versions to root (0.18.0); regenerate `TOOL_INVENTORY.md` (73 tools,
+      not 57); refresh PROJECT-STATUS test counts (1,959).
+- [ ] Remove dead PF2e formatting branches (`tools/character.ts`, `tools/compendium.ts`) and the unused
+      in-memory job subsystem in `tools/map-generation.ts`.
+- [ ] Audit the unreviewed surfaces: `installer/` NSIS + `configure-claude.ps1`, the release workflows,
+      `deploy/Dockerfile`.
+
 ---
 
 ## The "live update in a Claude session" question (why the dashboard exists)

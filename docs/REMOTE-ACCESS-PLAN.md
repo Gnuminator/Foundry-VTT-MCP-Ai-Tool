@@ -11,10 +11,11 @@
 > **with the PC never required anywhere.** Foundry stays on molten-hosting; a Raspberry Pi (or a
 > fallback box) runs the whole AI/bridge/dashboard stack 24/7.
 
-**Author's note on open inputs.** Three facts were requested but not yet confirmed (the interactive
-prompt failed in this environment). The plan is written to be correct across the plausible range and
-flags each decision point. See [§10 What I need from you](#10-what-i-need-from-you). The single
-gating input is **Pi model + RAM** — the feasibility verdict below is given as a matrix keyed to it.
+**Confirmed inputs (2026-07).** Box: **Orange Pi 5 Pro — Rockchip RK3588S (4×A76 + 4×A55, Mali-G610),
+16 GB LPDDR5.** Exposure: **no domain wanted — reach it "by IP."** Foundry user: **a dedicated
+GM-level user will be created** on the molten-hosted world. These are folded in below; the one
+remaining assumption is that molten serves the world over HTTPS (standard) — see
+[§10](#10-answered-inputs--the-one-open-assumption).
 
 ---
 
@@ -29,7 +30,7 @@ gating input is **Pi model + RAM** — the feasibility verdict below is given as
 7. [Authentication — require + harden (do not rebuild)](#7-authentication--require--harden-do-not-rebuild)
 8. [Code changes this plan implies](#8-code-changes-this-plan-implies)
 9. [Phased rollout](#9-phased-rollout)
-10. [What I need from you](#10-what-i-need-from-you)
+10. [Answered inputs + the one open assumption](#10-answered-inputs--the-one-open-assumption)
 11. [Sources](#11-sources)
 
 ---
@@ -53,27 +54,39 @@ Foundry ships a client-side **"Disable Canvas"** setting (`core.noCanvas`) whose
 profile means **no WebGL context is ever created**, which sidesteps the ARM blocker entirely and turns
 the "heavy GPU workload" into an ordinary DOM+JS tab.
 
-**Verdict by box (single gating input = Pi model/RAM):**
+**Verdict for the Orange Pi 5 Pro (RK3588S, 16 GB): ✅ Go — comfortably.**
 
-| Box | noCanvas headless bridge 24/7 | Recommendation |
+| Box | noCanvas headless bridge 24/7 | Note |
 | --- | --- | --- |
-| **Pi 5 / 8 GB** (NVMe) | ✅ Comfortable | **Go.** Best Pi target. |
-| **Pi 5 / 4 GB** | ✅ Workable | Go; watch memory, add zram/swap, nightly browser recycle. |
-| **Pi 4 / 8 GB** | ✅ Workable (slower boot of the world) | Go. |
-| **Pi 4 / 4 GB** | 🟡 Tight but plausible with noCanvas | Go with discipline (recycle browser daily, cap tabs to 1). |
-| **Pi 3 / Zero 2W / <4 GB** | 🔴 Not recommended | Use a fallback box. |
-| **Fallback: mini-PC / small x86 VPS / HA Green** | ✅ Easiest of all | If any doubt, this is the safe choice — **architecture is identical, only the box changes.** On x86, even full-canvas headless works because SwiftShader-WebGL is available there. |
+| **Orange Pi 5 Pro — RK3588S, 16 GB** *(your box)* | ✅ **Comfortable** | 16 GB erases the memory concern; the A76 cores boot the world far faster than a Pi. ARM-WebGL is irrelevant because we run noCanvas. |
+| *(Reference)* Pi 5 / 8 GB | ✅ Comfortable | — |
+| *(Reference)* Pi 4 / 4 GB | 🟡 Tight but plausible | Would need discipline; your box is well above this. |
+| **Fallback: mini-PC / small x86 VPS / HA Green** | ✅ Easiest of all | Only if the spike surprises us — architecture is identical, only the box changes. On x86 even full-canvas headless works (SwiftShader-WebGL is available there). |
 
-The rest of the stack is unambiguously fine on any of these boxes: the standalone MCP backend, the
-co-GM dashboard (Node + Anthropic API), and `cloudflared` all run happily on ARM64
-([cloudflared system requirements](https://developers.cloudflare.com/tunnel/downloads/system-requirements/)).
+The RK3588S is ARM64, so the SwiftShader-WebGL-disabled caveat (§2.1) still applies — which is exactly
+why we run **noCanvas** and never create a WebGL context. (The Mali-G610 has open Panfrost/Panthor GL
+ES drivers, so a *headed*-under-Xvfb hardware-WebGL path exists as a last resort, but we don't need it.)
+The rest of the stack — standalone MCP backend, co-GM dashboard (Node + Anthropic API), and the
+exposure daemon — all run fine on ARM64.
 
-**Exposure recommendation:** `cloudflared` (Cloudflare Tunnel + Access) **on the Pi** — zero open
-router ports, Cloudflare absorbs scanning/DoS, free at this scale (Access is free ≤ 50 users
-([Cloudflare Zero Trust plans](https://developers.cloudflare.com/cloudflare-one/plans/))); the only
-real cost is a domain (~$10/yr). It also solves TLS for the dashboard for free. The self-hosted
-reverse-proxy + port-forward option is a fair alternative but makes *you* the target and puts you on
-the hook for TLS renewal, brute-force lockout, and patching an exposed port.
+**Exposure recommendation (no domain): Tailscale on the Orange Pi.** Since you don't want a domain,
+Cloudflare Tunnel + Access is out (it needs a domain on Cloudflare). "Reach it by IP" is safe **only if
+the IP is encrypted** — a raw public IP + port-forward would carry your GM token in plaintext over the
+internet. Tailscale gives you a **stable, WireGuard-encrypted `100.x` IP with no domain, no TLS certs,
+and zero open router ports:**
+- **Primary — Tailscale Serve (private tailnet):** you + the GM + player friends install the Tailscale
+  client once and you approve their devices; everyone browses to `http://100.x.y.z:3000` (or the
+  MagicDNS name). The tailnet is end-to-end encrypted, so plain HTTP is fine and there is **no public
+  surface at all.** Most secure; the only cost is a one-time client install per person.
+- **Alternative — Tailscale Funnel (public URL, no client for players):** exposes the dashboard at a
+  public `https://<name>.ts.net` with **automatic valid TLS and no domain** (ports 443/8443/10000)
+  ([Funnel docs](https://tailscale.com/docs/features/tailscale-funnel)). Players just open a URL — no
+  install — but there's no built-in identity gate, so the dashboard's own hardened token auth (§7) is
+  the *only* gate. Pick this only if the client-install friction is a dealbreaker.
+
+Both are free at this scale. If you ever want a real public hostname without paying for a domain, the
+fallback is a **free DuckDNS subdomain + Caddy + Let's Encrypt + one port-forward** — but that reopens
+a router port and makes you the attack surface, so it's third choice. Full comparison in [§6](#6-exposure-cloudflare-tunnel-vs-reverse-proxy-vs-tailscale).
 
 **Auth:** the token/email split in `cogm-dashboard/src/auth.ts` already exists — this plan **requires**
 it (fail-closed off-localhost), adds **rate-limit + lockout**, and only trusts the Cloudflare-Access
@@ -142,11 +155,17 @@ shrug off any renderer memory creep; the supervisor + module auto-reconnect make
 ### 2.4 Toolchain gotcha: no bundled Chromium on ARM
 
 Puppeteer/Playwright **do not ship an ARM Chromium build**
-([puppeteer#7740](https://github.com/puppeteer/puppeteer/issues/7740)). On a Pi you must use the
-**system** browser: `sudo apt install chromium-browser`, then `puppeteer-core` with
-`executablePath: '/usr/bin/chromium-browser'` and `args: ['--no-sandbox','--disable-setuid-sandbox']`.
+([puppeteer#7740](https://github.com/puppeteer/puppeteer/issues/7740)). On ARM64 you must use the
+**system** browser: install Chromium, then `puppeteer-core` with
+`executablePath: '/usr/bin/chromium'` and `args: ['--no-sandbox','--disable-setuid-sandbox']`.
 (On x86/Docker the bundled build works, so a mini-PC/VPS avoids this entirely.) Recommendation:
-**`puppeteer-core` + system Chromium** — lightest, and it's the well-trodden Pi path.
+**`puppeteer-core` + system Chromium** — lightest, and the well-trodden ARM path.
+
+**Orange-Pi-specific note:** the Orange Pi 5 Pro runs Ubuntu-rockchip 24.04 / Armbian / Orange Pi OS,
+all of which have Chromium available. On Ubuntu 24.04, `chromium` is packaged as a **snap**, which is
+awkward for a fixed `executablePath` under a service — prefer a **`.deb` Chromium** (Debian/Armbian
+`chromium` package, or the Rockchip-optimized build) so the binary path is stable for the supervisor.
+Hardware acceleration isn't needed (noCanvas), so a plain Chromium is fine.
 
 ### 2.5 The spike to actually run (before building anything else)
 
@@ -204,15 +223,16 @@ ARM-WebGL question disappear.
                   │   │  GM/player split enforced server-side         │    │
                   │   └──────────────────────┬───────────────────────┘    │
                   │   ┌──────────────────────▼───────────────────────┐    │
-                  │   │  cloudflared  →  only :3000 leaves the box    │    │
+                  │   │  tailscaled  →  only :3000 leaves the box     │    │
+                  │   │  Serve (private) or Funnel (public *.ts.net)  │    │
                   │   └──────────────────────┬───────────────────────┘    │
                   └──────────────────────────┼────────────────────────────┘
-                                             │ QUIC/TLS, no open router port
+                                             │ WireGuard, no open router port
                             ┌────────────────▼─────────────────┐
-                            │  Cloudflare edge + Access gate    │
+                            │  Tailscale (encrypted mesh)       │
                             └───────┬───────────────────┬───────┘
-                    GM email match  │                   │  player (token or open)
-                     https://cogm.<domain>              https://cogm.<domain>/player
+                    GM token/device │                   │  player (token or device)
+                     http://100.x:3000  (or ts.net URL)   .../player
                             ▼                            ▼
                      remote GM browser            player-friend browsers
 ```
@@ -248,9 +268,8 @@ The bridge **requires GM-level access.** `queries.ts`/`validateGMAccess` today a
 login. Reasons: (a) a clean, separate audit trail for AI-originated changes; (b) it avoids fighting
 your human GM for the same session when you both need to be "the GM"; (c) you can revoke it
 independently. Foundry supports multiple Gamemaster/Assistant users, and the bridge's write path is
-governed by the module's own permission tiers, so a second GM user is safe. If you'd rather not, the
-plan works with your main GM login too — the only cost is the shared-session awkwardness. **(Confirm in
-[§10](#10-what-i-need-from-you).)**
+governed by the module's own permission tiers, so a second GM user is safe. **(Confirmed: a dedicated
+GM-level user will be created — see [§10](#10-answered-inputs--the-one-open-assumption).)**
 
 `allowNonGmAccess` posture for this topology: **default false, unlocked** (matches code-review B2). We
 do not need non-GM access because the bridge logs in as a GM. The old "locked ON" hack
@@ -337,39 +356,53 @@ smoke test. Do **not** rip out 31416 before the client is proven.
 
 ## 6. Exposure: Cloudflare Tunnel vs reverse-proxy vs Tailscale
 
-All three keep everything but :3000 on loopback. They differ in who absorbs attacks and what you
-operate.
+**Your constraint — no domain — is the deciding factor.** Cloudflare Tunnel + Access needs a domain
+whose nameservers live on Cloudflare, so it's out unless you buy one. That leaves the no-domain
+options, all of which keep everything but :3000 on loopback:
 
-| Dimension | **Cloudflare Tunnel + Access** (on Pi) | Pi reverse-proxy + port-forward (Caddy/nginx + LE) | Tailscale / WireGuard |
-| --- | --- | --- | --- |
-| Open router ports | **None** | One (443) — your home IP is a target | None |
-| Who absorbs scans/DoS/brute-force | **Cloudflare edge** | **You** | N/A (no public surface) |
-| TLS | Automatic at edge | You own cert issuance + **renewal** | N/A |
-| Player onboarding | Just a URL + email login | Just a URL | **Install a VPN client + you approve each device** |
-| Identity gate | **Built-in (Access email allow-list, OTP/OAuth)** | You build (basic-auth / app tokens only) | Device-based, not per-person email |
-| Cost | Free (Access ≤ 50 users); domain ~$10/yr | Domain + your time; DDNS if no static IP | Free tier fine at this scale |
-| Runs on Pi ARM64 | ✅ | ✅ | ✅ |
-| Main downside | Trust Cloudflare as TLS-terminating proxy | **You are the attack surface + on-call for patching** | Friction for casual player friends |
+| Dimension | **Tailscale Serve** (private tailnet) | **Tailscale Funnel** (public `*.ts.net`) | DuckDNS + Caddy + port-forward | ~~Cloudflare Tunnel + Access~~ |
+| --- | --- | --- | --- | --- |
+| Needs a domain | **No** | **No** (free `*.ts.net`) | No (free DuckDNS subdomain) | **Yes** — disqualified |
+| Open router ports | **None** | **None** | One (443) — your home IP is a target | None |
+| Public attack surface | **None** (private mesh) | Public URL, app-auth only | Public port, you patch it | (n/a) |
+| TLS | Not needed (WireGuard-encrypted; plain HTTP ok) | **Automatic valid cert** on `*.ts.net` | Let's Encrypt (DNS challenge), you renew | Edge |
+| Player onboarding | **Install client once + you approve device** | **Just open a URL** | Just a URL | (n/a) |
+| Identity gate | The tailnet (only approved devices) **+** dashboard token | **Dashboard token only** | Dashboard token only | (n/a) |
+| Cost | Free | Free | Free | Domain ~$10/yr |
+| Runs on Orange Pi ARM64 | ✅ | ✅ | ✅ | ✅ |
+| Main downside | Client install per player | No built-in identity gate — leans entirely on §7 auth | You are the attack surface + patching | Needs a domain |
 
-**Recommendation: Cloudflare Tunnel + Access on the Pi.** For "a few player friends," a URL + a
-one-time-PIN email login is the lowest-friction *and* the most secure: no open ports, Cloudflare eats
-the spam, TLS is free and auto-renewed, and the identity gate is a first layer *in front of* the
-dashboard's own token check (defense-in-depth). Access is free at ≤ 50 users
-([plans](https://developers.cloudflare.com/cloudflare-one/plans/)); the tunnel is free with unlimited
-bandwidth; the only cost is a domain (~$10/yr). `cloudflared` runs fine on Pi ARM64
-([system requirements](https://developers.cloudflare.com/tunnel/downloads/system-requirements/), and
-numerous Pi walkthroughs).
+**Recommendation: Tailscale Serve (private tailnet) as the primary; Tailscale Funnel if client-install
+friction is a dealbreaker.**
 
-Tailscale is the pick **only** if you'd rather no public surface exist at all and every player is
-willing to install a VPN client and be device-approved — heavier for casual friends. The
-reverse-proxy + port-forward option is respectable but makes you the target and the TLS/patching
-operator for an internet-facing port; choose it only if you specifically want to avoid Cloudflare in
-the path.
+- **Serve** is the most secure by a wide margin: there is **no public surface at all**, the `100.x` IP
+  is stable and WireGuard-encrypted end-to-end (so plain `http://100.x.y.z:3000` is safe — no TLS to
+  manage), and the tailnet membership is a real outer gate *in front of* the dashboard's own GM/player
+  token split (defense-in-depth). For "a few player friends," a one-time Tailscale install + a device
+  approval from you is a modest ask and matches your "reach it by IP" instinct exactly — the IP is just
+  a Tailscale IP.
+- **Funnel** trades that outer gate for zero player-side install: it publishes the dashboard at
+  `https://<name>.ts.net` with automatic valid TLS and **no domain**, on port 443
+  ([Funnel docs](https://tailscale.com/docs/features/tailscale-funnel)). Because Funnel has no identity
+  layer, the **hardened dashboard auth in §7 becomes the sole gate** — which is exactly why the
+  rate-limit/lockout + strong-random-token + fail-closed work there is non-negotiable if you choose
+  this. Still no open router ports.
 
-**Step-by-step (Cloudflare):** the exact `cloudflared tunnel login/create/route`, `config.yml`, and
-Access-application steps are already written in [REMOTE-ACCESS.md §3](REMOTE-ACCESS.md) and
-[PHASE6-DESIGN §6](PHASE6-DESIGN.md) — reuse them verbatim (the tunnel fronts `http://localhost:3000`
-exactly as documented; nothing about the tunnel changes in the on-Pi topology).
+DuckDNS + Caddy + Let's Encrypt + one port-forward is the only way to get a *public hostname you fully
+own the path to* without paying for a domain, but it reopens a router port and puts you on the hook for
+patching and renewal — third choice.
+
+**Setup (Tailscale):** install on the Orange Pi (`curl -fsSL https://tailscale.com/install.sh | sh`;
+`sudo tailscale up`), then either:
+- **Serve:** `sudo tailscale serve --bg 3000` → the dashboard is reachable at the Pi's tailnet
+  name/IP for every approved device. Add each player from the Tailscale admin console.
+- **Funnel:** `sudo tailscale funnel --bg 3000` → public `https://<name>.ts.net`. (Enable Funnel for
+  the node in the admin console first.)
+
+The dashboard still binds **loopback** (`127.0.0.1:3000`); Tailscale is what forwards to it, so nothing
+about the on-Pi loopback topology changes. The Cloudflare walkthroughs in
+[REMOTE-ACCESS.md §3](REMOTE-ACCESS.md) / [PHASE6-DESIGN §6](PHASE6-DESIGN.md) remain on file if you
+ever decide a domain is worth the ~$10/yr for the email-allow-list gate.
 
 ---
 
@@ -395,15 +428,20 @@ Cloudflare-Access email path) with config in `config.ts` (`GM_DASHBOARD_TOKEN`,
    secret / CF email are never emitted (even at `debug`). The constant-time compare already avoids
    timing leaks; keep it.
 5. **Trust the CF-Access email header only behind Access.** `auth.ts:74` reads
-   `cf-access-authenticated-user-email` verbatim. Anyone hitting :3000 directly (bypassing the tunnel)
-   could forge it. **Change:** only honor that header when we know the request came through Cloudflare —
-   set Express **`trust proxy`** appropriately and verify the request arrived via the tunnel (upstream
-   IP / a shared secret header the tunnel injects, or ideally validate the Cloudflare Access **JWT**
-   `Cf-Access-Jwt-Assertion` against the team's public keys). At minimum: bind :3000 to **loopback** so
-   the *only* path to it is through `cloudflared`, which closes the direct-forge route by topology.
+   `cf-access-authenticated-user-email` verbatim. In the **Tailscale** topology chosen here there is no
+   Cloudflare Access in front, so this header must be **ignored entirely** unless a real Access
+   deployment is later added — otherwise anyone reaching :3000 could forge it. **Change:** only honor
+   the header when an explicit `CF_ACCESS_ENABLED`/`trust proxy` signal says we're actually behind
+   Access (ideally validating the `Cf-Access-Jwt-Assertion` JWT against the team's keys); default
+   **off**. Binding :3000 to **loopback** (item 3) is the topological backstop that makes the header
+   unreachable-by-forgery regardless.
 
-Net: with the dashboard on loopback behind the tunnel, GM identity requires **both** passing the
-Cloudflare Access gate **and** presenting a valid GM token/email — two independent layers.
+Net (Tailscale topology): the **outer gate** is the mesh itself — with **Serve**, only Tailscale-
+approved devices can even reach :3000, and the dashboard's GM/player token split is the inner layer;
+with **Funnel**, there is no outer gate, so the hardened token auth here is the *sole* gate and items
+2–4 (strong random token, rate-limit/lockout, no logging) are mandatory, not optional. Either way, the
+GM token/email is generated with `openssl rand -hex 32`, lives only in the gitignored `.env`, and never
+reaches a player (server-side redaction, `redact.ts`).
 
 ---
 
@@ -482,25 +520,32 @@ namespace) are **not** touched.
    blockers and are independently valuable even before hosting.
 3. **P2 — Bridge-client + supervision (§8-B).** Build the headless client + systemd/compose; run the
    full stack locally on the Pi, all loopback, dashboard reachable at `http://<pi>:3000` on the LAN.
-4. **P3 — Expose via Cloudflare (§6).** Stand up the tunnel + Access (reuse REMOTE-ACCESS.md §3), bind
-   dashboard loopback, require auth. Live end-to-end: remote GM + a test player.
+4. **P3 — Expose via Tailscale (§6).** Install `tailscaled` on the Orange Pi; `tailscale serve 3000`
+   (private) or `tailscale funnel 3000` (public URL); dashboard stays loopback + fail-closed auth
+   required. Live end-to-end: remote GM + a test player friend.
 5. **P4 — Hardening follow-ups (§8-C).** Optionally retire WebRTC (B), canvas-less write tools,
    control-channel token.
 
 ---
 
-## 10. What I need from you
+## 10. Answered inputs + the one open assumption
 
-1. **Pi model + RAM** (and storage: SD vs NVMe) — the single gating input for the §1 verdict. If it's
-   a Pi 3 / Zero 2W / <4 GB, tell me and I'll spec the fallback box instead.
-2. **Domain + Cloudflare** — do you already own a domain and have (or will make) a free Cloudflare
-   account with its nameservers pointed at Cloudflare? If not, that's the one ~$10/yr purchase the
-   recommendation needs.
-3. **Bridge Foundry user** — OK to create a **dedicated GM-level** Foundry user on the molten-hosted
-   world for the headless session (recommended), or must it reuse your main GM login? And confirm the
-   world is served over **HTTPS** (standard for molten-hosting) so §5's transport logic holds.
+Confirmed 2026-07 and folded in:
 
-Everything else in this plan proceeds without further input.
+1. ✅ **Box: Orange Pi 5 Pro — RK3588S, 16 GB LPDDR5.** Verdict: comfortable Go (§1). ARM64, so
+   noCanvas is the path; 16 GB removes memory pressure.
+2. ✅ **No domain — reach it by IP.** → **Tailscale** (Serve primary / Funnel alternative); Cloudflare
+   deprioritized because it needs a domain (§6).
+3. ✅ **Dedicated GM-level Foundry user** will be created for the headless session (§4.2). Secrets in a
+   gitignored `.env` on the box.
+
+**One remaining assumption to confirm (non-blocking):** that the molten-hosted world is served over
+**HTTPS** (standard for hosted Foundry). This only affects §5's transport detail — on HTTPS the module
+uses the WebRTC-over-loopback path out of the box (no STUN/TURN), which is what the plan assumes. If it
+were plain HTTP, plain `ws://` loopback would just work and WebRTC could be dropped immediately. Either
+way the architecture is unchanged.
+
+Nothing else blocks. Say the word to push this doc and/or start P1 (the §8-A security fixes).
 
 ---
 
@@ -518,7 +563,11 @@ Everything else in this plan proceeds without further input.
 - `ws://` loopback from HTTPS is the ambiguous/blocked mixed-content case —
   [Chromium 40386732](https://issues.chromium.org/issues/40386732);
   [MDN Mixed content](https://developer.mozilla.org/en-US/docs/Web/Security/Mixed_content)
-- `cloudflared` on ARM64 / system requirements —
-  [Cloudflare Tunnel system requirements](https://developers.cloudflare.com/tunnel/downloads/system-requirements/)
-- Cloudflare Access free ≤ 50 users —
-  [Cloudflare Zero Trust plans](https://developers.cloudflare.com/cloudflare-one/plans/)
+- Tailscale Funnel (public `*.ts.net`, no domain, auto-TLS, ports 443/8443/10000, end-to-end
+  encrypted) — [Tailscale Funnel docs](https://tailscale.com/docs/features/tailscale-funnel);
+  Serve (private tailnet) — [Tailscale Serve docs](https://tailscale.com/docs/features/tailscale-serve)
+- Orange Pi 5 / RK3588S OS + Chromium (Ubuntu-rockchip 24.04 / Armbian) —
+  [Armbian forum: HW-accel Chromium on Orange Pi 5](https://forum.armbian.com/topic/26188-hardware-acceleration-with-chromium/)
+- (If a domain is ever added) `cloudflared` on ARM64 —
+  [Cloudflare Tunnel system requirements](https://developers.cloudflare.com/tunnel/downloads/system-requirements/);
+  Access free ≤ 50 users — [Cloudflare Zero Trust plans](https://developers.cloudflare.com/cloudflare-one/plans/)

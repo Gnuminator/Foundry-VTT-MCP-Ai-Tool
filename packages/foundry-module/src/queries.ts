@@ -1,6 +1,8 @@
 import { MODULE_ID } from './constants.js';
 import { bridgeHandlers } from './bridge-handlers.js';
 import { openDocumentForGm } from './gm-helper-queries.js';
+import { listGuardedFeatures } from './guarded-features.js';
+import { applyGuardedOps, logGmChange, snapshotGuardedOps } from './data-access/guarded-write.js';
 import { FoundryDataAccess } from './data-access.js';
 import { ComfyUIManager } from './comfyui-manager.js';
 
@@ -93,6 +95,21 @@ export class QueryHandlers {
 
     // Utility queries
     handlers.set(`${modulePrefix}.ping`, this.handlePing.bind(this));
+
+    // Guarded writes (plan/apply/undo): the backend plans and audits; these run
+    // the Foundry side (snapshot, checked apply/undo, feed event, feature list).
+    handlers.set(`${modulePrefix}.snapshotGuardedOps`, (data: { ops?: unknown } | undefined) =>
+      this.withGmGate('Failed to snapshot planned change', () => snapshotGuardedOps(data?.ops))
+    );
+    handlers.set(`${modulePrefix}.applyGuardedOps`, (data: unknown) =>
+      this.withGmGate('Failed to apply planned change', () => applyGuardedOps(data))
+    );
+    handlers.set(`${modulePrefix}.logGmChange`, (data: unknown) =>
+      this.withGmGate('Failed to log change', () => Promise.resolve(logGmChange(data)))
+    );
+    handlers.set(`${modulePrefix}.listGuardedFeatures`, () =>
+      this.withGmGate('Failed to list features', () => Promise.resolve(listGuardedFeatures()))
+    );
 
     // GM screen helpers: open a document on the GM's own Foundry client
     handlers.set(

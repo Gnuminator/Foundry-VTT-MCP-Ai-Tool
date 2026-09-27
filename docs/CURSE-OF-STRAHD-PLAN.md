@@ -1,7 +1,9 @@
 # Curse of Strahd extension: architecture review + implementation plan
 
-Status: **PLAN, awaiting GM review. No feature code written yet.**
-Written 2026-09-27 on branch `claude/amazing-bardeen-q1x1q6` (base `a80b330`, v0.18.0).
+Status: **PLAN, awaiting GM answers to section 9. No feature code written yet.**
+Written 2026-09-27 on branch `claude/amazing-bardeen-q1x1q6` (base `a80b330`, v0.18.0). Same day: all
+**[verify]** items re-checked against the official Foundry docs (none left open), setup-session additions
+added to 0.4 and 0.7, questions 10 to 13 added.
 
 Campaign target: Curse of Strahd on Foundry VTT v14, dnd5e 5.3.x now and 6.0.x soon, 2024 rules (2024 PHB,
 2025 Monster Manual, official "Ravenloft: The Horrors Within" module, plus Xanathar's and Tasha's).
@@ -17,11 +19,13 @@ Decisions already made by the GM:
 - No copyrighted adventure text in the repo. Read content from the world or installed modules at runtime.
 - Later, not now: Obsidian integration and Discord voice recording (Craig) with voice-to-text (section 10).
 
-Legend: **[verified]** = read in source, typings or a primary issue during this review; **[verify]** =
-still to confirm. foundryvtt.com and foundryvtt.wiki were blocked during this review, so Foundry core
-facts come from the v14 typings (League of Foundry Developers, 14.366.0), GitHub issues, an unofficial
-copy of the 13.351 client/server source, and v14-ready modules. Re-check the **[verify]** items against
-the official docs.
+Legend: **[verified]** = read in source, typings, official docs/release notes or a primary issue;
+**[partly verified]** = consistent secondary evidence (community notes checked against installed builds),
+no official page yet; **[verify]** = still to confirm. The first review could not reach foundryvtt.com and
+foundryvtt.wiki; on **2026-09-27** every open **[verify]** item was re-checked against the official v14
+release notes (14.349 to 14.368, latest stable 14.368 of 2026-09-16), the v14 API docs (built from 14.365),
+the public package manifests and the GitHub issue tracker. No v14 server source is public, so statements
+about server behaviour rest on the 13.351 source plus the absence of any change in the v12 to v14 notes.
 
 ---
 
@@ -76,8 +80,10 @@ unabstracted in the Foundry module: `data-access/actor-builder.ts`, `combat.ts`,
 - Dashboard: the only real "off by default + confirm" gate. GM Actions switch (in-memory, starts off),
   `confirm` for writes, `confirmDestructive` for the destructive set, enforced server-side in `/api/tool`.
 - MCP path (Claude Desktop): no server-side confirmation; only Claude Desktop's own tool-approval prompt.
-- Audit: `shared.auditLog()` calls `game.world.setFlag(...)`; the World package object is not a Document,
-  so this appears to persist nothing **[verify]**. Writes are not logged to the event feed.
+- Audit: `shared.auditLog()` calls `game.world.setFlag(...)` only if it exists. `World` extends
+  `BaseWorld` / `BasePackage` / `DataModel`, not `Document`, and has no `setFlag`, `getFlag` or `update` in
+  v13 or v14, so the call is skipped and **nothing persists** **[verified, v14 API docs]**. Writes are not
+  logged to the event feed.
 
 So "everything that changes game state is off by default and requires confirmation" is true for the
 dashboard only. The new features make it true on every path (step 0.2).
@@ -88,13 +94,19 @@ dashboard only. The new features make it true on every path (step 0.2).
 
 ### 2.1 What Foundry itself sends to player clients
 
-**[verified in the 13.351 source, likely unchanged in v14]**. The login payload contains every Actor,
-Item, JournalEntry (with all pages and flags), RollTable, Scene (with hidden tokens, tiles, drawings, notes
-and flags), ChatMessage (including GM whispers) and Setting, with no per-user filtering. Hiding is
-client-side only (sidebar filters, `visible` checks, canvas rendering). Every world or user setting
-reaches every client. Hidden compendia are not private either (index sent, `get` unchecked). Only the
-User password fields are stripped. Relevant issues: foundryvtt#836 (GM-only fields, open), #2672, #5660,
-#6928.
+**[verified in the 13.351 source; partly verified for v14]**. The login payload contains every User,
+Actor, Cards, Combat, Folder, Item, JournalEntry (with all pages and flags), Macro, Playlist, RollTable,
+Scene (with hidden tokens, tiles, drawings, notes and flags), ChatMessage (including GM whispers and blind
+rolls) and Setting, plus every active compendium index, with no per-user filtering; every later document
+change is broadcast to all sockets. Hiding is client-side only (sidebar filters, `visible` checks, canvas
+rendering). Every world or user setting reaches every client. Hidden compendia are not private either
+(index sent, `get` unchecked). Only the User password fields are stripped. For v14 there is no public
+server source, but none of the release notes from 12.313 to 14.368 adds server-side per-user filtering: the
+v14 visibility changes (`RegionDocument#hidden` in 14.360, Blind message-mode display fixes, #13902) are
+client-side, and the 14.361 security fix concerns serving HTML files. So GM-only journals, unowned NPC
+actors, hidden tokens/notes/tiles, whispers and blind rolls, and world settings still reach every client on
+v14. Relevant issues: foundryvtt#836 (GM-only fields, open), #2672 (the server only validates writes),
+#5302, #5660 (chat lazy-loading, performance only), #6928.
 
 Consequences for this plan:
 
@@ -107,11 +119,15 @@ Consequences for this plan:
 ### 2.2 Cross-user query execution (new, not in the July review)
 
 **[verified]** Every bridge handler is registered in Foundry's `CONFIG.queries`. The core `QUERY_USER`
-permission defaults to the Player role; the server relays a query to any recipient with no allowlist of
-query names; the GM client runs whatever handler is registered. In v13 the handler receives only
-`(queryData, {timeout})`; since 14.352 the sender is passed to the handler (foundryvtt#13418; FXMaster
-8.4.1 reads `context.user`, the typings still lag). Our handlers ignore the sender and test
-`game.user.isGM`, which is always true on the GM's client.
+permission defaults to the Player role; the server checks only that the sender holds `QUERY_USER` and that
+the recipient exists, then relays the query with no allowlist of query names (13.351 source; the v14 notes
+describe no change); the GM client runs whatever handler is registered. In v13 the handler receives only
+`(queryData, {timeout})`. Since **14.352** the sender is passed to the handler (release notes 14.352,
+foundryvtt#13418 **[verified]**) as `handler(queryData, {timeout, user})`, where `user` is the requesting
+User document **[partly verified]**: the official API pages for `User#query` and `CONFIG.queries` and the
+14.366 typings still show only `{timeout}`, but FXMaster 8.4.1 and several v14 systems read `context.user`
+and report checking it on 14.364 to 14.367. Handlers must therefore treat a missing `user` as "reject". Our
+handlers ignore the sender and test `game.user.isGM`, which is always true on the GM's client.
 
 Impact: a player can call any bridge handler on the GM's client from the console, including writes such as
 `setActorOwnership` (grant themselves OWNER), `deleteTokens`, journal updates, and reads of GM-client
@@ -119,9 +135,14 @@ memory (session buffers). This works regardless of `allowNonGmAccess`.
 
 Check on your world, as a player in the console (read-only, harmless):
 `await game.users.activeGM.query('foundry-mcp-bridge.getWorldInfo', {})`. If it returns world info, the
-hole is open. Interim mitigation until M0 ships: in Game Settings > Configure Permissions, raise the core
-"query other users" (`QUERY_USER`) permission above Player **[verify label]**. This may disable other
-modules' player-to-GM queries (for example FXMaster's particle-background sync).
+hole is open. Interim mitigation until M0 ships: in Game Settings > Configure Permissions (User
+Management), raise the minimum role of **"Query Users"** ("Allow users with this role to query other
+users."; key `PERMISSION.QueryUser`) above Player. The key, the Player default and the fact that Assistant
+GM and GM always hold it (`requiredRoles: [3, 4]` since 14.349, #13296) are **[verified]** in the v14
+`CONST.USER_PERMISSIONS` docs; the English label text comes from copies of core `en.json` **[partly
+verified]**. The permission also exists in v13 (since the V13 API development builds, #11235). Raising it
+may disable other modules' player-to-GM queries (for example FXMaster's particle-background sync); the
+headless Assistant GM client keeps it either way.
 
 ### 2.3 Player view and dashboard leaks
 
@@ -142,24 +163,31 @@ modules' player-to-GM queries (for example FXMaster's particle-background sync).
 
 ### 2.4 dnd5e 6.0 and Foundry v14 impact
 
-**[verified in dnd5e source at release-5.3.3 and 6.0.5, v14 typings, and GitHub issues]**. dnd5e 6.0.5
-requires Foundry 14.367+; 5.3.3 supports 13.347 to 14. Latest stable Foundry v14 is 14.368. Several items
-come from **Foundry v14 core**, so they already affect you on dnd5e 5.3.x.
+**[verified in dnd5e source at release-5.3.3 and 6.0.5, the v14 release notes and API docs, and GitHub
+issues]**. dnd5e 6.0.5 requires Foundry 14.367+; 5.3.3 supports 13.347 to 14. Latest stable Foundry v14 is
+14.368 (2026-09-16). Several items come from **Foundry v14 core**, so they already affect you on dnd5e
+5.3.x. Core builds: 14.349 `-=`/`==` keys deprecated for `_del`/`_replace` (work until v16, #13090),
+`temporary: true` removed, `ActiveEffect#icon`/`#label` removed (#13436); 14.352 change `mode` becomes
+string `type` (#13566), `origin` a UUID field (#13214), change `phase` (#13426), MeasuredTemplate removed
+(#13089); 14.353 changes move to `system.changes` (#13740), duration becomes `{value, units, expiry}` plus
+`start` (#13332), Scene Levels; 14.355 `CONFIG.ChatMessage.modes` replaces `CONST.DICE_ROLL_MODES` (old API
+works until v16, #8856); 14.368 a `darknessLevel` update on a scene with `darknessLock` must also send
+`darknessLock` (#14718).
 
-| Code                                                                                                              | Touchpoint                                        | Impact                                                                                                            | Fix                                                              |
-| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `scenes-tokens.ts:525-529`, `resources-effects.ts:31-41, 93-95`                                                   | `CONFIG.statusEffects.find/.map`                  | dnd5e 6.0 replaces the array with an object keyed by id: TypeError                                                | `Array.isArray(se) ? se : Object.values(se)`                     |
-| `scenes-tokens.ts:535, 570-579`                                                                                   | raw condition effect `{name, icon, statuses}`     | 6.0 conditions are `type: 'condition'` with `system.type` (and `system.level`); no `icon` field in the v14 schema | `actor.toggleStatusEffect(id, {active, levels})` (both versions) |
-| `resources-effects.ts:487-491`                                                                                    | `effect.changes[].mode`                           | v14 core: `system.changes[]` with string `type`                                                                   | `(e.system?.changes ?? e.changes)`, `c.type ?? c.mode`           |
-| `resources-effects.ts:504-509, 530-532`; `characters.ts:308-320`                                                  | effect `duration.rounds/turns/...`                | v14: `value/units/expiry/expired`                                                                                 | read `units/value`, use `expired`                                |
-| `characters.ts:312`; `compendium.ts:600`; `resources-effects.ts:499`                                              | `effect.icon`                                     | removed in v14                                                                                                    | `img`                                                            |
-| `session-events.ts:402-404, 448`                                                                                  | `flags.dnd5e.roll.type/...`                       | 6.0 moves roll kind to ChatMessage `type` and deletes the flags: damage detection degrades                        | `message.type === 'damage' \|\| flags...`                        |
-| `shared.ts:336-339`; `combat.ts:404`; `player-rolls.ts:211-216, 363`                                              | `CONST.DICE_ROLL_MODES`, `'gmroll'`               | deprecated in v14 (`CONFIG.ChatMessage.modes`)                                                                    | map when the new config exists                                   |
-| `scene-fx.ts:123-168`                                                                                             | MeasuredTemplate create/delete                    | v14 merges templates into Regions (foundryvtt#13089, breaking, 14.352); `Scene#templates` deprecated until v16    | create a Region with `shapes` (as dnd5e does)                    |
-| `scenes-tokens.ts:106`                                                                                            | `_source.background`                              | v14 moves backgrounds to Scene Levels                                                                             | read the level texture                                           |
-| `actor-creation.ts:433`; `scene-fx.ts:301`                                                                        | Token/Note creation                               | v14 Token `level` / Note `levels`                                                                                 | pass the current level                                           |
-| `actor-builder.ts:498, 515-532, 545`                                                                              | `ac.calc/flat`, `movement.walk`, `details.source` | migrated in 6.0                                                                                                   | write `ac.override`, `movement.speeds.*`, `system.source`        |
-| everything else (hp, death saves, spells, resources, currency, cr/type/size, ac.value, applyDamage, rests, rolls) | reads and APIs                                    | unchanged                                                                                                         | none                                                             |
+| Code                                                                                                              | Touchpoint                                        | Impact                                                                                                                   | Fix                                                                                                               |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `scenes-tokens.ts:525-529`, `resources-effects.ts:31-41, 93-95`                                                   | `CONFIG.statusEffects.find/.map`                  | dnd5e 6.0 replaces the array with an object keyed by id: TypeError                                                       | `Array.isArray(se) ? se : Object.values(se)`                                                                      |
+| `scenes-tokens.ts:535, 570-579`                                                                                   | raw condition effect `{name, icon, statuses}`     | 6.0 conditions are `type: 'condition'` with `system.type` (and `system.level`); no `icon` field in the v14 schema        | `actor.toggleStatusEffect(id, {active, levels})` (both versions)                                                  |
+| `resources-effects.ts:487-491`                                                                                    | `effect.changes[].mode`                           | v14 core: `system.changes[]` with string `type`                                                                          | `(e.system?.changes ?? e.changes)`, `c.type ?? c.mode`                                                            |
+| `resources-effects.ts:504-509, 530-532`; `characters.ts:308-320`                                                  | effect `duration.rounds/turns/...`                | v14: `value/units/expiry/expired`                                                                                        | read `units/value`, use `expired`                                                                                 |
+| `characters.ts:312`; `compendium.ts:600`; `resources-effects.ts:499`                                              | `effect.icon`                                     | removed in v14                                                                                                           | `img`                                                                                                             |
+| `session-events.ts:402-404, 448`                                                                                  | `flags.dnd5e.roll.type/...`                       | 6.0 moves roll kind to ChatMessage `type` and deletes the flags: damage detection degrades                               | `message.type === 'damage' \|\| flags...`                                                                         |
+| `shared.ts:336-339`; `combat.ts:404`; `player-rolls.ts:211-216, 363`                                              | `CONST.DICE_ROLL_MODES`, `'gmroll'`               | deprecated in v14 (`CONFIG.ChatMessage.modes`)                                                                           | map when the new config exists                                                                                    |
+| `scene-fx.ts:123-168` (tools `place-measured-template`, `delete-measured-template`)                               | MeasuredTemplate create/delete                    | **broken on v14 today**: the MeasuredTemplate document type was removed in 14.352 (#13089; old data migrates to Regions) | create a Region with `shapes`, `levels`, `restriction`, `visibility` (as dnd5e 6.0 `template-placement.mjs` does) |
+| `scenes-tokens.ts:106`                                                                                            | `_source.background`                              | v14 Scene has no `background`/`foreground`/`backgroundColor`; they live on each Level (`background.src`, 14.353)         | read `scene.levels.get(scene.initialLevel).background.src`                                                        |
+| `actor-creation.ts:433`; `scene-fx.ts:301`                                                                        | Token/Note creation                               | v14 Token `level` (one Level id, default `defaultLevel0000`); Note/Wall/Tile/Region/Light `levels` (set, empty = all)    | pass `canvas.level.id` explicitly (as dnd5e 6.0 does)                                                             |
+| `actor-builder.ts:498, 515-532, 545`                                                                              | `ac.calc/flat`, `movement.walk`, `details.source` | migrated in 6.0                                                                                                          | write `ac.override`, `movement.speeds.*`, `system.source`                                                         |
+| everything else (hp, death saves, spells, resources, currency, cr/type/size, ac.value, applyDamage, rests, rolls) | reads and APIs                                    | unchanged                                                                                                                | none                                                                                                              |
 
 Pre-existing bugs found along the way: `creature-index.ts:520-535` (`hasSpells`/`hasLegendaryActions`
 always true), `filters.ts:34` (size `'medium'` vs stored `'med'`), `player-rolls.ts:363` (`'whisper'` is
@@ -174,7 +202,9 @@ generation 14 (feature-detect `foundry.data.ActiveEffectTypeDataModel`) and dnd5
 
 - **Tarokka:** `tarokka-reading` 1.0.3 runs on v14; `sdnd-tarokka` 13.5.0 is capped at Foundry 13 and
   dnd5e 5.x and leaks card identity through tile flags and public chat. A third module, `tarokka`
-  (gmredvelvet-rgb, 1.0.3, verified 14), exists but was not source-checked **[verify]**.
+  (gmredvelvet-rgb, 1.0.3, verified 14, GitHub only) **[verified, A.1]** stores the whole dealt hand,
+  including DM text, in a world setting that every client receives, and ships adventure text in its source:
+  support it read-only at most, and never copy its text.
 - **Calendaria 1.4.2** (Foundry 14 only; requires `3ds-atlas`): API at `CALENDARIA.api` after
   `calendaria.ready`; automatic darkness sync would break the Barovia rule unless disabled per scene.
 - **FXMaster 8.4.1:** `FXMASTER.api.effects` with fixed `apiMacro_*` ids (Calendaria's weather bridge
@@ -182,9 +212,11 @@ generation 14 (feature-detect `foundry.data.ActiveEffectTypeDataModel`) and dnd5
 - **DDB-Importer:** 7.5.5 needs dnd5e 6.0.3+ (a 5.3 world runs 7.4.x); tags CoS monsters
   `system.source.rules = '2014'`; offers only an import-time 2014 to 2024 swap (Patreon), no post-hoc
   converter.
-- **Official content:** `dnd-monster-manual` (packs `actors, features, content, tables`),
-  `dnd-players-handbook`, `dnd-ravenloft-horrors-within` (WotC, released 2026-06-16, verified 14: 17
-  Darklords incl. Strahd, 60+ creatures, 4 species, Dark Gift feats; pack ids **[verify]**).
+- **Official content [verified, A.3]:** `dnd-monster-manual` 1.4.0 (packs `actors, features, content,
+tables`), `dnd-players-handbook` 2.2.0, `dnd-ravenloft-horrors-within` 1.0.1 (WotC, released around
+  2026-06-16, Foundry 13+ / verified 14, dnd5e 5.3+: 17 Darklords incl. Strahd, 60+ creatures, 4 species,
+  Dark Gift feats; packs `book, options, bastions, items, tables, actors, fallback-actors, scenes,
+adventures`). The rules value inside the Ravenloft actor pack is not public (read it at runtime).
 - **DAE** v14 line 14.0.14 (dnd5e 6 line is WIP); **AC5e** main line for dnd5e 6.0 to 6.1, `legacy-v5` line
   for 5.3.
 
@@ -199,7 +231,8 @@ generation 14 (feature-detect `foundry.data.ActiveEffectTypeDataModel`) and dnd5
   dispatches from that map. `unregisterHandlers` and `getRegisteredMethods` read the map.
 - The only `CONFIG.queries` entries we register are narrow GM-to-GM helpers (Tarokka fetch, "open this
   document on my screen"). Registered only on core generation 14+, and each rejects unless
-  `context.user?.isGM`; payload fields validated.
+  `context.user?.isGM` and `game.users.get(context.user.id) === context.user` (a missing `user` means
+  reject, since the sender argument is not yet in the official API docs); payload fields validated.
 - `allowNonGmAccess`: default OFF and unlocked (**GM decision, section 9**). Recommended identity for the
   headless client on the Orange Pi: a dedicated Assistant GM user.
 - Tests: no `foundry-mcp-bridge.*` bridge handler in `CONFIG.queries` after init; bridge dispatch still
@@ -245,6 +278,14 @@ generation 14 (feature-detect `foundry.data.ActiveEffectTypeDataModel`) and dnd5
   `chat-roll-kind.ts`, `rules-version.ts`, 6.0 write paths). Feature detection only.
 - New features use only this layer; M3 moves the existing call sites in table 2.4 behind it. Every shim is
   tested against 5.3/v13-shaped and 6.0/v14-shaped fixtures.
+- **Typings (setup-session addition 4).** The module compiles against Foundry **v9** types
+  (`@league-of-foundry-developers/foundry-vtt-types` ^9.280.0 through the tsconfig `types` entry). They
+  pull in more than 200 packages, including both "critical" dev advisories (handlebars, socket.io-parser).
+  Without them there are 121 type errors, mostly about 15 missing globals (`Actor`, `ChatMessage`,
+  `CONST`, `foundry`, `User`, `canvas`, `$`/`JQuery`, `Item`, `Folder`, `Roll`, `JournalEntry`,
+  `FormApplication`, ...). Replace the package with hand-written v14 interfaces in
+  `packages/foundry-module/types/` that declare only what the module uses, typed to the v14 shapes. The
+  adapter's typed accessors are also where the `no-unsafe-*` lint count in `src` goes down (0.7).
 
 ### 0.5 Rules-version tagging
 
@@ -269,6 +310,34 @@ source, at}`. Source of truth order: actor-level `system.source.rules` (item-lev
   with an explicit opt-in for other hosts (July review B1/H1, `foundry-connector.ts:84, :164`). On the Orange
   Pi everything except the dashboard is loopback anyway.
 
+Additions from the local setup session (2026-09-27, Windows, Node 22.22.2 / npm 10.9.7):
+
+- **Lockfile integrity (addition 1).** 519 of the 1,020 registry entries in `package-lock.json` have no
+  `resolved`/`integrity`, so `npm ci` looks each one up on the registry and cannot check those downloads
+  against the lockfile. Fill both fields from the registry for the exact locked versions (script, no version
+  changes); check that `npm ci` and `npm ls --all` give the same tree before and after.
+- **Test script (addition 2).** `packages/mcp-server`: `"test": "vitest"` becomes `"vitest run"`
+  (`test:watch` already exists). Until then `npm test` waits in watch mode in an interactive terminal.
+- **npm audit (addition 3).** Shipped code has 10 advisories (high: fast-uri, ip-address, werift-ice, ip,
+  werift; moderate: express, body-parser, qs, hono, @hono/node-server). `npm audit fix` without `--force`
+  clears all but `ip` and `werift`; update the audit numbers in `Claude.md`. werift 0.24.x is a breaking bump
+  on the WebRTC path: separate change, gated on the GM's live smoke test
+  (`docs/DEPENDENCY-PATCH-SMOKE-TEST.md`). The other 24 advisories are dev-only; the two "critical" ones
+  leave with the v9 typings (0.4).
+- **Lint (addition 5).** 12,129 warnings (8,142 in `src`, 3,987 in tests and mocks); 96% are the `any` rules
+  (`no-unsafe-*`, `no-explicit-any`) on untyped Foundry data. No one-by-one fixes. Turn the `any` rules off
+  for `*.test.ts` and `test-support/**`; add a CI ratchet (committed per-rule baseline, CI fails when a count
+  rises, an update command lowers it), because CI runs lint with `--quiet` and nothing stops growth today;
+  review the 84 `prefer-nullish-coalescing` and 11 `restrict-template-expressions` warnings for real bugs
+  (the env-var defaults in `mcp-server/src/config.ts` are fine). The `src` count drops as the adapter gets
+  typed (0.4).
+- **`Claude.md` to `CLAUDE.md` (addition 6).** Claude Code looks for `CLAUDE.md`, so cloud sessions on Linux
+  do not load the file; Windows ignores the case. GM decision (section 9).
+- **Done (addition 7).** `e4558d7` stopped tracking the upstream author's `.claude/settings.local.json`,
+  which pre-approved broad commands (`node:*`, `npm run:*`, `powershell:*`, `nc localhost 31414`, ...), and
+  gitignored it.
+- **Not in M0:** vitest 3 to 5, esbuild 0.19 to 0.28, ESLint 8 to 9 (dev-only; ESLint 8 is end-of-life).
+
 ---
 
 ## 4. Features
@@ -283,6 +352,9 @@ cards[5], stages[5]}`) plus `plan` (GM notes) and world `cardOverrides`; names v
     so gate on module version 1.x.
   - `sdnd-tarokka` (legacy, read-only): parse the five slot tiles (Monk's Active Tiles `runmacro` args) or
     the "Tarokka Reading" Cards pile of a chosen scene; for worlds carried over from v13.
+  - `tarokka` (gmredvelvet-rgb, optional, read-only): card ids and slots from the world setting
+    `tarokka.gameState` (appendix A.1); text fields never read. The module already sends the reading to
+    every client, so the tool warns instead of promising secrecy.
   - built-in fallback roll: 3 distinct common + 2 distinct high cards, crypto RNG, neutral TR-compatible
     ids (`swords-7`, `raven`); display names from the GM's mapping table or a world Cards deck.
 - Flow: the reading exists only in the dealing GM's browser. Our module there detects the deal, asks "Save
@@ -397,8 +469,13 @@ sunlight: false}` for other automation to read.
   `oldfilm`. Night bats via `darknessActivation*` options. Option values are rescaled internally, so capture
   real values with FXMaster's "save as macro". All calls are GM-only (scene updates), so they run on the
   bridge client.
-- Core **[verified]**: `environment.darknessLevel` and `environment.globalLight.enabled` are unchanged in
-  v14 (`setSceneMood` already writes them). Global light in dim mode **[verify field]**.
+- Core **[verified, v14 API `SceneEnvironmentData` + 14.368 notes]**: `environment.darknessLevel` and
+  `environment.globalLight.enabled` are unchanged in v14 (`setSceneMood` already writes them). Dim versus
+  bright global light is `environment.globalLight.bright` (boolean, default `false` = dim); the global light
+  only shows while darkness is inside `globalLight.darkness.{min, max}`. Barovia validation therefore rejects
+  `globalLight.enabled && globalLight.bright`. Since 14.368 a scene with `environment.darknessLock` needs
+  `darknessLock` sent together with any `darknessLevel` update. (The API typedef mislabels the lock field
+  `darknessLevelLock`; the real field is `darknessLock`.)
 - Missing modules skip that part of the preset and say so in the plan diff.
 - Undo: previous scene environment, Calendaria scene flags, FXMaster rows and playlist state in the audit
   entry.
@@ -509,7 +586,10 @@ and pushed, and is summarized before the next starts.
 2. **M1** feature 1 (Tarokka).
 3. **M2** feature 2 (projection, player endpoints, reveal allowlist, canary suite).
 4. **M3** Foundry v14 + dnd5e 6.0 compatibility pass for existing tools (table 2.4 + pre-existing bugs).
-   Some items are v14-core and affect you already; move M3 earlier if templates or conditions misbehave.
+   Some items are v14-core and affect you already. Templates are confirmed broken on v14 (MeasuredTemplate
+   removed in 14.352), so `place-measured-template` and `delete-measured-template` fail today; M0 makes them
+   return a clear "not available on Foundry 14 yet" error through the adapter, M3 ports them to Regions
+   (question 11).
 5. **M4** feature 3, **M5** feature 4, **M6** feature 5, **M7** feature 6, **M8** feature 7, **M9** feature 8.
 
 ## 8. Risks
@@ -549,6 +629,16 @@ and pushed, and is summarized before the next starts.
    list? And **detach converted actors from DDB re-sync (recorded for undo)**, or leave DDB flags alone?
 8. Dread thresholds: **ship empty + one neutral example**, or a default ladder?
 9. ComfyUI: **disable auto-start in M0, remove in a separate confirmed cleanup**, or remove in M0?
+10. Rename `Claude.md` to `CLAUDE.md` so Linux cloud sessions load it: **yes, in M0** (a two-step `git mv`
+    because Windows ignores case), or keep the name?
+11. Measured templates (removed in Foundry 14.352, so the two template tools fail today): **clear error in
+    M0, Region port in M3**, or pull the Region port into M0?
+12. werift 0.24 (breaking, WebRTC path only): **separate commit on its own branch after M0, merged only
+    after your live smoke test**, or defer? (On the Orange Pi the headless client can use plain WebSocket on
+    loopback, so WebRTC may not be needed there at all.)
+13. Tarokka module for M1: **`tarokka-reading`** (v14, keeps the reading in the dealing GM's browser),
+    `tarokka` by gmredvelvet-rgb (sends the reading and DM text to every client; read-only support at most),
+    or `sdnd-tarokka` (v13 only; legacy read-only)? Which one is installed in your world?
 
 ## 10. Later (recorded, not planned yet)
 
@@ -557,9 +647,13 @@ and pushed, and is summarized before the next starts.
   bridge vault layout (0.3) is chosen to make this possible. To research then: existing Foundry-Obsidian
   modules, Obsidian's plugin APIs, sync model on the Orange Pi.
 - **Discord voice recording (Craig) + voice-to-text**: transcripts as an extra recap source (feature 7) and
-  AI context. Prior art to look at then: `Txpple/fvtt-app-sessionscribe` (Craig recording + chat log to
-  recap, driven by Claude Code) **[verify]**. Speech-to-text on an Orange Pi 5 Pro is a separate feasibility
-  question.
+  AI context. Prior art to look at then: `Txpple/fvtt-app-sessionscribe` **[verified 2026-09-27]** (MIT,
+  created 2026-09-23): an MCP server plus a Claude Code skill that turns a Craig recording, the Foundry chat
+  log, combat stats and party sheets into a speaker-labelled transcript, player recap, GM notes and combat
+  log; speech-to-text is local faster-whisper per speaker track (default `large-v3-turbo`, CUDA or CPU
+  int8); Foundry access through its sibling `Txpple/fvtt-mcp-dnd5e`, a headless Chromium client logged in
+  as an Assistant GM user (the same identity model as 0.1); whispers are withheld from the public
+  transcript. Speech-to-text on an Orange Pi 5 Pro is a separate feasibility question.
 
 ---
 
@@ -595,6 +689,24 @@ beast, broken-one, dark-lord` (`deck.js:1-15`). Name: override or `TAROKKA.Cards
 Strahd (location)`. Hardcodes adventure text in unexported constants (`tarokka.js:66-359`); reveal posts
   public chat. On v14: `CONST.CHAT_MESSAGE_TYPES.OOC` is gone, so `readHand` throws; removed global
   `randomID()`; Tile `z/overhead/roof` shims removed.
+- `tarokka` (gmredvelvet-rgb) **[verified 2026-09-27]**, repo `gmredvelvet-rgb/tarokka-foundryvtt`, MIT,
+  tag v1.0.3 (`eb950f9`, 2026-07-26). Not listed on foundryvtt.com or the Forge (manifest install from
+  GitHub only). Manifest: id `tarokka`, compatibility min 12 / verified 14, `esmodules`
+  `dist/tarokka.js`, `socket: true`, no relationships, no packs.
+  - Storage: one world setting `tarokka.gameState` (`config: false`; `src/foundry/state.ts:11-17`) holding
+    `{started, cards[], lastUpdated, settings}`. At deal time each card object is copied in full into that
+    setting, including its DM text (`src/lib/TarokkaDeck.ts:16-19`, `state.ts:49-56`), so every client
+    receives the reading; the face image is in every player's DOM, only rotated out of view
+    (`src/components/Card.tsx:84-88`). No flags, documents, chat or localStorage.
+  - API `game.modules.get('tarokka').api = {open}` (`src/main.ts:16-19`); no custom hooks (it listens to
+    core `updateSetting`); socket messages carry only a card-tilt effect (`src/foundry/socket.ts:4-46`).
+  - Slots 0-4: `tome, ravenkind, sunsword` (common deck), `ally, strahd` (high deck); a hand is 3 common
+    - 2 high cards; card ids are kebab-case slugs (40 common, 14 high).
+  - Ships adventure text (card meanings, prophecies, locations, ally names) in
+    `src/constants/tarokkaCards.ts`, ported from an unlicensed upstream. Consequence for feature 1: at most a
+    read-only provider that reads card ids and slots from the world setting (detect via `updateSetting` on
+    `tarokka.gameState`); never read or copy its text fields; tell the GM that this module already exposes
+    the reading to players.
 
 ### A.2 Calendaria and FXMaster
 
@@ -668,11 +780,24 @@ contentChunkId, ...}`; scenes `flags.ddb.*` + `flags.ddbimporter.bookCode` (case
   `DDBSelectiveMonsterUpdate`, `parse.monsters(ids)`, `lib.DDBMonsterFactory`, `lib.DDBMonster(...,
 {forceRulesVersion})`, `lib.DDBAdventure.AdventureImport(bookId, {..., use2024monsters})`,
   `generateAdventureConfig({full})`, `lib.NameMatcher`.
-- Official content: `dnd-monster-manual` (packs `actors, features, content, tables`; ids like
-  `mmVampire0000000`), `dnd-players-handbook` (`actors, classes, content, equipment, feats, origins,
-spells, tables`) (`dnd5e module-registration.mjs:130-151`); `dnd-ravenloft-horrors-within` (WotC,
-  Foundry 13+, verified 14, released 2026-06-16; `official-content.json:35-38`). Pack ids and rules values
-  inside premium packs **[verify]**.
+- Official content **[verified 2026-09-27 against the public manifests on r2.foundryvtt.com]**:
+  - `dnd-monster-manual` 1.4.0: Foundry min 13 / verified 14, dnd5e min 5.3.3; packs `content`
+    (JournalEntry), `actors` (Actor), `features` (Item), `tables` (RollTable); no Adventure pack; ids like
+    `mmVampire0000000`.
+  - `dnd-players-handbook` 2.2.0: Foundry 13 / 14, dnd5e min 5.1.9; packs `content, classes, origins,
+feats, spells, equipment, tables, actors`.
+  - dnd5e `module/module-registration.mjs:129-151` (`moduleRedirects`, identical in release-5.3.3 and
+    6.0.5) maps the MM packs to `actors24/content24/monsterfeatures24/tables24` and the PHB packs to their
+    `*24` SRD packs. New in 6.0.x: `json/official-content.json` sets `disabledSources`
+    (`actors24, monsterfeatures24` for MM) so the SRD copies are hidden when the book is installed.
+  - `dnd-ravenloft-horrors-within` 1.0.1 (`protected: true`): Foundry min 13 / verified 14, dnd5e min 5.3;
+    no module dependencies; packs `book` (JournalEntry), `options`, `bastions`, `items` (Item), `tables`
+    (RollTable), `actors` ("Bestiary") and `fallback-actors` ("Adventure Bestiary") (Actor), `scenes`
+    (Scene), `adventures` (Adventure). dnd5e lists it only by name in `official-content.json` ("expanded")
+    and has no redirects for it.
+  - Rules values inside premium packs are not public: `system.source.rules` is baked into the pack data
+    (dnd5e `source-field.mjs` only defaults it from the world `rulesVersion`). Read it at runtime with
+    `getIndex({fields: ['system.source.rules', 'system.identifier']})` (feature 6 already does this).
 - dnd5e packs: `dnd5e.monsters` (SRD 5.1, all 337 NPCs "2014"), `dnd5e.actors24` (SRD 5.2, all 380 NPCs
   "2024"). No built-in legacy-to-modern map; world setting `rulesVersion` (modern|legacy).
 
@@ -702,14 +827,32 @@ noneNameOnly, multi, count, countDeleteDecrement` (`lib/stackingPolicy.ts:25,85`
 ### A.5 Foundry core facts used by this plan
 
 - Query handler signature: v13 `(queryData, {timeout})`, sender looked up but not passed
-  (13.351 `client/documents/collections/users.mjs:199-211`); sender passed since 14.352
-  (foundryvtt#13418); typings 14.366.0 still show the old signature (`client/config.d.mts:1778`).
-  `QUERY_USER` defaults to the Player role (`common/constants.mjs:1368-1373`).
+  (13.351 `client/documents/collections/users.mjs:199-211`); the 13.351 server only checks `QUERY_USER`
+  and that the recipient exists, strips options to `{timeout}` and stamps its own sender id. Sender passed
+  since 14.352 (release notes, foundryvtt#13418) **[verified]** as `{timeout, user}` with a User document
+  **[partly verified]**; the v14 API docs and typings 14.366.0 still show the old signature.
+- `QUERY_USER` **[verified, v14 API]**: `{defaultRole: PLAYER, label: 'PERMISSION.QueryUser', hint:
+'PERMISSION.QueryUserHint', requiredRoles: [ASSISTANT, GAMEMASTER]}` (requiredRoles since 14.349,
+  #13296); English label "Query Users" **[partly verified]**.
+- `game.world` is a `World` package (`DataModel`), not a Document: no `setFlag`/`getFlag`/`update`
+  **[verified, v14 API]**.
 - Setting scopes: client, world, user; world and user settings reach every client; `restricted` exists only
   on `registerMenu`.
-- v14 scene lighting fields unchanged (`environment.darknessLevel`, `environment.globalLight.enabled`);
-  Scene Levels added (`Scene#levels`, Token `level`, Note/Wall `levels`); `-=key` deletions give way to
-  `_del`; `temporary: true` creates removed; jQuery still shipped.
+- v14 scene lighting fields unchanged (`environment.darknessLevel`, `darknessLock`, `cycle`, `base`,
+  `dark`, `globalLight.{enabled, bright, alpha, color, coloration, luminosity, saturation, contrast, shadows,
+darkness.{min,max}}`) **[verified]**.
+- Scene Levels **[verified, 14.353/14.354/14.359/14.368 notes + API]**: `Scene#levels` (embedded Level
+  documents) and `Scene#initialLevel` (default the first Level); Level holds `background {src, tint,
+alphaThreshold, color}`, `foreground`, `fog`, `elevation {bottom, top}`, `textures`, `visibility.levels`;
+  Token `level` (one id, default `defaultLevel0000` = `BaseScene.metadata.defaultLevelId`, the
+  auto-created first level **[partly verified]**); Note/Wall/Tile/Region/AmbientLight/AmbientSound/Drawing
+  `levels` (set of ids, empty = every level **[partly verified]**). Set them explicitly.
+- MeasuredTemplate removed in 14.352 (#13089; 14.356/14.359 notes); templates are Regions created with
+  `scene.createEmbeddedDocuments('Region', [...])` (`shapes` of type circle/cone/line/rectangle/ring/
+  emanation), Region-layer template mode (#13508), `RegionLayer#placeRegion(s)` (#13536, 14.357); template
+  regions default to always visible (14.360, #14166) **[verified]**.
+- `-=key` deletions give way to `_del` (old keys work until v16); `temporary: true` creates removed; jQuery
+  still shipped.
 
 ---
 

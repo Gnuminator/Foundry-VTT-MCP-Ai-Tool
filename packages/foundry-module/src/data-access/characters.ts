@@ -7,6 +7,7 @@ import type {
   SpellcastingEntry,
   SpellInfo,
 } from './types.js';
+import { detectRulesVersion, readRulesTag } from '../systems/dnd5e/rules-version.js';
 
 /**
  * Character/actor inspection domain for `FoundryDataAccess`.
@@ -46,6 +47,11 @@ export class CharacterDataAccess {
       system: shared.sanitizeData((actor as any).system),
       items: actor.items.map(item => this.summarizeItem(item)),
       effects: actor.effects.map(effect => this.summarizeEffect(effect)),
+    };
+
+    characterData.rulesVersion = {
+      tagged: readRulesTag(actor),
+      detected: detectRulesVersion(actor),
     };
 
     // dnd5e equipped-item toggles.

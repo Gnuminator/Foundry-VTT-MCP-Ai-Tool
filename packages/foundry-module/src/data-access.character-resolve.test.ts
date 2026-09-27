@@ -85,3 +85,36 @@ describe('getCharacterInfo — forgiving resolution', () => {
     await expect(da.getCharacterInfo('Nobody')).rejects.toThrow(ERROR_MESSAGES.CHARACTER_NOT_FOUND);
   });
 });
+
+describe('getCharacterInfo — rules version (2014 vs 2024)', () => {
+  it('reports the stored tag and the current detection', async () => {
+    world.actors.add(
+      makeActor({
+        id: 'strahd1',
+        name: 'Strahd',
+        type: 'npc',
+        system: { source: { rules: '2014' } },
+        flags: {
+          'foundry-mcp-bridge': {
+            rules: { version: '2014', source: 'system.source.rules', at: '2026-09-27T00:00:00Z' },
+          },
+        },
+      })
+    );
+
+    const info = await da.getCharacterInfo('Strahd');
+
+    expect(info.rulesVersion).toEqual({
+      tagged: { version: '2014', source: 'system.source.rules', at: '2026-09-27T00:00:00Z' },
+      detected: { version: '2014', source: 'system.source.rules' },
+    });
+  });
+
+  it('untagged and undetectable: both null', async () => {
+    world.actors.add(makeActor({ id: 'x1', name: 'Nobody', type: 'npc', system: {} }));
+    expect((await da.getCharacterInfo('Nobody')).rulesVersion).toEqual({
+      tagged: null,
+      detected: null,
+    });
+  });
+});

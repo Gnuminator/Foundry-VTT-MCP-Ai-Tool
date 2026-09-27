@@ -404,6 +404,29 @@ describe('FoundryDataAccess — dropLoot', () => {
 // deleteMeasuredTemplate
 // ===========================================================================
 
+describe('FoundryDataAccess — measured templates on Foundry 14', () => {
+  beforeEach(() => {
+    // 14.352+ removed MeasuredTemplate (no foundry.documents.BaseMeasuredTemplate).
+    (globalThis as any).game.release = { generation: 14, build: 368 };
+    (globalThis as any).foundry.documents = {};
+  });
+
+  it('place-measured-template fails with a clear "not available" error, no write', async () => {
+    const scene = sceneWith([]);
+    const create = vi.spyOn(scene, 'createEmbeddedDocuments');
+
+    await expect(
+      da.placeMeasuredTemplate({ shape: 'circle', distance: 10, x: 0, y: 0 } as any)
+    ).rejects.toThrow(/Measured templates is not available on Foundry .*Regions/);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('delete-measured-template fails the same way', async () => {
+    sceneWith([]);
+    await expect(da.deleteMeasuredTemplate({ all: true })).rejects.toThrow(/Regions/);
+  });
+});
+
 describe('FoundryDataAccess — deleteMeasuredTemplate', () => {
   it('throws SCENE_NOT_FOUND when there is no active scene', async () => {
     await expect(da.deleteMeasuredTemplate({ templateId: 't1' })).rejects.toThrow(

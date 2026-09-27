@@ -1,5 +1,6 @@
 import { ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
+import { supportsMeasuredTemplates, UnsupportedOnThisFoundryError } from '../systems/core.js';
 
 /**
  * Scene FX domain — measured (AoE) templates, scene mood (darkness / light /
@@ -15,6 +16,20 @@ export class SceneFxDataAccess {
   // --- Shared internals ------------------------------------------------------
 
   /** The active scene, or throw `SCENE_NOT_FOUND` when there is none. */
+  /**
+   * MeasuredTemplate documents were removed in Foundry 14.352 (templates are
+   * Regions now). Fail with a clear message instead of a raw Foundry error;
+   * the Region port is planned (plan step M3).
+   */
+  private requireMeasuredTemplates(): void {
+    if (!supportsMeasuredTemplates()) {
+      throw new UnsupportedOnThisFoundryError(
+        'Measured templates',
+        'Foundry 14 replaced them with Regions (14.352). Region support for these tools is planned; place the area with the Region tool meanwhile.'
+      );
+    }
+  }
+
   private requireCurrentScene(): any {
     const scene = (game.scenes as any)?.current;
     if (!scene) {
@@ -95,6 +110,7 @@ export class SceneFxDataAccess {
     fillColor?: string;
   }): Promise<any> {
     shared.validateFoundryState();
+    this.requireMeasuredTemplates();
     const scene = this.requireCurrentScene();
     const size = scene.grid?.size || 100;
 
@@ -153,6 +169,7 @@ export class SceneFxDataAccess {
    */
   async deleteMeasuredTemplate(data: { templateId?: string; all?: boolean }): Promise<any> {
     shared.validateFoundryState();
+    this.requireMeasuredTemplates();
     const scene = this.requireCurrentScene();
 
     let ids: string[];

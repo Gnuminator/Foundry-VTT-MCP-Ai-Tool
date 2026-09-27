@@ -18,6 +18,14 @@ export interface CharacterInfo {
   itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
   itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
   spellcasting?: SpellcastingEntry[]; // spellcasting entries
+  /**
+   * 2014 vs 2024 rules: the tag this module wrote (`flags.foundry-mcp-bridge.rules`)
+   * and what detection says now (see systems/dnd5e/rules-version.ts).
+   */
+  rulesVersion?: {
+    tagged: { version: '2014' | '2024'; source: string; at: string } | null;
+    detected: { version: '2014' | '2024'; source: string } | null;
+  };
 }
 
 export interface SpellcastingEntry {

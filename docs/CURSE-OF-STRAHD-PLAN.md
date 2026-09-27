@@ -265,6 +265,9 @@ source, at}`. Source of truth order: actor-level `system.source.rules` (item-lev
 
 - ComfyUI: disable backend auto-start now; full removal as a separate, confirmed cleanup.
 - Dashboard: bind 127.0.0.1 unless auth is configured; refuse a non-loopback bind without a GM token.
+- Foundry link: bind the WebSocket server (31415) and WebRTC signaling (31416) to loopback by default,
+  with an explicit opt-in for other hosts (July review B1/H1, `foundry-connector.ts:84, :164`). On the Orange
+  Pi everything except the dashboard is loopback anyway.
 
 ---
 

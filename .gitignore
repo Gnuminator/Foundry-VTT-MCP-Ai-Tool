@@ -84,6 +84,7 @@ packages/cogm-dashboard/public/_*.html
 
 # Local Configuration
 config.local.json
+.claude/settings.local.json
 .claude/foundry-mcp-server-*.zip
 foundry-vtt-mcp.zip
 .foundry-deploy-config

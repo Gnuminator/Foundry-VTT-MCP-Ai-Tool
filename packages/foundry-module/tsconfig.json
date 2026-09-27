@@ -10,7 +10,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "lib": ["ES2022", "DOM"],
-    "types": ["@league-of-foundry-developers/foundry-vtt-types"],
+    "types": ["jquery"],
     "paths": {
       "@gnuminator/shared": ["../../shared/src"]
     }

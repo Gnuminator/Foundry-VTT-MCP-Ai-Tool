@@ -302,7 +302,7 @@ export class EventTracker {
 
     const whisperIds: string[] = Array.isArray(message.whisper) ? message.whisper : [];
     const whisperTo: string[] = whisperIds
-      .map((id: string) => game.users?.get(id)?.name || id)
+      .map((id: string) => game.users?.get(id)?.name ?? id)
       .filter((n: any): n is string => typeof n === 'string');
 
     const messageType = this.classifyMessage(

@@ -183,7 +183,9 @@ export class ActorBuilderDataAccess {
           speaker: ChatMessage.getSpeaker({ actor }),
           content: `<h3>${item.name}</h3><p>${actor.name} uses ${item.name}.</p>`,
         };
-        ChatMessage.create(chatData);
+        ChatMessage.create(chatData).catch((err: Error) => {
+          console.error(`[foundry-mcp-bridge] Error posting use of ${item.name}:`, err);
+        });
       }
 
       shared.auditLog(
@@ -1680,7 +1682,7 @@ export class ActorBuilderDataAccess {
             nameMap.set((entry.name as string).toLowerCase(), entry._id as string);
           }
         }
-        packMaps.push({ packId, packLabel: pack.metadata.label as string, nameMap });
+        packMaps.push({ packId, packLabel: pack.metadata.label, nameMap });
       }
 
       if (packMaps.length === 0) {

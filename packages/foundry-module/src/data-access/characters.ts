@@ -272,7 +272,7 @@ export class CharacterDataAccess {
     if (exact) return exact;
 
     const partial = game.actors.filter(a => a.name?.toLowerCase().includes(needle) ?? false);
-    if (partial.length === 1) return partial[0]!;
+    if (partial.length === 1) return partial[0];
     if (partial.length > 1) {
       const shown = partial
         .slice(0, 10)
@@ -506,7 +506,7 @@ export class CharacterDataAccess {
     // Bucket each spell under its originating class (or 'general').
     const spellsByClass: Record<string, SpellInfo[]> = {};
     for (const spell of spellItems) {
-      const spellSystem = spell.system as any;
+      const spellSystem = spell.system;
       const spellRaw = (spell as any)._source?.system || spellSystem;
       const sourceItem = spellSystem?.sourceItem;
       const sourceClass =
@@ -521,7 +521,7 @@ export class CharacterDataAccess {
 
     // One entry per spellcasting class.
     for (const classItem of classes) {
-      const classSystem = classItem.system as any;
+      const classSystem = classItem.system;
       if (
         classSystem?.spellcasting?.progression &&
         classSystem.spellcasting.progression !== 'none'

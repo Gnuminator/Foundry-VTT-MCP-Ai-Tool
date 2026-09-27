@@ -241,8 +241,8 @@ export function auditLog(
 /** Resolve an actor by id, exact name, or partial name match. */
 export function findActorByIdentifier(identifier: string): any {
   return (
-    game.actors?.get(identifier) ||
-    game.actors?.getName(identifier) ||
+    game.actors?.get(identifier) ??
+    game.actors?.getName(identifier) ??
     Array.from(game.actors || []).find(a =>
       a.name?.toLowerCase().includes(identifier.toLowerCase())
     )
@@ -312,7 +312,7 @@ export async function getOrCreateFolder(
     };
 
     const folder = await Folder.create(folderData);
-    return folder?.id || null;
+    return folder?.id ?? null;
   } catch (error) {
     console.warn(`[${MODULE_ID}] Failed to create folder "${folderName}":`, error);
     // Return null so items are created without folders rather than failing

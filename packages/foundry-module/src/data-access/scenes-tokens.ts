@@ -160,7 +160,9 @@ export class ScenesTokensDataAccess {
    * (so it's safe to call headless — e.g. the test harness has no canvas).
    */
   private async panCanvasToScene(scene: any): Promise<void> {
-    if (typeof canvas === 'undefined' || !canvas?.scene) {
+    // `typeof` guard: headless callers (tests) may have no `canvas` global at all.
+    const cv = typeof canvas === 'undefined' ? undefined : canvas;
+    if (!cv?.scene) {
       return;
     }
 
@@ -174,13 +176,13 @@ export class ScenesTokensDataAccess {
       return;
     }
 
-    await canvas.pan({
+    await cv.pan({
       x: width / 2,
       y: height / 2,
       // Fit the whole scene on screen without ever zooming past 1:1.
       scale: Math.min(
-        (canvas as any).screenDimensions?.[0] / width || 1,
-        (canvas as any).screenDimensions?.[1] / height || 1,
+        (cv.screenDimensions?.[0] ?? 0) / width || 1,
+        (cv.screenDimensions?.[1] ?? 0) / height || 1,
         1
       ),
     });

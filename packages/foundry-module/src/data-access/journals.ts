@@ -84,7 +84,7 @@ export class JournalDataAccess {
     }
 
     return {
-      content: firstText.text?.content || '',
+      content: firstText.text?.content ?? '',
       currentPage: { id: firstText.id || '', name: firstText.name || '' },
       allPages,
       pageCount,
@@ -119,7 +119,7 @@ export class JournalDataAccess {
       id: page.id || '',
       name: page.name || '',
       type: page.type || 'text',
-      content: page.type === 'text' ? page.text?.content || '' : page.src || '',
+      content: page.type === 'text' ? (page.text?.content ?? '') : (page.src ?? ''),
     };
   }
 

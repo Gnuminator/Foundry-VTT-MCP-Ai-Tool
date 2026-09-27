@@ -511,7 +511,7 @@ export class CompendiumDataAccess {
     if (!filters || packType !== 'Actor') return null;
     // `challengeRating` 0 is a real CR, so test it for presence, not truthiness.
     const hasCr = filters.challengeRating !== undefined && filters.challengeRating !== null;
-    if (!(hasCr || filters.creatureType || filters.hasLegendaryActions)) {
+    if (!(hasCr || Boolean(filters.creatureType) || filters.hasLegendaryActions === true)) {
       return null;
     }
     if (!game.settings.get(MODULE_ID, 'enableEnhancedCreatureIndex')) return null;
@@ -573,7 +573,8 @@ export class CompendiumDataAccess {
       throw new Error(`Document ${documentId} not found in pack ${packId}`);
     }
 
-    const doc = document as any;
+    // Compendium documents are untyped (`CompendiumCollection<any>`).
+    const doc = document;
     const fullEntry: CompendiumEntryFull = {
       id: document.id || '',
       name: document.name || '',

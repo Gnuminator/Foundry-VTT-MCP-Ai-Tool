@@ -78,8 +78,8 @@ export class PlayerRollsDataAccess {
                     data-roll-formula="${rollFormula}"
                     data-roll-label="${buttonLabel}"
                     data-is-public="${data.isPublic}"
-                    data-character-id="${playerInfo.character?.id || ''}"
-                    data-target-user-id="${playerInfo.user?.id || ''}">
+                    data-character-id="${playerInfo.character?.id ?? ''}"
+                    data-target-user-id="${playerInfo.user?.id ?? ''}">
               🎲 ${buttonLabel}
             </button>
           </div>
@@ -91,7 +91,8 @@ export class PlayerRollsDataAccess {
 
       const messageData = {
         content: rollButtonHtml,
-        speaker: ChatMessage.getSpeaker({ actor: game.user }),
+        // The button is posted by the GM user, not an actor: speak as the user's name.
+        speaker: ChatMessage.getSpeaker({ alias: game.user.name }),
         style: (CONST as any).CHAT_MESSAGE_STYLES?.OTHER || 0, // Use style instead of deprecated type
         whisper: whisperTargets,
         flags: {
@@ -102,8 +103,8 @@ export class PlayerRollsDataAccess {
                 rollFormula,
                 rollLabel: buttonLabel,
                 isPublic: data.isPublic,
-                characterId: playerInfo.character?.id || '',
-                targetUserId: playerInfo.user?.id || '',
+                characterId: playerInfo.character?.id ?? '',
+                targetUserId: playerInfo.user?.id ?? '',
               },
             },
           },
@@ -111,6 +112,9 @@ export class PlayerRollsDataAccess {
       };
 
       const chatMessage = await ChatMessage.create(messageData);
+      if (!chatMessage) {
+        throw new Error('Foundry did not create the roll-request chat message');
+      }
       this.saveRollButtonMessageId(buttonId, chatMessage.id);
 
       // Click handlers are attached globally via the renderChatMessageHTML hook
@@ -516,7 +520,7 @@ export class PlayerRollsDataAccess {
         throw new Error(`ChatMessage ${messageId} not found`);
       }
 
-      const rolledByName = game.users?.get(userId)?.name || 'Unknown';
+      const rolledByName = game.users?.get(userId)?.name ?? 'Unknown';
       const timestamp = new Date().toLocaleString();
 
       // Non-GM users who can't modify the message relay it to an online GM.
@@ -543,8 +547,8 @@ export class PlayerRollsDataAccess {
 
       // Mark the button rolled in the message flags.
       const currentFlags = chatMessage.flags || {};
-      const moduleFlags = currentFlags[MODULE_ID] || {};
-      const rollButtons = moduleFlags.rollButtons || {};
+      const moduleFlags = (currentFlags[MODULE_ID] ?? {}) as Record<string, any>;
+      const rollButtons = (moduleFlags.rollButtons ?? {}) as Record<string, any>;
       rollButtons[buttonId] = {
         ...rollButtons[buttonId],
         rolled: true,

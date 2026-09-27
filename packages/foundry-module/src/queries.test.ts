@@ -1,6 +1,7 @@
 /**
  * Tests for {@link QueryHandlers} — the MCP→data-access dispatch router that
- * registers every `foundry-mcp-bridge.*` query into `CONFIG.queries`.
+ * registers every `foundry-mcp-bridge.*` handler into the module-private
+ * handler table (never into Foundry's `CONFIG.queries`, see bridge-handlers.ts).
  *
  * Like socket-bridge, this had zero coverage and is a live wire contract: a bad
  * registration or a broken gate breaks the bridge silently. The router itself
@@ -18,6 +19,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { QueryHandlers } from './queries.js';
 import { MODULE_ID } from './constants.js';
+import { bridgeHandlers } from './bridge-handlers.js';
+import { GM_HELPER_QUERIES, registerGmHelperQueries } from './gm-helper-queries.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -30,7 +33,15 @@ function stubDataAccess(overrides: Record<string, any> = {}) {
   return stub;
 }
 
-const queries = () => (globalThis as any).CONFIG.queries;
+/** Read/write view of the module-private handler table (where handlers now live). */
+const queries = (): Record<string, any> =>
+  new Proxy({} as Record<string, any>, {
+    get: (_target, key: string) => bridgeHandlers.get(key),
+    set: (_target, key: string, value) => {
+      bridgeHandlers.set(key, value);
+      return true;
+    },
+  });
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -39,6 +50,7 @@ beforeEach(() => {
   world = createTestWorld();
   restore = world.install();
   (globalThis as any).CONFIG.queries = {};
+  bridgeHandlers.deleteByPrefix('');
   qh = new QueryHandlers();
 });
 
@@ -93,6 +105,42 @@ describe('QueryHandlers — registration', () => {
 
     expect(qh.getRegisteredMethods()).toEqual([]);
     expect(typeof queries()['core.someOtherQuery']).toBe('function');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Query lockdown: nothing reachable through Foundry's query relay
+// ---------------------------------------------------------------------------
+
+describe('QueryHandlers — query lockdown', () => {
+  const bridgeKeysInConfigQueries = (): string[] =>
+    Object.keys((globalThis as any).CONFIG.queries).filter(k => k.startsWith(`${MODULE_ID}.`));
+
+  it('registers no bridge handler in CONFIG.queries (Foundry 13: nothing at all)', () => {
+    qh.registerHandlers();
+    registerGmHelperQueries();
+
+    expect(qh.getRegisteredMethods().length).toBeGreaterThan(90);
+    expect(bridgeKeysInConfigQueries()).toEqual([]);
+  });
+
+  it('on Foundry 14.352+ only the sender-checked GM helpers are in CONFIG.queries', () => {
+    (globalThis as any).game.release = { generation: 14, build: 368 };
+    qh.registerHandlers();
+    registerGmHelperQueries();
+
+    expect(bridgeKeysInConfigQueries().sort()).toEqual(Object.values(GM_HELPER_QUERIES).sort());
+    for (const method of qh.getRegisteredMethods()) {
+      expect((globalThis as any).CONFIG.queries[`${MODULE_ID}.${method}`]).toBeUndefined();
+    }
+  });
+
+  it('a player-style relay of a bridge method finds no CONFIG.queries handler', () => {
+    qh.registerHandlers();
+    // What Foundry's relay does on the GM client: look the name up in CONFIG.queries.
+    const relayed = (globalThis as any).CONFIG.queries[`${MODULE_ID}.setActorOwnership`];
+    expect(relayed).toBeUndefined();
+    expect(typeof queries()[`${MODULE_ID}.setActorOwnership`]).toBe('function');
   });
 });
 
@@ -155,13 +203,11 @@ describe('QueryHandlers — GM gate', () => {
     (globalThis as any).game.user.isGM = false;
     stubDataAccess();
     qh.registerHandlers();
-    const q = queries();
-
     const ungated: string[] = [];
-    for (const fullName of Object.keys(q)) {
+    for (const fullName of bridgeHandlers.methods()) {
       const short = fullName.slice(MODULE_ID.length + 1);
       try {
-        const res = await q[fullName]({});
+        const res: any = await bridgeHandlers.get(fullName)!({});
         const denied = res && res.error === 'Access denied' && res.success === false;
         if (!denied) ungated.push(short);
       } catch {
@@ -172,8 +218,8 @@ describe('QueryHandlers — GM gate', () => {
     expect([...new Set(ungated)].sort()).toEqual(['ping']);
   });
 
-  // The allowNonGmAccess setting (locked on in this build) opens the same gate to
-  // non-GM callers: a standard handler then delegates instead of denying.
+  // The allowNonGmAccess setting (default off) opens the same gate to the non-GM
+  // user running this client: a standard handler then delegates instead of denying.
   it('allows non-GM callers when allowNonGmAccess is enabled', async () => {
     (globalThis as any).game.user.isGM = false;
     await (globalThis as any).game.settings.set(MODULE_ID, 'allowNonGmAccess', true);

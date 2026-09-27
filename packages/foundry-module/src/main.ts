@@ -6,6 +6,7 @@ import { CampaignHooks } from './campaign-hooks.js';
 import { ComfyUIManager } from './comfyui-manager.js';
 import { eventTracker } from './session-events.js';
 import { diagnostics } from './diagnostics.js';
+import { registerGmHelperQueries, unregisterGmHelperQueries } from './gm-helper-queries.js';
 // Connection control now handled through settings menu
 
 // Install diagnostic error capture as early as possible (module evaluation),
@@ -41,11 +42,10 @@ class FoundryMCPBridge {
   }
 
   /**
-   * Whether the current user may run the bridge. The GM always may; the
-   * `allowNonGmAccess` setting (locked on for this build) additionally lets any
-   * logged-in user start and use it. SECURITY: the bridge turns the running
-   * browser into an AI control surface — keep this GM-only before sharing a
-   * world publicly.
+   * Whether the current user may run the bridge. A GM (or Assistant GM) always
+   * may; the `allowNonGmAccess` setting (default off) additionally lets a non-GM
+   * user start it from their own browser. SECURITY: the bridge turns the running
+   * browser into an AI control surface.
    */
   private isBridgeAllowedForUser(): boolean {
     return this.isGMUser() || this.settings.getSetting('allowNonGmAccess') === true;
@@ -61,8 +61,11 @@ class FoundryMCPBridge {
       // Register module settings
       this.settings.registerSettings();
 
-      // Register query handlers
+      // Register bridge handlers (module-private table, dispatched only by the
+      // socket bridge) and the sender-checked GM-to-GM helper queries (the only
+      // CONFIG.queries entries; registered on Foundry 14.352+ only).
       this.queryHandlers.registerHandlers();
+      registerGmHelperQueries();
 
       // Register campaign hooks for interactive dashboards
       this.campaignHooks.register();
@@ -510,6 +513,7 @@ class FoundryMCPBridge {
 
     await this.stop();
     this.queryHandlers.unregisterHandlers();
+    unregisterGmHelperQueries();
     this.campaignHooks.unregister();
 
     console.log(`[${MODULE_ID}] Cleanup complete`);

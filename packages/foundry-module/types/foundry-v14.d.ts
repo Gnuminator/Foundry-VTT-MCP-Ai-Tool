@@ -48,6 +48,8 @@ declare global {
       options?: { exact?: boolean }
     ): boolean;
     readonly isOwner: boolean;
+    /** The document's sheet application, when it has one. */
+    readonly sheet: { render(force?: boolean, options?: Record<string, unknown>): unknown } | null;
     canUserModify(user: User, action: 'create' | 'update' | 'delete', data?: object): boolean;
     createEmbeddedDocuments(
       embeddedName: string,
@@ -578,6 +580,12 @@ declare global {
       options?: Record<string, unknown>
     ): Promise<unknown>;
   }
+
+  /** Resolve a document by UUID (world, embedded or compendium). */
+  function fromUuid(
+    uuid: string,
+    options?: Record<string, unknown>
+  ): Promise<FoundryDocument | null>;
 
   const game: Game;
   const CONFIG: FoundryConfig;

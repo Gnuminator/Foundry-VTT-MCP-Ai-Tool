@@ -14,6 +14,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { SocketBridge, type BridgeConfig } from './socket-bridge.js';
+import { bridgeHandlers } from './bridge-handlers.js';
 import { CONNECTION_STATES } from './constants.js';
 
 let world: TestWorld;
@@ -69,6 +70,7 @@ beforeEach(() => {
   world = createTestWorld();
   restore = world.install();
   (globalThis as any).CONFIG.queries = {};
+  bridgeHandlers.deleteByPrefix('');
 });
 
 afterEach(() => {
@@ -116,13 +118,13 @@ describe('SocketBridge — connection-type selection', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleMCPQuery — the CONFIG.queries dispatch
+// handleMCPQuery — dispatch from the private handler table
 // ---------------------------------------------------------------------------
 
 describe('SocketBridge — MCP query dispatch', () => {
-  it('routes to the registered CONFIG.queries handler and wraps a success envelope', async () => {
+  it('routes to the registered bridge handler and wraps a success envelope', async () => {
     const handler = vi.fn().mockResolvedValue({ ok: 1 });
-    (globalThis as any).CONFIG.queries['foundry-mcp-bridge.listActors'] = handler;
+    bridgeHandlers.set('foundry-mcp-bridge.listActors', handler);
     const bridge = new SocketBridge(makeConfig()) as any;
     const cb = vi.fn();
 
@@ -137,7 +139,7 @@ describe('SocketBridge — MCP query dispatch', () => {
 
   it('passes {} to the handler when no data is supplied', async () => {
     const handler = vi.fn().mockResolvedValue(null);
-    (globalThis as any).CONFIG.queries['foundry-mcp-bridge.ping'] = handler;
+    bridgeHandlers.set('foundry-mcp-bridge.ping', handler);
     const bridge = new SocketBridge(makeConfig()) as any;
 
     await bridge.handleMCPQuery({ method: 'foundry-mcp-bridge.ping' }, vi.fn());
@@ -158,9 +160,9 @@ describe('SocketBridge — MCP query dispatch', () => {
   });
 
   it('returns a failure envelope (with the message) when the handler throws', async () => {
-    (globalThis as any).CONFIG.queries['foundry-mcp-bridge.boom'] = async () => {
+    bridgeHandlers.set('foundry-mcp-bridge.boom', async () => {
       throw new Error('kaboom');
-    };
+    });
     const bridge = new SocketBridge(makeConfig()) as any;
     const cb = vi.fn();
 
@@ -170,13 +172,39 @@ describe('SocketBridge — MCP query dispatch', () => {
   });
 });
 
+describe('SocketBridge — query lockdown', () => {
+  it('never dispatches a handler that only exists in CONFIG.queries', async () => {
+    const handler = vi.fn().mockResolvedValue({ leaked: true });
+    (globalThis as any).CONFIG.queries['foundry-mcp-bridge.listActors'] = handler;
+    const bridge = new SocketBridge(makeConfig()) as any;
+    const cb = vi.fn();
+
+    await bridge.handleMCPQuery({ method: 'foundry-mcp-bridge.listActors' }, cb);
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(cb).toHaveBeenCalledWith({
+      success: false,
+      error: 'No handler found for query: foundry-mcp-bridge.listActors',
+    });
+  });
+
+  it('rejects a non-string method without touching the table', async () => {
+    const bridge = new SocketBridge(makeConfig()) as any;
+    const cb = vi.fn();
+
+    await bridge.handleMCPQuery({ method: { toString: () => 'x' } }, cb);
+
+    expect(cb).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+  });
+});
+
 // ---------------------------------------------------------------------------
 // handleMessage — inbound routing
 // ---------------------------------------------------------------------------
 
 describe('SocketBridge — inbound message routing', () => {
   it('mcp-query → sends an mcp-response carrying the query result', async () => {
-    (globalThis as any).CONFIG.queries['foundry-mcp-bridge.listActors'] = async () => ['a'];
+    bridgeHandlers.set('foundry-mcp-bridge.listActors', async () => ['a']);
     const { bridge, ws } = connectedBridge();
 
     await bridge.handleMessage({

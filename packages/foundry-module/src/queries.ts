@@ -1,4 +1,6 @@
 import { MODULE_ID } from './constants.js';
+import { bridgeHandlers } from './bridge-handlers.js';
+import { openDocumentForGm } from './gm-helper-queries.js';
 import { FoundryDataAccess } from './data-access.js';
 import { ComfyUIManager } from './comfyui-manager.js';
 
@@ -13,8 +15,9 @@ export class QueryHandlers {
 
   /**
    * SECURITY: Validate access - returns silent failure for disallowed users.
-   * The GM is always allowed; the `allowNonGmAccess` setting (locked on for this
-   * build) additionally permits any logged-in user.
+   * The GM (or Assistant GM) is always allowed; the `allowNonGmAccess` setting
+   * (default off) additionally permits the non-GM user running this client.
+   * Handlers are only reachable through the socket bridge (see bridge-handlers.ts).
    */
   private validateGMAccess(): { allowed: boolean; error?: any } {
     if (game.user?.isGM || this.allowNonGmAccess()) {
@@ -59,207 +62,259 @@ export class QueryHandlers {
   }
 
   /**
-   * Register all query handlers in CONFIG.queries
+   * Register all bridge handlers in the module-private table
+   * ({@link bridgeHandlers}), which only the socket bridge dispatches from.
+   * SECURITY: never register these in `CONFIG.queries`: Foundry relays queries
+   * from any user holding "Query Users" (Player by default) to the GM's client.
    */
   registerHandlers(): void {
     const modulePrefix = MODULE_ID;
+    const handlers = bridgeHandlers;
 
     // Character/Actor queries
-    CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-    CONFIG.queries[`${modulePrefix}.listActors`] = this.handleListActors.bind(this);
+    handlers.set(`${modulePrefix}.getCharacterInfo`, this.handleGetCharacterInfo.bind(this));
+    handlers.set(`${modulePrefix}.listActors`, this.handleListActors.bind(this));
 
     // Compendium queries
-    CONFIG.queries[`${modulePrefix}.searchCompendium`] = this.handleSearchCompendium.bind(this);
-    CONFIG.queries[`${modulePrefix}.listCreaturesByCriteria`] =
-      this.handleListCreaturesByCriteria.bind(this);
-    CONFIG.queries[`${modulePrefix}.getAvailablePacks`] = this.handleGetAvailablePacks.bind(this);
+    handlers.set(`${modulePrefix}.searchCompendium`, this.handleSearchCompendium.bind(this));
+    handlers.set(
+      `${modulePrefix}.listCreaturesByCriteria`,
+      this.handleListCreaturesByCriteria.bind(this)
+    );
+    handlers.set(`${modulePrefix}.getAvailablePacks`, this.handleGetAvailablePacks.bind(this));
 
     // Scene queries
-    CONFIG.queries[`${modulePrefix}.getActiveScene`] = this.handleGetActiveScene.bind(this);
-    CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
-    CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
+    handlers.set(`${modulePrefix}.getActiveScene`, this.handleGetActiveScene.bind(this));
+    handlers.set(`${modulePrefix}.list-scenes`, this.handleListScenes.bind(this));
+    handlers.set(`${modulePrefix}.switch-scene`, this.handleSwitchScene.bind(this));
 
     // World queries
-    CONFIG.queries[`${modulePrefix}.getWorldInfo`] = this.handleGetWorldInfo.bind(this);
+    handlers.set(`${modulePrefix}.getWorldInfo`, this.handleGetWorldInfo.bind(this));
 
     // Utility queries
-    CONFIG.queries[`${modulePrefix}.ping`] = this.handlePing.bind(this);
+    handlers.set(`${modulePrefix}.ping`, this.handlePing.bind(this));
+
+    // GM screen helpers: open a document on the GM's own Foundry client
+    handlers.set(
+      `${modulePrefix}.openDocumentForGm`,
+      (data: { uuid?: unknown; userId?: unknown } | undefined) =>
+        this.withGmGate('Failed to open document', () => openDocumentForGm(data ?? {}))
+    );
 
     // Phase 2 & 3: Write operation queries
-    CONFIG.queries[`${modulePrefix}.createActorFromCompendium`] =
-      this.handleCreateActorFromCompendium.bind(this);
-    CONFIG.queries[`${modulePrefix}.getCompendiumDocumentFull`] =
-      this.handleGetCompendiumDocumentFull.bind(this);
-    CONFIG.queries[`${modulePrefix}.addActorsToScene`] = this.handleAddActorsToScene.bind(this);
-    CONFIG.queries[`${modulePrefix}.validateWritePermissions`] =
-      this.handleValidateWritePermissions.bind(this);
-    CONFIG.queries[`${modulePrefix}.createJournalEntry`] = this.handleCreateJournalEntry.bind(this);
-    CONFIG.queries[`${modulePrefix}.listJournals`] = this.handleListJournals.bind(this);
-    CONFIG.queries[`${modulePrefix}.getJournalContent`] = this.handleGetJournalContent.bind(this);
-    CONFIG.queries[`${modulePrefix}.getJournalPageContent`] =
-      this.handleGetJournalPageContent.bind(this);
-    CONFIG.queries[`${modulePrefix}.updateJournalContent`] =
-      this.handleUpdateJournalContent.bind(this);
+    handlers.set(
+      `${modulePrefix}.createActorFromCompendium`,
+      this.handleCreateActorFromCompendium.bind(this)
+    );
+    handlers.set(
+      `${modulePrefix}.getCompendiumDocumentFull`,
+      this.handleGetCompendiumDocumentFull.bind(this)
+    );
+    handlers.set(`${modulePrefix}.addActorsToScene`, this.handleAddActorsToScene.bind(this));
+    handlers.set(
+      `${modulePrefix}.validateWritePermissions`,
+      this.handleValidateWritePermissions.bind(this)
+    );
+    handlers.set(`${modulePrefix}.createJournalEntry`, this.handleCreateJournalEntry.bind(this));
+    handlers.set(`${modulePrefix}.listJournals`, this.handleListJournals.bind(this));
+    handlers.set(`${modulePrefix}.getJournalContent`, this.handleGetJournalContent.bind(this));
+    handlers.set(
+      `${modulePrefix}.getJournalPageContent`,
+      this.handleGetJournalPageContent.bind(this)
+    );
+    handlers.set(
+      `${modulePrefix}.updateJournalContent`,
+      this.handleUpdateJournalContent.bind(this)
+    );
 
     // Phase 4: Dice roll queries
-    CONFIG.queries[`${modulePrefix}.request-player-rolls`] =
-      this.handleRequestPlayerRolls.bind(this);
+    handlers.set(`${modulePrefix}.request-player-rolls`, this.handleRequestPlayerRolls.bind(this));
 
     // Enhanced creature index for campaign analysis
-    CONFIG.queries[`${modulePrefix}.getEnhancedCreatureIndex`] =
-      this.handleGetEnhancedCreatureIndex.bind(this);
+    handlers.set(
+      `${modulePrefix}.getEnhancedCreatureIndex`,
+      this.handleGetEnhancedCreatureIndex.bind(this)
+    );
 
     // Campaign management queries
-    CONFIG.queries[`${modulePrefix}.updateCampaignProgress`] =
-      this.handleUpdateCampaignProgress.bind(this);
+    handlers.set(
+      `${modulePrefix}.updateCampaignProgress`,
+      this.handleUpdateCampaignProgress.bind(this)
+    );
 
     // Phase 6: Actor ownership management
-    CONFIG.queries[`${modulePrefix}.setActorOwnership`] = this.handleSetActorOwnership.bind(this);
-    CONFIG.queries[`${modulePrefix}.getActorOwnership`] = this.handleGetActorOwnership.bind(this);
-    CONFIG.queries[`${modulePrefix}.getFriendlyNPCs`] = this.handleGetFriendlyNPCs.bind(this);
-    CONFIG.queries[`${modulePrefix}.getPartyCharacters`] = this.handleGetPartyCharacters.bind(this);
-    CONFIG.queries[`${modulePrefix}.getConnectedPlayers`] =
-      this.handleGetConnectedPlayers.bind(this);
-    CONFIG.queries[`${modulePrefix}.findPlayers`] = this.handleFindPlayers.bind(this);
-    CONFIG.queries[`${modulePrefix}.findActor`] = this.handleFindActor.bind(this);
+    handlers.set(`${modulePrefix}.setActorOwnership`, this.handleSetActorOwnership.bind(this));
+    handlers.set(`${modulePrefix}.getActorOwnership`, this.handleGetActorOwnership.bind(this));
+    handlers.set(`${modulePrefix}.getFriendlyNPCs`, this.handleGetFriendlyNPCs.bind(this));
+    handlers.set(`${modulePrefix}.getPartyCharacters`, this.handleGetPartyCharacters.bind(this));
+    handlers.set(`${modulePrefix}.getConnectedPlayers`, this.handleGetConnectedPlayers.bind(this));
+    handlers.set(`${modulePrefix}.findPlayers`, this.handleFindPlayers.bind(this));
+    handlers.set(`${modulePrefix}.findActor`, this.handleFindActor.bind(this));
 
     // Token manipulation queries
-    CONFIG.queries[`${modulePrefix}.moveToken`] = this.handleMoveToken.bind(this);
-    CONFIG.queries[`${modulePrefix}.updateToken`] = this.handleUpdateToken.bind(this);
-    CONFIG.queries[`${modulePrefix}.deleteTokens`] = this.handleDeleteTokens.bind(this);
-    CONFIG.queries[`${modulePrefix}.getTokenDetails`] = this.handleGetTokenDetails.bind(this);
-    CONFIG.queries[`${modulePrefix}.toggleTokenCondition`] =
-      this.handleToggleTokenCondition.bind(this);
-    CONFIG.queries[`${modulePrefix}.getAvailableConditions`] =
-      this.handleGetAvailableConditions.bind(this);
+    handlers.set(`${modulePrefix}.moveToken`, this.handleMoveToken.bind(this));
+    handlers.set(`${modulePrefix}.updateToken`, this.handleUpdateToken.bind(this));
+    handlers.set(`${modulePrefix}.deleteTokens`, this.handleDeleteTokens.bind(this));
+    handlers.set(`${modulePrefix}.getTokenDetails`, this.handleGetTokenDetails.bind(this));
+    handlers.set(
+      `${modulePrefix}.toggleTokenCondition`,
+      this.handleToggleTokenCondition.bind(this)
+    );
+    handlers.set(
+      `${modulePrefix}.getAvailableConditions`,
+      this.handleGetAvailableConditions.bind(this)
+    );
 
     // Map generation queries (hybrid architecture)
-    CONFIG.queries[`${modulePrefix}.generate-map`] = this.handleGenerateMap.bind(this);
-    CONFIG.queries[`${modulePrefix}.check-map-status`] = this.handleCheckMapStatus.bind(this);
-    CONFIG.queries[`${modulePrefix}.cancel-map-job`] = this.handleCancelMapJob.bind(this);
-    CONFIG.queries[`${modulePrefix}.upload-generated-map`] =
-      this.handleUploadGeneratedMap.bind(this);
+    handlers.set(`${modulePrefix}.generate-map`, this.handleGenerateMap.bind(this));
+    handlers.set(`${modulePrefix}.check-map-status`, this.handleCheckMapStatus.bind(this));
+    handlers.set(`${modulePrefix}.cancel-map-job`, this.handleCancelMapJob.bind(this));
+    handlers.set(`${modulePrefix}.upload-generated-map`, this.handleUploadGeneratedMap.bind(this));
 
     // Item usage queries
-    CONFIG.queries[`${modulePrefix}.useItem`] = this.handleUseItem.bind(this);
+    handlers.set(`${modulePrefix}.useItem`, this.handleUseItem.bind(this));
 
     // Character search queries
-    CONFIG.queries[`${modulePrefix}.searchCharacterItems`] =
-      this.handleSearchCharacterItems.bind(this);
+    handlers.set(
+      `${modulePrefix}.searchCharacterItems`,
+      this.handleSearchCharacterItems.bind(this)
+    );
 
     // Item authoring on actor sheets
-    CONFIG.queries[`${modulePrefix}.addActorItems`] = this.handleAddActorItems.bind(this);
+    handlers.set(`${modulePrefix}.addActorItems`, this.handleAddActorItems.bind(this));
 
     // World-level item CRUD
-    CONFIG.queries[`${modulePrefix}.createWorldItems`] = this.handleCreateWorldItems.bind(this);
-    CONFIG.queries[`${modulePrefix}.listWorldItems`] = this.handleListWorldItems.bind(this);
-    CONFIG.queries[`${modulePrefix}.updateWorldItems`] = this.handleUpdateWorldItems.bind(this);
+    handlers.set(`${modulePrefix}.createWorldItems`, this.handleCreateWorldItems.bind(this));
+    handlers.set(`${modulePrefix}.listWorldItems`, this.handleListWorldItems.bind(this));
+    handlers.set(`${modulePrefix}.updateWorldItems`, this.handleUpdateWorldItems.bind(this));
 
     // Phase 7: Token manipulation queries
-    CONFIG.queries[`${modulePrefix}.move-token`] = this.handleMoveToken.bind(this);
-    CONFIG.queries[`${modulePrefix}.update-token`] = this.handleUpdateToken.bind(this);
-    CONFIG.queries[`${modulePrefix}.delete-tokens`] = this.handleDeleteTokens.bind(this);
-    CONFIG.queries[`${modulePrefix}.get-token-details`] = this.handleGetTokenDetails.bind(this);
-    CONFIG.queries[`${modulePrefix}.toggle-token-condition`] =
-      this.handleToggleTokenCondition.bind(this);
-    CONFIG.queries[`${modulePrefix}.get-available-conditions`] =
-      this.handleGetAvailableConditions.bind(this);
+    handlers.set(`${modulePrefix}.move-token`, this.handleMoveToken.bind(this));
+    handlers.set(`${modulePrefix}.update-token`, this.handleUpdateToken.bind(this));
+    handlers.set(`${modulePrefix}.delete-tokens`, this.handleDeleteTokens.bind(this));
+    handlers.set(`${modulePrefix}.get-token-details`, this.handleGetTokenDetails.bind(this));
+    handlers.set(
+      `${modulePrefix}.toggle-token-condition`,
+      this.handleToggleTokenCondition.bind(this)
+    );
+    handlers.set(
+      `${modulePrefix}.get-available-conditions`,
+      this.handleGetAvailableConditions.bind(this)
+    );
 
     // D&D 5e queries
-    CONFIG.queries[`${modulePrefix}.addSaveFeatureToActor`] =
-      this.handleAddSaveFeatureToActor.bind(this);
-    CONFIG.queries[`${modulePrefix}.createNpcActor`] = this.handleCreateNpcActor.bind(this);
-    CONFIG.queries[`${modulePrefix}.addAttackToActor`] = this.handleAddAttackToActor.bind(this);
-    CONFIG.queries[`${modulePrefix}.addAuraToActor`] = this.handleAddAuraToActor.bind(this);
-    CONFIG.queries[`${modulePrefix}.addPassiveFeatureToActor`] =
-      this.handleAddPassiveFeatureToActor.bind(this);
-    CONFIG.queries[`${modulePrefix}.addAttackWithSaveToActor`] =
-      this.handleAddAttackWithSaveToActor.bind(this);
-    CONFIG.queries[`${modulePrefix}.setActorSpellcasting`] =
-      this.handleSetActorSpellcasting.bind(this);
-    CONFIG.queries[`${modulePrefix}.addSpellsToActor`] = this.handleAddSpellsToActor.bind(this);
-    CONFIG.queries[`${modulePrefix}.addFeaturesFromCompendium`] =
-      this.handleAddFeaturesFromCompendium.bind(this);
+    handlers.set(
+      `${modulePrefix}.addSaveFeatureToActor`,
+      this.handleAddSaveFeatureToActor.bind(this)
+    );
+    handlers.set(`${modulePrefix}.createNpcActor`, this.handleCreateNpcActor.bind(this));
+    handlers.set(`${modulePrefix}.addAttackToActor`, this.handleAddAttackToActor.bind(this));
+    handlers.set(`${modulePrefix}.addAuraToActor`, this.handleAddAuraToActor.bind(this));
+    handlers.set(
+      `${modulePrefix}.addPassiveFeatureToActor`,
+      this.handleAddPassiveFeatureToActor.bind(this)
+    );
+    handlers.set(
+      `${modulePrefix}.addAttackWithSaveToActor`,
+      this.handleAddAttackWithSaveToActor.bind(this)
+    );
+    handlers.set(
+      `${modulePrefix}.setActorSpellcasting`,
+      this.handleSetActorSpellcasting.bind(this)
+    );
+    handlers.set(`${modulePrefix}.addSpellsToActor`, this.handleAddSpellsToActor.bind(this));
+    handlers.set(
+      `${modulePrefix}.addFeaturesFromCompendium`,
+      this.handleAddFeaturesFromCompendium.bind(this)
+    );
 
     // 3A: Chat log / combat play-by-play / in-character chat
-    CONFIG.queries[`${modulePrefix}.getChatLog`] = this.handleGetChatLog.bind(this);
-    CONFIG.queries[`${modulePrefix}.getCombatPlayByPlay`] =
-      this.handleGetCombatPlayByPlay.bind(this);
-    CONFIG.queries[`${modulePrefix}.sendChatMessage`] = this.handleSendChatMessage.bind(this);
+    handlers.set(`${modulePrefix}.getChatLog`, this.handleGetChatLog.bind(this));
+    handlers.set(`${modulePrefix}.getCombatPlayByPlay`, this.handleGetCombatPlayByPlay.bind(this));
+    handlers.set(`${modulePrefix}.sendChatMessage`, this.handleSendChatMessage.bind(this));
 
     // 3C: Resource tracking
-    CONFIG.queries[`${modulePrefix}.getCharacterResources`] =
-      this.handleGetCharacterResources.bind(this);
-    CONFIG.queries[`${modulePrefix}.updateCharacterResource`] =
-      this.handleUpdateCharacterResource.bind(this);
+    handlers.set(
+      `${modulePrefix}.getCharacterResources`,
+      this.handleGetCharacterResources.bind(this)
+    );
+    handlers.set(
+      `${modulePrefix}.updateCharacterResource`,
+      this.handleUpdateCharacterResource.bind(this)
+    );
 
     // 3D: Active effects / conditions
-    CONFIG.queries[`${modulePrefix}.getActiveEffects`] = this.handleGetActiveEffects.bind(this);
-    CONFIG.queries[`${modulePrefix}.clearStaleConditions`] =
-      this.handleClearStaleConditions.bind(this);
+    handlers.set(`${modulePrefix}.getActiveEffects`, this.handleGetActiveEffects.bind(this));
+    handlers.set(
+      `${modulePrefix}.clearStaleConditions`,
+      this.handleClearStaleConditions.bind(this)
+    );
 
     // 3E: Combat tracker
-    CONFIG.queries[`${modulePrefix}.getCombatState`] = this.handleGetCombatState.bind(this);
-    CONFIG.queries[`${modulePrefix}.advanceCombatTurn`] = this.handleAdvanceCombatTurn.bind(this);
-    CONFIG.queries[`${modulePrefix}.setInitiative`] = this.handleSetInitiative.bind(this);
+    handlers.set(`${modulePrefix}.getCombatState`, this.handleGetCombatState.bind(this));
+    handlers.set(`${modulePrefix}.advanceCombatTurn`, this.handleAdvanceCombatTurn.bind(this));
+    handlers.set(`${modulePrefix}.setInitiative`, this.handleSetInitiative.bind(this));
 
     // 3F: Movement and positioning
-    CONFIG.queries[`${modulePrefix}.getTokenPositions`] = this.handleGetTokenPositions.bind(this);
-    CONFIG.queries[`${modulePrefix}.measureDistance`] = this.handleMeasureDistance.bind(this);
+    handlers.set(`${modulePrefix}.getTokenPositions`, this.handleGetTokenPositions.bind(this));
+    handlers.set(`${modulePrefix}.measureDistance`, this.handleMeasureDistance.bind(this));
 
     // 3G: Extended roll requests / NPC rolls
-    CONFIG.queries[`${modulePrefix}.requestAbilityCheck`] =
-      this.handleRequestAbilityCheck.bind(this);
-    CONFIG.queries[`${modulePrefix}.requestAttackRoll`] = this.handleRequestAttackRoll.bind(this);
-    CONFIG.queries[`${modulePrefix}.rollNpcCheck`] = this.handleRollNpcCheck.bind(this);
+    handlers.set(`${modulePrefix}.requestAbilityCheck`, this.handleRequestAbilityCheck.bind(this));
+    handlers.set(`${modulePrefix}.requestAttackRoll`, this.handleRequestAttackRoll.bind(this));
+    handlers.set(`${modulePrefix}.rollNpcCheck`, this.handleRollNpcCheck.bind(this));
 
     // 3H: Session event log
-    CONFIG.queries[`${modulePrefix}.getSessionLog`] = this.handleGetSessionLog.bind(this);
-    CONFIG.queries[`${modulePrefix}.getRecentEvents`] = this.handleGetRecentEvents.bind(this);
+    handlers.set(`${modulePrefix}.getSessionLog`, this.handleGetSessionLog.bind(this));
+    handlers.set(`${modulePrefix}.getRecentEvents`, this.handleGetRecentEvents.bind(this));
 
     // Combat resolution
-    CONFIG.queries[`${modulePrefix}.rollInitiativeForNpcs`] =
-      this.handleRollInitiativeForNpcs.bind(this);
-    CONFIG.queries[`${modulePrefix}.applyDamageAndHealing`] =
-      this.handleApplyDamageAndHealing.bind(this);
-    CONFIG.queries[`${modulePrefix}.rollSavingThrows`] = this.handleRollSavingThrows.bind(this);
-    CONFIG.queries[`${modulePrefix}.useNpcActivity`] = this.handleUseNpcActivity.bind(this);
-    CONFIG.queries[`${modulePrefix}.manageRest`] = this.handleManageRest.bind(this);
+    handlers.set(
+      `${modulePrefix}.rollInitiativeForNpcs`,
+      this.handleRollInitiativeForNpcs.bind(this)
+    );
+    handlers.set(
+      `${modulePrefix}.applyDamageAndHealing`,
+      this.handleApplyDamageAndHealing.bind(this)
+    );
+    handlers.set(`${modulePrefix}.rollSavingThrows`, this.handleRollSavingThrows.bind(this));
+    handlers.set(`${modulePrefix}.useNpcActivity`, this.handleUseNpcActivity.bind(this));
+    handlers.set(`${modulePrefix}.manageRest`, this.handleManageRest.bind(this));
 
     // Encounter & scene tools
-    CONFIG.queries[`${modulePrefix}.suggestBalancedEncounter`] =
-      this.handleSuggestBalancedEncounter.bind(this);
-    CONFIG.queries[`${modulePrefix}.placeMeasuredTemplate`] =
-      this.handlePlaceMeasuredTemplate.bind(this);
-    CONFIG.queries[`${modulePrefix}.setSceneMood`] = this.handleSetSceneMood.bind(this);
-    CONFIG.queries[`${modulePrefix}.addMapNote`] = this.handleAddMapNote.bind(this);
-    CONFIG.queries[`${modulePrefix}.setTokenVisionLight`] =
-      this.handleSetTokenVisionLight.bind(this);
-    CONFIG.queries[`${modulePrefix}.dropLoot`] = this.handleDropLoot.bind(this);
+    handlers.set(
+      `${modulePrefix}.suggestBalancedEncounter`,
+      this.handleSuggestBalancedEncounter.bind(this)
+    );
+    handlers.set(
+      `${modulePrefix}.placeMeasuredTemplate`,
+      this.handlePlaceMeasuredTemplate.bind(this)
+    );
+    handlers.set(`${modulePrefix}.setSceneMood`, this.handleSetSceneMood.bind(this));
+    handlers.set(`${modulePrefix}.addMapNote`, this.handleAddMapNote.bind(this));
+    handlers.set(`${modulePrefix}.setTokenVisionLight`, this.handleSetTokenVisionLight.bind(this));
+    handlers.set(`${modulePrefix}.dropLoot`, this.handleDropLoot.bind(this));
 
     // Cleanup & targeting
-    CONFIG.queries[`${modulePrefix}.deleteMeasuredTemplate`] =
-      this.handleDeleteMeasuredTemplate.bind(this);
-    CONFIG.queries[`${modulePrefix}.deleteMapNote`] = this.handleDeleteMapNote.bind(this);
-    CONFIG.queries[`${modulePrefix}.getTargets`] = this.handleGetTargets.bind(this);
+    handlers.set(
+      `${modulePrefix}.deleteMeasuredTemplate`,
+      this.handleDeleteMeasuredTemplate.bind(this)
+    );
+    handlers.set(`${modulePrefix}.deleteMapNote`, this.handleDeleteMapNote.bind(this));
+    handlers.set(`${modulePrefix}.getTargets`, this.handleGetTargets.bind(this));
 
     // Diagnostics (module troubleshooting)
-    CONFIG.queries[`${modulePrefix}.getModules`] = this.handleGetModules.bind(this);
-    CONFIG.queries[`${modulePrefix}.getModuleErrors`] = this.handleGetModuleErrors.bind(this);
-    CONFIG.queries[`${modulePrefix}.clearModuleErrors`] = this.handleClearModuleErrors.bind(this);
-    CONFIG.queries[`${modulePrefix}.getModuleManifest`] = this.handleGetModuleManifest.bind(this);
+    handlers.set(`${modulePrefix}.getModules`, this.handleGetModules.bind(this));
+    handlers.set(`${modulePrefix}.getModuleErrors`, this.handleGetModuleErrors.bind(this));
+    handlers.set(`${modulePrefix}.clearModuleErrors`, this.handleClearModuleErrors.bind(this));
+    handlers.set(`${modulePrefix}.getModuleManifest`, this.handleGetModuleManifest.bind(this));
   }
 
   /**
    * Unregister all query handlers
    */
   unregisterHandlers(): void {
-    const modulePrefix = MODULE_ID;
-    const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
-
-    for (const key of keysToRemove) {
-      delete CONFIG.queries[key];
-    }
+    bridgeHandlers.deleteByPrefix(`${MODULE_ID}.`);
   }
 
   /**
@@ -267,8 +322,8 @@ export class QueryHandlers {
    */
   async handleQuery(queryName: string, data: any): Promise<any> {
     try {
-      const handler = CONFIG.queries[queryName];
-      if (!handler || typeof handler !== 'function') {
+      const handler = bridgeHandlers.get(queryName);
+      if (!handler) {
         throw new Error(`Query handler not found: ${queryName}`);
       }
 
@@ -410,18 +465,18 @@ export class QueryHandlers {
    * Get list of all registered query methods
    */
   getRegisteredMethods(): string[] {
-    const modulePrefix = MODULE_ID;
-    return Object.keys(CONFIG.queries)
-      .filter(key => key.startsWith(modulePrefix))
-      .map(key => key.replace(`${modulePrefix}.`, ''));
+    const prefix = `${MODULE_ID}.`;
+    return bridgeHandlers
+      .methods()
+      .filter(key => key.startsWith(prefix))
+      .map(key => key.slice(prefix.length));
   }
 
   /**
    * Test if a specific query handler is registered
    */
   isMethodRegistered(method: string): boolean {
-    const queryKey = `${MODULE_ID}.${method}`;
-    return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
+    return bridgeHandlers.has(`${MODULE_ID}.${method}`);
   }
 
   // ===== PHASE 2: WRITE OPERATION HANDLERS =====

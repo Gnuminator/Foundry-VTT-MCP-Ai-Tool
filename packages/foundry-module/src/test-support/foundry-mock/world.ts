@@ -177,6 +177,11 @@ export class TestWorld {
     const game: Record<string, any> = {
       ready: true,
       version: this.options.foundryVersion,
+      // `game.release` (v10+): generation + build, derived from the version string.
+      release: {
+        generation: Number.parseInt(this.options.foundryVersion.split('.')[0] ?? '0', 10),
+        build: Number.parseInt(this.options.foundryVersion.split('.')[1] ?? '0', 10),
+      },
       system: { id: this.options.systemId, version: this.options.systemVersion },
       // `game.world` carries flag accessors — the write-path `auditLog` stores its
       // audit trail in world flags, so exercising it keeps the write paths honest.
@@ -300,6 +305,7 @@ export function installFoundryGlobals(world: TestWorld): () => void {
       SELF: 'selfroll',
     },
     DOCUMENT_OWNERSHIP_LEVELS: { NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER: 3 },
+    USER_ROLES: { NONE: 0, PLAYER: 1, TRUSTED: 2, ASSISTANT: 3, GAMEMASTER: 4 },
   };
   g.CONFIG = { DND5E: {}, statusEffects: [], Actor: {}, Item: {} };
   g.foundry = {

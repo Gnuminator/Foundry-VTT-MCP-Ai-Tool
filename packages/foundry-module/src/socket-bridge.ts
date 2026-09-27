@@ -1,5 +1,6 @@
 import { MODULE_ID, CONNECTION_STATES } from './constants.js';
 import { WebRTCConnection, type WebRTCConfig } from './webrtc-connection.js';
+import { bridgeHandlers } from './bridge-handlers.js';
 
 export interface BridgeConfig {
   enabled: boolean;
@@ -261,11 +262,12 @@ export class SocketBridge {
     try {
       this.log(`Handling MCP query: ${data.method}`);
 
-      // Check if the query handler exists in CONFIG.queries
+      // Dispatch from the module-private handler table, never from CONFIG.queries
+      // (which any player can reach through Foundry's query relay).
       const queryKey = data.method; // Method already includes full path like 'foundry-mcp-bridge.listActors'
-      const handler = CONFIG.queries[queryKey];
+      const handler = typeof queryKey === 'string' ? bridgeHandlers.get(queryKey) : undefined;
 
-      if (!handler || typeof handler !== 'function') {
+      if (!handler) {
         throw new Error(`No handler found for query: ${data.method}`);
       }
 

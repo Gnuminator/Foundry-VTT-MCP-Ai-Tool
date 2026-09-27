@@ -357,6 +357,25 @@ describe('FoundryDataAccess — listCreaturesByCriteria (enhanced OFF → fallba
 });
 
 // ---------------------------------------------------------------------------
+// searchCompendium — enhanced fast path (index ON)
+// ---------------------------------------------------------------------------
+
+describe('FoundryDataAccess — searchCompendium — enhanced fast path', () => {
+  it('passes challengeRating 0 to the enhanced index instead of dropping it', async () => {
+    world.setSetting('foundry-mcp-bridge', 'enableEnhancedCreatureIndex', true);
+    const compendium = (da as any).compendium;
+    const spy = vi
+      .spyOn(compendium, 'listCreaturesByCriteria')
+      .mockResolvedValue({ creatures: [{ id: 'rat', name: 'Rat', pack: 'p', packLabel: 'P' }] });
+
+    const result = await da.searchCompendium('rat', 'Actor', { challengeRating: 0 });
+
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ challengeRating: 0 }));
+    expect(result.map(r => r.name)).toEqual(['Rat']);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // getCompendiumDocumentFull
 // ---------------------------------------------------------------------------
 

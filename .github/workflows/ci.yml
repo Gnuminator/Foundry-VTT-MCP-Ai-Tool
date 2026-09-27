@@ -21,13 +21,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck and lint (green-gate)
+      - name: Typecheck and lint (green-gate + warning ratchet)
         # Documented green-gate: a type/lint error that doesn't break the build
-        # must still fail CI. Runs before build to fail fast. `--quiet` on lint
-        # suppresses the accepted Foundry-`any` warning baseline (the harness
-        # duck-types every Foundry document as `any`, ~11.8k warnings) so CI logs
-        # stay readable — the gate still FAILS on any eslint *error* (exit 1).
-        run: npm run typecheck && npm run lint -- --quiet
+        # must still fail CI. Runs before build to fail fast. The lint ratchet
+        # fails on any eslint error AND on any rule whose warning count rises
+        # above scripts/lint-baseline.json (the count may only go down; lower it
+        # with `npm run lint:ratchet -- --update`).
+        run: npm run typecheck && npm run lint:ratchet
 
       - name: Build (all workspaces)
         run: npm run build

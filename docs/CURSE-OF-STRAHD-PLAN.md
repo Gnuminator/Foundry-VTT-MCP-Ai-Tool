@@ -640,6 +640,9 @@ and pushed, and is summarized before the next starts.
     `tarokka` by gmredvelvet-rgb (sends the reading and DM text to every client; read-only support at most),
     or `sdnd-tarokka` (v13 only; legacy read-only)? Which one is installed in your world?
 
+**Answers (GM, 2026-09-27):** all recommended defaults (questions 1 to 12). Question 13: no Tarokka module
+is installed, so M1 leads with the built-in roll and supports `tarokka-reading` as an optional provider.
+
 ## 10. Later (recorded, not planned yet)
 
 - **Obsidian integration**: use Obsidian as the GM's note app over the same data, with GM/player separation

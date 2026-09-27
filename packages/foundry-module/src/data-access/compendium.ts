@@ -509,14 +509,16 @@ export class CompendiumDataAccess {
       | undefined
   ): Promise<CompendiumSearchResult[] | null> {
     if (!filters || packType !== 'Actor') return null;
-    if (!(filters.challengeRating || filters.creatureType || filters.hasLegendaryActions)) {
+    // `challengeRating` 0 is a real CR, so test it for presence, not truthiness.
+    const hasCr = filters.challengeRating !== undefined && filters.challengeRating !== null;
+    if (!(hasCr || filters.creatureType || filters.hasLegendaryActions)) {
       return null;
     }
     if (!game.settings.get(MODULE_ID, 'enableEnhancedCreatureIndex')) return null;
 
     try {
       const criteria: any = { limit: 100 };
-      if (filters.challengeRating) criteria.challengeRating = filters.challengeRating;
+      if (hasCr) criteria.challengeRating = filters.challengeRating;
       if (filters.creatureType) criteria.creatureType = filters.creatureType;
       if (filters.size) criteria.size = filters.size;
       if (filters.hasLegendaryActions) criteria.hasLegendaryActions = filters.hasLegendaryActions;

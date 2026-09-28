@@ -181,6 +181,14 @@ function unwrap<T extends { success?: boolean; error?: string }>(
   return r;
 }
 
+function isCompleteReading(value: unknown): value is StoredReading {
+  if (!value || typeof value !== 'object') return false;
+  const reading = value as Partial<StoredReading>;
+  if (typeof reading.readingId !== 'string' || !reading.positions) return false;
+  const positions = reading.positions as Partial<Record<TarokkaPosition, StoredPosition>>;
+  return TAROKKA_POSITIONS.every(position => typeof positions[position]?.cardId === 'string');
+}
+
 function assertUuid(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.length > 300 || !UUID.test(value)) {
     throw new Error(`${field} must be a Foundry document uuid`);
@@ -458,10 +466,11 @@ export class TarokkaService {
     let targetPageUuid: string;
     if (pageUuid && pageExists) {
       targetPageUuid = pageUuid;
+      // Re-reveal: the page keeps its name unless the GM gives a new title.
       ops.push({
         kind: 'update',
         uuid: pageUuid,
-        changes: { name: title, 'text.content': content },
+        changes: { ...(customTitle ? { name: title } : {}), 'text.content': content },
       });
     } else {
       const pageId = newDocumentId();
@@ -533,9 +542,13 @@ export class TarokkaService {
       });
     }
 
+    const label = POSITION_LABELS[position].toLowerCase();
     const plan = await this.guardedWrites.createPlan({
       feature: TAROKKA_FEATURE,
-      summary: `Reveal Tarokka ${POSITION_LABELS[position].toLowerCase()} to players (page "${title}")`,
+      summary:
+        pageUuid && pageExists
+          ? `Update the revealed Tarokka ${label} page${customTitle ? ` (now "${title}")` : ''}`
+          : `Reveal Tarokka ${label} to players (page "${title}")`,
       ops,
       ...(vaultOps.length > 0 ? { vaultOps } : {}),
       risk: 'destructive',
@@ -546,11 +559,15 @@ export class TarokkaService {
   // -------------------------------------------------------------------------
 
   private async load(worldId: string): Promise<{ file: TarokkaFile; config: TarokkaConfig }> {
-    const [file, config] = await Promise.all([
+    const [stored, config] = await Promise.all([
       this.store.read<TarokkaFile>(worldId, 'gm', TAROKKA_FILE),
       this.store.read<TarokkaConfig>(worldId, 'gm', TAROKKA_CONFIG_FILE),
     ]);
-    return { file: file?.data ?? {}, config: config?.data ?? {} };
+    const file = { ...(stored?.data ?? {}) };
+    // Undoing the first import unsets each field and leaves `{positions: {}}`:
+    // anything short of a whole reading counts as no reading.
+    if (!isCompleteReading(file.current)) delete file.current;
+    return { file, config: config?.data ?? {} };
   }
 
   private nameFor(cardId: string, config: TarokkaConfig, providerName?: unknown): string {

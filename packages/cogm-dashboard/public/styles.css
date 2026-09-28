@@ -1398,6 +1398,11 @@ body {
   min-height: 0;
   flex: 1;
 }
+/* The search box shares .ask-input (flex: 1 for the ask row); in this column it
+   must keep its own height, or it grows to half the drawer. */
+.tool-browser > .ask-input {
+  flex: none;
+}
 .tool-list {
   display: flex;
   flex-direction: column;
@@ -1440,6 +1445,11 @@ body {
 .tool-item-main {
   min-width: 0;
   flex: 1;
+}
+.tool-item-name,
+.tool-item-desc {
+  /* Spans: block, so the ellipsis applies and text stops before the badge. */
+  display: block;
 }
 .tool-item-name {
   font-family: var(--font-mono);
@@ -1580,6 +1590,125 @@ body {
 }
 .field-hint {
   font-size: var(--fs-2xs);
+  color: var(--text-faint);
+}
+/* Pickers for parameters that name something (x-foundry-ref). */
+.ref-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.ref-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+.ref-row > .field-control {
+  flex: 1;
+  min-width: 0;
+}
+.ref-open {
+  flex: none;
+  margin-top: 0.15rem;
+}
+.ref-hint {
+  font-size: var(--fs-2xs);
+  color: var(--accent-bright);
+  overflow-wrap: anywhere;
+}
+.ref-hint:empty,
+.ref-note:empty {
+  display: none;
+}
+.ref-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+}
+.ref-menu[hidden] {
+  display: none;
+}
+.ref-note {
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+}
+.ref-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 16rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.ref-group {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  padding: 0.35rem 0.3rem 0.1rem;
+}
+.ref-item {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  padding: 0.3rem 0.35rem;
+  color: var(--text);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.ref-item:hover,
+.ref-item:focus-visible {
+  background: var(--bg-elev-2);
+  border-color: var(--border-strong);
+  outline: none;
+}
+.ref-item[aria-selected='true'] {
+  border-color: var(--accent);
+}
+.ref-check {
+  color: var(--accent-bright);
+}
+.ref-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ref-detail {
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+  text-align: right;
+}
+.ref-flag,
+.ref-warn {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 0.3rem;
+  border-radius: var(--r-pill);
+  margin-left: 0.25rem;
+}
+.ref-flag {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+.ref-warn {
+  color: var(--bad);
+  background: var(--bad-soft);
+}
+.ref-empty {
+  margin: 0.3rem;
+  font-size: var(--fs-xs);
   color: var(--text-faint);
 }
 .form-actions {

@@ -214,6 +214,27 @@ describe('reading and import', () => {
     expect(await tarokka.getReading()).toEqual(before);
   });
 
+  // Found in the live test: undoing the first import unsets the leaves and
+  // leaves `current: {positions: {}}` behind, which crashed the read.
+  it('treats what an undone first import leaves behind as no reading', async () => {
+    const changeId = await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+    await guarded.undo(changeId, { confirm: true });
+    expect((await vaultData(TAROKKA_FILE)).current).toEqual({ positions: {} });
+    expect(await tarokka.getReading()).toMatchObject({ available: false, archivedReadings: 0 });
+    await expect(tarokka.planReveal({ position: 'tome', text: 'x' })).rejects.toThrow(
+      /No current reading/
+    );
+
+    now += 1000;
+    const next = await tarokka.planImport({ source: 'builtin-roll' });
+    expect(next.summary).not.toMatch(/archiving/);
+    expect(next.diff.some(d => d.path?.startsWith('archive.'))).toBe(false);
+    await apply(next.planId);
+    const view = await tarokka.getReading();
+    expect(view).toMatchObject({ available: true, archivedReadings: 0 });
+    expect(view.reading!.positions).toHaveLength(5);
+  });
+
   it('needs the tarokka feature switch to apply', async () => {
     const plan = await tarokka.planImport({ source: 'builtin-roll' });
     foundry.features[0].enabled = false;
@@ -345,11 +366,22 @@ describe('reveal', () => {
     await apply(second.planId, true);
     expect(foundry.docs.get(second.pageUuid)?.source.name).toBe('Card 3');
 
+    // Found in the live test: a re-reveal without a title renamed the page
+    // back to "Card 1". Without a title the page keeps its name.
+    await apply(
+      (await tarokka.planReveal({ position: 'tome', text: 'One.', title: 'The tome' })).planId,
+      true
+    );
     const edit = await tarokka.planReveal({ position: 'tome', text: 'One, revised.' });
     expect(edit.pageUuid).toBe(first.pageUuid);
     expect(edit.target).toBe('foundry');
+    expect(edit.diff.map(d => d.path)).toEqual(['text.content']);
+    expect(edit.summary).toBe('Update the revealed Tarokka tome page');
     await apply(edit.planId, true);
-    expect(foundry.docs.get(first.pageUuid)?.source.text.content).toBe('<p>One, revised.</p>');
+    expect(foundry.docs.get(first.pageUuid)?.source).toMatchObject({
+      name: 'The tome',
+      text: { content: '<p>One, revised.</p>' },
+    });
   });
 
   it('recreates the journal if the GM deleted it, and undo removes a reveal', async () => {

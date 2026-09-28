@@ -516,8 +516,7 @@ export async function applyGuardedOps(request: unknown): Promise<GuardedApplyRes
   }
 
   const appliedAt = new Date().toISOString();
-  const verb = req.mode === 'undo' ? 'Undid' : 'Applied';
-  eventTracker.logSessionEvent('gm-change', `${verb}: ${String(req.summary ?? '')}`.trim(), {
+  eventTracker.logSessionEvent('gm-change', gmChangeText(req.mode, req.summary), {
     details: {
       changeId: req.changeId,
       feature: req.feature,
@@ -527,6 +526,16 @@ export async function applyGuardedOps(request: unknown): Promise<GuardedApplyRes
     },
   });
   return { changeId: req.changeId, mode: req.mode, appliedAt, results: done.map(d => d.result) };
+}
+
+/**
+ * Feed text for a change. The backend names an undo "Undo: <summary>", so an
+ * undo reads "Undid: <summary>", not "Undid: Undo: <summary>".
+ */
+function gmChangeText(mode: unknown, summary: unknown): string {
+  const text = typeof summary === 'string' ? summary : '';
+  if (mode === 'undo') return `Undid: ${text.replace(/^Undo:\s*/, '')}`.trim();
+  return `Applied: ${text}`.trim();
 }
 
 /**
@@ -543,11 +552,8 @@ export function logGmChange(data: unknown): { logged: true } {
   if (typeof d.changeId !== 'string' || typeof d.feature !== 'string') {
     throw new Error('logGmChange needs changeId and feature');
   }
-  const verb = d.mode === 'undo' ? 'Undid' : 'Applied';
-  eventTracker.logSessionEvent(
-    'gm-change',
-    `${verb}: ${typeof d.summary === 'string' ? d.summary : ''}`.trim(),
-    { details: { changeId: d.changeId, feature: d.feature, mode: d.mode ?? 'apply', vault: true } }
-  );
+  eventTracker.logSessionEvent('gm-change', gmChangeText(d.mode, d.summary), {
+    details: { changeId: d.changeId, feature: d.feature, mode: d.mode ?? 'apply', vault: true },
+  });
   return { logged: true };
 }

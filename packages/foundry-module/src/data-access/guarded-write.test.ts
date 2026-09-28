@@ -766,6 +766,14 @@ describe('logGmChange', () => {
     });
     logGmChange({ changeId: 'vault-2', feature: 'tarokka', mode: 'undo' });
     expect(gmChangeEvents('vault-2')[0].description).toBe('Undid:');
+    // The backend names undos "Undo: <summary>"; the feed says it once.
+    logGmChange({
+      changeId: 'vault-3',
+      feature: 'tarokka',
+      mode: 'undo',
+      summary: 'Undo: Update Tarokka links (Ally)',
+    });
+    expect(gmChangeEvents('vault-3')[0].description).toBe('Undid: Update Tarokka links (Ally)');
   });
 
   it('needs changeId and feature', () => {

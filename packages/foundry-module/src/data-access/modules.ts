@@ -264,7 +264,8 @@ export class ModulesDataAccess {
 
     // Core is NEWER than the declared maximum → likely incompatible. A bare
     // generation ("14") means every 14.x build, as Foundry itself reads it.
-    const max = comp.maximum !== undefined && comp.maximum !== null ? String(comp.maximum) : '';
+    const rawMax: unknown = comp.maximum;
+    const max = rawMax === undefined || rawMax === null ? '' : String(rawMax);
     const exceedsMax = /^\d+$/.test(max)
       ? Number.parseInt(String(coreVer).split('.')[0] ?? '', 10) > Number(max)
       : max !== '' && isNewer(coreVer, max);

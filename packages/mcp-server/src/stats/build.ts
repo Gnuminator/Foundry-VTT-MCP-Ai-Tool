@@ -132,6 +132,14 @@ function attributedActor(
   return chosen?.actor ?? null;
 }
 
+/** The combatant names a `combat-start`/`combat-end` record lists (`data.roster`); older records have none. */
+function rosterOf(record: PlayRecord): string[] {
+  const roster = record.data?.roster;
+  return Array.isArray(roster)
+    ? roster.filter((n): n is string => typeof n === 'string' && !!n)
+    : [];
+}
+
 /** userId -> name: a record's `userName`, or a `user-join`/`user-leave` record's
  * `data.name`; the newest name wins (records are in time order). */
 function buildUserNames(playRecords: PlayRecord[]): Map<string, string> {
@@ -310,6 +318,7 @@ function buildSession(
         c.startedAtMs ??= record.t;
         c.sceneName ??= sceneName(record.sceneId, ctx.sceneIndex);
         if (record.combat) c.maxRound = Math.max(c.maxRound, record.combat.round);
+        for (const name of rosterOf(record)) c.participants.add(name);
         break;
       }
       case 'combat-turn': {
@@ -327,6 +336,7 @@ function buildSession(
         const c = combatFor(combat.id);
         c.endedAtMs = record.t;
         c.maxRound = Math.max(c.maxRound, combat.round);
+        for (const name of rosterOf(record)) c.participants.add(name);
         break;
       }
       case 'roll': {
@@ -449,6 +459,7 @@ function buildSession(
       case 'hp': {
         const actor = record.actor;
         if (!actor) break;
+        if (record.combat) combatFor(record.combat.id).participants.add(actor.name);
         const delta = numDelta(record);
         const before = typeof record.before === 'number' ? record.before : null;
         const after = typeof record.after === 'number' ? record.after : null;

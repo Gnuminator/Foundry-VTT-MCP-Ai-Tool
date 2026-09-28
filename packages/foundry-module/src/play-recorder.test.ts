@@ -454,6 +454,37 @@ describe('combat, scene, world time and users', () => {
     expect(records[2].combat).toEqual({ id: 'combat1', round: 1, turn: 1 });
   });
 
+  it('combat-start and combat-end carry the roster, named like the turn records', () => {
+    const now = Date.now();
+    const hero = makeFixtureActor({ id: 'hero', name: 'Test Hero', t: now });
+    const wolf = makeFixtureActor({
+      id: 'w1',
+      uuid: 'Scene.s1.Token.t1.Actor.w1',
+      name: 'Wolf 1',
+      type: 'npc',
+      isToken: true,
+      t: now,
+    });
+    const combatants: any[] = [
+      { name: 'Test Hero', actor: hero },
+      { name: 'Wolf 1', actor: wolf },
+      { name: 'Lurker' }, // no actor: the combatant's own name
+    ];
+    const combat: any = {
+      id: 'combat2',
+      round: 1,
+      turn: 0,
+      combatants: { size: 3, contents: combatants },
+      _stats: { modifiedTime: now },
+    };
+    Hooks.callAll('combatStart', combat);
+    combatants.push({ name: 'Wolf 2', actor: { ...wolf, uuid: 'Actor.w2', name: 'Wolf 2' } });
+    Hooks.callAll('deleteCombat', combat);
+    const [start, end] = recorder.getPlayRecords({}).records;
+    expect(start.data?.roster).toEqual(['Lurker', 'Test Hero', 'Wolf 1']);
+    expect(end.data).toEqual({ rounds: 1, roster: ['Lurker', 'Test Hero', 'Wolf 1', 'Wolf 2'] });
+  });
+
   it('records a scene change once per new viewed scene (canvasReady)', () => {
     (globalThis as any).canvas = { scene: { id: 'sceneA' } };
     Hooks.callAll('canvasReady');

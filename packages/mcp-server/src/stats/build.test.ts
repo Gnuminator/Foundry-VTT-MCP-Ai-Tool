@@ -180,6 +180,33 @@ describe('buildStats', () => {
     expect(stats.sessions[0]?.combatRounds).toBe(3);
   });
 
+  it('lists every combatant: both rosters, turns taken, and anyone hurt in the combat', () => {
+    const lifecycle = (
+      kind: 'combat-start' | 'combat-end',
+      t: number,
+      roster: unknown
+    ): PlayRecord => ({
+      v: 2,
+      key: `${kind}:c2`,
+      t,
+      seq: 1,
+      kind,
+      userId: null,
+      sceneId: 's1',
+      combat: { id: 'c2', round: 1, turn: 0 },
+      data: { roster },
+    });
+    const bystander: PlayActorRef = { uuid: 'Actor.b', isPC: false, name: 'Bystander' };
+    const records: PlayRecord[] = [
+      lifecycle('combat-start', T0, ['Ireena', 'Wolf 1', 'Wolf 2']),
+      // Only Wolf 1 ever took a turn; a reinforcement joined; the bystander got hit.
+      { ...hp('hp:b', T0 + 10, bystander, 5, 2), combat: { id: 'c2', round: 1, turn: 0 } },
+      lifecycle('combat-end', T0 + 20, ['Ireena', 'Wolf 1', 'Wolf 2', 'Wolf 3', 7]),
+    ];
+    const combat = build(records).sessions[0]?.combats[0];
+    expect(combat?.participants).toEqual(['Bystander', 'Ireena', 'Wolf 1', 'Wolf 2', 'Wolf 3']);
+  });
+
   it('tallies spell slots, resources (new and legacy), hit dice, loot, currency and xp for a PC', () => {
     const records: PlayRecord[] = [
       {

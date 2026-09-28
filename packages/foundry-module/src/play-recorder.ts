@@ -318,6 +318,13 @@ function actorItems(actor: ActorLike): ItemLike[] {
   return Array.isArray(contents) ? (contents as unknown as ItemLike[]) : [];
 }
 
+/** A combat's combatants as a plain array. */
+function combatantsOf(combat: CombatLike): CombatantLike[] {
+  const combatants = combat.combatants;
+  const list = Array.isArray(combatants) ? combatants : asRecord(combatants)?.contents;
+  return Array.isArray(list) ? (list as unknown as CombatantLike[]) : [];
+}
+
 /** A scene's tokens as a plain array. */
 function tokensOf(scene: { tokens?: unknown } | null | undefined): TokenDocLike[] {
   const contents = asRecord(scene)?.tokens;
@@ -1594,9 +1601,27 @@ export class PlayRecorder {
         key: this.lifecycleKey('combat-start', combatId, fresh, t),
         t,
         combat: { id: combatId, round, turn },
-        data: { combatantCount: num(asRecord(combat.combatants)?.size) ?? 0 },
+        data: {
+          combatantCount: num(asRecord(combat.combatants)?.size) ?? 0,
+          roster: this.rosterOf(combat),
+        },
       })
     );
+  }
+
+  /**
+   * A combat's combatants by name (named like `combat-turn` records name their
+   * actor, falling back to the combatant's own name), so the stats list every
+   * participant, not only those whose turn came up.
+   */
+  private rosterOf(combat: CombatLike): string[] {
+    const names = new Set<string>();
+    for (const combatant of combatantsOf(combat)) {
+      const actor = shape<ActorLike>(combatant.actor);
+      const name = (actor ? this.actorRefFor(actor)?.name : undefined) ?? str(combatant.name);
+      if (name) names.add(name);
+    }
+    return [...names].sort();
   }
 
   private onUpdateCombat(
@@ -1646,7 +1671,8 @@ export class PlayRecorder {
         t,
         // The ended combat's own round/turn, so the stats builder can close it out.
         combat: { id: combatId, round, turn },
-        data: { rounds: round },
+        // The roster again: it catches combatants added after the start.
+        data: { rounds: round, roster: this.rosterOf(combat) },
       })
     );
   }

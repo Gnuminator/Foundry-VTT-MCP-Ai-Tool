@@ -1519,26 +1519,24 @@ export class ActorBuilderDataAccess {
       const attackAct =
         activities?.getByType?.('attack')?.[0] ||
         (activities?.contents ?? []).find((a: any) => a.type === 'attack');
+      // Public unless asked otherwise; dnd5e's message config names the visibility `rollMode`.
+      const message = { create: true, rollMode: shared.rollModeFor(data.isPublic !== false) };
       if (attackAct) {
         usedActivity = true;
-        const atkOut = await attackAct.rollAttack({}, { configure: false }, { create: true });
+        const atkOut = await attackAct.rollAttack({}, { configure: false }, message);
         const atk = Array.isArray(atkOut) ? atkOut[0] : atkOut;
         attackTotal = atk?.total ?? null;
         isCritical = atk?.isCritical ?? false;
         formula = atk?.formula ?? null;
         // dnd5e auto-fills the attack's target from a targeted token's AC.
         attackSucceeded = typeof atk?.isSuccess === 'boolean' ? atk.isSuccess : null;
-        const dmgOut = await attackAct.rollDamage(
-          { isCritical },
-          { configure: false },
-          { create: true }
-        );
+        const dmgOut = await attackAct.rollDamage({ isCritical }, { configure: false }, message);
         damageTotal = Array.isArray(dmgOut)
           ? dmgOut.reduce((s: number, r: any) => s + (r.total || 0), 0)
           : (dmgOut?.total ?? null);
       } else {
         // No attack activity — just use the item (posts its card).
-        await item.use({}, { configure: false }, { create: true });
+        await item.use({}, { configure: false }, message);
       }
     } else {
       // dnd5e v3 — Item-level rolls

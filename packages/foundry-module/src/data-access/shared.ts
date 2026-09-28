@@ -332,10 +332,30 @@ export function requireDnd5e(toolName: string): void {
   }
 }
 
-/** Map a public/private flag to a Foundry dice roll-mode string. */
+/** Whether this Foundry names chat visibility by message mode (v14 `CONFIG.ChatMessage.modes`). */
+export function usesMessageModes(): boolean {
+  const config = (globalThis as { CONFIG?: { ChatMessage?: { modes?: unknown } } }).CONFIG;
+  const modes = config?.ChatMessage?.modes;
+  return !!modes && typeof modes === 'object' && 'public' in modes && 'gm' in modes;
+}
+
+/**
+ * A public or GM-only roll's chat visibility, in the running Foundry's own terms: v14 message
+ * modes (`public`/`gm`), v13 roll modes (`publicroll`/`gmroll`). Pass it as dnd5e's message-config
+ * `rollMode`: dnd5e 6 hands that to v14's `ChatMessage.create` as `messageMode` unmapped, where a
+ * legacy value falls back to the user's default mode (public), so a "GM-only" roll went public.
+ */
 export function rollModeFor(isPublic: boolean | undefined): string {
-  const modes: any = (CONST as any).DICE_ROLL_MODES || {};
-  return isPublic ? (modes.PUBLIC ?? 'publicroll') : (modes.PRIVATE ?? 'gmroll');
+  if (usesMessageModes()) return isPublic ? 'public' : 'gm';
+  return isPublic ? 'publicroll' : 'gmroll';
+}
+
+/** `Roll#toMessage` options for that visibility: v14 takes `messageMode` (`rollMode` is deprecated there). */
+export function rollToMessageOptions(
+  isPublic: boolean | undefined
+): { messageMode: string } | { rollMode: string } {
+  const mode = rollModeFor(isPublic);
+  return usesMessageModes() ? { messageMode: mode } : { rollMode: mode };
 }
 
 /** Names of an actor's active, status-bearing (non-disabled) condition effects. */

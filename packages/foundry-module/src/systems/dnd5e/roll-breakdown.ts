@@ -205,7 +205,8 @@ interface LabelContext {
 function buildLabelContext(
   actor: ActorLike | null,
   item: ItemLike | null,
-  message: ChatMessage
+  message: ChatMessage,
+  rollType: string
 ): LabelContext {
   const ctx: LabelContext = {
     abilityUsed: false,
@@ -214,6 +215,8 @@ function buildLabelContext(
     proficiencyUsed: false,
     magicUsed: false,
   };
+  // A roll dnd5e did not type (a plain `/r`, an unknown card) gets no guessed sources at all.
+  if (rollType === 'other') return ctx;
   try {
     const system = asRecord(actor?.system);
     const abilitiesRec = asRecord(system?.abilities);
@@ -228,8 +231,11 @@ function buildLabelContext(
       ctx.abilityCode = abilityCode;
       ctx.abilityMod = ctx.allAbilities[abilityCode];
     }
+    // 5e never adds proficiency to damage or healing, so a matching number there is something else.
     const prof = num(asRecord(system?.attributes)?.prof);
-    if (prof !== undefined) ctx.proficiency = prof;
+    if (prof !== undefined && rollType !== 'damage' && rollType !== 'healing') {
+      ctx.proficiency = prof;
+    }
     const itemSystem = asRecord(item?.system);
     if (itemSystem?.magicAvailable === true) {
       const magic = num(itemSystem.magicalBonus);
@@ -250,6 +256,8 @@ function buildLabelContext(
  * anything else stays `modifier`.
  */
 function labelFor(value: number, ctx: LabelContext): string {
+  // A zero (e.g. dnd5e's "+ 0" for a missing proficiency) matches too much to name a source.
+  if (value === 0) return 'modifier';
   if (!ctx.abilityUsed && ctx.abilityMod !== undefined && value === ctx.abilityMod) {
     ctx.abilityUsed = true;
     if (ctx.abilityCode) ctx.usedAbilities.add(ctx.abilityCode);
@@ -339,6 +347,32 @@ function buildParts(
       continue;
     }
 
+    // A function term (`max(1, 1d10 + 2)`, dnd5e's hit die) shows its expression and inner dice.
+    const fn = str(term.fn);
+    if (fn && Array.isArray(term.terms)) {
+      const kept: number[] = [];
+      for (const inner of arr(term.rolls)) {
+        for (const innerTerm of arr(asRecord(inner)?.terms)) {
+          const dice = asRecord(innerTerm);
+          if (num(dice?.faces) === undefined) continue;
+          for (const rawResult of arr(dice?.results)) {
+            const result = asRecord(rawResult);
+            const value = num(result?.result);
+            if (value !== undefined && result?.active !== false) kept.push(value);
+          }
+        }
+      }
+      const expression = `${fn}(${arr(term.terms).map(String).join(', ')})`;
+      const value = (num(term.total) ?? num(term.result) ?? 0) * sign;
+      parts.push(
+        kept.length > 0
+          ? { kind: 'dice', formula: expression, results: kept, ...(sign === -1 ? { sign } : {}) }
+          : { kind: 'number', value, label: expression }
+      );
+      sign = 1;
+      continue;
+    }
+
     const flatNumber = num(term.number);
     if (flatNumber !== undefined) {
       const value = flatNumber * sign;
@@ -365,8 +399,20 @@ function partText(part: RollBreakdownPart, isFirst: boolean): string {
     const label = part.label ? ` ${part.label}` : '';
     return `${sign}${part.formula} (${results})${label}`;
   }
-  const sign = part.value >= 0 ? '+' : '';
+  const sign = part.value >= 0 && !isFirst ? '+' : '';
   return `${sign}${part.value} ${part.label}`;
+}
+
+/** dnd5e's own name for a skill key ("prc" -> "Perception"), else the key in capitals. */
+function skillName(key: string): string {
+  try {
+    const skills = asRecord(asRecord(asRecord(globalThis as unknown)?.CONFIG)?.DND5E)?.skills;
+    const label = str(asRecord(asRecord(skills)?.[key])?.label);
+    if (label) return label;
+  } catch {
+    // fall through
+  }
+  return key.toUpperCase();
 }
 
 const ROLL_LABELS: Record<string, string> = {
@@ -395,7 +441,7 @@ function titleFor(
     case 'save':
       return abilityName ? `${abilityName} save` : 'Save';
     case 'skill':
-      return subject ? `${subject.toUpperCase()} check` : 'Skill check';
+      return subject ? `${skillName(subject)} check` : 'Skill check';
     case 'tool':
       return subject ? `${subject.toUpperCase()} check` : 'Tool check';
     case 'check':
@@ -423,7 +469,7 @@ export function describeRoll(
     const item = itemFromActor(actor, itemRef?.uuid);
     const abilityCode = abilityCodeFrom(message);
     const subject = dnd5eRollSubject(message);
-    const ctx = buildLabelContext(actor, item, message);
+    const ctx = buildLabelContext(actor, item, message, rollType);
     const { parts, natural } = buildParts(roll, ctx);
 
     const total = num(roll?.total) ?? 0;

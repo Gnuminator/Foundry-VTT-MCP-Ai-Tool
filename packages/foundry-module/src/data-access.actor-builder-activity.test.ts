@@ -121,6 +121,23 @@ describe('FoundryDataAccess — useNpcActivity', () => {
     });
   });
 
+  it('posts publicly by default and GM-only on request, in the running Foundry’s mode names', async () => {
+    const { item, rollAttack, rollDamage } = attackItem({});
+    npcWith('Bandit', [item]);
+    await da.useNpcActivity({ actorName: 'Bandit', itemName: 'Claw' });
+    expect(rollAttack.mock.calls[0]).toEqual([
+      {},
+      { configure: false },
+      { create: true, rollMode: 'publicroll' },
+    ]);
+
+    // Foundry v14 names visibility by message mode; dnd5e 6 passes `rollMode` on unmapped.
+    (globalThis as any).CONFIG.ChatMessage = { modes: { public: {}, gm: {}, blind: {}, self: {} } };
+    await da.useNpcActivity({ actorName: 'Bandit', itemName: 'Claw', isPublic: false });
+    expect(rollAttack.mock.calls[1][2]).toEqual({ create: true, rollMode: 'gm' });
+    expect(rollDamage.mock.calls[1][2]).toEqual({ create: true, rollMode: 'gm' });
+  });
+
   it('reports a miss when the attack total is below the target AC', async () => {
     const { item } = attackItem({ attack: { total: 12, formula: '1d20+5' }, damage: { total: 4 } });
     npcWith('Bandit', [item]);

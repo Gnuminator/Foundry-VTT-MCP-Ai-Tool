@@ -17,6 +17,12 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
 - **Loopback by default.** The Foundry link (WebSocket 31415, WebRTC signaling 31416) and the co-GM
   dashboard listen on `127.0.0.1`. `FOUNDRY_LINK_HOST` / `DASHBOARD_HOST` open them to other
   interfaces; the dashboard refuses a non-loopback address without `GM_DASHBOARD_TOKEN`.
+- **GM-only rolls stay GM-only on Foundry 14.** v14 renamed roll modes (`public`, `gm`, `blind`,
+  `self`) and dnd5e 6 hands its roll mode on unmapped, so the old names fell back to the user's
+  default (public): `roll-saving-throws` (whispered by default), `use-npc-activity` (which ignored
+  `isPublic`) and private player roll buttons posted in public chat. The bridge now uses the running
+  Foundry's own mode names. Also, whispered and blind damage rolls no longer appear as public
+  `damage-roll` events in the `/player` feed.
 
 ### Features
 
@@ -58,6 +64,13 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   own session log) and a Start/End session control in the dashboard header; session notes follow
   these markers, else a 3-hour gap. The dashboard links to the Obsidian notes (GM only;
   `OBSIDIAN_VAULT_NAME`, else the folder name of `FOUNDRY_AI_OBSIDIAN_DIR`).
+- **Play log and stats** (in progress): the GM's client records what happens in play (HP, rolls,
+  item use, rests, combat, scenes, users; `sessions/<date>.play.jsonl`, `FOUNDRY_AI_PLAY_LOG=off`
+  disables it), and session notes, `AI Tool/Stats/` and the read tool `get-play-stats` summarise it.
+- **Dice rolls in the feed with a breakdown**, e.g. "Wolf 1, Bite attack: 1d20 (15) +2 STR +2
+  proficiency = 19". Players see public rolls without the target AC/DC and outcome (unless dnd5e's
+  "challenge visibility" shows them to everyone); the GM feed and session notes show the full line.
+  Whispered, blind and self rolls are GM-only `gm-roll` events.
 
 ### Fixes
 

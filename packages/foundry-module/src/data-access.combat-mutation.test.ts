@@ -461,6 +461,23 @@ describe('FoundryDataAccess — rollSavingThrows', () => {
     });
   });
 
+  it('on Foundry v14 a GM-only save passes the v14 message mode (dnd5e 6 passes it on unmapped)', async () => {
+    (globalThis as any).CONFIG.ChatMessage = { modes: { public: {}, gm: {}, blind: {}, self: {} } };
+    const actor = addActorWithHp('Hero', { value: 20 });
+    actor.rollSavingThrow = vi.fn(() => Promise.resolve({ total: 18, isSuccess: true }));
+    await da.rollSavingThrows({ targets: ['Hero'], rollType: 'save', ability: 'dex', dc: 15 });
+    await da.rollSavingThrows({
+      targets: ['Hero'],
+      rollType: 'save',
+      ability: 'dex',
+      isPublic: true,
+    });
+    expect(actor.rollSavingThrow.mock.calls.map((c: any[]) => c[2])).toEqual([
+      { create: true, rollMode: 'gm' },
+      { create: true, rollMode: 'public' },
+    ]);
+  });
+
   it('v4+ skill: unwraps an array return and computes success from total vs dc when no isSuccess', async () => {
     const actor = addActorWithHp('Rogue', { value: 16 });
     actor.rollSkill = vi.fn(() => Promise.resolve([{ total: 22 }]));

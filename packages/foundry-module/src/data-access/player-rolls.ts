@@ -212,12 +212,10 @@ export class PlayerRollsDataAccess {
     await roll.evaluate();
 
     const speaker = (ChatMessage as any).getSpeaker({ actor });
-    const modes: any = (CONST as any).DICE_ROLL_MODES || {};
-    const rollMode = data.isPublic ? (modes.PUBLIC ?? 'publicroll') : (modes.PRIVATE ?? 'gmroll');
 
     await roll.toMessage(
       { speaker, flavor: `${data.rollTarget} (${data.rollType})` },
-      { rollMode }
+      shared.rollToMessageOptions(data.isPublic)
     );
 
     return {
@@ -363,8 +361,6 @@ export class PlayerRollsDataAccess {
         // Get the character for speaker info
         const character = characterId ? game.actors?.get(characterId) : null;
 
-        // Use the modern Foundry v13 approach with roll.toMessage()
-        const rollMode = isPublic ? 'publicroll' : 'whisper';
         const whisperTargets: string[] = [];
 
         if (!isPublic) {
@@ -389,11 +385,15 @@ export class PlayerRollsDataAccess {
           ...(whisperTargets.length > 0 ? { whisper: whisperTargets } : {}),
         };
 
-        // Use roll.toMessage() with proper rollMode
-        await roll.toMessage(messageData, {
-          create: true,
-          rollMode,
-        });
+        // A private roll keeps its explicit whisper list (the player + GMs). v14's `gm` mode
+        // keeps a non-empty list; v13 has no mode that does, so it gets the old non-mode
+        // value 'whisper', which v13 ignores (an unknown v14 mode would fall back to public).
+        const visibility = isPublic
+          ? shared.rollToMessageOptions(true)
+          : shared.usesMessageModes()
+            ? { messageMode: 'gm' }
+            : { rollMode: 'whisper' };
+        await roll.toMessage(messageData, { create: true, ...visibility });
 
         // Update the ChatMessage to reflect rolled state
         const buttonId = button.data('button-id');

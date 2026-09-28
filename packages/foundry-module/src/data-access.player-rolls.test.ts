@@ -389,6 +389,20 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
     expect(roll.toMessage.mock.calls[0][1]).toEqual({ rollMode: 'gmroll' });
   });
 
+  it('on Foundry v14 passes the message mode (`messageMode`), not the deprecated rollMode', async () => {
+    (globalThis as any).CONFIG.ChatMessage = { modes: { public: {}, gm: {}, blind: {}, self: {} } };
+    const roll = installRollSpy(9);
+    const actor = world.addActor({ id: 'npc3', name: 'Scout', type: 'npc' });
+    actor.getRollData = (): Record<string, unknown> => ({ abilities: { wis: { mod: 1 } } });
+    const check = { actorName: 'Scout', rollType: 'ability' as const, rollTarget: 'wis' };
+    await da.rollNpcCheck({ ...check, isPublic: false });
+    await da.rollNpcCheck({ ...check, isPublic: true });
+    expect(roll.toMessage.mock.calls.map((c: any[]) => c[1])).toEqual([
+      { messageMode: 'gm' },
+      { messageMode: 'public' },
+    ]);
+  });
+
   it('builds an attack formula from the matched item label toHit', async () => {
     const roll = installRollSpy(20);
     const sword = makeItem({ id: 'i1', name: 'Scimitar', type: 'weapon' });

@@ -180,6 +180,117 @@ describe('describeRoll', () => {
     expect(breakdown.text).toBe('Wolf, Bite damage: 2d4 (3, 4) +2 DEX = 9 piercing');
   });
 
+  it('never calls a damage bonus "proficiency" (5e never adds it to damage)', () => {
+    makeActor({ str: 2, dex: 2, prof: 2 });
+    const message = makeMessage({ itemUuid: 'Item.bite', itemName: 'Bite' });
+    const roll = {
+      formula: '1d6 + 2',
+      total: 5,
+      options: { type: 'piercing' },
+      terms: [
+        { faces: 6, number: 1, results: [{ result: 3, active: true }] },
+        op('+'),
+        numberTerm(2),
+      ],
+    };
+    // STR and DEX are both +2: ambiguous, so an honest "modifier".
+    expect(describeRoll(message, roll, 'damage').text).toBe(
+      'Wolf, Bite damage: 1d6 (3) +2 modifier = 5 piercing'
+    );
+  });
+
+  it('a zero part is a "modifier", never an ability whose mod happens to be 0', () => {
+    makeActor({ str: 0, dex: 3, prof: 2 });
+    const message = makeMessage({ itemUuid: 'Item.sword', itemName: 'Longsword', ability: 'dex' });
+    const roll = {
+      formula: '1d20 + 3 + 0',
+      total: 14,
+      options: {},
+      terms: [
+        d20Term({ results: [{ result: 11, active: true }] }),
+        op('+'),
+        numberTerm(3),
+        op('+'),
+        numberTerm(0),
+      ],
+    };
+    expect(describeRoll(message, roll, 'attack').parts[2]).toEqual({
+      kind: 'number',
+      value: 0,
+      label: 'modifier',
+    });
+  });
+
+  it('a roll dnd5e did not type keeps its flavor as the title and guesses no sources', () => {
+    makeActor({ wis: 1 });
+    const message = makeMessage({ flavor: 'Alchemist fire damage' });
+    const roll = {
+      formula: '2d6 + 1',
+      total: 7,
+      options: {},
+      terms: [
+        {
+          faces: 6,
+          number: 2,
+          results: [
+            { result: 5, active: true },
+            { result: 1, active: true },
+          ],
+        },
+        op('+'),
+        numberTerm(1),
+      ],
+    };
+    expect(describeRoll(message, roll, 'other').text).toBe(
+      'Wolf, Alchemist fire damage: 2d6 (5, 1) +1 modifier = 7'
+    );
+  });
+
+  it('a function term (dnd5e hit die) shows its expression and inner dice', () => {
+    makeActor({});
+    const roll = {
+      formula: 'max(1,1d10 + 2)',
+      total: 4,
+      options: {},
+      terms: [
+        {
+          fn: 'max',
+          terms: ['1', '1d10 + 2'],
+          result: 4,
+          rolls: [
+            { formula: '1', total: 1, terms: [numberTerm(1)] },
+            {
+              formula: '1d10 + 2',
+              total: 4,
+              terms: [
+                { faces: 10, number: 1, results: [{ result: 2, active: true }] },
+                op('+'),
+                numberTerm(2),
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(describeRoll(makeMessage({}), roll, 'hitDie').text).toBe(
+      'Wolf, Hit die: max(1, 1d10 + 2) (2) = 4'
+    );
+  });
+
+  it("names a skill with dnd5e's own label", () => {
+    (globalThis as any).CONFIG.DND5E.skills = { prc: { label: 'Perception' } };
+    makeActor({ wis: -1 });
+    const roll = {
+      formula: '1d20 - 1',
+      total: 9,
+      options: {},
+      terms: [d20Term({ results: [{ result: 10, active: true }] }), op('-'), numberTerm(1)],
+    };
+    expect(describeRoll(makeMessage({ ability: 'wis', skill: 'prc' }), roll, 'skill').label).toBe(
+      'Perception check'
+    );
+  });
+
   it('a mixed-damage roll labels each dice group with its own flavor', () => {
     makeActor({});
     const message = makeMessage({

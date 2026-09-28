@@ -295,9 +295,10 @@ export class EventTracker {
     if (isUsageCard(message)) return;
 
     const dnd5eType = dnd5eRollType(message);
-    // A plain `/r` roll flavored as damage still counts as damage (`parseDamage`).
+    // A plain `/r` roll flavored as damage still counts as damage (`parseDamage`), but its
+    // line keeps its own flavor as the title and guesses no sources (`other`).
     const rollType = dnd5eType === 'other' && entry.damage ? 'damage' : dnd5eType;
-    const described = describeMessageRolls(message, rolls, rollType);
+    const described = describeMessageRolls(message, rolls, dnd5eType);
     const whisper: unknown[] = Array.isArray(source.whisper) ? source.whisper : [];
     const isPrivate = whisper.length > 0 || source.blind === true;
 

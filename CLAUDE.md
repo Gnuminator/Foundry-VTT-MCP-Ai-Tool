@@ -48,7 +48,7 @@ Renaming any of these breaks existing installs. Plan a migration note first.
 - **NEVER push to `adambdooley/foundry-vtt-mcp`** (upstream). It's not a remote anymore.
 - Keep it green after each change: `npm run typecheck && npm run lint:ratchet && npm run build`, plus
   `CI=true npm test`. The lint ratchet (`scripts/lint-ratchet.mjs`, baseline
-  `scripts/lint-baseline.json`, 7,777 warnings) fails on any ESLint error or any rule whose warning
+  `scripts/lint-baseline.json`, 7,762 warnings) fails on any ESLint error or any rule whose warning
   count rises; lower the baseline with `npm run lint:ratchet -- --update` when counts drop.
 - **Local test environment:** `.claude/skills/foundry-test-env/SKILL.md` + `scripts/test-env/*.ps1`
   (Foundry 14 at `C:\FoundryTest` on localhost:30001, world `ai-tool-test`, passwordless "Claude" GM
@@ -129,34 +129,37 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
   `play-recorder.ts` (GM clients, shadow before-values, query `getPlayRecords`); backend
   `play-log-pump.ts` (`sessions/<date>.play.jsonl`, key dedupe, `FOUNDRY_AI_PLAY_LOG=off`); pure
   `stats/build.ts`; stats in session notes + `AI Tool/Stats/` (Campaign, PCs) + `PC stats.base`;
-  read tool `get-play-stats` (87 tools). Live fight on the test server worked and found bugs (below).
-- [~] **Handoff (2026-09-28; work moved to a second PC, CKRSSURFACE, the same day).**
-  - O2 + O3 are committed: `bddda03` (WIP, not gated) plus the gate-fix commit after it. The full gate
-    is green on the second PC (portable Node 22.23.3): **tests 2,444** (foundry-module 1001,
-    mcp-server 1336, shared 55, cogm-dashboard 52), lint baseline 7,777 unchanged.
-  - Worker D (module) was cut off by the move. Checked item by item: (1) stale `t`/keys (fresh
-    `modifiedTime` only, else `Date.now()` + a 2 s bucket key) done, tests added after the move;
-    (2) HP attribution at most once per target was half done (it broke the typecheck): now one entry
-    per message, credited once per target, with a test; (4) `combat` on combat-end done;
-    (5) `userName` on records done but untested. **Not done:** (3) rests still come only from the
-    chat card, no `dnd5e.restCompleted` hook; (6) `systems/dnd5e/roll-breakdown.ts` (label, parts
-    with inferred sources, natural d20) exists with tests but nothing calls it, so the module does
-    not emit session events `roll` (public, player-safe text), `gm-roll` (whisper/blind/self) or
-    `damage-roll` public text + `details.breakdown` yet (the dashboard side is ready).
-  - Done by the lead after the fight: ambient-only inferred groups are not sessions; user names
-    from `userName`; scene minutes from every record's `sceneId`; dashboard allowlists public `roll`,
-    GM feed and session notes show `details.breakdown`; dice `results` = kept, `dropped` separate.
-  - Next: finish worker D's (3) and (6), then a live re-run of the scripted fight. The second PC has
-    no `C:\FoundryTest` yet (Foundry app, world, users and test vault stayed on the first PC; the
-    scripts and skills are in git): set it up with the GM (licence) via `foundry-test-env`, and
-    recreate `Test Hero` and the wolves. The run: test env; `Test Hero` PC + wolves; combat set up by a
-    short script in the Foundry tab, then dashboard tools: `apply-damage-and-healing`,
-    `advance-combat-turn`, `roll-saving-throws`, `roll-npc-check`, `manage-rest`) and check the
-    fixes, the breakdown text in the GM and player feeds (public vs whisper/blind) and the notes.
-    The test vault's `sessions/2026-09-28.play.jsonl` holds records from the first run with stale
-    times (test data; clear or ignore). Then docs (CHANGELOG, skills), then the guarded combat tool
-    (designed: feature switch `combat`, `plan-combat` create/add/remove/start/end, apply/undo via
-    the guarded-write flow; no executor change needed).
+  read tool `get-play-stats` (87 tools). Two live fights on test servers (first and second PC); see the handoff below.
+- [~] **Handoff (2026-09-28, evening; second PC, CKRSSURFACE).**
+  - O3 worker D's six items are all done and gated (`b48e7cd` + the commit after it): stale-time
+    bucketed keys; HP attribution once per target per message; `dnd5e.restCompleted` records
+    card-less rests (`manage-rest`); `combat` on combat-end; `userName` on every record (filled in
+    `build()`); roll breakdowns as session events: public `roll` / `damage-roll` (player-safe
+    `description`, GM line in `details.breakdown`), whispered/blind/self `gm-roll`. **Tests 2,461**
+    (foundry-module 1018, mcp-server 1336, shared 55, cogm-dashboard 52); lint baseline **7,762**.
+  - **Live re-run PASSED** on the second PC's new test server (Foundry 14.368, dnd5e 6.0.5, world
+    `ai-tool-test`: users Gamemaster, Claude, Player; `Test Hero` level 3 Fighter owned by Player,
+    world actor `Wolf` (dnd5e.actors24) with unlinked tokens Wolf 1-3 on scene "Test Arena"). The
+    play log, GM feed, `/player` feed with the split on (no `gm-roll`, no AC/DC or outcome, empty
+    details) and session notes with stats (S02) all checked.
+  - Found and fixed live: **Foundry 14 roll-mode privacy bug** (v14 message modes; dnd5e 6 passes
+    `rollMode` on unmapped, legacy names fell back to public): `roll-saving-throws`,
+    `use-npc-activity` (ignored `isPublic`) and private player roll buttons posted publicly.
+    `shared.rollModeFor` / `rollToMessageOptions` / `usesMessageModes` pick the running Foundry's
+    names. Breakdown labels fixed from real data: no proficiency on damage, a 0 never names an
+    ability, untyped rolls guess nothing and keep their flavor, function terms (hit die) show their
+    dice, skills use dnd5e's label.
+  - Follow-ups (not built): exact HP attribution from dnd5e 6's `dnd5e.applyDamage(actor, amount,
+    options)` hook (`options.originatingMessage` when applied from a chat card), instead of the
+    10 s window that credited Wolf 2's GM-applied 11 damage to the wolf's own bite; combat
+    participants come from turns taken (Test Hero, whose turn never came, is missing); combat-end
+    `turn` read 0 after an end mid-round.
+  - Next: the guarded combat tool (designed: feature switch `combat`, `plan-combat`
+    create/add/remove/start/end, apply/undo via the guarded-write flow; no executor change needed),
+    unless the GM picks another direction. Then skills docs for O3.
+  - Test env on this PC: `scripts/test-env/local.json` holds the test server's admin login (GM's,
+    gitignored). `Get-NodeExe` picks the newest portable Node 22. The test vault's
+    `sessions/2026-09-28.play.jsonl` has test records only.
   - GM to-dos recorded, not scheduled (`docs/ROADMAP.md` "GM to-dos"): video walkthrough, easy
     guides with session checklists, README/front page, help inside each surface, feature toggles
     (GM config + per-player choices).
@@ -166,10 +169,9 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
   - The GM's Obsidian vault is now the private git repo `Gnuminator/obsidian-vault` (PC to PC; pull
     before working in it, push after).
   - Part B verification is unfinished: `.claude/skills/foundry-core-ui/reference/*.md` (11 pages) are
-    drafts (committed in `bddda03`); the click-through lanes were stopped mid-run, so some pages may carry partial
-    `[verified]` marks and no stamp. Resume later (Sonnet, one lane per GM user, canvas pages in front).
-  - The test world has two temporary GM users "Verifier A" and "Verifier B" (for parallel lanes) and
-    three "Wolf" actors/tokens (picker test data): delete the users when verification is done.
+    drafts (committed in `bddda03`); the click-through lanes were stopped mid-run, so some pages may
+    carry partial `[verified]` marks and no stamp. Resume later (Sonnet, one lane per GM user,
+    canvas pages in front). The "Verifier A/B" users were in the first PC's test world only.
   - Still open: M2 waits for the GM's go-ahead (also a Question note in Obsidian).
 
 ## Model guidance

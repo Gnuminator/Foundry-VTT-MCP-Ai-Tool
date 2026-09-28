@@ -721,6 +721,19 @@ is installed, so M1 leads with the built-in roll and supports `tarokka-reading` 
   (for example a GM vault folder and a player-safe folder fed only through the feature 2 projection). The
   bridge vault layout (0.3) is chosen to make this possible. To research then: existing Foundry-Obsidian
   modules, Obsidian's plugin APIs, sync model on the Orange Pi.
+- **Discord integration** (GM idea 2026-09-28, scope open): a bot bridging Discord with Foundry, the
+  AI Tool, the co-GM dashboard and Obsidian. Candidate uses: session scheduling and reminders; posting
+  the session recap and revealed handouts to a player channel (only through the feature 2 projection,
+  never GM data); a GM-only channel for co-GM alerts, commentary and change notices; roll and combat
+  highlights; Foundry / bridge up-down status; player slash commands (own character, rest request);
+  links into Obsidian notes. Pairs with the Craig recording below. To research then: bot hosting on the
+  Orange Pi, Discord API limits, which Foundry Discord modules already exist.
+- **Full event log for analytics** (GM idea 2026-09-28): log everything that happens in play (every roll,
+  skill, spell, slot, resource, item and charge change, actor, token and scene change) on the always-on
+  Assistant-GM client, with before-values and one writer, appended to the vault session log (extends 0.6);
+  derived tables later feed dashboards and fun stats (damage per PC, hardest encounter by HP lost, rounds
+  and resources spent). The raw log is GM-only; anything shown to players goes through the projection.
+  Details in `docs/OBSIDIAN-PLAN.md` (data source for the vault notes).
 - **Discord voice recording (Craig) + voice-to-text**: transcripts as an extra recap source (feature 7) and
   AI context. Prior art to look at then: `Txpple/fvtt-app-sessionscribe` **[verified 2026-09-27]** (MIT,
   created 2026-09-23): an MCP server plus a Claude Code skill that turns a Craig recording, the Foundry chat

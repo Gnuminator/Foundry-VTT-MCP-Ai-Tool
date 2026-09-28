@@ -1,6 +1,6 @@
 ---
 name: foundry-test-env
-description: Start, use and stop the personal local Foundry VTT test environment for this repo (Foundry 14 on localhost:30001 with a fresh dnd5e world "ai-tool-test", a test bridge on ports 31514-31516, the co-GM dashboard on 3100, a separate vault), log in as the passwordless "Claude" GM user in the browser pane, and test AI Tool features end to end. Use before claiming a feature works in Foundry, to learn or drive the Foundry UI, to install packages or create worlds on the test server, to check the player view, or to inspect installed modules/systems. Never touches the live campaign or the live bridge ports 31414-31416.
+description: Start, use and stop the personal local Foundry VTT test environment for this repo (Foundry 14 on localhost:30001 with the dnd5e world "ai-tool-test", a test bridge on ports 31514-31516, the co-GM dashboard on 3100, a separate vault), join as the passwordless "Claude" GM or "Player" in the browser pane, sync the module after code changes, install packages or create worlds on the test server, inspect installed modules/systems, and troubleshoot. Use before any live check in Foundry. Testing the AI Tool itself (tools, dashboard, smoke checklist) is the foundry-ai-tool skill; Foundry's own UI is foundry-core-ui. Never touches the live campaign or the live bridge ports 31414-31416.
 ---
 
 # Foundry test environment
@@ -60,11 +60,13 @@ setup screen.
    user name** (not a dropdown), a password field and "Join Game Session"; below it are the
    administrator login fields. The page can look empty in a screenshot while it animates:
    use `read_page` (filter interactive), `form_input` the name `Claude`, leave the password
-   empty, click "Join Game Session". The pane keeps the session; one session = one user.
+   empty, click "Join Game Session". The pane keeps the session; one session = one user per
+   origin (a second user joins on `http://127.0.0.1:30001`).
 3. Expect the notification **"MCP Bridge connected successfully"** (bottom-left shows
    `Claude [GM]`). The module dials `ws://localhost:31515` because the test copy's
    `module.json` has `flags.foundry-mcp-bridge.defaultServerPort = 31515`.
-4. Test (below). Before stopping Foundry: Settings tab, scroll down, **Return to Setup**.
+4. Test (see Next steps). Before stopping Foundry: Settings tab, scroll down, **Return to
+   Setup** (a dialog asks to disconnect other connected users: **Yes**).
 
 After changing code:
 
@@ -73,80 +75,20 @@ After changing code:
 - Backend or dashboard: `npm run build`, then `stop.ps1 -Only bridge` / `-Only dashboard`
   and `start.ps1 -Only ...` again.
 
-## Calling tools
+## Next steps
 
-Through the test dashboard's REST API (GM role; no token in local mode). From the
-PowerShell tool (curl.exe argument quoting breaks JSON there):
-
-```
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:3100/api/tool -ContentType 'application/json' `
-  -Body (@{ name = 'get-world-info'; args = @{} } | ConvertTo-Json -Depth 10)
-```
-
-From Bash: `curl -s -X POST http://127.0.0.1:3100/api/tool -H "Content-Type: application/json" -d '{"name":"get-world-info"}'`.
-The answer is `{ok, name, mutates, result}`; a tool error is HTTP 422 with
-`{ok:false, error}` (PowerShell throws; read `$_.ErrorDetails.Message`).
-
-Reads (`get-/list-/search-/measure-/plan-/suggest-`) need nothing else. Writes need GM
-Actions on (`POST /api/control {"action":"set-gm-actions","value":true}`) and the body
-flags `"confirm": true` (plus `"confirmDestructive": true` for destructive tools). For
-`apply-planned-change` the flags come from the body only, never from `args`.
-
-In the world, write features also need their switches (Settings tab, Game Settings,
-module "Foundry AI Tool"): "Allow Write Operations" and e.g. "AI Tool: Tarokka (writes)".
-
-## Smoke checklist (M0 + M1)
-
-- Bridge connects; `get-world-info` returns world `ai-tool-test`. (Done 2026-09-28.)
-- Query lockdown: as Player, in the browser console,
-  `await game.users.activeGM.query('foundry-mcp-bridge.getWorldInfo', {})` fails.
-- Guarded write: plan a Tarokka import (`plan-tarokka-import` `{"source":"builtin-roll"}`),
-  `get-planned-change`, apply with confirm, `list-recent-changes`, `undo-change`; check the
-  files in `C:\FoundryTest\vault\ai-tool-test\gm\`.
-- Feature switch off: apply is refused. Conflict: change the target between plan and apply.
-- Reveal: `plan-tarokka-reveal` then apply (destructive); as Player the "Tarokka reading"
-  journal shows only the typed text; the dashboard `/player` page shows no card data.
-- Dashboard: Recent Changes pane and 🃏 Tarokka drawer work; undo from the pane.
-- Session log: events appear in `C:\FoundryTest\vault\ai-tool-test\sessions\<date>.jsonl`.
-
-Report what you checked and what you did not, with evidence (screenshots, tool output).
-
-## Foundry v14 UI, as observed on this server
-
-Work from the screen: screenshot or `read_page` before clicking; prefer `find` and
-`read_page` refs over coordinates (buttons move when rows are added). `javascript_tool`
-can read `game.*` to confirm results; make changes through the UI or the AI Tool.
-
-**Setup screen** (`/setup`, admin): three tabs, **Game Worlds**, **Game Systems**,
-**Add-on Modules**. Top-right icons include configuration (admin user/password, port, data
-path; changes need a server restart).
-
-- Install a system/module: Game Systems (or Add-on Modules), **Install System**; the
-  window has a search box (top left), provider filters, and an **Install** button per
-  package ("Installed" afterwards). dnd5e is "Dungeons & Dragons Fifth Edition" from
-  github.com/foundryvtt/dnd5e.
-- Create a world: Game Worlds, **Create World**: World Title, Data Path (`Data/worlds/` +
-  world id), Game System (a `<select>`, value `dnd5e`), then **Continue**. Foundry launches
-  the new world straight into a first-run **User Management** page (see below).
-- Foundry shows guided "tours" as popups (e.g. "Backups Overview"); close them with their
-  ⊗ button.
-
-**In a world** (`/game`): scene controls down the left; the right sidebar is a column of
-icon tabs (chat, combat, scenes, actors, items, journal, tables, cards, macros, playlists,
-compendiums, settings). Find tabs by name: `find` "Settings" gives the Settings tab.
-
-- First visit shows the **Welcome to D&D 5e** window (Rules Version, calendar, bastions)
-  and a "Welcome to Foundry Virtual Tabletop" tour; close both.
-- **Settings tab**: build/system info, then Game Settings, Controls Configuration,
-  **Module Management** (v14's name for Manage Modules), World Configuration, **User
-  Management**, Tour Management, and (scroll down) Invitation Links, Log Out, **Return to
-  Setup**.
-- Module Management: a checkbox per module, **Save Module Settings**, then a "Reload
-  Application?" dialog: **Yes**.
-- User Management: rows of name, password, role (`<select>`: 0 None, 1 Player, 2 Trusted,
-  3 Assistant GM, 4 Gamemaster); **Create Additional User** adds a row; **Save and
-  Continue**.
-- The game starts **paused** ("GAME PAUSED" overlay); that is normal.
+- Testing the AI Tool (calling tools, guarded writes, dashboard, pickers, vault, the M0+M1 smoke
+  checklist): the `foundry-ai-tool` skill.
+- Foundry's own screens (setup, join, sidebar, controls, sheets, settings, chat, combat, dnd5e
+  sheets): the `foundry-core-ui` skill and its verified reference pages.
+- Browser pane gotchas that bite here: the pane is smaller than Foundry's minimum (resize the tab
+  to 1440×900); a tab that loads while hidden renders at 0×0 and its canvas fails (reload it in
+  front); opening a second tab with `preview_start` can reload the first (use `tabs_create` +
+  `navigate`); a second user needs a second origin (`http://127.0.0.1:30001` for `Player`).
+- Setup screen (`/setup`, admin): three tabs, **Game Worlds**, **Game Systems**, **Add-on
+  Modules**; install a package with **Install System** / **Install Module** (search, **Install**);
+  create a world with **Create World** (title, data path, system `dnd5e`, **Continue**; Foundry
+  opens the new world on a first-run **User Management** page). Details in `foundry-core-ui`.
 
 ## Inspecting modules, systems and worlds
 

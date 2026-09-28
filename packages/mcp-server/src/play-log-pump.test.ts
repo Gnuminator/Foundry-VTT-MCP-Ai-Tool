@@ -2,12 +2,13 @@ import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import type { PlayRecord } from '@gnuminator/shared';
+import type { PlayActorRef, PlayRecord } from '@gnuminator/shared';
 import { playLogFileName } from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { localDateKey } from './event-pump.js';
 import { PLAY_PUMP_STATE_FILE, PlayLogPump, playLogSettings } from './play-log-pump.js';
+import { buildStats } from './stats/build.js';
 import { VaultStore } from './vault/store.js';
 
 /** The module's ring buffer: `seq > sinceSeq` filter, up to `limit` records, one `clientId`. */
@@ -345,7 +346,8 @@ describe('PlayLogPump timer', () => {
   it('polls on its interval until stopped', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     const pump = makePump();
-    const spy = vi.spyOn(pump, 'pollOnce');
+    // Stubbed: real polls would still be writing when afterEach removes the temp dir (ENOTEMPTY).
+    const spy = vi.spyOn(pump, 'pollOnce').mockResolvedValue(0);
     pump.start();
     pump.start();
     vi.advanceTimersByTime(15_000);
@@ -354,5 +356,70 @@ describe('PlayLogPump timer', () => {
     vi.advanceTimersByTime(15_000);
     expect(spy).toHaveBeenCalledTimes(3);
     await store.flush();
+  });
+});
+
+describe('PlayLogPump into buildStats (no double counting)', () => {
+  // docs/OBSIDIAN-PLAN.md O3 test list, item 4: damage/healing must be counted
+  // once even when the same underlying change reaches the pump twice (two GM
+  // clients, or a client reload replaying its buffer). The pump's key dedupe
+  // (already covered above: "a second client sending the same keys writes
+  // nothing new") is what makes this true; this test carries that guarantee
+  // through to the stats built from the resulting file.
+  const PC: PlayActorRef = { uuid: 'Actor.actor1', isPC: true, name: 'Ireena' };
+  const HP_KEY = 'hp:Actor.actor1:system.attributes.hp.value:123';
+  const hpOverrides: Partial<PlayRecord> = {
+    key: HP_KEY,
+    kind: 'hp',
+    actor: PC,
+    path: 'system.attributes.hp.value',
+    before: 20,
+    after: 12,
+    delta: -8,
+  };
+
+  it('an HP change two GM clients both report (same deterministic key) is written once and counted once', async () => {
+    // Client 1 records the change first.
+    foundry.add(hpOverrides);
+    await makePump().pollOnce();
+
+    // A second GM client saw the same underlying document change and computed
+    // the same deterministic key, but through its own clientId/seq numbering.
+    foundry.clientId = 'client-2';
+    foundry.records = [];
+    (foundry as any).seq = 0;
+    foundry.add(hpOverrides);
+    const secondClientPump = makePump();
+    expect(await secondClientPump.pollOnce()).toBe(0); // dropped: the key is already on disk
+
+    const lines = (await store.readLines(
+      'w1',
+      'sessions',
+      playLogFileName(localDateKey(T0))
+    )) as PlayRecord[];
+    expect(lines).toHaveLength(1); // written once, not twice
+
+    const stats = buildStats({ worldId: 'w1', logEvents: [], playRecords: lines });
+    expect(stats.sessions[0]?.partyDamageTaken).toBe(8); // the one HP delta, not 16
+    expect(stats.pcs.find(p => p.uuid === PC.uuid)?.damageTaken).toBe(8);
+  });
+
+  it('the pump reading the same poll result twice (no listener) still yields one line and one count', async () => {
+    // A poll that is retried before the caller commits its own side effects
+    // would ask the same sinceSeq again; the module keeps returning the same
+    // records, and the key dedupe against the file (not just the in-batch set)
+    // is what keeps a second poll from doubling the count.
+    const pump = makePump();
+    foundry.add(hpOverrides);
+    expect(await pump.pollOnce()).toBe(1);
+    expect(await pump.pollOnce()).toBe(0); // nothing new: lastSeq already covers it
+
+    const lines = (await store.readLines(
+      'w1',
+      'sessions',
+      playLogFileName(localDateKey(T0))
+    )) as PlayRecord[];
+    const stats = buildStats({ worldId: 'w1', logEvents: [], playRecords: lines });
+    expect(stats.sessions[0]?.partyDamageTaken).toBe(8);
   });
 });

@@ -7,6 +7,7 @@ import {
   isUsageCard,
 } from './systems/dnd5e/chat-roll-kind.js';
 import { describeMessageRolls } from './systems/dnd5e/roll-breakdown.js';
+import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
 
 /**
  * Event tracking for the Foundry MCP Bridge.
@@ -88,6 +89,9 @@ export class EventTracker {
   /** Cache of last-seen spell-slot / resource totals per actor, for spend detection. */
   private resourceCache: Map<string, number> = new Map();
 
+  /** dnd5e damage applications in progress on this client (actor uuid -> source message). */
+  private pendingApply: Map<string, { messageId: string | null; t: number }> = new Map();
+
   private hooksRegistered = false;
   private seq = 0;
 
@@ -156,6 +160,20 @@ export class EventTracker {
         } catch (error) {
           console.warn(`[${MODULE_ID}] EventTracker updateActor failed:`, error);
         }
+      });
+
+      Hooks.on(
+        'dnd5e.preApplyDamage',
+        (actor: unknown, _amount: unknown, _updates: unknown, options: unknown): void => {
+          const uuid = (actor as { uuid?: unknown } | null)?.uuid;
+          if (typeof uuid !== 'string') return;
+          this.pendingApply.set(uuid, { messageId: originatingMessageId(options), t: Date.now() });
+        }
+      );
+
+      Hooks.on('dnd5e.applyDamage', (actor: unknown): void => {
+        const uuid = (actor as { uuid?: unknown } | null)?.uuid;
+        if (typeof uuid === 'string') this.pendingApply.delete(uuid);
       });
 
       Hooks.on('createActiveEffect', (effect: any) => {
@@ -567,13 +585,20 @@ export class EventTracker {
 
       if (prev !== undefined && prev !== newHp) {
         const delta = newHp - prev;
-        const source = this.mostRecentDamageSource();
+        const pending = this.takePendingApply((actor as { uuid?: unknown }).uuid);
 
         if (delta < 0) {
+          const credit = this.damageCredit(pending, -delta, newHp <= 0);
           this.logSessionEvent('damage', `${actor.name} took ${Math.abs(delta)} damage`, {
             actorName: actor.name,
             actorId: actor.id,
-            details: { amount: Math.abs(delta), from: prev, to: newHp, source },
+            details: {
+              amount: Math.abs(delta),
+              from: prev,
+              to: newHp,
+              source: credit?.label ?? null,
+              ...(credit ? { sourceMessageId: credit.messageId, sourceExact: credit.exact } : {}),
+            },
           });
         } else if (delta > 0) {
           this.logSessionEvent('healing', `${actor.name} healed ${delta} HP`, {
@@ -671,13 +696,37 @@ export class EventTracker {
     }
   }
 
-  /** Find the most recent damage chat message's flavor for source attribution. */
-  private mostRecentDamageSource(): string | null {
-    const cutoff = Date.now() - 10_000; // within last 10s
+  /** The noted dnd5e damage application for this actor, if at most 5 s old; consumed. */
+  private takePendingApply(uuid: unknown): { messageId: string | null; t: number } | undefined {
+    if (typeof uuid !== 'string') return undefined;
+    const pending = this.pendingApply.get(uuid);
+    this.pendingApply.delete(uuid);
+    return pending && Date.now() - pending.t <= 5_000 ? pending : undefined;
+  }
+
+  /**
+   * The damage roll an HP loss came from (the same rule as the play log): the
+   * card it was applied from (exact), else the latest damage roll within 10 s
+   * whose total fits the loss (`hpChangeFitsRoll`).
+   */
+  private damageCredit(
+    pending: { messageId: string | null } | undefined,
+    amount: number,
+    stoppedAtZero: boolean
+  ): { messageId: string; label: string | null; exact: boolean } | null {
+    const labelOf = (entry: ChatLogEntry | undefined): string | null =>
+      entry ? entry.flavor || entry.speakerName : null;
+    if (pending?.messageId) {
+      const messageId = pending.messageId;
+      const entry = this.chatLog.find(e => e.id === messageId);
+      return { messageId, label: labelOf(entry), exact: true };
+    }
+    const cutoff = Date.now() - 10_000;
     for (let i = this.chatLog.length - 1; i >= 0; i--) {
       const entry = this.chatLog[i];
-      if (entry && entry.timestampMs >= cutoff && (entry.damage || entry.isRoll)) {
-        return entry.flavor || entry.speakerName;
+      if (!entry || entry.timestampMs < cutoff || !entry.damage) continue;
+      if (hpChangeFitsRoll(amount, entry.damage.total, stoppedAtZero)) {
+        return { messageId: entry.id, label: labelOf(entry), exact: false };
       }
     }
     return null;

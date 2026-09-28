@@ -48,7 +48,7 @@ Renaming any of these breaks existing installs. Plan a migration note first.
 - **NEVER push to `adambdooley/foundry-vtt-mcp`** (upstream). It's not a remote anymore.
 - Keep it green after each change: `npm run typecheck && npm run lint:ratchet && npm run build`, plus
   `CI=true npm test`. The lint ratchet (`scripts/lint-ratchet.mjs`, baseline
-  `scripts/lint-baseline.json`, 7,762 warnings) fails on any ESLint error or any rule whose warning
+  `scripts/lint-baseline.json`, 7,761 warnings) fails on any ESLint error or any rule whose warning
   count rises; lower the baseline with `npm run lint:ratchet -- --update` when counts drop.
 - **Local test environment:** `.claude/skills/foundry-test-env/SKILL.md` + `scripts/test-env/*.ps1`
   (Foundry 14 at `C:\FoundryTest` on localhost:30001, world `ai-tool-test`, passwordless "Claude" GM
@@ -124,46 +124,31 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
   decision/idea/lesson, Bases on the Dashboard, new Question notes). It is documentation only: it does
   not change current goals. Repo fixes from the cross-check: this file (Phases 7 to 9, releases,
   unmerged branches, Node versions, lint baseline), CHANGELOG "Unreleased", ROADMAP ticks.
-- [~] **Obsidian O3 (full play log + stats)**, in progress (`docs/OBSIDIAN-PLAN.md` O3 entry):
-  contracts `shared/src/play-log.ts` + `packages/mcp-server/src/stats/types.ts`; module
+- [x] **Obsidian O3 (full play log + stats) DONE** (2026-09-28; `docs/OBSIDIAN-PLAN.md` O3 "As
+  built"): contracts `shared/src/play-log.ts` + `packages/mcp-server/src/stats/types.ts`; module
   `play-recorder.ts` (GM clients, shadow before-values, query `getPlayRecords`); backend
   `play-log-pump.ts` (`sessions/<date>.play.jsonl`, key dedupe, `FOUNDRY_AI_PLAY_LOG=off`); pure
   `stats/build.ts`; stats in session notes + `AI Tool/Stats/` (Campaign, PCs) + `PC stats.base`;
-  read tool `get-play-stats` (87 tools). Two live fights on test servers (first and second PC); see the handoff below.
-- [~] **Handoff (2026-09-28, evening; second PC, CKRSSURFACE).**
-  - O3 worker D's six items are all done and gated (`b48e7cd` + the commit after it): stale-time
-    bucketed keys; HP attribution once per target per message; `dnd5e.restCompleted` records
-    card-less rests (`manage-rest`); `combat` on combat-end; `userName` on every record (filled in
-    `build()`); roll breakdowns as session events: public `roll` / `damage-roll` (player-safe
-    `description`, GM line in `details.breakdown`), whispered/blind/self `gm-roll`. **Tests 2,461**
-    (foundry-module 1018, mcp-server 1336, shared 55, cogm-dashboard 52); lint baseline **7,762**.
-  - **Live re-run PASSED** on the second PC's new test server (Foundry 14.368, dnd5e 6.0.5, world
-    `ai-tool-test`: users Gamemaster, Claude, Player; `Test Hero` level 3 Fighter owned by Player,
-    world actor `Wolf` (dnd5e.actors24) with unlinked tokens Wolf 1-3 on scene "Test Arena"). The
-    play log, GM feed, `/player` feed with the split on (no `gm-roll`, no AC/DC or outcome, empty
-    details) and session notes with stats (S02) all checked.
-  - Found and fixed live: **Foundry 14 roll-mode privacy bug** (v14 message modes; dnd5e 6 passes
-    `rollMode` on unmapped, legacy names fell back to public): `roll-saving-throws`,
-    `use-npc-activity` (ignored `isPublic`) and private player roll buttons posted publicly.
-    `shared.rollModeFor` / `rollToMessageOptions` / `usesMessageModes` pick the running Foundry's
-    names. Breakdown labels fixed from real data: no proficiency on damage, a 0 never names an
-    ability, untyped rolls guess nothing and keep their flavor, function terms (hit die) show their
-    dice, skills use dnd5e's label.
-  - **Exact HP credit** (after the re-run): `dnd5e.preApplyDamage` notes the card's
-    `options.originatingMessage` for the actor, the next HP change is credited to it (`source.exact:
-    true`), `dnd5e.applyDamage` drops an unused note (5 s TTL). Other HP changes: a roll within 10 s
-    whose total fits (full, half, double, cut short at 0/max, temp HP counted). Verified live: card
-    Apply exact despite a newer roll; tool damage that fits no roll uncredited; HP bar edit guessed.
-    **Tests 2,466** (foundry-module 1023).
-  - Follow-ups (not built): combat participants come from turns taken (Test Hero, whose turn never
-    came, is missing); combat-end `turn` read 0 after an end mid-round; the session feed's `damage`
-    event still uses its own "latest roll" guess for `details.source`.
-  - Next: the guarded combat tool (designed: feature switch `combat`, `plan-combat`
-    create/add/remove/start/end, apply/undo via the guarded-write flow; no executor change needed),
-    unless the GM picks another direction. Then skills docs for O3.
-  - Test env on this PC: `scripts/test-env/local.json` holds the test server's admin login (GM's,
-    gitignored). `Get-NodeExe` picks the newest portable Node 22. The test vault's
-    `sessions/2026-09-28.play.jsonl` has test records only.
+  read tool `get-play-stats` (87 tools). Rests (card + `dnd5e.restCompleted`), `userName` on every
+  record, combat rosters, roll breakdowns in the feed (`roll` / `damage-roll` player-safe,
+  `gm-roll` GM-only), exact HP credit from dnd5e card Apply (`source.exact`, shared rule in
+  `hp-credit.ts`, also used by the feed's `damage` events), else a roll that fits within 10 s.
+  Every test on the plan's O3 list is covered (5.3 and 6.0 fixtures, two GM clients, dedupe, no
+  double counting, midnight split, rebuild equals incremental, 1,000 events). Live on both PCs'
+  test servers. Found live and fixed: the **Foundry 14 roll-mode privacy bug** (`gmroll` fell
+  back to public: `roll-saving-throws`, `use-npc-activity`, private player roll buttons; now
+  `shared.rollModeFor` / `rollToMessageOptions` / `usesMessageModes`) and v14 nulling
+  `combat.turn` before `deleteCombat`. **Tests 2,477** (foundry-module 1030, mcp-server 1340,
+  shared 55, cogm-dashboard 52); lint baseline **7,761**.
+- [~] **Handoff (2026-09-28, night; second PC, CKRSSURFACE).** O3 is done and pushed. Next is the
+  GM's call. Options on the table: M2 (spoiler-safe `/player`, waiting for the go-ahead); the
+  guarded combat tool (designed in an earlier session, in no plan yet: feature switch `combat`,
+  `plan-combat` create/add/remove/start/end, apply/undo via the guarded-write flow; no executor
+  change needed); O4 (Foundry mirrors + links).
+  - Test env on this PC: world `ai-tool-test` (users Gamemaster, Claude, Player; `Test Hero` level 3
+    Fighter owned by Player; world actor `Wolf` with unlinked tokens Wolf 1-3 on "Test Arena").
+    `scripts/test-env/local.json` holds the test server's admin login (GM's, gitignored).
+    `Get-NodeExe` picks the newest portable Node 22. The test vault holds test records only.
   - GM to-dos recorded, not scheduled (`docs/ROADMAP.md` "GM to-dos"): video walkthrough, easy
     guides with session checklists, README/front page, help inside each surface, feature toggles
     (GM config + per-player choices).

@@ -1,4 +1,5 @@
 import { MODULE_ID } from './constants.js';
+import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
 import {
   chatRollKind,
   dnd5eMessageItemRef,
@@ -601,17 +602,6 @@ interface PendingApply {
   t: number;
 }
 
-/**
- * Whether an HP change could be a roll of `total` under 5e rules: the full
- * amount, half (resistance) or double (vulnerability), or less when the change
- * stopped at a limit (0 HP for damage, max HP for healing).
- */
-function hpChangeFitsRoll(amount: number, total: number, stoppedAtLimit: boolean): boolean {
-  if (amount <= 0 || total <= 0) return false;
-  if (amount === total || amount === Math.floor(total / 2) || amount === total * 2) return true;
-  return stoppedAtLimit && amount < total;
-}
-
 /** Everything a document-state-change record needs beyond the path/before/after: computed once per hook call. */
 interface ChangeContext {
   t: number;
@@ -633,6 +623,8 @@ export class PlayRecorder {
   private recentDamage: RecentRoll[] = [];
   private recentHealing: RecentRoll[] = [];
   private readonly pendingApply = new Map<string, PendingApply>();
+  /** Each running combat's last turn: Foundry 14 nulls `combat.turn` before `deleteCombat` fires. */
+  private readonly lastCombatTurn = new Map<string, number>();
 
   // -------------------------------------------------------------------------
   // Registration
@@ -1015,12 +1007,10 @@ export class PlayRecorder {
     if (!this.isGM()) return;
     const actorUuid = str(asRecord(rawActor)?.uuid);
     if (!actorUuid) return;
-    const options = asRecord(rawOptions);
-    const origin = asRecord(options?.origin);
-    const message =
-      asRecord(options?.originatingMessage) ??
-      (str(origin?.documentName) === 'ChatMessage' ? origin : null);
-    this.pendingApply.set(actorUuid, { messageId: str(message?.id) ?? null, t: Date.now() });
+    this.pendingApply.set(actorUuid, {
+      messageId: originatingMessageId(rawOptions),
+      t: Date.now(),
+    });
   }
 
   /** `dnd5e.applyDamage` fires after the update: a note its HP change did not use is dropped. */
@@ -1595,6 +1585,7 @@ export class PlayRecorder {
     const { t, fresh } = createOrUpdateTime(combat, false);
     const round = num(combat.round) ?? 1;
     const turn = num(combat.turn) ?? 0;
+    this.lastCombatTurn.set(combatId, turn);
     this.push(
       this.build({
         kind: 'combat-start',
@@ -1638,6 +1629,7 @@ export class PlayRecorder {
     if (changed?.round === undefined && changed?.turn === undefined) return;
     const round = num(combat.round) ?? 0;
     const turn = num(combat.turn) ?? 0;
+    this.lastCombatTurn.set(combatId, turn);
     const combatant = shape<CombatantLike>(combat.combatant);
     const actor = shape<ActorLike>(combatant?.actor);
     const uid = this.uid(userId);
@@ -1663,7 +1655,8 @@ export class PlayRecorder {
     if (!combat || !combatId) return;
     const { t } = deleteTime();
     const round = num(combat.round) ?? 0;
-    const turn = num(combat.turn) ?? 0;
+    const turn = num(combat.turn) ?? this.lastCombatTurn.get(combatId) ?? 0;
+    this.lastCombatTurn.delete(combatId);
     this.push(
       this.build({
         kind: 'combat-end',

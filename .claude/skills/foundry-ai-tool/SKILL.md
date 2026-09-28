@@ -117,3 +117,33 @@ The test bridge renders into the throwaway vault `C:\FoundryTest\obsidian` (`Obs
 
 Clean up afterwards when the change is not wanted in the test world (undo from Recent Changes,
 switch features back off if the test needs them off).
+
+## Play log checks (O3)
+
+The recorder runs on the GM client only and writes through the backend pump; its copy lands in the
+vault a few seconds after each event. `FOUNDRY_AI_PLAY_LOG=off` disables the pump for a run that
+should not be logged.
+
+1. Set up a fight: a PC token and one or more NPC tokens on a scene, start combat.
+2. Roll a mix of rolls covering each Foundry v14 message mode: public, GM (`gm`, the old
+   "gmroll"), blind and self; a hand roll's dnd5e message config takes
+   `{ rollMode: 'public' | 'gm' | 'blind' | 'self' }`.
+3. Exact-credit check: target a token, roll damage, click **Apply** on the chat card.
+4. Also apply at least one HP change with no matching roll (e.g. `apply-damage-and-healing` from
+   the dashboard) to see the "no source" path, and one that fits a fresh roll but was not applied
+   from its card, to see the "guess" path.
+5. Run `manage-rest` once for a rest that produces no chat card, to exercise the
+   `dnd5e.restCompleted` fallback.
+6. `advance-combat-turn` through a round or two, then end combat.
+7. Check the play log, `C:\FoundryTest\vault\ai-tool-test\sessions\<date>.play.jsonl`: each
+   record's `kind` and `userName`; for hp records, `source` (`source.exact: true` only for the
+   Apply-button record from step 3, not for the guess from step 4); `combat-start`/`combat-end`
+   carry `data.roster`.
+8. Check the session events, `sessions\<date>.jsonl`: public rolls are `roll`/`damage-roll` events
+   with a player-safe `description` and `details.breakdown` for the GM's full line; the GM/blind/
+   self rolls from step 2 are `gm-roll` events instead.
+9. `/player` with the split on (see "Calling tools" above): the feed shows only the public
+   `roll`/`damage-roll` descriptions, no `details`, and none of the `gm-roll` events.
+10. Once the Obsidian render catches up, check the session note's stats properties and roll
+    breakdowns under
+    `C:\FoundryTest\obsidian\Campaigns\ai-tool-test\AI Tool\Sessions\<date> S<NN>.md`.

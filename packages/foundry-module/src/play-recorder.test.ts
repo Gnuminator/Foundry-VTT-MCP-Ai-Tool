@@ -485,6 +485,24 @@ describe('combat, scene, world time and users', () => {
     expect(end.data).toEqual({ rounds: 1, roster: ['Lurker', 'Test Hero', 'Wolf 1', 'Wolf 2'] });
   });
 
+  it('combat-end keeps the last turn although Foundry 14 nulls combat.turn before deleteCombat', () => {
+    const now = Date.now();
+    const combat: any = {
+      id: 'combat3',
+      round: 1,
+      turn: 0,
+      combatants: { size: 0, contents: [] },
+      _stats: { modifiedTime: now },
+    };
+    Hooks.callAll('combatStart', combat);
+    combat.turn = 2;
+    Hooks.callAll('updateCombat', combat, { turn: 2 }, {}, 'u1');
+    combat.turn = null; // v14 Combat#_onDelete runs before the hook
+    Hooks.callAll('deleteCombat', combat);
+    const end = recorder.getPlayRecords({}).records.find(r => r.kind === 'combat-end');
+    expect(end?.combat).toEqual({ id: 'combat3', round: 1, turn: 2 });
+  });
+
   it('records a scene change once per new viewed scene (canvasReady)', () => {
     (globalThis as any).canvas = { scene: { id: 'sceneA' } };
     Hooks.callAll('canvasReady');

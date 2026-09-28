@@ -9,19 +9,25 @@ A personal-only test server (the Foundry licence allows a second instance for th
 owner's own testing). Everything is separate from the live campaign, which runs on a
 hosting service and is driven by Claude Desktop's bridge on 31414-31416.
 
-| Part        | Where                                                                                         |
-| ----------- | --------------------------------------------------------------------------------------------- |
-| Foundry 14  | `http://localhost:30001`, app `C:\FoundryTest\app`, data `C:\FoundryTest\data`                |
-| Test world  | id `ai-tool-test`, title "AI Tool Test", dnd5e 6.0.5, Modern Rules (2024)                     |
-| Users       | `Claude` (Gamemaster, no password), `Player` (Player, no password), `Gamemaster` (the GM's)   |
-| Test bridge | control `31514`, Foundry link `31515`, WebRTC signaling `31516`                               |
-| Dashboard   | `http://localhost:3100`                                                                       |
-| Vault       | `C:\FoundryTest\vault`                                                                        |
-| Obsidian    | `C:\FoundryTest\obsidian` (throwaway vault the test bridge renders notes into; `ObsidianDir`) |
-| Logs, PIDs  | `C:\FoundryTest\logs` (`<service>.out.log`, `.err.log`, `pids.json`)                          |
+| Part        | Where                                                                                                                                  |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Foundry 14  | `http://localhost:30001`, app `C:\FoundryTest\app`, data `C:\FoundryTest\data`                                                         |
+| Test world  | id `ai-tool-test`, title "AI Tool Test", dnd5e 6.0.5, Modern Rules (2024)                                                              |
+| Users       | `Claude` (Gamemaster, no password), `Player` (Player, no password), `Gamemaster` (the GM's)                                            |
+| Test data   | PC `Test Hero` (level 3 Fighter, max HP 28 set by hand); world actor `Wolf` with unlinked tokens `Wolf 1`-`Wolf 3`, scene "Test Arena" |
+| Test bridge | control `31514`, Foundry link `31515`, WebRTC signaling `31516`                                                                        |
+| Dashboard   | `http://localhost:3100`                                                                                                                |
+| Vault       | `C:\FoundryTest\vault`                                                                                                                 |
+| Obsidian    | `C:\FoundryTest\obsidian` (throwaway vault the test bridge renders notes into; `ObsidianDir`)                                          |
+| Logs, PIDs  | `C:\FoundryTest\logs` (`<service>.out.log`, `.err.log`, `pids.json`)                                                                   |
 
-Paths and ports come from `scripts/test-env/config.ps1`; `scripts/test-env/local.json`
-(gitignored) overrides them. The scripts need PowerShell 7 (`pwsh`, the PowerShell tool).
+This environment is per PC: the Foundry licence is per owner, so each PC gets its own copy set up
+separately with the GM. World data, users and test data are not shared between machines, even
+though the scripts and skills are in git.
+
+Paths and ports come from `scripts/test-env/config.ps1` (`Get-NodeExe` there picks the newest
+portable Node 22 folder, `%LOCALAPPDATA%\node22\node-v22.*-win-x64`); `scripts/test-env/local.json`
+(gitignored) overrides paths and ports. The scripts need PowerShell 7 (`pwsh`, the PowerShell tool).
 Foundry runs on the Node its `app\package.json` requires (14.368: >=24.13.1 <25, the
 global Node 24); the bridge and dashboard use the repo's portable Node 22.
 
@@ -31,8 +37,9 @@ global Node 24); the bridge and dashboard use the repo's portable Node 22.
   Claude Desktop. The scripts refuse test ports that collide with the live ones.
 - In Foundry, join as `Claude` (or `Player` for player-view checks). Never type the GM's
   own passwords, licence key or foundryvtt.com credentials anywhere.
-- Setup-screen tasks (install packages, create worlds) need the test server's admin login.
-  Use it only from `scripts/test-env/local.json` (`AdminUser`, `AdminPassword`, read with
+- Setup-screen tasks (install packages, create worlds) need the test server's admin login
+  (v14's admin login form asks for both a user name and a password). Use it only from
+  `scripts/test-env/local.json` (`AdminUser`, `AdminPassword`, read with
   `Get-TestAdminCredential` in `config.ps1`), only on `http://localhost:30001`, and never
   print, log or commit it. If it is not there, ask the GM to add it (a password used for
   nothing else) or to log in once in the browser pane.
@@ -86,6 +93,11 @@ After changing code:
   to 1440×900); a tab that loads while hidden renders at 0×0 and its canvas fails (reload it in
   front); opening a second tab with `preview_start` can reload the first (use `tabs_create` +
   `navigate`); a second user needs a second origin (`http://127.0.0.1:30001` for `Player`).
+- Foundry v14 gotchas seen live: `combat.endCombat()` opens a confirm dialog (click Yes in the
+  pane; a script that awaits it will hang); a user's first join opens a "User Configuration"
+  dialog; `game.user.updateTokenTargets` no longer exists (use
+  `token.object.setTarget(true, { releaseOthers: true })`, and `setTarget(false, ...)` on
+  `game.user.targets` to clear).
 - Setup screen (`/setup`, admin): three tabs, **Game Worlds**, **Game Systems**, **Add-on
   Modules**; install a package with **Install System** / **Install Module** (search, **Install**);
   create a world with **Create World** (title, data path, system `dnd5e`, **Continue**; Foundry

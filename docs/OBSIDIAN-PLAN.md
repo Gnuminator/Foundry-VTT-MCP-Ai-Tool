@@ -1,6 +1,6 @@
 # Obsidian integration plan
 
-Status: **O1 and O2 done, O3 in progress (2026-09-28); see "As built".** Written
+Status: **O1, O2 and O3 done (2026-09-28); see "As built".** Written
 2026-09-28 (branch `claude/amazing-bardeen-q1x1q6`) from four research sweeps (prior art, Obsidian
 platform, game data, dev project); plugin facts re-checked on GitHub the same day. The GM handed
 Claude ownership of everything Obsidian on 2026-09-28 (structure, plugins, automations, formatting);
@@ -86,13 +86,13 @@ secret)` callouts); creates the campaign `Home.md` (Bases tables) and `Prep/` on
     even when a gap inside it already split the notes; the newest session note says
     `ended_by: open` until the next event arrives; a base definition that changes in a later
     version reaches an existing vault only after the GM deletes the old base.
-- **O3 (in progress 2026-09-28, GM go-ahead the same day): design as decided.**
+- **O3 (done 2026-09-28):**
   - Contracts: `shared/src/play-log.ts` (PlayRecord v2, query `getPlayRecords`) and
     `packages/mcp-server/src/stats/types.ts` (StatsModel). Recorder in the module
     (`play-recorder.ts`, GM clients only, shadow before-values), pump in the backend
     (`play-log-pump.ts`, `sessions/<date>.play.jsonl`, `FOUNDRY_AI_PLAY_LOG=off` disables it), a pure
     stats builder (`stats/build.ts`), stats in the session notes and `AI Tool/Stats/`, read tool
-    `get-play-stats`.
+    `get-play-stats` (87 tools total).
   - **Changes to section 8:** no `sessionId` in the raw records: sessions are the O2 grouping over
     both logs (markers, gaps), a view that can change retroactively, so the raw log stays raw. Each
     record has a deterministic `key` (document `modifiedTime`, message id, combat round/turn) and
@@ -108,6 +108,45 @@ secret)` callouts); creates the campaign `Home.md` (Bases tables) and `Prep/` on
     stay GM-only (`gm-roll` events). A target's AC/DC and hit/miss reach players only when dnd5e's
     challenge visibility setting shows them; the GM always sees them (`details.breakdown`, GM feed,
     session notes). This also closes the old leak of blind damage rolls into the player feed.
+  - **As built:** the recorder keys a document's `_stats.modifiedTime` only when it is within 60 s
+    of now, else `Date.now()`; each key then adds a 2 s time bucket plus the before/after values, so
+    two GM clients still produce one key (unlinked token actors and all deletes always use
+    `Date.now()`, since their `modifiedTime` is unreliable). Rests are recorded from the rest chat
+    card, and from the `dnd5e.restCompleted` hook for rests without a card (the `manage-rest` tool
+    rests with `chat: false`); a rest with a card is recorded once. Every record that names a user
+    carries `userName`. HP credit (`source` on hp records) is exact when dnd5e applies damage or
+    healing from a chat card's Apply button (`dnd5e.preApplyDamage`'s `options.originatingMessage`;
+    `source.exact: true`), else a guess: a damage or healing roll from the last 10 s, not yet
+    credited to that actor, whose total fits the change under 5e rules (full, half for resistance,
+    double for vulnerability, less when stopped at 0 or max HP; temp HP lost in the same update
+    counts toward damage). One roll message is credited at most once per target; stats count HP
+    deltas, not rolls. `combat-start` and `combat-end` carry `data.roster` (combatant names);
+    combat stats list every participant (both rosters, turns taken, anyone whose HP changed);
+    `combat-end` carries the ended combat's round and last turn (Foundry 14 nulls `combat.turn`
+    before the delete hook). The session feed's `damage` events use the same credit rule
+    (`details.sourceMessageId`, `sourceExact`; shared helpers in `hp-credit.ts`).
+  - **Roll breakdowns as built:** public rolls are `roll` events (`damage-roll` for damage) whose
+    `description` is a player-safe line such as "Wolf 1, Bite attack: 1d20 (15) +2 STR +2
+    proficiency = 19" (no target AC/DC or outcome unless dnd5e's `challengeVisibility` world setting
+    is `all`); `details.breakdown` holds the GM's full line; whispered, blind and self rolls are
+    GM-only `gm-roll` events instead. Sources are inferred (ability, proficiency, magic) or
+    `modifier` when unknown; proficiency is never assumed on damage; a 0 never names an ability;
+    rolls dnd5e did not type (a plain `/r`) guess no sources and keep their flavor as the title;
+    function terms such as the hit die show their dice (`max(1, 1d10 + 2)`); skills use dnd5e's own
+    labels ("Perception check"). Module files: `session-events.ts`, `systems/dnd5e/roll-breakdown.ts`.
+    The `/player` feed (split on) shows only public `roll`/`damage-roll` descriptions with details
+    stripped; the GM feed and session notes show `details.breakdown`.
+  - **Foundry 14 roll-mode privacy fix:** v14 names chat visibility by message mode (`public`,
+    `gm`, `blind`, `self`); dnd5e 6 passed its message-config `rollMode` to `ChatMessage.create`
+    unmapped, and a legacy name (`gmroll`) fell back to the user's default (public), so
+    `roll-saving-throws`, `use-npc-activity` and private player roll buttons posted publicly on v14.
+    Fixed via `shared.rollModeFor` / `rollToMessageOptions` / `usesMessageModes` in
+    `packages/foundry-module/src/data-access/shared.ts`.
+  - **Live verification (2026-09-28, second PC test server, Foundry 14.368, dnd5e 6.0.5):** a
+    scripted fight as the Claude GM user checked the play log, the GM feed, the `/player` feed with
+    the split on, and the session note's stats: a card Apply credited exactly despite a newer roll,
+    a tool damage fitting no roll stayed uncredited, and an HP-bar edit fitting a fresh roll was
+    credited as a guess.
 
 ## 1. Summary
 

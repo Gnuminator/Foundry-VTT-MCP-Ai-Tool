@@ -13,7 +13,9 @@ import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PlayActorRef, PlayRecord } from '@gnuminator/shared';
+import { playLogFileName } from '@gnuminator/shared';
 
+import { localDateKey as localDateKeyOf } from '../event-pump.js';
 import { AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 
@@ -1076,5 +1078,68 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
     );
     expect(text).not.toContain('<%');
     expect(text).toContain('&lt;%');
+  });
+
+  it('a session spanning local midnight is one session note, built from records in two play-log files', async () => {
+    // The pump writes one file per local date (play-log-pump.test.ts: "splits a
+    // batch across local dates (midnight)"), so a session that runs past
+    // midnight has its records split across two `<date>.play.jsonl` files. The
+    // exporter loads every play-log file (`loadPlayRecords`) before grouping,
+    // so the two records here (5 minutes apart, well under the 3h session gap)
+    // must still land in the same session group and the same session note.
+    const MIDNIGHT_WORLD = 'strahd-midnight';
+    const midnightLocal = new Date(2026, 8, 29, 0, 0, 0).getTime(); // local midnight
+    const beforeMidnight = midnightLocal - 5 * 60 * 1000; // 23:55, local Sep 28
+    const afterMidnight = midnightLocal + 5 * 60 * 1000; // 00:05, local Sep 29
+    const dateBefore = localDateKeyOf(beforeMidnight);
+    const dateAfter = localDateKeyOf(afterMidnight);
+    expect(dateBefore).not.toBe(dateAfter); // sanity: the two records really are on different dates
+
+    await store.appendLines(MIDNIGHT_WORLD, 'sessions', playLogFileName(dateBefore), [
+      {
+        v: 2,
+        key: 'chat:before-midnight',
+        t: beforeMidnight,
+        seq: 1,
+        kind: 'chat',
+        userId: 'user1',
+        sceneId: null,
+        data: { text: 'Last thing before midnight' },
+      } satisfies PlayRecord,
+    ]);
+    await store.appendLines(MIDNIGHT_WORLD, 'sessions', playLogFileName(dateAfter), [
+      {
+        v: 2,
+        key: 'chat:after-midnight',
+        t: afterMidnight,
+        seq: 1,
+        kind: 'chat',
+        userId: 'user1',
+        sceneId: null,
+        data: { text: 'First thing after midnight' },
+      } satisfies PlayRecord,
+    ]);
+
+    const result = await exportWorldToObsidian({
+      store,
+      audit: new AuditLog(store),
+      worldId: MIDNIGHT_WORLD,
+      vaultDir,
+    });
+    const sessionPaths = result.written.filter(p => p.startsWith('AI Tool/Sessions/'));
+    expect(sessionPaths).toHaveLength(1); // one session note, not two
+
+    const session = await fsp.readFile(
+      path.join(campaignDir(vaultDir, MIDNIGHT_WORLD), sessionPaths[0]),
+      'utf8'
+    );
+    expect(session).toContain('play_records: 2');
+    expect(session).toContain('session_number: 1');
+
+    const campaign = await fsp.readFile(
+      path.join(campaignDir(vaultDir, MIDNIGHT_WORLD), 'AI Tool/Stats/Campaign.md'),
+      'utf8'
+    );
+    expect(campaign).toContain('sessions: 1'); // still one session in the campaign stats too
   });
 });

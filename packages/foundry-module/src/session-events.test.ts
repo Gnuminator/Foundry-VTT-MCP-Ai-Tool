@@ -409,6 +409,33 @@ describe('EventTracker session events', () => {
     expect(t.getSessionLog({ eventType: 'death' })).toHaveLength(1);
   });
 
+  it("credits damage like the play log: the card's own message exactly, else a roll that fits", () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    const wolf = { id: 'w1', uuid: 'Actor.w1', name: 'Wolf' };
+    const hp = (value: number): void =>
+      fire('updateActor', wolf, { system: { attributes: { hp: { value } } } });
+    hp(40); // seeds the cache
+    const now = Date.now();
+    fire('createChatMessage', damageMessage({ id: 'sword', timestamp: now })); // 9 slashing
+    fire('createChatMessage', damageMessage({ id: 'later', timestamp: now, flavor: 'Axe Damage' }));
+
+    // Applied from the sword card: exact, although the axe roll came later.
+    const card = { id: 'sword', documentName: 'ChatMessage' };
+    fire('dnd5e.preApplyDamage', wolf, 9, {}, { originatingMessage: card });
+    hp(31);
+    fire('dnd5e.applyDamage', wolf, 9, {});
+    hp(22); // 9 again, no card: the latest roll that fits (the axe)
+    hp(17); // 5: fits no 9-point roll
+
+    const details = t.getSessionLog({ eventType: 'damage' }).map(e => e.details);
+    expect(details.map(d => [d.source, d.sourceMessageId, d.sourceExact])).toEqual([
+      ['Longsword Damage', 'sword', true],
+      ['Axe Damage', 'later', false],
+      [null, undefined, undefined],
+    ]);
+  });
+
   it('detects healing and stabilization', () => {
     const t = new EventTracker();
     t.registerHooks();

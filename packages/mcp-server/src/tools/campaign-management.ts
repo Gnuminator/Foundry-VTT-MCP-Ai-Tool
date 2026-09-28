@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { ErrorHandler } from '../utils/error-handler.js';
 import { Logger } from '../logger.js';
-import { CampaignPartTypeSchema } from '@gnuminator/shared';
+import { CampaignPartTypeSchema, toolRef } from '@gnuminator/shared';
 import type { CampaignStructure, CampaignPart } from '@gnuminator/shared';
 
 export class CampaignManagementTools {
@@ -73,6 +73,7 @@ export class CampaignManagementTools {
             defaultQuestGiver: {
               type: 'string',
               description: 'Default NPC name for quest giving (optional)',
+              ...toolRef('actor', 'name', { filter: { types: ['npc'] } }),
             },
             defaultLocation: {
               type: 'string',

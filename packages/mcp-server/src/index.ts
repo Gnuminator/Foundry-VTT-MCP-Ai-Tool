@@ -10,6 +10,8 @@ import { config } from './config.js';
 
 import type { ControlRequest, ControlResponse } from '@gnuminator/shared';
 
+import { stripToolRefs } from '@gnuminator/shared';
+
 import { spawn, ChildProcess } from 'child_process';
 
 import * as net from 'net';
@@ -349,7 +351,9 @@ async function startWrapper() {
         });
       } catch {}
 
-      return { tools: res.tools || [] };
+      // Picker annotations (x-foundry-ref) are for the dashboard only.
+      const listed = (res.tools || []) as Parameters<typeof stripToolRefs>[0];
+      return { tools: stripToolRefs(listed) };
     } catch (e) {
       // Log but return empty to remain MCP-compliant
 

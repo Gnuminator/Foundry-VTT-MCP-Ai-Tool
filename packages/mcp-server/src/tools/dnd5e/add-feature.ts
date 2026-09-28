@@ -1,3 +1,4 @@
+import { freeText, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../../foundry-client.js';
 import { Logger } from '../../logger.js';
@@ -168,12 +169,14 @@ export class DnD5eAddFeatureTool {
               type: 'string',
               description:
                 'Name or ID of the target actor (partial name match supported). Required for all featureTypes.',
+              ...toolRef('actor', 'id'),
             },
             featureName: {
               type: 'string',
               description:
                 'Name for the new feature/item — must be unique on the actor. ' +
                 'Required for: passive, save, attack, attack-with-save, aura.',
+              ...freeText('The name of the new feature item this call creates on the actor'),
             },
             description: {
               type: 'string',
@@ -388,6 +391,9 @@ export class DnD5eAddFeatureTool {
               minItems: 1,
               maxItems: 50,
               items: { type: 'string', minLength: 1 },
+              ...toolRef('compendium-entry', 'name', {
+                filter: { documentName: 'Item', types: ['spell'] },
+              }),
             },
             compendiumPacks: {
               type: 'array',
@@ -397,6 +403,7 @@ export class DnD5eAddFeatureTool {
                 'Used by: spells.',
               items: { type: 'string', minLength: 1 },
               default: ['dnd5e.spells'],
+              ...toolRef('compendium-pack', 'id', { filter: { documentName: 'Item' } }),
             },
 
             // ── Source metadata ───────────────────────────────────────────────

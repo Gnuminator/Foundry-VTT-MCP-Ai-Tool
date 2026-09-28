@@ -1,3 +1,4 @@
+import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -34,6 +35,7 @@ export class CombatResolutionTools {
               type: 'array',
               items: { type: 'string' },
               description: 'Token names (preferred) or actor names/IDs to affect.',
+              ...toolRef(['token', 'actor'], 'id'),
             },
             amount: { type: 'integer', description: 'Amount of damage/healing/temp HP (>= 0).' },
             kind: {
@@ -69,15 +71,18 @@ export class CombatResolutionTools {
               type: 'array',
               items: { type: 'string' },
               description: 'Token names (preferred) or actor names/IDs to roll for.',
+              ...toolRef(['token', 'actor'], 'id'),
             },
             rollType: { type: 'string', enum: ['save', 'check', 'skill'] },
             ability: {
               type: 'string',
               description: 'Ability key for save/check (str/dex/con/int/wis/cha).',
+              ...toolRef('ability', 'id'),
             },
             skill: {
               type: 'string',
               description: 'Skill key for skill rolls (e.g. "ste", "prc").',
+              ...toolRef('skill', 'id'),
             },
             dc: { type: 'integer', description: 'Optional difficulty class to test against.' },
             isPublic: {
@@ -95,10 +100,15 @@ export class CombatResolutionTools {
         inputSchema: {
           type: 'object',
           properties: {
-            actorName: { type: 'string', description: 'NPC actor name or ID.' },
+            actorName: {
+              type: 'string',
+              description: 'NPC actor name or ID.',
+              ...toolRef('actor', 'id', { filter: { types: ['npc'] } }),
+            },
             itemName: {
               type: 'string',
               description: 'Name of the weapon/feature/spell to use (e.g. "Scimitar").',
+              ...toolRef('actor-item', 'id', { parent: 'actorName' }),
             },
             targetAC: {
               type: 'integer',
@@ -120,6 +130,7 @@ export class CombatResolutionTools {
               type: 'array',
               items: { type: 'string' },
               description: 'Character names or IDs to rest.',
+              ...toolRef('actor', 'id', { filter: { types: ['character'] } }),
             },
             restType: { type: 'string', enum: ['short', 'long'] },
             newDay: {

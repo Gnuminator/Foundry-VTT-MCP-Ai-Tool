@@ -1,3 +1,4 @@
+import { freeText, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -86,11 +87,13 @@ export class QuestCreationTools {
             questGiver: {
               type: 'string',
               description: 'Name of the NPC who gives this quest to the party (optional)',
+              ...toolRef('actor', 'name', { filter: { types: ['npc'] } }),
             },
             npcName: {
               type: 'string',
               description:
                 'Name of key NPC this quest involves - could be antagonist, ally, or target (optional)',
+              ...toolRef('actor', 'name', { filter: { types: ['npc'] } }),
             },
             rewards: {
               type: 'string',
@@ -116,6 +119,7 @@ export class QuestCreationTools {
               type: 'string',
               description:
                 'Optional folder name to organize the journal into. The folder is created automatically if it does not exist.',
+              ...toolRef('folder', 'name', { filter: { documentName: 'JournalEntry' } }),
             },
           },
           required: ['questTitle', 'questDescription'],
@@ -130,10 +134,12 @@ export class QuestCreationTools {
             journalId: {
               type: 'string',
               description: 'ID of the quest journal entry',
+              ...toolRef('journal', 'id'),
             },
             npcName: {
               type: 'string',
               description: 'Name of the NPC to link to the quest',
+              ...toolRef('actor', 'name', { filter: { types: ['npc'] } }),
             },
             relationship: {
               type: 'string',
@@ -154,6 +160,7 @@ export class QuestCreationTools {
             journalId: {
               type: 'string',
               description: 'ID of the quest journal to update',
+              ...toolRef('journal', 'id'),
             },
             newContent: {
               type: 'string',
@@ -169,11 +176,13 @@ export class QuestCreationTools {
               type: 'string',
               description:
                 'ID of a specific page to update. If omitted, updates the first text page. Get page IDs from list-journals.',
+              ...toolRef('journal-page', 'id', { parent: 'journalId' }),
             },
             newPageName: {
               type: 'string',
               description:
                 'If provided (without pageId), creates a new page with this name instead of updating an existing one.',
+              ...freeText('The name for a new page, created by this call'),
             },
           },
           required: ['journalId', 'newContent', 'updateType'],
@@ -198,11 +207,13 @@ export class QuestCreationTools {
               type: 'string',
               description:
                 "If provided, read this journal's content instead of listing all journals. Returns full page content and a list of all pages in the journal.",
+              ...toolRef('journal', 'id'),
             },
             pageId: {
               type: 'string',
               description:
                 "If provided with journalId, read this specific page's content. Get page IDs from the pages array returned when listing journals or reading a journal.",
+              ...toolRef('journal-page', 'id', { parent: 'journalId' }),
             },
           },
         },

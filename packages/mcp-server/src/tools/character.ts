@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 import { SystemRegistry } from '../systems/system-registry.js';
@@ -68,6 +69,7 @@ export class CharacterTools {
             identifier: {
               type: 'string',
               description: 'Character name or ID to look up',
+              ...toolRef('actor', 'id'),
             },
           },
           required: ['identifier'],
@@ -83,11 +85,13 @@ export class CharacterTools {
             characterIdentifier: {
               type: 'string',
               description: 'Character name or ID',
+              ...toolRef('actor', 'id'),
             },
             entityIdentifier: {
               type: 'string',
               description:
                 'Entity name or ID (can be item ID, action name, spell name, or effect name)',
+              ...toolRef('actor-item', 'id', { parent: 'characterIdentifier' }),
             },
           },
           required: ['characterIdentifier', 'entityIdentifier'],
@@ -116,16 +120,21 @@ export class CharacterTools {
             actorIdentifier: {
               type: 'string',
               description: 'Character using the item (name or ID)',
+              ...toolRef('actor', 'id'),
             },
             itemIdentifier: {
               type: 'string',
               description: 'Item name or ID (spell, feat, equipment, consumable, etc.)',
+              ...toolRef('actor-item', 'id', { parent: 'actorIdentifier' }),
             },
             targets: {
               type: 'array',
               items: { type: 'string' },
               description:
                 'Target character/token names or IDs. Use ["self"] to target the caster. If omitted, GM selects targets in Foundry.',
+              ...toolRef('token', 'id', {
+                extra: [{ value: 'self', label: 'Self (the user of the item)' }],
+              }),
             },
             consume: {
               type: 'boolean',
@@ -213,6 +222,7 @@ export class CharacterTools {
               type: 'string',
               description:
                 'For "create": folder name/ID to place items in (created if absent). For "list": filter to items inside this folder.',
+              ...toolRef('folder', 'id', { filter: { documentName: 'Item' } }),
             },
             type: {
               type: 'string',
@@ -226,6 +236,7 @@ export class CharacterTools {
             actorIdentifier: {
               type: 'string',
               description: 'For "add-to-actor": actor name or ID to receive the items.',
+              ...toolRef('actor', 'id'),
             },
           },
           required: ['action'],
@@ -241,6 +252,7 @@ export class CharacterTools {
             characterIdentifier: {
               type: 'string',
               description: 'Character name or ID to search within',
+              ...toolRef('actor', 'id'),
             },
             query: {
               type: 'string',

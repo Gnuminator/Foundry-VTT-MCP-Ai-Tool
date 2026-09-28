@@ -1,3 +1,4 @@
+import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../../foundry-client.js';
 import { Logger } from '../../logger.js';
@@ -63,6 +64,7 @@ export class DnD5eFeaturesFromCompendiumTools {
             actorIdentifier: {
               type: 'string',
               description: 'Name or ID of the target actor (partial name match supported)',
+              ...toolRef('actor', 'id'),
             },
             featureNames: {
               type: 'array',
@@ -72,6 +74,9 @@ export class DnD5eFeaturesFromCompendiumTools {
               minItems: 1,
               maxItems: 50,
               items: { type: 'string', minLength: 1 },
+              ...toolRef('compendium-entry', 'name', {
+                filter: { documentName: 'Item', types: ['feat'] },
+              }),
             },
             compendiumPacks: {
               type: 'array',
@@ -82,6 +87,7 @@ export class DnD5eFeaturesFromCompendiumTools {
                 'Note: 2024 class features are not available in a separate pack.',
               items: { type: 'string', minLength: 1 },
               default: ['dnd5e.monsterfeatures', 'dnd5e.classfeatures'],
+              ...toolRef('compendium-pack', 'id', { filter: { documentName: 'Item' } }),
             },
           },
           required: ['actorIdentifier', 'featureNames'],

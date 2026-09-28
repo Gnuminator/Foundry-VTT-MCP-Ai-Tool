@@ -1,12 +1,12 @@
 {
-  "total": 7781,
+  "total": 7777,
   "rules": {
     "@typescript-eslint/explicit-function-return-type": 302,
-    "@typescript-eslint/no-explicit-any": 1240,
+    "@typescript-eslint/no-explicit-any": 1239,
     "@typescript-eslint/no-unsafe-argument": 230,
     "@typescript-eslint/no-unsafe-assignment": 1889,
-    "@typescript-eslint/no-unsafe-call": 426,
-    "@typescript-eslint/no-unsafe-member-access": 3258,
+    "@typescript-eslint/no-unsafe-call": 425,
+    "@typescript-eslint/no-unsafe-member-access": 3256,
     "@typescript-eslint/no-unsafe-return": 206,
     "@typescript-eslint/prefer-nullish-coalescing": 81,
     "@typescript-eslint/require-await": 76,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 
@@ -28,7 +29,11 @@ export class EffectsTools {
         inputSchema: {
           type: 'object',
           properties: {
-            identifier: { type: 'string', description: 'Actor name or ID.' },
+            identifier: {
+              type: 'string',
+              description: 'Actor name or ID.',
+              ...toolRef('actor', 'id'),
+            },
           },
           required: ['identifier'],
         },
@@ -40,11 +45,16 @@ export class EffectsTools {
         inputSchema: {
           type: 'object',
           properties: {
-            identifier: { type: 'string', description: 'Actor name or ID.' },
+            identifier: {
+              type: 'string',
+              description: 'Actor name or ID.',
+              ...toolRef('actor', 'id'),
+            },
             conditionNames: {
               type: 'array',
               items: { type: 'string' },
               description: 'Optional list of specific condition names/statuses to remove.',
+              ...toolRef('condition', 'id'),
             },
           },
           required: ['identifier'],

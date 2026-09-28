@@ -1,3 +1,4 @@
+import { freeText, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 
 import type { PlanView } from '../guarded-write/service.js';
@@ -70,6 +71,7 @@ export class TarokkaTools {
               type: 'string',
               description:
                 'The GM user who dealt in tarokka-reading, when that is another client than the bridge (Foundry 14.352+).',
+              ...toolRef('user', 'id', { filter: { role: 'gm' } }),
             },
           },
         },
@@ -95,11 +97,19 @@ export class TarokkaTools {
           type: 'object',
           properties: {
             position: POSITION_SCHEMA,
-            cardId: { type: 'string', description: 'Card id, e.g. swords-7 or raven.' },
-            journalPageUuid: { type: 'string' },
-            sceneUuid: { type: 'string' },
-            actorUuid: { type: 'string' },
-            cardName: { type: 'string', description: 'Display name for this card.' },
+            cardId: {
+              type: 'string',
+              description: 'Card id, e.g. swords-7 or raven.',
+              ...toolRef('tarokka-card', 'id', { parent: 'position' }),
+            },
+            journalPageUuid: { type: 'string', ...toolRef('journal-page', 'uuid') },
+            sceneUuid: { type: 'string', ...toolRef('scene', 'uuid') },
+            actorUuid: { type: 'string', ...toolRef('actor', 'uuid') },
+            cardName: {
+              type: 'string',
+              description: 'Display name for this card.',
+              ...freeText('A new display name the GM types for the card'),
+            },
             clear: { type: 'boolean', description: "Remove this card's links first." },
           },
           required: ['position'],
@@ -122,6 +132,7 @@ export class TarokkaTools {
               type: 'string',
               description:
                 'Name of the player journal when it is created (default "Tarokka reading").',
+              ...freeText('The name for a journal that is created on first use'),
             },
           },
           required: ['position', 'text'],

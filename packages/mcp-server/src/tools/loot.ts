@@ -1,3 +1,4 @@
+import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -31,6 +32,7 @@ export class LootTools {
             targetCharacter: {
               type: 'string',
               description: 'Character name/ID to receive the loot. Omit to only announce in chat.',
+              ...toolRef('actor', 'id', { filter: { types: ['character'] } }),
             },
             currency: {
               type: 'object',
@@ -47,6 +49,9 @@ export class LootTools {
               type: 'array',
               items: { type: 'string' },
               description: 'Compendium item UUIDs to add (from search-compendium).',
+              ...toolRef(['compendium-entry', 'document'], 'uuid', {
+                filter: { documentName: 'Item' },
+              }),
             },
             announce: {
               type: 'boolean',

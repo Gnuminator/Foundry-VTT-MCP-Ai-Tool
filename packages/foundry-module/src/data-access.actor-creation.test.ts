@@ -459,6 +459,27 @@ describe('FoundryDataAccess — createActorFromCompendiumEntry: success', () => 
     expect(created!.prototypeToken.texture.src).toBeNull();
   });
 
+  // Found in the live picker test: "Grey Wolf" / "Pack Leader" copies of the
+  // SRD Wolf all got tokens named "Wolf", so tools that find tokens by name
+  // could not tell them apart.
+  it("names each copy's prototype token after the copy, not the source", async () => {
+    addActorPack('world.monsters', 'Monsters', [
+      { id: 'wolf', name: 'Wolf', type: 'npc', prototypeToken: { name: 'Wolf', texture: {} } },
+    ]);
+
+    await da.createActorFromCompendiumEntry({
+      packId: 'world.monsters',
+      itemId: 'wolf',
+      customNames: ['Grey Wolf', 'Pack Leader'],
+      quantity: 2,
+    });
+
+    for (const name of ['Grey Wolf', 'Pack Leader']) {
+      const created = world.actors.find((a: any) => a.name === name);
+      expect(created!.prototypeToken.name).toBe(name);
+    }
+  });
+
   it('files the created actor under the "Foundry MCP Creatures" Actor folder', async () => {
     addActorPack('world.monsters', 'Monsters', [{ id: 'gob1', name: 'Goblin', type: 'npc' }]);
 

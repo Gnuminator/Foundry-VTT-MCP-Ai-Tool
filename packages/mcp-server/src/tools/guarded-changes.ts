@@ -1,3 +1,4 @@
+import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 
 import type { FoundryClient } from '../foundry-client.js';
@@ -55,7 +56,11 @@ export class GuardedChangeTools {
         inputSchema: {
           type: 'object',
           properties: {
-            planId: { type: 'string', description: 'The planId returned by a plan-* tool.' },
+            planId: {
+              type: 'string',
+              description: 'The planId returned by a plan-* tool.',
+              ...toolRef('plan', 'id'),
+            },
           },
         },
       },
@@ -66,7 +71,11 @@ export class GuardedChangeTools {
         inputSchema: {
           type: 'object',
           properties: {
-            planId: { type: 'string', description: 'The planId to apply.' },
+            planId: {
+              type: 'string',
+              description: 'The planId to apply.',
+              ...toolRef('plan', 'id'),
+            },
             confirm: {
               type: 'boolean',
               description: 'Must be true: the GM confirmed this change.',
@@ -101,7 +110,11 @@ export class GuardedChangeTools {
         inputSchema: {
           type: 'object',
           properties: {
-            changeId: { type: 'string', description: 'The changeId to undo.' },
+            changeId: {
+              type: 'string',
+              description: 'The changeId to undo.',
+              ...toolRef('change', 'id', { filter: { undoable: true } }),
+            },
             confirm: {
               type: 'boolean',
               description: 'Must be true: the GM confirmed the undo.',
@@ -120,10 +133,12 @@ export class GuardedChangeTools {
             uuid: {
               type: 'string',
               description: 'Document uuid, e.g. JournalEntry.abc.JournalEntryPage.def',
+              ...toolRef('document', 'uuid'),
             },
             userId: {
               type: 'string',
               description: "The GM user whose screen to use (default: the bridge's own client).",
+              ...toolRef('user', 'id', { filter: { role: 'gm' } }),
             },
           },
           required: ['uuid'],

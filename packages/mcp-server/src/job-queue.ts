@@ -175,6 +175,11 @@ export class JobQueue {
     return this.jobs.get(jobId);
   }
 
+  /** Jobs still held (until they expire), newest first. */
+  listJobs(): JobData[] {
+    return [...this.jobs.values()].sort((a, b) => b.created_at - a.created_at);
+  }
+
   async markJobStarted(jobId: string): Promise<void> {
     const job = this.jobs.get(jobId);
     if (!job) {

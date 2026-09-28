@@ -1,3 +1,4 @@
+import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -31,6 +32,7 @@ export class MovementTools {
             sceneId: {
               type: 'string',
               description: 'Optional scene ID; defaults to the active scene.',
+              ...toolRef('scene', 'id'),
             },
           },
         },
@@ -42,8 +44,16 @@ export class MovementTools {
         inputSchema: {
           type: 'object',
           properties: {
-            fromTokenName: { type: 'string', description: 'Name of the first token.' },
-            toTokenName: { type: 'string', description: 'Name of the second token.' },
+            fromTokenName: {
+              type: 'string',
+              description: 'Name of the first token.',
+              ...toolRef('token', 'name'),
+            },
+            toTokenName: {
+              type: 'string',
+              description: 'Name of the second token.',
+              ...toolRef('token', 'name'),
+            },
           },
           required: ['fromTokenName', 'toTokenName'],
         },

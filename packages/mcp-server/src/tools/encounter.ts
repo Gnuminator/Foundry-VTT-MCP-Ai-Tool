@@ -1,3 +1,4 @@
+import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -58,6 +59,7 @@ export class EncounterTools {
             originTokenName: {
               type: 'string',
               description: 'Center the template on this token instead of x/y.',
+              ...toolRef('token', 'id'),
             },
             direction: { type: 'number', description: 'Facing in degrees (cone/ray/rect).' },
             angle: { type: 'number', description: 'Cone angle in degrees (default ~53).' },
@@ -74,7 +76,11 @@ export class EncounterTools {
         inputSchema: {
           type: 'object',
           properties: {
-            templateId: { type: 'string', description: 'Template ID to delete.' },
+            templateId: {
+              type: 'string',
+              description: 'Template ID to delete.',
+              ...toolRef('template', 'id'),
+            },
             all: { type: 'boolean', description: 'Delete all templates on the scene.' },
           },
         },

@@ -27,6 +27,7 @@ import type { MapGenerationTools } from './tools/map-generation.js';
 import type { MovementTools } from './tools/movement.js';
 import type { OwnershipTools } from './tools/ownership.js';
 import type { QuestCreationTools } from './tools/quest-creation.js';
+import type { RefChoiceTools } from './tools/ref-choices.js';
 import type { ResourceTools } from './tools/resources.js';
 import type { SceneControlTools } from './tools/scene-control.js';
 import type { SceneTools } from './tools/scene.js';
@@ -56,6 +57,7 @@ export interface ToolRouterDeps {
   movementTools: MovementTools;
   ownershipTools: OwnershipTools;
   questCreationTools: QuestCreationTools;
+  refChoiceTools: RefChoiceTools;
   resourceTools: ResourceTools;
   sceneControlTools: SceneControlTools;
   sceneTools: SceneTools;
@@ -161,6 +163,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'suggest-tarokka-links': args => deps.tarokkaTools.handleSuggestTarokkaLinks(args),
     'plan-tarokka-links': args => deps.tarokkaTools.handlePlanTarokkaLinks(args),
     'plan-tarokka-reveal': args => deps.tarokkaTools.handlePlanTarokkaReveal(args),
+    'list-ref-choices': args => deps.refChoiceTools.handleListRefChoices(args),
     'move-token': args => deps.tokenManipulationTools.handleMoveToken(args),
     'update-token': args => deps.tokenManipulationTools.handleUpdateToken(args),
     'delete-tokens': args => deps.tokenManipulationTools.handleDeleteTokens(args),
@@ -171,4 +174,48 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
   };
 
   return Object.assign(Object.create(null), routes);
+}
+
+/** A tool as the backend lists it (MCP `tools/list` shape). */
+export interface ToolDefinitionLike {
+  name: string;
+  description?: string | undefined;
+  inputSchema: unknown;
+}
+
+/**
+ * Every tool definition, in the order the backend lists them. Pure, like the
+ * router, so the tool catalog test can check all tools (picker annotations,
+ * one route per tool).
+ */
+export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike[] {
+  return [
+    ...deps.characterTools.getToolDefinitions(),
+    ...deps.compendiumTools.getToolDefinitions(),
+    ...deps.sceneTools.getToolDefinitions(),
+    ...deps.actorCreationTools.getToolDefinitions(),
+    ...deps.dnd5eAddFeatureTool.getToolDefinitions(),
+    ...deps.dnd5eNpcTools.getToolDefinitions(),
+    ...deps.dnd5eFeaturesFromCompendiumTools.getToolDefinitions(),
+    ...deps.questCreationTools.getToolDefinitions(),
+    ...deps.diceRollTools.getToolDefinitions(),
+    ...deps.campaignManagementTools.getToolDefinitions(),
+    ...deps.ownershipTools.getToolDefinitions(),
+    ...deps.tokenManipulationTools.getToolDefinitions(),
+    ...deps.mapGenerationTools.getToolDefinitions(),
+    ...deps.chatLogTools.getToolDefinitions(),
+    ...deps.resourceTools.getToolDefinitions(),
+    ...deps.effectsTools.getToolDefinitions(),
+    ...deps.combatTools.getToolDefinitions(),
+    ...deps.movementTools.getToolDefinitions(),
+    ...deps.sessionLogTools.getToolDefinitions(),
+    ...deps.combatResolutionTools.getToolDefinitions(),
+    ...deps.encounterTools.getToolDefinitions(),
+    ...deps.sceneControlTools.getToolDefinitions(),
+    ...deps.lootTools.getToolDefinitions(),
+    ...deps.diagnosticsTools.getToolDefinitions(),
+    ...deps.guardedChangeTools.getToolDefinitions(),
+    ...deps.tarokkaTools.getToolDefinitions(),
+    ...deps.refChoiceTools.getToolDefinitions(),
+  ];
 }

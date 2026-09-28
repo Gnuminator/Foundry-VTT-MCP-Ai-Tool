@@ -1,6 +1,19 @@
 import { z } from 'zod';
+import { toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+
+/** Fixed resourceName values resolved before item names: spell slots, pact, class resources. */
+const RESOURCE_KEY_CHOICES = [
+  ...Array.from({ length: 9 }, (_, i) => ({
+    value: `spell${i + 1}`,
+    label: `Spell slots, level ${i + 1}`,
+  })),
+  { value: 'pact', label: 'Pact magic slots' },
+  { value: 'primary', label: 'Class resource: primary' },
+  { value: 'secondary', label: 'Class resource: secondary' },
+  { value: 'tertiary', label: 'Class resource: tertiary' },
+];
 
 interface ResourceToolsOptions {
   foundryClient: FoundryClient;
@@ -32,6 +45,7 @@ export class ResourceTools {
             identifier: {
               type: 'string',
               description: 'Character name or actor ID.',
+              ...toolRef('actor', 'id'),
             },
           },
           required: ['identifier'],
@@ -44,11 +58,19 @@ export class ResourceTools {
         inputSchema: {
           type: 'object',
           properties: {
-            identifier: { type: 'string', description: 'Character name or actor ID.' },
+            identifier: {
+              type: 'string',
+              description: 'Character name or actor ID.',
+              ...toolRef('actor', 'id'),
+            },
             resourceName: {
               type: 'string',
               description:
                 'Resource to update: spell level ("spell3"/"level 3"), "pact", class resource label/key, or item name.',
+              ...toolRef('actor-item', 'name', {
+                parent: 'identifier',
+                extra: RESOURCE_KEY_CHOICES,
+              }),
             },
             newValue: {
               type: 'integer',

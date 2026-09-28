@@ -1,3 +1,4 @@
+import { freeText, toolRef } from '@gnuminator/shared';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -60,6 +61,7 @@ export class MapGenerationTools {
               type: 'string',
               description:
                 'Short, creative name for the Foundry scene (e.g., "Harbor District", "Moonlit Tavern", "Crystal Caverns"). Be creative and evocative!',
+              ...freeText('The name for the new scene the generated map is imported as'),
             },
             size: {
               type: 'string',
@@ -86,6 +88,7 @@ export class MapGenerationTools {
             job_id: {
               type: 'string',
               description: 'Job ID to check status for',
+              ...toolRef('map-job', 'id'),
             },
           },
           required: ['job_id'],
@@ -100,6 +103,7 @@ export class MapGenerationTools {
             job_id: {
               type: 'string',
               description: 'Job ID to cancel',
+              ...toolRef('map-job', 'id'),
             },
           },
           required: ['job_id'],
@@ -133,6 +137,7 @@ export class MapGenerationTools {
             scene_identifier: {
               type: 'string',
               description: 'Scene name or ID to switch to',
+              ...toolRef('scene', 'id'),
             },
             optimize_view: {
               type: 'boolean',

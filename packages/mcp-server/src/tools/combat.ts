@@ -1,3 +1,4 @@
+import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -37,6 +38,7 @@ export class CombatTools {
             skipTo: {
               type: 'string',
               description: 'Optional combatant name or actor ID to jump to.',
+              ...toolRef('combatant', 'name'),
             },
           },
         },
@@ -47,7 +49,11 @@ export class CombatTools {
         inputSchema: {
           type: 'object',
           properties: {
-            combatantName: { type: 'string', description: 'Combatant or actor name.' },
+            combatantName: {
+              type: 'string',
+              description: 'Combatant or actor name.',
+              ...toolRef('combatant', 'name'),
+            },
             initiative: { type: 'number', description: 'New initiative value.' },
           },
           required: ['combatantName', 'initiative'],
@@ -70,6 +76,7 @@ export class CombatTools {
               items: { type: 'string' },
               description:
                 'Optional: roll separate initiative for exactly these combatant ids (overrides scope).',
+              ...toolRef('combatant', 'id'),
             },
           },
         },

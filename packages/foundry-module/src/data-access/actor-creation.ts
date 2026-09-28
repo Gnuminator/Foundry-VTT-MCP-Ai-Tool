@@ -229,7 +229,7 @@ export class ActorCreationDataAccess {
             prototypeToken: sourceData.prototypeToken,
           };
 
-          this.clearRemoteTexture(actorData.prototypeToken);
+          this.prepareTokenCopy(actorData.prototypeToken, customName);
 
           const folderId = await this.creaturesFolderId();
           if (folderId) {
@@ -416,7 +416,7 @@ export class ActorCreationDataAccess {
             tokenData.length,
             placement.coordinates
           );
-          this.clearRemoteTexture(tokenDoc);
+          this.prepareTokenCopy(tokenDoc);
 
           tokenData.push({
             ...tokenDoc,
@@ -469,10 +469,18 @@ export class ActorCreationDataAccess {
   }
 
   /** Null out a token / prototype-token texture src that is still a remote http(s) URL. */
-  private clearRemoteTexture(holder: any): void {
-    if (holder?.texture?.src?.startsWith('http')) {
-      holder.texture.src = null;
+  /**
+   * Prepare a copied token: drop a remote (http) texture, and give it the
+   * copy's own name (a renamed actor otherwise kept the source's token name,
+   * e.g. three "Wolf" tokens for "Grey Wolf" and "Pack Leader").
+   */
+  private prepareTokenCopy(holder: unknown, name?: string): void {
+    if (!holder || typeof holder !== 'object') return;
+    const token = holder as { name?: unknown; texture?: { src?: unknown } | null };
+    if (typeof token.texture?.src === 'string' && token.texture.src.startsWith('http')) {
+      token.texture.src = null;
     }
+    if (name !== undefined) token.name = name;
   }
 
   /** Validate + shape one caller-supplied item into a Foundry create payload. */
@@ -535,7 +543,7 @@ export class ActorCreationDataAccess {
       const actorData = foundry.utils.deepClone(sourceDoc.fullData) as any;
 
       actorData.name = customName;
-      this.clearRemoteTexture(actorData.prototypeToken);
+      this.prepareTokenCopy(actorData.prototypeToken, customName);
 
       // Drop source-specific identifiers so Foundry assigns fresh ones.
       delete actorData._id;

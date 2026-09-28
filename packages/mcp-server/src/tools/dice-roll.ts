@@ -1,3 +1,4 @@
+import { freeText, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -35,10 +36,14 @@ export class DiceRollTools {
               type: 'string',
               description:
                 'Target for the roll - can be ability name (str, dex, con, int, wis, cha), skill name (perception, insight, stealth, etc.), or custom roll formula',
+              ...toolRef(['ability', 'skill'], 'id'),
             },
             targetPlayer: {
               type: 'string',
               description: 'Player name or character name to request the roll from',
+              ...toolRef(['user', 'actor'], 'name', {
+                filter: { role: 'player', playerOwned: true },
+              }),
             },
             isPublic: {
               type: 'boolean',
@@ -81,6 +86,9 @@ export class DiceRollTools {
             targetPlayer: {
               type: 'string',
               description: 'Player name or character name to request the roll from.',
+              ...toolRef(['user', 'actor'], 'name', {
+                filter: { role: 'player', playerOwned: true },
+              }),
             },
             ability: {
               type: 'string',
@@ -114,10 +122,16 @@ export class DiceRollTools {
             targetPlayer: {
               type: 'string',
               description: 'Player name or character name to request the roll from.',
+              ...toolRef(['user', 'actor'], 'name', {
+                filter: { role: 'player', playerOwned: true },
+              }),
             },
             weaponOrSpellName: {
               type: 'string',
               description: 'Name of the weapon or spell attack.',
+              ...freeText(
+                'Label text for the roll button: the attack is a plain 1d20 and the item is never looked up'
+              ),
             },
             isPublic: {
               type: 'boolean',
@@ -135,7 +149,11 @@ export class DiceRollTools {
         inputSchema: {
           type: 'object',
           properties: {
-            actorName: { type: 'string', description: 'NPC actor name or ID.' },
+            actorName: {
+              type: 'string',
+              description: 'NPC actor name or ID.',
+              ...toolRef('actor', 'id', { filter: { types: ['npc'] } }),
+            },
             rollType: {
               type: 'string',
               description: 'Type of roll.',
@@ -145,6 +163,7 @@ export class DiceRollTools {
               type: 'string',
               description:
                 'Target for the roll: ability (str/dex/...), skill name (perception, stealth, ...), or weapon/attack name.',
+              ...toolRef(['ability', 'skill'], 'id'),
             },
             isPublic: {
               type: 'boolean',

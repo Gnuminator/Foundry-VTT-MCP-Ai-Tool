@@ -10,7 +10,7 @@ import { evaluateLockFile } from './lock.js';
 
 import { ComfyUIService } from './comfyui-service.js';
 
-import { buildToolRouter } from './tool-router.js';
+import { buildToolRouter, collectToolDefinitions } from './tool-router.js';
 
 import {
   handleGenerateMapRequest,
@@ -63,6 +63,8 @@ import { LootTools } from './tools/loot.js';
 import { DiagnosticsTools } from './tools/diagnostics.js';
 import { GuardedChangeTools } from './tools/guarded-changes.js';
 import { TarokkaTools } from './tools/tarokka.js';
+import { RefChoiceTools } from './tools/ref-choices.js';
+import type { JobQueue } from './job-queue.js';
 import { TarokkaService } from './tarokka/service.js';
 import { GuardedWriteService } from './guarded-write/service.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
@@ -460,7 +462,14 @@ async function startBackend(): Promise<void> {
   });
 
   // Control-channel call_tool dispatch table (see tool-router.ts).
-  const toolRouter = buildToolRouter({
+  const refChoiceTools = new RefChoiceTools({
+    foundryClient,
+    guardedWrites,
+    jobs: mapGenerationJobQueue as JobQueue | null,
+    logger,
+  });
+
+  const toolDeps = {
     characterTools,
     compendiumTools,
     sceneTools,
@@ -487,59 +496,10 @@ async function startBackend(): Promise<void> {
     sceneControlTools,
     lootTools,
     diagnosticsTools,
-  });
-
-  const allTools = [
-    ...characterTools.getToolDefinitions(),
-
-    ...compendiumTools.getToolDefinitions(),
-
-    ...sceneTools.getToolDefinitions(),
-
-    ...actorCreationTools.getToolDefinitions(),
-
-    ...dnd5eAddFeatureTool.getToolDefinitions(),
-    ...dnd5eNpcTools.getToolDefinitions(),
-    ...dnd5eFeaturesFromCompendiumTools.getToolDefinitions(),
-
-    ...questCreationTools.getToolDefinitions(),
-
-    ...diceRollTools.getToolDefinitions(),
-
-    ...campaignManagementTools.getToolDefinitions(),
-
-    ...ownershipTools.getToolDefinitions(),
-
-    ...tokenManipulationTools.getToolDefinitions(),
-
-    ...mapGenerationTools.getToolDefinitions(),
-
-    ...chatLogTools.getToolDefinitions(),
-
-    ...resourceTools.getToolDefinitions(),
-
-    ...effectsTools.getToolDefinitions(),
-
-    ...combatTools.getToolDefinitions(),
-
-    ...movementTools.getToolDefinitions(),
-
-    ...sessionLogTools.getToolDefinitions(),
-
-    ...combatResolutionTools.getToolDefinitions(),
-
-    ...encounterTools.getToolDefinitions(),
-
-    ...sceneControlTools.getToolDefinitions(),
-
-    ...lootTools.getToolDefinitions(),
-
-    ...diagnosticsTools.getToolDefinitions(),
-
-    ...guardedChangeTools.getToolDefinitions(),
-
-    ...tarokkaTools.getToolDefinitions(),
-  ];
+    refChoiceTools,
+  };
+  const toolRouter = buildToolRouter(toolDeps);
+  const allTools = collectToolDefinitions(toolDeps);
 
   // Start Foundry connector (owns app port 31415). Skipped in control-only mode
   // so the standalone entrypoint can be smoke-tested without binding 31415/31416.

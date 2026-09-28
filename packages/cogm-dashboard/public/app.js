@@ -704,10 +704,14 @@ function buildForm(tool, prefill) {
     const control = buildControl(def, prefill[key]);
     const label = document.createElement('label');
     label.innerHTML = `${escapeHtml(key)}${required.includes(key) ? '<span class="field-req">*</span>' : ''}`;
+    const ref = pickerRef(def);
     if (def.type === 'boolean') {
       field.classList.add('field-check');
       field.appendChild(control);
       field.appendChild(label);
+    } else if (ref) {
+      field.appendChild(label);
+      field.appendChild(buildRefPicker(def, ref, control, form));
     } else {
       field.appendChild(label);
       field.appendChild(control);
@@ -742,6 +746,250 @@ function buildForm(tool, prefill) {
     void submitToolForm(tool);
   };
 }
+// --- Pickers for parameters that name something ----------------------------
+// A parameter annotated with `x-foundry-ref` (see shared/src/tool-refs.ts) gets
+// a "Pick…" list of the current candidates from list-ref-choices. Typing by
+// hand still works; picking only fills the field.
+const REF_KEY = 'x-foundry-ref';
+/** Kinds that list nothing until the GM types a search (large sets). */
+const SEARCH_KINDS = new Set(['compendium-entry', 'document']);
+
+function pickerRef(def) {
+  const ref = def && def[REF_KEY];
+  return ref && typeof ref === 'object' && ref.kind !== 'free' ? ref : null;
+}
+function refValue(ref, choice) {
+  if (ref.value === 'uuid') return choice.uuid || choice.id;
+  if (ref.value === 'name') return choice.name;
+  return choice.id;
+}
+function fieldValues(control, multiple) {
+  const raw = String(control.value || '');
+  if (multiple) {
+    return raw
+      .split('\n')
+      .map(v => v.trim())
+      .filter(Boolean);
+  }
+  return raw.trim() ? [raw.trim()] : [];
+}
+/** The current value of a sibling parameter (the picker's parent), or ''. */
+function siblingValue(form, key) {
+  if (!key) return '';
+  const field = [...form.querySelectorAll('.field')].find(f => f.dataset.key === key);
+  const control = field && field.querySelector('.field-control');
+  return control
+    ? String(control.value || '')
+        .split('\n')[0]
+        .trim()
+    : '';
+}
+function buildRefPicker(def, ref, control, form) {
+  const multiple = def.type === 'array';
+  const kinds = Array.isArray(ref.kind) ? ref.kind : [ref.kind];
+  const needsSearch = kinds.every(k => SEARCH_KINDS.has(k));
+  const wrap = document.createElement('div');
+  wrap.className = 'ref-picker';
+  wrap.innerHTML = `
+    <div class="ref-row"></div>
+    <div class="ref-hint" aria-live="polite"></div>
+    <div class="ref-menu" hidden>
+      <input type="search" class="ref-search" autocomplete="off" aria-label="Filter choices"
+        placeholder="${needsSearch ? 'Type to search…' : 'Filter…'}" />
+      <div class="ref-note"></div>
+      <div class="ref-list" role="listbox"${multiple ? ' aria-multiselectable="true"' : ''}></div>
+    </div>`;
+  const row = wrap.querySelector('.ref-row');
+  const hint = wrap.querySelector('.ref-hint');
+  const menu = wrap.querySelector('.ref-menu');
+  const search = wrap.querySelector('.ref-search');
+  const note = wrap.querySelector('.ref-note');
+  const list = wrap.querySelector('.ref-list');
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.className = 'btn btn-small ref-open';
+  open.textContent = 'Pick…';
+  open.title = 'Choose from what exists now (you can still type)';
+  open.setAttribute('aria-expanded', 'false');
+  row.appendChild(control);
+  row.appendChild(open);
+
+  let rows = []; // [{ choice, group }]
+  let loadSeq = 0;
+  let searchTimer = null;
+  const extras = (ref.extra || []).map(e => ({
+    choice: { id: e.value, name: e.label, literal: e.value },
+    group: 'Special',
+  }));
+  const valueOf = choice => (choice.literal !== undefined ? choice.literal : refValue(ref, choice));
+
+  async function load(query) {
+    const seq = ++loadSeq;
+    note.textContent = 'Loading…';
+    const parent = siblingValue(form, ref.parent);
+    const results = await Promise.all(
+      kinds.map(kind =>
+        callReadTool('list-ref-choices', {
+          kind,
+          ...(ref.filter ? { filter: ref.filter } : {}),
+          ...(parent ? { parent } : {}),
+          ...(query ? { query } : {}),
+          limit: 200,
+        }).catch(err => ({ kind, choices: [], truncated: false, note: `✗ ${err.message || err}` }))
+      )
+    );
+    if (seq !== loadSeq) return; // a newer search replaced this one
+    const notes = results.map(r => r.note).filter(Boolean);
+    if (results.some(r => r.truncated)) notes.push('More exist: type to narrow the list.');
+    rows = [
+      ...extras,
+      ...results.flatMap(r =>
+        (r.choices || []).map(c => ({
+          choice: c,
+          group: c.group || (kinds.length > 1 ? r.kind : ''),
+        }))
+      ),
+    ];
+    note.textContent = notes.join(' · ');
+    render();
+  }
+
+  function render() {
+    const q = needsSearch ? '' : search.value.trim().toLowerCase();
+    const selected = new Set(fieldValues(control, multiple));
+    const counts = new Map();
+    for (const { choice } of rows) counts.set(choice.name, (counts.get(choice.name) || 0) + 1);
+    const shown = rows.filter(
+      ({ choice, group }) =>
+        !q ||
+        `${choice.name} ${choice.detail || ''} ${group} ${choice.id}`.toLowerCase().includes(q)
+    );
+    list.innerHTML = '';
+    if (shown.length === 0) {
+      const empty = rows.length
+        ? 'Nothing matches.'
+        : needsSearch
+          ? 'Type at least 2 letters.'
+          : 'Nothing to pick.';
+      list.innerHTML = `<p class="ref-empty">${empty}</p>`;
+      return;
+    }
+    let lastGroup = null;
+    for (const { choice, group } of shown) {
+      if (group !== lastGroup) {
+        lastGroup = group;
+        if (group) {
+          const heading = document.createElement('div');
+          heading.className = 'ref-group';
+          heading.textContent = group;
+          list.appendChild(heading);
+        }
+      }
+      const value = valueOf(choice);
+      const isSelected = selected.has(value);
+      const sameName =
+        ref.value === 'name' && choice.literal === undefined && counts.get(choice.name) > 1;
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'ref-item';
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+      item.title = ref.value === 'name' ? choice.name : `${choice.name} → ${value}`;
+      item.innerHTML = `
+        <span class="ref-check">${isSelected ? '✓' : ''}</span>
+        <span class="ref-name">${escapeHtml(choice.name)}${
+          choice.hidden ? ' <span class="ref-flag" title="Hidden from players">hidden</span>' : ''
+        }</span>
+        <span class="ref-detail">${escapeHtml(choice.detail || '')}${
+          sameName
+            ? ` <span class="ref-warn" title="The tool matches by name; several share it">same name ×${counts.get(choice.name)}</span>`
+            : ''
+        }</span>`;
+      item.addEventListener('click', () => pick(choice));
+      list.appendChild(item);
+    }
+  }
+
+  function describe(values) {
+    if (values.length === 0) return '';
+    if (ref.value === 'name') return values.length > 1 ? `${values.length} selected` : '';
+    return values
+      .map(v => {
+        const found = rows.find(({ choice }) => valueOf(choice) === v);
+        return found ? found.choice.name : v;
+      })
+      .join(', ');
+  }
+
+  function pick(choice) {
+    const value = valueOf(choice);
+    if (multiple) {
+      const values = fieldValues(control, true);
+      const at = values.indexOf(value);
+      if (at >= 0) values.splice(at, 1);
+      else values.push(value);
+      control.value = values.join('\n');
+      render();
+    } else {
+      control.value = value;
+      close();
+    }
+    hint.textContent = describe(fieldValues(control, multiple));
+  }
+
+  function onOutside(e) {
+    if (!wrap.contains(e.target)) close();
+  }
+  function close() {
+    menu.hidden = true;
+    open.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('mousedown', onOutside);
+  }
+  function show() {
+    menu.hidden = false;
+    open.setAttribute('aria-expanded', 'true');
+    document.addEventListener('mousedown', onOutside);
+    search.value = '';
+    search.focus();
+    rows = extras.slice();
+    if (needsSearch) {
+      note.textContent = 'Type at least 2 letters to search.';
+      render();
+    } else {
+      void load('');
+    }
+  }
+
+  open.addEventListener('click', () => (menu.hidden ? show() : close()));
+  search.addEventListener('input', () => {
+    if (!needsSearch) {
+      render();
+      return;
+    }
+    clearTimeout(searchTimer);
+    const q = search.value.trim();
+    if (q.length < 2) {
+      rows = extras.slice();
+      note.textContent = 'Type at least 2 letters to search.';
+      render();
+      return;
+    }
+    searchTimer = setTimeout(() => void load(q), 250);
+  });
+  wrap.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !menu.hidden) {
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+      open.focus();
+    }
+  });
+  control.addEventListener('input', () => {
+    hint.textContent = describe(fieldValues(control, multiple));
+  });
+  return wrap;
+}
+
 function coerceScalar(raw, def) {
   if (def.type === 'number') return Number(raw);
   if (def.type === 'integer') return parseInt(raw, 10);

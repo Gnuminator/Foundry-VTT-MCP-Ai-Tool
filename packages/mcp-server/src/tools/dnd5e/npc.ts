@@ -1,3 +1,4 @@
+import { freeText, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../../foundry-client.js';
 import { Logger } from '../../logger.js';
@@ -112,6 +113,7 @@ export class DnD5eNpcTools {
             name: {
               type: 'string',
               description: 'Name of the NPC',
+              ...freeText('The name of the new NPC actor this call creates'),
             },
             creatureType: {
               type: 'string',
@@ -347,6 +349,7 @@ export class DnD5eNpcTools {
                 'stunned, unconscious. Non-canonical values are accepted with a warning.',
               items: { type: 'string' },
               default: [],
+              ...toolRef('condition', 'id'),
             },
             // --- Languages ---
             languages: {

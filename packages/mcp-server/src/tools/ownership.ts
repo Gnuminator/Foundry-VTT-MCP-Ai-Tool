@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 
@@ -16,6 +17,20 @@ const OwnershipLevels = {
 } as const;
 
 const ownershipLevelSchema = z.enum(['NONE', 'LIMITED', 'OBSERVER', 'OWNER']);
+
+/** Actor picker for assign/remove: a world actor, or a bulk phrase `resolveActors` expands. */
+const actorOrBulkRef = toolRef('actor', 'id', {
+  extra: [
+    { value: 'all friendly NPCs', label: 'All friendly NPCs (tokens on the active scene)' },
+    { value: 'party characters', label: 'Party characters (player-owned characters)' },
+  ],
+});
+
+/** Player picker for assign/remove: `findPlayers` matches user names, then owned characters. */
+const playerOrCharacterRef = toolRef(['user', 'actor'], 'name', {
+  filter: { role: 'player', types: ['character'], playerOwned: true },
+  extra: [{ value: 'party', label: 'Party (all connected players)' }],
+});
 
 export class OwnershipTools {
   private foundryClient: FoundryClient;
@@ -42,11 +57,13 @@ export class OwnershipTools {
               type: 'string',
               description:
                 'Actor name, ID, or "all friendly NPCs" for bulk operations. Use "party characters" for all player-owned actors.',
+              ...actorOrBulkRef,
             },
             playerIdentifier: {
               type: 'string',
               description:
                 'Player name, character name, or "party" for all connected players. Supports partial matching.',
+              ...playerOrCharacterRef,
             },
             permissionLevel: {
               type: 'string',
@@ -74,11 +91,13 @@ export class OwnershipTools {
             actorIdentifier: {
               type: 'string',
               description: 'Actor name or ID to remove ownership from',
+              ...actorOrBulkRef,
             },
             playerIdentifier: {
               type: 'string',
               description:
                 'Player name or character name to remove ownership for. Supports partial matching.',
+              ...playerOrCharacterRef,
             },
             confirmRemoval: {
               type: 'boolean',
@@ -99,10 +118,12 @@ export class OwnershipTools {
             actorIdentifier: {
               type: 'string',
               description: 'Optional: specific actor name/ID to check, or "all" for all actors',
+              ...toolRef('actor', 'id', { extra: [{ value: 'all', label: 'All actors' }] }),
             },
             playerIdentifier: {
               type: 'string',
               description: 'Optional: specific player name to check ownership for',
+              ...toolRef('user', 'id', { filter: { role: 'player' } }),
             },
           },
         },

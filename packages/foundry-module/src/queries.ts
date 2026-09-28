@@ -2,6 +2,7 @@ import { MODULE_ID } from './constants.js';
 import { bridgeHandlers } from './bridge-handlers.js';
 import { fetchTarokkaReadingFromUser, openDocumentForGm } from './gm-helper-queries.js';
 import { getTarokkaReading, searchLinkCandidates } from './tarokka.js';
+import { listRefChoices } from './data-access/ref-choices.js';
 import { listGuardedFeatures } from './guarded-features.js';
 import { applyGuardedOps, logGmChange, snapshotGuardedOps } from './data-access/guarded-write.js';
 import { FoundryDataAccess } from './data-access.js';
@@ -117,6 +118,11 @@ export class QueryHandlers {
       `${modulePrefix}.openDocumentForGm`,
       (data: { uuid?: unknown; userId?: unknown } | undefined) =>
         this.withGmGate('Failed to open document', () => openDocumentForGm(data ?? {}))
+    );
+
+    // Tool-runner pickers: what a parameter can name right now (read-only)
+    handlers.set(`${modulePrefix}.listRefChoices`, (data: unknown) =>
+      this.withGmGate('Failed to list choices', () => listRefChoices(data))
     );
 
     // Tarokka (read-only; the backend stores readings in its vault)

@@ -1,3 +1,4 @@
+import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -50,6 +51,8 @@ export class DiagnosticsTools {
             moduleId: {
               type: 'string',
               description: 'Filter to a module/system id (partial match), e.g. "lib-wrapper".',
+              // Errors are also attributed to the system ('system:dnd5e').
+              ...toolRef('module', 'id', { filter: { includeSystem: true } }),
             },
             sinceTimestamp: { type: 'string', description: 'ISO timestamp; only newer entries.' },
             limit: { type: 'integer', description: 'Max entries (default 100, max 500).' },
@@ -69,7 +72,7 @@ export class DiagnosticsTools {
         inputSchema: {
           type: 'object',
           properties: {
-            moduleId: { type: 'string', description: 'The module id.' },
+            moduleId: { type: 'string', description: 'The module id.', ...toolRef('module', 'id') },
           },
           required: ['moduleId'],
         },

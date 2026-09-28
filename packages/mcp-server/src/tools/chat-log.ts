@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 
@@ -39,6 +40,7 @@ export class ChatLogTools {
             speakerName: {
               type: 'string',
               description: 'Filter to messages from this actor/speaker name (partial match).',
+              ...toolRef(['actor', 'token', 'user'], 'name'),
             },
             messageType: {
               type: 'string',
@@ -77,10 +79,12 @@ export class ChatLogTools {
               type: 'string',
               description:
                 'Actor ID to post as. If omitted (and no name given), posts as the GM/world.',
+              ...toolRef('actor', 'id'),
             },
             speakerActorName: {
               type: 'string',
               description: 'Actor name to post as (alternative to speakerActorId).',
+              ...toolRef('actor', 'name'),
             },
             messageType: {
               type: 'string',
@@ -92,6 +96,7 @@ export class ChatLogTools {
               type: 'array',
               items: { type: 'string' },
               description: 'When messageType is "whisper", the user names to whisper to.',
+              ...toolRef('user', 'name'),
             },
           },
           required: ['message'],

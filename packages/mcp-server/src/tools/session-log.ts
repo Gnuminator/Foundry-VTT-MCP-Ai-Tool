@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 
@@ -44,6 +45,12 @@ export class SessionLogTools {
             actorName: {
               type: 'string',
               description: 'Optional actor name filter (partial match).',
+              // `damage-roll` events copy their actorName straight from the chat
+              // log's speakerName (session-events.ts onCreateChatMessage), which
+              // falls back to the acting user's name when no actor/token speaker
+              // is set (session-events.ts parseChatMessage) — same reasoning as
+              // chat-log.ts's speakerName picker.
+              ...toolRef(['actor', 'token', 'user'], 'name'),
             },
           },
         },

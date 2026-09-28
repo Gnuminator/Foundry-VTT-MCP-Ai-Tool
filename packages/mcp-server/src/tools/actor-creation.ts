@@ -1,3 +1,4 @@
+import { freeText, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -35,11 +36,16 @@ export class ActorCreationTools {
               type: 'string',
               description:
                 'ID of the compendium pack containing the creature (e.g., "dnd5e.monsters")',
+              ...toolRef('compendium-pack', 'id', { filter: { documentName: 'Actor' } }),
             },
             itemId: {
               type: 'string',
               description:
                 'ID of the specific creature entry within the pack (get this from search-compendium results)',
+              ...toolRef('compendium-entry', 'id', {
+                parent: 'packId',
+                filter: { documentName: 'Actor', types: ['character', 'npc'] },
+              }),
             },
             names: {
               type: 'array',
@@ -47,6 +53,7 @@ export class ActorCreationTools {
               description:
                 'Custom names for the created actors (e.g., ["Flameheart", "Sneak", "Peek"])',
               minItems: 1,
+              ...freeText('Names for the new actors, not existing documents'),
             },
             quantity: {
               type: 'number',
@@ -99,10 +106,12 @@ export class ActorCreationTools {
             packId: {
               type: 'string',
               description: 'Compendium pack identifier',
+              ...toolRef('compendium-pack', 'id'),
             },
             entryId: {
               type: 'string',
               description: 'Entry identifier within the pack',
+              ...toolRef('compendium-entry', 'id', { parent: 'packId' }),
             },
           },
           required: ['packId', 'entryId'],

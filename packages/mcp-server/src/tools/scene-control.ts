@@ -1,3 +1,4 @@
+import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -30,7 +31,11 @@ export class SceneControlTools {
           properties: {
             darkness: { type: 'number', description: 'Darkness level 0..1.' },
             globalLight: { type: 'boolean', description: 'Enable/disable global illumination.' },
-            playlistName: { type: 'string', description: 'Playlist to control by name.' },
+            playlistName: {
+              type: 'string',
+              description: 'Playlist to control by name.',
+              ...toolRef('playlist', 'name'),
+            },
             playlistAction: {
               type: 'string',
               enum: ['play', 'stop'],
@@ -52,14 +57,17 @@ export class SceneControlTools {
             tokenName: {
               type: 'string',
               description: 'Place the pin at this token instead of x/y.',
+              ...toolRef('token', 'id'),
             },
             journalName: {
               type: 'string',
               description: 'Link the pin to an existing journal entry by name.',
+              ...toolRef('journal', 'name'),
             },
             entryId: {
               type: 'string',
               description: 'Link to a journal entry by id (alternative).',
+              ...toolRef('journal', 'id'),
             },
             icon: { type: 'string', description: 'Icon path (default icons/svg/book.svg).' },
             iconSize: { type: 'integer', description: 'Icon size in px (default 40).' },
@@ -73,7 +81,11 @@ export class SceneControlTools {
         inputSchema: {
           type: 'object',
           properties: {
-            tokenName: { type: 'string', description: 'Token name or ID.' },
+            tokenName: {
+              type: 'string',
+              description: 'Token name or ID.',
+              ...toolRef('token', 'id'),
+            },
             sightEnabled: { type: 'boolean', description: "Enable/disable the token's vision." },
             sightRange: { type: 'number', description: 'Vision range in grid units.' },
             visionMode: { type: 'string', description: 'Vision mode, e.g. "basic", "darkvision".' },
@@ -95,7 +107,7 @@ export class SceneControlTools {
         inputSchema: {
           type: 'object',
           properties: {
-            noteId: { type: 'string', description: 'Note ID to delete.' },
+            noteId: { type: 'string', description: 'Note ID to delete.', ...toolRef('note', 'id') },
             text: {
               type: 'string',
               description: 'Delete the pin(s) whose label matches this text.',

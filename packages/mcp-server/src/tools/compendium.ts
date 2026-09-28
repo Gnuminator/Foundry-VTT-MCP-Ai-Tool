@@ -1,3 +1,4 @@
+import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -139,10 +140,12 @@ export class CompendiumTools {
             packId: {
               type: 'string',
               description: 'ID of the compendium pack containing the item',
+              ...toolRef('compendium-pack', 'id'),
             },
             itemId: {
               type: 'string',
               description: 'ID of the specific item to retrieve',
+              ...toolRef('compendium-entry', 'id', { parent: 'packId' }),
             },
             compact: {
               type: 'boolean',

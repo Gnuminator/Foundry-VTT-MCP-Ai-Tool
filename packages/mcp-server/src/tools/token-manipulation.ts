@@ -1,3 +1,4 @@
+import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -31,6 +32,7 @@ export class TokenManipulationTools {
             tokenId: {
               type: 'string',
               description: 'The ID of the token to move',
+              ...toolRef('token', 'id'),
             },
             x: {
               type: 'number',
@@ -59,6 +61,7 @@ export class TokenManipulationTools {
             tokenId: {
               type: 'string',
               description: 'The ID of the token to update',
+              ...toolRef('token', 'id'),
             },
             updates: {
               type: 'object',
@@ -124,6 +127,7 @@ export class TokenManipulationTools {
                 type: 'string',
               },
               minItems: 1,
+              ...toolRef('token', 'id'),
             },
           },
           required: ['tokenIds'],
@@ -139,6 +143,7 @@ export class TokenManipulationTools {
             tokenId: {
               type: 'string',
               description: 'The ID of the token to get details for',
+              ...toolRef('token', 'id'),
             },
           },
           required: ['tokenId'],
@@ -154,11 +159,13 @@ export class TokenManipulationTools {
             tokenId: {
               type: 'string',
               description: 'The ID of the token to modify',
+              ...toolRef('token', 'id'),
             },
             conditionId: {
               type: 'string',
               description:
                 'The ID of the condition/status effect to toggle (e.g., "prone", "poisoned", "blinded")',
+              ...toolRef('condition', 'id'),
             },
             active: {
               type: 'boolean',

@@ -1,6 +1,6 @@
 ---
 name: foundry-ai-tool
-description: Use and test this repo's own product on the local test server - the MCP bridge tools (calling them through the co-GM dashboard API), guarded writes (plan / apply / undo, feature switches, conflicts), the co-GM dashboard (tool runner with pickers, Recent Changes, Tarokka drawer, /player view, player/GM split), the bridge vault and the session log - and run the M0+M1 smoke checklist. Use before calling an AI Tool feature done, when reproducing a tool bug, or when checking what players can see. Needs the environment from foundry-test-env; Foundry's own UI is in foundry-core-ui.
+description: Use and test this repo's own product on the local test server - the MCP bridge tools (calling them through the co-GM dashboard API), guarded writes (plan / apply / undo, feature switches, conflicts), the co-GM dashboard (tool runner with pickers, Recent Changes, Tarokka drawer, /player view, player/GM split), the bridge vault and the session log - and run the M0+M1 smoke checklist and the M2 player-view checks. Use before calling an AI Tool feature done, when reproducing a tool bug, or when checking what players can see. Needs the environment from foundry-test-env; Foundry's own UI is in foundry-core-ui.
 ---
 
 # Foundry AI Tool: tools, dashboard, smoke test
@@ -44,7 +44,8 @@ Features plan with read-only `plan-*` tools; one generic `apply-planned-change` 
   feature is switched off"). Undo does not need the feature switch.
 - Conflict: anything that changed between plan and apply (a vault path or a document field)
   refuses the whole apply ("Conflict, nothing was written: ..."); check that nothing changed.
-- Destructive plans (deletes, Tarokka reveals) need the second confirmation.
+- Destructive plans (deletes, Tarokka reveals, page reveals and hides) need the second
+  confirmation.
 
 ## Dashboard (http://localhost:3100)
 
@@ -60,8 +61,10 @@ Features plan with read-only `plan-*` tools; one generic `apply-planned-change` 
 - Recent Changes pane: applied changes with **Undo**. Live Feed: session events and `gm-change`
   entries. Module Diagnostics: the GM client's captured console errors (kept in the browser's
   localStorage across reloads, so older entries from other sessions or users can show up).
-- `/player`: the player page. Only with the split on is it served as the player role; in local
-  mode it is GM data.
+- `/player`: the player page. It reads `/api/player/state` and `/api/player/stream`, which always
+  project (M2), in local mode too and whatever token is presented. With the split on, the player
+  role on `/api/state` and `/api/stream` gets the same projection; in local mode those two are GM
+  data.
 
 ## Vault and session log
 
@@ -95,6 +98,59 @@ Last full pass: 2026-09-28, all green (see CLAUDE.md). For each item record evid
 9. Session log: `gm-change` events in `sessions\<date>.jsonl` without card names.
 10. Pickers: `list-ref-choices` for token, actor, module (with and without `includeSystem`),
     plan, change, skill; in the UI, pick a pack and an entry for `create-actor-from-compendium`.
+
+## Player view checks (M2)
+
+Last full pass: 2026-09-28 (see `docs/CURSE-OF-STRAHD-PLAN.md` "M2 as built"). The proof is the
+canary suite (`packages/cogm-dashboard/src/player/canary.test.ts`); this pass checks the real
+Foundry data behind it.
+
+Setup:
+
+- Start with the split on: generate a throwaway token into a scratchpad file and set
+  `GM_DASHBOARD_TOKEN` from it **in the same PowerShell call** as `start.ps1` (or
+  `start.ps1 -Only dashboard`); every restart needs it again, and GM Actions go off on restart.
+  Keep the token out of commands you echo, URLs and chat. `/api/health` shows `splitEnabled`.
+- First check the module loaded: Foundry's console must have no "Failed to resolve module
+  specifier" error, and `get-world-info` must answer.
+- Test data (GM console, revert afterwards): the scene's `navName`; a disguised token (rename
+  `Wolf 1`, display mode Hover = 30); a hidden token (`Wolf 2`, its combatant NOT hidden); combat
+  with all tokens; core statuses (`toggleStatusEffect`) plus one custom effect with its own status
+  id.
+
+Checks:
+
+1. `/api/player/state` and the `/player` page: scene = `navName` ("Current scene" without one);
+   tracker names = PC name, the disguise, "Unknown creature" for a name players cannot see, the
+   hidden token absent; core conditions only; HP numbers for the PC only.
+2. Feed: roll initiative (`game.combat.rollAll()`), an attack from the disguised token, one from
+   the world actor's sheet (its chat alias is the true name), a GM-mode roll (`{rollMode: 'gm'}`),
+   damage to the disguise and the PC. Expect the disguise's name on its lines (never the true
+   name), no line for a creature players cannot name, no GM roll, "was hit." without numbers for
+   NPCs, numbers for the PC.
+3. Canary scan: `/api/player/state`, `/api/state` and a few seconds of `/api/player/stream` and
+   `/api/stream` without a token, `/player`, `player.js` (its `es.onerror` is not a hit), in both
+   modes; also `/api/player/state` WITH the GM token (still projected). Canaries: true names, the
+   true scene name, the custom effect, the world id, GM user names, card names and ids, the token.
+4. Handouts: a journal at ownership None with a text page (a `section.secret`, a `@UUID` link to a
+   second page, an inline roll, an `onerror` image). Turn on "AI Tool: Handouts (writes)" (feature
+   off: apply refused). `plan-page-reveal` reveal: refused while no player can open the journal.
+   Set the journal to Observer and its pages to None, reveal again, apply (destructive): the
+   Handouts section shows the page without the secret, the link (label too), the roll or the
+   handler; as `Player` (second origin), the journal is listed and the page opens. Hide (also
+   destructive): ownership back, the entry gone from `gm\reveals.json`, the page gone in both
+   places. `undo-change` works on either.
+5. Whisper guard: with a reading in the vault (`plan-tarokka-import` builtin-roll, Tarokka switch
+   on), `POST /api/post-chat` with a card name in a sentence (any case) answers 409
+   `secret-terms`; with `allowSecrets: true` it posts; plain text posts; without the GM token 403.
+   The GM page's confirm prompt is only on AI commentary cards (needs `ANTHROPIC_API_KEY`), and
+   `app.js` is an ES module, so its functions cannot be called from the console.
+
+Gotchas: Foundry's page cannot `fetch` the dashboard (no CORS), so read player state from
+PowerShell. Foundry itself gives players every non-hidden combatant's name; `/player` is stricter.
+Cleanup: undo the Tarokka import, delete the test journal and combat, revert token names, display
+modes, hidden flags, statuses, HP and `navName`, switch both features off, **Return to Setup**,
+`stop.ps1`.
 
 ## Obsidian checks (O2)
 

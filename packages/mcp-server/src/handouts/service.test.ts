@@ -28,24 +28,43 @@ let store: VaultStore;
 let guarded: GuardedWriteService;
 let handouts: HandoutsService;
 let now: number;
+/** Pages whose journal no player can observe (the fake has no journal documents). */
+let hiddenJournal: Set<string>;
+/** Pages answered the way a module without `journalObservable` answers. */
+let oldModule: Set<string>;
 
 /** The module's `getPagesForPlayers`: derived from the fake docs' own fields. */
 function pageForPlayers(uuid: string): PageForPlayers {
   const doc = foundry.docs.get(uuid);
-  if (!doc) return { uuid, exists: false, name: null, observable: false, html: null };
+  if (!doc) {
+    return {
+      uuid,
+      exists: false,
+      name: null,
+      observable: false,
+      journalObservable: false,
+      html: null,
+    };
+  }
   const ownership = doc.source.ownership as Record<string, number> | undefined;
   const text = doc.source.text as { content?: string } | undefined;
-  return {
+  const journalObservable = !hiddenJournal.has(uuid);
+  const page: PageForPlayers = {
     uuid,
     exists: true,
     name: (doc.source.name as string | undefined) ?? null,
-    observable: (ownership?.default ?? 0) >= 2,
+    observable: journalObservable && (ownership?.default ?? 0) >= 2,
+    journalObservable,
     html: text?.content ?? null,
   };
+  if (oldModule.has(uuid)) delete (page as Partial<PageForPlayers>).journalObservable;
+  return page;
 }
 
 beforeEach(async () => {
   dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'handouts-'));
+  hiddenJournal = new Set();
+  oldModule = new Set();
   foundry = new FakeFoundry();
   foundry.worldId = WORLD;
   foundry.features = [{ id: 'handouts', name: 'Handouts', hint: '', enabled: true }];
@@ -255,6 +274,38 @@ describe('planPageReveal: reveal', () => {
     expect(plan.target).toBe('mixed');
     await apply(plan.planId, true);
     expect(foundry.docs.get(PAGE1)?.source.ownership).toMatchObject({ default: 2 });
+  });
+
+  it('refuses to raise a page whose journal players cannot see (found live in M2)', async () => {
+    hiddenJournal.add(PAGE1);
+    await expect(handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' })).rejects.toThrow(
+      /Players cannot open the journal that holds "Wine Cellar Notes"/
+    );
+    expect(await revealsData()).toBeUndefined();
+    expect(foundry.docs.get(PAGE1)?.source.ownership).toMatchObject({ default: 0 });
+  });
+
+  it('still allowlists such a page when setOwnership is false (it shows once players can open it)', async () => {
+    hiddenJournal.add(PAGE1);
+    const plan = await handouts.planPageReveal({
+      pageUuid: PAGE1,
+      action: 'reveal',
+      setOwnership: false,
+    });
+    expect(plan.target).toBe('vault');
+    await apply(plan.planId, true);
+    expect((await handouts.playerHandouts()).handouts).toEqual([]);
+    hiddenJournal.delete(PAGE1);
+    foundry.docs.get(PAGE1)!.source.ownership = { default: 2 };
+    expect((await handouts.playerHandouts()).handouts.map(h => h.title)).toEqual([
+      'Wine Cellar Notes',
+    ]);
+  });
+
+  it('a module without journalObservable keeps the page-only behavior', async () => {
+    oldModule.add(PAGE1);
+    const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
+    expect(plan.target).toBe('mixed');
   });
 
   it('never writes the page title or html into the plan summary beyond the title itself', async () => {

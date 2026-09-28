@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — M0 foundations + M1 Tarokka (Curse of Strahd)
+## Unreleased — M0 foundations + M1 Tarokka + M2 spoiler-safe player view (Curse of Strahd)
 
 Groundwork from `docs/CURSE-OF-STRAHD-PLAN.md` step 0. **Wire contracts are unchanged** (module id,
 ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults change behaviour; see
@@ -23,6 +23,16 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   `isPublic`) and private player roll buttons posted in public chat. The bridge now uses the running
   Foundry's own mode names. Also, whispered and blind damage rolls no longer appear as public
   `damage-roll` events in the `/player` feed.
+- **The player view is built by projection, never by redaction.** Everything a player receives is
+  copied from an allowlist or generated from a fixed template, using what players can see in
+  Foundry: hidden tokens and their combatants never appear, a token whose name players cannot see
+  is "Unknown creature", a scene shows its navigation name (else "Current scene"), enemies show
+  only standard conditions and no HP numbers, GM-only rolls, GM changes, diagnostics and AI
+  commentary never reach it. New endpoints `/api/player/state` and `/api/player/stream` always
+  project, even when a GM token is presented; the player role on `/api/state` and `/api/stream`
+  gets the same projection. The player page runs under a strict Content Security Policy.
+- **Whisper guard**: "Post to chat" refuses text that names a dealt Tarokka card (a whisper's text
+  reaches every player's browser); the GM page asks before posting anyway.
 
 ### Features
 
@@ -73,8 +83,16 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   combatant.
 - **Dice rolls in the feed with a breakdown**, e.g. "Wolf 1, Bite attack: 1d20 (15) +2 STR +2
   proficiency = 19". Players see public rolls without the target AC/DC and outcome (unless dnd5e's
-  "challenge visibility" shows them to everyone); the GM feed and session notes show the full line.
-  Whispered, blind and self rolls are GM-only `gm-roll` events.
+  "challenge visibility" shows them to everyone) and under the name they know the roller by; the GM
+  feed and session notes show the full line. Whispered, blind and self rolls are GM-only `gm-roll`
+  events.
+- **Handouts on the player page**, off until you enable "AI Tool: Handouts (writes)": reveal a
+  journal page to players (it also becomes readable in Foundry, raised to Observer; its previous
+  ownership is restored when you hide it again). The page must be in a journal players can open;
+  secret sections, inline rolls, scripts and links to pages that are not revealed are removed
+  before a player sees it. Tools `plan-page-reveal`, `list-revealed-pages`,
+  `get-player-visibility`, `get-player-handouts`, `check-secret-terms`; the player page has a
+  Handouts section.
 
 ### Fixes
 
@@ -107,6 +125,11 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
 - If you exposed the dashboard on your network, set `DASHBOARD_HOST` and `GM_DASHBOARD_TOKEN`.
 - Worlds that relied on the old locked-on `allowNonGmAccess` need it switched on again (or, better,
   an Assistant GM user for a headless client).
+- `/api/state` for the player role now returns the player projection (`status`, `world`, `scene`,
+  `combat`, `events`, `handouts`) instead of the redacted GM state. With `PLAYER_DASHBOARD_TOKEN`
+  set, open `/player?token=...` once more after upgrading: the player page keeps its token under
+  its own key now, apart from the GM page's.
+- The dashboard has a new dependency, `htmlparser2` (10.x, runs on the bundled Node 20).
 
 ## v0.18.0 (2026-06-17) — Roll-init for selected combatants
 

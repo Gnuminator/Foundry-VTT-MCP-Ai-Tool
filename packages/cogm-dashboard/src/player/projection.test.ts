@@ -90,11 +90,12 @@ describe('projectEvent', () => {
   it('keeps the player-safe line of public rolls; resource use for PC spell slots only', () => {
     const roll = event({
       eventType: 'roll',
-      description: 'Wolf 1, Bite attack: 1d20 (15) +4 modifier = 19',
+      actorName: 'Hooded figure',
+      description: 'Hooded figure, Bite attack: 1d20 (15) +4 modifier = 19',
       details: { breakdown: `${SECRET} vs AC 12: hit` },
       visibility: seenNpc,
     });
-    expect(projectEvent(roll)?.text).toBe('Wolf 1, Bite attack: 1d20 (15) +4 modifier = 19');
+    expect(projectEvent(roll)?.text).toBe('Hooded figure, Bite attack: 1d20 (15) +4 modifier = 19');
     const slot = event({
       eventType: 'resource-spent',
       details: { resource: 'spell3' },
@@ -107,6 +108,47 @@ describe('projectEvent', () => {
       visibility: seenNpc,
     });
     expect(projectEvent(legendary)).toBeNull();
+  });
+
+  it('names the roller of a public roll as players know it (found live in M2)', () => {
+    // Foundry's chat alias is the combatant/token name, even when the token's
+    // name display is off, or the world actor's name when rolled from its sheet.
+    const line = (over: Partial<SessionEvent>): string | null =>
+      projectEvent(
+        event({
+          eventType: 'roll',
+          actorName: SECRET,
+          description: `${SECRET}, Initiative: 2d20dis (10) +2 DEX = 12 (disadvantage)`,
+          details: { breakdown: SECRET },
+          ...over,
+        })
+      )?.text ?? null;
+    // A disguised NPC rolled from its world actor: the player-facing token name.
+    expect(line({ visibility: seenNpc })).toBe(
+      'Hooded figure, Initiative: 2d20dis (10) +2 DEX = 12 (disadvantage)'
+    );
+    expect(line({ eventType: 'damage-roll', visibility: seenNpc })).toBe(
+      'Hooded figure, Initiative: 2d20dis (10) +2 DEX = 12 (disadvantage)'
+    );
+    // A visible token whose name players cannot see, a hidden token, no actor: dropped.
+    expect(line({ visibility: { subject: 'npc', tokenVisible: true, playerName: null } })).toBe(
+      null
+    );
+    expect(line({ visibility: unseenNpc })).toBeNull();
+    expect(
+      line({ visibility: { subject: null, tokenVisible: false, playerName: null } })
+    ).toBeNull();
+    // A head that is not the speaker's (a fallback line, a missing speaker): dropped.
+    expect(line({ visibility: seenNpc, description: 'Roll: 1d20 = 12' })).toBeNull();
+    expect(line({ visibility: seenNpc, actorName: null })).toBeNull();
+    // A PC's own line is kept as is.
+    expect(
+      line({
+        actorName: 'Ireena',
+        description: 'Ireena, Initiative: 1d20 (16) +2 DEX = 18',
+        visibility: pc,
+      })
+    ).toBe('Ireena, Initiative: 1d20 (16) +2 DEX = 18');
   });
 
   it('keeps the newest events up to the limit', () => {

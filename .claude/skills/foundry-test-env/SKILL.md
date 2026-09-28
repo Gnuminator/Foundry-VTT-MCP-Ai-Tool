@@ -123,5 +123,8 @@ Read the data folder directly (read-only):
 - Foundry does not start: `C:\FoundryTest\logs\foundry.err.log` (Node version, lock).
 - Module does not connect: module enabled in Module Management? The copy's `module.json`
   has the 31515 flag (`sync-module.ps1`)? Bridge running (`status.ps1`)? `read_console_messages`.
+  "Failed to resolve module specifier "@gnuminator/shared"" means the module did not load at
+  all: a module file imports a runtime value from a workspace package (only `import type` works
+  in the browser; `browser-imports.test.ts` guards this).
 - Later (before the new campaign) everything moves to an Orange Pi 5 Pro; the scripts are
   PowerShell 7 and handle Linux paths, but the Pi setup is its own task.

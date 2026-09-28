@@ -30,8 +30,8 @@ import type {
  *   visibility stamp (events from older modules have none and are dropped).
  *   Text is regenerated from templates with the player-facing name; numbers
  *   only for PCs; `details` is never copied. Public rolls (`roll`,
- *   `damage-roll`) keep the module's player-safe line, which is what the
- *   players see in Foundry's public chat anyway.
+ *   `damage-roll`) keep the module's player-safe line (what Foundry's public
+ *   chat shows), with the roller renamed to the player-facing name.
  * - Combat: hidden combatants and tokens players cannot see are dropped;
  *   names come from the visibility context; conditions only from core status
  *   ids; HP numbers and death saves only for PCs.
@@ -68,6 +68,25 @@ function subjectName(v: EventVisibility): string | null {
 
 function isPc(v: EventVisibility): boolean {
   return v.subject === 'pc' && str(v.playerName) !== null;
+}
+
+/**
+ * A public roll's player-safe line ("<speaker>, <label>: <dice>"), as players
+ * may see it. A PC's line is kept as is. For anyone else the subject rule of
+ * every other event applies (an NPC with a visible, named token) and the
+ * speaker head is rebuilt with the player-facing name: Foundry's chat alias
+ * can be a name players never see on the canvas (the true name of a token
+ * whose name display is off, or a world actor rolled from its sheet). A line
+ * whose head is not the event's speaker is dropped.
+ */
+function rollLine(e: SessionEvent, v: EventVisibility): string | null {
+  const line = str(e.description);
+  if (!line) return null;
+  if (isPc(v)) return line;
+  const name = subjectName(v);
+  const speaker = str(e.actorName);
+  if (!name || !speaker || !line.startsWith(`${speaker}, `)) return null;
+  return `${name}, ${line.slice(speaker.length + 2)}`;
 }
 
 type Template = (event: SessionEvent, v: EventVisibility) => string | null;
@@ -120,9 +139,9 @@ const TEMPLATES: Readonly<Record<string, Template>> = {
     const scene = str(v.sceneName);
     return scene ? `Scene: ${scene}.` : null;
   },
-  // Public rolls: the module's player-safe line, as in Foundry's public chat.
-  roll: e => str(e.description),
-  'damage-roll': e => str(e.description),
+  // Public rolls: the module's player-safe line, named as players know the roller.
+  roll: rollLine,
+  'damage-roll': rollLine,
 };
 
 /** One session event as a player may see it, or null (default deny). */

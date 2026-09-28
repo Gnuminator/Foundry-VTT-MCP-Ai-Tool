@@ -196,6 +196,7 @@ export class HandoutsService {
       exists: false,
       name: null,
       observable: false,
+      journalObservable: false,
       html: null,
     };
     const title = page.name ?? pageId;
@@ -219,6 +220,19 @@ export class HandoutsService {
   ): Promise<PlanView & { pageUuid: string }> {
     if (allowlisted && (page.observable || !setOwnership)) {
       throw new Error('That page is already revealed to players');
+    }
+    // Raising the page's ownership cannot help while its journal is hidden from
+    // the players: Foundry 14 neither lists that journal for them nor opens its
+    // pages. Raising the journal would expose every page that inherits from it,
+    // so that stays the GM's call. (`false` only: a module without the field
+    // leaves the decision to `observable`.)
+    if (setOwnership && !page.observable && page.journalObservable === false) {
+      throw new Error(
+        `Players cannot open the journal that holds "${title}" in Foundry (its ownership is ` +
+          'below Observer for every player), so raising the page alone would not reveal it. ' +
+          'Move or copy the page into a journal players can observe, or raise that journal to ' +
+          'Observer after setting its other pages to None; then reveal again.'
+      );
     }
     const ops: GuardedOp[] = [];
     let previousOwnership: number | undefined;

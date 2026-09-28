@@ -3,18 +3,29 @@
  * /player", M2). Computed on the GM client, where the full (unfiltered) world
  * state lives; everything here is a read.
  *
- * The wire contract (`PLAYER_VIEW_QUERIES`, `PlayerVisibility`,
- * `EventVisibility`, `PageForPlayers`, `UNKNOWN_CREATURE`, `UNKNOWN_SCENE`) is
- * owned by `shared/src/player-view.ts` and imported, not redefined here.
+ * The wire contract is owned by `shared/src/player-view.ts`. Its types are
+ * imported (type-only imports vanish from the build); its runtime values
+ * (`PLAYER_VIEW_QUERIES`, `UNKNOWN_CREATURE`, `UNKNOWN_SCENE`) are mirrored
+ * here, because the browser cannot resolve `@gnuminator/shared`.
+ * `player-visibility.contract.test.ts` pins the copies to the shared ones.
  */
-import {
-  UNKNOWN_CREATURE,
-  UNKNOWN_SCENE,
-  type EventVisibility,
-  type PageForPlayers,
-  type PlayerVisibility,
-  type PlayerVisibleToken,
+import type {
+  EventVisibility,
+  PageForPlayers,
+  PlayerVisibility,
+  PlayerVisibleToken,
 } from '@gnuminator/shared';
+
+/** Query names (mirror of the shared `PLAYER_VIEW_QUERIES`). */
+export const PLAYER_VIEW_QUERIES = {
+  visibility: 'getPlayerVisibility',
+  pages: 'getPagesForPlayers',
+} as const;
+
+/** Player-facing name for a creature players cannot name (mirror of the shared constant). */
+export const UNKNOWN_CREATURE = 'Unknown creature';
+/** Player-facing label for a scene without a navigation name (mirror of the shared constant). */
+export const UNKNOWN_SCENE = 'Current scene';
 
 declare global {
   /**
@@ -225,23 +236,54 @@ function resolveJournalPage(uuid: string): JournalEntryPage | null {
   }
 }
 
-/** At least one non-GM user can observe the page (OBSERVER+, page or inherited journal ownership). */
-function isObservableByAnyPlayer(page: JournalEntryPage): boolean {
-  return game.users.some(
-    (user): boolean => !user.isGM && page.testUserPermission(user, 'OBSERVER')
-  );
+/** A document's `testUserPermission`, read defensively (the page's parent journal is untyped here). */
+function canObserve(doc: unknown, user: User): boolean {
+  const d = doc as { testUserPermission?: (user: User, level: string) => boolean } | null;
+  return typeof d?.testUserPermission === 'function' && d.testUserPermission(user, 'OBSERVER');
+}
+
+/**
+ * Whether some non-GM user can observe the page's journal, and whether some
+ * non-GM user can open the page itself. Foundry 14 lists a journal only for
+ * users who can observe it (`JournalEntry#visible`, verified:
+ * `client/documents/journal-entry.mjs:29`) and treats a page of a journal the
+ * user cannot see as invisible (`ClientDocument#visible`,
+ * `client/documents/abstract/client-document.mjs:240`); even "Show Players"
+ * skips such a journal (`Journal._showEntry`). So page ownership alone does
+ * not let a player open it (found live in M2).
+ */
+function playerAccess(page: JournalEntryPage): { journal: boolean; page: boolean } {
+  const journal = (page as unknown as { parent?: unknown }).parent ?? null;
+  const players = game.users.filter((user): boolean => !user.isGM);
+  return {
+    journal: players.some((user): boolean => canObserve(journal, user)),
+    page: players.some(
+      (user): boolean => canObserve(journal, user) && page.testUserPermission(user, 'OBSERVER')
+    ),
+  };
 }
 
 function resolvePageForPlayers(uuid: string): PageForPlayers {
   const page = resolveJournalPage(uuid);
-  if (!page) return { uuid, exists: false, name: null, observable: false, html: null };
+  if (!page) {
+    return {
+      uuid,
+      exists: false,
+      name: null,
+      observable: false,
+      journalObservable: false,
+      html: null,
+    };
+  }
   const html =
     page.type === 'text' && typeof page.text.content === 'string' ? page.text.content : null;
+  const access = playerAccess(page);
   return {
     uuid,
     exists: true,
     name: typeof page.name === 'string' ? page.name : null,
-    observable: isObservableByAnyPlayer(page),
+    observable: access.page,
+    journalObservable: access.journal,
     html,
   };
 }

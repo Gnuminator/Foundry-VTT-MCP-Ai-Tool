@@ -8,8 +8,11 @@ import { playRecorder } from './play-recorder.js';
 import { applyGuardedOps, logGmChange, snapshotGuardedOps } from './data-access/guarded-write.js';
 import { FoundryDataAccess } from './data-access.js';
 import { ComfyUIManager } from './comfyui-manager.js';
-import { computePlayerVisibility, pagesForPlayers } from './player-visibility.js';
-import { PLAYER_VIEW_QUERIES } from '@gnuminator/shared';
+import {
+  PLAYER_VIEW_QUERIES,
+  computePlayerVisibility,
+  pagesForPlayers,
+} from './player-visibility.js';
 
 export class QueryHandlers {
   public dataAccess: FoundryDataAccess;

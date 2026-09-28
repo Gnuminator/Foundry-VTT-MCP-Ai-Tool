@@ -76,8 +76,15 @@ export interface PageForPlayers {
   uuid: string;
   exists: boolean;
   name: string | null;
-  /** At least one non-GM user can observe the page (OBSERVER or more, page or inherited journal ownership). */
+  /**
+   * At least one non-GM user can open the page in Foundry: OBSERVER or more on
+   * the page (own or inherited ownership) AND on its journal, since Foundry 14
+   * lists a journal only for users who can observe it and treats its pages as
+   * invisible otherwise.
+   */
   observable: boolean;
+  /** At least one non-GM user can observe the page's journal (it is listed for them). */
+  journalObservable: boolean;
   /** `text.content` of a text page, else null. Raw GM HTML: never forward without sanitizing. */
   html: string | null;
 }

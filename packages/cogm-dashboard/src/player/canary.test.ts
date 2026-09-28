@@ -13,7 +13,7 @@ import type { Server } from 'http';
 import type { PlayerVisibility } from '@gnuminator/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { CoGm } from '../ai/anthropic-co-gm.js';
+import type { CoGm, StreamRequest, StreamResult } from '../ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from '../app.js';
 import { config, type Config } from '../config.js';
 import type { CombatState, SessionEvent } from '../feed/types.js';
@@ -33,6 +33,7 @@ const CANARY = {
   gmChange: 'CANARY-GM-CHANGE',
   oldModule: 'CANARY-OLD-MODULE-EVENT',
   unseenNpc: 'CANARY-UNSEEN-NPC',
+  nameHidden: 'CANARY-NAME-DISPLAY-OFF',
   npcHp: 'CANARY-NPC-HP-7331',
   diag: 'CANARY-DIAGNOSTIC',
   worldId: 'CANARY-WORLD-ID',
@@ -42,7 +43,30 @@ const CANARY = {
   unrevealedLink: 'CANARY-UNREVEALED-LINK',
   inlineRoll: 'CANARY-INLINE-ROLL',
   tarokka: 'CANARY-TAROKKA-CARD',
+  aiText: 'CANARY-AI-COMMENTARY',
 } as const;
+
+/** An enabled co-GM whose every answer is a canary: AI output is GM-only. */
+const fakeCoGm = {
+  enabled: true,
+  isBusy: false,
+  setWorld: (): void => undefined,
+  abortActive: (): void => undefined,
+  stream: (request: StreamRequest): Promise<StreamResult> => {
+    request.onDelta(CANARY.aiText);
+    return Promise.resolve({
+      text: CANARY.aiText,
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        cacheHit: false,
+      },
+      aborted: false,
+    });
+  },
+} as unknown as CoGm;
 
 const REVEALED = 'JournalEntry.aaaaaaaaaaaaaaaa.JournalEntryPage.bbbbbbbbbbbbbbbb';
 const UNREVEALED = 'JournalEntry.cccccccccccccccc.JournalEntryPage.dddddddddddddddd';
@@ -139,6 +163,19 @@ const events: SessionEvent[] = [
     description: 'Hooded figure, Bite attack: 1d20 (15) +4 modifier = 19',
     details: { breakdown: `vs AC 12: hit ${CANARY.rollTarget}` },
     visibility: npcSeen,
+  }),
+  // Foundry's chat alias is the true name here (found live in M2).
+  event('sheet-roll', {
+    eventType: 'roll',
+    actorName: CANARY.trueName,
+    description: `${CANARY.trueName}, Initiative: 1d20 (12) +2 DEX = 14`,
+    visibility: npcSeen,
+  }),
+  event('nameless-roll', {
+    eventType: 'damage-roll',
+    actorName: CANARY.nameHidden,
+    description: `${CANARY.nameHidden}, Bite damage: 2d4 (3, 2) +2 = 7 piercing`,
+    visibility: { subject: 'npc', tokenVisible: true, playerName: null },
   }),
   event('npc-hit', {
     actorName: CANARY.trueName,
@@ -286,12 +323,14 @@ beforeAll(async () => {
     ...config,
     auth: { ...config.auth, splitEnabled: true, gmToken: GM_TOKEN, playerToken: '' },
     playerView: { showEnemyConditions: true, showEnemyHpBands: true },
+    commentDebounceMs: 10,
+    commentMinIntervalMs: 0,
   };
   dashboard = createDashboard({
     config: testConfig,
     logger,
     client: fakeClient,
-    coGm: new CoGm('', logger),
+    coGm: fakeCoGm,
   });
   server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));
@@ -337,6 +376,7 @@ describe('canary suite: nothing GM-only reaches a player', () => {
       CANARY.diag,
       CANARY.worldId,
       CANARY.blindRoll,
+      CANARY.nameHidden,
     ]) {
       expect(gm.text).toContain(canary);
     }
@@ -352,8 +392,17 @@ describe('canary suite: nothing GM-only reaches a player', () => {
         combat: { combatants: Array<{ name: string }> };
       };
       // It still shows what players may see.
-      expect(state.events.map(e => e.id)).toEqual(['public-roll', 'npc-hit', 'scene', 'pc-hit']);
+      expect(state.events.map(e => e.id)).toEqual([
+        'public-roll',
+        'sheet-roll',
+        'npc-hit',
+        'scene',
+        'pc-hit',
+      ]);
       expect(state.events.find(e => e.id === 'npc-hit')?.text).toBe('Hooded figure was hit.');
+      expect(state.events.find(e => e.id === 'sheet-roll')?.text).toBe(
+        'Hooded figure, Initiative: 1d20 (12) +2 DEX = 14'
+      );
       expect(state.combat.combatants.map(c => c.name)).toEqual(['Hooded figure']);
       expect(res.text).toContain('the map'); // a link to a revealed page keeps its label
     }
@@ -373,7 +422,15 @@ describe('canary suite: nothing GM-only reaches a player', () => {
       readStream('/api/player/stream', 800, GM_TOKEN),
       readStream('/api/stream', 800), // the player role on the legacy stream
     ]);
+    const gmReading = readStream('/api/stream', 800, GM_TOKEN);
     await wait(100);
+    // AI output: an answer to the GM, and commentary on the events below.
+    const ask = await fetch(`${base}/api/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CoGM-Token': GM_TOKEN },
+      body: JSON.stringify({ question: 'What happens next?' }),
+    });
+    expect(ask.status).toBe(200);
     dashboard.handlers.onEvents(
       [
         event('late-blind', {
@@ -390,6 +447,8 @@ describe('canary suite: nothing GM-only reaches a player', () => {
       expect(text).toContain('event: state');
       expect(leaks(text)).toEqual([]);
     }
+    // Control: the GM stream did carry the AI output.
+    expect(await gmReading).toContain(CANARY.aiText);
   });
 
   it('the player page and script carry no GM data, and the page has a strict CSP', async () => {

@@ -451,6 +451,72 @@ builtin-roll`), `plan-tarokka-links`, `plan-tarokka-reveal`, then `apply-planned
 
 ### Feature 2: spoiler-safe /player (M2)
 
+**M2 as built (2026-09-28, branch `claude/amazing-bardeen-q1x1q6`; live-tested on the test server
+the same day).** The principle and the parts below are implemented; differences from the text are
+marked.
+
+- Contract `shared/src/player-view.ts`: `PlayerVisibility`, `EventVisibility`, `PageForPlayers`,
+  the player-facing `PlayerState` / `PlayerEvent` / `PlayerCombatant` / `PlayerHandout`,
+  `CORE_STATUS_LABELS` (core and dnd5e status ids a player may see), module queries
+  `getPlayerVisibility` / `getPagesForPlayers`. The module mirrors the contract's runtime values
+  (the browser cannot resolve `@gnuminator/shared`; see "Found live").
+- Module (`player-visibility.ts`): visible tokens and the names players see (a token's name only
+  for display modes Hover and Always, or a player-owned actor; else "Unknown creature"), the active
+  scene's `navName` (else "Current scene", never the true name), PC = `hasPlayerOwner`. Every
+  session event carries an `EventVisibility` stamp; combatants carry `tokenId`, `actorId`, `sceneId`
+  and `statuses`. Guarded feature "AI Tool: Handouts (writes)" (default off).
+- Dashboard (`packages/cogm-dashboard/src/player/`, not `player-projection.ts`; `redact.ts` keeps
+  only `gmOnly`): `projection.ts` with default-deny event templates, no numbers for non-PCs, core
+  statuses only, events without a stamp dropped. **Stricter than the text:** an NPC whose name
+  players cannot see gets no feed line at all (the tracker lists it as "Unknown creature"). Public
+  rolls keep the module's player-safe line with the roller renamed to the player-facing name; NPC
+  roll lines follow the same subject rule, and rolls with no actor are dropped. `sanitize.ts`
+  rebuilds handout HTML from an allowlist (`htmlparser2`): no `section.secret`, scripts, event
+  handlers, inline rolls or links to pages that are not revealed (label included); a link to a
+  revealed page keeps its label. `/api/player/state` and `/api/player/stream` run on their own hub
+  and always project (a GM token authorizes, never upgrades); the player role on `/api/state` and
+  `/api/stream` gets the same projection; the player page has its own token key
+  (`cogm_player_token`) and a strict CSP. The projection runs in local mode too.
+- Backend: `handouts/service.ts` (allowlist `gm/reveals.json` AND observable; reveal can raise the
+  page to Observer and records the previous value, hide restores it and always drops the entry),
+  `secret-terms.ts` (dealt Tarokka card names and the GM's overrides; a registry later features
+  add to). Tools `get-player-visibility`, `list-revealed-pages`, `get-player-handouts` (raw GM
+  HTML, for the dashboard server only), `plan-page-reveal`, `check-secret-terms` (92 tools).
+- **Handouts need a journal players can see.** Foundry 14 lists a journal only for users with
+  Observer on it and treats the pages of a journal a user cannot see as invisible (even "Show
+  Players" skips them). So "observable" means a player can observe the page AND its journal, and
+  `plan-page-reveal` refuses to raise a page whose journal no player can observe: raising the
+  journal would expose every page that inherits from it, so that stays the GM's call (move the
+  handout into a player journal whose other pages are None). Reveal and hide are both
+  destructive class (hide deletes the allowlist entry); both can be undone.
+- Whisper guard: `/api/post-chat` answers 409 `secret-terms` when the text names a secret term
+  (whole phrase, any case); the GM page asks and resends with `allowSecrets`. The prompt sits on
+  the AI commentary cards' "Post to chat", so it needs `ANTHROPIC_API_KEY`.
+- Canary suite (`player/canary.test.ts`, the real app on a fake bridge): true name, hidden token
+  and combatant, a name players cannot see, blind roll, roll target, custom effect, true scene
+  name, `gm-change`, old-module event, unseen NPC, NPC HP, diagnostics, world id, GM name,
+  `section.secret`, script, unrevealed link, inline roll, Tarokka card, AI commentary; the GM
+  stream is the control. **Not yet seeded** (their features do not exist yet): attention score and
+  watcher names (M4), the player recap (M8).
+- **Found live and fixed:** (1) the module did not load at all: two files imported runtime values
+  from `@gnuminator/shared`, a bare specifier the browser cannot resolve (tests and typecheck
+  resolve it, so nothing caught it); the values are mirrored now, pinned by
+  `player-visibility.contract.test.ts`, and `browser-imports.test.ts` fails on any runtime import of
+  a workspace package in the module. (2) Roll lines used Foundry's chat alias, which can be a name
+  players never see on the canvas (a token whose name display is off, a world actor rolled from its
+  sheet). (3) Handouts in a journal players cannot see (above). (4) The second confirmation said
+  "deletes data" for a reveal.
+- **Foundry parity notes** (Foundry itself, not the AI Tool): players' clients receive every
+  non-hidden combatant's name (including the combatant of a hidden token) and see public
+  initiative rolls under the combatant's name; a whisper's text reaches every client. `/player` is
+  stricter than Foundry's own tracker and chat.
+- Live test (test server, split on, Claude and Player): feed, combat names for a disguised token
+  ("Friendly Dog") and a hidden one (dropped), core conditions only (a custom effect never shows),
+  `navName` and the fallback, scene-change lines, handout reveal / refuse / undo / reveal / hide
+  with the Player opening the page in Foundry, whisper guard with a dealt card name (API; the GM
+  page prompt needs an AI key), canary scans of every player surface in both modes with card
+  names, card ids, reading id and the GM token.
+
 Principle: player payloads are built by **projection** (copy an allowlisted set of fields) from GM data plus
 a visibility context, never by deleting known-bad fields from a GM object.
 
@@ -634,17 +700,17 @@ Every structure carries `schema` for migrations. Scene-to-region mapping for att
 
 ## 6. New MCP tools
 
-| Milestone | Read (`get-/list-/plan-/suggest-`)                                                                  | Write                                               |
-| --------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| M0        | `list-recent-changes`, `get-planned-change`, `open-in-foundry`                                      | `apply-planned-change`, `undo-change` (destructive) |
-| M1        | `get-tarokka-reading`, `plan-tarokka-import`, `plan-tarokka-links`, `plan-tarokka-reveal`           | via apply                                           |
-| M2        | `list-revealed-pages`, `plan-page-reveal`, `get-player-visibility`                                  | via apply                                           |
-| M4        | `get-strahd-attention`, `plan-attention-change`, `plan-attention-config`, `suggest-strahd-reaction` | via apply                                           |
-| M5        | `list-npc-attitudes`, `get-npc-attitude`, `plan-npc-attitude`                                       | via apply                                           |
-| M6        | `list-mood-presets`, `plan-mood-preset`, `plan-mood-preset-config`                                  | via apply                                           |
-| M7        | `list-legacy-statblocks`, `plan-statblock-swaps`, `plan-statblock-mapping`                          | via apply                                           |
-| M8        | `get-session-digest`, `plan-session-recap`                                                          | via apply                                           |
-| M9        | `get-dread`, `plan-dread-change`, `plan-dread-config`                                               | via apply                                           |
+| Milestone | Read (`get-/list-/plan-/suggest-`)                                                                              | Write                                               |
+| --------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| M0        | `list-recent-changes`, `get-planned-change`, `open-in-foundry`                                                  | `apply-planned-change`, `undo-change` (destructive) |
+| M1        | `get-tarokka-reading`, `plan-tarokka-import`, `plan-tarokka-links`, `plan-tarokka-reveal`                       | via apply                                           |
+| M2        | `list-revealed-pages`, `plan-page-reveal`, `get-player-visibility`, `get-player-handouts`, `check-secret-terms` | via apply                                           |
+| M4        | `get-strahd-attention`, `plan-attention-change`, `plan-attention-config`, `suggest-strahd-reaction`             | via apply                                           |
+| M5        | `list-npc-attitudes`, `get-npc-attitude`, `plan-npc-attitude`                                                   | via apply                                           |
+| M6        | `list-mood-presets`, `plan-mood-preset`, `plan-mood-preset-config`                                              | via apply                                           |
+| M7        | `list-legacy-statblocks`, `plan-statblock-swaps`, `plan-statblock-mapping`                                      | via apply                                           |
+| M8        | `get-session-digest`, `plan-session-recap`                                                                      | via apply                                           |
+| M9        | `get-dread`, `plan-dread-change`, `plan-dread-config`                                                           | via apply                                           |
 
 New GM dashboard panels: Recent changes (with undo), Tarokka, Attention, NPCs, Mood bar, Converter, Recap,
 Dread strip. New player view sections: Handouts (revealed pages), published recap.
@@ -656,7 +722,8 @@ and pushed, and is summarized before the next starts.
 
 1. **M0** step 0 (0.1 to 0.7). **Done 2026-09-28** (see "M0 as built", section 3).
 2. **M1** feature 1 (Tarokka). **Done 2026-09-28** (see "M1 as built", feature 1).
-3. **M2** feature 2 (projection, player endpoints, reveal allowlist, canary suite).
+3. **M2** feature 2 (projection, player endpoints, reveal allowlist, canary suite). **Done 2026-09-28**
+   (see "M2 as built", feature 2).
 4. **M3** Foundry v14 + dnd5e 6.0 compatibility pass for existing tools (table 2.4 + pre-existing bugs).
    Some items are v14-core and affect you already. Templates are confirmed broken on v14 (MeasuredTemplate
    removed in 14.352), so `place-measured-template` and `delete-measured-template` fail today; M0 makes them

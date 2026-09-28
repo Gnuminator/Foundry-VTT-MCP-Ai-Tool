@@ -344,7 +344,7 @@ describe('pagesForPlayers', () => {
       text: { content: '<p>The mists never lift.</p>' },
       ownership: { p1: 2 },
     });
-    world.addJournal({ id: 'j1', name: 'GM Notes', pages: [page] });
+    world.addJournal({ id: 'j1', name: 'Handouts', pages: [page], ownership: { p1: 2 } });
 
     const { pages } = pagesForPlayers(['JournalEntry.j1.JournalEntryPage.pg1']);
     expect(pages).toEqual([
@@ -353,9 +353,36 @@ describe('pagesForPlayers', () => {
         exists: true,
         name: 'Rumors of Barovia',
         observable: true,
+        journalObservable: true,
         html: '<p>The mists never lift.</p>',
       },
     ]);
+  });
+
+  it('a page players may observe is not observable while its journal is hidden from them (found live in M2)', () => {
+    world.addUser({ id: 'p1', name: 'Alice', isGM: false });
+    const page = makeJournalPage({ id: 'pg1', name: 'Letter', type: 'text', ownership: { p1: 2 } });
+    world.addJournal({ id: 'j1', name: 'Chapter 2 (GM)', pages: [page] });
+
+    const [out] = pagesForPlayers(['JournalEntry.j1.JournalEntryPage.pg1']).pages;
+    expect(out.observable).toBe(false);
+    expect(out.journalObservable).toBe(false);
+  });
+
+  it('the journal and the page must be observable by the same player', () => {
+    world.addUser({ id: 'p1', name: 'Alice', isGM: false });
+    world.addUser({ id: 'p2', name: 'Bob', isGM: false });
+    const page = makeJournalPage({
+      id: 'pg1',
+      name: 'Letter',
+      type: 'text',
+      ownership: { default: 0, p1: 2 },
+    });
+    world.addJournal({ id: 'j1', name: 'Handouts', pages: [page], ownership: { p2: 2 } });
+
+    const [out] = pagesForPlayers(['JournalEntry.j1.JournalEntryPage.pg1']).pages;
+    expect(out.journalObservable).toBe(true);
+    expect(out.observable).toBe(false);
   });
 
   it('observability is inherited from the parent journal when the page ownership is INHERIT (default)', () => {
@@ -385,7 +412,7 @@ describe('pagesForPlayers', () => {
       src: 'map.webp',
       ownership: { p1: 2 },
     });
-    world.addJournal({ id: 'j1', name: 'GM Notes', pages: [page] });
+    world.addJournal({ id: 'j1', name: 'Handouts', pages: [page], ownership: { p1: 2 } });
 
     const { pages } = pagesForPlayers(['JournalEntry.j1.JournalEntryPage.pg1']);
     expect(pages[0].html).toBeNull();
@@ -400,6 +427,7 @@ describe('pagesForPlayers', () => {
         exists: false,
         name: null,
         observable: false,
+        journalObservable: false,
         html: null,
       },
     ]);

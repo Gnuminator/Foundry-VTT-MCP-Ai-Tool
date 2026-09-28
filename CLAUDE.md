@@ -140,46 +140,30 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
   `shared.rollModeFor` / `rollToMessageOptions` / `usesMessageModes`) and v14 nulling
   `combat.turn` before `deleteCombat`. **Tests 2,477** (foundry-module 1030, mcp-server 1340,
   shared 55, cogm-dashboard 52); lint baseline **7,761**.
-- [~] **Curse of Strahd M2 (spoiler-safe /player), BUILT AND GATED, NOT LIVE-TESTED** (GM go-ahead
-  2026-09-28; plan feature 2). **Tests 2,570** (foundry-module 1075, mcp-server 1378, shared 55,
-  cogm-dashboard 62); lint baseline 7,761; 92 tools.
-  - Contract `shared/src/player-view.ts` (`PlayerVisibility`, `EventVisibility`, `PageForPlayers`,
-    player-facing `PlayerState`/`PlayerEvent`/`PlayerCombatant`/`PlayerHandout`,
-    `CORE_STATUS_LABELS`, module queries `getPlayerVisibility` / `getPagesForPlayers`).
-  - Module: `player-visibility.ts` (visible tokens and player-facing names per display mode,
-    `navName` scenes, PC = `hasPlayerOwner`, page observability incl. inherited journal ownership;
-    Foundry 14.368 source checked), `EventVisibility` stamped on every session event, combatants
-    carry `tokenId`/`actorId`/`sceneId`/`statuses`, guarded feature `handouts` (default off).
-  - Backend: `handouts/service.ts` (allowlist `gm/reveals.json` AND observable; reveal sets page
-    `ownership.default` 2 and records the previous value; hide restores it and always drops the
-    entry), `secret-terms.ts` (Tarokka card names, a source registry for later features), tools
-    `get-player-visibility`, `list-revealed-pages`, `get-player-handouts` (raw GM HTML, dashboard
-    only), `plan-page-reveal`, `check-secret-terms`.
-  - Dashboard: `app.ts` `createDashboard(deps)` (`server.ts` is only the bootstrap now);
-    `player/projection.ts` (default-deny event templates, no numbers for non-PCs, names from the
-    visibility context, core statuses only, events without a stamp dropped, public rolls keep the
-    player-safe line); `player/sanitize.ts` (allowlist rebuild with `htmlparser2` ^10.1.0, a new
-    dependency: v12 needs Node 20.19+, the installer bundles 20.12.2); `player/source.ts` (polls
-    visibility and handouts every 5 s); `/api/player/state` and `/api/player/stream` on a separate
-    hub that always projects (a GM token never upgrades); legacy `/api/state` / `/api/stream` give
-    the player role the same projection; every GM-hub broadcast is `gmOnly` (`redact.ts` is only
-    that now); player page: Handouts section, own token key `cogm_player_token`, strict CSP;
-    whisper guard (`/api/post-chat` 409 `secret-terms`, the GM page asks, `allowSecrets` resends).
-  - Proof: `player/canary.test.ts` runs the real app on a fake bridge with canary secrets (true
-    name, hidden token and combatant, blind roll, roll target, custom effect, true scene name,
-    gm-change, old-module event, unseen NPC, NPC HP, diagnostics, world id, GM name, secret
-    section, script, unrevealed link, inline roll); none reach any player surface; the GM
-    endpoint does show them (control).
-  - **Next session:** (1) live test on the test server (foundry-test-env / foundry-ai-tool
-    skills): sync module, start env with the split on (`GM_DASHBOARD_TOKEN` in the same PowerShell
-    call as `start.ps1 -Only dashboard`, token in a scratch file), join as Claude and as Player
-    (127.0.0.1), check `/player` (feed, combat names for a disguised and a hidden token, core
-    conditions only, scene `navName`), turn on "AI Tool: Handouts (writes)", `plan-page-reveal` +
-    apply on a journal page with a `section.secret` and a link, check the Handouts section and
-    that the Player can open the page in Foundry, hide it again, whisper guard with a Tarokka
-    card name; (2) docs: plan "M2 as built", CHANGELOG, foundry-ai-tool skill M2 checks;
-    (3) commit, push on the GM's OK; (4) M3 (v14 + dnd5e 6 compatibility pass) waits for the
-    GM's go-ahead.
+- [x] **Curse of Strahd M2 (spoiler-safe /player) DONE, live-tested** (2026-09-28, GM go-ahead
+  the same day; plan feature 2 and `docs/CURSE-OF-STRAHD-PLAN.md` "M2 as built"). **Tests 2,581**
+  (foundry-module 1082, mcp-server 1381, shared 55, cogm-dashboard 63); lint baseline 7,761; 92
+  tools.
+  - Contract `shared/src/player-view.ts`; module `player-visibility.ts` (names players see per
+    display mode, `navName` scenes, PC = `hasPlayerOwner`, page AND journal observability),
+    `EventVisibility` on every session event, guarded feature `handouts` (default off); backend
+    `handouts/service.ts` (allowlist `gm/reveals.json` AND observable) and `secret-terms.ts`; tools
+    `get-player-visibility`, `list-revealed-pages`, `get-player-handouts`, `plan-page-reveal`,
+    `check-secret-terms`; dashboard `app.ts` `createDashboard(deps)`, `player/projection.ts`,
+    `player/sanitize.ts` (`htmlparser2` ^10.1.0; v12 needs Node 20.19+, the installer bundles
+    20.12.2), `/api/player/state` + `/api/player/stream` (always projected), whisper guard (409
+    `secret-terms`). Proof: `player/canary.test.ts` (now also AI commentary and a name players
+    cannot see).
+  - Found live and fixed (with tests): the module did not load at all (runtime imports of
+    `@gnuminator/shared`, a bare specifier browsers cannot resolve; values mirrored now,
+    `browser-imports.test.ts` guards it); roll lines named NPCs by Foundry's chat alias (now the
+    player-facing name, else dropped); handouts in a journal players cannot see (Foundry 14 lists a
+    journal only at Observer: "observable" now needs the journal too, and `plan-page-reveal`
+    refuses to raise a page inside a hidden journal); "deletes data" wording on reveals.
+  - Not live-tested: the GM page's whisper confirm prompt (only on AI commentary cards, needs
+    `ANTHROPIC_API_KEY`); the server side of the guard is.
+  - **Next:** M3 (Foundry v14 + dnd5e 6 compatibility pass, incl. the v14 roll-mode deprecation
+    warnings still logged by `rollModeFor` / `rollNpcCheck`) waits for the GM's go-ahead.
 - [~] **Handoff (2026-09-28, night; second PC, CKRSSURFACE).** O3 done and pushed; M2 as above.
   - Test env on this PC: world `ai-tool-test` (users Gamemaster, Claude, Player; `Test Hero` level 3
     Fighter owned by Player; world actor `Wolf` with unlinked tokens Wolf 1-3 on "Test Arena").

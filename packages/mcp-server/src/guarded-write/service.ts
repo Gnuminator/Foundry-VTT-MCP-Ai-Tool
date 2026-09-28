@@ -442,7 +442,10 @@ export class GuardedWriteService {
         throw new Error('Applying a planned change needs confirm: true');
       }
       if (plan.risk === 'destructive' && flags.confirmDestructive !== true) {
-        throw new Error('This change deletes data; it needs confirmDestructive: true');
+        // Destructive = deletes data, or cannot be taken back at the table (a reveal).
+        throw new Error(
+          'This change is destructive (it deletes data or cannot be taken back); it needs confirmDestructive: true'
+        );
       }
       const worldId = await this.worldIds.current();
       if (worldId !== plan.worldId) {

@@ -64,6 +64,7 @@ import { DiagnosticsTools } from './tools/diagnostics.js';
 import { GuardedChangeTools } from './tools/guarded-changes.js';
 import { GuardedWriteService } from './guarded-write/service.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
+import { EventPump, eventPumpSettings } from './event-pump.js';
 
 // Control channel bind target. Defaults to the frozen loopback contract
 // (127.0.0.1:31414) the stdio wrapper and dashboard expect, but is injectable so
@@ -533,10 +534,26 @@ async function startBackend(): Promise<void> {
   // Start Foundry connector (owns app port 31415). Skipped in control-only mode
   // so the standalone entrypoint can be smoke-tested without binding 31415/31416.
 
+  // Persistent session event log in the vault (FOUNDRY_AI_EVENT_LOG=off disables it).
+  let eventPump: EventPump | null = null;
+
   if (FOUNDRY_LINK_ENABLED) {
     foundryClient.connect().catch(e => {
       logger.error('Foundry connector failed to start', e);
     });
+    const pumpSettings = eventPumpSettings();
+    if (pumpSettings.enabled) {
+      eventPump = new EventPump({
+        foundryClient,
+        worldIds,
+        store: vaultStore,
+        logger,
+        intervalMs: pumpSettings.intervalMs,
+      });
+      eventPump.start();
+    } else {
+      logger.info('Session event log disabled (FOUNDRY_AI_EVENT_LOG=off)');
+    }
   } else {
     logger.info('Foundry link disabled (MCP_FOUNDRY_LINK=off) — serving control channel only');
   }
@@ -658,12 +675,14 @@ async function startBackend(): Promise<void> {
   // Shutdown hooks
 
   process.on('SIGINT', () => {
+    eventPump?.stop();
     foundryClient.disconnect();
     releaseLock();
     process.exit(0);
   });
 
   process.on('SIGTERM', () => {
+    eventPump?.stop();
     foundryClient.disconnect();
     releaseLock();
     process.exit(0);

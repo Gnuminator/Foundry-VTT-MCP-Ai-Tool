@@ -48,7 +48,7 @@ Renaming any of these breaks existing installs. Plan a migration note first.
 - **NEVER push to `adambdooley/foundry-vtt-mcp`** (upstream). It's not a remote anymore.
 - Keep it green after each change: `npm run typecheck && npm run lint:ratchet && npm run build`, plus
   `CI=true npm test`. The lint ratchet (`scripts/lint-ratchet.mjs`, baseline
-  `scripts/lint-baseline.json`, 7,783 warnings) fails on any ESLint error or any rule whose warning
+  `scripts/lint-baseline.json`, 7,777 warnings) fails on any ESLint error or any rule whose warning
   count rises; lower the baseline with `npm run lint:ratchet -- --update` when counts drop.
 - **Local test environment:** `.claude/skills/foundry-test-env/SKILL.md` + `scripts/test-env/*.ps1`
   (Foundry 14 at `C:\FoundryTest` on localhost:30001, world `ai-tool-test`, passwordless "Claude" GM
@@ -61,7 +61,9 @@ Renaming any of these breaks existing installs. Plan a migration note first.
 
 - TypeScript strict + `exactOptionalPropertyTypes`, ESM (relative imports use `.js` extensions)
 - Prettier: single quotes, `printWidth: 100`
-- Node 18+, npm workspaces
+- Node 18+, npm workspaces. CI and release builds run Node 22; the shipped runtime floor is Node 18
+  (`engines`); the NSIS installer bundles portable Node 20.12.2 and `deploy/Dockerfile` uses
+  `node:20-slim`. Bump them together.
 
 ## Detach plan
 
@@ -74,7 +76,12 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
 - [x] Phase 3 — `docs/ARCHITECTURE.md` from first principles (Opus 4.8)
 - [x] Phase 4 — Staged reimplementation (substantively complete — see `docs/PHASE4-TRACKER.md`). Chunk 1 (`shared`) + chunk 2 (wire-protocol contract + control-channel) reimplemented behind the `shared` contract; chunk 3 (data-access shrink+clean, 10,991→9,500); chunks 4–5 owned-via-tests (all 23 tool files + dnd5e adapter/filters covered; dead code removed). 1078 tests total. Deep from-scratch rewrites (data-access + 4 large tool files) deferred to Phase 9 with parity nets in place.
 - [x] Phase 5 — Cutover. **v0.16.0 released on `aitool`** (2026-06-15) — first release under the new identity. CHANGELOG rewritten, `docs/MIGRATION.md` + `docs/SMOKE-TEST.md` added, release workflow fixed (canonical `build-complete-release.yml` now tag-triggered + `contents:write`; module zip `foundry-mcp-bridge.zip` matches the manifest download URL). GitHub Release + all 4 assets published and verified; `releases/latest/download/{module.json,foundry-mcp-bridge.zip}` resolve. **Live smoke test PASSED** (2026-06-15): user installed the build + reinstalled the module from the new manifest + restarted Claude Desktop; Foundry shows the bridge **Connected**; the co-GM dashboard (`npm run dev:cogm` → http://localhost:3000) connected to the live bridge on 31414 and read real world data ("Rime of the Frostmaiden", dnd5e).
-- [~] Phase 6 — Standalone bridge + remote access + player/GM split. **Dep-security prereq DONE** (2026-06-15): removed dead `socket.io-client`; non-breaking `audit fix` (ws/axios/MCP-SDK/express); breaking **werift 0.17.7→0.23.0** (clears the `uuid` advisory; WebRTC path only, user-driven live smoke in `docs/DEPENDENCY-PATCH-SMOKE-TEST.md`); setup-node bumped. Audit prod-only **15→3** (residual = the no-fix `ip` advisory in werift-ice). **Framework BUILT + green:** (A) standalone bridge entry (`packages/mcp-server/src/standalone.ts`; `MCP_CONTROL_HOST/PORT` + `MCP_FOUNDRY_LINK=off` control-only; `npm run bridge:standalone`; CI smoke) and (B) server-side player/GM split in the dashboard (`auth.ts`/`redact.ts`/role-aware `sse.ts`/`requireGm`/`/player`; tests + CI smoke). **Infra TEMPLATED (not deployed):** (C) `docs/REMOTE-ACCESS.md` + `deploy/` (Cloudflare Tunnel/Access, Dockerfile, compose, Windows service); (D) `docs/PHASE6-DESIGN.md` (seams + setup checklist). **Test baseline 1120** (shared 49, foundry-module 12, mcp-server 1030, cogm-dashboard 29). **v0.16.1 queued** — cut after the user's live werift WebRTC smoke passes. Remaining: stand up Cloudflare/VPS/hosted Foundry per `docs/PHASE6-DESIGN.md` §6.
+- [~] Phase 6 — Standalone bridge + remote access + player/GM split. **Dep-security prereq DONE** (2026-06-15): removed dead `socket.io-client`; non-breaking `audit fix` (ws/axios/MCP-SDK/express); breaking **werift 0.17.7→0.23.0** (clears the `uuid` advisory; WebRTC path only, user-driven live smoke in `docs/DEPENDENCY-PATCH-SMOKE-TEST.md`); setup-node bumped. Audit prod-only **15→3** (residual = the no-fix `ip` advisory in werift-ice). **Framework BUILT + green:** (A) standalone bridge entry (`packages/mcp-server/src/standalone.ts`; `MCP_CONTROL_HOST/PORT` + `MCP_FOUNDRY_LINK=off` control-only; `npm run bridge:standalone`; CI smoke) and (B) server-side player/GM split in the dashboard (`auth.ts`/`redact.ts`/role-aware `sse.ts`/`requireGm`/`/player`; tests + CI smoke). **Infra TEMPLATED (not deployed):** (C) `docs/REMOTE-ACCESS.md` + `deploy/` (Cloudflare Tunnel/Access, Dockerfile, compose, Windows service); (D) `docs/PHASE6-DESIGN.md` (seams + setup checklist). **Test baseline 1120** (shared 49, foundry-module 12, mcp-server 1030, cogm-dashboard 29). **v0.16.1 released** (2026-06-15, werift validated live by the GM). Remaining: hosting. Target since 2026-07-02 (`docs/ROADMAP.md`): everything on an Orange Pi 5 Pro, PC not required, no domain. The exposure method is not settled on this branch: `docs/REMOTE-ACCESS.md` and `deploy/` template Cloudflare Tunnel/Access, the unmerged hosting branch chose Tailscale (open question for the GM).
+- [~] Phase 7: Presentation (`docs/PHASE7-PLAN.md`). Done 2026-06-15: README redesign, badges, brand brief and assets, 30fps demo GIF, regenerated screenshots. Deferred: real screen-capture demo, `/player` screenshot, showcase site.
+- [x] Phase 8: Repo tidy (root clutter removed 2026-06-15; the "Baseline" last-commit labels fade as files are rewritten).
+- [x] Phase 9: Deep reimplementation (2026-06-16, on `main`): Foundry mock harness, data-access reorganized into 16 domain modules and rewritten to parity (`docs/PHASE9-DATA-ACCESS-REORG.md`, `docs/PHASE9-DOMAIN-REWRITE.md`); the one intended behavior change is the `characters` pf2e prune. The 4 large tool files stay owned-via-tests (optional rewrite).
+- [x] Releases after v0.16.0, all on `main` and tagged on `aitool`: **v0.16.1** (2026-06-15, dependency-security patch), **v0.17.0** (2026-06-17, `allowNonGmAccess` setting shipped locked on + internal cleanup), **v0.18.0** (2026-06-17, roll initiative for selected combatants). Full-repo code review 2026-07-02: `docs/CODE-REVIEW-2026-07.md`, backlog in `docs/ROADMAP.md`. `main` stops at `a80b330` (2026-07-02) and still ships the review's two Blockers (0.0.0.0 binds, `allowNonGmAccess` locked on); this branch fixes both (M0) and is not merged back yet.
+- Unmerged remote branches (reference only; no merge plan yet, a GM decision): `claude/remote-gm-hosting-design-cwllhf` (Orange Pi hosting design with a Tailscale choice, its own version of the M0 security fixes, `docs/PI-DEPLOY-PROMPTS.md`, `docs/REMOTE-ACCESS-PLAN.md`); `claude/remove-comfyui-pipeline-d9wlp8` and `claude/audit-comfyui-removal-0xzj8l` (full ComfyUI removal with a draft "v0.19.0" CHANGELOG entry; this branch instead keeps ComfyUI opt-in and removes it only on the GM's confirmation). Check them before building anything they already cover.
 
 - [x] Curse of Strahd plan, **M0 (step 0) DONE** (2026-09-28, branch `claude/amazing-bardeen-q1x1q6`;
   see `docs/CURSE-OF-STRAHD-PLAN.md` "M0 as built"): bridge handlers out of `CONFIG.queries`
@@ -102,13 +109,15 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
   `C:\Users\chris\Documents\Obsidian\vault` (structure, plugins, automations). Vault skeleton,
   templates, Dev dashboard with Question notes, `npm run obsidian -- export` (sessions, changes,
   Tarokka), `scripts/obsidian/sync-dev-docs.ps1` (read-only docs mirror). Next: rest of O2.
-- [~] **Handoff (2026-09-28, session ended by the GM to avoid auto-compact).**
-  - NEXT SESSION: the GM pastes a PROJECT HISTORY EXPORT from the cloud project "Foundry-VTT-MCP-Ai-Tool"
-    (its sessions are cloud-only; the two local transcripts of this workspace were already read).
-    Turn it into Obsidian notes under `Dev/Foundry AI Tool/` (History timeline, `Decisions/` one note
-    per decision, `Ideas/`, lessons, glossary; properties for the dashboard Bases), cross-check against
-    the repo docs and fix gaps, carry lasting working agreements into memory, open items as Question
-    notes.
+- [x] **Project history imported** (2026-09-28): the cloud project's history export is in the GM's
+  vault under `Dev/Foundry AI Tool/` (History, Open work, Working agreements, Glossary, one note per
+  decision/idea/lesson, Bases on the Dashboard, new Question notes). It is documentation only: it does
+  not change current goals. Repo fixes from the cross-check: this file (Phases 7 to 9, releases,
+  unmerged branches, Node versions, lint baseline), CHANGELOG "Unreleased", ROADMAP ticks.
+- [~] **Handoff (2026-09-28).**
+  - Open GM questions (Obsidian `Dev/Foundry AI Tool/Questions/`): M2 go-ahead; merge plan for this
+    branch and the unmerged ones; ComfyUI removal; Orange Pi exposure and deploy gating; archive the
+    old fork; vault sync method; deny rule for `Campaigns/`.
   - Part B verification is unfinished: `.claude/skills/foundry-core-ui/reference/*.md` (11 pages) are
     uncommitted drafts; the click-through lanes were stopped mid-run, so some pages may carry partial
     `[verified]` marks and no stamp. Resume later (Sonnet, one lane per GM user, canvas pages in front).

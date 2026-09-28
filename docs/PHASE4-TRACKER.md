@@ -35,7 +35,7 @@ depends on.
 - `node scripts/cogm-split-smoke-test.mjs` (Phase 6-B: server-side player/GM split over HTTP)
 - `node validate-manifest.js`
 
-**1485 unit tests total** (shared 49 + foundry-module 377 + mcp-server 1030 + cogm-dashboard 29).
+**1485 unit tests total** as of 2026-06-16, after the Phase 9 harness (the Phase 4 close below counted 1078) (shared 49 + foundry-module 377 + mcp-server 1030 + cogm-dashboard 29).
 CI (`​.github/workflows/ci.yml`) runs build + the four unit suites + the schema/standalone/split smokes + manifest on every push to `main`.
 
 ## Decisions

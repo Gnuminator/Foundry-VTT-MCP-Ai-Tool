@@ -526,9 +526,11 @@ present, the AI is disabled gracefully and the _feed still runs_.
 - `send-chat-message` is the one always-available write the co-GM uses to whisper the GM (it
   targets the world's GM names, derived from `get-world-info`).
 
-This is also where the future **player vs GM split** lands: filter GM-only data on the SSE
-stream and gate the write surface server-side, behind auth, so a public player view can show
-the combat order and public feed without leaking hidden HP, notes, or write access.
+This is also where the **player vs GM split** lives (built in Phase 6: `auth.ts`, `redact.ts`,
+role-aware `sse.ts`, `requireGm`, `/player`): GM-only data is filtered off the SSE stream and the
+write surface is gated server-side, behind auth, so the player view shows the combat order and
+public feed without hidden HP, notes, or write access. The allowlist projection that replaces the
+redaction is planned as M2 (`docs/CURSE-OF-STRAHD-PLAN.md`, feature 2).
 
 ---
 

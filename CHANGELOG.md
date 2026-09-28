@@ -41,11 +41,25 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   Foundry); reveal a card by publishing only the text you write as a page players can read. Tools
   `get-tarokka-reading`, `plan-tarokka-import`, `suggest-tarokka-links`, `plan-tarokka-links`,
   `plan-tarokka-reveal`; dashboard 🃏 Tarokka drawer (card names hidden until "Show cards").
+- **Pickers in the tool runner**: every tool parameter that names something (actor, token, scene,
+  journal page, item, combatant, pack, plan, change, Tarokka card, ...) gets "Pick…", a filterable
+  list of what exists now; typing still works. New read tool `list-ref-choices`. MCP clients get the
+  schemas without the picker annotations.
+- **Obsidian export** (`npm run obsidian -- export [<worldId>] [--vault <dir>]`, or
+  `FOUNDRY_AI_OBSIDIAN_DIR`): a one-way, GM-only render of the bridge vault into an Obsidian vault
+  (session timeline, applied and undone changes, the current Tarokka reading with cards in collapsed
+  callouts). Writes only under `Campaigns/<worldId>/`; the campaign `Home.md` and `Prep/` are created
+  once and never rewritten.
 
 ### Fixes
 
 - The backend no longer crashes when a control-channel client disconnects abruptly (ECONNRESET).
 - `search-compendium` ignored a CR 0 filter.
+- The co-GM dashboard answered malformed or oversized request bodies with Express's default error
+  page, which showed the stack trace and local file paths to any caller; it now returns short JSON
+  errors and logs the details server-side.
+- Compendium copies with a custom name kept the source's prototype token name; the token is now named
+  after the copy.
 - `place-measured-template` / `delete-measured-template` now fail with a clear "not available on
   Foundry 14 yet" error (MeasuredTemplate was removed in 14.352; the Region port is planned for M3).
 
@@ -56,6 +70,10 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
 - Lint ratchet in CI (`npm run lint:ratchet`): warnings may only go down.
 - `package-lock.json` has `resolved`/`integrity` for every registry package.
 - ComfyUI never starts by itself unless `COMFYUI_AUTOSTART=true`.
+- Development: a local Foundry test environment (`scripts/test-env/*.ps1`, skills `foundry-test-env`,
+  `foundry-ai-tool`, `foundry-core-ui`). The module reads its default bridge port from the manifest
+  flag `flags.foundry-mcp-bridge.defaultServerPort` (released manifests have none);
+  `FOUNDRY_WEBRTC_PORT` sets the WebRTC signaling port (default 31416).
 
 ### Upgrade notes
 

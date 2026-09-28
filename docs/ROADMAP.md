@@ -85,10 +85,11 @@ Everything else outstanding is below, roughly in priority order.
 
 **Security — before any non-localhost exposure (do with / right after the hosting session):**
 
-- [ ] Gate the `0.0.0.0` binds behind an explicit opt-in, loopback by default: WebRTC signaling
+- [x] (done on the Curse of Strahd branch, M0: `FOUNDRY_LINK_HOST` / `DASHBOARD_HOST`; see CHANGELOG
+      "Unreleased") Gate the `0.0.0.0` binds behind an explicit opt-in, loopback by default: WebRTC signaling
       (`foundry-connector.ts:84`, **Blocker**), main WS server (`foundry-connector.ts:164`), dashboard
       (`cogm-dashboard/src/server.ts:585`).
-- [ ] Flip `allowNonGmAccess` default to **false** and unlock the UI toggle (`foundry-module/src/settings.ts:257`, **Blocker**).
+- [x] (done on the Curse of Strahd branch, M0) Flip `allowNonGmAccess` default to **false** and unlock the UI toggle (`foundry-module/src/settings.ts:257`, **Blocker**).
 - [ ] Add auth to the control channel (TCP :31414) — no allow-list / token today (`backend.ts:69`,`543`).
 - [ ] Verify the Cloudflare-Access email header (JWT/signature or `trust proxy` + upstream-IP), don't
       trust it verbatim (`cogm-dashboard/src/auth.ts:74`).

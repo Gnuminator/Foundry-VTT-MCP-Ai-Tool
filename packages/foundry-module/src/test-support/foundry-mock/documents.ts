@@ -100,7 +100,13 @@ function withDocumentMethods<T extends AnyDoc>(doc: T): T {
       permission: string | number,
       options: { exact?: boolean } = {}
     ): boolean => {
-      const level = user?.isGM ? OWNERSHIP_LEVELS.OWNER : d.getUserLevel(user);
+      // Foundry order (`common/abstract/document.mjs:407-415`): GM is OWNER, a banned
+      // user (`role === USER_ROLES.NONE`, `common/documents/user.mjs:113`) is NONE.
+      const level = user?.isGM
+        ? OWNERSHIP_LEVELS.OWNER
+        : user?.isBanned
+          ? OWNERSHIP_LEVELS.NONE
+          : d.getUserLevel(user);
       const target =
         typeof permission === 'string'
           ? (OWNERSHIP_LEVELS[permission] ?? OWNERSHIP_LEVELS.OWNER)
@@ -446,7 +452,17 @@ export interface MakeUserOptions {
 
 export function makeUser(opts: MakeUserOptions = {}): AnyDoc {
   const { id = randomId('user'), name = 'User', active = true, isGM = false, ...rest } = opts;
-  return { id, name, active, isGM, ...rest };
+  const user: AnyDoc = { id, name, active, isGM, ...rest };
+  // Real `User#isBanned` is `role === USER_ROLES.NONE` (`common/documents/user.mjs:113`);
+  // derived live from `role` when a test sets a role and no explicit `isBanned`.
+  if (typeof user.role === 'number' && !Object.prototype.hasOwnProperty.call(rest, 'isBanned')) {
+    Object.defineProperty(user, 'isBanned', {
+      configurable: true,
+      enumerable: false,
+      get: () => user.role === 0,
+    });
+  }
+  return user;
 }
 
 export interface MakePackOptions {

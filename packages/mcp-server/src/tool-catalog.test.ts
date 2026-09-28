@@ -31,6 +31,7 @@ import { GuardedChangeTools } from './tools/guarded-changes.js';
 import { LootTools } from './tools/loot.js';
 import { MapGenerationTools } from './tools/map-generation.js';
 import { MovementTools } from './tools/movement.js';
+import { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import { OwnershipTools } from './tools/ownership.js';
 import { PlaySessionTools } from './tools/play-session.js';
 import { PlayStatsTools } from './tools/play-stats.js';
@@ -68,6 +69,13 @@ const deps: ToolRouterDeps = {
   lootTools: new LootTools(base),
   mapGenerationTools: new MapGenerationTools({ ...base, backendComfyUIHandlers: {} }),
   movementTools: new MovementTools(base),
+  obsidianMirrorTools: new ObsidianMirrorTools({
+    store: {} as any,
+    worldIds: {} as any,
+    guardedWrites: {} as any,
+    status: () => null,
+    logger,
+  }),
   ownershipTools: new OwnershipTools(base),
   playSessionTools: new PlaySessionTools({ worldIds: {} as any, store: {} as any, logger }),
   playStatsTools: new PlayStatsTools({ worldIds: {} as any, store: {} as any, logger }),

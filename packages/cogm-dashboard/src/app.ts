@@ -14,6 +14,7 @@ import { resolveRole, isGm } from './auth.js';
 import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
 import { jsonErrorHandler } from './error-handler.js';
 import { gmOnly } from './redact.js';
+import { mountOpenRoute, openPageStaticHeaders, type OpenRouteOptions } from './open-route.js';
 import { buildPlayerState } from './player/projection.js';
 import { PlayerViewSource } from './player/source.js';
 
@@ -44,6 +45,8 @@ export interface DashboardDeps {
   logger: Logger;
   client: DashboardClient;
   coGm: CoGm;
+  /** `/open` options (O4): the P1 origin allowlist (default none) and a test clock. */
+  openRoute?: OpenRouteOptions;
 }
 
 export interface Dashboard {
@@ -365,6 +368,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   // --- HTTP / SSE ------------------------------------------------------------
   const app = express();
+  // "Open in Foundry" (O4, open-route.ts). Before the JSON parser: its POST parses its own
+  // body after its guards.
+  mountOpenRoute(app, { ...deps.openRoute, config, client, logger: logger.child('open') });
   app.use(express.json({ limit: '256kb' }));
   // The player page runs only its own script: no inline scripts or event handlers, even if
   // something slipped past the handout sanitizer (inline styles stay allowed for the HP bars).
@@ -374,7 +380,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     }
     next();
   });
-  app.use(express.static(config.publicDir));
+  // The /open confirm page's files get its strict headers on every URL that reaches them.
+  app.use(
+    express.static(config.publicDir, { setHeaders: openPageStaticHeaders(config.publicDir) })
+  );
 
   // Clean URL for the read-only player view (the static file is also at /player.html).
   app.get('/player', (_req: Request, res: Response) => {

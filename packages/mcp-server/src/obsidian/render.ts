@@ -77,19 +77,22 @@ export function frontmatter(props: Record<string, PropValue | undefined>): strin
 /** The common properties every generated note carries, in a fixed order:
  * `type`, `fvtt_world`, the type's own properties, `fvtt_modified`,
  * `player_visible`, `schema`, `tags`, then the ownership marker (its hash is
- * a placeholder here; `withGeneratedHash` fills it in). */
-function generatedProps(
+ * a placeholder here; `withGeneratedHash` fills it in). `playerVisible` is
+ * advisory for the GM only (docs/OBSIDIAN-O4-DESIGN.md section 4); every O2
+ * note leaves it at the default `false`, so their text stays byte-identical. */
+export function generatedProps(
   type: string,
   worldId: string,
   typeProps: Record<string, PropValue | undefined>,
-  fvttModified: string | null
+  fvttModified: string | null,
+  playerVisible = false
 ): Record<string, PropValue | undefined> {
   return {
     type,
     fvtt_world: worldId,
     ...typeProps,
     fvtt_modified: fvttModified,
-    player_visible: false,
+    player_visible: playerVisible,
     schema: 1,
     tags: [`campaign/${worldId}`, type],
     generated_by: GENERATED_BY,
@@ -890,6 +893,8 @@ export function renderStatusNote(worldId: string, status: ExportStatusInput): st
       '',
       `The AI Tool manages ${status.notesManaged} note(s) here. Notes it no longer produces go to the vault trash.`,
       '',
+      'The Foundry mirror keeps its own status in [Foundry/_status.md](Foundry/_status.md); that note exists only when the mirror is on.',
+      '',
       '## Skipped (edited in Obsidian, or foreign)',
       '',
       ...(skipped.length ? skipped.map(s => `- \`${s.path}\`: ${s.reason}`) : ['- (none)']),
@@ -944,6 +949,18 @@ export function renderCampaignHome(worldId: string): string {
     '## Tarokka',
     '',
     '- [Current reading](AI%20Tool/Tarokka/Current%20reading.md)',
+    '',
+    '## Foundry',
+    '',
+    'When the Foundry mirror is on, `AI Tool/Foundry/` holds one note per PC, NPC, scene, journal and story item, rebuilt from Foundry. The bases below and the status note appear once the mirror has run.',
+    '',
+    '- [PCs](AI%20Tool/Bases/PCs.base)',
+    '- [NPCs](AI%20Tool/Bases/NPCs.base)',
+    '- [Scenes](AI%20Tool/Bases/Scenes.base)',
+    '- [Journals](AI%20Tool/Bases/Journals.base)',
+    '- [Story items](AI%20Tool/Bases/Story%20items.base)',
+    '- [Player visible](AI%20Tool/Bases/Player%20visible.base)',
+    '- [Mirror status](AI%20Tool/Foundry/_status.md)',
     '',
     '## Bases',
     '',

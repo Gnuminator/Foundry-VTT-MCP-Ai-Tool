@@ -1,6 +1,6 @@
 ---
 name: foundry-ai-tool
-description: Use and test this repo's own product on the local test server - the MCP bridge tools (calling them through the co-GM dashboard API), guarded writes (plan / apply / undo, feature switches, conflicts), the co-GM dashboard (tool runner with pickers, Recent Changes, Tarokka drawer, /player view, player/GM split), the bridge vault and the session log - and run the M0+M1 smoke checklist and the M2 player-view checks. Use before calling an AI Tool feature done, when reproducing a tool bug, or when checking what players can see. Needs the environment from foundry-test-env; Foundry's own UI is in foundry-core-ui.
+description: Use and test this repo's own product on the local test server - the MCP bridge tools (calling them through the co-GM dashboard API), guarded writes (plan / apply / undo, feature switches, conflicts), the co-GM dashboard (tool runner with pickers, Recent Changes, Tarokka drawer, /player view, player/GM split), the bridge vault and the session log - and run the M0+M1 smoke checklist, the M2 player-view checks and the Obsidian O4 mirror checks (notes, links, /open route). Use before calling an AI Tool feature done, when reproducing a tool bug, or when checking what players can see. Needs the environment from foundry-test-env; Foundry's own UI is in foundry-core-ui.
 ---
 
 # Foundry AI Tool: tools, dashboard, smoke test
@@ -203,3 +203,39 @@ should not be logged.
 10. Once the Obsidian render catches up, check the session note's stats properties and roll
     breakdowns under
     `C:\FoundryTest\obsidian\Campaigns\ai-tool-test\AI Tool\Sessions\<date> S<NN>.md`.
+
+## Obsidian mirror checks (O4)
+
+Status 2026-09-29: drafted, never run. Steps 3 to 5 need the pump wired into `backend.ts` first
+(`docs/OBSIDIAN-O4-DESIGN.md` "Build status"); steps 1, 2 and 6 work now.
+
+The mirror writes Foundry notes into the throwaway vault `C:\FoundryTest\obsidian` (never the GM's
+vault) under `Campaigns\ai-tool-test\AI Tool\Foundry\`. It needs `FOUNDRY_AI_OBSIDIAN_DIR` (set by
+`start.ps1`), the switch "AI Tool: Obsidian mirror (writes)" (module settings, default off) and the
+mirror settings `enabled: true`. `start.ps1` sets `FOUNDRY_AI_OPEN_BASE=http://localhost:3100`.
+
+1. `get-obsidian-mirror`: `enabled: false`, `vaultDirSet: true`, `openBase` as above.
+2. Switch the feature on (GM console: `game.settings.set('foundry-mcp-bridge',
+'feature.obsidian-mirror.enabled', true)`), then `plan-obsidian-mirror {"enabled": true,
+"textFolderIds": ["<test journal folder id>"]}` and `apply-planned-change` (GM Actions on,
+   `confirm: true`). With the switch off the apply is refused.
+3. Within ~10 s: notes in `PCs\`, `NPCs\`, `Scenes\`, `Journals\`, `Items\`, the six bases in
+   `AI Tool\Bases\`, `AI Tool\Foundry\_status.md`. Test Hero is `type: pc` (`player: Player`), Wolf
+   `type: npc` with `player_name: "Unknown creature"` when its prototype token hides the name; a
+   scene without `navName` has the "Players see the true name" warning.
+4. Opted-in journal: page notes in `Journals\<journal>\`; `@UUID` links became relative links to
+   the notes, a compendium link points at `/open?uuid=`, `section.secret` is a collapsed
+   `[!secret]-` callout, `[[/r ...]]` is inline code, `javascript:` links are plain text, no `<%`.
+   A journal that is not opted in has an index note only: its page text appears nowhere in the vault.
+5. Rename an actor in Foundry: same file, new H1, `name` and `aliases`. Delete a journal: its
+   notes move to the vault `.trash\`. Edit a mirror note by hand: it is skipped and listed in
+   `Foundry\_status.md`. Raise a page and its journal to Observer for Player: `player_visible: true`
+   within one poll.
+6. `/open` (split on): `GET /open?uuid=...` is 200 for anyone and never calls the bridge;
+   `POST /api/open` without a token 401, with the player token 403, `?token=` alone 401, without
+   `X-CoGM-Request: open` 403, with the GM token 200 (the sheet opens on a GM client), the 11th
+   within 10 s 429. An `OPTIONS` preflight from `app://obsidian.md` gets no
+   `Access-Control-Allow-Origin` (the P1 plugin adds that later).
+7. Cleanup: `plan-obsidian-mirror {"enabled": false}` + apply (or undo), switch the feature off,
+   delete the test journals and items, revert renames, and empty the throwaway vault's
+   `Campaigns\ai-tool-test\AI Tool\Foundry\` if the next test should start fresh.

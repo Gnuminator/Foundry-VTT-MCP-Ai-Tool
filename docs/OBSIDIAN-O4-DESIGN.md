@@ -1,6 +1,37 @@
 # Obsidian O4 design: Foundry mirrors and links
 
-Status: **design only (2026-09-28, branch `claude/amazing-bardeen-q1x1q6`); nothing here is built.**
+Status: **partly built (2026-09-29, branch `claude/amazing-bardeen-q1x1q6`); not live-tested.**
+Section 11's questions are answered with the recommended defaults (recorded as decisions there);
+section 6.4 adds the P1 plugin compatibility rules; section 9.1 records the lead's interface
+refinements.
+
+**Build status (end of the 2026-09-29 session; full gate green: typecheck, lint ratchet 7,656,
+build, 3,297 tests):**
+
+| Chunk                                                                                                                     | State                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1 contract (`shared/src/export-index.ts`)                                                                                | done, tested                                                                                                                                                                                                                                               |
+| C2 module query `getExportIndex` (`packages/foundry-module/src/export-index.ts`, registration, feature `obsidian-mirror`) | done, 186 tests; the per-rule ESLint recount of queries.ts/main.ts passed through the ratchet                                                                                                                                                              |
+| C3 converter (`obsidian/html-to-md.ts`, `links.ts`, `md-escape.ts`)                                                       | done (written by the lead), 21 tests                                                                                                                                                                                                                       |
+| C4 renderer (`obsidian/mirror-render.ts`, `mirror-paths.ts`, `render.ts` Home/status line)                                | done, 84 tests; lead fixes: mirror banner, no `fvtt_sig` on page notes                                                                                                                                                                                     |
+| C5a `NoteWriter` extraction + scan (`note-writer.ts`, `mirror-scan.ts`)                                                   | done, 67 tests, extraction checked byte for byte                                                                                                                                                                                                           |
+| C5b pump (`obsidian/mirror-pump.ts`, test fake `src/test-support/fake-export-index.ts`)                                   | written, 23 tests pass; **NOT wired into `backend.ts`** (the backend never starts it; `get-obsidian-mirror` reports `status: null`); **`mirror-canary.test.ts` not written**; the junction-escape and 10-minute-timer tests from the brief are not written |
+| C6 settings and tools (`mirror-settings.ts`, `tools/obsidian-mirror.ts`)                                                  | done, 102 tests (94 tools)                                                                                                                                                                                                                                 |
+| C7 `/open` route (`open-route.ts`, `public/open.*`)                                                                       | done, 32 tests, reviewed by the lead                                                                                                                                                                                                                       |
+| C8 env, skill, docs                                                                                                       | `start.ps1` sets `FOUNDRY_AI_OPEN_BASE`; skill O4 checks drafted; CHANGELOG drafted; "O4 as built" in OBSIDIAN-PLAN not written                                                                                                                            |
+
+**Next (in order):** wire the pump in `backend.ts` (declare `let mirrorPump` before the C6 tools
+block, `status: () => mirrorPump?.status() ?? null`, construct and start it inside the
+`FOUNDRY_LINK_ENABLED` block when `obsidianVaultDir` is set, with `mirrorEnv.pollMs` and
+`mirrorEnv.openBase`, and stop it in the SIGINT/SIGTERM handlers); write `mirror-canary.test.ts`
+(section 8: vault canaries from `gm/tarokka.json`, `tarokka-config.json`, `audit.json`,
+`audit-log.jsonl` and the secret terms never reach a mirror file; the opted-in page canary only in its
+own page note; no `<%`); the missing pump tests; then the live test (the skill's "Obsidian mirror
+checks (O4)", throwaway vault only) and "O4 as built" in `OBSIDIAN-PLAN.md`. C2's open doubts: the
+watermark covers only requested kinds after filters and caps; a null modified time is always in
+`since` results; `idsOnly` ignores `sinceModifiedTime`; Notes have no `_stats` in 14.368 (pin edits
+change `sig`, not `modified`); a row over 2.5 MB is rebuilt without page text.
+
 It details phase O4 of `OBSIDIAN-PLAN.md` (sections 3, 5, 6, 10 O4, 12 decisions 2 and 4) so that
 Sonnet workers can build it in parallel chunks (section 9). Foundry facts were checked in the installed
 Foundry 14.368 (`app/` = `C:\FoundryTest\app`, `app/package.json:91`) and dnd5e 6.0.5 (`dnd5e.mjs` =
@@ -367,9 +398,12 @@ exists, except after a delete and a same-id re-import).
 ### 6.1 Shape
 
 Every mirror note body has `[Open in Foundry](<base>/open?uuid=<uuid>)`. `<base>` is the new backend env
-`FOUNDRY_AI_OPEN_BASE` (the backend renders the notes), default `http://127.0.0.1:3000`, validated as an
-http(s) origin without credentials, path or query; the test env sets it to its dashboard port 3100; the Pi
-sets the dashboard's tunnel URL. The uuid is the only parameter: no label, no token.
+`FOUNDRY_AI_OPEN_BASE` (the backend renders the notes), default `http://localhost:3000`, validated as an
+http(s) origin without credentials, path or query; the test env sets it to `http://localhost:3100`; the Pi
+sets the dashboard's tunnel URL. It must be the origin the GM opens the dashboard at (the README and
+skills say `http://localhost:<port>`): the `/open` page reads the token from that origin's
+localStorage, so a `127.0.0.1` link would find none with the split on (changed from `127.0.0.1` while
+building, 2026-09-29). The uuid is the only parameter: no label, no token.
 
 ### 6.2 Auth and "a GET never writes"
 
@@ -392,8 +426,10 @@ sets the dashboard's tunnel URL. The uuid is the only parameter: no label, no to
   `X-CoGM-Token` header, never from `?token=` (`auth.ts:54-55` accepts it elsewhere; here it is refused so a
   token never lands in a URL or history); header `X-CoGM-Request: open` required (a custom header forces a
   CORS preflight the dashboard never grants, which also protects legacy mode where every caller is GM,
-  `auth.ts:70`); `Sec-Fetch-Site: cross-site` refused; JSON body only; uuid checked against
-  `FOUNDRY_UUID_SOURCE` (400); at most 10 opens per 10 s (429).
+  `auth.ts:70`); `Sec-Fetch-Site: cross-site` or `same-site`, and an `Origin` that is neither the
+  dashboard's own nor in the route's `allowedOrigins` (empty in O4), refused with 403 `cross-site`
+  (6.4); JSON body only; uuid checked against `FOUNDRY_UUID_SOURCE` (400); at most 10 opens per 10 s
+  (429).
 - Headers on `/open` and `/open.html`: CSP `default-src 'none'; script-src 'self'; connect-src 'self';
 style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'` (stricter than
   `PLAYER_CSP`, `app.ts:79-81`), `Referrer-Policy: no-referrer`, `Cache-Control: no-store`. The script
@@ -414,6 +450,29 @@ uuid again, opens a sheet, a journal page or a scene view, and changes nothing. 
 its "Open in Foundry" command POSTs with the token from Obsidian's SecretStorage and the same
 `X-CoGM-Request` header (the command itself is the click), so the plugin needs no route of its own and
 never sees a URL with a token.
+
+### 6.4 Compatibility with the P1 plugin (recorded 2026-09-29)
+
+Facts from the vault research note `Dev/Foundry AI Tool/Research/Integrations.md` ("Obsidian companion
+plugin (P1): facts that change the plan"): the plugin's requests come from origin `app://obsidian.md`
+(Obsidian desktop `fetch`); it reads streams with `fetch` and a stream reader, because `requestUrl`
+does not stream and a native `EventSource` cannot send headers; it keeps the GM token in Obsidian's
+SecretStorage (a namespaced id such as `foundry-ai-dashboard-token`). Adding the CORS allowance for
+that origin belongs to P1, not O4, but nothing in O4 may rule it out:
+
+| Topic         | O4 does                                                                                                                                                                                                                                                                                                                       | P1 adds                                                                                                                                                                                                                                                                                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Origin check  | `POST /api/open` refuses `Sec-Fetch-Site` `cross-site` or `same-site`, and an `Origin` that is neither the dashboard's own (compared by host with the `Host` header; `Origin: null` refused) nor in the route dependency `allowedOrigins` (default `[]`), with 403 `cross-site`. An allowlisted origin passes this check only | `app://obsidian.md` in `allowedOrigins` (from config)                                                                                                                                                                                                                                                                                                       |
+| Preflight     | Every check runs inside the POST handler, never in a middleware on all methods, so an `OPTIONS` preflight (no token, no custom header value) is never refused by them. O4 adds no `OPTIONS` handler and sends no `Access-Control-*` header, so browsers keep blocking every cross-origin call                                 | An `OPTIONS` answer on GM routes for allowlisted origins only: `Access-Control-Allow-Origin: app://obsidian.md` (never `*`), `Access-Control-Allow-Headers: X-CoGM-Token, X-CoGM-Request, Content-Type` (plus `Authorization` if P1 moves to a bearer token), `Access-Control-Allow-Methods`, `Vary: Origin`; the same `Allow-Origin` on the real responses |
+| Custom header | `X-CoGM-Request: open` stays required on the POST, for every origin; it is what forces the preflight                                                                                                                                                                                                                          | sends it (the preflight answer lists it)                                                                                                                                                                                                                                                                                                                    |
+| Token         | Header only (`X-CoGM-Token`), never `?token=` or a cookie. The `/open` page reads `localStorage.cogm_token` only because it runs on the dashboard origin                                                                                                                                                                      | reads the token from SecretStorage and sends the same header                                                                                                                                                                                                                                                                                                |
+| Responses     | JSON with a `code` on every error (`OpenLinkErrorCode` in the contract); 409 `choose-gm` lists the GMs; `/api/open` never redirects or returns HTML                                                                                                                                                                           | reads them with `fetch`; its own GM picker                                                                                                                                                                                                                                                                                                                  |
+| Streams       | O4 adds and changes no stream; no new GM surface depends on `EventSource`-only or cookie-only auth                                                                                                                                                                                                                            | reads `/api/stream` with `fetch` and the header                                                                                                                                                                                                                                                                                                             |
+
+Tests pin it (`open-route.test.ts`): an `OPTIONS /api/open` preflight from `app://obsidian.md` is not
+401 or 403 and carries no `Access-Control-Allow-Origin`; a POST from that origin with a GM token is 403
+`cross-site` with the default allowlist, and 200 when the test builds the route with
+`allowedOrigins: ['app://obsidian.md']` (still 403 without `X-CoGM-Request`).
 
 ## 7. Security review
 
@@ -534,12 +593,39 @@ New tools (92 to 94): `get-obsidian-mirror` (read: settings and pump status) and
 (plan; applied with `apply-planned-change`). Both match the read prefixes of `tool-policy.ts:47`, so the
 dashboard needs no policy change.
 
+### 9.1 Build refinements (lead, 2026-09-29)
+
+- C1 (`shared/src/export-index.ts`) was written by the lead before the wave, with the full entry types,
+  `EXPORT_INDEX_LIMITS` (adds `notableItemsPerActor` 40 and `pagesTotal` on journals), `isFoundryUuid`
+  and the `/open` types (adds the error code `bad-request`).
+- New lead file `packages/mcp-server/src/obsidian/mirror-common.ts`: `MirrorSettings`, `MirrorStatus`,
+  `MirrorRenderContext`, `LinkContext` / `LinkTarget` (adds an optional `findByName` for legacy
+  `@Actor[name]` links), `ScannedNote`, the folder constants, and the link helpers `openUrl`,
+  `relativeLinkTarget`, `propertyWikilink`. All mirror paths are campaign-relative (relative to
+  `Campaigns/<worldId>/`, the `NoteWriter` root).
+- C4 also owns `obsidian/mirror-paths.ts` (names and collisions, 3.4), `sameMirrorContent` (the
+  "no rewrite for a timestamp alone" rule, 3.5) and the render expectations in `export.test.ts` (Home
+  section, status line).
+- C6 also owns the env parsing: `FOUNDRY_AI_OPEN_BASE` and `FOUNDRY_AI_MIRROR_POLL_MS`
+  (`mirrorEnvSettings` in `mirror-settings.ts`).
+- C7 (the `/open` route) is built by an Opus agent; C5 by Opus (reconcile and deletes); the rest by
+  Sonnet 5.5 workers.
+
 ## 10. Later (not in O4)
 
 Session notes and Tarokka links point at mirror notes and `/open`; dashboard names link to mirror notes;
 scene visits from the play log; M4 to M6 properties; O5 finds Prep notes for active-scene tokens by the map.
 
 ## 11. Questions for the GM (recommended default in bold)
+
+**Decided 2026-09-29 (the GM's instruction: take the bold defaults; the GM can change any later):** 1
+off until enabled with `plan-obsidian-mirror`; 2 PCs, NPCs, scenes, journal index notes, story items
+(no vehicles, groups, compendium content); 3 no journal text by default, opt in per folder (with
+subfolders) or per journal; 4 a rename in Foundry keeps the file name (new name = H1, `name`,
+`aliases`); 5 one confirm click each time (Enter works), no "open without asking" switch; 6 world items
+of the physical types (`DEFAULT_STORY_ITEM_TYPES`); 7 feature names only on NPC notes (no statblock
+block in O4); 8 map pins yes, token lists no; 9 `section.secret` kept in a collapsed `[!secret]-`
+callout; 10 `player_visible` at Observer, Limited shown in `player_access`.
 
 1. Start: **off until you enable it with `plan-obsidian-mirror`**, or on once the vault dir is set?
 2. Kinds: **PCs, NPCs, scenes, journal index notes, story items; no vehicles, groups, compendium content**?

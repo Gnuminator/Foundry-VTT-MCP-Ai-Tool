@@ -29,15 +29,10 @@ import type { StatsModel } from '../stats/types.js';
 import type { AuditEntry, AuditLog } from '../vault/audit.js';
 import type { VaultStore } from '../vault/store.js';
 
-import { writeFileAtomic } from './atomic-write.js';
 import { mergeChangeHistory, type ChangeEntry } from './audit-merge.js';
 import { groupWithPlayRecords, type SessionEvent } from './grouping.js';
-import {
-  baseOwnershipCheck,
-  checkCanvasOwnership,
-  checkMarkdownOwnership,
-  type OwnershipResult,
-} from './ownership.js';
+import { campaignDir, NoteWriter } from './note-writer.js';
+import { baseOwnershipCheck, checkCanvasOwnership, checkMarkdownOwnership } from './ownership.js';
 import {
   renderCampaignHome,
   renderCampaignStatsNote,
@@ -56,6 +51,9 @@ import {
   type TarokkaLinks,
   type TarokkaReadingData,
 } from './render.js';
+
+/** Moved to `note-writer.ts` with `NoteWriter`; still exported from here. */
+export { campaignDir };
 
 const SESSION_FILE = /^(\d{4}-\d{2}-\d{2})\.jsonl$/;
 const AUDIT_HISTORY_FILE = 'audit-log.jsonl';
@@ -105,170 +103,6 @@ interface TarokkaConfig {
 function isCompleteReading(value: unknown): value is TarokkaReadingData {
   const r = value as Partial<TarokkaReadingData> | undefined;
   return Boolean(r && typeof r.readingId === 'string' && r.positions);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function errorCode(error: unknown): string | undefined {
-  return (error as NodeJS.ErrnoException | undefined)?.code;
-}
-
-/** Where a world's notes go: `<vaultDir>/Campaigns/<worldId>`. */
-export function campaignDir(vaultDir: string, worldId: string): string {
-  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(worldId)) throw new Error(`Bad world id "${worldId}"`);
-  return path.join(path.resolve(vaultDir), 'Campaigns', worldId);
-}
-
-/** Writes generated notes under one campaign folder, enforcing the ownership
- * rules and the path fence, and tracking what happened for `ExportResult`. */
-class NoteWriter {
-  readonly written: string[] = [];
-  readonly unchanged: string[] = [];
-  readonly created: string[] = [];
-  readonly skipped: Array<{ path: string; reason: string }> = [];
-  readonly trashed: string[] = [];
-  readonly errors: Array<{ path: string; error: string }> = [];
-  private readonly produced = new Set<string>();
-
-  /** How many notes this export produced so far. */
-  get producedCount(): number {
-    return this.produced.size;
-  }
-
-  constructor(
-    private readonly root: string,
-    private readonly vaultDir: string,
-    private readonly worldId: string,
-    private readonly cache: ExportCache
-  ) {}
-
-  private resolve(relPath: string): string {
-    const full = path.resolve(this.root, relPath);
-    const rel = path.relative(this.root, full);
-    if (rel.startsWith('..') || path.isAbsolute(rel)) {
-      throw new Error(`Refusing to write outside ${this.root}: ${relPath}`);
-    }
-    return full;
-  }
-
-  /** Write a note the exporter owns: skipped when an existing file fails the
-   * ownership check, otherwise written (or left alone when unchanged). */
-  async owned(
-    relPath: string,
-    text: string,
-    check: (existingText: string) => OwnershipResult
-  ): Promise<void> {
-    try {
-      const full = this.resolve(relPath);
-      this.produced.add(relPath);
-      if (this.cache.written.get(relPath) === text) {
-        this.unchanged.push(relPath);
-        return;
-      }
-      const current = await fsp.readFile(full, 'utf8').catch(error => {
-        if (errorCode(error) === 'ENOENT') return null;
-        throw error;
-      });
-      let same = current === text;
-      if (current !== null) {
-        const result = check(current);
-        if (!result.owned) {
-          this.skipped.push({ path: relPath, reason: result.reason });
-          return;
-        }
-        same ||= result.same === true;
-      }
-      if (same) {
-        this.unchanged.push(relPath);
-        this.cache.written.set(relPath, text);
-        return;
-      }
-      await writeFileAtomic(full, text);
-      this.written.push(relPath);
-      this.cache.written.set(relPath, text);
-    } catch (error) {
-      this.errors.push({ path: relPath, error: errorMessage(error) });
-    }
-  }
-
-  /** Create a GM-owned file or folder once; never touch it again. */
-  async createOnce(relPath: string, text: string | null): Promise<void> {
-    try {
-      const full = this.resolve(relPath);
-      const exists = await fsp.stat(full).then(
-        () => true,
-        () => false
-      );
-      if (exists) return;
-      if (text === null) {
-        await fsp.mkdir(full, { recursive: true });
-      } else {
-        await fsp.mkdir(path.dirname(full), { recursive: true });
-        await fsp.writeFile(full, text, { encoding: 'utf8', flag: 'wx' });
-      }
-      this.created.push(relPath);
-    } catch (error) {
-      this.errors.push({ path: relPath, error: errorMessage(error) });
-    }
-  }
-
-  /** A managed folder's notes not produced this run: moved to `.trash/` when
-   * still ours (or legacy), left in place (and listed as skipped) otherwise. */
-  async pruneManaged(
-    folder: string,
-    check: (existingText: string) => OwnershipResult
-  ): Promise<void> {
-    const dirFull = this.resolve(folder);
-    let names: string[];
-    try {
-      names = await fsp.readdir(dirFull);
-    } catch (error) {
-      if (errorCode(error) === 'ENOENT') return;
-      this.errors.push({ path: folder, error: errorMessage(error) });
-      return;
-    }
-    for (const name of names) {
-      const relPath = `${folder}/${name}`;
-      if (this.produced.has(relPath)) continue;
-      try {
-        const full = this.resolve(relPath);
-        const stat = await fsp.stat(full);
-        if (!stat.isFile()) continue;
-        const text = await fsp.readFile(full, 'utf8');
-        const result = check(text);
-        if (!result.owned) {
-          this.skipped.push({ path: relPath, reason: result.reason });
-          continue;
-        }
-        await this.moveToTrash(relPath);
-      } catch (error) {
-        this.errors.push({ path: relPath, error: errorMessage(error) });
-      }
-    }
-  }
-
-  private async moveToTrash(relPath: string): Promise<void> {
-    const source = this.resolve(relPath);
-    const targetBase = path.join(this.vaultDir, '.trash', 'Campaigns', this.worldId, relPath);
-    await fsp.mkdir(path.dirname(targetBase), { recursive: true });
-    const ext = path.extname(targetBase);
-    const stem = targetBase.slice(0, targetBase.length - ext.length);
-    let target = targetBase;
-    for (
-      let n = 1;
-      await fsp.stat(target).then(
-        () => true,
-        () => false
-      );
-      n++
-    ) {
-      target = `${stem} ${n}${ext}`;
-    }
-    await fsp.rename(source, target);
-    this.trashed.push(relPath);
-  }
 }
 
 const PREP_README = [

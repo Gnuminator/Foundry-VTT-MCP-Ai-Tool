@@ -117,7 +117,7 @@ function nameVisibleToNonOwners(displayName: number): boolean {
 }
 
 /** A token's player-facing name: owned by a player, or its display mode reveals it; else `UNKNOWN_CREATURE`. */
-function tokenNameForPlayers(token: TokenLike, ownedByPlayer: boolean): string {
+export function tokenNameForPlayers(token: TokenLike, ownedByPlayer: boolean): string {
   const displayName =
     typeof token.displayName === 'number' ? token.displayName : displayModes().NONE;
   const visible = ownedByPlayer || nameVisibleToNonOwners(displayName);
@@ -252,7 +252,7 @@ function canObserve(doc: unknown, user: User): boolean {
  * skips such a journal (`Journal._showEntry`). So page ownership alone does
  * not let a player open it (found live in M2).
  */
-function playerAccess(page: JournalEntryPage): { journal: boolean; page: boolean } {
+export function pageAccessForPlayers(page: JournalEntryPage): { journal: boolean; page: boolean } {
   const journal = (page as unknown as { parent?: unknown }).parent ?? null;
   const players = game.users.filter((user): boolean => !user.isGM);
   return {
@@ -277,7 +277,7 @@ function resolvePageForPlayers(uuid: string): PageForPlayers {
   }
   const html =
     page.type === 'text' && typeof page.text.content === 'string' ? page.text.content : null;
-  const access = playerAccess(page);
+  const access = pageAccessForPlayers(page);
   return {
     uuid,
     exists: true,

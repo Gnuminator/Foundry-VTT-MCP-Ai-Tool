@@ -316,6 +316,8 @@ export function installFoundryGlobals(world: TestWorld): () => void {
     },
     DOCUMENT_OWNERSHIP_LEVELS: { INHERIT: -1, NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER: 3 },
     USER_ROLES: { NONE: 0, PLAYER: 1, TRUSTED: 2, ASSISTANT: 3, GAMEMASTER: 4 },
+    // Verified: `common/constants.mjs:989-1000` JOURNAL_ENTRY_PAGE_FORMATS.
+    JOURNAL_ENTRY_PAGE_FORMATS: { HTML: 1, MARKDOWN: 2 },
   };
   g.CONFIG = { DND5E: {}, statusEffects: [], Actor: {}, Item: {} };
   g.foundry = {

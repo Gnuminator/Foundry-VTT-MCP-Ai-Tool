@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Open in Foundry</title>
+    <link rel="stylesheet" href="/open.css" />
+  </head>
+  <body>
+    <main class="card">
+      <h1>Open in Foundry</h1>
+      <p id="question" class="question">Loading...</p>
+      <div class="actions">
+        <button id="open" type="button" class="btn primary" hidden>Open</button>
+      </div>
+      <div id="gms" class="gms" hidden></div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <p class="hint">
+        Nothing opens until you click Open. The document opens on a GM's Foundry screen, and nothing
+        in the world changes.
+      </p>
+      <noscript><p class="status error">This page needs JavaScript.</p></noscript>
+    </main>
+    <script src="/open.js" type="module"></script>
+  </body>
+</html>

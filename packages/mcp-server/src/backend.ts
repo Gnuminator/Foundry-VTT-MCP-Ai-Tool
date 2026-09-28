@@ -76,6 +76,8 @@ import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/i
 import { EventPump, eventPumpSettings } from './event-pump.js';
 import { PlayLogPump, playLogSettings } from './play-log-pump.js';
 import { ObsidianAutoRender, obsidianAutoRenderSettings } from './obsidian/auto-render.js';
+import { mirrorEnvSettings } from './obsidian/mirror-settings.js';
+import { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import { comfyuiAutoStartEnabled } from './comfyui-client.js';
 
 // Control channel bind target. Defaults to the frozen loopback contract
@@ -325,6 +327,21 @@ async function startBackend(): Promise<void> {
     worldIds,
     logger,
   });
+  // O4 mirror tools (C6). C5b: replace the status provider with the pump's status.
+  const mirrorEnv = mirrorEnvSettings();
+  for (const warning of mirrorEnv.warnings) logger.warn(warning);
+  const obsidianMirrorTools = new ObsidianMirrorTools({
+    store: vaultStore,
+    worldIds,
+    guardedWrites,
+    status: () => null,
+    env: {
+      vaultDirSet: Boolean(obsidianVaultDir),
+      openBase: mirrorEnv.openBase,
+      pollMs: mirrorEnv.pollMs,
+    },
+    logger,
+  });
   logger.info('Bridge vault', { dataDir: vaultStore.dataDir });
   if (obsidianVaultDir) logger.info('Obsidian auto-render', { vaultDir: obsidianVaultDir });
 
@@ -523,6 +540,7 @@ async function startBackend(): Promise<void> {
     effectsTools,
     combatTools,
     movementTools,
+    obsidianMirrorTools,
     sessionLogTools,
     combatResolutionTools,
     encounterTools,

@@ -90,6 +90,8 @@ if ($Only -in 'all', 'bridge') {
     FOUNDRY_LINK_HOST   = '127.0.0.1'
     FOUNDRY_AI_DATA_DIR = $TestEnv.VaultDir
     FOUNDRY_AI_OBSIDIAN_DIR = $TestEnv.ObsidianDir
+    # Obsidian mirror notes link here ("Open in Foundry"): the origin the GM opens the dashboard at.
+    FOUNDRY_AI_OPEN_BASE = "http://localhost:$($TestEnv.DashboardPort)"
     COMFYUI_AUTOSTART   = 'false'
     LOG_LEVEL           = 'info'
   } $RepoRoot 30

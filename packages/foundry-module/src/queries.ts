@@ -13,6 +13,7 @@ import {
   computePlayerVisibility,
   pagesForPlayers,
 } from './player-visibility.js';
+import { EXPORT_INDEX_QUERY, getExportIndex } from './export-index.js';
 
 export class QueryHandlers {
   public dataAccess: FoundryDataAccess;
@@ -158,6 +159,15 @@ export class QueryHandlers {
         this.withGmGate('Failed to get pages for players', () =>
           Promise.resolve(pagesForPlayers(data?.uuids))
         )
+    );
+
+    // Obsidian mirror (O4, read-only): the export index of PCs, NPCs, scenes,
+    // journals and story items. GM client only, even with allowNonGmAccess
+    // (getExportIndex refuses non-GM clients itself).
+    handlers.set(`${modulePrefix}.${EXPORT_INDEX_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to build the export index', () =>
+        Promise.resolve(getExportIndex(data))
+      )
     );
 
     // Phase 2 & 3: Write operation queries

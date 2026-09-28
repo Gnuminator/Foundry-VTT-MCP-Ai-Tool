@@ -25,6 +25,7 @@ import type { GuardedChangeTools } from './tools/guarded-changes.js';
 import type { LootTools } from './tools/loot.js';
 import type { MapGenerationTools } from './tools/map-generation.js';
 import type { MovementTools } from './tools/movement.js';
+import type { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import type { OwnershipTools } from './tools/ownership.js';
 import type { PlaySessionTools } from './tools/play-session.js';
 import type { PlayStatsTools } from './tools/play-stats.js';
@@ -58,6 +59,7 @@ export interface ToolRouterDeps {
   lootTools: LootTools;
   mapGenerationTools: MapGenerationTools;
   movementTools: MovementTools;
+  obsidianMirrorTools: ObsidianMirrorTools;
   ownershipTools: OwnershipTools;
   playSessionTools: PlaySessionTools;
   playStatsTools: PlayStatsTools;
@@ -152,6 +154,8 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'mark-play-session': args => deps.playSessionTools.handleMarkPlaySession(args),
     'get-play-session': args => deps.playSessionTools.handleGetPlaySession(args),
     'get-play-stats': args => deps.playStatsTools.handleGetPlayStats(args),
+    'get-obsidian-mirror': args => deps.obsidianMirrorTools.handleGetObsidianMirror(args),
+    'plan-obsidian-mirror': args => deps.obsidianMirrorTools.handlePlanObsidianMirror(args),
     'create-quest-journal': args => deps.questCreationTools.handleCreateQuestJournal(args),
     'link-quest-to-npc': args => deps.questCreationTools.handleLinkQuestToNPC(args),
     'update-quest-journal': args => deps.questCreationTools.handleUpdateQuestJournal(args),
@@ -232,6 +236,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.tarokkaTools.getToolDefinitions(),
     ...deps.playSessionTools.getToolDefinitions(),
     ...deps.playStatsTools.getToolDefinitions(),
+    ...deps.obsidianMirrorTools.getToolDefinitions(),
     ...deps.playerViewTools.getToolDefinitions(),
     ...deps.refChoiceTools.getToolDefinitions(),
   ];

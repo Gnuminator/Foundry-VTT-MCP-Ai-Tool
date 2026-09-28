@@ -1,0 +1,107 @@
+/* The "Open in Foundry" confirm page (open.html). Its CSP allows only same-origin styles. */
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --line: #272c38;
+  --text: #e6e9ef;
+  --muted: #9aa3b2;
+  --accent: #4ea1ff;
+  --green: #46c46a;
+  --red: #ef5350;
+  --amber: #e0a106;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    15px/1.5 system-ui,
+    Segoe UI,
+    Roboto,
+    sans-serif;
+}
+.card {
+  width: 100%;
+  max-width: 560px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px 22px;
+}
+h1 {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+.question {
+  margin: 0 0 16px;
+  overflow-wrap: anywhere;
+}
+code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  background: #0b0d11;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.actions,
+.gms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.gms[hidden],
+.btn[hidden] {
+  display: none;
+}
+.btn {
+  font: inherit;
+  color: var(--text);
+  background: #232833;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 16px;
+  cursor: pointer;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b0d11;
+  font-weight: 600;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.status {
+  margin: 0 0 12px;
+  min-height: 1.5em;
+  overflow-wrap: anywhere;
+}
+.status.ok {
+  color: var(--green);
+}
+.status.error {
+  color: var(--red);
+}
+.status.info {
+  color: var(--amber);
+}
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}

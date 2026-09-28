@@ -79,6 +79,11 @@ class FoundryMCPBridge {
         name: 'AI Tool: Handouts (writes)',
         hint: "Reveal or hide journal pages on the co-GM dashboard's player page.",
       });
+      registerGuardedFeature({
+        id: 'obsidian-mirror',
+        name: 'AI Tool: Obsidian mirror (writes)',
+        hint: "Lets the AI Tool change which Foundry documents it mirrors into the GM's Obsidian vault (the mirror settings).",
+      });
       Hooks.on('clientSettingChanged', (key: string) => {
         void onTarokkaSettingChanged(key, sendTarokkaOffer).catch(error => {
           console.warn(`[${MODULE_ID}] Tarokka offer failed:`, error);

@@ -27,6 +27,7 @@
     "@modelcontextprotocol/sdk": "^1.7.0",
     "axios": "^1.6.0",
     "dotenv": "^16.3.0",
+    "htmlparser2": "^10.1.0",
     "werift": "^0.23.0",
     "winston": "^3.11.0",
     "ws": "^8.14.0",

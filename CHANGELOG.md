@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd)
+## Unreleased — M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd) + Obsidian O4 mirrors
 
 Groundwork from `docs/CURSE-OF-STRAHD-PLAN.md` step 0. **Wire contracts are unchanged** (module id,
 ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults change behaviour; see
@@ -33,6 +33,17 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   gets the same projection. The player page runs under a strict Content Security Policy.
 - **Whisper guard**: "Post to chat" refuses text that names a dealt Tarokka card (a whisper's text
   reaches every player's browser); the GM page asks before posting anyway.
+- **"Open in Foundry" links need a click and the GM token.** `GET /open?uuid=` only serves a static
+  confirm page (it never calls the bridge, so link previews and scanners change nothing);
+  `POST /api/open` opens the document on a GM's screen and takes the token from the `X-CoGM-Token`
+  header only (never `?token=` or a cookie), requires `X-CoGM-Request: open`, refuses cross-site
+  requests, checks the uuid and allows 10 opens per 10 s. The page runs under a strict CSP and is
+  never framed.
+- **The player page's CSP applies on every URL that reaches it** (before, `/player%2Ehtml` or
+  `/x/../player.html` served it without the policy).
+- **Host allowlist against DNS rebinding.** The dashboard answers only requests whose `Host` is
+  `localhost`, `127.0.0.1`, `[::1]`, the specific `DASHBOARD_HOST`, or a name in the new
+  `DASHBOARD_ALLOWED_HOSTS`; others get 421 `host-not-allowed`.
 
 ### Features
 
@@ -93,6 +104,22 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   before a player sees it. Tools `plan-page-reveal`, `list-revealed-pages`,
   `get-player-visibility`, `get-player-handouts`, `check-secret-terms`; the player page has a
   Handouts section.
+- **Obsidian mirror of the Foundry world** (IN PROGRESS: built and unit-tested, but the backend does
+  not start the mirror yet and it is not live-tested; see `docs/OBSIDIAN-O4-DESIGN.md` "Build
+  status") (off until you turn it on with `plan-obsidian-mirror`
+  and the switch "AI Tool: Obsidian mirror (writes)"; needs `FOUNDRY_AI_OBSIDIAN_DIR`): one note per
+  PC, NPC, scene, journal (an index of its pages) and story item under
+  `Campaigns/<world>/AI Tool/Foundry/`, kept up to date every 10 s (`FOUNDRY_AI_MIRROR_POLL_MS`);
+  page text only for journals or journal folders you opt in, converted to Markdown with `@UUID`
+  links rewritten to links between the notes (compendium links open in Foundry, GM secrets in a
+  collapsed callout). Properties include `player_access` and `player_visible` (what players can
+  open in Foundry; a GM aid, never used for the player page). A document renamed in Foundry keeps
+  its note's file name (the new name becomes the title and an alias); a deleted one goes to the
+  vault's `.trash/`; a note you edited is never overwritten and is listed in
+  `AI Tool/Foundry/_status.md`. Six new Bases tables. Every note has an **Open in Foundry** link
+  (`FOUNDRY_AI_OPEN_BASE`, default `http://localhost:3000`: the address you open the dashboard at).
+  Tools `get-obsidian-mirror` and `plan-obsidian-mirror`; module query `getExportIndex` (GM client
+  only, not callable by players).
 
 ### Fixes
 
@@ -145,6 +172,11 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   set, open `/player?token=...` once more after upgrading: the player page keeps its token under
   its own key now, apart from the GM page's.
 - The dashboard has a new dependency, `htmlparser2` (10.x, runs on the bundled Node 20).
+- If you open the dashboard under a hostname (a tunnel, a LAN name), add it to
+  `DASHBOARD_ALLOWED_HOSTS` (comma-separated); otherwise it answers 421 `host-not-allowed`.
+- For the Obsidian mirror's "Open in Foundry" links, set `FOUNDRY_AI_OPEN_BASE` on the bridge to the
+  address you open the dashboard at when it is not `http://localhost:3000`. The bridge now also
+  depends on `htmlparser2` (10.x).
 - The enhanced creature index rebuilds itself once after upgrading (about 16 s for the core packs);
   the first creature search during that rebuild can time out. Try again a few seconds later.
 

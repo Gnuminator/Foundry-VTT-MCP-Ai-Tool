@@ -993,6 +993,97 @@ describe('HP attribution to the most recent damage/healing roll', () => {
   });
 });
 
+describe('exact HP credit from dnd5e damage application', () => {
+  const damageCard = (id: string, total: number, t: number): Record<string, unknown> => ({
+    id,
+    type: 'damage',
+    speaker: {},
+    rolls: [d20Roll({ total, terms: [], dice: [] })],
+    system: {},
+    flags: {},
+    _stats: { modifiedTime: t },
+  });
+  const update = (actor: any, hp: Record<string, number>, at: number): void => {
+    actor._stats.modifiedTime = at;
+    fireUpdate('updateActor', actor, { system: { attributes: { hp } } }, {}, 'u1');
+  };
+  const hpSources = (): unknown[] =>
+    recorder
+      .getPlayRecords({})
+      .records.filter(r => r.kind === 'hp')
+      .map(r => r.source);
+  const setupActor = (hp: Record<string, number>, now: number): any => {
+    const actor = makeFixtureActor({ system: { attributes: { hp } }, t: now });
+    world.actors.add(actor);
+    recorder.seed();
+    return actor;
+  };
+
+  it("a card's Apply credits its own message, however late and whichever roll came last", () => {
+    const now = Date.now();
+    const actor = setupActor({ value: 20, max: 20 }, now - 30_000);
+    Hooks.callAll('createChatMessage', damageCard('bite', 6, now - 30_000), {}, 'u1');
+    Hooks.callAll('createChatMessage', damageCard('claw', 9, now - 1_000), {}, 'u1');
+
+    // dnd5e 6: the Apply button passes the damage message as originatingMessage (and origin).
+    const card = { id: 'bite', documentName: 'ChatMessage' };
+    Hooks.callAll('dnd5e.preApplyDamage', actor, 7, {}, { originatingMessage: card, origin: card });
+    update(actor, { value: 13 }, now);
+    Hooks.callAll('dnd5e.applyDamage', actor, 7, {});
+
+    expect(hpSources()).toEqual([{ messageId: 'bite', attributed: true, exact: true }]);
+  });
+
+  it('an application without a message is only credited when the roll fits the change', () => {
+    const now = Date.now();
+    const actor = setupActor({ value: 11, max: 11 }, now);
+    Hooks.callAll('createChatMessage', damageCard('bite', 5, now), {}, 'u1');
+
+    // The live case: the GM applied 11 by tool 1 s after an unrelated 5-point bite.
+    Hooks.callAll('dnd5e.preApplyDamage', actor, 11, {}, {});
+    update(actor, { value: 0 }, now + 1_000);
+    Hooks.callAll('dnd5e.applyDamage', actor, 11, {});
+
+    expect(hpSources()).toEqual([undefined]);
+  });
+
+  it('guesses only a roll that fits: full, half, double, or cut short at 0 HP', () => {
+    const now = Date.now();
+    const actor = setupActor({ value: 40, max: 40 }, now);
+    Hooks.callAll('createChatMessage', damageCard('d7', 7, now), {}, 'u1');
+    update(actor, { value: 36 }, now + 100); // 4: fits nothing (7, 3, 14)
+    Hooks.callAll('createChatMessage', damageCard('d9', 9, now + 200), {}, 'u1');
+    update(actor, { value: 32 }, now + 300); // 4 = half of 9 (resistance)
+    Hooks.callAll('createChatMessage', damageCard('d20', 20, now + 400), {}, 'u1');
+    update(actor, { value: 0 }, now + 500); // 32: more than 20 (not cut short), not 40 or 10
+    expect(hpSources()).toEqual([undefined, { messageId: 'd9', attributed: true }, undefined]);
+  });
+
+  it('counts damage taken by temp HP, and a hit that stops at 0 HP', () => {
+    const now = Date.now();
+    const actor = setupActor({ value: 20, temp: 3, max: 20 }, now);
+    Hooks.callAll('createChatMessage', damageCard('d8', 8, now), {}, 'u1');
+    update(actor, { value: 15, temp: 0 }, now + 100); // 5 HP + 3 temp = 8
+    Hooks.callAll('createChatMessage', damageCard('d30', 30, now + 200), {}, 'u1');
+    update(actor, { value: 0 }, now + 300); // 15 of 30, stopped at 0
+    expect(hpSources()).toEqual([
+      { messageId: 'd8', attributed: true },
+      { messageId: 'd30', attributed: true },
+    ]);
+  });
+
+  it('a noted application that changed no HP is dropped, so a later edit is not "exact"', () => {
+    const now = Date.now();
+    const actor = setupActor({ value: 20, max: 20 }, now);
+    Hooks.callAll('createChatMessage', damageCard('bite', 6, now), {}, 'u1');
+    const card = { id: 'bite', documentName: 'ChatMessage' };
+    Hooks.callAll('dnd5e.preApplyDamage', actor, 0, {}, { originatingMessage: card });
+    Hooks.callAll('dnd5e.applyDamage', actor, 0, {}); // immune: no HP change
+    update(actor, { value: 14 }, now + 500); // a sheet edit that fits the roll: a guess
+    expect(hpSources()).toEqual([{ messageId: 'bite', attributed: true }]);
+  });
+});
+
 // --- GM gating, buffer and perf ---------------------------------------------------
 
 describe('GM gating', () => {

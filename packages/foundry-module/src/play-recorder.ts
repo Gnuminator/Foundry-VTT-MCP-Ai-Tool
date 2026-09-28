@@ -554,7 +554,7 @@ interface BuildOpts {
   after?: unknown;
   delta?: number | undefined;
   roll?: PlayRollInfo | undefined;
-  source?: { messageId?: string; changeId?: string; attributed?: boolean } | undefined;
+  source?: PlayRecord['source'] | undefined;
   data?: Record<string, unknown> | undefined;
 }
 
@@ -576,7 +576,33 @@ const RECENT_ROLL_TTL_MS = 15_000;
 interface RecentRoll {
   t: number;
   messageId: string;
+  /** Sum of the message's roll totals: a guessed HP change must fit it (`hpChangeFitsRoll`). */
+  total: number;
   attributedTo: Set<string>;
+}
+
+/** How long a noted dnd5e damage application waits for its actor's HP change. */
+const PENDING_APPLY_TTL_MS = 5_000;
+
+/**
+ * A dnd5e `applyDamage` in progress on this client (`dnd5e.preApplyDamage`
+ * fires right before its actor update): the chat message it was applied from,
+ * or `null` (token HP bar, a macro, the bridge's own tool).
+ */
+interface PendingApply {
+  messageId: string | null;
+  t: number;
+}
+
+/**
+ * Whether an HP change could be a roll of `total` under 5e rules: the full
+ * amount, half (resistance) or double (vulnerability), or less when the change
+ * stopped at a limit (0 HP for damage, max HP for healing).
+ */
+function hpChangeFitsRoll(amount: number, total: number, stoppedAtLimit: boolean): boolean {
+  if (amount <= 0 || total <= 0) return false;
+  if (amount === total || amount === Math.floor(total / 2) || amount === total * 2) return true;
+  return stoppedAtLimit && amount < total;
 }
 
 /** Everything a document-state-change record needs beyond the path/before/after: computed once per hook call. */
@@ -599,6 +625,7 @@ export class PlayRecorder {
   private viewedSceneId: string | null = null;
   private recentDamage: RecentRoll[] = [];
   private recentHealing: RecentRoll[] = [];
+  private readonly pendingApply = new Map<string, PendingApply>();
 
   // -------------------------------------------------------------------------
   // Registration
@@ -638,6 +665,8 @@ export class PlayRecorder {
       on('updateScene', (s, c) => this.onUpdateScene(s, c));
       on('createChatMessage', (m, o, u) => this.onCreateChatMessage(m, o, u));
       on('dnd5e.restCompleted', (a, r) => this.onRestCompleted(a, r));
+      on('dnd5e.preApplyDamage', (a, _amount, _updates, o) => this.onPreApplyDamage(a, o));
+      on('dnd5e.applyDamage', a => this.onApplyDamageDone(a));
       on('updateWorldTime', (wt, dt, o, u) => this.onUpdateWorldTime(wt, dt, o, u));
       on('userConnected', (usr, c) => this.onUserConnected(usr, c));
 
@@ -906,10 +935,91 @@ export class PlayRecorder {
       delta,
     };
     if (kind === 'hp') {
-      const source = this.attributeHpSource(ctx.t, delta, actorUuid);
+      const source = this.hpChangeSource(actorUuid, shadow, before, newVal, changed, ctx.t);
       if (source) opts.source = source;
     }
     this.push(this.build(opts));
+  }
+
+  /**
+   * The roll an HP change is credited to. Exact when dnd5e applied it from a
+   * chat card (`dnd5e.preApplyDamage` noted the message just before this
+   * update); otherwise a guess: the most recent damage/healing roll within 10 s,
+   * not yet credited to this actor, whose total fits the change
+   * (`hpChangeFitsRoll`; temp HP lost in the same update counts toward damage).
+   */
+  private hpChangeSource(
+    actorUuid: string,
+    shadow: ActorShadow,
+    before: number,
+    after: number,
+    changed: unknown,
+    t: number
+  ): PlayRecord['source'] | undefined {
+    const delta = after - before;
+    const list = delta < 0 ? this.recentDamage : this.recentHealing;
+    const pending = this.takePendingApply(actorUuid);
+    if (pending?.messageId) {
+      list.find(entry => entry.messageId === pending.messageId)?.attributedTo.add(actorUuid);
+      return { messageId: pending.messageId, attributed: true, exact: true };
+    }
+
+    let amount = Math.abs(delta);
+    let stoppedAtLimit: boolean;
+    if (delta < 0) {
+      const newTemp = num(getPath(changed, 'system.attributes.hp.temp'));
+      if (shadow.hpTemp !== null && newTemp !== undefined && newTemp < shadow.hpTemp) {
+        amount += shadow.hpTemp - newTemp;
+      }
+      stoppedAtLimit = after <= 0;
+    } else {
+      stoppedAtLimit = shadow.hpMax !== null && after >= shadow.hpMax;
+    }
+
+    let best: RecentRoll | undefined;
+    for (const entry of list) {
+      if (entry.attributedTo.has(actorUuid)) continue;
+      const age = t - entry.t;
+      if (age < 0 || age > HP_ATTRIBUTION_WINDOW_MS) continue;
+      if (!hpChangeFitsRoll(amount, entry.total, stoppedAtLimit)) continue;
+      if (!best || entry.t > best.t) best = entry;
+    }
+    if (!best) return undefined;
+    best.attributedTo.add(actorUuid);
+    return { messageId: best.messageId, attributed: true };
+  }
+
+  /** The dnd5e damage application noted for this actor, if still fresh; consumed. */
+  private takePendingApply(actorUuid: string): PendingApply | undefined {
+    const pending = this.pendingApply.get(actorUuid);
+    if (!pending) return undefined;
+    this.pendingApply.delete(actorUuid);
+    return Date.now() - pending.t <= PENDING_APPLY_TTL_MS ? pending : undefined;
+  }
+
+  /**
+   * `dnd5e.preApplyDamage(actor, amount, updates, options)` (dnd5e 6.0.5
+   * `Actor5e#applyDamage`) fires on the applying client right before its actor
+   * update. A chat card's Apply button passes the damage message as
+   * `options.originatingMessage` (and `options.origin`); the token HP bar and
+   * direct calls pass none.
+   */
+  private onPreApplyDamage(rawActor: unknown, rawOptions: unknown): void {
+    if (!this.isGM()) return;
+    const actorUuid = str(asRecord(rawActor)?.uuid);
+    if (!actorUuid) return;
+    const options = asRecord(rawOptions);
+    const origin = asRecord(options?.origin);
+    const message =
+      asRecord(options?.originatingMessage) ??
+      (str(origin?.documentName) === 'ChatMessage' ? origin : null);
+    this.pendingApply.set(actorUuid, { messageId: str(message?.id) ?? null, t: Date.now() });
+  }
+
+  /** `dnd5e.applyDamage` fires after the update: a note its HP change did not use is dropped. */
+  private onApplyDamageDone(rawActor: unknown): void {
+    const actorUuid = str(asRecord(rawActor)?.uuid);
+    if (actorUuid) this.pendingApply.delete(actorUuid);
   }
 
   private diffActorMapField(
@@ -938,29 +1048,6 @@ export class PlayRecorder {
         delta: newVal - before,
       })
     );
-  }
-
-  /**
-   * The most recent damage/healing roll within 10s not already credited to
-   * `actorUuid` (a different target of the same area roll can still take it).
-   * Marks the chosen roll as used for this actor before returning it.
-   */
-  private attributeHpSource(
-    t: number,
-    delta: number,
-    actorUuid: string
-  ): { messageId: string; attributed: true } | undefined {
-    if (delta === 0) return undefined;
-    const list = delta < 0 ? this.recentDamage : this.recentHealing;
-    let best: RecentRoll | undefined;
-    for (const entry of list) {
-      if (entry.attributedTo.has(actorUuid)) continue;
-      const age = t - entry.t;
-      if (age >= 0 && age <= HP_ATTRIBUTION_WINDOW_MS && (!best || entry.t > best.t)) best = entry;
-    }
-    if (!best) return undefined;
-    best.attributedTo.add(actorUuid);
-    return { messageId: best.messageId, attributed: true };
   }
 
   private onUpdateActor(
@@ -1690,6 +1777,7 @@ export class PlayRecorder {
     const t = chatMessageTime(message);
 
     let recorded = false;
+    let total = 0;
     arr(message.rolls).forEach((rawRoll, index) => {
       try {
         const info = parseRollInfo(rawRoll, rollType, subject);
@@ -1706,13 +1794,14 @@ export class PlayRecorder {
           })
         );
         recorded = true;
+        total += info.total;
       } catch (error) {
         console.warn(`[${MODULE_ID}] PlayRecorder dropped a roll:`, error);
       }
     });
     // One attribution entry per message: its rolls (e.g. slashing + fire) land as one HP change per target.
     if (recorded) {
-      const recent: RecentRoll = { t, messageId, attributedTo: new Set() };
+      const recent: RecentRoll = { t, messageId, total, attributedTo: new Set() };
       if (rollType === 'damage') this.recentDamage.push(recent);
       else if (rollType === 'healing') this.recentHealing.push(recent);
     }

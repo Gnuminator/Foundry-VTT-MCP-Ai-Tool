@@ -149,11 +149,15 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
     names. Breakdown labels fixed from real data: no proficiency on damage, a 0 never names an
     ability, untyped rolls guess nothing and keep their flavor, function terms (hit die) show their
     dice, skills use dnd5e's label.
-  - Follow-ups (not built): exact HP attribution from dnd5e 6's `dnd5e.applyDamage(actor, amount,
-    options)` hook (`options.originatingMessage` when applied from a chat card), instead of the
-    10 s window that credited Wolf 2's GM-applied 11 damage to the wolf's own bite; combat
-    participants come from turns taken (Test Hero, whose turn never came, is missing); combat-end
-    `turn` read 0 after an end mid-round.
+  - **Exact HP credit** (after the re-run): `dnd5e.preApplyDamage` notes the card's
+    `options.originatingMessage` for the actor, the next HP change is credited to it (`source.exact:
+    true`), `dnd5e.applyDamage` drops an unused note (5 s TTL). Other HP changes: a roll within 10 s
+    whose total fits (full, half, double, cut short at 0/max, temp HP counted). Verified live: card
+    Apply exact despite a newer roll; tool damage that fits no roll uncredited; HP bar edit guessed.
+    **Tests 2,466** (foundry-module 1023).
+  - Follow-ups (not built): combat participants come from turns taken (Test Hero, whose turn never
+    came, is missing); combat-end `turn` read 0 after an end mid-round; the session feed's `damage`
+    event still uses its own "latest roll" guess for `details.source`.
   - Next: the guarded combat tool (designed: feature switch `combat`, `plan-combat`
     create/add/remove/start/end, apply/undo via the guarded-write flow; no executor change needed),
     unless the GM picks another direction. Then skills docs for O3.

@@ -150,11 +150,12 @@ export interface PlayRecord {
   delta?: number;
   roll?: PlayRollInfo;
   /**
-   * What caused it: the chat message (rolls, usage cards) or, for HP changes,
-   * the most recent damage or healing roll message within 10 s (a heuristic,
-   * `attributed: true`); a guarded change's id for AI Tool writes.
+   * What caused it: the chat message (rolls, usage cards); for HP changes the
+   * damage or healing roll credited with it (`attributed: true`): `exact: true`
+   * when dnd5e applied it from that message's card, else a guess (a roll within
+   * 10 s whose total fits the change); a guarded change's id for AI Tool writes.
    */
-  source?: { messageId?: string; changeId?: string; attributed?: boolean };
+  source?: { messageId?: string; changeId?: string; attributed?: boolean; exact?: boolean };
   /** Kind-specific extras (effect name and statuses, chat style and text, rest type, ...). */
   data?: Record<string, unknown>;
 }

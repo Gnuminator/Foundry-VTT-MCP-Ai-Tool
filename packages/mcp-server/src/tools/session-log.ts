@@ -28,7 +28,7 @@ export class SessionLogTools {
       {
         name: 'get-session-log',
         description:
-          'Return the structured event log for the current session: combat start/end, HP changes (damage/healing), deaths and stabilizations, conditions applied/removed, resources expended, scene changes, and journal entries created/updated. Use this as a session memory layer to recap what has happened.',
+          'Return the structured event log for the current session: combat start/end, HP changes (damage/healing), deaths and stabilizations, conditions applied/removed, resources expended, scene changes, journal entries created/updated, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll). Use this as a session memory layer to recap what has happened.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -40,7 +40,7 @@ export class SessionLogTools {
             eventType: {
               type: 'string',
               description:
-                'Optional event type filter (e.g. "combat-start", "combat-end", "damage", "healing", "death", "stabilize", "condition-applied", "condition-removed", "resource-spent", "scene-change", "journal-created", "journal-updated").',
+                'Optional event type filter (e.g. "combat-start", "combat-end", "damage", "healing", "death", "stabilize", "condition-applied", "condition-removed", "resource-spent", "scene-change", "journal-created", "journal-updated", "roll", "damage-roll", "gm-roll").',
             },
             actorName: {
               type: 'string',

@@ -85,6 +85,19 @@ export interface RollBreakdown {
   text: string;
   /** `text` with the target number and outcome omitted unless dnd5e's `challengeVisibility` world setting is `all`. */
   textPlayerSafe: string;
+  /** `text` without its leading "actor, label: " (joins several rolls of one message). */
+  detail: string;
+  /** `textPlayerSafe` without its leading "actor, label: ". */
+  detailPlayerSafe: string;
+}
+
+/** Every roll of one chat message, summed up as one feed line. */
+export interface MessageRollBreakdown {
+  rolls: RollBreakdown[];
+  /** Sum of the rolls' totals. */
+  total: number;
+  text: string;
+  textPlayerSafe: string;
 }
 
 interface SpeakerLike {
@@ -424,7 +437,7 @@ export function describeRoll(
     const damageTypesText =
       rollType === 'damage' || rollType === 'healing' ? damageTypesOf(roll) : [];
 
-    let base = `${actorName}, ${label}: ${partsText} = ${total}`;
+    let base = `${partsText} = ${total}`;
     if (damageTypesText.length > 0) base += ` ${damageTypesText.join('/')}`;
 
     const naturalNote = natural === 20 ? ' natural 20' : natural === 1 ? ' natural 1' : '';
@@ -437,10 +450,22 @@ export function describeRoll(
       rollType === 'attack' ? (outcome === 'success' ? 'hit' : 'miss') : (outcome ?? 'failure');
     const challengeClause = dc !== undefined ? ` vs ${challengeKind} ${dc}: ${outcomeWord}` : '';
 
-    const text = `${base}${naturalNote}${advantageNote}${challengeClause}`;
-    const textPlayerSafe = `${base}${naturalNote}${advantageNote}${challengeVisibilityAll() ? challengeClause : ''}`;
+    const head = `${actorName}, ${label}: `;
+    const detail = `${base}${naturalNote}${advantageNote}${challengeClause}`;
+    const detailPlayerSafe = `${base}${naturalNote}${advantageNote}${challengeVisibilityAll() ? challengeClause : ''}`;
+    const text = head + detail;
+    const textPlayerSafe = head + detailPlayerSafe;
 
-    const breakdown: RollBreakdown = { label, parts, actorName, total, text, textPlayerSafe };
+    const breakdown: RollBreakdown = {
+      label,
+      parts,
+      actorName,
+      total,
+      text,
+      textPlayerSafe,
+      detail,
+      detailPlayerSafe,
+    };
     if (natural !== undefined) breakdown.natural = natural;
     if (dc !== undefined) breakdown.dc = dc;
     if (outcome !== undefined) breakdown.outcome = outcome;
@@ -450,9 +475,47 @@ export function describeRoll(
     const roll = asRecord(rawRoll);
     const total = num(roll?.total) ?? 0;
     const formula = str(roll?.formula) ?? '';
-    const text = `Roll: ${formula} = ${total}`;
-    return { label: 'Roll', parts: [], actorName: 'Unknown', total, text, textPlayerSafe: text };
+    const detail = `${formula} = ${total}`;
+    const text = `Roll: ${detail}`;
+    return {
+      label: 'Roll',
+      parts: [],
+      actorName: 'Unknown',
+      total,
+      text,
+      textPlayerSafe: text,
+      detail,
+      detailPlayerSafe: detail,
+    };
   }
+}
+
+/**
+ * All of a message's rolls as one line. One roll reads as `describeRoll`; a
+ * message with several (a weapon's slashing + fire damage) keeps one
+ * "actor, label: " head and lists each roll, with the sum for damage/healing:
+ * "Hero, Flame Tongue damage: 1d8 (5) +3 STR = 8 slashing; 2d6 (3, 4) = 7 fire; total 15".
+ */
+export function describeMessageRolls(
+  message: ChatMessage,
+  rawRolls: unknown[],
+  rollType: string
+): MessageRollBreakdown {
+  const rolls = rawRolls.map(raw => describeRoll(message, raw, rollType));
+  const total = rolls.reduce((sum, roll) => sum + roll.total, 0);
+  const [first] = rolls;
+  if (!first) return { rolls, total, text: '', textPlayerSafe: '' };
+  if (rolls.length === 1) {
+    return { rolls, total, text: first.text, textPlayerSafe: first.textPlayerSafe };
+  }
+  const head = `${first.actorName}, ${first.label}: `;
+  const sum = rollType === 'damage' || rollType === 'healing' ? `; total ${total}` : '';
+  return {
+    rolls,
+    total,
+    text: head + rolls.map(roll => roll.detail).join('; ') + sum,
+    textPlayerSafe: head + rolls.map(roll => roll.detailPlayerSafe).join('; ') + sum,
+  };
 }
 
 /** Damage types a damage/healing roll's terms carry (`term.options.flavor` / `roll.options.type`). */

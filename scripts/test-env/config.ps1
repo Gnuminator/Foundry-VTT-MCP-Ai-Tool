@@ -76,9 +76,17 @@ function Assert-SafePorts {
   if (($ports | Select-Object -Unique).Count -ne $ports.Count) { throw 'Test ports must all be different.' }
 }
 
+# The repo's Node: the newest portable Node 22 in %LOCALAPPDATA%\node22\node-v22.x.y-win-x64
+# (the version differs per PC), else the node on PATH.
 function Get-NodeExe {
-  $portable = Join-Path $HOME 'AppData' 'Local' 'node22' 'node-v22.22.2-win-x64' 'node.exe'
-  if ($IsWindows -and (Test-Path $portable)) { return $portable }
+  $portableRoot = Join-Path $HOME 'AppData' 'Local' 'node22'
+  if ($IsWindows -and (Test-Path $portableRoot)) {
+    $portable = Get-ChildItem $portableRoot -Directory -Filter 'node-v22.*-win-x64' |
+      Where-Object { $_.Name -match '^node-v(\d+\.\d+\.\d+)-' -and (Test-Path (Join-Path $_.FullName 'node.exe')) } |
+      Sort-Object { [version]($_.Name -replace '^node-v(\d+\.\d+\.\d+)-.*$', '$1') } -Descending |
+      Select-Object -First 1
+    if ($portable) { return Join-Path $portable.FullName 'node.exe' }
+  }
   $node = Get-Command node -ErrorAction SilentlyContinue
   if (-not $node) { throw 'Node.js not found (need 18+; Foundry 14 needs 20+).' }
   return $node.Source

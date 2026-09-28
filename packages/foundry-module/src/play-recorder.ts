@@ -637,6 +637,7 @@ export class PlayRecorder {
       on('canvasReady', () => this.onCanvasReady());
       on('updateScene', (s, c) => this.onUpdateScene(s, c));
       on('createChatMessage', (m, o, u) => this.onCreateChatMessage(m, o, u));
+      on('dnd5e.restCompleted', (a, r) => this.onRestCompleted(a, r));
       on('updateWorldTime', (wt, dt, o, u) => this.onUpdateWorldTime(wt, dt, o, u));
       on('userConnected', (usr, c) => this.onUserConnected(usr, c));
 
@@ -818,7 +819,9 @@ export class PlayRecorder {
       userId: opts.userId ?? null,
       sceneId: this.currentSceneId(),
     };
-    if (opts.userName) record.userName = opts.userName;
+    // Every record that names a user also carries that user's name (O3 item 5).
+    const userName = opts.userName ?? this.userNameFor(record.userId);
+    if (userName) record.userName = userName;
     if (opts.actor) record.actor = opts.actor;
     const combat = opts.combat ?? this.activeCombatRef();
     if (combat) record.combat = combat;
@@ -1770,6 +1773,34 @@ export class PlayRecorder {
         userId,
         actor: this.actorRefFor(actor),
         source: messageId ? { messageId } : undefined,
+        data: restType ? { restType } : undefined,
+      })
+    );
+  }
+
+  /**
+   * `dnd5e.restCompleted(actor, result, config)` (dnd5e 6.0.5 `Actor5e#_rest`)
+   * fires only on the client that rested, after the rest card (when there is
+   * one, `result.message`) was created. A rest with a card is recorded from the
+   * card on every GM client (`handleRestMessage`), so this records only
+   * card-less rests (`chat: false`, e.g. the bridge's `manage-rest` tool).
+   */
+  private onRestCompleted(rawActor: unknown, rawResult: unknown): void {
+    if (!this.isGM()) return;
+    const result = asRecord(rawResult);
+    if (str(asRecord(result?.message)?.id)) return;
+    const actor = shape<ActorLike>(rawActor);
+    const actorUuid = str(actor?.uuid);
+    if (!actor || !actorUuid) return;
+    const t = Date.now();
+    const restType = str(result?.type);
+    this.push(
+      this.build({
+        kind: 'rest',
+        key: playRecordKeys.rest(actorUuid, String(t)),
+        t,
+        userId: this.uid(game.user?.id),
+        actor: this.actorRefFor(actor),
         data: restType ? { restType } : undefined,
       })
     );

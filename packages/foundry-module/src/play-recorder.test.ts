@@ -771,6 +771,46 @@ describe('item usage, rest and plain chat', () => {
     expect(record.key).toBe(playRecordKeys.rest(actor.uuid, 'r1'));
   });
 
+  it('records a card-less rest from dnd5e.restCompleted (manage-rest rests with chat off)', () => {
+    world.addUser({ id: 'gm', name: 'Gamemaster', isGM: true });
+    const actor = makeFixtureActor();
+    world.actors.add(actor);
+    Hooks.callAll(
+      'dnd5e.restCompleted',
+      actor,
+      { type: 'short', deltas: { hitPoints: 4, hitDice: 1 } },
+      { type: 'short', chat: false }
+    );
+    const [record] = recorder.getPlayRecords({}).records;
+    expect(record).toMatchObject({
+      kind: 'rest',
+      userId: 'gm',
+      userName: 'Gamemaster',
+      actor: { uuid: actor.uuid },
+      data: { restType: 'short' },
+    });
+    expect(record.key).toBe(playRecordKeys.rest(actor.uuid, String(record.t)));
+    expect(record.source).toBeUndefined();
+  });
+
+  it('records a rest with a card once, from the card (restCompleted fires after it)', () => {
+    const actor = makeFixtureActor();
+    world.actors.add(actor);
+    const card = {
+      id: 'r2',
+      type: 'rest',
+      speaker: { actor: actor.id },
+      rolls: [],
+      system: { type: 'long' },
+      flags: {},
+      _stats: { modifiedTime: Date.now() },
+    };
+    Hooks.callAll('createChatMessage', card, {}, 'u1');
+    Hooks.callAll('dnd5e.restCompleted', actor, { type: 'long', message: card }, { chat: true });
+    const rests = recorder.getPlayRecords({}).records.filter(r => r.kind === 'rest');
+    expect(rests.map(r => r.key)).toEqual([playRecordKeys.rest(actor.uuid, 'r2')]);
+  });
+
   it('records a non-roll chat message with HTML stripped and truncated', () => {
     const message = {
       id: 'c1',
@@ -965,7 +1005,35 @@ describe('GM gating', () => {
     actor._stats.modifiedTime = 2000;
     Hooks.callAll('updateActor', actor, { system: { attributes: { hp: { value: 5 } } } }, {}, 'u1');
     Hooks.callAll('userConnected', { id: 'p1', name: 'Bob' }, true);
+    Hooks.callAll('dnd5e.restCompleted', actor, { type: 'short' }, { chat: false });
     expect(recorder.getPlayRecords({}).records).toHaveLength(0);
+  });
+});
+
+describe('user names', () => {
+  it('every record that names a user carries the name too, rolls and chat included', () => {
+    world.addUser({ id: 'u1', name: 'Aria' });
+    const actor = makeFixtureActor();
+    world.actors.add(actor);
+    const message = (id: string, rolls: unknown[]): Record<string, unknown> => ({
+      id,
+      type: 'base',
+      speaker: { actor: actor.id },
+      rolls,
+      content: '<p>Hello</p>',
+      system: {},
+      flags: {},
+      _stats: { modifiedTime: Date.now() },
+    });
+    Hooks.callAll('createChatMessage', message('m1', [d20Roll({ total: 12 })]), {}, 'u1');
+    Hooks.callAll('createChatMessage', message('m2', []), {}, 'u1');
+    Hooks.callAll('createChatMessage', message('m3', []), {}, 'gone'); // a deleted user: no name
+    const records = recorder.getPlayRecords({}).records;
+    expect(records.map(r => [r.kind, r.userId, r.userName])).toEqual([
+      ['roll', 'u1', 'Aria'],
+      ['chat', 'u1', 'Aria'],
+      ['chat', 'gone', undefined],
+    ]);
   });
 });
 

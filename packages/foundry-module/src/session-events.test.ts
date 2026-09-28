@@ -266,6 +266,134 @@ describe('EventTracker chat parsing', () => {
   });
 });
 
+// dnd5e 6.0-shaped roll messages (the subtype is `message.type`, the data `message.system`).
+function d20Term(result: number): any {
+  return { faces: 20, number: 1, results: [{ result, active: true }] };
+}
+
+function rollMessage(over: Partial<any> = {}): any {
+  return {
+    id: 'bite',
+    timestamp: 3000,
+    type: 'attack',
+    speaker: { alias: 'Wolf', actor: 'wolf1' },
+    system: {},
+    rolls: [
+      {
+        formula: '1d20 + 4',
+        total: 18,
+        terms: [d20Term(14), { operator: '+' }, { number: 4 }],
+        dice: [d20Term(14)],
+        options: { target: 13 },
+      },
+    ],
+    flavor: 'Bite - Attack Roll',
+    content: '',
+    whisper: [],
+    blind: false,
+    ...over,
+  };
+}
+
+function damageRoll(total: number, type: string): any {
+  return {
+    formula: `1d6 + ${total - 3}`,
+    total,
+    terms: [
+      { faces: 6, number: 1, results: [{ result: 3, active: true }] },
+      { operator: '+' },
+      { number: total - 3 },
+    ],
+    dice: [],
+    options: { type },
+  };
+}
+
+describe('EventTracker roll events (O3 item 6)', () => {
+  it('a public roll is a `roll` event: player-safe description, full GM breakdown in details', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('createChatMessage', rollMessage());
+
+    const [event] = t.getSessionLog({ eventType: 'roll' });
+    expect(event.actorName).toBe('Wolf');
+    expect(event.description).toBe('Wolf, Attack: 1d20 (14) +4 modifier = 18');
+    expect(event.details).toMatchObject({
+      rollType: 'attack',
+      total: 18,
+      breakdown: 'Wolf, Attack: 1d20 (14) +4 modifier = 18 vs AC 13: hit',
+      natural: 14,
+      dc: 13,
+      outcome: 'success',
+      messageId: 'bite',
+    });
+    expect(t.getSessionLog({ eventType: 'gm-roll' })).toHaveLength(0);
+  });
+
+  it("players see the target and outcome when dnd5e's challengeVisibility is `all`", () => {
+    (globalThis as any).game.settings.get = (ns: string, key: string): unknown =>
+      ns === 'dnd5e' && key === 'challengeVisibility' ? 'all' : 200;
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('createChatMessage', rollMessage());
+    const [event] = t.getSessionLog({ eventType: 'roll' });
+    expect(event.description).toBe('Wolf, Attack: 1d20 (14) +4 modifier = 18 vs AC 13: hit');
+  });
+
+  it('whispered, blind and self rolls are GM-only `gm-roll` events, never `roll`', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('createChatMessage', rollMessage({ id: 'blind', whisper: ['gm'], blind: true }));
+    fire('createChatMessage', rollMessage({ id: 'gmroll', whisper: ['gm'] }));
+    fire('createChatMessage', rollMessage({ id: 'self', whisper: ['player1'] }));
+
+    expect(t.getSessionLog({ eventType: 'roll' })).toHaveLength(0);
+    const gm = t.getSessionLog({ eventType: 'gm-roll' });
+    expect(gm.map(e => e.details.messageId)).toEqual(['blind', 'gmroll', 'self']);
+    // The GM's own feed line is the full one.
+    expect(gm[0].description).toBe('Wolf, Attack: 1d20 (14) +4 modifier = 18 vs AC 13: hit');
+  });
+
+  it('a whispered damage roll is a `gm-roll`, not a public `damage-roll`', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('createChatMessage', damageMessage({ whisper: ['gm'], blind: true }));
+    expect(t.getSessionLog({ eventType: 'damage-roll' })).toHaveLength(0);
+    const [event] = t.getSessionLog({ eventType: 'gm-roll' });
+    expect(event.details).toMatchObject({ rollType: 'damage', total: 9, types: ['slashing'] });
+  });
+
+  it('one public `damage-roll` per message, every roll listed with the sum', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire(
+      'createChatMessage',
+      rollMessage({
+        id: 'flame',
+        type: 'damage',
+        speaker: { alias: 'Hero', actor: 'hero1' },
+        rolls: [damageRoll(8, 'slashing'), damageRoll(5, 'fire')],
+        flavor: 'Flame Tongue - Damage Roll',
+      })
+    );
+    const events = t.getSessionLog({ eventType: 'damage-roll' });
+    expect(events).toHaveLength(1);
+    expect(events[0].description).toBe(
+      'Hero, Damage: 1d6 (3) +5 modifier = 8 slashing; 1d6 (3) +2 modifier = 5 fire; total 13'
+    );
+    expect(events[0].details).toMatchObject({ rollType: 'damage', total: 13 });
+  });
+
+  it('rest and usage cards get no roll event, even when they carry rolls', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('createChatMessage', rollMessage({ id: 'rest', type: 'rest', system: { type: 'short' } }));
+    fire('createChatMessage', rollMessage({ id: 'use', type: 'usage' }));
+    const rollish = ['roll', 'gm-roll', 'damage-roll'];
+    expect(t.getSessionLog({}).filter(e => rollish.includes(e.eventType))).toHaveLength(0);
+  });
+});
+
 describe('EventTracker session events', () => {
   it('detects damage and death from HP changes', () => {
     const t = new EventTracker();

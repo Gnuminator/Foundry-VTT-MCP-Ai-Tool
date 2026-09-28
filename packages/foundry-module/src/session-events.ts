@@ -1,4 +1,12 @@
 import { MODULE_ID } from './constants.js';
+import {
+  chatRollKind,
+  dnd5eRestType,
+  dnd5eRollType,
+  isDamageRoll,
+  isUsageCard,
+} from './systems/dnd5e/chat-roll-kind.js';
+import { describeMessageRolls } from './systems/dnd5e/roll-breakdown.js';
 
 /**
  * Event tracking for the Foundry MCP Bridge.
@@ -266,18 +274,56 @@ export class EventTracker {
       this.chatLog.splice(0, this.chatLog.length - max);
     }
 
-    // Damage events are also significant session events
-    if (entry.damage && entry.damage.total > 0) {
-      this.logSessionEvent(
-        'damage-roll',
-        `${entry.speakerName} rolled ${entry.damage.total} ${entry.damage.types.join('/') || ''} damage`.trim(),
-        {
-          actorName: entry.speakerName,
-          actorId: entry.actorId,
-          details: { total: entry.damage.total, types: entry.damage.types, flavor: entry.flavor },
-        }
-      );
+    // Rolls are also significant session events
+    this.logRollEvent(message, entry);
+  }
+
+  /**
+   * The session event for a roll message (O3 item 6). A public roll becomes
+   * `roll` (`damage-roll` for damage): its `description` is the player-safe
+   * line the `/player` feed shows (no target AC/DC or outcome unless dnd5e's
+   * `challengeVisibility` is `all`), `details.breakdown` the GM's full line. A
+   * whispered, blind or self roll becomes `gm-roll`, which the dashboard never
+   * sends to a player. Rest and usage cards get no roll event.
+   */
+  private logRollEvent(rawMessage: unknown, entry: ChatLogEntry): void {
+    const source = rawMessage as { rolls?: unknown; whisper?: unknown; blind?: unknown };
+    const rolls: unknown[] = Array.isArray(source.rolls) ? source.rolls : [];
+    if (rolls.length === 0) return;
+    const message = rawMessage as ChatMessage;
+    if (chatRollKind(message) === 'rest' || dnd5eRestType(message) !== undefined) return;
+    if (isUsageCard(message)) return;
+
+    const dnd5eType = dnd5eRollType(message);
+    // A plain `/r` roll flavored as damage still counts as damage (`parseDamage`).
+    const rollType = dnd5eType === 'other' && entry.damage ? 'damage' : dnd5eType;
+    const described = describeMessageRolls(message, rolls, rollType);
+    const whisper: unknown[] = Array.isArray(source.whisper) ? source.whisper : [];
+    const isPrivate = whisper.length > 0 || source.blind === true;
+
+    const details: Record<string, unknown> = {
+      rollType,
+      total: described.total,
+      breakdown: described.text,
+      messageId: entry.id,
+    };
+    const [only] = described.rolls;
+    if (only && described.rolls.length === 1) {
+      if (only.natural !== undefined) details.natural = only.natural;
+      if (only.dc !== undefined) details.dc = only.dc;
+      if (only.outcome !== undefined) details.outcome = only.outcome;
     }
+    if (entry.damage) {
+      details.types = entry.damage.types;
+      details.flavor = entry.flavor;
+    }
+
+    const eventType = isPrivate ? 'gm-roll' : rollType === 'damage' ? 'damage-roll' : 'roll';
+    this.logSessionEvent(eventType, isPrivate ? described.text : described.textPlayerSafe, {
+      actorName: entry.speakerName,
+      actorId: entry.actorId,
+      details,
+    });
   }
 
   private parseChatMessage(message: any): ChatLogEntry {
@@ -402,8 +448,12 @@ export class EventTracker {
       const dnd = message.flags?.dnd5e;
       const flavor: string = message.flavor || '';
       const rollType = dnd?.roll?.type || dnd?.messageType;
+      // dnd5e 6.0 keys damage off the message subtype (`isDamageRoll`), 5.x off flags.
       const isDamage =
-        rollType === 'damage' || rollType === 'damage-roll' || /\bdamage\b/i.test(flavor);
+        isDamageRoll(message as ChatMessage) ||
+        rollType === 'damage' ||
+        rollType === 'damage-roll' ||
+        /\bdamage\b/i.test(flavor);
 
       if (!isDamage || rolls.length === 0) return null;
 

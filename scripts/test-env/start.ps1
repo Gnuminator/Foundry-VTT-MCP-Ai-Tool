@@ -17,7 +17,7 @@ New-Item -ItemType Directory -Force $TestEnv.LogDir, $TestEnv.VaultDir | Out-Nul
 $node = Get-NodeExe
 $pids = Read-Pids
 
-function Start-TestService([string]$Name, [int]$Port, [string[]]$NodeArgs, [hashtable]$EnvVars, [string]$WorkDir, [int]$Timeout) {
+function Start-TestService([string]$Name, [int]$Port, [string[]]$NodeArgs, [hashtable]$EnvVars, [string]$WorkDir, [int]$Timeout, [string]$Exe = $node) {
   if (Test-PortOpen $Port) {
     Write-Host "$Name : port $Port is already in use; not starting (see status.ps1)."
     return
@@ -29,7 +29,7 @@ function Start-TestService([string]$Name, [int]$Port, [string[]]$NodeArgs, [hash
   # The service must not inherit this shell's output handles, or whoever ran
   # start.ps1 (a terminal, an agent) waits until the service exits. So the
   # shell that starts node does its own redirection.
-  $command = "`"$node`" $($NodeArgs -join ' ')"
+  $command = "`"$Exe`" $($NodeArgs -join ' ')"
   try {
     if ($IsWindows) {
       $shell = Start-Process -FilePath 'cmd.exe' -WindowStyle Hidden -WorkingDirectory $WorkDir -PassThru `
@@ -66,7 +66,13 @@ if ($Only -in 'all', 'foundry') {
     $foundryArgs = @("`"$main`"", "--dataPath=`"$($TestEnv.DataDir)`"", "--port=$($TestEnv.FoundryPort)", '--noupnp', '--noupdate')
     $world = Join-Path $TestEnv.DataDir 'Data' 'worlds' $TestEnv.WorldId
     if (-not $NoWorld -and (Test-Path $world)) { $foundryArgs += "--world=$($TestEnv.WorldId)" }
-    Start-TestService 'foundry' $TestEnv.FoundryPort $foundryArgs @{} (Split-Path $main) 90
+    $appRoot = Split-Path $main
+    $foundryNode = Get-FoundryNodeExe $appRoot
+    Start-TestService 'foundry' $TestEnv.FoundryPort $foundryArgs @{} $appRoot 90 $foundryNode
+    if ((Test-FoundryFirewallBlock) -eq $false) {
+      Write-Host "foundry : WARNING - port $($TestEnv.FoundryPort) is reachable from the network (Foundry listens on all interfaces)."
+      Write-Host "          The GM should run once, in an admin PowerShell:  $(Get-FirewallCommand)"
+    }
   }
 }
 

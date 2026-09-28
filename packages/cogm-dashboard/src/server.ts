@@ -13,6 +13,7 @@ import { SseHub, type SseRedactor } from './sse.js';
 import { resolveRole, isGm } from './auth.js';
 import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
 import { bindRefusal } from './bind-policy.js';
+import { jsonErrorHandler } from './error-handler.js';
 import {
   eventsRedactor,
   redactCombatForPlayer,
@@ -552,6 +553,9 @@ app.post('/api/tool', requireGm, (req: Request, res: Response) => {
       });
     });
 });
+
+// Last: JSON errors without stack traces or paths (the default handler shows both).
+app.use(jsonErrorHandler(logger));
 
 // --- Startup / shutdown ------------------------------------------------------
 const refusal = bindRefusal(config.host, config.auth.gmToken);

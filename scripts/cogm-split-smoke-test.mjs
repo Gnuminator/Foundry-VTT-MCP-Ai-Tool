@@ -341,6 +341,19 @@ async function main() {
     console.error('[cogm-split-smoke] Auth gate:');
     const noToken = await request('POST', `${base}/api/tool`, {}, { name: 'get-world-info' });
     check('POST /api/tool without token → 403', noToken.status === 403);
+    // Malformed JSON gets a short JSON 400, never a stack trace with local paths.
+    const malformed = await fetch(`${base}/api/tool`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{name:x}',
+    });
+    const malformedText = await malformed.text();
+    check(
+      'malformed JSON → 400 JSON without a stack trace',
+      malformed.status === 400 &&
+        malformedText === '{"error":"Invalid JSON body"}' &&
+        !/\bat |node_modules|[A-Za-z]:\\/.test(malformedText)
+    );
     // Canary: the Tarokka reading is GM-only data; a player can never read or plan it.
     for (const name of ['get-tarokka-reading', 'plan-tarokka-import', 'suggest-tarokka-links']) {
       const res = await request('POST', `${base}/api/tool`, {}, { name, args: { query: 'xx' } });

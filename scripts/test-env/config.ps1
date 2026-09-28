@@ -68,12 +68,56 @@ function Get-NodeExe {
   return $node.Source
 }
 
+function Get-NodeVersion([string]$Exe) {
+  try {
+    $text = (& $Exe --version 2>$null | Select-Object -First 1)
+    if ($text -match '^v(\d+)\.(\d+)\.(\d+)') { return [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])" }
+  } catch { }
+  return $null
+}
+
+# A Node that satisfies Foundry's own `engines.node` (e.g. ">=24.13.1 <25.0.0" for 14.368),
+# which differs from the Node 22 the repo builds with. Checks PATH, then the default install.
+function Get-FoundryNodeExe([string]$AppRoot) {
+  $pkg = Join-Path $AppRoot 'package.json'
+  $range = if (Test-Path $pkg) { (Get-Content $pkg -Raw | ConvertFrom-Json).engines.node } else { $null }
+  $min = if ($range -match '>=\s*(\d+\.\d+\.\d+)') { [version]$Matches[1] } else { [version]'20.0.0' }
+  $max = if ($range -match '<\s*(\d+\.\d+\.\d+)') { [version]$Matches[1] } else { $null }
+  $candidates = @(Get-Command node -All -ErrorAction SilentlyContinue | ForEach-Object Source)
+  if ($IsWindows) { $candidates += Join-Path $env:ProgramFiles 'nodejs' 'node.exe' }
+  foreach ($exe in ($candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique)) {
+    $v = Get-NodeVersion $exe
+    if ($v -and $v -ge $min -and (-not $max -or $v -lt $max)) { return $exe }
+  }
+  throw "No Node.js matching Foundry's requirement '$range' found (install it; the repo's Node 22 is not used for Foundry)."
+}
+
 # The Foundry Node.js build: main.js at the root (v13+) or resources/app/main.js (older layouts).
 function Find-FoundryMain {
   foreach ($candidate in @((Join-Path $TestEnv.AppDir 'main.js'), (Join-Path $TestEnv.AppDir 'resources' 'app' 'main.js'))) {
     if (Test-Path $candidate) { return $candidate }
   }
   return $null
+}
+
+# Foundry has no listen-address option (it listens on all interfaces), so on
+# Windows only a firewall block rule keeps the test server off the network.
+# Loopback traffic is not filtered, so the rule does not affect this PC.
+$FirewallRuleName = 'Foundry test server (block network)'
+
+function Test-FoundryFirewallBlock {
+  if (-not $IsWindows) { return $null }
+  $rules = Get-NetFirewallRule -DisplayName $FirewallRuleName -ErrorAction SilentlyContinue |
+    Where-Object { $_.Enabled -eq 'True' -and $_.Action -eq 'Block' -and $_.Direction -eq 'Inbound' }
+  foreach ($rule in @($rules)) {
+    $ports = @(($rule | Get-NetFirewallPortFilter).LocalPort)
+    if ($ports -contains [string]$TestEnv.FoundryPort) { return $true }
+  }
+  return $false
+}
+
+function Get-FirewallCommand {
+  "New-NetFirewallRule -DisplayName '$FirewallRuleName' -Direction Inbound -Protocol TCP -LocalPort $($TestEnv.FoundryPort) -Action Block"
 }
 
 # Whether something accepts TCP connections on 127.0.0.1:<port> (cross-platform).

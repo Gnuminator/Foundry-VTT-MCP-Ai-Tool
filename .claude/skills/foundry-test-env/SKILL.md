@@ -41,15 +41,22 @@ Paths and ports come from `scripts/test-env/config.ps1`; `scripts/test-env/local
    `app\resources\app\main.js` also work).
 2. Claude: `pwsh scripts/test-env/setup.ps1` (creates folders, builds, copies the module
    with its bridge port set to 31515), then `pwsh scripts/test-env/start.ps1 -Only foundry -NoWorld`.
-   On the first start Windows may ask about the firewall for Node: the GM answers
-   **Cancel / do not allow** so only this PC can reach it.
-3. GM, at `http://localhost:30001`: accept the licence agreement, enter the licence key,
+   Foundry runs on its own required Node (14.368 needs Node >=24.13.1 <25; the scripts find
+   it from `app\package.json`), not the repo's Node 22.
+3. GM, once, in an admin PowerShell: block the test port from the network. Foundry has no
+   listen-address option and listens on all interfaces, and the test users have no
+   passwords, so this rule is what keeps the server personal-only (licence condition).
+   Loopback is not filtered, so it still works on this PC. `status.ps1` shows the exact
+   command and whether the rule exists; `start.ps1` warns while it is missing:
+   `New-NetFirewallRule -DisplayName 'Foundry test server (block network)' -Direction Inbound -Protocol TCP -LocalPort 30001 -Action Block`
+   Never create or change firewall rules yourself; that is the GM's call.
+4. GM, at `http://localhost:30001`: accept the licence agreement, enter the licence key,
    set an admin password (keep it), install the **dnd5e** system, create a world with the id
    **`ai-tool-test`**, launch it, log in as Gamemaster, and in the world:
    - Manage Modules: enable **Foundry AI Tool** (the local copy from `sync-module.ps1`).
    - User Management: add **Claude** (role Gamemaster, empty password) and **Player**
      (role Player, empty password).
-4. Claude: `pwsh scripts/test-env/stop.ps1 -Only foundry`. From now on `start.ps1` launches
+5. Claude: `pwsh scripts/test-env/stop.ps1 -Only foundry`. From now on `start.ps1` launches
    the world directly (`--world=ai-tool-test`), so the setup screen is never needed.
 
 ## Daily loop

@@ -74,6 +74,10 @@ const els = {
   modalCancel: $('modal-cancel'),
   modalConfirm: $('modal-confirm'),
   toastStack: $('toast-stack'),
+  // Recent guarded changes
+  changesBody: $('changes-body'),
+  changesMeta: $('changes-meta'),
+  changesRefresh: $('changes-refresh'),
 };
 
 const seenEventIds = new Set();
@@ -96,6 +100,8 @@ const selectedCombatants = new Set();
 let toolCatalog = [];
 let toolsLoaded = false;
 let confirmResolver = null;
+let recentChanges = [];
+let changesReloadTimer = null;
 
 // ---------------------------------------------------------------------------
 // REST helpers
@@ -116,6 +122,7 @@ function setDot(pill, cls, label) {
   pill.innerHTML = `<span class="dot ${cls}"></span> ${label}`;
 }
 
+let foundryLive = false;
 function renderStatus(status) {
   if (status.controlChannel === 'connected') {
     setDot(els.statusBridge, 'dot-green', 'Bridge: connected');
@@ -125,11 +132,13 @@ function renderStatus(status) {
 
   if (status.foundry === 'reachable') {
     setDot(els.statusFoundry, 'dot-green', 'Foundry: live');
+    if (!foundryLive) scheduleChangesReload();
   } else if (status.foundry === 'unreachable') {
     setDot(els.statusFoundry, 'dot-amber', 'Foundry: unreachable');
   } else {
     setDot(els.statusFoundry, 'dot-grey', 'Foundry: unknown');
   }
+  foundryLive = status.foundry === 'reachable';
 }
 
 function renderSettings(next) {
@@ -294,6 +303,7 @@ function addEvents(events) {
         <span>${time}</span>
       </div>`;
     els.feedBody.insertBefore(node, els.feedBody.firstChild);
+    if (ev.eventType === 'gm-change') scheduleChangesReload();
   }
 
   // Cap DOM size.
@@ -472,6 +482,7 @@ function escapeHtml(str) {
 // GM Actions — tool runner drawer, confirm modal, toasts
 // ---------------------------------------------------------------------------
 const CATEGORY_RULES = [
+  [/(planned-change|recent-changes|undo-change|open-in-foundry)/, 'Guarded changes'],
   [/(initiative|combat|turn)/, 'Combat'],
   [/(damage|heal|saving|ability|attack|roll|check|rest|activity|condition|effect)/, 'Resolution'],
   [/(token|move|template|vision|light|map-note)/, 'Tokens & Scene'],
@@ -505,11 +516,20 @@ function toast(msg, kind = 'ok') {
 }
 
 // --- Confirm modal (promise-based) ---
-function confirmAction({ title, name, args, destructive }) {
+function confirmAction({ title, name, args, destructive, diff, summary }) {
   els.modalTitle.textContent = title;
-  const argText =
-    args && Object.keys(args).length ? JSON.stringify(args, null, 2) : '(no arguments)';
-  els.modalBody.innerHTML = `Run <code>${escapeHtml(name)}</code> against the live game?<pre>${escapeHtml(argText)}</pre>`;
+  if (Array.isArray(diff)) {
+    // A planned change: show what it will do, not the raw arguments.
+    const lines = diff.length
+      ? diff.map(line => `<li>${escapeHtml(line)}</li>`).join('')
+      : '<li>(no changes listed)</li>';
+    const head = summary ? `<p class="modal-summary">${escapeHtml(summary)}</p>` : '';
+    els.modalBody.innerHTML = `${head}<ul class="change-diff">${lines}</ul>`;
+  } else {
+    const argText =
+      args && Object.keys(args).length ? JSON.stringify(args, null, 2) : '(no arguments)';
+    els.modalBody.innerHTML = `Run <code>${escapeHtml(name)}</code> against the live game?<pre>${escapeHtml(argText)}</pre>`;
+  }
   els.modalDestructive.hidden = !destructive;
   els.modalDestructiveCheck.checked = false;
   els.modalConfirm.textContent = destructive ? 'Run destructive action' : 'Confirm';
@@ -786,19 +806,36 @@ function showToolResult(ok, payload) {
 // --- Run a tool (confirm-gated for writes) ---
 async function runTool(name, args, mutates, opts = {}) {
   const found = findTool(name);
-  const kind = mutates || (found && found.mutates) || 'write';
+  let kind = mutates || (found && found.mutates) || 'write';
   let confirmFlags = {};
+  let diff = opts.diff;
+  let summary = opts.summary;
   if (kind !== 'read') {
     if (!settings.gmActionsEnabled) {
       toast('GM Actions are off — enable them to run this.', 'warn');
       openDrawer();
       return;
     }
+    if (name === 'apply-planned-change') {
+      // Show the plan's diff, and ask for the destructive confirm when it deletes.
+      let plan;
+      try {
+        plan = await callReadTool('get-planned-change', { planId: args && args.planId });
+      } catch (err) {
+        toast(`✗ Can't load the plan: ${String(err.message || err)}`, 'err');
+        return;
+      }
+      diff = (plan.diff || []).map(d => d.text);
+      summary = plan.summary;
+      kind = plan.risk === 'destructive' ? 'destructive' : 'write';
+    }
     const ok = await confirmAction({
       title: kind === 'destructive' ? 'Destructive action' : 'Confirm action',
       name,
       args,
       destructive: kind === 'destructive',
+      diff,
+      summary,
     });
     if (!ok) return;
     confirmFlags =
@@ -814,6 +851,7 @@ async function runTool(name, args, mutates, opts = {}) {
     if (res.ok && data.ok) {
       toast(`✓ ${name}`, 'ok');
       if (opts.showResultInDrawer) showToolResult(true, data.result);
+      if (name === 'apply-planned-change' || name === 'undo-change') scheduleChangesReload();
       return data;
     }
     const msg = data.error || `HTTP ${res.status}`;
@@ -829,6 +867,77 @@ async function runTool(name, args, mutates, opts = {}) {
     toast(`✗ ${name}: ${msg}`, 'err');
     if (opts.showResultInDrawer) showToolResult(false, msg);
   }
+}
+
+// --- Read-only tool call (no confirmation needed) ---
+async function callReadTool(name, args) {
+  const res = await fetch('/api/tool', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ name, args: args || {} }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data.result;
+}
+
+// --- Recent guarded changes (with undo) ---
+function scheduleChangesReload() {
+  if (changesReloadTimer) clearTimeout(changesReloadTimer);
+  changesReloadTimer = setTimeout(() => {
+    changesReloadTimer = null;
+    void loadRecentChanges();
+  }, 400);
+}
+async function loadRecentChanges() {
+  try {
+    const result = await callReadTool('list-recent-changes', { limit: 20 });
+    recentChanges = Array.isArray(result && result.changes) ? result.changes : [];
+    renderRecentChanges();
+  } catch (err) {
+    els.changesMeta.textContent = '—';
+    els.changesBody.innerHTML = `<p class="empty">Couldn't load changes: ${escapeHtml(String(err.message || err))}</p>`;
+  }
+}
+function changeState(c) {
+  if (c.mode === 'undo') return 'undo';
+  if (c.undoneBy) return 'undone';
+  return c.risk === 'destructive' ? 'destructive' : 'applied';
+}
+function renderRecentChanges() {
+  els.changesMeta.textContent = `${recentChanges.length} shown`;
+  if (recentChanges.length === 0) {
+    els.changesBody.innerHTML = '<p class="empty">No guarded changes yet.</p>';
+    return;
+  }
+  els.changesBody.innerHTML = recentChanges
+    .map(c => {
+      const state = changeState(c);
+      const time = new Date(c.appliedAt).toLocaleString();
+      const lines = c.diff || [];
+      const diff = lines.map(line => `<li>${escapeHtml(line)}</li>`).join('');
+      const undo = c.canUndo
+        ? `<button type="button" class="btn btn-small" data-undo="${escapeHtml(c.changeId)}">Undo</button>`
+        : '';
+      const details = diff
+        ? `<details><summary>${lines.length} line(s)</summary><ul class="change-diff">${diff}</ul></details>`
+        : '';
+      return `
+        <div class="change-entry state-${state}">
+          <div class="change-head">
+            <span class="change-summary">${escapeHtml(c.summary)}</span>
+            ${undo}
+          </div>
+          <div class="change-meta">
+            <span class="change-state">${escapeHtml(state)}</span>
+            <span>${escapeHtml(c.feature)}</span>
+            <span>${escapeHtml(c.target)}</span>
+            <span>${escapeHtml(time)}</span>
+          </div>
+          ${details}
+        </div>`;
+    })
+    .join('');
 }
 
 // --- Wiring ---
@@ -887,6 +996,17 @@ els.combatActions.addEventListener('click', e => {
   if (names.length === 0) return;
   if (action === 'damage') void openTool('apply-damage-and-healing', { targets: names });
   if (action === 'save') void openTool('roll-saving-throws', { targets: names });
+});
+els.changesRefresh.addEventListener('click', () => void loadRecentChanges());
+els.changesBody.addEventListener('click', e => {
+  const btn = e.target.closest('[data-undo]');
+  if (!btn) return;
+  const change = recentChanges.find(c => c.changeId === btn.dataset.undo);
+  if (!change) return;
+  void runTool('undo-change', { changeId: change.changeId }, 'destructive', {
+    diff: change.diff || [],
+    summary: `Undo: ${change.summary}`,
+  });
 });
 els.modalCancel.addEventListener('click', () => closeModal(false));
 els.modalConfirm.addEventListener('click', () => closeModal(true));

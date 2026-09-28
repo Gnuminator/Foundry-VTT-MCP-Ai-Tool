@@ -3,13 +3,7 @@ import { config, type Tone } from './config.js';
 import { Logger } from './logger.js';
 import { McpControlClient, ToolError, TimeoutError } from './feed/mcp-control-client.js';
 import { PollingGameFeed } from './feed/polling-feed.js';
-import type {
-  BridgeStatus,
-  CombatState,
-  GameFeedHandlers,
-  SessionEvent,
-  WorldInfo,
-} from './feed/types.js';
+import type { BridgeStatus, CombatState, GameFeedHandlers, WorldInfo } from './feed/types.js';
 import { GameState } from './state.js';
 import { CoGm } from './ai/anthropic-co-gm.js';
 import { CommentaryEngine } from './ai/commentary.js';
@@ -17,7 +11,9 @@ import { ErrorCommentaryEngine } from './ai/error-commentary.js';
 import { buildAskUserMessage } from './ai/prompt.js';
 import { SseHub, type SseRedactor } from './sse.js';
 import { resolveRole, isGm } from './auth.js';
+import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
 import {
+  eventsRedactor,
   redactCombatForPlayer,
   redactEventsForPlayer,
   redactStatusForPlayer,
@@ -144,12 +140,6 @@ const combatRedactor: SseRedactor = (payload, role) => {
   return { combat: redactCombatForPlayer(combat, config.playerView) };
 };
 
-const eventsRedactor: SseRedactor = (payload, role) => {
-  if (role === 'gm') return payload;
-  const { events, initial } = payload as { events: SessionEvent[]; initial?: boolean };
-  return { events: redactEventsForPlayer(events), initial };
-};
-
 /** Express middleware: 401/403 unless the caller resolves to the GM role. */
 function requireGm(req: Request, res: Response, next: () => void): void {
   const role = resolveRole(req, config.auth);
@@ -173,25 +163,8 @@ function readStr(value: unknown, fallback: string): string {
 // --- GM Actions: tool proxy --------------------------------------------------
 // The dashboard can invoke ANY bridge tool, but game-changing (write) tools are
 // gated behind the master GM-Actions switch + an explicit confirm, and a small
-// set of destructive tools needs a second confirm. Reads are always free.
-const DESTRUCTIVE_TOOLS = new Set<string>([
-  'delete-tokens',
-  'delete-map-note',
-  'delete-measured-template',
-  'remove-actor-ownership',
-  'clear-module-errors',
-  'clear-stale-conditions',
-]);
-// Tools that read state but don't match the get-/list-/search-/measure- prefixes.
-const READ_TOOLS_EXTRA = new Set<string>(['check-map-status', 'suggest-balanced-encounter']);
-
-type ToolKind = 'read' | 'write' | 'destructive';
-
-function classifyTool(name: string): ToolKind {
-  if (DESTRUCTIVE_TOOLS.has(name)) return 'destructive';
-  if (/^(get|list|search|measure)-/.test(name) || READ_TOOLS_EXTRA.has(name)) return 'read';
-  return 'write';
-}
+// set of destructive tools needs a second confirm. Reads are always free. The
+// classification lives in tool-policy.ts.
 
 interface ToolInfo {
   name: string;
@@ -538,8 +511,8 @@ app.post('/api/tool', requireGm, (req: Request, res: Response) => {
     res.status(400).json({ error: 'A non-empty "name" is required.' });
     return;
   }
-  const args = asRecord(body.args);
   const mutates = classifyTool(name);
+  const args = toolArgs(name, asRecord(body.args), body);
 
   if (mutates !== 'read') {
     if (!settings.gmActionsEnabled) {

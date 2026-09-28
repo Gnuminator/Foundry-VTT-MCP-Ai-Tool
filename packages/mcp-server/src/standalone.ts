@@ -40,9 +40,9 @@ async function main(): Promise<void> {
 
   applyStandaloneEnv(opts);
   const { host, port } = resolveControlTarget();
-  const mode = opts.controlOnly
-    ? 'control-only (no Foundry link)'
-    : 'full (control + Foundry link)';
+  const controlOnly =
+    opts.controlOnly || /^(off|false|0|no)$/i.test(process.env.MCP_FOUNDRY_LINK ?? '');
+  const mode = controlOnly ? 'control-only (no Foundry link)' : 'full (control + Foundry link)';
 
   console.error('─'.repeat(64));
   console.error(' foundry-mcp-bridge — standalone backend');
@@ -62,7 +62,7 @@ async function main(): Promise<void> {
   const ready = await waitForControlChannel(host, port, 15_000);
   if (ready) {
     console.error(`✓ control channel ready on ${host}:${port}`);
-    if (!opts.controlOnly) {
+    if (!controlOnly) {
       console.error('  waiting for the Foundry module to connect (ws 31415 / webrtc 31416)…');
     }
   } else {

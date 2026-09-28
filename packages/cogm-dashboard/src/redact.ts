@@ -1,4 +1,5 @@
 import type { PlayerViewConfig } from './config.js';
+import type { SseRedactor } from './sse.js';
 import type {
   BridgeStatus,
   Combatant,
@@ -151,6 +152,17 @@ export function redactEventsForPlayer(events: SessionEvent[]): SessionEvent[] {
   }
   return out;
 }
+
+/**
+ * SSE redactor for `events` broadcasts: the GM gets everything; a player gets
+ * only allow-listed event types with details stripped (GM-only types such as
+ * `gm-change` never reach a player stream).
+ */
+export const eventsRedactor: SseRedactor = (payload, role) => {
+  if (role === 'gm') return payload;
+  const { events, initial } = payload as { events: SessionEvent[]; initial?: boolean };
+  return { events: redactEventsForPlayer(events), initial };
+};
 
 /** World descriptor minus GM-only bits (GM names). */
 export function redactWorldForPlayer(world: WorldInfo | null): Omit<WorldInfo, 'gmNames'> | null {

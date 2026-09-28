@@ -658,6 +658,11 @@ async function startBackend(): Promise<void> {
       }
     };
     socket.on('data', (chunk: string) => void onControlData(chunk));
+    // A client that drops abruptly (ECONNRESET, e.g. a killed dashboard) must not
+    // crash the backend: an 'error' event without a listener is fatal in Node.
+    socket.on('error', error => {
+      logger.debug('Control client socket error', { error: error.message });
+    });
   });
 
   await new Promise<void>((resolve, reject) => {

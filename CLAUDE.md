@@ -94,15 +94,27 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
   Tarokka import/apply/list/undo (API + dashboard UI), switch off refuses (vault, mixed, Foundry-only),
   vault and Foundry conflicts write nothing, reveal page shows Player only the typed text, `/player`
   (split on and off) has no card data, vault files + session log. 4 bugs fixed with tests.
-- [~] **Handoff (budget ran out, 2026-09-28).** Uncommitted in the working tree: tool-parameter pickers
-  (`shared/src/tool-refs.ts`, module `data-access/ref-choices.ts`, backend `tools/ref-choices.ts` =
-  `list-ref-choices`, dashboard `app.js` "Pick…", `tool-catalog.test.ts` enforcing annotations,
-  `toolRef`/`freeText` annotations in the tool files). Finish: full gate, fix, verify live in the test
-  dashboard, commit. On disk: `.claude/skills/foundry-core-ui/reference/*.md` (unverified drafts).
-  To do: Part B click-through + stamps, `foundry-core-ui/SKILL.md` (+ `foundry-mod-<id>` convention),
-  split `foundry-test-env` into infra + `foundry-ai-tool`, `docs/OBSIDIAN-PLAN.md` (own session; GM
-  granted read/write on `C:\Users\chris\Documents\Obsidian\vault`), Discord idea into CoS plan
-  section 10; then STOP for the GM's go-ahead on M2.
+- [x] **Tool-parameter pickers** (`e22dc15`): every tool parameter that names something has "Pick…" in
+  the dashboard tool runner (`x-foundry-ref` annotations, read tool `list-ref-choices`,
+  `tool-catalog.test.ts` enforces it for new tools). Skills split (`cd50ec3`): `foundry-test-env`
+  (infra), `foundry-ai-tool` (tools, dashboard, smoke checklist), `foundry-core-ui` (index).
+- [x] **Obsidian O1** (`808d092`, plan `2b126f1` = `docs/OBSIDIAN-PLAN.md`): Claude owns the GM's vault
+  `C:\Users\chris\Documents\Obsidian\vault` (structure, plugins, automations). Vault skeleton,
+  templates, Dev dashboard with Question notes, `npm run obsidian -- export` (sessions, changes,
+  Tarokka), `scripts/obsidian/sync-dev-docs.ps1` (read-only docs mirror). Next: rest of O2.
+- [~] **Handoff (2026-09-28, session ended by the GM to avoid auto-compact).**
+  - NEXT SESSION: the GM pastes a PROJECT HISTORY EXPORT from the cloud project "Foundry-VTT-MCP-Ai-Tool"
+    (its sessions are cloud-only; the two local transcripts of this workspace were already read).
+    Turn it into Obsidian notes under `Dev/Foundry AI Tool/` (History timeline, `Decisions/` one note
+    per decision, `Ideas/`, lessons, glossary; properties for the dashboard Bases), cross-check against
+    the repo docs and fix gaps, carry lasting working agreements into memory, open items as Question
+    notes.
+  - Part B verification is unfinished: `.claude/skills/foundry-core-ui/reference/*.md` (11 pages) are
+    uncommitted drafts; the click-through lanes were stopped mid-run, so some pages may carry partial
+    `[verified]` marks and no stamp. Resume later (Sonnet, one lane per GM user, canvas pages in front).
+  - The test world has two temporary GM users "Verifier A" and "Verifier B" (for parallel lanes) and
+    three "Wolf" actors/tokens (picker test data): delete the users when verification is done.
+  - Still open: M2 waits for the GM's go-ahead (also a Question note in Obsidian).
 
 ## Model guidance
 

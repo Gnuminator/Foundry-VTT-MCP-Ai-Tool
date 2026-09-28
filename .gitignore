@@ -95,3 +95,6 @@ DEPLOYMENT-FIX.md
 DEVELOPMENT.md
 VERIFY.md
 VISUAL-CONFIRMATION.md
+
+# Local test environment overrides (paths/ports on this machine)
+scripts/test-env/local.json

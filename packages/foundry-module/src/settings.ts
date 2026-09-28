@@ -1,6 +1,20 @@
 import { MODULE_ID, DEFAULT_CONFIG } from './constants.js';
 import type { BridgeConfig } from './socket-bridge.js';
 
+/**
+ * Default bridge port: `flags.foundry-mcp-bridge.defaultServerPort` in this
+ * module's manifest, else 31415. A test install sets the flag in its copy of
+ * module.json so a fresh test world never dials the live bridge on 31415
+ * (the port setting is hidden, so it could not be changed before the first
+ * connect). Released manifests carry no flag.
+ */
+export function defaultServerPort(): number {
+  const flag = game.modules.get(MODULE_ID)?.flags?.[MODULE_ID]?.defaultServerPort;
+  return typeof flag === 'number' && Number.isInteger(flag) && flag >= 1024 && flag <= 65535
+    ? flag
+    : DEFAULT_CONFIG.MCP_PORT;
+}
+
 export class ModuleSettings {
   private moduleId: string = MODULE_ID;
 
@@ -232,7 +246,7 @@ export class ModuleSettings {
       scope: 'world',
       config: false,
       type: Number,
-      default: DEFAULT_CONFIG.MCP_PORT,
+      default: defaultServerPort(),
       onChange: this.onConnectionChange.bind(this),
     });
 

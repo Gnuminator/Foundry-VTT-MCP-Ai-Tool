@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
-import { ModuleSettings } from './settings.js';
+import { ModuleSettings, defaultServerPort } from './settings.js';
 import { MODULE_ID } from './constants.js';
 
 let world: TestWorld;
@@ -43,5 +43,31 @@ describe('ModuleSettings — access defaults', () => {
 
   it('does not lock the allowNonGmAccess checkbox in the settings UI', () => {
     expect(hookNames).not.toContain('renderSettingsConfig');
+  });
+});
+
+describe('ModuleSettings — bridge port default', () => {
+  it('defaults to 31415 without a manifest flag', () => {
+    expect(registered.get(`${MODULE_ID}.serverPort`)).toMatchObject({
+      scope: 'world',
+      default: 31415,
+    });
+    expect(defaultServerPort()).toBe(31415);
+  });
+
+  it('takes a valid defaultServerPort from the module manifest flags (test installs)', () => {
+    world.modules.set(MODULE_ID, {
+      id: MODULE_ID,
+      active: true,
+      flags: { [MODULE_ID]: { defaultServerPort: 31515 } },
+    });
+    expect(defaultServerPort()).toBe(31515);
+    for (const bad of [80, 70000, '31515', 31515.5]) {
+      world.modules.set(MODULE_ID, {
+        id: MODULE_ID,
+        flags: { [MODULE_ID]: { defaultServerPort: bad } },
+      });
+      expect(defaultServerPort()).toBe(31415);
+    }
   });
 });

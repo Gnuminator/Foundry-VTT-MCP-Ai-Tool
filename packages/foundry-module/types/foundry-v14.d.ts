@@ -353,6 +353,8 @@ declare global {
     readonly api?: unknown;
     readonly compatibility?: { minimum?: string; verified?: string; maximum?: string };
     readonly relationships?: Record<string, unknown>;
+    /** Manifest `flags`, keyed by scope. */
+    readonly flags?: Record<string, Record<string, unknown> | undefined>;
   }
 
   interface FoundryModule extends FoundryPackage {

@@ -15,6 +15,12 @@ export interface FoundryConnectorOptions {
  * machine. Set `FOUNDRY_LINK_HOST` (e.g. `0.0.0.0`) only to let a browser on
  * another machine connect; anything that reaches these ports can drive Foundry.
  */
+/** WebRTC signaling port: `FOUNDRY_WEBRTC_PORT`, default 31416 (test setups use another). */
+export function foundryWebrtcPort(env: NodeJS.ProcessEnv = process.env): number {
+  const port = Number.parseInt(env.FOUNDRY_WEBRTC_PORT ?? '', 10);
+  return Number.isInteger(port) && port >= 1024 && port <= 65535 ? port : 31416;
+}
+
 export function foundryLinkBindHost(env: NodeJS.ProcessEnv = process.env): string {
   const host = env.FOUNDRY_LINK_HOST?.trim();
   return host ? host : '127.0.0.1';
@@ -64,8 +70,8 @@ export class FoundryConnector {
       res.end();
     });
 
-    // Create SEPARATE HTTP server for WebRTC signaling (port 31416)
-    const WEBRTC_PORT = 31416;
+    // Create SEPARATE HTTP server for WebRTC signaling (port 31416 unless FOUNDRY_WEBRTC_PORT)
+    const WEBRTC_PORT = foundryWebrtcPort();
     this.webrtcSignalingServer = createServer((req, res) => {
       // Set CORS headers for all requests
       res.setHeader('Access-Control-Allow-Origin', '*');

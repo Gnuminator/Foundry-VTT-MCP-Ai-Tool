@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "foundry-test",
+      "url": "http://localhost:30001",
+      "port": 30001
+    },
+    {
+      "name": "dashboard-test",
+      "url": "http://localhost:3100",
+      "port": 3100
+    }
+  ]
+}

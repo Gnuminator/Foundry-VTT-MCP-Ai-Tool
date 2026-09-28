@@ -50,6 +50,10 @@ Renaming any of these breaks existing installs. Plan a migration note first.
   `CI=true npm test`. The lint ratchet (`scripts/lint-ratchet.mjs`, baseline
   `scripts/lint-baseline.json`, 7,783 warnings) fails on any ESLint error or any rule whose warning
   count rises; lower the baseline with `npm run lint:ratchet -- --update` when counts drop.
+- **Local test environment:** `.claude/skills/foundry-test-env/SKILL.md` + `scripts/test-env/*.ps1`
+  (Foundry 14 at `C:\FoundryTest` on localhost:30001, world `ai-tool-test`, passwordless "Claude" GM
+  user; test bridge 31514/31515/31516; dashboard 3100; own vault). Use it to verify features in
+  Foundry before calling them done. Never type passwords; the admin password stays with the GM.
 - Smoke tests and manual runs use alternate ports (e.g. control 31514, dashboard 3100) and
   `--control-only` for the standalone backend; never bind 31414/31415/31416.
 

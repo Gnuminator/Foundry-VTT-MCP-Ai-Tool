@@ -71,3 +71,12 @@ describe('ModuleSettings — bridge port default', () => {
     }
   });
 });
+
+describe('ModuleSettings — map generation', () => {
+  it('does not auto-start map generation by default', () => {
+    expect(registered.get(`${MODULE_ID}.mapGenAutoStart`)).toMatchObject({
+      scope: 'world',
+      default: false,
+    });
+  });
+});

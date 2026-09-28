@@ -28,5 +28,5 @@ Write-Host "Module copy:  $(if (Test-Path $manifest) { 'v' + (Get-Content $manif
 Write-Host "Logs:         $($TestEnv.LogDir)"
 $blocked = Test-FoundryFirewallBlock
 if ($blocked -ne $null) {
-  Write-Host "Firewall:     $(if ($blocked) { "port $($TestEnv.FoundryPort) blocked from the network" } else { "NOT blocked - GM: run in admin PowerShell: $(Get-FirewallCommand)" })"
+  Write-Host "Firewall:     $(if ($blocked) { "port $($TestEnv.FoundryPort) blocked from the network" } else { "port $($TestEnv.FoundryPort) reachable from the network (GM decision; optional rule: $(Get-FirewallCommand))" })"
 }

@@ -26,6 +26,11 @@ $settings = [ordered]@{
   LinkPort      = 31515
   WebrtcPort    = 31516
   DashboardPort = 3100
+  # Optional: this test server's own admin login, for setup-screen tasks
+  # (install packages, create worlds). Only ever put a password here that is
+  # used for nothing else. Never printed by the scripts; local.json is gitignored.
+  AdminUser     = $null
+  AdminPassword = $null
 }
 $localFile = Join-Path $PSScriptRoot 'local.json'
 if (Test-Path $localFile) {
@@ -51,6 +56,13 @@ $TestEnv = [pscustomobject]@{
 }
 $TestEnv | Add-Member NoteProperty ModuleDir (Join-Path $TestEnv.DataDir 'Data' 'modules' 'foundry-mcp-bridge')
 $TestEnv | Add-Member NoteProperty PidFile (Join-Path $TestEnv.LogDir 'pids.json')
+
+# The test server's admin login from local.json, or $null. Callers must never
+# print it or pass it on the command line.
+function Get-TestAdminCredential {
+  if (-not $settings.AdminPassword) { return $null }
+  return [pscustomobject]@{ User = [string]$settings.AdminUser; Password = [string]$settings.AdminPassword }
+}
 
 function Assert-SafePorts {
   $ports = @($TestEnv.FoundryPort, $TestEnv.ControlPort, $TestEnv.LinkPort, $TestEnv.WebrtcPort, $TestEnv.DashboardPort)

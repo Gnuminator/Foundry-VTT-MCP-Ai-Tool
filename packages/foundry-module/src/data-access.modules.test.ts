@@ -191,6 +191,29 @@ describe('FoundryDataAccess — getModules compatibility issues', () => {
     expect(mod.issues).toContain('may be incompatible: declares max core 12.999, running 13.331');
   });
 
+  it('reads a bare generation maximum as "any build of it" (13 allows 13.331; 12 does not)', async () => {
+    world.addModule({
+      id: 'gen-13',
+      title: 'Gen 13',
+      active: true,
+      compatibility: { maximum: '13' },
+    });
+    world.addModule({
+      id: 'gen-12',
+      title: 'Gen 12',
+      active: true,
+      compatibility: { maximum: 12 },
+    });
+    // A literal comparison would call 13.331 newer than 13.
+    (globalThis as any).foundry.utils.isNewerVersion = (): boolean => true;
+
+    const result = await da.getModules({});
+    expect(result.modules.find((m: any) => m.id === 'gen-13').issues).toEqual([]);
+    expect(result.modules.find((m: any) => m.id === 'gen-12').issues).toContain(
+      'may be incompatible: declares max core 12, running 13.331'
+    );
+  });
+
   it('flags "may be incompatible: declares min core X, running Y" when core is below min', async () => {
     world.addModule({
       id: 'future-mod',

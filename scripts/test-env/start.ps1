@@ -66,13 +66,17 @@ if ($Only -in 'all', 'foundry') {
     $foundryArgs = @("`"$main`"", "--dataPath=`"$($TestEnv.DataDir)`"", "--port=$($TestEnv.FoundryPort)", '--noupnp', '--noupdate')
     $world = Join-Path $TestEnv.DataDir 'Data' 'worlds' $TestEnv.WorldId
     if (-not $NoWorld -and (Test-Path $world)) { $foundryArgs += "--world=$($TestEnv.WorldId)" }
+    # Foundry locks its data folder (Config/options.json.lock) and refreshes the
+    # lock while running; right after a stop it is still fresh and a new start
+    # fails with "already locked". Wait until it has gone stale.
+    $lock = Join-Path $TestEnv.DataDir 'Config' 'options.json.lock'
+    $deadline = (Get-Date).AddSeconds(30)
+    while ((Test-Path $lock) -and ((Get-Date) - (Get-Item $lock).LastWriteTime).TotalSeconds -lt 12 -and (Get-Date) -lt $deadline) {
+      Start-Sleep -Seconds 1
+    }
     $appRoot = Split-Path $main
     $foundryNode = Get-FoundryNodeExe $appRoot
     Start-TestService 'foundry' $TestEnv.FoundryPort $foundryArgs @{} $appRoot 90 $foundryNode
-    if ((Test-FoundryFirewallBlock) -eq $false) {
-      Write-Host "foundry : WARNING - port $($TestEnv.FoundryPort) is reachable from the network (Foundry listens on all interfaces)."
-      Write-Host "          The GM should run once, in an admin PowerShell:  $(Get-FirewallCommand)"
-    }
   }
 }
 

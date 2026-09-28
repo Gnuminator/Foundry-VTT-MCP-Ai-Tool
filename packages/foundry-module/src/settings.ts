@@ -97,7 +97,7 @@ export class ModuleSettings {
 
         getData(): any {
           return {
-            autoStartService: game.settings.get(MODULE_ID, 'mapGenAutoStart') || true,
+            autoStartService: game.settings.get(MODULE_ID, 'mapGenAutoStart') === true,
             mapGenQuality: game.settings.get(MODULE_ID, 'mapGenQuality') || 'low',
             connectionStatus: this.getConnectionStatus(),
             connectionStatusText: this.getConnectionStatusText(),
@@ -330,12 +330,14 @@ export class ModuleSettings {
 
     // Map Generation Service settings (configured via submenu only)
     // ComfyUI always runs on localhost:31411 (same machine as MCP server)
+    // Off by default: map generation is dropped for now (plan 0.7), and the
+    // banner plus two minutes of status polling on every connect were noise.
     game.settings.register(this.moduleId, 'mapGenAutoStart', {
       name: 'Auto-start Map Generation Service',
       scope: 'world',
       config: false, // Hidden from main config, accessible via submenu only
       type: Boolean,
-      default: true,
+      default: false,
     });
 
     game.settings.register(this.moduleId, 'mapGenQuality', {

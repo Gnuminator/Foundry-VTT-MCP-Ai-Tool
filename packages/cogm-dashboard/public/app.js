@@ -74,6 +74,16 @@ const els = {
   modalCancel: $('modal-cancel'),
   modalConfirm: $('modal-confirm'),
   toastStack: $('toast-stack'),
+  // Tarokka drawer
+  btnTarokka: $('btn-tarokka'),
+  tarokkaDrawer: $('tarokka-drawer'),
+  tarokkaClose: $('tarokka-close'),
+  tarokkaSub: $('tarokka-sub'),
+  tarokkaBody: $('tarokka-body'),
+  tarokkaRefresh: $('tarokka-refresh'),
+  tarokkaImport: $('tarokka-import'),
+  tarokkaRoll: $('tarokka-roll'),
+  tarokkaShow: $('tarokka-show'),
   // Recent guarded changes
   changesBody: $('changes-body'),
   changesMeta: $('changes-meta'),
@@ -101,6 +111,7 @@ let toolCatalog = [];
 let toolsLoaded = false;
 let confirmResolver = null;
 let recentChanges = [];
+let tarokkaView = null;
 let changesReloadTimer = null;
 
 // ---------------------------------------------------------------------------
@@ -851,7 +862,10 @@ async function runTool(name, args, mutates, opts = {}) {
     if (res.ok && data.ok) {
       toast(`✓ ${name}`, 'ok');
       if (opts.showResultInDrawer) showToolResult(true, data.result);
-      if (name === 'apply-planned-change' || name === 'undo-change') scheduleChangesReload();
+      if (name === 'apply-planned-change' || name === 'undo-change') {
+        scheduleChangesReload();
+        if (!els.tarokkaDrawer.hidden) void loadTarokka();
+      }
       return data;
     }
     const msg = data.error || `HTTP ${res.status}`;
@@ -940,6 +954,163 @@ function renderRecentChanges() {
     .join('');
 }
 
+// --- Tarokka drawer (GM only) ---
+// A plan-* tool is a read; apply-planned-change then shows its diff in the
+// confirm modal (and the destructive checkbox for a reveal).
+async function planThenApply(planTool, args) {
+  let plan;
+  try {
+    plan = await callReadTool(planTool, args);
+  } catch (err) {
+    toast(`✗ ${planTool}: ${String(err.message || err)}`, 'err');
+    return;
+  }
+  if (plan && plan.providerNote) toast(plan.providerNote, 'warn');
+  await runTool('apply-planned-change', { planId: plan.planId }, 'write');
+}
+function openTarokka() {
+  els.drawerBackdrop.hidden = false;
+  els.tarokkaDrawer.hidden = false;
+  void loadTarokka();
+}
+function closeTarokka() {
+  els.tarokkaDrawer.hidden = true;
+  if (els.drawer.hidden) els.drawerBackdrop.hidden = true;
+}
+async function loadTarokka() {
+  try {
+    tarokkaView = await callReadTool('get-tarokka-reading', {});
+    renderTarokka();
+  } catch (err) {
+    els.tarokkaBody.innerHTML = `<p class="empty">Couldn't load the reading: ${escapeHtml(String(err.message || err))}</p>`;
+  }
+}
+const LINK_LABELS = { journalPageUuid: 'Journal', sceneUuid: 'Scene', actorUuid: 'Actor' };
+function renderTarokka() {
+  const v = tarokkaView;
+  const show = els.tarokkaShow.checked;
+  if (!v || !v.available || !v.reading) {
+    els.tarokkaSub.textContent = 'GM only. No reading stored yet.';
+    els.tarokkaBody.innerHTML =
+      '<p class="empty">No reading in the vault. Import one from tarokka-reading or deal a new one.</p>';
+    return;
+  }
+  const r = v.reading;
+  els.tarokkaSub.textContent = `GM only · ${r.source} · ${new Date(r.readAt).toLocaleString()} · ${v.archivedReadings} archived`;
+  els.tarokkaBody.innerHTML = r.positions
+    .map(p => {
+      const links = Object.entries(p.links || {})
+        .map(
+          ([key, uuid]) =>
+            `<button type="button" class="btn btn-small" data-open="${escapeHtml(uuid)}">Open ${escapeHtml(LINK_LABELS[key] || key)}</button>`
+        )
+        .join('');
+      const revealed = p.revealed
+        ? `<span class="tarokka-badge revealed">revealed</span>${p.revealPageUuid ? `<button type="button" class="btn btn-small" data-open="${escapeHtml(p.revealPageUuid)}">Open page</button>` : ''}`
+        : '<span class="tarokka-badge">hidden from players</span>';
+      return `
+        <div class="tarokka-pos" data-position="${escapeHtml(p.position)}">
+          <div class="tarokka-pos-head">
+            <span class="tarokka-label">${escapeHtml(p.label)}</span>
+            <span class="tarokka-card ${show ? '' : 'veiled'}" title="${show ? '' : 'Tick “Show cards” to see it'}">${escapeHtml(p.cardName)} <code>${escapeHtml(p.cardId)}</code></span>
+          </div>
+          ${p.gmNote && show ? `<div class="tarokka-note">${escapeHtml(p.gmNote)}</div>` : ''}
+          <div class="tarokka-row">${links || '<span class="tarokka-badge warn">not linked</span>'} ${revealed}</div>
+          <div class="tarokka-row">
+            <button type="button" class="btn btn-small" data-link-search="${escapeHtml(p.position)}">Link…</button>
+            <button type="button" class="btn btn-small" data-reveal="${escapeHtml(p.position)}">Reveal…</button>
+          </div>
+          <div class="tarokka-form" data-form="${escapeHtml(p.position)}" hidden></div>
+        </div>`;
+    })
+    .join('');
+}
+function tarokkaForm(position) {
+  return els.tarokkaBody.querySelector(`[data-form="${CSS.escape(position)}"]`);
+}
+function showLinkSearch(position) {
+  const form = tarokkaForm(position);
+  form.hidden = false;
+  form.innerHTML = `
+    <input class="field-control" type="text" placeholder="Search journals, pages, scenes, actors…" data-link-query />
+    <button type="button" class="btn btn-small" data-link-go="${escapeHtml(position)}">Search</button>
+    <div class="tarokka-candidates"></div>`;
+  form.querySelector('[data-link-query]').focus();
+}
+async function runLinkSearch(position) {
+  const form = tarokkaForm(position);
+  const query = form.querySelector('[data-link-query]').value.trim();
+  const list = form.querySelector('.tarokka-candidates');
+  try {
+    const result = await callReadTool('suggest-tarokka-links', { query, limit: 20 });
+    const candidates = (result && result.candidates) || [];
+    list.innerHTML = candidates.length
+      ? candidates
+          .map(
+            c =>
+              `<div class="tarokka-candidate"><span>${escapeHtml(c.documentName)}: ${escapeHtml(c.name)}${c.parentName ? ` <em>(${escapeHtml(c.parentName)})</em>` : ''}</span><button type="button" class="btn btn-small" data-link-pick="${escapeHtml(position)}" data-uuid="${escapeHtml(c.uuid)}" data-doc="${escapeHtml(c.documentName)}">Link</button></div>`
+          )
+          .join('')
+      : '<p class="empty">No matches.</p>';
+  } catch (err) {
+    list.innerHTML = `<p class="empty">${escapeHtml(String(err.message || err))}</p>`;
+  }
+}
+function linkField(documentName) {
+  if (documentName === 'Scene') return 'sceneUuid';
+  if (documentName === 'Actor') return 'actorUuid';
+  return 'journalPageUuid';
+}
+function showRevealForm(position) {
+  const form = tarokkaForm(position);
+  form.hidden = false;
+  form.innerHTML = `
+    <input class="field-control" type="text" placeholder="Page title (optional)" data-reveal-title />
+    <textarea class="field-control" rows="4" placeholder="Exactly what the players may read" data-reveal-text></textarea>
+    <button type="button" class="btn btn-small" data-reveal-go="${escapeHtml(position)}">Plan reveal…</button>`;
+  form.querySelector('[data-reveal-text]').focus();
+}
+async function onTarokkaClick(e) {
+  const open = e.target.closest('[data-open]');
+  if (open) {
+    try {
+      await callReadTool('open-in-foundry', { uuid: open.dataset.open });
+      toast('Opened in Foundry', 'ok');
+    } catch (err) {
+      toast(`✗ open-in-foundry: ${String(err.message || err)}`, 'err');
+    }
+    return;
+  }
+  const search = e.target.closest('[data-link-search]');
+  if (search) return showLinkSearch(search.dataset.linkSearch);
+  const go = e.target.closest('[data-link-go]');
+  if (go) return runLinkSearch(go.dataset.linkGo);
+  const pick = e.target.closest('[data-link-pick]');
+  if (pick) {
+    return planThenApply('plan-tarokka-links', {
+      position: pick.dataset.linkPick,
+      [linkField(pick.dataset.doc)]: pick.dataset.uuid,
+    });
+  }
+  const reveal = e.target.closest('[data-reveal]');
+  if (reveal) return showRevealForm(reveal.dataset.reveal);
+  const revealGo = e.target.closest('[data-reveal-go]');
+  if (revealGo) {
+    const form = tarokkaForm(revealGo.dataset.revealGo);
+    const text = form.querySelector('[data-reveal-text]').value.trim();
+    const title = form.querySelector('[data-reveal-title]').value.trim();
+    if (!text) {
+      toast('Write the text the players will read first.', 'warn');
+      return;
+    }
+    return planThenApply('plan-tarokka-reveal', {
+      position: revealGo.dataset.revealGo,
+      text,
+      ...(title ? { title } : {}),
+    });
+  }
+}
+
 // --- Wiring ---
 els.btnGm.addEventListener('click', () => {
   postJson('/api/control', { action: 'toggle-gm-actions' }).catch(() => {});
@@ -998,6 +1169,18 @@ els.combatActions.addEventListener('click', e => {
   if (action === 'save') void openTool('roll-saving-throws', { targets: names });
 });
 els.changesRefresh.addEventListener('click', () => void loadRecentChanges());
+els.btnTarokka.addEventListener('click', openTarokka);
+els.tarokkaClose.addEventListener('click', closeTarokka);
+els.drawerBackdrop.addEventListener('click', closeTarokka);
+els.tarokkaRefresh.addEventListener('click', () => void loadTarokka());
+els.tarokkaShow.addEventListener('change', renderTarokka);
+els.tarokkaImport.addEventListener('click', () =>
+  planThenApply('plan-tarokka-import', { source: 'tarokka-reading' })
+);
+els.tarokkaRoll.addEventListener('click', () =>
+  planThenApply('plan-tarokka-import', { source: 'builtin-roll' })
+);
+els.tarokkaBody.addEventListener('click', e => void onTarokkaClick(e));
 els.changesBody.addEventListener('click', e => {
   const btn = e.target.closest('[data-undo]');
   if (!btn) return;
@@ -1019,6 +1202,7 @@ els.modalDestructiveCheck.addEventListener('change', () => {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!els.modalBackdrop.hidden) closeModal(false);
+  else if (!els.tarokkaDrawer.hidden) closeTarokka();
   else if (!els.drawer.hidden) closeDrawer();
 });
 

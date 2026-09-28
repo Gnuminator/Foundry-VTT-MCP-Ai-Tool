@@ -151,6 +151,21 @@ describe('QueryHandlers — query lockdown', () => {
 describe('QueryHandlers — guarded-write handlers', () => {
   const GUARDED = ['snapshotGuardedOps', 'applyGuardedOps', 'logGmChange', 'listGuardedFeatures'];
 
+  it('registers the Tarokka read handlers, GM-gated', async () => {
+    qh.registerHandlers();
+    expect(qh.isMethodRegistered('getTarokkaReading')).toBe(true);
+    expect(qh.isMethodRegistered('searchLinkCandidates')).toBe(true);
+    stubDataAccess();
+    await expect(queries()[`${MODULE_ID}.searchLinkCandidates`]({ query: 'x' })).rejects.toThrow(
+      'Failed to search link candidates: query must be 2 to 100 characters'
+    );
+    (globalThis as any).game.user = { ...(globalThis as any).game.user, isGM: false };
+    expect(await queries()[`${MODULE_ID}.getTarokkaReading`]({})).toEqual({
+      error: 'Access denied',
+      success: false,
+    });
+  });
+
   it('registers the four guarded-write handlers', () => {
     qh.registerHandlers();
     for (const method of GUARDED) expect(qh.isMethodRegistered(method)).toBe(true);

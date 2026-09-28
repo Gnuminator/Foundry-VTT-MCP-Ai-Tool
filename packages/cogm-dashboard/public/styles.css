@@ -1798,3 +1798,102 @@ body {
   padding: 0.2rem 0.55rem;
   font-size: var(--fs-2xs);
 }
+
+/* --- Tarokka drawer ------------------------------------------------------ */
+.tarokka-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+.tarokka-show {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+.tarokka-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0.8rem 1rem;
+}
+.tarokka-pos {
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.6rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+}
+.tarokka-pos-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+.tarokka-label {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.tarokka-card {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  text-align: right;
+}
+.tarokka-card code {
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+}
+.tarokka-card.veiled {
+  filter: blur(6px);
+  user-select: none;
+}
+.tarokka-note {
+  margin-top: 0.3rem;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  white-space: pre-wrap;
+}
+.tarokka-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.45rem;
+}
+.tarokka-badge {
+  font-size: var(--fs-2xs);
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  color: var(--text-dim);
+  border: 1px solid var(--border-soft);
+}
+.tarokka-badge.revealed {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+.tarokka-badge.warn {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.tarokka-form {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.tarokka-candidate {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border-soft);
+}

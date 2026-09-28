@@ -1,6 +1,7 @@
 import { MODULE_ID } from './constants.js';
 import { bridgeHandlers } from './bridge-handlers.js';
-import { openDocumentForGm } from './gm-helper-queries.js';
+import { fetchTarokkaReadingFromUser, openDocumentForGm } from './gm-helper-queries.js';
+import { getTarokkaReading, searchLinkCandidates } from './tarokka.js';
 import { listGuardedFeatures } from './guarded-features.js';
 import { applyGuardedOps, logGmChange, snapshotGuardedOps } from './data-access/guarded-write.js';
 import { FoundryDataAccess } from './data-access.js';
@@ -116,6 +117,20 @@ export class QueryHandlers {
       `${modulePrefix}.openDocumentForGm`,
       (data: { uuid?: unknown; userId?: unknown } | undefined) =>
         this.withGmGate('Failed to open document', () => openDocumentForGm(data ?? {}))
+    );
+
+    // Tarokka (read-only; the backend stores readings in its vault)
+    handlers.set(`${modulePrefix}.getTarokkaReading`, (data: { userId?: unknown } | undefined) =>
+      this.withGmGate('Failed to read the Tarokka reading', () =>
+        getTarokkaReading(data, fetchTarokkaReadingFromUser)
+      )
+    );
+    handlers.set(
+      `${modulePrefix}.searchLinkCandidates`,
+      (data: { query?: unknown; limit?: unknown } | undefined) =>
+        this.withGmGate('Failed to search link candidates', () =>
+          Promise.resolve(searchLinkCandidates(data))
+        )
     );
 
     // Phase 2 & 3: Write operation queries

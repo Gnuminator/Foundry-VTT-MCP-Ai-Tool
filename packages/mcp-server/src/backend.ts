@@ -62,6 +62,8 @@ import { SceneControlTools } from './tools/scene-control.js';
 import { LootTools } from './tools/loot.js';
 import { DiagnosticsTools } from './tools/diagnostics.js';
 import { GuardedChangeTools } from './tools/guarded-changes.js';
+import { TarokkaTools } from './tools/tarokka.js';
+import { TarokkaService } from './tarokka/service.js';
 import { GuardedWriteService } from './guarded-write/service.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
 import { EventPump, eventPumpSettings } from './event-pump.js';
@@ -283,6 +285,10 @@ async function startBackend(): Promise<void> {
     logger,
   });
   const guardedChangeTools = new GuardedChangeTools({ guardedWrites, foundryClient, logger });
+  const tarokkaTools = new TarokkaTools({
+    tarokka: new TarokkaService({ guardedWrites, store: vaultStore, worldIds, foundryClient }),
+    logger,
+  });
   logger.info('Bridge vault', { dataDir: vaultStore.dataDir });
 
   // Initialize mapgen-style backend components for map generation
@@ -477,6 +483,7 @@ async function startBackend(): Promise<void> {
     combatResolutionTools,
     encounterTools,
     guardedChangeTools,
+    tarokkaTools,
     sceneControlTools,
     lootTools,
     diagnosticsTools,
@@ -530,6 +537,8 @@ async function startBackend(): Promise<void> {
     ...diagnosticsTools.getToolDefinitions(),
 
     ...guardedChangeTools.getToolDefinitions(),
+
+    ...tarokkaTools.getToolDefinitions(),
   ];
 
   // Start Foundry connector (owns app port 31415). Skipped in control-only mode

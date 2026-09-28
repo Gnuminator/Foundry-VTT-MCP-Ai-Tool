@@ -20,6 +20,18 @@ describe('classifyTool', () => {
     }
   });
 
+  it('treats the Tarokka tools as reads (they only plan; apply-planned-change writes)', () => {
+    for (const name of [
+      'get-tarokka-reading',
+      'plan-tarokka-import',
+      'plan-tarokka-links',
+      'plan-tarokka-reveal',
+      'suggest-tarokka-links',
+    ]) {
+      expect(classifyTool(name)).toBe('read');
+    }
+  });
+
   it('treats apply-planned-change as a write and undo-change as destructive', () => {
     expect(classifyTool('apply-planned-change')).toBe('write');
     expect(classifyTool('move-token')).toBe('write');

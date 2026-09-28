@@ -19,5 +19,5 @@
   },
   "include": ["src/**/*"],
   "references": [{ "path": "../../shared" }],
-  "exclude": ["dist", "**/*.test.*", "**/*.spec.*"]
+  "exclude": ["dist", "**/*.test.*", "**/*.spec.*", "src/test-support/**"]
 }

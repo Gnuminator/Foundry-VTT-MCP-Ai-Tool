@@ -31,6 +31,7 @@ import type { ResourceTools } from './tools/resources.js';
 import type { SceneControlTools } from './tools/scene-control.js';
 import type { SceneTools } from './tools/scene.js';
 import type { SessionLogTools } from './tools/session-log.js';
+import type { TarokkaTools } from './tools/tarokka.js';
 import type { TokenManipulationTools } from './tools/token-manipulation.js';
 
 /** The tool instances backend.ts constructs and the router dispatches to. */
@@ -59,6 +60,7 @@ export interface ToolRouterDeps {
   sceneControlTools: SceneControlTools;
   sceneTools: SceneTools;
   sessionLogTools: SessionLogTools;
+  tarokkaTools: TarokkaTools;
   tokenManipulationTools: TokenManipulationTools;
 }
 
@@ -154,6 +156,11 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'get-world-info': args => deps.sceneTools.handleGetWorldInfo(args),
     'get-session-log': args => deps.sessionLogTools.handleGetSessionLog(args),
     'get-recent-events': args => deps.sessionLogTools.handleGetRecentEvents(args),
+    'get-tarokka-reading': args => deps.tarokkaTools.handleGetTarokkaReading(args),
+    'plan-tarokka-import': args => deps.tarokkaTools.handlePlanTarokkaImport(args),
+    'suggest-tarokka-links': args => deps.tarokkaTools.handleSuggestTarokkaLinks(args),
+    'plan-tarokka-links': args => deps.tarokkaTools.handlePlanTarokkaLinks(args),
+    'plan-tarokka-reveal': args => deps.tarokkaTools.handlePlanTarokkaReveal(args),
     'move-token': args => deps.tokenManipulationTools.handleMoveToken(args),
     'update-token': args => deps.tokenManipulationTools.handleUpdateToken(args),
     'delete-tokens': args => deps.tokenManipulationTools.handleDeleteTokens(args),

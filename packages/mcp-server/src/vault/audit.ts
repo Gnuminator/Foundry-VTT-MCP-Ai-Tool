@@ -32,7 +32,7 @@ export interface AuditEntry {
   summary: string;
   risk: GuardedRisk;
   /** Where the change was written. */
-  target: 'foundry' | 'vault';
+  target: 'foundry' | 'vault' | 'mixed';
   mode: 'apply' | 'undo';
   appliedAt: string;
   /** Readable diff lines, as shown when the change was confirmed. */

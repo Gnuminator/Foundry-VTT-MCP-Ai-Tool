@@ -6,7 +6,13 @@ import { CampaignHooks } from './campaign-hooks.js';
 import { ComfyUIManager } from './comfyui-manager.js';
 import { eventTracker } from './session-events.js';
 import { diagnostics } from './diagnostics.js';
-import { registerGmHelperQueries, unregisterGmHelperQueries } from './gm-helper-queries.js';
+import {
+  registerGmHelperQueries,
+  sendTarokkaOffer,
+  unregisterGmHelperQueries,
+} from './gm-helper-queries.js';
+import { registerGuardedFeature } from './guarded-features.js';
+import { TAROKKA_FEATURE_ID, onTarokkaSettingChanged } from './tarokka.js';
 // Connection control now handled through settings menu
 
 // Install diagnostic error capture as early as possible (module evaluation),
@@ -60,6 +66,18 @@ class FoundryMCPBridge {
 
       // Register module settings
       this.settings.registerSettings();
+
+      // Guarded-write feature switches (world settings, default off).
+      registerGuardedFeature({
+        id: TAROKKA_FEATURE_ID,
+        name: 'AI Tool: Tarokka (writes)',
+        hint: 'Lets the AI Tool save Tarokka readings to its vault, link cards to journals and publish reveal pages to players.',
+      });
+      Hooks.on('clientSettingChanged', (key: string) => {
+        void onTarokkaSettingChanged(key, sendTarokkaOffer).catch(error => {
+          console.warn(`[${MODULE_ID}] Tarokka offer failed:`, error);
+        });
+      });
 
       // Register bridge handlers (module-private table, dispatched only by the
       // socket bridge) and the sender-checked GM-to-GM helper queries (the only

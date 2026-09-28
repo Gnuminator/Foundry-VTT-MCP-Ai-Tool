@@ -25,7 +25,7 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
   { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools },
   { ChatLogTools }, { ResourceTools }, { EffectsTools }, { CombatTools }, { MovementTools },
   { SessionLogTools }, { CombatResolutionTools }, { EncounterTools }, { SceneControlTools },
-  { LootTools }, { DiagnosticsTools }, { GuardedChangeTools }, { getSystemRegistry },
+  { LootTools }, { DiagnosticsTools }, { GuardedChangeTools }, { TarokkaTools }, { getSystemRegistry },
   { DnD5eAdapter }] = await Promise.all([
   importDist('config.js'),
   importDist('logger.js'),
@@ -52,6 +52,7 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
   importDist('tools/loot.js'),
   importDist('tools/diagnostics.js'),
   importDist('tools/guarded-changes.js'),
+  importDist('tools/tarokka.js'),
   importDist('systems/index.js'),
   importDist('systems/dnd5e/adapter.js'),
 ]);
@@ -85,6 +86,7 @@ const tools = [
   ...new LootTools({ foundryClient, logger }).getToolDefinitions(),
   ...new DiagnosticsTools({ foundryClient, logger }).getToolDefinitions(),
   ...new GuardedChangeTools({ guardedWrites: {}, foundryClient, logger }).getToolDefinitions(),
+  ...new TarokkaTools({ tarokka: {}, logger }).getToolDefinitions(),
 ];
 
 if (!tools.length) {

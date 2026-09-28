@@ -3,181 +3,12 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type {
-  GuardedApplyRequest,
-  GuardedOp,
-  GuardedOpResult,
-  OpSnapshot,
-  PathValue,
-} from '@gnuminator/shared';
+import type { GuardedOp } from '@gnuminator/shared';
 
 import { AUDIT_INLINE_DELETED_LIMIT, AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 import { GuardedWriteService, PLAN_TTL_MS, type PlanView } from './service.js';
-import { readDataPath, samePathValue, writeDataPath } from './values.js';
-
-// ---------------------------------------------------------------------------
-// A fake Foundry module: enough of snapshotGuardedOps/applyGuardedOps to run
-// plan -> apply -> undo end to end (the real one is tested in the module).
-// ---------------------------------------------------------------------------
-
-interface FakeDoc {
-  documentName: string;
-  source: Record<string, any>;
-}
-
-class FakeFoundry {
-  docs = new Map<string, FakeDoc>();
-  features = [{ id: 'test-feature', name: 'Test', hint: '', enabled: true }];
-  worldId = 'curse-of-strahd';
-  connected = true;
-  failLogGmChange = false;
-  private seq = 0;
-  private clock = 100;
-  readonly calls: Array<[string, any]> = [];
-
-  add(uuid: string, documentName: string, source: Record<string, any>): FakeDoc {
-    const doc = {
-      documentName,
-      source: { ...source, _stats: { modifiedTime: (this.clock += 1) } },
-    };
-    this.docs.set(uuid, doc);
-    return doc;
-  }
-
-  edit(uuid: string, pathValue: PathValue): void {
-    const doc = this.docs.get(uuid)!;
-    doc.source = writeDataPath(doc.source, pathValue);
-    doc.source._stats = { modifiedTime: (this.clock += 1) };
-  }
-
-  query = vi.fn((method: string, data?: any): Promise<any> => {
-    this.calls.push([method, data]);
-    if (!this.connected) return Promise.reject(new Error('Foundry VTT module not connected'));
-    try {
-      return Promise.resolve(this.handle(method, data));
-    } catch (error) {
-      return Promise.reject(error);
-    }
-  });
-
-  private handle(method: string, data: any): unknown {
-    switch (method) {
-      case 'foundry-mcp-bridge.getWorldInfo':
-        return { id: this.worldId };
-      case 'foundry-mcp-bridge.snapshotGuardedOps':
-        return (data.ops as GuardedOp[]).map(op => this.snapshot(op));
-      case 'foundry-mcp-bridge.applyGuardedOps':
-        return this.apply(data as GuardedApplyRequest);
-      case 'foundry-mcp-bridge.listGuardedFeatures':
-        return this.features;
-      case 'foundry-mcp-bridge.logGmChange':
-        if (this.failLogGmChange) throw new Error('feed unavailable');
-        return { logged: true };
-      default:
-        throw new Error(`unexpected ${method}`);
-    }
-  }
-
-  private paths(op: Extract<GuardedOp, { kind: 'update' }>): string[] {
-    return [...Object.keys(op.changes), ...(op.unset ?? [])];
-  }
-
-  private snapshot(op: GuardedOp): OpSnapshot {
-    if (op.kind === 'create') {
-      const idTaken =
-        op.keepId === true &&
-        this.docs.has(
-          `${op.parentUuid ? `${op.parentUuid}.` : ''}${op.documentName}.${String(op.data._id)}`
-        );
-      return {
-        exists: op.parentUuid ? this.docs.has(op.parentUuid) : true,
-        documentName: op.documentName,
-        name: (op.data.name as string) ?? null,
-        idTaken,
-      };
-    }
-    const doc = this.docs.get(op.uuid);
-    if (!doc) return { exists: false };
-    const base = { exists: true, documentName: doc.documentName, name: doc.source.name ?? null };
-    if (op.kind === 'delete') return { ...base, modifiedTime: doc.source._stats.modifiedTime };
-    return { ...base, values: this.paths(op).map(p => readDataPath(doc.source, p)) };
-  }
-
-  private apply(req: GuardedApplyRequest): unknown {
-    if (req.mode === 'apply') {
-      const feature = this.features.find(f => f.id === req.feature);
-      if (!feature?.enabled) throw new Error(`The "${req.feature}" feature is switched off`);
-    }
-    req.ops.forEach((op, i) => {
-      const now = this.snapshot(op);
-      const want = req.expected[i];
-      const same =
-        op.kind === 'create'
-          ? now.exists && !now.idTaken
-          : now.exists === want.exists &&
-            (op.kind === 'delete'
-              ? want.modifiedTime == null || want.modifiedTime === now.modifiedTime
-              : (want.values ?? []).every((v, j) => samePathValue(v, now.values![j])));
-      if (!same) throw new Error(`Conflict, nothing was written: op ${i}`);
-    });
-    const results: GuardedOpResult[] = req.ops.map((op, index) => {
-      if (op.kind === 'update') {
-        const doc = this.docs.get(op.uuid)!;
-        const paths = this.paths(op);
-        const before = paths.map(p => readDataPath(doc.source, p));
-        for (const [p, value] of Object.entries(op.changes)) {
-          doc.source = writeDataPath(doc.source, { path: p, present: true, value });
-        }
-        for (const p of op.unset ?? []) {
-          doc.source = writeDataPath(doc.source, { path: p, present: false });
-        }
-        doc.source._stats = { modifiedTime: (this.clock += 1) };
-        return {
-          index,
-          kind: 'update',
-          uuid: op.uuid,
-          documentName: doc.documentName,
-          name: doc.source.name ?? null,
-          parentUuid: null,
-          before,
-          after: paths.map(p => readDataPath(doc.source, p)),
-        };
-      }
-      if (op.kind === 'create') {
-        const id = op.keepId ? String(op.data._id) : `new${(this.seq += 1)}`;
-        const uuid = `${op.parentUuid ? `${op.parentUuid}.` : ''}${op.documentName}.${id}`;
-        const doc = this.add(uuid, op.documentName, { ...op.data, _id: id });
-        return {
-          index,
-          kind: 'create',
-          uuid,
-          documentName: op.documentName,
-          name: doc.source.name ?? null,
-          parentUuid: op.parentUuid ?? null,
-          modifiedTime: doc.source._stats.modifiedTime,
-        };
-      }
-      const doc = this.docs.get(op.uuid)!;
-      this.docs.delete(op.uuid);
-      return {
-        index,
-        kind: 'delete',
-        uuid: op.uuid,
-        documentName: doc.documentName,
-        name: doc.source.name ?? null,
-        parentUuid: null,
-        deleted: doc.source,
-      };
-    });
-    return {
-      changeId: req.changeId,
-      mode: req.mode,
-      appliedAt: '2026-09-28T12:00:00.000Z',
-      results,
-    };
-  }
-}
+import { FakeFoundry } from '../test-support/fake-foundry.js';
 
 // ---------------------------------------------------------------------------
 
@@ -278,10 +109,10 @@ describe('createPlan (Foundry ops)', () => {
     const cases: Array<[Record<string, unknown>, RegExp]> = [
       [{ feature: 'Bad Id', summary: 's', ops: [HP_UPDATE] }, /Invalid feature id/],
       [{ feature: 'test-feature', summary: '  ', ops: [HP_UPDATE] }, /needs a summary/],
-      [{ feature: 'test-feature', summary: 's' }, /either Foundry ops or vault ops/],
+      [{ feature: 'test-feature', summary: 's' }, /Foundry ops, vault ops, or both/],
       [
         { feature: 'test-feature', summary: 's', ops: [HP_UPDATE], vaultOps: [] },
-        /either Foundry ops or vault ops/,
+        /at least one op/,
       ],
       [{ feature: 'test-feature', summary: 's', ops: [] }, /at least one op/],
       [{ feature: 'test-feature', summary: 's', ops: [{ kind: 'zap' }] }, /Unknown op kind/],
@@ -617,5 +448,90 @@ describe('vault ops', () => {
     for (const [op, message] of cases) {
       await expect(vaultPlan([op])).rejects.toThrow(message);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mixed plans (Foundry + vault in one change)
+// ---------------------------------------------------------------------------
+
+describe('mixed plans', () => {
+  const MIXED = {
+    feature: 'test-feature',
+    summary: 'Reveal a card',
+    ops: [HP_UPDATE],
+    vaultOps: [
+      { kind: 'vault-set', file: 'reveals.json', path: 'pages.p1', value: { at: 'now' } },
+      { kind: 'vault-set', file: 'reveals.json', path: 'pages.p1.feature', value: 'tarokka' },
+    ],
+  } as const;
+
+  it('diffs both parts, counts earlier ops on the same file, and can be forced destructive', async () => {
+    const p = await service.createPlan({ ...MIXED, risk: 'destructive' } as never);
+    expect(p).toMatchObject({ target: 'mixed', risk: 'destructive' });
+    expect(p.diff.map(d => d.text)).toEqual([
+      'Actor "Ireena": system.hp: 10 → 4',
+      'Actor "Ireena": flags.foundry-mcp-bridge.attitude: "friendly" → (unset)',
+      'gm/reveals.json: pages.p1: (unset) → {"at":"now"}',
+      'gm/reveals.json: pages.p1.feature: (unset) → "tarokka"',
+    ]);
+    await expect(service.createPlan({ ...MIXED, risk: 'mild' } as never)).rejects.toThrow(
+      /Unknown risk override/
+    );
+  });
+
+  it('applies and undoes both parts together', async () => {
+    const p = await service.createPlan(MIXED as never);
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect(applied.target).toBe('mixed');
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+    expect((await store.read('curse-of-strahd', 'gm', 'reveals.json'))?.data).toEqual({
+      pages: { p1: { at: 'now', feature: 'tarokka' } },
+    });
+    // The Foundry apply logs its own gm-change event; no extra logGmChange.
+    expect(foundry.calls.some(([m]) => m.endsWith('logGmChange'))).toBe(false);
+
+    await service.undo(applied.changeId, { confirm: true });
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect((await store.read('curse-of-strahd', 'gm', 'reveals.json'))?.data).toEqual({
+      pages: {},
+    });
+  });
+
+  it('writes nothing in Foundry when the vault part conflicts', async () => {
+    const p = await service.createPlan(MIXED as never);
+    await store.write('curse-of-strahd', 'gm', 'reveals.json', { pages: { p1: 'taken' } });
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(/Conflict/);
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.calls.some(([m]) => m.endsWith('applyGuardedOps'))).toBe(false);
+  });
+
+  it('rolls the Foundry part back when the vault write fails', async () => {
+    const p = await service.createPlan(MIXED as never);
+    vi.spyOn(store, 'update').mockRejectedValueOnce(new Error('disk full'));
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
+      /vault write failed \(disk full\); the Foundry part was rolled back/
+    );
+    expect(foundry.docs.get('Actor.ireena')!.source).toMatchObject({
+      system: { hp: 10 },
+      flags: { 'foundry-mcp-bridge': { attitude: 'friendly' } },
+    });
+    expect(await service.listRecentChanges()).toEqual([]);
+  });
+
+  it('reports a rollback that also fails', async () => {
+    const p = await service.createPlan(MIXED as never);
+    vi.spyOn(store, 'update').mockRejectedValueOnce(new Error('disk full'));
+    const real = foundry.query.getMockImplementation()!;
+    let applies = 0;
+    foundry.query.mockImplementation((method: string, data?: any) => {
+      if (method.endsWith('applyGuardedOps') && ++applies === 2) {
+        return Promise.reject(new Error('Conflict'));
+      }
+      return real(method, data);
+    });
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
+      /could not be rolled back: Conflict/
+    );
   });
 });

@@ -298,10 +298,16 @@ async function main() {
     const gmGoblin = gm.body.combat.combatants.find(c => c.id === 'gob1');
     check('GM role is gm', gm.body.role === 'gm');
     check('GM sees exact enemy HP', gmGoblin && gmGoblin.hp && gmGoblin.hp.value === 7);
-    check('GM sees the hidden combatant', !!gm.body.combat.combatants.find(c => c.id === 'assassin1'));
+    check(
+      'GM sees the hidden combatant',
+      !!gm.body.combat.combatants.find(c => c.id === 'assassin1')
+    );
     check('GM sees module errors', Array.isArray(gm.body.errors) && gm.body.errors.length >= 1);
     check('GM sees settings', !!gm.body.settings);
-    check('GM sees GM names', !!gm.body.world.gmNames && gm.body.world.gmNames.includes('DungeonMaster'));
+    check(
+      'GM sees GM names',
+      !!gm.body.world.gmNames && gm.body.world.gmNames.includes('DungeonMaster')
+    );
     check('GM event keeps details', (gm.body.events[0]?.details || {}).from === 12);
 
     // --- Player view (no token) -------------------------------------------
@@ -312,17 +318,34 @@ async function main() {
     check('player role is player', player.body.role === 'player');
     check('player enemy HP is nulled', plGoblin && plGoblin.hp === null);
     check('player still sees PC HP', plPc && plPc.hp && plPc.hp.value === 20);
-    check('player does NOT see hidden combatant', !player.body.combat.combatants.find(c => c.id === 'assassin1'));
+    check(
+      'player does NOT see hidden combatant',
+      !player.body.combat.combatants.find(c => c.id === 'assassin1')
+    );
     check('player gets NO module errors', player.body.errors === undefined);
     check('player gets NO settings', player.body.settings === undefined);
-    check('player world has NO GM names', player.body.world && player.body.world.gmNames === undefined);
-    check('player event details stripped', Object.keys(player.body.events[0]?.details || {}).length === 0);
-    check('player still sees public event description', player.body.events[0]?.description === 'Goblin took 5 damage');
+    check(
+      'player world has NO GM names',
+      player.body.world && player.body.world.gmNames === undefined
+    );
+    check(
+      'player event details stripped',
+      Object.keys(player.body.events[0]?.details || {}).length === 0
+    );
+    check(
+      'player still sees public event description',
+      player.body.events[0]?.description === 'Goblin took 5 damage'
+    );
 
     // --- Write surface gated ----------------------------------------------
     console.error('[cogm-split-smoke] Auth gate:');
     const noToken = await request('POST', `${base}/api/tool`, {}, { name: 'get-world-info' });
     check('POST /api/tool without token → 403', noToken.status === 403);
+    // Canary: the Tarokka reading is GM-only data; a player can never read or plan it.
+    for (const name of ['get-tarokka-reading', 'plan-tarokka-import', 'suggest-tarokka-links']) {
+      const res = await request('POST', `${base}/api/tool`, {}, { name, args: { query: 'xx' } });
+      check(`POST /api/tool ${name} as player → 403`, res.status === 403);
+    }
     const askNoToken = await request('POST', `${base}/api/ask`, {}, { question: 'hi' });
     check('POST /api/ask without token → 403', askNoToken.status === 403);
     const ctrlNoToken = await request('POST', `${base}/api/control`, {}, { action: 'pause' });

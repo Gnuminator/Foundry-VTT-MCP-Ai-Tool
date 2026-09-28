@@ -85,12 +85,20 @@ export type VaultOp = VaultSetOp | VaultDeleteOp;
 export interface PlanInput {
   feature: string;
   summary: string;
-  /** Foundry document ops (exactly one of `ops` / `vaultOps`). */
+  /** Foundry document ops (at least one of `ops` / `vaultOps`). */
   ops?: GuardedOp[];
-  /** GM vault ops. */
+  /** GM vault ops. With `ops` too, both parts are applied and undone together. */
   vaultOps?: VaultOp[];
   rulesVersion?: RulesVersion;
+  /**
+   * Raise the plan to destructive (second confirmation) even without deletes,
+   * e.g. for a reveal that cannot be taken back at the table.
+   */
+  risk?: 'destructive';
 }
+
+/** Where a change is written. */
+export type ChangeTarget = 'foundry' | 'vault' | 'mixed';
 
 export interface DiffLine {
   op: number;
@@ -110,7 +118,7 @@ export interface PlanView {
   planId: string;
   feature: string;
   summary: string;
-  target: 'foundry' | 'vault';
+  target: ChangeTarget;
   risk: GuardedRisk;
   worldId: string;
   createdAt: string;
@@ -139,7 +147,7 @@ export interface AppliedChange {
   planId: string | null;
   feature: string;
   summary: string;
-  target: 'foundry' | 'vault';
+  target: ChangeTarget;
   mode: 'apply' | 'undo';
   risk: GuardedRisk;
   appliedAt: string;
@@ -205,6 +213,19 @@ function validateVaultOps(ops: unknown): VaultOp[] {
     }
   }
   return ops as VaultOp[];
+}
+
+/** The value a vault op leaves at its path. */
+function vaultTarget(op: VaultOp): PathValue {
+  return op.kind === 'vault-set'
+    ? { path: op.path, present: true, value: op.value }
+    : { path: op.path, present: false };
+}
+
+/** A checked vault write: the files as read, and their new data. */
+interface PreparedVaultWrite {
+  current: Map<string, VaultEnvelope | null>;
+  simulated: Map<string, unknown>;
 }
 
 function describeTarget(snapshot: OpSnapshot, fallback: string): string {
@@ -303,89 +324,82 @@ export class GuardedWriteService {
     if (typeof input.summary !== 'string' || !input.summary.trim()) {
       throw new Error('A plan needs a summary');
     }
-    if ((input.ops === undefined) === (input.vaultOps === undefined)) {
-      throw new Error('A plan has either Foundry ops or vault ops');
+    if (input.ops === undefined && input.vaultOps === undefined) {
+      throw new Error('A plan needs Foundry ops, vault ops, or both');
     }
     if (input.rulesVersion !== undefined && !['2014', '2024'].includes(input.rulesVersion)) {
       throw new Error(`Unknown rules version: ${String(input.rulesVersion)}`);
     }
+    if (input.risk !== undefined && input.risk !== 'destructive') {
+      throw new Error(`Unknown risk override: ${String(input.risk)}`);
+    }
+    const ops = input.ops === undefined ? [] : validateFoundryOps(input.ops);
+    const vaultOps = input.vaultOps === undefined ? [] : validateVaultOps(input.vaultOps);
     const worldId = await this.worldIds.current();
     const createdMs = this.now();
-    const base = {
-      planId: newId('plan', createdMs),
-      feature: input.feature,
-      summary: input.summary.trim(),
-      worldId,
-      createdAt: new Date(createdMs).toISOString(),
-      expiresAt: new Date(createdMs + this.ttlMs).toISOString(),
-      createdMs,
-    };
 
-    let plan: StoredPlan;
-    if (input.ops !== undefined) {
-      const ops = validateFoundryOps(input.ops);
-      const expected = unwrap<OpSnapshot[]>(
+    const diff: DiffLine[] = [];
+    let expected: OpSnapshot[] = [];
+    if (ops.length > 0) {
+      expected = unwrap<OpSnapshot[]>(
         await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', { ops }),
         'Snapshot refused'
       );
       if (!Array.isArray(expected) || expected.length !== ops.length) {
         throw new Error('Foundry returned an unexpected snapshot');
       }
-      const risk: GuardedRisk = ops.some(op => op.kind === 'delete') ? 'destructive' : 'write';
-      plan = {
-        ...base,
-        target: 'foundry',
-        risk,
-        diff: foundryDiff(ops, expected),
-        requires: { confirm: true, confirmDestructive: risk === 'destructive' },
-        ops,
-        expected,
-        vaultOps: [],
-        vaultExpected: [],
-        ...(input.rulesVersion ? { rulesVersion: input.rulesVersion } : {}),
-      };
-    } else {
-      const vaultOps = validateVaultOps(input.vaultOps);
-      const vaultExpected: PathValue[] = [];
-      const diff: DiffLine[] = [];
-      for (const [i, op] of vaultOps.entries()) {
-        const current = await this.store.read(worldId, 'gm', op.file);
-        const before = readDataPath(current?.data, op.path);
-        if (op.kind === 'vault-delete' && !before.present) {
-          throw new Error(`Op ${i}: nothing to delete at ${op.file} ${op.path}`);
-        }
-        const after: PathValue =
-          op.kind === 'vault-set'
-            ? { path: op.path, present: true, value: op.value }
-            : { path: op.path, present: false };
-        vaultExpected.push(before);
-        const target = `gm/${op.file}`;
-        diff.push({
-          op: i,
-          kind: op.kind,
-          target,
-          label: target,
-          path: op.path,
-          before,
-          after,
-          text: `${target}: ${op.path}: ${formatValue(before)} → ${formatValue(after)}`,
-        });
-      }
-      const risk: GuardedRisk = vaultOps.some(op => op.kind === 'vault-delete')
-        ? 'destructive'
-        : 'write';
-      plan = {
-        ...base,
-        target: 'vault',
-        risk,
-        diff,
-        requires: { confirm: true, confirmDestructive: risk === 'destructive' },
-        ops: [],
-        expected: [],
-        vaultOps,
-        vaultExpected,
-      };
+      diff.push(...foundryDiff(ops, expected));
     }
+    const vaultExpected: PathValue[] = [];
+    for (const [i, op] of vaultOps.entries()) {
+      const current = await this.store.read(worldId, 'gm', op.file);
+      // Earlier ops of this plan on the same file count as already applied.
+      const simulated = vaultOps
+        .slice(0, i)
+        .filter(prev => prev.file === op.file)
+        .reduce<unknown>((data, prev) => writeDataPath(data, vaultTarget(prev)), current?.data);
+      const before = readDataPath(simulated, op.path);
+      if (op.kind === 'vault-delete' && !before.present) {
+        throw new Error(`Vault op ${i}: nothing to delete at ${op.file} ${op.path}`);
+      }
+      const after = vaultTarget(op);
+      vaultExpected.push(before);
+      const target = `gm/${op.file}`;
+      diff.push({
+        op: ops.length + i,
+        kind: op.kind,
+        target,
+        label: target,
+        path: op.path,
+        before,
+        after,
+        text: `${target}: ${op.path}: ${formatValue(before)} → ${formatValue(after)}`,
+      });
+    }
+
+    const deletes =
+      ops.some(op => op.kind === 'delete') || vaultOps.some(op => op.kind === 'vault-delete');
+    const risk: GuardedRisk = deletes || input.risk === 'destructive' ? 'destructive' : 'write';
+    const target: ChangeTarget =
+      ops.length > 0 && vaultOps.length > 0 ? 'mixed' : ops.length > 0 ? 'foundry' : 'vault';
+    const plan: StoredPlan = {
+      planId: newId('plan', createdMs),
+      feature: input.feature,
+      summary: input.summary.trim(),
+      target,
+      risk,
+      worldId,
+      createdAt: new Date(createdMs).toISOString(),
+      expiresAt: new Date(createdMs + this.ttlMs).toISOString(),
+      diff,
+      requires: { confirm: true, confirmDestructive: risk === 'destructive' },
+      ops,
+      expected,
+      vaultOps,
+      vaultExpected,
+      createdMs,
+      ...(input.rulesVersion ? { rulesVersion: input.rulesVersion } : {}),
+    };
 
     this.prune();
     while (this.plans.size >= this.maxPlans) {
@@ -428,10 +442,7 @@ export class GuardedWriteService {
         throw new Error(`This plan was made for world "${plan.worldId}", not "${worldId}"`);
       }
       const changeId = newId('chg', this.now());
-      const applied =
-        plan.target === 'foundry'
-          ? await this.applyFoundry(worldId, changeId, plan)
-          : await this.applyVault(worldId, changeId, plan);
+      const applied = await this.applyChange(worldId, changeId, plan);
       this.plans.delete(plan.planId);
       return applied;
     });
@@ -448,9 +459,7 @@ export class GuardedWriteService {
       if (entry.undoneBy)
         throw new Error(`Change ${changeId} was already undone (${entry.undoneBy})`);
       const undoId = newId('chg', this.now());
-      return entry.target === 'foundry'
-        ? this.undoFoundry(worldId, undoId, entry)
-        : this.undoVault(worldId, undoId, entry);
+      return this.undoChange(worldId, undoId, entry);
     });
   }
 
@@ -467,69 +476,150 @@ export class GuardedWriteService {
 
   // -------------------------------------------------------------------------
 
-  private async applyFoundry(
+  private async applyChange(
     worldId: string,
     changeId: string,
     plan: StoredPlan
   ): Promise<AppliedChange> {
-    const request: GuardedApplyRequest = {
-      changeId,
-      feature: plan.feature,
-      mode: 'apply',
-      summary: plan.summary,
-      ops: plan.ops,
-      expected: plan.expected,
-      ...(plan.rulesVersion ? { rulesVersion: plan.rulesVersion } : {}),
-    };
-    const result = await this.executeInFoundry(request);
+    const records: VaultOpRecord[] = plan.vaultOps.map((op, i) => ({
+      file: op.file,
+      path: op.path,
+      before: plan.vaultExpected[i],
+      after: vaultTarget(op),
+    }));
+    // Vault part: feature switch + conflict check before anything is written.
+    let vault: PreparedVaultWrite | null = null;
+    if (records.length > 0) {
+      await this.requireFeatureEnabled(plan.feature);
+      vault = await this.prepareVaultWrite(
+        worldId,
+        records,
+        r => r.before,
+        r => r.after
+      );
+    }
+    let foundry: GuardedApplyResult | null = null;
+    if (plan.ops.length > 0) {
+      foundry = await this.executeInFoundry({
+        changeId,
+        feature: plan.feature,
+        mode: 'apply',
+        summary: plan.summary,
+        ops: plan.ops,
+        expected: plan.expected,
+        ...(plan.rulesVersion ? { rulesVersion: plan.rulesVersion } : {}),
+      });
+    }
+    if (vault) await this.commitVaultOrRollBack(worldId, vault, foundry, plan.feature);
+
     const entry: AuditEntry = {
       changeId,
       planId: plan.planId,
       feature: plan.feature,
       summary: plan.summary,
       risk: plan.risk,
-      target: 'foundry',
+      target: plan.target,
       mode: 'apply',
-      appliedAt: result.appliedAt,
+      appliedAt: foundry?.appliedAt ?? new Date(this.now()).toISOString(),
       diff: plan.diff.map(d => d.text),
-      results: result.results,
+      ...(foundry ? { results: foundry.results } : {}),
+      ...(records.length > 0 ? { vaultOps: records } : {}),
       ...(plan.rulesVersion ? { rulesVersion: plan.rulesVersion } : {}),
     };
     await this.record(worldId, entry, () => this.audit.append(worldId, entry));
+    // A Foundry apply logs its own gm-change event; vault-only changes do it here.
+    if (!foundry) await this.logGmChange(entry);
     return this.appliedView(entry);
   }
 
-  private async undoFoundry(
+  private async undoChange(
     worldId: string,
     undoId: string,
     entry: AuditEntry
   ): Promise<AppliedChange> {
     const results = [...(await this.audit.resultsWithDeleted(worldId, entry))].reverse();
-    if (results.length === 0) throw new Error(`Change ${entry.changeId} has nothing to undo`);
+    const records = [...(entry.vaultOps ?? [])].reverse();
+    if (results.length === 0 && records.length === 0) {
+      throw new Error(`Change ${entry.changeId} has nothing to undo`);
+    }
     const summary = `Undo: ${entry.summary}`;
-    const result = await this.executeInFoundry({
-      changeId: undoId,
-      feature: entry.feature,
-      mode: 'undo',
-      summary,
-      ops: results.map(inverseGuardedOp),
-      expected: results.map(expectedAfterApply),
-    });
+    const vault =
+      records.length > 0
+        ? await this.prepareVaultWrite(
+            worldId,
+            records,
+            r => r.after,
+            r => r.before
+          )
+        : null;
+    let foundry: GuardedApplyResult | null = null;
+    if (results.length > 0) {
+      foundry = await this.executeInFoundry({
+        changeId: undoId,
+        feature: entry.feature,
+        mode: 'undo',
+        summary,
+        ops: results.map(inverseGuardedOp),
+        expected: results.map(expectedAfterApply),
+      });
+    }
+    if (vault) await this.commitVaultOrRollBack(worldId, vault, foundry, entry.feature);
+
     const undoEntry: AuditEntry = {
       changeId: undoId,
       planId: null,
       feature: entry.feature,
       summary,
       risk: entry.risk,
-      target: 'foundry',
+      target: entry.target,
       mode: 'undo',
-      appliedAt: result.appliedAt,
+      appliedAt: foundry?.appliedAt ?? new Date(this.now()).toISOString(),
       diff: entry.diff.map(line => `undone: ${line}`),
       undoOf: entry.changeId,
-      results: result.results,
+      ...(foundry ? { results: foundry.results } : {}),
+      ...(records.length > 0
+        ? { vaultOps: records.map(r => ({ ...r, before: r.after, after: r.before })) }
+        : {}),
     };
     await this.record(worldId, undoEntry, () => this.audit.recordUndo(worldId, undoEntry));
+    if (!foundry) await this.logGmChange(undoEntry);
     return this.appliedView(undoEntry);
+  }
+
+  /**
+   * Write the prepared vault part. If that fails after the Foundry part was
+   * written, reverse the Foundry part so the change is all or nothing.
+   */
+  private async commitVaultOrRollBack(
+    worldId: string,
+    vault: PreparedVaultWrite,
+    foundry: GuardedApplyResult | null,
+    feature: string
+  ): Promise<void> {
+    try {
+      await this.commitVaultWrite(worldId, vault);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!foundry) throw error;
+      const done = [...foundry.results].reverse();
+      try {
+        await this.executeInFoundry({
+          changeId: `${foundry.changeId}-rollback`,
+          feature,
+          mode: 'undo',
+          summary: 'Roll back (vault write failed)',
+          ops: done.map(inverseGuardedOp),
+          expected: done.map(expectedAfterApply),
+        });
+      } catch (rollbackError) {
+        throw new Error(
+          `The vault write failed (${message}) and the Foundry part could not be rolled back: ${
+            rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+          }`
+        );
+      }
+      throw new Error(`The vault write failed (${message}); the Foundry part was rolled back`);
+    }
   }
 
   private async executeInFoundry(request: GuardedApplyRequest): Promise<GuardedApplyResult> {
@@ -543,86 +633,17 @@ export class GuardedWriteService {
     return result;
   }
 
-  private async applyVault(
-    worldId: string,
-    changeId: string,
-    plan: StoredPlan
-  ): Promise<AppliedChange> {
-    await this.requireFeatureEnabled(plan.feature);
-    const records: VaultOpRecord[] = plan.vaultOps.map((op, i) => ({
-      file: op.file,
-      path: op.path,
-      before: plan.vaultExpected[i],
-      after:
-        op.kind === 'vault-set'
-          ? { path: op.path, present: true, value: op.value }
-          : { path: op.path, present: false },
-    }));
-    await this.writeVaultRecords(
-      worldId,
-      records,
-      r => r.before,
-      r => r.after
-    );
-    const entry: AuditEntry = {
-      changeId,
-      planId: plan.planId,
-      feature: plan.feature,
-      summary: plan.summary,
-      risk: plan.risk,
-      target: 'vault',
-      mode: 'apply',
-      appliedAt: new Date(this.now()).toISOString(),
-      diff: plan.diff.map(d => d.text),
-      vaultOps: records,
-    };
-    await this.record(worldId, entry, () => this.audit.append(worldId, entry));
-    await this.logGmChange(entry);
-    return this.appliedView(entry);
-  }
-
-  private async undoVault(
-    worldId: string,
-    undoId: string,
-    entry: AuditEntry
-  ): Promise<AppliedChange> {
-    const records = [...(entry.vaultOps ?? [])].reverse();
-    if (records.length === 0) throw new Error(`Change ${entry.changeId} has nothing to undo`);
-    await this.writeVaultRecords(
-      worldId,
-      records,
-      r => r.after,
-      r => r.before
-    );
-    const undoEntry: AuditEntry = {
-      changeId: undoId,
-      planId: null,
-      feature: entry.feature,
-      summary: `Undo: ${entry.summary}`,
-      risk: entry.risk,
-      target: 'vault',
-      mode: 'undo',
-      appliedAt: new Date(this.now()).toISOString(),
-      diff: entry.diff.map(line => `undone: ${line}`),
-      undoOf: entry.changeId,
-      vaultOps: records.map(r => ({ ...r, before: r.after, after: r.before })),
-    };
-    await this.record(worldId, undoEntry, () => this.audit.recordUndo(worldId, undoEntry));
-    await this.logGmChange(undoEntry);
-    return this.appliedView(undoEntry);
-  }
-
   /**
-   * Check every record's expected value first (nothing is written on a
-   * conflict), then write file by file. Runs inside the service lock, and only
-   * this service writes `gm/` feature files.
+   * Check every record's expected value (nothing is written on a conflict) and
+   * compute the new file contents. Runs inside the service lock, and only this
+   * service writes `gm/` feature files.
    */
-  private async writeVaultRecords(
+  private async prepareVaultWrite(
     worldId: string,
     records: VaultOpRecord[],
     expectedOf: (r: VaultOpRecord) => PathValue,
     targetOf: (r: VaultOpRecord) => PathValue
-  ): Promise<void> {
+  ): Promise<PreparedVaultWrite> {
     const conflicts: string[] = [];
     const current = new Map<string, VaultEnvelope | null>();
     for (const record of records) {
@@ -634,23 +655,38 @@ export class GuardedWriteService {
     const simulated = new Map<string, unknown>(
       [...current].map(([file, envelope]) => [file, envelope?.data])
     );
+    // After a conflict in a file, later ops on it are only reported, not replayed.
+    const blocked = new Set<string>();
     for (const record of records) {
       const have = readDataPath(simulated.get(record.file), record.path);
       if (!samePathValue(have, expectedOf(record))) {
         conflicts.push(`${record.file} ${record.path} changed since`);
+        blocked.add(record.file);
         continue;
       }
-      simulated.set(record.file, writeDataPath(simulated.get(record.file), targetOf(record)));
+      if (blocked.has(record.file)) continue;
+      try {
+        simulated.set(record.file, writeDataPath(simulated.get(record.file), targetOf(record)));
+      } catch (error) {
+        conflicts.push(
+          `${record.file} ${record.path}: ${error instanceof Error ? error.message : String(error)}`
+        );
+        blocked.add(record.file);
+      }
     }
     if (conflicts.length > 0) {
       throw new Error(`Conflict, nothing was written: ${conflicts.join('; ')}`);
     }
-    for (const [file, before] of current) {
+    return { current, simulated };
+  }
+
+  private async commitVaultWrite(worldId: string, vault: PreparedVaultWrite): Promise<void> {
+    for (const [file, before] of vault.current) {
       await this.store.update(worldId, 'gm', file, before?.schema ?? 1, envelope => {
         if (stableStringify(envelope?.data) !== stableStringify(before?.data)) {
           throw new Error(`${file} changed during the write`);
         }
-        return simulated.get(file) ?? {};
+        return vault.simulated.get(file) ?? {};
       });
     }
   }

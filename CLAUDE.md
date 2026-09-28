@@ -90,6 +90,19 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
   vault storage with archive, per-position/card link table, reveal pages for players (mixed guarded
   plans), GM-only dashboard drawer, canary tests. **Tests 2,217** (foundry-module 930, mcp-server
   1198, shared 49, cogm-dashboard 40). **Next: GM live test of M0+M1, then M2 (spoiler-safe /player).**
+- [x] **M0+M1 live test PASSED on the test server** (2026-09-28, `efe6e73`): query lockdown as Player,
+  Tarokka import/apply/list/undo (API + dashboard UI), switch off refuses (vault, mixed, Foundry-only),
+  vault and Foundry conflicts write nothing, reveal page shows Player only the typed text, `/player`
+  (split on and off) has no card data, vault files + session log. 4 bugs fixed with tests.
+- [~] **Handoff (budget ran out, 2026-09-28).** Uncommitted in the working tree: tool-parameter pickers
+  (`shared/src/tool-refs.ts`, module `data-access/ref-choices.ts`, backend `tools/ref-choices.ts` =
+  `list-ref-choices`, dashboard `app.js` "Pick…", `tool-catalog.test.ts` enforcing annotations,
+  `toolRef`/`freeText` annotations in the tool files). Finish: full gate, fix, verify live in the test
+  dashboard, commit. On disk: `.claude/skills/foundry-core-ui/reference/*.md` (unverified drafts).
+  To do: Part B click-through + stamps, `foundry-core-ui/SKILL.md` (+ `foundry-mod-<id>` convention),
+  split `foundry-test-env` into infra + `foundry-ai-tool`, `docs/OBSIDIAN-PLAN.md` (own session; GM
+  granted read/write on `C:\Users\chris\Documents\Obsidian\vault`), Discord idea into CoS plan
+  section 10; then STOP for the GM's go-ahead on M2.
 
 ## Model guidance
 

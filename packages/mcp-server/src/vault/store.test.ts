@@ -1,0 +1,163 @@
+import { promises as fsp } from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { VaultStore } from './store.js';
+
+let dataDir: string;
+
+beforeEach(async () => {
+  dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'vault-store-'));
+});
+
+afterEach(async () => {
+  await fsp.rm(dataDir, { recursive: true, force: true });
+});
+
+function makeStore(extra: Partial<ConstructorParameters<typeof VaultStore>[0]> = {}): VaultStore {
+  return new VaultStore({
+    dataDir,
+    now: () => new Date('2026-09-28T10:00:00.000Z'),
+    renameRetryDelaysMs: [1, 1, 1],
+    ...extra,
+  });
+}
+
+describe('VaultStore JSON files', () => {
+  it('writes an envelope under <dataDir>/<worldId>/<area>/ and reads it back', async () => {
+    const store = makeStore();
+    await store.write('w1', 'gm', 'tarokka.json', { cards: [1, 2] }, 3);
+    const raw = JSON.parse(
+      await fsp.readFile(path.join(dataDir, 'w1', 'gm', 'tarokka.json'), 'utf8')
+    );
+    expect(raw).toEqual({
+      schema: 3,
+      updatedAt: '2026-09-28T10:00:00.000Z',
+      data: { cards: [1, 2] },
+    });
+    expect(await store.read('w1', 'gm', 'tarokka.json')).toEqual(raw);
+    expect(await store.read('w1', 'gm', 'missing.json')).toBeNull();
+  });
+
+  it('leaves no temp files behind', async () => {
+    const store = makeStore();
+    await store.write('w1', 'gm', 'a.json', 1);
+    await store.write('w1', 'gm', 'a.json', 2);
+    expect(await fsp.readdir(path.join(dataDir, 'w1', 'gm'))).toEqual(['a.json']);
+  });
+
+  it('reports a corrupt file and never overwrites it through update', async () => {
+    const store = makeStore();
+    const file = path.join(dataDir, 'w1', 'gm', 'bad.json');
+    await fsp.mkdir(path.dirname(file), { recursive: true });
+    await fsp.writeFile(file, '{not json');
+    await expect(store.read('w1', 'gm', 'bad.json')).rejects.toThrow(/not valid JSON/);
+    await expect(store.update('w1', 'gm', 'bad.json', 1, () => ({}))).rejects.toThrow(
+      /not valid JSON/
+    );
+    expect(await fsp.readFile(file, 'utf8')).toBe('{not json');
+
+    await fsp.writeFile(file, '{"just":"data"}');
+    await expect(store.read('w1', 'gm', 'bad.json')).rejects.toThrow(/envelope/);
+  });
+
+  it('serializes concurrent updates to one file (no lost writes)', async () => {
+    const store = makeStore();
+    await Promise.all(
+      Array.from({ length: 25 }, () =>
+        store.update<number>('w1', 'gm', 'counter.json', 1, async current => {
+          const value = current?.data ?? 0;
+          await new Promise(r => setTimeout(r, 1));
+          return value + 1;
+        })
+      )
+    );
+    expect((await store.read<number>('w1', 'gm', 'counter.json'))?.data).toBe(25);
+  });
+
+  it('keeps the queue going after a failed update', async () => {
+    const store = makeStore();
+    await expect(
+      store.update('w1', 'gm', 'x.json', 1, () => {
+        throw new Error('boom');
+      })
+    ).rejects.toThrow('boom');
+    await store.write('w1', 'gm', 'x.json', 'ok');
+    expect((await store.read('w1', 'gm', 'x.json'))?.data).toBe('ok');
+  });
+
+  it('retries a rename that fails with EPERM/EBUSY (Windows file locks)', async () => {
+    const rename = vi.fn(fsp.rename);
+    const locked = Object.assign(new Error('locked'), { code: 'EPERM' });
+    const busy = Object.assign(new Error('busy'), { code: 'EBUSY' });
+    rename.mockRejectedValueOnce(locked).mockRejectedValueOnce(busy);
+    const store = makeStore({ rename });
+    await store.write('w1', 'gm', 'a.json', 'v');
+    expect(rename).toHaveBeenCalledTimes(3);
+    expect((await store.read('w1', 'gm', 'a.json'))?.data).toBe('v');
+  });
+
+  it('gives up after the retries, removing the temp file', async () => {
+    const locked = Object.assign(new Error('locked'), { code: 'EBUSY' });
+    const store = makeStore({ rename: () => Promise.reject(locked) });
+    await expect(store.write('w1', 'gm', 'a.json', 'v')).rejects.toThrow('locked');
+    expect(await fsp.readdir(path.join(dataDir, 'w1', 'gm'))).toEqual([]);
+  });
+
+  it('does not retry other rename errors', async () => {
+    const rename = vi.fn(() =>
+      Promise.reject(Object.assign(new Error('nope'), { code: 'ENOSPC' }))
+    );
+    const store = makeStore({ rename });
+    await expect(store.write('w1', 'gm', 'a.json', 'v')).rejects.toThrow('nope');
+    expect(rename).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses invalid names before touching the disk', async () => {
+    const store = makeStore();
+    await expect(store.write('../evil', 'gm', 'a.json', 1)).rejects.toThrow(/world id/);
+    await expect(store.write('w1', 'gm', '../../a.json', 1)).rejects.toThrow(/file name/);
+    expect(await fsp.readdir(dataDir)).toEqual([]);
+  });
+});
+
+describe('VaultStore lists, lines and removal', () => {
+  it('lists worlds and files, skipping temp and foreign names', async () => {
+    const store = makeStore();
+    await store.write('w1', 'gm', 'b.json', 1);
+    await store.write('w1', 'gm', 'a.json', 1);
+    await store.appendLines('w1', 'sessions', '2026-09-28.jsonl', [{ id: 1 }]);
+    await fsp.writeFile(path.join(dataDir, 'w1', 'gm', '.a.json.1.tmp'), '');
+    await fsp.writeFile(path.join(dataDir, 'w1', 'gm', 'notes.txt'), '');
+    await fsp.mkdir(path.join(dataDir, 'not a world'));
+
+    expect(await store.listWorlds()).toEqual(['w1']);
+    expect(await store.list('w1', 'gm')).toEqual(['a.json', 'b.json']);
+    expect(await store.listAll('w1')).toEqual([
+      { area: 'gm', file: 'a.json' },
+      { area: 'gm', file: 'b.json' },
+      { area: 'sessions', file: '2026-09-28.jsonl' },
+    ]);
+    expect(await store.list('w2', 'gm')).toEqual([]);
+    expect(await makeStore({ dataDir: path.join(dataDir, 'nope') }).listWorlds()).toEqual([]);
+  });
+
+  it('appends and reads JSON lines, skipping a torn line', async () => {
+    const store = makeStore();
+    await store.appendLines('w1', 'sessions', 'd.jsonl', [{ a: 1 }, { b: 2 }]);
+    await store.appendLines('w1', 'sessions', 'd.jsonl', []);
+    await fsp.appendFile(path.join(dataDir, 'w1', 'sessions', 'd.jsonl'), '{"torn":');
+    expect(await store.readLines('w1', 'sessions', 'd.jsonl')).toEqual([{ a: 1 }, { b: 2 }]);
+    expect(await store.readLines('w1', 'sessions', 'none.jsonl')).toEqual([]);
+    await expect(store.appendLines('w1', 'sessions', 'd.json', [1])).rejects.toThrow(/jsonl/);
+  });
+
+  it('removes files, tolerating missing ones', async () => {
+    const store = makeStore();
+    await store.write('w1', 'backups', 'x.json', 1);
+    await store.remove('w1', 'backups', 'x.json');
+    await store.remove('w1', 'backups', 'x.json');
+    expect(await store.read('w1', 'backups', 'x.json')).toBeNull();
+  });
+});

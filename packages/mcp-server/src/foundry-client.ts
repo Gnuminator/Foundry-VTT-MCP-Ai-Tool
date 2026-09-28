@@ -82,6 +82,11 @@ export class FoundryClient {
     return this.connector.getConnectionInfo();
   }
 
+  /** Changes on every module (re)connect; use it to scope per-connection caches. */
+  getConnectionSerial(): number {
+    return this.connector.getConnectionSerial();
+  }
+
   getConnectionState(): string {
     return this.connector.isConnected() ? 'connected' : 'disconnected';
   }

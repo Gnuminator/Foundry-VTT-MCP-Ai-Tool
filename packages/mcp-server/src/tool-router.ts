@@ -21,6 +21,7 @@ import type { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js
 import type { DnD5eNpcTools } from './tools/dnd5e/npc.js';
 import type { EffectsTools } from './tools/effects.js';
 import type { EncounterTools } from './tools/encounter.js';
+import type { GuardedChangeTools } from './tools/guarded-changes.js';
 import type { LootTools } from './tools/loot.js';
 import type { MapGenerationTools } from './tools/map-generation.js';
 import type { MovementTools } from './tools/movement.js';
@@ -48,6 +49,7 @@ export interface ToolRouterDeps {
   dnd5eNpcTools: DnD5eNpcTools;
   effectsTools: EffectsTools;
   encounterTools: EncounterTools;
+  guardedChangeTools: GuardedChangeTools;
   lootTools: LootTools;
   mapGenerationTools: MapGenerationTools;
   movementTools: MovementTools;
@@ -117,6 +119,11 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'suggest-balanced-encounter': args => deps.encounterTools.handleSuggestBalancedEncounter(args),
     'place-measured-template': args => deps.encounterTools.handlePlaceMeasuredTemplate(args),
     'delete-measured-template': args => deps.encounterTools.handleDeleteMeasuredTemplate(args),
+    'get-planned-change': args => deps.guardedChangeTools.handleGetPlannedChange(args),
+    'apply-planned-change': args => deps.guardedChangeTools.handleApplyPlannedChange(args),
+    'list-recent-changes': args => deps.guardedChangeTools.handleListRecentChanges(args),
+    'undo-change': args => deps.guardedChangeTools.handleUndoChange(args),
+    'open-in-foundry': args => deps.guardedChangeTools.handleOpenInFoundry(args),
     'drop-loot': args => deps.lootTools.handleDropLoot(args),
     'generate-map': args => deps.mapGenerationTools.generateMap(args),
     'check-map-status': args => deps.mapGenerationTools.checkMapStatus(args),

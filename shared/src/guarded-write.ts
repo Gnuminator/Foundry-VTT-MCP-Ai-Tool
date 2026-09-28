@@ -112,3 +112,53 @@ export interface GuardedFeatureState {
 
 /** `write` needs `confirm`; `destructive` (any delete) also needs `confirmDestructive`. */
 export type GuardedRisk = 'write' | 'destructive';
+
+/**
+ * The op that reverses an executed op. The backend builds undo plans with it;
+ * the module keeps an identical copy for mid-plan rollback (compared in a test).
+ *
+ * - update: restore every recorded `before` value; a path that was absent is unset.
+ * - create: delete the created document.
+ * - delete: re-create it from the stored source data, keeping its id.
+ */
+export function inverseGuardedOp(executed: GuardedOpResult): GuardedOp {
+  switch (executed.kind) {
+    case 'update': {
+      const changes: Record<string, unknown> = {};
+      const unset: string[] = [];
+      for (const value of executed.before ?? []) {
+        if (value.present) changes[value.path] = value.value;
+        else unset.push(value.path);
+      }
+      return { kind: 'update', uuid: executed.uuid, changes, unset };
+    }
+    case 'create':
+      return { kind: 'delete', uuid: executed.uuid };
+    case 'delete': {
+      const op: GuardedCreateOp = {
+        kind: 'create',
+        documentName: executed.documentName,
+        data: executed.deleted ?? {},
+        keepId: true,
+      };
+      if (executed.parentUuid) op.parentUuid = executed.parentUuid;
+      return op;
+    }
+  }
+}
+
+/**
+ * The state an undo expects to find: what the apply left behind. A document
+ * that changed since then makes the undo report a conflict instead of
+ * clobbering the newer edit.
+ */
+export function expectedAfterApply(executed: GuardedOpResult): OpSnapshot {
+  switch (executed.kind) {
+    case 'update':
+      return { exists: true, values: executed.after ?? [] };
+    case 'create':
+      return { exists: true, modifiedTime: executed.modifiedTime ?? null };
+    case 'delete':
+      return { exists: true, idTaken: false };
+  }
+}

@@ -61,6 +61,9 @@ import { EncounterTools } from './tools/encounter.js';
 import { SceneControlTools } from './tools/scene-control.js';
 import { LootTools } from './tools/loot.js';
 import { DiagnosticsTools } from './tools/diagnostics.js';
+import { GuardedChangeTools } from './tools/guarded-changes.js';
+import { GuardedWriteService } from './guarded-write/service.js';
+import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
 
 // Control channel bind target. Defaults to the frozen loopback contract
 // (127.0.0.1:31414) the stdio wrapper and dashboard expect, but is injectable so
@@ -267,6 +270,19 @@ async function startBackend(): Promise<void> {
 
   const diagnosticsTools = new DiagnosticsTools({ foundryClient, logger });
 
+  // Bridge vault (GM-only data off Foundry) + guarded writes (plan/apply/undo).
+  const vaultStore = new VaultStore({ dataDir: resolveDataDir() });
+  const worldIds = new WorldIdResolver(foundryClient);
+  const guardedWrites = new GuardedWriteService({
+    foundryClient,
+    worldIds,
+    store: vaultStore,
+    audit: new AuditLog(vaultStore),
+    logger,
+  });
+  const guardedChangeTools = new GuardedChangeTools({ guardedWrites, foundryClient, logger });
+  logger.info('Bridge vault', { dataDir: vaultStore.dataDir });
+
   // Initialize mapgen-style backend components for map generation
   let mapGenerationJobQueue: any = null;
   let mapGenerationComfyUIClient: any = null;
@@ -458,6 +474,7 @@ async function startBackend(): Promise<void> {
     sessionLogTools,
     combatResolutionTools,
     encounterTools,
+    guardedChangeTools,
     sceneControlTools,
     lootTools,
     diagnosticsTools,
@@ -509,6 +526,8 @@ async function startBackend(): Promise<void> {
     ...lootTools.getToolDefinitions(),
 
     ...diagnosticsTools.getToolDefinitions(),
+
+    ...guardedChangeTools.getToolDefinitions(),
   ];
 
   // Start Foundry connector (owns app port 31415). Skipped in control-only mode

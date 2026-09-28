@@ -27,6 +27,8 @@ export class FoundryConnector {
   private activeConnectionType: 'websocket' | 'webrtc' | null = null;
   private pendingQueries = new Map<string, PendingQuery>();
   private queryIdCounter = 0;
+  /** Bumped on every new module connection (caches keyed per connection use it). */
+  private connectionSerial = 0;
 
   constructor({ config, logger }: FoundryConnectorOptions) {
     this.config = config;
@@ -120,6 +122,7 @@ export class FoundryConnector {
       if (!this.foundrySocket) {
         this.foundrySocket = ws;
         this.activeConnectionType = 'websocket';
+        this.connectionSerial += 1;
         this.logger.info('Foundry module registered via WebSocket');
       }
 
@@ -283,6 +286,7 @@ export class FoundryConnector {
       );
 
       this.activeConnectionType = 'webrtc';
+      this.connectionSerial += 1;
       this.logger.info('WebRTC connection established');
 
       // Close signaling WebSocket after handshake
@@ -339,6 +343,7 @@ export class FoundryConnector {
       const answer = await this.webrtcPeer.handleOffer(offer);
 
       this.activeConnectionType = 'webrtc';
+      this.connectionSerial += 1;
       this.logger.info('WebRTC connection established via HTTP signaling');
 
       // Send answer back via HTTP response
@@ -417,6 +422,11 @@ export class FoundryConnector {
     }
 
     return false;
+  }
+
+  /** Identifies the current module connection; changes on every reconnect. */
+  getConnectionSerial(): number {
+    return this.connectionSerial;
   }
 
   getConnectionInfo(): any {

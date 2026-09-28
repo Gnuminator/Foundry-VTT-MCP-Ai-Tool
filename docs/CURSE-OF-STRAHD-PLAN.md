@@ -1,6 +1,8 @@
 # Curse of Strahd extension: architecture review + implementation plan
 
-Status: **PLAN, awaiting GM answers to section 9. No feature code written yet.**
+Status: **M0 (step 0) DONE on 2026-09-28, awaiting the GM's go-ahead for M1.** Section 9 answered
+(defaults). What was built, and where it differs from this plan, is in "M0 as built" at the top of
+section 3.
 Written 2026-09-27 on branch `claude/amazing-bardeen-q1x1q6` (base `a80b330`, v0.18.0). Same day: all
 **[verify]** items re-checked against the official Foundry docs (none left open), setup-session additions
 added to 0.4 and 0.7, questions 10 to 13 added.
@@ -224,6 +226,42 @@ adventures`). The rules value inside the Ravenloft actor pack is not public (rea
 
 ## 3. Step 0: foundations (milestone M0, before feature 1)
 
+### M0 as built (2026-09-28, branch `claude/amazing-bardeen-q1x1q6`)
+
+All of 0.1 to 0.7 is implemented and green (typecheck, lint ratchet, build, tests: module 914,
+mcp-server 1169, shared 49, dashboard 39 = 2,171). Differences from the text below:
+
+- **0.2 design change: plans, confirmation and the audit log live in the backend, not the
+  module.** Keeping previous values in Foundry would put them in world data every client
+  receives (2.1). The module only snapshots (`snapshotGuardedOps`) and executes
+  (`applyGuardedOps`), re-checking GM, "Allow Write Operations", the feature switch (apply only)
+  and that every target still matches the plan-time snapshot (a conflict writes nothing); a
+  failing op rolls back the earlier ones. The backend (`packages/mcp-server/src/guarded-write/`)
+  keeps plans in memory (15 min, capped at 100), builds the diff, requires `confirm` (+
+  `confirmDestructive` when a plan deletes), refuses a plan made for another world and writes
+  the audit entry to the vault. **Undo** = the backend builds inverse ops from the audit entry
+  (update → restore `before`, absent → unset; create → delete; delete → create with `keepId`
+  from the stored data) with the recorded `after` state as the expected state, so a document
+  changed since reports a conflict instead of being clobbered. Undo needs "Allow Write
+  Operations" but not the feature switch. Vault-only plans use `vault-set` / `vault-delete` ops,
+  gated by the feature switch read from Foundry (refused when Foundry is unreachable).
+- **Tools shipped in M0:** `get-planned-change`, `list-recent-changes`, `apply-planned-change`,
+  `undo-change`, `open-in-foundry`. **`get-player-visibility` moved to M2** (it belongs with the
+  projection work).
+- **0.3:** the vault also holds `sessions/pump-state.json` (event-pump cursor). CLI:
+  `npm run vault -- path|worlds|list|export|import`.
+- **0.7:** the dashboard binds `DASHBOARD_HOST` (default `127.0.0.1`) and refuses a non-loopback
+  bind without `GM_DASHBOARD_TOKEN`; the Foundry link binds `FOUNDRY_LINK_HOST` (default
+  `127.0.0.1`); ComfyUI auto-start needs `COMFYUI_AUTOSTART=true`; the lockfile now has
+  `resolved`/`integrity` for every registry entry (268 were missing after the typings removal;
+  `npm ls --all` identical before and after a clean `npm ci`).
+- **Found along the way:** the backend crashed on an abrupt control-client disconnect
+  (ECONNRESET with no socket `error` listener); fixed. `npm audit`: 2 advisories in shipped
+  code (`ip`, `werift`), 12 in total, none critical.
+- **Still open (not M0):** the module-socket `requestMessageUpdate` trusts a client-supplied
+  `userId` (roll attribution); roll/message modes adapter and moving the table 2.4 call sites
+  behind the adapter (M3); werift 0.24 on its own branch, merged after the GM's live smoke test.
+
 ### 0.1 Close the cross-user query hole
 
 - Keep the wire method names (`foundry-mcp-bridge.*`, frozen contract) but move the ~80 handlers out of
@@ -320,7 +358,8 @@ Additions from the local setup session (2026-09-27, Windows, Node 22.22.2 / npm 
   (`test:watch` already exists). Until then `npm test` waits in watch mode in an interactive terminal.
 - **npm audit (addition 3).** Shipped code has 10 advisories (high: fast-uri, ip-address, werift-ice, ip,
   werift; moderate: express, body-parser, qs, hono, @hono/node-server). `npm audit fix` without `--force`
-  clears all but `ip` and `werift`; update the audit numbers in `Claude.md`. werift 0.24.x is a breaking bump
+  clears all but `ip` and `werift`; update the audit numbers in `CLAUDE.md` (done: 2 advisories in
+  shipped code, 12 in total, none critical). werift 0.24.x is a breaking bump
   on the WebRTC path: separate change, gated on the GM's live smoke test
   (`docs/DEPENDENCY-PATCH-SMOKE-TEST.md`). The other 24 advisories are dev-only; the two "critical" ones
   leave with the v9 typings (0.4).
@@ -332,7 +371,7 @@ Additions from the local setup session (2026-09-27, Windows, Node 22.22.2 / npm 
   (the env-var defaults in `mcp-server/src/config.ts` are fine). The `src` count drops as the adapter gets
   typed (0.4).
 - **`Claude.md` to `CLAUDE.md` (addition 6).** Claude Code looks for `CLAUDE.md`, so cloud sessions on Linux
-  do not load the file; Windows ignores the case. GM decision (section 9).
+  do not load the file; Windows ignores the case. GM decision (section 9). Done in `7af2368`.
 - **Done (addition 7).** `e4558d7` stopped tracking the upstream author's `.claude/settings.local.json`,
   which pre-approved broad commands (`node:*`, `npm run:*`, `powershell:*`, `nc localhost 31414`, ...), and
   gitignored it.
@@ -564,9 +603,9 @@ Every structure carries `schema` for migrations. Scene-to-region mapping for att
 
 | Milestone | Read (`get-/list-/plan-/suggest-`)                                                                  | Write                                               |
 | --------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| M0        | `list-recent-changes`, `get-player-visibility`                                                      | `apply-planned-change`, `undo-change` (destructive) |
+| M0        | `list-recent-changes`, `get-planned-change`, `open-in-foundry`                                      | `apply-planned-change`, `undo-change` (destructive) |
 | M1        | `get-tarokka-reading`, `plan-tarokka-import`, `plan-tarokka-links`, `plan-tarokka-reveal`           | via apply                                           |
-| M2        | `list-revealed-pages`, `plan-page-reveal`                                                           | via apply                                           |
+| M2        | `list-revealed-pages`, `plan-page-reveal`, `get-player-visibility`                                  | via apply                                           |
 | M4        | `get-strahd-attention`, `plan-attention-change`, `plan-attention-config`, `suggest-strahd-reaction` | via apply                                           |
 | M5        | `list-npc-attitudes`, `get-npc-attitude`, `plan-npc-attitude`                                       | via apply                                           |
 | M6        | `list-mood-presets`, `plan-mood-preset`, `plan-mood-preset-config`                                  | via apply                                           |
@@ -582,7 +621,7 @@ Dread strip. New player view sections: Handouts (revealed pages), published reca
 Each milestone ends green (`npm run typecheck && npm run lint && npm run build` + all tests), is committed
 and pushed, and is summarized before the next starts.
 
-1. **M0** step 0 (0.1 to 0.7).
+1. **M0** step 0 (0.1 to 0.7). **Done 2026-09-28** (see "M0 as built", section 3).
 2. **M1** feature 1 (Tarokka).
 3. **M2** feature 2 (projection, player endpoints, reveal allowlist, canary suite).
 4. **M3** Foundry v14 + dnd5e 6.0 compatibility pass for existing tools (table 2.4 + pre-existing bugs).

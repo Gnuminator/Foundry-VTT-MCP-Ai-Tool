@@ -1,5 +1,62 @@
 # Changelog
 
+## Unreleased — M0: foundations for the Curse of Strahd features
+
+Groundwork from `docs/CURSE-OF-STRAHD-PLAN.md` step 0. **Wire contracts are unchanged** (module id,
+ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults change behaviour; see
+"Upgrade notes".
+
+### Security
+
+- **Bridge handlers are no longer in Foundry's `CONFIG.queries`.** Foundry relays queries from any
+  user holding "Query Users" (Player by default) to the GM's client, so a player could call any bridge
+  handler (including writes such as ownership changes) from the browser console. Handlers now live in a
+  module-private table only the bridge connection dispatches from. The only `CONFIG.queries` entries
+  left are GM-to-GM helpers on Foundry 14.352+ that check the sender is a GM.
+- **`allowNonGmAccess` is off by default and no longer locked.**
+- **Loopback by default.** The Foundry link (WebSocket 31415, WebRTC signaling 31416) and the co-GM
+  dashboard listen on `127.0.0.1`. `FOUNDRY_LINK_HOST` / `DASHBOARD_HOST` open them to other
+  interfaces; the dashboard refuses a non-loopback address without `GM_DASHBOARD_TOKEN`.
+
+### Features
+
+- **Guarded writes** (plan → confirm with diff → apply → undo), the one way new features change game
+  state: tools `get-planned-change`, `apply-planned-change`, `list-recent-changes`, `undo-change`.
+  Every feature has its own switch in the module settings (default off); applies are confirmed,
+  conflict-checked (nothing is written if a document changed since the plan), logged to the GM feed
+  and audited; undo refuses to overwrite later edits.
+- **Bridge vault**: GM-only data kept on the backend host, outside Foundry world data (which every
+  client receives). `FOUNDRY_AI_DATA_DIR`; backups with `npm run vault -- export|import`.
+- **Persistent session event log** in the vault (`sessions/<date>.jsonl`), so the history survives a
+  Foundry reload. `FOUNDRY_AI_EVENT_LOG=off` disables it.
+- **`open-in-foundry`**: open a journal page, scene or actor on a GM's Foundry screen.
+- **Dashboard**: the confirm dialog shows a planned change's diff; new Recent Changes pane with Undo.
+- **Foundry v14 / dnd5e 6.0 adapter** (feature-detected), and 2014/2024 rules tags on actors and items
+  the bridge writes (`get-character` shows them).
+
+### Fixes
+
+- The backend no longer crashes when a control-channel client disconnects abruptly (ECONNRESET).
+- `search-compendium` ignored a CR 0 filter.
+- `place-measured-template` / `delete-measured-template` now fail with a clear "not available on
+  Foundry 14 yet" error (MeasuredTemplate was removed in 14.352; the Region port is planned for M3).
+
+### Build / CI
+
+- Foundry v9 typings replaced by hand-written v14 declarations (drops 200+ dev packages and both
+  "critical" dev advisories). `npm audit`: 2 advisories in shipped code (`ip`, `werift`), 12 in total.
+- Lint ratchet in CI (`npm run lint:ratchet`): warnings may only go down.
+- `package-lock.json` has `resolved`/`integrity` for every registry package.
+- ComfyUI never starts by itself unless `COMFYUI_AUTOSTART=true`.
+
+### Upgrade notes
+
+- If your Foundry runs in a browser on **another machine** than the bridge, set
+  `FOUNDRY_LINK_HOST=0.0.0.0` (the Docker image and compose template already do).
+- If you exposed the dashboard on your network, set `DASHBOARD_HOST` and `GM_DASHBOARD_TOKEN`.
+- Worlds that relied on the old locked-on `allowNonGmAccess` need it switched on again (or, better,
+  an Assistant GM user for a headless client).
+
 ## v0.18.0 (2026-06-17) — Roll-init for selected combatants
 
 ### Features

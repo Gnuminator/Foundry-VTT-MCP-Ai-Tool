@@ -83,6 +83,10 @@ The rest of this document walks each part and then traces three requests end-to-
 | `31415` | WebSocket       | Foundry module → backend (the "Foundry connector")        |
 | `31416` | HTTP POST       | Foundry module → backend (WebRTC signaling/handshake)     |
 
+All four listen on `127.0.0.1` by default. The Foundry link (31415/31416) opens to other
+interfaces only with `FOUNDRY_LINK_HOST`; the dashboard (3000) only with `DASHBOARD_HOST`
+plus a `GM_DASHBOARD_TOKEN` (it refuses to start otherwise).
+
 > **Wire identifiers are frozen contracts.** The Foundry module id `foundry-mcp-bridge`, the
 > Foundry settings namespace `foundry-mcp-bridge`, the game-socket channel
 > `module.foundry-mcp-bridge`, and the query-method prefix `foundry-mcp-bridge.*` are
@@ -106,11 +110,13 @@ who's allowed to call them, and make writes safe and reversible.
 
 The module hooks Foundry's lifecycle:
 
-- **`init`** — register settings, register query handlers into `CONFIG.queries`, register
+- **`init`** — register settings, register the bridge handlers into the module-private
+  handler table (`bridge-handlers.ts`, **not** `CONFIG.queries`; see below), register
   campaign hooks, and start the **session-event tracker** (hooks that buffer chat and combat
   activity — see §8's feed). Diagnostics error-capture is installed even earlier, at module
   evaluation time, so it catches the earliest console/uncaught errors from _other_ modules.
-- **`ready`** — **the GM gate.** If the current user is not a GM, the module returns
+- **`ready`** — **the GM gate.** If the current user is not a GM (and the
+  `allowNonGmAccess` world setting, default off, is not on), the module returns
   immediately and silently: no connection, no notifications, nothing. Only for a GM does it
   read settings, auto-connect the socket bridge if enabled, build the enhanced creature index
   if needed, and begin heartbeat monitoring + reconnect.
@@ -137,12 +143,19 @@ bridge reconnects with exponential backoff and a heartbeat, because the backend 
 
 ### Query handlers (`queries.ts` + `data-access.ts`)
 
-Every capability the module exposes is a **query handler** registered into Foundry's
-`CONFIG.queries` map under a `foundry-mcp-bridge.*` key — e.g.
-`foundry-mcp-bridge.getCharacterInfo`, `foundry-mcp-bridge.listCreaturesByCriteria`,
-`foundry-mcp-bridge.move-token`, `foundry-mcp-bridge.upload-generated-map`. When a query
-arrives over the transport, the socket bridge looks up `CONFIG.queries[method]` and invokes
-it; there is no giant switch on the module side — the registry _is_ the dispatch table.
+Every capability the module exposes is a **query handler** registered under a
+`foundry-mcp-bridge.*` key — e.g. `foundry-mcp-bridge.getCharacterInfo`,
+`foundry-mcp-bridge.listCreaturesByCriteria`, `foundry-mcp-bridge.move-token` — in a
+**module-private table** (`bridge-handlers.ts`). When a query arrives over the transport, the
+socket bridge looks the method up in that table and invokes it; the table _is_ the dispatch
+table.
+
+The handlers are deliberately **not** in Foundry's `CONFIG.queries`: Foundry relays
+`User#query` calls from any user holding the "Query Users" permission (Player by default) to
+the GM's client and runs whatever is registered there, so a player could have called any
+bridge handler from the console. The only `CONFIG.queries` entries the module registers are
+narrow GM-to-GM helpers (`gm-helper-queries.ts`, e.g. "open this document on my screen"), on
+Foundry 14.352+ only, each rejecting a missing, unknown, forged or non-GM sender.
 
 `queries.ts` is a thin layer; the heavy lifting (reading actor sheets, building creature
 indexes, creating documents, attaching roll buttons to chat cards, etc.) lives in
@@ -268,8 +281,8 @@ The long-lived workhorse. Responsibilities:
    running backend.
 2. **Control-channel server.** A `net.createServer` on `31414` parsing JSON-lines, handling
    `ping` / `list_tools` / `call_tool` (§3a).
-3. **Tool dispatch.** `call_tool` runs a single large `switch` on the tool name and calls the
-   matching handler on one of the **tool classes**. Each domain is a class constructed once at
+3. **Tool dispatch.** `call_tool` looks the tool name up in a null-prototype name → handler
+   map (`tool-router.ts`) and calls the matching handler on one of the **tool classes**. Each domain is a class constructed once at
    startup — `CharacterTools`, `CompendiumTools`, `SceneTools`, `CombatTools`,
    `TokenManipulationTools`, `CombatResolutionTools`, `EncounterTools`, `MapGenerationTools`,
    `DiagnosticsTools`, the D&D-5e-specific creators, and so on. A tool handler typically
@@ -280,7 +293,9 @@ The long-lived workhorse. Responsibilities:
    The backend _is the server_ for the Foundry link: it runs the WebSocket server on `31415`
    and the WebRTC signaling endpoint on `31416`, registers the module when it connects,
    and exposes `query(method, data)` / `sendMessage(msg)` over whichever transport won.
-5. **Map-generation pipeline** — the job queue and ComfyUI client (§6).
+5. **Map-generation pipeline** — the job queue and ComfyUI client (§6). Dropped for now;
+   ComfyUI never starts by itself unless `COMFYUI_AUTOSTART=true`.
+6. **Bridge vault, guarded writes and the event pump** (§4d).
 
 Tool handlers never see the transport. They call `FoundryClient.query()`, which throws a clear
 "module not connected" error if Foundry isn't linked — and that specific error is what lets the
@@ -294,6 +309,39 @@ host/port (`31415`, namespace `/foundry-mcp`), connection type (`auto` | `websoc
 tool outputs from blowing past model context, and the server name/version. `WEBRTC_CONSTANTS`
 pins the SCTP limits (64 KB max message, 50 KB chunk threshold, chunk-count and timeout caps to
 defuse "chunk bomb" memory attacks) and **must stay in sync** with the module's chunking code.
+
+### 4d. Bridge vault, guarded writes, event pump
+
+**Vault (`vault/`).** Everything in Foundry world data reaches every connected client
+(hiding is client-side only), so GM-only data lives **outside Foundry**, on the backend host:
+`<dataDir>/<worldId>/{gm,sessions,backups}/`. `dataDir` is `FOUNDRY_AI_DATA_DIR`, else
+`%APPDATA%\foundry-ai-tool\vault` (Windows) or `$XDG_DATA_HOME` / `~/.local/share/...`
+(Linux). The world id comes from `getWorldInfo`, cached per module connection. Every name is
+validated (no traversal); JSON files carry a `{schema, updatedAt, data}` envelope and are
+written atomically (temp file, fsync, rename with Windows lock retries) through a per-file
+queue. `npm run vault -- export|import` backs a world's vault up, since Foundry's own backup
+does not include it.
+
+**Guarded writes (`guarded-write/service.ts` + module `data-access/guarded-write.ts`).**
+New features change game state through one flow: a read-only `plan-*` tool builds a plan →
+`get-planned-change` shows its diff → `apply-planned-change` applies it after explicit
+confirmation → `list-recent-changes` / `undo-change`. The **backend** owns plans (in memory,
+15 minutes), confirmation (`confirm`, plus `confirmDestructive` when the plan deletes
+anything) and the **audit ring** (`gm/audit.json`, 500 entries, big deleted-document
+snapshots in `backups/`). The **module** only snapshots targets (`snapshotGuardedOps`) and
+executes (`applyGuardedOps`), re-checking on its own: a GM client, "Allow Write Operations",
+the feature's own switch (`feature.<id>.enabled`, default off; not needed for undo), and that
+every target still matches the plan-time snapshot — otherwise nothing is written. Actors and
+Items it touches get the 2014/2024 rules tag; a failing op rolls back the ones before it;
+success is logged as a GM-only `gm-change` session event. Undo sends the inverse ops
+(`inverseGuardedOp` in `shared`) expecting the state the apply left behind, so a document
+edited since reports a conflict instead of being clobbered. Plans whose data is secret use
+vault ops (`vault-set` / `vault-delete` on `gm/*.json`) instead of Foundry ops.
+
+**Event pump (`event-pump.ts`).** The module's session-event buffer is in memory and lost on
+reload, so the backend polls `getRecentEvents` (cursor minus 1 ms, id de-duplication, cursor
+persisted per world) and appends every event to `sessions/<local-date>.jsonl` in the vault.
+On by default; `FOUNDRY_AI_EVENT_LOG=off` disables it.
 
 ---
 
@@ -390,8 +438,11 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
    immediately — no socket bridge, no query handlers doing work, no UI. This is silent by
    design: a player gets no error, no hint the bridge exists.
 2. **Per-handler GM validation (module).** Every query handler calls `validateGMAccess()`,
-   which returns a silent failure if `game.user.isGM` is false. So even if a handler were
-   reachable some other way, it does nothing for a non-GM.
+   which returns a silent failure unless `game.user.isGM` (or the opt-in `allowNonGmAccess`,
+   default off). So even if a handler were reachable some other way, it does nothing for a
+   non-GM.
+   **Not reachable through Foundry's query relay.** Bridge handlers live in a module-private
+   table, never in `CONFIG.queries` (§2), so a player's `User#query` cannot reach them.
 3. **Socket-message GM checks (module).** The game-socket listener that syncs player roll
    state only performs world-writing actions (`ChatMessage.update`, settings writes) when
    `game.user.isGM` — so a player client receiving the broadcast can't be tricked into writing.
@@ -401,7 +452,9 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
    data, modify world). A master `allowWriteOperations` setting can disable writes entirely;
    bulk operations are bounded by `maxActorsPerRequest` and force confirmation past a small
    threshold. Parameters are validated/sanitized per operation.
-5. **Reversible writes (`transaction-manager.ts`).** Multi-step mutations can run inside a
+5. **Guarded writes (new features).** Off per feature by default, confirmed with a diff,
+   audited off-Foundry, conflict-checked and undoable (§4d).
+6. **Reversible writes (`transaction-manager.ts`).** Multi-step mutations can run inside a
    transaction that records each create/update/delete with enough information to undo it
    (delete what was created, restore originals, recreate what was deleted). On failure the
    transaction rolls back in reverse order; a bounded history is kept for after-the-fact undo.
@@ -451,9 +504,15 @@ present, the AI is disabled gracefully and the _feed still runs_.
 **The GM-action surface (the write half).** The dashboard can invoke **any** bridge tool via
 `POST /api/tool`, but with server-side gating that mirrors the module's risk model:
 
-- Tools are classified `read` (the `get-`/`list-`/`search-`/`measure-` prefixes plus a small
-  allowlist), `write`, or `destructive` (an explicit set: delete tokens, delete map note,
-  remove ownership, clear errors, etc.).
+- Tools are classified (`tool-policy.ts`) as `read` (the `get-`/`list-`/`search-`/`measure-`/
+  `plan-`/`suggest-` prefixes plus a small allowlist such as `open-in-foundry`), `write`, or
+  `destructive` (an explicit set: delete tokens, delete map note, remove ownership, clear
+  errors, `undo-change`, etc.).
+- `apply-planned-change` and `undo-change` get their `confirm` / `confirmDestructive`
+  arguments only from the dashboard's own confirmation. The confirm modal shows the plan's
+  diff and asks for the destructive confirmation when the plan deletes something; a **Recent
+  Changes** pane lists applied changes with Undo. `gm-change` events never reach a player
+  stream.
 - **Reads are always free.** Writes require a master **GM Actions** switch (off by default) to
   be on **and** an explicit `confirm`. Destructive tools require a _second_ `confirmDestructive`.
   Gating is enforced on the **server**, not in CSS — a hostile browser can't bypass it.
@@ -477,7 +536,7 @@ Claude → (MCP/stdio) → wrapper → (control 31414: call_tool list-creatures-
          │  builds 5e filters {creatureType:"undead", challengeRating:5}
        → foundryClient.query("foundry-mcp-bridge.listCreaturesByCriteria", filters)
        → (Foundry link 31415/31416: {type:"mcp-query", id, data:{method, data}})
-       → module socket bridge → CONFIG.queries["foundry-mcp-bridge.listCreaturesByCriteria"]
+       → module socket bridge → bridge handler table["foundry-mcp-bridge.listCreaturesByCriteria"]
          │  validateGMAccess() ✓
          │  reads the enhanced creature index, applies the adapter's matchesFilters()
        → {type:"mcp-response", id, data:{success:true, data:[...creatures]}}

@@ -46,7 +46,12 @@ Renaming any of these breaks existing installs. Plan a migration note first.
   `127.0.0.1:31414`; spawning a competing backend breaks the connection. The cogm-dashboard
   is a pure client.
 - **NEVER push to `adambdooley/foundry-vtt-mcp`** (upstream). It's not a remote anymore.
-- Keep it green after each change: `npm run typecheck && npm run lint && npm run build`.
+- Keep it green after each change: `npm run typecheck && npm run lint:ratchet && npm run build`, plus
+  `CI=true npm test`. The lint ratchet (`scripts/lint-ratchet.mjs`, baseline
+  `scripts/lint-baseline.json`, 7,783 warnings) fails on any ESLint error or any rule whose warning
+  count rises; lower the baseline with `npm run lint:ratchet -- --update` when counts drop.
+- Smoke tests and manual runs use alternate ports (e.g. control 31514, dashboard 3100) and
+  `--control-only` for the standalone backend; never bind 31414/31415/31416.
 
 ## Tech stack
 
@@ -66,6 +71,17 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
 - [x] Phase 4 — Staged reimplementation (substantively complete — see `docs/PHASE4-TRACKER.md`). Chunk 1 (`shared`) + chunk 2 (wire-protocol contract + control-channel) reimplemented behind the `shared` contract; chunk 3 (data-access shrink+clean, 10,991→9,500); chunks 4–5 owned-via-tests (all 23 tool files + dnd5e adapter/filters covered; dead code removed). 1078 tests total. Deep from-scratch rewrites (data-access + 4 large tool files) deferred to Phase 9 with parity nets in place.
 - [x] Phase 5 — Cutover. **v0.16.0 released on `aitool`** (2026-06-15) — first release under the new identity. CHANGELOG rewritten, `docs/MIGRATION.md` + `docs/SMOKE-TEST.md` added, release workflow fixed (canonical `build-complete-release.yml` now tag-triggered + `contents:write`; module zip `foundry-mcp-bridge.zip` matches the manifest download URL). GitHub Release + all 4 assets published and verified; `releases/latest/download/{module.json,foundry-mcp-bridge.zip}` resolve. **Live smoke test PASSED** (2026-06-15): user installed the build + reinstalled the module from the new manifest + restarted Claude Desktop; Foundry shows the bridge **Connected**; the co-GM dashboard (`npm run dev:cogm` → http://localhost:3000) connected to the live bridge on 31414 and read real world data ("Rime of the Frostmaiden", dnd5e).
 - [~] Phase 6 — Standalone bridge + remote access + player/GM split. **Dep-security prereq DONE** (2026-06-15): removed dead `socket.io-client`; non-breaking `audit fix` (ws/axios/MCP-SDK/express); breaking **werift 0.17.7→0.23.0** (clears the `uuid` advisory; WebRTC path only, user-driven live smoke in `docs/DEPENDENCY-PATCH-SMOKE-TEST.md`); setup-node bumped. Audit prod-only **15→3** (residual = the no-fix `ip` advisory in werift-ice). **Framework BUILT + green:** (A) standalone bridge entry (`packages/mcp-server/src/standalone.ts`; `MCP_CONTROL_HOST/PORT` + `MCP_FOUNDRY_LINK=off` control-only; `npm run bridge:standalone`; CI smoke) and (B) server-side player/GM split in the dashboard (`auth.ts`/`redact.ts`/role-aware `sse.ts`/`requireGm`/`/player`; tests + CI smoke). **Infra TEMPLATED (not deployed):** (C) `docs/REMOTE-ACCESS.md` + `deploy/` (Cloudflare Tunnel/Access, Dockerfile, compose, Windows service); (D) `docs/PHASE6-DESIGN.md` (seams + setup checklist). **Test baseline 1120** (shared 49, foundry-module 12, mcp-server 1030, cogm-dashboard 29). **v0.16.1 queued** — cut after the user's live werift WebRTC smoke passes. Remaining: stand up Cloudflare/VPS/hosted Foundry per `docs/PHASE6-DESIGN.md` §6.
+
+- [x] Curse of Strahd plan, **M0 (step 0) DONE** (2026-09-28, branch `claude/amazing-bardeen-q1x1q6`;
+  see `docs/CURSE-OF-STRAHD-PLAN.md` "M0 as built"): bridge handlers out of `CONFIG.queries`
+  (`allowNonGmAccess` default off); Foundry v14/dnd5e 6 version adapter + 2014/2024 rules tags; v9
+  typings replaced by `packages/foundry-module/types/foundry-v14.d.ts`; guarded writes
+  (plan/apply/undo: backend plans + audit, module executes with checks); bridge vault
+  (`FOUNDRY_AI_DATA_DIR`, `npm run vault`); persistent session event log; dashboard confirm-with-diff
+  + Recent Changes; loopback binds (`DASHBOARD_HOST`, `FOUNDRY_LINK_HOST`); ComfyUI auto-start
+  opt-in; lockfile integrity filled. `npm audit`: 2 advisories in shipped code (`ip`, `werift`), 12
+  total, none critical. **Tests 2,171** (foundry-module 914, mcp-server 1169, shared 49,
+  cogm-dashboard 39). **Next: M1 (Tarokka), after the GM's go-ahead.**
 
 ## Model guidance
 

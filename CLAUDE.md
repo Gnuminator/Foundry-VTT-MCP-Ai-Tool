@@ -130,19 +130,26 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
   `play-log-pump.ts` (`sessions/<date>.play.jsonl`, key dedupe, `FOUNDRY_AI_PLAY_LOG=off`); pure
   `stats/build.ts`; stats in session notes + `AI Tool/Stats/` (Campaign, PCs) + `PC stats.base`;
   read tool `get-play-stats` (87 tools). Live fight on the test server worked and found bugs (below).
-- [~] **Handoff (2026-09-28, GM left; worker D still running on the GM's instruction).**
-  - Uncommitted: O2 + O3 (they share files, so they go in ONE commit; the GM authorized committing O2).
-    If the tree is not committed yet: integrate worker D's report, run the full gate, commit.
-  - Worker D (module) was fixing, from the live fight: (1) stale `t`/keys for unlinked-token actors
-    and deletes (fresh `modifiedTime` only, else `Date.now()` + a 2 s bucket key); (2) HP attribution
-    at most once per roll per target; (3) `dnd5e.restCompleted` rests; (4) `combat` on combat-end;
-    (5) `userName` on records; (6) roll breakdowns (`systems/dnd5e/roll-breakdown.ts`: label, parts
-    with inferred sources, natural d20; session events `roll` (public, player-safe text), `gm-roll`
-    (whisper/blind/self), `damage-roll` public text + `details.breakdown`). Check each is done.
+- [~] **Handoff (2026-09-28; work moved to a second PC, CKRSSURFACE, the same day).**
+  - O2 + O3 are committed: `bddda03` (WIP, not gated) plus the gate-fix commit after it. The full gate
+    is green on the second PC (portable Node 22.23.3): **tests 2,444** (foundry-module 1001,
+    mcp-server 1336, shared 55, cogm-dashboard 52), lint baseline 7,777 unchanged.
+  - Worker D (module) was cut off by the move. Checked item by item: (1) stale `t`/keys (fresh
+    `modifiedTime` only, else `Date.now()` + a 2 s bucket key) done, tests added after the move;
+    (2) HP attribution at most once per target was half done (it broke the typecheck): now one entry
+    per message, credited once per target, with a test; (4) `combat` on combat-end done;
+    (5) `userName` on records done but untested. **Not done:** (3) rests still come only from the
+    chat card, no `dnd5e.restCompleted` hook; (6) `systems/dnd5e/roll-breakdown.ts` (label, parts
+    with inferred sources, natural d20) exists with tests but nothing calls it, so the module does
+    not emit session events `roll` (public, player-safe text), `gm-roll` (whisper/blind/self) or
+    `damage-roll` public text + `details.breakdown` yet (the dashboard side is ready).
   - Done by the lead after the fight: ambient-only inferred groups are not sessions; user names
     from `userName`; scene minutes from every record's `sceneId`; dashboard allowlists public `roll`,
     GM feed and session notes show `details.breakdown`; dice `results` = kept, `dropped` separate.
-  - Next: live re-run of the scripted fight (test env; `Test Hero` PC + wolves; combat set up by a
+  - Next: finish worker D's (3) and (6), then a live re-run of the scripted fight. The second PC has
+    no `C:\FoundryTest` yet (Foundry app, world, users and test vault stayed on the first PC; the
+    scripts and skills are in git): set it up with the GM (licence) via `foundry-test-env`, and
+    recreate `Test Hero` and the wolves. The run: test env; `Test Hero` PC + wolves; combat set up by a
     short script in the Foundry tab, then dashboard tools: `apply-damage-and-healing`,
     `advance-combat-turn`, `roll-saving-throws`, `roll-npc-check`, `manage-rest`) and check the
     fixes, the breakdown text in the GM and player feeds (public vs whisper/blind) and the notes.
@@ -155,9 +162,11 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
     (GM config + per-player choices).
   - Open GM questions (Obsidian `Dev/Foundry AI Tool/Questions/`): M2 go-ahead; merge plan for this
     branch and the unmerged ones; ComfyUI removal; Orange Pi exposure and deploy gating; archive the
-    old fork; vault sync method; deny rule for `Campaigns/`; Calendarium calendar.
+    old fork; vault sync method for the Pi; deny rule for `Campaigns/`; Calendarium calendar.
+  - The GM's Obsidian vault is now the private git repo `Gnuminator/obsidian-vault` (PC to PC; pull
+    before working in it, push after).
   - Part B verification is unfinished: `.claude/skills/foundry-core-ui/reference/*.md` (11 pages) are
-    uncommitted drafts; the click-through lanes were stopped mid-run, so some pages may carry partial
+    drafts (committed in `bddda03`); the click-through lanes were stopped mid-run, so some pages may carry partial
     `[verified]` marks and no stamp. Resume later (Sonnet, one lane per GM user, canvas pages in front).
   - The test world has two temporary GM users "Verifier A" and "Verifier B" (for parallel lanes) and
     three "Wolf" actors/tokens (picker test data): delete the users when verification is done.

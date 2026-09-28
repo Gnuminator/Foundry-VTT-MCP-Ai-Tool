@@ -178,13 +178,14 @@ describe('AuditLog', () => {
     });
   });
 
+  // 505 real atomic writes: about 7s on a Windows disk with Defender, past the 5s default.
   it('keeps every history line even past the ring size (append-only, never trimmed)', async () => {
     for (let i = 0; i < AUDIT_RING_SIZE + 5; i++) {
       await audit.append('w1', entry(`c${i}`));
     }
     expect(await store.readLines('w1', 'gm', AUDIT_HISTORY_FILE)).toHaveLength(AUDIT_RING_SIZE + 5);
     expect((await audit.list('w1', 10_000)).length).toBe(AUDIT_RING_SIZE);
-  });
+  }, 30_000);
 });
 
 function delResult(index: number, deleted: Record<string, unknown>): GuardedOpResult {

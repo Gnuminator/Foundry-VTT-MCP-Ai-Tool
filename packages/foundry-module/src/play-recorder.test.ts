@@ -8,7 +8,7 @@
  * harness's full document builders, since PlayRecorder only ever reads the
  * duck-typed hook arguments.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
   d20Roll,
@@ -42,7 +42,9 @@ afterEach(() => {
 
 describe('actor state shadows', () => {
   it('gives a before/after/delta only once a shadow exists, keyed off modifiedTime', () => {
-    const actor = makeFixtureActor({ system: { attributes: { hp: { value: 20 } } }, t: 1000 });
+    // A modifiedTime is trusted only within 60s of now, so the fixture clock is Date.now()-based.
+    const now = Date.now();
+    const actor = makeFixtureActor({ system: { attributes: { hp: { value: 20 } } }, t: now });
     world.actors.add(actor);
 
     // First sighting: no shadow yet at the time of the hook (recorder hasn't seeded).
@@ -51,7 +53,7 @@ describe('actor state shadows', () => {
     fireUpdate('updateActor', actor, { system: { attributes: { hp: { value: 15 } } } }, {}, 'u1');
     expect(recorder.getPlayRecords({}).records).toHaveLength(0);
 
-    actor._stats.modifiedTime = 2000;
+    actor._stats.modifiedTime = now + 1000;
     fireUpdate('updateActor', actor, { system: { attributes: { hp: { value: 9 } } } }, {}, 'u1');
     const [record] = recorder.getPlayRecords({}).records;
     expect(record.kind).toBe('hp');
@@ -59,11 +61,65 @@ describe('actor state shadows', () => {
     expect(record.before).toBe(15);
     expect(record.after).toBe(9);
     expect(record.delta).toBe(-6);
+    expect(record.t).toBe(now + 1000);
     expect(record.key).toBe(
-      playRecordKeys.docChange('hp', actor.uuid, 'system.attributes.hp.value', 2000)
+      playRecordKeys.docChange('hp', actor.uuid, 'system.attributes.hp.value', now + 1000)
     );
     expect(record.actor).toEqual({ uuid: actor.uuid, isPC: true, name: 'Hero' });
     expect(record.userId).toBe('u1');
+  });
+
+  it('falls back to Date.now() and a bucketed key when modifiedTime is stale or the actor is synthetic', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const NOW = 1_790_000_000_000;
+      vi.setSystemTime(NOW);
+      const stale = makeFixtureActor({
+        id: 'old',
+        system: { attributes: { hp: { value: 20 } } },
+        t: NOW - 10 * 60_000,
+      });
+      world.actors.add(stale);
+      recorder.seed();
+      // An unlinked token's actor reports the base actor's modifiedTime: it can look fresh and still be wrong.
+      const synthetic = makeFixtureActor({
+        id: 'synth',
+        uuid: 'Scene.s1.Token.tk2.Actor.synth',
+        isToken: true,
+        tokenUuid: 'Scene.s1.Token.tk2',
+        system: { attributes: { hp: { value: 10 } } },
+        t: NOW - 500,
+      });
+      Hooks.callAll(
+        'createToken',
+        {
+          uuid: 'Scene.s1.Token.tk2',
+          actor: synthetic,
+          actorLink: false,
+          _stats: { modifiedTime: NOW },
+        },
+        {},
+        {},
+        'u1'
+      );
+
+      const path = 'system.attributes.hp.value';
+      fireUpdate('updateActor', stale, { system: { attributes: { hp: { value: 14 } } } }, {}, 'u1');
+      fireUpdate(
+        'updateActor',
+        synthetic,
+        { system: { attributes: { hp: { value: 4 } } } },
+        {},
+        'u1'
+      );
+      const hp = recorder.getPlayRecords({}).records.filter(r => r.kind === 'hp');
+      expect(hp.map(r => [r.t, r.key])).toEqual([
+        [NOW, playRecordKeys.docChangeBucketed('hp', stale.uuid, path, 20, 14, NOW)],
+        [NOW, playRecordKeys.docChangeBucketed('hp', synthetic.uuid, path, 10, 4, NOW)],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('seeds explicitly via seed() so the very first real update produces a record', () => {
@@ -302,15 +358,16 @@ describe('effects and tokens', () => {
   });
 
   it('records token create/delete/move; move carries no coordinates', () => {
-    const actor = makeFixtureActor();
+    const now = Date.now();
+    const actor = makeFixtureActor({ t: now });
     const token = {
       uuid: 'Scene.s1.Token.tk1',
       actor,
       actorLink: true,
-      _stats: { modifiedTime: 1000 },
+      _stats: { modifiedTime: now },
     };
     Hooks.callAll('createToken', token, {}, {}, 'u1');
-    token._stats.modifiedTime = 1500;
+    token._stats.modifiedTime = now + 500;
     Hooks.callAll('updateToken', token, { x: 100, y: 200 }, {}, 'u1');
     Hooks.callAll('deleteToken', token, {}, 'u1');
     const records = recorder.getPlayRecords({}).records;
@@ -318,7 +375,7 @@ describe('effects and tokens', () => {
     const move = records[1];
     expect(move.path).toBeUndefined();
     expect(move.before).toBeUndefined();
-    expect(move.key).toBe(playRecordKeys.tokenMove(token.uuid, 1500));
+    expect(move.key).toBe(playRecordKeys.tokenMove(token.uuid, now + 500));
   });
 
   it('an unlinked token seeds and drops its synthetic actor shadow', () => {
@@ -367,7 +424,8 @@ describe('effects and tokens', () => {
 
 describe('combat, scene, world time and users', () => {
   it('records combat-start, combat-turn (with the current combatant) and combat-end', () => {
-    const actor = makeFixtureActor();
+    const now = Date.now();
+    const actor = makeFixtureActor({ t: now });
     const combatant = { id: 'c1', name: 'Hero', actor };
     const combat: any = {
       id: 'combat1',
@@ -375,21 +433,25 @@ describe('combat, scene, world time and users', () => {
       turn: 0,
       combatants: { size: 1 },
       combatant,
-      _stats: { modifiedTime: 1000 },
+      _stats: { modifiedTime: now },
     };
     Hooks.callAll('combatStart', combat);
     combat.round = 1;
     combat.turn = 1;
-    combat._stats.modifiedTime = 1500;
+    combat._stats.modifiedTime = now + 500;
     Hooks.callAll('updateCombat', combat, { turn: 1 }, {}, 'u1');
-    combat._stats.modifiedTime = 2000;
+    combat._stats.modifiedTime = now + 1000;
     Hooks.callAll('deleteCombat', combat);
     const records = recorder.getPlayRecords({}).records;
     expect(records.map(r => r.kind)).toEqual(['combat-start', 'combat-turn', 'combat-end']);
     expect(records[0].key).toBe(playRecordKeys.combatStart('combat1'));
     expect(records[1].key).toBe(playRecordKeys.combatTurn('combat1', 1, 1));
     expect(records[1].actor?.uuid).toBe(actor.uuid);
-    expect(records[2].key).toBe(playRecordKeys.combatEnd('combat1'));
+    // A delete hook never trusts the document's own modifiedTime: Date.now(), bucketed.
+    expect(records[2].key).toBe(
+      playRecordKeys.createDeleteBucketed('combat-end', 'combat1', records[2].t)
+    );
+    expect(records[2].combat).toEqual({ id: 'combat1', round: 1, turn: 1 });
   });
 
   it('records a scene change once per new viewed scene (canvasReady)', () => {
@@ -836,6 +898,58 @@ describe('HP attribution to the most recent damage/healing roll', () => {
     );
     const hpLoss = recorder.getPlayRecords({}).records.find(r => r.kind === 'hp');
     expect(hpLoss?.source).toBeUndefined();
+  });
+
+  it('credits one message once per target: every target of an area roll, never the same target twice', () => {
+    const now = Date.now();
+    const a = makeFixtureActor({ id: 'a1', system: { attributes: { hp: { value: 20 } } }, t: now });
+    const b = makeFixtureActor({ id: 'a2', system: { attributes: { hp: { value: 20 } } }, t: now });
+    world.actors.add(a);
+    world.actors.add(b);
+    recorder.seed();
+
+    const roll = (total: number): ReturnType<typeof d20Roll> =>
+      d20Roll({
+        total,
+        terms: [],
+        dice: [{ faces: 6, results: [{ result: total, active: true }] }],
+      });
+    // Two rolls in one message (e.g. fire + radiant): still one HP change per target.
+    Hooks.callAll(
+      'createChatMessage',
+      {
+        id: 'aoe1',
+        type: 'damage',
+        speaker: { actor: a.id },
+        rolls: [roll(5), roll(3)],
+        system: {},
+        flags: {},
+        _stats: { modifiedTime: now },
+      },
+      {},
+      'u1'
+    );
+
+    const hurt = (actor: any, hp: number, at: number): void => {
+      actor._stats.modifiedTime = at;
+      Hooks.callAll(
+        'updateActor',
+        actor,
+        { system: { attributes: { hp: { value: hp } } } },
+        {},
+        'u1'
+      );
+    };
+    hurt(a, 12, now + 300);
+    hurt(b, 12, now + 400);
+    hurt(a, 9, now + 2000); // a later hit on the same target: not the area roll again
+
+    const hp = recorder.getPlayRecords({}).records.filter(r => r.kind === 'hp');
+    expect(hp.map(r => [r.actor?.uuid, r.after, r.source])).toEqual([
+      ['Actor.a1', 12, { messageId: 'aoe1', attributed: true }],
+      ['Actor.a2', 12, { messageId: 'aoe1', attributed: true }],
+      ['Actor.a1', 9, undefined],
+    ]);
   });
 });
 

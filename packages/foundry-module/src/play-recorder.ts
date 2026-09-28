@@ -514,7 +514,8 @@ export const playRecordKeys = {
     before: unknown,
     after: unknown,
     t: number
-  ): string => `${kind}:${uuid}:${path}:${String(before)}->${String(after)}:${Math.floor(t / KEY_TIME_BUCKET_MS)}`,
+  ): string =>
+    `${kind}:${uuid}:${path}:${String(before)}->${String(after)}:${Math.floor(t / KEY_TIME_BUCKET_MS)}`,
   /** A fresh modifiedTime is available (creates only — deletes never have one; see `createDeleteBucketed`). */
   createDelete: (kind: string, uuid: string): string => `${kind}:${uuid}`,
   /** No fresh modifiedTime: every delete, and a create whose actor/item is synthetic or has a stale/missing modifiedTime. */
@@ -983,7 +984,15 @@ export class PlayRecorder {
     };
 
     this.diffActorScalar('hp', uuid, shadow, 'hp', 'system.attributes.hp.value', changed, ctx);
-    this.diffActorScalar('hp-temp', uuid, shadow, 'hpTemp', 'system.attributes.hp.temp', changed, ctx);
+    this.diffActorScalar(
+      'hp-temp',
+      uuid,
+      shadow,
+      'hpTemp',
+      'system.attributes.hp.temp',
+      changed,
+      ctx
+    );
     this.diffActorScalar('hp-max', uuid, shadow, 'hpMax', 'system.attributes.hp.max', changed, ctx);
     this.diffActorScalar(
       'death-save',
@@ -1010,7 +1019,15 @@ export class PlayRecorder {
       for (const key of Object.keys(spellsChanged)) {
         const newVal = num(getPath(spellsChanged, `${key}.value`));
         if (newVal !== undefined) {
-          this.diffActorMapField('slot', uuid, shadow.spells, key, `system.spells.${key}.value`, newVal, ctx);
+          this.diffActorMapField(
+            'slot',
+            uuid,
+            shadow.spells,
+            key,
+            `system.spells.${key}.value`,
+            newVal,
+            ctx
+          );
         }
       }
     }
@@ -1038,7 +1055,15 @@ export class PlayRecorder {
       for (const [key, val] of Object.entries(currencyChanged)) {
         const n = num(val);
         if (n !== undefined) {
-          this.diffActorMapField('currency', uuid, shadow.currency, key, `system.currency.${key}`, n, ctx);
+          this.diffActorMapField(
+            'currency',
+            uuid,
+            shadow.currency,
+            key,
+            `system.currency.${key}`,
+            n,
+            ctx
+          );
         }
       }
     }
@@ -1072,7 +1097,9 @@ export class PlayRecorder {
 
   /** A create/delete lifecycle key: fresh modifiedTime keeps `<kind>:<uuid>`, else bucketed `t`. */
   private lifecycleKey(kind: PlayRecordKind, uuid: string, fresh: boolean, t: number): string {
-    return fresh ? playRecordKeys.createDelete(kind, uuid) : playRecordKeys.createDeleteBucketed(kind, uuid, t);
+    return fresh
+      ? playRecordKeys.createDelete(kind, uuid)
+      : playRecordKeys.createDeleteBucketed(kind, uuid, t);
   }
 
   private onCreateActor(
@@ -1229,7 +1256,15 @@ export class PlayRecorder {
     const usesSpent = num(getPath(changed, 'system.uses.spent'));
     const usesValueLegacy = num(getPath(changed, 'system.uses.value'));
     if (usesSpent !== undefined) {
-      this.diffItemScalar('item-uses', itemShadow, 'usesSpent', 'system.uses.spent', usesSpent, ctx, itemRef);
+      this.diffItemScalar(
+        'item-uses',
+        itemShadow,
+        'usesSpent',
+        'system.uses.spent',
+        usesSpent,
+        ctx,
+        itemRef
+      );
     } else if (usesValueLegacy !== undefined) {
       this.diffItemScalar(
         'item-uses',
@@ -1244,14 +1279,30 @@ export class PlayRecorder {
 
     const quantity = num(getPath(changed, 'system.quantity'));
     if (quantity !== undefined) {
-      this.diffItemScalar('item-quantity', itemShadow, 'quantity', 'system.quantity', quantity, ctx, itemRef);
+      this.diffItemScalar(
+        'item-quantity',
+        itemShadow,
+        'quantity',
+        'system.quantity',
+        quantity,
+        ctx,
+        itemRef
+      );
     }
 
     if (str(item.type) === 'class') {
       const hdSpent = num(getPath(changed, 'system.hd.spent'));
       const hdLegacy = num(getPath(changed, 'system.hitDiceUsed'));
       if (hdSpent !== undefined) {
-        this.diffItemScalar('hit-dice', itemShadow, 'hdSpent', 'system.hd.spent', hdSpent, ctx, itemRef);
+        this.diffItemScalar(
+          'hit-dice',
+          itemShadow,
+          'hdSpent',
+          'system.hd.spent',
+          hdSpent,
+          ctx,
+          itemRef
+        );
       } else if (hdLegacy !== undefined) {
         this.diffItemScalar(
           'hit-dice',
@@ -1635,6 +1686,7 @@ export class PlayRecorder {
     const actorRef = actor ? this.actorRefFor(actor) : undefined;
     const t = chatMessageTime(message);
 
+    let recorded = false;
     arr(message.rolls).forEach((rawRoll, index) => {
       try {
         const info = parseRollInfo(rawRoll, rollType, subject);
@@ -1650,12 +1702,17 @@ export class PlayRecorder {
             source: { messageId },
           })
         );
-        if (rollType === 'damage') this.recentDamage.push({ t, messageId });
-        else if (rollType === 'healing') this.recentHealing.push({ t, messageId });
+        recorded = true;
       } catch (error) {
         console.warn(`[${MODULE_ID}] PlayRecorder dropped a roll:`, error);
       }
     });
+    // One attribution entry per message: its rolls (e.g. slashing + fire) land as one HP change per target.
+    if (recorded) {
+      const recent: RecentRoll = { t, messageId, attributedTo: new Set() };
+      if (rollType === 'damage') this.recentDamage.push(recent);
+      else if (rollType === 'healing') this.recentHealing.push(recent);
+    }
     this.trimRecentRolls();
   }
 

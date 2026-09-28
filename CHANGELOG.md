@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — M0: foundations for the Curse of Strahd features
+## Unreleased — M0 foundations + M1 Tarokka (Curse of Strahd)
 
 Groundwork from `docs/CURSE-OF-STRAHD-PLAN.md` step 0. **Wire contracts are unchanged** (module id,
 ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults change behaviour; see
@@ -33,6 +33,14 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
 - **Dashboard**: the confirm dialog shows a planned change's diff; new Recent Changes pane with Undo.
 - **Foundry v14 / dnd5e 6.0 adapter** (feature-detected), and 2014/2024 rules tags on actors and items
   the bridge writes (`get-character` shows them).
+
+- **Tarokka (Curse of Strahd)**, off until you enable "AI Tool: Tarokka (writes)" in the module settings:
+  deal a reading with the built-in roll or import the one dealt in the `tarokka-reading` module (the
+  dealing GM is asked whether to offer it); the reading is kept GM-only in the bridge vault, previous
+  readings are archived; link each card to a journal page, scene or actor (search helper, "Open" in
+  Foundry); reveal a card by publishing only the text you write as a page players can read. Tools
+  `get-tarokka-reading`, `plan-tarokka-import`, `suggest-tarokka-links`, `plan-tarokka-links`,
+  `plan-tarokka-reveal`; dashboard 🃏 Tarokka drawer (card names hidden until "Show cards").
 
 ### Fixes
 

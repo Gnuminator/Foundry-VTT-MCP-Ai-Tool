@@ -336,7 +336,14 @@ Items it touches get the 2014/2024 rules tag; a failing op rolls back the ones b
 success is logged as a GM-only `gm-change` session event. Undo sends the inverse ops
 (`inverseGuardedOp` in `shared`) expecting the state the apply left behind, so a document
 edited since reports a conflict instead of being clobbered. Plans whose data is secret use
-vault ops (`vault-set` / `vault-delete` on `gm/*.json`) instead of Foundry ops.
+vault ops (`vault-set` / `vault-delete` on `gm/*.json`) instead of Foundry ops; a plan may hold
+both ("mixed", e.g. a Tarokka reveal: a player page in Foundry plus the vault records). Vault
+conflicts are checked before anything is written, and if the vault write fails after the Foundry
+part, the Foundry part is rolled back. A feature can raise a plan to destructive (`risk`).
+
+**Tarokka (`tarokka/`, module `tarokka.ts`).** The first feature on this flow: readings (built-in
+crypto roll or the `tarokka-reading` module) live in `gm/tarokka.json`, links in
+`gm/tarokka-config.json`, published player pages in `gm/reveals.json`. The module side is read-only.
 
 **Event pump (`event-pump.ts`).** The module's session-event buffer is in memory and lost on
 reload, so the backend polls `getRecentEvents` (cursor minus 1 ms, id de-duplication, cursor

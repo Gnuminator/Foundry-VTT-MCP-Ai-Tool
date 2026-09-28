@@ -1,6 +1,6 @@
 # Curse of Strahd extension: architecture review + implementation plan
 
-Status: **M0 (step 0) DONE on 2026-09-28, awaiting the GM's go-ahead for M1.** Section 9 answered
+Status: **M0 and M1 (Tarokka) DONE on 2026-09-28, awaiting the GM's live test and go-ahead for M2.** Section 9 answered
 (defaults). What was built, and where it differs from this plan, is in "M0 as built" at the top of
 section 3.
 Written 2026-09-27 on branch `claude/amazing-bardeen-q1x1q6` (base `a80b330`, v0.18.0). Same day: all
@@ -383,6 +383,39 @@ Additions from the local setup session (2026-09-27, Windows, Node 22.22.2 / npm 
 
 ### Feature 1: Tarokka integration (M1)
 
+**M1 as built (2026-09-28).** Per the answer to question 13 (no Tarokka module installed), M1 ships the
+built-in roll and the `tarokka-reading` provider. The `sdnd-tarokka` (v13 legacy) and gmredvelvet
+`tarokka` providers and the optional GM-only journal mirror are **not built** (add on request).
+
+- Module (`packages/foundry-module/src/tarokka.ts`, read-only): `tarokka-reading` 1.x provider (client
+  `secret`/`plan`, world `cardOverrides`, names via `TAROKKA.Cards.<id>`), gated on an active 1.x install.
+  Bridge handlers `getTarokkaReading` (local deal, else a pending offer, else with `userId` the given GM's
+  client) and `searchLinkCandidates`. GM-to-GM helper queries `gm.tarokkaReading` and
+  `gm.offerTarokkaReading` (sender-checked, payload-validated, 14.352+). On `clientSettingChanged` for
+  `tarokka-reading.secret`, when the `tarokka` feature switch is on, the dealing GM is asked once per
+  reading whether to offer it; the offer is kept in memory on every active GM client until imported.
+- Feature switch "AI Tool: Tarokka (writes)" (`feature.tarokka.enabled`, default off).
+- Backend (`packages/mcp-server/src/tarokka/`): deck ids verified against tarokka-reading 1.0.3
+  `deck.js` (40 common `<suit>-<1..9|master>`, 14 crowns); crypto roll (3 distinct common, 2 distinct
+  high); vault files `gm/tarokka.json` (`current`, `archive.<readingId>`, `revealJournal`),
+  `gm/tarokka-config.json` (link table `links.<position>.<cardId>`, `cardNames.<cardId>`),
+  `gm/reveals.json` (`pages.<pageId>`, the allowlist M2 uses). Default names are plain ("Seven of
+  Swords"); overrides and the provider's names win.
+- Tools: `get-tarokka-reading`, `plan-tarokka-import` (`auto | builtin-roll | tarokka-reading`, `userId`),
+  `suggest-tarokka-links`, `plan-tarokka-links` (per position and card; `clear` is destructive),
+  `plan-tarokka-reveal`, all applied with `apply-planned-change`.
+- Reveal: a page with only the GM's text in a journal players can observe (created on first use with
+  `ownership.default = OBSERVER`; later reveals add pages, a re-reveal edits the page), recorded in
+  `reveals.json` and marked revealed, **in one change**: the guarded-write service now accepts mixed plans
+  (Foundry ops + vault ops, vault conflicts checked first, Foundry part rolled back if the vault write
+  fails) and a `risk: 'destructive'` override.
+- Dashboard: GM-only Tarokka drawer (positions, card names veiled until "Show cards", GM notes, link
+  status with "Open" buttons via `open-in-foundry`, revealed flags, import/roll, link search, reveal form),
+  each action via plan then confirm-with-diff.
+- Canary tests: nothing sent to Foundry (except the read requests) contains card ids, names, GM notes or
+  links, only the GM's reveal text; change summaries never contain them; the player role gets 403 on the
+  Tarokka tools (split smoke test).
+
 - Providers in `data-access/tarokka.ts` (module side, read-only):
   - `tarokka-reading` (live, v14): read client setting `tarokka-reading.secret` (`{id, broadcast,
 cards[5], stages[5]}`) plus `plan` (GM notes) and world `cardOverrides`; names via
@@ -622,7 +655,7 @@ Each milestone ends green (`npm run typecheck && npm run lint && npm run build` 
 and pushed, and is summarized before the next starts.
 
 1. **M0** step 0 (0.1 to 0.7). **Done 2026-09-28** (see "M0 as built", section 3).
-2. **M1** feature 1 (Tarokka).
+2. **M1** feature 1 (Tarokka). **Done 2026-09-28** (see "M1 as built", feature 1).
 3. **M2** feature 2 (projection, player endpoints, reveal allowlist, canary suite).
 4. **M3** Foundry v14 + dnd5e 6.0 compatibility pass for existing tools (table 2.4 + pre-existing bugs).
    Some items are v14-core and affect you already. Templates are confirmed broken on v14 (MeasuredTemplate
@@ -704,7 +737,9 @@ is installed, so M1 leads with the built-in roll and supports `tarokka-reading` 
 ### A.1 Tarokka modules
 
 tarokka-reading (Stphn-Wrn) at `0736fe9`, tag v1.0.3; sdnd-tarokka (matthewbstroud) at `83fd756`, tag
-v13.5.0.
+v13.5.0. Deck ids, `POSITIONS` and the
+`secret`/`plan` shapes re-read from tarokka-reading v1.0.3 `src/deck.js`, `src/reading.js` and `src/state.js`
+on 2026-09-28 **[verified]**.
 
 - tarokka-reading manifest: id `tarokka-reading`, 1.0.3, compatibility min 11 / verified 14, no system or
   module relationships, entry `src/main.js`, no packs (`module.json:2-21`).

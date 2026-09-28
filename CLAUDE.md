@@ -81,7 +81,11 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
   + Recent Changes; loopback binds (`DASHBOARD_HOST`, `FOUNDRY_LINK_HOST`); ComfyUI auto-start
   opt-in; lockfile integrity filled. `npm audit`: 2 advisories in shipped code (`ip`, `werift`), 12
   total, none critical. **Tests 2,171** (foundry-module 914, mcp-server 1169, shared 49,
-  cogm-dashboard 39). **Next: M1 (Tarokka), after the GM's go-ahead.**
+  cogm-dashboard 39).
+- [x] Curse of Strahd **M1 (Tarokka) DONE** (2026-09-28): built-in roll + `tarokka-reading` provider,
+  vault storage with archive, per-position/card link table, reveal pages for players (mixed guarded
+  plans), GM-only dashboard drawer, canary tests. **Tests 2,217** (foundry-module 930, mcp-server
+  1198, shared 49, cogm-dashboard 40). **Next: GM live test of M0+M1, then M2 (spoiler-safe /player).**
 
 ## Model guidance
 

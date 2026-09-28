@@ -21,6 +21,7 @@ import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard, type DashboardDeps } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
 import { ChannelError, TimeoutError, ToolError } from './feed/mcp-control-client.js';
+import { parseAllowedHosts } from './host-allowlist.js';
 import { Logger } from './logger.js';
 import {
   OPEN_PAGE_CSP,
@@ -135,11 +136,12 @@ afterEach(async () => {
 
 async function start(
   auth: Partial<AuthConfig>,
-  openRoute: NonNullable<DashboardDeps['openRoute']> = {}
+  openRoute: NonNullable<DashboardDeps['openRoute']> = {},
+  overrides: Partial<Config> = {}
 ): Promise<Harness> {
   const bridge = new FakeBridge();
   const clock = { t: 1_000_000 };
-  const testConfig: Config = { ...config, auth: { ...config.auth, ...auth } };
+  const testConfig: Config = { ...config, ...overrides, auth: { ...config.auth, ...auth } };
   const dashboard = createDashboard({
     config: testConfig,
     logger: new Logger('error', 'open-route-test'),
@@ -442,7 +444,8 @@ describe('POST /api/open with the player/GM split on', () => {
   });
 
   it('refuses a foreign or null Origin and accepts its own', async () => {
-    const h = await start(SPLIT_ON);
+    // The tunnel's public name is in DASHBOARD_ALLOWED_HOSTS (host-allowlist.ts).
+    const h = await start(SPLIT_ON, {}, { allowedHosts: parseAllowedHosts('cogm.example') });
     for (const origin of [
       'http://evil.example',
       'null',

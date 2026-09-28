@@ -14,9 +14,11 @@ import { resolveRole, isGm } from './auth.js';
 import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
 import { jsonErrorHandler } from './error-handler.js';
 import { gmOnly } from './redact.js';
-import { mountOpenRoute, openPageStaticHeaders, type OpenRouteOptions } from './open-route.js';
+import { hostAllowlist } from './host-allowlist.js';
+import { mountOpenRoute, OPEN_PAGE_HEADERS, type OpenRouteOptions } from './open-route.js';
 import { buildPlayerState } from './player/projection.js';
 import { PlayerViewSource } from './player/source.js';
+import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
 
 /**
  * The co-GM dashboard as an Express app plus its feed handlers, built from
@@ -79,9 +81,19 @@ interface SecretTermsResult {
 }
 
 const TOOL_CATALOG_TTL_MS = 60_000;
-const PLAYER_CSP =
+/**
+ * The player page runs only its own script: no inline scripts or event handlers, even if
+ * something slipped past the handout sanitizer (inline styles stay allowed for the HP bars).
+ */
+export const PLAYER_CSP =
   "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; " +
   "img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
+
+/** The player page file and its header, on every URL that reaches it (static-headers.ts). */
+export const PLAYER_PAGE_HEADERS: StaticHeaderGroup = {
+  files: ['player.html'],
+  apply: res => res.setHeader('Content-Security-Policy', PLAYER_CSP),
+};
 /** How often the player view context (visibility, handouts) is refreshed. */
 const PLAYER_SOURCE_INTERVAL_MS = 5_000;
 /** Player-state broadcasts are coalesced over this window. */
@@ -368,25 +380,33 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   // --- HTTP / SSE ------------------------------------------------------------
   const app = express();
+  // First, before every route and static file: refuse any Host the dashboard does not know
+  // (DNS rebinding; host-allowlist.ts). Both modes; with the split on it is defense in depth.
+  app.use(
+    hostAllowlist({
+      bindHost: config.host,
+      allowedHosts: config.allowedHosts,
+      logger: logger.child('host'),
+    })
+  );
   // "Open in Foundry" (O4, open-route.ts). Before the JSON parser: its POST parses its own
   // body after its guards.
   mountOpenRoute(app, { ...deps.openRoute, config, client, logger: logger.child('open') });
   app.use(express.json({ limit: '256kb' }));
-  // The player page runs only its own script: no inline scripts or event handlers, even if
-  // something slipped past the handout sanitizer (inline styles stay allowed for the HP bars).
-  app.use((req: Request, res: Response, next: () => void) => {
-    if (req.path === '/player' || req.path === '/player.html') {
-      res.setHeader('Content-Security-Policy', PLAYER_CSP);
-    }
-    next();
-  });
-  // The /open confirm page's files get its strict headers on every URL that reaches them.
+  // The player page and the /open confirm page get their headers from inside express.static,
+  // by file name and file identity, so no URL spelling (`/player%2Ehtml`, `/Player.html`,
+  // `/x/../player.html`) serves them without.
   app.use(
-    express.static(config.publicDir, { setHeaders: openPageStaticHeaders(config.publicDir) })
+    express.static(config.publicDir, {
+      setHeaders: staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]),
+    })
   );
 
   // Clean URL for the read-only player view (the static file is also at /player.html).
+  // sendFile skips the static hook, so the route sets the page header itself; Express matches
+  // routes case-insensitively and with an optional trailing slash (`/PLAYER`, `/player/`).
   app.get('/player', (_req: Request, res: Response) => {
+    PLAYER_PAGE_HEADERS.apply(res);
     res.sendFile('player.html', { root: config.publicDir });
   });
 

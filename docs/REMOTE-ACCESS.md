@@ -121,6 +121,7 @@ the remote-hosting topology.
 | ------------------------------ | ------------------------------------ | ------------------------------------------------------------------------------- |
 | `PORT`                         | `3000`                               | HTTP port the dashboard binds. Cloudflare Tunnel proxies this.                  |
 | `DASHBOARD_HOST`               | `127.0.0.1`                          | Listen address. Any non-loopback value is refused without `GM_DASHBOARD_TOKEN`. |
+| `DASHBOARD_ALLOWED_HOSTS`      | _(unset)_                            | Extra host names it answers to, e.g. the tunnel's public name (Host check).     |
 | `MCP_CONTROL_HOST`             | `127.0.0.1`                          | Where the dashboard connects for the control channel.                           |
 | `MCP_CONTROL_PORT`             | `31414`                              | Control channel port (must match the backend).                                  |
 | `ANTHROPIC_API_KEY`            | _(unset — AI disabled if empty)_     | Anthropic API key. **Server-side only. Never reaches browser.**                 |
@@ -132,6 +133,37 @@ the remote-hosting topology.
 | `PLAYER_SHOW_ENEMY_CONDITIONS` | `true`                               | Let player view see status conditions on enemy combatants.                      |
 | `PLAYER_SHOW_ENEMY_HP_BANDS`   | `false`                              | Let player view see coarse HP bands (e.g. "bloodied") on enemies.               |
 | `LOG_LEVEL`                    | `info`                               | Dashboard server log verbosity.                                                 |
+
+### Host check (DNS rebinding guard)
+
+The dashboard answers only requests whose `Host` header names it. Everything else gets
+`421` with `{"code": "host-not-allowed"}`, on every path, in both modes (split on or off),
+before any auth. This stops a DNS rebinding page (an attacker's host name that resolves to
+127.0.0.1) from driving the GM endpoints; such a request always carries the attacker's
+host name.
+
+Allowed by default, on any port: `localhost`, `127.0.0.1`, `[::1]`, and the host name of
+`DASHBOARD_HOST` when it is one specific address (not `0.0.0.0` or `::`).
+
+`DASHBOARD_ALLOWED_HOSTS` adds more: comma-separated host names, IPv4 addresses or
+`[IPv6]` addresses, each optionally with `:port`.
+
+- An entry without a port allows any port; `name:port` allows only that port. Browsers
+  leave out the default port, so a `Host` without a port counts as port 80 or 443.
+- Names compare case-insensitively and otherwise exactly: no wildcards, no subdomains, and
+  a trailing dot is not stripped (`localhost.` is refused unless listed as written).
+- An invalid entry is ignored with a startup warning that names its position, not its text.
+- One `Host` header only: none, two, or a malformed one (user info, a list, a zone id) is
+  refused.
+
+Behind a tunnel or a reverse proxy, the `Host` header carries the public name
+(cloudflared forwards it unchanged), so that name must be listed:
+`DASHBOARD_ALLOWED_HOSTS=cogm.<YOUR_DOMAIN>`. Do the same for a LAN address or name you
+browse to (`DASHBOARD_ALLOWED_HOSTS=192.168.1.20,pi.local`), and for the origin in the
+bridge's `FOUNDRY_AI_OPEN_BASE` when the Obsidian "Open in Foundry" links point anywhere
+but localhost. Do not rewrite the `Host` at the proxy instead (cloudflared
+`httpHostHeader`): the `/open` confirm page compares its `Origin` with the `Host` and would
+refuse to open anything.
 
 ### Auth / role mapping summary
 
@@ -203,6 +235,11 @@ ingress:
     service: http://localhost:3000
   - service: http_status:404
 ```
+
+cloudflared forwards the public name in the `Host` header, and the dashboard refuses host
+names it does not know (section 2, "Host check"). Set
+`DASHBOARD_ALLOWED_HOSTS=cogm.<YOUR_DOMAIN>` in the dashboard's environment, or every
+request through the tunnel gets `421 host-not-allowed`.
 
 ### 3.5 Route the hostname to the tunnel
 
@@ -323,6 +360,7 @@ changing.
 | 1   | `<TUNNEL_UUID>`            | `deploy/cloudflare/config.yml.template` → tunnel: field           |
 | 2   | `<TUNNEL_UUID>.json` path  | `deploy/cloudflare/config.yml.template` → credentials-file        |
 | 3   | `cogm.<YOUR_DOMAIN>`       | Cloudflare DNS + Access application + tunnel route dns            |
+| 3a  | `DASHBOARD_ALLOWED_HOSTS`  | `DASHBOARD_ALLOWED_HOSTS=cogm.<YOUR_DOMAIN>` in the dashboard env |
 | 4   | GM email allow-list        | `GM_EMAILS=you@example.com,cogm@example.com` in env/.env          |
 | 5   | `GM_DASHBOARD_TOKEN`       | A random secret (e.g. `openssl rand -hex 32`) in env/.env         |
 | 6   | `ANTHROPIC_API_KEY`        | Runtime secret / Docker secret / systemd EnvironmentFile          |
@@ -367,6 +405,7 @@ Work through this list top-to-bottom when you're ready to go remote.
   - [ ] `GM_DASHBOARD_TOKEN=<random-secret>` (optional additional auth factor)
   - [ ] `PLAYER_DASHBOARD_TOKEN=<random-secret>` (if you want a gated player view)
   - [ ] `CF_ACCESS_EMAIL_HEADER=cf-access-authenticated-user-email` (default; only change if you reconfigured Access)
+  - [ ] `DASHBOARD_ALLOWED_HOSTS=cogm.<YOUR_DOMAIN>` (the tunnel's public name; without it the tunnel gets `421 host-not-allowed`)
 - [ ] Start the dashboard: `npm run start:cogm` (or via service/Docker).
 - [ ] Confirm it serves on `http://localhost:3000`.
 
@@ -378,7 +417,8 @@ Work through this list top-to-bottom when you're ready to go remote.
 - [ ] `deploy/cloudflare/config.yml.template` filled in → saved as `~/.cloudflared/config.yml`.
 - [ ] `cloudflared tunnel route dns cogm cogm.<YOUR_DOMAIN>`.
 - [ ] Tunnel running (`cloudflared tunnel run cogm` or installed as service).
-- [ ] `https://cogm.<YOUR_DOMAIN>` reaches the dashboard login page.
+- [ ] `https://cogm.<YOUR_DOMAIN>` reaches the dashboard login page (a `421 host-not-allowed`
+      JSON answer means `DASHBOARD_ALLOWED_HOSTS` does not list `cogm.<YOUR_DOMAIN>`).
 
 ### Cloudflare Access
 

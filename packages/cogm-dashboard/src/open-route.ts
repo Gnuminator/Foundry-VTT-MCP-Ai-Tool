@@ -16,9 +16,7 @@
  * `cogm_token`), so it gets a strict CSP, no framing, no referrer and no
  * caching, on every URL that reaches its files (see `openPageStaticHeaders`).
  */
-import * as fs from 'fs';
 import type { IncomingHttpHeaders, ServerResponse } from 'http';
-import * as path from 'path';
 
 import {
   OPEN_REQUEST_HEADER,
@@ -34,6 +32,7 @@ import { resolveRole, isGm, type AuthRequest } from './auth.js';
 import type { AuthConfig } from './config.js';
 import { ChannelError, TimeoutError } from './feed/mcp-control-client.js';
 import type { Logger } from './logger.js';
+import { staticHeaders, type StaticHeaderGroup, type StaticSetHeaders } from './static-headers.js';
 
 /** Headers on the confirm page (stricter than the player page's CSP). */
 export const OPEN_PAGE_CSP =
@@ -76,46 +75,27 @@ export interface OpenRouteDeps extends OpenRouteOptions {
   logger: Logger;
 }
 
-type Stats = Pick<fs.Stats, 'dev' | 'ino'>;
-
 function setOpenPageHeaders(res: ServerResponse): void {
   res.setHeader('Content-Security-Policy', OPEN_PAGE_CSP);
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Cache-Control', 'no-store');
 }
 
-function isStats(value: unknown): value is Stats {
-  const v = value as Partial<Stats> | null;
-  return (
-    typeof v === 'object' && v !== null && typeof v.dev === 'number' && typeof v.ino === 'number'
-  );
-}
+/** The confirm page's files and their headers, for the shared static hook. */
+export const OPEN_PAGE_HEADERS: StaticHeaderGroup = {
+  files: OPEN_PAGE_FILES,
+  apply: setOpenPageHeaders,
+};
 
 /**
- * The `express.static` `setHeaders` hook: the page headers on the confirm
- * page's files, whatever URL spelling reached them. The file name is compared
- * case-insensitively, and the file identity (device and inode) catches any
- * other alias the file system resolves (for example a Windows short name), so
- * `/OPEN.HTML`, `/open%2Ehtml` or `/x/../open.html` cannot serve the page
- * without them.
+ * The `express.static` `setHeaders` hook for the confirm page alone: the page
+ * headers on its files, whatever URL spelling reached them (`/OPEN.HTML`,
+ * `/open%2Ehtml`, `/x/../open.html`, a Windows short name; see
+ * `static-headers.ts`). The app combines `OPEN_PAGE_HEADERS` with its other
+ * groups into one hook.
  */
-export function openPageStaticHeaders(
-  publicDir: string
-): (res: ServerResponse, filePath: string, stat: unknown) => void {
-  const ids: Stats[] = [];
-  for (const name of OPEN_PAGE_FILES) {
-    try {
-      const stat = fs.statSync(path.join(publicDir, name));
-      if (stat.ino !== 0) ids.push({ dev: stat.dev, ino: stat.ino });
-    } catch {
-      // A missing file: the name check still applies.
-    }
-  }
-  return (res, filePath, stat) => {
-    const byName = OPEN_PAGE_FILES.includes(path.basename(filePath).toLowerCase());
-    const byId = isStats(stat) && ids.some(id => id.dev === stat.dev && id.ino === stat.ino);
-    if (byName || byId) setOpenPageHeaders(res);
-  };
+export function openPageStaticHeaders(publicDir: string): StaticSetHeaders {
+  return staticHeaders(publicDir, [OPEN_PAGE_HEADERS]);
 }
 
 function single(value: string | string[] | undefined): string | undefined {

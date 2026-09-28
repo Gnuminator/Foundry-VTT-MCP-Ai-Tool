@@ -2,6 +2,8 @@ import 'dotenv/config';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
+import { parseAllowedHosts, type AllowedHosts } from './host-allowlist.js';
+
 /**
  * Centralised, typed configuration for the Co-GM dashboard.
  *
@@ -20,6 +22,12 @@ export interface Config {
   readonly port: number;
   /** Listen address (`DASHBOARD_HOST`, default 127.0.0.1). */
   readonly host: string;
+  /**
+   * More host names the dashboard answers to (`DASHBOARD_ALLOWED_HOSTS`,
+   * comma-separated `name` or `name:port`), besides localhost, 127.0.0.1, [::1]
+   * and a specific `DASHBOARD_HOST`. See `host-allowlist.ts`.
+   */
+  readonly allowedHosts: AllowedHosts;
   /** MCP backend control-channel host (JSON-lines TCP). */
   readonly mcpHost: string;
   /** MCP backend control-channel port. */
@@ -175,6 +183,8 @@ export const config: Config = {
   port: readNumber('PORT', 3000),
   /** Listen address; loopback unless set (a non-loopback bind needs GM_DASHBOARD_TOKEN). */
   host: readString('DASHBOARD_HOST', '127.0.0.1'),
+  /** DNS rebinding guard: a tunnel's or proxy's public name must be listed here. */
+  allowedHosts: parseAllowedHosts(process.env.DASHBOARD_ALLOWED_HOSTS ?? ''),
   mcpHost: readString('MCP_CONTROL_HOST', '127.0.0.1'),
   mcpPort: readNumber('MCP_CONTROL_PORT', 31414),
   pollIntervalMs,

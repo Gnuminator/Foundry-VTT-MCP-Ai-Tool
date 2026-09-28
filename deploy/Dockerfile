@@ -116,12 +116,22 @@ EXPOSE 31416
 # !! NEVER set ANTHROPIC_API_KEY, GM_DASHBOARD_TOKEN, GM_EMAILS here !!
 #    Inject them at runtime. Baking them into the image is a security risk.
 
+# DASHBOARD_HOST / FOUNDRY_LINK_HOST are 0.0.0.0 because a container must listen
+# on its own interface for port mapping and the tunnel sidecar. The dashboard
+# refuses that bind unless GM_DASHBOARD_TOKEN is set at runtime.
 ENV NODE_ENV=production \
     PORT=3000 \
+    DASHBOARD_HOST=0.0.0.0 \
     MCP_CONTROL_HOST=127.0.0.1 \
     MCP_CONTROL_PORT=31414 \
+    FOUNDRY_LINK_HOST=0.0.0.0 \
     FOUNDRY_REMOTE_MODE=true \
+    FOUNDRY_AI_DATA_DIR=/data/vault \
     LOG_LEVEL=info
+
+# The bridge vault (GM-only data, audit log, session event log). Mount a
+# volume here; it is not part of Foundry's world backup.
+VOLUME ["/data/vault"]
 
 # ── Startup ──────────────────────────────────────────────────────────────────
 #

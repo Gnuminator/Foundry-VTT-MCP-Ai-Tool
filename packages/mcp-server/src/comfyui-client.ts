@@ -46,6 +46,15 @@ const SIZE_MAPPING = {
   large: 2048,
 } as const;
 
+/**
+ * Whether the backend may start ComfyUI by itself. Off unless
+ * `COMFYUI_AUTOSTART=true`: map generation is dropped for now, and on a small
+ * host (Orange Pi) an unexpected ComfyUI/Python process is costly.
+ */
+export function comfyuiAutoStartEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return /^(true|1|yes|on)$/i.test(env.COMFYUI_AUTOSTART?.trim() ?? '');
+}
+
 export class ComfyUIClient {
   private config: ComfyUIConfig;
   private logger: Logger;
@@ -74,7 +83,7 @@ export class ComfyUIClient {
       host: '127.0.0.1',
       port: 31411,
       pythonCommand: defaultPython,
-      autoStart: true,
+      autoStart: comfyuiAutoStartEnabled(),
       ...options.config,
     };
 

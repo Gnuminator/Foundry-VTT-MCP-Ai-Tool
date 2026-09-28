@@ -34,8 +34,8 @@ anywhere, without exposing your home IP address and without port-forwarding.
   │  ┌──────────────────────────────────────────────────────────────┐   │
   │  │  mcp-server backend  (standalone.ts / npm run bridge:standalone) │
   │  │  - control channel  127.0.0.1:31414  (loopback only)         │   │
-  │  │  - Foundry link WS  0.0.0.0:31415  (or host-specific bind)  │   │
-  │  │  - Foundry link WebRTC signaling  0.0.0.0:31416              │   │
+  │  │  - Foundry link WS  :31415  (FOUNDRY_LINK_HOST=0.0.0.0)     │   │
+  │  │  - Foundry link WebRTC signaling  :31416  (same setting)     │   │
   │  └──────────────────────────────────────────────────────────────┘   │
   │                │                                                     │
   │                │  loopback TCP 31414  (never exposed externally)     │
@@ -93,19 +93,23 @@ the remote-hosting topology.
 
 ### Bridge / backend (`packages/mcp-server/src/backend.ts` + `config.ts`)
 
-| Variable                  | Default        | What it controls                                                                                                       |
-| ------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `MCP_CONTROL_HOST`        | `127.0.0.1`    | Bind host for the control channel (31414). Keep loopback — always.                                                     |
-| `MCP_CONTROL_PORT`        | `31414`        | Port for the control channel. Change if running two backends side-by-side.                                             |
-| `MCP_FOUNDRY_LINK`        | _(enabled)_    | Set to `off` to run backend as control-only (no Foundry connector).                                                    |
-| `FOUNDRY_HOST`            | `localhost`    | **Not used by the bridge itself.** Was legacy; the module dials the bridge, not the other way round. (See note below.) |
-| `FOUNDRY_PORT`            | `31415`        | WebSocket listen port for the Foundry connector.                                                                       |
-| `FOUNDRY_NAMESPACE`       | `/foundry-mcp` | WebSocket path prefix.                                                                                                 |
-| `FOUNDRY_CONNECTION_TYPE` | `auto`         | `auto` \| `websocket` \| `webrtc`. `auto` picks WebSocket unless disabled.                                             |
-| `FOUNDRY_STUN_SERVERS`    | Google STUN x2 | Comma-separated STUN URLs for WebRTC ICE. Override to use your own.                                                    |
-| `FOUNDRY_REMOTE_MODE`     | `false`        | Set `true` when bridge and Foundry are on different machines (disables local-path map delivery).                       |
-| `FOUNDRY_DATA_PATH`       | _(unset)_      | Custom path for generated maps in remote mode.                                                                         |
-| `LOG_LEVEL`               | `warn`         | `error` \| `warn` \| `info` \| `debug`                                                                                 |
+| Variable                  | Default        | What it controls                                                                                                                          |
+| ------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `MCP_CONTROL_HOST`        | `127.0.0.1`    | Bind host for the control channel (31414). Keep loopback — always.                                                                        |
+| `MCP_CONTROL_PORT`        | `31414`        | Port for the control channel. Change if running two backends side-by-side.                                                                |
+| `MCP_FOUNDRY_LINK`        | _(enabled)_    | Set to `off` to run backend as control-only (no Foundry connector).                                                                       |
+| `FOUNDRY_LINK_HOST`       | `127.0.0.1`    | Interface for the Foundry link (31415 WS, 31416 WebRTC signaling). Set `0.0.0.0` only when the GM's browser is on another machine.        |
+| `FOUNDRY_AI_DATA_DIR`     | platform dir   | Bridge vault (GM-only data, audit log, session log). Default `%APPDATA%\foundry-ai-tool\vault` or `~/.local/share/foundry-ai-tool/vault`. |
+| `FOUNDRY_AI_EVENT_LOG`    | _(on)_         | `off` disables the persistent session event log (`sessions/<date>.jsonl`).                                                                |
+| `COMFYUI_AUTOSTART`       | `false`        | `true` lets the backend start ComfyUI by itself (map generation is dropped for now).                                                      |
+| `FOUNDRY_HOST`            | `localhost`    | **Not used by the bridge itself.** Was legacy; the module dials the bridge, not the other way round. (See note below.)                    |
+| `FOUNDRY_PORT`            | `31415`        | WebSocket listen port for the Foundry connector.                                                                                          |
+| `FOUNDRY_NAMESPACE`       | `/foundry-mcp` | WebSocket path prefix.                                                                                                                    |
+| `FOUNDRY_CONNECTION_TYPE` | `auto`         | `auto` \| `websocket` \| `webrtc`. `auto` picks WebSocket unless disabled.                                                                |
+| `FOUNDRY_STUN_SERVERS`    | Google STUN x2 | Comma-separated STUN URLs for WebRTC ICE. Override to use your own.                                                                       |
+| `FOUNDRY_REMOTE_MODE`     | `false`        | Set `true` when bridge and Foundry are on different machines (disables local-path map delivery).                                          |
+| `FOUNDRY_DATA_PATH`       | _(unset)_      | Custom path for generated maps in remote mode.                                                                                            |
+| `LOG_LEVEL`               | `warn`         | `error` \| `warn` \| `info` \| `debug`                                                                                                    |
 
 > **Note on `FOUNDRY_HOST`:** The Foundry module dials OUT to the bridge, not the reverse.
 > The bridge does not need to know the Foundry host's address. What matters is that the
@@ -113,20 +117,21 @@ the remote-hosting topology.
 
 ### Dashboard (`packages/cogm-dashboard/src/config.ts`)
 
-| Variable                       | Default                              | What it controls                                                             |
-| ------------------------------ | ------------------------------------ | ---------------------------------------------------------------------------- |
-| `PORT`                         | `3000`                               | HTTP port the dashboard binds. Cloudflare Tunnel proxies this.               |
-| `MCP_CONTROL_HOST`             | `127.0.0.1`                          | Where the dashboard connects for the control channel.                        |
-| `MCP_CONTROL_PORT`             | `31414`                              | Control channel port (must match the backend).                               |
-| `ANTHROPIC_API_KEY`            | _(unset — AI disabled if empty)_     | Anthropic API key. **Server-side only. Never reaches browser.**              |
-| `ANTHROPIC_MODEL`              | `claude-opus-4-8`                    | Claude model used for co-GM commentary.                                      |
-| `GM_DASHBOARD_TOKEN`           | _(unset)_                            | Shared secret that grants GM role. Setting this enables the GM/player split. |
-| `PLAYER_DASHBOARD_TOKEN`       | _(unset)_                            | Optional token required to view the player page.                             |
-| `GM_EMAILS`                    | _(unset)_                            | Comma-separated email addresses that map to GM role (via Cloudflare Access). |
-| `CF_ACCESS_EMAIL_HEADER`       | `cf-access-authenticated-user-email` | Request header Cloudflare Access injects with the authed email.              |
-| `PLAYER_SHOW_ENEMY_CONDITIONS` | `true`                               | Let player view see status conditions on enemy combatants.                   |
-| `PLAYER_SHOW_ENEMY_HP_BANDS`   | `false`                              | Let player view see coarse HP bands (e.g. "bloodied") on enemies.            |
-| `LOG_LEVEL`                    | `info`                               | Dashboard server log verbosity.                                              |
+| Variable                       | Default                              | What it controls                                                                |
+| ------------------------------ | ------------------------------------ | ------------------------------------------------------------------------------- |
+| `PORT`                         | `3000`                               | HTTP port the dashboard binds. Cloudflare Tunnel proxies this.                  |
+| `DASHBOARD_HOST`               | `127.0.0.1`                          | Listen address. Any non-loopback value is refused without `GM_DASHBOARD_TOKEN`. |
+| `MCP_CONTROL_HOST`             | `127.0.0.1`                          | Where the dashboard connects for the control channel.                           |
+| `MCP_CONTROL_PORT`             | `31414`                              | Control channel port (must match the backend).                                  |
+| `ANTHROPIC_API_KEY`            | _(unset — AI disabled if empty)_     | Anthropic API key. **Server-side only. Never reaches browser.**                 |
+| `ANTHROPIC_MODEL`              | `claude-opus-4-8`                    | Claude model used for co-GM commentary.                                         |
+| `GM_DASHBOARD_TOKEN`           | _(unset)_                            | Shared secret that grants GM role. Setting this enables the GM/player split.    |
+| `PLAYER_DASHBOARD_TOKEN`       | _(unset)_                            | Optional token required to view the player page.                                |
+| `GM_EMAILS`                    | _(unset)_                            | Comma-separated email addresses that map to GM role (via Cloudflare Access).    |
+| `CF_ACCESS_EMAIL_HEADER`       | `cf-access-authenticated-user-email` | Request header Cloudflare Access injects with the authed email.                 |
+| `PLAYER_SHOW_ENEMY_CONDITIONS` | `true`                               | Let player view see status conditions on enemy combatants.                      |
+| `PLAYER_SHOW_ENEMY_HP_BANDS`   | `false`                              | Let player view see coarse HP bands (e.g. "bloodied") on enemies.               |
+| `LOG_LEVEL`                    | `info`                               | Dashboard server log verbosity.                                                 |
 
 ### Auth / role mapping summary
 

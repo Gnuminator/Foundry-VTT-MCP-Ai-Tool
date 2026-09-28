@@ -9,6 +9,17 @@ export interface FoundryConnectorOptions {
   logger: Logger;
 }
 
+/**
+ * Interface the Foundry link listens on (WebSocket 31415, WebRTC signaling
+ * 31416). Loopback by default: the module runs in the GM's browser on the same
+ * machine. Set `FOUNDRY_LINK_HOST` (e.g. `0.0.0.0`) only to let a browser on
+ * another machine connect; anything that reaches these ports can drive Foundry.
+ */
+export function foundryLinkBindHost(env: NodeJS.ProcessEnv = process.env): string {
+  const host = env.FOUNDRY_LINK_HOST?.trim();
+  return host ? host : '127.0.0.1';
+}
+
 interface PendingQuery {
   resolve: (value: any) => void;
   reject: (error: Error) => void;
@@ -81,11 +92,13 @@ export class FoundryConnector {
       }
     });
 
+    const bindHost = foundryLinkBindHost();
+
     // Start WebRTC signaling server
     await new Promise<void>((resolve, reject) => {
-      this.webrtcSignalingServer.listen(WEBRTC_PORT, '0.0.0.0', () => {
-        this.logger.info(`WebRTC signaling server listening on port ${WEBRTC_PORT}`);
-        console.error(`[WebRTC] Server started on 0.0.0.0:${WEBRTC_PORT}`);
+      this.webrtcSignalingServer.listen(WEBRTC_PORT, bindHost, () => {
+        this.logger.info(`WebRTC signaling server listening on ${bindHost}:${WEBRTC_PORT}`);
+        console.error(`[WebRTC] Server started on ${bindHost}:${WEBRTC_PORT}`);
         resolve();
       });
       this.webrtcSignalingServer.on('error', (error: Error) => {
@@ -164,9 +177,9 @@ export class FoundryConnector {
 
     // Start the HTTP server
     await new Promise<void>((resolve, reject) => {
-      this.httpServer.listen(this.config.port, () => {
+      this.httpServer.listen(this.config.port, bindHost, () => {
         this.isStarted = true;
-        this.logger.info('Foundry connector listening', { port: this.config.port });
+        this.logger.info('Foundry connector listening', { host: bindHost, port: this.config.port });
         resolve();
       });
 

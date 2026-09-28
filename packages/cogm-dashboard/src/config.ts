@@ -18,6 +18,8 @@ export type Tone = 'tactical' | 'narrative';
 export interface Config {
   /** HTTP port the dashboard (and its SSE stream) listens on. */
   readonly port: number;
+  /** Listen address (`DASHBOARD_HOST`, default 127.0.0.1). */
+  readonly host: string;
   /** MCP backend control-channel host (JSON-lines TCP). */
   readonly mcpHost: string;
   /** MCP backend control-channel port. */
@@ -152,6 +154,8 @@ const logLevel: Config['logLevel'] =
 
 export const config: Config = {
   port: readNumber('PORT', 3000),
+  /** Listen address; loopback unless set (a non-loopback bind needs GM_DASHBOARD_TOKEN). */
+  host: readString('DASHBOARD_HOST', '127.0.0.1'),
   mcpHost: readString('MCP_CONTROL_HOST', '127.0.0.1'),
   mcpPort: readNumber('MCP_CONTROL_PORT', 31414),
   pollIntervalMs,

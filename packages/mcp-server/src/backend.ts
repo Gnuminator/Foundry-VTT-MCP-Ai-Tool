@@ -65,6 +65,7 @@ import { GuardedChangeTools } from './tools/guarded-changes.js';
 import { GuardedWriteService } from './guarded-write/service.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
 import { EventPump, eventPumpSettings } from './event-pump.js';
+import { comfyuiAutoStartEnabled } from './comfyui-client.js';
 
 // Control channel bind target. Defaults to the frozen loopback contract
 // (127.0.0.1:31414) the stdio wrapper and dashboard expect, but is injectable so
@@ -675,7 +676,8 @@ async function startBackend(): Promise<void> {
     server.on('error', reject);
   });
 
-  if (FOUNDRY_LINK_ENABLED) void autoStartComfyUI();
+  // ComfyUI auto-start is opt-in (COMFYUI_AUTOSTART=true); map generation is dropped for now.
+  if (FOUNDRY_LINK_ENABLED && comfyuiAutoStartEnabled()) void autoStartComfyUI();
 
   // Shutdown hooks
 

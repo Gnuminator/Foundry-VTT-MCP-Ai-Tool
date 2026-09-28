@@ -12,6 +12,7 @@ import { buildAskUserMessage } from './ai/prompt.js';
 import { SseHub, type SseRedactor } from './sse.js';
 import { resolveRole, isGm } from './auth.js';
 import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
+import { bindRefusal } from './bind-policy.js';
 import {
   eventsRedactor,
   redactCombatForPlayer,
@@ -553,10 +554,16 @@ app.post('/api/tool', requireGm, (req: Request, res: Response) => {
 });
 
 // --- Startup / shutdown ------------------------------------------------------
+const refusal = bindRefusal(config.host, config.auth.gmToken);
+if (refusal) {
+  logger.error(refusal);
+  process.exit(1);
+}
+
 feed.start();
 
-const server = app.listen(config.port, () => {
-  logger.info(`Co-GM dashboard listening on http://localhost:${config.port}`, {
+const server = app.listen(config.port, config.host, () => {
+  logger.info(`Co-GM dashboard listening on http://${config.host}:${config.port}`, {
     mcp: `${config.mcpHost}:${config.mcpPort}`,
     model: config.anthropicModel,
     aiEnabled: coGm.enabled,

@@ -145,6 +145,39 @@ describe('QueryHandlers — query lockdown', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Guarded writes (plan/apply/undo live in the backend; the module executes)
+// ---------------------------------------------------------------------------
+
+describe('QueryHandlers — guarded-write handlers', () => {
+  const GUARDED = ['snapshotGuardedOps', 'applyGuardedOps', 'logGmChange', 'listGuardedFeatures'];
+
+  it('registers the four guarded-write handlers', () => {
+    qh.registerHandlers();
+    for (const method of GUARDED) expect(qh.isMethodRegistered(method)).toBe(true);
+  });
+
+  it('gates them to the GM and wraps errors with a prefix', async () => {
+    qh.registerHandlers();
+    stubDataAccess();
+    await expect(queries()[`${MODULE_ID}.snapshotGuardedOps`]({ ops: [] })).rejects.toThrow(
+      'Failed to snapshot planned change: A plan needs at least one op'
+    );
+    await expect(queries()[`${MODULE_ID}.logGmChange`]({})).rejects.toThrow(
+      'Failed to log change: logGmChange needs changeId and feature'
+    );
+    expect(await queries()[`${MODULE_ID}.listGuardedFeatures`]()).toEqual(expect.any(Array));
+
+    (globalThis as any).game.user = { ...(globalThis as any).game.user, isGM: false };
+    for (const method of GUARDED) {
+      expect(await queries()[`${MODULE_ID}.${method}`]({})).toEqual({
+        error: 'Access denied',
+        success: false,
+      });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // handleQuery — the internal dispatch entry point
 // ---------------------------------------------------------------------------
 

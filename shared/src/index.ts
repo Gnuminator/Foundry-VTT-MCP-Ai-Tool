@@ -6,6 +6,7 @@
  *   - Zod validation schemas        (schemas.ts)
  *   - Frozen wire-contract constants (constants.ts)
  *   - Wire-protocol frame contracts (protocol.ts)
+ *   - Guarded-write wire types      (guarded-write.ts)
  *
  * Import from this package root, not from the sub-modules directly.
  */
@@ -14,3 +15,4 @@ export * from './types.js';
 export * from './schemas.js';
 export * from './constants.js';
 export * from './protocol.js';
+export * from './guarded-write.js';

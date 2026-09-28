@@ -89,6 +89,7 @@ if ($Only -in 'all', 'bridge') {
     FOUNDRY_WEBRTC_PORT = $TestEnv.WebrtcPort
     FOUNDRY_LINK_HOST   = '127.0.0.1'
     FOUNDRY_AI_DATA_DIR = $TestEnv.VaultDir
+    FOUNDRY_AI_OBSIDIAN_DIR = $TestEnv.ObsidianDir
     COMFYUI_AUTOSTART   = 'false'
     LOG_LEVEL           = 'info'
   } $RepoRoot 30
@@ -102,6 +103,7 @@ if ($Only -in 'all', 'dashboard') {
     DASHBOARD_HOST   = '127.0.0.1'
     MCP_CONTROL_HOST = '127.0.0.1'
     MCP_CONTROL_PORT = $TestEnv.ControlPort
+    FOUNDRY_AI_OBSIDIAN_DIR = $TestEnv.ObsidianDir
   } (Join-Path $RepoRoot 'packages' 'cogm-dashboard') 30
 }
 

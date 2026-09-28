@@ -43,6 +43,14 @@ describe('classifyTool', () => {
     expect(classifyTool('planet-strike')).toBe('write');
     expect(classifyTool('getaway')).toBe('write');
   });
+
+  it('treats mark-play-session as a read (it only appends to the bridge session log)', () => {
+    expect(classifyTool('mark-play-session')).toBe('read');
+  });
+
+  it('treats get-play-session as a read via the get- prefix', () => {
+    expect(classifyTool('get-play-session')).toBe('read');
+  });
 });
 
 describe('toolArgs', () => {

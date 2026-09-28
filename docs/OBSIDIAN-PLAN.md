@@ -1,6 +1,6 @@
 # Obsidian integration plan
 
-Status: **O1 done, plus the first slice of O2 (2026-09-28, `808d092`); see "As built".** Written
+Status: **O1 and O2 done, O3 in progress (2026-09-28); see "As built".** Written
 2026-09-28 (branch `claude/amazing-bardeen-q1x1q6`) from four research sweeps (prior art, Obsidian
 platform, game data, dev project); plugin facts re-checked on GitHub the same day. The GM handed
 Claude ownership of everything Obsidian on 2026-09-28 (structure, plugins, automations, formatting);
@@ -15,6 +15,24 @@ section 12 is recorded on that basis. Later phases run in their own session (pro
   (relative), new notes in `Inbox/`, attachments in `Attachments/`, deletes to the vault trash;
   Templates and Daily notes use `Templates/` and `Daily/`. Templates: Session plan, NPC, Location,
   Daily note. No community plugins.
+- **Vault pass (2026-09-28, with O2):** templates follow section 5 (`npc-prep`, `location-prep`,
+  `quest-prep`, `encounter-prep`, `session-plan`; `fvtt_uuid`, `ai_context`), so GM prep never shares
+  a `type` with generated notes; new Quest, Encounter and Question (dev) templates; hints live in
+  `%% %%` comments, not YAML comments (the Properties editor drops those). Bookmarks: Home, the dev
+  Dashboard, the test world's Home. Excluded files: `Dev/Foundry AI Tool/Sources/` (the raw history
+  export duplicates the split notes). **Community plugins (GM decision 2026-09-28):** the prep set
+  (Templater, Fantasy Statblocks, Dice Roller, Initiative Tracker) and the world set (Calendarium,
+  Excalidraw, Omnisearch); not Leaflet (no release since 2024) and not the AI set (vault MCP,
+  Claudian or Agent Client). The integration itself still needs no community plugin (principle 2);
+  these serve the GM's own prep. Our own plugin is P1 (section 10). Installed from each plugin's
+  latest GitHub release (Templater 2.25.1, Fantasy Statblocks 4.10.3, Dice Roller 11.4.2, Initiative
+  Tracker 13.0.21, Calendarium 2.1.0, Excalidraw 2.27.3, Omnisearch 1.31.0). Templates use Templater
+  (core Templates off): they ask for a name and campaign and file the note in
+  `Campaigns/<world>/Prep/<NPCs|Locations|Quests|Encounters|Sessions|Tables>/`; NPC has a Fantasy
+  Statblocks block, Encounter an Initiative Tracker `encounter` block, new Roll table template for
+  Dice Roller; the Question template files itself in the dev Questions folder. The Daily note
+  template keeps core `{{date}}` syntax because Templater's file-creation trigger stays off (O2,
+  "Templater safety"). Calendarium's calendar is a GM question (match Foundry's Calendaria).
 - **Renderer v1 (pulled in from O2):** `packages/mcp-server/src/obsidian/`, `npm run obsidian --
 export [<worldId>] [--vault <dir>]` (or `FOUNDRY_AI_OBSIDIAN_DIR`). Writes
   `AI Tool/Sessions/<date>.md` (one per log day), `AI Tool/Changes/<YYYY-MM>.md` (from
@@ -27,11 +45,69 @@ secret)` callouts); creates the campaign `Home.md` (Bases tables) and `Prep/` on
   `scripts/obsidian/sync-dev-docs.ps1` copies `docs/`, `.claude/skills/` and CLAUDE/CHANGELOG/README
   into `repo-docs/` (robocopy `/MIR`, Markdown only). Why: Obsidian advises against junctions and a
   mirror can never write back into the git working tree; the cost is a refresh at session end.
-- **Still open from O2:** `generated_by` marker plus content hash (skip GM-edited notes, list them in
-  `_status.md`); dot-prefixed temp names; append-only `gm/audit-log.jsonl`; Tarokka archive notes and
-  `Spread.canvas`; `.base` files under `AI Tool/Bases/`; common `fvtt_*` properties; automatic render
-  after each pump write and apply/undo (debounced); dashboard "Open in Obsidian"; session boundaries
-  (today one note per log day).
+- **O2 (done 2026-09-28):**
+  - **Ownership guard:** every generated note carries `generated_by: "foundry-ai-tool"` and
+    `generated_hash` (sha256 prefix over the note with the hash blanked); a canvas carries both in a
+    `generated` marker node (hash over the parsed JSON, so re-serialization does not count). A note
+    the GM edited, or any file the tool did not write, is never overwritten and is listed in
+    `AI Tool/_status.md`; O1 notes were migrated once. `.base` files carry no marker: Obsidian
+    re-saves a base when it is opened and drops comments, so a base is ours while its content
+    matches what the tool generates; a base changed in Obsidian stays (delete it to get ours back).
+  - **Sessions by play session:** `AI Tool/Sessions/<date> S<NN>.md`, grouped by session markers
+    (`session-start` / `session-end` lines in the session log, from the new tools `mark-play-session`
+    and `get-play-session`; dashboard Start/End session control) with the 3-hour-gap fallback.
+    Properties: session number, started/ended at and by (`marker`, `gap`, `open`), duration, events,
+    event types, actors, scenes, changes (links to `Changes/<month>.md#^<changeId>`).
+  - **Change history:** append-only `gm/audit-log.jsonl` (reserved; one line per apply or undo, no
+    before-values) merged with the audit ring; each change block ends with a `^<changeId>` block id.
+  - **Tarokka:** `Archive/<readingId>.md` per archived reading and `Spread.canvas` (cross layout,
+    card names in collapsed callouts, revealed cards green).
+  - **Also:** `AI Tool/Bases/` (Sessions, Changes, Tarokka readings); common properties (`type`,
+    `fvtt_world`, `fvtt_modified`, `player_visible: false`, `schema: 1`, `tags: [campaign/<world>,
+<type>]`); dot-prefixed temp files; notes the tool no longer produces move to the vault `.trash/`;
+    a failed note does not stop the export (the CLI exits 1).
+  - **Automatic render:** with `FOUNDRY_AI_OBSIDIAN_DIR` set, the backend re-renders a world 3 s
+    after the pump appended events, a change was applied or undone, or a session was marked (at
+    most 30 s apart during steady play); a per-world cache re-reads only changed session logs.
+  - **Templater safety:** every `<%` that comes from data is written as `&lt;%`, and Templater's
+    "trigger on new file creation" stays off in the GM vault: generated notes carry player-chosen
+    text (character names, chat), which that setting would run as code on the GM's PC.
+  - **Dashboard:** "Open in Obsidian" links, GM only (`OBSIDIAN_VAULT_NAME`, else the folder name
+    of `FOUNDRY_AI_OBSIDIAN_DIR`): campaign Home, each change's month note, the Tarokka reading.
+  - **Principle 7 exception:** session markers are log lines like the event pump's, never game
+    state, so `mark-play-session` is gated like a read (still GM-only).
+  - **Live check** on the test server with a throwaway vault (`C:\FoundryTest\obsidian`, seeded
+    with the O1 notes; the test env's new `ObsidianDir`): O1 day note trashed and notes migrated,
+    Start/End session from the dashboard, an HP change showed up in the session note within
+    seconds, an edited note was skipped and listed, split on: players get no Obsidian data and
+    cannot mark sessions (403). Bases and canvas checked in Obsidian 1.13.7; opening a base there
+    re-saved it (the reason bases compare by content).
+  - **Known limits:** `get-play-session` calls a session open until 3 hours after its last event,
+    even when a gap inside it already split the notes; the newest session note says
+    `ended_by: open` until the next event arrives; a base definition that changes in a later
+    version reaches an existing vault only after the GM deletes the old base.
+- **O3 (in progress 2026-09-28, GM go-ahead the same day): design as decided.**
+  - Contracts: `shared/src/play-log.ts` (PlayRecord v2, query `getPlayRecords`) and
+    `packages/mcp-server/src/stats/types.ts` (StatsModel). Recorder in the module
+    (`play-recorder.ts`, GM clients only, shadow before-values), pump in the backend
+    (`play-log-pump.ts`, `sessions/<date>.play.jsonl`, `FOUNDRY_AI_PLAY_LOG=off` disables it), a pure
+    stats builder (`stats/build.ts`), stats in the session notes and `AI Tool/Stats/`, read tool
+    `get-play-stats`.
+  - **Changes to section 8:** no `sessionId` in the raw records: sessions are the O2 grouping over
+    both logs (markers, gaps), a view that can change retroactively, so the raw log stays raw. Each
+    record has a deterministic `key` (document `modifiedTime`, message id, combat round/turn) and
+    the pump drops keys it already wrote, so two GM clients never double a record. No `stats/`
+    area in the bridge vault: the exporter stays read-only on the bridge vault, and the stats are
+    cheap to rebuild from the logs (the dashboard and the AI use `get-play-stats`). Calendaria moon
+    phases are not captured yet (world time is).
+  - **Roll breakdowns (GM decisions 2026-09-28):** every roll records what was rolled, the dice with
+    their results (kept and dropped), each bonus or penalty with its inferred source (ability,
+    proficiency, magic, bonuses; `modifier` when unknown), the natural d20 and the total. Players see
+    a roll's breakdown in the dashboard exactly when they can see the roll in Foundry's chat
+    (public rolls, the GM's public NPC rolls included); whispered, blind, self and GM-private rolls
+    stay GM-only (`gm-roll` events). A target's AC/DC and hit/miss reach players only when dnd5e's
+    challenge visibility setting shows them; the GM always sees them (`details.breakdown`, GM feed,
+    session notes). This also closes the old leak of blind damage rolls into the player feed.
 
 ## 1. Summary
 
@@ -284,7 +360,7 @@ design, the O4 route, O7 and reviews of anything that handles secrets or player 
   `Home.md` and `Dashboard.md` with bases, vault settings, the junction after the watch test,
   `settings.local.json` scope and deny rule, `CLAUDE.local.md`, open section 12 items as Question
   notes. Checks: watch test; a dev session is refused reading `Campaigns/`; `git status` stays clean.
-- **O2 (first slice done, see "As built"): renderer v1 (existing data).** Config, name sanitizer, guarded writer (path fence, marker and
+- **O2 (done 2026-09-28, see "As built"): renderer v1 (existing data).** Config, name sanitizer, guarded writer (path fence, marker and
   hash checks, `_status.md`); session notes from today's JSONL; `Changes/` from a new append-only
   `gm/audit-log.jsonl`; Tarokka current, archive, `Spread.canvas`; `Bases/`; CLI; "Open in Obsidian"
   links. Tests: renderer snapshots; sanitizer (reserved names, link-breaking characters, collisions);
@@ -308,8 +384,24 @@ design, the O4 route, O7 and reviews of anything that handles secrets or player 
 - **O8: Orange Pi.** Vault dir on the Pi's data volume, synced to the PC (default Syncthing: whole
   vault as one Send & Receive folder, `.stignore` for `.obsidian/workspace*.json` and `Dev/`); Pi
   time zone; no Obsidian on the Pi. Tests: Windows-safe names, `.sync-conflict-*` files reported.
-- **Later, only on a clear need:** our own desktop plugin ("Open in Foundry" button, reveal status)
-  with `Vault.process`, `processFrontMatter`, loopback `requestUrl` and SecretStorage.
+- **P1: companion plugin** (GM decision 2026-09-28: plan now, build after O4, which brings the
+  `/open` route and the export index it relies on). Our own desktop-only Obsidian plugin, source in
+  this repo (new workspace `packages/obsidian-plugin`, esbuild, `obsidian` typings), installed into
+  the GM vault by a script (not the community directory, no BRAT). It talks only to the co-GM
+  dashboard (loopback by default, base URL configurable for the Pi), never to Foundry or the bridge;
+  the GM token lives in Obsidian's SecretStorage, never in notes or plugin settings. Every write goes
+  through the dashboard's existing gates (GM Actions switch, plan, confirm with diff, audit, undo);
+  note edits only through `Vault.process` / `processFrontMatter` on the note the GM acted on.
+  Features, in build order: (1) status bar from the dashboard stream: play session open or closed,
+  current scene, combat round, connection; (2) commands to start and end a play session
+  (`mark-play-session`) and a hotkey "add GM note to the session log" (a new log-only tool, shown in
+  the session notes); (3) "Open in Foundry" for any note with `fvtt_uuid`; (4) "Insert Foundry link":
+  a picker over `list-ref-choices` that fills `fvtt_uuid` or inserts a link; (5) reveal status on
+  notes linked to journal pages and Tarokka cards, and "Reveal to players" as a guarded plan (needs
+  M2 for anything player-facing); (6) an AI-context panel: the note's `ai_context` switch and what
+  O5 would send. Tests: unit tests with a mocked `obsidian` module; live in the GM's Obsidian after
+  O4. Community plugins it can use when present: Fantasy Statblocks (NPC blocks), Initiative Tracker
+  (encounters), Calendarium (in-game date).
 
 ## 11. Risks
 
@@ -345,7 +437,8 @@ design, the O4 route, O7 and reviews of anything that handles secrets or player 
 
 Recorded by Claude as owner (2026-09-28): 1 one vault. 2 **Markdown links vault-wide** (consistent with
 the repo docs and generated notes; wikilinks still resolve). 3 yes. 4 index notes, text opt-in. 5 yes.
-6 yes. 7 yes. 8 none until M2. 10 no. 11 core-only, no community plugins installed. 12 session note at
+6 yes. 7 yes. 8 none until M2. 10 no. 11 the integration stays core-only; the GM chose the prep and
+world plugin sets for their own use (2026-09-28, see "As built"). 12 session note at
 wrap-up, SessionEnd stub off, questions in Obsidian, skills mirrored (no junction). 13 all. **Left to the
 GM** (Question notes in the vault): 9 sync method when the Pi arrives (Syncthing is free, Obsidian Sync
 is paid), and the Claude Code deny rule for `Campaigns/` in dev sessions (a permission-settings change).
@@ -374,7 +467,7 @@ Rules:
   green: npm run typecheck && npm run lint:ratchet && npm run build; CI=true npm test.
 
 Start: read "As built" and the Question notes in Dev/Foundry AI Tool/Questions (bold default where
-unanswered), then finish O2 ("Still open from O2") and report. Stop after each phase for my go-ahead; update
+unanswered), then O3 (full play log; recorder design with Opus) and report. Stop after each phase for my go-ahead; update
 CLAUDE.md progress and the plan's status line as phases finish. Pick models as section 10 says.
 ```
 

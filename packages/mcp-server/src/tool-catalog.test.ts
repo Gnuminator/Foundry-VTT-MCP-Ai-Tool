@@ -32,6 +32,8 @@ import { LootTools } from './tools/loot.js';
 import { MapGenerationTools } from './tools/map-generation.js';
 import { MovementTools } from './tools/movement.js';
 import { OwnershipTools } from './tools/ownership.js';
+import { PlaySessionTools } from './tools/play-session.js';
+import { PlayStatsTools } from './tools/play-stats.js';
 import { QuestCreationTools } from './tools/quest-creation.js';
 import { RefChoiceTools } from './tools/ref-choices.js';
 import { ResourceTools } from './tools/resources.js';
@@ -66,6 +68,8 @@ const deps: ToolRouterDeps = {
   mapGenerationTools: new MapGenerationTools({ ...base, backendComfyUIHandlers: {} }),
   movementTools: new MovementTools(base),
   ownershipTools: new OwnershipTools(base),
+  playSessionTools: new PlaySessionTools({ worldIds: {} as any, store: {} as any, logger }),
+  playStatsTools: new PlayStatsTools({ worldIds: {} as any, store: {} as any, logger }),
   questCreationTools: new QuestCreationTools(base),
   refChoiceTools: new RefChoiceTools({ ...base, guardedWrites: {} }),
   resourceTools: new ResourceTools(base),

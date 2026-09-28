@@ -96,5 +96,24 @@ Last full pass: 2026-09-28, all green (see CLAUDE.md). For each item record evid
 10. Pickers: `list-ref-choices` for token, actor, module (with and without `includeSystem`),
     plan, change, skill; in the UI, pick a pack and an entry for `create-actor-from-compendium`.
 
+## Obsidian checks (O2)
+
+The test bridge renders into the throwaway vault `C:\FoundryTest\obsidian` (`ObsidianDir` in
+`scripts/test-env/config.ps1`; never the GM's vault). Notes land in
+`Campaigns\ai-tool-test\AI Tool\` a few seconds after a change.
+
+1. Dashboard header: **Start session**, expect "Session since HH:MM" and a new
+   `AI Tool\Sessions\<date> S<NN>.md` (`started_by: marker`); **End session** closes it
+   (`ended_by: marker`). `get-play-session` via the API agrees.
+2. A game event (e.g. `apply-damage-and-healing` 1 damage with GM Actions on, then off again) shows
+   up in the open session note within ~10 s.
+3. Edit a generated note by hand, then run
+   `FOUNDRY_AI_DATA_DIR=C:\FoundryTest\vault node packages/mcp-server/dist/obsidian-cli.js export ai-tool-test --vault C:\FoundryTest\obsidian`:
+   the note is untouched and listed under "Skipped" in `AI Tool\_status.md`.
+4. With the split on (`GM_DASHBOARD_TOKEN` set when starting the dashboard): `/api/state` and
+   `/api/stream` without the token carry no `obsidian` data and no world id; `mark-play-session`
+   answers 403.
+5. No generated file contains a literal `<%` (Templater tags from game text are written `&lt;%`).
+
 Clean up afterwards when the change is not wanted in the test world (undo from Recent Changes,
 switch features back off if the test needs them off).

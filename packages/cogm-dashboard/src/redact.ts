@@ -56,6 +56,9 @@ export const PUBLIC_EVENT_TYPES: ReadonlySet<string> = new Set([
   'combat-end',
   'damage',
   'damage-roll',
+  // Public dice rolls with their breakdown (GM decision 2026-09-28). Whispered, blind,
+  // self and GM-private rolls arrive as `gm-roll`, which stays GM-only.
+  'roll',
   'healing',
   'death',
   'stabilize',
@@ -164,8 +167,11 @@ export const eventsRedactor: SseRedactor = (payload, role) => {
   return { events: redactEventsForPlayer(events), initial };
 };
 
-/** World descriptor minus GM-only bits (GM names). */
-export function redactWorldForPlayer(world: WorldInfo | null): Omit<WorldInfo, 'gmNames'> | null {
+/** World descriptor minus GM-only bits (GM names, and the world id, used only to
+ * build the GM's "Open in Obsidian" links). */
+export function redactWorldForPlayer(
+  world: WorldInfo | null
+): Omit<WorldInfo, 'gmNames' | 'id'> | null {
   if (!world) return null;
   return {
     title: world.title,
@@ -174,6 +180,13 @@ export function redactWorldForPlayer(world: WorldInfo | null): Omit<WorldInfo, '
     foundryVersion: world.foundryVersion,
   };
 }
+
+/**
+ * Redactor for broadcasts that are GM-only outright (never a redacted shape for
+ * players, just absent): settings (which carries the Obsidian vault name, O2),
+ * diagnostics, AI commentary. A player client gets nothing for these event types.
+ */
+export const gmOnly: SseRedactor = (payload, role) => (role === 'gm' ? payload : undefined);
 
 /** Connection status minus the internal lastError string. */
 export function redactStatusForPlayer(status: BridgeStatus): Omit<BridgeStatus, 'lastError'> {

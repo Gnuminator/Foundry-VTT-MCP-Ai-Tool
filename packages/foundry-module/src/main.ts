@@ -5,6 +5,7 @@ import { ModuleSettings } from './settings.js';
 import { CampaignHooks } from './campaign-hooks.js';
 import { ComfyUIManager } from './comfyui-manager.js';
 import { eventTracker } from './session-events.js';
+import { playRecorder } from './play-recorder.js';
 import { diagnostics } from './diagnostics.js';
 import {
   registerGmHelperQueries,
@@ -91,6 +92,11 @@ class FoundryMCPBridge {
       // Register session-event hooks (chat log buffer + session event log).
       // These power the chat-log, combat play-by-play, and session-log tools.
       eventTracker.registerHooks();
+
+      // Register the full play-log recorder (O3): raw per-change records behind
+      // the session/stats notes. Runs only on a GM client; seeds its shadow
+      // copies at 'ready'.
+      playRecorder.registerHooks();
 
       // Expose data access globally for settings UI
       (window as any).foundryMCPBridge.dataAccess = this.queryHandlers.dataAccess;

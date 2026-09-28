@@ -29,6 +29,24 @@
       </div>
 
       <div class="controls">
+        <div
+          class="session-control"
+          id="session-control"
+          title="Play session marker: writes only to the bridge vault's session log, never game state"
+        >
+          <span class="session-status" id="session-status">Session: …</span>
+          <button id="btn-session" class="btn">Start session</button>
+          <a
+            id="session-obsidian"
+            class="link-btn"
+            href="#"
+            target="_blank"
+            rel="noopener"
+            hidden
+            title="Open the campaign Home note in Obsidian"
+            >📓</a
+          >
+        </div>
         <button id="btn-gm" class="btn" title="Master switch for game-changing actions">
           ⚔ GM Actions: off
         </button>
@@ -178,6 +196,16 @@
         <button class="btn" id="tarokka-refresh">↻ Refresh</button>
         <button class="btn" id="tarokka-import">Import from tarokka-reading</button>
         <button class="btn" id="tarokka-roll">New reading (built-in roll)</button>
+        <a
+          id="tarokka-obsidian"
+          class="link-btn"
+          href="#"
+          target="_blank"
+          rel="noopener"
+          hidden
+          title="Open the current reading in Obsidian"
+          >📓 Obsidian</a
+        >
         <label class="tarokka-show"><input type="checkbox" id="tarokka-show" /> Show cards</label>
       </div>
       <div class="tarokka-body" id="tarokka-body"><p class="empty">Loading…</p></div>

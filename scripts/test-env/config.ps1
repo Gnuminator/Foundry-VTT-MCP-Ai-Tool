@@ -26,6 +26,9 @@ $settings = [ordered]@{
   LinkPort      = 31515
   WebrtcPort    = 31516
   DashboardPort = 3100
+  # Throwaway Obsidian vault the test bridge renders notes into (never the GM's
+  # vault). Empty string = Obsidian auto-render off. Default: <Root>/obsidian.
+  ObsidianDir   = $null
   # Optional: this test server's own admin login, for setup-screen tasks
   # (install packages, create worlds). Only ever put a password here that is
   # used for nothing else. Never printed by the scripts; local.json is gitignored.
@@ -53,6 +56,7 @@ $TestEnv = [pscustomobject]@{
   LinkPort      = [int]$settings.LinkPort
   WebrtcPort    = [int]$settings.WebrtcPort
   DashboardPort = [int]$settings.DashboardPort
+  ObsidianDir   = if ($null -eq $settings.ObsidianDir) { Join-Path $settings.Root 'obsidian' } else { [string]$settings.ObsidianDir }
 }
 $TestEnv | Add-Member NoteProperty ModuleDir (Join-Path $TestEnv.DataDir 'Data' 'modules' 'foundry-mcp-bridge')
 $TestEnv | Add-Member NoteProperty PidFile (Join-Path $TestEnv.LogDir 'pids.json')

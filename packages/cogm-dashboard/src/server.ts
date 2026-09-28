@@ -16,6 +16,7 @@ import { bindRefusal } from './bind-policy.js';
 import { jsonErrorHandler } from './error-handler.js';
 import {
   eventsRedactor,
+  gmOnly,
   redactCombatForPlayer,
   redactEventsForPlayer,
   redactStatusForPlayer,
@@ -116,6 +117,9 @@ function settingsPayload(): Record<string, unknown> {
     gmActionsEnabled: settings.gmActionsEnabled,
     pollIntervalMs: config.pollIntervalMs,
     commentMinIntervalMs: config.commentMinIntervalMs,
+    // GM-only (settings is broadcast/served via `gmOnly`; see redact.ts): the
+    // Obsidian vault "Open in Obsidian" links resolve against, or null when off.
+    obsidian: config.obsidianVaultName ? { vault: config.obsidianVaultName } : null,
   };
 }
 
@@ -126,10 +130,8 @@ function broadcastSettings(): void {
 
 // --- Player/GM split: server-side redactors (Phase 6) ------------------------
 // Each broadcast carries a redactor so a player's SSE stream is filtered HERE,
-// not in the browser. `gmOnly` payloads are skipped entirely for players; the
-// dual ones return a redacted shape (see redact.ts).
-const gmOnly: SseRedactor = (payload, role) => (role === 'gm' ? payload : undefined);
-
+// not in the browser. `gmOnly` (from redact.ts) payloads are skipped entirely
+// for players; the dual ones below return a redacted shape (see redact.ts).
 const statusRedactor: SseRedactor = (payload, role) =>
   role === 'gm' ? payload : redactStatusForPlayer(payload as BridgeStatus);
 
@@ -213,6 +215,7 @@ function mapWorld(raw: unknown): WorldInfo {
     .map(u => u.name)
     .filter((name): name is string => typeof name === 'string');
   return {
+    id: readStr(r.id, ''),
     title: readStr(r.title, 'Unknown world'),
     systemId: readStr(system.id, 'unknown'),
     systemVersion: readStr(system.version, ''),

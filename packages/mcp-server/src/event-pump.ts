@@ -26,6 +26,12 @@ export const PUMP_STATE_FILE = 'pump-state.json';
 export const DEFAULT_EVENT_POLL_MS = 5000;
 /** The module's buffer holds 1000 events; ask for all of them after the cursor. */
 const FETCH_LIMIT = 1000;
+/**
+ * Session grouping gap (Obsidian plan O2 contract 3): a group with no logged
+ * event for longer than this is closed, and the next event opens a new one.
+ * Shared with `get-play-session` (tools/play-session.ts) and the renderer.
+ */
+export const SESSION_GAP_MS = 3 * 60 * 60 * 1000;
 
 interface SessionEvent {
   id: string;
@@ -53,6 +59,12 @@ export interface EventPumpOptions {
   store: VaultStore;
   logger: Logger;
   intervalMs?: number;
+  /**
+   * Called after a successful non-empty append, with the number of events
+   * written. A throwing listener is caught and logged; it never breaks the
+   * pump.
+   */
+  onAppended?: (worldId: string, count: number) => void;
 }
 
 /** Whether the pump is on, and its interval, from the environment. */
@@ -96,6 +108,7 @@ export class EventPump {
   private readonly store: VaultStore;
   private readonly logger: Logger;
   private readonly intervalMs: number;
+  private readonly onAppended: EventPumpOptions['onAppended'];
   private timer: NodeJS.Timeout | null = null;
   private inFlight: Promise<number> | null = null;
   private state: {
@@ -111,6 +124,7 @@ export class EventPump {
     this.store = options.store;
     this.logger = options.logger.child({ component: 'EventPump' });
     this.intervalMs = options.intervalMs ?? DEFAULT_EVENT_POLL_MS;
+    this.onAppended = options.onAppended;
   }
 
   start(): void {
@@ -187,7 +201,19 @@ export class EventPump {
     for (const [id, ms] of state.boundary) if (ms < newest - 1) state.boundary.delete(id);
     state.cursorMs = newest;
     await this.saveState(worldId);
+    this.notifyAppended(worldId, events.length);
     return events.length;
+  }
+
+  private notifyAppended(worldId: string, count: number): void {
+    if (!this.onAppended) return;
+    try {
+      this.onAppended(worldId, count);
+    } catch (error) {
+      this.logger.warn('onAppended listener failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private async loadState(

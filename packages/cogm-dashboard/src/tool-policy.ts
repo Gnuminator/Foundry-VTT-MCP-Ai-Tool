@@ -30,6 +30,13 @@ export const READ_TOOLS_EXTRA: ReadonlySet<string> = new Set([
   'open-in-foundry',
 ]);
 
+/**
+ * Tools that only ever write to the bridge's own session log (O2 play-session
+ * markers), never game state or Foundry itself. Classified as reads for gating:
+ * no GM Actions switch, no confirm modal; same reasoning as a `get-*` tool.
+ */
+export const LOG_ONLY_TOOLS: ReadonlySet<string> = new Set(['mark-play-session']);
+
 /** Tools whose confirm arguments come only from the dashboard's confirmation. */
 export const CONFIRM_FORWARDED_TOOLS: ReadonlySet<string> = new Set([
   'apply-planned-change',
@@ -40,7 +47,9 @@ const READ_PREFIX = /^(get|list|search|measure|plan|suggest)-/;
 
 export function classifyTool(name: string): ToolKind {
   if (DESTRUCTIVE_TOOLS.has(name)) return 'destructive';
-  if (READ_PREFIX.test(name) || READ_TOOLS_EXTRA.has(name)) return 'read';
+  if (READ_PREFIX.test(name) || READ_TOOLS_EXTRA.has(name) || LOG_ONLY_TOOLS.has(name)) {
+    return 'read';
+  }
   return 'write';
 }
 

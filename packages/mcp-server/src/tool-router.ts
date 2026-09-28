@@ -26,6 +26,8 @@ import type { LootTools } from './tools/loot.js';
 import type { MapGenerationTools } from './tools/map-generation.js';
 import type { MovementTools } from './tools/movement.js';
 import type { OwnershipTools } from './tools/ownership.js';
+import type { PlaySessionTools } from './tools/play-session.js';
+import type { PlayStatsTools } from './tools/play-stats.js';
 import type { QuestCreationTools } from './tools/quest-creation.js';
 import type { RefChoiceTools } from './tools/ref-choices.js';
 import type { ResourceTools } from './tools/resources.js';
@@ -56,6 +58,8 @@ export interface ToolRouterDeps {
   mapGenerationTools: MapGenerationTools;
   movementTools: MovementTools;
   ownershipTools: OwnershipTools;
+  playSessionTools: PlaySessionTools;
+  playStatsTools: PlayStatsTools;
   questCreationTools: QuestCreationTools;
   refChoiceTools: RefChoiceTools;
   resourceTools: ResourceTools;
@@ -143,6 +147,9 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
       deps.ownershipTools.handleToolCall('remove-actor-ownership', args),
     'list-actor-ownership': args =>
       deps.ownershipTools.handleToolCall('list-actor-ownership', args),
+    'mark-play-session': args => deps.playSessionTools.handleMarkPlaySession(args),
+    'get-play-session': args => deps.playSessionTools.handleGetPlaySession(args),
+    'get-play-stats': args => deps.playStatsTools.handleGetPlayStats(args),
     'create-quest-journal': args => deps.questCreationTools.handleCreateQuestJournal(args),
     'link-quest-to-npc': args => deps.questCreationTools.handleLinkQuestToNPC(args),
     'update-quest-journal': args => deps.questCreationTools.handleUpdateQuestJournal(args),
@@ -216,6 +223,8 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.diagnosticsTools.getToolDefinitions(),
     ...deps.guardedChangeTools.getToolDefinitions(),
     ...deps.tarokkaTools.getToolDefinitions(),
+    ...deps.playSessionTools.getToolDefinitions(),
+    ...deps.playStatsTools.getToolDefinitions(),
     ...deps.refChoiceTools.getToolDefinitions(),
   ];
 }

@@ -277,6 +277,21 @@ body {
   }
 }
 
+/* ---- Play session control ---- */
+.session-control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.session-status {
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  white-space: nowrap;
+}
+.session-control .link-btn {
+  font-size: var(--fs-sm);
+}
+
 /* ---- Controls ---- */
 .controls {
   display: flex;
@@ -741,6 +756,18 @@ body {
 .event.sev-condition-removed::before,
 .event.sev-resource-spent::before {
   background: linear-gradient(180deg, var(--npc), #9a63c9);
+}
+/* Dice rolls: public ones like the table sees them; GM-only (private, blind) muted. */
+.event.sev-roll::before,
+.event.sev-damage-roll::before {
+  background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+}
+.event.sev-gm-roll::before {
+  background: linear-gradient(180deg, var(--npc), #9a63c9);
+  opacity: 0.6;
+}
+.event.sev-gm-roll .event-desc {
+  font-style: italic;
 }
 .event.sev-damage .event-type,
 .event.sev-death .event-type {

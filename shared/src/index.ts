@@ -17,3 +17,4 @@ export * from './constants.js';
 export * from './protocol.js';
 export * from './guarded-write.js';
 export * from './tool-refs.js';
+export * from './play-log.js';

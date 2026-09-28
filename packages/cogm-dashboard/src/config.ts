@@ -70,6 +70,11 @@ export interface Config {
   readonly auth: AuthConfig;
   /** What a player view is allowed to see of GM-only combat data (Phase 6). */
   readonly playerView: PlayerViewConfig;
+  /**
+   * Name of the GM's Obsidian vault, for "Open in Obsidian" links (O2). '' turns
+   * the links off. See `resolveObsidianVaultName` for the precedence rule.
+   */
+  readonly obsidianVaultName: string;
 }
 
 /**
@@ -129,6 +134,20 @@ function readList(name: string): string[] {
     .filter(s => s !== '');
 }
 
+/**
+ * Which Obsidian vault "Open in Obsidian" links point at: `OBSIDIAN_VAULT_NAME`
+ * wins; otherwise fall back to the basename of `FOUNDRY_AI_OBSIDIAN_DIR` (the
+ * renderer's vault root, see `packages/mcp-server/src/obsidian/cli.ts`); '' (both
+ * unset) turns the links off. Pure so it unit-tests without touching env vars.
+ */
+export function resolveObsidianVaultName(vaultNameEnv: string, obsidianDirEnv: string): string {
+  const name = vaultNameEnv.trim();
+  if (name !== '') return name;
+  const dir = obsidianDirEnv.trim();
+  if (dir === '') return '';
+  return path.basename(dir);
+}
+
 const gmToken = readString('GM_DASHBOARD_TOKEN', '');
 const gmEmails = readList('GM_EMAILS').map(e => e.toLowerCase());
 const auth: AuthConfig = {
@@ -184,4 +203,8 @@ export const config: Config = {
     showEnemyConditions: readBool('PLAYER_SHOW_ENEMY_CONDITIONS', true),
     showEnemyHpBands: readBool('PLAYER_SHOW_ENEMY_HP_BANDS', false),
   },
+  obsidianVaultName: resolveObsidianVaultName(
+    process.env.OBSIDIAN_VAULT_NAME ?? '',
+    process.env.FOUNDRY_AI_OBSIDIAN_DIR ?? ''
+  ),
 };

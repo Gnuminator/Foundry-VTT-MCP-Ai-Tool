@@ -48,6 +48,7 @@ export async function runObsidianCli(argv: string[], io: CliIo): Promise<number>
     io.err(`No worlds in the bridge vault at ${store.dataDir}.`);
     return 1;
   }
+  let hadErrors = false;
   try {
     for (const worldId of targets) {
       const r = await exportWorldToObsidian({ store, audit, worldId, vaultDir });
@@ -55,8 +56,20 @@ export async function runObsidianCli(argv: string[], io: CliIo): Promise<number>
         `${worldId}: ${r.written.length} written, ${r.unchanged.length} unchanged, ${r.created.length} created (${r.root})`
       );
       for (const f of [...r.created, ...r.written]) io.out(`  ${f}`);
+      if (r.skipped.length) {
+        io.out(`  skipped (edited or foreign):`);
+        for (const s of r.skipped) io.out(`    ${s.path}: ${s.reason}`);
+      }
+      if (r.trashed.length) {
+        io.out(`  trashed:`);
+        for (const t of r.trashed) io.out(`    ${t}`);
+      }
+      if (r.errors.length) {
+        hadErrors = true;
+        for (const e of r.errors) io.err(`  ${worldId}: ${e.path}: ${e.error}`);
+      }
     }
-    return 0;
+    return hadErrors ? 1 : 0;
   } catch (error) {
     io.err(`Export failed: ${error instanceof Error ? error.message : String(error)}`);
     return 1;

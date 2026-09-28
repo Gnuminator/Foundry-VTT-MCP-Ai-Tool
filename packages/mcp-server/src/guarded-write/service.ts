@@ -43,7 +43,7 @@ import {
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
 import type { AuditEntry, AuditLog, VaultOpRecord } from '../vault/audit.js';
-import { AUDIT_FILE } from '../vault/audit.js';
+import { AUDIT_FILE, AUDIT_HISTORY_FILE } from '../vault/audit.js';
 import { assertFileName } from '../vault/paths.js';
 import type { VaultEnvelope, VaultStore } from '../vault/store.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
@@ -63,7 +63,7 @@ export const MAX_OPS = 200;
 
 const FEATURE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 /** Vault files features may not write through vault ops. */
-const RESERVED_VAULT_FILES = new Set([AUDIT_FILE]);
+const RESERVED_VAULT_FILES = new Set([AUDIT_FILE, AUDIT_HISTORY_FILE]);
 
 /** Set a value at a dot path in a GM vault file (`gm/<file>`). */
 export interface VaultSetOp {
@@ -172,6 +172,11 @@ export interface GuardedWriteServiceOptions {
   now?: () => number;
   ttlMs?: number;
   maxPlans?: number;
+  /**
+   * Called after an apply or undo was recorded in the audit log. A throwing
+   * listener is caught and logged; it never breaks the apply/undo.
+   */
+  onRecorded?: (worldId: string, changeId: string) => void;
 }
 
 function newId(prefix: string, now: number): string {
@@ -300,6 +305,7 @@ export class GuardedWriteService {
   private readonly now: () => number;
   private readonly ttlMs: number;
   private readonly maxPlans: number;
+  private readonly onRecorded: GuardedWriteServiceOptions['onRecorded'];
   private lock: Promise<unknown> = Promise.resolve();
 
   constructor(options: GuardedWriteServiceOptions) {
@@ -311,6 +317,7 @@ export class GuardedWriteService {
     this.now = options.now ?? ((): number => Date.now());
     this.ttlMs = options.ttlMs ?? PLAN_TTL_MS;
     this.maxPlans = options.maxPlans ?? MAX_PLANS;
+    this.onRecorded = options.onRecorded;
   }
 
   // -------------------------------------------------------------------------
@@ -527,6 +534,7 @@ export class GuardedWriteService {
       ...(plan.rulesVersion ? { rulesVersion: plan.rulesVersion } : {}),
     };
     await this.record(worldId, entry, () => this.audit.append(worldId, entry));
+    this.notifyRecorded(worldId, entry.changeId);
     // A Foundry apply logs its own gm-change event; vault-only changes do it here.
     if (!foundry) await this.logGmChange(entry);
     return this.appliedView(entry);
@@ -582,8 +590,20 @@ export class GuardedWriteService {
         : {}),
     };
     await this.record(worldId, undoEntry, () => this.audit.recordUndo(worldId, undoEntry));
+    this.notifyRecorded(worldId, undoEntry.changeId);
     if (!foundry) await this.logGmChange(undoEntry);
     return this.appliedView(undoEntry);
+  }
+
+  private notifyRecorded(worldId: string, changeId: string): void {
+    if (!this.onRecorded) return;
+    try {
+      this.onRecorded(worldId, changeId);
+    } catch (error) {
+      this.logger.warn('onRecorded listener failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /**

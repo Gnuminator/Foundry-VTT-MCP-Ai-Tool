@@ -63,12 +63,16 @@ import { LootTools } from './tools/loot.js';
 import { DiagnosticsTools } from './tools/diagnostics.js';
 import { GuardedChangeTools } from './tools/guarded-changes.js';
 import { TarokkaTools } from './tools/tarokka.js';
+import { PlaySessionTools } from './tools/play-session.js';
+import { PlayStatsTools } from './tools/play-stats.js';
 import { RefChoiceTools } from './tools/ref-choices.js';
 import type { JobQueue } from './job-queue.js';
 import { TarokkaService } from './tarokka/service.js';
 import { GuardedWriteService } from './guarded-write/service.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
 import { EventPump, eventPumpSettings } from './event-pump.js';
+import { PlayLogPump, playLogSettings } from './play-log-pump.js';
+import { ObsidianAutoRender, obsidianAutoRenderSettings } from './obsidian/auto-render.js';
 import { comfyuiAutoStartEnabled } from './comfyui-client.js';
 
 // Control channel bind target. Defaults to the frozen loopback contract
@@ -279,19 +283,40 @@ async function startBackend(): Promise<void> {
   // Bridge vault (GM-only data off Foundry) + guarded writes (plan/apply/undo).
   const vaultStore = new VaultStore({ dataDir: resolveDataDir() });
   const worldIds = new WorldIdResolver(foundryClient);
+  const auditLog = new AuditLog(vaultStore);
+  // Obsidian notes, re-rendered after data changes (FOUNDRY_AI_OBSIDIAN_DIR; unset = off).
+  const obsidianVaultDir = obsidianAutoRenderSettings().vaultDir;
+  const obsidianRender = obsidianVaultDir
+    ? new ObsidianAutoRender({
+        store: vaultStore,
+        audit: auditLog,
+        vaultDir: obsidianVaultDir,
+        logger,
+      })
+    : null;
+  const renderObsidian = (worldId: string): void => obsidianRender?.schedule(worldId);
   const guardedWrites = new GuardedWriteService({
     foundryClient,
     worldIds,
     store: vaultStore,
-    audit: new AuditLog(vaultStore),
+    audit: auditLog,
     logger,
+    onRecorded: renderObsidian,
   });
   const guardedChangeTools = new GuardedChangeTools({ guardedWrites, foundryClient, logger });
   const tarokkaTools = new TarokkaTools({
     tarokka: new TarokkaService({ guardedWrites, store: vaultStore, worldIds, foundryClient }),
     logger,
   });
+  const playSessionTools = new PlaySessionTools({
+    worldIds,
+    store: vaultStore,
+    logger,
+    onMarked: renderObsidian,
+  });
+  const playStatsTools = new PlayStatsTools({ worldIds, store: vaultStore, logger });
   logger.info('Bridge vault', { dataDir: vaultStore.dataDir });
+  if (obsidianVaultDir) logger.info('Obsidian auto-render', { vaultDir: obsidianVaultDir });
 
   // Initialize mapgen-style backend components for map generation
   let mapGenerationJobQueue: any = null;
@@ -493,6 +518,8 @@ async function startBackend(): Promise<void> {
     encounterTools,
     guardedChangeTools,
     tarokkaTools,
+    playSessionTools,
+    playStatsTools,
     sceneControlTools,
     lootTools,
     diagnosticsTools,
@@ -504,8 +531,10 @@ async function startBackend(): Promise<void> {
   // Start Foundry connector (owns app port 31415). Skipped in control-only mode
   // so the standalone entrypoint can be smoke-tested without binding 31415/31416.
 
-  // Persistent session event log in the vault (FOUNDRY_AI_EVENT_LOG=off disables it).
+  // Persistent session event log in the vault (FOUNDRY_AI_EVENT_LOG=off disables it), and the
+  // play log (every roll and state change; FOUNDRY_AI_PLAY_LOG=off disables it).
   let eventPump: EventPump | null = null;
+  let playLogPump: PlayLogPump | null = null;
 
   if (FOUNDRY_LINK_ENABLED) {
     foundryClient.connect().catch(e => {
@@ -519,10 +548,25 @@ async function startBackend(): Promise<void> {
         store: vaultStore,
         logger,
         intervalMs: pumpSettings.intervalMs,
+        onAppended: renderObsidian,
       });
       eventPump.start();
     } else {
       logger.info('Session event log disabled (FOUNDRY_AI_EVENT_LOG=off)');
+    }
+    const playSettings = playLogSettings();
+    if (playSettings.enabled) {
+      playLogPump = new PlayLogPump({
+        foundryClient,
+        worldIds,
+        store: vaultStore,
+        logger,
+        intervalMs: playSettings.intervalMs,
+        onAppended: renderObsidian,
+      });
+      playLogPump.start();
+    } else {
+      logger.info('Play log disabled (FOUNDRY_AI_PLAY_LOG=off)');
     }
   } else {
     logger.info('Foundry link disabled (MCP_FOUNDRY_LINK=off) — serving control channel only');
@@ -652,6 +696,8 @@ async function startBackend(): Promise<void> {
 
   process.on('SIGINT', () => {
     eventPump?.stop();
+    playLogPump?.stop();
+    obsidianRender?.stop();
     foundryClient.disconnect();
     releaseLock();
     process.exit(0);
@@ -659,6 +705,8 @@ async function startBackend(): Promise<void> {
 
   process.on('SIGTERM', () => {
     eventPump?.stop();
+    playLogPump?.stop();
+    obsidianRender?.stop();
     foundryClient.disconnect();
     releaseLock();
     process.exit(0);

@@ -77,6 +77,22 @@ staged plan + locked decisions live in [DETACH-PLAN.md](DETACH-PLAN.md). Status 
 - **Priority rule:** mobile/tablet support is **last** — never built in parallel; only after v1 desktop
   is done.
 
+### GM to-dos (added 2026-09-28, not scheduled yet)
+
+- [ ] **Video walkthrough** of the Foundry module, the AI Tool (bridge, dashboard, tools) and Obsidian:
+      how to use each part and what each thing does.
+- [ ] **Written guides, easy to follow**: checklists such as "before each session do this", "after
+      each session do this", "never do this", "only do this if", "where to look for this", plus
+      troubleshooting. For the GM first; players get their own short version.
+- [ ] **Update the GitHub README / front page** to what the tool is now (Curse of Strahd features,
+      guarded writes, Obsidian, play log and stats, the test setup).
+- [ ] **Help inside each surface**: in-app help in the Foundry module (settings hints, a help
+      dialog), in the co-GM dashboard (what each panel and button does, links to the guides) and in
+      Obsidian (a help note per area, linked from Home and the campaign Home).
+- [ ] **Toggles for most features**, in Foundry's module/game settings: the GM holds the main
+      configuration (what is recorded, shown and allowed); players toggle what they want to see
+      (e.g. roll breakdowns, feed types) within what the GM allows.
+
 ### Code review 2026-07 — action backlog
 
 Full audit in [CODE-REVIEW-2026-07.md](CODE-REVIEW-2026-07.md) (HEAD `bfbc93b`, v0.18.0). The two biggest

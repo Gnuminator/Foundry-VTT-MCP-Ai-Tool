@@ -108,16 +108,54 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
 - [x] **Obsidian O1** (`808d092`, plan `2b126f1` = `docs/OBSIDIAN-PLAN.md`): Claude owns the GM's vault
   `C:\Users\chris\Documents\Obsidian\vault` (structure, plugins, automations). Vault skeleton,
   templates, Dev dashboard with Question notes, `npm run obsidian -- export` (sessions, changes,
-  Tarokka), `scripts/obsidian/sync-dev-docs.ps1` (read-only docs mirror). Next: rest of O2.
+  Tarokka), `scripts/obsidian/sync-dev-docs.ps1` (read-only docs mirror).
+- [x] **Obsidian O2** (2026-09-28, uncommitted at handoff time; `docs/OBSIDIAN-PLAN.md` "As built"):
+  ownership guard (marker + hash, GM-edited notes skipped and listed in `_status.md`, bases compared
+  by content), notes per play session (markers from the new log-only tools `mark-play-session` /
+  `get-play-session`, dashboard Start/End control, 3-hour-gap fallback), append-only
+  `gm/audit-log.jsonl`, Tarokka archive + `Spread.canvas`, `AI Tool/Bases/`, prune to `.trash/`,
+  auto-render when `FOUNDRY_AI_OBSIDIAN_DIR` is set, Templater-safe output, dashboard "Open in
+  Obsidian" links (GM only). Test env renders into a throwaway vault (`ObsidianDir`, default
+  `C:\FoundryTest\obsidian`). Vault: community plugins (prep + world sets), Templater templates,
+  Templater's file-creation trigger stays off. **Tests 2,343** (foundry-module 950, mcp-server
+  1287, shared 55, cogm-dashboard 51); 86 tools.
 - [x] **Project history imported** (2026-09-28): the cloud project's history export is in the GM's
   vault under `Dev/Foundry AI Tool/` (History, Open work, Working agreements, Glossary, one note per
   decision/idea/lesson, Bases on the Dashboard, new Question notes). It is documentation only: it does
   not change current goals. Repo fixes from the cross-check: this file (Phases 7 to 9, releases,
   unmerged branches, Node versions, lint baseline), CHANGELOG "Unreleased", ROADMAP ticks.
-- [~] **Handoff (2026-09-28).**
+- [~] **Obsidian O3 (full play log + stats)**, in progress (`docs/OBSIDIAN-PLAN.md` O3 entry):
+  contracts `shared/src/play-log.ts` + `packages/mcp-server/src/stats/types.ts`; module
+  `play-recorder.ts` (GM clients, shadow before-values, query `getPlayRecords`); backend
+  `play-log-pump.ts` (`sessions/<date>.play.jsonl`, key dedupe, `FOUNDRY_AI_PLAY_LOG=off`); pure
+  `stats/build.ts`; stats in session notes + `AI Tool/Stats/` (Campaign, PCs) + `PC stats.base`;
+  read tool `get-play-stats` (87 tools). Live fight on the test server worked and found bugs (below).
+- [~] **Handoff (2026-09-28, GM left; worker D still running on the GM's instruction).**
+  - Uncommitted: O2 + O3 (they share files, so they go in ONE commit; the GM authorized committing O2).
+    If the tree is not committed yet: integrate worker D's report, run the full gate, commit.
+  - Worker D (module) was fixing, from the live fight: (1) stale `t`/keys for unlinked-token actors
+    and deletes (fresh `modifiedTime` only, else `Date.now()` + a 2 s bucket key); (2) HP attribution
+    at most once per roll per target; (3) `dnd5e.restCompleted` rests; (4) `combat` on combat-end;
+    (5) `userName` on records; (6) roll breakdowns (`systems/dnd5e/roll-breakdown.ts`: label, parts
+    with inferred sources, natural d20; session events `roll` (public, player-safe text), `gm-roll`
+    (whisper/blind/self), `damage-roll` public text + `details.breakdown`). Check each is done.
+  - Done by the lead after the fight: ambient-only inferred groups are not sessions; user names
+    from `userName`; scene minutes from every record's `sceneId`; dashboard allowlists public `roll`,
+    GM feed and session notes show `details.breakdown`; dice `results` = kept, `dropped` separate.
+  - Next: live re-run of the scripted fight (test env; `Test Hero` PC + wolves; combat set up by a
+    short script in the Foundry tab, then dashboard tools: `apply-damage-and-healing`,
+    `advance-combat-turn`, `roll-saving-throws`, `roll-npc-check`, `manage-rest`) and check the
+    fixes, the breakdown text in the GM and player feeds (public vs whisper/blind) and the notes.
+    The test vault's `sessions/2026-09-28.play.jsonl` holds records from the first run with stale
+    times (test data; clear or ignore). Then docs (CHANGELOG, skills), then the guarded combat tool
+    (designed: feature switch `combat`, `plan-combat` create/add/remove/start/end, apply/undo via
+    the guarded-write flow; no executor change needed).
+  - GM to-dos recorded, not scheduled (`docs/ROADMAP.md` "GM to-dos"): video walkthrough, easy
+    guides with session checklists, README/front page, help inside each surface, feature toggles
+    (GM config + per-player choices).
   - Open GM questions (Obsidian `Dev/Foundry AI Tool/Questions/`): M2 go-ahead; merge plan for this
     branch and the unmerged ones; ComfyUI removal; Orange Pi exposure and deploy gating; archive the
-    old fork; vault sync method; deny rule for `Campaigns/`.
+    old fork; vault sync method; deny rule for `Campaigns/`; Calendarium calendar.
   - Part B verification is unfinished: `.claude/skills/foundry-core-ui/reference/*.md` (11 pages) are
     uncommitted drafts; the click-through lanes were stopped mid-run, so some pages may carry partial
     `[verified]` marks and no stamp. Resume later (Sonnet, one lane per GM user, canvas pages in front).

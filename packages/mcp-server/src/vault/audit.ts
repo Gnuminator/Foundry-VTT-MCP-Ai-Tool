@@ -15,6 +15,13 @@ export const AUDIT_SCHEMA = 1;
 export const AUDIT_RING_SIZE = 500;
 /** Deleted-document snapshots above this size (JSON chars, per entry) go to backups/. */
 export const AUDIT_INLINE_DELETED_LIMIT = 16_384;
+/**
+ * Append-only change history (Obsidian plan O2 contract 2), one JSON line per
+ * recorded entry (apply and undo alike). Unlike the ring, nothing is ever
+ * dropped from it; it is the renderer's source for `Changes/`.
+ */
+export const AUDIT_HISTORY_FILE = 'audit-log.jsonl';
+const AUDIT_HISTORY_SCHEMA_VERSION = 1;
 
 /** One value changed in a vault JSON file. */
 export interface VaultOpRecord {
@@ -61,6 +68,39 @@ interface DeletedBackup {
   deleted: Record<string, Record<string, unknown>>;
 }
 
+/** One line of `gm/audit-log.jsonl` (contract 2: no `results`, `vaultOps`, `backupRef`, `undoneBy`, `undoneAt`). */
+export interface AuditHistoryLine {
+  v: 1;
+  changeId: string;
+  planId: string | null;
+  feature: string;
+  summary: string;
+  risk: GuardedRisk;
+  target: 'foundry' | 'vault' | 'mixed';
+  mode: 'apply' | 'undo';
+  appliedAt: string;
+  diff: string[];
+  rulesVersion?: RulesVersion;
+  undoOf?: string;
+}
+
+function historyLine(entry: AuditEntry): AuditHistoryLine {
+  return {
+    v: AUDIT_HISTORY_SCHEMA_VERSION,
+    changeId: entry.changeId,
+    planId: entry.planId,
+    feature: entry.feature,
+    summary: entry.summary,
+    risk: entry.risk,
+    target: entry.target,
+    mode: entry.mode,
+    appliedAt: entry.appliedAt,
+    diff: entry.diff,
+    ...(entry.rulesVersion !== undefined ? { rulesVersion: entry.rulesVersion } : {}),
+    ...(entry.undoOf !== undefined ? { undoOf: entry.undoOf } : {}),
+  };
+}
+
 function backupFileFor(changeId: string): string {
   return `${changeId}.json`;
 }
@@ -79,6 +119,7 @@ export class AuditLog {
       }
       return { entries };
     });
+    await this.store.appendLines(worldId, 'gm', AUDIT_HISTORY_FILE, [historyLine(stored)]);
     await this.removeBackups(worldId, dropped);
     return stored;
   }
@@ -103,6 +144,7 @@ export class AuditLog {
       }
       return { entries };
     });
+    await this.store.appendLines(worldId, 'gm', AUDIT_HISTORY_FILE, [historyLine(stored)]);
     await this.removeBackups(worldId, dropped);
     return stored;
   }

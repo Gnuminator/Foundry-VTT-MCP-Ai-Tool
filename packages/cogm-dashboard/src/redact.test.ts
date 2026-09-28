@@ -6,6 +6,7 @@ import {
   redactEventsForPlayer,
   redactWorldForPlayer,
   redactStatusForPlayer,
+  gmOnly,
   PUBLIC_EVENT_TYPES,
 } from './redact.js';
 import type { PlayerViewConfig } from './config.js';
@@ -150,6 +151,21 @@ describe('redactEventForPlayer', () => {
     expect(redactEventForPlayer(event({ eventType: 'whisper' }))).toBeNull();
   });
 
+  it('shows public rolls with their player-safe text, never GM-only rolls or the full breakdown', () => {
+    const pub = redactEventForPlayer(
+      event({
+        eventType: 'roll',
+        description: 'Wolf, Bite attack: 1d20 (16) +2 DEX +2 proficiency = 20',
+        details: { breakdown: 'Wolf, Bite attack: ... = 20 vs AC 13: hit', public: true },
+      })
+    )!;
+    expect(pub.description).toBe('Wolf, Bite attack: 1d20 (16) +2 DEX +2 proficiency = 20');
+    expect(pub.details).toEqual({});
+    expect(
+      redactEventForPlayer(event({ eventType: 'gm-roll', description: 'blind save' }))
+    ).toBeNull();
+  });
+
   it('every public type passes', () => {
     for (const t of PUBLIC_EVENT_TYPES) {
       expect(redactEventForPlayer(event({ eventType: t }))).not.toBeNull();
@@ -168,8 +184,9 @@ describe('redactEventForPlayer', () => {
 });
 
 describe('redactWorldForPlayer / redactStatusForPlayer', () => {
-  it('strips GM names from world', () => {
+  it('strips GM names and the world id from world (id is used only for GM-side Obsidian links)', () => {
     const r = redactWorldForPlayer({
+      id: 'curse-of-strahd',
       title: 'Frostmaiden',
       systemId: 'dnd5e',
       systemVersion: '3.3',
@@ -177,6 +194,7 @@ describe('redactWorldForPlayer / redactStatusForPlayer', () => {
       gmNames: ['Alice'],
     })!;
     expect(r).not.toHaveProperty('gmNames');
+    expect(r).not.toHaveProperty('id');
     expect(r.title).toBe('Frostmaiden');
   });
 
@@ -189,5 +207,14 @@ describe('redactWorldForPlayer / redactStatusForPlayer', () => {
     });
     expect(r).not.toHaveProperty('lastError');
     expect(r.foundry).toBe('reachable');
+  });
+});
+
+describe('gmOnly', () => {
+  it('passes a GM-only payload straight through to the GM and drops it entirely for a player', () => {
+    // e.g. the settings broadcast, which carries the Obsidian vault name (O2).
+    const payload = { gmActionsEnabled: true, obsidian: { vault: 'GM Vault' } };
+    expect(gmOnly(payload, 'gm')).toBe(payload);
+    expect(gmOnly(payload, 'player')).toBeUndefined();
   });
 });

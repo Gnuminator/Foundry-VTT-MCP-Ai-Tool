@@ -45,11 +45,19 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   journal page, item, combatant, pack, plan, change, Tarokka card, ...) gets "Pick…", a filterable
   list of what exists now; typing still works. New read tool `list-ref-choices`. MCP clients get the
   schemas without the picker annotations.
-- **Obsidian export** (`npm run obsidian -- export [<worldId>] [--vault <dir>]`, or
-  `FOUNDRY_AI_OBSIDIAN_DIR`): a one-way, GM-only render of the bridge vault into an Obsidian vault
-  (session timeline, applied and undone changes, the current Tarokka reading with cards in collapsed
-  callouts). Writes only under `Campaigns/<worldId>/`; the campaign `Home.md` and `Prep/` are created
-  once and never rewritten.
+- **Obsidian notes** (`npm run obsidian -- export [<worldId>] [--vault <dir>]`): a one-way, GM-only
+  render of the bridge vault into an Obsidian vault under `Campaigns/<worldId>/AI Tool/`: one note
+  per play session, the change history by month (from the new append-only `gm/audit-log.jsonl`),
+  the current and archived Tarokka readings (cards in collapsed callouts) and a `Spread.canvas`,
+  three Bases tables and `_status.md`. With `FOUNDRY_AI_OBSIDIAN_DIR` set, the backend re-renders a
+  few seconds after each logged event, applied or undone change and session marker. A note you
+  edit in Obsidian is never overwritten (listed in `_status.md` instead); notes the tool no longer
+  produces go to the vault's `.trash/`; the campaign `Home.md` and `Prep/` are created once and
+  never rewritten. Text from the game is written so the Templater plugin cannot run it.
+- **Play sessions**: tools `mark-play-session` and `get-play-session` (they write only the bridge's
+  own session log) and a Start/End session control in the dashboard header; session notes follow
+  these markers, else a 3-hour gap. The dashboard links to the Obsidian notes (GM only;
+  `OBSIDIAN_VAULT_NAME`, else the folder name of `FOUNDRY_AI_OBSIDIAN_DIR`).
 
 ### Fixes
 

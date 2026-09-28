@@ -3,7 +3,13 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { AUDIT_INLINE_DELETED_LIMIT, AUDIT_RING_SIZE, AuditLog, type AuditEntry } from './audit.js';
+import {
+  AUDIT_HISTORY_FILE,
+  AUDIT_INLINE_DELETED_LIMIT,
+  AUDIT_RING_SIZE,
+  AuditLog,
+  type AuditEntry,
+} from './audit.js';
 import type { GuardedOpResult } from '@gnuminator/shared';
 
 import { VaultStore } from './store.js';
@@ -111,6 +117,73 @@ describe('AuditLog', () => {
       undoneAt: '2026-09-28T11:00:00Z',
     });
     await expect(audit.recordUndo('w1', entry('u2', { mode: 'undo' }))).rejects.toThrow(/undoOf/);
+  });
+
+  it('appends a contract-2 line to gm/audit-log.jsonl for an apply, exact shape', async () => {
+    await audit.append(
+      'w1',
+      entry('c1', {
+        rulesVersion: '2024',
+        results: [updResult(0)],
+        vaultOps: [
+          {
+            file: 'tarokka.json',
+            path: 'a',
+            before: { path: 'a', present: false },
+            after: { path: 'a', present: true, value: 1 },
+          },
+        ],
+      })
+    );
+    const lines = await store.readLines('w1', 'gm', AUDIT_HISTORY_FILE);
+    expect(lines).toEqual([
+      {
+        v: 1,
+        changeId: 'c1',
+        planId: 'plan-c1',
+        feature: 'npc-attitudes',
+        summary: 'Change c1',
+        risk: 'write',
+        target: 'foundry',
+        mode: 'apply',
+        appliedAt: '2026-09-28T10:00:00.000Z',
+        diff: [],
+        rulesVersion: '2024',
+      },
+    ]);
+  });
+
+  it('appends a contract-2 line to gm/audit-log.jsonl for an undo, with undoOf', async () => {
+    await audit.append('w1', entry('c1'));
+    await audit.recordUndo(
+      'w1',
+      entry('u1', { mode: 'undo', planId: null, undoOf: 'c1', appliedAt: '2026-09-28T11:00:00Z' })
+    );
+    const lines = (await store.readLines('w1', 'gm', AUDIT_HISTORY_FILE)) as Array<
+      Record<string, unknown>
+    >;
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toEqual({
+      v: 1,
+      changeId: 'u1',
+      planId: null,
+      feature: 'npc-attitudes',
+      summary: 'Change u1',
+      risk: 'write',
+      target: 'foundry',
+      mode: 'undo',
+      appliedAt: '2026-09-28T11:00:00Z',
+      diff: [],
+      undoOf: 'c1',
+    });
+  });
+
+  it('keeps every history line even past the ring size (append-only, never trimmed)', async () => {
+    for (let i = 0; i < AUDIT_RING_SIZE + 5; i++) {
+      await audit.append('w1', entry(`c${i}`));
+    }
+    expect(await store.readLines('w1', 'gm', AUDIT_HISTORY_FILE)).toHaveLength(AUDIT_RING_SIZE + 5);
+    expect((await audit.list('w1', 10_000)).length).toBe(AUDIT_RING_SIZE);
   });
 });
 

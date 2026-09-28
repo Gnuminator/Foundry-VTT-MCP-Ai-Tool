@@ -535,3 +535,45 @@ describe('mixed plans', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// onRecorded
+// ---------------------------------------------------------------------------
+
+describe('onRecorded', () => {
+  it('is called with the world and changeId after apply and after undo', async () => {
+    const onRecorded = vi.fn();
+    service = makeService({ onRecorded });
+    const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    expect(onRecorded).toHaveBeenCalledWith('curse-of-strahd', applied.changeId);
+    expect(onRecorded).toHaveBeenCalledTimes(1);
+
+    const undone = await service.undo(applied.changeId, { confirm: true });
+    expect(onRecorded).toHaveBeenCalledWith('curse-of-strahd', undone.changeId);
+    expect(onRecorded).toHaveBeenCalledTimes(2);
+  });
+
+  it('is not called when the audit write fails', async () => {
+    const onRecorded = vi.fn();
+    service = makeService({ onRecorded });
+    const p = await plan([HP_UPDATE]);
+    vi.spyOn(audit, 'append').mockRejectedValueOnce(new Error('disk full'));
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(/disk full/);
+    expect(onRecorded).not.toHaveBeenCalled();
+  });
+
+  it('isolates a throwing listener: the apply still succeeds and the error is logged', async () => {
+    const onRecorded = vi.fn(() => {
+      throw new Error('boom');
+    });
+    service = makeService({ onRecorded });
+    const p = await plan([HP_UPDATE]);
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect(applied.changeId).toMatch(/^chg-/);
+    expect(onRecorded).toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      'onRecorded listener failed',
+      expect.objectContaining({ error: 'boom' })
+    );
+  });
+});

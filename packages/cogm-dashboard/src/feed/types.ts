@@ -71,6 +71,9 @@ export interface CombatState {
 
 /** Lightweight world descriptor used to seed the AI's static context. */
 export interface WorldInfo {
+  /** Foundry world id (folder-safe slug), e.g. "ai-tool-test". GM-only: also the
+   * `Campaigns/<worldId>` key the Obsidian renderer writes under. */
+  id: string;
   title: string;
   systemId: string;
   systemVersion: string;

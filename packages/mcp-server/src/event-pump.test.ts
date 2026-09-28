@@ -194,6 +194,49 @@ describe('EventPump.pollOnce', () => {
   });
 });
 
+describe('EventPump onAppended', () => {
+  it('is called once per non-empty poll, with the world id and count', async () => {
+    const onAppended = vi.fn();
+    const pump = new EventPump({
+      foundryClient: foundry,
+      worldIds: { current: (): Promise<string> => Promise.resolve(foundry.worldId) },
+      store,
+      logger,
+      intervalMs: 5000,
+      onAppended,
+    });
+    foundry.add(T0);
+    foundry.add(T0 + 10);
+    expect(await pump.pollOnce()).toBe(2);
+    expect(onAppended).toHaveBeenCalledTimes(1);
+    expect(onAppended).toHaveBeenCalledWith('w1', 2);
+
+    expect(await pump.pollOnce()).toBe(0);
+    expect(onAppended).toHaveBeenCalledTimes(1); // not called again: nothing new was appended
+  });
+
+  it('isolates a throwing listener: the poll still returns its count and logs the failure', async () => {
+    const onAppended = vi.fn(() => {
+      throw new Error('boom');
+    });
+    const pump = new EventPump({
+      foundryClient: foundry,
+      worldIds: { current: (): Promise<string> => Promise.resolve(foundry.worldId) },
+      store,
+      logger,
+      intervalMs: 5000,
+      onAppended,
+    });
+    foundry.add(T0);
+    expect(await pump.pollOnce()).toBe(1);
+    expect(onAppended).toHaveBeenCalledWith('w1', 1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'onAppended listener failed',
+      expect.objectContaining({ error: 'boom' })
+    );
+  });
+});
+
 describe('EventPump timer', () => {
   it('polls on its interval until stopped', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });

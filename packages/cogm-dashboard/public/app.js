@@ -88,6 +88,11 @@ const els = {
   changesBody: $('changes-body'),
   changesMeta: $('changes-meta'),
   changesRefresh: $('changes-refresh'),
+  // Play session control (O2)
+  sessionStatus: $('session-status'),
+  btnSession: $('btn-session'),
+  sessionObsidian: $('session-obsidian'),
+  tarokkaObsidian: $('tarokka-obsidian'),
 };
 
 const seenEventIds = new Set();
@@ -102,6 +107,8 @@ let settings = {
   aiEnabled: false,
   commentOnErrors: true,
   gmActionsEnabled: false,
+  // GM-only; null until the "settings" snapshot arrives, or when Obsidian links are off.
+  obsidian: null,
 };
 
 // GM Actions state
@@ -113,6 +120,10 @@ let confirmResolver = null;
 let recentChanges = [];
 let tarokkaView = null;
 let changesReloadTimer = null;
+
+// Play session control (O2)
+let currentWorldId = null;
+let playSession = { open: false, startedAt: null };
 
 // ---------------------------------------------------------------------------
 // REST helpers
@@ -177,11 +188,84 @@ function renderSettings(next) {
   if (!settings.gmActionsEnabled) selectedCombatants.clear();
   updateGate();
   renderCombat(lastCombat);
+  renderObsidianLinks();
 }
 
 function renderWorld(world) {
+  currentWorldId = world && world.id ? world.id : null;
+  renderObsidianLinks();
   if (!world) return;
   els.worldSubtitle.textContent = `${world.title} · ${world.systemId} ${world.systemVersion} · Foundry ${world.foundryVersion}`;
+}
+
+// ---------------------------------------------------------------------------
+// Open in Obsidian (GM only; O2): links only render once both the vault name
+// (from the GM-only "settings" payload) and the world id (from "world") are
+// known; no link while the world id is unknown.
+// ---------------------------------------------------------------------------
+function obsidianFileUrl(relativePath) {
+  const vault = settings.obsidian && settings.obsidian.vault;
+  if (!vault || !currentWorldId) return null;
+  const file = `Campaigns/${currentWorldId}/${relativePath}`;
+  return `obsidian://open?vault=${encodeURIComponent(vault)}&file=${encodeURIComponent(file)}`;
+}
+
+function setObsidianLink(el, url) {
+  if (!el) return;
+  el.hidden = !url;
+  if (url) el.href = url;
+}
+
+function renderObsidianLinks() {
+  setObsidianLink(els.sessionObsidian, obsidianFileUrl('Home'));
+  setObsidianLink(els.tarokkaObsidian, obsidianFileUrl('AI Tool/Tarokka/Current reading'));
+  // Recent Changes links are per row (each month is its own note): see renderRecentChanges.
+}
+
+// ---------------------------------------------------------------------------
+// Play session control (O2). Marks the bridge's own session log for the
+// renderer's session grouping; never touches game state, so it is gated like a
+// read (no GM Actions switch, no confirm; see tool-policy.ts LOG_ONLY_TOOLS).
+// ---------------------------------------------------------------------------
+function renderSessionControl() {
+  if (playSession.open) {
+    const time = playSession.startedAt
+      ? new Date(playSession.startedAt).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : null;
+    els.sessionStatus.textContent = time ? `Session since ${time}` : 'Session active';
+    els.btnSession.textContent = 'End session';
+  } else {
+    els.sessionStatus.textContent = 'No session';
+    els.btnSession.textContent = 'Start session';
+  }
+}
+
+async function loadPlaySession({ quiet = true } = {}) {
+  try {
+    const result = await callReadTool('get-play-session', {});
+    playSession = {
+      open: !!(result && result.open),
+      startedAt: (result && result.startedAt) || null,
+    };
+    renderSessionControl();
+  } catch (err) {
+    // Polls stay quiet (Foundry may simply be offline); a click reports the error.
+    els.sessionStatus.textContent = 'Session: unknown';
+    if (!quiet) toast(`✗ get-play-session: ${String(err.message || err)}`, 'err');
+  }
+}
+
+async function markSession(action) {
+  try {
+    await callReadTool('mark-play-session', { action });
+    toast(action === 'start' ? '✓ Play session started' : '✓ Play session ended', 'ok');
+  } catch (err) {
+    toast(`✗ mark-play-session: ${String(err.message || err)}`, 'err');
+  }
+  await loadPlaySession({ quiet: false });
 }
 
 // ---------------------------------------------------------------------------
@@ -294,11 +378,19 @@ function renderCombatActions() {
 // ---------------------------------------------------------------------------
 // Event feed (newest on top)
 // ---------------------------------------------------------------------------
+
+/** A roll event's full breakdown for the GM, else the event's own description. */
+function gmEventText(ev) {
+  const breakdown = ev.details && ev.details.breakdown;
+  return typeof breakdown === 'string' && breakdown ? breakdown : ev.description;
+}
+
 function addEvents(events) {
   if (!events || events.length === 0) return;
   if (els.feedBody.querySelector('.empty')) els.feedBody.innerHTML = '';
 
   // events arrive oldest-first; prepend each so newest ends up on top.
+  // The GM sees a roll's full breakdown (target AC/DC and outcome included).
   for (const ev of events) {
     if (seenEventIds.has(ev.id)) continue;
     seenEventIds.add(ev.id);
@@ -308,7 +400,7 @@ function addEvents(events) {
     const node = document.createElement('div');
     node.className = `event sev-${ev.eventType}`;
     node.innerHTML = `
-      <div class="event-desc">${escapeHtml(ev.description)}</div>
+      <div class="event-desc">${escapeHtml(gmEventText(ev))}</div>
       <div class="event-meta">
         <span class="event-type">${escapeHtml(ev.eventType)}</span>
         <span>${time}</span>
@@ -1166,6 +1258,11 @@ function changeState(c) {
   if (c.undoneBy) return 'undone';
   return c.risk === 'destructive' ? 'destructive' : 'applied';
 }
+// The renderer files changes by UTC month of `appliedAt` (see obsidian/export.ts: `appliedAt.slice(0, 7)`).
+function obsidianChangeUrl(c) {
+  const month = typeof c.appliedAt === 'string' ? c.appliedAt.slice(0, 7) : '';
+  return month ? obsidianFileUrl(`AI Tool/Changes/${month}`) : null;
+}
 function renderRecentChanges() {
   els.changesMeta.textContent = `${recentChanges.length} shown`;
   if (recentChanges.length === 0) {
@@ -1184,6 +1281,10 @@ function renderRecentChanges() {
       const details = diff
         ? `<details><summary>${lines.length} line(s)</summary><ul class="change-diff">${diff}</ul></details>`
         : '';
+      const obsidianUrl = obsidianChangeUrl(c);
+      const obsidianLink = obsidianUrl
+        ? `<a class="link-btn" href="${escapeHtml(obsidianUrl)}" target="_blank" rel="noopener" title="Open this month's change log in Obsidian">📓</a>`
+        : '';
       return `
         <div class="change-entry state-${state}">
           <div class="change-head">
@@ -1195,6 +1296,7 @@ function renderRecentChanges() {
             <span>${escapeHtml(c.feature)}</span>
             <span>${escapeHtml(c.target)}</span>
             <span>${escapeHtml(time)}</span>
+            ${obsidianLink}
           </div>
           ${details}
         </div>`;
@@ -1417,6 +1519,10 @@ els.combatActions.addEventListener('click', e => {
   if (action === 'save') void openTool('roll-saving-throws', { targets: names });
 });
 els.changesRefresh.addEventListener('click', () => void loadRecentChanges());
+els.btnSession.addEventListener(
+  'click',
+  () => void markSession(playSession.open ? 'end' : 'start')
+);
 els.btnTarokka.addEventListener('click', openTarokka);
 els.tarokkaClose.addEventListener('click', closeTarokka);
 els.drawerBackdrop.addEventListener('click', closeTarokka);
@@ -1455,3 +1561,6 @@ document.addEventListener('keydown', e => {
 });
 
 connect();
+renderSessionControl();
+void loadPlaySession();
+setInterval(() => void loadPlaySession(), 60000);

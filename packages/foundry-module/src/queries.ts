@@ -4,6 +4,7 @@ import { fetchTarokkaReadingFromUser, openDocumentForGm } from './gm-helper-quer
 import { getTarokkaReading, searchLinkCandidates } from './tarokka.js';
 import { listRefChoices } from './data-access/ref-choices.js';
 import { listGuardedFeatures } from './guarded-features.js';
+import { playRecorder } from './play-recorder.js';
 import { applyGuardedOps, logGmChange, snapshotGuardedOps } from './data-access/guarded-write.js';
 import { FoundryDataAccess } from './data-access.js';
 import { ComfyUIManager } from './comfyui-manager.js';
@@ -305,6 +306,15 @@ export class QueryHandlers {
     // 3H: Session event log
     handlers.set(`${modulePrefix}.getSessionLog`, this.handleGetSessionLog.bind(this));
     handlers.set(`${modulePrefix}.getRecentEvents`, this.handleGetRecentEvents.bind(this));
+
+    // O3: full play log (raw records behind the session/stats notes)
+    handlers.set(
+      `${modulePrefix}.getPlayRecords`,
+      (data: { sinceSeq?: unknown; limit?: unknown } | undefined) =>
+        this.withGmGate('Failed to get play records', () =>
+          Promise.resolve(playRecorder.getPlayRecords(data))
+        )
+    );
 
     // Combat resolution
     handlers.set(

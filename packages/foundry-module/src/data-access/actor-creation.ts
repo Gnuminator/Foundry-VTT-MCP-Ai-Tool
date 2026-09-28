@@ -2,6 +2,7 @@ import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
 import { permissionManager } from '../permissions.js';
 import { transactionManager } from '../transaction-manager.js';
 import * as shared from './shared.js';
+import { currentLevelId } from '../systems/core.js';
 import { CompendiumDataAccess } from './compendium.js';
 import type {
   ActorCreationRequest,
@@ -397,6 +398,17 @@ export class ActorCreationDataAccess {
 
     shared.auditLog('addActorsToScene', placement, 'success');
 
+    // v14 Scene Levels: a Token's `level` field is required + non-nullable and
+    // defaults to the scene's *initial* level when omitted — not necessarily the
+    // level the GM is currently viewing — so a token dropped while looking at a
+    // different level would silently land on the wrong one. `currentLevelId`
+    // returns `undefined` on a v13 scene (no `levels`), which is a no-op spread
+    // below (matches dnd5e 6's own token-placement code, which also sets it
+    // explicitly). verified: common/documents/token.mjs:180 (`level: new
+    // DocumentIdField({required: true, nullable: false, ...})`), :234
+    // (`data.level ??= this.parent?.initialLevel?.id` — the fallback this avoids).
+    const level = currentLevelId(scene as Scene);
+
     try {
       const tokenData: any[] = [];
       const errors: string[] = [];
@@ -422,6 +434,7 @@ export class ActorCreationDataAccess {
             ...tokenDoc,
             x: position.x,
             y: position.y,
+            ...(level !== undefined ? { level } : {}),
             actorId,
             hidden: placement.hidden,
           });

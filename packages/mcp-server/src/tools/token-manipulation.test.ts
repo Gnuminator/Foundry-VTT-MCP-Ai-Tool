@@ -479,3 +479,60 @@ describe('TokenManipulationTools.handleGetAvailableConditions', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// M3: secret disposition (-2) and condition id wording
+// ---------------------------------------------------------------------------
+
+describe('TokenManipulationTools secret disposition (M3)', () => {
+  it('update-token accepts disposition -2 (TOKEN_DISPOSITIONS.SECRET) and forwards it', async () => {
+    const { tools, query } = makeTools(() => ({ success: true }));
+    await tools.handleUpdateToken({ tokenId: 'tok1', updates: { disposition: -2 } });
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.update-token', {
+      tokenId: 'tok1',
+      updates: { disposition: -2 },
+    });
+  });
+
+  it('update-token schema lists -2 in the disposition enum and still rejects 2', async () => {
+    const { tools } = makeTools();
+    const def = tools.getToolDefinitions().find(d => d.name === 'update-token')!;
+    const disposition = (def.inputSchema as any).properties.updates.properties.disposition;
+    expect(disposition.enum).toEqual([-2, -1, 0, 1]);
+    await expect(
+      tools.handleUpdateToken({ tokenId: 'tok1', updates: { disposition: 2 } })
+    ).rejects.toThrow();
+  });
+
+  it('get-token-details maps disposition -2 to "secret"', async () => {
+    const rawToken = {
+      id: 'tok9',
+      name: 'Stranger',
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      rotation: 0,
+      scale: 1,
+      alpha: 1,
+      hidden: false,
+      img: '',
+      disposition: -2,
+      elevation: 0,
+      lockRotation: false,
+      actorId: null,
+      actorLink: false,
+      actorData: null,
+    };
+    const { tools } = makeTools(() => rawToken);
+    const result = await tools.handleGetTokenDetails({ tokenId: 'tok9' });
+    expect(result.behavior.disposition).toBe('secret');
+  });
+
+  it('toggle-token-condition tells the caller where condition ids come from', () => {
+    const { tools } = makeTools();
+    const def = tools.getToolDefinitions().find(d => d.name === 'toggle-token-condition')!;
+    const desc = (def.inputSchema as any).properties.conditionId.description as string;
+    expect(desc).toContain('get-available-conditions');
+  });
+});

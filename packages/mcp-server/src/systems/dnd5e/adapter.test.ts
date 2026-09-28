@@ -599,20 +599,54 @@ describe('DnD5eAdapter', () => {
       expect(stats.alignment).toBe('neutral evil');
     });
 
-    it('extracts legendaryActions for npc', () => {
-      const stats = adapter.extractCharacterStats(makeNpcActorData());
-      expect(stats.legendaryActions).toEqual({ available: 0, max: 0 });
+    it('extracts legendaryActions for npc when legact.max > 0', () => {
+      const legendary = makeNpcActorData();
+      legendary.system.resources = { legact: { value: 2, max: 3 } };
+      const stats = adapter.extractCharacterStats(legendary);
+      expect(stats.legendaryActions).toEqual({ available: 2, max: 3 });
     });
 
-    it('detects spellcasting when system.spells is present', () => {
+    // Regression: dnd5e always populates `resources.legact` as a {max, spent}
+    // container (default max: 0) on every NPC — both 5.3 and 6.0 — so its
+    // mere presence used to make every NPC report legendaryActions. Only a
+    // positive max should.
+    it('does not include legendaryActions when legact.max is 0 (dnd5e always populates the container)', () => {
+      const stats = adapter.extractCharacterStats(makeNpcActorData());
+      expect(stats.legendaryActions).toBeUndefined();
+    });
+
+    it('detects spellcasting when a system.spells slot has a nonzero value', () => {
       const actorWithSpells = makeNpcActorData();
       actorWithSpells.system.spells = { spell1: { value: 2, max: 2 } };
       const stats = adapter.extractCharacterStats(actorWithSpells);
       expect(stats.spellcasting?.hasSpells).toBe(true);
     });
 
+    it('detects spellcasting via a non-blank attributes.spellcasting ability even with zeroed spell slots', () => {
+      const caster = makeNpcActorData();
+      caster.system.attributes.spellcasting = 'wis';
+      caster.system.spells = { spell1: { value: 0, override: null } };
+      const stats = adapter.extractCharacterStats(caster);
+      expect(stats.spellcasting?.hasSpells).toBe(true);
+    });
+
     it('does not include spellcasting when no spells present', () => {
       const stats = adapter.extractCharacterStats(makeNpcActorData());
+      expect(stats.spellcasting).toBeUndefined();
+    });
+
+    // Regression: dnd5e always populates `system.spells` (a fixed level map,
+    // each slot defaulting to value: 0) and `attributes.spellcasting` (a
+    // blank StringField) on every NPC, so testing their mere presence used to
+    // make every NPC report hasSpells: true.
+    it('does not detect spellcasting from a dnd5e-shaped zeroed system.spells map with a blank ability', () => {
+      const nonCaster = makeNpcActorData();
+      nonCaster.system.attributes.spellcasting = '';
+      nonCaster.system.spells = {
+        spell1: { value: 0, override: null },
+        pact: { value: 0, override: null },
+      };
+      const stats = adapter.extractCharacterStats(nonCaster);
       expect(stats.spellcasting).toBeUndefined();
     });
 

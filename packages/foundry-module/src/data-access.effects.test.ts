@@ -182,7 +182,7 @@ describe('FoundryDataAccess — getActiveEffects', () => {
     expect(dur.remaining).toBeNull();
   });
 
-  it('preserves explicit duration values', async () => {
+  it('preserves an explicit v13 (rounds) duration, remaining read straight off duration.remaining', async () => {
     world.actors.add(
       makeActor({
         id: 'actor1actor1xxxx',
@@ -191,7 +191,7 @@ describe('FoundryDataAccess — getActiveEffects', () => {
           makeEffect({
             id: 'eff1',
             name: 'Haste',
-            duration: { rounds: 3, turns: 1, seconds: 18, remaining: 2 },
+            duration: { rounds: 3, remaining: 2 },
           }),
         ],
       })
@@ -201,12 +201,57 @@ describe('FoundryDataAccess — getActiveEffects', () => {
     const dur = result.effects[0].duration;
 
     expect(dur.rounds).toBe(3);
-    expect(dur.turns).toBe(1);
-    expect(dur.seconds).toBe(18);
+    expect(dur.turns).toBeNull();
+    expect(dur.seconds).toBeNull();
     expect(dur.remaining).toBe(2);
   });
 
-  it('maps effect changes array with key/mode/value', async () => {
+  it('preserves a v13 (turns) duration', async () => {
+    world.actors.add(
+      makeActor({
+        id: 'actor1actor1xxxx',
+        name: 'Fighter',
+        effects: [makeEffect({ id: 'eff1', name: 'Guarded', duration: { turns: 1 } })],
+      })
+    );
+
+    const result = await da.getActiveEffects({ identifier: 'Fighter' });
+    expect(result.effects[0].duration).toEqual({
+      rounds: null,
+      turns: 1,
+      seconds: null,
+      remaining: null,
+    });
+  });
+
+  it('reads a v14-shaped duration ({value, units}) into the same rounds/turns/seconds fields', async () => {
+    world.actors.add(
+      makeActor({
+        id: 'actor1actor1xxxx',
+        name: 'Fighter',
+        effects: [
+          // v14 core: `effect.duration` (a live getter in real Foundry) exposes
+          // `{value, units, ...}` plus a `remaining` field computed the same way
+          // on both versions (verified `client/documents/active-effect.mjs:405`).
+          makeEffect({
+            id: 'eff1',
+            name: 'Haste',
+            duration: { value: 3, units: 'rounds', remaining: 3 },
+          }),
+        ],
+      })
+    );
+
+    const result = await da.getActiveEffects({ identifier: 'Fighter' });
+    expect(result.effects[0].duration).toEqual({
+      rounds: 3,
+      turns: null,
+      seconds: null,
+      remaining: 3,
+    });
+  });
+
+  it('maps a v13 numeric-mode changes array to {key, mode, type, value} (mode now the normalized string)', async () => {
     world.actors.add(
       makeActor({
         id: 'actor1actor1xxxx',
@@ -215,6 +260,9 @@ describe('FoundryDataAccess — getActiveEffects', () => {
           makeEffect({
             id: 'eff1',
             name: 'Bless',
+            // CONST.ACTIVE_EFFECT_MODES.MULTIPLY = 1 in most versions, but this
+            // suite's fixture predates that constant; 2 is ADD per
+            // `core.ts` `LEGACY_CHANGE_MODES` and matches the pre-existing test data.
             changes: [{ key: 'system.attributes.ac.bonus', mode: 2, value: '2' }],
           }),
         ],
@@ -223,7 +271,28 @@ describe('FoundryDataAccess — getActiveEffects', () => {
 
     const result = await da.getActiveEffects({ identifier: 'Fighter' });
     expect(result.effects[0].changes).toEqual([
-      { key: 'system.attributes.ac.bonus', mode: 2, value: '2' },
+      { key: 'system.attributes.ac.bonus', mode: 'add', type: 'add', value: '2' },
+    ]);
+  });
+
+  it('maps a v14 system.changes array (string type) the same way', async () => {
+    world.actors.add(
+      makeActor({
+        id: 'actor1actor1xxxx',
+        name: 'Fighter',
+        effects: [
+          makeEffect({
+            id: 'eff1',
+            name: 'Bless',
+            system: { changes: [{ key: 'system.attributes.ac.bonus', type: 'add', value: '2' }] },
+          }),
+        ],
+      })
+    );
+
+    const result = await da.getActiveEffects({ identifier: 'Fighter' });
+    expect(result.effects[0].changes).toEqual([
+      { key: 'system.attributes.ac.bonus', mode: 'add', type: 'add', value: '2' },
     ]);
   });
 
@@ -286,6 +355,42 @@ describe('FoundryDataAccess — getActiveEffects', () => {
     expect(Array.isArray(statuses)).toBe(true);
     expect(statuses).toContain('prone');
     expect(statuses).toContain('restrained');
+  });
+
+  it('classifies a condition when CONFIG.statusEffects is a dnd5e 6.0 id-keyed object', async () => {
+    // dnd5e 6.0 replaces the array with an object keyed by id
+    // (verified `dnd5e.mjs:96351-96370` `_configureStatusEffects`).
+    (globalThis as any).CONFIG.statusEffects = {
+      prone: { id: 'prone', name: 'Prone', img: 'icons/prone.svg' },
+    };
+
+    world.actors.add(
+      makeActor({
+        id: 'actor1actor1xxxx',
+        name: 'Fighter',
+        effects: [makeEffect({ id: 'eff-prone', name: 'Prone', statuses: ['prone'] })],
+      })
+    );
+
+    const result = await da.getActiveEffects({ identifier: 'Fighter' });
+    expect(result.effects[0].isCondition).toBe(true);
+    expect(result.effects[0].type).toBe('condition');
+  });
+
+  it('icon prefers img over the removed v14 icon field', async () => {
+    world.actors.add(
+      makeActor({
+        id: 'actor1actor1xxxx',
+        name: 'Fighter',
+        effects: [
+          // v14 has no `icon` field at all; a legacy v13 doc may still carry both.
+          makeEffect({ id: 'eff1', name: 'Both', icon: 'legacy.svg', img: 'current.webp' }),
+        ],
+      })
+    );
+
+    const result = await da.getActiveEffects({ identifier: 'Fighter' });
+    expect(result.effects[0].icon).toBe('current.webp');
   });
 });
 
@@ -359,5 +464,79 @@ describe('FoundryDataAccess — getAvailableConditions', () => {
     const result = await da.getAvailableConditions();
 
     expect(result.conditions[0].description).toBe('');
+  });
+
+  it('reads a dnd5e 6.0 id-keyed object the same as the v13/core array', async () => {
+    // Verified `dnd5e.mjs:96351-96370`: `_configureStatusEffects` builds a plain
+    // `{[id]: data}` object and assigns it to `CONFIG.statusEffects`.
+    (globalThis as any).CONFIG.statusEffects = {
+      prone: { id: 'prone', name: 'Prone', img: 'icons/prone.svg' },
+      grappled: { id: 'grappled', name: 'Grappled', img: 'icons/grappled.svg' },
+    };
+
+    const result = await da.getAvailableConditions();
+
+    expect(result.conditions).toEqual([
+      { id: 'prone', name: 'Prone', icon: 'icons/prone.svg', description: '' },
+      { id: 'grappled', name: 'Grappled', icon: 'icons/grappled.svg', description: '' },
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getCharacterResources — concentration spell name (pre-existing bug fix)
+// ---------------------------------------------------------------------------
+
+describe('FoundryDataAccess — getCharacterResources concentration spell name', () => {
+  it('resolves the spell name via fromUuidSync on flags.dnd5e.item.uuid (dnd5e never sets .item.name)', async () => {
+    // Verified `dnd5e.mjs:8259-8290` `Actor5e.createConcentrationEffectData`:
+    // the concentration effect carries `flags.dnd5e.item = {type, id, uuid}` and
+    // `origin` (both the concentrated item's UUID) — never `.item.name`.
+    const spell = makeActor({ id: 'spell0000000000', name: 'Fireball', type: 'npc' });
+    spell.uuid = 'Actor.actor1actor1xxxx.Item.spell0000000000';
+    (globalThis as any).fromUuidSync = (uuid: string): unknown =>
+      uuid === spell.uuid ? spell : null;
+
+    world.actors.add(
+      makeActor({
+        id: 'actor1actor1xxxx',
+        name: 'Wizard',
+        effects: [
+          makeEffect({
+            id: 'conc1',
+            name: 'Concentrating: Fireball',
+            statuses: ['concentrating'],
+            flags: { dnd5e: { item: { type: 'spell', id: 'spell0000000000', uuid: spell.uuid } } },
+            origin: spell.uuid,
+          }),
+        ],
+      })
+    );
+
+    const result = await da.getCharacterResources({ identifier: 'Wizard' });
+    expect(result.concentration).toEqual({ active: true, spell: 'Fireball', remaining: null });
+  });
+
+  it('falls back to stripping the "Concentrating: " prefix when the item cannot be resolved', async () => {
+    (globalThis as any).fromUuidSync = (): null => null;
+
+    world.actors.add(
+      makeActor({
+        id: 'actor1actor1xxxx',
+        name: 'Wizard',
+        effects: [
+          makeEffect({
+            id: 'conc1',
+            name: 'Concentrating: Fireball',
+            statuses: ['concentrating'],
+            flags: { dnd5e: { item: { type: 'spell', id: 'gone', uuid: 'Item.gone000000000' } } },
+            origin: 'Item.gone000000000',
+          }),
+        ],
+      })
+    );
+
+    const result = await da.getCharacterResources({ identifier: 'Wizard' });
+    expect(result.concentration).toEqual({ active: true, spell: 'Fireball', remaining: null });
   });
 });

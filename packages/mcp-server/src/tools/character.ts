@@ -1044,11 +1044,17 @@ export class CharacterTools {
       disabled: effect.disabled,
       duration: effect.duration
         ? {
-            type: effect.duration.type,
+            // Foundry 14 durations are {value, units, ...}; the module reports
+            // {type, duration, remaining}. Read the module's names, fall back to v14's.
+            type: effect.duration.type ?? effect.duration.units,
+            ...(effect.duration.duration !== undefined || effect.duration.value !== undefined
+              ? { duration: effect.duration.duration ?? effect.duration.value }
+              : {}),
             remaining: effect.duration.remaining,
           }
         : null,
-      hasIcon: !!effect.icon,
+      // v14 removed ActiveEffect#icon in favor of img
+      hasIcon: !!(effect.icon ?? effect.img),
     }));
   }
 }

@@ -81,6 +81,26 @@ describe('feature detection', () => {
     g.foundry.documents = { BaseMeasuredTemplate: class {} };
     expect(supportsMeasuredTemplates()).toBe(true);
   });
+
+  it("measured templates: Scene's embedded types decide over the 14.368 compatibility shim", () => {
+    const sceneWith = (...types: string[]): unknown =>
+      class {
+        static metadata = { embedded: Object.fromEntries(types.map(t => [t, `${t}s`])) };
+      };
+    g.game.release = { generation: 14, build: 368 };
+    // Seen live on 14.368: the deprecated class still exists, the Scene cannot hold one.
+    g.foundry.documents = {
+      BaseMeasuredTemplate: class {},
+      BaseScene: sceneWith('Note', 'Region', 'Level', 'Token'),
+    };
+    expect(supportsMeasuredTemplates()).toBe(false);
+    g.game.release = { generation: 13, build: 351 };
+    g.foundry.documents = {
+      BaseMeasuredTemplate: class {},
+      BaseScene: sceneWith('MeasuredTemplate', 'Note', 'Token'),
+    };
+    expect(supportsMeasuredTemplates()).toBe(true);
+  });
 });
 
 describe('scene levels and background', () => {

@@ -570,6 +570,32 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
     expect(listCall![1]).toMatchObject({ challengeRating: 1, creatureType: 'humanoid' });
   });
 
+  it('accepts a size as the display word or the dnd5e key and passes it on unchanged (M3)', async () => {
+    for (const size of ['medium', 'med', 'grg']) {
+      const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+      await tools.handleListCreaturesByCriteria({ size });
+      const listCall = query.mock.calls.find(
+        ([m]) => m === 'foundry-mcp-bridge.listCreaturesByCriteria'
+      );
+      expect(listCall![1]).toMatchObject({ size });
+    }
+    const { tools } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    await expect(tools.handleListCreaturesByCriteria({ size: 'enormous' })).rejects.toThrow();
+  });
+
+  it('offers both size spellings in the tool schemas (M3)', () => {
+    const { tools } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
+    const defs = tools.getToolDefinitions() as Array<{ name: string; inputSchema: any }>;
+    const list = defs.find(d => d.name === 'list-creatures-by-criteria')!;
+    const search = defs.find(d => d.name === 'search-compendium')!;
+    for (const sizeEnum of [
+      list.inputSchema.properties.size.enum,
+      search.inputSchema.properties.filters.properties.size.enum,
+    ]) {
+      expect(sizeEnum).toEqual(expect.arrayContaining(['medium', 'med', 'large', 'lg']));
+    }
+  });
+
   it('dispatches with empty params when called with no args', async () => {
     const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
     await tools.handleListCreaturesByCriteria({});

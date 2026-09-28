@@ -1,6 +1,7 @@
 import * as shared from './shared.js';
 import { ERROR_MESSAGES } from '../constants.js';
 import type { SceneInfo, SceneToken, WorldInfo } from './types.js';
+import { sceneBackgroundSrc } from '../systems/core.js';
 
 /**
  * Read-only world and scene domain for `FoundryDataAccess`.
@@ -47,11 +48,17 @@ export class WorldReadsDataAccess {
       throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
     }
 
+    // `sceneBackgroundSrc` (systems/core.ts): the current Scene Level's
+    // background on v14, `_source.background.src` on v13. Spread in only when
+    // present — `exactOptionalPropertyTypes` forbids assigning `undefined`
+    // itself to the (typed) optional `background` field.
+    const background = sceneBackgroundSrc(scene as Scene);
+
     return {
       id: scene.id,
       name: scene.name,
       img: scene.img || undefined,
-      background: scene._source?.background?.src || undefined,
+      ...(background ? { background } : {}),
       width: scene.width,
       height: scene.height,
       padding: scene.padding,

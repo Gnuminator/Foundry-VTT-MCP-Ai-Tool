@@ -99,6 +99,27 @@ describe('FoundryDataAccess — listScenes', () => {
     expect(result[0]!.background).toBe('');
   });
 
+  it('reads a v14 scene (Scene Levels) background via sceneBackgroundSrc', async () => {
+    // v14 has no top-level `background`/`_source.background` — it lives on each
+    // Level (`Scene#levels`/`Scene#initialLevel`, verified `systems/core.ts`).
+    const levels = {
+      get: (id: string): { id: string; background: { src: string } } | undefined =>
+        id === 'lvl0' ? { id: 'lvl0', background: { src: 'crypt-floor.webp' } } : undefined,
+      contents: [{ id: 'lvl0', background: { src: 'crypt-floor.webp' } }],
+    };
+    world.addScene({
+      id: 'scene-v14',
+      name: 'Crypt',
+      active: false,
+      levels,
+      initialLevel: 'lvl0',
+    } as any);
+
+    const result = await da.listScenes();
+
+    expect(result[0]!.background).toBe('crypt-floor.webp');
+  });
+
   it('returns all scenes when neither filter is applied', async () => {
     world.addScene({ id: 's1', name: 'Alpha', active: true });
     world.addScene({ id: 's2', name: 'Beta', active: false });

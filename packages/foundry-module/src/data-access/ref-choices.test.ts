@@ -222,7 +222,7 @@ describe('combat, users, conditions, notes, templates', () => {
     expect((await listRefChoices({ kind: 'condition' })).choices.map(c => c.id)).toEqual(['dead']);
   });
 
-  it('lists map notes, and explains missing templates on v14', async () => {
+  it("lists map notes, and lists only this tool's template Regions on v14", async () => {
     const scene = world.addScene({
       id: 's',
       name: 'Village',
@@ -233,8 +233,42 @@ describe('combat, users, conditions, notes, templates', () => {
     expect((await listRefChoices({ kind: 'note' })).choices.map(c => c.name)).toEqual([
       'Blood on the Vine',
     ]);
+
+    // MeasuredTemplate removed on v14 (14.352): templates are Regions, and only
+    // this tool's own flagged ones are listed (never a hand-made GM region).
     delete (scene as { templates?: unknown }).templates;
-    expect((await listRefChoices({ kind: 'template' })).note).toMatch(/Regions/);
+    (scene as { regions?: unknown }).regions = {
+      contents: [
+        {
+          id: 'r1',
+          uuid: 'Scene.s.Region.r1',
+          flags: { 'foundry-mcp-bridge': { template: { shape: 'circle', distance: 20 } } },
+        },
+        { id: 'gm-made', uuid: 'Scene.s.Region.gm-made', flags: {} },
+      ],
+    };
+    const templates = await listRefChoices({ kind: 'template' });
+    expect(templates.note).toMatch(/Regions/);
+    expect(templates.choices).toEqual([{ id: 'r1', uuid: 'Scene.s.Region.r1', name: 'circle 20' }]);
+
+    // Seen live on 14.368: `scene.templates` still exists (empty) and so does the
+    // deprecated class; the Scene's embedded types decide (found in M3).
+    (scene as { templates?: unknown }).templates = { contents: [] };
+    const g = globalThis as { foundry: { documents: Record<string, unknown> } };
+    const savedDocuments = g.foundry.documents;
+    g.foundry.documents = {
+      ...savedDocuments,
+      BaseMeasuredTemplate: class {},
+      BaseScene: class {
+        static metadata = { embedded: { Note: 'notes', Region: 'regions', Level: 'levels' } };
+      },
+    };
+    try {
+      const onV14 = await listRefChoices({ kind: 'template' });
+      expect(onV14.choices.map(c => c.id)).toEqual(['r1']);
+    } finally {
+      g.foundry.documents = savedDocuments;
+    }
   });
 });
 

@@ -45,7 +45,7 @@ export class EncounterTools {
       {
         name: 'place-measured-template',
         description:
-          'Place an area-of-effect measured template (circle/cone/ray/rect) on the active scene and report which tokens it covers. Origin is x/y pixels or the center of a named token. Use for "drop a 20-ft fireball on the orcs".',
+          'Place an area-of-effect template (circle/cone/ray/rect) on the active scene and report which tokens it covers. Origin is x/y pixels or the center of a named token. Use for "drop a 20-ft fireball on the orcs". On Foundry 14 this creates a Region (MeasuredTemplate documents were removed); on Foundry 13 it creates a MeasuredTemplate.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -72,7 +72,7 @@ export class EncounterTools {
       {
         name: 'delete-measured-template',
         description:
-          'Remove a measured template from the active scene by templateId (from place-measured-template), or clear all templates with all=true. Use to clean up an AoE after resolving it.',
+          "Remove an area-of-effect template from the active scene by templateId (from place-measured-template), or clear all of this tool's own templates with all=true (on Foundry 14, where templates are Regions, all=true never touches a hand-made GM region). Use to clean up an AoE after resolving it.",
         inputSchema: {
           type: 'object',
           properties: {

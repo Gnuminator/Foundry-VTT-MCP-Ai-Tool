@@ -737,4 +737,53 @@ describe('FoundryDataAccess — addActorsToScene: placement', () => {
     expect(result.tokenIds).toEqual([]);
     expect(result.errors).toBeUndefined();
   });
+
+  // v14 Scene Levels: a token dropped without an explicit `level` lands on the
+  // scene's *initial* level, not necessarily the one the GM is viewing.
+  // verified: common/documents/token.mjs:180 (`level` required + non-nullable),
+  // :234 (`data.level ??= this.parent?.initialLevel?.id`).
+  it('v13 scene (no levels): places tokens with no `level` field', async () => {
+    world.enableWrites();
+    const scene = activeScene();
+    addActorWithProtoToken({ id: 'a1', name: 'Goblin', type: 'npc' });
+
+    await da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false });
+
+    expect(scene.tokens.contents[0].level).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(scene.tokens.contents[0], 'level')).toBe(false);
+  });
+
+  it('v14 scene on the canvas: places tokens on the currently-viewed level', async () => {
+    world.enableWrites();
+    const scene = activeScene();
+    const levelDocs = [{ id: 'defaultLevel0000' }, { id: 'upperLevel000000' }];
+    scene.levels = {
+      get: (id: string): { id: string } | undefined => levelDocs.find(l => l.id === id),
+      contents: levelDocs,
+    };
+    scene.initialLevel = 'defaultLevel0000';
+    (globalThis as any).canvas = { scene: { id: scene.id }, level: { id: 'upperLevel000000' } };
+    addActorWithProtoToken({ id: 'a1', name: 'Goblin', type: 'npc' });
+
+    await da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false });
+
+    expect(scene.tokens.contents[0].level).toBe('upperLevel000000');
+    delete (globalThis as any).canvas;
+  });
+
+  it('v14 scene not on the canvas: places tokens on the initial level', async () => {
+    world.enableWrites();
+    const scene = activeScene();
+    const levelDocs = [{ id: 'defaultLevel0000' }];
+    scene.levels = {
+      get: (id: string): { id: string } | undefined => levelDocs.find(l => l.id === id),
+      contents: levelDocs,
+    };
+    scene.initialLevel = 'defaultLevel0000';
+    addActorWithProtoToken({ id: 'a1', name: 'Goblin', type: 'npc' });
+
+    await da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false });
+
+    expect(scene.tokens.contents[0].level).toBe('defaultLevel0000');
+  });
 });

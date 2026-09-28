@@ -485,3 +485,59 @@ describe('SceneTools.handleGetWorldInfo', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// M3: Foundry's secret disposition (-2)
+// ---------------------------------------------------------------------------
+
+describe('SceneTools token disposition: secret (M3)', () => {
+  const scene = {
+    id: 'scene1',
+    name: 'Arena',
+    active: true,
+    width: 4000,
+    height: 3000,
+    padding: 0.25,
+    background: 'arena.jpg',
+    navigation: true,
+    walls: 0,
+    lights: 0,
+    sounds: 0,
+    notes: [],
+    tokens: [-2, -1, 0, 1].map(disposition => ({
+      id: `t${disposition}`,
+      name: `t${disposition}`,
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      actorId: null,
+      disposition,
+      hidden: false,
+      img: '',
+    })),
+  };
+
+  it('names -2 "secret" (TOKEN_DISPOSITIONS.SECRET) instead of "unknown"', async () => {
+    const { tools } = makeTools(() => scene);
+    const result = await tools.handleGetCurrentScene({ includeTokens: true });
+    expect(result.tokens.map((t: any) => t.disposition)).toEqual([
+      'secret',
+      'hostile',
+      'neutral',
+      'friendly',
+    ]);
+  });
+
+  it('counts secret tokens under byDisposition.secret, not unknown', async () => {
+    const { tools } = makeTools(() => scene);
+    const result = await tools.handleGetCurrentScene({ includeTokens: true });
+    expect(result.tokenSummary.byDisposition).toMatchObject({
+      secret: 1,
+      hostile: 1,
+      neutral: 1,
+      friendly: 1,
+      unknown: 0,
+    });
+  });
+});

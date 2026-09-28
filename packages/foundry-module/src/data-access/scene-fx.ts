@@ -1,6 +1,17 @@
 import { ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
-import { supportsMeasuredTemplates, UnsupportedOnThisFoundryError } from '../systems/core.js';
+import {
+  coreGeneration,
+  currentLevelId,
+  sceneHasLevels,
+  supportsMeasuredTemplates,
+  UnsupportedOnThisFoundryError,
+} from '../systems/core.js';
+import {
+  buildTemplateRegionData,
+  isToolTemplateRegion,
+  supportsRegionDocuments,
+} from '../systems/regions.js';
 
 /**
  * Scene FX domain — measured (AoE) templates, scene mood (darkness / light /
@@ -17,17 +28,19 @@ export class SceneFxDataAccess {
 
   /** The active scene, or throw `SCENE_NOT_FOUND` when there is none. */
   /**
-   * MeasuredTemplate documents were removed in Foundry 14.352 (templates are
-   * Regions now). Fail with a clear message instead of a raw Foundry error;
-   * the Region port is planned (plan step M3).
+   * Which document type an AoE "template" is stored as on this Foundry core:
+   * MeasuredTemplate document on v13 (`supportsMeasuredTemplates()`), Region
+   * document on v14 (MeasuredTemplate was removed 14.352, #13089; templates
+   * are Regions with a `shapes` array — see `systems/regions.ts`). Throws only
+   * when neither document type exists (not expected on any supported core).
    */
-  private requireMeasuredTemplates(): void {
-    if (!supportsMeasuredTemplates()) {
-      throw new UnsupportedOnThisFoundryError(
-        'Measured templates',
-        'Foundry 14 replaced them with Regions (14.352). Region support for these tools is planned; place the area with the Region tool meanwhile.'
-      );
-    }
+  private templateDocumentType(): 'MeasuredTemplate' | 'Region' {
+    if (supportsMeasuredTemplates()) return 'MeasuredTemplate';
+    if (supportsRegionDocuments()) return 'Region';
+    throw new UnsupportedOnThisFoundryError(
+      'Measured templates',
+      'Neither MeasuredTemplate nor Region documents exist on this Foundry version.'
+    );
   }
 
   private requireCurrentScene(): any {
@@ -93,10 +106,14 @@ export class SceneFxDataAccess {
   // --- Measured templates ----------------------------------------------------
 
   /**
-   * Place an AoE measured template on the active scene and report which tokens
-   * it covers. Origin is explicit `x`/`y` pixels, or the center of a named
+   * Place an AoE template on the active scene and report which tokens it
+   * covers. Origin is explicit `x`/`y` pixels, or the center of a named
    * token. Each shape fills in its own defaults (cone angle, ray width, and a
-   * 45° rect direction when none is given).
+   * 45° rect direction when none is given). Foundry 13 creates a
+   * MeasuredTemplate; Foundry 14 (MeasuredTemplate removed, 14.352) creates a
+   * Region flagged as this tool's own (see `systems/regions.ts`) so
+   * {@link deleteMeasuredTemplate}'s `all=true` can find it again without ever
+   * touching a hand-made GM region.
    */
   async placeMeasuredTemplate(data: {
     shape: 'circle' | 'cone' | 'ray' | 'rect';
@@ -110,7 +127,7 @@ export class SceneFxDataAccess {
     fillColor?: string;
   }): Promise<any> {
     shared.validateFoundryState();
-    this.requireMeasuredTemplates();
+    const docType = this.templateDocumentType();
     const scene = this.requireCurrentScene();
     const size = scene.grid?.size || 100;
 
@@ -127,32 +144,58 @@ export class SceneFxDataAccess {
       throw new Error('Provide x/y or a valid originTokenName.');
     }
 
-    const tdata: any = {
-      t: data.shape,
-      x,
-      y,
-      distance: data.distance,
-      direction: data.direction ?? 0,
-      fillColor: data.fillColor || (game.user as any)?.color || '#ff0000',
-    };
-    if (data.shape === 'cone') {
-      tdata.angle = data.angle ?? (CONFIG as any).MeasuredTemplate?.defaults?.angle ?? 53.13;
-    }
-    if (data.shape === 'ray') {
-      tdata.width = data.width ?? 5;
-    }
-    if (data.shape === 'rect' && data.direction == null) {
-      tdata.direction = 45;
+    const direction = data.direction ?? (data.shape === 'rect' ? 45 : 0);
+    const angle =
+      data.shape === 'cone'
+        ? (data.angle ?? (CONFIG as any).MeasuredTemplate?.defaults?.angle ?? 53.13)
+        : undefined;
+    const width = data.shape === 'ray' ? (data.width ?? 5) : undefined;
+    const fillColor = data.fillColor || (game.user as any)?.color || '#ff0000';
+
+    let templateId: string;
+    if (docType === 'MeasuredTemplate') {
+      const tdata: any = { t: data.shape, x, y, distance: data.distance, direction, fillColor };
+      if (angle !== undefined) tdata.angle = angle;
+      if (width !== undefined) tdata.width = width;
+      const created = await scene.createEmbeddedDocuments('MeasuredTemplate', [tdata]);
+      const tpl = Array.isArray(created) ? created[0] : created;
+      templateId = tpl.id;
+    } else {
+      const pixelsPerUnit = size / (scene.grid?.distance || 5);
+      const params: Parameters<typeof buildTemplateRegionData>[0] = {
+        shape: data.shape,
+        distance: data.distance,
+        x,
+        y,
+        direction,
+      };
+      if (angle !== undefined) params.angle = angle;
+      if (width !== undefined) params.width = width;
+      const regionData = buildTemplateRegionData(params, {
+        pixelsPerUnit,
+        color: fillColor,
+        ...(sceneHasLevels(scene as Scene)
+          ? { levels: [currentLevelId(scene as Scene)].filter(Boolean) as string[] }
+          : {}),
+      });
+      const created = await scene.createEmbeddedDocuments('Region', [regionData]);
+      const region = Array.isArray(created) ? created[0] : created;
+      templateId = region.id;
     }
 
-    const created = await scene.createEmbeddedDocuments('MeasuredTemplate', [tdata]);
-    const tpl = Array.isArray(created) ? created[0] : created;
-    const inside = this.tokensInTemplate(scene, tpl);
+    // Coverage is pure math over x/y/distance/direction/angle/width; feed it
+    // the request shape directly rather than re-reading the created document
+    // (which has a different shape for a Region).
+    const coverageTpl: any = { t: data.shape, x, y, distance: data.distance, direction };
+    if (angle !== undefined) coverageTpl.angle = angle;
+    if (width !== undefined) coverageTpl.width = width;
+    const inside = this.tokensInTemplate(scene, coverageTpl);
 
     shared.auditLog('placeMeasuredTemplate', data, 'success');
     return {
       success: true,
-      templateId: tpl.id,
+      templateId,
+      regionId: docType === 'Region' ? templateId : undefined,
       shape: data.shape,
       origin: { x, y },
       distance: data.distance,
@@ -164,17 +207,27 @@ export class SceneFxDataAccess {
   }
 
   /**
-   * Delete a measured template from the active scene by id, or clear all
-   * templates when `all` is set. Pairs with {@link placeMeasuredTemplate}.
+   * Delete an AoE template from the active scene by id, or clear all of this
+   * tool's own templates when `all` is set. On Foundry 14 a template is a
+   * Region: `all=true` only ever deletes Regions carrying this tool's flag
+   * (`isToolTemplateRegion`), never a hand-made GM region. Pairs with
+   * {@link placeMeasuredTemplate}.
    */
   async deleteMeasuredTemplate(data: { templateId?: string; all?: boolean }): Promise<any> {
     shared.validateFoundryState();
-    this.requireMeasuredTemplates();
+    const docType = this.templateDocumentType();
     const scene = this.requireCurrentScene();
 
     let ids: string[];
     if (data.all) {
-      ids = (scene.templates?.contents ?? scene.templates ?? []).map((t: any) => t.id);
+      if (docType === 'MeasuredTemplate') {
+        ids = (scene.templates?.contents ?? scene.templates ?? []).map((t: any) => t.id);
+      } else {
+        const regions = scene.regions?.contents ?? scene.regions ?? [];
+        ids = regions
+          .filter((r: any) => isToolTemplateRegion(r as Parameters<typeof isToolTemplateRegion>[0]))
+          .map((r: any) => r.id);
+      }
     } else if (data.templateId) {
       ids = [data.templateId];
     } else {
@@ -182,7 +235,7 @@ export class SceneFxDataAccess {
     }
 
     if (ids.length > 0) {
-      await scene.deleteEmbeddedDocuments('MeasuredTemplate', ids);
+      await scene.deleteEmbeddedDocuments(docType, ids);
     }
     shared.auditLog('deleteMeasuredTemplate', data, 'success');
     return { success: true, deletedCount: ids.length, templateIds: ids };
@@ -192,9 +245,19 @@ export class SceneFxDataAccess {
 
   /**
    * Set scene mood: darkness level (clamped to [0,1]) and/or global light, plus
-   * optional playlist play/stop. Darkness/light use Foundry v13's `environment.*`
-   * schema, falling back to the flat pre-v13 fields. The response echoes the raw
-   * requested darkness/globalLight (not the clamped/normalized values).
+   * optional playlist play/stop. Darkness/light use Foundry v13+'s `environment.*`
+   * schema, falling back to the flat pre-v13 fields. The v13+ check reads the
+   * core generation via `systems/core.ts`'s `coreGeneration()` (`game.release`,
+   * falling back to parsing `game.version`) instead of parsing the version
+   * string locally. The response echoes the raw requested darkness/globalLight
+   * (not the clamped/normalized values).
+   *
+   * Foundry 14.368 (#14718, verified `client/documents/scene.mjs:1096-1099`):
+   * the client silently drops a `environment.darknessLevel` update from a scene
+   * with `environment.darknessLock` true unless the same update also sets
+   * `environment.darknessLock` explicitly. Re-sending the scene's current lock
+   * value alongside a darkness change is a no-op when unlocked, so it is always
+   * included rather than only on the affected core builds.
    */
   async setSceneMood(data: {
     darkness?: number;
@@ -205,12 +268,18 @@ export class SceneFxDataAccess {
     shared.validateFoundryState();
     const scene = this.requireCurrentScene();
 
-    const v13plus = parseInt(String(game.version || '0').split('.')[0], 10) >= 13;
+    const v13plus = coreGeneration() >= 13;
     const update: any = {};
     if (data.darkness != null) {
       const d = Math.max(0, Math.min(1, data.darkness));
-      if (v13plus) update['environment.darknessLevel'] = d;
-      else update.darkness = d;
+      if (v13plus) {
+        update['environment.darknessLevel'] = d;
+        if (scene.environment?.darknessLock) {
+          update['environment.darknessLock'] = scene.environment.darknessLock;
+        }
+      } else {
+        update.darkness = d;
+      }
     }
     if (data.globalLight != null) {
       if (v13plus) update['environment.globalLight.enabled'] = data.globalLight;
@@ -314,6 +383,13 @@ export class SceneFxDataAccess {
     };
     if (entryId) noteData.entryId = entryId;
     if (data.text) noteData.text = data.text;
+    // Note#levels (v14 Scene Levels, common/documents/note.mjs:50, verified) is a
+    // set of level ids (empty/omitted = every level); land the pin on the level
+    // the GM is looking at, same as a token would need (plan table 2.4).
+    if (sceneHasLevels(scene as Scene)) {
+      const levelId = currentLevelId(scene as Scene);
+      if (levelId) noteData.levels = [levelId];
+    }
 
     const created = await scene.createEmbeddedDocuments('Note', [noteData]);
     const note = Array.isArray(created) ? created[0] : created;

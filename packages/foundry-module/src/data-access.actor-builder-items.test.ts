@@ -89,14 +89,10 @@ describe('FoundryDataAccess — useItem', () => {
     await flush();
 
     expect(use).toHaveBeenCalledTimes(1);
-    // dnd5e branch (game.system.id === 'dnd5e') wires consume + configureDialog.
-    expect(use.mock.calls[0][0]).toMatchObject({
-      createMessage: true,
-      consumeResource: true,
-      consumeSpellSlot: true,
-      consumeUsage: true,
-      configureDialog: true,
-    });
+    // dnd5e branch (game.system.id === 'dnd5e'): Item5e#use(usage, dialog, message) —
+    // three config objects. No explicit `consume` (default: false, gets not passed,
+    // to let dnd5e default it itself, matches "consume unless told not to").
+    expect(use.mock.calls[0]).toEqual([{}, { configure: true }, { create: true }]);
 
     expect(result).toEqual({
       success: true,
@@ -123,7 +119,7 @@ describe('FoundryDataAccess — useItem', () => {
     expect(result.itemName).toBe('Healing Word');
   });
 
-  it('passes spellLevel through as slotLevel + level when upcasting', async () => {
+  it('passes spellLevel through as usage.spell.slot when upcasting', async () => {
     const use = vi.fn(() => Promise.resolve());
     const item = makeItem({ id: 'spell1', name: 'Magic Missile', type: 'spell' });
     (item as any).use = use;
@@ -135,10 +131,12 @@ describe('FoundryDataAccess — useItem', () => {
       options: { spellLevel: 3 },
     });
 
-    expect(use.mock.calls[0][0]).toMatchObject({ slotLevel: 3, level: 3 });
+    // dnd5e 4+ `ActivityUseConfiguration.spell.slot` (a leveled-slot id), not the
+    // old `slotLevel`/`level` flat keys, which dnd5e's 3-arg use() never reads.
+    expect(use.mock.calls[0][0]).toMatchObject({ spell: { slot: 'spell3' } });
   });
 
-  it('honors consume:false to disable resource/slot/usage consumption', async () => {
+  it('honors consume:false to disable consumption (omitted otherwise, letting dnd5e default it)', async () => {
     const use = vi.fn(() => Promise.resolve());
     const item = makeItem({ id: 'spell1', name: 'Shield', type: 'spell' });
     (item as any).use = use;
@@ -150,11 +148,11 @@ describe('FoundryDataAccess — useItem', () => {
       options: { consume: false },
     });
 
-    expect(use.mock.calls[0][0]).toMatchObject({
-      consumeResource: false,
-      consumeSpellSlot: false,
-      consumeUsage: false,
-    });
+    // dnd5e's `_prepareUsageConfig` assigns properties onto `config.consume` when
+    // it isn't `false` (`config.consume ??= {}` then `.action ??=`, `.resources
+    // ??=`, ...) — passing the boolean `true` would throw in strict mode, so
+    // `consume` must be `false` or simply absent, never `true`.
+    expect(use.mock.calls[0][0]).toEqual({ consume: false });
   });
 
   it('falls back to toMessage() when the item has no use() method', async () => {

@@ -89,11 +89,25 @@ function resolveWhisperTargets(targets: string[]): { ids: string[]; warning: str
     const gmIds = (game.users?.filter((u: any) => u.isGM) ?? [])
       .map((u: any) => u.id)
       .filter(Boolean) as string[];
-    ids.push(...gmIds);
+    if (gmIds.length > 0) {
+      return {
+        ids: gmIds,
+        warning:
+          'No whisper targets resolved; message was whispered to the GM(s) to avoid posting it publicly.',
+      };
+    }
+
+    // No GM user is registered either (a partial user list). An empty `whisper` array is a PUBLIC
+    // message in every Foundry version, so whisper to the sending user instead: a whisper always
+    // reaches its author. With no sender at all there is nobody to hold it, so refuse to post.
+    const selfId = game.user?.id;
+    if (!selfId) {
+      throw new Error('Whisper has no recipient: no target, GM user or current user was found');
+    }
     return {
-      ids,
+      ids: [selfId],
       warning:
-        'No whisper targets resolved; message was whispered to the GM(s) to avoid posting it publicly.',
+        'No whisper targets resolved and no GM user found; message was whispered to the sending user only to avoid posting it publicly.',
     };
   }
 
@@ -156,8 +170,13 @@ export class ChatDataAccess {
    *
    * Whisper safety: if `messageType` is `'whisper'` but none of the requested
    * `whisperTargets` can be matched to a game user, the message is routed to
-   * all GM users instead and a `warning` is included in the response. The
-   * message is NEVER posted publicly when whisper semantics were requested.
+   * all GM users instead (or, with no GM user registered, to the sending user)
+   * and a `warning` is included in the response. The message is NEVER posted
+   * publicly when whisper semantics were requested.
+   *
+   * Foundry v14: the message is created with an explicit `whisper` id array (what core's own
+   * `/w` command does), not a `messageMode`/`rollMode`, so it stays whispered. An unknown mode
+   * name would fall back to the user's default (public) mode, which is why none is passed.
    */
   async sendChatMessage(data: {
     message: string;
@@ -204,7 +223,11 @@ export class ChatDataAccess {
 
     // --- Create the ChatMessage document ---
     const messageData: any = { content, speaker, style };
-    if (whisper.length > 0) messageData.whisper = whisper;
+    if (type === 'whisper') {
+      // Never post a whisper without recipients (an empty array is public).
+      if (whisper.length === 0) throw new Error('Refusing to post a whisper with no recipient');
+      messageData.whisper = whisper;
+    }
 
     const created: any = await (ChatMessage as any).create(messageData);
 

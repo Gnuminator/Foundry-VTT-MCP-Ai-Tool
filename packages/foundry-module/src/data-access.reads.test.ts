@@ -148,6 +148,36 @@ describe('FoundryDataAccess — getActiveScene', () => {
     ]);
     expect(result.notes).toEqual([{ id: 'n1', text: 'Trap here', x: 50, y: 60 }]);
   });
+
+  it('background: v13 scene reads _source.background.src', async () => {
+    // makeScene wraps `img` into `_source.background.src` — see data-access.scenes.test.ts.
+    const scene = world.addScene({ id: 'scene2', name: 'Crypt', img: 'crypt.webp', active: true });
+    world.setActiveScene(scene.id);
+
+    const result = await da.getActiveScene();
+    expect(result.background).toBe('crypt.webp');
+  });
+
+  it('background: v14 scene reads the current Scene Level (no _source.background)', async () => {
+    // Verified `sceneBackgroundSrc` (systems/core.ts): v14 Scene has no top-level
+    // `background` — it lives on each Level (`Scene#levels`, `Scene#initialLevel`).
+    const levels = {
+      get: (id: string): { id: string; background: { src: string } } | undefined =>
+        id === 'lvl0' ? { id: 'lvl0', background: { src: 'ground.webp' } } : undefined,
+      contents: [{ id: 'lvl0', background: { src: 'ground.webp' } }],
+    };
+    const scene = world.addScene({
+      id: 'scene3',
+      name: 'Upper Chamber',
+      active: true,
+      levels,
+      initialLevel: 'lvl0',
+    } as any);
+    world.setActiveScene(scene.id);
+
+    const result = await da.getActiveScene();
+    expect(result.background).toBe('ground.webp');
+  });
 });
 
 describe('FoundryDataAccess — getAvailablePacks', () => {
@@ -230,6 +260,60 @@ describe('FoundryDataAccess — getCharacterInfo', () => {
     expect(info.system).toMatchObject({ attributes: { hp: { value: 24, max: 24 } } });
     expect(info.items.map(i => i.name)).toEqual(['Longsword', 'Wizard', 'Fireball']);
     expect(info.effects).toEqual([{ id: 'bless', name: 'Bless', disabled: false }]);
+  });
+
+  it('effect summary: icon prefers img over the removed v14 icon field', async () => {
+    world.actors.add(
+      makeActor({
+        id: 'aaaaaaaaaaaaaaaa',
+        name: 'Icons',
+        type: 'character',
+        effects: [makeEffect({ id: 'e1', name: 'Legacy', icon: 'old.svg', img: 'new.webp' })],
+      })
+    );
+
+    const info = await da.getCharacterInfo('Icons');
+    expect(info.effects[0].icon).toBe('new.webp');
+  });
+
+  it('effect summary: v13 (rounds) duration normalizes to {type, duration, remaining}', async () => {
+    world.actors.add(
+      makeActor({
+        id: 'aaaaaaaaaaaaaaaa',
+        name: 'Durations',
+        type: 'character',
+        effects: [
+          makeEffect({
+            id: 'e1',
+            name: 'Haste',
+            duration: { rounds: 3, remaining: 2 },
+          }),
+        ],
+      })
+    );
+
+    const info = await da.getCharacterInfo('Durations');
+    expect(info.effects[0].duration).toEqual({ type: 'rounds', duration: 3, remaining: 2 });
+  });
+
+  it('effect summary: v14-shaped duration ({value, units}) normalizes the same way', async () => {
+    world.actors.add(
+      makeActor({
+        id: 'aaaaaaaaaaaaaaaa',
+        name: 'Durations14',
+        type: 'character',
+        effects: [
+          makeEffect({
+            id: 'e1',
+            name: 'Haste',
+            duration: { value: 3, units: 'rounds', remaining: 3 },
+          }),
+        ],
+      })
+    );
+
+    const info = await da.getCharacterInfo('Durations14');
+    expect(info.effects[0].duration).toEqual({ type: 'rounds', duration: 3, remaining: 3 });
   });
 
   it('reports an equipped item as a toggle', async () => {

@@ -1,5 +1,6 @@
 import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
+import { isDnd5eV6 } from '../systems/dnd5e/version.js';
 import {
   slugify,
   NPC_DAMAGE_CANONICAL,
@@ -136,29 +137,37 @@ export class ActorBuilderDataAccess {
 
       // Check if item has a use() method (D&D 5e)
       if (typeof itemAny.use === 'function') {
-        // D&D 5e and similar systems
-        // Only pass options that D&D 5e's item.use() expects
-        const useOptions: Record<string, any> = {
-          createMessage: true,
-        };
-
-        // D&D 5e specific options
+        let useArgs: unknown[];
         if (systemId === 'dnd5e') {
-          useOptions.consumeResource = options.consume ?? true;
-          useOptions.consumeSpellSlot = options.consume ?? true;
-          useOptions.consumeUsage = options.consume ?? true;
-          // Always show dialog so GM can make choices
-          useOptions.configureDialog = true;
+          // dnd5e 4+ (5.3.3 and 6.0.5 both): Item5e#use(usage, dialog, message) —
+          // three config objects, not the old flat options bag. The old keys
+          // (createMessage/consumeResource/consumeSpellSlot/consumeUsage/
+          // configureDialog/slotLevel/level) are not read anywhere on this
+          // signature, so they were silently ignored — a "use" that always ran
+          // with dnd5e's own defaults regardless of what was passed.
+          // verified: dnd5e.mjs:35504 (Item5e#use(config, dialog, message) delegates
+          // to activity.use(usageConfig, dialogConfig, messageConfig)), :17856
+          // (Activity#_prepareUsageConfig — `consume` must be `false` or left
+          // unset; `config.consume ??= {}` then assigns properties onto it, which
+          // throws in strict mode if `consume` is the boolean `true`).
+          const usage: Record<string, any> = {};
+          if (options.consume === false) {
+            usage.consume = false;
+          }
+          // Upcast slot for spells. Best-effort: assumes a leveled slot key
+          // (`spellN`); pact-caster slot ids aren't derivable without the
+          // item's casting method, same limitation the old `slotLevel` had.
+          if (options.spellLevel !== undefined) {
+            usage.spell = { slot: `spell${options.spellLevel}` };
+          }
+          const dialog = { configure: true }; // Always show dialog so GM can make choices
+          const message = { create: true };
+          useArgs = [usage, dialog, message];
+        } else {
+          useArgs = [{ createMessage: true }];
         }
-
-        // Spell level for upcasting
-        if (options.spellLevel !== undefined) {
-          useOptions.slotLevel = options.spellLevel; // D&D 5e
-          useOptions.level = options.spellLevel; // generic
-        }
-
         // Fire and forget - don't await, as dialogs block the promise
-        itemAny.use(useOptions).catch((err: Error) => {
+        itemAny.use(...useArgs).catch((err: Error) => {
           console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
         });
       } else if (typeof itemAny.toChat === 'function') {
@@ -495,9 +504,74 @@ export class ActorBuilderDataAccess {
         cha: { value: data.abilities.cha, proficient: savingThrowSet.has('cha') ? 1 : 0 },
       };
 
-      // 7. AC block — omit flat when mode is "default"
-      const acBlock =
-        data.acMode === 'flat' ? { calc: 'flat', flat: data.acValue } : { calc: 'default' };
+      // 7. AC block. dnd5e 6.0 made `calc` a derived, non-persisted field (an Active
+      // Effect change target, recomputed every data-prep pass, not actor source data)
+      // and moved the "flat AC" write target to `ac.override`; `ac.flat` stays as a
+      // real persisted field alongside it. dnd5e 6's own migration would map the old
+      // `{calc:'flat', flat}` shape onto `override` for us, but that migration shim
+      // has no guaranteed lifetime, so write the version-native shape directly.
+      // verified: dnd5e.mjs:9582 (`calc: new StringField(..., {persisted: false})`),
+      // :9591 (`flat`, persisted), :9600 (`override`, persisted), :9725
+      // (`_migrateArmorClass`: `case "flat": ac.override = ac.flat`).
+      const dnd5eV6 = isDnd5eV6();
+      const acBlock = dnd5eV6
+        ? data.acMode === 'flat'
+          ? { flat: data.acValue, override: data.acValue }
+          : {}
+        : data.acMode === 'flat'
+          ? { calc: 'flat', flat: data.acValue }
+          : { calc: 'default' };
+
+      // dnd5e 6.0 moved the flat movement-type keys (`walk`/`fly`/...) into a
+      // `speeds` map; the old keys remain as a shimmed getter/setter on the
+      // *prepared* actor (assigning through the setter logs a compatibility
+      // warning), so write `speeds` directly on 6.0 instead of relying on it.
+      // verified: dnd5e.mjs:5471 (`MovementField` — `speeds: new MappingField(...)`),
+      // :5478 (`_migrate`: old keys → `speeds.*`), :5521 (`_shim` — the setter
+      // warns "movement.<key> has moved to movement.speeds.<key>", since 6.0 until
+      // 7.0).
+      const movementBlock = dnd5eV6
+        ? {
+            speeds: {
+              walk: data.walkSpeed,
+              fly: data.flySpeed,
+              swim: data.swimSpeed,
+              climb: data.climbSpeed,
+              burrow: data.burrowSpeed,
+            },
+            units: 'ft',
+            hover: data.hover,
+            special: '',
+          }
+        : {
+            walk: data.walkSpeed,
+            fly: data.flySpeed,
+            swim: data.swimSpeed,
+            climb: data.climbSpeed,
+            burrow: data.burrowSpeed,
+            units: 'ft',
+            hover: data.hover,
+            special: '',
+          };
+
+      // dnd5e 6.0 moved `details.source` to a top-level `system.source` (NPCData no
+      // longer has a `source` subfield under `details`). dnd5e's own migration
+      // (`NPCData.#migrateSource`) folds an object at `details.source` back into
+      // `system.source` for us, so the old shape is not silently dropped — but,
+      // as with AC/movement, write the version-native location directly rather
+      // than depend on that migration shim.
+      // verified: dnd5e.mjs:85285 (`NPCData.defineSchema`: `source: new SourceField()`
+      // at top level, `details: {...DetailsField.common, ...DetailsField.creature,
+      // type, habitat, cr, treasure}` — no `source` key), :85472
+      // (`NPCData.#migrateSource`).
+      const sourceBlock = {
+        revision: 1,
+        rules: data.sourceRules,
+        book: data.sourceBook,
+        page: data.sourcePage,
+        custom: '',
+        license: '',
+      };
 
       // 8. Build full actor data
       const actorData: any = {
@@ -514,16 +588,7 @@ export class ActorBuilderDataAccess {
               tempmax: 0,
               formula: data.hpFormula,
             },
-            movement: {
-              walk: data.walkSpeed,
-              fly: data.flySpeed,
-              swim: data.swimSpeed,
-              climb: data.climbSpeed,
-              burrow: data.burrowSpeed,
-              units: 'ft',
-              hover: data.hover,
-              special: '',
-            },
+            movement: movementBlock,
             senses: {
               darkvision: data.darkvision,
               blindsight: data.blindsight,
@@ -533,6 +598,7 @@ export class ActorBuilderDataAccess {
               special: data.specialSenses,
             },
           },
+          ...(dnd5eV6 ? { source: sourceBlock } : {}),
           details: {
             cr: normalizedCR,
             type: {
@@ -544,14 +610,7 @@ export class ActorBuilderDataAccess {
               value: data.biography,
               public: '',
             },
-            source: {
-              revision: 1,
-              rules: data.sourceRules,
-              book: data.sourceBook,
-              page: data.sourcePage,
-              custom: '',
-              license: '',
-            },
+            ...(dnd5eV6 ? {} : { source: sourceBlock }),
           },
           traits: {
             size: NPC_SIZE_MAP[data.size] ?? 'med',

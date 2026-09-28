@@ -851,3 +851,61 @@ describe('CharacterTools.handleSearchCharacterItems', () => {
     ).rejects.toThrow('Failed to search items for "Elara": actor missing');
   });
 });
+
+// ---------------------------------------------------------------------------
+// M3: effect shapes from Foundry 14 (img, duration {value, units})
+// ---------------------------------------------------------------------------
+
+describe('CharacterTools effects tolerate Foundry 14 shapes (M3)', () => {
+  const baseChar = {
+    id: 'char1',
+    name: 'Caster',
+    type: 'character',
+    img: null,
+    items: [],
+    system: {},
+  };
+
+  it('reports hasIcon from img when icon is absent (v14 removed ActiveEffect#icon)', async () => {
+    const rawChar = {
+      ...baseChar,
+      effects: [{ id: 'e1', name: 'Blessed', disabled: false, img: 'icons/bless.png' }],
+    };
+    const { tools } = makeTools(() => rawChar);
+    const result = await tools.handleGetCharacter({ identifier: 'Caster' });
+    expect(result.effects[0].hasIcon).toBe(true);
+  });
+
+  it('reads duration units/value when the module sends the v14 shape', async () => {
+    const rawChar = {
+      ...baseChar,
+      effects: [
+        { id: 'e1', name: 'Blessed', disabled: false, duration: { units: 'rounds', value: 10 } },
+      ],
+    };
+    const { tools } = makeTools(() => rawChar);
+    const result = await tools.handleGetCharacter({ identifier: 'Caster' });
+    expect(result.effects[0].duration).toMatchObject({ type: 'rounds', duration: 10 });
+  });
+
+  it('keeps the module shape {type, duration, remaining} unchanged', async () => {
+    const rawChar = {
+      ...baseChar,
+      effects: [
+        {
+          id: 'e1',
+          name: 'Blessed',
+          disabled: false,
+          icon: 'icons/bless.png',
+          duration: { type: 'seconds', duration: 60, remaining: 30 },
+        },
+      ],
+    };
+    const { tools } = makeTools(() => rawChar);
+    const result = await tools.handleGetCharacter({ identifier: 'Caster' });
+    expect(result.effects[0]).toMatchObject({
+      hasIcon: true,
+      duration: { type: 'seconds', duration: 60, remaining: 30 },
+    });
+  });
+});

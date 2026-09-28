@@ -50,10 +50,17 @@ export function hasTypedActiveEffects(): boolean {
 }
 
 /**
- * Whether MeasuredTemplate documents exist. They were removed in 14.352
- * (templates are Regions since then).
+ * Whether scenes can hold MeasuredTemplate documents. They were removed in
+ * 14.352 (templates are Regions since then), but 14.368 still ships a
+ * deprecated `BaseMeasuredTemplate` shim (`client/documents/measured-template.mjs`),
+ * so the class is no signal: the Scene's embedded document types are (seen
+ * live on 14.368: `Region` and `Level`, no `MeasuredTemplate`).
  */
 export function supportsMeasuredTemplates(): boolean {
+  const embedded = (
+    foundry?.documents as { BaseScene?: { metadata?: { embedded?: unknown } } } | undefined
+  )?.BaseScene?.metadata?.embedded;
+  if (embedded && typeof embedded === 'object') return 'MeasuredTemplate' in embedded;
   if (coreGeneration() < 14) return true;
   return typeof foundry?.documents?.BaseMeasuredTemplate === 'function';
 }

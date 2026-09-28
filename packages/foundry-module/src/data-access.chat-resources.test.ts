@@ -127,16 +127,18 @@ describe('FoundryDataAccess — sendChatMessage', () => {
     expect(result.whisperedTo).toEqual(['Ghost']);
   });
 
-  it('returns empty whisperedTo when no targets resolve and no GM users are registered', async () => {
-    // game.users is empty (world.users has no docs); whisper stays empty
+  it('whispers to the sending user when no targets resolve and no GM users are registered', async () => {
+    // game.users is empty (world.users has no docs): an empty whisper array would be PUBLIC in
+    // Foundry, so the message goes to the current user (M3: it used to be posted publicly).
     const result = await da.sendChatMessage({
       message: 'secret',
       messageType: 'whisper',
       whisperTargets: ['Ghost'],
     });
 
-    // whisper.length === 0 → whisperedTo is []
-    expect(result.whisperedTo).toEqual([]);
+    const msgs = Array.from(world.messages.contents);
+    expect((msgs[msgs.length - 1] as any).whisper).toEqual(['gm']);
+    expect(result.whisperedTo).toEqual(['Ghost']);
     // warning is still set because we entered the fallback branch
     expect(result.warning).toMatch(/No whisper targets resolved/);
   });

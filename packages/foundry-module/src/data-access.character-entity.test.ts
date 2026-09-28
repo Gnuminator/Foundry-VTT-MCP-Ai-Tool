@@ -254,9 +254,46 @@ describe('getCharacterEntity — effects branch', () => {
         name: 'Bless',
         icon: 'icons/bless.webp',
         disabled: false,
-        duration: { rounds: 10 },
-        changes: [{ key: 'system.attributes.ac.value', mode: 2, value: '1' }],
+        // Normalized through `systems/core.ts` `effectDuration`/`effectChanges`:
+        // v13 `duration.rounds` → `{value, units}`; v13 numeric `mode` → the
+        // same string vocabulary v14 uses for `system.changes[].type`.
+        duration: { value: 10, units: 'rounds', remaining: null, expired: false },
+        changes: [{ key: 'system.attributes.ac.value', mode: 'add', type: 'add', value: '1' }],
       },
+    });
+  });
+
+  it('effect entity: v14-shaped duration/changes normalize the same way', async () => {
+    const actor = makeActor({
+      id: 'hero000000000003',
+      name: 'Vera',
+      type: 'character',
+      items: [],
+      effects: [
+        makeEffect({
+          id: 'haste0000000000',
+          name: 'Haste',
+          img: 'icons/haste.webp', // v14: no `icon` field at all
+          disabled: false,
+          duration: { value: 3, units: 'rounds', remaining: 3 },
+          system: { changes: [{ key: 'system.attributes.ac.value', type: 'add', value: '1' }] },
+        }),
+      ],
+    });
+    world.actors.add(actor);
+
+    const result = await da.getCharacterEntity({
+      characterIdentifier: 'Vera',
+      entityIdentifier: 'haste0000000000',
+    });
+
+    expect(result.entity).toEqual({
+      id: 'haste0000000000',
+      name: 'Haste',
+      icon: 'icons/haste.webp',
+      disabled: false,
+      duration: { value: 3, units: 'rounds', remaining: 3, expired: false },
+      changes: [{ key: 'system.attributes.ac.value', mode: 'add', type: 'add', value: '1' }],
     });
   });
 

@@ -10,7 +10,20 @@ import {
   hasSpellcasting,
   type GameSystem,
 } from '../utils/system-detection.js';
-import { GenericFiltersSchema, describeFilters } from '../utils/compendium-filters.js';
+import {
+  CreatureSizeInputs,
+  GenericFiltersSchema,
+  describeFilters,
+} from '../utils/compendium-filters.js';
+import {
+  creatureSizeWord,
+  flatHasSpells,
+  hasLegendaryActions,
+  movementSummary,
+  sizeWord,
+  spellSchoolName,
+  weaponDamageSummary,
+} from './creature-format.js';
 
 export interface CompendiumToolsOptions {
   foundryClient: FoundryClient;
@@ -101,8 +114,9 @@ export class CompendiumTools {
                 },
                 size: {
                   type: 'string',
-                  description: 'Creature size (e.g., "medium", "large", "huge")',
-                  enum: ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'],
+                  description:
+                    'Creature size (e.g., "medium", "large", "huge"; dnd5e keys such as "med" also work)',
+                  enum: [...CreatureSizeInputs],
                 },
                 alignment: {
                   type: 'string',
@@ -203,7 +217,7 @@ export class CompendiumTools {
             size: {
               type: 'string',
               description: 'Filter by creature size',
-              enum: ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'],
+              enum: [...CreatureSizeInputs],
             },
             hasSpells: {
               type: 'boolean',
@@ -437,7 +451,7 @@ export class CompendiumTools {
 
       // Common filters
       creatureType: z.string().optional(), // Accept any string, validate per system
-      size: z.enum(['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan']).optional(),
+      size: z.enum(CreatureSizeInputs).optional(), // words or dnd5e keys ('med')
 
       // Spellcasting flags (different names per system)
       hasSpells: z
@@ -624,8 +638,8 @@ export class CompendiumTools {
         const ac = system.attributes?.ac?.value;
         if (ac !== undefined) stats.armorClass = ac;
 
-        // Size
-        const size = system.traits?.size?.value || system.traits?.size || system.size;
+        // Size (dnd5e stores a key such as "med"; report the word)
+        const size = creatureSizeWord(item);
         if (size) stats.size = size;
 
         // Alignment
@@ -650,7 +664,7 @@ export class CompendiumTools {
         const creatureType = system.details?.type?.value || system.type?.value;
         if (creatureType) stats.creatureType = creatureType;
 
-        const size = system.traits?.size || system.size;
+        const size = creatureSizeWord(item);
         if (size) stats.size = size;
 
         const alignment = system.details?.alignment || system.alignment;
@@ -703,14 +717,14 @@ export class CompendiumTools {
     switch (item.type.toLowerCase()) {
       case 'spell':
         if (system.level) parts.push(`Level ${system.level}`);
-        if (system.school) parts.push(system.school);
+        if (system.school) parts.push(spellSchoolName(system.school) ?? system.school);
         break;
-      case 'weapon':
-        if (system.damage?.parts?.length) {
-          const damage = system.damage.parts[0];
-          parts.push(`${damage[0]} ${damage[1]} damage`);
-        }
+      case 'weapon': {
+        // dnd5e 4+ keeps damage in system.damage.base; 3.x in system.damage.parts
+        const damage = weaponDamageSummary(system);
+        if (damage) parts.push(damage);
         break;
+      }
       case 'armor':
         if (system.armor?.value) parts.push(`AC ${system.armor.value}`);
         break;
@@ -734,34 +748,38 @@ export class CompendiumTools {
     };
 
     if (gameSystem) {
-      // System-specific extraction using detection utilities
-      const level = getCreatureLevel(creature, gameSystem);
+      // The module's creature index returns FLAT records (challengeRating,
+      // creatureType, size, hasSpells, hasLegendaryActions); older modules
+      // returned raw actor data under `system`. Read the flat value first and
+      // fall back to the system paths.
+      const level =
+        typeof creature.challengeRating === 'number'
+          ? creature.challengeRating
+          : getCreatureLevel(creature, gameSystem);
       if (level !== undefined) {
         formatted.challengeRating = level;
       }
 
-      const creatureType = getCreatureType(creature, gameSystem);
+      const creatureType =
+        typeof creature.creatureType === 'string' && creature.creatureType !== ''
+          ? creature.creatureType
+          : getCreatureType(creature, gameSystem);
       if (creatureType) {
         formatted.creatureType = creatureType;
       }
 
-      const size = system.traits?.size?.value || system.traits?.size || system.size || 'medium';
-      formatted.size = size;
+      // dnd5e stores a size key ("med"); report the word
+      formatted.size = creatureSizeWord(creature) ?? 'medium';
 
       // Feature flags
-      const hasSpells = hasSpellcasting(creature, gameSystem);
+      const hasSpells = flatHasSpells(creature) ?? hasSpellcasting(creature, gameSystem);
       formatted.flags = {
         spellcaster: hasSpells,
       };
 
       // D&D 5e specific flags
       if (gameSystem === 'dnd5e') {
-        const hasLegendary = !!(
-          system.resources?.legact ||
-          system.legendary ||
-          (system.resources?.legres && system.resources.legres.value > 0)
-        );
-        formatted.flags.legendary = hasLegendary;
+        formatted.flags.legendary = hasLegendaryActions(creature);
 
         const typeStr = typeof creatureType === 'string' ? creatureType.toLowerCase() : '';
         formatted.flags.undead = typeStr === 'undead';
@@ -773,7 +791,7 @@ export class CompendiumTools {
       const challengeRating = creature.challengeRating ?? system.details?.cr ?? system.cr ?? 0;
       const creatureType =
         creature.creatureType ?? system.details?.type?.value ?? system.type?.value ?? 'unknown';
-      const size = creature.size ?? system.traits?.size ?? system.size ?? 'medium';
+      const size = creatureSizeWord(creature) ?? 'medium';
 
       const hasSpells =
         creature.hasSpells ??
@@ -782,13 +800,7 @@ export class CompendiumTools {
           system.attributes?.spellcasting ||
           (system.details?.spellLevel && system.details.spellLevel > 0)
         );
-      const hasLegendary =
-        creature.hasLegendaryActions ??
-        !!(
-          system.resources?.legact ||
-          system.legendary ||
-          (system.resources?.legres && system.resources.legres.value > 0)
-        );
+      const hasLegendary = hasLegendaryActions(creature);
 
       formatted.challengeRating = challengeRating;
       formatted.creatureType = creatureType;
@@ -842,7 +854,8 @@ export class CompendiumTools {
 
     // Basic info
     if (system.details?.type?.value) stats.creatureType = system.details.type.value;
-    if (system.traits?.size) stats.size = system.traits.size;
+    const size = sizeWord(system.traits?.size);
+    if (size) stats.size = size;
     if (system.details?.alignment) stats.alignment = system.details.alignment;
 
     // Key abilities (only show notable ones)
@@ -862,14 +875,9 @@ export class CompendiumTools {
     }
 
     // Speed
-    if (system.attributes?.movement) {
-      const movement = system.attributes.movement;
-      const speeds: string[] = [];
-      if (movement.walk) speeds.push(`${movement.walk} ft`);
-      if (movement.fly) speeds.push(`fly ${movement.fly} ft`);
-      if (movement.swim) speeds.push(`swim ${movement.swim} ft`);
-      if (speeds.length > 0) stats.speed = speeds.join(', ');
-    }
+    // (dnd5e 6 keeps speeds under movement.speeds.<type>; older data at movement.<type>)
+    const speed = movementSummary(system.attributes?.movement);
+    if (speed) stats.speed = speed;
 
     return stats;
   }

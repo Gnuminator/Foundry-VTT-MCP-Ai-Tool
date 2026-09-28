@@ -538,8 +538,10 @@ export class ModuleSettings {
     }
 
     const maxActors = this.getSetting('maxActorsPerRequest');
-    if (!maxActors || typeof maxActors !== 'number' || maxActors < 1 || maxActors > 10) {
-      errors.push('Max actors per request must be between 1 and 10');
+    // Same bounds as the setting's range slider (registerSettings: min 1, max 50). A tighter
+    // check here made `start()` throw for any value the settings UI itself allows above 10.
+    if (!maxActors || typeof maxActors !== 'number' || maxActors < 1 || maxActors > 50) {
+      errors.push('Max actors per request must be between 1 and 50');
     }
 
     const heartbeat = this.getSetting('heartbeatInterval');

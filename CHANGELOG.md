@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — M0 foundations + M1 Tarokka + M2 spoiler-safe player view (Curse of Strahd)
+## Unreleased — M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd)
 
 Groundwork from `docs/CURSE-OF-STRAHD-PLAN.md` step 0. **Wire contracts are unchanged** (module id,
 ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults change behaviour; see
@@ -103,8 +103,23 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   errors and logs the details server-side.
 - Compendium copies with a custom name kept the source's prototype token name; the token is now named
   after the copy.
-- `place-measured-template` / `delete-measured-template` now fail with a clear "not available on
-  Foundry 14 yet" error (MeasuredTemplate was removed in 14.352; the Region port is planned for M3).
+- `place-measured-template` / `delete-measured-template` work on Foundry 14 again: templates are
+  Regions there (on the current level, always visible, not blocking movement), and `all` removes only
+  the tool's own, never a region you drew.
+- Foundry 14 and dnd5e 6 compatibility pass (M3): conditions go through dnd5e's own toggle (condition
+  effects, exhaustion levels); effect changes, durations and images read the v14 shapes; scene
+  backgrounds come from Scene Levels; new tokens, map notes and templates land on the current level;
+  `set-scene-mood` changes darkness on a scene with the darkness lock on; NPCs are created in the
+  dnd5e 6 shape (AC override, movement speeds, source); `use-item` passes its options the way dnd5e 4+
+  reads them.
+- Creature search: `hasSpells` and `hasLegendaryActions` were true for every creature; size filters
+  accept `medium` and dnd5e's `med` alike; the creature list shows real sizes, CRs and types.
+- A whisper whose targets could not be found, in a world with no GM user, was posted publicly; it now
+  goes to the sender (or is refused).
+- Journal pages last edited in the Markdown editor kept their old Markdown after an update.
+- `get-module-manifest` lost authors and dependencies; weapon properties `rel` and `sil` gave a false
+  warning; the "max actors per request" setting could not go above 10 without stopping the bridge;
+  secret token disposition is shown as "secret".
 
 ### Build / CI
 
@@ -130,6 +145,8 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   set, open `/player?token=...` once more after upgrading: the player page keeps its token under
   its own key now, apart from the GM page's.
 - The dashboard has a new dependency, `htmlparser2` (10.x, runs on the bundled Node 20).
+- The enhanced creature index rebuilds itself once after upgrading (about 16 s for the core packs);
+  the first creature search during that rebuild can time out. Try again a few seconds later.
 
 ## v0.18.0 (2026-06-17) — Roll-init for selected combatants
 

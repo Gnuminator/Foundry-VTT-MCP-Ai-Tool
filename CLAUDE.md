@@ -48,7 +48,7 @@ Renaming any of these breaks existing installs. Plan a migration note first.
 - **NEVER push to `adambdooley/foundry-vtt-mcp`** (upstream). It's not a remote anymore.
 - Keep it green after each change: `npm run typecheck && npm run lint:ratchet && npm run build`, plus
   `CI=true npm test`. The lint ratchet (`scripts/lint-ratchet.mjs`, baseline
-  `scripts/lint-baseline.json`, 7,761 warnings) fails on any ESLint error or any rule whose warning
+  `scripts/lint-baseline.json`, 7,656 warnings) fails on any ESLint error or any rule whose warning
   count rises; lower the baseline with `npm run lint:ratchet -- --update` when counts drop.
 - **Local test environment:** `.claude/skills/foundry-test-env/SKILL.md` + `scripts/test-env/*.ps1`
   (Foundry 14 at `C:\FoundryTest` on localhost:30001, world `ai-tool-test`, passwordless "Claude" GM
@@ -162,8 +162,26 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
     refuses to raise a page inside a hidden journal); "deletes data" wording on reveals.
   - Not live-tested: the GM page's whisper confirm prompt (only on AI commentary cards, needs
     `ANTHROPIC_API_KEY`); the server side of the guard is.
-  - **Next:** M3 (Foundry v14 + dnd5e 6 compatibility pass, incl. the v14 roll-mode deprecation
-    warnings still logged by `rollModeFor` / `rollNpcCheck`) waits for the GM's go-ahead.
+- [x] **Curse of Strahd M3 (Foundry 14 / dnd5e 6 compatibility pass) DONE, live-tested**
+  (2026-09-28; `docs/CURSE-OF-STRAHD-PLAN.md` "M3 as built" in section 2.4). Seven parallel worker
+  lanes plus lead review. **Tests 2,730** (foundry-module 1176, mcp-server 1436, shared 55,
+  cogm-dashboard 63); lint baseline **7,656**.
+  - Every table 2.4 row: conditions via `actor.toggleStatusEffect`; effect reads via the adapter;
+    templates are Regions (`systems/regions.ts`, `all` deletes only the tool's); Scene Levels for
+    backgrounds, tokens, notes, regions; darkness lock; dnd5e 6 NPC shape; `item.use` signature.
+  - Found live and fixed: 14.368 keeps a `BaseMeasuredTemplate` shim and an empty `scene.templates`
+    (gate now reads Scene's embedded types); 2024 monsters carry a casting ability on every NPC
+    (spells now = slot or spell item); sizes as dnd5e keys with `sameDnd5eSize` + `INDEX_VERSION`
+    1.1.0; backend creature list read the wrong shape. Also: a whisper could go public with no GM
+    user; stale Markdown on journal updates; module manifest Sets; see the plan for the full list and
+    what is left (FormApplication menus before v16, `swarm` type, exhaustion levels parameter).
+- [~] **Obsidian O4 designed, not built:** `docs/OBSIDIAN-O4-DESIGN.md` (Foundry mirrors + links:
+  `getExportIndex`, notes per PC/NPC/scene/journal/story item, `@UUID` rewrite, `/open` route, 8 build
+  chunks, open GM questions with defaults). Build after the GM reviews it.
+- **Sonnet 5.5 for workers:** user settings set `ANTHROPIC_DEFAULT_SONNET_MODEL=claude-sonnet-5-5` on
+  this PC (the Agent tool's `sonnet` alias); the other PC needs the same (vault `New PC setup.md`).
+- **Next:** the GM's choice (M4 attention/spy network is the plan's next milestone; O4 build; the
+  research session's findings in the vault `Dev/Foundry AI Tool/Research/`).
 - [~] **Handoff (2026-09-28, night; second PC, CKRSSURFACE).** O3 done and pushed; M2 as above.
   - Test env on this PC: world `ai-tool-test` (users Gamemaster, Claude, Player; `Test Hero` level 3
     Fighter owned by Player; world actor `Wolf` with unlinked tokens Wolf 1-3 on "Test Arena").

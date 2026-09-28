@@ -35,7 +35,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestWorld, makeActor, type TestWorld } from './test-support/foundry-mock/index.js';
+import {
+  createTestWorld,
+  makeActor,
+  makeItem,
+  type TestWorld,
+} from './test-support/foundry-mock/index.js';
 import { PersistentCreatureIndex } from './data-access/creature-index.js';
 
 let world: TestWorld;
@@ -258,8 +263,9 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
           },
           traits: { size: 'GARGANTUAN' },
           attributes: { hp: { max: 546 }, ac: { value: 22 }, spellcasting: 'cha' },
-          resources: { legact: { value: 3 } },
+          resources: { legact: { max: 3, value: 3, spent: 0 } },
         },
+        items: [makeItem({ id: 'fb', name: 'Fireball', type: 'spell' })],
       }),
     ]);
 
@@ -274,11 +280,11 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
       packLabel: 'Monsters',
       challengeRating: 24,
       creatureType: 'dragon', // lower-cased
-      size: 'gargantuan', // lower-cased
+      size: 'gargantuan', // lower-cased (raw value was the display word, not the dnd5e key)
       hitPoints: 546,
       armorClass: 22,
-      hasSpells: true, // attributes.spellcasting truthy
-      hasLegendaryActions: true, // resources.legact truthy
+      hasSpells: true, // it has a spell item (the casting ability alone does not count)
+      hasLegendaryActions: true, // resources.legact.max > 0
       alignment: 'chaotic evil', // lower-cased
       description: 'A terrifying wyrm.',
       img: 'dragon.webp',
@@ -309,7 +315,7 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
     expect(c).toMatchObject({
       challengeRating: 0,
       creatureType: 'unknown',
-      size: 'medium',
+      size: 'med', // dnd5e's own storage key, not the display word 'medium'
       hitPoints: 0,
       armorClass: 10,
       hasSpells: false,
@@ -319,13 +325,13 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
     });
   });
 
-  it('detects spells via system.spells and legendary via system.legendary', async () => {
+  it('detects spells via a nonzero system.spells slot and legendary via a numeric system.legendary', async () => {
     addMonsterPack([
       makeActor({
         id: 'caster',
         name: 'Caster',
         type: 'npc',
-        system: { spells: { spell1: { value: 4 } }, legendary: { actions: 3 } },
+        system: { spells: { spell1: { value: 4 } }, legendary: 3 },
       }),
     ]);
 
@@ -333,6 +339,125 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
     const [c] = await index.rebuildIndex();
 
     expect(c.hasSpells).toBe(true);
+    expect(c.hasLegendaryActions).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // Regression coverage for the pre-existing hasSpells/hasLegendaryActions
+  // "always true" bug (plan `creature-index.ts:520-535`): both dnd5e 5.3 and
+  // 6.0 always populate `system.spells` (fixed level map) and
+  // `system.resources.legact` (fixed {max, spent} container) on every NPC, so
+  // testing mere presence of those containers used to report every creature
+  // as a caster with legendary actions.
+  // -------------------------------------------------------------------------
+
+  it('hasSpells is false for a non-caster NPC with dnd5e 6.0-shaped zeroed spell slots and a blank spellcasting ability', async () => {
+    addMonsterPack([
+      makeActor({
+        id: 'goblin',
+        name: 'Goblin',
+        type: 'npc',
+        system: {
+          attributes: { spellcasting: '' }, // blank StringField — the dnd5e default for non-casters
+          spells: {
+            spell1: { value: 0, override: null },
+            spell2: { value: 0, override: null },
+            pact: { value: 0, override: null },
+          },
+        },
+      }),
+    ]);
+
+    const index = new PersistentCreatureIndex();
+    const [c] = await index.rebuildIndex();
+
+    expect(c.hasSpells).toBe(false);
+  });
+
+  it('hasSpells follows spell items, not the casting ability (dnd5e 6 2024 monsters, seen live)', async () => {
+    // In `dnd5e.actors24` every NPC has a casting ability (a Wolf has "str"),
+    // and casters like the Mage cast from spell items with no slots.
+    addMonsterPack([
+      makeActor({
+        id: 'mage',
+        name: 'Mage',
+        type: 'npc',
+        system: {
+          attributes: { spellcasting: 'int' },
+          spells: { spell1: { value: 0, override: null } },
+        },
+        items: [makeItem({ id: 'mm', name: 'Magic Missile', type: 'spell' })],
+      }),
+      makeActor({
+        id: 'wolf24',
+        name: 'Wolf',
+        type: 'npc',
+        system: {
+          attributes: { spellcasting: 'str' },
+          spells: { spell1: { value: 0, override: null } },
+        },
+        items: [makeItem({ id: 'bite', name: 'Bite', type: 'weapon' })],
+      }),
+    ]);
+
+    const index = new PersistentCreatureIndex();
+    const byName = Object.fromEntries((await index.rebuildIndex()).map(c => [c.name, c]));
+
+    expect(byName['Mage'].hasSpells).toBe(true);
+    expect(byName['Wolf'].hasSpells).toBe(false);
+  });
+
+  it('hasLegendaryActions is false for a non-legendary NPC with dnd5e 6.0-shaped resources.legact.max: 0', async () => {
+    addMonsterPack([
+      makeActor({
+        id: 'wolf',
+        name: 'Wolf',
+        type: 'npc',
+        system: {
+          resources: { legact: { max: 0, spent: 0 }, legres: { max: 0, spent: 0 } },
+        },
+      }),
+    ]);
+
+    const index = new PersistentCreatureIndex();
+    const [c] = await index.rebuildIndex();
+
+    expect(c.hasLegendaryActions).toBe(false);
+  });
+
+  it('hasLegendaryActions is false when only legendary RESISTANCE (legres) is set, not legendary actions', async () => {
+    addMonsterPack([
+      makeActor({
+        id: 'devil',
+        name: 'Pit Fiend',
+        type: 'npc',
+        system: {
+          resources: { legact: { max: 0, spent: 0 }, legres: { max: 3, spent: 0 } },
+        },
+      }),
+    ]);
+
+    const index = new PersistentCreatureIndex();
+    const [c] = await index.rebuildIndex();
+
+    expect(c.hasLegendaryActions).toBe(false);
+  });
+
+  it('hasLegendaryActions is true for dnd5e 6.0-shaped resources.legact.max > 0', async () => {
+    addMonsterPack([
+      makeActor({
+        id: 'lich',
+        name: 'Lich',
+        type: 'npc',
+        system: {
+          resources: { legact: { max: 3, spent: 1 } },
+        },
+      }),
+    ]);
+
+    const index = new PersistentCreatureIndex();
+    const [c] = await index.rebuildIndex();
+
     expect(c.hasLegendaryActions).toBe(true);
   });
 
@@ -371,7 +496,7 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
       type: 'npc',
       challengeRating: 0,
       creatureType: 'unknown',
-      size: 'medium',
+      size: 'med',
       hitPoints: 1, // fallback HP is 1, not 0
       armorClass: 10,
       description: 'Data extraction failed',
@@ -434,7 +559,7 @@ describe('PersistentCreatureIndex — persistence', () => {
     await index.rebuildIndex();
 
     const saved = JSON.parse(disk.content!);
-    expect(saved.metadata.version).toBe('1.0.0');
+    expect(saved.metadata.version).toBe('1.1.0');
     expect(saved.metadata.gameSystem).toBe('dnd5e');
     expect(saved.metadata.totalCreatures).toBe(1);
     // Map serialized to entries array.

@@ -1,5 +1,7 @@
 import { ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
+import { effectChanges, effectDuration, effectImg, type EffectChange } from '../systems/core.js';
+import { statusEffectList } from '../systems/dnd5e/status-effects.js';
 
 /**
  * Character resources + active effects/conditions domain for `FoundryDataAccess`.
@@ -22,13 +24,16 @@ export class ResourcesEffectsDataAccess {
 
   /**
    * List every game condition defined in `CONFIG.statusEffects`, normalizing the
-   * field names across Foundry versions (icon vs img, name vs label).
+   * field names across Foundry versions (icon vs img, name vs label) and the
+   * storage shape (array in core/dnd5e 5.x, an object keyed by id in dnd5e 6.0
+   * — verified `dnd5e.mjs:96370` `_configureStatusEffects`; read only through
+   * {@link statusEffectList}).
    */
   async getAvailableConditions(): Promise<any> {
     shared.validateFoundryState();
 
     try {
-      const rawConditions: any[] = (CONFIG as any).statusEffects ?? [];
+      const rawConditions: any[] = statusEffectList();
 
       return {
         success: true,
@@ -90,8 +95,12 @@ export class ResourcesEffectsDataAccess {
     }
 
     // Build a registry of known condition status ids for the type-classification step.
+    // `statusEffectList()` normalizes the array (core/dnd5e 5.x) vs id-keyed-object
+    // (dnd5e 6.0) storage shape.
     const knownStatusIds = new Set<string>(
-      ((CONFIG as any).statusEffects ?? []).map((s: any) => s.id).filter(Boolean)
+      statusEffectList()
+        .map((s: any) => s.id)
+        .filter(Boolean)
     );
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -383,8 +392,15 @@ export class ResourcesEffectsDataAccess {
    *   2. Effect name matching `/concentrat/i`.
    *   3. Presence of `flags.dnd5e.itemData` (DAE-style concentration marker).
    *
-   * Spell name preference: `flags.dnd5e.item.name` → name stripped of the
-   * "Concentrating: " prefix. Remaining time: `duration.remaining` → `duration.seconds`.
+   * Spell name: dnd5e's `Actor5e.createConcentrationEffectData` (verified
+   * `dnd5e.mjs:8259-8290`, unchanged in shape since well before 6.0) never
+   * writes `flags.dnd5e.item.name` — the pre-existing bug this replaces — it
+   * writes `flags.dnd5e.item.{type,id,uuid}` and `origin` (both the item's
+   * UUID). Resolve the linked item by UUID via `fromUuidSync` (present on both
+   * versions) and read its live `.name`; fall back to stripping the
+   * "Concentrating: " prefix dnd5e always puts on the effect's own `name`
+   * (`dnd5e.mjs:8268`) when the item can't be resolved (e.g. it was deleted).
+   * Remaining time: `duration.remaining` → `duration.seconds`.
    */
   private readConcentration(actor: any): any {
     try {
@@ -400,14 +416,21 @@ export class ResourcesEffectsDataAccess {
 
       if (!conc) return { active: false };
 
-      const spellName =
-        conc.flags?.dnd5e?.item?.name ||
-        (conc.name || '').replace(/concentrating:?\s*/i, '').trim() ||
-        null;
+      const itemUuid: unknown = conc.flags?.dnd5e?.item?.uuid ?? conc.origin;
+      let spellName: string | null = null;
+      if (typeof itemUuid === 'string' && itemUuid && typeof fromUuidSync === 'function') {
+        try {
+          const linkedItem = fromUuidSync(itemUuid) as { name?: unknown } | null;
+          if (typeof linkedItem?.name === 'string' && linkedItem.name) spellName = linkedItem.name;
+        } catch {
+          // Deleted/unresolvable item — fall through to the name-strip fallback.
+        }
+      }
+      spellName ??= (conc.name || '').replace(/concentrating:?\s*/i, '').trim() || null;
 
       return {
         active: true,
-        spell: spellName || null,
+        spell: spellName,
         remaining: conc.duration?.remaining ?? conc.duration?.seconds ?? null,
       };
     } catch {
@@ -478,15 +501,31 @@ export class ResourcesEffectsDataAccess {
    * `isCondition` is true only when one of the effect's status ids is registered
    * in `CONFIG.statusEffects` — a spell that happens to apply 'concentrating' is
    * not a game condition.
+   *
+   * `changes`/`duration`/`icon` are read through the version adapter
+   * (`systems/core.ts`) so v13 (`effect.changes` + numeric `mode`,
+   * `duration.rounds/turns/seconds`, `effect.icon`) and v14
+   * (`effect.system.changes` + string `type`, `duration.value/units/expiry`,
+   * `effect.img` only) both resolve correctly. The tool's existing field names
+   * are kept: `changes[].mode` is now filled from the normalized `type` string
+   * (numeric v13 modes map to the same vocabulary — see
+   * `core.ts` `LEGACY_CHANGE_MODES`) and `type` is added alongside it for
+   * callers that want the v14 vocabulary directly; `duration` keeps
+   * `rounds`/`turns`/`seconds`/`remaining`, with the first three sourced from
+   * the normalized `{value, units}` and `remaining` still read straight off
+   * the live `effect.duration` getter (present, and correct, on both
+   * versions).
    */
   private describeEffect(e: any, knownStatusIds: Set<string>): any {
     const statuses: string[] = Array.from(e.statuses ?? []);
     const isCondition = statuses.some(s => knownStatusIds.has(s));
 
-    const dur = e.duration ?? {};
-    const changes = (e.changes ?? []).map((c: any) => ({
+    const normDuration = effectDuration(e as ActiveEffect);
+    const rawRemaining = (e.duration as Record<string, unknown> | undefined)?.remaining;
+    const changes = effectChanges(e as ActiveEffect).map((c: EffectChange) => ({
       key: c.key,
-      mode: c.mode,
+      mode: c.type,
+      type: c.type,
       value: c.value,
     }));
 
@@ -496,16 +535,16 @@ export class ResourcesEffectsDataAccess {
     return {
       id: e.id,
       name: e.name || e.label || 'Unknown Effect',
-      icon: e.icon || e.img || null,
+      icon: effectImg(e as ActiveEffect),
       disabled: e.disabled ?? false,
       isCondition,
       type: isCondition ? 'condition' : 'buff/debuff',
       statuses,
       duration: {
-        rounds: dur.rounds ?? null,
-        turns: dur.turns ?? null,
-        seconds: dur.seconds ?? null,
-        remaining: dur.remaining ?? null,
+        rounds: normDuration.units === 'rounds' ? normDuration.value : null,
+        turns: normDuration.units === 'turns' ? normDuration.value : null,
+        seconds: normDuration.units === 'seconds' ? normDuration.value : null,
+        remaining: typeof rawRemaining === 'number' ? rawRemaining : null,
       },
       changes,
       requiresConcentration,

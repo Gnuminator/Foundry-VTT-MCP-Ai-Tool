@@ -31,7 +31,9 @@ interface RemovableNote {
  */
 export class PersistentCreatureIndex {
   private moduleId: string = MODULE_ID;
-  private readonly INDEX_VERSION = '1.0.0';
+  // 1.1.0 (M3): sizes stored as dnd5e keys ('med'), hasSpells/hasLegendaryActions
+  // fixed; a bump makes worlds rebuild an index persisted by an older module.
+  private readonly INDEX_VERSION = '1.1.0';
   private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
   private buildInProgress = false;
   private hooksRegistered = false;
@@ -476,16 +478,25 @@ export class PersistentCreatureIndex {
         creatureType = String(creatureType || 'unknown');
       }
 
-      // Size — first truthy candidate, defaulting to 'medium'.
+      // Size — first truthy candidate. Default and fallback are dnd5e's own
+      // storage key ('med'), not the display word ('medium'): `system.traits.size`
+      // is an ActorSizeField (StringField) whose value is one of dnd5e's short
+      // keys (tiny, sm, med, lg, huge, grg) with initial "med" — never the full
+      // word. Storing the raw key here keeps the index aligned with
+      // CONFIG.DND5E.actorSizes and with the backend filter (filters.ts), which
+      // now accepts both spellings and normalizes to this key.
+      // verified: dnd5e.mjs 6.0.5 — TraitsField.common.size = new ActorSizeField({
+      //   required: true, initial: "med" }); CONFIG.DND5E.actorSizes keys are
+      //   tiny/sm/med/lg/huge/grg (fullKey small/medium/large/gargantuan).
       let size =
         system.traits?.size?.value ||
         system.traits?.size ||
         system.size?.value ||
         system.size ||
         system.details?.size ||
-        'medium';
+        'med';
       if (typeof size !== 'string') {
-        size = String(size || 'medium');
+        size = String(size || 'med');
       }
 
       const hitPoints =
@@ -516,23 +527,75 @@ export class PersistentCreatureIndex {
         alignment = String(alignment || 'unaligned');
       }
 
+      // Spellcasting — PRE-EXISTING BUG (plan `creature-index.ts:520-535`):
+      // `system.spells` and `system.attributes.spellcasting` are truthy
+      // *containers* dnd5e always populates, even for non-casters, so testing
+      // their mere presence made `hasSpells` always true. Both dnd5e 5.3 and
+      // 6.0 give every NPC/character a fixed `system.spells` map (spell1..9 +
+      // pact, each `{value: 0, override: null}` by default) and a
+      // `system.attributes.spellcasting` StringField that is "" (blank) when
+      // there is no caster ability set. The real signal is a nonzero slot or a
+      // spell item. Not the ability: the 2024 monsters (`dnd5e.actors24`) set
+      // one on every NPC (a Wolf has "str"; seen live on 6.0.5), and their
+      // casters (Mage, Lich, dragons) cast from spell items, not slots.
+      // verified: dnd5e.mjs 6.0.5 — SpellcastingTemplate schema:
+      //   `spells: new MappingField(new SchemaField({value: NumberField(initial 0),
+      //   override: NumberField}), { initialKeys: spellLevels })` (always present,
+      //   default value 0); AttributesFields.creature `spellcasting: new
+      //   StringField({ required: true, blank: true })` (default "").
+      const asRecord = (v: unknown): Record<string, unknown> | undefined =>
+        v && typeof v === 'object' ? (v as Record<string, unknown>) : undefined;
+      const isPositiveNumber = (v: unknown): boolean => typeof v === 'number' && v > 0;
+
+      const spellsRecord = asRecord(system.spells);
+      const hasSpellSlotValue = spellsRecord
+        ? Object.values(spellsRecord).some(slot => {
+            const s = asRecord(slot);
+            return s
+              ? isPositiveNumber(s.value) || isPositiveNumber(s.max) || isPositiveNumber(s.override)
+              : typeof slot === 'number' && slot > 0;
+          })
+        : false;
+      const items: unknown = doc.items;
+      const itemList: unknown[] = Array.isArray(items)
+        ? items
+        : Array.isArray(asRecord(items)?.contents)
+          ? (asRecord(items)!.contents as unknown[])
+          : [];
+      const hasSpellItem = itemList.some(item => asRecord(item)?.type === 'spell');
+
       const hasSpells = !!(
-        system.spells ||
-        system.attributes?.spellcasting ||
+        hasSpellSlotValue ||
+        hasSpellItem ||
         (system.details?.spellLevel && system.details.spellLevel > 0) ||
         (system.resources?.spell && system.resources.spell.max > 0) ||
-        system.spellcasting ||
-        system.traits?.spellcasting ||
+        (system.traits?.spellcasting && system.traits.spellcasting !== false) ||
         system.details?.spellcaster
       );
 
+      // Legendary actions — PRE-EXISTING BUG (plan `creature-index.ts:520-535`):
+      // `system.resources.legact` is always a `{max, spent}` container on every
+      // NPC in both dnd5e 5.3 and 6.0 (default `max: 0`), so testing its mere
+      // presence made `hasLegendaryActions` always true. Only a positive max
+      // means the creature actually has legendary actions. `legres` is
+      // *legendary resistance* (a different trait) and must not be read as a
+      // legendary-actions signal — the old fallback chain conflated the two.
+      // verified: dnd5e.mjs 6.0.5 — NPCData.resources = new SchemaField({
+      //   legact: new SchemaField({ max: NumberField({initial: 0}), spent: ... }),
+      //   legres: new SchemaField({ max: NumberField({initial: 0}), ... }), ... }).
+      const legendaryActionMax = (block: unknown): number => {
+        const b = asRecord(block);
+        if (!b) return 0;
+        if (typeof b.max === 'number') return b.max;
+        if (typeof b.value === 'number') return b.value;
+        return 0;
+      };
+
       const hasLegendaryActions = !!(
-        system.resources?.legact ||
-        system.legendary ||
-        (system.resources?.legres && system.resources.legres.value > 0) ||
-        system.details?.legendary ||
-        system.traits?.legendary ||
-        (system.resources?.legendary && system.resources.legendary.max > 0)
+        legendaryActionMax(system.resources?.legact) > 0 ||
+        (typeof system.legendary === 'number' && system.legendary > 0) ||
+        (typeof system.details?.legendary === 'number' && system.details.legendary > 0) ||
+        (typeof system.traits?.legendary === 'number' && system.traits.legendary > 0)
       );
 
       return {
@@ -572,7 +635,7 @@ export class PersistentCreatureIndex {
       packLabel: pack.metadata.label,
       challengeRating: 0,
       creatureType: 'unknown',
-      size: 'medium',
+      size: 'med',
       hitPoints: 1,
       armorClass: 10,
       hasSpells: false,

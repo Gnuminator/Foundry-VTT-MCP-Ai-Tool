@@ -93,8 +93,9 @@ export class TokenManipulationTools {
                 },
                 disposition: {
                   type: 'number',
-                  description: 'Token disposition: -1 (hostile), 0 (neutral), 1 (friendly)',
-                  enum: [-1, 0, 1],
+                  description:
+                    'Token disposition: -1 (hostile), 0 (neutral), 1 (friendly), -2 (secret: purple border for owners, no border for others)',
+                  enum: [-2, -1, 0, 1],
                 },
                 name: {
                   type: 'string',
@@ -164,7 +165,7 @@ export class TokenManipulationTools {
             conditionId: {
               type: 'string',
               description:
-                'The ID of the condition/status effect to toggle (e.g., "prone", "poisoned", "blinded")',
+                'The ID of the condition/status effect to toggle (e.g., "prone", "poisoned", "blinded", "incapacitated"). The ids come from get-available-conditions for the current world (dnd5e ids are lowercase words, e.g. "frightened", "exhaustion"); a display name also resolves.',
               ...toolRef('condition', 'id'),
             },
             active: {
@@ -234,7 +235,7 @@ export class TokenManipulationTools {
         height: z.number().positive().optional(),
         rotation: z.number().min(0).max(360).optional(),
         hidden: z.boolean().optional(),
-        disposition: z.union([z.literal(-1), z.literal(0), z.literal(1)]).optional(),
+        disposition: z.union([z.literal(-2), z.literal(-1), z.literal(0), z.literal(1)]).optional(),
         name: z.string().optional(),
         elevation: z.number().optional(),
         lockRotation: z.boolean().optional(),
@@ -366,6 +367,8 @@ export class TokenManipulationTools {
 
   private getDispositionName(disposition: number): string {
     switch (disposition) {
+      case -2:
+        return 'secret';
       case -1:
         return 'hostile';
       case 0:

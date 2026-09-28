@@ -1,6 +1,8 @@
 import { ERROR_MESSAGES } from '../constants.js';
 import { permissionManager } from '../permissions.js';
 import * as shared from './shared.js';
+import { sceneBackgroundSrc } from '../systems/core.js';
+import { findStatusEffect } from '../systems/dnd5e/status-effects.js';
 
 /** Normalize a thrown value to a message string for wrapped error reporting. */
 function errorMessage(error: unknown): string {
@@ -102,8 +104,10 @@ export class ScenesTokensDataAccess {
           height: scene.dimensions?.height || scene.height || 0,
         },
         gridSize: scene.grid?.size || 100,
-        // Prefer the raw stored background; `scene.img` is the legacy field.
-        background: scene._source?.background?.src || scene.img || '',
+        // Prefer the resolved background (`sceneBackgroundSrc`: the current Scene
+        // Level's background on v14, `_source.background.src` on v13);
+        // `scene.img` is the legacy field.
+        background: (sceneBackgroundSrc(scene as Scene) ?? '') || scene.img || '',
         walls: scene.walls?.size || 0,
         tokens: scene.tokens?.size || 0,
         lighting: scene.lights?.size || 0,
@@ -503,9 +507,19 @@ export class ScenesTokensDataAccess {
 
   /**
    * Apply or remove a status condition on a token's actor. The condition is
-   * resolved from `CONFIG.statusEffects` by id or (case-insensitive) name.
-   * Removal matches existing effects by status set, then by name, then by label
-   * (the last covers systems that store a `label` instead of a `name`).
+   * resolved from `CONFIG.statusEffects` by id or (case-insensitive) name
+   * (via {@link findStatusEffect}, which handles both the array (core/dnd5e
+   * 5.x) and id-keyed-object (dnd5e 6.0) storage shapes).
+   *
+   * Applying/removing is delegated to `actor.toggleStatusEffect(id, {active})`
+   * (verified `client/documents/actor.mjs:547`, unchanged since well before
+   * v13/v14) instead of building a raw `{name, icon, statuses}` ActiveEffect:
+   * dnd5e 6.0's override (`dnd5e.mjs:46035` `Actor5e#toggleStatusEffect`)
+   * creates the typed `condition` effect (`system.type`/`system.level`) and
+   * handles exhaustion-style leveled conditions
+   * (`ConditionData._applyDelta`/`hasLevels`, `dnd5e.mjs:7092-7256`) that a raw
+   * effect document can't represent; core's own implementation (both
+   * versions) does the equivalent for non-leveled conditions.
    */
   async toggleTokenCondition(data: {
     tokenId: string;
@@ -524,28 +538,12 @@ export class ScenesTokensDataAccess {
         throw new Error(`Token ${data.tokenId} has no associated actor`);
       }
 
-      const conditions = (CONFIG as any).statusEffects || [];
-      const condition = conditions.find(
-        (c: any) =>
-          c.id === data.conditionId || c.name?.toLowerCase() === data.conditionId.toLowerCase()
-      );
+      const condition = findStatusEffect(data.conditionId);
       if (!condition) {
         throw new Error(`Condition not found: ${data.conditionId}`);
       }
 
-      if (data.active) {
-        await actor.createEmbeddedDocuments('ActiveEffect', [this.buildConditionEffect(condition)]);
-      } else {
-        const toRemove = (actor.effects?.contents || []).filter((effect: any) =>
-          this.effectMatchesCondition(effect, data.conditionId)
-        );
-        if (toRemove.length > 0) {
-          await actor.deleteEmbeddedDocuments(
-            'ActiveEffect',
-            toRemove.map((e: any) => e.id)
-          );
-        }
-      }
+      await actor.toggleStatusEffect(condition.id, { active: data.active });
 
       shared.auditLog('toggleTokenCondition', data, 'success');
 
@@ -566,27 +564,6 @@ export class ScenesTokensDataAccess {
       shared.auditLog('toggleTokenCondition', data, 'failure', errorMessage(error));
       throw new Error(`Failed to toggle token condition: ${errorMessage(error)}`);
     }
-  }
-
-  /** Build the ActiveEffect payload for applying a status condition. */
-  private buildConditionEffect(condition: any): any {
-    const effectData: any = {
-      name: condition.name || condition.label || condition.id,
-      icon: condition.icon || condition.img,
-    };
-    if (condition.id) {
-      effectData.statuses = [condition.id];
-    }
-    return effectData;
-  }
-
-  /** Whether an existing ActiveEffect represents the given condition id. */
-  private effectMatchesCondition(effect: any, conditionId: string): boolean {
-    if (effect.statuses?.has(conditionId)) {
-      return true;
-    }
-    const lowered = conditionId.toLowerCase();
-    return effect.name?.toLowerCase() === lowered || effect.label?.toLowerCase() === lowered;
   }
 
   /**

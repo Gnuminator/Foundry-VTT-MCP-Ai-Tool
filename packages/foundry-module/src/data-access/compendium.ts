@@ -1,6 +1,8 @@
 import { MODULE_ID } from '../constants.js';
 import * as shared from './shared.js';
 import { PersistentCreatureIndex } from './creature-index.js';
+import { effectImg } from '../systems/core.js';
+import { sameDnd5eSize } from '../systems/dnd5e/sizes.js';
 import type {
   CompendiumSearchResult,
   EnhancedCreatureIndex,
@@ -406,7 +408,8 @@ export class CompendiumDataAccess {
       return false;
     }
 
-    if (criteria.size && creature.size.toLowerCase() !== criteria.size.toLowerCase()) {
+    // The index stores dnd5e's size key ('med'); callers may say 'medium' (found in M3).
+    if (criteria.size && !sameDnd5eSize(creature.size, criteria.size)) {
       return false;
     }
 
@@ -600,7 +603,9 @@ export class CompendiumDataAccess {
       fullEntry.effects = doc.effects.map((effect: any) => ({
         id: effect.id,
         name: effect.name || effect.label || 'Unknown Effect',
-        icon: effect.icon || undefined,
+        // v14 removes `effect.icon`; `effectImg` (systems/core.ts) reads `img`
+        // first and falls back to the legacy field for v13 documents.
+        icon: effectImg(effect as ActiveEffect) ?? undefined,
         disabled: effect.disabled || false,
         duration: shared.sanitizeData(effect.duration || {}),
       }));

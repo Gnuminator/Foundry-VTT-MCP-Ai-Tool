@@ -200,6 +200,51 @@ Recommendation **[verified]**: two independent feature switches, not version com
 generation 14 (feature-detect `foundry.data.ActiveEffectTypeDataModel`) and dnd5e 6 (feature-detect
 `game.system.documentTypes.ActiveEffect.condition`).
 
+### M3 as built (2026-09-28, branch `claude/amazing-bardeen-q1x1q6`; live-tested on 14.368 / dnd5e 6.0.5)
+
+Built by seven parallel worker lanes (one per group of files) and reviewed, integrated and
+live-tested by the lead. Every row of the table above is handled:
+
+- **Status effects and conditions:** `statusEffectList` / `findStatusEffect` everywhere
+  (`resources-effects`, `scenes-tokens`, `ref-choices`); `toggle-token-condition` uses
+  `actor.toggleStatusEffect`, so dnd5e 6 condition effects and exhaustion levels work (live: Prone,
+  and Exhaustion 2 after two toggles).
+- **Effects:** `effectChanges` / `effectDuration` / `effectImg` at every read. Output keeps `mode`
+  (now the string type) and adds `type`; `get-character-entity`'s effect duration uses
+  `{value, units, remaining, expired}`.
+- **Roll kinds and roll modes:** already done in O3 and `28fb974`; verified that no deprecated API
+  is used and that `Combat#rollInitiative` gets no `messageOptions`.
+- **Templates are Regions** (`systems/regions.ts`): circle, cone, ray to line, rect to rectangle, on
+  the current level, always visible, `restriction` off (a visual marker, unlike dnd5e's spell
+  templates), tagged with the tool's flag; `all` deletes only the tool's regions (live: a hand-made
+  GM region survived). **Found live:** 14.368 still ships a deprecated `BaseMeasuredTemplate` shim and
+  an empty `scene.templates`, so `supportsMeasuredTemplates()` now reads the Scene's embedded document
+  types.
+- **Scene Levels:** backgrounds via `sceneBackgroundSrc`; tokens (`add-actors-to-scene`), map notes and
+  template regions get the current level. `set-scene-mood` sends `darknessLock` along (14.368 #14718;
+  live: darkness changed with the lock on).
+- **dnd5e 6 NPC writes:** AC `override`, `movement.speeds`, top-level `source` (live); `item.use` with
+  the three-argument signature.
+- **Pre-existing bugs:** creature index `hasSpells` / `hasLegendaryActions` were always true.
+  **Found live:** the 2024 monsters give every NPC a casting ability (a Wolf has "str"), so a spell
+  slot or a spell item decides (153 of 782 creatures, spot checks right). Sizes are stored as dnd5e
+  keys (`med`); `INDEX_VERSION` 1.1.0 makes old indexes rebuild. `list-creatures-by-criteria` and
+  `search-compendium` accept `medium` and `med` alike (module `sameDnd5eSize`, pinned to the backend
+  by a contract test), and the backend creature list reads the module's flat records (size, CR and
+  type used to be missing or "medium"). Concentration reads the spell through the effect's item uuid.
+  `player-rolls`' `'whisper'` stays: it is the deliberate v13 path from `28fb974`.
+- **Also found and fixed:** a whisper with no resolvable target and no GM user went public (now the
+  sender, or refused); journal pages last saved as Markdown kept stale Markdown; module manifests
+  lost `authors` and `relationships` (Sets); weapon properties `rel` and `sil`; `maxActorsPerRequest`
+  validation (10 vs the setting's 50); token disposition SECRET (-2); spell school names and dnd5e 4+
+  weapon damage in compendium summaries.
+- **Left for later:** port the two FormApplication settings menus to ApplicationV2 (before v16); the
+  `swarm` creature type in `dnd5e-create-npc`; an exhaustion-level parameter; `rel`/`sil` in the
+  backend `add-feature` copy; the creature index's incremental-update hooks (`createDocument` and
+  friends are not real hook names; unverified); raw effect duration in `get-compendium-entry-full`;
+  weapon type and properties in `extractItemProperties`. The first creature query after an upgrade
+  rebuilds the index (16 s for 782 creatures) and can time out once.
+
 ### 2.5 Third-party modules (details in appendix A)
 
 - **Tarokka:** `tarokka-reading` 1.0.3 runs on v14; `sdnd-tarokka` 13.5.0 is capped at Foundry 13 and
@@ -725,6 +770,7 @@ and pushed, and is summarized before the next starts.
 3. **M2** feature 2 (projection, player endpoints, reveal allowlist, canary suite). **Done 2026-09-28**
    (see "M2 as built", feature 2).
 4. **M3** Foundry v14 + dnd5e 6.0 compatibility pass for existing tools (table 2.4 + pre-existing bugs).
+   **Done 2026-09-28** (see "M3 as built", section 2.4).
    Some items are v14-core and affect you already. Templates are confirmed broken on v14 (MeasuredTemplate
    removed in 14.352), so `place-measured-template` and `delete-measured-template` fail today; M0 makes them
    return a clear "not available on Foundry 14 yet" error through the adapter, M3 ports them to Regions

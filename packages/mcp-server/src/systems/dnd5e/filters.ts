@@ -29,10 +29,66 @@ export const DnD5eCreatureTypes = [
 export type DnD5eCreatureType = (typeof DnD5eCreatureTypes)[number];
 
 /**
- * Common creature sizes
+ * Common creature sizes — the display words tool callers naturally write.
  */
 export const CreatureSizes = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'] as const;
 export type CreatureSize = (typeof CreatureSizes)[number];
+
+/**
+ * dnd5e's own storage keys for size, as `system.traits.size` (and the
+ * enhanced creature index built from it, see `creature-index.ts`) actually
+ * hold them. Pre-existing bug (plan `filters.ts:34`): the index stores the
+ * dnd5e key ('med') while this filter only accepted the display word
+ * ('medium'), so a `size: 'medium'` filter never matched a medium creature.
+ * verified: dnd5e.mjs 6.0.5 — `CONFIG.DND5E.actorSizes` keys are
+ * tiny/sm/med/lg/huge/grg (fullKey small/medium/large/gargantuan; tiny/huge
+ * have no separate fullKey — the key already is the full word). Unchanged
+ * from dnd5e 5.3's actorSizes keys.
+ */
+export const DnD5eSizeKeys = ['tiny', 'sm', 'med', 'lg', 'huge', 'grg'] as const;
+export type DnD5eSizeKey = (typeof DnD5eSizeKeys)[number];
+
+/** Every spelling of size accepted as filter input: display words plus dnd5e's own keys. */
+export const SizeFilterInputs = [
+  'tiny',
+  'small',
+  'sm',
+  'medium',
+  'med',
+  'large',
+  'lg',
+  'huge',
+  'gargantuan',
+  'grg',
+] as const;
+export type SizeFilterInput = (typeof SizeFilterInputs)[number];
+
+const SIZE_INPUT_TO_KEY: Record<SizeFilterInput, DnD5eSizeKey> = {
+  tiny: 'tiny',
+  small: 'sm',
+  sm: 'sm',
+  medium: 'med',
+  med: 'med',
+  large: 'lg',
+  lg: 'lg',
+  huge: 'huge',
+  gargantuan: 'grg',
+  grg: 'grg',
+};
+
+/**
+ * Normalize either a display word ('medium') or a dnd5e size key ('med') to
+ * the dnd5e key, so a filter and a stored index value compare equal
+ * regardless of which spelling either side used. Exact match only (same
+ * case-sensitivity contract as the rest of this schema); returns undefined
+ * for anything unrecognized.
+ */
+export function normalizeDnD5eSizeKey(size: string): DnD5eSizeKey | undefined {
+  const lower = size.toLowerCase();
+  return Object.prototype.hasOwnProperty.call(SIZE_INPUT_TO_KEY, lower)
+    ? SIZE_INPUT_TO_KEY[lower as SizeFilterInput]
+    : undefined;
+}
 
 /**
  * D&D 5e filter schema
@@ -48,7 +104,7 @@ export const DnD5eFiltersSchema = z.object({
     ])
     .optional(),
   creatureType: z.enum(DnD5eCreatureTypes).optional(),
-  size: z.enum(CreatureSizes).optional(),
+  size: z.enum(SizeFilterInputs).optional(),
   alignment: z.string().optional(),
   hasLegendaryActions: z.boolean().optional(),
   spellcaster: z.boolean().optional(),
@@ -82,10 +138,16 @@ export function matchesDnD5eFilters(creature: any, filters: DnD5eFilters): boole
     }
   }
 
-  // Size filter
+  // Size filter — compare via the dnd5e size key so a filter written as the
+  // display word ('medium') matches a stored dnd5e key ('med') and vice versa
+  // (see normalizeDnD5eSizeKey / DnD5eSizeKeys above).
   if (filters.size) {
-    const size = creature.systemData?.size;
-    if (!size || size.toLowerCase() !== filters.size.toLowerCase()) {
+    const rawSize = creature.systemData?.size;
+    if (!rawSize) return false;
+    const size = String(rawSize);
+    const wantKey = normalizeDnD5eSizeKey(filters.size);
+    const haveKey = normalizeDnD5eSizeKey(size) ?? size.toLowerCase();
+    if (!wantKey || haveKey !== wantKey) {
       return false;
     }
   }

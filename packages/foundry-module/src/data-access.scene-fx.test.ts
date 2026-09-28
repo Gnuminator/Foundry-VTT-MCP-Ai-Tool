@@ -232,6 +232,9 @@ describe('FoundryDataAccess — setSceneMood', () => {
 
   it('pre-v13: writes the legacy flat darkness/globalLight keys', async () => {
     const scene = sceneWith([]);
+    // coreGeneration() prefers game.release.generation over game.version, so
+    // simulate pre-v13 the same way the v14 tests below simulate v14.
+    (globalThis as any).game.release = { generation: 12, build: 331 };
     (globalThis as any).game.version = '12.331';
 
     await da.setSceneMood({ darkness: 0.3, globalLight: false });
@@ -239,6 +242,25 @@ describe('FoundryDataAccess — setSceneMood', () => {
     expect(scene.darkness).toBe(0.3);
     expect(scene.globalLight).toBe(false);
     expect(scene.environment).toBeUndefined();
+  });
+
+  it('v14.368 #14718: resends the current darknessLock alongside a darkness change so it is not dropped', async () => {
+    const scene = sceneWith([]);
+    await scene.update({ 'environment.darknessLock': true });
+
+    await da.setSceneMood({ darkness: 0.7 });
+
+    expect(scene.environment.darknessLevel).toBe(0.7);
+    expect(scene.environment.darknessLock).toBe(true);
+  });
+
+  it('does not send darknessLock when the scene is not locked', async () => {
+    const scene = sceneWith([]);
+
+    await da.setSceneMood({ darkness: 0.4 });
+
+    expect(scene.environment.darknessLevel).toBe(0.4);
+    expect(scene.environment.darknessLock).toBeUndefined();
   });
 
   it('plays a named playlist and reports the action', async () => {
@@ -325,6 +347,24 @@ describe('FoundryDataAccess — addMapNote', () => {
 
     expect(result.entryId).toBe('j1');
   });
+
+  it('v14 Scene Levels: lands the note on the current level (Note#levels)', async () => {
+    const scene = sceneWith([]);
+    scene.levels = { contents: [{ id: 'lvl1' }] };
+    scene.initialLevel = 'lvl1';
+
+    await da.addMapNote({ x: 0, y: 0, text: 'Pin' });
+
+    expect(scene.notes.contents[0].levels).toEqual(['lvl1']);
+  });
+
+  it('v13 (no Scene Levels): does not set Note#levels', async () => {
+    const scene = sceneWith([]);
+
+    await da.addMapNote({ x: 0, y: 0, text: 'Pin' });
+
+    expect(scene.notes.contents[0].levels).toBeUndefined();
+  });
 });
 
 // ===========================================================================
@@ -404,26 +444,130 @@ describe('FoundryDataAccess — dropLoot', () => {
 // deleteMeasuredTemplate
 // ===========================================================================
 
-describe('FoundryDataAccess — measured templates on Foundry 14', () => {
+// M3: MeasuredTemplate documents were removed in Foundry 14.352 (#13089);
+// templates are Regions there (`systems/regions.ts`). Simulated the same way
+// the rest of this codebase simulates v14: no `foundry.documents.BaseMeasuredTemplate`
+// (supportsMeasuredTemplates() false), but `foundry.documents.BaseRegion` present
+// (Region has existed since 14.352, verified `common/documents/region.mjs`).
+describe('FoundryDataAccess — AoE templates on Foundry 14 (Region-backed)', () => {
   beforeEach(() => {
-    // 14.352+ removed MeasuredTemplate (no foundry.documents.BaseMeasuredTemplate).
     (globalThis as any).game.release = { generation: 14, build: 368 };
-    (globalThis as any).foundry.documents = {};
+    (globalThis as any).foundry.documents = { BaseRegion: class {} };
   });
 
-  it('place-measured-template fails with a clear "not available" error, no write', async () => {
+  it('placeMeasuredTemplate creates a flagged Region, not a MeasuredTemplate', async () => {
     const scene = sceneWith([]);
-    const create = vi.spyOn(scene, 'createEmbeddedDocuments');
 
-    await expect(
-      da.placeMeasuredTemplate({ shape: 'circle', distance: 10, x: 0, y: 0 } as any)
-    ).rejects.toThrow(/Measured templates is not available on Foundry .*Regions/);
-    expect(create).not.toHaveBeenCalled();
+    const result = await da.placeMeasuredTemplate({
+      shape: 'circle',
+      distance: 15,
+      x: 300,
+      y: 400,
+    });
+
+    expect(result.success).toBe(true);
+    expect(scene.templates.size).toBe(0);
+    expect(scene.regions.size).toBe(1);
+    const region = scene.regions.contents[0];
+    expect(result.templateId).toBe(region.id);
+    expect(result.regionId).toBe(region.id);
+    // px-per-unit = grid.size / grid.distance = 100 / 5 = 20 (sceneWith default).
+    expect(region.shapes).toEqual([{ type: 'circle', x: 300, y: 400, radius: 300 }]);
+    expect(region.flags['foundry-mcp-bridge'].template).toEqual({
+      shape: 'circle',
+      distance: 15,
+      direction: 0,
+    });
+    // CONST.REGION_VISIBILITY isn't in the harness's CONST fixture; the code
+    // falls back to the real value (common/constants.mjs REGION_VISIBILITY.ALWAYS = 2).
+    expect(region.visibility).toBe(2);
   });
 
-  it('delete-measured-template fails the same way', async () => {
-    sceneWith([]);
-    await expect(da.deleteMeasuredTemplate({ all: true })).rejects.toThrow(/Regions/);
+  it('maps cone/ray/rect to cone/line/rectangle Region shapes', async () => {
+    const scene = sceneWith([]);
+
+    await da.placeMeasuredTemplate({
+      shape: 'cone',
+      distance: 10,
+      x: 0,
+      y: 0,
+      angle: 90,
+      direction: 30,
+    });
+    expect(scene.regions.contents[0].shapes[0]).toMatchObject({
+      type: 'cone',
+      radius: 200,
+      angle: 90,
+      rotation: 30,
+      curvature: 'round',
+    });
+
+    await da.placeMeasuredTemplate({ shape: 'ray', distance: 10, x: 0, y: 0 });
+    expect(scene.regions.contents[1].shapes[0]).toMatchObject({
+      type: 'line',
+      length: 200,
+      width: 100, // default ray width 5 * px 20
+      rotation: 0,
+    });
+
+    await da.placeMeasuredTemplate({ shape: 'rect', distance: 10, x: 0, y: 0 });
+    expect(scene.regions.contents[2].shapes[0]).toMatchObject({
+      type: 'rectangle',
+      width: 200,
+      height: 200,
+      anchorX: 0,
+      anchorY: 0,
+      rotation: 45, // rect's default direction, unchanged from the v13 path
+    });
+  });
+
+  it('still computes token coverage from the request geometry (not the Region shape)', async () => {
+    sceneWith([
+      makeToken({ id: 'near', name: 'Near', x: 150, y: 150 }), // center (200,200)
+      makeToken({ id: 'far', name: 'Far', x: 1000, y: 1000 }),
+    ]);
+
+    const result = await da.placeMeasuredTemplate({ shape: 'circle', distance: 5, x: 200, y: 200 });
+
+    expect(result.tokensInside.map((t: any) => t.name)).toEqual(['Near']);
+  });
+
+  it('v14 Scene Levels: sets Region#levels to the current level', async () => {
+    const scene = sceneWith([]);
+    scene.levels = { contents: [{ id: 'lvl1' }] };
+    scene.initialLevel = 'lvl1';
+
+    await da.placeMeasuredTemplate({ shape: 'circle', distance: 5, x: 0, y: 0 });
+
+    expect(scene.regions.contents[0].levels).toEqual(['lvl1']);
+  });
+
+  it('deleteMeasuredTemplate by id deletes the Region', async () => {
+    const scene = sceneWith([]);
+    await scene.createEmbeddedDocuments('Region', [{ id: 'r1' }, { id: 'r2' }]);
+
+    const result = await da.deleteMeasuredTemplate({ templateId: 'r1' });
+
+    expect(result).toEqual({ success: true, deletedCount: 1, templateIds: ['r1'] });
+    expect(scene.regions.has('r1')).toBe(false);
+    expect(scene.regions.has('r2')).toBe(true);
+  });
+
+  it("deleteMeasuredTemplate all=true removes only this tool's flagged Regions, never a hand-made GM region", async () => {
+    const scene = sceneWith([]);
+    await scene.createEmbeddedDocuments('Region', [
+      {
+        id: 'ours',
+        flags: { 'foundry-mcp-bridge': { template: { shape: 'circle', distance: 5 } } },
+      },
+      { id: 'gm-made', name: 'Lair of the Beast', flags: {} },
+    ]);
+
+    const result = await da.deleteMeasuredTemplate({ all: true });
+
+    expect(result).toEqual({ success: true, deletedCount: 1, templateIds: ['ours'] });
+    expect(scene.regions.has('ours')).toBe(false);
+    expect(scene.regions.has('gm-made')).toBe(true);
   });
 });
 

@@ -8,7 +8,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestWorld, makeActor, type TestWorld } from './test-support/foundry-mock/index.js';
+import {
+  createTestWorld,
+  makeActor,
+  makeEffect,
+  type TestWorld,
+} from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 
 let world: TestWorld;
@@ -376,6 +381,72 @@ describe('FoundryDataAccess — searchCompendium — enhanced fast path', () => 
 });
 
 // ---------------------------------------------------------------------------
+// listCreaturesByCriteria — enhanced index ON: criteria matching (M3)
+// ---------------------------------------------------------------------------
+
+describe('FoundryDataAccess — listCreaturesByCriteria (enhanced index matching)', () => {
+  const entry = (over: Record<string, unknown>): Record<string, unknown> => ({
+    id: String(over.name),
+    type: 'npc',
+    pack: 'world.monsters',
+    packLabel: 'Monsters',
+    challengeRating: 1,
+    creatureType: 'beast',
+    size: 'med',
+    hitPoints: 10,
+    armorClass: 12,
+    hasSpells: false,
+    hasLegendaryActions: false,
+    alignment: '',
+    ...over,
+  });
+
+  beforeEach(() => {
+    world.setSetting('foundry-mcp-bridge', 'enableEnhancedCreatureIndex', true);
+    const index = (da as any).compendium.persistentIndex;
+    vi.spyOn(index, 'getEnhancedIndex').mockResolvedValue([
+      // The index stores dnd5e's own size keys (CONFIG.DND5E.actorSizes).
+      entry({ name: 'Wolf', size: 'med' }),
+      entry({ name: 'Brown Bear', size: 'lg' }),
+      entry({ name: 'Mage', size: 'med', hasSpells: true }),
+      entry({ name: 'Adult Dragon', size: 'huge', hasLegendaryActions: true }),
+      entry({ name: 'Odd Thing', size: 'colossal' }),
+    ]);
+  });
+
+  const names = async (criteria: Record<string, unknown>): Promise<string[]> =>
+    (await da.listCreaturesByCriteria(criteria)).creatures.map(c => c.name).sort();
+
+  it('matches a size given as the display word or as the dnd5e key (found in M3)', async () => {
+    expect(await names({ size: 'medium' })).toEqual(['Mage', 'Wolf']);
+    expect(await names({ size: 'med' })).toEqual(['Mage', 'Wolf']);
+    expect(await names({ size: 'Large' })).toEqual(['Brown Bear']);
+    expect(await names({ size: 'lg' })).toEqual(['Brown Bear']);
+  });
+
+  it('still matches an index persisted with display words by an older module', async () => {
+    const index = (da as any).compendium.persistentIndex;
+    vi.spyOn(index, 'getEnhancedIndex').mockResolvedValue([
+      entry({ name: 'Old Wolf', size: 'medium' }),
+    ]);
+    expect(await names({ size: 'med' })).toEqual(['Old Wolf']);
+    expect(await names({ size: 'medium' })).toEqual(['Old Wolf']);
+  });
+
+  it('compares a size no dnd5e key knows as plain text', async () => {
+    expect(await names({ size: 'colossal' })).toEqual(['Odd Thing']);
+    expect(await names({ size: 'medium' })).not.toContain('Odd Thing');
+  });
+
+  it('filters spellcasting and legendary actions both ways', async () => {
+    expect(await names({ hasSpells: true })).toEqual(['Mage']);
+    expect(await names({ hasSpells: false })).not.toContain('Mage');
+    expect(await names({ hasLegendaryActions: true })).toEqual(['Adult Dragon']);
+    expect(await names({ size: 'medium', hasSpells: false })).toEqual(['Wolf']);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // getCompendiumDocumentFull
 // ---------------------------------------------------------------------------
 
@@ -488,5 +559,33 @@ describe('FoundryDataAccess — getCompendiumDocumentFull', () => {
     const result = await da.getCompendiumDocumentFull('world.monsters', 'dragon1');
 
     expect(result.img).toBe('dragon.webp');
+  });
+
+  it('effects: icon prefers img (v14 has no icon field), falls back to the legacy icon (v13)', async () => {
+    const actor = makeActor({
+      id: 'lich1',
+      name: 'Lich',
+      type: 'npc',
+      system: {},
+      effects: [
+        makeEffect({ id: 'e-v14', name: 'Frightful', img: 'new.webp' }),
+        makeEffect({ id: 'e-v13', name: 'Legacy', icon: 'old.svg' }),
+        makeEffect({ id: 'e-none', name: 'No Icon' }),
+      ],
+    });
+    world.addPack({
+      id: 'world.monsters',
+      label: 'Monsters',
+      type: 'Actor',
+      documents: [actor],
+    });
+
+    const result = await da.getCompendiumDocumentFull('world.monsters', 'lich1');
+
+    expect(result.effects).toEqual([
+      { id: 'e-v14', name: 'Frightful', icon: 'new.webp', disabled: false, duration: {} },
+      { id: 'e-v13', name: 'Legacy', icon: 'old.svg', disabled: false, duration: {} },
+      { id: 'e-none', name: 'No Icon', icon: undefined, disabled: false, duration: {} },
+    ]);
   });
 });

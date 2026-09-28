@@ -135,7 +135,8 @@ export class ModulesDataAccess {
    * Throws `Module not found: <id>` when the module id is not in `game.modules`.
    * The compatibility, relationships, authors, and flags fields are passed
    * through `shared.sanitizeData` to strip internal/sensitive fields and ensure
-   * the value is a plain JSON-safe object.
+   * the value is a plain JSON-safe object. `authors` and the `relationships` lists
+   * are `Set`s on a real package (v11+, incl. v14), so they become arrays first.
    */
   async getModuleManifest(data: { moduleId: string }): Promise<any> {
     shared.validateFoundryState();
@@ -151,8 +152,8 @@ export class ModulesDataAccess {
         version: m.version,
         active: m.active,
         compatibility: shared.sanitizeData(m.compatibility),
-        relationships: shared.sanitizeData(m.relationships),
-        authors: shared.sanitizeData(m.authors),
+        relationships: shared.sanitizeData(this.setsToArrays(m.relationships)),
+        authors: shared.sanitizeData(this.setsToArrays(m.authors)),
         description: m.description,
         url: m.url,
         flags: shared.sanitizeData(m.flags),
@@ -163,6 +164,23 @@ export class ModulesDataAccess {
   // =========================================================================
   // Private helpers
   // =========================================================================
+
+  /**
+   * Turn a `Set` (or the `Set` members of a plain object, one level deep) into arrays. Foundry
+   * stores `authors` and `relationships.{systems,requires,recommends,conflicts}` as `Set`s, which
+   * `sanitizeData` (Object.keys + JSON) would flatten to `{}`, losing every entry.
+   */
+  private setsToArrays(value: unknown): unknown {
+    if (value instanceof Set) return Array.from(value as Set<unknown>);
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const out: Record<string, unknown> = {};
+      for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+        out[key] = entry instanceof Set ? Array.from(entry as Set<unknown>) : entry;
+      }
+      return out;
+    }
+    return value;
+  }
 
   /**
    * Build a safe `isNewerVersion` wrapper that absorbs missing globals and

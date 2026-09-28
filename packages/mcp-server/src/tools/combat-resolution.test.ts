@@ -373,3 +373,67 @@ describe('CombatResolutionTools.handleManageRest', () => {
     expect(query).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// M3: parameter descriptions name the dnd5e 6 keys and the roll visibility
+// ---------------------------------------------------------------------------
+
+describe('CombatResolutionTools parameter descriptions (M3)', () => {
+  const props = (name: string): Record<string, { description?: string }> => {
+    const { tools } = makeTools();
+    const def = tools.getToolDefinitions().find(d => d.name === name)!;
+    return (def.inputSchema as any).properties;
+  };
+
+  it('apply-damage-and-healing lists every dnd5e damage type key', () => {
+    const desc = props('apply-damage-and-healing').type.description as string;
+    for (const key of [
+      'acid',
+      'bludgeoning',
+      'cold',
+      'fire',
+      'force',
+      'lightning',
+      'necrotic',
+      'piercing',
+      'poison',
+      'psychic',
+      'radiant',
+      'slashing',
+      'thunder',
+    ]) {
+      expect(desc).toContain(key);
+    }
+  });
+
+  it('roll-saving-throws lists the 18 dnd5e skill keys', () => {
+    const desc = props('roll-saving-throws').skill.description as string;
+    for (const key of [
+      'acr',
+      'ani',
+      'arc',
+      'ath',
+      'dec',
+      'his',
+      'ins',
+      'itm',
+      'inv',
+      'med',
+      'nat',
+      'prc',
+      'prf',
+      'per',
+      'rel',
+      'slt',
+      'ste',
+      'sur',
+    ]) {
+      expect(desc).toMatch(new RegExp(`\\b${key}\\b`));
+    }
+  });
+
+  it('roll visibility descriptions match the module defaults (saves: GM whisper; NPC activity: public)', () => {
+    expect(props('roll-saving-throws').isPublic.description).toMatch(/GM only \(false or omitted/);
+    expect(props('use-npc-activity').isPublic.description).toMatch(/true or omitted/);
+  });
+});

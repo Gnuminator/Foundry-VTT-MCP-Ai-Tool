@@ -17,6 +17,12 @@
  *   - `CONFIG.statusEffects` is set via `(globalThis as any).CONFIG.statusEffects`
  *     after `world.install()` because the harness initialises it to `[]`.
  *   - `makeToken` does not include `actor`; actors are supplied via rest-spread.
+ *   - The harness has no `actor.toggleStatusEffect` (real Foundry:
+ *     `client/documents/actor.mjs:547`) — `toggleTokenCondition` now calls it
+ *     instead of building a raw ActiveEffect. `fakeToggleStatusEffect` below is
+ *     a minimal stand-in (single-status effects only, no exhaustion levels),
+ *     injected per-actor via `makeActor({..., toggleStatusEffect: fn})` (the
+ *     builder passes unknown fields through via rest-spread).
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -69,6 +75,36 @@ function withUpdate(token: any): any {
     return Promise.resolve(token);
   };
   return token;
+}
+
+/**
+ * Minimal stand-in for the real `Actor#toggleStatusEffect(statusId, {active})`
+ * (`client/documents/actor.mjs:547`, unchanged v13/v14): finds a single-status
+ * effect on `actor.effects` matching `statusId`, deletes it (returns `false`)
+ * unless `active` forces it to stay (returns `true`); otherwise creates one
+ * (returns the effect) unless `active === false` (returns `undefined`).
+ * Captures `actor` by closure so it can be attached before the actor's
+ * `effects` collection is known to the rest of the test.
+ */
+function fakeToggleStatusEffect(actor: {
+  effects: { contents: any[]; add: (e: any) => unknown; delete: (id: string) => unknown };
+}) {
+  return async (statusId: string, options: { active?: boolean } = {}): Promise<boolean> => {
+    await Promise.resolve(); // async like Foundry's Actor#toggleStatusEffect
+    const { active } = options;
+    const existing = actor.effects.contents.find(
+      (e: any) => e.statuses?.size === 1 && e.statuses.has(statusId)
+    );
+    if (existing) {
+      if (active) return true;
+      actor.effects.delete(existing.id);
+      return false;
+    }
+    if (active === false) return undefined;
+    const effect = makeEffect({ id: `eff-${statusId}`, name: statusId, statuses: [statusId] });
+    actor.effects.add(effect);
+    return effect;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -394,8 +430,9 @@ describe('FoundryDataAccess.toggleTokenCondition — allowed', () => {
     ).rejects.toThrow('Failed to toggle token condition: Condition not found: nonexistent');
   });
 
-  it('active:true adds an ActiveEffect to the actor and returns the correct shape', async () => {
+  it('active:true calls actor.toggleStatusEffect(id, {active:true}) and returns the correct shape', async () => {
     const actor = makeActor({ id: 'a1', name: 'Barbarian', effects: [] });
+    actor.toggleStatusEffect = vi.fn(fakeToggleStatusEffect(actor));
     const token = makeToken({ id: 't1', name: 'Barbarian', actor });
     const scene = world.addScene({
       id: 'scene1',
@@ -422,6 +459,7 @@ describe('FoundryDataAccess.toggleTokenCondition — allowed', () => {
       active: true,
       message: 'Applied prone to Barbarian',
     });
+    expect(actor.toggleStatusEffect).toHaveBeenCalledWith('prone', { active: true });
     // An effect was created on the actor
     expect(actor.effects.size).toBe(before + 1);
     // The effect should carry the statuses set
@@ -429,7 +467,7 @@ describe('FoundryDataAccess.toggleTokenCondition — allowed', () => {
     expect(added.statuses).toContain('prone');
   });
 
-  it('active:false removes matching effects from the actor by statuses set', async () => {
+  it('active:false calls actor.toggleStatusEffect(id, {active:false}), removing the matching effect', async () => {
     // Pre-create an effect that has statuses: new Set(['prone'])
     const existingEffect = makeEffect({
       id: 'eff1',
@@ -437,6 +475,7 @@ describe('FoundryDataAccess.toggleTokenCondition — allowed', () => {
       statuses: ['prone'],
     });
     const actor = makeActor({ id: 'a1', name: 'Rogue', effects: [existingEffect] });
+    actor.toggleStatusEffect = vi.fn(fakeToggleStatusEffect(actor));
     const token = makeToken({ id: 't1', name: 'Rogue', actor });
     const scene = world.addScene({
       id: 'scene1',
@@ -462,12 +501,14 @@ describe('FoundryDataAccess.toggleTokenCondition — allowed', () => {
       active: false,
       message: 'Removed prone from Rogue',
     });
+    expect(actor.toggleStatusEffect).toHaveBeenCalledWith('prone', { active: false });
     // Effect was removed
     expect(actor.effects.size).toBe(0);
   });
 
   it('active:false is a no-op (no error) when no matching effect exists', async () => {
     const actor = makeActor({ id: 'a1', name: 'Paladin', effects: [] });
+    actor.toggleStatusEffect = vi.fn(fakeToggleStatusEffect(actor));
     const token = makeToken({ id: 't1', name: 'Paladin', actor });
     const scene = world.addScene({
       id: 'scene1',
@@ -490,6 +531,7 @@ describe('FoundryDataAccess.toggleTokenCondition — allowed', () => {
 
   it('matches condition by name (case-insensitive) as well as by id', async () => {
     const actor = makeActor({ id: 'a1', name: 'Wizard', effects: [] });
+    actor.toggleStatusEffect = vi.fn(fakeToggleStatusEffect(actor));
     const token = makeToken({ id: 't1', name: 'Wizard', actor });
     const scene = world.addScene({
       id: 'scene1',
@@ -499,7 +541,8 @@ describe('FoundryDataAccess.toggleTokenCondition — allowed', () => {
     });
     world.setActiveScene(scene.id);
 
-    // 'STUNNED' matches the condition whose name is 'Stunned' via case-insensitive compare
+    // 'STUNNED' matches the condition whose name is 'Stunned' via case-insensitive compare,
+    // and the resolved condition *id* ('stunned') is what's passed to toggleStatusEffect.
     const result = await da.toggleTokenCondition({
       tokenId: 't1',
       conditionId: 'STUNNED',
@@ -508,6 +551,29 @@ describe('FoundryDataAccess.toggleTokenCondition — allowed', () => {
 
     expect(result.conditionId).toBe('STUNNED');
     expect(result.conditionName).toBe('Stunned');
+    expect(actor.toggleStatusEffect).toHaveBeenCalledWith('stunned', { active: true });
+    expect(actor.effects.size).toBe(1);
+  });
+
+  it('dnd5e 6.0: CONFIG.statusEffects as an id-keyed object resolves and toggles the same way', async () => {
+    // Verified `dnd5e.mjs:96351-96370` `_configureStatusEffects`.
+    (globalThis as any).CONFIG.statusEffects = {
+      prone: { id: 'prone', name: 'Prone', img: 'icons/prone.svg' },
+    };
+    const actor = makeActor({ id: 'a1', name: 'Monk', effects: [] });
+    actor.toggleStatusEffect = vi.fn(fakeToggleStatusEffect(actor));
+    const token = makeToken({ id: 't1', name: 'Monk', actor });
+    const scene = world.addScene({ id: 'scene1', name: 'Dojo', active: true, tokens: [token] });
+    world.setActiveScene(scene.id);
+
+    const result = await da.toggleTokenCondition({
+      tokenId: 't1',
+      conditionId: 'prone',
+      active: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(actor.toggleStatusEffect).toHaveBeenCalledWith('prone', { active: true });
     expect(actor.effects.size).toBe(1);
   });
 });

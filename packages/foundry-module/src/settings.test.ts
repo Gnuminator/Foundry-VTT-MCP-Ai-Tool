@@ -72,6 +72,57 @@ describe('ModuleSettings — bridge port default', () => {
   });
 });
 
+describe('ModuleSettings — validateSettings', () => {
+  const valid = {
+    serverHost: 'localhost',
+    serverPort: 31415,
+    maxActorsPerRequest: 10,
+    heartbeatInterval: 30,
+  };
+
+  function validate(overrides: Partial<typeof valid> = {}): { valid: boolean; errors: string[] } {
+    for (const [key, value] of Object.entries({ ...valid, ...overrides })) {
+      world.setSetting(MODULE_ID, key, value);
+    }
+    return new ModuleSettings().validateSettings();
+  }
+
+  it('accepts the default values', () => {
+    expect(validate()).toEqual({ valid: true, errors: [] });
+  });
+
+  it('accepts every maxActorsPerRequest value the settings slider allows', () => {
+    // start() throws on an invalid configuration, so the check must not be tighter than the
+    // slider registered in registerSettings (it used to reject anything above 10).
+    const range = registered.get(`${MODULE_ID}.maxActorsPerRequest`)?.range as {
+      min: number;
+      max: number;
+    };
+    expect(range).toEqual(expect.objectContaining({ min: 1, max: 50 }));
+    for (const value of [range.min, 11, 20, range.max]) {
+      expect(validate({ maxActorsPerRequest: value })).toEqual({ valid: true, errors: [] });
+    }
+  });
+
+  it('rejects maxActorsPerRequest outside the slider range', () => {
+    for (const value of [0, -1, 51, 500]) {
+      const result = validate({ maxActorsPerRequest: value });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual(['Max actors per request must be between 1 and 50']);
+    }
+  });
+
+  it('keeps the port and heartbeat bounds', () => {
+    expect(validate({ serverPort: 80 }).errors).toEqual([
+      'Server port must be between 1024 and 65535',
+    ]);
+    expect(validate({ heartbeatInterval: 5 }).errors).toEqual([
+      'Heartbeat interval must be between 10 and 120 seconds',
+    ]);
+    expect(validate({ serverHost: ' ' }).errors).toEqual(['Server host cannot be empty']);
+  });
+});
+
 describe('ModuleSettings — map generation', () => {
   it('does not auto-start map generation by default', () => {
     expect(registered.get(`${MODULE_ID}.mapGenAutoStart`)).toMatchObject({

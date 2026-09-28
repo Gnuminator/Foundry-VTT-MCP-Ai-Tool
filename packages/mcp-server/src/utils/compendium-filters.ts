@@ -15,6 +15,14 @@ export const CreatureSizes = ['tiny', 'small', 'medium', 'large', 'huge', 'garga
 export type CreatureSize = (typeof CreatureSizes)[number];
 
 /**
+ * Every size spelling a filter accepts: the words above plus dnd5e's own keys
+ * (`CONFIG.DND5E.actorSizes`: sm, med, lg, grg), which is what the creature
+ * index stores. The module compares both spellings as the same size.
+ */
+export const CreatureSizeInputs = [...CreatureSizes, 'sm', 'med', 'lg', 'grg'] as const;
+export type CreatureSizeInput = (typeof CreatureSizeInputs)[number];
+
+/**
  * D&D 5e creature/actor filter schema, used as the optional `filters` input on
  * the compendium search tool.
  */
@@ -29,7 +37,7 @@ export const GenericFiltersSchema = z.object({
     ])
     .optional(),
   creatureType: z.string().optional(),
-  size: z.enum(CreatureSizes).optional(),
+  size: z.enum(CreatureSizeInputs).optional(),
   alignment: z.string().optional(),
   hasLegendaryActions: z.boolean().optional(),
   spellcaster: z.boolean().optional(),

@@ -13,6 +13,10 @@
  * shared package).
  */
 
+import { statusEffectList } from '../systems/dnd5e/status-effects.js';
+import { isToolTemplateRegion, toolTemplateFlag } from '../systems/regions.js';
+import { supportsMeasuredTemplates } from '../systems/core.js';
+
 /** Optional fields may be undefined here; JSON drops them on the wire. */
 export interface RefChoice {
   id: string;
@@ -76,6 +80,13 @@ interface TemplateLike {
   uuid: string;
   t?: string;
   distance?: number;
+}
+
+/** A Region document as read here: enough to check the tool's template flag. */
+interface RegionLike {
+  id: string;
+  uuid: string;
+  flags?: Record<string, unknown>;
 }
 
 interface PlaylistLike {
@@ -389,28 +400,40 @@ function listNotes({ parent }: ListRequest): Listed {
   return { choices, note: `Map notes on "${scene.name}"` };
 }
 
+/**
+ * MeasuredTemplate documents on v13; on v14 (MeasuredTemplate removed 14.352,
+ * #13089) templates are Regions (`data-access/scene-fx.ts`,
+ * `systems/regions.ts`) — list only the ones this tool created
+ * (`isToolTemplateRegion`), never a hand-made GM region. The same gate as
+ * scene-fx: 14.368 still has an (empty) `scene.templates`, so its presence is
+ * no signal (found live in M3).
+ */
 function listTemplates({ parent }: ListRequest): Listed {
   const scene = sceneFor(parent);
   if (!scene) return { choices: [], note: 'No current scene' };
-  if (!scene.templates) {
-    return {
-      choices: [],
-      note: 'This Foundry version has no measured templates (they are Regions)',
-    };
+  if (supportsMeasuredTemplates() && scene.templates) {
+    const templates = scene.templates.contents as TemplateLike[];
+    const choices = templates.map(t => ({
+      id: t.id,
+      uuid: t.uuid,
+      name: `${t.t ?? 'template'} ${t.distance ?? ''}`.trim(),
+    }));
+    return { choices, note: `Templates on "${scene.name}"` };
   }
-  const templates = scene.templates.contents as TemplateLike[];
-  const choices = templates.map(t => ({
-    id: t.id,
-    uuid: t.uuid,
-    name: `${t.t ?? 'template'} ${t.distance ?? ''}`.trim(),
-  }));
-  return { choices, note: `Templates on "${scene.name}"` };
+  const regions = (scene.regions?.contents ?? []) as RegionLike[];
+  const choices = regions.filter(isToolTemplateRegion).map(r => {
+    const flag = toolTemplateFlag(r);
+    return {
+      id: r.id,
+      uuid: r.uuid,
+      name: `${flag?.shape ?? 'template'} ${flag?.distance ?? ''}`.trim(),
+    };
+  });
+  return { choices, note: `Template Regions on "${scene.name}"` };
 }
 
 function listConditions(): Listed {
-  const raw = CONFIG.statusEffects;
-  const effects = Array.isArray(raw) ? raw : Object.values(raw);
-  const choices = effects.map(e => ({ id: e.id, name: localize(e.name) || e.id }));
+  const choices = statusEffectList().map(e => ({ id: e.id, name: localize(e.name) || e.id }));
   return { choices: choices.sort(byGroupThenName) };
 }
 

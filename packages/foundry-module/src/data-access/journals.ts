@@ -211,13 +211,13 @@ export class JournalDataAccess {
         if (!page) {
           throw new Error(`Page not found: ${request.pageId}`);
         }
-        await page.update({ 'text.content': request.content });
+        await page.update(this.contentUpdate(page, request.content));
         result = { success: true, pageId: page.id, pageName: page.name };
       } else {
         // Mode 3: overwrite the first text page, or seed one if absent.
         const firstText = journal.pages.find((page: any) => page.type === 'text');
         if (firstText) {
-          await firstText.update({ 'text.content': request.content });
+          await firstText.update(this.contentUpdate(firstText, request.content));
           result = { success: true, pageId: firstText.id, pageName: firstText.name };
         } else {
           const page = await this.createTextPage(journal, 'Quest Details', request.content);
@@ -250,6 +250,30 @@ export class JournalDataAccess {
   private buildPageManifestNote(pageCount: number, pages: PageSummary[]): string {
     const manifest = pages.map(page => `"${page.name}" (${page.id})`).join(', ');
     return `This journal has ${pageCount} pages. Use list-journals with journalId and pageId to read other pages: ${manifest}`;
+  }
+
+  /**
+   * The update that overwrites a page's HTML body. A page last saved from Foundry's markdown editor
+   * keeps its source in `text.markdown` (`text.format` 2), and that editor shows the markdown, not
+   * `text.content`: writing only the HTML would leave stale markdown that overwrites this text the
+   * next time the GM saves the page. Such a page is switched back to HTML (what the core HTML editor
+   * does on save: format HTML, markdown cleared). Any other page gets the plain content update.
+   */
+  private contentUpdate(page: unknown, content: string): Record<string, unknown> {
+    const text = (page as { text?: { markdown?: unknown; format?: unknown } } | null | undefined)
+      ?.text;
+    const formats =
+      (CONST as unknown as { JOURNAL_ENTRY_PAGE_FORMATS?: { HTML?: number; MARKDOWN?: number } })
+        .JOURNAL_ENTRY_PAGE_FORMATS ?? {};
+    const isMarkdown =
+      (typeof text?.markdown === 'string' && text.markdown.length > 0) ||
+      text?.format === (formats.MARKDOWN ?? 2);
+    if (!isMarkdown) return { 'text.content': content };
+    return {
+      'text.content': content,
+      'text.markdown': '',
+      'text.format': formats.HTML ?? 1,
+    };
   }
 
   /** Append a single text page to a journal and return the created page (if any). */

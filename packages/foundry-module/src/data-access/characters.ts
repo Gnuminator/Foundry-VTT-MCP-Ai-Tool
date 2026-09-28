@@ -8,6 +8,7 @@ import type {
   SpellInfo,
 } from './types.js';
 import { detectRulesVersion, readRulesTag } from '../systems/dnd5e/rules-version.js';
+import { effectChanges, effectDuration, effectImg } from '../systems/core.js';
 
 /**
  * Character/actor inspection domain for `FoundryDataAccess`.
@@ -307,23 +308,30 @@ export class CharacterDataAccess {
 
   /**
    * Effect summary for the dossier. The `duration` block is only included when
-   * the effect carries a live duration, and its fields fall back from the
-   * derived `duration` to the raw `_source.duration`.
+   * the effect carries a live duration. `icon`/`duration` are read through the
+   * version adapter (`systems/core.ts`) so v13 (`effect.icon`,
+   * `duration.rounds/turns/seconds`) and v14 (`effect.img` only,
+   * `duration.value/units/expiry`) both resolve; `duration.remaining` is read
+   * straight off the live `effect.duration` getter, which computes it the same
+   * way on both versions (verified `client/documents/active-effect.mjs:405`).
    */
   private summarizeEffect(effect: any): CharacterEffect {
     const dur = effect.duration;
-    const durRaw = effect._source?.duration;
+    const icon = effectImg(effect as ActiveEffect);
+    const norm = dur ? effectDuration(effect as ActiveEffect) : null;
     return {
       id: effect.id,
       name: effect.name || effect.label || 'Unknown Effect',
-      ...(effect.icon ? { icon: effect.icon } : {}),
+      ...(icon ? { icon } : {}),
       disabled: effect.disabled,
-      ...(dur
+      ...(norm
         ? {
             duration: {
-              type: dur.units ?? durRaw?.type ?? 'none',
-              duration: dur.seconds ?? durRaw?.duration,
-              remaining: dur.remaining,
+              type: norm.units ?? 'none',
+              // `exactOptionalPropertyTypes`: spread in only when present,
+              // rather than assigning `undefined` to the optional field.
+              ...(norm.value != null ? { duration: norm.value } : {}),
+              ...(dur.remaining != null ? { remaining: dur.remaining } : {}),
             },
           }
         : {}),
@@ -463,7 +471,14 @@ export class CharacterDataAccess {
     return { success: true, entityType: 'action', entity };
   }
 
-  /** Find an effect by id or name and return the effect entity envelope, else null. */
+  /**
+   * Find an effect by id or name and return the effect entity envelope, else
+   * null. `icon`/`duration`/`changes` go through the version adapter
+   * (`systems/core.ts`) instead of the raw v13 fields (`entity.icon`,
+   * `entity.duration.rounds/turns/seconds`, `entity.changes`), which v14
+   * either removes (`icon`) or moves (`duration` shape, `changes` lives at
+   * `system.changes`).
+   */
   private findEffectEntity(character: any, entityIdentifier: string): any {
     const effects = character.effects?.contents || [];
     const entity = effects.find(
@@ -473,16 +488,31 @@ export class CharacterDataAccess {
     );
     if (!entity) return null;
 
+    const rawDuration = entity.duration as Record<string, unknown> | undefined;
+    const norm = rawDuration ? effectDuration(entity as ActiveEffect) : null;
+
     return {
       success: true,
       entityType: 'effect',
       entity: {
         id: entity.id,
         name: entity.name || entity.label,
-        icon: entity.icon,
+        icon: effectImg(entity as ActiveEffect),
         disabled: entity.disabled,
-        duration: entity.duration,
-        changes: entity.changes,
+        duration: norm
+          ? {
+              value: norm.value,
+              units: norm.units,
+              remaining: rawDuration?.remaining ?? null,
+              expired: norm.expired,
+            }
+          : rawDuration,
+        changes: effectChanges(entity as ActiveEffect).map(c => ({
+          key: c.key,
+          mode: c.type,
+          type: c.type,
+          value: c.value,
+        })),
       },
     };
   }

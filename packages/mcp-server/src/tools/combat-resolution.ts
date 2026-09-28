@@ -46,7 +46,7 @@ export class CombatResolutionTools {
             type: {
               type: 'string',
               description:
-                'Damage type for resistance math (e.g. "fire", "slashing"). Omit for untyped.',
+                'Damage type key for resistance math (dnd5e keys: acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing, thunder). Omit for untyped.',
             },
             multiplier: {
               type: 'number',
@@ -81,13 +81,15 @@ export class CombatResolutionTools {
             },
             skill: {
               type: 'string',
-              description: 'Skill key for skill rolls (e.g. "ste", "prc").',
+              description:
+                'dnd5e skill key for skill rolls: acr, ani, arc, ath, dec, his, ins, itm, inv, med, nat, prc, prf, per, rel, slt, ste, sur (e.g. "ste" for Stealth, "prc" for Perception).',
               ...toolRef('skill', 'id'),
             },
             dc: { type: 'integer', description: 'Optional difficulty class to test against.' },
             isPublic: {
               type: 'boolean',
-              description: 'Public roll (true) or whispered to the GM (false, default).',
+              description:
+                'Public roll (true) or whispered to the GM only (false or omitted, the default).',
             },
           },
           required: ['targets', 'rollType'],
@@ -114,7 +116,11 @@ export class CombatResolutionTools {
               type: 'integer',
               description: 'Optional target AC to compute hit/miss against.',
             },
-            isPublic: { type: 'boolean', description: 'Public roll (default true behavior).' },
+            isPublic: {
+              type: 'boolean',
+              description:
+                'Public roll (true or omitted, the default) or whispered to the GM only (false).',
+            },
           },
           required: ['actorName', 'itemName'],
         },

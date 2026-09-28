@@ -13,6 +13,16 @@ import type {
 } from '../types.js';
 import { DnD5eFiltersSchema, matchesDnD5eFilters, describeDnD5eFilters } from './filters.js';
 
+/** Narrow an unknown value to a plain object record, or undefined otherwise. */
+function asRecord(v: unknown): Record<string, unknown> | undefined {
+  return v && typeof v === 'object' ? (v as Record<string, unknown>) : undefined;
+}
+
+/** True when the value is a finite number greater than zero. */
+function isPositiveNumber(v: unknown): boolean {
+  return typeof v === 'number' && v > 0;
+}
+
 /**
  * D&D 5e system adapter
  */
@@ -279,20 +289,48 @@ export class DnD5eAdapter implements SystemAdapter {
         stats.alignment = alignment;
       }
 
-      // Legendary actions
-      const legact = system.resources?.legact;
-      if (legact) {
+      // Legendary actions — only report the block when the creature actually
+      // has legendary actions. `system.resources.legact` is always a
+      // `{max, spent}` container on every NPC in both dnd5e 5.3 and 6.0
+      // (default max: 0), so its mere presence is not a signal; a positive
+      // max is. Same pre-existing-bug family as creature-index.ts:520-535
+      // (plan `creature-index.ts:520-535`).
+      // verified: dnd5e.mjs 6.0.5 — NPCData.resources.legact SchemaField,
+      // initial max: 0.
+      const legact = asRecord(system.resources?.legact);
+      const legactMax = typeof legact?.max === 'number' ? legact.max : 0;
+      if (legactMax > 0) {
         stats.legendaryActions = {
-          available: legact.value ?? 0,
-          max: legact.max ?? 0,
+          available: legact?.value ?? 0,
+          max: legactMax,
         };
       }
     }
 
-    // Spellcasting
+    // Spellcasting — a truthy `system.spells`/`system.attributes.spellcasting`
+    // container is not a caster signal: dnd5e always populates `system.spells`
+    // (a fixed level map, each slot defaulting to value: 0) and always gives
+    // NPCs an `attributes.spellcasting` StringField (blank "" when not a
+    // caster). Same pre-existing-bug family as creature-index.ts:520-535.
+    // verified: dnd5e.mjs 6.0.5 — SpellcastingTemplate.spells (MappingField,
+    // initialKeys spellLevels, value default 0); AttributesFields.creature
+    // spellcasting (StringField, blank: true, default "").
+    const spellsRecord = asRecord(system.spells);
+    const hasSpellSlotValue = spellsRecord
+      ? Object.values(spellsRecord).some(slot => {
+          const s = asRecord(slot);
+          return s
+            ? isPositiveNumber(s.value) || isPositiveNumber(s.max) || isPositiveNumber(s.override)
+            : typeof slot === 'number' && slot > 0;
+        })
+      : false;
+    const spellcastingAbility =
+      typeof system.attributes?.spellcasting === 'string'
+        ? system.attributes.spellcasting.trim()
+        : '';
     const hasSpells = !!(
-      system.spells ||
-      system.attributes?.spellcasting ||
+      hasSpellSlotValue ||
+      spellcastingAbility !== '' ||
       (system.details?.spellLevel && system.details.spellLevel > 0)
     );
     if (hasSpells) {

@@ -166,6 +166,7 @@ export class SceneTools {
         friendly: 0,
         neutral: 0,
         hostile: 0,
+        secret: 0,
         unknown: 0,
       },
       hasActors: 0,
@@ -222,6 +223,8 @@ export class SceneTools {
 
   private getDispositionName(disposition: number): string {
     switch (disposition) {
+      case -2:
+        return 'secret';
       case -1:
         return 'hostile';
       case 0:

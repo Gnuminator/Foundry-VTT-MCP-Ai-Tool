@@ -16,9 +16,11 @@ import {
   CreatureSizes,
   DnD5eCreatureTypes,
   DnD5eFiltersSchema,
+  DnD5eSizeKeys,
   describeDnD5eFilters,
   isValidDnD5eCreatureType,
   matchesDnD5eFilters,
+  normalizeDnD5eSizeKey,
 } from './filters.js';
 
 // ---------------------------------------------------------------------------
@@ -79,6 +81,50 @@ describe('CreatureSizes', () => {
 });
 
 // ---------------------------------------------------------------------------
+// DnD5eSizeKeys / normalizeDnD5eSizeKey
+//
+// Pre-existing bug (plan `filters.ts:34`): the enhanced creature index stores
+// dnd5e's own size key ('med', see creature-index.ts), but this filter used
+// to only accept the display word ('medium'), so `size: 'medium'` never
+// matched a medium creature. verified against dnd5e.mjs 6.0.5
+// CONFIG.DND5E.actorSizes: keys tiny/sm/med/lg/huge/grg.
+// ---------------------------------------------------------------------------
+
+describe('DnD5eSizeKeys', () => {
+  it('contains dnd5e own 6 short size keys', () => {
+    expect(DnD5eSizeKeys).toHaveLength(6);
+    expect(DnD5eSizeKeys).toEqual(['tiny', 'sm', 'med', 'lg', 'huge', 'grg']);
+  });
+});
+
+describe('normalizeDnD5eSizeKey', () => {
+  it('maps every display word to its dnd5e key', () => {
+    expect(normalizeDnD5eSizeKey('tiny')).toBe('tiny');
+    expect(normalizeDnD5eSizeKey('small')).toBe('sm');
+    expect(normalizeDnD5eSizeKey('medium')).toBe('med');
+    expect(normalizeDnD5eSizeKey('large')).toBe('lg');
+    expect(normalizeDnD5eSizeKey('huge')).toBe('huge');
+    expect(normalizeDnD5eSizeKey('gargantuan')).toBe('grg');
+  });
+
+  it('maps every dnd5e key to itself', () => {
+    for (const key of DnD5eSizeKeys) {
+      expect(normalizeDnD5eSizeKey(key)).toBe(key);
+    }
+  });
+
+  it('is case-insensitive', () => {
+    expect(normalizeDnD5eSizeKey('Medium')).toBe('med');
+    expect(normalizeDnD5eSizeKey('MED')).toBe('med');
+  });
+
+  it('returns undefined for an unrecognized size', () => {
+    expect(normalizeDnD5eSizeKey('colossal')).toBeUndefined();
+    expect(normalizeDnD5eSizeKey('')).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // DnD5eFiltersSchema — valid parse
 // ---------------------------------------------------------------------------
 
@@ -120,6 +166,19 @@ describe('DnD5eFiltersSchema — valid inputs', () => {
     const result = DnD5eFiltersSchema.safeParse({ size: 'huge' });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.size).toBe('huge');
+  });
+
+  it('accepts a dnd5e size key directly (e.g. "med", not just "medium")', () => {
+    const result = DnD5eFiltersSchema.safeParse({ size: 'med' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.size).toBe('med');
+  });
+
+  it('accepts every dnd5e size key', () => {
+    for (const key of DnD5eSizeKeys) {
+      const result = DnD5eFiltersSchema.safeParse({ size: key });
+      expect(result.success).toBe(true);
+    }
   });
 
   it('accepts alignment as a free-form string', () => {
@@ -347,6 +406,40 @@ describe('matchesDnD5eFilters — size', () => {
   it('does not match when creature has no size', () => {
     const creature = makeCreature();
     expect(matchesDnD5eFilters(creature, { size: 'medium' })).toBe(false);
+  });
+
+  // Regression coverage for the pre-existing bug (plan `filters.ts:34`): the
+  // creature index stores dnd5e's own key ('med'), so a filter written as the
+  // display word must still match, and vice versa.
+
+  it('matches a creature stored with the dnd5e key against a filter using the display word', () => {
+    const creature = makeCreature({ size: 'med' });
+    expect(matchesDnD5eFilters(creature, { size: 'medium' })).toBe(true);
+  });
+
+  it('matches a creature stored with the display word against a filter using the dnd5e key', () => {
+    const creature = makeCreature({ size: 'medium' });
+    expect(matchesDnD5eFilters(creature, { size: 'med' })).toBe(true);
+  });
+
+  it('matches "sm" (stored) against "small" (filter)', () => {
+    const creature = makeCreature({ size: 'sm' });
+    expect(matchesDnD5eFilters(creature, { size: 'small' })).toBe(true);
+  });
+
+  it('matches "lg" (stored) against "large" (filter)', () => {
+    const creature = makeCreature({ size: 'lg' });
+    expect(matchesDnD5eFilters(creature, { size: 'large' })).toBe(true);
+  });
+
+  it('matches "grg" (stored) against "gargantuan" (filter)', () => {
+    const creature = makeCreature({ size: 'grg' });
+    expect(matchesDnD5eFilters(creature, { size: 'gargantuan' })).toBe(true);
+  });
+
+  it('does not match "med" (stored) against "large" (filter)', () => {
+    const creature = makeCreature({ size: 'med' });
+    expect(matchesDnD5eFilters(creature, { size: 'large' })).toBe(false);
   });
 });
 

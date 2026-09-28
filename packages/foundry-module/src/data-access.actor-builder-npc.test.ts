@@ -283,6 +283,70 @@ describe('FoundryDataAccess — createNpcActor', () => {
     expect(result.actor.cr).toBe('10');
     expect(world.actors.getName('CR Ten NPC')!.system.details.cr).toBe(10);
   });
+
+  // -------------------------------------------------------------------------
+  // dnd5e 6.0: ac.override (not calc/flat), movement.speeds.* (not flat keys),
+  // and a top-level system.source (not details.source). verified against
+  // dnd5e.mjs (see actor-builder.ts createNpcActor comments for line cites).
+  // -------------------------------------------------------------------------
+  describe('dnd5e 6.0 shape (isDnd5eV6)', () => {
+    beforeEach(() => {
+      (globalThis as any).game.system.documentTypes = {
+        ActiveEffect: { base: {}, condition: {} },
+      };
+    });
+
+    it('flat AC mode writes ac.override (and keeps ac.flat), no calc', async () => {
+      await da.createNpcActor(npcData({ name: 'V6 Flat AC NPC', acMode: 'flat', acValue: 17 }));
+      const sys = world.actors.getName('V6 Flat AC NPC')!.system;
+      expect(sys.attributes.ac).toEqual({ flat: 17, override: 17 });
+    });
+
+    it('default AC mode writes an empty ac block (no calc, no override)', async () => {
+      await da.createNpcActor(
+        npcData({ name: 'V6 Default AC NPC', acMode: 'default', acValue: 99 })
+      );
+      const sys = world.actors.getName('V6 Default AC NPC')!.system;
+      expect(sys.attributes.ac).toEqual({});
+    });
+
+    it('movement writes speeds.* instead of flat walk/fly/swim/climb/burrow', async () => {
+      await da.createNpcActor(
+        npcData({
+          name: 'V6 Movement NPC',
+          walkSpeed: 40,
+          flySpeed: 60,
+          swimSpeed: 10,
+          climbSpeed: 20,
+          burrowSpeed: 5,
+          hover: true,
+        })
+      );
+      const sys = world.actors.getName('V6 Movement NPC')!.system;
+      expect(sys.attributes.movement).toEqual({
+        speeds: { walk: 40, fly: 60, swim: 10, climb: 20, burrow: 5 },
+        units: 'ft',
+        hover: true,
+        special: '',
+      });
+    });
+
+    it('source moves to top-level system.source; details has no source key', async () => {
+      await da.createNpcActor(
+        npcData({ name: 'V6 Source NPC', sourceBook: 'MM', sourcePage: '166', sourceRules: '2014' })
+      );
+      const sys = world.actors.getName('V6 Source NPC')!.system;
+      expect(sys.source).toEqual({
+        revision: 1,
+        rules: '2014',
+        book: 'MM',
+        page: '166',
+        custom: '',
+        license: '',
+      });
+      expect(sys.details.source).toBeUndefined();
+    });
+  });
 });
 
 // ===========================================================================

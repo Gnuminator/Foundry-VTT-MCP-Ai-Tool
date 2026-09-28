@@ -65,9 +65,12 @@ import { GuardedChangeTools } from './tools/guarded-changes.js';
 import { TarokkaTools } from './tools/tarokka.js';
 import { PlaySessionTools } from './tools/play-session.js';
 import { PlayStatsTools } from './tools/play-stats.js';
+import { PlayerViewTools } from './tools/player-view.js';
 import { RefChoiceTools } from './tools/ref-choices.js';
 import type { JobQueue } from './job-queue.js';
 import { TarokkaService } from './tarokka/service.js';
+import { HandoutsService } from './handouts/service.js';
+import { SecretTermsService } from './secret-terms.js';
 import { GuardedWriteService } from './guarded-write/service.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
 import { EventPump, eventPumpSettings } from './event-pump.js';
@@ -315,6 +318,13 @@ async function startBackend(): Promise<void> {
     onMarked: renderObsidian,
   });
   const playStatsTools = new PlayStatsTools({ worldIds, store: vaultStore, logger });
+  const playerViewTools = new PlayerViewTools({
+    handouts: new HandoutsService({ guardedWrites, store: vaultStore, worldIds, foundryClient }),
+    secretTerms: new SecretTermsService({ store: vaultStore }),
+    foundryClient,
+    worldIds,
+    logger,
+  });
   logger.info('Bridge vault', { dataDir: vaultStore.dataDir });
   if (obsidianVaultDir) logger.info('Obsidian auto-render', { vaultDir: obsidianVaultDir });
 
@@ -520,6 +530,7 @@ async function startBackend(): Promise<void> {
     tarokkaTools,
     playSessionTools,
     playStatsTools,
+    playerViewTools,
     sceneControlTools,
     lootTools,
     diagnosticsTools,

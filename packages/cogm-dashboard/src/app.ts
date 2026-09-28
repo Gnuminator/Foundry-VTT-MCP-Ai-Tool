@@ -1,0 +1,682 @@
+import express, { type Express, type Request, type Response } from 'express';
+
+import type { Config, Tone } from './config.js';
+import type { Logger } from './logger.js';
+import { ToolError, TimeoutError } from './feed/mcp-control-client.js';
+import type { BridgeStatus, CombatState, GameFeedHandlers, WorldInfo } from './feed/types.js';
+import { GameState } from './state.js';
+import type { CoGm } from './ai/anthropic-co-gm.js';
+import { CommentaryEngine } from './ai/commentary.js';
+import { ErrorCommentaryEngine } from './ai/error-commentary.js';
+import { buildAskUserMessage } from './ai/prompt.js';
+import { SseHub } from './sse.js';
+import { resolveRole, isGm } from './auth.js';
+import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
+import { jsonErrorHandler } from './error-handler.js';
+import { gmOnly } from './redact.js';
+import { buildPlayerState } from './player/projection.js';
+import { PlayerViewSource } from './player/source.js';
+
+/**
+ * The co-GM dashboard as an Express app plus its feed handlers, built from
+ * injected dependencies so tests can run it against a fake bridge
+ * (`server.ts` wires the real control client, feed and listener).
+ *
+ * Two SSE hubs keep the roles apart (M2):
+ * - `sse`: the GM dashboard. Every broadcast is `gmOnly`, so even a non-GM
+ *   client that somehow joined it would receive nothing.
+ * - `playerHub`: the player page. It only ever receives the projected player
+ *   state (`player/projection.ts`) and sanitized handouts; nothing is
+ *   broadcast to it from the GM side.
+ * The player endpoints always project, whatever credential is presented: a GM
+ * token authorizes a player page, never upgrades it.
+ */
+
+/** The bridge calls the dashboard makes (the MCP control client satisfies it). */
+export interface DashboardClient {
+  callTool<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T>;
+  listTools(): Promise<unknown[]>;
+  readonly isConnected?: boolean;
+}
+
+export interface DashboardDeps {
+  config: Config;
+  logger: Logger;
+  client: DashboardClient;
+  coGm: CoGm;
+}
+
+export interface Dashboard {
+  app: Express;
+  handlers: GameFeedHandlers;
+  /** Start background work (player view polling). */
+  start(): void;
+  /** Stop background work and end every stream. */
+  close(): void;
+}
+
+interface RuntimeSettings {
+  paused: boolean;
+  tone: Tone;
+  model: string;
+  commentOnErrors: boolean;
+  /** Master switch for the write surface (GM Actions). Off by default for safety. */
+  gmActionsEnabled: boolean;
+}
+
+interface ToolInfo {
+  name: string;
+  description: string;
+  inputSchema: unknown;
+  mutates: ToolKind;
+}
+
+interface SecretTermsResult {
+  matches?: Array<{ category?: unknown; term?: unknown }>;
+}
+
+const TOOL_CATALOG_TTL_MS = 60_000;
+const PLAYER_CSP =
+  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; " +
+  "img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
+/** How often the player view context (visibility, handouts) is refreshed. */
+const PLAYER_SOURCE_INTERVAL_MS = 5_000;
+/** Player-state broadcasts are coalesced over this window. */
+const PLAYER_BROADCAST_DEBOUNCE_MS = 250;
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function readStr(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function mapWorld(raw: unknown): WorldInfo {
+  const r = asRecord(raw);
+  const system = asRecord(r.system);
+  const foundry = asRecord(r.foundry);
+  const activeUsers = Array.isArray(r.activeUsers) ? r.activeUsers : [];
+  const gmNames = activeUsers
+    .map(asRecord)
+    .filter(u => u.isGM === true)
+    .map(u => u.name)
+    .filter((name): name is string => typeof name === 'string');
+  return {
+    id: readStr(r.id, ''),
+    title: readStr(r.title, 'Unknown world'),
+    systemId: readStr(system.id, 'unknown'),
+    systemVersion: readStr(system.version, ''),
+    foundryVersion: readStr(foundry.version, ''),
+    gmNames,
+  };
+}
+
+export function createDashboard(deps: DashboardDeps): Dashboard {
+  const { config, logger, client, coGm } = deps;
+
+  // --- Mutable runtime settings (controlled from the dashboard) --------------
+  const settings: RuntimeSettings = {
+    paused: false,
+    tone: config.defaultTone,
+    model: config.anthropicModel,
+    commentOnErrors: config.commentOnErrors,
+    gmActionsEnabled: false,
+  };
+
+  const state = new GameState(config.maxEvents, config.maxErrors);
+  const sse = new SseHub(logger);
+  const playerHub = new SseHub(logger.child('player'));
+
+  const commentary = new CommentaryEngine({
+    coGm,
+    state,
+    logger,
+    // AI commentary is GM-facing, never streamed to a player.
+    broadcast: (type: string, payload: unknown): void => sse.broadcast(type, payload, gmOnly),
+    settings: {
+      getTone: (): Tone => settings.tone,
+      getModel: (): string => settings.model,
+      isPaused: (): boolean => settings.paused,
+    },
+    minIntervalMs: config.commentMinIntervalMs,
+    debounceMs: config.commentDebounceMs,
+    maxTokens: config.commentMaxTokens,
+  });
+
+  const errorCommentary = new ErrorCommentaryEngine({
+    coGm,
+    logger,
+    // Diagnostics commentary is GM-facing, never streamed to a player.
+    broadcast: (type: string, payload: unknown): void => sse.broadcast(type, payload, gmOnly),
+    settings: {
+      getModel: (): string => settings.model,
+      isEnabled: (): boolean => settings.commentOnErrors,
+    },
+    minIntervalMs: config.errorCommentMinIntervalMs,
+    debounceMs: config.commentDebounceMs,
+    maxTokens: config.errorCommentMaxTokens,
+  });
+
+  // --- Live status / world ---------------------------------------------------
+  let currentStatus: BridgeStatus = {
+    controlChannel: 'disconnected',
+    foundry: 'unknown',
+    lastError: null,
+    lastPollAt: null,
+  };
+  let world: WorldInfo | null = null;
+  let firstCombatSeen = false;
+  let lastCombatJson = '';
+  let worldRefreshInflight = false;
+  let worldRetryTimer: NodeJS.Timeout | null = null;
+
+  // --- Player view (M2) ------------------------------------------------------
+  let playerTimer: NodeJS.Timeout | null = null;
+  let lastPlayerStateJson = '';
+  let lastHandoutsJson = '';
+
+  const playerView = new PlayerViewSource(client, logger.child('player-view'), () =>
+    schedulePlayerBroadcast()
+  );
+
+  function currentPlayerState(): ReturnType<typeof buildPlayerState> {
+    return buildPlayerState({
+      status: currentStatus,
+      world,
+      visibility: playerView.visibility,
+      combat: state.combat,
+      events: state.recentEvents,
+      handouts: playerView.handouts,
+      opts: config.playerView,
+    });
+  }
+
+  /** Push the projected state (and handouts, when they changed) to every player stream. */
+  function broadcastPlayerState(): void {
+    playerTimer = null;
+    const { handouts, ...rest } = currentPlayerState();
+    const json = JSON.stringify(rest);
+    if (json !== lastPlayerStateJson) {
+      lastPlayerStateJson = json;
+      playerHub.broadcast('state', rest);
+    }
+    const handoutsJson = JSON.stringify(handouts);
+    if (handoutsJson !== lastHandoutsJson) {
+      lastHandoutsJson = handoutsJson;
+      playerHub.broadcast('handouts', { handouts });
+    }
+  }
+
+  function schedulePlayerBroadcast(): void {
+    if (playerTimer) return;
+    playerTimer = setTimeout(broadcastPlayerState, PLAYER_BROADCAST_DEBOUNCE_MS);
+    playerTimer.unref();
+  }
+
+  /** Attach a player stream: projected snapshot now, projected updates later. */
+  function attachPlayerStream(res: Response): void {
+    playerHub.add(res, 'player');
+    const { handouts, ...rest } = currentPlayerState();
+    playerHub.send(res, 'state', rest);
+    playerHub.send(res, 'handouts', { handouts });
+  }
+
+  function settingsPayload(): Record<string, unknown> {
+    return {
+      paused: settings.paused,
+      tone: settings.tone,
+      model: settings.model,
+      aiEnabled: coGm.enabled,
+      commentOnErrors: settings.commentOnErrors,
+      gmActionsEnabled: settings.gmActionsEnabled,
+      pollIntervalMs: config.pollIntervalMs,
+      commentMinIntervalMs: config.commentMinIntervalMs,
+      // GM-only (settings are sent through `gmOnly`): the Obsidian vault "Open in
+      // Obsidian" links resolve against, or null when off.
+      obsidian: config.obsidianVaultName ? { vault: config.obsidianVaultName } : null,
+    };
+  }
+
+  function broadcastSettings(): void {
+    sse.broadcast('settings', settingsPayload(), gmOnly);
+  }
+
+  /** Express middleware: 401/403 unless the caller resolves to the GM role. */
+  function requireGm(req: Request, res: Response, next: () => void): void {
+    const role = resolveRole(req, config.auth);
+    if (!isGm(role)) {
+      res
+        .status(role ? 403 : 401)
+        .json({ code: 'gm-required', error: 'GM access is required for this action.' });
+      return;
+    }
+    next();
+  }
+
+  // --- GM Actions: tool catalog ----------------------------------------------
+  let toolCatalog: ToolInfo[] | null = null;
+  let toolCatalogAt = 0;
+
+  async function getToolCatalog(force = false): Promise<ToolInfo[]> {
+    if (!force && toolCatalog && Date.now() - toolCatalogAt < TOOL_CATALOG_TTL_MS) {
+      return toolCatalog;
+    }
+    const raw = await client.listTools();
+    const tools = raw
+      .map(asRecord)
+      .filter(t => typeof t.name === 'string')
+      .map<ToolInfo>(t => {
+        const name = t.name as string;
+        return {
+          name,
+          description: readStr(t.description, ''),
+          inputSchema: t.inputSchema ?? { type: 'object', properties: {} },
+          mutates: classifyTool(name),
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    toolCatalog = tools;
+    toolCatalogAt = Date.now();
+    return tools;
+  }
+
+  async function refreshWorld(attempt = 0): Promise<void> {
+    // Collapse concurrent triggers (transition + immediate poll) into one call.
+    if (worldRefreshInflight) return;
+    worldRefreshInflight = true;
+    try {
+      const raw = await client.callTool('get-world-info');
+      world = mapWorld(raw);
+      coGm.setWorld(world);
+      sse.broadcast('world', world, gmOnly);
+      schedulePlayerBroadcast();
+      logger.info('World info loaded', { title: world.title, system: world.systemId });
+    } catch (error) {
+      logger.debug('world-info fetch failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Bounded backoff retry while still reachable, not a per-poll storm.
+      if (attempt < 3 && currentStatus.foundry === 'reachable' && world === null) {
+        if (worldRetryTimer) clearTimeout(worldRetryTimer);
+        worldRetryTimer = setTimeout(() => {
+          worldRetryTimer = null;
+          void refreshWorld(attempt + 1);
+        }, 3000);
+        worldRetryTimer.unref();
+      }
+    } finally {
+      worldRefreshInflight = false;
+    }
+  }
+
+  // --- Feed handlers ---------------------------------------------------------
+  const handlers: GameFeedHandlers = {
+    onStatus(status) {
+      // World info only exists once Foundry is reachable; fetch it on the
+      // transition INTO reachable (a failed fetch retries on its own backoff).
+      const wasReachable = currentStatus.foundry === 'reachable';
+      const becameReachable = status.foundry === 'reachable' && !wasReachable;
+      currentStatus = status;
+      sse.broadcast('status', status, gmOnly);
+      schedulePlayerBroadcast();
+      if (becameReachable) {
+        void refreshWorld();
+        void playerView.refresh();
+      } else if (status.foundry !== 'reachable' && world !== null) {
+        // Foundry dropped: invalidate the stale world so nothing acts on a world
+        // that may be gone.
+        world = null;
+        coGm.setWorld(null);
+        sse.broadcast('world', null, gmOnly);
+      }
+    },
+    onEvents(events, meta) {
+      const added = state.addEvents(events);
+      if (added.length === 0) return;
+      sse.broadcast('events', { events: added, initial: meta.initial }, gmOnly);
+      schedulePlayerBroadcast();
+      if (!meta.initial) commentary.notifyEvents(added);
+    },
+    onErrors(errors, meta) {
+      const added = state.addErrors(errors);
+      if (added.length === 0) return;
+      sse.broadcast('errors', { errors: added, initial: meta.initial }, gmOnly);
+      if (!meta.initial) errorCommentary.notifyErrors(added);
+    },
+    onCombat(combat: CombatState | null) {
+      const prevSignature = state.combatSignature();
+      state.setCombat(combat);
+
+      const json = JSON.stringify(combat);
+      if (json !== lastCombatJson) {
+        lastCombatJson = json;
+        sse.broadcast('combat', { combat }, gmOnly);
+        schedulePlayerBroadcast();
+      }
+
+      const signature = state.combatSignature();
+      if (firstCombatSeen && signature !== null && signature !== prevSignature) {
+        commentary.notifyCombatChange();
+      }
+      firstCombatSeen = true;
+    },
+  };
+
+  // --- HTTP / SSE ------------------------------------------------------------
+  const app = express();
+  app.use(express.json({ limit: '256kb' }));
+  // The player page runs only its own script: no inline scripts or event handlers, even if
+  // something slipped past the handout sanitizer (inline styles stay allowed for the HP bars).
+  app.use((req: Request, res: Response, next: () => void) => {
+    if (req.path === '/player' || req.path === '/player.html') {
+      res.setHeader('Content-Security-Policy', PLAYER_CSP);
+    }
+    next();
+  });
+  app.use(express.static(config.publicDir));
+
+  // Clean URL for the read-only player view (the static file is also at /player.html).
+  app.get('/player', (_req: Request, res: Response) => {
+    res.sendFile('player.html', { root: config.publicDir });
+  });
+
+  app.get('/api/health', (_req: Request, res: Response) => {
+    res.json({
+      ok: true,
+      controlChannel: currentStatus.controlChannel,
+      aiEnabled: coGm.enabled,
+      splitEnabled: config.auth.splitEnabled,
+    });
+  });
+
+  // Player endpoints: always projected, whatever the credential (M2).
+  app.get('/api/player/state', (req: Request, res: Response) => {
+    if (!resolveRole(req, config.auth)) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    res.json(currentPlayerState());
+  });
+
+  app.get('/api/player/stream', (req: Request, res: Response) => {
+    if (!resolveRole(req, config.auth)) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    attachPlayerStream(res);
+  });
+
+  app.get('/api/state', (req: Request, res: Response) => {
+    const role = resolveRole(req, config.auth);
+    if (!role) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    if (role === 'player') {
+      // The player role gets exactly what /api/player/state serves.
+      res.json({ role, ...currentPlayerState() });
+      return;
+    }
+    res.json({
+      role,
+      status: currentStatus,
+      combat: state.combat,
+      events: state.recentEvents,
+      errors: state.recentErrors,
+      settings: settingsPayload(),
+      world,
+    });
+  });
+
+  app.get('/api/stream', (req: Request, res: Response) => {
+    const role = resolveRole(req, config.auth);
+    if (!role) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    if (role === 'player') {
+      // Never on the GM hub: the player role gets the player stream.
+      attachPlayerStream(res);
+      return;
+    }
+    sse.add(res, role);
+    sse.send(res, 'role', { role });
+    sse.send(res, 'status', currentStatus);
+    if (world) sse.send(res, 'world', world);
+    sse.send(res, 'settings', settingsPayload());
+    if (state.combat) sse.send(res, 'combat', { combat: state.combat });
+    sse.send(res, 'events', { events: state.recentEvents, initial: true });
+    sse.send(res, 'errors', { errors: state.recentErrors, initial: true });
+  });
+
+  app.post('/api/ask', requireGm, (req: Request, res: Response) => {
+    const question = readStr(asRecord(req.body).question, '').trim();
+    if (!question) {
+      res.status(400).json({ error: 'A non-empty "question" is required.' });
+      return;
+    }
+    if (!coGm.enabled) {
+      res.status(400).json({ error: 'AI is disabled (no ANTHROPIC_API_KEY).' });
+      return;
+    }
+
+    const genId = `ask-${Date.now().toString(36)}`;
+    const tone = settings.tone;
+    const model = settings.model;
+    res.json({ accepted: true, id: genId });
+
+    // A direct question preempts any in-flight auto-comment (latest-wins).
+    // Commentary is GM-only: players never receive comment.* frames.
+    const context = state.buildContext();
+    sse.broadcast(
+      'comment.start',
+      { id: genId, kind: 'ask', tone, model, trigger: question },
+      gmOnly
+    );
+    void coGm
+      .stream({
+        model,
+        maxTokens: config.askMaxTokens,
+        userMessage: buildAskUserMessage(tone, context, question),
+        onDelta: text => sse.broadcast('comment.delta', { id: genId, text }, gmOnly),
+      })
+      .then(result => {
+        if (result.aborted) {
+          sse.broadcast('comment.aborted', { id: genId }, gmOnly);
+        } else {
+          sse.broadcast(
+            'comment.done',
+            { id: genId, text: result.text, usage: result.usage },
+            gmOnly
+          );
+        }
+      })
+      .catch((error: unknown) => {
+        sse.broadcast(
+          'comment.error',
+          { id: genId, message: error instanceof Error ? error.message : 'AI error' },
+          gmOnly
+        );
+      });
+  });
+
+  app.post('/api/control', requireGm, (req: Request, res: Response) => {
+    const body = asRecord(req.body);
+    const action = readStr(body.action, '');
+    const value = body.value;
+
+    switch (action) {
+      case 'toggle-pause':
+        settings.paused = !settings.paused;
+        break;
+      case 'pause':
+        settings.paused = true;
+        break;
+      case 'resume':
+        settings.paused = false;
+        break;
+      case 'set-tone':
+        if (value === 'narrative' || value === 'tactical') settings.tone = value;
+        break;
+      case 'set-model':
+        if (typeof value === 'string' && value.trim() !== '') settings.model = value.trim();
+        break;
+      case 'toggle-diag':
+        settings.commentOnErrors = !settings.commentOnErrors;
+        break;
+      case 'set-diag':
+        settings.commentOnErrors = value === true;
+        break;
+      case 'toggle-gm-actions':
+        settings.gmActionsEnabled = !settings.gmActionsEnabled;
+        break;
+      case 'set-gm-actions':
+        settings.gmActionsEnabled = value === true;
+        break;
+      default:
+        res.status(400).json({ error: `Unknown action: ${action || '(none)'}` });
+        return;
+    }
+
+    broadcastSettings();
+    res.json(settingsPayload());
+  });
+
+  app.post('/api/post-chat', requireGm, (req: Request, res: Response) => {
+    const body = asRecord(req.body);
+    const text = readStr(body.text, '').trim();
+    if (!text) {
+      res.status(400).json({ error: 'A non-empty "text" is required.' });
+      return;
+    }
+
+    const message = `🧠 Co-GM: ${text}`;
+    const gmNames = world?.gmNames ?? [];
+    const args: Record<string, unknown> =
+      gmNames.length > 0
+        ? { message, messageType: 'whisper', whisperTargets: gmNames }
+        : { message, messageType: 'ooc' };
+
+    // Whisper guard (M2): a whisper reaches every client's data (only its display
+    // is hidden), so text naming a GM secret needs the GM's explicit go-ahead.
+    const guard: Promise<Array<{ category: string; term: string }>> =
+      body.allowSecrets === true
+        ? Promise.resolve([])
+        : client.callTool<SecretTermsResult>('check-secret-terms', { text }).then(result =>
+            (Array.isArray(result?.matches) ? result.matches : []).map(m => ({
+              category: readStr(m.category, 'secret'),
+              term: readStr(m.term, ''),
+            }))
+          );
+
+    void guard
+      .then(async matches => {
+        if (matches.length > 0) {
+          res.status(409).json({
+            code: 'secret-terms',
+            matches,
+            error:
+              'The text names GM secrets. Whispers reach every player client; send again with allowSecrets to post anyway.',
+          });
+          return;
+        }
+        await client.callTool('send-chat-message', args);
+        res.json({ ok: true, whisperedTo: gmNames });
+      })
+      .catch((error: unknown) => {
+        res.status(502).json({
+          error: error instanceof Error ? error.message : 'Failed to post to Foundry chat.',
+        });
+      });
+  });
+
+  // --- GM Actions: list + invoke bridge tools ----------------------------------
+  app.get('/api/tools', requireGm, (req: Request, res: Response) => {
+    getToolCatalog(req.query.refresh === '1')
+      .then(tools => res.json({ tools, gmActionsEnabled: settings.gmActionsEnabled }))
+      .catch((error: unknown) => {
+        res.status(502).json({
+          error: error instanceof Error ? error.message : 'Failed to list bridge tools.',
+        });
+      });
+  });
+
+  app.post('/api/tool', requireGm, (req: Request, res: Response) => {
+    const body = asRecord(req.body);
+    const name = readStr(body.name, '').trim();
+    if (!name) {
+      res.status(400).json({ error: 'A non-empty "name" is required.' });
+      return;
+    }
+    const mutates = classifyTool(name);
+    const args = toolArgs(name, asRecord(body.args), body);
+
+    if (mutates !== 'read') {
+      if (!settings.gmActionsEnabled) {
+        res.status(403).json({
+          code: 'gm-actions-disabled',
+          error: 'GM Actions are off. Turn on the GM Actions switch to run game-changing tools.',
+        });
+        return;
+      }
+      if (body.confirm !== true) {
+        res
+          .status(412)
+          .json({ code: 'confirm-required', mutates, error: 'Confirmation required.' });
+        return;
+      }
+      if (mutates === 'destructive' && body.confirmDestructive !== true) {
+        res.status(412).json({
+          code: 'confirm-destructive-required',
+          mutates,
+          error: 'This action is destructive and needs explicit confirmation.',
+        });
+        return;
+      }
+      logger.info('GM Action invoked', { tool: name, mutates });
+    }
+
+    client
+      .callTool(name, args)
+      .then(result => {
+        res.json({ ok: true, name, mutates, result });
+        // A reveal or hide may have changed the handouts: refresh the player view.
+        if (name === 'apply-planned-change' || name === 'undo-change') void playerView.refresh();
+      })
+      .catch((error: unknown) => {
+        const kind =
+          error instanceof ToolError
+            ? 'tool'
+            : error instanceof TimeoutError
+              ? 'timeout'
+              : 'channel';
+        res.status(kind === 'tool' ? 422 : 502).json({
+          ok: false,
+          name,
+          kind,
+          error: error instanceof Error ? error.message : 'Tool call failed.',
+        });
+      });
+  });
+
+  // Last: JSON errors without stack traces or paths (the default handler shows both).
+  app.use(jsonErrorHandler(logger));
+
+  return {
+    app,
+    handlers,
+    start(): void {
+      playerView.start(PLAYER_SOURCE_INTERVAL_MS);
+    },
+    close(): void {
+      coGm.abortActive();
+      playerView.stop();
+      if (playerTimer) clearTimeout(playerTimer);
+      if (worldRetryTimer) clearTimeout(worldRetryTimer);
+      // End the long-lived SSE responses first, or server.close() waits on them.
+      sse.close();
+      playerHub.close();
+    },
+  };
+}

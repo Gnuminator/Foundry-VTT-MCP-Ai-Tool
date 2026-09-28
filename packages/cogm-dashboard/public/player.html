@@ -171,6 +171,18 @@
         padding: 14px;
         text-align: center;
       }
+      .handout {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .handout summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .handout .content {
+        padding: 6px 0 2px;
+        line-height: 1.45;
+      }
       footer {
         color: var(--muted);
         font-size: 12px;
@@ -182,6 +194,7 @@
     <header>
       <h1>🎲 Player View</h1>
       <span id="world" class="sub">—</span>
+      <span id="scene" class="sub"></span>
       <span style="flex: 1"></span>
       <span id="status" class="badge">connecting…</span>
     </header>
@@ -195,11 +208,15 @@
         <h2>Session feed</h2>
         <div id="feed" class="body"><div class="empty">Waiting for events…</div></div>
       </section>
+      <section class="card">
+        <h2>Handouts</h2>
+        <div id="handouts" class="body"><div class="empty">Nothing revealed yet.</div></div>
+      </section>
     </div>
 
     <footer>
-      Read-only player view. Hidden enemies, exact enemy HP, GM notes, diagnostics, and the GM
-      controls are filtered out on the server — they never reach this page.
+      Read-only player view. The server builds everything here from what players can already see in
+      Foundry: hidden creatures, enemy HP numbers, GM notes and secrets never reach this page.
     </footer>
 
     <script src="player.js" type="module"></script>

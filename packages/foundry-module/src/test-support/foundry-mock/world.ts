@@ -273,6 +273,7 @@ const FOUNDRY_GLOBAL_KEYS = [
   'Combat',
   'Roll',
   'fromUuid',
+  'fromUuidSync',
 ] as const;
 
 /**
@@ -297,6 +298,15 @@ export function installFoundryGlobals(world: TestWorld): () => void {
   };
   g.CONST = {
     TOKEN_DISPOSITIONS: { HOSTILE: -1, NEUTRAL: 0, FRIENDLY: 1, SECRET: -2 },
+    // Verified: `common/constants.mjs` TOKEN_DISPLAY_MODES (NONE..ALWAYS).
+    TOKEN_DISPLAY_MODES: {
+      NONE: 0,
+      CONTROL: 10,
+      OWNER_HOVER: 20,
+      HOVER: 30,
+      OWNER: 40,
+      ALWAYS: 50,
+    },
     CHAT_MESSAGE_STYLES: { OTHER: 0, OOC: 1, IC: 2, EMOTE: 3 },
     DICE_ROLL_MODES: {
       PUBLIC: 'publicroll',
@@ -304,7 +314,7 @@ export function installFoundryGlobals(world: TestWorld): () => void {
       BLIND: 'blindroll',
       SELF: 'selfroll',
     },
-    DOCUMENT_OWNERSHIP_LEVELS: { NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER: 3 },
+    DOCUMENT_OWNERSHIP_LEVELS: { INHERIT: -1, NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER: 3 },
     USER_ROLES: { NONE: 0, PLAYER: 1, TRUSTED: 2, ASSISTANT: 3, GAMEMASTER: 4 },
   };
   g.CONFIG = { DND5E: {}, statusEffects: [], Actor: {}, Item: {} };
@@ -394,6 +404,41 @@ export function installFoundryGlobals(world: TestWorld): () => void {
     return { formula, evaluate: async () => ({ total: 0 }), total: 0 };
   };
   g.fromUuid = async () => null;
+  // Synchronous UUID resolution (verified: `client/utils/helpers.mjs:188`,
+  // `fromUuidSync`) for world and embedded documents: walks `Type.id` pairs
+  // ("JournalEntry.<id>.JournalEntryPage.<id>") against the world's own
+  // collections, then embedded collections by the same naming as
+  // `EMBEDDED_COLLECTIONS` in `documents.ts`.
+  const topCollections: Record<string, MockCollection<AnyDoc>> = {
+    Actor: world.actors,
+    Scene: world.scenes,
+    JournalEntry: world.journal,
+    Item: world.items,
+    ChatMessage: world.messages,
+    Combat: world.combats,
+  };
+  const embeddedKeys: Record<string, string> = {
+    Item: 'items',
+    ActiveEffect: 'effects',
+    Token: 'tokens',
+    JournalEntryPage: 'pages',
+  };
+  g.fromUuidSync = (uuid: string): AnyDoc | null => {
+    if (typeof uuid !== 'string' || uuid.length === 0) return null;
+    const parts = uuid.split('.');
+    if (parts.length < 2) return null;
+    const [topType, topId, ...rest] = parts;
+    let doc: AnyDoc | undefined = topCollections[topType ?? '']?.get(topId ?? '');
+    for (let i = 0; i + 1 < rest.length; i += 2) {
+      if (!doc) return null;
+      const embeddedType = rest[i] ?? '';
+      const embeddedId = rest[i + 1] ?? '';
+      const key = embeddedKeys[embeddedType] ?? `${embeddedType.toLowerCase()}s`;
+      const coll = (doc as any)[key];
+      doc = typeof coll?.get === 'function' ? coll.get(embeddedId) : undefined;
+    }
+    return doc ?? null;
+  };
 
   return function uninstall(): void {
     for (const [key, value] of saved) {

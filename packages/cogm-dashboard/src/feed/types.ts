@@ -1,3 +1,5 @@
+import type { EventVisibility } from '@gnuminator/shared';
+
 /**
  * Shapes for the live game feed. These mirror the JSON returned by the MCP
  * bridge tools `get-recent-events` and `get-combat-state` (see the Foundry
@@ -16,6 +18,8 @@ export interface SessionEvent {
   actorId: string | null;
   description: string;
   details: Record<string, unknown>;
+  /** What players can know about the event (M2); absent from older modules, whose events players never see. */
+  visibility?: EventVisibility;
 }
 
 /** One captured module diagnostic (mirrors the bridge's DiagnosticEntry). */
@@ -59,6 +63,11 @@ export interface Combatant {
    * Optional for forward-compatibility: undefined ⇒ treated as not hidden.
    */
   hidden?: boolean;
+  /** M2: the combatant's token, actor and scene, and the actor's core status ids (absent from older modules). */
+  tokenId?: string | null;
+  actorId?: string | null;
+  sceneId?: string | null;
+  statuses?: string[];
 }
 
 export interface CombatState {

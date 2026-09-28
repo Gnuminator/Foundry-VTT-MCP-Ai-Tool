@@ -71,20 +71,36 @@ export class CombatDataAccess {
    * resets to 0 each round, so any combatant before the current index has
    * already acted. `hidden` mirrors the tracker's GM-hidden flag (falling back
    * to the token) so the dashboard can drop it from the player view (Phase 6).
+   * `tokenId`/`actorId`/`sceneId`/`statuses` (M2) let the dashboard name a
+   * combatant the way players see it, via the player-visibility domain.
    */
   private summarizeCombatant(c: any, idx: number, currentIndex: number, started: any): any {
     const actor = c.actor;
     const hp = actor?.system?.attributes?.hp;
     const isPC = !!actor?.hasPlayerOwner && actor?.type === 'character';
     const death = actor?.system?.attributes?.death;
+    // Narrow casts (M2 fields only) so reading them doesn't add new
+    // no-unsafe-* warnings on top of this file's existing `any` baseline.
+    const cExtra = c as {
+      tokenId?: string | null;
+      token?: { id?: string | null } | null;
+      sceneId?: string | null;
+    };
+    const actorExtra = actor as { id?: string | null; statuses?: Iterable<unknown> } | undefined;
     return {
       id: c.id,
       name: c.name,
       initiative: c.initiative,
       isCurrentTurn: idx === currentIndex,
       actedThisRound: started ? idx < currentIndex : false,
+      tokenId: cExtra.tokenId ?? cExtra.token?.id ?? null,
+      actorId: actorExtra?.id ?? null,
+      sceneId: cExtra.sceneId ?? null,
       hp: hp ? { value: hp.value ?? null, max: hp.max ?? null, temp: hp.temp ?? 0 } : null,
       conditions: shared.actorConditionNames(actor),
+      statuses: Array.from(actorExtra?.statuses ?? []).filter(
+        (s: unknown): s is string => typeof s === 'string'
+      ),
       isPC,
       category: isPC ? 'pc' : c.token?.disposition === -1 ? 'enemy' : 'npc',
       defeated: c.isDefeated ?? (hp ? (hp.value ?? 0) <= 0 : false),

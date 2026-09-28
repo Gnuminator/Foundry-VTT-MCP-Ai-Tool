@@ -137,6 +137,34 @@ async function postJson(path, body) {
   return res.ok ? res.json() : Promise.reject(new Error(`${path} -> ${res.status}`));
 }
 
+/**
+ * Post AI text to Foundry chat as a GM whisper. The server refuses (409) text
+ * that names a GM secret, because a whisper reaches every player's client (only
+ * its display is hidden); the GM can then post anyway. Resolves true when posted,
+ * false when the GM chose not to.
+ */
+async function postChat(text) {
+  const send = allowSecrets =>
+    fetch('/api/post-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(allowSecrets ? { text, allowSecrets: true } : { text }),
+    });
+  let res = await send(false);
+  if (res.status === 409) {
+    const info = await res.json().catch(() => ({}));
+    const terms = (info.matches || []).map(m => `${m.term} (${m.category})`).join(', ');
+    const ok = window.confirm(
+      `This text names GM secrets: ${terms || 'unknown'}.\n\n` +
+        "A whisper reaches every player's browser; only its display is hidden. Post anyway?"
+    );
+    if (!ok) return false;
+    res = await send(true);
+  }
+  if (!res.ok) throw new Error(`/api/post-chat -> ${res.status}`);
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Status
 // ---------------------------------------------------------------------------
@@ -494,9 +522,14 @@ function commentDone(d) {
   postBtn.addEventListener('click', () => {
     postBtn.disabled = true;
     postBtn.textContent = 'Posting…';
-    postJson('/api/post-chat', { text: c.text })
-      .then(() => {
-        postBtn.textContent = '✓ Whispered to GM';
+    postChat(c.text)
+      .then(posted => {
+        if (posted) {
+          postBtn.textContent = '✓ Whispered to GM';
+        } else {
+          postBtn.disabled = false;
+          postBtn.textContent = '→ Post to chat';
+        }
       })
       .catch(() => {
         postBtn.disabled = false;

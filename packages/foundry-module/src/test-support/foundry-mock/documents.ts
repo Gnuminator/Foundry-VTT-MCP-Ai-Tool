@@ -57,15 +57,83 @@ function bindCollectionDeletes(coll: MockCollection<AnyDoc>): MockCollection<Any
 }
 
 /**
+ * Foundry's `DOCUMENT_OWNERSHIP_LEVELS.INHERIT` (`common/constants.mjs:474`):
+ * an embedded document (e.g. a JournalEntryPage) with this as its own or
+ * `.default` level defers to its parent's ownership.
+ */
+const OWNERSHIP_INHERIT = -1;
+const OWNERSHIP_LEVELS: Record<string, number> = { NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER: 3 };
+
+/**
  * Attach the common Foundry document instance methods (mutating, in-memory):
  * flag accessors, `update`, `toObject`, and the embedded-document CRUD
  * (`create/update/deleteEmbeddedDocuments`) the write paths exercise. A
  * top-level `delete()` is attached by the world when the doc is registered
  * (a document can't know its parent collection at build time).
+ *
+ * Also mirrors the ownership surface every real Document has
+ * (`common/abstract/document.mjs` `getUserLevel`/`testUserPermission`,
+ * `client/documents/abstract/client-document.mjs` `hasPlayerOwner`): reads
+ * `d.ownership` (falling back to `d.parent` when the level is INHERIT), and a
+ * GM always tests as OWNER. Needed for the player-visibility domain (M2),
+ * which is the first caller that checks ownership through the mock.
  */
 function withDocumentMethods<T extends AnyDoc>(doc: T): T {
   const d = doc as any;
   d.flags ??= {};
+  // Several existing tests pass their own `getUserLevel`/`testUserPermission`
+  // (a stub predating this ownership surface, e.g. `data-access.players.test.ts`);
+  // only install the default implementation when the caller didn't.
+  if (!Object.prototype.hasOwnProperty.call(d, 'getUserLevel')) {
+    d.getUserLevel = (user: AnyDoc | null | undefined): number => {
+      const ownership = d.ownership ?? {};
+      const level = ownership[user?.id ?? ''] ?? ownership.default ?? OWNERSHIP_LEVELS.NONE;
+      if (level !== OWNERSHIP_INHERIT) return level;
+      return typeof d.parent?.getUserLevel === 'function'
+        ? d.parent.getUserLevel(user)
+        : OWNERSHIP_LEVELS.NONE;
+    };
+  }
+  if (!Object.prototype.hasOwnProperty.call(d, 'testUserPermission')) {
+    d.testUserPermission = (
+      user: AnyDoc | null | undefined,
+      permission: string | number,
+      options: { exact?: boolean } = {}
+    ): boolean => {
+      const level = user?.isGM ? OWNERSHIP_LEVELS.OWNER : d.getUserLevel(user);
+      const target =
+        typeof permission === 'string'
+          ? (OWNERSHIP_LEVELS[permission] ?? OWNERSHIP_LEVELS.OWNER)
+          : permission;
+      return options.exact ? level === target : level >= target;
+    };
+  }
+  // `hasPlayerOwner` is live-computed from `ownership` + `game.users` (game
+  // isn't installed yet when a fixture is built, so it can't be computed
+  // eagerly), but settable: existing tests assign it directly, either at
+  // creation (`makeActor({hasPlayerOwner: true})`) or later
+  // (`actor.hasPlayerOwner = false`), and that value then wins.
+  let hasPlayerOwnerOverride: boolean | undefined = Object.prototype.hasOwnProperty.call(
+    d,
+    'hasPlayerOwner'
+  )
+    ? Boolean(d.hasPlayerOwner)
+    : undefined;
+  Object.defineProperty(d, 'hasPlayerOwner', {
+    configurable: true,
+    enumerable: true,
+    get: () => {
+      if (hasPlayerOwnerOverride !== undefined) return hasPlayerOwnerOverride;
+      const users = (globalThis as any).game?.users;
+      const list = typeof users?.contents !== 'undefined' ? users.contents : (users ?? []);
+      return (
+        Array.isArray(list) && list.some((u: AnyDoc) => !u.isGM && d.testUserPermission(u, 'OWNER'))
+      );
+    },
+    set: (value: boolean) => {
+      hasPlayerOwnerOverride = value;
+    },
+  });
   d.getFlag = (scope: string, key: string) => d.flags?.[scope]?.[key];
   d.setFlag = (scope: string, key: string, value: unknown) => {
     (d.flags[scope] ??= {})[key] = value;
@@ -447,14 +515,18 @@ export interface MakeJournalPageOptions {
 
 export function makeJournalPage(opts: MakeJournalPageOptions = {}): AnyDoc {
   const { id = randomId('page'), name = 'Page', type = 'text', text, src, ...rest } = opts;
-  return {
+  return withDocumentMethods({
     id,
     name,
     type,
+    documentName: 'JournalEntryPage',
+    // Real default is INHERIT (`common/documents/journal-entry-page.mjs:75`):
+    // a page defers to its parent journal's ownership unless given its own.
+    ownership: { default: OWNERSHIP_INHERIT },
     ...(text ? { text } : type === 'text' ? { text: { content: '' } } : {}),
     ...(src !== undefined ? { src } : {}),
     ...rest,
-  };
+  });
 }
 
 export interface MakeJournalOptions {
@@ -467,17 +539,24 @@ export interface MakeJournalOptions {
 export function makeJournal(opts: MakeJournalOptions = {}): AnyDoc {
   const { id = randomId('journal'), name = 'Journal', pages = [], ...rest } = opts;
   // Foundry assigns ids to pages created without one. Mirror that so raw page
-  // data (`{type,name,text}`) doesn't collide on the empty-string key.
-  const pageDocs = pages.map(p =>
-    (p as any)?.id ? p : makeJournalPage(p as MakeJournalPageOptions)
-  );
-  return withDocumentMethods({
+  // data (`{type,name,text}`) doesn't collide on the empty-string key. Every
+  // page gets the ownership methods too (harmless if already applied).
+  const pageDocs = pages.map(p => {
+    const page = (p as any)?.id ? p : makeJournalPage(p as MakeJournalPageOptions);
+    return withDocumentMethods(page);
+  });
+  const journal = withDocumentMethods({
     id,
     name,
+    documentName: 'JournalEntry',
     // `journal.pages` is a Foundry embedded collection (size/map/find/get).
     pages: bindCollectionDeletes(new MockCollection(pageDocs)),
     ...rest,
   });
+  // Real `JournalEntryPage#parent` is the owning JournalEntry; ownership
+  // inheritance (INHERIT) defers to it via `d.parent.getUserLevel`.
+  for (const page of pageDocs) page.parent = journal;
+  return journal;
 }
 
 // --- Combat ------------------------------------------------------------------

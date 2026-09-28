@@ -104,6 +104,13 @@ function damageMessage(over: Partial<any> = {}): any {
   };
 }
 
+/** `game.actors.get` stub for the M2 visibility-stamp roll tests: resolves `attackMessage`/`damageMessage`'s `speaker.actor` ('actor1') to a PC actor. */
+function resolveSilveraActor(
+  id: string
+): { id: string; name: string; hasPlayerOwner: boolean } | undefined {
+  return id === 'actor1' ? { id: 'actor1', name: 'Silvera', hasPlayerOwner: true } : undefined;
+}
+
 // ---------------------------------------------------------------------------
 
 describe('EventTracker chat parsing', () => {
@@ -477,6 +484,161 @@ describe('EventTracker session events', () => {
     expect(t.getSessionLog({ eventType: 'condition-applied' })).toHaveLength(1);
     expect(t.getSessionLog({ eventType: 'condition-removed' })).toHaveLength(1);
     expect(t.getSessionLog({ eventType: 'scene-change' })).toHaveLength(1);
+  });
+});
+
+describe('EventTracker session events — visibility stamp (M2)', () => {
+  it('damage/death: stamps visibility from the actor (pc)', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    const pc = { id: 'p1', name: 'Tulkas', hasPlayerOwner: true };
+    fire('updateActor', pc, { system: { attributes: { hp: { value: 10 } } } });
+    fire('updateActor', pc, { system: { attributes: { hp: { value: 0 } } } });
+
+    const [damage] = t.getSessionLog({ eventType: 'damage' });
+    expect(damage.visibility).toEqual({ subject: 'pc', tokenVisible: false, playerName: 'Tulkas' });
+    const [death] = t.getSessionLog({ eventType: 'death' });
+    expect(death.visibility).toEqual({ subject: 'pc', tokenVisible: false, playerName: 'Tulkas' });
+  });
+
+  it('damage: stamps visibility from the actor (npc, no visible token -> playerName null)', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    const goblin = { id: 'g1', name: 'Goblin', hasPlayerOwner: false };
+    fire('updateActor', goblin, { system: { attributes: { hp: { value: 5 } } } });
+    fire('updateActor', goblin, { system: { attributes: { hp: { value: 2 } } } });
+
+    const [damage] = t.getSessionLog({ eventType: 'damage' });
+    expect(damage.visibility).toEqual({ subject: 'npc', tokenVisible: false, playerName: null });
+  });
+
+  it('healing/stabilize: stamps visibility from the actor', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    const pc = { id: 'p1', name: 'Tulkas', hasPlayerOwner: true };
+    fire('updateActor', pc, { system: { attributes: { hp: { value: 0 } } } });
+    fire('updateActor', pc, { system: { attributes: { hp: { value: 8 } } } });
+
+    const [healing] = t.getSessionLog({ eventType: 'healing' });
+    expect(healing.visibility?.subject).toBe('pc');
+    const [stabilize] = t.getSessionLog({ eventType: 'stabilize' });
+    expect(stabilize.visibility?.subject).toBe('pc');
+  });
+
+  it('resource-spent: stamps visibility from the actor', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    const caster = { id: 'c1', name: 'Silvera', hasPlayerOwner: true };
+    fire('updateActor', caster, { system: { spells: { spell3: { value: 2 } } } });
+    fire('updateActor', caster, { system: { spells: { spell3: { value: 1 } } } });
+
+    const [spent] = t.getSessionLog({ eventType: 'resource-spent' });
+    expect(spent.visibility).toEqual({ subject: 'pc', tokenVisible: false, playerName: 'Silvera' });
+  });
+
+  it('condition-applied/removed: stamps visibility from the effect parent, plus statuses', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('createActiveEffect', {
+      name: 'Prone',
+      parent: { id: 'g1', name: 'Goblin', hasPlayerOwner: false },
+      statuses: new Set(['prone']),
+    });
+    fire('deleteActiveEffect', {
+      name: 'Prone',
+      parent: { id: 'g1', name: 'Goblin', hasPlayerOwner: false },
+      statuses: new Set(['prone']),
+    });
+
+    const [applied] = t.getSessionLog({ eventType: 'condition-applied' });
+    expect(applied.visibility).toEqual({
+      subject: 'npc',
+      tokenVisible: false,
+      playerName: null,
+      statuses: ['prone'],
+    });
+    const [removed] = t.getSessionLog({ eventType: 'condition-removed' });
+    expect(removed.visibility?.statuses).toEqual(['prone']);
+  });
+
+  it('scene-change: stamps the player-facing scene name (navName, else the generic label)', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire(
+      'updateScene',
+      { id: 's1', name: 'Death House Basement', navName: 'The Basement' },
+      {
+        active: true,
+      }
+    );
+    fire('updateScene', { id: 's2', name: 'Death House Attic' }, { active: true });
+
+    const [withNav, withoutNav] = t.getSessionLog({ eventType: 'scene-change' });
+    expect(withNav.visibility).toEqual({
+      subject: null,
+      tokenVisible: false,
+      playerName: null,
+      sceneName: 'The Basement',
+    });
+    expect(withoutNav.visibility?.sceneName).toBe('Current scene');
+  });
+
+  it('combat-start/combat-end/journal events: no-subject visibility', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('combatStart', { id: 'c1', round: 1, combatants: { size: 1 } });
+    fire('deleteCombat', { id: 'c1', round: 3 });
+    fire('createJournalEntry', { id: 'j1', name: 'Notes' });
+    fire('updateJournalEntry', { id: 'j1', name: 'Notes' });
+
+    const noSubject = { subject: null, tokenVisible: false, playerName: null };
+    expect(t.getSessionLog({ eventType: 'combat-start' })[0].visibility).toEqual(noSubject);
+    expect(t.getSessionLog({ eventType: 'combat-end' })[0].visibility).toEqual(noSubject);
+    expect(t.getSessionLog({ eventType: 'journal-created' })[0].visibility).toEqual(noSubject);
+    expect(t.getSessionLog({ eventType: 'journal-updated' })[0].visibility).toEqual(noSubject);
+  });
+
+  it('roll: stamps visibility from the resolved speaker actor', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    (globalThis as any).game.actors.get = resolveSilveraActor;
+    fire('createChatMessage', attackMessage());
+
+    const [roll] = t.getSessionLog({ eventType: 'roll' });
+    expect(roll.visibility).toEqual({ subject: 'pc', tokenVisible: false, playerName: 'Silvera' });
+  });
+
+  it('damage-roll: stamps visibility from the resolved speaker actor', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    (globalThis as any).game.actors.get = resolveSilveraActor;
+    fire('createChatMessage', damageMessage());
+
+    const [dmgRoll] = t.getSessionLog({ eventType: 'damage-roll' });
+    expect(dmgRoll.visibility?.subject).toBe('pc');
+  });
+
+  it('gm-roll (whispered): stamps visibility from the resolved speaker actor', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    (globalThis as any).game.actors.get = resolveSilveraActor;
+    fire('createChatMessage', attackMessage({ whisper: ['gm-user'] }));
+
+    const [gmRoll] = t.getSessionLog({ eventType: 'gm-roll' });
+    expect(gmRoll.visibility).toEqual({
+      subject: 'pc',
+      tokenVisible: false,
+      playerName: 'Silvera',
+    });
+  });
+
+  it('roll: no subject when the speaker actor cannot be resolved', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('createChatMessage', attackMessage({ speaker: { alias: 'Unknown' } }));
+
+    const [roll] = t.getSessionLog({ eventType: 'roll' });
+    expect(roll.visibility).toEqual({ subject: null, tokenVisible: false, playerName: null });
   });
 });
 

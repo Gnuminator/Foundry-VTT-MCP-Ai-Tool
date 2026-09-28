@@ -8,6 +8,8 @@ import {
 } from './systems/dnd5e/chat-roll-kind.js';
 import { describeMessageRolls } from './systems/dnd5e/roll-breakdown.js';
 import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
+import { eventVisibilityFor, playerFacingSceneName } from './player-visibility.js';
+import type { EventVisibility } from '@gnuminator/shared';
 
 /**
  * Event tracking for the Foundry MCP Bridge.
@@ -66,7 +68,16 @@ export interface SessionLogEntry {
   actorId: string | null;
   description: string;
   details: Record<string, any>;
+  /** Stamped at creation (M2): what players may see of this event's subject. */
+  visibility?: EventVisibility;
 }
+
+/** Stamped on events with no subject actor (combat start/end, journal events). */
+const NO_SUBJECT_VISIBILITY: EventVisibility = {
+  subject: null,
+  tokenVisible: false,
+  playerName: null,
+};
 
 export interface CombatTimelineEntry {
   round: number;
@@ -199,6 +210,7 @@ export class EventTracker {
               actorName: null,
               actorId: null,
               details: { sceneId: scene.id, sceneName: scene.name },
+              visibility: { ...NO_SUBJECT_VISIBILITY, sceneName: playerFacingSceneName(scene) },
             });
           }
         } catch (error) {
@@ -212,6 +224,7 @@ export class EventTracker {
             actorName: null,
             actorId: null,
             details: { journalId: journal.id, name: journal.name },
+            visibility: NO_SUBJECT_VISIBILITY,
           });
         } catch (error) {
           console.warn(`[${MODULE_ID}] EventTracker createJournalEntry failed:`, error);
@@ -224,6 +237,7 @@ export class EventTracker {
             actorName: null,
             actorId: null,
             details: { journalId: journal.id, name: journal.name },
+            visibility: NO_SUBJECT_VISIBILITY,
           });
         } catch (error) {
           console.warn(`[${MODULE_ID}] EventTracker updateJournalEntry failed:`, error);
@@ -342,7 +356,34 @@ export class EventTracker {
       actorName: entry.speakerName,
       actorId: entry.actorId,
       details,
+      visibility: eventVisibilityFor(this.resolveSpeakerActor(message)),
     });
+  }
+
+  /**
+   * The acting actor behind a message's speaker, resolved the same way
+   * `resolveActor` does in `systems/dnd5e/roll-breakdown.ts`: the speaker
+   * token first (`speaker.scene` + `speaker.token`), else `speaker.actor`.
+   * Returns `unknown` (not `any`) — the only use is `eventVisibilityFor`,
+   * which narrows it itself.
+   */
+  private resolveSpeakerActor(message: ChatMessage): unknown {
+    try {
+      const speaker = (message as unknown as { speaker?: unknown }).speaker as
+        | { scene?: unknown; token?: unknown; actor?: unknown }
+        | undefined;
+      const sceneId = typeof speaker?.scene === 'string' ? speaker.scene : undefined;
+      const tokenId = typeof speaker?.token === 'string' ? speaker.token : undefined;
+      if (sceneId && tokenId) {
+        const scene = game.scenes.get(sceneId);
+        const token = scene?.tokens.get(tokenId) as { actor?: unknown } | undefined;
+        if (token?.actor) return token.actor;
+      }
+      const actorId = typeof speaker?.actor === 'string' ? speaker.actor : undefined;
+      return actorId ? game.actors.get(actorId) : null;
+    } catch {
+      return null;
+    }
   }
 
   private parseChatMessage(message: any): ChatLogEntry {
@@ -515,6 +556,7 @@ export class EventTracker {
       actorName?: string | null;
       actorId?: string | null;
       details?: Record<string, any>;
+      visibility?: EventVisibility;
     } = {}
   ): void {
     const entry: SessionLogEntry = {
@@ -526,6 +568,7 @@ export class EventTracker {
       actorId: opts.actorId ?? null,
       description,
       details: opts.details ?? {},
+      ...(opts.visibility ? { visibility: opts.visibility } : {}),
     };
     this.sessionLog.push(entry);
     if (this.sessionLog.length > MAX_SESSION_BUFFER) {
@@ -537,6 +580,7 @@ export class EventTracker {
     const combatantCount = combat?.combatants?.size ?? 0;
     this.logSessionEvent('combat-start', `Combat started with ${combatantCount} combatants`, {
       details: { combatId: combat?.id, round: combat?.round ?? 1, combatantCount },
+      visibility: NO_SUBJECT_VISIBILITY,
     });
     // Seed the timeline with round 1
     this.recordCombatTurn(combat);
@@ -545,6 +589,7 @@ export class EventTracker {
   private onCombatEnd(combat: any): void {
     this.logSessionEvent('combat-end', `Combat ended after ${combat?.round ?? 0} rounds`, {
       details: { combatId: combat?.id, rounds: combat?.round ?? 0 },
+      visibility: NO_SUBJECT_VISIBILITY,
     });
   }
 
@@ -576,6 +621,7 @@ export class EventTracker {
 
   private onUpdateActor(actor: any, changed: any): void {
     if (!actor?.id) return;
+    const visibility = eventVisibilityFor(actor);
 
     // --- HP change detection ---
     const newHp = this.getProp(changed, 'system.attributes.hp.value');
@@ -599,12 +645,14 @@ export class EventTracker {
               source: credit?.label ?? null,
               ...(credit ? { sourceMessageId: credit.messageId, sourceExact: credit.exact } : {}),
             },
+            visibility,
           });
         } else if (delta > 0) {
           this.logSessionEvent('healing', `${actor.name} healed ${delta} HP`, {
             actorName: actor.name,
             actorId: actor.id,
             details: { amount: delta, from: prev, to: newHp },
+            visibility,
           });
         }
 
@@ -614,22 +662,24 @@ export class EventTracker {
             actorName: actor.name,
             actorId: actor.id,
             details: {},
+            visibility,
           });
         } else if (prev <= 0 && newHp > 0) {
           this.logSessionEvent('stabilize', `${actor.name} recovered above 0 HP`, {
             actorName: actor.name,
             actorId: actor.id,
             details: { to: newHp },
+            visibility,
           });
         }
       }
     }
 
     // --- Spell slot / resource spend detection ---
-    this.detectResourceSpend(actor, changed);
+    this.detectResourceSpend(actor, changed, visibility);
   }
 
-  private detectResourceSpend(actor: any, changed: any): void {
+  private detectResourceSpend(actor: any, changed: any, visibility: EventVisibility): void {
     try {
       const spells = this.getProp(changed, 'system.spells');
       if (spells && typeof spells === 'object') {
@@ -647,6 +697,7 @@ export class EventTracker {
                 actorName: actor.name,
                 actorId: actor.id,
                 details: { resource: key, from: prev, to: newVal },
+                visibility,
               }
             );
           }
@@ -669,6 +720,7 @@ export class EventTracker {
                 actorName: actor.name,
                 actorId: actor.id,
                 details: { resource: key, from: prev, to: newVal },
+                visibility,
               }
             );
           }
@@ -686,10 +738,14 @@ export class EventTracker {
       const actorId = parent?.id || null;
       const effectName = effect?.name || effect?.label || 'Unknown effect';
       const verb = eventType === 'condition-applied' ? 'gained' : 'lost';
+      const statuses = Array.from(effect?.statuses ?? []).filter(
+        (s: unknown): s is string => typeof s === 'string'
+      );
       this.logSessionEvent(eventType, `${actorName || 'An actor'} ${verb} "${effectName}"`, {
         actorName,
         actorId,
-        details: { effectName, statuses: Array.from(effect?.statuses ?? []) },
+        details: { effectName, statuses },
+        visibility: { ...eventVisibilityFor(parent), statuses },
       });
     } catch {
       // best-effort

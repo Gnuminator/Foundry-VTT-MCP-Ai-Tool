@@ -8,6 +8,8 @@ import { playRecorder } from './play-recorder.js';
 import { applyGuardedOps, logGmChange, snapshotGuardedOps } from './data-access/guarded-write.js';
 import { FoundryDataAccess } from './data-access.js';
 import { ComfyUIManager } from './comfyui-manager.js';
+import { computePlayerVisibility, pagesForPlayers } from './player-visibility.js';
+import { PLAYER_VIEW_QUERIES } from '@gnuminator/shared';
 
 export class QueryHandlers {
   public dataAccess: FoundryDataAccess;
@@ -137,6 +139,21 @@ export class QueryHandlers {
       (data: { query?: unknown; limit?: unknown } | undefined) =>
         this.withGmGate('Failed to search link candidates', () =>
           Promise.resolve(searchLinkCandidates(data))
+        )
+    );
+
+    // Player view (M2, read-only): what players can currently see, computed
+    // on the GM client, and journal-page lookups for the handouts picker.
+    handlers.set(`${modulePrefix}.${PLAYER_VIEW_QUERIES.visibility}`, () =>
+      this.withGmGate('Failed to get player visibility', () =>
+        Promise.resolve(computePlayerVisibility())
+      )
+    );
+    handlers.set(
+      `${modulePrefix}.${PLAYER_VIEW_QUERIES.pages}`,
+      (data: { uuids?: unknown } | undefined) =>
+        this.withGmGate('Failed to get pages for players', () =>
+          Promise.resolve(pagesForPlayers(data?.uuids))
         )
     );
 

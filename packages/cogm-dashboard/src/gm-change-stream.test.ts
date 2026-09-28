@@ -5,7 +5,8 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SessionEvent } from './feed/types.js';
-import { eventsRedactor, redactEventsForPlayer } from './redact.js';
+import { projectEvents } from './player/projection.js';
+import { gmOnly } from './redact.js';
 import { SseHub } from './sse.js';
 
 function gmChange(id: string): SessionEvent {
@@ -22,7 +23,13 @@ function gmChange(id: string): SessionEvent {
 }
 
 function damage(id: string): SessionEvent {
-  return { ...gmChange(id), eventType: 'damage', description: 'Ireena took 4 damage' };
+  return {
+    ...gmChange(id),
+    eventType: 'damage',
+    description: 'Ireena took 4 damage',
+    details: { amount: 4 },
+    visibility: { subject: 'pc', tokenVisible: true, playerName: 'Ireena' },
+  };
 }
 
 class FakeResponse {
@@ -45,26 +52,27 @@ const logger = {
 };
 
 describe('gm-change events', () => {
-  it('are dropped by the player redaction', () => {
-    expect(redactEventsForPlayer([gmChange('e1'), damage('e2')]).map(e => e.id)).toEqual(['e2']);
+  it('are dropped by the player projection, even with a visibility stamp', () => {
+    const stamped = { ...gmChange('e1'), visibility: damage('x').visibility };
+    expect(projectEvents([stamped, damage('e2')]).map(e => e.id)).toEqual(['e2']);
   });
 
-  it('reach the GM stream and never the player stream', () => {
+  it('reach GM-hub clients and never a non-GM client on that hub', () => {
     const hub = new SseHub(logger as never);
     const gm = new FakeResponse();
     const player = new FakeResponse();
     hub.add(gm as never, 'gm');
     hub.add(player as never, 'player');
 
-    hub.broadcast('events', { events: [gmChange('e1'), damage('e2')] }, eventsRedactor);
-    hub.broadcast('events', { events: [gmChange('e3')] }, eventsRedactor);
+    hub.broadcast('events', { events: [gmChange('e1'), damage('e2')] }, gmOnly);
+    hub.broadcast('events', { events: [gmChange('e3')] }, gmOnly);
     hub.close();
 
     const gmText = gm.frames.join('');
     const playerText = player.frames.join('');
     expect(gmText).toContain('gm-change');
     expect(gmText).toContain('Strahd attention');
-    expect(playerText).toContain('Ireena took 4 damage');
+    expect(playerText).not.toContain('Ireena');
     expect(playerText).not.toContain('gm-change');
     expect(playerText).not.toContain('Strahd');
     expect(playerText).not.toContain('chg-1');

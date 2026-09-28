@@ -673,3 +673,84 @@ describe('FoundryDataAccess — getCombatState: conditions', () => {
     expect(result.combatants[0].conditions).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// tokenId / actorId / sceneId / statuses (M2: player-visibility naming)
+// ---------------------------------------------------------------------------
+
+describe('FoundryDataAccess — getCombatState: tokenId/actorId/sceneId/statuses', () => {
+  it('reads tokenId from c.tokenId, falling back to c.token.id, else null', async () => {
+    const actor = makeActor({ type: 'character', system: hp(10), hasPlayerOwner: true });
+    world.setCombat({
+      turns: [
+        makeCombatant({ id: 'c1', name: 'Hero', actor, tokenId: 'tok-a' }),
+        makeCombatant({ id: 'c2', name: 'Hero2', actor, token: { id: 'tok-b', disposition: 1 } }),
+        makeCombatant({ id: 'c3', name: 'Hero3', actor }),
+      ],
+      turn: 0,
+      round: 1,
+      started: true,
+    });
+
+    const result = await da.getCombatState();
+    expect(result.combatants[0].tokenId).toBe('tok-a');
+    expect(result.combatants[1].tokenId).toBe('tok-b');
+    expect(result.combatants[2].tokenId).toBeNull();
+  });
+
+  it('reads actorId from the combatant actor, else null', async () => {
+    const actor = makeActor({ id: 'actor-x', type: 'npc', system: hp(5) });
+    world.setCombat({
+      turns: [
+        makeCombatant({ id: 'c1', name: 'Wolf', actor }),
+        makeCombatant({ id: 'c2', name: 'Mystery' }), // no actor
+      ],
+      turn: 0,
+      round: 1,
+      started: true,
+    });
+
+    const result = await da.getCombatState();
+    expect(result.combatants[0].actorId).toBe('actor-x');
+    expect(result.combatants[1].actorId).toBeNull();
+  });
+
+  it('reads sceneId from c.sceneId, else null', async () => {
+    const actor = makeActor({ type: 'npc', system: hp(5) });
+    world.setCombat({
+      turns: [
+        makeCombatant({ id: 'c1', name: 'Wolf', actor, sceneId: 'scene-1' }),
+        makeCombatant({ id: 'c2', name: 'Wolf2', actor }),
+      ],
+      turn: 0,
+      round: 1,
+      started: true,
+    });
+
+    const result = await da.getCombatState();
+    expect(result.combatants[0].sceneId).toBe('scene-1');
+    expect(result.combatants[1].sceneId).toBeNull();
+  });
+
+  it('statuses is the actor core status ids, as strings, else empty', async () => {
+    const withStatuses = makeActor({
+      type: 'character',
+      system: hp(10),
+      statuses: new Set(['prone', 'poisoned']),
+    });
+    const noStatuses = makeActor({ type: 'npc', system: hp(5) });
+    world.setCombat({
+      turns: [
+        makeCombatant({ id: 'c1', name: 'Hero', actor: withStatuses }),
+        makeCombatant({ id: 'c2', name: 'Goblin', actor: noStatuses }),
+      ],
+      turn: 0,
+      round: 1,
+      started: true,
+    });
+
+    const result = await da.getCombatState();
+    expect(result.combatants[0].statuses).toEqual(['prone', 'poisoned']);
+    expect(result.combatants[1].statuses).toEqual([]);
+  });
+});

@@ -74,6 +74,11 @@ class FoundryMCPBridge {
         name: 'AI Tool: Tarokka (writes)',
         hint: 'Lets the AI Tool save Tarokka readings to its vault, link cards to journals and publish reveal pages to players.',
       });
+      registerGuardedFeature({
+        id: 'handouts',
+        name: 'AI Tool: Handouts (writes)',
+        hint: "Reveal or hide journal pages on the co-GM dashboard's player page.",
+      });
       Hooks.on('clientSettingChanged', (key: string) => {
         void onTarokkaSettingChanged(key, sendTarokkaOffer).catch(error => {
           console.warn(`[${MODULE_ID}] Tarokka offer failed:`, error);

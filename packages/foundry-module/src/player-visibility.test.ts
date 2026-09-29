@@ -355,7 +355,49 @@ describe('pagesForPlayers', () => {
         observable: true,
         journalObservable: true,
         html: '<p>The mists never lift.</p>',
+        type: 'text',
+        src: null,
+        caption: null,
       },
+    ]);
+  });
+
+  it('reports type, src and caption for the reveal copy (image page)', () => {
+    const page = makeJournalPage({
+      id: 'pg1',
+      name: 'Map of the Valley',
+      type: 'image',
+      src: 'maps/valley.webp',
+      image: { caption: 'Drawn in haste' },
+    });
+    world.addJournal({ id: 'j1', name: 'Chapter 1 (GM)', pages: [page] });
+
+    const [out] = pagesForPlayers(['JournalEntry.j1.JournalEntryPage.pg1']).pages;
+    expect(out).toMatchObject({
+      exists: true,
+      type: 'image',
+      src: 'maps/valley.webp',
+      caption: 'Drawn in haste',
+      html: null,
+      journalObservable: false,
+    });
+  });
+
+  it('an image page without a caption, and a page of a system type, report null / the type', () => {
+    const image = makeJournalPage({ id: 'pg1', name: 'Map', type: 'image', src: 'map.webp' });
+    const blank = makeJournalPage({ id: 'pg2', name: 'Blank', type: 'image', src: '' });
+    const spells = makeJournalPage({ id: 'pg3', name: 'Spell List', type: 'spells' });
+    world.addJournal({ id: 'j1', name: 'GM Notes', pages: [image, blank, spells] });
+
+    const pages = pagesForPlayers([
+      'JournalEntry.j1.JournalEntryPage.pg1',
+      'JournalEntry.j1.JournalEntryPage.pg2',
+      'JournalEntry.j1.JournalEntryPage.pg3',
+    ]).pages;
+    expect(pages.map(p => [p.type, p.src, p.caption])).toEqual([
+      ['image', 'map.webp', null],
+      ['image', null, null],
+      ['spells', null, null],
     ]);
   });
 

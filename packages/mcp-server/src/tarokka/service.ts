@@ -146,8 +146,8 @@ export interface TarokkaServiceOptions {
   now?: () => number;
 }
 
-/** A Foundry document id: 16 alphanumeric characters. */
-function newDocumentId(): string {
+/** A Foundry document id: 16 alphanumeric characters (also used by the handouts reveal copy). */
+export function newDocumentId(): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let id = '';
   for (let i = 0; i < 16; i++) id += alphabet[randomInt(alphabet.length)];

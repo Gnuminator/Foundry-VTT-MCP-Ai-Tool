@@ -104,6 +104,27 @@ describe('PlayerViewTools', () => {
     await expect(tools.handlePlanPageReveal({ action: 'hide' })).rejects.toThrow();
   });
 
+  it('plan-page-reveal takes an optional copy flag and forwards it only when given', async () => {
+    const { tools, handouts } = makeTools();
+    const schema = tools.getToolDefinitions().find(d => d.name === 'plan-page-reveal')!;
+    expect(schema.inputSchema.properties.copy).toMatchObject({ type: 'boolean' });
+    expect(schema.inputSchema.required).not.toContain('copy');
+
+    for (const copy of [true, false]) {
+      await tools.handlePlanPageReveal({ pageUuid: 'x', action: 'reveal', copy });
+      expect(handouts.planPageReveal).toHaveBeenLastCalledWith({
+        pageUuid: 'x',
+        action: 'reveal',
+        copy,
+      });
+    }
+    await tools.handlePlanPageReveal({ pageUuid: 'x', action: 'reveal' });
+    expect(handouts.planPageReveal).toHaveBeenLastCalledWith({ pageUuid: 'x', action: 'reveal' });
+    await expect(
+      tools.handlePlanPageReveal({ pageUuid: 'x', action: 'reveal', copy: 'yes' })
+    ).rejects.toThrow();
+  });
+
   it('plan-page-reveal logs and rethrows a refused plan', async () => {
     const { tools, handouts } = makeTools();
     handouts.planPageReveal.mockRejectedValueOnce(new Error('already revealed'));

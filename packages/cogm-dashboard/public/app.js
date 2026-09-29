@@ -1187,6 +1187,15 @@ function showToolResult(ok, payload) {
   els.toolResult.innerHTML = `<strong>${ok ? 'Result' : 'Error'}</strong><pre>${escapeHtml(text)}</pre>`;
 }
 
+// A guarded change names itself by its summary, e.g. 'Applied: Reveal page "A Letter" to
+// players (copied into Handouts)'; other tools by their name.
+function doneText(name, result) {
+  const summary = result && typeof result.summary === 'string' ? result.summary : '';
+  if (name === 'apply-planned-change' && summary) return `✓ Applied: ${summary}`;
+  if (name === 'undo-change' && summary) return `✓ ${summary}`;
+  return `✓ ${name}`;
+}
+
 // --- Run a tool (confirm-gated for writes) ---
 async function runTool(name, args, mutates, opts = {}) {
   const found = findTool(name);
@@ -1233,7 +1242,11 @@ async function runTool(name, args, mutates, opts = {}) {
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok) {
-      toast(`✓ ${name}`, 'ok');
+      toast(doneText(name, data.result), 'ok');
+      // A handout reveal that copies the page says where the copy goes ("Copied into Handouts").
+      if (data.result && data.result.copy && typeof data.result.note === 'string') {
+        toast(data.result.note, 'ok');
+      }
       if (opts.showResultInDrawer) showToolResult(true, data.result);
       if (name === 'apply-planned-change' || name === 'undo-change') {
         scheduleChangesReload();

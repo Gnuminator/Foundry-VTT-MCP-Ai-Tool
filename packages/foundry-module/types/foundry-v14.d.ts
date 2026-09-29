@@ -202,6 +202,8 @@ declare global {
     text: { content?: string; format?: number; markdown?: string };
     /** Media source for image/pdf/video pages. */
     src?: string | null;
+    /** Image pages: the caption shown under the image (`image.caption`). */
+    image?: { caption?: string };
   }
 
   /** v14 Scene Level (14.353+): backgrounds and elevation live here now. */

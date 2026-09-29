@@ -2,8 +2,12 @@ import { PLAYER_VIEW_QUERIES, toolRef, type PlayerVisibility } from '@gnuminator
 import { z } from 'zod';
 
 import type { FoundryClient } from '../foundry-client.js';
-import type { HandoutsService, PlayerHandoutsView, RevealedPageView } from '../handouts/service.js';
-import type { PlanView } from '../guarded-write/service.js';
+import type {
+  HandoutsService,
+  PageRevealPlan,
+  PlayerHandoutsView,
+  RevealedPageView,
+} from '../handouts/service.js';
 import type { Logger } from '../logger.js';
 import type { SecretTermMatch, SecretTermsService } from '../secret-terms.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
@@ -78,7 +82,7 @@ export class PlayerViewTools {
       {
         name: 'plan-page-reveal',
         description:
-          'Plan revealing a journal page to players, or hiding one already revealed. Reveal adds the page to the allowlist and, by default (setOwnership: true), raises its ownership to Observer if players cannot already see it, recording the previous ownership to restore later; refused if the page is already allowlisted and still observable. Destructive class (needs the second confirmation) because a reveal cannot be taken back at the table. Hide removes the page from the allowlist and, by default, restores the ownership recorded at reveal time. Write nothing but a title into the summary. Returns a planId for apply-planned-change.',
+          'Plan revealing a journal page to players, or hiding one already revealed. Reveal adds the page to the allowlist and, by default (setOwnership: true), raises its ownership to Observer if players cannot already see it, recording the previous ownership to restore later; refused if the page is already allowlisted and still observable. When no player can open the page\'s journal (typical for handouts inside a GM-only adventure chapter), the reveal instead COPIES the page into the player journal "Handouts" (created on first use, Observer for players): the copy gets the page\'s name and content, text without any secret blocks, or an image\'s source and caption; the source page and its journal are never changed. copy: true always copies, copy: false never does. Revealing the same source again updates its copy; only text and image pages can be copied. Destructive class (needs the second confirmation) because a reveal cannot be taken back at the table. Hide removes the page from the allowlist and, by default, restores the ownership recorded at reveal time; for a copied handout (pass the source or the copy) it deletes the copy, the "Handouts" journal stays. Write nothing but a title into the summary. Returns a planId for apply-planned-change, plus copy (where the copy goes) and note when the reveal copies.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -97,6 +101,11 @@ export class PlayerViewTools {
               type: 'boolean',
               description:
                 'Also change the page ownership (default true). False only changes the allowlist.',
+            },
+            copy: {
+              type: 'boolean',
+              description:
+                'Reveal as a copy in the player journal "Handouts" (secret blocks left out, the source unchanged). Omit for automatic: copy exactly when no player can open the page\'s journal. True: always copy. False: never copy (raise the page instead).',
             },
           },
           required: ['pageUuid', 'action'],
@@ -135,12 +144,13 @@ export class PlayerViewTools {
     return this.handouts.playerHandouts();
   }
 
-  async handlePlanPageReveal(args: unknown): Promise<PlanView> {
+  async handlePlanPageReveal(args: unknown): Promise<PageRevealPlan> {
     const params = z
       .object({
         pageUuid: z.string().min(1).max(300),
         action: z.enum(['reveal', 'hide']),
         setOwnership: z.boolean().optional(),
+        copy: z.boolean().optional(),
       })
       .parse(args ?? {});
     return this.logged('page reveal', () =>
@@ -148,6 +158,7 @@ export class PlayerViewTools {
         pageUuid: params.pageUuid,
         action: params.action,
         ...(params.setOwnership !== undefined ? { setOwnership: params.setOwnership } : {}),
+        ...(params.copy !== undefined ? { copy: params.copy } : {}),
       })
     );
   }

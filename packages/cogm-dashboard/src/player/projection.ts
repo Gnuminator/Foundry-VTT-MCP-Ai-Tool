@@ -20,7 +20,7 @@ import type {
 } from '../feed/types.js';
 
 /**
- * The player page's data, built by projection (docs/CURSE-OF-STRAHD-PLAN.md
+ * The player page's data, built by projection (docs/design/CURSE-OF-STRAHD-PLAN.md
  * feature 2, M2): every field a player receives is copied from an allowlist or
  * generated from a fixed template; GM objects are never forwarded with parts
  * removed. Pure functions, so they test exhaustively without a server.

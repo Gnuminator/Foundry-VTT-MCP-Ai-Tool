@@ -182,7 +182,7 @@ export interface ChunkedMessageFrame {
  * link today, `bridge-status`, but its payload shape is still loose in the current
  * implementation, so it is intentionally NOT frozen here yet. Tightening and
  * codifying it is tracked as a Phase 4 implementation slice (see
- * docs/PHASE4-TRACKER.md); until then, treat it as `{ type: string; ... }`.
+ * docs/history/PHASE4-TRACKER.md); until then, treat it as `{ type: string; ... }`.
  */
 export type FoundryFrame =
   | FoundryQueryFrame

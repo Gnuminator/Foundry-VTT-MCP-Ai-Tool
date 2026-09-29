@@ -1,5 +1,5 @@
 /**
- * Play log v2 (docs/OBSIDIAN-PLAN.md section 8, O3): one record per thing that
+ * Play log v2 (docs/design/OBSIDIAN-PLAN.md section 8, O3): one record per thing that
  * happened at the table, captured by the Foundry module on a GM client and
  * appended by the backend to `sessions/<YYYY-MM-DD>.play.jsonl` in the bridge
  * vault (local date of `t`). GM-only: records may carry whispers, blind rolls

@@ -36,7 +36,7 @@ bundler/dynamic import; confirmed during review.
 ## Headline: the remote-access security model has holes, and its master gate ships OFF
 
 Phase 6 is actively pushing the bridge toward remote/multiplayer exposure (`standalone.ts`,
-`docs/REMOTE-ACCESS.md`, `deploy/`). Multiple independent finders converged on a coherent security
+`docs/dev/REMOTE-ACCESS.md`, `deploy/`). Multiple independent finders converged on a coherent security
 story. **This is the #1 takeaway — resolve before any non-localhost exposure.**
 
 ### 🔴 Blocker
@@ -196,7 +196,7 @@ the swarm; ask the reviewer to persist it if a machine-readable appendix is want
 
 The two biggest items are being handled in their own sessions:
 **(A) decommission ComfyUI entirely**, and **(B) design remote hosting for the GM**. The remaining
-outstanding fixes are tracked as a checkbox backlog in [ROADMAP.md](ROADMAP.md#code-review-2026-07--action-backlog).
+outstanding fixes are tracked as a checkbox backlog in [ROADMAP.md](../design/ROADMAP.md#code-review-2026-07--action-backlog).
 
 Priority order for the rest:
 

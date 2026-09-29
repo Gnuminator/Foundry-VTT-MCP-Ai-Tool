@@ -29,7 +29,7 @@ running inside it.
 - [ ] In Foundry → **Add-on Modules** → **Install Module**, paste the new manifest URL:
       `https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/module.json`
 - [ ] Confirm it installs/updates to **v0.16.0** and the source now reads `Foundry-VTT-MCP-Ai-Tool`.
-      (Full details in [MIGRATION.md](MIGRATION.md).)
+      (Full details in [MIGRATION.md](../history/MIGRATION.md).)
 
 ### 3. Restart Claude Desktop
 

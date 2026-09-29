@@ -3,7 +3,7 @@
 A live, AI-assisted **co-GM screen** that runs in a browser next to Foundry VTT. It watches the
 game as it happens — and now lets you **run the game from the dashboard**, too.
 
-![The Co-GM dashboard during a combat](images/cogm/overview.png)
+![The Co-GM dashboard during a combat](../images/cogm/overview.png)
 
 ---
 
@@ -28,7 +28,7 @@ game as it happens — and now lets you **run the game from the dashboard**, too
 
 ### Run the game from the dashboard
 
-![Multi-select combatants and act on them as a group](images/cogm/combat-control.png)
+![Multi-select combatants and act on them as a group](../images/cogm/combat-control.png)
 
 - **Click combatants to multi-select**, then act on them as a group.
 - **Roll initiative** for NPCs / everyone / just the ones missing it, **advance the turn**, or jump
@@ -37,7 +37,7 @@ game as it happens — and now lets you **run the game from the dashboard**, too
 
 ### Do (almost) anything the bridge can do
 
-![The Tool Runner exposes every Foundry bridge tool](images/cogm/tool-runner.png)
+![The Tool Runner exposes every Foundry bridge tool](../images/cogm/tool-runner.png)
 
 - A built-in **Tool Runner** exposes _every_ Foundry MCP tool behind a simple form: spawn NPCs and
   monsters from compendiums, set the scene's mood/lighting, create quest journals, drop loot, manage
@@ -46,7 +46,7 @@ game as it happens — and now lets you **run the game from the dashboard**, too
 
 ### Safe by default
 
-![Every game-changing action asks for confirmation](images/cogm/confirm.png)
+![Every game-changing action asks for confirmation](../images/cogm/confirm.png)
 
 - Watching the game is **always read-only**.
 - Game-changing actions stay off until you flip the **GM Actions** switch.

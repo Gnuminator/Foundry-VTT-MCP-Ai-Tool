@@ -1,5 +1,5 @@
 /**
- * "Open in Foundry" (Obsidian O4, docs/OBSIDIAN-O4-DESIGN.md sections 6, 6.4 and 8).
+ * "Open in Foundry" (Obsidian O4, docs/design/OBSIDIAN-O4-DESIGN.md sections 6, 6.4 and 8).
  * `GET /open` is a static shell for every caller and never calls the bridge;
  * `POST /api/open` acts only for the GM, with the token from the `X-CoGM-Token`
  * header, from the dashboard's own origin, with `X-CoGM-Request: open`, and calls

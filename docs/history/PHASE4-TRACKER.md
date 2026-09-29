@@ -2,7 +2,7 @@
 
 Staged reimplementation of the upstream-derived code, **behind stable external contracts** so the
 dashboard and the Foundry module keep working throughout. This file is the source of truth for what
-has been reimplemented "from the idea" (per `docs/ARCHITECTURE.md`) vs. what is still upstream-derived.
+has been reimplemented "from the idea" (per `docs/dev/ARCHITECTURE.md`) vs. what is still upstream-derived.
 A fresh session should read this first to resume cleanly.
 
 **Method per chunk:** capture current behavior in tests → reimplement from first principles, preserving

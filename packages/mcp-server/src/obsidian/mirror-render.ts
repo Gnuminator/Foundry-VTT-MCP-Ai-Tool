@@ -1,5 +1,5 @@
 /**
- * Notes, bases and the status note of the Foundry mirror (docs/OBSIDIAN-O4-DESIGN.md
+ * Notes, bases and the status note of the Foundry mirror (docs/design/OBSIDIAN-O4-DESIGN.md
  * section 3, Obsidian O4). Pure functions: an `ExportEntry` (from the module query
  * `getExportIndex`) plus a `MirrorRenderContext` (paths and links the pump resolved)
  * in, Markdown out. Output is deterministic (no clock), so an unchanged note is not

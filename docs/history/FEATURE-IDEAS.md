@@ -11,7 +11,7 @@ the Foundry module + an MCP tool wrapper.
 **Theme:** the bridge today can _observe_ and _request_, but cannot _resolve_ combat. The highest-value
 additions close that loop — letting the AI co-GM actually run a D&D 5e round.
 
-See also: [BUILT.md](BUILT.md), [ROADMAP.md](ROADMAP.md).
+See also: [BUILT.md](BUILT.md), [ROADMAP.md](../design/ROADMAP.md).
 
 Legend — Feasibility: HIGH/MED/LOW · Effort: S/M/L.
 
@@ -70,7 +70,7 @@ Legend — Feasibility: HIGH/MED/LOW · Effort: S/M/L.
   GM in the loop instead.
 - **True server-initiated push** ("alert me the instant a PC dies") — MCP is request/response; the
   server can't spontaneously invoke the model. Reframed as **#10** (a buffered delta the client polls).
-  See [ROADMAP.md](ROADMAP.md) for the live-update analysis.
+  See [ROADMAP.md](../design/ROADMAP.md) for the live-update analysis.
 - **Global fog-of-war reveal for players** — fog/sight is computed per-client from walls + token
   vision; the GM's context can't force-reveal another player's fog. Token vision/light (#12) is the
   correct lever.

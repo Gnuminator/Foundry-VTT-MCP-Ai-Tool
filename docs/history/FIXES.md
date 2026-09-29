@@ -4,7 +4,7 @@ This document lists the bugs and correctness issues fixed in this fork beyond th
 `adambdooley/foundry-vtt-mcp` baseline. Most were surfaced by a code review of the new v0.9.0
 code; each entry says **what** was wrong, **why** it mattered, and **how** it was fixed.
 
-See also: [BUILT.md](BUILT.md) (what was added), [FEATURE-IDEAS.md](FEATURE-IDEAS.md), [ROADMAP.md](ROADMAP.md).
+See also: [BUILT.md](BUILT.md) (what was added), [FEATURE-IDEAS.md](FEATURE-IDEAS.md), [ROADMAP.md](../design/ROADMAP.md).
 
 ---
 

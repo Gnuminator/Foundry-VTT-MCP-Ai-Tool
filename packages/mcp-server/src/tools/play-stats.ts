@@ -1,5 +1,5 @@
 /**
- * `get-play-stats` (docs/OBSIDIAN-PLAN.md section 8, O3): the same derived
+ * `get-play-stats` (docs/design/OBSIDIAN-PLAN.md section 8, O3): the same derived
  * numbers as the `AI Tool/Stats/` Obsidian notes (`stats/build.ts`), read
  * straight from the bridge vault's own session and play logs of the
  * connected world. GM-only and read-only: it never returns raw play records,

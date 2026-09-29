@@ -1,5 +1,5 @@
 /**
- * The stats builder (docs/OBSIDIAN-PLAN.md section 8, O3): damage/healing come
+ * The stats builder (docs/design/OBSIDIAN-PLAN.md section 8, O3): damage/healing come
  * only from HP deltas (never double-counted against the roll that caused
  * them), downs/kills, attribution when several rolls share a chat message,
  * combats, resources of every kind, and that session numbering always

@@ -15,7 +15,7 @@
 #  Or install as a system service:
 #    sudo cloudflared service install
 #
-#  See docs/REMOTE-ACCESS.md §3 for the full setup walkthrough.
+#  See docs/dev/REMOTE-ACCESS.md §3 for the full setup walkthrough.
 # ============================================================================
 
 # ── Tunnel identity ──────────────────────────────────────────────────────────

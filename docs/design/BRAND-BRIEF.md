@@ -189,7 +189,7 @@ motion direction.** Two real-vs-designed things to keep straight first:
 - **A real demo capture** (authentic — the actual app running): a 10–15s screen recording of Foundry +
   the dashboard during combat, recorded on your machine (OBS Studio / ShareX / Xbox Game Bar).
   **Deferred — not until after Phases 7–8.** When you have it, it _replaces_ the designed GIF in the
-  README; I'll write you a shot-list then (`docs/PHASE7-PLAN.md` §2-B).
+  README; I'll write you a shot-list then (`docs/history/PHASE7-PLAN.md` §2-B).
 
 ### How to use
 

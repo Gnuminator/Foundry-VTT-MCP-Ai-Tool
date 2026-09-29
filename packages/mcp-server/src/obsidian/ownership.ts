@@ -1,6 +1,6 @@
 /**
  * Ownership guard for notes the exporter writes into the GM's Obsidian vault
- * (docs/OBSIDIAN-PLAN.md, O2 item 1). Every generated `.md` and `.canvas` file
+ * (docs/design/OBSIDIAN-PLAN.md, O2 item 1). Every generated `.md` and `.canvas` file
  * carries a marker plus a content hash (a `.base` is compared by content, see
  * below). Before overwriting an existing file the exporter checks the hash
  * still matches the text on disk; a note the GM edited by hand fails the check

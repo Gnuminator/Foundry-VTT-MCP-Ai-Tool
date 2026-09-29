@@ -1,5 +1,5 @@
 /**
- * The Foundry mirror pump (docs/OBSIDIAN-O4-DESIGN.md section 2): cycles,
+ * The Foundry mirror pump (docs/design/OBSIDIAN-O4-DESIGN.md section 2): cycles,
  * reconcile, deletes, fences and status, against the in-memory fake of the
  * module query and temp vaults. The converter is mocked here (a page whose
  * HTML contains `BOOM` fails); the canary suite runs the real one.

@@ -147,7 +147,7 @@ secret)` callouts); creates the campaign `Home.md` (Bases tables) and `Prep/` on
     the split on, and the session note's stats: a card Apply credited exactly despite a newer roll,
     a tool damage fitting no roll stayed uncredited, and an HP-bar edit fitting a fresh roll was
     credited as a guess.
-- **O4 (done 2026-09-29):** built as `docs/OBSIDIAN-O4-DESIGN.md` describes (that file is the
+- **O4 (done 2026-09-29):** built as `docs/design/OBSIDIAN-O4-DESIGN.md` describes (that file is the
   reference; its section 11 questions took the bold defaults).
   - Contract `shared/src/export-index.ts`; module query `getExportIndex` (GM client only, feature
     `obsidian-mirror`); converter (`html-to-md.ts`, `links.ts`, `md-escape.ts`); renderer
@@ -531,8 +531,8 @@ is paid), and the Claude Code deny rule for `Campaigns/` in dev sessions (a perm
 ```text
 You are working on the Foundry AI Tool repo at
 C:\Users\chris\Documents\Claude Code\Projects\Foundry VTT AI Tool. This session builds the Obsidian
-integration planned in docs/OBSIDIAN-PLAN.md. Read first: CLAUDE.md, docs/OBSIDIAN-PLAN.md (all of
-it), docs/CURSE-OF-STRAHD-PLAN.md sections 0.3, 0.6, 2.1, feature 2 and 10. Use the foundry-test-env
+integration planned in docs/design/OBSIDIAN-PLAN.md. Read first: CLAUDE.md, docs/design/OBSIDIAN-PLAN.md (all of
+it), docs/design/CURSE-OF-STRAHD-PLAN.md sections 0.3, 0.6, 2.1, feature 2 and 10. Use the foundry-test-env
 and foundry-ai-tool skills for live checks.
 
 Rules:

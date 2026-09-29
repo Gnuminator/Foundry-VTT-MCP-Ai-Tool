@@ -4,7 +4,7 @@
 > what has been built or templated, every "plug your infra in here" seam, and the setup
 > checklist to run when the hosting infrastructure (Cloudflare account + VPS/Pi + hosted
 > Foundry) is actually in hand. For the step-by-step cloudflared walkthrough, see
-> `docs/REMOTE-ACCESS.md` (the companion tutorial, templated this session).
+> `docs/dev/REMOTE-ACCESS.md` (the companion tutorial, templated this session).
 
 ---
 
@@ -78,7 +78,7 @@ before — it can coexist with the standalone process, but should not bind the s
 the same time (both would race for the singleton lock; see the lock note in §4).
 
 For the internals of each component — query dispatch, control-channel protocol, Foundry
-link transports, GM-gating, the job queue, the co-GM AI layer — see `docs/ARCHITECTURE.md`.
+link transports, GM-gating, the job queue, the co-GM AI layer — see `docs/dev/ARCHITECTURE.md`.
 This document focuses on the _topology seams_, not the per-component internals.
 
 ### "Where the bridge lives" evolution
@@ -95,11 +95,11 @@ This document focuses on the _topology seams_, not the per-component internals.
 
 | Piece                                                                                                                                                                                                                                                  | Status                                                | Where                                                                                                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Dep-security prereq** — werift 0.17→0.23, ws, axios, MCP-SDK bumps                                                                                                                                                                                   | **BUILT** (v0.16.1 queued, pending live werift smoke) | `docs/DEPENDENCY-PATCH-SMOKE-TEST.md` — user-driven checklist                                                                                                      |
+| **Dep-security prereq** — werift 0.17→0.23, ws, axios, MCP-SDK bumps                                                                                                                                                                                   | **BUILT** (v0.16.1 queued, pending live werift smoke) | `docs/history/DEPENDENCY-PATCH-SMOKE-TEST.md` — user-driven checklist                                                                                              |
 | **2-A — Standalone bridge** — `standalone.ts` entrypoint, `standalone-config.ts`, `control-ping.ts`; env seams in `backend.ts`; npm scripts; Windows scaffold; CI smoke                                                                                | **BUILT**                                             | `packages/mcp-server/src/standalone.ts`, `standalone-config.ts`, `control-ping.ts`; `backend.ts` ll. 61–77; `deploy/windows/`; `scripts/standalone-smoke-test.mjs` |
 | **2-B — Player/GM server-side split** — `auth.ts` role resolution, `redact.ts` filtering, `sse.ts` role-aware broadcast, `server.ts` `requireGm` middleware + role-filtered routes, `config.ts` auth/playerView config; unit tests + integration smoke | **BUILT**                                             | `packages/cogm-dashboard/src/{auth,redact,sse,server,config}.ts`; `src/{auth,redact}.test.ts`; `public/player.{html,js}`; `scripts/cogm-split-smoke-test.mjs`      |
-| **2-C — Remote-access templates** — Cloudflare Tunnel config, Dockerfile, compose, deploy/VPS notes                                                                                                                                                    | **TEMPLATED**                                         | `docs/REMOTE-ACCESS.md`; `deploy/` (see that doc for detail)                                                                                                       |
-| **2-D — This design/roadmap document**                                                                                                                                                                                                                 | **BUILT**                                             | `docs/PHASE6-DESIGN.md` (this file)                                                                                                                                |
+| **2-C — Remote-access templates** — Cloudflare Tunnel config, Dockerfile, compose, deploy/VPS notes                                                                                                                                                    | **TEMPLATED**                                         | `docs/dev/REMOTE-ACCESS.md`; `deploy/` (see that doc for detail)                                                                                                   |
+| **2-D — This design/roadmap document**                                                                                                                                                                                                                 | **BUILT**                                             | `docs/history/PHASE6-DESIGN.md` (this file)                                                                                                                        |
 
 > **"Templated"** means the scaffold and documentation exist but the actual infrastructure
 > (Cloudflare account wired, VPS provisioned, hosted Foundry reachable) has not been
@@ -207,7 +207,7 @@ can filter them. Deferred; not blocking.
 ### Mobile / tablet — deferred per priority rule
 
 The player view (`/player`) inherits whatever responsive CSS the dashboard ships with, but no
-investment has been made in mobile/tablet layout. Per the priority rule in `docs/DETACH-PLAN.md`:
+investment has been made in mobile/tablet layout. Per the priority rule in `docs/history/DETACH-PLAN.md`:
 **mobile/tablet comes only after desktop v1 is done.** Don't build it in parallel.
 
 ---
@@ -216,11 +216,11 @@ investment has been made in mobile/tablet layout. Per the priority rule in `docs
 
 An ordered, checkbox list to execute when the hosting infrastructure is actually available.
 This is the "everything is ready, make it real" path. For detailed cloudflared steps, see
-`docs/REMOTE-ACCESS.md`.
+`docs/dev/REMOTE-ACCESS.md`.
 
 ### Pre-flight
 
-- [ ] **Run the dep-patch live smoke test** (`docs/DEPENDENCY-PATCH-SMOKE-TEST.md`) if you
+- [ ] **Run the dep-patch live smoke test** (`docs/history/DEPENDENCY-PATCH-SMOKE-TEST.md`) if you
       haven't yet. The werift 0.23 bump is the one shipping-runtime change still pending a
       WebRTC live confirm. Clear this before putting the bridge on the internet.
 - [ ] Confirm you have a Cloudflare account with a domain managed there, a VPS or Pi you can
@@ -246,7 +246,7 @@ This is the "everything is ready, make it real" path. For detailed cloudflared s
 - [ ] Start the bridge: `npm run bridge:standalone` (runs `node packages/mcp-server/dist/standalone.js`).
       Confirm: `✓ control channel ready on 127.0.0.1:31414` in the log.
 - [ ] **For unattended operation:** install as a Windows service (see `deploy/windows/install-service.md`)
-      or as a systemd unit on Linux (see `docs/REMOTE-ACCESS.md`).
+      or as a systemd unit on Linux (see `docs/dev/REMOTE-ACCESS.md`).
 
 ### 3. Configure and start the dashboard
 
@@ -264,7 +264,7 @@ This is the "everything is ready, make it real" path. For detailed cloudflared s
 
 ### 4. Install cloudflared and create the tunnel
 
-- [ ] Follow `docs/REMOTE-ACCESS.md` §1–3 for the full cloudflared bringup. Summary:
+- [ ] Follow `docs/dev/REMOTE-ACCESS.md` §1–3 for the full cloudflared bringup. Summary:
   - `cloudflared tunnel login` (authorize your Cloudflare account).
   - `cloudflared tunnel create cogm` → note the tunnel UUID.
   - Edit `~/.cloudflared/config.yml` to route `cogm.yourdomain → http://localhost:3000`.

@@ -19,7 +19,7 @@ import type {
 } from '@gnuminator/shared';
 
 /**
- * PlayRecorder — the full play-log recorder (docs/OBSIDIAN-PLAN.md section 8,
+ * PlayRecorder — the full play-log recorder (docs/design/OBSIDIAN-PLAN.md section 8,
  * O3). A singleton, mirroring `eventTracker` in `session-events.ts`, which it
  * runs alongside (and does not replace): the event tracker's chat-log /
  * session-event buffers are unchanged.

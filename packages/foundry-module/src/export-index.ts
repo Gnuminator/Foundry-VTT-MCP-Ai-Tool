@@ -1,5 +1,5 @@
 /**
- * Foundry export index (docs/OBSIDIAN-O4-DESIGN.md sections 1 and 4, Obsidian
+ * Foundry export index (docs/design/OBSIDIAN-O4-DESIGN.md sections 1 and 4, Obsidian
  * O4, chunk C2): the module query `getExportIndex`. It lists the world's PCs,
  * NPCs, scenes, journals (with their pages) and story items for the Obsidian
  * mirror, computed on a GM client where the full, unfiltered world lives.

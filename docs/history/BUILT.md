@@ -7,7 +7,7 @@ standalone **co-GM dashboard** (a separate app, not a tool — see below). The f
 reading what's happening at the table, posting back into it, tracking session state, resolving a
 D&D 5e round, and surfacing module health.
 
-See also: [FIXES.md](FIXES.md), [FEATURE-IDEAS.md](FEATURE-IDEAS.md), [ROADMAP.md](ROADMAP.md).
+See also: [FIXES.md](FIXES.md), [FEATURE-IDEAS.md](FEATURE-IDEAS.md), [ROADMAP.md](../design/ROADMAP.md).
 
 ## v0.12.0–v0.13.0 — diagnostics & the co-GM dashboard
 
@@ -43,7 +43,7 @@ Built from the verified dnd5e v3/v4/v5 + Foundry v13 API (version-aware througho
 - **drop-loot** — currency + compendium items to a character and/or chat.
 - **get-recent-events** — incremental "since timestamp" session delta for live awareness.
 
-Full parameter/return reference: see the [README](../README.md) ("Combat Resolution & Scene Control").
+Full parameter/return reference: see the [README](../../README.md) ("Combat Resolution & Scene Control").
 
 ---
 
@@ -76,7 +76,7 @@ New message types were **added** to this generic dispatch, not substituted.
   - registered via Foundry hooks in the module init hook.
   - `buildPlayByPlay()` is a **pure** function (no Foundry globals) so it's unit-tested.
 - **`chatLogBufferSize`** world setting (default 200) controls the chat buffer size.
-- **Test bench** (`test-bench/`) — see [test-bench/README.md](../test-bench/README.md).
+- **Test bench** (`test-bench/`) — see [test-bench/README.md](../../test-bench/README.md).
 - **Unit tests** — `session-events.test.ts` (12 tests, synthetic-Foundry harness).
 
 ---
@@ -137,5 +137,5 @@ New message types were **added** to this generic dispatch, not substituted.
 - `npm run bundle:server` — self-contained `dist/index.bundle.cjs` + `backend.bundle.cjs` (what
   Claude Desktop launches).
 - Foundry module manifest: `packages/foundry-module/module.json` (v0.9.0).
-- Full per-tool parameter/return reference lives in the project [README](../README.md)
+- Full per-tool parameter/return reference lives in the project [README](../../README.md)
   ("Combat, Chat & Session Tools").

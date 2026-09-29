@@ -1,4 +1,4 @@
-// "Open in Foundry" confirm page (Obsidian O4, docs/OBSIDIAN-O4-DESIGN.md section 6).
+// "Open in Foundry" confirm page (Obsidian O4, docs/design/OBSIDIAN-O4-DESIGN.md section 6).
 // A link in a mirror note lands here: GET /open?uuid=... serves this static page to
 // everyone, and nothing happens until the GM clicks Open (the button has focus, so Enter
 // works). The click POSTs to /api/open with the GM token of this browser's dashboard

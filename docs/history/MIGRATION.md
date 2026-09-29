@@ -66,11 +66,11 @@ After reinstalling both sides and restarting Claude Desktop:
   `31414` + `31415`).
 - Open the co-GM dashboard and confirm the live feed appears and a read-only tool returns data.
 
-(That live check is also the release smoke test — see `docs/SMOKE-TEST.md`.)
+(That live check is also the release smoke test — see `docs/dev/SMOKE-TEST.md`.)
 
 ## Notes
 
 - The old repo (`Gnuminator/Foundry-VTT-MCP`) is **retired**; its v0.15.0 release stays up for anyone who
   hasn't migrated, but it will not receive new releases.
-- Upstream attribution is preserved in [CREDITS.md](../CREDITS.md). Upstream
+- Upstream attribution is preserved in [CREDITS.md](../../CREDITS.md). Upstream
   (`adambdooley/foundry-vtt-mcp`) is unaffected and is not part of this migration.

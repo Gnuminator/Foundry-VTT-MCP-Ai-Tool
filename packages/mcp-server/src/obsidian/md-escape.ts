@@ -1,5 +1,5 @@
 /**
- * Escaping for Foundry text written into Obsidian notes (docs/OBSIDIAN-O4-DESIGN.md
+ * Escaping for Foundry text written into Obsidian notes (docs/design/OBSIDIAN-O4-DESIGN.md
  * section 5, "Text nodes are escaped"). Data from Foundry must stay inert text:
  * it may never open raw HTML, a wikilink, an embed, a Markdown link, a footnote,
  * a code span or fence, a comment, a tag, a block id, math, or a Templater

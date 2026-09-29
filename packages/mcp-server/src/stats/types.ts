@@ -1,5 +1,5 @@
 /**
- * Play statistics (docs/OBSIDIAN-PLAN.md section 8, O3): derived from the raw
+ * Play statistics (docs/design/OBSIDIAN-PLAN.md section 8, O3): derived from the raw
  * play log (`sessions/<date>.play.jsonl`) and the session log
  * (`sessions/<date>.jsonl`, for session markers and guarded changes) by a pure,
  * deterministic builder. Nothing here is stored as truth: it can be rebuilt

@@ -1,5 +1,5 @@
 /**
- * Obsidian notes rendered from the bridge vault (docs/OBSIDIAN-PLAN.md, O1+O2).
+ * Obsidian notes rendered from the bridge vault (docs/design/OBSIDIAN-PLAN.md, O1+O2).
  *
  * Pure functions: vault data in, Markdown/JSON-Canvas/Base text out. The
  * bridge vault stays the source of truth; these notes are a read-only,
@@ -15,7 +15,7 @@
  * (Obsidian re-saves a base when it is opened).
  *
  * Conventions: flat YAML properties (text, number, checkbox, list), Markdown
- * links (docs/OBSIDIAN-PLAN.md 12.2: Markdown links vault-wide), a banner on
+ * links (docs/design/OBSIDIAN-PLAN.md 12.2: Markdown links vault-wide), a banner on
  * every note saying it is generated, and secrets (card names, diffs that may
  * contain them) inside collapsed callouts so they do not show at a glance.
  */
@@ -78,7 +78,7 @@ export function frontmatter(props: Record<string, PropValue | undefined>): strin
  * `type`, `fvtt_world`, the type's own properties, `fvtt_modified`,
  * `player_visible`, `schema`, `tags`, then the ownership marker (its hash is
  * a placeholder here; `withGeneratedHash` fills it in). `playerVisible` is
- * advisory for the GM only (docs/OBSIDIAN-O4-DESIGN.md section 4); every O2
+ * advisory for the GM only (docs/design/OBSIDIAN-O4-DESIGN.md section 4); every O2
  * note leaves it at the default `false`, so their text stays byte-identical. */
 export function generatedProps(
   type: string,
@@ -194,7 +194,7 @@ export function renderSessionNote(
       actors,
       changes: uniqueChangeIds.length,
       scenes,
-      // O3 (docs/OBSIDIAN-PLAN.md section 8): play-log derived stats, built by
+      // O3 (docs/design/OBSIDIAN-PLAN.md section 8): play-log derived stats, built by
       // stats/build.ts over the same session (contract 5).
       play_records: stats.playRecords,
       combats: stats.combats.length,
@@ -711,7 +711,7 @@ export function renderPcStatsBase(worldId: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Stats (AI Tool/Stats/*, docs/OBSIDIAN-PLAN.md section 8, O3)
+// Stats (AI Tool/Stats/*, docs/design/OBSIDIAN-PLAN.md section 8, O3)
 // ---------------------------------------------------------------------------
 
 /** A Tally as a two-column Markdown table, or `(none)` when empty. */

@@ -1,5 +1,5 @@
 /**
- * Stats builder (docs/OBSIDIAN-PLAN.md section 8, O3): turns the raw play log
+ * Stats builder (docs/design/OBSIDIAN-PLAN.md section 8, O3): turns the raw play log
  * and the session log into a {@link StatsModel} (`stats/types.ts`) - campaign
  * totals, per-session, per-PC and dice statistics, rendered as `Stats/` notes
  * (`obsidian/render.ts`) and returned by the `get-play-stats` tool.

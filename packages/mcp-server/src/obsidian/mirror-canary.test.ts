@@ -1,5 +1,5 @@
 /**
- * Canary suite for the Obsidian mirror (docs/OBSIDIAN-O4-DESIGN.md sections 7
+ * Canary suite for the Obsidian mirror (docs/design/OBSIDIAN-O4-DESIGN.md sections 7
  * and 8): the bridge vault is seeded with unique strings in every GM-only file
  * (the Tarokka reading and its card name overrides, which are also the secret
  * terms, the audit file and its history, a reveal's own fields) and the fake

@@ -5,7 +5,7 @@ specs say against the **mock harness**. They do **not** prove the tool works in 
 **live Foundry game** — transport, third-party-module interaction, dnd5e data
 shapes, UI, and AI behavior only get exercised live. This plan covers that gap.
 
-It complements `docs/LIVE-VERIFICATION-2026-06-16.md` (the first pass: 27/32
+It complements `docs/history/LIVE-VERIFICATION-2026-06-16.md` (the first pass: 27/32
 reads + a 3-write sample, all green). Treat this as the standing checklist to run
 each time the bridge/module/dashboard changes.
 
@@ -36,7 +36,7 @@ heartbeat + request-timeout recovery. Verify it actually recovers.
 - [ ] Dashboard reconnects after the backend restarts (kill + relaunch backend; dashboard returns to "connected" without a manual refresh).
 - [ ] Half-open recovery: control channel goes quiet → heartbeat forces reconnect (watch `[cogm:control]` logs).
 - [ ] Request timeout tears down + reconnects (don't loop 15s timeouts).
-- [ ] WebRTC path (Molten/HTTPS): the in-browser module link survives a page reload and a brief network blip; werift smoke (`docs/DEPENDENCY-PATCH-SMOKE-TEST.md`).
+- [ ] WebRTC path (Molten/HTTPS): the in-browser module link survives a page reload and a brief network blip; werift smoke (`docs/history/DEPENDENCY-PATCH-SMOKE-TEST.md`).
 - [ ] Foundry "reachable" transition refetches world info exactly once (no per-poll storm on the contended backend).
 
 ## 2. Tool feature tests (per domain)

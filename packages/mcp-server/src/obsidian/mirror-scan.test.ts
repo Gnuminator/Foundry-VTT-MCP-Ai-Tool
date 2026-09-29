@@ -1,5 +1,5 @@
 /**
- * The vault scan of the Foundry mirror (docs/OBSIDIAN-O4-DESIGN.md 2.1): what
+ * The vault scan of the Foundry mirror (docs/design/OBSIDIAN-O4-DESIGN.md 2.1): what
  * it recognizes, which note wins a uuid, what it never follows, and its caps.
  * Everything runs in temp folders.
  */

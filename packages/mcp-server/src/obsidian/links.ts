@@ -1,6 +1,6 @@
 /**
  * Foundry link syntax in page text, rewritten for Obsidian
- * (docs/OBSIDIAN-O4-DESIGN.md section 5). Patterns follow Foundry 14.368 and
+ * (docs/design/OBSIDIAN-O4-DESIGN.md section 5). Patterns follow Foundry 14.368 and
  * dnd5e 6.0.5:
  * - content links `@(Actor|Cards|Item|Scene|JournalEntry|Macro|RollTable|PlaylistSound|Compendium|UUID)[target#hash]{label}`
  *   (`client/applications/ux/text-editor.mjs:203-204`, types `common/constants.mjs:515-516`);

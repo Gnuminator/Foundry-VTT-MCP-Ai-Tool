@@ -11,14 +11,14 @@
 
 Better than the original plan assumed — there's real material already:
 
-| Asset                        | State                                                                                                                                                       |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Root `README.md` (147 lines) | Rebranded to "Foundry AI Tool"; has a one-liner, feature list, an MCP-tools table, install steps, attribution, and **5 embedded screenshots**. Solid bones. |
-| `docs/COGM-DASHBOARD.md`     | A good narrative showcase of the dashboard with the same screenshots.                                                                                       |
-| `docs/images/cogm/*.png`     | `overview`, `combat-control`, `tool-runner`, `confirm`, `mobile` — real screenshots.                                                                        |
-| Branding                     | None beyond text — no logo, wordmark, banner, color palette, or badges.                                                                                     |
-| Demo motion                  | None — static screenshots only; no GIF/video.                                                                                                               |
-| Standalone site              | None.                                                                                                                                                       |
+| Asset                              | State                                                                                                                                                       |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Root `README.md` (147 lines)       | Rebranded to "Foundry AI Tool"; has a one-liner, feature list, an MCP-tools table, install steps, attribution, and **5 embedded screenshots**. Solid bones. |
+| `docs/reference/COGM-DASHBOARD.md` | A good narrative showcase of the dashboard with the same screenshots.                                                                                       |
+| `docs/images/cogm/*.png`           | `overview`, `combat-control`, `tool-runner`, `confirm`, `mobile` — real screenshots.                                                                        |
+| Branding                           | None beyond text — no logo, wordmark, banner, color palette, or badges.                                                                                     |
+| Demo motion                        | None — static screenshots only; no GIF/video.                                                                                                               |
+| Standalone site                    | None.                                                                                                                                                       |
 
 **Gap to "presents well":** branding/visual identity, a hero banner, status/license/version badges, a
 short **demo GIF/video**, a tighter visual hierarchy, coverage of the **new Phase 6 capabilities**
@@ -45,7 +45,7 @@ short **demo GIF/video**, a tighter visual hierarchy, coverage of the **new Phas
 4. **Demo motion.** Two-stage:
    - **Interim (buildable now):** a **designed feature sizzle** from the Animation tile (built from the
      existing screenshots, no live app), exported as a **looping GIF → `docs/images/brand/demo.gif`** in
-     the README's DEMO SLOT. GitHub autoplays/loops GIFs inline. See `docs/BRAND-BRIEF.md` §6 (Motion B).
+     the README's DEMO SLOT. GitHub autoplays/loops GIFs inline. See `docs/design/BRAND-BRIEF.md` §6 (Motion B).
    - **Real screen-capture (deferred — after Phases 7–8):** a 10–15s recording of the live app
      (Foundry + bridge + dashboard) from a shot-list I'll write; it _replaces_ the designed GIF when
      ready. Recording is user-driven (OBS / ShareX).
@@ -109,7 +109,7 @@ deferred) → (3) _optional_ dashboard design-system in Claude Design → I resk
 ### Decisions taken (2026‑06‑15)
 
 - **Scope now:** redesign the landing README (done). Showcase site deferred.
-- **Branding:** user drives it via Claude's design tool — see `docs/BRAND-BRIEF.md` (a ready-to-paste
+- **Branding:** user drives it via Claude's design tool — see `docs/design/BRAND-BRIEF.md` (a ready-to-paste
   prompt). README has marked slots for the banner/logo; badges + screenshots carry it until then.
 - **Demo motion:** static screenshots for now; a 10–15s GIF is a later pass (shot-list TBD).
 
@@ -129,7 +129,7 @@ deferred) → (3) _optional_ dashboard design-system in Claude Design → I resk
 
 - [x] **Badges:** license, latest release, CI status, Foundry version, system — in the README hero
 - [x] **README redesign merged** — hero, badges, three-parts, feature grid, Phase 6 section, docs index
-- [x] **Brand brief written** (`docs/BRAND-BRIEF.md`) — concept + pass-by-pass + export notes
+- [x] **Brand brief written** (`docs/design/BRAND-BRIEF.md`) — concept + pass-by-pass + export notes
 - [x] **Brand assets generated** (Arcane Node) — banner@2x hero, logo/wordmark SVGs, favicons (on the dashboard tabs); committed under `docs/images/brand/`
 - [x] **Demo GIF** — feature sizzle rendered headlessly (DC source → Chrome screencast → ffmpeg), 30fps/820px, in the README DEMO slot; **logo-reveal** 30fps loop as a closing flourish
 - [x] **Dashboard screenshots regenerated** (post feed-clip fix) — overview/combat-control/tool-runner/confirm; stacked `mobile.png` dropped
@@ -151,5 +151,5 @@ deferred) → (3) _optional_ dashboard design-system in Claude Design → I resk
 >   eventually be authentic captures of the finished product). Same filenames → they swap in place.
 > - **Re-evaluate the brand/animation** end-to-end once the product is final (dashboard reskin, any UI
 >   changes), and tighten the GIF trim/loop. The GIF pipeline (headless DC capture → ffmpeg) is documented
->   in `docs/BRAND-BRIEF.md` §6 and reproducible.
+>   in `docs/design/BRAND-BRIEF.md` §6 and reproducible.
 > - Decide the **showcase site** + GitHub Pages then, with final visuals.

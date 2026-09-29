@@ -360,7 +360,7 @@ describe('PlayLogPump timer', () => {
 });
 
 describe('PlayLogPump into buildStats (no double counting)', () => {
-  // docs/OBSIDIAN-PLAN.md O3 test list, item 4: damage/healing must be counted
+  // docs/design/OBSIDIAN-PLAN.md O3 test list, item 4: damage/healing must be counted
   // once even when the same underlying change reaches the pump twice (two GM
   // clients, or a client reload replaying its buffer). The pump's key dedupe
   // (already covered above: "a second client sending the same keys writes

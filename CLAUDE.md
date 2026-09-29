@@ -2,60 +2,89 @@
 
 ## Project overview
 
-**Foundry AI Tool** — an MCP server + Foundry VTT module that gives AI models (Claude, local LLMs)
-full access to Foundry VTT, plus a co-GM dashboard for live session control.
+**Foundry AI Tool**: an MCP server plus a Foundry VTT module that give AI models (Claude through
+Claude Desktop, local LLMs) full access to Foundry VTT, a co-GM dashboard for live session control, an
+Obsidian export of the world and the play log, and (planned) our own Discord bot. Windows and D&D 5e
+(dnd5e) only. Supported: **Foundry 14 with dnd5e 6**.
 
 **Canonical repo:** https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool
-**Old fork (retired):** https://github.com/Gnuminator/Foundry-VTT-MCP (holds v0.15.0 release)
+**Old fork (retired, archive pending):** https://github.com/Gnuminator/Foundry-VTT-MCP (holds v0.15.0)
 **Upstream (do not push/merge):** https://github.com/adambdooley/foundry-vtt-mcp
+
+The running history (detach, phases, milestones M0 to M3, Obsidian O1 to O4) is in
+`docs/history/PROGRESS.md`. Decisions since 2026-09-28 are notes in the Obsidian vault
+(`Dev/Foundry AI Tool/Decisions/`, D-064 onward for 2026-09-29).
+
+## Roles and how the parts fit (decided 2026-09-29)
+
+- **The user (Gnuminator) builds the tool and decides scope. The user is not the GM.** The Curse of
+  Strahd GM is a friend who learns Foundry and the tool from scratch; docs, videos and in-product help
+  are written for him. Older text (`docs/history/`, vault Dev notes before 2026-09-29) says "the GM"
+  where it means the user. Do not raise spoiler concerns about the user seeing campaign content.
+- **Foundry** is where the game happens. **The dashboard** is the GM's control panel (a browser window
+  on a second screen): every AI change is approved there (plan, confirm with a diff, undo).
+  **Obsidian** is for reading (a GM vault and a player vault, generated one way from Foundry) and may
+  push prep changes, only as pending changes approved in the dashboard: never live play (HP,
+  conditions, initiative, rolls, tokens), never deletes, never the only way to do something, never by
+  players (D-067). **The Discord bot** is for notices and lookups.
+- **Trust model (D-065):** the table is five trusted friends. Do not build hardening against players
+  (console digging, reading world settings, crafted requests). Keep: no spoilers on the normal
+  screens, plan/confirm/undo for AI writes, no book or campaign text in the public repo, nothing
+  reachable from the internet without a login. New game state may live in Foundry (GM-only journals,
+  flags) instead of only in the bridge vault.
+- **Subscription-first AI (D-066):** AI features work by someone asking Claude (Claude Desktop through
+  the bridge, or a Claude Code skill). Nothing calls the paid Anthropic API unless it is turned on;
+  speech to text runs locally.
+- **Push back openly:** when there is a better way (tools, modules, setup, ease of use), say so with a
+  bold recommended option; the user decides.
 
 ## Remotes
 
-| Remote   | URL                                                          | Purpose                    |
-| -------- | ------------------------------------------------------------ | -------------------------- |
-| `aitool` | https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git   | canonical — push here      |
-| `fork`   | https://github.com/Gnuminator/Foundry-VTT-MCP.git           | old fork — retire/archive  |
+| Remote   | URL                                                         | Purpose                     |
+| -------- | ----------------------------------------------------------- | --------------------------- |
+| `aitool` | https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git   | canonical: push here        |
+| `fork`   | https://github.com/Gnuminator/Foundry-VTT-MCP.git           | old fork: retired           |
 
 **Never add an `origin` pointing at adambdooley/foundry-vtt-mcp.**
 
 ## Architecture
 
-npm workspaces: `packages/{cogm-dashboard,mcp-server,foundry-module}` + `shared`
+npm workspaces: `packages/{cogm-dashboard,mcp-server,foundry-module}` + `shared`. Details:
+`docs/dev/ARCHITECTURE.md`.
 
-| Package            | LOC    | Status              |
-| ------------------ | ------ | ------------------- |
-| `cogm-dashboard`   | ~2,400 | original work       |
-| `mcp-server`       | ~22,000| upstream-derived    |
-| `foundry-module`   | ~18,000| upstream-derived    |
-| `shared`           | ~740   | mostly upstream     |
+| Package          | What it is                                                                        |
+| ---------------- | --------------------------------------------------------------------------------- |
+| `foundry-module` | runs in a GM's Foundry client: bridge handlers, play recorder, version adapter    |
+| `mcp-server`     | the bridge backend: MCP tools, guarded writes, bridge vault, Obsidian renderer    |
+| `cogm-dashboard` | the GM's web dashboard and the players' `/player` page                            |
+| `shared`         | wire contracts shared by the three                                                |
 
-## Wire identifiers — DO NOT RENAME without a migration plan
+## Wire identifiers: do not rename without a migration plan
 
-These are live contracts between the Foundry module, the MCP server, and the dashboard:
+These are live contracts between the Foundry module, the MCP server and the dashboard:
 
 - Module id: `foundry-mcp-bridge`
 - Socket channel: matches module id
 - Settings namespace: `foundry-mcp-bridge`
 - Query method prefix: `foundry-mcp-bridge.*`
 
-Renaming any of these breaks existing installs. Plan a migration note first.
-
 ## Critical rules
 
-- **NEVER call `mcp__foundry-mcp__*` tools** — Claude Desktop owns the live bridge on
-  `127.0.0.1:31414`; spawning a competing backend breaks the connection. The cogm-dashboard
-  is a pure client.
-- **NEVER push to `adambdooley/foundry-vtt-mcp`** (upstream). It's not a remote anymore.
-- Keep it green after each change: `npm run typecheck && npm run lint:ratchet && npm run build`, plus
-  `CI=true npm test`. The lint ratchet (`scripts/lint-ratchet.mjs`, baseline
-  `scripts/lint-baseline.json`, 7,656 warnings) fails on any ESLint error or any rule whose warning
-  count rises; lower the baseline with `npm run lint:ratchet -- --update` when counts drop.
+- **NEVER call `mcp__foundry-mcp__*` tools.** Claude Desktop owns the live bridge on
+  `127.0.0.1:31414`; spawning a competing backend breaks the connection. Smoke tests and manual runs
+  use alternate ports (control 31514, dashboard 3100) and `--control-only`; never bind 31414 to 31416.
+- **NEVER push to `adambdooley/foundry-vtt-mcp`** (upstream).
+- **Outward actions need the user's explicit OK each time:** push (remote `aitool`), tag, release,
+  merge into `main`, deleting code or files the user may still want.
+- **Keep it green** after each change: `npm run typecheck && npm run lint:ratchet && npm run build`,
+  plus `CI=true npm test`. The lint ratchet (`scripts/lint-ratchet.mjs`, baseline
+  `scripts/lint-baseline.json`) fails on any ESLint error or any rule whose warning count rises; lower
+  the baseline with `npm run lint:ratchet -- --update` when counts drop.
 - **Local test environment:** `.claude/skills/foundry-test-env/SKILL.md` + `scripts/test-env/*.ps1`
   (Foundry 14 at `C:\FoundryTest` on localhost:30001, world `ai-tool-test`, passwordless "Claude" GM
-  user; test bridge 31514/31515/31516; dashboard 3100; own vault). Use it to verify features in
-  Foundry before calling them done. Never type passwords; the admin password stays with the GM.
-- Smoke tests and manual runs use alternate ports (e.g. control 31514, dashboard 3100) and
-  `--control-only` for the standalone backend; never bind 31414/31415/31416.
+  user; test bridge 31514/31515/31516; dashboard 3100; own vault). Verify features there before calling
+  them done. Never type passwords or licence keys; the admin password stays with the user.
+- **Writing for the user:** English unless the user writes Danish; never use em dashes.
 
 ## Tech stack
 
@@ -63,167 +92,78 @@ Renaming any of these breaks existing installs. Plan a migration note first.
 - Prettier: single quotes, `printWidth: 100`
 - Node 18+, npm workspaces. CI and release builds run Node 22; the shipped runtime floor is Node 18
   (`engines`); the NSIS installer bundles portable Node 20.12.2 and `deploy/Dockerfile` uses
-  `node:20-slim`. Bump them together.
+  `node:20-slim`. Bump them together. CI also runs Node 24, which the Orange Pi uses (Foundry 14
+  requires Node 24). Locally use the portable Node 22 (see memory).
 
-## Detach plan
+## Docs layout (2026-09-29)
 
-Staged plan in `docs/DETACH-PLAN.md`. Progress:
+- `docs/gm/`, `docs/player/`: guides for the GM and the players (being written).
+- `docs/dev/`: architecture, dev setup, testing, deployment, remote access.
+- `docs/reference/`: tool inventory, dashboard reference.
+- `docs/design/`: current plans (`CURSE-OF-STRAHD-PLAN.md`, `OBSIDIAN-PLAN.md`,
+  `OBSIDIAN-O4-DESIGN.md`, `ROADMAP.md`, `BRAND-BRIEF.md`).
+- `docs/history/`: finished plans, session logs, reviews, `PROGRESS.md`. Never rewritten.
 
-- [x] Phase 0 — Identity decisions locked
-- [x] Phase 1 — Clean history built (baseline @dba53ec + 30 dev commits); pushed to new repo
-- [x] Phase 2 — Surface rebrand (module.json, package names, LICENSE/CREDITS, README)
-- [x] Phase 2.5 — Trim: Mac support removed; non-D&D adapters (dsa5, pf2e, wfrp4e, cosmere-rpg) removed; now Windows + D&D 5e only
-- [x] Phase 3 — `docs/ARCHITECTURE.md` from first principles (Opus 4.8)
-- [x] Phase 4 — Staged reimplementation (substantively complete — see `docs/PHASE4-TRACKER.md`). Chunk 1 (`shared`) + chunk 2 (wire-protocol contract + control-channel) reimplemented behind the `shared` contract; chunk 3 (data-access shrink+clean, 10,991→9,500); chunks 4–5 owned-via-tests (all 23 tool files + dnd5e adapter/filters covered; dead code removed). 1078 tests total. Deep from-scratch rewrites (data-access + 4 large tool files) deferred to Phase 9 with parity nets in place.
-- [x] Phase 5 — Cutover. **v0.16.0 released on `aitool`** (2026-06-15) — first release under the new identity. CHANGELOG rewritten, `docs/MIGRATION.md` + `docs/SMOKE-TEST.md` added, release workflow fixed (canonical `build-complete-release.yml` now tag-triggered + `contents:write`; module zip `foundry-mcp-bridge.zip` matches the manifest download URL). GitHub Release + all 4 assets published and verified; `releases/latest/download/{module.json,foundry-mcp-bridge.zip}` resolve. **Live smoke test PASSED** (2026-06-15): user installed the build + reinstalled the module from the new manifest + restarted Claude Desktop; Foundry shows the bridge **Connected**; the co-GM dashboard (`npm run dev:cogm` → http://localhost:3000) connected to the live bridge on 31414 and read real world data ("Rime of the Frostmaiden", dnd5e).
-- [~] Phase 6 — Standalone bridge + remote access + player/GM split. **Dep-security prereq DONE** (2026-06-15): removed dead `socket.io-client`; non-breaking `audit fix` (ws/axios/MCP-SDK/express); breaking **werift 0.17.7→0.23.0** (clears the `uuid` advisory; WebRTC path only, user-driven live smoke in `docs/DEPENDENCY-PATCH-SMOKE-TEST.md`); setup-node bumped. Audit prod-only **15→3** (residual = the no-fix `ip` advisory in werift-ice). **Framework BUILT + green:** (A) standalone bridge entry (`packages/mcp-server/src/standalone.ts`; `MCP_CONTROL_HOST/PORT` + `MCP_FOUNDRY_LINK=off` control-only; `npm run bridge:standalone`; CI smoke) and (B) server-side player/GM split in the dashboard (`auth.ts`/`redact.ts`/role-aware `sse.ts`/`requireGm`/`/player`; tests + CI smoke). **Infra TEMPLATED (not deployed):** (C) `docs/REMOTE-ACCESS.md` + `deploy/` (Cloudflare Tunnel/Access, Dockerfile, compose, Windows service); (D) `docs/PHASE6-DESIGN.md` (seams + setup checklist). **Test baseline 1120** (shared 49, foundry-module 12, mcp-server 1030, cogm-dashboard 29). **v0.16.1 released** (2026-06-15, werift validated live by the GM). Remaining: hosting. Target since 2026-07-02 (`docs/ROADMAP.md`): everything on an Orange Pi 5 Pro, PC not required, no domain. The exposure method is not settled on this branch: `docs/REMOTE-ACCESS.md` and `deploy/` template Cloudflare Tunnel/Access, the unmerged hosting branch chose Tailscale (open question for the GM).
-- [~] Phase 7: Presentation (`docs/PHASE7-PLAN.md`). Done 2026-06-15: README redesign, badges, brand brief and assets, 30fps demo GIF, regenerated screenshots. Deferred: real screen-capture demo, `/player` screenshot, showcase site.
-- [x] Phase 8: Repo tidy (root clutter removed 2026-06-15; the "Baseline" last-commit labels fade as files are rewritten).
-- [x] Phase 9: Deep reimplementation (2026-06-16, on `main`): Foundry mock harness, data-access reorganized into 16 domain modules and rewritten to parity (`docs/PHASE9-DATA-ACCESS-REORG.md`, `docs/PHASE9-DOMAIN-REWRITE.md`); the one intended behavior change is the `characters` pf2e prune. The 4 large tool files stay owned-via-tests (optional rewrite).
-- [x] Releases after v0.16.0, all on `main` and tagged on `aitool`: **v0.16.1** (2026-06-15, dependency-security patch), **v0.17.0** (2026-06-17, `allowNonGmAccess` setting shipped locked on + internal cleanup), **v0.18.0** (2026-06-17, roll initiative for selected combatants). Full-repo code review 2026-07-02: `docs/CODE-REVIEW-2026-07.md`, backlog in `docs/ROADMAP.md`. `main` stops at `a80b330` (2026-07-02) and still ships the review's two Blockers (0.0.0.0 binds, `allowNonGmAccess` locked on); this branch fixes both (M0) and is not merged back yet.
-- Unmerged remote branches (reference only; no merge plan yet, a GM decision): `claude/remote-gm-hosting-design-cwllhf` (Orange Pi hosting design with a Tailscale choice, its own version of the M0 security fixes, `docs/PI-DEPLOY-PROMPTS.md`, `docs/REMOTE-ACCESS-PLAN.md`); `claude/remove-comfyui-pipeline-d9wlp8` and `claude/audit-comfyui-removal-0xzj8l` (full ComfyUI removal with a draft "v0.19.0" CHANGELOG entry; this branch instead keeps ComfyUI opt-in and removes it only on the GM's confirmation). Check them before building anything they already cover.
+## Working in parallel
 
-- [x] Curse of Strahd plan, **M0 (step 0) DONE** (2026-09-28, branch `claude/amazing-bardeen-q1x1q6`;
-  see `docs/CURSE-OF-STRAHD-PLAN.md` "M0 as built"): bridge handlers out of `CONFIG.queries`
-  (`allowNonGmAccess` default off); Foundry v14/dnd5e 6 version adapter + 2014/2024 rules tags; v9
-  typings replaced by `packages/foundry-module/types/foundry-v14.d.ts`; guarded writes
-  (plan/apply/undo: backend plans + audit, module executes with checks); bridge vault
-  (`FOUNDRY_AI_DATA_DIR`, `npm run vault`); persistent session event log; dashboard confirm-with-diff
-  + Recent Changes; loopback binds (`DASHBOARD_HOST`, `FOUNDRY_LINK_HOST`); ComfyUI auto-start
-  opt-in; lockfile integrity filled. `npm audit`: 2 advisories in shipped code (`ip`, `werift`), 12
-  total, none critical. **Tests 2,171** (foundry-module 914, mcp-server 1169, shared 49,
-  cogm-dashboard 39).
-- [x] Curse of Strahd **M1 (Tarokka) DONE** (2026-09-28): built-in roll + `tarokka-reading` provider,
-  vault storage with archive, per-position/card link table, reveal pages for players (mixed guarded
-  plans), GM-only dashboard drawer, canary tests. **Tests 2,217** (foundry-module 930, mcp-server
-  1198, shared 49, cogm-dashboard 40). **Next: GM live test of M0+M1, then M2 (spoiler-safe /player).**
-- [x] **M0+M1 live test PASSED on the test server** (2026-09-28, `efe6e73`): query lockdown as Player,
-  Tarokka import/apply/list/undo (API + dashboard UI), switch off refuses (vault, mixed, Foundry-only),
-  vault and Foundry conflicts write nothing, reveal page shows Player only the typed text, `/player`
-  (split on and off) has no card data, vault files + session log. 4 bugs fixed with tests.
-- [x] **Tool-parameter pickers** (`e22dc15`): every tool parameter that names something has "Pick…" in
-  the dashboard tool runner (`x-foundry-ref` annotations, read tool `list-ref-choices`,
-  `tool-catalog.test.ts` enforces it for new tools). Skills split (`cd50ec3`): `foundry-test-env`
-  (infra), `foundry-ai-tool` (tools, dashboard, smoke checklist), `foundry-core-ui` (index).
-- [x] **Obsidian O1** (`808d092`, plan `2b126f1` = `docs/OBSIDIAN-PLAN.md`): Claude owns the GM's vault
-  `C:\Users\chris\Documents\Obsidian\vault` (structure, plugins, automations). Vault skeleton,
-  templates, Dev dashboard with Question notes, `npm run obsidian -- export` (sessions, changes,
-  Tarokka), `scripts/obsidian/sync-dev-docs.ps1` (read-only docs mirror).
-- [x] **Obsidian O2** (2026-09-28, uncommitted at handoff time; `docs/OBSIDIAN-PLAN.md` "As built"):
-  ownership guard (marker + hash, GM-edited notes skipped and listed in `_status.md`, bases compared
-  by content), notes per play session (markers from the new log-only tools `mark-play-session` /
-  `get-play-session`, dashboard Start/End control, 3-hour-gap fallback), append-only
-  `gm/audit-log.jsonl`, Tarokka archive + `Spread.canvas`, `AI Tool/Bases/`, prune to `.trash/`,
-  auto-render when `FOUNDRY_AI_OBSIDIAN_DIR` is set, Templater-safe output, dashboard "Open in
-  Obsidian" links (GM only). Test env renders into a throwaway vault (`ObsidianDir`, default
-  `C:\FoundryTest\obsidian`). Vault: community plugins (prep + world sets), Templater templates,
-  Templater's file-creation trigger stays off. **Tests 2,343** (foundry-module 950, mcp-server
-  1287, shared 55, cogm-dashboard 51); 86 tools.
-- [x] **Project history imported** (2026-09-28): the cloud project's history export is in the GM's
-  vault under `Dev/Foundry AI Tool/` (History, Open work, Working agreements, Glossary, one note per
-  decision/idea/lesson, Bases on the Dashboard, new Question notes). It is documentation only: it does
-  not change current goals. Repo fixes from the cross-check: this file (Phases 7 to 9, releases,
-  unmerged branches, Node versions, lint baseline), CHANGELOG "Unreleased", ROADMAP ticks.
-- [x] **Obsidian O3 (full play log + stats) DONE** (2026-09-28; `docs/OBSIDIAN-PLAN.md` O3 "As
-  built"): contracts `shared/src/play-log.ts` + `packages/mcp-server/src/stats/types.ts`; module
-  `play-recorder.ts` (GM clients, shadow before-values, query `getPlayRecords`); backend
-  `play-log-pump.ts` (`sessions/<date>.play.jsonl`, key dedupe, `FOUNDRY_AI_PLAY_LOG=off`); pure
-  `stats/build.ts`; stats in session notes + `AI Tool/Stats/` (Campaign, PCs) + `PC stats.base`;
-  read tool `get-play-stats` (87 tools). Rests (card + `dnd5e.restCompleted`), `userName` on every
-  record, combat rosters, roll breakdowns in the feed (`roll` / `damage-roll` player-safe,
-  `gm-roll` GM-only), exact HP credit from dnd5e card Apply (`source.exact`, shared rule in
-  `hp-credit.ts`, also used by the feed's `damage` events), else a roll that fits within 10 s.
-  Every test on the plan's O3 list is covered (5.3 and 6.0 fixtures, two GM clients, dedupe, no
-  double counting, midnight split, rebuild equals incremental, 1,000 events). Live on both PCs'
-  test servers. Found live and fixed: the **Foundry 14 roll-mode privacy bug** (`gmroll` fell
-  back to public: `roll-saving-throws`, `use-npc-activity`, private player roll buttons; now
-  `shared.rollModeFor` / `rollToMessageOptions` / `usesMessageModes`) and v14 nulling
-  `combat.turn` before `deleteCombat`. **Tests 2,477** (foundry-module 1030, mcp-server 1340,
-  shared 55, cogm-dashboard 52); lint baseline **7,761**.
-- [x] **Curse of Strahd M2 (spoiler-safe /player) DONE, live-tested** (2026-09-28, GM go-ahead
-  the same day; plan feature 2 and `docs/CURSE-OF-STRAHD-PLAN.md` "M2 as built"). **Tests 2,581**
-  (foundry-module 1082, mcp-server 1381, shared 55, cogm-dashboard 63); lint baseline 7,761; 92
-  tools.
-  - Contract `shared/src/player-view.ts`; module `player-visibility.ts` (names players see per
-    display mode, `navName` scenes, PC = `hasPlayerOwner`, page AND journal observability),
-    `EventVisibility` on every session event, guarded feature `handouts` (default off); backend
-    `handouts/service.ts` (allowlist `gm/reveals.json` AND observable) and `secret-terms.ts`; tools
-    `get-player-visibility`, `list-revealed-pages`, `get-player-handouts`, `plan-page-reveal`,
-    `check-secret-terms`; dashboard `app.ts` `createDashboard(deps)`, `player/projection.ts`,
-    `player/sanitize.ts` (`htmlparser2` ^10.1.0; v12 needs Node 20.19+, the installer bundles
-    20.12.2), `/api/player/state` + `/api/player/stream` (always projected), whisper guard (409
-    `secret-terms`). Proof: `player/canary.test.ts` (now also AI commentary and a name players
-    cannot see).
-  - Found live and fixed (with tests): the module did not load at all (runtime imports of
-    `@gnuminator/shared`, a bare specifier browsers cannot resolve; values mirrored now,
-    `browser-imports.test.ts` guards it); roll lines named NPCs by Foundry's chat alias (now the
-    player-facing name, else dropped); handouts in a journal players cannot see (Foundry 14 lists a
-    journal only at Observer: "observable" now needs the journal too, and `plan-page-reveal`
-    refuses to raise a page inside a hidden journal); "deletes data" wording on reveals.
-  - Not live-tested: the GM page's whisper confirm prompt (only on AI commentary cards, needs
-    `ANTHROPIC_API_KEY`); the server side of the guard is.
-- [x] **Curse of Strahd M3 (Foundry 14 / dnd5e 6 compatibility pass) DONE, live-tested**
-  (2026-09-28; `docs/CURSE-OF-STRAHD-PLAN.md` "M3 as built" in section 2.4). Seven parallel worker
-  lanes plus lead review. **Tests 2,730** (foundry-module 1176, mcp-server 1436, shared 55,
-  cogm-dashboard 63); lint baseline **7,656**.
-  - Every table 2.4 row: conditions via `actor.toggleStatusEffect`; effect reads via the adapter;
-    templates are Regions (`systems/regions.ts`, `all` deletes only the tool's); Scene Levels for
-    backgrounds, tokens, notes, regions; darkness lock; dnd5e 6 NPC shape; `item.use` signature.
-  - Found live and fixed: 14.368 keeps a `BaseMeasuredTemplate` shim and an empty `scene.templates`
-    (gate now reads Scene's embedded types); 2024 monsters carry a casting ability on every NPC
-    (spells now = slot or spell item); sizes as dnd5e keys with `sameDnd5eSize` + `INDEX_VERSION`
-    1.1.0; backend creature list read the wrong shape. Also: a whisper could go public with no GM
-    user; stale Markdown on journal updates; module manifest Sets; see the plan for the full list and
-    what is left (FormApplication menus before v16, `swarm` type, exhaustion levels parameter).
-- [x] **Obsidian O4 (Foundry mirrors + links) DONE, live-tested** (2026-09-29, built in parallel
-  lanes on the second PC, finished and live-tested on the first PC; `docs/OBSIDIAN-PLAN.md` "As
-  built", O4, and `docs/OBSIDIAN-O4-DESIGN.md`). Contract `shared/src/export-index.ts`, module query
-  `getExportIndex` (GM client only, feature `obsidian-mirror`), HTML to Markdown and `@UUID` rewrite,
-  note/base/status rendering, `NoteWriter` + vault scan, the pump `ObsidianMirrorPump` (started by
-  `backend.ts` with the Foundry link when `FOUNDRY_AI_OBSIDIAN_DIR` is set; writes only while the
-  mirror settings say enabled), settings + tools `get-obsidian-mirror` / `plan-obsidian-mirror` (94
-  tools), dashboard `/open` route (`GET` static confirm page, `POST /api/open` header-token GM-only,
-  compatible with the P1 plugin per design 6.4), `mirror-canary.test.ts`. GM questions answered with
-  the bold defaults (design section 11). `FOUNDRY_AI_OPEN_BASE` defaults to `http://localhost:3000`
-  (the `/open` page reads the token from that origin's localStorage). **Tests 3,311**
-  (foundry-module 1362, mcp-server 1752, shared 60, cogm-dashboard 137); lint baseline 7,656.
-- [~] **Dashboard hardening** (2026-09-29, own commit): the player page CSP now applies on every URL
-  alias (`static-headers.ts`, shared with `/open`), and a Host allowlist (`host-allowlist.ts`, both
-  modes, 421 `host-not-allowed`; loopback names, a specific `DASHBOARD_HOST`, new
-  `DASHBOARD_ALLOWED_HOSTS`) blocks DNS rebinding. `docs/REMOTE-ACCESS.md` updated. **Left:**
-  `DASHBOARD_ALLOWED_HOSTS` in `deploy/` (Dockerfile, compose, cloudflare templates, README) and the
-  dashboard `.env.example`; fix the wrong header names in REMOTE-ACCESS and
-  `deploy/cloudflare/access-policy.md` (they say `X-GM-Token`/`gm_token`; real: `X-CoGM-Token`,
-  `?token=`, cookie `cogm_token`); the compose cloudflared ingress needs `http://app:3000`; live
-  check (`Host: evil.example` gives 421, `/player%2Ehtml` carries the CSP). The 421 check passed
-  live during the O4 test (2026-09-29).
-- **Sonnet 5.5 for workers:** on CKRSSURFACE, user settings set
-  `ANTHROPIC_DEFAULT_SONNET_MODEL=claude-sonnet-5-5` (the Agent tool's `sonnet` alias); on
-  DESKTOP-I4QNKRH the plain `sonnet` alias already answered `claude-sonnet-5-5` on 2026-09-29 without
-  it. Check with a one-line test agent per PC and session. Sonnet workers hit the 32k output cap on
-  big files: tell them to write in parts of at most ~250 lines per tool call.
-- **Next:** the hardening leftovers (list above); then the GM's choice (M4 attention/spy network; the
-  research findings in the vault `Dev/Foundry AI Tool/Research/`).
-- [~] **Handoff (2026-09-28, night; second PC, CKRSSURFACE).** O3 done and pushed; M2 as above.
-  - Test env on this PC: world `ai-tool-test` (users Gamemaster, Claude, Player; `Test Hero` level 3
-    Fighter owned by Player; world actor `Wolf` with unlinked tokens Wolf 1-3 on "Test Arena").
-    `scripts/test-env/local.json` holds the test server's admin login (GM's, gitignored).
-    `Get-NodeExe` picks the newest portable Node 22. The test vault holds test records only.
-  - GM to-dos recorded, not scheduled (`docs/ROADMAP.md` "GM to-dos"): video walkthrough, easy
-    guides with session checklists, README/front page, help inside each surface, feature toggles
-    (GM config + per-player choices).
-  - Open GM questions (Obsidian `Dev/Foundry AI Tool/Questions/`): merge plan for this
-    branch and the unmerged ones; ComfyUI removal; Orange Pi exposure and deploy gating; archive the
-    old fork; vault sync method for the Pi; deny rule for `Campaigns/`; Calendarium calendar.
-  - The GM's Obsidian vault is now the private git repo `Gnuminator/obsidian-vault` (PC to PC; pull
-    before working in it, push after).
-  - Part B verification is unfinished: `.claude/skills/foundry-core-ui/reference/*.md` (11 pages) are
-    drafts (committed in `bddda03`); the click-through lanes were stopped mid-run, so some pages may
-    carry partial `[verified]` marks and no stamp. Resume later (Sonnet, one lane per GM user,
-    canvas pages in front). The "Verifier A/B" users were in the first PC's test world only.
+- `main` is the trunk (from the merge after the consolidation step). One short branch per session,
+  in its own worktree, split by area (docs, one package, research). Merge back when green.
+- Files every session touches change only at merge time: this file's status and next steps, the
+  CHANGELOG "Unreleased" section, `scripts/lint-baseline.json`, test counts. A session puts its handoff
+  in its branch (last commit message or PR description).
+- One live test at a time per PC: the test server has fixed ports and one module folder.
+- Each worktree needs its own `npm ci`. Obsidian vault: pull before writing, push after.
+- Parallel workers inside one session: partition by file, write big files in parts of at most ~250
+  lines per tool call, lock shared contracts first.
+
+## Status (2026-09-29)
+
+- Built on branch `claude/amazing-bardeen-q1x1q6` (not merged into `main`, which stops at v0.18.0):
+  Curse of Strahd M0 to M3 (guarded writes, Tarokka, spoiler-safe `/player`, Foundry 14 / dnd5e 6
+  pass), Obsidian O1 to O4 (vault, session notes, play log and stats, Foundry mirrors), tool-parameter
+  pickers, dashboard hardening, ComfyUI removed (D-070). Live-tested on the test server (the ComfyUI
+  removal is unit-tested; its live check is part of the release smoke test). 91 tools, 3,246 tests,
+  lint baseline 6,743.
+- Hardware: the Orange Pi 5 Pro (16 GB) has arrived and is not set up yet (D-068: Foundry, the tool and
+  the bot move there; Tailscale; Syncthing; SSH-first bring-up from the PC).
+- First Curse of Strahd session (a live session 0): around November or December 2026.
+
+## Next (order agreed 2026-09-29)
+
+1. **Consolidate** (done on this branch 2026-09-29: ComfyUI removed, Foundry 14 minimum, docs layout,
+   this file, Pi guide and scripts, CI on Node 22 and 24). **Merging into `main` waits for the user's
+   OK.** Release v0.19.0 when the Strahd world is set up on the Pi.
+2. **Parallel lanes off `main`:** Pi setup (`docs/dev/PI-SETUP.md`: the user flashes the card and runs
+   two scripts when there is time, then Claude continues over SSH; not a blocker); Discord bot v1 (own
+   package: a session-day reminder for the fixed weekly session, `/away`, bridge up/down, a GM alert
+   channel incl. failed backups; D-069); GM docs (beginner guide, before/after-session checklists,
+   player page); Foundry side (a reveal that copies a handout into a player journal, a check of the
+   GM's module list on dnd5e 6 against the play log, Claude Desktop prompts); voice benchmark (needs a
+   past Craig recording); video pipeline research (60 fps, 1080p to 2160p, AI voice in English and
+   Danish).
+3. M4 onward (state in Foundry, controls in the dashboard), Obsidian pushes (O6), player vault (O7),
+   M5 to M9, videos after the guides.
+
+Open: how players reach Foundry on the Pi (decided during bring-up); the Strahd world's module list
+(vault question, after the world exists).
+
+## Handoff notes
+
+- Test env per PC (not synced): world `ai-tool-test` (users Gamemaster, Claude, Player; `Test Hero`
+  owned by Player; world actor `Wolf` with unlinked tokens Wolf 1-3 on "Test Arena").
+  `scripts/test-env/local.json` holds the test server's admin login (gitignored).
+- The vault is the private git repo `Gnuminator/obsidian-vault`; Claude owns everything Obsidian.
+- `.claude/skills/foundry-core-ui/reference/*.md` are drafts; the click-through verification is
+  unfinished.
+- Unmerged remote branches (reference only): `claude/remote-gm-hosting-design-cwllhf` (older Pi plan,
+  `docs/PI-DEPLOY-PROMPTS.md`; Molten and API-key assumptions are outdated),
+  `claude/remove-comfyui-pipeline-d9wlp8` and `claude/audit-comfyui-removal-0xzj8l` (obsolete: the
+  removal landed here in `b5f76bc`; deleting them needs the user's OK).
 
 ## Model guidance
 
-- **Sonnet 4.6** — mechanical work (rebranding, test-writing, per-module reimplementation grind)
-- **Opus 4.8** — architecture/contract design (Phase 3), socket-bridge rewrite (Phase 4 step 2),
-  parity-decision calls, reviewing each reimplemented chunk
+- **Sonnet 5.5**: mechanical work, test-writing, parallel workers (check the `sonnet` alias per PC and
+  session with a one-line test agent).
+- **Haiku** (else Sonnet): agents that only read and report on documents.
+- **Opus**: architecture and contract design, security-sensitive review, parity calls, reviewing
+  worker output.

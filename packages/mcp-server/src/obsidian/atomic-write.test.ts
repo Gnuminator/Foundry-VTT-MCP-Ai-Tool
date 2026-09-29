@@ -1,5 +1,5 @@
 /**
- * Atomic writes (docs/OBSIDIAN-PLAN.md O2 item 2): a dot-prefixed temp name in
+ * Atomic writes (docs/design/OBSIDIAN-PLAN.md O2 item 2): a dot-prefixed temp name in
  * the target directory, renamed into place, retried on a transient Windows
  * rename error.
  */

@@ -1,5 +1,5 @@
 /**
- * Group a world's session-log events into play sessions (docs/OBSIDIAN-PLAN.md,
+ * Group a world's session-log events into play sessions (docs/design/OBSIDIAN-PLAN.md,
  * O2 item 4, shared contract 3). The renderer and the `get-play-session` tool
  * must agree on this: events are sorted by time, then walked once, opening and
  * closing groups on `session-start`/`session-end` markers (from

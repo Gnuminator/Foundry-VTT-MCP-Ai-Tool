@@ -1,5 +1,5 @@
 /**
- * The Foundry mirror pump (docs/OBSIDIAN-O4-DESIGN.md section 2, Obsidian O4).
+ * The Foundry mirror pump (docs/design/OBSIDIAN-O4-DESIGN.md section 2, Obsidian O4).
  *
  * Polls the module query `getExportIndex` and keeps one note per mirrored
  * Foundry document under `Campaigns/<worldId>/AI Tool/Foundry/`, plus the

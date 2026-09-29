@@ -6,7 +6,7 @@
 > intentional `characters` behavior change (pf2e `category=focus`/`invested` now inert). The recipe + notes
 > below are retained as the record of how it was done.
 
-The step _after_ the modular reorg (`docs/PHASE9-DATA-ACCESS-REORG.md`, R1–R3 complete). The reorg was
+The step _after_ the modular reorg (`docs/history/PHASE9-DATA-ACCESS-REORG.md`, R1–R3 complete). The reorg was
 a **behavior-preserving physical move**: every one of the 16 `data-access/` domain modules is still
 upstream-derived code, just relocated behind a thin facade. This phase makes each domain **truly ours** —
 reimplemented _from first principles_ (from the tool's purpose + its characterization tests), replacing
@@ -227,7 +227,7 @@ ambient globals per-test and restored on teardown. The only genuinely un-charact
 `player-rolls.attachRollButtonHandlers` (live jQuery/DOM click handlers).
 
 The historical recipe for a deferred net (kept for reference): mirror the wave-1/2/3 characterization
-fan-outs in `docs/DETACH-PLAN.md` — write the `data-access.<domain>.test.ts` pinning current behavior
+fan-outs in `docs/history/DETACH-PLAN.md` — write the `data-access.<domain>.test.ts` pinning current behavior
 (stubbing missing globals locally), verify it passes against current, _then_ rewrite. Don't rewrite ahead
 of the net.
 

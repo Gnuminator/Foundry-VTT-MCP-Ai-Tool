@@ -1,5 +1,5 @@
 /**
- * The ownership guard (docs/OBSIDIAN-PLAN.md O2 item 1): a generated note's
+ * The ownership guard (docs/design/OBSIDIAN-PLAN.md O2 item 1): a generated note's
  * hash round-trips, an edited note is detected, and a legacy O1 note is
  * recognized for one-time migration.
  */

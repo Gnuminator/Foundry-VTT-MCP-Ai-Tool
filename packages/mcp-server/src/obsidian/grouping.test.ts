@@ -1,5 +1,5 @@
 /**
- * Session grouping (docs/OBSIDIAN-PLAN.md O2 item 4, shared contract 3): the
+ * Session grouping (docs/design/OBSIDIAN-PLAN.md O2 item 4, shared contract 3): the
  * renderer and `get-play-session` must agree on how markers and gaps split
  * the event log into play sessions. O3 (shared contract 5) extends this to
  * `groupWithPlayRecords`, grouping the union with the play log.

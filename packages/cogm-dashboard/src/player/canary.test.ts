@@ -1,5 +1,5 @@
 /**
- * The M2 proof (docs/CURSE-OF-STRAHD-PLAN.md feature 2): GM state is seeded
+ * The M2 proof (docs/design/CURSE-OF-STRAHD-PLAN.md feature 2): GM state is seeded
  * with unique canary strings, and none of them may appear in anything a player
  * can fetch or stream: `/api/player/state`, the player stream, the player role
  * on the legacy `/api/state` and `/api/stream`, `/player` and `player.js`,

@@ -1,5 +1,5 @@
 /**
- * "Open in Foundry" links (Obsidian O4, docs/OBSIDIAN-O4-DESIGN.md section 6).
+ * "Open in Foundry" links (Obsidian O4, docs/design/OBSIDIAN-O4-DESIGN.md section 6).
  *
  * - `GET /open?uuid=...` serves `public/open.html`, a static shell with no data,
  *   to every caller. It never authenticates and never calls the bridge: a click

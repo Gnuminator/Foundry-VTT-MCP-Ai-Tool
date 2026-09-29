@@ -1,5 +1,5 @@
 /**
- * Journal page text to Markdown for the Obsidian mirror (docs/OBSIDIAN-O4-DESIGN.md
+ * Journal page text to Markdown for the Obsidian mirror (docs/design/OBSIDIAN-O4-DESIGN.md
  * section 5). The HTML is parsed with htmlparser2 and Markdown is REBUILT from an
  * allowlist (headings, paragraphs, line breaks, bold, italic, strikethrough,
  * lists, blockquotes, simple tables, `pre`, rules); no raw HTML is ever written.

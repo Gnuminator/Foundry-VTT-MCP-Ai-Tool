@@ -6,8 +6,8 @@
 > is a `<PLACEHOLDER>` you replace. Nothing in this guide has been executed against live
 > infrastructure.
 >
-> For the big-picture roadmap that Phase 6 fits into, see `docs/PHASE6-DESIGN.md`
-> (written in parallel). For the existing Windows-local deployment, see `docs/DEPLOYMENT.md`
+> For the big-picture roadmap that Phase 6 fits into, see `docs/history/PHASE6-DESIGN.md`
+> (written in parallel). For the existing Windows-local deployment, see `docs/dev/DEPLOYMENT.md`
 > and `deploy/windows/`.
 
 ---

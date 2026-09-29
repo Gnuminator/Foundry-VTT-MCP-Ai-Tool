@@ -1,5 +1,5 @@
 /**
- * The vault scan of the Foundry mirror (docs/OBSIDIAN-O4-DESIGN.md 2.1).
+ * The vault scan of the Foundry mirror (docs/design/OBSIDIAN-O4-DESIGN.md 2.1).
  *
  * Walks `<vault>/Campaigns/<worldId>/` and finds the notes that matter to the
  * mirror by their properties, never by path: the GM may rename or move a note

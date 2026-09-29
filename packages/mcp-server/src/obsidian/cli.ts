@@ -1,5 +1,5 @@
 /**
- * Obsidian command line (docs/OBSIDIAN-PLAN.md, O1).
+ * Obsidian command line (docs/design/OBSIDIAN-PLAN.md, O1).
  *
  *   npm run obsidian -- export [<worldId> ...] [--vault <dir>]
  *

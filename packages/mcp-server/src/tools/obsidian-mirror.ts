@@ -1,5 +1,5 @@
 /**
- * Obsidian mirror tools (docs/OBSIDIAN-O4-DESIGN.md sections 1.8 and 9; chunk C6).
+ * Obsidian mirror tools (docs/design/OBSIDIAN-O4-DESIGN.md sections 1.8 and 9; chunk C6).
  *
  * `get-obsidian-mirror` reads the mirror's settings and status. The settings
  * live in the bridge vault (`gm/obsidian-mirror.json`) and change only through

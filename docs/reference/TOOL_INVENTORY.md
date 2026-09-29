@@ -449,6 +449,6 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 
 > **Historical note:** This inventory predates the detach — it compares the old upstream
 > baseline/master/broken branches (and the since-removed non-D&D adapters). Kept under `docs/`
-> as the Phase 4 parity reference; see `docs/DETACH-PLAN.md` and `docs/PHASE4-TRACKER.md` for the
+> as the Phase 4 parity reference; see `docs/history/DETACH-PLAN.md` and `docs/history/PHASE4-TRACKER.md` for the
 > current, trimmed (Windows + D&D 5e only) tool set. The AI map-generation tools (`generate-map`,
 > `check-map-status`, `cancel-map-job`) were removed on 2026-09-29 and are no longer listed here.

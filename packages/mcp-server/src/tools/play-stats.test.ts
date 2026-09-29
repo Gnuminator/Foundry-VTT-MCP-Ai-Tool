@@ -1,5 +1,5 @@
 /**
- * `get-play-stats` (docs/OBSIDIAN-PLAN.md section 8, O3): reads the world's
+ * `get-play-stats` (docs/design/OBSIDIAN-PLAN.md section 8, O3): reads the world's
  * session and play logs from the vault and returns the built totals
  * (`stats/build.ts`) - never the raw records.
  */

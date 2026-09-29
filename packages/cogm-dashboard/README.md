@@ -149,7 +149,7 @@ GM-only data filtered **server-side** (never just hidden in the browser).
 Configure via `.env` (see `.env.example`): `GM_DASHBOARD_TOKEN`, `PLAYER_DASHBOARD_TOKEN`,
 `GM_EMAILS`, `CF_ACCESS_EMAIL_HEADER`, `PLAYER_SHOW_ENEMY_CONDITIONS`, `PLAYER_SHOW_ENEMY_HP_BANDS`.
 For exposing this to a remote GM/players behind Cloudflare Access, see
-[`docs/REMOTE-ACCESS.md`](../../docs/REMOTE-ACCESS.md).
+[`docs/dev/REMOTE-ACCESS.md`](../../docs/dev/REMOTE-ACCESS.md).
 
 ## Cost control
 

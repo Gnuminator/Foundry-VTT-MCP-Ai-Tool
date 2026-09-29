@@ -100,7 +100,7 @@ you actually use it. Both are low-risk deletions — do them now.
 
 ## Phase 3 — Architecture from the idea (write the spec)
 
-- Author `docs/ARCHITECTURE.md` describing the system from first principles — the IDEA, not the code:
+- Author `docs/dev/ARCHITECTURE.md` describing the system from first principles — the IDEA, not the code:
   an MCP server that exposes Foundry as tools; an in-Foundry module that bridges over a socket; the
   JSON-lines control channel; the (dnd5e-only, after Phase 2.5) system adapter; the job queue;
   security/GM-gating; and the standalone co-GM dashboard. Document the **trimmed, Windows-targeted,
@@ -110,7 +110,7 @@ you actually use it. Both are low-risk deletions — do them now.
 ## Phase 4 — Staged reimplementation (the long pole; many sessions)
 
 Reimplement **behind stable external contracts** so the dashboard + Foundry keep working throughout.
-Live status + done log lives in **`docs/PHASE4-TRACKER.md`** (read it to resume). Suggested order
+Live status + done log lives in **`docs/history/PHASE4-TRACKER.md`** (read it to resume). Suggested order
 (low-risk → high-value):
 
 1. ✅ `shared` types — small; sets the vocabulary. **DONE** (2026-06-15) — reimplemented behind its
@@ -119,7 +119,7 @@ Live status + done log lives in **`docs/PHASE4-TRACKER.md`** (read it to resume)
    carefully (this is the part most worth Opus-level attention).
 3. Foundry module `data-access` / `queries` layer.
 4. **Tool layer, domain-by-domain** (combat, scene, compendium, actor-creation, effects, …). Each is a
-   self-contained chunk; use `docs/TOOL_INVENTORY.md` as the parity checklist.
+   self-contained chunk; use `docs/reference/TOOL_INVENTORY.md` as the parity checklist.
 5. The **dnd5e** system adapter — last (the other systems are removed in Phase 2.5).
 
 Per chunk: capture current behavior in tests first → reimplement → verify parity (the test bench +
@@ -133,9 +133,9 @@ sessions.** Keep a "rewritten vs still-upstream" tracker so a fresh session resu
 
 > **Status (2026‑06‑15): v0.16.0 released on `aitool`** — first release under the new identity.
 > Version bumped (root `package.json` + `module.json`); CHANGELOG rewritten (real v0.16.0 entry; the
-> pre-detach multi-system entries bannered as historical lineage); `docs/MIGRATION.md` (module id
+> pre-detach multi-system entries bannered as historical lineage); `docs/history/MIGRATION.md` (module id
 > unchanged → no breaking migration; existing installs reinstall once from the new manifest to repoint
-> Foundry's update check from the old repo to the new one); `docs/SMOKE-TEST.md` (the user-driven live
+> Foundry's update check from the old repo to the new one); `docs/dev/SMOKE-TEST.md` (the user-driven live
 > check). **Release workflow fixes** (the canonical path is `build-complete-release.yml`): module zip
 > renamed `foundry-ai-tool-module.zip` → `foundry-mcp-bridge.zip` to match the frozen `download` URL
 > (the old name 404s every install); added the `v*` tag-push trigger (it was dispatch-only and could
@@ -162,13 +162,13 @@ sessions.** Keep a "rewritten vs still-upstream" tracker so a fresh session resu
 bridge:standalone`; `scripts/standalone-smoke-test.mjs` in CI) and **(B)** the server-side
 > player/GM split in the dashboard (`auth.ts` role resolution, `redact.ts` filtering, role-aware
 > SSE, `requireGm` on the write surface, `/player` view; unit tests + `scripts/cogm-split-smoke-test.mjs`
-> in CI). The infra-**dependent** parts are TEMPLATED, not deployed: **(C)** `docs/REMOTE-ACCESS.md`
+> in CI). The infra-**dependent** parts are TEMPLATED, not deployed: **(C)** `docs/dev/REMOTE-ACCESS.md`
 >
 > - `deploy/` (Cloudflare Tunnel/Access config, Dockerfile, compose, Windows service) and **(D)** the
->   design/roadmap `docs/PHASE6-DESIGN.md` (seams inventory + "when the infra is ready" checklist).
+>   design/roadmap `docs/history/PHASE6-DESIGN.md` (seams inventory + "when the infra is ready" checklist).
 >   Test baseline now **1120** (shared 49, foundry-module 12, mcp-server 1030, cogm-dashboard 29).
 >   **Remaining (needs your infra):** stand up Cloudflare + a VPS/Pi + reach the hosted Foundry, then
->   follow `docs/PHASE6-DESIGN.md` §6. The bridge currently still runs Claude-Desktop-spawned by default;
+>   follow `docs/history/PHASE6-DESIGN.md` §6. The bridge currently still runs Claude-Desktop-spawned by default;
 >   the standalone entry removes the hard dependency.
 
 Make the tool usable by you **and** your GM from outside your PC. Decisions locked 2026‑06‑15:
@@ -228,19 +228,19 @@ Node 18, so this is build-env hygiene only). Verify green + re-audit.
 > **Audit: full 38→24 (remaining all dev/types via `foundry-vtt-types`), prod-only 15→3** (the 3 are the
 > single `ip` advisory via `werift-ice`, no upstream fix). Green incl. wiped build + 1078 tests at the time.
 > werift is the only shipping breaking bump and only affects the WebRTC path — **live confirm is
-> user-driven** (`docs/DEPENDENCY-PATCH-SMOKE-TEST.md`). **Decision: hold a v0.16.1 patch release until
+> user-driven** (`docs/history/DEPENDENCY-PATCH-SMOKE-TEST.md`). **Decision: hold a v0.16.1 patch release until
 > that live WebRTC smoke passes, then cut it** (so users get the axios/MCP-SDK/ws/werift fixes). Tag only
 > on explicit confirm.
 
 ## Phase 7 — Presentation (when functionality is polished)
 
-> **Scoped 2026‑06‑15 → `docs/PHASE7-PLAN.md`.** Current state assessed (README already rebranded with
+> **Scoped 2026‑06‑15 → `docs/history/PHASE7-PLAN.md`.** Current state assessed (README already rebranded with
 > 5 screenshots; `COGM-DASHBOARD.md` showcase exists). The plan splits the work into buildable-now
 > (README redesign, showcase-site scaffold, wordmark), needs-assets (a 10–15s demo GIF — user-recorded
 > from a shot-list), and needs-decisions (branding, scope, hosting). Phase 6 capabilities aren't in the
 > README yet — fold them in. Mobile/tablet still deferred.
 
-The current `docs/COGM-DASHBOARD.md` markdown showcase isn't enough. Build a real presentation —
+The current `docs/reference/COGM-DASHBOARD.md` markdown showcase isn't enough. Build a real presentation —
 **(1) a polished GitHub landing README** with branding + a 10–15s demo GIF/screen-capture, and **(2) a
 standalone showcase page/site**. Do this once there's polished functionality to show. **In-app visual
 polish** (beyond the current Modern Command Center pass) is a _given but later_ — after all
@@ -337,7 +337,7 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 > remaining write paths above.
 >
 > **transaction-manager rewrite + data-access modular reorg started (2026‑06‑16).** Full plan +
-> domain ownership table + extraction recipe live in **`docs/PHASE9-DATA-ACCESS-REORG.md`** (read it
+> domain ownership table + extraction recipe live in **`docs/history/PHASE9-DATA-ACCESS-REORG.md`** (read it
 > to resume). Done so far, each a green commit (377 tests + typecheck + build throughout):
 > **(1) `transaction-manager` rewritten to parity** from first principles behind its 25-test net
 > (same contract + pinned error strings; ledger model + typed revert dispatch). **(2) Reorg R1–R2 +
@@ -360,7 +360,7 @@ The repo currently reads as a fresh fork, and the root is cluttered. Two things 
 >
 > **From-scratch domain rewrites STARTED — pilot + recipe (2026‑06‑16).** Recipe, safety rails,
 > characterized-vs-deferred coverage map, and the per-domain checklist live in
-> **`docs/PHASE9-DOMAIN-REWRITE.md`** (read it to resume). Unlike the reorg (mechanical move → byte-identical
+> **`docs/history/PHASE9-DOMAIN-REWRITE.md`** (read it to resume). Unlike the reorg (mechanical move → byte-identical
 > bodies), each rewrite reimplements a domain **from first principles** — from its characterization tests +
 > the tool's purpose — behind the frozen public signatures, verified to parity by that domain's net.
 > **Pilot: `journals` rewritten to parity** (Opus) behind `data-access.journals.test.ts` (23) +
@@ -538,7 +538,7 @@ Also folds in the two items deferred from chunk 3 (they live in the module / bro
 
 - **`transaction-manager` rewrite** (write-safety rollback; currently used by actor/token creation).
 - **Foundry-link `import type` adoption** in `socket-bridge`/`webrtc-connection` (per the bundler
-  policy in `docs/PHASE4-TRACKER.md` → Decisions: `import type` only, no runtime value imports).
+  policy in `docs/history/PHASE4-TRACKER.md` → Decisions: `import type` only, no runtime value imports).
 
 Prereq worth doing first: a **browser/Foundry mock harness** so the module finally has real test
 coverage — without it, a from-scratch rewrite of ~9.5k LOC can't be verified to parity.
@@ -583,7 +583,7 @@ Phases 0–2 are **done** (detached repo, clean history, surface rebrand to "Fou
 order:
 
 1. **Phase 2.5 — trim** (remove Mac + non-DnD) — do first; less to document/reimplement. _(Sonnet)_
-2. **Phase 3 — `docs/ARCHITECTURE.md`** from first principles, describing the trimmed system. _(Opus)_
+2. **Phase 3 — `docs/dev/ARCHITECTURE.md`** from first principles, describing the trimmed system. _(Opus)_
 3. **Phase 4 — staged reimplementation**, module by module behind stable contracts. _(Sonnet grind;
    Opus for the socket-bridge/protocol step + reviewing each chunk)_
 4. **Phase 5 — cutover**, then **Phase 6 — standalone bridge + Cloudflare remote access + player/GM

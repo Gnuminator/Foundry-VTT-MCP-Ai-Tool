@@ -1,5 +1,5 @@
 /**
- * Automatic Obsidian render (docs/OBSIDIAN-PLAN.md, O2).
+ * Automatic Obsidian render (docs/design/OBSIDIAN-PLAN.md, O2).
  *
  * When `FOUNDRY_AI_OBSIDIAN_DIR` names the GM's vault, the backend re-renders a
  * world's notes shortly after its data changed: the event pump appended events,

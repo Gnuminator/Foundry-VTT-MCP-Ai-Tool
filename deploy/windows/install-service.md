@@ -5,7 +5,7 @@
 > box. Pick **one** of the two options. Fill in the absolute paths for your machine.
 >
 > Phase 6 target: the bridge eventually moves to an always-on host (Pi/VPS, see
-> [docs/REMOTE-ACCESS.md](../../docs/REMOTE-ACCESS.md)); until then this keeps it up
+> [docs/dev/REMOTE-ACCESS.md](../../docs/dev/REMOTE-ACCESS.md)); until then this keeps it up
 > on your PC. The control channel stays bound to **loopback** — remote reach is
 > provided by the Cloudflare Tunnel in front of the **dashboard**, never by
 > exposing 31414 directly.

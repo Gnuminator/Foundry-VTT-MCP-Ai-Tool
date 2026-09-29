@@ -1,5 +1,5 @@
 /**
- * Atomic file writes for the Obsidian exporter (docs/OBSIDIAN-PLAN.md, O2 item
+ * Atomic file writes for the Obsidian exporter (docs/design/OBSIDIAN-PLAN.md, O2 item
  * 2): a dot-prefixed temp file in the same directory (Obsidian ignores
  * dotfiles) is written, then renamed over the target. On Windows the rename
  * can fail briefly with EPERM/EBUSY/EACCES while a virus scanner or indexer

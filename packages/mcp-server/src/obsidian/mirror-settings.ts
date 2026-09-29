@@ -1,5 +1,5 @@
 /**
- * Settings and environment for the Obsidian mirror (docs/OBSIDIAN-O4-DESIGN.md,
+ * Settings and environment for the Obsidian mirror (docs/design/OBSIDIAN-O4-DESIGN.md,
  * sections 1.8 and 6.1; chunk C6).
  *
  * The mirror's settings live in the bridge vault (`gm/obsidian-mirror.json`,

@@ -2,8 +2,8 @@
 
 A whole-project review produced by a 5-agent read-only audit (architecture, feature-parity vs upstream,
 backlog, code-quality, test/CI health). This is a point-in-time **map + prioritized backlog** to resume
-from — not a plan of record. The plans of record remain `docs/DETACH-PLAN.md` (master log) and
-`docs/PHASE9-DOMAIN-REWRITE.md` (the data-access rewrite checklist).
+from — not a plan of record. The plans of record remain `docs/history/DETACH-PLAN.md` (master log) and
+`docs/history/PHASE9-DOMAIN-REWRITE.md` (the data-access rewrite checklist).
 
 **Headline:** the project is functionally live (v0.16.0 released + live-smoke-passed; ~1,874 tests green
 across the monorepo). It is **ahead of upstream** in features, not behind. Since this audit was written,
@@ -103,7 +103,7 @@ interface would narrow many casts (`actor-builder.ts` alone has 43).
 
 ### Phase 9 — data-access rewrites ✅ COMPLETE (16/16 domains, 2026‑06‑16)
 
-See `docs/PHASE9-DOMAIN-REWRITE.md` (per-domain checklist). All 16 modules are now rewritten/refactored
+See `docs/history/PHASE9-DOMAIN-REWRITE.md` (per-domain checklist). All 16 modules are now rewritten/refactored
 from first principles behind their frozen characterization nets. The last four deferred domains landed
 2026‑06‑16:
 
@@ -124,12 +124,12 @@ branch) were dropped. Only remaining purity item: the 4 large mcp-server tool fi
 Code is built + green (standalone bridge entry, dashboard role-split/auth/redact). Blocked on provisioning,
 not code: Cloudflare Tunnel/Access, Docker/compose, Windows service (all templates in `deploy/`); TURN
 server for WebRTC-across-NAT; per-event hidden-combatant suppression in `redact.ts`. Runbook:
-`docs/PHASE6-DESIGN.md` §6.
+`docs/history/PHASE6-DESIGN.md` §6.
 
 ### Release
 
 **v0.16.1 queued** — gated on the user running the live werift WebRTC smoke
-(`docs/DEPENDENCY-PATCH-SMOKE-TEST.md`), then tag. The release-workflow `@v6→@v4` fix is already in (risk #1
+(`docs/history/DEPENDENCY-PATCH-SMOKE-TEST.md`), then tag. The release-workflow `@v6→@v4` fix is already in (risk #1
 resolved), so the tag build is unblocked.
 
 ### Phase 7 — presentation (partial): live demo GIF, `/player` screenshot, showcase site, Pages deploy.

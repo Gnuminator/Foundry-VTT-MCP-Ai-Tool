@@ -6,7 +6,7 @@
  * for chat rolls. It only exercises the 6.0 shape for item-use and rest cards,
  * so this file fills in the missing 5.3 (`flags.dnd5e.item`,
  * `flags.dnd5e.rest.type`) coverage for those two kinds and checks that both
- * shapes produce equivalent records (docs/OBSIDIAN-PLAN.md O3 test list, item 1;
+ * shapes produce equivalent records (docs/design/OBSIDIAN-PLAN.md O3 test list, item 1;
  * see `systems/dnd5e/chat-roll-kind.ts`).
  */
 import type { PlayRecord } from '@gnuminator/shared';

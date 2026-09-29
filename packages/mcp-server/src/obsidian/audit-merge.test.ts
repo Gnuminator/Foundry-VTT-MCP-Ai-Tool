@@ -1,6 +1,6 @@
 /**
  * Merging the append-only change history with the audit ring
- * (docs/OBSIDIAN-PLAN.md O2 item 5, shared contract 2).
+ * (docs/design/OBSIDIAN-PLAN.md O2 item 5, shared contract 2).
  */
 import { describe, expect, it } from 'vitest';
 

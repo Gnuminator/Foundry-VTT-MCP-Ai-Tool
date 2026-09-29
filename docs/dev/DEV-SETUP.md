@@ -69,5 +69,5 @@ npm run dev:cogm              # the co-GM dashboard → http://localhost:3000
 ```
 
 Because this session is decoupled from Claude Desktop, you can own the bridge cleanly (close Claude
-Desktop's `foundry-mcp` first to free the ports). See `docs/PHASE6-DESIGN.md` and the
+Desktop's `foundry-mcp` first to free the ports). See `docs/history/PHASE6-DESIGN.md` and the
 `claude-code-bridge-ownership` note.

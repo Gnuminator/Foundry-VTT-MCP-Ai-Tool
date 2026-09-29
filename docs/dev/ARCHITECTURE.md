@@ -486,7 +486,7 @@ This is also where the **player vs GM split** lives (built in Phase 6: `auth.ts`
 role-aware `sse.ts`, `requireGm`, `/player`): GM-only data is filtered off the SSE stream and the
 write surface is gated server-side, behind auth, so the player view shows the combat order and
 public feed without hidden HP, notes, or write access. The allowlist projection that replaces the
-redaction is planned as M2 (`docs/CURSE-OF-STRAHD-PLAN.md`, feature 2).
+redaction is planned as M2 (`docs/design/CURSE-OF-STRAHD-PLAN.md`, feature 2).
 
 ---
 

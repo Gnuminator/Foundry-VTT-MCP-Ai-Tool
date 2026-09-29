@@ -1,5 +1,5 @@
 /**
- * Shared types and tiny helpers for the Obsidian mirror (docs/OBSIDIAN-O4-DESIGN.md,
+ * Shared types and tiny helpers for the Obsidian mirror (docs/design/OBSIDIAN-O4-DESIGN.md,
  * Obsidian O4). Fixed by the lead before the build chunks start so that the
  * converter (C3), the renderer (C4), the pump (C5) and the settings/tools (C6)
  * code against one set of shapes.

@@ -2,7 +2,7 @@
 
 ## Unreleased — M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd) + Obsidian O4 mirrors
 
-Groundwork from `docs/CURSE-OF-STRAHD-PLAN.md` step 0. **Wire contracts are unchanged** (module id,
+Groundwork from `docs/design/CURSE-OF-STRAHD-PLAN.md` step 0. **Wire contracts are unchanged** (module id,
 ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults change behaviour; see
 "Upgrade notes".
 
@@ -104,7 +104,7 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   before a player sees it. Tools `plan-page-reveal`, `list-revealed-pages`,
   `get-player-visibility`, `get-player-handouts`, `check-secret-terms`; the player page has a
   Handouts section.
-- **Obsidian mirror of the Foundry world** (live-tested 2026-09-29; `docs/OBSIDIAN-PLAN.md` "As
+- **Obsidian mirror of the Foundry world** (live-tested 2026-09-29; `docs/design/OBSIDIAN-PLAN.md` "As
   built", O4) (off until you turn it on with `plan-obsidian-mirror`
   and the switch "AI Tool: Obsidian mirror (writes)"; needs `FOUNDRY_AI_OBSIDIAN_DIR`): one note per
   PC, NPC, scene, journal (an index of its pages) and story item under
@@ -159,11 +159,22 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   Stored `mapGenAutoStart` / `mapGenQuality` module settings are ignored. The `COMFYUI_*` environment
   variables and `FOUNDRY_DATA_PATH` do nothing now; `npm run setup-comfyui` is gone.
 
+### Changed
+
+- The module now requires **Foundry 14** (manifest minimum raised from 13). Supported: Foundry 14 with
+  dnd5e 6; dnd5e 5.3 data is still read, but live testing is on dnd5e 6.
+- Docs reorganized by audience: `docs/gm/`, `docs/player/`, `docs/dev/`, `docs/reference/`, current
+  plans in `docs/design/`, finished plans and logs in `docs/history/` (see `docs/README.md`).
+  `CLAUDE.md` is shorter; its progress log moved to `docs/history/PROGRESS.md`.
+- New: `docs/dev/PI-SETUP.md` with `scripts/pi/prepare-sd.ps1` and `scripts/pi/find-pi.ps1` for the
+  Orange Pi 5 Pro (DietPi, first boot configured from Windows, SSH key access).
+
 ### Build / CI
 
 - Foundry v9 typings replaced by hand-written v14 declarations (drops 200+ dev packages and both
   "critical" dev advisories). `npm audit`: 2 advisories in shipped code (`ip`, `werift`), 12 in total.
 - Lint ratchet in CI (`npm run lint:ratchet`): warnings may only go down.
+- CI runs on Node 22 and Node 24 (Foundry 14 requires Node 24, which the Orange Pi will run).
 - `package-lock.json` has `resolved`/`integrity` for every registry package.
 - Development: a local Foundry test environment (`scripts/test-env/*.ps1`, skills `foundry-test-env`,
   `foundry-ai-tool`, `foundry-core-ui`). The module reads its default bridge port from the manifest
@@ -284,7 +295,7 @@ manifest — see **Migrating from the old repo** below.
   README/CREDITS/LICENSE attribution.
 - npm scope is now `@gnuminator/*` (`@gnuminator/shared`, `@gnuminator/mcp-server`,
   `@gnuminator/foundry-module`, `@gnuminator/cogm-dashboard`).
-- Authored `docs/ARCHITECTURE.md` describing the system from first principles (the MCP tool surface, the
+- Authored `docs/dev/ARCHITECTURE.md` describing the system from first principles (the MCP tool surface, the
   Foundry-link socket bridge, the JSON-lines control channel, the D&D 5e system adapter, the job queue,
   GM-gating, and the standalone co-GM dashboard).
 
@@ -324,7 +335,7 @@ manifest — see **Migrating from the old repo** below.
 If you have a previous version installed from `Gnuminator/Foundry-VTT-MCP`, your module keeps working —
 but Foundry checks the **old** repo for updates, because that URL is baked into the installed manifest.
 To switch to the new repo so future updates come from here, see
-[docs/MIGRATION.md](docs/MIGRATION.md) for the one-time reinstall steps. No data migration is required.
+[docs/history/MIGRATION.md](docs/history/MIGRATION.md) for the one-time reinstall steps. No data migration is required.
 
 ---
 

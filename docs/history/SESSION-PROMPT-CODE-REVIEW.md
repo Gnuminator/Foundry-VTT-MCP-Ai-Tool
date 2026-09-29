@@ -19,12 +19,12 @@ needless `any`). **No behavior changes** unless characterized first.
 - `CLAUDE.md` — identity, remotes (`aitool` = canonical, never add upstream),
   **frozen wire identifiers** (module id `foundry-mcp-bridge`, ports 31414/15/16,
   query prefix `foundry-mcp-bridge.*`, settings namespace) — DO NOT rename these.
-- `docs/PROJECT-STATUS-2026-06.md` — architecture + backlog + the `any` baseline
+- `docs/history/PROJECT-STATUS-2026-06.md` — architecture + backlog + the `any` baseline
   notes (~340 `as any` + ~459 `: any`; `actor-builder.ts` alone has 43).
-- `docs/RUNTIME-TEST-PLAN.md` + `docs/LIVE-VERIFICATION-2026-06-16.md` — what's
+- `docs/dev/RUNTIME-TEST-PLAN.md` + `docs/history/LIVE-VERIFICATION-2026-06-16.md` — what's
   been verified live; the **queued runtime fixes A/B/C** (see below) — those are a
   SEPARATE track, not this session's job unless asked.
-- `docs/PHASE9-DOMAIN-REWRITE.md` + `docs/DETACH-PLAN.md` — how the current code
+- `docs/history/PHASE9-DOMAIN-REWRITE.md` + `docs/history/DETACH-PLAN.md` — how the current code
   came to be (parity rewrites behind frozen characterization nets).
 
 ## Mission & scope
@@ -90,4 +90,4 @@ execute incrementally.
 
 The queued **runtime** fixes (A: duplicate condition events; B: ComfyUI startup
 noise; C: agentic co-GM ask) — those are behavior/feature work tracked in
-`docs/LIVE-VERIFICATION-2026-06-16.md`. Leave them unless the user redirects.
+`docs/history/LIVE-VERIFICATION-2026-06-16.md`. Leave them unless the user redirects.

@@ -406,7 +406,7 @@ Additions from the local setup session (2026-09-27, Windows, Node 22.22.2 / npm 
   clears all but `ip` and `werift`; update the audit numbers in `CLAUDE.md` (done: 2 advisories in
   shipped code, 12 in total, none critical). werift 0.24.x is a breaking bump
   on the WebRTC path: separate change, gated on the GM's live smoke test
-  (`docs/DEPENDENCY-PATCH-SMOKE-TEST.md`). The other 24 advisories are dev-only; the two "critical" ones
+  (`docs/history/DEPENDENCY-PATCH-SMOKE-TEST.md`). The other 24 advisories are dev-only; the two "critical" ones
   leave with the v9 typings (0.4).
 - **Lint (addition 5).** 12,129 warnings (8,142 in `src`, 3,987 in tests and mocks); 96% are the `any` rules
   (`no-unsafe-*`, `no-explicit-any`) on untyped Foundry data. No one-by-one fixes. Turn the `any` rules off
@@ -846,7 +846,7 @@ is installed, so M1 leads with the built-in roll and supports `tarokka-reading` 
   Assistant-GM client, with before-values and one writer, appended to the vault session log (extends 0.6);
   derived tables later feed dashboards and fun stats (damage per PC, hardest encounter by HP lost, rounds
   and resources spent). The raw log is GM-only; anything shown to players goes through the projection.
-  Details in `docs/OBSIDIAN-PLAN.md` (data source for the vault notes).
+  Details in `docs/design/OBSIDIAN-PLAN.md` (data source for the vault notes).
 - **Discord voice recording (Craig) + voice-to-text**: transcripts as an extra recap source (feature 7) and
   AI context. Prior art to look at then: `Txpple/fvtt-app-sessionscribe` **[verified 2026-09-27]** (MIT,
   created 2026-09-23): an MCP server plus a Claude Code skill that turns a Craig recording, the Foundry chat

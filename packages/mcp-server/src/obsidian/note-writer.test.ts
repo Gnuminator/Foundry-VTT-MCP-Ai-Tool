@@ -1,5 +1,5 @@
 /**
- * NoteWriter (moved out of export.ts, docs/OBSIDIAN-O4-DESIGN.md 3.5): the
+ * NoteWriter (moved out of export.ts, docs/design/OBSIDIAN-O4-DESIGN.md 3.5): the
  * O2 behaviors it kept (ownership, fence, prune; the O2 export tests cover the
  * rest), plus the O4 additions: the `same` comparator, the real-path fence
  * against links and junctions, and `trash`. Everything runs in temp folders.

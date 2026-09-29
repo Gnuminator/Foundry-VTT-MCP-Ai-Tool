@@ -1,7 +1,7 @@
 # Code-quality cleanup pass — session log (2026-06-17)
 
 Resume point for the "trim the hedges" cleanup track (kickoff:
-`docs/SESSION-PROMPT-CODE-REVIEW.md`). Tree clean, **all green**: typecheck 0,
+`docs/history/SESSION-PROMPT-CODE-REVIEW.md`). Tree clean, **all green**: typecheck 0,
 lint `--quiet` 0 errors, build OK, **1942 tests** pass across 4 workspaces.
 
 ## Done this session (4 commits on `main`)
@@ -140,5 +140,5 @@ finding above.
 ## Out of scope (separate track — do NOT touch unless redirected)
 
 Runtime fixes **A** (duplicate condition events), **B** (ComfyUI startup noise),
-**C** (agentic co-GM ask) — tracked in `docs/LIVE-VERIFICATION-2026-06-16.md` and
+**C** (agentic co-GM ask) — tracked in `docs/history/LIVE-VERIFICATION-2026-06-16.md` and
 the `queued-fixes-live-verification` memory.

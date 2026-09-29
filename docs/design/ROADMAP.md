@@ -4,7 +4,7 @@ Where this fork goes next. Most of the original roadmap has shipped — this fil
 what's done and what's left, plus the "live update in a Claude session" analysis that the
 co-GM dashboard came out of.
 
-See also: [BUILT.md](BUILT.md), [FIXES.md](FIXES.md), [FEATURE-IDEAS.md](FEATURE-IDEAS.md).
+See also: [BUILT.md](../history/BUILT.md), [FIXES.md](../history/FIXES.md), [FEATURE-IDEAS.md](../history/FEATURE-IDEAS.md).
 
 > **Next up (2026-09-27):** the Curse of Strahd extension plan in
 > [CURSE-OF-STRAHD-PLAN.md](CURSE-OF-STRAHD-PLAN.md) (awaiting GM review). Decisions recorded there:
@@ -23,7 +23,7 @@ See also: [BUILT.md](BUILT.md), [FIXES.md](FIXES.md), [FEATURE-IDEAS.md](FEATURE
 - **Module diagnostics** (v0.12.0) — `get-module-errors` / `get-modules` / `get-module-manifest` /
   `clear-module-errors`.
 - **Roll-request button fixes** (v0.10.1 / v0.10.2) — loading (ad-blocker filename) and the dnd5e v5
-  save-object formula + save proficiency. See [FIXES.md](FIXES.md).
+  save-object formula + save proficiency. See [FIXES.md](../history/FIXES.md).
 - **Standalone co-GM dashboard** (`packages/cogm-dashboard`, v0.13.0) — the live-update "option 1"
   below, now built: read-only feed + combat tracker + streaming AI commentary + post-to-chat, a
   hardened reconnecting MCP control client (TCP keepalive, heartbeat, half-open recovery), and a
@@ -44,7 +44,7 @@ See also: [BUILT.md](BUILT.md), [FIXES.md](FIXES.md), [FEATURE-IDEAS.md](FEATURE
   `style` vs `type` were the historical drift points).
 - ✅ **Dashboard design overhaul** _(shipped v0.15.0)_ — "Modern Command Center" redesign: refined
   typography/spacing/density, reworked diagnostics pane + status bar, and a graduated responsive
-  layout that fixes the mobile overflow. See [COGM-DASHBOARD.md](COGM-DASHBOARD.md).
+  layout that fixes the mobile overflow. See [COGM-DASHBOARD.md](../reference/COGM-DASHBOARD.md).
 
 ### Medium term
 
@@ -59,7 +59,7 @@ See also: [BUILT.md](BUILT.md), [FIXES.md](FIXES.md), [FEATURE-IDEAS.md](FEATURE
 ### Make it my own (the detach + product push)
 
 Detached to the standalone repo **Gnuminator/Foundry-VTT-MCP-Ai-Tool** ("Foundry AI Tool"); the full
-staged plan + locked decisions live in [DETACH-PLAN.md](DETACH-PLAN.md). Status + what's left:
+staged plan + locked decisions live in [DETACH-PLAN.md](../history/DETACH-PLAN.md). Status + what's left:
 
 - ✅ **Detach + rebrand** (Phases 0–2) — clean history (my 30 commits over a single upstream baseline,
   no Adam-authored commits), surface rebrand, **README rewritten from scratch**, LICENSE/CREDITS.
@@ -95,7 +95,7 @@ staged plan + locked decisions live in [DETACH-PLAN.md](DETACH-PLAN.md). Status 
 
 ### Code review 2026-07 — action backlog
 
-Full audit in [CODE-REVIEW-2026-07.md](CODE-REVIEW-2026-07.md) (HEAD `bfbc93b`, v0.18.0). The two biggest
+Full audit in [CODE-REVIEW-2026-07.md](../history/CODE-REVIEW-2026-07.md) (HEAD `bfbc93b`, v0.18.0). The two biggest
 items are their own sessions: ~~decommission ComfyUI entirely~~ (done 2026-09-29) and **design remote
 hosting for the GM**.
 Everything else outstanding is below, roughly in priority order.

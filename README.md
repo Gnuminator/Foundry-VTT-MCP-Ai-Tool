@@ -6,7 +6,7 @@
   <a href="https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/actions/workflows/ci.yml"><img src="https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest"><img src="https://img.shields.io/github/v/release/Gnuminator/Foundry-VTT-MCP-Ai-Tool?sort=semver" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/Foundry-v13%20%7C%20v14-fe6a1f" alt="Foundry v13 | v14">
+  <img src="https://img.shields.io/badge/Foundry-v14-fe6a1f" alt="Foundry v14">
   <img src="https://img.shields.io/badge/system-dnd5e-e63946" alt="D&D 5e">
 </p>
 
@@ -38,7 +38,7 @@ runner for every bridge action — **no AI client required** to use it.
    Co-GM dashboard ──(control channel)┘   ← watches + drives the same bridge, no AI client needed
 ```
 
-> Architecture deep-dive: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+> Architecture deep-dive: **[docs/dev/ARCHITECTURE.md](docs/dev/ARCHITECTURE.md)**.
 
 ---
 
@@ -69,7 +69,7 @@ compendiums, set scene mood/lighting, create quest journals, drop loot, manage t
 **Safe by default** — watching is always read-only; game-changing actions stay off until you flip the
 **GM Actions** switch; every write asks for confirmation, and destructive actions need a second confirm.
 
-> Full dashboard tour: **[docs/COGM-DASHBOARD.md](docs/COGM-DASHBOARD.md)**.
+> Full dashboard tour: **[docs/reference/COGM-DASHBOARD.md](docs/reference/COGM-DASHBOARD.md)**.
 
 ---
 
@@ -85,8 +85,8 @@ or hosted for you **and** your GM.
   (exact enemy HP, hidden combatants, notes, diagnostics, the write surface) filtered **server-side**,
   not in CSS. Opt-in via a GM token or a Cloudflare Access email allow-list.
 - **Remote access** — a setup guide + Cloudflare Tunnel / Access and Docker **templates** to host the
-  dashboard for your group without exposing your home IP. See **[docs/REMOTE-ACCESS.md](docs/REMOTE-ACCESS.md)**
-  and the **[Phase 6 design](docs/PHASE6-DESIGN.md)**. (Templated, not yet a one-click deploy.)
+  dashboard for your group without exposing your home IP. See **[docs/dev/REMOTE-ACCESS.md](docs/dev/REMOTE-ACCESS.md)**
+  and the **[Phase 6 design](docs/history/PHASE6-DESIGN.md)**. (Templated, not yet a one-click deploy.)
 
 ---
 
@@ -126,7 +126,7 @@ In Foundry VTT → **Add-on Modules → Install Module**, paste this manifest UR
 https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/module.json
 ```
 
-Enable it in your world (requires Foundry **v13** or **v14**).
+Enable it in your world (requires Foundry **v14** with the dnd5e 6 system).
 
 ### 2. Set up the MCP server
 
@@ -173,11 +173,11 @@ AI commentary needs one. To run it with Claude Desktop closed, start the bridge 
 
 | Doc                                                     | What                                                                                |
 | ------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md)                 | The system from first principles — the two wire contracts, GM-gating, the job queue |
-| [COGM-DASHBOARD.md](docs/COGM-DASHBOARD.md)             | Full co-GM dashboard tour                                                           |
-| [PHASE6-DESIGN.md](docs/PHASE6-DESIGN.md)               | Standalone bridge + remote access + player/GM split — design & roadmap              |
-| [REMOTE-ACCESS.md](docs/REMOTE-ACCESS.md)               | Cloudflare Tunnel/Access setup guide + deploy templates                             |
-| [MIGRATION.md](docs/MIGRATION.md)                       | Upgrading / repointing an existing install                                          |
+| [ARCHITECTURE.md](docs/dev/ARCHITECTURE.md)             | The system from first principles — the two wire contracts, GM-gating, the job queue |
+| [COGM-DASHBOARD.md](docs/reference/COGM-DASHBOARD.md)   | Full co-GM dashboard tour                                                           |
+| [PHASE6-DESIGN.md](docs/history/PHASE6-DESIGN.md)       | Standalone bridge + remote access + player/GM split — design & roadmap              |
+| [REMOTE-ACCESS.md](docs/dev/REMOTE-ACCESS.md)           | Cloudflare Tunnel/Access setup guide + deploy templates                             |
+| [MIGRATION.md](docs/history/MIGRATION.md)               | Upgrading / repointing an existing install                                          |
 | [CHANGELOG.md](CHANGELOG.md) · [CREDITS.md](CREDITS.md) | Releases · attribution                                                              |
 
 ---
@@ -193,3 +193,7 @@ The MCP server and Foundry module packages are derived from that upstream projec
 <p align="center">
   <img src="docs/images/brand/logo-reveal.gif" alt="Foundry AI Tool" width="540">
 </p>
+
+---
+
+Foundry AI Tool is an independent project, not affiliated with or endorsed by Foundry Gaming LLC.

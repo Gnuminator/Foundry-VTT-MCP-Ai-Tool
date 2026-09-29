@@ -1,6 +1,6 @@
 /**
  * The shared note writer for the Obsidian exporter and the Foundry mirror
- * (docs/OBSIDIAN-PLAN.md O2, docs/OBSIDIAN-O4-DESIGN.md 3.5).
+ * (docs/design/OBSIDIAN-PLAN.md O2, docs/design/OBSIDIAN-O4-DESIGN.md 3.5).
  *
  * Moved out of `export.ts` without a behavior change: one writer per
  * campaign folder, enforcing the ownership rules and the path fence, and

@@ -1,7 +1,7 @@
 /**
  * Merge the append-only change history (`gm/audit-log.jsonl`, shared contract
  * 2) with the audit ring (`gm/audit.json`, 500 entries) for the Changes/
- * notes (docs/OBSIDIAN-PLAN.md, O2 item 5).
+ * notes (docs/design/OBSIDIAN-PLAN.md, O2 item 5).
  *
  * Union by `changeId`. The ring wins for `undoneBy`/`undoneAt` on an id
  * present in both (it is updated in place when a change is undone, so it is

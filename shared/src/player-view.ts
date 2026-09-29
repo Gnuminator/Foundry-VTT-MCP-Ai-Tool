@@ -1,5 +1,5 @@
 /**
- * Player view contract (docs/CURSE-OF-STRAHD-PLAN.md feature 2, M2).
+ * Player view contract (docs/design/CURSE-OF-STRAHD-PLAN.md feature 2, M2).
  *
  * Foundry sends all world data to every client, so nothing in Foundry is
  * secret; the player page of the co-GM dashboard is the one place the tool

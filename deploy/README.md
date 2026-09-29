@@ -5,7 +5,7 @@
 > has been tested against a real host. Fill in the `<PLACEHOLDER>` values and adapt to
 > your host before using any of it.
 
-**Start here for context:** `docs/REMOTE-ACCESS.md` — the full operational setup guide
+**Start here for context:** `docs/dev/REMOTE-ACCESS.md` — the full operational setup guide
 with topology diagram, env-var table, and step-by-step Cloudflare Tunnel + Access
 walkthrough.
 
@@ -44,20 +44,20 @@ deploy/
 
 ## Quick orientation
 
-| Goal                                    | Start with                                                    |
-| --------------------------------------- | ------------------------------------------------------------- |
-| Understand the full remote topology     | `docs/REMOTE-ACCESS.md`                                       |
-| Run bridge + dashboard on a Linux host  | `Dockerfile` + `docker-compose.yml.template`                  |
-| Set up the Cloudflare Tunnel            | `cloudflare/config.yml.template` + `docs/REMOTE-ACCESS.md §3` |
-| Configure Cloudflare Access email gates | `cloudflare/access-policy.md`                                 |
-| Keep the bridge alive on Windows today  | `windows/install-service.md`                                  |
+| Goal                                    | Start with                                                        |
+| --------------------------------------- | ----------------------------------------------------------------- |
+| Understand the full remote topology     | `docs/dev/REMOTE-ACCESS.md`                                       |
+| Run bridge + dashboard on a Linux host  | `Dockerfile` + `docker-compose.yml.template`                      |
+| Set up the Cloudflare Tunnel            | `cloudflare/config.yml.template` + `docs/dev/REMOTE-ACCESS.md §3` |
+| Configure Cloudflare Access email gates | `cloudflare/access-policy.md`                                     |
+| Keep the bridge alive on Windows today  | `windows/install-service.md`                                      |
 
 ---
 
 ## Seams (what you fill in)
 
 Before any of these templates can run, every `<PLACEHOLDER>` must be replaced with a real
-value. The complete list is in `docs/REMOTE-ACCESS.md §5 (seams list)`. Short summary:
+value. The complete list is in `docs/dev/REMOTE-ACCESS.md §5 (seams list)`. Short summary:
 
 - `<TUNNEL_UUID>` — from `cloudflared tunnel create cogm`
 - `<YOUR_DOMAIN>` — the domain on your Cloudflare account (e.g. `example.com`)
@@ -71,7 +71,7 @@ value. The complete list is in `docs/REMOTE-ACCESS.md §5 (seams list)`. Short s
 ## What is not here (intentional gaps)
 
 - **TURN server config** — werift supports TURN but it is not wired up yet. Marked as a
-  seam in `docs/REMOTE-ACCESS.md §4`.
+  seam in `docs/dev/REMOTE-ACCESS.md §4`.
 - **Reverse-proxy / TLS for the Foundry connectors** — ports 31415 / 31416 are exposed
   directly; TLS termination for those is future work if the WebRTC path needs it.
 - **Auth middleware code** — the player/GM split is live in the dashboard config

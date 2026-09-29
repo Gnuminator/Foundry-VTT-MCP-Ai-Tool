@@ -101,7 +101,7 @@ Last full pass: 2026-09-28, all green (see CLAUDE.md). For each item record evid
 
 ## Player view checks (M2)
 
-Last full pass: 2026-09-28 (see `docs/CURSE-OF-STRAHD-PLAN.md` "M2 as built"). The proof is the
+Last full pass: 2026-09-28 (see `docs/design/CURSE-OF-STRAHD-PLAN.md` "M2 as built"). The proof is the
 canary suite (`packages/cogm-dashboard/src/player/canary.test.ts`); this pass checks the real
 Foundry data behind it.
 
@@ -206,7 +206,7 @@ should not be logged.
 
 ## Obsidian mirror checks (O4)
 
-Last full pass: 2026-09-29, all green (`docs/OBSIDIAN-PLAN.md` "As built", O4). Gotchas from that
+Last full pass: 2026-09-29, all green (`docs/design/OBSIDIAN-PLAN.md` "As built", O4). Gotchas from that
 pass:
 
 - Deletes need a reconcile: reload the Foundry page (a new client) and wait about 20 s, or wait for

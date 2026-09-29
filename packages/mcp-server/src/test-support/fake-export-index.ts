@@ -1,6 +1,6 @@
 /**
  * Test helper: an in-memory fake of the module query `getExportIndex`
- * (docs/OBSIDIAN-O4-DESIGN.md section 1) with the contract's semantics, for the
+ * (docs/design/OBSIDIAN-O4-DESIGN.md section 1) with the contract's semantics, for the
  * Obsidian mirror pump tests. The real query is tested in the module
  * (`packages/foundry-module/src/export-index.test.ts`).
  *

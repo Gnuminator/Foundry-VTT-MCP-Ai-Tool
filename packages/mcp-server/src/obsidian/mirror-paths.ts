@@ -1,5 +1,5 @@
 /**
- * Note paths for the Obsidian mirror (docs/OBSIDIAN-O4-DESIGN.md section 3.4).
+ * Note paths for the Obsidian mirror (docs/design/OBSIDIAN-O4-DESIGN.md section 3.4).
  *
  * `allocateNotePaths` is pure and deterministic: the same requests, the same
  * known notes and the same taken files always give the same paths, so two runs

@@ -1,5 +1,5 @@
 /**
- * Export the bridge vault into the GM's Obsidian vault (docs/OBSIDIAN-PLAN.md,
+ * Export the bridge vault into the GM's Obsidian vault (docs/design/OBSIDIAN-PLAN.md,
  * O1+O2).
  *
  * One way only: bridge vault -> Markdown/Canvas/Base. Ownership rules:
@@ -179,7 +179,7 @@ async function loadPlayRecords(
 }
 
 /** A PC's stats-note file name, sanitized, with a uuid suffix only on a
- * collision (docs/OBSIDIAN-PLAN.md section 5: id suffix only on collision). */
+ * collision (docs/design/OBSIDIAN-PLAN.md section 5: id suffix only on collision). */
 function pcStatsFileNames(stats: StatsModel): Map<string, string> {
   const used = new Set<string>();
   const names = new Map<string, string>();

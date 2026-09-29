@@ -41,7 +41,7 @@ export const FOUNDRY_REF_KINDS = [
 ] as const;
 
 /** Kinds the backend lists itself. */
-export const BACKEND_REF_KINDS = ['plan', 'change', 'tarokka-card', 'map-job'] as const;
+export const BACKEND_REF_KINDS = ['plan', 'change', 'tarokka-card'] as const;
 
 export type FoundryRefKind = (typeof FOUNDRY_REF_KINDS)[number];
 export type BackendRefKind = (typeof BACKEND_REF_KINDS)[number];

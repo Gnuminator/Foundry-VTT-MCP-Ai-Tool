@@ -10,9 +10,6 @@
 #    - shared  (internal types package)
 #
 #  What is intentionally NOT included:
-#    - ComfyUI / AI map generation — this is a Windows-local feature that
-#      depends on a bundled Python installation and GPU. It does not run in
-#      a Linux container.  Map-gen tool calls will return "not available" errors.
 #    - The Foundry module — that installs into Foundry, not here.
 #    - cloudflared — use the sidecar in docker-compose.yml.template instead.
 #

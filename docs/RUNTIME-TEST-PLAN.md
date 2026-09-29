@@ -44,7 +44,7 @@ heartbeat + request-timeout recovery. Verify it actually recovers.
 Reads are mostly done; finish the skips and systematically exercise writes on
 fixtures. Track each as ✅ / ⚠️ / ❌ with the result shape.
 
-- [ ] **Reads — finish the 5 skipped**: `get-character-entity` (entityIdentifier from a real item), `get-compendium-item` + `get-compendium-entry-full` (packId/itemId), `check-map-status` (a real job_id), `search-journals` (a query).
+- [ ] **Reads — finish the 4 skipped**: `get-character-entity` (entityIdentifier from a real item), `get-compendium-item` + `get-compendium-entry-full` (packId/itemId), `search-journals` (a query).
 - [ ] **Characters/items**: `get-character` (full name, partial — after fix, id, ambiguous), `search-character-items` (query/type/category combos), `use-item`, `manage-world-items`, `create-world-items`/`list`/`update`.
 - [ ] **Actor creation**: `create-actor-from-compendium` (1 + quantity + addToScene), `get-compendium-entry-full`, `add-actors-to-scene` — on a **test scene**.
 - [ ] **dnd5e authoring**: `dnd5e-create-npc`, `dnd5e-add-feature`, `dnd5e-add-features-from-compendium`, attack/aura/passive/save-feature, spellcasting, add-spells — on a **throwaway test actor**, then delete it.
@@ -59,7 +59,6 @@ fixtures. Track each as ✅ / ⚠️ / ❌ with the result shape.
 - [ ] **Ownership**: `assign`/`list`/`remove-actor-ownership` — on a test actor.
 - [ ] **Journals/quests**: `create-quest-journal`, `update-quest-journal`, `link-quest-to-npc`, `list`/`search-journals`. (No delete-journal tool — clean up manually.)
 - [ ] **Diagnostics**: `get-modules`, `get-module-errors`, `clear-module-errors`, `get-module-manifest`.
-- [ ] **Map generation** (only if ComfyUI is installed): `generate-map` → progress → scene; `check-map-status`; `cancel-map-job`. (See fix B if not installed.)
 
 ## 3. dnd5e data correctness
 
@@ -115,7 +114,6 @@ Spot-check that tool output matches what Foundry shows:
 Re-run the relevant slice after each fix lands + the module is rebuilt/reinstalled:
 
 - [ ] **A** — toggle a condition → exactly **one** feed event each way.
-- [ ] **B** — with ComfyUI absent + `mapGenAutoStart` on, MODULE DIAGNOSTICS has **no** foundry-mcp ComfyUI warn/error.
 - [ ] **C** — ask "what does <PC> have equipped?" → answered from a tool call.
 - [ ] **get-character** partial name resolves live.
 

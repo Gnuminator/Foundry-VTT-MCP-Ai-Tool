@@ -178,12 +178,11 @@ export interface ChunkedMessageFrame {
 }
 
 /**
- * The core, stable Foundry-link frames. Auxiliary push frames also travel this
- * link today — `bridge-status`, and the map-generation control/progress/
- * completion messages — but their payload shapes are still loose in the current
- * implementation, so they are intentionally NOT frozen here yet. Tightening and
- * codifying them is tracked as a Phase 4 implementation slice (see
- * docs/PHASE4-TRACKER.md); until then, treat them as `{ type: string; ... }`.
+ * The core, stable Foundry-link frames. An auxiliary push frame also travels this
+ * link today, `bridge-status`, but its payload shape is still loose in the current
+ * implementation, so it is intentionally NOT frozen here yet. Tightening and
+ * codifying it is tracked as a Phase 4 implementation slice (see
+ * docs/PHASE4-TRACKER.md); until then, treat it as `{ type: string; ... }`.
  */
 export type FoundryFrame =
   | FoundryQueryFrame

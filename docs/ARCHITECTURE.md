@@ -58,7 +58,6 @@ a pair of well-defined wire contracts connect them.
                               (SSE server  │  - control-channel server (ping/list/call)    │
                                + tool proxy│  - tool dispatch → tool classes               │
                                in Node)    │  - system-adapter registry (D&D 5e)           │
-                                           │  - job queue + ComfyUI client (map gen)       │
                                            │  - Foundry connector (WS / WebRTC server)     │
                                            └───────────────┬──────────────────────────────┘
                                                            │ WebSocket :31415  /  WebRTC :31416
@@ -72,18 +71,17 @@ a pair of well-defined wire contracts connect them.
                                            └──────────────────────────────────────────────┘
 ```
 
-The rest of this document walks each part and then traces three requests end-to-end.
+The rest of this document walks each part and then traces two requests end-to-end.
 
 ### Port map (localhost)
 
 | Port    | Protocol        | Spoken between                                            |
 | ------- | --------------- | --------------------------------------------------------- |
-| `31411` | HTTP            | backend ⇄ ComfyUI (local AI image generation)             |
 | `31414` | TCP, JSON-lines | stdio wrapper **and** co-GM dashboard → backend (control) |
 | `31415` | WebSocket       | Foundry module → backend (the "Foundry connector")        |
 | `31416` | HTTP POST       | Foundry module → backend (WebRTC signaling/handshake)     |
 
-All four listen on `127.0.0.1` by default. The Foundry link (31415/31416) opens to other
+All three listen on `127.0.0.1` by default. The Foundry link (31415/31416) opens to other
 interfaces only with `FOUNDRY_LINK_HOST`; the dashboard (3000) only with `DASHBOARD_HOST`
 plus a `GM_DASHBOARD_TOKEN` (it refuses to start otherwise).
 
@@ -113,7 +111,7 @@ The module hooks Foundry's lifecycle:
 - **`init`** — register settings, register the bridge handlers into the module-private
   handler table (`bridge-handlers.ts`, **not** `CONFIG.queries`; see below), register
   campaign hooks, and start the **session-event tracker** (hooks that buffer chat and combat
-  activity — see §8's feed). Diagnostics error-capture is installed even earlier, at module
+  activity — see §7's feed). Diagnostics error-capture is installed even earlier, at module
   evaluation time, so it catches the earliest console/uncaught errors from _other_ modules.
 - **`ready`** — **the GM gate.** If the current user is not a GM (and the
   `allowNonGmAccess` world setting, default off, is not on), the module returns
@@ -164,7 +162,7 @@ fails** for non-GM users — defense in depth on top of the `ready`-hook gate.
 
 ### Safety (`permissions.ts`, `transaction-manager.ts`)
 
-See §7. Briefly: writes are classified by risk and gated by settings; multi-step writes can
+See §6. Briefly: writes are classified by risk and gated by settings; multi-step writes can
 be wrapped in a transaction that knows how to roll itself back.
 
 ---
@@ -221,8 +219,6 @@ Backend → module:
 ```json
 {"type":"mcp-query","id":"query-N","data":{"method":"foundry-mcp-bridge.<handler>","data":{...}}}
 {"type":"ping","id":"..."}
-{"type":"map-generation-progress","data":{...}}
-{"type":"job-completed","jobId":"...","data":{...}}
 ```
 
 Module → backend:
@@ -231,7 +227,6 @@ Module → backend:
 {"type":"mcp-response","id":"query-N","data":{"success":true,"data":<result>}}
 {"type":"mcp-response","id":"query-N","data":{"success":false,"error":"..."}}
 {"type":"pong","id":"...","data":{...}}
-{"type":"generate-map-request", ...}        // module-initiated requests (e.g. ComfyUI control)
 {"type":"chunked-message", ...}             // a slice of an oversized WebRTC payload
 ```
 
@@ -284,7 +279,7 @@ The long-lived workhorse. Responsibilities:
 3. **Tool dispatch.** `call_tool` looks the tool name up in a null-prototype name → handler
    map (`tool-router.ts`) and calls the matching handler on one of the **tool classes**. Each domain is a class constructed once at
    startup — `CharacterTools`, `CompendiumTools`, `SceneTools`, `CombatTools`,
-   `TokenManipulationTools`, `CombatResolutionTools`, `EncounterTools`, `MapGenerationTools`,
+   `TokenManipulationTools`, `CombatResolutionTools`, `EncounterTools`,
    `DiagnosticsTools`, the D&D-5e-specific creators, and so on. A tool handler typically
    validates its args, then calls `foundryClient.query('foundry-mcp-bridge.<handler>', data)`
    to reach into Foundry, then shapes the result. The full tool list is the union of every
@@ -293,19 +288,17 @@ The long-lived workhorse. Responsibilities:
    The backend _is the server_ for the Foundry link: it runs the WebSocket server on `31415`
    and the WebRTC signaling endpoint on `31416`, registers the module when it connects,
    and exposes `query(method, data)` / `sendMessage(msg)` over whichever transport won.
-5. **Map-generation pipeline** — the job queue and ComfyUI client (§6). Dropped for now;
-   ComfyUI never starts by itself unless `COMFYUI_AUTOSTART=true`.
-6. **Bridge vault, guarded writes and the event pump** (§4d).
+5. **Bridge vault, guarded writes and the event pump** (§4d).
 
 Tool handlers never see the transport. They call `FoundryClient.query()`, which throws a clear
 "module not connected" error if Foundry isn't linked — and that specific error is what lets the
-dashboard distinguish "backend up, Foundry down" from "channel down" (§8).
+dashboard distinguish "backend up, Foundry down" from "channel down" (§7).
 
 ### 4c. Configuration (`config.ts`)
 
 A Zod-validated config object sourced from environment variables with sane defaults: Foundry
 host/port (`31415`, namespace `/foundry-mcp`), connection type (`auto` | `websocket` |
-`webrtc`), WebRTC STUN servers, ComfyUI port (`31411`), a `toolResponseMaxChars` cap to keep
+`webrtc`), WebRTC STUN servers, a `toolResponseMaxChars` cap to keep
 tool outputs from blowing past model context, and the server name/version. `WEBRTC_CONSTANTS`
 pins the SCTP limits (64 KB max message, 50 KB chunk threshold, chunk-count and timeout caps to
 defuse "chunk bomb" memory attacks) and **must stay in sync** with the module's chunking code.
@@ -396,44 +389,7 @@ creature index is actually built in the browser against live compendiums.
 
 ---
 
-## 6. The job queue (long-running operations)
-
-Most tools are request/response and finish in well under the 10-second Foundry-query timeout.
-**AI battle-map generation** is not: it drives a local [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
-Stable-Diffusion pipeline that takes 30–60+ seconds. That needs an async job model
-(`job-queue.ts` + `comfyui-client.ts`, orchestrated in `backend.ts`).
-
-**Job model.** A `JobData` record carries an id, a content hash of the request, status
-(`queued → generating → processing → complete | failed | expired`), progress percent and a
-human-readable stage, retry/attempt counters, an estimated duration, and (when done) a result
-holding the generated image path and a ready-to-create Foundry scene payload.
-
-**Lifecycle:**
-
-1. `generate-map` creates a job (deduplicating identical in-flight requests by prompt hash),
-   returns the `jobId` immediately, and kicks off background processing.
-2. Background processing ensures ComfyUI is up (starting the bundled service if needed),
-   submits the prompt, and **polls** ComfyUI for status every 5 s while a **WebSocket progress
-   callback** streams fine-grained step progress. Each progress tick is pushed to Foundry as a
-   `map-generation-progress` message so the GM sees a live banner.
-3. On completion the backend downloads the image and **uploads it to Foundry via a query**
-   (`foundry-mcp-bridge.upload-generated-map`) rather than writing the filesystem directly —
-   because the backend and Foundry may be different machines with different paths, only the
-   module knows the correct local destination. It then broadcasts `job-completed` with a full
-   scene payload, and the module creates (and optionally activates) the scene.
-4. **Polling and cancellation.** `check-map-status` reads the job record; `cancel-map-job`
-   interrupts the ComfyUI job (if a prompt id was captured) and marks the queue entry
-   cancelled. A background timer expires jobs past their TTL (30 min) so the in-memory map
-   doesn't grow without bound.
-
-The queue is intentionally in-memory and modest (max 2 concurrent, 3 retries): this is a
-single-GM local tool, not a render farm. The important design property is that _the slow path
-never blocks the control channel_ — the AI gets an immediate job id and polls, exactly as it
-would for any async API.
-
----
-
-## 7. GM-gating & security
+## 6. GM-gating & security
 
 The threat model is simple but real: the bridge can _change the live game world_, and a
 Foundry world has non-GM players connected to it. The module must guarantee that only the GM
@@ -472,7 +428,7 @@ control channel.
 
 ---
 
-## 8. The co-GM dashboard (`packages/cogm-dashboard`)
+## 7. The co-GM dashboard (`packages/cogm-dashboard`)
 
 A standalone product that turns the same bridge into a **live session companion**. It is
 original work (not derived from upstream) and has **no Claude Desktop dependency at runtime** —
@@ -534,7 +490,7 @@ redaction is planned as M2 (`docs/CURSE-OF-STRAHD-PLAN.md`, feature 2).
 
 ---
 
-## 9. Three end-to-end flows
+## 8. Two end-to-end flows
 
 ### Flow A — Claude asks "what undead of CR 5 are in my compendiums?"
 
@@ -576,26 +532,9 @@ Key points: the dashboard uses the **exact same backend** as Claude Desktop (no 
 backend), the write is **gated server-side** (switch + confirm), and the _confirmation the GM
 sees_ in the UI comes from the live SSE feed, not from the tool's return value.
 
-### Flow C — "Generate a battle map of a goblin war camp"
-
-```
-Claude → call_tool generate-map {prompt, scene_name, size}
-       → MapGenerationTools.generateMap → JobQueue.createJob → returns {jobId} immediately
-       → background: ensure ComfyUI (31411) up → submit prompt → poll status every 5s
-         │  ComfyUI WebSocket progress → backend → {type:"map-generation-progress"} → module banner
-       → on done: download image → query "foundry-mcp-bridge.upload-generated-map" (module saves
-         it to the correct local path) → broadcast {type:"job-completed", scene payload}
-       → module creates the Scene (+ walls, + "AI Generated Maps" folder), optionally activates it
-   meanwhile Claude polls: call_tool check-map-status {job_id} → queued/generating/complete
-```
-
-Key points: the slow operation returns a **job id at once** and never blocks the channel;
-progress is pushed to Foundry live; the image is delivered **through the module** (path-correct,
-machine-independent) rather than by a filesystem write the backend can't be sure about.
-
 ---
 
-## 10. Design principles (why it's shaped this way)
+## 9. Design principles (why it's shaped this way)
 
 - **The AI sees tools, never Foundry.** Every capability is an MCP tool with a schema; the
   module is the only code with Foundry API access. This is the security boundary and the
@@ -607,8 +546,6 @@ machine-independent) rather than by a filesystem write the backend can't be sure
   Desktop and the standalone dashboard share a single Foundry link and the single tool surface.
 - **Knowledge quarantined behind interfaces.** D&D 5e specifics live in one adapter behind a
   registry; the tool layer speaks to the interface. One adapter today, but the seam is real.
-- **Async work is a job, not a held connection.** Map generation returns a job id and streams
-  progress; the channel stays responsive.
 - **GM-gated, defense in depth.** Silent non-GM gate, per-handler checks, risk-classified
   writes, reversible transactions, and server-side gating on the dashboard. Secrets never reach
   the browser.
@@ -620,9 +557,9 @@ machine-independent) rather than by a filesystem write the backend can't be sure
 
 ## Appendix — package map
 
-| Package                   | Role                                                                                    | Runs in           |
-| ------------------------- | --------------------------------------------------------------------------------------- | ----------------- |
-| `packages/mcp-server`     | stdio MCP wrapper + backend (control channel, tools, registry, jobs, Foundry connector) | Node.js (Windows) |
-| `packages/foundry-module` | `foundry-mcp-bridge` — the in-Foundry gateway                                           | Foundry's browser |
-| `packages/cogm-dashboard` | standalone co-GM dashboard (Node SSE server + browser client)                           | Node.js + browser |
-| `shared`                  | shared types/vocabulary                                                                 | both              |
+| Package                   | Role                                                                              | Runs in           |
+| ------------------------- | --------------------------------------------------------------------------------- | ----------------- |
+| `packages/mcp-server`     | stdio MCP wrapper + backend (control channel, tools, registry, Foundry connector) | Node.js (Windows) |
+| `packages/foundry-module` | `foundry-mcp-bridge` — the in-Foundry gateway                                     | Foundry's browser |
+| `packages/cogm-dashboard` | standalone co-GM dashboard (Node SSE server + browser client)                     | Node.js + browser |
+| `shared`                  | shared types/vocabulary                                                           | both              |

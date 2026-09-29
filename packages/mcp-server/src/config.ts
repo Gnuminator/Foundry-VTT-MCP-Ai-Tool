@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
 import { WEBRTC_LIMITS } from '@gnuminator/shared';
-import { getDefaultComfyUIDir } from './utils/platform.js';
 
 dotenv.config();
 
@@ -20,7 +19,6 @@ const ConfigSchema = z.object({
     connectionType: z.enum(['websocket', 'webrtc', 'auto']).default('auto'),
     protocol: z.enum(['ws', 'wss']).default('ws'), // Legacy, used only for WebSocket mode
     remoteMode: z.boolean().default(false),
-    dataPath: z.string().optional(), // Custom path for generated maps (remote mode)
     rejectUnauthorized: z.boolean().default(true), // TLS certificate validation
     // WebRTC configuration
     webrtc: z
@@ -38,13 +36,6 @@ const ConfigSchema = z.object({
       .default({
         stunServers: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
       }),
-  }),
-  comfyui: z.object({
-    // ComfyUI always runs locally on the same machine as the MCP server
-    port: z.number().min(1024).max(65535).default(31411),
-    installPath: z.string(), // No default here - set in rawConfig
-    host: z.string().default('127.0.0.1'),
-    pythonCommand: z.string().default('python/python.exe'), // Will be platform-specific
   }),
   toolResponseMaxChars: z.number().min(256).max(500000).default(20000),
   server: z.object({
@@ -73,20 +64,12 @@ const rawConfig = {
       | 'auto',
     protocol: (process.env.FOUNDRY_PROTOCOL || 'ws') as 'ws' | 'wss',
     remoteMode: process.env.FOUNDRY_REMOTE_MODE === 'true',
-    dataPath: process.env.FOUNDRY_DATA_PATH,
     rejectUnauthorized: process.env.FOUNDRY_REJECT_UNAUTHORIZED !== 'false',
     webrtc: {
       stunServers: process.env.FOUNDRY_STUN_SERVERS
         ? process.env.FOUNDRY_STUN_SERVERS.split(',')
         : ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
     },
-  },
-  comfyui: {
-    // ComfyUI always runs locally on the same machine as the MCP server (localhost:31411)
-    port: parseInt(process.env.COMFYUI_PORT || '31411', 10),
-    installPath: process.env.COMFYUI_INSTALL_PATH || getDefaultComfyUIDir(),
-    host: process.env.COMFYUI_HOST || '127.0.0.1',
-    pythonCommand: process.env.COMFYUI_PYTHON_COMMAND || 'python/python.exe',
   },
   toolResponseMaxChars: parseInt(process.env.TOOL_RESPONSE_MAX_CHARS || '20000', 10),
   server: {

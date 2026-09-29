@@ -22,7 +22,6 @@
     "module.json",
     "lang",
     "styles",
-    "templates",
-    "generated-maps"
+    "templates"
   ]
 }

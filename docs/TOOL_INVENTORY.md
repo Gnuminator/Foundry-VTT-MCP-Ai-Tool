@@ -8,13 +8,13 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 
 | Branch                                                             | Total Tools | Status      | Version |
 | ------------------------------------------------------------------ | ----------- | ----------- | ------- |
-| **Baseline** (claude/dsa5-system-adapter-01QvdK2JiF6vRxwsjJQGT1F9) | **26**      | ✅ Working  | v0.6.1  |
-| **Master**                                                         | **23**      | ✅ Working  | v0.4.17 |
-| **Broken** (claude/update-docs-v0.6.2-01Kba6k5nEDbUNjHDrkhUniB)    | **32**      | ⚠️ Unstable | v0.6.2  |
+| **Baseline** (claude/dsa5-system-adapter-01QvdK2JiF6vRxwsjJQGT1F9) | **23**      | ✅ Working  | v0.6.1  |
+| **Master**                                                         | **20**      | ✅ Working  | v0.4.17 |
+| **Broken** (claude/update-docs-v0.6.2-01Kba6k5nEDbUNjHDrkhUniB)    | **29**      | ⚠️ Unstable | v0.6.2  |
 
 ---
 
-## BASELINE BRANCH TOOLS (26 Total)
+## BASELINE BRANCH TOOLS (23 Total)
 
 ### Character Tools (2)
 
@@ -247,75 +247,40 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 - **Status:** ✅ Working
 - **System Support:** All systems
 
-### Map Generation Tools (5)
+### Scene Tools, part 2 (2)
 
-#### 23. generate-map
-
-- **Description:** Generate a battlemap using AI (ComfyUI)
-- **Input:**
-  - `prompt` (string) - Map description
-  - `scene_name` (string) - Scene name
-  - `size` (string, optional) - Map size
-  - `grid_size` (number, optional) - Grid size
-  - `quality` (string, optional) - Generation quality
-- **Output:** Job ID for tracking
-- **File:** `packages/mcp-server/src/tools/map-generation.ts`
-- **Status:** ✅ Working
-- **System Support:** All systems
-- **Requires:** ComfyUI backend
-
-#### 24. check-map-status
-
-- **Description:** Check the status of a map generation job
-- **Input:**
-  - `jobId` (string) - Job ID
-- **Output:** Job status (pending/complete/failed)
-- **File:** `packages/mcp-server/src/tools/map-generation.ts`
-- **Status:** ✅ Working
-- **System Support:** All systems
-
-#### 25. cancel-map-job
-
-- **Description:** Cancel a running map generation job
-- **Input:**
-  - `jobId` (string) - Job ID
-- **Output:** Cancellation confirmation
-- **File:** `packages/mcp-server/src/tools/map-generation.ts`
-- **Status:** ✅ Working
-- **System Support:** All systems
-
-#### 26. list-scenes
+#### 23. list-scenes
 
 - **Description:** List all available scenes
 - **Input:** None
 - **Output:** Array of scene info
-- **File:** `packages/mcp-server/src/tools/map-generation.ts`
+- **File:** `packages/mcp-server/src/tools/scene.ts`
 - **Status:** ✅ Working
 - **System Support:** All systems
 
-#### 27. switch-scene
+#### 24. switch-scene
 
 - **Description:** Switch to a different scene
 - **Input:**
   - `sceneId` (string) - Scene ID
 - **Output:** Scene switch confirmation
-- **File:** `packages/mcp-server/src/tools/map-generation.ts`
+- **File:** `packages/mcp-server/src/tools/scene.ts`
 - **Status:** ✅ Working
 - **System Support:** All systems
 
 ---
 
-## MASTER BRANCH TOOLS (23 Total)
+## MASTER BRANCH TOOLS (20 Total)
 
 **All baseline tools.**
 
-**Total:** 25 tools
+**Total:** 22 tools
 
 ---
 
-## BROKEN BRANCH TOOLS (32 Total)
+## BROKEN BRANCH TOOLS (29 Total)
 
-**All 26 baseline tools PLUS 7 new tools:**
+**All 23 baseline tools PLUS 7 new tools:**
 
 ### NEW: Character Tools (+1)
 
@@ -438,11 +403,8 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 | assign-actor-ownership | ✅ | ✅ | ✅ | Ownership | - |
 | remove-actor-ownership | ✅ | ✅ | ✅ | Ownership | - |
 | list-actor-ownership | ✅ | ✅ | ✅ | Ownership | - |
-| generate-map | ✅ | ✅ | ✅ | Map | - |
-| check-map-status | ✅ | ✅ | ✅ | Map | - |
-| cancel-map-job | ✅ | ✅ | ✅ | Map | - |
-| list-scenes | ✅ | ✅ | ✅ | Map | - |
-| switch-scene | ✅ | ✅ | ✅ | Map | - |
+| list-scenes | ✅ | ✅ | ✅ | Scene | - |
+| switch-scene | ✅ | ✅ | ✅ | Scene | - |
 | **get-character-entity** | ❌ | ❌ | **✅** | **Character** | **MEDIUM** |
 | **move-token** | ❌ | ❌ | **✅** | **Token** | **HIGH** |
 | **update-token** | ❌ | ❌ | **✅** | **Token** | **HIGH** |
@@ -461,7 +423,7 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 | -------------- | -------- | ------ | ------ | ------------- |
 | Character      | 2        | 2      | **3**  | +1            |
 | Compendium     | 4        | 4      | 4      | 0             |
-| Scene          | 2        | 2      | 2      | 0             |
+| Scene          | 4        | 4      | 4      | 0             |
 | Actor Creation | 2        | 2      | 2      | 0             |
 
 | Quest/Journal | 5 | 5 | 5 | 0 |
@@ -469,8 +431,7 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 | Campaign | 1 | 1 | 1 | 0 |
 | Ownership | 3 | 3 | 3 | 0 |
 | **Token** | **0** | **0** | **6** | **+6** |
-| Map Generation | 5 | 5 | 5 | 0 |
-| **TOTAL** | **26** | **23** | **32** | **+7** |
+| **TOTAL** | **23** | **20** | **29** | **+7** |
 
 ### Migration Candidates
 
@@ -489,4 +450,5 @@ This document provides a comprehensive inventory of all MCP tools across the thr
 > **Historical note:** This inventory predates the detach — it compares the old upstream
 > baseline/master/broken branches (and the since-removed non-D&D adapters). Kept under `docs/`
 > as the Phase 4 parity reference; see `docs/DETACH-PLAN.md` and `docs/PHASE4-TRACKER.md` for the
-> current, trimmed (Windows + D&D 5e only) tool set.
+> current, trimmed (Windows + D&D 5e only) tool set. The AI map-generation tools (`generate-map`,
+> `check-map-status`, `cancel-map-job`) were removed on 2026-09-29 and are no longer listed here.

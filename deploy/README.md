@@ -19,7 +19,6 @@ deploy/
 │
 ├── Dockerfile                           ← multi-stage image (build + runtime)
 │                                          Runs bridge + dashboard in one container.
-│                                          ComfyUI / map-gen NOT included (Windows-local).
 │
 ├── docker-compose.yml.template          ← wires the app container + cloudflared sidecar.
 │                                          Fill in secrets and the cloudflare/ config,

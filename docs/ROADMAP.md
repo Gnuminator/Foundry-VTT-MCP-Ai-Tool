@@ -8,7 +8,7 @@ See also: [BUILT.md](BUILT.md), [FIXES.md](FIXES.md), [FEATURE-IDEAS.md](FEATURE
 
 > **Next up (2026-09-27):** the Curse of Strahd extension plan in
 > [CURSE-OF-STRAHD-PLAN.md](CURSE-OF-STRAHD-PLAN.md) (awaiting GM review). Decisions recorded there:
-> ComfyUI map generation is dropped for now, and the remote host is an **Orange Pi 5 Pro** (supersedes
+> ComfyUI map generation was dropped (and removed from the code on 2026-09-29), and the remote host is an **Orange Pi 5 Pro** (supersedes
 > "Raspberry Pi" below).
 
 ---
@@ -96,7 +96,8 @@ staged plan + locked decisions live in [DETACH-PLAN.md](DETACH-PLAN.md). Status 
 ### Code review 2026-07 — action backlog
 
 Full audit in [CODE-REVIEW-2026-07.md](CODE-REVIEW-2026-07.md) (HEAD `bfbc93b`, v0.18.0). The two biggest
-items are their own sessions: **decommission ComfyUI entirely** and **design remote hosting for the GM**.
+items are their own sessions: ~~decommission ComfyUI entirely~~ (done 2026-09-29) and **design remote
+hosting for the GM**.
 Everything else outstanding is below, roughly in priority order.
 
 **Security — before any non-localhost exposure (do with / right after the hosting session):**
@@ -139,16 +140,17 @@ Everything else outstanding is below, roughly in priority order.
 **Tests (High-risk untested files):**
 
 - [ ] Add coverage for `socket-bridge.ts`, `queries.ts`, `foundry-connector.ts`, `main.ts`, `index.ts`,
-      `job-queue.ts`, and the dashboard feed (`mcp-control-client.ts`, `polling-feed.ts`).
+      and the dashboard feed (`mcp-control-client.ts`, `polling-feed.ts`).
 
 **Housekeeping / drift:**
 
 - [ ] Decide the dead runtime Zod schemas in `shared/src/protocol.ts` — wire the validation or drop them.
-- [ ] Drop unused dep `axios` from `mcp-server`; resolve the `tslib` reference in `tsconfig.json`.
+- [x] (done 2026-09-29 with the ComfyUI removal) Drop unused dep `axios` from `mcp-server`.
+- [ ] Resolve the `tslib` reference in `tsconfig.json`.
 - [ ] Sync workspace `package.json` versions to root (0.18.0); regenerate `TOOL_INVENTORY.md` (73 tools,
       not 57); refresh PROJECT-STATUS test counts (1,959).
-- [ ] Remove dead PF2e formatting branches (`tools/character.ts`, `tools/compendium.ts`) and the unused
-      in-memory job subsystem in `tools/map-generation.ts`.
+- [ ] Remove dead PF2e formatting branches (`tools/character.ts`, `tools/compendium.ts`). (The unused
+      in-memory job subsystem in `tools/map-generation.ts` went with the ComfyUI removal, 2026-09-29.)
 - [ ] Audit the unreviewed surfaces: `installer/` NSIS + `configure-claude.ps1`, the release workflows,
       `deploy/Dockerfile`.
 

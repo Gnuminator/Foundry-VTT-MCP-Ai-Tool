@@ -186,7 +186,7 @@
 }
 
 /* ============================================================================ */
-/* Enhanced Creature Index (ECI) Style Overrides for Map Generation Settings */
+/* Enhanced Creature Index (ECI) Style Overrides for the index settings menu */
 /* ============================================================================ */
 
 .eci-settings {
@@ -276,61 +276,9 @@
   box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.3);
 }
 
-/* Service Status Container */
-.eci-status-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.eci-status {
-  padding: 0.75rem 1rem;
-  border-radius: 4px;
-  font-weight: bold;
-  text-align: center;
-  transition: all 0.3s ease;
-}
-
-.eci-status.running {
-  background-color: rgba(0, 255, 0, 0.1);
-  color: #4CAF50;
-  border: 1px solid rgba(76, 175, 80, 0.3);
-}
-
-.eci-status.stopped {
-  background-color: rgba(255, 0, 0, 0.1);
-  color: #f44336;
-  border: 1px solid rgba(244, 67, 54, 0.3);
-}
-
-.eci-status.starting {
-  background-color: rgba(255, 165, 0, 0.1);
-  color: #ff9800;
-  border: 1px solid rgba(255, 152, 0, 0.3);
-}
-
-.eci-status.error {
-  background-color: rgba(255, 0, 0, 0.2);
-  color: #f44336;
-  border: 1px solid rgba(244, 67, 54, 0.5);
-}
-
-.eci-status.unknown {
-  background-color: rgba(128, 128, 128, 0.1);
-  color: #888888;
-  border: 1px solid rgba(136, 136, 136, 0.3);
-}
-
 /* Control Buttons */
-.eci-controls {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
 .eci-btn {
   padding: 0.6rem 1.2rem;
-  border: none;
   border-radius: 4px;
   cursor: pointer;
   font-weight: bold;
@@ -340,48 +288,18 @@
   transition: all 0.2s ease;
   font-size: 0.9rem;
   color: white;
+  background: var(--color-bg-option, #4a4a4a);
+  border: 1px solid var(--color-border-light, #666);
 }
 
 .eci-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  background: var(--color-bg-option-hover, #555);
 }
 
 .eci-btn:active {
   transform: translateY(0);
-}
-
-.eci-btn.start {
-  background: #4CAF50;
-}
-
-.eci-btn.start:hover {
-  background: #45a049;
-}
-
-.eci-btn.stop {
-  background: #f44336;
-}
-
-.eci-btn.stop:hover {
-  background: #da190b;
-}
-
-.eci-btn.check {
-  background: #2196F3;
-}
-
-.eci-btn.check:hover {
-  background: #0b7dda;
-}
-
-.eci-btn:not(.start):not(.stop):not(.check) {
-  background: var(--color-bg-option, #4a4a4a);
-  border: 1px solid var(--color-border-light, #666);
-}
-
-.eci-btn:not(.start):not(.stop):not(.check):hover {
-  background: var(--color-bg-option-hover, #555);
 }
 
 /* Checkbox Settings */

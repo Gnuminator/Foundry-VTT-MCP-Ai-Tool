@@ -8,15 +8,7 @@ import * as net from 'net';
 
 import { evaluateLockFile } from './lock.js';
 
-import { ComfyUIService } from './comfyui-service.js';
-
 import { buildToolRouter, collectToolDefinitions } from './tool-router.js';
-
-import {
-  handleGenerateMapRequest,
-  handleCheckMapStatusRequest,
-  handleCancelMapJobRequest,
-} from './map-generation-handlers.js';
 
 import { config } from './config.js';
 
@@ -42,8 +34,6 @@ import { CampaignManagementTools } from './tools/campaign-management.js';
 
 import { OwnershipTools } from './tools/ownership.js';
 
-import { MapGenerationTools } from './tools/map-generation.js';
-
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
 import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
@@ -67,7 +57,6 @@ import { PlaySessionTools } from './tools/play-session.js';
 import { PlayStatsTools } from './tools/play-stats.js';
 import { PlayerViewTools } from './tools/player-view.js';
 import { RefChoiceTools } from './tools/ref-choices.js';
-import type { JobQueue } from './job-queue.js';
 import { TarokkaService } from './tarokka/service.js';
 import { HandoutsService } from './handouts/service.js';
 import { SecretTermsService } from './secret-terms.js';
@@ -79,7 +68,6 @@ import { ObsidianAutoRender, obsidianAutoRenderSettings } from './obsidian/auto-
 import { ObsidianMirrorPump } from './obsidian/mirror-pump.js';
 import { mirrorEnvSettings } from './obsidian/mirror-settings.js';
 import { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
-import { comfyuiAutoStartEnabled } from './comfyui-client.js';
 
 // Control channel bind target. Defaults to the frozen loopback contract
 // (127.0.0.1:31414) the stdio wrapper and dashboard expect, but is injectable so
@@ -91,7 +79,7 @@ const CONTROL_PORT = parseInt(process.env.MCP_CONTROL_PORT || '31414', 10);
 
 // When the Foundry link is disabled (MCP_FOUNDRY_LINK=off) the backend serves the
 // control channel ONLY — it does not bind the Foundry connector (WS 31415 / WebRTC
-// 31416) or auto-start ComfyUI. Used to smoke-test the standalone entrypoint on an
+// 31416). Used to smoke-test the standalone entrypoint on an
 // alternate port without colliding with a live bridge. Default: enabled (full backend).
 const FOUNDRY_LINK_ENABLED = !/^(off|false|0|no)$/i.test(process.env.MCP_FOUNDRY_LINK ?? '');
 
@@ -221,9 +209,6 @@ async function startBackend(): Promise<void> {
     foundryPort: config.foundry.port,
   });
 
-  // ComfyUI service lifecycle (map-generation pipeline)
-  const comfyuiService = new ComfyUIService(logger);
-
   // Initialize Foundry client and tools
 
   const foundryClient = new FoundryClient(config.foundry, logger);
@@ -347,179 +332,10 @@ async function startBackend(): Promise<void> {
   logger.info('Bridge vault', { dataDir: vaultStore.dataDir });
   if (obsidianVaultDir) logger.info('Obsidian auto-render', { vaultDir: obsidianVaultDir });
 
-  // Initialize mapgen-style backend components for map generation
-  let mapGenerationJobQueue: any = null;
-  let mapGenerationComfyUIClient: any = null;
-
-  try {
-    // Import and initialize job queue and ComfyUI client
-    const { JobQueue } = await import('./job-queue.js');
-    const { ComfyUIClient } = await import('./comfyui-client.js');
-
-    mapGenerationJobQueue = new JobQueue({ logger });
-
-    // Initialize ComfyUI client - always runs locally on same machine as MCP server
-    mapGenerationComfyUIClient = new ComfyUIClient({
-      logger,
-      config: {
-        port: config.comfyui?.port || 31411,
-      },
-    });
-
-    logger.info('Map generation backend components initialized (ComfyUI on localhost:31411)');
-
-    // Auto-start ComfyUI if installed and autoStart is enabled
-    if (mapGenerationComfyUIClient?.config?.autoStart) {
-      const isInstalled = await mapGenerationComfyUIClient.checkInstallation();
-      if (isInstalled) {
-        logger.info('Auto-starting ComfyUI service...');
-        try {
-          await mapGenerationComfyUIClient.startService();
-          logger.info('ComfyUI service auto-started successfully');
-        } catch (error) {
-          logger.warn('Failed to auto-start ComfyUI service', { error });
-        }
-      } else {
-        logger.info('ComfyUI not installed, skipping auto-start');
-      }
-    }
-  } catch (error) {
-    logger.warn('Failed to initialize map generation components', { error });
-  }
-
-  // Set up global ComfyUI message handlers for WebSocket messages from Foundry BEFORE creating map tools
-
-  (globalThis as any).backendComfyUIHandlers = {
-    handleMessage: async (message: any) => {
-      logger.info('Handling ComfyUI message', {
-        requestId: message.requestId,
-
-        type: message.type,
-
-        hasData: !!message.data,
-      });
-
-      try {
-        let result: any;
-
-        switch (message.type) {
-          case 'start-comfyui-service':
-            result = await comfyuiService.start();
-
-            break;
-
-          case 'stop-comfyui-service':
-            result = await comfyuiService.stop();
-
-            break;
-
-          case 'check-comfyui-status':
-            result = await comfyuiService.checkStatus();
-
-            break;
-
-          // Map generation handlers (following existing tool pattern)
-          case 'generate-map-request':
-            result = await handleGenerateMapRequest(
-              message,
-              mapGenerationJobQueue,
-              mapGenerationComfyUIClient,
-              logger,
-              foundryClient
-            );
-            break;
-
-          case 'check-map-status-request':
-            result = await handleCheckMapStatusRequest(message.data, mapGenerationJobQueue, logger);
-
-            break;
-
-          case 'cancel-map-job-request':
-            result = await handleCancelMapJobRequest(
-              message.data,
-              mapGenerationJobQueue,
-              mapGenerationComfyUIClient,
-              logger
-            );
-
-            break;
-
-          default:
-            logger.warn('Unknown ComfyUI message type', { type: message.type });
-
-            result = { status: 'error', message: `Unknown message type: ${message.type}` };
-        }
-
-        // Send response back through foundryClient if requestId is provided
-
-        if (message.requestId && foundryClient) {
-          const response = {
-            type: `${message.type}-response`,
-
-            requestId: message.requestId,
-
-            ...result,
-          };
-
-          // Send response to Foundry via WebSocket
-
-          try {
-            foundryClient.sendMessage(response);
-          } catch (error) {
-            logger.error('Failed to send ComfyUI response to Foundry', { error, response });
-          }
-        }
-
-        return result;
-      } catch (error: any) {
-        logger.error('ComfyUI message handling failed', {
-          requestId: message.requestId,
-
-          type: message.type,
-
-          error: error.message,
-        });
-
-        const errorResult = {
-          status: 'error',
-
-          message: error.message,
-        };
-
-        // Send error response if requestId provided
-
-        if (message.requestId && foundryClient) {
-          try {
-            foundryClient.sendMessage({
-              type: `${message.type}-response`,
-
-              requestId: message.requestId,
-
-              ...errorResult,
-            });
-          } catch (sendError) {
-            logger.error('Failed to send ComfyUI error response', { sendError });
-          }
-        }
-
-        return errorResult;
-      }
-    },
-  };
-
-  // Now create MapGenerationTools with the handlers available
-
-  const mapGenerationTools = new MapGenerationTools({
-    foundryClient,
-    logger,
-    backendComfyUIHandlers: (globalThis as any).backendComfyUIHandlers,
-  });
-
   // Control-channel call_tool dispatch table (see tool-router.ts).
   const refChoiceTools = new RefChoiceTools({
     foundryClient,
     guardedWrites,
-    jobs: mapGenerationJobQueue as JobQueue | null,
     logger,
   });
 
@@ -531,7 +347,6 @@ async function startBackend(): Promise<void> {
     questCreationTools,
     diceRollTools,
     campaignManagementTools,
-    mapGenerationTools,
     tokenManipulationTools,
     ownershipTools,
     dnd5eAddFeatureTool,
@@ -615,22 +430,6 @@ async function startBackend(): Promise<void> {
   } else {
     logger.info('Foundry link disabled (MCP_FOUNDRY_LINK=off) — serving control channel only');
   }
-
-  const autoStartComfyUI = async () => {
-    try {
-      logger.info('Auto-starting ComfyUI service...');
-
-      const result = await comfyuiService.start();
-
-      logger.info('ComfyUI auto-start result', result);
-    } catch (error: any) {
-      logger.warn('ComfyUI auto-start failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      // Don't throw - backend should continue even if ComfyUI fails to start
-    }
-  };
 
   // Control channel (TCP JSON-lines)
 
@@ -732,9 +531,6 @@ async function startBackend(): Promise<void> {
 
     server.on('error', reject);
   });
-
-  // ComfyUI auto-start is opt-in (COMFYUI_AUTOSTART=true); map generation is dropped for now.
-  if (FOUNDRY_LINK_ENABLED && comfyuiAutoStartEnabled()) void autoStartComfyUI();
 
   // Shutdown hooks
 

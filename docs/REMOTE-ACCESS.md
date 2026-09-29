@@ -101,14 +101,12 @@ the remote-hosting topology.
 | `FOUNDRY_LINK_HOST`       | `127.0.0.1`    | Interface for the Foundry link (31415 WS, 31416 WebRTC signaling). Set `0.0.0.0` only when the GM's browser is on another machine.        |
 | `FOUNDRY_AI_DATA_DIR`     | platform dir   | Bridge vault (GM-only data, audit log, session log). Default `%APPDATA%\foundry-ai-tool\vault` or `~/.local/share/foundry-ai-tool/vault`. |
 | `FOUNDRY_AI_EVENT_LOG`    | _(on)_         | `off` disables the persistent session event log (`sessions/<date>.jsonl`).                                                                |
-| `COMFYUI_AUTOSTART`       | `false`        | `true` lets the backend start ComfyUI by itself (map generation is dropped for now).                                                      |
 | `FOUNDRY_HOST`            | `localhost`    | **Not used by the bridge itself.** Was legacy; the module dials the bridge, not the other way round. (See note below.)                    |
 | `FOUNDRY_PORT`            | `31415`        | WebSocket listen port for the Foundry connector.                                                                                          |
 | `FOUNDRY_NAMESPACE`       | `/foundry-mcp` | WebSocket path prefix.                                                                                                                    |
 | `FOUNDRY_CONNECTION_TYPE` | `auto`         | `auto` \| `websocket` \| `webrtc`. `auto` picks WebSocket unless disabled.                                                                |
 | `FOUNDRY_STUN_SERVERS`    | Google STUN x2 | Comma-separated STUN URLs for WebRTC ICE. Override to use your own.                                                                       |
-| `FOUNDRY_REMOTE_MODE`     | `false`        | Set `true` when bridge and Foundry are on different machines (disables local-path map delivery).                                          |
-| `FOUNDRY_DATA_PATH`       | _(unset)_      | Custom path for generated maps in remote mode.                                                                                            |
+| `FOUNDRY_REMOTE_MODE`     | `false`        | Set `true` when bridge and Foundry are on different machines. Logged at startup only; it changes no behaviour.                            |
 | `LOG_LEVEL`               | `warn`         | `error` \| `warn` \| `info` \| `debug`                                                                                                    |
 
 > **Note on `FOUNDRY_HOST`:** The Foundry module dials OUT to the bridge, not the reverse.

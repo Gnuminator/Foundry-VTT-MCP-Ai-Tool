@@ -233,7 +233,7 @@ export class FoundryConnector {
     this.logger.info('Foundry connector stopped');
   }
 
-  private async handleMessage(message: any): Promise<void> {
+  private handleMessage(message: any): Promise<void> {
     if (message.type === 'mcp-response' && message.id) {
       const pending = this.pendingQueries.get(message.id);
       if (pending) {
@@ -251,7 +251,7 @@ export class FoundryConnector {
           pending.reject(new Error(message.data.error || 'Query failed'));
         }
       }
-      return;
+      return Promise.resolve();
     }
 
     if (message.type === 'pong') {
@@ -261,25 +261,11 @@ export class FoundryConnector {
         this.pendingQueries.delete(message.id);
         pending.resolve(message.data);
       }
-      return;
-    }
-
-    const comfyHandlers = (globalThis as any).backendComfyUIHandlers;
-    if (comfyHandlers?.handleMessage) {
-      this.logger.debug('Routing message to backend ComfyUI handlers', { type: message.type });
-      try {
-        await comfyHandlers.handleMessage(message);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger.error('Failed to forward message to backendComfyUIHandlers', {
-          type: message.type,
-          error: errorMessage,
-        });
-      }
-      return;
+      return Promise.resolve();
     }
 
     this.logger.debug('Received unknown message type', { type: message.type });
+    return Promise.resolve();
   }
 
   private async handleWebRTCOffer(offer: any, signalingWs: WebSocket): Promise<void> {

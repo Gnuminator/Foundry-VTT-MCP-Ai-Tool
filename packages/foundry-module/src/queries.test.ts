@@ -8,8 +8,7 @@
  * (register/unregister/handleQuery/getRegisteredMethods/isMethodRegistered) is
  * covered exhaustively; the ~80 handlers share one shape, so the GM gate +
  * input-validation + delegation + error-wrap convention is pinned on a
- * representative sample (plus the two handlers that diverge from it: `ping` has
- * no gate; map-generation returns error objects instead of throwing).
+ * representative sample (plus `ping`, which diverges from it and has no gate).
  *
  * `qh.dataAccess` is public, so each test swaps in a stub and asserts the
  * handler maps args through and wraps results/errors per the contract.
@@ -323,29 +322,5 @@ describe('QueryHandlers — handler convention', () => {
     stubDataAccess({ listCreaturesByCriteria: vi.fn().mockResolvedValue([{ name: 'Goblin' }]) });
     const res = await (qh as any).handleListCreaturesByCriteria({ challengeRating: 1 });
     expect(res).toEqual({ response: [{ name: 'Goblin' }] });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Divergent pattern: map generation returns error objects (never throws)
-// ---------------------------------------------------------------------------
-
-describe('QueryHandlers — map generation (error objects, not throws)', () => {
-  it('returns a failure object when the prompt is missing', async () => {
-    const res = await (qh as any).handleGenerateMap({ scene_name: 'S' });
-    expect(res).toMatchObject({ success: false });
-    expect(res.error).toContain('Prompt is required');
-  });
-
-  it('delegates to ComfyUIManager and returns a success object', async () => {
-    const generateMap = vi
-      .fn()
-      .mockResolvedValue({ success: true, jobId: 'j1', message: 'started' });
-    (qh as any).comfyuiManager = { generateMap };
-
-    const res = await (qh as any).handleGenerateMap({ prompt: 'a cave', scene_name: 'Cave' });
-
-    expect(generateMap).toHaveBeenCalled();
-    expect(res).toMatchObject({ success: true, jobId: 'j1' });
   });
 });

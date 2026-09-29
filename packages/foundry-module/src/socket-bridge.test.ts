@@ -231,25 +231,6 @@ describe('SocketBridge — inbound message routing', () => {
     expect(sent).toMatchObject({ type: 'pong', id: 'p1', data: { status: 'ok' } });
   });
 
-  it('job-completed → delegates to handleJobCompleted', async () => {
-    const { bridge } = connectedBridge();
-    const spy = vi.spyOn(bridge, 'handleJobCompleted').mockResolvedValue(undefined);
-
-    await bridge.handleMessage({ type: 'job-completed', data: { foo: 1 } });
-
-    expect(spy).toHaveBeenCalledWith({ foo: 1 });
-  });
-
-  it('map-generation-progress → surfaces a progress notification', async () => {
-    const { bridge } = connectedBridge();
-
-    await bridge.handleMessage({ type: 'map-generation-progress', data: { progress: 42 } });
-
-    expect(world.notifications.some(n => n.level === 'info' && n.message.includes('42%'))).toBe(
-      true
-    );
-  });
-
   it('an unknown message type is ignored (no send, no throw)', async () => {
     const { bridge, ws } = connectedBridge();
     await expect(bridge.handleMessage({ type: 'whatever' })).resolves.toBeUndefined();
@@ -418,53 +399,5 @@ describe('SocketBridge — state accessors', () => {
       maxReconnectAttempts: 5,
       config: { host: 'h', port: 99, namespace: '/n' },
     });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// progress + job-completion notifications
-// ---------------------------------------------------------------------------
-
-describe('SocketBridge — map progress + job completion', () => {
-  it('builds a full progress message (percent, step, remaining, status)', () => {
-    const bridge = new SocketBridge(makeConfig()) as any;
-
-    bridge.handleProgressUpdate({
-      progress: 50,
-      status: 'rendering',
-      queueInfo: { currentStep: 2, totalSteps: 4, estimatedTimeRemaining: 90 },
-    });
-
-    const msg = world.notifications.at(-1)!.message;
-    expect(msg).toContain('50%');
-    expect(msg).toContain('(Step 2/4)');
-    expect(msg).toContain('1m 30s remaining');
-    expect(msg).toContain('rendering');
-  });
-
-  it('ignores an empty progress payload', () => {
-    const bridge = new SocketBridge(makeConfig()) as any;
-    bridge.handleProgressUpdate(null);
-    expect(world.notifications).toHaveLength(0);
-  });
-
-  it('job completion with no result data surfaces an error notification', async () => {
-    const bridge = new SocketBridge(makeConfig()) as any;
-    await bridge.handleJobCompleted({ image_path: '/x.png' });
-    expect(
-      world.notifications.some(
-        n => n.level === 'error' && n.message.includes('No scene result data provided')
-      )
-    ).toBe(true);
-  });
-
-  it('job completion with no image path surfaces an error notification', async () => {
-    const bridge = new SocketBridge(makeConfig()) as any;
-    await bridge.handleJobCompleted({ result: { name: 'X' } });
-    expect(
-      world.notifications.some(
-        n => n.level === 'error' && n.message.includes('No image path provided')
-      )
-    ).toBe(true);
   });
 });

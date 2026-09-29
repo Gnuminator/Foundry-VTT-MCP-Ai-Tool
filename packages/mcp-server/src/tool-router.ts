@@ -23,7 +23,6 @@ import type { EffectsTools } from './tools/effects.js';
 import type { EncounterTools } from './tools/encounter.js';
 import type { GuardedChangeTools } from './tools/guarded-changes.js';
 import type { LootTools } from './tools/loot.js';
-import type { MapGenerationTools } from './tools/map-generation.js';
 import type { MovementTools } from './tools/movement.js';
 import type { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import type { OwnershipTools } from './tools/ownership.js';
@@ -57,7 +56,6 @@ export interface ToolRouterDeps {
   encounterTools: EncounterTools;
   guardedChangeTools: GuardedChangeTools;
   lootTools: LootTools;
-  mapGenerationTools: MapGenerationTools;
   movementTools: MovementTools;
   obsidianMirrorTools: ObsidianMirrorTools;
   ownershipTools: OwnershipTools;
@@ -137,11 +135,8 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'undo-change': args => deps.guardedChangeTools.handleUndoChange(args),
     'open-in-foundry': args => deps.guardedChangeTools.handleOpenInFoundry(args),
     'drop-loot': args => deps.lootTools.handleDropLoot(args),
-    'generate-map': args => deps.mapGenerationTools.generateMap(args),
-    'check-map-status': args => deps.mapGenerationTools.checkMapStatus(args),
-    'cancel-map-job': args => deps.mapGenerationTools.cancelMapJob(args),
-    'list-scenes': args => deps.mapGenerationTools.listScenes(args),
-    'switch-scene': args => deps.mapGenerationTools.switchScene(args),
+    'list-scenes': args => deps.sceneTools.listScenes(args),
+    'switch-scene': args => deps.sceneTools.switchScene(args),
     'get-token-positions': args => deps.movementTools.handleGetTokenPositions(args),
     'measure-distance': args => deps.movementTools.handleMeasureDistance(args),
     'get-targets': args => deps.movementTools.handleGetTargets(args),
@@ -220,7 +215,6 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.campaignManagementTools.getToolDefinitions(),
     ...deps.ownershipTools.getToolDefinitions(),
     ...deps.tokenManipulationTools.getToolDefinitions(),
-    ...deps.mapGenerationTools.getToolDefinitions(),
     ...deps.chatLogTools.getToolDefinitions(),
     ...deps.resourceTools.getToolDefinitions(),
     ...deps.effectsTools.getToolDefinitions(),

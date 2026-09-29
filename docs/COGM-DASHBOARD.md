@@ -40,8 +40,8 @@ game as it happens — and now lets you **run the game from the dashboard**, too
 ![The Tool Runner exposes every Foundry bridge tool](images/cogm/tool-runner.png)
 
 - A built-in **Tool Runner** exposes _every_ Foundry MCP tool behind a simple form: spawn NPCs and
-  monsters from compendiums, **generate AI battlemaps**, set the scene's mood/lighting, create quest
-  journals, drop loot, manage tokens, and more.
+  monsters from compendiums, set the scene's mood/lighting, create quest journals, drop loot, manage
+  tokens, and more.
 - Tools are grouped by category and searchable, so you can find the one you need fast.
 
 ### Safe by default

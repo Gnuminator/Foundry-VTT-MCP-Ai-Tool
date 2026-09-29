@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { RefChoiceTools } from './ref-choices.js';
 
-function setup(overrides: Record<string, unknown> = {}): {
+function setup(): {
   tools: RefChoiceTools;
   query: ReturnType<typeof vi.fn>;
 } {
@@ -44,7 +44,6 @@ function setup(overrides: Record<string, unknown> = {}): {
     foundryClient: { query } as any,
     guardedWrites,
     logger,
-    ...overrides,
   });
   return { tools, query };
 }
@@ -114,26 +113,6 @@ describe('list-ref-choices', () => {
     });
     const all = await tools.handleListRefChoices({ kind: 'tarokka-card' });
     expect(all.choices).toHaveLength(54);
-  });
-
-  it('lists map jobs when map generation is set up', async () => {
-    expect((await setup().tools.handleListRefChoices({ kind: 'map-job' })).note).toBe(
-      'Map generation is not set up'
-    );
-    const jobs = {
-      listJobs: vi.fn(() => [
-        {
-          id: 'job-1',
-          params: { prompt: 'A misty village' },
-          status: 'complete',
-          progress_percent: 100,
-        },
-      ]),
-    };
-    const { tools } = setup({ jobs });
-    expect((await tools.handleListRefChoices({ kind: 'map-job' })).choices).toEqual([
-      { id: 'job-1', name: 'A misty village', detail: 'complete, 100%' },
-    ]);
   });
 
   it('caps with truncated and validates the request', async () => {

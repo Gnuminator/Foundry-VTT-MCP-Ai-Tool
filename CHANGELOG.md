@@ -147,13 +147,24 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   warning; the "max actors per request" setting could not go above 10 without stopping the bridge;
   secret token disposition is shown as "secret".
 
+### Removed
+
+- **ComfyUI map generation and its tools.** The `generate-map`, `check-map-status` and `cancel-map-job`
+  tools are gone (91 tools remain; `list-scenes` and `switch-scene` stay, now in the scene tools).
+  The ComfyUI client and service, the job queue, the module's map-generation settings menu, status
+  banners, scene import and its query handlers (`generate-map`, `check-map-status`, `cancel-map-job`,
+  `upload-generated-map`), the `map-job` picker kind and the `axios` dependency are removed. The
+  Windows installer no longer offers the ComfyUI component (GPU page, model downloads, 7-Zip and
+  inetc plugins), and the D&D Battlemaps model notice is dropped from the license files.
+  Stored `mapGenAutoStart` / `mapGenQuality` module settings are ignored. The `COMFYUI_*` environment
+  variables and `FOUNDRY_DATA_PATH` do nothing now; `npm run setup-comfyui` is gone.
+
 ### Build / CI
 
 - Foundry v9 typings replaced by hand-written v14 declarations (drops 200+ dev packages and both
   "critical" dev advisories). `npm audit`: 2 advisories in shipped code (`ip`, `werift`), 12 in total.
 - Lint ratchet in CI (`npm run lint:ratchet`): warnings may only go down.
 - `package-lock.json` has `resolved`/`integrity` for every registry package.
-- ComfyUI never starts by itself unless `COMFYUI_AUTOSTART=true`.
 - Development: a local Foundry test environment (`scripts/test-env/*.ps1`, skills `foundry-test-env`,
   `foundry-ai-tool`, `foundry-core-ui`). The module reads its default bridge port from the manifest
   flag `flags.foundry-mcp-bridge.defaultServerPort` (released manifests have none);
@@ -161,6 +172,8 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
 
 ### Upgrade notes
 
+- Map generation is gone. A ComfyUI folder that an older Windows installer put next to the server
+  stays on disk after upgrading; the uninstaller removes it, or delete it by hand.
 - If your Foundry runs in a browser on **another machine** than the bridge, set
   `FOUNDRY_LINK_HOST=0.0.0.0` (the Docker image and compose template already do).
 - If you exposed the dashboard on your network, set `DASHBOARD_HOST` and `GM_DASHBOARD_TOKEN`.

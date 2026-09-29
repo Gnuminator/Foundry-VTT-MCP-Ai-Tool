@@ -3,7 +3,6 @@ import { SocketBridge } from './socket-bridge.js';
 import { QueryHandlers } from './queries.js';
 import { ModuleSettings } from './settings.js';
 import { CampaignHooks } from './campaign-hooks.js';
-import { ComfyUIManager } from './comfyui-manager.js';
 import { eventTracker } from './session-events.js';
 import { playRecorder } from './play-recorder.js';
 import { diagnostics } from './diagnostics.js';
@@ -27,7 +26,6 @@ class FoundryMCPBridge {
   private settings: ModuleSettings;
   private queryHandlers: QueryHandlers;
   private campaignHooks: CampaignHooks;
-  public comfyuiManager: ComfyUIManager;
   private socketBridge: SocketBridge | null = null;
   private isInitialized = false;
   private heartbeatInterval: number | null = null;
@@ -38,7 +36,6 @@ class FoundryMCPBridge {
     this.settings = new ModuleSettings();
     this.queryHandlers = new QueryHandlers();
     this.campaignHooks = new CampaignHooks(this);
-    this.comfyuiManager = new ComfyUIManager();
   }
 
   /**
@@ -153,11 +150,6 @@ class FoundryMCPBridge {
 
       // Auto-build enhanced creature index if enabled and not exists
       await this.checkAndBuildEnhancedIndex();
-
-      // Start ComfyUI startup monitoring if module is enabled
-      if (enabled) {
-        await this.startComfyUIMonitoring();
-      }
 
       console.log(`[${MODULE_ID}] Module ready`);
     } catch (error) {
@@ -456,83 +448,6 @@ class FoundryMCPBridge {
    */
   getQueryHandlers(): QueryHandlers {
     return this.queryHandlers;
-  }
-
-  /**
-   * Monitor ComfyUI startup and show status banners
-   */
-  async startComfyUIMonitoring(): Promise<void> {
-    try {
-      // Check if ComfyUI monitoring is needed
-      const autoStart = this.settings.getSetting('mapGenAutoStart') || false;
-      if (!autoStart) {
-        console.log(`[${MODULE_ID}] ComfyUI auto-start disabled, skipping monitoring`);
-        return;
-      }
-
-      console.log(`[${MODULE_ID}] Starting ComfyUI monitoring...`);
-
-      // Show initial loading banner
-      ui.notifications?.info(
-        `🔗 Starting AI Map Generation service... (Models loading, please wait)`
-      );
-
-      let attempts = 0;
-      const maxAttempts = 24; // 2 minutes with 5-second intervals
-      const checkInterval = 5000; // 5 seconds
-
-      const checkStatus = async (): Promise<void> => {
-        try {
-          attempts++;
-
-          const status = await this.comfyuiManager.checkStatus();
-          console.log(`[${MODULE_ID}] ComfyUI status check #${attempts}:`, status);
-
-          if (status.status === 'running') {
-            // Success! ComfyUI is ready
-            ui.notifications?.info(
-              `✅ AI Map Generation service ready! Models loaded successfully.`
-            );
-            console.log(
-              `[${MODULE_ID}] ComfyUI ready after ${attempts} attempts (${attempts * 5}s)`
-            );
-            return;
-          }
-
-          if (attempts >= maxAttempts) {
-            // Timeout - show failure banner
-            ui.notifications?.warn(
-              `⚠️ AI Map Generation service failed to start (timeout after 2 minutes). Check ComfyUI installation.`
-            );
-            console.warn(`[${MODULE_ID}] ComfyUI startup timeout after ${maxAttempts} attempts`);
-            return;
-          }
-
-          // Continue checking
-          setTimeout(() => void checkStatus(), checkInterval);
-        } catch (error) {
-          console.error(`[${MODULE_ID}] ComfyUI status check failed:`, error);
-
-          if (attempts >= maxAttempts) {
-            ui.notifications?.error(
-              `❌ AI Map Generation service failed to start. Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-            return;
-          }
-
-          // Continue checking despite errors (ComfyUI might still be starting)
-          setTimeout(() => void checkStatus(), checkInterval);
-        }
-      };
-
-      // Start monitoring
-      setTimeout(() => void checkStatus(), 2000); // Initial 2-second delay to let backend start
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Failed to start ComfyUI monitoring:`, error);
-      ui.notifications?.warn(
-        `⚠️ Failed to monitor AI Map Generation startup: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
   }
 
   /**

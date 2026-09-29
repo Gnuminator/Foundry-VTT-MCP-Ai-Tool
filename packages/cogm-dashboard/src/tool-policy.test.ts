@@ -13,7 +13,6 @@ describe('classifyTool', () => {
       'suggest-strahd-reaction',
       'suggest-balanced-encounter',
       'get-planned-change',
-      'check-map-status',
       'open-in-foundry',
     ]) {
       expect(classifyTool(name)).toBe('read');

@@ -40,7 +40,7 @@ function makeDeps(): ToolRouterDeps {
 describe('buildToolRouter', () => {
   it('exposes a handler for every call_tool route', () => {
     const router = buildToolRouter(makeDeps());
-    expect(Object.keys(router)).toHaveLength(94);
+    expect(Object.keys(router)).toHaveLength(91);
   });
 
   it('routes direct tools to the owning method with the call args', async () => {
@@ -53,6 +53,12 @@ describe('buildToolRouter', () => {
 
     await router['drop-loot'](args);
     expect((deps as any).lootTools.handleDropLoot).toHaveBeenCalledWith(args);
+
+    await router['list-scenes'](args);
+    expect((deps as any).sceneTools.listScenes).toHaveBeenCalledWith(args);
+
+    await router['switch-scene'](args);
+    expect((deps as any).sceneTools.switchScene).toHaveBeenCalledWith(args);
   });
 
   it('routes ownership tools through the generic handleToolCall dispatcher', async () => {

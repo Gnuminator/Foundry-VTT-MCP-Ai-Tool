@@ -62,8 +62,7 @@ NPCs, advance the turn, jump to a combatant, apply damage/healing, roll saving t
 ![The Tool Runner exposes every Foundry bridge tool](docs/images/cogm/tool-runner.png)
 
 **Tool Runner** — every Foundry MCP tool behind a searchable, categorized form: spawn NPCs from
-compendiums, generate AI battlemaps, set scene mood/lighting, create quest journals, drop loot, manage
-tokens, and more.
+compendiums, set scene mood/lighting, create quest journals, drop loot, manage tokens, and more.
 
 ![Every game-changing action asks for confirmation](docs/images/cogm/confirm.png)
 
@@ -93,7 +92,7 @@ or hosted for you **and** your GM.
 
 ## MCP Tools
 
-A selection of the tools, across 8 categories, exposed to any MCP-compatible AI client:
+A selection of the tools, across 7 categories, exposed to any MCP-compatible AI client:
 
 | Category        | Tools                                                                                         |
 | --------------- | --------------------------------------------------------------------------------------------- |
@@ -104,9 +103,6 @@ A selection of the tools, across 8 categories, exposed to any MCP-compatible AI 
 | Quest / Journal | create-quest-journal, update-quest-journal, link-quest-to-npc, list-journals, search-journals |
 | Campaign        | create-campaign-dashboard                                                                     |
 | Ownership       | assign-actor-ownership, remove-actor-ownership, list-actor-ownership                          |
-| Map generation  | generate-map, check-map-status, cancel-map-job                                                |
-
-Map generation requires a local ComfyUI backend.
 
 ---
 

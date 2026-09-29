@@ -29,7 +29,6 @@ import { EffectsTools } from './tools/effects.js';
 import { EncounterTools } from './tools/encounter.js';
 import { GuardedChangeTools } from './tools/guarded-changes.js';
 import { LootTools } from './tools/loot.js';
-import { MapGenerationTools } from './tools/map-generation.js';
 import { MovementTools } from './tools/movement.js';
 import { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import { OwnershipTools } from './tools/ownership.js';
@@ -67,7 +66,6 @@ const deps: ToolRouterDeps = {
   encounterTools: new EncounterTools(base),
   guardedChangeTools: new GuardedChangeTools({ ...base, guardedWrites: {} }),
   lootTools: new LootTools(base),
-  mapGenerationTools: new MapGenerationTools({ ...base, backendComfyUIHandlers: {} }),
   movementTools: new MovementTools(base),
   obsidianMirrorTools: new ObsidianMirrorTools({
     store: {} as any,

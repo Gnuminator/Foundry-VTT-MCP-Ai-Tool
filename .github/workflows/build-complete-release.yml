@@ -379,7 +379,6 @@ jobs:
           - Dice roll coordination between Claude and Foundry players
           - Actor ownership management with bulk operations
           - Enhanced creature index for instant monster searches
-          - AI-powered battlemap generation with ComfyUI integration
 
           For full documentation, visit: https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool
         files: |

@@ -9,7 +9,6 @@ import { z } from 'zod';
 
 import type { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService } from '../guarded-write/service.js';
-import type { JobQueue } from '../job-queue.js';
 import type { Logger } from '../logger.js';
 import {
   COMMON_CARD_IDS,
@@ -33,8 +32,6 @@ interface ToolDefinition {
 interface RefChoiceToolsOptions {
   foundryClient: Pick<FoundryClient, 'query'>;
   guardedWrites: Pick<GuardedWriteService, 'listPlans' | 'listRecentChanges'>;
-  /** The map-generation job queue, when map generation is set up. */
-  jobs?: Pick<JobQueue, 'listJobs'> | null;
   logger: Logger;
 }
 
@@ -65,20 +62,18 @@ type ChoicesRequest = z.infer<typeof requestSchema>;
  * (see `shared/src/tool-refs.ts`). The dashboard's tool runner calls it to fill
  * its pickers; the AI may use it too. Read-only.
  *
- * Plans, recorded changes, Tarokka cards and map jobs are listed here; every
+ * Plans, recorded changes and Tarokka cards are listed here; every
  * other kind (tokens, actors, journals, packs, ...) comes from the Foundry
  * module (`foundry-mcp-bridge.listRefChoices`).
  */
 export class RefChoiceTools {
   private readonly foundryClient: RefChoiceToolsOptions['foundryClient'];
   private readonly guardedWrites: RefChoiceToolsOptions['guardedWrites'];
-  private readonly jobs: RefChoiceToolsOptions['jobs'];
   private readonly logger: Logger;
 
   constructor(options: RefChoiceToolsOptions) {
     this.foundryClient = options.foundryClient;
     this.guardedWrites = options.guardedWrites;
-    this.jobs = options.jobs ?? null;
     this.logger = options.logger.child({ component: 'RefChoiceTools' });
   }
 
@@ -87,7 +82,7 @@ export class RefChoiceTools {
       {
         name: 'list-ref-choices',
         description:
-          'List what a tool parameter can name right now, to pick instead of typing ids: tokens on a scene, actors, scenes, journals and pages, world items, an actor\'s items, combatants, users, folders, compendium packs and entries, playlists, map notes, conditions, modules, dnd5e skills and abilities, any world document by name (kind "document"), pending plans, recorded changes, Tarokka cards and map jobs. Each row has id, uuid, name, detail and group. Read-only; GM only.',
+          'List what a tool parameter can name right now, to pick instead of typing ids: tokens on a scene, actors, scenes, journals and pages, world items, an actor\'s items, combatants, users, folders, compendium packs and entries, playlists, map notes, conditions, modules, dnd5e skills and abilities, any world document by name (kind "document"), pending plans, recorded changes and Tarokka cards. Each row has id, uuid, name, detail and group. Read-only; GM only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -195,18 +190,6 @@ export class RefChoiceTools {
           ...(deck && position && isTarokkaPosition(position)
             ? { note: `${POSITION_LABELS[position]}: ${deck} deck` }
             : {}),
-        };
-      }
-      case 'map-job': {
-        if (!this.jobs) return { choices: [], note: 'Map generation is not set up' };
-        const jobs = this.jobs.listJobs();
-        return {
-          choices: jobs.map(j => ({
-            id: j.id,
-            name: j.params.prompt.slice(0, 80),
-            detail: `${j.status}, ${j.progress_percent}%`,
-          })),
-          ...(jobs.length === 0 ? { note: 'No map jobs' } : {}),
         };
       }
       default:

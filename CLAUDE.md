@@ -149,6 +149,16 @@ Open: how players reach Foundry on the Pi (decided during bring-up); the Strahd 
 
 ## Handoff notes
 
+- **Paused 2026-09-30 (pick up here):** `main` = `9fe15bc`; its CI fails on one Obsidian test that
+  assumes a Windows path (runs on Linux in CI); fix first. The step-2 workflow (`wf_6b52204c-42a`,
+  script under this session's workflows folder) was stopped: builds done in worktrees
+  `.claude/worktrees/wf_6b52204c-42a-1` (GM docs + README), `-2` (reveal copies a handout), `-3`
+  (Claude Desktop prompts); reviews partly done; no fixes applied; nothing merged. Design round 1
+  was rejected as recolors; round 2 brief in memory `design-direction-feedback` and the vault
+  session note of 2026-09-29. Queued after the merge: repo tidy (approved, incl. deleting
+  `test-bench/` and the unused macro), usage log for dashboard and module (I-084), dashboard help
+  with the design pass.
+
 - Test env per PC (not synced): world `ai-tool-test` (users Gamemaster, Claude, Player; `Test Hero`
   owned by Player; world actor `Wolf` with unlinked tokens Wolf 1-3 on "Test Arena").
   `scripts/test-env/local.json` holds the test server's admin login (gitignored).

@@ -104,9 +104,8 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   before a player sees it. Tools `plan-page-reveal`, `list-revealed-pages`,
   `get-player-visibility`, `get-player-handouts`, `check-secret-terms`; the player page has a
   Handouts section.
-- **Obsidian mirror of the Foundry world** (IN PROGRESS: built and unit-tested, but the backend does
-  not start the mirror yet and it is not live-tested; see `docs/OBSIDIAN-O4-DESIGN.md` "Build
-  status") (off until you turn it on with `plan-obsidian-mirror`
+- **Obsidian mirror of the Foundry world** (live-tested 2026-09-29; `docs/OBSIDIAN-PLAN.md` "As
+  built", O4) (off until you turn it on with `plan-obsidian-mirror`
   and the switch "AI Tool: Obsidian mirror (writes)"; needs `FOUNDRY_AI_OBSIDIAN_DIR`): one note per
   PC, NPC, scene, journal (an index of its pages) and story item under
   `Campaigns/<world>/AI Tool/Foundry/`, kept up to date every 10 s (`FOUNDRY_AI_MIRROR_POLL_MS`);

@@ -1,11 +1,18 @@
 # Obsidian O4 design: Foundry mirrors and links
 
-Status: **partly built (2026-09-29, branch `claude/amazing-bardeen-q1x1q6`); not live-tested.**
-Section 11's questions are answered with the recommended defaults (recorded as decisions there);
-section 6.4 adds the P1 plugin compatibility rules; section 9.1 records the lead's interface
-refinements.
+Status: **built and live-tested (2026-09-29, branch `claude/amazing-bardeen-q1x1q6`); results and
+known limits in `OBSIDIAN-PLAN.md` "As built", O4.** Section 11's questions are answered with the
+recommended defaults (recorded as decisions there); section 6.4 adds the P1 plugin compatibility
+rules; section 9.1 records the lead's interface refinements.
 
-**Build status (end of the 2026-09-29 session; full gate green: typecheck, lint ratchet 7,656,
+**Build status (2026-09-29, second session; full gate green: typecheck, lint ratchet 7,656, build,
+3,311 tests):** every chunk done. C5b: the pump is wired into `backend.ts` (started with the Foundry
+link when `FOUNDRY_AI_OBSIDIAN_DIR` is set, stopped on SIGINT/SIGTERM, its status behind
+`get-obsidian-mirror`); `mirror-canary.test.ts` and the scheduling and junction tests are written. C8:
+the live test passed on the first PC's test server, "O4 as built" is in `OBSIDIAN-PLAN.md`. The table
+below is the first session's hand-off, kept for the record.
+
+**Build status (end of the first 2026-09-29 session; full gate green: typecheck, lint ratchet 7,656,
 build, 3,297 tests):**
 
 | Chunk                                                                                                                     | State                                                                                                                                                                                                                                                      |
@@ -20,7 +27,7 @@ build, 3,297 tests):**
 | C7 `/open` route (`open-route.ts`, `public/open.*`)                                                                       | done, 32 tests, reviewed by the lead                                                                                                                                                                                                                       |
 | C8 env, skill, docs                                                                                                       | `start.ps1` sets `FOUNDRY_AI_OPEN_BASE`; skill O4 checks drafted; CHANGELOG drafted; "O4 as built" in OBSIDIAN-PLAN not written                                                                                                                            |
 
-**Next (in order):** wire the pump in `backend.ts` (declare `let mirrorPump` before the C6 tools
+**Next (in order, all done in the second session):** wire the pump in `backend.ts` (declare `let mirrorPump` before the C6 tools
 block, `status: () => mirrorPump?.status() ?? null`, construct and start it inside the
 `FOUNDRY_LINK_ENABLED` block when `obsidianVaultDir` is set, with `mirrorEnv.pollMs` and
 `mirrorEnv.openBase`, and stop it in the SIGINT/SIGTERM handlers); write `mirror-canary.test.ts`

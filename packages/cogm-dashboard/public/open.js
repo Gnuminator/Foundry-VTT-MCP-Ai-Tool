@@ -97,9 +97,8 @@ export function describeAnswer(status, body, ctx) {
       typeof b.name === 'string' && b.name !== ''
         ? `${ctx.label} "${b.name}"`
         : `the ${ctx.label.toLowerCase()}`;
-    const where = ctx.gmName
-      ? `${ctx.gmName}'s Foundry screen`
-      : `the GM's Foundry screen${typeof b.userId === 'string' && b.userId ? ` (user ${b.userId})` : ''}`;
+    // A raw user id means nothing to the GM; the name is known only after a GM choice.
+    const where = ctx.gmName ? `${ctx.gmName}'s Foundry screen` : "the GM's Foundry screen";
     return { tone: 'ok', text: `Opened ${what} on ${where}.`, canRetry: true };
   }
   if (status === 401) {

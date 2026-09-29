@@ -821,7 +821,7 @@ describe('the confirm page script (public/open.js)', () => {
       ctx
     );
     expect(opened).toMatchObject({ tone: 'ok', canRetry: true });
-    expect(opened.text).toBe(`Opened Actor "Wolf" on the GM's Foundry screen (user ${GM_A}).`);
+    expect(opened.text).toBe(`Opened Actor "Wolf" on the GM's Foundry screen.`);
     expect(
       openPage.describeAnswer(
         200,

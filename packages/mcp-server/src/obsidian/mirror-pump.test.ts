@@ -25,7 +25,11 @@ import {
 import { VaultStore } from '../vault/store.js';
 
 import type { LinkContext, MirrorSettings } from './mirror-common.js';
-import { ObsidianMirrorPump, RECONCILE_MIN_INTERVAL_MS } from './mirror-pump.js';
+import {
+  ObsidianMirrorPump,
+  RECONCILE_EVERY_MS,
+  RECONCILE_MIN_INTERVAL_MS,
+} from './mirror-pump.js';
 import { MIRROR_SETTINGS_FILE } from './mirror-settings.js';
 
 const converter = vi.hoisted(() => ({
@@ -606,5 +610,177 @@ describe('ObsidianMirrorPump: the GM owns what the GM touched', () => {
     ]);
     // The index note does not link to the missing page note.
     expect(await read(P.lore)).not.toContain('Lore/Castle.md');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scheduling: off, one cycle at a time, reconcile triggers, failures
+// ---------------------------------------------------------------------------
+
+describe('ObsidianMirrorPump: scheduling and failures', () => {
+  it('asks and writes nothing while the mirror is off or Foundry is away', async () => {
+    const pump = newPump();
+    await pump.tick(); // no settings file: off
+    await setSettings({ enabled: false });
+    await tickAfter(pump, 10_000);
+    expect(fake.requests).toEqual([]);
+    expect(await listFiles(vault)).toEqual([]);
+    expect(pump.status()).toMatchObject({ enabled: false, worldId: WORLD, lastError: null });
+
+    fake.connected = false;
+    await enableWithText();
+    await tickAfter(pump, 10_000);
+    expect(fake.requests).toEqual([]);
+  });
+
+  it('reconciles at once when the mirror is switched on', async () => {
+    const pump = newPump();
+    await setSettings({ enabled: false });
+    await pump.tick();
+    await enableWithText();
+    await tickAfter(pump, 1); // inside any throttle: a settings change is not throttled
+    expect(idsOnlyCount()).toBe(1);
+    expect(await exists(full(P.wolf))).toBe(true);
+    expect(pump.status().enabled).toBe(true);
+  });
+
+  it('runs one cycle at a time: a tick during a cycle returns the running one', async () => {
+    await enableWithText();
+    const pump = newPump();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>(resolve => (release = resolve));
+    fake.beforeQuery = (): Promise<void> => gate;
+    const first = pump.tick();
+    const second = pump.tick();
+    expect(second).toBe(first);
+    await vi.waitFor(() => expect(fake.requests).toHaveLength(1));
+    fake.beforeQuery = null;
+    release();
+    await first;
+    expect(idsOnlyCount()).toBe(1);
+    // The next tick is a new cycle.
+    await tickAfter(pump, 10_000);
+    expect(lastRequest()?.sinceModifiedTime).toBe(48_000);
+  });
+
+  it('reconciles every 10 minutes; incremental cycles in between never trash', async () => {
+    const pump = await started();
+    fake.remove(SWORD.uuid);
+    await tickAfter(pump, 10_000);
+    await tickAfter(pump, RECONCILE_EVERY_MS - 10_001);
+    expect(idsOnlyCount()).toBe(1);
+    expect(await exists(full(P.sword))).toBe(true);
+    await tickAfter(pump, 1); // 10 minutes after the start reconcile
+    expect(idsOnlyCount()).toBe(2);
+    expect(await exists(full(P.sword))).toBe(false);
+    expect(await exists(trashed(P.sword))).toBe(true);
+  });
+
+  it('a Foundry reload or a user change asks for a reconcile, at most once a minute', async () => {
+    const pump = await started();
+    fake.clientId = 'client-2'; // the GM reloaded Foundry
+    await tickAfter(pump, 10_000); // incremental: notices the new client
+    await tickAfter(pump, 10_000); // due, but inside the 60 s throttle
+    expect(idsOnlyCount()).toBe(1);
+    await tickAfter(pump, RECONCILE_MIN_INTERVAL_MS);
+    expect(idsOnlyCount()).toBe(2);
+
+    fake.usersSignature = 'users-2'; // a user was added or changed role
+    await tickAfter(pump, 10_000);
+    expect(idsOnlyCount()).toBe(2);
+    await tickAfter(pump, RECONCILE_MIN_INTERVAL_MS);
+    expect(idsOnlyCount()).toBe(3);
+    // Nothing new after that: back to incremental cycles.
+    await tickAfter(pump, RECONCILE_MIN_INTERVAL_MS);
+    expect(idsOnlyCount()).toBe(3);
+  });
+
+  it('a failed query keeps the watermark, is logged once and recovers', async () => {
+    const pump = await started();
+    const failures = (): unknown[] =>
+      logger.warn.mock.calls.filter(call => call[0] === 'Obsidian mirror cycle failed');
+    fake.failNext = 'Foundry is busy';
+    await tickAfter(pump, 10_000);
+    fake.failNext = 'Foundry is busy';
+    await tickAfter(pump, 10_000);
+    expect(failures()).toHaveLength(1);
+    expect(pump.status().lastError).toMatch(/Foundry is busy/);
+    expect(pump.status().lastCycleAt).toBe(new Date(T0).toISOString());
+    fake.edit(WOLF.uuid, e => (e.hpMax = 30), 60_000);
+    await tickAfter(pump, 10_000);
+    expect(lastRequest()?.sinceModifiedTime).toBe(48_000);
+    expect(await read(P.wolf)).toContain('hp_max: 30');
+    expect(pump.status().lastError).toBeNull();
+    expect(logger.info).toHaveBeenCalledWith('Obsidian mirror recovered');
+  });
+
+  it('an answer for another world writes nothing and resets the state', async () => {
+    const pump = await started();
+    const before = await snapshot();
+    fake.worldId = 'other-world';
+    fake.edit(WOLF.uuid, e => (e.name = 'Dire Wolf'), 60_000);
+    await tickAfter(pump, 10_000);
+    expect(await snapshot()).toEqual(before);
+    expect(await exists(path.join(vault, 'Campaigns', 'other-world'))).toBe(false);
+    expect(pump.status().lastError).toMatch(/world "other-world"/);
+    // The world is back: a fresh start (a reconcile), then the rename lands.
+    fake.worldId = WORLD;
+    await tickAfter(pump, 10_000);
+    expect(idsOnlyCount()).toBe(2);
+    expect(await read(P.wolf)).toContain('# Dire Wolf');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Real-path fences: links and junctions must not lead out of the vault
+// ---------------------------------------------------------------------------
+
+/** A directory link (a junction on Windows: no admin rights needed). */
+async function tryDirLink(target: string, link: string): Promise<boolean> {
+  try {
+    await fsp.mkdir(path.dirname(link), { recursive: true });
+    await fsp.symlink(target, link, 'junction');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+describe('ObsidianMirrorPump: junctions out of the vault', () => {
+  let outside: string;
+
+  beforeEach(async () => {
+    outside = path.join(tmp, 'outside');
+    await fsp.mkdir(outside, { recursive: true });
+  });
+
+  it('writes nothing when AI Tool/Foundry is a junction out of the vault', async ctx => {
+    if (!(await tryDirLink(outside, full('AI Tool/Foundry')))) return ctx.skip();
+    const pump = await started();
+    expect(await listFiles(outside)).toEqual([]);
+    expect(await exists(full('AI Tool/Bases'))).toBe(false);
+    expect(pump.status().lastError).toMatch(/leads outside/);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Obsidian mirror cycle failed',
+      expect.objectContaining({ error: expect.stringMatching(/leads outside/) })
+    );
+  });
+
+  it('writes nothing when AI Tool/Bases is a junction out of the vault', async ctx => {
+    if (!(await tryDirLink(outside, full('AI Tool/Bases')))) return ctx.skip();
+    const pump = await started();
+    expect(await listFiles(outside)).toEqual([]);
+    expect(await exists(full(P.wolf))).toBe(false);
+    expect(pump.status().lastError).toMatch(/leads outside/);
+  });
+
+  it('trashes nothing when the vault .trash folder is a junction out of the vault', async ctx => {
+    const pump = await started();
+    if (!(await tryDirLink(outside, path.join(vault, '.trash')))) return ctx.skip();
+    fake.remove(WOLF.uuid);
+    await reconcileNow(pump);
+    expect(await exists(full(P.wolf))).toBe(true);
+    expect(await listFiles(outside)).toEqual([]);
+    expect(pump.status().lastError).toMatch(/Refusing to trash/);
   });
 });

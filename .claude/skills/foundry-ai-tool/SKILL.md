@@ -206,8 +206,17 @@ should not be logged.
 
 ## Obsidian mirror checks (O4)
 
-Status 2026-09-29: drafted, never run. Steps 3 to 5 need the pump wired into `backend.ts` first
-(`docs/OBSIDIAN-O4-DESIGN.md` "Build status"); steps 1, 2 and 6 work now.
+Last full pass: 2026-09-29, all green (`docs/OBSIDIAN-PLAN.md` "As built", O4). Gotchas from that
+pass:
+
+- Deletes need a reconcile: reload the Foundry page (a new client) and wait about 20 s, or wait for
+  the 10-minute reconcile.
+- From PowerShell, call the dashboard at `127.0.0.1`, not `localhost`: `localhost` tries IPv6 first
+  and adds about 2 s per request, so 11 opens never fit in the rate limit's 10 s.
+- The test bridge logs nothing to a file unless `LOG_FILE_PATH` is set; use `get-obsidian-mirror`
+  (`status.lastError`, `skipped`, `errors`) and `Foundry\_status.md` instead.
+- Hand-made test data needs its own cleanup list (ids in a scratchpad file); a PC created by script
+  has `hp_max: 0` unless HP is set.
 
 The mirror writes Foundry notes into the throwaway vault `C:\FoundryTest\obsidian` (never the GM's
 vault) under `Campaigns\ai-tool-test\AI Tool\Foundry\`. It needs `FOUNDRY_AI_OBSIDIAN_DIR` (set by

@@ -1,6 +1,6 @@
 # Obsidian integration plan
 
-Status: **O1, O2 and O3 done (2026-09-28); see "As built".** Written
+Status: **O1, O2 and O3 done (2026-09-28), O4 done (2026-09-29); see "As built".** Written
 2026-09-28 (branch `claude/amazing-bardeen-q1x1q6`) from four research sweeps (prior art, Obsidian
 platform, game data, dev project); plugin facts re-checked on GitHub the same day. The GM handed
 Claude ownership of everything Obsidian on 2026-09-28 (structure, plugins, automations, formatting);
@@ -147,6 +147,50 @@ secret)` callouts); creates the campaign `Home.md` (Bases tables) and `Prep/` on
     the split on, and the session note's stats: a card Apply credited exactly despite a newer roll,
     a tool damage fitting no roll stayed uncredited, and an HP-bar edit fitting a fresh roll was
     credited as a guess.
+- **O4 (done 2026-09-29):** built as `docs/OBSIDIAN-O4-DESIGN.md` describes (that file is the
+  reference; its section 11 questions took the bold defaults).
+  - Contract `shared/src/export-index.ts`; module query `getExportIndex` (GM client only, feature
+    `obsidian-mirror`); converter (`html-to-md.ts`, `links.ts`, `md-escape.ts`); renderer
+    (`mirror-render.ts`, `mirror-paths.ts`); `NoteWriter` and the scan (`note-writer.ts`,
+    `mirror-scan.ts`); the pump `ObsidianMirrorPump` (`mirror-pump.ts`), started by `backend.ts`
+    with the Foundry link when `FOUNDRY_AI_OBSIDIAN_DIR` is set and stopped on SIGINT/SIGTERM (it
+    polls always and writes only while the settings say `enabled`); settings and tools
+    (`mirror-settings.ts`, `get-obsidian-mirror`, `plan-obsidian-mirror`; 94 tools); the dashboard
+    `/open` route (`open-route.ts`, `public/open.*`).
+  - Tests: every design section 8 item, plus `mirror-canary.test.ts` (a bridge vault seeded with
+    Tarokka cards, card name overrides, audit diffs, audit history and a reveal's own fields; none
+    reaches any vault file or log line; opted-in page text only in its own page note; no Templater
+    tag, `javascript:` or `obsidian:` link, wikilink, embed, `dataviewjs` fence or comment from
+    Foundry text outside inline code) and the pump's scheduling and fences (off writes nothing, one
+    cycle at a time, the 10-minute reconcile, a Foundry reload or user change reconciles within the
+    60 s throttle, a failed query keeps the watermark and logs once, an answer for another world
+    resets, junctions at `AI Tool/Foundry`, `AI Tool/Bases` and `.trash` refuse). **Tests 3,311.**
+  - **Live verification (2026-09-29, first PC's test server, Foundry 14.368, dnd5e 6.0.5, throwaway
+    vault):** apply refused with the switch off; notes 7.6 s after the apply (PC as `pc` with
+    Player, "Fighter 3" and the held story item; NPCs with "Unknown creature"; two same-named actors
+    got the id suffix; the true-name warning on the navigable scene without a navigation name; a
+    map pin linked to its page note); page text converted (actor and relative page links became note
+    links, the compendium link goes to `/open`, the inline roll is code, `javascript:` is plain
+    text, `<%` neutralized, the secret in a collapsed callout); the journal that was not opted in has
+    an index note only and its text is nowhere in the vault; every link and `#^p-` block jump
+    resolves. Within one poll: a rename kept the file (new H1, `name`, `aliases`), a hand-edited
+    note was skipped and listed, a journal raised to Observer turned `player_visible` on for it and
+    its pages. A deleted journal went to `.trash/` 10 s after a Foundry reload. `/open`: GET 200
+    with the strict CSP and no world data; POST in local mode and with the GM token opened the
+    document on the Claude client (Enter on the confirm page works); no token 401, player token 403,
+    `?token=` alone 401, no `X-CoGM-Request` 403, cross-site and foreign `Origin` (also
+    `app://obsidian.md`) 403, bad uuid 400, the 11th open in 10 s 429, an `OPTIONS` preflight from
+    `app://obsidian.md` not refused and without `Access-Control-Allow-Origin`. `/player`,
+    `player.js`, `/api/player/state` and both streams carried no mirror data. Obsidian 1.13.7:
+    properties (checkbox, wikilinks, tags), the NPCs base and the block jump render as designed.
+    Undo of the settings change turned the mirror off.
+  - Changed while testing: the `/open` page no longer prints the GM's raw user id after an open.
+  - **Known limits:** deletes reach the vault at the next reconcile (every 10 minutes, or about 20 s
+    after a Foundry reload or a user change; Foundry has no tombstones). Bases list the file name,
+    which keeps the old name after a rename in Foundry (the `name` property has the new one). Every
+    scene note says the active scene is always visible to players (fixed text, so the note does not
+    churn), and the true-name warning shows for any navigable scene without a navigation name.
+    Opening the throwaway vault in Obsidian adds it to Obsidian's vault list.
 
 ## 1. Summary
 
@@ -408,7 +452,7 @@ design, the O4 route, O7 and reviews of anything that handles secrets or player 
   markers, `stats/`, `Stats/` notes. Tests: v13/5.3 and v14/6.0 fixtures, one writer with two GM
   clients, dedupe, no double counting, midnight split, rebuild equals incremental, 1,000 events per
   minute. Live: a scripted fight as the Claude GM user.
-- **O4: Foundry mirrors + links.** `getExportIndex({sinceModifiedTime})` (uuid, name, folder,
+- **O4 (done 2026-09-29, see "As built" and `OBSIDIAN-O4-DESIGN.md`): Foundry mirrors + links.** `getExportIndex({sinceModifiedTime})` (uuid, name, folder,
   ownership, navName, `_stats`, opt-in page text); NPC, PC, scene, journal-index and story-item
   notes; `@UUID` rewrite; `/open` route. Tests: link rewrite, `player_visible`, route auth (none 401,
   player 403), a GET never writes.

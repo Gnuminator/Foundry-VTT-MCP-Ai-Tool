@@ -175,19 +175,18 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
     1.1.0; backend creature list read the wrong shape. Also: a whisper could go public with no GM
     user; stale Markdown on journal updates; module manifest Sets; see the plan for the full list and
     what is left (FormApplication menus before v16, `swarm` type, exhaustion levels parameter).
-- [~] **Obsidian O4 (Foundry mirrors + links) PARTLY BUILT, not live-tested** (2026-09-29, parallel
-  lanes; `docs/OBSIDIAN-O4-DESIGN.md` "Build status" is the source of truth). Done and unit-tested:
-  contract `shared/src/export-index.ts`, module query `getExportIndex` (GM client only, feature
-  `obsidian-mirror`), HTML to Markdown and `@UUID` rewrite, note/base/status rendering, `NoteWriter`
-  extraction + vault scan, the pump `ObsidianMirrorPump` (23 tests), settings + tools
-  `get-obsidian-mirror` / `plan-obsidian-mirror` (94 tools), dashboard `/open` route (`GET` static
-  confirm page, `POST /api/open` header-token GM-only, compatible with the P1 plugin per design 6.4).
-  **Left:** wire the pump into `backend.ts`, `mirror-canary.test.ts`, the remaining pump tests, the
-  live test (skill "Obsidian mirror checks (O4)", throwaway vault only), "O4 as built" in
-  `OBSIDIAN-PLAN.md`. GM questions answered with the bold defaults (design section 11).
-  `FOUNDRY_AI_OPEN_BASE` defaults to `http://localhost:3000` (the `/open` page reads the token from
-  that origin's localStorage). **Tests 3,297** (foundry-module 1362, mcp-server 1738, shared 60,
-  cogm-dashboard 137); lint baseline 7,656.
+- [x] **Obsidian O4 (Foundry mirrors + links) DONE, live-tested** (2026-09-29, built in parallel
+  lanes on the second PC, finished and live-tested on the first PC; `docs/OBSIDIAN-PLAN.md` "As
+  built", O4, and `docs/OBSIDIAN-O4-DESIGN.md`). Contract `shared/src/export-index.ts`, module query
+  `getExportIndex` (GM client only, feature `obsidian-mirror`), HTML to Markdown and `@UUID` rewrite,
+  note/base/status rendering, `NoteWriter` + vault scan, the pump `ObsidianMirrorPump` (started by
+  `backend.ts` with the Foundry link when `FOUNDRY_AI_OBSIDIAN_DIR` is set; writes only while the
+  mirror settings say enabled), settings + tools `get-obsidian-mirror` / `plan-obsidian-mirror` (94
+  tools), dashboard `/open` route (`GET` static confirm page, `POST /api/open` header-token GM-only,
+  compatible with the P1 plugin per design 6.4), `mirror-canary.test.ts`. GM questions answered with
+  the bold defaults (design section 11). `FOUNDRY_AI_OPEN_BASE` defaults to `http://localhost:3000`
+  (the `/open` page reads the token from that origin's localStorage). **Tests 3,311**
+  (foundry-module 1362, mcp-server 1752, shared 60, cogm-dashboard 137); lint baseline 7,656.
 - [~] **Dashboard hardening** (2026-09-29, own commit): the player page CSP now applies on every URL
   alias (`static-headers.ts`, shared with `/open`), and a Host allowlist (`host-allowlist.ts`, both
   modes, 421 `host-not-allowed`; loopback names, a specific `DASHBOARD_HOST`, new
@@ -196,14 +195,15 @@ Staged plan in `docs/DETACH-PLAN.md`. Progress:
   dashboard `.env.example`; fix the wrong header names in REMOTE-ACCESS and
   `deploy/cloudflare/access-policy.md` (they say `X-GM-Token`/`gm_token`; real: `X-CoGM-Token`,
   `?token=`, cookie `cogm_token`); the compose cloudflared ingress needs `http://app:3000`; live
-  check (`Host: evil.example` gives 421, `/player%2Ehtml` carries the CSP).
-- **Sonnet 5.5 for workers:** user settings set `ANTHROPIC_DEFAULT_SONNET_MODEL=claude-sonnet-5-5` on
-  this PC (the Agent tool's `sonnet` alias, confirmed 2026-09-29); the other PC needs the same (vault
-  `New PC setup.md`). Sonnet workers hit the 32k output cap on big files: tell them to write in parts
-  of at most ~250 lines per tool call.
-- **Next:** finish O4 (the "Left" list above, then its live test), then the hardening leftovers; then
-  the GM's choice (M4 attention/spy network; the research findings in the vault
-  `Dev/Foundry AI Tool/Research/`).
+  check (`Host: evil.example` gives 421, `/player%2Ehtml` carries the CSP). The 421 check passed
+  live during the O4 test (2026-09-29).
+- **Sonnet 5.5 for workers:** on CKRSSURFACE, user settings set
+  `ANTHROPIC_DEFAULT_SONNET_MODEL=claude-sonnet-5-5` (the Agent tool's `sonnet` alias); on
+  DESKTOP-I4QNKRH the plain `sonnet` alias already answered `claude-sonnet-5-5` on 2026-09-29 without
+  it. Check with a one-line test agent per PC and session. Sonnet workers hit the 32k output cap on
+  big files: tell them to write in parts of at most ~250 lines per tool call.
+- **Next:** the hardening leftovers (list above); then the GM's choice (M4 attention/spy network; the
+  research findings in the vault `Dev/Foundry AI Tool/Research/`).
 - [~] **Handoff (2026-09-28, night; second PC, CKRSSURFACE).** O3 done and pushed; M2 as above.
   - Test env on this PC: world `ai-tool-test` (users Gamemaster, Claude, Player; `Test Hero` level 3
     Fighter owned by Player; world actor `Wolf` with unlinked tokens Wolf 1-3 on "Test Arena").

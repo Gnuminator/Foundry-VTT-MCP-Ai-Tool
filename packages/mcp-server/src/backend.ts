@@ -76,6 +76,7 @@ import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/i
 import { EventPump, eventPumpSettings } from './event-pump.js';
 import { PlayLogPump, playLogSettings } from './play-log-pump.js';
 import { ObsidianAutoRender, obsidianAutoRenderSettings } from './obsidian/auto-render.js';
+import { ObsidianMirrorPump } from './obsidian/mirror-pump.js';
 import { mirrorEnvSettings } from './obsidian/mirror-settings.js';
 import { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import { comfyuiAutoStartEnabled } from './comfyui-client.js';
@@ -327,14 +328,15 @@ async function startBackend(): Promise<void> {
     worldIds,
     logger,
   });
-  // O4 mirror tools (C6). C5b: replace the status provider with the pump's status.
+  // O4 Foundry mirror: the pump starts with the Foundry link below (vault dir set only).
   const mirrorEnv = mirrorEnvSettings();
   for (const warning of mirrorEnv.warnings) logger.warn(warning);
+  let mirrorPump: ObsidianMirrorPump | null = null;
   const obsidianMirrorTools = new ObsidianMirrorTools({
     store: vaultStore,
     worldIds,
     guardedWrites,
-    status: () => null,
+    status: () => mirrorPump?.status() ?? null,
     env: {
       vaultDirSet: Boolean(obsidianVaultDir),
       openBase: mirrorEnv.openBase,
@@ -597,6 +599,19 @@ async function startBackend(): Promise<void> {
     } else {
       logger.info('Play log disabled (FOUNDRY_AI_PLAY_LOG=off)');
     }
+    // It writes only once the mirror settings say enabled (plan-obsidian-mirror).
+    if (obsidianVaultDir) {
+      mirrorPump = new ObsidianMirrorPump({
+        foundryClient,
+        worldIds,
+        store: vaultStore,
+        vaultDir: obsidianVaultDir,
+        logger,
+        pollMs: mirrorEnv.pollMs,
+        openBase: mirrorEnv.openBase,
+      });
+      mirrorPump.start();
+    }
   } else {
     logger.info('Foundry link disabled (MCP_FOUNDRY_LINK=off) — serving control channel only');
   }
@@ -726,6 +741,7 @@ async function startBackend(): Promise<void> {
   process.on('SIGINT', () => {
     eventPump?.stop();
     playLogPump?.stop();
+    mirrorPump?.stop();
     obsidianRender?.stop();
     foundryClient.disconnect();
     releaseLock();
@@ -735,6 +751,7 @@ async function startBackend(): Promise<void> {
   process.on('SIGTERM', () => {
     eventPump?.stop();
     playLogPump?.stop();
+    mirrorPump?.stop();
     obsidianRender?.stop();
     foundryClient.disconnect();
     releaseLock();

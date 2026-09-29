@@ -57,6 +57,8 @@ const CANNED = {
         actorId: 'gob1',
         description: 'Goblin took 5 damage',
         details: { amount: 5, from: 12, to: 7, source: 'sword' },
+        // M2: the player feed is rebuilt from this stamp; raw descriptions never reach players.
+        visibility: { subject: 'npc', tokenVisible: true, playerName: 'Goblin' },
       },
     ],
   },
@@ -333,8 +335,8 @@ async function main() {
       Object.keys(player.body.events[0]?.details || {}).length === 0
     );
     check(
-      'player still sees public event description',
-      player.body.events[0]?.description === 'Goblin took 5 damage'
+      'player sees the player-safe line, without the enemy damage number',
+      player.body.events[0]?.text === 'Goblin was hit.'
     );
 
     // --- Write surface gated ----------------------------------------------

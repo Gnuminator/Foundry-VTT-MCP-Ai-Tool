@@ -6,6 +6,24 @@ Groundwork from `docs/design/CURSE-OF-STRAHD-PLAN.md` step 0. **Wire contracts a
 ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults change behaviour; see
 "Upgrade notes".
 
+### Link reliability (before the Orange Pi)
+
+- **One bridge user.** A world setting picks which GM's browser holds the bridge link ("Any GM" by
+  default). The bridge keeps every GM connection and switches to another when the active one
+  drops, instead of going dark until someone reloads.
+- **Reconnect forever.** The module retries every 1 s, doubling up to 30 s, with no attempt limit,
+  and no longer writes connection timestamps into the world every 30 s.
+- **The dashboard says when Foundry is gone.** A banner appears when Foundry has not been connected
+  for 2 minutes; the bridge logs `link-down` after 5 minutes and `link-up` when it is back.
+- **Slow writes keep their undo.** Guarded writes wait up to 120 s, then ask Foundry what happened,
+  so a write that landed late still gets its audit entry and undo. Dashboard GM actions wait up to
+  5 minutes without dropping the control channel.
+- **No silent empty bridge.** Claude Desktop's server reads `MCP_CONTROL_HOST`, `MCP_CONTROL_PORT`
+  and `MCP_NO_SPAWN`, and never starts a local backend for a bridge elsewhere.
+- **CI on every branch**, plus an ARM job (the Pi is ARM). `npm run live:roundtrip` runs a scripted
+  write and undo against the test server; `scripts/backup/backup-bridge-vault.ps1` makes weekly
+  bridge-vault backups.
+
 ### Security
 
 - **Bridge handlers are no longer in Foundry's `CONFIG.queries`.** Foundry relays queries from any

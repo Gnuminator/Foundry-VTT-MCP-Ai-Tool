@@ -92,6 +92,31 @@ describe('actors and their items', () => {
     expect(pcs.choices[0].detail).toBe('character, player-owned');
   });
 
+  it('lists actors on the current scene first when asked (I-017)', async () => {
+    world.addActor({ id: 'pc', name: 'Aria', type: 'character' });
+    const zombie = world.addActor({ id: 'z', name: 'Zombie', type: 'npc' });
+    world.addActor({ id: 'b', name: 'Bat', type: 'npc' });
+    const scene = world.addScene({
+      id: 'scene-1',
+      name: 'Barovia',
+      tokens: [makeToken({ id: 't1', name: 'Zombie', actorId: zombie.id })],
+    });
+    world.setActiveScene(scene.id);
+    install();
+
+    const first = await listRefChoices({ kind: 'actor', filter: { onSceneFirst: true } });
+    expect(first.choices[0]).toMatchObject({ id: 'z', group: 'On this scene' });
+    expect(
+      first.choices
+        .map(c => c.id)
+        .slice(1)
+        .sort()
+    ).toEqual(['b', 'pc']);
+
+    const plain = await listRefChoices({ kind: 'actor' });
+    expect(plain.choices.find(c => c.id === 'z')?.group).toBe('npc');
+  });
+
   it("lists the parent actor's items by type", async () => {
     world.addActor({
       id: 'npc',

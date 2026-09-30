@@ -71,6 +71,19 @@ describe('list-ref-choices', () => {
     });
   });
 
+  it('keeps the actor filter flags on the way to the module (I-017)', async () => {
+    const { tools, query } = setup();
+    query.mockResolvedValue({ kind: 'actor', choices: [], truncated: false });
+    await tools.handleListRefChoices({
+      kind: 'actor',
+      filter: { types: ['character', 'npc'], onSceneFirst: true },
+    });
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.listRefChoices', {
+      kind: 'actor',
+      filter: { types: ['character', 'npc'], onSceneFirst: true },
+    });
+  });
+
   it('surfaces a refusal from Foundry', async () => {
     const { tools, query } = setup();
     query.mockResolvedValue({ success: false, error: 'Failed to list choices: not a GM' });

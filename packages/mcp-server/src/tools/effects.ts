@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { toolRef } from '@gnuminator/shared';
+import { AT_THE_TABLE, toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 
@@ -32,7 +32,7 @@ export class EffectsTools {
             identifier: {
               type: 'string',
               description: 'Actor name or ID.',
-              ...toolRef('actor', 'id'),
+              ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
             },
           },
           required: ['identifier'],
@@ -48,7 +48,7 @@ export class EffectsTools {
             identifier: {
               type: 'string',
               description: 'Actor name or ID.',
-              ...toolRef('actor', 'id'),
+              ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
             },
             conditionNames: {
               type: 'array',

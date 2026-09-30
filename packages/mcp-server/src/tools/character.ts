@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { toolRef } from '@gnuminator/shared';
+import { AT_THE_TABLE, toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 import { SystemRegistry } from '../systems/system-registry.js';
@@ -69,7 +69,7 @@ export class CharacterTools {
             identifier: {
               type: 'string',
               description: 'Character name or ID to look up',
-              ...toolRef('actor', 'id'),
+              ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
             },
           },
           required: ['identifier'],
@@ -85,7 +85,7 @@ export class CharacterTools {
             characterIdentifier: {
               type: 'string',
               description: 'Character name or ID',
-              ...toolRef('actor', 'id'),
+              ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
             },
             entityIdentifier: {
               type: 'string',
@@ -120,7 +120,7 @@ export class CharacterTools {
             actorIdentifier: {
               type: 'string',
               description: 'Character using the item (name or ID)',
-              ...toolRef('actor', 'id'),
+              ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
             },
             itemIdentifier: {
               type: 'string',
@@ -236,7 +236,7 @@ export class CharacterTools {
             actorIdentifier: {
               type: 'string',
               description: 'For "add-to-actor": actor name or ID to receive the items.',
-              ...toolRef('actor', 'id'),
+              ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
             },
           },
           required: ['action'],
@@ -252,7 +252,7 @@ export class CharacterTools {
             characterIdentifier: {
               type: 'string',
               description: 'Character name or ID to search within',
-              ...toolRef('actor', 'id'),
+              ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
             },
             query: {
               type: 'string',

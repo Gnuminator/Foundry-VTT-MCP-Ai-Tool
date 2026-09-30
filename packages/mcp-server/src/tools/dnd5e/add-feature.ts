@@ -1,4 +1,4 @@
-import { freeText, toolRef } from '@gnuminator/shared';
+import { freeText, NPCS_ONLY, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../../foundry-client.js';
 import { Logger } from '../../logger.js';
@@ -169,7 +169,7 @@ export class DnD5eAddFeatureTool {
               type: 'string',
               description:
                 'Name or ID of the target actor (partial name match supported). Required for all featureTypes.',
-              ...toolRef('actor', 'id'),
+              ...toolRef('actor', 'id', { filter: NPCS_ONLY }),
             },
             featureName: {
               type: 'string',

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { toolRef } from '@gnuminator/shared';
+import { AT_THE_TABLE, toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 
@@ -79,12 +79,12 @@ export class ChatLogTools {
               type: 'string',
               description:
                 'Actor ID to post as. If omitted (and no name given), posts as the GM/world.',
-              ...toolRef('actor', 'id'),
+              ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
             },
             speakerActorName: {
               type: 'string',
               description: 'Actor name to post as (alternative to speakerActorId).',
-              ...toolRef('actor', 'name'),
+              ...toolRef('actor', 'name', { filter: AT_THE_TABLE }),
             },
             messageType: {
               type: 'string',

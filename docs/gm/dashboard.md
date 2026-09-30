@@ -77,6 +77,10 @@ length. If the module and bridge versions differ, a banner at the top says which
 
 Opens the handout drawer. See "The handout drawer" below.
 
+### 📋 Prep
+
+Opens the prep drawer. See "The prep drawer" below.
+
 ### 🃏 Tarokka
 
 Opens the Tarokka drawer. See "The Tarokka drawer" below.
@@ -280,6 +284,25 @@ Queue handouts during prep, then reveal each with one click at the table. The dr
 
 A handout for chosen players is readable in Foundry only by them, and the player page shows it only
 to a player who picked that name ("Playing as ...") at the top of the page.
+
+## The prep drawer (📋 Prep)
+
+The facts for preparing your next session, in one place and without AI. **Refresh** reloads them.
+
+- **Last session**: its date and length, the scenes in the order you visited them, fights and
+  rounds, downs and deaths, the handouts you revealed (and who has opened them), and **Beats**, a
+  short list of what happened. **All beats** loads the full list when the short one is cut.
+- **Open threads**: quests whose Status is not done, and campaign parts not completed or skipped.
+  **Open** shows the journal in Foundry.
+- **Next session notes**: the text of your journal named "Next session". Keep it GM only; the
+  drawer warns you if players can see it. Without that journal the drawer tells you how to make
+  one.
+- **Ready**: the handout queue by scene, the bosses on your scenes (legendary actions, legendary
+  resistances, lair) and the pre-flight result, with a button to the pre-flight drawer.
+- **Recent changes**: how many guarded changes were made, and the latest ones.
+
+Claude reads the same facts with `get-prep-digest`, which the prompt `prep-next-session` uses
+first. Without Foundry connected, the drawer still shows last session and says what is missing.
 
 ## The player page (/player)
 

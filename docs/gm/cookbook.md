@@ -28,12 +28,16 @@ set says so.
 
 ### Get ready for next session
 
-- **Say:** use the ready-made prompt `prep-next-session` (in the message box's **+** menu). Add a
+- **Click:** **📋 Prep** in the dashboard header for the facts without AI: last session (scenes,
+  fights, deaths, what happened), open quests and campaign parts, your notes, the handouts you
+  queued, the bosses on your scenes and the pre-flight result.
+- **Or say:** use the ready-made prompt `prep-next-session` (in the message box's **+** menu). Add a
   focus if you have one, for example "the Vallaki festival".
-- **What happens:** Claude reads what happened last session and what is still open, and helps you
-  plan the next one.
-- **Tip:** ask for a short list of loose threads at the end: "End with the five open threads, one
-  line each."
+- **What happens:** Claude reads the same facts in one go (`get-prep-digest`) and helps you plan
+  the next session.
+- **Tip:** keep your prep notes in a journal named "Next session" that only you can see. The Prep
+  drawer and Claude both read it. Ask for a short list of loose threads at the end: "End with the
+  five open threads, one line each."
 
 ### Check that everything is ready
 

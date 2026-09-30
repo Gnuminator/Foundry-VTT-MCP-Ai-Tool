@@ -43,6 +43,28 @@ The server runs locally. Point Claude Desktop's `claude_desktop_config.json` at 
 Build it with `npm run build && npm run bundle:server`. Restart Claude Desktop after changing the config.
 (Packaging the server with its own installer/release is future work — see ROADMAP.)
 
+### Pointing Claude Desktop at a bridge that runs elsewhere
+
+By default the Claude Desktop entry (`index.js` / `index.bundle.cjs`) connects to the bridge on
+`127.0.0.1:31414` and, if nothing answers, starts a backend itself. When the bridge runs on another
+machine (for example the Orange Pi, reached over Tailscale), set these in the `env` block:
+
+| Variable           | Default     | Meaning                                                                                            |
+| ------------------ | ----------- | -------------------------------------------------------------------------------------------------- |
+| `MCP_CONTROL_HOST` | `127.0.0.1` | Host of the bridge control channel.                                                                |
+| `MCP_CONTROL_PORT` | `31414`     | Port of the bridge control channel.                                                                |
+| `MCP_NO_SPAWN`     | unset       | `1` or `true`: never start a backend from this entry, only connect to one that is already running. |
+
+A backend is also never started when `MCP_CONTROL_HOST` is not a loopback address (`127.0.0.1`,
+`::1`, `localhost`), because a backend started on this PC would not be the one at that address.
+When the bridge cannot be reached and spawning is off, every tool call answers "The Foundry AI Tool
+bridge is not reachable at HOST:PORT. Start it (or check the address) and try again." and the tool
+list is empty.
+
+```json
+"env": { "MCP_CONTROL_HOST": "100.64.0.7", "MCP_CONTROL_PORT": "31414" }
+```
+
 ---
 
 ## Cutting a new release (maintainers)

@@ -30,6 +30,7 @@ import {
   GUARDED_OP_KINDS,
   expectedAfterApply,
   inverseGuardedOp,
+  type GuardedApplyOutcome,
   type GuardedApplyRequest,
   type GuardedApplyResult,
   type GuardedFeatureState,
@@ -60,6 +61,12 @@ import {
 export const PLAN_TTL_MS = 15 * 60 * 1000;
 export const MAX_PLANS = 100;
 export const MAX_OPS = 200;
+/** A Foundry apply may take long (big batches); the default 10 s query timeout is too short. */
+export const APPLY_TIMEOUT_MS = 120_000;
+/** After a lost answer, ask the module how the apply went this often (PB-04) ... */
+export const OUTCOME_POLL_INTERVAL_MS = 5_000;
+/** ... and give up after this long. */
+export const OUTCOME_DEADLINE_MS = 120_000;
 
 const FEATURE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 /** Vault files features may not write through vault ops. */
@@ -177,6 +184,22 @@ export interface GuardedWriteServiceOptions {
    * listener is caught and logged; it never breaks the apply/undo.
    */
   onRecorded?: (worldId: string, changeId: string) => void;
+  /** Timeout of the apply query (default 120 s). */
+  applyTimeoutMs?: number;
+  /** How often to ask for the outcome after a lost answer (default 5 s). */
+  outcomePollIntervalMs?: number;
+  /** How long to keep asking (default 120 s). */
+  outcomeDeadlineMs?: number;
+}
+
+/** Errors that mean "no answer arrived", as opposed to Foundry refusing the change. */
+function isLostAnswer(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /query timeout|connection closed|not connected/i.test(message);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function newId(prefix: string, now: number): string {
@@ -306,6 +329,9 @@ export class GuardedWriteService {
   private readonly ttlMs: number;
   private readonly maxPlans: number;
   private readonly onRecorded: GuardedWriteServiceOptions['onRecorded'];
+  private readonly applyTimeoutMs: number;
+  private readonly outcomePollIntervalMs: number;
+  private readonly outcomeDeadlineMs: number;
   private lock: Promise<unknown> = Promise.resolve();
 
   constructor(options: GuardedWriteServiceOptions) {
@@ -318,6 +344,9 @@ export class GuardedWriteService {
     this.ttlMs = options.ttlMs ?? PLAN_TTL_MS;
     this.maxPlans = options.maxPlans ?? MAX_PLANS;
     this.onRecorded = options.onRecorded;
+    this.applyTimeoutMs = options.applyTimeoutMs ?? APPLY_TIMEOUT_MS;
+    this.outcomePollIntervalMs = options.outcomePollIntervalMs ?? OUTCOME_POLL_INTERVAL_MS;
+    this.outcomeDeadlineMs = options.outcomeDeadlineMs ?? OUTCOME_DEADLINE_MS;
   }
 
   // -------------------------------------------------------------------------
@@ -646,14 +675,77 @@ export class GuardedWriteService {
   }
 
   private async executeInFoundry(request: GuardedApplyRequest): Promise<GuardedApplyResult> {
-    const result = unwrap<GuardedApplyResult>(
-      await this.foundry.query('foundry-mcp-bridge.applyGuardedOps', request),
-      'Foundry refused the change'
+    let response: unknown;
+    try {
+      response = await this.foundry.query('foundry-mcp-bridge.applyGuardedOps', request, {
+        timeoutMs: this.applyTimeoutMs,
+      });
+    } catch (error) {
+      if (!isLostAnswer(error)) throw error;
+      // The apply may still have run in Foundry: ask the module how it went (PB-04).
+      this.logger.warn('Apply answer lost, asking Foundry for the outcome', {
+        changeId: request.changeId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return this.awaitApplyOutcome(request);
+    }
+    return this.checkApplyResult(
+      unwrap<GuardedApplyResult>(response, 'Foundry refused the change'),
+      request
     );
+  }
+
+  private checkApplyResult(
+    result: GuardedApplyResult | null | undefined,
+    request: GuardedApplyRequest
+  ): GuardedApplyResult {
     if (!result || !Array.isArray(result.results) || result.changeId !== request.changeId) {
       throw new Error('Foundry returned an unexpected apply result');
     }
     return result;
+  }
+
+  /**
+   * Poll `guardedApplyOutcome` until the module knows how the apply ended, also
+   * across a reconnect. `applied` returns the result as if the apply had
+   * answered, so the audit entry and undo are written.
+   */
+  private async awaitApplyOutcome(request: GuardedApplyRequest): Promise<GuardedApplyResult> {
+    const started = Date.now();
+    const giveUp = (): never => {
+      const seconds = Math.round((Date.now() - started) / 1000);
+      const message = `The change may or may not have been applied in Foundry (no answer within ${seconds} s). Check Foundry before planning it again.`;
+      this.logger.error(message, { changeId: request.changeId });
+      throw new Error(message);
+    };
+    for (;;) {
+      await sleep(this.outcomePollIntervalMs);
+      let outcome: GuardedApplyOutcome | null = null;
+      try {
+        const response = unwrap<GuardedApplyOutcome | null>(
+          await this.foundry.query('foundry-mcp-bridge.guardedApplyOutcome', {
+            changeId: request.changeId,
+          }),
+          'Outcome check refused'
+        );
+        outcome = response && typeof response === 'object' ? response : null;
+      } catch (error) {
+        // The link is down or the module cannot answer: try again on the next tick.
+        this.logger.debug('Outcome check failed', {
+          changeId: request.changeId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      if (outcome?.status === 'applied') {
+        this.logger.info('Apply outcome recovered: applied', { changeId: request.changeId });
+        return this.checkApplyResult(outcome.result, request);
+      }
+      if (outcome?.status === 'failed') {
+        throw new Error(outcome.error || 'Foundry refused the change');
+      }
+      if (outcome?.status === 'unknown') giveUp();
+      if (Date.now() - started >= this.outcomeDeadlineMs) giveUp();
+    }
   }
 
   /**

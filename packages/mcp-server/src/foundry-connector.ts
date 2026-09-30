@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
+import { ModuleHelloFrameSchema, type ModuleHelloData } from '@gnuminator/shared';
 import { Logger } from './logger.js';
 import { Config } from './config.js';
 import { WebRTCPeer } from './webrtc-peer.js';
@@ -30,6 +31,29 @@ interface PendingQuery {
   resolve: (value: any) => void;
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
+  /** The WebSocket the query was sent on (absent for WebRTC). */
+  socket?: WebSocket;
+}
+
+/** One open module WebSocket and what it told us about itself. */
+interface SocketEntry {
+  /** Connection order; a higher number is a newer socket. */
+  seq: number;
+  /** From the `module-hello` frame; null until (or unless) one arrives (older modules). */
+  hello: ModuleHelloData | null;
+  /** The socket was used for WebRTC signaling only; it never carries queries. */
+  signaling: boolean;
+}
+
+/** Default query timeout in ms. Writers pass a longer one. */
+export const DEFAULT_QUERY_TIMEOUT_MS = 10000;
+/** How long the link may stay down before one `link-down` warning is logged. */
+export const LINK_DOWN_WARN_MS = 5 * 60 * 1000;
+/** How often the link state is re-checked (catches WebRTC drops, which raise no event here). */
+const LINK_WATCH_INTERVAL_MS = 5000;
+
+export interface QueryOptions {
+  timeoutMs?: number;
 }
 
 export class FoundryConnector {
@@ -39,13 +63,23 @@ export class FoundryConnector {
   private logger: Logger;
   private config: Config['foundry'];
   private isStarted = false;
+  /** The active module socket (the one queries go to); null when none. */
   private foundrySocket: WebSocket | null = null;
+  /** Every open module socket (PB-02: several GM browsers may dial the bridge). */
+  private sockets = new Map<WebSocket, SocketEntry>();
+  private socketSeq = 0;
+  private webrtcHello: ModuleHelloData | null = null;
   private webrtcPeer: WebRTCPeer | null = null;
   private activeConnectionType: 'websocket' | 'webrtc' | null = null;
   private pendingQueries = new Map<string, PendingQuery>();
   private queryIdCounter = 0;
   /** Bumped on every new module connection (caches keyed per connection use it). */
   private connectionSerial = 0;
+  /** Epoch ms since when no module is connected; null while connected (PB-03). */
+  private linkDownSince: number | null = Date.now();
+  private linkDownLogged = false;
+  private linkDownTimer: NodeJS.Timeout | null = null;
+  private linkWatchTimer: NodeJS.Timeout | null = null;
 
   constructor({ config, logger }: FoundryConnectorOptions) {
     this.config = config;
@@ -132,59 +166,13 @@ export class FoundryConnector {
     });
 
     // Handle WebSocket connections (both signaling and direct WebSocket)
-    this.wss.on('connection', ws => {
-      this.logger.info('Client connected via WebSocket');
-
-      // Register the connection immediately on connect, not on first message
-      // This fixes Issue #19: WebSocket handshake deadlock where both sides
-      // waited for the other to send a message first
-      if (!this.foundrySocket) {
-        this.foundrySocket = ws;
-        this.activeConnectionType = 'websocket';
-        this.connectionSerial += 1;
-        this.logger.info('Foundry module registered via WebSocket');
-      }
-
-      ws.on('close', () => {
-        this.logger.info('Client disconnected');
-        if (this.activeConnectionType === 'websocket' && this.foundrySocket === ws) {
-          this.foundrySocket = null;
-          this.activeConnectionType = null;
-          // Reject all pending queries
-          this.pendingQueries.forEach(({ reject, timeout }) => {
-            clearTimeout(timeout);
-            reject(new Error('Connection closed'));
-          });
-          this.pendingQueries.clear();
-        }
-      });
-
-      const onWsMessage = async (data: unknown): Promise<void> => {
-        try {
-          const message = JSON.parse((data as Buffer).toString());
-
-          // Check if this is WebRTC signaling
-          if (message.type === 'webrtc-offer') {
-            await this.handleWebRTCOffer(message.offer, ws);
-          } else {
-            // Regular WebSocket message - process it directly
-            await this.handleMessage(message);
-          }
-        } catch (error) {
-          this.logger.error('Failed to parse message', error);
-        }
-      };
-      ws.on('message', data => void onWsMessage(data));
-
-      ws.on('error', error => {
-        this.logger.error('WebSocket error', error);
-      });
-    });
+    this.wss.on('connection', ws => this.attachSocket(ws));
 
     // Start the HTTP server
     await new Promise<void>((resolve, reject) => {
       this.httpServer.listen(this.config.port, bindHost, () => {
         this.isStarted = true;
+        this.startLinkWatch();
         this.logger.info('Foundry connector listening', { host: bindHost, port: this.config.port });
         resolve();
       });
@@ -196,6 +184,201 @@ export class FoundryConnector {
     });
   }
 
+  /**
+   * Register a module WebSocket (called for every connection). Every open
+   * socket is kept; `selectActiveSocket` picks the one queries go to.
+   */
+  attachSocket(ws: WebSocket): void {
+    this.logger.info('Client connected via WebSocket');
+
+    // Register the connection immediately on connect, not on first message
+    // This fixes Issue #19: WebSocket handshake deadlock where both sides
+    // waited for the other to send a message first
+    this.sockets.set(ws, { seq: ++this.socketSeq, hello: null, signaling: false });
+    this.selectActiveSocket();
+    this.syncLinkState();
+
+    ws.on('close', () => {
+      this.logger.info('Client disconnected');
+      this.sockets.delete(ws);
+      // Queries sent on this socket can never be answered.
+      this.rejectPending('Connection closed', p => p.socket === ws);
+      this.selectActiveSocket();
+      this.syncLinkState();
+    });
+
+    const onWsMessage = async (data: unknown): Promise<void> => {
+      try {
+        const message = JSON.parse((data as Buffer).toString()) as {
+          type?: string;
+          offer?: unknown;
+        };
+
+        // Check if this is WebRTC signaling
+        if (message.type === 'webrtc-offer') {
+          const entry = this.sockets.get(ws);
+          if (entry) entry.signaling = true;
+          this.selectActiveSocket();
+          await this.handleWebRTCOffer(message.offer, ws);
+        } else if (message.type === 'module-hello') {
+          this.handleHello(message, ws);
+        } else {
+          // Regular WebSocket message - process it directly
+          await this.handleMessage(message);
+        }
+      } catch (error) {
+        this.logger.error('Failed to parse message', error);
+      }
+    };
+    ws.on('message', data => void onWsMessage(data));
+
+    ws.on('error', error => {
+      this.logger.error('WebSocket error', error);
+    });
+  }
+
+  private handleHello(message: unknown, ws?: WebSocket): void {
+    const parsed = ModuleHelloFrameSchema.safeParse(message);
+    if (!parsed.success) {
+      this.logger.debug('Ignoring invalid module-hello frame');
+      return;
+    }
+    if (!ws) {
+      this.webrtcHello = parsed.data.data;
+      return;
+    }
+    const entry = this.sockets.get(ws);
+    if (!entry) return;
+    entry.hello = parsed.data.data;
+    this.logger.info('Foundry module hello', {
+      userName: entry.hello.userName,
+      isBridgeUser: entry.hello.isBridgeUser,
+      moduleVersion: entry.hello.moduleVersion,
+    });
+    this.selectActiveSocket();
+  }
+
+  /**
+   * Active socket: the newest open socket whose hello says `isBridgeUser: true`,
+   * else the newest open socket (older modules never send a hello). While a
+   * WebRTC connection is established it stays the active transport.
+   */
+  private selectActiveSocket(): void {
+    if (this.activeConnectionType === 'webrtc') return;
+    let best: WebSocket | null = null;
+    let bestIsBridgeUser = false;
+    let bestSeq = -1;
+    for (const [ws, entry] of this.sockets) {
+      if (ws.readyState !== WebSocket.OPEN || entry.signaling) continue;
+      const isBridgeUser = entry.hello?.isBridgeUser === true;
+      if (
+        best === null ||
+        (isBridgeUser && !bestIsBridgeUser) ||
+        (isBridgeUser === bestIsBridgeUser && entry.seq > bestSeq)
+      ) {
+        best = ws;
+        bestIsBridgeUser = isBridgeUser;
+        bestSeq = entry.seq;
+      }
+    }
+    if (best === this.foundrySocket) {
+      if (!best && this.activeConnectionType === 'websocket') this.activeConnectionType = null;
+      return;
+    }
+    this.foundrySocket = best;
+    if (best) {
+      this.activeConnectionType = 'websocket';
+      this.connectionSerial += 1;
+      this.logger.info('Foundry module registered via WebSocket', {
+        sockets: this.openSocketCount(),
+      });
+    } else if (this.activeConnectionType === 'websocket') {
+      this.activeConnectionType = null;
+    }
+  }
+
+  private openSocketCount(): number {
+    let n = 0;
+    for (const [ws, entry] of this.sockets) {
+      if (ws.readyState === WebSocket.OPEN && !entry.signaling) n += 1;
+    }
+    return n;
+  }
+
+  private activeHello(): ModuleHelloData | null {
+    if (this.activeConnectionType === 'webrtc') return this.webrtcHello;
+    return this.foundrySocket ? (this.sockets.get(this.foundrySocket)?.hello ?? null) : null;
+  }
+
+  private rejectPending(reason: string, filter?: (p: PendingQuery) => boolean): void {
+    for (const [id, pending] of [...this.pendingQueries]) {
+      if (filter && !filter(pending)) continue;
+      clearTimeout(pending.timeout);
+      pending.reject(new Error(reason));
+      this.pendingQueries.delete(id);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Link state (PB-03): linkDownSince plus one link-down / link-up log line
+  // -------------------------------------------------------------------------
+
+  private startLinkWatch(): void {
+    if (this.linkWatchTimer) return;
+    if (this.linkDownSince !== null) this.linkDownSince = Date.now();
+    this.linkWatchTimer = setInterval(() => this.syncLinkState(), LINK_WATCH_INTERVAL_MS);
+    this.linkWatchTimer.unref?.();
+    this.syncLinkState();
+  }
+
+  private syncLinkState(): void {
+    if (this.isLinkUp()) {
+      if (this.linkDownSince === null) return;
+      const downMs = Date.now() - this.linkDownSince;
+      this.linkDownSince = null;
+      this.clearLinkDownTimer();
+      if (this.linkDownLogged) {
+        this.linkDownLogged = false;
+        this.logger.info('link-up', { event: 'link-up', downMs });
+      }
+      return;
+    }
+    if (this.linkDownSince === null) this.linkDownSince = Date.now();
+    if (!this.linkDownLogged && !this.linkDownTimer) {
+      const remaining = Math.max(0, LINK_DOWN_WARN_MS - (Date.now() - this.linkDownSince));
+      this.linkDownTimer = setTimeout(() => {
+        this.linkDownTimer = null;
+        this.warnIfStillDown();
+      }, remaining);
+      this.linkDownTimer.unref?.();
+    }
+  }
+
+  private warnIfStillDown(): void {
+    if (this.isLinkUp() || this.linkDownSince === null || this.linkDownLogged) return;
+    this.linkDownLogged = true;
+    this.logger.warn('link-down', {
+      event: 'link-down',
+      since: new Date(this.linkDownSince).toISOString(),
+    });
+  }
+
+  private clearLinkDownTimer(): void {
+    if (this.linkDownTimer) clearTimeout(this.linkDownTimer);
+    this.linkDownTimer = null;
+  }
+
+  /** True when a module socket (or the WebRTC peer) can carry queries. */
+  private isLinkUp(): boolean {
+    if (this.activeConnectionType === 'webrtc') {
+      return this.webrtcPeer !== null && this.webrtcPeer.getIsConnected();
+    }
+    if (this.activeConnectionType === 'websocket') {
+      return this.foundrySocket !== null && this.foundrySocket.readyState === WebSocket.OPEN;
+    }
+    return false;
+  }
+
   async stop(): Promise<void> {
     if (!this.isStarted) {
       return;
@@ -204,16 +387,21 @@ export class FoundryConnector {
     this.logger.info('Stopping Foundry connector...');
 
     // Reject all pending queries
-    this.pendingQueries.forEach(({ reject, timeout }) => {
-      clearTimeout(timeout);
-      reject(new Error('Server shutting down'));
-    });
-    this.pendingQueries.clear();
+    this.rejectPending('Server shutting down');
 
-    if (this.foundrySocket) {
-      this.foundrySocket.close();
-      this.foundrySocket = null;
+    if (this.linkWatchTimer) clearInterval(this.linkWatchTimer);
+    this.linkWatchTimer = null;
+    this.clearLinkDownTimer();
+
+    for (const ws of this.sockets.keys()) {
+      try {
+        ws.close();
+      } catch {
+        // already closing
+      }
     }
+    this.sockets.clear();
+    this.foundrySocket = null;
 
     if (this.wss) {
       this.wss.close();
@@ -234,6 +422,12 @@ export class FoundryConnector {
   }
 
   private handleMessage(message: any): Promise<void> {
+    if (message.type === 'module-hello') {
+      // Only WebRTC reaches here (WebSocket hellos are handled per socket).
+      this.handleHello(message);
+      return Promise.resolve();
+    }
+
     if (message.type === 'mcp-response' && message.id) {
       const pending = this.pendingQueries.get(message.id);
       if (pending) {
@@ -291,7 +485,9 @@ export class FoundryConnector {
       );
 
       this.activeConnectionType = 'webrtc';
+      this.webrtcHello = null;
       this.connectionSerial += 1;
+      this.syncLinkState();
       this.logger.info('WebRTC connection established');
 
       // Close signaling WebSocket after handshake
@@ -348,7 +544,9 @@ export class FoundryConnector {
       const answer = await this.webrtcPeer.handleOffer(offer);
 
       this.activeConnectionType = 'webrtc';
+      this.webrtcHello = null;
       this.connectionSerial += 1;
+      this.syncLinkState();
       this.logger.info('WebRTC connection established via HTTP signaling');
 
       // Send answer back via HTTP response
@@ -365,7 +563,7 @@ export class FoundryConnector {
     }
   }
 
-  async query(method: string, data?: any): Promise<any> {
+  async query(method: string, data?: any, options: QueryOptions = {}): Promise<any> {
     // Check connection based on active connection type
     const isConnected =
       this.activeConnectionType === 'webrtc'
@@ -384,13 +582,27 @@ export class FoundryConnector {
       connectionType: this.activeConnectionType,
     });
 
+    const timeoutMs =
+      typeof options.timeoutMs === 'number' && options.timeoutMs > 0
+        ? options.timeoutMs
+        : DEFAULT_QUERY_TIMEOUT_MS;
+    const socket =
+      this.activeConnectionType === 'websocket' && this.foundrySocket
+        ? this.foundrySocket
+        : undefined;
+
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pendingQueries.delete(queryId);
         reject(new Error(`Query timeout: ${method}`));
-      }, 10000); // 10 second timeout
+      }, timeoutMs);
 
-      this.pendingQueries.set(queryId, { resolve, reject, timeout });
+      this.pendingQueries.set(queryId, {
+        resolve,
+        reject,
+        timeout,
+        ...(socket ? { socket } : {}),
+      });
 
       const message = {
         type: 'mcp-query',
@@ -440,6 +652,11 @@ export class FoundryConnector {
       connected: this.isConnected(),
       connectionType: this.activeConnectionType,
       readyState: this.foundrySocket?.readyState ?? 'CLOSED',
+      userName: this.activeHello()?.userName ?? null,
+      moduleVersion: this.activeHello()?.moduleVersion ?? null,
+      sockets: this.openSocketCount(),
+      linkDownSince:
+        this.linkDownSince === null ? null : new Date(this.linkDownSince).toISOString(),
       config: {
         port: this.config.port,
         namespace: this.config.namespace,

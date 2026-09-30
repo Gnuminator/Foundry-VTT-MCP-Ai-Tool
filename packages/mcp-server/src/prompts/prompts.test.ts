@@ -145,16 +145,32 @@ describe('prompts against the tool catalog', () => {
     }
   });
 
-  it('backticks only tools and parameters of the tools the same message names', () => {
+  it('backticks a parameter only after the tool that owns it, within the same step', () => {
     for (const b of built) {
-      const allowed = new Set([...toolNames, ...toolsNamed(b.text).flatMap(parametersOf)]);
-      for (const span of backticked(b.text)) {
-        expect(
-          allowed.has(span),
-          `${b.name} backticks "${span}", not a tool or one of its parameters`
-        ).toBe(true);
+      // Steps and the rules block are separate scopes; a parameter belongs to the last tool named before it.
+      for (const scope of b.text.split(/\n(?=\d+\. |Rules:)/)) {
+        let current: string | null = null;
+        for (const span of backticked(scope)) {
+          if (toolNames.has(span)) {
+            current = span;
+            continue;
+          }
+          expect(
+            current !== null && parametersOf(current).includes(span),
+            `${b.name} backticks "${span}" after ${current ?? 'no tool'}, which has no such parameter (in: ${scope.slice(0, 60)})`
+          ).toBe(true);
+        }
       }
     }
+  });
+
+  it('would notice a parameter that belongs to another tool (the check itself works)', () => {
+    // `limit` is a parameter of both get-session-log and list-recent-changes; `confirm` of
+    // apply-planned-change and undo-change: a union over the message would let a renamed one through.
+    expect(parametersOf('get-session-log')).toContain('limit');
+    expect(parametersOf('list-recent-changes')).toContain('limit');
+    expect(parametersOf('apply-planned-change')).toContain('confirm');
+    expect(parametersOf('get-planned-change')).not.toContain('confirm');
   });
 
   it('would notice a prompt naming a tool that is gone (the check itself works)', () => {
@@ -205,6 +221,22 @@ describe('spoiler safety in the players recap', () => {
     );
   });
 
+  it('forbids copying an event description or details, and limits stats and handouts', () => {
+    expect(players).toContain(
+      'Never copy or reword the "description" or "details" text of an event'
+    );
+    expect(players).toContain('never use its "actorName"');
+    expect(players).toContain('drop the event if it has none');
+    expect(players).toContain('the "sceneName" inside "visibility"');
+    expect(players).toContain('Leave out every roll or damage-roll of anyone else');
+    // get-play-stats: per player character counts only, no true item, scene or creature names.
+    expect(players).toContain('Leave out the names of looted items');
+    expect(players).toContain('the minutes per scene');
+    expect(players).toContain('the scene name and the participants of each fight');
+    // list-revealed-pages: only pages players can open right now.
+    expect(players).toContain('Use only the rows where "exists" and "observable" are both true');
+  });
+
   it('never posts anywhere and says spoilers are the one thing to avoid', () => {
     expect(players).toContain('Do not send it anywhere');
     expect(players).toContain('Spoilers are the one thing to avoid');
@@ -251,6 +283,33 @@ describe('writes need the GM to say yes', () => {
     expect(text).toContain('`confirmDestructive` set to true');
     expect(text).toContain('Never call `apply-planned-change` unless I have said yes');
     expect(text).toContain('Do not look for a way around the refusal');
+  });
+});
+
+describe('encounter check reads the challenge rating from the actor', () => {
+  const text = getPrompt('encounter-check', { scene: 'Docks' }).messages[0].content.text;
+
+  it('uses get-character with the actor id, not get-token-details', () => {
+    expect(text).toContain('take its actor ID from the `get-token-positions` result');
+    expect(text).toMatch(/`get-character` with `identifier` set to that actor ID/);
+    expect(text).toContain('Do not use `get-token-details` for this');
+    expect(text.indexOf('`get-character`')).toBeLessThan(text.indexOf('`search-compendium`'));
+  });
+
+  it('explains that the 2014 high budget is the Deadly threshold', () => {
+    expect(text).toContain('its high answer is the 2014 Deadly threshold');
+    expect(text).toContain('2014 Hard');
+  });
+});
+
+describe('follow-up writes without a plan tool', () => {
+  it('tells Claude to describe the change and wait for a yes before any write', () => {
+    expect(RULE_PLAN).toContain('if no plan tool fits the change');
+    expect(RULE_PLAN).toContain(
+      'wait for my yes in this conversation before calling any tool that writes'
+    );
+    for (const b of built.filter(x => x.text.includes(RULE_PLAN)))
+      expect(b.text, b.name).toContain('any tool that writes');
   });
 });
 

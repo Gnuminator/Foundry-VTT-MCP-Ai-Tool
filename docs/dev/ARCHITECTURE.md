@@ -371,11 +371,17 @@ exact catalog names, and rules. The rules carry the safety model:
 
 - Prompts only read, except `reveal-handout`. Any change goes through plan, show, apply: a `plan-*`
   tool, `get-planned-change`, then `apply-planned-change` only after the GM says yes to that plan.
+  Where no plan tool fits a follow-up change, Claude describes the exact change and waits for a
+  yes before any tool that writes.
   `reveal-handout` plans with `plan-page-reveal`, shows the plan, asks a plain yes or no, and
   applies (with `confirmDestructive`) only after a yes.
 - The players version of `session-recap` may name only `PLAYER_RECAP_TOOLS` (play stats, session
-  log, revealed page titles, `check-secret-terms`) and builds names, scenes and conditions from
-  each event's `visibility` block, the same rule the `/player` page projection uses (§7).
+  log, revealed page titles, `check-secret-terms`). It follows the `/player` page projection
+  (§7): every line is written fresh from the event type and the `visibility` block, an event's
+  `description`, `details` and `actorName` are never copied (only a player character's public roll
+  line and damage or healing `amount`), events without a `visibility` block are dropped, stats
+  are used only as per player character counts (no loot, scene or creature names), and only
+  revealed pages that exist and are observable count as handouts.
 - A rules answer names the book, pack or journal and the rules version, 2024 first.
 - No em dashes, in prompts or in what Claude writes.
 

@@ -77,4 +77,4 @@ export const RULE_READ_ONLY =
 
 /** Read only, plus how any follow-up change must go: a plan I have seen and agreed to. */
 export const RULE_PLAN =
-  'This prompt only reads. If I ask for a change afterwards, it goes through a plan: a plan tool builds it, `get-planned-change` shows me what it will do, and `apply-planned-change` runs it only after I have said yes to that plan in this conversation. Never set `confirm` on your own.';
+  'This prompt only reads. If I ask for a change afterwards, it goes through a plan: a plan tool builds it, `get-planned-change` shows me what it will do, and `apply-planned-change` runs it only after I have said yes to that plan in this conversation. Never set `confirm` on your own. Most tools that write have no plan tool: if no plan tool fits the change, first tell me exactly what you will change and wait for my yes in this conversation before calling any tool that writes.';

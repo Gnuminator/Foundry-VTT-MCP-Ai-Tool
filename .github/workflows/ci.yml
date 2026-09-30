@@ -65,6 +65,10 @@ jobs:
         # Player/GM split: auth role-resolution + server-side redaction.
         run: npm test -w @gnuminator/cogm-dashboard
 
+      - name: Unit tests (discord-bot)
+        # Recorder file format, Ogg writer and the silence-padding timeline.
+        run: npm test -w @gnuminator/discord-bot
+
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs
 
@@ -128,6 +132,10 @@ jobs:
       - name: Unit tests (cogm-dashboard)
         # Player/GM split: auth role-resolution + server-side redaction.
         run: npm test -w @gnuminator/cogm-dashboard
+
+      - name: Unit tests (discord-bot)
+        # Recorder file format, Ogg writer and the silence-padding timeline.
+        run: npm test -w @gnuminator/discord-bot
 
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs

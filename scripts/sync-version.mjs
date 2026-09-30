@@ -33,6 +33,7 @@ const SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 const WORKSPACE_PACKAGES = [
   'shared/package.json',
   'packages/cogm-dashboard/package.json',
+  'packages/discord-bot/package.json',
   'packages/foundry-module/package.json',
   'packages/mcp-server/package.json',
 ];

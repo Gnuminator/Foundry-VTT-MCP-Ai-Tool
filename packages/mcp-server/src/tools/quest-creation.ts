@@ -333,21 +333,22 @@ export class QuestCreationTools {
       }
 
       // Add NPC relationship information to the page getJournalContent read (the first text page)
-      const pageId: string | undefined = journalResult.currentPage?.id || undefined;
+      const readPage = journalResult as { currentPage?: { id?: unknown } };
+      const pageId = typeof readPage.currentPage?.id === 'string' ? readPage.currentPage.id : '';
       const { content: updatedContent, line } = this.addNPCLinkToJournal(
         journalResult.content ?? '',
         request.npcName,
         request.relationship
       );
 
-      const updateResult = await this.foundryClient.query(
+      const updateResult = (await this.foundryClient.query(
         'foundry-mcp-bridge.updateJournalContent',
         {
           journalId: request.journalId,
           content: updatedContent,
           ...(pageId ? { pageId } : {}),
         }
-      );
+      )) as { error?: unknown; success?: unknown } | null;
 
       if (!updateResult || updateResult.error || updateResult.success === false) {
         throw new Error('Failed to update journal with NPC link');
@@ -355,9 +356,9 @@ export class QuestCreationTools {
 
       // Verify: the saved page must hold the new line (P-040: this tool used to report success
       // while its replace() matched nothing).
-      const saved = await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
+      const saved = (await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
         journalId: request.journalId,
-      });
+      })) as { content?: unknown } | null;
       if (!savedPageHolds(saved?.content, line)) {
         throw new Error(
           `The journal was saved, but the link to ${request.npcName} is not in it; nothing was linked`

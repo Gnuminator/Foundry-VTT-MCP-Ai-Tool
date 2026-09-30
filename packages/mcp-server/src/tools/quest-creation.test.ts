@@ -447,20 +447,21 @@ describe('QuestCreationTools.handleLinkQuestToNPC — dispatch', () => {
     '<div><h3>Rewards & Status</h3><ul><li><strong>Status:</strong> Active</li></ul></div></div>' +
     '</div></section>';
 
-  /** A journal whose first text page keeps what updateJournalContent writes (unless `persist` is off). */
-  function makeLinker(content = JOURNAL_CONTENT, persist = true) {
+  /** A journal whose first text page keeps what updateJournalContent writes. */
+  function makeLinker(
+    content = JOURNAL_CONTENT
+  ): ReturnType<typeof makeTools> & { page: () => string } {
     let page = content;
-    const queryImpl = (method: string, data: any) => {
+    const queryImpl = (method: string, data: unknown): Record<string, unknown> => {
       if (method === 'foundry-mcp-bridge.getJournalContent') {
         return { content: page, currentPage: { id: 'page-1', name: 'Quest' }, success: true };
       }
       if (method === 'foundry-mcp-bridge.updateJournalContent') {
-        if (persist) page = data.content;
-        return { success: true };
+        page = String((data as { content?: unknown }).content);
       }
       return { success: true };
     };
-    return { ...makeTools(queryImpl), page: () => page };
+    return { ...makeTools(queryImpl), page: (): string => page };
   }
 
   it('reads the page, writes the same page, then reads it again to verify', async () => {

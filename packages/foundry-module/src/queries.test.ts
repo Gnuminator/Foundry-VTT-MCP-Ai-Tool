@@ -343,7 +343,7 @@ describe('QueryHandlers — handler convention', () => {
 // updateCampaignProgress (P-040: it reported success without writing)
 // ---------------------------------------------------------------------------
 
-describe('QueryHandlers — updateCampaignProgress', () => {
+describe('QueryHandlers: updateCampaignProgress', () => {
   const toggle = (campaignId: string, partId: string): string =>
     `<span class="campaign-status-toggle not-started"\n  data-campaign-id="${campaignId}"\n  data-part-id="${partId}">Not Started</span>`;
 

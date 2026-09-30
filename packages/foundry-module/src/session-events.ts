@@ -711,11 +711,13 @@ export class EventTracker {
       if (resources && typeof resources === 'object') {
         for (const [key, value] of Object.entries(resources as Record<string, any>)) {
           // dnd5e 6 stores legendary actions and resistances as `spent`; `value` is derived.
+          const entry = value as { value?: unknown; spent?: unknown } | null;
+          const derived: unknown = this.getProp(actor, `system.resources.${key}.value`);
           const newVal =
-            typeof value?.value === 'number'
-              ? value.value
-              : typeof value?.spent === 'number'
-                ? actor.system?.resources?.[key]?.value
+            typeof entry?.value === 'number'
+              ? entry.value
+              : typeof entry?.spent === 'number'
+                ? derived
                 : undefined;
           if (typeof newVal !== 'number') continue;
           const cacheKey = `${actor.id}:resources.${key}`;
@@ -752,9 +754,9 @@ export class EventTracker {
       );
       if (
         this.effectDeduper.isDuplicate({
-          actor: actorId,
+          actor: typeof actorId === 'string' ? actorId : null,
           kind: eventType,
-          name: effectName,
+          name: String(effectName),
           statuses,
         })
       ) {

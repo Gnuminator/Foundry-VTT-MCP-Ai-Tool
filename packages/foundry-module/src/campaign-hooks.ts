@@ -5,6 +5,23 @@ import { trackUsage } from './usage-recorder.js';
 /** Part statuses, in the order a GM click cycles through them. */
 export const CAMPAIGN_STATUSES = ['not_started', 'in_progress', 'completed', 'skipped'] as const;
 
+interface CampaignPageLike {
+  text?: { content?: unknown };
+}
+
+interface CampaignJournalLike {
+  id: string;
+  name: string;
+  pages: { find(fn: (page: CampaignPageLike) => boolean): CampaignPageLike | undefined };
+  getFlag(scope: string, key: string): unknown;
+  setFlag(scope: string, key: string, value: unknown): Promise<unknown>;
+}
+
+function campaignStatusFlags(entry: CampaignJournalLike): Record<string, unknown> {
+  const flags = entry.getFlag('world', 'campaignStatus');
+  return flags !== null && typeof flags === 'object' ? (flags as Record<string, unknown>) : {};
+}
+
 /**
  * Set one campaign part's status the way a GM click on its toggle does: the `world.campaignStatus`
  * flag on the dashboard journal, keyed `<campaignId>-<partId>`. Refuses an unknown status, campaign
@@ -20,22 +37,24 @@ export async function setCampaignPartStatus(
   }
   const campaignAttr = `data-campaign-id="${campaignId}"`;
   const partAttr = `data-part-id="${partId}"`;
-  const pageHtml = (page: any): string =>
-    typeof page?.text?.content === 'string' ? page.text.content : '';
-  const entry = game.journal?.find((journal: any) =>
-    Boolean(journal.pages?.find((page: any) => pageHtml(page).includes(campaignAttr)))
+  const pageHtml = (page: CampaignPageLike): string =>
+    typeof page.text?.content === 'string' ? page.text.content : '';
+  const journals = game.journal as unknown as
+    | { find(fn: (journal: CampaignJournalLike) => boolean): CampaignJournalLike | undefined }
+    | undefined;
+  const entry = journals?.find(journal =>
+    Boolean(journal.pages.find(page => pageHtml(page).includes(campaignAttr)))
   );
   if (!entry) throw new Error(`No campaign dashboard journal for campaign ${campaignId}`);
-  const hasPart = entry.pages.find((page: any) => {
+  const hasPart = entry.pages.find(page => {
     const html = pageHtml(page);
     return html.includes(campaignAttr) && html.includes(partAttr);
   });
   if (!hasPart) throw new Error(`Campaign ${campaignId} has no part ${partId}`);
 
   const key = `${campaignId}-${partId}`;
-  const flags = { ...(entry.getFlag('world', 'campaignStatus') ?? {}), [key]: status };
-  await entry.setFlag('world', 'campaignStatus', flags);
-  if (entry.getFlag('world', 'campaignStatus')?.[key] !== status) {
+  await entry.setFlag('world', 'campaignStatus', { ...campaignStatusFlags(entry), [key]: status });
+  if (campaignStatusFlags(entry)[key] !== status) {
     throw new Error(`The status of part ${partId} did not save`);
   }
   return { journalId: entry.id, journalName: entry.name };

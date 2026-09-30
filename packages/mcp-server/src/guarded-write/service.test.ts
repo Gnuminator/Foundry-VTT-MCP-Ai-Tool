@@ -411,6 +411,36 @@ describe('vault ops', () => {
     expect(await store.read('curse-of-strahd', 'gm', 'a.json')).toBeNull();
   });
 
+  it('refuses apply and undo while "Allow Write Operations" is off (the module never sees them)', async () => {
+    const p = await vaultPlan([{ kind: 'vault-set', file: 'a.json', path: 'x', value: 1 }]);
+    foundry.features[0].writesAllowed = false;
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
+      /Write operations are disabled/
+    );
+    expect(await store.read('curse-of-strahd', 'gm', 'a.json')).toBeNull();
+
+    foundry.features[0].writesAllowed = true;
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    foundry.features[0].writesAllowed = false;
+    await expect(service.undo(applied.changeId, { confirm: true })).rejects.toThrow(
+      /Write operations are disabled/
+    );
+    expect((await store.read('curse-of-strahd', 'gm', 'a.json'))?.data).toEqual({ x: 1 });
+
+    // Undo needs the write switch, not the feature switch.
+    foundry.features[0].writesAllowed = true;
+    foundry.features[0].enabled = false;
+    await service.undo(applied.changeId, { confirm: true });
+    expect((await store.read('curse-of-strahd', 'gm', 'a.json'))?.data).toEqual({});
+  });
+
+  it('treats a module that does not report the write switch (before 0.19.0) as allowed', async () => {
+    const p = await vaultPlan([{ kind: 'vault-set', file: 'a.json', path: 'x', value: 1 }]);
+    delete foundry.features[0].writesAllowed;
+    await service.applyPlan(p.planId, { confirm: true });
+    expect((await store.read('curse-of-strahd', 'gm', 'a.json'))?.data).toEqual({ x: 1 });
+  });
+
   it('does not fail when the GM feed cannot be reached', async () => {
     foundry.failLogGmChange = true;
     const p = await vaultPlan([{ kind: 'vault-set', file: 'a.json', path: 'x', value: 1 }]);

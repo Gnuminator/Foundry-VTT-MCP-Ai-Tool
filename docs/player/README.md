@@ -65,7 +65,7 @@ For the campaign. When the campaign ends, the GM decides what to keep.
 
 ## Having your data removed
 
-Ask the GM at any time, for example for the chat you wrote or the records under your user name.
-There is no button for it yet, so it is done by hand: the play log and the GM's session notes can be
-cleaned. What Claude already read when the GM asked it something has gone to Anthropic and cannot be
+Ask the GM at any time, for example for the chat you wrote or everything recorded under your user
+name. One command removes it from the play log, and the GM then rebuilds the session notes without
+it. What Claude already read when the GM asked it something has gone to Anthropic and cannot be
 pulled back by the GM.

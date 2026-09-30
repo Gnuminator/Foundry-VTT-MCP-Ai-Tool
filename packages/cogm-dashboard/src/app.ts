@@ -604,11 +604,14 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     }
 
     const message = `🧠 Co-GM: ${text}`;
+    // Always a whisper. gmNames lists only the GMs logged in right now; with none (or no world
+    // info yet) the module whispers to every GM user, and refuses rather than post publicly.
     const gmNames = world?.gmNames ?? [];
-    const args: Record<string, unknown> =
-      gmNames.length > 0
-        ? { message, messageType: 'whisper', whisperTargets: gmNames }
-        : { message, messageType: 'ooc' };
+    const args: Record<string, unknown> = {
+      message,
+      messageType: 'whisper',
+      whisperTargets: gmNames,
+    };
 
     // Whisper guard (M2): a whisper reaches every client's data (only its display
     // is hidden), so text naming a GM secret needs the GM's explicit go-ahead.

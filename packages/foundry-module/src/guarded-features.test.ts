@@ -107,8 +107,22 @@ describe('listGuardedFeatures', () => {
     registerGuardedFeature({ id: 'tarokka', name: 'AI Tool: Tarokka', hint: 'Deals cards.' });
     world.setSetting(MODULE_ID, 'feature.tarokka.enabled', true);
     expect(listGuardedFeatures()).toEqual([
-      { ...ATTITUDES, enabled: false },
-      { id: 'tarokka', name: 'AI Tool: Tarokka', hint: 'Deals cards.', enabled: true },
+      { ...ATTITUDES, enabled: false, writesAllowed: false },
+      {
+        id: 'tarokka',
+        name: 'AI Tool: Tarokka',
+        hint: 'Deals cards.',
+        enabled: true,
+        writesAllowed: false,
+      },
     ]);
+  });
+
+  it('reports "Allow Write Operations" on every feature, for vault-only changes', () => {
+    registerGuardedFeature(ATTITUDES);
+    world.setSetting(MODULE_ID, 'allowWriteOperations', true);
+    expect(listGuardedFeatures()[0].writesAllowed).toBe(true);
+    world.setSetting(MODULE_ID, 'allowWriteOperations', 'yes');
+    expect(listGuardedFeatures()[0].writesAllowed).toBe(false);
   });
 });

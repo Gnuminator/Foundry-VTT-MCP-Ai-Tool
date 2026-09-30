@@ -8,6 +8,7 @@ import { vi } from 'vitest';
 
 import type {
   GuardedApplyRequest,
+  GuardedFeatureState,
   GuardedOp,
   GuardedOpResult,
   OpSnapshot,
@@ -30,7 +31,9 @@ export class FakeFoundry {
   /** Extra bridge methods: name -> handler. */
   handlers: Record<string, (data: any) => unknown> = {};
   docs = new Map<string, FakeDoc>();
-  features = [{ id: 'test-feature', name: 'Test', hint: '', enabled: true }];
+  features: GuardedFeatureState[] = [
+    { id: 'test-feature', name: 'Test', hint: '', enabled: true, writesAllowed: true },
+  ];
   worldId = 'curse-of-strahd';
   connected = true;
   failLogGmChange = false;

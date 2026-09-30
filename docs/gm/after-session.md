@@ -40,8 +40,22 @@ is one action.
 
 ## If a player asks for their data to be removed
 
-No tool does this yet; it is done by hand. Pass the request to whoever set up the tool. What can
-be removed is what the tool stores: the play log in the bridge vault and the session notes in
-Obsidian. What Claude already read when you asked it something cannot be pulled back.
+One command removes a player's records from the bridge vault: every roll, change and chat message
+under their Foundry user name, and the dashboard usage records. It is not an AI tool on purpose:
+Claude cannot delete anyone's data.
+
+1. Quit Claude Desktop (the bridge keeps writing these logs while it runs; the command refuses
+   until it has stopped).
+2. Open a terminal in the tool's folder. Find the world id with `npm run vault -- worlds`.
+3. See what would go, without changing anything:
+   `npm run vault -- forget-user <world id> <user name> --dry-run`
+4. Remove it: the same command without `--dry-run`. To remove only the chat they wrote and keep
+   their rolls in the stats, add `--chat-only`.
+5. Rebuild the Obsidian notes: `npm run obsidian -- export`. Notes that are no longer produced move
+   to Obsidian's `.trash` folder; empty it. A note you edited by hand is kept as it is: check it.
+
+The user name is the Foundry user name, not the character name (`Player`, not `Test Hero`); the
+Foundry user id works too. What Claude already read when you asked it something has gone to
+Anthropic and cannot be pulled back.
 
 Next time: [before each session](before-session.md).

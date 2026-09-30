@@ -2,7 +2,7 @@
   "id": "foundry-mcp-bridge",
   "title": "Foundry AI Tool",
   "description": "MCP server bridge for Foundry VTT: gives AI models (Claude and others) live access to actors, combat, scenes, compendiums, and session events. Includes a co-GM dashboard for real-time session control. Built for D&D 5e. GM-only security gating.",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "compatibility": {
     "minimum": "14",
     "verified": "14",
@@ -21,13 +21,6 @@
   "license": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/blob/main/LICENSE",
   "esmodules": ["dist/main.js"],
   "styles": ["styles/module.css", "styles/enhanced-creature-index.css"],
-  "languages": [
-    {
-      "lang": "en",
-      "name": "English",
-      "path": "lang/en.json"
-    }
-  ],
   "socket": true,
   "manifest": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/module.json",
   "download": "https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/foundry-mcp-bridge.zip",
@@ -37,7 +30,7 @@
   "flags": {
     "hotReload": {
       "extensions": ["css", "hbs", "json"],
-      "paths": ["styles", "templates", "lang"]
+      "paths": ["styles", "templates"]
     }
   }
 }

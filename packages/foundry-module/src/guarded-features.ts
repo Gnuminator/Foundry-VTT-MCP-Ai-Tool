@@ -60,9 +60,28 @@ export function isFeatureEnabled(id: string): boolean {
   }
 }
 
-/** All registered features with their current state. */
-export function listGuardedFeatures(): Array<GuardedFeature & { enabled: boolean }> {
-  return [...features.values()].map(f => ({ ...f, enabled: isFeatureEnabled(f.id) }));
+/** Whether "Allow Write Operations" is on (off when it cannot be read). */
+export function writeOperationsAllowed(): boolean {
+  try {
+    return game.settings.get(MODULE_ID, 'allowWriteOperations') === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * All registered features with their current state, plus "Allow Write Operations", which the
+ * bridge checks itself for changes that never reach Foundry (vault-only plans and their undos).
+ */
+export function listGuardedFeatures(): Array<
+  GuardedFeature & { enabled: boolean; writesAllowed: boolean }
+> {
+  const writesAllowed = writeOperationsAllowed();
+  return [...features.values()].map(f => ({
+    ...f,
+    enabled: isFeatureEnabled(f.id),
+    writesAllowed,
+  }));
 }
 
 /** Test helper: forget registered features. */

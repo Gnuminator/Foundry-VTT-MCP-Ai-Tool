@@ -2,10 +2,15 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
     branches: [main]
   workflow_dispatch:
+
+# A new push to the same ref cancels the run still going for the old one.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-test:
@@ -34,7 +39,7 @@ jobs:
         # fails on any eslint error AND on any rule whose warning count rises
         # above scripts/lint-baseline.json (the count may only go down; lower it
         # with `npm run lint:ratchet -- --update`).
-        run: npm run typecheck && npm run lint:ratchet
+        run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
 
       - name: Build (all workspaces)
         run: npm run build
@@ -69,4 +74,63 @@ jobs:
         run: node scripts/cogm-split-smoke-test.mjs
 
       - name: Validate Foundry module manifest
-        run: node validate-manifest.js
+        run: node scripts/validate-manifest.js
+
+  build-test-arm:
+    # The Orange Pi is ARM (aarch64) and runs Node 24: the same steps on an ARM runner
+    # catch native-module or architecture problems before the tool moves there.
+    runs-on: ubuntu-24.04-arm
+    name: build-test (ARM, Node 24)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck and lint (green-gate + warning ratchet)
+        # Documented green-gate: a type/lint error that doesn't break the build
+        # must still fail CI. Runs before build to fail fast. The lint ratchet
+        # fails on any eslint error AND on any rule whose warning count rises
+        # above scripts/lint-baseline.json (the count may only go down; lower it
+        # with `npm run lint:ratchet -- --update`).
+        run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
+
+      - name: Build (all workspaces)
+        run: npm run build
+
+      - name: Unit tests (shared)
+        # Parity + frozen-wire-contract guard for the @gnuminator/shared package.
+        run: npm test -w @gnuminator/shared
+
+      - name: Unit tests (foundry module)
+        # Scoped to the module suite by workspace name (npm scope is @gnuminator/*).
+        run: npm test -w @gnuminator/foundry-module
+
+      - name: Unit tests (mcp-server)
+        # Tool-layer + lock suites. vitest auto-runs once in CI (non-TTY).
+        run: npm test -w @gnuminator/mcp-server
+
+      - name: Unit tests (cogm-dashboard)
+        # Player/GM split: auth role-resolution + server-side redaction.
+        run: npm test -w @gnuminator/cogm-dashboard
+
+      - name: MCP schema smoke test
+        run: node scripts/mcp-schema-smoke-test.mjs
+
+      - name: Standalone bridge smoke test
+        # Spawns the standalone entrypoint in control-only mode on a free port
+        # (never 31414/31415/31416) and asserts ping + list_tools over the wire.
+        run: node scripts/standalone-smoke-test.mjs
+
+      - name: Player/GM split smoke test
+        # Runs the dashboard against a mock bridge and asserts server-side
+        # redaction (GM vs player) + the write-surface auth gate over HTTP.
+        run: node scripts/cogm-split-smoke-test.mjs
+
+      - name: Validate Foundry module manifest
+        run: node scripts/validate-manifest.js

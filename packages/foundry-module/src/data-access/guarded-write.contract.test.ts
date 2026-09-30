@@ -6,17 +6,23 @@
 import { describe, expect, it } from 'vitest';
 import {
   GUARDED_OP_KINDS as MODULE_KINDS,
+  GUARDED_OUTCOME_MEMORY as MODULE_MEMORY,
   inverseOf,
   type GuardedOpResult,
 } from './guarded-write.js';
 import {
   GUARDED_OP_KINDS as SHARED_KINDS,
+  GUARDED_OUTCOME_MEMORY as SHARED_MEMORY,
   inverseGuardedOp,
 } from '../../../../shared/src/guarded-write.js';
 
 describe('guarded-write wire contract', () => {
   it('module and shared agree on the op kinds', () => {
     expect([...MODULE_KINDS]).toEqual([...SHARED_KINDS]);
+  });
+
+  it('module and shared agree on how many apply outcomes are remembered', () => {
+    expect(MODULE_MEMORY).toBe(SHARED_MEMORY);
   });
 });
 

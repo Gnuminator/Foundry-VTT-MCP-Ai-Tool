@@ -33,6 +33,7 @@ const els = {
   statusBridge: $('status-bridge'),
   statusFoundry: $('status-foundry'),
   statusAi: $('status-ai'),
+  linkBanner: $('link-banner'),
   btnPause: $('btn-pause'),
   btnDiag: $('btn-diag'),
   selectTone: $('select-tone'),
@@ -172,8 +173,32 @@ function setDot(pill, cls, label) {
   pill.innerHTML = `<span class="dot ${cls}"></span> ${label}`;
 }
 
+// Banner: Foundry has not been connected to the bridge for a while (PB-03).
+const LINK_BANNER_AFTER_MS = 2 * 60 * 1000;
+let lastStatus = null;
+function renderLinkBanner() {
+  const s = lastStatus;
+  const since =
+    s && s.foundry === 'unreachable' && s.foundryDownSince ? Date.parse(s.foundryDownSince) : NaN;
+  if (Number.isNaN(since) || Date.now() - since < LINK_BANNER_AFTER_MS) {
+    els.linkBanner.hidden = true;
+    return;
+  }
+  const hhmm = new Date(since).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  els.linkBanner.textContent = `Foundry is not connected to the bridge since ${hhmm}. Open Foundry in the bridge user's browser, or reload that tab.`;
+  els.linkBanner.hidden = false;
+}
+// Re-check on a timer too, so the banner appears without a new status event.
+setInterval(renderLinkBanner, 15000);
+
 let foundryLive = false;
 function renderStatus(status) {
+  lastStatus = status;
+  renderLinkBanner();
   if (status.controlChannel === 'connected') {
     setDot(els.statusBridge, 'dot-green', 'Bridge: connected');
   } else {

@@ -1,4 +1,10 @@
-import { MODULE_ID, CONNECTION_STATES } from './constants.js';
+import {
+  MODULE_ID,
+  CONNECTION_STATES,
+  MODULE_HELLO_TYPE,
+  RECONNECT_BACKOFF,
+  type ModuleHelloData,
+} from './constants.js';
 import { WebRTCConnection, type WebRTCConfig } from './webrtc-connection.js';
 import { bridgeHandlers } from './bridge-handlers.js';
 
@@ -7,11 +13,32 @@ export interface BridgeConfig {
   serverHost: string;
   serverPort: number;
   namespace: string;
+  /** Unused since lane 1: the bridge reconnects forever. Kept so old configs still type-check. */
   reconnectAttempts: number;
   reconnectDelay: number;
   connectionTimeout: number;
   debugLogging: boolean;
   connectionType?: 'auto' | 'webrtc' | 'websocket'; // Connection type: auto (HTTPS→WebRTC, HTTP→WebSocket), webrtc, websocket
+  /**
+   * Read live before every reconnect: false means a dropped (or failed) link is
+   * not retried until someone calls `connect()` again. Default: on.
+   */
+  autoReconnect?: () => boolean;
+  /** Builds the `module-hello` frame sent right after the link opens (PB-02). */
+  getHello?: () => ModuleHelloData;
+}
+
+/**
+ * Delay before reconnect attempt number `attempt` (0 based): 1 s doubling to a
+ * 30 s cap, plus up to 20 % random jitter.
+ */
+export function reconnectDelayMs(attempt: number, random: () => number = Math.random): number {
+  const base = Math.min(
+    RECONNECT_BACKOFF.BASE_MS * Math.pow(2, Math.min(Math.max(attempt, 0), 16)),
+    RECONNECT_BACKOFF.CAP_MS
+  );
+  // Jitter only shortens the wait, so no retry is ever more than CAP_MS apart.
+  return Math.round(base * (1 - random() * RECONNECT_BACKOFF.JITTER));
 }
 
 /**
@@ -22,13 +49,12 @@ export class SocketBridge {
   private webrtc: WebRTCConnection | null = null;
   private connectionState: string = CONNECTION_STATES.DISCONNECTED;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
   private reconnectTimer: any = null;
+  /** Set by `disconnect()`: the owner closed the link on purpose, so nothing reconnects. */
+  private stopped = false;
   private activeConnectionType: 'websocket' | 'webrtc' | null = null;
 
-  constructor(private config: BridgeConfig) {
-    this.maxReconnectAttempts = config.reconnectAttempts;
-  }
+  constructor(private config: BridgeConfig) {}
 
   async connect(): Promise<void> {
     if (
@@ -38,6 +64,9 @@ export class SocketBridge {
       return;
     }
 
+    // An explicit connect (or the reconnect timer firing) replaces any pending timer.
+    this.clearReconnectTimer();
+    this.stopped = false;
     this.connectionState = CONNECTION_STATES.CONNECTING;
     this.log('Connecting to MCP server...');
 
@@ -80,17 +109,35 @@ export class SocketBridge {
       debugLogging: this.config.debugLogging,
     };
 
-    this.webrtc = new WebRTCConnection(webrtcConfig);
+    this.webrtc?.disconnect();
+    const conn = new WebRTCConnection(webrtcConfig);
+    this.webrtc = conn;
 
     try {
-      await this.webrtc.connect(this.handleMessage.bind(this));
+      await conn.connect(this.handleMessage.bind(this), {
+        // The hello goes straight to this channel: it does not wait for the state flip below.
+        onOpen: () => {
+          if (this.webrtc === conn) this.sendHello(message => conn.sendMessage(message));
+        },
+        onClose: () => {
+          if (this.webrtc !== conn || this.stopped) return;
+          this.log('WebRTC link lost');
+          this.connectionState = CONNECTION_STATES.DISCONNECTED;
+          this.scheduleReconnect();
+        },
+      });
+      if (this.webrtc !== conn || this.stopped) return;
       this.connectionState = CONNECTION_STATES.CONNECTED;
       this.reconnectAttempts = 0;
       this.log('Connected via WebRTC');
     } catch (error) {
       this.log(`WebRTC connection failed: ${error}`);
-      this.connectionState = CONNECTION_STATES.DISCONNECTED;
-      this.scheduleReconnect();
+      conn.disconnect();
+      if (this.webrtc === conn) {
+        this.webrtc = null;
+        this.connectionState = CONNECTION_STATES.DISCONNECTED;
+        this.scheduleReconnect();
+      }
       throw error;
     }
   }
@@ -106,62 +153,77 @@ export class SocketBridge {
     const wsUrl = `${protocol}://${host}:${this.config.serverPort}${this.config.namespace}`;
 
     return new Promise((resolve, reject) => {
+      let ws!: WebSocket;
+      // A socket that is no longer this bridge's current one must not touch its state.
+      const isCurrent = (): boolean => this.ws === ws;
+
       const connectTimeout = setTimeout(() => {
+        if (!isCurrent()) return;
         this.log('Connection timeout');
+        this.ws = null;
+        try {
+          ws.close();
+        } catch {
+          // Already closed.
+        }
         this.connectionState = CONNECTION_STATES.DISCONNECTED;
+        this.scheduleReconnect();
         reject(new Error('Connection timeout'));
       }, this.config.connectionTimeout * 1000);
 
       try {
-        this.ws = new WebSocket(wsUrl);
+        ws = new WebSocket(wsUrl);
+        this.ws = ws;
 
-        this.ws.onopen = () => {
+        ws.onopen = () => {
+          if (!isCurrent()) return;
           clearTimeout(connectTimeout);
           this.connectionState = CONNECTION_STATES.CONNECTED;
           this.reconnectAttempts = 0;
           this.log('Connected to MCP server via WebSocket');
           this.setupEventHandlers();
+          this.sendHello();
           resolve();
         };
 
-        this.ws.onerror = error => {
+        ws.onerror = error => {
           clearTimeout(connectTimeout);
+          if (!isCurrent()) return;
           // Use more informative message for connection failures
           const isFirstAttempt = this.reconnectAttempts === 0;
           const errorMsg = isFirstAttempt
             ? "MCP server not available (this is normal if server isn't running)"
             : `Connection error after ${this.reconnectAttempts} attempts: ${error instanceof Error ? error.message : 'connection failed'}`;
           this.log(errorMsg);
-          this.connectionState = CONNECTION_STATES.DISCONNECTED;
-          this.scheduleReconnect();
+          this.linkDown();
           reject(new Error('WebSocket connection failed'));
         };
 
-        this.ws.onclose = event => {
+        ws.onclose = event => {
+          clearTimeout(connectTimeout);
+          if (!isCurrent()) return;
           this.log(`Disconnected: ${event.reason || 'Connection closed'}`);
-          this.connectionState = CONNECTION_STATES.DISCONNECTED;
-
-          if (event.wasClean) {
-            // Clean disconnect, don't reconnect
-            return;
-          }
-
-          this.scheduleReconnect();
+          // Error and close both fire for one failed connect: linkDown() keeps to a
+          // single timer and a single count. A close we did not start (even a clean
+          // one, such as the backend shutting down) is retried.
+          this.linkDown();
+          // Safety net for a close before open (no-op after the promise settled).
+          reject(new Error('WebSocket closed'));
         };
       } catch (error) {
         clearTimeout(connectTimeout);
         this.log(`Failed to create WebSocket: ${error}`);
+        this.ws = null;
         this.connectionState = CONNECTION_STATES.DISCONNECTED;
+        this.scheduleReconnect();
         reject(error);
       }
     });
   }
 
   disconnect(): void {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+    this.stopped = true;
+    this.clearReconnectTimer();
 
     if (this.webrtc) {
       this.webrtc.disconnect();
@@ -169,8 +231,9 @@ export class SocketBridge {
     }
 
     if (this.ws) {
-      this.ws.close(1000, 'Manual disconnect');
-      this.ws = null;
+      const ws = this.ws;
+      this.ws = null; // marks the socket stale: its close event must not reconnect
+      ws.close(1000, 'Manual disconnect');
     }
 
     this.activeConnectionType = null;
@@ -243,27 +306,57 @@ export class SocketBridge {
     }
   }
 
+  /** The link is down: note it and plan the retry (a pending retry keeps its RECONNECTING state). */
+  private linkDown(): void {
+    if (!this.reconnectTimer) this.connectionState = CONNECTION_STATES.DISCONNECTED;
+    this.scheduleReconnect();
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  /**
+   * Schedule the next attempt. Never gives up, but at most one timer exists and
+   * a second call while one is pending changes nothing (a failed connect fires
+   * both `onerror` and `onclose`).
+   */
   private scheduleReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.log(`Max reconnection attempts reached (${this.maxReconnectAttempts})`);
+    if (this.stopped || this.reconnectTimer) return;
+
+    if (this.config.autoReconnect && !this.config.autoReconnect()) {
+      this.log('Auto-reconnect is off; not reconnecting');
+      this.connectionState = CONNECTION_STATES.DISCONNECTED;
       return;
     }
 
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-    }
-
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000); // Exponential backoff, max 30s
+    const delay = reconnectDelayMs(this.reconnectAttempts);
     this.reconnectAttempts++;
 
     this.log(`Scheduling reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
     this.connectionState = CONNECTION_STATES.RECONNECTING;
 
     this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
       void this.connect().catch(() => {
         // Connection failed, scheduleReconnect will be called again from connect()
       });
     }, delay);
+  }
+
+  /** Tell the backend who this browser is (PB-02). Never lets a hello problem break the link. */
+  private sendHello(
+    send: (message: unknown) => void = (message: unknown): void => this.sendMessage(message)
+  ): void {
+    if (!this.config.getHello) return;
+    try {
+      send({ type: MODULE_HELLO_TYPE, data: this.config.getHello() });
+    } catch (error) {
+      this.log(`Failed to send hello: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private sendMessage(message: any): void {
@@ -308,7 +401,7 @@ export class SocketBridge {
       type: this.activeConnectionType,
       state: this.connectionState,
       reconnectAttempts: this.reconnectAttempts,
-      maxReconnectAttempts: this.maxReconnectAttempts,
+      maxReconnectAttempts: null, // no limit since lane 1 (PB-03)
       config: {
         host: this.config.serverHost,
         port: this.config.serverPort,

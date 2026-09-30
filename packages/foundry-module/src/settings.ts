@@ -1,4 +1,4 @@
-import { MODULE_ID, DEFAULT_CONFIG } from './constants.js';
+import { MODULE_ID, DEFAULT_CONFIG, type ModuleHelloData } from './constants.js';
 import type { BridgeConfig } from './socket-bridge.js';
 
 /**
@@ -13,6 +13,37 @@ export function defaultServerPort(): number {
   return typeof flag === 'number' && Number.isInteger(flag) && flag >= 1024 && flag <= 65535
     ? flag
     : DEFAULT_CONFIG.MCP_PORT;
+}
+
+/** The "no bridge user chosen" value of the `bridgeUserId` setting. */
+export const ANY_GM_CHOICE = '';
+
+/**
+ * Whether the signed-in user should run the link, given the `bridgeUserId`
+ * setting: empty means every GM connects (the backend picks one), otherwise only
+ * that user's browser does.
+ */
+export function isBridgeUser(bridgeUserId: unknown, userId: string | undefined): boolean {
+  return typeof bridgeUserId !== 'string' || bridgeUserId === '' || bridgeUserId === userId;
+}
+
+/** The `module-hello` payload this browser sends right after the link opens. */
+export function buildModuleHello(bridgeUserId: unknown): ModuleHelloData {
+  const user = game.user;
+  return {
+    userId: user?.id ?? '',
+    userName: user?.name ?? '',
+    isBridgeUser: isBridgeUser(bridgeUserId, user?.id),
+    moduleVersion: game.modules.get(MODULE_ID)?.version ?? 'unknown',
+    worldId: game.world?.id ?? '',
+  };
+}
+
+/** The few user fields the Bridge User choices read. */
+interface GmUserLike {
+  id?: string;
+  name?: string;
+  isGM?: boolean;
 }
 
 export class ModuleSettings {
@@ -152,6 +183,20 @@ export class ModuleSettings {
       default: false,
     });
 
+    // One browser holds the link, so the bridge has one clear peer (PB-02). The
+    // choices hold only "Any GM" until `refreshBridgeUserChoices()` adds the GM
+    // users at ready (game.users is not loaded at init).
+    game.settings.register(this.moduleId, 'bridgeUserId', {
+      name: 'Bridge User',
+      hint: 'Which GM keeps the link to the AI Tool. Only that user\'s browser connects; other GMs stay quiet. "Any GM" lets every GM connect and the tool uses the first.',
+      scope: 'world',
+      config: true,
+      type: String,
+      choices: { [ANY_GM_CHOICE]: 'Any GM (first to connect)' },
+      default: ANY_GM_CHOICE,
+      onChange: this.onBridgeUserChange.bind(this),
+    });
+
     // ============================================================================
     // SECTION 3: SAFETY CONTROLS - Limits on AI model's Actions
     // ============================================================================
@@ -240,7 +285,10 @@ export class ModuleSettings {
       },
     });
 
-    // Non-configurable settings for internal state
+    // Non-configurable settings, kept registered so old worlds still load.
+    // DEPRECATED (lane 1, PB-03): nothing writes or reads these any more. The
+    // connection state, last activity and notice throttle live in memory only,
+    // because a world-setting write from every reconnect is a write to the world.
     game.settings.register(this.moduleId, 'lastConnectionState', {
       scope: 'world',
       config: false,
@@ -255,7 +303,7 @@ export class ModuleSettings {
       default: '',
     });
 
-    // Track when we last showed the MCP server notification to avoid spam
+    // DEPRECATED (see above): the notice throttle is in memory now.
     game.settings.register(this.moduleId, 'lastMCPServerNotification', {
       scope: 'world',
       config: false,
@@ -286,6 +334,29 @@ export class ModuleSettings {
    */
   private onRollStatesChanged(_newValue: any): void {
     // No action needed - ChatMessage.update() handles state synchronization automatically
+  }
+
+  /**
+   * Fill the Bridge User choices with the world's GM users ("Any GM" stays first).
+   * Foundry reads `choices` when the settings window renders, so updating the
+   * registered entry in place is enough.
+   */
+  refreshBridgeUserChoices(): void {
+    try {
+      const registry = (
+        game.settings as unknown as { settings: Map<string, { choices?: unknown }> }
+      ).settings;
+      const entry = registry.get(`${this.moduleId}.bridgeUserId`);
+      if (!entry) return;
+      const choices: Record<string, string> = { [ANY_GM_CHOICE]: 'Any GM (first to connect)' };
+      const users = (game.users as unknown as { contents?: GmUserLike[] } | undefined)?.contents;
+      for (const user of users ?? []) {
+        if (user.isGM && user.id) choices[user.id] = user.name ?? user.id;
+      }
+      entry.choices = choices;
+    } catch (error) {
+      console.warn(`[${this.moduleId}] Failed to list the GM users for Bridge User:`, error);
+    }
   }
 
   /**
@@ -323,6 +394,9 @@ export class ModuleSettings {
       connectionTimeout: DEFAULT_CONFIG.CONNECTION_TIMEOUT, // Use sensible default
       debugLogging: false, // Always false - use browser console for debugging
       connectionType: connectionType as 'auto' | 'webrtc' | 'websocket',
+      // Read live so a settings change applies to the next attempt.
+      autoReconnect: () => this.getSetting('autoReconnectEnabled') !== false,
+      getHello: () => buildModuleHello(this.getSetting('bridgeUserId')),
     };
   }
 
@@ -358,6 +432,7 @@ export class ModuleSettings {
       'enableEnhancedCreatureIndex',
       'autoRebuildIndex',
       // Connection Behavior
+      'bridgeUserId',
       'enableNotifications',
       'autoReconnectEnabled',
       'heartbeatInterval',
@@ -430,6 +505,17 @@ export class ModuleSettings {
   }
 
   /**
+   * The bridge user changed: every client re-evaluates. The old bridge user
+   * stops (stop() is a no-op where nothing runs), the new one starts.
+   */
+  private onBridgeUserChange(): void {
+    const bridge = window.foundryMCPBridge as { restart?: () => unknown } | undefined;
+    if (bridge && this.getSetting('enabled')) {
+      void bridge.restart?.();
+    }
+  }
+
+  /**
    * Create settings migration for version updates
    */
   /**
@@ -476,6 +562,7 @@ export class ModuleSettings {
       'enableEnhancedCreatureIndex',
       'autoRebuildIndex',
       // Connection Behavior
+      'bridgeUserId',
       'enableNotifications',
       'autoReconnectEnabled',
       'heartbeatInterval',

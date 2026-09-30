@@ -29,6 +29,7 @@
     "validate:manifest": "node scripts/validate-manifest.js",
     "version:sync": "node scripts/sync-version.mjs",
     "version:check": "node scripts/sync-version.mjs --check",
+    "live:roundtrip": "node scripts/live-roundtrip.mjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",

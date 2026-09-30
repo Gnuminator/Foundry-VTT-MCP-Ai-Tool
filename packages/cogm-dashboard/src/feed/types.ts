@@ -98,6 +98,8 @@ export interface BridgeStatus {
   foundry: FoundryReachability;
   lastError: string | null;
   lastPollAt: string | null;
+  /** ISO time Foundry first became 'unreachable' (link down); null while it is not. */
+  foundryDownSince: string | null;
 }
 
 export interface GameFeedHandlers {

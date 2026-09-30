@@ -365,14 +365,15 @@ describe('SocketBridge — reconnect backoff', () => {
     vi.clearAllTimers();
   });
 
-  it('stops scheduling once the max attempts are exhausted', () => {
+  it('never gives up: attempt 500 still schedules a retry', () => {
     vi.useFakeTimers();
     const bridge = new SocketBridge(makeConfig({ reconnectAttempts: 2 })) as any;
-    bridge.reconnectAttempts = 2; // already at the cap
+    bridge.reconnectAttempts = 500;
 
     bridge.scheduleReconnect();
 
-    expect(bridge.reconnectTimer).toBeNull();
+    expect(bridge.reconnectTimer).not.toBeNull();
+    expect(bridge.reconnectAttempts).toBe(501);
     vi.clearAllTimers();
   });
 });
@@ -396,7 +397,7 @@ describe('SocketBridge — state accessors', () => {
       type: null,
       state: CONNECTION_STATES.DISCONNECTED,
       reconnectAttempts: 0,
-      maxReconnectAttempts: 5,
+      maxReconnectAttempts: null,
       config: { host: 'h', port: 99, namespace: '/n' },
     });
   });

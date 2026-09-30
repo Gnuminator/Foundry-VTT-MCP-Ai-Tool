@@ -13,6 +13,7 @@
  *   - `applyGuardedOps(GuardedApplyRequest)` -> `GuardedApplyResult`
  *   - `logGmChange({changeId, feature, summary, mode})` -> `{logged: true}`
  *   - `listGuardedFeatures()`              -> `GuardedFeatureState[]`
+ *   - `guardedApplyOutcome({changeId})`    -> `GuardedApplyOutcome`
  */
 
 export const GUARDED_OP_KINDS = ['update', 'create', 'delete'] as const;
@@ -101,6 +102,25 @@ export interface GuardedApplyResult {
   appliedAt: string;
   results: GuardedOpResult[];
 }
+
+/**
+ * `guardedApplyOutcome({changeId})` (lane 1, PB-04): what happened to an apply
+ * whose reply the backend never got (query timeout, link dropped). The module
+ * remembers the last {@link GUARDED_OUTCOME_MEMORY} applies in memory (lost on
+ * a browser reload, which then reads as `unknown`).
+ *
+ * - `in-progress`: still running; ask again later.
+ * - `applied`: finished; `result` is exactly what `applyGuardedOps` returned.
+ * - `failed`: threw; nothing is left written (the module rolled back).
+ * - `unknown`: this browser never saw that changeId.
+ */
+export const GUARDED_OUTCOME_MEMORY = 50;
+
+export type GuardedApplyOutcome =
+  | { changeId: string; status: 'in-progress' }
+  | { changeId: string; status: 'applied'; result: GuardedApplyResult }
+  | { changeId: string; status: 'failed'; error: string }
+  | { changeId: string; status: 'unknown' };
 
 /** One feature switch as `listGuardedFeatures` reports it. */
 export interface GuardedFeatureState {

@@ -8,6 +8,8 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 
 import { config } from './config.js';
 
+import { bridgeUnreachableMessage, resolveControlTarget } from './control-target.js';
+
 import { PROMPTS_CAPABILITY, registerPromptHandlers } from './prompts/register.js';
 
 import type { ControlRequest, ControlResponse } from '@gnuminator/shared';
@@ -26,9 +28,13 @@ import * as fs from 'fs';
 
 import * as path from 'path';
 
-const CONTROL_HOST = '127.0.0.1';
-
-const CONTROL_PORT = 31414;
+// PB-01: MCP_CONTROL_HOST / MCP_CONTROL_PORT point the wrapper at a bridge elsewhere (the Orange
+// Pi); MCP_NO_SPAWN=1 or a non-loopback host means it never starts a backend itself.
+const {
+  host: CONTROL_HOST,
+  port: CONTROL_PORT,
+  spawnAllowed: SPAWN_ALLOWED,
+} = resolveControlTarget();
 
 // Control-channel frame shapes come from the shared contract (§3a).
 
@@ -94,6 +100,16 @@ class BackendClient {
 
       return;
     } catch (initialError) {
+      if (!SPAWN_ALLOWED) {
+        this.log('connectWithRetry(): bridge unreachable, spawning is off', {
+          host: CONTROL_HOST,
+          port: CONTROL_PORT,
+          error: initialError instanceof Error ? initialError.message : String(initialError),
+        });
+
+        throw new Error(bridgeUnreachableMessage(CONTROL_HOST, CONTROL_PORT));
+      }
+
       this.log('connectWithRetry(): starting backend');
 
       await this.startBackend();

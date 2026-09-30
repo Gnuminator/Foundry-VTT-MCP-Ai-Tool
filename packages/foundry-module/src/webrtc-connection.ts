@@ -1,5 +1,13 @@
 import { MODULE_ID, CONNECTION_STATES } from './constants.js';
 
+/** Transport events the socket bridge listens to (hello on open, reconnect on loss). */
+export interface WebRTCEvents {
+  /** The data channel opened (the link is usable). */
+  onOpen?: () => void;
+  /** The link was lost after it had been set up (channel closed, ICE failed or closed). */
+  onClose?: () => void;
+}
+
 export interface WebRTCConfig {
   serverHost: string;
   serverPort: number;
@@ -19,10 +27,15 @@ export class WebRTCConnection {
   private dataChannel: RTCDataChannel | null = null;
   private connectionState: string = CONNECTION_STATES.DISCONNECTED;
   private messageHandler: ((message: any) => Promise<void>) | null = null;
+  private events: WebRTCEvents = {};
+  private closedNotified = false;
 
   constructor(private config: WebRTCConfig) {}
 
-  async connect(onMessage: (message: any) => Promise<void>): Promise<void> {
+  async connect(
+    onMessage: (message: any) => Promise<void>,
+    events: WebRTCEvents = {}
+  ): Promise<void> {
     if (
       this.connectionState === CONNECTION_STATES.CONNECTED ||
       this.connectionState === CONNECTION_STATES.CONNECTING
@@ -32,6 +45,8 @@ export class WebRTCConnection {
 
     this.connectionState = CONNECTION_STATES.CONNECTING;
     this.messageHandler = onMessage;
+    this.events = events;
+    this.closedNotified = false;
     this.log('Starting WebRTC connection...');
 
     try {
@@ -73,11 +88,13 @@ export class WebRTCConnection {
     this.dataChannel.onopen = () => {
       this.log('WebRTC data channel opened');
       this.connectionState = CONNECTION_STATES.CONNECTED;
+      this.events.onOpen?.();
     };
 
     this.dataChannel.onclose = () => {
       this.log('WebRTC data channel closed');
       this.connectionState = CONNECTION_STATES.DISCONNECTED;
+      this.notifyClosed();
     };
 
     this.dataChannel.onerror = error => {
@@ -108,12 +125,23 @@ export class WebRTCConnection {
       if (state === 'failed' || state === 'disconnected' || state === 'closed') {
         this.connectionState = CONNECTION_STATES.DISCONNECTED;
       }
+      // 'disconnected' can heal by itself, so only a hard failure counts as a loss.
+      if (state === 'failed' || state === 'closed') {
+        this.notifyClosed();
+      }
     };
 
     this.peerConnection.onconnectionstatechange = () => {
       const state = this.peerConnection?.connectionState;
       this.log(`Peer connection state: ${state}`);
     };
+  }
+
+  /** Tell the owner once that the link is gone (a manual disconnect() stays silent). */
+  private notifyClosed(): void {
+    if (this.closedNotified) return;
+    this.closedNotified = true;
+    this.events.onClose?.();
   }
 
   private async waitForIceGathering(): Promise<void> {
@@ -180,6 +208,8 @@ export class WebRTCConnection {
   }
 
   disconnect(): void {
+    // A manual teardown is not a loss: stop the close events from reaching the owner.
+    this.closedNotified = true;
     if (this.dataChannel) {
       this.dataChannel.close();
       this.dataChannel = null;

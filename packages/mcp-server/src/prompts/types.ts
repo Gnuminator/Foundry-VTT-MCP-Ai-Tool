@@ -6,6 +6,7 @@
  * with no server and no network. `register.ts` is the only file that touches
  * the SDK.
  */
+import type { ToolSetName } from '../tool-sets.js';
 
 /** One argument a prompt accepts. MCP prompt arguments are always strings. */
 export interface PromptArgumentSpec {
@@ -33,6 +34,11 @@ export interface PromptDefinition {
   name: string;
   /** Short display name. */
   title: string;
+  /**
+   * The tool set whose Claude Desktop entry lists this prompt. Every tool the
+   * prompt names is in this set or in `core` (prompts.test.ts checks it).
+   */
+  set: ToolSetName;
   /** One sentence for the prompt list. */
   description: string;
   arguments: readonly PromptArgumentSpec[];

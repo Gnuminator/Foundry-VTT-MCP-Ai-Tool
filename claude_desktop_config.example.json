@@ -3,7 +3,27 @@
     "foundry-mcp": {
       "command": "node",
       "args": ["C:/path/to/Foundry-VTT-MCP-Ai-Tool/packages/mcp-server/dist/index.js"],
-      "env": {}
+      "env": { "FOUNDRY_AI_TOOL_SETS": "core" }
+    },
+    "foundry-mcp-play": {
+      "command": "node",
+      "args": ["C:/path/to/Foundry-VTT-MCP-Ai-Tool/packages/mcp-server/dist/index.js"],
+      "env": { "FOUNDRY_AI_TOOL_SETS": "play" }
+    },
+    "foundry-mcp-prep": {
+      "command": "node",
+      "args": ["C:/path/to/Foundry-VTT-MCP-Ai-Tool/packages/mcp-server/dist/index.js"],
+      "env": { "FOUNDRY_AI_TOOL_SETS": "prep" }
+    },
+    "foundry-mcp-build": {
+      "command": "node",
+      "args": ["C:/path/to/Foundry-VTT-MCP-Ai-Tool/packages/mcp-server/dist/index.js"],
+      "env": { "FOUNDRY_AI_TOOL_SETS": "build" }
+    },
+    "foundry-mcp-admin": {
+      "command": "node",
+      "args": ["C:/path/to/Foundry-VTT-MCP-Ai-Tool/packages/mcp-server/dist/index.js"],
+      "env": { "FOUNDRY_AI_TOOL_SETS": "admin" }
     }
   }
 }

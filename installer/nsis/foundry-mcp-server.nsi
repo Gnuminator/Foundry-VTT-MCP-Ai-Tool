@@ -594,11 +594,13 @@ Function un.RemoveClaudeConfig
   FileWrite $4 "  $$configPath = '$un.ClaudeConfigPath'$\r$\n"
   FileWrite $4 "  Write-Host 'Config path:' $$configPath$\r$\n"
   FileWrite $4 "  $$config = Get-Content $$configPath -Raw | ConvertFrom-Json$\r$\n"
-  FileWrite $4 "  if ($$config.mcpServers -and $$config.mcpServers.'foundry-mcp') {$\r$\n"
-  FileWrite $4 "    $$config.mcpServers.PSObject.Properties.Remove('foundry-mcp')$\r$\n"
+  FileWrite $4 "  $$names = @()$\r$\n"
+  FileWrite $4 "  if ($$config.mcpServers) { $$names = @($$config.mcpServers.PSObject.Properties.Name | Where-Object { $$_ -eq 'foundry-mcp' -or $$_ -like 'foundry-mcp-*' }) }$\r$\n"
+  FileWrite $4 "  if ($$names.Count -gt 0) {$\r$\n"
+  FileWrite $4 "    foreach ($$n in $$names) { $$config.mcpServers.PSObject.Properties.Remove($$n) }$\r$\n"
   FileWrite $4 "    $$json = $$config | ConvertTo-Json -Depth 10$\r$\n"
   FileWrite $4 "    [System.IO.File]::WriteAllText($$configPath, $$json, [System.Text.UTF8Encoding]::new($$false))$\r$\n"
-  FileWrite $4 "    Write-Host 'SUCCESS: foundry-mcp entry removed from Claude config'$\r$\n"
+  FileWrite $4 "    Write-Host 'SUCCESS: foundry-mcp entries removed from Claude config'$\r$\n"
   FileWrite $4 "  } else {$\r$\n"
   FileWrite $4 "    Write-Host 'INFO: foundry-mcp entry not found in config'$\r$\n"
   FileWrite $4 "  }$\r$\n"
@@ -626,7 +628,7 @@ Function un.RemoveClaudeConfig
   config_failed:
   DetailPrint "Failed to update Claude Desktop configuration (exit code: $0)"
   DetailPrint "PowerShell output: $1"
-  MessageBox MB_ICONEXCLAMATION "Failed to remove Foundry MCP Server from Claude Desktop configuration.$\r$\n$\r$\nYou may need to manually remove the 'foundry-mcp' entry from:$\r$\n$un.ClaudeConfigPath$\r$\n$\r$\nA backup was created at:$\r$\n$un.ClaudeConfigPath.backup"
+  MessageBox MB_ICONEXCLAMATION "Failed to remove Foundry MCP Server from Claude Desktop configuration.$\r$\n$\r$\nYou may need to manually remove the 'foundry-mcp' entries (foundry-mcp, foundry-mcp-play, -prep, -build, -admin) from:$\r$\n$un.ClaudeConfigPath$\r$\n$\r$\nA backup was created at:$\r$\n$un.ClaudeConfigPath.backup"
   Return
   
   no_config_found:

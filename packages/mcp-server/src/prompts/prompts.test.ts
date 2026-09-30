@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 
 import { stubToolRouterDeps } from '../test-support/stub-tool-deps.js';
 import { collectToolDefinitions } from '../tool-router.js';
+import { toolSetOf } from '../tool-sets.js';
 import { PLAYER_RECAP_TOOLS, PROMPTS, PromptError, getPrompt, listPrompts } from './index.js';
 import { RULE_HONEST_PLAYER_SAFE, RULE_PLAN, RULE_READ_ONLY } from './text.js';
 
@@ -133,6 +134,18 @@ describe('prompt definitions', () => {
 });
 
 describe('prompts against the tool catalog', () => {
+  it('names only tools of its own tool set or of core, which is always on', () => {
+    // Named only to tell Claude not to use it.
+    const warnedOff: Record<string, string[]> = { 'encounter-check': ['get-token-details'] };
+    for (const b of built) {
+      const set = PROMPTS.find(p => p.name === b.name)!.set;
+      for (const tool of toolsNamed(b.text)) {
+        if (warnedOff[b.name]?.includes(tool)) continue;
+        expect(['core', set], `${b.name} (${set}) names ${tool}`).toContain(toolSetOf(tool));
+      }
+    }
+  });
+
   it('names only tools that exist in collectToolDefinitions()', () => {
     for (const b of built) {
       const toolShaped = backticked(b.text).filter(span =>

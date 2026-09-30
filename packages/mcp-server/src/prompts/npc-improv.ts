@@ -13,6 +13,7 @@ import {
 export const npcImprov: PromptDefinition = {
   name: 'npc-improv',
   title: 'NPC improv card',
+  set: 'core',
   description: 'A quick card for an NPC, for your eyes only: voice, mannerism, want and secret.',
   arguments: [
     {

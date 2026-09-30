@@ -34,7 +34,8 @@ currently shaped around a Curse of Strahd campaign.
 - **AI access to the game.** 91 tools let Claude read characters, combat, scenes, journals,
   compendiums, chat and the session log, and act on them: roll for NPCs, apply damage, move tokens,
   add NPCs from compendiums, write journals. Most of these act at once and have no undo; keep
-  Claude Desktop's tool approval on for them.
+  Claude Desktop's tool approval on for them. The tools come in five sets (core, play, prep, build,
+  admin) that you switch on per chat, so Claude only reads the ones the chat needs.
 - **Guarded AI writes with undo.** New features change the game in three steps: plan, confirm with a
   diff, apply. Each feature has its own switch in the module settings (off by default). A change is
   refused if anything changed since the plan, is recorded, and can be undone from the dashboard.
@@ -133,24 +134,18 @@ The bridge and the dashboard are decoupled, so they can run where it suits the t
 
 ## MCP tools
 
-91 tools, by area:
+91 tools in five sets. Each set is its own entry in Claude Desktop, with its own switch in the
+**Search and tools** menu; all 91 tools are about 88,000 characters of definitions that Claude
+would otherwise read at the start of every chat. The dashboard always has every tool. Details and
+the full lists: [docs/reference/TOOL-SETS.md](docs/reference/TOOL-SETS.md).
 
-| Area                         | Tools                                                                                                                                                                                                                                                                                                                  |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Characters                   | `get-character`, `get-character-entity`, `list-characters`, `get-character-resources`, `update-character-resource`, `search-character-items`, `use-item`, `manage-rest`                                                                                                                                                |
-| Combat and rolls             | `get-combat-state`, `get-combat-play-by-play`, `roll-initiative-for-npcs`, `set-initiative`, `advance-combat-turn`, `apply-damage-and-healing`, `roll-saving-throws`, `roll-npc-check`, `use-npc-activity`, `request-player-rolls`, `request-ability-check`, `request-attack-roll`                                     |
-| Conditions and effects       | `get-active-effects`, `get-available-conditions`, `toggle-token-condition`, `clear-stale-conditions`                                                                                                                                                                                                                   |
-| Scenes and tokens            | `get-current-scene`, `list-scenes`, `switch-scene`, `set-scene-mood`, `get-token-positions`, `get-token-details`, `move-token`, `update-token`, `delete-tokens`, `measure-distance`, `get-targets`, `set-token-vision-light`, `place-measured-template`, `delete-measured-template`, `add-map-note`, `delete-map-note` |
-| Compendium and NPCs          | `search-compendium`, `get-compendium-item`, `get-compendium-entry-full`, `list-compendium-packs`, `list-creatures-by-criteria`, `create-actor-from-compendium`, `dnd5e-create-npc`, `dnd5e-add-feature`, `dnd5e-add-features-from-compendium`, `suggest-balanced-encounter`                                            |
-| Journals and quests          | `list-journals`, `search-journals`, `create-quest-journal`, `update-quest-journal`, `link-quest-to-npc`, `create-campaign-dashboard`                                                                                                                                                                                   |
-| Items and loot               | `drop-loot`, `manage-world-items`                                                                                                                                                                                                                                                                                      |
-| Chat, logs and play sessions | `get-chat-log`, `send-chat-message`, `get-recent-events`, `get-session-log`, `mark-play-session`, `get-play-session`, `get-play-stats`                                                                                                                                                                                 |
-| Guarded changes              | `get-planned-change`, `apply-planned-change`, `list-recent-changes`, `undo-change`, `open-in-foundry`                                                                                                                                                                                                                  |
-| Tarokka                      | `get-tarokka-reading`, `plan-tarokka-import`, `suggest-tarokka-links`, `plan-tarokka-links`, `plan-tarokka-reveal`                                                                                                                                                                                                     |
-| Player view and handouts     | `get-player-visibility`, `list-revealed-pages`, `get-player-handouts`, `plan-page-reveal`, `check-secret-terms`                                                                                                                                                                                                        |
-| Obsidian                     | `get-obsidian-mirror`, `plan-obsidian-mirror`                                                                                                                                                                                                                                                                          |
-| Ownership                    | `assign-actor-ownership`, `remove-actor-ownership`, `list-actor-ownership`                                                                                                                                                                                                                                             |
-| World and diagnostics        | `get-world-info`, `get-modules`, `get-module-manifest`, `get-module-errors`, `clear-module-errors`, `list-ref-choices`                                                                                                                                                                                                 |
+| Set       | Tools | What it covers                                                                                                                                 |
+| --------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **core**  | 20    | Look-ups (world, characters, scenes, tokens, combat state, journals, compendiums) and the change safety net: plan, apply, undo                 |
+| **play**  | 37    | Live play: tokens, initiative and turns, rolls, damage and healing, conditions, resources, rests, chat, scene mood, map notes, templates, loot |
+| **prep**  | 18    | Prep and recaps: quests and journals, encounter budgets, Tarokka, handouts and the player view, session log, play stats                        |
+| **build** | 7     | NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells                                                 |
+| **admin** | 9     | Modules and their errors, actor ownership, the Obsidian mirror                                                                                 |
 
 ---
 
@@ -186,24 +181,33 @@ npm install
 npm run build
 ```
 
-Add the server to your Claude Desktop config (`claude_desktop_config.json`), then restart Claude
-Desktop:
+Add the server to your Claude Desktop config (`claude_desktop_config.json`), one entry per tool
+set, then restart Claude Desktop. Two of the five entries:
 
 ```json
 {
   "mcpServers": {
     "foundry-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/packages/mcp-server/dist/index.js"]
+      "args": ["/absolute/path/to/packages/mcp-server/dist/index.js"],
+      "env": { "FOUNDRY_AI_TOOL_SETS": "core" }
+    },
+    "foundry-mcp-prep": {
+      "command": "node",
+      "args": ["/absolute/path/to/packages/mcp-server/dist/index.js"],
+      "env": { "FOUNDRY_AI_TOOL_SETS": "prep" }
     }
   }
 }
 ```
 
+[`claude_desktop_config.example.json`](claude_desktop_config.example.json) has all five (core, play,
+prep, build, admin). One entry without `FOUNDRY_AI_TOOL_SETS` serves all 91 tools, as before.
+
 The bridge links the AI client and the Foundry module over local sockets (control channel on
 `127.0.0.1:31414`; Foundry link on `31415`/`31416`). Foundry must be open in a GM's browser with
-the module active. For Obsidian notes, add `"env": { "FOUNDRY_AI_OBSIDIAN_DIR": "<your vault
-folder>" }` to that entry.
+the module active. For Obsidian notes, add `"FOUNDRY_AI_OBSIDIAN_DIR": "<your vault folder>"` to
+the `env` of every entry.
 
 ### 3. Run the co-GM dashboard
 

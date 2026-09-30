@@ -13,6 +13,7 @@ import {
 export const rulesQuestion: PromptDefinition = {
   name: 'rules-question',
   title: 'Rules question',
+  set: 'core',
   description:
     'Answer a rules question from the books your table has in Foundry, with the source. The 2024 rules come first.',
   arguments: [

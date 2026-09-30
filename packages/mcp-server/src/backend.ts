@@ -8,6 +8,12 @@ import * as net from 'net';
 
 import { evaluateLockFile } from './lock.js';
 
+import {
+  BACKEND_LOCK_HELD_EXIT_CODE,
+  WRAPPER_SPAWNED_ENV,
+  isTruthyFlag,
+} from './control-target.js';
+
 import { buildToolRouter, collectToolDefinitions } from './tool-router.js';
 
 import { config } from './config.js';
@@ -600,6 +606,9 @@ const hasLock = acquireLock();
 
 void (async function main() {
   if (!hasLock) {
+    // Spawned by a wrapper (one per Claude Desktop tool-set entry): exit, the wrapper connects to
+    // the backend that holds the lock.
+    if (isTruthyFlag(process.env[WRAPPER_SPAWNED_ENV])) process.exit(BACKEND_LOCK_HELD_EXIT_CODE);
     // Another backend is running - wait forever without doing anything
     // This keeps the process alive so Claude doesn't see an error
     await new Promise(() => {}); // Never resolves

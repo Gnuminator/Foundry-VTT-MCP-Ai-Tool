@@ -95,6 +95,29 @@ describe('prompts over MCP', () => {
   });
 });
 
+describe('prompts over MCP for one tool set', () => {
+  it('lists only the prompts of the chosen sets', async () => {
+    const setServer = new Server(
+      { name: 'prompts-set-test', version: '0.0.0' },
+      { capabilities: { tools: {}, ...PROMPTS_CAPABILITY } }
+    );
+    registerPromptHandlers(setServer, ['core']);
+    const setClient = new Client({ name: 'test-client', version: '0.0.0' });
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await Promise.all([setServer.connect(serverSide), setClient.connect(clientSide)]);
+    try {
+      const { prompts } = await setClient.listPrompts();
+      expect(prompts.map(p => p.name)).toEqual(
+        PROMPTS.filter(p => p.set === 'core').map(p => p.name)
+      );
+      expect(prompts.map(p => p.name)).toEqual(['rules-question', 'npc-improv']);
+    } finally {
+      await setClient.close();
+      await setServer.close();
+    }
+  });
+});
+
 describe('the stdio wrapper', () => {
   // index.ts starts the whole wrapper (and a backend on 31414) when imported, so it cannot be
   // loaded in a test. Check the wiring in its source instead.
@@ -102,6 +125,6 @@ describe('the stdio wrapper', () => {
 
   it('declares the prompts capability and registers the handlers', () => {
     expect(source).toContain('...PROMPTS_CAPABILITY');
-    expect(source).toContain('registerPromptHandlers(mcp)');
+    expect(source).toContain('registerPromptHandlers(mcp, ');
   });
 });

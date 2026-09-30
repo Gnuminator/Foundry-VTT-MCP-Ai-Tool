@@ -12,6 +12,7 @@ import {
 export const prepNextSession: PromptDefinition = {
   name: 'prep-next-session',
   title: 'Prep the next session',
+  set: 'prep',
   description:
     'Gather what happened last session and what is still open, then help you prepare the next one.',
   arguments: [

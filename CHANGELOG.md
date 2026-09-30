@@ -1,6 +1,22 @@
 # Changelog
 
-## v0.19.0 (not tagged yet): M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd) + Obsidian O4 mirrors + tool sets
+## Unreleased
+
+### Write gate (P-036)
+
+- **"Allow Write Operations" is now a real read-only switch.** Every bridge handler that changes
+  the world (actors, items, features, ownership, tokens, scenes, combat, damage, conditions,
+  journals, chat and roll messages) is refused while it is off, whoever asks (Claude or the
+  dashboard). Before, only some handlers checked it: ownership, token vision and light, adding
+  items and features, damage, conditions, combat and chat did not. Reads always work. A test fails
+  when a new handler is not classified as write or read (`packages/foundry-module/src/write-gate.ts`).
+- Deleting tokens and changing actor ownership now need a GM user (`requiresGM` was declared but
+  never read); `setTokenVisionLight`, `createActorFromCompendiumEntry` and `addActorItems` run the
+  same permission checks as their neighbours (including the actors-per-request limit).
+- Upgrade note: with the switch off, the dashboard's own actions (post to chat, GM Actions) are
+  refused as well.
+
+## v0.19.0 (released 2026-09-30): M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd) + Obsidian O4 mirrors + tool sets
 
 Groundwork from `docs/design/CURSE-OF-STRAHD-PLAN.md` step 0. **Wire contracts are unchanged** (module id,
 ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults change behaviour; see

@@ -19,6 +19,7 @@ import {
   pagesForPlayers,
 } from './player-visibility.js';
 import { EXPORT_INDEX_QUERY, getExportIndex } from './export-index.js';
+import { gateWriteHandlers } from './write-gate.js';
 
 export class QueryHandlers {
   public dataAccess: FoundryDataAccess;
@@ -396,6 +397,9 @@ export class QueryHandlers {
     handlers.set(`${modulePrefix}.getModuleErrors`, this.handleGetModuleErrors.bind(this));
     handlers.set(`${modulePrefix}.clearModuleErrors`, this.handleClearModuleErrors.bind(this));
     handlers.set(`${modulePrefix}.getModuleManifest`, this.handleGetModuleManifest.bind(this));
+
+    // P-036: every write method refuses while "Allow Write Operations" is off (write-gate.ts).
+    gateWriteHandlers(handlers, modulePrefix);
   }
 
   /**

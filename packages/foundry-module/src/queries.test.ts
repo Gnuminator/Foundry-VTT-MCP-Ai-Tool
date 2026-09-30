@@ -76,6 +76,7 @@ describe('QueryHandlers — registration', () => {
     expect(typeof queries()[`${MODULE_ID}.move-token`]).toBe('function');
 
     const da = stubDataAccess({ moveToken: vi.fn().mockResolvedValue({ ok: true }) });
+    world.enableWrites(); // moveToken is a write (write-gate.ts)
     await queries()[`${MODULE_ID}.moveToken`]({ tokenId: 't', x: 1, y: 2 });
     await queries()[`${MODULE_ID}.move-token`]({ tokenId: 't', x: 1, y: 2 });
     expect(da.moveToken).toHaveBeenCalledTimes(2);
@@ -261,6 +262,7 @@ describe('QueryHandlers — GM gate', () => {
   it('gates every registered query for non-GM except the known ungated handlers', async () => {
     (globalThis as any).game.user.isGM = false;
     stubDataAccess();
+    world.enableWrites(); // past the write gate, so every write handler reaches the GM gate
     qh.registerHandlers();
     const ungated: string[] = [];
     for (const fullName of bridgeHandlers.methods()) {

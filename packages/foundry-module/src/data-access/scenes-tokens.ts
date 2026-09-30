@@ -53,9 +53,12 @@ export class ScenesTokensDataAccess {
     return token;
   }
 
-  /** Gate a scene-mutating operation behind the `modifyScene` write permission. */
-  private requireScenePermission(targetIds: string[]): void {
-    const permissionCheck = permissionManager.checkWritePermission('modifyScene', { targetIds });
+  /** Gate a scene-mutating operation behind a write permission (`modifyScene` by default). */
+  private requireScenePermission(
+    targetIds: string[],
+    operation: 'modifyScene' | 'deleteData' = 'modifyScene'
+  ): void {
+    const permissionCheck = permissionManager.checkWritePermission(operation, { targetIds });
     if (!permissionCheck.allowed) {
       throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
     }
@@ -465,7 +468,7 @@ export class ScenesTokensDataAccess {
    */
   async deleteTokens(data: { tokenIds: string[] }): Promise<any> {
     shared.validateFoundryState();
-    this.requireScenePermission(data.tokenIds);
+    this.requireScenePermission(data.tokenIds, 'deleteData');
 
     try {
       const scene = this.requireCurrentScene('No active scene found');
@@ -583,6 +586,7 @@ export class ScenesTokensDataAccess {
     lightAnimation?: string;
   }): Promise<any> {
     shared.validateFoundryState();
+    this.requireScenePermission([data.tokenName]); // P-036
 
     const scene: any = (game.scenes as any)?.current;
     if (!scene) {

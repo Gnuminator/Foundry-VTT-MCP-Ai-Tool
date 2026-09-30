@@ -81,7 +81,7 @@ describe('bossResources', () => {
   });
 });
 
-describe('getCombatState — boss', () => {
+describe('getCombatState: boss', () => {
   it('adds boss resources to NPC combatants and null to PCs', async () => {
     const boss = makeActor({ type: 'npc', name: 'Aboleth', system: ABOLETH });
     const wolf = makeActor({

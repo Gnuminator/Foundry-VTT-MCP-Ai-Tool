@@ -1,6 +1,7 @@
 /**
- * Read-only live verification sweep against the running co-GM dashboard
- * (http://localhost:3000) → MCP bridge → live Foundry game.
+ * Read-only verification sweep against a running co-GM dashboard. Defaults to the
+ * local TEST dashboard (http://localhost:3100, see scripts/test-env) so it never
+ * reaches the live campaign by accident; set COGM_BASE to point it elsewhere.
  *
  * Lists the bridge tool catalog, runs every READ-classified tool (filling
  * required args from discovered live data where possible), and prints a
@@ -10,7 +11,7 @@
  *   node scripts/live-read-sweep.mjs
  */
 
-const BASE = process.env.COGM_BASE || 'http://localhost:3000';
+const BASE = process.env.COGM_BASE || 'http://localhost:3100';
 
 async function getJson(path) {
   const r = await fetch(BASE + path, { signal: AbortSignal.timeout(20000) });

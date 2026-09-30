@@ -1,0 +1,9 @@
+# Pinned to the versions the VoiceBench benchmark ran with on the RTX 5080 (Blackwell, sm_120).
+# ctranslate2 4.8.2 ships CUDA 12.x kernels with Blackwell support; the image provides CUDA 12.8 + cuDNN 9.
+faster-whisper==1.2.1
+ctranslate2==4.8.2
+onnxruntime==1.30.0
+av==16.1.0
+huggingface_hub==0.36.2
+tokenizers==0.22.2
+nvidia-ml-py==13.615.71

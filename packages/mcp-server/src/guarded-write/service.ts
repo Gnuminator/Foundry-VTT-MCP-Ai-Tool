@@ -16,11 +16,12 @@
  * 3. `undo` builds the inverse ops from the audit entry and expects the state
  *    the apply left behind; a document edited since reports a conflict instead
  *    of being clobbered. Undo needs "Allow Write Operations" (checked by the
- *    module) but not the feature switch.
+ *    module, and here for vault ops) but not the feature switch.
  *
  * Vault ops change GM-only JSON files in the vault (secret feature data). They
- * are gated by the feature switch read from Foundry (`listGuardedFeatures`;
- * unreachable Foundry means refused) and logged to the GM feed best effort.
+ * are gated by "Allow Write Operations" and the feature switch, both read from
+ * Foundry (`listGuardedFeatures`; unreachable Foundry means refused), and
+ * logged to the GM feed best effort.
  *
  * All applies and undos run one at a time.
  */
@@ -583,6 +584,7 @@ export class GuardedWriteService {
       throw new Error(`Change ${entry.changeId} has nothing to undo`);
     }
     const summary = `Undo: ${entry.summary}`;
+    if (records.length > 0) await this.requireFeatureEnabled(entry.feature, true);
     const vault =
       records.length > 0
         ? await this.prepareVaultWrite(
@@ -806,7 +808,12 @@ export class GuardedWriteService {
     }
   }
 
-  private async requireFeatureEnabled(feature: string): Promise<void> {
+  /**
+   * Vault writes never reach Foundry, so the module cannot refuse them: check its switches here.
+   * An apply needs "Allow Write Operations" and the feature switch; an undo (`undo: true`) only
+   * "Allow Write Operations", like a Foundry undo.
+   */
+  private async requireFeatureEnabled(feature: string, undo = false): Promise<void> {
     let features: GuardedFeatureState[];
     try {
       features = unwrap<GuardedFeatureState[]>(
@@ -820,7 +827,13 @@ export class GuardedWriteService {
         }`
       );
     }
-    const state = Array.isArray(features) ? features.find(f => f.id === feature) : undefined;
+    const list = Array.isArray(features) ? features : [];
+    // Every feature carries the same writesAllowed; a module before 0.19.0 sends none (allowed).
+    if (list.some(f => f.writesAllowed === false)) {
+      throw new Error('Write operations are disabled in the module settings');
+    }
+    if (undo) return;
+    const state = list.find(f => f.id === feature);
     if (!state) throw new Error(`Unknown feature "${feature}" (not installed in the module)`);
     if (state.enabled !== true) {
       throw new Error(`The "${feature}" feature is switched off in the module settings`);

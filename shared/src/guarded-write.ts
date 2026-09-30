@@ -128,6 +128,12 @@ export interface GuardedFeatureState {
   name: string;
   hint: string;
   enabled: boolean;
+  /**
+   * The module's "Allow Write Operations" setting at the time of the call (the same on every
+   * feature). The bridge refuses vault-only changes and their undos when it is false. Missing
+   * from modules before 0.19.0, which the bridge treats as allowed.
+   */
+  writesAllowed?: boolean;
 }
 
 /** `write` needs `confirm`; `destructive` (any delete) also needs `confirmDestructive`. */

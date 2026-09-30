@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd) + Obsidian O4 mirrors
+## v0.19.0 (not tagged yet): M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd) + Obsidian O4 mirrors + tool sets
 
 Groundwork from `docs/design/CURSE-OF-STRAHD-PLAN.md` step 0. **Wire contracts are unchanged** (module id,
 ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults change behaviour; see
@@ -17,6 +17,25 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
 - Removed `test-bench/`, an unused macro and stray build output; `validate-manifest.js` moved to
   `scripts/`; `.gitattributes`; refreshed `.env.example` and `claude_desktop_config.example.json`.
 - `CLAUDE.md` is no longer tracked (private project instructions).
+
+### Gaps closed before v0.19.0
+
+- **"Allow Write Operations" now covers vault-only changes.** Changes that live only in the bridge
+  vault (Tarokka data, the Obsidian mirror settings) and their undos are refused while the switch
+  is off, like changes in Foundry. The module reports the switch with the feature list; a module
+  older than 0.19.0 does not, and the bridge then allows as before. Undoing a vault-only change now
+  needs Foundry connected, like applying one.
+- **Post to chat is always a whisper.** The dashboard knew only the GMs who were logged in; with none
+  it posted Co-GM notes as public chat. Now it always whispers, and the module sends it to every GM
+  user (or refuses) when no name is given.
+- **Removing a player's data.** `npm run vault -- forget-user <world> <user> [--chat-only]
+[--dry-run]` removes one Foundry user's play-log records (rolls, changes, chat text) and usage
+  records from the bridge vault; then `npm run obsidian -- export` rebuilds the notes. It refuses
+  while a bridge runs. The player and GM guides describe it.
+- Module: the unused `lang/en.json` (settings that no longer exist) and its manifest entry are gone;
+  a Discord library wheel committed by mistake is removed and `*.whl` is ignored. The release zip
+  was installed through Foundry's own Install Module on the test server: `module.json` at the root,
+  version 0.19.0.
 
 ### Tool sets (PB-12)
 
@@ -246,6 +265,8 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
 
 ### Upgrade notes
 
+- Update the module and the bridge together: an older module does not report "Allow Write
+  Operations", so a new bridge cannot enforce it on vault-only changes.
 - Claude Desktop: re-run the installer, or copy the five entries from
   `claude_desktop_config.example.json`, to get the tool sets. An existing single `foundry-mcp`
   entry keeps serving all 91 tools. Put `env` settings (for example `FOUNDRY_AI_OBSIDIAN_DIR`) in

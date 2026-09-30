@@ -105,3 +105,6 @@ scripts/test-env/local.json
 
 # Git worktrees for parallel Claude sessions and worker agents
 .claude/worktrees/
+
+# Python wheels (a stray one was committed once)
+*.whl

@@ -1,6 +1,6 @@
 {
   "name": "@gnuminator/cogm-dashboard",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "author": "Gnuminator <gnuminator@users.noreply.github.com>",
   "description": "Standalone live AI \"Co-GM\" dashboard that pulls the Foundry VTT MCP bridge feed and streams Claude commentary to a browser.",
   "type": "module",

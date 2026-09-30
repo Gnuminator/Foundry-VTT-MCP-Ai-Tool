@@ -324,7 +324,9 @@ defuse "chunk bomb" memory attacks) and **must stay in sync** with the module's 
 validated (no traversal); JSON files carry a `{schema, updatedAt, data}` envelope and are
 written atomically (temp file, fsync, rename with Windows lock retries) through a per-file
 queue. `npm run vault -- export|import` backs a world's vault up, since Foundry's own backup
-does not include it.
+does not include it. `npm run vault -- forget-user <world> <user> [--chat-only] [--dry-run]`
+removes one Foundry user's play-log and usage records (the player guide's removal promise); it
+refuses to write while a bridge backend holds its lock.
 
 **Guarded writes (`guarded-write/service.ts` + module `data-access/guarded-write.ts`).**
 New features change game state through one flow: a read-only `plan-*` tool builds a plan →

@@ -1,12 +1,12 @@
 {
-  "total": 1645,
+  "total": 1644,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
     ".claude/skills/foundry-core-ui/reference/in-world-layout.md": 54,
     ".claude/skills/foundry-core-ui/reference/setup-and-packages.md": 86,
     ".gitignore": 1,
-    "CHANGELOG.md": 26,
+    "CHANGELOG.md": 25,
     "CREDITS.md": 2,
     "deploy/cloudflare/access-policy.md": 12,
     "deploy/cloudflare/config.yml.template": 3,

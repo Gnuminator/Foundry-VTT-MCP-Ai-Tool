@@ -1,1 +1,28 @@
+# Normalise line endings: text files are stored and checked out with LF.
 * text=auto eol=lf
+
+# Windows batch files need CRLF to run reliably in cmd.exe.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files: never touch, never diff as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.mp3 binary
+*.wav binary
+*.ogg binary
+*.flac binary
+*.mp4 binary
+*.webm binary
+*.mov binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.zip binary
+*.exe binary

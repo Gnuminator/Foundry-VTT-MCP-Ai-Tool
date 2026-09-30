@@ -29,6 +29,7 @@ import { OwnershipTools } from '../tools/ownership.js';
 import { PlaySessionTools } from '../tools/play-session.js';
 import { PlayStatsTools } from '../tools/play-stats.js';
 import { PlayerViewTools } from '../tools/player-view.js';
+import { PreflightTools } from '../tools/preflight.js';
 import { QuestCreationTools } from '../tools/quest-creation.js';
 import { RefChoiceTools } from '../tools/ref-choices.js';
 import { ResourceTools } from '../tools/resources.js';
@@ -77,6 +78,14 @@ export function stubToolRouterDeps(): ToolRouterDeps {
       secretTerms: {} as any,
       foundryClient,
       worldIds: {} as any,
+      logger,
+    }),
+    preflightTools: new PreflightTools({
+      foundryClient,
+      secretTerms: {} as any,
+      worldIds: {} as any,
+      playSession: {} as any,
+      obsidianVaultDirSet: false,
       logger,
     }),
     questCreationTools: new QuestCreationTools(base),

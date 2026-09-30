@@ -2061,3 +2061,120 @@ body {
   padding: 0.25rem 0;
   border-bottom: 1px solid var(--border-soft);
 }
+
+/* --- Pre-flight drawer (I-068) ------------------------------------------ */
+.preflight-summary {
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.7rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-soft);
+  font-weight: 600;
+}
+.preflight-summary.pf-ok {
+  background: var(--good-soft);
+  border-color: var(--good);
+  color: var(--good);
+}
+.preflight-summary.pf-warn {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.preflight-summary.pf-fail {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.preflight-h {
+  margin: 0.9rem 0 0.4rem;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.preflight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.preflight-item {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  padding: 0.45rem 0.55rem;
+  margin-bottom: 0.35rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+}
+.pf-icon {
+  flex: none;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: var(--r-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  background: var(--bg-sunken);
+  color: var(--text-dim);
+}
+.pf-ok .pf-icon {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.pf-warn .pf-icon {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.pf-fail .pf-icon {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+.pf-info .pf-icon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.pf-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.pf-label {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+.pf-detail {
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  overflow-wrap: anywhere;
+}
+.pf-manual {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.pf-manual input {
+  margin-top: 0.2rem;
+}
+.preflight-findings {
+  margin: 0.4rem 0 0.2rem;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+}
+.preflight-findings ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+.preflight-findings li {
+  margin-bottom: 0.3rem;
+  overflow-wrap: anywhere;
+}
+#btn-preflight.preflight-bad {
+  border-color: var(--bad);
+  color: var(--bad);
+}

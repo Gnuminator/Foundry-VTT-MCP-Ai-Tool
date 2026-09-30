@@ -67,6 +67,14 @@
           🛠 Tools
         </button>
         <button
+          id="btn-preflight"
+          class="btn"
+          data-track="dash.header.preflight"
+          title="Pre-flight check before the players join (GM only)"
+        >
+          ✈ Pre-flight
+        </button>
+        <button
           id="btn-tarokka"
           class="btn"
           data-track="dash.header.tarokka"
@@ -109,6 +117,7 @@
     </header>
 
     <div class="link-banner" id="link-banner" role="alert" hidden></div>
+    <div class="link-banner" id="version-banner" role="alert" hidden></div>
 
     <main class="panes">
       <!-- Combat tracker -->
@@ -288,6 +297,50 @@
         >
       </div>
       <div class="tarokka-body" id="tarokka-body"><p class="empty">Loading…</p></div>
+    </aside>
+
+    <!-- Pre-flight drawer (GM only; I-068). Automatic checks tick themselves; manual ticks stay in this browser. -->
+    <aside class="drawer" id="preflight-drawer" hidden aria-label="Pre-flight check">
+      <div class="drawer-head">
+        <div>
+          <h2>✈ Pre-flight</h2>
+          <span class="drawer-sub" id="preflight-sub"
+            >GM only. Run it before the players join.</span
+          >
+        </div>
+        <button
+          class="icon-btn"
+          id="preflight-close"
+          data-track="dash.preflight.close"
+          title="Close"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      </div>
+      <div class="tarokka-actions">
+        <button class="btn btn-primary" id="preflight-run" data-track="dash.preflight.run">
+          ↻ Run checks
+        </button>
+        <button
+          class="btn"
+          id="preflight-clear"
+          data-track="dash.preflight.clear-ticks"
+          title="Untick the manual items for a new session"
+        >
+          Clear ticks
+        </button>
+      </div>
+      <div class="tarokka-body preflight-body">
+        <div id="preflight-summary" class="preflight-summary" hidden></div>
+        <h3 class="preflight-h">Checked by the tool</h3>
+        <ul class="preflight-list" id="preflight-auto">
+          <li class="empty">Not run yet.</li>
+        </ul>
+        <div id="preflight-findings"></div>
+        <h3 class="preflight-h">Check by hand</h3>
+        <ul class="preflight-list" id="preflight-manual"></ul>
+      </div>
     </aside>
 
     <!-- Confirm modal -->

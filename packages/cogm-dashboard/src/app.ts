@@ -18,6 +18,7 @@ import { gmOnly } from './redact.js';
 import { hostAllowlist } from './host-allowlist.js';
 import { mountOpenRoute, OPEN_PAGE_HEADERS, type OpenRouteOptions } from './open-route.js';
 import { buildPlayerState } from './player/projection.js';
+import { runDashboardPreflight } from './preflight.js';
 import { PlayerViewSource } from './player/source.js';
 import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
 import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
@@ -644,6 +645,16 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
           error: error instanceof Error ? error.message : 'Failed to post to Foundry chat.',
         });
       });
+  });
+
+  // --- Pre-flight (I-068): read-only checks before a session -------------------
+  app.get('/api/preflight', requireGm, (_req: Request, res: Response) => {
+    void runDashboardPreflight({
+      callTool: <T>(name: string, args?: Record<string, unknown>) =>
+        client.callTool<T>(name, args ?? {}),
+      gmActionsEnabled: settings.gmActionsEnabled,
+      playerState: currentPlayerState(),
+    }).then(result => res.json(result));
   });
 
   // --- GM Actions: list + invoke bridge tools ----------------------------------

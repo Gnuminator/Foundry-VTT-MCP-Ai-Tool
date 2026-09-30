@@ -85,16 +85,29 @@ export class SecretTermsService {
 
   /** Whole-phrase, case-insensitive matches of any registered term in `text`. */
   async findSecretTerms(worldId: string, text: string): Promise<{ matches: SecretTermMatch[] }> {
-    const matches: SecretTermMatch[] = [];
+    const [matches = []] = await this.findSecretTermsInMany(worldId, [text]);
+    return { matches };
+  }
+
+  /** `findSecretTerms` for many texts, reading the terms once; one match list per text. */
+  async findSecretTermsInMany(
+    worldId: string,
+    texts: readonly string[]
+  ): Promise<SecretTermMatch[][]> {
+    const patterns: Array<{ category: string; term: string; pattern: RegExp }> = [];
     for (const source of this.sources) {
-      const terms = await source.terms(worldId);
-      for (const raw of terms) {
+      for (const raw of await source.terms(worldId)) {
         const term = raw.trim();
         if (term.length < MIN_TERM_LENGTH) continue;
-        const pattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, 'i');
-        if (pattern.test(text)) matches.push({ category: source.category, term });
+        patterns.push({
+          category: source.category,
+          term,
+          pattern: new RegExp(`\\b${escapeRegExp(term)}\\b`, 'i'),
+        });
       }
     }
-    return { matches };
+    return texts.map(text =>
+      patterns.filter(p => p.pattern.test(text)).map(({ category, term }) => ({ category, term }))
+    );
   }
 }

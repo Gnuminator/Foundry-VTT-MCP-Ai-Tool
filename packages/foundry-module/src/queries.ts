@@ -19,6 +19,7 @@ import {
   pagesForPlayers,
 } from './player-visibility.js';
 import { EXPORT_INDEX_QUERY, getExportIndex } from './export-index.js';
+import { getPreflightScan, PREFLIGHT_QUERY } from './preflight-scan.js';
 import { gateWriteHandlers } from './write-gate.js';
 
 export class QueryHandlers {
@@ -167,6 +168,14 @@ export class QueryHandlers {
         this.withGmGate('Failed to get pages for players', () =>
           Promise.resolve(pagesForPlayers(data?.uuids))
         )
+    );
+
+    // Pre-flight scan (I-067, I-076, read-only): secret-looking world settings
+    // (masked), names players can see and module conflicts. GM client only.
+    handlers.set(`${modulePrefix}.${PREFLIGHT_QUERY}`, () =>
+      this.withGmGate('Failed to run the pre-flight scan', () =>
+        Promise.resolve(getPreflightScan())
+      )
     );
 
     // Obsidian mirror (O4, read-only): the export index of PCs, NPCs, scenes,

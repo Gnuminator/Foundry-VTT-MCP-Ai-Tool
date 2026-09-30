@@ -1,0 +1,9 @@
+# Override for the Pi / public setup:
+#   docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d
+# Uses livekit.pi.yaml (public IP through STUN, TLS handled by Cloudflare Tunnel).
+services:
+  livekit:
+    environment:
+      NODE_IP: ''
+    volumes:
+      - ./livekit.pi.yaml:/etc/livekit.yaml:ro

@@ -1,0 +1,35 @@
+# LiveKit server, LOCAL mode (Docker Desktop on the PC).
+# No secrets in this file: the API key and secret arrive through LIVEKIT_KEYS and
+# LIVEKIT_WEBHOOK_API_KEY in docker-compose.yml (from .env). For the Pi / public setup see
+# livekit.pi.yaml.
+port: 7880
+bind_addresses:
+  - ''
+
+redis:
+  address: redis:6379
+
+rtc:
+  # One UDP port for all media (UDP mux). Published as 7882/udp by docker-compose.yml.
+  udp_port: 7882
+  # TCP fallback for clients that cannot use UDP.
+  tcp_port: 7881
+  # Local mode: do not ask STUN for the public address.
+  use_external_ip: false
+  # Docker Desktop: browsers on the PC reach the published UDP port through 127.0.0.1 (node_ip is
+  # set from LIVEKIT_NODE_IP in docker-compose.yml). Also advertise the container address so
+  # clients inside the compose network (the lk test client) connect directly.
+  advertise_internal_ip: true
+
+room:
+  # Keep an empty room for a short while so a reconnecting GM does not end the session folder.
+  empty_timeout: 300
+  departure_timeout: 20
+
+webhook:
+  # api_key comes from LIVEKIT_WEBHOOK_API_KEY (.env). The recorder verifies the signature.
+  urls:
+    - http://recorder:8080/webhook
+
+logging:
+  level: info

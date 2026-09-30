@@ -1,0 +1,4 @@
+# Pronunciation list for the English voice: term = what the voice should say.
+# Whole words, any case. Only the spoken form changes; captions keep the script's spelling.
+dnd5e = D and D five E
+D&D = D and D

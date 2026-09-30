@@ -80,6 +80,10 @@ export class PermissionManager {
       };
     }
 
+    if (operation.requiresGM && !game.user?.isGM) {
+      return { allowed: false, reason: `${operation.name} needs a GM user` };
+    }
+
     // Check setting-based permissions (GM safety toggles)
     const settingAllowed = game.settings.get(this.moduleId, operation.settingKey) as boolean;
     if (!settingAllowed) {

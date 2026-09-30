@@ -40,6 +40,11 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('FoundryDataAccess — setActorOwnership', () => {
+  // P-036: these write paths are gated; the refusal is tested separately.
+  beforeEach(() => {
+    world.enableWrites();
+  });
+
   it('returns success:false with error when actor id is missing', async () => {
     world.addUser({ id: 'u1', name: 'Alice', isGM: false });
 

@@ -341,6 +341,7 @@ beforeAll(async () => {
     foundry: 'reachable',
     lastError: null,
     lastPollAt: null,
+    foundryDownSince: null,
   });
   dashboard.handlers.onEvents(events, { initial: true });
   dashboard.handlers.onCombat(combat);

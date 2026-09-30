@@ -70,6 +70,7 @@ describe('PlayerViewSource with a reveal copy', () => {
         foundry: 'reachable',
         lastError: null,
         lastPollAt: null,
+        foundryDownSince: null,
       },
       world: null,
       visibility: source.visibility,

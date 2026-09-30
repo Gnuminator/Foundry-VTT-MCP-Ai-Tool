@@ -172,8 +172,14 @@ export class McpControlClient extends EventEmitter {
    * error: ToolError if the tool reported a failure, TimeoutError on a stalled
    * channel, ChannelError if the channel is down.
    */
-  async callTool<T = unknown>(name: string, args: Record<string, unknown> = {}): Promise<T> {
-    const payload = (await this.send('call_tool', { name, args })) as ToolResultPayload | undefined;
+  async callTool<T = unknown>(
+    name: string,
+    args: Record<string, unknown> = {},
+    options: { timeoutMs?: number } = {}
+  ): Promise<T> {
+    const payload = (await this.send('call_tool', { name, args }, options.timeoutMs)) as
+      | ToolResultPayload
+      | undefined;
     const text = payload?.content?.[0]?.text;
 
     if (payload?.isError) {
@@ -197,7 +203,17 @@ export class McpControlClient extends EventEmitter {
   // Internals
   // ---------------------------------------------------------------------------
 
-  private send(method: string, params?: Record<string, unknown>): Promise<unknown> {
+  /**
+   * `timeoutMs` above the default is for calls known to be slow (a guarded write
+   * waits up to about 4 minutes for Foundry). Such a call timing out does not
+   * prove the channel is dead, so it does not tear the socket down; the
+   * heartbeat still does that for a truly dead channel.
+   */
+  private send(
+    method: string,
+    params?: Record<string, unknown>,
+    timeoutMs: number = this.requestTimeoutMs
+  ): Promise<unknown> {
     return new Promise((resolve, reject) => {
       if (!this.socket || !this.connected) {
         reject(new ChannelError('Control channel not connected'));
@@ -213,14 +229,14 @@ export class McpControlClient extends EventEmitter {
 
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new TimeoutError(`Request "${method}" timed out after ${this.requestTimeoutMs}ms`));
+        reject(new TimeoutError(`Request "${method}" timed out after ${timeoutMs}ms`));
         // A reply never came on a socket we believe is up — the channel is
         // almost certainly dead/half-open. Tear it down so we reconnect instead
         // of looping per-request timeouts against a corpse.
-        if (this.connected) {
+        if (this.connected && timeoutMs <= this.requestTimeoutMs) {
           this.failConnection(new TimeoutError(`Control channel timeout on "${method}"`));
         }
-      }, this.requestTimeoutMs);
+      }, timeoutMs);
       timer.unref();
 
       this.pending.set(id, { resolve, reject, timer });

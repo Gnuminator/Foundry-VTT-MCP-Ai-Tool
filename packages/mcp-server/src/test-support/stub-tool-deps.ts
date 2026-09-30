@@ -30,6 +30,7 @@ import { PlaySessionTools } from '../tools/play-session.js';
 import { PlayStatsTools } from '../tools/play-stats.js';
 import { PlayerViewTools } from '../tools/player-view.js';
 import { PreflightTools } from '../tools/preflight.js';
+import { PartyTools } from '../tools/party.js';
 import { PrepDigestTools } from '../tools/prep-digest.js';
 import { QuestCreationTools } from '../tools/quest-creation.js';
 import { RefChoiceTools } from '../tools/ref-choices.js';
@@ -99,6 +100,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
       tarokka: {} as any,
       logger,
     }),
+    partyTools: new PartyTools({ foundryClient, guardedWrites: {} as any, logger }),
     questCreationTools: new QuestCreationTools(base),
     refChoiceTools: new RefChoiceTools({ ...base, guardedWrites: {} }),
     resourceTools: new ResourceTools(base),

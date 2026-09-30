@@ -4,7 +4,7 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 93 tools. Their definitions are about 91,000 characters of JSON, roughly 22,000 to
+The bridge has 95 tools. Their definitions are about 92,500 characters of JSON, roughly 22,000 to
 29,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
@@ -15,7 +15,7 @@ what the conversation needs. The switches are remembered for new chats.
 | Set       | Claude Desktop entry | Tools | Size (characters) | For                                                                                          |
 | --------- | -------------------- | ----- | ----------------- | -------------------------------------------------------------------------------------------- |
 | **core**  | `foundry-mcp`        | 20    | about 12,800      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
-| **play**  | `foundry-mcp-play`   | 37    | about 26,400      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
+| **play**  | `foundry-mcp-play`   | 39    | about 28,000      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
 | **prep**  | `foundry-mcp-prep`   | 20    | about 19,600      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
 | **build** | `foundry-mcp-build`  | 7     | about 25,200      | Making NPCs, monsters and items, from a compendium or from scratch.                          |
 | **admin** | `foundry-mcp-admin`  | 9     | about 6,800       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
@@ -42,9 +42,9 @@ code disagree.
   `update-character-resource`, `get-active-effects`, `clear-stale-conditions`,
   `advance-combat-turn`, `set-initiative`, `roll-initiative-for-npcs`, `measure-distance`,
   `get-targets`, `get-recent-events`, `apply-damage-and-healing`, `roll-saving-throws`,
-  `use-npc-activity`, `manage-rest`, `place-measured-template`, `delete-measured-template`,
-  `set-scene-mood`, `add-map-note`, `set-token-vision-light`, `delete-map-note`, `drop-loot`,
-  `mark-play-session`
+  `use-npc-activity`, `manage-rest`, `get-party`, `plan-party-change`, `place-measured-template`,
+  `delete-measured-template`, `set-scene-mood`, `add-map-note`, `set-token-vision-light`,
+  `delete-map-note`, `drop-loot`, `mark-play-session`
 - **prep:** `create-quest-journal`, `update-quest-journal`, `link-quest-to-npc`,
   `create-campaign-dashboard`, `suggest-balanced-encounter`, `get-tarokka-reading`,
   `plan-tarokka-import`, `suggest-tarokka-links`, `plan-tarokka-links`, `plan-tarokka-reveal`,

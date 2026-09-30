@@ -21,6 +21,7 @@ import {
 } from './player-visibility.js';
 import { EXPORT_INDEX_QUERY, getExportIndex } from './export-index.js';
 import { getPreflightScan, PREFLIGHT_QUERY } from './preflight-scan.js';
+import { getPartyState, PARTY_STATE_QUERY } from './party-scan.js';
 import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
 import { gateWriteHandlers } from './write-gate.js';
 
@@ -184,6 +185,12 @@ export class QueryHandlers {
     // journal and boss tokens. GM client only.
     handlers.set(`${modulePrefix}.${PREP_SCAN_QUERY}`, () =>
       this.withGmGate('Failed to run the prep scan', () => Promise.resolve(getPrepScan()))
+    );
+
+    // Party panel (I-079, read-only): dnd5e group actors, members, pace, rest
+    // request cards. GM client only.
+    handlers.set(`${modulePrefix}.${PARTY_STATE_QUERY}`, () =>
+      this.withGmGate('Failed to read the party', () => Promise.resolve(getPartyState()))
     );
 
     // Obsidian mirror (O4, read-only): the export index of PCs, NPCs, scenes,

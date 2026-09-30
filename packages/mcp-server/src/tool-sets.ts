@@ -90,6 +90,8 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'roll-saving-throws',
       'use-npc-activity',
       'manage-rest',
+      'get-party',
+      'plan-party-change',
       'place-measured-template',
       'delete-measured-template',
       'set-scene-mood',

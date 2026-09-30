@@ -91,6 +91,14 @@
           📋 Prep
         </button>
         <button
+          id="btn-party"
+          class="btn"
+          data-track="dash.header.party"
+          title="The party: members at a glance, travel pace, combat and rests (GM only)"
+        >
+          🛡 Party
+        </button>
+        <button
           id="btn-tarokka"
           class="btn"
           data-track="dash.header.tarokka"
@@ -449,6 +457,45 @@
         <h3 class="preflight-h">Recent changes</h3>
         <div id="prep-changes"></div>
         <div id="prep-tarokka"></div>
+      </div>
+    </aside>
+
+    <aside class="drawer" id="party-drawer" hidden aria-label="Party">
+      <div class="drawer-head">
+        <div>
+          <h2>🛡 Party</h2>
+          <span class="drawer-sub" id="party-sub">GM only. The dnd5e party at a glance.</span>
+        </div>
+        <button
+          class="icon-btn"
+          id="party-close"
+          data-track="dash.party.close"
+          title="Close"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      </div>
+      <div class="tarokka-actions">
+        <button class="btn btn-primary" id="party-refresh" data-track="dash.party.refresh">
+          ↻ Refresh
+        </button>
+        <select id="party-group" class="party-group" data-track="dash.party.group" hidden></select>
+      </div>
+      <div class="tarokka-body party-body">
+        <div id="party-warnings"></div>
+        <h3 class="preflight-h">Members</h3>
+        <div id="party-members"><p class="empty">Loading…</p></div>
+        <h3 class="preflight-h">Travel pace</h3>
+        <div id="party-pace"></div>
+        <h3 class="preflight-h">Combat</h3>
+        <div id="party-combat"></div>
+        <h3 class="preflight-h">Rest</h3>
+        <div id="party-rest"></div>
+        <p class="pf-detail party-hint">
+          Actions go through plan and confirm, need the "AI Tool: Party (writes)" switch in the
+          module settings, and land in Recent Changes with Undo.
+        </p>
       </div>
     </aside>
 

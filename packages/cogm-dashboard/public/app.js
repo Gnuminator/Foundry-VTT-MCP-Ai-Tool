@@ -133,6 +133,18 @@ const els = {
   prepReady: $('prep-ready'),
   prepChanges: $('prep-changes'),
   prepTarokka: $('prep-tarokka'),
+  // Party drawer (I-079)
+  btnParty: $('btn-party'),
+  partyDrawer: $('party-drawer'),
+  partyClose: $('party-close'),
+  partySub: $('party-sub'),
+  partyRefresh: $('party-refresh'),
+  partyGroup: $('party-group'),
+  partyWarnings: $('party-warnings'),
+  partyMembers: $('party-members'),
+  partyPace: $('party-pace'),
+  partyCombat: $('party-combat'),
+  partyRest: $('party-rest'),
   // Recent guarded changes
   changesBody: $('changes-body'),
   changesMeta: $('changes-meta'),
@@ -1454,6 +1466,7 @@ async function runTool(name, args, mutates, opts = {}) {
       if (name === 'apply-planned-change' || name === 'undo-change') {
         scheduleChangesReload();
         if (!els.tarokkaDrawer.hidden) void loadTarokka();
+        if (!els.partyDrawer.hidden) void loadParty();
       }
       return data;
     }
@@ -1578,7 +1591,8 @@ function closeHandouts() {
     els.drawer.hidden &&
     els.tarokkaDrawer.hidden &&
     els.preflightDrawer.hidden &&
-    els.prepDrawer.hidden
+    els.prepDrawer.hidden &&
+    els.partyDrawer.hidden
   ) {
     els.drawerBackdrop.hidden = true;
   }
@@ -1716,7 +1730,8 @@ function closePrep() {
     els.drawer.hidden &&
     els.tarokkaDrawer.hidden &&
     els.preflightDrawer.hidden &&
-    els.handoutsDrawer.hidden
+    els.handoutsDrawer.hidden &&
+    els.partyDrawer.hidden
   ) {
     els.drawerBackdrop.hidden = true;
   }
@@ -2053,7 +2068,8 @@ function closePreflight() {
     els.drawer.hidden &&
     els.tarokkaDrawer.hidden &&
     els.handoutsDrawer.hidden &&
-    els.prepDrawer.hidden
+    els.prepDrawer.hidden &&
+    els.partyDrawer.hidden
   ) {
     els.drawerBackdrop.hidden = true;
   }
@@ -2182,6 +2198,217 @@ function renderPreflightManual() {
   ).join('');
 }
 
+// --- Party drawer (GM only; I-079) ---
+// get-party (read) fills it; each action is a plan-party-change plan applied with
+// apply-planned-change (the confirm modal shows the diff; Undo is in Recent Changes). No AI.
+let partyState = null;
+let partyGroupId = null;
+let partyLoading = false;
+
+function openParty() {
+  usage.trackView('dash.party.view');
+  els.drawerBackdrop.hidden = false;
+  els.partyDrawer.hidden = false;
+  void loadParty();
+}
+function closeParty() {
+  usage.endView('dash.party.view');
+  els.partyDrawer.hidden = true;
+  if (
+    els.drawer.hidden &&
+    els.tarokkaDrawer.hidden &&
+    els.preflightDrawer.hidden &&
+    els.handoutsDrawer.hidden &&
+    els.prepDrawer.hidden
+  ) {
+    els.drawerBackdrop.hidden = true;
+  }
+}
+function clearPartySections() {
+  for (const el of [els.partyWarnings, els.partyPace, els.partyCombat, els.partyRest]) {
+    el.innerHTML = '';
+  }
+}
+async function loadParty() {
+  if (partyLoading) return;
+  partyLoading = true;
+  els.partyRefresh.disabled = true;
+  els.partySub.textContent = 'Loading…';
+  try {
+    const state = await callReadTool('get-party', {});
+    if (!state || typeof state !== 'object') throw new Error('The bridge sent no party.');
+    partyState = state;
+    renderParty();
+  } catch (err) {
+    els.partySub.textContent = 'GM only. The party did not load.';
+    clearPartySections();
+    els.partyMembers.innerHTML = `<p class="empty">Couldn't load the party: ${escapeHtml(String(err.message || err))}</p>`;
+  } finally {
+    partyLoading = false;
+    els.partyRefresh.disabled = false;
+  }
+}
+function currentPartyGroup() {
+  const groups = (partyState && Array.isArray(partyState.groups) && partyState.groups) || [];
+  return groups.find(g => g.actorId === partyGroupId) || groups[0] || null;
+}
+function partyMemberRow(m, sceneName) {
+  const facts = [];
+  if (m.level != null) facts.push(`Level ${m.level}`);
+  if (m.ac != null) facts.push(`AC ${m.ac}`);
+  if (m.passivePerception != null) facts.push(`Passive Perception ${m.passivePerception}`);
+  if (m.hitDice) facts.push(`Hit dice ${m.hitDice.value}/${m.hitDice.max}`);
+  const chips = (Array.isArray(m.conditions) ? m.conditions : []).map(
+    c => `<span class="condition-chip">${escapeHtml(c)}</span>`
+  );
+  if (m.exhaustion > 0) {
+    chips.unshift(
+      `<span class="condition-chip">Exhaustion ${escapeHtml(String(m.exhaustion))}</span>`
+    );
+  }
+  const tokens = Array.isArray(m.tokens) ? m.tokens : [];
+  let tokenText = sceneName ? `No token on ${sceneName}` : '';
+  if (tokens.length > 0) {
+    const inCombat = tokens.some(t => t.inCombat) ? ', in the encounter' : '';
+    const hidden = tokens.some(t => t.hidden) ? ', hidden' : '';
+    tokenText = `On ${sceneName}${hidden}${inCombat}`;
+  }
+  let hp = '';
+  if (m.hp && m.hp.max > 0) {
+    const ratio = m.hp.value / m.hp.max;
+    const temp = m.hp.temp > 0 ? ` +${m.hp.temp}` : '';
+    hp = `<div class="hp party-hp">
+        <div class="hp-text">${escapeHtml(`${m.hp.value}/${m.hp.max}${temp}`)}</div>
+        <div class="hp-bar"><div class="hp-fill ${hpClass(ratio)}" style="width:${Math.max(0, Math.min(100, ratio * 100))}%"></div></div>
+      </div>`;
+  }
+  const death = m.deathSaves
+    ? `<div class="death-saves">Death saves: ${escapeHtml(String(m.deathSaves.success))} saved, ${escapeHtml(String(m.deathSaves.failure))} failed</div>`
+    : '';
+  const star = m.inspiration ? ' <span class="party-inspiration" title="Inspiration">★</span>' : '';
+  return `<li class="preflight-item party-member">
+      <span class="pf-text">
+        <span class="pf-label">${escapeHtml(m.name)}${star}</span>
+        <span class="pf-detail">${escapeHtml(facts.join(' · '))}</span>
+        ${chips.length > 0 ? `<div class="conditions">${chips.join('')}</div>` : ''}
+        ${death}
+        ${tokenText ? `<span class="pf-detail">${escapeHtml(tokenText)}</span>` : ''}
+      </span>
+      ${hp}
+      <button type="button" class="btn btn-small" data-track="dash.party.open-actor" data-party-open="${escapeHtml(m.uuid)}">Open</button>
+    </li>`;
+}
+function partyPaceSection(g) {
+  const options =
+    (partyState && Array.isArray(partyState.paceOptions) && partyState.paceOptions) || [];
+  const pace = g.pace;
+  if (!pace) return '<p class="pf-detail">This group has no travel pace.</p>';
+  const slowed = pace.slowed ? '. A slowed member holds the party to slow pace.' : '';
+  const current = `<p class="pf-detail">Now: <strong>${escapeHtml(pace.label)}</strong>${slowed}</p>`;
+  if (options.length === 0) return current;
+  const buttons = options
+    .map(
+      o =>
+        `<button type="button" class="btn btn-small" data-track="dash.party.pace" data-party-pace="${escapeHtml(o.value)}"${
+          o.value === pace.value && !pace.slowed ? ' disabled' : ''
+        }>${escapeHtml(o.label)}</button>`
+    )
+    .join('');
+  return `${current}<div class="party-buttons">${buttons}</div>`;
+}
+function partyCombatSection(g) {
+  const s = partyState;
+  if (!s.scene) return '<p class="pf-detail">No active scene.</p>';
+  const sceneName = s.scene.name || 'the scene';
+  const tokens = g.members.flatMap(m => (Array.isArray(m.tokens) ? m.tokens : []));
+  const toAdd = tokens.filter(t => !t.inCombat).length;
+  const where = s.encounter
+    ? `Encounter on ${sceneName}, round ${s.encounter.round}${s.encounter.started ? '' : ' (not started)'}.`
+    : `No encounter. The button starts one on ${sceneName}.`;
+  let label = s.encounter ? `Add ${toAdd} to the encounter` : `Start an encounter with ${toAdd}`;
+  if (tokens.length === 0) label = `No party tokens on ${sceneName}`;
+  else if (toAdd === 0) label = 'Everyone is in the encounter';
+  return `<p class="pf-detail">${escapeHtml(where)}</p>
+    <div class="party-buttons"><button type="button" class="btn btn-small" data-track="dash.party.add-to-combat" data-party-combat${
+      toAdd === 0 ? ' disabled' : ''
+    }>${escapeHtml(label)}</button></div>`;
+}
+function partyRestSection(g) {
+  const cards = g.restCards || {};
+  const disabled = type => (cards[type] ? '' : ' disabled');
+  return `<p class="pf-detail">Posts dnd5e's rest card to chat; each player clicks it to rest their character.</p>
+    <div class="party-buttons">
+      <button type="button" class="btn btn-small" data-track="dash.party.rest-short" data-party-rest="short"${disabled('short')}>Short rest request</button>
+      <button type="button" class="btn btn-small" data-track="dash.party.rest-long" data-party-rest="long"${disabled('long')}>Long rest request</button>
+    </div>`;
+}
+function renderParty() {
+  const s = partyState;
+  if (!s) return;
+  const groups = Array.isArray(s.groups) ? s.groups : [];
+  const g = currentPartyGroup();
+  els.partyGroup.hidden = groups.length < 2;
+  els.partyGroup.innerHTML = groups
+    .map(
+      x =>
+        `<option value="${escapeHtml(x.actorId)}"${g && x.actorId === g.actorId ? ' selected' : ''}>${escapeHtml(
+          x.name + (x.primary ? ' (primary)' : '')
+        )}</option>`
+    )
+    .join('');
+  const warnings = Array.isArray(s.warnings) ? s.warnings : [];
+  els.partyWarnings.innerHTML = warnings
+    .map(w => `<div class="preflight-summary pf-warn">${escapeHtml(w)}</div>`)
+    .join('');
+  if (!g) {
+    els.partySub.textContent = 'GM only. No party yet.';
+    els.partyMembers.innerHTML =
+      '<p class="empty">No party yet. In Foundry, create an Actor of type Group, drag the characters onto it, then right-click it in the Actors tab and set it as the primary party.</p>';
+    for (const el of [els.partyPace, els.partyCombat, els.partyRest]) el.innerHTML = '';
+    return;
+  }
+  const members = Array.isArray(g.members) ? g.members : [];
+  const primary = g.primary ? '' : ' Not the primary party.';
+  const count = `${members.length} ${members.length === 1 ? 'member' : 'members'}`;
+  els.partySub.textContent = `GM only. ${g.name}, level ${g.level}, ${count}.${primary}`;
+  const sceneName = s.scene ? s.scene.name : '';
+  els.partyMembers.innerHTML =
+    members.length > 0
+      ? `<ul class="preflight-list">${members.map(m => partyMemberRow(m, sceneName)).join('')}</ul>`
+      : '<p class="empty">The group has no members. Drag characters onto it in Foundry.</p>';
+  els.partyPace.innerHTML = partyPaceSection(g);
+  els.partyCombat.innerHTML = partyCombatSection(g);
+  els.partyRest.innerHTML = partyRestSection(g);
+}
+async function partyAction(args) {
+  const g = currentPartyGroup();
+  if (!g) return;
+  await planThenApply('plan-party-change', { ...args, groupId: g.actorId });
+}
+async function onPartyClick(e) {
+  const open = e.target.closest('[data-party-open]');
+  if (open) {
+    try {
+      await callReadTool('open-in-foundry', { uuid: open.dataset.partyOpen });
+      toast('Opened in Foundry', 'ok');
+    } catch (err) {
+      toast(`✗ open-in-foundry: ${String(err.message || err)}`, 'err');
+    }
+    return;
+  }
+  const pace = e.target.closest('[data-party-pace]');
+  if (pace) {
+    await partyAction({ action: 'pace', pace: pace.dataset.partyPace });
+    return;
+  }
+  if (e.target.closest('[data-party-combat]')) {
+    await partyAction({ action: 'add-to-combat' });
+    return;
+  }
+  const rest = e.target.closest('[data-party-rest]');
+  if (rest) await partyAction({ action: 'rest-request', rest: rest.dataset.partyRest });
+}
+
 // --- Tarokka drawer (GM only) ---
 // A plan-* tool is a read; apply-planned-change then shows its diff in the
 // confirm modal (and the destructive checkbox for a reveal).
@@ -2211,7 +2438,8 @@ function closeTarokka() {
     els.drawer.hidden &&
     els.preflightDrawer.hidden &&
     els.handoutsDrawer.hidden &&
-    els.prepDrawer.hidden
+    els.prepDrawer.hidden &&
+    els.partyDrawer.hidden
   ) {
     els.drawerBackdrop.hidden = true;
   }
@@ -2438,6 +2666,15 @@ els.prepClose.addEventListener('click', closePrep);
 els.drawerBackdrop.addEventListener('click', closePrep);
 els.prepRefresh.addEventListener('click', () => void loadPrep());
 els.prepDrawer.addEventListener('click', e => void onPrepClick(e));
+els.btnParty.addEventListener('click', openParty);
+els.partyClose.addEventListener('click', closeParty);
+els.drawerBackdrop.addEventListener('click', closeParty);
+els.partyRefresh.addEventListener('click', () => void loadParty());
+els.partyGroup.addEventListener('change', () => {
+  partyGroupId = els.partyGroup.value || null;
+  renderParty();
+});
+els.partyDrawer.addEventListener('click', e => void onPartyClick(e));
 els.btnHandouts.addEventListener('click', openHandouts);
 els.handoutsClose.addEventListener('click', closeHandouts);
 els.drawerBackdrop.addEventListener('click', closeHandouts);
@@ -2501,6 +2738,9 @@ document.addEventListener('keydown', e => {
   } else if (!els.prepDrawer.hidden) {
     usage.trackShortcut('dash.shortcut.escape-prep');
     closePrep();
+  } else if (!els.partyDrawer.hidden) {
+    usage.trackShortcut('dash.shortcut.escape-party');
+    closeParty();
   } else if (!els.handoutsDrawer.hidden) {
     usage.trackShortcut('dash.shortcut.escape-handouts');
     closeHandouts();

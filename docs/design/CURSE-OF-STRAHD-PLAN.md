@@ -533,7 +533,44 @@ marked.
   `plan-page-reveal` refuses to raise a page whose journal no player can observe: raising the
   journal would expose every page that inherits from it, so that stays the GM's call (move the
   handout into a player journal whose other pages are None). Reveal and hide are both
-  destructive class (hide deletes the allowlist entry); both can be undone.
+  destructive class (hide deletes the allowlist entry); both can be undone. Since 2026-09-29 such
+  a reveal copies the page instead (next point); the refusal stays for `copy: false`.
+- **Reveal copies a handout (as built, 2026-09-29, approved by the user the same day).** Imported
+  adventures keep handouts inside GM-only chapter journals, so `plan-page-reveal` takes an optional
+  `copy`: omitted, it copies when no player can observe the page's journal (the case that was
+  refused, with `setOwnership` left on) or when the page already has a copy (so it is updated, never
+  revealed twice); `true` always copies; `false` is the old behaviour (raise the page; the refusal
+  now names `copy: true`; refused while the page has a copy). A copy is one guarded plan (mixed
+  Foundry and vault ops, destructive class, plan / confirm with diff / apply / undo / audit, like the
+  Tarokka reveal): on first use it creates the player journal "Handouts" (ownership Observer,
+  remembered as `handoutsJournal: {uuid, lastCopy}` in `gm/reveals.json`; created again when the
+  remembered one was deleted; the plan note warns when the world already has another journal
+  called "Handouts"), then a page with the source's name and type: text pages get `text.content`
+  without secret blocks (`handouts/strip-secrets.ts`: `section.secret` revealed or not,
+  `<secret-block>`, any element classed `secret` / `gm-only` / `gmonly` / `gm-note` / `gmnote`,
+  and HTML comments) and without the enrichers Foundry 14 resolves on a player's client with no
+  permission check: every `@Embed[...]` is dropped (it renders the target inline, with
+  `secrets=true` even its secret blocks), and a content link (`@UUID`, `@Compendium`, legacy
+  `@Actor` and so on) to anything but a revealed handout becomes its label as plain text, or goes
+  when it has none (a link without a label shows the target's real name); the note counts both.
+  Image pages get `src` and `image.caption`; other types are refused with a clear message. The copy
+  carries `flags.foundry-mcp-bridge.copiedFrom` (the source uuid) and is the
+  allowlisted page (`pages.<copyId> = {uuid, feature, at, copiedFrom}`), so the player view lists
+  it like any handout. Revealing the source again updates the copy (only the changed paths;
+  refused when it is up to date); hiding (by the source or the copy) deletes the copy and its
+  entry, and "Handouts" stays. Every copy-creating plan sets `handoutsJournal.lastCopy` (a vault
+  anchor): undoing the first copy (whose inverse deletes the journal it created) is refused as a
+  conflict while a later copy is in the journal, and two pending copy plans cannot both apply. The
+  source page and its journal are never written. The plan result carries `copy` (action, copy and
+  journal uuids, `journalCreated`, `secretsRemoved`, `embedsRemoved`, `linksUnlinked`) and a
+  `note` ("Copied into Handouts: ..."); the summary says "(copied into Handouts)", and the dashboard's
+  toast after apply shows the summary. `getPagesForPlayers` reports `type`, `src` and `caption`
+  for existing pages (optional fields; a module without them still copies text pages). Proof:
+  `handouts/copy-canary.test.ts` (every secret form, first copy, update, hide and undo; plans,
+  Foundry requests, documents, vault files and audit, player handouts; embeds and links to GM
+  documents). Not handled: a "Handouts" journal whose ownership the GM lowered is not raised
+  again; pages the GM puts into "Handouts" by hand are not tracked (undoing the first copy would
+  delete them with the journal).
 - Whisper guard: `/api/post-chat` answers 409 `secret-terms` when the text names a secret term
   (whole phrase, any case); the GM page asks and resends with `allowSecrets`. The prompt sits on
   the AI commentary cards' "Post to chat", so it needs `ANTHROPIC_API_KEY`.

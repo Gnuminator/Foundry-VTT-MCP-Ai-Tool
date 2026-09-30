@@ -8,22 +8,57 @@
  * a guarded plan (feature `handouts`, off by default in the module settings);
  * `apply-planned-change` applies it after the GM confirms.
  *
+ * Reveal copies a handout (2026-09-29): Foundry 14 hides every page of a
+ * journal no player can observe, and imported adventures keep their handouts
+ * inside GM-only chapter journals. So a reveal of such a page (or any page with
+ * `copy: true`) copies it into the player journal "Handouts" instead: one mixed
+ * plan creates the journal on first use (ownership Observer, remembered as
+ * `handoutsJournal` in `gm/reveals.json`; created again when it was deleted),
+ * then a page with the source's name, type and content (text without secret
+ * blocks and embeds, links to GM documents as plain text, or an image's source
+ * and caption), flagged
+ * `flags.foundry-mcp-bridge.copiedFrom`. The copy is the allowlisted page
+ * (`pages.<copyId>.copiedFrom`). Revealing the source again updates the copy;
+ * hiding deletes it (the journal stays). The source page and its journal are
+ * never changed.
+ *
+ * Every plan that creates a copy also sets `handoutsJournal.lastCopy` (the
+ * vault anchor): undoing an earlier copy plan, whose inverse may delete the
+ * whole journal it created, then reports a conflict while a later copy is in
+ * the journal, and two pending copy plans cannot both apply (no duplicates).
+ *
  * `playerHandouts()` returns raw GM HTML: it is consumed only by the dashboard
  * server, which sanitizes it before any player sees it. Nothing here ever
  * copies page content into a plan summary or a log line (a page title is
  * fine).
  */
-import type { GuardedOp, OpSnapshot, PageForPlayers } from '@gnuminator/shared';
+import {
+  MODULE_ID,
+  type GuardedOp,
+  type GuardedUpdateOp,
+  type OpSnapshot,
+  type PageForPlayers,
+  type PathValue,
+} from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView, VaultOp } from '../guarded-write/service.js';
-import { REVEALS_FILE } from '../tarokka/service.js';
+import { samePathValue } from '../guarded-write/values.js';
+import { REVEALS_FILE, newDocumentId } from '../tarokka/service.js';
 import type { VaultStore } from '../vault/store.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
 
+import { prepareCopyHtml } from './strip-secrets.js';
+
 export const HANDOUTS_FEATURE = 'handouts';
+/** The player journal reveal copies go into. */
+export const HANDOUTS_JOURNAL_NAME = 'Handouts';
+/** The flag on a copy naming its source page: `flags.foundry-mcp-bridge.copiedFrom`. */
+export const COPIED_FROM_FLAG = 'copiedFrom';
 /** Foundry's OBSERVER ownership level: players can read the page. */
 const OBSERVER = 2;
+/** `CONST.JOURNAL_ENTRY_PAGE_FORMATS.HTML`: a copied text page is stored as HTML. */
+const TEXT_FORMAT_HTML = 1;
 /** A JournalEntryPage uuid: `JournalEntry.<16>.JournalEntryPage.<16>`. */
 const PAGE_UUID = /^JournalEntry\.[A-Za-z0-9]{16}\.JournalEntryPage\.[A-Za-z0-9]{16}$/;
 
@@ -36,10 +71,17 @@ export interface RevealedPageEntry {
   at: string;
   /** The page's `ownership.default` before a handouts reveal changed it. */
   previousOwnership?: number;
+  /** A reveal copy in "Handouts": the uuid of the page it copies. */
+  copiedFrom?: string;
 }
 
 interface RevealsFile {
   pages?: Record<string, RevealedPageEntry>;
+  /**
+   * The player journal "Handouts" reveal copies go into (created on first use).
+   * `lastCopy`: the page id of the newest copy created in it (the undo anchor).
+   */
+  handoutsJournal?: { uuid: string; lastCopy?: string };
 }
 
 /** One row of `list-revealed-pages`: no page content, a title is fine. */
@@ -51,6 +93,8 @@ export interface RevealedPageView {
   observable: boolean;
   feature: string;
   revealedAt: string;
+  /** A reveal copy in "Handouts": the page it copies. */
+  copiedFrom?: string;
 }
 
 /** One row of `get-player-handouts`: GM data, sanitized by the dashboard server. */
@@ -68,12 +112,55 @@ export interface PlayerHandoutsView {
   revealedUuids: string[];
 }
 
+/** What a reveal copy plan does to the copy, for the GM's UI ("Copied into Handouts"). */
+export interface HandoutCopyView {
+  /** `create`: a new copy; `update`: the existing copy gets the source's current content. */
+  action: 'create' | 'update';
+  /** The copy players open. */
+  pageUuid: string;
+  /** The page it copies (never changed). */
+  sourceUuid: string;
+  journalUuid: string;
+  journalName: string;
+  /** This plan also creates the journal (first use, or the remembered one was deleted). */
+  journalCreated: boolean;
+  /** Secret blocks left out of the copy (text pages). */
+  secretsRemoved: number;
+  /** `@Embed[...]` enrichers left out of the copy (text pages). */
+  embedsRemoved: number;
+  /** Links to documents players cannot open, turned into plain text (text pages). */
+  linksUnlinked: number;
+}
+
+/** What `plan-page-reveal` returns. */
+export type PageRevealPlan = PlanView & {
+  pageUuid: string;
+  /** Set when the reveal copies the page into "Handouts". */
+  copy?: HandoutCopyView;
+  /** Hide: the copies in "Handouts" this plan deletes. */
+  copiesDeleted?: string[];
+  /** A sentence for the GM, e.g. where the copy goes. */
+  note?: string;
+};
+
 export interface HandoutsServiceOptions {
   guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   store: VaultStore;
   worldIds: Pick<WorldIdResolver, 'current'>;
   foundryClient: Pick<FoundryClient, 'query'>;
   now?: () => number;
+}
+
+/** The content a copy gets: create data and the same values as update paths. */
+interface CopyContent {
+  type: 'text' | 'image';
+  /** Create data besides `_id`, `name`, `type` and `flags`. */
+  fields: Record<string, unknown>;
+  /** name, text or image paths as the copy should have them (absent: unset). */
+  values: PathValue[];
+  secretsRemoved: number;
+  embedsRemoved: number;
+  linksUnlinked: number;
 }
 
 function unwrap<T>(response: unknown, what: string): T {
@@ -87,6 +174,11 @@ function unwrap<T>(response: unknown, what: string): T {
 /** The page id (stable) from a JournalEntryPage uuid: its last id segment. */
 function pageIdOf(uuid: string): string {
   return uuid.split('.').pop()!;
+}
+
+/** The journal uuid from a JournalEntryPage uuid. */
+function journalOf(pageUuid: string): string {
+  return pageUuid.split('.JournalEntryPage.')[0];
 }
 
 function assertPageUuid(value: unknown): string {
@@ -103,6 +195,122 @@ function assertAction(value: unknown): 'reveal' | 'hide' {
     throw new Error('action must be "reveal" or "hide"');
   }
   return value;
+}
+
+function missingPage(uuid: string): PageForPlayers {
+  return {
+    uuid,
+    exists: false,
+    name: null,
+    observable: false,
+    journalObservable: false,
+    html: null,
+  };
+}
+
+/** The page's type; a module without `type` reports html only for text pages. */
+function pageTypeOf(page: PageForPlayers): string | undefined {
+  if (typeof page.type === 'string' && page.type) return page.type;
+  return page.html !== null ? 'text' : undefined;
+}
+
+/**
+ * What a copy of `page` holds; refuses page types a reveal cannot copy.
+ * `revealedUuids`: the allowlisted pages, the only link targets a copy keeps.
+ */
+function copyContentOf(
+  page: PageForPlayers,
+  name: string,
+  title: string,
+  revealedUuids: ReadonlySet<string>
+): CopyContent {
+  const type = pageTypeOf(page);
+  if (type === 'text') {
+    const { html, secretsRemoved, embedsRemoved, linksUnlinked } = prepareCopyHtml(
+      page.html ?? '',
+      revealedUuids
+    );
+    return {
+      type,
+      fields: { text: { content: html, format: TEXT_FORMAT_HTML } },
+      values: [
+        { path: 'name', present: true, value: name },
+        { path: 'text.content', present: true, value: html },
+        { path: 'text.format', present: true, value: TEXT_FORMAT_HTML },
+      ],
+      secretsRemoved,
+      embedsRemoved,
+      linksUnlinked,
+    };
+  }
+  if (type === 'image') {
+    const src = typeof page.src === 'string' && page.src ? page.src : null;
+    if (!src) throw new Error(`The image page "${title}" has no image to copy`);
+    const caption = typeof page.caption === 'string' && page.caption ? page.caption : null;
+    return {
+      type,
+      fields: { src, ...(caption ? { image: { caption } } : {}) },
+      values: [
+        { path: 'name', present: true, value: name },
+        { path: 'src', present: true, value: src },
+        caption
+          ? { path: 'image.caption', present: true, value: caption }
+          : { path: 'image.caption', present: false },
+      ],
+      secretsRemoved: 0,
+      embedsRemoved: 0,
+      linksUnlinked: 0,
+    };
+  }
+  if (type === undefined) {
+    throw new Error(
+      `Cannot copy "${title}": the Foundry module does not report page types. Update the ` +
+        'module, then reveal again.'
+    );
+  }
+  throw new Error(
+    `Cannot copy "${title}": it is a "${type}" page, and a reveal copies only text and image ` +
+      'pages. Move the page into a journal players can observe (Observer), then reveal it with ' +
+      'copy: false.'
+  );
+}
+
+/** An update op that sets the present values and unsets the absent ones. */
+function updateOpFor(uuid: string, values: PathValue[]): GuardedUpdateOp {
+  const changes: Record<string, unknown> = {};
+  const unset: string[] = [];
+  for (const value of values) {
+    if (value.present) changes[value.path] = value.value;
+    else unset.push(value.path);
+  }
+  return { kind: 'update', uuid, changes, ...(unset.length > 0 ? { unset } : {}) };
+}
+
+function copyNote(title: string, copy: HandoutCopyView, warning?: string): string {
+  const where =
+    copy.action === 'update'
+      ? `its copy in the player journal "${copy.journalName}" gets the current content`
+      : `players get a copy of "${title}" in the player journal "${copy.journalName}"${
+          copy.journalCreated ? ' (created by this change)' : ''
+        }`;
+  const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+  const secrets =
+    copy.secretsRemoved > 0
+      ? ` ${plural(copy.secretsRemoved, 'secret block', 'secret blocks')} left out.`
+      : '';
+  const embeds =
+    copy.embedsRemoved > 0
+      ? ` ${plural(copy.embedsRemoved, 'embedded document', 'embedded documents')} left out.`
+      : '';
+  const links =
+    copy.linksUnlinked > 0
+      ? ` ${plural(copy.linksUnlinked, 'link', 'links')} to documents players cannot open ` +
+        `turned into plain text.`
+      : '';
+  return (
+    `Copied into ${copy.journalName}: when applied, ${where}; the source page and its journal ` +
+    `are not changed.${secrets}${embeds}${links}${warning ? ` ${warning}` : ''}`
+  );
 }
 
 export class HandoutsService {
@@ -141,6 +349,7 @@ export class HandoutsService {
         observable: page?.observable ?? false,
         feature: entry.feature,
         revealedAt: entry.at,
+        ...(entry.copiedFrom ? { copiedFrom: entry.copiedFrom } : {}),
       };
     });
   }
@@ -173,41 +382,68 @@ export class HandoutsService {
   // -------------------------------------------------------------------------
 
   /**
-   * Plan revealing a page to players (allowlist + optionally raise its
-   * ownership to Observer) or hiding one (remove from the allowlist +
-   * optionally restore its previous ownership).
+   * Plan revealing a page to players or hiding one.
+   *
+   * Reveal: `copy` omitted copies the page into "Handouts" exactly when its
+   * journal is hidden from every player and ownership may be set (the case
+   * where raising the page alone cannot reveal it); `true` always copies;
+   * `false` allowlists the page and optionally raises its ownership to
+   * Observer (refused while its journal is hidden).
+   * Hide: removes the page from the allowlist (restoring the ownership a reveal
+   * changed), and deletes the page's copies in "Handouts" (or the page itself
+   * when it is a copy).
    */
   async planPageReveal(args: {
     pageUuid: string;
     action: string;
     setOwnership?: boolean;
-  }): Promise<PlanView & { pageUuid: string }> {
+    copy?: boolean;
+  }): Promise<PageRevealPlan> {
     const pageUuid = assertPageUuid(args.pageUuid);
     const action = assertAction(args.action);
     const setOwnership = args.setOwnership ?? true;
+    if (args.copy !== undefined && typeof args.copy !== 'boolean') {
+      throw new Error('copy must be true or false');
+    }
     const worldId = await this.worldIds.current();
     const file = await this.load(worldId);
     const pageId = pageIdOf(pageUuid);
     const allowlisted = file.pages?.[pageId];
+    const copies = Object.entries(file.pages ?? {}).filter(
+      ([id, entry]) => id !== pageId && entry.copiedFrom === pageUuid
+    );
 
-    const pages = await this.pagesFor([pageUuid]);
-    const page: PageForPlayers = pages.get(pageUuid) ?? {
-      uuid: pageUuid,
-      exists: false,
-      name: null,
-      observable: false,
-      journalObservable: false,
-      html: null,
-    };
+    const pages = await this.pagesFor([pageUuid, ...copies.map(([, entry]) => entry.uuid)]);
+    const page = pages.get(pageUuid) ?? missingPage(pageUuid);
     const title = page.name ?? pageId;
 
     if (action === 'reveal') {
       if (!page.exists) throw new Error('That journal page does not exist in Foundry');
+      // A source with a live copy keeps using it: revealing it directly as well
+      // would give players the same page twice.
+      const liveCopy = copies.some(([, entry]) => pages.get(entry.uuid)?.exists === true);
+      if (args.copy === false && liveCopy) {
+        throw new Error(
+          `"${title}" already has a copy in the player journal "${HANDOUTS_JOURNAL_NAME}". ` +
+            'Reveal it without copy: false to update that copy, or hide it first, then reveal ' +
+            'with copy: false.'
+        );
+      }
+      const copy = args.copy ?? (liveCopy || (setOwnership && page.journalObservable === false));
+      if (copy) {
+        if (allowlisted?.copiedFrom) {
+          throw new Error(
+            `"${title}" is already a copy in ${HANDOUTS_JOURNAL_NAME}; reveal its source page ` +
+              `(${allowlisted.copiedFrom}) to update the copy`
+          );
+        }
+        return this.planCopyReveal(file, pageUuid, title, page, copies, pages);
+      }
       return this.planReveal(pageUuid, pageId, title, page, allowlisted, setOwnership);
     }
     // Hide always drops the stale allowlist entry, even for a page deleted since it was
     // revealed; only the ownership restore (below) needs the page to still exist.
-    return this.planHide(pageUuid, pageId, title, page, allowlisted, setOwnership);
+    return this.planHide(pageUuid, pageId, title, page, allowlisted, copies, pages, setOwnership);
   }
 
   private async planReveal(
@@ -217,21 +453,24 @@ export class HandoutsService {
     page: PageForPlayers,
     allowlisted: RevealedPageEntry | undefined,
     setOwnership: boolean
-  ): Promise<PlanView & { pageUuid: string }> {
+  ): Promise<PageRevealPlan> {
     if (allowlisted && (page.observable || !setOwnership)) {
       throw new Error('That page is already revealed to players');
     }
     // Raising the page's ownership cannot help while its journal is hidden from
     // the players: Foundry 14 neither lists that journal for them nor opens its
     // pages. Raising the journal would expose every page that inherits from it,
-    // so that stays the GM's call. (`false` only: a module without the field
-    // leaves the decision to `observable`.)
+    // so that stays the GM's call; a copy into "Handouts" is the tool's way
+    // around it. (`false` only: a module without the field leaves the decision
+    // to `observable`.)
     if (setOwnership && !page.observable && page.journalObservable === false) {
       throw new Error(
         `Players cannot open the journal that holds "${title}" in Foundry (its ownership is ` +
           'below Observer for every player), so raising the page alone would not reveal it. ' +
-          'Move or copy the page into a journal players can observe, or raise that journal to ' +
-          'Observer after setting its other pages to None; then reveal again.'
+          `Reveal with copy: true to copy it into the player journal "${HANDOUTS_JOURNAL_NAME}" ` +
+          '(secret blocks left out, the source unchanged), or move the page into a journal ' +
+          'players can observe, or raise that journal to Observer after setting its other ' +
+          'pages to None; then reveal again.'
       );
     }
     const ops: GuardedOp[] = [];
@@ -242,10 +481,7 @@ export class HandoutsService {
         uuid: pageUuid,
         changes: { 'ownership.default': OBSERVER },
       };
-      const snapshots = unwrap<OpSnapshot[]>(
-        await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', { ops: [probe] }),
-        'Snapshot refused'
-      );
+      const snapshots = await this.snapshot([probe]);
       const before = snapshots[0]?.values?.find(v => v.path === 'ownership.default');
       previousOwnership = before?.present && typeof before.value === 'number' ? before.value : 0;
       ops.push(probe);
@@ -273,45 +509,278 @@ export class HandoutsService {
     return { ...plan, pageUuid };
   }
 
+  /** Reveal as a copy in "Handouts": update the existing copy, else create one. */
+  private async planCopyReveal(
+    file: RevealsFile,
+    sourceUuid: string,
+    title: string,
+    source: PageForPlayers,
+    copies: Array<[string, RevealedPageEntry]>,
+    pages: Map<string, PageForPlayers>
+  ): Promise<PageRevealPlan> {
+    const name = source.name ?? 'Handout';
+    const revealed = new Set(Object.values(file.pages ?? {}).map(entry => entry.uuid));
+    const content = copyContentOf(source, name, title, revealed);
+    const existing = copies.find(([, entry]) => pages.get(entry.uuid)?.exists === true);
+    if (existing) {
+      const copyPage = pages.get(existing[1].uuid) ?? missingPage(existing[1].uuid);
+      return this.planCopyUpdate(sourceUuid, title, existing[1], copyPage, content);
+    }
+    return this.planCopyCreate(file, sourceUuid, title, name, copies, content);
+  }
+
+  /** Revealing the source again: the copy gets its current content (one plan, no duplicate). */
+  private async planCopyUpdate(
+    sourceUuid: string,
+    title: string,
+    entry: RevealedPageEntry,
+    copyPage: PageForPlayers,
+    content: CopyContent
+  ): Promise<PageRevealPlan> {
+    const copyType = pageTypeOf(copyPage);
+    if (copyType !== undefined && copyType !== content.type) {
+      throw new Error(
+        `The copy of "${title}" in ${HANDOUTS_JOURNAL_NAME} is a "${copyType}" page, but the ` +
+          `source is a "${content.type}" page now: hide the handout, then reveal it again`
+      );
+    }
+    const [current] = await this.snapshot([updateOpFor(entry.uuid, content.values)]);
+    const changed = content.values.filter(want => {
+      const have = current?.values?.find(v => v.path === want.path) ?? {
+        path: want.path,
+        present: false,
+      };
+      return !samePathValue(want, have);
+    });
+    if (changed.length === 0) {
+      throw new Error(
+        `That page is already revealed to players: its copy in ${HANDOUTS_JOURNAL_NAME} is up to date`
+      );
+    }
+    const copy: HandoutCopyView = {
+      action: 'update',
+      pageUuid: entry.uuid,
+      sourceUuid,
+      journalUuid: journalOf(entry.uuid),
+      journalName: HANDOUTS_JOURNAL_NAME,
+      journalCreated: false,
+      secretsRemoved: content.secretsRemoved,
+      embedsRemoved: content.embedsRemoved,
+      linksUnlinked: content.linksUnlinked,
+    };
+    const plan = await this.guardedWrites.createPlan({
+      feature: HANDOUTS_FEATURE,
+      summary: `Reveal page "${title}" to players again (updates its copy in ${HANDOUTS_JOURNAL_NAME})`,
+      ops: [updateOpFor(entry.uuid, changed)],
+      risk: 'destructive',
+    });
+    return { ...plan, pageUuid: sourceUuid, copy, note: copyNote(title, copy) };
+  }
+
+  /**
+   * A new copy: a page in the remembered "Handouts" journal, or, on first use or
+   * when that journal was deleted, a new "Handouts" journal (Observer) holding it.
+   */
+  private async planCopyCreate(
+    file: RevealsFile,
+    sourceUuid: string,
+    title: string,
+    name: string,
+    copies: Array<[string, RevealedPageEntry]>,
+    content: CopyContent
+  ): Promise<PageRevealPlan> {
+    const remembered = file.handoutsJournal?.uuid;
+    let journalExists = false;
+    if (remembered) {
+      const [probe] = await this.snapshot([
+        { kind: 'create', documentName: 'JournalEntryPage', parentUuid: remembered, data: {} },
+      ]);
+      journalExists = probe?.exists === true;
+    }
+    const copyId = newDocumentId();
+    const pageData: Record<string, unknown> = {
+      _id: copyId,
+      name,
+      type: content.type,
+      ...content.fields,
+      flags: { [MODULE_ID]: { [COPIED_FROM_FLAG]: sourceUuid } },
+    };
+    const ops: GuardedOp[] = [];
+    const vaultOps: VaultOp[] = [];
+    let journalUuid: string;
+    if (remembered && journalExists) {
+      journalUuid = remembered;
+      ops.push({
+        kind: 'create',
+        documentName: 'JournalEntryPage',
+        parentUuid: journalUuid,
+        data: pageData,
+        keepId: true,
+      });
+    } else {
+      const journalId = newDocumentId();
+      journalUuid = `JournalEntry.${journalId}`;
+      ops.push({
+        kind: 'create',
+        documentName: 'JournalEntry',
+        data: {
+          _id: journalId,
+          name: HANDOUTS_JOURNAL_NAME,
+          ownership: { default: OBSERVER },
+          pages: [pageData],
+        },
+        keepId: true,
+      });
+    }
+    // The undo anchor: set by every copy plan, so undoing an earlier one (which
+    // may delete the whole journal it created) conflicts while this copy is in it.
+    vaultOps.push({
+      kind: 'vault-set',
+      file: REVEALS_FILE,
+      path: 'handoutsJournal',
+      value: { uuid: journalUuid, lastCopy: copyId },
+    });
+    const copyUuid = `${journalUuid}.JournalEntryPage.${copyId}`;
+    // Entries of earlier copies that are gone from Foundry (deleted by hand, or
+    // with a deleted "Handouts" journal): the new copy replaces them.
+    for (const [staleId] of copies) {
+      vaultOps.push({ kind: 'vault-delete', file: REVEALS_FILE, path: `pages.${staleId}` });
+    }
+    vaultOps.push({
+      kind: 'vault-set',
+      file: REVEALS_FILE,
+      path: `pages.${copyId}`,
+      value: {
+        uuid: copyUuid,
+        feature: HANDOUTS_FEATURE,
+        at: new Date(this.now()).toISOString(),
+        copiedFrom: sourceUuid,
+      },
+    });
+    const copy: HandoutCopyView = {
+      action: 'create',
+      pageUuid: copyUuid,
+      sourceUuid,
+      journalUuid,
+      journalName: HANDOUTS_JOURNAL_NAME,
+      journalCreated: !(remembered && journalExists),
+      secretsRemoved: content.secretsRemoved,
+      embedsRemoved: content.embedsRemoved,
+      linksUnlinked: content.linksUnlinked,
+    };
+    const warning = copy.journalCreated ? await this.sameNameWarning() : undefined;
+    const plan = await this.guardedWrites.createPlan({
+      feature: HANDOUTS_FEATURE,
+      summary: `Reveal page "${title}" to players (copied into ${HANDOUTS_JOURNAL_NAME})`,
+      ops,
+      vaultOps,
+      risk: 'destructive',
+    });
+    return { ...plan, pageUuid: sourceUuid, copy, note: copyNote(title, copy, warning) };
+  }
+
   private async planHide(
     pageUuid: string,
     pageId: string,
     title: string,
     page: PageForPlayers,
     allowlisted: RevealedPageEntry | undefined,
+    copies: Array<[string, RevealedPageEntry]>,
+    pages: Map<string, PageForPlayers>,
     setOwnership: boolean
-  ): Promise<PlanView & { pageUuid: string }> {
-    if (!allowlisted) throw new Error('That page is not revealed to players');
+  ): Promise<PageRevealPlan> {
+    if (!allowlisted && copies.length === 0)
+      throw new Error('That page is not revealed to players');
     const ops: GuardedOp[] = [];
-    if (setOwnership && page.exists && allowlisted.previousOwnership !== undefined) {
-      ops.push({
-        kind: 'update',
-        uuid: pageUuid,
-        changes: { 'ownership.default': allowlisted.previousOwnership },
-      });
+    const vaultOps: VaultOp[] = [];
+    const copiesDeleted: string[] = [];
+    // A copy goes with its entry; one already gone from Foundry only loses the entry.
+    const dropCopy = (entryId: string, entry: RevealedPageEntry): void => {
+      if (pages.get(entry.uuid)?.exists === true) {
+        ops.push({ kind: 'delete', uuid: entry.uuid });
+        copiesDeleted.push(entry.uuid);
+      }
+      vaultOps.push({ kind: 'vault-delete', file: REVEALS_FILE, path: `pages.${entryId}` });
+    };
+    if (allowlisted?.copiedFrom) {
+      dropCopy(pageId, allowlisted);
+    } else if (allowlisted) {
+      if (setOwnership && page.exists && allowlisted.previousOwnership !== undefined) {
+        ops.push({
+          kind: 'update',
+          uuid: pageUuid,
+          changes: { 'ownership.default': allowlisted.previousOwnership },
+        });
+      }
+      vaultOps.push({ kind: 'vault-delete', file: REVEALS_FILE, path: `pages.${pageId}` });
     }
-    const vaultOps: VaultOp[] = [
-      { kind: 'vault-delete', file: REVEALS_FILE, path: `pages.${pageId}` },
-    ];
+    for (const [entryId, entry] of copies) dropCopy(entryId, entry);
+
+    const which = allowlisted?.copiedFrom ? 'the' : 'its';
     const plan = await this.guardedWrites.createPlan({
       feature: HANDOUTS_FEATURE,
-      summary: `Hide page "${title}" from players`,
+      summary:
+        copiesDeleted.length > 0
+          ? `Hide page "${title}" from players (deletes ${which} copy in ${HANDOUTS_JOURNAL_NAME})`
+          : `Hide page "${title}" from players`,
       ...(ops.length > 0 ? { ops } : {}),
       vaultOps,
     });
-    return { ...plan, pageUuid };
+    if (copiesDeleted.length === 0) return { ...plan, pageUuid };
+    return {
+      ...plan,
+      pageUuid,
+      copiesDeleted,
+      note:
+        `Deletes the copy in the player journal "${HANDOUTS_JOURNAL_NAME}"; the journal stays ` +
+        'and the source page is not changed.',
+    };
   }
 
   // -------------------------------------------------------------------------
+
+  /**
+   * A warning when the world already has a journal called "Handouts" (imported
+   * adventures often ship a GM-only one): the new one is open to every player.
+   * A failed lookup gives no warning; it never blocks the reveal.
+   */
+  private async sameNameWarning(): Promise<string | undefined> {
+    try {
+      const result = (await this.foundry.query('foundry-mcp-bridge.listJournals', {})) as unknown;
+      const journals = Array.isArray(result) ? (result as Array<{ name?: unknown }>) : [];
+      const target = HANDOUTS_JOURNAL_NAME.toLowerCase();
+      const same = journals.filter(
+        j => typeof j?.name === 'string' && j.name.trim().toLowerCase() === target
+      ).length;
+      if (same === 0) return undefined;
+      return (
+        `The world already has ${same === 1 ? 'a journal' : `${same} journals`} called ` +
+        `"${HANDOUTS_JOURNAL_NAME}"; the new one is the player journal (every player can read ` +
+        'every page in it), so keep GM prep out of it.'
+      );
+    } catch {
+      return undefined;
+    }
+  }
 
   private async load(worldId: string): Promise<RevealsFile> {
     const stored = await this.store.read<RevealsFile>(worldId, 'gm', REVEALS_FILE);
     return stored?.data ?? {};
   }
 
+  private async snapshot(ops: GuardedOp[]): Promise<OpSnapshot[]> {
+    const result = unwrap<OpSnapshot[]>(
+      await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', { ops }),
+      'Snapshot refused'
+    );
+    return Array.isArray(result) ? result : [];
+  }
+
   private async pagesFor(uuids: string[]): Promise<Map<string, PageForPlayers>> {
     const result = unwrap<{ pages?: PageForPlayers[] }>(
-      await this.foundry.query('foundry-mcp-bridge.getPagesForPlayers', { uuids }),
+      await this.foundry.query('foundry-mcp-bridge.getPagesForPlayers', {
+        uuids: [...new Set(uuids)],
+      }),
       'Page lookup refused'
     );
     const map = new Map<string, PageForPlayers>();

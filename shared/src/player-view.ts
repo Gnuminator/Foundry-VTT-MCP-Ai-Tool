@@ -14,7 +14,10 @@
  *   `statuses` so the dashboard can name them the way players see them.
  * - Revealed pages (handouts) are the bridge vault's allowlist
  *   (`gm/reveals.json` `pages.<pageId>`) AND observable by a player per
- *   Foundry ownership; their HTML is sanitized by the dashboard server.
+ *   Foundry ownership; their HTML is sanitized by the dashboard server. A
+ *   page in a journal no player can observe is revealed as a copy in the
+ *   player journal "Handouts" (secret blocks left out); the copy is the
+ *   allowlisted page.
  * - The dashboard's `/api/player/state` and `/api/player/stream` always
  *   project, whatever credential is presented.
  */
@@ -87,6 +90,15 @@ export interface PageForPlayers {
   journalObservable: boolean;
   /** `text.content` of a text page, else null. Raw GM HTML: never forward without sanitizing. */
   html: string | null;
+  /**
+   * The page type (`text`, `image`, `pdf`, `video`, or a system type), for an
+   * existing page. Optional: a module older than the reveal copy leaves it out.
+   */
+  type?: string;
+  /** Media source of an image, pdf or video page (`src`), else null. Existing pages only. */
+  src?: string | null;
+  /** `image.caption` of an image page, else null. Existing pages only. */
+  caption?: string | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -169,13 +169,16 @@ export class FakeFoundry {
       for (const key of [...this.docs.keys()]) {
         if (key === op.uuid || key.startsWith(`${op.uuid}.`)) this.docs.delete(key);
       }
+      // Like Foundry's `doc.parent?.uuid`: an embedded document's parent, so undo
+      // re-creates it in place (`JournalEntry.j.JournalEntryPage.p` -> `JournalEntry.j`).
+      const segments = op.uuid.split('.');
       return {
         index,
         kind: 'delete',
         uuid: op.uuid,
         documentName: doc.documentName,
         name: doc.source.name ?? null,
-        parentUuid: null,
+        parentUuid: segments.length > 2 ? segments.slice(0, -2).join('.') : null,
         deleted: doc.source,
       };
     });

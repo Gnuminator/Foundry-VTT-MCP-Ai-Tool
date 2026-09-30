@@ -278,6 +278,7 @@ function resolvePageForPlayers(uuid: string): PageForPlayers {
   const html =
     page.type === 'text' && typeof page.text.content === 'string' ? page.text.content : null;
   const access = pageAccessForPlayers(page);
+  const caption = page.image?.caption;
   return {
     uuid,
     exists: true,
@@ -285,6 +286,10 @@ function resolvePageForPlayers(uuid: string): PageForPlayers {
     observable: access.page,
     journalObservable: access.journal,
     html,
+    // For the reveal copy (the backend copies a page into the player journal "Handouts").
+    type: typeof page.type === 'string' ? page.type : 'text',
+    src: typeof page.src === 'string' && page.src !== '' ? page.src : null,
+    caption: typeof caption === 'string' && caption !== '' ? caption : null,
   };
 }
 
@@ -293,7 +298,8 @@ function resolvePageForPlayers(uuid: string): PageForPlayers {
  * picker/reveal flow. Invalid entries (not a string, or not shaped like
  * `JournalEntry.<id>.JournalEntryPage.<id>`) are dropped; the list is capped
  * at 100. GM-side data only: the caller sanitizes `html` before any player
- * sees it.
+ * sees it. An existing page also reports `type`, `src` and `caption`, which
+ * the backend needs to copy a page into the player journal "Handouts".
  */
 export function pagesForPlayers(uuids: unknown): { pages: PageForPlayers[] } {
   const valid = Array.isArray(uuids)

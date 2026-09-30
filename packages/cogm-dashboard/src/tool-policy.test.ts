@@ -31,6 +31,21 @@ describe('classifyTool', () => {
     }
   });
 
+  it('treats the handout tools as reads, the reveal copy included (it only plans)', () => {
+    for (const name of [
+      'plan-page-reveal',
+      'list-revealed-pages',
+      'get-player-handouts',
+      'get-player-visibility',
+      'check-secret-terms',
+    ]) {
+      expect(classifyTool(name)).toBe('read');
+    }
+    // The copy flag passes through untouched (only the guarded tools get body flags).
+    const args = { pageUuid: 'p', action: 'reveal', copy: true };
+    expect(toolArgs('plan-page-reveal', args, { confirm: true })).toBe(args);
+  });
+
   it('treats apply-planned-change as a write and undo-change as destructive', () => {
     expect(classifyTool('apply-planned-change')).toBe('write');
     expect(classifyTool('move-token')).toBe('write');

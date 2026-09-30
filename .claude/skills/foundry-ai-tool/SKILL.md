@@ -133,13 +133,22 @@ Checks:
    modes; also `/api/player/state` WITH the GM token (still projected). Canaries: true names, the
    true scene name, the custom effect, the world id, GM user names, card names and ids, the token.
 4. Handouts: a journal at ownership None with a text page (a `section.secret`, a `@UUID` link to a
-   second page, an inline roll, an `onerror` image). Turn on "AI Tool: Handouts (writes)" (feature
-   off: apply refused). `plan-page-reveal` reveal: refused while no player can open the journal.
-   Set the journal to Observer and its pages to None, reveal again, apply (destructive): the
+   second page, an `@Embed` of that second page, an inline roll, an `onerror` image). Turn on "AI Tool: Handouts (writes)" (feature
+   off: apply refused). `plan-page-reveal` reveal with `copy: false`: refused while no player can
+   open the journal (the message names `copy: true`). Without `copy` the reveal copies the page
+   into the player journal "Handouts" (created on first use, Observer; `handoutsJournal` in
+   `gm\reveals.json`): apply (destructive), then as `Player` the "Handouts" journal is listed and
+   the copy opens without the secret block and the embed, the link is plain label text; the
+   source page and its journal are unchanged; the
+   dashboard toast says "Applied: ... (copied into Handouts)". Edit the source and reveal again:
+   one update plan, no second copy. Reveal a second page (copy), then undo the first copy: refused
+   as a conflict (`handoutsJournal`), the second copy stays. Hide (by the source): the copy is
+   deleted, "Handouts" stays.
+   Also: set the journal to Observer and its pages to None, reveal with `copy: false`, apply: the
    Handouts section shows the page without the secret, the link (label too), the roll or the
    handler; as `Player` (second origin), the journal is listed and the page opens. Hide (also
    destructive): ownership back, the entry gone from `gm\reveals.json`, the page gone in both
-   places. `undo-change` works on either.
+   places. `undo-change` works on every one of these.
 5. Whisper guard: with a reading in the vault (`plan-tarokka-import` builtin-roll, Tarokka switch
    on), `POST /api/post-chat` with a card name in a sentence (any case) answers 409
    `secret-terms`; with `allowSecrets: true` it posts; plain text posts; without the GM token 403.

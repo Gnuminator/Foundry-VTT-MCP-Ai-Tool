@@ -87,7 +87,7 @@ describe('renderUsageNote', () => {
   });
 
   it('shows totals, most used rows, never-used controls and tools', () => {
-    expect(note).toContain('2026-09-28 to 2026-09-28 (1 days with activity).');
+    expect(note).toContain('2026-09-28 to 2026-09-28 (1 day with activity).');
     expect(note).toContain('| 7 | 1 | 2m | 4 | 0 | 1 | 1 | 2 |');
     expect(note).toContain('| `dash.tarokka.roll` | action | 2 |');
     expect(note).toContain('- `dash.tarokka.reveal` (action)');

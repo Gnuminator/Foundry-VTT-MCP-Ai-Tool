@@ -8,6 +8,22 @@ export interface SceneToolsOptions {
   logger: Logger;
 }
 
+interface WorldUserLike {
+  id?: unknown;
+  name?: unknown;
+  isGM?: unknown;
+  active?: unknown;
+}
+
+/** Non-GM users of a world-info answer as `{ id, name, active }`. */
+function playerUsersOf(worldData: unknown): { id: string; name: string; active: boolean }[] {
+  const users = (worldData as { users?: unknown } | null)?.users;
+  if (!Array.isArray(users)) return [];
+  return (users as WorldUserLike[])
+    .filter(u => u && u.isGM !== true && typeof u.id === 'string' && typeof u.name === 'string')
+    .map(u => ({ id: u.id as string, name: u.name as string, active: u.active === true }));
+}
+
 export class SceneTools {
   private foundryClient: FoundryClient;
   private logger: Logger;
@@ -295,6 +311,8 @@ export class SceneTools {
             name: u.name,
             isGM: u.isGM,
           })) || [],
+      // Every non-GM user, online or not (the player page's one-time name pick, I-084).
+      playerUsers: playerUsersOf(worldData),
     };
   }
 

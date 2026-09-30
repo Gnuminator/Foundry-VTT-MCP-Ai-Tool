@@ -74,7 +74,7 @@ export function renderUsageNote(worldId: string, model: UsageModel): string {
     '## Period and totals',
     '',
     model.period.firstDay
-      ? `${model.period.firstDay} to ${model.period.lastDay} (${model.period.days} days with activity).`
+      ? `${model.period.firstDay} to ${model.period.lastDay} (${model.period.days} ${model.period.days === 1 ? 'day' : 'days'} with activity).`
       : 'No usage recorded yet.',
     '',
     ...table(

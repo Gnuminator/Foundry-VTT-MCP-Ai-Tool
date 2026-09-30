@@ -10,7 +10,9 @@ page explains the extra bits: what you can see, what gets recorded, and what an 
 
 ## What you see
 
-**The player page.** A read-only web page your GM can give you the address of. It has three parts:
+**The player page.** A read-only web page. It is not available to you yet: today it only opens on
+the GM's own PC, and it comes to your computer once the table's home server (an Orange Pi) is set
+up. It has three parts:
 
 - **Combat order:** who acts when, the current turn, and the round. Player characters have an HP
   bar. Monsters and NPCs show no HP numbers, only standard conditions (like prone or frightened),
@@ -41,7 +43,7 @@ of whoever caused them, when Foundry says who. It records:
 - who joined and left the game;
 - chat messages with their text, including in-character, out-of-character and whispers.
 
-The GM uses it for session notes and stats (for example damage dealt and healing done per
+The GM uses it for session notes and stats (for example damage dealt and healing received per
 character). The play log stays on the machine that runs the tool; the session notes and stats made
 from it are in the GM's Obsidian notes. None of it is stored in the Foundry world.
 
@@ -63,5 +65,7 @@ For the campaign. When the campaign ends, the GM decides what to keep.
 
 ## Having your data removed
 
-Ask the GM. You can ask for your records to be removed at any time, for example the chat you wrote
-or everything recorded under your user name.
+Ask the GM at any time, for example for the chat you wrote or the records under your user name.
+There is no button for it yet, so it is done by hand: the play log and the GM's session notes can be
+cleaned. What Claude already read when the GM asked it something has gone to Anthropic and cannot be
+pulled back by the GM.

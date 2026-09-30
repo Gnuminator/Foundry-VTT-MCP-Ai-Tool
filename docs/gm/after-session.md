@@ -35,7 +35,13 @@ is one action.
 ## Before you shut down
 
 - [ ] Leave Foundry (Settings tab, **Log Out**) or close the Foundry tab.
-- [ ] Quit Claude Desktop if you are done. The bridge stops with it, and the dashboard shows
-      **Bridge: disconnected** until the next time.
+- [ ] Stop the dashboard: in its terminal window press Ctrl+C, or close the window.
+- [ ] Quit Claude Desktop if you are done. The bridge stops with it.
+
+## If a player asks for their data to be removed
+
+No tool does this yet; it is done by hand. Pass the request to whoever set up the tool. What can
+be removed is what the tool stores: the play log in the bridge vault and the session notes in
+Obsidian. What Claude already read when you asked it something cannot be pulled back.
 
 Next time: [before each session](before-session.md).

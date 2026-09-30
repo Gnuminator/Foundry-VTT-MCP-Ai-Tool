@@ -100,15 +100,20 @@ in Recent Changes, and the tool cannot undo them; you fix them by hand in Foundr
   finish it there.
 
 The setting "Allow Write Operations" (Game Settings, category **Foundry AI Tool**; on by default)
-blocks guarded changes, Undo and many direct actions (new actors, journal writes, token moves and
-edits). Not every direct action checks it (combat and damage tools, for example), so turning it
-off is not a full "read only" switch.
+blocks guarded changes that write into Foundry itself (a Tarokka reveal page, a handout reveal or
+hide that changes the page's ownership) and their Undo, plus many direct actions (new actors,
+journal writes, token moves and edits). It does not block guarded changes that only touch the
+tool's own storage (a new or imported Tarokka reading, Tarokka links, the Obsidian mirror settings,
+the list of revealed handouts when the page's ownership stays the same) or their Undo; for those,
+the feature switch is what counts. Not every direct action checks it either (combat and damage tools, for example).
+So turning it off is not a full "read only" switch.
 
 The dashboard's **GM Actions** switch only guards the dashboard. It does not stop Claude Desktop.
 
 ## What Claude cannot do
 
-- **Work without a GM in Foundry.** The bridge runs in a GM's Foundry browser tab.
+- **Work without a GM in Foundry.** The module runs in a GM's Foundry browser tab, and the bridge
+  reaches the game only through it.
 - **See the screen.** It reads game data, not the picture of the map.
 - **Get past a feature switch.** With a feature switched off, no plan for it can be applied.
 - **Undo direct actions.** Only guarded changes have Undo.
@@ -123,6 +128,7 @@ The dashboard's **GM Actions** switch only guards the dashboard. It does not sto
 ## Spoilers and privacy
 
 Claude sees everything a GM sees: true names, hidden tokens, GM notes, the Tarokka cards. Keep
-Claude Desktop off any screen players can see. What Claude reads goes to Anthropic under your
+Claude Desktop off any screen players can see, and never share its window in Discord or a video
+call. What Claude reads goes to Anthropic under your
 Claude account when you ask; see the [player page](../player/README.md) for what that means for
 the players.

@@ -33,7 +33,8 @@ currently shaped around a Curse of Strahd campaign.
 
 - **AI access to the game.** 91 tools let Claude read characters, combat, scenes, journals,
   compendiums, chat and the session log, and act on them: roll for NPCs, apply damage, move tokens,
-  add NPCs from compendiums, write journals.
+  add NPCs from compendiums, write journals. Most of these act at once and have no undo; keep
+  Claude Desktop's tool approval on for them.
 - **Guarded AI writes with undo.** New features change the game in three steps: plan, confirm with a
   diff, apply. Each feature has its own switch in the module settings (off by default). A change is
   refused if anything changed since the plan, is recorded, and can be undone from the dashboard.
@@ -212,7 +213,9 @@ npm run dev:cogm              # → http://localhost:3000 (the player page is /p
 
 The dashboard works without an API key: live feed, combat tracker, tool runner, Recent Changes,
 Tarokka and the player page all function. Only the optional AI commentary needs
-`ANTHROPIC_API_KEY` (see `packages/cogm-dashboard/.env.example`). To run it with Claude Desktop
+`ANTHROPIC_API_KEY` (see `packages/cogm-dashboard/.env.example`). For the dashboard's Open in
+Obsidian links, set `OBSIDIAN_VAULT_NAME` (or `FOUNDRY_AI_OBSIDIAN_DIR`) in
+`packages/cogm-dashboard/.env`. To run it with Claude Desktop
 closed, start the bridge standalone first: `npm run bridge:standalone`.
 
 ---

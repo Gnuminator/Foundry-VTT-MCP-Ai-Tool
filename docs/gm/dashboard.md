@@ -9,11 +9,12 @@ The co-GM dashboard is your control panel. Open it in a browser on a second scre
 Foundry. Today its address is `http://localhost:3000` (it changes when the tool moves to the
 Orange Pi).
 
-Watching is always safe: nothing on the dashboard changes the game until you turn on **GM Actions**
-and confirm.
+Watching is always safe. Apart from **→ Post to chat** (AI comments, which need an API key) and the
+session marks, nothing on the dashboard changes the game until you turn on **GM Actions** and
+confirm.
 
-> Keep the dashboard off any screen the players can see. It shows true names, exact HP, private
-> rolls and, when you ask, Tarokka cards.
+> Keep the dashboard off any screen the players can see, and never share its window in Discord or
+> a video call. It shows true names, exact HP, private rolls and, when you ask, Tarokka cards.
 
 ## The header
 
@@ -21,11 +22,11 @@ and confirm.
 
 Three lights at the top tell you if everything is connected:
 
-| Light       | Good           | Other values and what they mean                                                                      |
-| ----------- | -------------- | ---------------------------------------------------------------------------------------------------- |
-| **Bridge**  | `connected`    | `disconnected` or `reconnecting…`: the dashboard cannot reach the bridge. Is Claude Desktop running? |
-| **Foundry** | `live`         | `unreachable`: the bridge runs, but no GM's Foundry tab is connected. `unknown`: not checked yet.    |
-| **AI**      | `on`, `paused` | `disabled`: no Anthropic API key is set. This is normal; see "Co-GM Commentary" below.               |
+| Light       | Good           | Other values and what they mean                                                                                                                                                                  |
+| ----------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Bridge**  | `connected`    | `disconnected`: the dashboard cannot reach the bridge. Is Claude Desktop running? `reconnecting…`: this page lost its connection to the dashboard program. Is the dashboard's window still open? |
+| **Foundry** | `live`         | `unreachable`: the bridge runs, but no GM's Foundry tab is connected. `unknown`: not checked yet, or the bridge is down.                                                                         |
+| **AI**      | `on`, `paused` | `disabled`: no Anthropic API key is set. This is normal; see "Co-GM Commentary" below.                                                                                                           |
 
 The line under the title shows your world, the game system and the Foundry version once Foundry is
 live.
@@ -251,17 +252,36 @@ name) and a status: `live`, `foundry offline`, `disconnected` or `connecting…`
 Today the dashboard only answers on this PC, so players on other computers cannot open the page
 yet. How players reach it is set up with the Orange Pi.
 
-To reveal a handout: turn on "AI Tool: Handouts (writes)", make sure the page sits in a journal
-the players can open (Observer), then plan the reveal (tool `plan-page-reveal` with `action`
-reveal, or ask Claude with the `reveal-handout` prompt) and apply it. The page shows on the player
-page within a few seconds, and players can open it in Foundry. `plan-page-reveal` with `action`
-hide takes it back.
+### Revealing a handout
+
+In Foundry, pages inherit their journal's ownership. If you give players Observer on a journal
+first, every page in it is readable at once, before any reveal. So do it in this order:
+
+1. **Make one journal just for handouts.** Journal tab (book icon), **Create Journal Entry**, name
+   it, for example "Handouts". Put only handout pages in it.
+2. **Set every page in it to None.** Open the journal. In its page list, right-click a page,
+   **Configure Ownership**, set **All Players** to **None** (not Inherit), **Save Changes**. Do
+   this for every page, and for each page you add later.
+3. **Only then raise the journal.** In the Journal tab, right-click the journal, **Configure
+   Ownership**, set **All Players** to **Observer**, **Save Changes**. Players can now open the
+   journal, but no page in it.
+4. **Switch the feature on.** Game Settings, category **Foundry AI Tool**, tick "AI Tool:
+   Handouts (writes)", **Save Changes**.
+5. **Plan and apply the reveal.** Ask Claude with the `reveal-handout` prompt, or run the tool
+   `plan-page-reveal` with `action` reveal and apply the plan. The confirm window lists what will
+   change.
+
+The page shows on the player page within a few seconds, and players can open it in Foundry.
+`plan-page-reveal` with `action` hide takes it back. Before a session, open the player page and
+check that the Handouts list shows only what you revealed.
 
 ## Open in Obsidian (📓)
 
 The 📓 links open notes in Obsidian: the campaign Home note (header), a month's change history
 (each Recent Changes row) and the current Tarokka reading (Tarokka drawer). They only appear on
-the GM page, and only when the dashboard knows your Obsidian vault's name.
+the GM page, and only when the dashboard knows your Obsidian vault's name (the setting
+`OBSIDIAN_VAULT_NAME` or `FOUNDRY_AI_OBSIDIAN_DIR` in the dashboard's own `.env` file; whoever set
+up the tool adds it).
 
 The other way round, notes of the Foundry mirror in Obsidian have **Open in Foundry** links. They
 open a small dashboard page that asks you to click **Open**; the document then opens on your

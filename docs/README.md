@@ -10,7 +10,7 @@ description: Where to find guides, developer docs, reference pages, current plan
 | [gm/](gm/README.md)         | the GM                           | Guides for running a game with the tool: getting started, the dashboard, asking Claude, before and after each session, never and only if, troubleshooting |
 | [player/](player/README.md) | players                          | What players see, what is recorded, which parts reach an AI, how to have data removed                                                                     |
 | [dev/](dev/)                | whoever builds or hosts the tool | Architecture, dev setup, testing, deployment, remote access, the release smoke test                                                                       |
-| [reference/](reference/)    | everyone                         | Tool inventory, dashboard reference                                                                                                                       |
+| [reference/](reference/)    | the builder                      | Tool inventory, dashboard reference (older; GMs: use [gm/dashboard.md](gm/dashboard.md))                                                                  |
 | [design/](design/)          | the builder                      | Current plans: Curse of Strahd, Obsidian, roadmap, brand                                                                                                  |
 | [history/](history/)        | the builder                      | Finished plans, session logs, reviews, and the progress log. Kept as written                                                                              |
 

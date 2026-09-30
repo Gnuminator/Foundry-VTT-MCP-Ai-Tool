@@ -224,6 +224,41 @@ export const ChunkedMessageFrameSchema = z.object({
   originalId: z.string().optional(),
 });
 
+/**
+ * Module → backend, sent once right after the link opens (lane 1, PB-02). It
+ * says which Foundry user's browser holds the link, so the backend can prefer
+ * the configured bridge user and report who is connected. Older modules never
+ * send it; the backend must keep working without it. Not part of
+ * {@link FoundryFrame} (additive, like `bridge-status`).
+ */
+export const MODULE_HELLO_TYPE = 'module-hello' as const;
+
+export interface ModuleHelloData {
+  userId: string;
+  userName: string;
+  /** True when this user is the world's configured bridge user (or none is set). */
+  isBridgeUser: boolean;
+  /** The Foundry module version (`game.modules.get(id).version`). */
+  moduleVersion: string;
+  worldId: string;
+}
+
+export interface ModuleHelloFrame {
+  type: typeof MODULE_HELLO_TYPE;
+  data: ModuleHelloData;
+}
+
+export const ModuleHelloFrameSchema = z.object({
+  type: z.literal(MODULE_HELLO_TYPE),
+  data: z.object({
+    userId: z.string(),
+    userName: z.string(),
+    isBridgeUser: z.boolean(),
+    moduleVersion: z.string(),
+    worldId: z.string(),
+  }),
+});
+
 /** Discriminated union over the core frame `type`s. */
 export const FoundryFrameSchema = z.discriminatedUnion('type', [
   FoundryQueryFrameSchema,

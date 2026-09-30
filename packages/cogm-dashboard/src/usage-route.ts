@@ -66,8 +66,8 @@ export class PlayerDirectory {
   harvest(raw: unknown): void {
     const record = asRecord(raw);
     // `playerUsers` (every non-GM user) from newer bridges; `activeUsers` as a fallback.
-    const listed = Array.isArray(record.playerUsers) ? record.playerUsers : [];
-    const active = Array.isArray(record.activeUsers) ? record.activeUsers : [];
+    const listed: unknown[] = Array.isArray(record.playerUsers) ? record.playerUsers : [];
+    const active: unknown[] = Array.isArray(record.activeUsers) ? record.activeUsers : [];
     for (const item of [...listed, ...active]) {
       const u = asRecord(item);
       if (typeof u.id !== 'string' || !USER_ID_RE.test(u.id)) continue;

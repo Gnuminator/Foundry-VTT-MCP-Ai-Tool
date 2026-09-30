@@ -8,7 +8,7 @@ Obsidian export of the world and the play log, and (planned) our own Discord bot
 (dnd5e) only. Supported: **Foundry 14 with dnd5e 6**.
 
 **Canonical repo:** https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool
-**Old fork (retired, archive pending):** https://github.com/Gnuminator/Foundry-VTT-MCP (holds v0.15.0)
+**Old fork (archived 2026-09-30):** https://github.com/Gnuminator/Foundry-VTT-MCP (holds v0.15.0)
 **Upstream (do not push/merge):** https://github.com/adambdooley/foundry-vtt-mcp
 
 The running history (detach, phases, milestones M0 to M3, Obsidian O1 to O4) is in
@@ -116,9 +116,10 @@ These are live contracts between the Foundry module, the MCP server and the dash
 - Parallel workers inside one session: partition by file, write big files in parts of at most ~250
   lines per tool call, lock shared contracts first.
 
-## Status (2026-09-29)
+## Status (2026-09-30)
 
-- Built on branch `claude/amazing-bardeen-q1x1q6` (not merged into `main`, which stops at v0.18.0):
+- `main` = `a161a7d`; branch `claude/amazing-bardeen-q1x1q6` is ahead of it (step 2 merged, pushed to
+  `77396b8`, plus local commits). Built:
   Curse of Strahd M0 to M3 (guarded writes, Tarokka, spoiler-safe `/player`, Foundry 14 / dnd5e 6
   pass), Obsidian O1 to O4 (vault, session notes, play log and stats, Foundry mirrors), tool-parameter
   pickers, dashboard hardening, ComfyUI removed (D-070). Live-tested on the test server (the ComfyUI
@@ -152,15 +153,29 @@ Open: how players reach Foundry on the Pi (decided during bring-up); the Strahd 
 
 ## Handoff notes
 
-- **Paused 2026-09-30 (pick up here):** `main` = `9fe15bc`; its CI fails on one Obsidian test that
-  assumes a Windows path (runs on Linux in CI); fix first. The step-2 workflow (`wf_6b52204c-42a`,
-  script under this session's workflows folder) was stopped: builds done in worktrees
-  `.claude/worktrees/wf_6b52204c-42a-1` (GM docs + README), `-2` (reveal copies a handout), `-3`
-  (Claude Desktop prompts); reviews partly done; no fixes applied; nothing merged. Design round 1
-  was rejected as recolors; round 2 brief in memory `design-direction-feedback` and the vault
-  session note of 2026-09-29. Queued after the merge: repo tidy (approved, incl. deleting
-  `test-bench/` and the unused macro), usage log for dashboard and module (I-084), dashboard help
-  with the design pass.
+- **Session end 2026-09-30 (pick up here):**
+  - Git: the branch has local commits not yet pushed (`b588996` live-test note, this handoff);
+    push and the `main` fast-forward need the user's OK (Claude may push the branch; the auto-mode
+    guard blocks pushing to `main`, so the user runs
+    `git -C "<repo>" push aitool claude/amazing-bardeen-q1x1q6:main`).
+  - Done today: CI fix (Windows path on Linux), step 2 merged and reviewed (GM and player guides,
+    new README, handout copy live-tested, six Claude Desktop prompts), live-read sweep now defaults
+    to the test dashboard, push-back review (vault `Research/Push-back review 2026-09-30`).
+  - Waiting on the user in Obsidian: 11 open questions (`Questions/`), 24 push-back questions
+    PB-01 to PB-24 (`Questions/Push-backs/`, own Dashboard table), the old module-list question.
+    Act on answers first. PB-01 to PB-07 are real defects to fix before the Pi (Claude Desktop
+    cannot reach a bridge on the Pi; every GM client dials the bridge; the bridge gives up after
+    about 90 s; slow writes lose undo; AI plans are self-confirmed; backups; CI only on `main`).
+  - Design: round 2 (8 concepts) is archived in the vault `Design/Round 2/` and shared with the
+    group; **the choice is undecided, do not build a design yet**. Round 1 was rejected.
+  - Queued (approved): repo tidy (root `.env.example`, `claude_desktop_config.example.json`,
+    committed build output, delete `test-bench/` and the unused macro, `tsconfig` tslib,
+    `validate-manifest.js` into `scripts/`, `lang/en.json`, `.gitattributes`, CLAUDE.md in
+    `.gitignore`, an em-dash ratchet guard); usage log for dashboard and module (I-084); help inside
+    the dashboard with the design pass. Language review of public docs waits for 1.0.
+  - Product gaps found in review: "Allow Write Operations" does not block vault-only guarded changes;
+    no tool removes a player's data though the player guide promises it; post-to-chat goes public
+    when the world has no GM names.
 
 - Test env per PC (not synced): world `ai-tool-test` (users Gamemaster, Claude, Player; `Test Hero`
   owned by Player; world actor `Wolf` with unlinked tokens Wolf 1-3 on "Test Arena").
@@ -168,10 +183,9 @@ Open: how players reach Foundry on the Pi (decided during bring-up); the Strahd 
 - The vault is the private git repo `Gnuminator/obsidian-vault`; Claude owns everything Obsidian.
 - `.claude/skills/foundry-core-ui/reference/*.md` are drafts; the click-through verification is
   unfinished.
-- Unmerged remote branches (reference only): `claude/remote-gm-hosting-design-cwllhf` (older Pi plan,
-  `docs/PI-DEPLOY-PROMPTS.md`; Molten and API-key assumptions are outdated),
-  `claude/remove-comfyui-pipeline-d9wlp8` and `claude/audit-comfyui-removal-0xzj8l` (obsolete: the
-  removal landed here in `b5f76bc`; deleting them needs the user's OK).
+- Remote branches: `main`, `claude/amazing-bardeen-q1x1q6`, and `claude/remote-gm-hosting-design-cwllhf`
+  (reference only: older Pi plan, `docs/PI-DEPLOY-PROMPTS.md`; Molten and API-key assumptions are
+  outdated). The two ComfyUI branches were deleted and the old fork archived (2026-09-30).
 
 ## Model guidance
 

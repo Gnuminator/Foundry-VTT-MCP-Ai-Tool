@@ -176,7 +176,8 @@ export class ScenesTokensDataAccess {
   private async followView(scene: any, waitMs = SCENE_VIEW_WAIT_MS): Promise<void> {
     // Headless callers (tests) have no canvas and nothing to view.
     if (typeof canvas === 'undefined' || !canvas) return;
-    const viewedId = (): string | undefined => (game.scenes as any)?.viewed?.id;
+    const scenes = game.scenes as unknown as { viewed?: { id?: string } | null } | undefined;
+    const viewedId = (): string | undefined => scenes?.viewed?.id;
     const deadline = Date.now() + waitMs;
     while (viewedId() !== scene.id && Date.now() < deadline) {
       await new Promise(resolve => setTimeout(resolve, 100));

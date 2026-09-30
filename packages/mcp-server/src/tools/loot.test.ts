@@ -78,6 +78,18 @@ describe('LootTools.handleDropLoot', () => {
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.dropLoot', {});
   });
 
+  it('refuses negative or fractional coins without calling Foundry (P-060)', async () => {
+    const { tools, query } = makeTools();
+    expect(await tools.handleDropLoot({ currency: { gp: -50 } })).toMatch(/^Parameter error/);
+    expect(await tools.handleDropLoot({ currency: { sp: 1.5 } })).toMatch(/^Parameter error/);
+    expect(query).not.toHaveBeenCalled();
+    const [def] = tools.getToolDefinitions();
+    expect((def.inputSchema as any).properties.currency.properties.gp).toMatchObject({
+      type: 'integer',
+      minimum: 0,
+    });
+  });
+
   it('works with only currency provided', async () => {
     const { tools, query } = makeTools();
     await tools.handleDropLoot({ currency: { gp: 100 } });

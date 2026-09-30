@@ -62,6 +62,7 @@ import { TarokkaTools } from './tools/tarokka.js';
 import { PlaySessionTools } from './tools/play-session.js';
 import { PlayStatsTools } from './tools/play-stats.js';
 import { PlayerViewTools } from './tools/player-view.js';
+import { PreflightTools } from './tools/preflight.js';
 import { RefChoiceTools } from './tools/ref-choices.js';
 import { TarokkaService } from './tarokka/service.js';
 import { HandoutsService } from './handouts/service.js';
@@ -324,11 +325,20 @@ async function startBackend(): Promise<void> {
     onMarked: renderObsidian,
   });
   const playStatsTools = new PlayStatsTools({ worldIds, store: vaultStore, logger });
+  const secretTerms = new SecretTermsService({ store: vaultStore });
   const playerViewTools = new PlayerViewTools({
     handouts: new HandoutsService({ guardedWrites, store: vaultStore, worldIds, foundryClient }),
-    secretTerms: new SecretTermsService({ store: vaultStore }),
+    secretTerms,
     foundryClient,
     worldIds,
+    logger,
+  });
+  const preflightTools = new PreflightTools({
+    foundryClient,
+    secretTerms,
+    worldIds,
+    playSession: playSessionTools,
+    obsidianVaultDirSet: Boolean(obsidianVaultDir),
     logger,
   });
   // O4 Foundry mirror: the pump starts with the Foundry link below (vault dir set only).
@@ -384,6 +394,7 @@ async function startBackend(): Promise<void> {
     playSessionTools,
     playStatsTools,
     playerViewTools,
+    preflightTools,
     sceneControlTools,
     lootTools,
     diagnosticsTools,

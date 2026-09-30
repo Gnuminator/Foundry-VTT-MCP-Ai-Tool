@@ -1,7 +1,7 @@
 /**
- * Tool sets (PB-12): the 91 tools split into five groups, so a Claude Desktop
- * conversation carries only the tool definitions it needs (all 91 are about
- * 88,000 characters of JSON, some 22,000 to 29,000 tokens, before anyone types).
+ * Tool sets (PB-12): the 92 tools split into five groups, so a Claude Desktop
+ * conversation carries only the tool definitions it needs (all 92 are about
+ * 89,000 characters of JSON, some 22,000 to 29,000 tokens, before anyone types).
  *
  * Each Claude Desktop entry runs the stdio wrapper (`index.ts`) with
  * `FOUNDRY_AI_TOOL_SETS` naming its sets; Claude Desktop then shows one switch
@@ -103,7 +103,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
   prep: {
     title: 'Prep',
     purpose:
-      'Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log and play stats.',
+      'Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check.',
     tools: [
       'create-quest-journal',
       'update-quest-journal',
@@ -123,6 +123,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'get-session-log',
       'get-play-session',
       'get-play-stats',
+      'get-preflight',
     ],
   },
   build: {

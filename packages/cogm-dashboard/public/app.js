@@ -96,6 +96,18 @@ const els = {
   tarokkaImport: $('tarokka-import'),
   tarokkaRoll: $('tarokka-roll'),
   tarokkaShow: $('tarokka-show'),
+  // Pre-flight drawer
+  btnPreflight: $('btn-preflight'),
+  preflightDrawer: $('preflight-drawer'),
+  preflightClose: $('preflight-close'),
+  preflightSub: $('preflight-sub'),
+  preflightRun: $('preflight-run'),
+  preflightClear: $('preflight-clear'),
+  preflightSummary: $('preflight-summary'),
+  preflightAuto: $('preflight-auto'),
+  preflightFindings: $('preflight-findings'),
+  preflightManual: $('preflight-manual'),
+  versionBanner: $('version-banner'),
   // Recent guarded changes
   changesBody: $('changes-body'),
   changesMeta: $('changes-meta'),
@@ -218,7 +230,11 @@ function renderStatus(status) {
 
   if (status.foundry === 'reachable') {
     setDot(els.statusFoundry, 'dot-green', 'Foundry: live');
-    if (!foundryLive) scheduleChangesReload();
+    if (!foundryLive) {
+      scheduleChangesReload();
+      // A quiet run on every (re)connect keeps the header button and the version banner current.
+      void runPreflight({ quiet: true });
+    }
   } else if (status.foundry === 'unreachable') {
     setDot(els.statusFoundry, 'dot-amber', 'Foundry: unreachable');
   } else {
@@ -1425,6 +1441,182 @@ function renderRecentChanges() {
     .join('');
 }
 
+// --- Pre-flight drawer (GM only; I-068) ---
+// Automatic checks come from GET /api/preflight (bridge + dashboard); the
+// Tarokka "Show cards" box is checked here. Manual ticks stay in this browser.
+const PREFLIGHT_MANUAL = [
+  ['scene-nav', 'The starting scene has a Navigation Name if its real name is a spoiler.'],
+  [
+    'creature-names',
+    'Creatures whose names the players know show them (Prototype Token, Identity, Display Name: Hovered by Anyone).',
+  ],
+  ['hidden-tokens', 'Tokens the players should not know about yet are hidden.'],
+  [
+    'player-tab',
+    'Opened /player in a second tab: combat order, feed and handouts show no secrets.',
+  ],
+  ['handouts', 'Handout pages are set to None unless you revealed them.'],
+  ['prep-prompt', 'Ran the prep-next-session prompt in Claude Desktop.'],
+  ['last-note', "Read last session's note in Obsidian."],
+  [
+    'private-screen',
+    'Claude Desktop, the dashboard and Obsidian are on the screen the players cannot see.',
+  ],
+];
+const PREFLIGHT_TICKS_KEY = 'cogm_preflight_ticks';
+const PREFLIGHT_ICONS = { ok: '✓', warn: '!', fail: '✗', info: 'i', unknown: '?' };
+let preflightResult = null;
+let preflightRunning = false;
+
+function readPreflightTicks() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PREFLIGHT_TICKS_KEY) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+function writePreflightTicks(ticks) {
+  try {
+    localStorage.setItem(PREFLIGHT_TICKS_KEY, JSON.stringify(ticks));
+  } catch {}
+}
+function openPreflight() {
+  usage.trackView('dash.preflight.view');
+  els.drawerBackdrop.hidden = false;
+  els.preflightDrawer.hidden = false;
+  renderPreflightManual();
+  void runPreflight();
+}
+function closePreflight() {
+  usage.endView('dash.preflight.view');
+  els.preflightDrawer.hidden = true;
+  if (els.drawer.hidden && els.tarokkaDrawer.hidden) els.drawerBackdrop.hidden = true;
+}
+/** The checks the browser itself can make. */
+function localPreflightChecks() {
+  const shown = els.tarokkaShow.checked;
+  return [
+    {
+      id: 'tarokka-hidden',
+      label: 'Tarokka cards hidden',
+      status: shown ? 'warn' : 'ok',
+      detail: shown
+        ? 'Show cards is ticked in the Tarokka drawer. Untick it before players can see your screen.'
+        : 'Show cards is not ticked.',
+    },
+  ];
+}
+async function runPreflight({ quiet = false } = {}) {
+  if (preflightRunning) return;
+  preflightRunning = true;
+  if (!quiet) {
+    els.preflightRun.disabled = true;
+    els.preflightSub.textContent = 'Running checks…';
+  }
+  try {
+    const res = await fetch('/api/preflight', { headers: authHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    preflightResult = data;
+    renderVersionBanner();
+    renderPreflightButton();
+    if (!els.preflightDrawer.hidden) renderPreflight();
+  } catch (err) {
+    if (!quiet) {
+      els.preflightSub.textContent = 'GM only. The checks did not run.';
+      els.preflightAuto.innerHTML = `<li class="empty">Couldn't run the checks: ${escapeHtml(String(err.message || err))}</li>`;
+    }
+  } finally {
+    preflightRunning = false;
+    els.preflightRun.disabled = false;
+  }
+}
+function allPreflightChecks() {
+  const checks =
+    preflightResult && Array.isArray(preflightResult.checks) ? preflightResult.checks : [];
+  return [...checks, ...localPreflightChecks()];
+}
+function renderPreflightButton() {
+  if (!preflightResult) {
+    els.btnPreflight.textContent = '✈ Pre-flight';
+    return;
+  }
+  const fails = allPreflightChecks().filter(c => c.status === 'fail').length;
+  els.btnPreflight.textContent =
+    fails > 0 ? `✈ Pre-flight: ${fails} to fix` : '✈ Pre-flight: ready';
+  els.btnPreflight.classList.toggle('preflight-bad', fails > 0);
+}
+// PB-10: a module and bridge pair with different versions gets a banner.
+function renderVersionBanner() {
+  const versions = allPreflightChecks().find(c => c.id === 'versions');
+  if (!versions || versions.status !== 'fail') {
+    els.versionBanner.hidden = true;
+    return;
+  }
+  els.versionBanner.textContent = versions.detail;
+  els.versionBanner.hidden = false;
+}
+function preflightItem(c) {
+  const status = PREFLIGHT_ICONS[c.status] ? c.status : 'unknown';
+  return `<li class="preflight-item pf-${status}">
+      <span class="pf-icon" title="${escapeHtml(status)}">${PREFLIGHT_ICONS[status]}</span>
+      <span class="pf-text"><span class="pf-label">${escapeHtml(c.label)}</span>
+      <span class="pf-detail">${escapeHtml(c.detail)}</span></span>
+    </li>`;
+}
+function preflightFindings(scan) {
+  if (!scan) return '';
+  const rows = [];
+  for (const s of scan.settings || []) {
+    rows.push(
+      `<li><code>${escapeHtml(s.setting)}</code> ${escapeHtml(s.masked)}: ${escapeHtml(s.reason)}</li>`
+    );
+  }
+  for (const n of scan.names || []) {
+    rows.push(
+      `<li>${escapeHtml(n.kind)} "${escapeHtml(n.name)}" names ${escapeHtml((n.terms || []).join(', '))}</li>`
+    );
+  }
+  for (const m of scan.modules || []) {
+    rows.push(`<li>${escapeHtml(m.title)}: ${escapeHtml(m.reason)}</li>`);
+  }
+  if (rows.length === 0) return '';
+  return `<details class="preflight-findings"><summary data-track="dash.preflight.show-findings">${rows.length} finding(s)</summary><ul>${rows.join('')}</ul></details>`;
+}
+function renderPreflight() {
+  const r = preflightResult;
+  if (!r) return;
+  const checks = allPreflightChecks();
+  const fails = checks.filter(c => c.status === 'fail').length;
+  const warns = checks.filter(c => c.status === 'warn').length;
+  const when = new Date().toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  els.preflightSub.textContent = `GM only. Last run ${when}.`;
+  els.preflightSummary.hidden = false;
+  els.preflightSummary.className = `preflight-summary ${fails > 0 ? 'pf-fail' : warns > 0 ? 'pf-warn' : 'pf-ok'}`;
+  els.preflightSummary.textContent =
+    fails > 0
+      ? `Not ready: ${fails} to fix${warns > 0 ? `, ${warns} to look at` : ''}.`
+      : warns > 0
+        ? `Ready, with ${warns} to look at.`
+        : 'Ready for the session.';
+  els.preflightAuto.innerHTML = checks.map(preflightItem).join('');
+  els.preflightFindings.innerHTML = preflightFindings(r.scan);
+}
+function renderPreflightManual() {
+  const ticks = readPreflightTicks();
+  els.preflightManual.innerHTML = PREFLIGHT_MANUAL.map(
+    ([id, text]) => `<li class="preflight-item">
+        <label class="pf-manual"><input type="checkbox" data-track="dash.preflight.manual-tick" data-tick="${escapeHtml(id)}" ${ticks[id] ? 'checked' : ''} />
+        <span>${escapeHtml(text)}</span></label>
+      </li>`
+  ).join('');
+}
+
 // --- Tarokka drawer (GM only) ---
 // A plan-* tool is a read; apply-planned-change then shows its diff in the
 // confirm modal (and the destructive checkbox for a reveal).
@@ -1660,6 +1852,26 @@ els.tarokkaRoll.addEventListener('click', () =>
   planThenApply('plan-tarokka-import', { source: 'builtin-roll' })
 );
 els.tarokkaBody.addEventListener('click', e => void onTarokkaClick(e));
+els.btnPreflight.addEventListener('click', openPreflight);
+els.preflightClose.addEventListener('click', closePreflight);
+els.drawerBackdrop.addEventListener('click', closePreflight);
+els.preflightRun.addEventListener('click', () => void runPreflight());
+els.preflightClear.addEventListener('click', () => {
+  writePreflightTicks({});
+  renderPreflightManual();
+});
+els.preflightManual.addEventListener('change', e => {
+  const box = e.target.closest('[data-tick]');
+  if (!box) return;
+  const ticks = readPreflightTicks();
+  if (box.checked) ticks[box.dataset.tick] = Date.now();
+  else delete ticks[box.dataset.tick];
+  writePreflightTicks(ticks);
+});
+els.tarokkaShow.addEventListener('change', () => {
+  renderPreflightButton();
+  if (!els.preflightDrawer.hidden) renderPreflight();
+});
 els.changesBody.addEventListener('click', e => {
   const btn = e.target.closest('[data-undo]');
   if (!btn) return;
@@ -1683,6 +1895,9 @@ document.addEventListener('keydown', e => {
   if (!els.modalBackdrop.hidden) {
     usage.trackShortcut('dash.shortcut.escape-modal');
     closeModal(false);
+  } else if (!els.preflightDrawer.hidden) {
+    usage.trackShortcut('dash.shortcut.escape-preflight');
+    closePreflight();
   } else if (!els.tarokkaDrawer.hidden) {
     usage.trackShortcut('dash.shortcut.escape-tarokka');
     closeTarokka();

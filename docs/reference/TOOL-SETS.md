@@ -4,7 +4,7 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 91 tools. Their definitions are about 88,000 characters of JSON, roughly 22,000 to
+The bridge has 92 tools. Their definitions are about 89,000 characters of JSON, roughly 22,000 to
 29,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
@@ -16,11 +16,11 @@ what the conversation needs. The switches are remembered for new chats.
 | --------- | -------------------- | ----- | ----------------- | -------------------------------------------------------------------------------------------- |
 | **core**  | `foundry-mcp`        | 20    | about 12,800      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
 | **play**  | `foundry-mcp-play`   | 37    | about 26,400      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
-| **prep**  | `foundry-mcp-prep`   | 18    | about 16,900      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
+| **prep**  | `foundry-mcp-prep`   | 19    | about 17,700      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
 | **build** | `foundry-mcp-build`  | 7     | about 25,200      | Making NPCs, monsters and items, from a compendium or from scratch.                          |
 | **admin** | `foundry-mcp-admin`  | 9     | about 6,800       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
 
-A prep chat with core and prep on carries about 30,000 characters instead of 88,000. Core alone is
+A prep chat with core and prep on carries about 30,500 characters instead of 89,000. Core alone is
 about 15% of everything.
 
 The dashboard is not affected: it reads the bridge directly and always has every tool.
@@ -49,7 +49,7 @@ code disagree.
   `create-campaign-dashboard`, `suggest-balanced-encounter`, `get-tarokka-reading`,
   `plan-tarokka-import`, `suggest-tarokka-links`, `plan-tarokka-links`, `plan-tarokka-reveal`,
   `get-player-visibility`, `list-revealed-pages`, `get-player-handouts`, `plan-page-reveal`,
-  `list-ref-choices`, `get-session-log`, `get-play-session`, `get-play-stats`
+  `list-ref-choices`, `get-session-log`, `get-play-session`, `get-play-stats`, `get-preflight`
 - **build:** `list-creatures-by-criteria`, `get-compendium-entry-full`,
   `create-actor-from-compendium`, `dnd5e-create-npc`, `dnd5e-add-feature`,
   `dnd5e-add-features-from-compendium`, `manage-world-items`

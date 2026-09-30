@@ -48,6 +48,14 @@ import { REVEALS_FILE, newDocumentId } from '../tarokka/service.js';
 import type { VaultStore } from '../vault/store.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
 
+import {
+  HandoutQueue,
+  QUEUE_FILE,
+  assertPlayers,
+  orderedQueue,
+  type QueueEntry,
+  type SeenEntry,
+} from './queue.js';
 import { prepareCopyHtml } from './strip-secrets.js';
 
 export const HANDOUTS_FEATURE = 'handouts';
@@ -57,6 +65,10 @@ export const HANDOUTS_JOURNAL_NAME = 'Handouts';
 export const COPIED_FROM_FLAG = 'copiedFrom';
 /** Foundry's OBSERVER ownership level: players can read the page. */
 const OBSERVER = 2;
+/** Foundry's NONE ownership level. */
+const NONE = 0;
+/** Foundry's INHERIT ownership level: an embedded page follows its journal. */
+const INHERIT = -1;
 /** `CONST.JOURNAL_ENTRY_PAGE_FORMATS.HTML`: a copied text page is stored as HTML. */
 const TEXT_FORMAT_HTML = 1;
 /** A JournalEntryPage uuid: `JournalEntry.<16>.JournalEntryPage.<16>`. */
@@ -73,6 +85,13 @@ export interface RevealedPageEntry {
   previousOwnership?: number;
   /** A reveal copy in "Handouts": the uuid of the page it copies. */
   copiedFrom?: string;
+  /** Revealed only to these users (Foundry user ids, I-039); absent: every player. */
+  players?: string[];
+  /**
+   * A reveal to chosen players: each user's `ownership.<id>` before the reveal
+   * raised it (null: the key was not set), restored by a hide.
+   */
+  previousUserOwnership?: Record<string, number | null>;
 }
 
 interface RevealsFile {
@@ -95,6 +114,28 @@ export interface RevealedPageView {
   revealedAt: string;
   /** A reveal copy in "Handouts": the page it copies. */
   copiedFrom?: string;
+  /** Revealed only to these users (Foundry user ids); absent: every player. */
+  players?: string[];
+  /** Who opened it on /player, first time each (their picked name). */
+  seenBy: SeenEntry[];
+}
+
+/** One staged page of the reveal queue (`list-revealed-pages` `queue`). */
+export interface QueuedPageView {
+  entryId: string;
+  uuid: string;
+  title: string | null;
+  exists: boolean;
+  sceneId: string | null;
+  players?: string[];
+  addedAt: string;
+}
+
+/** What `plan-page-reveal` returns for `queue` and `unqueue` (no plan: the queue is GM prep). */
+export interface QueueChangeView {
+  queued: boolean;
+  pageUuid: string;
+  note: string;
 }
 
 /** One row of `get-player-handouts`: GM data, sanitized by the dashboard server. */
@@ -104,6 +145,8 @@ export interface PlayerHandout {
   title: string;
   html: string;
   revealedAt: string;
+  /** Only these users may see it (Foundry user ids); absent: every player. */
+  players?: string[];
 }
 
 export interface PlayerHandoutsView {
@@ -149,6 +192,8 @@ export interface HandoutsServiceOptions {
   worldIds: Pick<WorldIdResolver, 'current'>;
   foundryClient: Pick<FoundryClient, 'query'>;
   now?: () => number;
+  /** The reveal queue and seen log (default: one on the same store). */
+  queue?: HandoutQueue;
 }
 
 /** The content a copy gets: create data and the same values as update paths. */
@@ -190,11 +235,28 @@ function assertPageUuid(value: unknown): string {
   return value;
 }
 
-function assertAction(value: unknown): 'reveal' | 'hide' {
-  if (value !== 'reveal' && value !== 'hide') {
-    throw new Error('action must be "reveal" or "hide"');
+const ACTIONS = ['reveal', 'hide', 'queue', 'unqueue', 'reveal-next'] as const;
+type RevealAction = (typeof ACTIONS)[number];
+
+function assertAction(value: unknown): RevealAction {
+  if (typeof value !== 'string' || !(ACTIONS as readonly string[]).includes(value)) {
+    throw new Error('action must be "reveal", "hide", "queue", "unqueue" or "reveal-next"');
+  }
+  return value as RevealAction;
+}
+
+function assertSceneId(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || !/^[A-Za-z0-9]{16}$/.test(value)) {
+    throw new Error('sceneId must be a Foundry scene id');
   }
   return value;
+}
+
+/** A player-facing sentence: "to every player" or "to 2 chosen players". */
+function audience(players: string[] | undefined): string {
+  if (!players) return 'players';
+  return players.length === 1 ? '1 chosen player' : `${players.length} chosen players`;
 }
 
 function missingPage(uuid: string): PageForPlayers {
@@ -286,6 +348,35 @@ function updateOpFor(uuid: string, values: PathValue[]): GuardedUpdateOp {
   return { kind: 'update', uuid, changes, ...(unset.length > 0 ? { unset } : {}) };
 }
 
+/** A copy's ownership for chosen players: none by default, Observer for each of them. */
+function chosenOwnership(players: string[]): Record<string, number> {
+  const ownership: Record<string, number> = { default: NONE };
+  for (const id of players) ownership[id] = OBSERVER;
+  return ownership;
+}
+
+/**
+ * The ownership values a copy should end with when it is revealed again:
+ * chosen players (none by default, Observer each), or every player (inherit
+ * from the "Handouts" journal); users no longer chosen lose their key. Empty
+ * when both reveals are for every player (nothing to change).
+ */
+function copyOwnershipValues(
+  before: string[] | undefined,
+  after: string[] | undefined
+): PathValue[] {
+  if (!before && !after) return [];
+  const values: PathValue[] = [
+    { path: 'ownership.default', present: true, value: after ? NONE : INHERIT },
+  ];
+  for (const id of after ?? [])
+    values.push({ path: `ownership.${id}`, present: true, value: OBSERVER });
+  for (const id of before ?? []) {
+    if (!after?.includes(id)) values.push({ path: `ownership.${id}`, present: false });
+  }
+  return values;
+}
+
 function copyNote(title: string, copy: HandoutCopyView, warning?: string): string {
   const where =
     copy.action === 'update'
@@ -319,6 +410,7 @@ export class HandoutsService {
   private readonly worldIds: HandoutsServiceOptions['worldIds'];
   private readonly foundry: HandoutsServiceOptions['foundryClient'];
   private readonly now: () => number;
+  readonly queue: HandoutQueue;
 
   constructor(options: HandoutsServiceOptions) {
     this.guardedWrites = options.guardedWrites;
@@ -326,6 +418,14 @@ export class HandoutsService {
     this.worldIds = options.worldIds;
     this.foundry = options.foundryClient;
     this.now = options.now ?? ((): number => Date.now());
+    this.queue =
+      options.queue ??
+      new HandoutQueue({
+        store: options.store,
+        worldIds: options.worldIds,
+        now: this.now,
+        newId: newDocumentId,
+      });
   }
 
   // -------------------------------------------------------------------------
@@ -338,7 +438,10 @@ export class HandoutsService {
     const file = await this.load(worldId);
     const entries = Object.entries(file.pages ?? {});
     if (entries.length === 0) return [];
-    const pages = await this.pagesFor(entries.map(([, entry]) => entry.uuid));
+    const [pages, seen] = await Promise.all([
+      this.pagesFor(entries.map(([, entry]) => entry.uuid)),
+      this.queue.seen(worldId),
+    ]);
     return entries.map(([pageId, entry]) => {
       const page = pages.get(entry.uuid);
       return {
@@ -350,8 +453,43 @@ export class HandoutsService {
         feature: entry.feature,
         revealedAt: entry.at,
         ...(entry.copiedFrom ? { copiedFrom: entry.copiedFrom } : {}),
+        ...(entry.players ? { players: entry.players } : {}),
+        seenBy: seen[pageId] ?? [],
       };
     });
+  }
+
+  /** The reveal queue, oldest first, with titles (no page content). */
+  async listQueue(): Promise<QueuedPageView[]> {
+    const worldId = await this.worldIds.current();
+    const entries = orderedQueue(await this.queue.load(worldId));
+    if (entries.length === 0) return [];
+    const pages = await this.pagesFor(entries.map(([, e]) => e.uuid));
+    return entries.map(([entryId, e]) => {
+      const page = pages.get(e.uuid);
+      return {
+        entryId,
+        uuid: e.uuid,
+        title: page?.name ?? null,
+        exists: page?.exists ?? false,
+        sceneId: e.sceneId,
+        ...(e.players ? { players: e.players } : {}),
+        addedAt: e.addedAt,
+      };
+    });
+  }
+
+  /**
+   * A player opened a handout on /player: remember the first time (I-039).
+   * Only pages on the reveal allowlist count, and only for a player the page
+   * is revealed to.
+   */
+  async recordSeen(pageId: string, userId: string, name: string): Promise<{ recorded: boolean }> {
+    const worldId = await this.worldIds.current();
+    const entry = (await this.load(worldId)).pages?.[pageId];
+    if (!entry) return { recorded: false };
+    if (entry.players && !entry.players.includes(userId)) return { recorded: false };
+    return this.queue.markSeen(pageId, userId, name);
   }
 
   /** Allowlisted pages that exist and are currently observable, with raw HTML. */
@@ -372,6 +510,7 @@ export class HandoutsService {
         title: page.name ?? 'Untitled',
         html: page.html ?? '',
         revealedAt: entry.at,
+        ...(entry.players ? { players: entry.players } : {}),
       });
     }
     return { handouts, revealedUuids };
@@ -394,17 +533,107 @@ export class HandoutsService {
    * when it is a copy).
    */
   async planPageReveal(args: {
-    pageUuid: string;
+    pageUuid?: unknown;
     action: string;
     setOwnership?: boolean;
     copy?: boolean;
+    players?: unknown;
+    sceneId?: unknown;
   }): Promise<PageRevealPlan> {
-    const pageUuid = assertPageUuid(args.pageUuid);
     const action = assertAction(args.action);
-    const setOwnership = args.setOwnership ?? true;
+    if (action === 'queue' || action === 'unqueue') {
+      throw new Error(`Use queuePage or unqueuePage for action "${action}"`);
+    }
     if (args.copy !== undefined && typeof args.copy !== 'boolean') {
       throw new Error('copy must be true or false');
     }
+    const players = assertPlayers(args.players);
+    const sceneId = assertSceneId(args.sceneId);
+    if (action === 'reveal-next') return this.planRevealNext(sceneId, args);
+    const pageUuid = assertPageUuid(args.pageUuid);
+    return this.planRevealOrHide(pageUuid, action, {
+      setOwnership: args.setOwnership ?? true,
+      ...(args.copy !== undefined ? { copy: args.copy } : {}),
+      ...(players ? { players } : {}),
+      extraVaultOps: [],
+    });
+  }
+
+  /** Stage a page for a later one-click reveal (I-039). Changes nothing in Foundry. */
+  async queuePage(args: {
+    pageUuid?: unknown;
+    sceneId?: unknown;
+    players?: unknown;
+  }): Promise<QueueChangeView> {
+    const pageUuid = assertPageUuid(args.pageUuid);
+    const sceneId = assertSceneId(args.sceneId);
+    const players = assertPlayers(args.players);
+    const [page] = [...(await this.pagesFor([pageUuid])).values()];
+    if (!page?.exists) throw new Error('That journal page does not exist in Foundry');
+    const { replaced } = await this.queue.add(pageUuid, sceneId, players);
+    const title = page.name ?? pageIdOf(pageUuid);
+    const who = players
+      ? ` for ${players.length === 1 ? '1 player' : `${players.length} players`}`
+      : '';
+    return {
+      queued: true,
+      pageUuid,
+      note: replaced
+        ? `"${title}" was already queued; its scene and players are updated${who}.`
+        : `"${title}" is queued${who}. Reveal it with action "reveal-next" when the moment comes.`,
+    };
+  }
+
+  async unqueuePage(args: { pageUuid?: unknown }): Promise<QueueChangeView> {
+    const pageUuid = assertPageUuid(args.pageUuid);
+    const removed = await this.queue.remove(pageUuid);
+    if (!removed) throw new Error('That page is not in the reveal queue');
+    return { queued: false, pageUuid, note: 'Removed from the reveal queue.' };
+  }
+
+  /**
+   * Plan revealing the next queued page: the oldest entry for `sceneId` (or
+   * with no scene); without `sceneId`, the oldest entry. The plan also removes
+   * the entry, so undoing the reveal puts it back in the queue.
+   */
+  private async planRevealNext(
+    sceneId: string | null,
+    args: { setOwnership?: boolean; copy?: boolean }
+  ): Promise<PageRevealPlan> {
+    const entries = orderedQueue(await this.queue.load());
+    const next = entries.find(
+      ([, e]) => sceneId === null || e.sceneId === null || e.sceneId === sceneId
+    );
+    if (!next) {
+      throw new Error(sceneId ? 'No page is queued for this scene' : 'The reveal queue is empty');
+    }
+    const [entryId, entry]: [string, QueueEntry] = next;
+    try {
+      return await this.planRevealOrHide(entry.uuid, 'reveal', {
+        setOwnership: args.setOwnership ?? true,
+        ...(args.copy !== undefined ? { copy: args.copy } : {}),
+        ...(entry.players ? { players: entry.players } : {}),
+        extraVaultOps: [{ kind: 'vault-delete', file: QUEUE_FILE, path: `entries.${entryId}` }],
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `${message} (the next queued page is ${entry.uuid}; remove it with action "unqueue" to go on)`
+      );
+    }
+  }
+
+  private async planRevealOrHide(
+    pageUuid: string,
+    action: 'reveal' | 'hide',
+    opts: {
+      setOwnership: boolean;
+      copy?: boolean;
+      players?: string[];
+      extraVaultOps: VaultOp[];
+    }
+  ): Promise<PageRevealPlan> {
+    const { setOwnership, players, extraVaultOps } = opts;
     const worldId = await this.worldIds.current();
     const file = await this.load(worldId);
     const pageId = pageIdOf(pageUuid);
@@ -422,14 +651,14 @@ export class HandoutsService {
       // A source with a live copy keeps using it: revealing it directly as well
       // would give players the same page twice.
       const liveCopy = copies.some(([, entry]) => pages.get(entry.uuid)?.exists === true);
-      if (args.copy === false && liveCopy) {
+      if (opts.copy === false && liveCopy) {
         throw new Error(
           `"${title}" already has a copy in the player journal "${HANDOUTS_JOURNAL_NAME}". ` +
             'Reveal it without copy: false to update that copy, or hide it first, then reveal ' +
             'with copy: false.'
         );
       }
-      const copy = args.copy ?? (liveCopy || (setOwnership && page.journalObservable === false));
+      const copy = opts.copy ?? (liveCopy || (setOwnership && page.journalObservable === false));
       if (copy) {
         if (allowlisted?.copiedFrom) {
           throw new Error(
@@ -437,9 +666,27 @@ export class HandoutsService {
               `(${allowlisted.copiedFrom}) to update the copy`
           );
         }
-        return this.planCopyReveal(file, pageUuid, title, page, copies, pages);
+        return this.planCopyReveal(
+          file,
+          pageUuid,
+          title,
+          page,
+          copies,
+          pages,
+          players,
+          extraVaultOps
+        );
       }
-      return this.planReveal(pageUuid, pageId, title, page, allowlisted, setOwnership);
+      return this.planReveal(
+        pageUuid,
+        pageId,
+        title,
+        page,
+        allowlisted,
+        setOwnership,
+        players,
+        extraVaultOps
+      );
     }
     // Hide always drops the stale allowlist entry, even for a page deleted since it was
     // revealed; only the ownership restore (below) needs the page to still exist.
@@ -452,7 +699,9 @@ export class HandoutsService {
     title: string,
     page: PageForPlayers,
     allowlisted: RevealedPageEntry | undefined,
-    setOwnership: boolean
+    setOwnership: boolean,
+    players: string[] | undefined,
+    extraVaultOps: VaultOp[]
   ): Promise<PageRevealPlan> {
     if (allowlisted && (page.observable || !setOwnership)) {
       throw new Error('That page is already revealed to players');
@@ -475,7 +724,21 @@ export class HandoutsService {
     }
     const ops: GuardedOp[] = [];
     let previousOwnership: number | undefined;
-    if (setOwnership && !page.observable) {
+    let previousUserOwnership: Record<string, number | null> | undefined;
+    if (setOwnership && !page.observable && players) {
+      // Reveal to chosen players (I-039): raise each user's own level, never the default.
+      const changes: Record<string, unknown> = {};
+      for (const id of players) changes[`ownership.${id}`] = OBSERVER;
+      const probe: GuardedOp = { kind: 'update', uuid: pageUuid, changes };
+      const [snapshot] = await this.snapshot([probe]);
+      previousUserOwnership = {};
+      for (const id of players) {
+        const before = snapshot?.values?.find(v => v.path === `ownership.${id}`);
+        previousUserOwnership[id] =
+          before?.present && typeof before.value === 'number' ? before.value : null;
+      }
+      ops.push(probe);
+    } else if (setOwnership && !page.observable) {
       const probe: GuardedOp = {
         kind: 'update',
         uuid: pageUuid,
@@ -487,6 +750,7 @@ export class HandoutsService {
       ops.push(probe);
     }
     const vaultOps: VaultOp[] = [
+      ...extraVaultOps,
       {
         kind: 'vault-set',
         file: REVEALS_FILE,
@@ -496,12 +760,14 @@ export class HandoutsService {
           feature: HANDOUTS_FEATURE,
           at: new Date(this.now()).toISOString(),
           ...(previousOwnership !== undefined ? { previousOwnership } : {}),
+          ...(players ? { players } : {}),
+          ...(previousUserOwnership ? { previousUserOwnership } : {}),
         },
       },
     ];
     const plan = await this.guardedWrites.createPlan({
       feature: HANDOUTS_FEATURE,
-      summary: `Reveal page "${title}" to players`,
+      summary: `Reveal page "${title}" to ${audience(players)}`,
       ...(ops.length > 0 ? { ops } : {}),
       vaultOps,
       risk: 'destructive',
@@ -516,7 +782,9 @@ export class HandoutsService {
     title: string,
     source: PageForPlayers,
     copies: Array<[string, RevealedPageEntry]>,
-    pages: Map<string, PageForPlayers>
+    pages: Map<string, PageForPlayers>,
+    players: string[] | undefined,
+    extraVaultOps: VaultOp[]
   ): Promise<PageRevealPlan> {
     const name = source.name ?? 'Handout';
     const revealed = new Set(Object.values(file.pages ?? {}).map(entry => entry.uuid));
@@ -524,18 +792,37 @@ export class HandoutsService {
     const existing = copies.find(([, entry]) => pages.get(entry.uuid)?.exists === true);
     if (existing) {
       const copyPage = pages.get(existing[1].uuid) ?? missingPage(existing[1].uuid);
-      return this.planCopyUpdate(sourceUuid, title, existing[1], copyPage, content);
+      return this.planCopyUpdate(
+        sourceUuid,
+        title,
+        existing,
+        copyPage,
+        content,
+        players,
+        extraVaultOps
+      );
     }
-    return this.planCopyCreate(file, sourceUuid, title, name, copies, content);
+    return this.planCopyCreate(
+      file,
+      sourceUuid,
+      title,
+      name,
+      copies,
+      content,
+      players,
+      extraVaultOps
+    );
   }
 
   /** Revealing the source again: the copy gets its current content (one plan, no duplicate). */
   private async planCopyUpdate(
     sourceUuid: string,
     title: string,
-    entry: RevealedPageEntry,
+    [copyId, entry]: [string, RevealedPageEntry],
     copyPage: PageForPlayers,
-    content: CopyContent
+    content: CopyContent,
+    players: string[] | undefined,
+    extraVaultOps: VaultOp[]
   ): Promise<PageRevealPlan> {
     const copyType = pageTypeOf(copyPage);
     if (copyType !== undefined && copyType !== content.type) {
@@ -544,8 +831,9 @@ export class HandoutsService {
           `source is a "${content.type}" page now: hide the handout, then reveal it again`
       );
     }
-    const [current] = await this.snapshot([updateOpFor(entry.uuid, content.values)]);
-    const changed = content.values.filter(want => {
+    const wanted = [...content.values, ...copyOwnershipValues(entry.players, players)];
+    const [current] = await this.snapshot([updateOpFor(entry.uuid, wanted)]);
+    const changed = wanted.filter(want => {
       const have = current?.values?.find(v => v.path === want.path) ?? {
         path: want.path,
         present: false,
@@ -568,10 +856,26 @@ export class HandoutsService {
       embedsRemoved: content.embedsRemoved,
       linksUnlinked: content.linksUnlinked,
     };
+    const samePlayers = JSON.stringify(entry.players ?? null) === JSON.stringify(players ?? null);
+    const { players: _oldPlayers, ...rest } = entry;
+    const vaultOps: VaultOp[] = [
+      ...extraVaultOps,
+      ...(samePlayers
+        ? []
+        : [
+            {
+              kind: 'vault-set' as const,
+              file: REVEALS_FILE,
+              path: `pages.${copyId}`,
+              value: { ...rest, ...(players ? { players } : {}) },
+            },
+          ]),
+    ];
     const plan = await this.guardedWrites.createPlan({
       feature: HANDOUTS_FEATURE,
-      summary: `Reveal page "${title}" to players again (updates its copy in ${HANDOUTS_JOURNAL_NAME})`,
+      summary: `Reveal page "${title}" to ${audience(players)} again (updates its copy in ${HANDOUTS_JOURNAL_NAME})`,
       ops: [updateOpFor(entry.uuid, changed)],
+      ...(vaultOps.length > 0 ? { vaultOps } : {}),
       risk: 'destructive',
     });
     return { ...plan, pageUuid: sourceUuid, copy, note: copyNote(title, copy) };
@@ -587,7 +891,9 @@ export class HandoutsService {
     title: string,
     name: string,
     copies: Array<[string, RevealedPageEntry]>,
-    content: CopyContent
+    content: CopyContent,
+    players: string[] | undefined,
+    extraVaultOps: VaultOp[]
   ): Promise<PageRevealPlan> {
     const remembered = file.handoutsJournal?.uuid;
     let journalExists = false;
@@ -603,10 +909,12 @@ export class HandoutsService {
       name,
       type: content.type,
       ...content.fields,
+      // Chosen players (I-039): the copy is hidden from the rest of the table.
+      ...(players ? { ownership: chosenOwnership(players) } : {}),
       flags: { [MODULE_ID]: { [COPIED_FROM_FLAG]: sourceUuid } },
     };
     const ops: GuardedOp[] = [];
-    const vaultOps: VaultOp[] = [];
+    const vaultOps: VaultOp[] = [...extraVaultOps];
     let journalUuid: string;
     if (remembered && journalExists) {
       journalUuid = remembered;
@@ -655,6 +963,7 @@ export class HandoutsService {
         feature: HANDOUTS_FEATURE,
         at: new Date(this.now()).toISOString(),
         copiedFrom: sourceUuid,
+        ...(players ? { players } : {}),
       },
     });
     const copy: HandoutCopyView = {
@@ -671,7 +980,7 @@ export class HandoutsService {
     const warning = copy.journalCreated ? await this.sameNameWarning() : undefined;
     const plan = await this.guardedWrites.createPlan({
       feature: HANDOUTS_FEATURE,
-      summary: `Reveal page "${title}" to players (copied into ${HANDOUTS_JOURNAL_NAME})`,
+      summary: `Reveal page "${title}" to ${audience(players)} (copied into ${HANDOUTS_JOURNAL_NAME})`,
       ops,
       vaultOps,
       risk: 'destructive',
@@ -710,6 +1019,21 @@ export class HandoutsService {
           kind: 'update',
           uuid: pageUuid,
           changes: { 'ownership.default': allowlisted.previousOwnership },
+        });
+      }
+      const users = allowlisted.previousUserOwnership;
+      if (setOwnership && page.exists && users && Object.keys(users).length > 0) {
+        const changes: Record<string, unknown> = {};
+        const unset: string[] = [];
+        for (const [id, level] of Object.entries(users)) {
+          if (level === null) unset.push(`ownership.${id}`);
+          else changes[`ownership.${id}`] = level;
+        }
+        ops.push({
+          kind: 'update',
+          uuid: pageUuid,
+          changes,
+          ...(unset.length > 0 ? { unset } : {}),
         });
       }
       vaultOps.push({ kind: 'vault-delete', file: REVEALS_FILE, path: `pages.${pageId}` });
@@ -787,4 +1111,21 @@ export class HandoutsService {
     for (const page of result.pages ?? []) map.set(page.uuid, page);
     return map;
   }
+}
+
+/**
+ * The control method `record_handout_seen` (`{pageId, userId, name}` to
+ * `{recorded}`): the dashboard reports that a player opened a handout.
+ */
+export async function handleRecordHandoutSeen(
+  handouts: Pick<HandoutsService, 'recordSeen'>,
+  params: unknown
+): Promise<{ recorded: boolean }> {
+  const p =
+    params !== null && typeof params === 'object' ? (params as Record<string, unknown>) : {};
+  const pageId = typeof p.pageId === 'string' ? p.pageId : '';
+  const userId = typeof p.userId === 'string' ? p.userId : '';
+  const name = typeof p.name === 'string' ? p.name : '';
+  if (!pageId || !userId) throw new Error('record_handout_seen needs pageId and userId');
+  return handouts.recordSeen(pageId, userId, name);
 }

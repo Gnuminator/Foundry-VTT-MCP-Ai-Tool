@@ -187,6 +187,21 @@ export class McpControlClient extends EventEmitter {
   }
 
   /**
+   * A player opened a handout on /player (I-039): the bridge keeps the first
+   * open per player. An old backend answers "Unknown method" (a ChannelError).
+   */
+  async recordHandoutSeen(
+    pageId: string,
+    userId: string,
+    name: string
+  ): Promise<{ recorded: boolean }> {
+    const result = (await this.send('record_handout_seen', { pageId, userId, name })) as
+      | { recorded?: unknown }
+      | undefined;
+    return { recorded: result?.recorded === true };
+  }
+
+  /**
    * Invoke a backend tool and return its (JSON-parsed) result. Throws a typed
    * error: ToolError if the tool reported a failure, TimeoutError on a stalled
    * channel, ChannelError if the channel is down.

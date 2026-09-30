@@ -144,6 +144,11 @@ export interface PlayerHandout {
   /** Sanitized HTML. */
   html: string;
   revealedAt: string | null;
+  /**
+   * I-039: revealed only to these users (Foundry user ids); absent: every player. The player
+   * page shows it only to a player whose picked name matches (a self-picked name, D-065).
+   */
+  players?: string[];
 }
 
 /** `/api/player/state` and the player stream's `state` frame. */

@@ -60,6 +60,23 @@ Turn it on when you are about to act, and off again after.
 
 Opens the tool runner. See "The tool runner" below.
 
+### ✈ Pre-flight
+
+Opens the pre-flight check: run it before the players join. The tool ticks what it can check by
+itself (Foundry connected, module and bridge versions match, the write switches, secrets in world
+settings, names players can see that give away a secret, module conflicts, Obsidian notes, the
+play session, GM Actions off, the player page, Tarokka cards hidden). Below that are the things to
+check by hand, from [before each session](before-session.md); your ticks stay in this browser until
+you click **Clear ticks**. The button itself reads **Pre-flight: ready** or **Pre-flight: 2 to fix**
+after each Foundry connect.
+
+A value that looks like a secret is never shown in full, only its first four characters and its
+length. If the module and bridge versions differ, a banner at the top says which to update.
+
+### 📜 Handouts
+
+Opens the handout drawer. See "The handout drawer" below.
+
 ### 🃏 Tarokka
 
 Opens the Tarokka drawer. See "The Tarokka drawer" below.
@@ -97,6 +114,21 @@ more selected:
 - **Clear**: unselects all.
 
 Nothing changes until you confirm in the confirm window.
+
+**👑 Boss prompts** (in the panel's top line, only while a creature with legendary actions or a lair
+is in the fight; off until you turn it on, and remembered in this browser). Turn it on before the
+first boss fight. It shows:
+
+- **Legendary** and **Resist** pips on each boss row: filled for uses left this round, as dnd5e
+  counts them (a creature in its lair can have one more). Spend them on the creature's sheet in
+  Foundry; the pips follow within a few seconds.
+- **🏰 Lair action** reminder when the turn order passes initiative 20 (or the lair's own count),
+  for a creature whose "in lair" box is ticked on its sheet.
+- **⚡ legendary actions left** for each boss that is not taking its own turn.
+- An **R** button on every row: click it when that creature uses its reaction. The marks clear at
+  the next round. These marks stay on the dashboard; nothing changes in Foundry.
+
+The player page never shows any of this.
 
 ### Live Feed
 
@@ -232,6 +264,23 @@ Import, new reading, link and reveal each make a plan and open the confirm windo
 what will change. A reveal is destructive (the second step), because the table cannot unsee it.
 Every one of them shows up in Recent Changes and can be undone there.
 
+## The handout drawer (📜 Handouts)
+
+Queue handouts during prep, then reveal each with one click at the table. The drawer shows:
+
+- **Queue**: the pages you staged, oldest first, with their scene and who they are for.
+  **Remove** takes one off the queue. Queueing changes nothing in Foundry.
+- **Reveal next: <title>**: plans the reveal of the next queued page for the scene that is active
+  now (or a page queued for any scene). The confirm window shows the change; applying it also takes
+  the page off the queue. Undo in Recent Changes hides it again and puts it back in the queue.
+- **+ Queue a page**: opens the tool runner on `plan-page-reveal` with `action` queue. Pick the page,
+  optionally a scene and the players it is for, and run it.
+- **Revealed**: each handout, who it is for, and a tick for each player who has opened it on the
+  player page (hover for the time).
+
+A handout for chosen players is readable in Foundry only by them, and the player page shows it only
+to a player who picked that name ("Playing as ...") at the top of the page.
+
 ## The player page (/player)
 
 The page players look at: `http://localhost:3000/player` today. Open it yourself before a session
@@ -269,7 +318,8 @@ first, every page in it is readable at once, before any reveal. So do it in this
    Handouts (writes)", **Save Changes**.
 5. **Plan and apply the reveal.** Ask Claude with the `reveal-handout` prompt, or run the tool
    `plan-page-reveal` with `action` reveal and apply the plan. The confirm window lists what will
-   change.
+   change. To reveal it to some players only, fill in `players`. To prepare reveals ahead of the
+   session, queue them instead (see "The handout drawer").
 
 The page shows on the player page within a few seconds, and players can open it in Foundry.
 `plan-page-reveal` with `action` hide takes it back. Before a session, open the player page and

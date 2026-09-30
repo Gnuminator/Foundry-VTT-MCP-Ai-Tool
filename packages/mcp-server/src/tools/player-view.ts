@@ -6,6 +6,8 @@ import type {
   HandoutsService,
   PageRevealPlan,
   PlayerHandoutsView,
+  QueueChangeView,
+  QueuedPageView,
   RevealedPageView,
 } from '../handouts/service.js';
 import type { Logger } from '../logger.js';
@@ -23,7 +25,10 @@ interface ToolDefinition {
 }
 
 interface PlayerViewToolsOptions {
-  handouts: Pick<HandoutsService, 'listRevealed' | 'playerHandouts' | 'planPageReveal'>;
+  handouts: Pick<
+    HandoutsService,
+    'listRevealed' | 'listQueue' | 'playerHandouts' | 'planPageReveal' | 'queuePage' | 'unqueuePage'
+  >;
   secretTerms: Pick<SecretTermsService, 'findSecretTerms'>;
   foundryClient: Pick<FoundryClient, 'query'>;
   worldIds: Pick<WorldIdResolver, 'current'>;
@@ -70,7 +75,7 @@ export class PlayerViewTools {
       {
         name: 'list-revealed-pages',
         description:
-          'GM ONLY. Every journal page on the player reveal allowlist (from any feature: Tarokka reveals, plan-page-reveal), with whether it still exists in Foundry and is currently observable by a player. Titles only, never page content. Read-only.',
+          'GM ONLY. Every journal page on the player reveal allowlist (from any feature: Tarokka reveals, plan-page-reveal), with whether it still exists in Foundry and is currently observable by a player, the chosen players when it was revealed only to some (user ids), and seenBy: who opened it on the player page and when. Also queue: the pages staged with plan-page-reveal action "queue", oldest first, with their scene and players. Titles only, never page content. Read-only.',
         inputSchema: { type: 'object', properties: {} },
       },
       {
@@ -89,13 +94,27 @@ export class PlayerViewTools {
             pageUuid: {
               type: 'string',
               description:
-                'The journal page to reveal or hide, e.g. JournalEntry.abc123.JournalEntryPage.def456.',
+                'The journal page to reveal, hide, queue or unqueue, e.g. JournalEntry.abc123.JournalEntryPage.def456. Not used by "reveal-next".',
               ...toolRef('journal-page', 'uuid'),
             },
             action: {
               type: 'string',
-              enum: ['reveal', 'hide'],
-              description: '"reveal" adds it to the player allowlist; "hide" removes it.',
+              enum: ['reveal', 'hide', 'queue', 'unqueue', 'reveal-next'],
+              description:
+                '"reveal" adds it to the player allowlist; "hide" removes it. "queue" stages the page for later (with sceneId and players; changes nothing in Foundry, no plan, applies at once) and "unqueue" removes it from the queue. "reveal-next" plans the reveal of the oldest queued page for sceneId (or any), with the players it was queued for; applying it also takes the page off the queue.',
+            },
+            players: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'Reveal (or queue) for these players only (Foundry user ids): their own ownership is raised instead of the default, or a copy is hidden from the rest. Omit for every player.',
+              ...toolRef('user', 'id', { filter: { role: 'player' } }),
+            },
+            sceneId: {
+              type: 'string',
+              description:
+                'queue: the scene the page belongs to (omit for any scene). reveal-next: take the next page queued for this scene (or for any scene).',
+              ...toolRef('scene', 'id'),
             },
             setOwnership: {
               type: 'boolean',
@@ -108,7 +127,7 @@ export class PlayerViewTools {
                 'Reveal as a copy in the player journal "Handouts" (secret blocks and embeds left out, the source unchanged). Omit for automatic: copy when no player can open the page\'s journal, or when the page already has a copy (the copy is updated). True: always copy. False: never copy (raise the page instead).',
             },
           },
-          required: ['pageUuid', 'action'],
+          required: ['action'],
         },
       },
       {
@@ -136,29 +155,51 @@ export class PlayerViewTools {
     );
   }
 
-  async handleListRevealedPages(_args: unknown): Promise<{ pages: RevealedPageView[] }> {
-    return { pages: await this.handouts.listRevealed() };
+  async handleListRevealedPages(
+    _args: unknown
+  ): Promise<{ pages: RevealedPageView[]; queue: QueuedPageView[] }> {
+    const [pages, queue] = await Promise.all([
+      this.handouts.listRevealed(),
+      this.handouts.listQueue(),
+    ]);
+    return { pages, queue };
   }
 
   handleGetPlayerHandouts(_args: unknown): Promise<PlayerHandoutsView> {
     return this.handouts.playerHandouts();
   }
 
-  async handlePlanPageReveal(args: unknown): Promise<PageRevealPlan> {
+  async handlePlanPageReveal(args: unknown): Promise<PageRevealPlan | QueueChangeView> {
     const params = z
       .object({
-        pageUuid: z.string().min(1).max(300),
-        action: z.enum(['reveal', 'hide']),
+        pageUuid: z.string().min(1).max(300).optional(),
+        action: z.enum(['reveal', 'hide', 'queue', 'unqueue', 'reveal-next']),
         setOwnership: z.boolean().optional(),
         copy: z.boolean().optional(),
+        players: z.array(z.string().max(64)).max(20).optional(),
+        sceneId: z.string().max(64).optional(),
       })
       .parse(args ?? {});
+    if (params.action !== 'reveal-next' && !params.pageUuid) {
+      throw new Error(`pageUuid is required for action "${params.action}"`);
+    }
+    if (params.action === 'queue') {
+      return this.handouts.queuePage({
+        pageUuid: params.pageUuid,
+        ...(params.sceneId !== undefined ? { sceneId: params.sceneId } : {}),
+        ...(params.players !== undefined ? { players: params.players } : {}),
+      });
+    }
+    if (params.action === 'unqueue')
+      return this.handouts.unqueuePage({ pageUuid: params.pageUuid });
     return this.logged('page reveal', () =>
       this.handouts.planPageReveal({
-        pageUuid: params.pageUuid,
         action: params.action,
+        ...(params.pageUuid !== undefined ? { pageUuid: params.pageUuid } : {}),
         ...(params.setOwnership !== undefined ? { setOwnership: params.setOwnership } : {}),
         ...(params.copy !== undefined ? { copy: params.copy } : {}),
+        ...(params.players !== undefined ? { players: params.players } : {}),
+        ...(params.sceneId !== undefined ? { sceneId: params.sceneId } : {}),
       })
     );
   }

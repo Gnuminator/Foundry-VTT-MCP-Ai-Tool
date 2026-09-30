@@ -65,7 +65,7 @@ import { PlayerViewTools } from './tools/player-view.js';
 import { PreflightTools } from './tools/preflight.js';
 import { RefChoiceTools } from './tools/ref-choices.js';
 import { TarokkaService } from './tarokka/service.js';
-import { HandoutsService } from './handouts/service.js';
+import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
 import { SecretTermsService } from './secret-terms.js';
 import { GuardedWriteService } from './guarded-write/service.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
@@ -326,8 +326,14 @@ async function startBackend(): Promise<void> {
   });
   const playStatsTools = new PlayStatsTools({ worldIds, store: vaultStore, logger });
   const secretTerms = new SecretTermsService({ store: vaultStore });
+  const handouts = new HandoutsService({
+    guardedWrites,
+    store: vaultStore,
+    worldIds,
+    foundryClient,
+  });
   const playerViewTools = new PlayerViewTools({
-    handouts: new HandoutsService({ guardedWrites, store: vaultStore, worldIds, foundryClient }),
+    handouts,
     secretTerms,
     foundryClient,
     worldIds,
@@ -551,6 +557,20 @@ async function startBackend(): Promise<void> {
           if (msg.method === 'record_usage') {
             const result = await handleRecordUsage(usageLog, msg.params);
             socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+
+            continue;
+          }
+
+          // A player opened a handout on /player (I-039 seen log); not a tool, never listed to
+          // Claude, and the stdio wrapper never forwards it.
+          if (msg.method === 'record_handout_seen') {
+            try {
+              const result = await handleRecordHandoutSeen(handouts, msg.params);
+              socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            } catch (e: unknown) {
+              const message = e instanceof Error ? e.message : 'Bad request';
+              socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
+            }
 
             continue;
           }

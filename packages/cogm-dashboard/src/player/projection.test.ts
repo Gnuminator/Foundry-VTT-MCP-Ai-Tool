@@ -242,6 +242,22 @@ describe('projectCombat', () => {
     expect(JSON.stringify(out)).not.toContain(SECRET);
   });
 
+  it('never copies boss resources (legendary actions, resistances, lair) to players (I-070)', () => {
+    const boss = combatant({
+      boss: {
+        legendary: { max: 3, spent: 1, remaining: 2 },
+        resistances: { max: 3, spent: 0, remaining: 3 },
+        lair: { inside: true, initiative: 20 },
+      },
+    });
+    const out = projectCombat({ ...combat, combatants: [boss] }, visibility, opts);
+    expect(out?.combatants).toHaveLength(1);
+    const printed = JSON.stringify(out);
+    for (const key of ['boss', 'legendary', 'resistances', 'lair', 'remaining', 'spent']) {
+      expect(printed).not.toContain(key);
+    }
+  });
+
   it('respects the GM switches for enemy HP bands and conditions', () => {
     const out = projectCombat(combat, visibility, {
       showEnemyHpBands: false,
@@ -283,5 +299,30 @@ describe('buildPlayerState', () => {
       events: [{ id: 'e1', timestampMs: 1000, type: 'damage', text: 'Ireena took 7 damage.' }],
       handouts: [],
     });
+  });
+
+  it('keeps the chosen players of a handout so the player page can filter (I-039, found live)', () => {
+    const state = buildPlayerState({
+      status: {
+        controlChannel: 'connected',
+        foundry: 'reachable',
+        lastError: null,
+        lastPollAt: null,
+        foundryDownSince: null,
+      },
+      world: null,
+      visibility,
+      combat: null,
+      events: [],
+      handouts: [
+        { id: 'h1', title: 'Letter', html: '<p>x</p>', revealedAt: null, players: ['u1'] },
+        { id: 'h2', title: 'Notice', html: '<p>y</p>', revealedAt: null },
+      ],
+      opts,
+    });
+    expect(state.handouts).toEqual([
+      { id: 'h1', title: 'Letter', html: '<p>x</p>', revealedAt: null, players: ['u1'] },
+      { id: 'h2', title: 'Notice', html: '<p>y</p>', revealedAt: null },
+    ]);
   });
 });

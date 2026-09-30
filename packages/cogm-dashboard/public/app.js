@@ -63,6 +63,8 @@ const els = {
   btnGm: $('btn-gm'),
   btnTools: $('btn-tools'),
   combatActions: $('combat-actions'),
+  bossToggle: $('boss-toggle'),
+  bossPrompts: $('boss-prompts'),
   drawer: $('tools-drawer'),
   drawerBackdrop: $('drawer-backdrop'),
   drawerClose: $('drawer-close'),
@@ -96,6 +98,16 @@ const els = {
   tarokkaImport: $('tarokka-import'),
   tarokkaRoll: $('tarokka-roll'),
   tarokkaShow: $('tarokka-show'),
+  // Handouts drawer (I-039)
+  btnHandouts: $('btn-handouts'),
+  handoutsDrawer: $('handouts-drawer'),
+  handoutsClose: $('handouts-close'),
+  handoutsSub: $('handouts-sub'),
+  handoutsNext: $('handouts-next'),
+  handoutsAdd: $('handouts-add'),
+  handoutsRefresh: $('handouts-refresh'),
+  handoutsQueue: $('handouts-queue'),
+  handoutsRevealed: $('handouts-revealed'),
   // Pre-flight drawer
   btnPreflight: $('btn-preflight'),
   preflightDrawer: $('preflight-drawer'),
@@ -372,8 +384,90 @@ function combatantClasses(c) {
   return cls.join(' ');
 }
 
+// --- Boss prompts (I-070): legendary pips, lair reminder, reaction ticks ---
+// Read-only: the pips come from the actor's dnd5e data in get-combat-state;
+// reaction ticks live in this browser and reset each round. Off by default
+// (D-081: switch it on before the first boss fight); remembered per browser.
+const BOSS_PROMPTS_KEY = 'cogm_boss_prompts';
+let bossPrompts = (() => {
+  try {
+    return localStorage.getItem(BOSS_PROMPTS_KEY) === 'on';
+  } catch {
+    return false;
+  }
+})();
+const reactionsUsed = new Set();
+let reactionsRound = null;
+
+function setBossPrompts(on) {
+  bossPrompts = on;
+  try {
+    localStorage.setItem(BOSS_PROMPTS_KEY, on ? 'on' : 'off');
+  } catch {}
+  renderCombat(lastCombat);
+}
+function pips(counter, cls) {
+  const filled = '◆'.repeat(counter.remaining);
+  const empty = '◇'.repeat(Math.max(0, counter.max - counter.remaining));
+  return `<span class="boss-pips ${cls}">${filled}${empty}</span> ${counter.remaining}/${counter.max}`;
+}
+function bossLine(c) {
+  const b = c.boss;
+  if (!bossPrompts || !b) return '';
+  const parts = [];
+  if (b.legendary) parts.push(`Legendary ${pips(b.legendary, 'pips-legendary')}`);
+  if (b.resistances) parts.push(`Resist ${pips(b.resistances, 'pips-resist')}`);
+  if (b.lair) parts.push(b.lair.inside ? '🏰 in lair' : '🏰 lair');
+  return parts.length ? `<div class="boss-line">${parts.join(' · ')}</div>` : '';
+}
+function reactionButton(c) {
+  if (!bossPrompts || c.defeated) return '';
+  const used = reactionsUsed.has(c.id);
+  return `<button type="button" class="reaction-btn${used ? ' used' : ''}" data-track="dash.combat.reaction" data-reaction="${escapeHtml(c.id)}" title="${used ? 'Reaction used this round (click to undo)' : 'Mark reaction used this round'}">R</button>`;
+}
+/** The combatant whose turn the lair action comes before: the first below the lair's count. */
+function lairTurnIndex(combatants, count) {
+  const idx = combatants.findIndex(c => typeof c.initiative !== 'number' || c.initiative < count);
+  return idx === -1 ? 0 : idx;
+}
+function renderBossPrompts(combat) {
+  const active = !!(combat && combat.active);
+  const bosses = active ? combat.combatants.filter(c => c.boss && !c.defeated) : [];
+  els.bossToggle.hidden = bosses.length === 0;
+  els.bossToggle.textContent = bossPrompts ? '👑 Boss prompts: on' : '👑 Boss prompts: off';
+  els.bossToggle.classList.toggle('on', bossPrompts);
+  if (!bossPrompts || bosses.length === 0) {
+    els.bossPrompts.hidden = true;
+    els.bossPrompts.innerHTML = '';
+    return;
+  }
+  const lines = [];
+  const current = combat.combatants[combat.turn] || combat.current || null;
+  for (const b of bosses) {
+    const lair = b.boss.lair;
+    if (lair && (lair.inside || typeof lair.initiative === 'number')) {
+      const count = typeof lair.initiative === 'number' ? lair.initiative : 20;
+      if (combat.turn === lairTurnIndex(combat.combatants, count)) {
+        lines.push(
+          `<div class="boss-prompt prompt-lair">🏰 Lair action for ${escapeHtml(b.name)} (initiative ${count}), before ${escapeHtml(current ? current.name : 'this turn')}'s turn.</div>`
+        );
+      }
+    }
+  }
+  for (const b of bosses) {
+    const leg = b.boss.legendary;
+    if (!leg || leg.remaining <= 0 || (current && current.id === b.id)) continue;
+    lines.push(
+      `<div class="boss-prompt prompt-legendary">⚡ ${escapeHtml(b.name)}: ${leg.remaining} legendary action${leg.remaining === 1 ? '' : 's'} left, one after this turn.</div>`
+    );
+  }
+  els.bossPrompts.hidden = lines.length === 0;
+  els.bossPrompts.innerHTML = lines.join('');
+}
+
 function renderCombat(combat) {
   lastCombat = combat;
+  renderBossPrompts(combat);
   if (!combat || !combat.active) {
     selectedCombatants.clear();
     els.combatMeta.textContent = '—';
@@ -387,6 +481,10 @@ function renderCombat(combat) {
   for (const id of [...selectedCombatants]) if (!ids.has(id)) selectedCombatants.delete(id);
 
   els.combatMeta.textContent = `Round ${combat.round} · ${combat.combatants.length} combatants`;
+  if (reactionsRound !== combat.round) {
+    reactionsUsed.clear();
+    reactionsRound = combat.round;
+  }
 
   const rows = combat.combatants
     .map(c => {
@@ -403,7 +501,8 @@ function renderCombat(combat) {
         <div class="${combatantClasses(c)}"${settings.gmActionsEnabled ? ' data-track="dash.combat.select-combatant"' : ''} data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">
           <div class="init-badge">${init}</div>
           <div class="combatant-main">
-            <div class="combatant-name">${escapeHtml(c.name)} ${sideTag(c)}</div>
+            <div class="combatant-name">${escapeHtml(c.name)} ${sideTag(c)} ${reactionButton(c)}</div>
+            ${bossLine(c)}
             ${conditions ? `<div class="conditions">${conditions}</div>` : ''}
             ${deathSaves}
           </div>
@@ -622,6 +721,9 @@ function connect() {
   on('combat', d => renderCombat(d.combat));
   on('events', d => addEvents(d.events));
   on('errors', d => addErrors(d.errors));
+  on('handouts-seen', () => {
+    if (!els.handoutsDrawer.hidden) void loadHandouts();
+  });
   on('comment.start', commentStart);
   on('comment.delta', commentDelta);
   on('comment.done', commentDone);
@@ -1441,6 +1543,141 @@ function renderRecentChanges() {
     .join('');
 }
 
+// --- Handouts drawer (GM only; I-039) ---
+// The queue and the seen log come from list-revealed-pages; queueing and
+// unqueueing are plain calls (GM prep, nothing in Foundry changes); "Reveal
+// next" is a guarded reveal for the active scene, applied after the confirm.
+let handoutsView = { pages: [], queue: [] };
+let handoutScenes = new Map();
+let activeSceneId = null;
+let handoutPlayers = [];
+
+function openHandouts() {
+  usage.trackView('dash.handouts.view');
+  els.drawerBackdrop.hidden = false;
+  els.handoutsDrawer.hidden = false;
+  void loadHandouts();
+}
+function closeHandouts() {
+  usage.endView('dash.handouts.view');
+  els.handoutsDrawer.hidden = true;
+  if (els.drawer.hidden && els.tarokkaDrawer.hidden && els.preflightDrawer.hidden) {
+    els.drawerBackdrop.hidden = true;
+  }
+}
+async function loadHandouts() {
+  try {
+    const [view, scenes, names] = await Promise.all([
+      callReadTool('list-revealed-pages', {}),
+      callReadTool('list-scenes', {}).catch(() => []),
+      fetch('/api/player/names', { headers: authHeaders() })
+        .then(r => (r.ok ? r.json() : []))
+        .catch(() => []),
+    ]);
+    handoutsView = {
+      pages: Array.isArray(view && view.pages) ? view.pages : [],
+      queue: Array.isArray(view && view.queue) ? view.queue : [],
+    };
+    const list = Array.isArray(scenes)
+      ? scenes
+      : Array.isArray(scenes && scenes.scenes)
+        ? scenes.scenes
+        : [];
+    handoutScenes = new Map(list.map(s => [s.id, s.name]));
+    const active = list.find(s => s.active);
+    activeSceneId = active ? active.id : null;
+    handoutPlayers = Array.isArray(names) ? names : [];
+    renderHandoutsDrawer();
+  } catch (err) {
+    els.handoutsQueue.innerHTML = `<li class="empty">Couldn't load the handouts: ${escapeHtml(String(err.message || err))}</li>`;
+  }
+}
+function playerNameOf(userId) {
+  const p = handoutPlayers.find(n => n.userId === userId);
+  return p ? p.name : userId;
+}
+function audienceText(players) {
+  return Array.isArray(players) && players.length > 0
+    ? `for ${players.map(playerNameOf).join(', ')}`
+    : 'for every player';
+}
+/** The queue entry "Reveal next" takes: the oldest for the active scene or any scene. */
+function nextQueued() {
+  return (
+    handoutsView.queue.find(
+      q => q.sceneId === null || activeSceneId === null || q.sceneId === activeSceneId
+    ) || null
+  );
+}
+function renderHandoutsDrawer() {
+  const { queue, pages } = handoutsView;
+  const next = nextQueued();
+  els.handoutsNext.disabled = !next;
+  els.handoutsNext.textContent = next ? `Reveal next: ${next.title || 'Untitled'}` : 'Reveal next';
+  els.handoutsQueue.innerHTML =
+    queue.length === 0
+      ? '<li class="empty">Nothing queued. Queue pages during prep, then reveal each in one click.</li>'
+      : queue
+          .map(q => {
+            const scene = q.sceneId ? handoutScenes.get(q.sceneId) || 'another scene' : 'any scene';
+            const missing = q.exists ? '' : ' <span class="pf-detail">(page deleted)</span>';
+            return `<li class="preflight-item${next && next.entryId === q.entryId ? ' pf-info' : ''}">
+              <span class="pf-text"><span class="pf-label">${escapeHtml(q.title || 'Untitled')}${missing}</span>
+              <span class="pf-detail">${escapeHtml(scene)} · ${escapeHtml(audienceText(q.players))}</span></span>
+              <button type="button" class="btn btn-small" data-track="dash.handouts.unqueue" data-unqueue="${escapeHtml(q.uuid)}">Remove</button>
+            </li>`;
+          })
+          .join('');
+  const shown = pages.filter(p => p.feature === 'handouts' || p.copiedFrom);
+  els.handoutsRevealed.innerHTML =
+    shown.length === 0
+      ? '<li class="empty">No handout revealed yet.</li>'
+      : shown
+          .map(p => {
+            const audience =
+              Array.isArray(p.players) && p.players.length > 0
+                ? p.players
+                : handoutPlayers.map(n => n.userId);
+            const seen = new Map((p.seenBy || []).map(s => [s.userId, s]));
+            const ticks = audience
+              .map(id => {
+                const s = seen.get(id);
+                const when = s
+                  ? new Date(s.at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false,
+                    })
+                  : '';
+                return `<span class="seen-tick${s ? ' seen' : ''}" title="${s ? `Opened ${escapeHtml(when)}` : 'Not opened yet'}">${s ? '✓' : '·'} ${escapeHtml(playerNameOf(id))}</span>`;
+              })
+              .join(' ');
+            return `<li class="preflight-item">
+              <span class="pf-text"><span class="pf-label">${p.exists ? escapeHtml(p.title || 'Untitled') : '(page deleted)'}</span>
+              <span class="pf-detail">${escapeHtml(audienceText(p.players))}${p.observable ? '' : ' · not visible in Foundry'}</span>
+              <span class="seen-row">${ticks || '<span class="pf-detail">No players known yet.</span>'}</span></span>
+            </li>`;
+          })
+          .join('');
+}
+async function revealNextHandout() {
+  await planThenApply('plan-page-reveal', {
+    action: 'reveal-next',
+    ...(activeSceneId ? { sceneId: activeSceneId } : {}),
+  });
+  void loadHandouts();
+}
+async function unqueueHandout(uuid) {
+  try {
+    await callReadTool('plan-page-reveal', { action: 'unqueue', pageUuid: uuid });
+    usage.trackTool('plan-page-reveal', 'ok');
+  } catch (err) {
+    usage.trackTool('plan-page-reveal', 'error', toolErrorCode(err));
+    toast(`✗ plan-page-reveal: ${String(err.message || err)}`, 'err');
+  }
+  void loadHandouts();
+}
+
 // --- Pre-flight drawer (GM only; I-068) ---
 // Automatic checks come from GET /api/preflight (bridge + dashboard); the
 // Tarokka "Show cards" box is checked here. Manual ticks stay in this browser.
@@ -1491,7 +1728,9 @@ function openPreflight() {
 function closePreflight() {
   usage.endView('dash.preflight.view');
   els.preflightDrawer.hidden = true;
-  if (els.drawer.hidden && els.tarokkaDrawer.hidden) els.drawerBackdrop.hidden = true;
+  if (els.drawer.hidden && els.tarokkaDrawer.hidden && els.handoutsDrawer.hidden) {
+    els.drawerBackdrop.hidden = true;
+  }
 }
 /** The checks the browser itself can make. */
 function localPreflightChecks() {
@@ -1642,7 +1881,9 @@ function openTarokka() {
 function closeTarokka() {
   usage.endView('dash.tarokka.view');
   els.tarokkaDrawer.hidden = true;
-  if (els.drawer.hidden) els.drawerBackdrop.hidden = true;
+  if (els.drawer.hidden && els.preflightDrawer.hidden && els.handoutsDrawer.hidden) {
+    els.drawerBackdrop.hidden = true;
+  }
 }
 async function loadTarokka() {
   try {
@@ -1798,6 +2039,14 @@ els.toolList.addEventListener('click', e => {
   if (b) void openTool(b.dataset.tool);
 });
 els.combatBody.addEventListener('click', e => {
+  const reaction = e.target.closest('[data-reaction]');
+  if (reaction) {
+    const id = reaction.dataset.reaction;
+    if (reactionsUsed.has(id)) reactionsUsed.delete(id);
+    else reactionsUsed.add(id);
+    renderCombat(lastCombat);
+    return;
+  }
   if (!settings.gmActionsEnabled) return;
   const row = e.target.closest('.combatant');
   if (!row || !row.dataset.id) return;
@@ -1836,6 +2085,7 @@ els.combatActions.addEventListener('click', e => {
   if (action === 'save') void openTool('roll-saving-throws', { targets: names });
 });
 els.changesRefresh.addEventListener('click', () => void loadRecentChanges());
+els.bossToggle.addEventListener('click', () => setBossPrompts(!bossPrompts));
 els.btnSession.addEventListener(
   'click',
   () => void markSession(playSession.open ? 'end' : 'start')
@@ -1852,6 +2102,23 @@ els.tarokkaRoll.addEventListener('click', () =>
   planThenApply('plan-tarokka-import', { source: 'builtin-roll' })
 );
 els.tarokkaBody.addEventListener('click', e => void onTarokkaClick(e));
+els.btnHandouts.addEventListener('click', openHandouts);
+els.handoutsClose.addEventListener('click', closeHandouts);
+els.drawerBackdrop.addEventListener('click', closeHandouts);
+els.handoutsRefresh.addEventListener('click', () => void loadHandouts());
+els.handoutsNext.addEventListener('click', () => void revealNextHandout());
+els.handoutsAdd.addEventListener('click', () => {
+  closeHandouts();
+  openDrawer();
+  void openTool('plan-page-reveal', {
+    action: 'queue',
+    ...(activeSceneId ? { sceneId: activeSceneId } : {}),
+  });
+});
+els.handoutsQueue.addEventListener('click', e => {
+  const btn = e.target.closest('[data-unqueue]');
+  if (btn) void unqueueHandout(btn.dataset.unqueue);
+});
 els.btnPreflight.addEventListener('click', openPreflight);
 els.preflightClose.addEventListener('click', closePreflight);
 els.drawerBackdrop.addEventListener('click', closePreflight);
@@ -1895,6 +2162,9 @@ document.addEventListener('keydown', e => {
   if (!els.modalBackdrop.hidden) {
     usage.trackShortcut('dash.shortcut.escape-modal');
     closeModal(false);
+  } else if (!els.handoutsDrawer.hidden) {
+    usage.trackShortcut('dash.shortcut.escape-handouts');
+    closeHandouts();
   } else if (!els.preflightDrawer.hidden) {
     usage.trackShortcut('dash.shortcut.escape-preflight');
     closePreflight();

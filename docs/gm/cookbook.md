@@ -168,7 +168,15 @@ These need the **play** set switched on, and they happen right away (no undo).
 
 ### Session notes and the player recap
 
-Coming: written automatically after the recording.
+- **Do:** nothing. After `/record stop` the recording is turned into text on the table's PC and
+  Claude writes the notes. For now the builder starts this; from the first campaign session it
+  runs by itself every hour. In Claude Code, `/session-notes` does it by hand.
+- **What happens:** in the session's folder, under `notes`, in Danish and English: the cleaned
+  transcript, notes per scene (what happened, NPCs, loot, open threads, a "GM only" part), a
+  summary for you and a draft recap for the players.
+- **Tip:** read the players' recap before anyone else does; it is a draft until you say it is
+  fine. Approving it also starts the clock that deletes the recorded audio 14 days later. Getting
+  the notes into your Obsidian vault and the recap into the handout queue comes next.
 
 ## When a recipe goes wrong
 

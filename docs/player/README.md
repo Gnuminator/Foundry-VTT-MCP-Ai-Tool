@@ -57,16 +57,28 @@ from it are in the GM's Obsidian notes. None of it is stored in the Foundry worl
 - **Dashboard commentary, only if an API key is set.** The GM's dashboard can comment on the game
   by itself, but only with a separate paid API key. Then recent game events and the combat state go
   to Anthropic automatically. It is off unless the GM turns it on.
-- **Voice transcription, later.** Planned, not built. It would run locally on the table's own
-  machine, not in the cloud. This page will be updated before it is used.
+- **Session recordings, only when started.** A session is recorded only when someone types
+  `/record start` in Discord. The bot then joins the voice channel and posts a notice, and it
+  stops at `/record stop`. It records one audio track per person, and only while your microphone
+  sends sound: when you are muted, nothing of yours is recorded. You can ask not to be recorded;
+  then your track is left out.
+  - The audio stays on the table's own PC. Turning it into text (speech to text) also runs there,
+    not in the cloud.
+  - The text then goes to Claude, under the Claude account of whoever runs the notes step, to
+    write a cleaned transcript, notes per scene and a short recap, in Danish and English.
+  - The recap for players is a draft until the GM has read and approved it. Things the GM says
+    that are meant for the GM only are kept out of it.
 
 ## How long it is kept
 
-For the campaign. When the campaign ends, the GM decides what to keep.
+For the campaign. When the campaign ends, the GM decides what to keep. Recorded audio is the
+exception: it is deleted 14 days after the GM approves that session's notes. The transcript and
+the notes stay with the rest of the campaign notes.
 
 ## Having your data removed
 
 Ask the GM at any time, for example for the chat you wrote or everything recorded under your user
 name. One command removes it from the play log, and the GM then rebuilds the session notes without
-it. What Claude already read when the GM asked it something has gone to Anthropic and cannot be
+it. For a recorded session, the GM can delete your audio track and have the transcript and notes
+written again without it. What Claude already read when the GM asked it something has gone to Anthropic and cannot be
 pulled back by the GM.

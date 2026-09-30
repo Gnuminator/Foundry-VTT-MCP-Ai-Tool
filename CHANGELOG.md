@@ -24,6 +24,13 @@
   module conflicts, Obsidian and the play session. The dashboard gets a Pre-flight drawer with the
   automatic checks, GM Actions and /player checks, and hand-ticked items.
 
+### Boss prompts and handout reveal queue (I-070, I-039; PR #19)
+
+- **Boss prompts (I-070):** legendary action and resistance pips, a lair reminder and reaction
+  ticks in the combat tracker, off by default.
+- **Handout reveal queue (I-039):** queue pages per scene, Reveal next in one click, reveal to
+  chosen players, and a per-player seen log in the new Handouts drawer.
+
 ### Fixes (PRs #15 to #17)
 
 - **Conditions are logged once.** Automated Conditions 5e mirrors dnd5e conditions as a second

@@ -441,39 +441,82 @@ describe('QuestCreationTools.handleCreateQuestJournal — failure handling', () 
 // ---------------------------------------------------------------------------
 
 describe('QuestCreationTools.handleLinkQuestToNPC — dispatch', () => {
-  // Content must contain the exact string '</ul></div></div>' so addNPCLinkToJournal can inject into
-  // the Rewards & Status column. Build it without extra whitespace between the closing tags.
   const JOURNAL_CONTENT =
     '<section class="mcp-journal"><div class="wrap"><h1>Test Quest</h1>' +
     '<div class="grid-2"><div><h3>Quest Details</h3><ul></ul></div>' +
     '<div><h3>Rewards & Status</h3><ul><li><strong>Status:</strong> Active</li></ul></div></div>' +
     '</div></section>';
 
-  function makeLinker(content = JOURNAL_CONTENT) {
-    const queryImpl = (method: string, _data: unknown) => {
+  /** A journal whose first text page keeps what updateJournalContent writes (unless `persist` is off). */
+  function makeLinker(content = JOURNAL_CONTENT, persist = true) {
+    let page = content;
+    const queryImpl = (method: string, data: any) => {
       if (method === 'foundry-mcp-bridge.getJournalContent') {
-        return { content, name: 'Test Quest', success: true };
+        return { content: page, currentPage: { id: 'page-1', name: 'Quest' }, success: true };
       }
       if (method === 'foundry-mcp-bridge.updateJournalContent') {
+        if (persist) page = data.content;
         return { success: true };
       }
       return { success: true };
     };
-    return makeTools(queryImpl);
+    return { ...makeTools(queryImpl), page: () => page };
   }
 
-  it('first dispatches getJournalContent then updateJournalContent', async () => {
+  it('reads the page, writes the same page, then reads it again to verify', async () => {
     const { tools, query } = makeLinker();
     await tools.handleLinkQuestToNPC({
       journalId: 'journal-abc',
       npcName: 'Grim Darkthorn',
       relationship: 'enemy',
     });
-    expect(query).toHaveBeenCalledTimes(2);
-    expect(query.mock.calls[0][0]).toBe('foundry-mcp-bridge.getJournalContent');
+    expect(query.mock.calls.map(c => c[0])).toEqual([
+      'foundry-mcp-bridge.getJournalContent',
+      'foundry-mcp-bridge.updateJournalContent',
+      'foundry-mcp-bridge.getJournalContent',
+    ]);
     expect(query.mock.calls[0][1]).toMatchObject({ journalId: 'journal-abc' });
-    expect(query.mock.calls[1][0]).toBe('foundry-mcp-bridge.updateJournalContent');
-    expect(query.mock.calls[1][1]).toMatchObject({ journalId: 'journal-abc' });
+    expect(query.mock.calls[1][1]).toMatchObject({ journalId: 'journal-abc', pageId: 'page-1' });
+  });
+
+  it('links into the HTML Foundry actually saves (whitespace, &amp;) (P-040)', async () => {
+    const saved = [
+      '<section class="mcp-journal">',
+      '  <div class="wrap">',
+      '    <h1>Test Quest</h1>',
+      '    <div class="grid-2"><div><h3>Rewards &amp; Status</h3><ul>',
+      '      <li><strong>Status:</strong> Active</li>',
+      '    </ul></div></div>',
+      '  </div>',
+      '</section>',
+    ].join('\n');
+    const { tools, page } = makeLinker(saved);
+    await tools.handleLinkQuestToNPC({ journalId: 'j', npcName: 'Ireena', relationship: 'ally' });
+    expect(page()).toContain(
+      '<h3>Related NPCs</h3><ul><li><strong>Ireena:</strong> ally</li></ul></div>\n</section>'
+    );
+  });
+
+  it('adds a second NPC to the existing Related NPCs list', async () => {
+    const { tools, page } = makeLinker();
+    await tools.handleLinkQuestToNPC({ journalId: 'j', npcName: 'Ireena', relationship: 'ally' });
+    await tools.handleLinkQuestToNPC({ journalId: 'j', npcName: 'Izek', relationship: 'enemy' });
+    expect(page().match(/Related NPCs/g)).toHaveLength(1);
+    expect(page()).toContain(
+      '<li><strong>Ireena:</strong> ally</li><li><strong>Izek:</strong> enemy</li></ul>'
+    );
+  });
+
+  it('appends the list to a page without the quest layout', async () => {
+    const { tools, page } = makeLinker('<p>Loose notes</p>');
+    await tools.handleLinkQuestToNPC({
+      journalId: 'j',
+      npcName: 'Ismark',
+      relationship: 'contact',
+    });
+    expect(page()).toBe(
+      '<p>Loose notes</p><h3>Related NPCs</h3><ul><li><strong>Ismark:</strong> contact</li></ul>'
+    );
   });
 
   it('the updateJournalContent call includes content containing the NPC name', async () => {
@@ -515,6 +558,17 @@ describe('QuestCreationTools.handleLinkQuestToNPC — failure handling', () => {
   let consoleErr: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  it('throws when the saved page does not hold the link (no silent success, P-040)', async () => {
+    const page = '<p>Notes</p>';
+    const { tools } = makeTools((method: string) =>
+      method === 'foundry-mcp-bridge.getJournalContent' ? { content: page } : { success: true }
+    );
+    await expect(
+      tools.handleLinkQuestToNPC({ journalId: 'j', npcName: 'Ireena', relationship: 'ally' })
+    ).rejects.toThrow();
+    expect(page).toBe('<p>Notes</p>');
   });
 
   it('throws when getJournalContent returns error', async () => {

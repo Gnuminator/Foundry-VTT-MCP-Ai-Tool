@@ -3,6 +3,7 @@ import { bridgeHandlers } from './bridge-handlers.js';
 import { fetchTarokkaReadingFromUser, openDocumentForGm } from './gm-helper-queries.js';
 import { getTarokkaReading, searchLinkCandidates } from './tarokka.js';
 import { listRefChoices } from './data-access/ref-choices.js';
+import { setCampaignPartStatus } from './campaign-hooks.js';
 import { listGuardedFeatures } from './guarded-features.js';
 import { playRecorder } from './play-recorder.js';
 import { usageRecorder } from './usage-recorder.js';
@@ -803,16 +804,19 @@ export class QueryHandlers {
     newStatus: string;
   }): Promise<any> {
     return this.withGmGate('Failed to update campaign progress', async () => {
-      // For now, this is a pass-through to the MCP server
-      // In the future, campaign data might be stored in Foundry world flags
-      // Currently, the campaign dashboard regeneration happens server-side
-
+      const { journalId, journalName } = await setCampaignPartStatus(
+        data.campaignId,
+        data.partId,
+        data.newStatus
+      );
       return {
         success: true,
         message: `Campaign progress updated: ${data.partId} is now ${data.newStatus}`,
         campaignId: data.campaignId,
         partId: data.partId,
         newStatus: data.newStatus,
+        journalId,
+        journalName,
       };
     });
   }

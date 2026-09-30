@@ -101,6 +101,23 @@ try {
     console.log('   ✅ version: Valid format');
   }
 
+  // One version number: the manifest must carry the root package.json version
+  try {
+    const rootVersion = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')
+    ).version;
+    if (manifest.version !== rootVersion) {
+      errors.push(
+        `Manifest version (${manifest.version}) must match the root package.json version (${rootVersion}); run npm run version:sync`
+      );
+      console.log('   ❌ version: Does not match the root package.json version');
+    } else {
+      console.log('   ✅ version: Matches the root package.json version');
+    }
+  } catch (readError) {
+    warnings.push(`Could not read the root package.json version: ${readError.message}`);
+  }
+
   // Compatibility validation
   if (manifest.compatibility) {
     const { minimum, verified, maximum } = manifest.compatibility;

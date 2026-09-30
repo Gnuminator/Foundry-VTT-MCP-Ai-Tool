@@ -19,7 +19,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const EM_DASH = '—';
+const EM_DASH = String.fromCharCode(0x2014);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const baselinePath = path.join(repoRoot, 'scripts', 'em-dash-baseline.json');
 const update = process.argv.includes('--update');

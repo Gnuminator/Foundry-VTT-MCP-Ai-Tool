@@ -32,6 +32,7 @@
     "usage:catalog": "node scripts/usage-catalog.mjs",
     "usage:catalog:check": "node scripts/usage-catalog.mjs --check",
     "live:roundtrip": "node scripts/live-roundtrip.mjs",
+    "live:sweep": "node scripts/live-write-sweep.mjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",

@@ -187,6 +187,16 @@ export class McpControlClient extends EventEmitter {
   }
 
   /**
+   * The live write sweep's helper (I-016): `snapshot` (scene lighting), `combat` (start a
+   * combat with `tokenIds`) or `cleanup` (delete the documents named "AI Tool Sweep ..." and
+   * the chat messages and combats created since `since`, in ms). The module refuses outside
+   * the test world.
+   */
+  async liveSweep(request: Record<string, unknown>): Promise<unknown> {
+    return this.send('live_sweep', request);
+  }
+
+  /**
    * A player opened a handout on /player (I-039): the bridge keeps the first
    * open per player. An old backend answers "Unknown method" (a ChannelError).
    */

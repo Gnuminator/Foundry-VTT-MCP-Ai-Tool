@@ -593,6 +593,25 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
+          // Live write sweep helper (I-016): the dashboard's test route passes a scene snapshot,
+          // combat or clean-up request for scripts/live-write-sweep.mjs to the module, which
+          // refuses outside the test world. Not a tool, never listed to Claude, and the stdio
+          // wrapper never forwards it.
+          if (msg.method === 'live_sweep') {
+            try {
+              const result = await foundryClient.query(
+                'foundry-mcp-bridge.liveSweep',
+                (msg.params ?? {}) as Record<string, unknown>
+              );
+              socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            } catch (e: unknown) {
+              const message = e instanceof Error ? e.message : 'Live sweep helper failed';
+              socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
+            }
+
+            continue;
+          }
+
           // Unknown method
 
           socket.write(`${JSON.stringify({ id: msg.id, error: { message: 'Unknown method' } })}\n`);

@@ -12,9 +12,10 @@
 
 ---
 
-Foundry AI Tool lets Claude **see and act on** a live Foundry VTT game, with the GM approving every
-planned change. It also gives the GM a browser **co-GM dashboard** that watches the table in real
-time, a **spoiler-safe page for the players**, and **Obsidian notes** of every session.
+Foundry AI Tool lets Claude **see and act on** a live Foundry VTT game. It also gives the GM a
+browser **co-GM dashboard** that watches the table in real time and lists Claude's guarded changes
+with an Undo button, a **spoiler-safe page for the players**, and **Obsidian notes** of every
+session.
 
 Claude Desktop (or any [MCP](https://modelcontextprotocol.io) client) connects to the bridge and
 gets GM-gated tools for actors, combat, scenes, compendiums, journals and more. The dashboard works

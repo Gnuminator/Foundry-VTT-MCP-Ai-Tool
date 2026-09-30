@@ -250,14 +250,6 @@ export class PermissionManager {
       operations,
     };
   }
-
-  /**
-   * Log permission check for audit purposes
-   */
-  auditPermissionCheck(_operationName: string, _result: PermissionCheck, _parameters?: any): void {
-    // Permission audit logging removed for production release
-    // Previously logged permission checks for security auditing
-  }
 }
 
 // Export singleton instance

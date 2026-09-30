@@ -197,17 +197,6 @@ export class ActorBuilderDataAccess {
         });
       }
 
-      shared.auditLog(
-        'useItem',
-        {
-          actorId: actor.id,
-          itemId: item.id,
-          itemName: item.name,
-          targets: resolvedTargetNames,
-        },
-        'success'
-      );
-
       const targetInfo =
         resolvedTargetNames.length > 0 ? ` targeting ${resolvedTargetNames.join(', ')}` : '';
 
@@ -234,16 +223,6 @@ export class ActorBuilderDataAccess {
 
       return result;
     } catch (error) {
-      shared.auditLog(
-        'useItem',
-        {
-          actorId: actor.id,
-          itemId: item.id,
-        },
-        'failure',
-        this.errorMessage(error)
-      );
-
       throw new Error(`Failed to use item "${item.name}": ${this.errorMessage(error)}`);
     }
   }
@@ -383,12 +362,6 @@ export class ActorBuilderDataAccess {
       // 7. Create embedded item
       const [created] = (await actor.createEmbeddedDocuments('Item', [itemData])) as any[];
 
-      shared.auditLog(
-        'addSaveFeatureToActor',
-        { actorId: actor.id, featureName: data.featureName },
-        'success'
-      );
-
       // 8. Return structured result
       return {
         success: true,
@@ -397,12 +370,6 @@ export class ActorBuilderDataAccess {
       };
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to add save feature to actor`, error);
-      shared.auditLog(
-        'addSaveFeatureToActor',
-        { actorIdentifier: data.actorIdentifier, featureName: data.featureName },
-        'failure',
-        this.errorMessage(error)
-      );
       throw error;
     }
   }
@@ -639,8 +606,6 @@ export class ActorBuilderDataAccess {
         throw new Error(`Failed to create NPC actor "${data.name}"`);
       }
 
-      shared.auditLog('createNpcActor', { name: data.name, cr: normalizedCR }, 'success');
-
       // 11. Return structured result
       return {
         success: true,
@@ -654,7 +619,6 @@ export class ActorBuilderDataAccess {
       };
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to create NPC actor`, error);
-      shared.auditLog('createNpcActor', { name: data.name }, 'failure', this.errorMessage(error));
       throw error;
     }
   }
@@ -859,12 +823,6 @@ export class ActorBuilderDataAccess {
         );
       }
 
-      shared.auditLog(
-        'addAttackToActor',
-        { actorId: actor.id, featureName: data.featureName },
-        'success'
-      );
-
       return {
         success: true,
         actor: { id: actor.id, name: actor.name },
@@ -873,12 +831,6 @@ export class ActorBuilderDataAccess {
       };
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to add attack to actor`, error);
-      shared.auditLog(
-        'addAttackToActor',
-        { actorIdentifier: data.actorIdentifier, featureName: data.featureName },
-        'failure',
-        this.errorMessage(error)
-      );
       throw error;
     }
   }
@@ -1027,12 +979,6 @@ export class ActorBuilderDataAccess {
         );
       }
 
-      shared.auditLog(
-        'addAuraToActor',
-        { actorId: actor.id, featureName: data.featureName },
-        'success'
-      );
-
       return {
         success: true,
         actor: { id: actor.id, name: actor.name },
@@ -1041,12 +987,6 @@ export class ActorBuilderDataAccess {
       };
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to add aura to actor`, error);
-      shared.auditLog(
-        'addAuraToActor',
-        { actorIdentifier: data.actorIdentifier, featureName: data.featureName },
-        'failure',
-        this.errorMessage(error)
-      );
       throw error;
     }
   }
@@ -1111,12 +1051,6 @@ export class ActorBuilderDataAccess {
         );
       }
 
-      shared.auditLog(
-        'addPassiveFeatureToActor',
-        { actorId: actor.id, featureName: data.featureName },
-        'success'
-      );
-
       return {
         success: true,
         actor: { id: actor.id, name: actor.name },
@@ -1124,12 +1058,6 @@ export class ActorBuilderDataAccess {
       };
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to add passive feature to actor`, error);
-      shared.auditLog(
-        'addPassiveFeatureToActor',
-        { actorIdentifier: data.actorIdentifier, featureName: data.featureName },
-        'failure',
-        this.errorMessage(error)
-      );
       throw error;
     }
   }
@@ -1378,12 +1306,6 @@ export class ActorBuilderDataAccess {
         );
       }
 
-      shared.auditLog(
-        'addAttackWithSaveToActor',
-        { actorId: actor.id, featureName: data.featureName },
-        'success'
-      );
-
       return {
         success: true,
         actor: { id: actor.id, name: actor.name },
@@ -1392,12 +1314,6 @@ export class ActorBuilderDataAccess {
       };
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to add attack+save to actor`, error);
-      shared.auditLog(
-        'addAttackWithSaveToActor',
-        { actorIdentifier: data.actorIdentifier, featureName: data.featureName },
-        'failure',
-        this.errorMessage(error)
-      );
       throw error;
     }
   }
@@ -1487,8 +1403,6 @@ export class ActorBuilderDataAccess {
         }
       }
 
-      shared.auditLog('setActorSpellcasting', { actorId: actor.id, cls, lvl, ability }, 'success');
-
       return {
         actor: { id: actor.id, name: actor.name },
         spellcasting: { ability, slots },
@@ -1496,12 +1410,6 @@ export class ActorBuilderDataAccess {
       };
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to set actor spellcasting`, error);
-      shared.auditLog(
-        'setActorSpellcasting',
-        { actorIdentifier: data.actorIdentifier, spellcastingClass: data.spellcastingClass },
-        'failure',
-        this.errorMessage(error)
-      );
       throw error;
     }
   }
@@ -1519,7 +1427,7 @@ export class ActorBuilderDataAccess {
       // Only an existing item of type 'spell' counts as a duplicate.
       isDuplicate: (i: any, normalizedName: string) =>
         i.type === 'spell' && i.name?.toLowerCase() === normalizedName,
-      auditOp: 'addSpellsToActor',
+      operation: 'addSpellsToActor',
     });
   }
 
@@ -1537,7 +1445,7 @@ export class ActorBuilderDataAccess {
         'Note: 2024 class features are embedded in class items and cannot be imported with this tool.',
       // A feature name is semantically unique on an actor regardless of item type.
       isDuplicate: (i: any, normalizedName: string) => i.name?.toLowerCase() === normalizedName,
-      auditOp: 'addFeaturesFromCompendium',
+      operation: 'addFeaturesFromCompendium',
     });
   }
 
@@ -1634,7 +1542,6 @@ export class ActorBuilderDataAccess {
 
     const hit = targetAC != null && attackTotal != null ? attackTotal >= targetAC : attackSucceeded; // falls back to dnd5e's own target evaluation
 
-    shared.auditLog('useNpcActivity', { actor: actor.name, item: item.name }, 'success');
     return {
       success: true,
       actor: actor.name,
@@ -1686,11 +1593,11 @@ export class ActorBuilderDataAccess {
       defaultPacks: string[];
       noValidPacksMessage: string;
       isDuplicate: (item: any, normalizedName: string) => boolean;
-      auditOp: string;
+      operation: string;
     }
   ): Promise<any> {
     shared.validateFoundryState();
-    shared.requireDnd5e(opts.auditOp);
+    shared.requireDnd5e(opts.operation);
 
     try {
       const actor = shared.findActorByIdentifier(data.actorIdentifier);
@@ -1803,18 +1710,6 @@ export class ActorBuilderDataAccess {
         }
       }
 
-      shared.auditLog(
-        opts.auditOp,
-        {
-          actorId: actor.id,
-          added: added.length,
-          skipped: skipped.length,
-          notFound: notFound.length,
-          failed: failed.length,
-        },
-        'success'
-      );
-
       return {
         actor: { id: actor.id, name: actor.name },
         added,
@@ -1824,13 +1719,7 @@ export class ActorBuilderDataAccess {
         warnings,
       };
     } catch (error) {
-      console.error(`[${MODULE_ID}] ${opts.auditOp} failed`, error);
-      shared.auditLog(
-        opts.auditOp,
-        { actorIdentifier: data.actorIdentifier },
-        'failure',
-        this.errorMessage(error)
-      );
+      console.error(`[${MODULE_ID}] ${opts.operation} failed`, error);
       throw error;
     }
   }

@@ -47,7 +47,6 @@ export class ActorCreationDataAccess {
     if (!permissionCheck.allowed) {
       throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
     }
-    permissionManager.auditPermissionCheck('createActor', permissionCheck, request);
 
     const maxActors = game.settings.get(MODULE_ID, 'maxActorsPerRequest') as number;
     const quantity = Math.min(request.quantity || 1, maxActors);
@@ -144,7 +143,6 @@ export class ActorCreationDataAccess {
         totalCreated: createdActors.length,
       };
 
-      shared.auditLog('createActorFromCompendium', request, 'success');
       return result;
     } catch (error) {
       try {
@@ -152,7 +150,6 @@ export class ActorCreationDataAccess {
       } catch (rollbackError) {
         console.error(`[${MODULE_ID}] Failed to rollback transaction:`, rollbackError);
       }
-      shared.auditLog('createActorFromCompendium', request, 'failure', this.errorMessage(error));
       throw error;
     }
   }
@@ -187,7 +184,6 @@ export class ActorCreationDataAccess {
     if (!permissionCheck.allowed) {
       throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
     }
-    permissionManager.auditPermissionCheck('createActor', permissionCheck, request);
 
     try {
       const { packId, itemId, customNames, quantity = 1, addToScene = false, placement } = request;
@@ -292,16 +288,9 @@ export class ActorCreationDataAccess {
         errors: errors.length > 0 ? errors : undefined,
       };
 
-      shared.auditLog('createActorFromCompendiumEntry', request, 'success');
       return result;
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to create actor from compendium entry`, error);
-      shared.auditLog(
-        'createActorFromCompendiumEntry',
-        request,
-        'failure',
-        this.errorMessage(error)
-      );
       throw error;
     }
   }
@@ -360,34 +349,19 @@ export class ActorCreationDataAccess {
 
     const payload = items.map((it, idx) => this.buildItemPayload(it, idx, validTypes));
 
-    try {
-      const created = await actor.createEmbeddedDocuments('Item', payload);
+    const created = await actor.createEmbeddedDocuments('Item', payload);
 
-      const result = {
-        actorId: actor.id,
-        actorName: actor.name,
-        created: (created || []).map((doc: any) => ({
-          id: doc.id,
-          name: doc.name,
-          type: doc.type,
-        })),
-      };
+    const result = {
+      actorId: actor.id,
+      actorName: actor.name,
+      created: (created || []).map((doc: any) => ({
+        id: doc.id,
+        name: doc.name,
+        type: doc.type,
+      })),
+    };
 
-      shared.auditLog(
-        'addActorItems',
-        { actorIdentifier, actorId: actor.id, count: payload.length },
-        'success'
-      );
-      return result;
-    } catch (error) {
-      shared.auditLog(
-        'addActorItems',
-        { actorIdentifier, actorId: actor.id, count: payload.length },
-        'failure',
-        this.errorMessage(error)
-      );
-      throw error;
-    }
+    return result;
   }
 
   /**
@@ -408,7 +382,6 @@ export class ActorCreationDataAccess {
     if (!permissionCheck.allowed) {
       throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
     }
-    permissionManager.auditPermissionCheck('modifyScene', permissionCheck, placement);
 
     const scene = (game.scenes as any).current;
     if (!scene) {
@@ -426,74 +399,58 @@ export class ActorCreationDataAccess {
     // (`data.level ??= this.parent?.initialLevel?.id` — the fallback this avoids).
     const level = currentLevelId(scene as Scene);
 
-    try {
-      const tokenData: any[] = [];
-      const errors: string[] = [];
+    const tokenData: any[] = [];
+    const errors: string[] = [];
 
-      for (const actorId of placement.actorIds) {
-        try {
-          const actor = game.actors.get(actorId);
-          if (!actor) {
-            errors.push(`Actor ${actorId} not found`);
-            continue;
-          }
-
-          const tokenDoc = (actor as any).prototypeToken.toObject();
-          const position = this.calculateTokenPosition(
-            placement.placement,
-            scene,
-            tokenData.length,
-            placement.coordinates
-          );
-          this.prepareTokenCopy(tokenDoc);
-
-          tokenData.push({
-            ...tokenDoc,
-            x: position.x,
-            y: position.y,
-            ...(level !== undefined ? { level } : {}),
-            actorId,
-            hidden: placement.hidden,
-          });
-        } catch (error) {
-          errors.push(`Failed to prepare token for actor ${actorId}: ${this.errorMessage(error)}`);
+    for (const actorId of placement.actorIds) {
+      try {
+        const actor = game.actors.get(actorId);
+        if (!actor) {
+          errors.push(`Actor ${actorId} not found`);
+          continue;
         }
+
+        const tokenDoc = (actor as any).prototypeToken.toObject();
+        const position = this.calculateTokenPosition(
+          placement.placement,
+          scene,
+          tokenData.length,
+          placement.coordinates
+        );
+        this.prepareTokenCopy(tokenDoc);
+
+        tokenData.push({
+          ...tokenDoc,
+          x: position.x,
+          y: position.y,
+          ...(level !== undefined ? { level } : {}),
+          actorId,
+          hidden: placement.hidden,
+        });
+      } catch (error) {
+        errors.push(`Failed to prepare token for actor ${actorId}: ${this.errorMessage(error)}`);
       }
+    }
 
-      const createdTokens = await scene.createEmbeddedDocuments('Token', tokenData);
+    const createdTokens = await scene.createEmbeddedDocuments('Token', tokenData);
 
-      if (transactionId && createdTokens.length > 0) {
-        for (const token of createdTokens) {
-          transactionManager.addAction(
-            transactionId,
-            transactionManager.createTokenCreationAction(token.id)
-          );
-        }
-      }
-
-      const result: TokenPlacementResult = {
-        success: createdTokens.length > 0,
-        tokensCreated: createdTokens.length,
-        tokenIds: createdTokens.map((token: any) => token.id),
-        ...(errors.length > 0 ? { errors } : {}),
-      };
-
-      // Logged after the write (P-060): it used to say success before any token existed.
-      if (result.success) {
-        shared.auditLog('addActorsToScene', placement, 'success');
-      } else {
-        shared.auditLog(
-          'addActorsToScene',
-          placement,
-          'failure',
-          errors.join('; ') || 'no tokens created'
+    if (transactionId && createdTokens.length > 0) {
+      for (const token of createdTokens) {
+        transactionManager.addAction(
+          transactionId,
+          transactionManager.createTokenCreationAction(token.id)
         );
       }
-      return result;
-    } catch (error) {
-      shared.auditLog('addActorsToScene', placement, 'failure', this.errorMessage(error));
-      throw error;
     }
+
+    const result: TokenPlacementResult = {
+      success: createdTokens.length > 0,
+      tokensCreated: createdTokens.length,
+      tokenIds: createdTokens.map((token: any) => token.id),
+      ...(errors.length > 0 ? { errors } : {}),
+    };
+
+    return result;
   }
 
   // ---- private helpers ------------------------------------------------------

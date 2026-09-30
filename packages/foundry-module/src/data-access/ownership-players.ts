@@ -68,7 +68,6 @@ export class OwnershipPlayersDataAccess {
     if (!permissionCheck.allowed) {
       throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
     }
-    permissionManager.auditPermissionCheck('modifyWorld', permissionCheck, data);
 
     try {
       const actor = game.actors?.get(data.actorId);

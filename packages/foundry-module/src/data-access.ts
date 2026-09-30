@@ -316,9 +316,6 @@ export class FoundryDataAccess {
 
     const permissionCheck = permissionManager.checkWritePermission(operation);
 
-    // Audit the permission check
-    permissionManager.auditPermissionCheck(operation, permissionCheck);
-
     return {
       allowed: permissionCheck.allowed,
       ...(permissionCheck.reason ? { reason: permissionCheck.reason } : {}),

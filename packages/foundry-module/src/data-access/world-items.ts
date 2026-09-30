@@ -19,8 +19,8 @@ interface ItemSummary {
  * Foundry Items sidebar (not embedded actor items).
  *
  * All three public methods delegate cross-cutting plumbing to `./shared.js`.
- * Writes are recorded via {@link shared.auditLog}; there is no additional
- * permission gate (item writes are unrestricted once Foundry is ready).
+ * There is no additional permission gate (item writes are unrestricted once
+ * Foundry is ready).
  */
 export class WorldItemsDataAccess {
   // ===== READS =====
@@ -127,28 +127,17 @@ export class WorldItemsDataAccess {
       payload.push(patch);
     }
 
-    try {
-      const updated = await (Item as any).updateDocuments(payload);
+    const updated = await (Item as any).updateDocuments(payload);
 
-      const result = {
-        updated: (updated ?? []).map((doc: any) => ({
-          id: doc.id,
-          name: doc.name,
-          type: doc.type,
-        })),
-      };
+    const result = {
+      updated: (updated ?? []).map((doc: any) => ({
+        id: doc.id,
+        name: doc.name,
+        type: doc.type,
+      })),
+    };
 
-      shared.auditLog('updateWorldItems', { count: payload.length }, 'success');
-      return result;
-    } catch (error) {
-      shared.auditLog(
-        'updateWorldItems',
-        { count: payload.length },
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw error;
-    }
+    return result;
   }
 
   /**
@@ -215,34 +204,19 @@ export class WorldItemsDataAccess {
       }
     }
 
-    try {
-      const created = await (Item as any).createDocuments(payload);
+    const created = await (Item as any).createDocuments(payload);
 
-      const result = {
-        folderId: folderDoc ? (folderDoc.id as string) : null,
-        folderName: folderDoc ? (folderDoc.name as string) : null,
-        created: (created ?? []).map((doc: any) => ({
-          id: doc.id,
-          name: doc.name,
-          type: doc.type,
-        })),
-      };
+    const result = {
+      folderId: folderDoc ? (folderDoc.id as string) : null,
+      folderName: folderDoc ? (folderDoc.name as string) : null,
+      created: (created ?? []).map((doc: any) => ({
+        id: doc.id,
+        name: doc.name,
+        type: doc.type,
+      })),
+    };
 
-      shared.auditLog(
-        'createWorldItems',
-        { folder: folder ?? null, count: payload.length },
-        'success'
-      );
-      return result;
-    } catch (error) {
-      shared.auditLog(
-        'createWorldItems',
-        { folder: folder ?? null, count: payload.length },
-        'failure',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw error;
-    }
+    return result;
   }
 
   // ===== internals =====

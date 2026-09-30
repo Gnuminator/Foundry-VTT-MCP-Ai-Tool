@@ -306,7 +306,6 @@ export class CombatDataAccess {
       return { target: actor.name, kind, hpBefore, hpAfter: this.hpValueTemp(actor) };
     });
 
-    shared.auditLog('applyDamageAndHealing', data, 'success');
     return { success: true, kind, amount, type: data.type ?? null, results };
   }
 
@@ -397,7 +396,6 @@ export class CombatDataAccess {
       };
     });
 
-    shared.auditLog('manageRest', data, 'success');
     return { success: true, restType, results };
   }
 

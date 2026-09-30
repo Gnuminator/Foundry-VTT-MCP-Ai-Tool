@@ -86,6 +86,8 @@ unabstracted in the Foundry module: `data-access/actor-builder.ts`, `combat.ts`,
   `BaseWorld` / `BasePackage` / `DataModel`, not `Document`, and has no `setFlag`, `getFlag` or `update` in
   v13 or v14, so the call is skipped and **nothing persists** **[verified, v14 API docs]**. Writes are not
   logged to the event feed.
+  (2026-09-30: the dead `auditLog` and `auditPermissionCheck` were removed from the module; the real
+  audit trail is the guarded-write log in the bridge vault, `gm/audit.json`.)
 
 So "everything that changes game state is off by default and requires confirmation" is true for the
 dashboard only. The new features make it true on every path (step 0.2).

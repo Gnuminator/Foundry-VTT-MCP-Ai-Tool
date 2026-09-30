@@ -17,8 +17,8 @@ import {
  * Scene FX domain — measured (AoE) templates, scene mood (darkness / light /
  * playlist), journal-linked map pins, and loot drops.
  *
- * Every method operates on the *active* scene (`game.scenes.current`) and audits
- * its write. None gates on a write permission — these are GM-facing scene-dressing
+ * Every method operates on the *active* scene (`game.scenes.current`). None gates
+ * on a write permission — these are GM-facing scene-dressing
  * tools, not the permission-guarded token writes. The AoE geometry is pure math
  * over the scene grid (no canvas), so token coverage is computed the same way
  * whether or not the scene is the one on screen.
@@ -191,7 +191,6 @@ export class SceneFxDataAccess {
     if (width !== undefined) coverageTpl.width = width;
     const inside = this.tokensInTemplate(scene, coverageTpl);
 
-    shared.auditLog('placeMeasuredTemplate', data, 'success');
     return {
       success: true,
       templateId,
@@ -237,7 +236,6 @@ export class SceneFxDataAccess {
     if (ids.length > 0) {
       await scene.deleteEmbeddedDocuments(docType, ids);
     }
-    shared.auditLog('deleteMeasuredTemplate', data, 'success');
     return { success: true, deletedCount: ids.length, templateIds: ids };
   }
 
@@ -291,7 +289,6 @@ export class SceneFxDataAccess {
 
     const playlist = await this.runPlaylist(data.playlistName, data.playlistAction);
 
-    shared.auditLog('setSceneMood', data, 'success');
     return {
       success: true,
       sceneId: scene.id,
@@ -394,7 +391,6 @@ export class SceneFxDataAccess {
     const created = await scene.createEmbeddedDocuments('Note', [noteData]);
     const note = Array.isArray(created) ? created[0] : created;
 
-    shared.auditLog('addMapNote', data, 'success');
     return {
       success: true,
       noteId: note.id,
@@ -428,7 +424,6 @@ export class SceneFxDataAccess {
     }
 
     await scene.deleteEmbeddedDocuments('Note', ids);
-    shared.auditLog('deleteMapNote', data, 'success');
     return { success: true, deletedCount: ids.length, noteIds: ids };
   }
 
@@ -467,7 +462,6 @@ export class SceneFxDataAccess {
       });
     }
 
-    shared.auditLog('dropLoot', data, 'success');
     return {
       success: true,
       target: actor?.name ?? null,

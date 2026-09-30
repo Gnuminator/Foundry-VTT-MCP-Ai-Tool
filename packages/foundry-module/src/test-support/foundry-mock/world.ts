@@ -183,20 +183,9 @@ export class TestWorld {
         build: Number.parseInt(this.options.foundryVersion.split('.')[1] ?? '0', 10),
       },
       system: { id: this.options.systemId, version: this.options.systemVersion },
-      // `game.world` carries flag accessors — the write-path `auditLog` stores its
-      // audit trail in world flags, so exercising it keeps the write paths honest.
-      world: (() => {
-        const flags: Record<string, any> = {};
-        return {
-          id: this.options.worldId,
-          title: this.options.worldTitle,
-          getFlag: (scope: string, key: string) => flags[scope]?.[key],
-          setFlag: (scope: string, key: string, value: unknown) => {
-            (flags[scope] ??= {})[key] = value;
-            return Promise.resolve(value);
-          },
-        };
-      })(),
+      // Foundry 14's `game.world` (a World package, not a Document) has no flag
+      // accessors; keep the mock as plain so code cannot come to depend on them.
+      world: { id: this.options.worldId, title: this.options.worldTitle },
       user: this.options.currentUser,
       actors: this.actors,
       scenes: this.scenes,

@@ -31,7 +31,7 @@ import {
 
 describe('control-channel contract (§3a)', () => {
   it('exposes exactly the three control verbs', () => {
-    expect(CONTROL_METHODS).toEqual(['ping', 'list_tools', 'call_tool']);
+    expect(CONTROL_METHODS).toEqual(['ping', 'list_tools', 'call_tool', 'record_usage']);
   });
 
   it('accepts a well-formed call_tool request', () => {

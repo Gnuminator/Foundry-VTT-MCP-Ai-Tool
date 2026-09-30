@@ -40,7 +40,7 @@ import { MCPQuerySchema, MCPResponseSchema } from './schemas.js';
  * control-channel verbs — distinct from `MCP_METHODS` in constants.ts, which
  * are the Foundry-side query handler names invoked *inside* a `call_tool`.
  */
-export const CONTROL_METHODS = ['ping', 'list_tools', 'call_tool'] as const;
+export const CONTROL_METHODS = ['ping', 'list_tools', 'call_tool', 'record_usage'] as const;
 export type ControlMethod = (typeof CONTROL_METHODS)[number];
 
 /**

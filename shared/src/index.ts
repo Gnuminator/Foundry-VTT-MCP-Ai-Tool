@@ -16,6 +16,8 @@ export * from './schemas.js';
 export * from './constants.js';
 export * from './protocol.js';
 export * from './guarded-write.js';
+export * from './usage.js';
+export * from './usage-catalog.generated.js';
 export * from './tool-refs.js';
 export * from './play-log.js';
 export * from './player-view.js';

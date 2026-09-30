@@ -1,0 +1,78 @@
+# The voice stack as ONE compose project ("fvtt-voice") so Docker Desktop shows it as one group.
+#
+#   profile transcribe  transcriber (GPU job) and pipeline (CPU job)
+#   profile livekit     livekit, redis, egress, recorder (from tools/livekit); add profile tls for Caddy
+#   profile media       reserved for ComfyUI later (see the placeholder at the bottom)
+#
+# Drive it with scripts/voice-stack.ps1. Nothing starts without a profile.
+name: fvtt-voice
+
+include:
+  # The LiveKit kit is included unchanged; livekit.override.yml only puts its services in the
+  # "livekit" profile and moves the recordings to the sessions folder.
+  - path:
+      - ../livekit/docker-compose.yml
+      - ./livekit.override.yml
+    project_directory: ../livekit
+
+x-sessions: &sessions '${FVTT_SESSIONS_DIR:-${USERPROFILE}/Documents/FoundrySessions}'
+
+services:
+  transcriber:
+    profiles: ['transcribe']
+    image: fvtt-transcriber:${TRANSCRIBER_TAG:-latest}
+    build:
+      context: ../transcriber
+      args:
+        # 1 adds torch 2.11.0 (cu128) and transformers for hviske-v6 and saga-2-m; use TRANSCRIBER_TAG=extras
+        WITH_TRANSFORMERS: ${TRANSCRIBER_EXTRAS:-0}
+    # The scripts run it as a job: docker compose run --rm transcriber /session ...
+    command: ['--help']
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - type: bind
+        source: *sessions
+        target: /sessions
+      - hf-cache:/cache
+      # The token file is optional: HF_TOKEN_FILE in .env points at the host file, otherwise an empty
+      # placeholder is mounted (public models need no token). Read-only, never copied into the image.
+      - type: bind
+        source: ${HF_TOKEN_FILE:-./secrets/no-token}
+        target: /run/secrets/hf_token
+        read_only: true
+
+  pipeline:
+    profiles: ['transcribe']
+    image: fvtt-session-pipeline:latest
+    build:
+      context: ../session-pipeline
+    command: ['--help']
+    volumes:
+      - type: bind
+        source: *sessions
+        target: /sessions
+
+  # Later (media work, not built yet): ComfyUI for images and video, GPU, one GPU job at a time.
+  # comfyui:
+  #   profiles: ['media']
+  #   image: ghcr.io/...            # pick and pin when this lane starts
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - { driver: nvidia, count: 1, capabilities: [gpu] }
+  #   volumes:
+  #     - comfy-models:/models
+  #     - type: bind
+  #       source: *sessions
+  #       target: /sessions
+
+volumes:
+  hf-cache:
+    name: fvtt-voice-hf-cache

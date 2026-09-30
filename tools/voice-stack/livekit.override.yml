@@ -1,0 +1,20 @@
+# Merged over tools/livekit/docker-compose.yml by the include in docker-compose.yml.
+# Relative paths below resolve from tools/livekit (the include's project directory).
+#  - every LiveKit service joins the "livekit" profile (the optional "tls" service keeps its own
+#    profile, so `up livekit` does not start it),
+#  - recordings are written to <sessions folder>/livekit-recordings instead of tools/livekit/recordings.
+services:
+  redis:
+    profiles: ['livekit']
+  livekit:
+    profiles: ['livekit']
+  egress:
+    profiles: ['livekit']
+    volumes: !override
+      - ./egress.yaml:/etc/egress.yaml:ro
+      - ${FVTT_SESSIONS_DIR:-${USERPROFILE}/Documents/FoundrySessions}/livekit-recordings:/out
+  recorder:
+    profiles: ['livekit']
+    volumes: !override
+      - ${FVTT_SESSIONS_DIR:-${USERPROFILE}/Documents/FoundrySessions}/livekit-recordings:/out
+      - ./recorder-config:/config:ro

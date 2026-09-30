@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+# never commit audio or real transcripts
+*.wav
+*.flac
+*.mp3
+*.ogg
+*.opus
+*.m4a
+*.zip
+/transcripts/
+/scratch/

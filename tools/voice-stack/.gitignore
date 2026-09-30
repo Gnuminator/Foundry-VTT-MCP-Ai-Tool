@@ -1,0 +1,4 @@
+.env
+# Only the empty placeholder token file is tracked.
+secrets/*
+!secrets/no-token

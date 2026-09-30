@@ -24,6 +24,22 @@
   module conflicts, Obsidian and the play session. The dashboard gets a Pre-flight drawer with the
   automatic checks, GM Actions and /player checks, and hand-ticked items.
 
+### Session prep digest (I-045; PR #22)
+
+- **Prep drawer and `get-prep-digest`.** A new read tool (prep set, 92 to 93 tools) and a "Prep"
+  drawer in the dashboard header gather what a GM needs before the next session: last session
+  from the bridge vault (scenes in order, fights, deaths, what happened, handouts revealed; it works
+  after a Foundry reload), open quests and campaign parts, the GM's "Next session" journal, the
+  handout queue, bosses on scenes, the pre-flight result and recent changes. Facts only, no AI
+  needed; the prompt `prep-next-session` reads them first. The module adds a read-only query
+  `getPrepScan`.
+
+### Cookbook (I-083; PR #21)
+
+- Ready-to-use requests for the GM before, during and after a session, a player cookbook, and a
+  test that the docs name only real tools and prompts. The GM cookbook and the dashboard guide
+  describe the Prep drawer.
+
 ### Boss prompts and handout reveal queue (I-070, I-039; PR #19)
 
 - **Boss prompts (I-070):** legendary action and resistance pips, a lair reminder and reaction

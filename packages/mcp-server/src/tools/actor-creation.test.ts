@@ -52,6 +52,26 @@ describe('ActorCreationTools.getToolDefinitions', () => {
     expect((create.inputSchema as any).required).toEqual(['packId', 'itemId', 'names']);
   });
 
+  it('create-actor-from-compendium allows up to 50 actors, the setting ceiling (P-062)', async () => {
+    const { tools, query } = makeTools(() => ({ success: true, actors: [], errors: [] }));
+    const create = tools.getToolDefinitions().find(d => d.name === 'create-actor-from-compendium')!;
+    expect((create.inputSchema as any).properties.quantity).toMatchObject({
+      minimum: 1,
+      maximum: 50,
+    });
+    const args = { packId: 'dnd5e.monsters', itemId: 'goblin-id', names: ['Goblin'] };
+    await tools.handleCreateActorFromCompendium({ ...args, quantity: 50 }).catch(() => undefined);
+    expect(query).toHaveBeenCalledWith(
+      'foundry-mcp-bridge.createActorFromCompendium',
+      expect.objectContaining({ quantity: 50 })
+    );
+    query.mockClear();
+    await expect(
+      tools.handleCreateActorFromCompendium({ ...args, quantity: 51 })
+    ).rejects.toThrow();
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it('get-compendium-entry-full requires packId and entryId', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();

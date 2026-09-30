@@ -1,0 +1,9 @@
+{
+  "id": "foundry-ai-tool",
+  "name": "Foundry AI Tool",
+  "version": "0.19.0",
+  "minAppVersion": "1.11.4",
+  "description": "Open mirror notes in Foundry VTT and see whether players can see a handout, through the Foundry AI Tool dashboard.",
+  "author": "Gnuminator",
+  "isDesktopOnly": true
+}

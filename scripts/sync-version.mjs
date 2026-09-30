@@ -11,7 +11,8 @@
  *                                                      write a module.json whose manifest and
  *                                                      download URLs point at that tag's release
  *
- * Stamped places: every workspace package.json, packages/foundry-module/module.json, the workspace
+ * Stamped places: every workspace package.json, packages/foundry-module/module.json, the Obsidian
+ * plugin's packages/obsidian-plugin/manifest.json, the workspace
  * entries in package-lock.json, shared/src/version.ts (TOOL_VERSION, read by code at runtime) and
  * the fallback version in the NSIS script.
  */
@@ -36,8 +37,10 @@ const WORKSPACE_PACKAGES = [
   'packages/discord-bot/package.json',
   'packages/foundry-module/package.json',
   'packages/mcp-server/package.json',
+  'packages/obsidian-plugin/package.json',
 ];
 const MODULE_JSON = 'packages/foundry-module/module.json';
+const PLUGIN_MANIFEST = 'packages/obsidian-plugin/manifest.json';
 const VERSION_TS = 'shared/src/version.ts';
 const NSIS = 'installer/nsis/foundry-mcp-server.nsi';
 
@@ -88,6 +91,11 @@ function targets() {
     label: MODULE_JSON,
     current: () => readJson(MODULE_JSON).version,
     apply: v => writeJson(MODULE_JSON, { ...readJson(MODULE_JSON), version: v }),
+  });
+  list.push({
+    label: PLUGIN_MANIFEST,
+    current: () => readJson(PLUGIN_MANIFEST).version,
+    apply: v => writeJson(PLUGIN_MANIFEST, { ...readJson(PLUGIN_MANIFEST), version: v }),
   });
   list.push({
     label: 'package-lock.json (workspace entries)',

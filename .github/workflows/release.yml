@@ -6,6 +6,7 @@ name: Release
 #   - foundry-mcp-bridge.zip          the Foundry module with its built code
 #   - foundry-mcp-server-vX.Y.Z.zip   the standalone bridge (bundled Node server)
 #   - FoundryMCPServer-Setup-vX.Y.Z.exe   the Windows installer (bridge + module + Claude Desktop config)
+#   - foundry-ai-tool-obsidian.zip    the Obsidian companion plugin (a foundry-ai-tool folder)
 # workflow_dispatch runs the same build as a dry run (artifacts only, no release is created).
 #
 # Nothing is posted to foundryvtt.com: the package id `foundry-mcp-bridge` belongs to the upstream
@@ -105,12 +106,25 @@ jobs:
           unzip -l build/foundry-mcp-bridge.zip | grep -q ' module.json$'
           ls -lh build/foundry-mcp-bridge.zip build/module.json
 
+      - name: Package the Obsidian plugin
+        # One folder, foundry-ai-tool, that goes into <vault>/.obsidian/plugins/ (or use
+        # scripts/install-obsidian-plugin.ps1 -From <zip>).
+        run: |
+          set -e
+          npm run build -w @gnuminator/obsidian-plugin
+          mkdir -p build/obsidian/foundry-ai-tool
+          cp packages/obsidian-plugin/dist/main.js packages/obsidian-plugin/dist/manifest.json             packages/obsidian-plugin/dist/styles.css build/obsidian/foundry-ai-tool/
+          (cd build/obsidian && zip -r ../foundry-ai-tool-obsidian.zip foundry-ai-tool >/dev/null)
+          unzip -l build/foundry-ai-tool-obsidian.zip | grep -q 'foundry-ai-tool/manifest.json$'
+          ls -lh build/foundry-ai-tool-obsidian.zip
+
       - uses: actions/upload-artifact@v4
         with:
           name: release-module
           path: |
             build/module.json
             build/foundry-mcp-bridge.zip
+            build/foundry-ai-tool-obsidian.zip
           retention-days: 30
 
   bridge:
@@ -247,6 +261,7 @@ jobs:
           files: |
             release-files/module.json
             release-files/foundry-mcp-bridge.zip
+            release-files/foundry-ai-tool-obsidian.zip
             release-files/foundry-mcp-server-${{ github.ref_name }}.zip
             release-files/FoundryMCPServer-Setup-${{ github.ref_name }}.exe
           body: |
@@ -261,5 +276,7 @@ jobs:
             `${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/module.json`
 
             **Manual bridge:** download `foundry-mcp-server-${{ github.ref_name }}.zip` and run it with Node 18 or later.
+
+            **Obsidian plugin (optional, desktop):** unzip `foundry-ai-tool-obsidian.zip` into your vault's `.obsidian/plugins/` folder, then turn on "Foundry AI Tool" under Community plugins.
 
             Documentation: ${{ github.server_url }}/${{ github.repository }}

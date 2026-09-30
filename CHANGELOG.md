@@ -16,6 +16,32 @@
 - Upgrade note: with the switch off, the dashboard's own actions (post to chat, GM Actions) are
   refused as well.
 
+### Pre-flight check (I-068, I-067, I-076; PR #14)
+
+- **Pre-flight check.** New read tool `get-preflight` (prep set, 91 to 92 tools) with a module
+  query `getPreflightScan`: Foundry link, module and bridge versions (mismatch banner, PB-10), write
+  switches, secrets in world settings (masked), names players can see that match a secret term,
+  module conflicts, Obsidian and the play session. The dashboard gets a Pre-flight drawer with the
+  automatic checks, GM Actions and /player checks, and hand-ticked items.
+
+### Fixes (PRs #15 to #17)
+
+- **Conditions are logged once.** Automated Conditions 5e mirrors dnd5e conditions as a second
+  ActiveEffect, so the live feed and the play log showed every toggle twice (P-026). A matching
+  second event on the same actor within 1.5 s is dropped.
+- **Legendary actions and resistances are logged.** dnd5e 6 stores them as `spent` and derives
+  `value`, so neither recorder saw one being spent.
+- **create-actor-from-compendium takes up to 50 actors,** the ceiling of the "Max Actors Per
+  Request" setting, which still decides (P-062). The tool and the module stopped at 10 before.
+- **link-quest-to-npc links for real** (P-040): it adds the NPC to a "Related NPCs" list and reads
+  the page back; a link that did not save is an error. Before, it reported success while writing
+  nothing. The module's `updateCampaignProgress` handler writes the same flag as the campaign
+  dashboard's status toggles instead of only reporting success.
+- **Smaller review defects (P-060):** a failed game-system check is no longer cached until
+  restart; `drop-loot` refuses negative or fractional coins; placing actors on a scene audits after
+  the write, not before.
+- README: the intro no longer promises that the GM approves every change (D-077).
+
 ## v0.19.0 (released 2026-09-30): M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd) + Obsidian O4 mirrors + tool sets
 
 Groundwork from `docs/design/CURSE-OF-STRAHD-PLAN.md` step 0. **Wire contracts are unchanged** (module id,

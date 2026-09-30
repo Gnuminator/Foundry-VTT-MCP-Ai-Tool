@@ -1,15 +1,15 @@
 {
-  "total": 6739,
+  "total": 6732,
   "rules": {
-    "@typescript-eslint/explicit-function-return-type": 285,
+    "@typescript-eslint/explicit-function-return-type": 283,
     "@typescript-eslint/no-explicit-any": 1120,
     "@typescript-eslint/no-unsafe-argument": 210,
-    "@typescript-eslint/no-unsafe-assignment": 1609,
+    "@typescript-eslint/no-unsafe-assignment": 1607,
     "@typescript-eslint/no-unsafe-call": 334,
-    "@typescript-eslint/no-unsafe-member-access": 2825,
+    "@typescript-eslint/no-unsafe-member-access": 2823,
     "@typescript-eslint/no-unsafe-return": 191,
     "@typescript-eslint/prefer-nullish-coalescing": 62,
-    "@typescript-eslint/require-await": 62,
+    "@typescript-eslint/require-await": 61,
     "@typescript-eslint/restrict-template-expressions": 11,
     "no-console": 30
   }

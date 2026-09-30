@@ -1,0 +1,46 @@
+# TEMPLATE for the Orange Pi 5 Pro / public setup. Not used locally. Nothing here is a secret and
+# no real domain is committed: replace lk.example.com when you set it up.
+#
+# How to use it: docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d
+# (docker-compose.pi.yml mounts this file in place of livekit.yaml and clears NODE_IP.)
+#
+# Network outline:
+#   browsers --wss://lk.example.com--> Cloudflare Tunnel --> cloudflared on the Pi --> 127.0.0.1:7880
+#   browsers --UDP 7882 and TCP 7881--> your public IPv4 --> router port forward --> the Pi
+# WebRTC media does NOT pass Cloudflare Tunnel or Tailscale. Only signalling does.
+#
+# Router: forward UDP 7882 and TCP 7881 to the Pi's LAN address (give the Pi a fixed DHCP lease).
+# Do NOT forward 7880, 6379 (redis) or 8080 (recorder); keep them off the internet.
+# Cloudflare Tunnel: public hostname lk.example.com -> service http://localhost:7880
+#   (websockets work through the tunnel without extra settings).
+# Check the ISP gives you a real public IPv4 (not CGNAT): the router's WAN address must equal
+# what https://ifconfig.me shows.
+port: 7880
+bind_addresses:
+  - ''
+
+redis:
+  address: redis:6379
+
+rtc:
+  # One UDP port for all media. Forward exactly this port on the router.
+  udp_port: 7882
+  # TCP fallback (forward it too).
+  tcp_port: 7881
+  # Public setup: discover the public IPv4 through STUN and advertise it to clients.
+  use_external_ip: true
+  # If STUN picks the wrong address (several uplinks), comment use_external_ip out and set
+  # node_ip: <your public IPv4> instead (or a DynDNS-resolved address kept up to date).
+  # Players on the same LAN as the Pi reach the public IP through the router (hairpin NAT). If
+  # your router cannot do that, give LAN players a split-DNS name or test from outside.
+
+room:
+  empty_timeout: 300
+  departure_timeout: 20
+
+webhook:
+  urls:
+    - http://recorder:8080/webhook
+
+logging:
+  level: info

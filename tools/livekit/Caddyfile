@@ -1,0 +1,12 @@
+# Local TLS in front of the LiveKit signalling port (profile "tls" in docker-compose.yml).
+# The LiveKit AVClient module always connects to wss://<address>, so plain ws://localhost:7880
+# does not work with it. This gives wss://localhost:7443 with Caddy's own local certificate.
+{
+	local_certs
+	auto_https disable_redirects
+}
+
+localhost:7443 {
+	tls internal
+	reverse_proxy livekit:7880
+}

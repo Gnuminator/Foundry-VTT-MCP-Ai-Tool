@@ -1,0 +1,100 @@
+# LiveKit proof of concept: server + redis + track egress + our recorder (webhook service).
+# Start it with scripts/livekit-poc.ps1 (it generates .env on first run). Local mode: signalling on
+# ws://localhost:7880, media on UDP 7882, everything bound to this PC.
+name: fvtt-livekit
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    command: ['--config', '/etc/livekit.yaml']
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      # "key: secret" lines; the same pair goes to egress, the recorder and the Foundry module.
+      LIVEKIT_KEYS: '${LIVEKIT_API_KEY:?run scripts/livekit-poc.ps1 init}: ${LIVEKIT_API_SECRET:?run scripts/livekit-poc.ps1 init}'
+      LIVEKIT_WEBHOOK_API_KEY: '${LIVEKIT_API_KEY}'
+      NODE_IP: '${LIVEKIT_NODE_IP:-127.0.0.1}'
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - '127.0.0.1:${LIVEKIT_SIGNAL_PORT:-7880}:7880'
+      # TCP fallback and the single UDP media port. For a test with other machines on the LAN,
+      # remove the 127.0.0.1 prefix and set LIVEKIT_NODE_IP to the PC's LAN address.
+      - '${LIVEKIT_TCP_PORT:-7881}:7881'
+      - '${LIVEKIT_UDP_PORT:-7882}:7882/udp'
+
+  egress:
+    image: livekit/egress:v1.14.1
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+      LIVEKIT_API_KEY: '${LIVEKIT_API_KEY}'
+      LIVEKIT_API_SECRET: '${LIVEKIT_API_SECRET}'
+      LIVEKIT_WS_URL: ws://livekit:7880
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml:ro
+      - ./recordings:/out
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8081/']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  recorder:
+    build: ./recorder
+    restart: unless-stopped
+    depends_on:
+      livekit:
+        condition: service_started
+    environment:
+      LIVEKIT_HOST: http://livekit:7880
+      LIVEKIT_API_KEY: '${LIVEKIT_API_KEY}'
+      LIVEKIT_API_SECRET: '${LIVEKIT_API_SECRET}'
+      RECORDER_OUT_DIR: /out
+      RECORD_AUDIO: '${RECORD_AUDIO:-true}'
+      RECORD_VIDEO: '${RECORD_VIDEO:-false}'
+      RECORD_SCREEN_SHARE: '${RECORD_SCREEN_SHARE:-false}'
+      RECORDER_TIMEZONE: '${RECORDER_TIMEZONE:-UTC}'
+      RECORDER_LABELS_FILE: '${RECORDER_LABELS_FILE:-}'
+    volumes:
+      - ./recordings:/out
+      - ./recorder-config:/config:ro
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '-', 'http://127.0.0.1:8080/health']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Optional, local test only: TLS for the signalling port (start with --profile tls, or
+  # `livekit-poc.ps1 up -Tls`). Gives wss://localhost:7443 with a local, untrusted certificate.
+  tls:
+    profiles: ['tls']
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    depends_on:
+      livekit:
+        condition: service_started
+    ports:
+      - '127.0.0.1:${LIVEKIT_TLS_PORT:-7443}:7443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  caddy-data:

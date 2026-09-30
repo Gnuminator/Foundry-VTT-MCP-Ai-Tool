@@ -1,0 +1,7 @@
+# LiveKit egress (track egress only, no Chrome composite).
+# No secrets in this file: LIVEKIT_API_KEY, LIVEKIT_API_SECRET and LIVEKIT_WS_URL come from the
+# environment set in docker-compose.yml.
+redis:
+  address: redis:6379
+health_port: 8081
+log_level: info

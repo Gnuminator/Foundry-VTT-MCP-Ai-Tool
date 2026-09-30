@@ -1,0 +1,7 @@
+.env
+recordings/*
+!recordings/.gitkeep
+recorder/node_modules/
+recorder-config/*.json
+!recorder-config/labels.example.json
+testdata/

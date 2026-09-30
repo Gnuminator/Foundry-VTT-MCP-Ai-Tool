@@ -28,6 +28,9 @@ hotwords) helps Claude spell names right.
 | ------ | ------- | ------- |
 | `--scene-model` | `sonnet` | model for the per-scene calls |
 | `--session-model` | `sonnet` | model for the summary and the player recap |
+| `--scene-effort` | `low` | reasoning effort for the scene calls (low, medium, high, xhigh, max) |
+| `--session-effort` | `medium` | reasoning effort for the summary and the recap |
+| `--workers` | `3` | scenes written at the same time |
 | `--scene-gap` | `90` | seconds of silence that start a new scene |
 | `--only-scene N` | | process one scene (for trying prompt changes) |
 
@@ -61,6 +64,14 @@ session approved more than 14 days ago (`--days` to change), deletes the audio o
 zips. Transcripts, the timeline, the notes and the recorder's event log stay. The deleted files are
 listed in `notes/audio-deleted.json`. Without `--yes` nothing is deleted. The scheduled task runs
 `cleanup --yes` once a day. Later the recap's journal reveal flow writes the same approval marker.
+
+## Speed and cost
+
+Measured on a 5-minute slice of real play (5 speakers, 86 timeline lines, one scene), Sonnet at
+the default efforts: 3 minutes, about 65,000 input and 23,500 output tokens for the scene and the
+summary together. A 4-hour session is about 25 scenes; with 3 workers expect about half an hour.
+It all counts against the subscription's usage limits, which is why a limit pauses the run
+instead of failing it.
 
 ## How it keeps Claude honest
 

@@ -9,7 +9,9 @@ a crash only pauses the run: the next run picks up where it stopped.
 from __future__ import annotations
 
 import json
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -31,6 +33,7 @@ class Options:
     session_effort: str = "medium"  # the summary and the spoiler-safe recap need judgement
     scene_gap: float = 90.0
     only_scene: int | None = None
+    workers: int = 3  # scenes written at the same time
 
 
 @dataclass(slots=True)
@@ -111,8 +114,8 @@ class Writer:
         self.work.mkdir(parents=True, exist_ok=True)
         self._log("start", lines=len(lines), scenes=len(scenes), options=self._opts_dict())
 
-        notes: list[dict[str, Any]] = []
-        paused: str | None = None
+        done: dict[int, dict[str, Any]] = {}
+        todo: list[Scene] = []
         for scene in scenes:
             if self.opts.only_scene is not None and scene.index != self.opts.only_scene:
                 continue
@@ -120,25 +123,42 @@ class Writer:
             if cached.exists():
                 data = json.loads(cached.read_text(encoding="utf-8"))
                 if data.get("ids") == scene.ids:  # same timeline, same split
-                    notes.append(data["notes"])
+                    done[scene.index] = data["notes"]
                     continue
+            todo.append(scene)
+
+        # Several scenes at once; after a usage limit no new scene starts, the ones already
+        # running finish, and every finished scene is saved on its own.
+        paused: list[str] = []
+        lock = threading.Lock()
+
+        def work(scene: Scene) -> None:
+            if paused:
+                return
             try:
                 result = self._scene_notes(scene, roster)
             except UsageLimitError as exc:
-                paused = str(exc)
-                self._log("paused", scene=scene.index, reason=paused)
-                break
+                with lock:
+                    paused.append(str(exc))
+                self._log("paused", scene=scene.index, reason=str(exc))
+                return
             result["index"] = scene.index
             result["start"] = scene.start
             result["end"] = scene.end
-            cached.write_text(
+            (self.work / f"scene-{scene.index:03d}.json").write_text(
                 json.dumps({"ids": scene.ids, "notes": result}, ensure_ascii=False),
                 encoding="utf-8",
             )
-            notes.append(result)
+            with lock:
+                done[scene.index] = result
+
+        with ThreadPoolExecutor(max_workers=max(1, self.opts.workers)) as pool:
+            list(pool.map(work, todo))
+        notes = [done[i] for i in sorted(done)]
+        paused_reason = paused[0] if paused else None
 
         session_notes: dict[str, Any] | None = None
-        complete = paused is None and self.opts.only_scene is None
+        complete = paused_reason is None and len(notes) == len(scenes)
         if complete:
             session_notes = self._session_notes(notes, roster)
         # Written even when the session summary is missing: the scene notes are useful alone.
@@ -147,7 +167,7 @@ class Writer:
         return RunResult(
             scenes=len(notes),
             fallbacks=sum(1 for n in notes if n.get("fallback")),
-            paused=paused,
+            paused=paused_reason,
             audit=self.audit,
         )
 
@@ -187,6 +207,7 @@ class Writer:
             "session_effort": self.opts.session_effort,
             "scene_gap": self.opts.scene_gap,
             "only_scene": self.opts.only_scene,
+            "workers": self.opts.workers,
         }
 
     def _log(self, event: str, **data: Any) -> None:

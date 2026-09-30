@@ -104,7 +104,7 @@ def test_full_run_writes_both_languages(session: Path) -> None:
 def test_retry_then_split_then_raw(session: Path) -> None:
     # calls 1 and 2 (scene 1 whole) drop a line; halves 3 and 4: 3 ok, 4 errors -> raw half
     fake = FakeClaude(bad_lines={1, 2}, fail={4: "error"})
-    result = Writer(session, fake).run()
+    result = Writer(session, fake, Options(workers=1)).run()
     assert result.fallbacks == 1
     events = [row["event"] for row in result.audit]
     assert events.count("scene_invalid") == 2 and "scene_split" in events
@@ -116,7 +116,7 @@ def test_retry_then_split_then_raw(session: Path) -> None:
 
 def test_usage_limit_pauses_and_resumes(session: Path) -> None:
     fake = FakeClaude(fail={2: "limit"})
-    result = Writer(session, fake).run()
+    result = Writer(session, fake, Options(workers=1)).run()
     assert result.paused and result.scenes == 1
     assert "Ikke skrevet endnu" in (session / "notes" / "summary.da.md").read_text("utf-8")
     resumed = FakeClaude()
@@ -130,12 +130,38 @@ def test_speakers_json_overrides_and_marks_the_gm(session: Path) -> None:
         encoding="utf-8",
     )
     fake = FakeClaude()
-    Writer(session, fake).run()
+    Writer(session, fake, Options(workers=1)).run()
     prompt = fake.calls[0][1]
     assert "- Rikke is the GM (narrates, rules, plays all NPCs)" in prompt
     assert "- Bo plays Vorn" in prompt and "- Anna plays Ireena" in prompt
     assert "u000002 [00:00:40] Bo (Vorn): Jeg tjekker" in prompt
     assert fake.efforts == ["low", "low", "medium"]
+
+
+def test_parallel_scenes_keep_order_and_resume_after_limit(tmp_path: Path) -> None:
+    # Eight scenes of 3 lines each, 200 s apart (each longer than the 2-minute minimum).
+    rows = []
+    for s in range(8):
+        base = s * 400.0
+        rows += [(base + t, base + t + 4, "Anna", f"Scene {s} line {t}") for t in (0.0, 60.0, 125.0)]
+    session = write_session(tmp_path, rows)
+
+    class LimitOnSceneFive(FakeClaude):
+        def __call__(self, prompt, schema, model, effort="low"):  # type: ignore[override]
+            if "Scene 5 line" in prompt:
+                self.calls.append(("scene", prompt))
+                raise UsageLimitError("usage limit reached")
+            return super().__call__(prompt, schema, model, effort)
+
+    first = Writer(session, LimitOnSceneFive(), Options(workers=3)).run()
+    assert first.paused and first.scenes < 8
+    resumed = FakeClaude()
+    second = Writer(session, resumed, Options(workers=3)).run()
+    assert second.paused is None and second.scenes == 8
+    assert [k for k, _ in resumed.calls].count("scene") == 8 - first.scenes
+    data = json.loads((session / "notes" / "notes.json").read_text(encoding="utf-8"))
+    assert [s["index"] for s in data["scenes"]] == list(range(1, 9))
+    assert data["session"] is not None
 
 
 def test_only_scene(session: Path) -> None:

@@ -46,6 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--session-effort", default="medium")
     run.add_argument("--scene-gap", type=float, default=90.0, help="seconds of silence per cut")
     run.add_argument("--only-scene", type=int, help="process one scene (for testing prompts)")
+    run.add_argument("--workers", type=int, default=3, help="scenes written at the same time")
     show = sub.add_parser("scenes", help="show the scene split, no Claude call")
     show.add_argument("session")
     show.add_argument("--scene-gap", type=float, default=90.0)
@@ -104,6 +105,7 @@ def main(argv: list[str] | None = None) -> int:
         session_effort=args.session_effort,
         scene_gap=args.scene_gap,
         only_scene=args.only_scene,
+        workers=args.workers,
     )
     result = Writer(session, runner, opts).run()
     tokens_in = sum(r.input_tokens for r in runner.records)

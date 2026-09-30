@@ -53,9 +53,9 @@ Short rules. Each has its reason on the next line.
   The tool never overwrites a note you edited, so it stops updating (it lists it in
   `AI Tool/_status.md`, or `AI Tool/Foundry/_status.md` for notes about PCs, NPCs, scenes and
   journals).
-- **Turn off "Allow Write Operations" only if you want Claude to stop most changes in Foundry.**
-  It also blocks Undo of changes in Foundry, but not changes that only touch the tool's own storage
-  (Tarokka reading and links, mirror settings), and some direct tools do not check it at all.
+- **Turn off "Allow Write Operations" only if you want the tool to change nothing.**
+  It stops every change from Claude and from the dashboard, chat messages and Undo included;
+  reading still works.
 - **Choose "Always allow" for a tool in Claude Desktop only if the tool only reads.**
   For tools that change the game, you want to be asked each time.
 - **Set an Anthropic API key on the dashboard only if you want the AI commentary panel and accept

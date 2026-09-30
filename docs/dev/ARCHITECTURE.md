@@ -328,6 +328,14 @@ does not include it. `npm run vault -- forget-user <world> <user> [--chat-only] 
 removes one Foundry user's play-log and usage records (the player guide's removal promise); it
 refuses to write while a bridge backend holds its lock.
 
+**The write gate (module `write-gate.ts`, P-036).** Every bridge handler is classified as a write
+(it changes the world: documents, combat, chat or roll messages) or not; a test fails for an
+unclassified handler. `registerHandlers` wraps every write handler once, so it refuses with "Write
+operations are disabled in the module settings" while "Allow Write Operations" is off, whoever
+calls (Claude or the dashboard). Guarded writes keep their own gate below. `permissions.ts` adds
+the older per-operation checks (quantity limits, and `requiresGM` for deletes and world
+structure).
+
 **Guarded writes (`guarded-write/service.ts` + module `data-access/guarded-write.ts`).**
 New features change game state through one flow: a read-only `plan-*` tool builds a plan →
 `get-planned-change` shows its diff → `apply-planned-change` applies it after explicit

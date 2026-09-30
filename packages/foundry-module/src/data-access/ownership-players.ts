@@ -1,4 +1,5 @@
-import { MODULE_ID } from '../constants.js';
+import { ERROR_MESSAGES, MODULE_ID } from '../constants.js';
+import { permissionManager } from '../permissions.js';
 import * as shared from './shared.js';
 
 /**
@@ -61,6 +62,13 @@ export class OwnershipPlayersDataAccess {
     permission: number;
   }): Promise<{ success: boolean; message: string; error?: string }> {
     shared.validateFoundryState();
+
+    // P-036: who owns an actor is world structure: needs "Allow Write Operations" and a GM.
+    const permissionCheck = permissionManager.checkWritePermission('modifyWorld');
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+    permissionManager.auditPermissionCheck('modifyWorld', permissionCheck, data);
 
     try {
       const actor = game.actors?.get(data.actorId);

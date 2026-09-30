@@ -176,6 +176,19 @@ export class ActorCreationDataAccess {
   }): Promise<ActorCreationResult> {
     shared.validateFoundryState();
 
+    // P-036: the same gate as createActorFromCompendium (it creates at most one actor per name).
+    const requested = Math.min(
+      request.quantity ?? 1,
+      Math.max(request.customNames?.length ?? 0, 1)
+    );
+    const permissionCheck = permissionManager.checkWritePermission('createActor', {
+      quantity: requested,
+    });
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+    permissionManager.auditPermissionCheck('createActor', permissionCheck, request);
+
     try {
       const { packId, itemId, customNames, quantity = 1, addToScene = false, placement } = request;
 
@@ -319,6 +332,12 @@ export class ActorCreationDataAccess {
     created: Array<{ id: string; name: string; type: string }>;
   }> {
     shared.validateFoundryState();
+
+    // P-036: adding items changes the actor, like creating one.
+    const permissionCheck = permissionManager.checkWritePermission('createActor');
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
 
     const { actorIdentifier, items } = params;
 

@@ -331,6 +331,11 @@ describe('FoundryDataAccess — createActorFromCompendium: rollback', () => {
 // ===========================================================================
 
 describe('FoundryDataAccess — createActorFromCompendiumEntry: validation', () => {
+  // P-036: these write paths are gated; the refusal is tested separately.
+  beforeEach(() => {
+    world.enableWrites();
+  });
+
   it('throws when packId or itemId is missing', async () => {
     await expect(
       da.createActorFromCompendiumEntry({ packId: '', itemId: 'x', customNames: [] })
@@ -389,6 +394,11 @@ describe('FoundryDataAccess — createActorFromCompendiumEntry: validation', () 
 // ===========================================================================
 
 describe('FoundryDataAccess — createActorFromCompendiumEntry: success', () => {
+  // P-036: these write paths are gated; the refusal is tested separately.
+  beforeEach(() => {
+    world.enableWrites();
+  });
+
   it('creates from an explicit pack/item id with the supplied custom name', async () => {
     addActorPack('world.monsters', 'Monsters', [
       { id: 'gob1', name: 'Goblin', type: 'npc', img: 'g.webp', system: { hp: 7 } },
@@ -503,6 +513,11 @@ describe('FoundryDataAccess — createActorFromCompendiumEntry: success', () => 
 // ===========================================================================
 
 describe('FoundryDataAccess — addActorItems', () => {
+  // P-036: these write paths are gated; the refusal is tested separately.
+  beforeEach(() => {
+    world.enableWrites();
+  });
+
   it('throws when actorIdentifier is missing', async () => {
     await expect(da.addActorItems({ actorIdentifier: '', items: [] })).rejects.toThrow(
       'actorIdentifier is required'

@@ -121,13 +121,11 @@ in Recent Changes, and the tool cannot undo them; you fix them by hand in Foundr
   finish it there.
 
 The setting "Allow Write Operations" (Game Settings, category **Foundry AI Tool**; on by default)
-blocks guarded changes that write into Foundry itself (a Tarokka reveal page, a handout reveal or
-hide that changes the page's ownership) and their Undo, plus many direct actions (new actors,
-journal writes, token moves and edits). It does not block guarded changes that only touch the
-tool's own storage (a new or imported Tarokka reading, Tarokka links, the Obsidian mirror settings,
-the list of revealed handouts when the page's ownership stays the same) or their Undo; for those,
-the feature switch is what counts. Not every direct action checks it either (combat and damage tools, for example).
-So turning it off is not a full "read only" switch.
+is the tool's read-only switch. Turned off, the tool changes nothing: no new actors or items, no
+token, scene, combat, damage or condition changes, no ownership changes, no journal writes, no chat
+or roll messages, no guarded changes (also those that only touch the tool's own storage, such as a
+Tarokka reading or the Obsidian mirror settings) and no Undo. Reading still works. It stops the
+dashboard's actions too, not only Claude.
 
 The dashboard's **GM Actions** switch only guards the dashboard. It does not stop Claude Desktop.
 

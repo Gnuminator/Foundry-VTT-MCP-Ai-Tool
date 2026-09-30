@@ -423,6 +423,11 @@ describe('FoundryDataAccess — getTargets', () => {
 // ---------------------------------------------------------------------------
 
 describe('FoundryDataAccess — setTokenVisionLight', () => {
+  // P-036: these write paths are gated; the refusal is tested separately.
+  beforeEach(() => {
+    world.enableWrites();
+  });
+
   it('throws SCENE_NOT_FOUND when there is no active scene', async () => {
     await expect(da.setTokenVisionLight({ tokenName: 'Torch', sightRange: 30 })).rejects.toThrow(
       ERROR_MESSAGES.SCENE_NOT_FOUND

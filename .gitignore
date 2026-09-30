@@ -19,6 +19,10 @@ dist/
 build/
 *.tsbuildinfo
 **/*.tsbuildinfo
+# Stray tsc output next to the vitest configs (the .ts file is the source)
+packages/*/vitest.config.js
+packages/*/vitest.config.d.ts
+packages/*/vitest.config.*.map
 
 # IDE Files
 .vscode/*

@@ -20,3 +20,4 @@ export * from './tool-refs.js';
 export * from './play-log.js';
 export * from './player-view.js';
 export * from './export-index.js';
+export * from './version.js';

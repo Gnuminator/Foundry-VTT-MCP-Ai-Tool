@@ -69,30 +69,28 @@ list is empty.
 
 ## Cutting a new release (maintainers)
 
-`dist/` is git-ignored, so the **built** module ships as release assets, not in the repo tree.
+There is one release workflow (`.github/workflows/release.yml`) and one version number: the `version`
+in the root `package.json`. `dist/` is git-ignored, so the built module ships as release assets, not
+in the repo tree.
 
-1. Bump the version in `packages/foundry-module/module.json` and the four `package.json` files.
-2. Build + package:
-   ```bash
-   npm run build
-   npm run bundle:server          # refreshes dist/index.bundle.cjs for the MCP server
-   ```
-   Then stage the module (manifest + built dist + lang/styles/templates) and zip it so `module.json`
-   sits at the archive root, producing `foundry-mcp-bridge.zip`.
-3. Create a GitHub Release tagged `vX.Y.Z` on `main` and upload **two assets**, named exactly:
-   - `module.json` (the fork-URL manifest)
-   - `foundry-mcp-bridge.zip`
+1. Set the version everywhere: `npm run version:sync -- --set X.Y.Z`. It stamps every `package.json`,
+   `module.json`, `package-lock.json`, `shared/src/version.ts` (`TOOL_VERSION`) and the installer script.
+   `npm run version:check` (and the release workflow) fail if any place disagrees.
+2. Commit, then tag `vX.Y.Z` (the tag must equal the root version) and push the tag. The workflow
+   verifies, builds and publishes one GitHub release with these assets, all under that tag's own links:
+   - `module.json` (manifest and download URLs point at this tag)
+   - `foundry-mcp-bridge.zip` (the module with its built code)
+   - `foundry-mcp-server-vX.Y.Z.zip` (standalone bridge)
+   - `FoundryMCPServer-Setup-vX.Y.Z.exe` (Windows installer)
 
-   The asset names must match the `manifest`/`download` URLs in `module.json`
-   (`releases/latest/download/module.json` and `.../foundry-mcp-bridge.zip`).
+   A manual run of the workflow (Actions, Release, Run workflow) builds everything as artifacts
+   without publishing.
 
-   Via the web UI: drag-drop both files onto a new release. Via `gh`:
+3. Verify: `curl -sIL https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/download/vX.Y.Z/module.json`
+   returns HTTP 200. The committed `module.json` keeps `releases/latest/download/...` URLs so
+   Foundry's "Check for Updates" follows the newest release.
 
-   ```bash
-   gh release create vX.Y.Z module.json foundry-mcp-bridge.zip -t "vX.Y.Z" -n "<notes>"
-   ```
-
-4. Verify: `curl -sIL .../releases/latest/download/module.json` returns HTTP 200.
+Nothing is sent to foundryvtt.com: the package id belongs to the upstream project.
 
 ## Repository
 

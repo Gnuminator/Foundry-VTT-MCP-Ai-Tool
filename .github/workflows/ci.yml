@@ -39,7 +39,7 @@ jobs:
         # fails on any eslint error AND on any rule whose warning count rises
         # above scripts/lint-baseline.json (the count may only go down; lower it
         # with `npm run lint:ratchet -- --update`).
-        run: npm run typecheck && npm run lint:ratchet
+        run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
 
       - name: Build (all workspaces)
         run: npm run build
@@ -74,7 +74,7 @@ jobs:
         run: node scripts/cogm-split-smoke-test.mjs
 
       - name: Validate Foundry module manifest
-        run: node validate-manifest.js
+        run: node scripts/validate-manifest.js
 
   build-test-arm:
     # The Orange Pi is ARM (aarch64) and runs Node 24: the same steps on an ARM runner
@@ -98,7 +98,7 @@ jobs:
         # fails on any eslint error AND on any rule whose warning count rises
         # above scripts/lint-baseline.json (the count may only go down; lower it
         # with `npm run lint:ratchet -- --update`).
-        run: npm run typecheck && npm run lint:ratchet
+        run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
 
       - name: Build (all workspaces)
         run: npm run build
@@ -133,4 +133,4 @@ jobs:
         run: node scripts/cogm-split-smoke-test.mjs
 
       - name: Validate Foundry module manifest
-        run: node validate-manifest.js
+        run: node scripts/validate-manifest.js

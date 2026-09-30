@@ -8,8 +8,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const manifestPath = path.join(__dirname, 'packages', 'foundry-module', 'module.json');
-const sharedConstantsPath = path.join(__dirname, 'shared', 'src', 'constants.ts');
+const repoRoot = path.join(__dirname, '..');
+const manifestPath = path.join(repoRoot, 'packages', 'foundry-module', 'module.json');
+const sharedConstantsPath = path.join(repoRoot, 'shared', 'src', 'constants.ts');
 
 console.log('🔍 Validating Foundry Module Manifest...\n');
 
@@ -100,6 +101,23 @@ try {
     console.log('   ✅ version: Valid format');
   }
 
+  // One version number: the manifest must carry the root package.json version
+  try {
+    const rootVersion = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')
+    ).version;
+    if (manifest.version !== rootVersion) {
+      errors.push(
+        `Manifest version (${manifest.version}) must match the root package.json version (${rootVersion}); run npm run version:sync`
+      );
+      console.log('   ❌ version: Does not match the root package.json version');
+    } else {
+      console.log('   ✅ version: Matches the root package.json version');
+    }
+  } catch (readError) {
+    warnings.push(`Could not read the root package.json version: ${readError.message}`);
+  }
+
   // Compatibility validation
   if (manifest.compatibility) {
     const { minimum, verified, maximum } = manifest.compatibility;
@@ -126,7 +144,7 @@ try {
   console.log('\n📁 File Existence:');
   if (manifest.esmodules) {
     manifest.esmodules.forEach(file => {
-      const filePath = path.join(__dirname, 'packages', 'foundry-module', file);
+      const filePath = path.join(repoRoot, 'packages', 'foundry-module', file);
       if (fs.existsSync(filePath)) {
         console.log(`   ✅ ${file}: EXISTS`);
       } else {
@@ -138,7 +156,7 @@ try {
 
   if (manifest.styles) {
     manifest.styles.forEach(file => {
-      const filePath = path.join(__dirname, 'packages', 'foundry-module', file);
+      const filePath = path.join(repoRoot, 'packages', 'foundry-module', file);
       if (fs.existsSync(filePath)) {
         console.log(`   ✅ ${file}: EXISTS`);
       } else {
@@ -150,7 +168,7 @@ try {
 
   if (manifest.languages) {
     manifest.languages.forEach(lang => {
-      const filePath = path.join(__dirname, 'packages', 'foundry-module', lang.path);
+      const filePath = path.join(repoRoot, 'packages', 'foundry-module', lang.path);
       if (fs.existsSync(filePath)) {
         console.log(`   ✅ ${lang.path}: EXISTS`);
       } else {

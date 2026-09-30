@@ -63,6 +63,7 @@ import { PlaySessionTools } from './tools/play-session.js';
 import { PlayStatsTools } from './tools/play-stats.js';
 import { PlayerViewTools } from './tools/player-view.js';
 import { PreflightTools } from './tools/preflight.js';
+import { PartyTools } from './tools/party.js';
 import { PrepDigestTools } from './tools/prep-digest.js';
 import { RefChoiceTools } from './tools/ref-choices.js';
 import { TarokkaService } from './tarokka/service.js';
@@ -361,6 +362,7 @@ async function startBackend(): Promise<void> {
     tarokka: tarokkaService,
     logger,
   });
+  const partyTools = new PartyTools({ foundryClient, guardedWrites, logger });
   // O4 Foundry mirror: the pump starts with the Foundry link below (vault dir set only).
   const mirrorEnv = mirrorEnvSettings();
   for (const warning of mirrorEnv.warnings) logger.warn(warning);
@@ -416,6 +418,7 @@ async function startBackend(): Promise<void> {
     playerViewTools,
     preflightTools,
     prepDigestTools,
+    partyTools,
     sceneControlTools,
     lootTools,
     diagnosticsTools,

@@ -15,6 +15,8 @@ describe('classifyTool', () => {
       'get-planned-change',
       'open-in-foundry',
       'get-prep-digest',
+      'get-party',
+      'plan-party-change',
     ]) {
       expect(classifyTool(name)).toBe('read');
     }

@@ -13,6 +13,7 @@ import {
   unregisterGmHelperQueries,
 } from './gm-helper-queries.js';
 import { registerGuardedFeature } from './guarded-features.js';
+import { PARTY_FEATURE_ID } from './party-scan.js';
 import { TAROKKA_FEATURE_ID, onTarokkaSettingChanged } from './tarokka.js';
 // Connection control now handled through settings menu
 
@@ -89,6 +90,11 @@ class FoundryMCPBridge {
         id: 'obsidian-mirror',
         name: 'AI Tool: Obsidian mirror (writes)',
         hint: "Lets the AI Tool change which Foundry documents it mirrors into the GM's Obsidian vault (the mirror settings).",
+      });
+      registerGuardedFeature({
+        id: PARTY_FEATURE_ID,
+        name: 'AI Tool: Party (writes)',
+        hint: "Lets the dashboard's Party drawer and the AI change the party's travel pace, add the party to combat and post a party rest request.",
       });
       Hooks.on('clientSettingChanged', (key: string) => {
         void onTarokkaSettingChanged(key, sendTarokkaOffer).catch(error => {

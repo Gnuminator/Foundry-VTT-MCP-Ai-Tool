@@ -177,6 +177,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.header.party',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
     name: 'dash.header.pause',
     kind: 'action',
     surface: 'dashboard',
@@ -235,6 +241,60 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.party.add-to-combat',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.party.close',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.party.group',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.party.open-actor',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.party.pace',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.party.refresh',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.party.rest-long',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.party.rest-short',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.party.view',
+    kind: 'view',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
   },
   {
     name: 'dash.preflight.clear-ticks',
@@ -334,6 +394,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   },
   {
     name: 'dash.shortcut.escape-modal',
+    kind: 'shortcut',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.shortcut.escape-party',
     kind: 'shortcut',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/app.js',

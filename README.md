@@ -32,7 +32,7 @@ currently shaped around a Curse of Strahd campaign.
 
 ## What it does
 
-- **AI access to the game.** 93 tools let Claude read characters, combat, scenes, journals,
+- **AI access to the game.** 95 tools let Claude read characters, combat, scenes, journals,
   compendiums, chat and the session log, and act on them: roll for NPCs, apply damage, move tokens,
   add NPCs from compendiums, write journals. Most of these act at once and have no undo; keep
   Claude Desktop's tool approval on for them. The tools come in five sets (core, play, prep, build,
@@ -135,18 +135,18 @@ The bridge and the dashboard are decoupled, so they can run where it suits the t
 
 ## MCP tools
 
-93 tools in five sets. Each set is its own entry in Claude Desktop, with its own switch in the
-**Search and tools** menu; all 93 tools are about 91,000 characters of definitions that Claude
+95 tools in five sets. Each set is its own entry in Claude Desktop, with its own switch in the
+**Search and tools** menu; all 95 tools are about 92,500 characters of definitions that Claude
 would otherwise read at the start of every chat. The dashboard always has every tool. Details and
 the full lists: [docs/reference/TOOL-SETS.md](docs/reference/TOOL-SETS.md).
 
-| Set       | Tools | What it covers                                                                                                                                 |
-| --------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| **core**  | 20    | Look-ups (world, characters, scenes, tokens, combat state, journals, compendiums) and the change safety net: plan, apply, undo                 |
-| **play**  | 37    | Live play: tokens, initiative and turns, rolls, damage and healing, conditions, resources, rests, chat, scene mood, map notes, templates, loot |
-| **prep**  | 20    | Prep and recaps: quests and journals, encounter budgets, Tarokka, handouts and the player view, session log, play stats                        |
-| **build** | 7     | NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells                                                 |
-| **admin** | 9     | Modules and their errors, actor ownership, the Obsidian mirror                                                                                 |
+| Set       | Tools | What it covers                                                                                                                           |
+| --------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **core**  | 20    | Look-ups (world, characters, scenes, tokens, combat state, journals, compendiums) and the change safety net: plan, apply, undo           |
+| **play**  | 39    | Live play: tokens, initiative and turns, rolls, damage and healing, conditions, resources, rests, the party, chat, mood, map notes, loot |
+| **prep**  | 20    | Prep and recaps: quests and journals, encounter budgets, Tarokka, handouts and the player view, session log, play stats                  |
+| **build** | 7     | NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells                                           |
+| **admin** | 9     | Modules and their errors, actor ownership, the Obsidian mirror                                                                           |
 
 ---
 
@@ -203,7 +203,7 @@ set, then restart Claude Desktop. Two of the five entries:
 ```
 
 [`claude_desktop_config.example.json`](claude_desktop_config.example.json) has all five (core, play,
-prep, build, admin). One entry without `FOUNDRY_AI_TOOL_SETS` serves all 93 tools, as before.
+prep, build, admin). One entry without `FOUNDRY_AI_TOOL_SETS` serves all 95 tools, as before.
 
 The bridge links the AI client and the Foundry module over local sockets (control channel on
 `127.0.0.1:31414`; Foundry link on `31415`/`31416`). Foundry must be open in a GM's browser with

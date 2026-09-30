@@ -2305,3 +2305,27 @@ body {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* --- Party drawer (I-079) ----------------------------------------------- */
+.party-body .pf-text {
+  flex: 1;
+}
+.party-group {
+  margin-left: auto;
+  max-width: 14rem;
+}
+.party-hp {
+  flex: none;
+}
+.party-inspiration {
+  color: var(--warn);
+}
+.party-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.35rem 0 0.2rem;
+}
+.party-hint {
+  margin-top: 1rem;
+}

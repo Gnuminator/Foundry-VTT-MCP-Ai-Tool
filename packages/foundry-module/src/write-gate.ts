@@ -112,6 +112,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getModules',
   'getPagesForPlayers',
   'getPartyCharacters',
+  'getPartyState',
   'getPlayRecords',
   'getPlayerVisibility',
   'getPreflightScan',

@@ -415,8 +415,6 @@ export class ActorCreationDataAccess {
       throw new Error('No active scene found');
     }
 
-    shared.auditLog('addActorsToScene', placement, 'success');
-
     // v14 Scene Levels: a Token's `level` field is required + non-nullable and
     // defaults to the scene's *initial* level when omitted — not necessarily the
     // level the GM is currently viewing — so a token dropped while looking at a
@@ -480,7 +478,17 @@ export class ActorCreationDataAccess {
         ...(errors.length > 0 ? { errors } : {}),
       };
 
-      shared.auditLog('addActorsToScene', placement, 'success');
+      // Logged after the write (P-060): it used to say success before any token existed.
+      if (result.success) {
+        shared.auditLog('addActorsToScene', placement, 'success');
+      } else {
+        shared.auditLog(
+          'addActorsToScene',
+          placement,
+          'failure',
+          errors.join('; ') || 'no tokens created'
+        );
+      }
       return result;
     } catch (error) {
       shared.auditLog('addActorsToScene', placement, 'failure', this.errorMessage(error));

@@ -49,8 +49,9 @@ export async function detectGameSystem(
     if (logger) {
       logger.error('Failed to detect game system, defaulting to other', { error });
     }
-    cachedSystem = 'other';
-    return cachedSystem;
+    // Not cached (P-060): one failed query (Foundry still loading, link down) must not mark a
+    // dnd5e world as 'other' until restart; the next call asks again.
+    return 'other';
   }
 }
 

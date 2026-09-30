@@ -38,11 +38,11 @@ export class LootTools {
               type: 'object',
               description: 'Coins to add, e.g. { "gp": 50, "sp": 25 }.',
               properties: {
-                pp: { type: 'integer' },
-                gp: { type: 'integer' },
-                ep: { type: 'integer' },
-                sp: { type: 'integer' },
-                cp: { type: 'integer' },
+                pp: { type: 'integer', minimum: 0 },
+                gp: { type: 'integer', minimum: 0 },
+                ep: { type: 'integer', minimum: 0 },
+                sp: { type: 'integer', minimum: 0 },
+                cp: { type: 'integer', minimum: 0 },
               },
             },
             itemUuids: {
@@ -66,7 +66,8 @@ export class LootTools {
   async handleDropLoot(args: any) {
     const schema = z.object({
       targetCharacter: z.string().optional(),
-      currency: z.record(z.string(), z.number()).optional(),
+      // Awards only: a negative amount would silently take coins away (P-060).
+      currency: z.record(z.string(), z.number().int().min(0)).optional(),
       itemUuids: z.array(z.string()).optional(),
       announce: z.boolean().optional(),
     });

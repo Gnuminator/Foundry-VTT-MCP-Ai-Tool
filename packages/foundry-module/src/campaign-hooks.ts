@@ -1,5 +1,6 @@
 // Campaign Dashboard Interactive Hooks
 // Implements clickable status toggles using Foundry's native hook system
+import { trackUsage } from './usage-recorder.js';
 
 export class CampaignHooks {
   private isRegistered: boolean = false;
@@ -200,9 +201,12 @@ export class CampaignHooks {
         // Persist the new state in the journal entry's flags
         await entry.setFlag('world', 'campaignStatus', statusFlags);
 
+        trackUsage('action', 'module.campaign.status-toggle');
+
         // Success - no notification banner needed (visual feedback already provided by toggle)
       } catch (error) {
         console.error('[Campaign Status] Failed to save status:', error);
+        trackUsage('error', 'module.error.campaign-status', { code: 'save-failed' });
         ui.notifications?.error('Failed to save campaign progress');
 
         // Revert visual change on error
@@ -210,6 +214,7 @@ export class CampaignHooks {
       }
     } catch (error) {
       console.error('Error handling status toggle click:', error);
+      trackUsage('error', 'module.error.campaign-status', { code: 'update-failed' });
       ui.notifications?.error('Failed to update campaign progress');
     }
   }

@@ -25,12 +25,26 @@ const TOKEN = (() => {
 const streamUrl = '/api/player/stream' + (TOKEN ? '?token=' + encodeURIComponent(TOKEN) : '');
 
 const $ = id => document.getElementById(id);
+
+// Usage log (I-084, usage.js): fixed control names only. The page works without it.
+const noop = () => {};
+const usage = window.cogmUsage || {
+  track: noop,
+  trackView: noop,
+  endView: noop,
+  setWho: noop,
+};
 const elStatus = $('status');
 const elWorld = $('world');
 const elScene = $('scene');
 const elCombat = $('combat');
 const elFeed = $('feed');
 const elHandouts = $('handouts');
+const elWho = $('who');
+const elWhoName = $('who-name');
+const elWhoChange = $('who-change');
+const elWhoPicker = $('who-picker');
+const elWhoList = $('who-list');
 
 const escape = s =>
   String(s ?? '').replace(
@@ -115,7 +129,7 @@ function renderHandouts(handouts) {
   // `html` was rebuilt server-side from an allowlist (no attributes, no scripts).
   elHandouts.innerHTML = handouts
     .map(
-      h => `<details class="handout"><summary>${escape(h.title)}</summary>
+      h => `<details class="handout"><summary data-track="player.handouts.open">${escape(h.title)}</summary>
         <div class="content">${h.html}</div></details>`
     )
     .join('');
@@ -131,4 +145,95 @@ function connect() {
   };
 }
 
+// --- Who is this? (one-time name pick for the usage log) ------------------------
+// The names come from GET /api/player/names (players only, never a GM). The pick is a claim the
+// server checks against that list; it only tells the usage log which friend used which control.
+const WHO_KEY = 'cogm_player_who';
+
+function readWho() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(WHO_KEY) || 'null');
+    if (raw && typeof raw === 'object') {
+      return {
+        userId: typeof raw.userId === 'string' ? raw.userId : null,
+        name: typeof raw.name === 'string' ? raw.name : null,
+      };
+    }
+  } catch {}
+  return null;
+}
+
+function saveWho(who) {
+  try {
+    if (who) localStorage.setItem(WHO_KEY, JSON.stringify(who));
+    else localStorage.removeItem(WHO_KEY);
+  } catch {}
+}
+
+function showWho(who) {
+  usage.setWho(who);
+  elWhoPicker.hidden = true;
+  elWho.hidden = false;
+  elWhoName.textContent = who && who.name ? `Playing as ${who.name}` : '';
+  elWhoChange.textContent = who && who.name ? 'not you?' : 'pick your name';
+}
+
+async function loadNames() {
+  try {
+    const res = await fetch('/api/player/names', {
+      headers: TOKEN ? { 'X-CoGM-Token': TOKEN } : {},
+    });
+    if (!res.ok) return [];
+    const names = await res.json();
+    return Array.isArray(names)
+      ? names.filter(n => n && typeof n.userId === 'string' && typeof n.name === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+async function askWho() {
+  const names = await loadNames();
+  // Nobody known yet (the bridge has not seen the players): ask again next visit.
+  if (names.length === 0) return;
+  elWhoList.innerHTML = '';
+  for (const n of names) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'who-pick';
+    b.textContent = n.name;
+    b.addEventListener('click', () => {
+      usage.track('action', 'player.who.pick');
+      const who = { userId: n.userId, name: n.name };
+      saveWho(who);
+      showWho(who);
+    });
+    elWhoList.appendChild(b);
+  }
+  const skip = document.createElement('button');
+  skip.type = 'button';
+  skip.className = 'who-pick';
+  skip.textContent = 'Skip';
+  skip.addEventListener('click', () => {
+    usage.track('action', 'player.who.skip');
+    saveWho({ userId: null, name: null });
+    showWho(null);
+  });
+  elWhoList.appendChild(skip);
+  elWhoPicker.hidden = false;
+}
+
+elWhoChange.addEventListener('click', e => {
+  e.preventDefault();
+  saveWho(null);
+  showWho(null);
+  void askWho();
+});
+
+const storedWho = readWho();
+if (storedWho) showWho(storedWho);
+else void askWho();
+
 connect();
+usage.trackView('player.main.view');

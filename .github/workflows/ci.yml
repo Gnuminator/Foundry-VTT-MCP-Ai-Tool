@@ -41,6 +41,11 @@ jobs:
         # with `npm run lint:ratchet -- --update`).
         run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
 
+      - name: Usage catalogue is current
+        # shared/src/usage-catalog.generated.ts lists every control that reports usage
+        # (docs/design/USAGE-LOG.md); regenerate with `npm run usage:catalog`.
+        run: npm run usage:catalog:check
+
       - name: Build (all workspaces)
         run: npm run build
 
@@ -99,6 +104,11 @@ jobs:
         # above scripts/lint-baseline.json (the count may only go down; lower it
         # with `npm run lint:ratchet -- --update`).
         run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
+
+      - name: Usage catalogue is current
+        # shared/src/usage-catalog.generated.ts lists every control that reports usage
+        # (docs/design/USAGE-LOG.md); regenerate with `npm run usage:catalog`.
+        run: npm run usage:catalog:check
 
       - name: Build (all workspaces)
         run: npm run build

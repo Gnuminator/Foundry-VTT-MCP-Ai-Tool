@@ -179,6 +179,20 @@
         cursor: pointer;
         font-weight: 600;
       }
+      #who a {
+        color: var(--muted);
+        margin-left: 6px;
+      }
+      .who-pick {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--text);
+        cursor: pointer;
+        font: inherit;
+        margin: 4px 6px 4px 0;
+        padding: 6px 12px;
+      }
       .handout .content {
         padding: 6px 0 2px;
         line-height: 1.45;
@@ -196,10 +210,18 @@
       <span id="world" class="sub">—</span>
       <span id="scene" class="sub"></span>
       <span style="flex: 1"></span>
+      <span id="who" class="sub" hidden>
+        <span id="who-name"></span>
+        <a id="who-change" href="#" data-track="player.who.change">not you?</a>
+      </span>
       <span id="status" class="badge">connecting…</span>
     </header>
 
     <div class="wrap">
+      <section class="card" id="who-picker" hidden style="grid-column: 1 / -1">
+        <h2>Who are you?</h2>
+        <div id="who-list" class="body"></div>
+      </section>
       <section class="card">
         <h2>Combat order</h2>
         <div id="combat" class="body"><div class="empty">No active combat.</div></div>
@@ -219,6 +241,12 @@
       Foundry: hidden creatures, enemy HP numbers, GM notes and secrets never reach this page.
     </footer>
 
+    <script
+      src="usage.js"
+      data-usage-endpoint="/api/player/usage"
+      data-usage-surface="player"
+      data-usage-token-key="cogm_player_token"
+    ></script>
     <script src="player.js" type="module"></script>
   </body>
 </html>

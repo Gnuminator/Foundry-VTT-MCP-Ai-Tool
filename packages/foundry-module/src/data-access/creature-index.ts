@@ -1,4 +1,5 @@
 import { MODULE_ID } from '../constants.js';
+import { trackUsage } from '../usage-recorder.js';
 import type {
   DnD5eCreatureIndex,
   EnhancedCreatureIndex,
@@ -386,6 +387,7 @@ export class PersistentCreatureIndex {
         error instanceof Error ? error.message : 'Unknown error'
       }`;
       console.error(`[${this.moduleId}] ${errorMessage}`);
+      trackUsage('error', 'module.error.creature-index', { code: 'build-failed' });
       ui.notifications?.error(errorMessage);
       throw error;
     } finally {

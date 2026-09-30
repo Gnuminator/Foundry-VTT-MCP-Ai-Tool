@@ -1,6 +1,11 @@
 import * as net from 'net';
 import { EventEmitter } from 'events';
-import type { ControlResponse, ToolResultPayload } from '@gnuminator/shared';
+import type {
+  ControlResponse,
+  RecordUsageResult,
+  ToolResultPayload,
+  UsageEvent,
+} from '@gnuminator/shared';
 import type { Logger } from '../logger.js';
 
 /**
@@ -165,6 +170,20 @@ export class McpControlClient extends EventEmitter {
   async listTools(): Promise<unknown[]> {
     const result = (await this.send('list_tools')) as { tools?: unknown[] } | undefined;
     return result?.tools ?? [];
+  }
+
+  /**
+   * Hand a batch of usage events (I-084, already sanitized) to the bridge's usage log. An old
+   * backend answers "Unknown method" (a ChannelError); callers decide what to do with that.
+   */
+  async recordUsage(events: UsageEvent[]): Promise<RecordUsageResult> {
+    const result = (await this.send('record_usage', { events })) as
+      | Partial<RecordUsageResult>
+      | undefined;
+    return {
+      accepted: typeof result?.accepted === 'number' ? result.accepted : 0,
+      dropped: typeof result?.dropped === 'number' ? result.dropped : 0,
+    };
   }
 
   /**

@@ -1,0 +1,22 @@
+# Local Python environment and caches
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Local data: never commit audio, real transcripts, real speaker maps or campaign text
+/local/
+/data/
+/out/
+/scratch/
+*.wav
+*.flac
+*.mp3
+*.ogg
+*.opus
+*.m4a
+*.zip
+*.local.json
+*.local.txt

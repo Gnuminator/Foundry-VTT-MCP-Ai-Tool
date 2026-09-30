@@ -115,6 +115,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getPlayRecords',
   'getPlayerVisibility',
   'getPreflightScan',
+  'getPrepScan',
   'getRecentEvents',
   'getSessionLog',
   'getTargets',

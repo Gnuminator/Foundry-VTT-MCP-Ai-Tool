@@ -30,6 +30,7 @@ import type { PlaySessionTools } from './tools/play-session.js';
 import type { PlayStatsTools } from './tools/play-stats.js';
 import type { PlayerViewTools } from './tools/player-view.js';
 import type { PreflightTools } from './tools/preflight.js';
+import type { PrepDigestTools } from './tools/prep-digest.js';
 import type { QuestCreationTools } from './tools/quest-creation.js';
 import type { RefChoiceTools } from './tools/ref-choices.js';
 import type { ResourceTools } from './tools/resources.js';
@@ -64,6 +65,7 @@ export interface ToolRouterDeps {
   playStatsTools: PlayStatsTools;
   playerViewTools: PlayerViewTools;
   preflightTools: PreflightTools;
+  prepDigestTools: PrepDigestTools;
   questCreationTools: QuestCreationTools;
   refChoiceTools: RefChoiceTools;
   resourceTools: ResourceTools;
@@ -179,6 +181,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'plan-page-reveal': args => deps.playerViewTools.handlePlanPageReveal(args),
     'check-secret-terms': args => deps.playerViewTools.handleCheckSecretTerms(args),
     'get-preflight': args => deps.preflightTools.handleGetPreflight(args),
+    'get-prep-digest': args => deps.prepDigestTools.handleGetPrepDigest(args),
     'list-ref-choices': args => deps.refChoiceTools.handleListRefChoices(args),
     'move-token': args => deps.tokenManipulationTools.handleMoveToken(args),
     'update-token': args => deps.tokenManipulationTools.handleUpdateToken(args),
@@ -236,6 +239,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.obsidianMirrorTools.getToolDefinitions(),
     ...deps.playerViewTools.getToolDefinitions(),
     ...deps.preflightTools.getToolDefinitions(),
+    ...deps.prepDigestTools.getToolDefinitions(),
     ...deps.refChoiceTools.getToolDefinitions(),
   ];
 }

@@ -83,7 +83,7 @@ function sceneNameFromData(record: PlayRecord): string | null {
 }
 
 /** Scene id -> name, from every `scene` record across the whole log. */
-function buildSceneNameIndex(playRecords: PlayRecord[]): Map<string, string> {
+export function buildSceneNameIndex(playRecords: PlayRecord[]): Map<string, string> {
   const index = new Map<string, string>();
   for (const record of playRecords) {
     if (record.kind !== 'scene') continue;
@@ -93,7 +93,10 @@ function buildSceneNameIndex(playRecords: PlayRecord[]): Map<string, string> {
   return index;
 }
 
-function sceneName(sceneId: string | null | undefined, index: Map<string, string>): string | null {
+export function sceneName(
+  sceneId: string | null | undefined,
+  index: Map<string, string>
+): string | null {
   if (!sceneId) return null;
   return index.get(sceneId) ?? sceneId;
 }

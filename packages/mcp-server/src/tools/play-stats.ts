@@ -5,12 +5,12 @@
  * connected world. GM-only and read-only: it never returns raw play records,
  * only the built totals (campaign, one session, one or every PC).
  */
-import { PLAY_LOG_FILE, toolRef, type PlayRecord } from '@gnuminator/shared';
+import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 
 import type { Logger } from '../logger.js';
-import type { SessionEvent } from '../obsidian/grouping.js';
 import { buildStats } from '../stats/build.js';
+import { loadPlayRecords, loadSessionEvents } from '../stats/load.js';
 import type { DiceStats, PcStats, SessionStats, StatsModel } from '../stats/types.js';
 import type { VaultStore } from '../vault/store.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
@@ -41,20 +41,6 @@ export interface GetPlayStatsResult {
   session: SessionStats | null;
   /** One PC when `pcName` matched, every PC otherwise. */
   pcs: PcStats[];
-}
-
-const SESSION_LOG_FILE = /^(\d{4}-\d{2}-\d{2})\.jsonl$/;
-
-function isPlayRecordLike(value: unknown): value is PlayRecord {
-  const r = value as Partial<PlayRecord> | null;
-  return (
-    !!r &&
-    typeof r === 'object' &&
-    typeof r.key === 'string' &&
-    typeof r.t === 'number' &&
-    Number.isFinite(r.t) &&
-    typeof r.kind === 'string'
-  );
 }
 
 /** `get-play-stats`: campaign totals, one play session (default the latest)
@@ -115,8 +101,8 @@ export class PlayStatsTools {
 
       const worldId = await this.worldIds.current();
       const [logEvents, playRecords] = await Promise.all([
-        this.loadSessionEvents(worldId),
-        this.loadPlayRecords(worldId),
+        loadSessionEvents(this.store, worldId),
+        loadPlayRecords(this.store, worldId),
       ]);
       const model = buildStats({ worldId, logEvents, playRecords });
 
@@ -148,26 +134,5 @@ export class PlayStatsTools {
     if (sessions.length === 0) return null;
     if (which === undefined || which === 'latest') return sessions[sessions.length - 1] ?? null;
     return sessions.find(s => s.number === which) ?? null;
-  }
-
-  private async loadSessionEvents(worldId: string): Promise<SessionEvent[]> {
-    const files = (await this.store.list(worldId, 'sessions')).filter(f =>
-      SESSION_LOG_FILE.test(f)
-    );
-    const all: SessionEvent[] = [];
-    for (const file of files) {
-      all.push(...((await this.store.readLines(worldId, 'sessions', file)) as SessionEvent[]));
-    }
-    return all;
-  }
-
-  private async loadPlayRecords(worldId: string): Promise<PlayRecord[]> {
-    const files = (await this.store.list(worldId, 'sessions')).filter(f => PLAY_LOG_FILE.test(f));
-    const all: PlayRecord[] = [];
-    for (const file of files) {
-      const lines = await this.store.readLines(worldId, 'sessions', file);
-      all.push(...lines.filter(isPlayRecordLike));
-    }
-    return all;
   }
 }

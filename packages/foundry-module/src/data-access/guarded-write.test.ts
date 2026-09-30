@@ -13,9 +13,12 @@ import { createTestWorld, type TestWorld } from '../test-support/foundry-mock/in
 import { eventTracker, type SessionLogEntry } from '../session-events.js';
 import { registerGuardedFeature, resetGuardedFeaturesForTests } from '../guarded-features.js';
 import {
+  GUARDED_OUTCOME_MEMORY,
   applyGuardedOps,
+  guardedApplyOutcome,
   inverseOf,
   logGmChange,
+  resetGuardedOutcomes,
   snapshotGuardedOps,
   type GuardedApplyRequest,
   type GuardedApplyResult,
@@ -169,7 +172,10 @@ function install(foundryVersion = '13.351'): void {
   world.setSetting('dnd5e', 'rulesVersion', 'modern');
 }
 
-beforeEach(() => install());
+beforeEach(() => {
+  install();
+  resetGuardedOutcomes();
+});
 
 afterEach(() => {
   restore();
@@ -779,5 +785,126 @@ describe('logGmChange', () => {
   it('needs changeId and feature', () => {
     expect(() => logGmChange(undefined)).toThrow(/changeId and feature/);
     expect(() => logGmChange({ changeId: 'x' })).toThrow(/changeId and feature/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Apply outcomes (PB-04): what the backend asks after a timeout or a dropped link
+// ---------------------------------------------------------------------------
+
+describe('guardedApplyOutcome', () => {
+  const hpOp = (actor: FakeDoc, value: number): GuardedOp => ({
+    kind: 'update',
+    uuid: actor.uuid,
+    changes: { 'system.attributes.hp.value': value },
+  });
+
+  it('is unknown for a changeId this browser never saw', () => {
+    expect(guardedApplyOutcome({ changeId: 'never' })).toEqual({
+      changeId: 'never',
+      status: 'unknown',
+    });
+  });
+
+  it('needs a changeId', () => {
+    expect(() => guardedApplyOutcome({})).toThrow('Outcome request needs a changeId');
+    expect(() => guardedApplyOutcome(undefined)).toThrow('Outcome request needs a changeId');
+    expect(() => guardedApplyOutcome({ changeId: '' })).toThrow('Outcome request needs a changeId');
+  });
+
+  it('is in-progress while the apply runs, then applied with exactly the returned result', async () => {
+    const actor = addActor();
+    const req = await request([hpOp(actor, 4)]);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => (release = resolve));
+    const realUpdate = actor.update.bind(actor);
+    actor.update = async (changes): Promise<FakeDoc> => {
+      await gate;
+      return realUpdate(changes);
+    };
+
+    const running = applyGuardedOps(req);
+    await vi.waitFor(() =>
+      expect(guardedApplyOutcome({ changeId: req.changeId })).toEqual({
+        changeId: req.changeId,
+        status: 'in-progress',
+      })
+    );
+
+    release();
+    const result = await running;
+    expect(guardedApplyOutcome({ changeId: req.changeId })).toEqual({
+      changeId: req.changeId,
+      status: 'applied',
+      result,
+    });
+  });
+
+  it('is failed with the error message when an op fails and rolls back', async () => {
+    const actor = addActor();
+    actor.failUpdates = true;
+    const req = await request([hpOp(actor, 4)]);
+
+    const error = await applyGuardedOps(req).catch((e: Error) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(guardedApplyOutcome({ changeId: req.changeId })).toEqual({
+      changeId: req.changeId,
+      status: 'failed',
+      error: (error as Error).message,
+    });
+  });
+
+  it('is failed for a conflict too (nothing was written)', async () => {
+    const actor = addActor();
+    const req = await request([hpOp(actor, 4)]);
+    await actor.update({ 'system.attributes.hp.value': 7 });
+
+    await expect(applyGuardedOps(req)).rejects.toThrow(/Conflict/);
+
+    expect(guardedApplyOutcome({ changeId: req.changeId })).toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('Conflict'),
+    });
+  });
+
+  it('records nothing for a request that fails validation before it starts', async () => {
+    const actor = addActor();
+    const req = await request([hpOp(actor, 4)]);
+    const { expected: _expected, ...withoutExpected } = req;
+
+    await expect(applyGuardedOps(withoutExpected)).rejects.toThrow(/expected snapshot/);
+
+    expect(guardedApplyOutcome({ changeId: req.changeId }).status).toBe('unknown');
+  });
+
+  it('keeps a separate entry for the undo of a change', async () => {
+    const actor = addActor();
+    const applied = await applyGuardedOps(await request([hpOp(actor, 4)]));
+    const undo = undoRequest(applied);
+
+    const undone = await applyGuardedOps(undo);
+
+    expect(guardedApplyOutcome({ changeId: applied.changeId }).status).toBe('applied');
+    expect(guardedApplyOutcome({ changeId: undo.changeId })).toEqual({
+      changeId: undo.changeId,
+      status: 'applied',
+      result: undone,
+    });
+  });
+
+  it('remembers only the last 50 applies and drops the oldest first', async () => {
+    const actor = addActor();
+    const ids: string[] = [];
+    for (let i = 0; i < GUARDED_OUTCOME_MEMORY + 1; i++) {
+      const req = await request([hpOp(actor, i + 1)]);
+      ids.push(req.changeId);
+      await applyGuardedOps(req);
+    }
+
+    expect(GUARDED_OUTCOME_MEMORY).toBe(50);
+    expect(guardedApplyOutcome({ changeId: ids[0] }).status).toBe('unknown');
+    expect(guardedApplyOutcome({ changeId: ids[1] }).status).toBe('applied');
+    expect(guardedApplyOutcome({ changeId: ids[ids.length - 1] }).status).toBe('applied');
   });
 });

@@ -5,7 +5,12 @@ import { getTarokkaReading, searchLinkCandidates } from './tarokka.js';
 import { listRefChoices } from './data-access/ref-choices.js';
 import { listGuardedFeatures } from './guarded-features.js';
 import { playRecorder } from './play-recorder.js';
-import { applyGuardedOps, logGmChange, snapshotGuardedOps } from './data-access/guarded-write.js';
+import {
+  applyGuardedOps,
+  guardedApplyOutcome,
+  logGmChange,
+  snapshotGuardedOps,
+} from './data-access/guarded-write.js';
 import { FoundryDataAccess } from './data-access.js';
 import {
   PLAYER_VIEW_QUERIES,
@@ -108,6 +113,11 @@ export class QueryHandlers {
     );
     handlers.set(`${modulePrefix}.applyGuardedOps`, (data: unknown) =>
       this.withGmGate('Failed to apply planned change', () => applyGuardedOps(data))
+    );
+    handlers.set(`${modulePrefix}.guardedApplyOutcome`, (data: unknown) =>
+      this.withGmGate('Failed to read the apply outcome', () =>
+        Promise.resolve(guardedApplyOutcome(data))
+      )
     );
     handlers.set(`${modulePrefix}.logGmChange`, (data: unknown) =>
       this.withGmGate('Failed to log change', () => Promise.resolve(logGmChange(data)))

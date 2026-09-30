@@ -116,8 +116,50 @@ export interface GuardedApplyResult {
   results: GuardedOpResult[];
 }
 
+/**
+ * `guardedApplyOutcome({changeId})` (lane 1, PB-04): what happened to an apply
+ * whose reply the backend never got. Local mirror of the shared
+ * `GuardedApplyOutcome` / `GUARDED_OUTCOME_MEMORY` (the module does not import
+ * the shared package; `guarded-write.contract.test.ts` compares the values).
+ */
+export const GUARDED_OUTCOME_MEMORY = 50;
+
+export type GuardedApplyOutcome =
+  | { changeId: string; status: 'in-progress' }
+  | { changeId: string; status: 'applied'; result: GuardedApplyResult }
+  | { changeId: string; status: 'failed'; error: string }
+  | { changeId: string; status: 'unknown' };
+
 /** Largest plan the module accepts in one apply. */
 const MAX_OPS = 200;
+
+/** The last {@link GUARDED_OUTCOME_MEMORY} applies, oldest first (Map keeps insertion order). */
+const outcomes = new Map<string, GuardedApplyOutcome>();
+
+function rememberOutcome(outcome: GuardedApplyOutcome): void {
+  // Re-inserting moves a repeated changeId (for example an undo) to the newest slot.
+  outcomes.delete(outcome.changeId);
+  outcomes.set(outcome.changeId, outcome);
+  while (outcomes.size > GUARDED_OUTCOME_MEMORY) {
+    const oldest = outcomes.keys().next();
+    if (oldest.done) break;
+    outcomes.delete(oldest.value);
+  }
+}
+
+/** What this browser knows about an apply (`unknown` after a reload or for a stranger). */
+export function guardedApplyOutcome(data: unknown): GuardedApplyOutcome {
+  const changeId = (data as { changeId?: unknown } | null | undefined)?.changeId;
+  if (typeof changeId !== 'string' || !changeId) {
+    throw new Error('Outcome request needs a changeId');
+  }
+  return outcomes.get(changeId) ?? { changeId, status: 'unknown' };
+}
+
+/** Test hook: forget every remembered outcome. */
+export function resetGuardedOutcomes(): void {
+  outcomes.clear();
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -489,6 +531,22 @@ export async function applyGuardedOps(request: unknown): Promise<GuardedApplyRes
   }
   requireWriteAccess(req);
 
+  rememberOutcome({ changeId: req.changeId, status: 'in-progress' });
+  try {
+    const result = await runGuardedApply(req, ops);
+    rememberOutcome({ changeId: req.changeId, status: 'applied', result });
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    rememberOutcome({ changeId: req.changeId, status: 'failed', error: message });
+    throw error;
+  }
+}
+
+async function runGuardedApply(
+  req: GuardedApplyRequest,
+  ops: GuardedOp[]
+): Promise<GuardedApplyResult> {
   // Conflict check: every target must still look like the expected state.
   const current = await snapshotGuardedOps(ops);
   const conflicts: string[] = [];

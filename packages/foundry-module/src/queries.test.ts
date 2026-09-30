@@ -148,7 +148,13 @@ describe('QueryHandlers — query lockdown', () => {
 // ---------------------------------------------------------------------------
 
 describe('QueryHandlers — guarded-write handlers', () => {
-  const GUARDED = ['snapshotGuardedOps', 'applyGuardedOps', 'logGmChange', 'listGuardedFeatures'];
+  const GUARDED = [
+    'snapshotGuardedOps',
+    'applyGuardedOps',
+    'guardedApplyOutcome',
+    'logGmChange',
+    'listGuardedFeatures',
+  ];
 
   it('registers the Tarokka read handlers, GM-gated', async () => {
     qh.registerHandlers();
@@ -165,7 +171,7 @@ describe('QueryHandlers — guarded-write handlers', () => {
     });
   });
 
-  it('registers the four guarded-write handlers', () => {
+  it('registers the five guarded-write handlers', () => {
     qh.registerHandlers();
     for (const method of GUARDED) expect(qh.isMethodRegistered(method)).toBe(true);
   });
@@ -180,6 +186,12 @@ describe('QueryHandlers — guarded-write handlers', () => {
       'Failed to log change: logGmChange needs changeId and feature'
     );
     expect(await queries()[`${MODULE_ID}.listGuardedFeatures`]()).toEqual(expect.any(Array));
+    expect(await queries()[`${MODULE_ID}.guardedApplyOutcome`]({ changeId: 'never-seen' })).toEqual(
+      { changeId: 'never-seen', status: 'unknown' }
+    );
+    await expect(queries()[`${MODULE_ID}.guardedApplyOutcome`]({})).rejects.toThrow(
+      'Failed to read the apply outcome: Outcome request needs a changeId'
+    );
 
     (globalThis as any).game.user = { ...(globalThis as any).game.user, isGM: false };
     for (const method of GUARDED) {

@@ -111,6 +111,8 @@ describe('scanModules', () => {
       { id: 'foundrytodiscord', title: 'Foundry to Discord', active: false },
     ]);
     expect(findings.map(f => f.rule)).toEqual(['midi-qol', 'automated-conditions-5e']);
+    // A module that is not installed is named by its usual title, not its id.
+    expect(findings[1]?.title).toBe('Automated Conditions 5e');
   });
 
   it('is quiet with Automated Conditions 5e active and no conflicts', () => {

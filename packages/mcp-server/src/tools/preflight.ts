@@ -293,14 +293,14 @@ export class PreflightTools {
             id: 'world-settings',
             label: 'No secrets in world settings',
             status: 'fail',
-            detail: `${plural(failing.length, 'world setting')} every player can read hold a secret: ${settingsList(failing)}. See the scan for what to do.`,
+            detail: `${plural(failing.length, 'world setting')} every player can read ${failing.length === 1 ? 'holds' : 'hold'} a secret: ${settingsList(failing)}. See the scan for what to do.`,
           }
         : warning.length > 0
           ? {
               id: 'world-settings',
               label: 'No secrets in world settings',
               status: 'warn',
-              detail: `${plural(warning.length, 'world setting')} may hold a secret: ${settingsList(warning)}.`,
+              detail: `${plural(warning.length, 'world setting')} ${warning.length === 1 ? 'looks' : 'look'} like a secret: ${settingsList(warning)}.`,
             }
           : {
               id: 'world-settings',

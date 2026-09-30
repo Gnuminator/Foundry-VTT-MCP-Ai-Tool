@@ -364,6 +364,8 @@ export function collectPlayerVisibleNames(): PlayerVisibleName[] {
 
 interface ModuleRule {
   rule: string;
+  /** The module's usual title, shown when it is not installed. */
+  name: string;
   ids: readonly string[];
   title?: RegExp;
   severity: 'warn' | 'info';
@@ -379,6 +381,7 @@ interface ModuleRule {
 export const MODULE_RULES: readonly ModuleRule[] = [
   {
     rule: 'midi-qol',
+    name: 'Midi-QOL',
     ids: ['midi-qol'],
     title: /midi[- ]?qol/i,
     severity: 'warn',
@@ -387,6 +390,7 @@ export const MODULE_RULES: readonly ModuleRule[] = [
   },
   {
     rule: 'battle-flow',
+    name: 'Battle Flow',
     ids: ['battleflow', 'fvtt-mod-battleflow', 'battle-flow'],
     title: /battle\s*flow/i,
     severity: 'warn',
@@ -395,6 +399,7 @@ export const MODULE_RULES: readonly ModuleRule[] = [
   },
   {
     rule: 'foundry-to-discord',
+    name: 'Foundry to Discord',
     ids: ['foundrytodiscord'],
     title: /foundry\s*to\s*discord/i,
     severity: 'warn',
@@ -403,6 +408,7 @@ export const MODULE_RULES: readonly ModuleRule[] = [
   },
   {
     rule: 'npc-narrator',
+    name: 'NPC Narrator',
     ids: ['npc-narrator'],
     title: /npc\s*narrator/i,
     severity: 'warn',
@@ -410,6 +416,7 @@ export const MODULE_RULES: readonly ModuleRule[] = [
   },
   {
     rule: 'safety-and-communication',
+    name: 'Safety and Communication',
     ids: ['safety-and-communication'],
     title: /safety\s*(?:and|&)\s*communication/i,
     severity: 'info',
@@ -418,6 +425,7 @@ export const MODULE_RULES: readonly ModuleRule[] = [
   },
   {
     rule: 'automated-conditions-5e',
+    name: 'Automated Conditions 5e',
     ids: ['automated-conditions-5e'],
     title: /automated\s*conditions\s*5e/i,
     severity: 'info',
@@ -457,7 +465,7 @@ export function scanModules(modules: readonly ModuleLike[]): PreflightModuleFind
     if (rule.missing ? active : !active) continue;
     findings.push({
       moduleId: match?.id ?? rule.ids[0] ?? rule.rule,
-      title: match?.title ?? rule.rule,
+      title: match && match.title.length > 0 ? match.title : rule.name,
       rule: rule.rule,
       severity: rule.severity,
       reason: rule.reason,

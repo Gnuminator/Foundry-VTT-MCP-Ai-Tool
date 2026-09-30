@@ -91,6 +91,35 @@ def load_timeline(path: Path) -> list[Line]:
     return lines
 
 
+GM_NAMES = frozenset({"gm", "dm", "game master", "dungeon master"})
+
+
+def is_gm(character: str) -> bool:
+    return character.strip().lower() in GM_NAMES
+
+
+def apply_speakers(lines: list[Line], session: Path) -> list[Line]:
+    """Let ``<session>/speakers.json`` (track id -> player, character) override the timeline.
+
+    It is the same file the session pipeline reads, so a character or a GM mark added after the
+    transcription (``"character": "GM"``) still reaches the notes without a new merge.
+    """
+    path = session / "speakers.json"
+    if not path.exists():
+        return lines
+    table = json.loads(path.read_text(encoding="utf-8"))
+    out = []
+    for line in lines:
+        entry = table.get(line.speaker) or {}
+        player = str(entry.get("player") or line.player)
+        character = str(entry.get("character") or entry.get("player") or line.character)
+        out.append(
+            Line(line.id, line.start, line.end, line.speaker, player, character, line.text,
+                 line.uncertain)
+        )
+    return out
+
+
 def load_roster(session: Path, lines: list[Line]) -> Roster:
     """Players and characters from the timeline; known names from ``names.txt`` if present."""
     roster = Roster()

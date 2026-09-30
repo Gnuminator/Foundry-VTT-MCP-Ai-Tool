@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from .claude_runner import ClaudeError, Runner, UsageLimitError
-from .model import Roster, Scene, load_roster, load_timeline
+from .model import Roster, Scene, apply_speakers, load_roster, load_timeline
 from .prompts import SCENE_SCHEMA, SESSION_SCHEMA, scene_prompt, session_prompt
 from .scenes import split_scenes
 from .validate import check_lines, combine, raw_fallback, repair
@@ -27,6 +27,8 @@ MIN_SPLIT_LINES = 6
 class Options:
     scene_model: str = "sonnet"
     session_model: str = "sonnet"
+    scene_effort: str = "low"  # mostly careful copying, fixing and translating
+    session_effort: str = "medium"  # the summary and the spoiler-safe recap need judgement
     scene_gap: float = 90.0
     only_scene: int | None = None
 
@@ -54,7 +56,12 @@ class Writer:
         """One call plus checks; ``None`` when the output fails the hard check."""
         started = time.monotonic()
         try:
-            result = self.runner(scene_prompt(scene, roster), SCENE_SCHEMA, self.opts.scene_model)
+            result = self.runner(
+                scene_prompt(scene, roster),
+                SCENE_SCHEMA,
+                self.opts.scene_model,
+                self.opts.scene_effort,
+            )
         except UsageLimitError:
             raise
         except ClaudeError as exc:
@@ -98,7 +105,7 @@ class Writer:
         timeline = self.session / "timeline" / "timeline.jsonl"
         if not timeline.exists():
             raise FileNotFoundError(f"No timeline at {timeline}; run the session pipeline first.")
-        lines = load_timeline(timeline)
+        lines = apply_speakers(load_timeline(timeline), self.session)
         roster = load_roster(self.session, lines)
         scenes = split_scenes(lines, gap=self.opts.scene_gap)
         self.work.mkdir(parents=True, exist_ok=True)
@@ -152,7 +159,12 @@ class Writer:
             if data.get("scenes") == key:
                 return data["notes"]
         try:
-            out = self.runner(session_prompt(notes, roster), SESSION_SCHEMA, self.opts.session_model)
+            out = self.runner(
+                session_prompt(notes, roster),
+                SESSION_SCHEMA,
+                self.opts.session_model,
+                self.opts.session_effort,
+            )
         except UsageLimitError as exc:
             self._log("paused", scene="session", reason=str(exc))
             return None
@@ -171,6 +183,8 @@ class Writer:
         return {
             "scene_model": self.opts.scene_model,
             "session_model": self.opts.session_model,
+            "scene_effort": self.opts.scene_effort,
+            "session_effort": self.opts.session_effort,
             "scene_gap": self.opts.scene_gap,
             "only_scene": self.opts.only_scene,
         }

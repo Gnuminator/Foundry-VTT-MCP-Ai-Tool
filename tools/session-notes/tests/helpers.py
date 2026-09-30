@@ -80,9 +80,13 @@ class FakeClaude:
         self.calls: list[tuple[str, str]] = []
         self.fail = fail or {}
         self.bad_lines = bad_lines or set()
+        self.efforts: list[str] = []
 
-    def __call__(self, prompt: str, schema: dict[str, Any], model: str) -> dict[str, Any]:
+    def __call__(
+        self, prompt: str, schema: dict[str, Any], model: str, effort: str = "low"
+    ) -> dict[str, Any]:
         n = len(self.calls) + 1
+        self.efforts.append(effort)
         kind = "scene" if "lines" in schema["properties"] else "session"
         self.calls.append((kind, prompt))
         if self.fail.get(n) == "limit":

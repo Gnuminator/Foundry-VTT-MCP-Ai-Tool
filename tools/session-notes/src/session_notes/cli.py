@@ -13,21 +13,26 @@ from pathlib import Path
 
 from .claude_runner import ClaudeCli, ClaudeError
 from .model import clock, load_timeline
+from .retention import RETENTION_DAYS, approve, cleanup
 from .run import Options, Writer
 from .scenes import split_scenes
 
 EXIT_PAUSED = 75
 
 
+def sessions_root() -> Path:
+    root = os.environ.get("FVTT_SESSIONS_DIR")
+    return Path(root) if root else Path.home() / "Documents" / "FoundrySessions"
+
+
 def resolve_session(target: str) -> Path:
     path = Path(target)
     if path.is_dir():
         return path
-    root = os.environ.get("FVTT_SESSIONS_DIR") or str(Path.home() / "Documents" / "FoundrySessions")
-    candidate = Path(root) / target
+    candidate = sessions_root() / target
     if candidate.is_dir():
         return candidate
-    raise SystemExit(f"Session not found: {target} (also looked in {root})")
+    raise SystemExit(f"Session not found: {target} (also looked in {sessions_root()})")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -37,14 +42,47 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("session", help="session folder, or its name under FVTT_SESSIONS_DIR")
     run.add_argument("--scene-model", default="sonnet")
     run.add_argument("--session-model", default="sonnet")
+    run.add_argument("--scene-effort", default="low", help="low, medium, high, xhigh or max")
+    run.add_argument("--session-effort", default="medium")
     run.add_argument("--scene-gap", type=float, default=90.0, help="seconds of silence per cut")
     run.add_argument("--only-scene", type=int, help="process one scene (for testing prompts)")
     show = sub.add_parser("scenes", help="show the scene split, no Claude call")
     show.add_argument("session")
     show.add_argument("--scene-gap", type=float, default=90.0)
+    ok = sub.add_parser("approve", help="mark the notes approved (starts the audio retention clock)")
+    ok.add_argument("session")
+    ok.add_argument("--by", default="GM")
+    clean = sub.add_parser(
+        "cleanup", help=f"delete audio {RETENTION_DAYS} days after approval (D-072)"
+    )
+    clean.add_argument("--days", type=int, default=RETENTION_DAYS)
+    clean.add_argument("--yes", action="store_true", help="really delete (default: only list)")
     args = parser.parse_args(argv)
 
+    if args.cmd == "cleanup":
+        items = cleanup(sessions_root(), days=args.days, apply=args.yes)
+        for item in items:
+            mb = sum(f.stat().st_size for f in item.files if f.exists()) / 1e6 if not args.yes else 0
+            verb = "deleted" if args.yes else f"would delete ({mb:.0f} MB)"
+            print(
+                f"{item.session.name}: approved {item.approved:%Y-%m-%d}, {verb} "
+                f"{len(item.files)} audio file(s)"
+            )
+        if not items:
+            print("No session has audio past its retention date.")
+        elif not args.yes:
+            print("Nothing deleted. Run again with --yes to delete.")
+        return 0
+
     session = resolve_session(args.session)
+    if args.cmd == "approve":
+        try:
+            path = approve(session, by=args.by)
+        except FileNotFoundError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print(f"Approved: {path}. Audio is deleted by `cleanup` after {RETENTION_DAYS} days.")
+        return 0
     if args.cmd == "scenes":
         lines = load_timeline(session / "timeline" / "timeline.jsonl")
         for scene in split_scenes(lines, gap=args.scene_gap):
@@ -62,6 +100,8 @@ def main(argv: list[str] | None = None) -> int:
     opts = Options(
         scene_model=args.scene_model,
         session_model=args.session_model,
+        scene_effort=args.scene_effort,
+        session_effort=args.session_effort,
         scene_gap=args.scene_gap,
         only_scene=args.only_scene,
     )

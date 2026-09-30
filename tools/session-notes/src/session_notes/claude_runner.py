@@ -31,7 +31,9 @@ class UsageLimitError(ClaudeError):
 
 
 class Runner(Protocol):
-    def __call__(self, prompt: str, schema: dict[str, Any], model: str) -> dict[str, Any]: ...
+    def __call__(
+        self, prompt: str, schema: dict[str, Any], model: str, effort: str = "low"
+    ) -> dict[str, Any]: ...
 
 
 @dataclass(slots=True)
@@ -53,7 +55,9 @@ class ClaudeCli:
         self.timeout = timeout
         self.records: list[CallRecord] = []
 
-    def __call__(self, prompt: str, schema: dict[str, Any], model: str) -> dict[str, Any]:
+    def __call__(
+        self, prompt: str, schema: dict[str, Any], model: str, effort: str = "low"
+    ) -> dict[str, Any]:
         cmd = [
             self.exe,
             "-p",
@@ -65,6 +69,8 @@ class ClaudeCli:
             "",
             "--model",
             model,
+            "--effort",
+            effort,
             "--no-session-persistence",
             "--system-prompt",
             SYSTEM_PROMPT,

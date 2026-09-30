@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .model import Roster, Scene, clock
+from .model import Roster, Scene, clock, is_gm
 
 _STR = {"type": "string"}
 _IDS = {"type": "array", "items": {"type": "string"}}
@@ -71,6 +71,11 @@ Lines (the cleaned transcript):
   the real world), false for play, narration and in-character speech.
 
 Notes (Danish `da` and English `en` for every entry):
+- Notes come from play: the GM's narration and rulings, and what the characters say and do.
+  Out-of-character talk (memories of earlier sessions, jokes, opinions about the game, rules
+  debates) is not an event; use it only where it settles something in the game (a ruling,
+  a roll result, a choice).
+- Name characters, not players, wherever the roster says who plays whom.
 - events: what happened in the story, in order. decisions: choices the party made.
 - npcs: non-player characters who appear or are talked about (not the player characters).
 - loot: items, money or information gained or lost. threads: open questions and hooks.
@@ -92,13 +97,21 @@ English (`en`):
 - recap_player: 150 to 300 words for the players, addressed to the party (English "you",
   Danish "I"), written as a "previously on" recap. It must not contain anything from any gm_only list, no
   hidden rolls, no GM plans, and nothing the characters could not know. Dice: only natural 20s,
-  natural 1s and dramatic moments. The GM approves it before any player sees it.
-Use only what is in the notes.
+  natural 1s and dramatic moments. Use character names, not player names. The GM approves it
+  before any player sees it.
+Use only what is in the notes. Leave out table talk that did not happen in the game.
 """
 
 
 def _roster_block(roster: Roster) -> str:
-    rows = [f"- {p} plays {c}" if c and c != p else f"- {p}" for p, c in roster.players.items()]
+    rows = []
+    for p, c in roster.players.items():
+        if is_gm(c):
+            rows.append(f"- {p} is the GM (narrates, rules, plays all NPCs)")
+        elif c and c != p:
+            rows.append(f"- {p} plays {c}")
+        else:
+            rows.append(f"- {p} (character unknown)")
     names = ", ".join(roster.names) if roster.names else "(none given)"
     return "Players:\n" + "\n".join(rows) + f"\nKnown names (spell them like this): {names}\n"
 

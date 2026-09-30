@@ -124,6 +124,20 @@ def test_usage_limit_pauses_and_resumes(session: Path) -> None:
     assert result2.paused is None and [k for k, _ in resumed.calls] == ["scene", "session"]
 
 
+def test_speakers_json_overrides_and_marks_the_gm(session: Path) -> None:
+    (session / "speakers.json").write_text(
+        json.dumps({"gm": {"player": "Rikke", "character": "GM"}, "bo": {"character": "Vorn"}}),
+        encoding="utf-8",
+    )
+    fake = FakeClaude()
+    Writer(session, fake).run()
+    prompt = fake.calls[0][1]
+    assert "- Rikke is the GM (narrates, rules, plays all NPCs)" in prompt
+    assert "- Bo plays Vorn" in prompt and "- Anna plays Ireena" in prompt
+    assert "u000002 [00:00:40] Bo (Vorn): Jeg tjekker" in prompt
+    assert fake.efforts == ["low", "low", "medium"]
+
+
 def test_only_scene(session: Path) -> None:
     fake = FakeClaude()
     Writer(session, fake, Options(only_scene=2)).run()

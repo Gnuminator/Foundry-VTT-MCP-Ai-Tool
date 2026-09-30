@@ -142,6 +142,7 @@ const els = {
   partyGroup: $('party-group'),
   partyWarnings: $('party-warnings'),
   partyMembers: $('party-members'),
+  partyActions: $('party-actions'),
   partyPace: $('party-pace'),
   partyCombat: $('party-combat'),
   partyRest: $('party-rest'),
@@ -2225,9 +2226,8 @@ function closeParty() {
   }
 }
 function clearPartySections() {
-  for (const el of [els.partyWarnings, els.partyPace, els.partyCombat, els.partyRest]) {
-    el.innerHTML = '';
-  }
+  els.partyWarnings.innerHTML = '';
+  els.partyActions.hidden = true;
 }
 async function loadParty() {
   if (partyLoading) return;
@@ -2336,7 +2336,7 @@ function partyCombatSection(g) {
 function partyRestSection(g) {
   const cards = g.restCards || {};
   const disabled = type => (cards[type] ? '' : ' disabled');
-  return `<p class="pf-detail">Posts dnd5e's rest card to chat; each player clicks it to rest their character.</p>
+  return `<p class="pf-detail">Posts dnd5e's rest card to chat; each player clicks it to rest their character. Undo removes the card while nobody has used it.</p>
     <div class="party-buttons">
       <button type="button" class="btn btn-small" data-track="dash.party.rest-short" data-party-rest="short"${disabled('short')}>Short rest request</button>
       <button type="button" class="btn btn-small" data-track="dash.party.rest-long" data-party-rest="long"${disabled('long')}>Long rest request</button>
@@ -2364,9 +2364,10 @@ function renderParty() {
     els.partySub.textContent = 'GM only. No party yet.';
     els.partyMembers.innerHTML =
       '<p class="empty">No party yet. In Foundry, create an Actor of type Group, drag the characters onto it, then right-click it in the Actors tab and set it as the primary party.</p>';
-    for (const el of [els.partyPace, els.partyCombat, els.partyRest]) el.innerHTML = '';
+    els.partyActions.hidden = true;
     return;
   }
+  els.partyActions.hidden = false;
   const members = Array.isArray(g.members) ? g.members : [];
   const primary = g.primary ? '' : ' Not the primary party.';
   const count = `${members.length} ${members.length === 1 ? 'member' : 'members'}`;

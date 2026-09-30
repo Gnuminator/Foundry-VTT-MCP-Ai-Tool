@@ -139,6 +139,17 @@ describe('groups', () => {
     });
   });
 
+  it('gives a level only to characters', () => {
+    const wolf = world.addActor({
+      id: 'w1',
+      name: 'Wolf',
+      type: 'npc',
+      system: { details: { level: 0, cr: 0.25 }, attributes: { hp: { value: 11, max: 11 } } },
+    });
+    group('g1', 'The Party', [hero('a1', 'Ana'), wolf]);
+    expect(getPartyState().groups[0]?.members.map(m => m.level)).toEqual([3, null]);
+  });
+
   it('skips missing member actors', () => {
     const a = hero('a1', 'Ana');
     group('g1', 'The Party', [a, null]);

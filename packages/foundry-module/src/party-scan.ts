@@ -194,7 +194,7 @@ function memberOf(actor: Rec, scene: Rec | null, combat: Rec | null): PartyMembe
     uuid: str(actor.uuid) ?? `Actor.${actorId}`,
     name: str(actor.name) ?? '',
     type: str(actor.type) ?? '',
-    level: num(rec(system?.details)?.level),
+    level: actor.type === 'character' ? num(rec(system?.details)?.level) : null,
     hp,
     ac: num(rec(attributes?.ac)?.value),
     passivePerception: num(rec(rec(system?.skills)?.prc)?.passive),

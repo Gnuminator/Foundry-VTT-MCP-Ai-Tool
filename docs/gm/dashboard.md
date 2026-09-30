@@ -81,6 +81,10 @@ Opens the handout drawer. See "The handout drawer" below.
 
 Opens the prep drawer. See "The prep drawer" below.
 
+### 🛡 Party
+
+Opens the party drawer. See "The party drawer" below.
+
 ### 🃏 Tarokka
 
 Opens the Tarokka drawer. See "The Tarokka drawer" below.
@@ -303,6 +307,27 @@ The facts for preparing your next session, in one place and without AI. **Refres
 
 Claude reads the same facts with `get-prep-digest`, which the prompt `prep-next-session` uses
 first. Without Foundry connected, the drawer still shows last session and says what is missing.
+
+## The party drawer (🛡 Party)
+
+The party at a glance, from the dnd5e Group actor. It needs a party in Foundry: in the Actors
+tab, create an Actor of type **Group**, drag the characters onto it, then right-click it and
+choose **Set as Primary Party**. With more than one group, a list at the top picks which one.
+
+- **Members**: each character's HP, AC, passive Perception, hit dice left, conditions and
+  exhaustion, death saves at 0 HP, and whether the token is on the scene and in the encounter.
+  **Open** shows the character sheet in Foundry.
+- **Travel pace**: Slow, Normal or Fast. If a member is slowed, the drawer says the party moves
+  at slow pace anyway.
+- **Combat**: adds the party's tokens on the current scene to the encounter, or starts an
+  encounter with them when there is none.
+- **Rest**: posts dnd5e's short or long rest card to chat. Each player clicks it to rest their
+  own character, the same card Foundry's party sheet posts.
+
+Each button makes a plan and shows it in the confirm window. The actions need GM Actions on and
+the module setting **AI Tool: Party (writes)** switched on. Every change lands in Recent Changes
+with Undo; a rest card can only be undone while nobody has rested from it (after that, delete the
+card in Foundry's chat). Claude uses the same actions with `get-party` and `plan-party-change`.
 
 ## The player page (/player)
 

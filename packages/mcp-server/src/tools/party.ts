@@ -61,7 +61,8 @@ function names(list: string[]): string {
  *   tokens on its scene that are not in it yet; without an encounter it
  *   creates one on the active scene with those combatants.
  * - `rest-request`: creates dnd5e's rest request chat card (built by the
- *   module); each player clicks it to rest. Undo removes the card only.
+ *   module); each player clicks it to rest. Undo removes the card, and only
+ *   while nobody has used it (a used card reports a conflict).
  */
 export class PartyTools {
   private readonly options: PartyToolsOptions;
@@ -83,7 +84,7 @@ export class PartyTools {
       {
         name: 'plan-party-change',
         description:
-          'Plan one party action; nothing changes until apply-planned-change (the GM confirms, and the "AI Tool: Party (writes)" switch must be on). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members\' tokens on the current scene to the encounter (starts one when there is none). "rest-request": post dnd5e\'s short or long rest request card ("rest"), which each player clicks to rest. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (for a rest request it removes the card, not rests already taken).',
+          'Plan one party action; nothing changes until apply-planned-change (the GM confirms, and the "AI Tool: Party (writes)" switch must be on). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members\' tokens on the current scene to the encounter (starts one when there is none). "rest-request": post dnd5e\'s short or long rest request card ("rest"), which each player clicks to rest. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (a rest request card only while nobody has rested from it).',
         inputSchema: {
           type: 'object',
           properties: {

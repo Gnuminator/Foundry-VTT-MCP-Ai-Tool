@@ -14,7 +14,8 @@
  *   {@link PARTY_FEATURE_ID}): `pace` updates the group's travel pace,
  *   `add-to-combat` creates combatants (or a new encounter) for the members'
  *   tokens, `rest-request` posts the rest request card. Undo reverts each one
- *   (for a rest request it removes the card; rests players already took stay).
+ *   (for a rest request it removes the card while nobody has used it; once a
+ *   player rested from it, undo reports a conflict and the GM deletes the card).
  * - The dashboard's Party drawer shows the state and runs the three actions
  *   through plan, confirm and apply (D-077: the table works without AI).
  *

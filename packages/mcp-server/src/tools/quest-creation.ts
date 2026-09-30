@@ -30,6 +30,17 @@ interface QuestJournalRequest {
   rewards?: string | undefined;
 }
 
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Whether saved page HTML still holds a line we wrote, ignoring whitespace. */
+function savedPageHolds(saved: unknown, line: string): boolean {
+  if (typeof saved !== 'string') return false;
+  const squash = (html: string): string => html.replace(/\s+/g, '');
+  return squash(saved).includes(squash(line));
+}
+
 export class QuestCreationTools {
   private foundryClient: FoundryClient;
   private logger: Logger;
@@ -321,24 +332,37 @@ export class QuestCreationTools {
         throw new Error('Journal not found');
       }
 
-      // Add NPC relationship information to journal
-      const updatedContent = this.addNPCLinkToJournal(
-        journalResult.content,
+      // Add NPC relationship information to the page getJournalContent read (the first text page)
+      const readPage = journalResult as { currentPage?: { id?: unknown } };
+      const pageId = typeof readPage.currentPage?.id === 'string' ? readPage.currentPage.id : '';
+      const { content: updatedContent, line } = this.addNPCLinkToJournal(
+        journalResult.content ?? '',
         request.npcName,
         request.relationship
       );
 
-      // Update journal with NPC link
-      const updateResult = await this.foundryClient.query(
+      const updateResult = (await this.foundryClient.query(
         'foundry-mcp-bridge.updateJournalContent',
         {
           journalId: request.journalId,
           content: updatedContent,
+          ...(pageId ? { pageId } : {}),
         }
-      );
+      )) as { error?: unknown; success?: unknown } | null;
 
-      if (!updateResult || updateResult.error) {
+      if (!updateResult || updateResult.error || updateResult.success === false) {
         throw new Error('Failed to update journal with NPC link');
+      }
+
+      // Verify: the saved page must hold the new line (P-040: this tool used to report success
+      // while its replace() matched nothing).
+      const saved = (await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
+        journalId: request.journalId,
+      })) as { content?: unknown } | null;
+      if (!savedPageHolds(saved?.content, line)) {
+        throw new Error(
+          `The journal was saved, but the link to ${request.npcName} is not in it; nothing was linked`
+        );
       }
 
       return {
@@ -875,30 +899,36 @@ export class QuestCreationTools {
   }
 
   /**
-   * Add NPC link information to journal content (HTML for Foundry v13 ProseMirror)
-   * Maintains professional styling by adding to the grid layout
+   * Add an NPC line to the page's "Related NPCs" list, creating the list when missing. Always
+   * inserts (P-040): searches tolerate the whitespace and entity escaping Foundry's editor adds,
+   * and the fallback is the end of the page.
    */
-  private addNPCLinkToJournal(content: string, npcName: string, relationship: string): string {
+  private addNPCLinkToJournal(
+    content: string,
+    npcName: string,
+    relationship: string
+  ): { content: string; line: string } {
     const relationshipText = relationship.replace('_', ' ');
+    const line = `<li><strong>${escapeHtml(npcName)}:</strong> ${relationshipText}</li>`;
 
-    // Look for existing Related NPCs section in the grid
-    if (content.includes('<h3>Related NPCs</h3>')) {
-      // Add to existing NPC list
-      return content.replace(
-        '</ul></div></div>',
-        `<li><strong>${npcName}:</strong> ${relationshipText}</li></ul></div></div>`
-      );
-    } else {
-      // Find the end of the right column in the grid and add NPC section
-      if (content.includes('<h3>Rewards & Status</h3>')) {
-        const npcSection = `<li><strong>Related NPCs:</strong></li><li><strong>${npcName}:</strong> ${relationshipText}</li>`;
-        return content.replace('</ul></div></div>', `${npcSection}</ul></div></div>`);
-      } else {
-        // If no grid exists, add a new GM note section for NPCs
-        const npcSection = `<div class="gmnote"><p><strong>Related NPCs:</strong> ${npcName} (${relationshipText})</p></div>`;
-        return content.replace('</div></section>', `${npcSection}</div></section>`);
-      }
+    // An existing list (made by an earlier call): add before its closing </ul>.
+    const heading = /<h3[^>]*>\s*Related NPCs\s*<\/h3>/i.exec(content);
+    if (heading) {
+      const close = content.indexOf('</ul>', heading.index + heading[0].length);
+      if (close !== -1)
+        return { content: content.slice(0, close) + line + content.slice(close), line };
     }
+
+    // A new list: inside the quest layout's wrapper when present, else at the end of the page.
+    const section = `<h3>Related NPCs</h3><ul>${line}</ul>`;
+    const wrapEnd = /<\/div>\s*<\/section>\s*$/i.exec(content);
+    if (wrapEnd) {
+      return {
+        content: content.slice(0, wrapEnd.index) + section + content.slice(wrapEnd.index),
+        line,
+      };
+    }
+    return { content: content + section, line };
   }
 
   // REMOVED: Campaign analysis quest generation methods

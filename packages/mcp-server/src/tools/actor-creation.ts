@@ -57,9 +57,10 @@ export class ActorCreationTools {
             },
             quantity: {
               type: 'number',
-              description: 'Number of actors to create (default: based on names array length)',
+              description:
+                "Number of actors to create (default: based on names array length); capped by the GM's Max Actors Per Request setting (1 to 50)",
               minimum: 1,
-              maximum: 10,
+              maximum: 50,
             },
             addToScene: {
               type: 'boolean',
@@ -128,7 +129,7 @@ export class ActorCreationTools {
       packId: z.string().min(1, 'Pack ID cannot be empty'),
       itemId: z.string().min(1, 'Item ID cannot be empty'),
       names: z.array(z.string().min(1)).min(1, 'At least one name is required'),
-      quantity: z.number().min(1).max(10).optional(),
+      quantity: z.number().min(1).max(50).optional(),
       addToScene: z.boolean().default(false),
       placement: z
         .object({

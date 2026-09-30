@@ -338,3 +338,45 @@ describe('QueryHandlers — handler convention', () => {
     expect(res).toEqual({ response: [{ name: 'Goblin' }] });
   });
 });
+
+// ---------------------------------------------------------------------------
+// updateCampaignProgress (P-040: it reported success without writing)
+// ---------------------------------------------------------------------------
+
+describe('QueryHandlers: updateCampaignProgress', () => {
+  const toggle = (campaignId: string, partId: string): string =>
+    `<span class="campaign-status-toggle not-started"\n  data-campaign-id="${campaignId}"\n  data-part-id="${partId}">Not Started</span>`;
+
+  beforeEach(() => {
+    world.enableWrites();
+    world.addJournal({
+      id: 'dash',
+      name: 'Campaign Dashboard',
+      flags: {},
+      pages: [
+        { type: 'text', text: { content: toggle('camp1', 'part-1') + toggle('camp1', 'part-2') } },
+      ],
+    });
+  });
+
+  it('saves the status in the flag the GM click uses', async () => {
+    const result = await qh.handleUpdateCampaignProgress({
+      campaignId: 'camp1',
+      partId: 'part-2',
+      newStatus: 'completed',
+    });
+    expect(result).toMatchObject({ success: true, journalId: 'dash', newStatus: 'completed' });
+    const journal = (globalThis as any).game.journal.get('dash');
+    expect(journal.getFlag('world', 'campaignStatus')).toEqual({ 'camp1-part-2': 'completed' });
+  });
+
+  it('refuses an unknown status, campaign or part without writing', async () => {
+    const run = (campaignId: string, partId: string, newStatus: string): Promise<unknown> =>
+      qh.handleUpdateCampaignProgress({ campaignId, partId, newStatus });
+    await expect(run('camp1', 'part-1', 'done')).rejects.toThrow(/newStatus must be one of/);
+    await expect(run('other', 'part-1', 'completed')).rejects.toThrow(/No campaign dashboard/);
+    await expect(run('camp1', 'part-9', 'completed')).rejects.toThrow(/has no part part-9/);
+    const journal = (globalThis as any).game.journal.get('dash');
+    expect(journal.getFlag('world', 'campaignStatus')).toBeUndefined();
+  });
+});

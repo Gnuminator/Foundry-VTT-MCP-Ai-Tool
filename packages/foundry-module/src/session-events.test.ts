@@ -485,6 +485,45 @@ describe('EventTracker session events', () => {
     expect(t.getSessionLog({ eventType: 'condition-removed' })).toHaveLength(1);
     expect(t.getSessionLog({ eventType: 'scene-change' })).toHaveLength(1);
   });
+
+  it('logs a mirrored condition (two ActiveEffects per toggle) once (P-026)', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(1_790_000_000_000);
+      const t = new EventTracker();
+      t.registerHooks();
+      const goblin = { id: 'g1', name: 'Goblin' };
+      const prone = { name: 'Prone', parent: goblin, statuses: new Set(['prone']) };
+      const mirror = { name: 'Prone', parent: goblin, statuses: new Set(['prone']) };
+      fire('createActiveEffect', prone);
+      fire('createActiveEffect', mirror);
+      fire('deleteActiveEffect', prone);
+      fire('deleteActiveEffect', mirror);
+      expect(t.getSessionLog({ eventType: 'condition-applied' })).toHaveLength(1);
+      expect(t.getSessionLog({ eventType: 'condition-removed' })).toHaveLength(1);
+
+      // A new toggle after the window is logged again.
+      vi.setSystemTime(1_790_000_002_000);
+      fire('createActiveEffect', prone);
+      expect(t.getSessionLog({ eventType: 'condition-applied' })).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('detects legendary actions spent (dnd5e 6 stores `spent`, `value` is derived)', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    const dragon = { id: 'd1', name: 'Dragon', system: { resources: { legact: { value: 3 } } } };
+    // First sighting seeds the cache (no event); then one action is spent.
+    fire('updateActor', dragon, { system: { resources: { legact: { spent: 0 } } } });
+    dragon.system.resources.legact.value = 2;
+    fire('updateActor', dragon, { system: { resources: { legact: { spent: 1 } } } });
+
+    const spent = t.getSessionLog({ eventType: 'resource-spent' });
+    expect(spent).toHaveLength(1);
+    expect(spent[0].details).toMatchObject({ resource: 'legact', from: 3, to: 2 });
+  });
 });
 
 describe('EventTracker session events — visibility stamp (M2)', () => {

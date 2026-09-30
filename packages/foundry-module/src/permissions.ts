@@ -160,8 +160,10 @@ export class PermissionManager {
 
         if (sanitized.quantity) {
           const quantity = parseInt(sanitized.quantity);
-          if (isNaN(quantity) || quantity < 1 || quantity > 10) {
-            errors.push('quantity must be a number between 1 and 10');
+          // The ceiling of the "Max actors per request" setting; the setting itself is checked
+          // in checkWritePermission and clamps in data-access (P-062).
+          if (isNaN(quantity) || quantity < 1 || quantity > 50) {
+            errors.push('quantity must be a number between 1 and 50');
           } else {
             sanitized.quantity = quantity;
           }

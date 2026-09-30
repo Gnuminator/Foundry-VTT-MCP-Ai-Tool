@@ -2,6 +2,64 @@
 // Implements clickable status toggles using Foundry's native hook system
 import { trackUsage } from './usage-recorder.js';
 
+/** Part statuses, in the order a GM click cycles through them. */
+export const CAMPAIGN_STATUSES = ['not_started', 'in_progress', 'completed', 'skipped'] as const;
+
+interface CampaignPageLike {
+  text?: { content?: unknown };
+}
+
+interface CampaignJournalLike {
+  id: string;
+  name: string;
+  pages: { find(fn: (page: CampaignPageLike) => boolean): CampaignPageLike | undefined };
+  getFlag(scope: string, key: string): unknown;
+  setFlag(scope: string, key: string, value: unknown): Promise<unknown>;
+}
+
+function campaignStatusFlags(entry: CampaignJournalLike): Record<string, unknown> {
+  const flags = entry.getFlag('world', 'campaignStatus');
+  return flags !== null && typeof flags === 'object' ? (flags as Record<string, unknown>) : {};
+}
+
+/**
+ * Set one campaign part's status the way a GM click on its toggle does: the `world.campaignStatus`
+ * flag on the dashboard journal, keyed `<campaignId>-<partId>`. Refuses an unknown status, campaign
+ * or part, and checks the flag reads back (P-040: this used to report success without writing).
+ */
+export async function setCampaignPartStatus(
+  campaignId: string,
+  partId: string,
+  status: string
+): Promise<{ journalId: string; journalName: string }> {
+  if (!(CAMPAIGN_STATUSES as readonly string[]).includes(status)) {
+    throw new Error(`newStatus must be one of: ${CAMPAIGN_STATUSES.join(', ')}`);
+  }
+  const campaignAttr = `data-campaign-id="${campaignId}"`;
+  const partAttr = `data-part-id="${partId}"`;
+  const pageHtml = (page: CampaignPageLike): string =>
+    typeof page.text?.content === 'string' ? page.text.content : '';
+  const journals = game.journal as unknown as
+    | { find(fn: (journal: CampaignJournalLike) => boolean): CampaignJournalLike | undefined }
+    | undefined;
+  const entry = journals?.find(journal =>
+    Boolean(journal.pages.find(page => pageHtml(page).includes(campaignAttr)))
+  );
+  if (!entry) throw new Error(`No campaign dashboard journal for campaign ${campaignId}`);
+  const hasPart = entry.pages.find(page => {
+    const html = pageHtml(page);
+    return html.includes(campaignAttr) && html.includes(partAttr);
+  });
+  if (!hasPart) throw new Error(`Campaign ${campaignId} has no part ${partId}`);
+
+  const key = `${campaignId}-${partId}`;
+  await entry.setFlag('world', 'campaignStatus', { ...campaignStatusFlags(entry), [key]: status });
+  if (campaignStatusFlags(entry)[key] !== status) {
+    throw new Error(`The status of part ${partId} did not save`);
+  }
+  return { journalId: entry.id, journalName: entry.name };
+}
+
 export class CampaignHooks {
   private isRegistered: boolean = false;
 
@@ -234,10 +292,9 @@ export class CampaignHooks {
    * Get next status in cycle
    */
   private getNextStatus(current: string): string {
-    const cycle = ['not_started', 'in_progress', 'completed', 'skipped'];
-    const currentIndex = cycle.indexOf(current);
-    const nextIndex = (currentIndex + 1) % cycle.length;
-    return cycle[nextIndex];
+    const currentIndex = (CAMPAIGN_STATUSES as readonly string[]).indexOf(current);
+    const nextIndex = (currentIndex + 1) % CAMPAIGN_STATUSES.length;
+    return CAMPAIGN_STATUSES[nextIndex] ?? 'not_started';
   }
 
   /**

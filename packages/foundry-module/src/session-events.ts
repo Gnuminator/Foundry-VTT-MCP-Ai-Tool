@@ -9,6 +9,7 @@ import {
 import { describeMessageRolls } from './systems/dnd5e/roll-breakdown.js';
 import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
 import { eventVisibilityFor, playerFacingSceneName } from './player-visibility.js';
+import { EffectEventDeduper } from './effect-dedupe.js';
 import type { EventVisibility } from '@gnuminator/shared';
 
 /**
@@ -99,6 +100,8 @@ export class EventTracker {
   private hpCache: Map<string, number> = new Map();
   /** Cache of last-seen spell-slot / resource totals per actor, for spend detection. */
   private resourceCache: Map<string, number> = new Map();
+  /** Drops the mirrored second ActiveEffect event (Automated Conditions 5e, P-026). */
+  private readonly effectDeduper = new EffectEventDeduper();
 
   /** dnd5e damage applications in progress on this client (actor uuid -> source message). */
   private pendingApply: Map<string, { messageId: string | null; t: number }> = new Map();
@@ -707,7 +710,15 @@ export class EventTracker {
       const resources = this.getProp(changed, 'system.resources');
       if (resources && typeof resources === 'object') {
         for (const [key, value] of Object.entries(resources as Record<string, any>)) {
-          const newVal = value?.value;
+          // dnd5e 6 stores legendary actions and resistances as `spent`; `value` is derived.
+          const entry = value as { value?: unknown; spent?: unknown } | null;
+          const derived: unknown = this.getProp(actor, `system.resources.${key}.value`);
+          const newVal =
+            typeof entry?.value === 'number'
+              ? entry.value
+              : typeof entry?.spent === 'number'
+                ? derived
+                : undefined;
           if (typeof newVal !== 'number') continue;
           const cacheKey = `${actor.id}:resources.${key}`;
           const prev = this.resourceCache.get(cacheKey);
@@ -741,6 +752,16 @@ export class EventTracker {
       const statuses = Array.from(effect?.statuses ?? []).filter(
         (s: unknown): s is string => typeof s === 'string'
       );
+      if (
+        this.effectDeduper.isDuplicate({
+          actor: typeof actorId === 'string' ? actorId : null,
+          kind: eventType,
+          name: String(effectName),
+          statuses,
+        })
+      ) {
+        return;
+      }
       this.logSessionEvent(eventType, `${actorName || 'An actor'} ${verb} "${effectName}"`, {
         actorName,
         actorId,

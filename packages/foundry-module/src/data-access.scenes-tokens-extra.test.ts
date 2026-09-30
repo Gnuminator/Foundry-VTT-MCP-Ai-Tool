@@ -118,6 +118,52 @@ describe('FoundryDataAccess — switchScene', () => {
     expect(result.sceneId).toBe('s7');
     expect(result.sceneName).toBe('Crystal Cavern');
   });
+
+  describe('the GM view follows the switch (I-016 sweep)', () => {
+    let scenes: Record<string, any>;
+    let viewedId: string;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      (globalThis as any).canvas = {};
+      const arena = world.addScene({ id: 's1', name: 'Arena', active: true });
+      const other = world.addScene({ id: 's2', name: 'Other', active: false });
+      scenes = { s1: arena, s2: other };
+      viewedId = 's2';
+      (arena as any).activate = vi.fn(() => Promise.resolve());
+      (arena as any).view = vi.fn(() => {
+        viewedId = 's1';
+        return Promise.resolve();
+      });
+      Object.defineProperty((globalThis as any).game.scenes, 'viewed', {
+        configurable: true,
+        get: () => scenes[viewedId],
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      delete (globalThis as any).canvas;
+    });
+
+    it('views the scene itself when the view stays on another scene', async () => {
+      const done = da.switchScene({ scene_identifier: 'Arena', optimize_view: false });
+      await vi.advanceTimersByTimeAsync(2500);
+      await done;
+
+      expect(scenes.s1.view).toHaveBeenCalledTimes(1);
+      expect(viewedId).toBe('s1');
+    });
+
+    it('does not view it again when the view follows on its own', async () => {
+      const done = da.switchScene({ scene_identifier: 'Arena', optimize_view: false });
+      viewedId = 's1';
+      await vi.advanceTimersByTimeAsync(300);
+      await done;
+
+      expect(scenes.s1.view).not.toHaveBeenCalled();
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

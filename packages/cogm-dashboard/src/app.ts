@@ -51,6 +51,8 @@ export interface DashboardClient {
   recordUsage?(events: UsageEvent[]): Promise<RecordUsageResult>;
   /** A player opened a handout (I-039 seen log); absent on fakes and old backends. */
   recordHandoutSeen?(pageId: string, userId: string, name: string): Promise<{ recorded: boolean }>;
+  /** The live write sweep's helper (I-016; test world only); absent on fakes. */
+  liveSweep?(request: Record<string, unknown>): Promise<unknown>;
   readonly isConnected?: boolean;
 }
 
@@ -735,6 +737,33 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
           name,
           kind,
           error: error instanceof Error ? error.message : 'Tool call failed.',
+        });
+      });
+  });
+
+  // Live write sweep helper (I-016, scripts/live-write-sweep.mjs): scene snapshot, a sweep
+  // combat and the clean-up. The module refuses outside the test world "ai-tool-test". Not a
+  // tool.
+  app.post('/api/test/live-sweep', requireGm, (req: Request, res: Response) => {
+    if (!settings.gmActionsEnabled) {
+      res.status(403).json({ code: 'gm-actions-disabled', error: 'GM Actions are off.' });
+      return;
+    }
+    if (typeof client.liveSweep !== 'function') {
+      res.status(501).json({ error: 'This bridge has no live sweep helper.' });
+      return;
+    }
+    const body = asRecord(req.body);
+    const request: Record<string, unknown> = { mode: readStr(body.mode, 'cleanup') };
+    if (typeof body.since === 'number') request.since = body.since;
+    if (Array.isArray(body.tokenIds)) request.tokenIds = body.tokenIds.map(String);
+    client
+      .liveSweep(request)
+      .then(result => res.json({ ok: true, result }))
+      .catch((error: unknown) => {
+        res.status(502).json({
+          ok: false,
+          error: error instanceof Error ? error.message : 'Live sweep helper failed.',
         });
       });
   });

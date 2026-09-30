@@ -76,6 +76,8 @@ export const WRITE_METHODS: readonly string[] = [
   'rollSavingThrows',
   'sendChatMessage',
   'useNpcActivity',
+  // test world only: the live write sweep's combat and clean-up (live-sweep.ts)
+  'liveSweep',
 ];
 
 /**

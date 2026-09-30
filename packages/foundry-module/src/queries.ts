@@ -23,6 +23,7 @@ import { EXPORT_INDEX_QUERY, getExportIndex } from './export-index.js';
 import { getPreflightScan, PREFLIGHT_QUERY } from './preflight-scan.js';
 import { getPartyState, PARTY_STATE_QUERY } from './party-scan.js';
 import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
+import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { gateWriteHandlers } from './write-gate.js';
 
 export class QueryHandlers {
@@ -191,6 +192,13 @@ export class QueryHandlers {
     // request cards. GM client only.
     handlers.set(`${modulePrefix}.${PARTY_STATE_QUERY}`, () =>
       this.withGmGate('Failed to read the party', () => Promise.resolve(getPartyState()))
+    );
+
+    // Live write sweep helper (I-016): scene snapshot, a sweep combat and the clean-up for
+    // `scripts/live-write-sweep.mjs`, in the test world only (live-sweep.ts refuses any other
+    // world). Not an MCP tool.
+    handlers.set(`${modulePrefix}.${LIVE_SWEEP_QUERY}`, (data: unknown) =>
+      this.withGmGate('Live sweep helper failed', () => liveSweep(data))
     );
 
     // Obsidian mirror (O4, read-only): the export index of PCs, NPCs, scenes,

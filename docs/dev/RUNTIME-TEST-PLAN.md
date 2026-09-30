@@ -17,9 +17,13 @@ each time the bridge/module/dashboard changes.
 - **Reads:** run freely; re-run `node scripts/live-read-sweep.mjs` for the bulk.
 - **Writes:** enable GM Actions for the run, restore OFF after. Prefer
   **create→verify→revert** or operate on a **disposable test actor/scene** so the
-  live game is never left altered. Build a `scripts/live-write-sweep.mjs` (a
-  proper, opt-in, self-cleaning version of the one-off used on 2026-06-16) so
-  write runs are repeatable and auditable.
+  live game is never left altered. `npm run live:sweep` (`scripts/live-write-sweep.mjs`,
+  I-016) does this for every direct-write tool on the test world only: it names what it
+  makes "AI Tool Sweep ...", puts back what it changed, and has the module delete the
+  rest (a test-world-only helper behind `POST /api/test/live-sweep`). `use-item` runs only
+  with `--with-dialogs` (it opens a dialog in the GM's browser); the three `request-*`
+  tools need the "Player" user logged in (a second browser origin), else they are skipped.
+  `npm run live:roundtrip` covers one guarded write and its undo.
 - **Record** every run's pass/skip/fail + notes back into
   `docs/LIVE-VERIFICATION-<date>.md`. A failure report must include the exact
   tool, args, and error text.

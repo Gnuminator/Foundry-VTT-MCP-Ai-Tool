@@ -9,6 +9,9 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
 }
 
+/** How long `switchScene` waits for the GM client's view to follow an activation. */
+const SCENE_VIEW_WAIT_MS = 2000;
+
 /** A normalized hit-point block as surfaced to tool callers. */
 interface HpSnapshot {
   value: any;
@@ -143,6 +146,7 @@ export class ScenesTokensDataAccess {
       }
 
       await targetScene.activate();
+      await this.followView(targetScene);
 
       if (options.optimize_view !== false) {
         await this.panCanvasToScene(targetScene);
@@ -159,6 +163,26 @@ export class ScenesTokensDataAccess {
       };
     } catch (error) {
       throw new Error(`Failed to switch scene: ${errorMessage(error)}`);
+    }
+  }
+
+  /**
+   * Make this GM client view `scene`. Activation normally pulls every client to the new
+   * scene, but `activate()` is a no-op when the scene is already active, and a quick switch
+   * back can leave the GM client viewing the previous scene (seen in the live write sweep,
+   * I-016). The tools act on the viewed scene, so wait briefly for the view to follow and
+   * view the scene ourselves when it does not.
+   */
+  private async followView(scene: any, waitMs = SCENE_VIEW_WAIT_MS): Promise<void> {
+    // Headless callers (tests) have no canvas and nothing to view.
+    if (typeof canvas === 'undefined' || !canvas) return;
+    const viewedId = (): string | undefined => (game.scenes as any)?.viewed?.id;
+    const deadline = Date.now() + waitMs;
+    while (viewedId() !== scene.id && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    if (viewedId() !== scene.id && typeof scene.view === 'function') {
+      await scene.view();
     }
   }
 

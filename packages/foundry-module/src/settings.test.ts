@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
-import { ModuleSettings, defaultServerPort } from './settings.js';
+import { ModuleSettings, buildModuleHello, defaultServerPort, isBridgeUser } from './settings.js';
 import { MODULE_ID } from './constants.js';
 
 let world: TestWorld;
@@ -120,5 +120,89 @@ describe('ModuleSettings — validateSettings', () => {
       'Heartbeat interval must be between 10 and 120 seconds',
     ]);
     expect(validate({ serverHost: ' ' }).errors).toEqual(['Server host cannot be empty']);
+  });
+});
+
+describe('ModuleSettings: bridge user (PB-02)', () => {
+  it('registers bridgeUserId as a world String setting defaulting to "Any GM"', () => {
+    const config = registered.get(`${MODULE_ID}.bridgeUserId`);
+    expect(config).toMatchObject({
+      scope: 'world',
+      config: true,
+      type: String,
+      default: '',
+      choices: { '': 'Any GM (first to connect)' },
+    });
+  });
+
+  it('isBridgeUser: empty means every user, otherwise only the named one', () => {
+    expect(isBridgeUser('', 'gm')).toBe(true);
+    expect(isBridgeUser(undefined, 'gm')).toBe(true);
+    expect(isBridgeUser('gm', 'gm')).toBe(true);
+    expect(isBridgeUser('other', 'gm')).toBe(false);
+  });
+
+  it('refreshBridgeUserChoices lists Any GM plus each GM user, not players', () => {
+    const entry: Record<string, any> = { choices: { '': 'Any GM (first to connect)' } };
+    g.game.settings.settings = new Map([[`${MODULE_ID}.bridgeUserId`, entry]]);
+    world.addUser({ id: 'gm2', name: 'Assistant', isGM: true });
+    world.addUser({ id: 'p1', name: 'Player One', isGM: false });
+
+    new ModuleSettings().refreshBridgeUserChoices();
+
+    expect(entry.choices).toEqual({
+      '': 'Any GM (first to connect)',
+      gm2: 'Assistant',
+    });
+  });
+
+  it('refreshBridgeUserChoices never throws when the setting is not registered', () => {
+    g.game.settings.settings = new Map();
+    expect(() => new ModuleSettings().refreshBridgeUserChoices()).not.toThrow();
+  });
+
+  it('builds the hello payload from the signed-in user, the module and the world', () => {
+    world.modules.set(MODULE_ID, { id: MODULE_ID, active: true, version: '0.19.0' });
+    expect(buildModuleHello('')).toEqual({
+      userId: 'gm',
+      userName: 'Gamemaster',
+      isBridgeUser: true,
+      moduleVersion: '0.19.0',
+      worldId: 'test-world',
+    });
+    expect(buildModuleHello('someone-else').isBridgeUser).toBe(false);
+    expect(buildModuleHello('gm').isBridgeUser).toBe(true);
+  });
+
+  it('reports the module version as unknown when the manifest has none', () => {
+    world.modules.set(MODULE_ID, { id: MODULE_ID, active: true });
+    expect(buildModuleHello('').moduleVersion).toBe('unknown');
+  });
+
+  it('getBridgeConfig carries a live autoReconnect and a hello builder', () => {
+    for (const [key, value] of Object.entries({
+      enabled: true,
+      serverHost: 'localhost',
+      serverPort: 31415,
+      connectionType: 'auto',
+      autoReconnectEnabled: true,
+      bridgeUserId: '',
+    })) {
+      world.setSetting(MODULE_ID, key, value);
+    }
+    const config = new ModuleSettings().getBridgeConfig();
+    expect(config.autoReconnect?.()).toBe(true);
+    world.setSetting(MODULE_ID, 'autoReconnectEnabled', false);
+    expect(config.autoReconnect?.()).toBe(false);
+    expect(config.getHello?.()).toMatchObject({ userId: 'gm', isBridgeUser: true });
+  });
+
+  it('keeps the deprecated state settings registered so old worlds load', () => {
+    for (const key of ['lastConnectionState', 'lastActivity', 'lastMCPServerNotification']) {
+      expect(registered.get(`${MODULE_ID}.${key}`)).toMatchObject({
+        scope: 'world',
+        config: false,
+      });
+    }
   });
 });

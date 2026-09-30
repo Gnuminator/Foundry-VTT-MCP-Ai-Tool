@@ -264,6 +264,7 @@ describe('GET /open (the static confirm page)', () => {
       foundry: 'reachable',
       lastError: null,
       lastPollAt: null,
+      foundryDownSince: null,
     });
     await wait(150);
     const gmState = await request(h, 'GET', '/api/state', { 'x-cogm-token': GM_TOKEN });

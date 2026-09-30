@@ -259,6 +259,7 @@ describe('buildPlayerState', () => {
         foundry: 'reachable',
         lastError: SECRET,
         lastPollAt: null,
+        foundryDownSince: null,
       },
       world: {
         id: SECRET,

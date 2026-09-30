@@ -89,6 +89,7 @@ export class PollingGameFeed implements GameFeed {
   private consecutiveFailures = 0;
   private lastError: string | null = null;
   private lastPollAt: string | null = null;
+  private foundryDownSince: string | null = null;
   private lastStatusKey = '';
   private readonly backfillLimit: number;
 
@@ -283,7 +284,10 @@ export class PollingGameFeed implements GameFeed {
   /** Publish status only when a meaningful field changes (lastPollAt excluded). */
   private publishStatus(): void {
     const controlChannel = this.client.isConnected ? 'connected' : 'disconnected';
-    const key = `${controlChannel}|${this.foundry}|${this.lastError ?? ''}`;
+    // Remember when the Foundry link first went down; any other verdict clears it.
+    if (this.foundry !== 'unreachable') this.foundryDownSince = null;
+    else this.foundryDownSince ??= new Date().toISOString();
+    const key = `${controlChannel}|${this.foundry}|${this.lastError ?? ''}|${this.foundryDownSince ?? ''}`;
     if (key === this.lastStatusKey) return;
     this.lastStatusKey = key;
 
@@ -292,6 +296,7 @@ export class PollingGameFeed implements GameFeed {
       foundry: this.foundry,
       lastError: this.lastError,
       lastPollAt: this.lastPollAt,
+      foundryDownSince: this.foundryDownSince,
     };
     this.handlers.onStatus(status);
   }

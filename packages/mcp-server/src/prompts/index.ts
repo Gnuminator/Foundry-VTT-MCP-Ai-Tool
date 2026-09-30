@@ -6,6 +6,8 @@
  * `register.ts` connects this to the MCP server. The names below are locked
  * (the GM docs refer to them); descriptions may be refined, names may not.
  */
+import type { ToolSetName } from '../tool-sets.js';
+
 import { resolveArguments } from './arguments.js';
 import { encounterCheck } from './encounter-check.js';
 import { npcImprov } from './npc-improv.js';
@@ -34,8 +36,12 @@ export const PROMPTS: readonly PromptDefinition[] = [
   revealHandout,
 ];
 
-export function listPrompts(): PromptListing[] {
-  return PROMPTS.map(p => ({
+/**
+ * The prompts to list. With `sets`, only the prompts of those tool sets, so a
+ * Claude Desktop entry lists a prompt only next to the tools it needs.
+ */
+export function listPrompts(sets?: readonly ToolSetName[]): PromptListing[] {
+  return PROMPTS.filter(p => !sets || sets.includes(p.set)).map(p => ({
     name: p.name,
     title: p.title,
     description: p.description,

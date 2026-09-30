@@ -73,6 +73,7 @@ function playerSteps(session: string): string[] {
 export const sessionRecap: PromptDefinition = {
   name: 'session-recap',
   title: 'Session recap',
+  set: 'prep',
   description:
     'Write a recap of a session from the play log. The players version uses only what the players may know.',
   arguments: [

@@ -8,9 +8,21 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 
 import { config } from './config.js';
 
-import { bridgeUnreachableMessage, resolveControlTarget } from './control-target.js';
+import {
+  BACKEND_LOCK_HELD_EXIT_CODE,
+  WRAPPER_SPAWNED_ENV,
+  bridgeUnreachableMessage,
+  resolveControlTarget,
+} from './control-target.js';
 
 import { PROMPTS_CAPABILITY, registerPromptHandlers } from './prompts/register.js';
+
+import {
+  TOOL_SETS_ENV,
+  filterToolsBySets,
+  resolveToolSets,
+  toolSetInstructions,
+} from './tool-sets.js';
 
 import type { ControlRequest, ControlResponse } from '@gnuminator/shared';
 
@@ -36,6 +48,9 @@ const {
   spawnAllowed: SPAWN_ALLOWED,
 } = resolveControlTarget();
 
+// PB-12: FOUNDRY_AI_TOOL_SETS picks the tool sets this Claude Desktop entry lists (all when unset).
+const TOOL_SET_SELECTION = resolveToolSets(process.env[TOOL_SETS_ENV]);
+
 // Control-channel frame shapes come from the shared contract (§3a).
 
 class BackendClient {
@@ -49,7 +64,7 @@ class BackendClient {
 
   private backendProcess: ChildProcess | null = null;
 
-  private log(msg: string, meta?: any) {
+  log(msg: string, meta?: any) {
     try {
       const dir = path.dirname(this.logFile);
 
@@ -178,6 +193,10 @@ class BackendClient {
       detached: false, // Stay attached to monitor backend
 
       stdio: ['ignore', 'ignore', 'pipe'], // Capture stderr to detect exit
+
+      // Tells a backend that loses the lock to exit instead of idling: with one Claude Desktop
+      // entry per tool set, several wrappers start at once and each may spawn one.
+      env: { ...process.env, [WRAPPER_SPAWNED_ENV]: '1' },
     });
 
     // Store reference for cleanup
@@ -189,7 +208,10 @@ class BackendClient {
     child.on('exit', code => {
       this.backendProcess = null; // Clear reference when backend exits
 
-      if (code === 0) {
+      if (code === BACKEND_LOCK_HELD_EXIT_CODE) {
+        // Another wrapper's backend won the lock; connectWithRetry() keeps trying and reaches it.
+        this.log('startBackend(): another backend holds the lock, connecting to it');
+      } else if (code === 0) {
         this.log('startBackend(): backend exited cleanly (likely lock failure), exiting wrapper');
 
         process.exit(0); // Exit wrapper when backend fails to acquire lock
@@ -329,13 +351,22 @@ async function startWrapper() {
     } catch {}
   }
 
+  backend.log('startWrapper(): tool sets', {
+    sets: TOOL_SET_SELECTION.sets,
+    all: TOOL_SET_SELECTION.all,
+  });
+  for (const warning of TOOL_SET_SELECTION.warnings) backend.log(warning);
+
   const mcp = new Server(
     { name: config.server.name, version: config.server.version },
-    { capabilities: { tools: {}, ...PROMPTS_CAPABILITY } }
+    {
+      capabilities: { tools: {}, ...PROMPTS_CAPABILITY },
+      instructions: toolSetInstructions(TOOL_SET_SELECTION),
+    }
   );
 
   // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
-  registerPromptHandlers(mcp);
+  registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
 
   // Setup cleanup handlers - cross-platform approach
 
@@ -372,8 +403,12 @@ async function startWrapper() {
         });
       } catch {}
 
-      // Picker annotations (x-foundry-ref) are for the dashboard only.
-      const listed = (res.tools || []) as Parameters<typeof stripToolRefs>[0];
+      // Picker annotations (x-foundry-ref) are for the dashboard only, and this entry lists only
+      // its tool sets (the dashboard reads the control channel and sees every tool).
+      const listed = filterToolsBySets(
+        (res.tools || []) as Parameters<typeof stripToolRefs>[0],
+        TOOL_SET_SELECTION
+      );
       return { tools: stripToolRefs(listed) };
     } catch (e) {
       // Log but return empty to remain MCP-compliant

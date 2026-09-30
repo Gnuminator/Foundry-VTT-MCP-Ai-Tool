@@ -183,23 +183,47 @@ function Set-FoundryMcpConfig {
         }
     }
     
-    # Configure Foundry MCP Server
-    Write-LogMessage "Configuring Foundry MCP Server..."
-    
-    $foundryMcpConfig = [PSCustomObject]@{
-        command = $nodeExe
-        args = @($mcpServer)
-        env = [PSCustomObject]@{}
+    # Configure Foundry MCP Server: one Claude Desktop entry per tool set (PB-12), so the GM can
+    # switch sets on and off in Claude Desktop's "Search and tools" menu. All entries share one
+    # bridge. "foundry-mcp" keeps its old name and serves the core set.
+    Write-LogMessage "Configuring Foundry MCP Server (one entry per tool set)..."
+
+    $toolSetEntries = [ordered]@{
+        "foundry-mcp"       = "core"
+        "foundry-mcp-play"  = "play"
+        "foundry-mcp-prep"  = "prep"
+        "foundry-mcp-build" = "build"
+        "foundry-mcp-admin" = "admin"
     }
-    
-    # Add or update foundry-mcp server configuration
-    if ($config.mcpServers.PSObject.Properties.Name -contains "foundry-mcp") {
-        Write-LogMessage "Updating existing foundry-mcp configuration..."
-        $config.mcpServers."foundry-mcp" = $foundryMcpConfig
+
+    # Keep settings the user added to the old entry (e.g. MCP_CONTROL_HOST for a bridge on the Pi)
+    # and give them to every entry.
+    $sharedEnv = [ordered]@{}
+    if ($config.mcpServers.PSObject.Properties.Name -contains "foundry-mcp" -and $config.mcpServers."foundry-mcp".env) {
+        foreach ($prop in $config.mcpServers."foundry-mcp".env.PSObject.Properties) {
+            if ($prop.Name -ne "FOUNDRY_AI_TOOL_SETS") { $sharedEnv[$prop.Name] = $prop.Value }
+        }
     }
-    else {
-        Write-LogMessage "Adding new foundry-mcp configuration..."
-        $config.mcpServers | Add-Member -Type NoteProperty -Name "foundry-mcp" -Value $foundryMcpConfig
+
+    foreach ($entryName in $toolSetEntries.Keys) {
+        $entryEnv = [ordered]@{}
+        foreach ($key in $sharedEnv.Keys) { $entryEnv[$key] = $sharedEnv[$key] }
+        $entryEnv["FOUNDRY_AI_TOOL_SETS"] = $toolSetEntries[$entryName]
+
+        $entryConfig = [PSCustomObject]@{
+            command = $nodeExe
+            args = @($mcpServer)
+            env = [PSCustomObject]$entryEnv
+        }
+
+        if ($config.mcpServers.PSObject.Properties.Name -contains $entryName) {
+            Write-LogMessage "Updating existing $entryName configuration..."
+            $config.mcpServers.$entryName = $entryConfig
+        }
+        else {
+            Write-LogMessage "Adding new $entryName configuration..."
+            $config.mcpServers | Add-Member -Type NoteProperty -Name $entryName -Value $entryConfig
+        }
     }
     
     # Convert to JSON with proper formatting for Claude Desktop

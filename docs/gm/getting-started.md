@@ -141,13 +141,15 @@ Steps 4 to 6 are done once, by whoever set up the tool for you. They need Node.j
 the tool built once, and a terminal; the [README](../../README.md#installation) has the commands.
 
 4. **Connect Claude Desktop.** The bridge is added to Claude Desktop's configuration file
-   (`claude_desktop_config.json`, entry `foundry-mcp`). Quit and restart Claude Desktop. From then
-   on, Claude Desktop starts the bridge when it starts.
+   (`claude_desktop_config.json`), as five entries: `foundry-mcp` (core) and `foundry-mcp-play`,
+   `-prep`, `-build`, `-admin`. Quit and restart Claude Desktop. From then on, Claude Desktop starts
+   the bridge when it starts. Then pick which tool sets are on: see
+   [Asking Claude](asking-claude.md#tool-sets-which-switches-to-turn-on).
 5. **The dashboard.** It is started by hand: open a terminal in the tool's folder and run
    `npm run dev:cogm`. Leave that window open; closing it stops the dashboard. Then open
    `http://localhost:3000` in your browser.
 6. **Obsidian (optional).** The bridge writes notes into an Obsidian vault when it knows where the
-   vault is: `FOUNDRY_AI_OBSIDIAN_DIR` in the `env` part of the `foundry-mcp` entry in Claude
+   vault is: `FOUNDRY_AI_OBSIDIAN_DIR` in the `env` part of every `foundry-mcp` entry in Claude
    Desktop's configuration. For the dashboard's 📓 links, also set `OBSIDIAN_VAULT_NAME` (or
    `FOUNDRY_AI_OBSIDIAN_DIR`) in `packages/cogm-dashboard/.env`.
 

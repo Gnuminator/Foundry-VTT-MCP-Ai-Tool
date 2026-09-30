@@ -4,6 +4,7 @@ import { RULE_HONEST, RULE_PLAIN, RULE_TYPED_TEXT, assemble, quoted } from './te
 export const revealHandout: PromptDefinition = {
   name: 'reveal-handout',
   title: 'Reveal a handout',
+  set: 'prep',
   description:
     'Plan showing a journal page to the players. You see the plan first, and nothing changes until you confirm.',
   arguments: [

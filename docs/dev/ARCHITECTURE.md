@@ -257,6 +257,14 @@ stdio** and does almost nothing itself:
 - It registers two relaying MCP handlers: `ListTools` relays to control-channel `list_tools`;
   `CallTool` relays to control-channel `call_tool`. The wrapper is a thin MCP↔TCP shim. The one
   thing it answers itself is the static prompt list (`prompts/list`, `prompts/get`, §4e).
+- **Tool sets (PB-12).** `FOUNDRY_AI_TOOL_SETS` names the sets this wrapper lists (`tool-sets.ts`:
+  core, play, prep, build, admin; unset means all). Claude Desktop runs one wrapper per set, each
+  its own config entry with its own on/off switch, so a chat carries only the definitions it
+  needs. The filter lives in the wrapper only: the backend's `list_tools` still returns every tool,
+  which the dashboard uses. The wrapper also filters the prompt list by set and sends MCP
+  `instructions` naming the sets it serves and the ones that are off. Several wrappers start at
+  once and may each spawn a backend; a spawned backend that loses the lock exits (code 3) and its
+  wrapper connects to the one that won.
 - It owns the backend's lifecycle: when stdin closes (the client exits) or it receives
   SIGTERM/SIGINT, it kills the child backend and exits.
 
@@ -270,7 +278,8 @@ The long-lived workhorse. Responsibilities:
 
 1. **Singleton lock.** On start it acquires `foundry-mcp-backend.lock` (a PID file in the OS
    temp dir). If a live, validated backend already holds it, this instance parks forever
-   (never resolves) so the client never sees a "server closed" error. The PID check is
+   (never resolves) so the client never sees a "server closed" error; a backend the wrapper
+   spawned exits instead (§4a, tool sets). The PID check is
    hardened against Windows PID reuse (it validates the holder is actually a node process and
    the lock isn't stale) so an unrelated OS process inheriting the PID doesn't masquerade as a
    running backend.
@@ -283,7 +292,9 @@ The long-lived workhorse. Responsibilities:
    `DiagnosticsTools`, the D&D-5e-specific creators, and so on. A tool handler typically
    validates its args, then calls `foundryClient.query('foundry-mcp-bridge.<handler>', data)`
    to reach into Foundry, then shapes the result. The full tool list is the union of every
-   class's `getToolDefinitions()`; that union is what `list_tools` returns.
+   class's `getToolDefinitions()`; that union is what `list_tools` returns. Every tool also
+   belongs to exactly one tool set (`tool-sets.ts`, checked by the tool catalog test); a new
+   feature gets one tool with an `action` parameter rather than several small tools.
 4. **The Foundry connector** (`foundry-client.ts` → `foundry-connector.ts` → `webrtc-peer.ts`).
    The backend _is the server_ for the Foundry link: it runs the WebSocket server on `31415`
    and the WebRTC signaling endpoint on `31416`, registers the module when it connects,

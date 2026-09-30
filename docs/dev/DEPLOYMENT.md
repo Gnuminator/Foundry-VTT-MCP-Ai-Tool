@@ -26,7 +26,8 @@ releases automatically because the manifest uses `releases/latest/download/`.
 
 ## 2. MCP server — Claude Desktop
 
-The server runs locally. Point Claude Desktop's `claude_desktop_config.json` at the bundled entry:
+The server runs locally. Point Claude Desktop's `claude_desktop_config.json` at the bundled entry,
+once per tool set (see [TOOL-SETS.md](../reference/TOOL-SETS.md)):
 
 ```json
 {
@@ -34,11 +35,20 @@ The server runs locally. Point Claude Desktop's `claude_desktop_config.json` at 
     "foundry-mcp": {
       "command": "<node>",
       "args": ["<repo>/packages/mcp-server/dist/index.bundle.cjs"],
-      "env": {}
+      "env": { "FOUNDRY_AI_TOOL_SETS": "core" }
+    },
+    "foundry-mcp-prep": {
+      "command": "<node>",
+      "args": ["<repo>/packages/mcp-server/dist/index.bundle.cjs"],
+      "env": { "FOUNDRY_AI_TOOL_SETS": "prep" }
     }
   }
 }
 ```
+
+The other entries are `foundry-mcp-play`, `foundry-mcp-build` and `foundry-mcp-admin` with their set
+names. Without `FOUNDRY_AI_TOOL_SETS` an entry serves every tool. Environment settings such as
+`MCP_CONTROL_HOST` go into every entry.
 
 Build it with `npm run build && npm run bundle:server`. Restart Claude Desktop after changing the config.
 (Packaging the server with its own installer/release is future work — see ROADMAP.)

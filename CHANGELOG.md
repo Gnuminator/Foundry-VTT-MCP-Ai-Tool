@@ -18,6 +18,22 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   `scripts/`; `.gitattributes`; refreshed `.env.example` and `claude_desktop_config.example.json`.
 - `CLAUDE.md` is no longer tracked (private project instructions).
 
+### Tool sets (PB-12)
+
+- **The 91 tools come in five sets:** core (20, look-ups and plan/apply/undo), play (37), prep (18),
+  build (7) and admin (9). Each set is its own Claude Desktop entry (`foundry-mcp`,
+  `foundry-mcp-play`, `-prep`, `-build`, `-admin`) with its own switch in the **Search and tools**
+  menu, so a chat carries only the definitions it needs: core alone is about 12,800 characters,
+  core with prep about 30,000, all 91 about 88,000. `FOUNDRY_AI_TOOL_SETS` picks an entry's sets;
+  without it an entry serves every tool. The dashboard always has every tool.
+- Prompts show next to their set (`rules-question`, `npc-improv` in core; the other four in prep).
+  Each entry tells Claude which sets are off, so Claude names the switch instead of guessing.
+- The installer writes all five entries and copies the `env` of an existing `foundry-mcp` entry
+  into each; the uninstaller removes them all. A backend spawned by a second wrapper exits when
+  another holds the lock instead of idling.
+- Tests: every tool is in exactly one set, sets stay within a size budget, prompts use only their
+  set and core, and `docs/reference/TOOL-SETS.md` matches the code.
+
 ### Link reliability (before the Orange Pi)
 
 - **One bridge user.** A world setting picks which GM's browser holds the bridge link ("Any GM" by
@@ -230,6 +246,10 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
 
 ### Upgrade notes
 
+- Claude Desktop: re-run the installer, or copy the five entries from
+  `claude_desktop_config.example.json`, to get the tool sets. An existing single `foundry-mcp`
+  entry keeps serving all 91 tools. Put `env` settings (for example `FOUNDRY_AI_OBSIDIAN_DIR`) in
+  every entry.
 - Map generation is gone. A ComfyUI folder that an older Windows installer put next to the server
   stays on disk after upgrading; the uninstaller removes it, or delete it by hand.
 - If your Foundry runs in a browser on **another machine** than the bridge, set

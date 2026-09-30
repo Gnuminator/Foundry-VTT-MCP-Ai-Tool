@@ -61,6 +61,7 @@ export class RecordingSession {
   readonly startedAt: Date;
   private readonly tracks = new Map<string, OpenTrack>();
   private readonly events: WriteStream;
+  private debugLog: WriteStream | undefined;
   private stopped = false;
 
   constructor(
@@ -82,6 +83,13 @@ export class RecordingSession {
   log(event: SessionEvent): void {
     if (this.stopped) return;
     this.events.write(`${JSON.stringify({ t: this.clock.now(), ...event })}\n`);
+  }
+
+  /** Append a (redacted) library debug line to `raw/voice-debug.log`. */
+  debug(line: string): void {
+    if (this.stopped) return;
+    this.debugLog ??= createWriteStream(join(this.dir, 'raw', 'voice-debug.log'), { flags: 'a' });
+    this.debugLog.write(`${this.clock.now()} ${line}\n`);
   }
 
   /** Write one Opus packet for a speaker, opening their track on first use. */
@@ -137,6 +145,8 @@ export class RecordingSession {
       t => new Promise<void>(resolve => t.stream.end(resolve))
     );
     closes.push(new Promise<void>(resolve => this.events.end(resolve)));
+    const debugLog = this.debugLog;
+    if (debugLog) closes.push(new Promise<void>(resolve => debugLog.end(resolve)));
     await Promise.all(closes);
     const tracks = this.summaries();
     writeFileSync(

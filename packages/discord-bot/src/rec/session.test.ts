@@ -43,6 +43,9 @@ describe('parseRtpHeader', () => {
     msg.writeUInt32BE(42, 8);
     expect(parseRtpHeader(msg)).toEqual({ seq: 513, timestamp: 123_456, ssrc: 42 });
     expect(parseRtpHeader(Buffer.alloc(8))).toBeUndefined();
+    const rtcp = Buffer.from(msg);
+    rtcp[1] = 201; // receiver report
+    expect(parseRtpHeader(rtcp)).toBeUndefined();
   });
 });
 

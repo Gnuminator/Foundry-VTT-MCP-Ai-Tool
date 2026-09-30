@@ -27,17 +27,33 @@ export interface RtpTap {
 
 export function parseRtpHeader(msg: Buffer): (RtpInfo & { ssrc: number }) | undefined {
   if (msg.length < 12 || msg[0] >> 6 !== 2) return undefined;
+  // RTCP shares the socket; its packet types (200 to 223) show up as RTP payload types 72 to 95
+  // (RFC 5761) and its bytes 8 to 11 are not an SSRC. Seen live: sender and receiver reports.
+  const pt = msg[1] & 0x7f;
+  if (pt >= 64 && pt <= 95) return undefined;
   return { seq: msg.readUInt16BE(2), timestamp: msg.readUInt32BE(4), ssrc: msg.readUInt32BE(8) };
 }
 
-export function installRtpTap(receiver: ReceiverLike): RtpTap {
+/**
+ * @param onNewSsrc called once for the first RTP packet seen from each stream (diagnostics: shows
+ *   whether audio arrives at all, before the library maps the stream to a user).
+ */
+export function installRtpTap(
+  receiver: ReceiverLike,
+  onNewSsrc?: (ssrc: number, payloadType: number) => void
+): RtpTap {
   let last: (RtpInfo & { ssrc: number }) | undefined;
+  const seen = new Set<number>();
   const original = receiver.onUdpMessage;
   if (typeof original !== 'function') {
     return { active: false, current: () => undefined };
   }
   const wrapped = function (this: unknown, msg: Buffer): unknown {
     last = Buffer.isBuffer(msg) ? parseRtpHeader(msg) : undefined;
+    if (last && !seen.has(last.ssrc)) {
+      seen.add(last.ssrc);
+      onNewSsrc?.(last.ssrc, msg[1] & 0x7f);
+    }
     try {
       return (original as (m: Buffer) => unknown).call(this, msg);
     } finally {

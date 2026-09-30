@@ -36,6 +36,18 @@ export interface VoiceRecorderOptions {
 
 const REJOIN_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 
+/**
+ * Remove secrets from a `@discordjs/voice` debug line: the voice encryption key (op 4
+ * `secret_key`, and `secretKey` in state dumps, as an array or an index object), the voice
+ * session `token`, and any `nonceBuffer` contents.
+ */
+export function redactVoiceDebug(message: string): string {
+  return message
+    .replace(/"secret_?[kK]ey"\s*:\s*(\[[^\]]*\]|\{[^}]*\})/g, '"secretKey":"[redacted]"')
+    .replace(/"token"\s*:\s*"[^"]*"/g, '"token":"[redacted]"')
+    .replace(/"nonceBuffer"\s*:\s*\{[^}]*\}/g, '"nonceBuffer":"[redacted]"');
+}
+
 export class VoiceRecorder {
   private connection: VoiceConnection | undefined;
   private tap: RtpTap | undefined;
@@ -68,11 +80,18 @@ export class VoiceRecorder {
     });
     this.connection = connection;
     this.subscribed.clear();
+    const { receiver } = connection;
     // Must happen before the networking layer attaches the UDP listener (see rtp-tap.ts).
-    this.tap = installRtpTap(connection.receiver as unknown as { onUdpMessage?: unknown });
+    this.tap = installRtpTap(receiver as unknown as { onUdpMessage?: unknown }, (ssrc, pt) => {
+      const userId = receiver.ssrcMap.get(ssrc)?.userId;
+      session.log({ type: 'udp_ssrc', ssrc, payloadType: pt, userId: userId ?? null });
+    });
     session.log({ type: 'connect', channelId: target.channelId, rtpTap: this.tap.active });
+    receiver.ssrcMap.on('create', (data: { userId: string; audioSSRC: number }) =>
+      session.log({ type: 'ssrc_mapped', userId: data.userId, ssrc: data.audioSSRC })
+    );
 
-    const { speaking } = connection.receiver;
+    const { speaking } = receiver;
     speaking.on('start', (userId: string) => {
       session.log({ type: 'speaking_start', userId });
       this.subscribe(userId);
@@ -91,7 +110,11 @@ export class VoiceRecorder {
     });
     connection.on('error', err => session.log({ type: 'connection_error', message: err.message }));
     connection.on('debug', (message: string) => {
-      if (/dave|decrypt|transition|epoch/i.test(message)) session.log({ type: 'debug', message });
+      // The full stream goes to voice-debug.log with keys and tokens removed; the event log
+      // only gets the library's own DAVE and decrypt lines, never raw gateway payloads.
+      const clean = redactVoiceDebug(message);
+      session.debug(clean);
+      if (/^\[NW\] \[DAVE\]|decrypt/i.test(message)) session.log({ type: 'debug', message: clean });
     });
   }
 

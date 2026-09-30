@@ -17,7 +17,7 @@ import { statusEffectList } from '../systems/dnd5e/status-effects.js';
  *   - {@link clearStaleConditions} — delete effects by name / status id, or by expired duration.
  *
  * All reads use defensive `?? fallback` access because Foundry hands partially-populated
- * documents in the wild. Writes are recorded via {@link shared.auditLog}.
+ * documents in the wild.
  */
 export class ResourcesEffectsDataAccess {
   // ===== READS =====
@@ -160,7 +160,6 @@ export class ResourcesEffectsDataAccess {
         throw new Error(`newValue ${newValue} exceeds max ${max} for "${data.resourceName}"`);
       }
       await actor.update({ [`system.spells.spell${slotLevel}.value`]: newValue });
-      shared.auditLog('updateCharacterResource', data, 'success');
       return {
         success: true,
         actorId: actor.id,
@@ -179,7 +178,6 @@ export class ResourcesEffectsDataAccess {
         throw new Error(`newValue ${newValue} exceeds max ${max} for "${data.resourceName}"`);
       }
       await actor.update({ 'system.spells.pact.value': newValue });
-      shared.auditLog('updateCharacterResource', data, 'success');
       return {
         success: true,
         actorId: actor.id,
@@ -201,7 +199,6 @@ export class ResourcesEffectsDataAccess {
           throw new Error(`newValue ${newValue} exceeds max ${max} for "${data.resourceName}"`);
         }
         await actor.update({ [`system.resources.${key}.value`]: newValue });
-        shared.auditLog('updateCharacterResource', data, 'success');
         return {
           success: true,
           actorId: actor.id,
@@ -230,7 +227,6 @@ export class ResourcesEffectsDataAccess {
       } else {
         await item.update({ 'system.uses.value': newValue });
       }
-      shared.auditLog('updateCharacterResource', { ...data, type: 'item' }, 'success');
       return {
         success: true,
         actorId: actor.id,
@@ -277,8 +273,6 @@ export class ResourcesEffectsDataAccess {
         toRemove.map((e: any) => e.id)
       );
     }
-
-    shared.auditLog('clearStaleConditions', data, 'success');
 
     return {
       success: true,

@@ -12,11 +12,6 @@
  *     exercise an existing page's update() path add pages via the journal's own
  *     createEmbeddedDocuments() after registration, which does apply
  *     withDocumentMethods to each child.
- *   - game.world.setFlag is accessed by auditLog; makeDocument (used for the
- *     game.world object) has withDocumentMethods so setFlag/getFlag are present.
- *     The TestWorld.buildGame() wires `game.world` to a plain `{ id, title }`
- *     object without setFlag, so auditLog calls would throw. Fixed locally by
- *     attaching a no-op setFlag to the world object after install().
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -38,19 +33,6 @@ beforeEach(() => {
 
   world = createTestWorld();
   restore = world.install();
-
-  // Harness gap: game.world is a plain { id, title } object; auditLog calls
-  // game.world.setFlag(moduleId, 'auditLogs', ...) which would throw. Attach
-  // a minimal flag store so the method doesn't crash.
-  const g = globalThis as any;
-  if (g.game?.world && typeof g.game.world.setFlag !== 'function') {
-    const flagStore: Record<string, any> = {};
-    g.game.world.getFlag = (_scope: string, key: string) => flagStore[key];
-    g.game.world.setFlag = (_scope: string, key: string, value: unknown) => {
-      flagStore[key] = value;
-      return Promise.resolve(value);
-    };
-  }
 
   da = new FoundryDataAccess();
 });

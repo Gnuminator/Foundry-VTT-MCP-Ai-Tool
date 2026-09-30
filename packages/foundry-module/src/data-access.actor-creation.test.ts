@@ -658,23 +658,6 @@ describe('FoundryDataAccess — addActorsToScene: placement', () => {
     expect(token.hidden).toBe(false);
   });
 
-  it('audits once, after the write: success with tokens, failure without (P-060)', async () => {
-    world.enableWrites();
-    activeScene();
-    addActorWithProtoToken({ id: 'a1', name: 'Goblin', type: 'npc' });
-    const audits = (): Array<{ operation: string; result: string; error?: string }> =>
-      ((globalThis as any).game.world.getFlag('foundry-mcp-bridge', 'auditLogs') ?? []).filter(
-        (e: { operation: string }) => e.operation === 'addActorsToScene'
-      );
-
-    await da.addActorsToScene({ actorIds: ['a1'], placement: 'grid', hidden: false });
-    expect(audits().map(e => e.result)).toEqual(['success']);
-
-    await da.addActorsToScene({ actorIds: ['missing'], placement: 'grid', hidden: false });
-    expect(audits().map(e => e.result)).toEqual(['success', 'failure']);
-    expect(audits()[1]?.error).toContain('Actor missing not found');
-  });
-
   it('places "grid" tokens at the documented offsets', async () => {
     world.enableWrites();
     const scene = activeScene();

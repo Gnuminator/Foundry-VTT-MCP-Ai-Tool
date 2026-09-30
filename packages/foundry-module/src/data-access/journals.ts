@@ -19,8 +19,7 @@ interface PageSummary {
  * fallbacks — Foundry hands us partially-populated docs in the wild.
  *
  * Writes go through {@link permissionManager} at the `createActor` risk level
- * (journals are treated as equivalent to actor creation for the safety gate) and
- * are recorded via {@link shared.auditLog}.
+ * (journals are treated as equivalent to actor creation for the safety gate).
  */
 export class JournalDataAccess {
   // ===== READS =====
@@ -140,40 +139,34 @@ export class JournalDataAccess {
     shared.validateFoundryState();
     this.requireJournalWrite('creation');
 
-    try {
-      // Main "Quest Details" page first, then any extra pages, all as text.
-      const pages = [
-        { type: 'text', name: 'Quest Details', text: { content: request.content } },
-        ...(request.additionalPages ?? []).map(page => ({
-          type: 'text',
-          name: page.name,
-          text: { content: page.content },
-        })),
-      ];
+    // Main "Quest Details" page first, then any extra pages, all as text.
+    const pages = [
+      { type: 'text', name: 'Quest Details', text: { content: request.content } },
+      ...(request.additionalPages ?? []).map(page => ({
+        type: 'text',
+        name: page.name,
+        text: { content: page.content },
+      })),
+    ];
 
-      const journal = await JournalEntry.create({
-        name: request.name,
-        pages,
-        ownership: { default: 0 }, // GM only by default
-        folder: await shared.getOrCreateFolder(request.folderName || request.name, 'JournalEntry'),
-      });
+    const journal = await JournalEntry.create({
+      name: request.name,
+      pages,
+      ownership: { default: 0 }, // GM only by default
+      folder: await shared.getOrCreateFolder(request.folderName || request.name, 'JournalEntry'),
+    });
 
-      if (!journal) {
-        throw new Error('Failed to create journal entry');
-      }
-
-      const result = {
-        id: journal.id,
-        name: journal.name || request.name,
-        pageCount: pages.length,
-      };
-
-      shared.auditLog('createJournalEntry', request, 'success');
-      return result;
-    } catch (error) {
-      shared.auditLog('createJournalEntry', request, 'failure', this.errorMessage(error));
-      throw error;
+    if (!journal) {
+      throw new Error('Failed to create journal entry');
     }
+
+    const result = {
+      id: journal.id,
+      name: journal.name || request.name,
+      pageCount: pages.length,
+    };
+
+    return result;
   }
 
   /**
@@ -193,44 +186,38 @@ export class JournalDataAccess {
     shared.validateFoundryState();
     this.requireJournalWrite('update');
 
-    try {
-      const journal = game.journal.get(request.journalId);
-      if (!journal) {
-        throw new Error('Journal entry not found');
-      }
-
-      let result: { success: boolean; pageId: string; pageName: string };
-
-      if (request.newPageName) {
-        // Mode 1: append a new page.
-        const page = await this.createTextPage(journal, request.newPageName, request.content);
-        result = { success: true, pageId: page?.id || '', pageName: request.newPageName };
-      } else if (request.pageId) {
-        // Mode 2: overwrite a page selected by id.
-        const page = journal.pages.get(request.pageId);
-        if (!page) {
-          throw new Error(`Page not found: ${request.pageId}`);
-        }
-        await page.update(this.contentUpdate(page, request.content));
-        result = { success: true, pageId: page.id, pageName: page.name };
-      } else {
-        // Mode 3: overwrite the first text page, or seed one if absent.
-        const firstText = journal.pages.find((page: any) => page.type === 'text');
-        if (firstText) {
-          await firstText.update(this.contentUpdate(firstText, request.content));
-          result = { success: true, pageId: firstText.id, pageName: firstText.name };
-        } else {
-          const page = await this.createTextPage(journal, 'Quest Details', request.content);
-          result = { success: true, pageId: page?.id || '', pageName: 'Quest Details' };
-        }
-      }
-
-      shared.auditLog('updateJournalContent', request, 'success');
-      return result;
-    } catch (error) {
-      shared.auditLog('updateJournalContent', request, 'failure', this.errorMessage(error));
-      throw error;
+    const journal = game.journal.get(request.journalId);
+    if (!journal) {
+      throw new Error('Journal entry not found');
     }
+
+    let result: { success: boolean; pageId: string; pageName: string };
+
+    if (request.newPageName) {
+      // Mode 1: append a new page.
+      const page = await this.createTextPage(journal, request.newPageName, request.content);
+      result = { success: true, pageId: page?.id || '', pageName: request.newPageName };
+    } else if (request.pageId) {
+      // Mode 2: overwrite a page selected by id.
+      const page = journal.pages.get(request.pageId);
+      if (!page) {
+        throw new Error(`Page not found: ${request.pageId}`);
+      }
+      await page.update(this.contentUpdate(page, request.content));
+      result = { success: true, pageId: page.id, pageName: page.name };
+    } else {
+      // Mode 3: overwrite the first text page, or seed one if absent.
+      const firstText = journal.pages.find((page: any) => page.type === 'text');
+      if (firstText) {
+        await firstText.update(this.contentUpdate(firstText, request.content));
+        result = { success: true, pageId: firstText.id, pageName: firstText.name };
+      } else {
+        const page = await this.createTextPage(journal, 'Quest Details', request.content);
+        result = { success: true, pageId: page?.id || '', pageName: 'Quest Details' };
+      }
+    }
+
+    return result;
   }
 
   // ===== internals =====
@@ -294,9 +281,5 @@ export class JournalDataAccess {
     if (!check.allowed) {
       throw new Error(`Journal ${action} denied: ${check.reason}`);
     }
-  }
-
-  private errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : 'Unknown error';
   }
 }

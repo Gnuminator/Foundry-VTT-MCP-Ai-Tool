@@ -414,8 +414,6 @@ export class ScenesTokensDataAccess {
       const animated = data.animate !== false;
       await token.update({ x: data.x, y: data.y }, { animate: animated });
 
-      shared.auditLog('moveToken', data, 'success');
-
       return {
         success: true,
         tokenId: token.id,
@@ -424,7 +422,6 @@ export class ScenesTokensDataAccess {
         animated,
       };
     } catch (error) {
-      shared.auditLog('moveToken', data, 'failure', errorMessage(error));
       throw new Error(`Failed to move token: ${errorMessage(error)}`);
     }
   }
@@ -447,8 +444,6 @@ export class ScenesTokensDataAccess {
 
       await token.update(cleanUpdates);
 
-      shared.auditLog('updateToken', { tokenId: data.tokenId, updates: cleanUpdates }, 'success');
-
       return {
         success: true,
         tokenId: token.id,
@@ -456,7 +451,6 @@ export class ScenesTokensDataAccess {
         updatedProperties: Object.keys(cleanUpdates),
       };
     } catch (error) {
-      shared.auditLog('updateToken', data, 'failure', errorMessage(error));
       throw new Error(`Failed to update token: ${errorMessage(error)}`);
     }
   }
@@ -490,12 +484,6 @@ export class ScenesTokensDataAccess {
         }
       }
 
-      shared.auditLog(
-        'deleteTokens',
-        { tokenIds: data.tokenIds, deletedCount: deletedTokens.length },
-        'success'
-      );
-
       return {
         success: true,
         deletedCount: deletedTokens.length,
@@ -503,7 +491,6 @@ export class ScenesTokensDataAccess {
         failedTokens: failedTokens.length > 0 ? failedTokens : undefined,
       };
     } catch (error) {
-      shared.auditLog('deleteTokens', data, 'failure', errorMessage(error));
       throw new Error(`Failed to delete tokens: ${errorMessage(error)}`);
     }
   }
@@ -548,8 +535,6 @@ export class ScenesTokensDataAccess {
 
       await actor.toggleStatusEffect(condition.id, { active: data.active });
 
-      shared.auditLog('toggleTokenCondition', data, 'success');
-
       const conditionName = condition.name || condition.label || condition.id;
       return {
         success: true,
@@ -564,7 +549,6 @@ export class ScenesTokensDataAccess {
           : `Removed ${data.conditionId} from ${token.name}`,
       };
     } catch (error) {
-      shared.auditLog('toggleTokenCondition', data, 'failure', errorMessage(error));
       throw new Error(`Failed to toggle token condition: ${errorMessage(error)}`);
     }
   }
@@ -615,7 +599,6 @@ export class ScenesTokensDataAccess {
 
     await token.update(update);
 
-    shared.auditLog('setTokenVisionLight', { tokenId: token.id, updates: update }, 'success');
     return {
       success: true,
       tokenId: token.id,

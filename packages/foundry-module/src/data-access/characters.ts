@@ -182,12 +182,6 @@ export class CharacterDataAccess {
       }
     }
 
-    shared.auditLog(
-      'searchCharacterItems',
-      { characterId: actor.id, query, type, category, matchCount: matches.length },
-      'success'
-    );
-
     const result: {
       characterId: string;
       characterName: string;

@@ -202,42 +202,6 @@ export function validateFoundryState(): void {
   }
 }
 
-/**
- * Append an audit record for a write operation to the world's flag store
- * (capped at the last 100 entries). Always records — no setting gates it.
- */
-export function auditLog(
-  operation: string,
-  data: any,
-  result: 'success' | 'failure',
-  error?: string
-): void {
-  // Always audit write operations (no setting required)
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    operation,
-    user: game.user?.name || 'Unknown',
-    userId: game.user?.id || 'unknown',
-    world: game.world?.id || 'unknown',
-    data: sanitizeData(data),
-    result,
-    error,
-  };
-
-  // Store in flags for persistence (optional)
-  if (game.world && (game.world as any).setFlag) {
-    const auditLogs = (game.world as any).getFlag(MODULE_ID, 'auditLogs') || [];
-    auditLogs.push(logEntry);
-
-    // Keep only last 100 entries to prevent bloat
-    if (auditLogs.length > 100) {
-      auditLogs.splice(0, auditLogs.length - 100);
-    }
-
-    (game.world as any).setFlag(MODULE_ID, 'auditLogs', auditLogs);
-  }
-}
-
 /** Resolve an actor by id, exact name, or partial name match. */
 export function findActorByIdentifier(identifier: string): any {
   return (

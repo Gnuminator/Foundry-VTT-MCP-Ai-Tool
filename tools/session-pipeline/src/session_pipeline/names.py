@@ -4,7 +4,8 @@
   of what was heard ("strad" -> "strahd", "Strad" -> "Strahd", "STRAD" -> "STRAHD"). A rule never
   touches a longer word: "Dag" does not change "Dagstorp".
 * A near-name suggester compares words that are not ordinary words with a known-name list
-  (difflib ratio) and only *suggests*. It never changes text.
+  (difflib ratio). ``suggest`` only reports; ``fix`` also applies the confident hits (auto-fix, see
+  ``NameSuggester``) and leaves the rest as suggestions.
 
 The name list and the rules are inputs. Later they come from the Foundry world.
 """
@@ -12,6 +13,7 @@ The name list and the rules are inputs. Later they come from the Foundry world.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -39,12 +41,27 @@ class Fix:
 
 @dataclass(frozen=True, slots=True)
 class Suggestion:
+    """A near-name hit. ``replacement`` is what an automatic fix writes (for a hit on one part of a
+    multi-word name it is that part only). ``blocked`` is empty when the hit is confident enough to
+    apply, otherwise the reason it stays a suggestion."""
+
     heard: str
     suggested: str
     score: float
+    replacement: str = ""
+    start: int = -1  # character span of ``heard`` in the text that was searched
+    end: int = -1
+    blocked: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {"heard": self.heard, "suggested": self.suggested, "score": round(self.score, 3)}
+        d: dict[str, Any] = {
+            "heard": self.heard,
+            "suggested": self.suggested,
+            "score": round(self.score, 3),
+        }
+        if self.blocked:
+            d["blocked"] = self.blocked
+        return d
 
 
 def _match_case(found: str, correct: str) -> str:
@@ -110,7 +127,14 @@ def parse_rules(data: Mapping[str, Any]) -> NameRules:
 
 
 class NameSuggester:
-    """Suggest known names for words that look like them but are not ordinary words."""
+    """Find words that look like known names but are not ordinary words.
+
+    ``suggest`` only reports. ``fix`` also rewrites the confident hits (auto-fix): a hit is applied
+    only when its similarity reaches ``auto_threshold``, none of its words is an ordinary word (the
+    session's own frequent words, ``--ordinary-words`` and the shipped Danish and English lists,
+    except words that are part of a known name), the word is at least ``min_len`` letters, and no
+    other known name scores almost as well (ambiguity). Every other hit stays a suggestion.
+    """
 
     def __init__(
         self,
@@ -119,49 +143,108 @@ class NameSuggester:
         cutoff: float = 0.85,
         min_len: int = 4,
         min_partial_len: int = 5,
+        auto_threshold: float = 0.85,
+        block_words: Iterable[str] | None = None,
+        ambiguity_margin: float = 0.03,
     ) -> None:
         self.cutoff = cutoff
         self.min_len = min_len
         self.min_partial_len = min_partial_len
+        self.auto_threshold = auto_threshold
+        self.ambiguity_margin = ambiguity_margin
         self.names = list(dict.fromkeys(n.strip() for n in known_names if n.strip()))
         self.known_tokens: set[str] = set()
-        self._targets: list[tuple[str, str]] = []  # (lower-case comparison string, display name)
+        # (lower-case comparison string, display name, text an automatic fix writes)
+        self._targets: list[tuple[str, str, str]] = []
         seen: set[tuple[str, str]] = set()
         for name in self.names:
             toks = norm_tokens(name)
+            originals = _WORD_RE.findall(unicodedata.normalize("NFC", name))
             self.known_tokens.update(toks)
-            forms = [" ".join(toks)] if len(toks) > 1 else []
-            forms += [t for t in toks if len(t) >= (min_partial_len if len(toks) > 1 else min_len)]
-            for f in forms:
-                if f and (f, name) not in seen:
-                    seen.add((f, name))
-                    self._targets.append((f, name))
+            forms: list[tuple[str, str]] = [(" ".join(toks), name)] if len(toks) > 1 else []
+            need = min_partial_len if len(toks) > 1 else min_len
+            for k, t in enumerate(toks):
+                if len(t) >= need:
+                    whole = len(toks) == 1
+                    forms.append((t, name if whole else (originals[k] if k < len(originals) else t)))
+            for form, replacement in forms:
+                if form and (form, name) not in seen:
+                    seen.add((form, name))
+                    self._targets.append((form, name, replacement))
         self.ordinary = {w.lower() for w in ordinary_words} - self.known_tokens
-        self._forms = {f for f, _ in self._targets}
-        self._max_words = max((len(t.split()) for t, _ in self._targets), default=1)
-        self._cache: dict[str, Suggestion | None] = {}
+        if block_words is None:
+            from session_pipeline.wordlists import all_ordinary_words
 
-    def _best(self, phrase: str) -> Suggestion | None:
+            block_words = all_ordinary_words()
+        self.block = (self.ordinary | {w.lower() for w in block_words}) - self.known_tokens
+        self._forms = {f for f, _, _ in self._targets}
+        self._max_words = max((len(t.split()) for t, _, _ in self._targets), default=1)
+        self._cache: dict[str, tuple[Suggestion, float] | None] = {}
+
+    def _best_plain(self, phrase: str) -> tuple[Suggestion, float] | None:
+        """Best hit and the best score of a *different* name (0.0 when there is none)."""
         if phrase in self._cache:
             return self._cache[phrase]
         sm = SequenceMatcher(None, autojunk=False)
         sm.set_seq2(phrase)
         best: Suggestion | None = None
-        for form, display in self._targets:
+        scores: dict[str, float] = {}
+        n_words = phrase.count(" ")
+        for form, display, replacement in self._targets:
+            if form.count(" ") != n_words:  # never swallow or skip a neighbouring word
+                continue
             if abs(len(form) - len(phrase)) > max(len(form), len(phrase)) * 0.3:
                 continue
             sm.set_seq1(form)
             if sm.real_quick_ratio() < self.cutoff or sm.quick_ratio() < self.cutoff:
                 continue
             score = sm.ratio()
-            if score >= self.cutoff and (best is None or score > best.score):
-                best = Suggestion(phrase, display, score)
-        self._cache[phrase] = best
-        return best
+            if score >= self.cutoff:
+                scores[display] = max(score, scores.get(display, 0.0))
+                if best is None or score > best.score:
+                    best = Suggestion(phrase, display, score, replacement)
+        result: tuple[Suggestion, float] | None = None
+        if best is not None:
+            runner_up = max((v for k, v in scores.items() if k != best.suggested), default=0.0)
+            result = (best, runner_up)
+        self._cache[phrase] = result
+        return result
 
-    def suggest(self, text: str) -> list[Suggestion]:
-        """Suggestions for one piece of text. Never changes the text."""
-        found = [(m.group(0), m.group(0).lower()) for m in _WORD_RE.finditer(text)]
+    def _best(self, phrase: str) -> tuple[Suggestion, float, str] | None:
+        """Like ``_best_plain`` but also tries the phrase without a final "s" (Danish genitive or an
+        English plural: "Handells" is "Handell" plus "s"). Returns the hit, the runner-up score and
+        the phrase that was actually matched."""
+        hit = self._best_plain(phrase)
+        matched = phrase
+        if len(phrase) > self.min_len and phrase.endswith("s") and " " not in phrase:
+            stem = self._best_plain(phrase[:-1])
+            if (
+                stem is not None
+                and not stem[0].replacement.lower().endswith("s")
+                and (hit is None or stem[0].score > hit[0].score)
+            ):
+                best = stem[0]
+                hit = (Suggestion(phrase, best.suggested, best.score, best.replacement + "s"), stem[1])
+                matched = phrase[:-1]
+        if hit is None:
+            return None
+        return hit[0], hit[1], matched
+
+    def _block_reason(self, tokens: list[str], low: str, score: float, runner_up: float) -> str:
+        if score < self.auto_threshold:
+            return "below_threshold"
+        if len(low.replace(" ", "")) < self.min_len or any(len(t) < 3 for t in tokens):
+            return "short"
+        if any(t in self.block for t in tokens):
+            return "ordinary_word"
+        if score - runner_up < self.ambiguity_margin:
+            return "ambiguous"
+        return ""
+
+    def suggest(self, text: str, every: bool = False) -> list[Suggestion]:
+        """Hits for one piece of text, in text order. Never changes the text. A word heard twice is
+        reported once unless ``every`` is set."""
+        found = [(m.group(0), m.group(0).lower(), m.start(), m.end()) for m in _WORD_RE.finditer(text)]
         used = [False] * len(found)
         out: list[Suggestion] = []
         for n in range(min(self._max_words, len(found)), 0, -1):
@@ -180,12 +263,51 @@ class NameSuggester:
                     continue
                 hit = self._best(low)
                 if hit is not None:
-                    if any(o.heard == " ".join(w[0] for w in window) and o.suggested == hit.suggested for o in out):
+                    best, runner_up, matched = hit
+                    heard = " ".join(w[0] for w in window)
+                    repeated = any(o.heard == heard and o.suggested == best.suggested for o in out)
+                    if best.replacement == heard or (repeated and not every):
                         continue
-                    out.append(Suggestion(" ".join(w[0] for w in window), hit.suggested, hit.score))
+                    reason = self._block_reason(
+                        [*[w[1] for w in window], matched], low, best.score, runner_up
+                    )
+                    out.append(
+                        Suggestion(
+                            heard,
+                            best.suggested,
+                            best.score,
+                            best.replacement,
+                            window[0][2],
+                            window[-1][3],
+                            reason,
+                        )
+                    )
                     for k in range(i, i + n):
                         used[k] = True
+        out.sort(key=lambda s: s.start)
         return out
+
+    def fix(self, text: str, apply: bool = True) -> tuple[str, list[Suggestion], list[Suggestion]]:
+        """``(new text, applied hits, hits left as suggestions)``. With ``apply`` False nothing is
+        rewritten and every hit is left as a suggestion."""
+        hits = self.suggest(text, every=True)
+        if not apply:
+            return text, [], hits
+        applied = [h for h in hits if not h.blocked]
+        for h in sorted(applied, key=lambda s: -s.start):
+            text = text[: h.start] + fix_case(h.heard, h.replacement) + text[h.end :]
+        left: list[Suggestion] = []
+        for h in hits:
+            if h.blocked and not any(o.heard == h.heard and o.suggested == h.suggested for o in left):
+                left.append(h)
+        return text, applied, left
+
+
+def fix_case(heard: str, replacement: str) -> str:
+    letters = [c for c in heard if c.isalpha()]
+    if len(letters) > 1 and all(c.isupper() for c in letters):
+        return replacement.upper()
+    return replacement
 
 
 def ordinary_from_frequency(texts: Iterable[str], min_count: int = 3) -> set[str]:

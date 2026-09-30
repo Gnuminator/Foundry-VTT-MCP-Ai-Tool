@@ -9,6 +9,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from session_pipeline import namelist
 from session_pipeline.echo import levels_from_tracks
 from session_pipeline.filters import parse_vocab
 from session_pipeline.model import InputError, Track, load_track
@@ -57,8 +58,34 @@ def build_parser() -> argparse.ArgumentParser:
         default=3,
         help="words this frequent in the session also count as ordinary (0 disables, default 3)",
     )
+    m.add_argument(
+        "--auto-fix",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="rewrite confident near-name hits (similarity 0.85 or more, not an ordinary Danish or "
+        "English word, 4+ letters, unambiguous); every fix is logged in fixes.json "
+        "(default on, --no-auto-fix turns it off and leaves them as suggestions)",
+    )
+    m.add_argument(
+        "--auto-fix-threshold",
+        type=float,
+        default=0.85,
+        help="minimum similarity for an automatic fix (default 0.85)",
+    )
     m.add_argument("--levels", type=Path, help="JSON: track id -> RMS level in dB (enables echo dropping)")
     m.add_argument("--glob", default="*.json", help="which files in the folder to read (default *.json)")
+    n = sub.add_parser(
+        "names",
+        help="build names.txt for a session from the Foundry world (local dashboard) and an extra list",
+    )
+    n.add_argument("--out", type=Path, required=True, help="names file to write, e.g. <session>/names.txt")
+    n.add_argument("--extra", type=Path, help="hand-kept extra names, one per line (goes first)")
+    n.add_argument("--dashboard", default=namelist.DEFAULT_DASHBOARD, help="co-GM dashboard URL")
+    n.add_argument(
+        "--offline", action="store_true", help="do not contact the dashboard: the extra list only"
+    )
+    n.add_argument("--items", action="store_true", help="also list world item names (off by default)")
+    n.add_argument("--journals", action="store_true", help="also list journal names (off by default)")
     return p
 
 
@@ -86,11 +113,13 @@ def run_merge(args: argparse.Namespace) -> int:
         ordinary |= ordinary_from_frequency(
             (s.text for t in tracks for s in t.segments), args.ordinary_min_count
         )
-    suggester = NameSuggester(names, ordinary) if names else None
+    suggester = (
+        NameSuggester(names, ordinary, auto_threshold=args.auto_fix_threshold) if names else None
+    )
     levels = levels_from_tracks({k: float(v) for k, v in _read_json(args.levels).items()}) if args.levels else None
 
     result = run_pipeline(
-        tracks, load_speakers(args.speakers), vocab, rules, suggester, levels
+        tracks, load_speakers(args.speakers), vocab, rules, suggester, levels, auto_fix=args.auto_fix
     )
     write_outputs(result, args.out)
 
@@ -99,8 +128,35 @@ def run_merge(args: argparse.Namespace) -> int:
     print(f"timeline lines: {len(result.entries)}")
     print("dropped: " + (", ".join(f"{k} {v}" for k, v in sorted(reasons.items())) or "nothing"))
     print(f"low-confidence words: {len(result.low_confidence)}")
-    print(f"name fixes applied: {len(result.fixes)}, suggestions: {len(result.suggestions)}")
+    auto = sum(1 for f in result.fixes if f.get("kind") == "auto")
+    print(
+        f"name fixes applied: {len(result.fixes)} ({auto} automatic), "
+        f"suggestions: {len(result.suggestions)}"
+    )
     print(f"written to {args.out}")
+    return 0
+
+
+def run_names(args: argparse.Namespace) -> int:
+    extra = namelist.read_extra(args.extra)
+    if args.extra and not args.extra.exists():
+        print(f"warning: extra list {args.extra} does not exist", file=sys.stderr)
+    fetch = None if args.offline else namelist.dashboard_fetch(args.dashboard, namelist.default_token())
+    names, world, warning = namelist.build(fetch, extra, items=args.items, journals=args.journals)
+    if warning:
+        print(f"warning: {warning}", file=sys.stderr)
+    if not names:
+        raise InputError("no names: the world gave none and there is no extra list")
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(namelist.render(names), encoding="utf-8", newline="\n")
+    w = world
+    print(f"extra: {len(extra)}")
+    if w:
+        print(
+            f"world: {len(w.pcs)} player characters, {len(w.groups)} groups, {len(w.npcs)} NPCs, "
+            f"{len(w.scenes)} scenes, {len(w.items)} items, {len(w.journals)} journals"
+        )
+    print(f"wrote {len(names)} names to {args.out}")
     return 0
 
 
@@ -109,6 +165,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "merge":
             return run_merge(args)
+        if args.command == "names":
+            return run_names(args)
     except InputError as ex:
         print(f"error: {ex}", file=sys.stderr)
         return 2

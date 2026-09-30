@@ -10,6 +10,10 @@
   down                 Stop and remove this project's containers (not the Hugging Face model cache).
   status               Project containers, GPU memory, images and the sessions folder.
   logs [service]       Follow the logs.
+  names <session>      Build <session>/names.txt: the names Whisper should listen for. Reads the Foundry world
+                       through the local co-GM dashboard (list-ref-choices on http://127.0.0.1:3100) and merges
+                       the hand-kept <session>/extra-names.txt (or <sessions folder>/extra-names.txt). Works
+                       without the dashboard (extra list only). Needs only Python on the host.
   transcribe <session> Run the transcriber (GPU), then the session pipeline (CPU) on a session folder
                        (or a Craig .zip). Name a folder under the sessions folder, or give a full path.
 
@@ -17,21 +21,34 @@
   3100, live bridge 31414-31416, test bridge 31514-31516). Never touches containers outside the
   fvtt-voice project. One GPU job at a time: transcribe warns when the GPU is already busy.
 
-  transcribe options: -Model <name|path> (default large-v3-turbo), -Hotwords (use <session>/vocab.txt
-  as Whisper hotwords), -Force (redo finished tracks), -NoPipeline (transcriber only).
-  The pipeline picks up <session>/speakers.json, vocab.txt, rules.json and ordinary-words.txt if present.
+  names options: -Dashboard <url> (default http://127.0.0.1:3100), -Offline (extra list only), -Items,
+  -Journals (also list world item and journal names; off by default), GM_DASHBOARD_TOKEN is sent as the
+  dashboard token when set.
+
+  transcribe options: -Model <name|path> (default large-v3-turbo), -Force (redo finished tracks),
+  -NoPipeline (transcriber only), -NoHotwords (ignore names.txt), -NoAutoFix (the pipeline only suggests
+  name fixes), -Hotwords (no names.txt: use <session>/vocab.txt as hotwords instead).
+  If <session>/names.txt exists it is passed to Whisper as hotwords (cut to a token budget, first names
+  win) and to the pipeline as the known names for automatic name fixes.
+  The pipeline picks up <session>/speakers.json, vocab.txt, names.txt, rules.json and ordinary-words.txt.
 #>
 [CmdletBinding()]
 param(
   [Parameter(Position = 0)]
-  [ValidateSet('init', 'up', 'down', 'status', 'logs', 'transcribe')]
+  [ValidateSet('init', 'up', 'down', 'status', 'logs', 'transcribe', 'names')]
   [string]$Command = 'status',
   [Parameter(Position = 1)]
   [string]$Target,
   [string]$Model,
   [switch]$Hotwords,
   [switch]$Force,
-  [switch]$NoPipeline
+  [switch]$NoPipeline,
+  [switch]$NoHotwords,
+  [switch]$NoAutoFix,
+  [string]$Dashboard = 'http://127.0.0.1:3100',
+  [switch]$Offline,
+  [switch]$Items,
+  [switch]$Journals
 )
 
 $ErrorActionPreference = 'Stop'
@@ -110,6 +127,23 @@ function Get-GpuUsedMiB {
   return [int](($v | Select-Object -First 1).Trim())
 }
 
+function Resolve-Session([string]$Target, [string]$sessionsRoot) {
+  foreach ($candidate in @($Target, (Join-Path $sessionsRoot $Target))) {
+    if (Test-Path -LiteralPath $candidate) { return (Resolve-Path -LiteralPath $candidate).Path }
+  }
+  throw "Session not found: '$Target' (also looked in $sessionsRoot)."
+}
+
+function Get-HostPython {
+  $venv = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools/session-pipeline/.venv/Scripts/python.exe'
+  if (Test-Path $venv) { return $venv }
+  foreach ($name in 'python', 'py') {
+    $cmd = Get-Command $name -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.Source -notmatch 'WindowsApps') { return $cmd.Source }
+  }
+  throw 'Python was not found on the host. Install Python 3.12 or make tools/session-pipeline/.venv.'
+}
+
 $envMap = $null
 if ($Command -ne 'init') {
   Initialize-Env   # compose needs the LiveKit variables to exist even for the transcribe jobs
@@ -163,14 +197,26 @@ switch ($Command) {
     if ($Target) { $logArgs += $Target }
     Invoke-Compose $logArgs
   }
+  'names' {
+    if (-not $Target) { throw 'Usage: voice-stack.ps1 names <session folder name or path>' }
+    $folder = Resolve-Session $Target (Get-SessionsDir $envMap)
+    if (-not (Get-Item -LiteralPath $folder).PSIsContainer) { throw 'Give a session folder.' }
+    $py = Get-HostPython
+    $nArgs = @('-m', 'session_pipeline', 'names', '--out', (Join-Path $folder 'names.txt'), '--dashboard', $Dashboard)
+    foreach ($extra in @((Join-Path $folder 'extra-names.txt'), (Join-Path (Get-SessionsDir $envMap) 'extra-names.txt'))) {
+      if (Test-Path -LiteralPath $extra) { $nArgs += @('--extra', $extra); break }
+    }
+    if ($Offline) { $nArgs += '--offline' }
+    if ($Items) { $nArgs += '--items' }
+    if ($Journals) { $nArgs += '--journals' }
+    $env:PYTHONPATH = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools/session-pipeline/src'
+    & $py @nArgs
+    if ($LASTEXITCODE -ne 0) { throw "names failed ($LASTEXITCODE)" }
+  }
   'transcribe' {
     if (-not $Target) { throw 'Usage: voice-stack.ps1 transcribe <session folder name or path>' }
     $sessionsRoot = Get-SessionsDir $envMap
-    $resolved = $null
-    foreach ($candidate in @($Target, (Join-Path $sessionsRoot $Target))) {
-      if (Test-Path -LiteralPath $candidate) { $resolved = (Resolve-Path -LiteralPath $candidate).Path; break }
-    }
-    if (-not $resolved) { throw "Session not found: '$Target' (also looked in $sessionsRoot)." }
+    $resolved = Resolve-Session $Target $sessionsRoot
     $item = Get-Item -LiteralPath $resolved
     if ($item.PSIsContainer) { $folder = $item.FullName; $inputName = '' }
     elseif ($item.Extension -eq '.zip') { $folder = $item.DirectoryName; $inputName = $item.Name }
@@ -188,9 +234,15 @@ switch ($Command) {
     $tArgs = @('--profile', 'transcribe', 'run', '--rm', '-T', '-v', "${folder}:/session", 'transcriber',
       $inside, '--out', '/session/transcripts')
     if ($Model) { $tArgs += @('--model', $Model) }
-    if ($Hotwords) {
-      if (-not (Test-Path (Join-Path $folder 'vocab.txt'))) { throw "-Hotwords needs $folder\vocab.txt" }
-      $tArgs += @('--hotwords', '/session/vocab.txt')
+    if (-not $NoHotwords) {
+      if (Test-Path (Join-Path $folder 'names.txt')) {
+        $tArgs += @('--hotwords', '/session/names.txt')
+      } elseif ($Hotwords) {
+        if (-not (Test-Path (Join-Path $folder 'vocab.txt'))) { throw "-Hotwords needs $folder\vocab.txt (or run: voice-stack.ps1 names <session>)" }
+        $tArgs += @('--hotwords', '/session/vocab.txt')
+      } else {
+        Write-Host "No names.txt in ${folder}: transcribing without hotwords (voice-stack.ps1 names <session> builds one)."
+      }
     }
     if ($Force) { $tArgs += '--force' }
     Invoke-Compose $tArgs
@@ -202,9 +254,10 @@ switch ($Command) {
     $pArgs = @('--profile', 'transcribe', 'run', '--rm', '-T', '-v', "${folder}:/session", 'pipeline',
       'merge', '/session/transcripts/json', '--out', '/session/timeline')
     foreach ($pair in @(@('speakers.json', '--speakers'), @('vocab.txt', '--vocab'), @('rules.json', '--rules'),
-        @('ordinary-words.txt', '--ordinary-words'))) {
+        @('ordinary-words.txt', '--ordinary-words'), @('names.txt', '--names'))) {
       if (Test-Path (Join-Path $folder $pair[0])) { $pArgs += @($pair[1], "/session/$($pair[0])") }
     }
+    if ($NoAutoFix) { $pArgs += '--no-auto-fix' }
     Invoke-Compose $pArgs
     Write-Host ''
     Write-Host "Per-speaker JSON: $(Join-Path $folder 'transcripts/json')"

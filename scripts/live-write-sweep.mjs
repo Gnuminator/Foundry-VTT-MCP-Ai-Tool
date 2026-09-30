@@ -780,9 +780,11 @@ async function actorTools() {
   await step('update-character-resource (and back)', async () => {
     needNpc();
     const res = await tool('get-character-resources', { identifier: ctx.npcId });
+    // get-character-resources lists slots as level1..level9 (and pact) with max/current;
+    // update-character-resource names them spell1..spell9.
     const slots = Object.entries((res && res.spellSlots) || {}).map(([k, v]) => ({
-      name: k,
-      value: v && typeof v === 'object' ? v.value : v,
+      name: k.replace(/^level/, 'spell'),
+      value: v && typeof v === 'object' ? (v.value ?? v.current) : v,
       max: v && typeof v === 'object' ? v.max : 0,
     }));
     const charges = ((res && res.itemCharges) || []).map(c => ({

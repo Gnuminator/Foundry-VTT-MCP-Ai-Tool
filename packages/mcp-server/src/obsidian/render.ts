@@ -739,7 +739,11 @@ function d20SpreadTable(d20: readonly number[]): string[] {
 
 /** `AI Tool/Stats/Campaign.md`: campaign totals, sessions, PCs, the d20
  * spread and per-user dice, derived from the play log (contract 5). */
-export function renderCampaignStatsNote(worldId: string, stats: StatsModel): string {
+export function renderCampaignStatsNote(
+  worldId: string,
+  stats: StatsModel,
+  options: { usageNote?: boolean } = {}
+): string {
   const c = stats.campaign;
   const props = generatedProps(
     'campaign-stats',
@@ -801,6 +805,9 @@ export function renderCampaignStatsNote(worldId: string, stats: StatsModel): str
       '| --- | --- | --- | --- | --- |',
       ...(userRows.length ? userRows : ['| (none) | | | | |']),
       '',
+      ...(options.usageNote
+        ? ['## Dashboard usage', '', 'Which controls get used: [[Dashboard usage]].', '']
+        : []),
     ].join('\n')
   );
 }

@@ -22,10 +22,18 @@
 import { promises as fsp } from 'fs';
 import * as path from 'path';
 
-import { PLAY_LOG_FILE, type PlayRecord } from '@gnuminator/shared';
+import {
+  PLAY_LOG_FILE,
+  USAGE_CATALOG,
+  USAGE_LOG_FILE_RE,
+  isUsageName,
+  type PlayRecord,
+  type UsageEvent,
+} from '@gnuminator/shared';
 
 import { buildStats } from '../stats/build.js';
 import type { StatsModel } from '../stats/types.js';
+import { buildUsageModel } from '../stats/usage.js';
 import type { AuditEntry, AuditLog } from '../vault/audit.js';
 import type { VaultStore } from '../vault/store.js';
 
@@ -33,6 +41,7 @@ import { mergeChangeHistory, type ChangeEntry } from './audit-merge.js';
 import { groupWithPlayRecords, type SessionEvent } from './grouping.js';
 import { campaignDir, NoteWriter } from './note-writer.js';
 import { baseOwnershipCheck, checkCanvasOwnership, checkMarkdownOwnership } from './ownership.js';
+import { renderUsageNote, USAGE_NOTE_PATH } from './render-usage.js';
 import {
   renderCampaignHome,
   renderCampaignStatsNote,
@@ -71,11 +80,12 @@ const MANAGED_FOLDERS = [
 export interface ExportCache {
   logs: Map<string, { size: number; mtimeMs: number; events: SessionEvent[] }>;
   playLogs: Map<string, { size: number; mtimeMs: number; records: PlayRecord[] }>;
+  usageLogs: Map<string, { size: number; mtimeMs: number; events: UsageEvent[] }>;
   written: Map<string, string>;
 }
 
 export function newExportCache(): ExportCache {
-  return { logs: new Map(), playLogs: new Map(), written: new Map() };
+  return { logs: new Map(), playLogs: new Map(), usageLogs: new Map(), written: new Map() };
 }
 
 export interface ExportResult {
@@ -178,6 +188,46 @@ async function loadPlayRecords(
   return all;
 }
 
+function isUsageEventLike(value: unknown): value is UsageEvent {
+  const e = value as Partial<UsageEvent> | null;
+  return (
+    !!e &&
+    typeof e === 'object' &&
+    typeof e.key === 'string' &&
+    typeof e.t === 'number' &&
+    Number.isFinite(e.t) &&
+    isUsageName(e.name) &&
+    typeof e.kind === 'string' &&
+    typeof e.who === 'object' &&
+    e.who !== null
+  );
+}
+
+/** All usage events across every `<date>.usage.jsonl` file (I-084), cached like
+ * {@link loadPlayRecords}. A line that does not look like a UsageEvent is dropped. */
+async function loadUsageEvents(
+  store: VaultStore,
+  worldId: string,
+  cache: ExportCache
+): Promise<UsageEvent[]> {
+  const files = (await store.list(worldId, 'sessions')).filter(f => USAGE_LOG_FILE_RE.test(f));
+  const all: UsageEvent[] = [];
+  for (const file of files) {
+    const full = store.filePath(worldId, 'sessions', file);
+    const stat = await fsp.stat(full).catch(() => null);
+    if (!stat) continue;
+    const cached = cache.usageLogs.get(file);
+    if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+      all.push(...cached.events);
+      continue;
+    }
+    const events = (await store.readLines(worldId, 'sessions', file)).filter(isUsageEventLike);
+    cache.usageLogs.set(file, { size: stat.size, mtimeMs: stat.mtimeMs, events });
+    all.push(...events);
+  }
+  return all;
+}
+
 /** A PC's stats-note file name, sanitized, with a uuid suffix only on a
  * collision (docs/design/OBSIDIAN-PLAN.md section 5: id suffix only on collision). */
 function pcStatsFileNames(stats: StatsModel): Map<string, string> {
@@ -199,6 +249,8 @@ export async function exportWorldToObsidian(options: {
   worldId: string;
   vaultDir: string;
   cache?: ExportCache;
+  /** The MCP tool names, for the usage note's "tools never run" list (null/absent: left out). */
+  toolNames?: readonly string[] | null;
 }): Promise<ExportResult> {
   const { store, audit, worldId } = options;
   const cache = options.cache ?? newExportCache();
@@ -291,11 +343,28 @@ export async function exportWorldToObsidian(options: {
     );
   }
 
+  // Usage log (I-084): GM vault only, written only once the world has usage events.
+  const usageEvents = await loadUsageEvents(store, worldId, cache);
+  const hasUsage = usageEvents.length > 0;
+  if (hasUsage) {
+    const usageModel = buildUsageModel({
+      events: usageEvents,
+      catalog: USAGE_CATALOG,
+      toolNames: options.toolNames ?? null,
+      sessions: stats.sessions,
+    });
+    await writer.owned(
+      USAGE_NOTE_PATH,
+      renderUsageNote(worldId, usageModel),
+      checkMarkdownOwnership
+    );
+  }
+
   // Stats (O3): campaign totals plus one note per PC, derived from the play
   // log (contract 5), never stored as truth (rebuilt from the logs every run).
   await writer.owned(
     'AI Tool/Stats/Campaign.md',
-    renderCampaignStatsNote(worldId, stats),
+    renderCampaignStatsNote(worldId, stats, { usageNote: hasUsage }),
     checkMarkdownOwnership
   );
   const pcFileNames = pcStatsFileNames(stats);

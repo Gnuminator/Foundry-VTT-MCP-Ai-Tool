@@ -64,6 +64,8 @@ import { GuardedWriteService } from './guarded-write/service.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
 import { EventPump, eventPumpSettings } from './event-pump.js';
 import { PlayLogPump, playLogSettings } from './play-log-pump.js';
+import { UsageLog, handleRecordUsage } from './usage-log.js';
+import { UsagePump } from './usage-pump.js';
 import { ObsidianAutoRender, obsidianAutoRenderSettings } from './obsidian/auto-render.js';
 import { ObsidianMirrorPump } from './obsidian/mirror-pump.js';
 import { mirrorEnvSettings } from './obsidian/mirror-settings.js';
@@ -283,9 +285,19 @@ async function startBackend(): Promise<void> {
         audit: auditLog,
         vaultDir: obsidianVaultDir,
         logger,
+        toolNames: () => allToolNames,
       })
     : null;
+  // Filled once the tool list is built below; the usage note lists tools never run.
+  let allToolNames: string[] = [];
   const renderObsidian = (worldId: string): void => obsidianRender?.schedule(worldId);
+  // Usage log (I-084): dashboard and module usage events (FOUNDRY_AI_USAGE_LOG=off disables it).
+  const usageLog = new UsageLog({
+    store: vaultStore,
+    worldIds,
+    logger,
+    onAppended: renderObsidian,
+  });
   const guardedWrites = new GuardedWriteService({
     foundryClient,
     worldIds,
@@ -373,6 +385,7 @@ async function startBackend(): Promise<void> {
   };
   const toolRouter = buildToolRouter(toolDeps);
   const allTools = collectToolDefinitions(toolDeps);
+  allToolNames = allTools.map(t => t.name);
 
   // Start Foundry connector (owns app port 31415). Skipped in control-only mode
   // so the standalone entrypoint can be smoke-tested without binding 31415/31416.
@@ -381,6 +394,7 @@ async function startBackend(): Promise<void> {
   // play log (every roll and state change; FOUNDRY_AI_PLAY_LOG=off disables it).
   let eventPump: EventPump | null = null;
   let playLogPump: PlayLogPump | null = null;
+  let usagePump: UsagePump | null = null;
 
   if (FOUNDRY_LINK_ENABLED) {
     foundryClient.connect().catch(e => {
@@ -413,6 +427,19 @@ async function startBackend(): Promise<void> {
       playLogPump.start();
     } else {
       logger.info('Play log disabled (FOUNDRY_AI_PLAY_LOG=off)');
+    }
+    if (usageLog.enabled) {
+      usagePump = new UsagePump({
+        foundryClient,
+        worldIds,
+        store: vaultStore,
+        usageLog,
+        logger,
+        intervalMs: pumpSettings.intervalMs,
+      });
+      usagePump.start();
+    } else {
+      logger.info('Usage log disabled (FOUNDRY_AI_USAGE_LOG=off)');
     }
     // It writes only once the mirror settings say enabled (plan-obsidian-mirror).
     if (obsidianVaultDir) {
@@ -502,6 +529,15 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
+          // Usage events from the dashboard (dashboard forced surface and who); not a tool, never
+          // listed to Claude, and the stdio wrapper never forwards it.
+          if (msg.method === 'record_usage') {
+            const result = await handleRecordUsage(usageLog, msg.params);
+            socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+
+            continue;
+          }
+
           // Unknown method
 
           socket.write(`${JSON.stringify({ id: msg.id, error: { message: 'Unknown method' } })}\n`);
@@ -537,6 +573,7 @@ async function startBackend(): Promise<void> {
   process.on('SIGINT', () => {
     eventPump?.stop();
     playLogPump?.stop();
+    usagePump?.stop();
     mirrorPump?.stop();
     obsidianRender?.stop();
     foundryClient.disconnect();
@@ -547,6 +584,7 @@ async function startBackend(): Promise<void> {
   process.on('SIGTERM', () => {
     eventPump?.stop();
     playLogPump?.stop();
+    usagePump?.stop();
     mirrorPump?.stop();
     obsidianRender?.stop();
     foundryClient.disconnect();

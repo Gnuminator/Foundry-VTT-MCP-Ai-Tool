@@ -343,6 +343,14 @@ reload, so the backend polls `getRecentEvents` (cursor minus 1 ms, id de-duplica
 persisted per world) and appends every event to `sessions/<local-date>.jsonl` in the vault.
 On by default; `FOUNDRY_AI_EVENT_LOG=off` disables it.
 
+**Usage log (`usage-log.ts`, `usage-pump.ts`).** Which controls of the dashboard, the `/player` page
+and the module people use (I-084, `docs/design/USAGE-LOG.md`). The dashboard sends batches over the
+control method `record_usage` (handled in `backend.ts`, never a tool, never forwarded by the stdio
+wrapper); the usage pump polls the module's `getUsageRecords`. `UsageLog` de-duplicates by `key` and
+appends to `sessions/<local-date>.usage.jsonl`. The Obsidian note `AI Tool/Usage/Dashboard usage.md`
+(GM vault only) is built from it. `FOUNDRY_AI_USAGE_LOG=off` disables it. The control catalogue
+(`shared/src/usage-catalog.generated.ts`) comes from `npm run usage:catalog`; CI checks it.
+
 ### 4e. MCP prompts (`prompts/`)
 
 Claude Desktop shows an MCP server's prompts as ready-made "/" prompts, so a GM new to the tool

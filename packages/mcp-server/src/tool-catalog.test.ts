@@ -20,6 +20,12 @@ const deps = stubToolRouterDeps();
 const tools = collectToolDefinitions(deps);
 
 describe('tool catalog', () => {
+  it('lists exactly 91 tools; control methods such as record_usage are not tools', () => {
+    expect(tools).toHaveLength(91);
+    expect(tools.map(t => t.name)).not.toContain('record_usage');
+    expect(Object.keys(buildToolRouter(deps))).not.toContain('record_usage');
+  });
+
   it('has unique names, one route per tool and a tool per route', () => {
     const names = tools.map(t => t.name);
     expect(new Set(names).size).toBe(names.length);

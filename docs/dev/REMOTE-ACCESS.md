@@ -101,6 +101,7 @@ the remote-hosting topology.
 | `FOUNDRY_LINK_HOST`       | `127.0.0.1`    | Interface for the Foundry link (31415 WS, 31416 WebRTC signaling). Set `0.0.0.0` only when the GM's browser is on another machine.        |
 | `FOUNDRY_AI_DATA_DIR`     | platform dir   | Bridge vault (GM-only data, audit log, session log). Default `%APPDATA%\foundry-ai-tool\vault` or `~/.local/share/foundry-ai-tool/vault`. |
 | `FOUNDRY_AI_EVENT_LOG`    | _(on)_         | `off` disables the persistent session event log (`sessions/<date>.jsonl`).                                                                |
+| `FOUNDRY_AI_USAGE_LOG`    | _(on)_         | `off` disables the usage log (`sessions/<date>.usage.jsonl`: which dashboard, player-page and module controls get used).                  |
 | `FOUNDRY_HOST`            | `localhost`    | **Not used by the bridge itself.** Was legacy; the module dials the bridge, not the other way round. (See note below.)                    |
 | `FOUNDRY_PORT`            | `31415`        | WebSocket listen port for the Foundry connector.                                                                                          |
 | `FOUNDRY_NAMESPACE`       | `/foundry-mcp` | WebSocket path prefix.                                                                                                                    |

@@ -43,6 +43,8 @@ export interface ObsidianAutoRenderOptions {
   debounceMs?: number;
   maxWaitMs?: number;
   now?: () => number;
+  /** The MCP tool names for the usage note (asked at render time; absent: left out). */
+  toolNames?: () => readonly string[] | null;
   /** The exporter (tests inject a fake). */
   exportWorld?: typeof exportWorldToObsidian;
 }
@@ -153,7 +155,14 @@ export class ObsidianAutoRender {
   private async renderOnce(worldId: string, w: WorldState): Promise<void> {
     const { store, audit, vaultDir, logger } = this.options;
     try {
-      const result = await this.exportWorld({ store, audit, worldId, vaultDir, cache: w.cache });
+      const result = await this.exportWorld({
+        store,
+        audit,
+        worldId,
+        vaultDir,
+        cache: w.cache,
+        toolNames: this.options.toolNames?.() ?? null,
+      });
       this.report(result, w);
     } catch (error) {
       logger.warn('Obsidian render failed', {

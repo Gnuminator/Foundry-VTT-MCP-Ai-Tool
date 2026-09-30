@@ -307,10 +307,10 @@ describe('FoundryDataAccess — setActorSpellcasting', () => {
 
     // Wizard L5 (FULL_CASTER_SLOTS index 4): [4,3,2,0,0,0,0,0,0]
     expect(actor.system.attributes.spellcasting).toBe('int');
-    expect(actor.system.spells.spell1).toEqual({ max: 4, value: 4 });
-    expect(actor.system.spells.spell2).toEqual({ max: 3, value: 3 });
-    expect(actor.system.spells.spell3).toEqual({ max: 2, value: 2 });
-    expect(actor.system.spells.spell4).toEqual({ max: 0, value: 0 });
+    expect(actor.system.spells.spell1).toEqual({ override: 4, value: 4 });
+    expect(actor.system.spells.spell2).toEqual({ override: 3, value: 3 });
+    expect(actor.system.spells.spell3).toEqual({ override: 2, value: 2 });
+    expect(actor.system.spells.spell4).toEqual({ override: 0, value: 0 });
 
     expect(result.actor).toEqual({ id: 'a1', name: 'Gandalf' });
     expect(result.spellcasting.ability).toBe('int');
@@ -332,10 +332,46 @@ describe('FoundryDataAccess — setActorSpellcasting', () => {
 
     // Warlock L5 pact table index 4: { max: 2, level: 3 }
     for (let i = 1; i <= 9; i++) {
-      expect(actor.system.spells[`spell${i}`]).toEqual({ max: 0, value: 0 });
+      expect(actor.system.spells[`spell${i}`]).toEqual({ override: 0, value: 0 });
     }
-    expect(actor.system.spells.pact).toEqual({ max: 2, value: 2, level: 3 });
+    expect(actor.system.spells.pact).toEqual({ override: 2, value: 2 });
     expect(result.spellcasting.slots).toEqual({ pact: { max: 2, level: 3 } });
+    expect(result.warnings).toContain(
+      "pact slot level comes from the actor's warlock class; only the slot count was set"
+    );
+  });
+
+  it('NPC: sets overrides and the spellcaster level, which dnd5e 6 derives max from', async () => {
+    const actor = world.addActor({ id: 'n1', name: 'Mage', type: 'npc', system: {} });
+
+    const result = await da.setActorSpellcasting({
+      actorIdentifier: 'Mage',
+      spellcastingClass: 'wizard',
+      spellcastingLevel: 3,
+      effectiveAbility: 'int',
+    });
+
+    // dnd5e 6 drops writes to the derived `max`: only `override` and `value` are stored.
+    expect(actor.system.attributes.spell.level).toBe(3);
+    expect(actor.system.spells.spell1).toEqual({ override: 4, value: 4 });
+    expect(actor.system.spells.spell2).toEqual({ override: 2, value: 2 });
+    expect(actor.system.spells.spell1.max).toBeUndefined();
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('NPC warlock: pact override and spellcaster level, no class warning', async () => {
+    const actor = world.addActor({ id: 'n2', name: 'Cultist', type: 'npc', system: {} });
+
+    const result = await da.setActorSpellcasting({
+      actorIdentifier: 'Cultist',
+      spellcastingClass: 'warlock',
+      spellcastingLevel: 5,
+      effectiveAbility: 'cha',
+    });
+
+    expect(actor.system.attributes.spell.level).toBe(5);
+    expect(actor.system.spells.pact).toEqual({ override: 2, value: 2 });
+    expect(result.warnings).toEqual([]);
   });
 
   it('half caster (paladin) at level 1 warns about no slots', async () => {
@@ -349,7 +385,7 @@ describe('FoundryDataAccess — setActorSpellcasting', () => {
     });
 
     // HALF_CASTER_SLOTS index 0 = all zeros
-    expect(actor.system.spells.spell1).toEqual({ max: 0, value: 0 });
+    expect(actor.system.spells.spell1).toEqual({ override: 0, value: 0 });
     expect(result.warnings).toContain(
       'paladin level 1 has no spell slots — use level 2+ to unlock spellcasting'
     );
@@ -366,7 +402,7 @@ describe('FoundryDataAccess — setActorSpellcasting', () => {
     });
 
     // ARTIFICER_SLOTS index 0: [2,0,...]
-    expect(actor.system.spells.spell1).toEqual({ max: 2, value: 2 });
+    expect(actor.system.spells.spell1).toEqual({ override: 2, value: 2 });
     expect(result.spellcasting.slots.spell1).toBe(2);
     expect(result.warnings).toEqual([]);
   });

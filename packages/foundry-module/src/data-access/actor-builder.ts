@@ -1346,17 +1346,30 @@ export class ActorBuilderDataAccess {
       // Spellcasting ability
       updates['system.attributes.spellcasting'] = ability;
 
+      // dnd5e 6 derives each slot's `max` (and the pact slot level) in data preparation:
+      // max = `override` when set, else the class progression. Writing `max` is dropped,
+      // so an NPC without classes kept max 0 (seen in the live write sweep). Set the
+      // slot counts as overrides, and an NPC's spellcaster level, which dnd5e uses for
+      // its progression and for the pact slot level. Verified: dnd5e 6.0.5
+      // `prepareSlots` (leveled and single-level models) and NPCData `attributes.spell`.
+      const isNpc = actor.type === 'npc';
+      if (isNpc) updates['system.attributes.spell.level'] = lvl;
+
       if (cls === 'warlock') {
         // ── Pact Magic ────────────────────────────────────────────────────────
         // All regular slots set to 0; pact slots from table
         for (let i = 1; i <= 9; i++) {
-          updates[`system.spells.spell${i}.max`] = 0;
+          updates[`system.spells.spell${i}.override`] = 0;
           updates[`system.spells.spell${i}.value`] = 0;
         }
         const pact = WARLOCK_PACT_TABLE[idx];
-        updates['system.spells.pact.max'] = pact.max;
+        updates['system.spells.pact.override'] = pact.max;
         updates['system.spells.pact.value'] = pact.max;
-        updates['system.spells.pact.level'] = pact.level;
+        if (!isNpc) {
+          warnings.push(
+            "pact slot level comes from the actor's warlock class; only the slot count was set"
+          );
+        }
       } else {
         // ── Regular spell slots ───────────────────────────────────────────────
         let slotRow: number[];
@@ -1377,7 +1390,7 @@ export class ActorBuilderDataAccess {
 
         for (let i = 1; i <= 9; i++) {
           const n = slotRow[i - 1];
-          updates[`system.spells.spell${i}.max`] = n;
+          updates[`system.spells.spell${i}.override`] = n;
           updates[`system.spells.spell${i}.value`] = n;
         }
       }

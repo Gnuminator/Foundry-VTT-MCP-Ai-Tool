@@ -92,9 +92,9 @@ SESSION_RULES = """\
 You get the notes of every scene of one Dungeons & Dragons session. Write, in Danish (`da`) and
 English (`en`):
 - title: a short title for the session.
-- summary: 200 to 400 words for the GM, in story order, may include gm_only material.
-- changed: 3 to 8 bullets on what changed in the world or for the party.
-- recap_player: 150 to 300 words for the players, addressed to the party (English "you",
+- summary: up to 400 words for the GM (shorter when little happened), in story order, may include gm_only material.
+- changed: up to 8 bullets on what changed in the world or for the party (none if nothing did).
+- recap_player: up to 300 words for the players (a sentence or two when little happened), addressed to the party (English "you",
   Danish "I"), written as a "previously on" recap. It must not contain anything from any gm_only list, no
   hidden rolls, no GM plans, and nothing the characters could not know. Dice: only natural 20s,
   natural 1s and dramatic moments. Use character names, not player names. The GM approves it

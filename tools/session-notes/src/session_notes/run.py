@@ -29,7 +29,7 @@ MIN_SPLIT_LINES = 6
 class Options:
     scene_model: str = "sonnet"
     session_model: str = "sonnet"
-    scene_effort: str = "low"  # mostly careful copying, fixing and translating
+    scene_effort: str = "medium"  # low missed name fixes from the list (trial 2026-09-30)
     session_effort: str = "medium"  # the summary and the spoiler-safe recap need judgement
     scene_gap: float = 90.0
     only_scene: int | None = None
@@ -178,18 +178,22 @@ class Writer:
             data = json.loads(cached.read_text(encoding="utf-8"))
             if data.get("scenes") == key:
                 return data["notes"]
-        try:
-            out = self.runner(
-                session_prompt(notes, roster),
-                SESSION_SCHEMA,
-                self.opts.session_model,
-                self.opts.session_effort,
-            )
-        except UsageLimitError as exc:
-            self._log("paused", scene="session", reason=str(exc))
-            return None
-        except ClaudeError as exc:
-            self._log("session_error", error=str(exc))
+        out: dict[str, Any] | None = None
+        for _attempt in range(2):  # seen once: error_max_structured_output_retries on a test clip
+            try:
+                out = self.runner(
+                    session_prompt(notes, roster),
+                    SESSION_SCHEMA,
+                    self.opts.session_model,
+                    self.opts.session_effort,
+                )
+                break
+            except UsageLimitError as exc:
+                self._log("paused", scene="session", reason=str(exc))
+                return None
+            except ClaudeError as exc:
+                self._log("session_error", error=str(exc))
+        if out is None:
             return None
         cached.write_text(
             json.dumps({"scenes": key, "notes": out}, ensure_ascii=False), encoding="utf-8"

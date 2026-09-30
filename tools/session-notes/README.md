@@ -28,7 +28,7 @@ hotwords) helps Claude spell names right.
 | ------ | ------- | ------- |
 | `--scene-model` | `sonnet` | model for the per-scene calls |
 | `--session-model` | `sonnet` | model for the summary and the player recap |
-| `--scene-effort` | `low` | reasoning effort for the scene calls (low, medium, high, xhigh, max) |
+| `--scene-effort` | `medium` | reasoning effort for the scene calls (low, medium, high, xhigh, max) |
 | `--session-effort` | `medium` | reasoning effort for the summary and the recap |
 | `--workers` | `3` | scenes written at the same time |
 | `--scene-gap` | `90` | seconds of silence that start a new scene |
@@ -36,6 +36,15 @@ hotwords) helps Claude spell names right.
 
 Exit codes: 0 done, 1 error, 75 paused by a usage limit. After a pause, run the same command
 again later; finished scenes are kept in `notes/.work/` and are not redone.
+
+## Automatic runs
+
+`auto.ps1` does one pass over the sessions folder: it transcribes finished Discord recordings
+(`raw\session.json` present, audio, no timeline yet; names from Foundry when the bridge answers),
+writes notes where they are missing, and runs `cleanup --yes`. It does nothing when nothing is due,
+never runs twice at once (a lock file), and logs to `<sessions>\auto.log`. Try it with
+`pwsh tools/session-notes/auto.ps1 -DryRun`. A scheduled task in the Claude desktop app runs it
+every hour while the PC is on, so the notes are ready the morning after a session with no clicks.
 
 ## What it writes
 

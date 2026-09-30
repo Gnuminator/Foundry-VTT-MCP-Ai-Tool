@@ -42,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("session", help="session folder, or its name under FVTT_SESSIONS_DIR")
     run.add_argument("--scene-model", default="sonnet")
     run.add_argument("--session-model", default="sonnet")
-    run.add_argument("--scene-effort", default="low", help="low, medium, high, xhigh or max")
+    run.add_argument("--scene-effort", default="medium", help="low, medium, high, xhigh or max")
     run.add_argument("--session-effort", default="medium")
     run.add_argument("--scene-gap", type=float, default=90.0, help="seconds of silence per cut")
     run.add_argument("--only-scene", type=int, help="process one scene (for testing prompts)")

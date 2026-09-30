@@ -135,7 +135,7 @@ def test_speakers_json_overrides_and_marks_the_gm(session: Path) -> None:
     assert "- Rikke is the GM (narrates, rules, plays all NPCs)" in prompt
     assert "- Bo plays Vorn" in prompt and "- Anna plays Ireena" in prompt
     assert "u000002 [00:00:40] Bo (Vorn): Jeg tjekker" in prompt
-    assert fake.efforts == ["low", "low", "medium"]
+    assert fake.efforts == ["medium", "medium", "medium"]
 
 
 def test_parallel_scenes_keep_order_and_resume_after_limit(tmp_path: Path) -> None:
@@ -162,6 +162,13 @@ def test_parallel_scenes_keep_order_and_resume_after_limit(tmp_path: Path) -> No
     data = json.loads((session / "notes" / "notes.json").read_text(encoding="utf-8"))
     assert [s["index"] for s in data["scenes"]] == list(range(1, 9))
     assert data["session"] is not None
+
+
+def test_session_summary_retried_once(session: Path) -> None:
+    fake = FakeClaude(fail={3: "error"})  # scenes are calls 1 and 2; the summary fails once
+    result = Writer(session, fake, Options(workers=1)).run()
+    assert [k for k, _ in fake.calls] == ["scene", "scene", "session", "session"]
+    assert "session_ok" in [row["event"] for row in result.audit]
 
 
 def test_only_scene(session: Path) -> None:

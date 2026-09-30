@@ -1,0 +1,32 @@
+{
+  "name": "@gnuminator/discord-bot",
+  "version": "0.19.0",
+  "author": "Gnuminator <gnuminator@users.noreply.github.com>",
+  "description": "Foundry AI Tool Discord bot: records the voice channel one track per speaker for the session notes.",
+  "type": "module",
+  "private": true,
+  "main": "dist/cli.js",
+  "bin": {
+    "discord-bot": "dist/cli.js"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli.js run",
+    "convert": "node dist/cli.js convert",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@discordjs/voice": "0.19.2",
+    "@snazzah/davey": "0.1.12",
+    "discord.js": "^14.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

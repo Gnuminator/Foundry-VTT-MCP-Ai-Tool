@@ -1,10 +1,11 @@
 import { MODULE_ID } from './constants.js';
 import { SocketBridge } from './socket-bridge.js';
 import { QueryHandlers } from './queries.js';
-import { ModuleSettings, isBridgeUser } from './settings.js';
+import { ModuleSettings, isBridgeUser, registerSettingsUsageHooks } from './settings.js';
 import { CampaignHooks } from './campaign-hooks.js';
 import { eventTracker } from './session-events.js';
 import { playRecorder } from './play-recorder.js';
+import { USAGE_SOCKET_TYPE, trackUsage, usageRecorder } from './usage-recorder.js';
 import { diagnostics } from './diagnostics.js';
 import {
   registerGmHelperQueries,
@@ -71,6 +72,7 @@ class FoundryMCPBridge {
 
       // Register module settings
       this.settings.registerSettings();
+      registerSettingsUsageHooks();
 
       // Guarded-write feature switches (world settings, default off).
       registerGuardedFeature({
@@ -119,6 +121,7 @@ class FoundryMCPBridge {
       console.log(`[${MODULE_ID}] Module initialized successfully`);
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to initialize:`, error);
+      trackUsage('error', 'module.error.init', { code: 'init-failed' });
       ui.notifications.error('Failed to initialize Foundry MCP Bridge');
       throw error;
     }
@@ -477,12 +480,23 @@ Hooks.once('init', async () => {
 
 Hooks.once('ready', async () => {
   try {
+    // Usage log (I-084): every client batches its own events every 10 s.
+    usageRecorder.start();
+
     await foundryMCPBridge.onReady();
 
     // Register socket listener for roll state management (after game.user is available)
 
-    const onRollSocketMessage = async (data: any): Promise<void> => {
+    const onRollSocketMessage = async (data: any, senderId?: unknown): Promise<void> => {
       try {
+        // Usage events from other clients (I-084): only the GM client that holds the
+        // buffer keeps them. `senderId` is the authenticated sender Foundry's server
+        // appends to a relayed socket message; it wins over `data.userId`.
+        if ((data as { type?: unknown } | null)?.type === USAGE_SOCKET_TYPE) {
+          usageRecorder.receive(data, senderId);
+          return;
+        }
+
         // Handle ChatMessage update requests (GM only)
         if (data.type === 'requestMessageUpdate' && data.buttonId && data.messageId) {
           // Only GM can update ChatMessages for other users
@@ -501,6 +515,7 @@ Hooks.once('ready', async () => {
               console.error(`[${MODULE_ID}] GM failed to update message:`, error);
               // Notify GM about the failure
               if (game.user?.isGM) {
+                trackUsage('error', 'module.error.roll-update', { code: 'update-failed' });
                 ui.notifications?.error(
                   `Failed to update player roll message: ${error instanceof Error ? error.message : 'Unknown error'}`
                 );
@@ -527,6 +542,7 @@ Hooks.once('ready', async () => {
               console.error(`[${MODULE_ID}] GM failed to save LEGACY roll state:`, error);
               // Notify GM about the failure so they can take action
               if (game.user?.isGM) {
+                trackUsage('error', 'module.error.roll-state', { code: 'save-failed' });
                 ui.notifications?.error(
                   `Failed to save player roll state: ${error instanceof Error ? error.message : 'Unknown error'}`
                 );
@@ -546,7 +562,10 @@ Hooks.once('ready', async () => {
         console.error(`[${MODULE_ID}] Error handling socket message:`, error);
       }
     };
-    game.socket?.on('module.foundry-mcp-bridge', (data: any) => void onRollSocketMessage(data));
+    game.socket?.on(
+      'module.foundry-mcp-bridge',
+      (data: any, senderId?: unknown) => void onRollSocketMessage(data, senderId)
+    );
   } catch (error) {
     console.error(`[${MODULE_ID}] Ready failed:`, error);
   }

@@ -22,6 +22,7 @@
  * own localization or the GM's overrides.
  */
 import { isFeatureEnabled } from './guarded-features.js';
+import { trackUsage } from './usage-recorder.js';
 
 export const TAROKKA_FEATURE_ID = 'tarokka';
 export const TAROKKA_READING_MODULE = 'tarokka-reading';
@@ -282,7 +283,11 @@ export async function onTarokkaSettingChanged(
   const reading = readTarokkaReadingLocal();
   if (!reading?.dealt || askedReadingIds.has(reading.readingId)) return 'ignored';
   askedReadingIds.add(reading.readingId);
-  if (!(await ask())) return 'declined';
+  if (!(await ask())) {
+    trackUsage('action', 'module.tarokka.offer-decline');
+    return 'declined';
+  }
+  trackUsage('action', 'module.tarokka.offer-confirm');
   storeTarokkaOffer(reading, game.user.id);
   const others = game.users.filter(u => u.isGM && u.active && u.id !== game.user.id);
   await Promise.allSettled(others.map(u => sendOffer(u, reading)));

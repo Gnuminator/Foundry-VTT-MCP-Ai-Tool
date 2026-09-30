@@ -1,5 +1,6 @@
 import { MODULE_ID, DEFAULT_CONFIG, type ModuleHelloData } from './constants.js';
 import type { BridgeConfig } from './socket-bridge.js';
+import { trackUsage } from './usage-recorder.js';
 
 /**
  * Default bridge port: `flags.foundry-mcp-bridge.defaultServerPort` in this
@@ -46,6 +47,46 @@ interface GmUserLike {
   isGM?: boolean;
 }
 
+/**
+ * Settings the module writes itself (roll state, connection notes): not a person
+ * saving the settings window, so they never count as `module.settings.save`.
+ */
+const INTERNAL_SETTING_KEYS = new Set([
+  'rollStates',
+  'buttonMessageMap',
+  'lastConnectionState',
+  'lastActivity',
+  'lastMCPServerNotification',
+]);
+
+/**
+ * Usage log (I-084): count "settings saved" once per closed settings window, and
+ * only when this user changed one of the module's settings while it was open.
+ * Never the key or the value. `updateSetting` fires on every client with the
+ * changing user's id as its last argument.
+ */
+export function registerSettingsUsageHooks(): void {
+  let dirty = false;
+  Hooks.on(
+    'updateSetting',
+    (setting: unknown, _change: unknown, _options: unknown, userId: unknown) => {
+      try {
+        const key = (setting as { key?: unknown } | null)?.key;
+        if (typeof key !== 'string' || !key.startsWith(`${MODULE_ID}.`)) return;
+        if (INTERNAL_SETTING_KEYS.has(key.slice(MODULE_ID.length + 1))) return;
+        if (userId === game.user?.id) dirty = true;
+      } catch {
+        // never break a settings save
+      }
+    }
+  );
+  Hooks.on('closeSettingsConfig', () => {
+    if (!dirty) return;
+    dirty = false;
+    trackUsage('action', 'module.settings.save');
+  });
+}
+
 export class ModuleSettings {
   private moduleId: string = MODULE_ID;
 
@@ -87,7 +128,9 @@ export class ModuleSettings {
 
         activateListeners(html: JQuery) {
           super.activateListeners(html);
+          trackUsage('view', 'module.settings.enhanced-index-open');
           html.find('.rebuild-index-btn').click(() => {
+            trackUsage('action', 'module.settings.enhanced-index-rebuild');
             const bridge = (globalThis as any).foundryMCPBridge;
             if (bridge?.dataAccess?.rebuildEnhancedCreatureIndex) {
               ui.notifications?.info('Rebuilding enhanced creature index...');
@@ -97,6 +140,7 @@ export class ModuleSettings {
         }
 
         async _updateObject(_event: Event, formData: any) {
+          trackUsage('action', 'module.settings.enhanced-index-save');
           await game.settings.set(
             MODULE_ID,
             'enableEnhancedCreatureIndex',

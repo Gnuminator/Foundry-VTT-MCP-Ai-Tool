@@ -5,6 +5,7 @@ import { getTarokkaReading, searchLinkCandidates } from './tarokka.js';
 import { listRefChoices } from './data-access/ref-choices.js';
 import { listGuardedFeatures } from './guarded-features.js';
 import { playRecorder } from './play-recorder.js';
+import { usageRecorder } from './usage-recorder.js';
 import {
   applyGuardedOps,
   guardedApplyOutcome,
@@ -343,6 +344,15 @@ export class QueryHandlers {
       (data: { sinceSeq?: unknown; limit?: unknown } | undefined) =>
         this.withGmGate('Failed to get play records', () =>
           Promise.resolve(playRecorder.getPlayRecords(data))
+        )
+    );
+
+    // I-084: usage log (module controls used; buffer on the bridge-holding GM client)
+    handlers.set(
+      `${modulePrefix}.getUsageRecords`,
+      (data: { sinceSeq?: unknown; limit?: unknown } | undefined) =>
+        this.withGmGate('Failed to get usage records', () =>
+          Promise.resolve(usageRecorder.getUsageRecords(data))
         )
     );
 

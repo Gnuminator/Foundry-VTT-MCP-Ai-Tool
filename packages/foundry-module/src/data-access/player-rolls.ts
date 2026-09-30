@@ -1,5 +1,6 @@
 import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
+import { trackUsage } from '../usage-recorder.js';
 
 /** Outcome of resolving a roll-request target (a player user and/or character). */
 interface ResolveResult {
@@ -345,6 +346,8 @@ export class PlayerRollsDataAccess {
         return;
       }
 
+      trackUsage('action', 'module.chat.roll-button');
+
       try {
         // Diagnostic: surface the exact formula before parsing (helps catch
         // malformed formulas like "1d20+[object Object]").
@@ -417,6 +420,7 @@ export class PlayerRollsDataAccess {
         }
       } catch (error) {
         console.error(`[${MODULE_ID}] Error executing roll:`, error);
+        trackUsage('error', 'module.error.roll-button', { code: 'roll-failed' });
         ui.notifications?.error('Failed to execute roll');
 
         // Re-enable button on error so user can try again

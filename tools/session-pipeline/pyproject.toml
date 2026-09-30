@@ -24,3 +24,6 @@ where = ["src"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-q"
+
+[tool.setuptools.package-data]
+session_pipeline = ["data/*.txt"]

@@ -69,11 +69,11 @@ def test_cli_writes_all_five_files(tmp_path, capsys):
     assert "dropped: stock_caption 1" in capsys.readouterr().out
 
 
-def test_cli_suggests_but_does_not_apply_without_a_rule(tmp_path):
+def test_cli_no_auto_fix_only_suggests(tmp_path):
     src = setup_session(tmp_path)
     out = tmp_path / "out"
     assert main(["merge", str(src), "--out", str(out), "--vocab", str(tmp_path / "vocab.txt"),
-                 "--ordinary-min-count", "0"]) == 0
+                 "--ordinary-min-count", "0", "--no-auto-fix"]) == 0
     text = (out / "timeline.md").read_text(encoding="utf-8")
     assert "Strad" in text and "Strahd" not in text
     fixes = json.loads((out / "fixes.json").read_text(encoding="utf-8"))
@@ -112,3 +112,30 @@ def test_run_pipeline_end_to_end_in_memory():
     res = run_pipeline([a], rules=NameRules({"Strahd": ["Strad"]}))
     assert res.entries[0].text == "Strahd står der."
     assert res.entries[0].words[0].text == "Strad"  # words stay as heard
+
+
+def test_cli_auto_fix_is_on_by_default_and_logged(tmp_path, capsys):
+    src = setup_session(tmp_path)
+    out = tmp_path / "out"
+    assert main(["merge", str(src), "--out", str(out), "--vocab", str(tmp_path / "vocab.txt"),
+                 "--speakers", str(tmp_path / "speakers.json"), "--ordinary-min-count", "0"]) == 0
+    text = (out / "timeline.md").read_text(encoding="utf-8")
+    assert "Vi ser Strahd ved døren." in text
+    fixes = json.loads((out / "fixes.json").read_text(encoding="utf-8"))
+    assert fixes["suggestions"] == []
+    (fix,) = fixes["applied"]
+    assert (fix["kind"], fix["before"], fix["after"], fix["speaker"], fix["time"]) == (
+        "auto", "Strad", "Strahd", "anna", "01:02:05")
+    assert fix["score"] >= 0.88 and fix["start"] == 3725.0
+    assert fixes["summary"]["auto"] == 1
+    assert "(1 automatic)" in capsys.readouterr().out
+
+
+def test_cli_auto_fix_threshold_option(tmp_path):
+    src = setup_session(tmp_path)
+    out = tmp_path / "out"
+    assert main(["merge", str(src), "--out", str(out), "--vocab", str(tmp_path / "vocab.txt"),
+                 "--ordinary-min-count", "0", "--auto-fix-threshold", "0.95"]) == 0
+    fixes = json.loads((out / "fixes.json").read_text(encoding="utf-8"))
+    assert fixes["applied"] == []
+    assert [(s["heard"], s["blocked"]) for s in fixes["suggestions"]] == [("Strad", "below_threshold")]

@@ -34,13 +34,22 @@ to exist even when you only transcribe. Edit `FVTT_SESSIONS_DIR` in `.env` if yo
 | `voice-stack.ps1 up livekit` | builds the recorder and starts livekit, redis, egress, recorder |
 | `voice-stack.ps1 up tls` | the same plus local TLS for the Foundry module (`wss://localhost:7443`) |
 | `voice-stack.ps1 up transcribe` | builds the `fvtt-transcriber` and `fvtt-session-pipeline` images |
+| `voice-stack.ps1 names <session>` | builds `<session>/names.txt` (the names Whisper listens for) from the Foundry world and `extra-names.txt` |
 | `voice-stack.ps1 transcribe <session>` | runs the transcriber, then the pipeline, and prints where the outputs are |
 | `voice-stack.ps1 status` | containers, GPU memory, images, sessions folder |
 | `voice-stack.ps1 logs [service]` | follow the logs |
 | `voice-stack.ps1 down` | stops and removes the project's containers; keeps the model cache volume |
 
-`transcribe` options: `-Model <name|path>` (default `large-v3-turbo`), `-Hotwords` (uses
-`<session>/vocab.txt` as Whisper hotwords), `-Force` (redo finished tracks), `-NoPipeline`.
+`transcribe` options: `-Model <name|path>` (default `large-v3-turbo`), `-Force` (redo finished tracks),
+`-NoPipeline`, `-NoHotwords`, `-NoAutoFix`, `-Hotwords` (no `names.txt`: use `<session>/vocab.txt`).
+When `<session>/names.txt` exists it goes to Whisper as hotwords (cut to a token budget, first names
+win; see `tools/transcriber/README.md`) and to the pipeline as the known names for automatic name
+fixes (every fix is listed in `timeline/fixes.json`; `-NoAutoFix` turns them into suggestions).
+
+`names` options: `-Dashboard <url>` (default `http://127.0.0.1:3100`, the co-GM dashboard of the
+Foundry world), `-Offline`, `-Items`, `-Journals`. Without the dashboard it uses only
+`<session>/extra-names.txt` (or `extra-names.txt` in the sessions folder): one name per line, for names
+the world does not have.
 
 The script refuses to run when `.env` sets any `*_PORT` to a Foundry or bridge port (30000, 30001, 3100,
 31414 to 31416, 31514 to 31516). It only ever touches the `fvtt-voice` project; other containers on the
@@ -57,6 +66,7 @@ FoundrySessions/
   livekit-recordings/<room>/<yyyy-mm-dd_HHMM>/   written by the livekit profile (one .ogg per person)
   2026-11-07/                                    a session folder: per-speaker audio, or a Craig .zip
     speakers.json  vocab.txt  rules.json         optional, read by the pipeline (see tools/session-pipeline)
+    names.txt  extra-names.txt                   names for hotwords and name fixes (`names` command builds names.txt)
     transcripts/json/<speaker>.json              transcriber output (one per speaker)
     transcripts/run.json                         settings and timings of the run
     timeline/timeline.md (+ .jsonl, fixes, ...)  pipeline output

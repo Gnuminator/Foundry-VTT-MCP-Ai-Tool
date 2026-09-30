@@ -14,7 +14,14 @@ from typing import Any
 
 from fvtt_transcriber import __version__
 from fvtt_transcriber.inputs import TrackInput, collect_inputs
-from fvtt_transcriber.vocab import load_terms_text
+from fvtt_transcriber.vocab import (
+    DEFAULT_HOTWORD_TOKENS,
+    HOTWORD_TOKEN_LIMIT,
+    fit_terms,
+    hotwords_string,
+    load_hotword_terms,
+    load_terms_text,
+)
 
 SAMPLE_RATE = 16000
 
@@ -41,7 +48,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--language", default="da", help="language code, or 'auto' to detect")
     p.add_argument("--device", default="auto", help="auto, cuda or cpu")
     p.add_argument("--compute-type", default=None, help="default float16 on cuda, int8 on cpu")
-    p.add_argument("--hotwords", type=Path, help="vocabulary file, passed to Whisper as hotwords")
+    p.add_argument(
+        "--names",
+        "--hotwords",
+        dest="hotwords",
+        type=Path,
+        help="names file (one per line, most important first; commas, # comments and === headings "
+        "also work), passed to Whisper as hotwords; cut to --hotwords-max-tokens",
+    )
+    p.add_argument(
+        "--hotwords-max-tokens",
+        type=int,
+        default=DEFAULT_HOTWORD_TOKENS,
+        help=f"token budget for the hotwords (default {DEFAULT_HOTWORD_TOKENS}, hard limit "
+        f"{HOTWORD_TOKEN_LIMIT}: faster-whisper cuts the prompt there)",
+    )
     p.add_argument("--prompt", type=Path, help="vocabulary file, passed to Whisper as initial prompt")
     p.add_argument("--no-vad", action="store_true", help="turn the Silero VAD filter off")
     p.add_argument("--beam-size", type=int, default=5)
@@ -121,6 +142,7 @@ def _transcribe(
     compute = args.compute_type or ("float16" if device == "cuda" else "int8")
     vram = VramMonitor()
     t0 = time.time()
+    hotword_terms = load_hotword_terms(args.hotwords) if args.hotwords else []
     if kind == "whisper":
         settings = WhisperSettings(
             language=None if args.language == "auto" else args.language,
@@ -129,8 +151,10 @@ def _transcribe(
             condition_on_previous_text=args.condition_on_previous_text,
             no_speech_threshold=args.no_speech_threshold,
             compression_ratio_threshold=args.compression_ratio_threshold,
-            hotwords=load_terms_text(args.hotwords) if args.hotwords else None,
+            hotwords=hotwords_string(fit_terms(hotword_terms, args.hotwords_max_tokens)[0]) or None,
             initial_prompt=load_terms_text(args.prompt) if args.prompt else None,
+            hotword_terms=tuple(hotword_terms),
+            hotword_max_tokens=args.hotwords_max_tokens,
         )
         engine: Any = WhisperEngine(args.model, device, compute, settings)
         variant = settings.variant
@@ -147,6 +171,19 @@ def _transcribe(
             )
         }
         settings_dump["compute_type"] = compute
+        if hotword_terms:
+            kept = len([t for t in (settings.hotwords or "").split(", ") if t])
+            settings_dump["hotwords"] = dict(
+                terms=len(hotword_terms),
+                kept=kept,
+                dropped=len(settings.hotwords_dropped),
+                max_tokens=settings.hotword_max_tokens,
+            )
+            print(
+                f"hotwords: {kept} of {len(hotword_terms)} names fit the {settings.hotword_max_tokens} "
+                f"token budget" + (f"; dropped the last {len(settings.hotwords_dropped)}" if settings.hotwords_dropped else ""),
+                flush=True,
+            )
     else:
         if args.hotwords or args.prompt:
             print(f"note: {kind} does not take hotwords or a prompt; ignoring them", file=sys.stderr)

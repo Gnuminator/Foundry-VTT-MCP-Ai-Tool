@@ -12,7 +12,7 @@ from session_pipeline.echo import EchoConfig, LevelFn, filter_echo
 from session_pipeline.filters import Dropped, FilterConfig, LowConfidenceWord, VocabIndex, filter_track
 from session_pipeline.merge import Line, MergeConfig, collapse_adjacent, merge_tracks
 from session_pipeline.model import Track, Word
-from session_pipeline.names import Fix, NameRules, NameSuggester, Suggestion
+from session_pipeline.names import Fix, NameRules, NameSuggester, Suggestion, fix_case
 from session_pipeline.textutil import fmt_hms
 
 
@@ -85,6 +85,7 @@ def run_pipeline(
     suggester: NameSuggester | None = None,
     level_of: LevelFn | None = None,
     cfg: PipelineConfig | None = None,
+    auto_fix: bool = True,
 ) -> PipelineResult:
     cfg = cfg or PipelineConfig()
     speakers = speakers or {}
@@ -109,12 +110,30 @@ def run_pipeline(
         applied: list[Fix] = []
         if rules:
             text, applied = rules.apply(text)
-        sugg: list[Suggestion] = suggester.suggest(text) if suggester else []
+        auto: list[Suggestion] = []
+        sugg: list[Suggestion] = []
+        if suggester:
+            text, auto, sugg = suggester.fix(text, apply=auto_fix)
         result.entries.append(
             Entry(line.start, line.end, line.speaker, info.player, info.character, text, line.words, line.echo_suspect)
         )
         for f in applied:
-            result.fixes.append({"start": round(line.start, 3), "speaker": line.speaker, **f.to_dict()})
+            result.fixes.append(
+                {"kind": "rule", "start": round(line.start, 3), "speaker": line.speaker, **f.to_dict()}
+            )
+        for a in auto:
+            result.fixes.append(
+                {
+                    "kind": "auto",
+                    "start": round(line.start, 3),
+                    "time": fmt_hms(line.start),
+                    "speaker": line.speaker,
+                    "before": a.heard,
+                    "after": fix_case(a.heard, a.replacement),
+                    "name": a.suggested,
+                    "score": round(a.score, 3),
+                }
+            )
         for s in sugg:
             result.suggestions.append({"start": round(line.start, 3), "speaker": line.speaker, **s.to_dict()})
 
@@ -150,7 +169,11 @@ def write_outputs(result: PipelineResult, out_dir: str | Path) -> dict[str, Path
             {
                 "applied": result.fixes,
                 "suggestions": result.suggestions,
-                "summary": {"applied": len(result.fixes), "suggestions": len(result.suggestions)},
+                "summary": {
+                    "applied": len(result.fixes),
+                    "auto": sum(1 for f in result.fixes if f.get("kind") == "auto"),
+                    "suggestions": len(result.suggestions),
+                },
             },
             ensure_ascii=False,
             indent=2,

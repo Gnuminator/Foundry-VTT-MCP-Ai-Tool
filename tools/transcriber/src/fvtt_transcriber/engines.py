@@ -13,12 +13,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from fvtt_transcriber.vocab import DEFAULT_HOTWORD_TOKENS, fit_terms, hotwords_string
+
 SAMPLE_RATE = 16000
 
 
 @dataclass(slots=True)
 class WhisperSettings:
-    """The benchmark's best setup ("vadrobust") unless changed on the command line."""
+    """The default profile, chosen by the 2026-09-30 benchmark (turbo "vadrobust" plus hotwords):
+    model large-v3-turbo (set in the CLI), language da, Silero VAD filter on,
+    condition_on_previous_text off, no_speech_threshold 0.85, compression_ratio_threshold 2.4, word
+    timestamps, beam 5, and (when a names file is given) hotwords, never initial_prompt. Every field
+    can be changed on the command line.
+
+    ``hotword_terms`` are the names in priority order; the engine fits them to the token budget with
+    the real tokenizer and stores the result in ``hotwords`` (and what was dropped in
+    ``hotwords_dropped``).
+    """
 
     language: str | None = "da"
     beam_size: int = 5
@@ -29,6 +40,9 @@ class WhisperSettings:
     word_timestamps: bool = True
     hotwords: str | None = None
     initial_prompt: str | None = None
+    hotword_terms: tuple[str, ...] = ()
+    hotword_max_tokens: int = DEFAULT_HOTWORD_TOKENS
+    hotwords_dropped: tuple[str, ...] = ()
 
     def transcribe_kwargs(self) -> dict[str, Any]:
         kw: dict[str, Any] = dict(
@@ -82,6 +96,19 @@ class WhisperEngine:
         self.mode = "vadrobust" if settings.vad_filter else "novad"
         self.settings = settings
         self.model = WhisperModel(model, device=device, compute_type=compute_type)
+        if settings.hotword_terms:
+            self._fit_hotwords()
+
+    def _fit_hotwords(self) -> None:
+        """Cut the names to the token budget with the model's own tokenizer, names first."""
+        tok = self.model.hf_tokenizer
+
+        def count(text: str) -> int:
+            return len(tok.encode(text, add_special_tokens=False).ids)
+
+        kept, dropped = fit_terms(list(self.settings.hotword_terms), self.settings.hotword_max_tokens, count)
+        self.settings.hotwords = hotwords_string(kept) or None
+        self.settings.hotwords_dropped = tuple(dropped)
 
     def transcribe(self, audio: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         segments, _info = self.model.transcribe(audio, **self.settings.transcribe_kwargs())

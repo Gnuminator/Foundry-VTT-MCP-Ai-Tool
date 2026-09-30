@@ -19,6 +19,12 @@ describe('resolveObsidianVaultName', () => {
     );
   });
 
+  it('handles POSIX paths as well (the Orange Pi)', () => {
+    expect(resolveObsidianVaultName('', '/var/lib/foundry-ai-tool/obsidian/gm-vault/')).toBe(
+      'gm-vault'
+    );
+  });
+
   it('is off (empty) when neither is set', () => {
     expect(resolveObsidianVaultName('', '')).toBe('');
     expect(resolveObsidianVaultName('   ', '   ')).toBe('');

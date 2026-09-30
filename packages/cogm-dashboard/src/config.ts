@@ -153,7 +153,10 @@ export function resolveObsidianVaultName(vaultNameEnv: string, obsidianDirEnv: s
   if (name !== '') return name;
   const dir = obsidianDirEnv.trim();
   if (dir === '') return '';
-  return path.basename(dir);
+  // Split on both separators: a Windows path in the config must still work on the Pi (Linux),
+  // where path.basename only knows '/'.
+  const parts = dir.split(/[\\/]+/).filter(part => part !== '');
+  return parts[parts.length - 1] ?? '';
 }
 
 const gmToken = readString('GM_DASHBOARD_TOKEN', '');

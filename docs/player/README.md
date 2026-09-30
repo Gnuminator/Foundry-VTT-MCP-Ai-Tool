@@ -6,7 +6,8 @@ description: What players see, what the tool records during play, which parts re
 # Player guide
 
 Hi! Your GM uses Foundry AI Tool next to Foundry. For you, Foundry works exactly as usual. This
-page explains the extra bits: what you can see, what gets recorded, and what an AI reads.
+page explains the extra bits: what you can see, what gets recorded, and what an AI reads. Short
+how-tos are in the [player cookbook](cookbook.md).
 
 ## What you see
 

@@ -45,6 +45,9 @@ only suggest or also act.
 - "Deal a new Tarokka reading with the built-in roll. Show me the plan first."
 - "Plan revealing the page 'Old letter' in the journal 'Handouts' to the players."
 
+More ready-to-use requests, sorted by before, during and after a session:
+[Cookbook](cookbook.md).
+
 Requests that go wrong:
 
 - "Kill the wolf." Which wolf? Several tokens can share a name. Say "Wolf 2" or pick the token.

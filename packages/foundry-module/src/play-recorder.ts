@@ -1,4 +1,5 @@
 import { MODULE_ID } from './constants.js';
+import { EffectEventDeduper } from './effect-dedupe.js';
 import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
 import {
   chatRollKind,
@@ -625,6 +626,8 @@ export class PlayRecorder {
   private readonly pendingApply = new Map<string, PendingApply>();
   /** Each running combat's last turn: Foundry 14 nulls `combat.turn` before `deleteCombat` fires. */
   private readonly lastCombatTurn = new Map<string, number>();
+  /** Drops the mirrored second ActiveEffect event (Automated Conditions 5e, P-026). */
+  private readonly effectDeduper = new EffectEventDeduper();
 
   // -------------------------------------------------------------------------
   // Registration
@@ -1122,7 +1125,12 @@ export class PlayRecorder {
     const resourcesChanged = asRecord(getPath(changed, 'system.resources'));
     if (resourcesChanged) {
       for (const key of Object.keys(resourcesChanged)) {
-        const newVal = num(getPath(resourcesChanged, `${key}.value`));
+        // dnd5e 6 stores legendary actions and resistances as `spent`; `value` is derived.
+        const newVal =
+          num(getPath(resourcesChanged, `${key}.value`)) ??
+          (num(getPath(resourcesChanged, `${key}.spent`)) !== undefined
+            ? num(getPath(actor, `system.resources.${key}.value`))
+            : undefined);
         if (newVal !== undefined) {
           this.diffActorMapField(
             'resource',
@@ -1451,6 +1459,7 @@ export class PlayRecorder {
     if (!effect || !effectUuid) return;
     const actor = shape<ActorLike>(effect.parent);
     if (!actor || str(actor.documentName) !== 'Actor') return;
+    if (this.isMirroredEffect('effect-add', actor, effect)) return;
     const uid = this.uid(userId);
     const { t, fresh } = createOrUpdateTime(effect, false);
     this.push(
@@ -1476,6 +1485,7 @@ export class PlayRecorder {
     if (!effect || !effectUuid) return;
     const actor = shape<ActorLike>(effect.parent);
     if (!actor || str(actor.documentName) !== 'Actor') return;
+    if (this.isMirroredEffect('effect-remove', actor, effect)) return;
     const uid = this.uid(userId);
     const { t } = deleteTime();
     this.push(
@@ -1492,6 +1502,16 @@ export class PlayRecorder {
         },
       })
     );
+  }
+
+  /** The second of two matching effect events on one actor within 1.5 s (P-026). */
+  private isMirroredEffect(kind: string, actor: ActorLike, effect: EffectLike): boolean {
+    return this.effectDeduper.isDuplicate({
+      actor: str(actor.uuid),
+      kind,
+      name: str(effect.name) ?? str(effect.label) ?? 'Effect',
+      statuses: statusesOf(effect.statuses),
+    });
   }
 
   // -------------------------------------------------------------------------

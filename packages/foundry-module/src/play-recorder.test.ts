@@ -223,6 +223,25 @@ describe('actor state shadows', () => {
     });
   });
 
+  it('records legendary actions spent from `spent` (dnd5e 6 derives `value`)', () => {
+    const actor = makeFixtureActor({
+      system: { resources: { legact: { max: 3, spent: 0, value: 3 } } },
+    });
+    world.actors.add(actor);
+    recorder.seed();
+    actor._stats.modifiedTime = 6500;
+    // fireUpdate merges `spent`; the derived `value` is set as dnd5e's data prep would.
+    actor.system.resources.legact.value = 2;
+    fireUpdate('updateActor', actor, { system: { resources: { legact: { spent: 1 } } } }, {}, 'u1');
+    const resource = recorder.getPlayRecords({}).records.find(r => r.kind === 'resource');
+    expect(resource).toMatchObject({
+      path: 'system.resources.legact.value',
+      before: 3,
+      after: 2,
+      delta: -1,
+    });
+  });
+
   it('xp changes are recorded', () => {
     const actor = makeFixtureActor({ system: { details: { xp: { value: 100 } } } });
     world.actors.add(actor);
@@ -355,6 +374,24 @@ describe('effects and tokens', () => {
       effectName: 'Prone',
       statuses: ['prone'],
     });
+  });
+
+  it('records a mirrored condition (two ActiveEffects per toggle) once (P-026)', () => {
+    const actor = makeFixtureActor();
+    world.actors.add(actor);
+    const effect = (id: string): Record<string, unknown> => ({
+      uuid: `${actor.uuid}.ActiveEffect.${id}`,
+      name: 'Prone',
+      statuses: new Set(['prone']),
+      parent: actor,
+    });
+    const [prone, mirror] = [effect('e1'), effect('e2')];
+    Hooks.callAll('createActiveEffect', prone, {}, {}, 'u1');
+    Hooks.callAll('createActiveEffect', mirror, {}, {}, 'u1');
+    Hooks.callAll('deleteActiveEffect', prone, {}, 'u1');
+    Hooks.callAll('deleteActiveEffect', mirror, {}, 'u1');
+    const kinds = recorder.getPlayRecords({}).records.map(r => r.kind);
+    expect(kinds).toEqual(['effect-add', 'effect-remove']);
   });
 
   it('records token create/delete/move; move carries no coordinates', () => {

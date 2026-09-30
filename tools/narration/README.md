@@ -56,6 +56,10 @@ Open {Foundry|Faundri} now.
 - `{shown|spoken}` shows one thing in the captions and says another.
 - List items are paragraphs; links, bold and italics are read as plain text; `<!-- comments -->`
   are skipped.
+- Danish scripts keep the English game and Foundry terms the table uses (token, hit points,
+  attack, saving throw, disposition, Recent Changes); never translate them into pure Danish
+  ("redningskast", "holdning"). Where the Danish voice says one badly, fix it in the
+  pronunciation list, not in the script.
 - Keep sentences under about 250 characters; the voices do worse on long ones (`list` warns).
 
 ## Pronunciation list

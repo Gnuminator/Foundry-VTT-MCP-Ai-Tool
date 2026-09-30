@@ -124,6 +124,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'get-play-session',
       'get-play-stats',
       'get-preflight',
+      'get-prep-digest',
     ],
   },
   build: {

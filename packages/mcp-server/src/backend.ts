@@ -63,6 +63,7 @@ import { PlaySessionTools } from './tools/play-session.js';
 import { PlayStatsTools } from './tools/play-stats.js';
 import { PlayerViewTools } from './tools/player-view.js';
 import { PreflightTools } from './tools/preflight.js';
+import { PrepDigestTools } from './tools/prep-digest.js';
 import { RefChoiceTools } from './tools/ref-choices.js';
 import { TarokkaService } from './tarokka/service.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
@@ -314,10 +315,13 @@ async function startBackend(): Promise<void> {
     onRecorded: renderObsidian,
   });
   const guardedChangeTools = new GuardedChangeTools({ guardedWrites, foundryClient, logger });
-  const tarokkaTools = new TarokkaTools({
-    tarokka: new TarokkaService({ guardedWrites, store: vaultStore, worldIds, foundryClient }),
-    logger,
+  const tarokkaService = new TarokkaService({
+    guardedWrites,
+    store: vaultStore,
+    worldIds,
+    foundryClient,
   });
+  const tarokkaTools = new TarokkaTools({ tarokka: tarokkaService, logger });
   const playSessionTools = new PlaySessionTools({
     worldIds,
     store: vaultStore,
@@ -345,6 +349,16 @@ async function startBackend(): Promise<void> {
     worldIds,
     playSession: playSessionTools,
     obsidianVaultDirSet: Boolean(obsidianVaultDir),
+    logger,
+  });
+  const prepDigestTools = new PrepDigestTools({
+    foundryClient,
+    worldIds,
+    store: vaultStore,
+    handouts,
+    preflight: preflightTools,
+    guardedWrites,
+    tarokka: tarokkaService,
     logger,
   });
   // O4 Foundry mirror: the pump starts with the Foundry link below (vault dir set only).
@@ -401,6 +415,7 @@ async function startBackend(): Promise<void> {
     playStatsTools,
     playerViewTools,
     preflightTools,
+    prepDigestTools,
     sceneControlTools,
     lootTools,
     diagnosticsTools,

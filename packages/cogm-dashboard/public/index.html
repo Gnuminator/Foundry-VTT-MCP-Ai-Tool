@@ -83,6 +83,14 @@
           📜 Handouts
         </button>
         <button
+          id="btn-prep"
+          class="btn"
+          data-track="dash.header.prep"
+          title="Session prep: last session, open threads, next session notes (GM only)"
+        >
+          📋 Prep
+        </button>
+        <button
           id="btn-tarokka"
           class="btn"
           data-track="dash.header.tarokka"
@@ -403,6 +411,44 @@
         </ul>
         <h3 class="preflight-h">Revealed</h3>
         <ul class="preflight-list" id="handouts-revealed"></ul>
+      </div>
+    </aside>
+
+    <!-- Prep drawer (GM only; I-045): facts for session prep, no AI. -->
+    <aside class="drawer" id="prep-drawer" hidden aria-label="Session prep">
+      <div class="drawer-head">
+        <div>
+          <h2>📋 Prep</h2>
+          <span class="drawer-sub" id="prep-sub">GM only. Facts for your next session.</span>
+        </div>
+        <button
+          class="icon-btn"
+          id="prep-close"
+          data-track="dash.prep.close"
+          title="Close"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      </div>
+      <div class="tarokka-actions">
+        <button class="btn btn-primary" id="prep-refresh" data-track="dash.prep.refresh">
+          ↻ Refresh
+        </button>
+      </div>
+      <div class="tarokka-body prep-body">
+        <div id="prep-warnings"></div>
+        <h3 class="preflight-h">Last session</h3>
+        <div id="prep-last"><p class="empty">Loading…</p></div>
+        <h3 class="preflight-h">Open threads</h3>
+        <div id="prep-threads"></div>
+        <h3 class="preflight-h">Next session notes</h3>
+        <div id="prep-notes"></div>
+        <h3 class="preflight-h">Ready</h3>
+        <div id="prep-ready"></div>
+        <h3 class="preflight-h">Recent changes</h3>
+        <div id="prep-changes"></div>
+        <div id="prep-tarokka"></div>
       </div>
     </aside>
 

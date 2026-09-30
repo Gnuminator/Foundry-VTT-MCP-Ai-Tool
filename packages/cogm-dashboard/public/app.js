@@ -120,6 +120,19 @@ const els = {
   preflightFindings: $('preflight-findings'),
   preflightManual: $('preflight-manual'),
   versionBanner: $('version-banner'),
+  // Prep drawer (I-045)
+  btnPrep: $('btn-prep'),
+  prepDrawer: $('prep-drawer'),
+  prepClose: $('prep-close'),
+  prepSub: $('prep-sub'),
+  prepRefresh: $('prep-refresh'),
+  prepWarnings: $('prep-warnings'),
+  prepLast: $('prep-last'),
+  prepThreads: $('prep-threads'),
+  prepNotes: $('prep-notes'),
+  prepReady: $('prep-ready'),
+  prepChanges: $('prep-changes'),
+  prepTarokka: $('prep-tarokka'),
   // Recent guarded changes
   changesBody: $('changes-body'),
   changesMeta: $('changes-meta'),
@@ -1561,7 +1574,12 @@ function openHandouts() {
 function closeHandouts() {
   usage.endView('dash.handouts.view');
   els.handoutsDrawer.hidden = true;
-  if (els.drawer.hidden && els.tarokkaDrawer.hidden && els.preflightDrawer.hidden) {
+  if (
+    els.drawer.hidden &&
+    els.tarokkaDrawer.hidden &&
+    els.preflightDrawer.hidden &&
+    els.prepDrawer.hidden
+  ) {
     els.drawerBackdrop.hidden = true;
   }
 }
@@ -1678,6 +1696,309 @@ async function unqueueHandout(uuid) {
   void loadHandouts();
 }
 
+// --- Prep drawer (GM only; I-045) ---
+// Facts from the read tool get-prep-digest (the generic, GM-only /api/tool proxy carries it).
+// "Refresh" reloads the current view; "All beats" loads the last-session action. No AI.
+let prepDigest = null;
+let prepAction = 'summary';
+let prepLoading = false;
+
+function openPrep() {
+  usage.trackView('dash.prep.view');
+  els.drawerBackdrop.hidden = false;
+  els.prepDrawer.hidden = false;
+  void loadPrep();
+}
+function closePrep() {
+  usage.endView('dash.prep.view');
+  els.prepDrawer.hidden = true;
+  if (
+    els.drawer.hidden &&
+    els.tarokkaDrawer.hidden &&
+    els.preflightDrawer.hidden &&
+    els.handoutsDrawer.hidden
+  ) {
+    els.drawerBackdrop.hidden = true;
+  }
+}
+function clearPrepSections() {
+  for (const el of [
+    els.prepWarnings,
+    els.prepThreads,
+    els.prepNotes,
+    els.prepReady,
+    els.prepChanges,
+    els.prepTarokka,
+  ]) {
+    el.innerHTML = '';
+  }
+}
+async function loadPrep(action = prepAction) {
+  if (prepLoading) return;
+  prepLoading = true;
+  els.prepRefresh.disabled = true;
+  els.prepSub.textContent = 'Loading…';
+  try {
+    const digest = await callReadTool('get-prep-digest', { action });
+    if (!digest || typeof digest !== 'object') throw new Error('The bridge sent no digest.');
+    prepDigest = digest;
+    prepAction = action;
+    renderPrep();
+  } catch (err) {
+    els.prepSub.textContent = 'GM only. The digest did not load.';
+    clearPrepSections();
+    els.prepLast.innerHTML = `<p class="empty">Couldn't load the prep digest: ${escapeHtml(String(err.message || err))}</p>`;
+  } finally {
+    prepLoading = false;
+    els.prepRefresh.disabled = false;
+  }
+}
+function prepClock(iso) {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+function prepMinutes(min) {
+  const n = Math.max(0, Math.round(Number(min) || 0));
+  return n >= 60 ? `${Math.floor(n / 60)} h ${n % 60} min` : `${n} min`;
+}
+function prepCount(n, one, many) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+function prepRow(label, detail, extra = '') {
+  return `<li class="preflight-item">
+      <span class="pf-text"><span class="pf-label">${escapeHtml(label)}</span>${
+        detail ? `<span class="pf-detail">${escapeHtml(detail)}</span>` : ''
+      }</span>${extra}
+    </li>`;
+}
+function prepOpenButton(journalId) {
+  if (!journalId) return '';
+  return `<button type="button" class="btn btn-small" data-track="dash.prep.open-journal" data-prep-open="JournalEntry.${escapeHtml(journalId)}">Open</button>`;
+}
+function prepLastSession(last) {
+  if (!last) return '<p class="empty">No play session recorded yet.</p>';
+  const deaths = Array.isArray(last.deaths) ? last.deaths : [];
+  const handouts = Array.isArray(last.handoutsRevealed) ? last.handoutsRevealed : [];
+  const scenes = Array.isArray(last.scenes) ? last.scenes : [];
+  const beats = Array.isArray(last.beats) ? last.beats : [];
+  const rows = [
+    prepRow(
+      last.label || `Session ${last.number}`,
+      `${last.date || ''} · ${prepMinutes(last.durationMin)}`
+    ),
+    prepRow('Scenes', scenes.length > 0 ? scenes.join(', then ') : 'None'),
+    prepRow(
+      'Fights',
+      `${prepCount(last.combats || 0, 'fight', 'fights')}, ${prepCount(last.combatRounds || 0, 'round', 'rounds')}`
+    ),
+    prepRow(
+      'Downs',
+      prepCount(last.pcDowns || 0, 'player character down', 'player character downs')
+    ),
+    prepRow('Deaths', deaths.length > 0 ? deaths.join(', ') : 'None'),
+  ];
+  const handoutRows =
+    handouts.length === 0
+      ? '<p class="pf-detail">No handouts revealed.</p>'
+      : `<ul class="preflight-list">${handouts
+          .map(h => {
+            const seen = Array.isArray(h.seenBy) ? h.seenBy : [];
+            return prepRow(
+              h.title || 'Untitled',
+              seen.length > 0 ? `Seen by ${seen.join(', ')}` : 'Not opened by anyone yet'
+            );
+          })
+          .join('')}</ul>`;
+  const beatRows = beats
+    .map(
+      b =>
+        `<li><span class="prep-beat-time">${escapeHtml(prepClock(b.at))}</span> ${escapeHtml(String(b.kind || '').replace(/-/g, ' '))}: ${escapeHtml(b.text || '')}</li>`
+    )
+    .join('');
+  const moreBeats =
+    prepAction === 'summary' && last.beatsTruncated
+      ? '<button type="button" class="btn btn-small" data-track="dash.prep.all-beats" data-prep-beats>All beats</button>'
+      : '';
+  const beatsNote = last.beatsTruncated
+    ? `<p class="pf-detail">${prepAction === 'summary' ? 'Only the latest beats are shown.' : 'Only the latest 200 beats are shown.'}</p>`
+    : '';
+  const beatsBlock =
+    beats.length === 0
+      ? '<p class="pf-detail">No beats recorded.</p>'
+      : `<details class="prep-beats"><summary data-track="dash.prep.show-beats">Beats (${beats.length})</summary><ul>${beatRows}</ul>${beatsNote}</details>`;
+  return `<ul class="preflight-list">${rows.join('')}</ul>
+    <h4 class="prep-sub-h">Handouts revealed</h4>${handoutRows}
+    ${beatsBlock}${moreBeats}`;
+}
+function prepThreads(d) {
+  const quests = d.openQuests;
+  const campaigns = d.openCampaignParts;
+  const questHtml =
+    quests === null || quests === undefined
+      ? '<p class="empty">Needs Foundry: quests are not loaded.</p>'
+      : quests.length === 0
+        ? '<p class="empty">No open quests.</p>'
+        : `<ul class="preflight-list">${quests
+            .map(q => prepRow(q.name, q.status || 'Open', prepOpenButton(q.journalId)))
+            .join('')}</ul>`;
+  const campaignHtml =
+    campaigns === null || campaigns === undefined
+      ? '<p class="empty">Needs Foundry: campaign parts are not loaded.</p>'
+      : campaigns.length === 0
+        ? '<p class="empty">No open campaign parts.</p>'
+        : campaigns
+            .map(
+              c =>
+                `<h4 class="prep-sub-h">${escapeHtml(c.name)} ${prepOpenButton(c.journalId)}</h4><ul class="preflight-list">${(
+                  c.parts || []
+                )
+                  .map(p => prepRow(p.title, String(p.status || '').replace(/_/g, ' ')))
+                  .join('')}</ul>`
+            )
+            .join('');
+  return `<h4 class="prep-sub-h">Quests</h4>${questHtml}<h4 class="prep-sub-h">Campaign parts</h4>${campaignHtml}`;
+}
+function prepNotes(next) {
+  if (next === undefined) return '';
+  if (next === null) {
+    return `<p class="empty">Create a GM-only journal named 'Next session' in Foundry for your prep notes.</p>`;
+  }
+  const warn = next.playerVisible
+    ? '<div class="preflight-summary pf-warn">Players can see this journal</div>'
+    : '';
+  const pages = Array.isArray(next.pages) ? next.pages : [];
+  const body =
+    pages.length === 0
+      ? '<p class="empty">The journal has no pages yet.</p>'
+      : pages
+          .map(
+            p => `<div class="prep-note">
+              <div class="pf-label">${escapeHtml(p.name || 'Untitled')}</div>
+              <div class="prep-note-text">${escapeHtml(p.text || '')}${p.truncated ? ' …' : ''}</div>
+            </div>`
+          )
+          .join('');
+  return `${warn}<p class="pf-detail">${escapeHtml(next.name || 'Next session')} ${prepOpenButton(next.journalId)}</p>${body}`;
+}
+function prepCounter(label, c) {
+  return c ? `${label} ${c.remaining}/${c.max}` : '';
+}
+function prepReady(d) {
+  const queue = Array.isArray(d.handoutQueue) ? d.handoutQueue : [];
+  const groups = new Map();
+  for (const q of queue) {
+    const key = q.sceneName || 'Any scene';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(q);
+  }
+  const queueHtml =
+    queue.length === 0
+      ? '<p class="empty">No handouts queued.</p>'
+      : [...groups]
+          .map(
+            ([scene, items]) =>
+              `<h4 class="prep-sub-h">${escapeHtml(scene)}</h4><ul class="preflight-list">${items
+                .map(q =>
+                  prepRow(
+                    q.title || 'Untitled',
+                    Array.isArray(q.players) && q.players.length > 0
+                      ? `For ${prepCount(q.players.length, 'player', 'players')}`
+                      : ''
+                  )
+                )
+                .join('')}</ul>`
+          )
+          .join('');
+  const bosses = d.bosses;
+  const bossHtml =
+    bosses === null || bosses === undefined
+      ? '<p class="empty">Needs Foundry: bosses are not loaded.</p>'
+      : bosses.length === 0
+        ? '<p class="empty">No boss creatures on scenes.</p>'
+        : `<ul class="preflight-list">${bosses
+            .map(b => {
+              const bits = [
+                b.sceneName,
+                prepCounter('Legendary', b.legendary),
+                prepCounter('Resistances', b.resistances),
+                b.lair ? (b.lair.inside ? 'Lair: inside' : 'Lair') : '',
+              ].filter(Boolean);
+              return prepRow(`${b.tokenName}${b.hidden ? ' (hidden)' : ''}`, bits.join(' · '));
+            })
+            .join('')}</ul>`;
+  const pf = d.preflight;
+  let pfHtml;
+  if (!pf) {
+    pfHtml = '<p class="empty">The pre-flight check could not run.</p>';
+  } else {
+    const items = Array.isArray(pf.items) ? pf.items : [];
+    const list =
+      items.length === 0
+        ? ''
+        : `<ul class="preflight-list">${items
+            .map(i => {
+              const sev = PREFLIGHT_ICONS[i.severity] ? i.severity : 'unknown';
+              return `<li class="preflight-item pf-${sev}"><span class="pf-icon">${PREFLIGHT_ICONS[sev]}</span><span class="pf-text"><span class="pf-label">${escapeHtml(i.title)}</span></span></li>`;
+            })
+            .join('')}</ul>`;
+    pfHtml = `<p class="pf-detail">${escapeHtml(`${pf.fail} to fix, ${pf.warn} to look at`)}</p>${list}
+      <button type="button" class="btn btn-small" data-track="dash.prep.open-preflight" data-prep-preflight>Open Pre-flight</button>`;
+  }
+  return `<h4 class="prep-sub-h">Handout queue</h4>${queueHtml}
+    <h4 class="prep-sub-h">Bosses</h4>${bossHtml}
+    <h4 class="prep-sub-h">Pre-flight</h4>${pfHtml}`;
+}
+function prepChanges(rc) {
+  const count = rc && Number.isFinite(rc.count) ? rc.count : 0;
+  const latest = rc && Array.isArray(rc.latest) ? rc.latest : [];
+  if (count === 0) return '<p class="empty">No changes made through the tool yet.</p>';
+  return `<p class="pf-detail">${prepCount(count, 'change', 'changes')} made through the tool.</p>
+    <ul class="preflight-list">${latest
+      .map(c =>
+        prepRow(c.title || 'Change', c.appliedAt ? new Date(c.appliedAt).toLocaleString() : '')
+      )
+      .join('')}</ul>`;
+}
+function renderPrep() {
+  const d = prepDigest;
+  if (!d) return;
+  const loaded = prepClock(new Date(Number(d.computedAt) || Date.now()).toISOString());
+  els.prepSub.textContent = `GM only. Loaded ${loaded || 'just now'}.`;
+  const warnings = Array.isArray(d.warnings) ? d.warnings : [];
+  els.prepWarnings.innerHTML = warnings
+    .map(w => `<div class="preflight-summary pf-warn">${escapeHtml(w)}</div>`)
+    .join('');
+  els.prepLast.innerHTML = prepLastSession(d.lastSession);
+  els.prepThreads.innerHTML = prepThreads(d);
+  els.prepNotes.innerHTML = prepNotes(d.nextSession);
+  els.prepReady.innerHTML = prepReady(d);
+  els.prepChanges.innerHTML = prepChanges(d.recentChanges);
+  els.prepTarokka.innerHTML =
+    d.tarokka && d.tarokka.hasReading ? '<p class="pf-detail">A Tarokka reading exists.</p>' : '';
+}
+async function onPrepClick(e) {
+  const open = e.target.closest('[data-prep-open]');
+  if (open) {
+    try {
+      await callReadTool('open-in-foundry', { uuid: open.dataset.prepOpen });
+      toast('Opened in Foundry', 'ok');
+    } catch (err) {
+      toast(`✗ open-in-foundry: ${String(err.message || err)}`, 'err');
+    }
+    return;
+  }
+  if (e.target.closest('[data-prep-beats]')) {
+    void loadPrep('last-session');
+    return;
+  }
+  if (e.target.closest('[data-prep-preflight]')) {
+    closePrep();
+    openPreflight();
+  }
+}
+
 // --- Pre-flight drawer (GM only; I-068) ---
 // Automatic checks come from GET /api/preflight (bridge + dashboard); the
 // Tarokka "Show cards" box is checked here. Manual ticks stay in this browser.
@@ -1728,7 +2049,12 @@ function openPreflight() {
 function closePreflight() {
   usage.endView('dash.preflight.view');
   els.preflightDrawer.hidden = true;
-  if (els.drawer.hidden && els.tarokkaDrawer.hidden && els.handoutsDrawer.hidden) {
+  if (
+    els.drawer.hidden &&
+    els.tarokkaDrawer.hidden &&
+    els.handoutsDrawer.hidden &&
+    els.prepDrawer.hidden
+  ) {
     els.drawerBackdrop.hidden = true;
   }
 }
@@ -1881,7 +2207,12 @@ function openTarokka() {
 function closeTarokka() {
   usage.endView('dash.tarokka.view');
   els.tarokkaDrawer.hidden = true;
-  if (els.drawer.hidden && els.preflightDrawer.hidden && els.handoutsDrawer.hidden) {
+  if (
+    els.drawer.hidden &&
+    els.preflightDrawer.hidden &&
+    els.handoutsDrawer.hidden &&
+    els.prepDrawer.hidden
+  ) {
     els.drawerBackdrop.hidden = true;
   }
 }
@@ -2102,6 +2433,11 @@ els.tarokkaRoll.addEventListener('click', () =>
   planThenApply('plan-tarokka-import', { source: 'builtin-roll' })
 );
 els.tarokkaBody.addEventListener('click', e => void onTarokkaClick(e));
+els.btnPrep.addEventListener('click', openPrep);
+els.prepClose.addEventListener('click', closePrep);
+els.drawerBackdrop.addEventListener('click', closePrep);
+els.prepRefresh.addEventListener('click', () => void loadPrep());
+els.prepDrawer.addEventListener('click', e => void onPrepClick(e));
 els.btnHandouts.addEventListener('click', openHandouts);
 els.handoutsClose.addEventListener('click', closeHandouts);
 els.drawerBackdrop.addEventListener('click', closeHandouts);
@@ -2162,6 +2498,9 @@ document.addEventListener('keydown', e => {
   if (!els.modalBackdrop.hidden) {
     usage.trackShortcut('dash.shortcut.escape-modal');
     closeModal(false);
+  } else if (!els.prepDrawer.hidden) {
+    usage.trackShortcut('dash.shortcut.escape-prep');
+    closePrep();
   } else if (!els.handoutsDrawer.hidden) {
     usage.trackShortcut('dash.shortcut.escape-handouts');
     closeHandouts();

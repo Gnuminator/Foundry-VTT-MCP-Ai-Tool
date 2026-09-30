@@ -30,6 +30,7 @@ import { PlaySessionTools } from '../tools/play-session.js';
 import { PlayStatsTools } from '../tools/play-stats.js';
 import { PlayerViewTools } from '../tools/player-view.js';
 import { PreflightTools } from '../tools/preflight.js';
+import { PrepDigestTools } from '../tools/prep-digest.js';
 import { QuestCreationTools } from '../tools/quest-creation.js';
 import { RefChoiceTools } from '../tools/ref-choices.js';
 import { ResourceTools } from '../tools/resources.js';
@@ -86,6 +87,16 @@ export function stubToolRouterDeps(): ToolRouterDeps {
       worldIds: {} as any,
       playSession: {} as any,
       obsidianVaultDirSet: false,
+      logger,
+    }),
+    prepDigestTools: new PrepDigestTools({
+      foundryClient,
+      worldIds: {} as any,
+      store: {} as any,
+      handouts: {} as any,
+      preflight: {} as any,
+      guardedWrites: {} as any,
+      tarokka: {} as any,
       logger,
     }),
     questCreationTools: new QuestCreationTools(base),

@@ -26,8 +26,8 @@ const deps = stubToolRouterDeps();
 const tools = collectToolDefinitions(deps);
 
 describe('tool catalog', () => {
-  it('lists exactly 92 tools; control methods such as record_usage are not tools', () => {
-    expect(tools).toHaveLength(92);
+  it('lists exactly 93 tools; control methods such as record_usage are not tools', () => {
+    expect(tools).toHaveLength(93);
     expect(tools.map(t => t.name)).not.toContain('record_usage');
     expect(Object.keys(buildToolRouter(deps))).not.toContain('record_usage');
   });
@@ -54,7 +54,7 @@ describe('tool catalog', () => {
   });
 
   it('keeps each tool set within its size budget (characters of JSON Claude Desktop receives)', () => {
-    // Budgets with some room; all 92 tools are about 89,000 characters. Raise one only on purpose.
+    // Budgets with some room; all 93 tools are about 89,000 characters. Raise one only on purpose.
     const budget = {
       core: 15_000,
       play: 30_000,

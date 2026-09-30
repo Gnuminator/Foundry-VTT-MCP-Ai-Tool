@@ -2260,3 +2260,48 @@ body {
 .seen-tick.seen {
   color: var(--good);
 }
+
+/* --- Prep drawer (I-045) ------------------------------------------------ */
+.prep-body .pf-text {
+  flex: 1;
+}
+.prep-sub-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.7rem 0 0.35rem;
+  font-size: var(--fs-sm);
+  color: var(--text-mid);
+}
+.prep-beats {
+  margin: 0.6rem 0 0.4rem;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+}
+.prep-beats ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+.prep-beats li {
+  margin-bottom: 0.25rem;
+  overflow-wrap: anywhere;
+}
+.prep-beat-time {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.prep-note {
+  margin-bottom: 0.6rem;
+  padding: 0.45rem 0.55rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+}
+.prep-note-text {
+  margin-top: 0.2rem;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

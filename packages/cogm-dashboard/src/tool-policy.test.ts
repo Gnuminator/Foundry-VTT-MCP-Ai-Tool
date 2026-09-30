@@ -14,6 +14,7 @@ describe('classifyTool', () => {
       'suggest-balanced-encounter',
       'get-planned-change',
       'open-in-foundry',
+      'get-prep-digest',
     ]) {
       expect(classifyTool(name)).toBe('read');
     }

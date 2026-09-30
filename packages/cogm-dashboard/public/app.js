@@ -28,6 +28,17 @@ const streamUrl = () =>
 
 const $ = id => document.getElementById(id);
 
+// Usage log (I-084, usage.js): fixed control names only, never typed text or messages. The
+// page works the same when usage.js is missing.
+const noop = () => {};
+const usage = window.cogmUsage || {
+  track: noop,
+  trackTool: noop,
+  trackView: noop,
+  endView: noop,
+  trackShortcut: noop,
+};
+
 const els = {
   worldSubtitle: $('world-subtitle'),
   statusBridge: $('status-bridge'),
@@ -373,7 +384,7 @@ function renderCombat(combat) {
           : '';
       const init = c.initiative === null || c.initiative === undefined ? '—' : c.initiative;
       return `
-        <div class="${combatantClasses(c)}" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">
+        <div class="${combatantClasses(c)}"${settings.gmActionsEnabled ? ' data-track="dash.combat.select-combatant"' : ''} data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">
           <div class="init-badge">${init}</div>
           <div class="combatant-main">
             <div class="combatant-name">${escapeHtml(c.name)} ${sideTag(c)}</div>
@@ -409,20 +420,20 @@ function renderCombatActions() {
     <div class="ca-row">
       <div class="ca-seg" role="group" aria-label="Roll initiative">
         <span class="ca-seg-label">Init</span>
-        <button type="button" class="ca-btn" data-init="npcs">NPCs</button>
-        <button type="button" class="ca-btn" data-init="all">All</button>
-        <button type="button" class="ca-btn" data-init="missing">Missing</button>
+        <button type="button" class="ca-btn" data-track="dash.combat.init-npcs" data-init="npcs">NPCs</button>
+        <button type="button" class="ca-btn" data-track="dash.combat.init-all" data-init="all">All</button>
+        <button type="button" class="ca-btn" data-track="dash.combat.init-missing" data-init="missing">Missing</button>
       </div>
-      <button type="button" class="ca-btn" data-advance>⏭ Advance turn</button>
+      <button type="button" class="ca-btn" data-track="dash.combat.advance-turn" data-advance>⏭ Advance turn</button>
     </div>${
       n > 0
         ? `
     <div class="ca-row ca-selection">
       <span class="ca-count"><strong>${n}</strong> selected</span>
-      <button type="button" class="ca-btn" data-sel="init">Roll init</button>
-      <button type="button" class="ca-btn" data-sel="damage">Damage / Heal</button>
-      <button type="button" class="ca-btn" data-sel="save">Roll save</button>
-      <button type="button" class="ca-btn ghost" data-sel="clear">Clear</button>
+      <button type="button" class="ca-btn" data-track="dash.combat.selection-init" data-sel="init">Roll init</button>
+      <button type="button" class="ca-btn" data-track="dash.combat.selection-damage" data-sel="damage">Damage / Heal</button>
+      <button type="button" class="ca-btn" data-track="dash.combat.selection-save" data-sel="save">Roll save</button>
+      <button type="button" class="ca-btn ghost" data-track="dash.combat.selection-clear" data-sel="clear">Clear</button>
     </div>`
         : ''
     }`;
@@ -545,6 +556,7 @@ function commentDone(d) {
   postBtn.className = 'btn btn-post';
   postBtn.textContent = '→ Post to chat';
   postBtn.addEventListener('click', () => {
+    usage.track('action', 'dash.ai.post-to-chat');
     postBtn.disabled = true;
     postBtn.textContent = 'Posting…';
     postChat(c.text)
@@ -567,6 +579,7 @@ function commentDone(d) {
 function commentError(d) {
   const c = comments.get(d.id);
   if (!c) return;
+  usage.track('error', 'dash.ai.error', { code: 'generation' });
   c.card.classList.add('errored');
   c.body.textContent = `⚠ ${d.message || 'generation failed'}`;
 }
@@ -661,7 +674,16 @@ function findTool(name) {
   return toolCatalog.find(t => t.name === name);
 }
 
-function toast(msg, kind = 'ok') {
+// A short code for an error toast: an HTTP status or a timeout, read from the message but
+// never sent on (the message itself is never logged).
+function toastCode(msg) {
+  const http = /(?:HTTP|->) (\d{3})\b/.exec(msg);
+  if (http) return http[1];
+  return /time(?:d)? ?out/i.test(msg) ? 'timeout' : 'error';
+}
+
+function toast(msg, kind = 'ok', code) {
+  if (kind === 'err') usage.track('error', 'dash.toast.error', { code: code || toastCode(msg) });
   const el = document.createElement('div');
   el.className = `toast ${kind}`;
   el.textContent = msg;
@@ -714,10 +736,12 @@ function updateGate() {
 function openDrawer() {
   els.drawerBackdrop.hidden = false;
   els.drawer.hidden = false;
+  usage.trackView('dash.tools.view');
   updateGate();
   if (!toolsLoaded) void loadTools();
 }
 function closeDrawer() {
+  usage.endView('dash.tools.view');
   els.drawer.hidden = true;
   els.drawerBackdrop.hidden = true;
 }
@@ -759,7 +783,7 @@ function renderToolList(filter) {
     html += `<div class="tool-cat">${escapeHtml(cat)}</div>`;
     for (const t of tools) {
       html += `
-        <button type="button" class="tool-item" data-tool="${escapeHtml(t.name)}">
+        <button type="button" class="tool-item" data-track="dash.tools.open-tool" data-tool="${escapeHtml(t.name)}">
           <span class="tool-item-main">
             <span class="tool-item-name">${escapeHtml(t.name)}</span>
             <span class="tool-item-desc">${escapeHtml(t.description || '')}</span>
@@ -1055,7 +1079,10 @@ function buildRefPicker(def, ref, control, form) {
             ? ` <span class="ref-warn" title="The tool matches by name; several share it">same name ×${counts.get(choice.name)}</span>`
             : ''
         }</span>`;
-      item.addEventListener('click', () => pick(choice));
+      item.addEventListener('click', () => {
+        usage.track('action', 'dash.tools.pick-choice');
+        pick(choice);
+      });
       list.appendChild(item);
     }
   }
@@ -1110,7 +1137,14 @@ function buildRefPicker(def, ref, control, form) {
     }
   }
 
-  open.addEventListener('click', () => (menu.hidden ? show() : close()));
+  open.addEventListener('click', () => {
+    if (menu.hidden) {
+      usage.track('action', 'dash.tools.pick-open');
+      show();
+    } else {
+      close();
+    }
+  });
   search.addEventListener('input', () => {
     if (!needsSearch) {
       render();
@@ -1128,6 +1162,7 @@ function buildRefPicker(def, ref, control, form) {
   });
   wrap.addEventListener('keydown', e => {
     if (e.key === 'Escape' && !menu.hidden) {
+      usage.trackShortcut('dash.shortcut.escape-picker');
       e.preventDefault();
       e.stopPropagation();
       close();
@@ -1221,6 +1256,12 @@ function doneText(name, result) {
   return `✓ ${name}`;
 }
 
+// The code for a failed read call: the HTTP status in its message, else a generic one.
+function toolErrorCode(err) {
+  const m = /-> (\d{3})\b|HTTP (\d{3})\b/.exec(String((err && err.message) || err));
+  return m ? m[1] || m[2] : 'error';
+}
+
 // --- Run a tool (confirm-gated for writes) ---
 async function runTool(name, args, mutates, opts = {}) {
   const found = findTool(name);
@@ -1230,6 +1271,7 @@ async function runTool(name, args, mutates, opts = {}) {
   let summary = opts.summary;
   if (kind !== 'read') {
     if (!settings.gmActionsEnabled) {
+      usage.trackTool(name, 'error', 'gm-actions-off');
       toast('GM Actions are off — enable them to run this.', 'warn');
       openDrawer();
       return;
@@ -1240,6 +1282,7 @@ async function runTool(name, args, mutates, opts = {}) {
       try {
         plan = await callReadTool('get-planned-change', { planId: args && args.planId });
       } catch (err) {
+        usage.trackTool(name, 'error', toolErrorCode(err));
         toast(`✗ Can't load the plan: ${String(err.message || err)}`, 'err');
         return;
       }
@@ -1255,7 +1298,10 @@ async function runTool(name, args, mutates, opts = {}) {
       diff,
       summary,
     });
-    if (!ok) return;
+    if (!ok) {
+      usage.trackTool(name, 'cancelled');
+      return;
+    }
     confirmFlags =
       kind === 'destructive' ? { confirm: true, confirmDestructive: true } : { confirm: true };
   }
@@ -1267,6 +1313,7 @@ async function runTool(name, args, mutates, opts = {}) {
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok) {
+      usage.trackTool(name, 'ok');
       toast(doneText(name, data.result), 'ok');
       // A handout reveal that copies the page says where the copy goes ("Copied into Handouts").
       if (data.result && data.result.copy && typeof data.result.note === 'string') {
@@ -1280,16 +1327,19 @@ async function runTool(name, args, mutates, opts = {}) {
       return data;
     }
     const msg = data.error || `HTTP ${res.status}`;
+    // The code is what failed: the server's kind (tool, timeout, channel) or the HTTP status.
+    usage.trackTool(name, 'error', data.kind || String(res.status));
     if (res.status === 403) {
       toast('GM Actions are off — enable them first.', 'warn');
       openDrawer();
     } else {
-      toast(`✗ ${name}: ${msg}`, 'err');
+      toast(`✗ ${name}: ${msg}`, 'err', data.kind || String(res.status));
     }
     if (opts.showResultInDrawer) showToolResult(false, msg);
   } catch (err) {
     const msg = String(err.message || err);
-    toast(`✗ ${name}: ${msg}`, 'err');
+    usage.trackTool(name, 'error', 'network');
+    toast(`✗ ${name}: ${msg}`, 'err', 'network');
     if (opts.showResultInDrawer) showToolResult(false, msg);
   }
 }
@@ -1347,14 +1397,14 @@ function renderRecentChanges() {
       const lines = c.diff || [];
       const diff = lines.map(line => `<li>${escapeHtml(line)}</li>`).join('');
       const undo = c.canUndo
-        ? `<button type="button" class="btn btn-small" data-undo="${escapeHtml(c.changeId)}">Undo</button>`
+        ? `<button type="button" class="btn btn-small" data-track="dash.changes.undo" data-undo="${escapeHtml(c.changeId)}">Undo</button>`
         : '';
       const details = diff
-        ? `<details><summary>${lines.length} line(s)</summary><ul class="change-diff">${diff}</ul></details>`
+        ? `<details><summary data-track="dash.changes.show-diff">${lines.length} line(s)</summary><ul class="change-diff">${diff}</ul></details>`
         : '';
       const obsidianUrl = obsidianChangeUrl(c);
       const obsidianLink = obsidianUrl
-        ? `<a class="link-btn" href="${escapeHtml(obsidianUrl)}" target="_blank" rel="noopener" title="Open this month's change log in Obsidian">📓</a>`
+        ? `<a class="link-btn" data-track="dash.changes.open-obsidian" href="${escapeHtml(obsidianUrl)}" target="_blank" rel="noopener" title="Open this month's change log in Obsidian">📓</a>`
         : '';
       return `
         <div class="change-entry state-${state}">
@@ -1383,18 +1433,22 @@ async function planThenApply(planTool, args) {
   try {
     plan = await callReadTool(planTool, args);
   } catch (err) {
+    usage.trackTool(planTool, 'error', toolErrorCode(err));
     toast(`✗ ${planTool}: ${String(err.message || err)}`, 'err');
     return;
   }
+  usage.trackTool(planTool, 'ok');
   if (plan && plan.providerNote) toast(plan.providerNote, 'warn');
   await runTool('apply-planned-change', { planId: plan.planId }, 'write');
 }
 function openTarokka() {
+  usage.trackView('dash.tarokka.view');
   els.drawerBackdrop.hidden = false;
   els.tarokkaDrawer.hidden = false;
   void loadTarokka();
 }
 function closeTarokka() {
+  usage.endView('dash.tarokka.view');
   els.tarokkaDrawer.hidden = true;
   if (els.drawer.hidden) els.drawerBackdrop.hidden = true;
 }
@@ -1423,11 +1477,11 @@ function renderTarokka() {
       const links = Object.entries(p.links || {})
         .map(
           ([key, uuid]) =>
-            `<button type="button" class="btn btn-small" data-open="${escapeHtml(uuid)}">Open ${escapeHtml(LINK_LABELS[key] || key)}</button>`
+            `<button type="button" class="btn btn-small" data-track="dash.tarokka.open-document" data-open="${escapeHtml(uuid)}">Open ${escapeHtml(LINK_LABELS[key] || key)}</button>`
         )
         .join('');
       const revealed = p.revealed
-        ? `<span class="tarokka-badge revealed">revealed</span>${p.revealPageUuid ? `<button type="button" class="btn btn-small" data-open="${escapeHtml(p.revealPageUuid)}">Open page</button>` : ''}`
+        ? `<span class="tarokka-badge revealed">revealed</span>${p.revealPageUuid ? `<button type="button" class="btn btn-small" data-track="dash.tarokka.open-document" data-open="${escapeHtml(p.revealPageUuid)}">Open page</button>` : ''}`
         : '<span class="tarokka-badge">hidden from players</span>';
       return `
         <div class="tarokka-pos" data-position="${escapeHtml(p.position)}">
@@ -1438,8 +1492,8 @@ function renderTarokka() {
           ${p.gmNote && show ? `<div class="tarokka-note">${escapeHtml(p.gmNote)}</div>` : ''}
           <div class="tarokka-row">${links || '<span class="tarokka-badge warn">not linked</span>'} ${revealed}</div>
           <div class="tarokka-row">
-            <button type="button" class="btn btn-small" data-link-search="${escapeHtml(p.position)}">Link…</button>
-            <button type="button" class="btn btn-small" data-reveal="${escapeHtml(p.position)}">Reveal…</button>
+            <button type="button" class="btn btn-small" data-track="dash.tarokka.link" data-link-search="${escapeHtml(p.position)}">Link…</button>
+            <button type="button" class="btn btn-small" data-track="dash.tarokka.reveal" data-reveal="${escapeHtml(p.position)}">Reveal…</button>
           </div>
           <div class="tarokka-form" data-form="${escapeHtml(p.position)}" hidden></div>
         </div>`;
@@ -1454,7 +1508,7 @@ function showLinkSearch(position) {
   form.hidden = false;
   form.innerHTML = `
     <input class="field-control" type="text" placeholder="Search journals, pages, scenes, actors…" data-link-query />
-    <button type="button" class="btn btn-small" data-link-go="${escapeHtml(position)}">Search</button>
+    <button type="button" class="btn btn-small" data-track="dash.tarokka.link-search" data-link-go="${escapeHtml(position)}">Search</button>
     <div class="tarokka-candidates"></div>`;
   form.querySelector('[data-link-query]').focus();
 }
@@ -1469,7 +1523,7 @@ async function runLinkSearch(position) {
       ? candidates
           .map(
             c =>
-              `<div class="tarokka-candidate"><span>${escapeHtml(c.documentName)}: ${escapeHtml(c.name)}${c.parentName ? ` <em>(${escapeHtml(c.parentName)})</em>` : ''}</span><button type="button" class="btn btn-small" data-link-pick="${escapeHtml(position)}" data-uuid="${escapeHtml(c.uuid)}" data-doc="${escapeHtml(c.documentName)}">Link</button></div>`
+              `<div class="tarokka-candidate"><span>${escapeHtml(c.documentName)}: ${escapeHtml(c.name)}${c.parentName ? ` <em>(${escapeHtml(c.parentName)})</em>` : ''}</span><button type="button" class="btn btn-small" data-track="dash.tarokka.link-pick" data-link-pick="${escapeHtml(position)}" data-uuid="${escapeHtml(c.uuid)}" data-doc="${escapeHtml(c.documentName)}">Link</button></div>`
           )
           .join('')
       : '<p class="empty">No matches.</p>';
@@ -1488,7 +1542,7 @@ function showRevealForm(position) {
   form.innerHTML = `
     <input class="field-control" type="text" placeholder="Page title (optional)" data-reveal-title />
     <textarea class="field-control" rows="4" placeholder="Exactly what the players may read" data-reveal-text></textarea>
-    <button type="button" class="btn btn-small" data-reveal-go="${escapeHtml(position)}">Plan reveal…</button>`;
+    <button type="button" class="btn btn-small" data-track="dash.tarokka.plan-reveal" data-reveal-go="${escapeHtml(position)}">Plan reveal…</button>`;
   form.querySelector('[data-reveal-text]').focus();
 }
 async function onTarokkaClick(e) {
@@ -1626,12 +1680,20 @@ els.modalDestructiveCheck.addEventListener('change', () => {
 });
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  if (!els.modalBackdrop.hidden) closeModal(false);
-  else if (!els.tarokkaDrawer.hidden) closeTarokka();
-  else if (!els.drawer.hidden) closeDrawer();
+  if (!els.modalBackdrop.hidden) {
+    usage.trackShortcut('dash.shortcut.escape-modal');
+    closeModal(false);
+  } else if (!els.tarokkaDrawer.hidden) {
+    usage.trackShortcut('dash.shortcut.escape-tarokka');
+    closeTarokka();
+  } else if (!els.drawer.hidden) {
+    usage.trackShortcut('dash.shortcut.escape-tools');
+    closeDrawer();
+  }
 });
 
 connect();
+usage.trackView('dash.main.view');
 renderSessionControl();
 void loadPlaySession();
 setInterval(() => void loadPlaySession(), 60000);

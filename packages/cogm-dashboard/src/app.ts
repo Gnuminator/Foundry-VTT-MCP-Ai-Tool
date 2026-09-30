@@ -1,4 +1,5 @@
 import express, { type Express, type Request, type Response } from 'express';
+import type { RecordUsageResult, UsageEvent } from '@gnuminator/shared';
 
 import type { Config, Tone } from './config.js';
 import type { Logger } from './logger.js';
@@ -19,6 +20,7 @@ import { mountOpenRoute, OPEN_PAGE_HEADERS, type OpenRouteOptions } from './open
 import { buildPlayerState } from './player/projection.js';
 import { PlayerViewSource } from './player/source.js';
 import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
+import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
 
 /**
  * The co-GM dashboard as an Express app plus its feed handlers, built from
@@ -43,6 +45,8 @@ export interface DashboardClient {
     options?: { timeoutMs?: number }
   ): Promise<T>;
   listTools(): Promise<unknown[]>;
+  /** Hand usage events to the bridge (I-084); absent on fakes, "Unknown method" on old backends. */
+  recordUsage?(events: UsageEvent[]): Promise<RecordUsageResult>;
   readonly isConnected?: boolean;
 }
 
@@ -144,6 +148,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     commentOnErrors: config.commentOnErrors,
     gmActionsEnabled: false,
   };
+
+  // Non-GM user names for the player page's name pick and the usage log (I-084).
+  const playerDirectory = new PlayerDirectory(client, logger.child('usage'));
 
   const state = new GameState(config.maxEvents, config.maxErrors);
   const sse = new SseHub(logger);
@@ -310,6 +317,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     try {
       const raw = await client.callTool('get-world-info');
       world = mapWorld(raw);
+      playerDirectory.harvest(raw);
       coGm.setWorld(world);
       sse.broadcast('world', world, gmOnly);
       schedulePlayerBroadcast();
@@ -399,6 +407,14 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   // "Open in Foundry" (O4, open-route.ts). Before the JSON parser: its POST parses its own
   // body after its guards.
   mountOpenRoute(app, { ...deps.openRoute, config, client, logger: logger.child('open') });
+  // The usage log (I-084, usage-route.ts): write-only, parses its own small body.
+  mountUsageRoute(app, {
+    config,
+    client,
+    logger: logger.child('usage'),
+    directory: playerDirectory,
+    requireGm,
+  });
   app.use(express.json({ limit: '256kb' }));
   // The player page and the /open confirm page get their headers from inside express.static,
   // by file name and file identity, so no URL spelling (`/player%2Ehtml`, `/Player.html`,

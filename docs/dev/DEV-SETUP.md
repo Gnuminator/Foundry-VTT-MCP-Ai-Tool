@@ -38,7 +38,7 @@ npm test -w @gnuminator/cogm-dashboard   # 29   (1120 total)
 node scripts/mcp-schema-smoke-test.mjs
 node scripts/standalone-smoke-test.mjs
 node scripts/cogm-split-smoke-test.mjs
-node validate-manifest.js
+node scripts/validate-manifest.js
 ```
 
 If a workspace build emits nothing, delete stale `*.tsbuildinfo` and rebuild. The **Vitest** extension

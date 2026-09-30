@@ -8,8 +8,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const manifestPath = path.join(__dirname, 'packages', 'foundry-module', 'module.json');
-const sharedConstantsPath = path.join(__dirname, 'shared', 'src', 'constants.ts');
+const repoRoot = path.join(__dirname, '..');
+const manifestPath = path.join(repoRoot, 'packages', 'foundry-module', 'module.json');
+const sharedConstantsPath = path.join(repoRoot, 'shared', 'src', 'constants.ts');
 
 console.log('🔍 Validating Foundry Module Manifest...\n');
 
@@ -126,7 +127,7 @@ try {
   console.log('\n📁 File Existence:');
   if (manifest.esmodules) {
     manifest.esmodules.forEach(file => {
-      const filePath = path.join(__dirname, 'packages', 'foundry-module', file);
+      const filePath = path.join(repoRoot, 'packages', 'foundry-module', file);
       if (fs.existsSync(filePath)) {
         console.log(`   ✅ ${file}: EXISTS`);
       } else {
@@ -138,7 +139,7 @@ try {
 
   if (manifest.styles) {
     manifest.styles.forEach(file => {
-      const filePath = path.join(__dirname, 'packages', 'foundry-module', file);
+      const filePath = path.join(repoRoot, 'packages', 'foundry-module', file);
       if (fs.existsSync(filePath)) {
         console.log(`   ✅ ${file}: EXISTS`);
       } else {
@@ -150,7 +151,7 @@ try {
 
   if (manifest.languages) {
     manifest.languages.forEach(lang => {
-      const filePath = path.join(__dirname, 'packages', 'foundry-module', lang.path);
+      const filePath = path.join(repoRoot, 'packages', 'foundry-module', lang.path);
       if (fs.existsSync(filePath)) {
         console.log(`   ✅ ${lang.path}: EXISTS`);
       } else {

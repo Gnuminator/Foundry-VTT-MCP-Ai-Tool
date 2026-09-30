@@ -58,6 +58,8 @@ export interface RefFilter {
   types?: string[];
   /** actor: only actors a player owns (player characters). */
   playerOwned?: boolean;
+  /** actor: actors with a token on the current scene first (group "On this scene"). */
+  onSceneFirst?: boolean;
   /** user: only GMs or only players. */
   role?: 'gm' | 'player';
   /** folder / compendium-pack / compendium-entry / document: the document class, e.g. 'Actor'. */
@@ -98,6 +100,15 @@ export interface FreeTextRef {
 }
 
 export type ToolRefAnnotation = ToolRef | FreeTextRef;
+
+/**
+ * Actor pickers for tools that act on one creature at the table: PCs and NPCs, the ones
+ * with a token on the current scene first (I-017; a big world has 700+ actors).
+ */
+export const AT_THE_TABLE: RefFilter = { types: ['character', 'npc'], onSceneFirst: true };
+
+/** Actor pickers for tools that build NPCs (features, attacks, spells). */
+export const NPCS_ONLY: RefFilter = { types: ['npc'] };
 
 /** Spread into a parameter schema: `{ type: 'string', ...toolRef('token', 'id') }`. */
 export function toolRef(
@@ -158,6 +169,7 @@ interface ToolLike {
 const FILTER_KEYS = new Set([
   'types',
   'playerOwned',
+  'onSceneFirst',
   'role',
   'documentName',
   'undoable',

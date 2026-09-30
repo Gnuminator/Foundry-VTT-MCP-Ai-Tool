@@ -1115,6 +1115,7 @@ function buildRefPicker(def, ref, control, form) {
       <input type="search" class="ref-search" autocomplete="off" aria-label="Filter choices"
         placeholder="${needsSearch ? 'Type to search…' : 'Filter…'}" />
       <div class="ref-note"></div>
+      <button type="button" class="btn btn-small ref-all" hidden title="List every actor, not only the kinds this tool is for">Show all actors</button>
       <div class="ref-list" role="listbox"${multiple ? ' aria-multiselectable="true"' : ''}></div>
     </div>`;
   const row = wrap.querySelector('.ref-row');
@@ -1122,6 +1123,7 @@ function buildRefPicker(def, ref, control, form) {
   const menu = wrap.querySelector('.ref-menu');
   const search = wrap.querySelector('.ref-search');
   const note = wrap.querySelector('.ref-note');
+  const showAllButton = wrap.querySelector('.ref-all');
   const list = wrap.querySelector('.ref-list');
   const open = document.createElement('button');
   open.type = 'button';
@@ -1134,6 +1136,9 @@ function buildRefPicker(def, ref, control, form) {
 
   let rows = []; // [{ choice, group }]
   let loadSeq = 0;
+  // Actor pickers are narrowed to the tool's actor types (I-017); the GM can lift that.
+  const narrowsActors = kinds.includes('actor') && !!ref.filter;
+  let showAll = false;
   let searchTimer = null;
   const extras = (ref.extra || []).map(e => ({
     choice: { id: e.value, name: e.label, literal: e.value },
@@ -1149,7 +1154,7 @@ function buildRefPicker(def, ref, control, form) {
       kinds.map(kind =>
         callReadTool('list-ref-choices', {
           kind,
-          ...(ref.filter ? { filter: ref.filter } : {}),
+          ...(ref.filter && !(showAll && kind === 'actor') ? { filter: ref.filter } : {}),
           ...(parent ? { parent } : {}),
           ...(query ? { query } : {}),
           limit: 200,
@@ -1169,8 +1174,15 @@ function buildRefPicker(def, ref, control, form) {
       ),
     ];
     note.textContent = notes.join(' · ');
+    showAllButton.hidden = !narrowsActors || showAll;
     render();
   }
+
+  showAllButton.addEventListener('click', () => {
+    usage.track('action', 'dash.tools.show-all-actors');
+    showAll = true;
+    void load(needsSearch ? search.value.trim() : '');
+  });
 
   function render() {
     const q = needsSearch ? '' : search.value.trim().toLowerCase();

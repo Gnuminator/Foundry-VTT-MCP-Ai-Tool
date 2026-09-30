@@ -44,6 +44,7 @@ const requestSchema = z.object({
     .object({
       types: z.array(z.string().max(60)).max(30).optional(),
       playerOwned: z.boolean().optional(),
+      onSceneFirst: z.boolean().optional(),
       role: z.enum(['gm', 'player']).optional(),
       documentName: z.string().max(60).optional(),
       undoable: z.boolean().optional(),

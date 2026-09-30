@@ -37,6 +37,7 @@ export interface RefChoicesResult {
 interface RefFilter {
   types?: string[];
   playerOwned?: boolean;
+  onSceneFirst?: boolean;
   role?: 'gm' | 'player';
   documentName?: string;
   includeSystem?: boolean;
@@ -65,6 +66,7 @@ interface TokenLike {
   disposition: number;
   x: number;
   y: number;
+  actorId?: string | null;
   actor: Actor | null;
 }
 
@@ -144,6 +146,7 @@ function readFilter(raw: unknown): RefFilter {
     out.types = f.types.filter((t): t is string => typeof t === 'string');
   }
   if (typeof f.playerOwned === 'boolean') out.playerOwned = f.playerOwned;
+  if (typeof f.onSceneFirst === 'boolean') out.onSceneFirst = f.onSceneFirst;
   if (f.role === 'gm' || f.role === 'player') out.role = f.role;
   if (typeof f.documentName === 'string') out.documentName = f.documentName;
   if (typeof f.includeSystem === 'boolean') out.includeSystem = f.includeSystem;
@@ -176,7 +179,23 @@ function typeAllowed(type: string | undefined, filter: RefFilter): boolean {
 // Listers, one per kind
 // ---------------------------------------------------------------------------
 
+/** Group name for actors with a token on the current scene (`onSceneFirst`). */
+export const ON_SCENE_GROUP = 'On this scene';
+
+/**
+ * World actors. With `onSceneFirst`, actors that have a token on the current scene come
+ * first under {@link ON_SCENE_GROUP}, so a picker in a big world (700+ actors, I-017)
+ * starts with the ones at the table.
+ */
 function listActors({ filter }: ListRequest): Listed {
+  const onScene = new Set<string>();
+  if (filter.onSceneFirst) {
+    const tokens = (game.scenes.current?.tokens.contents ?? []) as TokenLike[];
+    for (const t of tokens) {
+      const id = t.actorId ?? t.actor?.id;
+      if (id) onScene.add(id);
+    }
+  }
   const choices = game.actors.contents
     .filter(a => typeAllowed(a.type, filter) && (!filter.playerOwned || a.hasPlayerOwner))
     .map(a => ({
@@ -184,9 +203,10 @@ function listActors({ filter }: ListRequest): Listed {
       uuid: a.uuid,
       name: a.name,
       detail: detail(a.type, a.hasPlayerOwner && 'player-owned'),
-      group: a.folder?.name ?? a.type,
+      group: onScene.has(a.id) ? ON_SCENE_GROUP : (a.folder?.name ?? a.type),
     }));
-  return { choices: choices.sort(byGroupThenName) };
+  const first = (c: RefChoice): number => (c.group === ON_SCENE_GROUP ? 0 : 1);
+  return { choices: choices.sort((a, b) => first(a) - first(b) || byGroupThenName(a, b)) };
 }
 
 function listTokens({ parent }: ListRequest): Listed {

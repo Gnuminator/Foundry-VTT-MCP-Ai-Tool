@@ -468,7 +468,10 @@ describe('planPageReveal: copy into "Handouts"', () => {
     });
 
     const data = await revealsData();
-    expect(data.handoutsJournal).toEqual({ uuid: copy.journalUuid });
+    expect(data.handoutsJournal).toEqual({
+      uuid: copy.journalUuid,
+      lastCopy: copy.pageUuid.split('.').pop(),
+    });
     expect(data.pages).toEqual({
       [copy.pageUuid.split('.').pop()!]: {
         uuid: copy.pageUuid,
@@ -545,7 +548,9 @@ describe('planPageReveal: copy into "Handouts"', () => {
     expect(plan.diff.map(d => d.text)).toContain(
       `Create JournalEntryPage "Party Handout" in ${journalUuid}`
     );
-    expect(plan.diff.some(d => d.path === 'handoutsJournal')).toBe(false);
+    // No second journal; only the undo anchor moves to this copy.
+    expect(plan.diff.map(d => d.text)).not.toContain('Create JournalEntry "Handouts"');
+    expect(plan.diff.some(d => d.path === 'handoutsJournal')).toBe(true);
     await apply(plan.planId, true);
     expect(pagesIn(journalUuid).sort()).toEqual(
       [first.plan.copy!.pageUuid, plan.copy!.pageUuid].sort()
@@ -566,7 +571,10 @@ describe('planPageReveal: copy into "Handouts"', () => {
     await apply(plan.planId, true);
 
     const data = await revealsData();
-    expect(data.handoutsJournal).toEqual({ uuid: plan.copy!.journalUuid });
+    expect(data.handoutsJournal).toEqual({
+      uuid: plan.copy!.journalUuid,
+      lastCopy: plan.copy!.pageUuid.split('.').pop(),
+    });
     // The entry of the lost copy is replaced, not kept next to the new one.
     expect(copyEntries(data).map(([, entry]) => entry.uuid)).toEqual([plan.copy!.pageUuid]);
     expect(foundry.docs.get(plan.copy!.journalUuid)?.source.name).toBe('Handouts');
@@ -633,6 +641,74 @@ describe('planPageReveal: copy into "Handouts"', () => {
     await apply(plan.planId, true);
     expect(foundry.docs.get(plan.copy!.pageUuid)?.source.text.content).toBe('<p>Open.</p>');
   });
+
+  it('leaves embeds out and turns links to GM documents into plain text', async () => {
+    await planAndApply({ pageUuid: PAGE2, action: 'reveal' }); // a revealed handout, not a copy
+    foundry.edit(PAGE1, {
+      path: 'text.content',
+      present: true,
+      value:
+        `<p>See @UUID[${PAGE2}]{the welcome}, @UUID[${MISSING}]{the cellar} and ` +
+        '@UUID[Actor.aaaaaaaaaaaaaaaa].</p>' +
+        `<p>@Embed[${MISSING} secrets=true]{Cellar}</p>`,
+    });
+    const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
+    expect(plan.copy).toMatchObject({ embedsRemoved: 1, linksUnlinked: 2 });
+    expect(plan.note).toContain('1 embedded document left out.');
+    expect(plan.note).toContain('2 links to documents players cannot open turned into plain text.');
+    await apply(plan.planId, true);
+    expect(foundry.docs.get(plan.copy!.pageUuid)?.source.text.content).toBe(
+      `<p>See @UUID[${PAGE2}]{the welcome}, the cellar and .</p><p></p>`
+    );
+  });
+
+  it('a source with a copy keeps using it after its journal opens to players', async () => {
+    const first = await planAndApply({ pageUuid: PAGE1, action: 'reveal' });
+    hiddenJournal.delete(PAGE1);
+    foundry.edit(PAGE1, { path: 'text.content', present: true, value: '<p>It was wine.</p>' });
+    const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
+    expect(plan.copy).toMatchObject({ action: 'update', pageUuid: first.plan.copy!.pageUuid });
+    expect(plan.target).toBe('foundry');
+    // The source is neither allowlisted nor raised.
+    expect(plan.diff.every(d => d.target !== PAGE1)).toBe(true);
+  });
+
+  it('copy: false is refused while the page has a copy', async () => {
+    await planAndApply({ pageUuid: PAGE1, action: 'reveal' });
+    hiddenJournal.delete(PAGE1);
+    await expect(
+      handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal', copy: false })
+    ).rejects.toThrow(/already has a copy in the player journal "Handouts"\. .*hide it first/);
+  });
+
+  it('two pending copy plans for one source cannot both apply (no duplicate copies)', async () => {
+    await planAndApply({ pageUuid: PAGE2, action: 'reveal', copy: true }); // "Handouts" exists
+    const x = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
+    const y = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
+    expect(x.copy?.action).toBe('create');
+    expect(y.copy?.action).toBe('create');
+    await apply(x.planId, true);
+    await expect(apply(y.planId, true)).rejects.toThrow(/Conflict.*handoutsJournal/);
+    const copiesOfPage1 = copyEntries(await revealsData()).filter(
+      ([, entry]) => entry.copiedFrom === PAGE1
+    );
+    expect(copiesOfPage1.map(([, entry]) => entry.uuid)).toEqual([x.copy!.pageUuid]);
+    expect(pagesIn(x.copy!.journalUuid)).toHaveLength(2);
+  });
+
+  it('warns when the world already has another journal called "Handouts"', async () => {
+    const plain = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
+    expect(plain.note).not.toContain('already has');
+    foundry.handlers['foundry-mcp-bridge.listJournals'] = (): unknown => [
+      { id: 'adventureHandouts', name: 'Handouts', pageCount: 3, pages: [] },
+      { id: 'chapter4xxxxxxxxx', name: 'Chapter 4', pageCount: 1, pages: [] },
+    ];
+    const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
+    expect(plan.copy?.journalCreated).toBe(true);
+    expect(plan.note).toContain(
+      'The world already has a journal called "Handouts"; the new one is the player journal'
+    );
+  });
 });
 
 describe('planPageReveal: hide a copied handout', () => {
@@ -658,7 +734,10 @@ describe('planPageReveal: hide a copied handout', () => {
     expect(foundry.docs.get(journalUuid)?.source.name).toBe('Handouts');
     const data = await revealsData();
     expect(data.pages).toEqual({});
-    expect(data.handoutsJournal).toEqual({ uuid: journalUuid });
+    expect(data.handoutsJournal).toEqual({
+      uuid: journalUuid,
+      lastCopy: copyUuid.split('.').pop(),
+    });
     expect(await handouts.playerHandouts()).toEqual({ handouts: [], revealedUuids: [] });
     expect(foundry.docs.get(PAGE1)?.source.ownership).toEqual({ default: 0 });
   });
@@ -705,6 +784,29 @@ describe('planPageReveal: undo of copies', () => {
     // Revealing again starts over with a new journal.
     const again = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
     expect(again.copy).toMatchObject({ action: 'create', journalCreated: true });
+  });
+
+  it('undo of the first copy is refused while a later copy is in "Handouts"', async () => {
+    const first = await planAndApply({ pageUuid: PAGE1, action: 'reveal' });
+    const second = await planAndApply({ pageUuid: PAGE2, action: 'reveal', copy: true });
+    const journalUuid = first.plan.copy!.journalUuid;
+    await expect(guarded.undo(first.changeId, { confirm: true })).rejects.toThrow(
+      /Conflict, nothing was written: .*handoutsJournal changed since/
+    );
+    // Nothing was written: both copies, the journal and both entries are still there.
+    expect(pagesIn(journalUuid).sort()).toEqual(
+      [first.plan.copy!.pageUuid, second.plan.copy!.pageUuid].sort()
+    );
+    expect(copyEntries(await revealsData())).toHaveLength(2);
+    expect((await handouts.playerHandouts()).handouts).toHaveLength(2);
+
+    // Undone newest first, both go through, and the journal goes with the first.
+    await guarded.undo(second.changeId, { confirm: true });
+    await guarded.undo(first.changeId, { confirm: true });
+    expect(foundry.docs.has(journalUuid)).toBe(false);
+    const data = await revealsData();
+    expect(data.handoutsJournal).toBeUndefined();
+    expect(copyEntries(data)).toEqual([]);
   });
 
   it('undo of a copy into an existing journal removes only that page', async () => {

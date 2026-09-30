@@ -8,6 +8,11 @@
  * first copy, the update on a second reveal, the hide and its undo. As a
  * control, the source page still holds every canary (the seeding is real) and
  * the copy holds the visible text.
+ *
+ * The second suite covers what Foundry 14 pulls in when a player opens a page:
+ * `@Embed` renders another document inline and a content link without a label
+ * shows the target's name, both without a permission check on the player's
+ * client. No reference to a GM document may reach the copy or the player view.
  */
 import { promises as fsp } from 'fs';
 import * as os from 'os';
@@ -216,5 +221,70 @@ describe('reveal copy canary: secret blocks never leave the source page', () => 
     expect(targets.length).toBeGreaterThan(0);
     expect(targets).not.toContain(SOURCE);
     expect(targets).not.toContain(sourceJournal);
+  });
+});
+
+describe('reveal copy canary: enrichers never pull GM documents into the copy', () => {
+  const GM_PAGE = 'JournalEntry.cccccccccccccccc.JournalEntryPage.gggggggggggggggg';
+  const GM_ACTOR = 'Actor.hhhhhhhhhhhhhhhh';
+  /** Anything that would let a player's client resolve a GM document from the copy. */
+  const REFERENCES = [
+    'gggggggggggggggg',
+    'hhhhhhhhhhhhhhhh',
+    '@Embed',
+    '@embed',
+    '@UUID',
+    '@Actor',
+  ];
+
+  function referencesIn(text: string): string[] {
+    return REFERENCES.filter(ref => text.includes(ref));
+  }
+
+  it('embeds and links to GM documents are gone from the copy, on the first copy and the update', async () => {
+    foundry.add(GM_PAGE, 'JournalEntryPage', {
+      name: 'CANARY-GM-PAGE-NAME',
+      type: 'text',
+      text: { content: '<p>CANARY-GM-PAGE-TEXT</p><section class="secret">CANARY-X</section>' },
+    });
+    foundry.add(GM_ACTOR, 'Actor', { name: 'CANARY-GM-ACTOR-NAME' });
+    const html =
+      `<p>${VISIBLE.opening}</p>` +
+      `<p>@Embed[${GM_PAGE}]</p>` +
+      `<p>@Embed[uuid=${GM_PAGE} secrets=true caption="Notes"]{Notes}</p>` +
+      `<p>@embed[${GM_ACTOR} inline]</p>` +
+      `<p>Meet @UUID[${GM_ACTOR}] at @UUID[${GM_PAGE}]{the tavern}. ` +
+      '@Actor[hhhhhhhhhhhhhhhh] @UUID[.gggggggggggggggg]</p>' +
+      `<p>${VISIBLE.closing}</p>`;
+    foundry.edit(SOURCE, { path: 'text.content', present: true, value: html });
+
+    const reveal = await handouts.planPageReveal({ pageUuid: SOURCE, action: 'reveal' });
+    expect(reveal.copy).toMatchObject({ action: 'create', embedsRemoved: 3, linksUnlinked: 4 });
+    await guarded.applyPlan(reveal.planId, { confirm: true, confirmDestructive: true });
+    const copyUuid = reveal.copy!.pageUuid;
+
+    const playerFacing = async (): Promise<string> =>
+      JSON.stringify(foundry.docs.get(copyUuid)) + JSON.stringify(await handouts.playerHandouts());
+    const copyHtml = String(foundry.docs.get(copyUuid)?.source.text.content);
+    expect(copyHtml).toContain(VISIBLE.opening);
+    expect(copyHtml).toContain('the tavern');
+    expect(copyHtml).toContain(VISIBLE.closing);
+    expect(referencesIn(await playerFacing())).toEqual([]);
+    // Control: the source still holds every reference (the seeding is real).
+    expect(referencesIn(JSON.stringify(foundry.docs.get(SOURCE)))).toEqual(REFERENCES);
+
+    // The GM adds another embed; the update is clean too.
+    foundry.edit(SOURCE, {
+      path: 'text.content',
+      present: true,
+      value: `${html}<p>NEW-VISIBLE @Embed[${GM_ACTOR}]</p>`,
+    });
+    const update = await handouts.planPageReveal({ pageUuid: SOURCE, action: 'reveal' });
+    expect(update.copy).toMatchObject({ action: 'update', embedsRemoved: 4 });
+    await guarded.applyPlan(update.planId, { confirm: true, confirmDestructive: true });
+    expect(String(foundry.docs.get(copyUuid)?.source.text.content)).toContain('NEW-VISIBLE');
+    expect(referencesIn(await playerFacing())).toEqual([]);
+    // The plan names the copy and the source, never a GM document it could resolve.
+    expect(referencesIn(JSON.stringify(update))).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { stripSecretBlocks } from './strip-secrets.js';
+import { prepareCopyHtml, stripSecretBlocks } from './strip-secrets.js';
 
 const strip = (html: string): string => stripSecretBlocks(html).html;
 
@@ -56,7 +56,7 @@ describe('stripSecretBlocks', () => {
     expect(strip('<p class="secretary">Ms. Smith</p>')).toBe('<p class="secretary">Ms. Smith</p>');
   });
 
-  it('keeps formatting, links, images, enrichers and entities as they were', () => {
+  it('keeps formatting, links, images, enrichers and entities as they were (a copy uses prepareCopyHtml)', () => {
     const html =
       '<h2>Title</h2><p><strong>Bold</strong> &amp; <em>it</em> &lt;tag&gt;&nbsp;Café</p>' +
       '<p>@UUID[JournalEntry.abc.JournalEntryPage.def]{the map} [[/r 1d20]]</p>' +
@@ -67,5 +67,60 @@ describe('stripSecretBlocks', () => {
 
   it('handles empty input', () => {
     expect(stripSecretBlocks('')).toEqual({ html: '', removed: 0 });
+  });
+});
+
+describe('prepareCopyHtml', () => {
+  const REVEALED = 'JournalEntry.aaaaaaaaaaaaaaaa.JournalEntryPage.bbbbbbbbbbbbbbbb';
+  const GM_PAGE = 'JournalEntry.cccccccccccccccc.JournalEntryPage.dddddddddddddddd';
+  const keep = new Set([REVEALED]);
+  const copy = (html: string): string => prepareCopyHtml(html, keep).html;
+
+  it('strips secrets like stripSecretBlocks and counts them', () => {
+    expect(
+      prepareCopyHtml('<p>a</p><section class="secret"><p>b</p></section><!-- c -->', keep)
+    ).toEqual({ html: '<p>a</p>', secretsRemoved: 1, embedsRemoved: 0, linksUnlinked: 0 });
+  });
+
+  it('drops every @Embed, in any case, with or without options and a label', () => {
+    const result = prepareCopyHtml(
+      `<p>A@Embed[${GM_PAGE}]B</p><p>@embed[uuid=${GM_PAGE} secrets=true caption="x"]{Label}</p>` +
+        `<p>@EMBED[${REVEALED} inline]</p>`,
+      keep
+    );
+    expect(result.html).toBe('<p>AB</p><p></p><p></p>');
+    expect(result.embedsRemoved).toBe(3);
+  });
+
+  it('turns links to documents that are not revealed handouts into their label', () => {
+    const result = prepareCopyHtml(
+      `<p>@UUID[${GM_PAGE}]{the cellar} / @UUID[${GM_PAGE}#section]{deep} / ` +
+        '@UUID[Actor.eeeeeeeeeeeeeeee] / @Actor[eeeeeeeeeeeeeeee]{Stranger} / ' +
+        '@Compendium[world.adventure.JournalEntry.ffffffffffffffff] / @UUID[.dddddddddddddddd]</p>',
+      keep
+    );
+    expect(result.html).toBe('<p>the cellar / deep /  / Stranger /  / </p>');
+    expect(result.linksUnlinked).toBe(6);
+  });
+
+  it('keeps links to revealed handouts, labelled or not', () => {
+    const html = `<p>@UUID[${REVEALED}]{the map} and @UUID[${REVEALED}]</p>`;
+    expect(prepareCopyHtml(html, keep)).toEqual({
+      html,
+      secretsRemoved: 0,
+      embedsRemoved: 0,
+      linksUnlinked: 0,
+    });
+  });
+
+  it('escapes a label that holds markup characters, and keeps the rest as it was', () => {
+    expect(copy(`<p><em>x</em> @UUID[${GM_PAGE}]{a &lt;b&gt; &amp; c} [[/r 1d20]]</p>`)).toBe(
+      '<p><em>x</em> a &lt;b&gt; &amp; c [[/r 1d20]]</p>'
+    );
+  });
+
+  it('leaves attributes and @JournalEntryPage (not a Foundry link) alone', () => {
+    const html = `<p title="@UUID[${GM_PAGE}]">@JournalEntryPage[x]</p>`;
+    expect(copy(html)).toBe(html);
   });
 });

@@ -295,6 +295,11 @@ export class SceneTools {
             name: u.name,
             isGM: u.isGM,
           })) || [],
+      // Every non-GM user, online or not (the player page's one-time name pick, I-084).
+      playerUsers:
+        worldData.users
+          ?.filter((u: any) => !u.isGM)
+          .map((u: any) => ({ id: u.id, name: u.name, active: u.active === true })) || [],
     };
   }
 

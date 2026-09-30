@@ -48,7 +48,8 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 /**
  * The non-GM users the dashboard has seen since it started (from `get-world-info`'s
- * `activeUsers`). GMs are never listed, and a user seen as a GM later is removed.
+ * `playerUsers`, which lists offline players too, and `activeUsers`). GMs are never
+ * listed, and a user seen as a GM later is removed.
  */
 export class PlayerDirectory {
   private readonly users = new Map<string, string>();
@@ -63,9 +64,11 @@ export class PlayerDirectory {
 
   /** Learn users from a `get-world-info` answer. */
   harvest(raw: unknown): void {
-    const active = asRecord(raw).activeUsers;
-    if (!Array.isArray(active)) return;
-    for (const item of active) {
+    const record = asRecord(raw);
+    // `playerUsers` (every non-GM user) from newer bridges; `activeUsers` as a fallback.
+    const listed = Array.isArray(record.playerUsers) ? record.playerUsers : [];
+    const active = Array.isArray(record.activeUsers) ? record.activeUsers : [];
+    for (const item of [...listed, ...active]) {
       const u = asRecord(item);
       if (typeof u.id !== 'string' || !USER_ID_RE.test(u.id)) continue;
       if (u.isGM === true) {

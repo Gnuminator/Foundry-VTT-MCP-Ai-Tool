@@ -122,8 +122,9 @@ These are live contracts between the Foundry module, the MCP server and the dash
   Curse of Strahd M0 to M3 (guarded writes, Tarokka, spoiler-safe `/player`, Foundry 14 / dnd5e 6
   pass), Obsidian O1 to O4 (vault, session notes, play log and stats, Foundry mirrors), tool-parameter
   pickers, dashboard hardening, ComfyUI removed (D-070). Live-tested on the test server (the ComfyUI
-  removal is unit-tested; its live check is part of the release smoke test). 91 tools, 3,246 tests,
-  lint baseline 6,743.
+  removal is unit-tested; its live check is part of the release smoke test). Step 2 merged
+  2026-09-30: GM and player guides, new README, a reveal copies a handout, six Claude Desktop
+  prompts. 91 tools, 6 prompts, 3,335 tests, lint baseline 6,743.
 - Hardware: the Orange Pi 5 Pro (16 GB) has arrived and is not set up yet (D-068: Foundry, the tool and
   the bot move there; Tailscale; Syncthing; SSH-first bring-up from the PC).
 - First Curse of Strahd session (a live session 0): around November or December 2026.

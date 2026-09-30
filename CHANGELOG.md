@@ -104,6 +104,16 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
   before a player sees it. Tools `plan-page-reveal`, `list-revealed-pages`,
   `get-player-visibility`, `get-player-handouts`, `check-secret-terms`; the player page has a
   Handouts section.
+- **A reveal copies a handout out of a GM-only journal.** When the page sits in a journal players
+  cannot open (an imported adventure's chapter journals), `plan-page-reveal` copies it into a
+  player journal "Handouts" (created on first use) instead of refusing; secret blocks, embeds and
+  link targets are left out of the copy, and the source journal is never changed. Revealing the
+  same page again updates the copy; hiding it deletes the copy. `copy: true` or `false` forces
+  either way. One guarded plan, with undo.
+- **Ready-made prompts in Claude Desktop** (the "+" menu of the server): `prep-next-session`,
+  `rules-question`, `session-recap` (GM or players), `npc-improv`, `encounter-check`,
+  `reveal-handout`. Each tells Claude which tools to use and never applies a change without the
+  GM's confirmation.
 - **Obsidian mirror of the Foundry world** (live-tested 2026-09-29; `docs/design/OBSIDIAN-PLAN.md` "As
   built", O4) (off until you turn it on with `plan-obsidian-mirror`
   and the switch "AI Tool: Obsidian mirror (writes)"; needs `FOUNDRY_AI_OBSIDIAN_DIR`): one note per
@@ -122,6 +132,10 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
 
 ### Fixes
 
+- The dashboard found the Obsidian vault name only from a path in the host's own style: a Windows
+  path on Linux (CI, the Orange Pi) broke it. Both separators work now.
+- `scripts/live-read-sweep.mjs` defaulted to the live dashboard (port 3000); it now defaults to the
+  test dashboard (3100).
 - The backend no longer crashes when a control-channel client disconnects abruptly (ECONNRESET).
 - `search-compendium` ignored a CR 0 filter.
 - The co-GM dashboard answered malformed or oversized request bodies with Express's default error
@@ -161,6 +175,9 @@ ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults ch
 
 ### Changed
 
+- New GM guides in `docs/gm/` (getting started, the dashboard, asking Claude, before and after a
+  session, never and only if, troubleshooting) and a player guide in `docs/player/`; the README
+  describes the tool as it is now.
 - The module now requires **Foundry 14** (manifest minimum raised from 13). Supported: Foundry 14 with
   dnd5e 6; dnd5e 5.3 data is still read, but live testing is on dnd5e 6.
 - Docs reorganized by audience: `docs/gm/`, `docs/player/`, `docs/dev/`, `docs/reference/`, current

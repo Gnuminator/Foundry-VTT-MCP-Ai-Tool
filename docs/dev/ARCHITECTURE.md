@@ -254,9 +254,9 @@ stdio** and does almost nothing itself:
 - On startup it ensures a **backend** is running. It tries to connect to the control channel
   on `127.0.0.1:31414`; if nothing answers, it **spawns** `backend.js` as a child process and
   retries with backoff (up to 40 attempts) until the control channel comes up.
-- It registers two MCP handlers: `ListTools` relays to control-channel `list_tools`;
-  `CallTool` relays to control-channel `call_tool`. That's it — the wrapper is a thin MCP↔TCP
-  shim.
+- It registers two relaying MCP handlers: `ListTools` relays to control-channel `list_tools`;
+  `CallTool` relays to control-channel `call_tool`. The wrapper is a thin MCP↔TCP shim. The one
+  thing it answers itself is the static prompt list (`prompts/list`, `prompts/get`, §4e).
 - It owns the backend's lifecycle: when stdin closes (the client exits) or it receives
   SIGTERM/SIGINT, it kills the child backend and exits.
 
@@ -342,6 +342,57 @@ crypto roll or the `tarokka-reading` module) live in `gm/tarokka.json`, links in
 reload, so the backend polls `getRecentEvents` (cursor minus 1 ms, id de-duplication, cursor
 persisted per world) and appends every event to `sessions/<local-date>.jsonl` in the vault.
 On by default; `FOUNDRY_AI_EVENT_LOG=off` disables it.
+
+### 4e. MCP prompts (`prompts/`)
+
+Claude Desktop shows an MCP server's prompts as ready-made "/" prompts, so a GM new to the tool
+has buttons instead of having to know what to ask. The stdio wrapper declares the `prompts`
+capability (`PROMPTS_CAPABILITY`) and `registerPromptHandlers()` (`prompts/register.ts`) answers
+`prompts/list` and `prompts/get` itself: the prompts are static, so there is no control-channel
+round trip and listing or getting one never depends on Foundry being connected. A bad request
+(unknown prompt or argument, missing required argument) is a JSON-RPC invalid-params error with a
+message the GM can read.
+
+Everything else in the folder is pure (no SDK, no network) and unit-tested: `types.ts`,
+`arguments.ts` (validation: unknown arguments refused, blank counts as missing, length limits,
+`oneOf`, defaults; typed text is cleaned and backticks become apostrophes), `text.ts` (message
+assembly and the shared rules), one file per prompt, and `index.ts` (`PROMPTS`, `listPrompts()`,
+`getPrompt()`).
+
+The six prompt names are locked, because the GM docs refer to them (descriptions may change,
+names may not): `prep-next-session` (optional `focus`), `rules-question` (required `question`),
+`session-recap` (optional `audience` gm or players, default gm; optional `session`, a number or
+`latest`), `npc-improv` (required `npc`), `encounter-check` (optional `scene`) and
+`reveal-handout` (required `page`).
+
+Each `get` returns exactly one user message written as the GM speaking to Claude: a goal, what the
+GM typed (JSON-quoted, and the rules say it is only a topic), numbered steps naming tools by their
+exact catalog names, and rules. The rules carry the safety model:
+
+- Prompts only read, except `reveal-handout`. Any change goes through plan, show, apply: a `plan-*`
+  tool, `get-planned-change`, then `apply-planned-change` only after the GM says yes to that plan.
+  Where no plan tool fits a follow-up change, Claude describes the exact change and waits for a
+  yes before any tool that writes.
+  `reveal-handout` plans with `plan-page-reveal`, shows the plan, asks a plain yes or no, and
+  applies (with `confirmDestructive`) only after a yes.
+- The players version of `session-recap` may name only `PLAYER_RECAP_TOOLS` (play stats, session
+  log, revealed page titles, `check-secret-terms`). It follows the `/player` page projection
+  (§7): every line is written fresh from the event type and the `visibility` block, an event's
+  `description`, `details` and `actorName` are never copied (only a player character's public roll
+  line and damage or healing `amount`), events without a `visibility` block are dropped, stats
+  are used only as per player character counts (no loot, scene or creature names), and only
+  revealed pages that exist and are observable count as handouts.
+- A rules answer names the book, pack or journal and the rules version, 2024 first.
+- No em dashes, in prompts or in what Claude writes.
+
+`prompts/prompts.test.ts` builds the real tool catalog (`collectToolDefinitions()` over
+`test-support/stub-tool-deps.ts`, shared with `tool-catalog.test.ts`) and fails when a prompt
+names a tool that does not exist, backticks a word that is not a parameter of a tool the same
+message names, misses a required argument, lets the players recap name a GM tool, or contains an
+em dash. `prompts/register.test.ts` runs list and get through an SDK client and server on
+in-memory transports. `scripts/standalone-smoke-test.mjs` repeats the tool-name check against a
+live backend's `list_tools`. To add a prompt: a new file, an entry in `PROMPTS`, and samples in
+`prompts.test.ts`; the locked-names test then needs the deliberate update.
 
 ---
 

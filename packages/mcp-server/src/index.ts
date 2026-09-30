@@ -8,6 +8,8 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 
 import { config } from './config.js';
 
+import { PROMPTS_CAPABILITY, registerPromptHandlers } from './prompts/register.js';
+
 import type { ControlRequest, ControlResponse } from '@gnuminator/shared';
 
 import { stripToolRefs } from '@gnuminator/shared';
@@ -313,8 +315,11 @@ async function startWrapper() {
 
   const mcp = new Server(
     { name: config.server.name, version: config.server.version },
-    { capabilities: { tools: {} } }
+    { capabilities: { tools: {}, ...PROMPTS_CAPABILITY } }
   );
+
+  // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
+  registerPromptHandlers(mcp);
 
   // Setup cleanup handlers - cross-platform approach
 

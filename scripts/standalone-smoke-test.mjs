@@ -16,7 +16,7 @@
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STANDALONE = path.join(repoRoot, 'packages', 'mcp-server', 'dist', 'standalone.js');
@@ -117,6 +117,26 @@ async function main() {
       return fail(`tool catalog missing a known tool 'get-world-info' (have ${names.length} tools)`, childErr);
     }
     console.error(`[standalone-smoke] list_tools ok (${tools.length} tools, incl. get-world-info)`);
+
+    // Every tool the MCP prompts tell Claude to call must exist in this real catalog.
+    const { PROMPTS, getPrompt } = await import(
+      pathToFileURL(path.join(repoRoot, 'packages', 'mcp-server', 'dist', 'prompts', 'index.js')).href
+    );
+    const known = new Set(names);
+    for (const prompt of PROMPTS) {
+      const args = {};
+      for (const arg of prompt.arguments) if (arg.required) args[arg.name] = 'smoke test value';
+      const text = getPrompt(prompt.name, args).messages[0].content.text;
+      const toolShaped = [...text.matchAll(/`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`/g)].map(m => m[1]);
+      const missing = toolShaped.filter(t => !known.has(t));
+      if (toolShaped.length === 0 || missing.length > 0) {
+        return fail(
+          `prompt "${prompt.name}" ${toolShaped.length === 0 ? 'names no tool' : `names tools the backend does not have: ${[...new Set(missing)].join(', ')}`}`,
+          childErr
+        );
+      }
+    }
+    console.error(`[standalone-smoke] prompts ok (${PROMPTS.length} prompts name only tools in the live catalog)`);
   } finally {
     if (!exited) child.kill('SIGTERM');
   }

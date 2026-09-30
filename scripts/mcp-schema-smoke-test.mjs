@@ -121,3 +121,48 @@ if (switchSceneSchema.additionalProperties === false) {
 }
 
 console.log('[MCP Schema Smoke Test] PASS: tool schemas load, use object input, and do not enforce global additionalProperties=false.');
+
+// MCP prompts (the ready-made "/" prompts): the built module lists the six locked names and
+// serves each one as a single user message. (prompts.test.ts checks every tool name against the
+// full catalog; the standalone smoke test checks them against a running backend.)
+const { listPrompts, getPrompt } = await importDist('prompts/index.js');
+
+const LOCKED_PROMPTS = [
+  'prep-next-session',
+  'rules-question',
+  'session-recap',
+  'npc-improv',
+  'encounter-check',
+  'reveal-handout',
+];
+const listed = listPrompts();
+if (JSON.stringify(listed.map((p) => p.name)) !== JSON.stringify(LOCKED_PROMPTS)) {
+  fail(`Prompt names changed: expected ${LOCKED_PROMPTS.join(', ')} but got ${listed.map((p) => p.name).join(', ')}.`);
+}
+
+for (const prompt of listed) {
+  const args = {};
+  for (const arg of prompt.arguments) if (arg.required) args[arg.name] = 'smoke test value';
+
+  const result = getPrompt(prompt.name, args);
+  const message = result.messages?.[0];
+  if (result.messages?.length !== 1 || message?.role !== 'user' || message?.content?.type !== 'text') {
+    fail(`Prompt "${prompt.name}" did not return exactly one user text message.`);
+  }
+  // En dash, em dash and horizontal bar, built from code points so this file contains none of them.
+  if (new RegExp(`[${String.fromCharCode(0x2013, 0x2014, 0x2015)}]`).test(message.content.text)) {
+    fail(`Prompt "${prompt.name}" contains a dash character that the project forbids.`);
+  }
+
+  for (const arg of prompt.arguments.filter((a) => a.required)) {
+    let refused = false;
+    try {
+      getPrompt(prompt.name, {});
+    } catch {
+      refused = true;
+    }
+    if (!refused) fail(`Prompt "${prompt.name}" accepted a missing required argument "${arg.name}".`);
+  }
+}
+
+console.log(`[MCP Schema Smoke Test] PASS: ${listed.length} prompts list and build (${LOCKED_PROMPTS.join(', ')}).`);

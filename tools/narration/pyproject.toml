@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "narration"
+version = "0.1.0"
+description = "Narration for the Foundry AI Tool GM videos: a script in Danish or English in, a voiced WAV with captions out, on local voices (D-081)."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+# The voices need chatterbox-tts on a CUDA PyTorch build; see the README for the install recipe.
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+narration = "narration.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"

@@ -6,6 +6,18 @@ Groundwork from `docs/design/CURSE-OF-STRAHD-PLAN.md` step 0. **Wire contracts a
 ports, `foundry-mcp-bridge.*` method names, settings namespace). Two defaults change behaviour; see
 "Upgrade notes".
 
+### Repo tidy
+
+- **One version number and one release workflow.** The root `package.json` is the only version;
+  `npm run version:sync` stamps it everywhere and `version:check` runs in CI. `release.yml` is the
+  only release workflow (tags `v*`: verify, module zip with a per-tag `module.json`, bridge zip,
+  Windows installer). The old step that posted to the original author's foundryvtt.com package is
+  gone.
+- **Em-dash guard.** `npm run emdash:ratchet` fails when em dashes rise (`docs/history` excluded).
+- Removed `test-bench/`, an unused macro and stray build output; `validate-manifest.js` moved to
+  `scripts/`; `.gitattributes`; refreshed `.env.example` and `claude_desktop_config.example.json`.
+- `CLAUDE.md` is no longer tracked (private project instructions).
+
 ### Link reliability (before the Orange Pi)
 
 - **One bridge user.** A world setting picks which GM's browser holds the bridge link ("Any GM" by

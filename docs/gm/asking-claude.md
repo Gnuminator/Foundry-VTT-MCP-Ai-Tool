@@ -51,11 +51,32 @@ Requests that go wrong:
 - "Make the next fight cooler." Too vague. Say what you want: tougher, shorter, more terrain.
 - "Fix everything from last night." Claude cannot undo direct actions; see below.
 
+## Tool sets: which switches to turn on
+
+Claude Desktop shows the tool as five entries, one per tool set, each with its own switch in the
+**Search and tools** menu under the message box (the exact place can move between Claude Desktop
+versions). Claude reads every tool that is switched on at the start of a chat, so fewer switches
+means more room for your conversation and fewer wrong picks. The switches stay as you left them for
+new chats.
+
+| Entry               | Set   | Turn it on when you want to                                              |
+| ------------------- | ----- | ------------------------------------------------------------------------ |
+| `foundry-mcp`       | core  | Always. Look things up, and see, apply or undo Claude's planned changes. |
+| `foundry-mcp-prep`  | prep  | Prepare a session, write a recap, work on quests, Tarokka or handouts.   |
+| `foundry-mcp-build` | build | Make or change NPCs, monsters and items.                                 |
+| `foundry-mcp-play`  | play  | Let Claude run things at the table: tokens, combat, rolls, damage, chat. |
+| `foundry-mcp-admin` | admin | Check modules and errors, change who owns an actor, the Obsidian mirror. |
+
+A good default: core and prep on, the rest off. If you ask for something that needs a set that is
+off, Claude says which one to switch on.
+
 ## Ready-made prompts
 
 The tool comes with prompts for common jobs. Claude Desktop lists a connected server's prompts in
-its message box (look for the tool's server, `foundry-mcp`, under the message box's **+** menu; the
-exact place can move between Claude Desktop versions). Pick one, fill in its fields, send.
+its message box (look for the tool's entries, such as `foundry-mcp` and `foundry-mcp-prep`, under
+the message box's **+** menu; the exact place can move between Claude Desktop versions). Pick one,
+fill in its fields, send. A prompt shows up only while its set is switched on: `rules-question` and
+`npc-improv` are in core, the other four in prep.
 
 | Prompt              | Fields                                                             | What it is for                                                                                                                       |
 | ------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |

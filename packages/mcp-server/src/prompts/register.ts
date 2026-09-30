@@ -15,13 +15,19 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 
+import type { ToolSetName } from '../tool-sets.js';
+
 import { PromptError, getPrompt, listPrompts } from './index.js';
 
 /** Merge into the server's capabilities so clients ask for prompts at all. */
 export const PROMPTS_CAPABILITY = { prompts: {} } as const;
 
-export function registerPromptHandlers(server: Server): void {
-  server.setRequestHandler(ListPromptsRequestSchema, () => ({ prompts: listPrompts() }));
+/**
+ * `sets` limits `prompts/list` to those tool sets' prompts (all when left out).
+ * `prompts/get` answers any prompt by name: a client only asks for listed ones.
+ */
+export function registerPromptHandlers(server: Server, sets?: readonly ToolSetName[]): void {
+  server.setRequestHandler(ListPromptsRequestSchema, () => ({ prompts: listPrompts(sets) }));
 
   server.setRequestHandler(GetPromptRequestSchema, request => {
     try {

@@ -20,7 +20,7 @@ export function isLoopbackHost(host: string): boolean {
   return LOOPBACK_HOSTS.has(host.trim().toLowerCase());
 }
 
-function isTruthyFlag(value: string | undefined): boolean {
+export function isTruthyFlag(value: string | undefined): boolean {
   const v = value?.trim().toLowerCase();
   return v === '1' || v === 'true';
 }
@@ -42,6 +42,16 @@ export function resolveControlTarget(env: NodeJS.ProcessEnv = process.env): Cont
     spawnAllowed: !isTruthyFlag(env.MCP_NO_SPAWN) && isLoopbackHost(host),
   };
 }
+
+/**
+ * Set on a backend the wrapper spawns. Such a backend exits with
+ * `BACKEND_LOCK_HELD_EXIT_CODE` when another backend already holds the lock
+ * (the wrapper then connects to that one); a backend started any other way
+ * keeps its old behaviour and idles.
+ */
+export const WRAPPER_SPAWNED_ENV = 'FOUNDRY_AI_WRAPPER_SPAWNED';
+
+export const BACKEND_LOCK_HELD_EXIT_CODE = 3;
 
 /** The error every tool call gets when the bridge is missing and may not be spawned. */
 export function bridgeUnreachableMessage(host: string, port: number): string {

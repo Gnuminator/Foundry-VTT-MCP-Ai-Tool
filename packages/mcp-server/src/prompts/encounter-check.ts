@@ -12,6 +12,7 @@ import {
 export const encounterCheck: PromptDefinition = {
   name: 'encounter-check',
   title: 'Encounter check',
+  set: 'prep',
   description:
     'Check whether an encounter is balanced for the party. Defaults to the scene that is on screen.',
   arguments: [

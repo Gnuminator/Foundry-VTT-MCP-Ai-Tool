@@ -412,6 +412,12 @@ describe('PlayerDirectory and playerWho (pure helpers)', () => {
     expect(dir.list()).toEqual([]);
   });
 
+  it('lists offline players from playerUsers', () => {
+    const dir = new PlayerDirectory(client, silent);
+    dir.harvest({ activeUsers: [GM], playerUsers: [{ ...ANNA, active: false }] });
+    expect(dir.list()).toEqual([{ userId: ANNA.id, name: 'Anna' }]);
+  });
+
   it('cleans and bounds names', () => {
     const dir = new PlayerDirectory(client, silent);
     dir.harvest({ activeUsers: [{ id: 'U1', name: `  Zed\u0001${'y'.repeat(200)} ` }] });

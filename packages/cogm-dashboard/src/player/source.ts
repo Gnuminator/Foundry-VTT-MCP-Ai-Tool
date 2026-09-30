@@ -114,11 +114,16 @@ export class PlayerViewSource {
       const id = str(h?.id);
       const title = str(h?.title);
       if (!h || !id || !title) continue;
+      const players = Array.isArray(h.players)
+        ? h.players.filter((p): p is string => typeof p === 'string')
+        : [];
       out.push({
         id,
         title,
         html: sanitizeHandoutHtml(typeof h.html === 'string' ? h.html : '', revealed),
         revealedAt: str(h.revealedAt),
+        // I-039: for chosen players only; the player page shows it to them (picked name, D-065).
+        ...(players.length > 0 ? { players } : {}),
       });
     }
     return out;

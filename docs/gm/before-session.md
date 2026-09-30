@@ -19,6 +19,11 @@ addresses are today's Windows setup; they change when the tool moves to the Oran
 - [ ] Check the dashboard header says **Bridge: connected** and **Foundry: live**. If not, see
       [Troubleshooting](troubleshooting.md).
 
+## Run the pre-flight check
+
+- [ ] In the dashboard header, click **✈ Pre-flight**. Fix everything marked ✗ and look at each
+      **!**. The rest of this page is also in the drawer's "Check by hand" list.
+
 ## Check the switches
 
 - [ ] In Foundry, open the Settings tab (gear icon), **Game Settings**, category **Foundry AI

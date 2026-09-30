@@ -270,6 +270,8 @@ export function buildPlayerState(input: PlayerStateInputs): PlayerState {
       title: h.title,
       html: h.html,
       revealedAt: h.revealedAt,
+      // I-039: the player page shows a chosen-players handout only to them.
+      ...(Array.isArray(h.players) && h.players.length > 0 ? { players: [...h.players] } : {}),
     })),
   };
 }

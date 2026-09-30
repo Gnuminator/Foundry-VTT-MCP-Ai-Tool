@@ -68,6 +68,22 @@ export interface Combatant {
   actorId?: string | null;
   sceneId?: string | null;
   statuses?: string[];
+  /** I-070: an NPC's legendary actions, legendary resistances and lair (GM only; absent from older modules). */
+  boss?: BossResources | null;
+}
+
+/** A `{max, spent}` counter; `remaining` is `max - spent`. */
+export interface BossCounter {
+  max: number;
+  spent: number;
+  remaining: number;
+}
+
+export interface BossResources {
+  legendary: BossCounter | null;
+  resistances: BossCounter | null;
+  /** `inside`: dnd5e's "in its lair" box; `initiative`: the lair's count (null means 20). */
+  lair: { inside: boolean; initiative: number | null } | null;
 }
 
 export interface CombatState {

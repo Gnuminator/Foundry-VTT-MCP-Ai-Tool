@@ -11,6 +11,9 @@ function makeTools(): {
 } {
   const handouts = {
     listRevealed: vi.fn(() => Promise.resolve([])),
+    listQueue: vi.fn(() => Promise.resolve([])),
+    queuePage: vi.fn(() => Promise.resolve({ queued: true, pageUuid: 'x', note: '' })),
+    unqueuePage: vi.fn(() => Promise.resolve({ queued: false, pageUuid: 'x', note: '' })),
     playerHandouts: vi.fn(() => Promise.resolve({ handouts: [], revealedUuids: [] })),
     planPageReveal: vi.fn(() => Promise.resolve({ planId: 'p1', pageUuid: 'x' })),
   };
@@ -42,7 +45,8 @@ describe('PlayerViewTools', () => {
       'check-secret-terms',
     ]);
     for (const d of defs) expect(d.inputSchema.type).toBe('object');
-    expect(defs[3].inputSchema.required).toEqual(['pageUuid', 'action']);
+    // pageUuid is checked in the handler: "reveal-next" takes the next queued page (I-039).
+    expect(defs[3].inputSchema.required).toEqual(['action']);
     expect(defs[4].inputSchema.required).toEqual(['text']);
   });
 
@@ -69,9 +73,25 @@ describe('PlayerViewTools', () => {
   it('list-revealed-pages wraps the service result', async () => {
     const { tools, handouts } = makeTools();
     handouts.listRevealed.mockResolvedValueOnce([{ pageId: 'p', uuid: 'u' }]);
+    handouts.listQueue.mockResolvedValueOnce([{ entryId: 'q', uuid: 'v' }]);
     expect(await tools.handleListRevealedPages({})).toEqual({
       pages: [{ pageId: 'p', uuid: 'u' }],
+      queue: [{ entryId: 'q', uuid: 'v' }],
     });
+  });
+
+  it('plan-page-reveal needs pageUuid except for reveal-next, and forwards players and sceneId', async () => {
+    const { tools, handouts } = makeTools();
+    await expect(tools.handlePlanPageReveal({ action: 'queue' })).rejects.toThrow(/pageUuid/);
+    await tools.handlePlanPageReveal({ action: 'reveal-next', sceneId: 'abcdefghijklmnop' });
+    expect(handouts.planPageReveal).toHaveBeenLastCalledWith({
+      action: 'reveal-next',
+      sceneId: 'abcdefghijklmnop',
+    });
+    await tools.handlePlanPageReveal({ pageUuid: 'x', action: 'queue', players: ['u1'] });
+    expect(handouts.queuePage).toHaveBeenLastCalledWith({ pageUuid: 'x', players: ['u1'] });
+    await tools.handlePlanPageReveal({ pageUuid: 'x', action: 'unqueue' });
+    expect(handouts.unqueuePage).toHaveBeenLastCalledWith({ pageUuid: 'x' });
   });
 
   it('get-player-handouts forwards the service result as is', async () => {

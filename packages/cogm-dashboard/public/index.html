@@ -75,6 +75,14 @@
           ✈ Pre-flight
         </button>
         <button
+          id="btn-handouts"
+          class="btn"
+          data-track="dash.header.handouts"
+          title="Handout queue and who has seen what (GM only)"
+        >
+          📜 Handouts
+        </button>
+        <button
           id="btn-tarokka"
           class="btn"
           data-track="dash.header.tarokka"
@@ -125,7 +133,17 @@
         <div class="pane-head">
           <h2>Combat Tracker</h2>
           <span class="pane-meta" id="combat-meta">—</span>
+          <button
+            class="link-btn"
+            id="boss-toggle"
+            data-track="dash.combat.boss-prompts"
+            title="Legendary actions, lair reminder and reaction ticks (dashboard only, no writes)"
+            hidden
+          >
+            👑 Boss prompts: off
+          </button>
         </div>
+        <div class="boss-prompts" id="boss-prompts" hidden></div>
         <div class="combat-actions" id="combat-actions" hidden></div>
         <div class="pane-body" id="combat-body">
           <p class="empty">No active combat.</p>
@@ -340,6 +358,51 @@
         <div id="preflight-findings"></div>
         <h3 class="preflight-h">Check by hand</h3>
         <ul class="preflight-list" id="preflight-manual"></ul>
+      </div>
+    </aside>
+
+    <!-- Handouts drawer (GM only; I-039): the reveal queue and the seen log. -->
+    <aside class="drawer" id="handouts-drawer" hidden aria-label="Handouts">
+      <div class="drawer-head">
+        <div>
+          <h2>📜 Handouts</h2>
+          <span class="drawer-sub" id="handouts-sub"
+            >GM only. Queue pages, reveal the next in one click.</span
+          >
+        </div>
+        <button
+          class="icon-btn"
+          id="handouts-close"
+          data-track="dash.handouts.close"
+          title="Close"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      </div>
+      <div class="tarokka-actions">
+        <button
+          class="btn btn-primary"
+          id="handouts-next"
+          data-track="dash.handouts.reveal-next"
+          disabled
+        >
+          Reveal next
+        </button>
+        <button class="btn" id="handouts-add" data-track="dash.handouts.queue-page">
+          + Queue a page
+        </button>
+        <button class="btn" id="handouts-refresh" data-track="dash.handouts.refresh">
+          ↻ Refresh
+        </button>
+      </div>
+      <div class="tarokka-body">
+        <h3 class="preflight-h">Queue</h3>
+        <ul class="preflight-list" id="handouts-queue">
+          <li class="empty">Loading…</li>
+        </ul>
+        <h3 class="preflight-h">Revealed</h3>
+        <ul class="preflight-list" id="handouts-revealed"></ul>
       </div>
     </aside>
 

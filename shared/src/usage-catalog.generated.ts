@@ -51,6 +51,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/app.js',
   },
   {
+    name: 'dash.combat.boss-prompts',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
     name: 'dash.combat.init-all',
     kind: 'action',
     surface: 'dashboard',
@@ -64,6 +70,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   },
   {
     name: 'dash.combat.init-npcs',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.combat.reaction',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/app.js',
@@ -105,6 +117,42 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.handouts.close',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.handouts.queue-page',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.handouts.refresh',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.handouts.reveal-next',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.handouts.unqueue',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.handouts.view',
+    kind: 'view',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
     name: 'dash.header.diag-ai',
     kind: 'action',
     surface: 'dashboard',
@@ -112,6 +160,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   },
   {
     name: 'dash.header.gm-actions',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.header.handouts',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/index.html',
@@ -223,6 +277,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.shortcut.escape-handouts',
+    kind: 'shortcut',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
   },
   {
     name: 'dash.shortcut.escape-modal',

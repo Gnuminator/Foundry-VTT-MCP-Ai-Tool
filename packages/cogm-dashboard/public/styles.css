@@ -2178,3 +2178,85 @@ body {
   border-color: var(--bad);
   color: var(--bad);
 }
+
+/* --- Boss prompts (I-070) ------------------------------------------------ */
+#boss-toggle.on {
+  color: var(--warn);
+}
+.boss-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.9rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+.boss-prompt {
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  border: 1px solid var(--border-soft);
+  background: var(--bg-elev);
+}
+.boss-prompt.prompt-lair {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.boss-prompt.prompt-legendary {
+  border-color: var(--npc);
+  background: var(--npc-soft);
+}
+.boss-line {
+  margin-top: 0.2rem;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+}
+.boss-pips {
+  letter-spacing: 0.08em;
+}
+.pips-legendary {
+  color: var(--npc);
+}
+.pips-resist {
+  color: var(--accent);
+}
+.reaction-btn {
+  margin-left: 0.3rem;
+  padding: 0 0.35rem;
+  font-size: var(--fs-2xs);
+  line-height: 1.3;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-mid);
+  cursor: pointer;
+}
+.reaction-btn.used {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+  color: var(--bad);
+  text-decoration: line-through;
+}
+
+/* --- Handouts drawer (I-039) --------------------------------------------- */
+#handouts-queue .preflight-item,
+#handouts-revealed .preflight-item {
+  align-items: center;
+}
+#handouts-queue .pf-text,
+#handouts-revealed .pf-text {
+  flex: 1;
+}
+.seen-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.6rem;
+  margin-top: 0.2rem;
+}
+.seen-tick {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.seen-tick.seen {
+  color: var(--good);
+}

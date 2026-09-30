@@ -9,6 +9,59 @@ interface SaveRollRequest {
   dc?: number;
 }
 
+/** A `{max, spent}` counter as the dashboard shows it; `remaining` is `max - spent`. */
+export interface BossCounter {
+  max: number;
+  spent: number;
+  remaining: number;
+}
+
+/** Legendary actions, legendary resistances and lair of an NPC (I-070). Read-only. */
+export interface BossResources {
+  legendary: BossCounter | null;
+  resistances: BossCounter | null;
+  /** The creature has a lair: `inside` is dnd5e's "in its lair" box, `initiative` the lair's count (null = 20). */
+  lair: { inside: boolean; initiative: number | null } | null;
+}
+
+function finite(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * dnd5e 6 stores `system.resources.legact` and `legres` as `{max, spent}` (verified live on
+ * dnd5e 6.0.5: the 2024 Aboleth has `{max: 3, spent: 0, value: 3}`, `value` derived) and
+ * `lair` as `{value, inside, initiative}`. Older data may carry only `value` (uses left).
+ */
+function bossCounter(raw: unknown): BossCounter | null {
+  const r = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
+  const max = finite(r?.max) ?? 0;
+  if (max <= 0) return null;
+  const spentRaw = finite(r?.spent);
+  const value = finite(r?.value);
+  const spent = Math.min(max, Math.max(0, spentRaw ?? (value !== null ? max - value : 0)));
+  return { max, spent, remaining: max - spent };
+}
+
+/** Boss resources of an actor, or null when it has none of them (every PC, most NPCs). */
+export function bossResources(actor: unknown): BossResources | null {
+  const a = actor !== null && typeof actor === 'object' ? (actor as Record<string, unknown>) : null;
+  const system = a?.system as { resources?: Record<string, unknown> } | undefined;
+  const resources = system?.resources;
+  if (!resources) return null;
+  const legendary = bossCounter(resources.legact);
+  const resistances = bossCounter(resources.legres);
+  const lairRaw = resources.lair as
+    | { value?: unknown; inside?: unknown; initiative?: unknown }
+    | undefined;
+  const lair =
+    lairRaw?.value === true
+      ? { inside: lairRaw.inside === true, initiative: finite(lairRaw.initiative) }
+      : null;
+  if (!legendary && !resistances && !lair) return null;
+  return { legendary, resistances, lair };
+}
+
 /** Combat tracker + resolution domain — extracted from FoundryDataAccess. */
 export class CombatDataAccess {
   /**
@@ -73,6 +126,7 @@ export class CombatDataAccess {
    * to the token) so the dashboard can drop it from the player view (Phase 6).
    * `tokenId`/`actorId`/`sceneId`/`statuses` (M2) let the dashboard name a
    * combatant the way players see it, via the player-visibility domain.
+   * `boss` (I-070) carries legendary actions, resistances and lair for NPCs.
    */
   private summarizeCombatant(c: any, idx: number, currentIndex: number, started: any): any {
     const actor = c.actor;
@@ -109,6 +163,8 @@ export class CombatDataAccess {
           ? { successes: death?.success ?? 0, failures: death?.failure ?? 0 }
           : null,
       hidden: c.hidden ?? c.token?.hidden ?? false,
+      // I-070: GM-only (the /player projection copies an allowlist of fields).
+      boss: isPC ? null : bossResources(actor),
     };
   }
 

@@ -121,19 +121,52 @@ function renderState(s) {
   renderFeed(s.events);
 }
 
+// I-039: a handout revealed to chosen players shows only to them (by the picked name; the
+// table is trusted, D-065). Opening one tells the GM's seen log, once per page per visit.
+let lastHandouts = [];
+let currentWho = null;
+const reportedSeen = new Set();
+
+function visibleHandouts(handouts) {
+  const me = currentWho && currentWho.userId;
+  return (handouts || []).filter(h => !Array.isArray(h.players) || (me && h.players.includes(me)));
+}
+
 function renderHandouts(handouts) {
-  if (!handouts || handouts.length === 0) {
+  lastHandouts = Array.isArray(handouts) ? handouts : [];
+  const shown = visibleHandouts(lastHandouts);
+  if (shown.length === 0) {
     elHandouts.innerHTML = '<div class="empty">Nothing revealed yet.</div>';
     return;
   }
   // `html` was rebuilt server-side from an allowlist (no attributes, no scripts).
-  elHandouts.innerHTML = handouts
+  elHandouts.innerHTML = shown
     .map(
-      h => `<details class="handout"><summary data-track="player.handouts.open">${escape(h.title)}</summary>
+      h => `<details class="handout" data-handout="${escape(h.id)}"><summary data-track="player.handouts.open">${escape(h.title)}${Array.isArray(h.players) ? ' <span class="handout-private">just for you</span>' : ''}</summary>
         <div class="content">${h.html}</div></details>`
     )
     .join('');
 }
+
+function reportSeen(handoutId) {
+  const me = currentWho && currentWho.userId;
+  if (!me || !handoutId || reportedSeen.has(handoutId)) return;
+  reportedSeen.add(handoutId);
+  fetch('/api/player/handout-seen', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(TOKEN ? { 'X-CoGM-Token': TOKEN } : {}) },
+    body: JSON.stringify({ handoutId, userId: me }),
+  }).catch(() => reportedSeen.delete(handoutId));
+}
+
+elHandouts.addEventListener(
+  'toggle',
+  e => {
+    const box = e.target;
+    if (box && box.open && box.dataset && box.dataset.handout) reportSeen(box.dataset.handout);
+  },
+  true
+);
 
 function connect() {
   const es = new EventSource(streamUrl);
@@ -172,6 +205,8 @@ function saveWho(who) {
 
 function showWho(who) {
   usage.setWho(who);
+  currentWho = who;
+  renderHandouts(lastHandouts);
   elWhoPicker.hidden = true;
   elWho.hidden = false;
   elWhoName.textContent = who && who.name ? `Playing as ${who.name}` : '';

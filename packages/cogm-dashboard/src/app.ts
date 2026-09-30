@@ -22,6 +22,7 @@ import { runDashboardPreflight } from './preflight.js';
 import { PlayerViewSource } from './player/source.js';
 import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
 import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
+import { mountHandoutSeenRoute } from './handout-seen-route.js';
 
 /**
  * The co-GM dashboard as an Express app plus its feed handlers, built from
@@ -48,6 +49,8 @@ export interface DashboardClient {
   listTools(): Promise<unknown[]>;
   /** Hand usage events to the bridge (I-084); absent on fakes, "Unknown method" on old backends. */
   recordUsage?(events: UsageEvent[]): Promise<RecordUsageResult>;
+  /** A player opened a handout (I-039 seen log); absent on fakes and old backends. */
+  recordHandoutSeen?(pageId: string, userId: string, name: string): Promise<{ recorded: boolean }>;
   readonly isConnected?: boolean;
 }
 
@@ -415,6 +418,14 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     logger: logger.child('usage'),
     directory: playerDirectory,
     requireGm,
+  });
+  // The handout seen log (I-039): parses its own small body; the GM's drawer refreshes on a new open.
+  mountHandoutSeenRoute(app, {
+    config,
+    client,
+    logger: logger.child('handouts'),
+    directory: playerDirectory,
+    onRecorded: () => sse.broadcast('handouts-seen', {}, gmOnly),
   });
   app.use(express.json({ limit: '256kb' }));
   // The player page and the /open confirm page get their headers from inside express.static,

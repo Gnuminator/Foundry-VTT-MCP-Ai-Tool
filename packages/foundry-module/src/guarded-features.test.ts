@@ -57,6 +57,14 @@ describe('registerGuardedFeature', () => {
     expect(isKnownFeature('npc-attitudes')).toBe(true);
   });
 
+  it('registers a switch that starts on with defaultEnabled (D-082)', () => {
+    registerGuardedFeature({ ...ATTITUDES, id: 'live-play', defaultEnabled: true });
+    const [, key, config] = register.mock.calls[0];
+    expect(key).toBe('feature.live-play.enabled');
+    expect(config).toMatchObject({ default: true });
+    expect(config.hint).toMatch(/^Writes attitudes\. On by default/);
+  });
+
   it('ignores a second registration of the same id', () => {
     registerGuardedFeature(ATTITUDES);
     registerGuardedFeature({ ...ATTITUDES, name: 'Other name' });

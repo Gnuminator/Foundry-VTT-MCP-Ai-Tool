@@ -262,6 +262,44 @@ function describeTarget(snapshot: OpSnapshot, fallback: string): string {
   return snapshot.name ? `${type} "${snapshot.name}"` : `${type} ${fallback}`;
 }
 
+/** Readable names for the document paths live-play changes touch (F5, D-082). */
+const PATH_LABELS: Array<[RegExp, (m: RegExpMatchArray) => string]> = [
+  [/^system\.attributes\.hp\.value$/, (): string => 'HP'],
+  [/^system\.attributes\.hp\.temp$/, (): string => 'temp HP'],
+  [/^system\.attributes\.hp\.tempmax$/, (): string => 'max HP bonus'],
+  [/^system\.attributes\.exhaustion$/, (): string => 'exhaustion'],
+  [
+    /^system\.attributes\.death\.(success|failure)$/,
+    (m): string => (m[1] === 'success' ? 'death save successes' : 'death save failures'),
+  ],
+  [/^system\.attributes\.travel\.pace$/, (): string => 'travel pace'],
+  [
+    /^system\.spells\.(spell\d|pact)\.value$/,
+    (m): string => `${m[1] === 'pact' ? 'pact' : `level ${String(m[1]).slice(5)}`} slots`,
+  ],
+  [/^system\.resources\.(primary|secondary|tertiary)\.value$/, (m): string => `${m[1]} resource`],
+  [/^ownership\.default$/, (): string => 'default ownership'],
+  [/^ownership\.([A-Za-z0-9]+)$/, (m): string => `ownership for user ${m[1]}`],
+  [/^(x|y)$/, (m): string => `position ${m[1]}`],
+  [/^(hidden|elevation|rotation|name|disposition)$/, (m): string => String(m[1])],
+];
+
+/** The readable name of a document path, or null when it has none (the raw path is shown). */
+export function pathLabel(path: string): string | null {
+  for (const [re, label] of PATH_LABELS) {
+    const m = path.match(re);
+    if (m) return label(m);
+  }
+  return null;
+}
+
+/** `Actor "Wolf 2": HP 11 → 5` for a known path, else `Actor "Wolf 2": path: 11 → 5`. */
+function updateText(label: string, path: string, before: PathValue, after: PathValue): string {
+  const named = pathLabel(path);
+  const change = `${formatValue(before)} → ${formatValue(after)}`;
+  return named ? `${label}: ${named} ${change}` : `${label}: ${path}: ${change}`;
+}
+
 /** Diff lines for Foundry ops; throws when a target is missing. */
 function foundryDiff(ops: GuardedOp[], snapshots: OpSnapshot[]): DiffLine[] {
   const lines: DiffLine[] = [];
@@ -288,7 +326,7 @@ function foundryDiff(ops: GuardedOp[], snapshots: OpSnapshot[]): DiffLine[] {
           path,
           before,
           after,
-          text: `${label}: ${path}: ${formatValue(before)} → ${formatValue(after)}`,
+          text: updateText(label, path, before, after),
         });
       }
     } else if (op.kind === 'create') {
@@ -414,8 +452,11 @@ export class GuardedWriteService {
       });
     }
 
+    // Removing a status effect (an ActiveEffect, e.g. Prone) is everyday play, not destructive:
+    // it needs one confirm (F5, D-082). Any other delete raises the plan to destructive.
     const deletes =
-      ops.some(op => op.kind === 'delete') || vaultOps.some(op => op.kind === 'vault-delete');
+      ops.some((op, i) => op.kind === 'delete' && expected[i]?.documentName !== 'ActiveEffect') ||
+      vaultOps.some(op => op.kind === 'vault-delete');
     const risk: GuardedRisk = deletes || input.risk === 'destructive' ? 'destructive' : 'write';
     const target: ChangeTarget =
       ops.length > 0 && vaultOps.length > 0 ? 'mixed' : ops.length > 0 ? 'foundry' : 'vault';

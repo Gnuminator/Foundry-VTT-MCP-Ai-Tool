@@ -105,6 +105,39 @@ describe('createPlan (Foundry ops)', () => {
     expect(p.diff[0].text).toBe('Delete Actor "Ireena" (Actor.ireena)');
   });
 
+  it('names known paths in the diff (F5): HP, temp HP, ownership, position', async () => {
+    const p = await plan([
+      {
+        kind: 'update',
+        uuid: 'Actor.ireena',
+        changes: {
+          'system.attributes.hp.value': 5,
+          'system.attributes.hp.temp': 3,
+          'ownership.u1': 3,
+          'system.attributes.death.failure': 1,
+        },
+      },
+    ]);
+    expect(p.diff.map(d => d.text)).toEqual([
+      'Actor "Ireena": HP (unset) → 5',
+      'Actor "Ireena": temp HP (unset) → 3',
+      'Actor "Ireena": ownership for user u1 (unset) → 3',
+      'Actor "Ireena": death save failures (unset) → 1',
+    ]);
+  });
+
+  it('keeps removing a status effect at one confirm, any other delete stays destructive (F5)', async () => {
+    foundry.add('Actor.ireena.ActiveEffect.prone', 'ActiveEffect', { name: 'Prone' });
+    const effect = await plan([{ kind: 'delete', uuid: 'Actor.ireena.ActiveEffect.prone' }]);
+    expect(effect.risk).toBe('write');
+    expect(effect.requires.confirmDestructive).toBe(false);
+    const both = await plan([
+      { kind: 'delete', uuid: 'Actor.ireena.ActiveEffect.prone' },
+      { kind: 'delete', uuid: 'Actor.ireena' },
+    ]);
+    expect(both.risk).toBe('destructive');
+  });
+
   it('rejects bad input and missing targets', async () => {
     const cases: Array<[Record<string, unknown>, RegExp]> = [
       [{ feature: 'Bad Id', summary: 's', ops: [HP_UPDATE] }, /Invalid feature id/],

@@ -5,7 +5,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
+  autoApplySettingKey,
   featureSettingKey,
+  isAutoApplyEnabled,
   isFeatureEnabled,
   isKnownFeature,
   listGuardedFeatures,
@@ -132,5 +134,95 @@ describe('listGuardedFeatures', () => {
     expect(listGuardedFeatures()[0].writesAllowed).toBe(true);
     world.setSetting(MODULE_ID, 'allowWriteOperations', 'yes');
     expect(listGuardedFeatures()[0].writesAllowed).toBe(false);
+  });
+});
+
+const LIVE = {
+  id: 'live-play',
+  name: 'AI Tool: Live play (writes)',
+  hint: 'Damage and conditions.',
+  defaultEnabled: true,
+  autoApply: { name: 'AI Tool: Live play, apply without confirming', hint: 'Skips the confirm.' },
+};
+
+describe('autoApply (F5)', () => {
+  it('registers a second world setting that defaults to off', () => {
+    registerGuardedFeature(LIVE);
+    expect(autoApplySettingKey('live-play')).toBe('feature.live-play.autoApply');
+    expect(register).toHaveBeenCalledTimes(2);
+    const [scope, key, config] = register.mock.calls[1];
+    expect([scope, key]).toEqual([MODULE_ID, 'feature.live-play.autoApply']);
+    expect(config).toMatchObject({
+      name: 'AI Tool: Live play, apply without confirming',
+      scope: 'world',
+      config: true,
+      type: Boolean,
+      default: false,
+    });
+    expect(config.hint).toMatch(/^Skips the confirm\. Off by default/);
+  });
+
+  it('registers no second setting for a feature without the option', () => {
+    registerGuardedFeature(ATTITUDES);
+    expect(register).toHaveBeenCalledTimes(1);
+  });
+
+  it('is off until the GM switches it on', () => {
+    registerGuardedFeature(LIVE);
+    world.setSetting(MODULE_ID, 'feature.live-play.enabled', true);
+    expect(isAutoApplyEnabled('live-play')).toBe(false);
+    world.setSetting(MODULE_ID, 'feature.live-play.autoApply', true);
+    expect(isAutoApplyEnabled('live-play')).toBe(true);
+  });
+
+  it('is off when the feature itself is off', () => {
+    registerGuardedFeature(LIVE);
+    world.setSetting(MODULE_ID, 'feature.live-play.enabled', false);
+    world.setSetting(MODULE_ID, 'feature.live-play.autoApply', true);
+    expect(isAutoApplyEnabled('live-play')).toBe(false);
+  });
+
+  it('is off for an unknown feature, a feature without the option and non-boolean values', () => {
+    world.setSetting(MODULE_ID, 'feature.ghost.autoApply', true);
+    expect(isAutoApplyEnabled('ghost')).toBe(false);
+    registerGuardedFeature(ATTITUDES);
+    world.setSetting(MODULE_ID, 'feature.npc-attitudes.enabled', true);
+    world.setSetting(MODULE_ID, 'feature.npc-attitudes.autoApply', true);
+    expect(isAutoApplyEnabled('npc-attitudes')).toBe(false);
+    registerGuardedFeature(LIVE);
+    world.setSetting(MODULE_ID, 'feature.live-play.enabled', true);
+    world.setSetting(MODULE_ID, 'feature.live-play.autoApply', 'yes');
+    expect(isAutoApplyEnabled('live-play')).toBe(false);
+  });
+
+  it('is off when the setting cannot be read', () => {
+    registerGuardedFeature(LIVE);
+    world.setSetting(MODULE_ID, 'feature.live-play.enabled', true);
+    const original = g.game.settings.get;
+    g.game.settings.get = (moduleId: string, key: string): unknown => {
+      if (key.endsWith('.autoApply')) throw new Error('not registered');
+      return original(moduleId, key);
+    };
+    expect(isAutoApplyEnabled('live-play')).toBe(false);
+  });
+
+  it('lists autoApply only for features with the option, and never the option object', () => {
+    registerGuardedFeature(ATTITUDES);
+    registerGuardedFeature(LIVE);
+    world.setSetting(MODULE_ID, 'feature.live-play.enabled', true);
+    world.setSetting(MODULE_ID, 'feature.live-play.autoApply', true);
+    const [attitudes, live] = listGuardedFeatures();
+    expect(attitudes).not.toHaveProperty('autoApply');
+    expect(live).toEqual({
+      id: 'live-play',
+      name: 'AI Tool: Live play (writes)',
+      hint: 'Damage and conditions.',
+      defaultEnabled: true,
+      enabled: true,
+      writesAllowed: false,
+      autoApply: true,
+    });
+    world.setSetting(MODULE_ID, 'feature.live-play.autoApply', false);
+    expect(listGuardedFeatures()[1]?.autoApply).toBe(false);
   });
 });

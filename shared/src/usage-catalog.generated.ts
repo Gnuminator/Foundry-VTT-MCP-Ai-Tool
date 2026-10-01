@@ -93,6 +93,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/app.js',
   },
   {
+    name: 'dash.combat.selection-condition',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
     name: 'dash.combat.selection-damage',
     kind: 'action',
     surface: 'dashboard',
@@ -515,6 +521,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   {
     name: 'dash.toast.error',
     kind: 'error',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.toast.undo',
+    kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/app.js',
   },

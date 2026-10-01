@@ -605,6 +605,7 @@ function renderCombatActions() {
       <span class="ca-count"><strong>${n}</strong> selected</span>
       <button type="button" class="ca-btn" data-track="dash.combat.selection-init" data-sel="init">Roll init</button>
       <button type="button" class="ca-btn" data-track="dash.combat.selection-damage" data-sel="damage">Damage / Heal</button>
+      <button type="button" class="ca-btn" data-track="dash.combat.selection-condition" data-sel="condition">Condition</button>
       <button type="button" class="ca-btn" data-track="dash.combat.selection-save" data-sel="save">Roll save</button>
       <button type="button" class="ca-btn ghost" data-track="dash.combat.selection-clear" data-sel="clear">Clear</button>
     </div>`
@@ -872,6 +873,34 @@ function toast(msg, kind = 'ok', code) {
     },
     kind === 'err' ? 6000 : 3500
   );
+}
+
+// A toast for an applied change with an Undo button (F5): one click undoes it without the
+// confirm modal (the click is the confirmation); Recent Changes keeps the full history.
+function undoToast(change) {
+  const el = document.createElement('div');
+  el.className = 'toast ok toast-undo';
+  el.innerHTML = `<span class="toast-text"></span><button type="button" class="toast-action" data-track="dash.toast.undo">Undo</button>`;
+  el.querySelector('.toast-text').textContent = doneText('apply-planned-change', change);
+  const button = el.querySelector('.toast-action');
+  let fade = null;
+  const close = () => {
+    if (fade) clearTimeout(fade);
+    el.style.transition = 'opacity .3s ease';
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 300);
+  };
+  button.addEventListener('click', () => {
+    button.disabled = true;
+    close();
+    void runTool('undo-change', { changeId: change.changeId }, 'destructive', {
+      skipConfirm: true,
+    });
+  });
+  el.addEventListener('mouseenter', () => fade && clearTimeout(fade));
+  el.addEventListener('mouseleave', () => (fade = setTimeout(close, 4000)));
+  els.toastStack.appendChild(el);
+  fade = setTimeout(close, 8000);
 }
 
 // --- Confirm modal (promise-based) ---
@@ -1381,7 +1410,8 @@ function collectArgs(tool, form) {
     const control = field.querySelector('.field-control, input[type=checkbox]');
     if (!control) continue;
     if (def.type === 'boolean') {
-      if (!control.checked && !required.includes(key)) continue;
+      // An unticked box is sent only when it is required or defaults to on (then it means off).
+      if (!control.checked && !required.includes(key) && def.default !== true) continue;
       args[key] = control.checked;
       continue;
     }
@@ -1426,6 +1456,10 @@ async function submitToolForm(tool) {
     if (errEl) errEl.textContent = String(e.message || e);
     return;
   }
+  if (PLAN_TOOL.test(tool.name)) {
+    await planThenApply(tool.name, args, { showResultInDrawer: true });
+    return;
+  }
   await runTool(tool.name, args, tool.mutates, { showResultInDrawer: true });
 }
 function showToolResult(ok, payload) {
@@ -1464,7 +1498,11 @@ async function runTool(name, args, mutates, opts = {}) {
       openDrawer();
       return;
     }
-    if (name === 'apply-planned-change') {
+    if (opts.skipConfirm) {
+      // The GM already chose: "apply without confirming" for live play, or Undo on a toast.
+      confirmFlags =
+        kind === 'destructive' ? { confirm: true, confirmDestructive: true } : { confirm: true };
+    } else if (name === 'apply-planned-change') {
       // Show the plan's diff, and ask for the destructive confirm when it deletes.
       let plan;
       try {
@@ -1474,24 +1512,29 @@ async function runTool(name, args, mutates, opts = {}) {
         toast(`✗ Can't load the plan: ${String(err.message || err)}`, 'err');
         return;
       }
-      diff = (plan.diff || []).map(d => d.text);
+      // A live-play plan brings its own per-target lines ("Wolf 2: 12 fire damage, 6 taken").
+      diff = opts.diff || (plan.diff || []).map(d => d.text);
       summary = plan.summary;
       kind = plan.risk === 'destructive' ? 'destructive' : 'write';
     }
-    const ok = await confirmAction({
-      title: kind === 'destructive' ? 'Destructive action' : 'Confirm action',
-      name,
-      args,
-      destructive: kind === 'destructive',
-      diff,
-      summary,
-    });
+    const ok =
+      opts.skipConfirm ||
+      (await confirmAction({
+        title: kind === 'destructive' ? 'Destructive action' : 'Confirm action',
+        name,
+        args,
+        destructive: kind === 'destructive',
+        diff,
+        summary,
+      }));
     if (!ok) {
       usage.trackTool(name, 'cancelled');
       return;
     }
-    confirmFlags =
-      kind === 'destructive' ? { confirm: true, confirmDestructive: true } : { confirm: true };
+    if (!opts.skipConfirm) {
+      confirmFlags =
+        kind === 'destructive' ? { confirm: true, confirmDestructive: true } : { confirm: true };
+    }
   }
   try {
     const res = await fetch('/api/tool', {
@@ -1502,7 +1545,11 @@ async function runTool(name, args, mutates, opts = {}) {
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok) {
       usage.trackTool(name, 'ok');
-      toast(doneText(name, data.result), 'ok');
+      if (name === 'apply-planned-change' && data.result && data.result.changeId) {
+        undoToast(data.result);
+      } else {
+        toast(doneText(name, data.result), 'ok');
+      }
       // A handout reveal that copies the page says where the copy goes ("Copied into Handouts").
       if (data.result && data.result.copy && typeof data.result.note === 'string') {
         toast(data.result.note, 'ok');
@@ -2456,19 +2503,28 @@ async function onPartyClick(e) {
 
 // --- Tarokka drawer (GM only) ---
 // A plan-* tool is a read; apply-planned-change then shows its diff in the
-// confirm modal (and the destructive checkbox for a reveal).
-async function planThenApply(planTool, args) {
+// confirm modal (and the destructive checkbox for a reveal). A live-play plan
+// (plan-actor-change) whose GM switched on "apply without confirming" comes
+// back with autoApply: it is applied at once, still behind GM Actions.
+const PLAN_TOOL = /^plan-/;
+async function planThenApply(planTool, args, opts = {}) {
   let plan;
   try {
     plan = await callReadTool(planTool, args);
   } catch (err) {
     usage.trackTool(planTool, 'error', toolErrorCode(err));
     toast(`✗ ${planTool}: ${String(err.message || err)}`, 'err');
+    if (opts.showResultInDrawer) showToolResult(false, String(err.message || err));
     return;
   }
   usage.trackTool(planTool, 'ok');
   if (plan && plan.providerNote) toast(plan.providerNote, 'warn');
-  await runTool('apply-planned-change', { planId: plan.planId }, 'write');
+  const applyOpts = { ...opts };
+  if (plan && Array.isArray(plan.targets) && plan.targets.length > 0) {
+    applyOpts.diff = plan.targets.map(t => t.line);
+  }
+  if (plan && plan.autoApply === true && plan.risk === 'write') applyOpts.skipConfirm = true;
+  await runTool('apply-planned-change', { planId: plan.planId }, 'write', applyOpts);
 }
 function openTarokka() {
   usage.trackView('dash.tarokka.view');
@@ -2685,7 +2741,11 @@ els.combatActions.addEventListener('click', e => {
   }
   const names = selectedNames();
   if (names.length === 0) return;
-  if (action === 'damage') void openTool('apply-damage-and-healing', { targets: names });
+  // F5: damage, healing and conditions are planned, confirmed and undoable (plan-actor-change).
+  if (action === 'damage') void openTool('plan-actor-change', { action: 'damage', targets: names });
+  if (action === 'condition') {
+    void openTool('plan-actor-change', { action: 'condition', targets: names });
+  }
   if (action === 'save') void openTool('roll-saving-throws', { targets: names });
 });
 els.changesRefresh.addEventListener('click', () => void loadRecentChanges());

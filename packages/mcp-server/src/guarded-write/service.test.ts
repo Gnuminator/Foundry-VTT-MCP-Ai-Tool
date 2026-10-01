@@ -640,3 +640,58 @@ describe('onRecorded', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// autoApplyEnabled (F5)
+// ---------------------------------------------------------------------------
+
+describe('autoApplyEnabled', () => {
+  function setLive(state: Record<string, unknown>): void {
+    foundry.features = [
+      {
+        id: 'live-play',
+        name: 'Live play',
+        hint: '',
+        enabled: true,
+        writesAllowed: true,
+        ...state,
+      },
+    ];
+  }
+
+  it('is true when the feature and its apply-without-confirming switch are on', async () => {
+    setLive({ autoApply: true });
+    await expect(service.autoApplyEnabled('live-play')).resolves.toBe(true);
+  });
+
+  it('is false when the switch is off or the feature does not offer it', async () => {
+    setLive({ autoApply: false });
+    await expect(service.autoApplyEnabled('live-play')).resolves.toBe(false);
+    setLive({});
+    await expect(service.autoApplyEnabled('live-play')).resolves.toBe(false);
+  });
+
+  it('is false when the feature switch is off', async () => {
+    setLive({ autoApply: true, enabled: false });
+    await expect(service.autoApplyEnabled('live-play')).resolves.toBe(false);
+  });
+
+  it('is false when "Allow Write Operations" is off', async () => {
+    setLive({ autoApply: true, writesAllowed: false });
+    await expect(service.autoApplyEnabled('live-play')).resolves.toBe(false);
+  });
+
+  it('is false for an unknown feature', async () => {
+    setLive({ autoApply: true });
+    await expect(service.autoApplyEnabled('ghost')).resolves.toBe(false);
+  });
+
+  it('is false when Foundry cannot be asked or refuses', async () => {
+    setLive({ autoApply: true });
+    foundry.connected = false;
+    await expect(service.autoApplyEnabled('live-play')).resolves.toBe(false);
+    foundry.connected = true;
+    foundry.query.mockResolvedValueOnce({ success: false, error: 'GM only' });
+    await expect(service.autoApplyEnabled('live-play')).resolves.toBe(false);
+  });
+});

@@ -62,7 +62,7 @@ describe('filterToolsBySets', () => {
 describe('toolSetOf', () => {
   it('names the set of a tool, and nothing for an unknown name', () => {
     expect(toolSetOf('undo-change')).toBe('core');
-    expect(toolSetOf('apply-damage-and-healing')).toBe('play');
+    expect(toolSetOf('plan-actor-change')).toBe('play');
     expect(toolSetOf('plan-page-reveal')).toBe('prep');
     expect(toolSetOf('dnd5e-create-npc')).toBe('build');
     expect(toolSetOf('get-module-errors')).toBe('admin');

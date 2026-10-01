@@ -333,7 +333,11 @@ function foundryDiff(ops: GuardedOp[], snapshots: OpSnapshot[]): DiffLine[] {
       if (!snap.exists) throw new Error(`Op ${i}: parent not found: ${String(op.parentUuid)}`);
       if (snap.idTaken) throw new Error(`Op ${i}: a document with that id already exists`);
       const name = typeof op.data.name === 'string' ? ` "${op.data.name}"` : '';
-      const where = op.parentUuid ? ` in ${op.parentUuid}` : '';
+      const where = snap.parent?.name
+        ? ` on ${snap.parent.documentName} "${snap.parent.name}"`
+        : op.parentUuid
+          ? ` in ${op.parentUuid}`
+          : '';
       const label = `${op.documentName}${name}`;
       lines.push({
         op: i,
@@ -350,7 +354,9 @@ function foundryDiff(ops: GuardedOp[], snapshots: OpSnapshot[]): DiffLine[] {
         kind: 'delete',
         target: op.uuid,
         label,
-        text: `Delete ${label} (${op.uuid})`,
+        text: snap.parent?.name
+          ? `Delete ${label} from ${snap.parent.documentName} "${snap.parent.name}"`
+          : `Delete ${label} (${op.uuid})`,
       });
     }
   });
@@ -854,6 +860,26 @@ export class GuardedWriteService {
    * An apply needs "Allow Write Operations" and the feature switch; an undo (`undo: true`) only
    * "Allow Write Operations", like a Foundry undo.
    */
+  /**
+   * Whether the GM switched on "apply without confirming" for a feature (live play, F5): the
+   * caller of a plan tool then applies the plan at once. False when the switch is off, the
+   * feature or "Allow Write Operations" is off, or Foundry cannot be asked.
+   */
+  async autoApplyEnabled(feature: string): Promise<boolean> {
+    try {
+      const features = unwrap<GuardedFeatureState[]>(
+        await this.foundry.query('foundry-mcp-bridge.listGuardedFeatures'),
+        'Feature list refused'
+      );
+      const list = Array.isArray(features) ? features : [];
+      if (list.some(f => f.writesAllowed === false)) return false;
+      const state = list.find(f => f.id === feature);
+      return state?.enabled === true && state.autoApply === true;
+    } catch {
+      return false;
+    }
+  }
+
   private async requireFeatureEnabled(feature: string, undo = false): Promise<void> {
     let features: GuardedFeatureState[];
     try {

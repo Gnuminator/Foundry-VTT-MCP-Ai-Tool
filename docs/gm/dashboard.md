@@ -117,11 +117,17 @@ With GM Actions on, click combatant rows to select them (click again to unselect
 more selected:
 
 - **Roll init**: rolls initiative for the selected.
-- **Damage / Heal**: opens the tool runner with those names filled in, so you enter the amount.
+- **Damage / Heal**: opens the tool runner (`plan-actor-change`) with those names filled in. Pick
+  damage, healing or temp-hp and enter the amount (and the damage type, so resistances count).
+- **Condition**: the same, for a condition: pick it, and untick **active** to remove it.
 - **Roll save**: opens the tool runner to roll a saving throw for them.
 - **Clear**: unselects all.
 
-Nothing changes until you confirm in the confirm window.
+Nothing changes until you confirm in the confirm window, which lists each target's result ("Wolf
+2: HP 11 to 5"). After it is applied, a message with **Undo** shows for a few seconds; one click
+puts it back. Later, use **Undo** in Recent Changes. With **AI Tool: Live play, apply without
+confirming** on (Game Settings, off by default), damage, healing and conditions skip the confirm
+window; the **Undo** message still shows.
 
 **👑 Boss prompts** (in the panel's top line, only while a creature with legendary actions or a lair
 is in the fight; off until you turn it on, and remembered in this browser). Turn it on before the
@@ -181,8 +187,8 @@ Every guarded change that was applied, newest first, up to 20. Each row shows:
 before the change. It refuses, and writes nothing, if the same thing was changed again since.
 Undo works even when the feature's switch is off. Click **↻** to reload the list.
 
-Only guarded changes are listed here. Changes from other tools (damage, token moves, new actors)
-are not, and cannot be undone here.
+Only guarded changes are listed here: damage, healing, conditions and resources are, while
+changes from other tools (rolls, token moves, new actors) are not and cannot be undone here.
 
 ## The confirm window
 

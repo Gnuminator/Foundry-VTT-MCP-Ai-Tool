@@ -25,42 +25,6 @@ export class CombatResolutionTools {
   getToolDefinitions() {
     return [
       {
-        name: 'apply-damage-and-healing',
-        description:
-          "Apply damage, healing, or temporary HP to one or more tokens/actors, using dnd5e's automatic resistance/vulnerability/immunity math (the target's own traits drive the reduction). Targets are token names (preferred, so unlinked NPC tokens use their own HP) or actor names/IDs. D&D 5e only.",
-        inputSchema: {
-          type: 'object',
-          properties: {
-            targets: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Token names (preferred) or actor names/IDs to affect.',
-              ...toolRef(['token', 'actor'], 'id'),
-            },
-            amount: { type: 'integer', description: 'Amount of damage/healing/temp HP (>= 0).' },
-            kind: {
-              type: 'string',
-              enum: ['damage', 'healing', 'temp'],
-              description: 'damage (default), healing, or temp (temporary HP).',
-            },
-            type: {
-              type: 'string',
-              description:
-                'Damage type key for resistance math (dnd5e keys: acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing, thunder). Omit for untyped.',
-            },
-            multiplier: {
-              type: 'number',
-              description: 'Optional multiplier (e.g. 2 for a critical hit, 0.5 for half).',
-            },
-            ignoreResistance: {
-              type: 'boolean',
-              description: "If true, ignore the target's resistances/immunities (raw damage).",
-            },
-          },
-          required: ['targets', 'amount'],
-        },
-      },
-      {
         name: 'roll-saving-throws',
         description:
           'Roll saving throws (or ability checks / skill checks) for one or more NPC actors using dnd5e system rules, optionally against a DC, reporting each total and pass/fail. Use for "all the goblins roll a DEX save vs DC 15". D&D 5e only.',
@@ -157,30 +121,6 @@ export class CombatResolutionTools {
       throw new Error(response.error || failMsg);
     }
     return response;
-  }
-
-  async handleApplyDamageAndHealing(args: any) {
-    const schema = z.object({
-      targets: z.array(z.string()).min(1),
-      amount: z.number().int().min(0),
-      kind: z.enum(['damage', 'healing', 'temp']).optional(),
-      type: z.string().optional(),
-      multiplier: z.number().optional(),
-      ignoreResistance: z.boolean().optional(),
-    });
-    try {
-      return await this.query(
-        'applyDamageAndHealing',
-        schema.parse(args),
-        'Failed to apply damage/healing'
-      );
-    } catch (error) {
-      this.logger.error('Error applying damage/healing', error);
-      if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
-      }
-      throw error;
-    }
   }
 
   async handleRollSavingThrows(args: any) {

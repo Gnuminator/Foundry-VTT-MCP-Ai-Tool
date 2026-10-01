@@ -2,7 +2,6 @@ import { ERROR_MESSAGES } from '../constants.js';
 import { permissionManager } from '../permissions.js';
 import * as shared from './shared.js';
 import { sceneBackgroundSrc } from '../systems/core.js';
-import { findStatusEffect } from '../systems/dnd5e/status-effects.js';
 
 /** Normalize a thrown value to a message string for wrapped error reporting. */
 function errorMessage(error: unknown): string {
@@ -517,64 +516,6 @@ export class ScenesTokensDataAccess {
       };
     } catch (error) {
       throw new Error(`Failed to delete tokens: ${errorMessage(error)}`);
-    }
-  }
-
-  /**
-   * Apply or remove a status condition on a token's actor. The condition is
-   * resolved from `CONFIG.statusEffects` by id or (case-insensitive) name
-   * (via {@link findStatusEffect}, which handles both the array (core/dnd5e
-   * 5.x) and id-keyed-object (dnd5e 6.0) storage shapes).
-   *
-   * Applying/removing is delegated to `actor.toggleStatusEffect(id, {active})`
-   * (verified `client/documents/actor.mjs:547`, unchanged since well before
-   * v13/v14) instead of building a raw `{name, icon, statuses}` ActiveEffect:
-   * dnd5e 6.0's override (`dnd5e.mjs:46035` `Actor5e#toggleStatusEffect`)
-   * creates the typed `condition` effect (`system.type`/`system.level`) and
-   * handles exhaustion-style leveled conditions
-   * (`ConditionData._applyDelta`/`hasLevels`, `dnd5e.mjs:7092-7256`) that a raw
-   * effect document can't represent; core's own implementation (both
-   * versions) does the equivalent for non-leveled conditions.
-   */
-  async toggleTokenCondition(data: {
-    tokenId: string;
-    conditionId: string;
-    active: boolean;
-  }): Promise<any> {
-    shared.validateFoundryState();
-    this.requireScenePermission([data.tokenId]);
-
-    try {
-      const scene = this.requireCurrentScene('No active scene found');
-      const token = this.requireToken(scene, data.tokenId);
-
-      const actor = token.actor;
-      if (!actor) {
-        throw new Error(`Token ${data.tokenId} has no associated actor`);
-      }
-
-      const condition = findStatusEffect(data.conditionId);
-      if (!condition) {
-        throw new Error(`Condition not found: ${data.conditionId}`);
-      }
-
-      await actor.toggleStatusEffect(condition.id, { active: data.active });
-
-      const conditionName = condition.name || condition.label || condition.id;
-      return {
-        success: true,
-        tokenId: token.id,
-        tokenName: token.name,
-        conditionId: data.conditionId,
-        conditionName,
-        isActive: data.active,
-        active: data.active,
-        message: data.active
-          ? `Applied ${data.conditionId} to ${token.name}`
-          : `Removed ${data.conditionId} from ${token.name}`,
-      };
-    } catch (error) {
-      throw new Error(`Failed to toggle token condition: ${errorMessage(error)}`);
     }
   }
 

@@ -208,6 +208,16 @@ function nameOf(doc: FoundryDocument): string | null {
   return typeof name === 'string' ? name : null;
 }
 
+/** The parent document of an embedded one, for diff labels; undefined when there is none. */
+function parentOf(
+  doc: FoundryDocument | null
+): { documentName: string; name: string | null } | undefined {
+  if (!doc) return undefined;
+  const documentName = (doc as { documentName?: unknown }).documentName;
+  if (typeof documentName !== 'string') return undefined;
+  return { documentName, name: nameOf(doc) };
+}
+
 function updatePaths(op: GuardedUpdateOp): string[] {
   return [...Object.keys(op.changes), ...(op.unset ?? [])];
 }
@@ -261,20 +271,24 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
     case 'delete': {
       const doc = await resolve(op.uuid);
       if (!doc) return { exists: false };
+      const parent = parentOf((doc as { parent?: FoundryDocument | null }).parent ?? null);
       return {
         exists: true,
         documentName: doc.documentName,
         name: nameOf(doc),
         modifiedTime: modifiedTimeOf(sourceOf(doc)),
+        ...(parent ? { parent } : {}),
       };
     }
     case 'create': {
       const parent = op.parentUuid ? await resolve(op.parentUuid) : null;
+      const parentLabel = parentOf(parent);
       return {
         exists: op.parentUuid ? parent !== null : true,
         documentName: op.documentName,
         name: typeof op.data.name === 'string' ? op.data.name : null,
         idTaken: await findExistingForCreate(op),
+        ...(parentLabel ? { parent: parentLabel } : {}),
       };
     }
   }

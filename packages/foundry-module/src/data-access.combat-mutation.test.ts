@@ -1,11 +1,10 @@
 /**
  * Characterization tests for the combat *mutation / compute* methods of
  * `FoundryDataAccess` (the ones `data-access.combat.test.ts` + the reads net do
- * NOT cover):
+ * NOT cover; applyDamageAndHealing moved to the guarded `plan-actor-change`, F5):
  *   - advanceCombatTurn
  *   - setInitiative
  *   - rollInitiativeForNpcs
- *   - applyDamageAndHealing
  *   - rollSavingThrows
  *   - manageRest
  *   - suggestBalancedEncounter
@@ -13,7 +12,7 @@
  * These pin the *current* behaviour so the Phase 9 from-scratch rewrite of the
  * combat domain can be verified to parity across the whole surface (the wave-1
  * lesson: a parity net is required per method, not per domain). The combat-reads
- * rewrite deliberately left these 7 methods byte-identical pending this net.
+ * rewrite deliberately left these methods byte-identical pending this net.
  *
  * Driven through the Phase 9 Foundry-mock harness (in-memory, no browser).
  *
@@ -304,105 +303,6 @@ describe('FoundryDataAccess — rollInitiativeForNpcs', () => {
     await da.rollInitiativeForNpcs({ combatantIds: ['c1', 'ghost'] });
 
     expect(combat.rollInitiative).toHaveBeenCalledWith(['c1']);
-  });
-});
-
-// ===========================================================================
-// applyDamageAndHealing
-// ===========================================================================
-
-describe('FoundryDataAccess — applyDamageAndHealing', () => {
-  it('throws when the system is not dnd5e', async () => {
-    (globalThis as any).game.system.id = 'pf2e';
-    await expect(da.applyDamageAndHealing({ targets: ['x'], amount: 5 })).rejects.toThrow(
-      'apply-damage-and-healing requires the dnd5e game system'
-    );
-  });
-
-  it('throws when targets is missing/empty', async () => {
-    await expect(da.applyDamageAndHealing({ targets: [], amount: 5 })).rejects.toThrow(
-      'targets array is required'
-    );
-  });
-
-  it('throws when amount is negative or not finite', async () => {
-    await expect(da.applyDamageAndHealing({ targets: ['Hero'], amount: -1 })).rejects.toThrow(
-      'amount must be a non-negative number'
-    );
-  });
-
-  it('applies typed damage via actor.applyDamage and reports hpBefore/hpAfter', async () => {
-    const actor = addActorWithHp('Hero', { value: 20, max: 20, temp: 0 });
-    actor.applyDamage = vi.fn((changes: any[]) => {
-      actor.system.attributes.hp.value -= changes[0].value;
-      return Promise.resolve();
-    });
-
-    const result = await da.applyDamageAndHealing({
-      targets: ['Hero'],
-      amount: 8,
-      type: 'fire',
-      multiplier: 2,
-      ignoreResistance: true,
-    });
-
-    expect(actor.applyDamage).toHaveBeenCalledWith([{ value: 8, type: 'fire' }], {
-      multiplier: 2,
-      ignore: true,
-    });
-    expect(result.success).toBe(true);
-    expect(result.kind).toBe('damage');
-    expect(result.amount).toBe(8);
-    expect(result.type).toBe('fire');
-    expect(result.results).toEqual([
-      {
-        target: 'Hero',
-        kind: 'damage',
-        hpBefore: { value: 20, temp: 0 },
-        hpAfter: { value: 12, temp: 0 },
-      },
-    ]);
-  });
-
-  it('healing calls applyDamage with a healing entry', async () => {
-    const actor = addActorWithHp('Cleric', { value: 5, max: 20, temp: 0 });
-    actor.applyDamage = vi.fn((changes: any[]) => {
-      actor.system.attributes.hp.value += changes[0].value;
-      return Promise.resolve();
-    });
-
-    const result = await da.applyDamageAndHealing({
-      targets: ['Cleric'],
-      amount: 6,
-      kind: 'healing',
-    });
-
-    expect(actor.applyDamage).toHaveBeenCalledWith([{ value: 6, type: 'healing' }]);
-    expect(result.results[0]).toEqual({
-      target: 'Cleric',
-      kind: 'healing',
-      hpBefore: { value: 5, temp: 0 },
-      hpAfter: { value: 11, temp: 0 },
-    });
-  });
-
-  it('temp HP calls actor.applyTempHP', async () => {
-    const actor = addActorWithHp('Wizard', { value: 10, max: 10, temp: 0 });
-    actor.applyTempHP = vi.fn((amt: number) => {
-      actor.system.attributes.hp.temp = amt;
-      return Promise.resolve();
-    });
-
-    const result = await da.applyDamageAndHealing({ targets: ['Wizard'], amount: 5, kind: 'temp' });
-
-    expect(actor.applyTempHP).toHaveBeenCalledWith(5);
-    expect(result.results[0].hpAfter).toEqual({ value: 10, temp: 5 });
-  });
-
-  it('records an error entry for an unresolved target', async () => {
-    const result = await da.applyDamageAndHealing({ targets: ['ghost'], amount: 4 });
-
-    expect(result.results).toEqual([{ target: 'ghost', error: 'actor/token not found' }]);
   });
 });
 

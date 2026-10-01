@@ -26,6 +26,7 @@ const OTHER_NAMES: Readonly<Record<string, string>> = {
   'gm-change': 'a dashboard feed line type',
   'host-not-allowed': 'a dashboard error code',
   'obsidian-mirror': 'a guarded-write feature id',
+  'live-play': 'a guarded-write feature id',
 };
 
 function markdownFiles(dir: string): string[] {

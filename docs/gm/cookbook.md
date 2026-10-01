@@ -141,12 +141,17 @@ set says so.
 
 ### Let Claude handle rolls and damage
 
-These need the **play** set switched on, and they happen right away (no undo).
+These need the **play** set switched on.
 
 - **Say:** "Roll a Dexterity save DC 14 for Wolf 1, Wolf 2 and Wolf 3." (`roll-saving-throws`)
-- **Say:** "Apply 12 fire damage to Wolf 2." (`apply-damage-and-healing`)
 - **Say:** "Roll initiative for the NPCs." (`roll-initiative-for-npcs`)
-- **Tip:** add "Tell me what you will do, then wait for my OK" until you trust the names.
+- **Say:** "Apply 12 fire damage to Wolf 2, go ahead." (`plan-actor-change`)
+- **What happens:** Claude plans the damage, shows what each target takes after resistances ("Wolf
+  2: 12 fire damage, 6 taken, HP 11 to 5") and applies it. "Go ahead" is your yes; without it
+  Claude asks first. Healing, temp HP, conditions ("Make Test Hero prone") and spell slots work
+  the same way.
+- **Tip:** a mistake is one click to fix: **Undo** in **Recent Changes**. Rolls happen right away
+  and cannot be undone.
 
 ### Record the session in Discord
 

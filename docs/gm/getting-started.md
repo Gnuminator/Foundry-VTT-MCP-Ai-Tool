@@ -15,11 +15,11 @@ control panel in the browser, the co-GM dashboard, that shows the table live.
 
 You stay in charge, but know the two kinds of change:
 
-- **Guarded changes.** For the tool's own features (Tarokka, handouts, the Obsidian mirror), Claude
-  plans a change and you approve it, and every such change can be undone.
-- **Direct actions.** Most of Claude's tools (damage and healing, conditions, rolls, token moves,
-  new NPCs, journals, chat and more) act as soon as Claude uses them, and the tool cannot undo
-  them. Keep Claude Desktop's "ask before using a tool" on for tools that change the game, so
+- **Guarded changes.** Damage, healing, conditions, spell slots and the tool's own features
+  (party, Tarokka, handouts, the Obsidian mirror): Claude plans a change and you approve it, and
+  every such change can be undone.
+- **Direct actions.** Many of Claude's other tools (rolls, token moves, new NPCs, journals, chat
+  and more) act as soon as Claude uses them, and the tool cannot undo them. Keep Claude Desktop's "ask before using a tool" on for tools that change the game, so
   nothing happens without your click. [Asking Claude](asking-claude.md) explains how.
 
 Players get their own page that never shows spoilers.
@@ -110,7 +110,8 @@ Tool words:
 - **Plan:** a proposed change with a list of what it will do (the diff). Plans expire after 15
   minutes.
 - **Feature switch:** a setting that allows one feature to make changes, such as "AI Tool: Tarokka
-  (writes)". Off by default.
+  (writes)". Off by default, except "AI Tool: Live play (writes)" (damage, healing, conditions,
+  resources), which starts on.
 - **GM Actions:** the dashboard's switch for changing the game from the dashboard. Off by default.
 - **GM token:** a password-like part of the dashboard's GM address (`?token=…`). It is only used
   once the dashboard can be reached from other computers; today's setup has none.

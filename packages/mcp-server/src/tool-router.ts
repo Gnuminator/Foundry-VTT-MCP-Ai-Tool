@@ -30,6 +30,7 @@ import type { PlaySessionTools } from './tools/play-session.js';
 import type { PlayStatsTools } from './tools/play-stats.js';
 import type { PlayerViewTools } from './tools/player-view.js';
 import type { PreflightTools } from './tools/preflight.js';
+import type { LivePlayTools } from './tools/live-play.js';
 import type { PartyTools } from './tools/party.js';
 import type { PrepDigestTools } from './tools/prep-digest.js';
 import type { QuestCreationTools } from './tools/quest-creation.js';
@@ -58,6 +59,7 @@ export interface ToolRouterDeps {
   effectsTools: EffectsTools;
   encounterTools: EncounterTools;
   guardedChangeTools: GuardedChangeTools;
+  livePlayTools: LivePlayTools;
   lootTools: LootTools;
   movementTools: MovementTools;
   obsidianMirrorTools: ObsidianMirrorTools;
@@ -105,8 +107,6 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'get-chat-log': args => deps.chatLogTools.handleGetChatLog(args),
     'get-combat-play-by-play': args => deps.chatLogTools.handleGetCombatPlayByPlay(args),
     'send-chat-message': args => deps.chatLogTools.handleSendChatMessage(args),
-    'apply-damage-and-healing': args =>
-      deps.combatResolutionTools.handleApplyDamageAndHealing(args),
     'roll-saving-throws': args => deps.combatResolutionTools.handleRollSavingThrows(args),
     'use-npc-activity': args => deps.combatResolutionTools.handleUseNpcActivity(args),
     'manage-rest': args => deps.combatResolutionTools.handleManageRest(args),
@@ -131,7 +131,6 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
       deps.dnd5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium(args),
     'dnd5e-create-npc': args => deps.dnd5eNpcTools.handleCreateNpc(args),
     'get-active-effects': args => deps.effectsTools.handleGetActiveEffects(args),
-    'clear-stale-conditions': args => deps.effectsTools.handleClearStaleConditions(args),
     'suggest-balanced-encounter': args => deps.encounterTools.handleSuggestBalancedEncounter(args),
     'place-measured-template': args => deps.encounterTools.handlePlaceMeasuredTemplate(args),
     'delete-measured-template': args => deps.encounterTools.handleDeleteMeasuredTemplate(args),
@@ -163,7 +162,6 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'list-journals': args => deps.questCreationTools.handleListJournals(args),
     'search-journals': args => deps.questCreationTools.handleSearchJournals(args),
     'get-character-resources': args => deps.resourceTools.handleGetCharacterResources(args),
-    'update-character-resource': args => deps.resourceTools.handleUpdateCharacterResource(args),
     'set-scene-mood': args => deps.sceneControlTools.handleSetSceneMood(args),
     'add-map-note': args => deps.sceneControlTools.handleAddMapNote(args),
     'set-token-vision-light': args => deps.sceneControlTools.handleSetTokenVisionLight(args),
@@ -186,12 +184,12 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'get-prep-digest': args => deps.prepDigestTools.handleGetPrepDigest(args),
     'get-party': args => deps.partyTools.handleGetParty(args),
     'plan-party-change': args => deps.partyTools.handlePlanPartyChange(args),
+    'plan-actor-change': args => deps.livePlayTools.handlePlanActorChange(args),
     'list-ref-choices': args => deps.refChoiceTools.handleListRefChoices(args),
     'move-token': args => deps.tokenManipulationTools.handleMoveToken(args),
     'update-token': args => deps.tokenManipulationTools.handleUpdateToken(args),
     'delete-tokens': args => deps.tokenManipulationTools.handleDeleteTokens(args),
     'get-token-details': args => deps.tokenManipulationTools.handleGetTokenDetails(args),
-    'toggle-token-condition': args => deps.tokenManipulationTools.handleToggleTokenCondition(args),
     'get-available-conditions': args =>
       deps.tokenManipulationTools.handleGetAvailableConditions(args),
   };
@@ -245,6 +243,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.preflightTools.getToolDefinitions(),
     ...deps.prepDigestTools.getToolDefinitions(),
     ...deps.partyTools.getToolDefinitions(),
+    ...deps.livePlayTools.getToolDefinitions(),
     ...deps.refChoiceTools.getToolDefinitions(),
   ];
 }

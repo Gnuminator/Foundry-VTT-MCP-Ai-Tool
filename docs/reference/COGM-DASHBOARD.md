@@ -33,7 +33,8 @@ game as it happens — and now lets you **run the game from the dashboard**, too
 - **Click combatants to multi-select**, then act on them as a group.
 - **Roll initiative** for NPCs / everyone / just the ones missing it, **advance the turn**, or jump
   to a combatant.
-- **Apply damage or healing** and **roll saving throws** for the selected creatures.
+- **Apply damage, healing or a condition** (planned, confirmed, with an **Undo** message after) and
+  **roll saving throws** for the selected creatures.
 
 ### Do (almost) anything the bridge can do
 

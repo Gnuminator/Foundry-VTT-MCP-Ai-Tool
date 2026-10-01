@@ -23,6 +23,7 @@ import { EXPORT_INDEX_QUERY, getExportIndex } from './export-index.js';
 import { getPreflightScan, PREFLIGHT_QUERY } from './preflight-scan.js';
 import { getPartyState, PARTY_STATE_QUERY } from './party-scan.js';
 import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
+import { LIVE_PLAN_QUERY, planLiveChange } from './live-plan.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { gateWriteHandlers } from './write-gate.js';
 
@@ -194,6 +195,12 @@ export class QueryHandlers {
       this.withGmGate('Failed to read the party', () => Promise.resolve(getPartyState()))
     );
 
+    // Live play plans (F5, D-082, read-only): damage, healing, conditions and resources
+    // as guarded ops, built with a dnd5e dry run. GM client only.
+    handlers.set(`${modulePrefix}.${LIVE_PLAN_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to plan the change', () => planLiveChange(data))
+    );
+
     // Live write sweep helper (I-016): scene snapshot, a sweep combat and the clean-up for
     // `scripts/live-write-sweep.mjs`, in the test world only (live-sweep.ts refuses any other
     // world). Not an MCP tool.
@@ -266,10 +273,6 @@ export class QueryHandlers {
     handlers.set(`${modulePrefix}.deleteTokens`, this.handleDeleteTokens.bind(this));
     handlers.set(`${modulePrefix}.getTokenDetails`, this.handleGetTokenDetails.bind(this));
     handlers.set(
-      `${modulePrefix}.toggleTokenCondition`,
-      this.handleToggleTokenCondition.bind(this)
-    );
-    handlers.set(
       `${modulePrefix}.getAvailableConditions`,
       this.handleGetAvailableConditions.bind(this)
     );
@@ -296,10 +299,6 @@ export class QueryHandlers {
     handlers.set(`${modulePrefix}.update-token`, this.handleUpdateToken.bind(this));
     handlers.set(`${modulePrefix}.delete-tokens`, this.handleDeleteTokens.bind(this));
     handlers.set(`${modulePrefix}.get-token-details`, this.handleGetTokenDetails.bind(this));
-    handlers.set(
-      `${modulePrefix}.toggle-token-condition`,
-      this.handleToggleTokenCondition.bind(this)
-    );
     handlers.set(
       `${modulePrefix}.get-available-conditions`,
       this.handleGetAvailableConditions.bind(this)
@@ -341,17 +340,9 @@ export class QueryHandlers {
       `${modulePrefix}.getCharacterResources`,
       this.handleGetCharacterResources.bind(this)
     );
-    handlers.set(
-      `${modulePrefix}.updateCharacterResource`,
-      this.handleUpdateCharacterResource.bind(this)
-    );
 
     // 3D: Active effects / conditions
     handlers.set(`${modulePrefix}.getActiveEffects`, this.handleGetActiveEffects.bind(this));
-    handlers.set(
-      `${modulePrefix}.clearStaleConditions`,
-      this.handleClearStaleConditions.bind(this)
-    );
 
     // 3E: Combat tracker
     handlers.set(`${modulePrefix}.getCombatState`, this.handleGetCombatState.bind(this));
@@ -393,10 +384,6 @@ export class QueryHandlers {
     handlers.set(
       `${modulePrefix}.rollInitiativeForNpcs`,
       this.handleRollInitiativeForNpcs.bind(this)
-    );
-    handlers.set(
-      `${modulePrefix}.applyDamageAndHealing`,
-      this.handleApplyDamageAndHealing.bind(this)
     );
     handlers.set(`${modulePrefix}.rollSavingThrows`, this.handleRollSavingThrows.bind(this));
     handlers.set(`${modulePrefix}.useNpcActivity`, this.handleUseNpcActivity.bind(this));
@@ -1018,29 +1005,6 @@ export class QueryHandlers {
   }
 
   /**
-   * Handle toggle token condition request
-   */
-  private async handleToggleTokenCondition(data: {
-    tokenId: string;
-    conditionId: string;
-    active: boolean;
-  }): Promise<any> {
-    return this.withGmGate('Failed to toggle token condition', async () => {
-      if (!data.tokenId) {
-        throw new Error('tokenId is required');
-      }
-      if (!data.conditionId) {
-        throw new Error('conditionId is required');
-      }
-      if (typeof data.active !== 'boolean') {
-        throw new Error('active must be a boolean');
-      }
-
-      return await this.dataAccess.toggleTokenCondition(data);
-    });
-  }
-
-  /**
    * Handle get available conditions request
    */
   private async handleGetAvailableConditions(): Promise<any> {
@@ -1418,21 +1382,6 @@ export class QueryHandlers {
     });
   }
 
-  async handleUpdateCharacterResource(data: {
-    identifier: string;
-    resourceName: string;
-    newValue: number;
-  }): Promise<any> {
-    return this.withGmGate('Failed to update character resource', async () => {
-      if (!data?.identifier) throw new Error('identifier is required');
-      if (!data?.resourceName) throw new Error('resourceName is required');
-      if (data?.newValue === undefined || data?.newValue === null) {
-        throw new Error('newValue is required');
-      }
-      return await this.dataAccess.updateCharacterResource(data);
-    });
-  }
-
   // ===== 3D: ACTIVE EFFECTS / CONDITIONS =====
 
   async handleGetActiveEffects(data: { identifier: string }): Promise<any> {
@@ -1441,18 +1390,6 @@ export class QueryHandlers {
         throw new Error('identifier is required');
       }
       return await this.dataAccess.getActiveEffects(data);
-    });
-  }
-
-  async handleClearStaleConditions(data: {
-    identifier: string;
-    conditionNames?: string[];
-  }): Promise<any> {
-    return this.withGmGate('Failed to clear stale conditions', async () => {
-      if (!data?.identifier) {
-        throw new Error('identifier is required');
-      }
-      return await this.dataAccess.clearStaleConditions(data);
     });
   }
 
@@ -1565,18 +1502,6 @@ export class QueryHandlers {
   async handleRollInitiativeForNpcs(data: { scope?: 'npcs' | 'all' | 'missing' }): Promise<any> {
     return this.withGmGate('Failed to roll initiative', async () => {
       return await this.dataAccess.rollInitiativeForNpcs(data || {});
-    });
-  }
-
-  async handleApplyDamageAndHealing(data: any): Promise<any> {
-    return this.withGmGate('Failed to apply damage/healing', async () => {
-      if (!Array.isArray(data?.targets) || data.targets.length === 0) {
-        throw new Error('targets array is required');
-      }
-      if (data?.amount === undefined || data?.amount === null) {
-        throw new Error('amount is required');
-      }
-      return await this.dataAccess.applyDamageAndHealing(data);
     });
   }
 

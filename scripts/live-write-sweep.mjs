@@ -16,6 +16,8 @@
  *     token, journals, a campaign dashboard, world items, folders).
  *   - It changes only its own documents where it can (its own token for moves, damage,
  *     conditions, light and rolls; its own NPC for features, loot, rests and ownership).
+ *   - Damage, healing, conditions and resources go through plan-actor-change (F5, D-082):
+ *     each step plans, applies, checks, undoes with undo-change and checks again.
  *   - Scene-wide changes are put back by the tools themselves: map notes and templates are
  *     deleted, the scene mood and the active scene are restored.
  *   - At the end the dashboard's test route (`POST /api/test/live-sweep`, mode `cleanup`)
@@ -139,7 +141,7 @@ const DESTRUCTIVE = new Set([
   'delete-measured-template',
   'remove-actor-ownership',
   'clear-module-errors',
-  'clear-stale-conditions',
+  'undo-change',
 ]);
 
 /**
@@ -220,6 +222,38 @@ function skip(reason) {
 function brief(value, max = 120) {
   const text = typeof value === 'string' ? value : JSON.stringify(value);
   return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+/**
+ * F5 (D-082): plan-actor-change, then apply-planned-change. Returns the plan (with its
+ * per-target preview) and the applied change (its changeId is what undo-change takes).
+ */
+async function planAndApply(args) {
+  const plan = await tool('plan-actor-change', args);
+  assert(plan && plan.planId, `no plan: ${brief(plan)}`);
+  const change = await tool('apply-planned-change', { planId: plan.planId });
+  assert(change && change.changeId, `not applied: ${brief(change)}`);
+  return { plan, change };
+}
+
+async function undo(change) {
+  const r = await tool('undo-change', { changeId: change.changeId });
+  assert(r && r.mode === 'undo', `undo: ${brief(r)}`);
+  return r;
+}
+
+/** The sweep token's current hit points (get-token-positions reports hp as a number or {value}). */
+async function wolfHp() {
+  const t = await wolfToken();
+  const hp = t && t.hp;
+  const value = hp && typeof hp === 'object' ? hp.value : hp;
+  assert(typeof value === 'number', `no hp on the sweep token: ${brief(t)}`);
+  return value;
+}
+
+async function wolfConditions() {
+  const t = await wolfToken();
+  return JSON.stringify((t && t.conditions) || []).toLowerCase();
 }
 
 // --- Shared state -----------------------------------------------------------
@@ -461,7 +495,7 @@ async function itemAndJournalTools() {
     const r = await tool('manage-world-items', {
       action: 'add-to-actor',
       actorIdentifier: ctx.npcId,
-      // A consumable with three uses, so update-character-resource has something to change
+      // A consumable with three uses, so the resource step has something to change
       // (dnd5e loot has no uses).
       items: [
         { name: `${PREFIX} Trinket`, type: 'consumable', system: { uses: { max: '3', spent: 0 } } },
@@ -535,22 +569,39 @@ async function tokenTools() {
     await tool('update-token', { tokenId: ctx.wolfTokenId, updates: { elevation: 0 } });
     return 'elevation 10 -> 0';
   });
-  await step('toggle-token-condition (prone on, off)', async () => {
+  await step('plan-actor-change condition (prone on, undo)', async () => {
     needWolf();
-    await tool('toggle-token-condition', {
-      tokenId: ctx.wolfTokenId,
-      conditionId: 'prone',
-      active: true,
+    const { plan, change } = await planAndApply({
+      action: 'condition',
+      targets: [ctx.wolfTokenId],
+      condition: 'prone',
     });
-    const on = await wolfToken();
-    const conditions = JSON.stringify((on && on.conditions) || []).toLowerCase();
-    assert(conditions.includes('prone'), `conditions after: ${conditions}`);
-    await tool('toggle-token-condition', {
-      tokenId: ctx.wolfTokenId,
-      conditionId: 'prone',
+    assert((await wolfConditions()).includes('prone'), 'prone not on after the apply');
+    await undo(change);
+    assert(!(await wolfConditions()).includes('prone'), 'prone still on after the undo');
+    return `${plan.targets.map(t => t.line).join('; ')}; undone`;
+  });
+  await step('plan-actor-change clear-conditions (prone, undo the clear)', async () => {
+    needWolf();
+    await planAndApply({ action: 'condition', targets: [ctx.wolfTokenId], condition: 'prone' });
+    const cleared = await planAndApply({
+      action: 'clear-conditions',
+      targets: [ctx.wolfTokenId],
+      conditions: ['prone'],
+    });
+    assert(!(await wolfConditions()).includes('prone'), 'prone still on after clear-conditions');
+    await undo(cleared.change);
+    assert((await wolfConditions()).includes('prone'), 'prone not back after undoing the clear');
+    // The undo re-created Prone, so the first change ("prone on") can no longer be undone (a
+    // conflict, nothing written); a new plan takes it off.
+    await planAndApply({
+      action: 'condition',
+      targets: [ctx.wolfTokenId],
+      condition: 'prone',
       active: false,
     });
-    return 'on, then off';
+    assert(!(await wolfConditions()).includes('prone'), 'prone still on after taking it off');
+    return 'on, cleared, clear undone, taken off again';
   });
   await step('set-token-vision-light', async () => {
     needWolf();
@@ -567,25 +618,26 @@ async function tokenTools() {
     });
     return `updated ${brief(r.updated)}, then light off`;
   });
-  await step('apply-damage-and-healing (2 damage, 2 healing)', async () => {
+  await step('plan-actor-change damage and healing (undo both, newest first)', async () => {
     needWolf();
-    const hurt = await tool('apply-damage-and-healing', {
+    const start = await wolfHp();
+    const hurt = await planAndApply({
+      action: 'damage',
       targets: [ctx.wolfTokenId],
-      amount: 2,
-      kind: 'damage',
-      type: 'slashing',
+      amount: 3,
+      damageType: 'slashing',
     });
-    const row = hurt && hurt.results && hurt.results[0];
-    assert(row && !row.error, brief(hurt));
-    assert(row.hpAfter.value === row.hpBefore.value - 2, `hp ${brief(row)}`);
-    const healed = await tool('apply-damage-and-healing', {
-      targets: [ctx.wolfTokenId],
-      amount: 2,
-      kind: 'healing',
-    });
-    const back = healed.results[0];
-    assert(back.hpAfter.value === row.hpBefore.value, `hp after healing ${brief(back)}`);
-    return `hp ${row.hpBefore.value} -> ${row.hpAfter.value} -> ${back.hpAfter.value}`;
+    const afterDamage = await wolfHp();
+    assert(afterDamage === start - 3, `hp ${start} -> ${afterDamage} after 3 damage`);
+    const healed = await planAndApply({ action: 'healing', targets: [ctx.wolfTokenId], amount: 2 });
+    const afterHealing = await wolfHp();
+    assert(afterHealing === start - 1, `hp ${afterDamage} -> ${afterHealing} after 2 healing`);
+    await undo(healed.change);
+    assert((await wolfHp()) === start - 3, 'healing not undone');
+    await undo(hurt.change);
+    const back = await wolfHp();
+    assert(back === start, `hp ${back} after both undos, expected ${start}`);
+    return `hp ${start} -> ${afterDamage} -> ${afterHealing} -> undone to ${back} (${hurt.plan.targets[0].line})`;
   });
   await step('roll-saving-throws (dex save, whisper)', async () => {
     needWolf();
@@ -777,48 +829,46 @@ async function actorTools() {
   const needNpc = () => {
     if (!ctx.npcId) skip('no sweep NPC');
   };
-  await step('update-character-resource (and back)', async () => {
+  await step('plan-actor-change resource (one use spent, undo)', async () => {
     needNpc();
-    const res = await tool('get-character-resources', { identifier: ctx.npcId });
-    // get-character-resources lists slots as level1..level9 (and pact) with max/current;
-    // update-character-resource names them spell1..spell9.
-    const slots = Object.entries((res && res.spellSlots) || {}).map(([k, v]) => ({
-      name: k.replace(/^level/, 'spell'),
-      value: v && typeof v === 'object' ? (v.value ?? v.current) : v,
-      max: v && typeof v === 'object' ? v.max : 0,
-    }));
-    const charges = ((res && res.itemCharges) || []).map(c => ({
-      name: c.itemName,
-      value: c.charges,
-      max: c.max,
-    }));
-    const all = [...slots, ...charges].filter(r => Number(r.max) > 0 && Number(r.value) > 0);
-    if (all.length === 0) {
+    const read = async () => {
+      const res = await tool('get-character-resources', { identifier: ctx.npcId });
+      // get-character-resources lists slots as level1..level9 (and pact) with max/current;
+      // plan-actor-change takes spell1..spell9 (level1..9 work too).
+      const slots = Object.entries((res && res.spellSlots) || {}).map(([k, v]) => ({
+        name: k.replace(/^level/, 'spell'),
+        value: v && typeof v === 'object' ? (v.value ?? v.current) : v,
+        max: v && typeof v === 'object' ? v.max : 0,
+      }));
+      const charges = ((res && res.itemCharges) || []).map(c => ({
+        name: c.itemName,
+        value: c.charges,
+        max: c.max,
+      }));
+      return { res, all: [...slots, ...charges] };
+    };
+    const before = await read();
+    const usable = before.all.filter(r => Number(r.max) > 0 && Number(r.value) > 0);
+    if (usable.length === 0) {
       skip(
-        `no resource with uses on the NPC: ${brief({ slots: res && res.spellSlots, charges: res && res.itemCharges }, 160)}`
+        `no resource with uses on the NPC: ${brief({ slots: before.res && before.res.spellSlots, charges: before.res && before.res.itemCharges }, 160)}`
       );
     }
-    const pick = all[0];
-    const name = pick.name;
-    const old = Number(pick.value);
-    const r = await tool('update-character-resource', {
-      identifier: ctx.npcId,
-      resourceName: name,
-      newValue: old - 1,
+    const { name } = usable[0];
+    const old = Number(usable[0].value);
+    const valueOf = async () => Number((await read()).all.find(r => r.name === name)?.value);
+    const { change } = await planAndApply({
+      action: 'resource',
+      targets: [ctx.npcId],
+      resource: name,
+      value: old - 1,
     });
-    assert(r && Number(r.newValue) === old - 1, brief(r));
-    await tool('update-character-resource', {
-      identifier: ctx.npcId,
-      resourceName: name,
-      newValue: old,
-    });
-    return `${name} ${old} -> ${old - 1} -> ${old}`;
-  });
-  await step('clear-stale-conditions (NPC)', async () => {
-    needNpc();
-    const r = await tool('clear-stale-conditions', { identifier: ctx.npcId });
-    assert(r && typeof r.removedCount === 'number', brief(r));
-    return `removed ${r.removedCount}`;
+    const spent = await valueOf();
+    assert(spent === old - 1, `${name} is ${spent} after the apply, expected ${old - 1}`);
+    await undo(change);
+    const back = await valueOf();
+    assert(back === old, `${name} is ${back} after the undo, expected ${old}`);
+    return `${name} ${old} -> ${spent} -> undone to ${back}`;
   });
   await step('drop-loot (1 gp to the NPC, no chat)', async () => {
     needNpc();

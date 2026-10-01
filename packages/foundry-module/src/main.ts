@@ -13,6 +13,7 @@ import {
   unregisterGmHelperQueries,
 } from './gm-helper-queries.js';
 import { registerGuardedFeature } from './guarded-features.js';
+import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
 import { TAROKKA_FEATURE_ID, onTarokkaSettingChanged } from './tarokka.js';
 // Connection control now handled through settings menu
@@ -75,7 +76,7 @@ class FoundryMCPBridge {
       this.settings.registerSettings();
       registerSettingsUsageHooks();
 
-      // Guarded-write feature switches (world settings, default off).
+      // Guarded-write feature switches (world settings; off unless defaultEnabled).
       registerGuardedFeature({
         id: TAROKKA_FEATURE_ID,
         name: 'AI Tool: Tarokka (writes)',
@@ -95,6 +96,16 @@ class FoundryMCPBridge {
         id: PARTY_FEATURE_ID,
         name: 'AI Tool: Party (writes)',
         hint: "Lets the dashboard's Party drawer and the AI change the party's travel pace, add the party to combat and post a party rest request.",
+      });
+      registerGuardedFeature({
+        id: LIVE_PLAY_FEATURE_ID,
+        name: 'AI Tool: Live play (writes)',
+        hint: 'Lets the dashboard and the AI apply damage, healing, temporary hit points, conditions and resources (spell slots, class resources, item uses).',
+        defaultEnabled: true,
+        autoApply: {
+          name: 'AI Tool: Live play, apply without confirming',
+          hint: 'Damage, healing, conditions and resources apply at once, without the confirm step, from the dashboard and from Claude. Each one still shows an Undo and is listed in Recent Changes.',
+        },
       });
       Hooks.on('clientSettingChanged', (key: string) => {
         void onTarokkaSettingChanged(key, sendTarokkaOffer).catch(error => {

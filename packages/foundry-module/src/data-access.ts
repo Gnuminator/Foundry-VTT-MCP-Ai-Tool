@@ -479,14 +479,6 @@ export class FoundryDataAccess {
     return this.scenesTokens.getTokenDetails(data);
   }
 
-  async toggleTokenCondition(data: {
-    tokenId: string;
-    conditionId: string;
-    active: boolean;
-  }): Promise<any> {
-    return this.scenesTokens.toggleTokenCondition(data);
-  }
-
   async getAvailableConditions(): Promise<any> {
     return this.resources.getAvailableConditions();
   }
@@ -675,23 +667,8 @@ export class FoundryDataAccess {
     return this.resources.getCharacterResources(data);
   }
 
-  async updateCharacterResource(data: {
-    identifier: string;
-    resourceName: string;
-    newValue: number;
-  }): Promise<any> {
-    return this.resources.updateCharacterResource(data);
-  }
-
   async getActiveEffects(data: { identifier: string }): Promise<any> {
     return this.resources.getActiveEffects(data);
-  }
-
-  async clearStaleConditions(data: {
-    identifier: string;
-    conditionNames?: string[];
-  }): Promise<any> {
-    return this.resources.clearStaleConditions(data);
   }
 
   // ===========================================================================
@@ -779,17 +756,6 @@ export class FoundryDataAccess {
 
   async rollInitiativeForNpcs(data: { scope?: 'npcs' | 'all' | 'missing' }): Promise<any> {
     return this.combat.rollInitiativeForNpcs(data);
-  }
-
-  async applyDamageAndHealing(data: {
-    targets: string[];
-    amount: number;
-    kind?: 'damage' | 'healing' | 'temp';
-    type?: string;
-    multiplier?: number;
-    ignoreResistance?: boolean;
-  }): Promise<any> {
-    return this.combat.applyDamageAndHealing(data);
   }
 
   async rollSavingThrows(data: {

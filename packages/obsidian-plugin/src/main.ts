@@ -239,6 +239,13 @@ export default class FoundryAiToolPlugin extends Plugin {
         const link = planLink(this.settings.dashboardUrl, planId);
         if (link) window.open(link);
         new Notice('Plan made. Confirm it in the dashboard (it opened in your browser).');
+      } else if (action === 'queue') {
+        // The tool's own note speaks to Claude ("reveal-next"); the GM reveals from the dashboard.
+        new Notice(
+          `Queued ${note.name ?? 'the page'} for players. Reveal it from the dashboard's handout drawer (Reveal next) when the moment comes.`
+        );
+      } else if (action === 'unqueue') {
+        new Notice(`Removed ${note.name ?? 'the page'} from the handout reveal queue.`);
       } else {
         new Notice(text || 'Done.');
       }

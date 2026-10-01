@@ -3,10 +3,15 @@ import {
   LIVE_ACTOR_ACTIONS,
   LIVE_PLAN_QUERY,
   LIVE_PLAY_FEATURE_ID,
+  LIVE_TOKEN_ACTIONS,
+  LIVE_TOKEN_FIELDS,
+  freeText,
   toolRef,
   type LiveActorPlanResult,
   type LiveActorRequest,
   type LiveChangePlan,
+  type LiveTokenField,
+  type LiveTokenRequest,
 } from '@gnuminator/shared';
 import { z } from 'zod';
 
@@ -57,6 +62,59 @@ const planParams = z.object({
   value: z.number().int().min(0).optional(),
 });
 
+const tokenParams = z.object({
+  action: z.enum(LIVE_TOKEN_ACTIONS),
+  tokens: z.array(z.string().min(1)).min(1),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  gridX: z.number().int().optional(),
+  gridY: z.number().int().optional(),
+  dx: z.number().int().optional(),
+  dy: z.number().int().optional(),
+  name: z.string().min(1).optional(),
+  hidden: z.boolean().optional(),
+  disposition: z.number().int().optional(),
+  elevation: z.number().optional(),
+  rotation: z.number().optional(),
+  lockRotation: z.boolean().optional(),
+  width: z.number().positive().optional(),
+  height: z.number().positive().optional(),
+  sightEnabled: z.boolean().optional(),
+  sightRange: z.number().min(0).optional(),
+  visionMode: z.string().min(1).optional(),
+  lightDim: z.number().min(0).optional(),
+  lightBright: z.number().min(0).optional(),
+  lightColor: z.string().optional(),
+  lightAnimation: z.string().optional(),
+});
+
+/** The update fields, as tool parameters (one per entry of LIVE_TOKEN_FIELDS). */
+const TOKEN_FIELD_SCHEMA: Record<LiveTokenField, Record<string, unknown>> = {
+  name: {
+    type: 'string',
+    description: 'update: the token name.',
+    ...freeText('The new token name, typed by the GM'),
+  },
+  hidden: { type: 'boolean', description: 'update: hidden from players.' },
+  disposition: {
+    type: 'integer',
+    enum: [-2, -1, 0, 1],
+    description: 'update: -2 secret, -1 hostile, 0 neutral, 1 friendly.',
+  },
+  elevation: { type: 'number', description: 'update: elevation in scene units (ft).' },
+  rotation: { type: 'number', description: 'update: rotation in degrees.' },
+  lockRotation: { type: 'boolean', description: 'update: lock the rotation.' },
+  width: { type: 'number', description: 'update: width in grid squares.' },
+  height: { type: 'number', description: 'update: height in grid squares.' },
+  sightEnabled: { type: 'boolean', description: 'update: the token has vision.' },
+  sightRange: { type: 'number', description: 'update: vision range (ft).' },
+  visionMode: { type: 'string', description: 'update: basic, darkvision...' },
+  lightDim: { type: 'number', description: 'update: dim light radius (ft); a torch is 40.' },
+  lightBright: { type: 'number', description: 'update: bright light radius (ft); a torch is 20.' },
+  lightColor: { type: 'string', description: 'update: light color, "#ff9329".' },
+  lightAnimation: { type: 'string', description: 'update: torch, pulse, flame...' },
+};
+
 function unwrap<T>(response: unknown, what: string): T {
   const r = response as { success?: unknown; error?: unknown } | null | undefined;
   if (r && typeof r === 'object' && r.success === false) {
@@ -74,6 +132,12 @@ function unwrap<T>(response: unknown, what: string): T {
  * "apply without confirming" switch on, the result says `autoApply: true` and
  * the caller applies it at once. Replaces apply-damage-and-healing,
  * toggle-token-condition, update-character-resource and clear-stale-conditions.
+ *
+ * `plan-token-change` (F5 L2) does the same for token moves, a fixed list of
+ * token fields (vision and light included) and deletes (the token's
+ * combatants first, so undo restores their initiative). Replaces move-token,
+ * update-token, set-token-vision-light and delete-tokens. Token plans never
+ * auto-apply (D-083 keeps the confirm for tokens); a delete is destructive.
  */
 export class LivePlayTools {
   private readonly options: LivePlayToolsOptions;
@@ -145,7 +209,70 @@ export class LivePlayTools {
           required: ['action', 'targets'],
         },
       },
+      {
+        name: 'plan-token-change',
+        description:
+          'Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). If the request says "go ahead", apply it in the same turn (a delete still needs the destructive confirm).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            action: {
+              type: 'string',
+              enum: [...LIVE_TOKEN_ACTIONS],
+              description: 'move, update or delete.',
+            },
+            tokens: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Token names or ids on the current scene.',
+              ...toolRef('token', 'name'),
+            },
+            gridX: { type: 'integer', description: 'move: grid column.' },
+            gridY: { type: 'integer', description: 'move: grid row.' },
+            x: { type: 'number', description: 'move: pixels from the left.' },
+            y: { type: 'number', description: 'move: pixels from the top.' },
+            dx: { type: 'integer', description: 'move: squares right (negative: left).' },
+            dy: { type: 'integer', description: 'move: squares down (negative: up).' },
+            ...TOKEN_FIELD_SCHEMA,
+          },
+          required: ['action', 'tokens'],
+        },
+      },
     ];
+  }
+
+  async handlePlanTokenChange(args: unknown): Promise<PlanView & LiveActorPlanResult> {
+    const params = tokenParams.parse(args ?? {});
+    const changes: Partial<Record<LiveTokenField, string | number | boolean>> = {};
+    for (const field of Object.keys(LIVE_TOKEN_FIELDS) as LiveTokenField[]) {
+      const value = params[field];
+      if (value !== undefined) changes[field] = value;
+    }
+    const { action, tokens, x, y, gridX, gridY, dx, dy } = params;
+    const request = {
+      scope: 'token',
+      ...stripUndefined({ action, tokens, x, y, gridX, gridY, dx, dy }),
+      ...(Object.keys(changes).length > 0 ? { changes } : {}),
+    } as LiveTokenRequest;
+    try {
+      const built = unwrap<LiveChangePlan>(
+        await this.options.foundryClient.query(`foundry-mcp-bridge.${LIVE_PLAN_QUERY}`, request),
+        'Could not plan the change'
+      );
+      const plan = await this.options.guardedWrites.createPlan({
+        feature: LIVE_PLAY_FEATURE_ID,
+        summary: built.summary,
+        ops: built.ops,
+      });
+      // D-083: "apply without confirming" covers damage, conditions and resources, not tokens.
+      return { ...plan, targets: built.targets, autoApply: false };
+    } catch (error) {
+      this.logger.warn('Token plan not created', {
+        action: params.action,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   }
 
   async handlePlanActorChange(args: unknown): Promise<PlanView & LiveActorPlanResult> {

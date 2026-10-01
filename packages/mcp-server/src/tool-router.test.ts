@@ -40,7 +40,7 @@ function makeDeps(): ToolRouterDeps {
 describe('buildToolRouter', () => {
   it('exposes a handler for every call_tool route', () => {
     const router = buildToolRouter(makeDeps());
-    expect(Object.keys(router)).toHaveLength(92);
+    expect(Object.keys(router)).toHaveLength(89);
   });
 
   it('routes direct tools to the owning method with the call args', async () => {

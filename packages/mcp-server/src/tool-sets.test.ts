@@ -42,7 +42,11 @@ describe('resolveToolSets', () => {
 });
 
 describe('filterToolsBySets', () => {
-  const tools = [{ name: 'get-world-info' }, { name: 'move-token' }, { name: 'not-in-a-set' }];
+  const tools = [
+    { name: 'get-world-info' },
+    { name: 'plan-token-change' },
+    { name: 'not-in-a-set' },
+  ];
 
   it('keeps only the chosen sets, and drops a tool no set lists', () => {
     expect(filterToolsBySets(tools, resolveToolSets('core')).map(t => t.name)).toEqual([
@@ -50,7 +54,7 @@ describe('filterToolsBySets', () => {
     ]);
     expect(filterToolsBySets(tools, resolveToolSets('core,play')).map(t => t.name)).toEqual([
       'get-world-info',
-      'move-token',
+      'plan-token-change',
     ]);
   });
 
@@ -63,6 +67,10 @@ describe('toolSetOf', () => {
   it('names the set of a tool, and nothing for an unknown name', () => {
     expect(toolSetOf('undo-change')).toBe('core');
     expect(toolSetOf('plan-actor-change')).toBe('play');
+    expect(toolSetOf('plan-token-change')).toBe('play');
+    for (const gone of ['move-token', 'update-token', 'delete-tokens', 'set-token-vision-light']) {
+      expect(toolSetOf(gone), gone).toBeUndefined();
+    }
     expect(toolSetOf('plan-page-reveal')).toBe('prep');
     expect(toolSetOf('dnd5e-create-npc')).toBe('build');
     expect(toolSetOf('get-module-errors')).toBe('admin');

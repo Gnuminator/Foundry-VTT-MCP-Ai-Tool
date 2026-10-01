@@ -75,32 +75,6 @@ export class SceneControlTools {
         },
       },
       {
-        name: 'set-token-vision-light',
-        description:
-          "Set a token's vision and/or emitted light on the active scene — e.g. give a token a torch (dim/bright light) or toggle its sight for a blinded creature.",
-        inputSchema: {
-          type: 'object',
-          properties: {
-            tokenName: {
-              type: 'string',
-              description: 'Token name or ID.',
-              ...toolRef('token', 'id'),
-            },
-            sightEnabled: { type: 'boolean', description: "Enable/disable the token's vision." },
-            sightRange: { type: 'number', description: 'Vision range in grid units.' },
-            visionMode: { type: 'string', description: 'Vision mode, e.g. "basic", "darkvision".' },
-            lightDim: { type: 'number', description: 'Dim light radius in grid units.' },
-            lightBright: { type: 'number', description: 'Bright light radius in grid units.' },
-            lightColor: { type: 'string', description: 'Light color hex, e.g. "#ff9329".' },
-            lightAnimation: {
-              type: 'string',
-              description: 'Light animation type, e.g. "torch", "pulse", "flame".',
-            },
-          },
-          required: ['tokenName'],
-        },
-      },
-      {
         name: 'delete-map-note',
         description:
           'Remove a map pin (Note) from the active scene by noteId (from add-map-note) or by exact label text. Does not delete all notes (to protect pre-existing pins).',
@@ -159,32 +133,6 @@ export class SceneControlTools {
       return await this.run('addMapNote', schema.parse(args ?? {}), 'Failed to add map note');
     } catch (error) {
       this.logger.error('Error adding map note', error);
-      throw error;
-    }
-  }
-
-  async handleSetTokenVisionLight(args: any) {
-    const schema = z.object({
-      tokenName: z.string(),
-      sightEnabled: z.boolean().optional(),
-      sightRange: z.number().optional(),
-      visionMode: z.string().optional(),
-      lightDim: z.number().optional(),
-      lightBright: z.number().optional(),
-      lightColor: z.string().optional(),
-      lightAnimation: z.string().optional(),
-    });
-    try {
-      return await this.run(
-        'setTokenVisionLight',
-        schema.parse(args),
-        'Failed to set token vision/light'
-      );
-    } catch (error) {
-      this.logger.error('Error setting token vision/light', error);
-      if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
-      }
       throw error;
     }
   }

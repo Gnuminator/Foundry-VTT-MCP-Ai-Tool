@@ -1,5 +1,4 @@
 import { ERROR_MESSAGES } from '../constants.js';
-import { permissionManager } from '../permissions.js';
 import * as shared from './shared.js';
 import { sceneBackgroundSrc } from '../systems/core.js';
 
@@ -24,15 +23,12 @@ interface HpSnapshot {
  * Two error conventions live side by side here, and both are part of the
  * contract:
  *
- *   - The token *write* methods (move/update/delete/toggleCondition) and
- *     `getTokenDetails` wrap their failures as `Failed to <verb>: <reason>` and
- *     surface a missing scene as `No active scene found`.
- *   - The tactical reads/writes added for the co-GM tooling (`getTokenPositions`,
- *     `measureDistance`, `getTargets`, `setTokenVisionLight`) let their errors
+ *   - `getTokenDetails` wraps its failures as `Failed to <verb>: <reason>` and
+ *     surfaces a missing scene as `No active scene found`. (Token moves, edits
+ *     and deletes moved to plan-token-change, F5 L2, live-plan-token.ts.)
+ *   - The tactical reads added for the co-GM tooling (`getTokenPositions`,
+ *     `measureDistance`, `getTargets`) let their errors
  *     propagate raw and report a missing scene as `ERROR_MESSAGES.SCENE_NOT_FOUND`.
- *
- * Write methods run their permission gate *before* the try/catch so an
- * `ACCESS_DENIED` is never reshaped into a `Failed to …` wrapper.
  */
 export class ScenesTokensDataAccess {
   // --- Shared internals ------------------------------------------------------
@@ -53,17 +49,6 @@ export class ScenesTokensDataAccess {
       throw new Error(`Token ${tokenId} not found in current scene`);
     }
     return token;
-  }
-
-  /** Gate a scene-mutating operation behind a write permission (`modifyScene` by default). */
-  private requireScenePermission(
-    targetIds: string[],
-    operation: 'modifyScene' | 'deleteData' = 'modifyScene'
-  ): void {
-    const permissionCheck = permissionManager.checkWritePermission(operation, { targetIds });
-    if (!permissionCheck.allowed) {
-      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
-    }
   }
 
   /** Normalize a dnd5e `hp` block to `{ value, max }` (nulls for gaps), or null. */
@@ -283,15 +268,19 @@ export class ScenesTokensDataAccess {
     const tokens = scene.tokens.map((t: any) => {
       const actor = t.actor;
       const isPC = !!actor?.hasPlayerOwner && actor?.type === 'character';
+      // The stored position: on Foundry 14 `t.x`/`t.y` lag behind while a move animates (and
+      // stay behind in a browser tab that is not drawing), the source is where the token is.
+      const x = t._source?.x ?? t.x;
+      const y = t._source?.y ?? t.y;
       return {
         tokenId: t.id,
         name: t.name,
         actorId: t.actorId || actor?.id || null,
-        x: t.x,
-        y: t.y,
-        gridX: Math.floor(t.x / gridSize),
-        gridY: Math.floor(t.y / gridSize),
-        elevation: t.elevation ?? 0,
+        x,
+        y,
+        gridX: Math.floor(x / gridSize),
+        gridY: Math.floor(y / gridSize),
+        elevation: t._source?.elevation ?? t.elevation ?? 0,
         category: isPC ? 'pc' : t.disposition === -1 ? 'enemy' : 'npc',
         hidden: t.hidden ?? false,
         hp: this.hpSnapshot(actor?.system?.attributes?.hp),
@@ -416,160 +405,6 @@ export class ScenesTokensDataAccess {
         ac: t.actor?.system?.attributes?.ac?.value ?? null,
         hp: this.hpSnapshot(t.actor?.system?.attributes?.hp),
       })),
-    };
-  }
-
-  // --- Token writes ----------------------------------------------------------
-
-  /** Move a token to a new (x, y) on the active scene, optionally animating. */
-  async moveToken(data: {
-    tokenId: string;
-    x: number;
-    y: number;
-    animate?: boolean;
-  }): Promise<any> {
-    shared.validateFoundryState();
-    this.requireScenePermission([data.tokenId]);
-
-    try {
-      const scene = this.requireCurrentScene('No active scene found');
-      const token = this.requireToken(scene, data.tokenId);
-
-      const animated = data.animate !== false;
-      await token.update({ x: data.x, y: data.y }, { animate: animated });
-
-      return {
-        success: true,
-        tokenId: token.id,
-        tokenName: token.name,
-        newPosition: { x: data.x, y: data.y },
-        animated,
-      };
-    } catch (error) {
-      throw new Error(`Failed to move token: ${errorMessage(error)}`);
-    }
-  }
-
-  /**
-   * Update arbitrary token properties on the active scene. Undefined values are
-   * dropped before the update, and only the surviving keys are reported back.
-   */
-  async updateToken(data: { tokenId: string; updates: Record<string, any> }): Promise<any> {
-    shared.validateFoundryState();
-    this.requireScenePermission([data.tokenId]);
-
-    try {
-      const scene = this.requireCurrentScene('No active scene found');
-      const token = this.requireToken(scene, data.tokenId);
-
-      const cleanUpdates = Object.fromEntries(
-        Object.entries(data.updates).filter(([, v]) => v !== undefined)
-      );
-
-      await token.update(cleanUpdates);
-
-      return {
-        success: true,
-        tokenId: token.id,
-        tokenName: token.name,
-        updatedProperties: Object.keys(cleanUpdates),
-      };
-    } catch (error) {
-      throw new Error(`Failed to update token: ${errorMessage(error)}`);
-    }
-  }
-
-  /**
-   * Delete one or more tokens from the active scene. Missing ids (and any that
-   * fail to delete) are collected into `failedTokens` rather than aborting; the
-   * call still resolves successfully. `failedTokens` is omitted when empty.
-   */
-  async deleteTokens(data: { tokenIds: string[] }): Promise<any> {
-    shared.validateFoundryState();
-    this.requireScenePermission(data.tokenIds, 'deleteData');
-
-    try {
-      const scene = this.requireCurrentScene('No active scene found');
-
-      const deletedTokens: string[] = [];
-      const failedTokens: string[] = [];
-
-      for (const tokenId of data.tokenIds) {
-        try {
-          const token = scene.tokens.get(tokenId);
-          if (token) {
-            await token.delete();
-            deletedTokens.push(tokenId);
-          } else {
-            failedTokens.push(tokenId);
-          }
-        } catch {
-          failedTokens.push(tokenId);
-        }
-      }
-
-      return {
-        success: true,
-        deletedCount: deletedTokens.length,
-        deletedTokens,
-        failedTokens: failedTokens.length > 0 ? failedTokens : undefined,
-      };
-    } catch (error) {
-      throw new Error(`Failed to delete tokens: ${errorMessage(error)}`);
-    }
-  }
-
-  /**
-   * Set a token's vision and/or light on the active scene (e.g. hand it a torch,
-   * or toggle sight for a blinded creature). Only the provided fields are
-   * written; numeric/boolean fields are applied even when falsy (`0` / `false`),
-   * while empty string values are ignored. Throws if nothing was provided.
-   */
-  async setTokenVisionLight(data: {
-    tokenName: string;
-    sightEnabled?: boolean;
-    sightRange?: number;
-    visionMode?: string;
-    lightDim?: number;
-    lightBright?: number;
-    lightColor?: string;
-    lightAnimation?: string;
-  }): Promise<any> {
-    shared.validateFoundryState();
-    this.requireScenePermission([data.tokenName]); // P-036
-
-    const scene: any = (game.scenes as any)?.current;
-    if (!scene) {
-      throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
-    }
-
-    const token = scene.tokens.find(
-      (t: any) => t.id === data.tokenName || t.name?.toLowerCase() === data.tokenName.toLowerCase()
-    );
-    if (!token) {
-      throw new Error(`Token not found: ${data.tokenName}`);
-    }
-
-    const update: any = {};
-    if (data.sightEnabled != null) update['sight.enabled'] = data.sightEnabled;
-    if (data.sightRange != null) update['sight.range'] = data.sightRange;
-    if (data.visionMode) update['sight.visionMode'] = data.visionMode;
-    if (data.lightDim != null) update['light.dim'] = data.lightDim;
-    if (data.lightBright != null) update['light.bright'] = data.lightBright;
-    if (data.lightColor) update['light.color'] = data.lightColor;
-    if (data.lightAnimation) update['light.animation.type'] = data.lightAnimation;
-
-    if (Object.keys(update).length === 0) {
-      throw new Error('No vision/light fields provided.');
-    }
-
-    await token.update(update);
-
-    return {
-      success: true,
-      tokenId: token.id,
-      tokenName: token.name,
-      updated: Object.keys(update),
     };
   }
 }

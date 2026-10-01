@@ -187,8 +187,9 @@ Every guarded change that was applied, newest first, up to 20. Each row shows:
 before the change. It refuses, and writes nothing, if the same thing was changed again since.
 Undo works even when the feature's switch is off. Click **↻** to reload the list.
 
-Only guarded changes are listed here: damage, healing, conditions and resources are, while
-changes from other tools (rolls, token moves, new actors) are not and cannot be undone here.
+Only guarded changes are listed here: damage, healing, conditions, resources and token moves,
+edits and deletes are, while changes from other tools (rolls, new actors) are not and cannot be
+undone here.
 
 ## The confirm window
 

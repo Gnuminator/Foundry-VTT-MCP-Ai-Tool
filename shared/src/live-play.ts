@@ -1,7 +1,8 @@
 /**
  * Live play changes with undo (F5, D-082): damage, healing, temporary hit
- * points, conditions and resources go through plan, confirm and undo instead
- * of writing at once.
+ * points, conditions and resources (`plan-actor-change`, L1) and token moves,
+ * edits and deletes (`plan-token-change`, L2) go through plan, confirm and undo
+ * instead of writing at once.
  *
  * Flow:
  * - The bridge tool `plan-actor-change` (play set) sends a
@@ -69,6 +70,52 @@ export interface LiveActorRequest {
   value?: number;
 }
 
+/** What `plan-token-change` can do (F5 L2). */
+export const LIVE_TOKEN_ACTIONS = ['move', 'update', 'delete'] as const;
+export type LiveTokenAction = (typeof LIVE_TOKEN_ACTIONS)[number];
+
+/**
+ * The token fields `plan-token-change` action "update" may set, by parameter name, with the
+ * token path each one writes. A fixed list: nothing else on a token can be changed this way.
+ */
+export const LIVE_TOKEN_FIELDS = {
+  name: 'name',
+  hidden: 'hidden',
+  disposition: 'disposition',
+  elevation: 'elevation',
+  rotation: 'rotation',
+  lockRotation: 'lockRotation',
+  width: 'width',
+  height: 'height',
+  sightEnabled: 'sight.enabled',
+  sightRange: 'sight.range',
+  visionMode: 'sight.visionMode',
+  lightDim: 'light.dim',
+  lightBright: 'light.bright',
+  lightColor: 'light.color',
+  lightAnimation: 'light.animation.type',
+} as const;
+export type LiveTokenField = keyof typeof LIVE_TOKEN_FIELDS;
+
+/** One `plan-token-change` request as the module's `planLiveChange` query takes it. */
+export interface LiveTokenRequest {
+  scope: 'token';
+  action: LiveTokenAction;
+  /** Token names or ids on the current scene. */
+  tokens: string[];
+  /** move, one token: the new top-left position in pixels. */
+  x?: number;
+  y?: number;
+  /** move, one token: the new grid square (column, row), instead of pixels. */
+  gridX?: number;
+  gridY?: number;
+  /** move, any number of tokens: grid squares to shift right (dx) and down (dy). */
+  dx?: number;
+  dy?: number;
+  /** update: the fields to set (see {@link LIVE_TOKEN_FIELDS}). */
+  changes?: Partial<Record<LiveTokenField, string | number | boolean>>;
+}
+
 /** What one target looks like after the change (or why it is skipped). */
 export interface LiveTargetPreview {
   /** The token or actor name. */
@@ -80,6 +127,9 @@ export interface LiveTargetPreview {
   /** Set when this target needs no change (already prone, immune...). */
   skipped?: boolean;
 }
+
+/** Either request the `planLiveChange` query takes. */
+export type LiveChangeRequest = LiveActorRequest | LiveTokenRequest;
 
 /** The module's answer: the ops of one plan plus a preview per target. */
 export interface LiveChangePlan {

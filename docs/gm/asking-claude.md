@@ -97,8 +97,9 @@ before you send it on.
 
 There are two kinds of changes.
 
-**Guarded changes** (damage, healing, conditions, spell slots and other resources, the party
-panel, the Tarokka reading, handouts, the Obsidian mirror settings):
+**Guarded changes** (damage, healing, conditions, spell slots and other resources, moving,
+changing and deleting tokens, the party panel, the Tarokka reading, handouts, the Obsidian mirror
+settings):
 
 1. Claude makes a plan. Nothing changes yet.
 2. Claude shows you the plan: a summary and the list of what will change.
@@ -117,7 +118,7 @@ confirming** (Game Settings, category **Foundry AI Tool**; off by default) skips
 healing, conditions and resources, from Claude and from the dashboard. Each change still lands in
 Recent Changes with **Undo**.
 
-**Direct actions** (rolls, token moves, new NPCs, journals, chat messages and others) happen as
+**Direct actions** (rolls, new NPCs, journals, chat messages and others) happen as
 soon as Claude uses the tool. They are not listed
 in Recent Changes, and the tool cannot undo them; you fix them by hand in Foundry. So:
 

@@ -394,7 +394,8 @@ export function installFoundryGlobals(world: TestWorld): () => void {
   g.Roll = function MockRoll(formula: string) {
     return { formula, evaluate: async () => ({ total: 0 }), total: 0 };
   };
-  g.fromUuid = async () => null;
+  // Async resolution mirrors fromUuidSync below (assigned before any test calls it).
+  g.fromUuid = async (uuid: string): Promise<AnyDoc | null> => g.fromUuidSync(uuid);
   // Synchronous UUID resolution (verified: `client/utils/helpers.mjs:188`,
   // `fromUuidSync`) for world and embedded documents: walks `Type.id` pairs
   // ("JournalEntry.<id>.JournalEntryPage.<id>") against the world's own
@@ -424,6 +425,12 @@ export function installFoundryGlobals(world: TestWorld): () => void {
       if (!doc) return null;
       const embeddedType = rest[i] ?? '';
       const embeddedId = rest[i + 1] ?? '';
+      // An unlinked token's synthetic actor: `Scene.s.Token.t.Actor.a` resolves to `token.actor`.
+      if (embeddedType === 'Actor') {
+        const synthetic = (doc as any).actor as AnyDoc | undefined;
+        doc = synthetic && synthetic.id === embeddedId ? synthetic : undefined;
+        continue;
+      }
       const key = embeddedKeys[embeddedType] ?? `${embeddedType.toLowerCase()}s`;
       const coll = (doc as any)[key];
       doc = typeof coll?.get === 'function' ? coll.get(embeddedId) : undefined;

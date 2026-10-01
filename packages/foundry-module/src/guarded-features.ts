@@ -2,7 +2,8 @@
  * Feature switches for guarded writes (plan step 0.2).
  *
  * Every feature that changes game state through the plan/apply flow has its own
- * world setting, default OFF, shown in the module settings. A feature registers
+ * world setting, shown in the module settings: off by default, or on for a feature
+ * that replaces tools which worked without a switch (D-082, `defaultEnabled`). A feature registers
  * its switch when it ships; the apply handler refuses writes for a feature that
  * is unknown or switched off. Undo is allowed while a feature is off (turning a
  * feature off must not strand changes the GM wants to revert); it still needs
@@ -16,6 +17,8 @@ export interface GuardedFeature {
   /** Setting label, e.g. "AI Tool: NPC attitudes (writes)". */
   name: string;
   hint: string;
+  /** Start switched on (D-082: the live-play and ownership switches). Default false. */
+  defaultEnabled?: boolean;
 }
 
 const features = new Map<string, GuardedFeature>();
@@ -28,20 +31,21 @@ export function featureSettingKey(id: string): string {
 }
 
 /**
- * Register a feature switch (a world setting, default OFF). Call from the
- * module `init` hook. Registering the same id twice is a no-op.
+ * Register a feature switch (a world setting, off unless `defaultEnabled`). Call
+ * from the module `init` hook. Registering the same id twice is a no-op.
  */
 export function registerGuardedFeature(feature: GuardedFeature): void {
   if (!FEATURE_ID.test(feature.id)) throw new Error(`Invalid feature id: ${feature.id}`);
   if (features.has(feature.id)) return;
   features.set(feature.id, feature);
+  const on = feature.defaultEnabled === true;
   game.settings.register(MODULE_ID, featureSettingKey(feature.id), {
     name: feature.name,
-    hint: `${feature.hint} Off by default; every change still asks for confirmation and can be undone.`,
+    hint: `${feature.hint} ${on ? 'On' : 'Off'} by default; every change still asks for confirmation and can be undone.`,
     scope: 'world',
     config: true,
     type: Boolean,
-    default: false,
+    default: on,
   });
 }
 

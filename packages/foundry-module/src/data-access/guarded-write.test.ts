@@ -661,6 +661,27 @@ describe('applyGuardedOps: undo', () => {
     expect(gmChangeEvents(undo.changeId)[0].description).toBe('Undid: Undo test change');
   });
 
+  it('a second change to the same actor leaves the rules tag alone, so the first undo still works (F5)', async () => {
+    const actor = addActor();
+    const first = await applyGuardedOps(
+      await request([
+        { kind: 'update', uuid: actor.uuid, changes: { 'system.attributes.hp.temp': 5 } },
+      ])
+    );
+    const tag = actor.flags[MODULE_ID].rules;
+    const second = await applyGuardedOps(
+      await request([
+        { kind: 'update', uuid: actor.uuid, changes: { 'system.attributes.hp.value': 4 } },
+      ])
+    );
+    expect(actor.flags[MODULE_ID].rules).toEqual(tag);
+    expect(second.results[0]?.after?.map(v => v.path)).toEqual(['system.attributes.hp.value']);
+
+    await applyGuardedOps(undoRequest(first));
+    expect(actor.system.attributes.hp.temp ?? 0).toBe(0);
+    expect(actor.system.attributes.hp.value).toBe(4);
+  });
+
   it('unsets the rules tag with the v14 _del marker', async () => {
     restore();
     install('14.368');

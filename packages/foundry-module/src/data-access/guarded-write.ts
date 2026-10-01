@@ -25,7 +25,7 @@ import { unsetKeyUpdate } from '../systems/core.js';
 import {
   RULES_FLAG_PATH,
   rulesTagForCreate,
-  rulesTagUpdate,
+  rulesTagUpdateIfChanged,
   type RulesVersion,
 } from '../systems/dnd5e/rules-version.js';
 
@@ -376,7 +376,7 @@ async function executeUpdate(
   if (!doc) throw new Error(`Document not found: ${op.uuid}`);
   const changes: Record<string, unknown> = { ...op.changes };
   if (req.mode === 'apply' && isRulesTagged(doc.documentName) && !(RULES_FLAG_PATH in changes)) {
-    Object.assign(changes, rulesTagUpdate(doc as Actor | Item, req.rulesVersion));
+    Object.assign(changes, rulesTagUpdateIfChanged(doc as Actor | Item, req.rulesVersion));
   }
   const unset = op.unset ?? [];
   const paths = [...Object.keys(changes), ...unset];

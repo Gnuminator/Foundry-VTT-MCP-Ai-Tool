@@ -107,6 +107,25 @@ export function rulesTagUpdate(
   return { [RULES_FLAG_PATH]: tag };
 }
 
+/**
+ * Like {@link rulesTagUpdate}, but `{}` when the document already carries a tag with the same
+ * version and source. Guarded writes use it so a second change to the same actor does not rewrite
+ * the tag's timestamp, which would make the undo of the first change report a false conflict.
+ */
+export function rulesTagUpdateIfChanged(
+  doc: RulesDocument,
+  gmChoice?: RulesVersion,
+  at: string = new Date().toISOString()
+): Record<string, unknown> {
+  const update = rulesTagUpdate(doc, gmChoice, at);
+  const next = update[RULES_FLAG_PATH] as RulesTag | undefined;
+  const current = readRulesTag(doc as unknown as FoundryDocument);
+  if (next && current && current.version === next.version && current.source === next.source) {
+    return {};
+  }
+  return update;
+}
+
 /** The rules tag to put into creation data for a new Actor or Item. */
 export function rulesTagForCreate(
   data: { system?: { source?: { rules?: unknown } }; flags?: Record<string, unknown> },

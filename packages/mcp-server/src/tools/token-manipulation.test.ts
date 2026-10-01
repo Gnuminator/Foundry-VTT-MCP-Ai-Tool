@@ -33,7 +33,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
 // ---------------------------------------------------------------------------
 
 describe('TokenManipulationTools.getToolDefinitions', () => {
-  it('exposes the six token-manipulation tools with object input schemas', () => {
+  it('exposes the five token-manipulation tools with object input schemas', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual([
@@ -41,7 +41,6 @@ describe('TokenManipulationTools.getToolDefinitions', () => {
       'update-token',
       'delete-tokens',
       'get-token-details',
-      'toggle-token-condition',
       'get-available-conditions',
     ]);
     for (const d of defs) {
@@ -75,13 +74,6 @@ describe('TokenManipulationTools.getToolDefinitions', () => {
     const defs = tools.getToolDefinitions();
     const def = defs.find(d => d.name === 'get-token-details')!;
     expect((def.inputSchema as any).required).toEqual(['tokenId']);
-  });
-
-  it('toggle-token-condition requires tokenId and conditionId', () => {
-    const { tools } = makeTools();
-    const defs = tools.getToolDefinitions();
-    const def = defs.find(d => d.name === 'toggle-token-condition')!;
-    expect((def.inputSchema as any).required).toEqual(['tokenId', 'conditionId']);
   });
 
   it('get-available-conditions has no required fields', () => {
@@ -367,82 +359,6 @@ describe('TokenManipulationTools.handleGetTokenDetails', () => {
 });
 
 // ---------------------------------------------------------------------------
-// handleToggleTokenCondition
-// ---------------------------------------------------------------------------
-
-describe('TokenManipulationTools.handleToggleTokenCondition', () => {
-  it('dispatches toggle-token-condition with tokenId and conditionId', async () => {
-    const payload = { isActive: true, conditionName: 'Prone' };
-    const { tools, query } = makeTools(() => payload);
-    const result = await tools.handleToggleTokenCondition({
-      tokenId: 'tok1',
-      conditionId: 'prone',
-    });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.toggle-token-condition', {
-      tokenId: 'tok1',
-      conditionId: 'prone',
-      active: undefined,
-    });
-    expect(result).toEqual({
-      success: true,
-      tokenId: 'tok1',
-      conditionId: 'prone',
-      isActive: true,
-      conditionName: 'Prone',
-    });
-  });
-
-  it('dispatches with active: true when specified', async () => {
-    const { tools, query } = makeTools(() => ({ isActive: true, conditionName: 'Blinded' }));
-    await tools.handleToggleTokenCondition({
-      tokenId: 'tok1',
-      conditionId: 'blinded',
-      active: true,
-    });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.toggle-token-condition', {
-      tokenId: 'tok1',
-      conditionId: 'blinded',
-      active: true,
-    });
-  });
-
-  it('dispatches with active: false when specified', async () => {
-    const { tools, query } = makeTools(() => ({ isActive: false, conditionName: 'Poisoned' }));
-    await tools.handleToggleTokenCondition({
-      tokenId: 'tok1',
-      conditionId: 'poisoned',
-      active: false,
-    });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.toggle-token-condition', {
-      tokenId: 'tok1',
-      conditionId: 'poisoned',
-      active: false,
-    });
-  });
-
-  it('throws (ZodError) when tokenId is missing', async () => {
-    const { tools, query } = makeTools();
-    await expect(tools.handleToggleTokenCondition({ conditionId: 'prone' })).rejects.toThrow();
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it('throws (ZodError) when conditionId is missing', async () => {
-    const { tools, query } = makeTools();
-    await expect(tools.handleToggleTokenCondition({ tokenId: 'tok1' })).rejects.toThrow();
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it('wraps query errors as "Failed to toggle token condition: <message>"', async () => {
-    const { tools } = makeTools(() => {
-      throw new Error('condition not found');
-    });
-    await expect(
-      tools.handleToggleTokenCondition({ tokenId: 'tok1', conditionId: 'prone' })
-    ).rejects.toThrow('Failed to toggle token condition: condition not found');
-  });
-});
-
-// ---------------------------------------------------------------------------
 // handleGetAvailableConditions
 // ---------------------------------------------------------------------------
 
@@ -527,12 +443,5 @@ describe('TokenManipulationTools secret disposition (M3)', () => {
     const { tools } = makeTools(() => rawToken);
     const result = await tools.handleGetTokenDetails({ tokenId: 'tok9' });
     expect(result.behavior.disposition).toBe('secret');
-  });
-
-  it('toggle-token-condition tells the caller where condition ids come from', () => {
-    const { tools } = makeTools();
-    const def = tools.getToolDefinitions().find(d => d.name === 'toggle-token-condition')!;
-    const desc = (def.inputSchema as any).properties.conditionId.description as string;
-    expect(desc).toContain('get-available-conditions');
   });
 });

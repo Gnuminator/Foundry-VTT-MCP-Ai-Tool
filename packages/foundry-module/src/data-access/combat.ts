@@ -277,39 +277,6 @@ export class CombatDataAccess {
   }
 
   /**
-   * Apply damage, healing, or temp HP to one or more targets, using dnd5e's
-   * resistance/vulnerability/immunity math (Actor5e.applyDamage / applyTempHP).
-   */
-  async applyDamageAndHealing(data: {
-    targets: string[];
-    amount: number;
-    kind?: 'damage' | 'healing' | 'temp';
-    type?: string;
-    multiplier?: number;
-    ignoreResistance?: boolean;
-  }): Promise<any> {
-    shared.validateFoundryState();
-    shared.requireDnd5e('apply-damage-and-healing');
-
-    if (!Array.isArray(data.targets) || data.targets.length === 0) {
-      throw new Error('targets array is required');
-    }
-    const amount = Number(data.amount);
-    if (!Number.isFinite(amount) || amount < 0) {
-      throw new Error('amount must be a non-negative number');
-    }
-    const kind = data.kind || 'damage';
-
-    const results = await this.forEachTarget(data.targets, async (actor: any) => {
-      const hpBefore = this.hpValueTemp(actor);
-      await this.applyHpChange(actor, kind, amount, data);
-      return { target: actor.name, kind, hpBefore, hpAfter: this.hpValueTemp(actor) };
-    });
-
-    return { success: true, kind, amount, type: data.type ?? null, results };
-  }
-
-  /**
    * Roll saving throws / ability checks / skill checks for one or more NPC
    * actors using the dnd5e system rules, optionally vs a DC, reporting pass/fail.
    * Handles dnd5e v3 (positional id + flat options, single roll, no isSuccess)
@@ -432,32 +399,6 @@ export class CombatDataAccess {
       }
     }
     return results;
-  }
-
-  /** `{ value, temp }` snapshot of an actor's hp (nulls for gaps) — for damage reporting. */
-  private hpValueTemp(actor: any): { value: any; temp: any } {
-    const hp = actor.system?.attributes?.hp;
-    return { value: hp?.value ?? null, temp: hp?.temp ?? 0 };
-  }
-
-  /** Dispatch a single damage / healing / temp-HP change to the dnd5e actor API. */
-  private async applyHpChange(
-    actor: any,
-    kind: string,
-    amount: number,
-    data: { type?: string; multiplier?: number; ignoreResistance?: boolean }
-  ): Promise<void> {
-    if (kind === 'temp') {
-      await actor.applyTempHP(amount);
-    } else if (kind === 'healing') {
-      await actor.applyDamage([{ value: amount, type: 'healing' }]);
-    } else {
-      const opts: any = {};
-      if (data.multiplier != null) opts.multiplier = data.multiplier;
-      if (data.ignoreResistance) opts.ignore = true;
-      // Typed damage → dnd5e applies the actor's DR/DV/DI automatically.
-      await actor.applyDamage([{ value: amount, type: data.type || '' }], opts);
-    }
   }
 
   /**

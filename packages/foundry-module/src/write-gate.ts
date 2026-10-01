@@ -36,15 +36,10 @@ export const WRITE_METHODS: readonly string[] = [
   'dropLoot',
   'setActorOwnership',
   'setActorSpellcasting',
-  'updateCharacterResource',
   'updateWorldItems',
   'useItem',
   // damage, conditions, rests
-  'applyDamageAndHealing',
-  'clearStaleConditions',
   'manageRest',
-  'toggleTokenCondition',
-  'toggle-token-condition',
   // tokens and scenes
   'addActorsToScene',
   'addMapNote',
@@ -139,6 +134,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'measureDistance',
   'openDocumentForGm',
   'ping',
+  'planLiveChange',
   'searchCharacterItems',
   'searchCompendium',
   'searchLinkCandidates',

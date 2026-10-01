@@ -1885,6 +1885,27 @@ body {
 .toast.warn {
   border-left-color: var(--warn);
 }
+.toast-undo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.toast-undo .toast-text {
+  flex: 1;
+}
+.toast-action {
+  flex: none;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font: inherit;
+  padding: 0.15rem 0.6rem;
+  cursor: pointer;
+}
+.toast-action:hover {
+  border-color: var(--good);
+}
 
 @media (max-width: 520px) {
   .drawer {

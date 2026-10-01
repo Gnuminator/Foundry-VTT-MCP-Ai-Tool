@@ -64,6 +64,11 @@ export interface OpSnapshot {
   modifiedTime?: number | null;
   /** create with keepId: a document with that id already exists. */
   idTaken?: boolean;
+  /**
+   * delete of an embedded document, create with a parent: the parent document, so the diff can
+   * say `on Actor "Wolf 2"` instead of a uuid. Never compared (labels only).
+   */
+  parent?: { documentName: string; name: string | null };
 }
 
 export type RulesVersion = '2014' | '2024';
@@ -134,6 +139,11 @@ export interface GuardedFeatureState {
    * from modules before 0.19.0, which the bridge treats as allowed.
    */
   writesAllowed?: boolean;
+  /**
+   * Only on features that offer it (live play): the GM switched on "apply without confirming",
+   * so a plan of risk `write` is applied at once by its caller. Needs the feature switch on.
+   */
+  autoApply?: boolean;
 }
 
 /** `write` needs `confirm`; `destructive` (any delete) also needs `confirmDestructive`. */

@@ -19,6 +19,11 @@ export interface GuardedFeature {
   hint: string;
   /** Start switched on (D-082: the live-play and ownership switches). Default false. */
   defaultEnabled?: boolean;
+  /**
+   * A second world setting, off by default: plans of this feature apply without the confirm
+   * step (the bridge reports `autoApply` with the plan and the caller applies it at once).
+   */
+  autoApply?: { name: string; hint: string };
 }
 
 const features = new Map<string, GuardedFeature>();
@@ -28,6 +33,11 @@ const FEATURE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 /** The world-setting key of a feature switch. */
 export function featureSettingKey(id: string): string {
   return `feature.${id}.enabled`;
+}
+
+/** The world-setting key of a feature's "apply without confirming" switch. */
+export function autoApplySettingKey(id: string): string {
+  return `feature.${id}.autoApply`;
 }
 
 /**
@@ -47,6 +57,16 @@ export function registerGuardedFeature(feature: GuardedFeature): void {
     type: Boolean,
     default: on,
   });
+  if (feature.autoApply) {
+    game.settings.register(MODULE_ID, autoApplySettingKey(feature.id), {
+      name: feature.autoApply.name,
+      hint: `${feature.autoApply.hint} Off by default; every change can still be undone.`,
+      scope: 'world',
+      config: true,
+      type: Boolean,
+      default: false,
+    });
+  }
 }
 
 /** Whether a feature is known here. */
@@ -59,6 +79,17 @@ export function isFeatureEnabled(id: string): boolean {
   if (!features.has(id)) return false;
   try {
     return game.settings.get(MODULE_ID, featureSettingKey(id)) === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Whether a feature's "apply without confirming" switch is on (needs the feature switch on). */
+export function isAutoApplyEnabled(id: string): boolean {
+  const feature = features.get(id);
+  if (!feature?.autoApply || !isFeatureEnabled(id)) return false;
+  try {
+    return game.settings.get(MODULE_ID, autoApplySettingKey(id)) === true;
   } catch {
     return false;
   }
@@ -77,14 +108,21 @@ export function writeOperationsAllowed(): boolean {
  * All registered features with their current state, plus "Allow Write Operations", which the
  * bridge checks itself for changes that never reach Foundry (vault-only plans and their undos).
  */
-export function listGuardedFeatures(): Array<
-  GuardedFeature & { enabled: boolean; writesAllowed: boolean }
-> {
+export function listGuardedFeatures(): Array<{
+  id: string;
+  name: string;
+  hint: string;
+  defaultEnabled?: boolean;
+  enabled: boolean;
+  writesAllowed: boolean;
+  autoApply?: boolean;
+}> {
   const writesAllowed = writeOperationsAllowed();
-  return [...features.values()].map(f => ({
+  return [...features.values()].map(({ autoApply, ...f }) => ({
     ...f,
     enabled: isFeatureEnabled(f.id),
     writesAllowed,
+    ...(autoApply ? { autoApply: isAutoApplyEnabled(f.id) } : {}),
   }));
 }
 

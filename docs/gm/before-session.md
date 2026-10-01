@@ -28,7 +28,8 @@ addresses are today's Windows setup; they change when the tool moves to the Oran
 
 - [ ] In Foundry, open the Settings tab (gear icon), **Game Settings**, category **Foundry AI
       Tool**, and switch on only the features you plan to use tonight: "AI Tool: Tarokka
-      (writes)", "AI Tool: Handouts (writes)". Click **Save Changes**.
+      (writes)", "AI Tool: Handouts (writes)". Leave "AI Tool: Live play (writes)" on (damage,
+      healing, conditions). Click **Save Changes**.
 - [ ] In the dashboard header, leave **⚔ GM Actions: off**. Turn it on only when you act from the
       dashboard.
 

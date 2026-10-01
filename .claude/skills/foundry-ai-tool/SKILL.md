@@ -170,7 +170,7 @@ The test bridge renders into the throwaway vault `C:\FoundryTest\obsidian` (`Obs
 1. Dashboard header: **Start session**, expect "Session since HH:MM" and a new
    `AI Tool\Sessions\<date> S<NN>.md` (`started_by: marker`); **End session** closes it
    (`ended_by: marker`). `get-play-session` via the API agrees.
-2. A game event (e.g. `apply-damage-and-healing` 1 damage with GM Actions on, then off again) shows
+2. A game event (e.g. `plan-actor-change` 1 damage applied with GM Actions on, then undone) shows
    up in the open session note within ~10 s.
 3. Edit a generated note by hand, then run
    `FOUNDRY_AI_DATA_DIR=C:\FoundryTest\vault node packages/mcp-server/dist/obsidian-cli.js export ai-tool-test --vault C:\FoundryTest\obsidian`:
@@ -194,8 +194,8 @@ should not be logged.
    "gmroll"), blind and self; a hand roll's dnd5e message config takes
    `{ rollMode: 'public' | 'gm' | 'blind' | 'self' }`.
 3. Exact-credit check: target a token, roll damage, click **Apply** on the chat card.
-4. Also apply at least one HP change with no matching roll (e.g. `apply-damage-and-healing` from
-   the dashboard) to see the "no source" path, and one that fits a fresh roll but was not applied
+4. Also apply at least one HP change with no matching roll (e.g. `plan-actor-change` damage
+   from the dashboard) to see the "no source" path, and one that fits a fresh roll but was not applied
    from its card, to see the "guess" path.
 5. Run `manage-rest` once for a rest that produces no chat card, to exercise the
    `dnd5e.restCompleted` fallback.

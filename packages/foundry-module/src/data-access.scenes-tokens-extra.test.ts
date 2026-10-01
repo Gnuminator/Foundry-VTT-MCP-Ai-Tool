@@ -1,8 +1,7 @@
 /**
  * Characterization tests for the remaining `scenes-tokens` methods that the
  * existing nets (`data-access.scenes.test.ts` = listScenes/getTokenDetails,
- * `data-access.token-manipulation.test.ts` = moveToken/updateToken/deleteTokens/
- * toggleTokenCondition) do NOT cover:
+ * `data-access.token-manipulation.test.ts` = moveToken/updateToken/deleteTokens) do NOT cover:
  *   - switchScene
  *   - getTokenPositions
  *   - measureDistance

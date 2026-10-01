@@ -97,21 +97,28 @@ before you send it on.
 
 There are two kinds of changes.
 
-**Guarded changes** (the Tarokka reading, handouts, the Obsidian mirror settings):
+**Guarded changes** (damage, healing, conditions, spell slots and other resources, the party
+panel, the Tarokka reading, handouts, the Obsidian mirror settings):
 
 1. Claude makes a plan. Nothing changes yet.
 2. Claude shows you the plan: a summary and the list of what will change.
 3. You say yes in the chat, or apply the plan yourself in the dashboard (see
    [Applying a plan Claude made](dashboard.md#applying-a-plan-claude-made)). Claude is told to wait
-   for your yes before it applies a plan.
+   for your yes before it applies a plan. Saying "go ahead" in the request ("Apply 12 fire damage
+   to Wolf 2, go ahead") is that yes, so Claude plans and applies in one go.
 4. The change is recorded. It shows in the dashboard's **Recent Changes**, where you can undo it.
 
 A guarded change is refused, and nothing is written, if its feature switch is off, if the plan is
 older than 15 minutes, or if the same thing changed in Foundry since the plan was made. Deletes,
 reveals and hides count as destructive and need your explicit yes for that too.
 
-**Direct actions** (older tools: damage and healing, conditions, rolls, token moves, new NPCs,
-journals, chat messages and others) happen as soon as Claude uses the tool. They are not listed
+In a long fight the confirm step gets tiring. The setting **AI Tool: Live play, apply without
+confirming** (Game Settings, category **Foundry AI Tool**; off by default) skips it for damage,
+healing, conditions and resources, from Claude and from the dashboard. Each change still lands in
+Recent Changes with **Undo**.
+
+**Direct actions** (rolls, token moves, new NPCs, journals, chat messages and others) happen as
+soon as Claude uses the tool. They are not listed
 in Recent Changes, and the tool cannot undo them; you fix them by hand in Foundry. So:
 
 - Ask Claude to tell you what it will do before it does it: "Tell me the plan, then wait for my

@@ -151,33 +151,6 @@ export class TokenManipulationTools {
         },
       },
       {
-        name: 'toggle-token-condition',
-        description:
-          'Toggle a status effect/condition on or off for a token. Use this to apply or remove conditions like Prone, Poisoned, Blinded, etc.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            tokenId: {
-              type: 'string',
-              description: 'The ID of the token to modify',
-              ...toolRef('token', 'id'),
-            },
-            conditionId: {
-              type: 'string',
-              description:
-                'The ID of the condition/status effect to toggle (e.g., "prone", "poisoned", "blinded", "incapacitated"). The ids come from get-available-conditions for the current world (dnd5e ids are lowercase words, e.g. "frightened", "exhaustion"); a display name also resolves.',
-              ...toolRef('condition', 'id'),
-            },
-            active: {
-              type: 'boolean',
-              description:
-                'Optional: true to add the condition, false to remove it. If not specified, will toggle the current state.',
-            },
-          },
-          required: ['tokenId', 'conditionId'],
-        },
-      },
-      {
         name: 'get-available-conditions',
         description:
           'Get a list of all available status effects/conditions that can be applied to tokens in the current game system',
@@ -377,41 +350,6 @@ export class TokenManipulationTools {
         return 'friendly';
       default:
         return 'unknown';
-    }
-  }
-
-  async handleToggleTokenCondition(args: any): Promise<any> {
-    const schema = z.object({
-      tokenId: z.string(),
-      conditionId: z.string(),
-      active: z.boolean().optional(),
-    });
-
-    const { tokenId, conditionId, active } = schema.parse(args);
-
-    this.logger.info('Toggling token condition', { tokenId, conditionId, active });
-
-    try {
-      const result = await this.foundryClient.query('foundry-mcp-bridge.toggle-token-condition', {
-        tokenId,
-        conditionId,
-        active,
-      });
-
-      this.logger.debug('Token condition toggled successfully', { tokenId, conditionId, result });
-
-      return {
-        success: true,
-        tokenId,
-        conditionId,
-        isActive: result.isActive,
-        conditionName: result.conditionName,
-      };
-    } catch (error) {
-      this.logger.error('Failed to toggle token condition', error);
-      throw new Error(
-        `Failed to toggle token condition: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
     }
   }
 

@@ -20,7 +20,6 @@ export const DESTRUCTIVE_TOOLS: ReadonlySet<string> = new Set([
   'delete-measured-template',
   'remove-actor-ownership',
   'clear-module-errors',
-  'clear-stale-conditions',
   'undo-change',
 ]);
 

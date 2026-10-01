@@ -1,7 +1,7 @@
 {
-  "total": 6655,
+  "total": 6654,
   "rules": {
-    "@typescript-eslint/explicit-function-return-type": 280,
+    "@typescript-eslint/explicit-function-return-type": 279,
     "@typescript-eslint/no-explicit-any": 1116,
     "@typescript-eslint/no-unsafe-argument": 210,
     "@typescript-eslint/no-unsafe-assignment": 1574,

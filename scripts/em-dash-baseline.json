@@ -1,5 +1,5 @@
 {
-  "total": 1644,
+  "total": 1642,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -92,7 +92,7 @@
     "packages/foundry-module/src/data-access/scene-fx.ts": 5,
     "packages/foundry-module/src/data-access/scenes-tokens.ts": 7,
     "packages/foundry-module/src/data-access/session-log.ts": 2,
-    "packages/foundry-module/src/data-access/shared.ts": 2,
+    "packages/foundry-module/src/data-access/shared.ts": 1,
     "packages/foundry-module/src/data-access/world-items.ts": 9,
     "packages/foundry-module/src/data-access/world-reads.ts": 6,
     "packages/foundry-module/src/diagnostics.ts": 3,
@@ -110,7 +110,7 @@
     "packages/foundry-module/src/test-support/foundry-mock/collection.ts": 4,
     "packages/foundry-module/src/test-support/foundry-mock/documents.ts": 3,
     "packages/foundry-module/src/test-support/foundry-mock/index.ts": 1,
-    "packages/foundry-module/src/test-support/foundry-mock/world.ts": 5,
+    "packages/foundry-module/src/test-support/foundry-mock/world.ts": 4,
     "packages/foundry-module/src/test-support/play-log-fixtures.ts": 1,
     "packages/foundry-module/src/transaction-manager.test.ts": 4,
     "packages/foundry-module/src/transaction-manager.ts": 5,

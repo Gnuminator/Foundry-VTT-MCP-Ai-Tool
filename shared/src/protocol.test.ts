@@ -56,7 +56,9 @@ describe('control-channel contract (§3a)', () => {
   });
 
   it('validates call_tool params shape', () => {
-    expect(() => CallToolParamsSchema.parse({ name: 'move-token', args: { x: 1 } })).not.toThrow();
+    expect(() =>
+      CallToolParamsSchema.parse({ name: 'plan-token-change', args: { action: 'move' } })
+    ).not.toThrow();
     expect(() => CallToolParamsSchema.parse({ args: {} })).toThrow(); // name required
   });
 

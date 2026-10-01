@@ -143,7 +143,7 @@ bridge reconnects with exponential backoff and a heartbeat, because the backend 
 
 Every capability the module exposes is a **query handler** registered under a
 `foundry-mcp-bridge.*` key — e.g. `foundry-mcp-bridge.getCharacterInfo`,
-`foundry-mcp-bridge.listCreaturesByCriteria`, `foundry-mcp-bridge.move-token` — in a
+`foundry-mcp-bridge.listCreaturesByCriteria`, `foundry-mcp-bridge.planLiveChange` — in a
 **module-private table** (`bridge-handlers.ts`). When a query arrives over the transport, the
 socket bridge looks the method up in that table and invokes it; the table _is_ the dispatch
 table.

@@ -1,12 +1,10 @@
 /**
  * Characterization tests for the remaining `scenes-tokens` methods that the
- * existing nets (`data-access.scenes.test.ts` = listScenes/getTokenDetails,
- * `data-access.token-manipulation.test.ts` = moveToken/updateToken/deleteTokens) do NOT cover:
+ * existing net (`data-access.scenes.test.ts` = listScenes/getTokenDetails) does NOT cover:
  *   - switchScene
  *   - getTokenPositions
  *   - measureDistance
  *   - getTargets
- *   - setTokenVisionLight
  *
  * These pin the *current* (upstream-derived / fork-original) behaviour so the
  * Phase 9 from-scratch rewrite of `scenes-tokens.ts` can be verified to parity
@@ -17,8 +15,7 @@
  *
  * Harness gaps worked around locally (never editing shared harness files):
  *   - `makeScene` does not attach `activate()` — switchScene needs it, so it is
- *     patched inline with a `vi.fn()` (mirrors the `withUpdate` pattern in the
- *     token-manipulation net).
+ *     patched inline with a `vi.fn()`.
  *   - `makeScene` does not set `scene.grid` — supplied via rest-spread where a
  *     test needs a non-default grid; omitted, the methods use their own
  *     fallbacks (gridSize 100; getTokenPositions gridDistance null / measure-
@@ -26,8 +23,7 @@
  *   - `makeToken` does not include `actor`, `elevation`, or `actorId` — supplied
  *     via rest-spread.
  *   - `game.user` has no `targets`; getTargets reads it, so the target Set is set
- *     on `game.user` after `world.install()` (mirrors how the token-manipulation
- *     net sets `CONFIG.statusEffects` post-install).
+ *     on `game.user` after `world.install()`.
  *   - The browser `canvas` global is absent in the harness, so the canvas-gated
  *     branches (switchScene's `optimize_view` pan, measureDistance's
  *     `grid.measurePath` fast path) are not exercised here — these tests pin the
@@ -302,6 +298,46 @@ describe('FoundryDataAccess — getTokenPositions', () => {
     expect(result.tokens[0].gridX).toBe(2); // floor(100 / 50)
     expect(result.tokens[0].gridY).toBe(1); // floor(75 / 50)
   });
+
+  it('reports the stored position (_source) while the document x/y lag behind a move', async () => {
+    const scene = world.addScene({
+      id: 'scene3',
+      name: 'Arena',
+      active: true,
+      tokens: [
+        makeToken({
+          id: 'tMoving',
+          name: 'Wolf 1',
+          x: 200, // still animating from here
+          y: 200,
+          elevation: 0,
+          _source: { x: 500, y: 400, elevation: 10 },
+        }),
+        // No _source: the document values are used.
+        makeToken({ id: 'tPlain', name: 'Wolf 2', x: 300, y: 100, elevation: 5 }),
+      ],
+    });
+    world.setActiveScene(scene.id);
+
+    const result = await da.getTokenPositions({});
+
+    expect(result.tokens[0]).toMatchObject({
+      tokenId: 'tMoving',
+      x: 500,
+      y: 400,
+      gridX: 5,
+      gridY: 4,
+      elevation: 10,
+    });
+    expect(result.tokens[1]).toMatchObject({
+      tokenId: 'tPlain',
+      x: 300,
+      y: 100,
+      gridX: 3,
+      gridY: 1,
+      elevation: 5,
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -460,127 +496,5 @@ describe('FoundryDataAccess — getTargets', () => {
         { tokenId: 'tk2', name: 'Shade', actorId: null, ac: null, hp: null },
       ],
     });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// setTokenVisionLight
-// ---------------------------------------------------------------------------
-
-describe('FoundryDataAccess — setTokenVisionLight', () => {
-  // P-036: these write paths are gated; the refusal is tested separately.
-  beforeEach(() => {
-    world.enableWrites();
-  });
-
-  it('throws SCENE_NOT_FOUND when there is no active scene', async () => {
-    await expect(da.setTokenVisionLight({ tokenName: 'Torch', sightRange: 30 })).rejects.toThrow(
-      ERROR_MESSAGES.SCENE_NOT_FOUND
-    );
-  });
-
-  it('throws when the token cannot be found', async () => {
-    const scene = world.addScene({ id: 'scene1', name: 'Cave', active: true });
-    world.setActiveScene(scene.id);
-
-    await expect(da.setTokenVisionLight({ tokenName: 'Nobody', sightRange: 30 })).rejects.toThrow(
-      'Token not found: Nobody'
-    );
-  });
-
-  it('throws when no vision/light fields are provided', async () => {
-    const scene = world.addScene({
-      id: 'scene1',
-      name: 'Cave',
-      active: true,
-      tokens: [makeToken({ id: 't1', name: 'Torchbearer' })],
-    });
-    world.setActiveScene(scene.id);
-
-    await expect(da.setTokenVisionLight({ tokenName: 'Torchbearer' })).rejects.toThrow(
-      'No vision/light fields provided.'
-    );
-  });
-
-  it('builds the flat update, applies it to the token, and lists the updated keys', async () => {
-    const token = makeToken({ id: 't1', name: 'Torchbearer' });
-    const scene = world.addScene({
-      id: 'scene1',
-      name: 'Cave',
-      active: true,
-      tokens: [token],
-    });
-    world.setActiveScene(scene.id);
-
-    const result = await da.setTokenVisionLight({
-      tokenName: 'torchbearer', // matched case-insensitively by name
-      sightEnabled: true,
-      sightRange: 30,
-      visionMode: 'darkvision',
-      lightDim: 20,
-      lightBright: 10,
-      lightColor: '#ff9900',
-      lightAnimation: 'torch',
-    });
-
-    expect(result).toEqual({
-      success: true,
-      tokenId: 't1',
-      tokenName: 'Torchbearer',
-      updated: [
-        'sight.enabled',
-        'sight.range',
-        'sight.visionMode',
-        'light.dim',
-        'light.bright',
-        'light.color',
-        'light.animation.type',
-      ],
-    });
-    // the dotted update was applied in-place via the token's update()
-    expect(token.sight).toEqual({ enabled: true, range: 30, visionMode: 'darkvision' });
-    expect(token.light).toEqual({
-      dim: 20,
-      bright: 10,
-      color: '#ff9900',
-      animation: { type: 'torch' },
-    });
-  });
-
-  it('includes falsy numeric/boolean fields (!= null) but skips empty-string string fields', async () => {
-    const token = makeToken({ id: 't1', name: 'Sentry' });
-    const scene = world.addScene({
-      id: 'scene1',
-      name: 'Wall',
-      active: true,
-      tokens: [token],
-    });
-    world.setActiveScene(scene.id);
-
-    const result = await da.setTokenVisionLight({
-      tokenName: 'Sentry',
-      sightEnabled: false, // false != null → included
-      lightDim: 0, // 0 != null → included
-      visionMode: '', // falsy string → skipped
-      lightColor: '', // falsy string → skipped
-    });
-
-    expect(result.updated).toEqual(['sight.enabled', 'light.dim']);
-  });
-
-  it('finds the token by id as well as by name', async () => {
-    const token = makeToken({ id: 'tok-xyz', name: 'Lantern' });
-    const scene = world.addScene({
-      id: 'scene1',
-      name: 'Tunnel',
-      active: true,
-      tokens: [token],
-    });
-    world.setActiveScene(scene.id);
-
-    const result = await da.setTokenVisionLight({ tokenName: 'tok-xyz', sightRange: 60 });
-
-    expect(result.tokenId).toBe('tok-xyz');
-    expect(result.updated).toEqual(['sight.range']);
   });
 });

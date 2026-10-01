@@ -19,6 +19,7 @@
  *   deleted. Exhaustion is an update of `system.attributes.exhaustion`.
  * - condition off, clear-conditions: deletes of the effects.
  * - resource: an update of a spell slot, pact slot, class resource or item uses.
+ * - token moves, edits and deletes (`scope: "token"`, F5 L2): live-plan-token.ts.
  *
  * The wire contract is `shared/src/live-play.ts`; only its types are imported
  * (the browser cannot resolve `@gnuminator/shared` at runtime). The query name
@@ -29,8 +30,10 @@ import type {
   LiveActorRequest,
   LiveChangePlan,
   LiveTargetPreview,
+  LiveTokenRequest,
 } from '@gnuminator/shared';
 
+import { planTokenChange } from './live-plan-token.js';
 import { findStatusEffect, statusEffectList } from './systems/dnd5e/status-effects.js';
 
 /** Query name (mirror of the shared `LIVE_PLAN_QUERY`). */
@@ -685,7 +688,9 @@ export async function planLiveChange(data: unknown): Promise<LiveChangePlan> {
   if (system && system.id !== 'dnd5e') {
     throw new Error('Live play changes need the dnd5e game system');
   }
-  if (rec(data)?.scope !== 'actor') throw new Error('Unknown live change scope');
+  const scope = rec(data)?.scope;
+  if (scope === 'token') return planTokenChange(data as LiveTokenRequest);
+  if (scope !== 'actor') throw new Error('Unknown live change scope');
   const request = data as LiveActorRequest;
   const targets = resolveTargets(Array.isArray(request.targets) ? request.targets : []);
   let built: { ops: GuardedOp[]; previews: LiveTargetPreview[] };

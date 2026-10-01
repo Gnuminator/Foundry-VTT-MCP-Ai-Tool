@@ -458,23 +458,6 @@ export class FoundryDataAccess {
     return this.characters.getCharacterEntity(data);
   }
 
-  async moveToken(data: {
-    tokenId: string;
-    x: number;
-    y: number;
-    animate?: boolean;
-  }): Promise<any> {
-    return this.scenesTokens.moveToken(data);
-  }
-
-  async updateToken(data: { tokenId: string; updates: Record<string, any> }): Promise<any> {
-    return this.scenesTokens.updateToken(data);
-  }
-
-  async deleteTokens(data: { tokenIds: string[] }): Promise<any> {
-    return this.scenesTokens.deleteTokens(data);
-  }
-
   async getTokenDetails(data: { tokenId: string }): Promise<any> {
     return this.scenesTokens.getTokenDetails(data);
   }
@@ -831,19 +814,6 @@ export class FoundryDataAccess {
     iconSize?: number;
   }): Promise<any> {
     return this.sceneFx.addMapNote(data);
-  }
-
-  async setTokenVisionLight(data: {
-    tokenName: string;
-    sightEnabled?: boolean;
-    sightRange?: number;
-    visionMode?: string;
-    lightDim?: number;
-    lightBright?: number;
-    lightColor?: string;
-    lightAnimation?: string;
-  }): Promise<any> {
-    return this.scenesTokens.setTokenVisionLight(data);
   }
 
   async dropLoot(data: {

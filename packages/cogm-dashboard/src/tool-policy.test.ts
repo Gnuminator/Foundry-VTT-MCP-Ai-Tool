@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyTool, toolArgs } from './tool-policy.js';
+import { DESTRUCTIVE_TOOLS, classifyTool, toolArgs } from './tool-policy.js';
 
 describe('classifyTool', () => {
   it('treats read prefixes (incl. plan- and suggest-) and open-in-foundry as reads', () => {
@@ -51,9 +51,14 @@ describe('classifyTool', () => {
 
   it('treats apply-planned-change as a write and undo-change as destructive', () => {
     expect(classifyTool('apply-planned-change')).toBe('write');
-    expect(classifyTool('move-token')).toBe('write');
     expect(classifyTool('undo-change')).toBe('destructive');
-    expect(classifyTool('delete-tokens')).toBe('destructive');
+    expect(classifyTool('delete-map-note')).toBe('destructive');
+  });
+
+  it('treats plan-token-change as a read: it only plans; the delete is confirmed when applied (F5 L2)', () => {
+    expect(classifyTool('plan-token-change')).toBe('read');
+    // The old direct token tools are gone, so the proxy no longer lists delete-tokens.
+    expect(DESTRUCTIVE_TOOLS.has('delete-tokens')).toBe(false);
   });
 
   it('does not treat prefix look-alikes as reads', () => {
@@ -72,8 +77,8 @@ describe('classifyTool', () => {
 
 describe('toolArgs', () => {
   it('passes args through unchanged for ordinary tools', () => {
-    const args = { tokenId: 't', confirm: true };
-    expect(toolArgs('move-token', args, { confirm: true })).toBe(args);
+    const args = { tokens: ['Wolf 1'], action: 'delete', confirm: true };
+    expect(toolArgs('plan-token-change', args, { confirm: true })).toBe(args);
   });
 
   it('sets the guarded tools confirm flags only from the body', () => {

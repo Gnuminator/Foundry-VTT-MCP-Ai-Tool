@@ -27,7 +27,7 @@ each time the bridge/module/dashboard changes.
 - **Record** every run's pass/skip/fail + notes back into
   `docs/LIVE-VERIFICATION-<date>.md`. A failure report must include the exact
   tool, args, and error text.
-- **Safety:** never run destructive tools (`delete-tokens`, `remove-actor-
+- **Safety:** never run destructive tools (a `plan-token-change` delete, `remove-actor-
 ownership`, `clear-*`) against real game state — only against test fixtures.
 
 ---
@@ -52,14 +52,14 @@ fixtures. Track each as ✅ / ⚠️ / ❌ with the result shape.
 - [ ] **Characters/items**: `get-character` (full name, partial — after fix, id, ambiguous), `search-character-items` (query/type/category combos), `use-item`, `manage-world-items`, `create-world-items`/`list`/`update`.
 - [ ] **Actor creation**: `create-actor-from-compendium` (1 + quantity + addToScene), `get-compendium-entry-full`, `add-actors-to-scene` — on a **test scene**.
 - [ ] **dnd5e authoring**: `dnd5e-create-npc`, `dnd5e-add-feature`, `dnd5e-add-features-from-compendium`, attack/aura/passive/save-feature, spellcasting, add-spells — on a **throwaway test actor**, then delete it.
-- [ ] **Token manipulation**: `move-token` (+ move back), `update-token`, `get-token-details`, `plan-actor-change` condition (apply, then undo: **verify fix A: no dup events**), `delete-tokens` (test token only).
+- [ ] **Token manipulation**: `plan-token-change` move and update (apply, then undo), `get-token-details`, `plan-actor-change` condition (apply, then undo: **verify fix A: no dup events**), `plan-token-change` delete (test token only; undo restores its combatant).
 - [ ] **Combat tracker**: `get-combat-state`, `advance-combat-turn`, `set-initiative`, `roll-initiative-for-npcs` — in a test encounter.
 - [ ] **Combat resolution (dnd5e)**: `plan-actor-change` damage and healing (apply, then undo), `roll-saving-throws`, `use-npc-activity`, `manage-rest` — on test actors. Verify HP/slots match the sheet.
 - [ ] **Movement**: `get-token-positions`, `measure-distance` (`fromTokenName`/`toTokenName`!), `get-targets`.
 - [ ] **Dice/rolls**: `request-player-rolls`, `request-ability-check`, `request-attack-roll`, `roll-npc-check` — verify the roll button appears + resolves.
 - [ ] **Resources/effects**: `get-character-resources`, `plan-actor-change` resource and clear-conditions (apply, then undo), `get-active-effects` (test actor).
 - [ ] **Chat/log**: `send-chat-message` (ooc/ic/whisper, speaker), `get-chat-log`, `get-combat-play-by-play`.
-- [ ] **Encounter & scene-fx**: `suggest-balanced-encounter`, `place`/`delete-measured-template`, `set-scene-mood` (+ restore), `add`/`delete-map-note`, `set-token-vision-light` (+ restore), `drop-loot` (test scene).
+- [ ] **Encounter & scene-fx**: `suggest-balanced-encounter`, `place`/`delete-measured-template`, `set-scene-mood` (+ restore), `add`/`delete-map-note`, `plan-token-change` update with light (apply, then undo), `drop-loot` (test scene).
 - [ ] **Ownership**: `assign`/`list`/`remove-actor-ownership` — on a test actor.
 - [ ] **Journals/quests**: `create-quest-journal`, `update-quest-journal`, `link-quest-to-npc`, `list`/`search-journals`. (No delete-journal tool — clean up manually.)
 - [ ] **Diagnostics**: `get-modules`, `get-module-errors`, `clear-module-errors`, `get-module-manifest`.

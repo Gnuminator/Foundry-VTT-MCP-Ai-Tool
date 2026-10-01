@@ -300,6 +300,14 @@ function updateText(label: string, path: string, before: PathValue, after: PathV
   return named ? `${label}: ${named} ${change}` : `${label}: ${path}: ${change}`;
 }
 
+/** `Actor "Wolf 2"`, `the encounter` for a combat (it has no name), or null without a parent. */
+function parentText(snapshot: OpSnapshot): string | null {
+  const parent = snapshot.parent;
+  if (!parent) return null;
+  if (parent.name) return `${parent.documentName} "${parent.name}"`;
+  return parent.documentName === 'Combat' ? 'the encounter' : null;
+}
+
 /** Diff lines for Foundry ops; throws when a target is missing. */
 function foundryDiff(ops: GuardedOp[], snapshots: OpSnapshot[]): DiffLine[] {
   const lines: DiffLine[] = [];
@@ -333,11 +341,8 @@ function foundryDiff(ops: GuardedOp[], snapshots: OpSnapshot[]): DiffLine[] {
       if (!snap.exists) throw new Error(`Op ${i}: parent not found: ${String(op.parentUuid)}`);
       if (snap.idTaken) throw new Error(`Op ${i}: a document with that id already exists`);
       const name = typeof op.data.name === 'string' ? ` "${op.data.name}"` : '';
-      const where = snap.parent?.name
-        ? ` on ${snap.parent.documentName} "${snap.parent.name}"`
-        : op.parentUuid
-          ? ` in ${op.parentUuid}`
-          : '';
+      const parent = parentText(snap);
+      const where = parent ? ` on ${parent}` : op.parentUuid ? ` in ${op.parentUuid}` : '';
       const label = `${op.documentName}${name}`;
       lines.push({
         op: i,
@@ -354,8 +359,8 @@ function foundryDiff(ops: GuardedOp[], snapshots: OpSnapshot[]): DiffLine[] {
         kind: 'delete',
         target: op.uuid,
         label,
-        text: snap.parent?.name
-          ? `Delete ${label} from ${snap.parent.documentName} "${snap.parent.name}"`
+        text: parentText(snap)
+          ? `Delete ${label} from ${parentText(snap)}`
           : `Delete ${label} (${op.uuid})`,
       });
     }

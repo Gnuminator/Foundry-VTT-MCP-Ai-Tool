@@ -15,10 +15,10 @@ control panel in the browser, the co-GM dashboard, that shows the table live.
 
 You stay in charge, but know the two kinds of change:
 
-- **Guarded changes.** Damage, healing, conditions, spell slots and the tool's own features
-  (party, Tarokka, handouts, the Obsidian mirror): Claude plans a change and you approve it, and
+- **Guarded changes.** Damage, healing, conditions, spell slots, token moves and edits, and the
+  tool's own features (party, Tarokka, handouts, the Obsidian mirror): Claude plans a change and you approve it, and
   every such change can be undone.
-- **Direct actions.** Many of Claude's other tools (rolls, token moves, new NPCs, journals, chat
+- **Direct actions.** Many of Claude's other tools (rolls, new NPCs, journals, chat
   and more) act as soon as Claude uses them, and the tool cannot undo them. Keep Claude Desktop's "ask before using a tool" on for tools that change the game, so
   nothing happens without your click. [Asking Claude](asking-claude.md) explains how.
 

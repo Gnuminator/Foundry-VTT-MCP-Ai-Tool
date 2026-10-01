@@ -153,6 +153,15 @@ These need the **play** set switched on.
 - **Tip:** a mistake is one click to fix: **Undo** in **Recent Changes**. Rolls happen right away
   and cannot be undone.
 
+### Move, light or remove tokens
+
+- **Say:** "Move Wolf 2 two squares left, go ahead." or "Give Test Hero a torch." or "Hide Wolf 3."
+  (`plan-token-change`)
+- **What happens:** Claude plans it and shows where each token goes ("Wolf 2: (9,7) to (7,7), 10
+  ft") or what changes. "Go ahead" is your yes.
+- **Tip:** deleting a token asks twice. Its place in the encounter goes with it, and **Undo** in
+  **Recent Changes** brings both back, initiative included.
+
 ### Record the session in Discord
 
 - **Type** in the Discord text channel: `/record start` when play begins, `/record stop` when it

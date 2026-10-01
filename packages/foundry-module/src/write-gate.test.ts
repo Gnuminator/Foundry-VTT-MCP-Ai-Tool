@@ -67,8 +67,25 @@ describe('write gate: classification', () => {
   });
 
   it('covers the handlers named in P-036', () => {
-    for (const m of ['setActorOwnership', 'setTokenVisionLight', 'addActorItems', 'deleteTokens'])
+    for (const m of ['setActorOwnership', 'addActorItems', 'dropLoot', 'placeMeasuredTemplate'])
       expect(WRITE_METHODS).toContain(m);
+  });
+
+  it('has no direct token write handlers left (F5 L2: plan-token-change replaces them)', () => {
+    qh.registerHandlers();
+    const registered = bridgeHandlers.methods().map(m => m.slice(MODULE_ID.length + 1));
+    for (const m of [
+      'moveToken',
+      'move-token',
+      'updateToken',
+      'update-token',
+      'deleteTokens',
+      'delete-tokens',
+      'setTokenVisionLight',
+    ]) {
+      expect(registered, m).not.toContain(m);
+      expect(WRITE_METHODS, m).not.toContain(m);
+    }
   });
 });
 
@@ -89,8 +106,8 @@ describe('write gate: behaviour', () => {
     const calls = stubEverything();
     world.enableWrites();
     qh.registerHandlers();
-    await bridgeHandlers.get(wire('moveToken'))!({ tokenId: 't', x: 1, y: 2 });
-    expect(calls).toHaveBeenCalledWith('moveToken', expect.anything());
+    await bridgeHandlers.get(wire('dropLoot'))!({});
+    expect(calls).toHaveBeenCalledWith('dropLoot', expect.anything());
   });
 
   it('never gates reads', async () => {
@@ -115,14 +132,11 @@ describe('permissions: requiresGM and the P-036 functions', () => {
     expect(permissionManager.checkWritePermission('modifyScene').allowed).toBe(true);
   });
 
-  it('refuses the four direct write paths when writes are off (data access, no bridge)', async () => {
+  it('refuses the remaining direct write paths when writes are off (data access, no bridge)', async () => {
     const da = new FoundryDataAccess();
     world.setSetting(MODULE_ID, 'allowWriteOperations', false);
     await expect(
       da.setActorOwnership({ actorId: 'a', userId: 'u', permission: 3 })
-    ).rejects.toThrow(/disabled in module settings/);
-    await expect(
-      da.setTokenVisionLight({ tokenName: 'Wolf 1', sightEnabled: true })
     ).rejects.toThrow(/disabled in module settings/);
     await expect(
       da.createActorFromCompendiumEntry({ packId: 'p', itemId: 'i', customNames: ['A'] })
@@ -130,12 +144,5 @@ describe('permissions: requiresGM and the P-036 functions', () => {
     await expect(
       da.addActorItems({ actorIdentifier: 'a', items: [{ name: 'x', type: 'loot' }] })
     ).rejects.toThrow(/disabled in module settings/);
-  });
-
-  it('treats deleting tokens as a GM-only delete', async () => {
-    const da = new FoundryDataAccess();
-    world.enableWrites();
-    (globalThis as any).game.user.isGM = false;
-    await expect(da.deleteTokens({ tokenIds: ['t1'] })).rejects.toThrow(/needs a GM user/);
   });
 });

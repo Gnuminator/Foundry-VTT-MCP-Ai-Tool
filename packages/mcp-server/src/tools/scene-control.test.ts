@@ -10,7 +10,6 @@ import { SceneControlTools } from './scene-control.js';
  * Validation error behavior per handler (matches source exactly):
  *   handleSetSceneMood        — ZodError → returns "Parameter error" string; other errors re-throw
  *   handleAddMapNote          — all errors re-throw (no ZodError string path)
- *   handleSetTokenVisionLight — ZodError → returns "Parameter error" string; other errors re-throw
  *   handleDeleteMapNote       — all errors re-throw (no ZodError string path)
  *
  * The FoundryClient is mocked so these tests run with no bridge connection.
@@ -35,25 +34,13 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
 // ---------------------------------------------------------------------------
 
 describe('SceneControlTools.getToolDefinitions', () => {
-  it('exposes the four scene-control tools with object input schemas', () => {
+  it('exposes the three scene-control tools with object input schemas', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();
-    expect(defs.map(d => d.name)).toEqual([
-      'set-scene-mood',
-      'add-map-note',
-      'set-token-vision-light',
-      'delete-map-note',
-    ]);
+    expect(defs.map(d => d.name)).toEqual(['set-scene-mood', 'add-map-note', 'delete-map-note']);
     for (const d of defs) {
       expect((d.inputSchema as any).type).toBe('object');
     }
-  });
-
-  it('set-token-vision-light requires tokenName', () => {
-    const { tools } = makeTools();
-    const defs = tools.getToolDefinitions();
-    const setVision = defs.find(d => d.name === 'set-token-vision-light')!;
-    expect((setVision.inputSchema as any).required).toEqual(['tokenName']);
   });
 
   it('set-scene-mood has no required fields', () => {
@@ -213,85 +200,6 @@ describe('SceneControlTools.handleAddMapNote', () => {
   it('throws a generic message when Foundry reports failure with no error field', async () => {
     const { tools } = makeTools(() => ({ success: false }));
     await expect(tools.handleAddMapNote({})).rejects.toThrow('Failed to add map note');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// handleSetTokenVisionLight
-// ---------------------------------------------------------------------------
-
-describe('SceneControlTools.handleSetTokenVisionLight', () => {
-  it('dispatches with required tokenName and optional sight fields', async () => {
-    const payload = { success: true };
-    const { tools, query } = makeTools(() => payload);
-    const result = await tools.handleSetTokenVisionLight({
-      tokenName: 'Aragorn',
-      sightEnabled: true,
-      sightRange: 60,
-    });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.setTokenVisionLight', {
-      tokenName: 'Aragorn',
-      sightEnabled: true,
-      sightRange: 60,
-    });
-    expect(result).toBe(payload);
-  });
-
-  it('dispatches with torch light settings', async () => {
-    const { tools, query } = makeTools(() => ({ success: true }));
-    await tools.handleSetTokenVisionLight({
-      tokenName: 'Torch Bearer',
-      lightDim: 40,
-      lightBright: 20,
-      lightColor: '#ff9329',
-      lightAnimation: 'torch',
-    });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.setTokenVisionLight', {
-      tokenName: 'Torch Bearer',
-      lightDim: 40,
-      lightBright: 20,
-      lightColor: '#ff9329',
-      lightAnimation: 'torch',
-    });
-  });
-
-  it('dispatches with visionMode', async () => {
-    const { tools, query } = makeTools(() => ({ success: true }));
-    await tools.handleSetTokenVisionLight({ tokenName: 'Elf', visionMode: 'darkvision' });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.setTokenVisionLight', {
-      tokenName: 'Elf',
-      visionMode: 'darkvision',
-    });
-  });
-
-  it('returns a parameter-error string (not a throw) when tokenName is missing', async () => {
-    const { tools, query } = makeTools();
-    const result = await tools.handleSetTokenVisionLight({ sightEnabled: true });
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it('returns a parameter-error string when args are null/undefined', async () => {
-    const { tools, query } = makeTools();
-    const result = await tools.handleSetTokenVisionLight(undefined);
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it('throws when Foundry reports a failure with an error message', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'token not found' }));
-    await expect(tools.handleSetTokenVisionLight({ tokenName: 'Ghost' })).rejects.toThrow(
-      'token not found'
-    );
-  });
-
-  it('throws a generic message when Foundry reports failure with no error field', async () => {
-    const { tools } = makeTools(() => ({ success: false }));
-    await expect(tools.handleSetTokenVisionLight({ tokenName: 'Ghost' })).rejects.toThrow(
-      'Failed to set token vision/light'
-    );
   });
 });
 

@@ -70,16 +70,28 @@ describe('QueryHandlers — registration', () => {
     }
   });
 
-  it('registers token methods under BOTH camelCase and kebab-case, routed to one handler', async () => {
+  it('registers token reads under BOTH camelCase and kebab-case, routed to one handler', async () => {
     qh.registerHandlers();
-    expect(typeof queries()[`${MODULE_ID}.moveToken`]).toBe('function');
-    expect(typeof queries()[`${MODULE_ID}.move-token`]).toBe('function');
+    expect(typeof queries()[`${MODULE_ID}.getTokenDetails`]).toBe('function');
+    expect(typeof queries()[`${MODULE_ID}.get-token-details`]).toBe('function');
 
-    const da = stubDataAccess({ moveToken: vi.fn().mockResolvedValue({ ok: true }) });
-    world.enableWrites(); // moveToken is a write (write-gate.ts)
-    await queries()[`${MODULE_ID}.moveToken`]({ tokenId: 't', x: 1, y: 2 });
-    await queries()[`${MODULE_ID}.move-token`]({ tokenId: 't', x: 1, y: 2 });
-    expect(da.moveToken).toHaveBeenCalledTimes(2);
+    const da = stubDataAccess({ getTokenDetails: vi.fn().mockResolvedValue({ ok: true }) });
+    await queries()[`${MODULE_ID}.getTokenDetails`]({ tokenId: 't' });
+    await queries()[`${MODULE_ID}.get-token-details`]({ tokenId: 't' });
+    expect(da.getTokenDetails).toHaveBeenCalledTimes(2);
+  });
+
+  it('no longer registers the direct token write handlers (F5 L2)', () => {
+    qh.registerHandlers();
+    for (const key of [
+      'moveToken',
+      'move-token',
+      'updateToken',
+      'delete-tokens',
+      'setTokenVisionLight',
+    ]) {
+      expect(queries()[`${MODULE_ID}.${key}`], key).toBeUndefined();
+    }
   });
 
   it('getRegisteredMethods lists the stripped method names', () => {

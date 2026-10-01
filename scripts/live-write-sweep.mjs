@@ -136,7 +136,6 @@ async function http(path, { method = 'GET', body, timeoutMs = 30000 } = {}) {
 
 /** Tools whose class is destructive in the dashboard's tool policy (both confirmations). */
 const DESTRUCTIVE = new Set([
-  'delete-tokens',
   'delete-map-note',
   'delete-measured-template',
   'remove-actor-ownership',
@@ -149,8 +148,11 @@ const DESTRUCTIVE = new Set([
  * the tool's message on failure, including the tools that answer a bad argument with a
  * plain "Parameter error: ..." or "Error: ..." string instead of failing.
  */
-async function tool(name, args = {}) {
-  const flags = { confirm: true, ...(DESTRUCTIVE.has(name) ? { confirmDestructive: true } : {}) };
+async function tool(name, args = {}, { destructive = false } = {}) {
+  const flags = {
+    confirm: true,
+    ...(destructive || DESTRUCTIVE.has(name) ? { confirmDestructive: true } : {}),
+  };
   const { status, data } = await http('/api/tool', {
     method: 'POST',
     body: { name, args, ...flags },
@@ -225,13 +227,19 @@ function brief(value, max = 120) {
 }
 
 /**
- * F5 (D-082): plan-actor-change, then apply-planned-change. Returns the plan (with its
- * per-target preview) and the applied change (its changeId is what undo-change takes).
+ * F5 (D-082): a plan tool (plan-actor-change by default, plan-token-change for tokens), then
+ * apply-planned-change. Returns the plan (with its per-target preview) and the applied change
+ * (its changeId is what undo-change takes). A destructive plan (a token delete) gets both
+ * confirmations.
  */
-async function planAndApply(args) {
-  const plan = await tool('plan-actor-change', args);
+async function planAndApply(args, planTool = 'plan-actor-change') {
+  const plan = await tool(planTool, args);
   assert(plan && plan.planId, `no plan: ${brief(plan)}`);
-  const change = await tool('apply-planned-change', { planId: plan.planId });
+  const change = await tool(
+    'apply-planned-change',
+    { planId: plan.planId },
+    { destructive: plan.risk === 'destructive' }
+  );
   assert(change && change.changeId, `not applied: ${brief(change)}`);
   return { plan, change };
 }
@@ -553,21 +561,36 @@ async function tokenTools() {
   const needWolf = () => {
     if (!ctx.wolfTokenId) skip('no sweep token on the scene');
   };
-  await step('move-token (and back)', async () => {
+  await step('plan-token-change move (one square right, undo)', async () => {
     needWolf();
     const { x, y } = ctx.wolfStart;
-    await tool('move-token', { tokenId: ctx.wolfTokenId, x: x + 100, y });
+    const { plan, change } = await planAndApply(
+      { action: 'move', tokens: [ctx.wolfTokenId], dx: 1 },
+      'plan-token-change'
+    );
     const moved = await wolfToken();
-    assert(moved && moved.x === x + 100, `token at ${brief(moved && { x: moved.x, y: moved.y })}`);
-    await tool('move-token', { tokenId: ctx.wolfTokenId, x, y });
-    return `(${x},${y}) -> (${x + 100},${y}) -> back`;
+    assert(
+      moved && moved.x > x && moved.y === y,
+      `token at ${brief(moved && { x: moved.x, y: moved.y })}`
+    );
+    await undo(change);
+    const back = await wolfToken();
+    assert(
+      back && back.x === x && back.y === y,
+      `after undo at ${brief(back && { x: back.x, y: back.y })}`
+    );
+    return `${plan.targets[0].line}; undone`;
   });
-  await step('update-token (elevation, and back)', async () => {
+  await step('plan-token-change update (elevation 10, undo)', async () => {
     needWolf();
-    const r = await tool('update-token', { tokenId: ctx.wolfTokenId, updates: { elevation: 10 } });
-    assert(r && r.success !== false, brief(r));
-    await tool('update-token', { tokenId: ctx.wolfTokenId, updates: { elevation: 0 } });
-    return 'elevation 10 -> 0';
+    const { change } = await planAndApply(
+      { action: 'update', tokens: [ctx.wolfTokenId], elevation: 10 },
+      'plan-token-change'
+    );
+    assert((await wolfToken())?.elevation === 10, 'elevation not 10 after the apply');
+    await undo(change);
+    assert((await wolfToken())?.elevation === 0, 'elevation not 0 after the undo');
+    return 'elevation 0 -> 10 -> undone';
   });
   await step('plan-actor-change condition (prone on, undo)', async () => {
     needWolf();
@@ -603,20 +626,17 @@ async function tokenTools() {
     assert(!(await wolfConditions()).includes('prone'), 'prone still on after taking it off');
     return 'on, cleared, clear undone, taken off again';
   });
-  await step('set-token-vision-light', async () => {
+  await step('plan-token-change update (a torch: light 40/20, undo)', async () => {
     needWolf();
-    const r = await tool('set-token-vision-light', {
-      tokenName: ctx.wolfTokenId,
-      lightDim: 20,
-      lightBright: 10,
-    });
-    assert(r && r.success !== false, brief(r));
-    await tool('set-token-vision-light', {
-      tokenName: ctx.wolfTokenId,
-      lightDim: 0,
-      lightBright: 0,
-    });
-    return `updated ${brief(r.updated)}, then light off`;
+    const { plan, change } = await planAndApply(
+      { action: 'update', tokens: [ctx.wolfTokenId], lightDim: 40, lightBright: 20 },
+      'plan-token-change'
+    );
+    const lit = await tool('get-token-details', { tokenId: ctx.wolfTokenId });
+    const light = (lit && (lit.light || (lit.token && lit.token.light))) || null;
+    if (light) assert(light.dim === 40 && light.bright === 20, `light ${brief(light)}`);
+    await undo(change);
+    return `${plan.targets[0].line}; undone`;
   });
   await step('plan-actor-change damage and healing (undo both, newest first)', async () => {
     needWolf();
@@ -703,6 +723,31 @@ async function combatTools() {
     const r = await tool('advance-combat-turn', { skipTo: ctx.wolfName });
     assert(r && r.round >= 1, brief(r));
     return `round ${r.round}, turn ${r.turn}`;
+  });
+  await step('plan-token-change delete (with its combatant, undo restores both)', async () => {
+    needCombat();
+    const wolfCombatant = async () => {
+      const state = await tool('get-combat-state', {});
+      return ((state && state.combatants) || []).find(c => c.tokenId === ctx.wolfTokenId) || null;
+    };
+    const before = await wolfCombatant();
+    assert(before, 'the sweep token is not in the combat');
+    const { plan, change } = await planAndApply(
+      { action: 'delete', tokens: [ctx.wolfTokenId] },
+      'plan-token-change'
+    );
+    assert(plan.risk === 'destructive', `risk ${plan.risk}`);
+    assert(!(await wolfToken()), 'the token is still on the scene');
+    assert(!(await wolfCombatant()), 'the combatant is still in the combat');
+    await undo(change);
+    assert(await wolfToken(), 'the token did not come back');
+    const after = await wolfCombatant();
+    assert(after, 'the combatant did not come back');
+    assert(
+      after.initiative === before.initiative,
+      `initiative ${after.initiative}, was ${before.initiative}`
+    );
+    return `${plan.targets[0].line}; undone (initiative ${after.initiative})`;
   });
 }
 
@@ -947,7 +992,6 @@ async function cleanUp() {
       await quiet(tool('delete-measured-template', { templateId: ctx.templateId }));
     await quiet(restoreScene());
     await quiet(restoreMood());
-    if (ctx.wolfTokenId) await quiet(tool('delete-tokens', { tokenIds: [ctx.wolfTokenId] }));
     // The module also deletes sweep tokens on any scene, whichever scene the GM views.
     const r = await helper({ mode: 'cleanup', since: ctx.since });
     const deleted = Object.entries(r.deleted || {})

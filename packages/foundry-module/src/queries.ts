@@ -268,9 +268,6 @@ export class QueryHandlers {
     handlers.set(`${modulePrefix}.findActor`, this.handleFindActor.bind(this));
 
     // Token manipulation queries
-    handlers.set(`${modulePrefix}.moveToken`, this.handleMoveToken.bind(this));
-    handlers.set(`${modulePrefix}.updateToken`, this.handleUpdateToken.bind(this));
-    handlers.set(`${modulePrefix}.deleteTokens`, this.handleDeleteTokens.bind(this));
     handlers.set(`${modulePrefix}.getTokenDetails`, this.handleGetTokenDetails.bind(this));
     handlers.set(
       `${modulePrefix}.getAvailableConditions`,
@@ -295,9 +292,6 @@ export class QueryHandlers {
     handlers.set(`${modulePrefix}.updateWorldItems`, this.handleUpdateWorldItems.bind(this));
 
     // Phase 7: Token manipulation queries
-    handlers.set(`${modulePrefix}.move-token`, this.handleMoveToken.bind(this));
-    handlers.set(`${modulePrefix}.update-token`, this.handleUpdateToken.bind(this));
-    handlers.set(`${modulePrefix}.delete-tokens`, this.handleDeleteTokens.bind(this));
     handlers.set(`${modulePrefix}.get-token-details`, this.handleGetTokenDetails.bind(this));
     handlers.set(
       `${modulePrefix}.get-available-conditions`,
@@ -400,7 +394,6 @@ export class QueryHandlers {
     );
     handlers.set(`${modulePrefix}.setSceneMood`, this.handleSetSceneMood.bind(this));
     handlers.set(`${modulePrefix}.addMapNote`, this.handleAddMapNote.bind(this));
-    handlers.set(`${modulePrefix}.setTokenVisionLight`, this.handleSetTokenVisionLight.bind(this));
     handlers.set(`${modulePrefix}.dropLoot`, this.handleDropLoot.bind(this));
 
     // Cleanup & targeting
@@ -937,59 +930,6 @@ export class QueryHandlers {
   }
 
   // ===== PHASE 7: TOKEN MANIPULATION HANDLERS =====
-
-  /**
-   * Handle move token request
-   */
-  private async handleMoveToken(data: {
-    tokenId: string;
-    x: number;
-    y: number;
-    animate?: boolean;
-  }): Promise<any> {
-    return this.withGmGate('Failed to move token', async () => {
-      if (!data.tokenId) {
-        throw new Error('tokenId is required');
-      }
-      if (typeof data.x !== 'number' || typeof data.y !== 'number') {
-        throw new Error('x and y coordinates are required and must be numbers');
-      }
-
-      return await this.dataAccess.moveToken(data);
-    });
-  }
-
-  /**
-   * Handle update token request
-   */
-  private async handleUpdateToken(data: {
-    tokenId: string;
-    updates: Record<string, any>;
-  }): Promise<any> {
-    return this.withGmGate('Failed to update token', async () => {
-      if (!data.tokenId) {
-        throw new Error('tokenId is required');
-      }
-      if (!data.updates || typeof data.updates !== 'object') {
-        throw new Error('updates object is required');
-      }
-
-      return await this.dataAccess.updateToken(data);
-    });
-  }
-
-  /**
-   * Handle delete tokens request
-   */
-  private async handleDeleteTokens(data: { tokenIds: string[] }): Promise<any> {
-    return this.withGmGate('Failed to delete tokens', async () => {
-      if (!data.tokenIds || !Array.isArray(data.tokenIds) || data.tokenIds.length === 0) {
-        throw new Error('tokenIds array is required and must not be empty');
-      }
-
-      return await this.dataAccess.deleteTokens(data);
-    });
-  }
 
   /**
    * Handle get token details request
@@ -1560,13 +1500,6 @@ export class QueryHandlers {
   async handleAddMapNote(data: any): Promise<any> {
     return this.withGmGate('Failed to add map note', async () => {
       return await this.dataAccess.addMapNote(data || {});
-    });
-  }
-
-  async handleSetTokenVisionLight(data: any): Promise<any> {
-    return this.withGmGate('Failed to set token vision/light', async () => {
-      if (!data?.tokenName) throw new Error('tokenName is required');
-      return await this.dataAccess.setTokenVisionLight(data);
     });
   }
 

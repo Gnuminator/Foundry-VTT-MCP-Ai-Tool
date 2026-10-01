@@ -39,6 +39,7 @@
 - Ready-to-use requests for the GM before, during and after a session, a player cookbook, and a
   test that the docs name only real tools and prompts. The GM cookbook and the dashboard guide
   describe the Prep drawer.
+- A recipe to describe a scene from the adventure, from the journals in your world (PR #34).
 
 ### Boss prompts and handout reveal queue (I-070, I-039; PR #19)
 
@@ -66,6 +67,17 @@
   `scripts/install-obsidian-plugin.ps1` or the new release zip `foundry-ai-tool-obsidian.zip`.
 - The dashboard opens a plan's confirm window from the link `/?plan=<planId>` once GM Actions are
   on.
+
+### Undo for live play (F5, D-082, D-083; PRs #33, #35)
+
+- **`plan-actor-change`** (play set) replaces `apply-damage-and-healing`, `toggle-token-condition`,
+  `update-character-resource` and `clear-stale-conditions` (95 to 92 tools): damage, healing,
+  temp HP, conditions and resources go through plan, confirm and undo, so every change can be
+  undone in Recent Changes. An optional switch "AI Tool: Live play, apply without confirming"
+  (off by default) skips the confirm for long fights (D-083).
+- Guarded changes: readable diff labels (HP, temp HP, ownership, position and more), removing a
+  status effect needs one confirm instead of two, and a second change to the same actor no longer
+  blocks the first change's Undo (PR #33).
 
 ### Batch F and fixes (PRs #25, #28 to #30)
 

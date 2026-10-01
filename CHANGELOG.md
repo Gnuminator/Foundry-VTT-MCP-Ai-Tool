@@ -68,7 +68,7 @@
 - The dashboard opens a plan's confirm window from the link `/?plan=<planId>` once GM Actions are
   on.
 
-### Undo for live play (F5, D-082, D-083; PRs #33, #35)
+### Undo for live play (F5, D-082, D-083; PRs #33, #35, #37, #38)
 
 - **`plan-actor-change`** (play set) replaces `apply-damage-and-healing`, `toggle-token-condition`,
   `update-character-resource` and `clear-stale-conditions` (95 to 92 tools): damage, healing,
@@ -78,6 +78,12 @@
 - Guarded changes: readable diff labels (HP, temp HP, ownership, position and more), removing a
   status effect needs one confirm instead of two, and a second change to the same actor no longer
   blocks the first change's Undo (PR #33).
+- **`plan-token-change`** (play set) replaces `move-token`, `update-token`,
+  `set-token-vision-light` and `delete-tokens` (92 to 89 tools): token moves, edits and deletes can
+  be undone, a deleted token's place in the encounter included (PR #37).
+- **`plan-ownership-change`** (admin set) replaces `assign-actor-ownership` and
+  `remove-actor-ownership` (89 to 88 tools): ownership changes can be undone, back to the default
+  when the player had no entry (PR #38).
 
 ### Batch F and fixes (PRs #25, #28 to #30)
 

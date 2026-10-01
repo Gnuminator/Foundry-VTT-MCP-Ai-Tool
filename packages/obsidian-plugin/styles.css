@@ -1,0 +1,7 @@
+/* Foundry AI Tool plugin: the status bar item opens the note in Foundry on click. */
+.foundry-ai-tool-status {
+  cursor: pointer;
+}
+.foundry-ai-tool-status.is-offline {
+  color: var(--text-muted);
+}

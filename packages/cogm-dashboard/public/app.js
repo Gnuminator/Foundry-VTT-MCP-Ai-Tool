@@ -281,8 +281,40 @@ function renderStatus(status) {
   foundryLive = status.foundry === 'reachable';
 }
 
+// --- Plan link (I-059) ---
+// The Obsidian plugin opens /?plan=<planId> after it made a plan (a handout reveal): the
+// dashboard shows that plan's confirm window, so the GM approves it here (D-067). It waits for
+// GM Actions to be on, and drops the parameter from the address once used.
+let planLinkId = null;
+let planLinkWarned = false;
+try {
+  const id = new URLSearchParams(window.location.search).get('plan');
+  if (id && /^plan-[a-z0-9-]{1,80}$/.test(id)) planLinkId = id;
+} catch {
+  planLinkId = null;
+}
+function openPlanLink() {
+  if (!planLinkId) return;
+  if (!settings.gmActionsEnabled) {
+    if (!planLinkWarned) {
+      planLinkWarned = true;
+      toast('A plan from Obsidian is waiting: turn on GM Actions to review it.', 'warn');
+    }
+    return;
+  }
+  const planId = planLinkId;
+  planLinkId = null;
+  try {
+    window.history.replaceState(null, '', window.location.pathname);
+  } catch {
+    // Keep the address as it is.
+  }
+  void runTool('apply-planned-change', { planId }, 'write');
+}
+
 function renderSettings(next) {
   settings = { ...settings, ...next };
+  if (planLinkId) openPlanLink();
   els.btnPause.textContent = settings.paused ? '▶ Resume' : '⏸ Pause';
   els.btnPause.classList.toggle('paused', settings.paused);
   els.selectTone.value = settings.tone;

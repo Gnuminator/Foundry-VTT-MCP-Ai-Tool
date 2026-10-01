@@ -384,3 +384,26 @@ up the tool adds it).
 The other way round, notes of the Foundry mirror in Obsidian have **Open in Foundry** links. They
 open a small dashboard page that asks you to click **Open**; the document then opens on your
 Foundry screen, and nothing in the world changes.
+
+### The Obsidian plugin (optional)
+
+A small plugin for Obsidian on your PC makes this one step and shows handout status on the note
+itself. Whoever set up the tool installs it with `scripts/install-obsidian-plugin.ps1` (or unzips
+`foundry-ai-tool-obsidian.zip` from a release into the vault's `.obsidian/plugins` folder); then
+turn on **Foundry AI Tool** under Settings, Community plugins. In its settings, the dashboard
+address is the one you open in your browser, for example `http://localhost:3000`.
+
+On a note from the Foundry mirror:
+
+- **Open in Foundry**: from the command palette (Ctrl+P), the note's **...** menu, or a click on
+  the Foundry line in the status bar at the bottom. It opens right away, no extra page.
+- **Handout status**: on a journal page note, the status bar says whether players can see the page
+  (not revealed, queued, revealed, revealed as a copy) and how many have opened it.
+- **Reveal to players** and **Hide from players** (command palette): the plugin makes the plan and
+  opens the dashboard, which shows the usual confirm window. Nothing changes until you confirm
+  there, and the change gets **Undo** in Recent Changes like any other.
+- **Add to the handout reveal queue**: puts the page in the handout drawer's queue, so you can
+  reveal it with **Reveal next** during the session. Players see nothing yet.
+
+The plugin only talks to the dashboard. When the dashboard is not running, the status bar says
+"dashboard offline" and nothing else changes.

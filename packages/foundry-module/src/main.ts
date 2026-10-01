@@ -14,6 +14,7 @@ import {
 } from './gm-helper-queries.js';
 import { registerGuardedFeature } from './guarded-features.js';
 import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
+import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
 import { TAROKKA_FEATURE_ID, onTarokkaSettingChanged } from './tarokka.js';
 // Connection control now handled through settings menu
@@ -106,6 +107,12 @@ class FoundryMCPBridge {
           name: 'AI Tool: Live play, apply without confirming',
           hint: 'Damage, healing, conditions and resources apply at once, without the confirm step, from the dashboard and from Claude. Each one still shows an Undo and is listed in Recent Changes.',
         },
+      });
+      registerGuardedFeature({
+        id: OWNERSHIP_FEATURE_ID,
+        name: 'AI Tool: Ownership (writes)',
+        hint: 'Lets the dashboard and the AI change which players own or can see an actor.',
+        defaultEnabled: true,
       });
       Hooks.on('clientSettingChanged', (key: string) => {
         void onTarokkaSettingChanged(key, sendTarokkaOffer).catch(error => {

@@ -61,6 +61,11 @@ describe('classifyTool', () => {
     expect(DESTRUCTIVE_TOOLS.has('delete-tokens')).toBe(false);
   });
 
+  it('treats plan-ownership-change as a read and no longer lists remove-actor-ownership as destructive (F5 L3)', () => {
+    expect(classifyTool('plan-ownership-change')).toBe('read');
+    expect(DESTRUCTIVE_TOOLS.has('remove-actor-ownership')).toBe(false);
+  });
+
   it('does not treat prefix look-alikes as reads', () => {
     expect(classifyTool('planet-strike')).toBe('write');
     expect(classifyTool('getaway')).toBe('write');

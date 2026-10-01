@@ -126,6 +126,27 @@ describe('createPlan (Foundry ops)', () => {
     ]);
   });
 
+  it("uses the caller's pathLabels instead of the built-in label in the diff text (F5 L3)", async () => {
+    const ops: GuardedOp[] = [
+      {
+        kind: 'update',
+        uuid: 'Actor.ireena',
+        changes: { 'ownership.u1': 2, 'system.attributes.hp.value': 5 },
+      },
+    ];
+    const labelled = await plan(ops, { pathLabels: { 'ownership.u1': 'ownership for Player' } });
+    expect(labelled.diff.map(d => d.text)).toEqual([
+      'Actor "Ireena": ownership for Player (unset) → 2',
+      'Actor "Ireena": HP (unset) → 5',
+    ]);
+
+    const plain = await plan(ops);
+    expect(plain.diff.map(d => d.text)).toEqual([
+      'Actor "Ireena": ownership for user u1 (unset) → 2',
+      'Actor "Ireena": HP (unset) → 5',
+    ]);
+  });
+
   it('keeps removing a status effect at one confirm, any other delete stays destructive (F5)', async () => {
     foundry.add('Actor.ireena.ActiveEffect.prone', 'ActiveEffect', { name: 'Prone' });
     const effect = await plan([{ kind: 'delete', uuid: 'Actor.ireena.ActiveEffect.prone' }]);

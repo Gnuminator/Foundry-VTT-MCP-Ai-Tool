@@ -150,9 +150,9 @@ describe('QueryHandlers — query lockdown', () => {
   it('a player-style relay of a bridge method finds no CONFIG.queries handler', () => {
     qh.registerHandlers();
     // What Foundry's relay does on the GM client: look the name up in CONFIG.queries.
-    const relayed = (globalThis as any).CONFIG.queries[`${MODULE_ID}.setActorOwnership`];
+    const relayed = (globalThis as any).CONFIG.queries[`${MODULE_ID}.addActorItems`];
     expect(relayed).toBeUndefined();
-    expect(typeof queries()[`${MODULE_ID}.setActorOwnership`]).toBe('function');
+    expect(typeof queries()[`${MODULE_ID}.addActorItems`]).toBe('function');
   });
 });
 

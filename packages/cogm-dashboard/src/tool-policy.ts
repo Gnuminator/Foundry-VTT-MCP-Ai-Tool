@@ -17,7 +17,6 @@ export type ToolKind = 'read' | 'write' | 'destructive';
 export const DESTRUCTIVE_TOOLS: ReadonlySet<string> = new Set([
   'delete-map-note',
   'delete-measured-template',
-  'remove-actor-ownership',
   'clear-module-errors',
   'undo-change',
 ]);

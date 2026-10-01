@@ -98,8 +98,8 @@ before you send it on.
 There are two kinds of changes.
 
 **Guarded changes** (damage, healing, conditions, spell slots and other resources, moving,
-changing and deleting tokens, the party panel, the Tarokka reading, handouts, the Obsidian mirror
-settings):
+changing and deleting tokens, who owns an actor, the party panel, the Tarokka reading, handouts,
+the Obsidian mirror settings):
 
 1. Claude makes a plan. Nothing changes yet.
 2. Claude shows you the plan: a summary and the list of what will change.

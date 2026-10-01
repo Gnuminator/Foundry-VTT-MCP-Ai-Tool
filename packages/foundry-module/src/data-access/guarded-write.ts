@@ -399,6 +399,7 @@ async function executeUpdate(
   const update: Record<string, unknown> = { ...changes };
   for (const path of unset) Object.assign(update, unsetKeyUpdate(path));
   await doc.update(update);
+  await removeOwnershipKeys(doc, unset);
   const afterSource = sourceOf(doc);
   return {
     index,
@@ -410,6 +411,26 @@ async function executeUpdate(
     before,
     after: paths.map(path => readPath(afterSource, path)),
   };
+}
+
+/**
+ * Foundry 14 ignores a deletion of one `ownership.<userId>` key (neither the
+ * ForcedDeletion marker nor `-=`; seen live, F5 L3), so undoing "give Player
+ * OBSERVER" left the entry. When such a key survives the update, replace the
+ * whole ownership map without it, the way Foundry's own ownership dialog does
+ * (`recursive: false`). Only the top-level `ownership` field, so nothing else
+ * can be replaced by accident.
+ */
+async function removeOwnershipKeys(doc: FoundryDocument, unset: string[]): Promise<void> {
+  const keys = unset
+    .map(path => /^ownership\.([^.]+)$/.exec(path)?.[1])
+    .filter((key): key is string => key !== undefined);
+  if (keys.length === 0) return;
+  const current = (sourceOf(doc) as { ownership?: Record<string, unknown> }).ownership;
+  if (!current || !keys.some(key => key in current)) return;
+  const ownership = { ...current };
+  for (const key of keys) delete ownership[key];
+  await doc.update({ ownership }, { diff: false, recursive: false });
 }
 
 async function executeCreate(

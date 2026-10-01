@@ -259,7 +259,6 @@ export class QueryHandlers {
     );
 
     // Phase 6: Actor ownership management
-    handlers.set(`${modulePrefix}.setActorOwnership`, this.handleSetActorOwnership.bind(this));
     handlers.set(`${modulePrefix}.getActorOwnership`, this.handleGetActorOwnership.bind(this));
     handlers.set(`${modulePrefix}.getFriendlyNPCs`, this.handleGetFriendlyNPCs.bind(this));
     handlers.set(`${modulePrefix}.getPartyCharacters`, this.handleGetPartyCharacters.bind(this));
@@ -829,19 +828,6 @@ export class QueryHandlers {
         journalId,
         journalName,
       };
-    });
-  }
-
-  /**
-   * Handle set actor ownership request
-   */
-  async handleSetActorOwnership(data: any): Promise<any> {
-    return this.withGmGate('Failed to set actor ownership', async () => {
-      if (!data.actorId || !data.userId || data.permission === undefined) {
-        throw new Error('actorId, userId, and permission are required');
-      }
-
-      return await this.dataAccess.setActorOwnership(data);
     });
   }
 

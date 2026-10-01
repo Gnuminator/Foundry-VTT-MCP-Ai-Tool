@@ -145,10 +145,8 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'get-token-positions': args => deps.movementTools.handleGetTokenPositions(args),
     'measure-distance': args => deps.movementTools.handleMeasureDistance(args),
     'get-targets': args => deps.movementTools.handleGetTargets(args),
-    'assign-actor-ownership': args =>
-      deps.ownershipTools.handleToolCall('assign-actor-ownership', args),
-    'remove-actor-ownership': args =>
-      deps.ownershipTools.handleToolCall('remove-actor-ownership', args),
+    'plan-ownership-change': args =>
+      deps.ownershipTools.handleToolCall('plan-ownership-change', args),
     'list-actor-ownership': args =>
       deps.ownershipTools.handleToolCall('list-actor-ownership', args),
     'mark-play-session': args => deps.playSessionTools.handleMarkPlaySession(args),

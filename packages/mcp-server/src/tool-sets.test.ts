@@ -74,6 +74,11 @@ describe('toolSetOf', () => {
     expect(toolSetOf('plan-page-reveal')).toBe('prep');
     expect(toolSetOf('dnd5e-create-npc')).toBe('build');
     expect(toolSetOf('get-module-errors')).toBe('admin');
+    expect(toolSetOf('plan-ownership-change')).toBe('admin');
+    expect(toolSetOf('list-actor-ownership')).toBe('admin');
+    for (const gone of ['assign-actor-ownership', 'remove-actor-ownership']) {
+      expect(toolSetOf(gone), gone).toBeUndefined();
+    }
     expect(toolSetOf('toString')).toBeUndefined();
   });
 });

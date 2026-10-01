@@ -48,6 +48,8 @@ function clone<T>(value: T): T {
 class FakeDoc {
   source: Record<string, any>;
   failUpdates = false;
+  /** Foundry 14 ignores the deletion of one `ownership.<userId>` key (seen live, F5 L3). */
+  ignoreOwnershipKeyDeletion = false;
 
   constructor(
     readonly documentName: string,
@@ -89,6 +91,8 @@ class FakeDoc {
     for (const [path, value] of Object.entries(changes)) {
       const parts = path.split('.');
       const last = parts.pop()!;
+      const isDeletion = last.startsWith('-=') || (g._del !== undefined && value === g._del);
+      if (this.ignoreOwnershipKeyDeletion && parts[0] === 'ownership' && isDeletion) continue;
       let node = this.source;
       for (const key of parts) node = node[key] ??= {};
       if (last.startsWith('-=')) delete node[last.slice(2)];
@@ -927,5 +931,125 @@ describe('guardedApplyOutcome', () => {
     expect(guardedApplyOutcome({ changeId: ids[0] }).status).toBe('unknown');
     expect(guardedApplyOutcome({ changeId: ids[1] }).status).toBe('applied');
     expect(guardedApplyOutcome({ changeId: ids[ids.length - 1] }).status).toBe('applied');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ownership keys (F5 L3): Foundry 14 ignores deleting one `ownership.<userId>` key
+// ---------------------------------------------------------------------------
+
+describe('ownership key removal (F5 L3)', () => {
+  function ownershipActor(ownership: Record<string, number>, ignoresDeletion = true): FakeDoc {
+    const actor = addActor({ ownership });
+    actor.ignoreOwnershipKeyDeletion = ignoresDeletion;
+    return actor;
+  }
+
+  it('replaces the ownership map without the key when the deletion was ignored', async () => {
+    const actor = ownershipActor({ default: 0, u1: 2, u2: 3 });
+    const updateSpy = vi.spyOn(actor, 'update');
+    const result = await applyGuardedOps(
+      await request([{ kind: 'update', uuid: actor.uuid, changes: {}, unset: ['ownership.u1'] }])
+    );
+    expect(actor.source.ownership).toEqual({ default: 0, u2: 3 });
+    expect(updateSpy).toHaveBeenCalledTimes(2);
+    expect(updateSpy.mock.calls[1]).toEqual([
+      { ownership: { default: 0, u2: 3 } },
+      { diff: false, recursive: false },
+    ]);
+    // The recorded after value reads the final state: the entry is gone.
+    expect(result.results[0].after).toContainEqual({ path: 'ownership.u1', present: false });
+  });
+
+  it('does the same with the v14 _del marker', async () => {
+    restore();
+    install('14.368');
+    g._del = Object.freeze({ forcedDeletion: true });
+    const actor = ownershipActor({ default: 0, u1: 2 });
+    const updateSpy = vi.spyOn(actor, 'update');
+    await applyGuardedOps(
+      await request([{ kind: 'update', uuid: actor.uuid, changes: {}, unset: ['ownership.u1'] }])
+    );
+    expect(actor.source.ownership).toEqual({ default: 0 });
+    expect(updateSpy).toHaveBeenCalledTimes(2);
+    expect(updateSpy.mock.calls[1][1]).toEqual({ diff: false, recursive: false });
+  });
+
+  it('removes several ownership keys in the one extra update', async () => {
+    const actor = ownershipActor({ default: 0, u1: 2, u2: 3, u3: 1 });
+    const updateSpy = vi.spyOn(actor, 'update');
+    await applyGuardedOps(
+      await request([
+        { kind: 'update', uuid: actor.uuid, changes: {}, unset: ['ownership.u1', 'ownership.u3'] },
+      ])
+    );
+    expect(actor.source.ownership).toEqual({ default: 0, u2: 3 });
+    expect(updateSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('undoes "give a player a level" so the entry is gone again (round trip)', async () => {
+    const actor = ownershipActor({ default: 0 });
+    const applied = await applyGuardedOps(
+      await request([{ kind: 'update', uuid: actor.uuid, changes: { 'ownership.u1': 2 } }])
+    );
+    expect(actor.source.ownership).toEqual({ default: 0, u1: 2 });
+    const undo = undoRequest(applied);
+    expect(undo.ops[0]).toMatchObject({
+      changes: {},
+      unset: expect.arrayContaining(['ownership.u1']),
+    });
+    await applyGuardedOps(undo);
+    expect(actor.source.ownership).toEqual({ default: 0 });
+  });
+
+  it('makes no extra update when the key is already gone after the update', async () => {
+    // Foundry honoured the deletion (the key is gone), and a missing key was never there.
+    for (const [ignores, ownership] of [
+      [false, { default: 0, u1: 2 }],
+      [true, { default: 0 }],
+    ] as const) {
+      const actor = ownershipActor({ ...ownership }, ignores);
+      const updateSpy = vi.spyOn(actor, 'update');
+      await applyGuardedOps(
+        await request([{ kind: 'update', uuid: actor.uuid, changes: {}, unset: ['ownership.u1'] }])
+      );
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      expect(actor.source.ownership).toEqual({ default: 0 });
+    }
+  });
+
+  it('makes no extra update when no ownership key is unset', async () => {
+    const actor = ownershipActor({ default: 0, u1: 2 });
+    const updateSpy = vi.spyOn(actor, 'update');
+    await applyGuardedOps(
+      await request([{ kind: 'update', uuid: actor.uuid, changes: { 'ownership.u1': 3 } }])
+    );
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+    expect(actor.source.ownership).toEqual({ default: 0, u1: 3 });
+  });
+
+  it('never triggers for other unset paths', async () => {
+    const actor = ownershipActor({ default: 0, u1: 2 });
+    actor.source.flags = { x: { y: 1 } };
+    const updateSpy = vi.spyOn(actor, 'update');
+    await applyGuardedOps(
+      await request([{ kind: 'update', uuid: actor.uuid, changes: {}, unset: ['flags.x.y'] }])
+    );
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+    expect(actor.source.flags.x).not.toHaveProperty('y');
+    expect(actor.source.ownership).toEqual({ default: 0, u1: 2 });
+  });
+
+  it('only matches a single-key ownership path, not look-alike paths', async () => {
+    const actor = ownershipActor({ default: 0, u1: 2 });
+    actor.source.flags = { ownershipNote: { u1: 1 } };
+    const updateSpy = vi.spyOn(actor, 'update');
+    await applyGuardedOps(
+      await request([
+        { kind: 'update', uuid: actor.uuid, changes: {}, unset: ['flags.ownershipNote.u1'] },
+      ])
+    );
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+    expect(actor.source.ownership).toEqual({ default: 0, u1: 2 });
   });
 });

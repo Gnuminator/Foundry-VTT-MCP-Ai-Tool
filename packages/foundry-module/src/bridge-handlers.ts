@@ -6,7 +6,7 @@
  * (Player role by default) to any other user and runs whatever handler is
  * registered under that name, with no allowlist. So any player could run every
  * bridge handler on the GM's client, e.g.
- * `game.users.activeGM.query('foundry-mcp-bridge.setActorOwnership', ...)`.
+ * `game.users.activeGM.query('foundry-mcp-bridge.applyGuardedOps', ...)`.
  *
  * The handlers now live in this module-private table. Only the socket bridge
  * (the authenticated link to the backend) dispatches from it; nothing here is

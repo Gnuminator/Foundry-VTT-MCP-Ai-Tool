@@ -70,6 +70,18 @@ set says so.
 - **What happens:** a short card: voice, mannerism, want, secret.
 - **Tip:** it contains secrets. Keep it off shared screens.
 
+### Describe a scene from the adventure
+
+- **Say:** "Find the journal page about Old Bonegrinder and read it. Describe what the party sees
+  as they arrive at dusk: three sentences I can read aloud, in the same tone, and nothing they
+  cannot see yet."
+- **What happens:** Claude finds the page (`search-journals`), reads it (`list-journals`) and writes
+  the description in the chat. Nothing changes in Foundry.
+- **Tip:** Claude reads the journals in your world, so the adventure has to be imported there (its
+  journals in the Journal sidebar, for example from the official module or DDB-Importer). Your own
+  pages work the same way, so your own quests and places get the same help. Name the mood you want:
+  "eerie and quiet", "rushed", "sad".
+
 ### Draft a letter or an invitation from a villain
 
 - **Say:** "Draft a letter from Strahd to the party, in his voice, from these points: invites them

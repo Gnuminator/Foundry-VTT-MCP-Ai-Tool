@@ -34,7 +34,6 @@ export const WRITE_METHODS: readonly string[] = [
   'createNpcActor',
   'createWorldItems',
   'dropLoot',
-  'setActorOwnership',
   'setActorSpellcasting',
   'updateWorldItems',
   'useItem',

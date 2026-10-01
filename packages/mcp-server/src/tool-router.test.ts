@@ -40,7 +40,7 @@ function makeDeps(): ToolRouterDeps {
 describe('buildToolRouter', () => {
   it('exposes a handler for every call_tool route', () => {
     const router = buildToolRouter(makeDeps());
-    expect(Object.keys(router)).toHaveLength(89);
+    expect(Object.keys(router)).toHaveLength(88);
   });
 
   it('routes direct tools to the owning method with the call args', async () => {
@@ -66,11 +66,18 @@ describe('buildToolRouter', () => {
     const router = buildToolRouter(deps);
     const args = { y: 2 };
 
-    await router['assign-actor-ownership'](args);
+    await router['plan-ownership-change'](args);
     expect((deps as any).ownershipTools.handleToolCall).toHaveBeenCalledWith(
-      'assign-actor-ownership',
+      'plan-ownership-change',
       args
     );
+    await router['list-actor-ownership'](args);
+    expect((deps as any).ownershipTools.handleToolCall).toHaveBeenCalledWith(
+      'list-actor-ownership',
+      args
+    );
+    expect(router['assign-actor-ownership']).toBeUndefined();
+    expect(router['remove-actor-ownership']).toBeUndefined();
   });
 
   it('returns the tool method result', async () => {

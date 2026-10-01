@@ -400,14 +400,6 @@ export class FoundryDataAccess {
     return this.playerRolls.cleanOldRollStates();
   }
 
-  async setActorOwnership(data: {
-    actorId: string;
-    userId: string;
-    permission: number;
-  }): Promise<{ success: boolean; message: string; error?: string }> {
-    return this.ownership.setActorOwnership(data);
-  }
-
   async getActorOwnership(data: {
     actorIdentifier?: string;
     playerIdentifier?: string;

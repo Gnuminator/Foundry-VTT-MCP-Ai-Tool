@@ -138,7 +138,6 @@ async function http(path, { method = 'GET', body, timeoutMs = 30000 } = {}) {
 const DESTRUCTIVE = new Set([
   'delete-map-note',
   'delete-measured-template',
-  'remove-actor-ownership',
   'clear-module-errors',
   'undo-change',
 ]);
@@ -931,27 +930,40 @@ async function actorTools() {
     assert(row && !row.error, brief(r));
     return `hp ${brief(row.hp, 40)}`;
   });
-  await step(`assign-actor-ownership (NPC to ${PLAYER}, observer)`, async () => {
+  await step(`plan-ownership-change assign and remove (NPC, ${PLAYER}, undo both)`, async () => {
     needNpc();
-    const r = await tool('assign-actor-ownership', {
-      actorIdentifier: ctx.npcId,
-      playerIdentifier: PLAYER,
-      permissionLevel: 'OBSERVER',
-    });
-    assert(r && r.success !== false, brief(r));
-    const listed = await tool('list-actor-ownership', { actorIdentifier: ctx.npcId });
-    assert(JSON.stringify(listed).includes(PLAYER), `not listed: ${brief(listed)}`);
-    return 'assigned and listed';
-  });
-  await step(`remove-actor-ownership (NPC from ${PLAYER})`, async () => {
-    needNpc();
-    const r = await tool('remove-actor-ownership', {
-      actorIdentifier: ctx.npcId,
-      playerIdentifier: PLAYER,
-      confirmRemoval: true,
-    });
-    assert(r && r.success !== false, brief(r));
-    return 'removed';
+    // list-actor-ownership: [{ ownership: [{ userName, permission }] }] per actor.
+    const levelOf = async () => {
+      const listed = await tool('list-actor-ownership', {
+        actorIdentifier: ctx.npcId,
+        playerIdentifier: PLAYER,
+      });
+      const actors = (listed && listed.ownership) || [];
+      const row = ((actors[0] && actors[0].ownership) || []).find(o => o.userName === PLAYER);
+      return row ? row.permission : null;
+    };
+    const start = await levelOf();
+    const assigned = await planAndApply(
+      {
+        action: 'assign',
+        actorIdentifier: ctx.npcId,
+        playerIdentifier: PLAYER,
+        permissionLevel: 'OBSERVER',
+      },
+      'plan-ownership-change'
+    );
+    assert((await levelOf()) === 'OBSERVER', `after assign: ${await levelOf()}`);
+    const removed = await planAndApply(
+      { action: 'remove', actorIdentifier: ctx.npcId, playerIdentifier: PLAYER },
+      'plan-ownership-change'
+    );
+    assert((await levelOf()) === 'NONE', `after remove: ${await levelOf()}`);
+    await undo(removed.change);
+    assert((await levelOf()) === 'OBSERVER', `after undoing the remove: ${await levelOf()}`);
+    await undo(assigned.change);
+    const back = await levelOf();
+    assert(back === start, `after undoing the assign: ${back}, was ${start}`);
+    return `${assigned.plan.targets[0].line}; removed; both undone (back to ${back})`;
   });
   await step('use-item (opens a dialog in the GM browser)', async () => {
     if (!WITH_DIALOGS) skip('needs a click in the GM browser; run with --with-dialogs');

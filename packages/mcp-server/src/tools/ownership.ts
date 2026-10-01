@@ -1,22 +1,38 @@
 import { z } from 'zod';
-import { toolRef } from '@gnuminator/shared';
+import {
+  OWNERSHIP_ACTIONS,
+  OWNERSHIP_FEATURE_ID,
+  OWNERSHIP_LEVELS,
+  toolRef,
+  type GuardedOp,
+  type LiveTargetPreview,
+  type OwnershipLevelName,
+} from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
+import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
 import { Logger } from '../logger.js';
 
 export interface OwnershipToolsOptions {
   foundryClient: FoundryClient;
+  guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   logger: Logger;
 }
 
-// Foundry ownership permission levels
-const OwnershipLevels = {
-  NONE: 0,
-  LIMITED: 1,
-  OBSERVER: 2,
-  OWNER: 3,
-} as const;
+const LEVEL_NAMES = Object.keys(OWNERSHIP_LEVELS) as OwnershipLevelName[];
 
-const ownershipLevelSchema = z.enum(['NONE', 'LIMITED', 'OBSERVER', 'OWNER']);
+const planParams = z.object({
+  action: z.enum(OWNERSHIP_ACTIONS),
+  actorIdentifier: z.string().min(1),
+  playerIdentifier: z.string().min(1),
+  permissionLevel: z.enum(['NONE', 'LIMITED', 'OBSERVER', 'OWNER']).optional(),
+});
+
+/** A level number as its name; no entry means the actor's default applies. */
+function levelName(value: unknown, present = true): string {
+  if (!present || value === undefined || value === null) return 'default';
+  const name = LEVEL_NAMES.find(n => OWNERSHIP_LEVELS[n] === value);
+  return name ?? String(value);
+}
 
 /** Actor picker for assign/remove: a world actor, or a bulk phrase `resolveActors` expands. */
 const actorOrBulkRef = toolRef('actor', 'id', {
@@ -32,12 +48,23 @@ const playerOrCharacterRef = toolRef(['user', 'actor'], 'name', {
   extra: [{ value: 'party', label: 'Party (all connected players)' }],
 });
 
+/**
+ * Actor ownership. `plan-ownership-change` (F5 L3, D-082) plans assigning or
+ * removing a player's access as a guarded change (feature "ownership", on by
+ * default): an update of `ownership.<userId>` on each actor, applied with
+ * apply-planned-change and reverted with undo-change. Actors and players are
+ * resolved through read queries, so no module write handler is involved.
+ * `list-actor-ownership` reads. Replaces assign-actor-ownership and
+ * remove-actor-ownership.
+ */
 export class OwnershipTools {
   private foundryClient: FoundryClient;
+  private guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   private logger: Logger;
 
-  constructor({ foundryClient, logger }: OwnershipToolsOptions) {
+  constructor({ foundryClient, guardedWrites, logger }: OwnershipToolsOptions) {
     this.foundryClient = foundryClient;
+    this.guardedWrites = guardedWrites;
     this.logger = logger.child({ component: 'OwnershipTools' });
   }
 
@@ -47,65 +74,35 @@ export class OwnershipTools {
   getToolDefinitions() {
     return [
       {
-        name: 'assign-actor-ownership',
+        name: 'plan-ownership-change',
         description:
-          'Assign ownership permissions for actors to players. Supports individual assignments like "Assign Aragorn to John as owner" and bulk operations like "Give party observer access to all friendly NPCs".',
+          'Plan who owns which actor; apply it with apply-planned-change, revert it with undo-change. "assign": give the player(s) a level (NONE, LIMITED, OBSERVER, OWNER). "remove": set them to NONE. Bulk phrases work ("all friendly NPCs", "party characters"; player "party"). The plan lists each change ("Wolf: Player OBSERVER, was default").',
         inputSchema: {
           type: 'object',
           properties: {
+            action: {
+              type: 'string',
+              enum: [...OWNERSHIP_ACTIONS],
+              description: 'assign or remove.',
+            },
             actorIdentifier: {
               type: 'string',
-              description:
-                'Actor name, ID, or "all friendly NPCs" for bulk operations. Use "party characters" for all player-owned actors.',
+              description: 'Actor name or ID, "all friendly NPCs" or "party characters".',
               ...actorOrBulkRef,
             },
             playerIdentifier: {
               type: 'string',
-              description:
-                'Player name, character name, or "party" for all connected players. Supports partial matching.',
+              description: 'Player or character name, or "party" for all connected players.',
               ...playerOrCharacterRef,
             },
             permissionLevel: {
               type: 'string',
               enum: ['NONE', 'LIMITED', 'OBSERVER', 'OWNER'],
               description:
-                'Permission level to assign: NONE (no access), LIMITED (basic view), OBSERVER (full view, no control), OWNER (full control)',
-            },
-            confirmBulkOperation: {
-              type: 'boolean',
-              description:
-                'Required confirmation for bulk operations affecting multiple actors/players',
-              default: false,
+                'assign: NONE, LIMITED, OBSERVER (sees the sheet) or OWNER (controls it).',
             },
           },
-          required: ['actorIdentifier', 'playerIdentifier', 'permissionLevel'],
-        },
-      },
-      {
-        name: 'remove-actor-ownership',
-        description:
-          'Remove ownership permissions (set to NONE) for specific actors and players. Equivalent to "Remove ownership of Aragorn from John".',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            actorIdentifier: {
-              type: 'string',
-              description: 'Actor name or ID to remove ownership from',
-              ...actorOrBulkRef,
-            },
-            playerIdentifier: {
-              type: 'string',
-              description:
-                'Player name or character name to remove ownership for. Supports partial matching.',
-              ...playerOrCharacterRef,
-            },
-            confirmRemoval: {
-              type: 'boolean',
-              description: 'Confirmation required for ownership removal',
-              default: false,
-            },
-          },
-          required: ['actorIdentifier', 'playerIdentifier'],
+          required: ['action', 'actorIdentifier', 'playerIdentifier'],
         },
       },
       {
@@ -137,10 +134,8 @@ export class OwnershipTools {
   async handleToolCall(name: string, args: any) {
     try {
       switch (name) {
-        case 'assign-actor-ownership':
-          return await this.assignActorOwnership(args);
-        case 'remove-actor-ownership':
-          return await this.removeActorOwnership(args);
+        case 'plan-ownership-change':
+          return await this.planOwnershipChange(args);
         case 'list-actor-ownership':
           return await this.listActorOwnership(args);
         default:
@@ -152,102 +147,66 @@ export class OwnershipTools {
     }
   }
 
-  /**
-   * Assign actor ownership permissions
-   */
-  private async assignActorOwnership(args: any) {
-    const {
-      actorIdentifier,
-      playerIdentifier,
-      permissionLevel,
-      confirmBulkOperation = false,
-    } = args;
-
-    this.logger.info(
-      `Assigning ${permissionLevel} ownership of "${actorIdentifier}" to "${playerIdentifier}"`
-    );
-
-    // Validate permission level
-    const validatedLevel = ownershipLevelSchema.parse(permissionLevel);
-    const numericLevel = OwnershipLevels[validatedLevel];
-
-    // Resolve actors and players
-    const actors = await this.resolveActors(actorIdentifier);
-    const players = await this.resolvePlayers(playerIdentifier);
-
-    // Check for bulk operations
-    const isBulkOperation = actors.length > 1 || players.length > 1;
-    if (isBulkOperation && !confirmBulkOperation) {
-      return {
-        success: false,
-        error: `Bulk operation detected: ${actors.length} actors × ${players.length} players = ${actors.length * players.length} ownership changes. Please set confirmBulkOperation to true to proceed.`,
-        actorsFound: actors.length,
-        playersFound: players.length,
-        totalChanges: actors.length * players.length,
-      };
+  /** Plan an ownership change for every actor and player the identifiers resolve to. */
+  private async planOwnershipChange(
+    args: unknown
+  ): Promise<PlanView & { targets: LiveTargetPreview[]; autoApply: false }> {
+    const params = planParams.parse(args ?? {});
+    const levelKey: OwnershipLevelName =
+      params.action === 'remove' ? 'NONE' : (params.permissionLevel ?? 'OBSERVER');
+    if (params.action === 'assign' && !params.permissionLevel) {
+      throw new Error('Action "assign" needs permissionLevel (NONE, LIMITED, OBSERVER or OWNER)');
     }
+    const level = OWNERSHIP_LEVELS[levelKey];
+    const actors = await this.resolveActors(params.actorIdentifier);
+    if (actors.length === 0) throw new Error(`No actor matches "${params.actorIdentifier}"`);
+    const players = await this.resolvePlayers(params.playerIdentifier);
+    if (players.length === 0) throw new Error(`No player matches "${params.playerIdentifier}"`);
 
-    // Apply ownership changes
-    const results = [];
-    for (const actor of actors) {
-      for (const player of players) {
-        try {
-          const result = await this.foundryClient.query('foundry-mcp-bridge.setActorOwnership', {
-            actorId: actor.id,
-            userId: player.id,
-            permission: numericLevel,
-          });
-
-          results.push({
-            actor: actor.name,
-            player: player.name,
-            permission: validatedLevel,
-            success: result.success,
-            message: result.message,
-            error: result.error,
-          });
-        } catch (error) {
-          results.push({
-            actor: actor.name,
-            player: player.name,
-            permission: validatedLevel,
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
-        }
-      }
+    const changes: Record<string, unknown> = {};
+    const pathLabels: Record<string, string> = {};
+    for (const player of players) {
+      changes[`ownership.${player.id}`] = level;
+      pathLabels[`ownership.${player.id}`] = `ownership for ${player.name}`;
     }
-
-    const successCount = results.filter(r => r.success).length;
-    const failureCount = results.length - successCount;
-
-    return {
-      success: successCount > 0,
-      message: `${successCount} ownership assignments completed${failureCount > 0 ? `, ${failureCount} failed` : ''}`,
-      results,
-    };
-  }
-
-  /**
-   * Remove actor ownership (set to NONE)
-   */
-  private async removeActorOwnership(args: any) {
-    const { actorIdentifier, playerIdentifier, confirmRemoval = false } = args;
-
-    if (!confirmRemoval) {
-      return {
-        success: false,
-        error: 'Please set confirmRemoval to true to confirm ownership removal',
-      };
-    }
-
-    // Use assign with NONE permission level
-    return await this.assignActorOwnership({
-      actorIdentifier,
-      playerIdentifier,
-      permissionLevel: 'NONE',
-      confirmBulkOperation: true, // Auto-confirm since user already confirmed removal
+    const ops: GuardedOp[] = actors.map(actor => ({
+      kind: 'update',
+      uuid: `Actor.${actor.id}`,
+      changes: { ...changes },
+    }));
+    const who = players.map(p => p.name).join(', ');
+    const what = actors.length === 1 ? actors[0]?.name : `${actors.length} actors`;
+    const summary =
+      params.action === 'remove'
+        ? `Remove ${who}'s access to ${what} (set to NONE)`
+        : `Give ${who} ${levelKey} on ${what}`;
+    const plan = await this.guardedWrites.createPlan({
+      feature: OWNERSHIP_FEATURE_ID,
+      summary,
+      ops,
+      pathLabels,
     });
+
+    // The preview from the plan's own before values: "Wolf: Player OBSERVER, was default".
+    const nameOf = new Map(players.map(p => [`ownership.${p.id}`, p.name]));
+    const targets: LiveTargetPreview[] = [];
+    for (const line of plan.diff) {
+      if (line.kind !== 'update' || !line.path || !line.before || !line.after) continue;
+      const actorName = actors.find(a => `Actor.${a.id}` === line.target)?.name ?? line.label;
+      const was = levelName(line.before.value, line.before.present);
+      const now = levelName(line.after.value);
+      const unchanged = line.before.present && line.before.value === line.after.value;
+      targets.push({
+        target: actorName,
+        actorUuid: line.target,
+        line: `${actorName}: ${nameOf.get(line.path) ?? line.path} ${now}${unchanged ? ' already' : `, was ${was}`}`,
+        ...(unchanged ? { skipped: true } : {}),
+      });
+    }
+    if (targets.length > 0 && targets.every(t => t.skipped)) {
+      throw new Error(`Nothing to change: ${targets.map(t => t.line).join('; ')}`);
+    }
+    return { ...plan, targets, autoApply: false };
   }
 
   /**

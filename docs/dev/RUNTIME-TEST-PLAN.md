@@ -27,8 +27,7 @@ each time the bridge/module/dashboard changes.
 - **Record** every run's pass/skip/fail + notes back into
   `docs/LIVE-VERIFICATION-<date>.md`. A failure report must include the exact
   tool, args, and error text.
-- **Safety:** never run destructive tools (a `plan-token-change` delete, `remove-actor-
-ownership`, `clear-*`) against real game state — only against test fixtures.
+- **Safety:** never run destructive tools (a `plan-token-change` delete, `clear-*`) against real game state — only against test fixtures.
 
 ---
 
@@ -60,7 +59,7 @@ fixtures. Track each as ✅ / ⚠️ / ❌ with the result shape.
 - [ ] **Resources/effects**: `get-character-resources`, `plan-actor-change` resource and clear-conditions (apply, then undo), `get-active-effects` (test actor).
 - [ ] **Chat/log**: `send-chat-message` (ooc/ic/whisper, speaker), `get-chat-log`, `get-combat-play-by-play`.
 - [ ] **Encounter & scene-fx**: `suggest-balanced-encounter`, `place`/`delete-measured-template`, `set-scene-mood` (+ restore), `add`/`delete-map-note`, `plan-token-change` update with light (apply, then undo), `drop-loot` (test scene).
-- [ ] **Ownership**: `assign`/`list`/`remove-actor-ownership` — on a test actor.
+- [ ] **Ownership**: `plan-ownership-change` assign and remove (apply, then undo), `list-actor-ownership`, on a test actor.
 - [ ] **Journals/quests**: `create-quest-journal`, `update-quest-journal`, `link-quest-to-npc`, `list`/`search-journals`. (No delete-journal tool — clean up manually.)
 - [ ] **Diagnostics**: `get-modules`, `get-module-errors`, `clear-module-errors`, `get-module-manifest`.
 

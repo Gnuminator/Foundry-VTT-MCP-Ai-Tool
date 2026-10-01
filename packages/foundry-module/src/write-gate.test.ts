@@ -67,7 +67,7 @@ describe('write gate: classification', () => {
   });
 
   it('covers the handlers named in P-036', () => {
-    for (const m of ['setActorOwnership', 'addActorItems', 'dropLoot', 'placeMeasuredTemplate'])
+    for (const m of ['addActorItems', 'dropLoot', 'placeMeasuredTemplate'])
       expect(WRITE_METHODS).toContain(m);
   });
 
@@ -135,9 +135,6 @@ describe('permissions: requiresGM and the P-036 functions', () => {
   it('refuses the remaining direct write paths when writes are off (data access, no bridge)', async () => {
     const da = new FoundryDataAccess();
     world.setSetting(MODULE_ID, 'allowWriteOperations', false);
-    await expect(
-      da.setActorOwnership({ actorId: 'a', userId: 'u', permission: 3 })
-    ).rejects.toThrow(/disabled in module settings/);
     await expect(
       da.createActorFromCompendiumEntry({ packId: 'p', itemId: 'i', customNames: ['A'] })
     ).rejects.toThrow(/disabled in module settings/);

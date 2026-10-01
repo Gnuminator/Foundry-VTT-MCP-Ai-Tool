@@ -257,8 +257,6 @@ async function startBackend(): Promise<void> {
 
   const campaignManagementTools = new CampaignManagementTools(foundryClient, logger);
 
-  const ownershipTools = new OwnershipTools({ foundryClient, logger });
-
   const tokenManipulationTools = new TokenManipulationTools({ foundryClient, logger });
 
   const chatLogTools = new ChatLogTools({ foundryClient, logger });
@@ -364,6 +362,7 @@ async function startBackend(): Promise<void> {
     logger,
   });
   const partyTools = new PartyTools({ foundryClient, guardedWrites, logger });
+  const ownershipTools = new OwnershipTools({ foundryClient, guardedWrites, logger });
   const livePlayTools = new LivePlayTools({ foundryClient, guardedWrites, logger });
   // O4 Foundry mirror: the pump starts with the Foundry link below (vault dir set only).
   const mirrorEnv = mirrorEnvSettings();

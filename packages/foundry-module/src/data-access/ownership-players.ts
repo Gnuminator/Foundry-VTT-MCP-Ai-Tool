@@ -1,5 +1,4 @@
-import { ERROR_MESSAGES, MODULE_ID } from '../constants.js';
-import { permissionManager } from '../permissions.js';
+import { MODULE_ID } from '../constants.js';
 import * as shared from './shared.js';
 
 /**
@@ -32,72 +31,21 @@ function resolvePermissionTier(actor: any, user: any): number {
   return 0;
 }
 
+/** Guarded feature id (mirror of the shared `OWNERSHIP_FEATURE_ID`, F5 L3). */
+export const OWNERSHIP_FEATURE_ID = 'ownership';
+
 /**
  * Actor ownership + player/party lookup domain, extracted from `FoundryDataAccess`.
  *
  * Covers two complementary surfaces:
- *   - **Ownership**: reading and writing Foundry actor `ownership` maps, which
- *     control which players can see/control each actor.
+ *   - **Ownership**: reading Foundry actor `ownership` maps, which control which
+ *     players can see/control each actor. Changes go through plan-ownership-change
+ *     (F5 L3: guarded update ops, undoable).
  *   - **Players/roster**: querying the live connected-player list, party
  *     characters, friendly tokens on the active scene, and actor/player lookups
  *     by name or id.
  */
 export class OwnershipPlayersDataAccess {
-  // ===== WRITES =====
-
-  /**
-   * Set the Foundry ownership permission for one user on one actor.
-   *
-   * Merges the new `userId → permission` entry into the actor's existing
-   * ownership map (preserving all other entries). No write-permission gate —
-   * the upstream implementation and tests confirm this is unchecked.
-   *
-   * Returns a success shape (`{ success: true, message }`) or an error shape
-   * (`{ success: false, error, message: '' }`) when the actor or user is not
-   * found, or when an unexpected exception is thrown.
-   */
-  async setActorOwnership(data: {
-    actorId: string;
-    userId: string;
-    permission: number;
-  }): Promise<{ success: boolean; message: string; error?: string }> {
-    shared.validateFoundryState();
-
-    // P-036: who owns an actor is world structure: needs "Allow Write Operations" and a GM.
-    const permissionCheck = permissionManager.checkWritePermission('modifyWorld');
-    if (!permissionCheck.allowed) {
-      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
-    }
-
-    try {
-      const actor = game.actors?.get(data.actorId);
-      if (!actor) {
-        return { success: false, error: `Actor not found: ${data.actorId}`, message: '' };
-      }
-
-      const user = game.users?.get(data.userId);
-      if (!user) {
-        return { success: false, error: `User not found: ${data.userId}`, message: '' };
-      }
-
-      // Merge the new entry into a copy of the existing ownership map.
-      const merged = { ...((actor as any).ownership ?? {}), [data.userId]: data.permission };
-      await actor.update({ ownership: merged });
-
-      return {
-        success: true,
-        message: `Set ${actor.name} ownership to ${permissionName(data.permission)} for ${user.name}`,
-      };
-    } catch (error) {
-      console.error(`[${MODULE_ID}] Error setting actor ownership:`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        message: '',
-      };
-    }
-  }
-
   // ===== READS =====
 
   /**

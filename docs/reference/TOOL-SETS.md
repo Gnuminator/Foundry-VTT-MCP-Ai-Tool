@@ -4,7 +4,7 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 89 tools. Their definitions are about 90,600 characters of JSON, roughly 22,000 to
+The bridge has 88 tools. Their definitions are about 89,900 characters of JSON, roughly 22,000 to
 29,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
@@ -18,9 +18,9 @@ what the conversation needs. The switches are remembered for new chats.
 | **play**  | `foundry-mcp-play`   | 33    | about 26,100      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
 | **prep**  | `foundry-mcp-prep`   | 20    | about 19,600      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
 | **build** | `foundry-mcp-build`  | 7     | about 25,200      | Making NPCs, monsters and items, from a compendium or from scratch.                          |
-| **admin** | `foundry-mcp-admin`  | 9     | about 6,800       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
+| **admin** | `foundry-mcp-admin`  | 8     | about 6,100       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
 
-A prep chat with core and prep on carries about 32,400 characters instead of 90,600. Core alone is
+A prep chat with core and prep on carries about 32,400 characters instead of 89,900. Core alone is
 about 14% of everything.
 
 The dashboard is not affected: it reads the bridge directly and always has every tool.
@@ -52,8 +52,7 @@ code disagree.
   `create-actor-from-compendium`, `dnd5e-create-npc`, `dnd5e-add-feature`,
   `dnd5e-add-features-from-compendium`, `manage-world-items`
 - **admin:** `get-modules`, `get-module-errors`, `clear-module-errors`, `get-module-manifest`,
-  `list-actor-ownership`, `assign-actor-ownership`, `remove-actor-ownership`,
-  `get-obsidian-mirror`, `plan-obsidian-mirror`
+  `list-actor-ownership`, `plan-ownership-change`, `get-obsidian-mirror`, `plan-obsidian-mirror`
 
 ## Prompts
 

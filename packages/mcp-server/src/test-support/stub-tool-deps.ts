@@ -73,7 +73,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
       status: () => null,
       logger,
     }),
-    ownershipTools: new OwnershipTools(base),
+    ownershipTools: new OwnershipTools({ ...base, guardedWrites: {} as any }),
     playSessionTools: new PlaySessionTools({ worldIds: {} as any, store: {} as any, logger }),
     playStatsTools: new PlayStatsTools({ worldIds: {} as any, store: {} as any, logger }),
     playerViewTools: new PlayerViewTools({

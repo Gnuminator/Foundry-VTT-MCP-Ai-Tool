@@ -1,7 +1,7 @@
 /**
- * Characterization tests for the actor-ownership surface of `FoundryDataAccess`:
- *   - setActorOwnership
+ * Characterization tests for the actor-ownership read surface of `FoundryDataAccess`:
  *   - getActorOwnership
+ * (The write moved to the guarded `plan-ownership-change`, F5 L3.)
  *
  * These pin current (upstream-derived) behavior so the Phase 9 from-scratch
  * reimplementation can be verified to parity.
@@ -16,6 +16,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
+import { OWNERSHIP_FEATURE_ID as SHARED_OWNERSHIP_FEATURE_ID } from '@gnuminator/shared';
+import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -33,129 +35,6 @@ beforeEach(() => {
 afterEach(() => {
   restore();
   vi.restoreAllMocks();
-});
-
-// ---------------------------------------------------------------------------
-// setActorOwnership
-// ---------------------------------------------------------------------------
-
-describe('FoundryDataAccess — setActorOwnership', () => {
-  // P-036: these write paths are gated; the refusal is tested separately.
-  beforeEach(() => {
-    world.enableWrites();
-  });
-
-  it('returns success:false with error when actor id is missing', async () => {
-    world.addUser({ id: 'u1', name: 'Alice', isGM: false });
-
-    const result = await da.setActorOwnership({
-      actorId: 'missing-actor',
-      userId: 'u1',
-      permission: 3,
-    });
-
-    expect(result).toEqual({
-      success: false,
-      error: 'Actor not found: missing-actor',
-      message: '',
-    });
-  });
-
-  it('returns success:false with error when user id is missing', async () => {
-    world.addActor({ id: 'a1', name: 'Silvera', type: 'character' });
-
-    const result = await da.setActorOwnership({
-      actorId: 'a1',
-      userId: 'missing-user',
-      permission: 3,
-    });
-
-    expect(result).toEqual({ success: false, error: 'User not found: missing-user', message: '' });
-  });
-
-  it('returns success:true with OWNER name for permission 3', async () => {
-    world.addActor({ id: 'a1', name: 'Silvera', type: 'character' });
-    world.addUser({ id: 'u1', name: 'Alice', isGM: false });
-
-    const result = await da.setActorOwnership({ actorId: 'a1', userId: 'u1', permission: 3 });
-
-    expect(result).toEqual({ success: true, message: 'Set Silvera ownership to OWNER for Alice' });
-  });
-
-  it('returns success:true with OBSERVER name for permission 2', async () => {
-    world.addActor({ id: 'a1', name: 'Goblin', type: 'npc' });
-    world.addUser({ id: 'u1', name: 'Bob', isGM: false });
-
-    const result = await da.setActorOwnership({ actorId: 'a1', userId: 'u1', permission: 2 });
-
-    expect(result).toEqual({ success: true, message: 'Set Goblin ownership to OBSERVER for Bob' });
-  });
-
-  it('returns success:true with LIMITED name for permission 1', async () => {
-    world.addActor({ id: 'a1', name: 'Troll', type: 'npc' });
-    world.addUser({ id: 'u1', name: 'Carol', isGM: false });
-
-    const result = await da.setActorOwnership({ actorId: 'a1', userId: 'u1', permission: 1 });
-
-    expect(result).toEqual({ success: true, message: 'Set Troll ownership to LIMITED for Carol' });
-  });
-
-  it('returns success:true with NONE name for permission 0', async () => {
-    world.addActor({ id: 'a1', name: 'Dragon', type: 'npc' });
-    world.addUser({ id: 'u1', name: 'Dave', isGM: false });
-
-    const result = await da.setActorOwnership({ actorId: 'a1', userId: 'u1', permission: 0 });
-
-    expect(result).toEqual({ success: true, message: 'Set Dragon ownership to NONE for Dave' });
-  });
-
-  it('falls back to numeric string for unknown permission values', async () => {
-    world.addActor({ id: 'a1', name: 'Sprite', type: 'npc' });
-    world.addUser({ id: 'u1', name: 'Eve', isGM: false });
-
-    const result = await da.setActorOwnership({ actorId: 'a1', userId: 'u1', permission: 99 });
-
-    expect(result).toEqual({ success: true, message: 'Set Sprite ownership to 99 for Eve' });
-  });
-
-  it('mutates actor.ownership in-memory after a successful call', async () => {
-    const actor = world.addActor({
-      id: 'a1',
-      name: 'Silvera',
-      type: 'character',
-      ownership: { default: 0 },
-    });
-    world.addUser({ id: 'u1', name: 'Alice', isGM: false });
-
-    await da.setActorOwnership({ actorId: 'a1', userId: 'u1', permission: 3 });
-
-    expect((actor as any).ownership).toMatchObject({ default: 0, u1: 3 });
-  });
-
-  it('merges new entry into existing ownership without clobbering other entries', async () => {
-    const actor = world.addActor({
-      id: 'a1',
-      name: 'Silvera',
-      type: 'character',
-      ownership: { default: 0, u2: 2 },
-    });
-    world.addUser({ id: 'u1', name: 'Alice', isGM: false });
-
-    await da.setActorOwnership({ actorId: 'a1', userId: 'u1', permission: 3 });
-
-    expect((actor as any).ownership).toEqual({ default: 0, u2: 2, u1: 3 });
-  });
-
-  it('does NOT check caller permissions — succeeds regardless of who the active user is', async () => {
-    // The active GM user (id 'gm') is the current user in createTestWorld();
-    // setActorOwnership has no permission gate — any user can call it in the current impl.
-    world.addActor({ id: 'a1', name: 'Silvera', type: 'character' });
-    world.addUser({ id: 'p1', name: 'Player', isGM: false });
-
-    const result = await da.setActorOwnership({ actorId: 'a1', userId: 'p1', permission: 1 });
-
-    expect(result.success).toBe(true);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -286,5 +165,20 @@ describe('FoundryDataAccess — getActorOwnership', () => {
 
     expect(result[0].ownership).toHaveLength(1);
     expect(result[0].ownership[0].userId).toBe('p1');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Feature id mirror
+// ---------------------------------------------------------------------------
+
+describe('ownership feature id', () => {
+  it('the module mirror equals the shared constant', () => {
+    expect(OWNERSHIP_FEATURE_ID).toBe(SHARED_OWNERSHIP_FEATURE_ID);
+    expect(OWNERSHIP_FEATURE_ID).toBe('ownership');
+  });
+
+  it('the data access no longer has a direct ownership write (F5 L3)', () => {
+    expect((da as any).setActorOwnership).toBeUndefined();
   });
 });

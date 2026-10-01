@@ -26,8 +26,8 @@ const deps = stubToolRouterDeps();
 const tools = collectToolDefinitions(deps);
 
 describe('tool catalog', () => {
-  it('lists exactly 89 tools; control methods such as record_usage are not tools', () => {
-    expect(tools).toHaveLength(89);
+  it('lists exactly 88 tools; control methods such as record_usage are not tools', () => {
+    expect(tools).toHaveLength(88);
     expect(tools.map(t => t.name)).not.toContain('record_usage');
     expect(Object.keys(buildToolRouter(deps))).not.toContain('record_usage');
   });

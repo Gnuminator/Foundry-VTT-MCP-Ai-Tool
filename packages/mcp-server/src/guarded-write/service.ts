@@ -103,6 +103,12 @@ export interface PlanInput {
    * e.g. for a reveal that cannot be taken back at the table.
    */
   risk?: 'destructive';
+  /**
+   * Readable names for update paths the caller knows better than the bridge, e.g.
+   * `{ "ownership.abc123": "ownership for Player" }` (F5 L3). Used in the diff text, which
+   * Recent Changes and the undo keep.
+   */
+  pathLabels?: Record<string, string>;
 }
 
 /** Where a change is written. */
@@ -294,8 +300,14 @@ export function pathLabel(path: string): string | null {
 }
 
 /** `Actor "Wolf 2": HP 11 → 5` for a known path, else `Actor "Wolf 2": path: 11 → 5`. */
-function updateText(label: string, path: string, before: PathValue, after: PathValue): string {
-  const named = pathLabel(path);
+function updateText(
+  label: string,
+  path: string,
+  before: PathValue,
+  after: PathValue,
+  labels?: Record<string, string>
+): string {
+  const named = labels?.[path] ?? pathLabel(path);
   const change = `${formatValue(before)} → ${formatValue(after)}`;
   return named ? `${label}: ${named} ${change}` : `${label}: ${path}: ${change}`;
 }
@@ -309,7 +321,11 @@ function parentText(snapshot: OpSnapshot): string | null {
 }
 
 /** Diff lines for Foundry ops; throws when a target is missing. */
-function foundryDiff(ops: GuardedOp[], snapshots: OpSnapshot[]): DiffLine[] {
+function foundryDiff(
+  ops: GuardedOp[],
+  snapshots: OpSnapshot[],
+  labels?: Record<string, string>
+): DiffLine[] {
   const lines: DiffLine[] = [];
   ops.forEach((op, i) => {
     const snap = snapshots[i];
@@ -334,7 +350,7 @@ function foundryDiff(ops: GuardedOp[], snapshots: OpSnapshot[]): DiffLine[] {
           path,
           before,
           after,
-          text: updateText(label, path, before, after),
+          text: updateText(label, path, before, after, labels),
         });
       }
     } else if (op.kind === 'create') {
@@ -434,7 +450,7 @@ export class GuardedWriteService {
       if (!Array.isArray(expected) || expected.length !== ops.length) {
         throw new Error('Foundry returned an unexpected snapshot');
       }
-      diff.push(...foundryDiff(ops, expected));
+      diff.push(...foundryDiff(ops, expected, input.pathLabels));
     }
     const vaultExpected: PathValue[] = [];
     for (const [i, op] of vaultOps.entries()) {

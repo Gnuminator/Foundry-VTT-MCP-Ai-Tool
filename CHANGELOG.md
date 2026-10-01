@@ -47,6 +47,49 @@
 - **Handout reveal queue (I-039):** queue pages per scene, Reveal next in one click, reveal to
   chosen players, and a per-player seen log in the new Handouts drawer.
 
+### Party panel (I-079; PR #27)
+
+- **Party drawer and two tools.** A 🛡 Party drawer in the dashboard header shows the dnd5e 6
+  group actor: each member's HP, AC, passive Perception, conditions, exhaustion, hit dice, death
+  saves and tokens, the travel pace, and three actions: set the pace, add the party's tokens to
+  the encounter (or start one), and post dnd5e's short or long rest request card. New tools
+  `get-party` and `plan-party-change` (play set, 93 to 95 tools) and the switch "AI Tool: Party
+  (writes)", off by default. Every action goes through plan, confirm and undo; a rest card can be
+  undone only while nobody has rested from it.
+
+### Obsidian companion plugin (I-059; PR #31)
+
+- **Obsidian plugin.** A desktop plugin for the GM's vault (`packages/obsidian-plugin`): Open in
+  Foundry from a mirror note, live handout status in the status bar, Reveal to players as a plan
+  the GM confirms in the dashboard, and the handout reveal queue. It talks only to the dashboard;
+  the GM token stays in Obsidian's secret storage. Install with
+  `scripts/install-obsidian-plugin.ps1` or the new release zip `foundry-ai-tool-obsidian.zip`.
+- The dashboard opens a plan's confirm window from the link `/?plan=<planId>` once GM Actions are
+  on.
+
+### Batch F and fixes (PRs #25, #28 to #30)
+
+- **Actor pickers (I-017; PR #29):** the tool runner's actor pickers show the actor types each
+  tool is for (PCs and NPCs, the ones on the current scene first; NPCs for the NPC builders), with
+  a Show all actors button.
+- **Live write sweep (I-016; PR #28):** `npm run live:sweep` runs every direct-write tool once on
+  the local test world and cleans up after itself (a test-world-only helper deletes what it made).
+- Fixed: `switch-scene` could leave the GM's view on the previous scene after a quick switch back,
+  so scene tools acted on the wrong scene (PR #28).
+- Fixed: setting up spellcasting on an NPC left its spell slots at 0 in dnd5e 6; the slot counts
+  are now stored as dnd5e keeps them, with the NPC's spellcaster level (PR #30).
+- Removed: the Foundry module's own write audit log, which never saved anything in Foundry 14
+  (`game.world` has no flags). The guarded-write log in the bridge vault is the audit trail (PR #25).
+
+### Voice tools (PRs #24, #26)
+
+- **Session notes (`tools/session-notes`):** the Claude writing step of the session pipeline on the
+  subscription (`claude -p`): the transcript cut into scenes, notes in Danish and English with a
+  GM-only section, a GM summary and a draft player recap, resumable after a usage limit; audio is
+  deleted 14 days after a session is approved. `auto.ps1` runs one pass for a scheduled task.
+- **Narration (`tools/narration`):** voiceovers for the GM videos on local voices (Danish and
+  English), with captions, chapters, a pronunciation list and a listening check.
+
 ### Fixes (PRs #15 to #17)
 
 - **Conditions are logged once.** Automated Conditions 5e mirrors dnd5e conditions as a second

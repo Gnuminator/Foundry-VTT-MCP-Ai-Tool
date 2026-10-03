@@ -92,7 +92,7 @@ export class CombatResolutionTools {
       {
         name: 'manage-rest',
         description:
-          'Run a short or long rest for one or more characters — restoring HP, hit dice, spell slots, and limited-use features per 5e rules — without opening dialogs. D&D 5e only.',
+          'Run a short or long rest for one or more characters, restoring HP, hit dice, spell slots, and limited-use features per 5e rules, without opening dialogs. D&D 5e only.',
         inputSchema: {
           type: 'object',
           properties: {

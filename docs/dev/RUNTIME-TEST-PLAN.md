@@ -117,7 +117,7 @@ Spot-check that tool output matches what Foundry shows:
 Re-run the relevant slice after each fix lands + the module is rebuilt/reinstalled:
 
 - [ ] **A** — toggle a condition → exactly **one** feed event each way.
-- [ ] **C** — ask "what does <PC> have equipped?" → answered from a tool call.
+- [ ] **C** — ask "what does `<PC>` have equipped?" → answered from a tool call.
 - [ ] **get-character** partial name resolves live.
 
 ## Out of scope (not ours)

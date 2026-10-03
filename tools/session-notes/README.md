@@ -4,7 +4,7 @@ The Claude half of the session pipeline: it turns a session's merged timeline in
 Danish and English (D-072 layers L1 to L3). It runs Claude through the Claude Code CLI on the
 subscription (`claude -p`, D-066); no API key, nothing paid unless the subscription itself.
 
-```
+```text
 recording -> transcriber -> session-pipeline -> session-notes (this tool)
  (Discord)    (GPU, local)   (merge, names)      (Claude, subscription)
 ```
@@ -13,7 +13,7 @@ recording -> transcriber -> session-pipeline -> session-notes (this tool)
 
 Needs Python 3.12+ (standard library only) and Claude Code installed and signed in on this PC.
 
-```
+```bash
 cd tools/session-notes
 python -m session_notes scenes <session>     # show the scene split, no Claude call
 python -m session_notes run <session>        # write the notes
@@ -24,15 +24,15 @@ python -m session_notes run <session>        # write the notes
 `voice-stack.ps1 transcribe`; a `names.txt` next to it (the same list the transcriber used for
 hotwords) helps Claude spell names right.
 
-| Option | Default | Meaning |
-| ------ | ------- | ------- |
-| `--scene-model` | `sonnet` | model for the per-scene calls |
-| `--session-model` | `sonnet` | model for the summary and the player recap |
-| `--scene-effort` | `medium` | reasoning effort for the scene calls (low, medium, high, xhigh, max) |
-| `--session-effort` | `medium` | reasoning effort for the summary and the recap |
-| `--workers` | `3` | scenes written at the same time |
-| `--scene-gap` | `90` | seconds of silence that start a new scene |
-| `--only-scene N` | | process one scene (for trying prompt changes) |
+| Option             | Default  | Meaning                                                              |
+| ------------------ | -------- | -------------------------------------------------------------------- |
+| `--scene-model`    | `sonnet` | model for the per-scene calls                                        |
+| `--session-model`  | `sonnet` | model for the summary and the player recap                           |
+| `--scene-effort`   | `medium` | reasoning effort for the scene calls (low, medium, high, xhigh, max) |
+| `--session-effort` | `medium` | reasoning effort for the summary and the recap                       |
+| `--workers`        | `3`      | scenes written at the same time                                      |
+| `--scene-gap`      | `90`     | seconds of silence that start a new scene                            |
+| `--only-scene N`   |          | process one scene (for trying prompt changes)                        |
 
 Exit codes: 0 done, 1 error, 75 paused by a usage limit. After a pause, run the same command
 again later; finished scenes are kept in `notes/.work/` and are not redone.
@@ -50,18 +50,18 @@ every hour while the PC is on, so the notes are ready the morning after a sessio
 
 In `<session>/notes/`, for `da` and `en` each:
 
-| File | Layer | What |
-| ---- | ----- | ---- |
-| `transcript.<lang>.md` | L1 | cleaned transcript by scene; each line has a block anchor `^u000123`; out-of-character talk in italics |
-| `scenes.<lang>.md` | L2 | per scene: summary, events, decisions, NPCs, loot, open threads, dice, quotes, and a "GM only" section; every entry links to its transcript lines |
-| `summary.<lang>.md` | L3 | session summary and "what changed", for the GM |
-| `recap.player.<lang>.md` | L3 | the players' "previously on" recap, marked as a draft until the GM approves it |
+| File                     | Layer | What                                                                                                                                              |
+| ------------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transcript.<lang>.md`   | L1    | cleaned transcript by scene; each line has a block anchor `^u000123`; out-of-character talk in italics                                            |
+| `scenes.<lang>.md`       | L2    | per scene: summary, events, decisions, NPCs, loot, open threads, dice, quotes, and a "GM only" section; every entry links to its transcript lines |
+| `summary.<lang>.md`      | L3    | session summary and "what changed", for the GM                                                                                                    |
+| `recap.player.<lang>.md` | L3    | the players' "previously on" recap, marked as a draft until the GM approves it                                                                    |
 
 Plus `notes.json` (everything, for later steps) and `audit.jsonl` (calls, checks, fixes, pauses).
 
 ## Approval and audio retention (D-072)
 
-```
+```bash
 python -m session_notes approve <session>   # the GM has read the notes and the recap
 python -m session_notes cleanup             # list sessions whose audio is due for deletion
 python -m session_notes cleanup --yes       # delete it
@@ -99,6 +99,6 @@ instead of failing it.
 
 ## Tests
 
-```
+```bash
 python -m pytest tools/session-notes      # with pytest installed; uses a fake Claude, no calls
 ```

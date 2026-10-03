@@ -53,7 +53,7 @@ Players get their own page that never shows spoilers.
 - **The bridge connects them.** The module in your Foundry browser tab talks to the bridge. Claude
   Desktop and the dashboard talk to the bridge too.
 
-```
+```text
   Claude Desktop ──┐
                    ├──► bridge ◄──► module in your Foundry tab ──► your game
   dashboard ───────┘      │

@@ -110,20 +110,20 @@ export class DnD5eAddFeatureTool {
         name: 'dnd5e-add-feature',
         description:
           '[D&D 5e only] Add a feature, attack, spellcasting setup, or spells to an existing actor. ' +
-          'Set featureType to select the mode — each mode uses only its own parameters:\n\n' +
-          '• passive — descriptive trait, no roll (Multiattack, Magic Resistance, Spider Climb).\n' +
+          'Set featureType to select the mode; each mode uses only its own parameters:\n\n' +
+          '• passive: descriptive trait, no roll (Multiattack, Magic Resistance, Spider Climb).\n' +
           '  Required: actorIdentifier, featureName\n' +
           '  Optional: description, sourceRules, sourceBook, sourcePage\n\n' +
-          '• save — feature that forces a saving throw (breath weapon, cone of cold, etc.).\n' +
+          '• save: feature that forces a saving throw (breath weapon, cone of cold, etc.).\n' +
           '  Required: actorIdentifier, featureName, saveAbility, saveDC, damageParts\n' +
           '  Optional: description, activationType, halfOnSave, areaType, areaSize ' +
           '(required if areaType set), areaUnits, affectsType\n\n' +
-          '• attack — weapon attack with to-hit roll (Claw, Bite, Scimitar, etc.).\n' +
+          '• attack: weapon attack with to-hit roll (Claw, Bite, Scimitar, etc.).\n' +
           '  Required: actorIdentifier, featureName, attackType, damageParts\n' +
           '  Required when ranged: rangeFt\n' +
           '  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, ' +
           'proficient, equipped, reachFt, longRangeFt, properties, sourceRules, sourceBook, sourcePage\n\n' +
-          '• attack-with-save — attack roll on hit + forced save for bonus damage ' +
+          '• attack-with-save: attack roll on hit + forced save for bonus damage ' +
           '(e.g. Stinger: piercing hit + CON save or poison damage).\n' +
           '  Required: actorIdentifier, featureName, attackType, damageParts, ' +
           'saveAbility, saveDC, saveDamageParts\n' +
@@ -131,16 +131,16 @@ export class DnD5eAddFeatureTool {
           '  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, ' +
           'proficient, equipped, reachFt, longRangeFt, properties, saveOnSave, ' +
           'sourceRules, sourceBook, sourcePage\n\n' +
-          '• aura — automatic-damage area, no to-hit, no save (all creatures in range take damage).\n' +
+          '• aura: automatic-damage area, no to-hit, no save (all creatures in range take damage).\n' +
           '  Required: actorIdentifier, featureName, damageParts, areaType, areaSize\n' +
           '  Optional: description, activationType, areaUnits, affectsType, ' +
           'sourceRules, sourceBook, sourcePage\n\n' +
-          '• spellcasting — configure spell slots and casting ability. ' +
+          '• spellcasting: configure spell slots and casting ability. ' +
           'Run this BEFORE featureType "spells".\n' +
           '  Required: actorIdentifier, spellcastingClass, spellcastingLevel\n' +
           '  Optional: spellcastingAbility (default per class: wizard/artificer→INT, ' +
           'cleric/druid/ranger→WIS, sorcerer/warlock/bard/paladin→CHA), sourceRules\n\n' +
-          '• spells — import named spells from compendium. Names must be in English.\n' +
+          '• spells: import named spells from compendium. Names must be in English.\n' +
           '  Required: actorIdentifier, spellNames (max 50)\n' +
           '  Optional: compendiumPacks (default ["dnd5e.spells"])\n\n' +
           'Use list-characters or get-character first to find the actorIdentifier.',
@@ -161,7 +161,7 @@ export class DnD5eAddFeatureTool {
                 'spells',
               ],
               description:
-                'Mode selector — determines which parameters are used and which Foundry handler is called.',
+                'Mode selector: determines which parameters are used and which Foundry handler is called.',
             },
 
             // ── Common ────────────────────────────────────────────────────────
@@ -174,7 +174,7 @@ export class DnD5eAddFeatureTool {
             featureName: {
               type: 'string',
               description:
-                'Name for the new feature/item — must be unique on the actor. ' +
+                'Name for the new feature/item; must be unique on the actor. ' +
                 'Required for: passive, save, attack, attack-with-save, aura.',
               ...freeText('The name of the new feature item this call creates on the actor'),
             },
@@ -236,8 +236,8 @@ export class DnD5eAddFeatureTool {
               type: 'string',
               enum: ['half', 'none'],
               description:
-                '"none" — no damage on a successful save (default). ' +
-                '"half" — half save damage on a successful save. Used by: attack-with-save.',
+                '"none": no damage on a successful save (default). ' +
+                '"half": half save damage on a successful save. Used by: attack-with-save.',
               default: 'none',
             },
 
@@ -248,7 +248,7 @@ export class DnD5eAddFeatureTool {
               description:
                 'Area-of-effect template shape. ' +
                 'For save: optional (omit or use "" for no template); if set, areaSize is required. ' +
-                'For aura: required — use "emanation" or "sphere" for radial auras.',
+                'For aura: required; use "emanation" or "sphere" for radial auras.',
               default: '',
             },
             areaSize: {
@@ -335,7 +335,7 @@ export class DnD5eAddFeatureTool {
             longRangeFt: {
               type: 'number',
               description:
-                'Long range in feet — attacks beyond rangeFt up to this distance are at disadvantage. ' +
+                'Long range in feet; attacks beyond rangeFt up to this distance are at disadvantage. ' +
                 'Must be greater than rangeFt. Used by: attack, attack-with-save (ranged only).',
               minimum: 1,
             },
@@ -364,7 +364,7 @@ export class DnD5eAddFeatureTool {
                 'wizard',
               ],
               description:
-                'The spellcasting class — determines slot table and default casting ability. ' +
+                'The spellcasting class; determines slot table and default casting ability. ' +
                 'Warlock uses Pact Magic. Required for: spellcasting.',
             },
             spellcastingLevel: {

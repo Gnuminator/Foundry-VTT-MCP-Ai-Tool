@@ -17,7 +17,7 @@
 The goal is to let you (the GM) and optionally co-GMs reach the co-GM dashboard from
 anywhere, without exposing your home IP address and without port-forwarding.
 
-```
+```text
   ┌─────────────────────────────────────────────────────────────────────┐
   │  HOSTED FOUNDRY VTT  (e.g. The Forge, Molten-Hosting, or a VPS)    │
   │  - foundry-mcp-bridge module loaded (dial-out, outbound)            │

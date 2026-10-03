@@ -63,7 +63,7 @@ inside the dashboard, not in the Access policy.
 
 Add one email address per row in the "Emails" rule. Example structure:
 
-```
+```text
 <YOUR_GM_EMAIL>@gmail.com        # you
 <COGM_EMAIL>@gmail.com           # co-GM (gets GM role — must also be in GM_EMAILS env var)
 <PLAYER1_EMAIL>@gmail.com        # player (gets player role — NOT in GM_EMAILS)

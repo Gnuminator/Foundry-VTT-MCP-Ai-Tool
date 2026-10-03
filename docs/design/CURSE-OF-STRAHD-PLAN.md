@@ -110,7 +110,7 @@ v14 visibility changes (`RegionDocument#hidden` in 14.360, Blind message-mode di
 client-side, and the 14.361 security fix concerns serving HTML files. So GM-only journals, unowned NPC
 actors, hidden tokens/notes/tiles, whispers and blind rolls, and world settings still reach every client on
 v14. Relevant issues: foundryvtt#836 (GM-only fields, open), #2672 (the server only validates writes),
-#5302, #5660 (chat lazy-loading, performance only), #6928.
+\#5302, #5660 (chat lazy-loading, performance only), #6928.
 
 Consequences for this plan:
 

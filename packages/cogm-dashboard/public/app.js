@@ -2523,6 +2523,17 @@ async function planThenApply(planTool, args, opts = {}) {
   }
   usage.trackTool(planTool, 'ok');
   if (plan && plan.providerNote) toast(plan.providerNote, 'warn');
+  // Some plan-* actions change nothing in Foundry and apply at once (plan-page-reveal "queue" and
+  // "unqueue"): there is no plan to apply, so show the result and stop.
+  if (!plan || typeof plan.planId !== 'string' || !plan.planId) {
+    toast(
+      plan && typeof plan.note === 'string' ? `✓ ${plan.note}` : doneText(planTool, plan),
+      'ok'
+    );
+    if (opts.showResultInDrawer) showToolResult(true, plan);
+    if (!els.handoutsDrawer.hidden) void loadHandouts();
+    return;
+  }
   const applyOpts = { ...opts };
   if (plan && Array.isArray(plan.targets) && plan.targets.length > 0) {
     applyOpts.diff = plan.targets.map(t => t.line);

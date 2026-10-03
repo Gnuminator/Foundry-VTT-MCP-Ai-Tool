@@ -176,6 +176,42 @@ export class EventTracker {
         }
       });
 
+      // Keep the HP / resource caches per actor uuid in step with what exists: a monster
+      // placed mid-session gets its baseline now, so its first damage is not dropped.
+      Hooks.on('createActor', (actor: unknown) => {
+        try {
+          this.seedActor(actor);
+        } catch (error) {
+          console.warn(`[${MODULE_ID}] EventTracker createActor failed:`, error);
+        }
+      });
+
+      Hooks.on('deleteActor', (actor: unknown) => {
+        try {
+          this.forgetActor(actor);
+        } catch (error) {
+          console.warn(`[${MODULE_ID}] EventTracker deleteActor failed:`, error);
+        }
+      });
+
+      Hooks.on('createToken', (token: unknown) => {
+        try {
+          const tokenActor = this.unlinkedTokenActor(token);
+          if (tokenActor) this.seedActor(tokenActor);
+        } catch (error) {
+          console.warn(`[${MODULE_ID}] EventTracker createToken failed:`, error);
+        }
+      });
+
+      Hooks.on('deleteToken', (token: unknown) => {
+        try {
+          const tokenActor = this.unlinkedTokenActor(token);
+          if (tokenActor) this.forgetActor(tokenActor);
+        } catch (error) {
+          console.warn(`[${MODULE_ID}] EventTracker deleteToken failed:`, error);
+        }
+      });
+
       Hooks.on(
         'dnd5e.preApplyDamage',
         (actor: unknown, _amount: unknown, _updates: unknown, options: unknown): void => {
@@ -264,34 +300,75 @@ export class EventTracker {
     }
   }
 
-  /** Seed the HP and resource caches from current actor state. */
-  private seedCaches(): void {
-    const actors = (game.actors as any)?.contents ?? game.actors ?? [];
-    for (const actor of actors) {
-      try {
-        const sys = actor.system;
-        const hp = sys?.attributes?.hp?.value;
-        if (typeof hp === 'number') this.hpCache.set(actor.id, hp);
+  /**
+   * The HP / resource cache key of an actor: its uuid. Every unlinked token's synthetic actor
+   * shares its base actor's id but has its own uuid (Scene.x.Token.y.Actor.z), so keying by id
+   * diffed one token's HP against its base actor or another token of the same monster. A linked
+   * token's actor is the world actor itself, so they share one key. Falls back to the id.
+   */
+  private cacheKey(actor: unknown): string {
+    const a = actor as { id?: unknown; uuid?: unknown } | null | undefined;
+    return typeof a?.uuid === 'string' && a.uuid.length > 0 ? a.uuid : String(a?.id);
+  }
 
-        const spells = sys?.spells;
-        if (spells) {
-          for (const [key, value] of Object.entries(spells as Record<string, any>)) {
-            if (typeof value?.value === 'number') {
-              this.resourceCache.set(`${actor.id}:spells.${key}`, value.value);
-            }
-          }
-        }
-        const resources = sys?.resources;
-        if (resources) {
-          for (const [key, value] of Object.entries(resources as Record<string, any>)) {
-            if (typeof value?.value === 'number') {
-              this.resourceCache.set(`${actor.id}:resources.${key}`, value.value);
-            }
-          }
+  /** An unlinked token's synthetic actor, or null for a linked token (its actor is the world actor). */
+  private unlinkedTokenActor(token: unknown): unknown {
+    const t = token as { actorLink?: unknown; actor?: unknown } | null | undefined;
+    return t?.actorLink === false && t.actor ? t.actor : null;
+  }
+
+  /** Seed the HP and resource caches from current actor state: world actors and every unlinked token's actor. */
+  private seedCaches(): void {
+    const actors = game.actors as unknown as { contents?: Iterable<unknown> } | undefined;
+    for (const actor of actors?.contents ?? []) this.seedActor(actor);
+    const scenes = game.scenes as unknown as { contents?: Iterable<unknown> } | undefined;
+    for (const scene of scenes?.contents ?? []) {
+      try {
+        const tokens = (scene as { tokens?: Iterable<unknown> } | null)?.tokens ?? [];
+        for (const token of tokens) {
+          const tokenActor = this.unlinkedTokenActor(token);
+          if (tokenActor) this.seedActor(tokenActor);
         }
       } catch {
-        // skip this actor
+        // skip this scene
       }
+    }
+  }
+
+  private seedActor(actor: any): void {
+    try {
+      const k = this.cacheKey(actor);
+      const sys = actor.system;
+      const hp = sys?.attributes?.hp?.value;
+      if (typeof hp === 'number') this.hpCache.set(k, hp);
+
+      const spells = sys?.spells;
+      if (spells) {
+        for (const [key, value] of Object.entries(spells as Record<string, any>)) {
+          if (typeof value?.value === 'number') {
+            this.resourceCache.set(`${k}:spells.${key}`, value.value);
+          }
+        }
+      }
+      const resources = sys?.resources;
+      if (resources) {
+        for (const [key, value] of Object.entries(resources as Record<string, any>)) {
+          if (typeof value?.value === 'number') {
+            this.resourceCache.set(`${k}:resources.${key}`, value.value);
+          }
+        }
+      }
+    } catch {
+      // skip this actor
+    }
+  }
+
+  /** Forget a deleted actor's cache entries, so the caches do not grow over a long session. */
+  private forgetActor(actor: unknown): void {
+    const k = this.cacheKey(actor);
+    this.hpCache.delete(k);
+    for (const key of [...this.resourceCache.keys()]) {
+      if (key.startsWith(`${k}:`)) this.resourceCache.delete(key);
     }
   }
 
@@ -629,8 +706,8 @@ export class EventTracker {
     // --- HP change detection ---
     const newHp = this.getProp(changed, 'system.attributes.hp.value');
     if (newHp !== undefined && typeof newHp === 'number') {
-      const prev = this.hpCache.get(actor.id);
-      this.hpCache.set(actor.id, newHp);
+      const prev = this.hpCache.get(this.cacheKey(actor));
+      this.hpCache.set(this.cacheKey(actor), newHp);
 
       if (prev !== undefined && prev !== newHp) {
         const delta = newHp - prev;
@@ -689,7 +766,7 @@ export class EventTracker {
         for (const [key, value] of Object.entries(spells as Record<string, any>)) {
           const newVal = value?.value;
           if (typeof newVal !== 'number') continue;
-          const cacheKey = `${actor.id}:spells.${key}`;
+          const cacheKey = `${this.cacheKey(actor)}:spells.${key}`;
           const prev = this.resourceCache.get(cacheKey);
           this.resourceCache.set(cacheKey, newVal);
           if (prev !== undefined && newVal < prev) {
@@ -720,7 +797,7 @@ export class EventTracker {
                 ? derived
                 : undefined;
           if (typeof newVal !== 'number') continue;
-          const cacheKey = `${actor.id}:resources.${key}`;
+          const cacheKey = `${this.cacheKey(actor)}:resources.${key}`;
           const prev = this.resourceCache.get(cacheKey);
           this.resourceCache.set(cacheKey, newVal);
           if (prev !== undefined && newVal < prev) {

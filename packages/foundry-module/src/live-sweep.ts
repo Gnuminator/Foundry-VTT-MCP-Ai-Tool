@@ -110,7 +110,7 @@ interface SweepScene {
 interface SweepCombat {
   id: string;
   createEmbeddedDocuments(type: string, data: Record<string, unknown>[]): Promise<unknown>;
-  startCombat(): Promise<unknown>;
+  update(data: Record<string, unknown>): Promise<unknown>;
 }
 
 interface SweepGame {
@@ -183,6 +183,7 @@ async function startCombat(tokenIds: unknown): Promise<SweepCombatResult> {
 
   const foundry = globalThis as unknown as {
     CONFIG?: { Combat?: { documentClass?: { create(data: object): Promise<SweepCombat> } } };
+    Hooks?: { callAll(name: string, ...args: unknown[]): unknown };
   };
   const CombatClass = foundry.CONFIG?.Combat?.documentClass;
   if (!CombatClass) throw new Error('Combat document class not found');
@@ -191,7 +192,12 @@ async function startCombat(tokenIds: unknown): Promise<SweepCombatResult> {
     'Combatant',
     tokens.map(t => ({ tokenId: t.id, sceneId: scene.id, actorId: t.actorId }))
   );
-  await combat.startCombat();
+  // Mirrors Foundry 14's Combat#startCombat (the combatStart hook, then round 1, turn 0) without
+  // calling it: modules wrap startCombat with a confirm dialog (Monk's Combat Details: "Not all
+  // Initiative have been rolled"), which no one clicks in a scripted run, so the query timed out.
+  const start = { round: 1, turn: 0 };
+  foundry.Hooks?.callAll('combatStart', combat, start);
+  await combat.update(start);
   return { mode: 'combat', combatId: combat.id, combatants: tokens.map(t => String(t.name)) };
 }
 

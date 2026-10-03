@@ -86,6 +86,50 @@ describe('liveSweep (I-016)', () => {
     });
   });
 
+  it('combat starts the way Combat#startCombat does, without calling it', async () => {
+    const world = install(SWEEP_WORLD_ID);
+    world.addScene({
+      id: 's1',
+      name: 'Test Arena',
+      tokens: [makeToken({ id: 't1', name: `${SWEEP_PREFIX} Wolf` })],
+    });
+    world.setActiveScene('s1');
+    const calls: string[] = [];
+    const combat = {
+      id: 'c1',
+      createEmbeddedDocuments: (type: string, data: Record<string, unknown>[]): Promise<[]> => {
+        calls.push(`${type} ${data.map(d => d.tokenId).join(',')}`);
+        return Promise.resolve([]);
+      },
+      update: (data: Record<string, unknown>): Promise<unknown> => {
+        calls.push(`update ${JSON.stringify(data)}`);
+        return Promise.resolve(combat);
+      },
+      // Modules wrap this with a confirm dialog (Monk's Combat Details); the helper must not call it.
+      startCombat: (): Promise<never> => Promise.reject(new Error('startCombat called')),
+    };
+    const g = globalThis as any;
+    g.CONFIG.Combat = {
+      documentClass: { create: (): Promise<typeof combat> => Promise.resolve(combat) },
+    };
+    g.Hooks.on('combatStart', (c: unknown, data: unknown): void => {
+      calls.push(`hook ${c === combat} ${JSON.stringify(data)}`);
+    });
+
+    const result = await liveSweep({ mode: 'combat', tokenIds: ['t1'] });
+
+    expect(result).toEqual({
+      mode: 'combat',
+      combatId: 'c1',
+      combatants: [`${SWEEP_PREFIX} Wolf`],
+    });
+    expect(calls).toEqual([
+      'Combatant t1',
+      'hook true {"round":1,"turn":0}',
+      'update {"round":1,"turn":0}',
+    ]);
+  });
+
   it('deletes only documents named with the sweep prefix', async () => {
     const world = install(SWEEP_WORLD_ID);
     world.addActor({ id: 'a1', name: `${SWEEP_PREFIX} NPC` });

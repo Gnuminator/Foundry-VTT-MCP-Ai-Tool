@@ -67,6 +67,25 @@ Every take writes a folder `C:\FoundryTest\demo\takes\<take>-<date>-<time>\`:
 Takes stay out of the repo and the vault. Copy a screenshot into `docs/images/` by hand
 when a page needs it, and only after the design pick (the screens will change before then).
 
+## Export a take
+
+```powershell
+npm run demo:export -- damage-undo --clip open-tool..watch-undo
+```
+
+`demo:export` takes a take name (its newest recording) or a take folder, and writes into
+that folder's `export\`:
+
+| File               | What it is                                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `<take>-1080p.mp4` | A 1080p60 copy of a 1440p or 2160p take (H.264, for uploads that want 1080p).                               |
+| `<take>-clip.mp4`  | A 1080p60 clip of 10 MB or less, the limit for a video dragged into a README on GitHub.                     |
+| `chapters.txt`     | YouTube chapters from `steps.json`: the first at 0:00, short steps merged so each lasts 10 seconds or more. |
+
+`--clip a..b` picks the steps the clip covers (half a second either side), `--from` and
+`--to` pick seconds instead, `--max-mb` changes the size limit and `--no-copy` skips the
+1080p copy. It needs `ffmpeg` and `ffprobe` on `PATH`.
+
 ## How it works
 
 ### The demo world
@@ -89,8 +108,11 @@ pwsh scripts/test-env/reset-demo-world.ps1 -Snapshot      # save it as the clean
 ```
 
 `prepare-demo-world.mjs` deletes chat, combats and the journals live tests leave behind,
-keeps only a GM (renamed "GM") and "Player", and turns on "Allow Write Operations". It
-only runs in `ai-tool-demo`. After that, every take restores the snapshot:
+keeps only a GM (renamed "GM") and "Player", and turns on "Allow Write Operations" and
+"AI Tool: Handouts (writes)". It also adds invented prep content for the takes: a GM-only
+"Letters" journal with a letter to reveal, a "Next session" journal, one quest (through
+`create-quest-journal`) and a short recorded play session with one roll. It only runs in
+`ai-tool-demo`, with Foundry, the bridge and the dashboard running. After that, every take restores the snapshot:
 
 ```powershell
 pwsh scripts/test-env/reset-demo-world.ps1 -Start  # restore the clean state and start everything
@@ -163,16 +185,42 @@ export async function run(t) {
 read; `{ human: true }` moves the cursor to each control and types one character at a
 time.
 
-Two takes ship as examples:
+These takes ship with the repo. Videos should show what the dashboard does better than
+Foundry's own UI (vault idea I-095):
 
+- `handout-reveal`: the letter waits in the Handouts queue (setup queues it off camera).
+  The GM reveals it after reading the confirm dialog, and it appears on the players'
+  `/player` page.
+- `preflight`: one click on Pre-flight checks the bridge, the module, the write switches
+  and the players' page for spoilers; then the GM ticks the manual checks.
+- `prep`: the Prep drawer shows the last session, the open quest, the "Next session"
+  notes and what is ready, and opens the notes in Foundry.
 - `damage-undo` plans 14 necrotic damage to Wolf 1, Wolf 2 and the Vampire in one go with
   `plan-actor-change`. The confirm dialog shows each target's result, with the Vampire's
   resistance worked out ("7 taken"). It applies the damage (`apply-planned-change`), shows
   the HP drop in Foundry, then undoes it from Recent Changes (`undo-change`) and checks that
   all three are back to full HP.
 - `token-move-undo` does the same with a token move (`plan-token-change`). It is the
-  technical proof of plan, apply and undo; for videos, prefer what the dashboard does better
-  than Foundry's own UI (vault idea I-095).
+  technical proof of plan, apply and undo, not a video (nobody moves a token from the
+  dashboard instead of dragging it).
+
+Two more takes were made for the table demo (vault note "30-second table demo"):
+
+- `table-player-attack`: logged in as Player, the hero (renamed "Brenna" for the video)
+  attacks Wolf 2 from the character sheet. The dice are seeded, so every take rolls the
+  same: 17 + 5 = 22 against AC 12, then 9 slashing. The GM applies the damage off camera, as
+  at the table, and the dashboard's Live Feed shows the breakdown. The windows are laid out
+  so the sheet, the tokens, the roll dialogs and the chat cards never overlap.
+- `table-phone`: the players' `/player` page at a phone size (430x932 CSS pixels at 2x, in
+  the top-left corner of the recording): the turn order with HP as words, then a Danish
+  handout (invented text) that the GM reveals.
+
+Foundry turns a random value r into `ceil((1 - r) * faces)`, so a seed of 0.17 rolls 17 on
+a d20. Set the seed right before the click that rolls: dnd5e's roll dialogs draw random
+values of their own when they open.
+
+Every take keeps a GM logged in to Foundry in the background, even when its video shows
+only the dashboard: the bridge reads and writes through that GM's Foundry window.
 
 ## Before a public video
 

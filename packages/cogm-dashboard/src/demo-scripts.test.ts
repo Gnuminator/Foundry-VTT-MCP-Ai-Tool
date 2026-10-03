@@ -1,7 +1,8 @@
 /**
  * The demo take helpers in `scripts/demo/` (I-082): the dashboard element ids they click
  * must still exist in the dashboard, the OBS WebSocket auth must match the protocol's
- * worked example, and the OBS ini editor must keep every line it does not change.
+ * worked example, the OBS ini editor must keep every line it does not change, and the
+ * export's YouTube chapters and clip bitrate must follow their rules.
  */
 import { promises as fsp, readFileSync } from 'fs';
 import * as os from 'os';
@@ -13,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const demoLib = (name: string): string =>
   pathToFileURL(path.join(repoRoot, 'scripts', 'demo', 'lib', name)).href;
+const demoExport = pathToFileURL(path.join(repoRoot, 'scripts', 'demo', 'export.mjs')).href;
 // A UTF-8 byte order mark, as OBS may write at the start of its ini files.
 const BOM = String.fromCharCode(0xfeff);
 
@@ -67,5 +69,45 @@ describe('OBS profile ini editor', () => {
     } finally {
       await fsp.rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('demo export', () => {
+  it('formats chapter times the way YouTube reads them', async () => {
+    const { formatTime } = await import(demoExport);
+    expect(formatTime(0)).toBe('0:00');
+    expect(formatTime(9.9)).toBe('0:09');
+    expect(formatTime(75)).toBe('1:15');
+    expect(formatTime(3725)).toBe('1:02:05');
+  });
+
+  it('starts chapters at 0:00 and merges steps shorter than 10 seconds', async () => {
+    const { chapters } = await import(demoExport);
+    const steps = [
+      { step: 'a', title: 'Open', start: 1, end: 4 },
+      { step: 'b', title: 'Plan', start: 4, end: 15 },
+      { step: 'c', title: 'Apply', start: 15, end: 30 },
+      { step: 'd', title: 'Undo', start: 30, end: 33 },
+    ];
+    const { lines, problems } = chapters(steps, 34);
+    expect(lines).toEqual(['0:00 Open; Plan', '0:15 Apply; Undo']);
+    expect(problems).toHaveLength(1);
+    const long = chapters(
+      [
+        { step: 'a', title: 'One', start: 1, end: 20 },
+        { step: 'b', title: 'Two', start: 20, end: 40 },
+        { step: 'c', title: 'Three', start: 40, end: 60 },
+      ],
+      61
+    );
+    expect(long.lines).toEqual(['0:00 One', '0:20 Two', '0:40 Three']);
+    expect(long.problems).toEqual([]);
+  });
+
+  it('picks a clip bitrate that leaves headroom under the size limit', async () => {
+    const { clipBitrate } = await import(demoExport);
+    const bps = clipBitrate(20, 10_000_000);
+    expect((bps * 20) / 8).toBeLessThan(10_000_000 * 0.9);
+    expect(clipBitrate(1, 10_000_000)).toBe(12_000_000);
   });
 });

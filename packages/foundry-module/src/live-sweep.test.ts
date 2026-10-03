@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
-import { liveSweep, SWEEP_PREFIX, SWEEP_WORLD_ID } from './live-sweep.js';
+import { liveSweep, SWEEP_PREFIX, SWEEP_WORLD_ID, SWEEP_WORLD_IDS } from './live-sweep.js';
 
 let restore: (() => void) | undefined;
 
@@ -31,6 +31,39 @@ describe('liveSweep (I-016)', () => {
     await expect(liveSweep({ mode: 'combat', tokenIds: ['t1'] })).rejects.toThrow(
       /only in the test world/
     );
+  });
+
+  it('runs in each listed test world and refuses any third world, ai-tool-kit included', async () => {
+    expect(SWEEP_WORLD_IDS).toEqual(['ai-tool-test', 'ai-tool-walkthrough']);
+    for (const id of SWEEP_WORLD_IDS) {
+      install(id);
+      await expect(liveSweep({ mode: 'snapshot' })).resolves.toMatchObject({ mode: 'snapshot' });
+      restore?.();
+      restore = undefined;
+    }
+    for (const id of ['ai-tool-kit', 'ai-tool-test-copy', '']) {
+      install(id);
+      await expect(liveSweep({ mode: 'snapshot' })).rejects.toThrow(/only in the test world/);
+      restore?.();
+      restore = undefined;
+    }
+  });
+
+  it('keeps the same world list as the live scripts (scripts/test-worlds.mjs)', async () => {
+    // @ts-expect-error plain JavaScript module outside the package, no type declarations
+    const scripts = (await import('../../../scripts/test-worlds.mjs')) as {
+      TEST_WORLDS: readonly string[];
+      parseWorldArg: (argv: string[]) => string;
+    };
+    expect([...scripts.TEST_WORLDS]).toEqual([...SWEEP_WORLD_IDS]);
+    expect(scripts.parseWorldArg([])).toBe(SWEEP_WORLD_ID);
+    expect(scripts.parseWorldArg(['--world', 'ai-tool-walkthrough'])).toBe('ai-tool-walkthrough');
+    expect(scripts.parseWorldArg(['--world=ai-tool-test'])).toBe('ai-tool-test');
+    expect(() => scripts.parseWorldArg(['--world', 'ai-tool-kit'])).toThrow(
+      /--world must be one of/
+    );
+    expect(() => scripts.parseWorldArg(['--world', 'curse-of-strahd'])).toThrow(/--world must/);
+    expect(() => scripts.parseWorldArg(['--world'])).toThrow(/--world must/);
   });
 
   it('rejects an unknown mode', async () => {

@@ -13,7 +13,7 @@
  *   {@link SWEEP_PREFIX} (NPCs, journals, items, folders, its wolf token), plus the chat
  *   messages and combats created since the run started.
  *
- * Test world only: every mode refuses unless the world id is {@link SWEEP_WORLD_ID},
+ * Test worlds only: every mode refuses unless the world id is in {@link SWEEP_WORLD_IDS},
  * whatever the caller says, so it can never touch a real campaign. It is not an MCP tool:
  * the bridge reaches it through a control method the dashboard calls (`live_sweep`), so
  * Claude never sees it. GM client only; "Allow Write Operations" gates it like every
@@ -23,7 +23,18 @@
 /** Query name. */
 export const LIVE_SWEEP_QUERY = 'liveSweep';
 
-/** The only world the helper runs in (the local test server's world). */
+/**
+ * The only worlds the helper runs in: the local test server's everyday test world and the module
+ * walkthrough's copy of the old campaign world. Never a real campaign, never `ai-tool-kit`
+ * (licensed content). `scripts/test-worlds.mjs` keeps the same list for the live scripts; a test
+ * pins the two copies together.
+ */
+export const SWEEP_WORLD_IDS: readonly string[] = Object.freeze([
+  'ai-tool-test',
+  'ai-tool-walkthrough',
+]);
+
+/** The everyday test world (the first of {@link SWEEP_WORLD_IDS}). */
 export const SWEEP_WORLD_ID = 'ai-tool-test';
 
 /** Every world-level document the sweep creates starts with this name. */
@@ -128,12 +139,12 @@ function hasSweepName(doc: SweepDoc): boolean {
   return String(doc.name ?? '').startsWith(SWEEP_PREFIX);
 }
 
-/** Run one mode; refuses outside the test world. */
+/** Run one mode; refuses outside the test worlds. */
 export async function liveSweep(data: unknown): Promise<LiveSweepResult> {
   const worldId = String(sweepGame().world?.id ?? '');
-  if (worldId !== SWEEP_WORLD_ID) {
+  if (!SWEEP_WORLD_IDS.includes(worldId)) {
     throw new Error(
-      `The live sweep helper runs only in the test world "${SWEEP_WORLD_ID}" (this is "${worldId}")`
+      `The live sweep helper runs only in the test world ${SWEEP_WORLD_IDS.map(w => `"${w}"`).join(' or ')} (this is "${worldId}")`
     );
   }
   const request = (data ?? {}) as LiveSweepRequest;

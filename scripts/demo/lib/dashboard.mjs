@@ -102,3 +102,84 @@ export async function closeTools(page, { human = false } = {}) {
 export function newestUndoButton(page) {
   return page.locator('#changes-body [data-undo]').first();
 }
+
+// --- Drawers ------------------------------------------------------------------
+
+/** Open a header drawer (Handouts, Prep, Pre-flight) and wait until it shows. */
+async function openDrawer(page, button, drawer, { human = false } = {}) {
+  if (await page.locator(drawer).isVisible()) return;
+  if (human) await humanClick(page.locator(button));
+  else await page.locator(button).click();
+  await page.locator(drawer).waitFor({ state: 'visible' });
+}
+
+/** The Handouts drawer; resolves once the queue has loaded. */
+export async function openHandouts(page, opts = {}) {
+  await openDrawer(page, '#btn-handouts', '#handouts-drawer', opts);
+  await page.waitForFunction(() => {
+    const next = document.querySelector('#handouts-next');
+    return next && !next.textContent.includes('…');
+  });
+}
+
+/** "Reveal next" in the Handouts drawer (it opens the destructive confirm modal). */
+export async function revealNextHandout(page, { human = false } = {}) {
+  const next = page.locator('#handouts-next');
+  await next.waitFor({ state: 'visible' });
+  if (await next.isDisabled()) throw new Error('Handouts: the queue is empty.');
+  if (human) await humanClick(next);
+  else await next.click();
+}
+
+/** The Pre-flight drawer; resolves once its checks have run. Returns the summary text. */
+export async function runPreflight(page, opts = {}) {
+  await openDrawer(page, '#btn-preflight', '#preflight-drawer', opts);
+  await page.locator('#preflight-summary').waitFor({ state: 'visible', timeout: 60000 });
+  await page.waitForFunction(() => !document.querySelector('#preflight-run')?.disabled, undefined, {
+    timeout: 60000,
+  });
+  return (await page.locator('#preflight-summary').innerText()).trim();
+}
+
+/** The Prep drawer; resolves once the digest has loaded. */
+export async function openPrep(page, opts = {}) {
+  await openDrawer(page, '#btn-prep', '#prep-drawer', opts);
+  await page.waitForFunction(() => {
+    const last = document.querySelector('#prep-last');
+    return last && last.textContent.trim() !== '' && !last.textContent.includes('Loading');
+  });
+}
+
+// --- The dashboard's REST API (local mode: every caller is GM) ----------------
+
+async function postJson(dashboardUrl, path, body) {
+  const res = await fetch(`${dashboardUrl}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    throw new Error(`${path} ${body.name ?? body.action}: ${data.error ?? res.status}`);
+  }
+  return data;
+}
+
+/** Turn GM Actions on or off without the UI (for setup outside the recording). */
+export function setGmActionsApi(dashboardUrl, on) {
+  return postJson(dashboardUrl, '/api/control', { action: 'set-gm-actions', value: on });
+}
+
+/**
+ * Run a bridge tool through the dashboard, confirmed (for setup outside the recording).
+ * Writes need GM Actions on.
+ */
+export async function callToolApi(dashboardUrl, name, args = {}) {
+  const data = await postJson(dashboardUrl, '/api/tool', {
+    name,
+    args,
+    confirm: true,
+    confirmDestructive: true,
+  });
+  return data.result;
+}

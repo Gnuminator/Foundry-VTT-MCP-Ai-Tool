@@ -281,8 +281,10 @@ export async function ensureObs({ res, recordDir }) {
  * fullscreen layout of openWindow), once OBS has found the window. Puts the scene on air
  * (call it before recording starts).
  */
-export async function cropToPage(obs, sceneName, res, timeoutMs = 10000) {
-  const r = RESOLUTIONS[res];
+export async function cropToPage(obs, sceneName, res, timeoutMs = 10000, size = RESOLUTIONS[res]) {
+  // The page's size in device pixels: the whole canvas, or less (a phone-sized page sits
+  // in the top-left corner of the recording and is cut out in the edit).
+  const r = size;
   // A window capture only runs (and has a size) while its scene is on air.
   await obs.call('SetCurrentProgramScene', { sceneName });
   const { sceneItemId } = await obs.call('GetSceneItemId', {

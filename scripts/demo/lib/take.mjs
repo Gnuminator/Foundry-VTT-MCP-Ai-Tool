@@ -4,7 +4,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectConsoleErrors, measure, openWindow } from './browser.mjs';
-import { CSS_SIZE, DEMO_WORLD, RESOLUTIONS } from './env.mjs';
+import { CSS_SIZE, DEMO_USERS, DEMO_WORLD, RESOLUTIONS } from './env.mjs';
 import { joinFoundry, waitForCanvasReady } from './foundry.mjs';
 import { waitForDashboard } from './dashboard.mjs';
 import { cropToPage } from './obs-setup.mjs';
@@ -29,29 +29,35 @@ export class Take {
     this.t0 = 0;
   }
 
-  async #open(sceneName, url) {
+  /**
+   * Open a scene's window. By default the page is 1920x1080 CSS pixels at the take's
+   * scale; `css` and `scale` override that (a phone-sized page, for example).
+   */
+  async #open(sceneName, url, { css = CSS_SIZE, scale = RESOLUTIONS[this.res].scale } = {}) {
     const title = SCENES[sceneName];
     if (!title) throw new Error(`No OBS scene "${sceneName}" (see scenes.mjs).`);
-    const { scale } = RESOLUTIONS[this.res];
-    const win = await openWindow({ title, url, css: CSS_SIZE, scale, fullscreen: true });
+    const win = await openWindow({ title, url, css, scale, fullscreen: true });
     const size = await measure(win.page);
     if (
-      size.width !== CSS_SIZE.width ||
-      size.height !== CSS_SIZE.height ||
+      size.width !== css.width ||
+      size.height !== css.height ||
       Math.abs(size.dpr - scale) > 0.01
     ) {
       console.warn(
-        `${title}: page is ${size.width}x${size.height} at ${size.dpr}x, wanted ${CSS_SIZE.width}x${CSS_SIZE.height} at ${scale}x.`
+        `${title}: page is ${size.width}x${size.height} at ${size.dpr}x, wanted ${css.width}x${css.height} at ${scale}x.`
       );
     }
-    const entry = { ...win, errors: collectConsoleErrors(win.page) };
+    const entry = { ...win, errors: collectConsoleErrors(win.page), css, scale };
     this.windows[sceneName] = entry;
     return entry;
   }
 
   // Once a window shows its page (and so its pinned title), OBS can find and crop it.
   async #crop(sceneName) {
-    if (this.obs) await cropToPage(this.obs, sceneName, this.res);
+    if (!this.obs) return;
+    const { css, scale } = this.windows[sceneName];
+    const size = { width: Math.round(css.width * scale), height: Math.round(css.height * scale) };
+    await cropToPage(this.obs, sceneName, this.res, 10000, size);
   }
 
   /** A Foundry window joined as a user ("Foundry" for the GM, "Foundry player" for a player). */
@@ -75,10 +81,25 @@ export class Take {
     return win;
   }
 
-  /** The players' /player page. */
-  async playerPage() {
-    const win = await this.#open('Player page', `${this.env.dashboardUrl}/player`);
-    await win.page.waitForLoadState('networkidle');
+  /**
+   * The players' /player page. On a first visit it asks "who are you"; `who` answers it
+   * (a player's name, or null to skip).
+   */
+  async playerPage({ who = DEMO_USERS.player, css, scale } = {}) {
+    const win = await this.#open('Player page', `${this.env.dashboardUrl}/player`, {
+      ...(css ? { css } : {}),
+      ...(scale ? { scale } : {}),
+    });
+    await win.page.locator('#handouts').waitFor();
+    const picker = win.page.locator('#who-picker');
+    // The question appears once the page knows the player names.
+    await picker.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    if (await picker.isVisible()) {
+      await win.page.locator('#who-list button.who-pick', { hasText: who ?? 'Skip' }).click();
+      await picker.waitFor({ state: 'hidden' });
+    }
+    // Park the demo cursor off the page until the take moves it.
+    await win.page.mouse.move(-40, -40);
     await this.#crop('Player page');
     return win;
   }

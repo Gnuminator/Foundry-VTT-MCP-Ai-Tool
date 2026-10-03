@@ -92,5 +92,6 @@ export async function run(t) {
     await t.shot('Player page', 'player-after');
   });
 
-  await setGmActions(page, false);
+  // Clean-up outside the steps, without the UI: the Player page window is in front now.
+  await setGmActionsApi(t.env.dashboardUrl, false);
 }

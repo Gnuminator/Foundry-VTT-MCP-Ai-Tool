@@ -48,7 +48,8 @@ def test_override_changes_spoken_form_only() -> None:
 
 def test_lexicon_whole_words_and_case() -> None:
     lex = {"dnd5e": "D og D fem e", "AI": "A I"}
-    assert apply_lexicon("DND5E-systemet og AI'en, ikke MAIL", lex) == "D og D fem e-systemet og A I'en, ikke MAIL"
+    assert apply_lexicon("DND5E-systemet og AI'en, ikke MAIL", lex) == "D og D fem e systemet og A I'en, ikke MAIL"
+    assert apply_lexicon("AI- og dnd5e-", lex) == "A I- og D og D fem e-"  # no word after: kept
     s = parse("Brug dnd5e.", lexicon=lex)
     assert s.sentences[0].shown == "Brug dnd5e."
     assert s.sentences[0].spoken == "Brug D og D fem e."

@@ -81,15 +81,21 @@ def load_lexicon(path: Path) -> dict[str, str]:
 
 
 def apply_lexicon(text: str, lexicon: dict[str, str]) -> str:
-    """Replace whole words, longest term first, ignoring case."""
+    """Replace whole words, longest term first, ignoring case.
+
+    A term joined to the next word by a hyphen ("dnd5e-systemet") is followed by a space in the
+    spoken form instead: a spelled-out term glued to a word made the Danish voice slur both
+    (heard as "d n die" on 2026-10-03).
+    """
     if not lexicon:
         return text
     terms = sorted(lexicon, key=len, reverse=True)
     lookup = {t.lower(): lexicon[t] for t in terms}
     pattern = re.compile(
-        r"(?<![\w])(" + "|".join(re.escape(t) for t in terms) + r")(?![\w])", re.IGNORECASE
+        r"(?<![\w])(" + "|".join(re.escape(t) for t in terms) + r")(?![\w])(-(?=\w))?",
+        re.IGNORECASE,
     )
-    return pattern.sub(lambda m: lookup[m.group(1).lower()], text)
+    return pattern.sub(lambda m: lookup[m.group(1).lower()] + (" " if m.group(2) else ""), text)
 
 
 def _front_matter(text: str) -> tuple[dict[str, str], str]:

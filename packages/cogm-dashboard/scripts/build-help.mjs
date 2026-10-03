@@ -7,8 +7,9 @@
  *
  * Links: another guide page (`dashboard.md#ready-for-session`) opens in the help panel
  * (`data-help`), a link to any other repo file opens on GitHub in a new tab, web links open in a
- * new tab. A relative link to a file that does not exist, or to a missing anchor in a guide page,
- * fails the build. Images are left out (their alt text stays).
+ * new tab. A link to a guide page that does not exist, or to a missing anchor in one, fails the
+ * build (links to the rest of the repo are checked by `npm run docs:links`). Images are left out
+ * (their alt text stays).
  *
  * `--soft` (the dev script behind `npm run dev:cogm`): any problem is only a warning and the exit
  * code is 0, so the dashboard still starts; its help panel then says the help is not built.
@@ -74,11 +75,14 @@ function resolveLink(page, href) {
     return { help: `${page}#${anchor}` };
   }
   const file = path.resolve(guideDir, target);
-  if (!existsSync(file)) {
+  const rel = path.relative(guideDir, file).replace(/\\/g, '/');
+  // A link to another repo file becomes a GitHub link. Only links between guide pages are
+  // checked here: the rest of the repo may be missing (the Docker build stage has only
+  // docs/gm), and `npm run docs:links` checks every link in CI.
+  if (!rel.includes('/') && !rel.startsWith('..') && !existsSync(file)) {
     problems.push(`${page}.md: broken link ${href}`);
     return { external: href };
   }
-  const rel = path.relative(guideDir, file).replace(/\\/g, '/');
   const name = rel.endsWith('.md') && !rel.includes('/') ? rel.slice(0, -3) : null;
   if (name && pages.includes(name)) {
     if (anchor && !anchors.get(name).has(anchor))

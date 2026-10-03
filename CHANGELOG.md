@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Session notes into Foundry (D-087; PRs #85, #87)
+
+- **Session notes go into Foundry by themselves:** after a recorded session, the Recap, GM
+  summary and Scenes pages (Danish first, English below) land in a GM-only journal in the folder
+  "Session notes" as soon as Foundry is open with writes on and the new switch "AI Tool: Session
+  notes (writes)" (off by default) is on. Each put is in Recent Changes and the Live Feed with an
+  Undo, which refuses once the Recap was revealed or a page was edited. The Recap waits in the
+  reveal queue; revealing it (or "Approve without revealing") starts the audio clock.
+  `session-notes publish` stages the notes on the bridge (host-only control method
+  `session_notes`) and writes `approved.json` back (PR #85).
+- The Obsidian mirror renders session-notes journals with their page text without an opt-in, and
+  a play session's note links that day's session notes (PR #85).
+- **The After view's session notes card (PR #87):** waiting, in Foundry or approved, with Read,
+  Approve without revealing, Undo and Put in Foundry; GM only. Dashboard GM routes
+  `/api/session-notes` (list, read, put, approve) (PR #85).
+- Changed: an apply or undo of a guarded change now answers after its listeners have updated
+  their state; control-channel errors may carry a stable `code`. `live:roundtrip` also checks
+  session notes (stage, automatic put, undo, manual put) and needs "AI Tool: Session notes
+  (writes)" on in the test world (PR #85).
+
 ### Dashboard
 
 - **Help inside the dashboard (I-064; PR #78):** feature cards in the Before view (on or off, what

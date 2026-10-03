@@ -14,7 +14,7 @@ from typing import Any
 
 from fvtt_transcriber import __version__
 from fvtt_transcriber.inputs import TrackInput, collect_inputs
-from fvtt_transcriber.ladder import load_with_fallback, warm_up
+from fvtt_transcriber.ladder import load_with_fallback, probe
 from fvtt_transcriber.vocab import (
     DEFAULT_HOTWORD_TOKENS,
     HOTWORD_TOKEN_LIMIT,
@@ -159,9 +159,11 @@ def _transcribe(
         )
         engine: Any
         def load(dev: str, comp: str) -> Any:
-            loaded = WhisperEngine(args.model, dev, comp, settings)
-            warm_up(loaded.model, settings.language)  # a missing CUDA library fails here, not at load
-            return loaded
+            # Probe in a child process first: a broken GPU setup can hang at the first
+            # inference instead of failing, and only a child process can be stopped.
+            if dev == "cuda":
+                probe(args.model, dev, comp, settings.language)
+            return WhisperEngine(args.model, dev, comp, settings)
 
         engine, device, compute, load_failures = load_with_fallback(
             load,

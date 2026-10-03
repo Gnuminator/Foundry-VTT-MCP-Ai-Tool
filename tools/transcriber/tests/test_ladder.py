@@ -55,3 +55,30 @@ def test_explicit_compute_type_failure_is_not_retried() -> None:
     with pytest.raises(RuntimeError):
         load_with_fallback(factory, "cuda", "int8", True, lambda _m: None)
     assert calls == ["int8"]
+
+
+def test_probe_reports_the_child_error() -> None:
+    from fvtt_transcriber.ladder import ProbeFailed, probe
+
+    script = (
+        "import sys; print('Traceback', file=sys.stderr); "
+        "print('RuntimeError: Library cublas64_12.dll is not found', file=sys.stderr); sys.exit(1)"
+    )
+    with pytest.raises(ProbeFailed, match="cublas64_12.dll"):
+        probe("m", "cuda", "float16", "da", script=script)
+
+
+def test_probe_stops_a_hanging_child() -> None:
+    from fvtt_transcriber.ladder import ProbeFailed, probe
+
+    with pytest.raises(ProbeFailed, match="no answer within 2 s"):
+        probe("m", "cuda", "float16", "da", timeout=2, script="import time; time.sleep(30)")
+
+
+def test_probe_passes_its_arguments_and_needs_the_ok_line() -> None:
+    from fvtt_transcriber.ladder import ProbeFailed, probe
+
+    ok = "import sys; assert sys.argv[1:] == ['m', 'cuda', 'int8_float16', 'da']; print('probe ok')"
+    probe("m", "cuda", "int8_float16", "da", script=ok)
+    with pytest.raises(ProbeFailed):
+        probe("m", "cuda", "float16", None, script="print('something else')")

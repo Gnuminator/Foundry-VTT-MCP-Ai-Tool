@@ -1274,25 +1274,9 @@ body {
   align-items: center;
   gap: 0.45rem;
 }
-.ca-row.ca-selection {
-  border-top: 1px dashed var(--border);
-  padding-top: 0.45rem;
-}
-.ca-seg {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  background: var(--bg-sunken);
-  border: 1px solid var(--border);
-  border-radius: var(--r-pill);
-  padding: 0.15rem 0.3rem 0.15rem 0.6rem;
-}
-.ca-seg-label {
-  font-size: var(--fs-2xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-faint);
+.ca-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
 }
 .ca-btn {
   font-family: var(--font-sans);
@@ -1309,13 +1293,6 @@ body {
     background 0.15s ease,
     border-color 0.15s ease,
     color 0.15s ease;
-}
-.ca-seg .ca-btn {
-  border-radius: var(--r-pill);
-  padding: 0.2rem 0.6rem;
-  border-color: transparent;
-  background: transparent;
-  color: var(--text-mid);
 }
 .ca-btn:hover {
   border-color: var(--accent);

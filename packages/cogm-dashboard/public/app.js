@@ -723,6 +723,10 @@ function selectedNames() {
   return lastCombat.combatants.filter(c => selectedCombatants.has(c.id)).map(c => c.name);
 }
 
+// The combat pane is the During view's slim turn-order strip (D-085, I-095): turns,
+// initiative and saves stay in Foundry. What the dashboard adds is damage, healing and a
+// condition on several selected combatants at once (dnd5e works out resistances), applied in
+// one click with Undo (D-086).
 function renderCombatActions() {
   const active = !!(lastCombat && lastCombat.active);
   if (!active || !settings.gmActionsEnabled) {
@@ -732,28 +736,17 @@ function renderCombatActions() {
   }
   els.combatActions.hidden = false;
   const n = selectedCombatants.size;
-  els.combatActions.innerHTML = `
+  els.combatActions.innerHTML =
+    n > 0
+      ? `
     <div class="ca-row">
-      <div class="ca-seg" role="group" aria-label="Roll initiative">
-        <span class="ca-seg-label">Init</span>
-        <button type="button" class="ca-btn" data-track="dash.combat.init-npcs" data-init="npcs">NPCs</button>
-        <button type="button" class="ca-btn" data-track="dash.combat.init-all" data-init="all">All</button>
-        <button type="button" class="ca-btn" data-track="dash.combat.init-missing" data-init="missing">Missing</button>
-      </div>
-      <button type="button" class="ca-btn" data-track="dash.combat.advance-turn" data-advance>⏭ Advance turn</button>
-    </div>${
-      n > 0
-        ? `
-    <div class="ca-row ca-selection">
       <span class="ca-count"><strong>${n}</strong> selected</span>
-      <button type="button" class="ca-btn" data-track="dash.combat.selection-init" data-sel="init">Roll init</button>
       <button type="button" class="ca-btn" data-track="dash.combat.selection-damage" data-sel="damage">Damage / Heal</button>
       <button type="button" class="ca-btn" data-track="dash.combat.selection-condition" data-sel="condition">Condition</button>
-      <button type="button" class="ca-btn" data-track="dash.combat.selection-save" data-sel="save">Roll save</button>
       <button type="button" class="ca-btn ghost" data-track="dash.combat.selection-clear" data-sel="clear">Clear</button>
     </div>`
-        : ''
-    }`;
+      : `
+    <div class="ca-row"><span class="ca-hint">Click combatants to deal damage or set a condition on them.</span></div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -2913,26 +2906,12 @@ els.combatBody.addEventListener('click', e => {
   renderCombatActions();
 });
 els.combatActions.addEventListener('click', e => {
-  const initBtn = e.target.closest('[data-init]');
-  if (initBtn) {
-    void runTool('roll-initiative-for-npcs', { scope: initBtn.dataset.init }, 'write');
-    return;
-  }
-  if (e.target.closest('[data-advance]')) {
-    void runTool('advance-combat-turn', {}, 'write');
-    return;
-  }
   const selBtn = e.target.closest('[data-sel]');
   if (!selBtn) return;
   const action = selBtn.dataset.sel;
   if (action === 'clear') {
     selectedCombatants.clear();
     renderCombat(lastCombat);
-    return;
-  }
-  if (action === 'init') {
-    if (selectedCombatants.size === 0) return;
-    void runTool('roll-initiative-for-npcs', { combatantIds: [...selectedCombatants] }, 'write');
     return;
   }
   const names = selectedNames();
@@ -2945,7 +2924,6 @@ els.combatActions.addEventListener('click', e => {
   if (action === 'condition') {
     void openTool('plan-actor-change', { action: 'condition', targets: names }, { oneClick: true });
   }
-  if (action === 'save') void openTool('roll-saving-throws', { targets: names });
 });
 els.changesRefresh.addEventListener('click', () => void loadRecentChanges());
 els.bossToggle.addEventListener('click', () => setBossPrompts(!bossPrompts));

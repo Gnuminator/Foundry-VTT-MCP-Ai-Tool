@@ -61,15 +61,14 @@ the AI co-GM and module diagnostics, and the AI settings (pause, diagnostics AI,
   current board state.
 - **Whisper to chat** — send any comment straight into Foundry as a GM whisper with one click.
 
-### Run the game from the dashboard
+### Damage and conditions on several creatures at once
 
 ![Multi-select combatants and act on them as a group](../images/cogm/combat-control.png)
 
-- **Click combatants to multi-select**, then act on them as a group.
-- **Roll initiative** for NPCs / everyone / just the ones missing it, **advance the turn**, or jump
-  to a combatant.
-- **Apply damage, healing or a condition** (planned, confirmed, with an **Undo** message after) and
-  **roll saving throws** for the selected creatures.
+- **Click combatants in the During view's turn-order strip to multi-select** them.
+- **Apply damage, healing or a condition** to all of them in one click (dnd5e works out
+  resistances, vulnerabilities and immunities), with an **Undo** message after.
+- Turns, initiative and saving throws stay in Foundry's own combat tracker.
 
 ### Do (almost) anything the bridge can do
 

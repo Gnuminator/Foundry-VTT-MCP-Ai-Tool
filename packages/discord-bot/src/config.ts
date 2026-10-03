@@ -7,6 +7,9 @@
  * | `DISCORD_TOKEN`      | the bot token (required to run the bot)                     |
  * | `DISCORD_GUILD_ID`   | register the slash commands in this server only (instant)   |
  * | `FVTT_SESSIONS_DIR`  | where recordings go; default `Documents\FoundrySessions`    |
+ * | `REHEARSAL_TOKEN_1` to `_3` | speaker bot tokens for `rehearse` (one bot application each) |
+ * | `REHEARSAL_CHANNEL_ID` | the voice channel rehearsals use                          |
+ * | `FVTT_REHEARSAL_DIR` | where rehearsals go; default `Documents\FoundryRehearsals`  |
  */
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -18,6 +21,12 @@ export interface BotConfig {
   guildId: string | undefined;
   sessionsDir: string;
   envFile: string;
+}
+
+export interface RehearsalConfig {
+  speakerTokens: string[];
+  channelId: string;
+  dir: string;
 }
 
 export function defaultEnvFile(): string {
@@ -57,5 +66,27 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
     guildId: get('DISCORD_GUILD_ID'),
     sessionsDir: get('FVTT_SESSIONS_DIR') ?? join(homedir(), 'Documents', 'FoundrySessions'),
     envFile,
+  };
+}
+
+/** Settings for `rehearse`: the speaker bot tokens and the voice channel. */
+export function loadRehearsalConfig(envFile = defaultEnvFile()): RehearsalConfig {
+  const fromFile = existsSync(envFile) ? parseEnv(readFileSync(envFile, 'utf8')) : {};
+  // An empty value counts as unset, as in loadConfig.
+  const get = (key: string): string | undefined =>
+    [process.env[key], fromFile[key]].find(v => v !== undefined && v !== '');
+  const speakerTokens = [1, 2, 3, 4, 5]
+    .map(n => get(`REHEARSAL_TOKEN_${n}`))
+    .filter((t): t is string => !!t);
+  const channelId = get('REHEARSAL_CHANNEL_ID') ?? '';
+  if (speakerTokens.length === 0 || !channelId) {
+    throw new Error(
+      `rehearse needs REHEARSAL_TOKEN_1 (and _2, _3) and REHEARSAL_CHANNEL_ID in ${envFile}`
+    );
+  }
+  return {
+    speakerTokens,
+    channelId,
+    dir: get('FVTT_REHEARSAL_DIR') ?? join(homedir(), 'Documents', 'FoundryRehearsals'),
   };
 }

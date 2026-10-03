@@ -307,8 +307,8 @@ describe('undo', () => {
   it('takes the journal out, unqueues the Recap and stops the automatic put', async () => {
     await stageAndSettle();
     const [item] = (await notes.list()).items;
+    // The undo answers only once the item is back to staged (no idle() needed).
     await guarded.undo(item.changeId!, { confirm: true });
-    await notes.idle();
     expect([...foundry.docs.values()].some(d => d.documentName === 'JournalEntry')).toBe(false);
     const after = (await notes.list()).items[0];
     expect(after.status).toBe('staged');

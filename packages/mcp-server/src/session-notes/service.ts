@@ -160,14 +160,15 @@ export class SessionNotesService {
     this.now = options.now ?? ((): number => Date.now());
     this.tickMs = options.tickMs ?? DEFAULT_TICK_MS;
     this.retryMs = options.retryMs ?? DEFAULT_RETRY_MS;
+    // Awaited by the apply or undo, so the dashboard reads the new state right after it.
     this.guardedWrites.addRecordedListener((worldId, changeId) => {
-      this.track(
-        this.onRecorded(worldId, changeId).catch(error =>
-          this.logger.warn('Session notes could not follow a recorded change', {
-            error: messageOf(error),
-          })
-        )
+      const work = this.onRecorded(worldId, changeId).catch(error =>
+        this.logger.warn('Session notes could not follow a recorded change', {
+          error: messageOf(error),
+        })
       );
+      this.track(work);
+      return work;
     });
     this.guardedWrites.setUndoGuard(SESSION_NOTES_FEATURE, (worldId, entry) =>
       this.undoConflict(worldId, entry)

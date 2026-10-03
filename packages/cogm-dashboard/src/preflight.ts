@@ -115,6 +115,13 @@ export async function runDashboardPreflight(
   } catch (error) {
     bridgeError = message(error);
   }
+  // An answer without a checks list (an older or newer bridge) counts as no answer, so one odd
+  // reply cannot throw here and take the dashboard down.
+  let malformed = false;
+  if (bridge !== null && !Array.isArray(bridge?.checks)) {
+    bridge = null;
+    malformed = true;
+  }
   const checks: DashboardPreflightCheck[] = bridge
     ? [...bridge.checks]
     : [
@@ -122,7 +129,9 @@ export async function runDashboardPreflight(
           id: 'bridge-checks',
           label: 'Bridge checks',
           status: 'unknown',
-          detail: `The bridge did not answer: ${bridgeError ?? 'no result'}. Is Claude Desktop running?`,
+          detail: malformed
+            ? "The bridge answered without a list of checks. Does its version match the dashboard's?"
+            : `The bridge did not answer: ${bridgeError ?? 'no result'}. Is Claude Desktop running?`,
         },
       ];
   checks.push(gmActionsCheck(input.gmActionsEnabled), await playerPageCheck(input));

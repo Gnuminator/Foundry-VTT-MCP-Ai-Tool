@@ -124,7 +124,7 @@ the remote-hosting topology.
 | `MCP_CONTROL_HOST`             | `127.0.0.1`                          | Where the dashboard connects for the control channel.                           |
 | `MCP_CONTROL_PORT`             | `31414`                              | Control channel port (must match the backend).                                  |
 | `ANTHROPIC_API_KEY`            | _(unset — AI disabled if empty)_     | Anthropic API key. **Server-side only. Never reaches browser.**                 |
-| `ANTHROPIC_MODEL`              | `claude-opus-4-8`                    | Claude model used for co-GM commentary.                                         |
+| `ANTHROPIC_MODEL`              | `claude-opus-5-5`                    | Claude model used for co-GM commentary.                                         |
 | `GM_DASHBOARD_TOKEN`           | _(unset)_                            | Shared secret that grants GM role. Setting this enables the GM/player split.    |
 | `PLAYER_DASHBOARD_TOKEN`       | _(unset)_                            | Optional token required to view the player page.                                |
 | `GM_EMAILS`                    | _(unset)_                            | Comma-separated email addresses that map to GM role (via Cloudflare Access).    |

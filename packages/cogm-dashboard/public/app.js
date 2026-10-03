@@ -165,7 +165,7 @@ const comments = new Map(); // genId -> { card, body, doneText }
 let settings = {
   paused: false,
   tone: 'tactical',
-  model: 'claude-opus-4-8',
+  model: 'claude-opus-5-5',
   aiEnabled: false,
   commentOnErrors: true,
   gmActionsEnabled: false,

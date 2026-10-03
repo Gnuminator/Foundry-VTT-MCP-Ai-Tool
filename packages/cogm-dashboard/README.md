@@ -105,7 +105,7 @@ All via `.env` (see `.env.example`):
 | Variable                                | Default               | Purpose                                             |
 | --------------------------------------- | --------------------- | --------------------------------------------------- |
 | `ANTHROPIC_API_KEY`                     | —                     | Enables AI commentary / ask (never committed)       |
-| `ANTHROPIC_MODEL`                       | `claude-opus-4-8`     | Default model (switchable live in the UI)           |
+| `ANTHROPIC_MODEL`                       | `claude-opus-5-5`     | Default model (switchable live in the UI)           |
 | `POLL_INTERVAL_MS`                      | `4000`                | Event-delta poll cadence                            |
 | `COMBAT_POLL_INTERVAL_MS`               | = poll interval       | Combat-state poll cadence                           |
 | `COMMENT_MIN_INTERVAL_MS`               | `20000`               | Minimum spacing between auto-comments               |

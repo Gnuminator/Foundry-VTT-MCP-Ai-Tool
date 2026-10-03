@@ -1,6 +1,6 @@
 {
   "name": "@gnuminator/foundry-module",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "author": "Gnuminator <gnuminator@users.noreply.github.com>",
   "description": "Foundry VTT module for MCP bridge integration",
   "type": "module",

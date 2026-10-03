@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v0.20.0 (not tagged yet): undo for live play, the write gate, the design pass (themes, first
+
+screen, Ready for session, one click), pre-flight and prep, the party panel, Obsidian plugin and
+library, GM guides
+
+**Wire contracts are unchanged** (module id, ports, `foundry-mcp-bridge.*` method names, settings
+namespace). The bridge serves 88 tools (91 in v0.19.0): ten old direct-write tools became three
+plan tools with Undo. Update the module and the bridge together; see "Upgrade notes" at the end
+of this section.
+
 ### Write gate (P-036)
 
 - **"Allow Write Operations" is now a real read-only switch.** Every bridge handler that changes
@@ -215,6 +225,28 @@
   4.5 (PR #59).
 - Obsidian: a note whose name is taken gets a short hash suffix instead of the end of its id (no
   more "(000000)" on the official PHB's notes); existing notes keep their names (PR #64).
+
+### Upgrade notes
+
+- **Update the Foundry module and the bridge together.** The dashboard and the bridge use module
+  queries that older modules do not have (Ready for session, the party, pre-flight and prep);
+  the pre-flight check shows a banner when the versions differ.
+- **Ten tools are gone, replaced by plan tools with Undo:** `apply-damage-and-healing`,
+  `toggle-token-condition`, `update-character-resource` and `clear-stale-conditions` by
+  `plan-actor-change`; `move-token`, `update-token`, `set-token-vision-light` and `delete-tokens`
+  by `plan-token-change` (play set); `assign-actor-ownership` and `remove-actor-ownership` by
+  `plan-ownership-change` (admin set). Saved prompts or notes that name the old tools need the
+  new names; Claude finds the new tools by itself.
+- **"Allow Write Operations" off now refuses every write**, the dashboard's own actions (post to
+  chat, GM Actions) included. "Ready for session" in the dashboard's Before view turns on what an
+  evening needs, and End session turns it off again.
+- **New feature switches:** "AI Tool: Live play (writes)" and "AI Tool: Ownership (writes)" are
+  on by default; "AI Tool: Party (writes)" and "AI Tool: Live play, apply without confirming" are
+  off. The GM guide page Asking Claude has one table of all switches.
+- The Claude Desktop entries (tool sets) are unchanged; re-run the installer, or replace the
+  bridge files, to update the bridge.
+- New release asset: `foundry-ai-tool-obsidian.zip`, the optional Obsidian companion plugin
+  (`scripts/install-obsidian-plugin.ps1`).
 
 ## v0.19.0 (released 2026-09-30): M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd) + Obsidian O4 mirrors + tool sets
 

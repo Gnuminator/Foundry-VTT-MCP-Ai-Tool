@@ -5,6 +5,7 @@ import {
   allocateNotePaths,
   MAX_NOTE_PATH_CHARS,
   pageNoteFolder,
+  shortSuffix,
   type PathRequest,
 } from './mirror-paths.js';
 
@@ -57,7 +58,7 @@ describe('allocateNotePaths', () => {
     const forward = allocateNotePaths([older, newer], NONE, EMPTY);
     const backward = allocateNotePaths([newer, older], NONE, EMPTY);
     expect(forward.get(older.uuid)).toBe(`${NPCS}/Wolf.md`);
-    expect(forward.get(newer.uuid)).toBe(`${NPCS}/wolf (000222).md`);
+    expect(forward.get(newer.uuid)).toBe(`${NPCS}/wolf (${shortSuffix(newer.uuid)}).md`);
     expect([...backward.entries()].sort()).toEqual([...forward.entries()].sort());
   });
 
@@ -67,25 +68,41 @@ describe('allocateNotePaths', () => {
     const c = req('0000000000000003', 'Same', { created: null });
     const out = allocateNotePaths([c, b, a], NONE, EMPTY);
     expect(out.get(a.uuid)).toBe(`${NPCS}/Same.md`);
-    expect(out.get(b.uuid)).toBe(`${NPCS}/Same (000002).md`);
-    expect(out.get(c.uuid)).toBe(`${NPCS}/Same (000003).md`);
+    expect(out.get(b.uuid)).toBe(`${NPCS}/Same (${shortSuffix(b.uuid)}).md`);
+    expect(out.get(c.uuid)).toBe(`${NPCS}/Same (${shortSuffix(c.uuid)}).md`);
   });
 
-  it('tries the last six characters of the id, then the full id', () => {
+  it('tries a short hash of the uuid, then the full id', () => {
     const first = req(id16('aaaa', '123456'), 'Twin', { created: 1 });
     const second = req(id16('bbbb', '123456'), 'Twin', { created: 2 });
-    const third = req(id16('cccc', '123456'), 'Twin', { created: 3 });
-    const out = allocateNotePaths([first, second, third], NONE, EMPTY);
+    const out = allocateNotePaths([first, second], NONE, EMPTY);
     expect(out.get(first.uuid)).toBe(`${NPCS}/Twin.md`);
-    expect(out.get(second.uuid)).toBe(`${NPCS}/Twin (123456).md`);
-    expect(out.get(third.uuid)).toBe(`${NPCS}/Twin (${third.id}).md`);
+    expect(out.get(second.uuid)).toBe(`${NPCS}/Twin (${shortSuffix(second.uuid)}).md`);
+    // When the hash suffix is taken too (two hashes colliding), the full id still separates them.
+    const third = req(id16('cccc', '123456'), 'Twin', { created: 3 });
+    const taken = new Set([
+      pathKey(`${NPCS}/Twin.md`),
+      pathKey(`${NPCS}/Twin (${shortSuffix(third.uuid)}).md`),
+    ]);
+    expect(allocateNotePaths([third], NONE, taken).get(third.uuid)).toBe(
+      `${NPCS}/Twin (${third.id}).md`
+    );
+  });
+
+  it('hashes the uuid the same way on every run and platform, never as a run of zeros', () => {
+    expect(shortSuffix('Actor.a000000000000001')).toBe('fimire');
+    const bard = 'Compendium.dnd-players-handbook.classes.Item.phbbrdBard000000';
+    const monk = 'Compendium.dnd-players-handbook.classes.Item.phbmnkMonk000000';
+    expect(shortSuffix(bard)).toBe('73gnuc');
+    expect(shortSuffix(monk)).toBe('55hexw');
+    expect(shortSuffix(bard)).toMatch(/^[0-9a-z]{6}$/);
   });
 
   it('ends with a counter when even the full id is taken', () => {
     const only = req(id16('dddd', '654321'), 'Twin');
     const taken = new Set([
       pathKey(`${NPCS}/Twin.md`),
-      pathKey(`${NPCS}/Twin (654321).md`),
+      pathKey(`${NPCS}/Twin (${shortSuffix(only.uuid)}).md`),
       pathKey(`${NPCS}/Twin (${only.id}).md`),
     ]);
     const out = allocateNotePaths([only], NONE, taken);
@@ -98,13 +115,15 @@ describe('allocateNotePaths', () => {
     const existing = new Map([[known.uuid, `${NPCS}/Old name.md`]]);
     const out = allocateNotePaths([fresh, known], existing, EMPTY);
     expect(out.get(known.uuid)).toBe(`${NPCS}/Old name.md`);
-    expect(out.get(fresh.uuid)).toBe(`${NPCS}/Old name (000002).md`);
+    expect(out.get(fresh.uuid)).toBe(`${NPCS}/Old name (${shortSuffix(fresh.uuid)}).md`);
   });
 
   it('avoids files that are already on disk, by normalized case-insensitive key', () => {
     const one = req('a000000000000001', 'Wolf');
     const taken = new Set([pathKey(`${NPCS}/WOLF.md`)]);
-    expect(allocateNotePaths([one], NONE, taken).get(one.uuid)).toBe(`${NPCS}/Wolf (000001).md`);
+    expect(allocateNotePaths([one], NONE, taken).get(one.uuid)).toBe(
+      `${NPCS}/Wolf (${shortSuffix(one.uuid)}).md`
+    );
   });
 
   it('treats composed and decomposed accents as the same file', () => {
@@ -112,7 +131,7 @@ describe('allocateNotePaths', () => {
     const decomposed = req('a000000000000002', 'Café', { created: 2 });
     const out = allocateNotePaths([composed, decomposed], NONE, EMPTY);
     expect(out.get(composed.uuid)).toBe(`${NPCS}/Café.md`);
-    expect(out.get(decomposed.uuid)).toBe(`${NPCS}/Café (000002).md`);
+    expect(out.get(decomposed.uuid)).toBe(`${NPCS}/Café (${shortSuffix(decomposed.uuid)}).md`);
   });
 
   it('does not let folders collide with each other', () => {
@@ -138,14 +157,16 @@ describe('allocateNotePaths', () => {
     // A third document arrives later and steers around both.
     const late = req('a000000000000003', 'Wolf', { created: 0 });
     const run3 = allocateNotePaths([late, ...requests], run1, EMPTY);
-    expect(run3.get(late.uuid)).toBe(`${NPCS}/Wolf (000003).md`);
+    expect(run3.get(late.uuid)).toBe(`${NPCS}/Wolf (${shortSuffix(late.uuid)}).md`);
     expect(run3.get('Actor.a000000000000001')).toBe(`${NPCS}/Wolf.md`);
   });
 
   it('strips characters from the id that a file name should not carry', () => {
     const odd = req('ab/c\\d..e|f', 'Wolf');
     const first = req('a000000000000001', 'Wolf', { created: 0 });
-    const out = allocateNotePaths([first, odd], NONE, EMPTY);
+    // The id only shows in the full-id fallback: take the plain and the hash names first.
+    const taken = new Set([pathKey(`${NPCS}/Wolf (${shortSuffix(odd.uuid)}).md`)]);
+    const out = allocateNotePaths([first, odd], NONE, taken);
     expect(out.get(odd.uuid)).toBe(`${NPCS}/Wolf (abcdef).md`);
   });
 
@@ -166,7 +187,7 @@ describe('allocateNotePaths', () => {
       const out = allocateNotePaths([one, two], NONE, EMPTY);
       const path = out.get(two.uuid) ?? '';
       expect(path.length).toBeLessThanOrEqual(MAX_NOTE_PATH_CHARS);
-      expect(path.endsWith(' (abcdef).md')).toBe(true);
+      expect(path.endsWith(` (${shortSuffix(two.uuid)}).md`)).toBe(true);
       expect(out.get(one.uuid)).not.toBe(path);
     });
 

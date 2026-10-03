@@ -134,7 +134,9 @@ of this section.
   who went down" (dropped to 0 HP; the tool never knows who died). The GM guide "Asking Claude"
   has one table of all feature switches, including "AI Tool: Ownership (writes)".
 - **Troubleshooting (PR #70):** players who cannot apply their own effects (dnd5e's "Allow Player
-  Effect Application"), and D&D Beyond characters that import as an empty "New Actor".
+  Effect Application"; for a spell on themselves, they target their own token first), features
+  that do nothing on characters carried over from an older world, and D&D Beyond characters
+  that import as an empty "New Actor".
 
 ### Design pass (D-085; PRs #60, #61, #63, #65, #66, #71, #73, #77)
 

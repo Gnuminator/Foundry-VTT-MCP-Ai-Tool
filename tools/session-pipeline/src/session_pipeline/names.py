@@ -134,7 +134,38 @@ class NameSuggester:
     session's own frequent words, ``--ordinary-words`` and the shipped Danish and English lists,
     except words that are part of a known name), the word is at least ``min_len`` letters, and no
     other known name scores almost as well (ambiguity). Every other hit stays a suggestion.
+
+    Glued names: the recogniser sometimes writes a name and its neighbouring word as one word
+    ("stratser" for "Strahd ser"). A word that is neither a name nor an ordinary word is split
+    into a name part and an ordinary word (either order). It is fixed automatically only when
+    the name part is a known name or a rule's wrong spelling exactly (``aliases``) and the other
+    part is not a Danish ending or prefix that would turn a real word apart ("Barovianer" is not
+    "Barovia ner"); every other glued hit stays a suggestion.
     """
+
+    # Short words a name is often glued to. The shipped lists only hold words of 4 letters or
+    # more, and these are exactly the neighbours the recogniser swallows.
+    GLUED_SHORT_WORDS = frozenset(
+        {
+            # Danish
+            "at", "af", "da", "de", "du", "en", "er", "et", "fik", "fra", "får", "gik", "han",
+            "har", "hun", "jeg", "jo", "kan", "man", "med", "men", "nok", "nu", "og", "om", "op",
+            "os", "på", "ser", "sig", "sin", "sit", "skal", "som", "så", "til", "ud", "var", "vi",
+            "vil", "den", "det", "der", "dig", "mig", "ham", "dem", "ikke", "lige", "bare",
+            # English
+            "and", "the", "has", "had", "was", "is", "it", "he", "she", "we", "you", "to", "of",
+            "in", "on", "at", "can", "will", "did", "got", "saw", "sees", "says", "said", "but",
+        }
+    )
+    # Leftovers that are more likely an ending or a prefix than a separate word: suggest only.
+    GLUED_SUFFIXES = frozenset(
+        {"e", "s", "er", "en", "et", "ne", "ns", "es", "ers", "ens", "ets", "ner", "nes", "erne",
+         "ernes", "ene", "isk", "iske", "sk", "ske", "ish", "ian", "ians", "ing", "ings"}
+    )
+    GLUED_PREFIXES = frozenset(
+        {"u", "be", "for", "mis", "van", "gen", "sam", "af", "an", "op", "ud", "over", "under",
+         "anti", "un", "re", "pre", "non"}
+    )
 
     def __init__(
         self,
@@ -146,8 +177,16 @@ class NameSuggester:
         auto_threshold: float = 0.85,
         block_words: Iterable[str] | None = None,
         ambiguity_margin: float = 0.03,
+        aliases: Mapping[str, str] | None = None,
+        glued_min_len: int = 6,
     ) -> None:
         self.cutoff = cutoff
+        self.glued_min_len = glued_min_len
+        # Exact one-word forms for the glued-name split: a rule's wrong spelling -> its correct
+        # name, and every one-word form of a known name -> (display name, replacement).
+        self._aliases: dict[str, tuple[str, str]] = {
+            w.lower(): (c, c) for w, c in (aliases or {}).items() if " " not in w.strip()
+        }
         self.min_len = min_len
         self.min_partial_len = min_partial_len
         self.auto_threshold = auto_threshold
@@ -180,6 +219,40 @@ class NameSuggester:
         self._forms = {f for f, _, _ in self._targets}
         self._max_words = max((len(t.split()) for t, _, _ in self._targets), default=1)
         self._cache: dict[str, tuple[Suggestion, float] | None] = {}
+        for form, display, replacement in self._targets:
+            if " " not in form:
+                self._aliases.setdefault(form, (display, replacement))
+
+    def _glued(self, heard: str, start: int, end: int) -> Suggestion | None:
+        """A name glued to an ordinary word: the best split of ``heard``, or None."""
+        low = heard.lower()
+        if len(low) < self.glued_min_len or not low.isalpha() or low in self.block:
+            return None
+        best: tuple[tuple[int, float, int], Suggestion] | None = None
+        for k in range(2, len(low) - 1):
+            for name_first in (True, False):
+                name_part, other = (low[:k], low[k:]) if name_first else (low[k:], low[:k])
+                if len(name_part) < self.min_len or (
+                    other not in self.block and other not in self.GLUED_SHORT_WORDS
+                ):
+                    continue
+                exact = self._aliases.get(name_part)
+                if exact is not None:
+                    display, repl, score = exact[0], exact[1], 1.0
+                else:
+                    hit = self._best_plain(name_part)
+                    if hit is None:
+                        continue
+                    display, repl, score = hit[0].suggested, hit[0].replacement, hit[0].score
+                other_heard = heard[k:] if name_first else heard[:k]
+                replacement = f"{repl} {other_heard}" if name_first else f"{other_heard} {repl}"
+                affix = other in (self.GLUED_SUFFIXES if name_first else self.GLUED_PREFIXES)
+                blocked = "" if exact is not None and not affix else ("glued_affix" if affix else "glued")
+                # Prefer an exact name, then the higher score, then the longer name part.
+                rank = (1 if exact is not None else 0, score, len(name_part))
+                if best is None or rank > best[0]:
+                    best = (rank, Suggestion(heard, display, score, replacement, start, end, blocked))
+        return best[1] if best else None
 
     def _best_plain(self, phrase: str) -> tuple[Suggestion, float] | None:
         """Best hit and the best score of a *different* name (0.0 when there is none)."""
@@ -262,6 +335,14 @@ class NameSuggester:
                 if low in self._forms:
                     continue
                 hit = self._best(low)
+                glued = self._glued(window[0][0], window[0][2], window[0][3]) if n == 1 else None
+                # A split with an exact name beats a fuzzy match of the whole word, which would
+                # swallow the neighbour ("ogvallaki" is close to "Vallaki", but it is "og Vallaki").
+                if glued is not None and (hit is None or glued.score >= 1.0):
+                    if every or not any(o.heard == glued.heard for o in out):
+                        out.append(glued)
+                    used[i] = True
+                    continue
                 if hit is not None:
                     best, runner_up, matched = hit
                     heard = " ".join(w[0] for w in window)

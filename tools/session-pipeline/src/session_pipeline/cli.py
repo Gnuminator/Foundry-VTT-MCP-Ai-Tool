@@ -114,7 +114,14 @@ def run_merge(args: argparse.Namespace) -> int:
             (s.text for t in tracks for s in t.segments), args.ordinary_min_count
         )
     suggester = (
-        NameSuggester(names, ordinary, auto_threshold=args.auto_fix_threshold) if names else None
+        NameSuggester(
+            names,
+            ordinary,
+            auto_threshold=args.auto_fix_threshold,
+            aliases=rules.by_wrong if rules else None,
+        )
+        if names
+        else None
     )
     levels = levels_from_tracks({k: float(v) for k, v in _read_json(args.levels).items()}) if args.levels else None
 

@@ -134,3 +134,50 @@ def test_suggester_reports_a_repeated_misheard_word_once_per_text():
 def test_short_parts_of_multiword_names_are_not_matched_alone():
     s = NameSuggester(["Mage Hand"], set())
     assert s.suggest("mange") == []
+
+
+# Glued names: the recogniser writes a name and its neighbour as one word.
+
+
+def glued_suggester(**kw):
+    return NameSuggester(
+        ["Strahd", "Ireena Kolyana", "Barovia", "Vallaki"],
+        block_words={"siger", "stille", "alting"},
+        **kw,
+    )
+
+
+def test_glued_name_with_a_rule_spelling_is_fixed():
+    s = glued_suggester(aliases={"strat": "Strahd"})
+    text, applied, left = s.fix("og så stratser han ud af vinduet")
+    assert text == "og så Strahd ser han ud af vinduet"
+    assert [a.suggested for a in applied] == ["Strahd"] and left == []
+
+
+def test_glued_exact_name_both_orders():
+    s = glued_suggester()
+    assert s.fix("strahdsiger nej")[0] == "Strahd siger nej"
+    assert s.fix("ogvallaki brænder")[0] == "og Vallaki brænder"
+    assert s.fix("Ireenahar ret")[0] == "Ireena har ret"  # part of a multi-word name
+
+
+def test_glued_fuzzy_name_is_only_suggested():
+    s = glued_suggester()
+    text, applied, left = s.fix("stradser er her")
+    assert text == "stradser er her" and applied == []
+    assert left[0].replacement == "Strad ser" or left[0].suggested == "Strahd"
+    assert left[0].blocked == "glued"
+
+
+def test_glued_never_splits_an_ending_or_a_real_word():
+    s = glued_suggester()
+    text, applied, left = s.fix("barovianer og strahder")
+    assert text == "barovianer og strahder" and applied == []  # "ner" and "er": endings
+    assert {h.blocked for h in left} == {"glued_affix"}
+    assert s.fix("alting stille")[0] == "alting stille"  # ordinary words are never split
+    assert s.fix("ogsa")[0] == "ogsa"  # too short to split
+
+
+def test_glued_respects_upper_case():
+    s = glued_suggester(aliases={"strat": "Strahd"})
+    assert s.fix("STRATSER")[0] == "STRAHD SER"

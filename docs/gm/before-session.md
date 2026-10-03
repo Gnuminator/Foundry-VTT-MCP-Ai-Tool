@@ -32,6 +32,10 @@ addresses are today's Windows setup; they change when the tool moves to the Oran
       each switch; a message says what it turned on. **End session** turns off again what Ready
       turned on.
 
+- [ ] Once, before session 1 (only with the module Dice So Nice): pick the table's dice, **AI
+      Tool: The Veil** or **AI Tool: Neutral**, in Dice So Nice's settings. See
+      [Themed dice](features.md#themed-dice).
+
 ## Check what players will see
 
 - [ ] Scenes tab (map icon), click the scene you start on, **Basics** tab: give it a **Navigation

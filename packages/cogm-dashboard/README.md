@@ -32,7 +32,7 @@ Everything else is strictly read-only.
 
 ## Architecture
 
-```
+```text
  Foundry VTT  ──►  MCP backend  ──(JSON-lines TCP 127.0.0.1:31414)──►  Co-GM dashboard
   (browser)        (bridge)              control channel                   │
                                                                            ├─ PollingGameFeed  (get-recent-events / get-combat-state / get-module-errors)
@@ -87,7 +87,7 @@ Make sure the **MCP bridge is running** (it owns the control channel on
 npm run dev
 ```
 
-Open **http://localhost:3000**.
+Open **<http://localhost:3000>**.
 
 Other scripts: `npm run build` (compile to `dist/`), `npm run start` (run the
 built server), `npm run typecheck`, `npm run lint`.

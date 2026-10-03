@@ -3,7 +3,7 @@
 The voice work as one Docker Compose project, so Docker Desktop shows it as **one group** and you can
 start, stop and read logs in its GUI.
 
-```
+```text
 fvtt-voice  (Docker Desktop > Containers)
  |- profile livekit     livekit, redis, egress, recorder   (from tools/livekit; "tls" adds local Caddy)
  |- profile transcribe  transcriber (GPU job), pipeline (CPU job)
@@ -29,16 +29,16 @@ to exist even when you only transcribe. Edit `FVTT_SESSIONS_DIR` in `.env` if yo
 
 ## Commands
 
-| Command | What it does |
-| ------- | ------------ |
-| `voice-stack.ps1 up livekit` | builds the recorder and starts livekit, redis, egress, recorder |
-| `voice-stack.ps1 up tls` | the same plus local TLS for the Foundry module (`wss://localhost:7443`) |
-| `voice-stack.ps1 up transcribe` | builds the `fvtt-transcriber` and `fvtt-session-pipeline` images |
-| `voice-stack.ps1 names <session>` | builds `<session>/names.txt` (the names Whisper listens for) from the Foundry world and `extra-names.txt` |
-| `voice-stack.ps1 transcribe <session>` | runs the transcriber, then the pipeline, and prints where the outputs are |
-| `voice-stack.ps1 status` | containers, GPU memory, images, sessions folder |
-| `voice-stack.ps1 logs [service]` | follow the logs |
-| `voice-stack.ps1 down` | stops and removes the project's containers; keeps the model cache volume |
+| Command                                | What it does                                                                                              |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `voice-stack.ps1 up livekit`           | builds the recorder and starts livekit, redis, egress, recorder                                           |
+| `voice-stack.ps1 up tls`               | the same plus local TLS for the Foundry module (`wss://localhost:7443`)                                   |
+| `voice-stack.ps1 up transcribe`        | builds the `fvtt-transcriber` and `fvtt-session-pipeline` images                                          |
+| `voice-stack.ps1 names <session>`      | builds `<session>/names.txt` (the names Whisper listens for) from the Foundry world and `extra-names.txt` |
+| `voice-stack.ps1 transcribe <session>` | runs the transcriber, then the pipeline, and prints where the outputs are                                 |
+| `voice-stack.ps1 status`               | containers, GPU memory, images, sessions folder                                                           |
+| `voice-stack.ps1 logs [service]`       | follow the logs                                                                                           |
+| `voice-stack.ps1 down`                 | stops and removes the project's containers; keeps the model cache volume                                  |
 
 `transcribe` options: `-Model <name|path>` (default `large-v3-turbo`), `-Force` (redo finished tracks),
 `-NoPipeline`, `-NoHotwords`, `-NoAutoFix`, `-Hotwords` (no `names.txt`: use `<session>/vocab.txt`).
@@ -61,7 +61,7 @@ use ports 7880 to 7882.
 All on the host, outside the repo, in `FVTT_SESSIONS_DIR` (default
 `%USERPROFILE%\Documents\FoundrySessions`). One subfolder per session:
 
-```
+```text
 FoundrySessions/
   livekit-recordings/<room>/<yyyy-mm-dd_HHMM>/   written by the livekit profile (one .ogg per person)
   2026-11-07/                                    a session folder: per-speaker audio, or a Craig .zip
@@ -107,12 +107,12 @@ and warns when more than 6 GB is already in use. The LiveKit services do not use
 
 ## Versions
 
-| Part | Version |
-| ---- | ------- |
-| Transcriber base image | `nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04` (CUDA 12.8, cuDNN 9, Python 3.12) |
-| faster-whisper / CTranslate2 | 1.2.1 / 4.8.2 (Blackwell, sm_120, runs on the RTX 5080) |
-| Extras (optional) | torch 2.11.0 (cu128), transformers 4.57.6 |
-| Pipeline base image | `python:3.12-slim` |
+| Part                         | Version                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| Transcriber base image       | `nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04` (CUDA 12.8, cuDNN 9, Python 3.12) |
+| faster-whisper / CTranslate2 | 1.2.1 / 4.8.2 (Blackwell, sm_120, runs on the RTX 5080)                          |
+| Extras (optional)            | torch 2.11.0 (cu128), transformers 4.57.6                                        |
+| Pipeline base image          | `python:3.12-slim`                                                               |
 
 ## What stays on the host
 

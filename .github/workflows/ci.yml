@@ -46,6 +46,12 @@ jobs:
         # (docs/design/USAGE-LOG.md); regenerate with `npm run usage:catalog`.
         run: npm run usage:catalog:check
 
+      - name: Docs lint and internal links
+        # markdownlint (.markdownlint-cli2.jsonc) and every relative link and #anchor in the
+        # tracked Markdown (scripts/check-links.mjs), I-081. docs/reference/tools.md is generated
+        # from the tool catalog; the mcp-server tests fail while it is stale (`npm run docs:tools`).
+        run: npm run docs:lint && npm run docs:links
+
       - name: Build (all workspaces)
         run: npm run build
 
@@ -113,6 +119,12 @@ jobs:
         # shared/src/usage-catalog.generated.ts lists every control that reports usage
         # (docs/design/USAGE-LOG.md); regenerate with `npm run usage:catalog`.
         run: npm run usage:catalog:check
+
+      - name: Docs lint and internal links
+        # markdownlint (.markdownlint-cli2.jsonc) and every relative link and #anchor in the
+        # tracked Markdown (scripts/check-links.mjs), I-081. docs/reference/tools.md is generated
+        # from the tool catalog; the mcp-server tests fail while it is stale (`npm run docs:tools`).
+        run: npm run docs:lint && npm run docs:links
 
       - name: Build (all workspaces)
         run: npm run build

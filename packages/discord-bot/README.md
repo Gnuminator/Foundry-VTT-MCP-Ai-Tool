@@ -12,7 +12,7 @@ encryption (DAVE) with `@discordjs/voice` 0.19.2 and `@snazzah/davey`.
 1. Create a bot application in the Discord Developer Portal. Put its token in
    `%APPDATA%\foundry-ai-tool\discord-bot.env`, never in the repo or a chat:
 
-   ```
+   ```ini
    DISCORD_TOKEN=...
    DISCORD_GUILD_ID=<your server id, so /record shows up at once>
    # FVTT_SESSIONS_DIR=C:/Users/<you>/Documents/FoundrySessions (the default)
@@ -22,7 +22,7 @@ encryption (DAVE) with `@discordjs/voice` 0.19.2 and `@snazzah/davey`.
    Channels, Connect, Send Messages and Use Slash Commands.
 3. Build and run (Node 22.12 or newer):
 
-   ```
+   ```bash
    npm run build -w @gnuminator/discord-bot
    npm start -w @gnuminator/discord-bot
    ```

@@ -44,7 +44,7 @@ a pair of well-defined wire contracts connect them.
 
 ### The four moving parts
 
-```
+```text
    ┌──────────────────┐   stdio (MCP)    ┌──────────────────────────────────────────────┐
    │  Claude Desktop / │◄────────────────►│  mcp-server: stdio wrapper (index.ts)         │
    │  any MCP client   │                  │  - speaks MCP to the client                   │
@@ -574,7 +574,7 @@ redaction is planned as M2 (`docs/design/CURSE-OF-STRAHD-PLAN.md`, feature 2).
 
 ### Flow A — Claude asks "what undead of CR 5 are in my compendiums?"
 
-```
+```text
 Claude → (MCP/stdio) → wrapper → (control 31414: call_tool list-creatures-by-criteria)
        → backend dispatch → CompendiumTools.handleListCreaturesByCriteria(args)
          │  looks up world systemId, gets DnD5eAdapter from the registry
@@ -596,7 +596,7 @@ correlating its own id.
 
 ### Flow B — Dashboard GM clicks "advance combat turn"
 
-```
+```text
 Browser → POST /api/tool {name:"advance-combat-turn", confirm:true}
         → server.ts classifyTool() → "write" → checks gmActionsEnabled ✓ and confirm ✓
         → McpControlClient.callTool("advance-combat-turn", args)

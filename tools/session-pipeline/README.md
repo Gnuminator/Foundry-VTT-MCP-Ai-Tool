@@ -4,7 +4,7 @@ The model-independent first part of the automatic session pipeline: it takes one
 per speaker (as faster-whisper writes it with word timestamps) and turns them into one
 speaker-labelled, cleaned timeline. Pure Python, no dependencies, deterministic, no AI tokens.
 
-```
+```text
 per-speaker JSON -> filters -> merge (interleave) -> echo filter -> name fixing -> timeline files
 ```
 
@@ -39,18 +39,18 @@ Typed model and adapter: `session_pipeline/model.py`.
 python -m session_pipeline merge <folder> --out <dir> --speakers speakers.json --vocab vocab.txt
 ```
 
-| Option | Meaning |
-| ------ | ------- |
-| `--speakers` | JSON, track id -> `{"player": "...", "character": "..."}` |
-| `--vocab` | terms separated by commas or lines (`# comment` and `=== heading ===` lines are skipped); used by the recitation filter and, unless `--names` is given, by the near-name suggester |
-| `--names` | known names only (`names.txt` from the `names` command; these are also what automatic name fixes aim at) |
-| `--rules` | JSON, correct spelling -> list of wrong spellings |
-| `--ordinary-words` | file of ordinary words the suggester must ignore |
-| `--ordinary-min-count` | words at least this frequent in the session also count as ordinary (default 3, 0 disables) |
-| `--levels` | JSON, track id -> RMS level in dB; turns on dropping of echo lines |
-| `--auto-fix` / `--no-auto-fix` | apply confident near-name fixes (default on); off leaves them as suggestions |
-| `--auto-fix-threshold` | minimum similarity for an automatic fix (default 0.85) |
-| `--glob` | which files to read (default `*.json`) |
+| Option                         | Meaning                                                                                                                                                                            |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--speakers`                   | JSON, track id -> `{"player": "...", "character": "..."}`                                                                                                                          |
+| `--vocab`                      | terms separated by commas or lines (`# comment` and `=== heading ===` lines are skipped); used by the recitation filter and, unless `--names` is given, by the near-name suggester |
+| `--names`                      | known names only (`names.txt` from the `names` command; these are also what automatic name fixes aim at)                                                                           |
+| `--rules`                      | JSON, correct spelling -> list of wrong spellings                                                                                                                                  |
+| `--ordinary-words`             | file of ordinary words the suggester must ignore                                                                                                                                   |
+| `--ordinary-min-count`         | words at least this frequent in the session also count as ordinary (default 3, 0 disables)                                                                                         |
+| `--levels`                     | JSON, track id -> RMS level in dB; turns on dropping of echo lines                                                                                                                 |
+| `--auto-fix` / `--no-auto-fix` | apply confident near-name fixes (default on); off leaves them as suggestions                                                                                                       |
+| `--auto-fix-threshold`         | minimum similarity for an automatic fix (default 0.85)                                                                                                                             |
+| `--glob`                       | which files to read (default `*.json`)                                                                                                                                             |
 
 Output in `--out`:
 
@@ -144,9 +144,9 @@ use small synthetic fixtures only.
 ## Credits
 
 The interleave in `merge.py` is adapted from the ideas of TASMAS (`assemble.py`),
-https://github.com/KaddaOK/TASMAS, used under the MIT License:
+<https://github.com/KaddaOK/TASMAS>, used under the MIT License:
 
-```
+```text
 MIT License
 
 Copyright (c) 2024 Kadda OK
@@ -171,7 +171,7 @@ SOFTWARE.
 ```
 
 The ordinary-word lists in `src/session_pipeline/data/words_da.txt` and `words_en.txt` are derived from
-the Leipzig Corpora Collection (Universitaet Leipzig), https://wortschatz.uni-leipzig.de, licensed CC BY
+the Leipzig Corpora Collection (Universitaet Leipzig), <https://wortschatz.uni-leipzig.de>, licensed CC BY
 4.0. Attribution: D. Goldhahn, T. Eckart, U. Quasthoff, "Building Large Monolingual Dictionaries at the
 Leipzig Corpora Collection: From 100 to 200 Languages", LREC 2012.
 

@@ -66,7 +66,7 @@ currently shaped around a Curse of Strahd campaign.
 | **Bridge** (MCP server)                   | MCP tools, guarded writes, the GM-only bridge vault, the Obsidian renderer                 | Node.js           |
 | **Co-GM dashboard**                       | The GM's control panel and the players' `/player` page                                     | Node.js + browser |
 
-```
+```text
   Claude / MCP client ──(MCP)──► bridge ──(socket)──► Foundry module ──► your game
                                    ▲  │
   Co-GM dashboard ──(control)──────┘  └──► Obsidian notes (one way)
@@ -165,7 +165,7 @@ adapter interface, so another system is an adapter away, but only the D&D 5e ada
 
 In Foundry VTT, **Add-on Modules**, **Install Module**, paste this manifest URL:
 
-```
+```text
 https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/module.json
 ```
 

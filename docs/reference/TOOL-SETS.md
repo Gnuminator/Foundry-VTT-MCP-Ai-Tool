@@ -28,7 +28,7 @@ The dashboard is not affected: it reads the bridge directly and always has every
 ## What each set holds
 
 The source of truth is `packages/mcp-server/src/tool-sets.ts`; a test fails when this page and the
-code disagree.
+code disagree. Each tool's description and parameters are in the [tool reference](tools.md).
 
 - **core:** `get-world-info`, `list-characters`, `get-character`, `get-character-entity`,
   `search-character-items`, `list-scenes`, `get-current-scene`, `get-token-positions`,
@@ -89,3 +89,5 @@ tool.
 - A new feature gets **one tool with an `action` parameter** (like `manage-world-items`), not a
   handful of small tools.
 - A prompt names only tools from its own set and core (checked by the prompt tests).
+- Run `npm run docs:tools` to regenerate the [tool reference](tools.md); CI fails while it is
+  stale.

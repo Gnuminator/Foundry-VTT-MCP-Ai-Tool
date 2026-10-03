@@ -4,10 +4,10 @@ The voiceover for the GM videos and feature clips (D-081): a script in Danish or
 voiced WAV with captions out. Everything runs on the PC's GPU with local voices; no paid service,
 no recorded lines.
 
-| Language | Voice | Model | Notes |
-| -------- | ----- | ----- | ----- |
-| Danish | `mic` (default), `nic` | CoRal Roest v3 Chatterbox 500M (OpenRAIL) | cloned from the model card's own sample clips |
-| English | `turbo` (default) | Chatterbox Turbo (MIT) | played at 0.92 speed; the listening test found it a little fast |
+| Language | Voice                  | Model                                     | Notes                                                           |
+| -------- | ---------------------- | ----------------------------------------- | --------------------------------------------------------------- |
+| Danish   | `mic` (default), `nic` | CoRal Roest v3 Chatterbox 500M (OpenRAIL) | cloned from the model card's own sample clips                   |
+| English  | `turbo` (default)      | Chatterbox Turbo (MIT)                    | played at 0.92 speed; the listening test found it a little fast |
 
 Both were the winners of the blind listening test on 2026-09-30. Both models add Resemble's
 inaudible Perth watermark. `voice: ref:C:\path\clip.wav` clones any 5 to 15 second clip instead
@@ -36,11 +36,12 @@ Markdown, one file per video and language (`intro.da.md`, `intro.en.md`):
 
 ```markdown
 ---
-lang: da            # or from the file name: intro.da.md
-voice: mic          # optional
-speed: 1.0          # optional
-sentence_gap: 0.25  # optional; also paragraph_gap, heading_gap, lead_in, tail (seconds)
+lang: da # or from the file name: intro.da.md
+voice: mic # optional
+speed: 1.0 # optional
+sentence_gap: 0.25 # optional; also paragraph_gap, heading_gap, lead_in, tail (seconds)
 ---
+
 # Before the session
 
 First paragraph. Each sentence is voiced on its own.
@@ -84,13 +85,13 @@ Whisper also mishears now and then, so a passed check is not a promise: listen t
 
 In `<out>\<script name>\`:
 
-| File | What |
-| ---- | ---- |
-| `<name>.wav` | the narration: 48 kHz, 24-bit mono, about -16 LUFS, limiter at -1.5 dBFS (true peak about -1.2) |
-| `<name>.srt`, `<name>.vtt` | captions from the real sentence timings (at most two lines of 42 characters) |
-| `<name>.chapters.txt` | chapter list for a YouTube description (only when the script has headings) |
-| `<name>.timing.json` | every sentence's start and end, shown and spoken text, take, seed and check result; the video editing step reads this |
-| `takes.json`, `.cache\` | which take each sentence uses, and the voiced clips |
+| File                       | What                                                                                                                  |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `<name>.wav`               | the narration: 48 kHz, 24-bit mono, about -16 LUFS, limiter at -1.5 dBFS (true peak about -1.2)                       |
+| `<name>.srt`, `<name>.vtt` | captions from the real sentence timings (at most two lines of 42 characters)                                          |
+| `<name>.chapters.txt`      | chapter list for a YouTube description (only when the script has headings)                                            |
+| `<name>.timing.json`       | every sentence's start and end, shown and spoken text, take, seed and check result; the video editing step reads this |
+| `takes.json`, `.cache\`    | which take each sentence uses, and the voiced clips                                                                   |
 
 A sentence's clip is cached under its voice, settings and spoken text, so the same sentence is
 never voiced twice. Clips of sentences that left the script are deleted on the next run. Audio
@@ -100,7 +101,7 @@ never goes into the repo.
 
 `narrate.ps1` reads `%APPDATA%\foundry-ai-tool\narration.env`:
 
-```
+```ini
 NARRATION_PYTHON=C:\path\to\venv\Scripts\python.exe
 HF_HOME=C:\path\to\hf-cache
 ```

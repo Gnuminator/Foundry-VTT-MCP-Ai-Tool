@@ -29,6 +29,9 @@
     "validate:manifest": "node scripts/validate-manifest.js",
     "version:sync": "node scripts/sync-version.mjs",
     "version:check": "node scripts/sync-version.mjs --check",
+    "docs:lint": "markdownlint-cli2",
+    "docs:links": "node scripts/check-links.mjs",
+    "docs:tools": "node scripts/docs-tools.mjs",
     "usage:catalog": "node scripts/usage-catalog.mjs",
     "usage:catalog:check": "node scripts/usage-catalog.mjs --check",
     "live:roundtrip": "node scripts/live-roundtrip.mjs",
@@ -57,6 +60,7 @@
     "knip": "^5.64.1",
     "lint-staged": "^16.4.0",
     "madge": "^8.0.0",
+    "markdownlint-cli2": "^0.23.3",
     "prettier": "^3.0.0",
     "typescript": "^5.0.0",
     "vitest": "^3.2.6"

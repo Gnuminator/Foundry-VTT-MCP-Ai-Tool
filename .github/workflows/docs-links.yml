@@ -1,0 +1,33 @@
+name: Docs external links
+
+# External links in the docs, once a week (I-081). Internal links and anchors are checked on
+# every push by `npm run docs:links` in CI; outside sites change on their own schedule, so a dead
+# external link shows up here instead of failing someone's PR.
+on:
+  schedule:
+    - cron: '17 6 * * 1' # Mondays 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  external-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check external links (lychee)
+        uses: lycheeverse/lychee-action@v2
+        with:
+          fail: true
+          # History is never rewritten; .claude holds Claude's own skills; the vault repo is private.
+          args: >-
+            --no-progress
+            --exclude-loopback
+            --exclude-path docs/history
+            --exclude-path .claude
+            --exclude 'github\.com/Gnuminator/obsidian-vault'
+            --accept 200,204,206,429
+            --max-retries 3
+            './**/*.md'

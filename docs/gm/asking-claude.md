@@ -116,8 +116,8 @@ reveals and hides count as destructive and need your explicit yes for that too.
 In a long fight the confirm step gets tiring. The setting **AI Tool: Live play, apply without
 confirming** (Game Settings, category **Foundry AI Tool**; off by default) skips it for damage,
 healing, conditions and resources that Claude plans. Each change still lands in Recent Changes with
-**Undo**. Your own clicks on the dashboard never need it: they apply at once with an **Undo**
-message (see [the dashboard guide](dashboard.md#the-confirm-window)).
+**Undo**. The dashboard's own buttons never need it: they apply at once with an **Undo** message
+(see [the dashboard guide](dashboard.md#the-confirm-window)).
 
 ### Feature switches
 

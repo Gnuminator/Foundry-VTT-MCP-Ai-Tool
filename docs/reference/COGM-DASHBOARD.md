@@ -87,8 +87,9 @@ the AI co-GM and module diagnostics, and the AI settings (pause, diagnostics AI,
 - Watching the game is **always read-only**.
 - Game-changing actions stay off until you flip the **GM Actions** switch (or click **Ready for
   session**, which turns it on for tonight; **End session** turns it off).
-- **Every change can be undone.** The GM's own non-destructive dashboard actions apply in one click
-  with an **Undo** message; plans from Claude or Obsidian always show a confirm window, and
+- **Every change can be undone.** The dashboard's purpose-built buttons apply non-destructive
+  changes in one click with an **Undo** message; plans typed by hand in the Tool Runner and plans
+  from Claude or Obsidian always show a confirm window, and
   **destructive actions** (deletes, reveals) require an explicit second confirm, so there are no
   accidental table-wipes.
 

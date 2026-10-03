@@ -1163,7 +1163,14 @@ function renderToolList(filter) {
 }
 
 // --- Tool detail / form ---
-async function openTool(name, prefill) {
+// A form opened by a purpose-built button (the combat strip's Damage and Condition, with the
+// selected rows as targets) applies its plan in one click; a form the GM fills in by hand in the
+// Tool Runner keeps the confirm window that shows the targets first (PB-17, D-086).
+let toolFormOneClick = null;
+async function openTool(name, prefill, { oneClick = false } = {}) {
+  toolFormOneClick = oneClick
+    ? { name, targets: JSON.stringify((prefill && prefill.targets) || null) }
+    : null;
   openDrawer();
   if (!toolsLoaded) await loadTools();
   const tool = findTool(name);
@@ -1619,7 +1626,12 @@ async function submitToolForm(tool) {
     return;
   }
   if (PLAN_TOOL.test(tool.name)) {
-    await planThenApply(tool.name, args, { showResultInDrawer: true });
+    // One click only while the targets are still the ones the button put in.
+    const oneClick =
+      !!toolFormOneClick &&
+      toolFormOneClick.name === tool.name &&
+      toolFormOneClick.targets === JSON.stringify(args.targets || null);
+    await planThenApply(tool.name, args, { showResultInDrawer: true, oneClick });
     return;
   }
   await runTool(tool.name, args, tool.mutates, { showResultInDrawer: true });
@@ -1948,10 +1960,11 @@ function renderHandoutsDrawer() {
           .join('');
 }
 async function revealNextHandout() {
-  await planThenApply('plan-page-reveal', {
-    action: 'reveal-next',
-    ...(activeSceneId ? { sceneId: activeSceneId } : {}),
-  });
+  await planThenApply(
+    'plan-page-reveal',
+    { action: 'reveal-next', ...(activeSceneId ? { sceneId: activeSceneId } : {}) },
+    { oneClick: true }
+  );
   void loadHandouts();
 }
 async function unqueueHandout(uuid) {
@@ -2643,7 +2656,7 @@ function renderParty() {
 async function partyAction(args) {
   const g = currentPartyGroup();
   if (!g) return;
-  await planThenApply('plan-party-change', { ...args, groupId: g.actorId });
+  await planThenApply('plan-party-change', { ...args, groupId: g.actorId }, { oneClick: true });
 }
 async function onPartyClick(e) {
   const open = e.target.closest('[data-party-open]');
@@ -2670,13 +2683,13 @@ async function onPartyClick(e) {
 }
 
 // --- Tarokka drawer (GM only) ---
-// A plan-* tool is a read; apply-planned-change then applies it. Every caller of
-// planThenApply is the GM's own click on the dashboard, so a plan with risk "write"
-// applies at once with an Undo toast (PB-17, D-086): the click is the confirmation.
-// A destructive plan (a handout or Tarokka reveal, a delete) still shows its diff in
-// the confirm modal with the destructive checkbox. Claude's plans, opened from a plan
-// link, never come through here and always get the confirm modal. Everything stays
-// behind GM Actions and the feature switches.
+// A plan-* tool is a read; apply-planned-change then applies it. A purpose-built
+// button passes oneClick: its plan with risk "write" applies at once with an Undo
+// toast (PB-17, D-086), the click being the confirmation. Everything else shows the
+// plan's diff in the confirm modal first: a destructive plan (a handout or Tarokka
+// reveal, a delete, with the destructive checkbox), a plan typed by hand in the Tool
+// Runner, and Claude's plans (opened from a plan link, they never come through here).
+// Everything stays behind GM Actions and the feature switches.
 const PLAN_TOOL = /^plan-/;
 async function planThenApply(planTool, args, opts = {}) {
   let plan;
@@ -2705,7 +2718,7 @@ async function planThenApply(planTool, args, opts = {}) {
   if (plan && Array.isArray(plan.targets) && plan.targets.length > 0) {
     applyOpts.diff = plan.targets.map(t => t.line);
   }
-  if (plan && plan.risk === 'write') applyOpts.skipConfirm = true;
+  if (opts.oneClick && plan && plan.risk === 'write') applyOpts.skipConfirm = true;
   await runTool('apply-planned-change', { planId: plan.planId }, 'write', applyOpts);
 }
 function openTarokka() {
@@ -2837,10 +2850,11 @@ async function onTarokkaClick(e) {
   if (go) return runLinkSearch(go.dataset.linkGo);
   const pick = e.target.closest('[data-link-pick]');
   if (pick) {
-    return planThenApply('plan-tarokka-links', {
-      position: pick.dataset.linkPick,
-      [linkField(pick.dataset.doc)]: pick.dataset.uuid,
-    });
+    return planThenApply(
+      'plan-tarokka-links',
+      { position: pick.dataset.linkPick, [linkField(pick.dataset.doc)]: pick.dataset.uuid },
+      { oneClick: true }
+    );
   }
   const reveal = e.target.closest('[data-reveal]');
   if (reveal) return showRevealForm(reveal.dataset.reveal);
@@ -2923,10 +2937,13 @@ els.combatActions.addEventListener('click', e => {
   }
   const names = selectedNames();
   if (names.length === 0) return;
-  // F5: damage, healing and conditions are planned, confirmed and undoable (plan-actor-change).
-  if (action === 'damage') void openTool('plan-actor-change', { action: 'damage', targets: names });
+  // F5: damage, healing and conditions are planned and undoable (plan-actor-change). The selected
+  // rows are the targets, so the form applies in one click (D-086).
+  if (action === 'damage') {
+    void openTool('plan-actor-change', { action: 'damage', targets: names }, { oneClick: true });
+  }
   if (action === 'condition') {
-    void openTool('plan-actor-change', { action: 'condition', targets: names });
+    void openTool('plan-actor-change', { action: 'condition', targets: names }, { oneClick: true });
   }
   if (action === 'save') void openTool('roll-saving-throws', { targets: names });
 });
@@ -2942,10 +2959,10 @@ els.drawerBackdrop.addEventListener('click', closeTarokka);
 els.tarokkaRefresh.addEventListener('click', () => void loadTarokka());
 els.tarokkaShow.addEventListener('change', renderTarokka);
 els.tarokkaImport.addEventListener('click', () =>
-  planThenApply('plan-tarokka-import', { source: 'tarokka-reading' })
+  planThenApply('plan-tarokka-import', { source: 'tarokka-reading' }, { oneClick: true })
 );
 els.tarokkaRoll.addEventListener('click', () =>
-  planThenApply('plan-tarokka-import', { source: 'builtin-roll' })
+  planThenApply('plan-tarokka-import', { source: 'builtin-roll' }, { oneClick: true })
 );
 els.tarokkaBody.addEventListener('click', e => void onTarokkaClick(e));
 els.btnPrep.addEventListener('click', openPrep);

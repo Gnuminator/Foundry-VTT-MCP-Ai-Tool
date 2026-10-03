@@ -112,7 +112,7 @@
   sheet, and bringing in a new character, with what the tool can and cannot do at each step; plus
   a cookbook recipe.
 
-### Voice tools (PRs #24, #26, #43, #45)
+### Voice tools (PRs #24, #26, #43, #45, #46, #48)
 
 - **Session notes (`tools/session-notes`):** the Claude writing step of the session pipeline on the
   subscription (`claude -p`): the transcript cut into scenes, notes in Danish and English with a
@@ -129,6 +129,13 @@
   is lined up with its source (PASS or CHECK). Fixed: the recorder dropped ordinary Opus packets
   that happen to end in 0xFAFA as still-encrypted (about one lost 20 ms per speaker every 20
   minutes).
+- Fixed: the transcriber no longer cuts a trailing `_<number>` from user names in our own
+  recorder's files (Craig's naming rule applied to them), and rehearsals keep their prepared source
+  copies out of the recording folder (PR #46).
+- **Session pipeline: glued names are split (PR #48):** "stratser" becomes "Strahd ser" with a
+  rules.json spelling; only exact names are fixed automatically, near matches and Danish endings
+  stay suggestions, and a near match no longer swallows the neighbouring word ("ogvallaki" was
+  "Vallaki", now "og Vallaki").
 
 ### Fixes (PRs #15 to #17)
 

@@ -24,7 +24,7 @@ import {
 } from '../test-support/fake-export-index.js';
 import { VaultStore } from '../vault/store.js';
 
-import type { LinkContext, MirrorSettings } from './mirror-common.js';
+import { versionedSig, type LinkContext, type MirrorSettings } from './mirror-common.js';
 import {
   ObsidianMirrorPump,
   RECONCILE_EVERY_MS,
@@ -222,11 +222,15 @@ describe('ObsidianMirrorPump: first run and incremental cycles', () => {
         'AI Tool/Bases/Player visible.base',
         'AI Tool/Bases/Scenes.base',
         'AI Tool/Bases/Story items.base',
+        // The git guard's ignore file for the Library and image copies (licensed content).
+        'AI Tool/.gitignore',
       ].sort()
     );
     const wolf = await read(P.wolf);
     expect(wolf).toContain(`fvtt_uuid: "${WOLF.uuid}"`);
-    expect(wolf).toContain(`fvtt_sig: "${fake.sigOf(WOLF.uuid)}"`);
+    // Notes keep the module's signature with the renderer version.
+    // The signature, then a hash of the other inputs (guard, Library).
+    expect(wolf).toContain(`fvtt_sig: "${versionedSig(fake.sigOf(WOLF.uuid))}.`);
     expect(await read(P.village)).toContain('Village text');
     expect(await read(P.status)).toContain('notes_journal_page: 2');
     expect(await read(P.status)).toContain('The mirror is on');

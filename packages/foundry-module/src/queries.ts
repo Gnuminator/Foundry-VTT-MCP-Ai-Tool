@@ -20,6 +20,12 @@ import {
   pagesForPlayers,
 } from './player-visibility.js';
 import { EXPORT_INDEX_QUERY, getExportIndex } from './export-index.js';
+import {
+  getLibraryDocuments,
+  getLibraryIndex,
+  LIBRARY_DOCUMENTS_QUERY,
+  LIBRARY_INDEX_QUERY,
+} from './library-index.js';
 import { getPreflightScan, PREFLIGHT_QUERY } from './preflight-scan.js';
 import { getPartyState, PARTY_STATE_QUERY } from './party-scan.js';
 import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
@@ -215,6 +221,15 @@ export class QueryHandlers {
       this.withGmGate('Failed to build the export index', () =>
         Promise.resolve(getExportIndex(data))
       )
+    );
+
+    // Obsidian Library (read-only): compendium content of the packs the GM picked. GM client
+    // only, like the export index (both queries refuse non-GM clients themselves).
+    handlers.set(`${modulePrefix}.${LIBRARY_INDEX_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to build the Library index', () => getLibraryIndex(data))
+    );
+    handlers.set(`${modulePrefix}.${LIBRARY_DOCUMENTS_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to read Library documents', () => getLibraryDocuments(data))
     );
 
     // Phase 2 & 3: Write operation queries

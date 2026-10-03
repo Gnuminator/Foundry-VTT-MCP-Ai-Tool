@@ -85,9 +85,14 @@ import { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 // (127.0.0.1:31414) the stdio wrapper and dashboard expect, but is injectable so
 // the backend can run as a standalone process on an alternate port for testing
 // or a future remote-hosting topology. See `standalone.ts` / DETACH-PLAN Phase 6.
-const CONTROL_HOST = process.env.MCP_CONTROL_HOST || '127.0.0.1';
+const CONTROL_HOST = process.env.MCP_CONTROL_HOST?.length
+  ? process.env.MCP_CONTROL_HOST
+  : '127.0.0.1';
 
-const CONTROL_PORT = parseInt(process.env.MCP_CONTROL_PORT || '31414', 10);
+const CONTROL_PORT = parseInt(
+  process.env.MCP_CONTROL_PORT?.length ? process.env.MCP_CONTROL_PORT : '31414',
+  10
+);
 
 // When the Foundry link is disabled (MCP_FOUNDRY_LINK=off) the backend serves the
 // control channel ONLY — it does not bind the Foundry connector (WS 31415 / WebRTC
@@ -377,6 +382,7 @@ async function startBackend(): Promise<void> {
       vaultDirSet: Boolean(obsidianVaultDir),
       openBase: mirrorEnv.openBase,
       pollMs: mirrorEnv.pollMs,
+      foundryUrl: mirrorEnv.foundryUrl,
     },
     logger,
   });
@@ -494,6 +500,7 @@ async function startBackend(): Promise<void> {
         logger,
         pollMs: mirrorEnv.pollMs,
         openBase: mirrorEnv.openBase,
+        foundryUrl: mirrorEnv.foundryUrl,
       });
       mirrorPump.start();
     }
@@ -674,7 +681,7 @@ async function startBackend(): Promise<void> {
 // This prevents Claude Desktop from seeing a "server closed" error
 const hasLock = acquireLock();
 
-void (async function main() {
+void (async function main(): Promise<void> {
   if (!hasLock) {
     // Spawned by a wrapper (one per Claude Desktop tool-set entry): exit, the wrapper connects to
     // the backend that holds the lock.

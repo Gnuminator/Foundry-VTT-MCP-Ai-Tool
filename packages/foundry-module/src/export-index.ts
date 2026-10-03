@@ -9,10 +9,19 @@
  * client answers (even with `allowNonGmAccess` on). Everything here is a read.
  *
  * Never exported (design 1.7): page text of journals that are not opted in (the
- * `text` key does not exist on their pages), biographies and descriptions,
- * `flags`, `system` fields that are not listed below, HP value and temp HP,
- * conditions and effects, token lists and positions, image and asset paths,
- * chat, combat, settings, users beyond owner names, compendium content.
+ * `text` key does not exist on their pages), PC biographies, appearance and traits
+ * (a player character, or any actor a player owns, never gets a stat block), story
+ * item descriptions, `flags`, `system` fields that are not listed below, HP value and
+ * temp HP, conditions and effects, token lists, token art and positions, chat, combat,
+ * settings, users beyond owner names, compendium content (the Library queries in
+ * `library-index.ts` carry that).
+ *
+ * Deliberately exported since the Library (design 13), all of it GM-only data for the
+ * GM's own vault: an NPC's stat block (its feature texts and its NPC biography, as
+ * `statBlock`; built only on a full page, the signature uses a cheap proxy), the actor
+ * portrait path (`img`), the scene map path (`map`), the figure HTML of an image
+ * page of an opted-in journal, and `origin` (the absolute Foundry base URL including
+ * any route prefix, no trailing slash).
  *
  * The wire contract is owned by `shared/src/export-index.ts`. Its types are
  * imported (type-only imports vanish from the build); its runtime values are
@@ -64,6 +73,27 @@ import type {
   RulesTag,
   TokenDisposition,
 } from '@gnuminator/shared';
+import {
+  clip,
+  compare,
+  contentsOf,
+  cyrb53,
+  dig,
+  fitJsonBytes,
+  identifierOf,
+  jsonStringBytes,
+  nonEmpty,
+  num,
+  rec,
+  signature,
+  sourceName,
+  str,
+  maxTime,
+  timeOf,
+  utf8Bytes,
+  type Rec,
+} from './doc-read.js';
+import { buildStatBlock } from './stat-block.js';
 import { detectRulesVersion, readRulesTag } from './systems/dnd5e/rules-version.js';
 import {
   UNKNOWN_CREATURE,
@@ -114,85 +144,12 @@ export const EXPORT_INDEX_LIMITS = {
   pinsPerScene: 300,
   pagesPerJournal: 1000,
   holdersPerItem: 20,
+  statBlockBytes: 256 * 1024,
+  pathChars: 1024,
   worldCaps: { actor: 5000, scene: 1000, journal: 3000, item: 5000 },
 } as const;
 
 const LIMITS = EXPORT_INDEX_LIMITS;
-
-// ---------------------------------------------------------------------------
-// Small, safe readers over untyped Foundry documents (never `any`)
-// ---------------------------------------------------------------------------
-
-type Rec = Record<string, unknown>;
-
-function rec(value: unknown): Rec | null {
-  return value !== null && typeof value === 'object' ? (value as Rec) : null;
-}
-
-function str(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
-}
-
-function nonEmpty(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function num(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-/** Walk `keys` down through objects; `undefined` at the first gap. */
-function dig(value: unknown, ...keys: string[]): unknown {
-  let node: unknown = value;
-  for (const key of keys) {
-    const r = rec(node);
-    if (!r) return undefined;
-    node = r[key];
-  }
-  return node;
-}
-
-/** `collection.contents` (Foundry `Collection#contents`) as an array of objects. */
-function contentsOf(collection: unknown): Rec[] {
-  const contents = rec(collection)?.contents;
-  if (!Array.isArray(contents)) return [];
-  const out: Rec[] = [];
-  for (const entry of contents as unknown[]) {
-    const r = rec(entry);
-    if (r) out.push(r);
-  }
-  return out;
-}
-
-function compare(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-/** At most `nameChars` characters, never ending on half a surrogate pair. */
-function clip(text: string): string {
-  if (text.length <= LIMITS.nameChars) return text;
-  let end = LIMITS.nameChars;
-  const last = text.charCodeAt(end - 1);
-  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
-  return text.slice(0, end);
-}
-
-/** The document's stored name (`_source.name`), so an item's unidentified name never shows. */
-function sourceName(doc: Rec): string {
-  return clip(nonEmpty(dig(doc, '_source', 'name')) ?? str(doc.name) ?? '');
-}
-
-function timeOf(doc: unknown): number | null {
-  return num(dig(doc, '_stats', 'modifiedTime'));
-}
-
-function maxTime(values: ReadonlyArray<number | null>): number | null {
-  let best: number | null = null;
-  for (const value of values) {
-    if (value !== null && (best === null || value > best)) best = value;
-  }
-  return best;
-}
 
 const DOCUMENT_NAMES: Record<ExportKind, string> = {
   actor: 'Actor',
@@ -207,6 +164,27 @@ function uuidOf(doc: Rec, documentName: string, parentUuid?: string): string {
   if (own) return own;
   const id = str(doc.id) ?? '';
   return parentUuid ? `${parentUuid}.${documentName}.${id}` : `${documentName}.${id}`;
+}
+
+/**
+ * An image path worth copying into the vault: relative to Foundry's data root or an http(s)
+ * URL, at most `pathChars`; null for Foundry's placeholder icons (`icons/svg/...`) and blanks.
+ */
+export function imagePath(value: unknown): string | null {
+  const path = nonEmpty(value)?.trim() ?? null;
+  if (!path || path.length > LIMITS.pathChars) return null;
+  if (/^\/?icons\/svg\//i.test(path)) return null;
+  if (/^(data|blob|javascript):/i.test(path)) return null;
+  return path;
+}
+
+/** `&`, `<`, `>` and `"` as entities, for the small HTML an image page sends. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 // ---------------------------------------------------------------------------
@@ -272,74 +250,6 @@ function journalCategoriesSupported(): boolean {
 // ---------------------------------------------------------------------------
 // Hashing and sizes
 // ---------------------------------------------------------------------------
-
-/** cyrb53: a 53-bit string hash in a few lines of pure JS (Foundry has no hash helper). */
-function cyrb53(text: string): number {
-  let h1 = 0xdeadbeef;
-  let h2 = 0x41c6ce57;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text.charCodeAt(i);
-    h1 = Math.imul(h1 ^ ch, 2654435761);
-    h2 = Math.imul(h2 ^ ch, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
-  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
-  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
-}
-
-/** Signature of an entry's exported fields (built with a fixed key order). */
-function signature(fields: object): string {
-  return cyrb53(JSON.stringify(fields)).toString(36);
-}
-
-/** UTF-8 length of a string without allocating a buffer. */
-function utf8Bytes(text: string): number {
-  let bytes = 0;
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code < 0x80) {
-      bytes += 1;
-    } else if (code < 0x800) {
-      bytes += 2;
-    } else if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
-      const next = text.charCodeAt(i + 1);
-      if (next >= 0xdc00 && next <= 0xdfff) {
-        bytes += 4;
-        i += 1;
-      } else {
-        bytes += 3;
-      }
-    } else {
-      bytes += 3;
-    }
-  }
-  return bytes;
-}
-
-/** Bytes a string takes inside JSON (escapes count, the two quotes do not). */
-function jsonStringBytes(text: string): number {
-  return utf8Bytes(JSON.stringify(text)) - 2;
-}
-
-/** `text` cut to at most `limit` JSON bytes, never inside a surrogate pair. */
-function fitJsonBytes(text: string, limit: number): { content: string; truncated: boolean } {
-  if (jsonStringBytes(text) <= limit) return { content: text, truncated: false };
-  let low = 0;
-  let high = text.length;
-  while (low < high) {
-    const mid = (low + high + 1) >> 1;
-    if (jsonStringBytes(text.slice(0, mid)) <= limit) low = mid;
-    else high = mid - 1;
-  }
-  let end = low;
-  if (end > 0) {
-    const last = text.charCodeAt(end - 1);
-    if (last >= 0xd800 && last <= 0xdbff) end -= 1;
-  }
-  return { content: text.slice(0, end), truncated: true };
-}
 
 function makeClientId(): string {
   const bytes = new Uint8Array(8);
@@ -845,6 +755,8 @@ type ActorOnly = Pick<
   | 'sourceBook'
   | 'features'
   | 'notableItems'
+  | 'img'
+  | 'statBlock'
 >;
 
 /** Fields shared by every kind, without `modified` and `sig` (the signature is taken over the rest). */
@@ -874,16 +786,6 @@ function linkedName(value: unknown): string | null {
   return name.length > 0 ? name : null;
 }
 
-/** dnd5e `Item5e#identifier`: `system.identifier`, else the slugged name (`dnd5e.mjs:34741`). */
-function identifierOf(item: Rec): string {
-  const stored = nonEmpty(dig(item, 'system', 'identifier')) ?? nonEmpty(item.identifier);
-  if (stored) return stored;
-  return sourceName(item)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
 function classesOf(items: Rec[]): ExportActorEntry['classes'] {
   const subclasses = items.filter(item => item.type === 'subclass');
   return items
@@ -909,7 +811,33 @@ function creatureTypeOf(system: unknown): string | null {
   return nonEmpty(type?.custom) ?? (value === 'custom' ? null : value);
 }
 
-function actorFields(ctx: Context, c: Candidate): Omit<ExportActorEntry, 'modified' | 'sig'> {
+/**
+ * What the signature holds in place of an NPC's stat block: the actor's and each embedded item's
+ * modified time, plus the rules tag. Cheap, so an ids reconcile never builds a stat block just
+ * to hash it. Null when a document carries no modified time (then the stat block itself is
+ * hashed, which is correct and only costs time).
+ */
+function statBlockProxy(doc: Rec, items: Rec[]): object | null {
+  const own = timeOf(doc);
+  if (own === null) return null;
+  const times: Array<[string, number]> = [];
+  for (const item of items) {
+    const time = timeOf(item);
+    if (time === null) return null;
+    times.push([str(item.id) ?? '', time]);
+  }
+  times.sort((a, b) => compare(a[0], b[0]));
+  return { rules: rulesOf(doc), own, items: times };
+}
+
+interface ActorBuilt {
+  fields: Omit<ExportActorEntry, 'modified' | 'sig'>;
+  /** The fields the signature is taken over: the stat block replaced by its proxy. */
+  signed: object;
+}
+
+/** `withStatBlock` false (an ids page) leaves `fields.statBlock` null; the signature is the same. */
+function actorFields(ctx: Context, c: Candidate, withStatBlock: boolean): ActorBuilt {
   const doc = c.doc;
   const npc = doc.type === 'npc';
   const pc = doc.hasPlayerOwner === true;
@@ -924,10 +852,13 @@ function actorFields(ctx: Context, c: Candidate): Omit<ExportActorEntry, 'modifi
       ? sourceName(doc)
       : UNKNOWN_CREATURE;
 
-  return {
+  const hasStatBlock = npc && !pc;
+  const blockDoc = (): ExportActorEntry['statBlock'] =>
+    buildStatBlock(doc, rulesOf(doc), LIMITS.statBlockBytes);
+  const built = {
     ...commonFields(ctx, c, access, atLeast(access, 'observer'), true),
-    kind: 'actor',
-    actorType: npc ? 'npc' : 'character',
+    kind: 'actor' as const,
+    actorType: (npc ? 'npc' : 'character') as ExportActorEntry['actorType'],
     pc,
     owners: ctx.players
       .filter(user => permitted(doc, user, 'OWNER'))
@@ -958,7 +889,11 @@ function actorFields(ctx: Context, c: Candidate): Omit<ExportActorEntry, 'modifi
       .map(item => ({ name: sourceName(item), sourceUuid: sourceUuidOf(item) }))
       .sort((a, b) => compare(a.name, b.name) || compare(a.sourceUuid ?? '', b.sourceUuid ?? ''))
       .slice(0, LIMITS.notableItemsPerActor),
+    img: imagePath(doc.img),
   };
+  const statBlock = hasStatBlock && withStatBlock ? blockDoc() : null;
+  const proxy = hasStatBlock ? (statBlockProxy(doc, items) ?? statBlock ?? blockDoc()) : null;
+  return { fields: { ...built, statBlock }, signed: { ...built, statBlock: proxy } };
 }
 
 function noteLabel(note: Rec): string | null {
@@ -1004,6 +939,10 @@ function sceneFields(ctx: Context, c: Candidate): Omit<ExportSceneEntry, 'modifi
     });
 
   const navName = nonEmpty(doc.navName);
+  // Foundry 14 keeps the map on the scene's levels; `background` reads the first one.
+  const firstLevel = contentsOf(doc.levels)[0] ?? null;
+  const map =
+    imagePath(dig(doc, 'background', 'src')) ?? imagePath(dig(firstLevel, 'background', 'src'));
   return {
     ...commonFields(ctx, c, access, navigation && atLeast(access, 'limited'), false),
     kind: 'scene',
@@ -1016,6 +955,7 @@ function sceneFields(ctx: Context, c: Candidate): Omit<ExportSceneEntry, 'modifi
         }
       : null,
     pins,
+    map,
   };
 }
 
@@ -1079,6 +1019,18 @@ function journalFields(ctx: Context, c: Candidate): JournalBuilt {
   };
 }
 
+/** An image page as a small figure (its image and caption), so it gets a page note. */
+function imagePageHtml(page: Rec): { format: 'html'; content: string } | null {
+  const src = imagePath(page.src);
+  if (src === null) return null;
+  const caption = nonEmpty(dig(page, 'image', 'caption'));
+  const figcaption = caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : '';
+  return {
+    format: 'html',
+    content: `<figure><img src="${escapeHtml(src)}" alt="${escapeHtml(caption ?? '')}">${figcaption}</figure>`,
+  };
+}
+
 function pageText(page: Rec): { format: 'html' | 'markdown'; content: string } {
   const text = rec(page.text);
   if (num(text?.format) === markdownFormat()) {
@@ -1097,10 +1049,11 @@ function withPageText(built: JournalBuilt, stripAll: boolean): ExportPageEntry[]
   let used = 0;
   let exhausted = stripAll;
   return built.fields.pages.map((row, index) => {
-    if (row.type !== 'text') return row;
-    if (exhausted) return { ...row, text: null, textOmitted: 'budget' };
     const source = built.pageDocs[index];
-    const { format, content } = pageText(source ?? {});
+    const image = row.type === 'image' ? imagePageHtml(source ?? {}) : null;
+    if (row.type !== 'text' && image === null) return row;
+    if (exhausted) return { ...row, text: null, textOmitted: 'budget' };
+    const { format, content } = image ?? pageText(source ?? {});
     const fitted = fitJsonBytes(content, LIMITS.textPerPageBytes);
     const size = jsonStringBytes(fitted.content);
     if (used + size > LIMITS.textPerJournalBytes) {
@@ -1135,8 +1088,8 @@ function buildRow(ctx: Context, c: Candidate, mode: Mode): ExportEntry | ExportI
   let entry: ExportEntry;
   switch (c.kind) {
     case 'actor': {
-      const built = actorFields(ctx, c);
-      entry = { ...built, modified: c.time, sig: signature(built) };
+      const built = actorFields(ctx, c, mode !== 'ids');
+      entry = { ...built.fields, modified: c.time, sig: signature(built.signed) };
       break;
     }
     case 'scene': {
@@ -1168,6 +1121,29 @@ function buildRow(ctx: Context, c: Candidate, mode: Mode): ExportEntry | ExportI
 // ---------------------------------------------------------------------------
 // getExportIndex
 // ---------------------------------------------------------------------------
+
+/**
+ * The absolute base URL this client reaches Foundry at, including any route prefix and with no
+ * trailing slash (`https://host:30000` or `https://host/foundry`); the backend joins
+ * `${origin}/${path}` to fetch a data file. The prefix comes from `foundry.utils.getRoute('/')`
+ * (`common/utils/helpers.mjs:698`, which reads `ROUTE_PREFIX`); empty when `location` is
+ * missing or not http(s).
+ */
+export function foundryOrigin(): string {
+  const origin = str(dig(globalThis, 'location', 'origin'));
+  if (!origin || !/^https?:\/\//.test(origin)) return '';
+  let prefix = '';
+  const getRoute = dig(globalThis, 'foundry', 'utils', 'getRoute');
+  if (typeof getRoute === 'function') {
+    try {
+      const route = (getRoute as (path: string) => unknown)('/');
+      if (typeof route === 'string') prefix = new URL(route, origin).pathname;
+    } catch {
+      // keep the bare origin
+    }
+  }
+  return `${origin}${prefix}`.replace(/\/+$/, '');
+}
 
 /**
  * Build one page of the export index. GM clients only (design 1.6): a non-GM
@@ -1241,5 +1217,6 @@ export function getExportIndex(data: unknown): ExportIndexResponse | ExportIndex
     next: more && last ? `${last.kind}:${last.id}` : null,
     truncated: universe.truncated,
     buildMs: Math.round(now() - started),
+    origin: foundryOrigin(),
   };
 }

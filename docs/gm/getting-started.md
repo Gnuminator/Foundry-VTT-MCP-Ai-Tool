@@ -154,6 +154,24 @@ the tool built once, and a terminal; the [README](../../README.md#installation) 
    Desktop's configuration. For the dashboard's 📓 links, also set `OBSIDIAN_VAULT_NAME` (or
    `FOUNDRY_AI_OBSIDIAN_DIR`) in `packages/cogm-dashboard/.env`.
 
+### Monsters, spells and rules in Obsidian (the Library)
+
+Once the Foundry mirror is on, NPC notes show the full stat block and the portrait, scene notes
+show the map, and journal pages keep their tables and pictures. Ask Claude to add compendiums to
+the mirror's Library (`plan-obsidian-mirror` with `libraryPacks`, for example your monsters,
+spells, classes and feats) and the tool writes a note for every entry into `AI Tool/Library/`:
+monsters with stat blocks, spells, items, classes with their features by level, subclasses,
+species, backgrounds and feats. Pictures are copied into `AI Tool/Attachments/`.
+
+This is book content you bought, so it stays on your computer:
+
+- The tool writes a `.gitignore` that keeps `Library/` and `Attachments/` out of git.
+- If your vault is inside a git repository that would pick up the other mirror notes, the tool
+  leaves out stat blocks, page text and pictures there, and `AI Tool/Foundry/_status.md` says
+  how to fix it.
+- If the bridge runs on another computer than Foundry, set `FOUNDRY_AI_FOUNDRY_URL` to
+  Foundry's address so the pictures can be fetched.
+
 Each time you play, the order is simple: start Claude Desktop, start the dashboard
 (`npm run dev:cogm`), open Foundry and join as the GM, open the dashboard in your browser. The
 [before-session checklist](before-session.md) has the details.

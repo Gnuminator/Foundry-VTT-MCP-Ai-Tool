@@ -25,6 +25,7 @@
  */
 import { promises as fsp, type Stats } from 'fs';
 
+import { ATTACHMENTS_ROOT, LIBRARY_ROOT } from './licensed-guard.js';
 import { MIRROR_NOTE_TYPES, MIRROR_ROOT, pathKey, type ScannedNote } from './mirror-common.js';
 import { campaignDir, errorCode, errorMessage } from './note-writer.js';
 import { checkMarkdownOwnership, GENERATED_BY } from './ownership.js';
@@ -251,6 +252,8 @@ async function walk(dirFull: string, dirRel: string, depth: number, state: Walk)
       if (insideFence(rel)) state.takenPaths.add(pathKey(rel));
     } else if (stat.isDirectory()) {
       if (name.startsWith('.')) continue; // .trash, .obsidian, .git ...
+      // The Library and the image copies have their own scan (thousands of files, no mirror notes).
+      if (rel === LIBRARY_ROOT || rel === ATTACHMENTS_ROOT) continue;
       if (depth >= state.maxDepth) {
         state.limitsHit.add('depth');
         continue;

@@ -3,6 +3,20 @@
 
 import { humanClick, humanType } from './browser.mjs';
 
+/**
+ * Click a header button. The Tool Runner and the drawer buttons live in the Advanced
+ * menu (D2); open the menu first when the button is inside it and not on screen.
+ */
+export async function clickHeaderButton(page, selector, { human = false } = {}) {
+  const click = human ? l => humanClick(l) : l => l.click();
+  const btn = page.locator(selector);
+  if (!(await btn.isVisible()) && (await page.locator('#btn-advanced').isVisible())) {
+    await click(page.locator('#btn-advanced'));
+    await btn.waitFor({ state: 'visible' });
+  }
+  await click(btn);
+}
+
 /** Wait until the dashboard has loaded its tools and state. */
 export async function waitForDashboard(page) {
   await page.locator('#btn-gm').waitFor();
@@ -36,7 +50,9 @@ export async function setGmActions(page, on, { human = false } = {}) {
 export async function openToolForm(page, tool, fields = {}, { human = false } = {}) {
   const click = human ? l => humanClick(l) : l => l.click();
   const type = human ? (l, t) => humanType(l, t) : (l, t) => l.fill(t);
-  if (await page.locator('#tools-drawer').isHidden()) await click(page.locator('#btn-tools'));
+  if (await page.locator('#tools-drawer').isHidden()) {
+    await clickHeaderButton(page, '#btn-tools', { human });
+  }
   const search = page.locator('#tool-search');
   if (await search.isVisible()) {
     await search.fill('');
@@ -107,9 +123,9 @@ export function newestUndoButton(page) {
 
 /** Open a header drawer (Handouts, Prep, Pre-flight) and wait until it shows. */
 async function openDrawer(page, button, drawer, { human = false } = {}) {
+  // A drawer docked in the moment on screen (D2) is already visible.
   if (await page.locator(drawer).isVisible()) return;
-  if (human) await humanClick(page.locator(button));
-  else await page.locator(button).click();
+  await clickHeaderButton(page, button, { human });
   await page.locator(drawer).waitFor({ state: 'visible' });
 }
 

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Co-GM Dashboard</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./moments.css" />
     <link rel="stylesheet" href="./themes/veil.css" />
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
@@ -29,6 +30,32 @@
         <span class="status-pill" id="status-ai"> <span class="dot dot-grey"></span> AI: … </span>
       </div>
 
+      <nav class="moments" id="moments" aria-label="Moment of the evening">
+        <button
+          class="moment-tab"
+          data-moment="before"
+          data-track="dash.moment.before"
+          aria-pressed="false"
+        >
+          Before
+        </button>
+        <button
+          class="moment-tab"
+          data-moment="during"
+          data-track="dash.moment.during"
+          aria-pressed="false"
+        >
+          During
+        </button>
+        <button
+          class="moment-tab"
+          data-moment="after"
+          data-track="dash.moment.after"
+          aria-pressed="false"
+        >
+          After
+        </button>
+      </nav>
       <div class="controls">
         <div
           class="session-control"
@@ -59,70 +86,6 @@
         >
           ⚔ GM Actions: off
         </button>
-        <button
-          id="btn-tools"
-          class="btn"
-          data-track="dash.header.tools"
-          title="Open the tool runner (run any bridge tool)"
-        >
-          🛠 Tools
-        </button>
-        <button
-          id="btn-preflight"
-          class="btn"
-          data-track="dash.header.preflight"
-          title="Pre-flight check before the players join (GM only)"
-        >
-          ✈ Pre-flight
-        </button>
-        <button
-          id="btn-handouts"
-          class="btn"
-          data-track="dash.header.handouts"
-          title="Handout queue and who has seen what (GM only)"
-        >
-          📜 Handouts
-        </button>
-        <button
-          id="btn-prep"
-          class="btn"
-          data-track="dash.header.prep"
-          title="Session prep: last session, open threads, next session notes (GM only)"
-        >
-          📋 Prep
-        </button>
-        <button
-          id="btn-party"
-          class="btn"
-          data-track="dash.header.party"
-          title="The party: members at a glance, travel pace, combat and rests (GM only)"
-        >
-          🛡 Party
-        </button>
-        <button
-          id="btn-tarokka"
-          class="btn"
-          data-track="dash.header.tarokka"
-          title="Tarokka reading (GM only)"
-        >
-          🃏 Tarokka
-        </button>
-        <button
-          id="btn-pause"
-          class="btn"
-          data-track="dash.header.pause"
-          title="Pause / resume auto commentary"
-        >
-          ⏸ Pause
-        </button>
-        <button
-          id="btn-diag"
-          class="btn"
-          data-track="dash.header.diag-ai"
-          title="Toggle AI commentary on module errors"
-        >
-          🩺 Diag AI: on
-        </button>
         <label class="control-label" title="The look for this world; the players' page follows it">
           Theme
           <select id="select-theme" class="select" data-track="dash.header.theme">
@@ -138,28 +101,151 @@
             <option value="clear">Clear air</option>
           </select>
         </label>
-        <label class="control-label">
-          Tone
-          <select id="select-tone" class="select" data-track="dash.header.tone">
-            <option value="tactical">Tactical</option>
-            <option value="narrative">Narrative</option>
-          </select>
-        </label>
-        <label class="control-label">
-          Model
-          <select id="select-model" class="select" data-track="dash.header.model">
-            <option value="claude-opus-5-5">Opus 5.5</option>
-            <option value="claude-sonnet-5-5">Sonnet 5.5</option>
-            <option value="claude-haiku-4-5">Haiku 4.5</option>
-          </select>
-        </label>
+        <div class="advanced" id="advanced">
+          <button
+            id="btn-advanced"
+            class="btn"
+            data-track="dash.header.advanced"
+            aria-haspopup="true"
+            aria-expanded="false"
+          >
+            Advanced ▾
+          </button>
+          <div class="advanced-menu" id="advanced-menu" hidden>
+            <p class="menu-label">Panels</p>
+            <button
+              id="btn-preflight"
+              class="btn"
+              data-track="dash.header.preflight"
+              title="Pre-flight check before the players join (GM only)"
+            >
+              ✈ Pre-flight
+            </button>
+            <button
+              id="btn-prep"
+              class="btn"
+              data-track="dash.header.prep"
+              title="Session prep: last session, open threads, next session notes (GM only)"
+            >
+              📋 Prep
+            </button>
+            <button
+              id="btn-party"
+              class="btn"
+              data-track="dash.header.party"
+              title="The party: members at a glance, travel pace, combat and rests (GM only)"
+            >
+              🛡 Party
+            </button>
+            <button
+              id="btn-handouts"
+              class="btn"
+              data-track="dash.header.handouts"
+              title="Handout queue and who has seen what (GM only)"
+            >
+              📜 Handouts
+            </button>
+            <button
+              id="btn-tarokka"
+              class="btn"
+              data-track="dash.header.tarokka"
+              title="Tarokka reading (GM only)"
+            >
+              🃏 Tarokka
+            </button>
+            <p class="menu-label">Tools</p>
+            <button
+              id="btn-tools"
+              class="btn"
+              data-track="dash.header.tools"
+              title="Open the tool runner (run any bridge tool)"
+            >
+              🛠 Tools
+            </button>
+            <button
+              id="btn-show-ai"
+              class="btn"
+              data-track="dash.header.show-ai"
+              title="The AI co-GM: commentary and questions (needs an Anthropic API key)"
+            >
+              🧠 AI co-GM
+            </button>
+            <button
+              id="btn-show-diag"
+              class="btn"
+              data-track="dash.header.show-diagnostics"
+              title="Errors and warnings from Foundry modules"
+            >
+              🩺 Module diagnostics
+            </button>
+            <p class="menu-label">AI co-GM settings</p>
+            <button
+              id="btn-pause"
+              class="btn"
+              data-track="dash.header.pause"
+              title="Pause / resume auto commentary"
+            >
+              ⏸ Pause
+            </button>
+            <button
+              id="btn-diag"
+              class="btn"
+              data-track="dash.header.diag-ai"
+              title="Toggle AI commentary on module errors"
+            >
+              🩺 Diag AI: on
+            </button>
+            <label class="control-label">
+              Tone
+              <select id="select-tone" class="select" data-track="dash.header.tone">
+                <option value="tactical">Tactical</option>
+                <option value="narrative">Narrative</option>
+              </select>
+            </label>
+            <label class="control-label">
+              Model
+              <select id="select-model" class="select" data-track="dash.header.model">
+                <option value="claude-opus-5-5">Opus 5.5</option>
+                <option value="claude-sonnet-5-5">Sonnet 5.5</option>
+                <option value="claude-haiku-4-5">Haiku 4.5</option>
+              </select>
+            </label>
+          </div>
+        </div>
       </div>
     </header>
 
     <div class="link-banner" id="link-banner" role="alert" hidden></div>
     <div class="link-banner" id="version-banner" role="alert" hidden></div>
 
-    <main class="panes">
+    <main class="moment-views" id="moment-views">
+      <!-- Before the session: get ready, then see what the session needs. -->
+      <section class="moment" id="moment-before" aria-label="Before the session" hidden>
+        <div class="slot" data-slot="preflight"></div>
+        <div class="slot" data-slot="prep"></div>
+      </section>
+      <!-- During: Foundry is the table; this screen watches, remembers and can take back. -->
+      <section class="moment" id="moment-during" aria-label="During the session" hidden>
+        <div class="slot slot-strip" data-slot="strip"></div>
+        <div class="slot slot-feed" data-slot="feed"></div>
+        <div class="moment-side">
+          <div class="slot" data-slot="party"></div>
+          <div class="slot" data-slot="handouts"></div>
+          <div class="slot" data-slot="changes"></div>
+        </div>
+      </section>
+      <!-- After: what happened tonight. -->
+      <section class="moment" id="moment-after" aria-label="After the session" hidden>
+        <div class="slot" data-slot="prep"></div>
+        <div class="moment-side">
+          <div class="slot" data-slot="handouts"></div>
+          <div class="slot" data-slot="changes"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Panels a moment does not show wait here (app.js moves them). -->
+    <div id="parking" hidden>
       <!-- Combat tracker -->
       <section class="pane" id="pane-combat">
         <div class="pane-head">
@@ -193,37 +279,6 @@
         </div>
       </section>
 
-      <!-- AI commentary -->
-      <section class="pane" id="pane-ai">
-        <div class="pane-head">
-          <h2>Co-GM Commentary</h2>
-          <span class="pane-meta" id="ai-meta"></span>
-        </div>
-        <div class="pane-body" id="ai-body">
-          <p class="empty">The co-GM will chime in when something significant happens.</p>
-        </div>
-        <form class="ask-bar" id="ask-form" data-track="dash.ai.ask">
-          <input
-            id="ask-input"
-            class="ask-input"
-            type="text"
-            placeholder="Ask the co-GM… (e.g. who's in trouble?)"
-            autocomplete="off"
-          />
-          <button class="btn btn-primary" type="submit">Ask</button>
-        </form>
-      </section>
-
-      <!-- Module diagnostics -->
-      <section class="pane" id="pane-diagnostics">
-        <div class="pane-head">
-          <h2>Module Diagnostics</h2>
-          <span class="pane-meta" id="diag-meta">0 issues</span>
-        </div>
-        <div class="pane-body" id="diag-body">
-          <p class="empty">No module errors captured.</p>
-        </div>
-      </section>
       <!-- Recent guarded changes (plan/apply/undo) -->
       <section class="pane" id="pane-changes">
         <div class="pane-head">
@@ -242,7 +297,45 @@
           <p class="empty">No guarded changes yet.</p>
         </div>
       </section>
-    </main>
+    </div>
+
+    <!-- Advanced: the AI co-GM and module diagnostics, over the page when asked for. -->
+    <!-- AI commentary -->
+    <section class="pane overlay-pane" id="pane-ai" hidden>
+      <div class="pane-head">
+        <h2>Co-GM Commentary</h2>
+        <span class="pane-meta" id="ai-meta"></span>
+        <button class="icon-btn overlay-close" title="Close" aria-label="Close the AI co-GM">
+          ✕
+        </button>
+      </div>
+      <div class="pane-body" id="ai-body">
+        <p class="empty">The co-GM will chime in when something significant happens.</p>
+      </div>
+      <form class="ask-bar" id="ask-form" data-track="dash.ai.ask">
+        <input
+          id="ask-input"
+          class="ask-input"
+          type="text"
+          placeholder="Ask the co-GM… (e.g. who's in trouble?)"
+          autocomplete="off"
+        />
+        <button class="btn btn-primary" type="submit">Ask</button>
+      </form>
+    </section>
+    <!-- Module diagnostics -->
+    <section class="pane overlay-pane" id="pane-diagnostics" hidden>
+      <div class="pane-head">
+        <h2>Module Diagnostics</h2>
+        <span class="pane-meta" id="diag-meta">0 issues</span>
+        <button class="icon-btn overlay-close" title="Close" aria-label="Close module diagnostics">
+          ✕
+        </button>
+      </div>
+      <div class="pane-body" id="diag-body">
+        <p class="empty">No module errors captured.</p>
+      </div>
+    </section>
 
     <!-- GM Tool Runner drawer -->
     <div

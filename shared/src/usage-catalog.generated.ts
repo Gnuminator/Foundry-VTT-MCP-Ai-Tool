@@ -45,34 +45,10 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/app.js',
   },
   {
-    name: 'dash.combat.advance-turn',
-    kind: 'action',
-    surface: 'dashboard',
-    file: 'packages/cogm-dashboard/public/app.js',
-  },
-  {
     name: 'dash.combat.boss-prompts',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/index.html',
-  },
-  {
-    name: 'dash.combat.init-all',
-    kind: 'action',
-    surface: 'dashboard',
-    file: 'packages/cogm-dashboard/public/app.js',
-  },
-  {
-    name: 'dash.combat.init-missing',
-    kind: 'action',
-    surface: 'dashboard',
-    file: 'packages/cogm-dashboard/public/app.js',
-  },
-  {
-    name: 'dash.combat.init-npcs',
-    kind: 'action',
-    surface: 'dashboard',
-    file: 'packages/cogm-dashboard/public/app.js',
   },
   {
     name: 'dash.combat.reaction',
@@ -100,18 +76,6 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   },
   {
     name: 'dash.combat.selection-damage',
-    kind: 'action',
-    surface: 'dashboard',
-    file: 'packages/cogm-dashboard/public/app.js',
-  },
-  {
-    name: 'dash.combat.selection-init',
-    kind: 'action',
-    surface: 'dashboard',
-    file: 'packages/cogm-dashboard/public/app.js',
-  },
-  {
-    name: 'dash.combat.selection-save',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/app.js',

@@ -122,24 +122,19 @@ the normal setup they are greyed out or have no effect.
 
 ### Combat Tracker
 
-Shows the active combat: initiative, whose turn it is (highlighted), each combatant's HP bar and
-numbers, conditions, and death saves for anyone at 0 HP. Each row is tagged **PC**, **Enemy** or
-**NPC**. The top line shows the round and the number of combatants.
+A slim strip at the top of the **During** view. It shows the active combat: initiative, whose turn
+it is (highlighted), and each combatant's HP bar and numbers. Each row is tagged **PC**, **Enemy**
+or **NPC**. The top line shows the round and the number of combatants. Turns, initiative and saves
+stay in Foundry's own combat tracker.
 
-During a combat, with GM Actions on, a button row appears:
+What the strip adds is damage, healing and conditions on several combatants at once. With GM
+Actions on (**Ready for session** turns them on), click combatant rows to select them (click again
+to unselect). With one or more selected:
 
-- **Init** with **NPCs**, **All** or **Missing**: roll initiative for the NPCs, for everyone, or for
-  those who have none yet.
-- **⏭ Advance turn**: moves to the next combatant.
-
-With GM Actions on, click combatant rows to select them (click again to unselect). With one or
-more selected:
-
-- **Roll init**: rolls initiative for the selected.
 - **Damage / Heal**: opens the tool runner (`plan-actor-change`) with those names filled in. Pick
-  damage, healing or temp-hp and enter the amount (and the damage type, so resistances count).
+  damage, healing or temp-hp and enter the amount (and the damage type, so dnd5e counts
+  resistances, vulnerabilities and immunities).
 - **Condition**: the same, for a condition: pick it, and untick **active** to remove it.
-- **Roll save**: opens the tool runner to roll a saving throw for them.
 - **Clear**: unselects all.
 
 Fill in the amount and click the run button: it applies at once, because the targets are the rows
@@ -308,9 +303,9 @@ Each of the five positions shows:
 - **Reveal…**: type an optional page title and exactly what the players may read, then **Plan
   reveal…**. The players get only your text, never the card name.
 
-Import, new reading, link and reveal each make a plan and open the confirm window with the list of
-what will change. A reveal is destructive (the second step), because the table cannot unsee it.
-Every one of them shows up in Recent Changes and can be undone there.
+Import, new reading and link apply in one click, with an **Undo** message. A reveal opens the
+confirm window with the list of what will change and the destructive step, because the table
+cannot unsee it. Every one of them shows up in Recent Changes and can be undone there.
 
 ## The handout drawer (📜 Handouts)
 
@@ -365,7 +360,7 @@ choose **Set as Primary Party**. With more than one group, a list at the top pic
 - **Rest**: posts dnd5e's short or long rest card to chat. Each player clicks it to rest their
   own character, the same card Foundry's party sheet posts.
 
-Each button makes a plan and shows it in the confirm window. The actions need GM Actions on and
+Each button applies in one click, with an **Undo** message. The actions need GM Actions on and
 the module setting **AI Tool: Party (writes)** switched on. Every change lands in Recent Changes
 with Undo; a rest card can only be undone while nobody has rested from it (after that, delete the
 card in Foundry's chat). Claude uses the same actions with `get-party` and `plan-party-change`.

@@ -169,6 +169,7 @@
 /* ---- During: the turn order as a slim read-only strip ---- */
 .slot-strip #pane-combat .pane-body {
   display: flex;
+  flex-direction: row;
   gap: 0.5rem;
   overflow-x: auto;
   padding: 0.6rem 0.8rem;
@@ -184,9 +185,10 @@
 .slot-strip #pane-combat .conditions {
   display: none;
 }
-/* Running combat stays in Foundry: the action bar is not part of the strip. */
+/* Turns and initiative stay in Foundry; the strip's only actions are damage and a condition on
+   the selected combatants (app.js renderCombatActions). */
 .slot-strip #combat-actions {
-  display: none !important;
+  padding: 0.4rem 0.8rem;
 }
 
 /* ---- Advanced: the AI co-GM and module diagnostics over the page ---- */

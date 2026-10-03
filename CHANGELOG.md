@@ -120,6 +120,19 @@
   who went down" (dropped to 0 HP; the tool never knows who died). The GM guide "Asking Claude"
   has one table of all feature switches, including "AI Tool: Ownership (writes)".
 
+### Design pass (D-085; PRs #60, #61, #63)
+
+- **Themes (PR #60):** the dashboard and the players' page get a theme picked once per world by the
+  GM: Neutral (the README brand) or The Veil (the Curse of Strahd theme, with self-hosted OFL fonts
+  and a per-screen mist setting).
+- **First screen (PR #61):** the dashboard follows the evening. Before the session it shows
+  Pre-flight and Prep, during it the Live Feed with the party, handouts and recent changes beside
+  it, after it tonight's summary; the Tool Runner, the AI co-GM and diagnostics moved into an
+  Advanced menu.
+- **Ready for session (PB-17, PR #63):** one click in the Before view turns on Allow Write
+  Operations, the Handouts, Live play and Party switches and GM Actions; End session turns off
+  what it turned on. Dashboard only (bridge control method `session_switches`, never an MCP tool).
+
 ### Demo recordings (I-082; PRs #53, #57)
 
 - **Demo takes:** `npm run demo:take` resets the demo world, drives Edge with Playwright and records
@@ -155,7 +168,7 @@
   stay suggestions, and a near match no longer swallows the neighbouring word ("ogvallaki" was
   "Vallaki", now "og Vallaki").
 
-### Fixes (PRs #15 to #17, #55)
+### Fixes (PRs #15 to #17, #55, #59)
 
 - **Conditions are logged once.** Automated Conditions 5e mirrors dnd5e conditions as a second
   ActiveEffect, so the live feed and the play log showed every toggle twice (P-026). A matching
@@ -174,6 +187,9 @@
 - README: the intro no longer promises that the GM approves every change (D-077).
 - Fixed: queueing a handout page from the dashboard no longer shows "GM Actions are off" or
   "Can't load the plan" (the page was queued anyway) (PR #55).
+- Fixed: the dashboard no longer stops when the bridge's pre-flight answer has no checks list (it
+  shows an "unknown" check instead); the co-GM model picker lists Opus 5.5, Sonnet 5.5 and Haiku
+  4.5 (PR #59).
 
 ## v0.19.0 (released 2026-09-30): M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd) + Obsidian O4 mirrors + tool sets
 

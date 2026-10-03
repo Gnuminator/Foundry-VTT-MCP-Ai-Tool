@@ -120,7 +120,7 @@
   who went down" (dropped to 0 HP; the tool never knows who died). The GM guide "Asking Claude"
   has one table of all feature switches, including "AI Tool: Ownership (writes)".
 
-### Design pass (D-085; PRs #60, #61)
+### Design pass (D-085; PRs #60, #61, #63)
 
 - **Themes (PR #60):** the dashboard and the players' page get a theme picked once per world by the
   GM: Neutral (the README brand) or The Veil (the Curse of Strahd theme, with self-hosted OFL fonts
@@ -129,6 +129,9 @@
   Pre-flight and Prep, during it the Live Feed with the party, handouts and recent changes beside
   it, after it tonight's summary; the Tool Runner, the AI co-GM and diagnostics moved into an
   Advanced menu.
+- **Ready for session (PB-17, PR #63):** one click in the Before view turns on Allow Write
+  Operations, the Handouts, Live play and Party switches and GM Actions; End session turns off
+  what it turned on. Dashboard only (bridge control method `session_switches`, never an MCP tool).
 
 ### Demo recordings (I-082; PRs #53, #57)
 

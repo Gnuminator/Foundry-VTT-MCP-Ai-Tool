@@ -25,15 +25,16 @@ export interface DiceColorset {
 
 export const DICE_COLORSETS: readonly DiceColorset[] = [
   {
-    // The Veil: graphite-green dice in grey-green mist, the numbers in the lamp's gold.
+    // The Veil: pewter grey-green smoky glass with drifting mist, the numbers in the lamp's gold
+    // and silver edges (picked from four variants rendered on the test server).
     name: 'ai-tool-veil',
     description: 'AI Tool: The Veil',
     category: 'AI Tool',
     foreground: '#f2d88a',
-    background: '#323a37',
-    outline: '#050606',
-    edge: '#5e6b66',
-    texture: 'cloudy_2',
+    background: '#5e6b66',
+    outline: '#1a1d1c',
+    edge: '#c9cfca',
+    texture: 'cloudy',
     material: 'glass',
   },
   {

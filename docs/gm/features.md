@@ -100,13 +100,14 @@ GM Actions. **End session** turns off again what it turned on. See
 ## Themed dice
 
 - **What it does:** with the module **Dice So Nice** installed and enabled, two dice colour sets
-  match the dashboard's themes: **AI Tool: The Veil** (graphite-green dice in a misty glass, the
+  match the dashboard's themes: **AI Tool: The Veil** (smoky grey-green glass with drifting mist, the
   numbers in lamp gold) and **AI Tool: Neutral** (deep navy with blue-white numbers). Only the
   look of the 3D dice changes; rolls and the play log stay the same.
 - **Starts:** the sets are there as soon as Dice So Nice is; nobody uses them until they pick them.
 - **Turn it on when:** before session 1. To make one the table's default, open **Game Settings**,
-  **Configure Settings**, **Dice So Nice**, the dice appearance settings, and choose the set for
-  the world (category **AI Tool**). Each player can still choose their own dice there.
+  **Configure Settings**, **Dice So Nice**, click **Configure Dice Roles**, and in the **Basic** row
+  pick **AI Tool: The Veil** (or **AI Tool: Neutral**) in the **Theme** column. Each player can
+  still choose their own dice under **3D Dice Settings**.
 - **More:** the [before-session checklist](before-session.md#turn-on-what-tonight-needs).
 
 ## GM Actions

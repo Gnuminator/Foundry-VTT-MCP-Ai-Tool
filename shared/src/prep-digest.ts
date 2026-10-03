@@ -144,8 +144,12 @@ export interface PrepLastSession {
   pcDowns: number;
   npcKills: number;
   spellsCast: number;
-  /** Actor names that died (death events), in order, without repeats. */
-  deaths: string[];
+  /**
+   * Who dropped to 0 HP (the `death` session event), in order, without repeats; split into player
+   * characters and everyone else. Not who died: the tool never knows that, and a PC here may have
+   * got back up.
+   */
+  wentDown: { pcs: string[]; others: string[] };
   /** `summary`: at most 25 beats, the most recent kept; `last-session`: at most 200. */
   beats: PrepBeat[];
   beatsTruncated: boolean;

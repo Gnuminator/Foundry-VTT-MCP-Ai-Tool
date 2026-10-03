@@ -1886,7 +1886,10 @@ function prepOpenButton(journalId) {
 }
 function prepLastSession(last) {
   if (!last) return '<p class="empty">No play session recorded yet.</p>';
-  const deaths = Array.isArray(last.deaths) ? last.deaths : [];
+  // "Went down" = dropped to 0 HP; the tool never knows whether someone died.
+  const down = last.wentDown || {};
+  const pcsDown = Array.isArray(down.pcs) ? down.pcs : [];
+  const othersDown = Array.isArray(down.others) ? down.others : [];
   const handouts = Array.isArray(last.handoutsRevealed) ? last.handoutsRevealed : [];
   const scenes = Array.isArray(last.scenes) ? last.scenes : [];
   const beats = Array.isArray(last.beats) ? last.beats : [];
@@ -1904,7 +1907,8 @@ function prepLastSession(last) {
       'Downs',
       prepCount(last.pcDowns || 0, 'player character down', 'player character downs')
     ),
-    prepRow('Deaths', deaths.length > 0 ? deaths.join(', ') : 'None'),
+    prepRow('PCs who went down', pcsDown.length > 0 ? pcsDown.join(', ') : 'None'),
+    prepRow('NPCs who went down', othersDown.length > 0 ? othersDown.join(', ') : 'None'),
   ];
   const handoutRows =
     handouts.length === 0

@@ -227,7 +227,7 @@ describe('get-prep-digest', () => {
     expect(digest.openQuests?.map(q => q.name)).toEqual(['Find the Sunsword']);
   });
 
-  it('describes the latest session: numbering, scenes in first-visit order, deaths, beats', async () => {
+  it('describes the latest session: numbering, scenes in first-visit order, who went down, beats', async () => {
     await seedSessions();
     const digest = await makeTools().handleGetPrepDigest({});
     const last = digest.lastSession;
@@ -235,7 +235,8 @@ describe('get-prep-digest', () => {
       number: 2,
       label: expect.stringMatching(/ S02$/),
       startedAt: new Date(S2).toISOString(),
-      deaths: ['Zombie', 'Ireena'],
+      // Dropped to 0 HP, split by the play log's PC flag: Ireena is a PC, the zombie is not.
+      wentDown: { pcs: ['Ireena'], others: ['Zombie'] },
       beatsTruncated: false,
     });
     expect(last?.scenes).toEqual(['Village', 'Crypt']);

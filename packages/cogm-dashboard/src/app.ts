@@ -667,7 +667,13 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         client.callTool<T>(name, args ?? {}),
       gmActionsEnabled: settings.gmActionsEnabled,
       playerState: currentPlayerState(),
-    }).then(result => res.json(result));
+    })
+      .then(result => res.json(result))
+      .catch((error: unknown) => {
+        res.status(500).json({
+          error: error instanceof Error ? error.message : 'Pre-flight failed.',
+        });
+      });
   });
 
   // --- GM Actions: list + invoke bridge tools ----------------------------------

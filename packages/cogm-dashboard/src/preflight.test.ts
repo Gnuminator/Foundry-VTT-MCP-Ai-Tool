@@ -100,6 +100,19 @@ describe('runDashboardPreflight', () => {
     expect(result.checks[0]).toMatchObject({ id: 'bridge-checks', status: 'unknown' });
     expect(result.checks[0]?.detail).toContain('Unknown tool');
   });
+
+  it('never throws when the bridge answers without a checks list; not ready', async () => {
+    const { callTool } = tools({ bridge: { ready: true } as unknown as PreflightChecksResult });
+    const result = await runDashboardPreflight({
+      callTool,
+      gmActionsEnabled: false,
+      playerState: {},
+    });
+    expect(result.ready).toBe(false);
+    expect(result.checks[0]).toMatchObject({ id: 'bridge-checks', status: 'unknown' });
+    expect(result.checks[0]?.detail).toContain('without a list of checks');
+    expect(result.scan).toBeNull();
+  });
 });
 
 describe('GET /api/preflight', () => {
@@ -114,8 +127,8 @@ describe('GET /api/preflight', () => {
     server = null;
   });
 
-  async function start(): Promise<string> {
-    const { callTool } = tools();
+  async function start(bridge?: PreflightChecksResult): Promise<string> {
+    const { callTool } = tools(bridge ? { bridge } : {});
     const testConfig: Config = {
       ...config,
       auth: { ...config.auth, splitEnabled: true, gmToken: GM_TOKEN, playerToken: 'player-token' },
@@ -150,6 +163,21 @@ describe('GET /api/preflight', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { checks: Array<{ id: string }> };
     expect(body.checks.map(c => c.id)).toEqual(['foundry-link', 'gm-actions', 'player-page']);
+  });
+
+  it('survives a bridge answer without checks and keeps serving', async () => {
+    const base = await start({ ready: true } as unknown as PreflightChecksResult);
+    const headers = { 'X-CoGM-Token': GM_TOKEN };
+    const res = await fetch(`${base}/api/preflight`, { headers });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      ready: boolean;
+      checks: Array<{ id: string; status: string }>;
+    };
+    expect(body.ready).toBe(false);
+    expect(body.checks[0]).toMatchObject({ id: 'bridge-checks', status: 'unknown' });
+    // The process is still up: a second request is answered too.
+    expect((await fetch(`${base}/api/preflight`, { headers })).status).toBe(200);
   });
 
   it('refuses a player', async () => {

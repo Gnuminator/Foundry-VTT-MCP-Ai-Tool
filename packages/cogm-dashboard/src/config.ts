@@ -195,7 +195,7 @@ export const config: Config = {
   commentMinIntervalMs: readNumber('COMMENT_MIN_INTERVAL_MS', 20000),
   commentDebounceMs: readNumber('COMMENT_DEBOUNCE_MS', 1500),
   anthropicApiKey: readString('ANTHROPIC_API_KEY', ''),
-  anthropicModel: readString('ANTHROPIC_MODEL', 'claude-opus-4-8'),
+  anthropicModel: readString('ANTHROPIC_MODEL', 'claude-opus-5-5'),
   defaultTone: tone,
   maxEvents: readNumber('COGM_MAX_EVENTS', 80),
   commentMaxTokens: readNumber('COGM_COMMENT_MAX_TOKENS', 320),

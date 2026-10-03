@@ -30,6 +30,8 @@ export interface MirrorSettings {
   excludeFolderIds: string[];
   /** Default `DEFAULT_STORY_ITEM_TYPES`. */
   storyItemTypes: string[];
+  /** Compendium packs (`world.my-pack`, `dnd5e.spells`) whose content gets Library notes (default none). */
+  libraryPacks: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -59,6 +61,23 @@ export const MIRROR_FOLDERS = {
 } as const;
 export const MIRROR_STATUS_PATH = `${MIRROR_ROOT}/_status.md`;
 
+/**
+ * The renderer's version, appended to every signature the mirror and the Library store in
+ * `fvtt_sig` (`<sig>.r3`). Bumping it makes every note count as changed once, also across a
+ * restart, so a renderer change reaches every note. 2: stat blocks, images, readable enrichers;
+ * 3: a feature name the text already opens with is not repeated.
+ */
+export const MIRROR_RENDER_VERSION = 3;
+
+/**
+ * A module signature as the notes store it: with the renderer version and, optionally, a short
+ * hash of the other inputs that shape the note (the licensed-content guard, the Library packs
+ * and membership), so a change of those re-renders the notes once, also across a restart.
+ */
+export function versionedSig(sig: string, inputs = ''): string {
+  return `${sig}.r${MIRROR_RENDER_VERSION}${inputs ? `.${inputs}` : ''}`;
+}
+
 /** A note the scan found (section 2.1): anything with `generated_by`, a mirror `type` and `fvtt_uuid`, plus prep and stats notes that carry `fvtt_uuid`. */
 export interface ScannedNote {
   /** Campaign-relative path. */
@@ -82,6 +101,29 @@ export function pathKey(path: string): string {
   return path.normalize('NFC').toLowerCase();
 }
 
+/**
+ * Foundry's base URL in the form the module reports and `FOUNDRY_AI_FOUNDRY_URL` takes: http(s),
+ * an optional route prefix (`https://host/foundry`), no credentials, query, fragment or trailing
+ * slash. Returns the normalized form, or null when the value is not one.
+ */
+export function parseBaseUrl(value: string): string | null {
+  const text = value.trim();
+  if (text === '' || /[?#\s]/.test(text)) return null;
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  if (url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '') {
+    return null;
+  }
+  const prefix = url.pathname.replace(/\/+$/, '');
+  if (prefix.includes('//')) return null;
+  return `${url.origin}${prefix}`;
+}
+
 /** One link target as the pump resolves it (section 5). */
 export interface LinkTarget {
   /** Campaign-relative path of the mirror note, or null when the document exists but has no mirror note. */
@@ -90,6 +132,16 @@ export interface LinkTarget {
   name: string | null;
   /** Block id inside the note, without `^` (a page listed in a journal index note: `p-<pageId>`). */
   blockId?: string;
+}
+
+/** Library notes for compendium links (section 13); built by the pump from the Library index. */
+export interface LibraryLinks {
+  /** `Compendium.<pkg>.<pack>.<Type>.<id>` to its Library note (path null: in the index, no note) and name; null when unknown. */
+  byUuid(uuid: string): { notePath: string | null; name: string | null } | null;
+  /** Legacy `@Compendium[<pkg>.<pack>.<id or name>]`: the full uuid, or null. */
+  legacy(pack: string, idOrName: string): string | null;
+  /** A Library spell by exact name (stat block spells without a source), or null. */
+  spellByName?(name: string): string | null;
 }
 
 /** What the HTML/Markdown converter needs to rewrite links (C3; section 9 signatures). */
@@ -107,6 +159,12 @@ export interface LinkContext {
   findByName?(documentName: string, name: string): string | null;
   /** Campaign-relative path of the note being written. */
   fromPath: string;
+  /** Compendium links to Library notes (absent: compendium links open in Foundry). */
+  library?: LibraryLinks;
+  /** An image path from Foundry (`<img src>`) to the Markdown that embeds it, or null (then `[image: alt]`). */
+  image?(src: string, alt: string): string | null;
+  /** The document the text describes (`[[lookup @name]]`). */
+  selfName?: string | null;
 }
 
 /** Everything `renderMirrorNote` needs besides the entry (C4; built by the pump, C5). */
@@ -124,6 +182,15 @@ export interface MirrorRenderContext {
   statsNotePath(actorUuid: string): string | null;
   /** The GM's prep note (`npc-prep` etc., same `fvtt_uuid`), campaign-relative. */
   prepNotePath(uuid: string): string | null;
+  /** Compendium links to Library notes. */
+  library?: LibraryLinks;
+  /** A Foundry image path to the Markdown embed of its copy in the vault (optionally `width` px wide), or null (no copy). */
+  image?(src: string, alt: string, width?: number): string | null;
+  /**
+   * Licensed text and images stay out of world notes (git could pick them up, design 13.4): stat
+   * block bodies, opted-in page text, portraits and maps become one line pointing at the status.
+   */
+  withholdLicensed?: boolean;
 }
 
 export interface RenderedNote {
@@ -156,6 +223,33 @@ export interface MirrorStatus {
   keptDeleted: Array<{ path: string; uuid: string }>;
   truncated: ExportIndexResponse['truncated'];
   errors: Array<{ path: string; error: string }>;
+  /** The Library (compendium notes), or null when the mirror has not looked at it yet. */
+  library: MirrorLibraryStatus | null;
+  /** Image copies (attachments), or null before the first cycle. */
+  images: MirrorImagesStatus | null;
+  /** Whether world notes carry licensed text (stat blocks, page text, images), or null before the first cycle. */
+  licensedText: { allowed: boolean; reason: string | null } | null;
+}
+
+export interface MirrorLibraryStatus {
+  packs: string[];
+  missingPacks: string[];
+  counts: Record<string, number>;
+  pending: number;
+  lastRefreshAt: string | null;
+  skipped: Array<{ path: string; reason: string }>;
+  errors: Array<{ path: string; error: string }>;
+  /** Why the Library writes nothing (the git guard), or null. */
+  blocked: string | null;
+}
+
+export interface MirrorImagesStatus {
+  copied: number;
+  pending: number;
+  failed: Array<{ path: string; error: string }>;
+  blocked: string | null;
+  /** A note from the git guard (git not installed), or null. */
+  note: string | null;
 }
 
 export function emptyMirrorStatus(
@@ -173,6 +267,9 @@ export function emptyMirrorStatus(
     keptDeleted: [],
     truncated: [],
     errors: [],
+    library: null,
+    images: null,
+    licensedText: null,
   };
 }
 

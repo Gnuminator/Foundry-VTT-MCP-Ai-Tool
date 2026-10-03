@@ -104,6 +104,8 @@ export function pcEntry(
     playerAccess: 'owner',
     playerVisible: true,
     rules: '2024',
+    img: null,
+    statBlock: null,
     ...over,
   };
 }
@@ -136,6 +138,8 @@ export function npcEntry(
     features: [{ name: 'Bite', type: 'weapon' }],
     notableItems: [],
     rules: '2014',
+    img: null,
+    statBlock: null,
     ...over,
   };
 }
@@ -152,6 +156,7 @@ export function sceneEntry(
     navigation: false,
     journal: null,
     pins: [],
+    map: null,
     ...over,
   };
 }
@@ -310,7 +315,34 @@ export class FakeExportIndex {
 
   isConnected = (): boolean => this.connected;
 
+  /** Answers to the Library queries (default: no packs, an empty Library). */
+  library: (method: string, data: unknown) => unknown = method =>
+    method.endsWith('.getLibraryIndex')
+      ? {
+          success: true,
+          schema: 1,
+          worldId: this.worldId,
+          origin: '',
+          packs: [],
+          missing: [],
+          allPacks: [],
+          entries: [],
+          next: null,
+        }
+      : {
+          success: true,
+          schema: 1,
+          worldId: this.worldId,
+          documents: [],
+          missing: [],
+          deferred: [],
+        };
+
   query = async (method: string, data?: unknown): Promise<unknown> => {
+    if (method.endsWith('.getLibraryIndex') || method.endsWith('.getLibraryDocuments')) {
+      if (!this.connected) throw new Error('Foundry VTT module not connected');
+      return this.library(method, data);
+    }
     if (method !== EXPORT_INDEX_METHOD) throw new Error(`Unexpected query ${method}`);
     if (!this.connected) throw new Error('Foundry VTT module not connected');
     const request = structuredClone((data ?? {}) as ExportIndexRequest);

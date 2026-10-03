@@ -12,7 +12,10 @@
  *
  * Anything a player or the vault could see is covered by the canary test at the
  * end: secret strings are planted in every field the export must never carry,
- * and none may appear in the serialized response.
+ * and none may appear in the serialized response. What the Library lane deliberately
+ * exports (an NPC's stat block and its biography, the actor portrait path, the scene map
+ * path, an opted-in image page's figure) is planted with plain strings instead and has its
+ * own positive tests.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -361,6 +364,7 @@ const ACTOR_KEYS = [
   'folder',
   'hpMax',
   'id',
+  'img',
   'kind',
   'level',
   'modified',
@@ -376,6 +380,7 @@ const ACTOR_KEYS = [
   'size',
   'sourceBook',
   'species',
+  'statBlock',
   'tokenName',
   'uuid',
 ];
@@ -484,6 +489,8 @@ describe('getExportIndex: actor entries', () => {
         { name: 'Longsword +1', type: 'weapon' },
       ],
       notableItems: [{ name: 'Longsword +1', sourceUuid: `Item.${WORLD_SWORD}` }],
+      img: null,
+      statBlock: null,
     });
     expect(entry.sig).toMatch(/^[0-9a-z]+$/);
   });
@@ -513,6 +520,13 @@ describe('getExportIndex: actor entries', () => {
       creatureType: 'humanoid',
       sourceBook: 'MM',
       rules: '2014',
+      img: null,
+    });
+    // The stat block is the NPC's, built by stat-block.ts (its own tests cover the layout).
+    expect(entry.statBlock).toMatchObject({
+      rules: '2014',
+      tag: 'Humanoid (goblinoid), neutral evil',
+      truncated: false,
     });
   });
 
@@ -781,6 +795,7 @@ describe('getExportIndex: scene entries', () => {
       'id',
       'journal',
       'kind',
+      'map',
       'modified',
       'name',
       'navName',
@@ -809,6 +824,7 @@ describe('getExportIndex: scene entries', () => {
         pageUuid: `JournalEntry.${JOURNAL_ID}.JournalEntryPage.${PAGE_ID}`,
       },
       pins: [],
+      map: null,
     });
   });
 
@@ -1075,9 +1091,6 @@ describe('getExportIndex: journal entries', () => {
 });
 
 describe('getExportIndex: journal page text', () => {
-  const bodies = (entry: ExportJournalEntry): Array<string | null | undefined> =>
-    entry.pages.map(p => (p.text === undefined ? undefined : (p.text?.content ?? null)));
-
   beforeEach(() => {
     addPlayer('p1', 'Alice');
     addJournal({
@@ -1118,14 +1131,45 @@ describe('getExportIndex: journal page text', () => {
     });
   });
 
-  it('a page of another type has no text key even when the journal is opted in', () => {
+  it('an image page carries only a small figure, a page of another type has no text key', () => {
+    addJournal({
+      pages: [
+        page(id16('pg01'), { sort: 1, text: { content: '<p>Html body</p>' } }),
+        page(id16('pg02'), {
+          sort: 2,
+          type: 'image',
+          src: 'maps/x.webp',
+          image: { caption: 'A "map" <of> Vallaki & more' },
+        }),
+        page(id16('pg03'), { sort: 3, type: 'video', src: 'clips/x.webm' }),
+        page(id16('pg04'), { sort: 4, type: 'image', src: 'icons/svg/mystery-man.svg' }),
+      ],
+    });
     const entry = journalRow(
       ok({ kinds: ['journal'], includeText: { folderIds: [], journalIds: [JOURNAL_ID] } }),
       JOURNAL_ID
     );
-    expect(bodies(entry)).toEqual(['<p>Html body</p>', '# Source', undefined]);
-    expect(Object.keys(entry.pages[2] ?? {})).not.toContain('text');
-    expect(Object.keys(entry.pages[2] ?? {})).not.toContain('textOmitted');
+    expect(entry.pages[1]?.text).toEqual({
+      format: 'html',
+      content:
+        '<figure><img src="maps/x.webp" alt="A &quot;map&quot; &lt;of&gt; Vallaki &amp; more">' +
+        '<figcaption>A &quot;map&quot; &lt;of&gt; Vallaki &amp; more</figcaption></figure>',
+      truncated: false,
+    });
+    // A video page and an image page whose picture is only a placeholder icon: no text key.
+    for (const index of [2, 3]) {
+      expect(Object.keys(entry.pages[index] ?? {})).not.toContain('text');
+      expect(Object.keys(entry.pages[index] ?? {})).not.toContain('textOmitted');
+    }
+  });
+
+  it('an image page of a journal that is not opted in has no text, so no src either', () => {
+    addJournal({
+      pages: [page(id16('pg01'), { sort: 1, type: 'image', src: 'maps/secret.webp' })],
+    });
+    const entry = journalRow(ok({ kinds: ['journal'] }), JOURNAL_ID);
+    expect(Object.keys(entry.pages[0] ?? {})).not.toContain('text');
+    expect(JSON.stringify(entry)).not.toContain('secret.webp');
   });
 
   it('opts in by folder, and by an ancestor folder, but not by a sibling folder', () => {
@@ -2140,6 +2184,12 @@ describe('getExportIndex: sig', () => {
     changing('an actor max HP changes', 'hero', w => void (w.hero.system.attributes.hp.max = 40)),
     changing('an actor AC changes', 'hero', w => void (w.hero.system.attributes.ac.value = 20)),
     changing('an actor ownership changes', 'hero', w => void (w.hero.ownership = { p1: 2 })),
+    changing('a portrait changes', 'hero', w => void (w.hero.img = 'portraits/new.webp')),
+    changing(
+      'a scene map changes',
+      'scene',
+      w => void (w.scene.background = { src: 'maps/new.webp' })
+    ),
     changing(
       'an actor moves into a folder',
       'hero',
@@ -2226,19 +2276,16 @@ describe('getExportIndex: sig', () => {
       'an embedded item description is edited',
       w => void ((w.hero.items.contents[0] as Doc).system.description = { value: 'Edited' })
     ),
-    quiet('portrait and token art change', w => {
-      w.hero.img = 'portraits/new.webp';
-      w.hero.prototypeToken.texture = { src: 'tokens/new.webp' };
-    }),
+    quiet(
+      'token art changes',
+      w => void (w.hero.prototypeToken.texture = { src: 'tokens/new.webp' })
+    ),
     quiet('a token moves and another arrives', w => {
       w.scene.tokens.get(id16('t1')).x = 900;
       w.scene.tokens.add(makeToken({ id: id16('t2'), name: 'Bat', x: 5 }));
     }),
     quiet('a wall is drawn', w => void w.scene.walls.add({ id: id16('w1'), c: [0, 0, 100, 100] })),
-    quiet('scene flags and background change', w => {
-      w.scene.flags = { other: { note: 'x' } };
-      w.scene.background = { src: 'maps/new.webp' };
-    }),
+    quiet('scene flags change', w => void (w.scene.flags = { other: { note: 'x' } })),
     quiet(
       'page text is edited',
       w => void (w.journal.pages.get(id16('pg01')).text = { content: 'Changed' })
@@ -2445,7 +2492,7 @@ describe('getExportIndex: canary', () => {
 
     const hero = addHero({
       folder,
-      img: 'CANARY_PORTRAIT.webp',
+      img: 'portraits/silvera.webp',
       flags: { canary: { note: 'CANARY_ACTOR_FLAG' } },
       effects: [
         makeEffect({ id: id16('eff'), name: 'CANARY_EFFECT', statuses: ['CANARY_STATUS'] }),
@@ -2501,7 +2548,7 @@ describe('getExportIndex: canary', () => {
           alignment: 'neutral evil',
           cr: 1,
           type: { value: 'humanoid', subtype: 'goblinoid' },
-          biography: { value: 'CANARY_NPC_BIOGRAPHY' },
+          biography: { value: '<p>Goblin lore.</p>' },
         },
         source: { book: 'MM', page: '166', rules: '2014' },
       },
@@ -2510,7 +2557,7 @@ describe('getExportIndex: canary', () => {
     addScene({
       img: 'CANARY_MAP.webp',
       flags: { canary: 'CANARY_SCENE_FLAG' },
-      background: { src: 'CANARY_BACKGROUND.webp' },
+      background: { src: 'maps/vallaki.webp' },
       _source: { background: { src: 'CANARY_SOURCE_BACKGROUND.webp' } },
       description: 'CANARY_SCENE_DESCRIPTION',
       tokens: [
@@ -2669,5 +2716,271 @@ describe('getExportIndex: canary', () => {
     const json = JSON.stringify(ok({}));
     expect(json).not.toContain('CANARY_OTHER_PLAYER');
     expect(json).not.toContain('Gamemaster');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// What the Library lane deliberately exports
+// ---------------------------------------------------------------------------
+
+describe('getExportIndex: stat block, portrait, map and origin', () => {
+  beforeEach(() => {
+    addPlayer('p1', 'Alice');
+  });
+
+  const scimitar = (): Doc =>
+    makeItem({
+      id: id16('scim'),
+      name: 'Scimitar',
+      type: 'weapon',
+      system: {
+        description: { value: '<p>Slash for 5 damage.</p>' },
+        activities: { contents: [{ activation: { type: 'action' } }] },
+        properties: new Set<string>(),
+      },
+    });
+
+  it('sends an NPC its stat block with feature texts and the NPC biography', () => {
+    addGoblin({
+      items: [scimitar()],
+      system: {
+        attributes: { hp: { value: 7, max: 21 }, ac: { value: 17 } },
+        traits: { size: 'sm' },
+        details: {
+          alignment: 'neutral evil',
+          cr: 1,
+          type: { value: 'humanoid', subtype: 'goblinoid' },
+          biography: { value: '<p>Goblin lore.</p>' },
+        },
+        source: { book: 'MM', page: '166', rules: '2014' },
+      },
+    });
+    const block = actorRow(ok({ kinds: ['actor'] }), id16('gob')).statBlock;
+    expect(block?.description).toBe('<p>Goblin lore.</p>');
+    expect(block?.sections).toEqual([
+      {
+        key: 'action',
+        label: 'Actions',
+        intro: null,
+        entries: [{ name: 'Scimitar', html: '<p>Slash for 5 damage.</p>' }],
+      },
+    ]);
+  });
+
+  it('never gives a player character a stat block, and its biography never leaves', () => {
+    addHero({
+      system: {
+        attributes: { hp: { value: 5, max: 31 }, ac: { value: 18 } },
+        traits: { size: 'med' },
+        details: { level: 5, biography: { value: 'PC_BIOGRAPHY_TEXT' } },
+      },
+    });
+    // An npc-type actor that a player owns is a player character too.
+    addGoblin({
+      id: id16('pcnpc'),
+      ownership: { p1: 3 },
+      system: {
+        attributes: { hp: { max: 9 }, ac: { value: 10 } },
+        traits: { size: 'sm' },
+        details: {
+          cr: 0,
+          type: { value: 'humanoid' },
+          biography: { value: 'OWNED_NPC_BIOGRAPHY' },
+        },
+      },
+    });
+    const response = ok({ kinds: ['actor'] });
+    expect(actorRow(response, HERO_ID).statBlock).toBeNull();
+    expect(actorRow(response, id16('pcnpc')).statBlock).toBeNull();
+    const json = JSON.stringify(response);
+    expect(json).not.toContain('PC_BIOGRAPHY_TEXT');
+    expect(json).not.toContain('OWNED_NPC_BIOGRAPHY');
+  });
+
+  it('an ids page carries no stat block but the same signature as the full entry', () => {
+    addGoblin({ items: [scimitar()] });
+    const full = ok({ kinds: ['actor'] });
+    const ids = ok({ kinds: ['actor'], idsOnly: true });
+    expect(actorRow(full, id16('gob')).statBlock).not.toBeNull();
+    expect(JSON.stringify(ids)).not.toContain('statBlock');
+    expect(sigOf(id16('gob'), { idsOnly: true })).toBe(actorRow(full, id16('gob')).sig);
+  });
+
+  it('exports the actor portrait path, and null for a placeholder icon', () => {
+    addHero({ img: 'portraits/silvera.webp' });
+    addGoblin({ img: 'icons/svg/mystery-man.svg' });
+    const response = ok({ kinds: ['actor'] });
+    expect(actorRow(response, HERO_ID).img).toBe('portraits/silvera.webp');
+    expect(actorRow(response, id16('gob')).img).toBeNull();
+  });
+
+  it('exports the scene map path from the background, else from the first level', () => {
+    addScene({ background: { src: 'maps/vallaki.webp' } });
+    expect(sceneRow(ok({ kinds: ['scene'] }), SCENE_ID).map).toBe('maps/vallaki.webp');
+    world.scenes.delete(SCENE_ID);
+    addScene({
+      background: { src: '' },
+      levels: { contents: [{ background: { src: 'https://cdn.example/level.webp' } }] },
+    });
+    expect(sceneRow(ok({ kinds: ['scene'] }), SCENE_ID).map).toBe('https://cdn.example/level.webp');
+    world.scenes.delete(SCENE_ID);
+    addScene({ background: { src: 'icons/svg/mystery-man.svg' } });
+    expect(sceneRow(ok({ kinds: ['scene'] }), SCENE_ID).map).toBeNull();
+  });
+
+  it('refuses image paths that are not plain files', () => {
+    addHero({ img: 'javascript:alert(1)' });
+    addGoblin({ img: `data:image/png;base64,${'A'.repeat(20)}` });
+    const response = ok({ kinds: ['actor'] });
+    expect(actorRow(response, HERO_ID).img).toBeNull();
+    expect(actorRow(response, id16('gob')).img).toBeNull();
+  });
+
+  describe('origin', () => {
+    const setLocation = (origin: string | undefined): void => {
+      vi.stubGlobal('location', origin === undefined ? undefined : { origin });
+    };
+    const setRoute = (getRoute: unknown): void => {
+      (
+        globalThis as unknown as { foundry: { utils: Record<string, unknown> } }
+      ).foundry.utils.getRoute = getRoute;
+    };
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('is the location origin when Foundry has no route prefix', () => {
+      setLocation('http://localhost:30001');
+      setRoute((path: string) => path);
+      expect(ok({}).origin).toBe('http://localhost:30001');
+    });
+
+    it('includes the route prefix and has no trailing slash', () => {
+      setLocation('https://table.example');
+      setRoute(() => '/vtt/');
+      expect(ok({}).origin).toBe('https://table.example/vtt');
+      setRoute(() => '/a/b/');
+      expect(ok({}).origin).toBe('https://table.example/a/b');
+    });
+
+    it('falls back to the bare origin when getRoute is missing, throws or answers nonsense', () => {
+      setLocation('http://localhost:30001/');
+      setRoute(undefined);
+      expect(ok({}).origin).toBe('http://localhost:30001');
+      setRoute(() => {
+        throw new Error('boom');
+      });
+      expect(ok({}).origin).toBe('http://localhost:30001');
+      setRoute(() => 42);
+      expect(ok({}).origin).toBe('http://localhost:30001');
+    });
+
+    it('is empty without an http location', () => {
+      setLocation(undefined);
+      expect(ok({}).origin).toBe('');
+      setLocation('null');
+      expect(ok({}).origin).toBe('');
+    });
+  });
+});
+
+describe('getExportIndex: NPC signature', () => {
+  let npc: Doc;
+  let biographyReads: number;
+
+  beforeEach(() => {
+    addPlayer('p1', 'Alice');
+    biographyReads = 0;
+    const details: Record<string, unknown> = {
+      alignment: 'neutral evil',
+      cr: 1,
+      type: { value: 'humanoid', subtype: 'goblinoid' },
+    };
+    Object.defineProperty(details, 'biography', {
+      enumerable: true,
+      get: () => {
+        biographyReads += 1;
+        return { value: '<p>Lore.</p>' };
+      },
+    });
+    npc = addGoblin({
+      ...stats(200, 100),
+      items: [
+        makeItem({
+          id: id16('scim'),
+          name: 'Scimitar',
+          type: 'weapon',
+          ...stats(150),
+          system: {
+            description: { value: '<p>Slash.</p>' },
+            activities: { contents: [{ activation: { type: 'action' } }] },
+            properties: new Set<string>(),
+          },
+        }),
+      ],
+      system: {
+        attributes: { hp: { value: 21, max: 21 }, ac: { value: 17 } },
+        traits: { size: 'sm' },
+        details,
+        source: { book: 'MM', page: '166', rules: '2014' },
+      },
+    });
+  });
+
+  it('does not build the stat block for an ids page', () => {
+    // Creating the mock document read the biography once (it clones its source).
+    biographyReads = 0;
+    ok({ kinds: ['actor'], idsOnly: true });
+    expect(biographyReads).toBe(0);
+    ok({ kinds: ['actor'] });
+    expect(biographyReads).toBeGreaterThan(0);
+  });
+
+  it('stays the same while the actor and its items are unchanged, in every mode', () => {
+    const before = sigOf(id16('gob'));
+    expect(sigOf(id16('gob'))).toBe(before);
+    expect(sigOf(id16('gob'), { idsOnly: true })).toBe(before);
+  });
+
+  it('moves when the actor modified time moves', () => {
+    const before = sigOf(id16('gob'));
+    npc._stats = { createdTime: t(100), modifiedTime: t(900) };
+    expect(sigOf(id16('gob'))).not.toBe(before);
+  });
+
+  it('moves when an embedded item changes, is added or is deleted', () => {
+    const before = sigOf(id16('gob'));
+    (npc.items as MockCollection<Doc>).get(id16('scim'))._stats = { modifiedTime: t(800) };
+    const edited = sigOf(id16('gob'));
+    expect(edited).not.toBe(before);
+    (npc.items as MockCollection<Doc>).add(
+      makeItem({ id: id16('bow'), name: 'Bow', type: 'weapon', ...stats(300) })
+    );
+    const added = sigOf(id16('gob'));
+    expect(added).not.toBe(edited);
+    (npc.items as MockCollection<Doc>).delete(id16('bow'));
+    expect(sigOf(id16('gob'))).toBe(edited);
+  });
+
+  it('moves when the rules tag changes', () => {
+    const before = sigOf(id16('gob'));
+    npc.system.source.rules = '2024';
+    expect(sigOf(id16('gob'))).not.toBe(before);
+  });
+
+  it('hashes the stat block itself when a document has no modified time', () => {
+    const bare = world.addActor({
+      id: id16('bare'),
+      name: 'Bare Goblin',
+      type: 'npc',
+      system: {
+        attributes: { hp: { max: 5 }, ac: { value: 10 } },
+        details: { cr: 0, type: { value: 'humanoid' }, biography: { value: '<p>One.</p>' } },
+      },
+    });
+    const before = sigOf(id16('bare'));
+    expect(sigOf(id16('bare'), { idsOnly: true })).toBe(before);
+    bare.system.details.biography = { value: '<p>Two.</p>' };
+    expect(sigOf(id16('bare'))).not.toBe(before);
   });
 });

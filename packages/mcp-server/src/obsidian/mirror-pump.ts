@@ -35,7 +35,21 @@
  *   whose page list was cut;
  * - the only bridge-vault inputs are the mirror settings and `gm/reveals.json`
  *   (the `revealed` flag per page, design 7.3).
+ *
+ * Licensed content (design 13): the Library (`AI Tool/Library/`, compendium notes, see
+ * `library-sync.ts`) and image copies (`AI Tool/Attachments/`, `attachments.ts`) are written
+ * only after `LicensedGuard` confirmed git ignores them, and world notes carry licensed text
+ * (stat blocks, opted-in page text, images) only when git ignores the whole mirror folder.
+ * World notes go first; the Library refresh, Library writes and image copies then get their own
+ * time slices and continue at the next cycle, so a first sync of thousands of entries spreads
+ * over several cycles. Only the very first Library refresh after a start runs before the world
+ * notes (they wait for its links instead of being written twice).
+ *
+ * What else shapes a world note (the guard's answers, the Library packs and membership) is a
+ * short hash appended to the signature in `fvtt_sig`, so a change of it re-renders the notes,
+ * also when it happened while the bridge was down.
  */
+import { createHash } from 'crypto';
 import { promises as fsp } from 'fs';
 import * as path from 'path';
 
@@ -66,6 +80,8 @@ import {
   MIRROR_ROOT,
   MIRROR_STATUS_PATH,
   pathKey,
+  versionedSig,
+  type LinkContext,
   type LinkTarget,
   type MirrorNoteType,
   type MirrorRenderContext,
@@ -74,6 +90,16 @@ import {
   type RenderedNote,
   type ScannedNote,
 } from './mirror-common.js';
+import { AttachmentStore, type Fetcher } from './attachments.js';
+import { LibrarySync, type LibrarySyncDeps } from './library-sync.js';
+import {
+  ATTACHMENTS_ROOT,
+  LIBRARY_ROOT,
+  LicensedGuard,
+  runGit,
+  type GitRunner,
+  type GuardResult,
+} from './licensed-guard.js';
 import { allocateNotePaths, pageNoteFolder, type PathRequest } from './mirror-paths.js';
 import {
   mirrorNoteType,
@@ -114,6 +140,27 @@ const UUID_BATCH = EXPORT_INDEX_LIMITS.uuidsPerRequest;
 const MAX_PAGES_PER_QUERY = 10_000;
 /** Status path for problems that belong to the campaign folder as a whole. */
 const CAMPAIGN_PATH = '.';
+/** Time per cycle for the Library refresh and fetches, then image copies (after the world notes). */
+const LICENSED_SLICE_MS = 30_000;
+const IMAGE_SLICE_MS = 20_000;
+/** The first Library refresh after a start, before the world notes (it goes on next cycle). */
+const FIRST_REFRESH_SLICE_MS = 20_000;
+/** The connector's own default for a module query. */
+const EXPORT_QUERY_TIMEOUT_MS = 10_000;
+
+function hash8(text: string): string {
+  return createHash('sha256').update(text).digest('hex').slice(0, 8);
+}
+
+/** The settings that shape Library notes (their links into world notes): all but `enabled` and the packs. */
+function libraryRenderKey(settings: MirrorSettings): string {
+  return JSON.stringify([
+    settings.kinds,
+    settings.text,
+    settings.excludeFolderIds,
+    settings.storyItemTypes,
+  ]);
+}
 
 type TopType = Exclude<MirrorNoteType, 'journal-page'>;
 
@@ -148,7 +195,22 @@ export interface ObsidianMirrorPumpOptions {
   pollMs: number;
   /** Validated `FOUNDRY_AI_OPEN_BASE`. */
   openBase: string;
+  /** Validated `FOUNDRY_AI_FOUNDRY_URL` (where images are fetched), or null to use the GM client's origin. */
+  foundryUrl?: string | null;
   now?: () => number;
+  /** Tests: git and HTTP stand-ins. */
+  git?: GitRunner;
+  fetcher?: Fetcher;
+}
+
+/** The licensed-content helpers of one world (design 13). */
+interface Licensed {
+  guard: LicensedGuard;
+  attachments: AttachmentStore;
+  library: LibrarySync;
+  guardResult: GuardResult | null;
+  /** The Library's last failure outside the sync's own error list, or null. */
+  libraryError: string | null;
 }
 
 /** Stops the cycle; nothing more is written (world changed, fence refused). */
@@ -269,7 +331,7 @@ async function exists(full: string): Promise<boolean> {
 // ---------------------------------------------------------------------------
 
 /** A usable `getExportIndex` page, or an Error to fail the cycle with. */
-function parseResponse(raw: unknown): ExportIndexResponse {
+function parseResponse(raw: unknown, sigInputs: string): ExportIndexResponse {
   if (!isRecord(raw)) throw new Error('getExportIndex returned nothing usable');
   if (raw.success !== true) {
     const reason = typeof raw.error === 'string' && raw.error ? raw.error : 'refused';
@@ -287,7 +349,18 @@ function parseResponse(raw: unknown): ExportIndexResponse {
     throw new Error('getExportIndex returned a malformed page');
   }
   const truncated = Array.isArray(raw.truncated) ? raw.truncated : [];
-  return { ...(raw as unknown as ExportIndexResponse), truncated };
+  // Notes store the signature with the renderer version and the other inputs, so a change of
+  // either re-renders them.
+  const entries = (raw.entries as unknown[]).map(entry =>
+    isRecord(entry) && typeof entry.sig === 'string'
+      ? { ...entry, sig: versionedSig(entry.sig, sigInputs) }
+      : entry
+  );
+  return {
+    ...(raw as unknown as ExportIndexResponse),
+    entries: entries as ExportIndexResponse['entries'],
+    truncated,
+  };
 }
 
 /** A reconcile row we can trust; any other row fails the whole reconcile (a lost row would trash a note). */
@@ -375,6 +448,12 @@ interface WorldState {
   truncated: ExportIndexResponse['truncated'];
   /** The lasting status facts last rendered into `_status.md`. */
   statusFingerprint: string | null;
+  /** Library, image copies and their git guard (created at the first cycle). */
+  licensed: Licensed | null;
+  /** The signature inputs of the last cycle's world notes (null before the first). */
+  sigInputs: string | null;
+  /** `libraryRenderKey` of the last settings (null before the first). */
+  libraryRenderKey: string | null;
 }
 
 function newWorldState(worldId: string): WorldState {
@@ -410,6 +489,9 @@ function newWorldState(worldId: string): WorldState {
     keptDeleted: [],
     truncated: [],
     statusFingerprint: null,
+    licensed: null,
+    sigInputs: null,
+    libraryRenderKey: null,
   };
 }
 
@@ -429,6 +511,12 @@ interface Cycle {
   created: number;
   /** Writes and trashes since the last yield. */
   sinceYield: number;
+  /** Appended to every export signature this cycle (`versionedSig`). */
+  sigInputs: string;
+  /** A reconcile ran to its end this cycle (unused images may be collected). */
+  reconciled: boolean;
+  /** The Library refresh already had its turn this cycle. */
+  libraryTried: boolean;
 }
 
 type WriteOutcome = 'written' | 'unchanged' | 'skipped' | 'error';
@@ -455,6 +543,9 @@ export class ObsidianMirrorPump {
   private readonly logger: ObsidianMirrorPumpOptions['logger'];
   private readonly pollMs: number;
   private readonly openBase: string;
+  private readonly foundryUrl: string | null;
+  private readonly git: GitRunner;
+  private readonly fetcher: Fetcher | undefined;
   private readonly now: () => number;
   private timer: NodeJS.Timeout | null = null;
   private inFlight: Promise<void> | null = null;
@@ -472,6 +563,9 @@ export class ObsidianMirrorPump {
     this.logger = options.logger;
     this.pollMs = options.pollMs;
     this.openBase = options.openBase;
+    this.foundryUrl = options.foundryUrl ?? null;
+    this.git = options.git ?? runGit;
+    this.fetcher = options.fetcher;
     this.now = options.now ?? ((): number => Date.now());
     this.current = this.freshStatus(null, false);
   }
@@ -525,13 +619,54 @@ export class ObsidianMirrorPump {
       if (!settings) return;
       const reconcile = this.reconcileNow(state);
       if (!reconcile && state.watermark === null) return; // waiting out the reconcile throttle
-      cycle = await this.openCycle(state, settings, reconcile);
-      if (reconcile) await this.reconcile(cycle);
-      else await this.incremental(cycle);
+      cycle = await this.openCycle(state, settings);
+      if (await this.prepareLicensed(cycle)) await this.worldNotes(cycle);
+      await this.workLicensed(cycle);
       await this.finish(cycle, null);
     } catch (error) {
       if (cycle) await this.finish(cycle, error);
       else this.recordFailure(error);
+    }
+  }
+
+  /**
+   * The signature inputs of world notes: the guard's answers, the Library packs and the Library
+   * membership (all of them change what a world note says or links to).
+   */
+  private sigInputsFor(cycle: Cycle): string {
+    const licensed = cycle.state.licensed;
+    const guard = licensed?.guardResult ?? null;
+    const membership = guard?.ok ? (licensed?.library.membershipHash ?? 'none') : 'off';
+    return hash8(
+      JSON.stringify([
+        guard?.licensedOk === true,
+        guard?.ok === true,
+        cycle.settings.libraryPacks,
+        membership,
+      ])
+    );
+  }
+
+  /** The world notes of this cycle: a reconcile when one is due, else an incremental pass. */
+  private async worldNotes(cycle: Cycle): Promise<void> {
+    const state = cycle.state;
+    const inputs = this.sigInputsFor(cycle);
+    if (state.sigInputs !== null && state.sigInputs !== inputs) {
+      // What shapes the notes changed: the reconcile finds every note with the old inputs.
+      state.reconcileDue = true;
+      state.bypassThrottle = true;
+    }
+    state.sigInputs = inputs;
+    cycle.sigInputs = inputs;
+    const reconcile = this.reconcileNow(state);
+    if (!reconcile && state.watermark === null) return; // waiting out the reconcile throttle
+    if (reconcile) {
+      // A fresh writer cache per reconcile (the writer holds this same object).
+      state.cache.written.clear();
+      cycle.reconcile = true;
+      await this.reconcile(cycle);
+    } else {
+      await this.incremental(cycle);
     }
   }
 
@@ -559,11 +694,19 @@ export class ObsidianMirrorPump {
       this.recover();
       return null;
     }
+    const libraryKey = libraryRenderKey(loaded.settings);
     if (changed) {
       state.forceAll = true;
       state.reconcileDue = true;
       state.bypassThrottle = true;
+      // Library notes re-render only for settings they use (pack changes reach them through
+      // the refresh and its membership).
+      if (state.libraryRenderKey !== null && state.libraryRenderKey !== libraryKey) {
+        state.licensed?.library.forceRender();
+      }
+      state.licensed?.guard.reset();
     }
+    state.libraryRenderKey = libraryKey;
     return loaded.settings;
   }
 
@@ -580,12 +723,7 @@ export class ObsidianMirrorPump {
     return now - state.lastReconcileAttemptAt >= RECONCILE_MIN_INTERVAL_MS;
   }
 
-  private async openCycle(
-    state: WorldState,
-    settings: MirrorSettings,
-    reconcile: boolean
-  ): Promise<Cycle> {
-    if (reconcile) state.cache = { written: new Map() };
+  private async openCycle(state: WorldState, settings: MirrorSettings): Promise<Cycle> {
     const root = campaignDir(this.vaultDir, state.worldId);
     const writer = new NoteWriter(root, this.vaultDir, state.worldId, state.cache);
     const cycle: Cycle = {
@@ -596,10 +734,13 @@ export class ObsidianMirrorPump {
       root,
       revealed: new Set(),
       deadline: this.now() + MIRROR_CYCLE_LIMIT_MS,
-      reconcile,
+      reconcile: false,
       allowChanges: state.scanComplete,
       created: 0,
       sinceYield: 0,
+      sigInputs: '',
+      reconciled: false,
+      libraryTried: false,
     };
     // Fences before anything else: a link or junction must not lead a write
     // or a trash move out of the vault.
@@ -681,8 +822,11 @@ export class ObsidianMirrorPump {
 
   /** One page; a page of another world resets the state and ends the cycle. */
   private async queryPage(cycle: Cycle, request: ExportIndexRequest): Promise<ExportIndexResponse> {
-    const raw: unknown = await this.foundry.query(EXPORT_INDEX_METHOD, request);
-    const response = parseResponse(raw);
+    const left = cycle.deadline - this.now();
+    const raw: unknown = await this.foundry.query(EXPORT_INDEX_METHOD, request, {
+      timeoutMs: Math.max(1_000, Math.min(EXPORT_QUERY_TIMEOUT_MS, left)),
+    });
+    const response = parseResponse(raw, cycle.sigInputs);
     if (response.worldId !== cycle.state.worldId) {
       if (this.state === cycle.state) this.state = null;
       throw new CycleAbort(
@@ -691,6 +835,9 @@ export class ObsidianMirrorPump {
       );
     }
     cycle.state.truncated = response.truncated;
+    if (typeof response.origin === 'string') {
+      cycle.state.licensed?.attachments.setOrigin(response.origin);
+    }
     return response;
   }
 
@@ -864,6 +1011,7 @@ export class ObsidianMirrorPump {
     // An incomplete scan is retried at the next allowed reconcile.
     state.reconcileDue = !complete;
     this.current.lastReconcileAt = new Date(state.lastReconcileAt).toISOString();
+    cycle.reconciled = complete;
   }
 
   // -------------------------------------------------------------------------
@@ -951,6 +1099,7 @@ export class ObsidianMirrorPump {
     if (result === 'trashed' || result === 'missing') {
       const map = note.type === 'journal-page' ? state.pages : state.notes;
       if (map.get(note.uuid)?.path === note.path) map.delete(note.uuid);
+      if (note.type !== 'journal-page') state.licensed?.attachments.dropOwner(note.uuid);
       state.taken.delete(pathKey(note.path));
       state.skipped.delete(note.path);
       state.errors.delete(note.path);
@@ -1130,6 +1279,9 @@ export class ObsidianMirrorPump {
       const matches = byName.get(`${documentName}\u0000${name}`) ?? [];
       return matches.length === 1 ? (matches[0] ?? null) : null;
     };
+    const licensed = state.licensed;
+    // Licensed text and images go into world notes only when git ignores the mirror folder.
+    const licensedOk = licensed?.guardResult?.licensedOk === true;
     return {
       openBase: this.openBase,
       notePath,
@@ -1139,7 +1291,192 @@ export class ObsidianMirrorPump {
       revealedPageUuids: cycle.revealed,
       statsNotePath: uuid => state.stats.get(uuid) ?? null,
       prepNotePath: uuid => state.prep.get(uuid) ?? null,
+      ...(licensed ? { library: licensed.library.links() } : {}),
+      ...(licensed && licensedOk
+        ? {
+            image: (src: string, alt: string, width?: number) =>
+              licensed.attachments.embed(src, alt, width),
+          }
+        : {}),
+      withholdLicensed: !licensedOk,
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // Licensed content: the Library and image copies (design 13)
+  // -------------------------------------------------------------------------
+
+  private licensedFor(state: WorldState, root: string): Licensed {
+    if (state.licensed) return state.licensed;
+    const licensed: Licensed = {
+      guard: new LicensedGuard(root, this.git, this.now),
+      attachments: new AttachmentStore(
+        root,
+        state.worldId,
+        this.foundryUrl,
+        this.fetcher,
+        this.now
+      ),
+      library: new LibrarySync(state.worldId),
+      guardResult: null,
+      libraryError: null,
+    };
+    state.licensed = licensed;
+    return licensed;
+  }
+
+  private libraryDeps(cycle: Cycle): LibrarySyncDeps {
+    const state = cycle.state;
+    const licensed = this.licensedFor(state, cycle.root);
+    const guard = licensed.guardResult;
+    // One render context per call (per refresh step or work slice), not per note.
+    let world: MirrorRenderContext | null = null;
+    return {
+      foundry: this.foundry,
+      vaultDir: this.vaultDir,
+      campaignRoot: cycle.root,
+      worldId: state.worldId,
+      openBase: this.openBase,
+      now: this.now,
+      linkContext: (fromPath: string, uuid: string, selfName: string): LinkContext => {
+        world ??= this.renderContext(cycle, new Map(), new Map());
+        const ctx = world;
+        const findByName = ctx.findByName;
+        return {
+          pageUuid: uuid,
+          openBase: this.openBase,
+          resolve: target => ctx.resolve(target),
+          ...(findByName
+            ? { findByName: (kind: string, name: string) => findByName(kind, name) }
+            : {}),
+          fromPath,
+          image: (src: string, alt: string) => licensed.attachments.embed(src, alt),
+          selfName,
+        };
+      },
+      image: (src: string, alt: string, width?: number) =>
+        licensed.attachments.embed(src, alt, width),
+      assertTrash: relPath => this.assertTrashFence(state.worldId, relPath),
+      trashBlocked: guard?.trashOk ? null : (guard?.trashReason ?? 'the git guard has not run'),
+      onOrigin: origin => licensed.attachments.setOrigin(origin),
+      owner: {
+        begin: uuid => licensed.attachments.beginOwner(uuid),
+        end: committed => licensed.attachments.endOwner(committed),
+        drop: uuid => licensed.attachments.dropOwner(uuid),
+      },
+    };
+  }
+
+  /**
+   * Before the world notes: the git guard (the Library and image copies write only when git
+   * ignores them; world notes carry licensed text only when it ignores the whole mirror folder)
+   * and the image manifest. Until the first Library refresh after a start has finished, it runs
+   * here, within a slice, and the world notes wait for it (returns false): written without the
+   * Library links, they would all be written again a cycle later.
+   */
+  private async prepareLicensed(cycle: Cycle): Promise<boolean> {
+    const state = cycle.state;
+    const licensed = this.licensedFor(state, cycle.root);
+    let guard: GuardResult;
+    try {
+      guard = await licensed.guard.check();
+    } catch (error) {
+      const reason = errorMessage(error);
+      guard = {
+        ok: false,
+        reason,
+        repo: null,
+        licensedOk: false,
+        licensedReason: reason,
+        trashOk: false,
+        trashReason: reason,
+      };
+    }
+    if (guard.ok) {
+      try {
+        await cycle.writer.assertRealFence(ATTACHMENTS_ROOT);
+        await cycle.writer.assertRealFence(LIBRARY_ROOT);
+      } catch (error) {
+        guard = { ...guard, ok: false, reason: errorMessage(error) };
+      }
+    }
+    licensed.guardResult = guard;
+    licensed.attachments.setAllowed(guard.ok, guard.reason);
+    if (!guard.ok) return true;
+    await licensed.attachments.load();
+    const packs = cycle.settings.libraryPacks;
+    if (licensed.library.ready || !licensed.library.refreshDue(packs, this.now())) return true;
+    const end = Math.min(cycle.deadline - 30_000, this.now() + FIRST_REFRESH_SLICE_MS);
+    return this.refreshLibrary(cycle, end);
+  }
+
+  /** One Library refresh step until `end`. Returns false only while it is still part way. */
+  private async refreshLibrary(cycle: Cycle, end: number): Promise<boolean> {
+    const licensed = this.licensedFor(cycle.state, cycle.root);
+    cycle.libraryTried = true;
+    try {
+      const step = await licensed.library.refreshStep(
+        cycle.settings.libraryPacks,
+        this.libraryDeps(cycle),
+        end
+      );
+      if (step.done) licensed.libraryError = null;
+      return step.done;
+    } catch (error) {
+      licensed.libraryError = `Library refresh failed: ${errorMessage(error)}`;
+      licensed.library.requestRefresh();
+      return true;
+    }
+  }
+
+  /**
+   * After the world notes, each within a slice and able to go on next cycle: the Library
+   * refresh when one is due, Library fetches and writes, image copies, and after a complete
+   * reconcile the images no note uses any more go to the vault trash.
+   */
+  private async workLicensed(cycle: Cycle): Promise<void> {
+    const licensed = cycle.state.licensed;
+    const guard = licensed?.guardResult;
+    if (!licensed || !guard?.ok) return;
+    const end = Math.min(cycle.deadline - 2_000, this.now() + LICENSED_SLICE_MS);
+    const packs = cycle.settings.libraryPacks;
+    if (!cycle.libraryTried && licensed.library.refreshDue(packs, this.now()) && this.now() < end) {
+      await this.refreshLibrary(cycle, end);
+    }
+    if (licensed.library.ready && licensed.library.pending > 0 && this.now() < end) {
+      try {
+        await licensed.library.work(end, this.libraryDeps(cycle));
+      } catch (error) {
+        licensed.libraryError = `Library write refused: ${errorMessage(error)}`;
+      }
+    }
+    const imagesEnd = Math.min(cycle.deadline - 1_000, this.now() + IMAGE_SLICE_MS);
+    if (this.now() < imagesEnd) await licensed.attachments.flush(imagesEnd);
+    if (cycle.reconciled && cycle.allowChanges && guard.trashOk) {
+      await licensed.attachments.collectGarbage(cycle.deadline - 1_000, rel =>
+        this.trashAttachment(cycle, rel)
+      );
+    }
+  }
+
+  /** One unused image to the vault trash (fenced; any file there is ours to move). */
+  private async trashAttachment(
+    cycle: Cycle,
+    relPath: string
+  ): Promise<'trashed' | 'kept' | 'missing'> {
+    const state = cycle.state;
+    if (!relPath.startsWith(`${ATTACHMENTS_ROOT}/`)) return 'kept';
+    try {
+      await this.assertTrashFence(state.worldId, relPath);
+    } catch (error) {
+      state.errors.set(relPath, errorMessage(error));
+      return 'kept';
+    }
+    const errorsBefore = cycle.writer.errors.length;
+    const result = await cycle.writer.trash(relPath, () => ({ owned: true, legacy: false }));
+    for (const e of cycle.writer.errors.slice(errorsBefore)) state.errors.set(e.path, e.error);
+    if (result !== 'kept') state.errors.delete(relPath);
+    return result;
   }
 
   /** Render one entry (a journal renders its page notes too) and write what is ours to write. */
@@ -1150,17 +1487,39 @@ export class ObsidianMirrorPump {
     top: ReadonlyMap<string, string>,
     pages: ReadonlyMap<string, string>
   ): Promise<void> {
+    // The images this entry's notes embed are counted for it (unused ones are collected later).
+    const attachments = cycle.state.licensed?.attachments;
+    attachments?.beginOwner(entry.uuid);
+    let committed = false;
+    try {
+      committed = await this.renderAndWriteOwned(cycle, entry, ctx, top, pages);
+    } finally {
+      attachments?.endOwner(committed);
+    }
+  }
+
+  /** `renderAndWrite` inside the owner scope; true when every note was written or unchanged. */
+  private async renderAndWriteOwned(
+    cycle: Cycle,
+    entry: ExportEntry,
+    ctx: MirrorRenderContext,
+    top: ReadonlyMap<string, string>,
+    pages: ReadonlyMap<string, string>
+  ): Promise<boolean> {
     const state = cycle.state;
     let notes: RenderedNote[];
+    let complete = true;
     try {
       notes = renderMirrorNote(state.worldId, entry, ctx);
     } catch (error) {
       if (entry.kind !== 'journal') {
         state.errors.set(ctx.notePath(entry.uuid) ?? entry.uuid, errorMessage(error));
-        return;
+        return false;
       }
       notes = this.renderJournalIsolated(cycle, entry, ctx);
+      complete = false;
     }
+    if (notes.length === 0) return false;
     const type = mirrorNoteType(entry);
     const pageByPath = new Map<string, { uuid: string; name: string }>();
     if (entry.kind === 'journal') {
@@ -1188,8 +1547,10 @@ export class ObsidianMirrorPump {
             journalUuid: null,
             isNew: top.has(entry.uuid),
           };
-      await this.writeRendered(cycle, note, meta);
+      const outcome = await this.writeRendered(cycle, note, meta);
+      if (outcome !== 'written' && outcome !== 'unchanged') complete = false;
     }
+    return complete;
   }
 
   /**
@@ -1233,16 +1594,20 @@ export class ObsidianMirrorPump {
   }
 
   /** Write one rendered note, keeping the note map in step. */
-  private async writeRendered(cycle: Cycle, note: RenderedNote, meta: NoteMeta): Promise<void> {
+  private async writeRendered(
+    cycle: Cycle,
+    note: RenderedNote,
+    meta: NoteMeta
+  ): Promise<WriteOutcome | 'not written'> {
     const state = cycle.state;
     // Only inside the fence; a note the GM moved elsewhere is never written again.
-    if (!insideFence(note.path)) return;
+    if (!insideFence(note.path)) return 'not written';
     const present = await exists(path.join(cycle.root, note.path));
     if (meta.isNew === present) {
       // A new path that is taken now, or a known note that is gone (deleted or
       // moved since the scan): leave it to a reconcile with a fresh scan.
       state.reconcileDue = true;
-      return;
+      return 'not written';
     }
     const outcome = await this.writeOwned(cycle, note.path, note.text, checkMarkdownOwnership, {
       same: sameMirrorContent,
@@ -1268,6 +1633,7 @@ export class ObsidianMirrorPump {
       map.set(meta.uuid, { ...previous, owned: false });
     }
     await this.pace(cycle);
+    return outcome;
   }
 
   /** `NoteWriter.owned` plus what happened, mirrored into the lasting status maps. */
@@ -1324,6 +1690,29 @@ export class ObsidianMirrorPump {
     status.keptDeleted = byPath([...state.keptDeleted]);
     status.truncated = structuredClone(state.truncated);
     status.errors = byPath([...state.errors].map(([p, error]) => ({ path: p, error })));
+    const licensed = state.licensed;
+    if (licensed) {
+      const guard = licensed.guardResult;
+      const library = licensed.library.status(cycle.settings.libraryPacks);
+      status.library = {
+        ...library,
+        errors: licensed.libraryError
+          ? [...library.errors, { path: 'AI Tool/Library', error: licensed.libraryError }]
+          : library.errors,
+        blocked: guard && !guard.ok ? guard.reason : null,
+      };
+      const notes = [
+        guard?.ok ? guard.reason : null,
+        guard?.ok && !guard.trashOk ? guard.trashReason : null,
+      ].filter((note): note is string => note !== null);
+      status.images = {
+        ...licensed.attachments.status(),
+        note: notes.length > 0 ? notes.join('. ') : null,
+      };
+      status.licensedText = guard
+        ? { allowed: guard.licensedOk, reason: guard.licensedOk ? null : guard.licensedReason }
+        : null;
+    }
     return status;
   }
 
@@ -1353,6 +1742,13 @@ export class ObsidianMirrorPump {
         this.current.keptDeleted,
         this.current.truncated,
         this.current.errors,
+        this.current.library && {
+          ...this.current.library,
+          pending: null,
+          lastRefreshAt: null,
+        },
+        this.current.images && { ...this.current.images, pending: null },
+        this.current.licensedText,
       ]);
       if (changed || cycle.reconcile || fingerprint !== state.statusFingerprint) {
         try {

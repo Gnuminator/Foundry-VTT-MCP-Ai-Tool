@@ -9,9 +9,15 @@
  * The module never imports this file at runtime (a browser cannot resolve
  * `@gnuminator/shared`); it imports the types and mirrors the constants, and a
  * contract test pins the copies. Never exported (section 1.7): page text of
- * journals that are not opted in, biographies and descriptions, flags, HP
- * values, effects, token lists and positions, image paths, chat, settings,
- * user details beyond owner names, compendium content.
+ * journals that are not opted in, PC biographies, appearance and traits (a
+ * player character never gets a stat block), item descriptions, flags, HP
+ * values, effects, token lists, token art and positions, chat, settings, user
+ * details beyond owner names. Deliberately exported since the Library (section
+ * 13), GM-only: an NPC's stat block (feature texts and the NPC biography), the
+ * actor portrait path (`img`), the scene map path (`map`), the figure HTML of
+ * an image page of an opted-in journal, and the `origin` of Foundry (absolute
+ * base URL including any route prefix, no trailing slash). Compendium content
+ * comes through the Library queries (`library-index.ts`).
  */
 
 /** Module query name (prefixed with the module id on the wire). */
@@ -76,6 +82,10 @@ export const EXPORT_INDEX_LIMITS = {
   pinsPerScene: 300,
   pagesPerJournal: 1000,
   holdersPerItem: 20,
+  /** Feature and description HTML per stat block. */
+  statBlockBytes: 256 * 1024,
+  /** Paths (images). */
+  pathChars: 1024,
   /** World caps, reported in `truncated`. */
   worldCaps: { actor: 5000, scene: 1000, journal: 3000, item: 5000 },
 } as const;
@@ -137,6 +147,41 @@ export interface ExportEntryBase {
 
 export type TokenDisposition = 'secret' | 'hostile' | 'neutral' | 'friendly';
 
+/** One labelled stat block line (`Armor Class` / `13 (natural armor)`). */
+export interface StatBlockLine {
+  label: string;
+  value: string;
+}
+
+/**
+ * An NPC's stat block as dnd5e lays it out (`NPCData#_prepareEmbedContext`, dnd5e 6.0.5):
+ * plain text lines plus the raw HTML of each feature (enrichers are rewritten by the backend).
+ */
+export interface ExportStatBlock {
+  rules: RulesTag;
+  /** `Medium undead, neutral evil`. */
+  tag: string;
+  /** Armor Class, Initiative (2024), Hit Points, Speed. */
+  upper: StatBlockLine[];
+  abilities: Array<{ key: string; label: string; score: number; mod: number; save: number }>;
+  /** Saving Throws, Skills, damage and condition traits, Senses, Languages, Challenge, PB. */
+  lower: StatBlockLine[];
+  /** Traits, Actions, Bonus Actions, Reactions, Legendary Actions, Mythic Actions, in that order. */
+  sections: Array<{
+    key: string;
+    label: string;
+    /** HTML before the entries (the legendary actions intro), or null. */
+    intro: string | null;
+    entries: Array<{ name: string; html: string }>;
+  }>;
+  /** Embedded spells (names link to their Library notes through `sourceUuid`). */
+  spells: Array<{ name: string; level: number; sourceUuid: string | null }>;
+  /** The actor's biography HTML (adventure text; GM vault only), or null. */
+  description: string | null;
+  /** Feature or description text was cut at `EXPORT_INDEX_LIMITS.statBlockBytes`. */
+  truncated: boolean;
+}
+
 export interface ExportActorEntry extends ExportEntryBase {
   kind: 'actor';
   actorType: 'character' | 'npc';
@@ -168,6 +213,10 @@ export interface ExportActorEntry extends ExportEntryBase {
   features: Array<{ name: string; type: string }>;
   /** Magical, or uncommon and rarer, embedded items (max `notableItemsPerActor`). */
   notableItems: Array<{ name: string; sourceUuid: string | null }>;
+  /** The portrait's path (`img`), relative to Foundry's data root or a URL; null when default. */
+  img: string | null;
+  /** NPC only (else null): the full stat block. */
+  statBlock: ExportStatBlock | null;
 }
 
 export interface ExportScenePin {
@@ -183,6 +232,8 @@ export interface ExportSceneEntry extends ExportEntryBase {
   journal: { uuid: string; pageUuid: string | null } | null;
   /** Map Notes (max `pinsPerScene`). */
   pins: ExportScenePin[];
+  /** The map image (the background of the scene's first level), or null. */
+  map: string | null;
 }
 
 export interface ExportPageText {
@@ -204,7 +255,10 @@ export interface ExportPageEntry {
   playerAccess: PlayerAccess;
   /** Some single player can observe the journal AND the page (the M2 rule). */
   playerVisible: boolean;
-  /** Present only on text pages of an opted-in journal. */
+  /**
+   * Present only on text and image pages of an opted-in journal (an image page sends a small
+   * HTML figure of its image and caption, so it gets a page note like a text page).
+   */
   text?: ExportPageText | null;
   /** Set with `text: null` when the journal's text budget ran out. */
   textOmitted?: 'budget';
@@ -274,6 +328,12 @@ export interface ExportIndexResponse {
   next: string | null;
   truncated: Array<{ kind: ExportKind; total: number; cap: number }>;
   buildMs: number;
+  /**
+   * Absolute base URL of Foundry including any route prefix, no trailing slash (for example
+   * `http://localhost:30000` or `https://host/foundry`); the bridge fetches images from
+   * `${origin}/${path}`. Empty when the client has no http(s) location.
+   */
+  origin?: string;
 }
 
 export interface ExportIndexFailure {

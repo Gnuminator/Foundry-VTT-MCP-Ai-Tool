@@ -56,6 +56,7 @@ import {
 } from './mirror-common.js';
 import { GENERATED_BY, renderBaseText, withGeneratedHash } from './ownership.js';
 import { frontmatter, generatedProps } from './render.js';
+import { statBlockMarkdown } from './stat-block-md.js';
 
 // ---------------------------------------------------------------------------
 // Shapes and constants
@@ -196,7 +197,7 @@ function noteLink(fromPath: string, toPath: string, label: string, blockId?: str
 
 /**
  * A link to any top-level document or page: the mirror note (or block) when there is one, the
- * label plus the uuid as code when the document exists without a note, and `(not found)` when it
+ * label as an Open in Foundry link when the document exists without a note, and the plain label when it
  * certainly is not in the world (the convention of design section 5).
  */
 function targetLink(
@@ -207,9 +208,24 @@ function targetLink(
   fallbackLabel: string | null = null
 ): string {
   const target: LinkTarget | null = ctx.resolve(uuid);
-  const text = label ?? target?.name ?? fallbackLabel ?? uuid;
-  if (target === null) return `${escapeMd(text)} ${codeSpan(`${uuid} (not found)`)}`;
-  if (target.notePath === null) return `${escapeMd(text)} ${codeSpan(uuid)}`;
+  const kind =
+    uuid.split('.')[0] === 'Scene'
+      ? 'scene'
+      : uuid.includes('JournalEntryPage')
+        ? 'journal page'
+        : 'journal';
+  if (target === null) {
+    // Never a raw uuid: name what is missing in words.
+    return `${escapeMd(label ?? fallbackLabel ?? `A ${kind}`)} (no longer in this world)`;
+  }
+  const text = label ?? target.name ?? fallbackLabel ?? `A ${kind}`;
+  if (target.notePath === null) {
+    const base = ctx.openBase;
+    if (base && !/[\s()<>]/.test(base) && isFoundryUuid(uuid)) {
+      return `[${escapeMd(text)}](${openUrl(base, uuid)})`;
+    }
+    return escapeMd(text);
+  }
   return noteLink(fromPath, target.notePath, text, target.blockId);
 }
 
@@ -238,14 +254,62 @@ function noteProp(worldId: string, notePath: string | null, label: string): stri
   return propertyWikilink(worldId, notePath, label);
 }
 
-function linkContext(ctx: MirrorRenderContext, pageUuid: string, fromPath: string): LinkContext {
+function linkContext(
+  ctx: MirrorRenderContext,
+  pageUuid: string,
+  fromPath: string,
+  selfName: string | null = null
+): LinkContext {
   const findByName = ctx.findByName;
+  const image = ctx.image
+    ? (src: string, alt: string): string | null => ctx.image?.(src, alt) ?? null
+    : null;
   return {
     pageUuid,
     openBase: ctx.openBase,
     resolve: uuid => ctx.resolve(uuid),
     ...(findByName ? { findByName: (kind: string, name: string) => findByName(kind, name) } : {}),
     fromPath,
+    ...(ctx.library ? { library: ctx.library } : {}),
+    ...(image ? { image: (src: string, alt: string) => image(src, alt) } : {}),
+    selfName,
+  };
+}
+
+/**
+ * The one line that stands in for licensed text and images while git could pick them up
+ * (design 13.4); the status note says why and how to fix it.
+ */
+function withheldLine(fromPath: string): string {
+  return `*Book text and images are left out of this note while git could pick them up; see ${noteLink(fromPath, MIRROR_STATUS_PATH, 'the mirror status')}.*`;
+}
+
+/** An image of the document (portrait, map), embedded from its vault copy; null without one. */
+function imageBlock(
+  ctx: MirrorRenderContext,
+  src: string | null,
+  alt: string,
+  width?: number
+): string | null {
+  if (!src || !ctx.image) return null;
+  return ctx.image(src, alt, width);
+}
+
+/** A spell in a stat block: its Library note (by source, else by name) or null for the name. */
+function spellLinker(
+  ctx: MirrorRenderContext,
+  fromPath: string
+): (spell: { name: string; sourceUuid: string | null }) => string | null {
+  return spell => {
+    const library = ctx.library;
+    if (!library) return null;
+    const uuid =
+      (spell.sourceUuid && library.byUuid(spell.sourceUuid) ? spell.sourceUuid : null) ??
+      library.spellByName?.(spell.name) ??
+      null;
+    const target = uuid ? library.byUuid(uuid) : null;
+    if (!target?.notePath) return null;
+    return noteLink(fromPath, target.notePath, spell.name);
   };
 }
 
@@ -436,8 +500,25 @@ function renderActor(
       prep,
     };
     lines.push(`Players see this creature as: **${escapeMd(entry.playerName) || 'Unknown'}**.`, '');
+    const withhold = ctx.withholdLicensed === true;
+    const block = entry.statBlock ?? null;
+    if (withhold && (block !== null || Boolean(entry.img))) lines.push(withheldLine(path), '');
+    const portrait = withhold ? null : imageBlock(ctx, entry.img ?? null, entry.name, 250);
+    if (portrait) lines.push(portrait, '');
     lines.push(...classesSection(entry));
-    lines.push(...featureSections(entry.features));
+    if (block && !withhold) {
+      const link = linkContext(ctx, entry.uuid, path, entry.name);
+      lines.push(
+        statBlockMarkdown(entry.name, block, link, { spellLink: spellLinker(ctx, path) }),
+        ''
+      );
+      if (block.description) {
+        const description = htmlToMarkdown(block.description, link);
+        if (description) lines.push('## Description', '', description, '');
+      }
+    } else {
+      lines.push(...featureSections(entry.features));
+    }
     if (prepPath) lines.push('## Related notes', '', `- ${noteLink(path, prepPath, 'Prep')}`, '');
   }
 
@@ -473,11 +554,8 @@ function renderScene(
     : null;
   const journalNotePath = entry.journal ? ctx.notePath(entry.journal.uuid) : null;
   const journalProp = entry.journal
-    ? (noteProp(
-        worldId,
-        journalNotePath,
-        ctx.resolve(entry.journal.uuid)?.name ?? entry.journal.uuid
-      ) ?? optText(entry.journal.uuid))
+    ? (noteProp(worldId, journalNotePath, ctx.resolve(entry.journal.uuid)?.name ?? 'Journal') ??
+      null)
     : null;
 
   const lines: string[] = [
@@ -492,6 +570,12 @@ function renderScene(
       `> This scene is in the navigation bar and has no navigation name, so players see "${escapeMd(entry.name)}" there.`,
       ''
     );
+  }
+  if (ctx.withholdLicensed === true) {
+    if (entry.map) lines.push('## Map', '', withheldLine(path), '');
+  } else {
+    const map = imageBlock(ctx, entry.map ?? null, entry.name);
+    if (map) lines.push('## Map', '', map, '');
   }
   if (journalUuid !== null) {
     lines.push('## Journal', '', `- ${targetLink(ctx, path, journalUuid, null)}`, '');
@@ -651,7 +735,9 @@ function renderJournalPage(
   const blockId = PAGE_ID.test(page.id) ? `p-${page.id}` : undefined;
   lines.push(`Back to journal: ${noteLink(pagePath, indexPath, journal.name, blockId)}`, '');
 
-  if (text) {
+  if (text && ctx.withholdLicensed === true) {
+    lines.push(withheldLine(pagePath));
+  } else if (text) {
     if (text.truncated) {
       const kb = Math.round(EXPORT_INDEX_LIMITS.textPerPageBytes / 1024);
       lines.push(
@@ -966,6 +1052,81 @@ function listOrNone(lines: string[]): string[] {
   return lines.length ? lines : ['- (none)'];
 }
 
+/** The Library and image sections of the status note (only lasting facts). */
+function licensedStatusLines(status: MirrorStatus): string[] {
+  const out: string[] = [];
+  const text = status.licensedText;
+  if (text && !text.allowed) {
+    const folder = codeSpan(`Campaigns/${status.worldId ?? '<world>'}/AI Tool/`);
+    out.push(
+      '## Book text in world notes',
+      '',
+      '> [!warning] Stat blocks, page text and images are left out of world notes',
+      `> ${escapeMd(text.reason ?? 'git could pick them up', 600)}`,
+      '>',
+      '> Licensed text (book and compendium text, imported images) may only be written where git will not pick it up. To fix it, do one of these:',
+      `> - add the mirror folder ${folder} and the vault trash folder ${codeSpan('.trash/')} to the repository's ${codeSpan('.gitignore')} (and untrack anything git already tracks there), or`,
+      '> - move the vault out of the git repository.',
+      '>',
+      '> The mirror checks again every few minutes and then rewrites the notes with the full text.',
+      ''
+    );
+  }
+  const library = status.library;
+  if (library) {
+    out.push('## Library (compendium notes)', '');
+    if (library.blocked) {
+      out.push(`> [!warning] The Library is off`, `> ${escapeMd(library.blocked, 600)}`, '');
+    }
+    if (library.packs.length === 0) {
+      out.push('No compendium packs are picked (`libraryPacks` in `plan-obsidian-mirror`).', '');
+    } else {
+      out.push(
+        `Packs: ${library.packs.map(pack => codeSpan(pack)).join(', ')}. The notes live in ${codeSpan('AI Tool/Library/')}, which is kept out of git (licensed content).`,
+        ''
+      );
+      if (library.missingPacks.length) {
+        out.push(
+          `Not in this world: ${library.missingPacks.map(pack => codeSpan(pack)).join(', ')}.`,
+          ''
+        );
+      }
+      const kinds = Object.keys(library.counts).sort(cmp);
+      out.push('| Kind | Notes |', '| --- | --- |');
+      for (const kind of kinds)
+        out.push(`| ${escapeMd(kind)} | ${count(library.counts[kind] ?? 0)} |`);
+      if (kinds.length === 0) out.push('| (none yet) | 0 |');
+      out.push('');
+    }
+    const problems = [
+      ...byPath(library.skipped).map(s => `- ${codeSpan(s.path)}: ${escapeMd(s.reason, 400)}`),
+      ...byPath(library.errors).map(e => `- ${codeSpan(e.path)}: ${escapeMd(e.error, 400)}`),
+    ];
+    if (problems.length) out.push('Skipped or failed:', '', ...problems, '');
+  }
+  const images = status.images;
+  if (images) {
+    out.push('## Images', '');
+    if (images.blocked) out.push(`No images are copied: ${escapeMd(images.blocked, 600)}`, '');
+    else {
+      out.push(
+        `${count(images.copied)} image(s) copied into ${codeSpan('AI Tool/Attachments/')} (kept out of git).`,
+        ''
+      );
+    }
+    if (images.note) out.push(escapeMd(images.note, 600), '');
+    if (images.failed.length) {
+      out.push(
+        'Could not copy (retried later):',
+        '',
+        ...byPath(images.failed).map(f => `- ${codeSpan(f.path)}: ${escapeMd(f.error, 300)}`),
+        ''
+      );
+    }
+  }
+  return out;
+}
+
 /**
  * `AI Tool/Foundry/_status.md`: how many notes the mirror keeps, and what it left alone or could
  * not do. Only lasting facts (no times, no per-cycle counts of work), so it is not rewritten on
@@ -1007,6 +1168,7 @@ export function renderMirrorStatusNote(worldId: string, status: MirrorStatus): R
       '| --- | --- |',
       ...MIRROR_NOTE_TYPES.map(type => `| ${TYPE_LABELS[type]} | ${count(status.counts[type])} |`),
       '',
+      ...licensedStatusLines(status),
       '## Skipped (edited in Obsidian, or foreign)',
       '',
       ...listOrNone(skipped.map(s => `- ${codeSpan(s.path)}: ${escapeMd(s.reason, 400)}`)),

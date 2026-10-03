@@ -27,16 +27,17 @@ export interface AtomicWriteOptions {
   retryDelaysMs?: number[];
 }
 
-/** Write `text` to `full` atomically via a dot-prefixed temp file plus rename. */
+/** Write `text` (or bytes) to `full` atomically via a dot-prefixed temp file plus rename. */
 export async function writeFileAtomic(
   full: string,
-  text: string,
+  text: string | Uint8Array,
   options: AtomicWriteOptions = {}
 ): Promise<void> {
   const dir = path.dirname(full);
   await fsp.mkdir(dir, { recursive: true });
   const tmp = path.join(dir, `.${path.basename(full)}.${process.pid}.tmp`);
-  await fsp.writeFile(tmp, text, 'utf8');
+  if (typeof text === 'string') await fsp.writeFile(tmp, text, 'utf8');
+  else await fsp.writeFile(tmp, text);
   const rename =
     options.rename ?? ((from: string, to: string): Promise<void> => fsp.rename(from, to));
   const delays = options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;

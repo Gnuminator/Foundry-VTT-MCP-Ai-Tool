@@ -1,35 +1,44 @@
 /**
  * Foundry link syntax in page text, rewritten for Obsidian
- * (docs/design/OBSIDIAN-O4-DESIGN.md section 5). Patterns follow Foundry 14.368 and
- * dnd5e 6.0.5:
+ * (docs/design/OBSIDIAN-O4-DESIGN.md section 5, Library additions in section 13). Patterns
+ * follow Foundry 14.368 and dnd5e 6.0.5:
  * - content links `@(Actor|Cards|Item|Scene|JournalEntry|Macro|RollTable|PlaylistSound|Compendium|UUID)[target#hash]{label}`
  *   (`client/applications/ux/text-editor.mjs:203-204`, types `common/constants.mjs:515-516`);
  * - embeds `@Embed[config]{label}` (`text-editor.mjs:218`, case-insensitive);
  * - inline rolls `[[/r ...]]` / `[[...]]` (`text-editor.mjs:249`) and the dnd5e
- *   enrichers `[[/check ...]]`, `[[lookup ...]]`, `&Reference[...]`
- *   (`dnd5e.mjs:31931-31946`);
+ *   enrichers `[[/check ...]]`, `[[/save ...]]`, `[[/damage ...]]`, `[[lookup ...]]`,
+ *   `&Reference[...]` (`dnd5e.mjs:31931-31946`), plus the older `@Check[...]` style;
  * - relative uuids (`.P`, `..X`) as `common/utils/helpers.mjs:1380-1440` resolves them.
- * Everything that is not a link we emit goes through `escapeInlineText`; the
- * caller escapes line starts when it builds blocks.
+ *
+ * Nothing is ever shown as a raw code: a link becomes a link to the matching mirror or Library
+ * note, else the label as an "Open in Foundry" link, else the plain label; rolls and checks
+ * become the words Foundry's button shows (`dnd5e-text.ts`). Everything that is not a link we
+ * emit goes through `escapeInlineText`; the caller escapes line starts when it builds blocks.
  */
 import { isFoundryUuid } from '@gnuminator/shared';
 
-import { codeSpan, escapeInlineText, escapeLinkLabel, safeUrl } from './md-escape.js';
+import { atEnricherText, inlineRollText, referenceText } from './dnd5e-text.js';
+import { escapeInlineText, escapeLinkLabel, safeUrl } from './md-escape.js';
 import { openUrl, relativeLinkTarget, type LinkContext, type LinkTarget } from './mirror-common.js';
 
 const LINK_TYPES = 'Actor|Cards|Item|Scene|JournalEntry|Macro|RollTable|PlaylistSound';
+const AT_ENRICHERS = 'Check|Save|Skill|Tool|Damage|Attack|Heal';
 /** One scanner for every construct, left to right (named groups per construct). */
 const TOKEN = new RegExp(
   [
-    `@(?<ltype>${LINK_TYPES}|Compendium|UUID)\\[(?<ltarget>[^#\\]]+)(?:#[^\\]]+)?\\](?:\\{(?<llabel>[^}]+)\\})?`,
-    '@[Ee][Mm][Bb][Ee][Dd]\\[(?<econfig>[^\\]]+)\\](?:\\{(?<elabel>[^}]+)\\})?',
-    '(?<roll>\\[\\[(?:\\/[a-zA-Z]+\\s)?.*?\\]{2,3}(?:\\{[^}]+\\})?)',
-    '(?<ref>&Reference\\[[^\\]]+\\](?:\\{[^}]+\\})?)',
+    `@(?<ltype>${LINK_TYPES}|Compendium|UUID)\\[(?<ltarget>[^#\\]]+)(?:#[^\\]]*)?\\](?:\\{(?<llabel>[^}]*)\\})?`,
+    '@[Ee][Mm][Bb][Ee][Dd]\\[(?<econfig>[^\\]]+)\\](?:\\{(?<elabel>[^}]*)\\})?',
+    `@(?<atype>${AT_ENRICHERS})\\[(?<aconfig>[^\\]]*)\\](?:\\{(?<alabel>[^}]*)\\})?`,
+    '@(?<otype>[A-Z][A-Za-z]+)\\[(?<oconfig>[^\\]]*)\\](?:\\{(?<olabel>[^}]*)\\})?',
+    '(?<roll>\\[\\[(?:\\/[a-zA-Z]+\\s?)?.*?\\]{2,3}(?:\\{[^}]*\\})?)',
+    '&Reference\\[(?<rconfig>[^\\]]+)\\](?:\\{(?<rlabel>[^}]*)\\})?',
     '(?<url>https?:\\/\\/[^\\s<>"\'`\\[\\]()]+)',
   ].join('|'),
   'g'
 );
 const DOC_ID = /^[A-Za-z0-9]{16}$/;
+/** A usable `/open` base: an origin without characters that would break a link. */
+const OPEN_BASE = /^https?:\/\/[^\s()<>]+$/;
 
 /** `JournalEntry.J.JournalEntryPage.P` -> [['JournalEntry','J'], ['JournalEntryPage','P']]. */
 function pairsOf(uuid: string): Array<[string, string]> | null {
@@ -70,17 +79,47 @@ export function resolveRelativeUuid(relative: string, baseUuid: string): string 
   return [root[0], parts[0] ?? ''].join('.');
 }
 
-/** A link we write: to a note, to `/open`, or a label with the uuid as code. */
+/** The label as an "Open in Foundry" link when the dashboard base is set, else plain text. */
+function openLink(text: string, uuid: string, ctx: LinkContext): string {
+  if (!OPEN_BASE.test(ctx.openBase) || !isFoundryUuid(uuid)) return text;
+  return `[${text}](${openUrl(ctx.openBase, uuid)})`;
+}
+
+/** `Compendium.pkg.pack.Type.id` (embedded parts dropped), or null. */
+function compendiumDocUuid(uuid: string): string | null {
+  const parts = uuid.split('.');
+  if (parts.length < 5) return null;
+  const top = parts.slice(0, 5).join('.');
+  return isFoundryUuid(top) ? top : null;
+}
+
+/** A compendium document: its Library note when there is one, else an Open in Foundry link. */
+function compendiumLink(uuid: string, label: string | null, ctx: LinkContext): string {
+  const top = compendiumDocUuid(uuid);
+  const library = top ? (ctx.library?.byUuid(top) ?? null) : null;
+  const idLabel = uuid.split('.').pop() ?? uuid;
+  const text = escapeLinkLabel(label ?? library?.name ?? idLabel);
+  if (library?.notePath) return `[${text}](${relativeLinkTarget(ctx.fromPath, library.notePath)})`;
+  return top ? openLink(text, top, ctx) : text;
+}
+
+/** A link we write: to a note, to `/open`, or the plain label. Never a raw uuid. */
 function linkTo(uuid: string, label: string | null, ctx: LinkContext): string {
   const idLabel = uuid.split('.').pop() ?? uuid;
   if (uuid.startsWith('Compendium.')) {
-    const text = escapeLinkLabel(label ?? idLabel);
-    // A compendium uuid needs its document type (`Compendium.pkg.pack.Type.id`).
-    return isFoundryUuid(uuid) && uuid.split('.').length >= 5
-      ? `[${text}](${openUrl(ctx.openBase, uuid)})`
-      : `${text} ${codeSpan(uuid)}`;
+    if (compendiumDocUuid(uuid) === null) {
+      // A typeless compendium uuid (`Compendium.pkg.pack.id`): the Library knows the pack type.
+      const parts = uuid.split('.');
+      const full =
+        parts.length === 4
+          ? (ctx.library?.legacy(`${parts[1]}.${parts[2]}`, parts[3] ?? '') ?? null)
+          : null;
+      if (full) return compendiumLink(full, label, ctx);
+      return escapeLinkLabel(label ?? idLabel);
+    }
+    return compendiumLink(uuid, label, ctx);
   }
-  if (!isFoundryUuid(uuid)) return escapeInlineText(label ?? uuid);
+  if (!isFoundryUuid(uuid)) return escapeLinkLabel(label ?? 'link');
   const parts = uuid.split('.');
   // Pages resolve on their own; any other embedded document goes to its parent's note.
   const target =
@@ -88,27 +127,39 @@ function linkTo(uuid: string, label: string | null, ctx: LinkContext): string {
       ? parts.slice(0, 4).join('.')
       : parts.slice(0, 2).join('.');
   const found: LinkTarget | null = ctx.resolve(target);
-  const shown = label ?? (target === uuid ? found?.name : null) ?? idLabel;
-  if (found === null) return `${escapeLinkLabel(shown)} ${codeSpan(`${target} (not found)`)}`;
-  if (found.notePath === null) return `${escapeLinkLabel(shown)} ${codeSpan(target)}`;
+  const shown = label ?? (target === uuid ? found?.name : null) ?? found?.name ?? idLabel;
+  const text = escapeLinkLabel(shown);
+  if (found === null) return text;
+  if (found.notePath === null) return openLink(text, target, ctx);
   const href = relativeLinkTarget(ctx.fromPath, found.notePath, found.blockId);
-  return `[${escapeLinkLabel(shown)}](${href})`;
+  return `[${text}](${href})`;
 }
 
-/** The uuid a content link names, or null (legacy compendium links, unknown names). */
-function contentLinkUuid(type: string, target: string, ctx: LinkContext): string | null {
-  const t = target.trim();
-  if (type === 'UUID') return t.startsWith('.') ? resolveRelativeUuid(t, ctx.pageUuid) : t;
-  if (type === 'Compendium') return null;
-  if (DOC_ID.test(t)) return `${type}.${t}`;
-  return ctx.findByName?.(type, t) ?? null;
+/** A label that only says "open it" (`Open RollTable`): the target's name reads better. */
+function usefulLabel(label: string | null, target: string): string {
+  if (label?.trim() && !/^open\b/i.test(label.trim())) return label;
+  return target;
 }
 
 function contentLink(type: string, target: string, label: string | null, ctx: LinkContext): string {
-  const uuid = contentLinkUuid(type, target, ctx);
+  const t = target.trim();
+  if (type === 'UUID') {
+    const uuid = t.startsWith('.') ? resolveRelativeUuid(t, ctx.pageUuid) : t;
+    return uuid === null ? escapeLinkLabel(label ?? 'link') : linkTo(uuid, label, ctx);
+  }
+  if (type === 'Compendium') {
+    // Legacy `@Compendium[pkg.pack.idOrName]`: the Library knows the pack's document type.
+    const match = /^([\w-]+\.[\w-]+)\.(.+)$/.exec(t);
+    const full = match ? (ctx.library?.legacy(match[1] ?? '', match[2] ?? '') ?? null) : null;
+    if (full) return compendiumLink(full, label, ctx);
+    const name = match && !DOC_ID.test(match[2] ?? '') ? (match[2] ?? null) : null;
+    return escapeLinkLabel(label ?? name ?? 'compendium entry');
+  }
+  if (DOC_ID.test(t)) return linkTo(`${type}.${t}`, label, ctx);
+  const uuid = ctx.findByName?.(type, t) ?? null;
   if (uuid !== null) return linkTo(uuid, label, ctx);
-  // Legacy `@Compendium[pkg.pack.id]`, an unknown name, a relative uuid past the root.
-  return `${escapeLinkLabel(label ?? target)} ${codeSpan(`@${type}[${target}]`)}`;
+  // An unknown name (a roll table that lives in a compendium, a deleted actor): the words.
+  return escapeLinkLabel(usefulLabel(label, t));
 }
 
 /** `@Embed[uuid inline ...]` or `@Embed[uuid=... ...]`: the uuid is the first token. */
@@ -116,7 +167,7 @@ function embedLink(config: string, label: string | null, ctx: LinkContext): stri
   const first = config.trim().split(/\s+/)[0] ?? '';
   const raw = first.startsWith('uuid=') ? first.slice(5) : first;
   const uuid = raw.startsWith('.') ? resolveRelativeUuid(raw, ctx.pageUuid) : raw;
-  return `Embedded: ${uuid ? linkTo(uuid, label, ctx) : escapeInlineText(label ?? config)}`;
+  return `Embedded: ${uuid ? linkTo(uuid, label, ctx) : escapeLinkLabel(label ?? 'document')}`;
 }
 
 /** A bare URL: a link only for http(s); trailing punctuation stays text. */
@@ -130,20 +181,28 @@ function bareUrl(url: string): string {
 
 /**
  * One text run from a page (entities already decoded) as Markdown: plain parts
- * escaped, Foundry links rewritten, inline rolls and dnd5e enrichers as code.
+ * escaped, Foundry links rewritten, inline rolls and dnd5e enrichers as words.
  */
 export function rewriteText(text: string, ctx: LinkContext): string {
   let out = '';
   let last = 0;
+  const words = { selfName: ctx.selfName ?? null };
   for (const match of text.matchAll(TOKEN)) {
     const index = match.index ?? 0;
     out += escapeInlineText(text.slice(last, index));
     last = index + match[0].length;
     const g = match.groups ?? {};
-    if (g.ltype && g.ltarget) out += contentLink(g.ltype, g.ltarget, g.llabel ?? null, ctx);
-    else if (g.econfig) out += embedLink(g.econfig, g.elabel ?? null, ctx);
-    else if (g.roll) out += codeSpan(g.roll);
-    else if (g.ref) out += codeSpan(g.ref);
+    const none = (value: string | undefined): string | null =>
+      value !== undefined && value.trim() !== '' ? value : null;
+    if (g.ltype && g.ltarget) out += contentLink(g.ltype, g.ltarget, none(g.llabel), ctx);
+    else if (g.econfig) out += embedLink(g.econfig, none(g.elabel), ctx);
+    else if (g.atype) {
+      out += escapeInlineText(atEnricherText(g.atype, g.aconfig ?? '', none(g.alabel)));
+    } else if (g.otype) {
+      // Another module's enricher (`@Template[...]`, `@Award[...]`): its label or its words.
+      out += escapeInlineText(none(g.olabel) ?? (g.oconfig ?? '').replace(/[|=]/g, ' ').trim());
+    } else if (g.roll) out += escapeInlineText(inlineRollText(g.roll, words));
+    else if (g.rconfig) out += escapeInlineText(referenceText(g.rconfig, none(g.rlabel)));
     else if (g.url) out += bareUrl(g.url);
     else out += escapeInlineText(match[0]);
   }

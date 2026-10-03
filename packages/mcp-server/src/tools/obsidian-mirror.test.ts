@@ -130,6 +130,7 @@ describe('tool definitions', () => {
       'textJournalIds',
       'excludeFolderIds',
       'storyItemTypes',
+      'libraryPacks',
     ]);
     expect(def.inputSchema.required).toBeUndefined();
   });
@@ -169,7 +170,24 @@ describe('get-obsidian-mirror', () => {
       vaultDirSet: true,
       openBase: 'http://localhost:3100',
       pollMs: 6000,
+      foundryUrlSet: false,
+      foundryUrl: null,
       status: null,
+    });
+  });
+
+  it('reports FOUNDRY_AI_FOUNDRY_URL (not a secret) when it is set', async () => {
+    const { tools } = setup({
+      env: {
+        vaultDirSet: true,
+        openBase: 'http://localhost:3100',
+        pollMs: 6000,
+        foundryUrl: 'http://foundry.internal:30000/game',
+      },
+    });
+    expect(await tools.handleGetObsidianMirror({})).toMatchObject({
+      foundryUrlSet: true,
+      foundryUrl: 'http://foundry.internal:30000/game',
     });
   });
 
@@ -199,6 +217,7 @@ describe('get-obsidian-mirror', () => {
       text: { folderIds: [ID_B], journalIds: [ID_A] },
       excludeFolderIds: [ID_C],
       storyItemTypes: ['loot'],
+      libraryPacks: [],
     });
     expect(view.hash).toBe(hashMirrorSettings(view.settings));
     expect(view.hash).not.toBe(hashMirrorSettings(DEFAULT_MIRROR_SETTINGS));
@@ -287,6 +306,7 @@ describe('plan-obsidian-mirror (fake guarded writes)', () => {
       text: { folderIds: [ID_A], journalIds: [ID_A, ID_C] },
       excludeFolderIds: [ID_C],
       storyItemTypes: ['loot', 'weapon'],
+      libraryPacks: [],
     });
   });
 
@@ -575,6 +595,7 @@ describe('plan-obsidian-mirror end to end (real GuardedWriteService)', () => {
       text: { folderIds: [], journalIds: [ID_A] },
       excludeFolderIds: [ID_B, ID_C],
       storyItemTypes: [...DEFAULT_STORY_ITEM_TYPES],
+      libraryPacks: [],
     });
 
     const after = await tools.handleGetObsidianMirror({});

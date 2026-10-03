@@ -1,12 +1,16 @@
 /**
  * Journal page text to Markdown for the Obsidian mirror (docs/design/OBSIDIAN-O4-DESIGN.md
- * section 5). The HTML is parsed with htmlparser2 and Markdown is REBUILT from an
- * allowlist (headings, paragraphs, line breaks, bold, italic, strikethrough,
- * lists, blockquotes, simple tables, `pre`, rules); no raw HTML is ever written.
+ * section 5, Library additions in section 13). The HTML is parsed with htmlparser2 and Markdown
+ * is REBUILT from an allowlist (headings, paragraphs, line breaks, bold, italic, strikethrough,
+ * lists, blockquotes, tables, `pre`, rules); no raw HTML is ever written.
  * `section.secret` becomes a collapsed `[!secret]-` callout (the GM vault may hold
- * secrets, OBSIDIAN-PLAN decision 3). Images become `[image: alt]`. Every text
- * run goes through `links.ts` (Foundry links rewritten, the rest escaped), and
- * every output line's start is escaped before we add our own block markers.
+ * secrets, OBSIDIAN-PLAN decision 3). Book layouts get their own blocks: a D&D Beyond stat
+ * block becomes a `[!statblock]` callout with a one-row ability table, read-aloud boxes a
+ * `[!quote]` callout, sidebars a `[!note]` callout, tables real Markdown tables (spans
+ * expanded). Images become an embed of the vault copy when the context has one, else
+ * `[image: alt]`. Every text run goes through `links.ts` (Foundry links and enrichers
+ * rewritten, the rest escaped), and every output line's start is escaped before we add our
+ * own block markers.
  */
 import { parseDOM } from 'htmlparser2';
 
@@ -86,6 +90,45 @@ const BLOCKS = new Set([
 /** Nesting beyond this renders as plain text (pathological input). */
 const MAX_DEPTH = 64;
 
+/** Class of the D&D Beyond stat block container (books and monster pages). */
+const STAT_BLOCK_CLASS = /^(stat-block-finder|mon-stat-block|stat-block)$/;
+const MAX_COLSPAN = 20;
+const MAX_ROWSPAN = 100;
+const MAX_COLUMNS = 30;
+const ABILITY_ORDER = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
+
+function hasClass(el: ElementNode, pattern: RegExp): boolean {
+  return (el.attribs.class ?? '').split(/\s+/).some(name => pattern.test(name));
+}
+
+function spanOf(value: string | undefined, max: number): number {
+  const n = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(n) && n > 1 ? Math.min(n, max) : 1;
+}
+
+/**
+ * The six ability scores as a one-row Markdown table, read from the text of a stat block's
+ * ability area (`STR 16 (+3) DEX 14 (+2) ...`, any markup). Null unless all six are found.
+ */
+export function abilityTable(text: string): string | null {
+  const found = new Map<string, string>();
+  const pattern =
+    /(?<![A-Za-z])(STR|DEX|CON|INT|WIS|CHA)(?![A-Za-z])\s*(\d{1,2})\s*\(\s*([+−–-]?\s*\d{1,2})\s*\)/gi;
+  for (const match of text.matchAll(pattern)) {
+    const key = (match[1] ?? '').toUpperCase();
+    if (!found.has(key)) {
+      const mod = (match[3] ?? '').replace(/\s+/g, '').replace(/[−–]/, '-');
+      found.set(key, `${match[2]} (${/^[+-]/.test(mod) ? mod : `+${mod}`})`);
+    }
+  }
+  if (!ABILITY_ORDER.every(key => found.has(key))) return null;
+  return [
+    `| ${ABILITY_ORDER.join(' | ')} |`,
+    `| ${ABILITY_ORDER.map(() => ':-:').join(' | ')} |`,
+    `| ${ABILITY_ORDER.map(key => found.get(key) ?? '').join(' | ')} |`,
+  ].join('\n');
+}
+
 function isElement(node: DomNode): node is DomNode & ElementNode {
   const n = node as Partial<ElementNode>;
   return (
@@ -162,10 +205,8 @@ class Converter {
       case 'del':
       case 'strike':
         return wrap(this.inline(el.children, depth), '~~');
-      case 'img': {
-        const alt = (el.attribs.alt ?? '').replace(/\s+/g, ' ').trim();
-        return `\\[image${alt ? `: ${escapeInlineText(alt)}` : ''}\\]`;
-      }
+      case 'img':
+        return this.image(el.attribs.src ?? '', el.attribs.alt ?? '');
       case 'a': {
         const label = rawText(el.children).replace(/\s+/g, ' ').trim();
         const url = safeUrl(el.attribs.href ?? '');
@@ -180,6 +221,14 @@ class Converter {
           ? `\n${this.inline(el.children, depth)}\n`
           : this.inline(el.children, depth);
     }
+  }
+
+  /** The vault copy of an image as an embed, else `[image: alt]`. */
+  image(src: string, altRaw: string): string {
+    const alt = altRaw.replace(/\s+/g, ' ').trim();
+    const embed = src.trim() ? (this.ctx.image?.(src.trim(), alt) ?? null) : null;
+    if (embed !== null) return `\n${embed}\n`;
+    return `\\[image${alt ? `: ${escapeInlineText(alt)}` : ''}\\]`;
   }
 
   /** Lines of one inline block: trimmed, empty lines dropped, starts escaped. */
@@ -218,6 +267,14 @@ class Converter {
       return lines.length ? [lines.join('\n')] : [];
     }
     if (isSecret(el)) return [callout('> [!secret]- GM secret', this.blocks(el.children, depth))];
+    if (hasClass(el, STAT_BLOCK_CLASS)) return this.statBlock(el, depth);
+    if (hasClass(el, /^read-aloud-text$|Boxed-Text/)) {
+      return [callout('> [!quote] Read aloud', this.blocks(el.children, depth))];
+    }
+    if (el.name === 'aside' || hasClass(el, /sidebar|block-torn-paper|text--rules/i)) {
+      return [callout('> [!note]', this.blocks(el.children, depth))];
+    }
+    if (el.name === 'figure') return this.figure(el, depth);
     if (HEADINGS.has(el.name)) {
       // Page notes have the page name as H1: content headings move one level down.
       const level = Math.min(6, Number(el.name.slice(1)) + 1);
@@ -267,43 +324,131 @@ class Converter {
 
   private table(el: ElementNode, depth: number): string[] {
     const rows: ElementNode[] = [];
+    const captions: string[] = [];
     const collect = (nodes: DomNode[]): void => {
       for (const node of nodes) {
         if (!isElement(node)) continue;
         if (node.name === 'tr') rows.push(node);
+        else if (node.name === 'caption') captions.push(this.cellText(node, depth));
         else if (['thead', 'tbody', 'tfoot'].includes(node.name)) collect(node.children);
       }
     };
     collect(el.children);
-    const cells = rows.map(row =>
-      row.children.filter(
-        (c): c is DomNode & ElementNode => isElement(c) && (c.name === 'td' || c.name === 'th')
-      )
+    const caption = captions.filter(text => text !== '').join(' ');
+    // A grid with column and row spans expanded (the spanned cells stay empty).
+    const grid: string[][] = [];
+    rows.forEach((row, r) => {
+      const line = (grid[r] ??= []);
+      let c = 0;
+      for (const cell of row.children) {
+        if (!isElement(cell) || (cell.name !== 'td' && cell.name !== 'th')) continue;
+        while (line[c] !== undefined) c++;
+        const colspan = spanOf(cell.attribs.colspan, MAX_COLSPAN);
+        const rowspan = Math.min(spanOf(cell.attribs.rowspan, MAX_ROWSPAN), rows.length - r);
+        const text = this.cellText(cell, depth);
+        for (let dr = 0; dr < rowspan; dr++) {
+          const target = (grid[r + dr] ??= []);
+          for (let dc = 0; dc < colspan; dc++) {
+            target[c + dc] = dr === 0 && dc === 0 ? text : '';
+          }
+        }
+        c += colspan;
+      }
+    });
+    const width = Math.min(MAX_COLUMNS, Math.max(0, ...grid.map(row => row.length)));
+    if (width === 0) return caption ? [`**${caption}**`] : [];
+    const line = (row: string[]): string =>
+      `| ${Array.from({ length: width }, (_, i) => row[i] ?? '').join(' | ')} |`;
+    const [head = [], ...body] = grid;
+    const table = [
+      line(head),
+      `| ${Array.from({ length: width }, () => '---').join(' | ')} |`,
+      ...body.map(line),
+    ].join('\n');
+    return caption ? [`**${caption}**`, table] : [table];
+  }
+
+  /** One table cell (or caption) as a single line; a wikilink's `|` escaped for the table. */
+  private cellText(cell: ElementNode, depth: number): string {
+    return this.blocks(cell.children, depth)
+      .join(' ')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line !== '')
+      .join(' ')
+      .replace(/(!?\[\[[^\]|]*)\|/g, '$1\\|');
+  }
+
+  /** A figure: its image(s), then the caption in italics. */
+  private figure(el: ElementNode, depth: number): string[] {
+    const caption = el.children.find(
+      (n): n is DomNode & ElementNode => isElement(n) && n.name === 'figcaption'
     );
-    const simple =
-      cells.length > 0 &&
-      cells.every(row =>
-        row.every(
-          c =>
-            c.attribs.colspan === undefined &&
-            c.attribs.rowspan === undefined &&
-            !c.children.some(n => isElement(n) && BLOCKS.has(n.name) && n.name !== 'p')
-        )
-      );
-    if (!simple) return cells.flatMap(row => row.flatMap(c => this.blocks(c.children, depth)));
-    const width = Math.max(...cells.map(row => row.length));
-    const text = (c: ElementNode | undefined): string =>
-      c ? this.lines(this.inline(c.children, depth)).join(' ') : '';
-    const line = (row: ElementNode[]): string =>
-      `| ${Array.from({ length: width }, (_, i) => text(row[i])).join(' | ')} |`;
-    const [head = [], ...body] = cells;
-    return [
-      [
-        line(head),
-        `| ${Array.from({ length: width }, () => '---').join(' | ')} |`,
-        ...body.map(line),
-      ].join('\n'),
-    ];
+    const rest = el.children.filter(n => n !== caption);
+    const out = this.blocks(rest, depth);
+    if (caption) {
+      const text = this.lines(this.inline(caption.children, depth)).join(' ');
+      if (text) out.push(`*${text}*`);
+    }
+    return out;
+  }
+
+  /**
+   * A D&D Beyond stat block (`div.stat-block-finder` with `Stat-Block-Styles_*` paragraphs):
+   * a `[!statblock]` callout titled with the creature (a link when the title is one), the
+   * metadata line in italics, the data lines (AC, HP, Speed, ...) as one block of lines, the
+   * six ability scores as a one-row table, then traits and actions with their headings.
+   */
+  private statBlock(el: ElementNode, depth: number): string[] {
+    let title = '';
+    const blocks: string[] = [];
+    let data: string[] = [];
+    const flushData = (): void => {
+      if (data.length) blocks.push(data.join('\n'));
+      data = [];
+    };
+    const visit = (nodes: DomNode[]): void => {
+      for (const node of nodes) {
+        if (!isElement(node)) {
+          const text = textData(node);
+          if (text !== null && text.trim() !== '') {
+            flushData();
+            blocks.push(...this.blocks([node], depth));
+          }
+          continue;
+        }
+        if (DROPPED.has(node.name)) continue;
+        const cls = node.attribs.class ?? '';
+        const inlineText = (): string => this.lines(this.inline(node.children, depth)).join(' ');
+        if (/Stat-Block-Title|stat-block__name|mon-stat-block__name/i.test(cls)) {
+          title = title || inlineText();
+        } else if (/Stat-Block-Metadata|stat-block__meta|mon-stat-block__meta/i.test(cls)) {
+          flushData();
+          const text = inlineText();
+          if (text) blocks.push(`*${text}*`);
+        } else if (/ability-scores|ability-block/i.test(cls)) {
+          flushData();
+          const table = abilityTable(rawText(node.children));
+          if (table) blocks.push(table);
+          else blocks.push(...this.blocks(node.children, depth));
+        } else if (/Stat-Block-Data|stat-block__attribute|tidbit/i.test(cls)) {
+          const text = inlineText();
+          if (text) data.push(text);
+        } else if (/Stat-Block-Heading|stat-block__heading|block-heading/i.test(cls)) {
+          flushData();
+          const text = inlineText();
+          if (text) blocks.push(`### ${text}`);
+        } else if (node.name === 'div' && !/Stat-Block/i.test(cls)) {
+          visit(node.children);
+        } else {
+          flushData();
+          blocks.push(...this.blocks([node], depth));
+        }
+      }
+    };
+    visit(el.children);
+    flushData();
+    return [callout(`> [!statblock] ${title || 'Stat block'}`, blocks)];
   }
 }
 

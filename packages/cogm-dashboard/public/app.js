@@ -456,9 +456,13 @@ function allSwitchesOn() {
   const list = (sessionSwitches && sessionSwitches.switches) || [];
   return list.length > 0 && list.every(s => s.on) && !!settings.gmActionsEnabled;
 }
+/** "AI Tool: Handouts (writes)" reads "Handouts (writes)" on the chips and in toasts. */
+function shortSwitchName(name) {
+  return String(name).replace(/^AI Tool: /, '');
+}
 function switchNames(ids) {
   const list = (sessionSwitches && sessionSwitches.switches) || [];
-  return ids.map(id => (list.find(s => s.id === id) || { name: id }).name);
+  return ids.map(id => shortSwitchName((list.find(s => s.id === id) || { name: id }).name));
 }
 
 function renderReady() {
@@ -477,7 +481,7 @@ function renderReady() {
   readyEls.switches.innerHTML = chips
     .map(
       s =>
-        `<li class="${s.on ? 'on' : ''}" title="${escapeHtml(s.name)}: ${s.on ? 'on' : 'off'}">${s.on ? '✓' : '○'} ${escapeHtml(s.name.replace(/^AI Tool: /, ''))}</li>`
+        `<li class="${s.on ? 'on' : ''}" title="${escapeHtml(s.name)}: ${s.on ? 'on' : 'off'}">${s.on ? '✓' : '○'} ${escapeHtml(shortSwitchName(s.name))}</li>`
     )
     .join('');
   if (sessionSwitchesError) {

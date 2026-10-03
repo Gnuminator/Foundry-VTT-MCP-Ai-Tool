@@ -117,6 +117,20 @@ describe('/api/session/switches', () => {
     expect(await gmActions(base)).toBe(true);
   });
 
+  it('Ready leaves GM Actions off when Foundry dropped a switch', async () => {
+    const { base } = await start(() =>
+      Promise.resolve({ ...moduleAnswer(false), failed: ['handouts'] })
+    );
+    const res = await post(base, { action: 'ready' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      gmActionsEnabled: false,
+      switches: { failed: ['handouts'] },
+    });
+    expect(await gmActions(base)).toBe(false);
+  });
+
   it('Ready leaves GM Actions off when the module refuses', async () => {
     const { base } = await start(action =>
       action === 'ready' ? Promise.reject(new Error('Unknown method')) : Promise.resolve(null)

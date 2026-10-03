@@ -768,8 +768,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     }
     moduleSwitches(action)
       .then(switches => {
-        // Ready turns GM Actions on only once the module's switches are on.
-        if (action === 'ready' && !settings.gmActionsEnabled) {
+        // Ready turns GM Actions on only once the module's switches are on: not when Foundry
+        // dropped one (the reply's `failed` names it).
+        const failed = switches?.failed.length ?? 0;
+        if (action === 'ready' && failed === 0 && !settings.gmActionsEnabled) {
           settings.gmActionsEnabled = true;
           broadcastSettings();
         }

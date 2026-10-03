@@ -120,7 +120,7 @@
   who went down" (dropped to 0 HP; the tool never knows who died). The GM guide "Asking Claude"
   has one table of all feature switches, including "AI Tool: Ownership (writes)".
 
-### Design pass (D-085; PRs #60, #61, #63)
+### Design pass (D-085; PRs #60, #61, #63, #65, #66)
 
 - **Themes (PR #60):** the dashboard and the players' page get a theme picked once per world by the
   GM: Neutral (the README brand) or The Veil (the Curse of Strahd theme, with self-hosted OFL fonts
@@ -132,6 +132,12 @@
 - **Ready for session (PB-17, PR #63):** one click in the Before view turns on Allow Write
   Operations, the Handouts, Live play and Party switches and GM Actions; End session turns off
   what it turned on. Dashboard only (bridge control method `session_switches`, never an MCP tool).
+- **One click (PB-17, D-086; PRs #65, #66):** the GM's own non-destructive actions from the
+  dashboard's purpose-built buttons (the party's pace and rest, Tarokka links and imports) apply at
+  once with an Undo toast. A plan typed by hand in the Tool Runner, destructive changes (deletes,
+  reveals) and plans from Claude or Obsidian still show the confirm window first. "AI Tool: Live
+  play, apply without confirming" now covers only Claude's plans. Ready for session also turns on
+  "AI Tool: Tarokka (writes)".
 
 ### Demo recordings (I-082; PRs #53, #57)
 
@@ -168,7 +174,7 @@
   stay suggestions, and a near match no longer swallows the neighbouring word ("ogvallaki" was
   "Vallaki", now "og Vallaki").
 
-### Fixes (PRs #15 to #17, #55, #59)
+### Fixes (PRs #15 to #17, #55, #59, #64)
 
 - **Conditions are logged once.** Automated Conditions 5e mirrors dnd5e conditions as a second
   ActiveEffect, so the live feed and the play log showed every toggle twice (P-026). A matching
@@ -190,6 +196,8 @@
 - Fixed: the dashboard no longer stops when the bridge's pre-flight answer has no checks list (it
   shows an "unknown" check instead); the co-GM model picker lists Opus 5.5, Sonnet 5.5 and Haiku
   4.5 (PR #59).
+- Obsidian: a note whose name is taken gets a short hash suffix instead of the end of its id (no
+  more "(000000)" on the official PHB's notes); existing notes keep their names (PR #64).
 
 ## v0.19.0 (released 2026-09-30): M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd) + Obsidian O4 mirrors + tool sets
 

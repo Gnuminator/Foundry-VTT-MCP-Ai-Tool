@@ -1,5 +1,5 @@
 {
-  "total": 1565,
+  "total": 1564,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -22,7 +22,7 @@
     "docs/dev/REMOTE-ACCESS.md": 13,
     "docs/dev/RUNTIME-TEST-PLAN.md": 20,
     "docs/dev/SMOKE-TEST.md": 8,
-    "docs/reference/COGM-DASHBOARD.md": 10,
+    "docs/reference/COGM-DASHBOARD.md": 9,
     "installer/nsis/configure-claude.ps1": 2,
     "package.json": 1,
     "packages/cogm-dashboard/.env.example": 4,

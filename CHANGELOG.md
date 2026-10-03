@@ -120,6 +120,12 @@
   who went down" (dropped to 0 HP; the tool never knows who died). The GM guide "Asking Claude"
   has one table of all feature switches, including "AI Tool: Ownership (writes)".
 
+### Demo recordings (I-082; PR #53)
+
+- **Demo takes:** `npm run demo:take` resets the demo world, drives Edge with Playwright and records
+  60 fps MP4 with OBS (1080p, 1440p or 2160p), with step timings and screenshots;
+  `docs/dev/DEMO-RECORDINGS.md`.
+
 ### Voice tools (PRs #24, #26, #43, #45, #46, #48)
 
 - **Session notes (`tools/session-notes`):** the Claude writing step of the session pipeline on the

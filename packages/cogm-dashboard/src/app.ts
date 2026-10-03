@@ -29,6 +29,7 @@ import { PlayerViewSource } from './player/source.js';
 import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
 import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
 import { mountHandoutSeenRoute } from './handout-seen-route.js';
+import { mountSessionNotesRoute, type SessionNotesAction } from './session-notes-route.js';
 import { mountHelpRoute } from './help-route.js';
 import { THEMES, ThemeStore, isTheme } from './theme.js';
 import * as path from 'path';
@@ -66,6 +67,8 @@ export interface DashboardClient {
   sessionSwitches?(action: SessionSwitchAction): Promise<unknown>;
   /** The feature cards (I-064): every feature switch, read-only; absent on fakes. */
   featureSwitches?(): Promise<unknown>;
+  /** Session notes (recap lane, D-087): list, get, put, approve; absent on fakes. */
+  sessionNotes?(action: SessionNotesAction, params?: Record<string, unknown>): Promise<unknown>;
   readonly isConnected?: boolean;
 }
 
@@ -753,6 +756,13 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       new URL('../dist/help.json', import.meta.url),
     ],
     requireGm,
+  });
+
+  // Session notes (recap lane, D-087; session-notes-route.ts): the After view's card.
+  mountSessionNotesRoute(app, {
+    client,
+    requireGm,
+    gmActionsEnabled: () => settings.gmActionsEnabled,
   });
 
   // The feature cards (I-064): every feature switch and its state, read-only. The bridge's

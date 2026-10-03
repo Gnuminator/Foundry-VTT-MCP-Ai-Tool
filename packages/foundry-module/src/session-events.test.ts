@@ -723,3 +723,99 @@ describe('EventTracker combat play-by-play', () => {
     expect(pbp.summary.damageByActor).toEqual({ Silvera: 9 });
   });
 });
+
+describe('EventTracker HP cache per actor uuid (unlinked tokens)', () => {
+  const hpOf = (value: number): any => ({ system: { attributes: { hp: { value } } } });
+  const actor = (id: string, uuid: string, name: string, hp: number): any => ({
+    id,
+    uuid,
+    name,
+    system: { attributes: { hp: { value: hp } } },
+  });
+  const tokenActorUuid = (token: string): string => `Scene.s1.Token.${token}.Actor.dev`;
+
+  function seedWorld(): { base: any; devil1: any; devil2: any; hero: any } {
+    const base = actor('dev', 'Actor.dev', 'Ice Devil', 180);
+    const devil1 = actor('dev', tokenActorUuid('t1'), 'Ice Devil', 228);
+    const devil2 = actor('dev', tokenActorUuid('t2'), 'Ice Devil', 100);
+    const hero = actor('p1', 'Actor.p1', 'Silvera', 30);
+    (globalThis as any).game.actors = { contents: [base, hero], get: () => undefined };
+    (globalThis as any).game.scenes = {
+      contents: [
+        {
+          tokens: [
+            { actorLink: false, actor: devil1 },
+            { actorLink: false, actor: devil2 },
+            { actorLink: true, actor: hero },
+          ],
+        },
+      ],
+    };
+    return { base, devil1, devil2, hero };
+  }
+
+  it('after a reload, each unlinked token is diffed against its own HP, not its base actor or a sibling', () => {
+    const { base, devil1, devil2 } = seedWorld();
+    const t = new EventTracker();
+    t.registerHooks();
+    (t as any).seedCaches(); // what the ready hook does
+
+    fire('updateActor', devil1, hpOf(221));
+    fire('updateActor', devil2, hpOf(90));
+    fire('updateActor', base, hpOf(175));
+
+    expect(t.getSessionLog({ eventType: 'healing' })).toHaveLength(0);
+    expect(t.getSessionLog({ eventType: 'damage' }).map(e => e.details)).toEqual([
+      expect.objectContaining({ amount: 7, from: 228, to: 221 }),
+      expect.objectContaining({ amount: 10, from: 100, to: 90 }),
+      expect.objectContaining({ amount: 5, from: 180, to: 175 }),
+    ]);
+    // The event still names the base actor id (no wire change).
+    expect(t.getSessionLog({ eventType: 'damage' })[0].actorId).toBe('dev');
+  });
+
+  it('a linked token and its world actor share one entry', () => {
+    const { hero } = seedWorld();
+    const t = new EventTracker();
+    t.registerHooks();
+    (t as any).seedCaches();
+
+    fire('updateActor', hero, hpOf(25));
+    expect(t.getSessionLog({ eventType: 'damage' }).map(e => e.details)).toEqual([
+      expect.objectContaining({ amount: 5, from: 30, to: 25 }),
+    ]);
+  });
+
+  it('a token placed mid-session gets its baseline, so its first damage is logged', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    const wolf = actor('wolf', tokenActorUuid('t9'), 'Wolf 3', 11);
+
+    fire('createToken', { actorLink: false, actor: wolf });
+    fire('updateActor', wolf, hpOf(8));
+
+    expect(t.getSessionLog({ eventType: 'damage' }).map(e => e.details)).toEqual([
+      expect.objectContaining({ amount: 3, from: 11, to: 8 }),
+    ]);
+  });
+
+  it('deleting a token or an actor drops its entries', () => {
+    const { devil1, hero } = seedWorld();
+    hero.system.spells = { spell1: { value: 3 } };
+    const t = new EventTracker();
+    t.registerHooks();
+    (t as any).seedCaches();
+    const hpCache = (t as any).hpCache as Map<string, number>;
+    const resourceCache = (t as any).resourceCache as Map<string, number>;
+    expect(hpCache.has(devil1.uuid)).toBe(true);
+    expect(resourceCache.has('Actor.p1:spells.spell1')).toBe(true);
+
+    fire('deleteToken', { actorLink: false, actor: devil1 });
+    fire('deleteActor', hero);
+
+    expect(hpCache.has(devil1.uuid)).toBe(false);
+    expect(hpCache.has('Actor.p1')).toBe(false);
+    expect(resourceCache.has('Actor.p1:spells.spell1')).toBe(false);
+    expect(hpCache.has('Actor.dev')).toBe(true);
+  });
+});

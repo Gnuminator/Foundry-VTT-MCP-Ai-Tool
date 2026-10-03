@@ -41,7 +41,8 @@ again later; finished scenes are kept in `notes/.work/` and are not redone.
 
 `auto.ps1` does one pass over the sessions folder: it transcribes finished Discord recordings
 (`raw\session.json` present, audio, no timeline yet; names from Foundry when the bridge answers),
-writes notes where they are missing, and runs `cleanup --yes`. It does nothing when nothing is due,
+writes notes where they are missing, publishes finished notes to the bridge (below), and runs
+`cleanup --yes`. It does nothing when nothing is due,
 never runs twice at once (a lock file), and logs to `<sessions>\auto.log`. Try it with
 `pwsh tools/session-notes/auto.ps1 -DryRun`. A scheduled task in the Claude desktop app runs it
 every hour while the PC is on, so the notes are ready the morning after a session with no clicks.
@@ -59,6 +60,26 @@ In `<session>/notes/`, for `da` and `en` each:
 
 Plus `notes.json` (everything, for later steps) and `audit.jsonl` (calls, checks, fixes, pauses).
 
+## Into Foundry (D-087)
+
+```bash
+python -m session_notes publish <session>                # the live bridge (port 31414)
+python -m session_notes publish <session> --port 31514   # the test bridge
+```
+
+`publish` builds three pages from `notes.json` as plain HTML: **Recap**, **GM summary** and
+**Scenes**, each with Danish first and English under an "English" heading (the transcript and the
+links into it stay on the PC). It stages them once on the bridge (control method `session_notes`;
+`FOUNDRY_AI_CONTROL_PORT` sets the port). The bridge keeps them in its vault and, with the switch
+"AI Tool: Session notes (writes)" on, puts them into a GM-only journal in the folder "Session
+notes" by itself as soon as a GM's Foundry client is connected with writes on, as a change with
+Undo in Recent Changes. The Recap waits in the reveal queue for the GM. While Foundry is closed the
+bridge needs to know the world: set `FVTT_WORLD` (else the next pass stages it). Each later run
+only asks for the status, and once the GM revealed the Recap or pressed "Approve without revealing"
+it writes `notes/approved.json` (below). Exit code 3 means "not now, try again later" (the bridge
+is not running, or Foundry is closed and no world is set); `--restage` sends the notes again while
+they are still only staged.
+
 ## Approval and audio retention (D-072)
 
 ```bash
@@ -72,7 +93,8 @@ session approved more than 14 days ago (`--days` to change), deletes the audio o
 `.flac`, `.wav` and the other audio types, the recorder's `raw/*.rec` packet files and Craig
 zips. Transcripts, the timeline, the notes and the recorder's event log stay. The deleted files are
 listed in `notes/audio-deleted.json`. Without `--yes` nothing is deleted. The scheduled task runs
-`cleanup --yes` once a day. Later the recap's journal reveal flow writes the same approval marker.
+`cleanup --yes` once a day. `publish` writes the same approval marker once the GM revealed or
+approved the Recap in Foundry.
 
 ## Speed and cost
 
@@ -94,8 +116,8 @@ instead of failing it.
 - A failed check is retried once; then the scene is split in two and each half tried once; a half
   that still fails keeps its raw text and is marked in the notes.
 - The player recap is told to leave out everything in the scene notes' "GM only" lists. It is still
-  only a draft: the GM approves it before any player sees it (later: a GM-only journal page,
-  revealed through the handout reveal flow with its secret-terms check).
+  only a draft: the GM reads it as a GM-only journal page and reveals it through the handout
+  reveal flow before any player sees it.
 
 ## Tests
 

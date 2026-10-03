@@ -223,7 +223,7 @@ export class SessionNotesService {
       1,
       current => {
         const old = current?.data;
-        if (old && (old.put || old.approvedAt)) {
+        if (old && (old.put !== undefined || old.approvedAt !== undefined)) {
           throw new SessionNotesError(
             'not-staged',
             `Session ${sessionId} is already ${statusOf(old) === 'approved' ? 'approved' : 'in Foundry'}; it is not staged again`
@@ -501,7 +501,8 @@ export class SessionNotesService {
     if (entry.feature === 'handouts' && entry.mode === 'apply') {
       const revealed = await this.revealedSources(worldId);
       for (const notes of await this.loadAll(worldId)) {
-        if (!notes.put || notes.approvedAt || !revealed.has(notes.put.recapPageUuid)) continue;
+        if (!notes.put || notes.approvedAt !== undefined) continue;
+        if (!revealed.has(notes.put.recapPageUuid)) continue;
         await this.mutate(worldId, notes.sessionId, n => {
           n.approvedAt ??= entry.appliedAt;
           n.approvedBy ??= 'reveal';
@@ -609,7 +610,7 @@ export class SessionNotesService {
       ...(notes.approvedBy ? { approvedBy: notes.approvedBy } : {}),
       recapRevealed: put ? revealed.has(put.recapPageUuid) : false,
       autoPut: notes.autoPut,
-      waitingFor: put || !notes.autoPut ? [] : blockers.waitingFor,
+      waitingFor: put !== undefined || !notes.autoPut ? [] : blockers.waitingFor,
       ...(notes.lastError ? { lastError: notes.lastError } : {}),
     };
   }

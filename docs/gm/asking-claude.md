@@ -134,6 +134,14 @@ as Claude's.
 | AI Tool: Handouts (writes)                   | Off     | Reveal or hide journal pages for the players.                                                         |
 | AI Tool: Tarokka (writes)                    | Off     | Save the Tarokka reading, link cards to journals, publish reveal pages.                               |
 | AI Tool: Obsidian mirror (writes)            | Off     | Change which Foundry documents are mirrored into your Obsidian vault.                                 |
+| AI Tool: Session notes (writes)              | Off     | Put the notes of a recorded session into a GM-only journal by itself, without asking (see below).     |
+
+**Session notes go in without asking.** With "AI Tool: Session notes (writes)" on, the bridge puts
+the notes of a recorded session (pages Recap, GM summary and Scenes, Danish first and English
+below) into a GM-only journal in the folder "Session notes" as soon as Foundry is open with
+writes on. It does not ask first. Each one is listed in Recent Changes with an Undo, which refuses
+once the Recap was revealed or you edited a page. Players see only the Recap, and only when you
+reveal it: it waits in the reveal queue. "Ready for session" does not turn this switch on.
 
 **Direct actions** (rolls, new NPCs, journals, chat messages and others) happen as
 soon as Claude uses the tool. They are not listed

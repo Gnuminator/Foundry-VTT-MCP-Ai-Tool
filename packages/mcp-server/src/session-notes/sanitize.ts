@@ -22,7 +22,7 @@ export function sanitizeNotesHtml(html: string): string {
   let dropDepth = 0;
   const parser = new Parser(
     {
-      onopentag(name) {
+      onopentag(name): void {
         if (dropDepth > 0 || DROP_CONTENT.has(name)) {
           if (!VOID.has(name)) dropDepth += 1;
           return;
@@ -35,10 +35,10 @@ export function sanitizeNotesHtml(html: string): string {
         open.push(name);
         out.push(`<${name}>`);
       },
-      ontext(text) {
+      ontext(text): void {
         if (dropDepth === 0) out.push(escapeText(text));
       },
-      onclosetag(name) {
+      onclosetag(name): void {
         if (dropDepth > 0) {
           if (!VOID.has(name)) dropDepth -= 1;
           return;

@@ -48,7 +48,7 @@ function refusal(error: unknown): {
   const message = error instanceof Error ? error.message : String(error);
   const code = (error as { code?: unknown } | null)?.code;
   if (typeof code === 'string' && STATUS_BY_CODE[code]) {
-    return { status: STATUS_BY_CODE[code]!, body: { error: { message, code } } };
+    return { status: STATUS_BY_CODE[code], body: { error: { message, code } } };
   }
   return { status: 502, body: { error: { message, code: 'bridge-unreachable' } } };
 }

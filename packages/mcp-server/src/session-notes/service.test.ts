@@ -178,8 +178,8 @@ describe('stage', () => {
     expect(item.pages.map(p => p.title)).toEqual(['Recap', 'GM summary']);
     expect(item.waitingFor).toEqual(['feature-off']);
     const full = await notes.get({ sessionId: item.sessionId });
-    expect(full.pages[0]!.html).toBe('<h2>Recap</h2><p>ok</p>');
-    expect(full.pages[1]!.html).toBe('<p>Hi</p>');
+    expect(full.pages[0].html).toBe('<h2>Recap</h2><p>ok</p>');
+    expect(full.pages[1].html).toBe('<p>Hi</p>');
   });
 
   it('refuses bad input with bad-request', async () => {
@@ -209,7 +209,7 @@ describe('stage', () => {
     await stageAndSettle();
     await stageAndSettle({ title: 'New title' });
     expect((await notes.list()).items).toHaveLength(1);
-    expect((await notes.list()).items[0]!.title).toBe('New title');
+    expect((await notes.list()).items[0].title).toBe('New title');
     setFeature(true);
     await notes.put({ sessionId: '2026-10-03_0913-rehearsal' });
     expect(await code(notes.stage(stageParams()))).toBe('not-staged');
@@ -220,10 +220,10 @@ describe('automatic put (D-087)', () => {
   it('puts staged notes into a GM-only journal as one guarded change, Recap queued', async () => {
     await stageAndSettle();
     const [item] = (await notes.list()).items;
-    expect(item!.status).toBe('in-foundry');
-    expect(item!.changeId).toMatch(/^chg-/);
-    expect(item!.waitingFor).toEqual([]);
-    expect(item!.lastError).toBeUndefined();
+    expect(item.status).toBe('in-foundry');
+    expect(item.changeId).toMatch(/^chg-/);
+    expect(item.waitingFor).toEqual([]);
+    expect(item.lastError).toBeUndefined();
 
     const entry = journal();
     expect(entry.source.name).toBe('2026-10-03: The road to Barovia');
@@ -238,38 +238,38 @@ describe('automatic put (D-087)', () => {
       'GM summary',
       'Scenes',
     ]);
-    expect(item!.journalUuid).toBe(entry.uuid);
-    expect(item!.recapPageUuid).toMatch(new RegExp(`^${entry.uuid}\\.JournalEntryPage\\.`));
+    expect(item.journalUuid).toBe(entry.uuid);
+    expect(item.recapPageUuid).toMatch(new RegExp(`^${entry.uuid}\\.JournalEntryPage\\.`));
 
     const queue = await store.read<{ entries: Record<string, { uuid: string }> }>(
       WORLD,
       'gm',
       QUEUE_FILE
     );
-    expect(Object.values(queue!.data.entries).map(e => e.uuid)).toEqual([item!.recapPageUuid]);
+    expect(Object.values(queue!.data.entries).map(e => e.uuid)).toEqual([item.recapPageUuid]);
 
     const [change] = await guarded.listRecentChanges();
-    expect(change!.feature).toBe('session-notes');
-    expect(change!.summary).toContain('automatically');
-    expect(change!.canUndo).toBe(true);
+    expect(change.feature).toBe('session-notes');
+    expect(change.summary).toContain('automatically');
+    expect(change.canUndo).toBe(true);
   });
 
   it('waits while writes or the switch are off, and puts on the next pass once they are on', async () => {
     setFeature(true, false);
     await stageAndSettle();
     let [item] = (await notes.list()).items;
-    expect(item!.status).toBe('staged');
-    expect(item!.waitingFor).toEqual(['writes-off']);
+    expect(item.status).toBe('staged');
+    expect(item.waitingFor).toEqual(['writes-off']);
     setFeature(false);
     [item] = (await notes.list()).items;
-    expect(item!.waitingFor).toEqual(['feature-off']);
+    expect(item.waitingFor).toEqual(['feature-off']);
 
     setFeature(true);
     await notes.tick(); // not due: same connection, retry time not reached
-    expect((await notes.list()).items[0]!.status).toBe('staged');
+    expect((await notes.list()).items[0].status).toBe('staged');
     foundry.connectionSerial += 1; // a GM client connected again
     await notes.tick();
-    expect((await notes.list()).items[0]!.status).toBe('in-foundry');
+    expect((await notes.list()).items[0].status).toBe('in-foundry');
   });
 
   it('tries again after the retry time on the same connection', async () => {
@@ -278,7 +278,7 @@ describe('automatic put (D-087)', () => {
     setFeature(true);
     now += 3 * 60_000;
     await notes.tick();
-    expect((await notes.list()).items[0]!.status).toBe('in-foundry');
+    expect((await notes.list()).items[0].status).toBe('in-foundry');
   });
 });
 
@@ -307,10 +307,10 @@ describe('undo', () => {
   it('takes the journal out, unqueues the Recap and stops the automatic put', async () => {
     await stageAndSettle();
     const [item] = (await notes.list()).items;
-    await guarded.undo(item!.changeId!, { confirm: true });
+    await guarded.undo(item.changeId!, { confirm: true });
     await notes.idle();
     expect([...foundry.docs.values()].some(d => d.documentName === 'JournalEntry')).toBe(false);
-    const after = (await notes.list()).items[0]!;
+    const after = (await notes.list()).items[0];
     expect(after.status).toBe('staged');
     expect(after.autoPut).toBe(false);
     expect(after.waitingFor).toEqual([]);
@@ -319,7 +319,7 @@ describe('undo', () => {
 
     foundry.connectionSerial += 1;
     await notes.tick();
-    expect((await notes.list()).items[0]!.status).toBe('staged');
+    expect((await notes.list()).items[0].status).toBe('staged');
     const again = await notes.put({ sessionId: after.sessionId });
     expect(again.item.status).toBe('in-foundry');
     expect(again.item.autoPut).toBe(true);
@@ -328,12 +328,12 @@ describe('undo', () => {
   it('refuses with a conflict when the GM edited a page', async () => {
     await stageAndSettle();
     const [item] = (await notes.list()).items;
-    foundry.edit(item!.recapPageUuid!, {
+    foundry.edit(item.recapPageUuid!, {
       path: 'text.content',
       present: true,
       value: '<p>edited</p>',
     });
-    const refusal = guarded.undo(item!.changeId!, { confirm: true });
+    const refusal = guarded.undo(item.changeId!, { confirm: true });
     await expect(refusal).rejects.toThrow(/^Conflict, nothing was written: the page "Recap"/);
     expect(controlError(await refusal.catch(e => e)).code).toBe('conflict');
     expect(journal()).toBeDefined();
@@ -345,10 +345,10 @@ describe('undo', () => {
     await guarded.applyPlan(plan.planId, { confirm: true, confirmDestructive: true });
     await notes.idle();
     const [item] = (await notes.list()).items;
-    expect(item!.recapRevealed).toBe(true);
-    expect(item!.status).toBe('approved');
-    expect(item!.approvedBy).toBe('reveal');
-    await expect(guarded.undo(item!.changeId!, { confirm: true })).rejects.toThrow(
+    expect(item.recapRevealed).toBe(true);
+    expect(item.status).toBe('approved');
+    expect(item.approvedBy).toBe('reveal');
+    await expect(guarded.undo(item.changeId!, { confirm: true })).rejects.toThrow(
       /Recap was revealed/
     );
   });

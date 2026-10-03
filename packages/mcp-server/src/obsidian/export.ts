@@ -42,6 +42,7 @@ import { groupWithPlayRecords, type SessionEvent } from './grouping.js';
 import { campaignDir, NoteWriter } from './note-writer.js';
 import { baseOwnershipCheck, checkCanvasOwnership, checkMarkdownOwnership } from './ownership.js';
 import { renderUsageNote, USAGE_NOTE_PATH } from './render-usage.js';
+import { loadSessionNotesLinks, sessionNotesLines } from './session-notes-links.js';
 import {
   renderCampaignHome,
   renderCampaignStatsNote,
@@ -268,6 +269,7 @@ export async function exportWorldToObsidian(options: {
   const playRecords = await loadPlayRecords(store, worldId, cache);
   const stats = buildStats({ worldId, logEvents: events, playRecords });
   const groups = groupWithPlayRecords(events, playRecords);
+  const notesLinks = await loadSessionNotesLinks(store, worldId, root);
   for (let i = 0; i < groups.length; i++) {
     const group = groups[i];
     const sessionStats = stats.sessions[i];
@@ -279,7 +281,8 @@ export async function exportWorldToObsidian(options: {
       renderSessionNote(
         worldId,
         { events: group.events, startedBy: group.startedBy, endedBy: group.endedBy },
-        sessionStats
+        sessionStats,
+        sessionNotesLines(notesLinks.filter(link => link.date === sessionStats.date))
       ),
       checkMarkdownOwnership
     );

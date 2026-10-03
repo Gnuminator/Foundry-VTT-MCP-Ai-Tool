@@ -1113,6 +1113,13 @@ describe('getExportIndex: journal page text', () => {
     expect(JSON.stringify(entry)).not.toContain('Html body');
   });
 
+  it('opts in a journal that holds session notes (flag sessionNotes, D-087) by itself', () => {
+    world.journal.get(JOURNAL_ID)!.flags = { 'foundry-mcp-bridge': { sessionNotes: true } };
+    const entry = journalRow(ok({ kinds: ['journal'] }), JOURNAL_ID);
+    expect(entry.textIncluded).toBe(true);
+    expect(entry.pages[0]?.text?.content).toBe('<p>Html body</p>');
+  });
+
   it('opts in by journal id, sending html or markdown by page format', () => {
     const entry = journalRow(
       ok({ kinds: ['journal'], includeText: { folderIds: [], journalIds: [JOURNAL_ID] } }),

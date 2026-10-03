@@ -8,12 +8,20 @@
   each does, when to turn it on), a "?" on every panel that opens the GM guide in a side panel
   (built in, works offline), and a new GM guide page "Features and when to turn them on".
 
+### Module
+
+- **Themed dice (I-085; PR #83):** with Dice So Nice, two dice colour sets match the dashboard
+  themes ("AI Tool: The Veil" and "AI Tool: Neutral"); the GM picks the table's default once in
+  Dice So Nice's Dice Roles.
+
 ### Fixes
 
 - The session log measures HP changes per token: after a reload, or with several tokens of one
   monster, damage is no longer logged against the base actor's or another token's hit points (it
   could show as healing) (PR #79).
 - Docker: the image builds again (the runtime install no longer runs the git-hook setup) (PR #80).
+- The session log counts damage that hits temp HP ("took 10 damage (10 to temp HP)"); temp HP
+  gained or restored by an Undo is not logged as healing (PR #82).
 
 ## v0.20.0 (released 2026-10-03): undo for live play, the write gate, the design pass, pre-flight and prep, the party panel, the Obsidian plugin and library, GM guides
 

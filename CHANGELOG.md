@@ -151,7 +151,7 @@
   stay suggestions, and a near match no longer swallows the neighbouring word ("ogvallaki" was
   "Vallaki", now "og Vallaki").
 
-### Fixes (PRs #15 to #17)
+### Fixes (PRs #15 to #17, #55)
 
 - **Conditions are logged once.** Automated Conditions 5e mirrors dnd5e conditions as a second
   ActiveEffect, so the live feed and the play log showed every toggle twice (P-026). A matching
@@ -168,6 +168,8 @@
   restart; `drop-loot` refuses negative or fractional coins; placing actors on a scene audits after
   the write, not before.
 - README: the intro no longer promises that the GM approves every change (D-077).
+- Fixed: queueing a handout page from the dashboard no longer shows "GM Actions are off" or
+  "Can't load the plan" (the page was queued anyway) (PR #55).
 
 ## v0.19.0 (released 2026-09-30): M0 foundations + M1 Tarokka + M2 spoiler-safe player view + M3 Foundry 14 / dnd5e 6 pass (Curse of Strahd) + Obsidian O4 mirrors + tool sets
 

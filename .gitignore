@@ -108,3 +108,6 @@ scripts/test-env/local.json
 
 # Python wheels (a stray one was committed once)
 *.whl
+
+# Demo takes: the local OBS WebSocket password (I-082)
+scripts/demo/local.json

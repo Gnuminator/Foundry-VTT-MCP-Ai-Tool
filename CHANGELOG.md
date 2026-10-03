@@ -136,7 +136,7 @@ of this section.
 - **Troubleshooting (PR #70):** players who cannot apply their own effects (dnd5e's "Allow Player
   Effect Application"), and D&D Beyond characters that import as an empty "New Actor".
 
-### Design pass (D-085; PRs #60, #61, #63, #65, #66, #71, #73)
+### Design pass (D-085; PRs #60, #61, #63, #65, #66, #71, #73, #77)
 
 - **Themes (PR #60):** the dashboard and the players' page get a theme picked once per world by the
   GM: Neutral (the README brand) or The Veil (the Curse of Strahd theme, with self-hosted OFL fonts
@@ -161,6 +161,8 @@ of this section.
   highest roll and who went down, a link to the session note and Copy the stats for Discord. The
   bridge's play stats and the Obsidian session note gain the session's highest d20 roll by a hero
   (GM only; the Discord copy leaves it out).
+- Stats: the highest roll is named even when dnd5e records no label ("Perception check"), with its
+  natural d20 (PR #77).
 
 ### Demo recordings (I-082; PRs #53, #57)
 

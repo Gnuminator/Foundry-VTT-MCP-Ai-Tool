@@ -24,7 +24,8 @@ The first screen follows the evening (the tabs in the header show where you are;
 look ahead or back):
 
 - **Before** (no session running): Pre-flight's checks next to Prep (last session, open quests,
-  next session notes, handouts waiting). **Ready for session** at the top of Pre-flight turns on,
+  next session notes, handouts waiting), and below them a card per feature (on or off, what it
+  does, when to turn it on, a link to its guide section). **Ready for session** at the top of Pre-flight turns on,
   in one click, what tonight needs ("Allow Write Operations", the Handouts, Live play, Party
   and Tarokka switches, GM Actions); **End session** turns off again what it turned on. Only the dashboard's
   GM route can do this (the bridge's control method `session_switches`, never an MCP tool), so
@@ -38,6 +39,10 @@ look ahead or back):
   session's length with a link to its Obsidian note and a "Copy the stats for Discord" button
   (without the highest roll, which may have been private), then what happened in Prep, the
   handouts and the changes.
+
+Every panel has a **?** that opens its section of the GM guide in a side panel; the guide pages
+are built into the dashboard (`npm run build` renders `docs/gm` into `dist/help.json`), so the
+help works offline and matches the installed version.
 
 **Advanced** (top right) holds the rest: the Pre-flight, Prep, Party, Handouts and Tarokka panels
 (a panel already on the screen is scrolled to; otherwise it opens over the page), the Tool Runner,

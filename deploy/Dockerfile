@@ -52,6 +52,10 @@ COPY packages/mcp-server/     ./packages/mcp-server/
 COPY packages/cogm-dashboard/ ./packages/cogm-dashboard/
 COPY shared/                  ./shared/
 COPY tsconfig*.json           ./
+# The dashboard's in-app help (I-064) is rendered from the GM guide pages at build time
+# (packages/cogm-dashboard/scripts/build-help.mjs, which reuses the docs link checker).
+COPY docs/gm/                 ./docs/gm/
+COPY scripts/check-links.mjs  ./scripts/
 
 # Build all workspaces. Produces dist/ under each package.
 # cogm-dashboard build also copies public/ assets to its dist/.

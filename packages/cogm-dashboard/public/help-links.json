@@ -1,0 +1,15 @@
+[
+  { "panel": "#pane-combat", "help": "dashboard#combat-tracker" },
+  { "panel": "#pane-feed", "help": "dashboard#live-feed" },
+  { "panel": "#pane-changes", "help": "dashboard#recent-changes" },
+  { "panel": "#pane-ai", "help": "dashboard#co-gm-commentary" },
+  { "panel": "#pane-diagnostics", "help": "dashboard#module-diagnostics" },
+  { "panel": "#tools-drawer", "help": "dashboard#the-tool-runner--tools" },
+  { "panel": "#tarokka-drawer", "help": "dashboard#the-tarokka-drawer--tarokka" },
+  { "panel": "#preflight-drawer", "help": "dashboard#-pre-flight" },
+  { "panel": "#handouts-drawer", "help": "dashboard#the-handout-drawer--handouts" },
+  { "panel": "#prep-drawer", "help": "dashboard#the-prep-drawer--prep" },
+  { "panel": "#party-drawer", "help": "dashboard#the-party-drawer--party" },
+  { "panel": "#feature-cards-wrap", "help": "features#features-and-when-to-turn-them-on" },
+  { "panel": "#after-stats", "help": "dashboard#tonights-stats-after" }
+]

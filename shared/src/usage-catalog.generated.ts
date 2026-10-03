@@ -105,6 +105,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.features.read-more',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
     name: 'dash.handouts.close',
     kind: 'action',
     surface: 'dashboard',
@@ -154,6 +160,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   },
   {
     name: 'dash.header.gm-actions',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.header.guides',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/index.html',
@@ -235,6 +247,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.help.view',
+    kind: 'view',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
   },
   {
     name: 'dash.main.view',

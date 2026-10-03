@@ -208,7 +208,22 @@
         font-size: 12px;
         padding: 8px 18px 24px;
       }
+      footer .mist {
+        display: block;
+        margin-top: 8px;
+      }
+      footer .mist[hidden] {
+        display: none;
+      }
+      footer select {
+        background: var(--panel-2);
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        font: inherit;
+      }
     </style>
+    <link rel="stylesheet" href="themes/veil.css" />
   </head>
   <body>
     <header>
@@ -245,6 +260,14 @@
     <footer>
       Read-only player view. The server builds everything here from what players can already see in
       Foundry: hidden creatures, enemy HP numbers, GM notes and secrets never reach this page.
+      <label id="mist-control" class="mist" hidden>
+        Mist
+        <select id="select-mist" data-track="player.footer.mist">
+          <option value="calm">Calm</option>
+          <option value="drift">Drifting</option>
+          <option value="clear">Clear air</option>
+        </select>
+      </label>
     </footer>
 
     <script

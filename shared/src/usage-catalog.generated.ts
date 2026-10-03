@@ -177,6 +177,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.header.mist',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
     name: 'dash.header.model',
     kind: 'action',
     surface: 'dashboard',
@@ -208,6 +214,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   },
   {
     name: 'dash.header.tarokka',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.header.theme',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/index.html',
@@ -667,6 +679,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'module',
     file: 'packages/foundry-module/src/tarokka.ts',
+  },
+  {
+    name: 'player.footer.mist',
+    kind: 'action',
+    surface: 'player',
+    file: 'packages/cogm-dashboard/public/player.html',
   },
   {
     name: 'player.handouts.open',

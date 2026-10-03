@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Co-GM Dashboard</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./themes/veil.css" />
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
   </head>
@@ -122,6 +123,21 @@
         >
           🩺 Diag AI: on
         </button>
+        <label class="control-label" title="The look for this world; the players' page follows it">
+          Theme
+          <select id="select-theme" class="select" data-track="dash.header.theme">
+            <option value="neutral">Neutral</option>
+            <option value="veil">The Veil</option>
+          </select>
+        </label>
+        <label class="control-label" id="mist-control" title="Mist on this screen only" hidden>
+          Mist
+          <select id="select-mist" class="select" data-track="dash.header.mist">
+            <option value="calm">Calm</option>
+            <option value="drift">Drifting</option>
+            <option value="clear">Clear air</option>
+          </select>
+        </label>
         <label class="control-label">
           Tone
           <select id="select-tone" class="select" data-track="dash.header.tone">

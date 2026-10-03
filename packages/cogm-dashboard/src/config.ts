@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import * as os from 'os';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -83,6 +84,11 @@ export interface Config {
    * the links off. See `resolveObsidianVaultName` for the precedence rule.
    */
   readonly obsidianVaultName: string;
+  /**
+   * Folder for the dashboard's own small state files (the theme per world, D-085).
+   * `COGM_STATE_DIR`, else `~/.foundry-ai-tool`. Absent: nothing is saved across restarts.
+   */
+  readonly stateDir?: string;
 }
 
 /**
@@ -220,4 +226,5 @@ export const config: Config = {
     process.env.OBSIDIAN_VAULT_NAME ?? '',
     process.env.FOUNDRY_AI_OBSIDIAN_DIR ?? ''
   ),
+  stateDir: readString('COGM_STATE_DIR', path.join(os.homedir(), '.foundry-ai-tool')),
 };

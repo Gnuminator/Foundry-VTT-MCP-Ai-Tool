@@ -3,16 +3,22 @@
 #   pwsh scripts/test-env/start.ps1                   Foundry + bridge + dashboard
 #   pwsh scripts/test-env/start.ps1 -Only bridge      one service
 #   pwsh scripts/test-env/start.ps1 -NoWorld          Foundry at the setup screen
+#   pwsh scripts/test-env/start.ps1 -World ai-tool-kit Foundry into another world (e.g. the
+#                                                      test kit world with DDB imports)
 #
 # Refuses to start a service whose port is already taken, and never uses the
 # live bridge ports 31414-31416.
 param(
   [ValidateSet('all', 'foundry', 'bridge', 'dashboard')] [string]$Only = 'all',
-  [switch]$NoWorld
+  [switch]$NoWorld,
+  [ValidatePattern('^[a-z0-9][a-z0-9-]{0,63}$')] [string]$World = ''
 )
 
 . (Join-Path $PSScriptRoot 'config.ps1')
 Assert-SafePorts
+if ($World -and -not (Test-Path (Join-Path $TestEnv.DataDir 'Data' 'worlds' $World))) {
+  throw "No world '$World' under $(Join-Path $TestEnv.DataDir 'Data' 'worlds'); nothing started."
+}
 New-Item -ItemType Directory -Force $TestEnv.LogDir, $TestEnv.VaultDir | Out-Null
 $node = Get-NodeExe
 $pids = Read-Pids
@@ -64,8 +70,9 @@ if ($Only -in 'all', 'foundry') {
     Write-Host "foundry : not installed; extract the Foundry 14 Node.js build into $($TestEnv.AppDir)."
   } else {
     $foundryArgs = @("`"$main`"", "--dataPath=`"$($TestEnv.DataDir)`"", "--port=$($TestEnv.FoundryPort)", '--noupnp', '--noupdate')
-    $world = Join-Path $TestEnv.DataDir 'Data' 'worlds' $TestEnv.WorldId
-    if (-not $NoWorld -and (Test-Path $world)) { $foundryArgs += "--world=$($TestEnv.WorldId)" }
+    $worldId = if ($World) { $World } else { $TestEnv.WorldId }
+    $worldDir = Join-Path $TestEnv.DataDir 'Data' 'worlds' $worldId
+    if (-not $NoWorld -and (Test-Path $worldDir)) { $foundryArgs += "--world=$worldId" }
     # Foundry locks its data folder (Config/options.json.lock) and refreshes the
     # lock while running; right after a stop it is still fresh and a new start
     # fails with "already locked". Wait until it has gone stale.

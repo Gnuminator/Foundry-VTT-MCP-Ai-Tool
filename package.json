@@ -36,6 +36,8 @@
     "usage:catalog:check": "node scripts/usage-catalog.mjs --check",
     "live:roundtrip": "node scripts/live-roundtrip.mjs",
     "live:sweep": "node scripts/live-write-sweep.mjs",
+    "demo:obs-setup": "node scripts/demo/demo.mjs obs-setup",
+    "demo:take": "node scripts/demo/demo.mjs take",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
@@ -61,6 +63,7 @@
     "lint-staged": "^16.4.0",
     "madge": "^8.0.0",
     "markdownlint-cli2": "^0.23.3",
+    "playwright-core": "^1.63.0",
     "prettier": "^3.0.0",
     "typescript": "^5.0.0",
     "vitest": "^3.2.6"

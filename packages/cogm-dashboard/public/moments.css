@@ -220,6 +220,10 @@
   align-items: center;
   gap: 0.5rem;
 }
+/* A link styled as a button ("Open the session note") is not underlined. */
+a.btn {
+  text-decoration: none;
+}
 .btn.lamp {
   background: var(--accent);
   border-color: var(--accent);

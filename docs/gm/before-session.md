@@ -24,14 +24,15 @@ addresses are today's Windows setup; they change when the tool moves to the Oran
 - [ ] In the dashboard header, click **✈ Pre-flight**. Fix everything marked ✗ and look at each
       **!**. The rest of this page is also in the drawer's "Check by hand" list.
 
-## Check the switches
+## Turn on what tonight needs
 
-- [ ] In Foundry, open the Settings tab (gear icon), **Game Settings**, category **Foundry AI
-      Tool**, and switch on only the features you plan to use tonight: "AI Tool: Tarokka
-      (writes)", "AI Tool: Handouts (writes)". Leave "AI Tool: Live play (writes)" on (damage,
-      healing, conditions). Click **Save Changes**.
-- [ ] In the dashboard header, leave **⚔ GM Actions: off**. Turn it on only when you act from the
-      dashboard.
+- [ ] In the Pre-flight panel, click **Ready for session**. One click turns on "Allow Write
+      Operations", "AI Tool: Handouts (writes)", "AI Tool: Live play (writes)", "AI Tool: Party
+      (writes)" and **GM Actions**. The chips under the button show each switch; a toast says what
+      it turned on. **End session** turns off again what Ready turned on.
+- [ ] Only if you deal Tarokka cards tonight: in Foundry, open the Settings tab (gear icon),
+      **Game Settings**, category **Foundry AI Tool**, switch on "AI Tool: Tarokka (writes)" and
+      click **Save Changes**. Ready for session leaves it alone.
 
 ## Check what players will see
 
@@ -61,7 +62,7 @@ addresses are today's Windows setup; they change when the tool moves to the Oran
 
 ## When play begins
 
-- [ ] In the dashboard header, click **Start session**. It should now say "Session since" and the
-      time.
+- [ ] Click **Start the session log** (in the Pre-flight panel) or **Start session** in the
+      dashboard header. It should now say "Session since" and the time.
 
 Next: [after each session](after-session.md).

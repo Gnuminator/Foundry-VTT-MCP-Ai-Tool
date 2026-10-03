@@ -132,6 +132,9 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'searchCharacterItems',
   'searchCompendium',
   'searchLinkCandidates',
+  // Ready for session (session-switches.ts): sets the switches themselves, so it must work
+  // while "Allow Write Operations" is off; only the dashboard's GM route reaches it
+  'sessionSwitches',
   'snapshotGuardedOps',
   'suggestBalancedEncounter',
   'validateWritePermissions',

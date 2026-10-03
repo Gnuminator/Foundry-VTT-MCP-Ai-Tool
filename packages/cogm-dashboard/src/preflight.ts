@@ -1,12 +1,14 @@
 /**
  * Dashboard pre-flight (I-068): the bridge's `get-preflight` checklist plus the
- * two checks only the dashboard can make: GM Actions off, and the `/player`
- * page free of secret terms. Read-only.
+ * two checks only the dashboard can make: Ready for session (the module's session
+ * switches and GM Actions, D3) and the `/player` page free of secret terms. Read-only.
  */
 import type { PreflightCheck, PreflightChecksResult } from '@gnuminator/shared';
 
+import { readyCheck, type SessionSwitches } from './session-switches.js';
+
 /** The checks this file adds to the bridge's list. */
-export type DashboardPreflightCheckId = 'gm-actions' | 'player-page' | 'bridge-checks';
+export type DashboardPreflightCheckId = 'ready' | 'player-page' | 'bridge-checks';
 
 export interface DashboardPreflightCheck extends Omit<PreflightCheck, 'id'> {
   id: PreflightCheck['id'] | DashboardPreflightCheckId;
@@ -19,6 +21,11 @@ export interface DashboardPreflightResult extends Omit<PreflightChecksResult, 'c
 export interface DashboardPreflightInput {
   callTool: <T>(name: string, args?: Record<string, unknown>) => Promise<T>;
   gmActionsEnabled: boolean;
+  /**
+   * The module's session switches (D3), or null when the module is too old to report them.
+   * When present, the Ready row replaces the bridge's informational "Write switches" row.
+   */
+  sessionSwitches: SessionSwitches | null;
   /** What `/api/player/state` would send right now (with handouts). */
   playerState: unknown;
 }
@@ -93,17 +100,6 @@ async function playerPageCheck(input: DashboardPreflightInput): Promise<Dashboar
   }
 }
 
-function gmActionsCheck(enabled: boolean): DashboardPreflightCheck {
-  return enabled
-    ? {
-        id: 'gm-actions',
-        label: 'GM Actions off',
-        status: 'warn',
-        detail: 'GM Actions are on. Turn them off in the header until you act from the dashboard.',
-      }
-    : { id: 'gm-actions', label: 'GM Actions off', status: 'ok', detail: 'GM Actions are off.' };
-}
-
 /** Run the whole pre-flight: never throws; a check that cannot run says so. */
 export async function runDashboardPreflight(
   input: DashboardPreflightInput
@@ -123,7 +119,7 @@ export async function runDashboardPreflight(
     malformed = true;
   }
   const checks: DashboardPreflightCheck[] = bridge
-    ? [...bridge.checks]
+    ? bridge.checks.filter(c => !(input.sessionSwitches && c.id === 'write-switches'))
     : [
         {
           id: 'bridge-checks',
@@ -134,7 +130,10 @@ export async function runDashboardPreflight(
             : `The bridge did not answer: ${bridgeError ?? 'no result'}. Is Claude Desktop running?`,
         },
       ];
-  checks.push(gmActionsCheck(input.gmActionsEnabled), await playerPageCheck(input));
+  checks.push(
+    readyCheck(input.sessionSwitches, input.gmActionsEnabled),
+    await playerPageCheck(input)
+  );
   return {
     ready: bridge !== null && !checks.some(c => c.status === 'fail'),
     checks,

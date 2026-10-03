@@ -19,6 +19,12 @@ import { hostAllowlist } from './host-allowlist.js';
 import { mountOpenRoute, OPEN_PAGE_HEADERS, type OpenRouteOptions } from './open-route.js';
 import { buildPlayerState } from './player/projection.js';
 import { runDashboardPreflight } from './preflight.js';
+import {
+  isSessionSwitchAction,
+  parseSessionSwitches,
+  type SessionSwitchAction,
+  type SessionSwitches,
+} from './session-switches.js';
 import { PlayerViewSource } from './player/source.js';
 import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
 import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
@@ -55,6 +61,8 @@ export interface DashboardClient {
   recordHandoutSeen?(pageId: string, userId: string, name: string): Promise<{ recorded: boolean }>;
   /** The live write sweep's helper (I-016; test world only); absent on fakes. */
   liveSweep?(request: Record<string, unknown>): Promise<unknown>;
+  /** Ready for session (D3): read, turn on or turn back off tonight's switches; absent on fakes. */
+  sessionSwitches?(action: SessionSwitchAction): Promise<unknown>;
   readonly isConnected?: boolean;
 }
 
@@ -717,14 +725,84 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       });
   });
 
+  // --- Ready for session (D3, PB-17) --------------------------------------------
+  // One click turns on what tonight needs: the module's switches ("Allow Write Operations",
+  // Handouts, Live play, Party) and GM Actions; End session turns off what Ready turned on.
+  // The module side is the bridge's control method `session_switches`, never an MCP tool, so
+  // only this GM route can switch writes on; Claude cannot.
+
+  /** The module's switches, or null when the bridge or module cannot report them. */
+  async function moduleSwitches(action: SessionSwitchAction): Promise<SessionSwitches | null> {
+    if (typeof client.sessionSwitches !== 'function') return null;
+    const parsed = parseSessionSwitches(await client.sessionSwitches(action));
+    if (!parsed && action !== 'get')
+      throw new Error('The module did not answer with its switches.');
+    return parsed;
+  }
+
+  app.get('/api/session/switches', requireGm, (_req: Request, res: Response) => {
+    moduleSwitches('get')
+      .then(switches =>
+        res.json({ switches, gmActionsEnabled: settings.gmActionsEnabled, error: null })
+      )
+      .catch((error: unknown) => {
+        res.json({
+          switches: null,
+          gmActionsEnabled: settings.gmActionsEnabled,
+          error: error instanceof Error ? error.message : 'Could not read the switches.',
+        });
+      });
+  });
+
+  app.post('/api/session/switches', requireGm, (req: Request, res: Response) => {
+    const action = asRecord(req.body).action;
+    if (!isSessionSwitchAction(action) || action === 'get') {
+      res.status(400).json({ error: 'action must be "ready" or "end".' });
+      return;
+    }
+    const gmActionsBefore = settings.gmActionsEnabled;
+    // End always turns GM Actions off, even when the module cannot be reached (the safe side).
+    if (action === 'end' && settings.gmActionsEnabled) {
+      settings.gmActionsEnabled = false;
+      broadcastSettings();
+    }
+    moduleSwitches(action)
+      .then(switches => {
+        // Ready turns GM Actions on only once the module's switches are on.
+        if (action === 'ready' && !settings.gmActionsEnabled) {
+          settings.gmActionsEnabled = true;
+          broadcastSettings();
+        }
+        res.json({
+          ok: true,
+          switches,
+          gmActionsEnabled: settings.gmActionsEnabled,
+          gmActionsChanged: settings.gmActionsEnabled !== gmActionsBefore,
+        });
+      })
+      .catch((error: unknown) => {
+        res.status(502).json({
+          ok: false,
+          error: error instanceof Error ? error.message : 'Could not change the switches.',
+          gmActionsEnabled: settings.gmActionsEnabled,
+          gmActionsChanged: settings.gmActionsEnabled !== gmActionsBefore,
+        });
+      });
+  });
+
   // --- Pre-flight (I-068): read-only checks before a session -------------------
   app.get('/api/preflight', requireGm, (_req: Request, res: Response) => {
-    void runDashboardPreflight({
-      callTool: <T>(name: string, args?: Record<string, unknown>) =>
-        client.callTool<T>(name, args ?? {}),
-      gmActionsEnabled: settings.gmActionsEnabled,
-      playerState: currentPlayerState(),
-    })
+    void moduleSwitches('get')
+      .catch(() => null)
+      .then(sessionSwitches =>
+        runDashboardPreflight({
+          callTool: <T>(name: string, args?: Record<string, unknown>) =>
+            client.callTool<T>(name, args ?? {}),
+          gmActionsEnabled: settings.gmActionsEnabled,
+          sessionSwitches,
+          playerState: currentPlayerState(),
+        })
+      )
       .then(result => res.json(result))
       .catch((error: unknown) => {
         res.status(500).json({

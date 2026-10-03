@@ -90,13 +90,15 @@
   `remove-actor-ownership` (89 to 88 tools): ownership changes can be undone, back to the default
   when the player had no entry (PR #38).
 
-### Batch F and fixes (PRs #25, #28 to #30, #40, #42)
+### Batch F and fixes (PRs #25, #28 to #30, #40, #42, #67)
 
 - **Actor pickers (I-017; PR #29):** the tool runner's actor pickers show the actor types each
   tool is for (PCs and NPCs, the ones on the current scene first; NPCs for the NPC builders), with
   a Show all actors button.
 - **Live write sweep (I-016; PR #28):** `npm run live:sweep` runs every direct-write tool once on
   the local test world and cleans up after itself (a test-world-only helper deletes what it made).
+- **Test scripts take `--world` (PR #67):** `live:sweep` and `live:roundtrip` also run on the local
+  walkthrough world (`ai-tool-walkthrough`); every other world is still refused.
 - Fixed: `switch-scene` could leave the GM's view on the previous scene after a quick switch back,
   so scene tools acted on the wrong scene (PR #28).
 - Fixed: setting up spellcasting on an NPC left its spell slots at 0 in dnd5e 6; the slot counts

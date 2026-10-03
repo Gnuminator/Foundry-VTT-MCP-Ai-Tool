@@ -162,6 +162,15 @@ These need the **play** set switched on.
 - **Tip:** deleting a token asks twice. Its place in the encounter goes with it, and **Undo** in
   **Recent Changes** brings both back, initiative included.
 
+### A character died
+
+- **Say** (play set on): "Mark Kasimir as dead, go ahead." (`plan-actor-change`) Or click the
+  skull (**Mark Defeated**) on his row in the **Combat Tracker**.
+- **What happens:** the character gets the **Dead** status. The tool tracks 0 HP and death saves
+  but never decides that someone is dead; that is your call.
+- **Tip:** keep the actor; never delete it. The rest (Observer access for the player, the death
+  log, a new character) is on [When a character dies](death-and-new-characters.md).
+
 ### Record the session in Discord
 
 - **Type** in the Discord text channel: `/record start` when play begins, `/record stop` when it

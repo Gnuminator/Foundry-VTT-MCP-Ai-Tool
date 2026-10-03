@@ -17,6 +17,7 @@ play.
 | [Cookbook](cookbook.md)                                | Ready-to-use requests and clicks before, during and after a session.                  |
 | [Before each session](before-session.md)               | A checklist for the 15 minutes before play.                                           |
 | [After each session](after-session.md)                 | A checklist for right after play.                                                     |
+| [When a character dies](death-and-new-characters.md)   | The moment of death, a death log, and bringing in a new character.                    |
 | [Never do this, only do this if](never-and-only-if.md) | Short rules, each with its reason.                                                    |
 | [Troubleshooting](troubleshooting.md)                  | Symptom, likely cause and fix.                                                        |
 

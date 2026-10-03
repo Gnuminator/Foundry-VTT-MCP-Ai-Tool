@@ -98,6 +98,8 @@ export class EventTracker {
 
   /** Cache of last-seen HP per actor id, for damage/heal/death detection. */
   private hpCache: Map<string, number> = new Map();
+  /** Cache of last-seen temp HP per actor (null or missing counts as 0), same keys as hpCache. */
+  private tempCache: Map<string, number> = new Map();
   /** Cache of last-seen spell-slot / resource totals per actor, for spend detection. */
   private resourceCache: Map<string, number> = new Map();
   /** Drops the mirrored second ActiveEffect event (Automated Conditions 5e, P-026). */
@@ -339,8 +341,12 @@ export class EventTracker {
     try {
       const k = this.cacheKey(actor);
       const sys = actor.system;
-      const hp = sys?.attributes?.hp?.value;
-      if (typeof hp === 'number') this.hpCache.set(k, hp);
+      const hpData = (sys?.attributes?.hp ?? null) as { value?: unknown; temp?: unknown } | null;
+      const hp = hpData?.value;
+      if (typeof hp === 'number') {
+        this.hpCache.set(k, hp);
+        this.tempCache.set(k, typeof hpData?.temp === 'number' ? hpData.temp : 0);
+      }
 
       const spells = sys?.spells;
       if (spells) {
@@ -367,6 +373,7 @@ export class EventTracker {
   private forgetActor(actor: unknown): void {
     const k = this.cacheKey(actor);
     this.hpCache.delete(k);
+    this.tempCache.delete(k);
     for (const key of [...this.resourceCache.keys()]) {
       if (key.startsWith(`${k}:`)) this.resourceCache.delete(key);
     }
@@ -703,52 +710,76 @@ export class EventTracker {
     if (!actor?.id) return;
     const visibility = eventVisibilityFor(actor);
 
-    // --- HP change detection ---
-    const newHp = this.getProp(changed, 'system.attributes.hp.value');
-    if (newHp !== undefined && typeof newHp === 'number') {
-      const prev = this.hpCache.get(this.cacheKey(actor));
-      this.hpCache.set(this.cacheKey(actor), newHp);
+    // --- HP change detection (hit points and temp HP) ---
+    // dnd5e takes damage from temp HP first and writes temp and value in one update; damage that
+    // only hits temp HP changes `hp.temp` alone. Damage is the drop in both (the play recorder's
+    // rule). Temp HP going up (gained, or an Undo putting it back) is never healing.
+    const key = this.cacheKey(actor);
+    const newHp: unknown = this.getProp(changed, 'system.attributes.hp.value');
+    const rawTemp: unknown = this.getProp(changed, 'system.attributes.hp.temp');
+    const hpChanged = typeof newHp === 'number';
+    const tempChanged = rawTemp !== undefined;
+    if (hpChanged || tempChanged) {
+      const prev = this.hpCache.get(key);
+      const prevTemp = this.tempCache.get(key) ?? 0;
+      const to = hpChanged ? newHp : prev;
+      const toTemp = tempChanged ? (typeof rawTemp === 'number' ? rawTemp : 0) : prevTemp;
+      if (to !== undefined) this.hpCache.set(key, to);
+      this.tempCache.set(key, toTemp);
 
-      if (prev !== undefined && prev !== newHp) {
-        const delta = newHp - prev;
+      const delta = prev !== undefined && to !== undefined ? to - prev : 0;
+      const tempLost = Math.max(0, prevTemp - toTemp);
+      const damage = delta <= 0 ? tempLost - delta : 0;
+      if (prev !== undefined && to !== undefined && (damage > 0 || delta > 0)) {
         const pending = this.takePendingApply((actor as { uuid?: unknown }).uuid);
 
-        if (delta < 0) {
-          const credit = this.damageCredit(pending, -delta, newHp <= 0);
-          this.logSessionEvent('damage', `${actor.name} took ${Math.abs(delta)} damage`, {
-            actorName: actor.name,
-            actorId: actor.id,
-            details: {
-              amount: Math.abs(delta),
-              from: prev,
-              to: newHp,
-              source: credit?.label ?? null,
-              ...(credit ? { sourceMessageId: credit.messageId, sourceExact: credit.exact } : {}),
-            },
-            visibility,
-          });
-        } else if (delta > 0) {
+        if (damage > 0) {
+          const credit = this.damageCredit(pending, damage, to <= 0);
+          // Temp HP that just disappears (a rest, the GM clearing it) is no damage: a drop to
+          // 0 temp HP with the hit points untouched counts only when a damage roll explains it.
+          const tempCleared = delta === 0 && toTemp === 0 && !credit;
+          if (!tempCleared) {
+            const toTempText = tempLost > 0 ? ` (${tempLost} to temp HP)` : '';
+            this.logSessionEvent('damage', `${actor.name} took ${damage} damage${toTempText}`, {
+              actorName: actor.name,
+              actorId: actor.id,
+              details: {
+                amount: damage,
+                from: prev,
+                to,
+                ...(tempLost > 0
+                  ? { tempAbsorbed: tempLost, tempFrom: prevTemp, tempTo: toTemp }
+                  : {}),
+                source: credit?.label ?? null,
+                ...(credit ? { sourceMessageId: credit.messageId, sourceExact: credit.exact } : {}),
+              },
+              visibility,
+            });
+          }
+        } else {
           this.logSessionEvent('healing', `${actor.name} healed ${delta} HP`, {
             actorName: actor.name,
             actorId: actor.id,
-            details: { amount: delta, from: prev, to: newHp },
+            details: { amount: delta, from: prev, to },
             visibility,
           });
         }
+      }
 
-        // Death and stabilization detection
-        if (prev > 0 && newHp <= 0) {
+      // Death and stabilization detection (hit points only)
+      if (prev !== undefined && to !== undefined && prev !== to) {
+        if (prev > 0 && to <= 0) {
           this.logSessionEvent('death', `${actor.name} dropped to 0 HP`, {
             actorName: actor.name,
             actorId: actor.id,
             details: {},
             visibility,
           });
-        } else if (prev <= 0 && newHp > 0) {
+        } else if (prev <= 0 && to > 0) {
           this.logSessionEvent('stabilize', `${actor.name} recovered above 0 HP`, {
             actorName: actor.name,
             actorId: actor.id,
-            details: { to: newHp },
+            details: { to },
             visibility,
           });
         }

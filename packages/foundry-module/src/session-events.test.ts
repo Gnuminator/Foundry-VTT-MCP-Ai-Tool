@@ -819,3 +819,106 @@ describe('EventTracker HP cache per actor uuid (unlinked tokens)', () => {
     expect(hpCache.has('Actor.dev')).toBe(true);
   });
 });
+
+describe('EventTracker temp HP in the session log', () => {
+  const hp = (value?: number, temp?: number | null): any => ({
+    system: {
+      attributes: {
+        hp: {
+          ...(value === undefined ? {} : { value }),
+          ...(temp === undefined ? {} : { temp }),
+        },
+      },
+    },
+  });
+  const pc = { id: 'p1', uuid: 'Actor.p1', name: 'Silvera' };
+
+  function tracker(): EventTracker {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('updateActor', pc, hp(61, 17)); // first sighting seeds hit points and temp HP
+    return t;
+  }
+
+  it('damage that only hits temp HP is logged (dnd5e writes hp.temp alone)', () => {
+    const t = tracker();
+    fire('updateActor', pc, hp(undefined, 7));
+
+    const damage = t.getSessionLog({ eventType: 'damage' });
+    expect(damage).toHaveLength(1);
+    expect(damage[0].description).toBe('Silvera took 10 damage (10 to temp HP)');
+    expect(damage[0].details).toEqual(
+      expect.objectContaining({
+        amount: 10,
+        from: 61,
+        to: 61,
+        tempAbsorbed: 10,
+        tempFrom: 17,
+        tempTo: 7,
+      })
+    );
+  });
+
+  it('damage bigger than temp HP is one event: the temp drop plus the hit point drop', () => {
+    const t = tracker();
+    fire('updateActor', pc, hp(58, 0));
+
+    expect(t.getSessionLog({ eventType: 'damage' }).map(e => e.details)).toEqual([
+      expect.objectContaining({ amount: 20, from: 61, to: 58, tempAbsorbed: 17 }),
+    ]);
+  });
+
+  it('an Undo that puts temp HP back is no healing; the hit point part of an Undo is', () => {
+    const t = tracker();
+    fire('updateActor', pc, hp(undefined, 7)); // 10 to temp HP
+    fire('updateActor', pc, hp(undefined, 17)); // undone
+    fire('updateActor', pc, hp(58, 0)); // 7 to temp HP, 3 to hit points
+    fire('updateActor', pc, hp(61, 7)); // undone
+
+    expect(t.getSessionLog({ eventType: 'healing' }).map(e => e.details)).toEqual([
+      expect.objectContaining({ amount: 3, from: 58, to: 61 }),
+    ]);
+    expect(t.getSessionLog({ eventType: 'damage' })).toHaveLength(2);
+  });
+
+  it('gaining temp HP logs nothing', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('updateActor', pc, hp(61, null));
+    fire('updateActor', pc, hp(undefined, 5));
+
+    expect(t.getSessionLog({ eventType: 'damage' })).toHaveLength(0);
+    expect(t.getSessionLog({ eventType: 'healing' })).toHaveLength(0);
+  });
+
+  it('temp HP cleared to 0 without a damage roll is no damage; with a roll that fits, it is', () => {
+    const t = tracker();
+    fire('updateActor', pc, hp(undefined, null)); // a rest or the GM clearing it
+    expect(t.getSessionLog({ eventType: 'damage' })).toHaveLength(0);
+
+    fire('updateActor', pc, hp(undefined, 9));
+    fire('createChatMessage', damageMessage({ id: 'sword', timestamp: Date.now() })); // 9 slashing
+    fire('updateActor', pc, hp(undefined, 0));
+    expect(t.getSessionLog({ eventType: 'damage' }).map(e => e.details)).toEqual([
+      expect.objectContaining({ amount: 9, tempAbsorbed: 9, source: 'Longsword Damage' }),
+    ]);
+  });
+
+  it('the ready seed reads temp HP, and a deleted actor forgets it', () => {
+    const hero = { ...pc, system: { attributes: { hp: { value: 61, temp: 17 } } } };
+    (globalThis as any).game.actors = { contents: [hero], get: (): undefined => undefined };
+    (globalThis as any).game.scenes = { contents: [] };
+    const t = new EventTracker();
+    t.registerHooks();
+    (t as any).seedCaches();
+    expect((t as any).tempCache.get('Actor.p1')).toBe(17);
+
+    fire('updateActor', hero, hp(undefined, 12));
+    expect(t.getSessionLog({ eventType: 'damage' }).map(e => e.details)).toEqual([
+      expect.objectContaining({ amount: 5, tempAbsorbed: 5 }),
+    ]);
+
+    fire('deleteActor', hero);
+    expect((t as any).tempCache.has('Actor.p1')).toBe(false);
+  });
+});

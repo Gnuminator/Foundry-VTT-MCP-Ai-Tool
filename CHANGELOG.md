@@ -2,10 +2,20 @@
 
 ## Unreleased
 
-## v0.20.0 (not tagged yet): undo for live play, the write gate, the design pass (themes, first
+### Dashboard
 
-screen, Ready for session, one click), pre-flight and prep, the party panel, Obsidian plugin and
-library, GM guides
+- **Help inside the dashboard (I-064; PR #78):** feature cards in the Before view (on or off, what
+  each does, when to turn it on), a "?" on every panel that opens the GM guide in a side panel
+  (built in, works offline), and a new GM guide page "Features and when to turn them on".
+
+### Fixes
+
+- The session log measures HP changes per token: after a reload, or with several tokens of one
+  monster, damage is no longer logged against the base actor's or another token's hit points (it
+  could show as healing) (PR #79).
+- Docker: the image builds again (the runtime install no longer runs the git-hook setup) (PR #80).
+
+## v0.20.0 (released 2026-10-03): undo for live play, the write gate, the design pass, pre-flight and prep, the party panel, the Obsidian plugin and library, GM guides
 
 **Wire contracts are unchanged** (module id, ports, `foundry-mcp-bridge.*` method names, settings
 namespace). The bridge serves 88 tools (91 in v0.19.0): ten old direct-write tools became three

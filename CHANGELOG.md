@@ -113,7 +113,7 @@
   external links are checked weekly. Tool descriptions lost their em dashes and two references to
   tools that do not exist.
 
-### GM guides (PRs #44, #51)
+### GM guides (PRs #44, #51, #70)
 
 - **"When a character dies" (I-050):** marking a death, the death log, Observer access for the old
   sheet, and bringing in a new character, with what the tool can and cannot do at each step; plus
@@ -121,8 +121,10 @@
 - **Prep drawer and `get-prep-digest` (PR #51):** "Deaths" is now "PCs who went down" and "NPCs
   who went down" (dropped to 0 HP; the tool never knows who died). The GM guide "Asking Claude"
   has one table of all feature switches, including "AI Tool: Ownership (writes)".
+- **Troubleshooting (PR #70):** players who cannot apply their own effects (dnd5e's "Allow Player
+  Effect Application"), and D&D Beyond characters that import as an empty "New Actor".
 
-### Design pass (D-085; PRs #60, #61, #63, #65, #66)
+### Design pass (D-085; PRs #60, #61, #63, #65, #66, #71)
 
 - **Themes (PR #60):** the dashboard and the players' page get a theme picked once per world by the
   GM: Neutral (the README brand) or The Veil (the Curse of Strahd theme, with self-hosted OFL fonts
@@ -140,6 +142,9 @@
   reveals) and plans from Claude or Obsidian still show the confirm window first. "AI Tool: Live
   play, apply without confirming" now covers only Claude's plans. Ready for session also turns on
   "AI Tool: Tarokka (writes)".
+- **Combat strip actions (I-095; PR #71):** Damage and Condition on selected combatants are back
+  in the During view's turn-order strip and apply in one click with Undo; initiative, turns and
+  saves stay in Foundry; the strip is a slim row again.
 
 ### Demo recordings (I-082; PRs #53, #57)
 
@@ -151,7 +156,7 @@
   the table demo takes table-player-attack and table-phone; the demo world gets invented prep
   content and loses the leftover Tarokka journal.
 
-### Voice tools (PRs #24, #26, #43, #45, #46, #48)
+### Voice tools (PRs #24, #26, #43, #45, #46, #48, #68)
 
 - **Session notes (`tools/session-notes`):** the Claude writing step of the session pipeline on the
   subscription (`claude -p`): the transcript cut into scenes, notes in Danish and English with a
@@ -175,6 +180,10 @@
   rules.json spelling; only exact names are fixed automatically, near matches and Danish endings
   stay suggestions, and a near match no longer swallows the neighbouring word ("ogvallaki" was
   "Vallaki", now "og Vallaki").
+- **Transcriber falls back (PR #68):** before loading the model on the GPU, a child process tests
+  it (one second of silence, stopped after three minutes); when that fails or hangs, the run
+  falls back to int8 on the GPU, then the CPU, so an unattended run after a session still
+  finishes. Failed attempts are recorded in the transcript JSON.
 
 ### Fixes (PRs #15 to #17, #55, #59, #64)
 

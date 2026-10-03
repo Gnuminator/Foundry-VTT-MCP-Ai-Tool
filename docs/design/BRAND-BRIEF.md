@@ -156,7 +156,7 @@ Accent rule: **arcane blue leads; orange is a single spark.** Never a rainbow.
 
 Save the exports here:
 
-```
+```text
 docs/images/brand/
   logo.svg            ← Pass 1, transparent app mark
   logo-dark.svg       ← Pass 1, on #0f1115 (optional)
@@ -203,7 +203,7 @@ what "iterate" means here, **not a separate prompt** — then paste **Motion B**
 > **Reality check on motion clichés.** The whole point is _restraint_. If a result feels like a crypto
 > ad — fast whooshes, neon bloom, spinning, bouncy overshoot, lens flares — push back hard: _"slower,
 > calmer, no whoosh, ease in-out only, the glow is the only effect."_
-
+>
 > **GitHub note.** A README can't autoplay an MP4, but it **does autoplay & loop a GIF inline** — so
 > export the **feature sizzle (Motion B)** as a looping GIF and that becomes the README's demo for now.
 > Keep the MP4 too for a showcase site / social / the repo's social-preview image.

@@ -103,7 +103,7 @@ export class DnD5eNpcTools {
           'identity (name, type, size, alignment, CR), ability scores, saving throw proficiencies, ' +
           'HP (average + formula), AC (default or flat), movement speeds, senses, skill proficiencies, ' +
           'damage immunities/resistances/vulnerabilities, condition immunities, languages, and biography. ' +
-          'Items, actions, features, and spells are NOT added by this tool — use dnd5e-add-feature ' +
+          'Items, actions, features, and spells are NOT added by this tool; use dnd5e-add-feature ' +
           '(featureType: "passive", "save", "attack", "attack-with-save", "aura", "spellcasting", or "spells") ' +
           'to add them after creation. The actor is placed in the "Foundry MCP Creatures" folder.',
         inputSchema: {
@@ -153,7 +153,7 @@ export class DnD5eNpcTools {
             },
             cr: {
               description:
-                'Challenge Rating — whole number (0, 1, 5), fraction string ("1/8", "1/4", "1/2"), ' +
+                'Challenge Rating: whole number (0, 1, 5), fraction string ("1/8", "1/4", "1/2"), ' +
                 'or decimal number (0.25, 0.5)',
               oneOf: [
                 { type: 'string', pattern: '^\\d+(\\/[248])?$' },
@@ -175,8 +175,8 @@ export class DnD5eNpcTools {
               type: 'string',
               enum: ['default', 'flat'],
               description:
-                '"default" — Foundry calculates AC from equipped items and abilities; ' +
-                '"flat" — set a fixed AC value via acValue',
+                '"default": Foundry calculates AC from equipped items and abilities; ' +
+                '"flat": set a fixed AC value via acValue',
             },
             acValue: {
               type: 'number',

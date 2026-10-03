@@ -1,0 +1,43 @@
+// markdownlint for the docs (I-081): `npm run docs:lint`, also run in CI.
+// Prettier owns wrapping and table layout, so line length and table column style are off.
+{
+  "config": {
+    "default": true,
+    "MD013": false,
+    "MD060": false,
+    // A numbered list may go on after a paragraph (getting-started: steps 4 to 6).
+    "MD029": false,
+    // The README starts with a centred logo.
+    "MD041": false,
+    // CHANGELOG repeats "Features" / "Fixes" under each release.
+    "MD024": { "siblings_only": true },
+    // The docs carry a front matter `title`; only a second "# " heading counts.
+    "MD025": { "front_matter_title": "" },
+    // README layout only. A placeholder such as <name> must be in backticks, or GitHub hides it.
+    "MD033": {
+      "allowed_elements": [
+        "a",
+        "br",
+        "details",
+        "img",
+        "kbd",
+        "p",
+        "picture",
+        "source",
+        "summary",
+        "sup",
+      ],
+    },
+  },
+  "globs": ["**/*.md"],
+  "ignores": [
+    "**/node_modules/**",
+    "**/dist/**",
+    // History is never rewritten.
+    "docs/history/**",
+    // Claude's own skills and their unverified reference drafts.
+    ".claude/**",
+    // Narration scripts: each "# " heading is a scene of the spoken script, not a document title.
+    "tools/narration/examples/**",
+  ],
+}

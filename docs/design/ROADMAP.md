@@ -147,8 +147,9 @@ Everything else outstanding is below, roughly in priority order.
 - [ ] Decide the dead runtime Zod schemas in `shared/src/protocol.ts` — wire the validation or drop them.
 - [x] (done 2026-09-29 with the ComfyUI removal) Drop unused dep `axios` from `mcp-server`.
 - [ ] Resolve the `tslib` reference in `tsconfig.json`.
-- [ ] Sync workspace `package.json` versions to root (0.18.0); regenerate `TOOL_INVENTORY.md` (73 tools,
-      not 57); refresh PROJECT-STATUS test counts (1,959).
+- [x] (done: one version in the root `package.json` since PR #2; `TOOL_INVENTORY.md` replaced by the
+      generated `docs/reference/tools.md` in F4, I-081) Sync workspace `package.json` versions to root;
+      regenerate the tool inventory.
 - [ ] Remove dead PF2e formatting branches (`tools/character.ts`, `tools/compendium.ts`). (The unused
       in-memory job subsystem in `tools/map-generation.ts` went with the ComfyUI removal, 2026-09-29.)
 - [ ] Audit the unreviewed surfaces: `installer/` NSIS + `configure-claude.ps1`, the release workflows,

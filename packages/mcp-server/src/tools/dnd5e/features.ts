@@ -42,16 +42,16 @@ export class DnD5eFeaturesFromCompendiumTools {
           '  - Add class features to an NPC caster (e.g. "Spellcasting", "Action Surge", "Font of Magic")\n' +
           '  - Mix features from monster and class compendiums on a custom NPC\n' +
           '  - Example: "add Spellcasting, Font of Magic and Metamagic to this sorcerer NPC"\n\n' +
-          '⚠️ IMPORTANT — feature names must be in English: the compendium uses English names. ' +
+          '⚠️ IMPORTANT: feature names must be in English: the compendium uses English names. ' +
           'Translate BEFORE calling if the user provided names in another language.\n\n' +
           'compendiumPacks controls which pack(s) to search (priority order, first match wins):\n' +
           '  - Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] → 2014 SRD\n' +
           '  - ["dnd5e.monsterfeatures24"]                              → 2024 monster features only\n' +
           '  - ["dnd5e.monsterfeatures24", "dnd5e.classfeatures"]       → 2024 monsters + 2014 class\n\n' +
           'DO NOT USE THIS TOOL for:\n' +
-          '  - Importing spell items → use dnd5e-add-spells-to-actor instead\n' +
-          '  - Setting up spellcasting class or spell slots → use dnd5e-set-actor-spellcasting\n' +
-          '  - Importing 2024 class features — they are embedded inside class items in the 2024 ' +
+          '  - Importing spell items → use dnd5e-add-feature with featureType "spells" instead\n' +
+          '  - Setting up spellcasting class or spell slots → use dnd5e-add-feature with featureType "spellcasting"\n' +
+          '  - Importing 2024 class features: they are embedded inside class items in the 2024 ' +
           'edition, not available in a separate compendium pack; this tool cannot import them\n' +
           '  - Creating custom/homebrew features from scratch → compendium-only, no homebrew\n' +
           '  - Non-dnd5e systems → this tool is dnd5e-exclusive\n\n' +

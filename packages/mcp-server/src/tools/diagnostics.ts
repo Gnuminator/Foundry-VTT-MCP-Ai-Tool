@@ -28,7 +28,7 @@ export class DiagnosticsTools {
       {
         name: 'get-modules',
         description:
-          'List installed Foundry modules with version, active state, declared compatibility (min/verified/max core), and required-dependency satisfaction — plus the core Foundry and game-system versions. Each module includes an `issues` list (missing/inactive dependencies, version-out-of-range). Use to spot version/dependency/compatibility conflicts.',
+          'List installed Foundry modules with version, active state, declared compatibility (min/verified/max core), and required-dependency satisfaction, plus the core Foundry and game-system versions. Each module includes an `issues` list (missing/inactive dependencies, version-out-of-range). Use to spot version/dependency/compatibility conflicts.',
         inputSchema: {
           type: 'object',
           properties: {

@@ -28,7 +28,7 @@ export class ChatLogTools {
       {
         name: 'get-chat-log',
         description:
-          "Retrieve recent Foundry chat messages from the module's in-memory buffer. This is where dice rolls, ability uses, damage events, and combat narration live. Each message includes the speaker, message type, content, flavor text, and—for rolls—the formula, total, individual die results, critical/fumble status, advantage/disadvantage, and any damage total and types. Use this to follow what happened in the game.",
+          "Retrieve recent Foundry chat messages from the module's in-memory buffer. This is where dice rolls, ability uses, damage events, and combat narration live. Each message includes the speaker, message type, content, flavor text, and, for rolls, the formula, total, individual die results, critical/fumble status, advantage/disadvantage, and any damage total and types. Use this to follow what happened in the game.",
         inputSchema: {
           type: 'object',
           properties: {

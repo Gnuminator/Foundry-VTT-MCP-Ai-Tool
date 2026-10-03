@@ -285,7 +285,7 @@ Queue handouts during prep, then reveal each with one click at the table. The dr
 
 - **Queue**: the pages you staged, oldest first, with their scene and who they are for.
   **Remove** takes one off the queue. Queueing changes nothing in Foundry.
-- **Reveal next: <title>**: plans the reveal of the next queued page for the scene that is active
+- **Reveal next: `<title>`**: plans the reveal of the next queued page for the scene that is active
   now (or a page queued for any scene). The confirm window shows the change; applying it also takes
   the page off the queue. Undo in Recent Changes hides it again and puts it back in the queue.
 - **+ Queue a page**: opens the tool runner on `plan-page-reveal` with `action` queue. Pick the page,

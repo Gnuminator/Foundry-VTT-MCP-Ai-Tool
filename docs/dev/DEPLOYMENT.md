@@ -14,7 +14,7 @@ The module is published as a GitHub Release on the fork, so it installs like any
 **In Foundry:** Setup → **Add-on Modules** → **Install Module** → paste this in the _Manifest URL_
 field → Install:
 
-```
+```text
 https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/module.json
 ```
 

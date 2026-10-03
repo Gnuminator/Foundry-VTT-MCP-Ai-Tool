@@ -58,7 +58,7 @@ export class SessionLogTools {
       {
         name: 'get-recent-events',
         description:
-          'Low-latency "what happened since timestamp X" delta of session events — for situational awareness during play. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.',
+          'Low-latency "what happened since timestamp X" delta of session events, for situational awareness during play. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.',
         inputSchema: {
           type: 'object',
           properties: {

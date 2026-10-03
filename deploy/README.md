@@ -13,7 +13,7 @@ walkthrough.
 
 ## Contents
 
-```
+```text
 deploy/
 ├── README.md                            ← you are here
 │

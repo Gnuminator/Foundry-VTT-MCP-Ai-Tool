@@ -7,7 +7,7 @@ The Foundry side (the LiveKit AVClient module in a real world) is still to be te
 
 Foundry VTT cannot record voice or webcams by itself. This kit adds the missing pieces:
 
-```
+```text
 Foundry 14 + "LiveKit AVClient" module  --wss-->  livekit-server  <--> redis <--> egress
      (players talk, optional camera)                   |  webhook                  |
                                                        v                           v
@@ -25,15 +25,15 @@ Foundry 14 + "LiveKit AVClient" module  --wss-->  livekit-server  <--> redis <--
 
 Pinned versions (checked 2026-09-30, all have amd64 and arm64 images):
 
-| Part | Version |
-| ---- | ------- |
-| `livekit/livekit-server` | `v1.13.7` |
-| `livekit/egress` | `v1.14.1` |
-| `redis` | `7-alpine` |
-| `caddy` (optional local TLS) | `2.11.4-alpine` |
-| `livekit-server-sdk` (recorder) | `2.19.1` |
-| Recorder runtime | Node 22 (`node:22-alpine`) |
-| Foundry module | LiveKit AVClient (`bekriebel/fvtt-module-avclient-livekit`), `0.6.6` to test |
+| Part                            | Version                                                                      |
+| ------------------------------- | ---------------------------------------------------------------------------- |
+| `livekit/livekit-server`        | `v1.13.7`                                                                    |
+| `livekit/egress`                | `v1.14.1`                                                                    |
+| `redis`                         | `7-alpine`                                                                   |
+| `caddy` (optional local TLS)    | `2.11.4-alpine`                                                              |
+| `livekit-server-sdk` (recorder) | `2.19.1`                                                                     |
+| Recorder runtime                | Node 22 (`node:22-alpine`)                                                   |
+| Foundry module                  | LiveKit AVClient (`bekriebel/fvtt-module-avclient-livekit`), `0.6.6` to test |
 
 ## Local proof of concept (PC, Docker Desktop)
 
@@ -94,15 +94,15 @@ Participant identity in the file names is the Foundry user id. To get readable l
 
 ## Files
 
-| File | Purpose |
-| ---- | ------- |
-| `docker-compose.yml` | project `fvtt-livekit`: livekit, redis, egress, recorder, optional `tls` profile |
-| `livekit.yaml`, `egress.yaml` | local configuration, no secrets (keys come from `.env` through the compose file) |
-| `livekit.pi.yaml`, `docker-compose.pi.yml` | template for the Pi and public setup, not used locally |
-| `.env.example` | copy to `.env` or run `init` |
-| `Caddyfile` | local TLS for the signalling port (optional) |
-| `recorder/` | webhook service, standalone (own `package.json`, not an npm workspace): `npm ci`, `npm test` |
-| `scripts/livekit-poc.ps1` | init, up, down, status, logs, test |
+| File                                       | Purpose                                                                                      |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `docker-compose.yml`                       | project `fvtt-livekit`: livekit, redis, egress, recorder, optional `tls` profile             |
+| `livekit.yaml`, `egress.yaml`              | local configuration, no secrets (keys come from `.env` through the compose file)             |
+| `livekit.pi.yaml`, `docker-compose.pi.yml` | template for the Pi and public setup, not used locally                                       |
+| `.env.example`                             | copy to `.env` or run `init`                                                                 |
+| `Caddyfile`                                | local TLS for the signalling port (optional)                                                 |
+| `recorder/`                                | webhook service, standalone (own `package.json`, not an npm workspace): `npm ci`, `npm test` |
+| `scripts/livekit-poc.ps1`                  | init, up, down, status, logs, test                                                           |
 
 ## Raspberry Pi 5 Pro (arm64) and public setup, outline
 
@@ -131,7 +131,7 @@ Not built or tested yet. `livekit.pi.yaml` documents the settings.
 - **Issue #105 (0.6.8):** connection timeout on login; downgrading to 0.6.7 fixed it for the
   reporter. The reporter ran Foundry 13. Use 0.6.6 or 0.6.7.
 - The module always uses `wss://`, see above. Foundry itself must also run on a secure page for
-  microphone access (http://localhost counts as secure; a Pi needs https through the tunnel).
+  microphone access (`http://localhost` counts as secure; a Pi needs https through the tunnel).
 - Recorder restart in the middle of a session: tracks published before the restart are not
   recorded (the recorder only reacts to new `track_published` events). Reconnecting players publish
   new tracks and are picked up. A reconcile step on start (list rooms and start egress for live tracks)

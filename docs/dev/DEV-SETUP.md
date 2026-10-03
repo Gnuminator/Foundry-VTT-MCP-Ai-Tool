@@ -31,10 +31,11 @@ Open the terminal with **`` Ctrl+` ``** (it opens at the repo root) and confirm 
 npm install            # only needed on a fresh clone; skip if node_modules already exists
 npm run build          # composite build of all workspaces
 npm run typecheck      # strict TS, all workspaces
-npm test -w @gnuminator/shared           # 49
-npm test -w @gnuminator/foundry-module   # 12
-npm test -w @gnuminator/mcp-server       # 1030
-npm test -w @gnuminator/cogm-dashboard   # 29   (1120 total)
+npm run lint:ratchet   # ESLint errors fail; warning counts may only go down
+npm run emdash:ratchet # em dashes may only go down
+CI=true npm test       # every workspace
+npm run docs:lint      # markdownlint (.markdownlint-cli2.jsonc)
+npm run docs:links     # every relative link and #anchor in the tracked Markdown
 node scripts/mcp-schema-smoke-test.mjs
 node scripts/standalone-smoke-test.mjs
 node scripts/cogm-split-smoke-test.mjs
@@ -42,7 +43,10 @@ node scripts/validate-manifest.js
 ```
 
 If a workspace build emits nothing, delete stale `*.tsbuildinfo` and rebuild. The **Vitest** extension
-also gives you a Testing sidebar — run/debug any of the 1120 tests inline once it indexes.
+also gives you a Testing sidebar: run or debug any test inline once it indexes.
+
+After changing a tool's description or parameters, run `npm run docs:tools`: it regenerates
+[docs/reference/tools.md](../reference/tools.md), and the mcp-server tests fail while that page is stale.
 
 > Windows note: the integrated terminal defaults to **PowerShell**. `git`, `node`, and `npm` work there.
 > For the bash-style one-liners above, you can switch the terminal profile to **Git Bash** (terminal

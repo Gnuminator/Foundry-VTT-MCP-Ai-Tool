@@ -80,7 +80,9 @@ COPY --from=build /app/packages/mcp-server/package.json     ./packages/mcp-serve
 COPY --from=build /app/packages/cogm-dashboard/package.json ./packages/cogm-dashboard/
 COPY --from=build /app/shared/package.json                  ./shared/
 
-RUN npm ci --frozen-lockfile --omit=dev
+# The root `prepare` script installs git hooks (husky, a devDependency, so not installed here);
+# an image has no git hooks, so drop it before the production install.
+RUN npm pkg delete scripts.prepare && npm ci --frozen-lockfile --omit=dev
 
 # Copy built artifacts from the build stage.
 COPY --from=build /app/packages/mcp-server/dist      ./packages/mcp-server/dist/

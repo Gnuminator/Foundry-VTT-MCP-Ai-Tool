@@ -72,7 +72,7 @@ live proof of concept (2 to 3 people, 30 minutes, a reconnect, compared with Cra
 `rehearse` tests the recorder against known audio: up to three speaker bots play one recorded
 track each into a voice channel while the recorder records them, in the same process.
 
-```
+```bash
 node packages/discord-bot/dist/cli.js rehearse <folder of per-speaker tracks> [--seconds N] [--drop-at S | --no-drop] [--settle S]
 ```
 
@@ -96,7 +96,7 @@ Setup, once: create one bot application per speaker bot (Discord Developer Porta
 Application; no privileged intents), invite each with the scope `bot` and the permissions View
 Channels, Connect and Speak, and add to `discord-bot.env`:
 
-```
+```ini
 REHEARSAL_TOKEN_1=...
 REHEARSAL_TOKEN_2=...
 REHEARSAL_TOKEN_3=...

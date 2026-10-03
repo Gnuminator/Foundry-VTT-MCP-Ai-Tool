@@ -265,6 +265,7 @@ describe('exportWorldToObsidian', () => {
     expect(s1).toContain('gm_changes: 1'); // the seeded gm-change event falls in S01
     expect(s1).toContain('## Stats');
     expect(s1).toContain('(no combats this session)');
+    expect(s1).not.toContain('Highest roll'); // no PC d20 roll recorded
 
     const s2 = await note('AI Tool/Sessions/2026-09-28 S02.md');
     expect(s2).toContain('session_number: 2');

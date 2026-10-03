@@ -3,6 +3,24 @@ import type { UsageCatalogEntry } from './usage.js';
 
 export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   {
+    name: 'dash.after.copy-stats',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.after.open-note',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.after.refresh',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
     name: 'dash.ai.ask',
     kind: 'action',
     surface: 'dashboard',

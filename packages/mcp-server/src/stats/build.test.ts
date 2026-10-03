@@ -78,6 +78,39 @@ function build(records: PlayRecord[], logEvents: SessionEvent[] = []): StatsMode
   return buildStats({ worldId: 'test-world', logEvents, playRecords: records });
 }
 
+describe('buildStats: the highest roll', () => {
+  it('is the highest PC d20 roll; NPC rolls and damage totals never win, the earliest wins a tie', () => {
+    const stats = build([
+      roll('r1', T0, PC, 'm1', { total: 19, rollType: 'attack', label: 'Longsword attack' }),
+      roll('r2', T0 + 1000, PC, 'm2', {
+        total: 27,
+        natural: 20,
+        rollType: 'skill',
+        label: 'Athletics check',
+      }),
+      roll('r3', T0 + 2000, NPC, 'm3', { total: 31, rollType: 'skill', label: 'Stealth check' }),
+      roll('r4', T0 + 3000, PC, 'm4', { total: 40, rollType: 'damage', label: 'Fireball damage' }),
+      roll('r5', T0 + 4000, PC, 'm5', { total: 27, rollType: 'save', label: 'Wisdom save' }),
+    ]);
+    expect(stats.sessions[0]?.highestRoll).toEqual({
+      total: 27,
+      name: 'Ireena',
+      label: 'Athletics check',
+      rollType: 'skill',
+      natural: 20,
+      at: new Date(T0 + 1000).toISOString(),
+    });
+  });
+
+  it('is null without a PC d20 roll', () => {
+    const stats = build([
+      roll('r1', T0, NPC, 'm1', { total: 18, rollType: 'attack' }),
+      roll('r2', T0 + 1000, PC, 'm2', { total: 12, rollType: 'healing' }),
+    ]);
+    expect(stats.sessions[0]?.highestRoll).toBeNull();
+  });
+});
+
 describe('buildStats', () => {
   it('counts damage and healing only from HP deltas, never from the roll total', () => {
     const records: PlayRecord[] = [

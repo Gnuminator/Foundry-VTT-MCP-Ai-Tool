@@ -33,7 +33,10 @@ look ahead or back):
   breakdowns in the middle; the party, handouts with who has seen them, and Recent Changes with
   Undo beside it; the turn order as a slim strip at the top. Turns run in Foundry: the dashboard
   watches, remembers and can take back changes made through the tool.
-- **After** (the session ended in the last 12 hours): what happened tonight in Prep, the
+- **After** (the session ended in the last 12 hours): tonight's stats on top (rolls with natural
+  20s and 1s, the hero with the most damage, the highest d20 roll by a hero, who went down), the
+  session's length with a link to its Obsidian note and a "Copy the stats for Discord" button
+  (without the highest roll, which may have been private), then what happened in Prep, the
   handouts and the changes.
 
 **Advanced** (top right) holds the rest: the Pre-flight, Prep, Party, Handouts and Tarokka panels

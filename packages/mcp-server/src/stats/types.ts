@@ -68,6 +68,27 @@ export interface SessionStats {
   users: string[];
   /** In-game seconds that passed (world-time records). */
   gameSeconds: number;
+  /**
+   * The session's highest d20 roll by a player character (attack, save, check, skill, tool,
+   * initiative or death save; damage and healing do not count), or null without one. The
+   * earliest wins a tie. GM-only: play records do not keep a roll's visibility, so this may be
+   * a private or blind roll; never show it to players without filtering those first.
+   */
+  highestRoll: HighestRoll | null;
+}
+
+/** One roll, as `SessionStats.highestRoll` reports it. */
+export interface HighestRoll {
+  total: number;
+  /** The player character's name. */
+  name: string;
+  /** What was rolled, e.g. `Athletics check`, when the roll says. */
+  label: string | null;
+  rollType: string;
+  /** The kept natural d20 result, when known. */
+  natural: number | null;
+  /** When it was rolled (ISO). */
+  at: string;
 }
 
 export interface PcStats {

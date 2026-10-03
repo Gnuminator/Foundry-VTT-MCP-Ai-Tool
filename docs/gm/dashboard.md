@@ -157,6 +157,22 @@ first boss fight. It shows:
 
 The player page never shows any of this.
 
+### Tonight's stats (After)
+
+The top of the **After** view, for the session that just ended:
+
+- **Rolls**: how many, with the natural 20s and natural 1s.
+- **Most damage**: the hero who dealt the most, and over how many fights.
+- **Highest roll**: the highest d20 roll by a hero (attacks, saves, checks, initiative; damage does
+  not count), who rolled it and what it was. It may be a private or blind roll, so it stays on your
+  screen.
+- **Went down**: which heroes dropped to 0 HP, and how often.
+
+Below them: the session's length, **Open the session note** (in Obsidian, when it is set up) and
+**Copy the stats for Discord**, which copies the rolls, most damage and who went down for the
+players' channel, without the highest roll. **↻ Refresh** loads them again. The numbers come from
+the tool's play log, the same as the Stats section of the Obsidian session note.
+
 ### Live Feed
 
 What happens at the table, newest on top: damage, healing, who drops to 0 HP, conditions, spell slots, rolls,

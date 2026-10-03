@@ -146,7 +146,7 @@ The player page never shows any of this.
 
 ### Live Feed
 
-What happens at the table, newest on top: damage, healing, deaths, conditions, spell slots, rolls,
+What happens at the table, newest on top: damage, healing, who drops to 0 HP, conditions, spell slots, rolls,
 scene changes and more. Each line shows its type and the time.
 
 - You see each roll's full breakdown, for example "Wolf 1, Bite attack: 1d20 (15) +2 STR +2
@@ -301,7 +301,8 @@ to a player who picked that name ("Playing as ...") at the top of the page.
 The facts for preparing your next session, in one place and without AI. **Refresh** reloads them.
 
 - **Last session**: its date and length, the scenes in the order you visited them, fights and
-  rounds, downs and deaths, the handouts you revealed (and who has opened them), and **Beats**, a
+  rounds, the player characters and the NPCs who went down to 0 HP (not who died: the tool never
+  knows that), the handouts you revealed (and who has opened them), and **Beats**, a
   short list of what happened. **All beats** loads the full list when the short one is cut.
 - **Open threads**: quests whose Status is not done, and campaign parts not completed or skipped.
   **Open** shows the journal in Foundry.

@@ -39,8 +39,8 @@ The tool follows hit points, not life and death:
 - **Death itself is not detected.** Three failed death saves, massive damage or a disintegrate
   look the same to the tool as any other 0 HP. Whether a character is dead is your call, and you
   mark it (next section).
-- **"Deaths" in the 📋 Prep drawer means "dropped to 0 HP" last session.** It lists monsters too,
-  and characters who got back up. Read it as "who went down", not "who died".
+- **The 📋 Prep drawer lists who went down last session**: player characters and NPCs apart. It
+  means dropped to 0 HP, so a character who got back up is listed too.
 - **Nothing is deleted by the tool.** No tool deletes an actor.
 
 ## At the table: the moment of death
@@ -71,8 +71,8 @@ at it, and a later resurrection needs the sheet as it was.
   Observer. Or, with the **admin** set on in Claude Desktop: "Set Anna to Observer on Kasimir."
   (`plan-ownership-change`; you confirm, and **Undo** in **Recent Changes** takes it back). "Who
   owns Kasimir?" shows the current access (`list-actor-ownership`). Ownership changes need the
-  switch "AI Tool: Ownership (writes)" on (Game Settings, category **Foundry AI Tool**; on by
-  default).
+  switch "AI Tool: Ownership (writes)" on (on by default; see
+  [Feature switches](asking-claude.md#feature-switches)).
 - **Items the party takes from the body** move by hand, from sheet to sheet.
 
 ## The death log

@@ -783,7 +783,7 @@ Parameters:
 
 ### get-prep-digest
 
-GM ONLY. The facts for preparing the next session, in one call, no prose. Gathers: the last session (scenes in order, fights, deaths, story beats, handouts revealed; read from the bridge vault, so it works after a Foundry reload), open quests and unfinished campaign parts, the GM's "Next session" journal, the handout reveal queue, bosses placed on scenes, the pre-flight summary and the latest guarded changes. Only whether a Tarokka reading exists, never the cards. If Foundry is not connected the vault parts still come back and "warnings" says what is missing. action "summary" (default): the most recent 25 beats; "last-session": up to 200 beats. Read-only.
+GM ONLY. The facts for preparing the next session, in one call, no prose. Gathers: the last session (scenes in order, fights, who went down to 0 HP (PCs and others; not who died), story beats, handouts revealed; read from the bridge vault, so it works after a Foundry reload), open quests and unfinished campaign parts, the GM's "Next session" journal, the handout reveal queue, bosses placed on scenes, the pre-flight summary and the latest guarded changes. Only whether a Tarokka reading exists, never the cards. If Foundry is not connected the vault parts still come back and "warnings" says what is missing. action "summary" (default): the most recent 25 beats; "last-session": up to 200 beats. Read-only.
 
 Parameters:
 

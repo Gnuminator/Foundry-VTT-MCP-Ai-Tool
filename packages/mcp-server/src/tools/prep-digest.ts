@@ -21,7 +21,7 @@ import type { Logger } from '../logger.js';
 import { eventTimeMs, groupWithPlayRecords, type SessionEvent } from '../obsidian/grouping.js';
 import { buildSceneNameIndex, buildStats, sceneName } from '../stats/build.js';
 import { loadPlayRecords, loadSessionEvents } from '../stats/load.js';
-import type { SessionStats } from '../stats/types.js';
+import type { SessionStats, StatsModel } from '../stats/types.js';
 import type { TarokkaService } from '../tarokka/service.js';
 import type { VaultStore } from '../vault/store.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
@@ -104,7 +104,7 @@ export class PrepDigestTools {
       {
         name: 'get-prep-digest',
         description:
-          'GM ONLY. The facts for preparing the next session, in one call, no prose. Gathers: the last session (scenes in order, fights, deaths, story beats, handouts revealed; read from the bridge vault, so it works after a Foundry reload), open quests and unfinished campaign parts, the GM\'s "Next session" journal, the handout reveal queue, bosses placed on scenes, the pre-flight summary and the latest guarded changes. Only whether a Tarokka reading exists, never the cards. If Foundry is not connected the vault parts still come back and "warnings" says what is missing. action "summary" (default): the most recent 25 beats; "last-session": up to 200 beats. Read-only.',
+          'GM ONLY. The facts for preparing the next session, in one call, no prose. Gathers: the last session (scenes in order, fights, who went down to 0 HP (PCs and others; not who died), story beats, handouts revealed; read from the bridge vault, so it works after a Foundry reload), open quests and unfinished campaign parts, the GM\'s "Next session" journal, the handout reveal queue, bosses placed on scenes, the pre-flight summary and the latest guarded changes. Only whether a Tarokka reading exists, never the cards. If Foundry is not connected the vault parts still come back and "warnings" says what is missing. action "summary" (default): the most recent 25 beats; "last-session": up to 200 beats. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -198,7 +198,7 @@ export class PrepDigestTools {
       const sceneNames = buildSceneNameIndex(playRecords);
       if (!stats || !group) return { lastSession: null, sceneNames };
       return {
-        lastSession: describeSession(stats, group, sceneNames, action),
+        lastSession: describeSession(stats, group, sceneNames, action, pcNamesOf(model)),
         sceneNames,
       };
     } catch (error) {
@@ -334,6 +334,11 @@ export class PrepDigestTools {
   }
 }
 
+/** Player character names the play log knows (records mark a dnd5e `character` as a PC). */
+function pcNamesOf(model: StatsModel): Set<string> {
+  return new Set(model.pcs.map(pc => pc.name));
+}
+
 function openQuests(scan: PrepScan): PrepQuest[] {
   return scan.quests.filter(q => q.open === true);
 }
@@ -351,7 +356,8 @@ function describeSession(
   stats: SessionStats,
   group: { events: SessionEvent[]; playRecords: PlayRecord[] },
   sceneNames: Map<string, string>,
-  action: 'summary' | 'last-session'
+  action: 'summary' | 'last-session',
+  pcNames: ReadonlySet<string>
 ): Omit<PrepLastSession, 'handoutsRevealed'> {
   // Scenes in the order they were first visited: every record names the scene the GM viewed.
   const scenes: string[] = [];
@@ -375,7 +381,8 @@ function describeSession(
       actorName: e.actorName ?? null,
     }));
   const max = MAX_BEATS[action];
-  const deaths = [
+  // A `death` event means "dropped to 0 HP", for monsters too; whether someone died is the GM's call.
+  const down = [
     ...new Set(
       ordered
         .filter(e => e.eventType === 'death' && typeof e.actorName === 'string' && e.actorName)
@@ -396,7 +403,10 @@ function describeSession(
     pcDowns: stats.pcDowns,
     npcKills: stats.npcKills,
     spellsCast: stats.spellsCast,
-    deaths,
+    wentDown: {
+      pcs: down.filter(name => pcNames.has(name)),
+      others: down.filter(name => !pcNames.has(name)),
+    },
     beats: beats.length > max ? beats.slice(beats.length - max) : beats,
     beatsTruncated: beats.length > max,
   };

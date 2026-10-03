@@ -118,6 +118,22 @@ confirming** (Game Settings, category **Foundry AI Tool**; off by default) skips
 healing, conditions and resources, from Claude and from the dashboard. Each change still lands in
 Recent Changes with **Undo**.
 
+### Feature switches
+
+All in **Game Settings**, category **Foundry AI Tool**. They stop the dashboard's changes as well
+as Claude's.
+
+| Setting                                      | Default | Lets Claude and the dashboard                                                                         |
+| -------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
+| Allow Write Operations                       | On      | Change anything at all. Off makes the whole tool read-only (see below).                               |
+| AI Tool: Live play (writes)                  | On      | Apply damage, healing, temporary hit points, conditions and resources; move, change or delete tokens. |
+| AI Tool: Live play, apply without confirming | Off     | Skip the confirm step for damage, healing, conditions and resources.                                  |
+| AI Tool: Ownership (writes)                  | On      | Change which players own or can see an actor.                                                         |
+| AI Tool: Party (writes)                      | Off     | Change the party's travel pace, add the party to combat, post a rest request.                         |
+| AI Tool: Handouts (writes)                   | Off     | Reveal or hide journal pages for the players.                                                         |
+| AI Tool: Tarokka (writes)                    | Off     | Save the Tarokka reading, link cards to journals, publish reveal pages.                               |
+| AI Tool: Obsidian mirror (writes)            | Off     | Change which Foundry documents are mirrored into your Obsidian vault.                                 |
+
 **Direct actions** (rolls, new NPCs, journals, chat messages and others) happen as
 soon as Claude uses the tool. They are not listed
 in Recent Changes, and the tool cannot undo them; you fix them by hand in Foundry. So:

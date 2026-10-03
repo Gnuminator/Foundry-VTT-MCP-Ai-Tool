@@ -29,7 +29,7 @@ set says so.
 ### Get ready for next session
 
 - **Click:** **📋 Prep** in the dashboard header for the facts without AI: last session (scenes,
-  fights, deaths, what happened), open quests and campaign parts, your notes, the handouts you
+  fights, who went down, what happened), open quests and campaign parts, your notes, the handouts you
   queued, the bosses on your scenes and the pre-flight result.
 - **Or say:** use the ready-made prompt `prep-next-session` (in the message box's **+** menu). Add a
   focus if you have one, for example "the Vallaki festival".

@@ -1,5 +1,5 @@
 {
-  "total": 1566,
+  "total": 1565,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -30,7 +30,7 @@
     "packages/cogm-dashboard/public/index.html": 2,
     "packages/cogm-dashboard/public/player.html": 2,
     "packages/cogm-dashboard/public/player.js": 3,
-    "packages/cogm-dashboard/public/styles.css": 5,
+    "packages/cogm-dashboard/public/styles.css": 4,
     "packages/cogm-dashboard/README.md": 16,
     "packages/cogm-dashboard/src/ai/anthropic-co-gm.ts": 3,
     "packages/cogm-dashboard/src/ai/error-commentary.ts": 2,

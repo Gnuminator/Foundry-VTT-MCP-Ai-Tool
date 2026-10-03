@@ -76,6 +76,20 @@ function suffixText(id: string): string {
   return id.replace(/[^A-Za-z0-9_-]/g, '') || '_';
 }
 
+/**
+ * The short collision suffix: six base-36 characters of an FNV-1a hash of the uuid. Stable across
+ * runs, and unlike the end of the id it never reads `000000` (official compendium ids are padded
+ * with zeros, `phbbrdBard000000`).
+ */
+export function shortSuffix(uuid: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < uuid.length; i++) {
+    hash ^= uuid.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36).padStart(6, '0').slice(-6);
+}
+
 function buildPath(folder: string, stem: string, suffix: string): string {
   const prefix = folder ? `${folder}/` : '';
   const room = MAX_NOTE_PATH_CHARS - prefix.length - suffix.length - EXTENSION.length;
@@ -122,7 +136,7 @@ export function allocateNotePaths(
   for (const request of fresh) {
     const stem = safeFileName(request.name);
     const id = suffixText(request.id);
-    const suffixes = ['', ` (${id.slice(-6)})`, ` (${id})`];
+    const suffixes = ['', ` (${shortSuffix(request.uuid)})`, ` (${id})`];
     let chosen: string | null = null;
     for (const suffix of suffixes) {
       const candidate = buildPath(request.folder, stem, suffix);

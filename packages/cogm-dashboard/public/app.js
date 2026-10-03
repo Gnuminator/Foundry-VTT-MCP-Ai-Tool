@@ -341,6 +341,7 @@ function renderSettings(next) {
   els.btnGm.textContent = settings.gmActionsEnabled ? '⚔ GM Actions: on' : '⚔ GM Actions: off';
   els.btnGm.classList.toggle('on', !!settings.gmActionsEnabled);
   if (!settings.gmActionsEnabled) selectedCombatants.clear();
+  renderReady();
   updateGate();
   renderCombat(lastCombat);
   renderObsidianLinks();
@@ -396,6 +397,7 @@ function renderSessionControl() {
     els.sessionStatus.textContent = 'No session';
     els.btnSession.textContent = 'Start session';
   }
+  renderReady();
   onSessionState();
 }
 
@@ -422,8 +424,142 @@ async function markSession(action) {
   } catch (err) {
     toast(`✗ mark-play-session: ${String(err.message || err)}`, 'err');
   }
+  // End session also turns off what Ready for session turned on.
+  if (action === 'end' && readyIsOn()) await setSessionSwitches('end');
   await loadPlaySession({ quiet: false });
 }
+
+// ---------------------------------------------------------------------------
+// Ready for session (D3, PB-17). One click turns on what tonight needs: the
+// module's switches ("Allow Write Operations", Handouts, Live play, Party) and
+// GM Actions; End session turns off what Ready turned on. The server route is
+// the only way in (never an MCP tool), and every switch stays visible in
+// Foundry's module settings.
+// ---------------------------------------------------------------------------
+const readyEls = {
+  turnOn: $('btn-ready'),
+  turnOff: $('btn-ready-off'),
+  startLog: $('btn-ready-log'),
+  note: $('ready-note'),
+  switches: $('ready-switches'),
+};
+/** The module's answer ({ switches, ready }) or null when unknown. */
+let sessionSwitches = null;
+let sessionSwitchesError = null;
+let sessionSwitchesBusy = false;
+
+/** Ready turned something on (the module remembers it) or GM Actions are on. */
+function readyIsOn() {
+  return !!(sessionSwitches && sessionSwitches.ready) || !!settings.gmActionsEnabled;
+}
+function allSwitchesOn() {
+  const list = (sessionSwitches && sessionSwitches.switches) || [];
+  return list.length > 0 && list.every(s => s.on) && !!settings.gmActionsEnabled;
+}
+/** "AI Tool: Handouts (writes)" reads "Handouts (writes)" on the chips and in toasts. */
+function shortSwitchName(name) {
+  return String(name).replace(/^AI Tool: /, '');
+}
+function switchNames(ids) {
+  const list = (sessionSwitches && sessionSwitches.switches) || [];
+  return ids.map(id => shortSwitchName((list.find(s => s.id === id) || { name: id }).name));
+}
+
+function renderReady() {
+  const allOn = allSwitchesOn();
+  readyEls.turnOn.textContent = allOn ? '✓ Ready for tonight' : 'Ready for session';
+  readyEls.turnOn.classList.toggle('is-ready', allOn);
+  readyEls.turnOn.disabled = allOn || sessionSwitchesBusy;
+  readyEls.turnOff.hidden = !readyIsOn();
+  readyEls.turnOff.disabled = sessionSwitchesBusy;
+  readyEls.startLog.hidden = !!playSession.open;
+  const list = (sessionSwitches && sessionSwitches.switches) || [];
+  const chips = [
+    ...list,
+    { id: 'gm-actions', name: 'GM Actions', on: !!settings.gmActionsEnabled },
+  ];
+  readyEls.switches.innerHTML = chips
+    .map(
+      s =>
+        `<li class="${s.on ? 'on' : ''}" title="${escapeHtml(s.name)}: ${s.on ? 'on' : 'off'}">${s.on ? '✓' : '○'} ${escapeHtml(shortSwitchName(s.name))}</li>`
+    )
+    .join('');
+  if (sessionSwitchesError) {
+    readyEls.note.textContent = `Could not read the switches: ${sessionSwitchesError}`;
+  } else if (allOn && sessionSwitches.ready && sessionSwitches.ready.at) {
+    const time = new Date(sessionSwitches.ready.at).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    readyEls.note.textContent = `On since ${time}, for tonight. End session turns off what Ready turned on. Every change can still be undone.`;
+  } else {
+    readyEls.note.textContent =
+      'Turns on, for tonight only: changes from the tool, handouts, live play (damage, conditions), the party and GM Actions. End session turns them off again. Every change can still be undone.';
+  }
+}
+
+async function loadSessionSwitches() {
+  try {
+    const res = await fetch('/api/session/switches', { headers: authHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    sessionSwitches = data.switches || null;
+    sessionSwitchesError = data.error || null;
+  } catch (err) {
+    sessionSwitchesError = String(err.message || err);
+  }
+  renderReady();
+}
+
+async function setSessionSwitches(action) {
+  sessionSwitchesBusy = true;
+  renderReady();
+  try {
+    const res = await fetch('/api/session/switches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ action }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data.switches) sessionSwitches = data.switches;
+    if (typeof data.gmActionsEnabled === 'boolean') {
+      renderSettings({ gmActionsEnabled: data.gmActionsEnabled });
+    }
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    sessionSwitchesError = null;
+    const changed = switchNames((data.switches && data.switches.changed) || []);
+    if (data.gmActionsChanged) changed.push('GM Actions');
+    const failed = switchNames((data.switches && data.switches.failed) || []);
+    if (action === 'ready') {
+      toast(
+        changed.length > 0
+          ? `✓ Ready for session. Turned on: ${changed.join(', ')}`
+          : '✓ Already on',
+        'ok'
+      );
+    } else if (changed.length > 0) {
+      toast(`✓ Turned off again: ${changed.join(', ')}`, 'ok');
+    }
+    if (failed.length > 0) {
+      toast(`✗ Foundry did not change: ${failed.join(', ')}. Check the module settings.`, 'err');
+    }
+  } catch (err) {
+    toast(
+      `✗ ${action === 'ready' ? 'Ready for session' : 'Turning off'}: ${String(err.message || err)}`,
+      'err'
+    );
+  } finally {
+    sessionSwitchesBusy = false;
+    renderReady();
+    // The pre-flight row "Ready for session" follows.
+    if (preflightResult) void runPreflight({ quiet: true });
+  }
+}
+
+readyEls.turnOn.addEventListener('click', () => void setSessionSwitches('ready'));
+readyEls.turnOff.addEventListener('click', () => void setSessionSwitches('end'));
+readyEls.startLog.addEventListener('click', () => void markSession('start'));
 
 // ---------------------------------------------------------------------------
 // Combat tracker
@@ -2181,6 +2317,7 @@ function openPreflight() {
   if (!isDocked(els.preflightDrawer)) els.drawerBackdrop.hidden = false;
   els.preflightDrawer.hidden = false;
   renderPreflightManual();
+  void loadSessionSwitches();
   void runPreflight();
 }
 function closePreflight() {
@@ -3065,4 +3202,5 @@ connect();
 usage.trackView('dash.main.view');
 renderSessionControl();
 void loadPlaySession();
+void loadSessionSwitches();
 setInterval(() => void loadPlaySession(), 60000);

@@ -37,9 +37,10 @@ Marks the start and the end of a play session. The tool uses these marks to writ
 per session and to group the play log.
 
 - Click **Start session** when play begins. The text changes to "Session since 19:30".
-- Click **End session** when play ends. The text changes back to "No session".
-- It only writes a line in the tool's own log. It never changes the game, so it works with GM
-  Actions off.
+- Click **End session** when play ends. The text changes back to "No session". It also turns off
+  again what **Ready for session** turned on (see below), and GM Actions.
+- Starting a session only writes a line in the tool's own log. It never changes the game, so it
+  works with GM Actions off.
 - If you forget, the notes still split sessions at a gap of 3 hours without events.
 
 The 📓 next to it opens your campaign's Home note in Obsidian (see "Open in Obsidian" below).
@@ -54,7 +55,8 @@ The master switch for changing the game from the dashboard. Click it to turn it 
 - It only guards the dashboard. It does not stop Claude Desktop.
 - Restarting the dashboard turns it off again.
 
-Turn it on when you are about to act, and off again after.
+Turn it on when you are about to act, and off again after. **Ready for session** turns it on
+for you, together with the module switches.
 
 ### 🛠 Tools
 
@@ -65,13 +67,30 @@ Opens the tool runner. See "The tool runner" below.
 Opens the pre-flight check: run it before the players join. The tool ticks what it can check by
 itself (Foundry connected, module and bridge versions match, the write switches, secrets in world
 settings, names players can see that give away a secret, module conflicts, Obsidian notes, the
-play session, GM Actions off, the player page, Tarokka cards hidden). Below that are the things to
+play session, Ready for session, the player page, Tarokka cards hidden). Below that are the things to
 check by hand, from [before each session](before-session.md); your ticks stay in this browser until
 you click **Clear ticks**. The button itself reads **Pre-flight: ready** or **Pre-flight: 2 to fix**
 after each Foundry connect.
 
 A value that looks like a secret is never shown in full, only its first four characters and its
 length. If the module and bridge versions differ, a banner at the top says which to update.
+
+#### Ready for session
+
+At the top of the Pre-flight panel. One click turns on what an evening at the table needs:
+
+- in Foundry's module settings: "Allow Write Operations", "AI Tool: Handouts (writes)", "AI Tool:
+  Live play (writes)" and "AI Tool: Party (writes)";
+- on the dashboard: **GM Actions**.
+
+It turns on only what is off, and remembers that in the world. **End session** (or **Turn them off
+again**) turns off exactly those, so a switch that was already on stays on. The chips under the
+button show each switch (✓ on, ○ off). If Foundry did not take a change, a red toast names the
+switch; check it in Foundry's module settings, where every switch stays visible.
+
+Only the dashboard can do this, from the GM's login. Claude has no tool for it, so Claude can never
+switch on its own writes. **Start the session log** next to it is the same as **Start session** in
+the header.
 
 ### 📜 Handouts
 

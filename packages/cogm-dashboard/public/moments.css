@@ -204,6 +204,79 @@
   overflow-y: auto;
 }
 
+/* ---- Ready for session (D3, PB-17): in the Pre-flight panel ---- */
+.ready-block {
+  margin: 0 0 0.9rem;
+  padding: 0.8rem 0.85rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--bg-elev);
+}
+.ready-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn.lamp {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  padding: 0.6rem 1.3rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.btn.lamp:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+:root[data-theme='veil'] .btn.lamp {
+  background: var(--veil-lamp);
+  border-color: var(--veil-lamp);
+  color: var(--veil-graphite);
+  box-shadow: 0 0 24px -6px color-mix(in srgb, var(--veil-lamp) 55%, transparent);
+}
+.btn.lamp.is-ready {
+  background: var(--good-soft);
+  border-color: var(--good);
+  color: var(--good);
+  box-shadow: none;
+  cursor: default;
+}
+.btn-quiet {
+  background: none;
+  box-shadow: none;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+.btn-quiet:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border);
+}
+.ready-note {
+  margin: 0.6rem 0 0.4rem;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+.ready-switches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.ready-switches li {
+  font-size: var(--fs-xs);
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.ready-switches li.on {
+  border-color: var(--good);
+  color: var(--good);
+}
+
 /* Narrow screens: one column. */
 @media (max-width: 1080px) {
   #moment-before,

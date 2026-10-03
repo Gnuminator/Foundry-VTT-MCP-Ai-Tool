@@ -16,6 +16,7 @@ import { registerGuardedFeature } from './guarded-features.js';
 import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
+import { registerSessionSwitchSettings } from './session-switches.js';
 import { TAROKKA_FEATURE_ID, onTarokkaSettingChanged } from './tarokka.js';
 // Connection control now handled through settings menu
 
@@ -76,6 +77,7 @@ class FoundryMCPBridge {
       // Register module settings
       this.settings.registerSettings();
       registerSettingsUsageHooks();
+      registerSessionSwitchSettings();
 
       // Guarded-write feature switches (world settings; off unless defaultEnabled).
       registerGuardedFeature({

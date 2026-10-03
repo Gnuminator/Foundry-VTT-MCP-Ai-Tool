@@ -3,4 +3,4 @@
  * edit by hand (run `npm run version:sync`). The bridge and the Foundry module compare it to
  * detect a mismatched pair.
  */
-export const TOOL_VERSION = '0.19.0';
+export const TOOL_VERSION = '0.20.0';

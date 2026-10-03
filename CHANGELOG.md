@@ -85,7 +85,7 @@
   `remove-actor-ownership` (89 to 88 tools): ownership changes can be undone, back to the default
   when the player had no entry (PR #38).
 
-### Batch F and fixes (PRs #25, #28 to #30)
+### Batch F and fixes (PRs #25, #28 to #30, #40)
 
 - **Actor pickers (I-017; PR #29):** the tool runner's actor pickers show the actor types each
   tool is for (PCs and NPCs, the ones on the current scene first; NPCs for the NPC builders), with
@@ -98,6 +98,8 @@
   are now stored as dnd5e keeps them, with the NPC's spellcaster level (PR #30).
 - Removed: the Foundry module's own write audit log, which never saved anything in Foundry 14
   (`game.world` has no flags). The guarded-write log in the bridge vault is the audit trail (PR #25).
+- Test env: `start.ps1 -World <id>` launches the test server into another world (the
+  licensed-content kit world); an unknown world id stops the script before anything starts (PR #40).
 
 ### Voice tools (PRs #24, #26)
 

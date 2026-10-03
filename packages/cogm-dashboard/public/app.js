@@ -3340,7 +3340,215 @@ statEls.copy.addEventListener('click', async () => {
     toast(`✗ Could not copy: ${String(err.message || err)}`, 'err');
   }
 });
-statEls.refresh.addEventListener('click', () => void loadAfterStats());
+statEls.refresh.addEventListener('click', () => {
+  void loadAfterStats();
+  void loadSessionNotes();
+});
+
+// ---------------------------------------------------------------------------
+// Session notes (recap lane, D-087): the notes the session pipeline wrote from the recording.
+// The bridge puts them into a GM-only "Session notes" journal by itself (logged, with Undo) and
+// queues the Recap page for reveal; this card shows where they are and offers Read (a preview
+// in the side panel), Approve without revealing, Undo and, after an Undo, Put in Foundry.
+// GM only: nothing here reaches /player; only the Recap does, through the reveal.
+// ---------------------------------------------------------------------------
+const notesEls = {
+  card: $('notes-card'),
+  title: $('notes-title'),
+  status: $('notes-status'),
+  line: $('notes-line'),
+  warn: $('notes-warn'),
+  actions: $('notes-actions'),
+};
+/** The latest session's notes (the bridge's item), or null when there are none. */
+let sessionNotes = null;
+
+const NOTES_WAITING = {
+  foundry: 'a GM in Foundry (open Foundry and join as the GM)',
+  'writes-off': '"Allow Write Operations" (it is off)',
+  'feature-off': 'the switch "AI Tool: Session notes (writes)" (it is off)',
+};
+const NOTES_TAGS = new Set(['H2', 'H3', 'P', 'UL', 'OL', 'LI', 'EM', 'STRONG', 'BR']);
+
+/** The notes' HTML with only plain text tags and no attributes, as DOM nodes. */
+function sanitizeNotesHtml(html) {
+  const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+  const out = document.createElement('div');
+  const walk = (src, dst) => {
+    for (const node of src.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        dst.appendChild(document.createTextNode(node.textContent));
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        if (NOTES_TAGS.has(node.tagName)) {
+          const el = document.createElement(node.tagName.toLowerCase());
+          dst.appendChild(el);
+          walk(node, el);
+        } else if (!['SCRIPT', 'STYLE', 'TEMPLATE', 'IFRAME', 'OBJECT'].includes(node.tagName)) {
+          walk(node, dst);
+        }
+      }
+    }
+  };
+  walk(doc.body, out);
+  return out;
+}
+
+function notesTime(iso) {
+  return iso
+    ? new Date(iso).toLocaleString([], {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+    : '';
+}
+
+// Fixed markup, so the usage catalog sees every data-track name.
+const NOTES_BUTTONS = {
+  read: '<button type="button" class="btn lamp" data-track="dash.notes.read" data-notes="read">Read</button>',
+  readQuiet:
+    '<button type="button" class="btn btn-quiet" data-track="dash.notes.read" data-notes="read">Read</button>',
+  put: '<button type="button" class="btn btn-quiet" data-track="dash.notes.put" data-notes="put">Put in Foundry</button>',
+  approve:
+    '<button type="button" class="btn btn-quiet" data-track="dash.notes.approve" data-notes="approve">Approve without revealing</button>',
+  undo: '<button type="button" class="btn btn-quiet" data-track="dash.notes.undo" data-notes="undo">Undo</button>',
+};
+
+function renderSessionNotes() {
+  const n = sessionNotes;
+  notesEls.card.hidden = !n;
+  if (!n) return;
+  notesEls.title.textContent = `Session notes: ${n.title || n.date || n.sessionId}`;
+  const waiting = Array.isArray(n.waitingFor) ? n.waitingFor : [];
+  const actions = [n.status === 'approved' ? NOTES_BUTTONS.readQuiet : NOTES_BUTTONS.read];
+  let status = '';
+  let line = '';
+  if (n.status === 'staged') {
+    status = 'Waiting';
+    if (!n.autoPut) {
+      line = 'Not in Foundry: they were taken out with Undo. Put them back when you want them.';
+      actions.push(NOTES_BUTTONS.put);
+    } else if (waiting.length > 0) {
+      line = `They go into Foundry by themselves as soon as there is ${waiting
+        .map(w => NOTES_WAITING[w] || w)
+        .join(' and ')}.`;
+    } else {
+      line = 'Going into Foundry now.';
+    }
+  } else if (n.status === 'in-foundry') {
+    status = 'In Foundry';
+    line = `Put into the GM-only journal "Session notes" ${notesTime(n.putAt)}, without asking (Undo is in Recent Changes). ${
+      n.recapRevealed
+        ? 'The Recap is revealed to the players.'
+        : 'The Recap waits in the Handouts queue: reveal it there, or approve the notes without revealing.'
+    }`;
+    if (!n.approvedAt) actions.push(NOTES_BUTTONS.approve);
+    // The bridge refuses Undo once the players have the Recap (D-087), so no button then.
+    if (n.changeId && !n.recapRevealed) actions.push(NOTES_BUTTONS.undo);
+  } else if (n.status === 'approved') {
+    status = 'Approved';
+    line = `Approved ${n.approvedBy === 'reveal' ? 'by revealing the Recap' : ''} ${notesTime(n.approvedAt)}. The recording's audio is deleted 14 days later.`;
+  }
+  notesEls.status.textContent = status;
+  notesEls.status.className = `feature-pill ${n.status === 'staged' ? 'off' : 'on'}`;
+  notesEls.line.textContent = line.replace(/\s+/g, ' ').trim();
+  notesEls.warn.hidden = !n.lastError;
+  notesEls.warn.textContent = n.lastError ? `Last try: ${n.lastError}` : '';
+  if (waiting.includes('feature-off')) {
+    actions.push(
+      '<button type="button" class="link-btn" data-track="dash.notes.about-switch" data-help="features#session-notes">About the switch</button>'
+    );
+  }
+  notesEls.actions.innerHTML = actions.join('');
+}
+
+async function loadSessionNotes() {
+  try {
+    const res = await fetch('/api/session-notes', { headers: authHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+    sessionNotes = items[0] || null;
+  } catch {
+    // No notes, or a bridge without the session notes lane: no card.
+    sessionNotes = null;
+  }
+  renderSessionNotes();
+}
+
+async function notesRequest(path, body) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body || {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error((data.error && data.error.message) || `HTTP ${res.status}`);
+    err.code = data.error && data.error.code;
+    throw err;
+  }
+  return data;
+}
+
+async function readSessionNotes() {
+  const n = sessionNotes;
+  if (!n) return;
+  helpPane.hidden = false;
+  helpTitle.textContent = `Session notes: ${n.title || n.date}`;
+  helpBody.innerHTML = '<p class="empty">Loading…</p>';
+  try {
+    const res = await fetch(`/api/session-notes/${encodeURIComponent(n.sessionId)}`, {
+      headers: authHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data.error && data.error.message) || `HTTP ${res.status}`);
+    helpBody.replaceChildren();
+    for (const page of Array.isArray(data.pages) ? data.pages : []) {
+      const h = document.createElement('h2');
+      h.textContent = page.title || page.key;
+      helpBody.append(h, sanitizeNotesHtml(page.html));
+    }
+    helpBody.scrollTop = 0;
+  } catch (err) {
+    helpBody.innerHTML = `<p class="empty">Couldn't load the notes: ${escapeHtml(String(err.message || err))}</p>`;
+  }
+}
+
+notesEls.actions.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-notes]');
+  const n = sessionNotes;
+  if (!btn || !n) return;
+  const action = btn.dataset.notes;
+  if (action === 'read') return void readSessionNotes();
+  if (action === 'undo') {
+    await runTool('undo-change', { changeId: n.changeId }, 'destructive');
+    return void loadSessionNotes();
+  }
+  if (!settings.gmActionsEnabled) {
+    toast('GM Actions are off. Ready for session turns them on.', 'warn');
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const id = encodeURIComponent(n.sessionId);
+    if (action === 'put') {
+      const result = await notesRequest(`/api/session-notes/${id}/put`);
+      if (result && result.changeId) undoToast(result);
+      else toast('✓ The notes are in Foundry.', 'ok');
+    } else if (action === 'approve') {
+      await notesRequest(`/api/session-notes/${id}/approve`);
+      toast('✓ Approved. The audio is deleted 14 days later.', 'ok');
+    }
+  } catch (err) {
+    toast(`✗ ${String(err.message || err)}`, 'err', err.code);
+  } finally {
+    btn.disabled = false;
+    void loadSessionNotes();
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Moments of the evening (D-085, PB-16): before, during and after a session.
@@ -3446,7 +3654,10 @@ function setMoment(next, { pinned = false } = {}) {
     }
   }
   for (const m of MOMENTS) $(`moment-${m}`).hidden = m !== next;
-  if (next === 'after' && changed) void loadAfterStats();
+  if (next === 'after' && changed) {
+    void loadAfterStats();
+    void loadSessionNotes();
+  }
   if (next === 'before' && changed) void loadFeatureCards();
   for (const tab of momentTabs)
     tab.setAttribute('aria-pressed', String(tab.dataset.moment === next));

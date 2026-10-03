@@ -418,6 +418,38 @@
   color: var(--warn);
 }
 
+/* ---- After: session notes (recap lane, app.js renderSessionNotes) ---- */
+.notes-card {
+  grid-column: 1 / -1;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--bg-elev);
+  display: grid;
+  gap: 0.45rem;
+}
+.notes-card[hidden] {
+  display: none;
+}
+.notes-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.notes-card-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.notes-line {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-mid);
+}
+.notes-warn {
+  color: var(--warn);
+}
+
 /* ---- After: tonight's stats (app.js renderAfterStats) ---- */
 .after-stats {
   grid-column: 1 / -1;

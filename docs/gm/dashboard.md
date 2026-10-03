@@ -188,6 +188,25 @@ Below them: the session's length, **Open the session note** (in Obsidian, when i
 players' channel, without the highest roll. **↻ Refresh** loads them again. The numbers come from
 the tool's play log, the same as the Stats section of the Obsidian session note.
 
+### Session notes (After)
+
+Below tonight's stats, once the notes of a recorded session exist (the session pipeline writes them
+after the session). The tool puts them into Foundry **by itself, without asking**: a GM-only
+journal "Session notes" with the pages Recap, GM summary and Scenes, logged in Recent Changes with
+Undo. The card says where they are:
+
+- **Waiting**: they go in by themselves as soon as a GM is in Foundry, "Allow Write Operations" is
+  on and the switch "AI Tool: Session notes (writes)" is on; the card says which one is missing.
+  After an **Undo** they stay out until you click **Put in Foundry**.
+- **In Foundry**: the Recap waits in the Handouts queue. Reveal it there, or click **Approve without
+  revealing**. **Undo** takes the journal entry out again, but not once the players have the Recap
+  or a page was edited in Foundry.
+- **Approved**: revealing the Recap or approving starts the clock: the recording's audio is deleted
+  14 days later.
+
+**Read** shows all the pages in the side panel. The card, the GM summary and the scenes never
+reach the players' page; only the Recap does, when you reveal it.
+
 ### Live Feed
 
 What happens at the table, newest on top: damage, healing, who drops to 0 HP, conditions, spell slots, rolls,

@@ -89,6 +89,20 @@ GM Actions. **End session** turns off again what it turned on. See
   ask Claude to set that up.
 - **More:** [Open in Obsidian](dashboard.md#open-in-obsidian-).
 
+## Session notes
+
+- **What it does:** after a recorded session, the tool writes the notes (a Recap for the players,
+  a GM summary and the scenes) and **puts them into Foundry by itself, without asking**: a GM-only
+  journal "Session notes", one entry per session. The change is logged in Recent Changes with
+  **Undo**. The Recap also lands in the Handouts queue, so the players see it only when you reveal
+  it. The dashboard's **After** view shows where the notes are, with **Read**, **Approve without
+  revealing** and **Undo**.
+- **Starts:** off. Setting "AI Tool: Session notes (writes)". Ready for session does not turn it
+  on, because the notes arrive after the session.
+- **Turn it on when:** you record your sessions and want the notes in Foundry without doing
+  anything. While it is off, the notes wait and go in by themselves once you turn it on.
+- **More:** [Session notes (After)](dashboard.md#session-notes-after).
+
 ## Boss prompts
 
 - **What it does:** in the turn-order strip, legendary action and resistance pips, a lair action

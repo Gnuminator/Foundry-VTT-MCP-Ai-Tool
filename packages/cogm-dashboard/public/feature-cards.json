@@ -4,7 +4,9 @@
     "title": "Handouts",
     "what": "Reveal journal pages to the players, one after another, and see who has read them.",
     "when": "Before the first session with a letter, a map or a picture.",
-    "state": { "feature": "handouts" },
+    "state": {
+      "feature": "handouts"
+    },
     "guide": "handouts"
   },
   {
@@ -12,7 +14,9 @@
     "title": "Tarokka",
     "what": "Save a card reading, link cards to journals and publish reveal pages.",
     "when": "Before the first card reading.",
-    "state": { "feature": "tarokka" },
+    "state": {
+      "feature": "tarokka"
+    },
     "guide": "tarokka"
   },
   {
@@ -20,7 +24,9 @@
     "title": "Party",
     "what": "The party's travel pace, adding the party to combat, a rest request.",
     "when": "When the party travels or rests for the first time.",
-    "state": { "feature": "party" },
+    "state": {
+      "feature": "party"
+    },
     "guide": "party"
   },
   {
@@ -28,7 +34,9 @@
     "title": "Live play",
     "what": "Damage, healing and conditions on several creatures at once, with Undo.",
     "when": "It starts on. Leave it on.",
-    "state": { "feature": "live-play" },
+    "state": {
+      "feature": "live-play"
+    },
     "guide": "live-play"
   },
   {
@@ -36,15 +44,29 @@
     "title": "Live play without confirming",
     "what": "Damage and conditions that Claude plans apply at once, still with Undo.",
     "when": "When confirming every hit Claude plans gets tiring in long fights.",
-    "state": { "autoApply": "live-play" },
+    "state": {
+      "autoApply": "live-play"
+    },
     "guide": "live-play-without-confirming"
+  },
+  {
+    "id": "session-notes",
+    "title": "Session notes",
+    "what": "Puts the notes from a recorded session into a GM-only journal by itself, without asking. Undo is in Recent Changes.",
+    "when": "You record your sessions and want the notes in Foundry without doing anything.",
+    "state": {
+      "feature": "session-notes"
+    },
+    "guide": "session-notes"
   },
   {
     "id": "boss",
     "title": "Boss prompts",
     "what": "Legendary action and lair reminders in the turn-order strip. Dashboard only.",
     "when": "Before the first boss fight.",
-    "state": { "local": "boss" },
+    "state": {
+      "local": "boss"
+    },
     "guide": "boss-prompts"
   },
   {
@@ -52,7 +74,9 @@
     "title": "Ownership",
     "what": "Change which players own or can see an actor.",
     "when": "It starts on. You use it for a new character, a familiar or a hireling.",
-    "state": { "feature": "ownership" },
+    "state": {
+      "feature": "ownership"
+    },
     "guide": "ownership"
   },
   {
@@ -60,7 +84,9 @@
     "title": "Obsidian mirror",
     "what": "Mirror chosen actors, scenes and journals into your Obsidian vault.",
     "when": "When you want Foundry documents as notes in Obsidian.",
-    "state": { "feature": "obsidian-mirror" },
+    "state": {
+      "feature": "obsidian-mirror"
+    },
     "guide": "obsidian-mirror"
   },
   {
@@ -68,7 +94,9 @@
     "title": "Allow Write Operations",
     "what": "The tool's master switch. Off, it only reads.",
     "when": "It starts on. Turn it off only to make the tool watch-only.",
-    "state": { "writes": true },
+    "state": {
+      "writes": true
+    },
     "guide": "allow-write-operations"
   }
 ]

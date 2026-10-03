@@ -277,6 +277,13 @@ function renderSessionStatsSection(stats: SessionStats): string[] {
       `${stats.partyDamageDealt} damage dealt, ${stats.partyDamageTaken} damage taken, ` +
       `${stats.partyHealing} healing. ${stats.pcDowns} PC down(s), ${stats.npcKills} NPC kill(s).`,
     '',
+    ...(stats.highestRoll
+      ? [
+          `Highest roll: ${stats.highestRoll.total}, ${neutralizeTemplater(stats.highestRoll.name)}` +
+            `${stats.highestRoll.label ? ` (${neutralizeTemplater(stats.highestRoll.label)})` : ''}.`,
+          '',
+        ]
+      : []),
     ...(stats.combats.length
       ? stats.combats.flatMap((c, i) => renderCombatStatsBlock(c, i))
       : ['(no combats this session)', '']),

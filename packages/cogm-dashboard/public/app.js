@@ -3039,6 +3039,177 @@ document.addEventListener('keydown', e => {
 });
 
 // ---------------------------------------------------------------------------
+// Tonight's stats (the After view, from the round 3 mockup): rolls, most damage, the
+// highest roll and who went down, for the latest play session (get-play-stats). GM only.
+// ---------------------------------------------------------------------------
+const statEls = {
+  cards: $('stat-cards'),
+  title: $('stat-session-title'),
+  meta: $('stat-session-meta'),
+  note: $('btn-session-note'),
+  copy: $('btn-copy-stats'),
+  refresh: $('btn-stats-refresh'),
+};
+/** The cards' numbers for the latest session, or null before they load. */
+let afterStats = null;
+
+function times(n) {
+  return n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`;
+}
+function plural(n, one, many) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+function hoursMinutes(min) {
+  const h = Math.floor(min / 60);
+  return h > 0 ? `${h} h ${min % 60} min` : `${min} min`;
+}
+
+/** Most damage, who went down and the rest, from get-play-stats' latest session. */
+function summarizeSession(result) {
+  const s = result && result.session;
+  if (!s) return null;
+  const pcNames = new Set((result.pcs || []).map(p => p.name));
+  const combats = Array.isArray(s.combats) ? s.combats : [];
+  // Damage dealt per PC, summed over tonight's fights (only PCs: the cards name players' heroes).
+  const dealt = new Map();
+  for (const c of combats) {
+    for (const [name, amount] of Object.entries(c.damageDealt || {})) {
+      if (!pcNames.has(name) || !(amount > 0)) continue;
+      const d = dealt.get(name) || { amount: 0, fights: 0 };
+      d.amount += amount;
+      d.fights += 1;
+      dealt.set(name, d);
+    }
+  }
+  const top = [...dealt.entries()].sort((a, b) => b[1].amount - a[1].amount)[0] || null;
+  const downs = new Map();
+  for (const c of combats)
+    for (const name of c.downs || []) downs.set(name, (downs.get(name) || 0) + 1);
+  return {
+    label: s.label,
+    durationMin: s.durationMin || 0,
+    endedAt: s.endedAt,
+    rolls: s.rolls || 0,
+    nat20: s.crits || 0,
+    nat1: s.fumbles || 0,
+    mostDamage: top ? { name: top[0], amount: top[1].amount, fights: top[1].fights } : null,
+    highestRoll: s.highestRoll || null,
+    downs: [...downs.entries()],
+    fights: combats.length,
+  };
+}
+
+function statCard(title, big, meta, { name = false } = {}) {
+  return `<div class="stat-card">
+      <h4>${escapeHtml(title)}</h4>
+      <p class="${name ? 'stat-who' : 'stat-big'}">${escapeHtml(big)}</p>
+      <span class="pf-detail">${escapeHtml(meta)}</span>
+    </div>`;
+}
+
+function renderAfterStats() {
+  const a = afterStats;
+  if (!a) {
+    statEls.cards.innerHTML = '<p class="empty">No play session recorded yet.</p>';
+    statEls.title.textContent = 'Last session';
+    statEls.meta.textContent = '';
+    statEls.note.hidden = true;
+    statEls.copy.disabled = true;
+    return;
+  }
+  const hr = a.highestRoll;
+  statEls.cards.innerHTML = [
+    statCard(
+      'Rolls',
+      String(a.rolls),
+      `${plural(a.nat20, 'natural 20', 'natural 20s')}, ${plural(a.nat1, 'natural 1', 'natural 1s')}`
+    ),
+    a.mostDamage
+      ? statCard(
+          'Most damage',
+          a.mostDamage.name,
+          `${a.mostDamage.amount} hp over ${plural(a.mostDamage.fights, 'fight', 'fights')}`,
+          { name: true }
+        )
+      : statCard('Most damage', 'Nobody', a.fights ? 'no damage dealt by a hero' : 'no fights', {
+          name: true,
+        }),
+    hr
+      ? statCard('Highest roll', String(hr.total), hr.label ? `${hr.name}, ${hr.label}` : hr.name)
+      : statCard('Highest roll', '-', 'no d20 roll by a hero'),
+    a.downs.length
+      ? statCard(
+          'Went down',
+          a.downs.map(([n, k]) => `${n}, ${times(k)}`).join('; '),
+          plural(
+            a.downs.reduce((sum, [, k]) => sum + k, 0),
+            'down tonight',
+            'downs tonight'
+          ),
+          { name: true }
+        )
+      : statCard('Went down', 'Nobody', 'every hero stayed up', { name: true }),
+  ].join('');
+  const ended = a.endedAt
+    ? new Date(a.endedAt).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+    : null;
+  statEls.title.textContent = a.label || 'Last session';
+  statEls.meta.textContent = `${hoursMinutes(a.durationMin)}${ended ? ` · ended ${ended}` : ''} · ${plural(a.fights, 'fight', 'fights')}`;
+  const url = a.label ? obsidianFileUrl(`AI Tool/Sessions/${a.label}`) : null;
+  setObsidianLink(statEls.note, url);
+  statEls.copy.disabled = false;
+}
+
+async function loadAfterStats() {
+  try {
+    afterStats = summarizeSession(await callReadTool('get-play-stats', { session: 'latest' }));
+  } catch (err) {
+    afterStats = null;
+    statEls.cards.innerHTML = `<p class="empty">Couldn't load the stats: ${escapeHtml(String(err.message || err))}</p>`;
+    statEls.copy.disabled = true;
+    return;
+  }
+  renderAfterStats();
+}
+
+/**
+ * The text for the players' Discord channel. It leaves out the highest roll: the play log does
+ * not keep a roll's visibility, so it may be a private or blind roll (stats/types.ts).
+ */
+function statsForDiscord(a) {
+  const lines = [`**${a.label || 'Last session'}** (${hoursMinutes(a.durationMin)})`];
+  lines.push(
+    `Rolls: ${a.rolls} (${plural(a.nat20, 'natural 20', 'natural 20s')}, ${plural(a.nat1, 'natural 1', 'natural 1s')})`
+  );
+  if (a.mostDamage) {
+    lines.push(
+      `Most damage: ${a.mostDamage.name}, ${a.mostDamage.amount} hp over ${plural(a.mostDamage.fights, 'fight', 'fights')}`
+    );
+  }
+  lines.push(
+    a.downs.length
+      ? `Went down: ${a.downs.map(([n, k]) => `${n} ${times(k)}`).join(', ')}`
+      : 'Went down: nobody'
+  );
+  return lines.join('\n');
+}
+
+statEls.copy.addEventListener('click', async () => {
+  if (!afterStats) return;
+  try {
+    await navigator.clipboard.writeText(statsForDiscord(afterStats));
+    toast('✓ Copied. The highest roll is left out (it may have been a private roll).', 'ok');
+  } catch (err) {
+    toast(`✗ Could not copy: ${String(err.message || err)}`, 'err');
+  }
+});
+statEls.refresh.addEventListener('click', () => void loadAfterStats());
+
+// ---------------------------------------------------------------------------
 // Moments of the evening (D-085, PB-16): before, during and after a session.
 // Each moment is a view with named slots; the panels move into the slots of the
 // moment on screen. A drawer placed in a view is "docked": shown in the page, not
@@ -3142,6 +3313,7 @@ function setMoment(next, { pinned = false } = {}) {
     }
   }
   for (const m of MOMENTS) $(`moment-${m}`).hidden = m !== next;
+  if (next === 'after' && changed) void loadAfterStats();
   for (const tab of momentTabs)
     tab.setAttribute('aria-pressed', String(tab.dataset.moment === next));
   // A drawer that became docked no longer needs the backdrop.

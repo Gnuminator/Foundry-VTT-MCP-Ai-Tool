@@ -23,7 +23,26 @@ import type { PlayActorRef, PlayRecord } from '@gnuminator/shared';
 import { localDateKey } from '../event-pump.js';
 import { eventTimeMs, groupWithPlayRecords, type SessionEvent } from '../obsidian/grouping.js';
 
-import type { CombatStats, DiceStats, PcStats, SessionStats, StatsModel, Tally } from './types.js';
+import type {
+  CombatStats,
+  DiceStats,
+  HighestRoll,
+  PcStats,
+  SessionStats,
+  StatsModel,
+  Tally,
+} from './types.js';
+
+/** The d20 rolls that can be a session's highest roll (damage and healing totals do not count). */
+const HIGHEST_ROLL_TYPES: ReadonlySet<string> = new Set([
+  'attack',
+  'save',
+  'check',
+  'skill',
+  'tool',
+  'initiative',
+  'death',
+]);
 
 export interface BuildStatsInput {
   worldId: string;
@@ -311,6 +330,7 @@ function buildSession(
   let pcDowns = 0;
   let npcKills = 0;
   let gameSeconds = 0;
+  let highestRoll: HighestRoll | null = null;
 
   for (const record of records) {
     switch (record.kind) {
@@ -361,6 +381,19 @@ function buildSession(
           ctx.dice.byUser.set(key, u);
         }
         if (record.actor?.isPC) {
+          const roll = record.roll;
+          if (roll && HIGHEST_ROLL_TYPES.has(roll.rollType) && Number.isFinite(roll.total)) {
+            if (!highestRoll || roll.total > highestRoll.total) {
+              highestRoll = {
+                total: roll.total,
+                name: record.actor.name,
+                label: roll.label ?? null,
+                rollType: roll.rollType,
+                natural: roll.natural ?? null,
+                at: new Date(record.t).toISOString(),
+              };
+            }
+          }
           const pc = pcFor(record.actor, ctx, number);
           pc.rolls++;
           if (record.roll?.crit) pc.crits++;
@@ -579,6 +612,7 @@ function buildSession(
     sceneMinutes,
     users,
     gameSeconds,
+    highestRoll,
   };
 }
 

@@ -236,6 +236,29 @@
       </section>
       <!-- After: what happened tonight. -->
       <section class="moment" id="moment-after" aria-label="After the session" hidden>
+        <!-- Tonight's stats (get-play-stats, the latest session): GM only. -->
+        <section class="after-stats" id="after-stats" aria-label="Tonight's stats">
+          <div class="stat-cards" id="stat-cards">
+            <p class="empty">Loading tonight's stats…</p>
+          </div>
+          <div class="stat-session">
+            <div>
+              <h3 class="stat-session-title" id="stat-session-title">Last session</h3>
+              <span class="pf-detail" id="stat-session-meta"></span>
+            </div>
+            <div class="ready-actions">
+              <a class="btn lamp" id="btn-session-note" data-track="dash.after.open-note" hidden
+                >Open the session note</a
+              >
+              <button class="btn btn-quiet" id="btn-copy-stats" data-track="dash.after.copy-stats">
+                Copy the stats for Discord
+              </button>
+              <button class="btn btn-quiet" id="btn-stats-refresh" data-track="dash.after.refresh">
+                ↻ Refresh
+              </button>
+            </div>
+          </div>
+        </section>
         <div class="slot" data-slot="prep"></div>
         <div class="moment-side">
           <div class="slot" data-slot="handouts"></div>

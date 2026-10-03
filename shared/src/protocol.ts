@@ -63,7 +63,8 @@ export interface ControlRequest {
 export interface ControlResponse {
   id?: string;
   result?: unknown;
-  error?: { message: string };
+  /** `code`: a stable refusal reason where the method defines one (`session_notes`). */
+  error?: { message: string; code?: string };
 }
 
 /** `params` for a `call_tool` request. */
@@ -102,7 +103,7 @@ export const ControlRequestSchema = z.object({
 export const ControlResponseSchema = z.object({
   id: z.string().optional(),
   result: z.unknown().optional(),
-  error: z.object({ message: z.string() }).optional(),
+  error: z.object({ message: z.string(), code: z.string().optional() }).optional(),
 });
 
 export const CallToolParamsSchema = z.object({

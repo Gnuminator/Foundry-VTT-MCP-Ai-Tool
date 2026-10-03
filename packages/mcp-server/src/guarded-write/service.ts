@@ -199,6 +199,13 @@ export interface GuardedWriteServiceOptions {
   outcomeDeadlineMs?: number;
 }
 
+/**
+ * A feature's own check before one of its changes is undone: the reason the undo would destroy
+ * something the generic snapshot cannot see (a page the GM edited, a copy players already have),
+ * or null to go ahead. A throwing guard refuses too.
+ */
+export type UndoGuard = (worldId: string, entry: AuditEntry) => Promise<string | null>;
+
 /** Errors that mean "no answer arrived", as opposed to Foundry refusing the change. */
 function isLostAnswer(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -395,6 +402,8 @@ export class GuardedWriteService {
   private readonly ttlMs: number;
   private readonly maxPlans: number;
   private readonly onRecorded: GuardedWriteServiceOptions['onRecorded'];
+  private readonly recordedListeners: Array<(worldId: string, changeId: string) => void> = [];
+  private readonly undoGuards = new Map<string, UndoGuard>();
   private readonly applyTimeoutMs: number;
   private readonly outcomePollIntervalMs: number;
   private readonly outcomeDeadlineMs: number;
@@ -556,6 +565,16 @@ export class GuardedWriteService {
     });
   }
 
+  /** Also call `listener` after every recorded apply or undo (like the `onRecorded` option). */
+  addRecordedListener(listener: (worldId: string, changeId: string) => void): void {
+    this.recordedListeners.push(listener);
+  }
+
+  /** Run `guard` before any change of `feature` is undone (one guard per feature). */
+  setUndoGuard(feature: string, guard: UndoGuard): void {
+    this.undoGuards.set(feature, guard);
+  }
+
   undo(changeId: string, flags: ConfirmFlags): Promise<AppliedChange> {
     return this.exclusive(async () => {
       if (flags.confirm !== true) throw new Error('Undoing a change needs confirm: true');
@@ -566,6 +585,9 @@ export class GuardedWriteService {
         throw new Error('An undo cannot be undone; plan the change again');
       if (entry.undoneBy)
         throw new Error(`Change ${changeId} was already undone (${entry.undoneBy})`);
+      const guard = this.undoGuards.get(entry.feature);
+      const reason = guard ? await guard(worldId, entry) : null;
+      if (reason) throw new Error(`Conflict, nothing was written: ${reason}`);
       const undoId = newId('chg', this.now());
       return this.undoChange(worldId, undoId, entry);
     });
@@ -698,13 +720,15 @@ export class GuardedWriteService {
   }
 
   private notifyRecorded(worldId: string, changeId: string): void {
-    if (!this.onRecorded) return;
-    try {
-      this.onRecorded(worldId, changeId);
-    } catch (error) {
-      this.logger.warn('onRecorded listener failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+    const listeners = [...(this.onRecorded ? [this.onRecorded] : []), ...this.recordedListeners];
+    for (const listener of listeners) {
+      try {
+        listener(worldId, changeId);
+      } catch (error) {
+        this.logger.warn('onRecorded listener failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 

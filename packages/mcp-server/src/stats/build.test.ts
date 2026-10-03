@@ -102,6 +102,23 @@ describe('buildStats: the highest roll', () => {
     });
   });
 
+  it('names a roll without a label from its subject and takes the natural d20 from its dice', () => {
+    const stats = build([
+      roll('r1', T0, PC, 'm1', {
+        total: 18,
+        rollType: 'skill',
+        subject: 'prc',
+        dice: [{ faces: 20, results: [16] }],
+      }),
+      roll('r2', T0 + 1000, PC, 'm2', { total: 7, rollType: 'save', subject: 'con' }),
+    ]);
+    expect(stats.sessions[0]?.highestRoll).toMatchObject({
+      total: 18,
+      label: 'Perception check',
+      natural: 16,
+    });
+  });
+
   it('is null without a PC d20 roll', () => {
     const stats = build([
       roll('r1', T0, NPC, 'm1', { total: 18, rollType: 'attack' }),

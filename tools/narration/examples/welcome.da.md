@@ -8,7 +8,7 @@ Velkommen tilbage. Før spillerne kommer, åbner du Foundry og indlæser verdene
 Til venstre finder du scene controls.
 
 Vælg en token for at se dens hit points, og højreklik på den for at ændre dens disposition.
-dnd5e-systemet ruller attacks og saving throws for dig, så du skal kun klikke.
+dnd5e-systemet laver attack rolls og saving throws for dig, så du skal kun klikke.
 
 # Tarokka
 

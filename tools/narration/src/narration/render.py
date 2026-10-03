@@ -28,6 +28,10 @@ from .voices import Engine, Voice
 Transcriber = Callable[[Path, str], dict[str, str]]
 Log = Callable[[str], None]
 
+# Bump when trim or tempo processing changes: clips are processed again from the raw voice
+# output in the cache, without the GPU.
+PROC = 2
+
 
 @dataclass
 class Result:
@@ -111,6 +115,9 @@ class Renderer:
     def _clip_path(self, item: _Item, take: int | None = None) -> Path:
         return self.cache / f"{item.clip_key(take)}.wav"
 
+    def _raw_path(self, item: _Item, take: int | None = None) -> Path:
+        return self.cache / f"{item.clip_key(take)}.raw.wav"
+
     def _meta_path(self, item: _Item, take: int | None = None) -> Path:
         return self.cache / f"{item.clip_key(take)}.json"
 
@@ -147,25 +154,37 @@ class Renderer:
         return sorted(t for t in range(0, 100) if self._clip_path(item, t).is_file())
 
     def _voice_missing(self) -> int:
-        todo = [i for i in self.items if not self._clip_path(i).is_file()]
+        todo = [
+            i for i in self.items
+            if not self._clip_path(i).is_file() or self._meta(i).get("proc") != PROC
+        ]
+        voiced = 0
         for n, item in enumerate(todo, 1):
             t0 = time.monotonic()
-            wav = self.engine.generate(item.sentence.spoken, self.voice, item.seed())
-            sr = self.engine.sr
-            wav = audio.trim(wav, sr)
-            wav = audio.change_speed(wav, sr, self.voice.speed)
+            raw_path = self._raw_path(item)
             self.cache.mkdir(parents=True, exist_ok=True)
+            if raw_path.is_file():
+                raw, sr = audio.read_wav(raw_path)  # only the processing changed: no GPU
+                what = "processed again"
+            else:
+                raw = self.engine.generate(item.sentence.spoken, self.voice, item.seed())
+                sr = self.engine.sr
+                audio.write_wav16(raw_path, raw, sr)
+                voiced += 1
+                what = "voiced"
+            wav = audio.trim(raw, sr)
+            wav = audio.change_speed(wav, sr, self.voice.speed)
             audio.write_wav16(self._clip_path(item), wav, sr)
             seconds = wav.size / sr
-            item.entry["tried"].setdefault(str(item.take), None)  # None until checked
+            item.entry["tried"][str(item.take)] = None  # new audio: not checked yet
             self._write_meta(item, {
                 "index": item.sentence.index, "take": item.take, "seed": item.seed(),
-                "spoken": item.sentence.spoken, "seconds": round(seconds, 3),
+                "spoken": item.sentence.spoken, "seconds": round(seconds, 3), "proc": PROC,
             })
             took = time.monotonic() - t0
-            self.log(f"  voiced {n}/{len(todo)}: sentence {item.sentence.index}, take {item.take}"
+            self.log(f"  {what} {n}/{len(todo)}: sentence {item.sentence.index}, take {item.take}"
                      f" ({seconds:.1f} s audio in {took:.1f} s)")
-        return len(todo)
+        return voiced
 
     def _check(self, items: list[_Item]) -> None:
         assert self.transcriber is not None
@@ -324,6 +343,6 @@ class Renderer:
             keep |= {item.clip_key(t) for t in takes}
         if self.cache.is_dir():
             for f in self.cache.iterdir():
-                if f.stem not in keep and f.suffix in (".wav", ".json"):
+                if f.name.split(".", 1)[0] not in keep and f.suffix in (".wav", ".json"):
                     f.unlink()
         self._save_state()

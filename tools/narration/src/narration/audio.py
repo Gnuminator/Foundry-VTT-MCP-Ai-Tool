@@ -22,8 +22,23 @@ def ffmpeg() -> str:
     return path
 
 
-def trim(x: np.ndarray, sr: int, rel_db: float = -40.0, pad: float = 0.08) -> np.ndarray:
-    """Cut silence and breath noise at both ends; keeps ``pad`` seconds around the speech."""
+def trim(
+    x: np.ndarray,
+    sr: int,
+    speech_db: float = -30.0,
+    sustain: float = 0.03,
+    pre: float = 0.08,
+    post: float = 0.15,
+    fade_out: float = 0.1,
+) -> np.ndarray:
+    """Cut each end to the speech, with a fade over the kept edge.
+
+    The Danish voice starts every clip with a click and up to a second of low static before the
+    first word. Speech starts at the first run of ``sustain`` seconds above ``speech_db`` (relative
+    to the clip's loudest 10 ms), so a lone click does not count. ``pre`` seconds before it are
+    kept and faded in (soft first sounds such as "s" or "h"); ``post`` seconds after the last
+    run are kept, the last ``fade_out`` of them faded out.
+    """
     if x.size == 0:
         return x
     frame = max(1, int(sr * 0.01))
@@ -31,13 +46,24 @@ def trim(x: np.ndarray, sr: int, rel_db: float = -40.0, pad: float = 0.08) -> np
     if n == 0:
         return x
     rms = np.sqrt(np.mean(x[: n * frame].reshape(n, frame) ** 2, axis=1))
-    floor = max(float(rms.max()) * 10 ** (rel_db / 20), 1e-4)
-    loud = np.nonzero(rms > floor)[0]
-    if loud.size == 0:
+    level = float(rms.max()) * 10 ** (speech_db / 20)
+    loud = rms > max(level, 1e-4)
+    run = max(1, int(round(sustain / 0.01)))
+    # A frame counts when it starts (or ends) a run of `run` loud frames.
+    window = np.convolve(loud.astype(int), np.ones(run, dtype=int), mode="valid") == run
+    hits = np.nonzero(window)[0]
+    if hits.size == 0:
         return x[:0]
-    start = max(0, loud[0] * frame - int(pad * sr))
-    end = min(x.size, (loud[-1] + 1) * frame + int(pad * sr))
-    return x[start:end]
+    start = max(0, hits[0] * frame - int(pre * sr))
+    end = min(x.size, (hits[-1] + run) * frame + int(post * sr))
+    y = x[start:end].astype(np.float32, copy=True)
+    fade_in_n = min(hits[0] * frame - start, y.size)
+    if fade_in_n > 0:
+        y[:fade_in_n] *= np.linspace(0.0, 1.0, fade_in_n, dtype=np.float32)
+    fade_out_n = min(int(fade_out * sr), y.size)
+    if fade_out_n > 0:
+        y[-fade_out_n:] *= np.linspace(1.0, 0.0, fade_out_n, dtype=np.float32)
+    return y
 
 
 def _pipe(x: np.ndarray, sr: int, args: list[str], out_rate: int | None = None) -> np.ndarray:

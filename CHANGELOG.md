@@ -85,7 +85,7 @@
   `remove-actor-ownership` (89 to 88 tools): ownership changes can be undone, back to the default
   when the player had no entry (PR #38).
 
-### Batch F and fixes (PRs #25, #28 to #30, #40)
+### Batch F and fixes (PRs #25, #28 to #30, #40, #42)
 
 - **Actor pickers (I-017; PR #29):** the tool runner's actor pickers show the actor types each
   tool is for (PCs and NPCs, the ones on the current scene first; NPCs for the NPC builders), with
@@ -100,8 +100,19 @@
   (`game.world` has no flags). The guarded-write log in the bridge vault is the audit trail (PR #25).
 - Test env: `start.ps1 -World <id>` launches the test server into another world (the
   licensed-content kit world); an unknown world id stops the script before anything starts (PR #40).
+- **Docs kept true in CI (F4, I-081; PR #42):** `docs/reference/tools.md` is generated from the
+  tool catalog (`npm run docs:tools`) and replaces the stale TOOL_INVENTORY.md; markdownlint
+  (`npm run docs:lint`) and an internal link and anchor check (`npm run docs:links`) run in CI;
+  external links are checked weekly. Tool descriptions lost their em dashes and two references to
+  tools that do not exist.
 
-### Voice tools (PRs #24, #26)
+### GM guides (PR #44)
+
+- **"When a character dies" (I-050):** marking a death, the death log, Observer access for the old
+  sheet, and bringing in a new character, with what the tool can and cannot do at each step; plus
+  a cookbook recipe.
+
+### Voice tools (PRs #24, #26, #43, #45)
 
 - **Session notes (`tools/session-notes`):** the Claude writing step of the session pipeline on the
   subscription (`claude -p`): the transcript cut into scenes, notes in Danish and English with a
@@ -109,6 +120,15 @@
   deleted 14 days after a session is approved. `auto.ps1` runs one pass for a scheduled task.
 - **Narration (`tools/narration`):** voiceovers for the GM videos on local voices (Danish and
   English), with captions, chapters, a pronunciation list and a listening check.
+- **Narration, Danish voice tuned by ear (PR #43):** English game terms stay English (also in the
+  Danish session notes), a pronunciation list (di-end-di for D&D, hitt pojnts for hit points), the
+  click and static before each Danish sentence are cut, and only changed sentences are re-trimmed
+  from the cached raw voice.
+- **Discord bot: `rehearse` (PR #45)** tests the recorder without people: speaker bots play known
+  tracks into a voice channel, the recorder's connection is dropped once, and every recorded track
+  is lined up with its source (PASS or CHECK). Fixed: the recorder dropped ordinary Opus packets
+  that happen to end in 0xFAFA as still-encrypted (about one lost 20 ms per speaker every 20
+  minutes).
 
 ### Fixes (PRs #15 to #17)
 

@@ -107,7 +107,7 @@ class FoundryMCPBridge {
         defaultEnabled: true,
         autoApply: {
           name: 'AI Tool: Live play, apply without confirming',
-          hint: 'Damage, healing, conditions and resources apply at once, without the confirm step, from the dashboard and from Claude. Each one still shows an Undo and is listed in Recent Changes.',
+          hint: "Damage, healing, conditions and resources that Claude plans apply at once, without the confirm step. The GM's own clicks on the dashboard always apply at once. Each one still shows an Undo and is listed in Recent Changes.",
         },
       });
       registerGuardedFeature({

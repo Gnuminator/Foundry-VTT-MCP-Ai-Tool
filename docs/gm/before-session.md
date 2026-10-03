@@ -28,11 +28,9 @@ addresses are today's Windows setup; they change when the tool moves to the Oran
 
 - [ ] In the Pre-flight panel, click **Ready for session**. One click turns on "Allow Write
       Operations", "AI Tool: Handouts (writes)", "AI Tool: Live play (writes)", "AI Tool: Party
-      (writes)" and **GM Actions**. The chips under the button show each switch; a toast says what
-      it turned on. **End session** turns off again what Ready turned on.
-- [ ] Only if you deal Tarokka cards tonight: in Foundry, open the Settings tab (gear icon),
-      **Game Settings**, category **Foundry AI Tool**, switch on "AI Tool: Tarokka (writes)" and
-      click **Save Changes**. Ready for session leaves it alone.
+      (writes)", "AI Tool: Tarokka (writes)" and **GM Actions**. The chips under the button show
+      each switch; a message says what it turned on. **End session** turns off again what Ready
+      turned on.
 
 ## Check what players will see
 

@@ -495,7 +495,7 @@ function renderReady() {
     readyEls.note.textContent = `On since ${time}, for tonight. End session turns off what Ready turned on. Every change can still be undone.`;
   } else {
     readyEls.note.textContent =
-      'Turns on, for tonight only: changes from the tool, handouts, live play (damage, conditions), the party and GM Actions. End session turns them off again. Every change can still be undone.';
+      'Turns on, for tonight only: changes from the tool, handouts, live play (damage, conditions), the party, Tarokka and GM Actions. End session turns them off again. Every change can still be undone.';
   }
 }
 
@@ -1661,7 +1661,8 @@ async function runTool(name, args, mutates, opts = {}) {
       return;
     }
     if (opts.skipConfirm) {
-      // The GM already chose: "apply without confirming" for live play, or Undo on a toast.
+      // The GM already chose: a click on their own dashboard action (a "write" plan), or Undo
+      // on a toast.
       confirmFlags =
         kind === 'destructive' ? { confirm: true, confirmDestructive: true } : { confirm: true };
     } else if (name === 'apply-planned-change') {
@@ -2669,10 +2670,13 @@ async function onPartyClick(e) {
 }
 
 // --- Tarokka drawer (GM only) ---
-// A plan-* tool is a read; apply-planned-change then shows its diff in the
-// confirm modal (and the destructive checkbox for a reveal). A live-play plan
-// (plan-actor-change) whose GM switched on "apply without confirming" comes
-// back with autoApply: it is applied at once, still behind GM Actions.
+// A plan-* tool is a read; apply-planned-change then applies it. Every caller of
+// planThenApply is the GM's own click on the dashboard, so a plan with risk "write"
+// applies at once with an Undo toast (PB-17, D-086): the click is the confirmation.
+// A destructive plan (a handout or Tarokka reveal, a delete) still shows its diff in
+// the confirm modal with the destructive checkbox. Claude's plans, opened from a plan
+// link, never come through here and always get the confirm modal. Everything stays
+// behind GM Actions and the feature switches.
 const PLAN_TOOL = /^plan-/;
 async function planThenApply(planTool, args, opts = {}) {
   let plan;
@@ -2701,7 +2705,7 @@ async function planThenApply(planTool, args, opts = {}) {
   if (plan && Array.isArray(plan.targets) && plan.targets.length > 0) {
     applyOpts.diff = plan.targets.map(t => t.line);
   }
-  if (plan && plan.autoApply === true && plan.risk === 'write') applyOpts.skipConfirm = true;
+  if (plan && plan.risk === 'write') applyOpts.skipConfirm = true;
   await runTool('apply-planned-change', { planId: plan.planId }, 'write', applyOpts);
 }
 function openTarokka() {

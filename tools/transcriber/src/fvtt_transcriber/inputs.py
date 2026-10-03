@@ -3,6 +3,9 @@
 Three sources are understood:
 
 * a Craig recording, as the ``.zip`` or unpacked: ``1-anna_0.flac`` gives ``anna``,
+* our own Discord recorder (``packages/discord-bot``, a folder with ``raw/session.json``):
+  ``1-anna_2.ogg`` gives ``anna_2``; it never adds Craig's ``_0``, so a user name that ends in
+  ``_`` and a number keeps it,
 * a LiveKit recording folder: ``<identity>__<source>__<trackSid>.ogg`` gives ``<identity>``,
 * the benchmark style ``S3__anna.wav`` (a label, two underscores, the speaker): the speaker is
   the last part and the label is kept in the output file name, which is what
@@ -49,13 +52,18 @@ def slug(text: str) -> str:
     return text or "speaker"
 
 
-def parse_track_name(stem: str) -> tuple[str | None, str]:
-    """Return ``(label, speaker)`` for a file name without extension."""
+def parse_track_name(stem: str, own_recorder: bool = False) -> tuple[str | None, str]:
+    """Return ``(label, speaker)`` for a file name without extension. ``own_recorder``: the file
+    comes from our Discord recorder, so ``<n>-<username>`` without Craig's ``_0`` suffix."""
     if "__" in stem:
         parts = stem.split("__")
         if len(parts) >= 3:  # LiveKit: identity__source__trackSid
             return None, slug(parts[0])
         return slug(parts[0]), slug(parts[1])  # benchmark: S3__speaker
+    if own_recorder:
+        m = re.match(r"^\d+-(?P<name>.+)$", stem)
+        if m:
+            return None, slug(m.group("name"))
     m = _CRAIG.match(stem)
     if m:
         return None, slug(m.group("name"))
@@ -100,11 +108,13 @@ def collect_inputs(source: Path, scratch: Path) -> list[TrackInput]:
     """
     if not source.exists():
         raise FileNotFoundError(f"input not found: {source}")
+    own_recorder = False
     if source.is_file() and source.suffix.lower() == ".zip":
         files = extract_craig_zip(source, scratch)
     elif source.is_file():
         files = [source]
     else:
+        own_recorder = (source / "raw" / "session.json").is_file()
         files = _audio_files(source)
         if not files:
             zips = sorted(source.glob("*.zip"))
@@ -116,7 +126,7 @@ def collect_inputs(source: Path, scratch: Path) -> list[TrackInput]:
     tracks: list[TrackInput] = []
     seen: dict[tuple[str | None, str], int] = {}
     for f in files:
-        label, speaker = parse_track_name(f.stem)
+        label, speaker = parse_track_name(f.stem, own_recorder)
         n = seen.get((label, speaker), 0) + 1
         seen[(label, speaker)] = n
         tracks.append(TrackInput(speaker if n == 1 else f"{speaker}-{n}", label, f))

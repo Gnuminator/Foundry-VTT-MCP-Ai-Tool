@@ -79,3 +79,12 @@ def test_folder_with_one_zip_is_a_craig_download(tmp_path: Path) -> None:
 def test_empty_folder_is_an_error(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         collect_inputs(tmp_path, tmp_path / "scratch")
+
+
+def test_own_recorder_keeps_a_trailing_number(tmp_path: Path) -> None:
+    (tmp_path / "raw").mkdir()
+    (tmp_path / "raw" / "session.json").write_text("{}", encoding="utf-8")
+    _touch(tmp_path, "1-test_bot_2.ogg", "2-anna.ogg", "3-bo_0.ogg")
+    tracks = collect_inputs(tmp_path, tmp_path / "scratch")
+    assert [t.speaker for t in tracks] == ["test_bot_2", "anna", "bo_0"]
+    assert parse_track_name("1-test_bot_2") == (None, "test_bot")  # Craig rule elsewhere

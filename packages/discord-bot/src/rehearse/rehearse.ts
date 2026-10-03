@@ -8,7 +8,8 @@
  */
 
 import { ChannelType, Client, GatewayIntentBits } from 'discord.js';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sessionFolderName } from '../bot.js';
 import type { BotConfig, RehearsalConfig } from '../config.js';
@@ -106,7 +107,16 @@ export async function rehearse(
   const files = listSources(opts.sourceDir);
   if (files.length === 0) throw new Error(`No audio files in ${opts.sourceDir}`);
   log.info(`Preparing ${files.length} source track(s)...`);
-  const prepared = files.map(f => prepareSource(f, join(folder, 'work'), opts.seconds));
+  // Prepared copies go to a temp folder, never into the recording: the transcriber reads every
+  // audio file under the session folder.
+  const workDir = mkdtempSync(join(tmpdir(), 'fvtt-rehearsal-'));
+  let prepared: Source[];
+  try {
+    prepared = files.map(f => prepareSource(f, workDir, opts.seconds));
+  } catch (err) {
+    rmSync(workDir, { recursive: true, force: true });
+    throw err;
+  }
   const sources: Source[] = prepared
     .sort((a, b) => b.sendFrames - a.sendFrames)
     .slice(0, cfg.speakerTokens.length);
@@ -270,6 +280,7 @@ export async function rehearse(
     writeFileSync(join(folder, 'rehearsal.json'), `${JSON.stringify(report, null, 2)}\n`);
     return report;
   } finally {
+    rmSync(workDir, { recursive: true, force: true });
     recorder?.stop();
     if (session && !session.isStopped) await session.stop('rehearsal aborted');
     await Promise.allSettled(speakers.map(s => s.destroy()));

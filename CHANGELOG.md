@@ -90,7 +90,7 @@
   `remove-actor-ownership` (89 to 88 tools): ownership changes can be undone, back to the default
   when the player had no entry (PR #38).
 
-### Batch F and fixes (PRs #25, #28 to #30, #40, #42, #67)
+### Batch F and fixes (PRs #25, #28 to #30, #40, #42, #67, #74)
 
 - **Actor pickers (I-017; PR #29):** the tool runner's actor pickers show the actor types each
   tool is for (PCs and NPCs, the ones on the current scene first; NPCs for the NPC builders), with
@@ -99,6 +99,8 @@
   the local test world and cleans up after itself (a test-world-only helper deletes what it made).
 - **Test scripts take `--world` (PR #67):** `live:sweep` and `live:roundtrip` also run on the local
   walkthrough world (`ai-tool-walkthrough`); every other world is still refused.
+- Fixed: the live write sweep starts its test combat without `Combat#startCombat`, so a module
+  that asks before starting combat (Monk's Combat Details) no longer stalls it (PR #74).
 - Fixed: `switch-scene` could leave the GM's view on the previous scene after a quick switch back,
   so scene tools acted on the wrong scene (PR #28).
 - Fixed: setting up spellcasting on an NPC left its spell slots at 0 in dnd5e 6; the slot counts
@@ -124,7 +126,7 @@
 - **Troubleshooting (PR #70):** players who cannot apply their own effects (dnd5e's "Allow Player
   Effect Application"), and D&D Beyond characters that import as an empty "New Actor".
 
-### Design pass (D-085; PRs #60, #61, #63, #65, #66, #71)
+### Design pass (D-085; PRs #60, #61, #63, #65, #66, #71, #73)
 
 - **Themes (PR #60):** the dashboard and the players' page get a theme picked once per world by the
   GM: Neutral (the README brand) or The Veil (the Curse of Strahd theme, with self-hosted OFL fonts
@@ -145,6 +147,10 @@
 - **Combat strip actions (I-095; PR #71):** Damage and Condition on selected combatants are back
   in the During view's turn-order strip and apply in one click with Undo; initiative, turns and
   saves stay in Foundry; the strip is a slim row again.
+- **Tonight's stats (PR #73):** the After view opens with the session's rolls, most damage, the
+  highest roll and who went down, a link to the session note and Copy the stats for Discord. The
+  bridge's play stats and the Obsidian session note gain the session's highest d20 roll by a hero
+  (GM only; the Discord copy leaves it out).
 
 ### Demo recordings (I-082; PRs #53, #57)
 

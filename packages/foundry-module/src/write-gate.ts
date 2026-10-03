@@ -96,6 +96,8 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getFriendlyNPCs',
   'getJournalContent',
   'getJournalPageContent',
+  'getLibraryDocuments',
+  'getLibraryIndex',
   'getModuleErrors',
   'getModuleManifest',
   'getModules',

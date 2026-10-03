@@ -530,7 +530,7 @@ describe('renderMirrorNote snapshots', () => {
       nav_name: null
       player_name: "Castle Ravenloft"
       navigation: true
-      journal: "[[Campaigns/strahd-test/AI Tool/Foundry/Journals/Barovia|JournalEntry.jr10000000000000]]"
+      journal: "[[Campaigns/strahd-test/AI Tool/Foundry/Journals/Barovia|Journal]]"
       pins: 3
       aliases:
         - "Castle Ravenloft"
@@ -544,7 +544,7 @@ describe('renderMirrorNote snapshots', () => {
         - "campaign/strahd-test"
         - "scene"
       generated_by: "foundry-ai-tool"
-      generated_hash: "142ae8f6252ff073"
+      generated_hash: "6ee377c93466fb78"
       ---
       # Castle Ravenloft
 
@@ -560,12 +560,12 @@ describe('renderMirrorNote snapshots', () => {
 
       ## Journal
 
-      - [JournalEntry.jr10000000000000.JournalEntryPage.pg10000000000000](../Journals/Barovia/Village.md)
+      - [A journal page](../Journals/Barovia/Village.md)
 
       ## Map pins
 
       - [The crypt](../Journals/Barovia/Village.md)
-      - JournalEntry.gone000000000000 \`JournalEntry.gone000000000000 (not found)\`
+      - A journal (no longer in this world)
       - Unlinked note
       "
     `);
@@ -883,7 +883,7 @@ describe('scene notes', () => {
     expect(render(scene())).toContain('nav_name: null');
   });
 
-  it('marks pins with a missing document as not found and unmirrored ones with their uuid', () => {
+  it('names pins with a missing document in words and opens unmirrored ones in Foundry', () => {
     const ghost = `JournalEntry.${fid('other')}`;
     const text = render(
       scene({
@@ -892,10 +892,11 @@ describe('scene notes', () => {
       }),
       makeCtx({ targets: { [ghost]: { notePath: null, name: 'Elsewhere journal' } } })
     );
-    expect(text).toContain(`Elsewhere \`${ghost}\``);
-    expect(text).toContain(`journal: "${ghost}"`);
+    expect(text).toContain(`[Elsewhere](${OPEN}/open?uuid=${ghost})`);
+    expect(text).not.toContain(`journal: "${ghost}"`);
     const gone = render(scene(), makeCtx());
-    expect(gone).toContain(`\`JournalEntry.${fid('gone')} (not found)\``);
+    expect(gone).not.toContain(fid('gone'));
+    expect(gone).toContain('(no longer in this world)');
   });
 
   it('links the journal property and pins to the page block when the resolver gives one', () => {
@@ -1211,7 +1212,7 @@ describe('hostile Foundry data', () => {
     const text = render(entry);
     assertInert(text);
     expect(text).toContain('x\\](https://evil.example) \\[y');
-    expect(text).toContain('```weird`` `uuid (not found)```');
+    expect(text).not.toContain('weird``');
   });
 
   it('keeps journals, pages and categories inert', () => {

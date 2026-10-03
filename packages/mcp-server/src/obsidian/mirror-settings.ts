@@ -11,11 +11,16 @@
  */
 import { createHash } from 'crypto';
 
-import { DEFAULT_STORY_ITEM_TYPES } from '@gnuminator/shared';
+import { DEFAULT_STORY_ITEM_TYPES, LIBRARY_PACK_ID_PATTERN } from '@gnuminator/shared';
 
 import type { VaultStore } from '../vault/store.js';
 
-import { MIRROR_KINDS, type MirrorKind, type MirrorSettings } from './mirror-common.js';
+import {
+  MIRROR_KINDS,
+  parseBaseUrl,
+  type MirrorKind,
+  type MirrorSettings,
+} from './mirror-common.js';
 
 /** Bridge vault file (area `gm`) holding `{ settings }`. */
 export const MIRROR_SETTINGS_FILE = 'obsidian-mirror.json';
@@ -29,6 +34,9 @@ export const ITEM_TYPE = /^[a-z][a-zA-Z0-9-]{0,40}$/;
 
 export const MAX_IDS = 200;
 export const MAX_ITEM_TYPES = 30;
+/** Compendium pack ids: `<package>.<pack>` (`world.ddb-monsters`, `dnd5e.spells`), the module's pattern. */
+export const PACK_ID = new RegExp(LIBRARY_PACK_ID_PATTERN);
+export const MAX_LIBRARY_PACKS = 100;
 
 export const DEFAULT_POLL_MS = 10_000;
 export const MIN_POLL_MS = 5_000;
@@ -42,6 +50,7 @@ function freezeSettings(settings: MirrorSettings): MirrorSettings {
   Object.freeze(settings.text);
   Object.freeze(settings.excludeFolderIds);
   Object.freeze(settings.storyItemTypes);
+  Object.freeze(settings.libraryPacks);
   return Object.freeze(settings);
 }
 
@@ -53,6 +62,7 @@ export const DEFAULT_MIRROR_SETTINGS: MirrorSettings = freezeSettings({
   text: { folderIds: [], journalIds: [] },
   excludeFolderIds: [],
   storyItemTypes: [...DEFAULT_STORY_ITEM_TYPES],
+  libraryPacks: [],
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -74,6 +84,16 @@ function normalizeKinds(raw: unknown): MirrorKind[] {
   // A list is taken as written (an empty one means "mirror nothing"); unknown
   // entries are dropped, the rest come out deduplicated in the fixed order.
   return MIRROR_KINDS.filter(kind => raw.includes(kind));
+}
+
+/** Valid pack ids only, deduplicated, sorted, at most `MAX_LIBRARY_PACKS`. */
+function normalizePacks(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const packs = new Set<string>();
+  for (const value of raw) {
+    if (typeof value === 'string' && PACK_ID.test(value)) packs.add(value);
+  }
+  return [...packs].sort().slice(0, MAX_LIBRARY_PACKS);
 }
 
 function normalizeItemTypes(raw: unknown): string[] {
@@ -101,6 +121,7 @@ export function normalizeMirrorSettings(raw: unknown): MirrorSettings {
       text: { folderIds: normalizeIds(text.folderIds), journalIds: normalizeIds(text.journalIds) },
       excludeFolderIds: normalizeIds(source.excludeFolderIds),
       storyItemTypes: normalizeItemTypes(source.storyItemTypes),
+      libraryPacks: normalizePacks(source.libraryPacks),
     };
   } catch {
     // A hostile value (a throwing getter or proxy) reads as nothing: the defaults.
@@ -111,6 +132,7 @@ export function normalizeMirrorSettings(raw: unknown): MirrorSettings {
       text: { folderIds: [], journalIds: [] },
       excludeFolderIds: [],
       storyItemTypes: [...DEFAULT_STORY_ITEM_TYPES],
+      libraryPacks: [],
     };
   }
 }
@@ -150,6 +172,12 @@ export interface MirrorEnvSettings {
   pollMs: number;
   /** Validated http(s) origin, no trailing slash: the base of "Open in Foundry" links. */
   openBase: string;
+  /**
+   * `FOUNDRY_AI_FOUNDRY_URL`: Foundry's base URL as the bridge reaches it (origin plus any
+   * route prefix, no trailing slash; images are fetched there), or null to use the address the
+   * GM client reports.
+   */
+  foundryUrl: string | null;
   /** Why a variable was ignored or clamped; never echoes credentials. */
   warnings: string[];
 }
@@ -221,5 +249,14 @@ export function mirrorEnvSettings(
   const warnings: string[] = [];
   const pollMs = parsePollMs(env.FOUNDRY_AI_MIRROR_POLL_MS, warnings);
   const openBase = parseOpenBase(env.FOUNDRY_AI_OPEN_BASE, warnings);
-  return { pollMs, openBase, warnings };
+  const foundryRaw = env.FOUNDRY_AI_FOUNDRY_URL?.trim() ?? '';
+  const foundryUrl = foundryRaw === '' ? null : parseBaseUrl(foundryRaw);
+  if (foundryRaw !== '' && foundryUrl === null) {
+    warnings.push(
+      'FOUNDRY_AI_FOUNDRY_URL must be an http(s) address such as http://localhost:30000 or ' +
+        'https://host/foundry (a route prefix is fine), with no username, password, query or ' +
+        'fragment; using the address the GM client reports'
+    );
+  }
+  return { pollMs, openBase, foundryUrl, warnings };
 }

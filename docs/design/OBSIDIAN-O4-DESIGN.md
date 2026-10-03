@@ -644,3 +644,101 @@ callout; 10 `player_visible` at Observer, Limited shown in `player_access`.
 8. Scene notes: **map pins yes, token lists no (they churn; session notes show who appeared)**?
 9. `section.secret` in opted-in text: **kept, in a collapsed `[!secret]-` callout**, or dropped?
 10. `player_visible` threshold: **Observer, with Limited shown in `player_access`**?
+
+## 13. Library, stat blocks and images
+
+Added after O4 (the Obsidian library lane). Section 12 is not used. Everything here lives in
+the GM's vault only; examples in code and tests use made-up creatures and text.
+
+### 13.1 Module queries
+
+Two GM-only queries feed the Library (`shared/src/library-index.ts`, limits in `LIBRARY_LIMITS`):
+
+- `getLibraryIndex {packs, after?}`: one row per document of the picked packs (uuid, name, type,
+  subtype, folder group, identifiers, rules version, signature), plus the pack labels, the packs
+  that are missing in this world, every pack id (for legacy `@Compendium[...]` links) and
+  `origin`, Foundry's absolute base URL including any route prefix, no trailing slash. Pages
+  hold at most 1,000 rows and 512 KB. The cursor is opaque: the bridge passes `next` back with
+  the same `packs` list; a changed list starts over, and an `Invalid cursor` answer restarts
+  the index.
+- `getLibraryDocuments {uuids}`: at most 40 documents per call within a 1.5 MB response
+  (deferred ones come back in `deferred`), description HTML cut at 256 KB, at most 300
+  advancement links and 30 facts per document, NPC stat blocks in the shape the world export
+  uses.
+
+The world export (`getExportIndex`) also carries NPC stat blocks, portraits (`img`), scene maps
+(`map`) and the same `origin`.
+
+### 13.2 Library folder
+
+`libraryPacks` in the mirror settings picks the packs. Notes go to
+`Campaigns/<world>/AI Tool/Library/<Category>/`: Monsters, Spells, Classes, Subclasses, Species,
+Backgrounds, Feats, `Class features/<class>`, `Species traits/<species>`, Background features,
+Monster features, Features, Items, Other. A path is picked once and never renamed; same-named
+entries of two rules versions get `(2014)` or `(2024)`. `fvtt_sig` holds the index signature,
+so an unchanged entry is never fetched again. `.ai-tool-library.json` (a dot file Obsidian
+ignores) keeps the membership the notes were rendered against, the lookups each note made (its
+links) and the queue, for the next start.
+
+### 13.3 Stat blocks in notes
+
+Library monster notes and world NPC notes show one `[!statblock]` callout (`stat-block-md.ts`)
+plus the portrait and the biography. dnd5e enrichers become the words Foundry shows
+(`dnd5e-text.ts`): `[[/save dex 15]]` reads `DC 15 Dexterity`, damage reads `7 (2d6) acid`, and
+plain inline rolls read as their formula (`1d20 + 2`).
+
+### 13.4 The git guard
+
+Licensed content (book and compendium text, D&D Beyond imports, their images) may only be
+written where git will not pick it up. `LicensedGuard` answers three questions per campaign and
+fails closed on every git error (exit 128, such as dubious ownership, is reported with git's own
+first line):
+
+- **Library and images** (`AI Tool/Library/`, `AI Tool/Attachments/`): the guard writes and keeps
+  `AI Tool/.gitignore` with `/Library/` and `/Attachments/`. Allowed outside a repository, or
+  when git confirms both folders are ignored and nothing in them is tracked. Without git
+  installed it trusts that file and says that tracked files could not be checked.
+- **Licensed text in world notes**: allowed outside a repository, or when git ignores the whole
+  mirror folder `Campaigns/<world>/AI Tool/` and the vault trash for it
+  (`.trash/Campaigns/<world>/AI Tool/`), and nothing under either is tracked. The guard never
+  adds that rule itself. Otherwise world notes keep names, links and facts, but stat block
+  bodies, opted-in page text, portraits and maps become one line pointing at `_status.md`, which
+  explains the fix: add the folders to `.gitignore`, or move the vault out of the repository.
+  Without git installed this stays off.
+- **Trash**: Library notes and images are moved to the vault trash only when git ignores their
+  trash folders.
+
+A `.git` anywhere inside `AI Tool/` turns all three off. The answer is cached for five minutes.
+
+### 13.5 Images
+
+Portraits, scene maps and images in page text are fetched over HTTP from Foundry's base URL
+(`FOUNDRY_AI_FOUNDRY_URL` when set, else `origin`) into `AI Tool/Attachments/`, mirroring the
+Foundry path. Paths are compared case-folded; when two Foundry paths would share a file, the
+later one gets a short hash in its name. Bodies stream with a 50 MB cap. A manifest keeps every
+image, its name and which notes (owner uuids) embed it.
+
+### 13.6 Re-render triggers
+
+- World notes store `<sig>.r<renderer>.<inputs>` in `fvtt_sig`, where `inputs` hashes the guard's
+  answers, the Library packs and the Library membership. Any change re-renders them, also when
+  it happened while the bridge was down.
+- Library notes re-render when their signature changes, when a membership change touches one
+  of the lookups they made (a class note gains a subclass added later), and on a renderer
+  change. Mirror settings re-render them only when a setting their links use changes (not
+  `enabled` or the pack list, which reach them through the membership).
+
+### 13.7 Budgets
+
+World notes go first. The Library refresh, Library fetches and writes share a 30 s slice, image
+copies get 20 s, all within the 60 s cycle; query and fetch timeouts never pass the remaining
+time. Each step continues at the next cycle from where it stopped (index cursor, folder scan,
+queue). Only the first refresh after a start runs before the world notes, in a 20 s slice; until
+it finishes the world notes wait, so they are not written twice.
+
+### 13.8 Trash
+
+Nothing is deleted. Library notes whose entry left the packs (after a complete index and scan,
+never for a missing pack, never when edited) and images no note embeds any more (only after a
+complete reconcile, never with an unknown owner) are moved to the vault `.trash/`, through the
+same fenced writer as mirror notes.

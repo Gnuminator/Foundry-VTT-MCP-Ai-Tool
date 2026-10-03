@@ -248,11 +248,11 @@ describe('Obsidian mirror canaries', () => {
     expect(filesContaining(files, '<%')).toEqual([]);
     expect(filesContaining(files, 'javascript:')).toEqual([]);
     expect(filesContaining(files, 'obsidian://')).toEqual([]);
-    // `[[...]]` is Foundry's inline roll syntax: kept as inline code, which Obsidian never links.
+    // `[[...]]` is Foundry's inline roll syntax: shown as its escaped words, which Obsidian never links.
     const outsideCode = new Map([...files].map(([file, text]) => [file, withoutCode(text)]));
     expect(filesContaining(outsideCode, /(?<!\\)\[\[Evil/)).toEqual([]);
     expect(filesContaining(outsideCode, /(?<!\\)!\[\[embed/)).toEqual([]);
-    expect(files.get(PAGE_NOTE)).toContain('`[[Evil Note]]`');
+    expect(files.get(PAGE_NOTE)).toContain('Evil Note');
     // A `pre` becomes a `text` fence one backtick longer than any run inside it.
     expect(filesContaining(outsideCode, /^```dataviewjs/m)).toEqual([]);
     expect(files.get(PAGE_NOTE)).toMatch(/^````text\n```dataviewjs\n/m);

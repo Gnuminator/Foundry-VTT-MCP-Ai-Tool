@@ -22,6 +22,8 @@ import {
   ITEM_TYPE,
   MAX_IDS,
   MAX_ITEM_TYPES,
+  MAX_LIBRARY_PACKS,
+  PACK_ID,
   MIRROR_FEATURE,
   MIRROR_SETTINGS_FILE,
   normalizeMirrorSettings,
@@ -48,6 +50,8 @@ export interface ObsidianMirrorEnv {
   openBase: string;
   /** `FOUNDRY_AI_MIRROR_POLL_MS`. */
   pollMs: number;
+  /** Validated `FOUNDRY_AI_FOUNDRY_URL` (where images are fetched), or null when unset or invalid. Not a secret. */
+  foundryUrl?: string | null;
 }
 
 export interface ObsidianMirrorToolsOptions {
@@ -61,6 +65,9 @@ export interface ObsidianMirrorToolsOptions {
 }
 
 export interface ObsidianMirrorView extends ObsidianMirrorEnv {
+  /** Whether `FOUNDRY_AI_FOUNDRY_URL` is set (and valid): images are fetched there, not at the GM client's address. */
+  foundryUrlSet: boolean;
+  foundryUrl: string | null;
   settings: MirrorSettings;
   /** Changes whenever the settings do; the pump reconciles on a change. */
   hash: string;
@@ -113,6 +120,7 @@ function describeChange(before: MirrorSettings, after: MirrorSettings): string {
     describeListChange('page text journals', before.text.journalIds, after.text.journalIds),
     describeListChange('excluded folders', before.excludeFolderIds, after.excludeFolderIds),
     describeListChange('story item types', before.storyItemTypes, after.storyItemTypes),
+    describeListChange('Library packs', before.libraryPacks, after.libraryPacks),
   ];
   for (const change of optional) if (change !== null) changes.push(change);
   return `Obsidian mirror settings: ${changes.join('; ')}`;
@@ -150,6 +158,12 @@ const planParams = z
       )
       .max(MAX_ITEM_TYPES)
       .optional(),
+    libraryPacks: z
+      .array(
+        z.string().regex(PACK_ID, 'libraryPacks must be pack ids such as "world.ddb-monsters"')
+      )
+      .max(MAX_LIBRARY_PACKS)
+      .optional(),
   })
   .strict();
 
@@ -180,13 +194,13 @@ export class ObsidianMirrorTools {
       {
         name: 'get-obsidian-mirror',
         description:
-          'GM ONLY. The Obsidian mirror\'s settings (enabled, mirrored kinds, journals whose page text is mirrored, excluded folders, story item types), their hash, the backend environment (whether FOUNDRY_AI_OBSIDIAN_DIR is set, the "Open in Foundry" base FOUNDRY_AI_OPEN_BASE, the poll interval) and the mirror\'s live status (last cycle, note counts per type, notes it skipped because the GM edited them, errors). The mirror writes notes only when FOUNDRY_AI_OBSIDIAN_DIR is set AND settings.enabled is true. Settings change only through plan-obsidian-mirror. Read-only.',
+          'GM ONLY. The Obsidian mirror\'s settings (enabled, mirrored kinds, journals whose page text is mirrored, excluded folders, story item types), their hash, the backend environment (whether FOUNDRY_AI_OBSIDIAN_DIR is set, the "Open in Foundry" base FOUNDRY_AI_OPEN_BASE, the poll interval, FOUNDRY_AI_FOUNDRY_URL where images are fetched) and the mirror\'s live status (last cycle, note counts per type, Library and image copies, notes it skipped because the GM edited them, errors). The mirror writes notes only when FOUNDRY_AI_OBSIDIAN_DIR is set AND settings.enabled is true. Settings change only through plan-obsidian-mirror. Read-only.',
         inputSchema: { type: 'object', properties: {} },
       },
       {
         name: 'plan-obsidian-mirror',
         description:
-          'Plan a change to the Obsidian mirror\'s settings; nothing changes until apply-planned-change (the GM confirms, and the module\'s "AI Tool: Obsidian mirror (writes)" switch must be on). Every argument is optional and a missing one keeps its current value. "enabled" turns the mirror on or off (it also needs FOUNDRY_AI_OBSIDIAN_DIR); "kinds" picks what is mirrored; "textFolderIds" and "textJournalIds" name the journals whose page text is mirrored (default: none, page text stays in Foundry); "excludeFolderIds" are folders that are never mirrored, subfolders included; "storyItemTypes" are the item types that count as story items. Refused when nothing would change. The summary names ids and counts, never page text. Returns a planId for apply-planned-change; undo-change restores the previous settings.',
+          'Plan a change to the Obsidian mirror\'s settings; nothing changes until apply-planned-change (the GM confirms, and the module\'s "AI Tool: Obsidian mirror (writes)" switch must be on). Every argument is optional and a missing one keeps its current value. "enabled" turns the mirror on or off (it also needs FOUNDRY_AI_OBSIDIAN_DIR); "kinds" picks what is mirrored; "textFolderIds" and "textJournalIds" name the journals whose page text is mirrored (default: none, page text stays in Foundry); "excludeFolderIds" are folders that are never mirrored, subfolders included; "storyItemTypes" are the item types that count as story items; "libraryPacks" are the compendium packs that get Library notes. Refused when nothing would change. The summary names ids and counts, never page text. Returns a planId for apply-planned-change; undo-change restores the previous settings.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -228,6 +242,13 @@ export class ObsidianMirrorTools {
               description:
                 'Item types that get a story-item note when the item is in the mirrored set (for example weapon, equipment, consumable, tool, loot, container). The full list replaces the current one.',
             },
+            libraryPacks: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'Compendium packs (e.g. world.ddb-monsters) whose monsters, items, spells, classes, species, backgrounds and feats get Library notes in the GM vault (licensed, kept out of git). Replaces the list.',
+              ...toolRef('compendium-pack', 'id'),
+            },
           },
         },
       },
@@ -243,6 +264,8 @@ export class ObsidianMirrorTools {
       vaultDirSet: this.env.vaultDirSet,
       openBase: this.env.openBase,
       pollMs: this.env.pollMs,
+      foundryUrlSet: Boolean(this.env.foundryUrl),
+      foundryUrl: this.env.foundryUrl ?? null,
       status: this.status(),
     };
   }
@@ -261,6 +284,7 @@ export class ObsidianMirrorTools {
         },
         excludeFolderIds: params.excludeFolderIds ?? current.excludeFolderIds,
         storyItemTypes: params.storyItemTypes ?? current.storyItemTypes,
+        libraryPacks: params.libraryPacks ?? current.libraryPacks,
       });
       if (sameSettings(current, next)) {
         throw new Error(

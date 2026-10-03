@@ -39,6 +39,7 @@ describe('constants', () => {
       text: { folderIds: [], journalIds: [] },
       excludeFolderIds: [],
       storyItemTypes: [...DEFAULT_STORY_ITEM_TYPES],
+      libraryPacks: [],
     });
     expect(Object.isFrozen(DEFAULT_MIRROR_SETTINGS)).toBe(true);
     expect(Object.isFrozen(DEFAULT_MIRROR_SETTINGS.kinds)).toBe(true);
@@ -225,6 +226,7 @@ describe('normalizeMirrorSettings', () => {
       'text',
       'excludeFolderIds',
       'storyItemTypes',
+      'libraryPacks',
     ]);
     expect(Object.keys(once.text)).toEqual(['folderIds', 'journalIds']);
     expect(normalizeMirrorSettings(once)).toEqual(once);
@@ -336,6 +338,7 @@ describe('readMirrorSettings', () => {
       text: { folderIds: [ID_A, ID_C], journalIds: [] },
       excludeFolderIds: [ID_B],
       storyItemTypes: ['loot'],
+      libraryPacks: [],
     });
     expect(result.hash).toBe(hashMirrorSettings(result.settings));
   });
@@ -375,6 +378,7 @@ describe('mirrorEnvSettings', () => {
     expect(mirrorEnvSettings({})).toEqual({
       pollMs: 10_000,
       openBase: 'http://localhost:3000',
+      foundryUrl: null,
       warnings: [],
     });
     expect(DEFAULT_POLL_MS).toBe(10_000);
@@ -385,7 +389,12 @@ describe('mirrorEnvSettings', () => {
   it('treats empty and whitespace values as unset', () => {
     expect(
       mirrorEnvSettings({ FOUNDRY_AI_MIRROR_POLL_MS: '  ', FOUNDRY_AI_OPEN_BASE: '' })
-    ).toEqual({ pollMs: 10_000, openBase: 'http://localhost:3000', warnings: [] });
+    ).toEqual({
+      pollMs: 10_000,
+      openBase: 'http://localhost:3000',
+      foundryUrl: null,
+      warnings: [],
+    });
   });
 
   it('reads process.env when no environment is passed', () => {
@@ -396,6 +405,7 @@ describe('mirrorEnvSettings', () => {
       expect(mirrorEnvSettings()).toEqual({
         pollMs: 7000,
         openBase: 'https://gm.example.net',
+        foundryUrl: null,
         warnings: [],
       });
     } finally {
@@ -460,7 +470,12 @@ describe('mirrorEnvSettings', () => {
         ['https://gm.example.net:443', 'https://gm.example.net'],
       ];
       for (const [value, origin] of accepted) {
-        expect(open(value)).toEqual({ pollMs: 10_000, openBase: origin, warnings: [] });
+        expect(open(value)).toEqual({
+          pollMs: 10_000,
+          openBase: origin,
+          foundryUrl: null,
+          warnings: [],
+        });
       }
     });
 
@@ -524,5 +539,49 @@ describe('mirrorEnvSettings', () => {
     expect(result.pollMs).toBe(5000);
     expect(result.openBase).toBe('http://localhost:3000');
     expect(result.warnings).toHaveLength(2);
+  });
+});
+
+describe('Library packs and FOUNDRY_AI_FOUNDRY_URL', () => {
+  it('keeps valid pack ids, deduplicated and sorted, and drops the rest', () => {
+    const settings = normalizeMirrorSettings({
+      libraryPacks: [
+        'world.monsters',
+        'dnd5e.spells',
+        'world.monsters',
+        'no-dot',
+        '../x.y',
+        7,
+        'a.b c',
+      ],
+    });
+    expect(settings.libraryPacks).toEqual(['dnd5e.spells', 'world.monsters']);
+    expect(normalizeMirrorSettings({ libraryPacks: 'world.monsters' }).libraryPacks).toEqual([]);
+  });
+
+  it('changes the hash when the packs change', () => {
+    const a = normalizeMirrorSettings({ libraryPacks: ['world.monsters'] });
+    const b = normalizeMirrorSettings({ libraryPacks: ['world.items'] });
+    expect(hashMirrorSettings(a)).not.toBe(hashMirrorSettings(b));
+  });
+
+  it('reads FOUNDRY_AI_FOUNDRY_URL as a base URL (route prefix allowed) and warns about anything else', () => {
+    expect(
+      mirrorEnvSettings({ FOUNDRY_AI_FOUNDRY_URL: 'http://localhost:30000/' }).foundryUrl
+    ).toBe('http://localhost:30000');
+    expect(
+      mirrorEnvSettings({ FOUNDRY_AI_FOUNDRY_URL: 'https://host.example/foundry/' }).foundryUrl
+    ).toBe('https://host.example/foundry');
+    for (const value of [
+      'https://host.example/foundry?x=1',
+      'https://host.example/#a',
+      'ftp://h',
+    ]) {
+      expect(mirrorEnvSettings({ FOUNDRY_AI_FOUNDRY_URL: value }).foundryUrl, value).toBeNull();
+    }
+    const bad = mirrorEnvSettings({ FOUNDRY_AI_FOUNDRY_URL: 'http://user:pw@host/path' });
+    expect(bad.foundryUrl).toBeNull();
+    expect(bad.warnings.join(' ')).toContain('FOUNDRY_AI_FOUNDRY_URL');
+    expect(bad.warnings.join(' ')).not.toContain('pw@');
   });
 });

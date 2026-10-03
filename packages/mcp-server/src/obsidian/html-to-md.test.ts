@@ -69,27 +69,55 @@ describe('links: section 5 table', () => {
     );
   });
 
-  it('opens compendium documents in Foundry; a typeless compendium uuid is code', () => {
+  it('opens compendium documents in Foundry; without a type only the label shows', () => {
     expect(md('<p>@UUID[Compendium.dnd5e.monsters.Actor.abcdefABCDEF0123]{a wolf}</p>')).toBe(
       '[a wolf](http://localhost:3100/open?uuid=Compendium.dnd5e.monsters.Actor.abcdefABCDEF0123)'
     );
-    expect(md('<p>@UUID[Compendium.dnd5e.monsters.abcdefABCDEF0123]{old}</p>')).toBe(
-      'old `Compendium.dnd5e.monsters.abcdefABCDEF0123`'
+    expect(md('<p>@UUID[Compendium.dnd5e.monsters.abcdefABCDEF0123]{old}</p>')).toBe('old');
+    expect(md('<p>@Compendium[dnd5e.monsters.abcdefABCDEF0123]{older}</p>')).toBe('older');
+    expect(md('<p>@Compendium[dnd5e.monsters.Goblin]</p>')).toBe('Goblin');
+  });
+
+  it('links compendium documents to their Library notes, legacy links too', () => {
+    const SEP = 'Compendium.world.monsters.Actor.quill00000000001';
+    const library = {
+      byUuid: (uuid: string): { notePath: string; name: string } | null =>
+        uuid === SEP
+          ? { notePath: 'AI Tool/Library/Monsters/Quillfang.md', name: 'Quillfang' }
+          : null,
+      legacy: (pack: string, idOrName: string): string | null =>
+        pack === 'world.monsters' && (idOrName === 'quill00000000001' || idOrName === 'Quillfang')
+          ? SEP
+          : null,
+    };
+    const lib = (html: string): string => htmlToMarkdown(html, { ...ctx(), library });
+    const target = '../../../Library/Monsters/Quillfang.md';
+    expect(lib(`<p>@UUID[${SEP}]{the killer}</p>`)).toBe(`[the killer](${target})`);
+    expect(lib('<p>@Compendium[world.monsters.quill00000000001]{Quillfang}</p>')).toBe(
+      `[Quillfang](${target})`
     );
-    expect(md('<p>@Compendium[dnd5e.monsters.abcdefABCDEF0123]{older}</p>')).toBe(
-      'older `@Compendium[dnd5e.monsters.abcdefABCDEF0123]`'
+    expect(lib('<p>@Compendium[world.monsters.Quillfang]</p>')).toBe(`[Quillfang](${target})`);
+    // In the index of another pack the Library does not hold: open it in Foundry.
+    expect(lib('<p>@UUID[Compendium.world.items.Item.ring000000000001]{a ring}</p>')).toBe(
+      '[a ring](http://localhost:3100/open?uuid=Compendium.world.items.Item.ring000000000001)'
     );
   });
 
-  it('shows unmirrored and missing documents as label plus code', () => {
-    expect(md(`<p>@UUID[${MACRO}]{Macro}</p>`)).toBe(`Macro \`${MACRO}\``);
-    expect(md(`<p>@UUID[${GONE}]{Castle}</p>`)).toBe(`Castle \`${GONE} (not found)\``);
+  it('shows unmirrored documents as an Open in Foundry link and missing ones as their label', () => {
+    expect(md(`<p>@UUID[${MACRO}]{Macro}</p>`)).toBe(
+      `[Macro](http://localhost:3100/open?uuid=${MACRO})`
+    );
+    expect(md(`<p>@UUID[${GONE}]{Castle}</p>`)).toBe('Castle');
+    expect(htmlToMarkdown(`<p>@UUID[${MACRO}]{Macro}</p>`, { ...ctx(), openBase: '' })).toBe(
+      'Macro'
+    );
   });
 
   it('resolves legacy links by id and by exact name', () => {
     expect(md('<p>@Actor[wolf000000000001]{W}</p>')).toBe('[W](../../NPCs/Wolf.md)');
     expect(md('<p>@Actor[Wolf]</p>')).toBe('[Wolf](../../NPCs/Wolf.md)');
-    expect(md('<p>@Actor[Nobody]{N}</p>')).toBe('N `@Actor[Nobody]`');
+    expect(md('<p>@Actor[Nobody]{N}</p>')).toBe('N');
+    expect(md('<p>@RollTable[Fish Colors]{Open RollTable}</p>')).toBe('Fish Colors');
   });
 
   it('never embeds: @Embed becomes "Embedded:" plus a link', () => {
@@ -98,10 +126,32 @@ describe('links: section 5 table', () => {
     );
   });
 
-  it('keeps inline rolls and dnd5e enrichers as code', () => {
+  it('turns inline rolls and dnd5e enrichers into the words Foundry shows', () => {
     expect(md('<p>Roll [[/r 1d20+2]] and [[/check dex dc=15]] or &Reference[prone].</p>')).toBe(
-      'Roll `[[/r 1d20+2]]` and `[[/check dex dc=15]]` or `&Reference[prone]`.'
+      'Roll 1d20 + 2 and DC 15 Dexterity or prone.'
     );
+    expect(
+      md(
+        '<p>A [[/save con 22 format=long]], taking [[/damage 20d10 + 70 radiant average=true]] damage.</p>'
+      )
+    ).toBe('A DC 22 Constitution saving throw, taking 180 (20d10 + 70) radiant damage.');
+    expect(
+      md(
+        '<p>[[/check wis 14 format=long]] [[/check skill=prc dc=12 format=long]] [[/roll 2d6]] [[1d4]]</p>'
+      )
+    ).toBe('DC 14 Wisdom check DC 12 Wisdom (Perception) check 2d6 1d4');
+    expect(
+      md(
+        '<p>&amp;Reference[prc]{Perception} &amp;Reference[evo] [[/damage 5 type=heal average=false]] hit points</p>'
+      )
+    ).toBe('Perception evocation 5 hit points');
+    expect(md('<p>@Check[dex|dc:15] and @Save[str|dc:12]{a Strength save}</p>')).toBe(
+      'DC 15 Dexterity and a Strength save'
+    );
+    expect(md('<p>[[lookup @name lowercase]] attacks</p>')).toBe('the creature attacks');
+    expect(
+      htmlToMarkdown('<p>[[lookup @name]] attacks</p>', { ...ctx(), selfName: 'Quillfang' })
+    ).toBe('Quillfang attacks');
   });
 
   it('links only http(s) hrefs and bare URLs', () => {
@@ -160,11 +210,83 @@ describe('html structure', () => {
     );
   });
 
-  it('renders simple tables and flattens complex ones', () => {
+  it('renders every table as a Markdown table, spans expanded', () => {
     expect(md('<table><tr><th>A</th><th>B|C</th></tr><tr><td>1</td><td>2</td></tr></table>')).toBe(
       '| A | B\\|C |\n| --- | --- |\n| 1 | 2 |'
     );
-    expect(md('<table><tr><td colspan="2">wide</td></tr></table>')).toBe('wide');
+    expect(
+      md(
+        '<div class="table-overflow-wrapper"><table><caption>Loot</caption><thead><tr><th colspan="2">Roll</th></tr></thead>' +
+          '<tbody><tr><td rowspan="2">1</td><td><p>a</p><ul><li>b</li></ul></td></tr><tr><td>c</td></tr></tbody></table></div>'
+      )
+    ).toBe('**Loot**\n\n| Roll |  |\n| --- | --- |\n| 1 | a - b |\n|  | c |');
+  });
+
+  it('renders a D&D Beyond stat block as one callout with an ability table', () => {
+    const scores = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']
+      .map(
+        (k, i) =>
+          `<div class="stat-block-ability-scores-stat"><div class="stat-block-ability-scores-heading">${k}</div>` +
+          `<div class="stat-block-ability-scores-data"><span class="stat-block-ability-scores-score">${10 + i}</span> ` +
+          `<span class="stat-block-ability-scores-modifier">(+${Math.floor(i / 2)})</span></div></div>`
+      )
+      .join('');
+    const html =
+      '<div class="Basic-Text-Frame stat-block-finder stat-block-background-1">' +
+      '<p class="Stat-Block-Styles_Stat-Block-Title">@UUID[Actor.wolf000000000001]{Snow Weasel}</p>' +
+      '<p class="Stat-Block-Styles_Stat-Block-Metadata">Tiny beast, unaligned</p>' +
+      '<p class="Stat-Block-Styles_Stat-Block-Data"><strong>Armor Class </strong>13</p>' +
+      '<p class="Stat-Block-Styles_Stat-Block-Data"><strong>Hit Points </strong>4 (1d4 + 2)</p>' +
+      `<div class="stat-block-ability-scores">${scores}</div>` +
+      '<p class="Stat-Block-Styles_Stat-Block-Data-Last"><strong>Challenge </strong>0 (10 XP)</p>' +
+      '<p class="Stat-Block-Styles_Stat-Block-Body"><em><strong>Slippery.</strong></em> It squeezes through gaps.</p>' +
+      '<p class="Stat-Block-Styles_Stat-Block-Heading">Actions</p>' +
+      '<p class="Stat-Block-Styles_Stat-Block-Body"><em><strong>Nip.</strong></em> [[/roll 1d20 + 4]] to hit.</p>' +
+      '</div>';
+    expect(md(html)).toBe(
+      [
+        '> [!statblock] [Snow Weasel](../../NPCs/Wolf.md)',
+        '> *Tiny beast, unaligned*',
+        '>',
+        '> **Armor Class** 13',
+        '> **Hit Points** 4 (1d4 + 2)',
+        '>',
+        '> | STR | DEX | CON | INT | WIS | CHA |',
+        '> | :-: | :-: | :-: | :-: | :-: | :-: |',
+        '> | 10 (+0) | 11 (+0) | 12 (+1) | 13 (+1) | 14 (+2) | 15 (+2) |',
+        '>',
+        '> **Challenge** 0 (10 XP)',
+        '>',
+        '> ***Slippery.*** It squeezes through gaps.',
+        '>',
+        '> ### Actions',
+        '>',
+        '> ***Nip.*** 1d20 + 4 to hit.',
+      ].join('\n')
+    );
+  });
+
+  it('turns read-aloud boxes, sidebars and figures into callouts and captions', () => {
+    expect(md('<aside class="read-aloud-text"><p>The wind howls.</p></aside>')).toBe(
+      '> [!quote] Read aloud\n> The wind howls.'
+    );
+    expect(md('<aside class="block-torn-paper"><p>Legal text.</p></aside>')).toBe(
+      '> [!note]\n> Legal text.'
+    );
+    const withImages: LinkContext = {
+      ...ctx(),
+      image: (src: string) =>
+        src === 'maps/town.webp' ? '![[Campaigns/w/AI Tool/Attachments/maps/town.webp]]' : null,
+    };
+    expect(
+      htmlToMarkdown(
+        '<figure><a class="ddb-lightbox-outer"><img src="maps/town.webp" alt=""></a><figcaption>The town</figcaption></figure>',
+        withImages
+      )
+    ).toBe('![[Campaigns/w/AI Tool/Attachments/maps/town.webp]]\n\n*The town*');
+    expect(htmlToMarkdown('<p><img src="other.png" alt="x"></p>', withImages)).toBe(
+      '\\[image: x\\]'
+    );
   });
 
   it('drops scripts, styles, frames and event handlers; images become text', () => {
@@ -227,9 +349,8 @@ describe('canary: hostile page text stays inert', () => {
       `<p>@UUID[javascript:${canary}]{${canary}} <code>dice: ${canary}</code></p>`;
     const all = md(html);
     expect(all).toContain(canary);
-    // `[[...]]` is an inline roll to Foundry: shown as inline code (design section 5).
-    expect(all).toContain(`\`[[${canary}]]\``);
-    const out = all.replace(/`\[\[[^`]*\]\]`/g, '');
+    // `[[...]]` is an inline roll to Foundry: shown as its (escaped) words, never as code.
+    const out = all;
     expect(out).not.toMatch(/(^|[^\\])\[\[/);
     expect(out).not.toMatch(/\]\((?!https?:|\.\.\/|[A-Za-z%])/);
     // Only an unescaped `]` can close a link label.

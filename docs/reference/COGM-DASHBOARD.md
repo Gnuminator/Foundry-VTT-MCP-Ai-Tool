@@ -18,6 +18,19 @@ game as it happens — and now lets you **run the game from the dashboard**, too
 - **Module diagnostics** — a running log of Foundry module errors/warnings so you catch a broken
   module mid-session, with an optional AI "likely cause & fix."
 
+### Themes
+
+- **Theme** (in the header): the look for this world, picked by the GM and remembered per world.
+  The players' page follows it live. **Neutral** is the Foundry AI Tool brand and suits any
+  campaign. **The Veil** is the Curse of Strahd theme: grey-green mist, bone text, one warm
+  lamplight for the main action, no red (danger is shown with words on an ink ground).
+- **Mist** (shown with The Veil, on the dashboard and in the players' page footer): each screen
+  picks its own. **Calm** (the default) is still mist, **Drifting** moves slowly, **Clear air**
+  removes it. Drifting stops when the device asks for reduced motion.
+- The theme is saved in `dashboard-themes.json` in `COGM_STATE_DIR` (default
+  `~/.foundry-ai-tool`). Until the dashboard knows the world (a GM in Foundry), each screen keeps
+  the theme it showed last.
+
 ### An AI co-GM that watches with you
 
 - **Streaming commentary** — tactical or narrative call-outs when something significant happens

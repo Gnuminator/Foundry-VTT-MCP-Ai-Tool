@@ -23,6 +23,8 @@ import { PlayerViewSource } from './player/source.js';
 import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
 import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
 import { mountHandoutSeenRoute } from './handout-seen-route.js';
+import { THEMES, ThemeStore, isTheme } from './theme.js';
+import * as path from 'path';
 
 /**
  * The co-GM dashboard as an Express app plus its feed handlers, built from
@@ -103,7 +105,7 @@ const GM_ACTION_TIMEOUT_MS = 300_000;
  */
 export const PLAYER_CSP =
   "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; " +
-  "img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
+  "img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
 
 /** The player page file and its header, on every URL that reaches it (static-headers.ts). */
 export const PLAYER_PAGE_HEADERS: StaticHeaderGroup = {
@@ -154,6 +156,12 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     commentOnErrors: config.commentOnErrors,
     gmActionsEnabled: false,
   };
+
+  // The theme, chosen by the GM once per world (D-085); the players' page follows it.
+  const themes = new ThemeStore(
+    config.stateDir ? path.join(config.stateDir, 'dashboard-themes.json') : null,
+    logger
+  );
 
   // Non-GM user names for the player page's name pick and the usage log (I-084).
   const playerDirectory = new PlayerDirectory(client, logger.child('usage'));
@@ -255,6 +263,17 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     const { handouts, ...rest } = currentPlayerState();
     playerHub.send(res, 'state', rest);
     playerHub.send(res, 'handouts', { handouts });
+    playerHub.send(res, 'theme', themePayload());
+  }
+
+  /** The current world's theme. Not game state: the same for the GM and the players. */
+  function themePayload(): { theme: string; themes: readonly string[] } {
+    return { theme: themes.get(world?.id), themes: THEMES };
+  }
+
+  function broadcastTheme(): void {
+    sse.broadcast('theme', themePayload());
+    playerHub.broadcast('theme', themePayload());
   }
 
   function settingsPayload(): Record<string, unknown> {
@@ -327,6 +346,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       coGm.setWorld(world);
       sse.broadcast('world', world, gmOnly);
       schedulePlayerBroadcast();
+      broadcastTheme();
       logger.info('World info loaded', { title: world.title, system: world.systemId });
     } catch (error) {
       logger.debug('world-info fetch failed', {
@@ -511,6 +531,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     sse.send(res, 'status', currentStatus);
     if (world) sse.send(res, 'world', world);
     sse.send(res, 'settings', settingsPayload());
+    sse.send(res, 'theme', themePayload());
     if (state.combat) sse.send(res, 'combat', { combat: state.combat });
     sse.send(res, 'events', { events: state.recentEvents, initial: true });
     sse.send(res, 'errors', { errors: state.recentErrors, initial: true });
@@ -567,10 +588,46 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       });
   });
 
+  // The theme, for any caller (the players' page loads it too).
+  app.get('/api/theme', (req: Request, res: Response) => {
+    if (!resolveRole(req, config.auth)) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    res.json(themePayload());
+  });
+
   app.post('/api/control', requireGm, (req: Request, res: Response) => {
     const body = asRecord(req.body);
     const action = readStr(body.action, '');
     const value = body.value;
+
+    if (action === 'set-theme') {
+      if (!isTheme(value)) {
+        res.status(400).json({ error: `Unknown theme; use one of: ${THEMES.join(', ')}.` });
+        return;
+      }
+      const worldId = world?.id;
+      if (!worldId) {
+        res
+          .status(409)
+          .json({ error: 'The world is not known yet; try again once Foundry is connected.' });
+        return;
+      }
+      themes
+        .set(worldId, value)
+        .then(() => {
+          broadcastTheme();
+          res.json(themePayload());
+        })
+        .catch((error: unknown) => {
+          logger.warn('Could not save the theme', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          res.status(500).json({ error: 'Could not save the theme.' });
+        });
+      return;
+    }
 
     switch (action) {
       case 'toggle-pause':

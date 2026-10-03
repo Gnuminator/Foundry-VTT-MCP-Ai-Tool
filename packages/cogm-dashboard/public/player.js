@@ -5,6 +5,8 @@
 // server already sanitized. A GM credential in this browser changes nothing:
 // the player endpoints always project. This page filters nothing itself.
 
+import { applyTheme, currentMist, loadTheme, setMist } from './theme.js';
+
 // Optional player token (only if the deployment sets PLAYER_DASHBOARD_TOKEN).
 // Kept under its own key, never the GM page's.
 const TOKEN_KEY = 'cogm_player_token';
@@ -173,6 +175,7 @@ function connect() {
   const on = (type, fn) => es.addEventListener(type, e => fn(JSON.parse(e.data)));
   on('state', renderState);
   on('handouts', p => renderHandouts(p.handouts));
+  on('theme', p => renderTheme(p.theme));
   es.onerror = () => {
     elStatus.textContent = 'reconnecting…';
   };
@@ -269,6 +272,16 @@ elWhoChange.addEventListener('click', e => {
 const storedWho = readWho();
 if (storedWho) showWho(storedWho);
 else void askWho();
+
+// The GM's theme for this world (D-085); the mist is this phone's own choice.
+const elMistControl = $('mist-control');
+const elMist = $('select-mist');
+function renderTheme(theme) {
+  elMistControl.hidden = applyTheme(theme) !== 'veil';
+}
+elMist.value = currentMist();
+elMist.addEventListener('change', () => setMist(elMist.value));
+void loadTheme(TOKEN ? { 'X-CoGM-Token': TOKEN } : {}).then(renderTheme);
 
 connect();
 usage.trackView('player.main.view');

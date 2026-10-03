@@ -1,0 +1,220 @@
+/* The Veil: the Curse of Strahd campaign theme (D-085), on top of the neutral README brand.
+   Grey-green mist, bone text, one warm source (lamplight), no red: danger is an ink ground
+   with the word on it. Tokens from the vault's round 2 design (Design/Round 2/3 The Veil/
+   theme.json). Only the look is taken here, not the mockup's layout.
+
+   Applies when <html data-theme="veil">. Mist is per viewer: <html data-mist="calm|drift|
+   clear"> (theme.js); calm is the default, drift moves slowly, clear removes the mist.
+   Rule from the design: text never sits blurred or faded in the mist; panels keep a solid
+   ground, so bone and bone-2 text stay above 4.5:1. */
+
+@font-face {
+  font-family: 'Gloock';
+  src: url('../fonts/gloock-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Spectral';
+  src: url('../fonts/spectral-300-italic.woff2') format('woff2');
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Spectral';
+  src: url('../fonts/spectral-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Spectral';
+  src: url('../fonts/spectral-500.woff2') format('woff2');
+  font-weight: 500 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Red Hat Mono';
+  src: url('../fonts/red-hat-mono-500.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root[data-theme='veil'] {
+  /* The Veil's named colours */
+  --veil-graphite: #1a1d1c;
+  --veil-raised: #262b29;
+  --veil-mist: #8fa39a;
+  --veil-pewter: #5e6b66;
+  --veil-bone: #e8e6df;
+  --veil-bone-2: #c9ccc4;
+  --veil-ash: #9ba39d;
+  --veil-before: #8c958f;
+  --veil-lamp: #f2d88a;
+  --veil-ink: #050606;
+  --veil-silver: #c9cfca;
+
+  /* Dashboard tokens */
+  --bg: var(--veil-graphite);
+  --bg-sunken: #151817;
+  --bg-panel: #1f2321;
+  --bg-elev: var(--veil-raised);
+  --bg-elev-2: #2e3431;
+  --bg-input: #171a19;
+  --border: color-mix(in srgb, var(--veil-mist) 22%, transparent);
+  --border-soft: color-mix(in srgb, var(--veil-mist) 12%, transparent);
+  --border-strong: var(--veil-pewter);
+  --text: var(--veil-bone);
+  --text-mid: var(--veil-bone-2);
+  --text-dim: var(--veil-ash);
+  --text-faint: var(--veil-before);
+  --accent: var(--veil-silver);
+  --accent-bright: var(--veil-bone);
+  --pc: #b9c7d6;
+  --enemy: #c9b4a2;
+  --npc: #b6c2b1;
+  --good: var(--veil-silver);
+  --warn: #d9c9a3;
+  --bad: #d8c4bb;
+  --bad-soft: color-mix(in srgb, var(--veil-ink) 70%, transparent);
+  --grey: var(--veil-pewter);
+  --hp-high-a: var(--veil-silver);
+  --hp-high-b: var(--veil-bone);
+  --hp-mid-a: #cdbf93;
+  --hp-mid-b: #b5a77c;
+  --hp-low-a: var(--veil-before);
+  --hp-low-b: var(--veil-pewter);
+  --on-accent: var(--veil-graphite);
+  --on-warn: var(--veil-graphite);
+  --on-strong: var(--veil-bone);
+  --spark: var(--veil-lamp);
+  --r-sm: 3px;
+  --r-md: 3px;
+  --r-lg: 4px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 18px 40px -20px rgba(0, 0, 0, 0.85);
+  --font-sans: 'Spectral', Georgia, 'Times New Roman', serif;
+  --font-display: 'Gloock', Georgia, 'Times New Roman', serif;
+  --font-mono: 'Red Hat Mono', ui-monospace, Consolas, monospace;
+
+  /* Player page tokens (player.html has its own names) */
+  --panel: #1f2321;
+  --panel-2: var(--veil-raised);
+  --line: color-mix(in srgb, var(--veil-mist) 22%, transparent);
+  --muted: var(--veil-ash);
+  --green: var(--veil-silver);
+  --red: #d8c4bb;
+  --amber: #d9c9a3;
+}
+
+/* Labels: quiet Spectral italics in sentence case, never tracked capitals (the design's
+   rule). Small tags keep their weight so they still read at a glance. */
+:root[data-theme='veil'] .pane-head h2,
+:root[data-theme='veil'] .control-label,
+:root[data-theme='veil'] .preflight-h,
+:root[data-theme='veil'] .tool-cat,
+:root[data-theme='veil'] .ref-group,
+:root[data-theme='veil'] .tarokka-label,
+:root[data-theme='veil'] .ca-seg-label,
+:root[data-theme='veil'] .card h2 {
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-weight: 300;
+}
+:root[data-theme='veil'] .pane-head h2,
+:root[data-theme='veil'] .card h2 {
+  font-size: 1.12rem;
+  color: var(--text-mid);
+}
+:root[data-theme='veil'] .control-label {
+  font-size: var(--fs-xs);
+}
+:root[data-theme='veil'] .combatant-name .side,
+:root[data-theme='veil'] .event-type,
+:root[data-theme='veil'] .comment-badge,
+:root[data-theme='veil'] .diag-level,
+:root[data-theme='veil'] .tool-kind,
+:root[data-theme='veil'] .ref-warn,
+:root[data-theme='veil'] .change-state,
+:root[data-theme='veil'] .badge {
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+/* Layers, back to front: the page ground on <html> (a darker clearing of clean air in the
+   middle), the mist (body::before, z-index -1), then the content on a transparent body. */
+:root[data-theme='veil'] {
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 38%, #151817 0%, transparent 70%), var(--veil-graphite);
+  background-attachment: fixed;
+}
+:root[data-theme='veil'] body {
+  min-height: 100vh;
+  background: transparent;
+  font-family: var(--font-sans);
+}
+
+/* The mist: a fixed layer of soft noise behind everything, thickest at the edges. */
+:root[data-theme='veil'] body::before {
+  content: '';
+  position: fixed;
+  inset: -10%;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1600' height='1000' preserveAspectRatio='none'><filter id='m'><feTurbulence type='fractalNoise' baseFrequency='0.006 0.012' numOctaves='3' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.56 0 0 0 0 0.64 0 0 0 0 0.6 0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23m)'/></svg>");
+  /* One image over the whole layer: a repeated noise tile shows a seam. */
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  opacity: 0.22;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, transparent 25%, black 80%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, transparent 25%, black 80%);
+}
+:root[data-theme='veil'][data-mist='drift'] body::before {
+  animation: veil-drift 90s steps(270) infinite alternate;
+}
+:root[data-theme='veil'][data-mist='clear'] body::before {
+  display: none;
+}
+@keyframes veil-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(5%, 1.5%, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='veil'] body::before {
+    animation: none !important;
+  }
+}
+
+/* The one warm source: the primary action is lamplit. */
+:root[data-theme='veil'] .btn-primary {
+  background: var(--veil-lamp);
+  border-color: var(--veil-lamp);
+  color: var(--veil-graphite);
+  box-shadow: 0 0 18px -6px color-mix(in srgb, var(--veil-lamp) 55%, transparent);
+}
+:root[data-theme='veil'] .btn-primary:hover {
+  background: color-mix(in srgb, var(--veil-lamp) 80%, white);
+  border-color: color-mix(in srgb, var(--veil-lamp) 80%, white);
+}
+
+/* Panes: a lamplit hairline on top, the rest pewter. */
+:root[data-theme='veil'] .pane {
+  border-top-color: color-mix(in srgb, var(--veil-lamp) 35%, transparent);
+}
+
+/* Danger is ink with the word on it, never colour alone (the words are already there). */
+:root[data-theme='veil'] .chip.bad,
+:root[data-theme='veil'] .tag.bad {
+  background: var(--veil-ink);
+  color: var(--veil-bone);
+  border: 1px solid color-mix(in srgb, var(--veil-bone) 35%, transparent);
+}

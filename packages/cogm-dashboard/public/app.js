@@ -1,4 +1,6 @@
 // Co-GM dashboard client. Vanilla ES module — no build step.
+
+import { applyTheme, currentMist, setMist } from './theme.js';
 // Connects to the server's SSE stream and renders three live panes plus the
 // "ask the co-GM" control. All mutations go through the server's REST endpoints.
 
@@ -49,6 +51,9 @@ const els = {
   btnDiag: $('btn-diag'),
   selectTone: $('select-tone'),
   selectModel: $('select-model'),
+  selectTheme: $('select-theme'),
+  selectMist: $('select-mist'),
+  mistControl: $('mist-control'),
   combatMeta: $('combat-meta'),
   combatBody: $('combat-body'),
   feedMeta: $('feed-meta'),
@@ -777,6 +782,7 @@ function connect() {
   on('status', renderStatus);
   on('settings', renderSettings);
   on('world', renderWorld);
+  on('theme', d => renderTheme(d.theme));
   on('combat', d => renderCombat(d.combat));
   on('events', d => addEvents(d.events));
   on('errors', d => addErrors(d.errors));
@@ -808,6 +814,24 @@ els.selectTone.addEventListener('change', () => {
 });
 els.selectModel.addEventListener('change', () => {
   postJson('/api/control', { action: 'set-model', value: els.selectModel.value }).catch(() => {});
+});
+
+// Theme (D-085): the GM's choice for this world, sent to every screen through the stream.
+// The mist is this screen's own choice.
+function renderTheme(theme) {
+  const id = applyTheme(theme);
+  els.selectTheme.value = id;
+  els.mistControl.hidden = id !== 'veil';
+}
+els.selectMist.value = currentMist();
+els.selectTheme.addEventListener('change', () => {
+  postJson('/api/control', { action: 'set-theme', value: els.selectTheme.value }).catch(err => {
+    toast(`✗ Theme: ${String((err && err.message) || err)}`, 'err');
+    renderTheme(document.documentElement.dataset.theme);
+  });
+});
+els.selectMist.addEventListener('change', () => {
+  setMist(els.selectMist.value);
 });
 els.askForm.addEventListener('submit', e => {
   e.preventDefault();

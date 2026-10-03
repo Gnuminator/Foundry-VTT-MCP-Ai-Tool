@@ -20,12 +20,20 @@ let restore: () => void;
 const HANDOUTS = featureSettingKey('handouts');
 const LIVE = featureSettingKey('live-play');
 const PARTY = featureSettingKey('party');
+const TAROKKA = featureSettingKey('tarokka');
 
-function setAll(writes: boolean, handouts: boolean, live: boolean, party: boolean): void {
+function setAll(
+  writes: boolean,
+  handouts: boolean,
+  live: boolean,
+  party: boolean,
+  tarokka = false
+): void {
   world.setSetting(MODULE_ID, 'allowWriteOperations', writes);
   world.setSetting(MODULE_ID, HANDOUTS, handouts);
   world.setSetting(MODULE_ID, LIVE, live);
   world.setSetting(MODULE_ID, PARTY, party);
+  world.setSetting(MODULE_ID, TAROKKA, tarokka);
 }
 
 const on = (r: SessionSwitchesResult): string[] => r.switches.filter(s => s.on).map(s => s.id);
@@ -41,10 +49,16 @@ afterEach(() => {
 });
 
 describe('sessionSwitches', () => {
-  it('get lists the four switches and no Ready record', async () => {
+  it('get lists the five switches and no Ready record', async () => {
     setAll(true, false, true, false);
     const r = await sessionSwitches({});
-    expect(r.switches.map(s => s.id)).toEqual(['writes', 'handouts', 'live-play', 'party']);
+    expect(r.switches.map(s => s.id)).toEqual([
+      'writes',
+      'handouts',
+      'live-play',
+      'party',
+      'tarokka',
+    ]);
     expect(r.switches[0]?.name).toBe('Allow Write Operations');
     expect(on(r)).toEqual(['writes', 'live-play']);
     expect(r.ready).toBeNull();
@@ -54,9 +68,9 @@ describe('sessionSwitches', () => {
   it('ready turns on only what is off and remembers it', async () => {
     setAll(true, false, true, false);
     const r = await sessionSwitches({ action: 'ready' });
-    expect(on(r)).toEqual(['writes', 'handouts', 'live-play', 'party']);
-    expect(r.changed).toEqual(['handouts', 'party']);
-    expect(r.ready?.turnedOn).toEqual(['handouts', 'party']);
+    expect(on(r)).toEqual(['writes', 'handouts', 'live-play', 'party', 'tarokka']);
+    expect(r.changed).toEqual(['handouts', 'party', 'tarokka']);
+    expect(r.ready?.turnedOn).toEqual(['handouts', 'party', 'tarokka']);
     expect(r.ready?.at).toBeGreaterThan(0);
   });
 
@@ -64,14 +78,14 @@ describe('sessionSwitches', () => {
     setAll(false, false, true, false);
     await sessionSwitches({ action: 'ready' });
     const r = await sessionSwitches({ action: 'end' });
-    expect(r.changed).toEqual(['party', 'handouts', 'writes']);
+    expect(r.changed).toEqual(['tarokka', 'party', 'handouts', 'writes']);
     expect(on(r)).toEqual(['live-play']);
     expect(r.ready).toBeNull();
     expect(world.settings.get(`${MODULE_ID}.${SESSION_READY_SETTING}`)).toBeNull();
   });
 
   it('a second ready keeps what the first one turned on', async () => {
-    setAll(true, false, true, true);
+    setAll(true, false, true, true, true);
     await sessionSwitches({ action: 'ready' });
     world.setSetting(MODULE_ID, PARTY, false); // the GM turns party off by hand
     const r = await sessionSwitches({ action: 'ready' });
@@ -79,14 +93,14 @@ describe('sessionSwitches', () => {
   });
 
   it('end without Ready changes nothing', async () => {
-    setAll(true, true, true, true);
+    setAll(true, true, true, true, true);
     const r = await sessionSwitches({ action: 'end' });
     expect(r.changed).toEqual([]);
-    expect(on(r)).toHaveLength(4);
+    expect(on(r)).toHaveLength(5);
   });
 
   it('reports a switch Foundry did not change', async () => {
-    setAll(true, false, true, true);
+    setAll(true, false, true, true, true);
     const realSet = g.game.settings.set as (m: string, k: string, v: unknown) => Promise<unknown>;
     g.game.settings.set = (moduleId: string, key: string, value: unknown): Promise<unknown> =>
       key === HANDOUTS ? Promise.resolve(value) : realSet(moduleId, key, value);

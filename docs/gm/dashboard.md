@@ -80,7 +80,7 @@ length. If the module and bridge versions differ, a banner at the top says which
 At the top of the Pre-flight panel. One click turns on what an evening at the table needs:
 
 - in Foundry's module settings: "Allow Write Operations", "AI Tool: Handouts (writes)", "AI Tool:
-  Live play (writes)" and "AI Tool: Party (writes)";
+  Live play (writes)", "AI Tool: Party (writes)" and "AI Tool: Tarokka (writes)";
 - on the dashboard: **GM Actions**.
 
 It turns on only what is off, and remembers that in the world. **End session** (or **Turn them off
@@ -142,11 +142,9 @@ more selected:
 - **Roll save**: opens the tool runner to roll a saving throw for them.
 - **Clear**: unselects all.
 
-Nothing changes until you confirm in the confirm window, which lists each target's result ("Wolf
-2: HP 11 to 5"). After it is applied, a message with **Undo** shows for a few seconds; one click
-puts it back. Later, use **Undo** in Recent Changes. With **AI Tool: Live play, apply without
-confirming** on (Game Settings, off by default), damage, healing and conditions skip the confirm
-window; the **Undo** message still shows.
+Clicking the tool runner's run button applies it at once: your click is the confirmation. A
+message lists each target's result ("Wolf 2: HP 11 to 5") with **Undo** for a few seconds; one click
+puts it back. Later, use **Undo** in Recent Changes.
 
 **👑 Boss prompts** (in the panel's top line, only while a creature with legendary actions or a lair
 is in the fight; off until you turn it on, and remembered in this browser). Turn it on before the
@@ -212,7 +210,20 @@ undone here.
 
 ## The confirm window
 
-Everything that changes the game from the dashboard opens a confirm window first.
+Your own actions on the dashboard that make a planned change (damage, conditions and resources,
+the party's pace and rest request, Tarokka links and imports) apply at once when you click: your
+click is the confirmation. A message says what changed, with **Undo** for a few seconds; Recent
+Changes keeps the full history.
+
+The confirm window opens first for:
+
+- **Destructive changes**: deletes, and handout and Tarokka reveals and hides (players see a reveal
+  at once, so Undo cannot take it back from their eyes).
+- **Plans you did not make on the dashboard**: a plan Claude made, or a pending change from Obsidian.
+  Plan, confirm and undo stay for every AI change.
+- **Older tools without a plan** (from the tool runner), which have no Undo.
+
+In the confirm window:
 
 - For a planned change it shows the plan's summary and the list of what will change. Read it.
 - For other tools it shows the tool's name and the values it will run with.

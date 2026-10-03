@@ -18,6 +18,7 @@ import { MODULE_ID } from './constants.js';
 import { featureSettingKey, listGuardedFeatures } from './guarded-features.js';
 import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
+import { TAROKKA_FEATURE_ID } from './tarokka.js';
 
 /** Query name. */
 export const SESSION_SWITCHES_QUERY = 'sessionSwitches';
@@ -34,6 +35,7 @@ export const SESSION_SWITCHES: ReadonlyArray<{ id: string; setting: string }> = 
   { id: 'handouts', setting: featureSettingKey('handouts') },
   { id: LIVE_PLAY_FEATURE_ID, setting: featureSettingKey(LIVE_PLAY_FEATURE_ID) },
   { id: PARTY_FEATURE_ID, setting: featureSettingKey(PARTY_FEATURE_ID) },
+  { id: TAROKKA_FEATURE_ID, setting: featureSettingKey(TAROKKA_FEATURE_ID) },
 ];
 
 /** What Ready turned on and when (ms since epoch). */

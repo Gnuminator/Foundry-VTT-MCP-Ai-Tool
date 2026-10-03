@@ -115,8 +115,9 @@ reveals and hides count as destructive and need your explicit yes for that too.
 
 In a long fight the confirm step gets tiring. The setting **AI Tool: Live play, apply without
 confirming** (Game Settings, category **Foundry AI Tool**; off by default) skips it for damage,
-healing, conditions and resources, from Claude and from the dashboard. Each change still lands in
-Recent Changes with **Undo**.
+healing, conditions and resources that Claude plans. Each change still lands in Recent Changes with
+**Undo**. Your own clicks on the dashboard never need it: they apply at once with an **Undo**
+message (see [the dashboard guide](dashboard.md#the-confirm-window)).
 
 ### Feature switches
 
@@ -127,7 +128,7 @@ as Claude's.
 | -------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
 | Allow Write Operations                       | On      | Change anything at all. Off makes the whole tool read-only (see below).                               |
 | AI Tool: Live play (writes)                  | On      | Apply damage, healing, temporary hit points, conditions and resources; move, change or delete tokens. |
-| AI Tool: Live play, apply without confirming | Off     | Skip the confirm step for damage, healing, conditions and resources.                                  |
+| AI Tool: Live play, apply without confirming | Off     | Skip the confirm step for damage, healing, conditions and resources that Claude plans.                |
 | AI Tool: Ownership (writes)                  | On      | Change which players own or can see an actor.                                                         |
 | AI Tool: Party (writes)                      | Off     | Change the party's travel pace, add the party to combat, post a rest request.                         |
 | AI Tool: Handouts (writes)                   | Off     | Reveal or hide journal pages for the players.                                                         |

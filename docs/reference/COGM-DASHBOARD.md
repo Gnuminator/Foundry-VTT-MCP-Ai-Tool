@@ -18,6 +18,24 @@ game as it happens — and now lets you **run the game from the dashboard**, too
 - **Module diagnostics** — a running log of Foundry module errors/warnings so you catch a broken
   module mid-session, with an optional AI "likely cause & fix."
 
+### Before, during and after the session
+
+The first screen follows the evening (the tabs in the header show where you are; click one to
+look ahead or back):
+
+- **Before** (no session running): Pre-flight's checks next to Prep (last session, open quests,
+  next session notes, handouts waiting).
+- **During** (a session is running, after **Start session**): the Live Feed with the roll
+  breakdowns in the middle; the party, handouts with who has seen them, and Recent Changes with
+  Undo beside it; the turn order as a slim strip at the top. Turns run in Foundry: the dashboard
+  watches, remembers and can take back changes made through the tool.
+- **After** (the session ended in the last 12 hours): what happened tonight in Prep, the
+  handouts and the changes.
+
+**Advanced** (top right) holds the rest: the Pre-flight, Prep, Party, Handouts and Tarokka panels
+(a panel already on the screen is scrolled to; otherwise it opens over the page), the Tool Runner,
+the AI co-GM and module diagnostics, and the AI settings (pause, diagnostics AI, tone, model).
+
 ### Themes
 
 - **Theme** (in the header): the look for this world, picked by the GM and remembered per world.

@@ -396,6 +396,7 @@ function renderSessionControl() {
     els.sessionStatus.textContent = 'No session';
     els.btnSession.textContent = 'Start session';
   }
+  onSessionState();
 }
 
 async function loadPlaySession({ quiet = true } = {}) {
@@ -417,6 +418,7 @@ async function markSession(action) {
   try {
     await callReadTool('mark-play-session', { action });
     toast(action === 'start' ? '✓ Play session started' : '✓ Play session ended', 'ok');
+    if (action === 'end') rememberSessionEnded();
   } catch (err) {
     toast(`✗ mark-play-session: ${String(err.message || err)}`, 'err');
   }
@@ -1696,19 +1698,19 @@ let handoutPlayers = [];
 
 function openHandouts() {
   usage.trackView('dash.handouts.view');
-  els.drawerBackdrop.hidden = false;
+  if (!isDocked(els.handoutsDrawer)) els.drawerBackdrop.hidden = false;
   els.handoutsDrawer.hidden = false;
   void loadHandouts();
 }
 function closeHandouts() {
   usage.endView('dash.handouts.view');
-  els.handoutsDrawer.hidden = true;
+  if (!isDocked(els.handoutsDrawer)) els.handoutsDrawer.hidden = true;
   if (
-    els.drawer.hidden &&
-    els.tarokkaDrawer.hidden &&
-    els.preflightDrawer.hidden &&
-    els.prepDrawer.hidden &&
-    els.partyDrawer.hidden
+    !shown(els.drawer) &&
+    !shown(els.tarokkaDrawer) &&
+    !shown(els.preflightDrawer) &&
+    !shown(els.prepDrawer) &&
+    !shown(els.partyDrawer)
   ) {
     els.drawerBackdrop.hidden = true;
   }
@@ -1835,19 +1837,19 @@ let prepLoading = false;
 
 function openPrep() {
   usage.trackView('dash.prep.view');
-  els.drawerBackdrop.hidden = false;
+  if (!isDocked(els.prepDrawer)) els.drawerBackdrop.hidden = false;
   els.prepDrawer.hidden = false;
   void loadPrep();
 }
 function closePrep() {
   usage.endView('dash.prep.view');
-  els.prepDrawer.hidden = true;
+  if (!isDocked(els.prepDrawer)) els.prepDrawer.hidden = true;
   if (
-    els.drawer.hidden &&
-    els.tarokkaDrawer.hidden &&
-    els.preflightDrawer.hidden &&
-    els.handoutsDrawer.hidden &&
-    els.partyDrawer.hidden
+    !shown(els.drawer) &&
+    !shown(els.tarokkaDrawer) &&
+    !shown(els.preflightDrawer) &&
+    !shown(els.handoutsDrawer) &&
+    !shown(els.partyDrawer)
   ) {
     els.drawerBackdrop.hidden = true;
   }
@@ -2176,20 +2178,20 @@ function writePreflightTicks(ticks) {
 }
 function openPreflight() {
   usage.trackView('dash.preflight.view');
-  els.drawerBackdrop.hidden = false;
+  if (!isDocked(els.preflightDrawer)) els.drawerBackdrop.hidden = false;
   els.preflightDrawer.hidden = false;
   renderPreflightManual();
   void runPreflight();
 }
 function closePreflight() {
   usage.endView('dash.preflight.view');
-  els.preflightDrawer.hidden = true;
+  if (!isDocked(els.preflightDrawer)) els.preflightDrawer.hidden = true;
   if (
-    els.drawer.hidden &&
-    els.tarokkaDrawer.hidden &&
-    els.handoutsDrawer.hidden &&
-    els.prepDrawer.hidden &&
-    els.partyDrawer.hidden
+    !shown(els.drawer) &&
+    !shown(els.tarokkaDrawer) &&
+    !shown(els.handoutsDrawer) &&
+    !shown(els.prepDrawer) &&
+    !shown(els.partyDrawer)
   ) {
     els.drawerBackdrop.hidden = true;
   }
@@ -2327,19 +2329,19 @@ let partyLoading = false;
 
 function openParty() {
   usage.trackView('dash.party.view');
-  els.drawerBackdrop.hidden = false;
+  if (!isDocked(els.partyDrawer)) els.drawerBackdrop.hidden = false;
   els.partyDrawer.hidden = false;
   void loadParty();
 }
 function closeParty() {
   usage.endView('dash.party.view');
-  els.partyDrawer.hidden = true;
+  if (!isDocked(els.partyDrawer)) els.partyDrawer.hidden = true;
   if (
-    els.drawer.hidden &&
-    els.tarokkaDrawer.hidden &&
-    els.preflightDrawer.hidden &&
-    els.handoutsDrawer.hidden &&
-    els.prepDrawer.hidden
+    !shown(els.drawer) &&
+    !shown(els.tarokkaDrawer) &&
+    !shown(els.preflightDrawer) &&
+    !shown(els.handoutsDrawer) &&
+    !shown(els.prepDrawer)
   ) {
     els.drawerBackdrop.hidden = true;
   }
@@ -2575,11 +2577,11 @@ function closeTarokka() {
   usage.endView('dash.tarokka.view');
   els.tarokkaDrawer.hidden = true;
   if (
-    els.drawer.hidden &&
-    els.preflightDrawer.hidden &&
-    els.handoutsDrawer.hidden &&
-    els.prepDrawer.hidden &&
-    els.partyDrawer.hidden
+    !shown(els.drawer) &&
+    !shown(els.preflightDrawer) &&
+    !shown(els.handoutsDrawer) &&
+    !shown(els.prepDrawer) &&
+    !shown(els.partyDrawer)
   ) {
     els.drawerBackdrop.hidden = true;
   }
@@ -2879,26 +2881,185 @@ document.addEventListener('keydown', e => {
   if (!els.modalBackdrop.hidden) {
     usage.trackShortcut('dash.shortcut.escape-modal');
     closeModal(false);
-  } else if (!els.prepDrawer.hidden) {
+  } else if (shown(els.prepDrawer)) {
     usage.trackShortcut('dash.shortcut.escape-prep');
     closePrep();
-  } else if (!els.partyDrawer.hidden) {
+  } else if (shown(els.partyDrawer)) {
     usage.trackShortcut('dash.shortcut.escape-party');
     closeParty();
-  } else if (!els.handoutsDrawer.hidden) {
+  } else if (shown(els.handoutsDrawer)) {
     usage.trackShortcut('dash.shortcut.escape-handouts');
     closeHandouts();
-  } else if (!els.preflightDrawer.hidden) {
+  } else if (shown(els.preflightDrawer)) {
     usage.trackShortcut('dash.shortcut.escape-preflight');
     closePreflight();
-  } else if (!els.tarokkaDrawer.hidden) {
+  } else if (shown(els.tarokkaDrawer)) {
     usage.trackShortcut('dash.shortcut.escape-tarokka');
     closeTarokka();
-  } else if (!els.drawer.hidden) {
+  } else if (shown(els.drawer)) {
     usage.trackShortcut('dash.shortcut.escape-tools');
     closeDrawer();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Moments of the evening (D-085, PB-16): before, during and after a session.
+// Each moment is a view with named slots; the panels move into the slots of the
+// moment on screen. A drawer placed in a view is "docked": shown in the page, not
+// over it, so the backdrop and Escape leave it alone (isDocked, shown).
+// The moment follows the session (no session: before; running: during; ended in
+// the last hours: after); a tab click pins a moment until the session changes.
+// ---------------------------------------------------------------------------
+const MOMENTS = ['before', 'during', 'after'];
+const SESSION_ENDED_KEY = 'cogm_session_ended';
+const AFTER_WINDOW_MS = 12 * 60 * 60 * 1000;
+const DOCKS = {
+  before: { preflight: els.preflightDrawer, prep: els.prepDrawer },
+  during: {
+    strip: $('pane-combat'),
+    feed: $('pane-feed'),
+    party: els.partyDrawer,
+    handouts: els.handoutsDrawer,
+    changes: $('pane-changes'),
+  },
+  after: { prep: els.prepDrawer, handouts: els.handoutsDrawer, changes: $('pane-changes') },
+};
+// Opening a docked drawer loads it in place (no backdrop, see the open functions).
+const OPENERS = new Map([
+  [els.preflightDrawer, () => openPreflight()],
+  [els.prepDrawer, () => openPrep()],
+  [els.partyDrawer, () => openParty()],
+  [els.handoutsDrawer, () => openHandouts()],
+]);
+const momentTabs = [...document.querySelectorAll('#moments [data-moment]')];
+const parking = $('parking');
+let moment = null;
+let momentPinned = false;
+let lastSessionOpen = null;
+
+function isDocked(el) {
+  return !!el && el.classList.contains('docked');
+}
+/** Shown as an overlay drawer (not hidden, not docked in a view). */
+function shown(el) {
+  return !!el && !el.hidden && !isDocked(el);
+}
+
+function rememberSessionEnded() {
+  try {
+    localStorage.setItem(SESSION_ENDED_KEY, String(Date.now()));
+  } catch {
+    // No storage: "after" lasts until the page reloads.
+  }
+}
+function sessionEndedRecently() {
+  try {
+    const at = Number(localStorage.getItem(SESSION_ENDED_KEY));
+    return at > 0 && Date.now() - at < AFTER_WINDOW_MS;
+  } catch {
+    return false;
+  }
+}
+
+function momentFromSession() {
+  if (playSession.open) return 'during';
+  return sessionEndedRecently() ? 'after' : 'before';
+}
+
+/** Called whenever the session state is rendered. */
+function onSessionState() {
+  if (lastSessionOpen !== null && lastSessionOpen !== playSession.open) {
+    momentPinned = false;
+    if (!playSession.open) rememberSessionEnded();
+  }
+  lastSessionOpen = playSession.open;
+  if (!momentPinned) setMoment(momentFromSession());
+}
+
+function setMoment(next, { pinned = false } = {}) {
+  if (!MOMENTS.includes(next)) next = 'before';
+  if (pinned) momentPinned = true;
+  const changed = next !== moment;
+  moment = next;
+  const wanted = new Set(Object.values(DOCKS[next]));
+  // Panels this moment does not use go back: drawers to the page body, hidden;
+  // panes to the parking area.
+  for (const el of new Set(MOMENTS.flatMap(m => Object.values(DOCKS[m])))) {
+    if (wanted.has(el)) continue;
+    if (OPENERS.has(el)) {
+      if (isDocked(el)) {
+        el.classList.remove('docked');
+        el.hidden = true;
+        document.body.appendChild(el);
+      }
+    } else if (el.parentElement !== parking) {
+      parking.appendChild(el);
+    }
+  }
+  for (const [slot, el] of Object.entries(DOCKS[next])) {
+    const target = document.querySelector(`#moment-${next} [data-slot="${slot}"]`);
+    if (target && el.parentElement !== target) target.appendChild(el);
+    if (OPENERS.has(el)) {
+      const wasDocked = isDocked(el);
+      el.classList.add('docked');
+      if (!wasDocked || changed) OPENERS.get(el)();
+    }
+  }
+  for (const m of MOMENTS) $(`moment-${m}`).hidden = m !== next;
+  for (const tab of momentTabs)
+    tab.setAttribute('aria-pressed', String(tab.dataset.moment === next));
+  // A drawer that became docked no longer needs the backdrop.
+  const overlays = [els.drawer, els.tarokkaDrawer, ...OPENERS.keys()];
+  if (!overlays.some(shown)) els.drawerBackdrop.hidden = true;
+}
+
+for (const tab of momentTabs) {
+  tab.addEventListener('click', () => setMoment(tab.dataset.moment, { pinned: true }));
+}
+
+// The Advanced menu: the tools that are not part of an evening at the table.
+const advancedBtn = $('btn-advanced');
+const advancedMenu = $('advanced-menu');
+function closeAdvanced() {
+  advancedMenu.hidden = true;
+  advancedBtn.setAttribute('aria-expanded', 'false');
+}
+advancedBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  advancedMenu.hidden = !advancedMenu.hidden;
+  advancedBtn.setAttribute('aria-expanded', String(!advancedMenu.hidden));
+});
+advancedMenu.addEventListener('click', e => {
+  // Buttons act and close the menu; the selects (tone, model) keep it open.
+  if (e.target.closest('button')) closeAdvanced();
+});
+document.addEventListener('click', e => {
+  if (!advancedMenu.hidden && !e.target.closest('#advanced')) closeAdvanced();
+});
+// A docked panel opened from the menu is brought into view.
+for (const [btn, el] of [
+  [els.btnPrep, els.prepDrawer],
+  [els.btnParty, els.partyDrawer],
+  [els.btnHandouts, els.handoutsDrawer],
+  [els.btnPreflight, els.preflightDrawer],
+]) {
+  btn.addEventListener('click', () => {
+    if (isDocked(el)) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+// The co-GM commentary and module diagnostics open as panels over the page.
+for (const [btnId, paneId] of [
+  ['btn-show-ai', 'pane-ai'],
+  ['btn-show-diag', 'pane-diagnostics'],
+]) {
+  const pane = $(paneId);
+  $(btnId).addEventListener('click', () => {
+    pane.hidden = !pane.hidden;
+  });
+  pane.querySelector('.overlay-close').addEventListener('click', () => {
+    pane.hidden = true;
+  });
+}
 
 connect();
 usage.trackView('dash.main.view');

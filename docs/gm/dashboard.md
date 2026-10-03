@@ -202,7 +202,8 @@ Undo. The card says where they are:
   revealing**. **Undo** takes the journal entry out again, but not once the players have the Recap
   or a page was edited in Foundry.
 - **Approved**: revealing the Recap or approving starts the clock: the recording's audio is deleted
-  14 days later.
+  14 days later. That stays so even if you take the notes out with Undo afterwards; the card then
+  offers **Put in Foundry** to put them back.
 
 **Read** shows all the pages in the side panel. The card, the GM summary and the scenes never
 reach the players' page; only the Recap does, when you reveal it.

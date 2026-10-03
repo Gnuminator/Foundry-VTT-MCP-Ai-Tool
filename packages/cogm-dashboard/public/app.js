@@ -3439,7 +3439,7 @@ function renderSessionNotes() {
     }
   } else if (n.status === 'in-foundry') {
     status = 'In Foundry';
-    line = `Put into the GM-only journal "Session notes" ${notesTime(n.putAt)}, without asking (Undo is in Recent Changes). ${
+    line = `In the GM-only journal "Session notes" since ${notesTime(n.putAt)} (Undo is in Recent Changes). ${
       n.recapRevealed
         ? 'The Recap is revealed to the players.'
         : 'The Recap waits in the Handouts queue: reveal it there, or approve the notes without revealing.'
@@ -3448,8 +3448,16 @@ function renderSessionNotes() {
     // The bridge refuses Undo once the players have the Recap (D-087), so no button then.
     if (n.changeId && !n.recapRevealed) actions.push(NOTES_BUTTONS.undo);
   } else if (n.status === 'approved') {
+    // Approval stays once the audio clock started; whether the notes are in Foundry is
+    // journalUuid (an Undo removes the whole put).
     status = 'Approved';
     line = `Approved ${n.approvedBy === 'reveal' ? 'by revealing the Recap' : ''} ${notesTime(n.approvedAt)}. The recording's audio is deleted 14 days later.`;
+    if (!n.journalUuid) {
+      line += ' The notes are not in Foundry now: they were taken out with Undo.';
+      if (!n.autoPut) actions.push(NOTES_BUTTONS.put);
+    } else if (n.changeId && !n.recapRevealed) {
+      actions.push(NOTES_BUTTONS.undo);
+    }
   }
   notesEls.status.textContent = status;
   notesEls.status.className = `feature-pill ${n.status === 'staged' ? 'off' : 'on'}`;
@@ -3525,7 +3533,10 @@ notesEls.actions.addEventListener('click', async e => {
   if (action === 'read') return void readSessionNotes();
   if (action === 'undo') {
     await runTool('undo-change', { changeId: n.changeId }, 'destructive');
-    return void loadSessionNotes();
+    // The bridge marks the notes as staged just after the undo itself answers.
+    void loadSessionNotes();
+    setTimeout(() => void loadSessionNotes(), 1500);
+    return;
   }
   if (!settings.gmActionsEnabled) {
     toast('GM Actions are off. Ready for session turns them on.', 'warn');
@@ -3547,6 +3558,7 @@ notesEls.actions.addEventListener('click', async e => {
   } finally {
     btn.disabled = false;
     void loadSessionNotes();
+    setTimeout(() => void loadSessionNotes(), 1500);
   }
 });
 

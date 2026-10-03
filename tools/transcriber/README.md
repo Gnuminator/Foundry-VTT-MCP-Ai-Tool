@@ -11,12 +11,12 @@ the pipeline (see `tools/voice-stack/README.md`).
 A folder (searched recursively), a Craig `.zip`, or a single file. Audio extensions: wav, flac, ogg,
 oga, opus, mp3, m4a, aac, wma. Webm and mp4 are skipped (camera video).
 
-| Source | File name | Speaker |
-| ------ | --------- | ------- |
-| Craig | `1-anna_0.flac` | `anna` |
-| LiveKit | `<identity>__<source>__<trackSid>.ogg` | `<identity>` |
-| Benchmark style | `S3__anna.wav` | `anna` (output keeps `S3__anna.json`) |
-| Other | `anna.wav` | `anna` |
+| Source          | File name                              | Speaker                               |
+| --------------- | -------------------------------------- | ------------------------------------- |
+| Craig           | `1-anna_0.flac`                        | `anna`                                |
+| LiveKit         | `<identity>__<source>__<trackSid>.ogg` | `<identity>`                          |
+| Benchmark style | `S3__anna.wav`                         | `anna` (output keeps `S3__anna.json`) |
+| Other           | `anna.wav`                             | `anna`                                |
 
 Two files for one speaker give `anna` and `anna-2` (check the order: each file's time starts at zero).
 The folders `transcripts`, `timeline` and `out` inside the input folder are never read back.
@@ -37,6 +37,16 @@ timestamps on, beam size 5, float16 on the GPU, and **hotwords from a names file
 `--no-vad`, `--condition-on-previous-text`, `--no-speech-threshold`, ...). The VAD is the Silero model
 bundled with faster-whisper, the same one the benchmark used, so there is no separate `silero-vad`
 package.
+
+### When the GPU fails
+
+An unattended run after a session should still finish. Before loading the model on the GPU, a
+child process loads it and transcribes one second of silence (stopped after three minutes). When
+that fails or hangs (another GPU job holds the memory, a driver hiccup, a missing CUDA library such
+as `cublas64_12.dll`, which on one PC loaded fine and then failed or hung at the first inference),
+the run tries `int8_float16` on the GPU (about half the memory), then `int8` on the CPU (much
+slower, but it finishes). The failed attempts are listed under `load_failures` in each JSON's
+`settings`. A `--compute-type` given on the command line is used as is, with no fallback.
 
 ### Names as hotwords
 

@@ -476,6 +476,26 @@
       </div>
       <div class="tarokka-body preflight-body">
         <div id="preflight-summary" class="preflight-summary" hidden></div>
+        <!-- Ready for session (D3, PB-17): one click turns on what tonight needs. -->
+        <div class="ready-block" id="ready-block">
+          <div class="ready-actions">
+            <button class="btn lamp" id="btn-ready" data-track="dash.ready.turn-on">
+              Ready for session
+            </button>
+            <button class="btn" id="btn-ready-off" data-track="dash.ready.turn-off" hidden>
+              Turn them off again
+            </button>
+            <button class="btn btn-quiet" id="btn-ready-log" data-track="dash.ready.start-log">
+              Start the session log
+            </button>
+          </div>
+          <p class="ready-note" id="ready-note">
+            Turns on, for tonight only: changes from the tool, handouts, live play (damage,
+            conditions), the party and GM Actions. End session turns them off again. Every change
+            can still be undone.
+          </p>
+          <ul class="ready-switches" id="ready-switches"></ul>
+        </div>
         <h3 class="preflight-h">Checked by the tool</h3>
         <ul class="preflight-list" id="preflight-auto">
           <li class="empty">Not run yet.</li>

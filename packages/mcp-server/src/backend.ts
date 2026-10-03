@@ -621,6 +621,31 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
+          // Ready for session (D3, PB-17): the dashboard's GM route reads, turns on (`ready`) or
+          // turns back off (`end`) tonight's switches in the module. Not a tool, never listed to
+          // Claude, and the stdio wrapper never forwards it, so Claude cannot switch on its own
+          // writes.
+          if (msg.method === 'session_switches') {
+            try {
+              const params = (msg.params ?? {}) as Record<string, unknown>;
+              const action = ['get', 'ready', 'end'].includes(String(params.action))
+                ? String(params.action)
+                : 'get';
+              const result: unknown = await foundryClient.query(
+                'foundry-mcp-bridge.sessionSwitches',
+                {
+                  action,
+                }
+              );
+              socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            } catch (e: unknown) {
+              const message = e instanceof Error ? e.message : 'Session switches failed';
+              socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
+            }
+
+            continue;
+          }
+
           // Unknown method
 
           socket.write(`${JSON.stringify({ id: msg.id, error: { message: 'Unknown method' } })}\n`);

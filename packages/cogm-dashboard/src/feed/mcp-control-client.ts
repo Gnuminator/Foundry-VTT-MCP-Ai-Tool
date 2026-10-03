@@ -197,6 +197,15 @@ export class McpControlClient extends EventEmitter {
   }
 
   /**
+   * Ready for session (D3, PB-17): read (`get`), turn on (`ready`) or turn back off (`end`)
+   * the module's session switches. A control method, never an MCP tool. An old backend
+   * answers "Unknown method" (a ChannelError).
+   */
+  async sessionSwitches(action: 'get' | 'ready' | 'end'): Promise<unknown> {
+    return this.send('session_switches', { action });
+  }
+
+  /**
    * A player opened a handout on /player (I-039): the bridge keeps the first
    * open per player. An old backend answers "Unknown method" (a ChannelError).
    */

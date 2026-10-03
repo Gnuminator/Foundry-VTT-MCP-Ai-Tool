@@ -58,33 +58,35 @@ describe('playerTextChunks', () => {
 });
 
 describe('runDashboardPreflight', () => {
-  it('adds GM Actions and the player page to the bridge checks', async () => {
+  it('adds Ready for session and the player page to the bridge checks', async () => {
     const { callTool, texts } = tools();
     const result = await runDashboardPreflight({
       callTool,
       gmActionsEnabled: false,
+      sessionSwitches: null,
       playerState: { combat: { combatants: [{ name: 'Wolf 1' }] } },
     });
     expect(result.ready).toBe(true);
     expect(result.checks.map(c => [c.id, c.status])).toEqual([
       ['foundry-link', 'ok'],
-      ['gm-actions', 'ok'],
+      ['ready', 'warn'],
       ['player-page', 'ok'],
     ]);
     expect(texts).toEqual(['Wolf 1']);
     expect(result.moduleVersion).toBe('0.19.0');
   });
 
-  it('warns when GM Actions are on and fails on a secret term on /player', async () => {
+  it('fails on a secret term on /player', async () => {
     const { callTool } = tools({ secret: 'Sunsword' });
     const result = await runDashboardPreflight({
       callTool,
       gmActionsEnabled: true,
+      sessionSwitches: null,
       playerState: { events: [{ text: 'They found the Sunsword' }] },
     });
     expect(result.ready).toBe(false);
     const byId = Object.fromEntries(result.checks.map(c => [c.id, c]));
-    expect(byId['gm-actions']?.status).toBe('warn');
+    expect(byId['ready']?.status).toBe('ok');
     expect(byId['player-page']?.status).toBe('fail');
     expect(byId['player-page']?.detail).toContain('Sunsword');
   });
@@ -94,6 +96,7 @@ describe('runDashboardPreflight', () => {
     const result = await runDashboardPreflight({
       callTool,
       gmActionsEnabled: false,
+      sessionSwitches: null,
       playerState: {},
     });
     expect(result.ready).toBe(false);
@@ -106,6 +109,7 @@ describe('runDashboardPreflight', () => {
     const result = await runDashboardPreflight({
       callTool,
       gmActionsEnabled: false,
+      sessionSwitches: null,
       playerState: {},
     });
     expect(result.ready).toBe(false);
@@ -162,7 +166,7 @@ describe('GET /api/preflight', () => {
     const res = await fetch(`${base}/api/preflight`, { headers: { 'X-CoGM-Token': GM_TOKEN } });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { checks: Array<{ id: string }> };
-    expect(body.checks.map(c => c.id)).toEqual(['foundry-link', 'gm-actions', 'player-page']);
+    expect(body.checks.map(c => c.id)).toEqual(['foundry-link', 'ready', 'player-page']);
   });
 
   it('survives a bridge answer without checks and keeps serving', async () => {

@@ -31,6 +31,7 @@ import { getPartyState, PARTY_STATE_QUERY } from './party-scan.js';
 import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
 import { LIVE_PLAN_QUERY, planLiveChange } from './live-plan.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
+import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
 import { gateWriteHandlers } from './write-gate.js';
 
 export class QueryHandlers {
@@ -212,6 +213,13 @@ export class QueryHandlers {
     // world). Not an MCP tool.
     handlers.set(`${modulePrefix}.${LIVE_SWEEP_QUERY}`, (data: unknown) =>
       this.withGmGate('Live sweep helper failed', () => liveSweep(data))
+    );
+
+    // Ready for session (D3, PB-17): the dashboard's GM route turns tonight's switches on and
+    // End session turns them off again. Not an MCP tool (the control method `session_switches`),
+    // so Claude can never switch on its own writes. GM client only.
+    handlers.set(`${modulePrefix}.${SESSION_SWITCHES_QUERY}`, (data: unknown) =>
+      this.withGmGate('Session switches failed', () => sessionSwitches(data))
     );
 
     // Obsidian mirror (O4, read-only): the export index of PCs, NPCs, scenes,

@@ -1,5 +1,12 @@
 # Pronunciation list for the Danish voice: term = what the voice should say.
 # Whole words, any case. Only the spoken form changes; captions keep the script's spelling.
 # A script folder can add its own lexicon.da.txt; for a single spot use {shown|spoken} in the script.
-dnd5e = D og D fem e
-D&D = D og D
+# Danish scripts keep English game terms; these spellings make the Danish voice say them the way
+# a Danish table does. Rated by ear on 2026-10-01 (VoiceTest da-tune).
+dnd5e = di-end-di fem-e
+D&D = di-end-di
+DnD = di-end-di
+5e = fem-e
+hit points = hitt pojnts
+hitpoints = hitt pojnts
+hit point = hitt pojnt

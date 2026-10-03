@@ -92,7 +92,21 @@ def test_cache_revoices_only_changed_sentences(tmp_path: Path) -> None:
     assert [c[0] for c in engine2.calls] == ["Den fjerde."]
     assert res.voiced == 1
     # The clip of the removed sentence is pruned; three sentences keep one clip each.
-    assert len(list((r2.out / ".cache").glob("*.wav"))) == 3
+    cached = [p.name for p in (r2.out / ".cache").glob("*.wav")]
+    assert len([n for n in cached if n.endswith(".raw.wav")]) == 3
+    assert len([n for n in cached if not n.endswith(".raw.wav")]) == 3
+
+
+def test_processing_change_reuses_raw_voice(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import narration.render as render_mod
+
+    r, _ = make(tmp_path)
+    r.run(check=False)
+    monkeypatch.setattr(render_mod, "PROC", render_mod.PROC + 1)
+    r2, engine2 = make(tmp_path, whisper=FakeWhisper(spoken_of(r), {}))
+    res = r2.run(check=True)
+    assert engine2.calls == [] and res.voiced == 0
+    assert res.checked == 3  # new audio is checked again
 
 
 def test_failing_sentence_is_retaken_with_a_new_seed(tmp_path: Path) -> None:

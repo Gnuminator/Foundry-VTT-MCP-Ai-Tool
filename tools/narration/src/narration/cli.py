@@ -18,6 +18,7 @@ from .script import Script, load_lexicon, parse_script
 from .voices import DEFAULT_VOICE, VOICES, Voice, resolve_voice
 
 TOOL_DIR = Path(__file__).resolve().parents[2]
+_ENGINES: object | None = None
 
 
 def out_root() -> Path:
@@ -46,9 +47,13 @@ def renderer(script: Script, voice: Voice, args: argparse.Namespace) -> Renderer
     out = Path(args.out) / script.name if args.out else out_root() / script.name
 
     def engines() -> object:
-        from .voices import ChatterboxEngines
+        # One instance per run, so several scripts share the loaded models.
+        global _ENGINES
+        if _ENGINES is None:
+            from .voices import ChatterboxEngines
 
-        return ChatterboxEngines()
+            _ENGINES = ChatterboxEngines()
+        return _ENGINES
 
     return Renderer(script, voice, out, engines, transcribe_folder,  # type: ignore[arg-type]
                     retakes=args.retakes)

@@ -67,6 +67,10 @@ Lines (the cleaned transcript):
   Do not summarise or polish.
 - The other language: a faithful translation. `da` is Danish, `en` is English; a line spoken in
   English gets its cleaned English in `en` and a Danish translation in `da`, and vice versa.
+- Game terms stay English in both languages, as the table says them: attack, saving throw,
+  hit points, armor class, initiative, spell slot, advantage, token, D&D, and the like. The Danish
+  text is Danish sentences with these English words (for example "han klarede sit saving throw"),
+  never a pure Danish translation such as "redningskast" or "angreb".
 - `ooc` is true for out-of-character table talk (rules talk, snacks, tech trouble, jokes about
   the real world), false for play, narration and in-character speech.
 
@@ -91,6 +95,10 @@ Notes (Danish `da` and English `en` for every entry):
 SESSION_RULES = """\
 You get the notes of every scene of one Dungeons & Dragons session. Write, in Danish (`da`) and
 English (`en`):
+- Game terms stay English in both languages, as the table says them: attack, saving throw,
+  hit points, armor class, initiative, spell slot, advantage, token, D&D, and the like. The Danish
+  text is Danish sentences with these English words (for example "han klarede sit saving throw"),
+  never a pure Danish translation such as "redningskast" or "angreb".
 - title: a short title for the session.
 - summary: up to 400 words for the GM (shorter when little happened), in story order, may include gm_only material.
 - changed: up to 8 bullets on what changed in the world or for the party (none if nothing did).

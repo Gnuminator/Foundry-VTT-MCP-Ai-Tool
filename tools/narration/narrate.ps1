@@ -31,5 +31,6 @@ $env:PYTHONUTF8 = '1'
 $env:HF_HUB_DISABLE_TELEMETRY = '1'
 $env:TQDM_DISABLE = '1'          # no per-sentence progress bars from the voice models
 $env:PYTHONWARNINGS = 'ignore'   # the models' library deprecation warnings
+$env:HF_HUB_VERBOSITY = 'error'  # no "unauthenticated requests" notice (public models need no login)
 & $python -m narration @args
 exit $LASTEXITCODE

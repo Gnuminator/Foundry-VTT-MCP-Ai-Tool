@@ -57,6 +57,10 @@ Open {Foundry|Faundri} now.
 - `{shown|spoken}` shows one thing in the captions and says another.
 - List items are paragraphs; links, bold and italics are read as plain text; `<!-- comments -->`
   are skipped.
+- Danish scripts keep the English game and Foundry terms the table uses (token, hit points,
+  attack, saving throw, disposition, Recent Changes); never translate them into pure Danish
+  ("redningskast", "holdning"). Where the Danish voice says one badly, fix it in the
+  pronunciation list, not in the script.
 - Keep sentences under about 250 characters; the voices do worse on long ones (`list` warns).
 
 ## Pronunciation list
@@ -64,6 +68,12 @@ Open {Foundry|Faundri} now.
 `lexicon/da.txt` and `lexicon/en.txt` hold `term = what to say` lines, for words the voices
 get wrong (`dnd5e = D og D fem e`). A `lexicon.<lang>.txt` next to a script adds or overrides
 entries for that folder. Only the spoken form changes; the captions keep the script's spelling.
+A term joined to the next word by a hyphen gets a space there in the spoken form
+("dnd5e-systemet" is read as "di-end-di fem-e systemet"), because a spelled-out term glued to a
+word made the Danish voice slur both.
+
+The Danish list was rated by ear (2026-10-01 and 10-03): "di-end-di" for D&D and "hitt pojnts"
+for hit points; "saving throw" works best written as is.
 `list` shows the spoken form of every sentence that differs.
 
 ## The listening check

@@ -68,6 +68,11 @@
 - The dashboard opens a plan's confirm window from the link `/?plan=<planId>` once GM Actions are
   on.
 
+### Obsidian library (PR #50)
+
+- **Obsidian:** NPC stat blocks, book images and tables in mirror notes, a Library of compendium
+  content (`libraryPacks`), and a guard that keeps licensed text out of git.
+
 ### Undo for live play (F5, D-082, D-083; PRs #33, #35, #37, #38)
 
 - **`plan-actor-change`** (play set) replaces `apply-damage-and-healing`, `toggle-token-condition`,
@@ -106,11 +111,14 @@
   external links are checked weekly. Tool descriptions lost their em dashes and two references to
   tools that do not exist.
 
-### GM guides (PR #44)
+### GM guides (PRs #44, #51)
 
 - **"When a character dies" (I-050):** marking a death, the death log, Observer access for the old
   sheet, and bringing in a new character, with what the tool can and cannot do at each step; plus
   a cookbook recipe.
+- **Prep drawer and `get-prep-digest` (PR #51):** "Deaths" is now "PCs who went down" and "NPCs
+  who went down" (dropped to 0 HP; the tool never knows who died). The GM guide "Asking Claude"
+  has one table of all feature switches, including "AI Tool: Ownership (writes)".
 
 ### Voice tools (PRs #24, #26, #43, #45, #46, #48)
 

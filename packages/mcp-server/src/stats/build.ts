@@ -266,6 +266,63 @@ interface DiceAccumulator {
 }
 
 /** The kept d20 results of a roll (its `dice` entries with 20 faces). */
+/** dnd5e skill and ability keys, for a roll label when the record has none. */
+const SKILL_NAMES: Readonly<Record<string, string>> = {
+  acr: 'Acrobatics',
+  ani: 'Animal Handling',
+  arc: 'Arcana',
+  ath: 'Athletics',
+  dec: 'Deception',
+  his: 'History',
+  ins: 'Insight',
+  itm: 'Intimidation',
+  inv: 'Investigation',
+  med: 'Medicine',
+  nat: 'Nature',
+  prc: 'Perception',
+  prf: 'Performance',
+  per: 'Persuasion',
+  rel: 'Religion',
+  slt: 'Sleight of Hand',
+  ste: 'Stealth',
+  sur: 'Survival',
+};
+const ABILITY_NAMES: Readonly<Record<string, string>> = {
+  str: 'Strength',
+  dex: 'Dexterity',
+  con: 'Constitution',
+  int: 'Intelligence',
+  wis: 'Wisdom',
+  cha: 'Charisma',
+};
+
+/**
+ * What a roll was: its own label, or one made from its type and subject key ("Perception
+ * check", "Constitution save"); dnd5e 6 skill and save messages often carry no label.
+ */
+function rollLabel(roll: NonNullable<PlayRecord['roll']>): string | null {
+  if (roll.label) return roll.label;
+  const key = roll.subject ?? '';
+  switch (roll.rollType) {
+    case 'skill':
+      return SKILL_NAMES[key] ? `${SKILL_NAMES[key]} check` : 'Skill check';
+    case 'check':
+      return ABILITY_NAMES[key] ? `${ABILITY_NAMES[key]} check` : 'Ability check';
+    case 'save':
+      return ABILITY_NAMES[key] ? `${ABILITY_NAMES[key]} save` : 'Saving throw';
+    case 'attack':
+      return 'Attack';
+    case 'initiative':
+      return 'Initiative';
+    case 'death':
+      return 'Death save';
+    case 'tool':
+      return 'Tool check';
+    default:
+      return null;
+  }
+}
+
 function d20Results(record: PlayRecord): number[] {
   const dice = record.roll?.dice ?? [];
   return dice.filter(d => d.faces === 20).flatMap(d => d.results);
@@ -387,9 +444,9 @@ function buildSession(
               highestRoll = {
                 total: roll.total,
                 name: record.actor.name,
-                label: roll.label ?? null,
+                label: rollLabel(roll),
                 rollType: roll.rollType,
-                natural: roll.natural ?? null,
+                natural: roll.natural ?? d20Results(record)[0] ?? null,
                 at: new Date(record.t).toISOString(),
               };
             }

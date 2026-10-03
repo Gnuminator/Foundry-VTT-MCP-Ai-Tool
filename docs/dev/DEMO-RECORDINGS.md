@@ -191,18 +191,23 @@ Foundry's own UI (vault idea I-095):
 - `handout-reveal`: the letter waits in the Handouts queue (setup queues it off camera).
   The GM reveals it after reading the confirm dialog, and it appears on the players'
   `/player` page.
-- `preflight`: one click on Pre-flight checks the bridge, the module, the write switches
-  and the players' page for spoilers; then the GM ticks the manual checks.
+- `preflight`: the Before view. Pre-flight checks the bridge, the module, the write switches
+  and the players' page for spoilers; **Ready for session** turns on what tonight needs in one
+  click; the GM ticks the manual checks; the feature cards say when to turn the rest on, and a
+  card's **Read more** opens the guide in the side panel.
 - `prep`: the Prep drawer shows the last session, the open quest, the "Next session"
   notes and what is ready, and opens the notes in Foundry.
-- `damage-undo` plans 14 necrotic damage to Wolf 1, Wolf 2 and the Vampire in one go with
-  `plan-actor-change`. The confirm dialog shows each target's result, with the Vampire's
-  resistance worked out ("7 taken"). It applies the damage (`apply-planned-change`), shows
-  the HP drop in Foundry, then undoes it from Recent Changes (`undo-change`) and checks that
-  all three are back to full HP.
-- `token-move-undo` does the same with a token move (`plan-token-change`). It is the
-  technical proof of plan, apply and undo, not a video (nobody moves a token from the
-  dashboard instead of dragging it).
+- `damage-undo`: the During view. Setup starts a fight with Wolf 1, Wolf 2 and the Vampire
+  (off camera). The GM selects the three in the turn-order strip, clicks **Damage / Heal**,
+  types 14 necrotic and clicks once: it applies at once with an Undo message (D-086), and
+  the Live Feed shows the Vampire's resistance worked out ("Vampire took 7 damage"). Then the
+  HP drop in Foundry, Undo from Recent Changes (`undo-change`), and all three back to full HP.
+- `after-stats`: the After view. Setup records a short play session with six real rolls (off
+  camera); the take shows tonight's stats (rolls, most damage, the highest roll, who went
+  down) and the "?" that opens the guide there.
+- `token-move-undo` does plan, apply and undo with a token move (`plan-token-change`). It is
+  the technical proof, not a video (nobody moves a token from the dashboard instead of
+  dragging it), and it still uses the Tool Runner's confirm window.
 
 Two more takes were made for the table demo (vault note "30-second table demo"):
 

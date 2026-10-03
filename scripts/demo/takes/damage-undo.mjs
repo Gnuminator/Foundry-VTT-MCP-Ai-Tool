@@ -1,17 +1,16 @@
-// Take: damage on several targets at once, with dnd5e working out a resistance, then
-// Undo in Recent Changes. Something Foundry's own UI does one token at a time (I-095).
+// Take: damage on several targets at once from the During view's turn-order strip, one click
+// with dnd5e working out a resistance (D-086), then Undo in Recent Changes. Something Foundry's
+// own UI does one token at a time (I-095).
 //
 //   npm run demo:take -- damage-undo
 
-import { humanClick } from '../lib/browser.mjs';
+import { humanClick, humanType } from '../lib/browser.mjs';
 import {
   closeTools,
   confirmModal,
   newestUndoButton,
-  openToolForm,
   readConfirmModal,
   setGmActions,
-  submitToolForm,
 } from '../lib/dashboard.mjs';
 import { DEMO_USERS } from '../lib/env.mjs';
 import { closeAllWindows, panToToken, unpause } from '../lib/foundry.mjs';
@@ -57,14 +56,30 @@ export async function setup(t) {
   for (const [name, hp] of Object.entries(before)) {
     if (hp === null) throw new Error(`No token "${name}" with HP on the active scene.`);
   }
-  // Show HP bars to the viewer while the take runs (not saved: the world is reset next time).
-  await gm.page.evaluate(names => {
-    for (const t of globalThis.canvas.tokens.placeables) {
-      if (names.includes(t.document.name)) t.document.update({ displayBars: 50 });
-    }
+  // Show HP bars to the viewer and start a fight with the three (not saved: the world is reset
+  // next time). The dashboard's turn-order strip shows a running combat only.
+  await gm.page.evaluate(async names => {
+    const scene = globalThis.canvas.scene;
+    const tokens = scene.tokens.filter(t => names.includes(t.name));
+    for (const t of tokens) await t.update({ displayBars: 50 });
+    const combat = await globalThis.Combat.create({ scene: scene.id, active: true });
+    await combat.createEmbeddedDocuments(
+      'Combatant',
+      tokens.map((t, i) => ({
+        tokenId: t.id,
+        sceneId: scene.id,
+        actorId: t.actorId,
+        initiative: 18 - i * 3,
+      }))
+    );
+    await combat.update({ round: 1, turn: 0 });
   }, TARGETS);
   const dash = await t.dashboard();
   await setGmActions(dash.page, false);
+  await dash.page.locator('#moments [data-moment="during"]').click();
+  await dash.page
+    .locator('#pane-combat .combatant[data-name="Wolf 1"]')
+    .waitFor({ timeout: 20000 });
 }
 
 /** The recorded part. */
@@ -79,35 +94,41 @@ export async function run(t) {
     await t.pause(800);
   });
 
-  await t.step('open-tool', 'Open plan-actor-change and pick three targets', async () => {
-    await openToolForm(
-      page,
-      'plan-actor-change',
-      { action: 'damage', targets: TARGETS, amount: DAMAGE.amount, damageType: DAMAGE.damageType },
-      human
+  await t.step('select', 'Pick the three creatures in the turn-order strip', async () => {
+    for (const name of TARGETS) {
+      await humanClick(page.locator(`#pane-combat .combatant[data-name="${name}"]`));
+      await t.pause(400);
+    }
+    await page.locator('[data-sel="damage"]').waitFor({ state: 'visible' });
+    await t.pause(800);
+    await t.shot('Dashboard', 'damage-selected');
+  });
+
+  await t.step('open-form', 'Damage / Heal: enter the amount and the damage type', async () => {
+    await humanClick(page.locator('[data-sel="damage"]'));
+    const amount = page.locator('#tool-form .field[data-key="amount"] .field-control');
+    await amount.waitFor({ state: 'visible' });
+    await humanType(amount, String(DAMAGE.amount));
+    await humanType(
+      page.locator('#tool-form .field[data-key="damageType"] .field-control'),
+      DAMAGE.damageType
     );
     await t.pause(1000);
     await t.shot('Dashboard', 'damage-form');
   });
 
-  await t.step('plan', 'Read what each target will take, resistance included', async () => {
-    await submitToolForm(page, human);
-    const modal = await readConfirmModal(page);
-    for (const name of TARGETS) {
-      if (!modal.body.includes(name))
-        throw new Error(`Confirm dialog does not name ${name}: ${modal.body}`);
+  await t.step(
+    'apply',
+    'One click applies it to all three; dnd5e halves it for the Vampire',
+    async () => {
+      await humanClick(page.locator('#tool-form button[type=submit]'));
+      await page.locator('.toast-undo').first().waitFor({ state: 'visible', timeout: 20000 });
+      await t.pause(2500);
+      await t.shot('Dashboard', 'damage-applied');
     }
-    await t.pause(3500);
-    await t.shot('Dashboard', 'damage-confirm');
-  });
+  );
 
   let after;
-  await t.step('apply', 'Apply it to all three at once', async () => {
-    await confirmModal(page, human);
-    await t.pause(1500);
-    await t.shot('Dashboard', 'damage-applied');
-  });
-
   await t.step('watch-damage', 'HP drops on all three tokens in Foundry', async () => {
     const gm = await t.scene('Foundry');
     await gm.page.waitForFunction(

@@ -1,5 +1,6 @@
-// Take: the Pre-flight check before a session: one click checks the bridge, the module,
-// the write switches and the players' page for spoilers (I-095).
+// Take: before a session: Pre-flight checks the bridge, the module,
+// the write switches and the players' page for spoilers (I-095); Ready for session turns on
+// what tonight needs in one click (PB-17); the feature cards say when to turn the rest on.
 //
 //   npm run demo:take -- preflight
 
@@ -8,7 +9,7 @@ import { runPreflight, setGmActions } from '../lib/dashboard.mjs';
 import { DEMO_USERS } from '../lib/env.mjs';
 import { closeAllWindows, unpause } from '../lib/foundry.mjs';
 
-export const meta = { title: 'Check the table is ready with Pre-flight' };
+export const meta = { title: 'Get ready for the session: Pre-flight, Ready, feature cards' };
 
 /** Before recording: GM in Foundry (the checks read through it) and the dashboard. */
 export async function setup(t) {
@@ -49,6 +50,22 @@ export async function run(t) {
     await t.shot('Dashboard', 'preflight-findings');
   });
 
+  await t.step('ready', 'Ready for session: one click turns on what tonight needs', async () => {
+    const ready = page.locator('#btn-ready');
+    await ready.scrollIntoViewIfNeeded();
+    await t.pause(1200);
+    await humanClick(ready);
+    await page.waitForFunction(
+      () => document.querySelector('#btn-ready')?.disabled === true,
+      undefined,
+      {
+        timeout: 20000,
+      }
+    );
+    await t.pause(2500);
+    await t.shot('Dashboard', 'preflight-ready');
+  });
+
   await t.step('manual', 'Tick the things only the GM can check', async () => {
     const ticks = page.locator('#preflight-manual [data-tick]');
     const n = Math.min(await ticks.count(), 2);
@@ -57,5 +74,18 @@ export async function run(t) {
       await t.pause(600);
     }
     await t.pause(1500);
+  });
+
+  await t.step('features', 'Feature cards: what is on, and when to turn the rest on', async () => {
+    const cards = page.locator('#feature-cards-wrap');
+    await cards.scrollIntoViewIfNeeded();
+    await page.locator('#feature-cards .feature-card').first().waitFor({ state: 'visible' });
+    await t.pause(2500);
+    await t.shot('Dashboard', 'feature-cards');
+    await humanClick(page.locator('#feature-cards [data-help]').first());
+    await page.locator('#pane-help').waitFor({ state: 'visible' });
+    await t.pause(3000);
+    await t.shot('Dashboard', 'feature-help');
+    await page.locator('#pane-help .overlay-close').click();
   });
 }

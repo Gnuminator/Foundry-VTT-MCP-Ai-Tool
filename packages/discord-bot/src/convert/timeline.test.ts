@@ -33,7 +33,15 @@ describe('opus helpers', () => {
   });
 
   it('spots frames still under DAVE encryption', () => {
-    expect(isDaveEncrypted(Buffer.from([0xfc, 1, 2, 0xfa, 0xfa]))).toBe(true);
+    // opus payload, 8-byte tag, 1-byte nonce, size 12 (whole trailer), marker
+    const dave = Buffer.from([0xfc, 1, 2, 3, ...new Array<number>(8).fill(9), 5, 12, 0xfa, 0xfa]);
+    expect(isDaveEncrypted(dave)).toBe(true);
+    expect(isDaveEncrypted(Buffer.from([0xfc, 1, 2, 0xfa, 0xfa]))).toBe(false); // too short
+    const lookalike = Buffer.alloc(166, 7); // a real Opus packet ending in FA FA, size byte 175
+    lookalike[163] = 175;
+    lookalike[164] = 0xfa;
+    lookalike[165] = 0xfa;
+    expect(isDaveEncrypted(lookalike)).toBe(false);
     expect(isDaveEncrypted(voice(1))).toBe(false);
     expect(isDaveEncrypted(SILENCE_FRAME)).toBe(false);
   });
@@ -96,7 +104,7 @@ describe('buildTimeline', () => {
         seq: 6,
         rtpTimestamp: 960,
         hasRtp: true,
-        payload: Buffer.from([0xfc, 9, 0xfa, 0xfa]),
+        payload: Buffer.from([0xfc, 9, ...new Array<number>(8).fill(9), 5, 12, 0xfa, 0xfa]),
       },
       { arrival: 2880, seq: 7, rtpTimestamp: 1920, hasRtp: true, payload: Buffer.alloc(0) },
       rec(3840, 8, 2880, 2),

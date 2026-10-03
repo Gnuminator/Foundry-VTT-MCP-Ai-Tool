@@ -38,12 +38,15 @@ export function opusPacketSamples(packet: Buffer): number {
  * True for a frame that is still DAVE end-to-end encrypted. `@discordjs/voice` passes frames
  * through unchanged while the DAVE session is not ready yet; they end with the 0xFAFA marker
  * and decode to noise, so the converter drops them.
+ *
+ * The byte before the marker is the DAVE supplemental data size, which counts the whole trailer
+ * (8-byte tag, nonce, unencrypted ranges, the size byte and the marker): at least 12 and never
+ * more than the packet. Checking it keeps ordinary Opus packets that happen to end in 0xFAFA
+ * (about 1 in 66,000 in the 2026-10-03 rehearsal sources) from being dropped as encrypted.
  */
 export function isDaveEncrypted(packet: Buffer): boolean {
-  return (
-    packet.length >= 2 &&
-    packet[packet.length - 1] === 0xfa &&
-    packet[packet.length - 2] === 0xfa &&
-    !packet.equals(SILENCE_FRAME)
-  );
+  const n = packet.length;
+  if (n < 12 || packet[n - 1] !== 0xfa || packet[n - 2] !== 0xfa) return false;
+  const size = packet[n - 3];
+  return size >= 12 && size <= n && !packet.equals(SILENCE_FRAME);
 }

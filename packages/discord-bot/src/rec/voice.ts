@@ -182,6 +182,15 @@ export class VoiceRecorder {
     }
   }
 
+  /**
+   * Rehearsals only: drop the voice connection as if it failed, so the normal rejoin path
+   * (backoff, rejoin, alerts) runs.
+   */
+  simulateDrop(): void {
+    this.opts.session.log({ type: 'simulated_drop' });
+    this.destroyConnection();
+  }
+
   stop(): void {
     this.stopping = true;
     this.destroyConnection();

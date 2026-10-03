@@ -66,3 +66,41 @@ Convert again (after a crash, or with a newer converter):
 
 Tested offline with real Opus packets (tones placed at known times come out within 30 ms). The
 live proof of concept (2 to 3 people, 30 minutes, a reconnect, compared with Craig) is next.
+
+## Rehearsal (no people needed)
+
+`rehearse` tests the recorder against known audio: up to three speaker bots play one recorded
+track each into a voice channel while the recorder records them, in the same process.
+
+```bash
+node packages/discord-bot/dist/cli.js rehearse <folder of per-speaker tracks> [--seconds N] [--drop-at S | --no-drop] [--settle S]
+```
+
+- The folder holds one audio file per speaker (`S1__anna.wav` or `anna.wav`; anything ffmpeg
+  reads). The busiest tracks are played, one per speaker bot, cut to the shortest.
+- Like a Discord client, a speaker bot only sends while its speaker talks (a level gate with a
+  short hangover), and its RTP timestamp keeps counting through the pauses.
+- Halfway (or at `--drop-at`), the recorder's voice connection is dropped once, so the rejoin
+  runs for real.
+- Afterwards the recording is converted as usual and every recorded track is lined up with its
+  source by cross-correlating 10 ms loudness envelopes in 20 s windows. The play start is known on
+  the recorder's own clock, so the result is the real offset, not just a guess.
+
+The run prints PASS or CHECK and writes `rehearsal.json` next to the recording, in
+`FVTT_REHEARSAL_DIR` (default `Documents\FoundryRehearsals`, outside the sessions folder, so the
+notes pipeline never picks a rehearsal up). PASS needs every track recorded, an alignment that
+wanders under 40 ms (95th percentile), tracks within 40 ms of each other, under 1 % packet loss
+outside the reconnect gap, and a rejoin after the drop. Needs ffmpeg on PATH.
+
+Setup, once: create one bot application per speaker bot (Discord Developer Portal, New
+Application; no privileged intents), invite each with the scope `bot` and the permissions View
+Channels, Connect and Speak, and add to `discord-bot.env`:
+
+```ini
+REHEARSAL_TOKEN_1=...
+REHEARSAL_TOKEN_2=...
+REHEARSAL_TOKEN_3=...
+REHEARSAL_CHANNEL_ID=<the voice channel; Developer Mode, right-click, Copy Channel ID>
+```
+
+Do not run the normal bot at the same time (the recorder logs in with `DISCORD_TOKEN` here too).

@@ -68,6 +68,8 @@ export const APPLY_TIMEOUT_MS = 120_000;
 export const OUTCOME_POLL_INTERVAL_MS = 5_000;
 /** ... and give up after this long. */
 export const OUTCOME_DEADLINE_MS = 120_000;
+/** The longest an apply or undo waits for its recorded-change listeners before it answers. */
+export const LISTENER_WAIT_MS = 5_000;
 
 const FEATURE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 /** Vault files features may not write through vault ops. */
@@ -197,6 +199,8 @@ export interface GuardedWriteServiceOptions {
   outcomePollIntervalMs?: number;
   /** How long to keep asking (default 120 s). */
   outcomeDeadlineMs?: number;
+  /** How long an apply or undo waits for its listeners (default 5 s; they go on after that). */
+  listenerWaitMs?: number;
 }
 
 /**
@@ -409,6 +413,7 @@ export class GuardedWriteService {
   private readonly applyTimeoutMs: number;
   private readonly outcomePollIntervalMs: number;
   private readonly outcomeDeadlineMs: number;
+  private readonly listenerWaitMs: number;
   private lock: Promise<unknown> = Promise.resolve();
 
   constructor(options: GuardedWriteServiceOptions) {
@@ -424,6 +429,7 @@ export class GuardedWriteService {
     this.applyTimeoutMs = options.applyTimeoutMs ?? APPLY_TIMEOUT_MS;
     this.outcomePollIntervalMs = options.outcomePollIntervalMs ?? OUTCOME_POLL_INTERVAL_MS;
     this.outcomeDeadlineMs = options.outcomeDeadlineMs ?? OUTCOME_DEADLINE_MS;
+    this.listenerWaitMs = options.listenerWaitMs ?? LISTENER_WAIT_MS;
   }
 
   // -------------------------------------------------------------------------
@@ -740,7 +746,20 @@ export class GuardedWriteService {
         warn(error);
       }
     }
-    await Promise.all(pending);
+    if (pending.length === 0) return;
+    // Inside the guarded-write lock: a slow listener must never stall every other change.
+    let timer: NodeJS.Timeout | undefined;
+    const capped = new Promise<'late'>(resolve => {
+      timer = setTimeout(() => resolve('late'), this.listenerWaitMs);
+    });
+    const outcome = await Promise.race([Promise.all(pending).then(() => 'done' as const), capped]);
+    clearTimeout(timer);
+    if (outcome === 'late') {
+      this.logger.warn('onRecorded listeners still running; the change answers without them', {
+        changeId,
+        waitedMs: this.listenerWaitMs,
+      });
+    }
   }
 
   /**

@@ -319,6 +319,44 @@ describe('applyPlan (Foundry ops)', () => {
 // Undo
 // ---------------------------------------------------------------------------
 
+describe('recorded listeners and undo guards', () => {
+  it('waits for a listener, but never longer than listenerWaitMs', async () => {
+    service = makeService({ listenerWaitMs: 20 });
+    const seen: string[] = [];
+    service.addRecordedListener(async (_world, changeId) => {
+      await new Promise(r => setTimeout(r, 5));
+      seen.push(changeId);
+    });
+    service.addRecordedListener(() => new Promise<void>(() => undefined)); // never settles
+    const p = await plan([HP_UPDATE]);
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect(seen).toEqual([applied.changeId]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('listeners still running'),
+      expect.objectContaining({ changeId: applied.changeId })
+    );
+  });
+
+  it('a failing listener is logged and the change still answers', async () => {
+    service.addRecordedListener(() => Promise.reject(new Error('listener broke')));
+    const p = await plan([HP_UPDATE]);
+    await expect(service.applyPlan(p.planId, { confirm: true })).resolves.toBeDefined();
+    expect(logger.warn).toHaveBeenCalledWith('onRecorded listener failed', {
+      error: 'listener broke',
+    });
+  });
+
+  it('an undo guard refuses with a conflict and writes nothing', async () => {
+    const p = await plan([HP_UPDATE]);
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    service.setUndoGuard('test-feature', () => Promise.resolve('the GM edited it'));
+    await expect(service.undo(applied.changeId, { confirm: true })).rejects.toThrow(
+      'Conflict, nothing was written: the GM edited it'
+    );
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+  });
+});
+
 describe('undo (Foundry ops)', () => {
   it('restores the previous state and marks the change undone', async () => {
     const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });

@@ -8,7 +8,8 @@
  *   node scripts/live-write-sweep.mjs --help
  *
  * Needs the test environment running (`pwsh scripts/test-env/start.ps1`) and a GM client
- * joined to the world `ai-tool-test` (the passwordless "Claude" user). Exits with 2 when it
+ * joined to the world `ai-tool-test` (or `--world ai-tool-walkthrough`, see `scripts/test-worlds.mjs`;
+ * the passwordless "Claude" user). Exits with 2 when it
  * cannot reach them.
  *
  * How it stays clean:
@@ -22,8 +23,8 @@
  *     deleted, the scene mood and the active scene are restored.
  *   - At the end the dashboard's test route (`POST /api/test/live-sweep`, mode `cleanup`)
  *     has the module delete every "AI Tool Sweep" document and the chat messages and
- *     combats created since the run started. The module refuses that outside the world
- *     `ai-tool-test`. The same route takes a scene snapshot first (mode `snapshot`, for the
+ *     combats created since the run started. The module refuses that outside the test worlds
+ *     `ai-tool-test` or `ai-tool-walkthrough`. The same route takes a scene snapshot first (mode `snapshot`, for the
  *     mood) and starts a combat of the sweep's own tokens (mode `combat`), since no tool
  *     reads the lighting or creates a combat.
  *   - GM Actions go back to their previous state. The vault's session log keeps the two
@@ -41,8 +42,16 @@
  * split on), SWEEP_PLAYER (user name for the roll requests, default "Player").
  */
 
+import { parseWorldArg, TEST_WORLDS } from './test-worlds.mjs';
+
 const TEST_DASHBOARD_PORT = 3100;
-const EXPECTED_WORLD = 'ai-tool-test';
+let EXPECTED_WORLD;
+try {
+  EXPECTED_WORLD = parseWorldArg(process.argv.slice(2));
+} catch (err) {
+  console.error(String(err.message ?? err));
+  process.exit(2);
+}
 const LIVE_BRIDGE_PORTS = [31414, 31415, 31416];
 const PREFIX = 'AI Tool Sweep';
 const FOLDER = `${PREFIX} (safe to delete)`;
@@ -55,7 +64,7 @@ const EXIT_ENV = 2;
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.log(`live-write-sweep: run the direct-write tools once on the TEST world, then clean up.
 
-Usage: node scripts/live-write-sweep.mjs [--with-dialogs] [--help]
+Usage: node scripts/live-write-sweep.mjs [--with-dialogs] [--world <id>] [--help]
 
 Only talks to the test dashboard on 127.0.0.1:${TEST_DASHBOARD_PORT} (COGM_BASE may name
 localhost, 127.0.0.1 or [::1], but only port ${TEST_DASHBOARD_PORT}). Never the live bridge (31414-31416).
@@ -63,6 +72,7 @@ Start the test environment first: pwsh scripts/test-env/start.ps1 (see the found
 and join the world as "Claude". Everything it makes is named "${PREFIX} ..." and deleted at the end.
 
   --with-dialogs   also run use-item, which opens a dialog in the GM's browser (click it)
+  --world <id>     the test world to run in: ${TEST_WORLDS.join(', ')} (default ai-tool-test)
 
 Exit codes: 0 nothing failed (skips are fine), 1 a step failed, 2 environment not ready.
 Read the header of this file for the details.`);
@@ -1032,7 +1042,10 @@ async function cleanUp() {
 async function main() {
   console.log(`# Live write sweep against ${BASE} (test world ${EXPECTED_WORLD})`);
   try {
-    await step('dashboard, bridge and Foundry reachable; world is ai-tool-test', checkEnvironment);
+    await step(
+      `dashboard, bridge and Foundry reachable; world is ${EXPECTED_WORLD}`,
+      checkEnvironment
+    );
   } catch (e) {
     if (!(e instanceof EnvError)) throw e;
     console.log(`\nENVIRONMENT NOT READY: ${e.message}`);

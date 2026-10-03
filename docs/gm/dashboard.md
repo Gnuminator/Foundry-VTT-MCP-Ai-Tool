@@ -142,9 +142,10 @@ more selected:
 - **Roll save**: opens the tool runner to roll a saving throw for them.
 - **Clear**: unselects all.
 
-Clicking the tool runner's run button applies it at once: your click is the confirmation. A
-message lists each target's result ("Wolf 2: HP 11 to 5") with **Undo** for a few seconds; one click
-puts it back. Later, use **Undo** in Recent Changes.
+Fill in the amount and click the run button: it applies at once, because the targets are the rows
+you selected and your click is the confirmation. A message lists each target's result ("Wolf 2: HP
+11 to 5") with **Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent
+Changes. If you change the targets in the form by hand, the confirm window shows them first.
 
 **👑 Boss prompts** (in the panel's top line, only while a creature with legendary actions or a lair
 is in the fight; off until you turn it on, and remembered in this browser). Turn it on before the
@@ -210,9 +211,9 @@ undone here.
 
 ## The confirm window
 
-Your own actions on the dashboard that make a planned change (damage, conditions and resources,
-the party's pace and rest request, Tarokka links and imports) apply at once when you click: your
-click is the confirmation. A message says what changed, with **Undo** for a few seconds; Recent
+The dashboard's own buttons that make a planned change (Damage and Condition on the combatants you
+selected, the party's pace and rest request, Tarokka links and imports) apply at once when you
+click: your click is the confirmation. A message says what changed, with **Undo** for a few seconds; Recent
 Changes keeps the full history.
 
 The confirm window opens first for:
@@ -221,6 +222,8 @@ The confirm window opens first for:
   at once, so Undo cannot take it back from their eyes).
 - **Plans you did not make on the dashboard**: a plan Claude made, or a pending change from Obsidian.
   Plan, confirm and undo stay for every AI change.
+- **Plans you type by hand in the tool runner** (Advanced), so you see which targets they hit before
+  they apply.
 - **Older tools without a plan** (from the tool runner), which have no Undo.
 
 In the confirm window:

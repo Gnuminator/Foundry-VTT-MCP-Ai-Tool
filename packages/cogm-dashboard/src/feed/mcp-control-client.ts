@@ -7,6 +7,7 @@ import type {
   UsageEvent,
 } from '@gnuminator/shared';
 import type { Logger } from '../logger.js';
+import type { SessionNotesAction } from '../session-notes-route.js';
 
 /**
  * Long-lived client for the MCP backend's JSON-lines control channel
@@ -40,9 +41,13 @@ const MAX_BUFFER_BYTES = 1_000_000;
 
 /** The control channel/transport failed (down, write error, protocol error). */
 export class ChannelError extends Error {
-  constructor(message: string) {
+  /** A stable refusal reason when the bridge method gives one (`session_notes`). */
+  readonly code: string | undefined;
+
+  constructor(message: string, code?: string) {
     super(message);
     this.name = 'ChannelError';
+    this.code = code;
   }
 }
 
@@ -211,6 +216,18 @@ export class McpControlClient extends EventEmitter {
    */
   async featureSwitches(): Promise<unknown> {
     return this.send('feature_switches');
+  }
+
+  /**
+   * Session notes (recap lane, D-087): `list`, `get`, `put` or `approve`. A control method,
+   * never an MCP tool; a refusal is a ChannelError with a `code`. An old backend answers
+   * "Unknown method".
+   */
+  async sessionNotes(
+    action: SessionNotesAction,
+    params: Record<string, unknown> = {}
+  ): Promise<unknown> {
+    return this.send('session_notes', { ...params, action });
   }
 
   /**
@@ -471,7 +488,9 @@ export class McpControlClient extends EventEmitter {
       clearTimeout(pending.timer);
 
       if (message.error) {
-        pending.reject(new ChannelError(message.error.message ?? 'Unknown control error'));
+        pending.reject(
+          new ChannelError(message.error.message ?? 'Unknown control error', message.error.code)
+        );
       } else {
         pending.resolve(message.result);
       }

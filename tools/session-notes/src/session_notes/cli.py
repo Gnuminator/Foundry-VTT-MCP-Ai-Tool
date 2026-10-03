@@ -1,7 +1,9 @@
 """``session-notes run <session>``: write the notes for one session folder.
 
 ``session-notes scenes <session>`` only shows how the session would be split (no Claude call).
-Exit codes: 0 done, 1 error, 75 paused by a usage limit (run the same command again later).
+``session-notes publish <session>`` hands the notes to the bridge, which puts them into Foundry.
+Exit codes: 0 done, 1 error, 3 the bridge cannot take the notes now (publish; try again later),
+75 paused by a usage limit (run the same command again later).
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ from pathlib import Path
 
 from .claude_runner import ClaudeCli, ClaudeError
 from .model import clock, load_timeline
+from .publish import publish
 from .retention import RETENTION_DAYS, approve, cleanup
 from .run import Options, Writer
 from .scenes import split_scenes
@@ -53,6 +56,13 @@ def main(argv: list[str] | None = None) -> int:
     ok = sub.add_parser("approve", help="mark the notes approved (starts the audio retention clock)")
     ok.add_argument("session")
     ok.add_argument("--by", default="GM")
+    pub = sub.add_parser(
+        "publish", help="hand the notes to the bridge (Foundry journal, D-087); sync the approval"
+    )
+    pub.add_argument("session")
+    pub.add_argument("--port", type=int, help="bridge control port (default 31414; test 31514)")
+    pub.add_argument("--world", help="Foundry world id, needed while Foundry is closed")
+    pub.add_argument("--restage", action="store_true", help="stage again (only while staged)")
     clean = sub.add_parser(
         "cleanup", help=f"delete audio {RETENTION_DAYS} days after approval (D-072)"
     )
@@ -84,6 +94,14 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(f"Approved: {path}. Audio is deleted by `cleanup` after {RETENTION_DAYS} days.")
         return 0
+    if args.cmd == "publish":
+        try:
+            outcome = publish(session, port=args.port, world=args.world, restage=args.restage)
+        except (FileNotFoundError, ValueError) as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print(outcome.message, file=sys.stderr if outcome.code == 1 else sys.stdout)
+        return outcome.code
     if args.cmd == "scenes":
         lines = load_timeline(session / "timeline" / "timeline.jsonl")
         for scene in split_scenes(lines, gap=args.scene_gap):

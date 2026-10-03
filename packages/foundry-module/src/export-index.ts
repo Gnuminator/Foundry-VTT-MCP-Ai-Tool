@@ -93,6 +93,7 @@ import {
   utf8Bytes,
   type Rec,
 } from './doc-read.js';
+import { MODULE_ID } from './constants.js';
 import { buildStatBlock } from './stat-block.js';
 import { detectRulesVersion, readRulesTag } from './systems/dnd5e/rules-version.js';
 import {
@@ -965,9 +966,14 @@ interface JournalBuilt {
   pageDocs: Rec[];
 }
 
-/** Whether the journal is opted in for page text: its folder chain or its own id was named. */
+/**
+ * Whether the journal is opted in for page text: its folder chain or its own id was named, or it
+ * holds a recorded session's notes (flag `sessionNotes`, put there by the bridge, D-087), which
+ * the GM vault gets with their text without any opt-in.
+ */
 function textOptedIn(ctx: Context, c: Candidate): boolean {
   return (
+    dig(c.doc, 'flags', MODULE_ID, 'sessionNotes') === true ||
     ctx.request.textJournalIds.has(c.id) ||
     inFolders(folderInfoFor(ctx, c.doc), ctx.request.textFolderIds)
   );

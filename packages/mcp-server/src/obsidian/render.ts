@@ -152,7 +152,9 @@ export interface SessionGroupInput {
 export function renderSessionNote(
   worldId: string,
   group: SessionGroupInput,
-  stats: SessionStats
+  stats: SessionStats,
+  /** Links to this day's recorded session notes in Foundry (D-087), as list lines. */
+  sessionNotes: readonly string[] = []
 ): string {
   const sorted = [...group.events].sort((a, b) => eventTimeMs(a) - eventTimeMs(b));
   const types = [...new Set(sorted.map(e => e.eventType ?? 'event'))].sort();
@@ -240,6 +242,7 @@ export function renderSessionNote(
       ...rows,
       '',
       ...(changeLinks.length ? ['## Changes', '', ...changeLinks, ''] : []),
+      ...(sessionNotes.length ? ['## Session notes', '', ...sessionNotes, ''] : []),
       ...renderSessionStatsSection(stats),
     ].join('\n')
   );

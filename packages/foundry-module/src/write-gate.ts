@@ -53,6 +53,8 @@ export const WRITE_METHODS: readonly string[] = [
   'setInitiative',
   // journals
   'createJournalEntry',
+  // the session notes folder (recap lane, D-087; GM-only)
+  'ensureJournalFolder',
   'updateCampaignProgress',
   'updateJournalContent',
   // chat and rolls (new chat messages)

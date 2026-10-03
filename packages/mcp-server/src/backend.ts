@@ -80,6 +80,7 @@ import {
   handleSessionSwitches,
   type FoundryQuery,
 } from './session-control.js';
+import { SessionNotesService, controlError, handleSessionNotes } from './session-notes/index.js';
 import { UsagePump } from './usage-pump.js';
 import { ObsidianAutoRender, obsidianAutoRenderSettings } from './obsidian/auto-render.js';
 import { ObsidianMirrorPump } from './obsidian/mirror-pump.js';
@@ -346,6 +347,16 @@ async function startBackend(): Promise<void> {
     worldIds,
     foundryClient,
   });
+  // Session notes into Foundry (recap lane, D-087): staged by the pipeline, put automatically.
+  const sessionNotes = new SessionNotesService({
+    foundryClient,
+    worldIds,
+    store: vaultStore,
+    audit: auditLog,
+    guardedWrites,
+    handouts,
+    logger,
+  });
   const playerViewTools = new PlayerViewTools({
     handouts,
     secretTerms,
@@ -454,6 +465,7 @@ async function startBackend(): Promise<void> {
     foundryClient.connect().catch(e => {
       logger.error('Foundry connector failed to start', e);
     });
+    sessionNotes.start();
     const pumpSettings = eventPumpSettings();
     if (pumpSettings.enabled) {
       eventPump = new EventPump({
@@ -641,6 +653,20 @@ async function startBackend(): Promise<void> {
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'Switches failed';
               socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
+            }
+
+            continue;
+          }
+
+          // Session notes (recap lane, D-087; session-notes/control.ts): the pipeline stages and
+          // polls, the dashboard's GM routes list, preview, put and approve. Not a tool, never
+          // listed to Claude, and the stdio wrapper never forwards it.
+          if (msg.method === 'session_notes') {
+            try {
+              const result = await handleSessionNotes(sessionNotes, msg.params);
+              socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            } catch (e: unknown) {
+              socket.write(`${JSON.stringify({ id: msg.id, error: controlError(e) })}\n`);
             }
 
             continue;

@@ -66,8 +66,9 @@ from it are in the GM's Obsidian notes. None of it is stored in the Foundry worl
     not in the cloud.
   - The text then goes to Claude, under the Claude account of whoever runs the notes step, to
     write a cleaned transcript, notes per scene and a short recap, in Danish and English.
-  - The recap for players is a draft until the GM has read and approved it. Things the GM says
-    that are meant for the GM only are kept out of it.
+  - The notes then go into a Foundry journal only the GM can open. The recap for players is a
+    draft until the GM has read it and revealed it: then it shows up with the other handouts.
+    Things the GM says that are meant for the GM only are kept out of it.
 
 ## How long it is kept
 

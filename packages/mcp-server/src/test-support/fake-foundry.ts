@@ -40,6 +40,12 @@ export class FakeFoundry {
   private seq = 0;
   private clock = 100;
   readonly calls: Array<[string, any]> = [];
+  /** Bumped by a test to look like a new module connection. */
+  connectionSerial = 1;
+
+  isConnected = (): boolean => this.connected;
+
+  getConnectionSerial = (): number => this.connectionSerial;
 
   add(uuid: string, documentName: string, source: Record<string, any>): FakeDoc {
     const doc = {

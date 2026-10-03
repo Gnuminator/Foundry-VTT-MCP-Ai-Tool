@@ -23,7 +23,12 @@
  *   7. verify: list-revealed-pages shows the copy in "Handouts", get-player-handouts has it
  *   8. undo: list-recent-changes, undo-change
  *   9. verify gone: the copy is no longer listed or handed to players
- *  10. clean up: GM Actions back to its previous state; if a step failed after the apply,
+ *  10. session notes (D-087): stage a test session on the test bridge's control port (31514,
+ *      ROUNDTRIP_CONTROL_PORT), wait until the bridge puts it into Foundry by itself (journal
+ *      "<today>: AI Tool Roundtrip Session (safe to delete)" with the pages Recap, GM summary,
+ *      Scenes), undo it (back to staged, no automatic put again), put it by hand through the
+ *      dashboard route and undo again
+ *  11. clean up: GM Actions back to its previous state; if a step failed after the apply,
  *      the change is undone anyway so the world is left as it was
  *
  * One-time manual setup (cannot be done through the tool API):
@@ -32,6 +37,8 @@
  *     default). Without it step 6 fails with 'The "handouts" feature is switched off' and the
  *     script exits with 2. A reveal also creates the player journal "Handouts" on first use
  *     and leaves it in place (empty after the undo); that is harmless.
+ *   - Also switch on "AI Tool: Session notes (writes)" for step 10 (the script exits with 2
+ *     while it is off). The folder "Session notes" stays in the test world (empty).
  *   - The test journal "AI Tool Roundtrip Test (safe to delete)" stays in the test world
  *     between runs on purpose. Delete it by hand in Foundry whenever you like; the next run
  *     creates it again.
@@ -42,6 +49,8 @@
  *
  * Exit codes: 0 all steps passed, 1 a step failed, 2 environment not running or not set up.
  */
+
+import net from 'node:net';
 
 import { parseWorldArg, TEST_WORLDS } from './test-worlds.mjs';
 
@@ -56,6 +65,14 @@ try {
 const LIVE_BRIDGE_PORTS = [31414, 31415, 31416];
 const JOURNAL_NAME = 'AI Tool Roundtrip Test (safe to delete)';
 const PAGE_NAME = 'Roundtrip Handout';
+const NOTES_SESSION_ID = 'roundtrip-test';
+const NOTES_TITLE = 'AI Tool Roundtrip Session (safe to delete)';
+// The test bridge's control port (stage is a pipeline-only control method, not a dashboard route).
+const TEST_CONTROL_PORT = Number(process.env.ROUNDTRIP_CONTROL_PORT || 31514);
+if (LIVE_BRIDGE_PORTS.includes(TEST_CONTROL_PORT)) {
+  console.error(`REFUSED: port ${TEST_CONTROL_PORT} is the live bridge.`);
+  process.exit(2);
+}
 
 const EXIT_FAIL = 1;
 const EXIT_ENV = 2;
@@ -222,6 +239,149 @@ async function undoApplied() {
   appliedChangeId = null;
 }
 
+// --- Session notes (recap lane, D-087) ----------------------------------------
+
+let notesChangeId = null; // set while the test session's notes are in Foundry
+
+/** One `session_notes` request on the TEST bridge's control port (stage is pipeline-only). */
+function controlCall(params) {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection({ host: '127.0.0.1', port: TEST_CONTROL_PORT });
+    let buf = '';
+    const timer = setTimeout(() => {
+      socket.destroy();
+      reject(new Error(`no answer from the test bridge on ${TEST_CONTROL_PORT}`));
+    }, 30000);
+    socket.on('error', e => {
+      clearTimeout(timer);
+      reject(
+        e.code === 'ECONNREFUSED'
+          ? new EnvError(`the test bridge's control port ${TEST_CONTROL_PORT} is not listening`)
+          : e
+      );
+    });
+    socket.on('connect', () => {
+      socket.write(`${JSON.stringify({ id: 'roundtrip', method: 'session_notes', params })}\n`);
+    });
+    socket.on('data', chunk => {
+      buf += chunk.toString('utf8');
+      const nl = buf.indexOf('\n');
+      if (nl < 0) return;
+      clearTimeout(timer);
+      socket.end();
+      const answer = JSON.parse(buf.slice(0, nl));
+      if (answer.error) {
+        const err = new Error(`${answer.error.message} (${answer.error.code ?? 'no code'})`);
+        err.code = answer.error.code;
+        reject(err);
+      } else resolve(answer.result);
+    });
+  });
+}
+
+async function notesItem() {
+  const { status, data } = await http(`/api/session-notes/${NOTES_SESSION_ID}`);
+  if (status === 404) return null;
+  assert(status === 200, `GET /api/session-notes answered HTTP ${status}: ${data?.error?.message}`);
+  return data;
+}
+
+async function waitForNotes(want, seconds = 30) {
+  for (let i = 0; i < seconds * 2; i += 1) {
+    const item = await notesItem();
+    if (item?.status === want) return item;
+    if (item?.waitingFor?.includes('feature-off')) {
+      throw new EnvError(
+        'the "session-notes" feature is switched off in the test world. One-time setup: Settings > Game Settings > "Foundry AI Tool" > switch on "AI Tool: Session notes (writes)"'
+      );
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+  throw new Error(`the test session's notes did not reach "${want}" within ${seconds} s`);
+}
+
+async function undoNotes() {
+  await tool(
+    'undo-change',
+    { changeId: notesChangeId },
+    { confirm: true, confirmDestructive: true }
+  );
+  notesChangeId = null;
+}
+
+async function notesJournal(name) {
+  const listed = await tool('list-journals', {});
+  return (listed.journals || []).find(j => j.name === name) || null;
+}
+
+async function sessionNotesRoundtrip() {
+  const date = new Date().toISOString().slice(0, 10);
+  const name = `${date}: ${NOTES_TITLE}`;
+
+  // A run that stopped half way left the notes in Foundry: undo them so staging works again.
+  const leftover = await notesItem();
+  if (leftover?.status === 'in-foundry' && leftover.changeId) {
+    await step('clean up the test session notes an earlier run left in Foundry', async () => {
+      notesChangeId = leftover.changeId;
+      await undoNotes();
+      return 'undone';
+    });
+  }
+
+  const staged = await step('session notes: stage over the control port', async () => {
+    const item = await controlCall({
+      action: 'stage',
+      sessionId: NOTES_SESSION_ID,
+      date,
+      title: NOTES_TITLE,
+      languages: ['da', 'en'],
+      pages: [
+        { key: 'recap', html: '<p>Rundtur.</p><h2>English</h2><p>Round trip.</p>' },
+        { key: 'summary', html: '<p>Kun GM.</p><h2>English</h2><p>GM only.</p>' },
+        { key: 'scenes', html: '<h2>1. Test</h2><p>Ingenting.</p><h2>English</h2><p>Nothing.</p>' },
+      ],
+    });
+    assert(item && item.status === 'staged', `stage answered status ${item && item.status}`);
+    return `staged ${item.sessionId}`;
+  });
+  if (!staged.ok) return;
+
+  const put = await step('session notes: the bridge puts them into Foundry by itself', async () => {
+    const item = await waitForNotes('in-foundry');
+    notesChangeId = item.changeId;
+    assert(item.recapPageUuid, 'no Recap page uuid on the item');
+    const journal = await notesJournal(name);
+    assert(journal, `journal "${name}" not found`);
+    const pages = (journal.pages || []).map(p => p.name).join(', ');
+    assert(pages === 'Recap, GM summary, Scenes', `pages are "${pages}"`);
+    assert(!item.lastError, `read back: ${item.lastError}`);
+    return `${item.changeId}, ${journal.id}`;
+  });
+  if (!put.ok) return;
+
+  const undone = await step('session notes: undo takes the journal out again', async () => {
+    await undoNotes();
+    const item = await waitForNotes('staged', 10);
+    assert(item.autoPut === false, 'after an undo the bridge must not put the notes again');
+    assert(!(await notesJournal(name)), 'the journal is still there after the undo');
+    return 'staged, autoPut off';
+  });
+  if (!undone.ok) return;
+
+  await step('session notes: a manual put (the card\'s "Put in Foundry"), then undo', async () => {
+    const { status, data } = await http(`/api/session-notes/${NOTES_SESSION_ID}/put`, {
+      method: 'POST',
+    });
+    assert(status === 200, `put answered HTTP ${status}: ${data?.error?.message}`);
+    notesChangeId = data.changeId;
+    assert(data.item.status === 'in-foundry', `put left status ${data.item.status}`);
+    assert(await notesJournal(name), 'the journal is missing after the manual put');
+    await undoNotes();
+    assert(!(await notesJournal(name)), 'the journal is still there after the second undo');
+    return 'put and undone';
+  });
+}
+
 async function main() {
   console.log(`# Live round trip against ${BASE} (test world ${EXPECTED_WORLD})`);
 
@@ -370,7 +530,15 @@ async function main() {
       assert(left.length === 0, 'get-player-handouts still lists the page after the undo');
       return 'gone';
     });
+
+    await sessionNotesRoundtrip();
   } finally {
+    if (notesChangeId) {
+      await step('clean up: undo the session notes a failed step left in Foundry', async () => {
+        await undoNotes();
+        return 'undone';
+      }).catch(() => {});
+    }
     // 10. clean up: a change that is still applied is undone, GM Actions go back.
     if (appliedChangeId) {
       await step('clean up: undo the change a failed step left applied', async () => {
@@ -407,7 +575,7 @@ main()
         'Start the test environment (pwsh scripts/test-env/start.ps1), join the test world'
       );
       console.error(
-        'as a GM in a browser, switch on "AI Tool: Handouts (writes)", then run this again.'
+        'as a GM in a browser, switch on "AI Tool: Handouts (writes)" and "AI Tool: Session notes (writes)", then run this again.'
       );
       process.exit(EXIT_ENV);
     }

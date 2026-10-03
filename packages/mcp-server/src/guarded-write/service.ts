@@ -199,6 +199,15 @@ export interface GuardedWriteServiceOptions {
   outcomeDeadlineMs?: number;
 }
 
+/**
+ * A feature's own check before one of its changes is undone: the reason the undo would destroy
+ * something the generic snapshot cannot see (a page the GM edited, a copy players already have),
+ * or null to go ahead. A throwing guard refuses too.
+ */
+export type RecordedListener = (worldId: string, changeId: string) => void | Promise<void>;
+
+export type UndoGuard = (worldId: string, entry: AuditEntry) => Promise<string | null>;
+
 /** Errors that mean "no answer arrived", as opposed to Foundry refusing the change. */
 function isLostAnswer(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -395,6 +404,8 @@ export class GuardedWriteService {
   private readonly ttlMs: number;
   private readonly maxPlans: number;
   private readonly onRecorded: GuardedWriteServiceOptions['onRecorded'];
+  private readonly recordedListeners: RecordedListener[] = [];
+  private readonly undoGuards = new Map<string, UndoGuard>();
   private readonly applyTimeoutMs: number;
   private readonly outcomePollIntervalMs: number;
   private readonly outcomeDeadlineMs: number;
@@ -556,6 +567,20 @@ export class GuardedWriteService {
     });
   }
 
+  /**
+   * Also call `listener` after every recorded apply or undo (like the `onRecorded` option). The
+   * apply or undo answers once a returned promise settles, so a caller that reads right after
+   * sees what the listener wrote; a failing listener is logged, never breaks the change.
+   */
+  addRecordedListener(listener: RecordedListener): void {
+    this.recordedListeners.push(listener);
+  }
+
+  /** Run `guard` before any change of `feature` is undone (one guard per feature). */
+  setUndoGuard(feature: string, guard: UndoGuard): void {
+    this.undoGuards.set(feature, guard);
+  }
+
   undo(changeId: string, flags: ConfirmFlags): Promise<AppliedChange> {
     return this.exclusive(async () => {
       if (flags.confirm !== true) throw new Error('Undoing a change needs confirm: true');
@@ -566,6 +591,9 @@ export class GuardedWriteService {
         throw new Error('An undo cannot be undone; plan the change again');
       if (entry.undoneBy)
         throw new Error(`Change ${changeId} was already undone (${entry.undoneBy})`);
+      const guard = this.undoGuards.get(entry.feature);
+      const reason = guard ? await guard(worldId, entry) : null;
+      if (reason) throw new Error(`Conflict, nothing was written: ${reason}`);
       const undoId = newId('chg', this.now());
       return this.undoChange(worldId, undoId, entry);
     });
@@ -635,7 +663,7 @@ export class GuardedWriteService {
       ...(plan.rulesVersion ? { rulesVersion: plan.rulesVersion } : {}),
     };
     await this.record(worldId, entry, () => this.audit.append(worldId, entry));
-    this.notifyRecorded(worldId, entry.changeId);
+    await this.notifyRecorded(worldId, entry.changeId);
     // A Foundry apply logs its own gm-change event; vault-only changes do it here.
     if (!foundry) await this.logGmChange(entry);
     return this.appliedView(entry);
@@ -692,20 +720,27 @@ export class GuardedWriteService {
         : {}),
     };
     await this.record(worldId, undoEntry, () => this.audit.recordUndo(worldId, undoEntry));
-    this.notifyRecorded(worldId, undoEntry.changeId);
+    await this.notifyRecorded(worldId, undoEntry.changeId);
     if (!foundry) await this.logGmChange(undoEntry);
     return this.appliedView(undoEntry);
   }
 
-  private notifyRecorded(worldId: string, changeId: string): void {
-    if (!this.onRecorded) return;
-    try {
-      this.onRecorded(worldId, changeId);
-    } catch (error) {
+  private async notifyRecorded(worldId: string, changeId: string): Promise<void> {
+    const listeners = [...(this.onRecorded ? [this.onRecorded] : []), ...this.recordedListeners];
+    const warn = (error: unknown): void =>
       this.logger.warn('onRecorded listener failed', {
         error: error instanceof Error ? error.message : String(error),
       });
+    const pending: Array<Promise<void>> = [];
+    for (const listener of listeners) {
+      try {
+        const result: unknown = listener(worldId, changeId);
+        if (result instanceof Promise) pending.push((result as Promise<void>).catch(warn));
+      } catch (error) {
+        warn(error);
+      }
     }
+    await Promise.all(pending);
   }
 
   /**

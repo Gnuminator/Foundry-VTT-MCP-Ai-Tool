@@ -114,6 +114,11 @@ class FoundryMCPBridge {
         },
       });
       registerGuardedFeature({
+        id: 'session-notes',
+        name: 'AI Tool: Session notes (writes)',
+        hint: 'Puts the notes of a recorded session (Recap, GM summary, Scenes) into a GM-only journal in Foundry automatically, without asking, as soon as Foundry is open with writes on. Each one shows in Recent Changes with an Undo. Players see the Recap only when you reveal it.',
+      });
+      registerGuardedFeature({
         id: OWNERSHIP_FEATURE_ID,
         name: 'AI Tool: Ownership (writes)',
         hint: 'Lets the dashboard and the AI change which players own or can see an actor.',

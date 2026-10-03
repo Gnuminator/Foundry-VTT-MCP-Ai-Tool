@@ -21,6 +21,8 @@ import { VaultStore } from '../vault/store.js';
 
 import { runObsidianCli } from './cli.js';
 import { campaignDir, exportWorldToObsidian, newExportCache } from './export.js';
+import { pathKey } from './mirror-common.js';
+import { allocateNotePaths } from './mirror-paths.js';
 import { cell, frontmatter, safeFileName } from './render.js';
 
 const WORLD = 'strahd-test';
@@ -552,6 +554,79 @@ describe('exportWorldToObsidian', () => {
     ).length;
     expect(thirdCallCount).toBe(2); // the changed file was re-read.
     readLinesSpy.mockRestore();
+  });
+});
+
+describe('session notes in Foundry (D-087)', () => {
+  const JOURNAL = 'JournalEntry.jjjjjjjjjjjjjjjj';
+
+  async function stageInFoundry(date: string): Promise<void> {
+    await store.write(WORLD, 'gm', 'session-notes.rec-1.json', {
+      sessionId: 'rec-1',
+      date,
+      title: 'Vejen til Barovia',
+      languages: ['da', 'en'],
+      pages: [],
+      stagedAt: '2026-09-29T06:00:00.000Z',
+      autoPut: true,
+      put: {
+        changeId: 'chg-9',
+        putAt: '2026-09-29T07:00:00.000Z',
+        journalUuid: JOURNAL,
+        recapPageUuid: `${JOURNAL}.JournalEntryPage.pppppppppppppppp`,
+        pageUuids: {},
+        pageTimes: {},
+        auto: true,
+      },
+    });
+  }
+
+  it('links the mirrored journal from the session note of the same day', async () => {
+    await seed();
+    await run();
+    const date = /\ndate: "([^"]+)"/.exec(await note('AI Tool/Sessions/2026-09-28 S01.md'))![1];
+    await stageInFoundry(date);
+
+    await run();
+    expect(await note('AI Tool/Sessions/2026-09-28 S01.md')).toContain(
+      `## Session notes\n\n- Vejen til Barovia: in Foundry, journal "${date}: Vejen til Barovia" (no mirror note yet)`
+    );
+
+    // Another journal already holds the plain name, so the mirror gave ours the hash suffix.
+    const journals = path.join(campaignDir(vaultDir, WORLD), 'AI Tool/Foundry/Journals');
+    await fsp.mkdir(journals, { recursive: true });
+    const stem = safeFileName(`${date}: Vejen til Barovia`);
+    await fsp.writeFile(
+      path.join(journals, `${stem}.md`),
+      '---\nfvtt_uuid: "JournalEntry.other"\n---\n'
+    );
+    const ours = allocateNotePaths(
+      [
+        {
+          uuid: JOURNAL,
+          id: 'jjjjjjjjjjjjjjjj',
+          folder: 'AI Tool/Foundry/Journals',
+          name: `${date}: Vejen til Barovia`,
+          created: null,
+        },
+      ],
+      new Map(),
+      new Set([pathKey(`AI Tool/Foundry/Journals/${stem}.md`)])
+    ).get(JOURNAL)!;
+    await fsp.writeFile(
+      path.join(campaignDir(vaultDir, WORLD), ours),
+      `---\nfvtt_uuid: "${JOURNAL}"\n---\n`
+    );
+
+    await run();
+    const s1 = await note('AI Tool/Sessions/2026-09-28 S01.md');
+    const rel = path.posix
+      .relative('AI Tool/Sessions', ours)
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/');
+    expect(s1).toContain(`- [Vejen til Barovia](${rel})`);
+    expect(rel).toMatch(/^\.\.\/Foundry\/Journals\/.+%20\([a-z0-9]{6}\)\.md$/);
   });
 });
 

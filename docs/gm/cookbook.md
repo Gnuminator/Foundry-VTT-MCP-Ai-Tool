@@ -208,10 +208,15 @@ These need the **play** set switched on.
   runs by itself every hour. In Claude Code, `/session-notes` does it by hand.
 - **What happens:** in the session's folder, under `notes`, in Danish and English: the cleaned
   transcript, notes per scene (what happened, NPCs, loot, open threads, a "GM only" part), a
-  summary for you and a draft recap for the players.
-- **Tip:** read the players' recap before anyone else does; it is a draft until you say it is
-  fine. Approving it also starts the clock that deletes the recorded audio 14 days later. Getting
-  the notes into your Obsidian vault and the recap into the handout queue comes next.
+  summary for you and a draft recap for the players. With the switch "AI Tool: Session notes
+  (writes)" on, they then go into Foundry by themselves: a GM-only journal in the folder
+  "Session notes" with the pages Recap, GM summary and Scenes (Danish first, English below). It
+  happens as soon as Foundry is open with writes on, so notes made overnight land when you next
+  press "Ready for session". The Live Feed and Recent Changes show it, with an Undo.
+- **Tip:** read the Recap page before anyone else does. It waits in the reveal queue; press
+  **Reveal next** when it is fine, and the players get it in "Handouts". Revealing it, or
+  **Approve without revealing** on the dashboard, starts the clock that deletes the recorded
+  audio 14 days later. The transcript stays on the PC.
 
 ## When a recipe goes wrong
 

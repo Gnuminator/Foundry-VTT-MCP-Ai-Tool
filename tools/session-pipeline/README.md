@@ -113,6 +113,19 @@ The word lists are derived from the Leipzig Corpora Collection (CC BY 4.0), news
 source, licence and attribution are in each file's header and in the repository's `CREDITS.md`;
 `scripts/build_wordlists.py` rebuilds them from the unpacked corpora.
 
+### Glued names
+
+The recogniser sometimes writes a name and its neighbour as one word ("stratser" for "Strahd ser").
+A word that is neither a name nor an ordinary word is split into a name part (at least 4 letters)
+and an ordinary word, in either order; besides the shipped lists, a short list of 2 and 3 letter
+Danish and English words counts here ("ser", "og", "har", "the"), because those are the neighbours
+that get swallowed. The split is fixed automatically only when the name part is exact: a known name,
+or a wrong spelling from `rules.json` ("strat" in `{"Strahd": ["strat"]}` turns "stratser" into
+"Strahd ser"). It stays a suggestion when the name part is only close (`blocked: glued`) or when the
+leftover looks like an ending or a prefix (`glued_affix`: "barovianer" is not "Barovia ner",
+"strahder" is suggested as "Strahd er"). A split with an exact name also beats a near match of the
+whole word, which used to swallow the neighbour ("ogvallaki" became "Vallaki"; now "og Vallaki").
+
 Feed the matcher proper names (characters, NPCs, places), not game terms: with game terms in the list
 the same run also "fixed" Danish verb forms of English words. `names.txt` from the next section is a
 names-only list.

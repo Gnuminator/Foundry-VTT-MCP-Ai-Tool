@@ -8,7 +8,8 @@
  *   node scripts/live-roundtrip.mjs --help
  *
  * Needs the test environment running: `pwsh scripts/test-env/start.ps1`, then a GM
- * client joined to the world `ai-tool-test` (the passwordless "Claude" user) so the
+ * client joined to the world `ai-tool-test` (or `--world ai-tool-walkthrough`, see
+ * `scripts/test-worlds.mjs`; the passwordless "Claude" user) so the
  * bridge has a Foundry link. The script says so and exits with 2 when it cannot reach it.
  *
  * What it does (one pass/fail line per step; exit code 0 only when every step passed):
@@ -42,8 +43,16 @@
  * Exit codes: 0 all steps passed, 1 a step failed, 2 environment not running or not set up.
  */
 
+import { parseWorldArg, TEST_WORLDS } from './test-worlds.mjs';
+
 const TEST_DASHBOARD_PORT = 3100;
-const EXPECTED_WORLD = 'ai-tool-test';
+let EXPECTED_WORLD;
+try {
+  EXPECTED_WORLD = parseWorldArg(process.argv.slice(2));
+} catch (err) {
+  console.error(String(err.message ?? err));
+  process.exit(2);
+}
 const LIVE_BRIDGE_PORTS = [31414, 31415, 31416];
 const JOURNAL_NAME = 'AI Tool Roundtrip Test (safe to delete)';
 const PAGE_NAME = 'Roundtrip Handout';
@@ -54,7 +63,9 @@ const EXIT_ENV = 2;
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.log(`live-roundtrip: plan -> confirm -> verify -> undo -> verify gone, on the TEST world.
 
-Usage: node scripts/live-roundtrip.mjs [--help]
+Usage: node scripts/live-roundtrip.mjs [--world <id>] [--help]
+
+  --world <id>   the test world to run in: ${TEST_WORLDS.join(', ')} (default ai-tool-test)
 
 Only talks to the test dashboard on 127.0.0.1:${TEST_DASHBOARD_PORT} (COGM_BASE may name
 localhost, 127.0.0.1 or [::1], but only port ${TEST_DASHBOARD_PORT}). Never the live bridge (31414-31416).

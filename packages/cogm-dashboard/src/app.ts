@@ -29,6 +29,7 @@ import { PlayerViewSource } from './player/source.js';
 import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
 import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
 import { mountHandoutSeenRoute } from './handout-seen-route.js';
+import { mountHelpRoute } from './help-route.js';
 import { THEMES, ThemeStore, isTheme } from './theme.js';
 import * as path from 'path';
 
@@ -63,6 +64,8 @@ export interface DashboardClient {
   liveSweep?(request: Record<string, unknown>): Promise<unknown>;
   /** Ready for session (D3): read, turn on or turn back off tonight's switches; absent on fakes. */
   sessionSwitches?(action: SessionSwitchAction): Promise<unknown>;
+  /** The feature cards (I-064): every feature switch, read-only; absent on fakes. */
+  featureSwitches?(): Promise<unknown>;
   readonly isConnected?: boolean;
 }
 
@@ -73,6 +76,8 @@ export interface DashboardDeps {
   coGm: CoGm;
   /** `/open` options (O4): the P1 origin allowlist (default none) and a test clock. */
   openRoute?: OpenRouteOptions;
+  /** The built help (I-064); default dist/help.json next to the server. */
+  helpFile?: string | URL;
 }
 
 export interface Dashboard {
@@ -739,6 +744,42 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       throw new Error('The module did not answer with its switches.');
     return parsed;
   }
+
+  // In-app help (I-064): the GM guide pages, rendered at build time into dist/help.json.
+  // In dist (npm start) the file sits next to this module; in dev mode (tsx src/) it is ../dist.
+  mountHelpRoute(app, {
+    file: deps.helpFile ?? [
+      new URL('./help.json', import.meta.url),
+      new URL('../dist/help.json', import.meta.url),
+    ],
+    requireGm,
+  });
+
+  // The feature cards (I-064): every feature switch and its state, read-only. The bridge's
+  // control method feature_switches; switching stays in Foundry or Ready for session.
+  app.get('/api/features', requireGm, (_req: Request, res: Response) => {
+    if (typeof client.featureSwitches !== 'function') {
+      res.json({ features: null, writesAllowed: null, error: 'This bridge cannot list features.' });
+      return;
+    }
+    client
+      .featureSwitches()
+      .then(raw => {
+        const r = asRecord(raw);
+        res.json({
+          features: Array.isArray(r.features) ? r.features : null,
+          writesAllowed: typeof r.writesAllowed === 'boolean' ? r.writesAllowed : null,
+          error: null,
+        });
+      })
+      .catch((error: unknown) => {
+        res.json({
+          features: null,
+          writesAllowed: null,
+          error: error instanceof Error ? error.message : 'Could not read the features.',
+        });
+      });
+  });
 
   app.get('/api/session/switches', requireGm, (_req: Request, res: Response) => {
     moduleSwitches('get')

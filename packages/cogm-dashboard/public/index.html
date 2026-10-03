@@ -112,6 +112,9 @@
             Advanced ▾
           </button>
           <div class="advanced-menu" id="advanced-menu" hidden>
+            <button class="btn" data-track="dash.header.guides" data-help="README">
+              📖 GM guides
+            </button>
             <p class="menu-label">Panels</p>
             <button
               id="btn-preflight"
@@ -223,6 +226,19 @@
       <section class="moment" id="moment-before" aria-label="Before the session" hidden>
         <div class="slot" data-slot="preflight"></div>
         <div class="slot" data-slot="prep"></div>
+        <!-- Feature cards (I-064, D-081): what is on, and when to turn the rest on. -->
+        <section class="feature-cards-wrap" id="feature-cards-wrap" aria-label="Features">
+          <div class="feature-cards-head">
+            <h2>Features</h2>
+            <span class="pf-detail"
+              >What is on, and when to turn the rest on. Switch them in Foundry's module settings,
+              or all at once with Ready for session.</span
+            >
+          </div>
+          <div class="feature-cards" id="feature-cards">
+            <p class="empty">Loading…</p>
+          </div>
+        </section>
       </section>
       <!-- During: Foundry is the table; this screen watches, remembers and can take back. -->
       <section class="moment" id="moment-during" aria-label="During the session" hidden>
@@ -358,6 +374,15 @@
       <div class="pane-body" id="diag-body">
         <p class="empty">No module errors captured.</p>
       </div>
+    </section>
+
+    <!-- In-app help (I-064): a GM guide page, built into dist/help.json -->
+    <section class="pane overlay-pane help-pane" id="pane-help" hidden aria-label="Help">
+      <div class="pane-head">
+        <h2 id="help-title">Help</h2>
+        <button class="icon-btn overlay-close" title="Close" aria-label="Close help">✕</button>
+      </div>
+      <div class="pane-body help-body" id="help-body"></div>
     </section>
 
     <!-- GM Tool Runner drawer -->

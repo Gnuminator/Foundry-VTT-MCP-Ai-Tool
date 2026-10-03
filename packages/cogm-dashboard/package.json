@@ -7,8 +7,8 @@
   "private": true,
   "main": "dist/server.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "dev": "node scripts/build-help.mjs --soft && tsx watch src/server.ts",
+    "build": "tsc && node scripts/build-help.mjs",
     "start": "node dist/server.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -25,6 +25,7 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^20.0.0",
+    "marked": "^15.0.12",
     "tsx": "^4.7.0",
     "typescript": "^5.0.0"
   },

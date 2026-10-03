@@ -206,6 +206,14 @@ export class McpControlClient extends EventEmitter {
   }
 
   /**
+   * The feature cards (I-064): every feature switch with its state and "Allow Write
+   * Operations". Read-only; a control method, never an MCP tool.
+   */
+  async featureSwitches(): Promise<unknown> {
+    return this.send('feature_switches');
+  }
+
+  /**
    * A player opened a handout on /player (I-039): the bridge keeps the first
    * open per player. An old backend answers "Unknown method" (a ChannelError).
    */

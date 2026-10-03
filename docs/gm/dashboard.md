@@ -157,6 +157,21 @@ first boss fight. It shows:
 
 The player page never shows any of this.
 
+### Features (Before)
+
+At the bottom of the **Before** view: one card per feature, the ones still off first. Each card says
+what the feature does, whether it is on, and **when to turn it on** (for example Boss prompts:
+"before the first boss fight"). **Read more** opens its section of
+[Features and when to turn them on](features.md). The cards only show; you switch features in
+Foundry's module settings, or all at once with **Ready for session**.
+
+### Help: the "?" on each panel
+
+Every panel has a small **?** next to its title. It opens this guide at that panel's section, in a
+side panel over the dashboard; links inside it open the other guide pages there too. **📖 GM
+guides** in the **Advanced** menu opens the list of guides. The help is built into the dashboard,
+so it works without internet and always matches the installed version.
+
 ### Tonight's stats (After)
 
 The top of the **After** view, for the session that just ended:

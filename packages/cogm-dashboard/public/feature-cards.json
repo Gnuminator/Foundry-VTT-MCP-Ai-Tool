@@ -1,0 +1,74 @@
+[
+  {
+    "id": "handouts",
+    "title": "Handouts",
+    "what": "Reveal journal pages to the players, one after another, and see who has read them.",
+    "when": "Before the first session with a letter, a map or a picture.",
+    "state": { "feature": "handouts" },
+    "guide": "handouts"
+  },
+  {
+    "id": "tarokka",
+    "title": "Tarokka",
+    "what": "Save a card reading, link cards to journals and publish reveal pages.",
+    "when": "Before the first card reading.",
+    "state": { "feature": "tarokka" },
+    "guide": "tarokka"
+  },
+  {
+    "id": "party",
+    "title": "Party",
+    "what": "The party's travel pace, adding the party to combat, a rest request.",
+    "when": "When the party travels or rests for the first time.",
+    "state": { "feature": "party" },
+    "guide": "party"
+  },
+  {
+    "id": "live-play",
+    "title": "Live play",
+    "what": "Damage, healing and conditions on several creatures at once, with Undo.",
+    "when": "It starts on. Leave it on.",
+    "state": { "feature": "live-play" },
+    "guide": "live-play"
+  },
+  {
+    "id": "live-play-auto",
+    "title": "Live play without confirming",
+    "what": "Damage and conditions that Claude plans apply at once, still with Undo.",
+    "when": "When confirming every hit Claude plans gets tiring in long fights.",
+    "state": { "autoApply": "live-play" },
+    "guide": "live-play-without-confirming"
+  },
+  {
+    "id": "boss",
+    "title": "Boss prompts",
+    "what": "Legendary action and lair reminders in the turn-order strip. Dashboard only.",
+    "when": "Before the first boss fight.",
+    "state": { "local": "boss" },
+    "guide": "boss-prompts"
+  },
+  {
+    "id": "ownership",
+    "title": "Ownership",
+    "what": "Change which players own or can see an actor.",
+    "when": "It starts on. You use it for a new character, a familiar or a hireling.",
+    "state": { "feature": "ownership" },
+    "guide": "ownership"
+  },
+  {
+    "id": "obsidian-mirror",
+    "title": "Obsidian mirror",
+    "what": "Mirror chosen actors, scenes and journals into your Obsidian vault.",
+    "when": "When you want Foundry documents as notes in Obsidian.",
+    "state": { "feature": "obsidian-mirror" },
+    "guide": "obsidian-mirror"
+  },
+  {
+    "id": "writes",
+    "title": "Allow Write Operations",
+    "what": "The tool's master switch. Off, it only reads.",
+    "when": "It starts on. Turn it off only to make the tool watch-only.",
+    "state": { "writes": true },
+    "guide": "allow-write-operations"
+  }
+]

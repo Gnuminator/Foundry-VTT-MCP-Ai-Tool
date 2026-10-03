@@ -552,6 +552,7 @@ async function setSessionSwitches(action) {
   } finally {
     sessionSwitchesBusy = false;
     renderReady();
+    void loadFeatureCards();
     // The pre-flight row "Ready for session" follows.
     if (preflightResult) void runPreflight({ quiet: true });
   }
@@ -606,6 +607,7 @@ function setBossPrompts(on) {
     localStorage.setItem(BOSS_PROMPTS_KEY, on ? 'on' : 'off');
   } catch {}
   renderCombat(lastCombat);
+  if (featureCardDefs) void loadFeatureCards();
 }
 function pips(counter, cls) {
   const filled = '◆'.repeat(counter.remaining);
@@ -3039,6 +3041,137 @@ document.addEventListener('keydown', e => {
 });
 
 // ---------------------------------------------------------------------------
+// In-app help (I-064): the GM guide pages in a side panel. GET /api/help/:page serves a page
+// rendered at build time (scripts/build-help.mjs); any element with data-help="page#anchor"
+// opens it. Each panel gets a small "?" from help-links.json.
+// ---------------------------------------------------------------------------
+const helpPane = $('pane-help');
+const helpBody = $('help-body');
+const helpTitle = $('help-title');
+const helpPages = new Map();
+
+async function openHelp(target) {
+  const [page, anchor = ''] = String(target).split('#');
+  helpPane.hidden = false;
+  usage.trackView('dash.help.view');
+  if (!helpPages.has(page)) {
+    helpTitle.textContent = 'Help';
+    helpBody.innerHTML = '<p class="empty">Loading…</p>';
+    try {
+      const res = await fetch(`/api/help/${encodeURIComponent(page)}`, { headers: authHeaders() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      helpPages.set(page, data);
+    } catch (err) {
+      helpBody.innerHTML = `<p class="empty">Couldn't load the help: ${escapeHtml(String(err.message || err))}</p>`;
+      return;
+    }
+  }
+  const data = helpPages.get(page);
+  helpTitle.textContent = data.title;
+  // Our own guide pages, rendered at build time with raw HTML and images left out.
+  helpBody.innerHTML = data.html;
+  const section = anchor ? helpBody.querySelector(`[id="${CSS.escape(anchor)}"]`) : null;
+  if (section) section.scrollIntoView({ block: 'start' });
+  else helpBody.scrollTop = 0;
+}
+
+document.addEventListener('click', e => {
+  const link = e.target.closest('[data-help]');
+  if (!link) return;
+  e.preventDefault();
+  void openHelp(link.dataset.help);
+});
+helpPane.querySelector('.overlay-close').addEventListener('click', () => {
+  helpPane.hidden = true;
+  usage.endView('dash.help.view');
+});
+
+void fetch('help-links.json')
+  .then(res => res.json())
+  .then(links => {
+    for (const { panel, help } of links) {
+      const heading = document.querySelector(`${panel} h2, ${panel} h3`);
+      if (!heading) continue;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'help-q';
+      btn.dataset.help = help;
+      btn.dataset.track = 'dash.help.panel';
+      btn.title = 'What is this? Opens the guide';
+      btn.setAttribute('aria-label', 'Help for this panel');
+      btn.textContent = '?';
+      heading.appendChild(btn);
+    }
+  })
+  .catch(() => undefined);
+
+// ---------------------------------------------------------------------------
+// Feature cards (I-064, D-081): every feature with its state, what it does and when to turn it
+// on, the ones still off first. The text is feature-cards.json (kept in step with
+// docs/gm/features.md by a test); the state comes from GET /api/features. Read-only: switching
+// stays in Foundry's module settings or Ready for session.
+// ---------------------------------------------------------------------------
+const featureCardsEl = $('feature-cards');
+let featureCardDefs = null;
+
+/** On, off or null (unknown) for one card. */
+function featureState(def, data) {
+  const s = def.state || {};
+  if (s.local === 'boss') return !!bossPrompts;
+  if (!data) return null;
+  if (s.writes) return typeof data.writesAllowed === 'boolean' ? data.writesAllowed : null;
+  const list = Array.isArray(data.features) ? data.features : null;
+  if (!list) return null;
+  if (s.autoApply) {
+    const f = list.find(x => x.id === s.autoApply);
+    return f && typeof f.autoApply === 'boolean' ? f.autoApply : null;
+  }
+  const f = list.find(x => x.id === s.feature);
+  return f ? !!f.enabled : null;
+}
+
+function featureCard(def, on) {
+  const pill = on === null ? 'Unknown' : on ? 'On' : 'Off';
+  return `<div class="feature-card ${on ? 'is-on' : ''}">
+      <div class="feature-card-head">
+        <h3>${escapeHtml(def.title)}</h3>
+        <span class="feature-pill ${on === null ? '' : on ? 'on' : 'off'}">${pill}</span>
+      </div>
+      <p>${escapeHtml(def.what)}</p>
+      <p class="feature-when"><strong>Turn it on when:</strong> ${escapeHtml(def.when)}</p>
+      <button type="button" class="link-btn" data-track="dash.features.read-more" data-help="features#${escapeHtml(def.guide)}">Read more</button>
+    </div>`;
+}
+
+async function loadFeatureCards() {
+  let data = null;
+  try {
+    if (!featureCardDefs) {
+      const res = await fetch('feature-cards.json');
+      featureCardDefs = await res.json();
+    }
+    const res = await fetch('/api/features', { headers: authHeaders() });
+    data = await res.json().catch(() => null);
+  } catch {
+    // Show the cards without states.
+  }
+  if (!Array.isArray(featureCardDefs)) {
+    featureCardsEl.innerHTML = '<p class="empty">Could not load the feature list.</p>';
+    return;
+  }
+  const cards = featureCardDefs.map(def => ({ def, on: featureState(def, data) }));
+  const off = cards.filter(c => c.on !== true);
+  const on = cards.filter(c => c.on === true);
+  featureCardsEl.innerHTML = [
+    off.length ? `<h4 class="feature-group">Not on yet</h4>` : '',
+    ...off.map(c => featureCard(c.def, c.on)),
+    on.length ? `<h4 class="feature-group">On</h4>` : '',
+    ...on.map(c => featureCard(c.def, c.on)),
+  ].join('');
+}
+
+// ---------------------------------------------------------------------------
 // Tonight's stats (the After view, from the round 3 mockup): rolls, most damage, the
 // highest roll and who went down, for the latest play session (get-play-stats). GM only.
 // ---------------------------------------------------------------------------
@@ -3314,6 +3447,7 @@ function setMoment(next, { pinned = false } = {}) {
   }
   for (const m of MOMENTS) $(`moment-${m}`).hidden = m !== next;
   if (next === 'after' && changed) void loadAfterStats();
+  if (next === 'before' && changed) void loadFeatureCards();
   for (const tab of momentTabs)
     tab.setAttribute('aria-pressed', String(tab.dataset.moment === next));
   // A drawer that became docked no longer needs the backdrop.

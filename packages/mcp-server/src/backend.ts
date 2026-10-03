@@ -75,6 +75,11 @@ import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/i
 import { EventPump, eventPumpSettings } from './event-pump.js';
 import { PlayLogPump, playLogSettings } from './play-log-pump.js';
 import { UsageLog, handleRecordUsage } from './usage-log.js';
+import {
+  handleFeatureSwitches,
+  handleSessionSwitches,
+  type FoundryQuery,
+} from './session-control.js';
 import { UsagePump } from './usage-pump.js';
 import { ObsidianAutoRender, obsidianAutoRenderSettings } from './obsidian/auto-render.js';
 import { ObsidianMirrorPump } from './obsidian/mirror-pump.js';
@@ -621,25 +626,20 @@ async function startBackend(): Promise<void> {
             continue;
           }
 
-          // Ready for session (D3, PB-17): the dashboard's GM route reads, turns on (`ready`) or
-          // turns back off (`end`) tonight's switches in the module. Not a tool, never listed to
-          // Claude, and the stdio wrapper never forwards it, so Claude cannot switch on its own
-          // writes.
-          if (msg.method === 'session_switches') {
+          // The dashboard's switch views (session-control.ts): Ready for session (D3, PB-17) reads,
+          // turns on or turns back off tonight's switches; the feature cards (I-064) read every
+          // feature switch. Not tools, never listed to Claude, and the stdio wrapper never forwards
+          // them, so Claude cannot switch on its own writes.
+          if (msg.method === 'session_switches' || msg.method === 'feature_switches') {
+            const query: FoundryQuery = (method, data) => foundryClient.query(method, data ?? {});
             try {
-              const params = (msg.params ?? {}) as Record<string, unknown>;
-              const action = ['get', 'ready', 'end'].includes(String(params.action))
-                ? String(params.action)
-                : 'get';
-              const result: unknown = await foundryClient.query(
-                'foundry-mcp-bridge.sessionSwitches',
-                {
-                  action,
-                }
-              );
+              const result: unknown =
+                msg.method === 'session_switches'
+                  ? await handleSessionSwitches(query, msg.params)
+                  : await handleFeatureSwitches(query);
               socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
             } catch (e: unknown) {
-              const message = e instanceof Error ? e.message : 'Session switches failed';
+              const message = e instanceof Error ? e.message : 'Switches failed';
               socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
             }
 

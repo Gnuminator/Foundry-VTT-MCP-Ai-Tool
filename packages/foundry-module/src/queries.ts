@@ -29,6 +29,7 @@ import {
 } from './library-index.js';
 import { getPreflightScan, PREFLIGHT_QUERY } from './preflight-scan.js';
 import { getPartyState, PARTY_STATE_QUERY } from './party-scan.js';
+import { PARTY_PLACE_QUERY, planPartyPlacement } from './party-place.js';
 import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
 import { LIVE_PLAN_QUERY, planLiveChange } from './live-plan.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
@@ -206,6 +207,12 @@ export class QueryHandlers {
     // request cards. GM client only.
     handlers.set(`${modulePrefix}.${PARTY_STATE_QUERY}`, () =>
       this.withGmGate('Failed to read the party', () => Promise.resolve(getPartyState()))
+    );
+
+    // Place the party (I-097): where the members' tokens would go on the viewed scene. Read only;
+    // plan-party-change's `place` turns it into a guarded plan of token creates. GM client only.
+    handlers.set(`${modulePrefix}.${PARTY_PLACE_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to place the party', () => planPartyPlacement(data))
     );
 
     // Live play plans (F5, D-082, read-only): damage, healing, conditions and resources

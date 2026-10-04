@@ -408,6 +408,13 @@ choose **Set as Primary Party**. With more than one group, a list at the top pic
   at slow pace anyway.
 - **Combat**: adds the party's tokens on the current scene to the encounter, or starts an
   encounter with them when there is none.
+- **Place the party here**: scroll Foundry's map to the spot first. The button puts every member
+  without a token on the scene you are looking at next to each other on the nearest free
+  squares, around the centre of your view (each token at its own size, never on top of another
+  token, not behind a wall). Members already on the scene stay where they are. Undo removes the
+  new tokens again, also after you moved them; if you already deleted one of them by hand, Undo
+  refuses, so delete the others by hand too. Claude can also place them at a token, a map note or
+  a square ("put the party at the inn door").
 - **Rest**: posts dnd5e's short or long rest card to chat. Each player clicks it to rest their
   own character, the same card Foundry's party sheet posts.
 

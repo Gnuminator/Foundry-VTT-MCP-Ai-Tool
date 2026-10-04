@@ -2598,7 +2598,9 @@ function partyCombatSection(g) {
   return `<p class="pf-detail">${escapeHtml(where)}</p>
     <div class="party-buttons"><button type="button" class="btn btn-small" data-track="dash.party.add-to-combat" data-party-combat${
       toAdd === 0 ? ' disabled' : ''
-    }>${escapeHtml(label)}</button></div>`;
+    }>${escapeHtml(label)}</button></div>
+    <p class="pf-detail">Puts everyone without a token on the scene you are looking at in Foundry next to each other, around the centre of your view. Undo removes them again.</p>
+    <div class="party-buttons"><button type="button" class="btn btn-small" data-track="dash.party.place" data-party-place>Place the party here</button></div>`;
 }
 function partyRestSection(g) {
   const cards = g.restCards || {};
@@ -2671,6 +2673,10 @@ async function onPartyClick(e) {
   }
   if (e.target.closest('[data-party-combat]')) {
     await partyAction({ action: 'add-to-combat' });
+    return;
+  }
+  if (e.target.closest('[data-party-place]')) {
+    await partyAction({ action: 'place' });
     return;
   }
   const rest = e.target.closest('[data-party-rest]');

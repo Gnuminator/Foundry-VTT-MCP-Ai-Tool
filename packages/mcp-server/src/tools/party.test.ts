@@ -220,3 +220,87 @@ describe('plan-party-change', () => {
     await expect(tools.handlePlanPartyChange({ action: 'dance' })).rejects.toThrow();
   });
 });
+
+describe('plan-party-change: place (I-097)', () => {
+  const placement = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    scene: { sceneId: 's2', uuid: 'Scene.s2', name: 'Vallaki' },
+    anchor: { x: 1050, y: 950, label: 'around the centre of your view' },
+    tokens: [
+      { actorId: 'a1', name: 'Ana', data: { name: 'Ana', actorId: 'a1', x: 1000, y: 900 } },
+      { actorId: 'b1', name: 'Bo', data: { name: 'Bo', actorId: 'b1', x: 1100, y: 900 } },
+    ],
+    skipped: [],
+    warnings: [],
+    ...extra,
+  });
+
+  function answer(place: Record<string, unknown>): void {
+    query.mockImplementation((method: string) =>
+      Promise.resolve(method === 'foundry-mcp-bridge.planPartyPlacement' ? place : state())
+    );
+  }
+
+  it('asks the module where the tokens go and plans one token create each', async () => {
+    answer(placement());
+    await tools.handlePlanPartyChange({ action: 'place', hidden: true });
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.planPartyPlacement', {
+      groupId: 'g1',
+      hidden: true,
+    });
+    expect(createPlan).toHaveBeenCalledWith({
+      feature: 'party',
+      summary: 'Place Ana, Bo on "Vallaki" around the centre of your view',
+      ops: [
+        {
+          kind: 'create',
+          documentName: 'Token',
+          parentUuid: 'Scene.s2',
+          data: { name: 'Ana', actorId: 'a1', x: 1000, y: 900 },
+        },
+        {
+          kind: 'create',
+          documentName: 'Token',
+          parentUuid: 'Scene.s2',
+          data: { name: 'Bo', actorId: 'b1', x: 1100, y: 900 },
+        },
+      ],
+    });
+  });
+
+  it('passes a named spot on, and names who was left out and why', async () => {
+    answer(
+      placement({
+        anchor: { x: 1550, y: 450, label: 'at the note "Inn door"' },
+        tokens: [{ actorId: 'a1', name: 'Ana', data: {} }],
+        skipped: [{ name: 'Bo', reason: 'already on this scene' }],
+        warnings: ["Walls were not checked (Foundry's map is not drawn)"],
+      })
+    );
+    await tools.handlePlanPartyChange({ action: 'place', at: 'note', target: 'Inn door' });
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.planPartyPlacement', {
+      groupId: 'g1',
+      at: 'note',
+      target: 'Inn door',
+    });
+    const input = createPlan.mock.calls[0]?.[0] as { summary: string };
+    expect(input.summary).toBe(
+      'Place Ana on "Vallaki" at the note "Inn door"; not placed: Bo (already on this scene). Walls were not checked (Foundry\'s map is not drawn)'
+    );
+  });
+
+  it('refuses when nobody can be placed, with the reasons', async () => {
+    answer(placement({ tokens: [], skipped: [{ name: 'Ana', reason: 'already on this scene' }] }));
+    await expect(tools.handlePlanPartyChange({ action: 'place' })).rejects.toThrow(
+      'Nobody to place from The Party on "Vallaki" (Ana: already on this scene)'
+    );
+    expect(createPlan).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unknown spot kind before asking Foundry', async () => {
+    await expect(tools.handlePlanPartyChange({ action: 'place', at: 'moon' })).rejects.toThrow();
+    expect(query).not.toHaveBeenCalledWith(
+      'foundry-mcp-bridge.planPartyPlacement',
+      expect.anything()
+    );
+  });
+});

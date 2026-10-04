@@ -1,10 +1,14 @@
 import {
   PARTY_FEATURE_ID,
+  PARTY_PLACE_ANCHORS,
+  PARTY_PLACE_QUERY,
   PARTY_REST_TYPES,
   PARTY_STATE_QUERY,
+  freeText,
   toolRef,
   type GuardedOp,
   type PartyGroup,
+  type PartyPlacement,
   type PartyState,
 } from '@gnuminator/shared';
 import { z } from 'zod';
@@ -29,13 +33,18 @@ export interface PartyToolsOptions {
   logger: Logger;
 }
 
-const PARTY_ACTIONS = ['pace', 'add-to-combat', 'rest-request'] as const;
+const PARTY_ACTIONS = ['pace', 'add-to-combat', 'rest-request', 'place'] as const;
 
 const planParams = z.object({
   action: z.enum(PARTY_ACTIONS),
   groupId: z.string().min(1).optional(),
   pace: z.string().min(1).optional(),
   rest: z.enum(PARTY_REST_TYPES).optional(),
+  at: z.enum(PARTY_PLACE_ANCHORS).optional(),
+  target: z.string().min(1).optional(),
+  gridX: z.number().int().optional(),
+  gridY: z.number().int().optional(),
+  hidden: z.boolean().optional(),
 });
 
 function unwrap<T>(response: unknown, what: string): T {
@@ -63,6 +72,10 @@ function names(list: string[]): string {
  * - `rest-request`: creates dnd5e's rest request chat card (built by the
  *   module); each player clicks it to rest. Undo removes the card, and only
  *   while nobody has used it (a used card reports a conflict).
+ * - `place` (I-097): creates tokens for the members without one on the scene the GM is
+ *   viewing, on the free squares nearest a spot (the module's `planPartyPlacement` works them
+ *   out). Undo deletes those tokens, also after they were moved (Foundry 14 tokens keep no
+ *   modified time); it refuses when one of them was already deleted by hand.
  */
 export class PartyTools {
   private readonly options: PartyToolsOptions;
@@ -84,14 +97,14 @@ export class PartyTools {
       {
         name: 'plan-party-change',
         description:
-          'Plan one party action; nothing changes until apply-planned-change (the GM confirms, and the "AI Tool: Party (writes)" switch must be on). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members\' tokens on the current scene to the encounter (starts one when there is none). "rest-request": post dnd5e\'s short or long rest request card ("rest"), which each player clicks to rest. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (a rest request card only while nobody has rested from it).',
+          'Plan one party action; nothing changes until apply-planned-change (the GM confirms, and the "AI Tool: Party (writes)" switch must be on). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members\' tokens on the current scene to the encounter (starts one when there is none). "rest-request": post dnd5e\'s short or long rest request card ("rest"), which each player clicks to rest. "place": put the members who have no token on the scene the GM is viewing onto the free squares nearest a spot: the centre of the GM\'s view (default), a token or map note ("at" token or note, "target" its name) or a square ("at" grid, gridX, gridY); "hidden" for a surprise entrance. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (a rest request card only while nobody has rested from it).',
         inputSchema: {
           type: 'object',
           properties: {
             action: {
               type: 'string',
               enum: [...PARTY_ACTIONS],
-              description: 'What to plan: pace, add-to-combat or rest-request.',
+              description: 'What to plan: pace, add-to-combat, rest-request or place.',
             },
             groupId: {
               type: 'string',
@@ -108,6 +121,23 @@ export class PartyTools {
               enum: [...PARTY_REST_TYPES],
               description: 'For action "rest-request": short or long (default long).',
             },
+            at: {
+              type: 'string',
+              enum: [...PARTY_PLACE_ANCHORS],
+              description:
+                'For action "place": where (default view: the centre of the GM\'s view).',
+            },
+            target: {
+              type: 'string',
+              description:
+                'For "place" at token or note: the token\'s name or the map note\'s label.',
+              ...freeText(
+                'A token name or a map note label on the viewed scene, matched in Foundry'
+              ),
+            },
+            gridX: { type: 'integer', description: 'For "place" at grid: the column.' },
+            gridY: { type: 'integer', description: 'For "place" at grid: the row.' },
+            hidden: { type: 'boolean', description: 'For "place": the new tokens start hidden.' },
           },
           required: ['action'],
         },
@@ -123,6 +153,24 @@ export class PartyTools {
     return unwrap<PartyState>(response, 'Could not read the party');
   }
 
+  private async placeChange(
+    group: PartyGroup,
+    params: z.infer<typeof planParams>
+  ): Promise<{ summary: string; ops: GuardedOp[] }> {
+    const response: unknown = await this.options.foundryClient.query(
+      `foundry-mcp-bridge.${PARTY_PLACE_QUERY}`,
+      {
+        groupId: group.actorId,
+        ...(params.at ? { at: params.at } : {}),
+        ...(params.target ? { target: params.target } : {}),
+        ...(params.gridX !== undefined ? { gridX: params.gridX } : {}),
+        ...(params.gridY !== undefined ? { gridY: params.gridY } : {}),
+        ...(params.hidden !== undefined ? { hidden: params.hidden } : {}),
+      }
+    );
+    return placeOps(group, unwrap<PartyPlacement>(response, 'Could not place the party'));
+  }
+
   async handleGetParty(_args: unknown): Promise<PartyState> {
     return this.readState();
   }
@@ -132,7 +180,10 @@ export class PartyTools {
     try {
       const state = await this.readState();
       const group = pickGroup(state, params.groupId);
-      const { summary, ops } = buildChange(state, group, params);
+      const { summary, ops } =
+        params.action === 'place'
+          ? await this.placeChange(group, params)
+          : buildChange(state, group, params);
       return await this.options.guardedWrites.createPlan({
         feature: PARTY_FEATURE_ID,
         summary,
@@ -146,6 +197,34 @@ export class PartyTools {
       throw error;
     }
   }
+}
+
+/** One token create per member the module found room for (I-097). */
+function placeOps(
+  group: PartyGroup,
+  placement: PartyPlacement
+): { summary: string; ops: GuardedOp[] } {
+  const scene = placement.scene;
+  if (placement.tokens.length === 0) {
+    const why = placement.skipped.map(s => `${s.name}: ${s.reason}`).join('; ');
+    throw new Error(
+      `Nobody to place from ${group.name} on "${scene.name}"${why ? ` (${why})` : ''}`
+    );
+  }
+  const who = names(placement.tokens.map(t => t.name));
+  const left = placement.skipped.length
+    ? `; not placed: ${placement.skipped.map(s => `${s.name} (${s.reason})`).join(', ')}`
+    : '';
+  const notes = placement.warnings.length ? `. ${placement.warnings.join('. ')}` : '';
+  return {
+    summary: `Place ${who} on "${scene.name}" ${placement.anchor.label}${left}${notes}`,
+    ops: placement.tokens.map(token => ({
+      kind: 'create' as const,
+      documentName: 'Token',
+      parentUuid: scene.uuid,
+      data: token.data,
+    })),
+  };
 }
 
 function pickGroup(state: PartyState, groupId: string | undefined): PartyGroup {
@@ -176,6 +255,8 @@ function buildChange(
       return combatChange(state, group);
     case 'rest-request':
       return restChange(group, params.rest ?? 'long');
+    case 'place':
+      throw new Error('Action "place" is planned with the module (placeChange)');
   }
 }
 

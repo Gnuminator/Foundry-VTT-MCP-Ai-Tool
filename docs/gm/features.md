@@ -57,8 +57,9 @@ GM Actions. **End session** turns off again what it turned on. See
 
 ## Party
 
-- **What it does:** the party panel: the party's travel pace, adding the party to combat, and a
-  rest request every player can answer from their own character.
+- **What it does:** the party panel: the party's travel pace, placing the party's tokens on the
+  scene you are looking at, adding the party to combat, and a rest request every player can
+  answer from their own character.
 - **Starts:** off. Setting "AI Tool: Party (writes)". Ready for session turns it on.
 - **Turn it on when:** the party travels or rests for the first time. It needs a Group actor set
   as the primary party in Foundry.

@@ -9,7 +9,9 @@ import type { AuthConfig } from './config.js';
  * `auth.splitEnabled` is false the dashboard is single-user GM (legacy/default).
  *
  * Resolution order when the split is active:
- *   1. Cloudflare Access email header ∈ GM allow-list   → 'gm'
+ *   1. Cloudflare Access email ∈ GM allow-list           → 'gm' (only an email from a
+ *      verified Access token, set on the request by the dashboard's access middleware;
+ *      the plain email header is never read, I-022)
  *   2. GM token (header / query / cookie) matches        → 'gm'
  *   3. player token required and matches                 → 'player'
  *   4. player token NOT required                         → 'player' (read-only)
@@ -24,6 +26,8 @@ export type Role = 'gm' | 'player';
 export interface AuthRequest {
   headers: Record<string, string | string[] | undefined>;
   query?: Record<string, unknown>;
+  /** The email of a verified Cloudflare Access token (access-jwt.ts), if any. */
+  accessEmail?: string;
 }
 
 const GM_TOKEN_HEADER = 'x-cogm-token';
@@ -69,9 +73,9 @@ export function resolveRole(req: AuthRequest, auth: AuthConfig): Role | null {
   // Legacy single-user mode: no split configured → everyone is the GM.
   if (!auth.splitEnabled) return 'gm';
 
-  // 1. Cloudflare Access identity (header injected by the Access gate in front).
-  if (auth.gmEmails.length > 0) {
-    const email = headerValue(req, auth.cfAccessEmailHeader)?.toLowerCase();
+  // 1. Cloudflare Access identity: only a verified token's email (I-022).
+  if (auth.gmEmails.length > 0 && auth.access) {
+    const email = req.accessEmail?.toLowerCase();
     if (email && auth.gmEmails.includes(email)) return 'gm';
   }
 

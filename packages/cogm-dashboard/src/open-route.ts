@@ -153,7 +153,8 @@ export function crossSiteRefusal(
 function authStatus(req: Request, auth: AuthConfig): 200 | 401 | 403 {
   const headers: Record<string, string | string[] | undefined> = { ...req.headers };
   delete headers.cookie;
-  const view: AuthRequest = { headers, query: {} };
+  const accessEmail = (req as Request & AuthRequest).accessEmail;
+  const view: AuthRequest = { headers, query: {}, ...(accessEmail ? { accessEmail } : {}) };
   const role = resolveRole(view, auth);
   if (isGm(role)) return 200;
   return role === 'player' && auth.playerToken !== '' ? 403 : 401;

@@ -11,7 +11,8 @@ import { CommentaryEngine } from './ai/commentary.js';
 import { ErrorCommentaryEngine } from './ai/error-commentary.js';
 import { buildAskUserMessage } from './ai/prompt.js';
 import { SseHub } from './sse.js';
-import { resolveRole, isGm } from './auth.js';
+import { AccessJwtVerifier, accessTokenFrom } from './access-jwt.js';
+import { resolveRole, isGm, type AuthRequest } from './auth.js';
 import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
 import { jsonErrorHandler } from './error-handler.js';
 import { gmOnly } from './redact.js';
@@ -85,6 +86,8 @@ export interface DashboardDeps {
   openRoute?: OpenRouteOptions;
   /** The built help (I-064); default dist/help.json next to the server. */
   helpFile?: string | URL;
+  /** Fetches Cloudflare Access's public keys (I-022); default the global fetch. Tests stub it. */
+  accessFetch?: ConstructorParameters<typeof AccessJwtVerifier>[1];
 }
 
 export interface Dashboard {
@@ -447,6 +450,16 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   // --- HTTP / SSE ------------------------------------------------------------
   const app = express();
+  // Cloudflare Access (I-022): a verified token's email, set on the request before any route
+  // resolves a role. Without the config, or without a valid token, nothing is set.
+  const accessVerifier = config.auth.access
+    ? new AccessJwtVerifier(config.auth.access, deps.accessFetch)
+    : null;
+  if (config.auth.gmEmails.length > 0 && !accessVerifier) {
+    logger.warn(
+      'GM_EMAILS is set but CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD are not: email logins are off'
+    );
+  }
   // First, before every route and static file: refuse any Host the dashboard does not know
   // (DNS rebinding; host-allowlist.ts). Both modes; with the split on it is defense in depth.
   app.use(
@@ -456,6 +469,22 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       logger: logger.child('host'),
     })
   );
+  if (accessVerifier) {
+    app.use((req: Request, _res: Response, next: () => void) => {
+      const token = accessTokenFrom(req.headers);
+      if (!token) {
+        next();
+        return;
+      }
+      accessVerifier.verify(token).then(
+        identity => {
+          if (identity) (req as Request & AuthRequest).accessEmail = identity.email;
+          next();
+        },
+        () => next()
+      );
+    });
+  }
   // "Open in Foundry" (O4, open-route.ts). Before the JSON parser: its POST parses its own
   // body after its guards.
   mountOpenRoute(app, { ...deps.openRoute, config, client, logger: logger.child('open') });

@@ -31,7 +31,7 @@ deploy/
 │   │
 │   └── access-policy.md                 ← How to create the Cloudflare Access application
 │                                          and email allow-list, and how it maps to
-│                                          GM_EMAILS / CF_ACCESS_EMAIL_HEADER in the dashboard.
+│                                          GM_EMAILS / CF_ACCESS_TEAM_DOMAIN / CF_ACCESS_AUD.
 │
 └── windows/
     ├── install-service.md               ← Run the standalone bridge as a Windows service

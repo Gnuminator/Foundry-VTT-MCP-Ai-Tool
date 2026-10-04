@@ -64,7 +64,9 @@ with secret sections and unidentified items' true names left out.
 - **Theme** (in the header): the look for this world, picked by the GM and remembered per world.
   The players' page follows it live. **Neutral** is the Foundry AI Tool brand and suits any
   campaign. **The Veil** is the Curse of Strahd theme: grey-green mist, bone text, one warm
-  lamplight for the main action, no red (danger is shown with words on an ink ground).
+  lamplight for the main action, no red (danger is shown with words on an ink ground). The
+  Obsidian plugin follows it too (`GET /api/theme`), and its own Theme setting changes it
+  (`POST /api/control` with `set-theme`).
 - **Mist** (shown with The Veil, on the dashboard and in the players' page footer): each screen
   picks its own. **Calm** (the default) is still mist, **Drifting** moves slowly, **Clear air**
   removes it. Drifting stops when the device asks for reduced motion.

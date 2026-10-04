@@ -10,15 +10,22 @@
  *   the GM confirms it (D-067: Obsidian never applies a change itself). **Queue / unqueue** only
  *   stage the page in the GM's reveal queue; the reveal still happens in the dashboard.
  *
+ * - **Theme** (I-099): Neutral or The Veil for the whole vault, one theme per world shared with the
+ *   dashboard (a pick here sets the dashboard's, and the dashboard's reaches Obsidian within 30
+ *   seconds); Off turns the styling off in this Obsidian only. The CSS is the plugin's
+ *   `styles.css` (built from `theme/obsidian-theme.css`); this file only sets classes.
+ *
  * The GM token stays in Obsidian's secret storage; the plugin settings hold only its name.
  */
 import {
+  MarkdownView,
   Notice,
   Plugin,
   PluginSettingTab,
   SecretComponent,
   Setting,
   SuggestModal,
+  debounce,
   requestUrl,
   type App,
   type TFile,
@@ -40,15 +47,36 @@ import {
   statusText,
   type FoundryNote,
 } from './note.js';
+import {
+  BODY_CLASSES,
+  NOTE_CLASS_PREFIX,
+  THEMES,
+  THEME_LABELS,
+  barHeights,
+  bodyClasses,
+  isD20Header,
+  isTheme,
+  noteClasses,
+  statCards,
+  type ThemeId,
+} from './theme.js';
+import { pickTheme, sameThemeState, syncTheme, type ThemeState } from './theme-sync.js';
 
-interface PluginSettings {
+/** The plugin settings, plus the theme state (I-099, theme-sync.ts). */
+interface PluginSettings extends ThemeState {
   /** The co-GM dashboard, e.g. http://localhost:3000 (the bridge's FOUNDRY_AI_OPEN_BASE). */
   dashboardUrl: string;
   /** Name of the secret in Obsidian's secret storage that holds the GM token (may be empty). */
   tokenSecret: string;
 }
 
-const DEFAULT_SETTINGS: PluginSettings = { dashboardUrl: 'http://localhost:3000', tokenSecret: '' };
+const DEFAULT_SETTINGS: PluginSettings = {
+  dashboardUrl: 'http://localhost:3000',
+  tokenSecret: '',
+  theme: 'neutral',
+  themeEnabled: true,
+  pendingTheme: null,
+};
 
 /** Reveal state older than this is fetched again. */
 const REVEAL_CACHE_MS = 20_000;
@@ -103,6 +131,8 @@ export default class FoundryAiToolPlugin extends Plugin {
   private client!: DashboardClient;
   private statusEl!: HTMLElement;
   private revealCache: { at: number; state: RevealState } | null = null;
+  /** The documents that carry the theme classes: the main window's, plus any popouts. */
+  private readonly docs = new Set<Document>([document]);
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -163,11 +193,99 @@ export default class FoundryAiToolPlugin extends Plugin {
     );
     this.addSettingTab(new FoundryAiToolSettingTab(this.app, this));
     this.app.workspace.onLayoutReady(() => void this.refreshStatus(false));
+
+    // The theme (I-099): classes on <body> and on each Markdown view; the CSS does the rest.
+    this.applyTheme();
+    const refreshNotes = debounce(() => this.refreshNoteClasses(), 150, true);
+    this.registerEvent(this.app.workspace.on('layout-change', refreshNotes));
+    this.registerEvent(this.app.workspace.on('file-open', refreshNotes));
+    this.registerEvent(this.app.metadataCache.on('changed', refreshNotes));
+    this.registerMarkdownPostProcessor(el => decorateNote(el));
+    this.registerEvent(
+      this.app.workspace.on('window-open', (_win, popout) => this.themeDocument(popout.document))
+    );
+    this.registerInterval(window.setInterval(() => void this.syncTheme(), STATUS_REFRESH_MS));
+    this.app.workspace.onLayoutReady(() => {
+      this.refreshNoteClasses();
+      void this.syncTheme();
+    });
+  }
+
+  onunload(): void {
+    for (const doc of this.docs) doc.body?.classList.remove(...BODY_CLASSES);
+    this.app.workspace.iterateAllLeaves(leaf => setNoteClasses(leaf.view.containerEl, []));
   }
 
   async loadSettings(): Promise<void> {
     const saved = (await this.loadData()) as Partial<PluginSettings> | null;
     this.settings = { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
+    if (!isTheme(this.settings.theme)) this.settings.theme = DEFAULT_SETTINGS.theme;
+    // A pick the dashboard never took lasts only for the Obsidian session it was made in: after a
+    // restart the GM may have changed the theme in the dashboard since, and that newer pick wins.
+    this.settings.pendingTheme = null;
+    this.settings.themeEnabled = this.settings.themeEnabled !== false;
+  }
+
+  /** The current choice as the settings dropdown shows it. */
+  themeChoice(): ThemeId | 'off' {
+    return this.settings.themeEnabled ? this.settings.theme : 'off';
+  }
+
+  /** Also style another window's document (popout windows, Obsidian's own settings window). */
+  themeDocument(doc: Document): void {
+    this.docs.add(doc);
+    this.applyTheme();
+  }
+
+  private applyTheme(): void {
+    const classes = bodyClasses(this.settings.theme, this.settings.themeEnabled);
+    for (const doc of this.docs) {
+      if (!doc.defaultView) {
+        this.docs.delete(doc); // its window has closed
+        continue;
+      }
+      doc.body.classList.remove(...BODY_CLASSES);
+      doc.body.classList.add(...classes);
+    }
+  }
+
+  private refreshNoteClasses(): void {
+    this.app.workspace.iterateAllLeaves(leaf => {
+      const view = leaf.view;
+      if (!(view instanceof MarkdownView)) return;
+      const fm = view.file ? this.app.metadataCache.getFileCache(view.file)?.frontmatter : null;
+      setNoteClasses(view.containerEl, noteClasses(fm));
+    });
+  }
+
+  private themeState(): ThemeState {
+    const { theme, themeEnabled, pendingTheme } = this.settings;
+    return { theme, themeEnabled, pendingTheme };
+  }
+
+  private async useThemeState(state: ThemeState): Promise<void> {
+    if (sameThemeState(state, this.themeState())) return;
+    Object.assign(this.settings, state);
+    this.applyTheme();
+    await this.saveData(this.settings);
+  }
+
+  /** A pick in the settings (see theme-sync.ts); the look changes before the dashboard answers. */
+  async pickTheme(choice: ThemeId | 'off'): Promise<void> {
+    if (choice !== 'off') {
+      this.settings.theme = choice;
+      this.settings.themeEnabled = true;
+    }
+    this.applyTheme();
+    const { state, notice } = await pickTheme(this.themeState(), choice, this.client);
+    if (notice) new Notice(notice);
+    await this.useThemeState(state);
+    await this.saveData(this.settings);
+  }
+
+  /** Takes the dashboard's theme (or first sends one picked here while it was offline). */
+  async syncTheme(): Promise<void> {
+    await this.useThemeState(await syncTheme(this.themeState(), this.client));
   }
 
   async saveSettings(): Promise<void> {
@@ -292,6 +410,51 @@ export default class FoundryAiToolPlugin extends Plugin {
   }
 }
 
+/** Replaces the plugin's note classes on a view's container. */
+function setNoteClasses(el: HTMLElement, classes: string[]): void {
+  const old = Array.from(el.classList).filter(c => c.startsWith(NOTE_CLASS_PREFIX));
+  if (old.length === classes.length && old.every(c => classes.includes(c))) return;
+  el.classList.remove(...old);
+  el.classList.add(...classes);
+}
+
+/**
+ * Reading view extras for the theme: the d20 spread as bars (with the counts) in place of its
+ * table, and the session stats line as small cards. The original stays in the page; the CSS shows one or the other, so
+ * turning the theme off needs no re-render.
+ */
+function decorateNote(el: HTMLElement): void {
+  for (const table of Array.from(el.querySelectorAll('table'))) {
+    const head = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent ?? '');
+    if (!isD20Header(head)) continue;
+    const row = table.querySelector('tbody tr');
+    if (!row) continue;
+    const counts = Array.from(row.querySelectorAll('td')).map(td => Number(td.textContent));
+    const bars = createDiv({ cls: 'aitool-d20' });
+    barHeights(counts).forEach((h, i) => {
+      const bar = bars.createDiv({ cls: 'aitool-d20-bar' });
+      bar.style.setProperty('--aitool-h', h.toFixed(3));
+      bar.setAttribute('aria-label', `${i + 1}: ${counts[i] ?? 0}`);
+      bar.createSpan({ cls: 'aitool-d20-c', text: String(counts[i] ?? 0) });
+      bar.createSpan({ cls: 'aitool-d20-n', text: String(i + 1) });
+    });
+    table.classList.add('aitool-d20-table');
+    table.before(bars);
+  }
+  for (const p of Array.from(el.querySelectorAll('p'))) {
+    const cards = statCards(p.textContent ?? '');
+    if (!cards) continue;
+    const box = createDiv({ cls: 'aitool-stat-cards' });
+    for (const card of cards) {
+      const c = box.createDiv({ cls: 'aitool-stat-card' });
+      c.createSpan({ text: card.label });
+      c.createEl('b', { text: card.value });
+    }
+    p.classList.add('aitool-stat-line');
+    p.after(box);
+  }
+}
+
 function messageOf(error: unknown): string {
   if (error instanceof DashboardError) return error.message;
   return error instanceof Error ? error.message : String(error);
@@ -308,6 +471,7 @@ class FoundryAiToolSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
+    this.plugin.themeDocument(containerEl.ownerDocument);
     new Setting(containerEl)
       .setName('Dashboard address')
       .setDesc(
@@ -335,5 +499,21 @@ class FoundryAiToolSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+    new Setting(containerEl)
+      .setName('Theme')
+      .setDesc(
+        "The look of the whole vault, one theme per world: picking Neutral or The Veil here also changes the dashboard's theme, and a pick in the dashboard reaches Obsidian. Off turns the styling off in this Obsidian only."
+      )
+      .addDropdown(dropdown => {
+        for (const theme of THEMES) dropdown.addOption(theme, THEME_LABELS[theme]);
+        dropdown
+          .addOption('off', 'Off')
+          .setValue(this.plugin.themeChoice())
+          .onChange(async value => {
+            await this.plugin.pickTheme(isTheme(value) ? value : 'off');
+            dropdown.setValue(this.plugin.themeChoice());
+          });
+        void this.plugin.syncTheme().then(() => dropdown.setValue(this.plugin.themeChoice()));
+      });
   }
 }

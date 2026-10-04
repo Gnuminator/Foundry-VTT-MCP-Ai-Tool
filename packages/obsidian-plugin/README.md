@@ -15,12 +15,27 @@ For a note with `fvtt_uuid` in its frontmatter (the Obsidian mirror writes it on
 - **Add to / Remove from the handout reveal queue**: stages the page for the dashboard's handout
   drawer ("Reveal next"); nothing changes in Foundry.
 
-Settings: the dashboard address (default `http://localhost:3000`) and, only when the dashboard's
-player split is on, the GM token, kept in Obsidian's secret storage.
+- **Theme** (I-099): the whole vault in the dashboard's look, **Neutral** or **The Veil**, one
+  theme per world shared with the dashboard (`GET /api/theme`, `POST /api/control` `set-theme`).
+  A pick here sets the dashboard's theme; a pick in the dashboard reaches Obsidian within 30
+  seconds; **Off** turns the styling off here only. The styles key on the note's front-matter
+  `type` (as `aitool-type-<type>` on the view) and on the callouts the tool writes
+  (`[!statblock]`, `[!secret]`, `[!info]`, `[!quote]`), never on folders. In reading view the
+  plugin also turns a session's stats line into cards and the d20 spread into bars.
+
+Settings: the dashboard address (default `http://localhost:3000`), the theme and, only when the
+dashboard's player split is on, the GM token, kept in Obsidian's secret storage.
+
+The theme CSS is `theme/obsidian-theme.css`; the build inlines the dashboard's OFL fonts
+(`packages/cogm-dashboard/public/fonts`) into `dist/styles.css`, writes `dist/FONT-LICENSES.txt`,
+and writes `dist/snippets/aitool-theme-neutral.css` and `aitool-theme-veil.css`: the same theme
+without the plugin, for a vault that has no plugin (the player vault). A snippet goes into the
+vault's `.obsidian/snippets` folder and is switched on under Settings, Appearance, CSS snippets.
 
 Install: `pwsh scripts/install-obsidian-plugin.ps1 -Vault <vault folder>` (builds and copies), or
 `-From foundry-ai-tool-obsidian.zip` from a release. The GM's guide is the "Open in Obsidian" part of `docs/gm/dashboard.md`.
 
 Code: `src/dashboard.ts` (the dashboard client, no `obsidian` import), `src/note.ts` (frontmatter
-and status text), `src/main.ts` (the Obsidian glue). `npm run build -w @gnuminator/obsidian-plugin`
+and status text), `src/theme.ts` and `src/theme-sync.ts` (theme classes and the shared theme),
+`src/main.ts` (the Obsidian glue), `theme/build-css.mjs` (the CSS build). `npm run build -w @gnuminator/obsidian-plugin`
 writes `dist/`.

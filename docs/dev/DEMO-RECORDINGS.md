@@ -35,12 +35,13 @@ all of that when it is missing.
 
 Options for `demo:take`:
 
-| Option                                   | What it does                                               |
-| ---------------------------------------- | ---------------------------------------------------------- |
-| `--res 1080`, `--res 1440`, `--res 2160` | Output size. Default 2160. Always 60 fps, MP4 (never GIF). |
-| `--no-reset`                             | Skip the world reset; the demo world must already run.     |
-| `--no-record`                            | Rehearse without OBS. Screenshots are still saved.         |
-| `--keep-open`                            | Leave the browser windows open afterwards.                 |
+| Option                                   | What it does                                                |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| `--res 1080`, `--res 1440`, `--res 2160` | Output size. Default 2160. Always 60 fps, MP4 (never GIF).  |
+| `--no-reset`                             | Skip the world reset; the demo world must already run.      |
+| `--no-record`                            | Rehearse without OBS. Screenshots are still saved.          |
+| `--keep-open`                            | Leave the browser windows open afterwards.                  |
+| `--world <id>`                           | Another demo world (see [Private videos](#private-videos)). |
 
 Every take writes a folder `C:\FoundryTest\demo\takes\<take>-<date>-<time>\`:
 
@@ -118,12 +119,52 @@ keeps only a GM (renamed "GM") and "Player", and turns on "Allow Write Operation
 pwsh scripts/test-env/reset-demo-world.ps1 -Start  # restore the clean state and start everything
 ```
 
-The script only works on `ai-tool-demo`, only writes inside the test server's folders,
+The script only works on demo worlds (`ai-tool-demo`, or `ai-tool-demo-<name>` with
+`-World`), only writes inside the test server's folders,
 and refuses to stop Foundry while it runs another world (another session may be testing;
 `-Force` overrides after you have asked). Service logs start empty on every start.
 
 To change the clean state: start the demo world, change it in Foundry, then run
 `-Snapshot`. Keep it to SRD or invented content: takes may become public videos.
+
+### Private videos
+
+A video only for your own table (a GM training cut, say) may show content that must never be
+public, such as an adventure you bought. Keep everything about it off GitHub:
+
+1. **A separate demo world**, copied from the world that holds the content, with Foundry
+   stopped. Its id must start with `ai-tool-demo-`; the source world is only read:
+
+   ```powershell
+   pwsh scripts/test-env/reset-demo-world.ps1 -World ai-tool-demo-gm -Source my-content-world -Init -Start
+   ```
+
+   Tidy it in Foundry, then save its clean state with
+   `reset-demo-world.ps1 -World ai-tool-demo-gm -Snapshot` (kept in
+   `C:\FoundryTest\demo\snapshot-ai-tool-demo-gm`).
+
+2. **Takes kept outside the repo**, in a folder of your own. Give `demo:take` the file's path
+   instead of a name. The take gets the kit's helpers as `t.lib`, so it needs no imports
+   from this folder:
+
+   ```js
+   export const meta = { title: 'Before the session' };
+   export async function setup(t) {
+     await t.foundry('Foundry', { user: 'Gamemaster' });
+     await t.dashboard();
+   }
+   export async function run(t) {
+     const { runPreflight } = t.lib;
+     const dash = await t.scene('Dashboard');
+     await t.step('preflight', 'Run the pre-flight check', () => runPreflight(dash.page));
+   }
+   ```
+
+   ```powershell
+   npm run demo:take -- C:\path\to\takes\before-session.mjs --world ai-tool-demo-gm
+   ```
+
+Recordings land in `C:\FoundryTest\demo\takes` as usual, outside the repo and the vault.
 
 ### Browser windows
 

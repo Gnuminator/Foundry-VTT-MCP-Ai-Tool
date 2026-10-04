@@ -3,21 +3,23 @@
 //
 //   npm run demo:obs-setup [-- --res 2160]     set up OBS once (WebSocket, profile, scenes)
 //   npm run demo:take -- <take> [options]      record one take from scripts/demo/takes/<take>.mjs
+//   npm run demo:take -- <path/to/take.mjs>    ... or a take kept outside the repo
 //
 // Take options:
 //   --res 1080|1440|2160   output size, always 60 fps MP4 (default 2160)
 //   --no-reset             skip reset-demo-world.ps1 (the world must already run)
 //   --no-record            drive the take without OBS (rehearsal; still saves screenshots)
 //   --keep-open            leave the browser windows open afterwards
+//   --world <id>           another demo world (ai-tool-demo-<name>); default ai-tool-demo
 //
-// Test server only: the world must be ai-tool-demo; the live bridge ports 31414-31416
+// Test server only: the world must be a demo world; the live bridge ports 31414-31416
 // are refused.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { basename, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { DEMO_DIR, REPO_ROOT, RESOLUTIONS, testEnv } from './lib/env.mjs';
+import { DEMO_DIR, REPO_ROOT, RESOLUTIONS, demoWorld, testEnv } from './lib/env.mjs';
 import { ensureObs } from './lib/obs-setup.mjs';
 import { Take } from './lib/take.mjs';
 
@@ -29,9 +31,11 @@ function parseArgs(argv) {
     else if (a === '--no-reset') opts.reset = false;
     else if (a === '--no-record') opts.record = false;
     else if (a === '--keep-open') opts.keepOpen = true;
+    else if (a === '--world') process.env.DEMO_WORLD_ID = argv[++i] ?? '';
     else if (a.startsWith('--')) throw new Error(`Unknown option ${a}`);
     else opts._.push(a);
   }
+  demoWorld(); // checks --world
   if (!RESOLUTIONS[opts.res])
     throw new Error(`--res must be 1080, 1440 or 2160 (got ${opts.res}).`);
   return opts;
@@ -58,7 +62,9 @@ async function cmdObsSetup(opts) {
 
 function resetWorld() {
   const script = join(REPO_ROOT, 'scripts', 'test-env', 'reset-demo-world.ps1');
-  const r = spawnSync('pwsh', ['-NoProfile', '-File', script, '-Start'], { stdio: 'inherit' });
+  const r = spawnSync('pwsh', ['-NoProfile', '-File', script, '-Start', '-World', demoWorld()], {
+    stdio: 'inherit',
+  });
   if (r.status !== 0) throw new Error(`reset-demo-world.ps1 failed (exit ${r.status}).`);
 }
 
@@ -83,10 +89,12 @@ function probe(file) {
 }
 
 async function cmdTake(opts) {
-  const name = opts._[1];
-  if (!name)
+  const arg = opts._[1];
+  if (!arg)
     throw new Error('Usage: npm run demo:take -- <take> [--res 2160] [--no-reset] [--no-record]');
-  const file = join(DEMO_DIR, 'takes', `${name}.mjs`);
+  // A name is a take in scripts/demo/takes; a path to a .mjs file is a take kept elsewhere.
+  const file = arg.endsWith('.mjs') ? resolve(arg) : join(DEMO_DIR, 'takes', `${arg}.mjs`);
+  const name = basename(file, '.mjs');
   if (!existsSync(file)) throw new Error(`No take ${file}`);
   const mod = await import(pathToFileURL(file).href);
   const env = testEnv();
@@ -96,6 +104,7 @@ async function cmdTake(opts) {
   if (opts.reset) resetWorld();
   const obs = opts.record ? await ensureObs({ res: opts.res, recordDir: outDir }) : undefined;
   const take = new Take({ name, outDir, res: opts.res, env, obs });
+  take.lib = await import('./lib/index.mjs');
   const report = {
     name,
     title: mod.meta?.title ?? name,
@@ -158,7 +167,7 @@ try {
   else if (cmd === 'take') await cmdTake(opts);
   else {
     console.log(
-      'Usage: node scripts/demo/demo.mjs obs-setup | take <name> [--res 2160] [--no-reset] [--no-record] [--keep-open]'
+      'Usage: node scripts/demo/demo.mjs obs-setup | take <name|path.mjs> [--res 2160] [--no-reset] [--no-record] [--keep-open] [--world <id>]'
     );
     process.exitCode = cmd ? 1 : 0;
   }

@@ -18,7 +18,7 @@
 
 import { openWindow } from './lib/browser.mjs';
 import { callToolApi, setGmActionsApi } from './lib/dashboard.mjs';
-import { DEMO_USERS, DEMO_WORLD, testEnv } from './lib/env.mjs';
+import { DEMO_USERS, demoWorld, testEnv } from './lib/env.mjs';
 import { closeAllWindows, joinFoundry, unpause } from './lib/foundry.mjs';
 
 // Left behind by live tests in ai-tool-test; "Tarokka reading" holds Curse of Strahd card
@@ -61,7 +61,7 @@ const joinAs = asIndex > 0 ? process.argv[asIndex + 1] : DEMO_USERS.gm;
 const env = testEnv();
 const win = await openWindow({ title: 'Demo prepare', url: 'about:blank' });
 try {
-  await joinFoundry(win.page, { foundryUrl: env.foundryUrl, world: DEMO_WORLD, user: joinAs });
+  await joinFoundry(win.page, { foundryUrl: env.foundryUrl, world: demoWorld(), user: joinAs });
   await closeAllWindows(win.page);
   const report = await win.page.evaluate(
     async ({ world, users, journals, letter, nextSession }) => {
@@ -101,7 +101,7 @@ try {
       return done;
     },
     {
-      world: DEMO_WORLD,
+      world: demoWorld(),
       users: DEMO_USERS,
       journals: LEFTOVER_JOURNALS,
       letter: LETTER,

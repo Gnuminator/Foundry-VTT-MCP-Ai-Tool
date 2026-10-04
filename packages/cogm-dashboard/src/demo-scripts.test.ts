@@ -35,6 +35,33 @@ describe('demo dashboard helpers', () => {
   });
 });
 
+describe('demo worlds', () => {
+  it('takes run in ai-tool-demo or another ai-tool-demo-<name> world, never a test world', async () => {
+    const { demoWorld } = await import(demoLib('env.mjs'));
+    const saved = process.env.DEMO_WORLD_ID;
+    try {
+      delete process.env.DEMO_WORLD_ID;
+      expect(demoWorld()).toBe('ai-tool-demo');
+      process.env.DEMO_WORLD_ID = 'ai-tool-demo-gm';
+      expect(demoWorld()).toBe('ai-tool-demo-gm');
+      for (const world of ['ai-tool-test', 'ai-tool-kit', 'ai-tool-demo-', 'AI-TOOL-DEMO', 'x']) {
+        process.env.DEMO_WORLD_ID = world;
+        expect(() => demoWorld()).toThrow(/Demo worlds/);
+      }
+    } finally {
+      if (saved === undefined) delete process.env.DEMO_WORLD_ID;
+      else process.env.DEMO_WORLD_ID = saved;
+    }
+  });
+
+  it('hands takes kept outside the repo the same helpers', async () => {
+    const lib = (await import(demoLib('index.mjs'))) as Record<string, unknown>;
+    for (const name of ['humanClick', 'runPreflight', 'callToolApi', 'joinFoundry', 'demoWorld']) {
+      expect(typeof lib[name]).toBe('function');
+    }
+  });
+});
+
 describe('OBS WebSocket auth', () => {
   it('matches the worked example of obs-websocket protocol v5', async () => {
     const { obsAuth } = await import(demoLib('obs.mjs'));

@@ -123,7 +123,27 @@ if (-not $found) {
 }
 
 Write-SshConfig $found.Address
-# Record the real host key now that we know this is the Pi.
+
+# DietPi's first boot swaps its built-in SSH server (Dropbear) for OpenSSH and restarts, which
+# brings a new host key. Wait until the first boot is done (install stage 2) before recording the
+# key, or the first `ssh foundry-pi` afterwards fails with "host key has changed" (2026-10-04).
+Write-Host "Found the Pi at $($found.Address); waiting for its first boot to finish..."
+$stage = $null
+while ((Get-Date) -lt $deadline.AddMinutes(10)) {
+  $stage = & ssh -i $KeyPath -o BatchMode=yes -o ConnectTimeout=5 -o IdentitiesOnly=yes `
+    -o StrictHostKeyChecking=no -o UserKnownHostsFile=NUL -o LogLevel=ERROR `
+    "root@$($found.Address)" 'cat /boot/dietpi/.install_stage 2>/dev/null' 2>$null
+  if ($LASTEXITCODE -eq 0 -and "$stage".Trim() -eq '2') { break }
+  Start-Sleep -Seconds 20
+}
+if ("$stage".Trim() -ne '2') {
+  throw "The Pi at $($found.Address) has not finished its first boot. Wait a few minutes and run this again."
+}
+# Forget any key recorded before the switch, then record the real one.
+if (Test-Path $KnownHosts) {
+  & ssh-keygen -R $found.Address -f $KnownHosts 2>$null | Out-Null
+  & ssh-keygen -R $Hostname -f $KnownHosts 2>$null | Out-Null
+}
 & ssh -o BatchMode=yes -o LogLevel=ERROR $Hostname true | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Found the Pi at $($found.Address), but 'ssh $Hostname' failed afterwards." }
 

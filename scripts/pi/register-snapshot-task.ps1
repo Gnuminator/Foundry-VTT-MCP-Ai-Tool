@@ -30,7 +30,10 @@ if ($Remove) {
 }
 
 $script = Join-Path $PSScriptRoot 'pull-snapshot.ps1'
-$pwsh = (Get-Command pwsh).Source
+# The Store build's own folder (WindowsApps\Microsoft.PowerShell_7.x.y.0_...) changes with every
+# update; its App Execution Alias in %LOCALAPPDATA% stays put, so prefer that when it exists.
+$alias = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\pwsh.exe'
+$pwsh = if (Test-Path $alias) { $alias } else { (Get-Command pwsh).Source }
 $conhost = Join-Path $env:SystemRoot 'System32\conhost.exe'
 $taskArgs = "--headless `"$pwsh`" -NoProfile -NonInteractive -File `"$script`" -Destination `"$Destination`""
 

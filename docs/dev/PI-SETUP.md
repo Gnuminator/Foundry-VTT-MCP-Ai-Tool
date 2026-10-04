@@ -133,7 +133,7 @@ listed).
 | 4. Tailscale    | Private admin access: SSH and the bridge from this PC, also when you are away from home. For you only, not the players (D-075). From Tailscale's own apt repository (`4-tailscale.sh`)                                                                                                                                                                                                                                                                                                                                                                                 | **yes:** open the login link Claude shows, and install Tailscale on this PC with the same account                                                                                                                                  |
 | 5. The tool     | Bridge and dashboard as services, built on the Pi from a release tag (`5-tool.sh`, default `v0.21.0`), the module copied into Foundry from the same build; a Chromium browser without a screen, logged into Foundry as a dedicated Assistant GM user (role Assistant, so the human GM stays the primary GM) and set as the bridge's user, so the tool works when no human GM is online; everything on loopback, the control port and the dashboard shared with the tailnet only (Tailscale serve). `5-check-world.sh` proves the chain in a throwaway world `pi-check` | **yes:** OK the stage; OK Claude switching the five Claude Desktop entries on this PC to the Pi (Claude Desktop restarts, which cuts Claude Code sessions in the app)                                                              |
 | 6. Backups      | Nightly restic backup at 04:30 on the Pi (`6-backup.sh`): `/var/lib/foundry` (worlds, modules), the tool's storage and `/etc/foundry-ai-tool` (secrets), without logs, the browser profile and recordings; Foundry stops for a minute or two while it runs; 7 daily kept on the Pi. This PC copies it every day into `E:\PiBackup\restic` (`pull-restic.ps1`): 14 daily, 8 weekly, 12 monthly, plus a monthly test restore                                                                                                                                             | **yes:** store the PC repository's password (`%APPDATA%\foundry-ai-tool\restic-pc.pass`, made on the first copy) in your password manager: without it the copies cannot be read                                                    |
-| 7. Vault sync   | Syncthing: the GM vault to the GM's PC, the player vault to anyone who wants the Obsidian app                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | accept the device on each PC                                                                                                                                                                                                       |
+| 7. Vault sync   | Syncthing (Debian's, as its own service `foundry-ai-tool-syncthing`, files in `/var/lib/foundry-ai-tool/syncthing`) shares the GM vault with the GM's PC (and this PC, for checking) (`7-vault.sh`). The bridge writes the vault to `/var/lib/foundry-ai-tool/obsidian/gm` (`bridge.env`: `FOUNDRY_AI_OBSIDIAN_DIR`, `FOUNDRY_AI_OPEN_BASE`, `FOUNDRY_AI_FOUNDRY_URL`); relays on, UPnP off, GUI on loopback. The Foundry mirror switch stays off (a GM decision per world). The player vault waits for O7 (D-091)                                                     | **yes:** on each receiving PC run `scripts/pi/setup-syncthing-pc.ps1` (or accept the Pi in the Syncthing GUI), then give Claude that PC's device ID                                                                                |
 | 8. Discord bot  | The recorder bot as a service (`foundry-ai-tool-discord-bot`, runs as `foundry`), recordings in `/var/lib/foundry-ai-tool/recordings`; this PC copies finished recordings over Tailscale for transcription                                                                                                                                                                                                                                                                                                                                                             | a bot token from the Discord developer page, pasted by you into `/etc/foundry-ai-tool/discord-bot.env`                                                                                                                             |
 
 Stage 5 in more detail, because it changes how Claude Desktop reaches the game: each entry in
@@ -158,7 +158,8 @@ previous one in `/opt/foundry-ai-tool/app.prev` for a quick rollback.
 
 No firewall is set up on the Pi: nothing on it is reachable from the internet (no router ports are
 opened, Foundry asks for none, and Tailscale and the Cloudflare tunnel both dial out), and on the
-home network only Foundry, SSH and the dashboard answer.
+home network only Foundry, SSH, the dashboard and Syncthing answer (Syncthing on port 22000: only
+devices you have added can connect).
 
 Rules Claude follows on the Pi: never types passwords, licence keys or tokens (you paste them where
 asked); never opens anything to the internet before Part C; the campaign world is never used for
@@ -233,6 +234,45 @@ restic restore <snapshot-id> --target E:\Restore --include /etc/foundry-ai-tool/
 
 Copy a restored world to the Pi only with Foundry stopped, and keep the owner `foundry:foundry`
 (`chown -R foundry:foundry` on the world folder); both steps need your OK under the Pi safety rule.
+
+## The GM vault and Syncthing
+
+The bridge writes the GM's Obsidian vault on the Pi, in `/var/lib/foundry-ai-tool/obsidian/gm`: the
+session log, the change log, the play stats and the Library notes. `7-vault.sh` (stage 7) sets that
+up and runs Syncthing as its own service, `foundry-ai-tool-syncthing` (user `foundry`, its files in
+`/var/lib/foundry-ai-tool/syncthing`, never in Foundry's data folder). Syncthing keeps the folder
+`foundry-gm-vault` the same on every PC you add, in both directions: the GM's own notes in `Prep/` go
+back to the Pi and into its nightly backups. The player vault is not part of this yet (it waits for
+O7, D-091).
+
+How it is set up: UPnP and NAT-PMP are off (Syncthing never asks the router to open a port, the same
+rule as Foundry's `--noupnp`), usage and crash reports are off, and the web page of Syncthing listens
+on the Pi itself only. Global discovery and relays are on, so a PC outside the home still finds the
+Pi; relays only pass on traffic that is encrypted end to end. A PC can connect only after the Pi
+has added its device ID. Each PC keeps its own `.obsidian/workspace*.json`, `.obsidian/cache` and
+`.trash` out of the sync (`.stignore`, which Syncthing does not sync, so every PC has its own copy;
+both scripts write it). The Pi runs Syncthing 1.x (Debian 13) and a PC installed with winget runs
+2.x; they speak the same protocol and should sync with each other (the container test used 1.x on both
+sides; the first sync with a real PC is the check).
+
+**Add a PC** (the GM's PC, or this PC to check):
+
+1. On that PC: `winget install Syncthing.Syncthing`, then in PowerShell 7
+   `.\scripts\pi\setup-syncthing-pc.ps1 -PiDeviceId <the Pi's device ID>` (Claude prints the ID
+   after stage 7). It registers a hidden task "Syncthing" that starts at logon, sets the options
+   above, adds the Pi and the folder at `Documents\Obsidian\Foundry GM vault` (change it with
+   `-VaultPath`), and prints this PC's device ID. `-Remove` takes the task away again and leaves the
+   settings and the vault alone.
+2. Give that device ID to Claude. Claude runs stage 7 again with `PEER_ID=<id>` and
+   `PEER_NAME=<a name>`: the Pi adds the PC and shares the folder, and it starts to sync (no
+   duplicates if it runs twice). `VAULT_NAME` there is the vault's folder name on the PC (default
+   `Foundry GM vault`), which the dashboard's "Open in Obsidian" links use.
+3. Open the folder as a vault in Obsidian.
+
+The Foundry mirror is a separate, per-world switch (D-083): the Foundry setting "AI Tool: Obsidian
+mirror (writes)" plus the guarded `plan-obsidian-mirror` tool, which the GM asks Claude for
+(Admin set). It stays off until the GM decides to use it for a world. The session, change and stats
+notes are written to the vault whenever the folder is set, mirror or not.
 
 ## Recordings
 
@@ -335,6 +375,7 @@ boot problems for others, so it is not tried.
 | Backups                                                      | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`) |
 | Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)             |
 | Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                  |
+| GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                 |
 
 ## Sources
 

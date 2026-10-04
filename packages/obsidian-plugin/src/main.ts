@@ -220,7 +220,9 @@ export default class FoundryAiToolPlugin extends Plugin {
     const saved = (await this.loadData()) as Partial<PluginSettings> | null;
     this.settings = { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
     if (!isTheme(this.settings.theme)) this.settings.theme = DEFAULT_SETTINGS.theme;
-    if (!isTheme(this.settings.pendingTheme)) this.settings.pendingTheme = null;
+    // A pick the dashboard never took lasts only for the Obsidian session it was made in: after a
+    // restart the GM may have changed the theme in the dashboard since, and that newer pick wins.
+    this.settings.pendingTheme = null;
     this.settings.themeEnabled = this.settings.themeEnabled !== false;
   }
 

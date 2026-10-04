@@ -12,7 +12,11 @@ export interface ThemeState {
   theme: ThemeId;
   /** False when the theme is Off: no styling in this Obsidian; the dashboard keeps its theme. */
   themeEnabled: boolean;
-  /** A theme picked here while the dashboard did not answer; sent when it answers again. */
+  /**
+   * A theme picked here while the dashboard did not answer; sent when it answers again. Only
+   * within one Obsidian session (the plugin drops it on load): while the dashboard is down or has
+   * no world it cannot change the theme either, so the pick here is the newest one.
+   */
   pendingTheme: ThemeId | null;
 }
 

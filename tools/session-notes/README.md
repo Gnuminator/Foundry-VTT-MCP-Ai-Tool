@@ -44,7 +44,11 @@ again later; finished scenes are kept in `notes/.work/` and are not redone.
 writes notes where they are missing, publishes finished notes to the bridge (below), and runs
 `cleanup --yes`. It does nothing when nothing is due,
 never runs twice at once (a lock file), and logs to `<sessions>\auto.log`. Try it with
-`pwsh tools/session-notes/auto.ps1 -DryRun`. A scheduled task in the Claude desktop app runs it
+`pwsh tools/session-notes/auto.ps1 -DryRun`. With the recorder on the Orange Pi (D-068), set `FVTT_PI_HOST`
+(normally `foundry-pi`): the pass first runs `pull.ps1`, which copies finished recordings from the
+Pi over SSH, checks every file's SHA-256 and marks them pulled there (the Pi deletes them 7 days
+later; see the bot's README). Set `MCP_CONTROL_HOST` to the Pi's Tailscale name so `publish`
+reaches the bridge there. A scheduled task in the Claude desktop app runs it
 every hour while the PC is on, so the notes are ready the morning after a session with no clicks.
 
 ## What it writes

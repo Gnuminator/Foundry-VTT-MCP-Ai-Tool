@@ -1,5 +1,11 @@
 # Obsidian integration plan
 
+> **Historical, frozen 2026-10-04.** This plan is no longer kept up to date. What was built is in the
+> [CHANGELOG](../../CHANGELOG.md) (the companion plugin, the Library, the Library by book). Changes
+> since it was written (decision D-091): O5 and O6 wait until after the first sessions; O7 (a player
+> vault) is built only on request, players use `/player` and their own `/me` page; O8 (the vault on
+> the Orange Pi, synced with Syncthing) is part of the Pi bring-up.
+
 Status: **O1, O2 and O3 done (2026-09-28), O4 done (2026-09-29); see "As built".** Written
 2026-09-28 (branch `claude/amazing-bardeen-q1x1q6`) from four research sweeps (prior art, Obsidian
 platform, game data, dev project); plugin facts re-checked on GitHub the same day. The GM handed

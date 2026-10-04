@@ -1,5 +1,11 @@
 # Curse of Strahd extension: architecture review + implementation plan
 
+> **Historical, frozen 2026-10-04.** This plan is no longer kept up to date. What was built is in the
+> [CHANGELOG](../../CHANGELOG.md). Changes since it was written (decision D-091): M8 became the
+> recap lane (session notes into Foundry, D-087); the dashboard panels became the Before, During and
+> After screens (D-085); M4 to M9 keep their state in Foundry (D-073) and wait until after the first
+> sessions, once Foundry runs on the Orange Pi.
+
 Status: **M0 and M1 (Tarokka) DONE on 2026-09-28, awaiting the GM's live test and go-ahead for M2.** Section 9 answered
 (defaults). What was built, and where it differs from this plan, is in "M0 as built" at the top of
 section 3.

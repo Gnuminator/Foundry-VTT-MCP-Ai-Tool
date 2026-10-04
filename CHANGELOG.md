@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v0.21.0 (released 2026-10-04): session notes into Foundry, My character, the Obsidian theme and Library by book, the Orange Pi bring-up
+
+**Wire contracts are unchanged** (module id, ports, `foundry-mcp-bridge.*` method names, settings
+namespace); a bridge reply's `error` may now carry an optional `code`. The bridge still serves 88
+tools. Update the module and the bridge together. This is the first release the Orange Pi builds
+from (stage 5).
+
 ### Security
 
 - The dashboard verifies Cloudflare Access's signed login token (signature, issuer, audience,
@@ -54,15 +61,28 @@
   repo (a file path; helpers as `t.lib`); `reset-demo-world.ps1 -World/-Source/-Title` (I-061;
   PR #95).
 
-### Obsidian (I-100; PR #103)
+### Obsidian (I-099, I-100; PR #103)
 
 - **The Library by book:** the Library is sorted by kind, then by book
   (`Library/Spells/Player's Handbook (2024)/`), with `book` and `page` properties, one base and
   one hub note per book (every Library note links its book, so Obsidian's graph groups them), and
   notes about the world follow Foundry's own folders. Notes move once, by rename, and an edited
   note stays put.
+- **The vault takes the dashboard's theme:** the Obsidian plugin styles the whole vault in Neutral
+  or The Veil (the dashboard's fonts and colours), with a stat block card for `[!statblock]`, a
+  locked GM look for `[!secret]`, quiet mirror banners, read-aloud boxes, the session stats as
+  cards and the d20 spread as bars. The look keys on each note's `type`, never on folders.
+- **One theme per world, both ways:** picking Neutral or The Veil in the plugin's **Theme**
+  setting also sets the dashboard's theme, and a pick in the dashboard reaches Obsidian within 30
+  seconds. **Off** turns the styling off in that Obsidian only.
+- The release zip also carries the theme as two CSS snippets (`snippets/`) for a vault without the
+  plugin, such as the player vault, and the fonts' licences (`FONT-LICENSES.txt`).
+- **Fewer loose notes in the graph:** an NPC note links the Library monster it was made from
+  (the module now exports each actor's `_stats.compendiumSource`), a scene whose own journal is
+  unset or gone links the journal named like its folder, and the campaign stats note links every
+  session note and PC stats note. Every mirror note re-renders once (render version 6).
 
-### Orange Pi (D-068; PRs #100, #101)
+### Orange Pi (D-068)
 
 - **Stage scripts for bring-up** (`scripts/pi/remote/`): health check, Node 24, Foundry as a
   service started with `--noupnp`, Tailscale; each safe to run again. Tested in an ARM64 Debian 13
@@ -72,6 +92,22 @@
   linux-arm64 with Node 24), and `tools/session-notes/pull.ps1` copies finished recordings from the
   Pi to this PC over SSH with a checksum check (step 0 of `auto.ps1` when `FVTT_PI_HOST` is set);
   `session-notes publish` takes `MCP_CONTROL_HOST` (PR #100).
+- The remote command guard blocks the "ask" list too in bypass or auto permission mode, where an
+  approval prompt would be answered without the user (seen in the first live test).
+- **A safety guard for remote commands:** a Claude Code hook (`.claude/hooks/guard-remote-commands.mjs`)
+  checks every command sent over ssh, scp or rsync, including the scripts fed into it. It blocks
+  what could make a machine unusable (deleting `/` or a system folder, formatting or overwriting a
+  disk, removing root) and asks the user before users and groups, partitions, removing packages,
+  reboots, firewall, SSH and network changes. The Pi guide lists the safety rules and the nightly
+  system snapshots.
+- The guide uses Raspberry Pi Imager instead of balenaEtcher (Etcher's check step crashed on
+  Windows); `find-pi.ps1` waits for DietPi's first boot to finish before it records the Pi's SSH key
+  (the first boot swaps the SSH server, which changed the key); stage 3 no longer leaves
+  `/opt/foundry` readable only by root.
+- **Snapshots on this PC:** `scripts/pi/pull-snapshot.ps1` copies the Pi's newest `dietpi-backup`
+  snapshot over SSH into `E:\PiBackup` as one `tar.zst` archive (read-only on the Pi, test-read
+  before it is kept, 14 daily plus 8 weekly kept, logs), and `scripts/pi/register-snapshot-task.ps1`
+  runs it daily and at logon as a hidden scheduled task. The guide has a restore section.
 
 ### Module
 
@@ -91,6 +127,24 @@
   Foundry" puts them back (PR #96).
 - The After view's "Went down" card also counts heroes who dropped outside a fight
   (`pcDownsByName` in the session stats; PR #98).
+- **Snapshot task survives PowerShell updates:** `scripts/pi/register-snapshot-task.ps1` points the
+  task at the Store's stable `pwsh.exe` alias in `%LOCALAPPDATA%\Microsoft\WindowsApps` instead of
+  the versioned install folder, which moves with every PowerShell update.
+
+### Development
+
+- **Changelog fragments (D-089):** a pull request adds its CHANGELOG entry as its own file in
+  `changelog.d/`; `npm run changelog:fold` moves them into "Unreleased" (CI checks them with
+  `npm run changelog:check`). No separate upkeep pull requests any more.
+- CI runs once per pull request (on `pull_request`, and on pushes to `main`), not twice.
+- **Token usage report:** `python scripts/dev/usage-report.py [since]` sums Claude Code usage per
+  session from this PC's transcripts (cache reads, writes and output, weighted like API prices), to
+  spot sessions whose context grew too large.
+
+### Docs
+
+- The Curse of Strahd plan, the Obsidian plan and the roadmap are marked historical (frozen
+  2026-10-04), each with a short note on what changed since they were written.
 
 ## v0.20.0 (released 2026-10-03): undo for live play, the write gate, the design pass, pre-flight and prep, the party panel, the Obsidian plugin and library, GM guides
 

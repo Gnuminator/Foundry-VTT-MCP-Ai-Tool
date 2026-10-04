@@ -34,8 +34,8 @@ if [ -f "$app/.tool-ref" ] && [ "$(cat "$app/.tool-ref")" = "$ref" ] &&
 else
   build="$TOOL_DIR/build"
   log="$TOOL_DIR/build.log"
-  rm -rf "$build"
-  trap 'rm -rf "$build"' EXIT
+  rm -rf "${build:?}"
+  trap 'rm -rf "${build:?}"' EXIT
   git init -q "$build"
   git -C "$build" remote add origin "$repo"
   git -C "$build" fetch -q --depth 1 origin "$ref" || die "cannot fetch $ref from $repo"
@@ -59,7 +59,7 @@ else
     done
   fi
   # The previous build stays next to it for a quick rollback.
-  rm -rf "$app.prev"
+  rm -rf "${app:?}.prev"
   [ -d "$app" ] && mv "$app" "$app.prev"
   mv "$build" "$app"
   trap - EXIT
@@ -70,7 +70,7 @@ fi
 
 say "the Foundry module"
 stage="$(mktemp -d)"
-trap 'rm -rf "$stage"' EXIT
+trap 'rm -rf "${stage:?}"' EXIT
 src="$app/packages/foundry-module"
 # The same files as the release zip (.github/workflows/release.yml, "Package the module").
 cp "$src/module.json" "$stage/"
@@ -82,7 +82,7 @@ done
 if [ -d "$module_dir" ] && diff -rq "$stage" "$module_dir" >/dev/null 2>&1; then
   ok "module unchanged in $module_dir"
 else
-  rm -rf "$module_dir"
+  rm -rf "${module_dir:?}"
   mkdir -p "$(dirname "$module_dir")"
   cp -a "$stage" "$module_dir"
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$module_dir"
@@ -92,7 +92,7 @@ else
     warn "Foundry is running: restart it (systemctl restart foundry) when no one plays, so it loads the new module"
   fi
 fi
-rm -rf "$stage"
+rm -rf "${stage:?}"
 trap - EXIT
 
 say "folders"

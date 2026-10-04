@@ -29,17 +29,17 @@ if [ -f "$sys/system.json" ] && [ "$(json_get "$sys/system.json" version)" = "$d
 else
   url="https://github.com/foundryvtt/dnd5e/releases/download/release-$dnd5e_version/dnd5e-release-$dnd5e_version.zip"
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
+  trap 'rm -rf "${tmp:?}"' EXIT
   curl -fsSL -o "$tmp/dnd5e.zip" "$url" || die "cannot download $url"
   unzip -q "$tmp/dnd5e.zip" -d "$tmp/dnd5e"
   [ "$(json_get "$tmp/dnd5e/system.json" id)" = "dnd5e" ] || die "the download is not the dnd5e system"
   [ "$(json_get "$tmp/dnd5e/system.json" version)" = "$dnd5e_version" ] || die "the download is not dnd5e $dnd5e_version"
-  rm -rf "$sys"
+  rm -rf "${sys:?}"
   mkdir -p "$data/systems"
   cp -a "$tmp/dnd5e" "$sys"
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$sys"
   chmod 755 "$sys"
-  rm -rf "$tmp"
+  rm -rf "${tmp:?}"
   trap - EXIT
   ok "installed dnd5e $dnd5e_version"
 fi

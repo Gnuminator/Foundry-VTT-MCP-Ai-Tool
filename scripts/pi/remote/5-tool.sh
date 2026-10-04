@@ -227,10 +227,14 @@ if have_systemd; then
   curl -fs -o /dev/null http://127.0.0.1:3000/ && ok "dashboard answers on 127.0.0.1:3000" ||
     warn "dashboard does not answer yet; see: journalctl -u foundry-ai-tool-dashboard -n 50"
   ss -ltn | grep -E ':(31414|31415|3000) ' || true
-  if ss -ltn | grep -E ':(31414|31415|3000) ' | grep -vqE '127\.0\.0\.1:|\[::1\]:'; then
-    warn "a tool port listens beyond loopback; check the units"
+  # Tailscale serve listens on the Pi's tailnet addresses (100.64.0.0/10 and fd7a:115c:a1e0::/48);
+  # that is the intended sharing, so only other addresses count as a leak.
+  tailnet='100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]+\.[0-9]+:|\[fd7a:115c:a1e0:'
+  if ss -ltn | grep -E ':(31414|31415|3000) ' | grep -vE '127\.0\.0\.1:|\[::1\]:' |
+    grep -vqE "$tailnet"; then
+    warn "a tool port listens beyond loopback and the tailnet; check the units"
   else
-    ok "tool ports listen on loopback only"
+    ok "tool ports listen on loopback, shared only with the tailnet"
   fi
 fi
 

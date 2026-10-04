@@ -6,11 +6,19 @@
  *
  * - `refreshStep` (at start, when the pack list changes, every 30 minutes, or when asked): the
  *   Library index of the packs (`getLibraryIndex`, paged with an opaque cursor), a scan of the
- *   Library folder (note heads only), note paths for documents without a note (picked once,
- *   never renamed), the queue of documents whose note is missing, whose signature changed or
- *   whose links changed with the membership, and the trash for notes whose document left;
+ *   Library folder (note heads only), an ownership check of the notes that sit in the wrong
+ *   folder, note paths for documents without a note, the queue of documents whose note is
+ *   missing, whose signature changed, whose links changed with the membership or whose note
+ *   moves, the trash for notes whose document left, and one base per book;
  * - `work` (every cycle until the queue is empty): fetch documents in batches
  *   (`getLibraryDocuments`), render and write their notes.
+ *
+ * Folders (I-100): `Library/<Kind>/<Book title>/<Name>.md` (class features and species traits
+ * add their group). A note keeps its path while its folder is right; when the folder changes (a
+ * new layout, a book that changed) an unedited note moves once, by rename, when it is next
+ * written (`NoteWriter.move`: never two copies, nothing lost halfway). An edited note stays where
+ * it is and is listed in the status. The paths in the membership change with the move, so every
+ * note that links to a moved one re-renders in the same queue.
  *
  * Paths for the whole index exist before any note is written, so world notes and other Library
  * notes link to a Library note from the start. The notes are the state: `fvtt_sig` holds the
@@ -43,16 +51,30 @@ import type { FoundryClient } from '../foundry-client.js';
 import { writeFileAtomic } from './atomic-write.js';
 import { LIBRARY_ROOT } from './licensed-guard.js';
 import {
+  bookBasePaths,
+  bookBaseTitle,
+  bookNotePath,
+  isBookNoteText,
+  bookProperty,
+  LIBRARY_BOOKS_FOLDER,
   LIBRARY_NOTE_TYPES,
   libraryCategory,
+  renderBookBase,
+  renderBookNote,
   renderLibraryNote,
   type LibraryNoteContext,
 } from './library-render.js';
 import { pathKey, versionedSig, type LibraryLinks, type LinkContext } from './mirror-common.js';
-import { allocateNotePaths, type PathRequest } from './mirror-paths.js';
+import { allocateNotePaths, inFolder, type PathRequest } from './mirror-paths.js';
 import { parseFrontmatter } from './mirror-scan.js';
-import { errorCode, errorMessage, NoteWriter, type WrittenCache } from './note-writer.js';
-import { checkMarkdownOwnership, GENERATED_BY } from './ownership.js';
+import {
+  errorCode,
+  errorMessage,
+  KEPT_AT_OLD_PATH,
+  NoteWriter,
+  type WrittenCache,
+} from './note-writer.js';
+import { baseOwnershipCheck, checkMarkdownOwnership, GENERATED_BY } from './ownership.js';
 
 export const LIBRARY_INDEX_METHOD = `${MODULE_ID}.${LIBRARY_INDEX_QUERY}`;
 export const LIBRARY_DOCUMENTS_METHOD = `${MODULE_ID}.${LIBRARY_DOCUMENTS_QUERY}`;
@@ -62,12 +84,16 @@ const QUERY_TIMEOUT_MS = 60_000;
 /** A query needs at least this much time left before the deadline to start. */
 const MIN_QUERY_MS = 2_000;
 const SCAN_MAX_FILES = 60_000;
-const SCAN_MAX_DEPTH = 6;
+/** `Library/<Kind>/<Book>/<group>/<Name>.md` is three folders deep; room to spare. */
+const SCAN_MAX_DEPTH = 8;
 const HEAD_BYTES = 4096;
 /** Note heads read between two deadline checks. */
 const HEADS_PER_CHECK = 100;
 const MAX_INDEX_PAGES = 1000;
 const FENCE_PREFIX = `${LIBRARY_ROOT}/`;
+const BOOKS_PREFIX = `${LIBRARY_BOOKS_FOLDER}/`;
+/** Notes checked for ownership (moves) between two deadline checks. */
+const MOVE_CHECKS_PER_STEP = 50;
 /** What a restart needs (membership, lookups per note, queue); a dot file Obsidian ignores. */
 export const LIBRARY_STATE_PATH = `${LIBRARY_ROOT}/.ai-tool-library.json`;
 
@@ -124,6 +150,10 @@ interface WorldLibrary {
   membershipHash: string | null;
   /** Lookups each note made when it was rendered (its links), by uuid. */
   deps: Map<string, string[]>;
+  /** Notes that move when they are next written: uuid to the path they sit at now. */
+  moves: Map<string, string>;
+  /** Paths of edited notes that stay in a folder they no longer belong in. */
+  keptOld: Set<string>;
   stateLoaded: boolean;
   stateDirty: boolean;
   cache: WrittenCache;
@@ -149,6 +179,8 @@ function newWorld(worldId: string): WorldLibrary {
     membership: null,
     membershipHash: null,
     deps: new Map(),
+    moves: new Map(),
+    keptOld: new Set(),
     stateLoaded: false,
     stateDirty: false,
     cache: { written: new Map() },
@@ -238,6 +270,10 @@ function validDocument(value: unknown): value is LibraryDocument {
 class LibraryScan {
   readonly notes = new Map<string, LibraryNote>();
   readonly taken = new Set<string>();
+  /** The `.base` files in `Library/Books/` (per-book bases). */
+  readonly bookBases: string[] = [];
+  /** The `.md` files in `Library/Books/` (book hub notes). */
+  readonly bookNotes: string[] = [];
   complete = true;
   private readonly stack: Array<{ rel: string; depth: number }> = [{ rel: LIBRARY_ROOT, depth: 0 }];
   private readonly markdown: string[] = [];
@@ -291,6 +327,12 @@ class LibraryScan {
         this.files += 1;
         this.taken.add(pathKey(childRel));
         if (!entry.name.startsWith('.') && /\.md$/i.test(entry.name)) this.markdown.push(childRel);
+        if (`${rel}/` === BOOKS_PREFIX && /\.base$/i.test(entry.name)) {
+          this.bookBases.push(childRel);
+        }
+        if (`${rel}/` === BOOKS_PREFIX && /\.md$/i.test(entry.name)) {
+          this.bookNotes.push(childRel);
+        }
       } else {
         this.taken.add(pathKey(childRel));
       }
@@ -336,6 +378,8 @@ interface RefreshRun {
   restarts: number;
   indexDone: boolean;
   scan: LibraryScan;
+  /** Notes in the wrong folder, by uuid, still to check for ownership (null: not listed yet). */
+  moveChecks: string[] | null;
 }
 
 export interface LibrarySyncDeps {
@@ -592,6 +636,7 @@ export class LibrarySync {
         restarts: 0,
         indexDone: false,
         scan: new LibraryScan(deps.campaignRoot.replace(/\\/g, '/')),
+        moveChecks: null,
       };
     }
     const run = this.run;
@@ -604,6 +649,7 @@ export class LibrarySync {
         await this.indexPage(run, deps, Math.min(QUERY_TIMEOUT_MS, left));
       }
       if (!(await run.scan.step(deps.now, deadline))) return waiting;
+      if (!(await this.checkMoves(run, deps, deadline))) return waiting;
     } catch (error) {
       this.run = null;
       throw error;
@@ -669,30 +715,80 @@ export class LibrarySync {
     run.after = response.next;
   }
 
+  /**
+   * The notes that sit in the wrong folder (a new layout, a changed book) are read in full and
+   * checked for ownership before any of them gets a new path: an edited note never moves. Within
+   * the deadline like the scan; returns false while it is still part way.
+   */
+  private async checkMoves(
+    run: RefreshRun,
+    deps: LibrarySyncDeps,
+    deadline: number
+  ): Promise<boolean> {
+    const { rows, scan } = run;
+    if (run.moveChecks === null) {
+      const checks: string[] = [];
+      for (const row of rows.values()) {
+        const note = scan.notes.get(row.uuid);
+        if (!note || !note.path.startsWith(FENCE_PREFIX)) continue;
+        if (!inFolder(note.path, libraryCategory(row).folder)) checks.push(row.uuid);
+      }
+      run.moveChecks = checks.reverse();
+    }
+    const root = deps.campaignRoot.replace(/\\/g, '/');
+    let done = 0;
+    while (run.moveChecks.length > 0) {
+      if (done % MOVE_CHECKS_PER_STEP === 0 && deps.now() > deadline) return false;
+      const uuid = run.moveChecks.pop() as string;
+      done += 1;
+      const note = scan.notes.get(uuid);
+      if (!note) continue;
+      try {
+        const text = await fsp.readFile(`${root}/${note.path}`, 'utf8');
+        note.owned = checkMarkdownOwnership(text).owned;
+      } catch (error) {
+        // Gone since the scan: a new note is made. Unreadable: it stays where it is this time.
+        if (errorCode(error) === 'ENOENT') scan.notes.delete(uuid);
+        else note.owned = null;
+      }
+    }
+    return true;
+  }
+
   /** Paths, membership, queue and trash from a finished index and scan. Returns membershipChanged. */
   private async finishRefresh(run: RefreshRun, deps: LibrarySyncDeps): Promise<boolean> {
     const world = this.world;
     const { rows, scan } = run;
     const complete = run.complete && scan.complete;
 
-    // Paths: existing notes keep theirs; the rest are allocated once, in id order. Entries that
-    // share a name in one folder but not a rules version are told apart by it ("Barbarian (2024)").
+    // Paths: existing notes keep theirs while their folder is right; the rest are allocated, in
+    // id order. An unedited note in the wrong folder gets a new path and moves when it is next
+    // written (only after a complete scan: the taken names are known); an edited one stays.
+    // Entries that share a name in one folder but not a rules version are told apart by it
+    // ("Barbarian (2024)"), counted in the folder the note belongs in.
     const paths = new Map<string, string>();
+    const moves = new Map<string, string>();
+    const keptOld = new Set<string>();
     const requests: PathRequest[] = [];
     const sameName = new Map<string, Set<string>>();
     const nameKey = (folder: string, name: string): string =>
-      `${folder}\u0000${name.trim().toLowerCase()}`;
+      `${pathKey(folder)}\u0000${name.trim().toLowerCase()}`;
     for (const row of rows.values()) {
       const k = nameKey(libraryCategory(row).folder, row.name);
       sameName.set(k, (sameName.get(k) ?? new Set()).add(row.rules ?? ''));
     }
     for (const row of rows.values()) {
       const note = scan.notes.get(row.uuid);
-      if (note) {
-        paths.set(row.uuid, note.path);
-        continue;
-      }
       const folder = libraryCategory(row).folder;
+      if (note) {
+        const misplaced = note.path.startsWith(FENCE_PREFIX) && !inFolder(note.path, folder);
+        if (!misplaced || !complete || note.owned !== true) {
+          paths.set(row.uuid, note.path);
+          if (misplaced && note.owned === false) keptOld.add(note.path);
+          continue;
+        }
+        moves.set(row.uuid, note.path);
+      }
       const versions = sameName.get(nameKey(folder, row.name));
       const name = row.name || 'Untitled';
       requests.push({
@@ -760,7 +856,12 @@ export class LibrarySync {
       .filter(row => {
         const note = scan.notes.get(row.uuid);
         return (
-          force || !note || note.sig !== row.sig || carried.has(row.uuid) || affected(row.uuid)
+          force ||
+          !note ||
+          note.sig !== row.sig ||
+          carried.has(row.uuid) ||
+          affected(row.uuid) ||
+          moves.has(row.uuid)
         );
       })
       .sort((a, b) => cmp(a.pack, b.pack) || cmp(a.name, b.name) || cmp(a.id, b.id))
@@ -773,6 +874,10 @@ export class LibrarySync {
     world.allPacks = run.allPacks;
     world.notes = scan.notes;
     world.paths = paths;
+    world.moves = moves;
+    for (const old of world.keptOld) world.skipped.delete(old);
+    world.keptOld = keptOld;
+    for (const kept of keptOld) world.skipped.set(kept, KEPT_AT_OLD_PATH);
     world.queue = queue;
     world.byName = null;
     world.membership = membership;
@@ -821,8 +926,69 @@ export class LibrarySync {
     for (const uuid of [...world.deps.keys()]) {
       if (!rows.has(uuid) && !world.notes.has(uuid)) world.deps.delete(uuid);
     }
+    await this.writeBookBases(run, deps, complete);
     await this.saveState(deps);
     return changedKeys.size > 0;
+  }
+
+  /**
+   * One base per book (`Library/Books/<title>.base`), compared by content; after a complete
+   * refresh, a base of a book that has no entries left goes to the vault trash, but only while it
+   * is still the one we wrote (a base the GM changed stays).
+   */
+  private async writeBookBases(
+    run: RefreshRun,
+    deps: LibrarySyncDeps,
+    complete: boolean
+  ): Promise<void> {
+    const world = this.world;
+    const KEY = `${LIBRARY_BOOKS_FOLDER} (bases)`;
+    world.errors.delete(KEY);
+    const titles = new Set<string>();
+    for (const row of run.rows.values()) {
+      const title = bookProperty(row);
+      if (title) titles.add(title);
+    }
+    const wanted = bookBasePaths(titles);
+    const writer = new NoteWriter(deps.campaignRoot, deps.vaultDir, deps.worldId, world.cache);
+    try {
+      await writer.assertRealFence(LIBRARY_ROOT);
+    } catch (error) {
+      world.errors.set(KEY, `Book bases not written: ${errorMessage(error)}`);
+      return;
+    }
+    for (const [title, basePath] of wanted) {
+      const text = renderBookBase(deps.worldId, title);
+      await writer.owned(basePath, text, baseOwnershipCheck(text));
+      const note = renderBookNote(deps.worldId, title, basePath);
+      await writer.owned(bookNotePath(basePath), note, checkMarkdownOwnership);
+    }
+    const keep = new Set([...wanted.values()].map(pathKey));
+    const keepNotes = new Set([...wanted.values()].map(p => pathKey(bookNotePath(p))));
+    const stale = run.scan.bookBases.filter(basePath => !keep.has(pathKey(basePath)));
+    const staleNotes = run.scan.bookNotes.filter(notePath => !keepNotes.has(pathKey(notePath)));
+    if (complete && deps.trashBlocked === null) {
+      const root = deps.campaignRoot.replace(/\\/g, '/');
+      for (const basePath of stale) {
+        const text = await fsp.readFile(`${root}/${basePath}`, 'utf8').catch(() => null);
+        const title = text === null ? null : bookBaseTitle(text);
+        if (title === null) continue; // not one of ours
+        await deps.assertTrash(basePath);
+        await writer.trash(basePath, baseOwnershipCheck(renderBookBase(deps.worldId, title)));
+      }
+      for (const notePath of staleNotes) {
+        const text = await fsp.readFile(`${root}/${notePath}`, 'utf8').catch(() => null);
+        if (text === null || !isBookNoteText(text)) continue; // not one of ours
+        await deps.assertTrash(notePath);
+        await writer.trash(notePath, checkMarkdownOwnership);
+      }
+    }
+    for (const s of writer.skipped) world.skipped.set(s.path, s.reason);
+    for (const e of writer.errors) world.errors.set(e.path, e.error);
+    for (const done of [...writer.written, ...writer.unchanged, ...writer.trashed]) {
+      world.skipped.delete(done);
+      world.errors.delete(done);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -852,6 +1018,16 @@ export class LibrarySync {
     for (const list of subclasses.values()) {
       list.sort((a, b) => cmp(a.name, b.name) || cmp(a.uuid, b.uuid));
     }
+    // Book hub notes by title, placed as writeBookBases places them. A note links only its own
+    // book, so a change to its own row re-renders it; no lookup key is needed.
+    const titles = new Set<string>();
+    for (const row of world.rows.values()) {
+      const title = bookProperty(row);
+      if (title) titles.add(title);
+    }
+    const hubs = new Map(
+      [...bookBasePaths(titles)].map(([title, basePath]) => [title, bookNotePath(basePath)])
+    );
     return lookups => {
       const library: LibraryLinks = {
         byUuid: uuid => {
@@ -886,6 +1062,7 @@ export class LibrarySync {
           lookups.add(`c:${identifier}`);
           return subclasses.get(identifier) ?? [];
         },
+        bookNote: (title): string | null => hubs.get(title) ?? null,
         ...(deps.image
           ? {
               image: (src: string, alt: string, width?: number) =>
@@ -976,10 +1153,30 @@ export class LibrarySync {
         return false;
       }
       const before = [writer.written.length, writer.skipped.length, writer.errors.length];
+      const from = world.moves.get(doc.uuid);
+      if (from !== undefined) {
+        // Its folder changed: move the note (a rename, so never two copies), then write it.
+        world.moves.delete(doc.uuid);
+        const moved = await writer.move(from, notePath, checkMarkdownOwnership);
+        if (moved === 'kept') {
+          // Edited since the check, or the move failed: it stays where it is.
+          world.paths.set(doc.uuid, from);
+          for (const s of writer.skipped.slice(before[1])) world.skipped.set(s.path, s.reason);
+          for (const e of writer.errors.slice(before[2])) world.errors.set(e.path, e.error);
+          return false;
+        }
+        if (moved === 'moved') {
+          world.skipped.delete(from);
+          world.errors.delete(from);
+          world.notes.set(doc.uuid, { path: notePath, sig: null, owned: true });
+        }
+      }
       await writer.owned(notePath, text, checkMarkdownOwnership);
       const skipped = writer.skipped.slice(before[1]);
       const errors = writer.errors.slice(before[2]);
-      for (const s of skipped) world.skipped.set(s.path, s.reason);
+      for (const s of skipped) {
+        world.skipped.set(s.path, world.keptOld.has(s.path) ? KEPT_AT_OLD_PATH : s.reason);
+      }
       for (const e of errors) world.errors.set(e.path, e.error);
       if (skipped.length > 0 || errors.length > 0) return false;
       committed = true;

@@ -51,7 +51,7 @@ export const MIRROR_NOTE_TYPES: readonly MirrorNoteType[] = [
 
 /** The mirror's fence inside the campaign folder. */
 export const MIRROR_ROOT = 'AI Tool/Foundry';
-/** Folder per note family, picked once when a note is created (section 3.1). */
+/** Kind folder per note family (section 3.1); a note goes below it in its Foundry folder path (I-100). */
 export const MIRROR_FOLDERS = {
   pc: `${MIRROR_ROOT}/PCs`,
   npc: `${MIRROR_ROOT}/NPCs`,
@@ -65,9 +65,11 @@ export const MIRROR_STATUS_PATH = `${MIRROR_ROOT}/_status.md`;
  * The renderer's version, appended to every signature the mirror and the Library store in
  * `fvtt_sig` (`<sig>.r3`). Bumping it makes every note count as changed once, also across a
  * restart, so a renderer change reaches every note. 2: stat blocks, images, readable enrichers;
- * 3: a feature name the text already opens with is not repeated.
+ * 3: a feature name the text already opens with is not repeated; 4: notes by Foundry folder and
+ * the Library by book (I-100), so every note is fetched once and moves to its folder; 5: every
+ * Library note links its book's hub note (I-100).
  */
-export const MIRROR_RENDER_VERSION = 3;
+export const MIRROR_RENDER_VERSION = 5;
 
 /**
  * A module signature as the notes store it: with the renderer version and, optionally, a short

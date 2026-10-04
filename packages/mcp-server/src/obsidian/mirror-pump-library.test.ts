@@ -60,6 +60,9 @@ const ROW: LibraryIndexRow = {
   identifier: null,
   classIdentifier: null,
   rules: '2014',
+  book: 'TB',
+  bookTitle: 'Test Bestiary',
+  page: '7',
   sig: 'w1',
 };
 
@@ -181,12 +184,12 @@ describe('ObsidianMirrorPump with the Library and images', () => {
   it('writes Library notes, links world notes to them and copies the images', async () => {
     const pump = newPump();
     await pump.tick();
-    const library = await read('AI Tool/Library/Monsters/Snow Weasel.md');
+    const library = await read('AI Tool/Library/Monsters/Test Bestiary/Snow Weasel.md');
     expect(library).toContain('> [!statblock] Snow Weasel');
     expect(library).toContain('> ***Nip.*** 1d20 + 4 to hit.');
     const page = await read('AI Tool/Foundry/Journals/Lore/Den.md');
     expect(page).toContain(
-      'A [snow weasel](../../../Library/Monsters/Snow%20Weasel.md) sleeps here.'
+      'A [snow weasel](../../../Library/Monsters/Test%20Bestiary/Snow%20Weasel.md) sleeps here.'
     );
     expect(page).toContain(`![[Campaigns/${WORLD}/AI Tool/Attachments/maps/den.png]]`);
     const wolf = await read('AI Tool/Foundry/NPCs/Wolf.md');
@@ -220,7 +223,7 @@ describe('ObsidianMirrorPump with the Library and images', () => {
       );
     const pump = newPump(tracked);
     await pump.tick();
-    expect(await read('AI Tool/Library/Monsters/Snow Weasel.md')).toBeNull();
+    expect(await read('AI Tool/Library/Monsters/Test Bestiary/Snow Weasel.md')).toBeNull();
     expect(fetched).toEqual([]);
     // The world mirror keeps working; the page text (and its image) waits for git to ignore it.
     const page = await read('AI Tool/Foundry/Journals/Lore/Den.md');
@@ -237,7 +240,9 @@ describe('ObsidianMirrorPump with the Library and images', () => {
     await fsp.mkdir(path.join(vault, '.git'));
     const pump = newPump(onlyLibraryIgnored);
     await pump.tick();
-    expect(await read('AI Tool/Library/Monsters/Snow Weasel.md')).toContain('> [!statblock]');
+    expect(await read('AI Tool/Library/Monsters/Test Bestiary/Snow Weasel.md')).toContain(
+      '> [!statblock]'
+    );
     const wolf = (await read('AI Tool/Foundry/NPCs/Wolf.md')) ?? '';
     expect(wolf).toContain('Book text and images are left out of this note');
     expect(wolf).toContain('(../_status.md)');
@@ -248,6 +253,22 @@ describe('ObsidianMirrorPump with the Library and images', () => {
     expect(status).toContain('## Book text in world notes');
     expect(status).toContain('move the vault out of the git repository');
     expect(pump.status().licensedText).toMatchObject({ allowed: false });
+  });
+
+  it('withholds book text in world notes in nested Foundry folders too (I-100)', async () => {
+    await fsp.mkdir(path.join(vault, '.git'));
+    fake.edit(`Actor.${fid('wolf')}`, e => {
+      e.folder = { id: fid('wild'), path: ['Beasts', 'Wild'] };
+    });
+    const pump = newPump(onlyLibraryIgnored);
+    await pump.tick();
+    const wolf = (await read('AI Tool/Foundry/NPCs/Beasts/Wild/Wolf.md')) ?? '';
+    expect(wolf).toContain('Book text and images are left out of this note');
+    expect(wolf).toContain('(../../../_status.md)');
+    expect(wolf).not.toContain('[!statblock]');
+    expect(await read('AI Tool/Library/Monsters/Test Bestiary/Snow Weasel.md')).toContain(
+      '> [!statblock]'
+    );
   });
 
   it('re-renders world notes when the guard flips', async () => {

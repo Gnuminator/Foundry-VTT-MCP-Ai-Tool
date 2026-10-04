@@ -3,6 +3,7 @@
  * `@gnuminator/shared`). This pins the copies to the shared contract so the two cannot drift.
  */
 import { describe, expect, it } from 'vitest';
+import type { LibraryDocument, LibraryIndexRow } from '@gnuminator/shared';
 import {
   LIBRARY_DOCUMENTS_QUERY as MODULE_DOCUMENTS_QUERY,
   LIBRARY_INDEX_QUERY as MODULE_INDEX_QUERY,
@@ -60,5 +61,35 @@ describe('library-index wire contract', () => {
   it('pages the index at 1000 rows and 512 KB', () => {
     expect(SHARED_LIMITS.indexPageMax).toBe(1000);
     expect(SHARED_LIMITS.indexPageBytes).toBe(512 * 1024);
+  });
+
+  it('the book fields are optional on the wire: a row from a module before I-100 still parses', () => {
+    const before: LibraryIndexRow = {
+      uuid: 'Compendium.world.test.Actor.0000000000000001',
+      pack: 'world.test',
+      id: '0000000000000001',
+      name: 'Snow Weasel',
+      type: 'npc',
+      subtype: null,
+      group: null,
+      identifier: null,
+      classIdentifier: null,
+      rules: null,
+      sig: 's',
+    };
+    const after: LibraryIndexRow = {
+      ...before,
+      book: 'MM 2024',
+      bookTitle: 'Monster Manual (2024)',
+      page: '12',
+    };
+    const noBook: Pick<LibraryDocument, 'book' | 'bookTitle' | 'page'> = {
+      book: null,
+      bookTitle: null,
+      page: null,
+    };
+    expect(before.book ?? null).toBeNull();
+    expect(after.bookTitle).toBe('Monster Manual (2024)');
+    expect(Object.values(noBook)).toEqual([null, null, null]);
   });
 });

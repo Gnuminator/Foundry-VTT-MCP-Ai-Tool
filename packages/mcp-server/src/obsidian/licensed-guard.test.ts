@@ -158,6 +158,41 @@ describe('LicensedGuard inside a repository (real git)', () => {
     expect(result.licensedReason).toContain('tracked');
   });
 
+  gitIt('keeps the deeper Library and Foundry folder paths of I-100 covered', async () => {
+    git(vault, 'init', '-q');
+    const result = await new LicensedGuard(campaign, runGit).check();
+    expect(result.ok).toBe(true);
+    // The Library by kind, then book (and group); the per-book bases live in it too.
+    await write('AI Tool/Library/Monsters/Monster Manual (2024)/X.md', 'made-up note\n');
+    await write(
+      "AI Tool/Library/Class features/Player's Handbook (2024)/Fighter/Second Wind.md",
+      'made-up note\n'
+    );
+    await write('AI Tool/Library/Books/Monster Manual (2024).base', 'filters:\n');
+    // A world note in nested Foundry folders, with a page note below its journal.
+    await write('AI Tool/Foundry/Journals/Act 1/Vallaki/Town/Lore.md', 'a mirror note\n');
+    await write('AI Tool/Foundry/Journals/Act 1/Vallaki/Town/Lore/Page.md', 'a page note\n');
+    const status = git(vault, 'status', '--porcelain', '-uall');
+    expect(status).not.toContain('Library');
+    expect(status).not.toContain('Monster Manual');
+    expect(status).toContain('Vallaki/Town/Lore/Page.md');
+    // Ignoring the whole mirror folder covers the nested world notes too (licensed text allowed).
+    await write('.gitignore', 'Campaigns/*/AI Tool/\n.trash/\n', vault);
+    const open = await new LicensedGuard(campaign, runGit).check();
+    expect(open).toMatchObject({ ok: true, licensedOk: true, trashOk: true });
+    expect(git(vault, 'status', '--porcelain', '-uall')).not.toContain('AI Tool');
+  });
+
+  it('finds a nested repository deep in the Foundry folder tree', async () => {
+    await fsp.mkdir(
+      path.join(campaign, 'AI Tool', 'Foundry', 'Journals', 'A', 'B', 'C', 'D', 'Lore', '.git'),
+      { recursive: true }
+    );
+    const result = await new LicensedGuard(campaign, runGit).check();
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('AI Tool/Foundry/Journals/A/B/C/D/Lore/.git');
+  });
+
   gitIt('refuses the Library when licensed files are already tracked', async () => {
     git(vault, 'init', '-q');
     await write('AI Tool/Library/Monsters/Snow Weasel.md', 'made-up note\n');

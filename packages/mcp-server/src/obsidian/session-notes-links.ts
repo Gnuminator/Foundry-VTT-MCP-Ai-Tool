@@ -8,10 +8,10 @@
 import { promises as fsp } from 'fs';
 import * as path from 'path';
 
-import type { StoredNotes } from '../session-notes/types.js';
+import { NOTES_FOLDER, type StoredNotes } from '../session-notes/types.js';
 import type { VaultStore } from '../vault/store.js';
 import { MIRROR_FOLDERS, pathKey } from './mirror-common.js';
-import { allocateNotePaths } from './mirror-paths.js';
+import { allocateNotePaths, folderPath } from './mirror-paths.js';
 
 const FILE_PREFIX = 'session-notes.';
 const HEAD_BYTES = 4096;
@@ -38,17 +38,26 @@ async function head(file: string): Promise<string | null> {
   }
 }
 
+/**
+ * The folders a session-notes journal's mirror note may sit in: the Foundry folder it lives in
+ * (I-100: the mirror follows Foundry's folder tree), then the flat journal folder of mirrors
+ * from before that.
+ */
+const NOTE_FOLDERS = [folderPath(MIRROR_FOLDERS.journal, [NOTES_FOLDER]), MIRROR_FOLDERS.journal];
+
 /** The mirrored note of a journal, among the paths the mirror would have picked for it. */
 async function mirroredNote(root: string, uuid: string, name: string): Promise<string | null> {
   const id = uuid.split('.')[1] ?? uuid;
-  const request = { uuid, id, folder: MIRROR_FOLDERS.journal, name, created: null };
-  const taken = new Set<string>();
-  for (let i = 0; i < 3; i++) {
-    const candidate = allocateNotePaths([request], new Map(), taken).get(uuid);
-    if (!candidate) return null;
-    const text = await head(path.join(root, candidate));
-    if (text?.includes(`fvtt_uuid: ${JSON.stringify(uuid)}`)) return candidate;
-    taken.add(pathKey(candidate));
+  for (const folder of NOTE_FOLDERS) {
+    const request = { uuid, id, folder, name, created: null };
+    const taken = new Set<string>();
+    for (let i = 0; i < 3; i++) {
+      const candidate = allocateNotePaths([request], new Map(), taken).get(uuid);
+      if (!candidate) break;
+      const text = await head(path.join(root, candidate));
+      if (text?.includes(`fvtt_uuid: ${JSON.stringify(uuid)}`)) return candidate;
+      taken.add(pathKey(candidate));
+    }
   }
   return null;
 }

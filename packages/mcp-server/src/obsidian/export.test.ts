@@ -592,8 +592,10 @@ describe('session notes in Foundry (D-087)', () => {
       `## Session notes\n\n- Vejen til Barovia: in Foundry, journal "${date}: Vejen til Barovia" (no mirror note yet)`
     );
 
-    // Another journal already holds the plain name, so the mirror gave ours the hash suffix.
-    const journals = path.join(campaignDir(vaultDir, WORLD), 'AI Tool/Foundry/Journals');
+    // The mirror follows Foundry's folders (I-100): the journal sits in the "Session notes"
+    // folder. Another journal there already holds the plain name, so ours got the hash suffix.
+    const folder = 'AI Tool/Foundry/Journals/Session notes';
+    const journals = path.join(campaignDir(vaultDir, WORLD), folder);
     await fsp.mkdir(journals, { recursive: true });
     const stem = safeFileName(`${date}: Vejen til Barovia`);
     await fsp.writeFile(
@@ -605,13 +607,13 @@ describe('session notes in Foundry (D-087)', () => {
         {
           uuid: JOURNAL,
           id: 'jjjjjjjjjjjjjjjj',
-          folder: 'AI Tool/Foundry/Journals',
+          folder,
           name: `${date}: Vejen til Barovia`,
           created: null,
         },
       ],
       new Map(),
-      new Set([pathKey(`AI Tool/Foundry/Journals/${stem}.md`)])
+      new Set([pathKey(`${folder}/${stem}.md`)])
     ).get(JOURNAL)!;
     await fsp.writeFile(
       path.join(campaignDir(vaultDir, WORLD), ours),
@@ -626,7 +628,33 @@ describe('session notes in Foundry (D-087)', () => {
       .map(encodeURIComponent)
       .join('/');
     expect(s1).toContain(`- [Vejen til Barovia](${rel})`);
-    expect(rel).toMatch(/^\.\.\/Foundry\/Journals\/.+%20\([a-z0-9]{6}\)\.md$/);
+    expect(rel).toMatch(/^\.\.\/Foundry\/Journals\/Session%20notes\/.+%20\([a-z0-9]{6}\)\.md$/);
+  });
+
+  it('still finds a mirror note at the flat journal folder of earlier versions', async () => {
+    await seed();
+    await run();
+    const date = /\ndate: "([^"]+)"/.exec(await note('AI Tool/Sessions/2026-09-28 S01.md'))![1];
+    await stageInFoundry(date);
+    const flat = `AI Tool/Foundry/Journals/${safeFileName(`${date}: Vejen til Barovia`)}.md`;
+    await fsp.mkdir(path.dirname(path.join(campaignDir(vaultDir, WORLD), flat)), {
+      recursive: true,
+    });
+    await fsp.writeFile(
+      path.join(campaignDir(vaultDir, WORLD), flat),
+      `---\nfvtt_uuid: "${JOURNAL}"\n---\n`
+    );
+
+    await run();
+    const rel = path.posix
+      .relative('AI Tool/Sessions', flat)
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/');
+    expect(await note('AI Tool/Sessions/2026-09-28 S01.md')).toContain(
+      `- [Vejen til Barovia](${rel})`
+    );
+    expect(rel).toMatch(/^\.\.\/Foundry\/Journals\/[^/]+\.md$/);
   });
 });
 

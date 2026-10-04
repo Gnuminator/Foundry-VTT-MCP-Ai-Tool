@@ -7,8 +7,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { LibraryDocument, LibraryIndexResponse } from '@gnuminator/shared';
 import {
+  BOOK_TITLES,
   LIBRARY_LIMITS,
   LIBRARY_SCHEMA,
+  bookTitleOf,
   getLibraryDocuments,
   getLibraryIndex,
 } from './library-index.js';
@@ -424,6 +426,98 @@ describe('getLibraryIndex: sig', () => {
     expect(await sigWith(npcEntry(1, { system: { source: { rules: '2024' } } }))).not.toBe(base);
     expect(await sigWith(npcEntry(1, { system: { identifier: 'weasel' } }))).not.toBe(base);
     expect(await sigWith(npcEntry(1, { flags: { other: 1 }, sort: 7 }))).toBe(base);
+  });
+
+  it('changes with the source book and the page (the note moves or its page changes)', async () => {
+    const base = await sigWith(npcEntry(1, { system: { source: { book: 'MM 2024' } } }));
+    expect(await sigWith(npcEntry(1, { system: { source: { book: 'MM' } } }))).not.toBe(base);
+    expect(
+      await sigWith(npcEntry(1, { system: { source: { book: 'MM 2024', page: '12' } } }))
+    ).not.toBe(base);
+  });
+});
+
+describe('getLibraryIndex: source book (I-100)', () => {
+  async function rowOf(source: unknown, i18n?: Record<string, string>): Promise<Rec> {
+    installGame([mockPack('world.test-monsters', [npcEntry(1, { system: { source } })])]);
+    if (i18n) {
+      const game = (globalThis as unknown as { game: Rec }).game;
+      game.i18n = { localize: (key: string): string => i18n[key] ?? key };
+    }
+    const row = (await indexOk({ packs: ['world.test-monsters'] })).entries[0];
+    return { book: row?.book, bookTitle: row?.bookTitle, page: row?.page };
+  }
+
+  it('takes the full title from the dnd5e registry, localized', async () => {
+    setGlobal('CONFIG', {
+      DND5E: { sourceBooks: { 'SRD 5.2': 'SOURCE.BOOK.SRD52', XYZ: { label: 'Book of Xyz' } } },
+    });
+    expect(
+      await rowOf({ book: 'SRD 5.2', page: '7' }, { 'SOURCE.BOOK.SRD52': 'SRD 5.2 (Localized)' })
+    ).toEqual({ book: 'SRD 5.2', bookTitle: 'SRD 5.2 (Localized)', page: '7' });
+    expect(await rowOf({ book: 'XYZ' })).toEqual({
+      book: 'XYZ',
+      bookTitle: 'Book of Xyz',
+      page: null,
+    });
+  });
+
+  it('falls back to its own table, then to the code itself', async () => {
+    setGlobal('CONFIG', { DND5E: { sourceBooks: { 'MM 2024': 'SOURCE.BOOK.MISSING' } } });
+    // An unresolved localization key does not count as a title.
+    expect((await rowOf({ book: 'MM 2024', page: 12 })).bookTitle).toBe('Monster Manual (2024)');
+    expect((await rowOf({ book: 'MM 2024', page: 12 })).page).toBe('12');
+    expect((await rowOf({ book: 'PHB' })).bookTitle).toBe("Player's Handbook (2014)");
+    expect((await rowOf({ book: 'CoS' })).bookTitle).toBe('Curse of Strahd');
+    expect((await rowOf({ book: 'Homebrew' })).bookTitle).toBe('Homebrew');
+    expect(await rowOf({ custom: 'Table Notes' })).toEqual({
+      book: 'Table Notes',
+      bookTitle: 'Table Notes',
+      page: null,
+    });
+  });
+
+  it("takes a missing book from the pack's module when it registers exactly one", async () => {
+    const pack = mockPack('dnd-players-handbook.classes', [
+      npcEntry(1, { system: { source: { page: '40' } } }),
+      npcEntry(2, { system: { source: { book: 'DMG 2024' } } }),
+    ]);
+    pack.metadata = {
+      label: 'Classes',
+      packageType: 'module',
+      packageName: 'dnd-players-handbook',
+    };
+    installGame([pack]);
+    const game = (globalThis as unknown as { game: Rec }).game;
+    const modules: Record<string, Rec> = {
+      'dnd-players-handbook': { flags: { dnd5e: { sourceBooks: { 'PHB 2024': 'x' } } } },
+    };
+    game.modules = { get: (id: string): Rec | undefined => modules[id] };
+    const rows = (await indexOk({ packs: ['dnd-players-handbook.classes'] })).entries;
+    expect(rows.map(r => [r.book, r.bookTitle, r.page])).toEqual([
+      ['PHB 2024', "Player's Handbook (2024)", '40'],
+      ['DMG 2024', "Dungeon Master's Guide (2024)", null],
+    ]);
+    // Two registered books: no guess.
+    modules['dnd-players-handbook'] = {
+      flags: { dnd5e: { sourceBooks: { 'PHB 2024': 'x', 'DMG 2024': 'y' } } },
+    };
+    expect((await indexOk({ packs: ['dnd-players-handbook.classes'] })).entries[0]?.book).toBe(
+      null
+    );
+  });
+
+  it('has no book without a source, and every common code has a title', async () => {
+    expect(await rowOf(undefined)).toEqual({ book: null, bookTitle: null, page: null });
+    expect(await rowOf({ rules: '2024', page: '3' })).toEqual({
+      book: null,
+      bookTitle: null,
+      page: '3',
+    });
+    for (const code of ['PHB 2024', 'DMG 2024', 'DMG', 'MM', 'XGtE', 'TCoE', 'MotM', 'SRD 5.1']) {
+      expect(BOOK_TITLES[code]).toBeTruthy();
+      expect(bookTitleOf(code)).toBe(BOOK_TITLES[code]);
+    }
   });
 });
 
@@ -902,6 +996,9 @@ describe('getLibraryDocuments: spell facts', () => {
     expect(doc).toMatchObject({
       source: 'XYZ p. 12',
       rules: '2014',
+      book: 'XYZ',
+      bookTitle: 'XYZ',
+      page: '12',
       description: '<p>A chill bites.</p>',
       truncated: false,
     });

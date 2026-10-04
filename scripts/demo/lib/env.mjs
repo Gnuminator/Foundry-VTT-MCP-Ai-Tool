@@ -12,8 +12,21 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const DEMO_DIR = resolve(here, '..');
 export const REPO_ROOT = resolve(DEMO_DIR, '..', '..');
 
-/** The world every take runs in. reset-demo-world.ps1 refuses any other. */
+/** The default demo world. reset-demo-world.ps1 refuses anything but demo worlds. */
 export const DEMO_WORLD = 'ai-tool-demo';
+const DEMO_WORLD_ID = /^ai-tool-demo(-[a-z0-9]+)*$/;
+
+/**
+ * The world takes run in: ai-tool-demo, or another demo world (ai-tool-demo-<name>) picked
+ * with `--world`, which demo.mjs passes on in DEMO_WORLD_ID.
+ */
+export function demoWorld() {
+  const world = process.env.DEMO_WORLD_ID || DEMO_WORLD;
+  if (!DEMO_WORLD_ID.test(world)) {
+    throw new Error(`Demo worlds are called ai-tool-demo or ai-tool-demo-<name>; got "${world}".`);
+  }
+  return world;
+}
 
 /** The demo world's users (no passwords; test server only). */
 export const DEMO_USERS = { gm: 'GM', player: 'Player' };

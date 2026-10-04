@@ -4,7 +4,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectConsoleErrors, measure, openWindow } from './browser.mjs';
-import { CSS_SIZE, DEMO_USERS, DEMO_WORLD, RESOLUTIONS } from './env.mjs';
+import { CSS_SIZE, DEMO_USERS, RESOLUTIONS, demoWorld } from './env.mjs';
 import { joinFoundry, waitForCanvasReady } from './foundry.mjs';
 import { waitForDashboard } from './dashboard.mjs';
 import { cropToPage } from './obs-setup.mjs';
@@ -27,6 +27,8 @@ export class Take {
     /** @type {string[]} */
     this.shots = [];
     this.t0 = 0;
+    /** @type {typeof import('./index.mjs') | null} the kit's helpers, for takes kept outside the repo */
+    this.lib = null;
   }
 
   /**
@@ -65,7 +67,7 @@ export class Take {
     const win = await this.#open(sceneName, `${this.env.foundryUrl}/join`);
     await joinFoundry(win.page, {
       foundryUrl: this.env.foundryUrl,
-      world: DEMO_WORLD,
+      world: demoWorld(),
       user,
       password,
     });

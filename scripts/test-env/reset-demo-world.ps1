@@ -1,34 +1,46 @@
-# Reset the demo world "ai-tool-demo" on the local test server to its saved clean
-# state, so every demo take and docs screenshot starts the same (I-082).
+# Reset a demo world on the local test server to its saved clean state, so every demo
+# take and docs screenshot starts the same (I-082). The default demo world is "ai-tool-demo";
+# -World picks another one whose id starts with "ai-tool-demo-" (for example a local-only
+# world with licensed content for a private GM video).
 #
 #   pwsh scripts/test-env/reset-demo-world.ps1            stop the test server, restore the snapshot
-#   pwsh scripts/test-env/reset-demo-world.ps1 -Start     ... then start it into ai-tool-demo
+#   pwsh scripts/test-env/reset-demo-world.ps1 -Start     ... then start it into the demo world
 #   pwsh scripts/test-env/reset-demo-world.ps1 -Snapshot  stop, save the current state as the clean one
-#   pwsh scripts/test-env/reset-demo-world.ps1 -Init      create ai-tool-demo once, as a copy of ai-tool-test
+#   pwsh scripts/test-env/reset-demo-world.ps1 -Init      create the demo world once, as a copy of -Source
+#   ... -World ai-tool-demo-x -Source ai-tool-kit -Init    another demo world, copied from another world
 #
-# The clean state is three folders, kept in <Root>/demo/snapshot:
-#   world     <Root>/data/Data/worlds/ai-tool-demo     (Foundry's world, incl. chat and users)
-#   vault     <Root>/vault/ai-tool-demo                (bridge vault: session log, changes, undo)
-#   obsidian  <ObsidianDir>/Campaigns/ai-tool-demo     (the test Obsidian vault's notes for it)
+# The clean state is three folders, kept in <Root>/demo/snapshot (ai-tool-demo) or
+# <Root>/demo/snapshot-<world> (any other demo world):
+#   world     <Root>/data/Data/worlds/<world>     (Foundry's world, incl. chat and users)
+#   vault     <Root>/vault/<world>                (bridge vault: session log, changes, undo)
+#   obsidian  <ObsidianDir>/Campaigns/<world>     (the test Obsidian vault's notes for it)
 # The service logs start empty on every start.ps1 run.
 #
-# Test server only: works on the ai-tool-demo world and nothing else, refuses the live
-# bridge ports 31414-31416, and refuses to stop Foundry while it runs another world
-# (another session may be testing) unless -Force.
+# Test server only: works on demo worlds and nothing else (the source world is only read),
+# refuses the live bridge ports 31414-31416, and refuses to stop Foundry while it runs another
+# world (another session may be testing) unless -Force.
 param(
   [switch]$Start,
   [switch]$Snapshot,
   [switch]$Init,
-  [switch]$Force
+  [switch]$Force,
+  [string]$World = 'ai-tool-demo',
+  [string]$Source = 'ai-tool-test',
+  [string]$Title = ''
 )
+
+if ($World -notmatch '^ai-tool-demo(-[a-z0-9]+)*$') {
+  throw "Demo worlds are called ai-tool-demo or ai-tool-demo-<name> (lower case); got '$World'."
+}
 
 . (Join-Path $PSScriptRoot 'config.ps1')
 Assert-SafePorts
 
-$DemoWorld = 'ai-tool-demo'
-$SourceWorld = 'ai-tool-test'
+$DemoWorld = $World
+$SourceWorld = $Source
 $worldsDir = Join-Path $TestEnv.DataDir 'Data' 'worlds'
-$snapRoot = Join-Path $TestEnv.Root 'demo' 'snapshot'
+$snapName = if ($DemoWorld -eq 'ai-tool-demo') { 'snapshot' } else { "snapshot-$DemoWorld" }
+$snapRoot = Join-Path $TestEnv.Root 'demo' $snapName
 $parts = [ordered]@{
   world = Join-Path $worldsDir $DemoWorld
   vault = Join-Path $TestEnv.VaultDir $DemoWorld
@@ -81,7 +93,7 @@ if ($Init) {
   $manifestPath = Join-Path $parts.world 'world.json'
   $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
   $manifest.id = $DemoWorld
-  $manifest.title = 'AI Tool Demo'
+  $manifest.title = if ($Title) { $Title } elseif ($DemoWorld -eq 'ai-tool-demo') { 'AI Tool Demo' } else { "AI Tool Demo: $($DemoWorld.Substring(13)) (local only)" }
   $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding utf8NoBOM
   Write-Host "Created $DemoWorld from $SourceWorld. Tidy it in Foundry, then save it with -Snapshot."
   if ($Start) { & (Join-Path $PSScriptRoot 'start.ps1') -World $DemoWorld }

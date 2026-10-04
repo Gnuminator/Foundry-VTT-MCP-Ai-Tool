@@ -29,6 +29,8 @@
     "validate:manifest": "node scripts/validate-manifest.js",
     "version:sync": "node scripts/sync-version.mjs",
     "version:check": "node scripts/sync-version.mjs --check",
+    "changelog:check": "node scripts/changelog-fold.mjs --check",
+    "changelog:fold": "node scripts/changelog-fold.mjs",
     "docs:lint": "markdownlint-cli2",
     "docs:links": "node scripts/check-links.mjs",
     "docs:tools": "node scripts/docs-tools.mjs",

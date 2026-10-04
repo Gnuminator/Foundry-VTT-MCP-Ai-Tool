@@ -8,7 +8,7 @@ function authConfig(overrides: Partial<AuthConfig> = {}): AuthConfig {
     gmToken: 'gm-secret',
     playerToken: '',
     gmEmails: [],
-    cfAccessEmailHeader: 'cf-access-authenticated-user-email',
+    access: null,
     ...overrides,
   };
 }
@@ -67,28 +67,32 @@ describe('resolveRole — player token required', () => {
   });
 });
 
-describe('resolveRole — Cloudflare Access email', () => {
-  const auth = authConfig({ gmToken: '', gmEmails: ['gm@example.com'] });
+describe('resolveRole — Cloudflare Access email (I-022)', () => {
+  const access = { teamDomain: 'team.cloudflareaccess.com', audiences: ['aud-1'] };
+  const auth = authConfig({ gmToken: '', gmEmails: ['gm@example.com'], access });
+  const withEmail = (email: string): AuthRequest => ({
+    headers: {},
+    query: {},
+    accessEmail: email,
+  });
 
-  it('grants gm for an allow-listed email (case-insensitive)', () => {
-    expect(resolveRole(req({ 'cf-access-authenticated-user-email': 'GM@example.com' }), auth)).toBe(
-      'gm'
+  it('grants gm for a verified, allow-listed email (case-insensitive)', () => {
+    expect(resolveRole(withEmail('GM@example.com'), auth)).toBe('gm');
+  });
+
+  it('treats a verified email that is not allow-listed as a player', () => {
+    expect(resolveRole(withEmail('someone@example.com'), auth)).toBe('player');
+  });
+
+  it('never trusts the plain email header (P-038): anyone could send it', () => {
+    expect(resolveRole(req({ 'cf-access-authenticated-user-email': 'gm@example.com' }), auth)).toBe(
+      'player'
     );
   });
 
-  it('treats a non-allow-listed email as a player', () => {
-    expect(
-      resolveRole(req({ 'cf-access-authenticated-user-email': 'someone@example.com' }), auth)
-    ).toBe('player');
-  });
-
-  it('honours a custom header name', () => {
-    const custom = authConfig({
-      gmToken: '',
-      gmEmails: ['gm@x.io'],
-      cfAccessEmailHeader: 'x-email',
-    });
-    expect(resolveRole(req({ 'x-email': 'gm@x.io' }), custom)).toBe('gm');
+  it('gives no email login at all while Access checking is not configured', () => {
+    const unchecked = authConfig({ gmToken: '', gmEmails: ['gm@example.com'], access: null });
+    expect(resolveRole(withEmail('gm@example.com'), unchecked)).toBe('player');
   });
 });
 

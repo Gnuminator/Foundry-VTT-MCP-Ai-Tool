@@ -1,5 +1,5 @@
 {
-  "total": 1564,
+  "total": 1563,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -8,7 +8,7 @@
     ".gitignore": 1,
     "CHANGELOG.md": 25,
     "CREDITS.md": 2,
-    "deploy/cloudflare/access-policy.md": 12,
+    "deploy/cloudflare/access-policy.md": 11,
     "deploy/cloudflare/config.yml.template": 3,
     "deploy/docker-compose.yml.template": 8,
     "deploy/Dockerfile": 11,

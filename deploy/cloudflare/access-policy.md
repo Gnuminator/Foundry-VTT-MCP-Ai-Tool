@@ -2,7 +2,8 @@
 
 > **Scaffold — not deployed.** This documents how to create the Cloudflare Access
 > application and email allow-list that gate the co-GM dashboard, and exactly how those
-> settings pair with the dashboard's `GM_EMAILS` / `CF_ACCESS_EMAIL_HEADER` env vars.
+> settings pair with the dashboard's `GM_EMAILS`, `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` env
+> vars.
 > Replace every `<PLACEHOLDER>` with your real values.
 
 ---
@@ -14,11 +15,14 @@ dashboard. It:
 
 1. Shows a login page to unauthenticated visitors (Google/GitHub OAuth, or email OTP).
 2. Verifies the identity against your allow-list policy.
-3. Injects the header `cf-access-authenticated-user-email: user@example.com` into every
+3. Sends a signed login token (the `Cf-Access-Jwt-Assertion` header) with every
    request that passes through to the dashboard.
 4. Issues a short-lived JWT cookie so repeat visits don't re-trigger the login.
 
-The dashboard's Node server reads that injected header and maps the email to a role:
+The dashboard checks that token (signature against your team's public keys, issuer,
+audience, expiry; I-022) and maps its email to a role. It never trusts the plain
+`cf-access-authenticated-user-email` header, which anyone reaching the dashboard another
+way could send:
 
 - Email in `GM_EMAILS` list → **GM role** (full dashboard, write actions available).
 - Any other authenticated email → **player role** (read-only `/player` view).
@@ -85,18 +89,20 @@ GM_EMAILS=<YOUR_GM_EMAIL>@gmail.com,<COGM_EMAIL>@gmail.com
 ```
 
 Comma-separated. The dashboard lowercases all values and compares them against the
-lowercased injected email header. Only these addresses get the GM-role view and access
-to write actions.
+lowercased email of a verified Access token. Only these addresses get the GM-role view and
+access to write actions.
 
-### `CF_ACCESS_EMAIL_HEADER`
+### `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`
 
 ```bash
-# Default — only change if you have reconfigured the Access header name.
-CF_ACCESS_EMAIL_HEADER=cf-access-authenticated-user-email
+CF_ACCESS_TEAM_DOMAIN=<YOUR_TEAM>.cloudflareaccess.com
+CF_ACCESS_AUD=<the application's Application Audience (AUD) Tag>
 ```
 
-Cloudflare Access injects this header by default. Leave it at the default unless your
-team domain is configured to use a custom header name.
+The team domain is under Zero Trust, Settings, Custom Pages (or the top of the Access
+settings). The AUD tag is on the application's Overview tab ("Application Audience (AUD)
+Tag"). Without both, email logins are off and `GM_EMAILS` gives nobody the GM role (the
+dashboard logs a warning at start).
 
 ### `GM_DASHBOARD_TOKEN` (optional alternative/additional factor)
 

@@ -48,9 +48,9 @@ ingress:
   # will successfully proxy requests.
   #
   # Cloudflare Access (set up separately in the Zero Trust dashboard) gates this
-  # hostname and injects "cf-access-authenticated-user-email" into every request
-  # before it reaches the dashboard server. The dashboard maps that email against
-  # GM_EMAILS to assign the GM role.
+  # hostname and sends a signed login token (Cf-Access-Jwt-Assertion) with every
+  # request. The dashboard checks it (CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD) and maps
+  # its email against GM_EMAILS to assign the GM role.
   #
   - hostname: cogm.<YOUR_DOMAIN>
     service: http://localhost:3000

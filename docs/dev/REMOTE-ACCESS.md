@@ -59,7 +59,7 @@ anywhere, without exposing your home IP address and without port-forwarding.
   │  CLOUDFLARE EDGE                                                     │
   │  - Cloudflare Access application → email allow-list enforced here    │
   │  - Terminates user TLS; decrypts; forwards to tunnel                 │
-  │  - Injects  cf-access-authenticated-user-email  header              │
+  │  - Sends a signed login token (Cf-Access-Jwt-Assertion)            │
   └───────┬────────────────────────────────────────────────────────────┘
           │  HTTPS  https://cogm.<YOUR_DOMAIN>
           ├──────────────────────────────────────────────────────────────►  You (GM browser)
@@ -116,22 +116,22 @@ the remote-hosting topology.
 
 ### Dashboard (`packages/cogm-dashboard/src/config.ts`)
 
-| Variable                       | Default                              | What it controls                                                                |
-| ------------------------------ | ------------------------------------ | ------------------------------------------------------------------------------- |
-| `PORT`                         | `3000`                               | HTTP port the dashboard binds. Cloudflare Tunnel proxies this.                  |
-| `DASHBOARD_HOST`               | `127.0.0.1`                          | Listen address. Any non-loopback value is refused without `GM_DASHBOARD_TOKEN`. |
-| `DASHBOARD_ALLOWED_HOSTS`      | _(unset)_                            | Extra host names it answers to, e.g. the tunnel's public name (Host check).     |
-| `MCP_CONTROL_HOST`             | `127.0.0.1`                          | Where the dashboard connects for the control channel.                           |
-| `MCP_CONTROL_PORT`             | `31414`                              | Control channel port (must match the backend).                                  |
-| `ANTHROPIC_API_KEY`            | _(unset — AI disabled if empty)_     | Anthropic API key. **Server-side only. Never reaches browser.**                 |
-| `ANTHROPIC_MODEL`              | `claude-opus-5-5`                    | Claude model used for co-GM commentary.                                         |
-| `GM_DASHBOARD_TOKEN`           | _(unset)_                            | Shared secret that grants GM role. Setting this enables the GM/player split.    |
-| `PLAYER_DASHBOARD_TOKEN`       | _(unset)_                            | Optional token required to view the player page.                                |
-| `GM_EMAILS`                    | _(unset)_                            | Comma-separated email addresses that map to GM role (via Cloudflare Access).    |
-| `CF_ACCESS_EMAIL_HEADER`       | `cf-access-authenticated-user-email` | Request header Cloudflare Access injects with the authed email.                 |
-| `PLAYER_SHOW_ENEMY_CONDITIONS` | `true`                               | Let player view see status conditions on enemy combatants.                      |
-| `PLAYER_SHOW_ENEMY_HP_BANDS`   | `false`                              | Let player view see coarse HP bands (e.g. "bloodied") on enemies.               |
-| `LOG_LEVEL`                    | `info`                               | Dashboard server log verbosity.                                                 |
+| Variable                       | Default                          | What it controls                                                                      |
+| ------------------------------ | -------------------------------- | ------------------------------------------------------------------------------------- |
+| `PORT`                         | `3000`                           | HTTP port the dashboard binds. Cloudflare Tunnel proxies this.                        |
+| `DASHBOARD_HOST`               | `127.0.0.1`                      | Listen address. Any non-loopback value is refused without `GM_DASHBOARD_TOKEN`.       |
+| `DASHBOARD_ALLOWED_HOSTS`      | _(unset)_                        | Extra host names it answers to, e.g. the tunnel's public name (Host check).           |
+| `MCP_CONTROL_HOST`             | `127.0.0.1`                      | Where the dashboard connects for the control channel.                                 |
+| `MCP_CONTROL_PORT`             | `31414`                          | Control channel port (must match the backend).                                        |
+| `ANTHROPIC_API_KEY`            | _(unset — AI disabled if empty)_ | Anthropic API key. **Server-side only. Never reaches browser.**                       |
+| `ANTHROPIC_MODEL`              | `claude-opus-5-5`                | Claude model used for co-GM commentary.                                               |
+| `GM_DASHBOARD_TOKEN`           | _(unset)_                        | Shared secret that grants GM role. Setting this enables the GM/player split.          |
+| `PLAYER_DASHBOARD_TOKEN`       | _(unset)_                        | Optional token required to view the player page.                                      |
+| `GM_EMAILS`                    | _(unset)_                        | Comma-separated email addresses that map to GM role (via Cloudflare Access).          |
+| `CF_ACCESS_TEAM_DOMAIN`        | _(unset)_                        | `<team>.cloudflareaccess.com`; with `CF_ACCESS_AUD`, turns on the Access token check. |
+| `PLAYER_SHOW_ENEMY_CONDITIONS` | `true`                           | Let player view see status conditions on enemy combatants.                            |
+| `PLAYER_SHOW_ENEMY_HP_BANDS`   | `false`                          | Let player view see coarse HP bands (e.g. "bloodied") on enemies.                     |
+| `LOG_LEVEL`                    | `info`                           | Dashboard server log verbosity.                                                       |
 
 ### Host check (DNS rebinding guard)
 
@@ -174,10 +174,11 @@ When Cloudflare Access is in front:
 
 1. Cloudflare Access verifies the user's identity (e.g. Google / GitHub OAuth, or a One-Time
    PIN to their email).
-2. On success Cloudflare injects the header `cf-access-authenticated-user-email: user@example.com`
-   into every request reaching the tunnel.
-3. The dashboard reads that header (configured by `CF_ACCESS_EMAIL_HEADER`) and checks the
-   email against `GM_EMAILS` (lowercased, comma-separated list). Match → GM role.
+2. On success Cloudflare sends a signed login token (`Cf-Access-Jwt-Assertion`) with every
+   request reaching the tunnel.
+3. The dashboard checks the token (`CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`: signature,
+   issuer, audience, expiry) and compares its email against `GM_EMAILS` (lowercased,
+   comma-separated list). Match → GM role. The plain email header is never trusted (I-022).
 4. `GM_DASHBOARD_TOKEN` is an alternative / additional credential: present it as a
    `X-GM-Token` header, `?gm_token=` query parameter, or `gm_token` cookie → GM role.
 
@@ -282,12 +283,11 @@ In the Cloudflare Zero Trust dashboard (`one.dash.cloudflare.com`):
 6. Save.
 
 From this point, visiting `https://cogm.<YOUR_DOMAIN>` shows a Cloudflare login page.
-After authentication Cloudflare injects `cf-access-authenticated-user-email` into every
-proxied request. The dashboard reads that header and grants GM role if the email is in
-`GM_EMAILS`.
+After authentication Cloudflare sends a signed login token with every proxied request. The
+dashboard checks it and grants the GM role if its email is in `GM_EMAILS`.
 
 See `deploy/cloudflare/access-policy.md` for the exact email-to-role mapping and how it
-pairs with `GM_EMAILS` / `CF_ACCESS_EMAIL_HEADER`.
+pairs with `GM_EMAILS`, `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`.
 
 ---
 
@@ -403,7 +403,7 @@ Work through this list top-to-bottom when you're ready to go remote.
   - [ ] `GM_EMAILS=<your-email>,<cogm-email>` (comma-separated)
   - [ ] `GM_DASHBOARD_TOKEN=<random-secret>` (optional additional auth factor)
   - [ ] `PLAYER_DASHBOARD_TOKEN=<random-secret>` (if you want a gated player view)
-  - [ ] `CF_ACCESS_EMAIL_HEADER=cf-access-authenticated-user-email` (default; only change if you reconfigured Access)
+  - [ ] `CF_ACCESS_TEAM_DOMAIN=<YOUR_TEAM>.cloudflareaccess.com` and `CF_ACCESS_AUD=<the application's AUD tag>` (both needed for `GM_EMAILS` to work)
   - [ ] `DASHBOARD_ALLOWED_HOSTS=cogm.<YOUR_DOMAIN>` (the tunnel's public name; without it the tunnel gets `421 host-not-allowed`)
 - [ ] Start the dashboard: `npm run start:cogm` (or via service/Docker).
 - [ ] Confirm it serves on `http://localhost:3000`.

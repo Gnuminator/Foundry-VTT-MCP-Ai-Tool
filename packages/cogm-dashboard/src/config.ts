@@ -1,3 +1,4 @@
+import { parseTeamDomain, type AccessJwtConfig } from './access-jwt.js';
 import 'dotenv/config';
 import * as os from 'os';
 import * as path from 'path';
@@ -110,8 +111,11 @@ export interface AuthConfig {
   readonly playerToken: string;
   /** Cloudflare Access email allow-list that maps to the GM role. */
   readonly gmEmails: readonly string[];
-  /** Request header Cloudflare Access injects with the authenticated user email. */
-  readonly cfAccessEmailHeader: string;
+  /**
+   * How Cloudflare Access logins are checked (I-022): the team domain and the application's
+   * AUD tag(s). Null: email logins are off, and `GM_EMAILS` gives nobody the GM role.
+   */
+  readonly access: AccessJwtConfig | null;
 }
 
 export interface PlayerViewConfig {
@@ -167,15 +171,29 @@ export function resolveObsidianVaultName(vaultNameEnv: string, obsidianDirEnv: s
 
 const gmToken = readString('GM_DASHBOARD_TOKEN', '');
 const gmEmails = readList('GM_EMAILS').map(e => e.toLowerCase());
+
+/**
+ * Cloudflare Access (I-022): `CF_ACCESS_TEAM_DOMAIN` (`<team>.cloudflareaccess.com`) and
+ * `CF_ACCESS_AUD` (the application's AUD tag, comma-separated for several). Both set and valid,
+ * or email logins are off. Pure so it unit-tests without touching env vars.
+ */
+export function resolveAccessConfig(teamDomainEnv: string, audEnv: string): AccessJwtConfig | null {
+  const teamDomain = parseTeamDomain(teamDomainEnv);
+  const audiences = audEnv
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s !== '');
+  return teamDomain && audiences.length > 0 ? { teamDomain, audiences } : null;
+}
 const auth: AuthConfig = {
   splitEnabled: gmToken !== '' || gmEmails.length > 0,
   gmToken,
   playerToken: readString('PLAYER_DASHBOARD_TOKEN', ''),
   gmEmails,
-  cfAccessEmailHeader: readString(
-    'CF_ACCESS_EMAIL_HEADER',
-    'cf-access-authenticated-user-email'
-  ).toLowerCase(),
+  access: resolveAccessConfig(
+    process.env.CF_ACCESS_TEAM_DOMAIN ?? '',
+    process.env.CF_ACCESS_AUD ?? ''
+  ),
 };
 
 const pollIntervalMs = readNumber('POLL_INTERVAL_MS', 4000);

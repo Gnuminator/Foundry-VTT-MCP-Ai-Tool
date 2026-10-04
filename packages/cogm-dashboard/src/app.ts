@@ -31,6 +31,8 @@ import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
 import { mountHandoutSeenRoute } from './handout-seen-route.js';
 import { mountSessionNotesRoute, type SessionNotesAction } from './session-notes-route.js';
 import { mountHelpRoute } from './help-route.js';
+import { mountMeRoute } from './me-route.js';
+import { PlayerLinkStore } from './player-links.js';
 import { THEMES, ThemeStore, isTheme } from './theme.js';
 import * as path from 'path';
 
@@ -67,6 +69,8 @@ export interface DashboardClient {
   sessionSwitches?(action: SessionSwitchAction): Promise<unknown>;
   /** The feature cards (I-064): every feature switch, read-only; absent on fakes. */
   featureSwitches?(): Promise<unknown>;
+  /** My character (I-096): one player's character sheets; absent on fakes. */
+  characterSheet?(userId: string): Promise<unknown>;
   /** Session notes (recap lane, D-087): list, get, put, approve; absent on fakes. */
   sessionNotes?(action: SessionNotesAction, params?: Record<string, unknown>): Promise<unknown>;
   readonly isConnected?: boolean;
@@ -125,7 +129,7 @@ export const PLAYER_CSP =
 
 /** The player page file and its header, on every URL that reaches it (static-headers.ts). */
 export const PLAYER_PAGE_HEADERS: StaticHeaderGroup = {
-  files: ['player.html'],
+  files: ['player.html', 'me.html'],
   apply: res => res.setHeader('Content-Security-Policy', PLAYER_CSP),
 };
 /** How often the player view context (visibility, handouts) is refreshed. */
@@ -181,6 +185,12 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   // Non-GM user names for the player page's name pick and the usage log (I-084).
   const playerDirectory = new PlayerDirectory(client, logger.child('usage'));
+
+  // My character (I-096): one private link per player and world.
+  const playerLinks = new PlayerLinkStore(
+    config.stateDir ? path.join(config.stateDir, 'player-links.json') : null,
+    logger
+  );
 
   const state = new GameState(config.maxEvents, config.maxErrors);
   const sse = new SseHub(logger);
@@ -481,6 +491,18 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   app.get('/player', (_req: Request, res: Response) => {
     PLAYER_PAGE_HEADERS.apply(res);
     res.sendFile('player.html', { root: config.publicDir });
+  });
+
+  // My character (I-096): the player's own sheet behind their private link, and the GM's links.
+  mountMeRoute(app, {
+    client,
+    links: playerLinks,
+    directory: playerDirectory,
+    requireGm,
+    worldId: () => world?.id ?? null,
+    theme: () => themes.get(world?.id),
+    publicDir: config.publicDir,
+    pageHeaders: res => PLAYER_PAGE_HEADERS.apply(res),
   });
 
   app.get('/api/health', (_req: Request, res: Response) => {

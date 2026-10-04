@@ -46,7 +46,18 @@ help works offline and matches the installed version.
 
 **Advanced** (top right) holds the rest: the Pre-flight, Prep, Party, Handouts and Tarokka panels
 (a panel already on the screen is scrolled to; otherwise it opens over the page), the Tool Runner,
-the AI co-GM and module diagnostics, and the AI settings (pause, diagnostics AI, tone, model).
+the AI co-GM and module diagnostics, the player links, and the AI settings (pause, diagnostics
+AI, tone, model).
+
+### My character, one page per player
+
+**Player links** (in Advanced) gives each player a private link to `/me`: their own character
+sheets, read-only and refreshed during play, in three views: **At the table** (the dashboard
+theme), **Paper 2024** and **Paper 2014** (the printed sheet's order, ready to print). A page shows
+only the actors that player's Foundry user owns. The key travels in a request header, never in a
+logged address; a new link turns the old one off. The sheet comes from the module's read-only
+`characterSheet` query through the bridge's control method `character_sheet` (never an MCP tool),
+with secret sections and unidentified items' true names left out.
 
 ### Themes
 

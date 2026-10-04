@@ -108,6 +108,11 @@ Opens the party drawer. See "The party drawer" below.
 
 Opens the Tarokka drawer. See "The Tarokka drawer" below.
 
+### 🔗 Player links
+
+Each player's private link to their own character page. See "Player links and My character"
+below.
+
 ### ⏸ Pause, 🩺 Diag AI, Tone, Model
 
 These control the AI commentary panel. They only work when an Anthropic API key is set, so with
@@ -466,6 +471,39 @@ first, every page in it is readable at once, before any reveal. So do it in this
 The page shows on the player page within a few seconds, and players can open it in Foundry.
 `plan-page-reveal` with `action` hide takes it back. Before a session, open the player page and
 check that the Handouts list shows only what you revealed.
+
+## Player links and My character (/me)
+
+Each player can have their own character page: their sheet on a phone or laptop, read-only, and
+up to date during play (HP, spell slots, conditions, resources). It opens from a private link
+that you make once per player.
+
+1. **Advanced**, **🔗 Player links**. The panel lists every player (non-GM) user in the world.
+2. **Make link** next to a player. The link is copied; send it to that player in a direct
+   message, not in the table chat.
+3. The player opens it once. The page remembers it on that device, so it works from a bookmark
+   or the home screen afterwards.
+
+The page shows only the characters that player's Foundry user **owns** (Owner permission on the
+actor). To give a player their character, set their ownership in Foundry as usual; nothing else is
+needed. A player who owns no character sees "Ask your GM".
+
+- **New link** makes a fresh link and turns the old one off (for a lost phone, or a link sent to
+  the wrong person).
+- **Remove** turns the link off without a new one.
+
+The page has three views, and each player picks theirs (remembered on their device):
+
+- **At the table**: big HP, AC and initiative, conditions, spell slots, resources, attacks and
+  prepared spells. It follows the dashboard theme.
+- **Paper 2024** (the default paper view) and **Paper 2014**: black on white, in the same order
+  as the printed character sheet of that edition, so a player can copy it onto paper or print it
+  (**Print** at the bottom).
+
+What the page leaves out: the GM's secret sections in descriptions, the true names of
+unidentified items (it shows what the player sees in Foundry), and any actor the player does not
+own. Like the player page, it only answers on this PC today; how players reach it from their own
+devices is set up with the Orange Pi.
 
 ## Open in Obsidian (📓)
 

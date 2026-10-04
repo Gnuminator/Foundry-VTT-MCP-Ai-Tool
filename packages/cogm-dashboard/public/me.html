@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>My character</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
+    <link rel="stylesheet" href="./me.css" />
+  </head>
+  <body>
+    <header class="me-head no-print">
+      <div class="me-who">
+        <h1 id="me-name">My character</h1>
+        <span class="me-sub" id="me-sub"></span>
+      </div>
+      <nav class="me-views" aria-label="View">
+        <button type="button" data-view="fancy" aria-pressed="true">At the table</button>
+        <button type="button" data-view="paper2024" aria-pressed="false">Paper 2024</button>
+        <button type="button" data-view="paper2014" aria-pressed="false">Paper 2014</button>
+      </nav>
+    </header>
+    <nav class="me-chars no-print" id="me-chars" hidden aria-label="Character"></nav>
+    <main id="me-main">
+      <p class="me-empty">Loading…</p>
+    </main>
+    <footer class="me-foot no-print">
+      <span id="me-updated"></span>
+      <button type="button" id="me-print">Print</button>
+    </footer>
+    <script type="module" src="./me.js"></script>
+  </body>
+</html>

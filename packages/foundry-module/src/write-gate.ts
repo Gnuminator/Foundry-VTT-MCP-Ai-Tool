@@ -76,6 +76,7 @@ export const WRITE_METHODS: readonly string[] = [
  */
 export const NON_WRITE_METHODS: readonly string[] = [
   'applyGuardedOps',
+  'characterSheet',
   'clearModuleErrors',
   'findActor',
   'findPlayers',

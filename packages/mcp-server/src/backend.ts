@@ -76,6 +76,7 @@ import { EventPump, eventPumpSettings } from './event-pump.js';
 import { PlayLogPump, playLogSettings } from './play-log-pump.js';
 import { UsageLog, handleRecordUsage } from './usage-log.js';
 import {
+  handleCharacterSheet,
   handleFeatureSwitches,
   handleSessionSwitches,
   type FoundryQuery,
@@ -642,13 +643,21 @@ async function startBackend(): Promise<void> {
           // turns on or turns back off tonight's switches; the feature cards (I-064) read every
           // feature switch. Not tools, never listed to Claude, and the stdio wrapper never forwards
           // them, so Claude cannot switch on its own writes.
-          if (msg.method === 'session_switches' || msg.method === 'feature_switches') {
+          // My character (I-096) reads one player's character sheets the same way; the dashboard
+          // passes the user id it mapped from the player's link key.
+          if (
+            msg.method === 'session_switches' ||
+            msg.method === 'feature_switches' ||
+            msg.method === 'character_sheet'
+          ) {
             const query: FoundryQuery = (method, data) => foundryClient.query(method, data ?? {});
             try {
               const result: unknown =
                 msg.method === 'session_switches'
                   ? await handleSessionSwitches(query, msg.params)
-                  : await handleFeatureSwitches(query);
+                  : msg.method === 'feature_switches'
+                    ? await handleFeatureSwitches(query)
+                    : await handleCharacterSheet(query, msg.params);
               socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'Switches failed';

@@ -211,6 +211,14 @@ export class McpControlClient extends EventEmitter {
   }
 
   /**
+   * My character (I-096): the sheets of the characters a player owns. A control method, never
+   * an MCP tool; the dashboard passes the user id it mapped from the player's link key.
+   */
+  async characterSheet(userId: string): Promise<unknown> {
+    return this.send('character_sheet', { userId });
+  }
+
+  /**
    * The feature cards (I-064): every feature switch with its state and "Allow Write
    * Operations". Read-only; a control method, never an MCP tool.
    */

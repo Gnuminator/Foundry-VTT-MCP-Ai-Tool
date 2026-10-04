@@ -28,7 +28,12 @@ const tools = collectToolDefinitions(deps);
 describe('tool catalog', () => {
   it('lists exactly 88 tools; control methods such as record_usage are not tools', () => {
     expect(tools).toHaveLength(88);
-    for (const method of ['record_usage', 'session_switches', 'feature_switches']) {
+    for (const method of [
+      'record_usage',
+      'session_switches',
+      'feature_switches',
+      'character_sheet',
+    ]) {
       expect(tools.map(t => t.name)).not.toContain(method);
       expect(Object.keys(buildToolRouter(deps))).not.toContain(method);
     }

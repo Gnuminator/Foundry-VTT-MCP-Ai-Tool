@@ -54,6 +54,10 @@ jobs:
         # from the tool catalog; the mcp-server tests fail while it is stale (`npm run docs:tools`).
         run: npm run docs:lint && npm run docs:links
 
+      - name: Remote command guard
+        # The Pi safety hook (.claude/hooks/guard-remote-commands.mjs) against the real stage scripts.
+        run: node --test .claude/hooks/guard-remote-commands.test.mjs
+
       - name: Changelog fragments
         # Each PR adds its CHANGELOG entry as a file in changelog.d/ (D-089); this checks the format.
         run: npm run changelog:check

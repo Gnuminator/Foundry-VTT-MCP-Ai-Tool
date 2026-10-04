@@ -37,14 +37,14 @@ and the campaign world.
 
 ## On your PC
 
-| What                                          | When            | Check                                                                                |
-| --------------------------------------------- | --------------- | ------------------------------------------------------------------------------------ |
-| PowerShell 7                                  | Part A          | `$PSVersionTable.PSVersion` shows 7 or newer (`winget install Microsoft.PowerShell`) |
-| The Windows OpenSSH client                    | Part A          | `ssh -V` answers (Settings, Optional features, "OpenSSH Client")                     |
-| [balenaEtcher](https://etcher.balena.io)      | Part A          | writes the image to the card                                                         |
-| [Tailscale](https://tailscale.com/download)   | Part B, stage 4 | you log in once; this PC then reaches the Pi privately                               |
-| Claude Desktop, pointed at the Pi's bridge    | Part B, stage 5 | Claude changes its five entries with your OK (see stage 5)                           |
-| [Syncthing](https://syncthing.net/downloads/) | Part B, stage 7 | only if you want the vaults synced to this PC                                        |
+| What                                                         | When            | Check                                                                                                 |
+| ------------------------------------------------------------ | --------------- | ----------------------------------------------------------------------------------------------------- |
+| PowerShell 7                                                 | Part A          | `$PSVersionTable.PSVersion` shows 7 or newer (`winget install Microsoft.PowerShell`)                  |
+| The Windows OpenSSH client                                   | Part A          | `ssh -V` answers (Settings, Optional features, "OpenSSH Client")                                      |
+| [Raspberry Pi Imager](https://www.raspberrypi.com/software/) | Part A          | writes the image to the card and checks it (`winget install RaspberryPiFoundation.RaspberryPiImager`) |
+| [Tailscale](https://tailscale.com/download)                  | Part B, stage 4 | you log in once; this PC then reaches the Pi privately                                                |
+| Claude Desktop, pointed at the Pi's bridge                   | Part B, stage 5 | Claude changes its five entries with your OK (see stage 5)                                            |
+| [Syncthing](https://syncthing.net/downloads/)                | Part B, stage 7 | only if you want the vaults synced to this PC                                                         |
 
 The repo stays where it is; the scripts below run from the repo folder.
 
@@ -65,12 +65,17 @@ Windows can write, so the first boot is configured without a monitor.
 
 ### 2. Write the image to the card
 
-Open balenaEtcher, choose the downloaded `.img.xz` file, choose the microSD card, click **Flash**.
-Double-check the target: Etcher erases it.
+Open Raspberry Pi Imager. **Choose Device:** "No filtering". **Choose OS:** scroll down to "Use
+custom" and pick the downloaded `.img.xz` file. **Choose Storage:** the microSD card (double-check
+it: Imager erases it). If it asks about OS customisation, click **No** (the script below does the
+settings). It writes the card, checks it, and ejects it.
+
+Not balenaEtcher: on 2026-10-04 its check step crashed twice on Windows ("The writer process ended
+unexpectedly") although the card was fine.
 
 ### 3. Put the settings on the card
 
-When Etcher is done, take the card out and put it back in. Windows shows a small drive named
+When Imager is done, take the card out and put it back in. Windows shows a small drive named
 **DIETPISETUP**. If Windows offers to format any drive, click **Cancel**. Then run:
 
 ```powershell
@@ -148,6 +153,21 @@ home network only Foundry, SSH and the dashboard answer.
 Rules Claude follows on the Pi: never types passwords, licence keys or tokens (you paste them where
 asked); never opens anything to the internet before Part C; the campaign world is never used for
 tests.
+
+Safety rules (you, 2026-10-04), so a mistake can never leave the Pi unusable:
+
+- **Read-only commands freely; changes only from the stage scripts** in `scripts/pi/remote/`, each
+  after your OK. Any other change is shown to you first and runs only after your OK.
+- **These need your explicit OK every time, never bundled:** deleting outside the tool's own folders,
+  users and groups, disks and partitions, the bootloader, removing packages, firewall, SSH and network
+  settings, reboots.
+- **A mechanical guard** (`.claude/hooks/guard-remote-commands.mjs`) checks every command Claude sends
+  to the Pi, including the scripts it feeds in: it blocks what could wreck the system (deleting `/` or
+  a system folder, formatting or overwriting a disk, removing root) and makes Claude Code ask you
+  about the rest of the list above.
+- **Snapshots:** a full system snapshot (`dietpi-backup`, three kept in `/mnt/dietpi-backup`) is
+  taken nightly and before every stage. To roll back: `dietpi-backup -1` (needs your OK). Your PC
+  also pulls copies into a folder of your choice, so a dead SD card loses nothing.
 
 ## Recordings
 

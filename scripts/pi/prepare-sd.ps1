@@ -69,7 +69,7 @@ function Invoke-Download {
   Write-Host ''
   Write-Host "OK: $image"
   Write-Host 'Checksum matches the one DietPi publishes.'
-  Write-Host 'Next: write it to the microSD card with balenaEtcher, then run -Configure.'
+  Write-Host 'Next: write it to the microSD card with Raspberry Pi Imager ("Use custom"), then run -Configure.'
 }
 
 function Get-SetupFolder {

@@ -24,6 +24,9 @@ if [ -f "$zip" ]; then
   rm -rf "${FOUNDRY_APP:?}"/*
   cp -a "$tmp"/. "$FOUNDRY_APP"/
   chown -R root:root "$FOUNDRY_APP"
+  # `cp -a "$tmp"/.` also copies mktemp's 0700 mode onto the folder, which locked the foundry user
+  # out of its own program folder on the real Pi (2026-10-04).
+  chmod 755 "$FOUNDRY_APP"
   ok "installed Foundry ${version:-?} in $FOUNDRY_APP (data stays in $FOUNDRY_DATA)"
   rm -f "$zip"
 elif [ -f "$FOUNDRY_APP/main.js" ]; then

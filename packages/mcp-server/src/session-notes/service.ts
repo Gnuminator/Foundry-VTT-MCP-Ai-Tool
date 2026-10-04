@@ -249,7 +249,7 @@ export class SessionNotesService {
   /** `list` (dashboard): every session of the current world, newest first. */
   async list(): Promise<{ items: NotesItem[] }> {
     const worldId = await this.currentWorld();
-    const all = await this.loadAll(worldId);
+    const all = await this.reconcile(worldId, await this.loadAll(worldId));
     const blockers = await this.blockers();
     const revealed = await this.revealedSources(worldId);
     const items = all
@@ -263,7 +263,10 @@ export class SessionNotesService {
   /** `get` (dashboard): the item with the page HTML (the preview). */
   async get(params: Record<string, unknown>): Promise<NotesItem> {
     const worldId = await this.currentWorld();
-    const notes = await this.load(worldId, assertSessionId(params.sessionId));
+    const [notes] = await this.reconcile(worldId, [
+      await this.load(worldId, assertSessionId(params.sessionId)),
+    ]);
+    if (!notes) throw new SessionNotesError('not-found', 'No such session notes in this world');
     const item = this.view(notes, await this.blockers(), await this.revealedSources(worldId));
     return { ...item, pages: notes.pages.map(p => ({ key: p.key, title: p.title, html: p.html })) };
   }
@@ -326,7 +329,8 @@ export class SessionNotesService {
     this.lastAttemptMs = now;
     try {
       const worldId = await this.worldIds.current();
-      const waiting = (await this.loadAll(worldId)).filter(n => n.autoPut && !n.put);
+      const all = await this.reconcile(worldId, await this.loadAll(worldId));
+      const waiting = all.filter(n => n.autoPut && !n.put);
       if (waiting.length === 0) return;
       const blockers = await this.blockers();
       if (blockers.waitingFor.length > 0) return;
@@ -542,6 +546,47 @@ export class SessionNotesService {
   }
 
   // -------------------------------------------------------------------------
+
+  /**
+   * Notes whose journal is gone from Foundry (the GM deleted it by hand) go back to staged: the
+   * put record is cleared, the Recap leaves the reveal queue, and the bridge does not put them
+   * again by itself ("Put in Foundry" does). One snapshot query for every item in Foundry; on any
+   * doubt (no answer, Foundry closed) nothing changes.
+   */
+  private async reconcile(worldId: string, all: StoredNotes[]): Promise<StoredNotes[]> {
+    const placed = all.filter(n => n.put !== undefined);
+    if (placed.length === 0 || !this.foundry.isConnected()) return all;
+    let snaps: OpSnapshot[];
+    try {
+      snaps = unwrapModule<OpSnapshot[]>(
+        await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', {
+          ops: placed.map(n => ({ kind: 'delete', uuid: n.put!.journalUuid })),
+        }),
+        'Snapshot refused'
+      );
+    } catch {
+      return all;
+    }
+    if (!Array.isArray(snaps) || snaps.length !== placed.length) return all;
+    const result = new Map(all.map(n => [n.sessionId, n]));
+    for (const [i, notes] of placed.entries()) {
+      if (snaps[i]?.exists !== false) continue;
+      const { journalUuid, recapPageUuid } = notes.put!;
+      const updated = await this.mutate(worldId, notes.sessionId, n => {
+        if (n.put?.journalUuid !== journalUuid) return;
+        delete n.put;
+        n.autoPut = false;
+        n.lastError = `The journal "${n.date}: ${n.title}" is no longer in Foundry; "Put in Foundry" puts the notes back`;
+      }).catch(() => null);
+      if (!updated) continue;
+      result.set(notes.sessionId, updated);
+      await this.handouts.unqueuePage({ pageUuid: recapPageUuid }).catch(() => undefined);
+      this.logger.info('Session notes journal is gone from Foundry; back to staged', {
+        sessionId: notes.sessionId,
+      });
+    }
+    return all.map(n => result.get(n.sessionId) ?? n);
+  }
 
   /** What blocks a put right now (one query to the module). */
   private async blockers(): Promise<Blockers> {

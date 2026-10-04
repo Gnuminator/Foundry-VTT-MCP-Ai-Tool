@@ -163,6 +163,14 @@ spells, classes and feats) and the tool writes a note for every entry into `AI T
 monsters with stat blocks, spells, items, classes with their features by level, subclasses,
 species, backgrounds and feats. Pictures are copied into `AI Tool/Attachments/`.
 
+The Library is sorted by kind, then by book: `AI Tool/Library/Monsters/Monster Manual (2024)/`,
+`AI Tool/Library/Spells/Player's Handbook (2024)/`, and so on. Entries without a book go in
+`Other`. Notes have `book` and `page` properties when the compendium gives them, and
+`AI Tool/Library/Books/` has one base per book that lists everything from that book. The notes
+about your world follow Foundry's own folders the same way: a journal in Foundry's "Act 1" folder
+is at `AI Tool/Foundry/Journals/Act 1/`. When something moves in Foundry, its note moves with it.
+A note you edited stays where it is, and `_status.md` lists it.
+
 This is book content you bought, so it stays on your computer:
 
 - The tool writes a `.gitignore` that keeps `Library/` and `Attachments/` out of git.

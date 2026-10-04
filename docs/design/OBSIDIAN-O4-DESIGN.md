@@ -46,18 +46,18 @@ Foundry 14.368 (`app/` = `C:\FoundryTest\app`, `app/package.json:91`) and dnd5e 
 
 ## 0. Decisions at a glance
 
-| Topic            | Decision                                                                                                                                                   |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| What             | One note per world PC, NPC, scene, journal (an index note) and story item; page text only for opted-in journals                                            |
-| Where            | `Campaigns/<worldId>/AI Tool/Foundry/{PCs,NPCs,Scenes,Journals,Items}/`, flat, plus `Foundry/_status.md`                                                   |
-| Source           | New module query `getExportIndex` (GM client only, paged, byte budget)                                                                                     |
-| Change detection | Incremental: effective `_stats.modifiedTime` above a watermark, every 10 s. Reconciliation: a per-document signature (`sig`) for deletes, ownership, users |
-| State            | The notes are the state (`fvtt_uuid`, `fvtt_sig` properties); no new bridge-vault state file; settings in `gm/obsidian-mirror.json` via a guarded plan     |
-| Off by default   | Needs `FOUNDRY_AI_OBSIDIAN_DIR` AND `enabled: true` in the mirror settings (feature switch "AI Tool: Obsidian mirror (writes)", default off)               |
-| Names            | Sanitized name, id suffix only on a collision; the tool never renames or moves a note; the current name goes into `aliases`                                |
-| Links            | Markdown links in note bodies (decision 2); quoted wikilinks only inside properties (Obsidian resolves only those there)                                   |
-| Open in Foundry  | `GET /open?uuid=` serves a static confirm page; `POST /api/open` acts; the GM token stays in the dashboard's localStorage, never in a URL                  |
-| `player_visible` | Advisory for the GM only (same rules as M2); never used to pick what players get                                                                           |
+| Topic            | Decision                                                                                                                                                               |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| What             | One note per world PC, NPC, scene, journal (an index note) and story item; page text only for opted-in journals                                                        |
+| Where            | `Campaigns/<worldId>/AI Tool/Foundry/{PCs,NPCs,Scenes,Journals,Items}/`, then the Foundry folder path (I-100; flat before), plus `Foundry/_status.md`                  |
+| Source           | New module query `getExportIndex` (GM client only, paged, byte budget)                                                                                                 |
+| Change detection | Incremental: effective `_stats.modifiedTime` above a watermark, every 10 s. Reconciliation: a per-document signature (`sig`) for deletes, ownership, users             |
+| State            | The notes are the state (`fvtt_uuid`, `fvtt_sig` properties); no new bridge-vault state file; settings in `gm/obsidian-mirror.json` via a guarded plan                 |
+| Off by default   | Needs `FOUNDRY_AI_OBSIDIAN_DIR` AND `enabled: true` in the mirror settings (feature switch "AI Tool: Obsidian mirror (writes)", default off)                           |
+| Names            | Sanitized name, id suffix only on a collision; the tool never renames a note, and moves one only when its folder changes (I-100); the current name goes into `aliases` |
+| Links            | Markdown links in note bodies (decision 2); quoted wikilinks only inside properties (Obsidian resolves only those there)                                               |
+| Open in Foundry  | `GET /open?uuid=` serves a static confirm page; `POST /api/open` acts; the GM token stays in the dashboard's localStorage, never in a URL                              |
+| `player_visible` | Advisory for the GM only (same rules as M2); never used to pick what players get                                                                                       |
 
 ## 1. Wire contract and the module query
 
@@ -273,8 +273,10 @@ linking to it. Logs: `Obsidian mirror updated {written, created, trashed}` like 
 `Campaigns/<worldId>/AI Tool/Foundry/` with `PCs/`, `NPCs/`, `Scenes/`, `Journals/`, `Items/` (plan section 3
 had `Actors/PCs`; one level less keeps Windows paths short). Journal text notes go to
 `Journals/<journal file stem>/<page file stem>.md` next to the index note `Journals/<journal file stem>.md`.
-The folder is picked once, when a note is created; a PC that loses its player owner keeps its path and its
-`type` becomes `npc` (the bases filter by tag, not by folder).
+Since I-100 a note sits below its kind folder in the document's Foundry folder path
+(`Journals/Act 1/Vallaki.md`); when that path changes, an unedited note moves once, by rename,
+its page notes with it, and an edited one stays (listed in `_status.md`). A PC that loses its player
+owner stays in `PCs/` and its `type` becomes `npc` (the bases filter by tag, not by folder).
 
 ### 3.2 Common properties
 
@@ -674,8 +676,11 @@ The world export (`getExportIndex`) also carries NPC stat blocks, portraits (`im
 `libraryPacks` in the mirror settings picks the packs. Notes go to
 `Campaigns/<world>/AI Tool/Library/<Category>/`: Monsters, Spells, Classes, Subclasses, Species,
 Backgrounds, Feats, `Class features/<class>`, `Species traits/<species>`, Background features,
-Monster features, Features, Items, Other. A path is picked once and never renamed; same-named
-entries of two rules versions get `(2014)` or `(2024)`. `fvtt_sig` holds the index signature,
+Monster features, Features, Items, Other. Since I-100 each category has one folder per source
+book (`Monsters/Monster Manual (2024)/`; no book: `Other`), with the group folder below the book,
+notes carry `book` and `page`, and `Library/Books/<title>.base` lists one book across categories.
+A note moves once, by rename, when its folder changes (never an edited one); same-named
+entries of two rules versions in one folder get `(2014)` or `(2024)`. `fvtt_sig` holds the index signature,
 so an unchanged entry is never fetched again. `.ai-tool-library.json` (a dot file Obsidian
 ignores) keeps the membership the notes were rendered against, the lookups each note made (its
 links) and the queue, for the next start.

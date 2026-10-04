@@ -3,8 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { pathKey } from './mirror-common.js';
 import {
   allocateNotePaths,
+  fitFolder,
+  folderOf,
+  folderPath,
+  inFolder,
+  MAX_FOLDER_CHARS,
   MAX_NOTE_PATH_CHARS,
   pageNoteFolder,
+  safeFolderSegment,
+  SEGMENT_MAX_CHARS,
   shortSuffix,
   type PathRequest,
 } from './mirror-paths.js';
@@ -220,6 +227,84 @@ describe('allocateNotePaths', () => {
       expect(path.length).toBeLessThanOrEqual(MAX_NOTE_PATH_CHARS);
       expect(path).toBe(`${folder}/Co.md`);
     });
+  });
+});
+
+describe('Foundry folder paths (I-100)', () => {
+  const JOURNALS = 'AI Tool/Foundry/Journals';
+
+  it('makes every folder name a safe segment', () => {
+    expect(safeFolderSegment('Villains: <Act 1>?')).toBe('Villains Act 1');
+    expect(safeFolderSegment('a/b\\c|d*e"f')).toBe('a b c d e f');
+    expect(safeFolderSegment('Tab\there\u0007')).toBe('Tab here');
+    expect(safeFolderSegment('Trailing dots... ')).toBe('Trailing dots');
+    expect(safeFolderSegment('.')).toBe('_untitled');
+    expect(safeFolderSegment('..')).toBe('_untitled');
+    expect(safeFolderSegment('.obsidian')).toBe('_obsidian');
+    expect(safeFolderSegment('CON')).toBe('_CON');
+    expect(safeFolderSegment('nul.txt')).toBe('_nul.txt');
+    expect(safeFolderSegment('Lpt1')).toBe('_Lpt1');
+    expect(safeFolderSegment('Console')).toBe('Console');
+    expect(safeFolderSegment('W'.repeat(100))).toBe('W'.repeat(SEGMENT_MAX_CHARS));
+    expect(safeFolderSegment(`${'W'.repeat(SEGMENT_MAX_CHARS - 1)}. x`)).toBe(
+      'W'.repeat(SEGMENT_MAX_CHARS - 1)
+    );
+  });
+
+  it('joins a folder path below its base, and leaves a short one alone', () => {
+    expect(folderPath(JOURNALS, [])).toBe(JOURNALS);
+    expect(folderPath(JOURNALS, ['Act 1', 'Vallaki: Town'])).toBe(`${JOURNALS}/Act 1/Vallaki Town`);
+  });
+
+  it('shortens deep folder segments before the stem, and never the fixed base', () => {
+    const names = ['A'.repeat(80), 'B'.repeat(80), 'C'.repeat(80), 'D'.repeat(80)];
+    const folder = folderPath(JOURNALS, names);
+    expect(folder.length).toBeLessThanOrEqual(MAX_FOLDER_CHARS);
+    expect(folder.startsWith(`${JOURNALS}/AAAAAAAA`)).toBe(true);
+    expect(folder.split('/')).toHaveLength(7);
+    expect(fitFolder(folder)).toBe(folder);
+    const request = req('a000000000000001', 'N'.repeat(200), { folder });
+    const notePath = allocateNotePaths([request], NONE, EMPTY).get(request.uuid) ?? '';
+    expect(notePath.length).toBeLessThanOrEqual(MAX_NOTE_PATH_CHARS);
+    expect(notePath.startsWith(`${folder}/NNNNNNNNNNNNNNNNNNNN`)).toBe(true);
+  });
+
+  it('never overflows the path limit, however long the folder a caller passes', () => {
+    // Before I-100 a long prefix left the stem at least one character and overflowed silently.
+    const folder = `${JOURNALS}/${Array.from({ length: 6 }, (_, i) => `${i}${'x'.repeat(59)}`).join('/')}`;
+    expect(folder.length).toBeGreaterThan(MAX_NOTE_PATH_CHARS);
+    const one = req('a000000000000001', 'Page', { folder, created: 1 });
+    const two = req('a000000000000002', 'Page', { folder, created: 2 });
+    const out = allocateNotePaths([one, two], NONE, EMPTY);
+    for (const notePath of out.values()) {
+      expect(notePath.length).toBeLessThanOrEqual(MAX_NOTE_PATH_CHARS);
+      expect(notePath.startsWith(`${JOURNALS}/0xxxxxxx`)).toBe(true);
+    }
+    expect(out.get(one.uuid)?.endsWith('/Page.md')).toBe(true);
+    expect(out.get(two.uuid)?.endsWith(` (${shortSuffix(two.uuid)}).md`)).toBe(true);
+    // A page folder of a journal at the limit leaves room for its page names too.
+    const journal = out.get(one.uuid) ?? '';
+    const page = req('b000000000000001', 'P'.repeat(80), { folder: pageNoteFolder(journal) });
+    const pagePath = allocateNotePaths([page], NONE, EMPTY).get(page.uuid) ?? '';
+    expect(pagePath.length).toBeLessThanOrEqual(MAX_NOTE_PATH_CHARS);
+  });
+
+  it('keeps a journal stem off a Foundry folder of the same name beside it', () => {
+    const lore = req('a000000000000001', 'Lore', { folder: JOURNALS, ownsFolder: true });
+    const reserved = new Set([pathKey(`${JOURNALS}/lore`)]);
+    const out = allocateNotePaths([lore], NONE, EMPTY, reserved);
+    expect(out.get(lore.uuid)).toBe(`${JOURNALS}/Lore (${shortSuffix(lore.uuid)}).md`);
+    // A note without page notes may share the name: a file and a folder do not collide.
+    const plain = req('a000000000000001', 'Lore', { folder: JOURNALS });
+    expect(allocateNotePaths([plain], NONE, EMPTY, reserved).get(plain.uuid)).toBe(
+      `${JOURNALS}/Lore.md`
+    );
+  });
+
+  it('tells whether a note sits in a folder, case-insensitively', () => {
+    expect(inFolder(`${JOURNALS}/Act 1/Lore.md`, `${JOURNALS}/act 1`)).toBe(true);
+    expect(inFolder(`${JOURNALS}/Lore.md`, `${JOURNALS}/Act 1`)).toBe(false);
+    expect(folderOf('Lore.md')).toBe('');
   });
 });
 

@@ -17,9 +17,17 @@ import type {
 } from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { libraryCategory, renderLibraryNote, type LibraryNoteContext } from './library-render.js';
+import {
+  bookBasePaths,
+  bookBaseTitle,
+  libraryCategory,
+  renderBookBase,
+  renderLibraryNote,
+  type LibraryNoteContext,
+} from './library-render.js';
 import { LibrarySync, type LibrarySyncDeps } from './library-sync.js';
 import { versionedSig, type LinkContext } from './mirror-common.js';
+import { KEPT_AT_OLD_PATH } from './note-writer.js';
 import { checkMarkdownOwnership } from './ownership.js';
 import { statBlockMarkdown } from './stat-block-md.js';
 
@@ -109,31 +117,89 @@ function linkCtx(fromPath: string, library?: LinkContext['library']): LinkContex
 }
 
 describe('libraryCategory', () => {
-  it('sorts documents into folders, with player-safe rules content', () => {
+  const BOOK = { book: 'TB 2024', bookTitle: 'Test Bestiary (2024)' };
+
+  it('sorts documents into folders by kind, then book, with player-safe rules content', () => {
     expect(
-      libraryCategory({ uuid: WEASEL, type: 'npc', subtype: null, group: null })
+      libraryCategory({ uuid: WEASEL, type: 'npc', subtype: null, group: null, ...BOOK })
     ).toMatchObject({
-      folder: 'AI Tool/Library/Monsters',
+      folder: 'AI Tool/Library/Monsters/Test Bestiary (2024)',
       tag: 'monster',
       playerSafe: false,
     });
-    expect(libraryCategory({ type: 'spell', subtype: null, group: null }).folder).toBe(
-      'AI Tool/Library/Spells'
+    expect(libraryCategory({ type: 'spell', subtype: null, group: null, ...BOOK }).folder).toBe(
+      'AI Tool/Library/Spells/Test Bestiary (2024)'
     );
-    expect(libraryCategory({ type: 'feat', subtype: 'class', group: 'Warden (2014)' }).folder).toBe(
-      'AI Tool/Library/Class features/Warden (2014)'
-    );
-    expect(libraryCategory({ type: 'feat', subtype: 'race', group: 'Weaselkin' }).folder).toBe(
-      'AI Tool/Library/Species traits/Weaselkin'
-    );
+    expect(
+      libraryCategory({ type: 'feat', subtype: 'class', group: 'Warden (2014)', ...BOOK }).folder
+    ).toBe('AI Tool/Library/Class features/Test Bestiary (2024)/Warden (2014)');
+    expect(
+      libraryCategory({ type: 'feat', subtype: 'race', group: 'Weaselkin', ...BOOK }).folder
+    ).toBe('AI Tool/Library/Species traits/Test Bestiary (2024)/Weaselkin');
     expect(libraryCategory({ type: 'feat', subtype: 'feat', group: null }).tag).toBe('feat');
-    expect(libraryCategory({ type: 'loot', subtype: null, group: null })).toMatchObject({
-      folder: 'AI Tool/Library/Items',
+    expect(libraryCategory({ type: 'loot', subtype: null, group: null, ...BOOK })).toMatchObject({
+      folder: 'AI Tool/Library/Items/Test Bestiary (2024)',
       playerSafe: true,
     });
     expect(libraryCategory({ type: 'feat', subtype: 'monster', group: null }).playerSafe).toBe(
       false
     );
+  });
+
+  it('puts an entry without a book in Other, a homebrew code as it is, and the code without a title', () => {
+    expect(libraryCategory({ type: 'spell', subtype: null, group: null }).folder).toBe(
+      'AI Tool/Library/Spells/Other'
+    );
+    expect(
+      libraryCategory({ type: 'spell', subtype: null, group: null, book: null, bookTitle: null })
+        .folder
+    ).toBe('AI Tool/Library/Spells/Other');
+    expect(
+      libraryCategory({ type: 'spell', subtype: null, group: null, book: 'Homebrew' }).folder
+    ).toBe('AI Tool/Library/Spells/Homebrew');
+    expect(
+      libraryCategory({ type: 'spell', subtype: null, group: null, book: 'XYZ', bookTitle: null })
+        .folder
+    ).toBe('AI Tool/Library/Spells/XYZ');
+  });
+
+  it('makes a book title a safe folder name', () => {
+    const odd = libraryCategory({
+      type: 'npc',
+      subtype: null,
+      group: null,
+      bookTitle: 'Strange: Tome/of <Things>?. ',
+    }).folder;
+    expect(odd).toBe('AI Tool/Library/Monsters/Strange Tome of Things');
+    const long = libraryCategory({
+      type: 'npc',
+      subtype: null,
+      group: null,
+      bookTitle: 'A'.repeat(200),
+    }).folder;
+    expect(long).toBe(`AI Tool/Library/Monsters/${'A'.repeat(60)}`);
+    expect(
+      libraryCategory({ type: 'npc', subtype: null, group: null, bookTitle: '.hidden' }).folder
+    ).toBe('AI Tool/Library/Monsters/_hidden');
+  });
+});
+
+describe('book bases', () => {
+  it('filters the Library by book and reads the title back, quotes and all', () => {
+    const title = 'Player\'s Guide: "Quoted" (2024)';
+    const text = renderBookBase(WORLD, title);
+    expect(text).toContain(`    - file.inFolder("Campaigns/${WORLD}/AI Tool/Library")`);
+    expect(text).toContain(`    - 'book == "Player''s Guide: \\"Quoted\\" (2024)"'`);
+    expect(text).toContain("    name: 'Player''s Guide: \"Quoted\" (2024)'");
+    expect(bookBaseTitle(text)).toBe(title);
+    expect(bookBaseTitle('filters:\n  and:\n    - type == "x"\n')).toBeNull();
+  });
+
+  it('gives each title its own file, a hash when two titles clean to the same name', () => {
+    const paths = bookBasePaths(['B: Two', 'A Book', 'B  Two', 'A Book']);
+    expect(paths.get('A Book')).toBe('AI Tool/Library/Books/A Book.base');
+    expect(paths.get('B  Two')).toBe('AI Tool/Library/Books/B Two.base');
+    expect(paths.get('B: Two')).toMatch(/^AI Tool\/Library\/Books\/B Two \([0-9a-z]{6}\)\.base$/);
   });
 });
 
@@ -490,11 +556,15 @@ describe('LibrarySync', () => {
     // Links work before any note is written (world notes render with them right away).
     const links = sync.links();
     expect(links.byUuid(WEASEL)).toEqual({
-      notePath: 'AI Tool/Library/Monsters/Snow Weasel.md',
+      notePath: 'AI Tool/Library/Monsters/Other/Snow Weasel.md',
       name: 'Snow Weasel',
     });
-    expect(links.byUuid(SPARK)?.notePath).toBe('AI Tool/Library/Spells/Frost Spark (2014).md');
-    expect(links.byUuid(SPARK_2024)?.notePath).toBe('AI Tool/Library/Spells/Frost Spark (2024).md');
+    expect(links.byUuid(SPARK)?.notePath).toBe(
+      'AI Tool/Library/Spells/Other/Frost Spark (2014).md'
+    );
+    expect(links.byUuid(SPARK_2024)?.notePath).toBe(
+      'AI Tool/Library/Spells/Other/Frost Spark (2024).md'
+    );
     expect(links.legacy(PACK, id(1))).toBe(WEASEL);
     expect(links.legacy(PACK, 'snow weasel')).toBe(WEASEL);
     expect(links.legacy('world.unknown', id(1))).toBeNull();
@@ -503,12 +573,12 @@ describe('LibrarySync', () => {
     expect(await sync.work(Date.now() + 10_000, deps())).toBe(3);
     expect(sync.pending).toBe(0);
     expect(await files()).toEqual([
-      'AI Tool/Library/Monsters/Snow Weasel.md',
-      'AI Tool/Library/Spells/Frost Spark (2014).md',
-      'AI Tool/Library/Spells/Frost Spark (2024).md',
+      'AI Tool/Library/Monsters/Other/Snow Weasel.md',
+      'AI Tool/Library/Spells/Other/Frost Spark (2014).md',
+      'AI Tool/Library/Spells/Other/Frost Spark (2024).md',
     ]);
     const weasel = await fsp.readFile(
-      path.join(dir, 'Campaigns', WORLD, 'AI Tool/Library/Monsters/Snow Weasel.md'),
+      path.join(dir, 'Campaigns', WORLD, 'AI Tool/Library/Monsters/Other/Snow Weasel.md'),
       'utf8'
     );
     expect(weasel).toContain(`fvtt_sig: "${versionedSig('s1')}"`);
@@ -541,7 +611,7 @@ describe('LibrarySync', () => {
       dir,
       'Campaigns',
       WORLD,
-      'AI Tool/Library/Spells/Frost Spark (2024).md'
+      'AI Tool/Library/Spells/Other/Frost Spark (2024).md'
     );
     await fsp.appendFile(spark2024, '\nMy own note.\n');
     // The spells pack disappears from this world (module off): its notes stay.
@@ -553,19 +623,19 @@ describe('LibrarySync', () => {
     // The GM drops the pack from the settings: unedited notes go to the trash, edited ones stay.
     await sync.refresh([PACK], deps());
     const left = await files();
-    expect(left).toContain('AI Tool/Library/Monsters/Snow Weasel.md');
-    expect(left).toContain('AI Tool/Library/Spells/Frost Spark (2024).md');
-    expect(left).not.toContain('AI Tool/Library/Spells/Frost Spark (2014).md');
+    expect(left).toContain('AI Tool/Library/Monsters/Other/Snow Weasel.md');
+    expect(left).toContain('AI Tool/Library/Spells/Other/Frost Spark (2024).md');
+    expect(left).not.toContain('AI Tool/Library/Spells/Other/Frost Spark (2014).md');
     const trash = path.join(
       dir,
       '.trash',
       'Campaigns',
       WORLD,
-      'AI Tool/Library/Spells/Frost Spark (2014).md'
+      'AI Tool/Library/Spells/Other/Frost Spark (2014).md'
     );
     await expect(fsp.stat(trash)).resolves.toBeTruthy();
     expect(sync.status([PACK]).skipped.map(s => s.path)).toContain(
-      'AI Tool/Library/Spells/Frost Spark (2024).md'
+      'AI Tool/Library/Spells/Other/Frost Spark (2024).md'
     );
   });
 
@@ -573,14 +643,19 @@ describe('LibrarySync', () => {
     const sync = new LibrarySync(WORLD);
     await sync.refresh([PACK], deps());
     await sync.work(Date.now() + 10_000, deps());
-    const weasel = path.join(dir, 'Campaigns', WORLD, 'AI Tool/Library/Monsters/Snow Weasel.md');
+    const weasel = path.join(
+      dir,
+      'Campaigns',
+      WORLD,
+      'AI Tool/Library/Monsters/Other/Snow Weasel.md'
+    );
     await fsp.appendFile(weasel, '\nEdited.\n');
     sync.forceRender();
     await sync.refresh([PACK], deps());
     await sync.work(Date.now() + 10_000, deps());
     expect(await fsp.readFile(weasel, 'utf8')).toContain('Edited.');
     expect(sync.status([PACK]).skipped).toEqual([
-      { path: 'AI Tool/Library/Monsters/Snow Weasel.md', reason: 'edited in Obsidian' },
+      { path: 'AI Tool/Library/Monsters/Other/Snow Weasel.md', reason: 'edited in Obsidian' },
     ]);
   });
 
@@ -605,7 +680,7 @@ describe('LibrarySync', () => {
     const sync = new LibrarySync(WORLD);
     await sync.refresh([CLASSES], deps());
     await sync.work(Date.now() + 10_000, deps());
-    const note = path.join(dir, 'Campaigns', WORLD, 'AI Tool/Library/Classes/Warden.md');
+    const note = path.join(dir, 'Campaigns', WORLD, 'AI Tool/Library/Classes/Other/Warden.md');
     expect(await fsp.readFile(note, 'utf8')).not.toContain('## Subclasses');
     // A subclass is added to the pack: the class note's lookups touched it, so it re-renders.
     fake.rows = [warden, embers];
@@ -614,7 +689,7 @@ describe('LibrarySync', () => {
     await sync.work(Date.now() + 10_000, deps());
     expect(fake.documentCalls.flat().sort()).toEqual([WARDEN, PATH].sort());
     expect(await fsp.readFile(note, 'utf8')).toContain(
-      '## Subclasses\n\n- [Path of Embers](../Subclasses/Path%20of%20Embers.md)'
+      '## Subclasses\n\n- [Path of Embers](../../Subclasses/Other/Path%20of%20Embers.md)'
     );
     // While the bridge is down the subclass goes away again: a fresh sync compares with the
     // membership the notes were written against (the state file) and re-renders the class.
@@ -680,5 +755,163 @@ describe('LibrarySync', () => {
         .errors.map(e => e.error)
         .join(' ')
     ).toContain('git does not ignore the trash');
+  });
+});
+
+describe('LibrarySync by kind, then book (I-100)', () => {
+  const MM = { book: 'TB 2024', bookTitle: 'Test Bestiary (2024)', page: '12' };
+  const SP = { book: 'TS', bookTitle: 'Test Spellbook', page: null };
+  const campaign = (rel: string): string => path.join(dir, 'Campaigns', WORLD, rel);
+  const withBooks = (): void => {
+    fake.rows = fake.rows.map(r => ({ ...r, ...(r.pack === PACK ? MM : SP) }));
+  };
+
+  it('writes notes into their book folder with book and page properties, and one base per book', async () => {
+    withBooks();
+    const sync = new LibrarySync(WORLD);
+    await sync.refresh([PACK, SPELLS], deps());
+    await sync.work(Date.now() + 10_000, deps());
+    expect(await files()).toEqual([
+      'AI Tool/Library/Books/Test Bestiary (2024).base',
+      'AI Tool/Library/Books/Test Spellbook.base',
+      'AI Tool/Library/Monsters/Test Bestiary (2024)/Snow Weasel.md',
+      'AI Tool/Library/Spells/Test Spellbook/Frost Spark (2014).md',
+      'AI Tool/Library/Spells/Test Spellbook/Frost Spark (2024).md',
+    ]);
+    const weasel = await fsp.readFile(
+      campaign('AI Tool/Library/Monsters/Test Bestiary (2024)/Snow Weasel.md'),
+      'utf8'
+    );
+    expect(weasel).toContain('book: "Test Bestiary (2024)"');
+    expect(weasel).toContain('page: 12');
+    expect(weasel).toContain('type: "library-monster"');
+    expect(weasel).toContain('> [!statblock] Snow Weasel');
+    const spark = await fsp.readFile(
+      campaign('AI Tool/Library/Spells/Test Spellbook/Frost Spark (2014).md'),
+      'utf8'
+    );
+    expect(spark).toContain('book: "Test Spellbook"');
+    expect(spark).not.toContain('page:');
+    const base = await fsp.readFile(campaign('AI Tool/Library/Books/Test Spellbook.base'), 'utf8');
+    expect(base).toContain(`file.inFolder("Campaigns/${WORLD}/AI Tool/Library")`);
+    expect(base).toContain(`'book == "Test Spellbook"'`);
+  });
+
+  it('moves notes of the old flat layout into their book folder once, with no copy left behind', async () => {
+    const first = new LibrarySync(WORLD);
+    await first.refresh([PACK, SPELLS], deps());
+    await first.work(Date.now() + 10_000, deps());
+    // A note as an older bridge wrote it: straight in the kind folder.
+    await fsp.rename(
+      campaign('AI Tool/Library/Monsters/Other/Snow Weasel.md'),
+      campaign('AI Tool/Library/Monsters/Snow Weasel.md')
+    );
+    await fsp.rmdir(campaign('AI Tool/Library/Monsters/Other'));
+    withBooks();
+    const restarted = new LibrarySync(WORLD);
+    await restarted.refresh([PACK, SPELLS], deps());
+    expect(restarted.links().byUuid(WEASEL)?.notePath).toBe(
+      'AI Tool/Library/Monsters/Test Bestiary (2024)/Snow Weasel.md'
+    );
+    expect(restarted.pending).toBe(3);
+    await restarted.work(Date.now() + 10_000, deps());
+    expect((await files()).filter(f => f.endsWith('.md'))).toEqual([
+      'AI Tool/Library/Monsters/Test Bestiary (2024)/Snow Weasel.md',
+      'AI Tool/Library/Spells/Test Spellbook/Frost Spark (2014).md',
+      'AI Tool/Library/Spells/Test Spellbook/Frost Spark (2024).md',
+    ]);
+    // Moved by rename: nothing went to the vault trash, and the emptied folders are gone.
+    expect(await fsp.readdir(path.join(dir, '.trash')).catch(() => [])).toEqual([]);
+    expect(await fsp.readdir(campaign('AI Tool/Library/Spells'))).toEqual(['Test Spellbook']);
+    // The next refresh finds every note in place: nothing to move or fetch.
+    restarted.requestRefresh();
+    await restarted.refresh([PACK, SPELLS], deps());
+    expect(restarted.pending).toBe(0);
+  });
+
+  it('keeps an edited note at its old path and says so in the status', async () => {
+    const sync = new LibrarySync(WORLD);
+    await sync.refresh([PACK], deps());
+    await sync.work(Date.now() + 10_000, deps());
+    const old = 'AI Tool/Library/Monsters/Other/Snow Weasel.md';
+    await fsp.appendFile(campaign(old), '\nMy own note.\n');
+    withBooks();
+    sync.requestRefresh();
+    await sync.refresh([PACK], deps());
+    expect(sync.links().byUuid(WEASEL)?.notePath).toBe(old);
+    await sync.work(Date.now() + 10_000, deps());
+    expect(await fsp.readFile(campaign(old), 'utf8')).toContain('My own note.');
+    expect((await files()).filter(f => f.endsWith('.md'))).toEqual([old]);
+    expect(sync.status([PACK]).skipped).toEqual([{ path: old, reason: KEPT_AT_OLD_PATH }]);
+  });
+
+  it('moves a note whose book changed, re-renders the notes that link to it, and trashes an empty book base', async () => {
+    const warden = row({
+      uuid: WARDEN,
+      name: 'Warden',
+      type: 'class',
+      identifier: 'warden',
+      ...SP,
+    });
+    const embers = row({
+      uuid: PATH,
+      name: 'Path of Embers',
+      type: 'subclass',
+      classIdentifier: 'warden',
+      ...SP,
+    });
+    fake.packs = [packInfo(CLASSES, 'Item')];
+    fake.rows = [warden, embers];
+    fake.docs = new Map([warden, embers].map(r => [r.uuid, doc(r)]));
+    const sync = new LibrarySync(WORLD);
+    await sync.refresh([CLASSES], deps());
+    await sync.work(Date.now() + 10_000, deps());
+    const classNote = campaign('AI Tool/Library/Classes/Test Spellbook/Warden.md');
+    expect(await fsp.readFile(classNote, 'utf8')).toContain(
+      '- [Path of Embers](../../Subclasses/Test%20Spellbook/Path%20of%20Embers.md)'
+    );
+    // The subclass is reprinted in another book (its signature changes with it).
+    fake.rows = [warden, { ...embers, ...MM, sig: 's2' }];
+    fake.documentCalls = [];
+    sync.requestRefresh();
+    expect((await sync.refresh([CLASSES], deps())).membershipChanged).toBe(true);
+    await sync.work(Date.now() + 10_000, deps());
+    expect(fake.documentCalls.flat().sort()).toEqual([WARDEN, PATH].sort());
+    expect(await fsp.readFile(classNote, 'utf8')).toContain(
+      '- [Path of Embers](../../Subclasses/Test%20Bestiary%20%282024%29/Path%20of%20Embers.md)'
+    );
+    expect((await files()).filter(f => f.endsWith('.md'))).toEqual([
+      'AI Tool/Library/Classes/Test Spellbook/Warden.md',
+      'AI Tool/Library/Subclasses/Test Bestiary (2024)/Path of Embers.md',
+    ]);
+    // Both books still have notes, so both bases stay; then the class moves too and its base goes.
+    expect((await files()).filter(f => f.endsWith('.base'))).toHaveLength(2);
+    fake.rows = [
+      { ...warden, ...MM, sig: 's3' },
+      { ...embers, ...MM, sig: 's2' },
+    ];
+    sync.requestRefresh();
+    await sync.refresh([CLASSES], deps());
+    await sync.work(Date.now() + 10_000, deps());
+    expect((await files()).filter(f => f.endsWith('.base'))).toEqual([
+      'AI Tool/Library/Books/Test Bestiary (2024).base',
+    ]);
+    await expect(
+      fsp.stat(
+        path.join(dir, '.trash', 'Campaigns', WORLD, 'AI Tool/Library/Books/Test Spellbook.base')
+      )
+    ).resolves.toBeTruthy();
+  });
+
+  it('leaves a book base the GM changed', async () => {
+    withBooks();
+    const sync = new LibrarySync(WORLD);
+    await sync.refresh([PACK, SPELLS], deps());
+    const basePath = campaign('AI Tool/Library/Books/Test Spellbook.base');
+    await fsp.writeFile(basePath, `${await fsp.readFile(basePath, 'utf8')}    limit: 10\n`, 'utf8');
+    fake.rows = fake.rows.filter(r => r.pack !== SPELLS);
+    sync.requestRefresh();
+    await sync.refresh([PACK], deps());
+    expect(await fsp.readFile(basePath, 'utf8')).toContain('limit: 10');
   });
 });

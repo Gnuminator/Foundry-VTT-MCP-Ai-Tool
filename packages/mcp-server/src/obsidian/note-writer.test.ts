@@ -309,3 +309,66 @@ describe('NoteWriter.trash', () => {
     expect(writer.trashed).toEqual([]);
   });
 });
+
+describe('NoteWriter.move (I-100)', () => {
+  const from = 'AI Tool/Foundry/Journals/Lore.md';
+  const to = 'AI Tool/Foundry/Journals/Act 1/Lore.md';
+
+  it('renames a note that is still ours, removes the emptied folder, and lists the move', async () => {
+    const page = 'AI Tool/Foundry/Journals/Lore/Village.md';
+    const writer = newWriter();
+    await writer.owned(page, ownedNote('a'), checkMarkdownOwnership);
+    expect(
+      await writer.move(
+        page,
+        'AI Tool/Foundry/Journals/Act 1/Lore/Village.md',
+        checkMarkdownOwnership
+      )
+    ).toBe('moved');
+    expect(
+      await readIfThere(path.join(root, 'AI Tool/Foundry/Journals/Act 1/Lore/Village.md'))
+    ).toBe(ownedNote('a'));
+    expect(await readIfThere(path.join(root, page))).toBeNull();
+    await expect(fsp.stat(path.join(root, 'AI Tool/Foundry/Journals/Lore'))).rejects.toThrow();
+    expect(writer.moved).toEqual([
+      { from: page, to: 'AI Tool/Foundry/Journals/Act 1/Lore/Village.md' },
+    ]);
+    expect(await fsp.readdir(path.join(vault)).then(names => names.includes('.trash'))).toBe(false);
+    expect(writer.errors).toEqual([]);
+  });
+
+  it('keeps a note the GM edited where it is, and says why', async () => {
+    const writer = newWriter();
+    await writer.owned(from, ownedNote('a'), checkMarkdownOwnership);
+    const edited = `${ownedNote('a')}My own line.\n`;
+    await fsp.writeFile(path.join(root, from), edited, 'utf8');
+    expect(await writer.move(from, to, checkMarkdownOwnership)).toBe('kept');
+    expect(await readIfThere(path.join(root, from))).toBe(edited);
+    expect(await readIfThere(path.join(root, to))).toBeNull();
+    expect(writer.skipped).toEqual([
+      { path: from, reason: 'kept at its old path because it was edited' },
+    ]);
+    expect(writer.moved).toEqual([]);
+  });
+
+  it('never overwrites a file at the target, and keeps the note when the move fails', async () => {
+    const writer = newWriter();
+    await writer.owned(from, ownedNote('a'), checkMarkdownOwnership);
+    await fsp.mkdir(path.dirname(path.join(root, to)), { recursive: true });
+    await fsp.writeFile(path.join(root, to), 'The GM note', 'utf8');
+    expect(await writer.move(from, to, checkMarkdownOwnership)).toBe('kept');
+    expect(await readIfThere(path.join(root, from))).toBe(ownedNote('a'));
+    expect(await readIfThere(path.join(root, to))).toBe('The GM note');
+    expect(writer.errors).toHaveLength(1);
+    expect(writer.errors[0]?.path).toBe(from);
+  });
+
+  it('returns missing for a note that is not there, and refuses a target outside the campaign', async () => {
+    const writer = newWriter();
+    expect(await writer.move(from, to, checkMarkdownOwnership)).toBe('missing');
+    await writer.owned(from, ownedNote('a'), checkMarkdownOwnership);
+    expect(await writer.move(from, '../elsewhere/Lore.md', checkMarkdownOwnership)).toBe('kept');
+    expect(await readIfThere(path.join(root, from))).toBe(ownedNote('a'));
+    expect(writer.errors).toHaveLength(1);
+  });
+});

@@ -1489,6 +1489,18 @@ describe('renderMirrorBases', () => {
     expect(() => renderMirrorBases('../x')).toThrow(/world id/);
     expect(() => renderMirrorBases('a b')).toThrow(/world id/);
   });
+
+  it('filters by the mirror folder only, so notes at any Foundry folder depth match (I-100)', () => {
+    // `file.inFolder(f)` matches notes in `f` and in every folder below it; no base may name a
+    // kind folder or a depth, or nested notes would drop out.
+    const nested = `Campaigns/${W}/AI Tool/Foundry/Journals/Act 1/Vallaki/Town/Lore/Page.md`;
+    for (const note of renderMirrorBases(W)) {
+      const folders = [...note.text.matchAll(/file\.inFolder\("([^"]+)"\)/g)].map(m => m[1]);
+      expect(folders).toEqual([`Campaigns/${W}/AI Tool/Foundry`]);
+      expect(nested.startsWith(`${folders[0]}/`)).toBe(true);
+      expect(note.text).not.toMatch(/file\.(folder|path)/);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

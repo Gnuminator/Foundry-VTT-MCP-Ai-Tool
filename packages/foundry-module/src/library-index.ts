@@ -4,8 +4,9 @@
  *
  * - `getLibraryIndex({packs, after})`: the picked packs' documents from the pack index (no
  *   document loads), one row each with a signature over what the note shows at the top level
- *   (name, type, folder, image, `_stats.modifiedTime`). Actor packs give their NPCs; Item packs
- *   every item. Paged by an offset cursor.
+ *   (name, type, folder, source book and page, image, `_stats.modifiedTime`). Actor packs give
+ *   their NPCs; Item packs every item. Paged by an offset cursor. The book's full title names the
+ *   Library folder the note goes in (I-100).
  * - `getLibraryDocuments({uuids})`: the full content of up to 40 documents: facts (spell level
  *   and school, rarity, hit die, prerequisites, ...), the raw description HTML (the backend
  *   rewrites the enrichers), an NPC's stat block, and advancement links (the features a class
@@ -133,6 +134,70 @@ function packInfo(pack: Rec, total: number): LibraryPackInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Source books (the Library folder per book, I-100)
+// ---------------------------------------------------------------------------
+
+/**
+ * Full titles of common book codes that dnd5e's `CONFIG.DND5E.sourceBooks` may not list (it
+ * holds the SRDs; content modules add their own). The registry wins when it has the code.
+ */
+export const BOOK_TITLES: Readonly<Record<string, string>> = {
+  'PHB 2024': "Player's Handbook (2024)",
+  PHB: "Player's Handbook (2014)",
+  'DMG 2024': "Dungeon Master's Guide (2024)",
+  DMG: "Dungeon Master's Guide (2014)",
+  'MM 2024': 'Monster Manual (2024)',
+  MM: 'Monster Manual (2014)',
+  XGtE: "Xanathar's Guide to Everything",
+  TCoE: "Tasha's Cauldron of Everything",
+  MotM: 'Mordenkainen Presents: Monsters of the Multiverse',
+  'SRD 5.1': 'System Reference Document 5.1',
+  'SRD 5.2': 'System Reference Document 5.2',
+  SCAG: "Sword Coast Adventurer's Guide",
+  EE: "Elemental Evil Player's Companion",
+  VGtM: "Volo's Guide to Monsters",
+  CoS: 'Curse of Strahd',
+  CoSCO: 'Curse of Strahd: Character Options',
+  IDRotF: 'Icewind Dale: Rime of the Frostmaiden',
+  MCv1: 'Monstrous Compendium Volume One: Spelljammer Creatures',
+  SKT: "Storm King's Thunder",
+  ToA: 'Tomb of Annihilation',
+  OotA: 'Out of the Abyss',
+  WDotMM: 'Waterdeep: Dungeon of the Mad Mage',
+  ERftLW: 'Eberron: Rising from the Last War',
+};
+
+/** A localization key that did not resolve (`SOURCE.BOOK.XYZ`): no spaces, dotted. */
+const UNRESOLVED_KEY = /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+$/;
+
+/** The full title of a book code: the dnd5e registry, else {@link BOOK_TITLES}, else the code. */
+export function bookTitleOf(code: string): string {
+  const entry = rec(config()?.sourceBooks)?.[code];
+  const raw = typeof entry === 'string' ? entry : str(rec(entry)?.label);
+  if (raw?.trim()) {
+    const title = localize(raw).trim();
+    if (title && !(title === raw && UNRESOLVED_KEY.test(raw))) return clip(title);
+  }
+  return clip(BOOK_TITLES[code] ?? code);
+}
+
+/** `system.source` as book code, full title and page (each null when absent). */
+function bookOf(source: unknown): {
+  book: string | null;
+  bookTitle: string | null;
+  page: string | null;
+} {
+  const s = rec(source);
+  const tidy = (value: string | null): string | null => {
+    const text = value?.replace(/\s+/g, ' ').trim();
+    return text ? clip(text) : null;
+  };
+  const book = s ? (tidy(nonEmpty(s.book)) ?? tidy(nonEmpty(s.custom))) : null;
+  const page = s ? tidy(typeof s.page === 'number' ? String(s.page) : nonEmpty(s.page)) : null;
+  return { book, bookTitle: book ? bookTitleOf(book) : null, page };
+}
+
+// ---------------------------------------------------------------------------
 // getLibraryIndex
 // ---------------------------------------------------------------------------
 
@@ -194,6 +259,7 @@ async function indexRows(pack: Rec): Promise<LibraryIndexRow[]> {
     const img = imagePath(entry.img);
     const rulesRaw = nonEmpty(dig(entry, 'system', 'source', 'rules'));
     const rules = rulesRaw === '2014' || rulesRaw === '2024' ? rulesRaw : null;
+    const { book, bookTitle, page } = bookOf(dig(entry, 'system', 'source'));
     rows.push({
       uuid: `Compendium.${id}.${documentName}.${docId}`,
       pack: id,
@@ -205,6 +271,9 @@ async function indexRows(pack: Rec): Promise<LibraryIndexRow[]> {
       identifier,
       classIdentifier,
       rules,
+      book,
+      bookTitle,
+      page,
       sig: signature([
         name,
         type,
@@ -215,6 +284,9 @@ async function indexRows(pack: Rec): Promise<LibraryIndexRow[]> {
         rules,
         img,
         modified,
+        book,
+        bookTitle,
+        page,
       ]),
     });
   }
@@ -639,6 +711,7 @@ function buildDocument(uuid: string, doc: Rec): LibraryDocument {
     img: imagePath(doc.img),
     source: sourceText(doc),
     rules: rulesOf(doc),
+    ...bookOf(dig(doc, 'system', 'source')),
     facts: factsOf(doc),
     description: fitted.content.trim() ? fitted.content : null,
     statBlock,

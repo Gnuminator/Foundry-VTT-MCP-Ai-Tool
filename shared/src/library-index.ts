@@ -82,7 +82,19 @@ export interface LibraryIndexRow {
   classIdentifier: string | null;
   /** `system.source.rules` (`2014` or `2024`), or null: tells same-named entries apart. */
   rules: RulesTag | null;
-  /** Signature over name, type, folder, image and modified time: changes when the note would. */
+  /**
+   * The source book code (`system.source.book`, else `system.source.custom`: `MM 2024`,
+   * `Homebrew`), or null. Optional: a module before I-100 leaves it out.
+   */
+  book?: string | null;
+  /**
+   * The book's full title (`Monster Manual (2024)`): dnd5e's `CONFIG.DND5E.sourceBooks`, else a
+   * table of common codes, else the code itself; null without a book. The Library folder per book.
+   */
+  bookTitle?: string | null;
+  /** `system.source.page`, or null. */
+  page?: string | null;
+  /** Signature over name, type, folder, book, page, image and modified time: changes when the note would. */
   sig: string;
 }
 
@@ -138,6 +150,10 @@ export interface LibraryDocument {
   /** `PHB p. 211`, or null. */
   source: string | null;
   rules: RulesTag | null;
+  /** The book code, its full title and the page, as on the index row (optional, like there). */
+  book?: string | null;
+  bookTitle?: string | null;
+  page?: string | null;
   /** Labelled facts (level and school, rarity, hit die, prerequisites, ...). */
   facts: LibraryFact[];
   /** Description HTML (raw: enrichers are rewritten by the backend), or null. */

@@ -8,7 +8,8 @@
  * backwards compatible: a `same` comparator on {@link NoteWriter.owned} (the
  * mirror ignores `fvtt_modified`), {@link NoteWriter.assertRealFence} (a
  * junction or symlink must not lead a write out of the fence), and
- * {@link NoteWriter.trash} (one note to the vault `.trash/`).
+ * {@link NoteWriter.trash} (one note to the vault `.trash/`). I-100 adds
+ * {@link NoteWriter.move} (one owned note to a new folder, by rename).
  *
  * Lifetime: one writer per export run or mirror cycle. The result arrays
  * (`written`, `unchanged`, ...) are handed out by reference (`ExportResult`),
@@ -20,6 +21,9 @@ import * as path from 'path';
 
 import { writeFileAtomic } from './atomic-write.js';
 import type { OwnershipResult } from './ownership.js';
+
+/** The status line of an edited note that stays in a folder it no longer belongs in (I-100). */
+export const KEPT_AT_OLD_PATH = 'kept at its old path because it was edited';
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -95,6 +99,8 @@ export class NoteWriter {
   readonly created: string[] = [];
   readonly skipped: Array<{ path: string; reason: string }> = [];
   readonly trashed: string[] = [];
+  /** Notes moved to a new path ({@link NoteWriter.move}). */
+  readonly moved: Array<{ from: string; to: string }> = [];
   readonly errors: Array<{ path: string; error: string }> = [];
   private readonly produced = new Set<string>();
 
@@ -271,6 +277,59 @@ export class NoteWriter {
       return 'trashed';
     } catch (error) {
       this.errors.push({ path: relPath, error: errorMessage(error) });
+      return 'kept';
+    }
+  }
+
+  /**
+   * Move one note to a new path (I-100: its folder changed) with a single rename, so there is
+   * never a second copy and nothing is lost halfway. Only a note that passes `check` moves; an
+   * edited or foreign note stays and is listed in `skipped` ("kept at its old path"). The target
+   * must not exist yet. Returns `'moved'`, `'kept'` (edited, foreign, not a file, target taken,
+   * or a failure, which is also recorded in `errors`) or `'missing'` (nothing there). The source
+   * folder is removed when the move left it empty (best effort).
+   */
+  async move(
+    from: string,
+    to: string,
+    check: (existingText: string) => OwnershipResult
+  ): Promise<'moved' | 'kept' | 'missing'> {
+    try {
+      const source = this.resolve(from);
+      const target = this.resolve(to);
+      const stat = await fsp.lstat(source).catch(error => {
+        if (errorCode(error) === 'ENOENT') return null;
+        throw error;
+      });
+      if (!stat) return 'missing';
+      if (!stat.isFile()) {
+        this.skipped.push({ path: from, reason: 'not written by the AI Tool' });
+        return 'kept';
+      }
+      const result = check(await fsp.readFile(source, 'utf8'));
+      if (!result.owned) {
+        this.skipped.push({
+          path: from,
+          reason:
+            result.reason === 'edited in Obsidian'
+              ? KEPT_AT_OLD_PATH
+              : `${result.reason}; kept at its old path`,
+        });
+        return 'kept';
+      }
+      const occupied = await fsp.lstat(target).then(
+        () => true,
+        () => false
+      );
+      if (occupied) throw new Error(`Not moved to ${to}: a file is already there`);
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await fsp.rename(source, target);
+      this.cache.written.delete(from);
+      this.moved.push({ from, to });
+      await fsp.rmdir(path.dirname(source)).catch(() => undefined);
+      return 'moved';
+    } catch (error) {
+      this.errors.push({ path: from, error: errorMessage(error) });
       return 'kept';
     }
   }

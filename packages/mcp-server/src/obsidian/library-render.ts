@@ -1,6 +1,8 @@
 /**
  * Library notes (docs/design/OBSIDIAN-O4-DESIGN.md section 13): one note per compendium
- * document from the packs the GM picked, under `Campaigns/<world>/AI Tool/Library/<Category>/`.
+ * document from the packs the GM picked, under
+ * `Campaigns/<world>/AI Tool/Library/<Category>/<Book title>/` (I-100: by kind, then book; class
+ * features and species traits add their group folder below the book).
  * Pure functions: a `LibraryDocument` (module query `getLibraryDocuments`) plus the paths and
  * links the Library sync resolved, Markdown out. Deterministic, so an unchanged note is never
  * rewritten.
@@ -17,11 +19,13 @@ import { LIBRARY_ROOT } from './licensed-guard.js';
 import { collapseWhitespace, escapeInlineText, escapeLineStart } from './md-escape.js';
 import {
   openUrl,
+  pathKey,
   relativeLinkTarget,
   type LibraryLinks,
   type LinkContext,
 } from './mirror-common.js';
-import { GENERATED_BY, withGeneratedHash } from './ownership.js';
+import { folderPath, shortSuffix } from './mirror-paths.js';
+import { GENERATED_BY, renderBaseText, withGeneratedHash } from './ownership.js';
 import { frontmatter, safeFileName } from './render.js';
 import { statBlockMarkdown } from './stat-block-md.js';
 
@@ -39,15 +43,26 @@ export interface LibraryCategory {
 
 const PHYSICAL = new Set(['weapon', 'equipment', 'consumable', 'tool', 'loot', 'container']);
 
-function folder(name: string, group?: string | null): string {
-  const sub = group ? `/${safeFileName(group)}` : '';
-  return `${LIBRARY_ROOT}/${name}${sub}`;
+/** The book folder of entries without a source book. */
+export const NO_BOOK_FOLDER = 'Other';
+
+/** The fields of a row (or document) that place its note. */
+export type LibraryPlacement = Pick<LibraryIndexRow, 'type' | 'subtype' | 'group'> &
+  Partial<Pick<LibraryIndexRow, 'book' | 'bookTitle'>> & { uuid?: string };
+
+/** The book an entry comes from as its notes show it (the full title, else the code), or null. */
+export function libraryBook(
+  row: Partial<Pick<LibraryIndexRow, 'book' | 'bookTitle'>>
+): string | null {
+  const title = (row.bookTitle ?? row.book ?? '').replace(/\s+/g, ' ').trim();
+  return title || null;
 }
 
 /** The category of an index row (folder, note type, tag). */
-export function libraryCategory(
-  row: Pick<LibraryIndexRow, 'type' | 'subtype' | 'group'> & { uuid?: string }
-): LibraryCategory {
+export function libraryCategory(row: LibraryPlacement): LibraryCategory {
+  const book = libraryBook(row) ?? NO_BOOK_FOLDER;
+  const folder = (name: string, group?: string | null): string =>
+    folderPath(`${LIBRARY_ROOT}/${name}`, group ? [book, group] : [book]);
   const isActor = row.uuid?.split('.')[3] === 'Actor' || row.type === 'npc';
   if (isActor)
     return {
@@ -174,6 +189,83 @@ function propText(text: string, max = 200): string {
     .replace(/\](?=\])/g, '] ');
 }
 
+/** The `book` property of an entry's note (the full title as a property value), or null. */
+export function bookProperty(
+  row: Partial<Pick<LibraryIndexRow, 'book' | 'bookTitle'>>
+): string | null {
+  const book = libraryBook(row);
+  return book ? propText(book) || null : null;
+}
+
+// ---------------------------------------------------------------------------
+// One base per book (I-100): the whole book across kinds
+// ---------------------------------------------------------------------------
+
+/** Where the per-book bases go (inside the Library: kept out of git with it). */
+export const LIBRARY_BOOKS_FOLDER = `${LIBRARY_ROOT}/Books`;
+
+function yamlSingleQuoted(text: string): string {
+  return `'${text.replace(/'/g, "''")}'`;
+}
+
+/**
+ * The base of one book: a table of every Library note whose `book` property is `title`. Only
+ * the title and filters, no book text. Compared by content like the mirror's bases.
+ */
+export function renderBookBase(worldId: string, title: string): string {
+  const lines = [
+    'filters:',
+    '  and:',
+    `    - file.inFolder("Campaigns/${worldId}/${LIBRARY_ROOT}")`,
+    `    - ${yamlSingleQuoted(`book == ${JSON.stringify(title)}`)}`,
+    'views:',
+    '  - type: table',
+    `    name: ${yamlSingleQuoted(title)}`,
+    '    order:',
+    '      - file.name',
+    '      - type',
+    '      - rules',
+    '      - source',
+    '      - page',
+    '    sort:',
+    '      - property: type',
+    '        direction: ASC',
+    '      - property: file.name',
+    '        direction: ASC',
+  ];
+  return renderBaseText(`${lines.join('\n')}\n`);
+}
+
+/** The title a generated book base filters on (read back from its text), or null. */
+export function bookBaseTitle(text: string): string | null {
+  const match = /^ {4}- '(book == ".*")'\s*$/m.exec(text);
+  if (!match?.[1]) return null;
+  try {
+    const value: unknown = JSON.parse(match[1].replace(/''/g, "'").slice('book == '.length));
+    return typeof value === 'string' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Base paths for these book titles (`AI Tool/Library/Books/<title>.base`), in title order; a
+ * title whose file name is taken by another gets a short hash of the title.
+ */
+export function bookBasePaths(titles: Iterable<string>): Map<string, string> {
+  const out = new Map<string, string>();
+  const used = new Set<string>();
+  for (const title of [...new Set(titles)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) {
+    let candidate = `${LIBRARY_BOOKS_FOLDER}/${safeFileName(title)}.base`;
+    if (used.has(pathKey(candidate))) {
+      candidate = `${LIBRARY_BOOKS_FOLDER}/${safeFileName(title)} (${shortSuffix(title)}).base`;
+    }
+    used.add(pathKey(candidate));
+    out.set(title, candidate);
+  }
+  return out;
+}
+
 function escapeText(text: string, max = 400): string {
   return escapeInlineText(collapseWhitespace(text, max));
 }
@@ -198,6 +290,8 @@ const RESERVED_KEYS = new Set([
   'player_safe',
   'category',
   'pack',
+  'book',
+  'page',
 ]);
 
 function noteLink(fromPath: string, toPath: string, label: string): string {
@@ -261,12 +355,24 @@ export const LIBRARY_BANNER_LINES = (packLabel: string): string[] => [
 /** One Library note. `path` is its campaign-relative path; `row` its index row (signature, identifier). */
 export function renderLibraryNote(
   doc: LibraryDocument,
-  row: Pick<LibraryIndexRow, 'sig' | 'identifier' | 'group'>,
+  row: Pick<LibraryIndexRow, 'sig' | 'identifier' | 'group'> &
+    Partial<Pick<LibraryIndexRow, 'book' | 'bookTitle' | 'page'>>,
   path: string,
   ctx: LibraryNoteContext
 ): string {
   const sig = row.sig;
-  const category = libraryCategory({ ...doc, group: row.group, uuid: doc.uuid });
+  const category = libraryCategory({
+    ...doc,
+    group: row.group,
+    book: row.book ?? doc.book ?? null,
+    bookTitle: row.bookTitle ?? doc.bookTitle ?? null,
+    uuid: doc.uuid,
+  });
+  const book = bookProperty({
+    book: row.book ?? doc.book ?? null,
+    bookTitle: row.bookTitle ?? doc.bookTitle ?? null,
+  });
+  const pageText = (row.page ?? doc.page ?? '').trim();
   const name = propText(doc.name) || 'Untitled';
   const link = ctx.linkContext(path, doc.uuid, doc.name);
   const packLabel = ctx.packLabel(doc.pack);
@@ -302,6 +408,12 @@ export function renderLibraryNote(
     rules: doc.rules,
     player_safe: category.playerSafe,
     source: doc.source ? propText(doc.source) : null,
+    book: book ?? undefined,
+    page: pageText
+      ? /^\d{1,6}$/.test(pageText)
+        ? Number(pageText)
+        : propText(pageText, 40)
+      : undefined,
     schema: 1,
     tags: [`campaign/${ctx.worldId}`, 'library', category.tag],
     generated_by: GENERATED_BY,

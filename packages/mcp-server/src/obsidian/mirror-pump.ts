@@ -48,6 +48,16 @@
  * What else shapes a world note (the guard's answers, the Library packs and membership) is a
  * short hash appended to the signature in `fvtt_sig`, so a change of it re-renders the notes,
  * also when it happened while the bridge was down.
+ *
+ * Folders (I-100): a note goes in its kind folder plus the document's Foundry folder path
+ * (`AI Tool/Foundry/Journals/<Foundry folders>/<Name>.md`); page notes sit in their journal's
+ * page folder. A fetched entry whose unedited note sits in another folder (a new layout, or the
+ * document moved in Foundry; the folder is part of the signature) moves there once, by rename
+ * (`NoteWriter.move`), its page notes with it. An edited note stays and is listed in the status.
+ * Links in other notes are rebuilt from the uuid-to-path maps, so a cycle that moved a note asks
+ * for a full re-render (a forced reconcile, after the 60 s throttle) to point them at the new
+ * paths. A journal's page folder never takes the name of a Foundry folder beside it: such a
+ * journal gets a suffixed name instead.
  */
 import { createHash } from 'crypto';
 import { promises as fsp } from 'fs';
@@ -100,7 +110,14 @@ import {
   type GitRunner,
   type GuardResult,
 } from './licensed-guard.js';
-import { allocateNotePaths, pageNoteFolder, type PathRequest } from './mirror-paths.js';
+import {
+  allocateNotePaths,
+  folderOf,
+  folderPath,
+  inFolder,
+  pageNoteFolder,
+  type PathRequest,
+} from './mirror-paths.js';
 import {
   mirrorNoteType,
   renderMirrorBases,
@@ -114,6 +131,7 @@ import {
   campaignDir,
   errorCode,
   errorMessage,
+  KEPT_AT_OLD_PATH,
   NoteWriter,
   type OwnedOptions,
   type WrittenCache,
@@ -173,7 +191,7 @@ const KIND_OF_TYPE: Record<MirrorNoteType, ExportKind> = {
   'story-item': 'item',
 };
 
-/** The folder a new note of each type is created in (picked once, section 3.1). */
+/** The kind folder of each note type (section 3.1); the Foundry folder path goes below it. */
 const FOLDER_OF_TYPE: Record<TopType, string> = {
   pc: MIRROR_FOLDERS.pc,
   npc: MIRROR_FOLDERS.npc,
@@ -181,6 +199,33 @@ const FOLDER_OF_TYPE: Record<TopType, string> = {
   journal: MIRROR_FOLDERS.journal,
   'story-item': MIRROR_FOLDERS.item,
 };
+/** `AI Tool/Foundry/<Kind>`: segments of a kind folder. */
+const KIND_FOLDER_DEPTH = 3;
+
+/**
+ * The folder a top-level note belongs in: its kind folder plus the entry's Foundry folders. An
+ * actor note keeps the kind folder it sits in (PCs or NPCs) when its type flips: a PC that loses
+ * its player owner stays where it is (section 3.1; the bases filter by tag, not by folder).
+ */
+function noteFolder(type: TopType, entry: ExportEntry, notePath?: string): string {
+  let kind = FOLDER_OF_TYPE[type];
+  if ((type === 'pc' || type === 'npc') && notePath !== undefined) {
+    for (const actors of [MIRROR_FOLDERS.pc, MIRROR_FOLDERS.npc]) {
+      if (pathKey(notePath).startsWith(pathKey(`${actors}/`))) kind = actors;
+    }
+  }
+  return folderPath(kind, entry.folder?.path ?? []);
+}
+
+/** `pathKey` of every folder of `folder` below its kind folder (the Foundry folders it implies). */
+function foundryFolderKeys(folder: string): string[] {
+  const parts = folder.split('/');
+  const keys: string[] = [];
+  for (let n = parts.length; n > KIND_FOLDER_DEPTH; n--) {
+    keys.push(pathKey(parts.slice(0, n).join('/')));
+  }
+  return keys;
+}
 
 const PAGE_UUID = /^(JournalEntry\.[A-Za-z0-9]{16})\.JournalEntryPage\.([A-Za-z0-9]{16})$/;
 
@@ -452,6 +497,10 @@ interface WorldState {
   licensed: Licensed | null;
   /** The signature inputs of the last cycle's world notes (null before the first). */
   sigInputs: string | null;
+  /** `pathKey` of the Foundry folders under the kind folders (from the scan and fetched entries). */
+  folderDirs: Set<string>;
+  /** Edited notes that stay in a folder they no longer belong in (listed in the status). */
+  keptOld: Set<string>;
   /** `libraryRenderKey` of the last settings (null before the first). */
   libraryRenderKey: string | null;
 }
@@ -492,6 +541,8 @@ function newWorldState(worldId: string): WorldState {
     licensed: null,
     sigInputs: null,
     libraryRenderKey: null,
+    folderDirs: new Set(),
+    keptOld: new Set(),
   };
 }
 
@@ -517,6 +568,8 @@ interface Cycle {
   reconciled: boolean;
   /** The Library refresh already had its turn this cycle. */
   libraryTried: boolean;
+  /** Notes moved to their new folder this cycle (their links elsewhere need a re-render). */
+  moved: number;
 }
 
 type WriteOutcome = 'written' | 'unchanged' | 'skipped' | 'error';
@@ -529,6 +582,16 @@ interface NoteMeta {
   name: string;
   journalUuid: string | null;
   isNew: boolean;
+  /** The note moves here from this path before it is written (its folder changed). */
+  moveFrom?: string;
+}
+
+/** New and moved note paths of one batch of entries. */
+interface Allocation {
+  top: Map<string, string>;
+  pages: Map<string, string>;
+  /** Uuid (top level or page) to the path its note moves away from. */
+  moves: Map<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -660,13 +723,21 @@ export class ObsidianMirrorPump {
     cycle.sigInputs = inputs;
     const reconcile = this.reconcileNow(state);
     if (!reconcile && state.watermark === null) return; // waiting out the reconcile throttle
-    if (reconcile) {
-      // A fresh writer cache per reconcile (the writer holds this same object).
-      state.cache.written.clear();
-      cycle.reconcile = true;
-      await this.reconcile(cycle);
-    } else {
-      await this.incremental(cycle);
+    try {
+      if (reconcile) {
+        // A fresh writer cache per reconcile (the writer holds this same object).
+        state.cache.written.clear();
+        cycle.reconcile = true;
+        await this.reconcile(cycle);
+      } else {
+        await this.incremental(cycle);
+      }
+    } finally {
+      if (cycle.moved > 0) {
+        // Notes rendered before a note moved still link to its old path: render them all again.
+        state.forceAll = true;
+        state.reconcileDue = true;
+      }
     }
   }
 
@@ -741,6 +812,7 @@ export class ObsidianMirrorPump {
       sigInputs: '',
       reconciled: false,
       libraryTried: false,
+      moved: 0,
     };
     // Fences before anything else: a link or junction must not lead a write
     // or a trash move out of the vault.
@@ -926,11 +998,21 @@ export class ObsidianMirrorPump {
     const listed = (note: ScannedNote): Listed => ({ path: note.path, uuid: note.uuid });
     state.movedByGm = scan.movedByGm.map(listed);
     state.duplicates = scan.duplicates.map(listed);
-    // A fresh view of the lasting problems: edited notes inside the fence, and
-    // what the scan could not read.
+    // A fresh view of the lasting problems: edited notes inside the fence (those left in a
+    // folder they no longer belong in say so), and what the scan could not read.
     state.skipped = new Map();
+    const keptOld = new Set<string>();
     for (const note of [...scan.mirror.values(), ...scan.pages.values()]) {
-      if (note.insideFence && !note.owned) state.skipped.set(note.path, 'edited in Obsidian');
+      if (!note.insideFence || note.owned) continue;
+      const kept = state.keptOld.has(note.path);
+      if (kept) keptOld.add(note.path);
+      state.skipped.set(note.path, kept ? KEPT_AT_OLD_PATH : 'edited in Obsidian');
+    }
+    state.keptOld = keptOld;
+    // The Foundry folders the notes sit in (journal page folders must not take their names).
+    for (const note of scan.mirror.values()) {
+      if (!note.insideFence) continue;
+      for (const key of foundryFolderKeys(folderOf(note.path))) state.folderDirs.add(key);
     }
     state.errors = new Map(scan.errors.map(e => [e.path || CAMPAIGN_PATH, e.error]));
     if (scan.limitsHit.length > 0) {
@@ -1164,11 +1246,11 @@ export class ObsidianMirrorPump {
     }
     if (accepted.length === 0) return;
 
-    const { top, pages } = this.allocate(cycle, accepted);
-    const ctx = this.renderContext(cycle, top, pages);
+    const allocation = this.allocate(cycle, accepted);
+    const ctx = this.renderContext(cycle, allocation.top, allocation.pages);
     for (const entry of accepted) {
       this.checkDeadline(cycle);
-      await this.renderAndWrite(cycle, entry, ctx, top, pages);
+      await this.renderAndWrite(cycle, entry, ctx, allocation);
       if (entry.kind === 'journal') {
         state.expectedPages.set(
           entry.uuid,
@@ -1179,43 +1261,100 @@ export class ObsidianMirrorPump {
     }
   }
 
-  /** New note paths for entries (and text pages) without a note; none while creates are blocked. */
-  private allocate(
-    cycle: Cycle,
-    entries: readonly ExportEntry[]
-  ): { top: Map<string, string>; pages: Map<string, string> } {
+  /**
+   * Note paths for entries (and text pages) without a note, and new paths for unedited notes
+   * whose folder changed (they move when written); none while creates are blocked. A journal
+   * with page text never takes the name of a Foundry folder beside it (its page folder would
+   * mix with that folder): it gets a suffixed name, and an existing one moves to it.
+   */
+  private allocate(cycle: Cycle, entries: readonly ExportEntry[]): Allocation {
     const state = cycle.state;
-    if (!cycle.allowChanges) return { top: new Map(), pages: new Map() };
+    const moves = new Map<string, string>();
+    if (!cycle.allowChanges) return { top: new Map(), pages: new Map(), moves };
+    const folders = new Map<string, string>();
+    const learned = new Set<string>();
+    for (const entry of entries) {
+      const note = state.notes.get(entry.uuid);
+      const current = note?.insideFence ? note.path : undefined;
+      const folder = noteFolder(mirrorNoteType(entry) as TopType, entry, current);
+      folders.set(entry.uuid, folder);
+      for (const key of foundryFolderKeys(folder)) {
+        if (!state.folderDirs.has(key)) learned.add(key);
+        state.folderDirs.add(key);
+      }
+    }
+    if (learned.size > 0) {
+      // A journal fetched earlier whose page folder is now also a Foundry folder: fetch it again
+      // so it moves to a suffixed name.
+      const batch = new Set(entries.map(entry => entry.uuid));
+      for (const note of state.notes.values()) {
+        if (note.type !== 'journal' || !note.insideFence || batch.has(note.uuid)) continue;
+        if (learned.has(pathKey(pageNoteFolder(note.path)))) state.pendingRefetch.add(note.uuid);
+      }
+    }
+
     const requests: PathRequest[] = [];
     for (const entry of entries) {
-      if (state.notes.has(entry.uuid)) continue;
-      const type = mirrorNoteType(entry) as TopType;
+      const folder = folders.get(entry.uuid) ?? '';
+      const ownsFolder = entry.kind === 'journal' && entry.textIncluded;
+      const note = state.notes.get(entry.uuid);
+      if (note) {
+        if (!note.insideFence) continue; // the GM moved it out: never written again
+        const misplaced =
+          !inFolder(note.path, folder) ||
+          (ownsFolder && state.folderDirs.has(pathKey(pageNoteFolder(note.path))));
+        if (!misplaced) {
+          state.keptOld.delete(note.path);
+          continue;
+        }
+        if (!note.owned) {
+          this.keepAtOldPath(state, note.path);
+          continue;
+        }
+        moves.set(entry.uuid, note.path);
+      }
       requests.push({
         uuid: entry.uuid,
         id: entry.id,
-        folder: FOLDER_OF_TYPE[type],
+        folder,
         name: entry.name,
         created: entry.created,
+        ...(ownsFolder ? { ownsFolder: true } : {}),
       });
     }
     const taken = new Set(state.taken);
-    const top = allocateNotePaths(requests, new Map(), taken);
+    const top = allocateNotePaths(requests, new Map(), taken, state.folderDirs);
     for (const allocated of top.values()) taken.add(pathKey(allocated));
 
     const pageRequests: PathRequest[] = [];
     for (const entry of entries) {
       if (entry.kind !== 'journal' || !entry.textIncluded) continue;
-      const journalPath = state.notes.get(entry.uuid)?.path ?? top.get(entry.uuid);
+      const journalPath = top.get(entry.uuid) ?? state.notes.get(entry.uuid)?.path;
       if (journalPath === undefined) continue;
       const folder = pageNoteFolder(journalPath);
       if (!insideFence(folder)) continue; // the GM moved the index note: no new page notes
       for (const page of entry.pages) {
-        if (!page.text || state.pages.has(page.uuid)) continue;
+        if (!page.text) continue;
+        const existing = state.pages.get(page.uuid);
+        if (existing) {
+          if (!existing.insideFence || inFolder(existing.path, folder)) continue;
+          if (!existing.owned) {
+            this.keepAtOldPath(state, existing.path);
+            continue;
+          }
+          moves.set(page.uuid, existing.path);
+        }
         pageRequests.push({ uuid: page.uuid, id: page.id, folder, name: page.name, created: null });
       }
     }
     const pages = allocateNotePaths(pageRequests, new Map(), taken);
-    return { top, pages };
+    return { top, pages, moves };
+  }
+
+  /** An edited note in a folder it no longer belongs in: it stays, and the status says why. */
+  private keepAtOldPath(state: WorldState, notePath: string): void {
+    state.keptOld.add(notePath);
+    state.skipped.set(notePath, KEPT_AT_OLD_PATH);
   }
 
   private renderContext(
@@ -1225,10 +1364,11 @@ export class ObsidianMirrorPump {
   ): MirrorRenderContext {
     const state = cycle.state;
     const kinds = requestKinds(cycle.settings);
+    // A new or moved note's allocated path first (a moved note links at its new place).
     const notePath = (uuid: string): string | null =>
-      state.notes.get(uuid)?.path ?? top.get(uuid) ?? null;
+      top.get(uuid) ?? state.notes.get(uuid)?.path ?? null;
     const pageNotePath = (uuid: string): string | null =>
-      state.pages.get(uuid)?.path ?? pages.get(uuid) ?? null;
+      pages.get(uuid) ?? state.pages.get(uuid)?.path ?? null;
     /** Not in the world for sure: only scenes and journals, only with complete rows (section 5). */
     const certainlyMissing = (topUuid: string): boolean => {
       const documentName = topUuid.split('.')[0];
@@ -1484,15 +1624,14 @@ export class ObsidianMirrorPump {
     cycle: Cycle,
     entry: ExportEntry,
     ctx: MirrorRenderContext,
-    top: ReadonlyMap<string, string>,
-    pages: ReadonlyMap<string, string>
+    allocation: Allocation
   ): Promise<void> {
     // The images this entry's notes embed are counted for it (unused ones are collected later).
     const attachments = cycle.state.licensed?.attachments;
     attachments?.beginOwner(entry.uuid);
     let committed = false;
     try {
-      committed = await this.renderAndWriteOwned(cycle, entry, ctx, top, pages);
+      committed = await this.renderAndWriteOwned(cycle, entry, ctx, allocation);
     } finally {
       attachments?.endOwner(committed);
     }
@@ -1503,9 +1642,9 @@ export class ObsidianMirrorPump {
     cycle: Cycle,
     entry: ExportEntry,
     ctx: MirrorRenderContext,
-    top: ReadonlyMap<string, string>,
-    pages: ReadonlyMap<string, string>
+    allocation: Allocation
   ): Promise<boolean> {
+    const { top, pages, moves } = allocation;
     const state = cycle.state;
     let notes: RenderedNote[];
     let complete = true;
@@ -1530,14 +1669,16 @@ export class ObsidianMirrorPump {
     }
     for (const note of notes) {
       const page = pageByPath.get(note.path);
-      const meta: NoteMeta = page
+      const uuid = page ? page.uuid : entry.uuid;
+      const moveFrom = moves.get(uuid);
+      const base: NoteMeta = page
         ? {
             uuid: page.uuid,
             type: 'journal-page',
             sig: null,
             name: page.name,
             journalUuid: entry.uuid,
-            isNew: pages.has(page.uuid),
+            isNew: pages.has(page.uuid) && moveFrom === undefined,
           }
         : {
             uuid: entry.uuid,
@@ -1545,8 +1686,9 @@ export class ObsidianMirrorPump {
             sig: entry.sig,
             name: entry.name,
             journalUuid: null,
-            isNew: top.has(entry.uuid),
+            isNew: top.has(entry.uuid) && moveFrom === undefined,
           };
+      const meta: NoteMeta = moveFrom === undefined ? base : { ...base, moveFrom };
       const outcome = await this.writeRendered(cycle, note, meta);
       if (outcome !== 'written' && outcome !== 'unchanged') complete = false;
     }
@@ -1602,6 +1744,10 @@ export class ObsidianMirrorPump {
     const state = cycle.state;
     // Only inside the fence; a note the GM moved elsewhere is never written again.
     if (!insideFence(note.path)) return 'not written';
+    if (meta.moveFrom !== undefined) {
+      const moved = await this.moveNote(cycle, meta, note.path);
+      if (moved !== 'moved') return moved === 'missing' ? 'not written' : 'skipped';
+    }
     const present = await exists(path.join(cycle.root, note.path));
     if (meta.isNew === present) {
       // A new path that is taken now, or a known note that is gone (deleted or
@@ -1636,6 +1782,45 @@ export class ObsidianMirrorPump {
     return outcome;
   }
 
+  /**
+   * Move one note to its new folder before it is written (the writer re-checks ownership on the
+   * file and renames it, so there is never a second copy). The note map follows the move; an
+   * edited note stays where it is, and a note that is gone is left to a reconcile.
+   */
+  private async moveNote(
+    cycle: Cycle,
+    meta: NoteMeta,
+    to: string
+  ): Promise<'moved' | 'kept' | 'missing'> {
+    const { writer, state } = cycle;
+    const from = meta.moveFrom ?? to;
+    const counts = [writer.skipped.length, writer.errors.length];
+    const result = await writer.move(from, to, checkMarkdownOwnership);
+    const map = meta.type === 'journal-page' ? state.pages : state.notes;
+    const previous = map.get(meta.uuid);
+    if (result === 'moved') {
+      if (previous) map.set(meta.uuid, { ...previous, path: to });
+      state.taken.delete(pathKey(from));
+      state.taken.add(pathKey(to));
+      state.skipped.delete(from);
+      state.errors.delete(from);
+      state.keptOld.delete(from);
+      cycle.moved += 1;
+    } else if (result === 'missing') {
+      state.reconcileDue = true;
+    } else {
+      for (const s of writer.skipped.slice(counts[0])) {
+        state.skipped.set(s.path, s.reason);
+        state.keptOld.add(s.path);
+      }
+      for (const e of writer.errors.slice(counts[1])) state.errors.set(e.path, e.error);
+      if (previous && writer.skipped.length > (counts[0] ?? 0)) {
+        map.set(meta.uuid, { ...previous, owned: false });
+      }
+    }
+    return result;
+  }
+
   /** `NoteWriter.owned` plus what happened, mirrored into the lasting status maps. */
   private async writeOwned(
     cycle: Cycle,
@@ -1649,7 +1834,9 @@ export class ObsidianMirrorPump {
     await writer.owned(relPath, text, check, options);
     const skipped = writer.skipped.slice(counts[1]);
     const errors = writer.errors.slice(counts[2]);
-    for (const s of skipped) state.skipped.set(s.path, s.reason);
+    for (const s of skipped) {
+      state.skipped.set(s.path, state.keptOld.has(s.path) ? KEPT_AT_OLD_PATH : s.reason);
+    }
     for (const e of errors) state.errors.set(e.path, e.error);
     if (errors.length > 0) return 'error';
     if (skipped.length > 0) return 'skipped';
@@ -1720,7 +1907,8 @@ export class ObsidianMirrorPump {
     const { writer, state } = cycle;
     const trashed = writer.trashed.length;
     const written = writer.written.length - cycle.created;
-    const changed = writer.written.length + trashed > 0;
+    const moved = writer.moved.length;
+    const changed = writer.written.length + trashed + moved > 0;
     const abort = error instanceof CycleAbort ? error : null;
     if (this.state !== state) {
       // The world changed under the cycle: its state is gone.
@@ -1773,6 +1961,7 @@ export class ObsidianMirrorPump {
         worldId: state.worldId,
         written: Math.max(0, written),
         created: cycle.created,
+        moved,
         trashed,
       });
     }

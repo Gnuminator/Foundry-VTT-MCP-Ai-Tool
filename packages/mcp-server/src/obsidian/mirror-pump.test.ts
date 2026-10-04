@@ -8,7 +8,7 @@ import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import type { ExportIndexRequest } from '@gnuminator/shared';
+import type { ExportFolderRef, ExportIndexRequest } from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { REVEALS_FILE } from '../tarokka/service.js';
@@ -30,6 +30,7 @@ import {
   RECONCILE_EVERY_MS,
   RECONCILE_MIN_INTERVAL_MS,
 } from './mirror-pump.js';
+import { shortSuffix } from './mirror-paths.js';
 import { MIRROR_SETTINGS_FILE } from './mirror-settings.js';
 
 const converter = vi.hoisted(() => ({
@@ -786,5 +787,149 @@ describe('ObsidianMirrorPump: junctions out of the vault', () => {
     expect(await exists(full(P.wolf))).toBe(true);
     expect(await listFiles(outside)).toEqual([]);
     expect(pump.status().lastError).toMatch(/Refusing to trash/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Foundry folders (I-100)
+// ---------------------------------------------------------------------------
+
+describe('ObsidianMirrorPump: notes follow the Foundry folder tree (I-100)', () => {
+  const inFolder = (folderSeed: string, ...names: string[]): ExportFolderRef => ({
+    id: fid(folderSeed),
+    path: names,
+  });
+  const MAP = journalEntry('map', 'Map', [], { folder: inFolder('lorefolder', 'Lore') });
+
+  it('places notes in their Foundry folders, page notes beside their journal', async () => {
+    fake.edit(WOLF.uuid, e => (e.folder = inFolder('barovia', 'Villains', 'Barovia')));
+    fake.edit(LORE.uuid, e => (e.folder = inFolder('campaign', 'Campaign')));
+    fake.edit(SWORD.uuid, e => (e.folder = inFolder('odd', 'CON', '.hidden', 'a:b?')));
+    const pump = await started();
+    expect(await read('AI Tool/Foundry/NPCs/Villains/Barovia/Wolf.md')).toContain(WOLF.uuid);
+    expect(await read('AI Tool/Foundry/Journals/Campaign/Lore.md')).toContain(LORE.uuid);
+    expect(await read('AI Tool/Foundry/Journals/Campaign/Lore/Village.md')).toContain(
+      'Village text'
+    );
+    expect(await read('AI Tool/Foundry/Items/_CON/_hidden/a b/Sun Blade.md')).toContain(SWORD.uuid);
+    expect(await read(P.hero)).toContain(HERO.uuid); // no folder: the kind folder itself
+    expect(pump.status().counts.npc).toBe(1);
+    expect(pump.status().errors).toEqual([]);
+  });
+
+  it('moves a note once when its document moves in Foundry, and re-renders the links to it', async () => {
+    fake.put(
+      pcEntry('hero', 'Test Hero', {
+        notableItems: [{ name: 'Sun Blade', sourceUuid: SWORD.uuid }],
+      })
+    );
+    const pump = await started();
+    expect(await read(P.hero)).toContain('[Sun Blade](../Items/Sun%20Blade.md)');
+    fake.edit(SWORD.uuid, e => (e.folder = inFolder('treasure', 'Treasure')), 60_000);
+    fake.edit(LORE.uuid, e => (e.folder = inFolder('campaign', 'Campaign')), 60_000);
+    await tickAfter(pump, 10_000);
+    const moved = {
+      sword: 'AI Tool/Foundry/Items/Treasure/Sun Blade.md',
+      lore: 'AI Tool/Foundry/Journals/Campaign/Lore.md',
+      village: 'AI Tool/Foundry/Journals/Campaign/Lore/Village.md',
+      castle: 'AI Tool/Foundry/Journals/Campaign/Lore/Castle.md',
+    };
+    for (const rel of Object.values(moved)) expect(await exists(full(rel))).toBe(true);
+    for (const rel of [P.sword, P.lore, P.village, P.castle]) {
+      expect(await exists(full(rel))).toBe(false);
+    }
+    // Moved by rename: no copy in the trash, the emptied page folder is gone.
+    expect(await listFiles(path.join(vault, '.trash'))).toEqual([]);
+    expect(await exists(full('AI Tool/Foundry/Journals/Lore'))).toBe(false);
+    expect(await read(moved.lore)).toContain('(Lore/Village.md)');
+    expect(pump.status().counts).toMatchObject({ journal: 1, 'journal-page': 2, 'story-item': 2 });
+    expect(logger.info).toHaveBeenCalledWith(
+      'Obsidian mirror updated',
+      expect.objectContaining({ moved: 4 })
+    );
+    // The hero note was not part of the move: the forced re-render after it fixes its link.
+    await tickAfter(pump, RECONCILE_MIN_INTERVAL_MS);
+    expect(await read(P.hero)).toContain('[Sun Blade](../Items/Treasure/Sun%20Blade.md)');
+    // Settled: a later reconcile moves and writes nothing.
+    const before = await snapshot();
+    await reconcileNow(pump);
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it('keeps an edited note at its old path, and says so in the status', async () => {
+    const pump = await started();
+    const edited = `${(await read(P.wolf)) ?? ''}\nMy own wolf notes.\n`;
+    await fsp.writeFile(full(P.wolf), edited, 'utf8');
+    fake.edit(WOLF.uuid, e => (e.folder = inFolder('beasts', 'Beasts')), 60_000);
+    await tickAfter(pump, 10_000);
+    expect(await read(P.wolf)).toBe(edited);
+    expect(await exists(full('AI Tool/Foundry/NPCs/Beasts'))).toBe(false);
+    const kept = { path: P.wolf, reason: 'kept at its old path because it was edited' };
+    expect(pump.status().skipped).toEqual([kept]);
+    // Still listed that way after a reconcile with a fresh scan.
+    await reconcileNow(pump);
+    expect(pump.status().skipped).toEqual([kept]);
+    expect(await read(P.status)).toContain('kept at its old path because it was edited');
+  });
+
+  it('never lets a journal page folder take the name of a Foundry folder beside it', async () => {
+    fake.put(MAP);
+    await started();
+    const suffix = shortSuffix(LORE.uuid);
+    expect(await read(`AI Tool/Foundry/Journals/Lore (${suffix}).md`)).toContain(LORE.uuid);
+    expect(await read(`AI Tool/Foundry/Journals/Lore (${suffix})/Village.md`)).toContain(
+      'Village text'
+    );
+    expect(await listFiles(full('AI Tool/Foundry/Journals/Lore'))).toEqual(['Map.md']);
+  });
+
+  it('moves a journal out of the way when a Foundry folder of its name appears later', async () => {
+    const pump = await started();
+    expect(await read(P.village)).toContain('Village text');
+    fake.put({ ...MAP, modified: 60_000 });
+    await tickAfter(pump, 10_000);
+    const suffix = shortSuffix(LORE.uuid);
+    expect(await read(`AI Tool/Foundry/Journals/Lore (${suffix}).md`)).toContain(LORE.uuid);
+    expect(await listFiles(full(`AI Tool/Foundry/Journals/Lore (${suffix})`))).toEqual([
+      'Castle.md',
+      'Village.md',
+    ]);
+    expect(await listFiles(full('AI Tool/Foundry/Journals/Lore'))).toEqual(['Map.md']);
+    expect(await exists(full(P.lore))).toBe(false);
+  });
+
+  it('keeps a PC note in PCs when the actor loses its player, inside its Foundry folder', async () => {
+    const pump = await started();
+    fake.edit(
+      HERO.uuid,
+      e => {
+        if (e.kind !== 'actor') return;
+        e.pc = false;
+        e.owners = [];
+        e.folder = inFolder('party', 'Party');
+      },
+      60_000
+    );
+    await tickAfter(pump, 10_000);
+    const moved = 'AI Tool/Foundry/PCs/Party/Test Hero.md';
+    expect(await read(moved)).toContain('type: "npc"');
+    expect(await exists(full(P.hero))).toBe(false);
+    expect(await exists(full('AI Tool/Foundry/NPCs/Party'))).toBe(false);
+  });
+
+  it('moves the notes of the flat layout of earlier versions into their folders once', async () => {
+    const pump = await started();
+    // Earlier versions wrote every note flat; the documents sit in Foundry folders.
+    fake.edit(WOLF.uuid, e => (e.folder = inFolder('beasts', 'Beasts')));
+    fake.edit(HERO.uuid, e => (e.folder = inFolder('party', 'Party')));
+    // A restart: the folder is part of the signature, so both documents are fetched again.
+    const restarted = newPump();
+    await restarted.tick();
+    expect(await read('AI Tool/Foundry/NPCs/Beasts/Wolf.md')).toContain(WOLF.uuid);
+    expect(await read('AI Tool/Foundry/PCs/Party/Test Hero.md')).toContain(HERO.uuid);
+    expect(await exists(full(P.wolf))).toBe(false);
+    expect(await exists(full(P.hero))).toBe(false);
+    expect(restarted.status().duplicates).toEqual([]);
+    expect(pump.status().lastError).toBeNull();
   });
 });

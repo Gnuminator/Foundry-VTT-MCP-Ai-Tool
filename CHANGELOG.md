@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Security
+
+- The dashboard verifies Cloudflare Access's signed login token (signature, issuer, audience,
+  expiry) and never trusts the plain email header; new settings `CF_ACCESS_TEAM_DOMAIN` and
+  `CF_ACCESS_AUD` replace `CF_ACCESS_EMAIL_HEADER` (I-022, closes P-038; PR #97).
+
 ### Session notes into Foundry (D-087; PRs #85 to #87)
 
 - **Session notes go into Foundry by themselves:** after a recorded session, the Recap, GM
@@ -44,6 +50,9 @@
 - Docs: the Orange Pi guide is rechecked for bring-up: players reach Foundry through Cloudflare
   Tunnel and Access (D-075), a list of what this PC needs, the licensed-content copy, and NVMe as
   root filesystem with boot from the card (PR #92).
+- Demo kit: `--world` for another demo world (`ai-tool-demo-<name>`) and takes kept outside the
+  repo (a file path; helpers as `t.lib`); `reset-demo-world.ps1 -World/-Source/-Title` (I-061;
+  PR #95).
 
 ### Module
 
@@ -59,6 +68,10 @@
 - Docker: the image builds again (the runtime install no longer runs the git-hook setup) (PR #80).
 - The session log counts damage that hits temp HP ("took 10 damage (10 to temp HP)"); temp HP
   gained or restored by an Undo is not logged as healing (PR #82).
+- Session notes whose journal was deleted by hand in Foundry go back to waiting, so "Put in
+  Foundry" puts them back (PR #96).
+- The After view's "Went down" card also counts heroes who dropped outside a fight
+  (`pcDownsByName` in the session stats; PR #98).
 
 ## v0.20.0 (released 2026-10-03): undo for live play, the write gate, the design pass, pre-flight and prep, the party panel, the Obsidian plugin and library, GM guides
 

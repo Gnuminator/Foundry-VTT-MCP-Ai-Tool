@@ -106,8 +106,8 @@ so `ssh foundry-pi` works. It keeps trying for up to 20 minutes while the first 
 
 Then tell Claude: **"The Pi is up."**
 
-Optional but useful: in your router, give the Pi a fixed address (a "DHCP reservation"), so it keeps
-the same address after restarts.
+Then give the Pi a fixed address in your router, so it keeps the same address after restarts: see
+"Your UniFi gateway" below.
 
 If the script cannot find the Pi after 20 minutes: plug in the monitor and keyboard, log in as `root`
 with the password from `~\.foundry-pi\root-password.txt`, and run `hostname -I` to see its address.
@@ -116,19 +116,22 @@ Then run `.\scripts\pi\find-pi.ps1 -Address <that address>`.
 ## Part B: Claude
 
 Claude works over `ssh foundry-pi` and pauses before each stage. Where you are needed, it says so.
+Stages 1 to 4 are scripts in `scripts/pi/remote/` (Claude runs `lib.sh` plus the stage over SSH);
+each one checks what is already there, so running it again is safe. They were tested in an ARM64
+Debian 13 container on 2026-10-04, including the real Foundry 14.368 build starting on Node 24.
 Each stage ends with a check Claude shows you (a service running, a page answering, a backup
 listed).
 
 | Stage           | What happens                                                                                                                                                                                                                                                                      | Needs you                                                                                                                                                                                                                          |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Health check | Updates, disk, temperature, clock and time zone; a `foundry` system user and the folders below; the firewall allows SSH and Foundry from the home network only                                                                                                                    | no                                                                                                                                                                                                                                 |
-| 2. Node.js      | Node 24 LTS (Foundry 14 requires it) for ARM64 from nodejs.org, checksum-checked against `SHASUMS256.txt`, in `/opt/node24`                                                                                                                                                       | no                                                                                                                                                                                                                                 |
-| 3. Foundry      | Installed as a service on port 30000, data in `/var/lib/foundry`; reachable at `http://foundry-pi.local:30000` from home                                                                                                                                                          | **yes:** download the **Linux/Node.js** build from your foundryvtt.com account on this PC (the link lasts 5 minutes; Claude copies the file over), then enter the licence key and an admin password in your browser on first start |
-| 4. Tailscale    | Private admin access: SSH and the bridge from this PC, also when you are away from home. For you only, not the players (D-075)                                                                                                                                                    | **yes:** open the login link Claude shows, and install Tailscale on this PC with the same account                                                                                                                                  |
+| 1. Health check | Updates, disk, memory, temperature, clock and time zone; a `foundry` system user and the folders below (`scripts/pi/remote/1-health.sh`)                                                                                                                                          | no                                                                                                                                                                                                                                 |
+| 2. Node.js      | Node 24 LTS (Foundry 14 requires it) for ARM64 from nodejs.org, checksum-checked against `SHASUMS256.txt`, in `/opt/node24` (`2-node.sh`)                                                                                                                                         | no                                                                                                                                                                                                                                 |
+| 3. Foundry      | Installed as a service on port 30000, data in `/var/lib/foundry`, reachable at `http://foundry-pi.local:30000` from home; started with `--noupnp`, so Foundry never asks the router to open a port (`3-foundry.sh`)                                                               | **yes:** download the **Linux/Node.js** build from your foundryvtt.com account on this PC (the link lasts 5 minutes; Claude copies the file over), then enter the licence key and an admin password in your browser on first start |
+| 4. Tailscale    | Private admin access: SSH and the bridge from this PC, also when you are away from home. For you only, not the players (D-075). From Tailscale's own apt repository (`4-tailscale.sh`)                                                                                            | **yes:** open the login link Claude shows, and install Tailscale on this PC with the same account                                                                                                                                  |
 | 5. The tool     | Bridge and dashboard as services (released builds); a Chromium browser without a screen, logged into Foundry as a dedicated Assistant GM user and set as the bridge's user, so the tool works when no human GM is online; the bridge's control port only on the Tailscale address | **yes:** create the Assistant GM user in Foundry and paste its password once when Claude asks; OK Claude switching the five Claude Desktop entries on this PC to the Pi                                                            |
 | 6. Backups      | Nightly snapshots (restic) at 05:00 to the USB drive: Foundry data, the tool's storage, the Obsidian vaults. Keeps 14 daily, 8 weekly, 12 monthly; a monthly test restore                                                                                                         | plug in the drive                                                                                                                                                                                                                  |
 | 7. Vault sync   | Syncthing: the GM vault to the GM's PC, the player vault to anyone who wants the Obsidian app                                                                                                                                                                                     | accept the device on each PC                                                                                                                                                                                                       |
-| 8. Discord bot  | The recorder bot as a service                                                                                                                                                                                                                                                     | a bot token from the Discord developer page, pasted by you                                                                                                                                                                         |
+| 8. Discord bot  | The recorder bot as a service (`foundry-ai-tool-discord-bot`, runs as `foundry`), recordings in `/var/lib/foundry-ai-tool/recordings`; this PC copies finished recordings over Tailscale for transcription                                                                        | a bot token from the Discord developer page, pasted by you into `/etc/foundry-ai-tool/discord-bot.env`                                                                                                                             |
 
 Stage 5 in more detail, because it changes how Claude Desktop reaches the game: each entry in
 `%APPDATA%\Claude\claude_desktop_config.json` gets `MCP_CONTROL_HOST` set to the Pi's Tailscale name
@@ -138,9 +141,45 @@ Pi's Tailscale address and loopback, never on the home network or the internet. 
 module's "bridge user" setting names the Assistant GM user, so the GM's own browser never tries to
 run the bridge.
 
+No firewall is set up on the Pi: nothing on it is reachable from the internet (no router ports are
+opened, Foundry asks for none, and Tailscale and the Cloudflare tunnel both dial out), and on the
+home network only Foundry, SSH and the dashboard answer.
+
 Rules Claude follows on the Pi: never types passwords, licence keys or tokens (you paste them where
 asked); never opens anything to the internet before Part C; the campaign world is never used for
 tests.
+
+## Recordings
+
+The Pi records the Discord voice channel but does not transcribe: it has no graphics card, and speech
+to text runs on this PC (faster-whisper). After `/record stop` the bot converts the recording on the
+Pi. This PC's session pipeline (`tools/session-notes/auto.ps1`, with `FVTT_PI_HOST=foundry-pi`) then
+copies every finished recording over SSH through Tailscale, checks each file, and marks it copied on
+the Pi; the Pi deletes copied recordings after 7 days. The recorded audio on this PC is deleted 14
+days after the GM approves the session's notes (D-072). Details:
+[the bot's README](../../packages/discord-bot/README.md).
+
+## Your UniFi gateway
+
+Very little, and nothing that opens your network. Menu names as in UniFi Network 9; older versions
+put them in slightly different places.
+
+1. **Give the Pi a fixed address** (do this after Part A, once the Pi shows up): **Client Devices**,
+   click `foundry-pi`, **Settings**, switch on **Fixed IP Address** and keep the address it has.
+   While you are there, switch on **Local DNS Record** with the name `foundry-pi`, so the PC finds
+   it even when `foundry-pi.local` does not answer.
+2. **Leave UPnP off:** **Settings**, **Internet**, your WAN, **UPnP** off (the default). Foundry is
+   started with `--noupnp` anyway, but with UPnP off nothing on your network can open a port by
+   itself.
+3. **No port forwarding:** add nothing under **Port Forwarding**. Players come in through the
+   Cloudflare tunnel (Part C) and you through Tailscale; both dial out.
+4. **Same network as this PC:** plug the Pi into the network your PC is on (not a guest or isolated
+   network). If you ever move it to its own VLAN, switch on **Multicast DNS** for both networks
+   (**Settings**, **Networks**, global settings) and allow the PC to reach the Pi in the firewall
+   rules; until then, keep it simple.
+5. **If the tunnel or Tailscale will not connect** with CyberSecure / threat management or ad
+   blocking on: look in the gateway's threat log for blocked Cloudflare (`*.argotunnel.com`,
+   `*.cloudflare.com`) or Tailscale addresses and allow them. Normally nothing is needed.
 
 ## Part C: players and the GM from outside (later)
 
@@ -200,15 +239,17 @@ boot problems for others, so it is not tried.
 
 ## Where things live on the Pi
 
-| What                                   | Where                                                               |
-| -------------------------------------- | ------------------------------------------------------------------- |
-| Foundry program                        | `/opt/foundry`                                                      |
-| Foundry data (worlds, modules, assets) | `/var/lib/foundry`                                                  |
-| Node.js                                | `/opt/node24`                                                       |
-| The tool (release builds)              | `/opt/foundry-ai-tool`                                              |
-| Settings and secrets for the tool      | `/etc/foundry-ai-tool/.env` (readable by root and the service only) |
-| The tool's storage (bridge vault)      | `/var/lib/foundry-ai-tool`                                          |
-| Backups                                | the USB drive, mounted at `/mnt/backup`                             |
+| What                                                         | Where                                                                      |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| Foundry program                                              | `/opt/foundry`                                                             |
+| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                         |
+| Node.js                                                      | `/opt/node24`                                                              |
+| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                     |
+| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)        |
+| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                 |
+| Backups                                                      | the USB drive, mounted at `/mnt/backup`                                    |
+| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`) |
+| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                      |
 
 ## Sources
 

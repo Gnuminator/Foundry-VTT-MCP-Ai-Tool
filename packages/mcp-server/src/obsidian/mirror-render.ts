@@ -313,6 +313,24 @@ function spellLinker(
   };
 }
 
+/**
+ * What an NPC was made from (`sourceUuid`): its Library monster, else the world actor it was
+ * duplicated from; null when neither has a note (then the note says nothing).
+ */
+function sourceLink(
+  ctx: MirrorRenderContext,
+  fromPath: string,
+  entry: ExportActorEntry
+): string | null {
+  const uuid = entry.sourceUuid ?? null;
+  if (!uuid || uuid === entry.uuid) return null;
+  const library = ctx.library?.byUuid(uuid) ?? null;
+  if (library?.notePath) return noteLink(fromPath, library.notePath, library.name ?? entry.name);
+  const worldPath = uuid.startsWith('Actor.') ? ctx.notePath(uuid) : null;
+  if (worldPath === null || worldPath === fromPath) return null;
+  return noteLink(fromPath, worldPath, ctx.resolve(uuid)?.name ?? entry.name);
+}
+
 // ---------------------------------------------------------------------------
 // Note assembly
 // ---------------------------------------------------------------------------
@@ -519,7 +537,11 @@ function renderActor(
     } else {
       lines.push(...featureSections(entry.features));
     }
-    if (prepPath) lines.push('## Related notes', '', `- ${noteLink(path, prepPath, 'Prep')}`, '');
+    const related: string[] = [];
+    const source = sourceLink(ctx, path, entry);
+    if (source) related.push(`- Made from ${source}`);
+    if (prepPath) related.push(`- ${noteLink(path, prepPath, 'Prep')}`);
+    if (related.length) lines.push('## Related notes', '', ...related, '');
   }
 
   const props = mirrorProps(worldId, {
@@ -541,6 +563,18 @@ function renderActor(
 // ---------------------------------------------------------------------------
 // Scenes
 // ---------------------------------------------------------------------------
+
+/**
+ * The journal named like the scene's folder, for a scene whose own journal is unset or gone
+ * (Adventure Muncher files a chapter's maps in a folder named like the chapter's journal, and
+ * its scene journal ids point at nothing). Null unless exactly one journal has that name.
+ */
+function journalByFolder(ctx: MirrorRenderContext, entry: ExportSceneEntry): string | null {
+  const leaf = entry.folder?.path[entry.folder.path.length - 1];
+  if (!leaf || !ctx.findByName) return null;
+  const uuid = ctx.findByName('JournalEntry', leaf);
+  return uuid !== null && ctx.notePath(uuid) !== null ? uuid : null;
+}
 
 function renderScene(
   worldId: string,
@@ -577,7 +611,16 @@ function renderScene(
     const map = imageBlock(ctx, entry.map ?? null, entry.name);
     if (map) lines.push('## Map', '', map, '');
   }
-  if (journalUuid !== null) {
+  const folderJournal =
+    journalUuid !== null && ctx.resolve(journalUuid) !== null ? null : journalByFolder(ctx, entry);
+  if (folderJournal !== null) {
+    lines.push(
+      '## Journal',
+      '',
+      `- ${targetLink(ctx, path, folderJournal, null)} (by the scene's folder name; the scene has no journal set in Foundry)`,
+      ''
+    );
+  } else if (journalUuid !== null) {
     lines.push('## Journal', '', `- ${targetLink(ctx, path, journalUuid, null)}`, '');
   }
   if (entry.pins.length > 0) {

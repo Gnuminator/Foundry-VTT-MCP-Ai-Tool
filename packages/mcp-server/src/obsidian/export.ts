@@ -270,12 +270,14 @@ export async function exportWorldToObsidian(options: {
   const stats = buildStats({ worldId, logEvents: events, playRecords });
   const groups = groupWithPlayRecords(events, playRecords);
   const notesLinks = await loadSessionNotesLinks(store, worldId, root);
+  const sessionNotes = new Set<string>();
   for (let i = 0; i < groups.length; i++) {
     const group = groups[i];
     const sessionStats = stats.sessions[i];
     if (!group || !sessionStats) continue;
     if (group.events.length === 0 && group.playRecords.length === 0) continue;
     const relPath = `AI Tool/Sessions/${sessionStats.label}.md`;
+    sessionNotes.add(sessionStats.label);
     await writer.owned(
       relPath,
       renderSessionNote(
@@ -365,14 +367,17 @@ export async function exportWorldToObsidian(options: {
 
   // Stats (O3): campaign totals plus one note per PC, derived from the play
   // log (contract 5), never stored as truth (rebuilt from the logs every run).
+  const pcFileNames = pcStatsFileNames(stats);
+  const pcNotes = new Map(
+    stats.pcs.map(pc => [pc.uuid, pcFileNames.get(pc.uuid) ?? safeFileName(pc.name)])
+  );
   await writer.owned(
     'AI Tool/Stats/Campaign.md',
-    renderCampaignStatsNote(worldId, stats, { usageNote: hasUsage }),
+    renderCampaignStatsNote(worldId, stats, { usageNote: hasUsage, sessionNotes, pcNotes }),
     checkMarkdownOwnership
   );
-  const pcFileNames = pcStatsFileNames(stats);
   for (const pc of stats.pcs) {
-    const name = pcFileNames.get(pc.uuid) ?? safeFileName(pc.name);
+    const name = pcNotes.get(pc.uuid) ?? safeFileName(pc.name);
     await writer.owned(
       `AI Tool/Stats/PCs/${name}.md`,
       renderPcStatsNote(worldId, pc),

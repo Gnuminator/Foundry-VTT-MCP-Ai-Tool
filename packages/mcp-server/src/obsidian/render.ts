@@ -29,6 +29,7 @@ import {
   type SessionEvent,
   type StartedBy,
 } from './grouping.js';
+import { encodeSegment } from './mirror-common.js';
 import {
   GENERATED_BY,
   neutralizeTemplater,
@@ -752,7 +753,13 @@ function d20SpreadTable(d20: readonly number[]): string[] {
 export function renderCampaignStatsNote(
   worldId: string,
   stats: StatsModel,
-  options: { usageNote?: boolean } = {}
+  options: {
+    usageNote?: boolean;
+    /** Labels of the sessions that have a note in `AI Tool/Sessions/` (their rows link it). */
+    sessionNotes?: ReadonlySet<string>;
+    /** PC uuid to the file name of its note in `AI Tool/Stats/PCs/` (its row links it). */
+    pcNotes?: ReadonlyMap<string, string>;
+  } = {}
 ): string {
   const c = stats.campaign;
   const props = generatedProps(
@@ -773,13 +780,23 @@ export function renderCampaignStatsNote(
     },
     c.lastRecordAt
   );
+  // Links in table cells: Markdown links (no `|`), relative to `AI Tool/Stats/`.
+  const sessionCell = (label: string): string =>
+    options.sessionNotes?.has(label)
+      ? `[${cell(label)}](../Sessions/${encodeSegment(`${label}.md`)})`
+      : cell(label);
+  const pcCell = (pc: PcStats): string => {
+    const file = options.pcNotes?.get(pc.uuid);
+    const text = cell(pc.name).replace(/[[\]]/g, '\\$&');
+    return file ? `[${text}](PCs/${encodeSegment(`${file}.md`)})` : cell(pc.name);
+  };
   const sessionRows = stats.sessions.map(
     s =>
-      `| ${cell(s.label)} | ${s.durationMin} | ${s.combats.length} | ${s.partyDamageDealt} | ${s.partyDamageTaken} | ${s.partyHealing} | ${s.pcDowns} | ${s.npcKills} | ${s.rolls} |`
+      `| ${sessionCell(s.label)} | ${s.durationMin} | ${s.combats.length} | ${s.partyDamageDealt} | ${s.partyDamageTaken} | ${s.partyHealing} | ${s.pcDowns} | ${s.npcKills} | ${s.rolls} |`
   );
   const pcRows = stats.pcs.map(
     (p: PcStats) =>
-      `| ${cell(p.name)} | ${p.sessions.length} | ${p.damageDealt} | ${p.damageTaken} | ${p.healingReceived} | ${p.downs} | ${p.kills} | ${p.rolls} | ${p.crits} | ${p.fumbles} | ${p.spellsCast} | ${p.xpGained} |`
+      `| ${pcCell(p)} | ${p.sessions.length} | ${p.damageDealt} | ${p.damageTaken} | ${p.healingReceived} | ${p.downs} | ${p.kills} | ${p.rolls} | ${p.crits} | ${p.fumbles} | ${p.spellsCast} | ${p.xpGained} |`
   );
   const userRows = Object.entries(stats.dice.byUser).map(
     ([name, u]) => `| ${cell(name)} | ${u.rolls} | ${u.nat20} | ${u.nat1} | ${u.average} |`

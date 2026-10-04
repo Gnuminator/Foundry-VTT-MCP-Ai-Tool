@@ -217,6 +217,12 @@ export interface ExportActorEntry extends ExportEntryBase {
   img: string | null;
   /** NPC only (else null): the full stat block. */
   statBlock: ExportStatBlock | null;
+  /**
+   * What the actor was made from: `_stats.compendiumSource`, else `_stats.duplicateSource`;
+   * null when neither is set or it names the actor itself. Absent from modules before the
+   * graph links (an older module on the table): read it as null.
+   */
+  sourceUuid?: string | null;
 }
 
 export interface ExportScenePin {

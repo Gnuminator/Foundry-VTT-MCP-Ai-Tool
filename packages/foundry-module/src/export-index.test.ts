@@ -379,6 +379,7 @@ const ACTOR_KEYS = [
   'sig',
   'size',
   'sourceBook',
+  'sourceUuid',
   'species',
   'statBlock',
   'tokenName',
@@ -521,6 +522,7 @@ describe('getExportIndex: actor entries', () => {
       sourceBook: 'MM',
       rules: '2014',
       img: null,
+      sourceUuid: null,
     });
     // The stat block is the NPC's, built by stat-block.ts (its own tests cover the layout).
     expect(entry.statBlock).toMatchObject({
@@ -528,6 +530,29 @@ describe('getExportIndex: actor entries', () => {
       tag: 'Humanoid (goblinoid), neutral evil',
       truncated: false,
     });
+  });
+
+  it('exports what an npc was made from: the compendium entry first, never the actor itself', () => {
+    const monster = 'Compendium.aitool-content.monsters.Actor.AAAAAAAAAAAAAAAA';
+    const original = `Actor.${id16('orig')}`;
+    addGoblin({ _stats: { compendiumSource: monster, duplicateSource: original } });
+    world.addActor({
+      id: id16('copy'),
+      name: 'Goblin Boss copy',
+      type: 'npc',
+      _stats: { compendiumSource: null, duplicateSource: original },
+    });
+    // Adventure Muncher writes the actor's own id as its source.
+    world.addActor({
+      id: id16('self'),
+      name: 'Self',
+      type: 'npc',
+      _stats: { compendiumSource: `Actor.${id16('self')}` },
+    });
+    const result = ok({ kinds: ['actor'] });
+    expect(actorRow(result, id16('gob')).sourceUuid).toBe(monster);
+    expect(actorRow(result, id16('copy')).sourceUuid).toBe(original);
+    expect(actorRow(result, id16('self')).sourceUuid).toBeNull();
   });
 
   it('exports characters and npcs only', () => {

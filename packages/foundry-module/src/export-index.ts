@@ -537,6 +537,20 @@ function sourceUuidOf(item: Rec): string | null {
   );
 }
 
+/**
+ * An actor's source: the compendium entry first (an NPC's Library monster), else the world
+ * actor it was duplicated from. Adventure Muncher writes the actor's own id there; that is
+ * no source.
+ */
+function actorSourceUuidOf(actor: Rec, ownUuid: string): string | null {
+  const own = new Set([ownUuid, `Actor.${str(actor.id) ?? ''}`]);
+  for (const key of ['compendiumSource', 'duplicateSource']) {
+    const value = nonEmpty(dig(actor, '_stats', key));
+    if (value && !own.has(value)) return value;
+  }
+  return null;
+}
+
 function rulesOf(doc: Rec): RulesTag | null {
   try {
     const tag = readRulesTag(doc as unknown as FoundryDocument);
@@ -758,6 +772,7 @@ type ActorOnly = Pick<
   | 'notableItems'
   | 'img'
   | 'statBlock'
+  | 'sourceUuid'
 >;
 
 /** Fields shared by every kind, without `modified` and `sig` (the signature is taken over the rest). */
@@ -891,6 +906,7 @@ function actorFields(ctx: Context, c: Candidate, withStatBlock: boolean): ActorB
       .sort((a, b) => compare(a.name, b.name) || compare(a.sourceUuid ?? '', b.sourceUuid ?? ''))
       .slice(0, LIMITS.notableItemsPerActor),
     img: imagePath(doc.img),
+    sourceUuid: actorSourceUuidOf(doc, c.uuid),
   };
   const statBlock = hasStatBlock && withStatBlock ? blockDoc() : null;
   const proxy = hasStatBlock ? (statBlockProxy(doc, items) ?? statBlock ?? blockDoc()) : null;

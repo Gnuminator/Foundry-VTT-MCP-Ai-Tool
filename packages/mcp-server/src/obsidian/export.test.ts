@@ -1013,6 +1013,11 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
     expect(campaign).toContain('sessions: 1');
     expect(campaign).toContain('npc_kills: 1');
     expect(campaign).toContain('Ireena Kolyana');
+    // Each row links its note, so the stats, session and PC notes are not loose in the graph.
+    expect(campaign).toContain('| [Ireena Kolyana](PCs/Ireena%20Kolyana.md) |');
+    const sessionLink = campaign.match(/\| \[(\S+) (S\d+)\]\(\.\.\/Sessions\/\1%20\2\.md\) \|/);
+    expect(sessionLink).not.toBeNull();
+    expect(result.written).toContain(`AI Tool/Sessions/${sessionLink?.[1]} ${sessionLink?.[2]}.md`);
 
     const pc = await fsp.readFile(
       path.join(campaignDir(vaultDir, PLAY_WORLD), 'AI Tool/Stats/PCs/Ireena Kolyana.md'),
@@ -1182,6 +1187,15 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
     );
     expect(text).not.toContain('<%');
     expect(text).toContain('&lt;%');
+    const campaign = await fsp.readFile(
+      path.join(campaignDir(vaultDir, PLAY_WORLD), 'AI Tool/Stats/Campaign.md'),
+      'utf8'
+    );
+    expect(campaign).not.toContain('<%');
+    const file = path.posix.basename(pcPath as string);
+    expect(campaign).toContain(
+      `](PCs/${encodeURIComponent(file).replace(/\(/g, '%28').replace(/\)/g, '%29')})`
+    );
   });
 
   it('a session spanning local midnight is one session note, built from records in two play-log files', async () => {

@@ -157,7 +157,7 @@ Pi. This PC's session pipeline (`tools/session-notes/auto.ps1`, with `FVTT_PI_HO
 copies every finished recording over SSH through Tailscale, checks each file, and marks it copied on
 the Pi; the Pi deletes copied recordings after 7 days. The recorded audio on this PC is deleted 14
 days after the GM approves the session's notes (D-072). Details:
-[the bot's README](../../packages/discord-bot/README.md).
+[the bot's README](../../packages/discord-bot/README.md#on-the-orange-pi-d-068).
 
 ## Your UniFi gateway
 

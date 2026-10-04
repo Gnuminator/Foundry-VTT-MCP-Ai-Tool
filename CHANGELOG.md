@@ -54,6 +54,17 @@
   repo (a file path; helpers as `t.lib`); `reset-demo-world.ps1 -World/-Source/-Title` (I-061;
   PR #95).
 
+### Orange Pi (D-068; PRs #100, #101)
+
+- **Stage scripts for bring-up** (`scripts/pi/remote/`): health check, Node 24, Foundry as a
+  service started with `--noupnp`, Tailscale; each safe to run again. Tested in an ARM64 Debian 13
+  container with the real Foundry 14 build. The Pi guide gets a section for a UniFi gateway (PR
+  #101).
+- **The recorder bot runs on the Pi** as a service (`foundry-ai-tool-discord-bot`; checked on
+  linux-arm64 with Node 24), and `tools/session-notes/pull.ps1` copies finished recordings from the
+  Pi to this PC over SSH with a checksum check (step 0 of `auto.ps1` when `FVTT_PI_HOST` is set);
+  `session-notes publish` takes `MCP_CONTROL_HOST` (PR #100).
+
 ### Module
 
 - **Themed dice (I-085; PR #83):** with Dice So Nice, two dice colour sets match the dashboard

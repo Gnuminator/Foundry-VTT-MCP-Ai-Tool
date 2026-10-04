@@ -611,18 +611,21 @@ function renderScene(
     const map = imageBlock(ctx, entry.map ?? null, entry.name);
     if (map) lines.push('## Map', '', map, '');
   }
-  const folderJournal =
-    journalUuid !== null && ctx.resolve(journalUuid) !== null ? null : journalByFolder(ctx, entry);
-  if (folderJournal !== null) {
-    lines.push(
-      '## Journal',
-      '',
-      `- ${targetLink(ctx, path, folderJournal, null)} (by the scene's folder name; the scene has no journal set in Foundry)`,
-      ''
-    );
-  } else if (journalUuid !== null) {
-    lines.push('## Journal', '', `- ${targetLink(ctx, path, journalUuid, null)}`, '');
+  // Whether the scene's own journal is gone is only certain after a reconcile, so the fallback
+  // asks the steadier question: does that journal have a note? Its own line stays when the
+  // world knows it by name (it exists), or when there is no fallback.
+  const ownTarget = journalUuid !== null ? ctx.resolve(journalUuid) : null;
+  const folderJournal = ownTarget?.notePath ? null : journalByFolder(ctx, entry);
+  const journalLines: string[] = [];
+  if (journalUuid !== null && (folderJournal === null || ownTarget?.name)) {
+    journalLines.push(`- ${targetLink(ctx, path, journalUuid, null)}`);
   }
+  if (folderJournal !== null) {
+    journalLines.push(
+      `- ${targetLink(ctx, path, folderJournal, null)} (by the scene's folder name; the scene has no journal note of its own)`
+    );
+  }
+  if (journalLines.length) lines.push('## Journal', '', ...journalLines, '');
   if (entry.pins.length > 0) {
     lines.push('## Map pins', '');
     for (const pin of entry.pins) {

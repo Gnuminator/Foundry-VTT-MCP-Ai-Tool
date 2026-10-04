@@ -957,15 +957,53 @@ describe('scene notes', () => {
         kind === 'JournalEntry' && name === 'Chapter 4' ? chapter : null,
     });
     const inFolder = { id: 'f2', path: ['Strahd', 'Chapter 4'] };
-    for (const journal of [null, { uuid: `JournalEntry.${fid('dead')}`, pageUuid: null }]) {
+    const byFolder =
+      "- [Chapter 4](../Journals/Strahd/Chapter%204.md) (by the scene's folder name; the scene has no journal note of its own)";
+    const dead = `JournalEntry.${fid('dead')}`;
+    for (const journal of [null, { uuid: dead, pageUuid: null }]) {
       const text = render(scene({ folder: inFolder, journal, pins: [] }), ctx);
-      expect(text).toContain(
-        "- [Chapter 4](../Journals/Strahd/Chapter%204.md) (by the scene's folder name; the scene has no journal set in Foundry)"
-      );
+      expect(text).toContain(byFolder);
       expect(text).not.toContain('(no longer in this world)');
+      expect(text).not.toContain(fid('dead'));
       // The property keeps what Foundry has.
       expect(text).toContain('journal: null');
     }
+    // Not certainly gone yet (before a reconcile): still the folder's journal, no "A journal" link.
+    const early = render(
+      scene({ folder: inFolder, journal: { uuid: dead, pageUuid: null }, pins: [] }),
+      makeCtx({
+        notes: { ...PATHS, [chapter]: 'AI Tool/Foundry/Journals/Strahd/Chapter 4.md' },
+        targets: {
+          [dead]: { notePath: null, name: null },
+          [chapter]: {
+            notePath: 'AI Tool/Foundry/Journals/Strahd/Chapter 4.md',
+            name: 'Chapter 4',
+          },
+        },
+        findByName: (kind, name) =>
+          kind === 'JournalEntry' && name === 'Chapter 4' ? chapter : null,
+      })
+    );
+    expect(early).toContain(byFolder);
+    expect(early).not.toContain(fid('dead'));
+    // A journal of its own that exists without a note keeps its line next to the folder's.
+    const unmirrored = render(
+      scene({ folder: inFolder, journal: { uuid: dead, pageUuid: null }, pins: [] }),
+      makeCtx({
+        notes: { ...PATHS, [chapter]: 'AI Tool/Foundry/Journals/Strahd/Chapter 4.md' },
+        targets: {
+          [dead]: { notePath: null, name: 'Side notes' },
+          [chapter]: {
+            notePath: 'AI Tool/Foundry/Journals/Strahd/Chapter 4.md',
+            name: 'Chapter 4',
+          },
+        },
+        findByName: (kind, name) =>
+          kind === 'JournalEntry' && name === 'Chapter 4' ? chapter : null,
+      })
+    );
+    expect(unmirrored).toContain(`- [Side notes](${OPEN}/open?uuid=${dead})`);
+    expect(unmirrored).toContain(byFolder);
     // A working journal of its own wins; no match by folder leaves the note as it was.
     expect(render(scene({ folder: inFolder }), ctx)).not.toContain('folder name');
     const noMatch = render(

@@ -303,6 +303,43 @@ describe('put refusals', () => {
   });
 });
 
+describe('a journal deleted by hand in Foundry', () => {
+  it('goes back to staged, leaves the reveal queue and waits for a manual put', async () => {
+    await stageAndSettle();
+    const [before] = (await notes.list()).items;
+    for (const key of [...foundry.docs.keys()]) {
+      if (key.startsWith(before.journalUuid!)) foundry.docs.delete(key);
+    }
+    const [after] = (await notes.list()).items;
+    expect(after.status).toBe('staged');
+    expect(after.journalUuid).toBeUndefined();
+    expect(after.autoPut).toBe(false);
+    expect(after.lastError).toContain('is no longer in Foundry');
+    const queue = await store.read<{ entries: Record<string, unknown> }>(WORLD, 'gm', QUEUE_FILE);
+    expect(Object.keys(queue!.data.entries)).toEqual([]);
+
+    foundry.connectionSerial += 1;
+    await notes.tick();
+    expect((await notes.list()).items[0].status).toBe('staged');
+    const again = await notes.put({ sessionId: after.sessionId });
+    expect(again.item.status).toBe('in-foundry');
+    expect(again.item.lastError).toBeUndefined();
+  });
+
+  it('changes nothing while Foundry does not answer', async () => {
+    await stageAndSettle();
+    const original = foundry.query.getMockImplementation()!;
+    foundry.query.mockImplementation((method: string, data?: any) =>
+      method === 'foundry-mcp-bridge.snapshotGuardedOps'
+        ? Promise.reject(new Error('query timeout'))
+        : original(method, data)
+    );
+    const [item] = (await notes.list()).items;
+    expect(item.status).toBe('in-foundry');
+    foundry.query.mockImplementation(original);
+  });
+});
+
 describe('undo', () => {
   it('takes the journal out, unqueues the Recap and stops the automatic put', async () => {
     await stageAndSettle();

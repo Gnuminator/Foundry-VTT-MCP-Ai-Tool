@@ -153,6 +153,17 @@ describe('buildStats', () => {
     expect(pc?.downs).toBe(1);
   });
 
+  it('names every PC down of the session, in a fight or not (a trap, a fall)', () => {
+    const stats = build([
+      hp('hp:trap', T0, PC, 4, 0),
+      hp('hp:heal', T0 + 100, PC, 0, 6),
+      hp('hp:again', T0 + 200, PC, 6, 0),
+      hp('hp:npc', T0 + 300, NPC, 3, 0),
+    ]);
+    expect(stats.sessions[0]?.combats).toEqual([]);
+    expect(stats.sessions[0]?.pcDownsByName).toEqual({ Ireena: 2 });
+  });
+
   it('attributes an HP loss to the roll sharing its messageId, preferring the matching rollType', () => {
     const records: PlayRecord[] = [
       roll('roll:m1:0', T0, PC, 'm1', { rollType: 'attack' }),

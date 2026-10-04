@@ -169,7 +169,27 @@ Safety rules (you, 2026-10-04), so a mistake can never leave the Pi unusable:
   step, switch the session to the default permission mode and confirm the prompt yourself.
 - **Snapshots:** a full system snapshot (`dietpi-backup`, three kept in `/mnt/dietpi-backup`) is
   taken nightly and before every stage. To roll back: `dietpi-backup -1` (needs your OK). Your PC
-  also pulls copies into a folder of your choice, so a dead SD card loses nothing.
+  also pulls copies (next section), so a dead SD card loses nothing.
+
+## Snapshots on this PC
+
+A scheduled task on this PC, "Foundry Pi snapshot pull", copies the Pi's newest snapshot to
+`E:\PiBackup\snapshots\pi-snapshot-<date>_<time>.tar.zst` every day at 12:00 and 10 minutes after
+you log on (`scripts/pi/pull-snapshot.ps1`; set up once with `scripts/pi/register-snapshot-task.ps1`,
+removed with `-Remove`). It only reads on the Pi: the Pi packs the snapshot with `tar` and `zstd`
+and sends it over SSH, so Linux owners, permissions and links survive on Windows. It skips while
+`dietpi-backup` runs, throws a copy away if the snapshot changed during it, and test-reads every
+archive before keeping it. It keeps the newest 14 plus one per week for 8 weeks, and logs to
+`E:\PiBackup\logs\` (`last-success.txt` shows the last good copy; a log line warns after 3 days
+without one). About 425 MB per copy on 2026-10-04.
+
+The archives hold secrets (the Foundry licence, `/etc/shadow`, the Tailscale and SSH keys): a cloud
+copy of this folder must be encrypted on your side (restic, or the cloud tool's own client-side
+encryption).
+
+To restore after a reflash (each step with your OK): flash DietPi and run Part A, copy the archive
+to the Pi, unpack it into `/mnt/dietpi-backup` (`zstd -dc <archive> | tar -xpf - -C
+/mnt/dietpi-backup`), then run `dietpi-backup -1`.
 
 ## Recordings
 

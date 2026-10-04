@@ -182,7 +182,9 @@ if ($addresses -notcontains $PiAddress) {
 New-Item -ItemType Directory -Force -Path $VaultPath | Out-Null
 $ignoreFile = Join-Path $VaultPath '.stignore'
 $ignoreLines = @('.obsidian/workspace*.json', '.obsidian/cache', '.trash')
-$have = if (Test-Path -LiteralPath $ignoreFile) { @(Get-Content -LiteralPath $ignoreFile) } else { @() }
+# @() around the whole if: an empty array returned from an if unrolls to $null, and StrictMode
+# then rejects $have.Count (seen on the first real run, 2026-10-04).
+$have = @(if (Test-Path -LiteralPath $ignoreFile) { Get-Content -LiteralPath $ignoreFile })
 $missing = @($ignoreLines | Where-Object { $have -notcontains $_ })
 if ($missing.Count -gt 0) {
   if ($have.Count -eq 0) { $missing = @('// Per-device Obsidian state: each PC keeps its own (written by setup-syncthing-pc.ps1).') + $missing }

@@ -506,14 +506,19 @@ class FoundryAiToolSettingTab extends PluginSettingTab {
       )
       .addDropdown(dropdown => {
         for (const theme of THEMES) dropdown.addOption(theme, THEME_LABELS[theme]);
+        // Later updates set the <select> directly: calling dropdown.setValue() again here sent
+        // Obsidian 1.13's settings window into a loop that froze the vault window (I-099).
+        const show = (): void => {
+          dropdown.selectEl.value = this.plugin.themeChoice();
+        };
         dropdown
           .addOption('off', 'Off')
           .setValue(this.plugin.themeChoice())
           .onChange(async value => {
             await this.plugin.pickTheme(isTheme(value) ? value : 'off');
-            dropdown.setValue(this.plugin.themeChoice());
+            show();
           });
-        void this.plugin.syncTheme().then(() => dropdown.setValue(this.plugin.themeChoice()));
+        void this.plugin.syncTheme().then(show);
       });
   }
 }

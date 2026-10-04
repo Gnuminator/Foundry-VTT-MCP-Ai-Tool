@@ -30,8 +30,6 @@ and the campaign world.
   recommended before real play: see "Moving to NVMe" below.
 - An Ethernet cable to the router.
 - A card reader on this PC.
-- For backups (can come later): a USB hard drive **with its own power supply** (or on a powered USB
-  hub). A drive powered only by the Pi's USB port can drop out at spin-up.
 - Fallback only: a monitor with an HDMI cable and a USB keyboard, if the Pi cannot be found on the
   network.
 
@@ -134,7 +132,7 @@ listed).
 | 3. Foundry      | Installed as a service on port 30000, data in `/var/lib/foundry`, reachable at `http://foundry-pi.local:30000` from home; started with `--noupnp`, so Foundry never asks the router to open a port (`3-foundry.sh`)                                                                                                                                                                                                                                                                                                                                                    | **yes:** download the **Linux/Node.js** build from your foundryvtt.com account on this PC (the link lasts 5 minutes; Claude copies the file over), then enter the licence key and an admin password in your browser on first start |
 | 4. Tailscale    | Private admin access: SSH and the bridge from this PC, also when you are away from home. For you only, not the players (D-075). From Tailscale's own apt repository (`4-tailscale.sh`)                                                                                                                                                                                                                                                                                                                                                                                 | **yes:** open the login link Claude shows, and install Tailscale on this PC with the same account                                                                                                                                  |
 | 5. The tool     | Bridge and dashboard as services, built on the Pi from a release tag (`5-tool.sh`, default `v0.21.0`), the module copied into Foundry from the same build; a Chromium browser without a screen, logged into Foundry as a dedicated Assistant GM user (role Assistant, so the human GM stays the primary GM) and set as the bridge's user, so the tool works when no human GM is online; everything on loopback, the control port and the dashboard shared with the tailnet only (Tailscale serve). `5-check-world.sh` proves the chain in a throwaway world `pi-check` | **yes:** OK the stage; OK Claude switching the five Claude Desktop entries on this PC to the Pi (Claude Desktop restarts, which cuts Claude Code sessions in the app)                                                              |
-| 6. Backups      | Nightly snapshots (restic) at 05:00 to the USB drive: Foundry data, the tool's storage, the Obsidian vaults. Keeps 14 daily, 8 weekly, 12 monthly; a monthly test restore                                                                                                                                                                                                                                                                                                                                                                                              | plug in the drive                                                                                                                                                                                                                  |
+| 6. Backups      | Nightly restic backup at 04:30 on the Pi (`6-backup.sh`): `/var/lib/foundry` (worlds, modules), the tool's storage and `/etc/foundry-ai-tool` (secrets), without logs, the browser profile and recordings; Foundry stops for a minute or two while it runs; 7 daily kept on the Pi. This PC copies it every day into `E:\PiBackup\restic` (`pull-restic.ps1`): 14 daily, 8 weekly, 12 monthly, plus a monthly test restore                                                                                                                                             | **yes:** store the PC repository's password (`%APPDATA%\foundry-ai-tool\restic-pc.pass`, made on the first copy) in your password manager: without it the copies cannot be read                                                    |
 | 7. Vault sync   | Syncthing: the GM vault to the GM's PC, the player vault to anyone who wants the Obsidian app                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | accept the device on each PC                                                                                                                                                                                                       |
 | 8. Discord bot  | The recorder bot as a service (`foundry-ai-tool-discord-bot`, runs as `foundry`), recordings in `/var/lib/foundry-ai-tool/recordings`; this PC copies finished recordings over Tailscale for transcription                                                                                                                                                                                                                                                                                                                                                             | a bot token from the Discord developer page, pasted by you into `/etc/foundry-ai-tool/discord-bot.env`                                                                                                                             |
 
@@ -202,6 +200,39 @@ encryption).
 To restore after a reflash (each step with your OK): flash DietPi and run Part A, copy the archive
 to the Pi, unpack it into `/mnt/dietpi-backup` (`zstd -dc <archive> | tar -xpf - -C
 /mnt/dietpi-backup`), then run `dietpi-backup -1`.
+
+## Restic copies on this PC
+
+The Pi's nightly restic backup (stage 6) is a versioned copy of Foundry's data, so one world or one
+file can come back without restoring the whole system. A second scheduled task, "Foundry Pi restic
+copy", copies every new Pi snapshot into `E:\PiBackup\restic` every day at 12:30 and 15 minutes
+after you log on (`scripts/pi/pull-restic.ps1`; set up once with
+`scripts/pi/register-restic-task.ps1`, removed with `-Remove`). It only reads on the Pi (restic over
+SFTP with this PC's SSH key). It keeps 14 daily, 8 weekly and 12 monthly snapshots, once a month
+reads 10 % of the data and restores the newest snapshot's worlds into a temporary folder to prove the
+copies work, and logs to `E:\PiBackup\logs\restic-<month>.log`. It needs restic on this PC
+(`winget install restic.restic`).
+
+Two password files, both in `%APPDATA%\foundry-ai-tool` and readable by you only: `restic-pi.pass`
+(the Pi repository's password, fetched from the Pi the first time) and `restic-pc.pass` (this PC
+repository's password, generated the first time). **Put `restic-pc.pass` into your password
+manager.** Without it the copies cannot be read, for example after this PC is rebuilt.
+
+List and restore (PowerShell; the folder names in the restore are the paths on the Pi):
+
+```powershell
+$env:RESTIC_REPOSITORY = 'E:\PiBackup\restic'
+$env:RESTIC_PASSWORD_FILE = "$env:APPDATA\foundry-ai-tool\restic-pc.pass"
+restic snapshots                                   # what is there
+restic ls latest /var/lib/foundry/Data/worlds      # worlds in the newest snapshot
+# One world, into a scratch folder (inspect it, then copy it over the live one yourself):
+restic restore latest --target E:\Restore --include /var/lib/foundry/Data/worlds/<world-id>
+# One file from an older snapshot:
+restic restore <snapshot-id> --target E:\Restore --include /etc/foundry-ai-tool/<file>
+```
+
+Copy a restored world to the Pi only with Foundry stopped, and keep the owner `foundry:foundry`
+(`chown -R foundry:foundry` on the world folder); both steps need your OK under the Pi safety rule.
 
 ## Recordings
 
@@ -293,17 +324,17 @@ boot problems for others, so it is not tried.
 
 ## Where things live on the Pi
 
-| What                                                         | Where                                                                      |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| Foundry program                                              | `/opt/foundry`                                                             |
-| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                         |
-| Node.js                                                      | `/opt/node24`                                                              |
-| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                     |
-| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)        |
-| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                 |
-| Backups                                                      | the USB drive, mounted at `/mnt/backup`                                    |
-| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`) |
-| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                      |
+| What                                                         | Where                                                                                  |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Foundry program                                              | `/opt/foundry`                                                                         |
+| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                                     |
+| Node.js                                                      | `/opt/node24`                                                                          |
+| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                                 |
+| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                    |
+| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                             |
+| Backups                                                      | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`) |
+| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)             |
+| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                  |
 
 ## Sources
 

@@ -1,6 +1,7 @@
 # Install the Foundry AI Tool Obsidian plugin (idea I-059) into a vault.
 #
-# Copies main.js, manifest.json and styles.css into <vault>/.obsidian/plugins/foundry-ai-tool/.
+# Copies main.js, manifest.json and styles.css (plus FONT-LICENSES.txt for the theme's fonts)
+# into <vault>/.obsidian/plugins/foundry-ai-tool/.
 # Then, in Obsidian: Settings, Community plugins, turn off Restricted mode once if it is on, and
 # turn on "Foundry AI Tool". Reinstalling over an older copy keeps its settings (data.json).
 #
@@ -54,6 +55,9 @@ try {
   $dest = Join-Path $Vault '.obsidian' 'plugins' $PluginId
   New-Item -ItemType Directory -Force $dest | Out-Null
   foreach ($file in $Files) { Copy-Item -Force (Join-Path $source $file) (Join-Path $dest $file) }
+  # The licences of the fonts the theme embeds in styles.css (older builds have none).
+  $licenses = Join-Path $source 'FONT-LICENSES.txt'
+  if (Test-Path $licenses) { Copy-Item -Force $licenses (Join-Path $dest 'FONT-LICENSES.txt') }
   $version = (Get-Content (Join-Path $dest 'manifest.json') -Raw | ConvertFrom-Json).version
   Write-Host "Foundry AI Tool plugin $version installed in $dest."
   Write-Host 'In Obsidian: Settings, Community plugins, turn on "Foundry AI Tool" (reload Obsidian if it was on).'

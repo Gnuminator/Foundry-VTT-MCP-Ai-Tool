@@ -1,0 +1,383 @@
+/* Foundry AI Tool: the Obsidian theme (I-099), Neutral and The Veil, for the whole vault.
+
+   The plugin puts the classes on: <body class="aitool-themed aitool-theme-neutral|veil"> while
+   the theme is on, and aitool-type-<front-matter type> (plus aitool-generated) on each Markdown
+   view. Styles key on those classes and on the callouts the tool writes ([!statblock], [!secret],
+   [!info], [!quote] read-aloud), never on folder paths.
+
+   Colours are dark only (both themes are dark, like the dashboard); in Obsidian's light mode
+   the fonts and the shapes still apply, on Obsidian's own colours. The player-vault snippets are
+   built from this file with the plugin classes taken out (esbuild.config.mjs). */
+
+/* ---- Tokens: light-mode fallbacks first, on Obsidian's own colours ---- */
+body.aitool-themed {
+  --aitool-panel: var(--background-secondary);
+  --aitool-elev: var(--background-modifier-hover);
+  --aitool-border: var(--background-modifier-border);
+  --aitool-border-strong: var(--background-modifier-border-hover);
+  --aitool-text: var(--text-normal);
+  --aitool-dim: var(--text-muted);
+  --aitool-accent: var(--text-accent);
+  --aitool-lamp: var(--text-accent);
+  --aitool-secret-rgb: 154, 107, 0;
+  --aitool-quote-rgb: 110, 110, 110;
+  --aitool-dim-rgb: 120, 120, 120;
+  --aitool-mono: var(--font-monospace);
+  --aitool-head: var(--h1-font);
+  --file-line-width: 760px;
+}
+
+/* ---- Neutral: the README brand (the dashboard's slate and azure), system fonts ---- */
+body.aitool-themed.aitool-theme-neutral {
+  --h1-weight: 650;
+  --h2-weight: 650;
+  --h3-weight: 650;
+  --inline-title-weight: 650;
+}
+body.aitool-themed.aitool-theme-neutral.theme-dark {
+  --aitool-bg: #0f1115;
+  --aitool-panel: #171a21;
+  --aitool-elev: #1d212b;
+  --aitool-border: #272c38;
+  --aitool-border-strong: #353b4a;
+  --aitool-text: #e6e9ef;
+  --aitool-mid: #b9c0cc;
+  --aitool-dim: #9aa3b2;
+  --aitool-faint: #6b7385;
+  --aitool-accent: #4ea1ff;
+  --aitool-lamp: #8cc2ff;
+  --aitool-secret-rgb: 224, 161, 6;
+  --aitool-quote-rgb: 140, 194, 255;
+  --aitool-dim-rgb: 154, 163, 178;
+  --aitool-accent-rgb: 78, 161, 255;
+}
+
+/* ---- The Veil: grey-green mist, bone text, one warm lamp; Gloock, Spectral, Red Hat Mono ---- */
+body.aitool-themed.aitool-theme-veil {
+  --font-text-theme: 'Spectral', Georgia, 'Times New Roman', serif;
+  --font-interface-theme: 'Spectral', Georgia, 'Times New Roman', serif;
+  --font-monospace-theme: 'Red Hat Mono', ui-monospace, Consolas, monospace;
+  --aitool-head: 'Gloock', Georgia, 'Times New Roman', serif;
+  --h1-font: var(--aitool-head);
+  --h2-font: var(--aitool-head);
+  --h3-font: var(--aitool-head);
+  --h4-font: var(--aitool-head);
+  --inline-title-font: var(--aitool-head);
+  --h1-weight: 400;
+  --h2-weight: 400;
+  --h3-weight: 400;
+  --h4-weight: 400;
+  --inline-title-weight: 400;
+  --bold-weight: 500;
+}
+body.aitool-themed.aitool-theme-veil.theme-dark {
+  --aitool-bg: #1a1d1c;
+  --aitool-panel: #1f2321;
+  --aitool-elev: #262b29;
+  --aitool-border: rgba(143, 163, 154, 0.22);
+  --aitool-border-strong: #5e6b66;
+  --aitool-text: #e8e6df;
+  --aitool-mid: #c9ccc4;
+  --aitool-dim: #9ba39d;
+  --aitool-faint: #8c958f;
+  --aitool-accent: #c9cfca;
+  --aitool-lamp: #f2d88a;
+  --aitool-secret-rgb: 242, 216, 138;
+  --aitool-quote-rgb: 143, 163, 154;
+  --aitool-dim-rgb: 155, 163, 157;
+  --aitool-accent-rgb: 143, 163, 154;
+}
+
+/* ---- Dark mode: Obsidian's own colour variables from the tokens (the whole window) ---- */
+body.aitool-themed.theme-dark {
+  --background-primary: var(--aitool-bg);
+  --background-primary-alt: var(--aitool-panel);
+  --background-secondary: var(--aitool-panel);
+  --background-secondary-alt: var(--aitool-elev);
+  --background-modifier-border: var(--aitool-border);
+  --background-modifier-border-hover: var(--aitool-border-strong);
+  --background-modifier-border-focus: var(--aitool-border-strong);
+  --background-modifier-hover: var(--aitool-elev);
+  --background-modifier-form-field: var(--aitool-panel);
+  --titlebar-background: var(--aitool-panel);
+  --titlebar-background-focused: var(--aitool-panel);
+  --tab-container-background: var(--aitool-panel);
+  --ribbon-background: var(--aitool-panel);
+  --ribbon-background-collapsed: var(--aitool-bg);
+  --code-background: var(--aitool-elev);
+  --text-normal: var(--aitool-mid);
+  --text-muted: var(--aitool-dim);
+  --text-faint: var(--aitool-faint);
+  --text-accent: var(--aitool-accent);
+  --text-accent-hover: var(--aitool-text);
+  --color-accent: var(--aitool-accent);
+  --color-accent-1: var(--aitool-accent);
+  --color-accent-2: var(--aitool-text);
+  --interactive-accent: rgba(var(--aitool-accent-rgb), 0.55);
+  --interactive-accent-hover: rgba(var(--aitool-accent-rgb), 0.7);
+  --text-on-accent: var(--aitool-text);
+  --text-selection: rgba(var(--aitool-accent-rgb), 0.28);
+  --link-color: var(--aitool-accent);
+  --link-color-hover: var(--aitool-text);
+  --link-external-color: var(--aitool-accent);
+  --link-external-color-hover: var(--aitool-text);
+  --link-decoration: underline;
+  --link-unresolved-color: var(--aitool-dim);
+  --hr-color: var(--aitool-border);
+  --blockquote-border-color: var(--aitool-border-strong);
+  --bold-color: var(--aitool-text);
+  --h1-color: var(--aitool-text);
+  --h2-color: var(--aitool-text);
+  --h3-color: var(--aitool-text);
+  --h4-color: var(--aitool-text);
+  --inline-title-color: var(--aitool-text);
+  --table-border-color: var(--aitool-border);
+  --table-header-background: transparent;
+  --table-row-alt-background: color-mix(in srgb, var(--aitool-elev) 45%, transparent);
+}
+
+/* Links keep a visible underline: in The Veil they are nearly the body colour. */
+body.aitool-themed .markdown-rendered a,
+body.aitool-themed .cm-s-obsidian .cm-hmd-internal-link,
+body.aitool-themed .cm-s-obsidian .cm-link {
+  text-decoration-color: color-mix(in srgb, var(--aitool-accent) 45%, transparent);
+  text-underline-offset: 0.18em;
+}
+
+/* The Veil only: a faint mist at the top of each note, still (never animated). */
+body.aitool-themed.aitool-theme-veil.theme-dark
+  .workspace-leaf-content[data-type='markdown']
+  .view-content {
+  background:
+    radial-gradient(1200px 260px at 30% -60px, rgba(143, 163, 154, 0.16), transparent 70%),
+    var(--background-primary);
+}
+
+/* ---- Headings, labels and tables ---- */
+body.aitool-themed .markdown-rendered h2 {
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--aitool-border);
+}
+body.aitool-themed .markdown-rendered th {
+  font-family: var(--aitool-mono);
+  font-size: 0.78em;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--aitool-dim);
+  border-bottom: 1px solid var(--aitool-border-strong);
+}
+body.aitool-themed .markdown-rendered table {
+  font-size: 0.92em;
+  border: 0;
+}
+body.aitool-themed .markdown-rendered th,
+body.aitool-themed .markdown-rendered td {
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+}
+body.aitool-themed .markdown-rendered td {
+  border-bottom: 1px solid var(--aitool-border);
+}
+/* Session notes: the time column quiet and in mono. */
+body.aitool-themed .aitool-type-session .markdown-rendered td:first-child {
+  font-family: var(--aitool-mono);
+  font-size: 0.85em;
+  color: var(--aitool-dim);
+  white-space: nowrap;
+}
+
+/* ---- Callouts ---- */
+/* [!info]: the mirror's banner. Small and quiet, so the content leads. */
+body.aitool-themed .callout[data-callout='info'] {
+  --callout-color: var(--aitool-dim-rgb);
+  --callout-padding: 0.4em 0.8em;
+  font-size: 0.82em;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px dashed var(--aitool-border);
+}
+body.aitool-themed .callout[data-callout='info'] .callout-title,
+body.aitool-themed .callout[data-callout='info'] .callout-icon {
+  color: var(--text-muted);
+  font-family: var(--font-interface);
+}
+
+/* The tool's notes start with their own # heading; Obsidian's inline title would repeat it. */
+body.aitool-themed .aitool-generated .inline-title {
+  display: none;
+}
+body.aitool-themed .callout[data-callout='info'] .callout-content p {
+  margin: 0.2em 0;
+}
+
+/* [!secret]: GM only. A lock and the lamp colour, never mistaken for player text. */
+body.aitool-themed .callout[data-callout='secret'] {
+  --callout-color: var(--aitool-secret-rgb);
+  --callout-icon: lucide-lock;
+  background: rgba(var(--aitool-secret-rgb), 0.08);
+  border: 1px solid rgba(var(--aitool-secret-rgb), 0.55);
+}
+body.aitool-themed .callout[data-callout='secret'] .callout-title {
+  color: rgb(var(--aitool-secret-rgb));
+}
+
+/* [!quote] read-aloud boxes: the text the GM reads to the table. */
+body.aitool-themed .callout[data-callout='quote'] {
+  --callout-color: var(--aitool-quote-rgb);
+  background: rgba(var(--aitool-quote-rgb), 0.07);
+  border: 0;
+  border-left: 3px solid rgba(var(--aitool-quote-rgb), 0.7);
+  border-radius: 0 6px 6px 0;
+}
+body.aitool-themed .callout[data-callout='quote'] .callout-content {
+  font-style: italic;
+  color: var(--aitool-text);
+}
+
+/* [!statblock]: NPC and Library monster stat blocks as a card. */
+body.aitool-themed .callout[data-callout='statblock'] {
+  --callout-icon: lucide-scroll-text;
+  --callout-padding: 0;
+  overflow: hidden;
+  background: var(--aitool-panel);
+  border: 1px solid var(--aitool-border-strong);
+  border-radius: 8px;
+}
+body.aitool-themed .callout[data-callout='statblock'] .callout-title {
+  padding: 0.8em 1em 0.5em;
+  border-bottom: 2px solid var(--aitool-lamp);
+  font-family: var(--aitool-head);
+  font-weight: var(--h2-weight);
+  font-size: 1.45em;
+  color: var(--h2-color, var(--aitool-text));
+}
+body.aitool-themed .callout[data-callout='statblock'] .callout-icon {
+  display: none;
+}
+body.aitool-themed .callout[data-callout='statblock'] .callout-content {
+  padding: 0.3em 1em 0.8em;
+}
+body.aitool-themed
+  .callout[data-callout='statblock']
+  .callout-content
+  > p:first-child
+  > em:only-child {
+  color: var(--aitool-dim);
+}
+body.aitool-themed .callout[data-callout='statblock'] table {
+  width: 100%;
+  margin: 0.4em 0;
+  border-top: 1px solid var(--aitool-border);
+  border-bottom: 1px solid var(--aitool-border);
+}
+body.aitool-themed .callout[data-callout='statblock'] th,
+body.aitool-themed .callout[data-callout='statblock'] td {
+  text-align: center;
+  border: 0;
+  background: transparent;
+}
+body.aitool-themed .callout[data-callout='statblock'] td {
+  color: var(--aitool-text);
+}
+body.aitool-themed .callout[data-callout='statblock'] h3,
+body.aitool-themed .callout[data-callout='statblock'] h4 {
+  margin: 0.9em 0 0.3em;
+  font-size: 1.05em;
+  color: var(--aitool-lamp);
+  border-bottom: 1px solid var(--aitool-border);
+}
+
+/* Tarokka reading: each card a hidden-until-opened card with the lamp edge. */
+body.aitool-themed .aitool-type-tarokka-reading .callout[data-callout='danger'] {
+  --callout-color: var(--aitool-secret-rgb);
+  background: var(--aitool-panel);
+  border: 1px solid rgba(var(--aitool-secret-rgb), 0.45);
+  border-radius: 10px;
+}
+body.aitool-themed .aitool-type-tarokka-reading .callout[data-callout='danger'] .callout-title,
+body.aitool-themed .aitool-type-tarokka-reading .callout[data-callout='danger'] .callout-icon {
+  font-family: var(--aitool-head);
+  font-weight: var(--h2-weight);
+  color: rgb(var(--aitool-secret-rgb));
+}
+
+/* ---- Session stats as small cards, the d20 spread as bars (the plugin adds these in
+   reading view; outside the theme they stay hidden and the plain text shows) ---- */
+.aitool-stat-cards,
+.aitool-d20 {
+  display: none;
+}
+body.aitool-themed .aitool-stat-line {
+  display: none;
+}
+body.aitool-themed .aitool-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5em, 1fr));
+  gap: 0.6em;
+  margin: 0.8em 0;
+}
+body.aitool-themed .aitool-stat-card {
+  padding: 0.55em 0.7em;
+  background: var(--aitool-panel);
+  border: 1px solid var(--aitool-border);
+  border-radius: 8px;
+}
+body.aitool-themed .aitool-stat-card span {
+  display: block;
+  font-family: var(--aitool-mono);
+  font-size: 0.7em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--aitool-dim);
+}
+body.aitool-themed .aitool-stat-card b {
+  font-family: var(--aitool-head);
+  font-weight: var(--h2-weight);
+  font-size: 1.6em;
+  color: var(--aitool-lamp);
+}
+body.aitool-themed .aitool-d20 {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 72px;
+  margin: 1.4em 0 1.6em;
+}
+body.aitool-themed .aitool-d20-bar {
+  position: relative;
+  flex: 1;
+  height: calc(var(--aitool-h, 0) * 100%);
+  min-height: 2px;
+  background: color-mix(in srgb, var(--aitool-accent) 55%, transparent);
+  border-radius: 2px 2px 0 0;
+}
+body.aitool-themed .aitool-d20-bar:last-child {
+  background: var(--aitool-lamp);
+}
+body.aitool-themed .aitool-d20-n {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  padding-top: 2px;
+  font-family: var(--aitool-mono);
+  font-size: 0.62em;
+  text-align: center;
+  color: var(--aitool-dim);
+}
+body.aitool-themed .aitool-d20-c {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  padding-bottom: 2px;
+  font-family: var(--aitool-mono);
+  font-size: 0.62em;
+  text-align: center;
+  color: var(--aitool-text);
+}
+body.aitool-themed .aitool-d20-table {
+  display: none;
+}

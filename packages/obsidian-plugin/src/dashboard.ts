@@ -1,17 +1,21 @@
 /**
  * The plugin's only connection: the co-GM dashboard (never Foundry or the bridge directly,
- * OBSIDIAN-PLAN section 10, P1). Two routes:
+ * OBSIDIAN-PLAN section 10, P1). Its routes:
  *
  * - `POST /api/open` (O4 design 6.3): opens a document on the GM's Foundry screen. Needs the
  *   `X-CoGM-Request: open` header; a 409 `choose-gm` lists the GMs when several are logged in.
  * - `POST /api/tool`: read tools (`list-revealed-pages`, `plan-page-reveal`). The plugin never
  *   calls `apply-planned-change`: a reveal plan is confirmed in the dashboard (D-067), which the
  *   plugin opens at `/?plan=<planId>`.
+ * - `GET /api/theme` and `POST /api/control` `set-theme` (I-099): the world's theme, shared by the
+ *   dashboard and the plugin's Obsidian theme.
  *
  * The HTTP call is injected (Obsidian's `requestUrl` in the plugin, a stub in tests), so this file
  * does not import `obsidian`. `requestUrl` runs outside the browser: it sends no Origin and needs
  * no CORS allowance from the dashboard.
  */
+
+import { themeFromPayload, type ThemeId } from './theme.js';
 
 /** GM token header (the dashboard also accepts it on every GM route). */
 export const TOKEN_HEADER = 'X-CoGM-Token';
@@ -116,9 +120,14 @@ export class DashboardClient {
     return headers;
   }
 
-  private async post(
+  private post(path: string, body: unknown, extra?: Record<string, string>): Promise<HttpResponse> {
+    return this.send('POST', path, body, extra);
+  }
+
+  private async send(
+    method: 'GET' | 'POST',
     path: string,
-    body: unknown,
+    body?: unknown,
     extra?: Record<string, string>
   ): Promise<HttpResponse> {
     const base = normalizeBaseUrl(this.baseUrl());
@@ -131,9 +140,9 @@ export class DashboardClient {
     try {
       return await this.http({
         url: `${base}${path}`,
-        method: 'POST',
+        method,
         headers: this.headers(extra),
-        body: JSON.stringify(body),
+        ...(method === 'POST' ? { body: JSON.stringify(body) } : {}),
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -165,6 +174,22 @@ export class DashboardClient {
       return { kind: 'choose-gm', gms };
     }
     return { kind: 'error', message: errorText(response) };
+  }
+
+  /** The world's theme as the dashboard has it (any logged-in role may read it). */
+  async theme(): Promise<ThemeId> {
+    const response = await this.send('GET', '/api/theme');
+    const theme = response.status === 200 ? themeFromPayload(response.json) : null;
+    if (theme) return theme;
+    throw new DashboardError(errorText(response), response.status);
+  }
+
+  /** Sets the world's theme in the dashboard (GM only); resolves to the theme it now has. */
+  async setTheme(theme: ThemeId): Promise<ThemeId> {
+    const response = await this.post('/api/control', { action: 'set-theme', value: theme });
+    const now = response.status === 200 ? themeFromPayload(response.json) : null;
+    if (now) return now;
+    throw new DashboardError(errorText(response), response.status);
   }
 
   /** Runs a read tool through the dashboard's GM proxy. */

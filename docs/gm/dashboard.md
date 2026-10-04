@@ -537,5 +537,12 @@ On a note from the Foundry mirror:
 - **Add to the handout reveal queue**: puts the page in the handout drawer's queue, so you can
   reveal it with **Reveal next** during the session. Players see nothing yet.
 
+The plugin also gives the whole vault the dashboard's look, your own notes included. Its
+**Theme** setting has **Neutral**, **The Veil** and **Off**. There is one theme per world: pick
+Neutral or The Veil there and the dashboard switches too, and when you pick a theme in the
+dashboard, Obsidian follows within half a minute. **Off** only turns the look off in Obsidian. The
+theme gives stat blocks a card, shows GM secrets with a lock so you never read one out by mistake,
+and turns a session's stats into small cards.
+
 The plugin only talks to the dashboard. When the dashboard is not running, the status bar says
 "dashboard offline" and nothing else changes.

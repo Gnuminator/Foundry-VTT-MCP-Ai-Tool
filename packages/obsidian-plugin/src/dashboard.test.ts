@@ -186,3 +186,35 @@ describe('reveal tools', () => {
     );
   });
 });
+
+describe('theme', () => {
+  it('reads the world theme with GET /api/theme', async () => {
+    const { client: c, calls } = client(
+      () => ({ status: 200, json: { theme: 'veil', themes: ['neutral', 'veil'] } }),
+      'secret-token'
+    );
+    await expect(c.theme()).resolves.toBe('veil');
+    expect(calls[0]?.url).toBe('http://localhost:3000/api/theme');
+    expect(calls[0]?.method).toBe('GET');
+    expect(calls[0]?.body).toBeUndefined();
+    expect(calls[0]?.headers['X-CoGM-Token']).toBe('secret-token');
+  });
+
+  it('sets the world theme with the set-theme control', async () => {
+    const { client: c, calls } = client(() => ({
+      status: 200,
+      json: { theme: 'neutral', themes: ['neutral', 'veil'] },
+    }));
+    await expect(c.setTheme('neutral')).resolves.toBe('neutral');
+    expect(calls[0]?.url).toBe('http://localhost:3000/api/control');
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({ action: 'set-theme', value: 'neutral' });
+  });
+
+  it('reports a refusal with its status', async () => {
+    const { client: c } = client(() => ({
+      status: 409,
+      json: { error: 'The world is not known yet; try again once Foundry is connected.' },
+    }));
+    await expect(c.setTheme('veil')).rejects.toMatchObject({ status: 409 });
+  });
+});

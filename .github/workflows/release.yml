@@ -113,8 +113,11 @@ jobs:
           set -e
           npm run build -w @gnuminator/obsidian-plugin
           mkdir -p build/obsidian/foundry-ai-tool
-          cp packages/obsidian-plugin/dist/main.js packages/obsidian-plugin/dist/manifest.json             packages/obsidian-plugin/dist/styles.css build/obsidian/foundry-ai-tool/
-          (cd build/obsidian && zip -r ../foundry-ai-tool-obsidian.zip foundry-ai-tool >/dev/null)
+          cp packages/obsidian-plugin/dist/main.js packages/obsidian-plugin/dist/manifest.json             packages/obsidian-plugin/dist/styles.css packages/obsidian-plugin/dist/FONT-LICENSES.txt             build/obsidian/foundry-ai-tool/
+          # The theme as CSS snippets for a vault without the plugin (the player vault).
+          mkdir -p build/obsidian/snippets
+          cp packages/obsidian-plugin/dist/snippets/*.css packages/obsidian-plugin/dist/FONT-LICENSES.txt             build/obsidian/snippets/
+          (cd build/obsidian && zip -r ../foundry-ai-tool-obsidian.zip foundry-ai-tool snippets >/dev/null)
           unzip -l build/foundry-ai-tool-obsidian.zip | grep -q 'foundry-ai-tool/manifest.json$'
           ls -lh build/foundry-ai-tool-obsidian.zip
 

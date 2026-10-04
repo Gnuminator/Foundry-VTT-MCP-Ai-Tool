@@ -1,7 +1,7 @@
 {
   "id": "foundry-ai-tool",
   "name": "Foundry AI Tool",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "minAppVersion": "1.11.4",
   "description": "Open mirror notes in Foundry VTT, see whether players can see a handout, and give the vault the dashboard's theme, through the Foundry AI Tool dashboard.",
   "author": "Gnuminator",

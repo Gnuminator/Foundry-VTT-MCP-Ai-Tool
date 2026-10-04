@@ -66,7 +66,8 @@ export const MIRROR_STATUS_PATH = `${MIRROR_ROOT}/_status.md`;
  * `fvtt_sig` (`<sig>.r3`). Bumping it makes every note count as changed once, also across a
  * restart, so a renderer change reaches every note. 2: stat blocks, images, readable enrichers;
  * 3: a feature name the text already opens with is not repeated; 4: notes by Foundry folder and
- * the Library by book (I-100), so every note is fetched once and moves to its folder.
+ * the Library by book (I-100), so every note is fetched once and moves to its folder; 5: every
+ * Library note links its book's hub note (I-100).
  */
 export const MIRROR_RENDER_VERSION = 5;
 

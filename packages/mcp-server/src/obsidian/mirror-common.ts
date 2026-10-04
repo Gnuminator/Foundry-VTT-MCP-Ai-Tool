@@ -68,7 +68,7 @@ export const MIRROR_STATUS_PATH = `${MIRROR_ROOT}/_status.md`;
  * 3: a feature name the text already opens with is not repeated; 4: notes by Foundry folder and
  * the Library by book (I-100), so every note is fetched once and moves to its folder.
  */
-export const MIRROR_RENDER_VERSION = 4;
+export const MIRROR_RENDER_VERSION = 5;
 
 /**
  * A module signature as the notes store it: with the renderer version and, optionally, a short

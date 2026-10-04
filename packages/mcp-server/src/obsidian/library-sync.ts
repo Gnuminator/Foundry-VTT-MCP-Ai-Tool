@@ -53,11 +53,14 @@ import { LIBRARY_ROOT } from './licensed-guard.js';
 import {
   bookBasePaths,
   bookBaseTitle,
+  bookNotePath,
+  isBookNoteText,
   bookProperty,
   LIBRARY_BOOKS_FOLDER,
   LIBRARY_NOTE_TYPES,
   libraryCategory,
   renderBookBase,
+  renderBookNote,
   renderLibraryNote,
   type LibraryNoteContext,
 } from './library-render.js';
@@ -269,6 +272,8 @@ class LibraryScan {
   readonly taken = new Set<string>();
   /** The `.base` files in `Library/Books/` (per-book bases). */
   readonly bookBases: string[] = [];
+  /** The `.md` files in `Library/Books/` (book hub notes). */
+  readonly bookNotes: string[] = [];
   complete = true;
   private readonly stack: Array<{ rel: string; depth: number }> = [{ rel: LIBRARY_ROOT, depth: 0 }];
   private readonly markdown: string[] = [];
@@ -324,6 +329,9 @@ class LibraryScan {
         if (!entry.name.startsWith('.') && /\.md$/i.test(entry.name)) this.markdown.push(childRel);
         if (`${rel}/` === BOOKS_PREFIX && /\.base$/i.test(entry.name)) {
           this.bookBases.push(childRel);
+        }
+        if (`${rel}/` === BOOKS_PREFIX && /\.md$/i.test(entry.name)) {
+          this.bookNotes.push(childRel);
         }
       } else {
         this.taken.add(pathKey(childRel));
@@ -952,9 +960,13 @@ export class LibrarySync {
     for (const [title, basePath] of wanted) {
       const text = renderBookBase(deps.worldId, title);
       await writer.owned(basePath, text, baseOwnershipCheck(text));
+      const note = renderBookNote(deps.worldId, title, basePath);
+      await writer.owned(bookNotePath(basePath), note, checkMarkdownOwnership);
     }
     const keep = new Set([...wanted.values()].map(pathKey));
+    const keepNotes = new Set([...wanted.values()].map(p => pathKey(bookNotePath(p))));
     const stale = run.scan.bookBases.filter(basePath => !keep.has(pathKey(basePath)));
+    const staleNotes = run.scan.bookNotes.filter(notePath => !keepNotes.has(pathKey(notePath)));
     if (complete && deps.trashBlocked === null) {
       const root = deps.campaignRoot.replace(/\\/g, '/');
       for (const basePath of stale) {
@@ -963,6 +975,12 @@ export class LibrarySync {
         if (title === null) continue; // not one of ours
         await deps.assertTrash(basePath);
         await writer.trash(basePath, baseOwnershipCheck(renderBookBase(deps.worldId, title)));
+      }
+      for (const notePath of staleNotes) {
+        const text = await fsp.readFile(`${root}/${notePath}`, 'utf8').catch(() => null);
+        if (text === null || !isBookNoteText(text)) continue; // not one of ours
+        await deps.assertTrash(notePath);
+        await writer.trash(notePath, checkMarkdownOwnership);
       }
     }
     for (const s of writer.skipped) world.skipped.set(s.path, s.reason);
@@ -1000,6 +1018,16 @@ export class LibrarySync {
     for (const list of subclasses.values()) {
       list.sort((a, b) => cmp(a.name, b.name) || cmp(a.uuid, b.uuid));
     }
+    // Book hub notes by title, placed as writeBookBases places them. A note links only its own
+    // book, so a change to its own row re-renders it; no lookup key is needed.
+    const titles = new Set<string>();
+    for (const row of world.rows.values()) {
+      const title = bookProperty(row);
+      if (title) titles.add(title);
+    }
+    const hubs = new Map(
+      [...bookBasePaths(titles)].map(([title, basePath]) => [title, bookNotePath(basePath)])
+    );
     return lookups => {
       const library: LibraryLinks = {
         byUuid: uuid => {
@@ -1034,6 +1062,7 @@ export class LibrarySync {
           lookups.add(`c:${identifier}`);
           return subclasses.get(identifier) ?? [];
         },
+        bookNote: (title): string | null => hubs.get(title) ?? null,
         ...(deps.image
           ? {
               image: (src: string, alt: string, width?: number) =>

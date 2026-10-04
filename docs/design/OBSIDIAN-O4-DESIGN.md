@@ -679,6 +679,8 @@ Backgrounds, Feats, `Class features/<class>`, `Species traits/<species>`, Backgr
 Monster features, Features, Items, Other. Since I-100 each category has one folder per source
 book (`Monsters/Monster Manual (2024)/`; no book: `Other`), with the group folder below the book,
 notes carry `book` and `page`, and `Library/Books/<title>.base` lists one book across categories.
+Each book also has a hub note `Library/Books/<title>.md` (type `library-book`, no `book`
+property, embeds the base); every Library note links it (`From <book>, page N`) for the graph.
 A note moves once, by rename, when its folder changes (never an edited one); same-named
 entries of two rules versions in one folder get `(2014)` or `(2024)`. `fvtt_sig` holds the index signature,
 so an unchanged entry is never fetched again. `.ai-tool-library.json` (a dot file Obsidian

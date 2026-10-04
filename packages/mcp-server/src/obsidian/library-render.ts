@@ -178,6 +178,8 @@ export interface LibraryNoteContext {
   classByIdentifier(identifier: string): { uuid: string; name: string } | null;
   /** Subclasses of a class identifier (classes list their subclasses). */
   subclassesOf(identifier: string): Array<{ uuid: string; name: string }>;
+  /** The hub note of a book by its title (I-100), or null. */
+  bookNote?(title: string): string | null;
   image?(src: string, alt: string, width?: number): string | null;
 }
 
@@ -264,6 +266,51 @@ export function bookBasePaths(titles: Iterable<string>): Map<string, string> {
     out.set(title, candidate);
   }
   return out;
+}
+
+/** The note type of a book's hub note. */
+export const LIBRARY_BOOK_TYPE = 'library-book';
+
+/** A book's hub note sits next to its base: `Library/Books/<title>.md`. */
+export function bookNotePath(basePath: string): string {
+  return basePath.replace(/\.base$/i, '.md');
+}
+
+/**
+ * The hub note of one book: every Library note from the book links here (so Obsidian's graph
+ * groups a book's notes around it), and it embeds the book's base. It has no `book` property, so
+ * the base does not list it.
+ */
+export function renderBookNote(worldId: string, title: string, basePath: string): string {
+  const name = propText(title) || 'Untitled';
+  const props: Record<string, PropValue> = {
+    type: LIBRARY_BOOK_TYPE,
+    fvtt_world: worldId,
+    name,
+    aliases: [name],
+    schema: 1,
+    tags: [`campaign/${worldId}`, 'library', 'book'],
+    generated_by: GENERATED_BY,
+    generated_hash: '',
+  };
+  const baseFile = basePath.split('/').pop() ?? '';
+  const body = [
+    `# ${escapeText(title, 200) || 'Untitled'}`,
+    '',
+    '> [!info] Book in the Library',
+    '> Every Library note from this book links here; the table lists them. The AI Tool rewrites this note; if you edit it, the tool stops updating it.',
+    '',
+    `![[${baseFile}]]`,
+  ];
+  return withGeneratedHash([frontmatter(props), ...body, ''].join('\n'));
+}
+
+/** Whether a note's text is a book hub note we wrote (its type and marker), from its head. */
+export function isBookNoteText(text: string): boolean {
+  return (
+    new RegExp(`^type: "${LIBRARY_BOOK_TYPE}"$`, 'm').test(text) &&
+    new RegExp(`^generated_by: "?${GENERATED_BY}"?$`, 'm').test(text)
+  );
 }
 
 function escapeText(text: string, max = 400): string {
@@ -428,6 +475,11 @@ export function renderLibraryNote(
   ];
   if (ctx.openBase && /^https?:\/\/[^\s()<>]+$/.test(ctx.openBase)) {
     body.push(`[Open in Foundry](${openUrl(ctx.openBase, doc.uuid)})`, '');
+  }
+  const hub = book ? (ctx.bookNote?.(book) ?? null) : null;
+  if (book && hub) {
+    const at = pageText ? `, page ${escapeText(pageText, 40)}` : '';
+    body.push(`From ${noteLink(path, hub, book)}${at}.`, '');
   }
 
   if (doc.statBlock) {

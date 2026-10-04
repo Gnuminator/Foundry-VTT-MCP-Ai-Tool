@@ -773,7 +773,9 @@ describe('LibrarySync by kind, then book (I-100)', () => {
     await sync.work(Date.now() + 10_000, deps());
     expect(await files()).toEqual([
       'AI Tool/Library/Books/Test Bestiary (2024).base',
+      'AI Tool/Library/Books/Test Bestiary (2024).md',
       'AI Tool/Library/Books/Test Spellbook.base',
+      'AI Tool/Library/Books/Test Spellbook.md',
       'AI Tool/Library/Monsters/Test Bestiary (2024)/Snow Weasel.md',
       'AI Tool/Library/Spells/Test Spellbook/Frost Spark (2014).md',
       'AI Tool/Library/Spells/Test Spellbook/Frost Spark (2024).md',
@@ -786,12 +788,21 @@ describe('LibrarySync by kind, then book (I-100)', () => {
     expect(weasel).toContain('page: 12');
     expect(weasel).toContain('type: "library-monster"');
     expect(weasel).toContain('> [!statblock] Snow Weasel');
+    // Every note links its book's hub note, so the graph groups a book around it.
+    expect(weasel).toContain(
+      'From [Test Bestiary (2024)](../../Books/Test%20Bestiary%20%282024%29.md), page 12.'
+    );
     const spark = await fsp.readFile(
       campaign('AI Tool/Library/Spells/Test Spellbook/Frost Spark (2014).md'),
       'utf8'
     );
     expect(spark).toContain('book: "Test Spellbook"');
     expect(spark).not.toContain('page:');
+    expect(spark).toContain('From [Test Spellbook](../../Books/Test%20Spellbook.md).');
+    const hub = await fsp.readFile(campaign('AI Tool/Library/Books/Test Spellbook.md'), 'utf8');
+    expect(hub).toContain('type: "library-book"');
+    expect(hub).toContain('![[Test Spellbook.base]]');
+    expect(hub).not.toMatch(/^book:/m); // the base does not list its own hub
     const base = await fsp.readFile(campaign('AI Tool/Library/Books/Test Spellbook.base'), 'utf8');
     expect(base).toContain(`file.inFolder("Campaigns/${WORLD}/AI Tool/Library")`);
     expect(base).toContain(`'book == "Test Spellbook"'`);
@@ -815,7 +826,7 @@ describe('LibrarySync by kind, then book (I-100)', () => {
     );
     expect(restarted.pending).toBe(3);
     await restarted.work(Date.now() + 10_000, deps());
-    expect((await files()).filter(f => f.endsWith('.md'))).toEqual([
+    expect((await files()).filter(f => f.endsWith('.md') && !f.includes('/Books/'))).toEqual([
       'AI Tool/Library/Monsters/Test Bestiary (2024)/Snow Weasel.md',
       'AI Tool/Library/Spells/Test Spellbook/Frost Spark (2014).md',
       'AI Tool/Library/Spells/Test Spellbook/Frost Spark (2024).md',
@@ -841,7 +852,7 @@ describe('LibrarySync by kind, then book (I-100)', () => {
     expect(sync.links().byUuid(WEASEL)?.notePath).toBe(old);
     await sync.work(Date.now() + 10_000, deps());
     expect(await fsp.readFile(campaign(old), 'utf8')).toContain('My own note.');
-    expect((await files()).filter(f => f.endsWith('.md'))).toEqual([old]);
+    expect((await files()).filter(f => f.endsWith('.md') && !f.includes('/Books/'))).toEqual([old]);
     expect(sync.status([PACK]).skipped).toEqual([{ path: old, reason: KEPT_AT_OLD_PATH }]);
   });
 
@@ -880,7 +891,7 @@ describe('LibrarySync by kind, then book (I-100)', () => {
     expect(await fsp.readFile(classNote, 'utf8')).toContain(
       '- [Path of Embers](../../Subclasses/Test%20Bestiary%20%282024%29/Path%20of%20Embers.md)'
     );
-    expect((await files()).filter(f => f.endsWith('.md'))).toEqual([
+    expect((await files()).filter(f => f.endsWith('.md') && !f.includes('/Books/'))).toEqual([
       'AI Tool/Library/Classes/Test Spellbook/Warden.md',
       'AI Tool/Library/Subclasses/Test Bestiary (2024)/Path of Embers.md',
     ]);
@@ -901,6 +912,11 @@ describe('LibrarySync by kind, then book (I-100)', () => {
         path.join(dir, '.trash', 'Campaigns', WORLD, 'AI Tool/Library/Books/Test Spellbook.base')
       )
     ).resolves.toBeTruthy();
+    // Its hub note goes with it.
+    expect((await files()).filter(f => f.startsWith('AI Tool/Library/Books/'))).toEqual([
+      'AI Tool/Library/Books/Test Bestiary (2024).base',
+      'AI Tool/Library/Books/Test Bestiary (2024).md',
+    ]);
   });
 
   it('leaves a book base the GM changed', async () => {

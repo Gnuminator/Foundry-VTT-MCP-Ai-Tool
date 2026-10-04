@@ -26,6 +26,14 @@ up. It has three parts:
 The page is built only from what players are allowed to see. Hidden creatures, true names you have
 not learned, enemy HP, GM notes and secrets never reach it.
 
+**My character.** Your own character sheet on your phone or laptop, read-only, and up to date
+during play. Your GM sends you a private link; open it once and the page remembers it on that
+device (bookmark it or add it to your home screen). Keep the link to yourself: anyone with it can
+read your sheet. It shows only the characters your Foundry user owns. Pick a view at the top:
+**At the table** (HP, AC, slots, conditions and resources at a glance), **Paper 2024** or
+**Paper 2014** (the printed sheet's order, to copy or print). Like the player page, it reaches
+your device once the home server is set up.
+
 **Handouts in Foundry.** When the GM reveals a handout, you can also open that page in Foundry's
 Journal tab.
 

@@ -33,6 +33,7 @@ import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
 import { LIVE_PLAN_QUERY, planLiveChange } from './live-plan.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
+import { CHARACTER_SHEET_QUERY, characterSheets } from './character-sheet.js';
 import { gateWriteHandlers } from './write-gate.js';
 
 export class QueryHandlers {
@@ -226,6 +227,13 @@ export class QueryHandlers {
     // so Claude can never switch on its own writes. GM client only.
     handlers.set(`${modulePrefix}.${SESSION_SWITCHES_QUERY}`, (data: unknown) =>
       this.withGmGate('Session switches failed', () => sessionSwitches(data))
+    );
+
+    // My character (I-096): the sheets of the characters one player owns, for the dashboard's
+    // /me page. Read-only; the dashboard maps the player's link key to the user id. Not an MCP
+    // tool (the control method `character_sheet`). GM client only.
+    handlers.set(`${modulePrefix}.${CHARACTER_SHEET_QUERY}`, (data: unknown) =>
+      this.withGmGate('Character sheet failed', () => characterSheets(data))
     );
 
     // Obsidian mirror (O4, read-only): the export index of PCs, NPCs, scenes,

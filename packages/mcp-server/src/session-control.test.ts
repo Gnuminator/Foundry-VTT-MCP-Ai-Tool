@@ -3,7 +3,11 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { handleFeatureSwitches, handleSessionSwitches } from './session-control.js';
+import {
+  handleCharacterSheet,
+  handleFeatureSwitches,
+  handleSessionSwitches,
+} from './session-control.js';
 
 describe('handleSessionSwitches (control method session_switches)', () => {
   it('passes ready and end through and reads for anything else', async () => {
@@ -63,5 +67,29 @@ describe('handleFeatureSwitches (control method feature_switches)', () => {
   it("throws the module's refusal", async () => {
     const query = vi.fn().mockResolvedValue({ error: 'Access denied', success: false });
     await expect(handleFeatureSwitches(query)).rejects.toThrow('Access denied');
+  });
+});
+
+describe('handleCharacterSheet (control method character_sheet)', () => {
+  it('passes a Foundry user id to the module query', async () => {
+    const query = vi.fn().mockResolvedValue({ userId: 'player0000000001', sheets: [] });
+    await handleCharacterSheet(query, { userId: 'player0000000001' });
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.characterSheet', {
+      userId: 'player0000000001',
+    });
+  });
+
+  it('refuses a missing or odd user id without asking Foundry', async () => {
+    const query = vi.fn();
+    await expect(handleCharacterSheet(query, {})).rejects.toThrow('user id');
+    await expect(handleCharacterSheet(query, { userId: '../x' })).rejects.toThrow('user id');
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("throws the module's refusal", async () => {
+    const query = vi.fn().mockResolvedValue({ error: 'Access denied', success: false });
+    await expect(handleCharacterSheet(query, { userId: 'player0000000001' })).rejects.toThrow(
+      'Access denied'
+    );
   });
 });

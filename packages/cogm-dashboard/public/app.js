@@ -3712,10 +3712,77 @@ for (const [btn, el] of [
     if (isDocked(el)) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }
-// The co-GM commentary and module diagnostics open as panels over the page.
+// Player links (I-096): one private link per player to their own read-only character page.
+// The page shows only the characters that player's Foundry user owns. Making a new link turns
+// the old one off; removing a link turns it off without a new one.
+const linksBody = $('links-body');
+async function linksCall(method, userId) {
+  const res = await fetch(`/api/player-links${userId ? `/${encodeURIComponent(userId)}` : ''}`, {
+    method,
+    headers: authHeaders(),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body;
+}
+async function loadPlayerLinks() {
+  try {
+    const { players } = await linksCall('GET');
+    linksBody.innerHTML = players.length
+      ? `<p class="links-note">Send each player their own link (a direct message, not the table chat). It opens their character sheet on a phone or laptop, read-only, and stays up to date during play.</p>
+        <ul class="links-list">${players
+          .map(
+            p => `<li data-user="${escapeHtml(p.userId)}">
+            <span class="links-name">${escapeHtml(p.name)}</span>
+            <span class="links-state">${p.link ? `link made ${escapeHtml(new Date(p.createdAt).toLocaleDateString())}` : 'no link'}</span>
+            <span class="links-actions">${
+              p.link
+                ? `<button class="btn" data-track="dash.links.copy" data-links="copy" data-link="${escapeHtml(p.link)}">Copy link</button>
+                   <button class="btn" data-track="dash.links.replace" data-links="make" title="A new link; the old one stops working">New link</button>
+                   <button class="btn" data-track="dash.links.remove" data-links="remove" title="The link stops working">Remove</button>`
+                : '<button class="btn btn-primary" data-track="dash.links.make" data-links="make">Make link</button>'
+            }</span>
+          </li>`
+          )
+          .join('')}</ul>`
+      : '<p class="empty">No players yet. Players appear here once the world has non-GM users.</p>';
+  } catch (err) {
+    linksBody.innerHTML = `<p class="empty">Could not load the player links: ${escapeHtml(String(err.message || err))}</p>`;
+  }
+}
+async function copyLink(path) {
+  await navigator.clipboard.writeText(new URL(path, location.origin).href);
+  toast('✓ Link copied. Send it to that player only.', 'ok');
+}
+linksBody.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-links]');
+  if (!btn) return;
+  const userId = btn.closest('[data-user]')?.dataset.user;
+  try {
+    if (btn.dataset.links === 'copy') {
+      await copyLink(btn.dataset.link);
+    } else if (btn.dataset.links === 'make') {
+      const { link } = await linksCall('POST', userId);
+      await loadPlayerLinks();
+      await copyLink(link).catch(() => toast('✓ Link made. Use Copy link to copy it.', 'ok'));
+    } else if (btn.dataset.links === 'remove') {
+      await linksCall('DELETE', userId);
+      toast('✓ Link removed. It no longer opens anything.', 'ok');
+      await loadPlayerLinks();
+    }
+  } catch (err) {
+    toast(`✗ ${String(err.message || err)}`, 'err');
+  }
+});
+$('btn-show-links').addEventListener('click', () => {
+  if ($('pane-links').hidden) void loadPlayerLinks();
+});
+
+// The co-GM commentary, module diagnostics and player links open as panels over the page.
 for (const [btnId, paneId] of [
   ['btn-show-ai', 'pane-ai'],
   ['btn-show-diag', 'pane-diagnostics'],
+  ['btn-show-links', 'pane-links'],
 ]) {
   const pane = $(paneId);
   $(btnId).addEventListener('click', () => {

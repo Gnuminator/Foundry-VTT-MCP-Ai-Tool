@@ -181,6 +181,14 @@
             >
               🩺 Module diagnostics
             </button>
+            <button
+              id="btn-show-links"
+              class="btn"
+              data-track="dash.header.player-links"
+              title="Each player's private link to their own character sheet (GM only)"
+            >
+              🔗 Player links
+            </button>
             <p class="menu-label">AI co-GM settings</p>
             <button
               id="btn-pause"
@@ -383,6 +391,20 @@
       </div>
       <div class="pane-body" id="diag-body">
         <p class="empty">No module errors captured.</p>
+      </div>
+    </section>
+
+    <!-- Player links (I-096): each player's private link to their own character sheet -->
+    <section class="pane overlay-pane" id="pane-links" hidden>
+      <div class="pane-head">
+        <h2>Player links</h2>
+        <span class="pane-meta">read-only character sheets</span>
+        <button class="icon-btn overlay-close" title="Close" aria-label="Close player links">
+          ✕
+        </button>
+      </div>
+      <div class="pane-body" id="links-body">
+        <p class="empty">Loading…</p>
       </div>
     </section>
 

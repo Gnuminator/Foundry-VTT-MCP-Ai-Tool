@@ -206,6 +206,39 @@
   overflow-y: auto;
 }
 
+/* ---- Player links (I-096) ---- */
+.links-note {
+  margin: 0 0 0.8rem;
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+.links-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.links-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.2rem 0.6rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.links-name {
+  font-weight: 600;
+}
+.links-state {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  text-align: right;
+}
+.links-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 /* ---- Ready for session (D3, PB-17): in the Pre-flight panel ---- */
 .ready-block {
   margin: 0 0 0.9rem;

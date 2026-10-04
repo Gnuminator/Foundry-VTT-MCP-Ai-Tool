@@ -385,6 +385,7 @@ function buildSession(
   let partyDamageTaken = 0;
   let partyHealing = 0;
   let pcDowns = 0;
+  const pcDownsByName = new Map<string, number>();
   let npcKills = 0;
   let gameSeconds = 0;
   let highestRoll: HighestRoll | null = null;
@@ -574,6 +575,7 @@ function buildSession(
           if (before !== null && after !== null && before > 0 && after <= 0) {
             if (actor.isPC) {
               pcDowns++;
+              pcDownsByName.set(actor.name, (pcDownsByName.get(actor.name) ?? 0) + 1);
               pcFor(actor, ctx, number).downs++;
               if (record.combat) combatFor(record.combat.id).downs.push(actor.name);
             } else {
@@ -657,6 +659,7 @@ function buildSession(
     partyDamageTaken,
     partyHealing,
     pcDowns,
+    pcDownsByName: tallyFromMap(pcDownsByName),
     npcKills,
     rolls,
     crits,

@@ -53,6 +53,8 @@ export interface SessionStats {
   partyDamageTaken: number;
   partyHealing: number;
   pcDowns: number;
+  /** Player characters who dropped to 0 HP this session, in a fight or not, by name. */
+  pcDownsByName: Tally;
   npcKills: number;
   rolls: number;
   crits: number;

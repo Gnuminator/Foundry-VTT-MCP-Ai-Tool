@@ -3221,9 +3221,15 @@ function summarizeSession(result) {
     }
   }
   const top = [...dealt.entries()].sort((a, b) => b[1].amount - a[1].amount)[0] || null;
+  // Every hero who dropped to 0 HP this session, in a fight or not (a trap, a fall). An older
+  // bridge only lists the downs per fight.
   const downs = new Map();
-  for (const c of combats)
-    for (const name of c.downs || []) downs.set(name, (downs.get(name) || 0) + 1);
+  if (s.pcDownsByName && typeof s.pcDownsByName === 'object') {
+    for (const [name, k] of Object.entries(s.pcDownsByName)) if (k > 0) downs.set(name, k);
+  } else {
+    for (const c of combats)
+      for (const name of c.downs || []) downs.set(name, (downs.get(name) || 0) + 1);
+  }
   return {
     label: s.label,
     durationMin: s.durationMin || 0,

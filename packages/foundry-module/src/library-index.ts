@@ -197,6 +197,30 @@ function bookOf(source: unknown): {
   return { book, bookTitle: book ? bookTitleOf(book) : null, page };
 }
 
+/**
+ * The book of a pack's package when its entries leave `system.source.book` empty: like dnd5e's
+ * `SourceField.getModuleBook`, the one key of the package's `flags.dnd5e.sourceBooks` (the official
+ * Player's Handbook module stores no book per entry; dnd5e fills it in only when a document is
+ * prepared, so the raw pack index lacks it).
+ */
+export function packageBookOf(pack: Rec): string | null {
+  const metadata = rec(pack.metadata) ?? {};
+  const name = str(metadata.packageName);
+  const type = str(metadata.packageType);
+  const g = globalThis as unknown as {
+    game?: { modules?: { get?: (id: string) => unknown }; system?: unknown };
+  };
+  const pkg =
+    type === 'module' && name
+      ? rec(g.game?.modules?.get?.(name))
+      : type === 'system'
+        ? rec(g.game?.system)
+        : null;
+  const books = rec(dig(pkg, 'flags', 'dnd5e', 'sourceBooks'));
+  const keys = Object.keys(books ?? {});
+  return keys.length === 1 ? clip(keys[0]) : null;
+}
+
 // ---------------------------------------------------------------------------
 // getLibraryIndex
 // ---------------------------------------------------------------------------
@@ -245,6 +269,7 @@ async function indexRows(pack: Rec): Promise<LibraryIndexRow[]> {
   const id = packId(pack);
   const documentName = str(pack.documentName) ?? '';
   const rows: LibraryIndexRow[] = [];
+  const packBook = packageBookOf(pack);
   for (const entry of entries) {
     const docId = nonEmpty(entry._id) ?? nonEmpty(entry.id);
     if (!docId || !/^[A-Za-z0-9]{16}$/.test(docId)) continue;
@@ -259,7 +284,10 @@ async function indexRows(pack: Rec): Promise<LibraryIndexRow[]> {
     const img = imagePath(entry.img);
     const rulesRaw = nonEmpty(dig(entry, 'system', 'source', 'rules'));
     const rules = rulesRaw === '2014' || rulesRaw === '2024' ? rulesRaw : null;
-    const { book, bookTitle, page } = bookOf(dig(entry, 'system', 'source'));
+    const own = bookOf(dig(entry, 'system', 'source'));
+    const book = own.book ?? packBook;
+    const bookTitle = own.bookTitle ?? (packBook ? bookTitleOf(packBook) : null);
+    const page = own.page;
     rows.push({
       uuid: `Compendium.${id}.${documentName}.${docId}`,
       pack: id,

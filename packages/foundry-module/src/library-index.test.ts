@@ -477,6 +477,36 @@ describe('getLibraryIndex: source book (I-100)', () => {
     });
   });
 
+  it("takes a missing book from the pack's module when it registers exactly one", async () => {
+    const pack = mockPack('dnd-players-handbook.classes', [
+      npcEntry(1, { system: { source: { page: '40' } } }),
+      npcEntry(2, { system: { source: { book: 'DMG 2024' } } }),
+    ]);
+    pack.metadata = {
+      label: 'Classes',
+      packageType: 'module',
+      packageName: 'dnd-players-handbook',
+    };
+    installGame([pack]);
+    const game = (globalThis as unknown as { game: Rec }).game;
+    const modules: Record<string, Rec> = {
+      'dnd-players-handbook': { flags: { dnd5e: { sourceBooks: { 'PHB 2024': 'x' } } } },
+    };
+    game.modules = { get: (id: string): Rec | undefined => modules[id] };
+    const rows = (await indexOk({ packs: ['dnd-players-handbook.classes'] })).entries;
+    expect(rows.map(r => [r.book, r.bookTitle, r.page])).toEqual([
+      ['PHB 2024', "Player's Handbook (2024)", '40'],
+      ['DMG 2024', "Dungeon Master's Guide (2024)", null],
+    ]);
+    // Two registered books: no guess.
+    modules['dnd-players-handbook'] = {
+      flags: { dnd5e: { sourceBooks: { 'PHB 2024': 'x', 'DMG 2024': 'y' } } },
+    };
+    expect((await indexOk({ packs: ['dnd-players-handbook.classes'] })).entries[0]?.book).toBe(
+      null
+    );
+  });
+
   it('has no book without a source, and every common code has a title', async () => {
     expect(await rowOf(undefined)).toEqual({ book: null, bookTitle: null, page: null });
     expect(await rowOf({ rules: '2024', page: '3' })).toEqual({

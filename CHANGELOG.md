@@ -26,12 +26,24 @@
 
 ### Dashboard
 
+- **My character (I-096; PR #93):** a private read-only character page per player (`/me`) with
+  At the table, Paper 2024 and Paper 2014 views and a print layout; each player sees only the
+  characters they own. The GM makes, replaces and removes the links under Advanced, Player links.
+  Module query `characterSheet` and bridge control method `character_sheet` (read-only, not an
+  MCP tool).
+- **Place the party here (I-097; PR #91):** puts every party member without a token on the scene
+  you are looking at onto the nearest free squares around the centre of your view (or at a token,
+  map note or square when Claude places them, `plan-party-change` action `place`), each token at
+  its own size; one click with Undo.
 - **Help inside the dashboard (I-064; PR #78):** feature cards in the Before view (on or off, what
   each does, when to turn it on), a "?" on every panel that opens the GM guide in a side panel
   (built in, works offline), and a new GM guide page "Features and when to turn them on".
 - The "?" stays on the After view's stats and session notes cards (PR #89).
 - Demo: takes for the new screens (the turn-order strip's one-click damage, Ready for session and
   feature cards, the After view's stats) (PR #89).
+- Docs: the Orange Pi guide is rechecked for bring-up: players reach Foundry through Cloudflare
+  Tunnel and Access (D-075), a list of what this PC needs, the licensed-content copy, and NVMe as
+  root filesystem with boot from the card (PR #92).
 
 ### Module
 

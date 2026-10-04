@@ -204,3 +204,15 @@ def test_publish_passes_world(tmp_path: Path) -> None:
     finally:
         bridge.close()
     assert bridge.requests[0]["params"]["world"] == "curse-of-strahd"
+
+
+def test_control_host_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    from session_notes.publish import control_host
+
+    monkeypatch.delenv("FOUNDRY_AI_CONTROL_HOST", raising=False)
+    monkeypatch.delenv("MCP_CONTROL_HOST", raising=False)
+    assert control_host() == "127.0.0.1"
+    monkeypatch.setenv("MCP_CONTROL_HOST", "foundry-pi")
+    assert control_host() == "foundry-pi"
+    monkeypatch.setenv("FOUNDRY_AI_CONTROL_HOST", "other")
+    assert control_host() == "other"

@@ -67,7 +67,13 @@ function Test-NotesDone([string]$folder) {
 
 $audioPattern = '\.(ogg|oga|opus|flac|wav|mp3|m4a)$'
 try {
-  foreach ($dir in Get-ChildItem $sessions -Directory | Sort-Object Name) {
+  # 0. With the recorder on the Pi (FVTT_PI_HOST set, D-068): copy its finished recordings here.
+  if ($env:FVTT_PI_HOST) {
+    if ($DryRun) { & pwsh -NoProfile -File (Join-Path $here 'pull.ps1') -DryRun | ForEach-Object { Say "  pull: $_" } }
+    else { & pwsh -NoProfile -File (Join-Path $here 'pull.ps1') | ForEach-Object { Say "  pull: $_" } }
+  }
+
+  foreach ($dir in Get-ChildItem $sessions -Directory | Where-Object { $_.Name -notlike '.*' } | Sort-Object Name) {
     $folder = $dir.FullName
     $timeline = Join-Path $folder 'timeline\timeline.jsonl'
     $recorded = Test-Path (Join-Path $folder 'raw\session.json')

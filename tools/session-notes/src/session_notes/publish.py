@@ -7,8 +7,10 @@ as a GM's Foundry client is connected with writes and the session-notes switch o
    ``li``, ``em``, ``strong``; the bridge sanitizes again): Recap, GM summary, Scenes, each with
    Danish first and English under an ``English`` heading. The transcript stays on the PC, and
    the citation links into it are left out.
-2. stages them over the bridge's control port (``session_notes``, JSON lines on 127.0.0.1;
-   ``FOUNDRY_AI_CONTROL_PORT``, default 31414; the test bridge is 31514), once per session.
+2. stages them over the bridge's control port (``session_notes``, JSON lines;
+   ``FOUNDRY_AI_CONTROL_PORT``, default 31414, the test bridge is 31514; the host is
+   ``MCP_CONTROL_HOST``, default 127.0.0.1, the Pi's Tailscale name once the bridge runs there),
+   once per session.
 3. asks for the status and, when the GM approved the notes (revealed the Recap, or "Approve
    without revealing"), writes ``notes/approved.json``, which starts the audio clock (D-072).
 
@@ -210,11 +212,16 @@ def control_port() -> int:
     return int(raw) if raw else DEFAULT_PORT
 
 
-def call(port: int, params: dict[str, Any], timeout: float = 60.0) -> Any:
+def control_host() -> str:
+    return os.environ.get("FOUNDRY_AI_CONTROL_HOST") or os.environ.get("MCP_CONTROL_HOST") or "127.0.0.1"
+
+
+def call(port: int, params: dict[str, Any], timeout: float = 60.0, host: str | None = None) -> Any:
     """One ``session_notes`` request on the control port; raises BridgeError."""
+    host = host or control_host()
     request = {"id": uuid.uuid4().hex, "method": "session_notes", "params": params}
     try:
-        with socket.create_connection(("127.0.0.1", port), timeout=timeout) as sock:
+        with socket.create_connection((host, port), timeout=timeout) as sock:
             sock.sendall((json.dumps(request, ensure_ascii=False) + "\n").encode("utf-8"))
             buf = b""
             while b"\n" not in buf:
@@ -223,7 +230,7 @@ def call(port: int, params: dict[str, Any], timeout: float = 60.0) -> Any:
                     break
                 buf += chunk
     except OSError as exc:
-        raise BridgeError(f"The bridge on port {port} is not reachable: {exc}") from exc
+        raise BridgeError(f"The bridge on {host}:{port} is not reachable: {exc}") from exc
     if not buf.strip():
         raise BridgeError(f"The bridge on port {port} closed without an answer")
     answer = json.loads(buf.split(b"\n", 1)[0].decode("utf-8"))

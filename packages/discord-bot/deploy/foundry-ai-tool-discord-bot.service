@@ -1,0 +1,43 @@
+# The Foundry AI Tool recorder bot on the Orange Pi (D-068; docs/dev/PI-SETUP.md, Part B stage 8).
+# Install: /etc/systemd/system/foundry-ai-tool-discord-bot.service, then
+#   systemctl daemon-reload && systemctl enable --now foundry-ai-tool-discord-bot
+# The bot lives in /opt/foundry-ai-tool/discord-bot (dist/ and production node_modules),
+# its settings in /etc/foundry-ai-tool/discord-bot.env (see discord-bot.env.example), and the
+# recordings in /var/lib/foundry-ai-tool/recordings.
+[Unit]
+Description=Foundry AI Tool recorder bot (Discord)
+Documentation=https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/blob/main/packages/discord-bot/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=foundry
+Group=foundry
+WorkingDirectory=/opt/foundry-ai-tool/discord-bot
+EnvironmentFile=/etc/foundry-ai-tool/discord-bot.env
+Environment=NODE_ENV=production
+# Recordings stay writable for the foundry group, so the PC's pull can mark and later delete the
+# sessions it copied also when its SSH user is a group member rather than root. The folder itself is 2770 foundry:foundry.
+UMask=0007
+ExecStart=/opt/node24/bin/node dist/cli.js run
+# A stop signal ends a running recording cleanly (session.json is written), so give it time.
+KillSignal=SIGINT
+TimeoutStopSec=60
+Restart=on-failure
+RestartSec=10
+
+# Hardening: the bot only needs the network and its recordings folder.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/foundry-ai-tool
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

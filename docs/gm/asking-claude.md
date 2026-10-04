@@ -130,7 +130,7 @@ as Claude's.
 | AI Tool: Live play (writes)                  | On      | Apply damage, healing, temporary hit points, conditions and resources; move, change or delete tokens. |
 | AI Tool: Live play, apply without confirming | Off     | Skip the confirm step for damage, healing, conditions and resources that Claude plans.                |
 | AI Tool: Ownership (writes)                  | On      | Change which players own or can see an actor.                                                         |
-| AI Tool: Party (writes)                      | Off     | Change the party's travel pace, add the party to combat, post a rest request.                         |
+| AI Tool: Party (writes)                      | Off     | Change the party's travel pace, place the party on the map, add it to combat, post a rest request.    |
 | AI Tool: Handouts (writes)                   | Off     | Reveal or hide journal pages for the players.                                                         |
 | AI Tool: Tarokka (writes)                    | Off     | Save the Tarokka reading, link cards to journals, publish reveal pages.                               |
 | AI Tool: Obsidian mirror (writes)            | Off     | Change which Foundry documents are mirrored into your Obsidian vault.                                 |

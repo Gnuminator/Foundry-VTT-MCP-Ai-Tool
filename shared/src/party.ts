@@ -114,3 +114,39 @@ export interface PartyState {
   /** Things the scan could not read (missing dnd5e, broken actors). */
   warnings: string[];
 }
+
+/**
+ * Party placement (I-097): the module's read-only `planPartyPlacement` query works out, on the
+ * scene the GM is viewing, where each party member without a token there would go (free squares
+ * nearest a spot, each token at its own size, inside the scene, not behind a wall when the map
+ * is drawn) and returns the token data. The bridge's `plan-party-change` action `place` turns it
+ * into a guarded plan of token creates (feature {@link PARTY_FEATURE_ID}); Undo deletes them.
+ */
+export const PARTY_PLACE_QUERY = 'planPartyPlacement';
+
+/** Where the party goes: the centre of the GM's view, a token, a map note or a grid square. */
+export const PARTY_PLACE_ANCHORS = ['view', 'token', 'note', 'grid'] as const;
+export type PartyPlaceAnchor = (typeof PARTY_PLACE_ANCHORS)[number];
+
+export interface PartyPlaceRequest {
+  groupId: string;
+  at?: PartyPlaceAnchor;
+  /** `token`: the token's name; `note`: the map note's label. */
+  target?: string;
+  /** `grid`: the column and row of the square. */
+  gridX?: number;
+  gridY?: number;
+  /** Create the tokens hidden from players. */
+  hidden?: boolean;
+}
+
+export interface PartyPlacement {
+  scene: { sceneId: string; uuid: string; name: string };
+  /** The spot, in canvas pixels, and how to say it ("around the centre of your view"). */
+  anchor: { x: number; y: number; label: string };
+  /** Token data to create, one per member placed (no `_id`). */
+  tokens: { actorId: string; name: string; data: Record<string, unknown> }[];
+  /** Members not placed and why (already on the scene, no room nearby). */
+  skipped: { name: string; reason: string }[];
+  warnings: string[];
+}

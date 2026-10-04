@@ -475,14 +475,19 @@ No parameters.
 
 ### plan-party-change
 
-Plan one party action; nothing changes until apply-planned-change (the GM confirms, and the "AI Tool: Party (writes)" switch must be on). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members' tokens on the current scene to the encounter (starts one when there is none). "rest-request": post dnd5e's short or long rest request card ("rest"), which each player clicks to rest. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (a rest request card only while nobody has rested from it).
+Plan one party action; nothing changes until apply-planned-change (the GM confirms, and the "AI Tool: Party (writes)" switch must be on). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members' tokens on the current scene to the encounter (starts one when there is none). "rest-request": post dnd5e's short or long rest request card ("rest"), which each player clicks to rest. "place": put the members who have no token on the scene the GM is viewing onto the free squares nearest a spot: the centre of the GM's view (default), a token or map note ("at" token or note, "target" its name) or a square ("at" grid, gridX, gridY); "hidden" for a surprise entrance. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (a rest request card only while nobody has rested from it).
 
 Parameters:
 
-- `action` (string, required): What to plan: pace, add-to-combat or rest-request. One of: `pace`, `add-to-combat`, `rest-request`.
+- `action` (string, required): What to plan: pace, add-to-combat, rest-request or place. One of: `pace`, `add-to-combat`, `rest-request`, `place`.
 - `groupId` (string): The group actor id; default the primary party (else the only group).
 - `pace` (string): For action "pace": the new travel pace. One of: `slow`, `normal`, `fast`.
 - `rest` (string): For action "rest-request": short or long (default long). One of: `short`, `long`.
+- `at` (string): For action "place": where (default view: the centre of the GM's view). One of: `view`, `token`, `note`, `grid`.
+- `target` (string): For "place" at token or note: the token's name or the map note's label.
+- `gridX` (integer): For "place" at grid: the column.
+- `gridY` (integer): For "place" at grid: the row.
+- `hidden` (boolean): For "place": the new tokens start hidden.
 
 ### place-measured-template
 

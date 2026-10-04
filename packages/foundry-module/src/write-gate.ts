@@ -131,6 +131,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'openDocumentForGm',
   'ping',
   'planLiveChange',
+  'planPartyPlacement',
   'searchCharacterItems',
   'searchCompendium',
   'searchLinkCandidates',

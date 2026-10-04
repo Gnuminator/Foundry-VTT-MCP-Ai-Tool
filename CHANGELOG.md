@@ -54,6 +54,14 @@
   repo (a file path; helpers as `t.lib`); `reset-demo-world.ps1 -World/-Source/-Title` (I-061;
   PR #95).
 
+### Obsidian (I-100; PR #103)
+
+- **The Library by book:** the Library is sorted by kind, then by book
+  (`Library/Spells/Player's Handbook (2024)/`), with `book` and `page` properties, one base and
+  one hub note per book (every Library note links its book, so Obsidian's graph groups them), and
+  notes about the world follow Foundry's own folders. Notes move once, by rename, and an edited
+  note stays put.
+
 ### Orange Pi (D-068; PRs #100, #101)
 
 - **Stage scripts for bring-up** (`scripts/pi/remote/`): health check, Node 24, Foundry as a

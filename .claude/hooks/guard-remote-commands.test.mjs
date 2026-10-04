@@ -4,7 +4,7 @@ import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { decide } from './guard-remote-commands.mjs';
+import { decide, finalDecision } from './guard-remote-commands.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const kind = command => decide(command, repo)?.decision ?? 'allow';
@@ -88,4 +88,13 @@ test('our own folders and guarded variables may be deleted', () => {
 
 test('a word in a comment line is not a command', () => {
   assert.equal(kind("ssh foundry-pi bash <<'EOF'\n# never reboot here\nuptime\nEOF"), 'allow');
+});
+
+test('an ask becomes a deny where nobody would see the prompt', () => {
+  assert.equal(finalDecision('ask', 'default'), 'ask');
+  assert.equal(finalDecision('ask', 'acceptEdits'), 'ask');
+  assert.equal(finalDecision('ask', 'bypassPermissions'), 'deny');
+  assert.equal(finalDecision('ask', 'auto'), 'deny');
+  assert.equal(finalDecision('ask', undefined), 'deny');
+  assert.equal(finalDecision('deny', 'default'), 'deny');
 });

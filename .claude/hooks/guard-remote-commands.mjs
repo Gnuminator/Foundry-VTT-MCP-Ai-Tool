@@ -192,6 +192,18 @@ export function decide(command, cwd = process.cwd()) {
   return null;
 }
 
+/**
+ * Permission modes in which Claude Code shows an "ask" to the user. In the others (bypass
+ * permissions, auto, don't ask, or no mode given) an "ask" would be answered without the user
+ * (seen live on 2026-10-04 in bypass mode), so it becomes a "deny".
+ */
+const MODES_THAT_ASK = new Set(['default', 'acceptEdits', 'plan']);
+
+export function finalDecision(decision, mode) {
+  if (decision === 'ask' && !MODES_THAT_ASK.has(mode ?? '')) return 'deny';
+  return decision;
+}
+
 function main() {
   let raw = '';
   process.stdin.setEncoding('utf8');
@@ -199,25 +211,30 @@ function main() {
   process.stdin.on('end', () => {
     let command = '';
     let cwd = process.cwd();
+    let mode;
     try {
       const payload = JSON.parse(raw);
       command = String(payload?.tool_input?.command ?? '');
       if (typeof payload?.cwd === 'string') cwd = payload.cwd;
+      if (typeof payload?.permission_mode === 'string') mode = payload.permission_mode;
     } catch {
       return; // not a payload we understand: allow
     }
     const result = decide(command, cwd);
     if (!result) return;
+    const decision = finalDecision(result.decision, mode);
     const list = result.reasons.join('; ');
     const reason =
       result.decision === 'deny'
         ? `Blocked by .claude/hooks/guard-remote-commands.mjs (the Pi safety rule): ${list}. This can make the machine unusable; the user runs it by hand if it is really needed.`
-        : `The Pi safety rule (CLAUDE.md) needs the user's explicit OK for: ${list}. Confirm only if you asked for exactly this.`;
+        : decision === 'deny'
+          ? `Blocked by .claude/hooks/guard-remote-commands.mjs: the Pi safety rule needs the user's explicit OK for: ${list}. This session runs in "${mode ?? 'an unknown'}" permission mode, where an approval prompt would be answered without the user. Ask the user in chat; to approve, the user switches this session to the default permission mode and confirms the prompt.`
+          : `The Pi safety rule (CLAUDE.md) needs the user's explicit OK for: ${list}. Confirm only if you asked for exactly this.`;
     process.stdout.write(
       JSON.stringify({
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
-          permissionDecision: result.decision,
+          permissionDecision: decision,
           permissionDecisionReason: reason,
         },
       })

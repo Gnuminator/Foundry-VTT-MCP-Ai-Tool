@@ -164,7 +164,9 @@ Safety rules (you, 2026-10-04), so a mistake can never leave the Pi unusable:
 - **A mechanical guard** (`.claude/hooks/guard-remote-commands.mjs`) checks every command Claude sends
   to the Pi, including the scripts it feeds in: it blocks what could wreck the system (deleting `/` or
   a system folder, formatting or overwriting a disk, removing root) and makes Claude Code ask you
-  about the rest of the list above.
+  about the rest of the list above. In a session that runs in bypass or auto permission mode it
+  blocks those too, because an approval prompt there would be answered without you: for such a
+  step, switch the session to the default permission mode and confirm the prompt yourself.
 - **Snapshots:** a full system snapshot (`dietpi-backup`, three kept in `/mnt/dietpi-backup`) is
   taken nightly and before every stage. To roll back: `dietpi-backup -1` (needs your OK). Your PC
   also pulls copies into a folder of your choice, so a dead SD card loses nothing.

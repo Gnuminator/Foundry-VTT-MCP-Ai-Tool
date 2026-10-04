@@ -73,8 +73,8 @@ foundry-ai-tool-discord-bot` show "Ready"; `/record status` answers in Discord.
 `FVTT_PI_HOST` is set, normally `foundry-pi`) copies every finished session over SSH through
 Tailscale, checks each file's SHA-256, puts it in the PC's sessions folder and marks it pulled on
 the Pi; the Pi deletes pulled sessions after 7 days. A session counts as finished once
-`raw/convert-report.json` exists (the converter writes it last). The SSH user needs to be in the
-Pi's `foundry` group. The notes step then stages the notes on the bridge, which runs on the Pi
+`raw/convert-report.json` exists (the converter writes it last). The pull logs in as the Pi's SSH
+user from the setup (root; any member of the `foundry` group works too). The notes step then stages the notes on the bridge, which runs on the Pi
 too: set `MCP_CONTROL_HOST` to the Pi's Tailscale name for `session-notes publish`.
 
 ## What lands on disk

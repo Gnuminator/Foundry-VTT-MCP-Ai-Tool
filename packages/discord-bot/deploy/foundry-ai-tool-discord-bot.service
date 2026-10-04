@@ -17,8 +17,8 @@ Group=foundry
 WorkingDirectory=/opt/foundry-ai-tool/discord-bot
 EnvironmentFile=/etc/foundry-ai-tool/discord-bot.env
 Environment=NODE_ENV=production
-# Recordings stay writable for the foundry group, so the PC's pull (an SSH user in that group)
-# can mark and later delete the sessions it copied. The folder itself is 2770 foundry:foundry.
+# Recordings stay writable for the foundry group, so the PC's pull can mark and later delete the
+# sessions it copied also when its SSH user is a group member rather than root. The folder itself is 2770 foundry:foundry.
 UMask=0007
 ExecStart=/opt/node24/bin/node dist/cli.js run
 # A stop signal ends a running recording cleanly (session.json is written), so give it time.

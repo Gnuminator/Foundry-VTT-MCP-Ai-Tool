@@ -17,9 +17,9 @@
   real retention clock (D-072, 14 days after the GM's approval) runs on the PC. A session folder
   that already exists on the PC is never overwritten.
 
-  Needs: the OpenSSH client (built into Windows), key login to the Pi, and the SSH user in the
-  Pi's `foundry` group (the recordings folder is group-writable). Nothing is ever deleted on the
-  PC.
+  Needs: the OpenSSH client (built into Windows) and key login to the Pi as its SSH user from the
+  setup (root; a member of the `foundry` group also works, the recordings folder is
+  group-writable). Nothing is ever deleted on the PC.
 
 .PARAMETER PiHost
   SSH host of the Pi (default: FVTT_PI_HOST, else foundry-pi).

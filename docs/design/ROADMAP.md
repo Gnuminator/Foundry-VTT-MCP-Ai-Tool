@@ -1,5 +1,10 @@
 # Roadmap & Recommendations
 
+> **Historical, frozen 2026-10-04.** This roadmap is no longer kept up to date. What was built is in
+> the [CHANGELOG](../../CHANGELOG.md). Since it was written, Foundry moved to the Orange Pi plan
+> (not Molten-Hosting), and AI features run through Claude Desktop or Claude Code on a subscription,
+> with the Anthropic API only as an opt-in.
+
 Where this fork goes next. Most of the original roadmap has shipped — this file now tracks
 what's done and what's left, plus the "live update in a Claude session" analysis that the
 co-GM dashboard came out of.

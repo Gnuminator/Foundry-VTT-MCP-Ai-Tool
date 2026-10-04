@@ -36,6 +36,7 @@ npm run emdash:ratchet # em dashes may only go down
 CI=true npm test       # every workspace
 npm run docs:lint      # markdownlint (.markdownlint-cli2.jsonc)
 npm run docs:links     # every relative link and #anchor in the tracked Markdown
+npm run changelog:check # the CHANGELOG fragments in changelog.d/
 node scripts/mcp-schema-smoke-test.mjs
 node scripts/standalone-smoke-test.mjs
 node scripts/cogm-split-smoke-test.mjs
@@ -47,6 +48,10 @@ also gives you a Testing sidebar: run or debug any test inline once it indexes.
 
 After changing a tool's description or parameters, run `npm run docs:tools`: it regenerates
 [docs/reference/tools.md](../reference/tools.md), and the mcp-server tests fail while that page is stale.
+
+A pull request adds its CHANGELOG entry as its own file in [changelog.d/](../../changelog.d/README.md),
+never by editing `CHANGELOG.md`, and lowers the lint and em-dash baselines itself when its counts
+drop (`npm run lint:ratchet -- --update`, `npm run emdash:ratchet -- --update`).
 
 > Windows note: the integrated terminal defaults to **PowerShell**. `git`, `node`, and `npm` work there.
 > For the bash-style one-liners above, you can switch the terminal profile to **Git Bash** (terminal

@@ -1,8 +1,10 @@
 name: CI
 
+# Once per pull request, plus every push to main (a push to a PR branch used to start a second,
+# identical run).
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -51,6 +53,10 @@ jobs:
         # tracked Markdown (scripts/check-links.mjs), I-081. docs/reference/tools.md is generated
         # from the tool catalog; the mcp-server tests fail while it is stale (`npm run docs:tools`).
         run: npm run docs:lint && npm run docs:links
+
+      - name: Changelog fragments
+        # Each PR adds its CHANGELOG entry as a file in changelog.d/ (D-089); this checks the format.
+        run: npm run changelog:check
 
       - name: Build (all workspaces)
         run: npm run build

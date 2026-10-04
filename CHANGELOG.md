@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-### Session notes into Foundry (D-087; PRs #85, #87)
+### Session notes into Foundry (D-087; PRs #85 to #87)
 
 - **Session notes go into Foundry by themselves:** after a recorded session, the Recap, GM
   summary and Scenes pages (Danish first, English below) land in a GM-only journal in the folder
@@ -21,12 +21,17 @@
   their state; control-channel errors may carry a stable `code`. `live:roundtrip` also checks
   session notes (stage, automatic put, undo, manual put) and needs "AI Tool: Session notes
   (writes)" on in the test world (PR #85).
+- An apply or undo waits at most 5 seconds for the tool's own follow-up work (such as the session
+  notes state) before it answers (PR #86).
 
 ### Dashboard
 
 - **Help inside the dashboard (I-064; PR #78):** feature cards in the Before view (on or off, what
   each does, when to turn it on), a "?" on every panel that opens the GM guide in a side panel
   (built in, works offline), and a new GM guide page "Features and when to turn them on".
+- The "?" stays on the After view's stats and session notes cards (PR #89).
+- Demo: takes for the new screens (the turn-order strip's one-click damage, Ready for session and
+  feature cards, the After view's stats) (PR #89).
 
 ### Module
 

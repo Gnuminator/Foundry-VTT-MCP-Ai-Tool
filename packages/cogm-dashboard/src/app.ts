@@ -612,7 +612,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     if (world) sse.send(res, 'world', world);
     sse.send(res, 'settings', settingsPayload());
     sse.send(res, 'theme', themePayload());
-    sse.send(res, 'prefs', prefsPayload());
+    // Per world: before the world is known these would be the defaults (and flash the layout
+    // trial card); the world load broadcasts them.
+    if (world) sse.send(res, 'prefs', prefsPayload());
     if (state.combat) sse.send(res, 'combat', { combat: state.combat });
     sse.send(res, 'events', { events: state.recentEvents, initial: true });
     sse.send(res, 'errors', { errors: state.recentErrors, initial: true });

@@ -96,6 +96,8 @@ export interface PrefsStoreLogger {
 
 export class DashboardPrefsStore {
   private readonly worlds = new Map<string, DashboardPrefs>();
+  /** Writes run one after another: two tabs saving at once must not race on the tmp file. */
+  private writing: Promise<void> = Promise.resolve();
 
   /** @param file the JSON file to persist to, or null to keep the choices in memory only */
   constructor(
@@ -143,13 +145,19 @@ export class DashboardPrefsStore {
       next.hintSessions.push(change.hintSession);
     }
     this.worlds.set(worldId, next);
-    if (this.file) {
-      const data: PrefsFile = { worlds: Object.fromEntries(this.worlds) };
-      await fsp.mkdir(path.dirname(this.file), { recursive: true });
-      const tmp = `${this.file}.tmp`;
-      await fsp.writeFile(tmp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
-      await fsp.rename(tmp, this.file);
-    }
+    const write = (): Promise<void> => this.write();
+    this.writing = this.writing.then(write, write);
+    await this.writing;
     return this.get(worldId);
+  }
+
+  /** Save every world's choices as they are now (the newest state wins). */
+  private async write(): Promise<void> {
+    if (!this.file) return;
+    const data: PrefsFile = { worlds: Object.fromEntries(this.worlds) };
+    await fsp.mkdir(path.dirname(this.file), { recursive: true });
+    const tmp = `${this.file}.tmp`;
+    await fsp.writeFile(tmp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+    await fsp.rename(tmp, this.file);
   }
 }

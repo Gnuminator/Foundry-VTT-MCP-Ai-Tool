@@ -187,9 +187,12 @@ let duringPrefs = {
   hintDismissed: false,
   hintSessions: [],
 };
-/** Damage / Heal, Condition and Clear in the strip: GM Actions on and the Advanced switch on. */
+/** Damage / Heal, Condition and Clear in the strip: GM Actions on and the Advanced switch on.
+ * Never on the layout trial's made-up fight, so nothing can be sent for its combatants. */
 function combatButtonsOn() {
-  return !!settings.gmActionsEnabled && !!duringPrefs.combatButtons;
+  return (
+    !!settings.gmActionsEnabled && !!duringPrefs.combatButtons && !(lastCombat && lastCombat.sample)
+  );
 }
 
 // GM Actions state
@@ -933,7 +936,7 @@ function connect() {
   on('world', renderWorld);
   on('theme', d => renderTheme(d.theme));
   on('prefs', renderDuringPrefs);
-  on('combat', d => renderCombat(d.combat));
+  on('combat', d => onCombatEvent(d.combat));
   on('events', d => addEvents(d.events));
   on('errors', d => addErrors(d.errors));
   on('handouts-seen', () => {
@@ -3739,7 +3742,9 @@ for (const [btn, el] of [
   [els.btnPreflight, els.preflightDrawer],
 ]) {
   btn.addEventListener('click', () => {
-    if (isDocked(el)) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!isDocked(el)) return;
+    openDuringCard(el);
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }
 // Player links (I-096): one private link per player to their own read-only character page.
@@ -4012,14 +4017,34 @@ function renderDuringPrefs(next) {
 
 /** Save a screen choice for this world. Shown at once; the server's answer confirms it. */
 async function savePrefs(change, { quiet = false } = {}) {
+  const before = { ...duringPrefs };
   const local = { ...change };
   delete local.hintSession;
   if (Object.keys(local).length) renderDuringPrefs(local);
   try {
     renderDuringPrefs(await postJson('/api/control', { action: 'set-prefs', value: change }));
   } catch (err) {
+    // Not saved (no world yet, or the server is away): show what is really stored.
+    renderDuringPrefs(before);
     if (!quiet) toast(`✗ Could not save the screen choice: ${String(err.message || err)}`, 'err');
   }
+}
+
+/** Open a folded During card from outside the screen (a header button, a demo script). */
+function openDuringCard(el) {
+  const name = Object.keys(DURING_CARDS).find(k => DURING_CARDS[k] === el);
+  if (name && folds.get(name)) toggleFold(name);
+}
+
+/** The combat stream. While the trial shows its made-up fight, the real one is kept for later
+ * and only takes over the strip once a real fight is running. */
+function onCombatEvent(combat) {
+  if (tour) {
+    tour.realCombat = combat;
+    if (tour.sample && lastCombat === tour.sample && !(combat && combat.active)) return;
+    if (combat && combat.active) tour.sample = null;
+  }
+  renderCombat(combat);
 }
 
 for (const b of layoutButtons) {
@@ -4150,9 +4175,17 @@ tourEls.next.addEventListener('click', () => {
   showTourStep();
 });
 $('layout-tour-stop').addEventListener('click', () => endTour(null));
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && tour) endTour(null);
-});
+// Escape in a confirm window or a drawer closes that, not the trial. Capture runs this before
+// the page's own Escape handler closes them, so it still sees them open.
+document.addEventListener(
+  'keydown',
+  e => {
+    if (e.key !== 'Escape' || !tour || !els.modalBackdrop.hidden) return;
+    if ([els.drawer, els.tarokkaDrawer, ...OPENERS.keys()].some(shown)) return;
+    endTour(null);
+  },
+  { capture: true }
+);
 $('btn-layout-trial').addEventListener('click', startTour);
 $('btn-layout-tour').addEventListener('click', startTour);
 $('btn-layout-trial-skip').addEventListener('click', () => {

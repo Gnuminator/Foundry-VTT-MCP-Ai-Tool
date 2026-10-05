@@ -83,6 +83,19 @@ describe('DashboardPrefsStore', () => {
     expect(new DashboardPrefsStore(file).get('w')).toEqual(DEFAULT_PREFS);
   });
 
+  it('saves changes made at once without a race, every change kept', async () => {
+    const file = path.join(dir, 'dashboard-prefs.json');
+    const store = new DashboardPrefsStore(file);
+    await Promise.all([
+      store.update('w', { hintSession: 's1' }),
+      store.update('w', { duringLayout: 'auto' }),
+      store.update('other', { combatButtons: true }),
+    ]);
+    const reread = new DashboardPrefsStore(file);
+    expect(reread.get('w')).toMatchObject({ duringLayout: 'auto', hintSessions: ['s1'] });
+    expect(reread.get('other').combatButtons).toBe(true);
+  });
+
   it('logs an unreadable file and falls back to the defaults', async () => {
     const file = path.join(dir, 'dashboard-prefs.json');
     await fsp.writeFile(file, '{ not json');

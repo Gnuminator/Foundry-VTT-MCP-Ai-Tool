@@ -121,6 +121,28 @@ function mdCell(s) {
 
 const STATUS_WORD = { pass: 'PASS', fail: 'FAIL', skip: 'SKIP', error: 'ERROR' };
 
+/**
+ * The coverage lines of a build (the manifest's `coverage`): what the content profile offered and
+ * what the builder made. Empty when the report has no build.
+ * @param {KitReport} r
+ * @returns {Array<[string, string]>} label and value
+ */
+export function coverageRows(r) {
+  const b = r.build;
+  if (!b || !b.coverage) return [];
+  const c = b.coverage;
+  const failedHeroes = (b.heroes || []).filter(h => h.buildError).length;
+  const rows = /** @type {Array<[string, string]>} */ ([
+    ['Classes', `${c.classes.built} built of ${c.classes.found} found`],
+    ['Subclasses', `${c.subclasses.built} built of ${c.subclasses.found} found`],
+  ]);
+  if (c.subclasses.failed.length) {
+    rows.push(['Subclasses that failed', c.subclasses.failed.join(', ')]);
+  }
+  rows.push(['Heroes', `${c.heroes} built${failedHeroes ? `, ${failedHeroes} failed` : ''}`]);
+  return rows;
+}
+
 // --- markdown -----------------------------------------------------------------
 
 /** @param {KitReport} r */
@@ -130,6 +152,7 @@ export function renderMarkdown(r) {
   lines.push(`# Test kit report: ${run.size}`);
   lines.push('');
   lines.push(`- Size: ${run.size}${run.fake ? ' (fake)' : ''}`);
+  if (r.build) lines.push(`- Profile: ${r.build.profile || 'unknown'}`);
   lines.push(
     `- Target: ${run.target.name} (dashboard ${run.target.dashboard}, Foundry ${run.target.foundry})`
   );
@@ -169,6 +192,24 @@ export function renderMarkdown(r) {
       }
       lines.push('');
     }
+  }
+  const coverage = coverageRows(r);
+  if (coverage.length) {
+    lines.push('## Coverage');
+    lines.push('');
+    for (const [label, value] of coverage) lines.push(`- ${label}: ${value}`);
+    lines.push('');
+  }
+  const buildErrors = (r.build && r.build.consoleErrors) || [];
+  if (r.build) {
+    lines.push('## Build console errors');
+    lines.push('');
+    if (buildErrors.length) {
+      for (const e of buildErrors) lines.push(`- ${e.at} ${e.source}: ${e.message}`);
+    } else {
+      lines.push('None reported.');
+    }
+    lines.push('');
   }
   lines.push('## Console errors');
   lines.push('');
@@ -276,13 +317,30 @@ export function renderHtml(r) {
     ? `<pre>${esc(r.consoleErrors.map(e => `${e.at} ${e.source}: ${e.message}`).join('\n'))}</pre>`
     : '<p>None reported.</p>';
 
+  const coverage = coverageRows(r);
+  const coverageRowsHtml = coverage
+    .map(([label, value]) => `<tr><th>${esc(label)}</th><td>${esc(value)}</td></tr>`)
+    .join('');
+  const coverageHtml = coverage.length
+    ? `<h2>Coverage</h2><table><tbody>${coverageRowsHtml}</tbody></table>`
+    : '';
+  const buildErrors = (r.build && r.build.consoleErrors) || [];
+  const buildErrorLines = buildErrors.map(e => `${e.at} ${e.source}: ${e.message}`);
+  const buildErrorsHtml = r.build
+    ? `<h2>Build console errors</h2>${
+        buildErrors.length
+          ? `<pre>${esc(buildErrorLines.join('\n'))}</pre>`
+          : '<p>None reported.</p>'
+      }`
+    : '';
+
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Test kit report: ${esc(run.size)}</title>
 <style>${CSS}</style></head>
 <body><main>
 <h1>Test kit report: ${esc(run.size)}${run.fake ? ' (fake)' : ''}</h1>
-<p class="meta"><span>Target ${esc(run.target.name)} (${esc(run.target.dashboard)})</span><span>World ${esc(run.target.world)}</span><span>Git ${esc(run.gitSha)}</span><span>Node ${esc(run.node)}</span><span>${esc(run.startedAt)}</span><span>Duration ${fmtMs(run.durationMs)}</span></p>
+<p class="meta">${r.build ? `<span>Profile ${esc(r.build.profile || 'unknown')}</span>` : ''}<span>Target ${esc(run.target.name)} (${esc(run.target.dashboard)})</span><span>World ${esc(run.target.world)}</span><span>Git ${esc(run.gitSha)}</span><span>Node ${esc(run.node)}</span><span>${esc(run.startedAt)}</span><span>Duration ${fmtMs(run.durationMs)}</span></p>
 <p class="sum"><span class="pass">${summary.passed} passed</span>, <span class="fail">${summary.failed} failed</span>, <span class="skip">${summary.skipped} skipped</span> of ${summary.total}</p>
 <div class="bar" role="img" aria-label="${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped"><i class="p" style="width:${pct(summary.passed)}%"></i><i class="f" style="width:${pct(summary.failed)}%"></i><i class="s" style="width:${pct(summary.skipped)}%"></i></div>
 <div class="filters"><label>Status <select id="f-status"><option value="">all</option><option value="bad">failed or error</option><option value="pass">pass</option><option value="fail">fail</option><option value="error">error</option><option value="skip">skip</option></select></label>
@@ -291,7 +349,7 @@ export function renderHtml(r) {
 <tbody>
 ${rows}
 </tbody></table>
-<h2>Console errors</h2>
+${coverageHtml}${buildErrorsHtml}<h2>Console errors</h2>
 ${consoleHtml}
 <script>${JS}</script>
 </main></body></html>

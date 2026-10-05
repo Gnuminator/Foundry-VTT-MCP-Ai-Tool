@@ -25,12 +25,34 @@ test('read-only remote commands pass', () => {
   }
 });
 
-test('the real stage scripts pass, except stage 1 which creates the foundry user (ask)', () => {
+test('the real stage scripts pass, except stage 1 (the foundry user) and stage 9 (SSH login keys), which ask', () => {
   const dir = path.join(repo, 'scripts', 'pi', 'remote');
   for (const name of readdirSync(dir).filter(n => /^\d-.*\.sh$/.test(n))) {
     const command = `cat scripts/pi/remote/lib.sh scripts/pi/remote/${name} | ssh -o BatchMode=yes foundry-pi bash`;
-    const expected = name.startsWith('1-') ? 'ask' : 'allow';
+    const expected = /^(1|9)-/.test(name) ? 'ask' : 'allow'; // 9 is in the stage 9 PR
     assert.equal(kind(command), expected, `${name}: ${JSON.stringify(decide(command, repo))}`);
+  }
+});
+
+test('commands whose only target is this machine (a test container) pass', () => {
+  const k = '-i /root/.ssh/testkey -o StrictHostKeyChecking=no';
+  for (const c of [
+    `docker exec -i pi-stage5-test ssh -p 2222 ${k} root@127.0.0.1 'mv /tmp/x /root/.ssh/authorized_keys'`,
+    `docker exec pi-stage5-test sh -c "echo put a | sftp -P 2222 ${k} -b - root@localhost"`,
+    `docker exec pi-stage5-test scp -P 2222 ${k} /etc/hostname root@127.0.0.1:/tmp/scp-test`,
+    `cat scripts/pi/remote/lib.sh scripts/pi/remote/9-ssh-log.sh | docker exec -i pi-stage5-test ssh -p 2222 ${k} root@[::1] 'bash -s'`,
+  ]) {
+    assert.equal(kind(c), 'allow', c);
+  }
+  // A jump host, a second target or a remote target keeps the guard on.
+  for (const c of [
+    "ssh -J foundry-pi root@127.0.0.1 'reboot'",
+    "ssh -o ProxyJump=foundry-pi localhost 'reboot'",
+    "ssh localhost true; ssh foundry-pi 'reboot'",
+    "scp /tmp/x root@127.0.0.1:/tmp/x && ssh foundry-pi 'reboot'",
+    "ssh foundry-pi 'reboot'",
+  ]) {
+    assert.equal(kind(c), 'ask', c);
   }
 });
 
@@ -58,6 +80,7 @@ test('the dangerous list asks', () => {
     "ssh foundry-pi 'userdel foundry'",
     "ssh foundry-pi 'apt-get -y purge openssh-server'",
     "ssh foundry-pi 'reboot'",
+    `ssh foundry-pi 'k=/root/.ssh/authorized_keys; mv /tmp/x "$k"'`,
     'ssh foundry-pi reboot',
     'ssh -o BatchMode=yes -i key foundry-pi userdel foundry',
     'ssh foundry-pi sudo shutdown -h now',

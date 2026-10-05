@@ -983,8 +983,374 @@ async function readActor(args) {
   };
 }
 
+/**
+ * Everything the feature scenarios need to know about one actor, read only: its features with
+ * their uses, activities (and what each consumes) and effects, plus the derived numbers the deep
+ * checks compare with the rules (proficiency bonus, armor class, hit dice, slots, scale values).
+ * Verified against dnd5e 6.0.5: `item.system.uses` has `max` (a number once prepared), `spent` and
+ * `recovery`; `item.system.activities` is a collection of activities with `consumption.targets`.
+ * @param {{actorId: string}} args
+ */
+async function inspectFeatures(args) {
+  const actor = game.actors.get(args.actorId);
+  if (!actor) throw new Error(`inspectFeatures: no actor ${args.actorId}`);
+  const list = coll => Array.from(coll?.values?.() ?? coll ?? []);
+  const numOrNull = v =>
+    v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
+  const plain = v => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') return v;
+    if (typeof v.value === 'number' || typeof v.value === 'string') return v.value;
+    return v.display ?? String(v);
+  };
+  const scale = {};
+  const classes = [];
+  for (const cls of actor.itemTypes.class) {
+    scale[cls.system.identifier] = {};
+    const own = { ...(cls.scaleValues ?? {}), ...(cls.subclass?.scaleValues ?? {}) };
+    for (const [id, v] of Object.entries(own)) scale[cls.system.identifier][id] = plain(v);
+    classes.push({
+      identifier: cls.system.identifier,
+      denomination: String(cls.system.hd?.denomination ?? ''),
+      levels: cls.system.levels,
+      spent: cls.system.hd?.spent ?? 0,
+    });
+  }
+  const abilities = {};
+  for (const [id, a] of Object.entries(actor.system.abilities))
+    abilities[id] = { value: a.value, mod: a.mod };
+  const spells = {};
+  for (const [key, s] of Object.entries(actor.system.spells ?? {})) {
+    if (!s.max) continue;
+    spells[key] = { value: s.value ?? 0, max: s.max, level: s.level ?? 0, type: s.type ?? '' };
+  }
+  const armorTypes = ['light', 'medium', 'heavy', 'shield'];
+  const items = actor.items.map(item => {
+    const u = item.system.uses;
+    const uses =
+      u && (numOrNull(u.max) !== null || (u.recovery?.length ?? 0) > 0)
+        ? {
+            max: numOrNull(u.max),
+            spent: numOrNull(u.spent) ?? 0,
+            recovery: Array.from(u.recovery ?? []).map(r => ({
+              period: String(r.period ?? ''),
+              type: String(r.type ?? ''),
+              formula: String(r.formula ?? ''),
+            })),
+          }
+        : null;
+    return {
+      id: item.id,
+      name: item.name,
+      type: item.type,
+      identifier: item.system?.identifier ?? null,
+      sourceUuid: item._stats?.compendiumSource ?? item.flags?.dnd5e?.sourceId ?? null,
+      equipped: !!item.system?.equipped,
+      uses,
+      activities: list(item.system?.activities).map(a => ({
+        id: a.id,
+        type: a.type,
+        name: a.name ?? '',
+        activation: a.activation?.type ?? '',
+        canUse: !!a.canUse,
+        consumption: list(a.consumption?.targets).map(t => ({
+          type: String(t.type ?? ''),
+          target: String(t.target ?? ''),
+          value: String(t.value ?? ''),
+        })),
+      })),
+      effects: item.effects.map(e => ({
+        id: e.id,
+        name: e.name,
+        disabled: !!e.disabled,
+        transfer: !!e.transfer,
+        changes: (e.changes ?? []).map(c => ({
+          key: String(c.key),
+          value: String(c.value),
+          type: String(c.type ?? ''),
+        })),
+      })),
+    };
+  });
+  const ac = actor.system.attributes.ac ?? {};
+  const hd = actor.system.attributes.hd ?? {};
+  return {
+    name: actor.name,
+    level: actor.system.details.level,
+    prof: actor.system.attributes.prof,
+    ac: {
+      value: ac.value,
+      calc: String(ac.calc ?? ''),
+      armor: actor.items.some(
+        i =>
+          i.type === 'equipment' && i.system.equipped && armorTypes.includes(i.system.type?.value)
+      ),
+    },
+    hd: { value: hd.value ?? 0, max: hd.max ?? 0, classes },
+    hp: { value: actor.system.attributes.hp.value, max: actor.system.attributes.hp.max },
+    abilities,
+    spells,
+    scale,
+    items,
+  };
+}
+
+/**
+ * Runs one thing on an actor and puts the actor back as it was found (see the contract). The state
+ * that is saved and restored: every item's uses (and each activity's), quantity, hit dice spent and
+ * effects' disabled flag; the spell slots; hit points; exhaustion; and the ids of the actor's
+ * effects, items and of the chat messages, so what the run created is deleted again. The reply says
+ * whether the restore worked (`restored`, `drift`).
+ * @param {{actorId: string, op: 'use'|'effect'|'rest', itemId?: string, activityId?: string, effectId?: string,
+ *   enabled?: boolean, read?: string[], type?: 'short'|'long'}} args
+ */
+async function exerciseActor(args) {
+  const actor = game.actors.get(args.actorId);
+  if (!actor) throw new Error(`exerciseActor: no actor ${args.actorId}`);
+  const list = coll => Array.from(coll?.values?.() ?? coll ?? []);
+
+  const state = () => {
+    const items = {};
+    for (const item of actor.items) {
+      items[item.id] = {
+        spent: item.system.uses?.spent ?? null,
+        quantity: item.system.quantity ?? null,
+        activities: Object.fromEntries(
+          list(item.system.activities).map(a => [a.id, a.uses?.spent ?? null])
+        ),
+        effects: Object.fromEntries(item.effects.map(e => [e.id, !!e.disabled])),
+        hd: item.type === 'class' ? (item.system.hd?.spent ?? 0) : null,
+      };
+    }
+    const spells = {};
+    for (const [key, s] of Object.entries(actor.system.spells ?? {})) spells[key] = s.value ?? 0;
+    const hp = actor.system.attributes.hp;
+    return {
+      items,
+      spells,
+      effects: actor.effects.map(e => e.id).sort(),
+      messages: game.messages.map(m => m.id).sort(),
+      hp: { value: hp.value, temp: hp.temp ?? 0 },
+      exhaustion: actor.system.attributes.exhaustion ?? 0,
+    };
+  };
+
+  const restore = async before => {
+    const now = state();
+    const newItems = Object.keys(now.items).filter(id => !(id in before.items));
+    if (newItems.length) await actor.deleteEmbeddedDocuments('Item', newItems);
+    const newEffects = now.effects.filter(id => !before.effects.includes(id));
+    if (newEffects.length) await actor.deleteEmbeddedDocuments('ActiveEffect', newEffects);
+    const newMessages = now.messages.filter(id => !before.messages.includes(id));
+    if (newMessages.length) await ChatMessage.deleteDocuments(newMessages);
+    for (const [id, was] of Object.entries(before.items)) {
+      const item = actor.items.get(id);
+      const cur = now.items[id];
+      if (!item || !cur) continue;
+      const update = {};
+      if (was.spent !== null && cur.spent !== was.spent) update['system.uses.spent'] = was.spent;
+      if (was.quantity !== null && cur.quantity !== was.quantity)
+        update['system.quantity'] = was.quantity;
+      for (const [aid, spent] of Object.entries(was.activities)) {
+        if (spent !== null && cur.activities[aid] !== spent)
+          update[`system.activities.${aid}.uses.spent`] = spent;
+      }
+      if (was.hd !== null && cur.hd !== was.hd) update['system.hd.spent'] = was.hd;
+      if (Object.keys(update).length) await item.update(update);
+      const effects = Object.entries(was.effects)
+        .filter(
+          ([eid, disabled]) =>
+            item.effects.get(eid) && !!item.effects.get(eid).disabled !== disabled
+        )
+        .map(([eid, disabled]) => ({ _id: eid, disabled }));
+      if (effects.length) await item.updateEmbeddedDocuments('ActiveEffect', effects);
+    }
+    const update = {};
+    for (const [key, value] of Object.entries(before.spells)) {
+      if (now.spells[key] !== value) update[`system.spells.${key}.value`] = value;
+    }
+    if (now.hp.value !== before.hp.value) update['system.attributes.hp.value'] = before.hp.value;
+    if (now.hp.temp !== before.hp.temp) update['system.attributes.hp.temp'] = before.hp.temp;
+    if (now.exhaustion !== before.exhaustion)
+      update['system.attributes.exhaustion'] = before.exhaustion;
+    if (Object.keys(update).length) await actor.update(update);
+  };
+
+  /** What differs between two states, in words (empty when they are equal). */
+  const drift = (a, b) => {
+    const out = [];
+    for (const id of new Set([...Object.keys(a.items), ...Object.keys(b.items)])) {
+      if (JSON.stringify(a.items[id]) !== JSON.stringify(b.items[id])) {
+        out.push(`item ${actor.items.get(id)?.name ?? id}`);
+      }
+    }
+    for (const key of ['spells', 'effects', 'messages', 'hp', 'exhaustion']) {
+      if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) out.push(key);
+    }
+    return out;
+  };
+
+  const before = state();
+  let result;
+  try {
+    if (args.op === 'use') {
+      const item = actor.items.get(args.itemId);
+      const activity = item?.system.activities?.get(args.activityId);
+      if (!item || !activity)
+        throw new Error(`exerciseActor: no activity ${args.itemId}/${args.activityId}`);
+      // The system's error notifications become `notes` instead of toasts (and console errors).
+      const notes = [];
+      const patched = {};
+      const ours = (level, orig) => (message, options) => {
+        let text = String(message);
+        if (options?.localize || game.i18n.has(text)) text = game.i18n.localize(text);
+        notes.push({ level, message: text });
+        return orig;
+      };
+      for (const level of ['error', 'warn']) {
+        patched[level] = {
+          own: Object.prototype.hasOwnProperty.call(ui.notifications, level),
+          orig: ui.notifications[level],
+        };
+        ui.notifications[level] = ours(level, undefined);
+      }
+      let results;
+      let threw = null;
+      try {
+        // No dialog, no measured template, no action cost, no roll after the card.
+        results = await activity.use(
+          {
+            consume: { action: false },
+            create: { measuredTemplate: false },
+            concentration: { begin: false },
+            subsequentActions: false,
+          },
+          { configure: false },
+          {}
+        );
+      } catch (err) {
+        threw = String(err?.message ?? err);
+      } finally {
+        for (const level of ['error', 'warn']) {
+          if (patched[level].own) ui.notifications[level] = patched[level].orig;
+          else delete ui.notifications[level];
+        }
+      }
+      const after = state();
+      const messageId = results?.message?.id ?? null;
+      const spells = {};
+      for (const [key, value] of Object.entries(after.spells)) {
+        if (before.spells[key] !== value)
+          spells[key] = { before: before.spells[key] ?? 0, after: value };
+      }
+      result = {
+        ok: !!results && typeof results === 'object' && !threw,
+        notes,
+        threw,
+        chatCard: !!messageId && game.messages.has(messageId),
+        uses: {
+          before: before.items[item.id]?.spent ?? null,
+          after: after.items[item.id]?.spent ?? null,
+          max: Number.isFinite(Number(item.system.uses?.max)) ? Number(item.system.uses.max) : null,
+        },
+        spells,
+        effects: actor.effects
+          .filter(e => !before.effects.includes(e.id))
+          .map(e => ({
+            name: e.name,
+            changes: (e.changes ?? []).map(c => ({ key: String(c.key), value: String(c.value) })),
+          })),
+        itemsCreated: Object.keys(after.items).filter(id => !(id in before.items)).length,
+      };
+    } else if (args.op === 'effect') {
+      const item = actor.items.get(args.itemId);
+      const effect = item?.effects.get(args.effectId);
+      if (!item || !effect)
+        throw new Error(`exerciseActor: no effect ${args.itemId}/${args.effectId}`);
+      const read = () => {
+        const out = {};
+        const rollData = actor.getRollData();
+        for (const path of args.read ?? []) {
+          let v = foundry.utils.getProperty(actor, path);
+          if (v instanceof Set) v = [...v];
+          const entry = { value: v ?? null };
+          if (typeof v === 'string' && v.trim()) {
+            try {
+              entry.resolved = Number(dnd5e.utils.simplifyBonus(v, rollData));
+            } catch {
+              entry.resolved = null;
+            }
+          }
+          out[path] = entry;
+        }
+        return out;
+      };
+      const was = read();
+      await item.updateEmbeddedDocuments('ActiveEffect', [
+        { _id: effect.id, disabled: !args.enabled },
+      ]);
+      result = { before: was, during: read() };
+    } else if (args.op === 'rest') {
+      const summary = () => ({
+        items: actor.items
+          .filter(i => (i.system.uses?.recovery?.length ?? 0) > 0 && Number(i.system.uses.max) > 0)
+          .map(i => ({
+            id: i.id,
+            name: i.name,
+            max: Number(i.system.uses.max),
+            spent: Number(i.system.uses.spent) || 0,
+            recovery: Array.from(i.system.uses.recovery).map(r => ({
+              period: String(r.period ?? ''),
+              type: String(r.type ?? ''),
+              formula: String(r.formula ?? ''),
+            })),
+          })),
+        spells: Object.fromEntries(
+          Object.entries(actor.system.spells ?? {})
+            .filter(([, s]) => s.max)
+            .map(([key, s]) => [
+              key,
+              { value: s.value ?? 0, max: s.max, type: String(s.type ?? '') },
+            ])
+        ),
+        hp: { value: actor.system.attributes.hp.value, max: actor.system.attributes.hp.max },
+        hd: {
+          value: actor.system.attributes.hd?.value ?? 0,
+          max: actor.system.attributes.hd?.max ?? 0,
+        },
+      });
+      // Spend everything first, so a rest has something to give back.
+      for (const row of summary().items) {
+        await actor.items.get(row.id).update({ 'system.uses.spent': row.max });
+      }
+      for (const cls of actor.itemTypes.class) {
+        await cls.update({ 'system.hd.spent': cls.system.hd.max });
+      }
+      const update = { 'system.attributes.hp.value': 1 };
+      for (const [key, s] of Object.entries(actor.system.spells ?? {})) {
+        if (s.max) update[`system.spells.${key}.value`] = 0;
+      }
+      await actor.update(update);
+      const afterSpend = summary();
+      const config = { dialog: false, chat: false, advanceTime: false, advanceBastionTurn: false };
+      if (args.type === 'long') await actor.longRest(config);
+      else await actor.shortRest(config);
+      result = { type: args.type, afterSpend, afterRest: summary() };
+    } else {
+      throw new Error(`exerciseActor: unknown op "${args.op}"`);
+    }
+  } finally {
+    await restore(before);
+  }
+  const final = state();
+  const differences = drift(before, final);
+  return { ...result, restored: differences.length === 0, drift: differences };
+}
+
 /** The functions gm.mjs runs in the page, by GM action. */
 export const GM_ACTION_FUNCTIONS = {
+  inspectFeatures,
+  exerciseActor,
   worldStatus,
   wipeKit,
   ensureFolder,

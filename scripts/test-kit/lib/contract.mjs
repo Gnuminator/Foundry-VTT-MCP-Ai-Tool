@@ -141,6 +141,30 @@ export const GM_ACTIONS = {
   readActor: 'readActor',
   /** ({since?}) => {errors: [{at, message, source}]} console errors the GM page collected */
   consoleErrors: 'consoleErrors',
+  /**
+   * ({actorId}) => {name, level, prof, ac: {value, calc, armor}, hd: {value, max, classes: [{identifier,
+   * denomination, levels, spent}]}, hp: {value, max}, abilities: {str..cha: {value, mod}}, spells: {spell1..spell9, pact:
+   * {value, max, level, type}}, scale: {[classId]: {[identifier]: value}}, items: [{id, name, type, identifier,
+   * sourceUuid, equipped, uses: {max, spent, recovery: [{period, type, formula}]} | null, activities: [{id, type, name,
+   * activation, canUse, consumption: [{type, target, value}]}], effects: [{id, name, disabled, transfer, changes:
+   * [{key, value, type}]}]}]} everything the feature scenarios need to know about one actor. Read only.
+   */
+  inspectFeatures: 'inspectFeatures',
+  /**
+   * Runs something on an actor and always puts the actor back as it was (items' uses, slots, hit
+   * points, hit dice, effects, new items and chat messages are all restored; `restored` and `drift` say
+   * whether that worked). One of:
+   * - ({actorId, op: 'use', itemId, activityId}) => {ok, notes: [{level, message}], threw, chatCard,
+   *   uses: {before, after, max}, spells: {key: {before, after}}, effects: [{name, changes}], itemsCreated,
+   *   restored, drift}. Uses one activity with no dialog, no template, no roll and no action cost;
+   *   the system's error notifications are collected in `notes`.
+   * - ({actorId, op: 'effect', itemId, effectId, enabled, read: [path]}) => {before, during, restored, drift}, each
+   *   `{[path]: {value, resolved?}}` read from the actor with the effect on or off (a Set comes back as an array).
+   * - ({actorId, op: 'rest', type: 'short'|'long'}) => {type, afterSpend, afterRest, restored, drift}: every use,
+   *   slot and hit die is spent and hit points set to 1, the rest is taken with no dialog, and both
+   *   states are reported as {items: [{id, name, max, spent, recovery}], spells, hp, hd}.
+   */
+  exerciseActor: 'exerciseActor',
 };
 
 /**

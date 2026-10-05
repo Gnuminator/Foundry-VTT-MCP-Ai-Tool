@@ -58,8 +58,8 @@ node scripts/test-kit/kit.mjs <command> [options]
 
 | Size    | Heroes                                                   | Scenarios                  |
 | ------- | -------------------------------------------------------- | -------------------------- |
-| `smoke` | every class once, at level 5, with its first subclass    | the six SRD scenarios      |
-| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20 | the six SRD scenarios      |
+| `smoke` | every class once, at level 5, with its first subclass    | the eight SRD scenarios    |
+| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20 | the eight SRD scenarios    |
 | `long`  | the same heroes as `full`                                | scenarios that list `long` |
 
 The plan is `HERO_PLAN` in `lib/contract.mjs`. A class gets its subclass from the level its own
@@ -160,17 +160,19 @@ Start a `full` run in the background and do not wait on it.
 
 ## The scenarios
 
-Six SRD scenarios ship in the repo. All are in `smoke` and `full`; `heroes-advancement` is in
-`long` as well.
+Eight SRD scenarios ship in the repo. All are in `smoke` and `full`; `heroes-advancement` and the two
+feature scenarios are in `long` as well.
 
-| Id                    | What it proves                                                                             |
-| --------------------- | ------------------------------------------------------------------------------------------ |
-| `bridge-health`       | The bridge, dashboard and module agree: health, world, module version, all tools, the kit. |
-| `compendium-monsters` | Every kit monster matches its compendium entry and has a token on the scene.               |
-| `guarded-damage-undo` | A guarded damage change applies, is listed, undoes exactly, and healing stops at the max.  |
-| `scripted-fight`      | A short fight shows up the same way in combat state, play-by-play, session log and stats.  |
-| `player-no-spoilers`  | A hidden token and monster HP never reach the player screen; the player's hero shows HP.   |
-| `heroes-advancement`  | Every hero has what its class and subclass give at its level.                              |
+| Id                     | What it proves                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| `bridge-health`        | The bridge, dashboard and module agree: health, world, module version, all tools, the kit. |
+| `compendium-monsters`  | Every kit monster matches its compendium entry and has a token on the scene.               |
+| `guarded-damage-undo`  | A guarded damage change applies, is listed, undoes exactly, and healing stops at the max.  |
+| `scripted-fight`       | A short fight shows up the same way in combat state, play-by-play, session log and stats.  |
+| `player-no-spoilers`   | A hidden token and monster HP never reach the player screen; the player's hero shows HP.   |
+| `heroes-advancement`   | Every hero has what its class and subclass give at its level.                              |
+| `heroes-features-use`  | Every feature of every hero can be used once with no dialog; the hero is put back.         |
+| `heroes-features-deep` | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.           |
 
 ### heroes-advancement
 
@@ -196,6 +198,69 @@ oracle. The actor (`inspectActor`) is what is checked:
 A Trait choice whose options were all taken already (the species, the background or an earlier
 feat gave them) is not a failure: the system offers nothing and the same would stop a player. The
 step detail says so.
+
+### heroes-features-use
+
+One step per hero. The GM action `inspectFeatures` lists the hero's features; every activity of
+every feature (items of type feat: class, subclass, species, background and feat features) that can
+run with no dialog is used once through `exerciseActor` (op `use`): no dialog, no measured template,
+no roll after the card, no action cost. Each use is judged (`judgeUse` in `lib/features.mjs`):
+
+- the system did not throw or refuse (a refusal because the uses resolve to 0 is CONTENT, any other
+  refusal and any throw is SYSTEM),
+- a chat card was posted,
+- the item's uses went up by what the activity says it consumes (when that is a plain number),
+- the hero is exactly as before: uses, activity uses, slots, hit points, hit dice, effects, new
+  items and the chat messages the use created are put back, and the GM action says when that failed
+  (KIT).
+
+Left out, with the reason in the coverage attachment: activities that need a dialog (summon,
+transform, cast, order) and activities the system says cannot be used. Weapons, equipment and
+spells are not used in this pass. The system's error toasts are collected as notes instead of being
+shown.
+
+### heroes-features-deep
+
+One step per check, over every hero it applies to. The oracle is a rules table written down in
+`lib/features.mjs` (`RULES`, the 2024 SRD class tables), not the imported data, so a wrong import
+shows. Checks that compare a number with a table only look at heroes of a 2024 class (`classRules`
+in the manifest), because a few 2014 tables differ; the general checks (hit dice, spell slots,
+proficiency bonus, rests) look at all heroes.
+
+| Check                | What it proves                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `rage`               | uses by level; with the effect on: damage bonus and the three resistances; one use costs 1 |
+| `wild-shape`         | uses by level and a transform activity                                                     |
+| `channel-divinity`   | cleric and paladin uses by level, back on a long rest                                      |
+| `sneak-attack`       | the dice are ceil(level / 2) d6                                                            |
+| `bardic-inspiration` | the die by level (d6, d8, d10, d12) and uses = Charisma modifier (at least 1)              |
+| `focus-points`       | monk Focus points = level                                                                  |
+| `sorcery-points`     | sorcerer Sorcery points = level                                                            |
+| `pact-magic`         | warlock slots and slot level by level, full at the start, no other slots                   |
+| `action-surge`       | uses by level                                                                              |
+| `lay-on-hands`       | the pool is 5 x level and the feature has a heal activity                                  |
+| `second-wind`        | uses by level and a heal activity                                                          |
+| `arcane-recovery`    | one use, back on a long rest                                                               |
+| `divine-smite`       | the paladin has Paladin's Smite (a Divine Smite spell item is only noted)                  |
+| `cunning-action`     | three bonus action activities                                                              |
+| `extra-attack`       | present from level 5 (fighter: more at 11 and 20), not before                              |
+| `superiority-dice`   | dice by level; skipped when no hero has the feature (the srd profile has none)             |
+| `unarmored-defense`  | AC = 10 + Dexterity + Constitution (barbarian) or Wisdom (monk), with no armor             |
+| `spell-slots`        | every full and half caster against the slot table (2024 half casters cast from level 1)    |
+| `hit-dice`           | one die per level, the class's die size, all unspent                                       |
+| `rest-recovery`      | the top hero of each class: everything spent, then a short and a long rest                 |
+| `proficiency-bonus`  | 2 + floor((level - 1) / 4)                                                                 |
+
+A rest probe spends every use, slot and hit die and sets hit points to 1, takes the rest with no
+dialog, and compares with what the system's own recovery data says should come back: item uses by
+their recovery profile (the first period that matches, "lr" then "sr" for a long rest), pact slots
+on both rests, other slots and hit points on a long rest, hit dice on a long rest only.
+
+A check with no hero it applies to (the kit has no barbarian, say) passes with the detail
+"skipped:" and the reason and is listed under `checksSkipped` in the coverage attachment. A number that
+differs from the table is CONTENT when the actor agrees with the class's own scale value (the
+imported data differs from the rules), SYSTEM when it does not (the system did not follow its own
+data). If a table is wrong, fix the table (KIT) and say so in the pull request.
 
 ### Failure classes
 
@@ -256,7 +321,8 @@ Rules of thumb:
   on the scene, `playerHero(kit)` the one the player owns, `builtHeroes(kit)` the ones that were
   built. A hero with a `buildError` has no actor.
 - **A new GM action** goes into `GM_ACTIONS` in the contract, `lib/gm-actions.mjs` and the fake,
-  all three together.
+  all three together. An action that changes a hero (`exerciseActor`) puts it back and says whether
+  that worked.
 - A `continueOnFail` step lets the scenario go on after a failure. Use it for lists of
   independent checks, such as one step per monster or per hero.
 
@@ -267,6 +333,7 @@ Rules of thumb:
 | The engine, the GM actions, the fake    | `scripts/test-kit/lib/`                                   |
 | The contract everything builds against  | `scripts/test-kit/lib/contract.mjs`                       |
 | The hero checks and failure classes     | `scripts/test-kit/lib/advancement.mjs`                    |
+| The feature checks and rules tables     | `scripts/test-kit/lib/features.mjs`                       |
 | The SRD scenarios (no licensed content) | `scripts/test-kit/scenarios/*.scenario.mjs` (in the repo) |
 | The SRD content profile                 | `scripts/test-kit/data/profiles/srd.json`                 |
 | The monsters and the scene              | `scripts/test-kit/data/smoke-matrix.json`                 |

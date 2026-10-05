@@ -6,7 +6,7 @@
  *
  * Needs a play session: it starts one with mark-play-session and ends it again when it is done.
  */
-import { listOf, monsterOf, waitFor } from '../lib/helpers.mjs';
+import { listOf, monsterOf, tokenHeroes, waitFor } from '../lib/helpers.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
@@ -34,7 +34,7 @@ export default {
   timeoutMs: 180000,
 
   async run(t) {
-    const [hero1, hero2] = t.kit.heroes;
+    const [hero1, hero2] = tokenHeroes(t.kit);
     const ape = monsterOf(t.kit, 'beast');
     const baboon = monsterOf(t.kit, 'cr0');
     const names = [hero1.name, hero2.name, ape.name, baboon.name];

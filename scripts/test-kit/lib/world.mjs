@@ -1,7 +1,8 @@
 /**
- * The kit's own world: create its folder (world.json only; Foundry makes the databases on first
- * launch) and provision it once it runs (module on, kit users, bridge user). Never deletes
- * anything and refuses worlds that are not in KIT_WORLDS.
+ * The kit's own worlds: create a world's folder (world.json only; Foundry makes the databases on
+ * first launch) and provision it once it runs (the bridge module and the profile's modules on,
+ * kit users, bridge user). Never deletes anything and refuses worlds that are not in KIT_WORLDS.
+ * The world and its title come from the content profile (profiles.mjs).
  */
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -14,22 +15,21 @@ const DEFAULT_GM = 'Gamemaster';
 
 /** Same versions as the everyday test world (C:/FoundryTest/data/Data/worlds/ai-tool-test). */
 const WORLD_JSON = {
-  title: 'AI Tool Kit (SRD)',
   system: 'dnd5e',
   coreVersion: '14.368',
   systemVersion: '6.0.5',
   compatibility: { minimum: '14', verified: '14' },
-  description:
-    '<p>Test kit world built from the SRD only. Rebuilt by the kit; never a real campaign.</p>',
+  description: '<p>Test kit world. Rebuilt by the kit; never a real campaign.</p>',
   flags: {},
 };
 
 /**
  * Create the world folder when missing. Never touches an existing world.
- * @param {{dataDir: string, world: string, log?: (m: string) => void}} o
+ * @param {{dataDir: string, profile: {world: string, title: string}, log?: (m: string) => void}} o
  * @returns {{created: boolean, path: string}}
  */
-export function initWorld({ dataDir, world, log = () => {} }) {
+export function initWorld({ dataDir, profile, log = () => {} }) {
+  const world = profile.world;
   if (!KIT_WORLDS.includes(world)) {
     throw new EnvError(`REFUSED: "${world}" is not a kit world (${KIT_WORLDS.join(', ')}).`);
   }
@@ -44,7 +44,7 @@ export function initWorld({ dataDir, world, log = () => {} }) {
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     path.join(dir, 'world.json'),
-    JSON.stringify({ id: world, ...WORLD_JSON }, null, 2) + '\n'
+    JSON.stringify({ id: world, title: profile.title, ...WORLD_JSON }, null, 2) + '\n'
   );
   log(`created world folder: ${dir}`);
   return { created: true, path: dir };
@@ -52,10 +52,11 @@ export function initWorld({ dataDir, world, log = () => {} }) {
 
 /**
  * Provision the running kit world. Idempotent: a second run changes nothing.
- * @param {{foundryUrl: string, world: string, log?: (m: string) => void}} o
- * @returns {Promise<{changed: string[], users: string[], bridgeUser: string}>}
+ * @param {{foundryUrl: string, world: string, modules?: string[], log?: (m: string) => void}} o
+ *   `modules`: the profile's modules; they and the modules they require are enabled with the bridge
+ * @returns {Promise<{changed: string[], users: string[], bridgeUser: string, modules: string[]}>}
  */
-export async function provisionWorld({ foundryUrl, world, log = () => {} }) {
+export async function provisionWorld({ foundryUrl, world, modules = [], log = () => {} }) {
   await assertKitWorld(foundryUrl, world);
   const browser = await launchBrowser();
   const { page } = browser;
@@ -75,23 +76,47 @@ export async function provisionWorld({ foundryUrl, world, log = () => {} }) {
     }
     log(`joined as ${hasKitGm ? KIT_GM_USER : DEFAULT_GM}`);
 
-    const enabled = await page.evaluate(async id => {
-      const config = game.settings.get('core', 'moduleConfiguration') ?? {};
-      const active = Object.entries(config).filter(([, on]) => on);
-      if (config[id] && active.length === 1) return false;
-      await game.settings.set('core', 'moduleConfiguration', { [id]: true });
-      return true;
-    }, MODULE_ID);
-    if (enabled) {
-      changed.push(`enabled ${MODULE_ID}`);
-      log(`enabled ${MODULE_ID}; reloading`);
+    // The bridge, the profile's modules and whatever those require (module.json relationships).
+    const wanted = await page.evaluate(
+      async ({ id, extra }) => {
+        const want = new Set([id, ...extra]);
+        const queue = [...want];
+        while (queue.length) {
+          const next = queue.pop();
+          const mod = game.modules.get(next);
+          if (!mod) throw new Error(`module "${next}" is not installed on this Foundry`);
+          for (const rel of mod.relationships?.requires ?? []) {
+            if (rel.type && rel.type !== 'module') continue;
+            if (!want.has(rel.id)) {
+              want.add(rel.id);
+              queue.push(rel.id);
+            }
+          }
+        }
+        const config = game.settings.get('core', 'moduleConfiguration') ?? {};
+        const missing = [...want].filter(m => !config[m]);
+        if (missing.length) {
+          await game.settings.set('core', 'moduleConfiguration', {
+            ...config,
+            ...Object.fromEntries([...want].map(m => [m, true])),
+          });
+        }
+        return { want: [...want], missing };
+      },
+      { id: MODULE_ID, extra: modules }
+    );
+    if (wanted.missing.length) {
+      changed.push(`enabled ${wanted.missing.join(', ')}`);
+      log(`enabled ${wanted.missing.join(', ')}; reloading`);
       await page.reload({ waitUntil: 'domcontentloaded' });
-      await waitForGame(page);
+      await waitForGame(page, 300000);
     }
 
     const result = await page.evaluate(
-      async ({ id, gmName, playerName }) => {
-        if (!game.modules.get(id)?.active) throw new Error(`${id} is not active after enabling it`);
+      async ({ id, gmName, playerName, want }) => {
+        for (const m of want) {
+          if (!game.modules.get(m)?.active) throw new Error(`${m} is not active after enabling it`);
+        }
         const done = [];
         const ensure = async (name, role) => {
           const user = game.users.getName(name);
@@ -116,12 +141,12 @@ export async function provisionWorld({ foundryUrl, world, log = () => {} }) {
           users: game.users.map(u => `${u.name} (role ${u.role})`),
         };
       },
-      { id: MODULE_ID, gmName: KIT_GM_USER, playerName: KIT_PLAYER_USER }
+      { id: MODULE_ID, gmName: KIT_GM_USER, playerName: KIT_PLAYER_USER, want: wanted.want }
     );
     changed.push(...result.done);
     if (result.bridgeUser !== KIT_GM_USER) throw new Error('the bridge user setting did not stick');
     log(`users: ${result.users.join(', ')}; bridge user: ${result.bridgeUser}`);
-    return { changed, users: result.users, bridgeUser: result.bridgeUser };
+    return { changed, users: result.users, bridgeUser: result.bridgeUser, modules: wanted.want };
   } finally {
     await browser.close();
   }

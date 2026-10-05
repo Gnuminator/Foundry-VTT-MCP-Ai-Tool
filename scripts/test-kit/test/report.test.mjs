@@ -101,7 +101,7 @@ test('summarize counts fail and error as failed', () => {
 
 test('makeReport has the KitReport shape', () => {
   const r = report();
-  assert.equal(r.version, 1);
+  assert.equal(r.version, 2);
   assert.equal(r.run.durationMs, 3000);
   assert.equal(r.run.gitSha, 'abc1234');
   assert.equal(r.run.node, process.version);
@@ -154,4 +154,52 @@ test('newRunDir creates <kitHome>/reports/<stamp>-<size>', () => {
   const again = newRunDir(home, 'full', now);
   assert.notEqual(again, dir);
   assert.ok(existsSync(again));
+});
+
+/** A report with a build manifest that has coverage and build console errors. */
+function reportWithBuild() {
+  const r = report();
+  r.build = /** @type {any} */ ({
+    version: 2,
+    world: 'ai-tool-kit-srd',
+    profile: 'srd',
+    heroes: [{ name: 'a' }, { name: 'b', buildError: 'broke' }],
+    coverage: {
+      classes: { found: 12, built: 12 },
+      subclasses: { found: 16, built: 15, failed: ['Some <Path>'] },
+      heroes: 63,
+    },
+    consoleErrors: [{ at: 't1', message: 'canvas <oops>', source: 'foundry.mjs:1' }],
+  });
+  return r;
+}
+
+test('the report shows the profile, a Coverage section and the build console errors', () => {
+  const md = renderMarkdown(reportWithBuild());
+  assert.match(md, /- Profile: srd/);
+  assert.match(md, /## Coverage/);
+  assert.match(md, /- Classes: 12 built of 12 found/);
+  assert.match(md, /- Subclasses: 15 built of 16 found/);
+  assert.match(md, /- Subclasses that failed: Some <Path>/);
+  assert.match(md, /- Heroes: 63 built, 1 failed/);
+  assert.match(md, /## Build console errors\n\n- t1 foundry.mjs:1: canvas <oops>/);
+  const html = renderHtml(reportWithBuild());
+  assert.match(html, /<span>Profile srd<\/span>/);
+  assert.match(html, /<h2>Coverage<\/h2><table>/);
+  assert.match(html, /<th>Classes<\/th><td>12 built of 12 found<\/td>/);
+  assert.match(
+    html,
+    /<h2>Build console errors<\/h2><pre>t1 foundry.mjs:1: canvas &lt;oops&gt;<\/pre>/
+  );
+  assert.ok(!html.includes('canvas <oops>'));
+});
+
+test('a report without a build has no Coverage or Profile line', () => {
+  const md = renderMarkdown(report());
+  assert.ok(!md.includes('## Coverage'));
+  assert.ok(!md.includes('- Profile:'));
+  assert.ok(!renderHtml(report()).includes('<h2>Coverage</h2>'));
+  const quiet = reportWithBuild();
+  /** @type {any} */ (quiet.build).consoleErrors = [];
+  assert.match(renderMarkdown(quiet), /## Build console errors\n\nNone reported\./);
 });

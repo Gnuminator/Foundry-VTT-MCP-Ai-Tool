@@ -803,10 +803,14 @@ async function createHero(args) {
     klass.flags = { ...(klass.flags ?? {}), ...kitFlags };
     await runManager(actor, klass, 'class');
     await auditTraits(actor);
+    // A new hero starts at full health with every spell slot ready.
     const max = actor.system.attributes.hp.max;
-    if (actor.system.attributes.hp.value !== max) {
-      await actor.update({ 'system.attributes.hp.value': max });
+    const fill = {};
+    if (actor.system.attributes.hp.value !== max) fill['system.attributes.hp.value'] = max;
+    for (const [key, slot] of Object.entries(actor.system.spells ?? {})) {
+      if (slot.max && slot.value !== slot.max) fill[`system.spells.${key}.value`] = slot.max;
     }
+    if (Object.keys(fill).length) await actor.update(fill);
     const classItem = actor.itemTypes.class[0];
     if (!classItem) throw new Error('createHero: the class item was not added');
     const subclassItem = actor.itemTypes.subclass[0] ?? null;
@@ -1135,45 +1139,75 @@ async function exerciseActor(args) {
     };
   };
 
+  const restoreErrors = [];
+  const attempt = async (label, fn) => {
+    try {
+      await fn();
+    } catch (err) {
+      restoreErrors.push(`${label}: ${err?.message ?? err}`);
+    }
+  };
+
   const restore = async before => {
-    const now = state();
-    const newItems = Object.keys(now.items).filter(id => !(id in before.items));
-    if (newItems.length) await actor.deleteEmbeddedDocuments('Item', newItems);
-    const newEffects = now.effects.filter(id => !before.effects.includes(id));
-    if (newEffects.length) await actor.deleteEmbeddedDocuments('ActiveEffect', newEffects);
-    const newMessages = now.messages.filter(id => !before.messages.includes(id));
-    if (newMessages.length) await ChatMessage.deleteDocuments(newMessages);
-    for (const [id, was] of Object.entries(before.items)) {
-      const item = actor.items.get(id);
-      const cur = now.items[id];
-      if (!item || !cur) continue;
+    // Hit points, slots and exhaustion first: the system adds and removes its own effects (the
+    // bloodied status) when hit points change, so what is left over is read after it has settled.
+    await attempt('actor', async () => {
+      const now = state();
       const update = {};
-      if (was.spent !== null && cur.spent !== was.spent) update['system.uses.spent'] = was.spent;
-      if (was.quantity !== null && cur.quantity !== was.quantity)
-        update['system.quantity'] = was.quantity;
-      for (const [aid, spent] of Object.entries(was.activities)) {
-        if (spent !== null && cur.activities[aid] !== spent)
-          update[`system.activities.${aid}.uses.spent`] = spent;
+      for (const [key, value] of Object.entries(before.spells)) {
+        if (now.spells[key] !== value) update[`system.spells.${key}.value`] = value;
       }
-      if (was.hd !== null && cur.hd !== was.hd) update['system.hd.spent'] = was.hd;
-      if (Object.keys(update).length) await item.update(update);
-      const effects = Object.entries(was.effects)
-        .filter(
-          ([eid, disabled]) =>
-            item.effects.get(eid) && !!item.effects.get(eid).disabled !== disabled
-        )
-        .map(([eid, disabled]) => ({ _id: eid, disabled }));
-      if (effects.length) await item.updateEmbeddedDocuments('ActiveEffect', effects);
-    }
-    const update = {};
-    for (const [key, value] of Object.entries(before.spells)) {
-      if (now.spells[key] !== value) update[`system.spells.${key}.value`] = value;
-    }
-    if (now.hp.value !== before.hp.value) update['system.attributes.hp.value'] = before.hp.value;
-    if (now.hp.temp !== before.hp.temp) update['system.attributes.hp.temp'] = before.hp.temp;
-    if (now.exhaustion !== before.exhaustion)
-      update['system.attributes.exhaustion'] = before.exhaustion;
-    if (Object.keys(update).length) await actor.update(update);
+      if (now.hp.value !== before.hp.value) update['system.attributes.hp.value'] = before.hp.value;
+      if (now.hp.temp !== before.hp.temp) update['system.attributes.hp.temp'] = before.hp.temp;
+      if (now.exhaustion !== before.exhaustion)
+        update['system.attributes.exhaustion'] = before.exhaustion;
+      if (Object.keys(update).length) await actor.update(update);
+      // Wait (up to 3 s) until the bloodied status is as it was: the system adds or removes it by itself.
+      const bloodied = () => actor.effects.some(e => e.statuses?.has('bloodied'));
+      const wasBloodied = actor.effects.some(
+        e => before.effects.includes(e.id) && e.statuses?.has('bloodied')
+      );
+      for (let i = 0; i < 30 && bloodied() !== wasBloodied; i += 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    });
+    await attempt('items', async () => {
+      const now = state();
+      for (const [id, was] of Object.entries(before.items)) {
+        const item = actor.items.get(id);
+        const cur = now.items[id];
+        if (!item || !cur) continue;
+        const update = {};
+        if (was.spent !== null && cur.spent !== was.spent) update['system.uses.spent'] = was.spent;
+        if (was.quantity !== null && cur.quantity !== was.quantity)
+          update['system.quantity'] = was.quantity;
+        for (const [aid, spent] of Object.entries(was.activities)) {
+          if (spent !== null && cur.activities[aid] !== spent)
+            update[`system.activities.${aid}.uses.spent`] = spent;
+        }
+        if (was.hd !== null && cur.hd !== was.hd) update['system.hd.spent'] = was.hd;
+        if (Object.keys(update).length) await item.update(update);
+        const effects = Object.entries(was.effects)
+          .filter(
+            ([eid, disabled]) =>
+              item.effects.get(eid) && !!item.effects.get(eid).disabled !== disabled
+          )
+          .map(([eid, disabled]) => ({ _id: eid, disabled }));
+        if (effects.length) await item.updateEmbeddedDocuments('ActiveEffect', effects);
+      }
+    });
+    await attempt('new items', async () => {
+      const ids = actor.items.filter(i => !(i.id in before.items)).map(i => i.id);
+      if (ids.length) await actor.deleteEmbeddedDocuments('Item', ids);
+    });
+    await attempt('new effects', async () => {
+      const ids = actor.effects.filter(e => !before.effects.includes(e.id)).map(e => e.id);
+      if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
+    });
+    await attempt('new messages', async () => {
+      const ids = game.messages.filter(m => !before.messages.includes(m.id)).map(m => m.id);
+      if (ids.length) await ChatMessage.deleteDocuments(ids);
+    });
   };
 
   /** What differs between two states, in words (empty when they are equal). */
@@ -1286,9 +1320,16 @@ async function exerciseActor(args) {
         return out;
       };
       const was = read();
-      await item.updateEmbeddedDocuments('ActiveEffect', [
-        { _id: effect.id, disabled: !args.enabled },
-      ]);
+      // An effect on an item is applied to the actor as a copy (what the chat card's apply
+      // button does); the copy is deleted again by the restore.
+      if (args.enabled) {
+        const data = effect.toObject();
+        delete data._id;
+        data.origin = item.uuid;
+        data.disabled = false;
+        data.transfer = false;
+        await actor.createEmbeddedDocuments('ActiveEffect', [data]);
+      }
       result = { before: was, during: read() };
     } else if (args.op === 'rest') {
       const summary = () => ({
@@ -1343,7 +1384,7 @@ async function exerciseActor(args) {
     await restore(before);
   }
   const final = state();
-  const differences = drift(before, final);
+  const differences = [...restoreErrors.map(e => `restore failed, ${e}`), ...drift(before, final)];
   return { ...result, restored: differences.length === 0, drift: differences };
 }
 

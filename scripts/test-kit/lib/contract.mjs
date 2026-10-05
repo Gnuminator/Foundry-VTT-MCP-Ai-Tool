@@ -159,7 +159,8 @@ export const GM_ACTIONS = {
    *   restored, drift}. Uses one activity with no dialog, no template, no roll and no action cost;
    *   the system's error notifications are collected in `notes`.
    * - ({actorId, op: 'effect', itemId, effectId, enabled, read: [path]}) => {before, during, restored, drift}, each
-   *   `{[path]: {value, resolved?}}` read from the actor with the effect on or off (a Set comes back as an array).
+   *   `{[path]: {value, resolved?}}` read from the actor before and with a copy of the effect on the actor (an item's
+   *   effect applies to the actor as a copy, like the chat card's apply button; a Set comes back as an array).
    * - ({actorId, op: 'rest', type: 'short'|'long'}) => {type, afterSpend, afterRest, restored, drift}: every use,
    *   slot and hit die is spent and hit points set to 1, the rest is taken with no dialog, and both
    *   states are reported as {items: [{id, name, max, spent, recovery}], spells, hp, hd}.

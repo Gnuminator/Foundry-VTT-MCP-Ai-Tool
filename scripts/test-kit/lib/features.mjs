@@ -426,8 +426,7 @@ export function judgeUse({ item, activity }, result) {
   } else if (!result.ok) {
     const text = errors.join(' / ') || 'the use returned nothing and gave no message';
     const max = item.uses?.max;
-    const dry =
-      /uses|enough|available/i.test(text) && (max === 0 || max === null || max === undefined);
+    const dry = /uses|enough|available/i.test(text) && !!item.uses && max === 0;
     bad(
       problems,
       dry ? 'CONTENT' : 'SYSTEM',
@@ -555,7 +554,9 @@ export const DEEP_CHECKS = [
         stepValue(RULES.rageUses, hero.level),
         scaleOf(facts, 'barbarian', 'rages')
       );
+      // The effect data uses the old key; dnd5e 6 maps it to system.rolls.damage.mwak.bonus.
       const damageKey = 'system.bonuses.mwak.damage';
+      const damageRead = 'system.rolls.damage.mwak.bonus';
       const resistKey = 'system.traits.dr.value';
       const effect = item.effects.find(e => e.changes.some(c => c.key === damageKey));
       if (!effect) {
@@ -572,10 +573,10 @@ export const DEEP_CHECKS = [
           itemId: item.id,
           effectId: effect.id,
           enabled: true,
-          read: [damageKey, resistKey],
+          read: [damageRead, resistKey],
         });
         const want = stepValue(RULES.rageDamage, hero.level);
-        const damage = probe.during?.[damageKey]?.resolved;
+        const damage = probe.during?.[damageRead]?.resolved;
         compareRule(
           out.problems,
           'Rage damage bonus',
@@ -1026,7 +1027,9 @@ export const DEEP_CHECKS = [
       const other = facts.abilities?.[barbarian ? 'con' : 'wis']?.mod ?? 0;
       const want = 10 + dex + other;
       const calc = barbarian ? 'unarmoredBarb' : 'unarmoredMonk';
-      if (facts.ac?.calc !== calc) {
+      // The system names the best formula, and the plain unarmored one wins a tie.
+      const tie = other <= 0 && facts.ac?.calc === 'unarmored';
+      if (facts.ac?.calc !== calc && !tie) {
         bad(
           out.problems,
           'SYSTEM',

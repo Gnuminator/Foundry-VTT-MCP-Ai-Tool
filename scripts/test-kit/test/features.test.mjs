@@ -402,11 +402,11 @@ const rageCall =
     if (args.op === 'effect') {
       return {
         before: {
-          'system.bonuses.mwak.damage': { value: null },
+          'system.rolls.damage.mwak.bonus': { value: null },
           'system.traits.dr.value': { value: [] },
         },
         during: {
-          'system.bonuses.mwak.damage': { value: '+2', resolved: o.damage ?? 2 },
+          'system.rolls.damage.mwak.bonus': { value: '+2', resolved: o.damage ?? 2 },
           'system.traits.dr.value': { value: o.resist ?? ['bludgeoning', 'piercing', 'slashing'] },
         },
         restored: o.restored ?? true,

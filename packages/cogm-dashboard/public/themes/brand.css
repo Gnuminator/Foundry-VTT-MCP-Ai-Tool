@@ -1,0 +1,130 @@
+/* The README brand: the neutral default theme (D-080, docs/design/BRAND-BRIEF.md).
+   Near-black base, off-white lines, arcane blue leads, one Foundry-orange spark (in the mark
+   only), Space Grotesk for display text and JetBrains Mono for the technical bits. Glow is the
+   only effect, and only on the active thing. The palette tokens live in styles.css :root; this
+   file adds the fonts, the mark's tokens and the neutral-only touches. The Veil (veil.css,
+   loaded after this file) overrides the fonts and the mark's colours for its own look. */
+
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('../fonts/space-grotesk-500.woff2') format('woff2');
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('../fonts/space-grotesk-600.woff2') format('woff2');
+  font-weight: 600 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('../fonts/jetbrains-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('../fonts/jetbrains-mono-500.woff2') format('woff2');
+  font-weight: 500 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, 'Liberation Mono', monospace;
+  /* The mark (header): lines, the active node and its glow, the one spark. */
+  --mark-line: #e6e9ef;
+  --mark-node: var(--accent, #4ea1ff);
+  --mark-spark: #fe6a1f;
+}
+:root[data-theme='veil'] {
+  --mark-line: var(--veil-bone);
+  --mark-node: var(--veil-silver);
+  --mark-spark: var(--veil-lamp);
+}
+
+/* ---- The mark in the header (replaces the old emoji) ---- */
+.brand-mark {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.brand-mark .mark-glow {
+  fill: var(--mark-node);
+  opacity: 0.22;
+  filter: blur(4px);
+}
+.brand-mark .mark-hex,
+.brand-mark .mark-edge,
+.brand-mark .mark-ring {
+  fill: none;
+  stroke: var(--mark-line);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.brand-mark .mark-hex {
+  stroke-opacity: 0.8;
+}
+.brand-mark .mark-spark {
+  fill: none;
+  stroke: var(--mark-spark);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.brand-mark .mark-node {
+  fill: var(--mark-node);
+}
+
+/* ---- Neutral only: display type, mono numbers, the glow on the active control ---- */
+:root:not([data-theme='veil']) .brand-icon {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  width: 2.4rem;
+  height: 2.4rem;
+}
+:root:not([data-theme='veil']) .brand h1 {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+:root:not([data-theme='veil']) :is(h1, h2, h3, h4),
+:root:not([data-theme='veil']) :is(.moment-tab, .btn, .layout-switch button, .feature-pill) {
+  font-family: var(--font-display);
+}
+:root:not([data-theme='veil']) :is(.pane-meta, .event-meta, .hp-text, .init-badge) {
+  font-family: var(--font-mono);
+}
+:root:not([data-theme='veil']) .moment-tab[aria-pressed='true'],
+:root:not([data-theme='veil']) .layout-switch button[aria-pressed='true'] {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 0 14px -6px var(--accent);
+}
+
+/* ---- Neutral only: the banner's ground (a faint hex grid under a soft arcane-blue glow) ---- */
+:root:not([data-theme='veil']) body {
+  background:
+    radial-gradient(
+      1100px 620px at 82% -12%,
+      color-mix(in srgb, var(--accent) 10%, transparent),
+      transparent 62%
+    ),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50V16L28 0l28 16v34L28 66zm0 0v34' fill='none' stroke='%23e6e9ef' stroke-opacity='0.035' stroke-width='1'/%3E%3C/svg%3E"),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* ---- The wordmark: "Foundry AI Tool", AI in arcane blue; the tagline in mono ---- */
+.wordmark-ai {
+  color: var(--accent);
+}
+:root:not([data-theme='veil']) .subtitle {
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+}

@@ -21,13 +21,15 @@ jobs:
         uses: lycheeverse/lychee-action@v2
         with:
           fail: true
-          # History is never rewritten; .claude holds Claude's own skills; the vault repo is private.
+          # History is never rewritten; .claude holds Claude's own skills; the vault repo is private;
+          # raspberrypi.com answers link checkers with 403 (it opens fine in a browser).
           args: >-
             --no-progress
             --exclude-loopback
             --exclude-path docs/history
             --exclude-path .claude
             --exclude 'github\.com/Gnuminator/obsidian-vault'
+            --exclude 'raspberrypi\.com'
             --accept 200,204,206,429
             --max-retries 3
             './**/*.md'

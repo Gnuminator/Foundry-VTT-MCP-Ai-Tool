@@ -56,16 +56,15 @@ byte for byte the same as on the PC.
 | The service            | `foundry-ai-tool-discord-bot.service` (runs as `foundry`)                    |
 | Recordings             | `/var/lib/foundry-ai-tool/recordings` (foundry:foundry, 2770)                |
 
-Install or update (Claude over `ssh foundry-pi`; the user pastes the token into the env file):
-
-1. On the PC: `npm run build -w @gnuminator/discord-bot`, then copy `packages/discord-bot/dist`
-   and `packages/discord-bot/package.json` to `/opt/foundry-ai-tool/discord-bot`.
-2. On the Pi, in that folder: `/opt/node24/bin/npm install --omit=dev`.
-3. `deploy/discord-bot.env.example` becomes `/etc/foundry-ai-tool/discord-bot.env`; the user puts
-   the token in. `deploy/foundry-ai-tool-discord-bot.service` goes to `/etc/systemd/system/`, then
-   `systemctl daemon-reload && systemctl enable --now foundry-ai-tool-discord-bot`.
-4. Check: `systemctl status foundry-ai-tool-discord-bot` and `journalctl -u
-foundry-ai-tool-discord-bot` show "Ready"; `/record status` answers in Discord.
+Install or update: Pi setup stage 8 (`scripts/pi/remote/8-recorder.sh`, run by Claude over
+`ssh foundry-pi`). It copies the bot from the tool build stage 5 made (same version as the bridge),
+pins its dependencies to the versions that build installed, runs `npm install --omit=dev`, makes the
+recordings folder, writes `discord-bot.env` from `deploy/discord-bot.env.example` when it is
+missing and installs `deploy/foundry-ai-tool-discord-bot.service`. The service stays off until the
+token is in: the user runs `scripts/pi/set-discord-token.ps1` on the PC, which asks for the token
+(and optionally the server id) without showing it, writes it on the Pi and starts the bot. Check:
+`systemctl status foundry-ai-tool-discord-bot`, the journal's "Logged in as" line, and
+`/record status` in Discord. After a new stage 5 build, run stage 8 again.
 
 `systemctl stop` (or a restart for an update) stops a running recording cleanly and converts it.
 

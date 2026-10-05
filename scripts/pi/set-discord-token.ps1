@@ -40,7 +40,9 @@ if ($guild -and $guild -notmatch '^[0-9]{15,22}$') {
 }
 
 # Both values were checked above, so single quotes hold them safely. LF line ends for bash.
-$script = ($lib + "`nTOKEN_IN='$token'`nGUILD_IN='$guild'`n" + $body) -replace "`r`n", "`n"
+# The final `exit` stops bash before the CRLF that PowerShell appends to piped native input (a lone
+# CR line would fail as a command under set -e).
+$script = ($lib + "`nTOKEN_IN='$token'`nGUILD_IN='$guild'`n" + $body + "`nexit 0`n") -replace "`r`n", "`n"
 try {
   $script | ssh $PiHost 'bash -s'
   if ($LASTEXITCODE -ne 0) { throw "ssh $PiHost failed (exit $LASTEXITCODE); see the lines above" }

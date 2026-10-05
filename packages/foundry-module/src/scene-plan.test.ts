@@ -115,6 +115,20 @@ describe('planSceneChange: template', () => {
     expect(scene.templates.size).toBe(0);
   });
 
+  it("defaults the fill colour to the user's colour: a v14 Color object (css), a string, else red", async () => {
+    sceneWith([]);
+    const req = { action: 'template', shape: 'circle', distance: 5, x: 1, y: 1 };
+    const colourOf = async (): Promise<unknown> =>
+      ((await planSceneChange(req)).ops[0] as any).data.fillColor;
+
+    g.game.user.color = { css: '#112233' };
+    expect(await colourOf()).toBe('#112233');
+    g.game.user.color = '#445566';
+    expect(await colourOf()).toBe('#445566');
+    g.game.user.color = undefined;
+    expect(await colourOf()).toBe('#ff0000');
+  });
+
   it("derives the origin from a named token's center", async () => {
     // token at (200,200), width/height 1, grid size 100 -> center (250,250)
     sceneWith([makeToken({ id: 't1', name: 'Mage', x: 200, y: 200 })]);
@@ -422,14 +436,26 @@ describe('planSceneChange: clear-templates', () => {
     expect(plan.ops).toEqual([{ kind: 'delete', uuid: 'Scene.scene1.Region.ours' }]);
   });
 
-  it('on Foundry 14 a templateId may name any Region of the scene', async () => {
+  it("on Foundry 14 a templateId may name this tool's flagged Region", async () => {
     asFoundry14();
     const scene = sceneWith([]);
-    await scene.createEmbeddedDocuments('Region', [{ id: 'r1' }]);
+    await scene.createEmbeddedDocuments('Region', [
+      { id: 'r1', flags: { 'foundry-mcp-bridge': { template: { shape: 'circle', distance: 5 } } } },
+    ]);
 
     const plan = await planSceneChange({ action: 'clear-templates', templateId: 'r1' });
 
     expect(plan.ops).toEqual([{ kind: 'delete', uuid: 'Scene.scene1.Region.r1' }]);
+  });
+
+  it('on Foundry 14 a templateId naming a hand-made Region is refused', async () => {
+    asFoundry14();
+    const scene = sceneWith([]);
+    await scene.createEmbeddedDocuments('Region', [{ id: 'gm-made', name: 'Lair', flags: {} }]);
+
+    await expect(
+      planSceneChange({ action: 'clear-templates', templateId: 'gm-made' })
+    ).rejects.toThrow('Region gm-made is not a template placed by the AI Tool.');
   });
 });
 
@@ -449,7 +475,11 @@ describe('planSceneChange: mood', () => {
       {
         kind: 'update',
         uuid: 'Scene.scene1',
-        changes: { 'environment.darknessLevel': 1, 'environment.globalLight.enabled': true },
+        changes: {
+          'environment.darknessLevel': 1,
+          'environment.darknessLock': false,
+          'environment.globalLight.enabled': true,
+        },
       },
     ]);
     expect(scene.environment).toBeUndefined(); // nothing written at plan time
@@ -474,10 +504,19 @@ describe('planSceneChange: mood', () => {
     });
   });
 
-  it('does not send darknessLock when the scene is not locked', async () => {
+  it('resends darknessLock false when the scene is not locked (a no-op)', async () => {
     sceneWith([]);
     const plan = await planSceneChange({ action: 'mood', darkness: 0.4 });
-    expect((plan.ops[0] as any).changes).toEqual({ 'environment.darknessLevel': 0.4 });
+    expect((plan.ops[0] as any).changes).toEqual({
+      'environment.darknessLevel': 0.4,
+      'environment.darknessLock': false,
+    });
+  });
+
+  it('light only: never sends darknessLock', async () => {
+    sceneWith([]);
+    const plan = await planSceneChange({ action: 'mood', globalLight: true });
+    expect((plan.ops[0] as any).changes).not.toHaveProperty('environment.darknessLock');
   });
 
   it('throws when neither darkness nor globalLight is given', async () => {
@@ -516,6 +555,18 @@ describe('planSceneChange: note', () => {
       },
     ]);
     expect(scene.notes.size).toBe(0);
+  });
+
+  it('rounds x/y to integers and raises iconSize to at least 32 (Note schema)', async () => {
+    sceneWith([]);
+    const plan = await planSceneChange({
+      action: 'note',
+      x: 120.6,
+      y: 240.4,
+      iconSize: 10,
+      text: 'Pin',
+    });
+    expect((plan.ops[0] as any).data).toMatchObject({ x: 121, y: 240, iconSize: 32 });
   });
 
   it("uses a named token's position (x/y, not center)", async () => {
@@ -607,6 +658,12 @@ describe('planSceneChange: loot', () => {
   const addActor = (id: string, name: string, currency: Record<string, number> = {}): any =>
     world.addActor({ id, name, uuid: `Actor.${id}`, system: { currency } });
 
+  /** A resolved document as `fromUuid` returns it. */
+  const resolved = (data: Record<string, unknown>, documentName = 'Item'): unknown => ({
+    documentName,
+    toObject: (): Record<string, unknown> => ({ ...data }),
+  });
+
   it('throws when a named target cannot be resolved', async () => {
     await expect(planSceneChange({ action: 'loot', targetCharacter: 'ghost' })).rejects.toThrow(
       'Target not found: ghost'
@@ -643,12 +700,21 @@ describe('planSceneChange: loot', () => {
 
   it('plans an Item create per resolvable UUID (toObject minus _id) and lists the rest as skipped', async () => {
     addActor('a1', 'Fighter');
-    g.fromUuid = async (uuid: string) =>
+    g.fromUuid = (uuid: string): Promise<unknown> =>
       uuid === 'Compendium.x.y'
-        ? { toObject: () => ({ _id: 'orig', name: 'Longsword', type: 'weapon' }) }
+        ? Promise.resolve(
+            resolved({
+              _id: 'orig',
+              name: 'Longsword',
+              type: 'weapon',
+              folder: 'f1',
+              sort: 5,
+              ownership: { default: 3 },
+            })
+          )
         : uuid === 'Compendium.boom'
           ? Promise.reject(new Error('bad uuid'))
-          : null;
+          : Promise.resolve(null);
 
     const plan = await planSceneChange({
       action: 'loot',
@@ -671,7 +737,8 @@ describe('planSceneChange: loot', () => {
 
   it('combines coins and items in the line: "5 gp + Longsword"', async () => {
     addActor('a1', 'Fighter');
-    g.fromUuid = async () => ({ toObject: () => ({ _id: 'orig', name: 'Longsword' }) });
+    g.fromUuid = (): Promise<unknown> =>
+      Promise.resolve(resolved({ _id: 'orig', name: 'Longsword' }));
 
     const plan = await planSceneChange({
       action: 'loot',
@@ -683,6 +750,61 @@ describe('planSceneChange: loot', () => {
 
     expect(plan.summary).toBe('Loot for Fighter: 5 gp + Longsword');
     expect(plan.ops.map(o => o.kind)).toEqual(['update', 'create']);
+  });
+
+  it("builds the item data with game.items.fromCompendium when it exists (Foundry's own clean-up)", async () => {
+    addActor('a1', 'Fighter');
+    const doc = resolved({ _id: 'orig', name: 'Dagger' });
+    g.fromUuid = (): Promise<unknown> => Promise.resolve(doc);
+    const fromCompendium = vi.fn((d: any): unknown => ({
+      name: d.toObject().name,
+      _stats: { compendiumSource: 'Compendium.x.y' },
+    }));
+    g.game.items.fromCompendium = fromCompendium;
+
+    const plan = await planSceneChange({
+      action: 'loot',
+      targetCharacter: 'Fighter',
+      itemUuids: ['Compendium.x.y'],
+      announce: false,
+    });
+
+    expect(fromCompendium).toHaveBeenCalledWith(doc);
+    expect(plan.ops).toEqual([
+      {
+        kind: 'create',
+        documentName: 'Item',
+        parentUuid: 'Actor.a1',
+        data: { name: 'Dagger', _stats: { compendiumSource: 'Compendium.x.y' } },
+      },
+    ]);
+  });
+
+  it('skips a UUID that resolves to something other than an Item', async () => {
+    addActor('a1', 'Fighter');
+    g.fromUuid = (): Promise<unknown> => Promise.resolve(resolved({ name: 'Goblin' }, 'Actor'));
+
+    const plan = await planSceneChange({
+      action: 'loot',
+      targetCharacter: 'Fighter',
+      currency: { gp: 1 },
+      itemUuids: ['Actor.goblin'],
+      announce: false,
+    });
+
+    expect(plan.ops.map(o => o.kind)).toEqual(['update']);
+    expect(plan.skippedItems).toEqual(['Actor.goblin (not an Item)']);
+  });
+
+  it('reports itemUuids given without a target character instead of dropping them', async () => {
+    const plan = await planSceneChange({
+      action: 'loot',
+      currency: { gp: 5 },
+      itemUuids: ['Compendium.x.y'],
+    });
+
+    expect(plan.ops).toHaveLength(1); // only the chat card
+    expect(plan.skippedItems).toEqual(['Compendium.x.y (no target character)']);
   });
 
   it('suppresses the chat card when announce is false', async () => {

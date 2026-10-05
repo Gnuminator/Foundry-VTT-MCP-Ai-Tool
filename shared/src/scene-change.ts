@@ -128,7 +128,7 @@ export interface SceneChangePlan {
   sceneId?: string;
   /** template: the tokens inside the area at plan time. */
   tokensInside?: SceneTokenInside[];
-  /** loot: item UUIDs that did not resolve and were left out. */
+  /** loot: item UUIDs left out (did not resolve, are not an Item, or no target character), each with its reason when it is not the plain UUID. */
   skippedItems?: string[];
 }
 

@@ -82,6 +82,17 @@ function quoted(name: unknown): string {
 // ---------------------------------------------------------------------------
 
 /**
+ * The acting user's colour as a CSS string. Foundry 14's `User#color` is a Color
+ * object (use its `css`); Foundry 13 stores a plain string.
+ */
+function userColor(): string | undefined {
+  const color = (game.user as { color?: unknown } | undefined)?.color;
+  const css =
+    color !== null && typeof color === 'object' ? (color as { css?: unknown }).css : undefined;
+  return nonEmpty(css) ?? nonEmpty(color);
+}
+
+/**
  * Plan an AoE template on the viewed scene. Origin is explicit `x`/`y` pixels, or
  * the center of a named token. Each shape fills in its own defaults (cone angle,
  * ray width, and a 45 degree rect direction when none is given). Foundry 13
@@ -113,8 +124,7 @@ function planTemplate(request: SceneTemplateRequest): SceneChangePlan {
       ? (request.angle ?? (CONFIG as SceneDoc).MeasuredTemplate?.defaults?.angle ?? 53.13)
       : undefined;
   const width = request.shape === 'ray' ? (request.width ?? 5) : undefined;
-  const fillColor =
-    nonEmpty(request.fillColor) ?? nonEmpty((game.user as SceneDoc)?.color) ?? '#ff0000';
+  const fillColor = nonEmpty(request.fillColor) ?? userColor() ?? '#ff0000';
 
   let op: GuardedOp;
   if (docType === 'MeasuredTemplate') {
@@ -178,7 +188,7 @@ function planTemplate(request: SceneTemplateRequest): SceneChangePlan {
 /**
  * Plan removing an AoE template from the viewed scene by id, or all of this
  * tool's own templates when `all` is set. On Foundry 14 a template is a Region:
- * `all` only ever takes Regions carrying this tool's flag
+ * `all` and `templateId` only ever take Regions carrying this tool's flag
  * (`isToolTemplateRegion`), never a hand-made GM region.
  */
 function planClearTemplates(request: SceneClearTemplatesRequest): SceneChangePlan {
@@ -197,6 +207,14 @@ function planClearTemplates(request: SceneClearTemplatesRequest): SceneChangePla
   } else if (request.templateId) {
     const one = collection.find((t: SceneDoc) => t.id === request.templateId);
     if (!one) throw new Error(`Template not found: ${request.templateId}`);
+    // On Foundry 14 a Region is only a template when this tool placed it; a
+    // hand-made GM region (a lair, a trap zone) is never cleared by id either.
+    if (
+      docType !== 'MeasuredTemplate' &&
+      !isToolTemplateRegion(one as Parameters<typeof isToolTemplateRegion>[0])
+    ) {
+      throw new Error(`Region ${request.templateId} is not a template placed by the AI Tool.`);
+    }
     found = [one];
   } else {
     throw new Error('Provide templateId or set all=true.');
@@ -228,7 +246,9 @@ function planClearTemplates(request: SceneClearTemplatesRequest): SceneChangePla
  * with `environment.darknessLock` true unless the same update also sets
  * `environment.darknessLock` explicitly. Re-sending the scene's current lock
  * value alongside a darkness change is a no-op when unlocked, so it is
- * included whenever the scene has it set.
+ * always included whenever darkness is set, with the scene's current value
+ * (true or false), so a locked scene's darkness change takes effect and an
+ * unlocked scene's is unchanged.
  */
 function planMood(request: SceneMoodRequest): SceneChangePlan {
   const scene = requireCurrentScene();
@@ -237,9 +257,7 @@ function planMood(request: SceneMoodRequest): SceneChangePlan {
   if (request.darkness != null) {
     const darkness = Math.max(0, Math.min(1, request.darkness));
     changes['environment.darknessLevel'] = darkness;
-    if (scene.environment?.darknessLock) {
-      changes['environment.darknessLock'] = scene.environment.darknessLock;
-    }
+    changes['environment.darknessLock'] = Boolean(scene.environment?.darknessLock);
     parts.push(`darkness ${darkness}`);
   }
   if (request.globalLight != null) {
@@ -288,10 +306,12 @@ function planNote(request: SceneNoteRequest): SceneChangePlan {
     entryId = journal?.id;
   }
 
+  // Note schema (common/documents/note.mjs:47-55, verified 14.368): x and y are
+  // integers, iconSize an integer of at least 32.
   const data: Record<string, unknown> = {
-    x,
-    y,
-    iconSize: request.iconSize ?? 40,
+    x: Math.round(x),
+    y: Math.round(y),
+    iconSize: Math.max(32, Math.round(request.iconSize ?? 40)),
     fontSize: 24,
     textAnchor: (CONST as SceneDoc).TEXT_ANCHOR_POINTS?.BOTTOM ?? 1,
     texture: { src: nonEmpty(request.icon) ?? 'icons/svg/book.svg' },
@@ -354,6 +374,23 @@ function planRemoveNote(request: SceneRemoveNoteRequest): SceneChangePlan {
 // Loot
 // ---------------------------------------------------------------------------
 
+/**
+ * Create data for an Item copied onto an actor. Foundry's own
+ * `game.items.fromCompendium(doc)` (client/documents/abstract/world-collection.mjs:109,
+ * verified 14.368) drops `_id` and `sort`, resets `ownership` and, for a
+ * compendium document, records `_stats.compendiumSource`; fall back to a plain
+ * `toObject()` minus those fields when it is not there.
+ */
+function itemData(doc: { toObject(): Record<string, unknown> }): Record<string, unknown> {
+  const items = game.items as unknown as {
+    fromCompendium?: (doc: unknown) => Record<string, unknown>;
+  };
+  if (typeof items?.fromCompendium === 'function') return items.fromCompendium(doc);
+  const data = doc.toObject();
+  for (const key of ['_id', 'folder', 'sort', 'ownership']) delete data[key];
+  return data;
+}
+
 /** The "5 gp, 3 sp + Longsword" loot line. */
 function lootLine(coins: string[], itemNames: string[]): string {
   const parts: string[] = [];
@@ -387,6 +424,11 @@ async function planLoot(request: SceneLootRequest): Promise<SceneChangePlan> {
     coins.push(`${added} ${key}`);
   }
 
+  if (!actor && Array.isArray(request.itemUuids)) {
+    // Items need somewhere to go: report them instead of dropping them silently.
+    for (const uuid of request.itemUuids) skippedItems.push(`${uuid} (no target character)`);
+  }
+
   if (actor) {
     const changes: Record<string, unknown> = {};
     for (const key of CURRENCIES) {
@@ -405,9 +447,12 @@ async function planLoot(request: SceneLootRequest): Promise<SceneChangePlan> {
           skippedItems.push(uuid);
           continue;
         }
-        const data = doc.toObject();
-        delete data._id;
-        itemNames.push(data.name);
+        if (doc.documentName !== 'Item') {
+          skippedItems.push(`${uuid} (not an Item)`);
+          continue;
+        }
+        const data = itemData(doc);
+        itemNames.push(String(data.name));
         ops.push({ kind: 'create', documentName: 'Item', parentUuid: actor.uuid, data });
       } catch {
         skippedItems.push(uuid); // bad uuid

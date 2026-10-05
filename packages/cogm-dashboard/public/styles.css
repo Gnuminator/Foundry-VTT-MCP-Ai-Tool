@@ -2098,6 +2098,7 @@ body {
 .preflight-summary.pf-warn {
   background: var(--warn-soft);
   border-color: var(--warn);
+  border-style: dashed;
   color: var(--warn);
 }
 .preflight-summary.pf-fail {
@@ -2140,17 +2141,22 @@ body {
   background: var(--bg-sunken);
   color: var(--text-dim);
 }
+/* The states differ in shape as well as colour (D-092): ok is a filled round badge, warn an
+   outlined square, fail a filled square, so a pale theme or colour blindness cannot hide them. */
 .pf-ok .pf-icon {
-  background: var(--good-soft);
-  color: var(--good);
+  background: var(--good);
+  color: var(--bg);
 }
 .pf-warn .pf-icon {
-  background: var(--warn-soft);
+  background: transparent;
   color: var(--warn);
+  border: 1.5px solid var(--warn);
+  border-radius: var(--r-sm);
 }
 .pf-fail .pf-icon {
-  background: var(--bad-soft);
-  color: var(--bad);
+  background: var(--bad);
+  color: var(--bg);
+  border-radius: 2px;
 }
 .pf-info .pf-icon {
   background: var(--accent-soft);

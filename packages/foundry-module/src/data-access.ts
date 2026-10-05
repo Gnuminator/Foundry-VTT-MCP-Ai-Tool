@@ -772,62 +772,13 @@ export class FoundryDataAccess {
     return this.combat.suggestBalancedEncounter(data);
   }
 
-  async placeMeasuredTemplate(data: {
-    shape: 'circle' | 'cone' | 'ray' | 'rect';
-    distance: number;
-    x?: number;
-    y?: number;
-    originTokenName?: string;
-    direction?: number;
-    angle?: number;
-    width?: number;
-    fillColor?: string;
-  }): Promise<any> {
-    return this.sceneFx.placeMeasuredTemplate(data);
-  }
-
-  async setSceneMood(data: {
-    darkness?: number;
-    globalLight?: boolean;
-    playlistName?: string;
-    playlistAction?: 'play' | 'stop';
-  }): Promise<any> {
-    return this.sceneFx.setSceneMood(data);
-  }
-
-  async addMapNote(data: {
-    text?: string;
-    x?: number;
-    y?: number;
-    tokenName?: string;
-    journalName?: string;
-    entryId?: string;
-    icon?: string;
-    iconSize?: number;
-  }): Promise<any> {
-    return this.sceneFx.addMapNote(data);
-  }
-
-  async dropLoot(data: {
-    targetCharacter?: string;
-    currency?: Record<string, number>;
-    itemUuids?: string[];
-    announce?: boolean;
-  }): Promise<any> {
-    return this.sceneFx.dropLoot(data);
+  async playPlaylist(data: { playlistName?: string; action?: 'play' | 'stop' }): Promise<any> {
+    return this.sceneFx.playPlaylist(data);
   }
 
   // ===========================================================================
   // Cleanup & targeting helpers
   // ===========================================================================
-
-  async deleteMeasuredTemplate(data: { templateId?: string; all?: boolean }): Promise<any> {
-    return this.sceneFx.deleteMeasuredTemplate(data);
-  }
-
-  async deleteMapNote(data: { noteId?: string; text?: string }): Promise<any> {
-    return this.sceneFx.deleteMapNote(data);
-  }
 
   async getTargets(): Promise<any> {
     return this.scenesTokens.getTargets();

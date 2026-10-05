@@ -98,7 +98,7 @@ before you send it on.
 There are two kinds of changes.
 
 **Guarded changes** (damage, healing, conditions, spell slots and other resources, moving,
-changing and deleting tokens, who owns an actor, the party panel, the Tarokka reading, handouts,
+changing and deleting tokens, templates, darkness and light, map notes, loot, who owns an actor, the party panel, the Tarokka reading, handouts,
 the Obsidian mirror settings):
 
 1. Claude makes a plan. Nothing changes yet.
@@ -124,17 +124,17 @@ healing, conditions and resources that Claude plans. Each change still lands in 
 All in **Game Settings**, category **Foundry AI Tool**. They stop the dashboard's changes as well
 as Claude's.
 
-| Setting                                      | Default | Lets Claude and the dashboard                                                                         |
-| -------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
-| Allow Write Operations                       | On      | Change anything at all. Off makes the whole tool read-only (see below).                               |
-| AI Tool: Live play (writes)                  | On      | Apply damage, healing, temporary hit points, conditions and resources; move, change or delete tokens. |
-| AI Tool: Live play, apply without confirming | Off     | Skip the confirm step for damage, healing, conditions and resources that Claude plans.                |
-| AI Tool: Ownership (writes)                  | On      | Change which players own or can see an actor.                                                         |
-| AI Tool: Party (writes)                      | Off     | Change the party's travel pace, place the party on the map, add it to combat, post a rest request.    |
-| AI Tool: Handouts (writes)                   | Off     | Reveal or hide journal pages for the players.                                                         |
-| AI Tool: Tarokka (writes)                    | Off     | Save the Tarokka reading, link cards to journals, publish reveal pages.                               |
-| AI Tool: Obsidian mirror (writes)            | Off     | Change which Foundry documents are mirrored into your Obsidian vault.                                 |
-| AI Tool: Session notes (writes)              | Off     | Put the notes of a recorded session into a GM-only journal by itself, without asking (see below).     |
+| Setting                                      | Default | Lets Claude and the dashboard                                                                                                                                            |
+| -------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Allow Write Operations                       | On      | Change anything at all. Off makes the whole tool read-only (see below).                                                                                                  |
+| AI Tool: Live play (writes)                  | On      | Apply damage, healing, temporary hit points, conditions and resources; move, change or delete tokens; place templates, set darkness and light, add map notes, give loot. |
+| AI Tool: Live play, apply without confirming | Off     | Skip the confirm step for damage, healing, conditions and resources that Claude plans.                                                                                   |
+| AI Tool: Ownership (writes)                  | On      | Change which players own or can see an actor.                                                                                                                            |
+| AI Tool: Party (writes)                      | Off     | Change the party's travel pace, place the party on the map, add it to combat, post a rest request.                                                                       |
+| AI Tool: Handouts (writes)                   | Off     | Reveal or hide journal pages for the players.                                                                                                                            |
+| AI Tool: Tarokka (writes)                    | Off     | Save the Tarokka reading, link cards to journals, publish reveal pages.                                                                                                  |
+| AI Tool: Obsidian mirror (writes)            | Off     | Change which Foundry documents are mirrored into your Obsidian vault.                                                                                                    |
+| AI Tool: Session notes (writes)              | Off     | Put the notes of a recorded session into a GM-only journal by itself, without asking (see below).                                                                        |
 
 **Session notes go in without asking.** With "AI Tool: Session notes (writes)" on, the bridge puts
 the notes of a recorded session (pages Recap, GM summary and Scenes, Danish first and English

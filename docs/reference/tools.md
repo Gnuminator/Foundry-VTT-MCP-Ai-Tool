@@ -6,12 +6,12 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 88 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 84 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
 | [Core](#core) | `foundry-mcp` | 20 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
-| [Play](#play) | `foundry-mcp-play` | 33 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
+| [Play](#play) | `foundry-mcp-play` | 29 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 7 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. |
 | [Admin](#admin) | `foundry-mcp-admin` | 8 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
@@ -489,81 +489,51 @@ Parameters:
 - `gridY` (integer): For "place" at grid: the row.
 - `hidden` (boolean): For "place": the new tokens start hidden.
 
-### place-measured-template
+### plan-scene-change
 
-Place an area-of-effect template (circle/cone/ray/rect) on the active scene and report which tokens it covers. Origin is x/y pixels or the center of a named token. Use for "drop a 20-ft fireball on the orcs". On Foundry 14 this creates a Region (MeasuredTemplate documents were removed); on Foundry 13 it creates a MeasuredTemplate.
-
-Parameters:
-
-- `shape` (string, required): One of: `circle`, `cone`, `ray`, `rect`.
-- `distance` (number, required): Size in grid distance units (radius for circle, length for cone/ray).
-- `x` (number): Origin X in pixels (or use originTokenName).
-- `y` (number): Origin Y in pixels (or use originTokenName).
-- `originTokenName` (string): Center the template on this token instead of x/y.
-- `direction` (number): Facing in degrees (cone/ray/rect).
-- `angle` (number): Cone angle in degrees (default ~53).
-- `width` (number): Ray width in grid units (default 5).
-- `fillColor` (string): Hex color, e.g. "#ff0000".
-
-### delete-measured-template
-
-Remove an area-of-effect template from the active scene by templateId (from place-measured-template), or clear all of this tool's own templates with all=true (on Foundry 14, where templates are Regions, all=true never touches a hand-made GM region). Use to clean up an AoE after resolving it.
+Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), darkness and global light ("mood"), a map pin ("note", "remove-note") or loot for a character ("loot"). Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM's request says "go ahead", apply it in the same turn (removing something still needs the destructive confirm). A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).
 
 Parameters:
 
-- `templateId` (string): Template ID to delete.
-- `all` (boolean): Delete all templates on the scene.
-
-### set-scene-mood
-
-Set the mood of the active scene: adjust darkness (0=bright … 1=dark) and/or global illumination, and optionally play or stop a playlist by name. Use to shift atmosphere as the narrative changes.
-
-Parameters:
-
-- `darkness` (number): Darkness level 0..1.
-- `globalLight` (boolean): Enable/disable global illumination.
-- `playlistName` (string): Playlist to control by name.
-- `playlistAction` (string): Play (default) or stop the named playlist. One of: `play`, `stop`.
-
-### add-map-note
-
-Drop a labeled map pin (Note) on the active scene, optionally linked to a journal entry by name. Position is x/y pixels or the position of a named token.
-
-Parameters:
-
-- `text` (string): Label text for the pin.
-- `x` (number): X in pixels (or use tokenName).
-- `y` (number): Y in pixels (or use tokenName).
-- `tokenName` (string): Place the pin at this token instead of x/y.
-- `journalName` (string): Link the pin to an existing journal entry by name.
-- `entryId` (string): Link to a journal entry by id (alternative).
-- `icon` (string): Icon path (default icons/svg/book.svg).
-- `iconSize` (integer): Icon size in px (default 40).
-
-### delete-map-note
-
-Remove a map pin (Note) from the active scene by noteId (from add-map-note) or by exact label text. Does not delete all notes (to protect pre-existing pins).
-
-Parameters:
-
-- `noteId` (string): Note ID to delete.
-- `text` (string): Delete the pin(s) whose label matches this text.
-
-### drop-loot
-
-Award loot: add currency (pp/gp/ep/sp/cp) and/or compendium items (by UUID) to a character, and/or announce the loot in chat. To find item UUIDs first, use search-compendium. D&D 5e currency.
-
-Parameters:
-
-- `targetCharacter` (string): Character name/ID to receive the loot. Omit to only announce in chat.
-- `currency` (object): Coins to add, e.g. { "gp": 50, "sp": 25 }.
+- `action` (string, required): template, clear-templates, mood (darkness and global light), note, remove-note or loot. One of: `template`, `clear-templates`, `mood`, `note`, `remove-note`, `loot`.
+- `shape` (string): template: the shape (required). One of: `circle`, `cone`, `ray`, `rect`.
+- `distance` (number): template: size in grid distance units (radius for circle, length for cone/ray/rect; required).
+- `x` (number): template: origin X in pixels (or originTokenName). note: X in pixels (or tokenName).
+- `y` (number): template: origin Y in pixels (or originTokenName). note: Y in pixels (or tokenName).
+- `originTokenName` (string): template: center it on this token instead of x/y.
+- `direction` (number): template: facing in degrees (cone/ray/rect).
+- `angle` (number): template cone: angle in degrees (default ~53).
+- `width` (number): template ray: width in grid units (default 5).
+- `fillColor` (string): template: hex color, e.g. "#ff0000".
+- `templateId` (string): clear-templates: the template to remove.
+- `all` (boolean): clear-templates: remove all of this tool's own templates (never a hand-made GM region on Foundry 14).
+- `darkness` (number): mood: darkness level 0 (bright) to 1 (dark).
+- `globalLight` (boolean): mood: enable or disable global illumination.
+- `text` (string): note: the label. remove-note: remove the pins whose label is exactly this text.
+- `tokenName` (string): note: place the pin at this token instead of x/y.
+- `journalName` (string): note: link the pin to an existing journal entry by name.
+- `entryId` (string): note: link to a journal entry by id (alternative).
+- `icon` (string): note: icon path (default icons/svg/book.svg).
+- `iconSize` (integer): note: icon size in px (default 40).
+- `noteId` (string): remove-note: the pin to remove.
+- `targetCharacter` (string): loot: the character to receive it. Omit to only announce in chat.
+- `currency` (object): loot: coins to add, e.g. { "gp": 50, "sp": 25 }.
   - `pp` (integer): Range: at least 0.
   - `gp` (integer): Range: at least 0.
   - `ep` (integer): Range: at least 0.
   - `sp` (integer): Range: at least 0.
   - `cp` (integer): Range: at least 0.
-- `itemUuids` (array of string): Compendium item UUIDs to add (from search-compendium).
-- `announce` (boolean): Post a loot summary to chat (default true).
+- `itemUuids` (array of string): loot: compendium item UUIDs to add (from search-compendium).
+- `announce` (boolean): loot: post a loot summary to chat (default true).
+
+### play-playlist
+
+Play (default) or stop a playlist by name. Direct, with nothing to undo. Use to change the music as the story moves.
+
+Parameters:
+
+- `playlistName` (string, required): Playlist to control by name.
+- `action` (string): Play (default) or stop the playlist. One of: `play`, `stop`.
 
 ### mark-play-session
 

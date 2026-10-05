@@ -205,7 +205,10 @@ function modifiedTimeOf(source: Record<string, unknown>): number | null {
 
 function nameOf(doc: FoundryDocument): string | null {
   const name = (doc as { name?: unknown }).name;
-  return typeof name === 'string' ? name : null;
+  if (typeof name === 'string') return name;
+  // A map note carries its label in `text`, so the diff and Recent Changes can name it.
+  const text = doc.documentName === 'Note' ? (doc as { text?: unknown }).text : undefined;
+  return typeof text === 'string' && text ? text : null;
 }
 
 /** The parent document of an embedded one, for diff labels; undefined when there is none. */
@@ -255,6 +258,12 @@ async function findExistingForCreate(op: GuardedCreateOp): Promise<boolean> {
 // Snapshot
 // ---------------------------------------------------------------------------
 
+/** The label of a document about to be created (a map note's is its `text`). */
+function createName(op: GuardedCreateOp): string | null {
+  const label = op.documentName === 'Note' ? (op.data.text ?? op.data.name) : op.data.name;
+  return typeof label === 'string' ? label : null;
+}
+
 async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
   switch (op.kind) {
     case 'update': {
@@ -286,7 +295,7 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
       return {
         exists: op.parentUuid ? parent !== null : true,
         documentName: op.documentName,
-        name: typeof op.data.name === 'string' ? op.data.name : null,
+        name: createName(op),
         idTaken: await findExistingForCreate(op),
         ...(parentLabel ? { parent: parentLabel } : {}),
       };

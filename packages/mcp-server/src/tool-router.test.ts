@@ -40,7 +40,7 @@ function makeDeps(): ToolRouterDeps {
 describe('buildToolRouter', () => {
   it('exposes a handler for every call_tool route', () => {
     const router = buildToolRouter(makeDeps());
-    expect(Object.keys(router)).toHaveLength(88);
+    expect(Object.keys(router)).toHaveLength(84);
   });
 
   it('routes direct tools to the owning method with the call args', async () => {
@@ -51,8 +51,11 @@ describe('buildToolRouter', () => {
     await router['get-character'](args);
     expect((deps as any).characterTools.handleGetCharacter).toHaveBeenCalledWith(args);
 
-    await router['drop-loot'](args);
-    expect((deps as any).lootTools.handleDropLoot).toHaveBeenCalledWith(args);
+    await router['plan-scene-change'](args);
+    expect((deps as any).sceneChangeTools.handlePlanSceneChange).toHaveBeenCalledWith(args);
+
+    await router['play-playlist'](args);
+    expect((deps as any).sceneChangeTools.handlePlayPlaylist).toHaveBeenCalledWith(args);
 
     await router['list-scenes'](args);
     expect((deps as any).sceneTools.listScenes).toHaveBeenCalledWith(args);

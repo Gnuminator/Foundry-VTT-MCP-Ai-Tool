@@ -422,10 +422,10 @@ function listNotes({ parent }: ListRequest): Listed {
 
 /**
  * MeasuredTemplate documents on v13; on v14 (MeasuredTemplate removed 14.352,
- * #13089) templates are Regions (`data-access/scene-fx.ts`,
+ * #13089) templates are Regions (`scene-plan.ts`,
  * `systems/regions.ts`) — list only the ones this tool created
  * (`isToolTemplateRegion`), never a hand-made GM region. The same gate as
- * scene-fx: 14.368 still has an (empty) `scene.templates`, so its presence is
+ * scene-plan: 14.368 still has an (empty) `scene.templates`, so its presence is
  * no signal (found live in M3).
  */
 function listTemplates({ parent }: ListRequest): Listed {

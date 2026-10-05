@@ -52,7 +52,7 @@ describe('classifyTool', () => {
   it('treats apply-planned-change as a write and undo-change as destructive', () => {
     expect(classifyTool('apply-planned-change')).toBe('write');
     expect(classifyTool('undo-change')).toBe('destructive');
-    expect(classifyTool('delete-map-note')).toBe('destructive');
+    expect(classifyTool('clear-module-errors')).toBe('destructive');
   });
 
   it('treats plan-token-change as a read: it only plans; the delete is confirmed when applied (F5 L2)', () => {
@@ -64,6 +64,13 @@ describe('classifyTool', () => {
   it('treats plan-ownership-change as a read and no longer lists remove-actor-ownership as destructive (F5 L3)', () => {
     expect(classifyTool('plan-ownership-change')).toBe('read');
     expect(DESTRUCTIVE_TOOLS.has('remove-actor-ownership')).toBe(false);
+  });
+
+  it('treats plan-scene-change as a read, play-playlist as a write, and the old delete tools are gone (I-112)', () => {
+    expect(classifyTool('plan-scene-change')).toBe('read');
+    expect(classifyTool('play-playlist')).toBe('write');
+    expect(DESTRUCTIVE_TOOLS.has('delete-map-note')).toBe(false);
+    expect(DESTRUCTIVE_TOOLS.has('delete-measured-template')).toBe(false);
   });
 
   it('does not treat prefix look-alikes as reads', () => {

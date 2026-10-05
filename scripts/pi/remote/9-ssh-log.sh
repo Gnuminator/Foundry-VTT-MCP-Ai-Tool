@@ -67,7 +67,8 @@ log_dir=$log_dir
 cmd=\"\${SSH_ORIGINAL_COMMAND-}\"
 from=\"\${SSH_CLIENT%% *}\"
 umask 077
-note() { printf '%s %s %s\\n' \"\$(date '+%Y-%m-%d %H:%M:%S%z')\" \"\${from:-local}\" \"\$1\" >>\"\$log_dir/ssh-commands.log\" 2>/dev/null || true; }
+# The outer braces also silence the shell's own error when the log file cannot be opened.
+note() { { printf '%s %s %s\\n' \"\$(date '+%Y-%m-%d %H:%M:%S%z')\" \"\${from:-local}\" \"\$1\" >>\"\$log_dir/ssh-commands.log\"; } 2>/dev/null || true; }
 case \"\$cmd\" in
 '')
   note 'interactive login'

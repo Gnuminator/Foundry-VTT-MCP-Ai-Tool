@@ -2,7 +2,7 @@
 # Puts the recorder bot's token (and optionally the Discord server id) into
 # /etc/foundry-ai-tool/discord-bot.env and starts the bot. Not run by hand: the user runs
 # scripts/pi/set-discord-token.ps1 on the PC, which asks for the token without showing it and sends
-# lib.sh, the two values (TOKEN_IN, GUILD_IN) and this file to `ssh foundry-pi 'bash -s'` on stdin,
+# lib.sh, the two values (TOKEN_IN, GUILD_IN) and this file to `ssh foundry-pi 'bash -s -- no-log'` on stdin,
 # so the token never appears on a command line, in a file on the PC or in Claude's chat.
 # Other lines in the env file stay as they are. An empty GUILD_IN keeps the server id already there.
 

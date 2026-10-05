@@ -44,7 +44,8 @@ if ($guild -and $guild -notmatch '^[0-9]{15,22}$') {
 # CR line would fail as a command under set -e).
 $script = ($lib + "`nTOKEN_IN='$token'`nGUILD_IN='$guild'`n" + $body + "`nexit 0`n") -replace "`r`n", "`n"
 try {
-  $script | ssh $PiHost 'bash -s'
+  # `-- no-log`: the Pi's SSH log (stage 9) records this command by name but never saves its input.
+  $script | ssh $PiHost 'bash -s -- no-log'
   if ($LASTEXITCODE -ne 0) { throw "ssh $PiHost failed (exit $LASTEXITCODE); see the lines above" }
 } finally {
   $token = $null

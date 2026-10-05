@@ -105,6 +105,36 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.during.full-toggle',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.during.hint-dismiss',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.during.layout-auto',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.during.layout-layered',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.during.layout-toggle',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
     name: 'dash.features.read-more',
     kind: 'action',
     surface: 'dashboard',
@@ -153,6 +183,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.header.combat-buttons',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
     name: 'dash.header.diag-ai',
     kind: 'action',
     surface: 'dashboard',
@@ -172,6 +208,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   },
   {
     name: 'dash.header.handouts',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.header.layout-tour',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/index.html',
@@ -250,6 +292,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   },
   {
     name: 'dash.header.tools',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.help.during-layouts',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/index.html',
@@ -712,6 +760,42 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   },
   {
     name: 'dash.tools.view',
+    kind: 'view',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.trial.next',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.trial.skip',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.trial.start',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.trial.stop',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.trial.use',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.trial.view',
     kind: 'view',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/app.js',

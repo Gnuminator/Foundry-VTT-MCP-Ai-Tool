@@ -177,6 +177,20 @@ let settings = {
   // GM-only; null until the "settings" snapshot arrives, or when Obsidian links are off.
   obsidian: null,
 };
+// The GM's screen choices for this world (D-092, I-107), from the server's "prefs" event:
+// the During layout and whether the combat buttons show. See "During layouts" below.
+let duringPrefs = {
+  duringLayout: 'layered',
+  duringFull: false,
+  combatButtons: false,
+  layoutPicked: false,
+  hintDismissed: false,
+  hintSessions: [],
+};
+/** Damage / Heal, Condition and Clear in the strip: GM Actions on and the Advanced switch on. */
+function combatButtonsOn() {
+  return !!settings.gmActionsEnabled && !!duringPrefs.combatButtons;
+}
 
 // GM Actions state
 let lastCombat = null;
@@ -581,7 +595,7 @@ function combatantClasses(c) {
   const cls = ['combatant'];
   if (c.isCurrentTurn) cls.push('current');
   if (c.defeated) cls.push('defeated');
-  if (settings.gmActionsEnabled) cls.push('selectable');
+  if (combatButtonsOn()) cls.push('selectable');
   if (selectedCombatants.has(c.id)) cls.push('selected');
   return cls.join(' ');
 }
@@ -670,6 +684,7 @@ function renderBossPrompts(combat) {
 
 function renderCombat(combat) {
   lastCombat = combat;
+  scheduleDuringLayout();
   renderBossPrompts(combat);
   if (!combat || !combat.active) {
     selectedCombatants.clear();
@@ -701,7 +716,7 @@ function renderCombat(combat) {
           : '';
       const init = c.initiative === null || c.initiative === undefined ? '—' : c.initiative;
       return `
-        <div class="${combatantClasses(c)}"${settings.gmActionsEnabled ? ' data-track="dash.combat.select-combatant"' : ''} data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">
+        <div class="${combatantClasses(c)}"${combatButtonsOn() ? ' data-track="dash.combat.select-combatant"' : ''} data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">
           <div class="init-badge">${init}</div>
           <div class="combatant-main">
             <div class="combatant-name">${escapeHtml(c.name)} ${sideTag(c)} ${reactionButton(c)}</div>
@@ -726,12 +741,13 @@ function selectedNames() {
 }
 
 // The combat pane is the During view's slim turn-order strip (D-085, I-095): turns,
-// initiative and saves stay in Foundry. What the dashboard adds is damage, healing and a
+// initiative and saves stay in Foundry. What the dashboard can add is damage, healing and a
 // condition on several selected combatants at once (dnd5e works out resistances), applied in
-// one click with Undo (D-086).
+// one click with Undo (D-086). Off by default and switched on under Advanced (D-092): dnd5e's
+// own chat cards apply damage, and that is what a new GM learns first.
 function renderCombatActions() {
   const active = !!(lastCombat && lastCombat.active);
-  if (!active || !settings.gmActionsEnabled) {
+  if (!active || !combatButtonsOn()) {
     els.combatActions.hidden = true;
     els.combatActions.innerHTML = '';
     return;
@@ -916,6 +932,7 @@ function connect() {
   on('settings', renderSettings);
   on('world', renderWorld);
   on('theme', d => renderTheme(d.theme));
+  on('prefs', renderDuringPrefs);
   on('combat', d => renderCombat(d.combat));
   on('events', d => addEvents(d.events));
   on('errors', d => addErrors(d.errors));
@@ -2904,7 +2921,7 @@ els.combatBody.addEventListener('click', e => {
     renderCombat(lastCombat);
     return;
   }
-  if (!settings.gmActionsEnabled) return;
+  if (!combatButtonsOn()) return;
   const row = e.target.closest('.combatant');
   if (!row || !row.dataset.id) return;
   const id = row.dataset.id;
@@ -3688,6 +3705,7 @@ function setMoment(next, { pinned = false } = {}) {
   // A drawer that became docked no longer needs the backdrop.
   const overlays = [els.drawer, els.tarokkaDrawer, ...OPENERS.keys()];
   if (!overlays.some(shown)) els.drawerBackdrop.hidden = true;
+  scheduleDuringLayout();
 }
 
 for (const tab of momentTabs) {
@@ -3804,6 +3822,343 @@ for (const [btnId, paneId] of [
     pane.hidden = true;
   });
 }
+
+// ---------------------------------------------------------------------------
+// During layouts (D-092, I-107). Three layouts for the During screen, picked per world:
+// A "layered" (cards: the Live Feed first, the other panels as cards at the side, one open
+// at a time), B "toggle" (Simple: feed, changes and handouts; Full: everything) and C "auto"
+// (follows the game: in combat the turn order grows and the party opens). Every layout adapts
+// to the screen width (moments.css): one column under 900px, the feed folded on a phone.
+// A short trial (the Before card or Advanced) lets the GM try them on the real screen; a quiet
+// hint by the switcher shows for the first sessions until a layout is kept. Never a blocker:
+// skipping keeps Cards.
+// ---------------------------------------------------------------------------
+const duringEl = $('moment-during');
+const DURING_CARDS = {
+  feed: $('pane-feed'),
+  changes: $('pane-changes'),
+  handouts: els.handoutsDrawer,
+  party: els.partyDrawer,
+};
+const LAYOUT_HINT_SESSIONS = 3;
+const WIDE = window.matchMedia('(min-width: 900px)');
+const PHONE = window.matchMedia('(max-width: 599px)');
+const layoutButtons = [...document.querySelectorAll('[data-layout-pick]')];
+const btnDuringFull = $('btn-during-full');
+const autoNote = $('during-auto-note');
+const layoutHint = $('layout-hint');
+const layoutTrial = $('layout-trial');
+const btnCombatButtons = $('btn-combat-buttons');
+/** Folded cards on the During screen; reset to the layout's defaults when the layout,
+ * the context (combat or not) or the width class changes. */
+const folds = new Map();
+let foldKey = null;
+const hintSessionsSent = new Set();
+let duringLayoutQueued = false;
+
+/** Re-apply the layout after the current work (the combat stream calls this). */
+function scheduleDuringLayout() {
+  if (duringLayoutQueued) return;
+  duringLayoutQueued = true;
+  queueMicrotask(() => {
+    duringLayoutQueued = false;
+    applyDuringLayout();
+  });
+}
+
+function effectiveLayout() {
+  return tour ? TOUR[tour.step].layout : duringPrefs.duringLayout;
+}
+function duringContext() {
+  return lastCombat && lastCombat.active ? 'combat' : 'calm';
+}
+/** The cards at the side on a wide screen: opening one folds the others there. */
+function sideCards(layout, context) {
+  if (layout === 'toggle') return [];
+  return layout === 'auto' && context === 'combat'
+    ? ['changes', 'handouts', 'feed']
+    : ['changes', 'handouts', 'party'];
+}
+function defaultFolds(layout, context, phone) {
+  const f = { feed: false, changes: false, handouts: true, party: true };
+  if (layout === 'toggle') {
+    f.handouts = false;
+    f.party = false;
+  }
+  if (layout === 'auto' && context === 'combat') {
+    f.party = false;
+    f.feed = true;
+  }
+  // On a phone the feed is long and fast: Recent Changes comes first, the feed opens on a tap.
+  if (phone) f.feed = true;
+  return f;
+}
+
+function applyFolds() {
+  for (const [name, card] of Object.entries(DURING_CARDS)) {
+    const folded = !!folds.get(name);
+    card.classList.toggle('is-folded', folded);
+    const btn = card.querySelector('.fold-btn');
+    if (btn) {
+      btn.textContent = folded ? '▸' : '▾';
+      btn.setAttribute('aria-expanded', String(!folded));
+      btn.title = folded ? 'Open' : 'Fold';
+    }
+  }
+}
+
+function applyDuringLayout() {
+  const layout = effectiveLayout();
+  const context = duringContext();
+  const view = layout === 'toggle' && !tour && duringPrefs.duringFull ? 'full' : 'simple';
+  duringEl.dataset.layout = layout;
+  duringEl.dataset.context = context;
+  if (layout === 'toggle') duringEl.dataset.view = view;
+  else delete duringEl.dataset.view;
+
+  const key = [layout, context, layout === 'toggle' ? view : '', WIDE.matches, PHONE.matches].join(
+    '|'
+  );
+  if (key !== foldKey) {
+    foldKey = key;
+    folds.clear();
+    for (const [name, folded] of Object.entries(defaultFolds(layout, context, PHONE.matches)))
+      folds.set(name, folded);
+  }
+  applyFolds();
+
+  for (const b of layoutButtons)
+    b.setAttribute('aria-pressed', String(b.dataset.layoutPick === layout));
+  btnDuringFull.hidden = layout !== 'toggle' || !!tour;
+  btnDuringFull.textContent = view === 'full' ? 'Show less' : 'Show everything';
+  autoNote.hidden = layout !== 'auto';
+  autoNote.textContent =
+    context === 'combat'
+      ? 'Combat: the turn order and the party come forward.'
+      : 'No combat: the Live Feed comes first.';
+  renderLayoutHint();
+}
+
+function toggleFold(name) {
+  const willOpen = !!folds.get(name);
+  folds.set(name, !willOpen);
+  if (willOpen && WIDE.matches) {
+    const side = sideCards(effectiveLayout(), duringContext());
+    if (side.includes(name)) for (const other of side) if (other !== name) folds.set(other, true);
+  }
+  applyFolds();
+}
+
+// A fold button in each card's head; it shows on the During screen only (moments.css).
+for (const [name, card] of Object.entries(DURING_CARDS)) {
+  const head = card.querySelector('.pane-head, .drawer-head');
+  if (!head) continue;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'fold-btn';
+  btn.dataset.fold = name;
+  btn.dataset.track = `dash.during.fold-${name}`;
+  btn.textContent = '▾';
+  head.insertBefore(btn, head.firstChild);
+}
+duringEl.addEventListener('click', e => {
+  const btn = e.target.closest('.fold-btn');
+  // A click on a folded card's title opens it too (not on the help ? or other buttons in it).
+  const title =
+    !btn &&
+    !e.target.closest('button, a, select, input') &&
+    e.target.closest('.is-folded .pane-head h2, .is-folded .drawer-head h2');
+  const card = (btn || title) && (btn || title).closest('.pane, .drawer');
+  const name = card && Object.keys(DURING_CARDS).find(k => DURING_CARDS[k] === card);
+  if (name) toggleFold(name);
+});
+WIDE.addEventListener('change', applyDuringLayout);
+PHONE.addEventListener('change', applyDuringLayout);
+
+/** The current session's key for the hint count: its start time, or null without a session. */
+function hintSessionKey() {
+  return playSession.open && playSession.startedAt ? String(playSession.startedAt) : null;
+}
+function renderLayoutHint() {
+  const key = hintSessionKey();
+  const seen = duringPrefs.hintSessions || [];
+  const show =
+    moment === 'during' &&
+    !tour &&
+    !!key &&
+    !duringPrefs.layoutPicked &&
+    !duringPrefs.hintDismissed &&
+    (seen.includes(key) || seen.length < LAYOUT_HINT_SESSIONS);
+  layoutHint.hidden = !show;
+  if (show && !seen.includes(key) && !hintSessionsSent.has(key)) {
+    hintSessionsSent.add(key);
+    void savePrefs({ hintSession: key }, { quiet: true });
+  }
+}
+
+/** The server's "prefs" event (and the answer to a change). */
+function renderDuringPrefs(next) {
+  if (!next || typeof next !== 'object') return;
+  duringPrefs = { ...duringPrefs, ...next };
+  btnCombatButtons.textContent = duringPrefs.combatButtons
+    ? '⚔ Combat buttons: on'
+    : '⚔ Combat buttons: off';
+  btnCombatButtons.classList.toggle('on', !!duringPrefs.combatButtons);
+  layoutTrial.hidden = !!duringPrefs.layoutPicked;
+  if (!combatButtonsOn()) selectedCombatants.clear();
+  renderCombat(lastCombat);
+  applyDuringLayout();
+}
+
+/** Save a screen choice for this world. Shown at once; the server's answer confirms it. */
+async function savePrefs(change, { quiet = false } = {}) {
+  const local = { ...change };
+  delete local.hintSession;
+  if (Object.keys(local).length) renderDuringPrefs(local);
+  try {
+    renderDuringPrefs(await postJson('/api/control', { action: 'set-prefs', value: change }));
+  } catch (err) {
+    if (!quiet) toast(`✗ Could not save the screen choice: ${String(err.message || err)}`, 'err');
+  }
+}
+
+for (const b of layoutButtons) {
+  b.addEventListener('click', () => {
+    if (tour) endTour(null);
+    void savePrefs({ duringLayout: b.dataset.layoutPick, layoutPicked: true });
+  });
+}
+btnDuringFull.addEventListener('click', () => {
+  void savePrefs({ duringFull: !duringPrefs.duringFull });
+});
+$('layout-hint-close').addEventListener('click', () => {
+  void savePrefs({ hintDismissed: true });
+});
+btnCombatButtons.addEventListener('click', () => {
+  const on = !duringPrefs.combatButtons;
+  void savePrefs({ combatButtons: on });
+  if (on)
+    toast(
+      settings.gmActionsEnabled
+        ? '✓ Combat buttons on: click combatants in the turn-order strip to pick them.'
+        : '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.',
+      'ok'
+    );
+});
+
+// --- The trial: each layout on the real screen, with a small guide card in the corner ---
+const TOUR = [
+  {
+    layout: 'layered',
+    title: 'Cards',
+    text: 'The Live Feed is the big column. Recent Changes, Handouts and Party are cards at the side: open one and the others fold. The turn order shows only while a fight runs.',
+  },
+  {
+    layout: 'toggle',
+    title: 'Simple/Full',
+    text: 'Simple shows only the Live Feed, Recent Changes and Handouts. "Show everything" on the bar switches to Full: the turn order and Party as well, all open.',
+  },
+  {
+    layout: 'auto',
+    title: 'Auto',
+    text: 'Follows the game. Without a fight it looks like Cards. When combat starts, the turn order grows and Party opens. This preview shows a sample fight.',
+    sampleCombat: true,
+  },
+];
+const tourEls = {
+  box: $('layout-tour'),
+  step: $('layout-tour-step'),
+  title: $('layout-tour-title'),
+  text: $('layout-tour-text'),
+  use: $('layout-tour-use'),
+  next: $('layout-tour-next'),
+};
+/** The running trial: { step, realCombat, sample } or null. */
+let tour = null;
+
+/** A made-up fight for the Auto preview (never sent anywhere; no campaign names). */
+function sampleCombat() {
+  const c = (id, name, side, initiative, value, max, extra = {}) => ({
+    id: `sample-${id}`,
+    name,
+    isPC: side === 'pc',
+    category: side === 'pc' ? 'pc' : 'enemy',
+    initiative,
+    hp: { value, max, temp: 0 },
+    conditions: [],
+    ...extra,
+  });
+  return {
+    active: true,
+    sample: true,
+    round: 2,
+    combatants: [
+      c(1, 'Fighter', 'pc', 18, 31, 44, { isCurrentTurn: true }),
+      c(2, 'Wolf', 'enemy', 15, 4, 11, { conditions: ['Prone'] }),
+      c(3, 'Cleric', 'pc', 12, 27, 27),
+      c(4, 'Wolf', 'enemy', 9, 11, 11),
+    ],
+  };
+}
+
+function showTourStep() {
+  const s = TOUR[tour.step];
+  tourEls.step.textContent = `Layout ${tour.step + 1} of ${TOUR.length}`;
+  tourEls.title.textContent = s.title;
+  tourEls.text.textContent = s.text;
+  tourEls.next.textContent = tour.step === TOUR.length - 1 ? 'Back to the first' : 'Next';
+  const realFight = !!(tour.realCombat && tour.realCombat.active);
+  if (s.sampleCombat && !realFight) {
+    tour.sample = sampleCombat();
+    renderCombat(tour.sample);
+  } else if (tour.sample) {
+    const showing = lastCombat === tour.sample;
+    tour.sample = null;
+    if (showing) renderCombat(tour.realCombat);
+  }
+  tourEls.box.hidden = false;
+  applyDuringLayout();
+}
+
+function startTour() {
+  if (!tour) tour = { step: 0, realCombat: lastCombat, sample: null };
+  setMoment('during', { pinned: true });
+  showTourStep();
+  usage.trackView('dash.trial.view');
+}
+
+/** End the trial; with a layout, keep it. A real fight that started meanwhile stays shown. */
+function endTour(keep) {
+  if (!tour) return;
+  const { sample, realCombat } = tour;
+  tour = null;
+  tourEls.box.hidden = true;
+  usage.endView('dash.trial.view');
+  if (sample && lastCombat === sample) renderCombat(realCombat);
+  if (keep) void savePrefs({ duringLayout: keep, layoutPicked: true });
+  applyDuringLayout();
+}
+
+tourEls.use.addEventListener('click', () => {
+  const keep = TOUR[tour.step].layout;
+  const title = TOUR[tour.step].title;
+  endTour(keep);
+  toast(`✓ ${title} kept. Switch any time with Layout on the During screen.`, 'ok');
+});
+tourEls.next.addEventListener('click', () => {
+  tour.step = (tour.step + 1) % TOUR.length;
+  showTourStep();
+});
+$('layout-tour-stop').addEventListener('click', () => endTour(null));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && tour) endTour(null);
+});
+$('btn-layout-trial').addEventListener('click', startTour);
+$('btn-layout-tour').addEventListener('click', startTour);
+$('btn-layout-trial-skip').addEventListener('click', () => {
+  void savePrefs({ duringLayout: 'layered', layoutPicked: true });
+});
+applyDuringLayout();
 
 connect();
 usage.trackView('dash.main.view');

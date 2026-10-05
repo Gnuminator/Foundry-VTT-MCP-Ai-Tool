@@ -10,6 +10,7 @@ import {
   confirmModal,
   newestUndoButton,
   readConfirmModal,
+  setDashboardPrefsApi,
   setGmActions,
 } from '../lib/dashboard.mjs';
 import { DEMO_USERS } from '../lib/env.mjs';
@@ -74,6 +75,8 @@ export async function setup(t) {
     );
     await combat.update({ round: 1, turn: 0 });
   }, TARGETS);
+  // The strip's combat buttons are off by default and switched on under Advanced (D-092).
+  await setDashboardPrefsApi(t.env.dashboardUrl, { combatButtons: true });
   const dash = await t.dashboard();
   await setGmActions(dash.page, false);
   await dash.page.locator('#moments [data-moment="during"]').click();

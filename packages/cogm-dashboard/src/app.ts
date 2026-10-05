@@ -34,6 +34,7 @@ import { mountSessionNotesRoute, type SessionNotesAction } from './session-notes
 import { mountHelpRoute } from './help-route.js';
 import { mountMeRoute } from './me-route.js';
 import { PlayerLinkStore } from './player-links.js';
+import { DashboardPrefsStore, parsePrefsChange } from './dashboard-prefs.js';
 import { THEMES, ThemeStore, isTheme } from './theme.js';
 import * as path from 'path';
 
@@ -186,6 +187,12 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     logger
   );
 
+  // The GM's screen choices per world (D-092, I-107): the During layout and the combat buttons.
+  const prefs = new DashboardPrefsStore(
+    config.stateDir ? path.join(config.stateDir, 'dashboard-prefs.json') : null,
+    logger
+  );
+
   // Non-GM user names for the player page's name pick and the usage log (I-084).
   const playerDirectory = new PlayerDirectory(client, logger.child('usage'));
 
@@ -300,6 +307,11 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     return { theme: themes.get(world?.id), themes: THEMES };
   }
 
+  /** The GM's screen choices for the current world. GM only: never on the player stream. */
+  function prefsPayload(): Record<string, unknown> {
+    return { ...prefs.get(world?.id) };
+  }
+
   function broadcastTheme(): void {
     sse.broadcast('theme', themePayload());
     playerHub.broadcast('theme', themePayload());
@@ -376,6 +388,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       sse.broadcast('world', world, gmOnly);
       schedulePlayerBroadcast();
       broadcastTheme();
+      sse.broadcast('prefs', prefsPayload(), gmOnly);
       logger.info('World info loaded', { title: world.title, system: world.systemId });
     } catch (error) {
       logger.debug('world-info fetch failed', {
@@ -599,6 +612,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     if (world) sse.send(res, 'world', world);
     sse.send(res, 'settings', settingsPayload());
     sse.send(res, 'theme', themePayload());
+    sse.send(res, 'prefs', prefsPayload());
     if (state.combat) sse.send(res, 'combat', { combat: state.combat });
     sse.send(res, 'events', { events: state.recentEvents, initial: true });
     sse.send(res, 'errors', { errors: state.recentErrors, initial: true });
@@ -692,6 +706,34 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
             error: error instanceof Error ? error.message : String(error),
           });
           res.status(500).json({ error: 'Could not save the theme.' });
+        });
+      return;
+    }
+
+    if (action === 'set-prefs') {
+      const change = parsePrefsChange(value);
+      if (!change) {
+        res.status(400).json({ error: 'No known screen choice in "value".' });
+        return;
+      }
+      const worldId = world?.id;
+      if (!worldId) {
+        res
+          .status(409)
+          .json({ error: 'The world is not known yet; try again once Foundry is connected.' });
+        return;
+      }
+      prefs
+        .update(worldId, change)
+        .then(() => {
+          sse.broadcast('prefs', prefsPayload(), gmOnly);
+          res.json(prefsPayload());
+        })
+        .catch((error: unknown) => {
+          logger.warn('Could not save the dashboard prefs', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          res.status(500).json({ error: 'Could not save the screen choice.' });
         });
       return;
     }

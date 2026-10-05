@@ -51,7 +51,8 @@ The master switch for changing the game from the dashboard. Click it to turn it 
 
 - **Off** (the default): you can look, read and run read-only tools. Nothing that changes the game
   runs from the dashboard.
-- **On**: the combat buttons appear, and tools that change the game can run after you confirm.
+- **On**: tools that change the game can run after you confirm, and Undo in Recent Changes works.
+  The combat buttons need their own switch as well (see **⚔ Combat buttons** below).
 - It only guards the dashboard. It does not stop Claude Desktop.
 - Restarting the dashboard turns it off again.
 
@@ -113,6 +114,16 @@ Opens the Tarokka drawer. See "The Tarokka drawer" below.
 Each player's private link to their own character page. See "Player links and My character"
 below.
 
+### ⚔ Combat buttons and ▦ Try the During layouts
+
+Two entries under **Advanced**, in the **During screen** group:
+
+- **⚔ Combat buttons: off / on** puts **Damage / Heal**, **Condition** and **Clear** in the
+  turn-order strip (see Combat Tracker below). Off by default: in Foundry, the dnd5e chat cards
+  already apply damage and healing, and that is the way to learn first. Your choice is kept for
+  this world.
+- **▦ Try the During layouts** starts the short layout trial again (see During layouts below).
+
 ### ⏸ Pause, 🩺 Diag AI, Tone, Model
 
 These control the AI commentary panel. They only work when an Anthropic API key is set, so with
@@ -125,16 +136,42 @@ the normal setup they are greyed out or have no effect.
 
 ## The panels
 
+### During layouts
+
+The game happens in Foundry; the **During** screen sits next to it and keeps an eye on things.
+It comes in three layouts. Pick one with **Layout** at the top of the screen:
+
+- **Cards** (the default): the Live Feed is the big column. Recent Changes, Handouts and Party
+  are cards at the side; open one and the others fold to a single line. The turn order shows
+  only while a fight runs.
+- **Simple/Full**: Simple shows only the Live Feed, Recent Changes and Handouts. **Show
+  everything** switches to Full: the turn order and Party as well, all open. **Show less** goes
+  back.
+- **Auto**: follows the game. Without a fight it looks like Cards. When combat starts, the turn
+  order grows and Party opens in the big column; the Live Feed folds to the side.
+
+Click **▸** or a folded card's title to open it, **▾** to fold it. On a narrow window or a tablet
+every layout becomes one column with Recent Changes near the top; on a phone the Live Feed is
+folded until you tap it.
+
+**Pick your During layout** (a card on the **Before** screen) shows the three layouts on the real
+screen, one after another, with a small guide in the corner: **Use this one** keeps a layout,
+**Stop** keeps what you had. In Auto it shows a sample fight (made up, nothing is sent to
+Foundry). Skip it and Cards stays. For the first sessions a quiet line next to **Layout** reminds
+you that the other layouts exist; **✕** hides it. The layout is kept for this world, on any
+browser.
+
 ### Combat Tracker
 
 A slim strip at the top of the **During** view. It shows the active combat: initiative, whose turn
 it is (highlighted), and each combatant's HP bar and numbers. Each row is tagged **PC**, **Enemy**
 or **NPC**. The top line shows the round and the number of combatants. Turns, initiative and saves
-stay in Foundry's own combat tracker.
+stay in Foundry's own combat tracker, and damage normally goes through dnd5e's chat cards there.
 
-What the strip adds is damage, healing and conditions on several combatants at once. With GM
-Actions on (**Ready for session** turns them on), click combatant rows to select them (click again
-to unselect). With one or more selected:
+Combat in the dashboard is optional. If you want it, the strip can add damage, healing and
+conditions on several combatants at once: turn on **⚔ Combat buttons** under **Advanced** (off by
+default). With the combat buttons and GM Actions on (**Ready for session** turns GM Actions on),
+click combatant rows to select them (click again to unselect). With one or more selected:
 
 - **Damage / Heal**: opens the tool runner (`plan-actor-change`) with those names filled in. Pick
   damage, healing or temp-hp and enter the amount (and the damage type, so dnd5e counts

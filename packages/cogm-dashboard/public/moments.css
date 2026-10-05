@@ -104,11 +104,22 @@
 #moment-before {
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
 }
+/* During (D-092, I-107): every slot is a grid child, placed per layout ("layered" A,
+   "toggle" B, "auto" C), per context (combat or calm) and per width. The feed spans the
+   side rows, so the side cards stack next to it. */
 #moment-during {
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto auto 1fr;
   grid-template-areas:
+    'bar bar'
     'strip strip'
-    'feed side';
+    'feed changes'
+    'feed handouts'
+    'feed party'
+    'feed .';
+}
+#moment-during .during-bar {
+  grid-area: bar;
 }
 #moment-during .slot-strip {
   grid-area: strip;
@@ -116,8 +127,50 @@
 #moment-during .slot-feed {
   grid-area: feed;
 }
-#moment-during .moment-side {
-  grid-area: side;
+#moment-during .slot-changes {
+  grid-area: changes;
+}
+#moment-during .slot-handouts {
+  grid-area: handouts;
+}
+#moment-during .slot-party {
+  grid-area: party;
+}
+/* The turn order shows only while a fight runs, except in B's Full view (today's screen). */
+#moment-during[data-context='calm']:not([data-view='full']) .slot-strip,
+#moment-during[data-view='simple'] .slot-strip,
+#moment-during[data-view='simple'] .slot-party {
+  display: none;
+}
+/* B Full keeps the old order: Party, Handouts, then Recent Changes. */
+#moment-during[data-view='full'] {
+  grid-template-areas:
+    'bar bar'
+    'strip strip'
+    'feed party'
+    'feed handouts'
+    'feed changes'
+    'feed .';
+}
+/* C in combat: the turn order grows, Party takes the big column, the feed folds to the side. */
+#moment-during[data-layout='auto'][data-context='combat'] {
+  grid-template-areas:
+    'bar bar'
+    'strip strip'
+    'party changes'
+    'party handouts'
+    'party feed'
+    'party .';
+}
+#moment-during[data-layout='auto'][data-context='combat'] .slot-strip #pane-combat .pane-body {
+  flex-wrap: wrap;
+}
+#moment-during[data-layout='auto'][data-context='combat'] .slot-strip #pane-combat .combatant {
+  min-width: 12rem;
+  font-size: var(--fs-md);
+}
+#moment-during[data-layout='auto'][data-context='combat'] .slot-strip #pane-combat .conditions {
+  display: flex;
 }
 #moment-after {
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
@@ -128,16 +181,216 @@
   max-height: none;
 }
 #moment-during .slot-feed .pane {
-  height: calc(100vh - 13.5rem);
+  height: calc(100vh - 16rem);
   min-height: 24rem;
 }
-.moment-side .pane .pane-body {
+.moment-side .pane .pane-body,
+#moment-during .slot-changes .pane-body {
   max-height: 22rem;
   overflow-y: auto;
 }
-.moment-side .drawer.docked {
+.moment-side .drawer.docked,
+#moment-during .slot-handouts .drawer.docked,
+#moment-during .slot-party .drawer.docked {
   max-height: 30rem;
   overflow-y: auto;
+}
+#moment-during[data-layout='auto'][data-context='combat'] .slot-party .drawer.docked {
+  max-height: none;
+}
+/* The feed as a side card (C in combat) is as tall as its content. */
+#moment-during[data-layout='auto'][data-context='combat'] .slot-feed .pane {
+  height: auto;
+  min-height: 0;
+}
+#moment-during[data-layout='auto'][data-context='combat'] .slot-feed .pane-body {
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+/* ---- Folded cards (During only): the head stays, with its count; a click opens it ---- */
+.fold-btn {
+  display: none;
+}
+#moment-during .fold-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-right: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-mid);
+  cursor: pointer;
+  font-size: var(--fs-xs);
+}
+#moment-during .fold-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+#moment-during .drawer-head {
+  justify-content: flex-start;
+  gap: 0.2rem;
+}
+#moment-during .drawer-head > div {
+  flex: 1;
+  min-width: 0;
+}
+#moment-during .is-folded > :not(.pane-head, .drawer-head) {
+  display: none;
+}
+#moment-during .is-folded .pane-head h2,
+#moment-during .is-folded .drawer-head h2 {
+  cursor: pointer;
+}
+#moment-during .slot-feed .pane.is-folded {
+  height: auto;
+  min-height: 0;
+}
+
+/* ---- The During bar: layout switch, B's Full switch, the trial hint ---- */
+.during-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+}
+.layout-switch {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.layout-switch-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.6rem;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.layout-switch button {
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--border);
+  color: var(--text-mid);
+  padding: 0.3rem 0.75rem;
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.layout-switch button:hover {
+  color: var(--text);
+}
+.layout-switch button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.during-auto-note {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.layout-hint {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  padding: 0.15rem 0.25rem 0.15rem 0.6rem;
+}
+.layout-hint[hidden],
+.during-auto-note[hidden] {
+  display: none;
+}
+
+/* ---- The trial card on Before, and its guide in the corner ---- */
+.layout-trial {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1.2rem;
+  padding: 0.9rem 1.1rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+}
+.layout-trial[hidden] {
+  display: none;
+}
+.layout-trial h2 {
+  margin: 0 0 0.25rem;
+  font-size: var(--fs-md);
+}
+.layout-trial p {
+  margin: 0;
+  max-width: 46rem;
+}
+.layout-tour {
+  position: fixed;
+  right: 1.1rem;
+  bottom: 1.1rem;
+  z-index: 65;
+  width: min(23rem, calc(100vw - 2.2rem));
+  padding: 0.9rem 1rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+}
+.layout-tour[hidden] {
+  display: none;
+}
+.layout-tour h3 {
+  margin: 0.1rem 0 0.35rem;
+}
+.layout-tour-step {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.layout-tour-text {
+  margin: 0 0 0.7rem;
+  font-size: var(--fs-sm);
+  color: var(--text-mid);
+}
+
+/* ---- Narrow screens: tablets and narrow windows get one column; phones fold the feed ---- */
+@media (max-width: 899px) {
+  #moment-before,
+  #moment-after {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #moment-during,
+  #moment-during[data-view='full'] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas: 'bar' 'strip' 'changes' 'feed' 'handouts' 'party';
+  }
+  #moment-during[data-layout='auto'][data-context='combat'] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas: 'bar' 'strip' 'party' 'changes' 'handouts' 'feed';
+  }
+  #moment-during .slot-feed .pane {
+    height: auto;
+    min-height: 0;
+  }
+  #moment-during .slot-feed .pane-body {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  .moment-views {
+    padding: 0.8rem 0.7rem 1.2rem;
+  }
 }
 
 /* ---- A drawer docked in a view ---- */

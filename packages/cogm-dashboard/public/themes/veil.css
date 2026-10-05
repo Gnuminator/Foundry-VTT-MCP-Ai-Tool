@@ -77,8 +77,9 @@
   --pc: #b9c7d6;
   --enemy: #c9b4a2;
   --npc: #b6c2b1;
-  --good: var(--veil-silver);
-  --warn: #d9c9a3;
+  /* Green and yellow must read apart at a glance (D-092): a muted sage and the lamplight. */
+  --good: #9cc79f;
+  --warn: var(--veil-lamp);
   --bad: #d8c4bb;
   --bad-soft: color-mix(in srgb, var(--veil-ink) 70%, transparent);
   --grey: var(--veil-pewter);
@@ -105,9 +106,9 @@
   --panel-2: var(--veil-raised);
   --line: color-mix(in srgb, var(--veil-mist) 22%, transparent);
   --muted: var(--veil-ash);
-  --green: var(--veil-silver);
+  --green: #9cc79f;
   --red: #d8c4bb;
-  --amber: #d9c9a3;
+  --amber: var(--veil-lamp);
 }
 
 /* Labels: quiet Spectral italics in sentence case, never tracked capitals (the design's

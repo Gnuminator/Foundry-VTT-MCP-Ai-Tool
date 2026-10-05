@@ -91,6 +91,8 @@ const ASK = [
     'critical file in /etc',
   ],
   [/(?:>|\btee\b|\bsed\s+-i\S*|\brm\b|\bcp\b|\bmv\b)[^\n;&|]*authorized_keys/, 'SSH login keys'],
+  // The same path kept in a variable (keys=/root/.ssh/authorized_keys; mv "$tmp" "$keys").
+  [/(?:^|[\s;&|(])\w+=["']?[^\s"';&|]*authorized_keys/m, 'SSH login keys (path in a variable)'],
   [/\bdietpi-backup\s+-1\b/, 'restoring a system snapshot'],
   [
     /(?:\brm\b[^\n;&|]*|\bdietpi-backup\b[^\n;&|]*)\/mnt\/dietpi-backup/,
@@ -169,6 +171,42 @@ function unquotedRemoteCommands(command) {
   return out;
 }
 
+const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+
+/**
+ * The hosts a command reaches with ssh, scp, sftp, rsync or plink, or null when one cannot be told
+ * (a jump host, a proxy or a HostName override counts as "cannot tell": it may lead to another
+ * machine). Used only to let commands through whose every target is this machine, which in
+ * practice means a test container (the user's pick, 2026-10-05); the Pi is never reached as
+ * localhost.
+ */
+function remoteHosts(command) {
+  if (/(?:^|\s)-J\S*|\bProxy(?:Jump|Command)\b|\bHostName\b/i.test(command)) return null;
+  const hosts = [];
+  for (const line of command.split('\n')) {
+    const words = line.trim().split(/\s+/);
+    for (let at = 0; at < words.length; at++) {
+      const tool = words[at].match(/(?:^|[\\/;&|(])(ssh|scp|sftp|rsync|plink)(?:\.exe)?$/)?.[1];
+      if (!tool) continue;
+      if (tool === 'scp' || tool === 'rsync') {
+        // Targets are the arguments with host:path; stop at the next command separator.
+        for (let i = at + 1; i < words.length && !/^[;&|]/.test(words[i]); i++) {
+          const m = words[i].match(/^["']?(?:[^@\s:"']+@)?(\[[^\]]+\]|[^:\s/"'@]+):/);
+          if (m) hosts.push(m[1]);
+        }
+        continue;
+      }
+      let i = at + 1;
+      while (i < words.length && words[i].startsWith('-')) {
+        i += SSH_ARG_OPTS.has(words[i]) || words[i] === '-P' ? 2 : 1;
+      }
+      if (i >= words.length) return null;
+      hosts.push(words[i].replace(/^["']|["']$/g, '').replace(/^[^@]+@/, ''));
+    }
+  }
+  return hosts.length ? hosts : null;
+}
+
 /** Drop comment lines: a rule named in a comment is not a command. */
 function withoutComments(text) {
   return text
@@ -179,6 +217,8 @@ function withoutComments(text) {
 
 export function decide(command, cwd = process.cwd()) {
   if (!REMOTE.test(command)) return null;
+  const hosts = remoteHosts(command);
+  if (hosts && hosts.every(h => LOCAL_HOSTS.has(h.toLowerCase()))) return null;
   const text = withoutComments(
     [command, ...unquotedRemoteCommands(command), ...fedFiles(command, cwd)].join('\n')
   );

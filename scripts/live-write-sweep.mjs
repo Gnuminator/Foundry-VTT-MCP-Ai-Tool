@@ -228,7 +228,8 @@ function skip(reason) {
 
 /** Short JSON for step details. */
 function brief(value, max = 120) {
-  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  // JSON.stringify(undefined) is undefined, and assert messages are built even when they pass.
+  const text = typeof value === 'string' ? value : (JSON.stringify(value) ?? String(value));
   return text.length > max ? `${text.slice(0, max)}...` : text;
 }
 

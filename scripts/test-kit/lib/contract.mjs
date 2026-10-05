@@ -11,7 +11,7 @@
  */
 
 /** Bump when the report or manifest shape changes in a way readers must notice. */
-export const KIT_FORMAT_VERSION = 1;
+export const KIT_FORMAT_VERSION = 2;
 
 /** Kit sizes, smallest first (plan: "Three sizes"). A scenario lists the sizes that include it. */
 export const KIT_SIZES = ['smoke', 'full', 'long'];
@@ -23,10 +23,36 @@ export const KIT_TAGS = ['bridge', 'module', 'dashboard', 'player', 'vault', 'pl
  * Worlds the kit may build in and write to. Never a real campaign, never `ai-tool-test` (the
  * everyday test world) and never `ai-tool-kit` (the hand-made licensed import world).
  */
-export const KIT_WORLDS = ['ai-tool-kit-srd'];
+export const KIT_WORLDS = ['ai-tool-kit-srd', 'ai-tool-kit-licensed'];
 
 /** The kit's own world. */
 export const DEFAULT_KIT_WORLD = 'ai-tool-kit-srd';
+
+/**
+ * Content profiles: where the builder finds its content. `srd` ships in the repo
+ * (scripts/test-kit/data/profiles/srd.json); any other profile is a local file
+ * `<kitHome>/licensed/profiles/<id>.json` and never enters a repo. Selected with `--profile <id>`.
+ *
+ * @typedef {object} ContentProfile
+ * @property {string} id
+ * @property {string} world            the kit world it builds in (one of KIT_WORLDS)
+ * @property {string} title            world title when the world is created
+ * @property {string[]} modules        modules to enable besides foundry-mcp-bridge (e.g. a local content module)
+ * @property {{classes: string[], subclasses: string[], species: string[], backgrounds: string[], monsters: string[], spells: string[], feats: string[]}} packs
+ *   compendium ids per kind, searched in order; the first pack that has an entry wins for duplicates
+ * @property {{rules: Array<'2024'|'2014'>, skipNames?: string[], skipIds?: string}} [select]
+ *   which rules versions count (both = 2024 plus legacy that remain), names to skip, and an id regex to skip
+ */
+export const DEFAULT_PROFILE = 'srd';
+
+/** Hero levels per kit size (D-090 lane 2, the user's pick 2026-10-05). */
+export const HERO_PLAN = {
+  /** every class at this level with its first subclass */
+  smoke: { tierLevels: [5], subclassLevel: null },
+  /** every class at 1, 5, 11, 17 (first subclass from 3) and every subclass at 20 */
+  full: { tierLevels: [1, 5, 11, 17], subclassLevel: 20 },
+  long: { tierLevels: [1, 5, 11, 17], subclassLevel: 20 },
+};
 
 /** The live bridge ports: the kit refuses any target that uses one of them. */
 export const LIVE_BRIDGE_PORTS = [31414, 31415, 31416];
@@ -54,8 +80,51 @@ export const GM_ACTIONS = {
   wipeKit: 'wipeKit',
   /** ({type, name}) => {folderId} a kit folder, reused when it exists */
   ensureFolder: 'ensureFolder',
-  /** ({name, classId, level, speciesId?, backgroundId?, folderId}) => {actorId, name, classIdentifier, level, hp:{value,max}} */
+  /**
+   * ({packIds, type?, subtype?}) => {entries: [{packId, id, uuid, name, type, identifier, classIdentifier?,
+   * rules: '2024'|'2014'|'', book: string}]} the index of those packs (names and ids only, no text).
+   * `rules` from system.source.rules, `book` from system.source.book.
+   * Additive: the reply also has `missing: string[]`, the packIds that are not installed.
+   */
+  listCompendium: 'listCompendium',
+  /**
+   * ({name, classUuid, subclassUuid?, level, rotation, speciesUuid?, backgroundUuid?, folderId, featPackIds?}) =>
+   * {actorId, name, classIdentifier, subclassIdentifier, level, hp:{value,max},
+   *  picks: [{level, advancement, title, chosen: string[]}], warnings: string[]}
+   * Levels the hero through the system's advancement with no dialogs. Every choice picks option
+   * index (rotation + k) % options for its k-th pick, so a matrix of heroes with different
+   * rotations covers every option and a build is repeatable. Throws when the advancement fails.
+   * k counts the hero's picks in the order the system asks (species, background, then class); an
+   * ability score improvement alternates +2 (two +1 for odd rotations) and a general feat on the
+   * same count. `featPackIds` (additive) are the packs to take those feats from; without them an
+   * improvement is always taken. Species and background default to Human and Soldier of
+   * dnd5e.origins24 when no uuid is given. A Trait choice the system could not offer (every option
+   * already taken) is a warning "<item>: <title> level N: x of y choice(s) left, every option is already
+   * taken"; a Trait advancement with no choices gets no pick of ours.
+   */
   createHero: 'createHero',
+  /**
+   * ({classUuid, subclassUuid?, level}) => {expected} what the advancement data says a hero of that
+   * level must have: {grants: [{level, uuid, name, resolved, optional, why?}], choices: [{level, advancement, count}],
+   * scale: [{identifier, value}], saves: string[] (saving throw proficiencies the class grants),
+   * hitDie, hpFixed: number (sum of max die at 1 and averages, without CON), spellcasting:
+   * {progression, ability} | null, spellSlots: {leveled: {"1": n, ...}, pact: {max, level} | null} | null
+   * (the system's own table for a single-class caster), skillsChosen: number, subclassAt}.
+   * Additive fields: grants.resolved, grants.optional, grants.why (an unresolved grant's reason), saves, spellSlots.
+   */
+  describeClass: 'describeClass',
+  /**
+   * ({actorId}) => {name, level, classes: [{identifier, levels, subclass}], hp:{value, max,
+   * bonuses: {level, overall} (worked out), sources: [{item, keys}] (items whose effects change HP)},
+   * abilities: {str..cha: {value, mod}}, items: [{name, type, sourceUuid, identifier}],
+   * scale: {[classId]: {[identifier]: value}} (class and subclass values), spells: {spell1..spell9: {max},
+   * pact: {max, level}}, skills: {[id]: proficient}, saves: {[id]: proficient},
+   * saveSources: {[ability]: item names whose effects add that save}, ownership: {[userName]: level}}
+   * Additive fields: hp.bonuses, hp.sources, saveSources, subclass scale values under the class.
+   */
+  inspectActor: 'inspectActor',
+  /** ({actorId, userName, level}) => {ok: true} sets one user's ownership level (3 = owner) */
+  setOwnership: 'setOwnership',
   /** ({name, folderId, width, height, grid, walls, doors, lights}) => {sceneId, name} creates and activates */
   createCombatScene: 'createCombatScene',
   /** ({sceneId, actorId, x, y, hidden?, name?}) => {tokenId} grid square coordinates, not pixels */
@@ -115,7 +184,16 @@ export const GM_ACTIONS = {
  * @property {string} builtAt         ISO time
  * @property {string} systemVersion
  * @property {Record<string, string>} folders   type -> folderId
- * @property {Array<{actorId: string, name: string, classIdentifier: string, level: number, tokenId?: string}>} heroes
+ * @property {string} profile         the content profile id
+ * @property {Array<{actorId: string, name: string, classIdentifier: string, level: number, tokenId?: string,
+ *   classUuid: string, classRules: string, subclassUuid?: string, subclassIdentifier?: string, rules: string, book: string,
+ *   role: 'tier'|'subclass', rotation: number, owner?: string, picks?: unknown[], warnings?: string[],
+ *   buildError?: string}>} heroes
+ *   A hero whose advancement failed keeps its row with buildError (and no actorId), so the report
+ *   shows it instead of the build stopping.
+ * @property {{classes: {found: number, built: number}, subclasses: {found: number, built: number, failed: string[]}, heroes: number}} coverage
+ * @property {Array<{at: string, message: string, source: string}>} [consoleErrors]
+ *   console errors of the GM page over the whole build (additive in version 2)
  * @property {Array<{actorId: string, name: string, cell: string, cr: number, type: string, size: string, packId: string, itemId: string, tokenId?: string}>} monsters
  * @property {{sceneId: string, name: string, width: number, height: number}} scene
  */

@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
-  DEFAULT_KIT_WORLD,
+  DEFAULT_PROFILE,
   EXIT,
   KIT_GM_USER,
   KIT_SIZES,
@@ -21,6 +21,7 @@ import {
 } from './lib/contract.mjs';
 import { EnvError, KitToolError } from './lib/errors.mjs';
 import { foundryDataDir, kitHome, resolveTarget } from './lib/targets.mjs';
+import { loadProfile } from './lib/profiles.mjs';
 import { createDashboardClient } from './lib/dashboard.mjs';
 import { loadToolCatalog } from './lib/catalog.mjs';
 import { loadScenarios } from './lib/loader.mjs';
@@ -47,7 +48,10 @@ Options
   --size smoke|full|long   which scenarios to run (default smoke)
   --only a,b               run only these scenario ids
   --scenarios <dir>        extra scenario folder (repeatable); scripts/test-kit/scenarios is always used
-  --world <id>             the kit world: ${KIT_WORLDS.join(', ')} (default ${DEFAULT_KIT_WORLD})
+  --profile <id>           the content profile: srd (default, in the repo) or a local file
+                           <kit home>/licensed/profiles/<id>.json; it picks the kit world
+  --classes a,b            build only these classes (identifier or name); a development filter
+  --world <id>             the kit world, only to check it matches the profile: ${KIT_WORLDS.join(', ')}
   --report-dir <dir>       where the report goes (default <kit home>/reports/<time>-<size>)
   --fake                   run against the in-process fake instead of Foundry (CI)
   --headed                 show the GM browser window
@@ -59,7 +63,7 @@ Exit codes: 0 all passed, 1 a scenario failed, 2 environment not ready or target
 
 /**
  * @param {string[]} argv
- * @returns {{command: string | null, size: string, only: string[], scenarios: string[], world: string, reportDir: string | null, fake: boolean, headed: boolean, help: boolean}}
+ * @returns {{command: string | null, size: string, only: string[], scenarios: string[], world: string | null, profile: string, classes: string[], reportDir: string | null, fake: boolean, headed: boolean, help: boolean}}
  */
 export function parseArgs(argv) {
   const o = {
@@ -67,7 +71,9 @@ export function parseArgs(argv) {
     size: 'smoke',
     only: [],
     scenarios: [],
-    world: DEFAULT_KIT_WORLD,
+    world: null,
+    profile: DEFAULT_PROFILE,
+    classes: [],
     reportDir: null,
     fake: false,
     headed: false,
@@ -94,6 +100,14 @@ export function parseArgs(argv) {
       );
     else if (a === '--scenarios') o.scenarios.push(path.resolve(value(a)));
     else if (a === '--world') o.world = value(a);
+    else if (a === '--profile') o.profile = value(a);
+    else if (a === '--classes')
+      o.classes.push(
+        ...value(a)
+          .split(',')
+          .map(s => s.trim().toLowerCase())
+          .filter(Boolean)
+      );
     else if (a === '--report-dir') o.reportDir = path.resolve(value(a));
     else if (a.startsWith('-')) throw new EnvError(`unknown option ${a} (see --help)`);
     else if (o.command === null) o.command = a;
@@ -129,6 +143,22 @@ async function importLib(rel) {
   const file = path.join(here, rel);
   if (!existsSync(file)) throw new EnvError(`${rel} is not there yet (scripts/test-kit/${rel})`);
   return import(pathToFileURL(file).href);
+}
+
+/**
+ * Loads the profile named by --profile, checks --world against it and sets o.world. A profile
+ * names its kit world; the world must be one of KIT_WORLDS (profiles.mjs refuses others).
+ * @param {any} o
+ */
+function resolveProfile(o) {
+  const profile = loadProfile(o.profile);
+  if (o.world && o.world !== profile.world) {
+    throw new EnvError(
+      `--world ${o.world} does not match profile "${profile.id}" (its world is ${profile.world})`
+    );
+  }
+  o.world = profile.world;
+  o.profileData = profile;
 }
 
 /** @param {string} line */
@@ -243,7 +273,15 @@ async function cmdCheck(o) {
 async function doBuild(o, { dashboard, gm }) {
   const { buildKit } = await importLib('lib/builder.mjs');
   say(`building the kit in ${o.world} ...`);
-  return buildKit({ dashboard, gm, world: o.world, size: o.size, log: say });
+  return buildKit({
+    dashboard,
+    gm,
+    world: o.world,
+    size: o.size,
+    profile: o.profileData,
+    classes: o.classes,
+    log: say,
+  });
 }
 
 /** Opens a GM session on the real Foundry. */
@@ -277,9 +315,28 @@ async function cmdInit(o) {
   if (o.fake) throw new EnvError('init has no fake mode');
   const target = resolveTarget({ world: o.world });
   const { initWorld, provisionWorld } = await importLib('lib/world.mjs');
-  const made = await initWorld({ dataDir: foundryDataDir(REPO_ROOT), world: o.world, log: say });
+  const made = await initWorld({
+    dataDir: foundryDataDir(REPO_ROOT),
+    profile: o.profileData,
+    log: say,
+  });
   say(`world files: ${made.created ? 'created' : 'already there'} at ${made.path}`);
-  await provisionWorld({ foundryUrl: target.foundry, world: o.world, log: say });
+  // Foundry must run this world before it can be provisioned: say how, instead of failing in fetch.
+  const running = await fetch(`${target.foundry}/api/status`)
+    .then(r => r.json())
+    .then(s => (typeof s.world === 'string' ? s.world : ''))
+    .catch(() => null);
+  if (running !== o.world) {
+    throw new EnvError(
+      `world files are ready; start Foundry on ${o.world} (pwsh scripts/test-env/start.ps1 -World ${o.world}) and run init again to provision it`
+    );
+  }
+  await provisionWorld({
+    foundryUrl: target.foundry,
+    world: o.world,
+    modules: o.profileData.modules,
+    log: say,
+  });
   say('world provisioned');
   return EXIT.PASS;
 }
@@ -407,6 +464,7 @@ export async function main(argv) {
       return EXIT.ENV;
     }
     if (o.command === 'check') return await cmdCheck(o);
+    resolveProfile(o);
     if (o.command === 'init') return await cmdInit(o);
     return await cmdTarget(/** @type {'build' | 'run' | 'all'} */ (o.command), o);
   } catch (e) {

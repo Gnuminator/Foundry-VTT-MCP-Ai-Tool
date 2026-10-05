@@ -1,4 +1,3 @@
-import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -9,7 +8,8 @@ interface EncounterToolsOptions {
 }
 
 /**
- * Encounter tooling: XP-budget encounter planning and AoE template placement.
+ * Encounter tooling: XP-budget encounter planning. (AoE templates are part of
+ * `plan-scene-change`, I-112.)
  */
 export class EncounterTools {
   private foundryClient: FoundryClient;
@@ -42,49 +42,6 @@ export class EncounterTools {
           },
         },
       },
-      {
-        name: 'place-measured-template',
-        description:
-          'Place an area-of-effect template (circle/cone/ray/rect) on the active scene and report which tokens it covers. Origin is x/y pixels or the center of a named token. Use for "drop a 20-ft fireball on the orcs". On Foundry 14 this creates a Region (MeasuredTemplate documents were removed); on Foundry 13 it creates a MeasuredTemplate.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            shape: { type: 'string', enum: ['circle', 'cone', 'ray', 'rect'] },
-            distance: {
-              type: 'number',
-              description: 'Size in grid distance units (radius for circle, length for cone/ray).',
-            },
-            x: { type: 'number', description: 'Origin X in pixels (or use originTokenName).' },
-            y: { type: 'number', description: 'Origin Y in pixels (or use originTokenName).' },
-            originTokenName: {
-              type: 'string',
-              description: 'Center the template on this token instead of x/y.',
-              ...toolRef('token', 'id'),
-            },
-            direction: { type: 'number', description: 'Facing in degrees (cone/ray/rect).' },
-            angle: { type: 'number', description: 'Cone angle in degrees (default ~53).' },
-            width: { type: 'number', description: 'Ray width in grid units (default 5).' },
-            fillColor: { type: 'string', description: 'Hex color, e.g. "#ff0000".' },
-          },
-          required: ['shape', 'distance'],
-        },
-      },
-      {
-        name: 'delete-measured-template',
-        description:
-          "Remove an area-of-effect template from the active scene by templateId (from place-measured-template), or clear all of this tool's own templates with all=true (on Foundry 14, where templates are Regions, all=true never touches a hand-made GM region). Use to clean up an AoE after resolving it.",
-        inputSchema: {
-          type: 'object',
-          properties: {
-            templateId: {
-              type: 'string',
-              description: 'Template ID to delete.',
-              ...toolRef('template', 'id'),
-            },
-            all: { type: 'boolean', description: 'Delete all templates on the scene.' },
-          },
-        },
-      },
     ];
   }
 
@@ -105,58 +62,6 @@ export class EncounterTools {
       return response;
     } catch (error) {
       this.logger.error('Error suggesting encounter', error);
-      throw error;
-    }
-  }
-
-  async handlePlaceMeasuredTemplate(args: any) {
-    const schema = z.object({
-      shape: z.enum(['circle', 'cone', 'ray', 'rect']),
-      distance: z.number(),
-      x: z.number().optional(),
-      y: z.number().optional(),
-      originTokenName: z.string().optional(),
-      direction: z.number().optional(),
-      angle: z.number().optional(),
-      width: z.number().optional(),
-      fillColor: z.string().optional(),
-    });
-    try {
-      const params = schema.parse(args);
-      const response = await this.foundryClient.query(
-        'foundry-mcp-bridge.placeMeasuredTemplate',
-        params
-      );
-      if (response?.success === false) {
-        throw new Error(response.error || 'Failed to place template');
-      }
-      return response;
-    } catch (error) {
-      this.logger.error('Error placing template', error);
-      if (error instanceof z.ZodError) {
-        return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
-      }
-      throw error;
-    }
-  }
-
-  async handleDeleteMeasuredTemplate(args: any) {
-    const schema = z.object({
-      templateId: z.string().optional(),
-      all: z.boolean().optional(),
-    });
-    try {
-      const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query(
-        'foundry-mcp-bridge.deleteMeasuredTemplate',
-        params
-      );
-      if (response?.success === false) {
-        throw new Error(response.error || 'Failed to delete template');
-      }
-      return response;
-    } catch (error) {
-      this.logger.error('Error deleting template', error);
       throw error;
     }
   }

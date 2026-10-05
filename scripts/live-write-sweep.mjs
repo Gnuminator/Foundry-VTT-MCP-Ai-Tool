@@ -19,8 +19,10 @@
  *     conditions, light and rolls; its own NPC for features, loot, rests and ownership).
  *   - Damage, healing, conditions and resources go through plan-actor-change (F5, D-082):
  *     each step plans, applies, checks, undoes with undo-change and checks again.
- *   - Scene-wide changes are put back by the tools themselves: map notes and templates are
- *     deleted, the scene mood and the active scene are restored.
+ *   - Scene dressing (templates, map notes, darkness and light, loot) goes through
+ *     plan-scene-change (I-112): each step plans, applies, reads the world back, undoes with
+ *     undo-change and reads it back again. The scene mood and the active scene are restored
+ *     at the end as a safety net.
  *   - At the end the dashboard's test route (`POST /api/test/live-sweep`, mode `cleanup`)
  *     has the module delete every "AI Tool Sweep" document and the chat messages and
  *     combats created since the run started. The module refuses that outside the test worlds
@@ -146,8 +148,6 @@ async function http(path, { method = 'GET', body, timeoutMs = 30000 } = {}) {
 
 /** Tools whose class is destructive in the dashboard's tool policy (both confirmations). */
 const DESTRUCTIVE = new Set([
-  'delete-map-note',
-  'delete-measured-template',
   'clear-module-errors',
   'undo-change',
 ]);
@@ -763,45 +763,109 @@ async function combatTools() {
 // --- 7. Scene: notes, templates, mood, switching --------------------------------
 
 async function sceneTools() {
-  await step('add-map-note', async () => {
-    const r = await tool('add-map-note', { text: `${PREFIX} note`, x: 200, y: 200 });
-    ctx.noteId = r && r.noteId;
-    assert(ctx.noteId, `no note id in ${brief(r)}`);
-    return ctx.noteId;
-  });
-  await step('delete-map-note', async () => {
-    if (!ctx.noteId) skip('no sweep note');
-    const r = await tool('delete-map-note', { noteId: ctx.noteId });
-    assert(r && r.deletedCount === 1, brief(r));
+  await step('plan-scene-change note (create, undo; create, remove, undo the remove)', async () => {
+    const text = `${PREFIX} note`;
+    const notesNamed = async () => (await sceneRefs('note')).filter(n => n.name === text);
+    assert((await notesNamed()).length === 0, 'a sweep note is already on the scene');
+    const created = await planAndApply({ action: 'note', text, x: 200, y: 200 }, 'plan-scene-change');
+    const found = await notesNamed();
+    assert(found.length === 1, `${found.length} notes named "${text}" after the apply`);
+    ctx.noteId = found[0].id;
+    await undo(created.change);
+    assert((await notesNamed()).length === 0, 'the note is still there after the undo');
     ctx.noteId = null;
-    return 'deleted';
+    // remove-note: by id (a delete, so destructive), undone, then by exact text.
+    await planAndApply({ action: 'note', text, x: 200, y: 200 }, 'plan-scene-change');
+    ctx.noteId = (await notesNamed())[0]?.id ?? null;
+    assert(ctx.noteId, 'the second note is not on the scene');
+    const removed = await planAndApply(
+      { action: 'remove-note', noteId: ctx.noteId },
+      'plan-scene-change'
+    );
+    assert(removed.plan.risk === 'destructive', `risk ${removed.plan.risk}`);
+    assert((await notesNamed()).length === 0, 'the note is still there after remove-note');
+    await undo(removed.change);
+    assert((await notesNamed()).length === 1, 'the note did not come back after undoing the remove');
+    // The undo re-created the note, so the create can no longer be undone (a conflict); a new
+    // plan takes it off, by its label.
+    await planAndApply({ action: 'remove-note', text }, 'plan-scene-change');
+    assert((await notesNamed()).length === 0, 'the note is still there after remove-note by text');
+    ctx.noteId = null;
+    return created.plan.summary;
   });
-  await step('place-measured-template (circle)', async () => {
-    const r = await tool('place-measured-template', {
-      shape: 'circle',
-      distance: 10,
-      x: 300,
-      y: 300,
-    });
-    ctx.templateId = r && r.templateId;
-    assert(ctx.templateId, `no template id in ${brief(r)}`);
-    return `${ctx.templateId}, ${(r.tokensInside || []).length} token(s) inside`;
-  });
-  await step('delete-measured-template', async () => {
-    if (!ctx.templateId) skip('no sweep template');
-    const r = await tool('delete-measured-template', { templateId: ctx.templateId });
-    assert(r && r.deletedCount === 1, brief(r));
+  await step('plan-scene-change template (circle over the sweep token, undo)', async () => {
+    const before = await sceneRefs('template');
+    const request = ctx.wolfTokenId
+      ? { action: 'template', shape: 'circle', distance: 10, originTokenName: ctx.wolfName }
+      : { action: 'template', shape: 'circle', distance: 10, x: 300, y: 300 };
+    const { plan, change } = await planAndApply(request, 'plan-scene-change');
+    if (ctx.wolfTokenId) {
+      const names = (plan.tokensInside || []).map(t => t.name);
+      assert(names.includes(ctx.wolfName), `tokensInside ${brief(plan.tokensInside)}`);
+    }
+    const placed = (await sceneRefs('template')).filter(t => !before.some(b => b.id === t.id));
+    assert(placed.length === 1, `${placed.length} new templates after the apply`);
+    ctx.templateId = placed[0].id;
+    await undo(change);
+    const after = await sceneRefs('template');
+    assert(
+      after.length === before.length,
+      `${after.length} templates after the undo, was ${before.length}`
+    );
     ctx.templateId = null;
-    return 'deleted';
+    return `${plan.summary}, ${(plan.tokensInside || []).length} token(s) inside; undone`;
   });
-  await step('set-scene-mood (and back)', async () => {
+  await step('plan-scene-change clear-templates (place, clear, undo, clear again)', async () => {
+    const before = await sceneRefs('template');
+    await planAndApply(
+      { action: 'template', shape: 'cone', distance: 15, x: 300, y: 300 },
+      'plan-scene-change'
+    );
+    const placed = (await sceneRefs('template')).filter(t => !before.some(b => b.id === t.id));
+    assert(placed.length === 1, `${placed.length} new templates after placing`);
+    ctx.templateId = placed[0].id;
+    const cleared = await planAndApply(
+      { action: 'clear-templates', templateId: ctx.templateId },
+      'plan-scene-change'
+    );
+    assert(cleared.plan.risk === 'destructive', `risk ${cleared.plan.risk}`);
+    assert((await sceneRefs('template')).length === before.length, 'the template is still there');
+    await undo(cleared.change);
+    const back = await sceneRefs('template');
+    assert(back.some(t => t.id === ctx.templateId), 'the template did not come back after the undo');
+    // The undo re-created the template, so the place can no longer be undone; clear it by id.
+    await planAndApply(
+      { action: 'clear-templates', templateId: ctx.templateId },
+      'plan-scene-change'
+    );
+    assert((await sceneRefs('template')).length === before.length, 'the template is still there');
+    ctx.templateId = null;
+    return 'placed, cleared, clear undone, cleared again';
+  });
+  await step('plan-scene-change mood (darkness and light, undo)', async () => {
     if (!ctx.mood || ctx.mood.darkness === null) skip('scene lighting unknown, left alone');
     const target = ctx.mood.darkness >= 0.5 ? 0.1 : 0.9;
-    await tool('set-scene-mood', { darkness: target, globalLight: !ctx.mood.globalLight });
+    const light = ctx.mood.globalLight === null ? true : !ctx.mood.globalLight;
+    const { plan, change } = await planAndApply(
+      { action: 'mood', darkness: target, globalLight: light },
+      'plan-scene-change'
+    );
     const after = await helper({ mode: 'snapshot' });
     assert(Math.abs(after.darkness - target) < 0.01, `darkness ${after.darkness}`);
-    await restoreMood();
-    return `darkness ${ctx.mood.darkness} -> ${target} -> back`;
+    assert(after.globalLight === light, `global light ${after.globalLight}`);
+    await undo(change);
+    const back = await helper({ mode: 'snapshot' });
+    assert(
+      Math.abs(back.darkness - ctx.mood.darkness) < 0.01,
+      `darkness ${back.darkness} after the undo, was ${ctx.mood.darkness}`
+    );
+    if (ctx.mood.globalLight !== null) {
+      assert(
+        back.globalLight === ctx.mood.globalLight,
+        `global light ${back.globalLight} after the undo`
+      );
+    }
+    return `${plan.summary}; undone (darkness ${ctx.mood.darkness})`;
   });
   await step('switch-scene (and back)', async () => {
     const listed = await tool('list-scenes', {});
@@ -820,12 +884,27 @@ async function sceneTools() {
   });
 }
 
+/** Safety net: put the scene's lighting back when a mood step died before its undo. */
 async function restoreMood() {
   if (!ctx.mood || ctx.mood.darkness === null) return;
-  await tool('set-scene-mood', {
-    darkness: ctx.mood.darkness,
-    ...(ctx.mood.globalLight === null ? {} : { globalLight: ctx.mood.globalLight }),
-  });
+  const now = await helper({ mode: 'snapshot' });
+  const darknessOk = Math.abs(now.darkness - ctx.mood.darkness) < 0.01;
+  const lightOk = ctx.mood.globalLight === null || now.globalLight === ctx.mood.globalLight;
+  if (darknessOk && lightOk) return;
+  await planAndApply(
+    {
+      action: 'mood',
+      darkness: ctx.mood.darkness,
+      ...(ctx.mood.globalLight === null ? {} : { globalLight: ctx.mood.globalLight }),
+    },
+    'plan-scene-change'
+  );
+}
+
+/** What list-ref-choices reads live from the viewed scene: kind "note" or "template". */
+async function sceneRefs(kind) {
+  const r = await tool('list-ref-choices', { kind });
+  return (r && r.choices) || [];
 }
 
 async function restoreScene() {
@@ -924,14 +1003,53 @@ async function actorTools() {
     assert(back === old, `${name} is ${back} after the undo, expected ${old}`);
     return `${name} ${old} -> ${spent} -> undone to ${back}`;
   });
-  await step('drop-loot (1 gp to the NPC, no chat)', async () => {
+  await step('plan-scene-change loot (1 gp, an item and a chat card to the NPC, undo)', async () => {
     needNpc();
-    const r = await tool('drop-loot', {
-      targetCharacter: ctx.npcName,
-      currency: { gp: 1 },
-      announce: false,
-    });
-    return brief(r && (r.summary || r), 80);
+    // Read back the NPC's gold through a plan that adds nothing: its diff shows the balance
+    // Foundry holds right now (the plan is never applied and expires).
+    const goldNow = async () => {
+      const p = await tool('plan-scene-change', {
+        action: 'loot',
+        targetCharacter: ctx.npcName,
+        currency: { gp: 0 },
+        announce: false,
+      });
+      const line = (p.diff || []).find(d => d.path === 'system.currency.gp');
+      assert(line, `no gold line in ${brief(p.diff)}`);
+      return line.before && line.before.present ? Number(line.before.value) : 0;
+    };
+    const found = firstCompendiumActor(
+      await tool('search-compendium', { query: 'Dagger', packType: 'Item' })
+    );
+    const itemName = found && found.name;
+    const itemCount = async () => {
+      const sheet = await tool('get-character', { identifier: ctx.npcId });
+      return ((sheet && sheet.items) || []).filter(i => i.name === itemName).length;
+    };
+    const goldBefore = await goldNow();
+    const itemsBefore = found ? await itemCount() : 0;
+    const { plan, change } = await planAndApply(
+      {
+        action: 'loot',
+        targetCharacter: ctx.npcName,
+        currency: { gp: 1 },
+        ...(found ? { itemUuids: [`Compendium.${found.packId}.Item.${found.itemId}`] } : {}),
+      },
+      'plan-scene-change'
+    );
+    assert(!(plan.skippedItems || []).length, `skipped ${brief(plan.skippedItems)}`);
+    assert(
+      (change.documents || []).some(d => String(d).startsWith('ChatMessage.')),
+      `no chat card in ${brief(change.documents)}`
+    );
+    const goldAfter = await goldNow();
+    assert(goldAfter === goldBefore + 1, `gold ${goldAfter}, expected ${goldBefore + 1}`);
+    if (found) assert((await itemCount()) === itemsBefore + 1, `no ${itemName} on the NPC`);
+    await undo(change);
+    const goldBack = await goldNow();
+    assert(goldBack === goldBefore, `gold ${goldBack} after the undo, was ${goldBefore}`);
+    if (found) assert((await itemCount()) === itemsBefore, `${itemName} still on the NPC`);
+    return `${plan.summary}; undone (gold ${goldBefore}${found ? '' : ', no Dagger found: gold and chat only'})`;
   });
   await step('manage-rest (long, NPC)', async () => {
     needNpc();
@@ -1009,9 +1127,12 @@ async function logTools() {
 async function cleanUp() {
   const quiet = p => p.catch(e => console.log(`  note: clean-up step failed: ${e.message}`));
   await step('clean up: scene put back, sweep token and documents deleted', async () => {
-    if (ctx.noteId) await quiet(tool('delete-map-note', { noteId: ctx.noteId }));
+    if (ctx.noteId)
+      await quiet(planAndApply({ action: 'remove-note', noteId: ctx.noteId }, 'plan-scene-change'));
     if (ctx.templateId)
-      await quiet(tool('delete-measured-template', { templateId: ctx.templateId }));
+      await quiet(
+        planAndApply({ action: 'clear-templates', templateId: ctx.templateId }, 'plan-scene-change')
+      );
     await quiet(restoreScene());
     await quiet(restoreMood());
     // The module also deletes sweep tokens on any scene, whichever scene the GM views.

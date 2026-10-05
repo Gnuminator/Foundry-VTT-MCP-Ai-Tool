@@ -106,7 +106,7 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: LIVE_PLAY_FEATURE_ID,
         name: 'AI Tool: Live play (writes)',
-        hint: 'Lets the dashboard and the AI apply damage, healing, temporary hit points, conditions and resources (spell slots, class resources, item uses), and move, change or delete tokens.',
+        hint: 'Lets the dashboard and the AI apply damage, healing, temporary hit points, conditions and resources (spell slots, class resources, item uses), move, change or delete tokens, and dress the scene (area templates, darkness and light, map notes, loot).',
         defaultEnabled: true,
         autoApply: {
           name: 'AI Tool: Live play, apply without confirming',

@@ -68,7 +68,21 @@ describe('toolSetOf', () => {
     expect(toolSetOf('undo-change')).toBe('core');
     expect(toolSetOf('plan-actor-change')).toBe('play');
     expect(toolSetOf('plan-token-change')).toBe('play');
-    for (const gone of ['move-token', 'update-token', 'delete-tokens', 'set-token-vision-light']) {
+    expect(toolSetOf('plan-scene-change')).toBe('play');
+    expect(toolSetOf('play-playlist')).toBe('play');
+    for (const gone of [
+      'move-token',
+      'update-token',
+      'delete-tokens',
+      'set-token-vision-light',
+      // I-112: plan-scene-change and play-playlist replace the scene-dressing tools
+      'place-measured-template',
+      'delete-measured-template',
+      'set-scene-mood',
+      'add-map-note',
+      'delete-map-note',
+      'drop-loot',
+    ]) {
       expect(toolSetOf(gone), gone).toBeUndefined();
     }
     expect(toolSetOf('plan-page-reveal')).toBe('prep');

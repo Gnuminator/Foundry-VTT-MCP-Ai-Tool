@@ -32,6 +32,7 @@ import { getPartyState, PARTY_STATE_QUERY } from './party-scan.js';
 import { PARTY_PLACE_QUERY, planPartyPlacement } from './party-place.js';
 import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
 import { LIVE_PLAN_QUERY, planLiveChange } from './live-plan.js';
+import { planSceneChange, SCENE_PLAN_QUERY } from './scene-plan.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
 import { CHARACTER_SHEET_QUERY, characterSheets } from './character-sheet.js';
@@ -220,6 +221,12 @@ export class QueryHandlers {
     // as guarded ops, built with a dnd5e dry run. GM client only.
     handlers.set(`${modulePrefix}.${LIVE_PLAN_QUERY}`, (data: unknown) =>
       this.withGmGate('Failed to plan the change', () => planLiveChange(data))
+    );
+
+    // Scene dressing plans (I-112, read-only): templates, darkness and light, map notes and loot
+    // as guarded ops. GM client only.
+    handlers.set(`${modulePrefix}.${SCENE_PLAN_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to plan the scene change', () => planSceneChange(data))
     );
 
     // Live write sweep helper (I-016): scene snapshot, a sweep combat and the clean-up for
@@ -431,20 +438,9 @@ export class QueryHandlers {
       `${modulePrefix}.suggestBalancedEncounter`,
       this.handleSuggestBalancedEncounter.bind(this)
     );
-    handlers.set(
-      `${modulePrefix}.placeMeasuredTemplate`,
-      this.handlePlaceMeasuredTemplate.bind(this)
-    );
-    handlers.set(`${modulePrefix}.setSceneMood`, this.handleSetSceneMood.bind(this));
-    handlers.set(`${modulePrefix}.addMapNote`, this.handleAddMapNote.bind(this));
-    handlers.set(`${modulePrefix}.dropLoot`, this.handleDropLoot.bind(this));
+    handlers.set(`${modulePrefix}.playPlaylist`, this.handlePlayPlaylist.bind(this));
 
     // Cleanup & targeting
-    handlers.set(
-      `${modulePrefix}.deleteMeasuredTemplate`,
-      this.handleDeleteMeasuredTemplate.bind(this)
-    );
-    handlers.set(`${modulePrefix}.deleteMapNote`, this.handleDeleteMapNote.bind(this));
     handlers.set(`${modulePrefix}.getTargets`, this.handleGetTargets.bind(this));
 
     // Diagnostics (module troubleshooting)
@@ -1511,47 +1507,13 @@ export class QueryHandlers {
     });
   }
 
-  async handlePlaceMeasuredTemplate(data: any): Promise<any> {
-    return this.withGmGate('Failed to place template', async () => {
-      if (!data?.shape) throw new Error('shape is required');
-      if (data?.distance === undefined || data?.distance === null) {
-        throw new Error('distance is required');
-      }
-      return await this.dataAccess.placeMeasuredTemplate(data);
-    });
-  }
-
-  async handleSetSceneMood(data: any): Promise<any> {
-    return this.withGmGate('Failed to set scene mood', async () => {
-      return await this.dataAccess.setSceneMood(data || {});
-    });
-  }
-
-  async handleAddMapNote(data: any): Promise<any> {
-    return this.withGmGate('Failed to add map note', async () => {
-      return await this.dataAccess.addMapNote(data || {});
-    });
-  }
-
-  async handleDropLoot(data: any): Promise<any> {
-    return this.withGmGate('Failed to drop loot', async () => {
-      return await this.dataAccess.dropLoot(data || {});
+  async handlePlayPlaylist(data: any): Promise<any> {
+    return this.withGmGate('Failed to play playlist', async () => {
+      return await this.dataAccess.playPlaylist(data || {});
     });
   }
 
   // ===== CLEANUP & TARGETING =====
-
-  async handleDeleteMeasuredTemplate(data: { templateId?: string; all?: boolean }): Promise<any> {
-    return this.withGmGate('Failed to delete template', async () => {
-      return await this.dataAccess.deleteMeasuredTemplate(data || {});
-    });
-  }
-
-  async handleDeleteMapNote(data: { noteId?: string; text?: string }): Promise<any> {
-    return this.withGmGate('Failed to delete map note', async () => {
-      return await this.dataAccess.deleteMapNote(data || {});
-    });
-  }
 
   async handleGetTargets(): Promise<any> {
     return this.withGmGate('Failed to get targets', async () => {

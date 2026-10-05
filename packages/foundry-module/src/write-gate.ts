@@ -33,7 +33,6 @@ export const WRITE_METHODS: readonly string[] = [
   'createActorFromCompendium',
   'createNpcActor',
   'createWorldItems',
-  'dropLoot',
   'setActorSpellcasting',
   'updateWorldItems',
   'useItem',
@@ -41,11 +40,7 @@ export const WRITE_METHODS: readonly string[] = [
   'manageRest',
   // tokens and scenes
   'addActorsToScene',
-  'addMapNote',
-  'deleteMapNote',
-  'deleteMeasuredTemplate',
-  'placeMeasuredTemplate',
-  'setSceneMood',
+  'playPlaylist',
   'switch-scene',
   // combat
   'advanceCombatTurn',
@@ -133,6 +128,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'ping',
   'planLiveChange',
   'planPartyPlacement',
+  'planSceneChange',
   'searchCharacterItems',
   'searchCompendium',
   'searchLinkCandidates',

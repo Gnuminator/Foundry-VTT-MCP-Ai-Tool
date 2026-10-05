@@ -67,8 +67,7 @@ describe('write gate: classification', () => {
   });
 
   it('covers the handlers named in P-036', () => {
-    for (const m of ['addActorItems', 'dropLoot', 'placeMeasuredTemplate'])
-      expect(WRITE_METHODS).toContain(m);
+    for (const m of ['addActorItems', 'playPlaylist']) expect(WRITE_METHODS).toContain(m);
   });
 
   it('has no direct token write handlers left (F5 L2: plan-token-change replaces them)', () => {
@@ -89,6 +88,29 @@ describe('write gate: classification', () => {
   });
 });
 
+describe('write gate: scene dressing plans', () => {
+  it('has no direct scene-dressing handlers left (I-112: plan-scene-change replaces them)', () => {
+    qh.registerHandlers();
+    const registered = bridgeHandlers.methods().map(m => m.slice(MODULE_ID.length + 1));
+    for (const m of [
+      'placeMeasuredTemplate',
+      'deleteMeasuredTemplate',
+      'setSceneMood',
+      'addMapNote',
+      'deleteMapNote',
+      'dropLoot',
+    ]) {
+      expect(registered, m).not.toContain(m);
+      expect(WRITE_METHODS, m).not.toContain(m);
+    }
+  });
+
+  it('classifies the scene plan query as a read and the playlist as a write', () => {
+    expect(NON_WRITE_METHODS).toContain('planSceneChange');
+    expect(WRITE_METHODS).toContain('playPlaylist');
+  });
+});
+
 describe('write gate: behaviour', () => {
   it('refuses every write handler while "Allow Write Operations" is off, before any work', async () => {
     const calls = stubEverything();
@@ -106,8 +128,8 @@ describe('write gate: behaviour', () => {
     const calls = stubEverything();
     world.enableWrites();
     qh.registerHandlers();
-    await bridgeHandlers.get(wire('dropLoot'))!({});
-    expect(calls).toHaveBeenCalledWith('dropLoot', expect.anything());
+    await bridgeHandlers.get(wire('playPlaylist'))!({});
+    expect(calls).toHaveBeenCalledWith('playPlaylist', expect.anything());
   });
 
   it('never gates reads', async () => {

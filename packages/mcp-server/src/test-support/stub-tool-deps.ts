@@ -22,7 +22,6 @@ import { DnD5eNpcTools } from '../tools/dnd5e/npc.js';
 import { EffectsTools } from '../tools/effects.js';
 import { EncounterTools } from '../tools/encounter.js';
 import { GuardedChangeTools } from '../tools/guarded-changes.js';
-import { LootTools } from '../tools/loot.js';
 import { MovementTools } from '../tools/movement.js';
 import { ObsidianMirrorTools } from '../tools/obsidian-mirror.js';
 import { OwnershipTools } from '../tools/ownership.js';
@@ -36,7 +35,7 @@ import { PrepDigestTools } from '../tools/prep-digest.js';
 import { QuestCreationTools } from '../tools/quest-creation.js';
 import { RefChoiceTools } from '../tools/ref-choices.js';
 import { ResourceTools } from '../tools/resources.js';
-import { SceneControlTools } from '../tools/scene-control.js';
+import { SceneChangeTools } from '../tools/scene-change.js';
 import { SceneTools } from '../tools/scene.js';
 import { SessionLogTools } from '../tools/session-log.js';
 import { TarokkaTools } from '../tools/tarokka.js';
@@ -64,7 +63,6 @@ export function stubToolRouterDeps(): ToolRouterDeps {
     effectsTools: new EffectsTools(base),
     encounterTools: new EncounterTools(base),
     guardedChangeTools: new GuardedChangeTools({ ...base, guardedWrites: {} }),
-    lootTools: new LootTools(base),
     movementTools: new MovementTools(base),
     obsidianMirrorTools: new ObsidianMirrorTools({
       store: {} as any,
@@ -106,7 +104,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
     questCreationTools: new QuestCreationTools(base),
     refChoiceTools: new RefChoiceTools({ ...base, guardedWrites: {} }),
     resourceTools: new ResourceTools(base),
-    sceneControlTools: new SceneControlTools(base),
+    sceneChangeTools: new SceneChangeTools({ foundryClient, guardedWrites: {} as any, logger }),
     sceneTools: new SceneTools(base),
     sessionLogTools: new SessionLogTools(base),
     tarokkaTools: new TarokkaTools({ tarokka: {} as any, logger }),

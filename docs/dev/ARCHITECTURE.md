@@ -643,3 +643,6 @@ sees_ in the UI comes from the live SSE feed, not from the tool's return value.
 | `packages/foundry-module` | `foundry-mcp-bridge` — the in-Foundry gateway                                     | Foundry's browser |
 | `packages/cogm-dashboard` | standalone co-GM dashboard (Node SSE server + browser client)                     | Node.js + browser |
 | `shared`                  | shared types/vocabulary                                                           | both              |
+
+The end-to-end test kit (a known world, scenarios, a report, and a fake for CI) is described in
+[TEST-KIT.md](TEST-KIT.md).

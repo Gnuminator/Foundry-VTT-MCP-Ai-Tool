@@ -65,6 +65,20 @@ jobs:
       - name: Build (all workspaces)
         run: npm run build
 
+      - name: Test kit engine tests
+        # The test kit's engine and its fake (scripts/test-kit): needs the build, the fake reads the tool catalog from it.
+        run: npm run kit:test
+
+      - name: Test kit scenario check
+        # Every scenario file in scripts/test-kit/scenarios loads, validates and names only tools in tool-sets.ts.
+        run: node scripts/test-kit/kit.mjs check
+
+      - name: Test kit fake run
+        # The whole kit (build, then every scenario) against the in-process fake: catches scenario and engine regressions without Foundry.
+        run: node scripts/test-kit/kit.mjs all --fake
+        env:
+          TEST_KIT_HOME: ${{ runner.temp }}/test-kit
+
       - name: Unit tests (shared)
         # Parity + frozen-wire-contract guard for the @gnuminator/shared package.
         run: npm test -w @gnuminator/shared

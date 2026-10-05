@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "note": "What the kit builder creates, chosen by rule (first match sorted by name, then id; a creature already picked by an earlier cell is skipped). Edit this file, not builder.mjs, to change the kit.",
+  "classes": {
+    "pack": "dnd5e.classes24",
+    "names": [
+      "Barbarian",
+      "Bard",
+      "Cleric",
+      "Druid",
+      "Fighter",
+      "Monk",
+      "Paladin",
+      "Ranger",
+      "Rogue",
+      "Sorcerer",
+      "Warlock",
+      "Wizard"
+    ],
+    "level": 1
+  },
+  "monsters": {
+    "pack": "dnd5e.actors24",
+    "excludeIdPattern": "Lv[0-9]|^dmg",
+    "cells": [
+      { "cell": "cr0", "criteria": { "challengeRating": 0, "creatureType": "beast" } },
+      { "cell": "cr1/4", "criteria": { "challengeRating": 0.25 } },
+      { "cell": "cr1", "criteria": { "challengeRating": 1 } },
+      { "cell": "cr3", "criteria": { "challengeRating": 3 } },
+      { "cell": "cr5+", "criteria": { "challengeRating": { "min": 5, "max": 10 } } },
+      {
+        "cell": "undead",
+        "criteria": { "creatureType": "undead", "challengeRating": { "min": 0, "max": 3 } }
+      },
+      {
+        "cell": "beast",
+        "criteria": { "creatureType": "beast", "challengeRating": { "min": 0.25, "max": 1 } }
+      },
+      {
+        "cell": "flyer",
+        "criteria": { "challengeRating": { "min": 0, "max": 3 } },
+        "require": "fly"
+      },
+      {
+        "cell": "resistant",
+        "criteria": { "challengeRating": { "min": 0, "max": 5 } },
+        "require": "resistance"
+      },
+      {
+        "cell": "large",
+        "criteria": { "size": "large", "challengeRating": { "min": 0, "max": 5 } }
+      },
+      { "cell": "legendary", "criteria": { "hasLegendaryActions": true } }
+    ]
+  },
+  "scene": { "name": "Kit Arena", "width": 24, "height": 16, "grid": 100 },
+  "layout": {
+    "heroes": { "x": 6, "y": 13, "dx": 1, "dy": 0, "perRow": 12 },
+    "monsters": { "x": 1, "y": 2, "dx": 4, "dy": 4, "perRow": 6 }
+  }
+}

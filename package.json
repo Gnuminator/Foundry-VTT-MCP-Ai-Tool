@@ -25,6 +25,8 @@
     "lint": "eslint . --ext .ts,.js",
     "lint:fix": "eslint . --ext .ts,.js --fix",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
+    "kit": "node scripts/test-kit/kit.mjs",
+    "kit:test": "node --test \"scripts/test-kit/test/*.test.mjs\"",
     "emdash:ratchet": "node scripts/em-dash-guard.mjs",
     "validate:manifest": "node scripts/validate-manifest.js",
     "version:sync": "node scripts/sync-version.mjs",

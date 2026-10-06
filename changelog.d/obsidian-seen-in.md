@@ -17,5 +17,7 @@
   folded by world actor (uuid, name, PC or NPC, hidden only when all its tokens are), at most 200
   with visible actors kept first. `user-join` and `user-leave` records carry `data.isGM`; a
   player's `user-join` adds `data.activeSceneId` and the active scene's `data.tokens`. Rolls and
-  item use carry `data.whisper` and `data.blind` when set. Older records lack these and still read
-  fine (their sessions list nothing).
+  item use carry `data.whisper` and `data.blind` when set; HP, condition, death save and combat
+  turn records carry `data.hidden` when made through a token hidden from players. A GM client
+  without a canvas records the active scene (with the players online) at load. Older records lack
+  these and still read fine (their sessions list nothing).

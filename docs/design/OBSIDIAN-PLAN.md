@@ -384,9 +384,12 @@ timeline die with the browser, one hit logs both `damage-roll` and `damage`, `de
   online) and `data.tokens`: the tokens on that scene folded by world actor (`actorUuid`, `name`,
   `isPC`, `hidden` only when all are hidden), at most 200. A player's `user-join` carries the active
   scene's id and tokens; joins and leaves carry `data.isGM`. The mirror's "Seen in" lists (R4) are
-  built from these by id, never by name, and count only while a player is online: table records
-  (rolls, item use and chat that are not whispered or blind, HP, conditions, combat turns) and the
-  visible tokens of the active scene. GM lifecycle work and scene previews never count.
+  built from these by id, never by name, and count only while a player is online (presence is
+  walked through the whole log, across session-start markers and gaps, and reset by the next
+  `scene` record): table records (rolls, item use and chat that are not whispered or blind; HP,
+  conditions and combat turns not marked `data.hidden`, which the module sets when the record's
+  token is hidden) and the visible tokens of the active scene. GM lifecycle work and scene
+  previews never count. A GM client without a canvas records the active scene at load.
 - **Kinds:** rolls (attack, damage, save, check, skill, tool, initiative, death save, hit die), spell
   casts (level, slot, upcast), slots, class resources, hit dice, item uses/charges/quantity, loot,
   currency, HP, conditions/effects, XP/level, rests, actor/token create/delete, scene change, combat

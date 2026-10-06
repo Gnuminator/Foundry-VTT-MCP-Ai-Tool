@@ -7,10 +7,12 @@
  * "Seen" means the players saw it, so only what happens while a player is online counts (the
  * GM prepping alone, or making and placing NPCs, never does):
  * - Who is online: a `scene` record's `data.players` (everyone online then), adjusted by
- *   `user-join` and `user-leave` records whose `data.isGM` is false. Records from before
- *   2026-10 carry neither, so their sessions list nothing.
- * - An NPC: the world actor of a table record (`TABLE_KINDS`, not whispered or blind; an
- *   unlinked token's actor uuid is folded to its base actor), or a not-hidden entry of the
+ *   `user-join` and `user-leave` records whose `data.isGM` is false, walked through the whole
+ *   play log in time order (so players who joined before a session-start marker or a gap still
+ *   count after it). Records from before 2026-10 carry neither, so their sessions list nothing.
+ * - An NPC: the world actor of a table record (`TABLE_KINDS`, not whispered or blind, and for
+ *   state kinds not made through a hidden token; an unlinked token's actor uuid is folded to its
+ *   base actor), or a not-hidden entry of the
  *   `data.tokens` snapshot of an active `scene` record or a player's `user-join` record.
  * - A scene: an active `scene` record (`data.active`, not a GM preview), or the
  *   `data.activeSceneId` of a player's `user-join` record.
@@ -77,11 +79,18 @@ function snapshotActors(record: PlayRecord): string[] {
   return found;
 }
 
-/** A table record the players could see (not whispered, not blind). */
+/**
+ * Table kinds that put a card in the chat log: a public card counts even when the actor's token
+ * is hidden (the players read it). The other table kinds (HP, conditions, combat turns) count
+ * only when the record was not made through a hidden token (`data.hidden`).
+ */
+const CHAT_KINDS: ReadonlySet<string> = new Set(['roll', 'item-use', 'chat']);
+
+/** A table record the players could see (not whispered, not blind, not a hidden token's state). */
 function isTableRecord(record: PlayRecord): boolean {
-  return (
-    TABLE_KINDS.has(record.kind) && record.data?.whisper !== true && record.data?.blind !== true
-  );
+  if (!TABLE_KINDS.has(record.kind)) return false;
+  if (record.data?.whisper === true || record.data?.blind === true) return false;
+  return CHAT_KINDS.has(record.kind) || record.data?.hidden !== true;
 }
 
 /** A `user-join` or `user-leave` record of a player (not a GM). */
@@ -93,13 +102,19 @@ function isPlayerPresence(record: PlayRecord): boolean {
   );
 }
 
-/** What one group (session) shows: actor and scene uuids the players saw. */
-function seenInGroup(records: readonly PlayRecord[]): { actors: string[]; scenes: string[] } {
-  const actors: string[] = [];
-  const scenes: string[] = [];
+function byTime(a: PlayRecord, b: PlayRecord): number {
+  return a.t - b.t || a.seq - b.seq;
+}
+
+/**
+ * The records made while at least one player was online, from one walk through the whole log
+ * in time order: presence carries across group boundaries (a session-start marker or a gap),
+ * and the next `scene` record with `data.players` (a world load, a scene change) resets it.
+ */
+function recordsWithPlayers(records: readonly PlayRecord[]): Set<PlayRecord> {
+  const withPlayers = new Set<PlayRecord>();
   const players = new Set<string>();
-  const ordered = [...records].sort((a, b) => a.t - b.t || a.seq - b.seq);
-  for (const record of ordered) {
+  for (const record of [...records].sort(byTime)) {
     const online: unknown = record.data?.players;
     if (record.kind === 'scene' && Array.isArray(online)) {
       players.clear();
@@ -108,7 +123,20 @@ function seenInGroup(records: readonly PlayRecord[]): { actors: string[]; scenes
       if (record.kind === 'user-join') players.add(record.userId);
       else players.delete(record.userId);
     }
-    if (players.size === 0) continue;
+    if (players.size > 0) withPlayers.add(record);
+  }
+  return withPlayers;
+}
+
+/** What one group (session) shows: actor and scene uuids the players saw. */
+function seenInGroup(
+  records: readonly PlayRecord[],
+  withPlayers: ReadonlySet<PlayRecord>
+): { actors: string[]; scenes: string[] } {
+  const actors: string[] = [];
+  const scenes: string[] = [];
+  for (const record of [...records].sort(byTime)) {
+    if (!withPlayers.has(record)) continue;
 
     if (record.kind === 'scene' && record.data?.active === true) {
       if (record.sceneId) scenes.push(`Scene.${record.sceneId}`);
@@ -140,20 +168,25 @@ function sortedRecord(map: Map<string, string[]>): Record<string, string[]> {
 /**
  * Build the index. `groups[i]` pairs with `sessions[i]` (the same index the export's session
  * note loop uses); a group without a matching session or without any events or records is
- * skipped the same way.
+ * skipped the same way. `allRecords` is the whole play log the groups were made from (the same
+ * record objects): who is online is walked through it, including groups the grouping left out
+ * (a world load and the players joining before a session-start marker). Without it, the
+ * groups' own records are used.
  */
 export function buildSeenIndex(
   groups: ReadonlyArray<Pick<UnionSessionGroup, 'events' | 'playRecords'>>,
-  sessions: ReadonlyArray<Pick<SessionStats, 'label'>>
+  sessions: ReadonlyArray<Pick<SessionStats, 'label'>>,
+  allRecords?: readonly PlayRecord[]
 ): SeenIndex {
   const actors = new Map<string, string[]>();
   const scenes = new Map<string, string[]>();
+  const withPlayers = recordsWithPlayers(allRecords ?? groups.flatMap(g => g.playRecords));
   for (let i = 0; i < groups.length; i++) {
     const group = groups[i];
     const label = sessions[i]?.label;
     if (!group || !label) continue;
     if (group.events.length === 0 && group.playRecords.length === 0) continue;
-    const seen = seenInGroup(group.playRecords);
+    const seen = seenInGroup(group.playRecords, withPlayers);
     for (const uuid of seen.scenes) add(scenes, uuid, label);
     for (const uuid of seen.actors) add(actors, uuid, label);
   }

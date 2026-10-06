@@ -26,8 +26,10 @@ turned up, newest first, each a link to the session note. It comes from what Fou
 the table, so it needs no setup and never guesses from names. Only what the players saw counts:
 nothing is listed while no player is connected (your prep, making NPCs and placing tokens never
 count). An NPC counts when it rolled, spoke, used something, was hit or healed, took its combat
-turn, or had a visible token on the active scene when you activated it or a player joined. A
-hidden token, a whispered or blind roll and a scene you only previewed do not count. The
+turn, or had a visible token on the active scene when you activated it or a player joined. What
+happens to a hidden token (damage, conditions, its combat turn), a whispered or blind roll and a
+scene you only previewed do not count; a public roll by a hidden NPC does, because the players
+read it in the chat. Players who joined before you marked the session start still count. The
 `last_seen` property holds the date of the newest session, for sorting in a Base. A player
 character has no list, because its stats note says it all.
 

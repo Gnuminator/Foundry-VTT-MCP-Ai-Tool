@@ -313,7 +313,7 @@ export async function exportWorldToObsidian(options: {
 
   // "Seen in" (R4): which sessions each NPC and scene appeared in, for the mirror pump. Written
   // only when it changed, so the mirror does not wake for nothing.
-  const seen = buildSeenIndex(groups, stats.sessions);
+  const seen = buildSeenIndex(groups, stats.sessions, playRecords);
   const storedSeen = (await store.read<SeenIndex>(worldId, 'gm', SEEN_INDEX_FILE))?.data;
   if (JSON.stringify(storedSeen) !== JSON.stringify(seen)) {
     await store.write(worldId, 'gm', SEEN_INDEX_FILE, seen);

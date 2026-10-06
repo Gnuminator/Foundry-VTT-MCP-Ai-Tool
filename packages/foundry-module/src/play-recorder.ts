@@ -370,6 +370,41 @@ function privacyOf(message: ChatMessageLike): Record<string, true> {
   return flags;
 }
 
+/** State kinds that carry `data.hidden: true` when made through a token hidden from players. */
+const HIDDEN_FLAG_KINDS: ReadonlySet<string> = new Set([
+  'hp',
+  'hp-temp',
+  'death-save',
+  'effect-add',
+  'effect-remove',
+  'combat-turn',
+]);
+
+/**
+ * Whether the players cannot see this actor's token: the record's own token for an unlinked
+ * actor, or for a world actor every one of its tokens on the active scene (false when it has
+ * none there).
+ */
+function actorTokenHidden(ref: PlayActorRef): boolean {
+  try {
+    if (ref.tokenUuid) {
+      const [, sceneId] = ref.tokenUuid.split('.');
+      const scene = sceneId ? game.scenes.get(sceneId) : undefined;
+      const token = tokensOf(scene).find(t => str(t.uuid) === ref.tokenUuid);
+      return bool(token?.hidden);
+    }
+    const parts = ref.uuid.split('.');
+    if (parts.length !== 2 || parts[0] !== 'Actor') return false;
+    const sceneId = activeSceneId();
+    const tokens = tokensOf(sceneId ? game.scenes.get(sceneId) : undefined).filter(
+      t => str(t.actorId) === parts[1]
+    );
+    return tokens.length > 0 && tokens.every(t => bool(t.hidden));
+  } catch {
+    return false;
+  }
+}
+
 /** Most actors a scene snapshot lists (`data.tokens` of `scene` and `user-join` records). */
 const MAX_SCENE_TOKENS = 200;
 
@@ -787,6 +822,9 @@ export class PlayRecorder {
         }
       }
       this.viewedSceneId = currentCanvas()?.scene?.id ?? game.scenes.current?.id ?? null;
+      // A client without a canvas (canvasReady never fires) still records who is online at
+      // load, on the active scene, so "Seen in" does not wait for a join or an activation.
+      if (!currentCanvas()?.scene) this.maybeRecordScene(activeSceneId(), true);
     } catch (error) {
       console.warn(`[${MODULE_ID}] PlayRecorder seed failed:`, error);
     }
@@ -948,6 +986,10 @@ export class PlayRecorder {
     if (opts.roll) record.roll = opts.roll;
     if (opts.source) record.source = opts.source;
     if (opts.data) record.data = opts.data;
+    // "Seen in" skips state changes the players could not see (a hidden ambusher's HP).
+    if (opts.actor && HIDDEN_FLAG_KINDS.has(opts.kind) && actorTokenHidden(opts.actor)) {
+      record.data = { ...(record.data ?? {}), hidden: true };
+    }
     return record;
   }
 

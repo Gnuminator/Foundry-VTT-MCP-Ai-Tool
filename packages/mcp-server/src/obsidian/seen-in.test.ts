@@ -207,6 +207,64 @@ describe('buildSeenIndex', () => {
     expect(index.actors).toEqual({ 'Actor.x': [S1] });
   });
 
+  it('counts a session started after the players joined (presence from records outside the groups)', () => {
+    // World load and joins land before the session-start marker; grouping leaves that
+    // ambient-only group out, so only the whole log knows the players are online.
+    const load = sceneRec('load', 1, 's1', true, []);
+    const joined = join('j', 2, 'p1');
+    const roll = rec({ key: 'r', t: 10, kind: 'roll', actor: npc('Actor.x') });
+    const hp = rec({ key: 'h', t: 11, kind: 'hp', actor: npc('Actor.y') });
+    const index = buildSeenIndex([group([roll, hp])], sessions, [load, joined, roll, hp]);
+    expect(index.actors).toEqual({ 'Actor.x': [S1], 'Actor.y': [S1] });
+    // Without the whole log, the group alone has no presence and counts nothing.
+    expect(buildSeenIndex([group([roll, hp])], sessions).actors).toEqual({});
+  });
+
+  it('carries who is online across groups until a scene record resets it', () => {
+    const index = buildSeenIndex(
+      [
+        group([sceneRec('a', 1, 's1', true, []), join('j', 2, 'p1')]),
+        group([
+          rec({ key: 'r1', t: 10, kind: 'roll', actor: npc('Actor.carried') }),
+          sceneRec('load', 20, 's1', true, []),
+          rec({ key: 'r2', t: 21, kind: 'roll', actor: npc('Actor.alone') }),
+        ]),
+      ],
+      sessions
+    );
+    expect(index.actors).toEqual({ 'Actor.carried': [S2] });
+    expect(index.scenes).toEqual({});
+  });
+
+  it("skips a hidden token's state changes but counts its public chat cards", () => {
+    const index = buildSeenIndex(
+      [
+        group([
+          sceneRec('s', 1, 's1', true, ['p1']),
+          rec({ key: 'h', t: 2, kind: 'hp', actor: npc('Actor.hp'), data: { hidden: true } }),
+          rec({
+            key: 'e',
+            t: 3,
+            kind: 'effect-add',
+            actor: npc('Actor.e'),
+            data: { hidden: true },
+          }),
+          rec({
+            key: 'c',
+            t: 4,
+            kind: 'combat-turn',
+            actor: npc('Actor.c'),
+            data: { hidden: true },
+          }),
+          rec({ key: 'r', t: 5, kind: 'roll', actor: npc('Actor.roll'), data: { hidden: true } }),
+          rec({ key: 'v', t: 6, kind: 'hp', actor: npc('Actor.visible') }),
+        ]),
+      ],
+      sessions
+    );
+    expect(index.actors).toEqual({ 'Actor.roll': [S1], 'Actor.visible': [S1] });
+  });
+
   it('lists nothing for records from before 2026-10 (no presence data)', () => {
     const index = buildSeenIndex(
       [

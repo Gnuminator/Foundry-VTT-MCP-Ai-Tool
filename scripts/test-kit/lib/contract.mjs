@@ -148,24 +148,54 @@ export const GM_ACTIONS = {
    * sourceUuid, equipped, uses: {max, spent, recovery: [{period, type, formula}]} | null, activities: [{id, type, name,
    * activation, canUse, consumption: [{type, target, value}]}], effects: [{id, name, disabled, transfer, changes:
    * [{key, value, type}]}]}]} everything the feature scenarios need to know about one actor. Read only.
+   * Additive (monster slice): each activity also has `activationValue` (number | null), and an npc actor has `npc`:
+   * {cr, creatureType, size, ac, movement: {walk, fly, swim, burrow, climb, hover}, movementSource: {same, as stored},
+   * resources: {legact: {max, spent} | null, legres: {max, spent} | null, lair: {value, initiative, inside} | null},
+   * spell: {ability, dc}}.
    */
   inspectFeatures: 'inspectFeatures',
   /**
    * Runs something on an actor and always puts the actor back as it was (items' uses, slots, hit
    * points, hit dice, effects, new items and chat messages are all restored; `restored` and `drift` say
    * whether that worked). One of:
-   * - ({actorId, op: 'use', itemId, activityId}) => {ok, notes: [{level, message}], threw, chatCard,
+   * - ({actorId, op: 'use', itemId, activityId, consumeAction?}) => {ok, notes: [{level, message}], threw, chatCard,
    *   uses: {before, after, max}, spells: {key: {before, after}}, effects: [{name, changes}], itemsCreated,
    *   restored, drift}. Uses one activity with no dialog, no template, no roll and no action cost;
    *   the system's error notifications are collected in `notes`.
+   *   `consumeAction: true` lets the system spend the action the activation stands for (a legendary action spends
+   *   resources.legact when the activity has no consumption target of its own); default false.
    * - ({actorId, op: 'effect', itemId, effectId, enabled, read: [path]}) => {before, during, restored, drift}, each
    *   `{[path]: {value, resolved?}}` read from the actor before and with a copy of the effect on the actor (an item's
    *   effect applies to the actor as a copy, like the chat card's apply button; a Set comes back as an array).
    * - ({actorId, op: 'rest', type: 'short'|'long'}) => {type, afterSpend, afterRest, restored, drift}: every use,
    *   slot and hit die is spent and hit points set to 1, the rest is taken with no dialog, and both
    *   states are reported as {items: [{id, name, max, spent, recovery}], spells, hp, hd}.
+   * - ({actorId, op: 'recharge', itemId, rolls?}) => {target, rolls: [{total, success, spentBefore, spentAfter}],
+   *   restored, drift}: the item's uses are all spent, then the system's own recharge roll (d6 against
+   *   the target, `uses.rollRecharge`) is made `rolls` times (default 6, uses spent again before each).
+   * Additive (monster slice): an `op: 'use'` reply also has `changed`, the paths of actor.system the use changed
+   * ({"resources.legact.spent": {before, after}}, at most 60), so a spent legendary action shows.
    */
   exerciseActor: 'exerciseActor',
+  /**
+   * ({packId, from?, count?}) => {packId, installed, total, skipped: {[actorType]: n}, from, entries: [{packId, id,
+   * uuid, name, cr, creatureType, size, book, rules, hp, ac, movement: {walk, fly, swim, burrow, climb, hover (bool), units},
+   * senses: {darkvision, blindsight, tremorsense, truesight, special (bool)}, languages: string[], resist: {dr, di,
+   * dv, ci: string[], dm (bool)}, spell: {spells, ability, innate (bool), dc}, legact (max), legres (max), lair (bool),
+   * items, activities, odd: {regeneration, shapechanger, damageThreshold, multiattack, innateSpellcasting (bool),
+   * recharge, summon, transform, legendaryActivities, lairActivities (counts)}}]}
+   * Reads the monsters (actors of type npc, sorted by name then id) of one compendium pack, `count` (default 100)
+   * from `from`, as the facts the monster scenarios need. Names, numbers and flags only, no text. Read only.
+   * `total` counts the npcs of the pack; `skipped` the other actor types (character, vehicle).
+   */
+  listMonsters: 'listMonsters',
+  /**
+   * ({packId, itemId, name?, folderId?}) => {actorId, name} a world copy of a compendium monster for a probe. It carries
+   * the kit flag, so a rebuild wipes it when a run died before deleteMonsters. Name default "Probe <name>".
+   */
+  createMonster: 'createMonster',
+  /** ({actorIds}) => {deleted: number, refused: string[]} deletes probe actors; refuses any actor that is not a probe (the flag createMonster sets) */
+  deleteMonsters: 'deleteMonsters',
   /**
    * ({actorId}) => {name, level, items: [{type, name, identifier, sourceUuid, origin: {item, advancement, title} | null,
    * root, prepared, quantity, level (spells)}], advancements: [{item, id, type, title, level, value}], skills: {[id]: number},
@@ -230,6 +260,7 @@ export const GM_ACTIONS = {
  * @property {(name: string, data: unknown) => void} attach   JSON attachment in the report
  * @property {(fn: () => Promise<void>) => void} cleanup     runs after the scenario, last in first out
  * @property {boolean} fake           true when running against the fake (CI)
+ * @property {'smoke'|'full'|'long'} size   the kit size of this run (additive; scenarios that sample use it)
  */
 
 /**

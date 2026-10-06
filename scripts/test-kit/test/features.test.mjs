@@ -893,7 +893,12 @@ test('the feature scenarios run after the others (order), and a bad order is ref
     catalog,
   });
   const ids = scenarios.map(s => s.scenario.id);
-  assert.deepEqual(ids.slice(-2).sort(), ['heroes-features-deep', 'heroes-features-use']);
+  assert.deepEqual(ids.slice(-4).sort(), [
+    'heroes-features-deep',
+    'heroes-features-use',
+    'monsters-every',
+    'monsters-odd',
+  ]);
   assert.ok(ids.indexOf('scripted-fight') < ids.indexOf('heroes-features-use'));
   const { validateScenario } = await import('../lib/contract.mjs');
   const base = scenarios[0].scenario;

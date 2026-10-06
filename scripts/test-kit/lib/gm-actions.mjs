@@ -1059,6 +1059,7 @@ async function inspectFeatures(args) {
         type: a.type,
         name: a.name ?? '',
         activation: a.activation?.type ?? '',
+        activationValue: numOrNull(a.activation?.value),
         canUse: !!a.canUse,
         consumption: list(a.consumption?.targets).map(t => ({
           type: String(t.type ?? ''),
@@ -1081,7 +1082,46 @@ async function inspectFeatures(args) {
   });
   const ac = actor.system.attributes.ac ?? {};
   const hd = actor.system.attributes.hd ?? {};
+  let npc;
+  if (actor.type === 'npc') {
+    const speed = (m, key) => numOrNull(m?.speeds?.[key] ?? m?.[key]) ?? 0;
+    const speeds = m => ({
+      walk: speed(m, 'walk'),
+      fly: speed(m, 'fly'),
+      swim: speed(m, 'swim'),
+      burrow: speed(m, 'burrow'),
+      climb: speed(m, 'climb'),
+      hover: !!m?.hover,
+    });
+    const counter = r =>
+      r && Number(r.max) > 0 ? { max: Number(r.max), spent: Number(r.spent) || 0 } : null;
+    const res = actor.system.resources ?? {};
+    npc = {
+      cr: actor.system.details.cr ?? null,
+      creatureType: String(actor.system.details.type?.value ?? ''),
+      size: String(actor.system.traits?.size ?? ''),
+      ac: numOrNull(ac.value),
+      movement: speeds(actor.system.attributes.movement),
+      movementSource: speeds(actor._source.system.attributes.movement),
+      resources: {
+        legact: counter(res.legact),
+        legres: counter(res.legres),
+        lair: res.lair
+          ? {
+              value: res.lair.value === true,
+              initiative: numOrNull(res.lair.initiative),
+              inside: res.lair.inside === true,
+            }
+          : null,
+      },
+      spell: {
+        ability: String(actor.system.attributes.spellcasting ?? ''),
+        dc: numOrNull(actor.system.attributes.spell?.dc) ?? 0,
+      },
+    };
+  }
   return {
+    ...(npc ? { npc } : {}),
     name: actor.name,
     level: actor.system.details.level,
     prof: actor.system.attributes.prof,
@@ -1283,7 +1323,9 @@ async function exerciseActor(args) {
         // No dialog, no measured template, no summons, no action cost, no roll after the card.
         const use = activity.use(
           {
-            consume: { action: false },
+            // Action consumption is what spends resources.legact for a legendary activation that has
+            // no consumption target of its own (dnd5e 6, _prepareUsageUpdates): off unless asked for.
+            consume: { action: args.consumeAction === true },
             create: { measuredTemplate: false, summons: false },
             concentration: { begin: false },
             subsequentActions: false,
@@ -1340,6 +1382,17 @@ async function exerciseActor(args) {
             changes: (e.changes ?? []).map(c => ({ key: String(c.key), value: String(c.value) })),
           })),
         itemsCreated: Object.keys(after.items).filter(id => !(id in before.items)).length,
+        changed: (() => {
+          const was = foundry.utils.flattenObject(before.system);
+          const now = foundry.utils.flattenObject(after.system);
+          const out = {};
+          for (const path of new Set([...Object.keys(was), ...Object.keys(now)])) {
+            if (JSON.stringify(was[path]) === JSON.stringify(now[path])) continue;
+            if (Object.keys(out).length >= 60) break;
+            out[path] = { before: was[path] ?? null, after: now[path] ?? null };
+          }
+          return out;
+        })(),
       };
     } else if (args.op === 'effect') {
       const item = actor.items.get(args.itemId);
@@ -1376,6 +1429,26 @@ async function exerciseActor(args) {
         await actor.createEmbeddedDocuments('ActiveEffect', [data]);
       }
       result = { before: was, during: read() };
+    } else if (args.op === 'recharge') {
+      const item = actor.items.get(args.itemId);
+      const recharge = item?.system.uses?.recovery?.find(r => r.period === 'recharge');
+      if (!item || !recharge) throw new Error(`exerciseActor: no recharge on ${args.itemId}`);
+      const max = Number(item.system.uses.max) || 1;
+      const target = parseInt(recharge.formula);
+      const rolls = [];
+      for (let i = 0; i < Math.max(1, Number(args.rolls ?? 6)); i += 1) {
+        await item.update({ 'system.uses.spent': max });
+        const spentBefore = Number(item.system.uses.spent);
+        const reply = await item.system.uses.rollRecharge({ apply: true });
+        const roll = reply?.rolls?.[0];
+        rolls.push({
+          total: roll ? Number(roll.total) : null,
+          success: roll ? roll.isSuccess === true : null,
+          spentBefore,
+          spentAfter: Number(item.system.uses.spent),
+        });
+      }
+      result = { target, max, rolls };
     } else if (args.op === 'rest') {
       const summary = () => ({
         items: actor.items
@@ -1435,6 +1508,157 @@ async function exerciseActor(args) {
   return { ...result, restored: differences.length === 0, drift: differences };
 }
 
+/**
+ * The monsters of one compendium pack as facts: one row per actor of type npc, sorted by name then
+ * id, `count` rows from `from`. Names, numbers and flags only, never text. Read only. Verified
+ * against dnd5e 6.0.5: `system.resources.legact|legres` are `{max, spent}`, `lair` is `{value,
+ * initiative, inside}`, `traits.dr|di|dv|ci.value` are Sets, `attributes.senses` has the ranges
+ * as plain numbers, an item's activities are a collection (a feat or weapon of an npc has them).
+ * @param {{packId: string, from?: number, count?: number}} args
+ */
+async function listMonsters(args) {
+  const pack = game.packs.get(args.packId);
+  if (!pack) {
+    return { packId: args.packId, installed: false, total: 0, skipped: {}, from: 0, entries: [] };
+  }
+  const index = await pack.getIndex();
+  const skipped = {};
+  const npcs = [];
+  for (const e of index) {
+    if (e.type !== 'npc') skipped[e.type] = (skipped[e.type] ?? 0) + 1;
+    else npcs.push(e);
+  }
+  npcs.sort(
+    (a, b) => a.name.localeCompare(b.name, 'en') || (a._id < b._id ? -1 : a._id > b._id ? 1 : 0)
+  );
+  const from = Math.max(0, Number(args.from ?? 0));
+  const count = Math.max(1, Number(args.count ?? 100));
+  const slice = npcs.slice(from, from + count);
+  const docs = slice.length ? await pack.getDocuments({ _id__in: slice.map(e => e._id) }) : [];
+  const byId = new Map(docs.map(d => [d.id, d]));
+  const num = v => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const words = v =>
+    Array.from(v ?? [])
+      .map(String)
+      .sort();
+  const list = coll => Array.from(coll?.values?.() ?? coll ?? []);
+  const entries = [];
+  for (const e of slice) {
+    const d = byId.get(e._id);
+    if (!d) continue;
+    const sys = d.system;
+    const mv = sys.attributes.movement ?? {};
+    const sn = sys.attributes.senses?.ranges ?? sys.attributes.senses ?? {};
+    const source = sys.source;
+    const items = list(d.items);
+    const named = re => items.some(i => re.test(i.name));
+    const activities = items.flatMap(i => list(i.system?.activities));
+    const spells = items.filter(i => i.type === 'spell');
+    entries.push({
+      packId: args.packId,
+      id: d.id,
+      uuid: d.uuid,
+      name: d.name,
+      cr: sys.details?.cr ?? null,
+      creatureType: String(sys.details?.type?.value ?? ''),
+      size: String(sys.traits?.size ?? ''),
+      book: typeof source === 'object' && source ? String(source.book ?? '') : String(source ?? ''),
+      rules: typeof source === 'object' && source ? String(source.rules ?? '') : '',
+      hp: num(sys.attributes.hp?.max),
+      ac: num(sys.attributes.ac?.value),
+      movement: {
+        walk: num(mv.walk),
+        fly: num(mv.fly),
+        swim: num(mv.swim),
+        burrow: num(mv.burrow),
+        climb: num(mv.climb),
+        hover: !!mv.hover,
+        units: String(mv.units ?? ''),
+      },
+      senses: {
+        darkvision: num(sn.darkvision),
+        blindsight: num(sn.blindsight),
+        tremorsense: num(sn.tremorsense),
+        truesight: num(sn.truesight),
+        special: !!sys.attributes.senses?.special,
+      },
+      languages: words(sys.traits?.languages?.labels?.languages),
+      resist: {
+        dr: words(sys.traits?.dr?.value),
+        di: words(sys.traits?.di?.value),
+        dv: words(sys.traits?.dv?.value),
+        ci: words(sys.traits?.ci?.value),
+        dm: Object.keys(sys.traits?.dm?.amount ?? {}).length > 0,
+      },
+      spell: {
+        spells: spells.length,
+        ability: String(sys.attributes.spellcasting ?? ''),
+        innate:
+          named(/innate spellcasting/i) ||
+          spells.some(i => ['innate', 'atwill'].includes(String(i.system?.method ?? ''))),
+        dc: num(sys.attributes.spell?.dc),
+      },
+      legact: num(sys.resources?.legact?.max),
+      legres: num(sys.resources?.legres?.max),
+      lair: sys.resources?.lair?.value === true,
+      items: items.length,
+      activities: activities.length,
+      odd: {
+        regeneration: named(/regenerat/i),
+        shapechanger: named(/shapechang|change shape|shape-?shift/i),
+        damageThreshold: named(/damage threshold/i) || num(sys.attributes.hp?.dt) > 0,
+        multiattack: named(/^multiattack/i),
+        innateSpellcasting: named(/innate spellcasting/i),
+        recharge: items.filter(i =>
+          Array.from(i.system?.uses?.recovery ?? []).some(r => r.period === 'recharge')
+        ).length,
+        summon: activities.filter(a => a.type === 'summon').length,
+        transform: activities.filter(a => a.type === 'transform').length,
+        legendaryActivities: activities.filter(a => a.activation?.type === 'legendary').length,
+        lairActivities: activities.filter(a => a.activation?.type === 'lair').length,
+      },
+    });
+  }
+  return { packId: args.packId, installed: true, total: npcs.length, skipped, from, entries };
+}
+
+/**
+ * A world copy of a compendium monster for a probe, flagged as kit so a rebuild wipes it.
+ * @param {{packId: string, itemId: string, name?: string, folderId?: string, _kit: {flagScope: string, flagKey: string}}} args
+ */
+async function createMonster(args) {
+  const { flagScope, flagKey } = args._kit;
+  const pack = game.packs.get(args.packId);
+  if (!pack) throw new Error(`createMonster: no pack ${args.packId}`);
+  const doc = await pack.getDocument(args.itemId);
+  if (!doc) throw new Error(`createMonster: no entry ${args.packId} ${args.itemId}`);
+  const data = game.actors.fromCompendium(doc);
+  data.name = args.name ?? `Probe ${doc.name}`;
+  if (args.folderId) data.folder = args.folderId;
+  foundry.utils.setProperty(data, `flags.${flagScope}.${flagKey}`, { built: true, probe: true });
+  const actor = await Actor.implementation.create(data);
+  return { actorId: actor.id, name: actor.name };
+}
+
+/**
+ * Deletes probe actors. Only an actor that createMonster made (the kit flag with `probe: true`) is
+ * deleted; any other actor, kit hero or kit monster included, is refused.
+ * @param {{actorIds: string[], _kit: {flagScope: string, flagKey: string}}} args
+ */
+async function deleteMonsters(args) {
+  const { flagScope, flagKey } = args._kit;
+  const ids = [];
+  const refused = [];
+  for (const id of args.actorIds ?? []) {
+    const actor = game.actors.get(id);
+    if (!actor) continue;
+    if (actor.getFlag(flagScope, flagKey)?.probe === true) ids.push(id);
+    else refused.push(id);
+  }
+  if (ids.length) await Actor.deleteDocuments(ids);
+  return { deleted: ids.length, refused };
+}
+
 /** The functions gm.mjs runs in the page, by GM action. */
 /**
  * Marks an actor that Actor Studio made as one of the kit's own (the kit flag and folder, a name), so
@@ -1486,4 +1710,7 @@ export const GM_ACTION_FUNCTIONS = {
   startCombat,
   endCombats,
   readActor,
+  listMonsters,
+  createMonster,
+  deleteMonsters,
 };

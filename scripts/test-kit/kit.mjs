@@ -414,6 +414,7 @@ async function cmdTarget(command, o) {
         gm,
         manifest,
         fake: o.fake,
+        size: /** @type {'smoke'|'full'|'long'} */ (o.size),
         log: say,
       }));
     } catch (e) {

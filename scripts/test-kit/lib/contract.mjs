@@ -141,6 +141,55 @@ export const GM_ACTIONS = {
   readActor: 'readActor',
   /** ({since?}) => {errors: [{at, message, source}]} console errors the GM page collected */
   consoleErrors: 'consoleErrors',
+  /**
+   * ({actorId}) => {name, level, prof, ac: {value, calc, armor}, hd: {value, max, classes: [{identifier,
+   * denomination, levels, spent}]}, hp: {value, max}, abilities: {str..cha: {value, mod}}, spells: {spell1..spell9, pact:
+   * {value, max, level, type}}, scale: {[classId]: {[identifier]: value}}, items: [{id, name, type, identifier,
+   * sourceUuid, equipped, uses: {max, spent, recovery: [{period, type, formula}]} | null, activities: [{id, type, name,
+   * activation, canUse, consumption: [{type, target, value}]}], effects: [{id, name, disabled, transfer, changes:
+   * [{key, value, type}]}]}]} everything the feature scenarios need to know about one actor. Read only.
+   */
+  inspectFeatures: 'inspectFeatures',
+  /**
+   * Runs something on an actor and always puts the actor back as it was (items' uses, slots, hit
+   * points, hit dice, effects, new items and chat messages are all restored; `restored` and `drift` say
+   * whether that worked). One of:
+   * - ({actorId, op: 'use', itemId, activityId}) => {ok, notes: [{level, message}], threw, chatCard,
+   *   uses: {before, after, max}, spells: {key: {before, after}}, effects: [{name, changes}], itemsCreated,
+   *   restored, drift}. Uses one activity with no dialog, no template, no roll and no action cost;
+   *   the system's error notifications are collected in `notes`.
+   * - ({actorId, op: 'effect', itemId, effectId, enabled, read: [path]}) => {before, during, restored, drift}, each
+   *   `{[path]: {value, resolved?}}` read from the actor before and with a copy of the effect on the actor (an item's
+   *   effect applies to the actor as a copy, like the chat card's apply button; a Set comes back as an array).
+   * - ({actorId, op: 'rest', type: 'short'|'long'}) => {type, afterSpend, afterRest, restored, drift}: every use,
+   *   slot and hit die is spent and hit points set to 1, the rest is taken with no dialog, and both
+   *   states are reported as {items: [{id, name, max, spent, recovery}], spells, hp, hd}.
+   */
+  exerciseActor: 'exerciseActor',
+  /**
+   * ({actorId}) => {name, level, items: [{type, name, identifier, sourceUuid, origin: {item, advancement, title} | null,
+   * root, prepared, quantity, level (spells)}], advancements: [{item, id, type, title, level, value}], skills: {[id]: number},
+   * saves: {[id]: boolean}, proficiencies: {languages, weapons, armor, tools, damageResistances, damageImmunities,
+   * conditionImmunities}, senses, movement, size, hp: {max, bonuses}, ac: {value, calc}} what a build left on the
+   * actor that inspectActor and inspectFeatures do not show: where each item came from (the advancement that made
+   * it, by names and not by ids), what each advancement of the class, subclass, species and background holds, and
+   * the proficiencies. Read only. The studio scenario compares two heroes with it.
+   */
+  inspectBuild: 'inspectBuild',
+  /**
+   * ({op: 'start', rotation, k?, subclassUuid?, featPackIds?} | {op: 'status'} | {op: 'stop'}) => {running, k, picks,
+   * warnings, errors, answered, managersSeen, completed, lastStep, lastActivityAt} | null. A loop in the Foundry page
+   * that answers the system's advancement dialogs while Actor Studio shows them in its window, with the same rotation
+   * rule as createHero. `stop` ends it and returns what it picked. Used only by the studio scenario.
+   */
+  studioPump: 'studioPump',
+  /**
+   * ({actorId, name?, folderId?}) => {ok: true} marks an actor made outside the builder (by Actor Studio) as the
+   * kit's own: the kit flag, the kit folder, a new name. A rebuild then wipes it.
+   */
+  adoptActor: 'adoptActor',
+  /** ({actorId}) => {deleted: boolean} deletes an actor, only when it carries the kit flag. */
+  deleteKitActor: 'deleteKitActor',
 };
 
 /**
@@ -154,6 +203,10 @@ export const GM_ACTIONS = {
  * @property {string[]} tools       every bridge tool it calls; CI checks each exists in tool-sets.ts
  * @property {string[]} [gmActions] every GM action it calls (keys of {@link GM_ACTIONS})
  * @property {number} [timeoutMs]   whole scenario, default 120000
+ * @property {string[]} [knownConsoleErrors]  regular expressions (as text) for console errors the scenario reports itself;
+ *   the runner does not blame them on the bridge module (the studio scenario reports Actor Studio's own errors)
+ * @property {number} [order]       run order, lowest first (default 0; ties keep the file order). A scenario that floods
+ *   the play log (the feature scenarios) goes last, so it cannot starve the ones that read the log.
  * @property {(t: ScenarioContext) => Promise<void>} run
  */
 
@@ -171,6 +224,8 @@ export const GM_ACTIONS = {
  * @property {{state: () => Promise<any>, html: () => Promise<string>}} player  /api/player/state and /player
  * @property {(path: string, opts?: {method?: string, body?: unknown}) => Promise<{status: number, data: any}>} http
  * @property {KitManifest} kit        what the builder made
+ * @property {import('playwright-core').Page | null} page  the Foundry GM page, for a scenario that must click in a Foundry
+ *   window (Actor Studio); null against the fake
  * @property {(message: string) => void} log
  * @property {(name: string, data: unknown) => void} attach   JSON attachment in the report
  * @property {(fn: () => Promise<void>) => void} cleanup     runs after the scenario, last in first out
@@ -260,6 +315,21 @@ export function validateScenario(s) {
     problems.push('licensed must be boolean');
   if (sc.timeoutMs !== undefined && (typeof sc.timeoutMs !== 'number' || sc.timeoutMs <= 0))
     problems.push('timeoutMs must be a positive number');
+  if (
+    sc.knownConsoleErrors !== undefined &&
+    (!Array.isArray(sc.knownConsoleErrors) ||
+      sc.knownConsoleErrors.some(x => {
+        try {
+          new RegExp(x);
+          return typeof x !== 'string';
+        } catch {
+          return true;
+        }
+      }))
+  )
+    problems.push('knownConsoleErrors must be a list of regular expressions (text)');
+  if (sc.order !== undefined && typeof sc.order !== 'number')
+    problems.push('order must be a number');
   if (typeof sc.run !== 'function') problems.push('run must be a function');
   return problems;
 }

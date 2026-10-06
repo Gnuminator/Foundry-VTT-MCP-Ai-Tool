@@ -19,7 +19,7 @@ class TimedOut extends Error {}
  * @typedef {import('./contract.mjs').Scenario} Scenario
  * @typedef {import('./contract.mjs').ScenarioResult} ScenarioResult
  * @typedef {import('./contract.mjs').StepResult} StepResult
- * @typedef {{call: (action: string, args?: object) => Promise<any>}} GmLike
+ * @typedef {{call: (action: string, args?: object) => Promise<any>, page?: import('playwright-core').Page}} GmLike
  * @typedef {{state: () => Promise<any>, html: () => Promise<string>}} PlayerLike
  * @typedef {object} RunOptions
  * @property {ReturnType<typeof import('./dashboard.mjs').createDashboardClient>} dashboard
@@ -200,6 +200,7 @@ async function runOne({ scenario, file }, opts, consoleSink) {
     player,
     http: (path, o) => dashboard.http(path, o),
     kit: /** @type {any} */ (manifest),
+    page: gm?.page ?? null,
     log(message) {
       if (timedOut) return;
       result.logs.push(String(message));
@@ -292,9 +293,12 @@ async function runOne({ scenario, file }, opts, consoleSink) {
         })
       );
       consoleSink.push(...errors);
+      // A scenario can name errors it reports itself (Actor Studio's own), so they are not blamed on the bridge module.
+      const known = (scenario.knownConsoleErrors ?? []).map(src => new RegExp(src));
       const ours = errors.filter(
         (/** @type {{message: string, source: string}} */ x) =>
-          x.message.includes(MODULE_ID) || x.source.includes(MODULE_ID)
+          (x.message.includes(MODULE_ID) || x.source.includes(MODULE_ID)) &&
+          !known.some(re => re.test(x.message))
       );
       if (ours.length) {
         record({

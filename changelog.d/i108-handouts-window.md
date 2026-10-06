@@ -3,7 +3,7 @@
 - **"Handouts" window inside Foundry:** the **AI Tool** group in the scene controls gets a
   **Handouts** button (GMs only). The window lists the reveal queue (oldest first, with the scene
   and the players each page is for, and **Remove**), has one **Reveal next** button for the active
-  scene with a **Show it now** tick that is unticked every time the window opens or redraws and
+  scene with a **Show it now** tick that is unticked every time the window opens and
   after each reveal, and shows who has read which revealed page. Reveal asks you to confirm in a
   Foundry dialog that shows the plan's summary and diff, then applies it; cancel does nothing. The
   window refreshes when the backend records a change and has a Refresh button, and works from the

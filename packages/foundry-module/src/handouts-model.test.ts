@@ -62,6 +62,7 @@ function view(over: Partial<HandoutsView> = {}): HandoutsView {
     revealed: [],
     nextTitle: null,
     busy: false,
+    showNow: false,
     ...over,
   };
 }
@@ -187,11 +188,18 @@ describe('renderHandoutsHtml', () => {
     const html = renderHandoutsHtml(view({ ...rows }));
     expect(html).toContain('data-action="reveal"');
     expect(html).toContain('Reveal next: Page a');
-    expect(html).toContain('<input type="checkbox" data-show-now>');
+    expect(html).toContain('<input type="checkbox" data-field="showNow">');
     expect(html).not.toMatch(/checked/);
     expect(html.match(/data-action="remove"/g)).toHaveLength(2);
     expect(html.match(/data-action="reveal"/g)).toHaveLength(1);
     expect(html).toContain('data-action="refresh"');
+  });
+
+  it('ticks Show it now only when the view says so (a redraw keeps the choice)', () => {
+    const rows = buildHandoutsRows({ queue: [queued('a')] }, ctx());
+    expect(renderHandoutsHtml(view({ ...rows, showNow: true }))).toContain(
+      '<input type="checkbox" data-field="showNow" checked>'
+    );
   });
 
   it('disables Reveal next when nothing is queued for the scene, and every button while busy', () => {

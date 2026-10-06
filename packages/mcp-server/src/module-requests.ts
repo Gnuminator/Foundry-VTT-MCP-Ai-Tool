@@ -9,6 +9,7 @@ import type { GuardedWriteService, RecordedListener } from './guarded-write/serv
 import { HANDOUTS_FEATURE } from './handouts/service.js';
 import type { ModuleRequestHandler } from './foundry-connector.js';
 import type { Logger } from './logger.js';
+import { TAROKKA_FEATURE } from './tarokka/service.js';
 import type { ToolHandler } from './tool-router.js';
 import type { GuardedChangeTools } from './tools/guarded-changes.js';
 
@@ -26,8 +27,8 @@ export function requesterLabel(requestedBy: ModuleRequestData['requestedBy']): s
 /**
  * The planners a module request may run, with what each is allowed to do. A plan only
  * changes the game once it is applied, and a module request may apply only a plan one
- * of these planners made (see {@link createModuleRequestHandler}). Adding the Tarokka
- * reveal later is one line: `'plan-tarokka-reveal': { feature: TAROKKA_FEATURE }`.
+ * of these planners made (see {@link createModuleRequestHandler}). A planner with no
+ * `actions` has no action argument to narrow (the Tarokka reveal is one write).
  */
 export const MODULE_PLANNERS: Readonly<
   Record<string, { feature: string; actions?: readonly string[] }>
@@ -35,6 +36,9 @@ export const MODULE_PLANNERS: Readonly<
   // Reveal the next queued handout, or take one off the queue. "reveal", "hide" and "queue"
   // stay with Claude and the dashboard.
   'plan-page-reveal': { feature: HANDOUTS_FEATURE, actions: ['reveal-next', 'unqueue'] },
+  // Reveal one Tarokka position with the text the GM typed. Linking, dealing and importing
+  // stay with Claude and the dashboard.
+  'plan-tarokka-reveal': { feature: TAROKKA_FEATURE },
 };
 
 /** The arguments of `apply-planned-change` a module request passes on (nothing else). */

@@ -17,8 +17,11 @@ function makeHandler(planFeature = 'handouts') {
   const apply = vi.fn(async () => ({ applied: true }));
   const handleUndoChange = vi.fn(async () => ({ mode: 'undo' }));
   const handleApplyPlannedChange = vi.fn(async () => ({ changeId: 'chg-1' }));
+  const tarokkaPlan = vi.fn(async () => ({ planId: 'plan-tarokka' }));
+  const readTarokka = vi.fn(async () => ({ available: false }));
   const getPlan = vi.fn((planId: string) => {
     if (planId === 'plan-1' || planId === 'plan-2') return { planId, feature: planFeature };
+    if (planId === 'plan-tarokka') return { planId, feature: 'tarokka' };
     throw new Error(`No pending plan ${planId} (plans expire after 15 minutes)`);
   });
   const handler = createModuleRequestHandler({
@@ -27,7 +30,10 @@ function makeHandler(planFeature = 'handouts') {
       'list-revealed-pages': listPages,
       'plan-page-reveal': plan,
       'apply-planned-change': apply,
-      'plan-tarokka-reveal': vi.fn(async () => ({ planId: 'plan-tarokka' })),
+      'plan-tarokka-reveal': tarokkaPlan,
+      'get-tarokka-reading': readTarokka,
+      'plan-tarokka-links': vi.fn(async () => ({ planId: 'plan-links' })),
+      'plan-tarokka-import': vi.fn(async () => ({ planId: 'plan-import' })),
     },
     guardedChangeTools: { handleUndoChange, handleApplyPlannedChange } as never,
     guardedWrites: { getPlan } as never,
@@ -41,6 +47,8 @@ function makeHandler(planFeature = 'handouts') {
     handleUndoChange,
     handleApplyPlannedChange,
     getPlan,
+    tarokkaPlan,
+    readTarokka,
   };
 }
 
@@ -63,10 +71,59 @@ describe('createModuleRequestHandler', () => {
 
   it('refuses a tool that is not on the module-request list, even when the router has it', async () => {
     const { handler } = makeHandler();
-    await expect(
-      handler('plan-tarokka-reveal', { position: 'x', text: 'y' }, danni)
-    ).rejects.toThrow(/not allowed for module requests/);
+    for (const tool of ['plan-tarokka-links', 'plan-tarokka-import']) {
+      await expect(handler(tool, { position: 'tome' }, danni)).rejects.toThrow(
+        /not allowed for module requests/
+      );
+    }
     await expect(handler('toString', {}, danni)).rejects.toThrow(/not allowed/);
+  });
+
+  describe('the Tarokka window', () => {
+    it('reads the reading through the router', async () => {
+      const { handler, readTarokka } = makeHandler();
+      await expect(handler('get-tarokka-reading', {}, danni)).resolves.toEqual({
+        available: false,
+      });
+      expect(readTarokka).toHaveBeenCalledWith({});
+    });
+
+    it('plans a reveal with the arguments it is given (it changes nothing until applied)', async () => {
+      const { handler, tarokkaPlan } = makeHandler();
+      await handler(
+        'plan-tarokka-reveal',
+        { position: 'tome', text: 'Made-up words', title: 'T', showNow: true },
+        danni
+      );
+      expect(tarokkaPlan).toHaveBeenCalledWith({
+        position: 'tome',
+        text: 'Made-up words',
+        title: 'T',
+        showNow: true,
+      });
+    });
+
+    it('applies the Tarokka plan it made, with the GM named and only the allowed arguments', async () => {
+      const { handler, handleApplyPlannedChange } = makeHandler();
+      await handler('plan-tarokka-reveal', { position: 'tome', text: 'x' }, danni);
+      await handler(
+        'apply-planned-change',
+        { planId: 'plan-tarokka', confirm: true, confirmDestructive: true, showNow: true },
+        danni
+      );
+      expect(handleApplyPlannedChange).toHaveBeenCalledWith(
+        { planId: 'plan-tarokka', confirm: true, confirmDestructive: true },
+        'Danni'
+      );
+    });
+
+    it('refuses to apply a Tarokka plan that Claude or the dashboard made', async () => {
+      const { handler, handleApplyPlannedChange } = makeHandler();
+      await expect(
+        handler('apply-planned-change', { planId: 'plan-tarokka', confirm: true }, danni)
+      ).rejects.toThrow(/only apply a plan it made itself/);
+      expect(handleApplyPlannedChange).not.toHaveBeenCalled();
+    });
   });
 
   describe('plan-page-reveal', () => {
@@ -165,6 +222,7 @@ describe('MODULE_PLANNERS', () => {
   it('lists the planners a module request may use, each with its feature and actions', () => {
     expect(MODULE_PLANNERS).toEqual({
       'plan-page-reveal': { feature: 'handouts', actions: ['reveal-next', 'unqueue'] },
+      'plan-tarokka-reveal': { feature: 'tarokka' },
     });
   });
 });

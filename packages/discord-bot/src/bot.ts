@@ -27,6 +27,7 @@ import { RecordingSession, hrtimeClock, type SpeakerInfo } from './rec/session.j
 import { VoiceRecorder } from './rec/voice.js';
 import {
   SPACE_CHECK_INTERVAL_MS,
+  LogThrottle,
   SpaceNotifier,
   resolveOwnerId,
   type ApplicationOwnerLike,
@@ -110,7 +111,7 @@ export class RecorderBot {
     const ownerId = resolveOwnerId(this.config.ownerId, owner);
     if (!ownerId) {
       log.info(
-        'Space notices: no owner found, so storage space DMs are off. Set DISCORD_OWNER_ID in the bot settings to turn them on.'
+        'Space notices: no owner user found (a team owner id is needed), so storage space DMs are off. Set DISCORD_OWNER_ID in the bot settings to turn them on.'
       );
       return;
     }
@@ -118,18 +119,20 @@ export class RecorderBot {
       ...(this.config.spaceStatusFile ? { path: this.config.spaceStatusFile } : {}),
       log: log.info,
     });
-    let dmFailureLogged = false;
+    const dmFailureLog = new LogThrottle();
     const notifier = new SpaceNotifier({
       send: async (text): Promise<boolean> => {
         try {
           const user = await c.users.fetch(ownerId);
           await user.send(text);
-          dmFailureLogged = false;
+          dmFailureLog.reset();
           return true;
         } catch (err) {
-          if (!dmFailureLogged) {
-            dmFailureLogged = true;
-            log.error('Space notices: the DM to the owner failed (will retry)', err);
+          if (dmFailureLog.shouldLog()) {
+            log.error(
+              'Space notices: the DM to the owner failed (will retry; logged at most once per 24 hours)',
+              err
+            );
           }
           return false;
         }

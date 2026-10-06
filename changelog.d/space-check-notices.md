@@ -4,7 +4,7 @@
   (`/var/lib/foundry-ai-tool/space/status.json`, or `FOUNDRY_AI_SPACE_STATUS`). It DMs the owner once
   when free space gets low or critical (or the check goes stale), reminds at most once a day while
   it stays bad, and sends one "back to normal" DM. The owner is `DISCORD_OWNER_ID` when set,
-  otherwise the Discord application's owner. A missing file says nothing.
+  otherwise the Discord application's owner (for a team, the team's owner user). A failed DM is logged at most once a day. A missing file says nothing.
 - **Dashboard banner:** a GM-only banner (yellow for low, red for critical) from the new
   `GET /api/space` route; players' pages never ask for it. A stale check shows only in Module
   Diagnostics. No banner when there is no status file.

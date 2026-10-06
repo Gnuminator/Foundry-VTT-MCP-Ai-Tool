@@ -5,7 +5,11 @@
  * Rules, kept in `SpaceNotifier` (no Discord in it, so tests run it with a fake `send`):
  * - one DM when the state gets worse (ok to low, low to critical, anything to stale from ok, ...);
  * - while the state stays bad, at most one reminder every 24 hours;
- * - one "back to normal" DM when it recovers;
+ * - one "back to normal" DM when it recovers, with a margin so a disk hovering around the line does
+ *   not flip-flop: after a low state it is "back to normal" only when every disk is at least
+ *   RECOVER_MARGIN_POINTS above the threshold (from the file); critical is left only above the
+ *   critical line plus CRITICAL_MARGIN_POINTS. In between, the state is held with no new DM
+ *   (the 24 hour reminder still applies);
  * - a missing, unreadable or invalid status file says nothing and changes nothing;
  * - if a DM cannot be sent, nothing is recorded, so the next check tries again.
  * The state lives in memory: a bot restart can repeat one DM.
@@ -15,6 +19,10 @@ import type { SpaceDisk, SpaceReading, SpaceStatus } from './space-status.js';
 
 export const SPACE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 export const SPACE_REMINDER_MS = 24 * 60 * 60 * 1000;
+/** Points above the low threshold every disk needs before "back to normal". */
+export const RECOVER_MARGIN_POINTS = 2;
+/** Points above the critical line every disk needs before critical is left. */
+export const CRITICAL_MARGIN_POINTS = 1;
 
 /** What the notifier tracks: the worse of the check's age and its level. */
 export type SpaceState = 'ok' | 'stale' | 'low' | 'critical';
@@ -99,12 +107,26 @@ export class SpaceNotifier {
     this.reminderMs = options.reminderMs ?? SPACE_REMINDER_MS;
   }
 
+  /** Hold a low or critical state until the disks are clearly past the line (see the top). */
+  private withHysteresis(next: SpaceState, status: SpaceStatus): SpaceState {
+    if (next !== 'ok' && next !== 'low') return next;
+    if (this.state !== 'low' && this.state !== 'critical') return next;
+    if (status.disks.length === 0) return next;
+    const minFree = Math.min(...status.disks.map(d => d.freePercent));
+    if (this.state === 'critical' && minFree < status.criticalPercent + CRITICAL_MARGIN_POINTS) {
+      return 'critical';
+    }
+    if (next === 'ok' && minFree < status.thresholdPercent + RECOVER_MARGIN_POINTS) return 'low';
+    return next;
+  }
+
   /** Look at one reading and send a DM when the rules say so. Returns what it sent, if anything. */
   async check(reading: SpaceReading): Promise<SpaceNoticeKind | null> {
-    const next = spaceStateOf(reading);
-    if (next === null || reading.state !== 'available') return null;
+    const raw = spaceStateOf(reading);
+    if (raw === null || reading.state !== 'available') return null;
     const now = this.now();
     const status = reading.status;
+    const next = this.withHysteresis(raw, status);
 
     if (next === 'ok') {
       // Nothing was ever sent for the bad state: recover silently.
@@ -134,19 +156,74 @@ export class SpaceNotifier {
   }
 }
 
-/** A Discord application's owner: a user, or a team (whose owner is a user id). */
+/** One member of a Discord team (discord.js TeamMember: `user`, and `id` as the user's id). */
+export interface TeamMemberLike {
+  id?: string;
+  user?: { id?: string } | null;
+}
+
+/**
+ * A Discord application's owner: a User (just `id`), or a Team. A Team's own `id` is a team id that
+ * cannot be DMed, so only its owner user (`ownerId`, `owner`) or a member's user id is used.
+ */
 export interface ApplicationOwnerLike {
   id?: string;
   ownerId?: string | null;
+  owner?: TeamMemberLike | null;
+  members?: Iterable<TeamMemberLike> | { values(): Iterable<TeamMemberLike> } | null;
 }
 
-/** The id to DM: the configured one, else the bot application's owner (or its team's owner). */
+function isTeam(owner: ApplicationOwnerLike): boolean {
+  return 'ownerId' in owner || 'owner' in owner || 'members' in owner;
+}
+
+function memberUserId(member: TeamMemberLike | null | undefined): string | null {
+  return member?.user?.id ?? member?.id ?? null;
+}
+
+/**
+ * The id to DM: the configured one, else the bot application's owner (for a team, the team's owner
+ * user, else its first member). Null when no user id can be found.
+ */
 export function resolveOwnerId(
   configured: string | undefined,
   owner: ApplicationOwnerLike | null | undefined
 ): string | null {
   if (configured) return configured;
   if (!owner) return null;
-  // A Team has `ownerId` (the member who owns it); a User has just `id`.
-  return owner.ownerId ?? owner.id ?? null;
+  if (!isTeam(owner)) return owner.id ?? null;
+  if (owner.ownerId) return owner.ownerId;
+  const fromOwner = memberUserId(owner.owner);
+  if (fromOwner) return fromOwner;
+  const members = owner.members;
+  if (members) {
+    const list = 'values' in members ? members.values() : members;
+    for (const member of list) {
+      const id = memberUserId(member);
+      if (id) return id;
+    }
+  }
+  return null;
+}
+
+/** Lets an event be logged at most once per interval (a failed DM: once per 24 hours, not ever). */
+export class LogThrottle {
+  private lastAt: number | null = null;
+
+  constructor(
+    private readonly intervalMs: number = SPACE_REMINDER_MS,
+    private readonly now: () => number = Date.now
+  ) {}
+
+  /** True when the caller should log now (and records it). */
+  shouldLog(): boolean {
+    const now = this.now();
+    if (this.lastAt !== null && now - this.lastAt < this.intervalMs) return false;
+    this.lastAt = now;
+    return true;
+  }
+
+  reset(): void {
+    this.lastAt = null;
+  }
 }

@@ -48,7 +48,11 @@ written by the hourly space check in `scripts/pi/`; override the path with
 - one DM when space gets worse (under 20% free is low, under 5% or less than a job needs is
   critical, or the check itself has not run for 3 hours);
 - while it stays bad, at most one reminder every 24 hours;
-- one "back to normal" DM when it recovers.
+- one "back to normal" DM when it recovers. There is a margin so a disk hovering around the line
+  does not send a DM on every crossing: after a low notice, "back to normal" comes only when every
+  disk is at least 2 points above the threshold (22% for the default 20%), and critical is left only
+  above the critical line plus 1 point. In between the bot stays in the old state and sends nothing
+  new (the 24 hour reminder still applies).
 
 The DM names the disk, the free percent and GB, and the backup, snapshot and sync jobs that use
 that disk. A missing, unreadable or invalid status file says nothing (the bot logs it once), so a
@@ -56,10 +60,10 @@ PC without the Pi's file gets no notices and no errors.
 
 **Who gets the DM.** `DISCORD_OWNER_ID` in `discord-bot.env` (your Discord user id) when set;
 otherwise the owner of the bot application in the Developer Portal (the account that made the bot;
-for a team, the team's owner), which the bot asks Discord for at start. So nothing needs setting
+for a team, the team's owner user, never the team's own id), which the bot asks Discord for at start. So nothing needs setting
 when you made the bot yourself. If neither gives an id, the bot logs "storage space DMs are off"
-once. The owner must share a server with the bot. If a DM fails, the bot logs it and tries again
-at the next check. The state is kept in memory: a restart can repeat one DM.
+once. The owner must share a server with the bot. If a DM fails, the bot logs it (at most once per
+24 hours) and tries again at the next check. The state is kept in memory: a restart can repeat one DM.
 
 The reader (`src/space-status.ts`) is an identical copy of `shared/src/space-status.ts`, because
 the bot is deployed alone on the Pi; a test fails while the two differ, so edit the shared one and

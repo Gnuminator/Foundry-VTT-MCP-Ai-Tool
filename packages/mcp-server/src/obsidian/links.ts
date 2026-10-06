@@ -96,11 +96,29 @@ function compendiumDocUuid(uuid: string): string | null {
 /** A compendium document: its Library note when there is one, else an Open in Foundry link. */
 function compendiumLink(uuid: string, label: string | null, ctx: LinkContext): string {
   const top = compendiumDocUuid(uuid);
+  // A compendium actor that stands for a world NPC links that NPC's note (the user's rule,
+  // 2026-10-06): the world copy is the one the GM runs.
+  const worldUuid = top ? (ctx.worldActor?.(top) ?? null) : null;
+  const world = worldUuid ? ctx.resolve(worldUuid) : null;
+  if (world?.notePath) {
+    const shown = escapeLinkLabel(label ?? world.name ?? uuid.split('.').pop() ?? uuid);
+    return `[${shown}](${relativeLinkTarget(ctx.fromPath, world.notePath, world.blockId)})`;
+  }
   const library = top ? (ctx.library?.byUuid(top) ?? null) : null;
   const idLabel = uuid.split('.').pop() ?? uuid;
   const text = escapeLinkLabel(label ?? library?.name ?? idLabel);
   if (library?.notePath) return `[${text}](${relativeLinkTarget(ctx.fromPath, library.notePath)})`;
   return top ? openLink(text, top, ctx) : text;
+}
+
+/**
+ * A typeless or legacy compendium id read as an actor that stands for a world NPC (the module
+ * resolved it from the pack itself), so the link works without the Library; else null.
+ */
+function asWorldActor(pkg: string, pack: string, id: string, ctx: LinkContext): string | null {
+  if (!DOC_ID.test(id)) return null;
+  const uuid = `Compendium.${pkg}.${pack}.Actor.${id}`;
+  return ctx.worldActor?.(uuid) ? uuid : null;
 }
 
 /** A link we write: to a note, to `/open`, or the plain label. Never a raw uuid. */
@@ -112,7 +130,8 @@ function linkTo(uuid: string, label: string | null, ctx: LinkContext): string {
       const parts = uuid.split('.');
       const full =
         parts.length === 4
-          ? (ctx.library?.legacy(`${parts[1]}.${parts[2]}`, parts[3] ?? '') ?? null)
+          ? (ctx.library?.legacy(`${parts[1]}.${parts[2]}`, parts[3] ?? '') ??
+            asWorldActor(parts[1] ?? '', parts[2] ?? '', parts[3] ?? '', ctx))
           : null;
       if (full) return compendiumLink(full, label, ctx);
       return escapeLinkLabel(label ?? idLabel);
@@ -150,7 +169,16 @@ function contentLink(type: string, target: string, label: string | null, ctx: Li
   if (type === 'Compendium') {
     // Legacy `@Compendium[pkg.pack.idOrName]`: the Library knows the pack's document type.
     const match = /^([\w-]+\.[\w-]+)\.(.+)$/.exec(t);
-    const full = match ? (ctx.library?.legacy(match[1] ?? '', match[2] ?? '') ?? null) : null;
+    const collection = match?.[1] ?? '';
+    const full = match
+      ? (ctx.library?.legacy(collection, match[2] ?? '') ??
+        asWorldActor(
+          collection.split('.')[0] ?? '',
+          collection.split('.')[1] ?? '',
+          match[2] ?? '',
+          ctx
+        ))
+      : null;
     if (full) return compendiumLink(full, label, ctx);
     const name = match && !DOC_ID.test(match[2] ?? '') ? (match[2] ?? null) : null;
     return escapeLinkLabel(label ?? name ?? 'compendium entry');

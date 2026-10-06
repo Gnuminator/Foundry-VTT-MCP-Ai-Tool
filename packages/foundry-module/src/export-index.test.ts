@@ -1046,6 +1046,120 @@ function addJournal(overrides: Record<string, unknown> = {}): Doc {
   });
 }
 
+describe('getExportIndex: compendium actor links', () => {
+  const PACK = 'aitool-content.monsters';
+  const actorLink = (id: string): string => `Compendium.${PACK}.Actor.${id}`;
+  const optIn = { kinds: ['journal'], includeText: { folderIds: [], journalIds: [JOURNAL_ID] } };
+
+  beforeEach(() => {
+    addPlayer('p1', 'Alice');
+    world.addPack({
+      id: PACK,
+      type: 'Actor',
+      documents: [
+        world.addActor({ id: id16('cwolf'), name: 'Wolf', type: 'npc' }),
+        world.addActor({ id: id16('cstrahd'), name: 'Strahd', type: 'npc' }),
+        world.addActor({ id: id16('czombie'), name: 'Zombie', type: 'npc' }),
+        world.addActor({ id: id16('cguard'), name: 'Guard', type: 'npc' }),
+      ].map(doc => {
+        world.actors.delete(doc.id);
+        return doc;
+      }),
+    });
+    world.addPack({
+      id: 'aitool-content.items',
+      type: 'Item',
+      documents: [makeItem({ id: id16('csword'), name: 'Wolf' })],
+    });
+    world.addActor({
+      id: id16('wleader'),
+      name: 'Pack Leader',
+      type: 'npc',
+      _stats: { compendiumSource: actorLink(id16('cwolf')) },
+    });
+    world.addActor({ id: id16('wstrahd'), name: 'strahd ', type: 'npc' });
+    world.addActor({ id: id16('wzomb1'), name: 'Zombie', type: 'npc' });
+    world.addActor({ id: id16('wzomb2'), name: 'Zombie', type: 'npc' });
+    world.addActor({
+      id: id16('wguard'),
+      name: 'Gate Guard',
+      type: 'npc',
+      flags: { core: { sourceId: actorLink(id16('cguard')) } },
+    });
+    world.addActor({ id: id16('pcwolf'), name: 'Wolf', type: 'character' });
+    addJournal({
+      pages: [
+        page(id16('pg01'), {
+          text: {
+            content: [
+              `<p>@UUID[${actorLink(id16('cwolf'))}]{wolves}`,
+              `@UUID[${actorLink(id16('cstrahd'))}]{the Devil}`,
+              `@UUID[${actorLink(id16('czombie'))}]{zombies}`,
+              `@Compendium[${PACK}.${id16('cguard')}]{guards}`,
+              `@UUID[Compendium.aitool-content.items.Item.${id16('csword')}]{a sword}</p>`,
+            ].join(' '),
+          },
+        }),
+        page(id16('pg02'), {
+          text: { content: `<p>@UUID[${actorLink(id16('cwolf'))}.Item.${id16('bite')}]{bite}</p>` },
+        }),
+      ],
+    });
+  });
+
+  it('resolves by source first, then by a unique name, and skips ambiguous names and items', () => {
+    expect(journalRow(ok(optIn), JOURNAL_ID).actorLinks).toEqual([
+      {
+        compendiumUuid: actorLink(id16('cguard')),
+        actorUuid: `Actor.${id16('wguard')}`,
+        match: 'source',
+      },
+      {
+        compendiumUuid: actorLink(id16('cstrahd')),
+        actorUuid: `Actor.${id16('wstrahd')}`,
+        match: 'name',
+      },
+      {
+        compendiumUuid: actorLink(id16('cwolf')),
+        actorUuid: `Actor.${id16('wleader')}`,
+        match: 'source',
+      },
+    ]);
+  });
+
+  it('is empty for a journal that is not opted in for text', () => {
+    expect(journalRow(ok({ kinds: ['journal'] }), JOURNAL_ID).actorLinks).toEqual([]);
+  });
+
+  it('among several NPCs made from the same actor, picks the one with its name', () => {
+    world.addActor({
+      id: id16('wwolf'),
+      name: 'Wolf',
+      type: 'npc',
+      _stats: { duplicateSource: actorLink(id16('cwolf')) },
+    });
+    const links = journalRow(ok(optIn), JOURNAL_ID).actorLinks ?? [];
+    expect(links.find(l => l.compendiumUuid === actorLink(id16('cwolf')))?.actorUuid).toBe(
+      `Actor.${id16('wwolf')}`
+    );
+  });
+
+  it('changes the sig when a world copy appears or goes', () => {
+    const before = sigOf(JOURNAL_ID, optIn);
+    world.actors.delete(id16('wzomb2'));
+    const appeared = sigOf(JOURNAL_ID, optIn);
+    expect(appeared).not.toBe(before);
+    expect(sigOf(JOURNAL_ID, { ...optIn, idsOnly: true })).toBe(appeared);
+    world.actors.delete(id16('wleader'));
+    expect(sigOf(JOURNAL_ID, optIn)).not.toBe(appeared);
+  });
+
+  it('reads the source from the core flag for the NPC source as well', () => {
+    const response = ok({ kinds: ['actor'] });
+    expect(actorRow(response, id16('wguard')).sourceUuid).toBe(actorLink(id16('cguard')));
+  });
+});
+
 describe('getExportIndex: journal entries', () => {
   beforeEach(() => {
     addPlayer('p1', 'Alice');
@@ -1055,6 +1169,7 @@ describe('getExportIndex: journal entries', () => {
     addJournal();
     const entry = journalRow(ok({ kinds: ['journal'] }), JOURNAL_ID);
     expect(Object.keys(entry).sort()).toEqual([
+      'actorLinks',
       'categories',
       'created',
       'folder',

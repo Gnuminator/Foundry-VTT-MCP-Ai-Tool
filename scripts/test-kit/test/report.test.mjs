@@ -182,15 +182,20 @@ test('the report shows the profile, a Coverage section and the build console err
   assert.match(md, /- Subclasses: 15 built of 16 found/);
   assert.match(md, /- Subclasses that failed: Some <Path>/);
   assert.match(md, /- Heroes: 63 built, 1 failed/);
-  assert.match(md, /## Build console errors\n\n- t1 foundry.mjs:1: canvas <oops>/);
+  assert.match(
+    md,
+    /## Build console errors\n\n1 errors in 1 groups: 0 known \(0 groups\), \*\*1 new/
+  );
+  assert.match(
+    md,
+    /\| 1 \| NEW \| console:foundry.mjs \| canvas <oops> \| foundry.mjs \| build \|/
+  );
   const html = renderHtml(reportWithBuild());
   assert.match(html, /<span>Profile srd<\/span>/);
   assert.match(html, /<h2>Coverage<\/h2><table>/);
   assert.match(html, /<th>Classes<\/th><td>12 built of 12 found<\/td>/);
-  assert.match(
-    html,
-    /<h2>Build console errors<\/h2><pre>t1 foundry.mjs:1: canvas &lt;oops&gt;<\/pre>/
-  );
+  assert.match(html, /<h2>Build console errors<\/h2><p>1 errors in 1 groups/);
+  assert.match(html, /<td>canvas &lt;oops&gt;<\/td>/);
   assert.ok(!html.includes('canvas <oops>'));
 });
 

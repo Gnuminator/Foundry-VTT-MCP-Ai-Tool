@@ -142,6 +142,27 @@ export async function waitForGame(page, timeoutMs = 120000) {
 }
 
 /**
+ * Turn off the chat card pop-ups of the GM page. The kit makes chat cards (an item use, a spell
+ * cast) and deletes them again within moments. Foundry 14 shows each new card as a notification
+ * and animates it for about 100 ms (ChatLog#postNotification); when the card is deleted in that
+ * time, the notification is gone and `element.hidden = false` throws "Cannot set properties of
+ * null (setting 'hidden')" as a page error, hundreds of times in a full run. Nobody looks at the
+ * pop-ups on this page, so it behaves as if the setting "Chat notifications: pip" were chosen (the
+ * same `_shouldShowNotifications` answer, without writing a setting or redrawing the canvas).
+ * @param {import('playwright-core').Page} page
+ * @returns {Promise<boolean>} whether the chat log was found and changed
+ */
+export async function quietChatNotifications(page) {
+  return page.evaluate(() => {
+    const chat = globalThis.ui?.chat;
+    if (!chat || typeof chat._shouldShowNotifications !== 'function') return false;
+    chat._shouldShowNotifications = () => false;
+    chat._toggleNotifications?.(); // moves the chat input to where the pip mode keeps it
+    return true;
+  });
+}
+
+/**
  * Open a GM session in the kit world.
  * @param {{foundryUrl: string, world: string, user?: string, headless?: boolean, log?: (m: string) => void}} o
  * @returns {Promise<{call: (action: string, args?: object) => Promise<any>, close: () => Promise<void>, page: import('playwright-core').Page}>}
@@ -164,6 +185,11 @@ export async function openGmSession({
     await browser.page.evaluate(() => {
       if (globalThis.game.paused) globalThis.game.togglePause(false, { broadcast: true });
     });
+    if (!(await quietChatNotifications(browser.page))) {
+      log(
+        'the chat log was not found; chat card pop-ups stay on (page errors from them may follow)'
+      );
+    }
   } catch (err) {
     await browser.close();
     throw err;

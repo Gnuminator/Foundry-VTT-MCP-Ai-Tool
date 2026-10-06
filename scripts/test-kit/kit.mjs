@@ -26,7 +26,8 @@ import { createDashboardClient } from './lib/dashboard.mjs';
 import { loadToolCatalog } from './lib/catalog.mjs';
 import { loadScenarios } from './lib/loader.mjs';
 import { runScenariosDetailed } from './lib/runner.mjs';
-import { makeReport, newRunDir, writeReport } from './lib/report.mjs';
+import { consoleSections, makeReport, newRunDir, writeReport } from './lib/report.mjs';
+import { consoleSummaryLines } from './lib/console-errors.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(here, '..', '..');
@@ -439,6 +440,11 @@ async function cmdTarget(command, o) {
     const s = report.summary;
     say('');
     say(`${s.passed} passed, ${s.failed} failed, ${s.skipped} skipped of ${s.total}`);
+    const con = consoleSections(report);
+    for (const line of consoleSummaryLines(con.run)) say(line);
+    if (con.build.length) {
+      for (const line of consoleSummaryLines(con.build)) say(`build ${line}`);
+    }
     say(`report: ${files.html}`);
     if (envProblem) throw envProblem;
     return s.failed ? EXIT.FAIL : EXIT.PASS;

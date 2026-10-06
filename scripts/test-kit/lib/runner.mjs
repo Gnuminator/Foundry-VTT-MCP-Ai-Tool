@@ -61,12 +61,12 @@ export async function runScenarios(list, opts) {
  * Like {@link runScenarios}, plus every console error the GM page reported during the run.
  * @param {Array<{scenario: Scenario, file: string, dir?: string}>} list
  * @param {RunOptions} opts
- * @returns {Promise<{results: ScenarioResult[], consoleErrors: Array<{at: string, message: string, source: string}>}>}
+ * @returns {Promise<{results: ScenarioResult[], consoleErrors: Array<import('./console-errors.mjs').RawConsoleError>}>}
  */
 export async function runScenariosDetailed(list, opts) {
   /** @type {ScenarioResult[]} */
   const results = [];
-  /** @type {Array<{at: string, message: string, source: string}>} */
+  /** @type {Array<import('./console-errors.mjs').RawConsoleError>} */
   const consoleErrors = [];
   for (const entry of list) {
     try {
@@ -87,7 +87,7 @@ export async function runScenariosDetailed(list, opts) {
 /**
  * @param {{scenario: Scenario, file: string, dir?: string}} entry
  * @param {RunOptions} opts
- * @param {Array<{at: string, message: string, source: string}>} consoleSink
+ * @param {Array<import('./console-errors.mjs').RawConsoleError>} consoleSink
  * @returns {Promise<ScenarioResult>}
  */
 async function runOne({ scenario, file }, opts, consoleSink) {
@@ -294,7 +294,7 @@ async function runOne({ scenario, file }, opts, consoleSink) {
           source: String(x.source ?? ''),
         })
       );
-      consoleSink.push(...errors);
+      consoleSink.push(...errors.map(x => ({ ...x, scenario: scenario.id })));
       // A scenario can name errors it reports itself (Actor Studio's own), so they are not blamed on the bridge module.
       const known = (scenario.knownConsoleErrors ?? []).map(src => new RegExp(src));
       const ours = errors.filter(

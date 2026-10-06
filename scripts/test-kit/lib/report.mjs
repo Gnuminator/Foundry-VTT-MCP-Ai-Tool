@@ -4,6 +4,7 @@
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { KIT_FORMAT_VERSION } from './contract.mjs';
+import { consoleCounts, groupConsoleErrors } from './console-errors.mjs';
 
 /**
  * @typedef {import('./contract.mjs').KitReport} KitReport
@@ -22,7 +23,7 @@ export function summarize(results) {
  * Assembles a KitReport from a finished run.
  * @param {{size: string, target: KitReport['run']['target'], startedAt: Date, finishedAt?: Date,
  *   gitSha?: string, fake?: boolean, build?: KitReport['build'], results: ScenarioResult[],
- *   consoleErrors?: KitReport['consoleErrors']}} p
+ *   consoleErrors?: KitReport['consoleErrors'], knownConsole?: Array<{id: string, kind: string, why: string}>}} p
  * @returns {KitReport}
  */
 export function makeReport(p) {
@@ -42,6 +43,7 @@ export function makeReport(p) {
     build: p.build || null,
     summary: summarize(p.results),
     consoleErrors: p.consoleErrors || [],
+    consoleGroups: groupConsoleErrors(p.consoleErrors || [], { known: p.knownConsole }),
     scenarios: p.results,
   };
 }
@@ -143,6 +145,96 @@ export function coverageRows(r) {
   return rows;
 }
 
+// --- console errors -------------------------------------------------------------
+
+/**
+ * The time of day of an ISO time; anything else as it is.
+ * @param {string} at
+ */
+function clock(at) {
+  return /T(\d\d:\d\d:\d\d)/.exec(at)?.[1] ?? at;
+}
+
+/**
+ * The console groups of the run and of the build, from the report (or made from the raw lists
+ * when an older report has none).
+ * @param {KitReport} r
+ */
+export function consoleSections(r) {
+  const build = ((r.build && r.build.consoleErrors) || []).map(e => ({ ...e, scenario: 'build' }));
+  return {
+    run: r.consoleGroups ?? groupConsoleErrors(r.consoleErrors),
+    build: groupConsoleErrors(build),
+    runErrors: r.consoleErrors.length,
+    buildErrors: build.length,
+  };
+}
+
+/**
+ * How many console error groups of the run and the build are new (not on the expected list).
+ * @param {KitReport} r
+ */
+export function newConsoleGroups(r) {
+  const c = consoleSections(r);
+  return c.run.filter(g => !g.known).length + c.build.filter(g => !g.known).length;
+}
+
+/** @param {import('./console-errors.mjs').ConsoleGroup} g */
+function groupStatus(g) {
+  return g.known ? `known (${g.kind})` : 'NEW';
+}
+
+/**
+ * @param {import('./console-errors.mjs').ConsoleGroup[]} groups
+ * @param {number} total
+ */
+function consoleMarkdown(groups, total) {
+  if (!groups.length) return ['None reported.', ''];
+  const c = consoleCounts(groups);
+  const lines = [
+    `${total} errors in ${c.groups} groups: ${c.knownErrors} known (${c.knownGroups} groups), ` +
+      `**${c.newErrors} new (${c.newGroups} groups)**. The raw list is in report.json.`,
+    '',
+    '| Count | Status | Finding | Message | Where | Scenarios | First | Last |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- |',
+  ];
+  for (const g of groups) {
+    lines.push(
+      `| ${g.count} | ${mdCell(groupStatus(g))} | ${mdCell(g.id)} | ${mdCell(g.message)} | ` +
+        `${mdCell(g.source)} | ${mdCell(g.scenarios.join(', ') || '-')} | ${mdCell(clock(g.first))} | ${mdCell(clock(g.last))} |`
+    );
+  }
+  lines.push('');
+  return lines;
+}
+
+/**
+ * @param {import('./console-errors.mjs').ConsoleGroup[]} groups
+ * @param {number} total
+ */
+function consoleHtmlTable(groups, total) {
+  if (!groups.length) return '<p>None reported.</p>';
+  const c = consoleCounts(groups);
+  const rows = groups
+    .map(
+      g =>
+        `<tr class="${g.known ? 'known' : 'fresh'}"><td>${g.count}</td>` +
+        `<td><span class="badge ${g.known ? 'skip' : 'fail'}">${esc(groupStatus(g))}</span></td>` +
+        `<td>${esc(g.id)}${g.why ? `<div class="when">${esc(g.why)}</div>` : ''}</td>` +
+        `<td>${esc(g.message)}</td><td>${esc(g.source)}</td>` +
+        `<td>${esc(g.scenarios.join(', ') || '-')}</td>` +
+        `<td class="t">${esc(clock(g.first))}</td><td class="t">${esc(clock(g.last))}</td></tr>`
+    )
+    .join('');
+  return (
+    `<p>${total} errors in ${c.groups} groups: ${c.knownErrors} known (${c.knownGroups} groups), ` +
+    `<strong class="${c.newGroups ? 'fail' : 'pass'}">${c.newErrors} new (${c.newGroups} groups)</strong>. ` +
+    `The raw list is in report.json.</p>` +
+    `<table><thead><tr><th>Count</th><th>Status</th><th>Finding</th><th>Message</th><th>Where</th>` +
+    `<th>Scenarios</th><th>First</th><th>Last</th></tr></thead><tbody>${rows}</tbody></table>`
+  );
+}
+
 // --- markdown -----------------------------------------------------------------
 
 /** @param {KitReport} r */
@@ -164,6 +256,13 @@ export function renderMarkdown(r) {
     `**${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped** of ${summary.total} scenarios.`
   );
   lines.push('');
+  const fresh = newConsoleGroups(r);
+  if (fresh) {
+    lines.push(
+      `**WARNING: ${fresh} new console error group${fresh === 1 ? '' : 's'}** (not on the expected list); see Console errors below.`
+    );
+    lines.push('');
+  }
   lines.push('| Scenario | Tags | Status | Time |');
   lines.push('| --- | --- | --- | --- |');
   for (const s of r.scenarios) {
@@ -200,25 +299,15 @@ export function renderMarkdown(r) {
     for (const [label, value] of coverage) lines.push(`- ${label}: ${value}`);
     lines.push('');
   }
-  const buildErrors = (r.build && r.build.consoleErrors) || [];
+  const con = consoleSections(r);
   if (r.build) {
     lines.push('## Build console errors');
     lines.push('');
-    if (buildErrors.length) {
-      for (const e of buildErrors) lines.push(`- ${e.at} ${e.source}: ${e.message}`);
-    } else {
-      lines.push('None reported.');
-    }
-    lines.push('');
+    lines.push(...consoleMarkdown(con.build, con.buildErrors));
   }
   lines.push('## Console errors');
   lines.push('');
-  if (r.consoleErrors.length) {
-    for (const e of r.consoleErrors) lines.push(`- ${e.at} ${e.source}: ${e.message}`);
-  } else {
-    lines.push('None reported.');
-  }
-  lines.push('');
+  lines.push(...consoleMarkdown(con.run, con.runErrors));
   return lines.join('\n');
 }
 
@@ -313,9 +402,8 @@ export function renderHtml(r) {
     })
     .join('\n');
 
-  const consoleHtml = r.consoleErrors.length
-    ? `<pre>${esc(r.consoleErrors.map(e => `${e.at} ${e.source}: ${e.message}`).join('\n'))}</pre>`
-    : '<p>None reported.</p>';
+  const con = consoleSections(r);
+  const consoleHtml = consoleHtmlTable(con.run, con.runErrors);
 
   const coverage = coverageRows(r);
   const coverageRowsHtml = coverage
@@ -324,14 +412,12 @@ export function renderHtml(r) {
   const coverageHtml = coverage.length
     ? `<h2>Coverage</h2><table><tbody>${coverageRowsHtml}</tbody></table>`
     : '';
-  const buildErrors = (r.build && r.build.consoleErrors) || [];
-  const buildErrorLines = buildErrors.map(e => `${e.at} ${e.source}: ${e.message}`);
   const buildErrorsHtml = r.build
-    ? `<h2>Build console errors</h2>${
-        buildErrors.length
-          ? `<pre>${esc(buildErrorLines.join('\n'))}</pre>`
-          : '<p>None reported.</p>'
-      }`
+    ? `<h2>Build console errors</h2>${consoleHtmlTable(con.build, con.buildErrors)}`
+    : '';
+  const fresh = newConsoleGroups(r);
+  const warnHtml = fresh
+    ? `<p class="fail"><strong>WARNING: ${fresh} new console error group${fresh === 1 ? '' : 's'}</strong> (not on the expected list); see Console errors below.</p>`
     : '';
 
   return `<!doctype html>
@@ -342,7 +428,7 @@ export function renderHtml(r) {
 <h1>Test kit report: ${esc(run.size)}${run.fake ? ' (fake)' : ''}</h1>
 <p class="meta">${r.build ? `<span>Profile ${esc(r.build.profile || 'unknown')}</span>` : ''}<span>Target ${esc(run.target.name)} (${esc(run.target.dashboard)})</span><span>World ${esc(run.target.world)}</span><span>Git ${esc(run.gitSha)}</span><span>Node ${esc(run.node)}</span><span>${esc(run.startedAt)}</span><span>Duration ${fmtMs(run.durationMs)}</span></p>
 <p class="sum"><span class="pass">${summary.passed} passed</span>, <span class="fail">${summary.failed} failed</span>, <span class="skip">${summary.skipped} skipped</span> of ${summary.total}</p>
-<div class="bar" role="img" aria-label="${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped"><i class="p" style="width:${pct(summary.passed)}%"></i><i class="f" style="width:${pct(summary.failed)}%"></i><i class="s" style="width:${pct(summary.skipped)}%"></i></div>
+${warnHtml}<div class="bar" role="img" aria-label="${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped"><i class="p" style="width:${pct(summary.passed)}%"></i><i class="f" style="width:${pct(summary.failed)}%"></i><i class="s" style="width:${pct(summary.skipped)}%"></i></div>
 <div class="filters"><label>Status <select id="f-status"><option value="">all</option><option value="bad">failed or error</option><option value="pass">pass</option><option value="fail">fail</option><option value="error">error</option><option value="skip">skip</option></select></label>
 <label>Tag <select id="f-tag"><option value="">all</option>${allTags.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select></label></div>
 <table><thead><tr><th>Scenario</th><th>Tags</th><th>Status</th><th>Time</th></tr></thead>

@@ -165,6 +165,37 @@ describe('buildStats', () => {
     expect(pc?.downs).toBe(1);
   });
 
+  it('keeps only characters a player owns, and old records that do not say (I-120)', () => {
+    const owned: PlayActorRef = {
+      uuid: 'Actor.pc2',
+      isPC: true,
+      name: 'Ismark',
+      playerOwned: true,
+    };
+    const spare: PlayActorRef = {
+      uuid: 'Actor.kit',
+      isPC: true,
+      name: 'Kit Hero',
+      playerOwned: false,
+    };
+    const later: PlayActorRef = {
+      uuid: 'Actor.pc3',
+      isPC: true,
+      name: 'Pregen',
+      playerOwned: false,
+    };
+    const stats = build([
+      roll('r:old', T0, PC, 'm1'),
+      roll('r:owned', T0 + 1, owned, 'm2'),
+      roll('r:spare', T0 + 2, spare, 'm3'),
+      roll('r:spare2', T0 + 3, spare, 'm4'),
+      roll('r:unowned', T0 + 4, later, 'm5'),
+      roll('r:handed-out', T0 + 5, { ...later, playerOwned: true }, 'm6'),
+    ]);
+    expect(stats.pcs.map(p => p.uuid).sort()).toEqual(['Actor.pc1', 'Actor.pc2', 'Actor.pc3']);
+    expect(stats.pcs.find(p => p.uuid === 'Actor.pc3')?.rolls).toBe(2);
+  });
+
   it('names every PC down of the session, in a fight or not (a trap, a fall)', () => {
     const stats = build([
       hp('hp:trap', T0, PC, 4, 0),

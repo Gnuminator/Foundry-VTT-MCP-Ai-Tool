@@ -933,3 +933,133 @@ describe('ObsidianMirrorPump: notes follow the Foundry folder tree (I-100)', () 
     expect(pump.status().lastError).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Adventure hubs (I-105)
+// ---------------------------------------------------------------------------
+
+describe('ObsidianMirrorPump: adventure hubs (I-105)', () => {
+  const inFolder = (folderSeed: string, ...names: string[]): ExportFolderRef => ({
+    id: fid(folderSeed),
+    path: names,
+  });
+  const ADV = inFolder('advx', 'Adventure X');
+  const INTRO = journalEntry('intro', 'Intro', [], { folder: ADV });
+  const HALL = sceneEntry('hall', 'Grand Hall', { folder: ADV });
+  const HUB = 'AI Tool/Foundry/Adventures/Adventure X.md';
+  const INTRO_PATH = 'AI Tool/Foundry/Journals/Adventure X/Intro.md';
+  const HALL_PATH = 'AI Tool/Foundry/Scenes/Adventure X/Grand Hall.md';
+
+  function putAdventure(): void {
+    fake.put(INTRO);
+    fake.put(HALL);
+  }
+
+  it('writes a hub that links the journal and the scene of the folder', async () => {
+    putAdventure();
+    const pump = await started();
+    const text = await read(HUB);
+    expect(text).not.toBeNull();
+    expect(text).toContain('type: "adventure-hub"');
+    expect(text).toContain('# Adventure X');
+    expect(text).toContain('- [Intro](../Journals/Adventure%20X/Intro.md)');
+    expect(text).toContain('- [Grand Hall](../Scenes/Adventure%20X/Grand%20Hall.md)');
+    expect(await exists(full(INTRO_PATH))).toBe(true);
+    expect(await exists(full(HALL_PATH))).toBe(true);
+    expect(pump.status().errors).toEqual([]);
+    expect(pump.status().lastError).toBeNull();
+    // Only the one adventure got a hub: the unfoldered default notes did not.
+    const hubs = (await listFiles(full('AI Tool/Foundry/Adventures'))).filter(f =>
+      f.endsWith('.md')
+    );
+    expect(hubs).toEqual(['Adventure X.md']);
+  });
+
+  it('adds a later member of the adventure to the hub, and writes nothing when unchanged', async () => {
+    putAdventure();
+    const pump = await started();
+    fake.put(npcEntry('boss', 'Big Boss', { folder: ADV, modified: 60_000 }));
+    await reconcileNow(pump);
+    expect(await read(HUB)).toContain('- [Big Boss](../NPCs/Adventure%20X/Big%20Boss.md)');
+    const before = await snapshot();
+    await reconcileNow(pump);
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it('writes no hub for a folder that has only journals', async () => {
+    fake.put(journalEntry('lonely', 'Lonely', [], { folder: inFolder('lone', 'Only Journals') }));
+    const pump = await started();
+    expect(await exists(full('AI Tool/Foundry/Journals/Only Journals/Lonely.md'))).toBe(true);
+    expect(await exists(full('AI Tool/Foundry/Adventures'))).toBe(false);
+    expect(await exists(full('AI Tool/Foundry/Adventures/Only Journals.md'))).toBe(false);
+    expect(pump.status().errors).toEqual([]);
+  });
+
+  it('writes no hub for documents that sit in no folder', async () => {
+    await started();
+    expect(await exists(full('AI Tool/Foundry/Adventures'))).toBe(false);
+  });
+
+  it('moves the hub to the vault trash when the scene leaves the adventure', async () => {
+    putAdventure();
+    const pump = await started();
+    expect(await read(HUB)).not.toBeNull();
+    fake.remove(HALL.uuid);
+    await reconcileNow(pump);
+    expect(await exists(full(HUB))).toBe(false);
+    expect(await exists(trashed(HUB))).toBe(true);
+    expect(await exists(full(HALL_PATH))).toBe(false);
+    // The journal note stays.
+    expect(await exists(full(INTRO_PATH))).toBe(true);
+    expect(pump.status().errors).toEqual([]);
+  });
+
+  it('moves the hub to the trash when the scene moves out of the folder', async () => {
+    putAdventure();
+    const pump = await started();
+    fake.edit(HALL.uuid, e => (e.folder = inFolder('other', 'Elsewhere')), 60_000);
+    await tickAfter(pump, 10_000);
+    await reconcileNow(pump);
+    expect(await exists(full('AI Tool/Foundry/Scenes/Elsewhere/Grand Hall.md'))).toBe(true);
+    expect(await exists(full(HUB))).toBe(false);
+    expect(await exists(trashed(HUB))).toBe(true);
+  });
+
+  it('brings the hub back when the adventure is whole again', async () => {
+    putAdventure();
+    const pump = await started();
+    fake.remove(HALL.uuid);
+    await reconcileNow(pump);
+    expect(await exists(full(HUB))).toBe(false);
+    fake.put(sceneEntry('hall', 'Grand Hall', { folder: ADV, modified: 70_000 }));
+    await reconcileNow(pump);
+    expect(await read(HUB)).toContain('- [Grand Hall](../Scenes/Adventure%20X/Grand%20Hall.md)');
+  });
+
+  it('keeps a hub the GM edited, unchanged, even when the adventure changes', async () => {
+    putAdventure();
+    const pump = await started();
+    const edited = `${(await read(HUB)) ?? ''}\nMy own notes on this adventure.\n`;
+    await fsp.writeFile(full(HUB), edited, 'utf8');
+    // A new member would change the hub; the edited hub is not overwritten.
+    fake.put(npcEntry('boss', 'Big Boss', { folder: ADV, modified: 60_000 }));
+    await reconcileNow(pump);
+    expect(await read(HUB)).toBe(edited);
+    // And with the adventure gone, the edited hub is not trashed either.
+    fake.remove(HALL.uuid);
+    await reconcileNow(pump);
+    expect(await read(HUB)).toBe(edited);
+    expect(await exists(trashed(HUB))).toBe(false);
+  });
+
+  it('leaves a note of the GM in the Adventures folder alone', async () => {
+    putAdventure();
+    const pump = await started();
+    const own = 'AI Tool/Foundry/Adventures/My plans.md';
+    await fsp.writeFile(full(own), '# My plans\n\nNot generated.\n', 'utf8');
+    fake.remove(HALL.uuid);
+    await reconcileNow(pump);
+    expect(await read(own)).toBe('# My plans\n\nNot generated.\n');
+    expect(await exists(full(HUB))).toBe(false);
+  });
+});

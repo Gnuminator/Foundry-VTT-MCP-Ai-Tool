@@ -460,6 +460,18 @@ export class LibrarySync {
   // Links
   // -------------------------------------------------------------------------
 
+  /** Book title to its hub note (`AI Tool/Library/Books/<title>.md`), as the Library places them. */
+  bookNotes(): Map<string, string> {
+    const titles = new Set<string>();
+    for (const row of this.world.rows.values()) {
+      const title = bookProperty(row);
+      if (title) titles.add(title);
+    }
+    return new Map(
+      [...bookBasePaths(titles)].map(([title, basePath]) => [title, bookNotePath(basePath)])
+    );
+  }
+
   /** Compendium links for world and Library notes (empty when no pack is picked). */
   links(): LibraryLinks {
     const world = this.world;

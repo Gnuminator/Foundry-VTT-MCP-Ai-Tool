@@ -325,7 +325,7 @@ The confirm window opens first for:
 
 - **Destructive changes**: deletes, and handout and Tarokka reveals and hides (players see a reveal
   at once, so Undo cannot take it back from their eyes).
-- **Plans you did not make on the dashboard**: a plan Claude made, or a pending change from Obsidian.
+- **Plans you did not make on the dashboard**: a plan Claude made.
   Plan, confirm and undo stay for every AI change.
 - **Plans you type by hand in the tool runner** (Advanced), so you see which targets they hit before
   they apply.

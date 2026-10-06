@@ -58,6 +58,8 @@ export const MIRROR_FOLDERS = {
   scene: `${MIRROR_ROOT}/Scenes`,
   journal: `${MIRROR_ROOT}/Journals`,
   item: `${MIRROR_ROOT}/Items`,
+  /** Adventure hub notes (I-105), one per adventure folder; not a Foundry document kind. */
+  adventure: `${MIRROR_ROOT}/Adventures`,
 } as const;
 export const MIRROR_STATUS_PATH = `${MIRROR_ROOT}/_status.md`;
 

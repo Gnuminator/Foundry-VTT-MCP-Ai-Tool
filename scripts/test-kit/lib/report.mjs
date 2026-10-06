@@ -180,6 +180,11 @@ export function newConsoleGroups(r) {
   return c.run.filter(g => !g.known).length + c.build.filter(g => !g.known).length;
 }
 
+/** The place of a group; a slice 4 page shows its page first. @param {import('./console-errors.mjs').ConsoleGroup} g */
+function groupWhere(g) {
+  return g.page ? `${g.page}: ${g.source}` : g.source;
+}
+
 /** @param {import('./console-errors.mjs').ConsoleGroup} g */
 function groupStatus(g) {
   return g.known ? `known (${g.kind})` : 'NEW';
@@ -202,7 +207,7 @@ function consoleMarkdown(groups, total) {
   for (const g of groups) {
     lines.push(
       `| ${g.count} | ${mdCell(groupStatus(g))} | ${mdCell(g.id)} | ${mdCell(g.message)} | ` +
-        `${mdCell(g.source)} | ${mdCell(g.scenarios.join(', ') || '-')} | ${mdCell(clock(g.first))} | ${mdCell(clock(g.last))} |`
+        `${mdCell(groupWhere(g))} | ${mdCell(g.scenarios.join(', ') || '-')} | ${mdCell(clock(g.first))} | ${mdCell(clock(g.last))} |`
     );
   }
   lines.push('');
@@ -222,7 +227,7 @@ function consoleHtmlTable(groups, total) {
         `<tr class="${g.known ? 'known' : 'fresh'}"><td>${g.count}</td>` +
         `<td><span class="badge ${g.known ? 'skip' : 'fail'}">${esc(groupStatus(g))}</span></td>` +
         `<td>${esc(g.id)}${g.why ? `<div class="when">${esc(g.why)}</div>` : ''}</td>` +
-        `<td>${esc(g.message)}</td><td>${esc(g.source)}</td>` +
+        `<td>${esc(g.message)}</td><td>${esc(groupWhere(g))}</td>` +
         `<td>${esc(g.scenarios.join(', ') || '-')}</td>` +
         `<td class="t">${esc(clock(g.first))}</td><td class="t">${esc(clock(g.last))}</td></tr>`
     )
@@ -313,6 +318,25 @@ export function picksMarkdown(r) {
   return lines;
 }
 
+/**
+ * The "Attachments" section: the file attachments of every scenario (screenshots), as links relative
+ * to the report folder.
+ * @param {KitReport} r
+ * @returns {string[]}
+ */
+export function attachmentsMarkdown(r) {
+  const lines = [];
+  for (const s of r.scenarios) {
+    const files = s.attachments.filter(a => a.file);
+    if (!files.length) continue;
+    if (!lines.length) lines.push('## Attachments', '');
+    lines.push(`### ${mdCell(s.id)}`, '');
+    for (const a of files) lines.push(`- [${mdCell(a.name)}](${encodeURI(String(a.file))})`);
+    lines.push('');
+  }
+  return lines;
+}
+
 /** @param {KitReport} r */
 export function renderMarkdown(r) {
   const { run, summary } = r;
@@ -377,6 +401,7 @@ export function renderMarkdown(r) {
   }
   lines.push(...knownMarkdown(r));
   lines.push(...picksMarkdown(r));
+  lines.push(...attachmentsMarkdown(r));
   const con = consoleSections(r);
   if (r.build) {
     lines.push('## Build console errors');
@@ -441,6 +466,19 @@ const JS = `
 })();
 `;
 
+/** @param {ScenarioResult['attachments'][number]} a */
+function attachmentHtml(a) {
+  if (!a.file) return `<h4>${esc(a.name)}</h4><pre>${esc(excerpt(a.data, 20000))}</pre>`;
+  const href = esc(encodeURI(String(a.file)));
+  if (String(a.type || '').startsWith('image/')) {
+    return (
+      `<h4>${esc(a.name)}</h4>` +
+      `<a href="${href}"><img src="${href}" alt="${esc(a.name)}" loading="lazy" style="max-width:100%"></a>`
+    );
+  }
+  return `<h4>${esc(a.name)}</h4><p><a href="${href}">${esc(a.name)}</a></p>`;
+}
+
 /** @param {KitReport} r */
 export function renderHtml(r) {
   const { run, summary } = r;
@@ -465,9 +503,7 @@ export function renderHtml(r) {
         })
         .join('');
       const logs = s.logs.length ? `<h4>Log</h4><pre>${esc(s.logs.join('\n'))}</pre>` : '';
-      const atts = s.attachments
-        .map(a => `<h4>${esc(a.name)}</h4><pre>${esc(excerpt(a.data, 20000))}</pre>`)
-        .join('');
+      const atts = s.attachments.map(a => attachmentHtml(a)).join('');
       return (
         `<tr data-status="${esc(s.status)}" data-tags="${esc(s.tags.join(' '))}">` +
         `<td><details><summary><strong>${esc(s.id)}</strong>: ${esc(s.title)}</summary>` +

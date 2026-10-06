@@ -3,6 +3,8 @@
  * runs the cleanups last in first out, and collects the module's console errors per scenario.
  * Free of Foundry specifics beyond the console-error check.
  */
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { KitAssertion, EnvError, SkipError } from './errors.mjs';
 import { brief } from './dashboard.mjs';
@@ -29,6 +31,13 @@ class TimedOut extends Error {}
  * @property {boolean} [fake]
  * @property {'smoke'|'full'|'long'} [size]   the kit size of the run; scenarios read it as `t.size` (default smoke)
  * @property {(line: string) => void} [log]   one line per step, as the live scripts print them
+ * @property {(scenarioId: string, sink: Array<import('./console-errors.mjs').RawConsoleError>) =>
+ *   {browser: import('./contract.mjs').KitBrowser, close: () => Promise<void>}} [browserFactory]
+ *   makes the scenario's `t.browser` (slice 4); `sink` is the run's console error list, so the
+ *   dashboard pages' errors land in the report. The runner calls `close()` after the scenario's
+ *   cleanups. Without it `t.browser` is null (the fake)
+ * @property {string} [filesDir]   where `t.attachFile` writes (`<report dir>/files`); the report holds
+ *   the path relative to its parent, `files/<scenario id>/<name>`. Without it `t.attachFile` returns null
  */
 
 /** @param {unknown} e */
@@ -155,6 +164,11 @@ async function runOne({ scenario, file }, opts, consoleSink) {
     }
   }
 
+  const kitBrowser = opts.browserFactory ? opts.browserFactory(scenario.id, consoleSink) : null;
+
+  /** @param {string} text */
+  const safeName = text => String(text).toLowerCase().replace(/[^a-z0-9._-]/g, '-');
+
   /** @type {PlayerLike} */
   const player = opts.player || {
     async state() {
@@ -202,6 +216,7 @@ async function runOne({ scenario, file }, opts, consoleSink) {
     http: (path, o) => dashboard.http(path, o),
     kit: /** @type {any} */ (manifest),
     page: gm?.page ?? null,
+    browser: kitBrowser ? kitBrowser.browser : null,
     log(message) {
       if (timedOut) return;
       result.logs.push(String(message));
@@ -209,6 +224,17 @@ async function runOne({ scenario, file }, opts, consoleSink) {
     },
     attach(name, data) {
       if (!timedOut) result.attachments.push({ name, data });
+    },
+    attachFile(name, data, { type = 'image/png' } = {}) {
+      if (!opts.filesDir || timedOut) return null;
+      const fileName = safeName(name) || 'file';
+      const dir = path.join(opts.filesDir, safeName(scenario.id));
+      mkdirSync(dir, { recursive: true });
+      const target = path.join(dir, fileName);
+      writeFileSync(target, data);
+      const rel = path.relative(path.dirname(opts.filesDir), target).split(path.sep).join('/');
+      result.attachments.push({ name: fileName, file: rel, type });
+      return target;
     },
     cleanup(fn) {
       cleanups.push(fn);
@@ -282,6 +308,9 @@ async function runOne({ scenario, file }, opts, consoleSink) {
       });
     }
   }
+
+  // The dashboard pages and a fresh Edge of this scenario go last, after the cleanups that may use them.
+  if (kitBrowser) await Promise.resolve(kitBrowser.close()).catch(() => {});
 
   // --- the module's console errors during this scenario ---
   if (gm) {

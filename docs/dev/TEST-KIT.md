@@ -825,7 +825,7 @@ A scenario is a file `<id>.scenario.mjs` whose default export describes it. The 
 - `gmActions`: every GM action it calls (the only way to run code inside Foundry).
 - `run(t)`: the scenario. `t` has `step`, `check`, `equal`, `tool`, `guarded.planApply`,
   `guarded.undo`, `gm`, `player.state`, `player.html`, `http`, `kit` (the manifest), `log`,
-  `attach` and `cleanup`.
+  `attach`, `attachFile`, `browser` (dashboard pages in Edge, see below) and `cleanup`.
 
 A tiny example:
 
@@ -865,6 +865,32 @@ Rules of thumb:
   that worked.
 - A `continueOnFail` step lets the scenario go on after a failure. Use it for lists of
   independent checks, such as one step per monster or per hero.
+
+### Dashboard pages and screenshots
+
+A scenario that checks the dashboard or the player view in a real browser uses `t.browser` and
+`t.attachFile`. Both are for the live run only: against the fake `t.browser` is null (check for it and
+call `t.skip(...)`), and `t.attachFile` returns null when the run has no report folder.
+
+- `await t.browser.open(path, { fresh, viewport })` opens a page of the dashboard (`path` is relative,
+  for example `/` or `/player`) and waits for it to load. It returns a Playwright page. By default the
+  page is a new tab in the GM's Edge. With `fresh: true` it is a separate headless Edge with no cookies,
+  for the login checks; that browser starts the first time a scenario asks for it. `viewport` sets the
+  size, for example `{ width: 390, height: 844 }` for a phone.
+- `t.browser.consoleErrors(page)` returns the console and page errors of that page so far (of every page
+  of the scenario without an argument). The runner also puts them in the report's console errors with
+  `page: 'dashboard'` or `'player'` (a path starting with `/player`), grouped apart from Foundry's errors.
+  Close nothing yourself: the runner closes every page after the scenario, even when it failed.
+- `t.attachFile(name, data, { type })` writes a file (a screenshot from `page.screenshot()`, `type`
+  `'image/png'` by default) to `<report folder>/files/<scenario id>/<name>`. The name is cut down to
+  lower case letters, digits, `.`, `_` and `-`. The report links the file in `report.md` and shows images
+  in `report.html`. It returns the written path.
+
+```js
+const page = await t.browser.open('/player', { viewport: { width: 390, height: 844 } });
+t.attachFile('player-phone.png', await page.screenshot({ fullPage: true }));
+t.check(t.browser.consoleErrors(page).length === 0, 'the player page logs no errors');
+```
 
 ## Where things live
 

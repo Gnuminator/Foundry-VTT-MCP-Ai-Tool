@@ -240,7 +240,7 @@ export const GM_ACTIONS = {
    * ({uuid, actorId?}) => {name, type, rules, featType, movement: {walk, fly, ...} | null, senses: {darkvision, ...} | null,
    * creatureType, advancements: [{id, type, title, levels, classRestriction: 'primary'|'secondary'|'', grants?, choices?:
    * [{count, pool}], mode?, items?: [{uuid, name, resolved, optional, playerFeat}], optional?, itemChoices?: [{level, count}],
-   * asi?: {points, cap, fixed, locked, max}, sizes?}], effects: [{name, transfer, disabled, changes}], activities:
+   * asi?: {points, cap, fixed, locked, max}, sizes?}], effects: [{name, transfer, disabled, changes, profs: ['weapon:mar', ...]}], activities:
    * [{type, name}], uses, startingEquipment, primaryAbility: string[], primaryAll (a class needs all of them), hitDie, spellcasting: {progression, ability} | null,
    * prerequisites: {level, repeatable} | null, actor?: {prerequisitesMet, detail}} what the data of one species,
    * background, feat or class says (facts only; names of the item's own grants). With `actorId` the reply also says

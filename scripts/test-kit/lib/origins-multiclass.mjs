@@ -133,12 +133,43 @@ export async function runMulticlass(t) {
             picksOf.push(added.picks ?? []);
             warnings.push(...(added.warnings ?? []));
             const after = await t.gm('inspectBuild', { actorId });
+            // A feature the hero chose (a Divine Order, say) may carry proficiencies of its own: they are
+            // the feature's, not the multiclass set's.
+            const chosenNames = new Set(
+              (added.picks ?? [])
+                .filter((/** @type {any} */ p) => p.advancement === 'ItemChoice')
+                .flatMap((/** @type {any} */ p) => p.chosen ?? [])
+                .map((/** @type {string} */ n) => String(n).toLowerCase())
+            );
+            const featureGrants = [];
+            // The class's own subclass (a Way that grants a tool, say) carries proficiencies too.
+            if (parts[i].subclass) {
+              const sub = await t
+                .gm('describeOrigin', { uuid: parts[i].subclass.uuid })
+                .catch(() => ({ advancements: [] }));
+              for (const a of sub.advancements ?? [])
+                if (a.type === 'Trait' && (!a.mode || a.mode === 'default'))
+                  featureGrants.push(...(a.grants ?? []));
+              for (const e of sub.effects ?? []) featureGrants.push(...(e.profs ?? []));
+            }
+            for (const item of after.items ?? []) {
+              if (!item.sourceUuid || !chosenNames.has(String(item.name).toLowerCase())) continue;
+              // A feature the data cannot describe adds no grants; any proficiency it gave then shows as extra.
+              const feature = await t
+                .gm('describeOrigin', { uuid: item.sourceUuid })
+                .catch(() => ({ advancements: [] }));
+              for (const a of feature.advancements ?? [])
+                if (a.type === 'Trait' && (!a.mode || a.mode === 'default'))
+                  featureGrants.push(...(a.grants ?? []));
+              for (const e of feature.effects ?? []) featureGrants.push(...(e.profs ?? []));
+            }
             const prof = checkMulticlassProficiencies({
               desc: descs[i],
               before,
               after,
               picks: added.picks ?? [],
               className: parts[i].entry.name,
+              featureGrants,
             });
             problems.push(...prof.problems);
             for (const n of prof.notes) notes.add(`${combo.id}: ${n}`);

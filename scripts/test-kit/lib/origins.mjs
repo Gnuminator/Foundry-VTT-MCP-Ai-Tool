@@ -119,6 +119,11 @@ export function traitHeld(key, build) {
   }
 }
 
+/** The item id at the end of an item uuid (the same item in two packs shares it). @param {string} uuid */
+function idOf(uuid) {
+  return String(uuid).split('.').pop() ?? '';
+}
+
 /** True when a Trait pool still had an option the hero did not hold (so a skipped pick was ours). */
 function poolHasOpenOption(pool, build) {
   if (!pool.length) return true;
@@ -240,12 +245,35 @@ export function checkOrigin({
   const rootType = ROOT_TYPE[kind];
   const root = items.find(i => i.type === rootType && (i.sourceUuid === uuid || i.name === name));
   if (!root) bad('SYSTEM', `${kind} item missing`, `the actor has no ${rootType} item "${name}"`);
-  else if (root.sourceUuid && root.sourceUuid !== uuid)
-    bad('KIT', `${kind} item`, `built from ${root.sourceUuid}, planned ${uuid}`);
+  else if (root.sourceUuid && root.sourceUuid !== uuid) {
+    // The same item of another pack (a module's copy of a system item) is not a mix-up: say so.
+    if (idOf(root.sourceUuid) === idOf(uuid))
+      notes.push(
+        `the ${kind} item comes from ${root.sourceUuid}, the data grants ${uuid} (same item id)`
+      );
+    else bad('KIT', `${kind} item`, `built from ${root.sourceUuid}, planned ${uuid}`);
+  }
 
-  const advancements = /** @type {any[]} */ (desc.advancements ?? []);
-  if (!advancements.length && kind !== 'feat')
+  const everyAdvancement = /** @type {any[]} */ (desc.advancements ?? []);
+  if (!everyAdvancement.length && kind !== 'feat')
     bad('CONTENT', 'no advancements', `the ${kind} has no advancement at all`);
+  // An advancement of a higher level (a species feature at level 5, say) waits for the hero to get there.
+  const heroLevel = Math.max(
+    1,
+    Object.values(actor.classes ?? {}).reduce(
+      (/** @type {number} */ n, /** @type {any} */ c) => n + Number(c?.levels ?? 0),
+      0
+    )
+  );
+  const advancements = everyAdvancement.filter(
+    a =>
+      !(a.levels ?? []).length || (a.levels ?? []).some((/** @type {number} */ l) => l <= heroLevel)
+  );
+  for (const a of everyAdvancement)
+    if (!advancements.includes(a))
+      notes.push(
+        `${a.title}: waits for level ${Math.min(...a.levels)} (the hero is level ${heroLevel}), not checked`
+      );
 
   let granted = 0;
   let traitsHeld = 0;
@@ -303,7 +331,14 @@ export function checkOrigin({
         }
         if (chosen.length < asked) {
           const pool = (adv.choices ?? []).flatMap((/** @type {any} */ c) => c.pool ?? []);
-          if (poolHasOpenOption(pool, build))
+          // A choice with no pool offers nothing: the system skips it. That is the data's, not the builder's.
+          if (!pool.length)
+            bad(
+              'CONTENT',
+              'trait choice with an empty pool',
+              `${name}: ${adv.title}: the data asks for ${asked}, the choice has no pool to choose from`
+            );
+          else if (poolHasOpenOption(pool, build))
             bad(
               'KIT',
               'trait choice not made',
@@ -313,10 +348,10 @@ export function checkOrigin({
         }
       }
     } else if (adv.type === 'ItemChoice') {
-      const asked = (adv.itemChoices ?? []).reduce(
-        (/** @type {number} */ n, /** @type {any} */ c) => n + Number(c.count ?? 0),
-        0
-      );
+      // Only the choices of levels the hero has reached (a feat that learns more spells as you level).
+      const asked = (adv.itemChoices ?? [])
+        .filter((/** @type {any} */ c) => Number(c.level ?? 0) <= heroLevel)
+        .reduce((/** @type {number} */ n, /** @type {any} */ c) => n + Number(c.count ?? 0), 0);
       if (!asked) continue;
       choicesAsked += asked;
       const picks = mine.filter(
@@ -436,7 +471,11 @@ export function checkOrigin({
     if (!Object.keys(desc.movement ?? {}).length) notes.push('the species data has no movement');
     for (const [sense, v] of Object.entries(desc.senses ?? {})) {
       if (sense === 'special') continue;
-      if (build.senses?.[sense] !== v)
+      // A granted feature may raise a sense (a superior darkvision); a lower one is the problem.
+      const have = Number(build.senses?.[sense] ?? 0);
+      if (have > v)
+        notes.push(`${sense}: the species says ${v}, the actor has ${have} (a feature raised it)`);
+      else if (have !== v)
         bad(
           'SYSTEM',
           'senses',
@@ -700,11 +739,19 @@ export function multiclassSlots(classes) {
 /**
  * Checks the proficiencies a class gave when it was added as a further class: no saving throw of
  * its own, the multiclass-only advancements applied and nothing of the first-class set.
- * @param {{desc: any, before: any, after: any, picks: any[], className: string}} input
- *   desc: describeOrigin of the added class; before/after: inspectBuild; picks: createHero's picks for the addition
+ * @param {{desc: any, before: any, after: any, picks: any[], className: string, featureGrants?: string[]}} input
+ *   desc: describeOrigin of the added class; before/after: inspectBuild; picks: createHero's picks for the addition;
+ *   featureGrants: trait keys the features the hero chose carry (a chosen Divine Order's martial weapons)
  * @returns {{problems: Problem[], notes: string[]}}
  */
-export function checkMulticlassProficiencies({ desc, before, after, picks, className }) {
+export function checkMulticlassProficiencies({
+  desc,
+  before,
+  after,
+  picks,
+  className,
+  featureGrants = [],
+}) {
   /** @type {Problem[]} */
   const problems = [];
   /** @type {string[]} */
@@ -764,7 +811,7 @@ export function checkMulticlassProficiencies({ desc, before, after, picks, class
       const parts = key.split(':');
       return parts[0] === kind && parts[parts.length - 1] === id;
     };
-    return [...fixed, ...chosen].some(k => matches(String(k)));
+    return [...fixed, ...chosen, ...featureGrants].some(k => matches(String(k)));
   };
   const extra = gained.filter(g => !allowed(g));
   if (extra.length) {

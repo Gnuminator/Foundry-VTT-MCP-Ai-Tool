@@ -77,7 +77,9 @@ async function describeOrigin(args) {
   const numbers = obj => {
     const out = {};
     for (const [key, v] of Object.entries(obj ?? {})) {
-      if (typeof v === 'number' && v > 0) out[key] = v;
+      // dnd5e 6 keeps a species' speeds as strings ("30"); a blank is null or "".
+      const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
+      if (typeof n === 'number' && n > 0) out[key] = n;
     }
     return out;
   };
@@ -153,8 +155,8 @@ async function describeOrigin(args) {
     type: doc.type,
     rules: typeof sys.source === 'object' && sys.source ? String(sys.source.rules ?? '') : '',
     featType: doc.type === 'feat' ? String(sys.type?.subtype || 'general') : '',
-    movement: doc.type === 'race' ? numbers(sys.movement) : null,
-    senses: doc.type === 'race' ? numbers(sys.senses) : null,
+    movement: doc.type === 'race' ? numbers(sys.movement?.speeds ?? sys.movement) : null,
+    senses: doc.type === 'race' ? numbers(sys.senses?.ranges ?? sys.senses) : null,
     creatureType: doc.type === 'race' ? String(sys.type?.value ?? '') : '',
     advancements,
     effects: doc.effects.map(e => ({
@@ -162,6 +164,13 @@ async function describeOrigin(args) {
       transfer: !!e.transfer,
       disabled: !!e.disabled,
       changes: (e.changes ?? []).length,
+      // Proficiencies the effect adds, in trait keys ("weapon:mar"): a feature may grant them this way.
+      profs: (e.changes ?? [])
+        .map(c => {
+          const m = /^system\.traits\.(weapon|armor|tool)Prof\.value$/.exec(String(c.key));
+          return m && c.value ? `${m[1]}:${String(c.value)}` : null;
+        })
+        .filter(Boolean),
     })),
     activities: list(sys.activities).map(a => ({ type: a.type, name: a.name ?? '' })),
     uses:

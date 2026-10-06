@@ -1,1 +1,7 @@
-[]
+[
+  {
+    "id": "background:trait-choice-with-an-empty-pool",
+    "kind": "CONTENT",
+    "why": "The system's 2024 Criminal background has a Trait choice of 1 with an empty pool: the system never offers it, so the hero keeps the fixed proficiencies only. Seen live 2026-10-06 (dnd5e 6.0.5)."
+  }
+]

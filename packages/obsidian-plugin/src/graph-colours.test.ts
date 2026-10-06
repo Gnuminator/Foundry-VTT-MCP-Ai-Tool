@@ -221,6 +221,7 @@ function fakeHost(state: {
   live?: Record<string, unknown> | null;
   disk?: unknown;
   setWorks?: boolean;
+  writeFails?: boolean;
   /** Runs during the settle wait (a late save of old options by a closing view). */
   duringWait?: (live: Record<string, unknown>) => void;
 }): GraphHost & {
@@ -270,6 +271,7 @@ function fakeHost(state: {
     },
     writeGraphJson: (json): Promise<void> => {
       calls.push('write');
+      if (state.writeFails) return Promise.reject(new Error('graph.json is locked'));
       written.push(json);
       return Promise.resolve();
     },
@@ -333,7 +335,7 @@ describe('applyGraphColoursTo', () => {
   it('falls back to graph.json when the graph plugin has no instance', async () => {
     const host = fakeHost({ live: null, disk: { scale: 2, colorGroups: [userGroup] } });
     const result = await applyGraphColoursTo(host, [strahd], []);
-    expect(host.calls).toEqual(['park', 'options', 'read', 'write']);
+    expect(host.calls).toEqual(['park', 'options', 'read', 'write', 'restore']);
     const json = host.written[0] as Record<string, unknown>;
     expect(json.scale).toBe(2);
     expect(groupsOf(json)[0]).toEqual(userGroup);
@@ -344,7 +346,7 @@ describe('applyGraphColoursTo', () => {
     const live: Record<string, unknown> = { colorGroups: [userGroup] };
     const host = fakeHost({ live, setWorks: false });
     const result = await applyGraphColoursTo(host, [strahd], []);
-    expect(host.calls).toEqual(['park', 'options', 'set', 'write', 'wait', 'options']);
+    expect(host.calls).toEqual(['park', 'options', 'set', 'write', 'restore', 'wait', 'options']);
     expect(groupsOf(host.written[0])[0]).toEqual(userGroup);
     // The live options hold the new groups too, so they cannot write the old ones back.
     expect(live.colorGroups).toEqual(groupsOf(host.written[0]));
@@ -354,8 +356,14 @@ describe('applyGraphColoursTo', () => {
   it('puts no graph view back when none was open', async () => {
     const host = fakeHost({ openViews: 0, live: {} });
     const result = await applyGraphColoursTo(host, [strahd], []);
-    expect(host.calls).not.toContain('restore');
     expect(result.reopened).toBe(0);
+  });
+
+  it('puts the parked views back when saving fails', async () => {
+    const host = fakeHost({ openViews: 2, live: null, writeFails: true });
+    await expect(applyGraphColoursTo(host, [strahd], [])).rejects.toThrow('graph.json is locked');
+    expect(host.calls).toEqual(['park', 'options', 'read', 'write', 'restore']);
+    expect(host.calls).not.toContain('wait');
   });
 });
 

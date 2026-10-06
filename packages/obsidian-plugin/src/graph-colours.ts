@@ -203,17 +203,26 @@ export async function applyGraphColoursTo(
   hubs: HubInfo[],
   libraryRoots: string[]
 ): Promise<GraphColoursResult> {
-  const parked = await host.parkGraphViews();
-  const options = host.graphOptions();
-  const base = options ?? (await host.readGraphJson());
-  const { json, kept } = mergeGraphColourGroups(base, ourGroups(hubs, libraryRoots));
+  let options: Record<string, unknown> | null = null;
+  let merged: { json: Record<string, unknown>; kept: number };
   const save = async (): Promise<boolean> => {
-    const saved = options !== null && (await host.setGraphOptions(json));
-    if (!saved) await host.writeGraphJson(json);
+    const saved = options !== null && (await host.setGraphOptions(merged.json));
+    if (!saved) await host.writeGraphJson(merged.json);
     return saved;
   };
-  let live = await save();
-  const reopened = parked > 0 ? await host.restoreGraphViews() : 0;
+  let live: boolean;
+  let reopened = 0;
+  try {
+    await host.parkGraphViews();
+    options = host.graphOptions();
+    const base = options ?? (await host.readGraphJson());
+    merged = mergeGraphColourGroups(base, ourGroups(hubs, libraryRoots));
+    live = await save();
+  } finally {
+    // Whatever failed, the parked views come back (an empty tab instead of the graph would stay).
+    reopened = await host.restoreGraphViews();
+  }
+  const { json, kept } = merged;
   let reapplied = false;
   if (options !== null) {
     await host.wait(GRAPH_SETTLE_MS);

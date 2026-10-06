@@ -33,7 +33,10 @@ For a note with `fvtt_uuid` in its frontmatter (the Obsidian mirror writes it on
   own colour groups.
 
 Settings: the dashboard address (default `http://localhost:3000`), the theme and, only when the
-dashboard's player split is on, the GM token, kept in Obsidian's secret storage.
+dashboard's player split is on, the GM token, kept in Obsidian's secret storage. For a dashboard
+behind Cloudflare Access (the Pi, D-094 R1), a service token's Client ID and Client Secret, also in
+secret storage, sent as `CF-Access-Client-Id` and `CF-Access-Client-Secret` to https addresses
+only; the GM token then gives the GM role. GM steps: [docs/gm/obsidian.md](../../docs/gm/obsidian.md).
 
 The theme CSS is `theme/obsidian-theme.css`; the build inlines the dashboard's OFL fonts
 (`packages/cogm-dashboard/public/fonts`) into `dist/styles.css`, writes `dist/FONT-LICENSES.txt`,

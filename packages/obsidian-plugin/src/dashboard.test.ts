@@ -100,7 +100,7 @@ describe('openInFoundry', () => {
       kind: 'error',
       message: 'GM only. Check the GM token in the plugin settings.',
     });
-    const { client: d } = client(() => ({ status: 502, json: null }));
+    const { client: d } = client(() => ({ status: 502, json: {} }));
     await expect(d.openInFoundry('Actor.abc')).resolves.toEqual({
       kind: 'error',
       message: 'The dashboard answered HTTP 502.',
@@ -216,5 +216,66 @@ describe('theme', () => {
       json: { error: 'The world is not known yet; try again once Foundry is connected.' },
     }));
     await expect(c.setTheme('veil')).rejects.toMatchObject({ status: 409 });
+  });
+});
+
+describe('Cloudflare Access service token (D-094 R1)', () => {
+  const ACCESS = { clientId: 'id-123.access', clientSecret: 'shh-456' };
+
+  function accessClient(
+    base: string,
+    access: { clientId: string; clientSecret: string } | null,
+    answer: HttpResponse = { status: 200, json: { theme: 'veil', themes: ['neutral', 'veil'] } }
+  ): { client: DashboardClient; calls: HttpRequest[] } {
+    const calls: HttpRequest[] = [];
+    const http = vi.fn((req: HttpRequest) => {
+      calls.push(req);
+      return Promise.resolve(answer);
+    });
+    return {
+      client: new DashboardClient(
+        http,
+        () => base,
+        () => 'gm-token',
+        () => access
+      ),
+      calls,
+    };
+  }
+
+  it('sends both Access headers and the GM token to an https dashboard', async () => {
+    const { client: c, calls } = accessClient('https://cogm.example.org', ACCESS);
+    await c.theme();
+    expect(calls[0]?.headers).toMatchObject({
+      'CF-Access-Client-Id': 'id-123.access',
+      'CF-Access-Client-Secret': 'shh-456',
+      'X-CoGM-Token': 'gm-token',
+    });
+  });
+
+  it('never sends the Access headers to a plain http address', async () => {
+    const { client: c, calls } = accessClient('http://100.110.82.102:3000', ACCESS);
+    await c.theme();
+    expect(calls[0]?.headers['CF-Access-Client-Id']).toBeUndefined();
+    expect(calls[0]?.headers['CF-Access-Client-Secret']).toBeUndefined();
+    expect(calls[0]?.headers['X-CoGM-Token']).toBe('gm-token');
+  });
+
+  it('sends no Access headers when none are set', async () => {
+    const { client: c, calls } = accessClient('https://cogm.example.org', null);
+    await c.theme();
+    expect(Object.keys(calls[0]?.headers ?? {}).some(h => h.startsWith('CF-Access'))).toBe(false);
+  });
+
+  it("says to check the Access token when the answer is not the dashboard's JSON", async () => {
+    // Access answers a refused or missing service token with its own HTML page.
+    const { client: c } = accessClient('https://cogm.example.org', ACCESS, {
+      status: 403,
+      json: null,
+    });
+    const error = await c.theme().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DashboardError);
+    expect((error as DashboardError).message).toMatch(/Cloudflare Access.*Client ID and Secret/);
+    expect((error as DashboardError).message).not.toContain('shh-456');
   });
 });

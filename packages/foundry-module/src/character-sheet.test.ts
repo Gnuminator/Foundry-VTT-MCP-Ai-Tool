@@ -4,6 +4,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { plainText, stripSecrets } from './character-sheet-fields.js';
 import { characterSheets, projectCharacterSheet, type SheetActor } from './character-sheet.js';
 
 const g = globalThis as any;
@@ -215,5 +216,43 @@ describe('characterSheets', () => {
     await expect(characterSheets({ userId: gm.id })).rejects.toThrow('No such player');
     await expect(characterSheets({ userId: 'nobody000000000' })).rejects.toThrow('No such player');
     await expect(characterSheets({})).rejects.toThrow('No such player');
+  });
+});
+
+describe('stripSecrets and plainText', () => {
+  it('drops a secret section with a nested section, tail included (#155 review point 6)', () => {
+    const html =
+      '<p>Open.</p><section class="secret"><section><p>Inner</p></section><p>Tail of the secret</p></section><p>After.</p>';
+    expect(plainText(html)).toBe('Open.\nAfter.');
+    expect(stripSecrets(html)).toBe('<p>Open.</p><p>After.</p>');
+  });
+
+  it('drops secrets nested in other tags, revealed secrets, secret-block and GM-only classes', () => {
+    const html = [
+      '<div class="note secret revealed"><div>a</div><div>b</div>x</div>',
+      '<secret-block><section class="secret">y</section></secret-block>',
+      "<span class='gm-only'>z</span><p class=gmnote>w</p>",
+      '<!-- hidden --><p>kept</p>',
+    ].join('');
+    expect(plainText(html)).toBe('kept');
+  });
+
+  it('keeps void and self-closing tags out of the depth count', () => {
+    const html = '<section class="secret">a<br><img src="x.png"/><section/>b</section><p>c</p>';
+    expect(plainText(html)).toBe('c');
+  });
+
+  it('reads quoted attributes that hold ">" and drops an unclosed secret to the end', () => {
+    expect(plainText('<p title="a>b">one</p><div class="secret">two<p>three</p>')).toBe('one');
+  });
+
+  it('reads the class attribute, not data-class', () => {
+    expect(plainText('<div data-class="x" class="secret">hidden</div><p>shown</p>')).toBe('shown');
+  });
+
+  it('keeps ordinary content', () => {
+    expect(
+      plainText('<p class="lead">Hello <em>there</em></p><ul><li>one</li><li>two</li></ul>')
+    ).toBe('Hello there\none\ntwo');
   });
 });

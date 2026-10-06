@@ -33,12 +33,22 @@ export class CharacterDataAccess {
    *
    * Lookup order: a 16-character identifier is tried as an actor id first, then
    * any identifier is matched against actor names (case-insensitive, exact).
+   * A token on the current scene wins (see {@link shared.findSceneTokenActor}), so an
+   * unlinked boss shows its own HP and spent legendary actions, not the world actor's.
    * Throws `CHARACTER_NOT_FOUND` when nothing matches. `system` and every item's
    * `system` are passed through {@link shared.sanitizeData} so tool output is
    * free of cycles, sensitive fields, and deprecated-accessor warnings.
    */
   async getCharacterInfo(identifier: string): Promise<CharacterInfo> {
-    const actor = this.resolveActorById16OrName(identifier);
+    let world: Actor | undefined;
+    let notFound: unknown;
+    try {
+      world = this.resolveActorById16OrName(identifier);
+    } catch (err) {
+      notFound = err;
+    }
+    const actor = (shared.findSceneTokenActor(identifier, world?.id) as Actor | undefined) ?? world;
+    if (!actor) throw notFound;
 
     const characterData: CharacterInfo = {
       id: actor.id || '',

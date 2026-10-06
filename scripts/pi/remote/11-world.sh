@@ -52,9 +52,21 @@ bundle_size="$(stat -c %s "$BUNDLE")"
 say "inspecting $BUNDLE before extracting"
 install -d -m 700 "$IMPORT"
 work="$IMPORT/work-$stamp"
+prev="$IMPORT/prev-$stamp"
 install -d -m 700 "$work" "$work/extract"
 # The work folder only holds a copy of the bundle: remove it on any exit (the bundle stays until success).
-trap 'rm -rf "${work:?}"' EXIT
+# A run that stopped Foundry and then failed starts it again (on whatever options.json names), so the Pi
+# is never left without Foundry and the Assistant GM.
+stopped=0
+on_exit() {
+  rm -rf "${work:?}"
+  if [ "$stopped" = 1 ] && have_systemd; then
+    systemctl is-active --quiet foundry.service || systemctl start foundry.service || true
+    systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service || true
+    warn "the run did not finish: Foundry and the Assistant GM browser were started again; old copies are in $prev"
+  fi
+}
+trap on_exit EXIT
 tar --quoting-style=literal -tf "$BUNDLE" >"$work/names" || die "cannot read the tar"
 tar --quoting-style=literal -tvf "$BUNDLE" | cut -c1 >"$work/types"
 [ "$(wc -l <"$work/names")" = "$(wc -l <"$work/types")" ] || die "the tar listing is inconsistent (odd file names)"
@@ -124,9 +136,8 @@ if have_systemd; then
   say "stopping the Assistant GM browser and Foundry"
   systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
   systemctl stop foundry.service
+  stopped=1
 fi
-
-prev="$IMPORT/prev-$stamp"
 install -d -m 700 "$prev"
 store_prev() { # $1 path under $data, $2 name inside prev
   [ -e "$1" ] || return 0
@@ -187,7 +198,7 @@ provision_world() { # $1 world id
     ok "$envf exists"
   else
     umask 077
-    printf 'GM_USER=%s\nGM_PASSWORD="%s"\n' "$GM_USER" "$(new_password)" >"$envf"
+    printf 'GM_USER="%s"\nGM_PASSWORD="%s"\n' "$GM_USER" "$(new_password)" >"$envf"
     umask 022
     chown root:root "$envf"
     chmod 600 "$envf"
@@ -268,6 +279,7 @@ else
 fi
 
 say "cleaning up"
+stopped=0
 rm -rf "${work:?}"
 trap - EXIT
 rm -f "${BUNDLE:?}"

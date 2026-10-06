@@ -142,7 +142,10 @@ test('a remote cat with no pipe after it returns at once (it used to backtrack f
   assert.equal(kind('ssh foundry-pi cat /a /b "/c d"'), 'allow');
   assert.ok(performance.now() - t < 1000);
   // A local cat piped into ssh still feeds the script file to the checks.
-  assert.equal(kind('cat scripts/pi/remote/lib.sh scripts/pi/remote/9-ssh-log.sh | ssh foundry-pi bash'), 'ask');
+  assert.equal(
+    kind('cat scripts/pi/remote/lib.sh scripts/pi/remote/9-ssh-log.sh | ssh foundry-pi bash'),
+    'ask'
+  );
 });
 
 test('long adversarial commands are checked in linear time', () => {
@@ -170,4 +173,120 @@ test('repeated flags do not hide a recursive delete of / or a system folder', ()
   assert.equal(kind("ssh foundry-pi 'rm -f -r --recursive /etc'"), 'deny');
   assert.equal(kind("ssh foundry-pi 'rm --recursive --force /*'"), 'deny');
   assert.equal(kind("ssh foundry-pi 'rm -rf -rf /opt/foundry/old'"), 'allow');
+});
+
+// Each of these took from 100 ms to over 30 s at 50,000 characters with the old single regexes
+// (a hook past its timeout fails open). Linear checks take a few milliseconds.
+test('50,000-character crafted commands are checked in well under 200 ms', () => {
+  const N = 50_000;
+  const rep = s => s.repeat(Math.ceil(N / s.length)).slice(0, N);
+  const P = 'ssh foundry-pi ';
+  const long = [
+    P + rep('\n'),
+    P + rep('('),
+    P + rep(';'),
+    P + rep('$('),
+    P + rep("'"),
+    P + rep('sudo '),
+    P + 'rm ' + rep('-rm '),
+    P + 'rm ' + rep('--a-b '),
+    P + 'rm -rf ' + rep('"'),
+    P + 'rm -rf ' + rep("'") + 'x',
+    P + 'sed -i' + rep('i'),
+    P + rep('sed -i x '),
+    P + rep('>'),
+    P + rep('tee -a '),
+    P + 'cat ' + rep('"'),
+    P + 'cat ' + rep('a;'),
+    P + rep('cat '),
+    P + rep('cat \'" '),
+    P + rep('chmod -R '),
+    P + 'chmod -' + rep('R') + '_',
+    P + 'userdel ' + rep('-userdel '),
+    P + 'systemctl ' + rep('-systemctl '),
+    P + rep('systemctl stop '),
+    P + 'apt ' + rep('-apt '),
+    P + 'dpkg ' + rep('-dpkg '),
+    P + rep('dd '),
+    P + rep('a=('),
+    P + rep('a/'),
+    P + rep('a.sh.'),
+    P + rep('x"a.sh"'),
+    P + rep('cd / && rm -rf x; '),
+    P + rep('find '),
+    P + 'find / ' + rep('-exec '),
+    P + rep('xargs '),
+    // Found by the review of PR #146: a long wildcard path and many unclosed `${`.
+    P + "'rm -rf " + rep('*') + "x'",
+    P + "'find " + rep('${') + " -delete'",
+    P + "'find $" + rep('{a}') + "${ -delete'",
+    'scp ' + rep('scp a: '),
+    rep('ssh -o '),
+    rep('# x\nssh foundry-pi cat a\n'),
+  ];
+  for (const c of long) {
+    const t = performance.now();
+    decide(c, repo);
+    const ms = performance.now() - t;
+    assert.ok(ms < 200, `${ms.toFixed(0)} ms for ${JSON.stringify(c.slice(0, 40))}...`);
+  }
+});
+
+test('deleting everything after a cd, with find or through xargs is caught', () => {
+  for (const c of [
+    "ssh foundry-pi 'cd / && rm -rf *'",
+    "ssh foundry-pi 'cd /etc; rm -rf .'",
+    "ssh foundry-pi 'cd /; rm -rf etc'",
+    "ssh foundry-pi bash <<'EOF'\ncd /\nrm -rf -- *\nEOF",
+    "ssh foundry-pi 'cd /opt/foundry && rm -rf ../*'",
+    "ssh foundry-pi 'cd ~ && rm -rf *'",
+    "ssh foundry-pi 'find / -delete'",
+    "ssh foundry-pi 'find /etc -name x -exec rm -rf {} +'",
+    "ssh foundry-pi 'find / -type f -exec /bin/rm -f {} \\;'",
+    "ssh foundry-pi 'rm -rf -- /'",
+    "ssh foundry-pi 'rm -rf --interactive=never ~'",
+    "ssh foundry-pi 'rm -rf ~/*'",
+    "ssh foundry-pi 'rm -rf /tmp/x /'",
+    "ssh foundry-pi 'rm -rf /tmp/..'",
+    "ssh foundry-pi 'rm -rf /opt/foundry/../../etc'",
+    "ssh foundry-pi 'rm -rf //etc /./usr'",
+    "ssh foundry-pi 'rm -rf /e*c'",
+  ]) {
+    assert.equal(kind(c), 'deny', c);
+  }
+  for (const c of [
+    "ssh foundry-pi 'echo /etc | xargs rm -rf'",
+    "ssh foundry-pi 'find / -print0 | xargs -0 rm -f'",
+    "ssh foundry-pi 'find /var/log -delete'",
+    "ssh foundry-pi 'find . -name x -delete'",
+    "ssh foundry-pi 'find -delete'",
+    'ssh foundry-pi \'find "$DIR" -delete\'',
+    "ssh foundry-pi 'rm -rf *'",
+    "ssh foundry-pi 'rm -rf ./../x'",
+    "ssh foundry-pi 'rm -rf ~/old'",
+    "ssh foundry-pi 'cd /srv && rm -rf data'",
+    'ssh foundry-pi \'cd "$X" && rm -rf *\'',
+  ]) {
+    assert.equal(kind(c), 'ask', c);
+  }
+});
+
+test('deletes in our own folders, by find too, and the documented drill commands still pass', () => {
+  for (const c of [
+    "ssh foundry-pi 'cd /opt/foundry && rm -rf *'",
+    "ssh foundry-pi 'cd /var/lib/foundry-ai-tool/x; rm -rf old'",
+    "ssh foundry-pi 'rm -rf build'",
+    "cd /c/Users/chris && ssh foundry-pi 'rm -rf build'",
+    'ssh foundry-pi "find /opt/foundry/app -name \'*.map\' -delete"',
+    'ssh foundry-pi \'find "$stage/dist" -name x -delete\'',
+    "ssh foundry-pi 'find /etc/foundry-ai-tool -gid 5 -exec chgrp foundry {} +'",
+    "ssh foundry-pi 'find /var/lib/foundry/Data/worlds -mindepth 1 -maxdepth 1 -type d'",
+    "ssh foundry-pi 'install -d -m 0700 /var/lib/foundry-restore'",
+    'scp -r E:\\PiBackup\\restic foundry-pi:/var/lib/foundry-restore/pc-repo',
+    "Get-Content .\\scripts\\pi\\drill\\restore.sh -Raw | ssh foundry-pi 'DRILL_KEEP_SYNCTHING=1 bash -s'",
+    "ssh foundry-pi 'rm -rf /var/lib/foundry-restore'",
+    'ssh foundry-pi /opt/foundry-ai-tool/space/space-check.sh --print',
+  ]) {
+    assert.equal(kind(c), 'allow', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
 });

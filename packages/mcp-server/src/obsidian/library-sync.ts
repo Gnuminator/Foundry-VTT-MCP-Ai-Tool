@@ -55,13 +55,16 @@ import {
   bookBaseTitle,
   bookNotePath,
   isBookNoteText,
+  isNoBookNoteText,
   bookProperty,
   LIBRARY_BOOKS_FOLDER,
   LIBRARY_NOTE_TYPES,
   libraryCategory,
+  NO_BOOK_NOTE_PATH,
   renderBookBase,
   renderBookNote,
   renderLibraryNote,
+  renderNoBookNote,
   type LibraryNoteContext,
 } from './library-render.js';
 import { pathKey, versionedSig, type LibraryLinks, type LinkContext } from './mirror-common.js';
@@ -944,7 +947,8 @@ export class LibrarySync {
   }
 
   /**
-   * One base per book (`Library/Books/<title>.base`), compared by content; after a complete
+   * One base and hub note per book (`Library/Books/<title>.base` and `.md`), plus the
+   * `Without a book.md` note while some entry has no book, compared by content; after a complete
    * refresh, a base of a book that has no entries left goes to the vault trash, but only while it
    * is still the one we wrote (a base the GM changed stays).
    */
@@ -977,6 +981,18 @@ export class LibrarySync {
     }
     const keep = new Set([...wanted.values()].map(pathKey));
     const keepNotes = new Set([...wanted.values()].map(p => pathKey(bookNotePath(p))));
+    // The note that links the entries without a book (I-120 c), unless a book took its path.
+    const noBook: Array<{ path: string; name: string }> = [];
+    for (const row of run.rows.values()) {
+      if (bookProperty(row) !== null) continue;
+      const notePath = world.paths.get(row.uuid);
+      if (notePath?.startsWith(FENCE_PREFIX)) noBook.push({ path: notePath, name: row.name });
+    }
+    if (noBook.length > 0 && !keepNotes.has(pathKey(NO_BOOK_NOTE_PATH))) {
+      const note = renderNoBookNote(deps.worldId, NO_BOOK_NOTE_PATH, noBook);
+      await writer.owned(NO_BOOK_NOTE_PATH, note, checkMarkdownOwnership);
+      keepNotes.add(pathKey(NO_BOOK_NOTE_PATH));
+    }
     const stale = run.scan.bookBases.filter(basePath => !keep.has(pathKey(basePath)));
     const staleNotes = run.scan.bookNotes.filter(notePath => !keepNotes.has(pathKey(notePath)));
     if (complete && deps.trashBlocked === null) {
@@ -990,7 +1006,7 @@ export class LibrarySync {
       }
       for (const notePath of staleNotes) {
         const text = await fsp.readFile(`${root}/${notePath}`, 'utf8').catch(() => null);
-        if (text === null || !isBookNoteText(text)) continue; // not one of ours
+        if (text === null || !(isBookNoteText(text) || isNoBookNoteText(text))) continue; // not ours
         await deps.assertTrash(notePath);
         await writer.trash(notePath, checkMarkdownOwnership);
       }

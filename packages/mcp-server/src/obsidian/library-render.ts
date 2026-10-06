@@ -313,6 +313,78 @@ export function isBookNoteText(text: string): boolean {
   );
 }
 
+/** The note type of the note that gathers the Library notes without a book (I-120 c). */
+export const LIBRARY_NO_BOOK_TYPE = 'library-no-book';
+
+/** Where that note goes, next to the book hubs (a book with this title takes the path first). */
+export const NO_BOOK_NOTE_PATH = `${LIBRARY_BOOKS_FOLDER}/Without a book.md`;
+
+/** At most this many links in the note; the rest is a count. */
+export const NO_BOOK_LINK_LIMIT = 2000;
+
+/**
+ * The note that links every Library note without a source book, grouped by kind folder (Items,
+ * Monsters, ...) and sorted by name, so those notes are not loose in Obsidian's graph. Only
+ * names and paths, no book text.
+ */
+export function renderNoBookNote(
+  worldId: string,
+  notePath: string,
+  entries: ReadonlyArray<{ path: string; name: string }>
+): string {
+  const props: Record<string, PropValue> = {
+    type: LIBRARY_NO_BOOK_TYPE,
+    fvtt_world: worldId,
+    name: 'Without a book',
+    aliases: ['Without a book'],
+    schema: 1,
+    tags: [`campaign/${worldId}`, 'library', 'book'],
+    generated_by: GENERATED_BY,
+    generated_hash: '',
+  };
+  const kindOf = (p: string): string =>
+    p.startsWith(`${LIBRARY_ROOT}/`) ? (p.slice(LIBRARY_ROOT.length + 1).split('/')[0] ?? '') : '';
+  const sorted = [...entries].sort(
+    (a, b) =>
+      cmpText(kindOf(a.path), kindOf(b.path)) ||
+      cmpText(a.name.toLowerCase(), b.name.toLowerCase()) ||
+      cmpText(a.path, b.path)
+  );
+  const body = [
+    '# Without a book',
+    '',
+    '> [!info] Library notes without a book',
+    '> Every Library note whose entry names no source book is linked here. The AI Tool rewrites this note; if you edit it, the tool stops updating it.',
+    '',
+    `${sorted.length} ${sorted.length === 1 ? 'note' : 'notes'}.`,
+  ];
+  let kind: string | null = null;
+  for (const entry of sorted.slice(0, NO_BOOK_LINK_LIMIT)) {
+    const k = kindOf(entry.path);
+    if (k !== kind) {
+      body.push('', `## ${escapeText(k, 100) || 'Other'}`, '');
+      kind = k;
+    }
+    body.push(`- ${noteLink(notePath, entry.path, entry.name)}`);
+  }
+  if (sorted.length > NO_BOOK_LINK_LIMIT) {
+    body.push('', `And ${sorted.length - NO_BOOK_LINK_LIMIT} more.`);
+  }
+  return withGeneratedHash([frontmatter(props), ...body, ''].join('\n'));
+}
+
+/** Whether a note's text is the "Without a book" note we wrote (its type and marker). */
+export function isNoBookNoteText(text: string): boolean {
+  return (
+    new RegExp(`^type: "${LIBRARY_NO_BOOK_TYPE}"$`, 'm').test(text) &&
+    new RegExp(`^generated_by: "?${GENERATED_BY}"?$`, 'm').test(text)
+  );
+}
+
+function cmpText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function escapeText(text: string, max = 400): string {
   return escapeInlineText(collapseWhitespace(text, max));
 }
@@ -342,8 +414,8 @@ const RESERVED_KEYS = new Set([
 ]);
 
 function noteLink(fromPath: string, toPath: string, label: string): string {
-  const text =
-    escapeInlineText(collapseWhitespace(label, 200)).replace(/[[\]]/g, '\\$&') || 'Untitled';
+  // escapeInlineText already escapes `[` and `]` (escaping them again showed a backslash).
+  const text = escapeInlineText(collapseWhitespace(label, 200)) || 'Untitled';
   return `[${text}](${relativeLinkTarget(fromPath, toPath)})`;
 }
 

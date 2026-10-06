@@ -20,9 +20,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   bookBasePaths,
   bookBaseTitle,
+  isNoBookNoteText,
   libraryCategory,
+  NO_BOOK_LINK_LIMIT,
+  NO_BOOK_NOTE_PATH,
   renderBookBase,
   renderLibraryNote,
+  renderNoBookNote,
   type LibraryNoteContext,
 } from './library-render.js';
 import { LibrarySync, type LibrarySyncDeps } from './library-sync.js';
@@ -200,6 +204,37 @@ describe('book bases', () => {
     expect(paths.get('A Book')).toBe('AI Tool/Library/Books/A Book.base');
     expect(paths.get('B  Two')).toBe('AI Tool/Library/Books/B Two.base');
     expect(paths.get('B: Two')).toMatch(/^AI Tool\/Library\/Books\/B Two \([0-9a-z]{6}\)\.base$/);
+  });
+});
+
+describe('the "Without a book" note (I-120 c)', () => {
+  it('groups by kind folder, sorts by name, escapes names and stops at the link limit', () => {
+    const entries = [
+      { path: 'AI Tool/Library/Items/Other/b.md', name: 'b [x]' },
+      { path: 'AI Tool/Library/Items/Other/A.md', name: 'A' },
+      { path: 'AI Tool/Library/Feats/Other/Tough.md', name: 'Tough' },
+    ];
+    const text = renderNoBookNote(WORLD, NO_BOOK_NOTE_PATH, entries);
+    expect(NO_BOOK_NOTE_PATH).toBe('AI Tool/Library/Books/Without a book.md');
+    expect(isNoBookNoteText(text)).toBe(true);
+    expect(text).not.toMatch(/^book:/m);
+    const body = text.slice(text.indexOf('3 notes.'));
+    expect(body.split('\n').filter(line => line.startsWith('## '))).toEqual([
+      '## Feats',
+      '## Items',
+    ]);
+    expect(body).toContain('- [A](../Items/Other/A.md)\n- [b \\[x\\]](../Items/Other/b.md)');
+
+    const many = Array.from({ length: NO_BOOK_LINK_LIMIT + 2 }, (_, i) => ({
+      path: `AI Tool/Library/Items/Other/n${i}.md`,
+      name: `n${i}`,
+    }));
+    const capped = renderNoBookNote(WORLD, NO_BOOK_NOTE_PATH, many);
+    expect(capped.split('\n').filter(line => line.startsWith('- ['))).toHaveLength(
+      NO_BOOK_LINK_LIMIT
+    );
+    expect(capped).toContain(`${NO_BOOK_LINK_LIMIT + 2} notes.`);
+    expect(capped).toContain('And 2 more.');
   });
 });
 
@@ -573,10 +608,32 @@ describe('LibrarySync', () => {
     expect(await sync.work(Date.now() + 10_000, deps())).toBe(3);
     expect(sync.pending).toBe(0);
     expect(await files()).toEqual([
+      'AI Tool/Library/Books/Without a book.md',
       'AI Tool/Library/Monsters/Other/Snow Weasel.md',
       'AI Tool/Library/Spells/Other/Frost Spark (2014).md',
       'AI Tool/Library/Spells/Other/Frost Spark (2024).md',
     ]);
+    // No entry names a book: one note links them all (I-120 c), grouped by kind folder.
+    const noBook = await fsp.readFile(
+      path.join(dir, 'Campaigns', WORLD, 'AI Tool/Library/Books/Without a book.md'),
+      'utf8'
+    );
+    expect(noBook).toContain('type: "library-no-book"');
+    expect(checkMarkdownOwnership(noBook).owned).toBe(true);
+    expect(noBook).toContain(
+      [
+        '3 notes.',
+        '',
+        '## Monsters',
+        '',
+        '- [Snow Weasel](../Monsters/Other/Snow%20Weasel.md)',
+        '',
+        '## Spells',
+        '',
+        '- [Frost Spark](../Spells/Other/Frost%20Spark%20%282014%29.md)',
+        '- [Frost Spark](../Spells/Other/Frost%20Spark%20%282024%29.md)',
+      ].join('\n')
+    );
     const weasel = await fsp.readFile(
       path.join(dir, 'Campaigns', WORLD, 'AI Tool/Library/Monsters/Other/Snow Weasel.md'),
       'utf8'
@@ -618,7 +675,7 @@ describe('LibrarySync', () => {
     fake.packs = fake.packs.filter(p => p.id !== SPELLS);
     fake.rows = fake.rows.filter(r => r.pack !== SPELLS);
     await sync.refresh([PACK, SPELLS], deps());
-    expect(await files()).toHaveLength(3);
+    expect((await files()).filter(f => !f.includes('/Books/'))).toHaveLength(3);
     expect(sync.status([PACK, SPELLS]).missingPacks).toEqual([SPELLS]);
     // The GM drops the pack from the settings: unedited notes go to the trash, edited ones stay.
     await sync.refresh([PACK], deps());
@@ -748,7 +805,7 @@ describe('LibrarySync', () => {
     await sync.refresh([PACK, SPELLS], deps());
     await sync.work(Date.now() + 10_000, deps());
     await sync.refresh([PACK], deps({ trashBlocked: 'git does not ignore the trash' }));
-    expect(await files()).toHaveLength(3);
+    expect((await files()).filter(f => !f.includes('/Books/'))).toHaveLength(3);
     expect(
       sync
         .status([PACK])
@@ -831,8 +888,11 @@ describe('LibrarySync by kind, then book (I-100)', () => {
       'AI Tool/Library/Spells/Test Spellbook/Frost Spark (2014).md',
       'AI Tool/Library/Spells/Test Spellbook/Frost Spark (2024).md',
     ]);
-    // Moved by rename: nothing went to the vault trash, and the emptied folders are gone.
-    expect(await fsp.readdir(path.join(dir, '.trash')).catch(() => [])).toEqual([]);
+    // Moved by rename: only the "Without a book" note went to the vault trash (every entry has a
+    // book now), and the emptied folders are gone.
+    const trashed = path.join(dir, '.trash', 'Campaigns', WORLD, 'AI Tool/Library');
+    expect(await fsp.readdir(trashed)).toEqual(['Books']);
+    expect(await fsp.readdir(path.join(trashed, 'Books'))).toEqual(['Without a book.md']);
     expect(await fsp.readdir(campaign('AI Tool/Library/Spells'))).toEqual(['Test Spellbook']);
     // The next refresh finds every note in place: nothing to move or fetch.
     restarted.requestRefresh();

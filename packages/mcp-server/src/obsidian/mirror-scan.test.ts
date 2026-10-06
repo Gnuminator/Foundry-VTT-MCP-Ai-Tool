@@ -918,6 +918,8 @@ describe('parseFrontmatter', () => {
       name: 'A',
       folder: null,
       generated_by: 'foundry-ai-tool',
+      ai_context: null,
+      date: null,
     });
   });
 

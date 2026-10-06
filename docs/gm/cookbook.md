@@ -38,6 +38,13 @@ set says so.
 - **Tip:** keep your prep notes in a journal named "Next session" that only you can see. The Prep
   drawer and Claude both read it. Ask for a short list of loose threads at the end: "End with the
   five open threads, one line each."
+- **Tip for Obsidian:** Claude also reads your own prep notes in the Obsidian vault (not the Prep
+  drawer): your newest session plan, and the notes tied to the scene the party is on, a creature on
+  it or an open quest. Give a note the property "type" set to "session-plan" (or "npc-prep",
+  "location-prep", "quest-prep" and so on). To tie it to something in Foundry, set "fvtt_uuid" to
+  its UUID: the passport icon on the sheet's title bar copies it. Set "ai_context" to false to keep
+  a note away from Claude. Claude sees about 12 lines per note (properties first), so put the key
+  points at the top.
 
 ### Check that everything is ready
 

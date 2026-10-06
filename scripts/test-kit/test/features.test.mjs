@@ -181,6 +181,35 @@ test('planUses uses features with activities and leaves out the ones that need a
   assert.match(plan.skipped[1].why, /cannot be used/);
 });
 
+test('planUses leaves out spending an item that starts empty by design (Arcane Ward), not filling it', () => {
+  const act = (/** @type {string} */ id, /** @type {string} */ value) => ({
+    id,
+    type: 'utility',
+    name: id,
+    canUse: true,
+    consumption: [{ type: 'itemUses', target: '', value }],
+  });
+  const ward = item({
+    identifier: 'ward',
+    uses: { max: 11, spent: 11, recovery: [{ period: 'lr', type: 'loseAll', formula: '' }] },
+    activities: [act('create', '-@item.uses.max'), act('damage', '1'), act('restore', '-2')],
+  });
+  const plan = planUses(facts({ items: [ward] }));
+  assert.deepEqual(
+    plan.use.map(u => u.activity.id),
+    ['create', 'restore']
+  );
+  assert.equal(plan.skipped.length, 1);
+  assert.match(plan.skipped[0].why, /starts empty by design/);
+  // An item that recovers normally and starts spent is not left out (that is a CONTENT finding).
+  const spent = item({
+    identifier: 'spent',
+    uses: { max: 2, spent: 2, recovery: [{ period: 'lr', type: 'recoverAll', formula: '' }] },
+    activities: [act('use', '1')],
+  });
+  assert.equal(planUses(facts({ items: [spent] })).use.length, 1);
+});
+
 test('expectedSpend adds the plain item uses of its own item and flags the rest', () => {
   const it = item({ identifier: 'x', id: 'x1' });
   const act = (/** @type {any[]} */ consumption) => ({

@@ -128,6 +128,7 @@ function baseCreateHero(/** @type {World} */ w, /** @type {any} */ args) {
       advancement: 'ItemChoice',
       title: `${k.name}: Choose a style`,
       chosen,
+      offered: [...c.options],
     });
   }
   const skills = [];
@@ -140,6 +141,7 @@ function baseCreateHero(/** @type {World} */ w, /** @type {any} */ args) {
     advancement: 'Trait',
     title: `${k.name}: Skill Proficiencies`,
     chosen: skills,
+    offered: k.skillPool.map(x => `skills:${x}`),
   });
   const improve = ['str', 'dex', 'wis', 'int', 'cha'];
   for (const l of k.asi.filter(x => x <= level)) {

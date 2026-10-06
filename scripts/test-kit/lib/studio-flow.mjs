@@ -296,7 +296,7 @@ export async function levelUpInStudio(page, o) {
  * @param {import('playwright-core').Page} page
  * @param {{name: string, level: number, classUuid: string, subclassUuid?: string, speciesUuid: string,
  *   backgroundUuid: string, rotation: number, featPackIds: string[], settings: any,
- *   log?: (m: string) => void}} o
+ *   abilities?: Record<string, number>, log?: (m: string) => void}} o
  * @returns {Promise<{actorId: string, picks: any[], warnings: string[], errors: string[], spells: Array<{level: number, cantrips: number, spells: number, names: string[]}>, seconds: number}>}
  */
 export async function buildHeroInStudio(page, o) {
@@ -323,6 +323,7 @@ export async function buildHeroInStudio(page, o) {
       subclassUuid: o.subclassUuid,
       rotation: o.rotation,
       featPackIds: o.featPackIds,
+      abilities: o.abilities,
       log,
     });
     if (made.spells) spells.push({ level: 1, ...made.spells });

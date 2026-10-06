@@ -205,6 +205,8 @@ export default {
               speciesUuid,
               backgroundUuid,
               rotation: raw.rotation,
+              // The raw hero's scores (placed for its class), so both heroes start alike.
+              abilities: raw.abilities,
               featPackIds: profile.packs.feats,
               settings,
               log: m => t.log(`${raw.name}: ${m}`),
@@ -232,6 +234,7 @@ export default {
               subclassUuid: raw.subclassUuid,
               level: raw.level,
               rotation: raw.rotation,
+              abilities: raw.abilities,
               speciesUuid,
               backgroundUuid,
               folderId: t.kit.folders?.Actor,

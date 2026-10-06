@@ -434,6 +434,8 @@ async function createHero(args) {
   // The subclass the next Subclass advancement takes: the hero's own, or the one of the extra item being added.
   let currentSubclass = args.subclassUuid;
   const pick = list => list[(rotation + k++) % list.length];
+  // The most options a pick records as offered (a spell list can be long).
+  const OFFERED_MAX = 300;
   const nameOf = uuid => fromUuidSync(uuid)?.name ?? uuid;
 
   const loadData = async (uuid, label) => {
@@ -545,19 +547,22 @@ async function createHero(args) {
 
     async Trait(flow, adv, lvl, title) {
       const chosen = [];
+      // What the system offered before the first pick, for the report's pick coverage.
+      let offered = null;
       // Only as many picks as the data asks for: an advancement with fixed grants and no choices
       // (a subclass's skill grants, say) must not get a pick of ours.
       const total = (adv.configuration.choices ?? []).reduce((n, c) => n + (c.count ?? 0), 0);
       for (let guard = 0; guard < total; guard++) {
         const available = await adv.availableChoices();
         const keys = available ? [...available.choices.asSet()] : [];
+        offered ??= keys.slice(0, OFFERED_MAX);
         if (!keys.length) break;
         const key = pick(keys);
         await adv.apply(lvl, { key });
         chosen.push(key);
       }
       if (chosen.length) {
-        picks.push({ level: lvl, advancement: 'Trait', title, chosen });
+        picks.push({ level: lvl, advancement: 'Trait', title, chosen, offered: offered ?? [] });
         await flow.render();
       }
       traitMade.set(adv.id, (traitMade.get(adv.id) ?? 0) + chosen.length);
@@ -570,6 +575,7 @@ async function createHero(args) {
       if (need <= 0) return;
       await chooseAbility(adv, lvl, title);
       const chosen = [];
+      let offered = null;
       let browse = null;
       for (let i = 0; i < need; i++) {
         let options = [...flow.element.querySelectorAll('dnd5e-checkbox')]
@@ -580,6 +586,7 @@ async function createHero(args) {
           browse ??= await browseCandidates(adv, flow, lvl);
           options = browse.filter(u => !chosen.includes(u));
         }
+        offered ??= options.slice(0, OFFERED_MAX).map(nameOf);
         if (!options.length) {
           warnings.push(`${title} level ${lvl}: ${need - i} choice(s) left, no options offered`);
           break;
@@ -595,7 +602,13 @@ async function createHero(args) {
         await flow.render();
       }
       if (chosen.length)
-        picks.push({ level: lvl, advancement: 'ItemChoice', title, chosen: chosen.map(nameOf) });
+        picks.push({
+          level: lvl,
+          advancement: 'ItemChoice',
+          title,
+          chosen: chosen.map(nameOf),
+          offered: offered ?? [],
+        });
     },
 
     async ItemGrant(flow, adv, lvl, title) {

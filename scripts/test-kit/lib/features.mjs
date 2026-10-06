@@ -346,6 +346,37 @@ export const SKIP_ACTIVITY_TYPES = {
 };
 
 /**
+ * An item whose uses a rest takes away ("loseAll", like Arcane Ward's hit points) and that a fresh
+ * hero has with every use spent: it is empty until another of its activities fills it. Pure.
+ * @param {FeatureItem} item
+ */
+export function startsEmptyByDesign(item) {
+  const u = item.uses;
+  return Boolean(
+    u &&
+      typeof u.max === 'number' &&
+      u.max > 0 &&
+      u.spent >= u.max &&
+      (u.recovery ?? []).some(r => r.type === 'loseAll')
+  );
+}
+
+/**
+ * True when the activity spends (a positive plain number of) its own item's uses. Pure.
+ * @param {FeatureItem} item
+ * @param {FeatureActivity} activity
+ */
+export function spendsOwnUses(item, activity) {
+  return activity.consumption.some(
+    c =>
+      c.type === 'itemUses' &&
+      (!c.target || c.target === item.id || c.target === item.identifier) &&
+      /^[0-9]+$/.test(String(c.value ?? '').trim()) &&
+      Number(c.value) > 0
+  );
+}
+
+/**
  * Which activities of an actor's features the use pass runs, and which it leaves out and why.
  * Only features (items of type feat: class, subclass, species, background and feat features) are
  * used; weapons, equipment and spells are out of this pass.
@@ -368,7 +399,9 @@ export function planUses(facts) {
           ? 'the system says the activity cannot be used'
           : activity.consumption.some(c => c.type === 'attribute' && /exhaustion/.test(c.target))
             ? 'it removes exhaustion levels, which a fresh hero does not have'
-            : '';
+            : startsEmptyByDesign(item) && spendsOwnUses(item, activity)
+              ? 'the item starts empty by design (a rest empties it, another activity fills it)'
+              : '';
       if (why) skipped.push({ item: item.name, activity: activity.type, why });
       else use.push({ item, activity });
     }

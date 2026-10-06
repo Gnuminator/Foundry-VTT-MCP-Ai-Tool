@@ -90,7 +90,9 @@ export const GM_ACTIONS = {
   /**
    * ({name, classUuid, subclassUuid?, level, rotation, speciesUuid?, backgroundUuid?, folderId, featPackIds?}) =>
    * {actorId, name, classIdentifier, subclassIdentifier, level, hp:{value,max},
-   *  picks: [{level, advancement, title, chosen: string[]}], warnings: string[]}
+   *  picks: [{level, advancement, title, chosen: string[], offered?: string[]}], warnings: string[]}
+   * `offered` (additive, Trait and ItemChoice picks): what the system offered before the first pick of that
+   * advancement (trait keys, or item names), at most 300; the report's pick coverage reads it.
    * Levels the hero through the system's advancement with no dialogs. Every choice picks option
    * index (rotation + k) % options for its k-th pick, so a matrix of heroes with different
    * rotations covers every option and a build is repeatable. Throws when the advancement fails.
@@ -333,7 +335,7 @@ export const GM_ACTIONS = {
  * @property {string} profile         the content profile id
  * @property {Array<{actorId: string, name: string, classIdentifier: string, level: number, tokenId?: string,
  *   classUuid: string, classRules: string, subclassUuid?: string, subclassIdentifier?: string, rules: string, book: string,
- *   role: 'tier'|'subclass', rotation: number, owner?: string, picks?: unknown[], warnings?: string[],
+ *   role: 'tier'|'subclass', rotation: number, abilities?: Record<string, number>, owner?: string, picks?: unknown[], warnings?: string[],
  *   buildError?: string}>} heroes
  *   A hero whose advancement failed keeps its row with buildError (and no actorId), so the report
  *   shows it instead of the build stopping.

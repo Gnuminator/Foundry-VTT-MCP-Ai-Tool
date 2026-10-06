@@ -8,10 +8,12 @@
  * Activities that need a dialog (summon, transform, cast, order) are left out and listed in the
  * coverage attachment with the reason. Weapons, equipment and spells are not used in this pass.
  * Failures are classified like in heroes-advancement: KIT, CONTENT or SYSTEM (lib/features.mjs).
+ * CONTENT and SYSTEM problems on the profile's known list (lib/known.mjs) are counted, not failed.
  */
 import { FAILURE_KINDS, countByKind, problemText } from '../lib/advancement.mjs';
 import { judgePlan, judgeUse, planUses } from '../lib/features.mjs';
 import { builtHeroes } from '../lib/helpers.mjs';
+import { knownAttachment, loadKnown, splitKnown } from '../lib/known.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
@@ -36,6 +38,9 @@ export default {
     const skippedBy = {};
     let features = 0;
     let used = 0;
+    const knownList = loadKnown(t.kit.profile);
+    /** @type {Map<string, number>} */
+    const hits = new Map();
 
     for (const hero of heroes) {
       const sub = hero.subclassIdentifier ? ` (${hero.subclassIdentifier})` : '';
@@ -70,10 +75,15 @@ export default {
             used += 1;
             problems.push(...judgeUse(planned, result));
           }
-          allProblems.push(...problems);
-          if (problems.length) failed.push({ hero: hero.name, problems });
-          t.check(problems.length === 0, problemText(problems, 6), { problems });
-          return `${plan.features} features, ${plan.use.length} activities used, ${plan.skipped.length} left out`;
+          const { fresh, known } = splitKnown(problems, knownList, 'heroes-features-use');
+          for (const k of known) hits.set(k.id, (hits.get(k.id) ?? 0) + 1);
+          allProblems.push(...fresh);
+          if (fresh.length) failed.push({ hero: hero.name, problems: fresh });
+          t.check(fresh.length === 0, problemText(fresh, 6), { problems: fresh });
+          const note = known.length
+            ? `; ${known.length} known finding(s): ${[...new Set(known.map(k => k.id))].join(', ')}`
+            : '';
+          return `${plan.features} features, ${plan.use.length} activities used, ${plan.skipped.length} left out${note}`;
         },
         { continueOnFail: true }
       );
@@ -106,9 +116,11 @@ export default {
         problems: f.problems.map(p => `[${p.kind}] ${p.what}: ${p.evidence}`),
       })),
     });
+    t.attach('known', knownAttachment(knownList, 'heroes-features-use', hits));
     t.log(
       `${heroes.length} heroes, ${features} features with activities, ${used} activities used; ` +
-        `${failed.length} heroes failed (${FAILURE_KINDS.map(k => `${k} ${byKind[k]}`).join(', ')})`
+        `${failed.length} heroes failed (${FAILURE_KINDS.map(k => `${k} ${byKind[k]}`).join(', ')}); ` +
+        `${[...hits.values()].reduce((a, b) => a + b, 0)} known findings`
     );
   },
 };

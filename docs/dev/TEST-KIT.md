@@ -131,7 +131,13 @@ The builder reads the profile's class and subclass packs through the GM page and
 
 Each hero is made with the system's advancement manager, with no dialogs: the species (Human) and
 the background (Soldier) first, then the class in one run up to the hero's level, and the
-subclass when the level reaches it. Every hero starts from the same standard array (Constitution 13) and takes the average for hit points.
+subclass when the level reaches it. Every hero takes the average for hit points and starts from the
+standard array placed for its class (`heroAbilities` in `lib/builder.mjs`): 15 in the class's primary
+ability (15 and 14 when the class needs both of two, like the Monk), Constitution always 13, the rest
+in the order Dexterity, Wisdom, Strength, Intelligence, Charisma. A class with no primary ability in
+its data uses its spellcasting ability. The manifest keeps the scores (`abilities`), and the
+`heroes-studio` scenario types the same scores into Actor Studio. (Before 2026-10-06 every hero had
+Strength 15 and Charisma 8, so a Bard's Bardic Inspiration had no uses.)
 
 **Choice rotation.** Every choice (a skill, a weapon mastery, a spell, a feat, an ability score
 improvement) takes option number `(rotation + k) % options` of the options the system offers, where
@@ -139,6 +145,12 @@ improvement) takes option number `(rotation + k) % options` of the options the s
 its class (0 for the first, 1 for the second, and so on). So the heroes of one class differ from
 each other, together they cover many options, and a rebuild makes the same choices. An ability score
 improvement alternates between +2 and a general feat on the same count.
+
+**Pick coverage.** Each Trait and ItemChoice pick in the manifest also records what the system
+offered (`offered`, at most 300 options). The `heroes-advancement` scenario attaches `picks`
+(`lib/picks.mjs`): per class and choice, the options offered, how often each was picked, and the
+options no hero picked. The report's "Picks" section shows it. An option no hero picked is not a
+failure, but its feature was never built, so `heroes-features-use` never used it either.
 
 The hero the kit gives to the player user ("Kit Player") is the first class's level 5 hero. The
 manifest marks it with `owner`, and the player screen must show its HP as numbers.
@@ -705,6 +717,38 @@ Fix `KIT` failures in the kit. Report `CONTENT` and `SYSTEM` failures: do not ch
 content or the product to make the kit green. Report `STUDIO` failures to the module's author: do not
 change Actor Studio to make the kit green.
 
+### Known findings
+
+A `CONTENT` or `SYSTEM` failure that is understood and reported goes on the profile's known list, so
+the next run counts it instead of failing on it, and a new failure stands out. `heroes-advancement`
+and `heroes-features-use` read the list (`lib/known.mjs`); `heroes-studio` keeps its own
+(`data/studio-expected.json`).
+
+| Profile    | Known list                                                    |
+| ---------- | ------------------------------------------------------------- |
+| `srd`      | `scripts/test-kit/data/profiles/srd.known.json` (in the repo) |
+| a local id | `<kit home>\licensed\profiles\<id>.known.json` (this PC only) |
+
+The licensed list names licensed features, so it stays on this PC like its profile. A missing file is
+an empty list. An entry:
+
+```json
+{
+  "id": "barbarian-2014-reckless-no-uses",
+  "scenario": "heroes-features-use",
+  "kind": "CONTENT",
+  "what": "the system refused the use",
+  "match": "Reckless Attack / Use",
+  "why": "the imported 2014 feature's Use activity consumes 1 use, but the item has none"
+}
+```
+
+A problem is known when the scenario and kind are equal, `what` is equal (when the entry sets it), and
+the problem's evidence contains `match`. A `KIT` problem is never known. A step whose problems are all
+known passes and names the entries in its detail; the report's "Known findings" section lists how
+often each entry matched and the entries a run did not see (normal in `smoke`; in `full` the content
+may have been fixed, so remove the entry).
+
 ## Console errors
 
 The GM page's console errors and page errors are collected for the whole run. A full run can log
@@ -809,6 +853,8 @@ Rules of thumb:
 | Comparing a Studio hero with a raw hero   | `scripts/test-kit/lib/studio-compare.mjs`, `inspect-build.mjs`                                                                              |
 | The SRD scenarios (no licensed content)   | `scripts/test-kit/scenarios/*.scenario.mjs` (in the repo)                                                                                   |
 | The SRD content profile                   | `scripts/test-kit/data/profiles/srd.json`                                                                                                   |
+| The known findings of a profile           | `scripts/test-kit/lib/known.mjs`, `data/profiles/srd.known.json`, `<kit home>\licensed\profiles\<id>.known.json`                            |
+| The pick coverage                         | `scripts/test-kit/lib/picks.mjs`                                                                                                            |
 | The monsters and the scene                | `scripts/test-kit/data/smoke-matrix.json`                                                                                                   |
 | The manifest of the last build            | `<kit home>\worlds\<world>\manifest.json`                                                                                                   |
 | Reports                                   | `<kit home>\reports\` (this PC only)                                                                                                        |

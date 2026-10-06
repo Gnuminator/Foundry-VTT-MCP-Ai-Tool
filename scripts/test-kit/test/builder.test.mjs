@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HERO_PLAN } from '../lib/contract.mjs';
-import { planHeroes, selectContent } from '../lib/builder.mjs';
+import { heroAbilities, planHeroes, selectContent } from '../lib/builder.mjs';
 
 /** One index row. @param {{name: string, type: string, cls?: string, rules?: string, pack?: string, id?: string, identifier?: string}} o */
 function row(o) {
@@ -274,4 +274,31 @@ test('planHeroes long is the full plan', () => {
     planHeroes({ classes: c.classes, subclasses: c.subclasses, size: 'long' }),
     planHeroes({ classes: c.classes, subclasses: c.subclasses, size: 'full' })
   );
+});
+
+test('heroAbilities: the primary ability gets 15, Constitution stays 13', () => {
+  assert.deepEqual(heroAbilities({ primaryAbility: ['cha'] }), {
+    str: 10,
+    dex: 14,
+    con: 13,
+    int: 8,
+    wis: 12,
+    cha: 15,
+  });
+  assert.equal(heroAbilities({ primaryAbility: ['int'] }).int, 15);
+  assert.equal(heroAbilities({ primaryAbility: ['str', 'dex'] }).str, 15);
+});
+
+test('heroAbilities: a class that needs two abilities gets 15 and 14', () => {
+  const monk = heroAbilities({ primaryAbility: ['dex', 'wis'], primaryAll: true });
+  assert.equal(monk.dex, 15);
+  assert.equal(monk.wis, 14);
+  assert.equal(monk.con, 13);
+  const paladin = heroAbilities({ primaryAbility: ['str', 'cha'], primaryAll: true });
+  assert.deepEqual([paladin.str, paladin.cha, paladin.dex], [15, 14, 12]);
+});
+
+test('heroAbilities: no primary ability falls back to the spellcasting ability, then Strength', () => {
+  assert.equal(heroAbilities({ primaryAbility: [], spellcasting: { ability: 'wis' } }).wis, 15);
+  assert.deepEqual(heroAbilities(null), { str: 15, dex: 14, con: 13, int: 10, wis: 12, cha: 8 });
 });

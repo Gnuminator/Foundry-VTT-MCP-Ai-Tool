@@ -257,6 +257,33 @@ export function planHeroes({ classes, subclasses, size, subclassAt = {} }) {
   return rows;
 }
 
+/** The ability keys in the order dnd5e lists them. */
+const ABILITY_KEYS = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+
+/**
+ * The standard array placed the way a player would place it for a class: 15 in the class's primary
+ * ability (15 and 14 when the class needs both of two), Constitution always 13 (the hit point checks
+ * count on +1 per level), the rest in the order Dexterity, Wisdom, Strength, Intelligence, Charisma.
+ * A class with no primary ability in its data uses its spellcasting ability, else Strength. Without
+ * this a Bard or a Sorcerer had Charisma 8 and its Charisma features had no uses. Pure.
+ * @param {{primaryAbility?: string[], primaryAll?: boolean, spellcasting?: {ability?: string} | null} | null | undefined} desc
+ *   what describeOrigin says of the class
+ * @returns {Record<string, number>} str..cha
+ */
+export function heroAbilities(desc) {
+  const primary = (desc?.primaryAbility ?? []).filter(a => ABILITY_KEYS.includes(a) && a !== 'con');
+  const first = desc?.primaryAll ? primary.slice(0, 2) : primary.slice(0, 1);
+  const cast = desc?.spellcasting?.ability;
+  if (!first.length && cast && ABILITY_KEYS.includes(cast) && cast !== 'con') first.push(cast);
+  if (!first.length) first.push('str');
+  const order = [...new Set([...first, 'dex', 'wis', 'str', 'int', 'cha'])];
+  const values = [15, 14, 12, 10, 8];
+  /** @type {Record<string, number>} */
+  const placed = { con: 13 };
+  order.forEach((a, i) => (placed[a] = values[i]));
+  return Object.fromEntries(ABILITY_KEYS.map(a => [a, placed[a]]));
+}
+
 /** @param {{x: number, y: number, dx: number, dy: number, perRow: number}} layout @param {number} i */
 function slot(layout, i) {
   return {
@@ -371,14 +398,23 @@ export async function buildKit({
   });
   log(`scene ${scene.name}`);
 
-  // The subclass level per class, from the advancement data (3 for most, 1 or 2 for a few legacy ones).
+  // The subclass level per class, from the advancement data (3 for most, 1 or 2 for a few legacy
+  // ones), and the ability scores its heroes start with (see heroAbilities).
   const subclassAt = {};
+  /** @type {Record<string, Record<string, number>>} */
+  const abilitiesOf = {};
   for (const c of content.classes) {
     try {
       const d = await gm.call('describeClass', { classUuid: c.uuid, level: 20 });
       if (d.expected.subclassAt) subclassAt[c.uuid] = d.expected.subclassAt;
     } catch (e) {
       log(`describeClass ${c.name}: ${e instanceof Error ? e.message : e}`);
+    }
+    try {
+      abilitiesOf[c.uuid] = heroAbilities(await gm.call('describeOrigin', { uuid: c.uuid }));
+    } catch (e) {
+      abilitiesOf[c.uuid] = heroAbilities(null);
+      log(`describeOrigin ${c.name}: ${e instanceof Error ? e.message : e}`);
     }
   }
   const plan = planHeroes({
@@ -420,6 +456,7 @@ export async function buildKit({
       log(`${tag}: FAILED, no class entry for the subclass`);
       continue;
     }
+    const abilities = abilitiesOf[row.classEntry.uuid] ?? heroAbilities(null);
     try {
       const hero = await gm.call('createHero', {
         name: row.name,
@@ -427,6 +464,7 @@ export async function buildKit({
         subclassUuid: row.subclassEntry?.uuid,
         level: row.level,
         rotation: row.rotation,
+        abilities,
         speciesUuid,
         backgroundUuid,
         folderId: folders.Actor,
@@ -438,6 +476,7 @@ export async function buildKit({
         classIdentifier: hero.classIdentifier || base.classIdentifier,
         subclassIdentifier: hero.subclassIdentifier || base.subclassIdentifier,
         level: hero.level,
+        abilities,
         picks: hero.picks,
         warnings: hero.warnings,
       };

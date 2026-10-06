@@ -162,11 +162,11 @@ jobs:
           mkdir -p standalone-mcp-server
           cp packages/mcp-server/dist/index.bundle.cjs standalone-mcp-server/index.js
           VERSION="${TAG#v}"
-          printf '{\n  "name": "foundry-mcp-server",\n  "version": "%s",\n  "description": "Foundry AI Tool bridge, standalone installation",\n  "main": "index.js",\n  "scripts": { "start": "node index.js" },\n  "engines": { "node": ">=18.0.0" }\n}\n' "$VERSION" > standalone-mcp-server/package.json
+          printf '{\n  "name": "foundry-mcp-server",\n  "version": "%s",\n  "description": "Foundry AI Tool bridge, standalone installation",\n  "main": "index.js",\n  "scripts": { "start": "node index.js" },\n  "engines": { "node": ">=22" }\n}\n' "$VERSION" > standalone-mcp-server/package.json
           {
             echo "# Foundry AI Tool bridge, manual installation"
             echo ""
-            echo "Requirements: Node.js 18 or later, and the Foundry AI Tool module in Foundry VTT."
+            echo "Requirements: Node.js 22 or later, and the Foundry AI Tool module in Foundry VTT."
             echo ""
             echo "1. Extract this ZIP where you want to keep it."
             echo "2. Run: node index.js"
@@ -279,7 +279,7 @@ jobs:
             **Foundry module only:** in Foundry, Install Module, paste this manifest URL:
             `${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/module.json`
 
-            **Manual bridge:** download `foundry-mcp-server-${{ github.ref_name }}.zip` and run it with Node 18 or later.
+            **Manual bridge:** download `foundry-mcp-server-${{ github.ref_name }}.zip` and run it with Node 22 or later.
 
             **Obsidian plugin (optional, desktop):** unzip `foundry-ai-tool-obsidian.zip` into your vault's `.obsidian/plugins/` folder, then turn on "Foundry AI Tool" under Community plugins.
 

@@ -478,7 +478,7 @@ Work through this list top-to-bottom when you're ready to go remote.
 
 ### Host prep
 
-- [ ] Always-on host is running (Pi/VPS/spare PC). Node 18+ installed.
+- [ ] Always-on host is running (Pi/VPS/spare PC). Node 22+ installed.
 - [ ] Repo cloned or release build extracted on the host.
 - [ ] `npm run build` (or use the release build) so `dist/` artifacts exist.
 - [ ] Decide on process management: Docker Compose (see `deploy/docker-compose.yml.template`)

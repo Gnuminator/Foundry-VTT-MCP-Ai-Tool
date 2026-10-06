@@ -173,7 +173,7 @@ Enable it in your world (requires Foundry **v14** with the dnd5e 6 system).
 
 ### 2. Set up the bridge (MCP server)
 
-Requires Node.js 18+.
+Requires Node.js 22+.
 
 ```bash
 git clone https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git

@@ -33,7 +33,7 @@
 # Use a full node image for the build stage (needs npm workspace resolution and
 # TypeScript compilation). The result is copied to the lean runtime stage.
 
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 
 WORKDIR /app
 
@@ -65,7 +65,7 @@ RUN npm run build
 #
 # Lean runtime image — no devDependencies, no TypeScript compiler.
 
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 
 # Run as a non-root user for basic container hygiene.
 RUN groupadd --gid 1001 nodeapp && \

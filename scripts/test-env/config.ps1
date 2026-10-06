@@ -87,7 +87,7 @@ function Get-NodeExe {
     if ($portable) { return Join-Path $portable.FullName 'node.exe' }
   }
   $node = Get-Command node -ErrorAction SilentlyContinue
-  if (-not $node) { throw 'Node.js not found (need 18+; Foundry 14 needs 20+).' }
+  if (-not $node) { throw 'Node.js not found (need 22+; Foundry 14 needs 24).' }
   return $node.Source
 }
 

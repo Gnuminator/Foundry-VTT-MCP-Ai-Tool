@@ -179,6 +179,8 @@ export const GM_ACTIONS = {
  * @property {string[]} tools       every bridge tool it calls; CI checks each exists in tool-sets.ts
  * @property {string[]} [gmActions] every GM action it calls (keys of {@link GM_ACTIONS})
  * @property {number} [timeoutMs]   whole scenario, default 120000
+ * @property {number} [order]       run order, lowest first (default 0; ties keep the file order). A scenario that floods
+ *   the play log (the feature scenarios) goes last, so it cannot starve the ones that read the log.
  * @property {(t: ScenarioContext) => Promise<void>} run
  */
 
@@ -285,6 +287,8 @@ export function validateScenario(s) {
     problems.push('licensed must be boolean');
   if (sc.timeoutMs !== undefined && (typeof sc.timeoutMs !== 'number' || sc.timeoutMs <= 0))
     problems.push('timeoutMs must be a positive number');
+  if (sc.order !== undefined && typeof sc.order !== 'number')
+    problems.push('order must be a number');
   if (typeof sc.run !== 'function') problems.push('run must be a function');
   return problems;
 }

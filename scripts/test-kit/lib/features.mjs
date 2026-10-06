@@ -365,12 +365,37 @@ export function planUses(facts) {
         ? SKIP_ACTIVITY_TYPES[activity.type]
         : !activity.canUse
           ? 'the system says the activity cannot be used'
-          : '';
+          : activity.consumption.some(c => c.type === 'attribute' && /exhaustion/.test(c.target))
+            ? 'it removes exhaustion levels, which a fresh hero does not have'
+            : '';
       if (why) skipped.push({ item: item.name, activity: activity.type, why });
       else use.push({ item, activity });
     }
   }
   return { use, skipped, features };
+}
+
+/**
+ * A hero of level 2 or more must have at least one feature activity the use pass can run; if it
+ * has none, the pass would prove nothing about it (the class content has no usable feature, or
+ * every one was left out). Level 1 heroes may have none.
+ * @param {{level: number}} hero
+ * @param {ReturnType<typeof planUses>} plan
+ * @returns {Problem[]}
+ */
+export function judgePlan(hero, plan) {
+  /** @type {Problem[]} */
+  const problems = [];
+  if (hero.level >= 2 && plan.use.length === 0) {
+    bad(
+      problems,
+      'CONTENT',
+      'no usable feature',
+      `a level ${hero.level} hero has ${plan.features} feature(s) with activities and none can be used without a dialog` +
+        `${plan.skipped.length ? ` (left out: ${[...new Set(plan.skipped.map(s => s.activity))].join(', ')})` : ''}`
+    );
+  }
+  return problems;
 }
 
 /**
@@ -411,6 +436,41 @@ export function expectedSpend(item, activity) {
  */
 
 /**
+ * Why the system refused a use, from what it said and what the item looks like:
+ * - the activity points at an item the actor does not have: CONTENT,
+ * - it needs more uses than the item can ever have, or the item has no uses at all: CONTENT,
+ * - the item starts with all its uses spent (the import left it so; the restore check says if the kit did): CONTENT,
+ * - anything else: SYSTEM.
+ * @param {string} text
+ * @param {FeatureItem} item
+ * @returns {{kind: FailureKind, note: string}}
+ */
+export function refusalKind(text, item) {
+  const max = item.uses?.max;
+  if (/could not be found/i.test(text)) {
+    return { kind: 'CONTENT', note: ' (the activity consumes an item the actor does not have)' };
+  }
+  const needs = Number(/([0-9]+) required/i.exec(text)?.[1] ?? 0);
+  const usesLimit = /no uses on|not enough uses/i.test(text);
+  if (usesLimit && (!item.uses || !max)) {
+    return { kind: 'CONTENT', note: ' (the item has no uses at this level, or none are set)' };
+  }
+  if (usesLimit && needs > (max ?? 0)) {
+    return {
+      kind: 'CONTENT',
+      note: ` (the activity needs ${needs} uses, the item has at most ${max})`,
+    };
+  }
+  if (usesLimit && item.uses && typeof max === 'number' && item.uses.spent >= max) {
+    return {
+      kind: 'CONTENT',
+      note: ` (the imported item starts with ${item.uses.spent} of ${max} uses already spent)`,
+    };
+  }
+  return { kind: 'SYSTEM', note: '' };
+}
+
+/**
  * Judges one use of one activity.
  * @param {{item: FeatureItem, activity: FeatureActivity}} planned
  * @param {UseResult} result
@@ -425,14 +485,8 @@ export function judgeUse({ item, activity }, result) {
     bad(problems, 'SYSTEM', 'the activity threw', `${who}: ${result.threw}`);
   } else if (!result.ok) {
     const text = errors.join(' / ') || 'the use returned nothing and gave no message';
-    const max = item.uses?.max;
-    const dry = /uses|enough|available/i.test(text) && !!item.uses && max === 0;
-    bad(
-      problems,
-      dry ? 'CONTENT' : 'SYSTEM',
-      'the system refused the use',
-      `${who}: ${text}${dry ? ' (the number of uses resolves to 0 or nothing at this level)' : ''}`
-    );
+    const refusal = refusalKind(text, item);
+    bad(problems, refusal.kind, 'the system refused the use', `${who}: ${text}${refusal.note}`);
   } else {
     if (!result.chatCard)
       bad(problems, 'SYSTEM', 'no chat card', `${who}: the use posted no chat message`);
@@ -445,11 +499,12 @@ export function judgeUse({ item, activity }, result) {
       typeof after === 'number' &&
       after - before !== total
     ) {
+      const noUses = !item.uses || !item.uses.max;
       bad(
         problems,
-        'SYSTEM',
+        noUses ? 'CONTENT' : 'SYSTEM',
         'uses consumed',
-        `${who}: the use consumed ${after - before}, the activity says ${total}`
+        `${who}: the use consumed ${after - before}, the activity says ${total}${noUses ? ' (the item has no uses at this level, or none are set)' : ''}`
       );
     }
   }
@@ -647,10 +702,14 @@ export const DEEP_CHECKS = [
       /** @type {DeepOutcome} */
       const out = { problems: [], notes: [] };
       const cleric = hero.classIdentifier === 'cleric';
-      const item = featureById(
-        facts,
-        cleric ? 'channel-divinity-cleric' : 'channel-divinity-paladin'
-      );
+      // The SRD names them channel-divinity-cleric and -paladin; other books use other suffixes.
+      const wanted = cleric ? 'channel-divinity-cleric' : 'channel-divinity-paladin';
+      const item =
+        featureById(facts, wanted) ??
+        facts.items.find(
+          i => i.type === 'feat' && /^channel-divinity/.test(i.identifier ?? '') && i.uses?.max
+        ) ??
+        null;
       if (!item) {
         bad(
           out.problems,

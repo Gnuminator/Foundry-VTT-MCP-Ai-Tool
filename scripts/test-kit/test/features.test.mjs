@@ -11,6 +11,8 @@ import {
   expectedAfterRest,
   expectedSlots,
   expectedSpend,
+  judgePlan,
+  refusalKind,
   judgeUse,
   parseDice,
   planUses,
@@ -143,6 +145,20 @@ test('planUses uses features with activities and leaves out the ones that need a
         identifier: 'c',
         activities: [{ id: '3', type: 'heal', name: '', canUse: false, consumption: [] }],
       }),
+      item({
+        identifier: 'x',
+        activities: [
+          {
+            id: '5',
+            type: 'utility',
+            name: '',
+            canUse: true,
+            consumption: [
+              { type: 'attribute', target: 'system.attributes.exhaustion', value: '1' },
+            ],
+          },
+        ],
+      }),
       item({ identifier: 'd' }),
       item({
         identifier: 'e',
@@ -152,14 +168,14 @@ test('planUses uses features with activities and leaves out the ones that need a
     ],
   });
   const plan = planUses(f);
-  assert.equal(plan.features, 3);
+  assert.equal(plan.features, 4);
   assert.deepEqual(
     plan.use.map(u => u.item.identifier),
     ['a']
   );
   assert.deepEqual(
     plan.skipped.map(s => s.activity),
-    ['summon', 'heal']
+    ['summon', 'heal', 'utility']
   );
   assert.match(plan.skipped[0].why, /asks where to place/);
   assert.match(plan.skipped[1].why, /cannot be used/);
@@ -197,6 +213,16 @@ test('expectedSpend adds the plain item uses of its own item and flags the rest'
     total: 0,
     exact: false,
   });
+});
+
+test('judgePlan fails a level 2 or higher hero with nothing the pass can use, but not a level 1 hero', () => {
+  const none = { use: [], skipped: [{ item: 'x', activity: 'summon', why: 'w' }], features: 1 };
+  assert.deepEqual(judgePlan({ level: 1 }, none), []);
+  const problems = judgePlan({ level: 2 }, none);
+  assert.equal(problems.length, 1);
+  assert.equal(problems[0].kind, 'CONTENT');
+  assert.match(problems[0].evidence, /none can be used without a dialog \(left out: summon\)/);
+  assert.deepEqual(judgePlan({ level: 5 }, { use: [{}], skipped: [], features: 1 }), []);
 });
 
 /** A feature the use pass can run. */
@@ -250,10 +276,14 @@ test('judgeUse classifies a throw, a refusal, a missing card, a wrong consumptio
       ...p,
       item: item({ identifier: 'x', name: 'Rage', uses: { max: 0, spent: 0, recovery: [] } }),
     },
-    { ...good(), ok: false, notes: [{ level: 'error', message: 'Rage has no uses available' }] }
+    {
+      ...good(),
+      ok: false,
+      notes: [{ level: 'error', message: 'No uses on Rage available to spend, 1 required.' }],
+    }
   );
   assert.equal(dry[0].kind, 'CONTENT');
-  assert.match(dry[0].evidence, /resolves to 0/);
+  assert.match(dry[0].evidence, /has no uses at this level/);
 
   const noCard = judgeUse(p, { ...good(), chatCard: false });
   assert.deepEqual(
@@ -805,4 +835,68 @@ test('heroes-features-deep: a rest that forgets the pact slots and a wrong sneak
     failed['second-wind'],
     /Kit Fighter 5: \[CONTENT\] Second Wind uses: the actor has 2, the rules table says 3/
   );
+});
+
+test('heroes-features-use: a hero whose features cannot be used at all fails as CONTENT', async () => {
+  const r = await runFeatures((world, manifest) => {
+    const wizard = world.actors.get(hero(manifest, 'Kit Wizard 5').actorId);
+    assert.ok(wizard?.sheet);
+    wizard.sheet.features.items = [];
+  });
+  const use = r['heroes-features-use'];
+  const failed = use.steps.filter(s => s.status === 'fail');
+  assert.equal(failed.length, 1);
+  assert.match(failed[0].label, /^Kit Wizard 5:/);
+  assert.match(
+    failed[0].error?.message ?? '',
+    /^\[CONTENT\] no usable feature: a level 5 hero has 0 feature/
+  );
+});
+
+test('refusalKind tells the imported data from the system', () => {
+  const withUses = (/** @type {number | null} */ max, spent = 0) =>
+    item({ identifier: 'x', uses: { max, spent, recovery: [] } });
+  assert.equal(
+    refusalKind('Item configured to be consumed by X could not be found.', withUses(1)).kind,
+    'CONTENT'
+  );
+  assert.equal(
+    refusalKind('No uses on X available to spend, 1 required.', item({ identifier: 'x' })).kind,
+    'CONTENT'
+  );
+  assert.equal(
+    refusalKind('No uses on X available to spend, 1 required.', withUses(0)).kind,
+    'CONTENT'
+  );
+  assert.equal(
+    refusalKind(
+      'Not enough uses on X available to spend, 5 required and only 1 available.',
+      withUses(1)
+    ).kind,
+    'CONTENT'
+  );
+  assert.equal(
+    refusalKind('No uses on X available to spend, 1 required.', withUses(1, 1)).kind,
+    'CONTENT'
+  );
+  assert.equal(
+    refusalKind('No uses on X available to spend, 1 required.', withUses(3, 0)).kind,
+    'SYSTEM'
+  );
+  assert.equal(refusalKind('something else happened', withUses(3, 0)).kind, 'SYSTEM');
+});
+
+test('the feature scenarios run after the others (order), and a bad order is refused', async () => {
+  const catalog = await loadToolCatalog(repoRoot);
+  const { scenarios } = await loadScenarios([path.join(here, '..', 'scenarios')], {
+    size: 'full',
+    catalog,
+  });
+  const ids = scenarios.map(s => s.scenario.id);
+  assert.deepEqual(ids.slice(-2).sort(), ['heroes-features-deep', 'heroes-features-use']);
+  assert.ok(ids.indexOf('scripted-fight') < ids.indexOf('heroes-features-use'));
+  const { validateScenario } = await import('../lib/contract.mjs');
+  const base = scenarios[0].scenario;
+  assert.deepEqual(validateScenario({ ...base, order: 5 }), []);
+  assert.deepEqual(validateScenario({ ...base, order: 'last' }), ['order must be a number']);
 });

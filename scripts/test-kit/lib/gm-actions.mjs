@@ -1136,6 +1136,8 @@ async function exerciseActor(args) {
       messages: game.messages.map(m => m.id).sort(),
       hp: { value: hp.value, temp: hp.temp ?? 0 },
       exhaustion: actor.system.attributes.exhaustion ?? 0,
+      // The whole stored actor.system, so any other change (death saves, currency, resources...) shows.
+      system: JSON.parse(JSON.stringify(actor._source.system)),
     };
   };
 
@@ -1171,6 +1173,16 @@ async function exerciseActor(args) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     });
+    // Whatever else differs in actor.system goes back by its path.
+    await attempt('system', async () => {
+      const was = foundry.utils.flattenObject(before.system);
+      const now = foundry.utils.flattenObject(state().system);
+      const update = {};
+      for (const [path, value] of Object.entries(was)) {
+        if (JSON.stringify(now[path]) !== JSON.stringify(value)) update[`system.${path}`] = value;
+      }
+      if (Object.keys(update).length) await actor.update(update);
+    });
     await attempt('items', async () => {
       const now = state();
       for (const [id, was] of Object.entries(before.items)) {
@@ -1178,11 +1190,12 @@ async function exerciseActor(args) {
         const cur = now.items[id];
         if (!item || !cur) continue;
         const update = {};
-        if (was.spent !== null && cur.spent !== was.spent) update['system.uses.spent'] = was.spent;
+        // A fresh item can have `spent: null` in its source; that goes back as null too.
+        if (cur.spent !== was.spent && item.system.uses) update['system.uses.spent'] = was.spent;
         if (was.quantity !== null && cur.quantity !== was.quantity)
           update['system.quantity'] = was.quantity;
         for (const [aid, spent] of Object.entries(was.activities)) {
-          if (spent !== null && cur.activities[aid] !== spent)
+          if (cur.activities[aid] !== spent && item.system.activities?.get(aid))
             update[`system.activities.${aid}.uses.spent`] = spent;
         }
         if (was.hd !== null && cur.hd !== was.hd) update['system.hd.spent'] = was.hd;
@@ -1215,11 +1228,22 @@ async function exerciseActor(args) {
     const out = [];
     for (const id of new Set([...Object.keys(a.items), ...Object.keys(b.items)])) {
       if (JSON.stringify(a.items[id]) !== JSON.stringify(b.items[id])) {
-        out.push(`item ${actor.items.get(id)?.name ?? id}`);
+        const fields = Object.keys({ ...a.items[id], ...b.items[id] }).filter(
+          f => JSON.stringify(a.items[id]?.[f]) !== JSON.stringify(b.items[id]?.[f])
+        );
+        out.push(
+          `item ${actor.items.get(id)?.name ?? id} (${fields.join(', ') || 'added or removed'})`
+        );
       }
     }
     for (const key of ['spells', 'effects', 'messages', 'hp', 'exhaustion']) {
       if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) out.push(key);
+    }
+    const was = foundry.utils.flattenObject(a.system);
+    const now = foundry.utils.flattenObject(b.system);
+    const paths = new Set([...Object.keys(was), ...Object.keys(now)]);
+    for (const path of paths) {
+      if (JSON.stringify(was[path]) !== JSON.stringify(now[path])) out.push(`system.${path}`);
     }
     return out;
   };
@@ -1250,24 +1274,42 @@ async function exerciseActor(args) {
       }
       let results;
       let threw = null;
+      // A use that still opens a dialog would wait for ever: give it 20 s, then close what it opened.
+      const openBefore = new Set(foundry.applications.instances.keys());
       try {
-        // No dialog, no measured template, no action cost, no roll after the card.
-        results = await activity.use(
+        // No dialog, no measured template, no summons, no action cost, no roll after the card.
+        const use = activity.use(
           {
             consume: { action: false },
-            create: { measuredTemplate: false },
+            create: { measuredTemplate: false, summons: false },
             concentration: { begin: false },
             subsequentActions: false,
           },
           { configure: false },
           {}
         );
+        use.catch(() => {});
+        let timer;
+        const limit = new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('timed out after 20 s, probably waiting for a dialog')),
+            20000
+          );
+        });
+        try {
+          results = await Promise.race([use, limit]);
+        } finally {
+          clearTimeout(timer);
+        }
       } catch (err) {
         threw = String(err?.message ?? err);
       } finally {
         for (const level of ['error', 'warn']) {
           if (patched[level].own) ui.notifications[level] = patched[level].orig;
           else delete ui.notifications[level];
+        }
+        for (const [id, app] of [...foundry.applications.instances.entries()]) {
+          if (!openBefore.has(id)) await app.close({ skipConfirmation: true }).catch(() => {});
         }
       }
       const after = state();
@@ -1376,6 +1418,8 @@ async function exerciseActor(args) {
       const config = { dialog: false, chat: false, advanceTime: false, advanceBastionTurn: false };
       if (args.type === 'long') await actor.longRest(config);
       else await actor.shortRest(config);
+      // Let the system finish what it does after a rest before the hero is put back.
+      await new Promise(resolve => setTimeout(resolve, 300));
       result = { type: args.type, afterSpend, afterRest: summary() };
     } else {
       throw new Error(`exerciseActor: unknown op "${args.op}"`);

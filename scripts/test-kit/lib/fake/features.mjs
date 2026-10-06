@@ -116,6 +116,11 @@ export function fakeFeatures(k, level, rules, actorId) {
       uses: { max: 1, recovery: LONG_ONLY },
       activities: [{ type: 'utility', activation: 'special', consumption: ONE }],
     });
+  } else if (k.identifier === 'warlock') {
+    add('Eldritch Insight', 'eldritch-insight', {
+      uses: { max: 1, recovery: SHORT_ONLY },
+      activities: [{ type: 'utility', activation: 'action', consumption: ONE }],
+    });
   } else if (k.identifier === 'cleric' && level >= 2) {
     add('Channel Divinity', 'channel-divinity-cleric', {
       uses: { max: stepValue(RULES.channelCleric, level) ?? 2, recovery: LONG_AND_SHORT },

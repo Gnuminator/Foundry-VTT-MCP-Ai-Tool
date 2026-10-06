@@ -25,6 +25,8 @@ export default {
   needs: ['heroes'],
   tools: [],
   gmActions: ['inspectFeatures', 'exerciseActor'],
+  // Last: thousands of chat cards fill the play log, and a big log can overflow the control channel.
+  order: 100,
   timeoutMs: 60 * 60 * 1000,
 
   async run(t) {

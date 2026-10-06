@@ -10,7 +10,7 @@
  * Failures are classified like in heroes-advancement: KIT, CONTENT or SYSTEM (lib/features.mjs).
  */
 import { FAILURE_KINDS, countByKind, problemText } from '../lib/advancement.mjs';
-import { judgeUse, planUses } from '../lib/features.mjs';
+import { judgePlan, judgeUse, planUses } from '../lib/features.mjs';
 import { builtHeroes } from '../lib/helpers.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
@@ -22,6 +22,8 @@ export default {
   needs: ['heroes'],
   tools: [],
   gmActions: ['inspectFeatures', 'exerciseActor'],
+  // Last: thousands of chat cards fill the play log, and a big log can overflow the control channel.
+  order: 100,
   timeoutMs: 90 * 60 * 1000,
 
   async run(t) {
@@ -47,7 +49,7 @@ export default {
           for (const s of plan.skipped)
             skippedBy[`${s.activity}: ${s.why}`] = (skippedBy[`${s.activity}: ${s.why}`] ?? 0) + 1;
           /** @type {import('../lib/advancement.mjs').Problem[]} */
-          const problems = [];
+          const problems = [...judgePlan(hero, plan)];
           for (const planned of plan.use) {
             let result;
             try {
@@ -78,6 +80,14 @@ export default {
     }
 
     const byKind = countByKind(allProblems);
+    // The CONTENT problems by feature, so a pattern in the imported data stands out.
+    /** @type {Record<string, number>} */
+    const contentByFeature = {};
+    for (const p of allProblems) {
+      if (p.kind !== 'CONTENT') continue;
+      const name = p.evidence.split(/ \/ | \(|:/)[0];
+      contentByFeature[name] = (contentByFeature[name] ?? 0) + 1;
+    }
     t.attach('coverage', {
       profile: t.kit.profile,
       heroes: heroes.length,
@@ -86,6 +96,11 @@ export default {
       leftOut: skippedBy,
       heroesFailed: failed.length,
       problemsByKind: byKind,
+      contentByFeature: Object.fromEntries(
+        Object.entries(contentByFeature)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 60)
+      ),
       failed: failed.map(f => ({
         hero: f.hero,
         problems: f.problems.map(p => `[${p.kind}] ${p.what}: ${p.evidence}`),

@@ -156,6 +156,9 @@ Build time depends on the number of heroes, about five seconds each. Measured on
 | `licensed` | `smoke` | 13     | about 1 minute   | about 1.5 minutes               |
 | `licensed` | `full`  | 157    | about 12 minutes | about 13 minutes                |
 
+The two feature scenarios add little: about 25 seconds to an `srd` `full` run (5 minutes in all) and about
+2 minutes to a `licensed` `full` run (14 minutes in all, 157 heroes, 2195 activities used).
+
 Start a `full` run in the background and do not wait on it.
 
 ## The scenarios
@@ -262,6 +265,15 @@ differs from the table is CONTENT when the actor agrees with the class's own sca
 imported data differs from the rules), SYSTEM when it does not (the system did not follow its own
 data). If a table is wrong, fix the table (KIT) and say so in the pull request.
 
+**What the first live runs showed (2026-10-06).** `srd` smoke and full: both feature scenarios pass; the only
+failure of the run is the `heroes-advancement` CONTENT finding from slice 2a. `licensed` full: the deep checks
+pass (21 of 21 ran); the use pass reports 420 CONTENT problems and 7 SYSTEM ones, almost all of one kind: an
+activity consumes the uses of an item that has none set (or points at an item the actor does not have). The
+`contentByFeature` list in the coverage attachment shows which features. These are findings about the imported
+data, not kit failures. Two things the first runs taught the kit: a fresh item can have `uses.spent` null in its
+source (the restore puts null back), and the system adds and removes the bloodied status when hit points change
+(the restore waits for it).
+
 ### Failure classes
 
 Every failed check says which kind it is, first in the message, with its evidence:
@@ -281,6 +293,8 @@ A scenario is a file `<id>.scenario.mjs` whose default export describes it. The 
 `lib/contract.mjs`. In short:
 
 - `id` (kebab-case), `title`, `sizes`, `tags`, `needs` (which parts of the manifest it uses).
+- `order` (optional number, default 0): lowest runs first. The feature scenarios have 100, so they run last: they
+  post thousands of chat cards.
 - `tools`: every bridge tool it calls. `kit check` fails if a tool is not in `tool-sets.ts`.
 - `gmActions`: every GM action it calls (the only way to run code inside Foundry).
 - `run(t)`: the scenario. `t` has `step`, `check`, `equal`, `tool`, `guarded.planApply`,

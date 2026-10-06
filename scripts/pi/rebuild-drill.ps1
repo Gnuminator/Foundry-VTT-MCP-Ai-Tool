@@ -20,7 +20,7 @@
   name starts with pi-drill-), publishes no port unless -HostPort is given, and needs no
   administrator rights.
 
-  Run it from the repo folder. Takes about 15 minutes (most of it the build in stage 5).
+  Run it from the repo folder. Takes about 10 minutes (measured 611 s; most of it the build in stage 5), plus Docker's first image pull.
 
 .EXAMPLE
   .\scripts\pi\rebuild-drill.ps1
@@ -98,13 +98,20 @@ if (-not $SkipPcRestore) {
   Write-Step "restoring $Snapshot from $Repo into $Scratch (read-only, --no-lock)"
   Invoke-Timed 'PC: restic restore to scratch' {
     New-Item -ItemType Directory -Path $Scratch | Out-Null
-    $env:RESTIC_REPOSITORY = $Repo
-    $env:RESTIC_PASSWORD_FILE = $PassFile
-    & $Restic snapshots --no-lock --compact
-    # Windows cannot create the symlink in Chromium's pulse folder (no privilege); it is not needed.
-    & $Restic restore $Snapshot --no-lock --target $Scratch --exclude '/var/lib/foundry-ai-tool/.config/pulse'
-    if ($LASTEXITCODE -ne 0) { throw 'restic restore on this PC failed' }
-    Remove-Item Env:RESTIC_REPOSITORY, Env:RESTIC_PASSWORD_FILE
+    $oldRepo = $env:RESTIC_REPOSITORY
+    $oldPass = $env:RESTIC_PASSWORD_FILE
+    try {
+      $env:RESTIC_REPOSITORY = $Repo
+      $env:RESTIC_PASSWORD_FILE = $PassFile
+      & $Restic snapshots --no-lock --compact
+      # Windows cannot create the symlink in Chromium's pulse folder (no privilege); it is not needed.
+      & $Restic restore $Snapshot --no-lock --target $Scratch --exclude '/var/lib/foundry-ai-tool/.config/pulse'
+      if ($LASTEXITCODE -ne 0) { throw 'restic restore on this PC failed' }
+    } finally {
+      # Put the caller's own restic settings back (null removes the variable again).
+      $env:RESTIC_REPOSITORY = $oldRepo
+      $env:RESTIC_PASSWORD_FILE = $oldPass
+    }
     $worlds = Get-ChildItem (Join-Path $Scratch 'var\lib\foundry\Data\worlds') -Directory
     if (-not ($worlds | Where-Object { Test-Path (Join-Path $_.FullName 'world.json') })) { throw 'no world.json in the restored worlds' }
     Write-Host ('    worlds on this PC: ' + (($worlds | ForEach-Object Name) -join ', '))
@@ -122,29 +129,41 @@ if ($HostPort -gt 0) {
 }
 $run += @($Image, 'sleep', 'infinity')
 Invoke-Timed 'container start' { Invoke-Native docker $run | Out-Null }
-Invoke-Native docker @('cp', $FoundryZip, "${Name}:/root/foundryvtt.zip")
-Invoke-Native docker @('cp', (Join-Path $remoteDir 'assistant-gm.mjs'), "${Name}:/root/assistant-gm.mjs")
 
 function Invoke-Stage([string]$File) {
   Invoke-Timed "stage $File" { Invoke-InContainer "TOOL_REF=$ToolRef bash /drill-scripts/stage.sh $File" }
 }
 
-# --- 3. stages and restore -------------------------------------------------------------------
-foreach ($s in '1-health.sh', '2-node.sh', '3-foundry.sh') { Write-Step $s; Invoke-Stage $s }
-Write-Step 'restore the newest snapshot (before stage 6, so the old restic password is kept)'
-Invoke-Timed 'restore (restic in the container)' { Invoke-InContainer "SNAPSHOT=$Snapshot bash /drill-scripts/restore.sh" }
-foreach ($s in '5-tool.sh', '6-backup.sh', '7-vault.sh', '8-recorder.sh') { Write-Step $s; Invoke-Stage $s }
-
-# --- 4. start and check ----------------------------------------------------------------------
-Write-Step 'start the services and check'
 $checkOk = $true
-Invoke-Timed 'start and check' {
-  & docker exec $Name bash /drill-scripts/check.sh
-  if ($LASTEXITCODE -ne 0) { $script:checkOk = $false }
+try {
+  Invoke-Native docker @('cp', $FoundryZip, "${Name}:/root/foundryvtt.zip")
+  Invoke-Native docker @('cp', (Join-Path $remoteDir 'assistant-gm.mjs'), "${Name}:/root/assistant-gm.mjs")
+
+  # --- 3. stages and restore -------------------------------------------------------------------
+  foreach ($s in '1-health.sh', '2-node.sh', '3-foundry.sh') { Write-Step $s; Invoke-Stage $s }
+  Write-Step 'restore the newest snapshot (before stage 6, so the old restic password is kept)'
+  Invoke-Timed 'restore (restic in the container)' {
+    Invoke-InContainer "PC_REPO=/drill/pc-repo PC_PASS=/drill/restic-pc.pass SNAPSHOT=$Snapshot bash /drill-scripts/restore.sh"
+  }
+  foreach ($s in '5-tool.sh', '6-backup.sh', '7-vault.sh', '8-recorder.sh') { Write-Step $s; Invoke-Stage $s }
+
+  # --- 4. start and check ----------------------------------------------------------------------
+  Write-Step 'start the services and check'
+  Invoke-Timed 'start and check' {
+    & docker exec $Name bash /drill-scripts/check.sh
+    if ($LASTEXITCODE -ne 0) { $script:checkOk = $false }
+  }
+} finally {
+  # Whatever happened, stop the container (never remove it: the user keeps it for inspection).
+  docker stop $Name 2>&1 | Out-Null
+  Write-Host ''
+  Write-Host "Left for you (nothing was deleted): container $Name (stopped; docker rm when done), and the" -ForegroundColor Yellow
+  Write-Host "earlier pi-drill-* containers and images. Scratch folder: $Scratch (if it exists). It holds the" -ForegroundColor Yellow
+  Write-Host 'RESTORED SECRETS (the Foundry licence, /etc/foundry-ai-tool, tokens); so does each drill container.' -ForegroundColor Yellow
+  Write-Host 'Delete them yourself when you are done; keep them private until then.' -ForegroundColor Yellow
 }
 
 $size = docker ps -a --size --filter "name=^$Name$" --format '{{.Size}}'
-docker stop $Name | Out-Null
 $total = [int]((Get-Date) - $totalStart).TotalSeconds
 $report = @(
   "Rebuild drill $(Get-Date -Format 'yyyy-MM-dd HH:mm')",

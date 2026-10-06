@@ -51,7 +51,19 @@ check "the bridge listens on 31415 (Foundry link)" tcp_open 31415
 check "the dashboard answers on 3000" curl -fs -o /dev/null http://127.0.0.1:3000/
 check "/etc/foundry-ai-tool/assistant-gm.env is root only (0600)" test "$(stat -c %a /etc/foundry-ai-tool/assistant-gm.env 2>/dev/null)" = 600
 check "the Discord bot is not running here (no systemd, never started)" bash -c '! pgrep -f "[d]iscord-bot/dist/cli.js"'
-check "Syncthing has a device ID of its own (stage 7 made a new one)" test -s /var/lib/foundry-ai-tool/syncthing/cert.pem
+check "Syncthing has a device certificate" test -s /var/lib/foundry-ai-tool/syncthing/cert.pem
+# restore.sh noted the restored device certificate's hash. Drill default: the real Pi's identity must
+# NOT be in this container (stage 7 made a new one). DRILL_KEEP_SYNCTHING=1 (not run yet): it must be.
+if [ -f /drill/syncthing-old.sha256 ]; then
+  now="$(sha256sum /var/lib/foundry-ai-tool/syncthing/cert.pem 2>/dev/null | cut -d' ' -f1)"
+  if [ "$(cat /drill/syncthing-expect 2>/dev/null)" = same ]; then
+    if [ "$now" = "$(cat /drill/syncthing-old.sha256)" ]; then pass "Syncthing keeps the restored device identity"; else bad "Syncthing lost the restored device identity"; fi
+  else
+    if [ -n "$now" ] && [ "$now" != "$(cat /drill/syncthing-old.sha256)" ]; then pass "Syncthing here is NOT the real Pi's device (a new identity)"; else bad "Syncthing here has the real Pi's device identity"; fi
+  fi
+else
+  echo "    (no restored Syncthing certificate noted: identity check skipped)"
+fi
 check "Foundry data is owned by foundry" test "$(stat -c %U /var/lib/foundry/Data)" = foundry
 
 echo "==> the unit files (systemd-analyze verify)"

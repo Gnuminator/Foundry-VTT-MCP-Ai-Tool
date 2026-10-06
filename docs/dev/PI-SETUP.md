@@ -261,7 +261,7 @@ Docker's first image pull. A real Pi has no emulation but a slower disk and CPU;
 build in stage 5 dominate either way. Add the work no script does: flashing the card (Part A),
 Tailscale's login (stage 4), the licence zip and the SSH steps below, each with your OK.
 
-**What it proves:** stages 1 to 3 and 5 to 8 run in order on a fresh Debian 13 ARM64 system; the
+**What it proves** (`scripts/pi/drill/check.sh` runs the checks): stages 1 to 3 and 5 to 8 run in order on a fresh Debian 13 ARM64 system; the
 snapshot comes back with the worlds, the dnd5e system, the module, `/etc/foundry-ai-tool` and the
 tool's storage; Foundry 14.368 starts on Node 24 with the restored licence and opens the restored
 world by itself; the bridge answers on 31414 and 31415; the dashboard answers on 3000; every unit
@@ -278,25 +278,33 @@ After a real rebuild, `5-check-world.sh` (a throwaway world) and Claude Desktop'
 first if there is anything left to keep):
 
 1. Part A with a new card. The host name must be `foundry-pi`: the Foundry licence in the backup is
-   bound to it and fails verification under any other name.
+   bound to it and fails verification under any other name. A new card has a new SSH host key, so
+   first clear the old one on this PC (`ssh-keygen -R foundry-pi`, and the same for the Tailscale
+   name and the address you use), or SSH refuses with "host key changed".
 2. Stages 1, 2 and 3 (stage 3 needs the Linux/Node.js zip again: keep `FoundryVTT-Node-14.368.zip`
    from your Downloads folder or fetch it from your foundryvtt.com account). Then `systemctl stop
 foundry`; the restore refuses to run while Foundry runs. Stage 4 (Tailscale) can go here too: a
    new login makes a new machine, so remove the old `foundry-pi` in the Tailscale admin console
    first, or the new one may be named `foundry-pi-1`.
-3. Copy the repository and its password to the Pi (the password is in your password manager if
-   this PC is gone), restore, and delete the copies:
+3. Copy the repository and its password to the Pi, into `/var/lib/foundry-restore` (one of our own
+   folders, root only; the password is in your password manager if this PC is gone), restore, and
+   delete the copies. The restore also stages its work in a subfolder there and removes it when it
+   ends, success or failure:
 
    ```powershell
-   scp -r E:\PiBackup\restic foundry-pi:/root/pc-repo
-   scp "$env:APPDATA\foundry-ai-tool\restic-pc.pass" foundry-pi:/root/restic-pc.pass
-   Get-Content .\scripts\pi\drill\restore.sh -Raw | ssh foundry-pi 'PC_REPO=/root/pc-repo PC_PASS=/root/restic-pc.pass DRILL_KEEP_SYNCTHING=1 bash -s'
-   ssh foundry-pi 'rm -rf /root/pc-repo /root/restic-pc.pass'
+   ssh foundry-pi 'install -d -m 0700 /var/lib/foundry-restore'
+   scp -r E:\PiBackup\restic foundry-pi:/var/lib/foundry-restore/pc-repo
+   scp "$env:APPDATA\foundry-ai-tool\restic-pc.pass" foundry-pi:/var/lib/foundry-restore/restic-pc.pass
+   Get-Content .\scripts\pi\drill\restore.sh -Raw | ssh foundry-pi 'DRILL_KEEP_SYNCTHING=1 bash -s'
+   ssh foundry-pi 'rm -rf /var/lib/foundry-restore'
    ```
 
-4. The restore installs restic, restores the newest snapshot (`SNAPSHOT=<id>` for another) into a
-   staging folder, copies the three folders into place and fixes the owners.
-5. Stages 5, 6, 7 and 8 in that order, then `systemctl start foundry`. The worlds (with their
+4. The restore installs restic, restores the newest snapshot (`SNAPSHOT=<id>` for another) into the
+   staging folder, copies the three folders into place and fixes the owners (stage 9's
+   `ssh-log` folder goes back to root only).
+5. Stages 5, 6, 7 and 8 in that order, then stage 9 (the SSH command log; it changes the SSH login
+   key line, so it needs its own OK, a `dietpi-backup 1` first, and the 5-minute confirmation from a
+   new connection described in its header), then `systemctl start foundry`. The worlds (with their
    users), `assistant-gm.env` and, if the snapshot is newer than its stage, the Discord bot's token
    come back from the snapshot.
 
@@ -312,7 +320,10 @@ foundry`; the restore refuses to run while Foundry runs. Stage 4 (Tailscale) can
 - **Syncthing's identity is in the snapshot.** A real rebuild keeps it, so every PC still trusts
   the Pi. The drill leaves it out (`DRILL_KEEP_SYNCTHING` unset): a second Syncthing with the real
   Pi's key, dialling out from a container, could meet the real peers and sync the vault from an old
-  copy.
+  copy. The drill's check compares the hash of the restored device certificate with the one in the
+  container and fails if the real Pi's identity is there. The `DRILL_KEEP_SYNCTHING=1` path (the
+  real rebuild, where the hashes must match) has **not been run yet**: the first real rebuild is its
+  first run.
 - **A restore on Windows exits 1** with "A required privilege is not held by the client" for one
   Chromium symlink under `/var/lib/foundry-ai-tool/.config/pulse`. Everything else is restored; the
   drill script excludes that folder. The restore on Windows drops Linux owners and modes, so for a
@@ -325,8 +336,10 @@ Pi, check `E:\PiBackup\logs\restic-<month>.log` that the copy job still reads th
 with the password it holds.
 
 The container is left stopped for inspection (`docker start pi-drill-<stamp>` and `docker exec -it
-... bash`); remove it with `docker rm` when you are done. The scratch folder holds restored
-secrets (the licence, `/etc/foundry-ai-tool`): delete it when you are done.
+... bash`), even if a stage fails; remove it with `docker rm` when you are done. The script never
+deletes anything, and prints at the end where things are left. The scratch folder
+(`E:\Restore\<date>-drill`) and each drill container hold restored secrets (the licence,
+`/etc/foundry-ai-tool`, tokens): delete them yourself when you are done.
 
 ## The GM vault and Syncthing
 

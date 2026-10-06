@@ -15,3 +15,10 @@
   `foundry-pi`; the `foundry` user id can change; the drill leaves out Syncthing's device key so a
   container never runs with the real Pi's identity; a restore on Windows exits 1 over one Chromium
   symlink.
+- **Drill and runbook safety:** `restore.sh` stages in `/var/lib/foundry-restore/restored` (override
+  with `STAGE_DIR`), removes it on exit even after a failure, and puts stage 9's `ssh-log` folder
+  back to root only after the `chown`. The runbook copies the PC repository into
+  `/var/lib/foundry-restore` (so the cleanup passes the SSH guard hook), adds stage 9 and
+  `ssh-keygen -R` after a reflash. `rebuild-drill.ps1` restores the caller's restic variables, stops
+  the container even when a stage fails, and says at the end where the restored secrets are left.
+  The drill's check compares the Syncthing device certificate with the restored one.

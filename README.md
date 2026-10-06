@@ -210,6 +210,14 @@ The bridge links the AI client and the Foundry module over local sockets (contro
 the module active. For Obsidian notes, add `"FOUNDRY_AI_OBSIDIAN_DIR": "<your vault folder>"` to
 the `env` of every entry.
 
+**Windows PC with the bridge on a home server.** If the bridge runs on another machine, the
+`FoundryMCPServer-Setup-vX.Y.Z.exe` installer from the release page is all a GM's PC needs: it
+installs a portable Node.js and the client, asks for the bridge address (for now the server's
+name on your private network, for example its Tailscale name; a Cloudflare route is planned) and
+writes the five entries for you. Quit Claude Desktop first. It does not install Foundry, the
+module or a bridge. Silent install: `/S /HOST=<name or IP>`. See
+[docs/dev/DEPLOYMENT.md](docs/dev/DEPLOYMENT.md).
+
 ### 3. Run the dashboard
 
 ```bash

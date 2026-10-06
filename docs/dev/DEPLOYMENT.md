@@ -51,7 +51,28 @@ names. Without `FOUNDRY_AI_TOOL_SETS` an entry serves every tool. Environment se
 `MCP_CONTROL_HOST` go into every entry.
 
 Build it with `npm run build && npm run bundle:server`. Restart Claude Desktop after changing the config.
-(Packaging the server with its own installer/release is future work — see ROADMAP.)
+
+### The Windows client installer
+
+For a GM's PC when the bridge runs on a home server there is a small installer,
+`FoundryMCPServer-Setup-vX.Y.Z.exe` (built from `installer/`). It installs only a portable Node.js
+and the bundled client, and writes the five entries above with `MCP_CONTROL_HOST`,
+`MCP_CONTROL_PORT` and `MCP_NO_SPAWN=1` (see the next section). It does not install Foundry, the
+Foundry module or a local bridge. It asks for the bridge address, which for now is the server's
+name on your private network (for example its Tailscale name); a Cloudflare route is planned.
+
+- **Silent install:** `FoundryMCPServer-Setup-vX.Y.Z.exe /S /HOST=<name or IP> [/PORT=31414]`.
+  Exit code 3 means Claude Desktop was still running after two minutes, 2 means the address was
+  missing or invalid.
+- **Claude Desktop must be closed** while the installer writes its settings (Claude Desktop
+  rewrites them when it quits). The installer asks you to quit it from the tray icon and retry; it
+  never closes it. It backs up each settings file first and keeps every other entry.
+- **Config files:** the classic `%APPDATA%\Claude\claude_desktop_config.json` and the Microsoft
+  Store build's copy under `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\`; every one
+  that exists is written, and the classic one is created when none does.
+- **Uninstall** removes only the five entries.
+- `installer/nsis/configure-claude.ps1` does the editing and can be run by hand
+  (`-InstallDir`, `-BridgeHost`, `-BridgePort`, `-Uninstall`, `-ConfigPath` for a single file).
 
 ### Pointing Claude Desktop at a bridge that runs elsewhere
 
@@ -84,14 +105,15 @@ in the root `package.json`. `dist/` is git-ignored, so the built module ships as
 in the repo tree.
 
 1. Set the version everywhere: `npm run version:sync -- --set X.Y.Z`. It stamps every `package.json`,
-   `module.json`, `package-lock.json`, `shared/src/version.ts` (`TOOL_VERSION`) and the installer script.
+   `module.json`, `package-lock.json`, `shared/src/version.ts` (`TOOL_VERSION`) and the installer script (`installer/nsis/foundry-mcp-server.nsi`).
    `npm run version:check` (and the release workflow) fail if any place disagrees.
 2. Commit, then tag `vX.Y.Z` (the tag must equal the root version) and push the tag. The workflow
    verifies, builds and publishes one GitHub release with these assets, all under that tag's own links:
    - `module.json` (manifest and download URLs point at this tag)
    - `foundry-mcp-bridge.zip` (the module with its built code)
    - `foundry-mcp-server-vX.Y.Z.zip` (standalone bridge)
-   - `FoundryMCPServer-Setup-vX.Y.Z.exe` (Windows installer)
+   - `FoundryMCPServer-Setup-vX.Y.Z.exe` (Windows client installer: Node.js, the MCP client and the
+     Claude Desktop entries; no bridge, no Foundry module)
 
    A manual run of the workflow (Actions, Release, Run workflow) builds everything as artifacts
    without publishing.

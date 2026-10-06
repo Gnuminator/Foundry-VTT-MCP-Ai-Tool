@@ -5,7 +5,7 @@ name: Release
 #   - module.json                     Foundry manifest whose manifest/download URLs point at this tag
 #   - foundry-mcp-bridge.zip          the Foundry module with its built code
 #   - foundry-mcp-server-vX.Y.Z.zip   the standalone bridge (bundled Node server)
-#   - FoundryMCPServer-Setup-vX.Y.Z.exe   the Windows installer (bridge + module + Claude Desktop config)
+#   - FoundryMCPServer-Setup-vX.Y.Z.exe   the Windows client installer (Node.js + MCP client + Claude Desktop entries)
 #   - foundry-ai-tool-obsidian.zip    the Obsidian companion plugin (a foundry-ai-tool folder)
 # workflow_dispatch runs the same build as a dry run (artifacts only, no release is created).
 #

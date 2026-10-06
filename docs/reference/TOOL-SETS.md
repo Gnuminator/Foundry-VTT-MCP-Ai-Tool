@@ -68,14 +68,14 @@ Each ready-made prompt appears next to the set whose tools it uses (a prompt may
 
 ## Configuration
 
-The installer writes all five entries. By hand, each entry is the same command with its own
+The Windows client installer writes all five entries (pointing at a remote bridge). By hand, each entry is the same command with its own
 `FOUNDRY_AI_TOOL_SETS`; see `claude_desktop_config.example.json`. The value is one or more set
 names separated by commas (`prep,build`), or `all`. Without the variable an entry serves every
 tool, so an older configuration keeps working unchanged.
 
 Every entry runs a small wrapper process; they all share one bridge. Settings such as
-`MCP_CONTROL_HOST` or `FOUNDRY_AI_OBSIDIAN_DIR` belong in every entry (the installer copies them
-from `foundry-mcp`).
+`MCP_CONTROL_HOST` or `FOUNDRY_AI_OBSIDIAN_DIR` belong in every entry (the installer keeps what the old
+`foundry-mcp` entry had and copies it to the others).
 
 Each wrapper also tells Claude which sets it serves and which other sets exist, so when a request
 needs a set that is off, Claude says which switch to turn on instead of reaching for the wrong

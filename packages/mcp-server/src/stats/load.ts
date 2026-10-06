@@ -29,7 +29,10 @@ export async function loadSessionEvents(
   const files = (await store.list(worldId, 'sessions')).filter(f => SESSION_LOG_FILE.test(f));
   const all: SessionEvent[] = [];
   for (const file of files) {
-    all.push(...((await store.readLines(worldId, 'sessions', file)) as SessionEvent[]));
+    // One by one, not push(...lines): a spread of a long log file overflows the call stack.
+    for (const line of (await store.readLines(worldId, 'sessions', file)) as SessionEvent[]) {
+      all.push(line);
+    }
   }
   return all;
 }
@@ -43,7 +46,7 @@ export async function loadPlayRecords(
   const all: PlayRecord[] = [];
   for (const file of files) {
     const lines = await store.readLines(worldId, 'sessions', file);
-    all.push(...lines.filter(isPlayRecordLike));
+    for (const line of lines) if (isPlayRecordLike(line)) all.push(line);
   }
   return all;
 }

@@ -54,6 +54,23 @@ export interface BuildStatsInput {
 // Small helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Smallest and largest of a list without spreading it into Math.min/max: a spread passes every
+ * element as an argument, and a long play log (hundreds of thousands of records) overflows the
+ * call stack ("Maximum call stack size exceeded").
+ */
+function minOf(values: readonly number[]): number {
+  let min = Infinity;
+  for (const v of values) if (v < min) min = v;
+  return min;
+}
+
+function maxOf(values: readonly number[]): number {
+  let max = -Infinity;
+  for (const v of values) if (v > max) max = v;
+  return max;
+}
+
 function bump(map: Map<string, number>, key: string, amount: number): void {
   if (amount === 0) return;
   map.set(key, (map.get(key) ?? 0) + amount);
@@ -359,8 +376,8 @@ function buildSession(
   const allTimes = [...group.events.map(eventTimeMs), ...records.map(r => r.t)].filter(t =>
     Number.isFinite(t)
   );
-  const startedAtMs = allTimes.length ? Math.min(...allTimes) : 0;
-  const endedAtMs = allTimes.length ? Math.max(...allTimes) : startedAtMs;
+  const startedAtMs = allTimes.length ? minOf(allTimes) : 0;
+  const endedAtMs = allTimes.length ? maxOf(allTimes) : startedAtMs;
   const date = localDateKey(startedAtMs);
 
   const combats = new Map<string, CombatBuilder>();
@@ -738,7 +755,7 @@ export function buildStats(input: BuildStatsInput): StatsModel {
   const allTimes = [...input.logEvents.map(eventTimeMs), ...input.playRecords.map(r => r.t)].filter(
     t => Number.isFinite(t)
   );
-  const lastRecordAt = allTimes.length ? new Date(Math.max(...allTimes)).toISOString() : null;
+  const lastRecordAt = allTimes.length ? new Date(maxOf(allTimes)).toISOString() : null;
 
   return {
     schema: 1,

@@ -1950,7 +1950,7 @@ describe('renderAdventureHub', () => {
   it('writes a count line, then one section per non-empty kind, journals first', () => {
     const note = renderAdventureHub(W, makeHub(), null);
     const { body } = split(note.text);
-    expect(body).toContain('3 chapters and journals, 1 scenes.');
+    expect(body).toContain('3 chapters and journals, 1 scene.');
     const headings = body.filter(line => line.startsWith('## '));
     expect(headings).toEqual(['## Chapters and journals', '## Scenes']);
   });
@@ -2006,7 +2006,7 @@ describe('renderAdventureHub', () => {
     expect(body.filter(line => line.startsWith('- [Npc '))).toHaveLength(HUB_SECTION_LIMIT);
     expect(body.filter(line => line.startsWith('- and '))).toEqual(['- and 7 more']);
     // The count line still says the true total.
-    expect(body.join('\n')).toContain(`${HUB_SECTION_LIMIT + 7} npcs`);
+    expect(body.join('\n')).toContain(`${HUB_SECTION_LIMIT + 7} NPCs`);
   });
 
   it('writes no "and N more" line at exactly the limit', () => {

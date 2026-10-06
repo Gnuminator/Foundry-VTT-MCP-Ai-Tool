@@ -18,11 +18,21 @@ export const ADVENTURES_FOLDER = MIRROR_FOLDERS.adventure;
 
 /** The kind folders a hub collects from, in the order its sections appear. */
 export const HUB_SECTIONS = [
-  { type: 'journal', folder: MIRROR_FOLDERS.journal, heading: 'Chapters and journals' },
-  { type: 'scene', folder: MIRROR_FOLDERS.scene, heading: 'Scenes' },
-  { type: 'npc', folder: MIRROR_FOLDERS.npc, heading: 'NPCs' },
-  { type: 'pc', folder: MIRROR_FOLDERS.pc, heading: 'PCs' },
-  { type: 'story-item', folder: MIRROR_FOLDERS.item, heading: 'Story items' },
+  {
+    type: 'journal',
+    folder: MIRROR_FOLDERS.journal,
+    heading: 'Chapters and journals',
+    count: ['chapter or journal', 'chapters and journals'],
+  },
+  { type: 'scene', folder: MIRROR_FOLDERS.scene, heading: 'Scenes', count: ['scene', 'scenes'] },
+  { type: 'npc', folder: MIRROR_FOLDERS.npc, heading: 'NPCs', count: ['NPC', 'NPCs'] },
+  { type: 'pc', folder: MIRROR_FOLDERS.pc, heading: 'PCs', count: ['PC', 'PCs'] },
+  {
+    type: 'story-item',
+    folder: MIRROR_FOLDERS.item,
+    heading: 'Story items',
+    count: ['story item', 'story items'],
+  },
 ] as const;
 
 /** At most this many links per section; the rest is a count. */

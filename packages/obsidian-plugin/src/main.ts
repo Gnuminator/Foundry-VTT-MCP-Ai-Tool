@@ -435,8 +435,15 @@ export default class FoundryAiToolPlugin extends Plugin {
       const { json, kept } = mergeGraphColourGroups(current, ourGroups(hubs, libraryRoots));
       await adapter.write(path, `${JSON.stringify(json, null, 2)}\n`);
       this.updateOpenGraphOptions(json.colorGroups as ColourGroup[]);
+      const adventures = hubs.length === 1 ? '1 adventure' : `${hubs.length} adventures`;
+      const own =
+        kept === 0
+          ? ''
+          : kept === 1
+            ? ' Your own colour group stays.'
+            : ` Your ${kept} own colour groups stay.`;
       new Notice(
-        `Graph colours: ${hubs.length} adventures, Library grey; your ${kept} groups kept. Close and reopen the graph view to see them.`
+        `Graph colours set for ${adventures}, the Library in grey.${own} Close and reopen the graph view to see them.`
       );
     } catch (error) {
       new Notice(`Graph colours: ${messageOf(error)}`);

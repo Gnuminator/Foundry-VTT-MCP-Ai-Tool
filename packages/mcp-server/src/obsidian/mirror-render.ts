@@ -983,8 +983,9 @@ export function renderAdventureHub(
     generated_by: GENERATED_BY,
     generated_hash: '',
   };
-  const counts = HUB_SECTIONS.map(s => `${hub.members[s.type].length} ${s.heading.toLowerCase()}`)
-    .filter(text => !text.startsWith('0 '))
+  const counts = HUB_SECTIONS.map(s => [hub.members[s.type].length, s.count] as const)
+    .filter(([n]) => n > 0)
+    .map(([n, [one, many]]) => `${n} ${n === 1 ? one : many}`)
     .join(', ');
   const lines: string[] = [`${counts}.`, ''];
   if (book) lines.push(`From the book: ${noteLink(hub.path, book.path, book.title)}.`, '');

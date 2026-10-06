@@ -237,6 +237,111 @@ restic restore <snapshot-id> --target E:\Restore --include /etc/foundry-ai-tool/
 Copy a restored world to the Pi only with Foundry stopped, and keep the owner `foundry:foundry`
 (`chown -R foundry:foundry` on the world folder); both steps need your OK under the Pi safety rule.
 
+## Rebuild drill
+
+A drill proved on 2026-10-06 that the Pi can be rebuilt from this repo's stage scripts plus the
+newest restic copy on this PC, and timed it. It runs in an ARM64 Debian 13 container on this PC and
+never contacts the Pi:
+
+```powershell
+.\scripts\pi\rebuild-drill.ps1          # about 10 minutes, mostly stage 5's build
+```
+
+The script reads the newest snapshot from `E:\PiBackup\restic` into `E:\Restore\<date>-drill` (so it
+also proves this PC can read its copies), starts a container named like the Pi (host name
+`foundry-pi`, 4 CPUs, no ports published), runs stages 1 to 3, restores the snapshot
+(`scripts/pi/drill/restore.sh`), runs stages 5 to 8, starts Foundry, the bridge and the dashboard
+from the unit files the stages wrote, checks the result, and leaves the container stopped. The
+repository and the password file are mounted read-only and restic runs with `--no-lock`: nothing
+is written to `E:\PiBackup`. Every name starts with `pi-drill-`; it never touches other containers.
+
+**Measured on 2026-10-06** (container under QEMU emulation, 4 CPUs, tool `v0.21.0`, snapshot of
+2026-10-05 04:30 with 142 MiB): stage 1 64 s, stage 2 12 s, stage 3 10 s, restore 19 s, stage 5
+409 s (the build), stage 6 5 s, stage 7 22 s, stage 8 31 s, start and check 20 s; 611 s in all, plus
+Docker's first image pull. A real Pi has no emulation but a slower disk and CPU; the download and
+build in stage 5 dominate either way. Add the work no script does: flashing the card (Part A),
+Tailscale's login (stage 4), the licence zip and the SSH steps below, each with your OK.
+
+**What it proves** (`scripts/pi/drill/check.sh` runs the checks): stages 1 to 3 and 5 to 8 run in order on a fresh Debian 13 ARM64 system; the
+snapshot comes back with the worlds, the dnd5e system, the module, `/etc/foundry-ai-tool` and the
+tool's storage; Foundry 14.368 starts on Node 24 with the restored licence and opens the restored
+world by itself; the bridge answers on 31414 and 31415; the dashboard answers on 3000; every unit
+file passes `systemd-analyze verify`. Debian's restic 0.18 reads the repository that this PC's
+restic 0.19 wrote.
+
+**What it does not prove:** flashing and DietPi's first boot; the Tailscale login (stage 4) and
+the SSH command log (stage 9); real systemd (the container has none, so a helper starts each unit's
+command as the unit says); the Assistant GM browser and so a bridge-to-world round trip (Chromium
+crashes under QEMU emulation; it runs natively on the Pi); players or Claude Desktop reaching it.
+After a real rebuild, `5-check-world.sh` (a throwaway world) and Claude Desktop's own check do that.
+
+**Rebuilding the real Pi** (each step that changes the Pi needs your OK, and `dietpi-backup 1`
+first if there is anything left to keep):
+
+1. Part A with a new card. The host name must be `foundry-pi`: the Foundry licence in the backup is
+   bound to it and fails verification under any other name. A new card has a new SSH host key, so
+   first clear the old one on this PC (`ssh-keygen -R foundry-pi`, and the same for the Tailscale
+   name and the address you use), or SSH refuses with "host key changed".
+2. Stages 1, 2 and 3 (stage 3 needs the Linux/Node.js zip again: keep `FoundryVTT-Node-14.368.zip`
+   from your Downloads folder or fetch it from your foundryvtt.com account). Then `systemctl stop
+foundry`; the restore refuses to run while Foundry runs. Stage 4 (Tailscale) can go here too: a
+   new login makes a new machine, so remove the old `foundry-pi` in the Tailscale admin console
+   first, or the new one may be named `foundry-pi-1`.
+3. Copy the repository and its password to the Pi, into `/var/lib/foundry-restore` (one of our own
+   folders, root only; the password is in your password manager if this PC is gone), restore, and
+   delete the copies. The restore also stages its work in a subfolder there and removes it when it
+   ends, success or failure:
+
+   ```powershell
+   ssh foundry-pi 'install -d -m 0700 /var/lib/foundry-restore'
+   scp -r E:\PiBackup\restic foundry-pi:/var/lib/foundry-restore/pc-repo
+   scp "$env:APPDATA\foundry-ai-tool\restic-pc.pass" foundry-pi:/var/lib/foundry-restore/restic-pc.pass
+   Get-Content .\scripts\pi\drill\restore.sh -Raw | ssh foundry-pi 'DRILL_KEEP_SYNCTHING=1 bash -s'
+   ssh foundry-pi 'rm -rf /var/lib/foundry-restore'
+   ```
+
+4. The restore installs restic, restores the newest snapshot (`SNAPSHOT=<id>` for another) into the
+   staging folder, copies the three folders into place and fixes the owners (stage 9's
+   `ssh-log` folder goes back to root only).
+5. Stages 5, 6, 7 and 8 in that order, then stage 9 (the SSH command log; it changes the SSH login
+   key line, so it needs its own OK, a `dietpi-backup 1` first, and the 5-minute confirmation from a
+   new connection described in its header), then `systemctl start foundry`. The worlds (with their
+   users), `assistant-gm.env` and, if the snapshot is newer than its stage, the Discord bot's token
+   come back from the snapshot.
+
+**Order matters, and four things the drill found:**
+
+- **Restore before stage 6.** The snapshot holds the Pi's old `restic-pi.pass`. Stage 6 keeps an
+  existing password file and builds the new repository with it, so the copy job on this PC (which
+  holds the same password in `restic-pi.pass`) keeps working. Restoring after stage 6 left a new
+  repository that the restored password cannot open ("wrong password or no key found").
+- **The user id changes.** The old `foundry` user was 988; a new install may get another number.
+  `restore.sh` reads the old owner and fixes it (`chown -R` for the data, `chgrp` for the files in
+  `/etc/foundry-ai-tool` that were group `foundry`; secrets stay root's).
+- **Syncthing's identity is in the snapshot.** A real rebuild keeps it, so every PC still trusts
+  the Pi. The drill leaves it out (`DRILL_KEEP_SYNCTHING` unset): a second Syncthing with the real
+  Pi's key, dialling out from a container, could meet the real peers and sync the vault from an old
+  copy. The drill's check compares the hash of the restored device certificate with the one in the
+  container and fails if the real Pi's identity is there. The `DRILL_KEEP_SYNCTHING=1` path (the
+  real rebuild, where the hashes must match) has **not been run yet**: the first real rebuild is its
+  first run.
+- **A restore on Windows exits 1** with "A required privilege is not held by the client" for one
+  Chromium symlink under `/var/lib/foundry-ai-tool/.config/pulse`. Everything else is restored; the
+  drill script excludes that folder. The restore on Windows drops Linux owners and modes, so for a
+  real rebuild restore inside Linux as above.
+
+Not in the snapshot, so rebuilt by the stages: `/opt` (Foundry, Node, the tool), Tailscale's state,
+the SSH key line from Part A, the Assistant GM's browser profile (it logs in again), recordings,
+the licence zip itself. The drill does not run `pull-restic.ps1`: after the first night on the new
+Pi, check `E:\PiBackup\logs\restic-<month>.log` that the copy job still reads the new repository
+with the password it holds.
+
+The container is left stopped for inspection (`docker start pi-drill-<stamp>` and `docker exec -it
+... bash`), even if a stage fails; remove it with `docker rm` when you are done. The script never
+deletes anything, and prints at the end where things are left. The scratch folder
+(`E:\Restore\<date>-drill`) and each drill container hold restored secrets (the licence,
+`/etc/foundry-ai-tool`, tokens): delete them yourself when you are done.
+
 ## The GM vault and Syncthing
 
 The bridge writes the GM's Obsidian vault on the Pi, in `/var/lib/foundry-ai-tool/obsidian/gm`: the

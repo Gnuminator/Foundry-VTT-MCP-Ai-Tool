@@ -146,3 +146,67 @@ export function mergeGraphColourGroups(
     kept: user.length,
   };
 }
+
+/** What `applyGraphColoursTo` needs from Obsidian (main.ts implements it; tests fake it). */
+export interface GraphHost {
+  /** Closes every open graph view; returns how many were open. */
+  closeGraphViews(): Promise<number>;
+  /** The loaded graph plugin's live options, or null when there is no instance. */
+  graphOptions(): Record<string, unknown> | null;
+  /** Puts the colour groups into the live options and saves them; false when that failed. */
+  setGraphOptions(options: Record<string, unknown>): Promise<boolean>;
+  /** The vault's graph.json, parsed ({} when missing or unreadable). */
+  readGraphJson(): Promise<unknown>;
+  writeGraphJson(json: unknown): Promise<void>;
+  openGraphView(): Promise<void>;
+}
+
+export interface GraphColoursResult {
+  /** Adventure hubs coloured. */
+  adventures: number;
+  /** The GM's own colour groups that stay. */
+  kept: number;
+  /** Graph views opened again (0 or 1). */
+  reopened: number;
+  /** The graph plugin's live options took the groups (no reopen needed to see them). */
+  live: boolean;
+}
+
+/**
+ * Colours the adventures in the graph view (I-105). Open graph views close first, so Obsidian
+ * stores their current options (a group the GM just added included); the merge starts from the
+ * graph plugin's live options when it is loaded, else from graph.json. The plugin saves graph.json
+ * itself; without it the file is written here. One graph view opens again when any was open.
+ */
+export async function applyGraphColoursTo(
+  host: GraphHost,
+  hubs: HubInfo[],
+  libraryRoots: string[]
+): Promise<GraphColoursResult> {
+  const closed = await host.closeGraphViews();
+  const options = host.graphOptions();
+  const base = options ?? (await host.readGraphJson());
+  const { json, kept } = mergeGraphColourGroups(base, ourGroups(hubs, libraryRoots));
+  const updated = options !== null && (await host.setGraphOptions(json));
+  if (!updated) await host.writeGraphJson(json);
+  let reopened = 0;
+  if (closed > 0) {
+    await host.openGraphView();
+    reopened = 1;
+  }
+  return { adventures: hubs.length, kept, reopened, live: updated };
+}
+
+/** The notice after `applyGraphColoursTo`. */
+export function graphColoursNotice(result: GraphColoursResult): string {
+  const adventures = result.adventures === 1 ? '1 adventure' : `${result.adventures} adventures`;
+  const own =
+    result.kept === 0
+      ? ''
+      : result.kept === 1
+        ? ' Your own colour group stays.'
+        : ` Your ${result.kept} own colour groups stay.`;
+  const reopen =
+    result.reopened === 0 && !result.live ? ' Close and reopen the graph view to see them.' : '';
+  return `Graph colours set for ${adventures}, the Library in grey.${own}${reopen}`;
+}

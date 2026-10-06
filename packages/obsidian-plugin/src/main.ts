@@ -41,10 +41,10 @@ import {
   type RevealState,
 } from './dashboard.js';
 import {
+  applyGraphColoursTo,
+  graphColoursNotice,
   libraryRootOf,
-  mergeGraphColourGroups,
-  ourGroups,
-  type ColourGroup,
+  type GraphHost,
   type HubInfo,
 } from './graph-colours.js';
 import {
@@ -412,7 +412,7 @@ export default class FoundryAiToolPlugin extends Plugin {
 
   /**
    * Colours each adventure's notes in the graph view and the Library grey (I-105): merges the
-   * mirror's colour groups into the vault's graph.json, next to the GM's own groups. The mirror
+   * mirror's colour groups into the graph options, next to the GM's own groups. The mirror
    * itself never edits .obsidian; this runs only when the GM starts it.
    */
   async applyGraphColours(): Promise<void> {
@@ -422,54 +422,63 @@ export default class FoundryAiToolPlugin extends Plugin {
         new Notice('No adventure hub notes yet. Let the mirror run a full update first.');
         return;
       }
-      const adapter = this.app.vault.adapter;
-      const path = `${this.app.vault.configDir}/graph.json`;
-      let current: unknown = {};
-      if (await adapter.exists(path)) {
-        try {
-          current = JSON.parse(await adapter.read(path)) as unknown;
-        } catch {
-          current = {};
-        }
-      }
-      const { json, kept } = mergeGraphColourGroups(current, ourGroups(hubs, libraryRoots));
-      await adapter.write(path, `${JSON.stringify(json, null, 2)}\n`);
-      this.updateOpenGraphOptions(json.colorGroups as ColourGroup[]);
-      const adventures = hubs.length === 1 ? '1 adventure' : `${hubs.length} adventures`;
-      const own =
-        kept === 0
-          ? ''
-          : kept === 1
-            ? ' Your own colour group stays.'
-            : ` Your ${kept} own colour groups stay.`;
-      new Notice(
-        `Graph colours set for ${adventures}, the Library in grey.${own} Close and reopen the graph view to see them.`
-      );
+      const result = await applyGraphColoursTo(this.graphHost(), hubs, libraryRoots);
+      new Notice(graphColoursNotice(result));
     } catch (error) {
       new Notice(`Graph colours: ${messageOf(error)}`);
     }
   }
 
-  /** Also tells Obsidian's own graph plugin, which would otherwise write its old options back. */
-  private updateOpenGraphOptions(colorGroups: ColourGroup[]): void {
-    try {
-      // Internal API, may change: a failure here only means the GM reopens the graph view.
-      const internal = (
-        this.app as unknown as {
-          internalPlugins?: {
-            getPluginById?: (id: string) => {
-              instance?: { options?: Record<string, unknown>; saveOptions?: () => unknown };
-            } | null;
-          };
+  /** Obsidian's side of the graph colours: the graph views, the graph plugin and graph.json. */
+  private graphHost(): GraphHost {
+    const app = this.app;
+    const adapter = app.vault.adapter;
+    const file = `${app.vault.configDir}/graph.json`;
+    const instance = (): GraphPluginInstance | null => {
+      try {
+        // Internal API, may change: without it the colours go to graph.json only.
+        const internal = (app as unknown as { internalPlugins?: InternalPlugins }).internalPlugins;
+        const found = internal?.getPluginById?.('graph')?.instance;
+        return found?.options && typeof found.options === 'object' ? found : null;
+      } catch {
+        return null;
+      }
+    };
+    return {
+      closeGraphViews: async (): Promise<number> => {
+        const leaves = app.workspace.getLeavesOfType('graph');
+        for (const leaf of leaves) leaf.detach();
+        // A view stores its options while it closes; give that a moment before they are read.
+        if (leaves.length > 0) await new Promise(resolve => window.setTimeout(resolve, 100));
+        return leaves.length;
+      },
+      graphOptions: (): Record<string, unknown> | null => {
+        const options = instance()?.options;
+        return options ? { ...options } : null;
+      },
+      setGraphOptions: async (options): Promise<boolean> => {
+        try {
+          const found = instance();
+          if (!found?.options || typeof found.saveOptions !== 'function') return false;
+          found.options.colorGroups = options.colorGroups;
+          await found.saveOptions();
+          return true;
+        } catch {
+          return false;
         }
-      ).internalPlugins;
-      const instance = internal?.getPluginById?.('graph')?.instance;
-      if (!instance?.options || typeof instance.options !== 'object') return;
-      instance.options.colorGroups = colorGroups;
-      if (typeof instance.saveOptions === 'function') void instance.saveOptions();
-    } catch {
-      // see above
-    }
+      },
+      readGraphJson: async (): Promise<unknown> => {
+        if (!(await adapter.exists(file))) return {};
+        try {
+          return JSON.parse(await adapter.read(file)) as unknown;
+        } catch {
+          return {};
+        }
+      },
+      writeGraphJson: json => adapter.write(file, `${JSON.stringify(json, null, 2)}\n`),
+      openGraphView: () =>
+        app.workspace.getLeaf('tab').setViewState({ type: 'graph', active: true }),
+    };
   }
 
   private async revealState(force: boolean): Promise<RevealState> {
@@ -551,6 +560,16 @@ function decorateNote(el: HTMLElement): void {
     p.classList.add('aitool-stat-line');
     p.after(box);
   }
+}
+
+/** The graph core plugin's instance, as far as the colours need it (internal API). */
+interface GraphPluginInstance {
+  options?: Record<string, unknown>;
+  saveOptions?: () => unknown;
+}
+
+interface InternalPlugins {
+  getPluginById?: (id: string) => { instance?: GraphPluginInstance } | null;
 }
 
 function messageOf(error: unknown): string {

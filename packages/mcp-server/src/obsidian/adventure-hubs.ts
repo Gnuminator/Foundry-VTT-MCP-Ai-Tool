@@ -5,10 +5,13 @@
  * An adventure is a top-level Foundry folder (the first folder below a kind folder such as
  * `AI Tool/Foundry/Journals/`). Foundry keeps folders per document type, so an imported
  * adventure has a folder of the same name under journals, scenes and actors; the hub joins them
- * by that name. A folder counts as an adventure when it holds at least one journal note and one
- * scene note. The hubs come from the mirror's own note map: no extra Foundry query.
+ * by that name (the Foundry folder name, not the note path: a long name can be shortened in one
+ * kind's paths and not in another's). A folder counts as an adventure when it holds at least one
+ * journal note and one scene note. The hubs come from the mirror's own note map: no extra Foundry
+ * query.
  */
 import { MIRROR_FOLDERS, pathKey } from './mirror-common.js';
+import { safeFolderSegment } from './mirror-paths.js';
 
 /** The `type` property of an adventure hub note. */
 export const ADVENTURE_HUB_TYPE = 'adventure-hub';
@@ -48,6 +51,11 @@ export interface HubSourceNote {
   /** The note's name, or null (then its file name). */
   name: string | null;
   insideFence: boolean;
+  /**
+   * The note's `folder` property: its Foundry folder names root to leaf, joined with `/` (null
+   * or absent: the adventure comes from the path).
+   */
+  folder?: string | null;
 }
 
 export interface HubMember {
@@ -58,7 +66,7 @@ export interface HubMember {
 }
 
 export interface AdventureHub {
-  /** The adventure's folder segment as the notes have it (`Curse of Strahd`). */
+  /** The adventure's Foundry folder name (`Curse of Strahd`). */
   name: string;
   /** Campaign-relative path of the hub note. */
   path: string;
@@ -81,37 +89,53 @@ function emptyMembers(): Record<HubSectionType, HubMember[]> {
   return { journal: [], scene: [], npc: [], pc: [], 'story-item': [] };
 }
 
+/** The adventure (top-level Foundry folder) of a note: from its `folder` property, else its path. */
+function adventureOf(note: HubSourceNote, rest: readonly string[]): string {
+  const top = note.folder?.split('/')[0]?.trim();
+  if (top) return top;
+  return rest[0] ?? '';
+}
+
 /**
- * The adventures among the notes: grouped by the first folder below each kind folder
- * (case-insensitive), kept when they have a journal note and a scene note. Notes outside the
+ * The adventures among the notes: grouped by their top-level Foundry folder (case-insensitive,
+ * as a safe folder name), kept when they have a journal note and a scene note. Notes outside the
  * fence (moved by the GM) and notes directly in a kind folder are left out. Sorted by name.
  */
 export function collectAdventureHubs(notes: Iterable<HubSourceNote>): AdventureHub[] {
   const groups = new Map<string, AdventureHub>();
+  /** Section index of the spelling that names each hub (journals first). */
+  const namedBy = new Map<string, number>();
   for (const note of notes) {
     if (!note.insideFence) continue;
-    const section = HUB_SECTIONS.find(s => s.type === note.type);
+    const rank = HUB_SECTIONS.findIndex(s => s.type === note.type);
+    const section = HUB_SECTIONS[rank];
     if (!section) continue;
     const prefix = `${section.folder}/`;
     if (!pathKey(note.path).startsWith(pathKey(prefix))) continue;
     const rest = note.path.slice(prefix.length).split('/');
     // rest = [adventure, ...subfolders, file]: a note directly in the kind folder has no adventure.
-    if (rest.length < 2) continue;
-    const name = rest[0] ?? '';
-    if (!name) continue;
-    const key = pathKey(name);
+    if (rest.length < 2 || !rest[0]) continue;
+    const name = adventureOf(note, rest);
+    const segment = safeFolderSegment(name);
+    const key = pathKey(segment);
     let hub = groups.get(key);
+    const path = `${ADVENTURES_FOLDER}/${segment}.md`;
     if (!hub) {
-      hub = {
-        name,
-        path: `${ADVENTURES_FOLDER}/${name}.md`,
-        folders: [],
-        members: emptyMembers(),
-      };
+      hub = { name, path, folders: [], members: emptyMembers() };
       groups.set(key, hub);
+      namedBy.set(key, rank);
+    } else if (rank < (namedBy.get(key) ?? 0) || (rank === namedBy.get(key) && name < hub.name)) {
+      // Names that differ only in case: the journals' spelling, the same one every run whatever
+      // the note order.
+      hub.name = name;
+      hub.path = path;
+      namedBy.set(key, rank);
     }
-    const folder = `${section.folder}/${name}`;
-    if (!hub.folders.some(f => pathKey(f) === pathKey(folder))) hub.folders.push(folder);
+    // The folder as the note's path has it (shortened when the path was too long).
+    const folder = `${section.folder}/${rest[0]}`;
+    const same = hub.folders.findIndex(f => pathKey(f) === pathKey(folder));
+    if (same < 0) hub.folders.push(folder);
+    else if (folder < (hub.folders[same] ?? '')) hub.folders[same] = folder;
     hub.members[section.type].push({
       path: note.path,
       name: note.name ?? (rest[rest.length - 1] ?? '').replace(/\.md$/i, ''),
@@ -127,7 +151,7 @@ export function collectAdventureHubs(notes: Iterable<HubSourceNote>): AdventureH
     hub.folders.sort(
       (a, b) =>
         order.findIndex(o => pathKey(a).startsWith(`${o}/`)) -
-        order.findIndex(o => pathKey(b).startsWith(`${o}/`))
+          order.findIndex(o => pathKey(b).startsWith(`${o}/`)) || (a < b ? -1 : a > b ? 1 : 0)
     );
   }
   return hubs.sort((a, b) => NUMERIC.compare(a.name, b.name) || (a.path < b.path ? -1 : 1));

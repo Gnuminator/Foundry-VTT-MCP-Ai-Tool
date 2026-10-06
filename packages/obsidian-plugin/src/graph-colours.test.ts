@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   ADVENTURE_PALETTE,
   LIBRARY_GREY,
+  applyGraphColoursTo,
   campaignRootOf,
+  graphColoursNotice,
   isOurGroup,
   libraryRootOf,
   mergeGraphColourGroups,
   ourGroups,
+  type GraphHost,
   type HubInfo,
 } from './graph-colours.js';
 
@@ -208,5 +211,129 @@ describe('mergeGraphColourGroups', () => {
     const copy = JSON.parse(JSON.stringify(graph)) as unknown;
     mergeGraphColourGroups(graph, groups);
     expect(graph).toEqual(copy);
+  });
+});
+
+/** A fake Obsidian: records the calls, holds live options (or none) and graph.json. */
+function fakeHost(state: {
+  openViews?: number;
+  live?: Record<string, unknown> | null;
+  disk?: unknown;
+  setWorks?: boolean;
+}): GraphHost & { calls: string[]; written: unknown[]; saved: Record<string, unknown>[] } {
+  const calls: string[] = [];
+  const written: unknown[] = [];
+  const saved: Record<string, unknown>[] = [];
+  let open = state.openViews ?? 0;
+  return {
+    calls,
+    written,
+    saved,
+    closeGraphViews: (): Promise<number> => {
+      calls.push('close');
+      const n = open;
+      open = 0;
+      return Promise.resolve(n);
+    },
+    graphOptions: (): Record<string, unknown> | null => {
+      calls.push('options');
+      return state.live ?? null;
+    },
+    setGraphOptions: (options): Promise<boolean> => {
+      calls.push('set');
+      if (state.setWorks === false) return Promise.resolve(false);
+      saved.push(options);
+      return Promise.resolve(true);
+    },
+    readGraphJson: (): Promise<unknown> => {
+      calls.push('read');
+      return Promise.resolve(state.disk ?? {});
+    },
+    writeGraphJson: (json): Promise<void> => {
+      calls.push('write');
+      written.push(json);
+      return Promise.resolve();
+    },
+    openGraphView: (): Promise<void> => {
+      calls.push('open');
+      open += 1;
+      return Promise.resolve();
+    },
+  };
+}
+
+const groupsOf = (json: unknown): unknown[] =>
+  (json as { colorGroups?: unknown[] }).colorGroups ?? [];
+
+describe('applyGraphColoursTo', () => {
+  it('closes the graph views before it reads the options, and reopens one', async () => {
+    const host = fakeHost({ openViews: 2, live: { colorGroups: [] } });
+    const result = await applyGraphColoursTo(host, [strahd], []);
+    expect(host.calls).toEqual(['close', 'options', 'set', 'open']);
+    expect(result).toEqual({ adventures: 1, kept: 0, reopened: 1, live: true });
+  });
+
+  it('merges into the live options, not the older graph.json', async () => {
+    const justAdded = { query: 'tag:#villain', color: { a: 1, rgb: 7 } };
+    const host = fakeHost({
+      openViews: 1,
+      live: { showTags: true, colorGroups: [userGroup, justAdded] },
+      disk: { colorGroups: [userGroup] },
+    });
+    const result = await applyGraphColoursTo(host, [strahd, rime], []);
+    expect(host.calls).not.toContain('read');
+    expect(host.calls).not.toContain('write');
+    const saved = host.saved[0] ?? {};
+    // The group the GM added in the open view (not yet in graph.json) stays, first.
+    expect(groupsOf(saved).slice(0, 2)).toEqual([userGroup, justAdded]);
+    expect(groupsOf(saved)).toHaveLength(2 + 2 + 1);
+    expect(saved.showTags).toBe(true);
+    expect(result.kept).toBe(2);
+    expect(result.adventures).toBe(2);
+  });
+
+  it('falls back to graph.json when the graph plugin has no instance', async () => {
+    const host = fakeHost({ live: null, disk: { scale: 2, colorGroups: [userGroup] } });
+    const result = await applyGraphColoursTo(host, [strahd], []);
+    expect(host.calls).toEqual(['close', 'options', 'read', 'write']);
+    const json = host.written[0] as Record<string, unknown>;
+    expect(json.scale).toBe(2);
+    expect(groupsOf(json)[0]).toEqual(userGroup);
+    expect(result).toEqual({ adventures: 1, kept: 1, reopened: 0, live: false });
+  });
+
+  it('writes graph.json when the live options could not be saved', async () => {
+    const host = fakeHost({ live: { colorGroups: [userGroup] }, setWorks: false });
+    const result = await applyGraphColoursTo(host, [strahd], []);
+    expect(host.calls).toEqual(['close', 'options', 'set', 'write']);
+    expect(groupsOf(host.written[0])[0]).toEqual(userGroup);
+    expect(result.live).toBe(false);
+  });
+
+  it('opens no graph view when none was open', async () => {
+    const host = fakeHost({ openViews: 0, live: {} });
+    const result = await applyGraphColoursTo(host, [strahd], []);
+    expect(host.calls).not.toContain('open');
+    expect(result.reopened).toBe(0);
+  });
+});
+
+describe('graphColoursNotice', () => {
+  it('counts adventures and own groups', () => {
+    expect(graphColoursNotice({ adventures: 1, kept: 0, reopened: 1, live: true })).toBe(
+      'Graph colours set for 1 adventure, the Library in grey.'
+    );
+    expect(graphColoursNotice({ adventures: 3, kept: 1, reopened: 0, live: true })).toBe(
+      'Graph colours set for 3 adventures, the Library in grey. Your own colour group stays.'
+    );
+    expect(graphColoursNotice({ adventures: 2, kept: 4, reopened: 1, live: false })).toBe(
+      'Graph colours set for 2 adventures, the Library in grey. Your 4 own colour groups stay.'
+    );
+  });
+
+  it('asks to reopen the graph view only when nothing showed the colours', () => {
+    expect(graphColoursNotice({ adventures: 1, kept: 0, reopened: 0, live: false })).toBe(
+      'Graph colours set for 1 adventure, the Library in grey. Close and reopen the graph view to see them.'
+    );
   });
 });

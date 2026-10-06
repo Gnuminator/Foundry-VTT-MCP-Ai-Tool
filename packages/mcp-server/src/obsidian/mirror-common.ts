@@ -99,6 +99,8 @@ export interface ScannedNote {
   name: string | null;
   /** `fvtt_journal` property (page notes: their journal's uuid), or null. */
   journalUuid: string | null;
+  /** `folder` property (Foundry folder names joined with `/`), or null; absent in older maps. */
+  folder?: string | null;
 }
 
 /** Key for case-insensitive, Unicode-normalized path comparison (Windows and Obsidian). */

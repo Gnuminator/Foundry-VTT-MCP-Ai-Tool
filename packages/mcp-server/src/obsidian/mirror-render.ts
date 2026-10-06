@@ -389,7 +389,8 @@ function mirrorProps(worldId: string, c: CommonInput): Props {
   };
 }
 
-function folderText(entry: ExportEntry): string | null {
+/** The `folder` property of an entry's note: its Foundry folder names joined with `/`, or null. */
+export function folderText(entry: ExportEntry): string | null {
   if (!entry.folder) return null;
   const path = entry.folder.path.map(segment => clip(oneLine(segment), NAME_CHARS)).join('/');
   return propText(path, NAME_CHARS * 5) || null;

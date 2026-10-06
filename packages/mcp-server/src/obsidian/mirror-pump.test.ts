@@ -1063,3 +1063,73 @@ describe('ObsidianMirrorPump: adventure hubs (I-105)', () => {
     expect(await exists(full(HUB))).toBe(false);
   });
 });
+
+describe('ObsidianMirrorPump: adventure hubs, review fixes (I-105)', () => {
+  const ADV = { id: fid('advx'), path: ['Adventure X'] };
+  const HUB = 'AI Tool/Foundry/Adventures/Adventure X.md';
+  const HALL = sceneEntry('hall', 'Grand Hall', { folder: ADV });
+
+  function putAdventure(): void {
+    fake.put(journalEntry('intro', 'Intro', [], { folder: ADV }));
+    fake.put(HALL);
+  }
+
+  it('leaves the hubs alone while the vault scan is incomplete', async () => {
+    putAdventure();
+    const pump = await started();
+    const before = await read(HUB);
+    expect(before).toContain('[Grand Hall]');
+    const deep = path.join(full('Prep'), ...Array.from({ length: 15 }, () => 'd'));
+    await fsp.mkdir(deep, { recursive: true });
+    await fsp.writeFile(path.join(deep, 'deep.md'), 'deep', 'utf8');
+    fake.edit(HALL.uuid, e => (e.name = 'Great Hall'), 60_000);
+    await reconcileNow(pump);
+    expect(await read(HUB)).toBe(before);
+    // Once the scan completes again, the hub follows.
+    await fsp.rm(full('Prep/d'), { recursive: true, force: true });
+    await reconcileNow(pump);
+    expect(await read(HUB)).toContain('[Great Hall]');
+  });
+
+  it('lists a hub the GM edited as skipped when its adventure is gone', async () => {
+    putAdventure();
+    const pump = await started();
+    const edited = `${(await read(HUB)) ?? ''}\nMy own notes.\n`;
+    await fsp.writeFile(full(HUB), edited, 'utf8');
+    fake.remove(HALL.uuid);
+    await reconcileNow(pump);
+    expect(await read(HUB)).toBe(edited);
+    expect(pump.status().skipped).toEqual([expect.objectContaining({ path: HUB })]);
+  });
+
+  it('joins a long adventure name shortened in the journal paths only into one hub', async () => {
+    const name = `Adventure ${'L'.repeat(50)}`; // 60 characters, the longest segment
+    const chapter = `Chapter ${'C'.repeat(52)}`;
+    const part = `Part ${'P'.repeat(55)}`;
+    fake.put(
+      journalEntry('intro', 'Long Intro', [], {
+        folder: { id: fid('part'), path: [name, chapter, part] },
+      })
+    );
+    fake.put(sceneEntry('hall', 'Grand Hall', { folder: { id: fid('advl'), path: [name] } }));
+    const pump = await started();
+    const journals = await listFiles(full('AI Tool/Foundry/Journals'));
+    const intro = journals.find(f => f.endsWith('Long Intro.md')) ?? '';
+    // The journal path shortened the adventure folder; the scene path did not.
+    expect(intro.split('/')[0]).not.toBe(name);
+    expect(await exists(full(`AI Tool/Foundry/Scenes/${name}/Grand Hall.md`))).toBe(true);
+    const hub = `AI Tool/Foundry/Adventures/${name}.md`;
+    const text = await read(hub);
+    expect(text).toContain('[Long Intro](');
+    expect(text).toContain('[Grand Hall](');
+    expect(text).toContain(`"AI Tool/Foundry/Journals/${intro.split('/')[0]}"`);
+    expect(text).toContain(`"AI Tool/Foundry/Scenes/${name}"`);
+    expect(await listFiles(full('AI Tool/Foundry/Adventures'))).toEqual([`${name}.md`]);
+    expect(pump.status().errors).toEqual([]);
+    // After a restart the notes come from the scan (their folder property): the same hub.
+    const restarted = newPump();
+    await restarted.tick();
+    expect(await read(hub)).toBe(text);
+    expect(await exists(trashed(hub))).toBe(false);
+  });
+});

@@ -124,9 +124,49 @@ describe('collectAdventureHubs: grouping', () => {
       note('npc', `${N}/CURSE OF STRAHD/Strahd.md`, 'Strahd'),
     ]);
     expect(hubs).toHaveLength(1);
-    // The first spelling seen names the hub.
+    // The journals' spelling names the hub.
     expect(hubs[0]?.name).toBe('Curse of Strahd');
     expect(hubs[0]?.members.npc.map(m => m.name)).toEqual(['Strahd']);
+  });
+
+  it('names a hub the same way whatever the note order (case-only differences)', () => {
+    const notes = [
+      note('scene', `${S}/curse of strahd/Hall.md`, 'Hall'),
+      note('journal', `${J}/CURSE OF STRAHD/Map.md`, 'Map'),
+      note('journal', `${J}/Curse of Strahd/Intro.md`, 'Intro'),
+    ];
+    const forward = collectAdventureHubs(notes);
+    const backward = collectAdventureHubs([...notes].reverse());
+    expect(forward.map(h => [h.name, h.path])).toEqual([
+      ['CURSE OF STRAHD', `${ADVENTURES_FOLDER}/CURSE OF STRAHD.md`],
+    ]);
+    expect(backward).toEqual(forward);
+  });
+
+  it('groups by the folder property, not by a path segment the mirror shortened', () => {
+    const long = `Adventure ${'L'.repeat(50)}`;
+    const cut = long.slice(0, 41);
+    const hubs = collectAdventureHubs([
+      {
+        ...note('journal', `${J}/${cut}/Chapter/Part/Intro.md`, 'Intro'),
+        folder: `${long}/Chapter/Part`,
+      },
+      { ...note('scene', `${S}/${long}/Hall.md`, 'Hall'), folder: long },
+    ]);
+    expect(hubs).toHaveLength(1);
+    expect(hubs[0]?.name).toBe(long);
+    expect(hubs[0]?.path).toBe(`${ADVENTURES_FOLDER}/${long}.md`);
+    expect(hubs[0]?.folders).toEqual([`${J}/${cut}`, `${S}/${long}`]);
+    expect(hubs[0]?.members.journal[0]?.subfolder).toBe('Chapter/Part');
+  });
+
+  it('names the hub file through the safe folder name and the title with the full name', () => {
+    const hubs = collectAdventureHubs([
+      { ...note('journal', `${J}/Strahd_ Revamped/Intro.md`, 'Intro'), folder: 'Strahd: Revamped' },
+      { ...note('scene', `${S}/Strahd_ Revamped/Hall.md`, 'Hall'), folder: 'Strahd: Revamped' },
+    ]);
+    expect(hubs.map(h => h.name)).toEqual(['Strahd: Revamped']);
+    expect(hubs[0]?.path).not.toContain(':');
   });
 
   it('matches the kind folder prefix case-insensitively', () => {

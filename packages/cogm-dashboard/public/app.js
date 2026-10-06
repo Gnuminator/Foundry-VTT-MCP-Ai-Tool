@@ -18,8 +18,10 @@ const COGM_TOKEN = (() => {
       localStorage.setItem('cogm_token', fromUrl);
       saved = true;
     } catch {}
-    // Once saved, take the token out of the address bar so it does not stay in the browser's
-    // history (other query parameters and the hash are kept). Not saved: leave it, so a refresh works.
+    // Once saved, take the token out of the address bar and the current history entry (other query
+    // parameters and the hash are kept). The browser's own history database may still list the first
+    // visit with the token, so the GM should open the link in a private window or delete that entry.
+    // Not saved: leave it, so a refresh works.
     if (saved) {
       try {
         const url = new URL(location.href);

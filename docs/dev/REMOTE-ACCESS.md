@@ -131,7 +131,9 @@ scripts, and the two that touch secrets are run by you.
    `cogm.<domain>`; the script does that. Over Tailscale the GM has no Cloudflare login, so with
    the split on he would see the player view; the token fixes that. Give him the link (outside the
    repo and the vault): he opens `http://<tailscale name>:3000/?token=<token>` once, the browser
-   remembers the token and removes it from the address bar. Run the script again to change an
+   remembers the token and removes it from the address bar. The browser's history may still list
+   that first visit, so he should open the link in a private window, or delete that one history
+   entry afterwards. Run the script again to change an
    answer; add `--rotate-token` for a new token (the GM then opens the new link once).
 
 4. **The name last.** In the tunnel, Published application routes, add subdomain `cogm`, service

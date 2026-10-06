@@ -83,7 +83,7 @@ if [ -z "$ts_name" ]; then
   ask ts_name "The Pi's Tailscale name (for example foundry-pi.tail1234.ts.net; Enter to skip): "
 fi
 
-team="$(printf '%s' "$team" | tr 'A-Z' 'a-z' | sed -e 's#^https\?://##' -e 's#/*$##')"
+team="$(printf '%s' "$team" | tr 'A-Z' 'a-z' | tr -d '[:space:]' | sed -e 's#^https\?://##' -e 's#/*$##')"
 case "$team" in *.cloudflareaccess.com) ;; *) team="$team.cloudflareaccess.com" ;; esac
 printf '%s' "$team" | grep -Eq '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.cloudflareaccess\.com$' ||
   die "the team name '$team' is not valid (letters, digits, dashes)"
@@ -174,7 +174,8 @@ if [ "$new_token" = 1 ]; then
       else
         echo "    http://<the Pi's Tailscale name>:3000/?token=$token"
       fi
-      echo "  The browser remembers it and takes the token out of the address bar."
+      echo "  The browser remembers it and takes the token out of the address bar, but its history may still list"
+      echo "  this first visit: open the link in a private window, or delete that history entry afterwards."
       echo "  It is also in $file (root and the foundry group can read it)."
       echo
     } >/dev/tty

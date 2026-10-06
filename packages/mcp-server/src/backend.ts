@@ -376,6 +376,7 @@ async function startBackend(): Promise<void> {
     preflight: preflightTools,
     guardedWrites,
     tarokka: tarokkaService,
+    vaultDir: obsidianVaultDir,
     logger,
   });
   const partyTools = new PartyTools({ foundryClient, guardedWrites, logger });

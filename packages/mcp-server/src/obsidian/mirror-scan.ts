@@ -72,7 +72,7 @@ export interface ScanOptions {
 // Frontmatter: only the few keys the scan needs
 // ---------------------------------------------------------------------------
 
-interface HeadValues {
+export interface HeadValues {
   type: string | null;
   fvtt_uuid: string | null;
   fvtt_sig: string | null;
@@ -80,6 +80,10 @@ interface HeadValues {
   name: string | null;
   folder: string | null;
   generated_by: string | null;
+  /** The GM's prep switch (R3): "false" keeps a prep note out of the AI context. */
+  ai_context: string | null;
+  /** A prep note's own date (session plans), as written. */
+  date: string | null;
 }
 
 const KEYS: ReadonlySet<string> = new Set([
@@ -90,6 +94,8 @@ const KEYS: ReadonlySet<string> = new Set([
   'name',
   'folder',
   'generated_by',
+  'ai_context',
+  'date',
 ]);
 
 /** A YAML double-quoted scalar (ours are JSON-quoted); trailing comment ignored. */
@@ -170,6 +176,8 @@ export function parseFrontmatter(head: string): FrontmatterResult {
     name: null,
     folder: null,
     generated_by: null,
+    ai_context: null,
+    date: null,
   };
   const seen = new Set<string>();
   for (let i = 1; i < lines.length; i++) {
@@ -187,7 +195,7 @@ export function parseFrontmatter(head: string): FrontmatterResult {
 }
 
 /** The leading frontmatter values of a note file, or null when it has none. */
-async function readFrontmatter(full: string): Promise<HeadValues | null> {
+export async function readFrontmatter(full: string): Promise<HeadValues | null> {
   const handle = await fsp.open(full, 'r');
   try {
     const head = Buffer.alloc(SCAN_HEAD_BYTES);
@@ -225,6 +233,7 @@ interface Walk {
   takenPaths: Set<string>;
   limitsHit: Set<'files' | 'depth'>;
   errors: Array<{ path: string; error: string }>;
+  skipDir: ((rel: string) => boolean) | undefined;
 }
 
 async function walk(dirFull: string, dirRel: string, depth: number, state: Walk): Promise<void> {
@@ -257,6 +266,7 @@ async function walk(dirFull: string, dirRel: string, depth: number, state: Walk)
       if (name.startsWith('.')) continue; // .trash, .obsidian, .git ...
       // The Library and the image copies have their own scan (thousands of files, no mirror notes).
       if (rel === LIBRARY_ROOT || rel === ATTACHMENTS_ROOT) continue;
+      if (state.skipDir?.(rel)) continue;
       if (depth >= state.maxDepth) {
         state.limitsHit.add('depth');
         continue;
@@ -271,7 +281,7 @@ async function walk(dirFull: string, dirRel: string, depth: number, state: Walk)
 }
 
 /** Run `fn` over `items` with a small pool, keeping result order. */
-async function mapLimit<T, R>(
+export async function mapLimit<T, R>(
   items: T[],
   limit: number,
   fn: (item: T) => Promise<R>
@@ -303,7 +313,8 @@ type Classified =
 
 const IGNORE: Classified = { kind: 'ignore' };
 
-function isPrepType(type: string): boolean {
+/** A GM prep note type: `session-plan`, or any type ending in `-prep`. */
+export function isPrepType(type: string): boolean {
   return type === 'session-plan' || type.endsWith('-prep');
 }
 
@@ -366,15 +377,29 @@ function pickWinners(sorted: ScannedNote[], duplicates: ScannedNote[]): Map<stri
   return winners;
 }
 
+/** What {@link walkCampaign} found: the campaign's Markdown files, in path order. */
+export interface CampaignWalk {
+  /** The campaign folder with forward slashes. */
+  root: string;
+  /** Campaign-relative paths of the `.md` files, in path order (UTF-16 code units). */
+  markdown: string[];
+  takenPaths: Set<string>;
+  fileCount: number;
+  limitsHit: Array<'files' | 'depth'>;
+  errors: Array<{ path: string; error: string }>;
+}
+
 /**
- * Scan one world's campaign folder. An absent folder gives an empty scan; a
- * campaign folder that is itself a link is not followed (recorded in `errors`).
+ * Walk one world's campaign folder with the scan's rules (no links, no dot
+ * folders, no Library or image copies, capped). An absent folder gives an empty
+ * walk; a campaign folder that is itself a link is not followed (in `errors`).
+ * `skipDir` leaves out more folders by campaign-relative path.
  */
-export async function scanCampaign(
+export async function walkCampaign(
   vaultDir: string,
   worldId: string,
-  options: ScanOptions = {}
-): Promise<MirrorScan> {
+  options: ScanOptions & { skipDir?: (rel: string) => boolean } = {}
+): Promise<CampaignWalk> {
   const root = campaignDir(vaultDir, worldId).replace(/\\/g, '/');
   const state: Walk = {
     maxDepth: options.maxDepth ?? SCAN_MAX_DEPTH,
@@ -384,7 +409,43 @@ export async function scanCampaign(
     takenPaths: new Set(),
     limitsHit: new Set(),
     errors: [],
+    skipDir: options.skipDir,
   };
+  const result = (): CampaignWalk => ({
+    root,
+    markdown: state.markdown.sort(byCodeUnits),
+    takenPaths: state.takenPaths,
+    fileCount: state.fileCount,
+    limitsHit: [...state.limitsHit].sort(),
+    errors: state.errors,
+  });
+
+  const rootStat = await fsp.lstat(root).catch(error => {
+    if (errorCode(error) === 'ENOENT') return null;
+    throw error;
+  });
+  if (!rootStat) return result();
+  if (rootStat.isSymbolicLink()) {
+    state.errors.push({ path: '', error: 'The campaign folder is a link; not scanned' });
+    return result();
+  }
+  if (!rootStat.isDirectory()) return result();
+
+  await walk(root, '', 0, state);
+  return result();
+}
+
+/**
+ * Scan one world's campaign folder. An absent folder gives an empty scan; a
+ * campaign folder that is itself a link is not followed (recorded in `errors`).
+ */
+export async function scanCampaign(
+  vaultDir: string,
+  worldId: string,
+  options: ScanOptions = {}
+): Promise<MirrorScan> {
+  const walked = await walkCampaign(vaultDir, worldId, options);
+  const { root, markdown } = walked;
   const scan: MirrorScan = {
     mirror: new Map(),
     pages: new Map(),
@@ -392,28 +453,12 @@ export async function scanCampaign(
     stats: new Map(),
     movedByGm: [],
     duplicates: [],
-    takenPaths: state.takenPaths,
-    fileCount: 0,
-    limitsHit: [],
-    errors: state.errors,
+    takenPaths: walked.takenPaths,
+    fileCount: walked.fileCount,
+    limitsHit: walked.limitsHit,
+    errors: walked.errors,
   };
 
-  const rootStat = await fsp.lstat(root).catch(error => {
-    if (errorCode(error) === 'ENOENT') return null;
-    throw error;
-  });
-  if (!rootStat) return scan;
-  if (rootStat.isSymbolicLink()) {
-    state.errors.push({ path: '', error: 'The campaign folder is a link; not scanned' });
-    return scan;
-  }
-  if (!rootStat.isDirectory()) return scan;
-
-  await walk(root, '', 0, state);
-  scan.fileCount = state.fileCount;
-  scan.limitsHit = [...state.limitsHit].sort();
-
-  const markdown = state.markdown.sort(byCodeUnits);
   const classified = await mapLimit(markdown, READ_CONCURRENCY, rel => classify(root, rel));
   const topLevel: ScannedNote[] = [];
   const pageNotes: ScannedNote[] = [];

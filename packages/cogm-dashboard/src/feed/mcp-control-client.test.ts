@@ -146,3 +146,87 @@ describe('McpControlClient.recordUsage (I-084)', () => {
     expect((error as Error).message).toMatch(/unknown method/i);
   });
 });
+
+describe('McpControlClient reply size (large worlds)', () => {
+  /** Answers ping itself and hands each call_tool to `onCall`, which writes raw bytes. */
+  async function replyServer(
+    onCall: (socket: net.Socket, id: string) => void | Promise<void>
+  ): Promise<number> {
+    const server = net.createServer(socket => {
+      let buffer = '';
+      socket.setEncoding('utf8');
+      socket.on('error', () => undefined);
+      socket.on('data', (chunk: string) => {
+        buffer += chunk;
+        let idx: number;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+          const req = JSON.parse(buffer.slice(0, idx)) as { id: string; method: string };
+          buffer = buffer.slice(idx + 1);
+          if (req.method === 'ping') {
+            socket.write(`${JSON.stringify({ id: req.id, result: { ok: true } })}\n`);
+          } else if (req.method === 'call_tool') {
+            void onCall(socket, req.id);
+          }
+        }
+      });
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    cleanup.push(() => server.close());
+    return (server.address() as net.AddressInfo).port;
+  }
+
+  const toolReply = (id: string, text: string): string =>
+    `${JSON.stringify({ id, result: { content: [{ type: 'text', text }] } })}\n`;
+
+  it('a 2 MB reply delivered in many chunks resolves and keeps the channel up', async () => {
+    const big = JSON.stringify({ rows: 'x'.repeat(2_000_000) });
+    const port = await replyServer(async (socket, id) => {
+      const frame = toolReply(id, big);
+      for (let i = 0; i < frame.length; i += 64 * 1024) {
+        socket.write(frame.slice(i, i + 64 * 1024));
+        await new Promise(resolve => setImmediate(resolve));
+      }
+    });
+    const client = await connectedClient(port, 5_000);
+    let dropped = false;
+    client.on('disconnected', () => {
+      dropped = true;
+    });
+
+    const result = await client.callTool<{ rows: string }>('get-play-stats');
+    expect(result.rows).toHaveLength(2_000_000);
+    expect(await client.ping()).toBe(true);
+    expect(dropped).toBe(false);
+  });
+
+  it('two replies in one chunk both resolve', async () => {
+    const ids: string[] = [];
+    const port = await replyServer((socket, id) => {
+      ids.push(id);
+      if (ids.length === 2) {
+        socket.write(toolReply(ids[0], '"first"') + toolReply(ids[1], '"second"'));
+      }
+    });
+    const client = await connectedClient(port, 5_000);
+
+    const [a, b] = await Promise.all([client.callTool('a'), client.callTool('b')]);
+    expect(a).toBe('first');
+    expect(b).toBe('second');
+  });
+
+  it('a line that never ends past the cap fails the connection and the pending call', async () => {
+    const port = await replyServer(async socket => {
+      const piece = 'y'.repeat(8 * 1024 * 1024);
+      for (let i = 0; i < 5; i += 1) {
+        if (socket.destroyed) return;
+        socket.write(piece);
+        await new Promise(resolve => setImmediate(resolve));
+      }
+    });
+    const client = await connectedClient(port, 10_000);
+    const disconnected = new Promise<void>(resolve => client.once('disconnected', () => resolve()));
+
+    await expect(client.callTool('get-play-stats')).rejects.toBeInstanceOf(ChannelError);
+    await disconnected;
+  });
+});

@@ -284,7 +284,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         world: () => (world ? { id: world.id, title: world.title } : null),
         players: () => playerDirectory.list(),
         refreshPlayers: () => playerDirectory.refreshIfStale(),
-        handouts: () => playerView.handouts,
+        handouts: userId => playerView.handoutsFor(userId),
+        handoutsReady: () => playerView.handoutsReady,
         theme: worldId => themes.get(worldId),
       })
     : null;

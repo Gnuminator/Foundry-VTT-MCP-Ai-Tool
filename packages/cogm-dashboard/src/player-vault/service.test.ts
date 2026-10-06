@@ -108,6 +108,7 @@ interface Rig {
     world: { id: string; title: string } | null;
     players: VaultPlayer[];
     handouts: PlayerHandout[];
+    handoutsReady: boolean;
     theme: ThemeId;
     connected: boolean;
     sessionLog: SessionEvent[];
@@ -133,6 +134,7 @@ function makeRig(): Rig {
     world: { id: 'w1', title: 'Barovia' },
     players: [ALICE, BOB],
     handouts: [],
+    handoutsReady: true,
     theme: 'neutral',
     connected: true,
     sessionLog: [],
@@ -177,6 +179,7 @@ function makeRig(): Rig {
     world: () => state.world,
     players: () => state.players,
     handouts: () => state.handouts,
+    handoutsReady: () => state.handoutsReady,
     theme: () => state.theme,
     snippetDir,
   });
@@ -290,6 +293,52 @@ describe('PlayerVaultService: writing', () => {
     const result = await rig.svc.rebuild();
     expect(result.written.sort()).toEqual(['Alice', 'Bob']);
     expect(await listFiles(path.join(rig.root, 'Alice'))).not.toContain('Handouts/A letter.md');
+  });
+});
+
+describe('PlayerVaultService: waits for the handouts', () => {
+  it('writes nothing until the handout source has answered once', async () => {
+    const rig = makeRig();
+    rig.state.handoutsReady = false;
+    rig.state.handouts = [handout({ title: 'A letter' })];
+    rig.svc.onEvents([pcRoll('r1', 'Ireena, Perception: 1d20 = 12')]);
+    const early = await rig.svc.rebuild();
+    expect(early).toEqual({ written: [], unchanged: [], failed: [], waiting: true });
+    expect(await exists(rig.root)).toBe(false);
+    expect(rig.sheetCalls).toEqual([]);
+    // The log is still collected while it waits.
+    expect(rig.store.sessions('w1')).toHaveLength(1);
+
+    rig.state.handoutsReady = true;
+    const ready = await rig.svc.rebuild();
+    expect(ready.waiting).toBeUndefined();
+    expect(ready.written.sort()).toEqual(['Alice', 'Bob']);
+    expect(await listFiles(path.join(rig.root, 'Alice'))).toContain('Handouts/A letter.md');
+  });
+
+  it("asks for each player's own handouts", async () => {
+    const rig = makeRig();
+    const asked: string[] = [];
+    const svc = new PlayerVaultService({
+      rootDir: rig.root,
+      intervalMs: 60_000,
+      client: { callTool: (): Promise<never> => Promise.resolve({ events: [] }) as never },
+      logger,
+      store: rig.store,
+      world: (): { id: string; title: string } | null => rig.state.world,
+      players: (): VaultPlayer[] => rig.state.players,
+      handouts: (userId: string): PlayerHandout[] => {
+        asked.push(userId);
+        return [handout({ title: userId === ALICE.userId ? 'For Alice' : 'For Bob' })];
+      },
+      theme: (): ThemeId => 'neutral',
+      snippetDir: rig.snippetDir,
+    });
+    await svc.rebuild();
+    expect(asked.sort()).toEqual([ALICE.userId, BOB.userId]);
+    expect(await listFiles(path.join(rig.root, 'Alice'))).toContain('Handouts/For Alice.md');
+    expect(await listFiles(path.join(rig.root, 'Alice'))).not.toContain('Handouts/For Bob.md');
+    expect(await listFiles(path.join(rig.root, 'Bob'))).toContain('Handouts/For Bob.md');
   });
 });
 

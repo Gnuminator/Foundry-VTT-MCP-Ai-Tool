@@ -26,6 +26,8 @@ const GM_ID = 'gggggggggggggggg';
 
 const REVEALED_UUID = 'JournalEntry.jjjjjjjjjjjjjjjj.JournalEntryPage.rrrrrrrrrrrrrrrr';
 const UNREVEALED_UUID = 'JournalEntry.jjjjjjjjjjjjjjjj.JournalEntryPage.uuuuuuuuuuuuuuuu';
+/** A page revealed to Bob only: Alice's and the public handout link to it. */
+const BOB_PAGE_UUID = 'JournalEntry.jjjjjjjjjjjjjjjj.JournalEntryPage.bbbbbbbbbbbbbbbb';
 
 const T0 = new Date(2026, 9, 3, 20, 0, 0).getTime();
 
@@ -51,9 +53,13 @@ const GM_CANARIES = {
   gmCharacter: 'CANARY_GM_CHARACTER_4be6',
 } as const;
 
-// Canaries that belong to Bob (his handout and his sheet): Alice may not see them.
+// Canaries that belong to Bob (his handout and his sheet): Alice may not see them. The page
+// title and the link label are those of the page revealed to Bob only; links to it sit in
+// Alice's handout and in the public one.
 const BOB_CANARIES = {
   handout: 'CANARY_B_ONLY_HANDOUT_83d4',
+  pageTitle: 'CANARY_B_PAGE_TITLE_4d71',
+  linkLabel: 'CANARY_B_PAGE_LINK_LABEL_a93e',
   sheetName: 'CANARY_B_SHEET_NAME_c71a',
   biography: 'CANARY_B_BIOGRAPHY_2e95',
 } as const;
@@ -63,6 +69,7 @@ const ALICE_ONLY_TEXT = 'ALICE_ONLY_LETTER_TEXT_5f08';
 
 // Public text that must reach the player folders.
 const PUBLIC_LETTER = 'PUBLIC_LETTER_TEXT_9b12';
+const PUBLIC_NOTICE = 'PUBLIC_NOTICE_TEXT_61c0';
 const PUBLIC_LINK_LABEL = 'Open Door';
 const PUBLIC_EVENT_TEXT = 'Ireena, Attack: 1d20+5 = 17';
 const PUBLIC_EVENT_TEXT_2 = 'Ireena, Perception: 1d20+3 = 12';
@@ -280,18 +287,26 @@ function makeSource(): {
         html:
           `<p>${PUBLIC_LETTER} ${ALICE_ONLY_TEXT}</p>` +
           `<p data-note="${GM_CANARIES.attribute}">See @UUID[${UNREVEALED_UUID}]{${GM_CANARIES.unrevealedLinkLabel}} ` +
-          `and @UUID[${REVEALED_UUID}]{${PUBLIC_LINK_LABEL}}.</p>` +
+          `and @UUID[${REVEALED_UUID}]{${PUBLIC_LINK_LABEL}} ` +
+          `and @UUID[${BOB_PAGE_UUID}]{${BOB_CANARIES.linkLabel}}.</p>` +
           `<section class="secret" id="secret-1"><p>${GM_CANARIES.secretSection}</p></section>`,
       },
       {
         id: 'handout-bob',
-        title: 'Bob Private Note',
+        uuid: BOB_PAGE_UUID,
+        title: `Bob Private Note ${BOB_CANARIES.pageTitle}`,
         revealedAt: '2026-10-03T19:05:00.000Z',
         players: [BOB_ID],
         html: `<p>${BOB_CANARIES.handout}</p>`,
       },
+      {
+        id: 'handout-public',
+        title: 'Town Notice',
+        revealedAt: '2026-10-03T19:10:00.000Z',
+        html: `<p>${PUBLIC_NOTICE} Ask @UUID[${BOB_PAGE_UUID}]{${BOB_CANARIES.linkLabel}}.</p>`,
+      },
     ],
-    revealedUuids: [REVEALED_UUID],
+    revealedUuids: [REVEALED_UUID, BOB_PAGE_UUID],
   };
   const visibility = {
     schema: 1,
@@ -554,6 +569,12 @@ describe('O7 player vault spoiler canary (real createDashboard path)', () => {
     expect(has(b, BOB_CANARIES.handout), `missing ${BOB_CANARIES.handout}`).toBe(true);
     expect(has(b, BOB_CANARIES.sheetName), `missing ${BOB_CANARIES.sheetName}`).toBe(true);
     expect(has(b, ALICE_SHEET_NAME)).toBe(false);
+    // The page revealed to Bob only: its title and its link label reach Bob (the label through
+    // the public handout), never Alice, who still gets the public handout itself.
+    expect(has(a, PUBLIC_NOTICE), `missing ${PUBLIC_NOTICE}`).toBe(true);
+    expect(has(b, PUBLIC_NOTICE), `missing ${PUBLIC_NOTICE}`).toBe(true);
+    expect(has(b, BOB_CANARIES.pageTitle), `missing ${BOB_CANARIES.pageTitle}`).toBe(true);
+    expect(has(b, BOB_CANARIES.linkLabel), `missing ${BOB_CANARIES.linkLabel}`).toBe(true);
 
     // Control: the canaries really sat in the data the fake bridge could serve.
     const served = JSON.stringify(source);

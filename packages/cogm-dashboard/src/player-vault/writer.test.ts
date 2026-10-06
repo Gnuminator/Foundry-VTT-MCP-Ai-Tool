@@ -60,7 +60,8 @@ describe('writePlayerVault', () => {
       userId: ALICE.userId,
       name: 'Alice',
       generatedBy: 'foundry-ai-tool',
-      schema: 1,
+      schema: 2,
+      files: ['.obsidian/app.json', 'Handouts/Letter.md', 'Home.md'],
     });
   });
 
@@ -69,7 +70,7 @@ describe('writePlayerVault', () => {
     expect(await fsp.readFile(path.join(folder, 'a.md'), 'utf8')).toBe('Blåbærgrød æøå');
   });
 
-  it('replaces old content fully and leaves no temp or old folders', async () => {
+  it('replaces old content fully and leaves no temp files or old folders', async () => {
     await writePlayerVault(
       root,
       ALICE,
@@ -187,11 +188,124 @@ describe('writePlayerVault', () => {
     expect(await fsp.readdir(root)).toEqual(['Alice']);
   });
 
-  it('cleans the temp folder when writing a file fails', async () => {
+  it('refuses a map that needs a folder where it has a file, before writing anything', async () => {
     // A file path that needs a folder where the map has a file: "a" then "a/b".
     await expect(
       writePlayerVault(root, ALICE, files({ a: 'file', 'a/b.md': 'nested' }), logger)
     ).rejects.toThrow();
+    expect(await fsp.readdir(root)).toEqual([]);
+  });
+});
+
+describe('writePlayerVault in place (Syncthing)', () => {
+  it('keeps the folder itself and the Syncthing files over two rebuilds', async () => {
+    const folder = await writePlayerVault(root, ALICE, files({ 'Home.md': 'v1' }), logger);
+    // What Syncthing puts in a shared folder: a marker folder, an ignore file, old versions.
+    await fsp.mkdir(path.join(folder, '.stfolder'));
+    await fsp.writeFile(path.join(folder, '.stignore'), '*.tmp\n');
+    await fsp.mkdir(path.join(folder, '.stversions', 'Handouts'), { recursive: true });
+    await fsp.writeFile(path.join(folder, '.stversions', 'Handouts', 'old.md'), 'old');
+    const before = await fsp.stat(folder);
+
+    await writePlayerVault(root, ALICE, files({ 'Home.md': 'v2', 'New.md': 'n' }), logger);
+    await writePlayerVault(root, ALICE, files({ 'Home.md': 'v3' }), logger);
+
+    const after = await fsp.stat(folder);
+    expect(after.ino).toBe(before.ino);
+    expect(after.birthtimeMs).toBe(before.birthtimeMs);
+    expect((await fsp.stat(path.join(folder, '.stfolder'))).isDirectory()).toBe(true);
+    expect(await fsp.readFile(path.join(folder, '.stignore'), 'utf8')).toBe('*.tmp\n');
+    expect(await fsp.readFile(path.join(folder, '.stversions', 'Handouts', 'old.md'), 'utf8')).toBe(
+      'old'
+    );
+    expect(await fsp.readFile(path.join(folder, 'Home.md'), 'utf8')).toBe('v3');
+    expect(await listAll(folder)).toEqual([
+      PLAYER_MARKER_FILE,
+      '.stignore',
+      '.stversions/Handouts/old.md',
+      'Home.md',
+    ]);
+    expect(await fsp.readdir(root)).toEqual(['Alice']);
+  });
+
+  it('does not rewrite unchanged files (their mtime stays), rewrites changed ones', async () => {
+    const folder = await writePlayerVault(
+      root,
+      ALICE,
+      files({ 'same.md': 'same', 'changes.md': 'v1' }),
+      logger
+    );
+    const old = new Date(Date.now() - 60_000);
+    for (const f of ['same.md', 'changes.md', PLAYER_MARKER_FILE]) {
+      await fsp.utimes(path.join(folder, f), old, old);
+    }
+    const mtime = async (f: string): Promise<number> =>
+      (await fsp.stat(path.join(folder, f))).mtimeMs;
+    const sameBefore = await mtime('same.md');
+    const markerBefore = await mtime(PLAYER_MARKER_FILE);
+
+    await writePlayerVault(root, ALICE, files({ 'same.md': 'same', 'changes.md': 'v2' }), logger);
+    expect(await mtime('same.md')).toBe(sameBefore);
+    expect(await mtime(PLAYER_MARKER_FILE)).toBe(markerBefore);
+    expect(await mtime('changes.md')).toBeGreaterThan(sameBefore);
+    expect(await fsp.readFile(path.join(folder, 'changes.md'), 'utf8')).toBe('v2');
+    // No temp files are left next to the notes.
+    expect(await listAll(folder)).toEqual([PLAYER_MARKER_FILE, 'changes.md', 'same.md']);
+  });
+
+  it('deletes notes that left the map and the folders they leave empty', async () => {
+    const folder = await writePlayerVault(
+      root,
+      ALICE,
+      files({ 'Home.md': 'h', 'Handouts/A.md': 'a', 'Log/2026/S1.md': 's' }),
+      logger
+    );
+    await writePlayerVault(root, ALICE, files({ 'Home.md': 'h' }), logger);
+    expect(await listAll(folder)).toEqual([PLAYER_MARKER_FILE, 'Home.md']);
+    expect((await fsp.readdir(folder)).sort()).toEqual([PLAYER_MARKER_FILE, 'Home.md']);
+    const marker = JSON.parse(await fsp.readFile(path.join(folder, PLAYER_MARKER_FILE), 'utf8'));
+    expect(marker.files).toEqual(['Home.md']);
+  });
+
+  it('keeps files and folders the GM or the player put there', async () => {
+    const folder = await writePlayerVault(
+      root,
+      ALICE,
+      files({ 'Home.md': 'h', 'Handouts/A.md': 'a' }),
+      logger
+    );
+    await fsp.writeFile(path.join(folder, 'My notes.md'), 'mine');
+    await fsp.writeFile(path.join(folder, 'Handouts', 'Player sketch.md'), 'sketch');
+    await fsp.mkdir(path.join(folder, 'Empty by player'));
+
+    await writePlayerVault(root, ALICE, files({ 'Home.md': 'h2' }), logger);
+    expect(await fsp.readFile(path.join(folder, 'My notes.md'), 'utf8')).toBe('mine');
+    expect(await fsp.readFile(path.join(folder, 'Handouts', 'Player sketch.md'), 'utf8')).toBe(
+      'sketch'
+    );
+    expect((await fsp.stat(path.join(folder, 'Empty by player'))).isDirectory()).toBe(true);
+    expect(await listAll(folder)).toEqual([
+      PLAYER_MARKER_FILE,
+      'Handouts/Player sketch.md',
+      'Home.md',
+      'My notes.md',
+    ]);
+  });
+
+  it('keeps a note whose name changed only in case', async () => {
+    const folder = await writePlayerVault(root, ALICE, files({ 'letter.md': 'x' }), logger);
+    await writePlayerVault(root, ALICE, files({ 'Letter.md': 'y' }), logger);
+    const names = (await fsp.readdir(folder)).filter(n => n.toLowerCase() === 'letter.md');
+    expect(names).toHaveLength(1);
+    expect(await fsp.readFile(path.join(folder, names[0]), 'utf8')).toBe('y');
+  });
+
+  it('refuses Syncthing names in the file map', async () => {
+    for (const bad of ['.stignore', '.stfolder/x', 'a/.stversions/b.md']) {
+      await expect(writePlayerVault(root, ALICE, files({ [bad]: 'x' }), logger)).rejects.toThrow(
+        /Syncthing/
+      );
+    }
     expect(await fsp.readdir(root)).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-import { promises as fsp, readFileSync, writeFileSync } from 'fs';
+import { promises as fsp, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
@@ -6,7 +6,12 @@ import type { PlayerEvent } from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { Logger } from '../logger.js';
-import { PLAYER_LOG_MAX_EVENTS, PLAYER_LOG_SESSION_GAP_MS, PlayerLogStore } from './log-store.js';
+import {
+  PLAYER_LOG_MAX_SESSION_EVENTS,
+  PLAYER_LOG_SESSION_GAP_MS,
+  PLAYER_LOG_TRIMMED_TYPE,
+  PlayerLogStore,
+} from './log-store.js';
 
 const logger = new Logger('error');
 const HOUR = 60 * 60 * 1000;
@@ -14,6 +19,11 @@ const T0 = new Date(2026, 9, 3, 10, 0, 0).getTime();
 
 function ev(id: string, timestampMs: number, text = `text ${id}`): PlayerEvent {
   return { id, timestampMs, type: 'chat', text };
+}
+
+/** The day file an event at `ms` is stored in (UTC day), below the world folder. */
+function dayFile(base: string, world: string, ms: number): string {
+  return path.join(base, world, `${new Date(ms).toISOString().slice(0, 10)}.jsonl`);
 }
 
 let dir: string;
@@ -48,7 +58,7 @@ describe('PlayerLogStore', () => {
       'timestampMs',
       'type',
     ]);
-    const stored = readFileSync(path.join(dir, 'w.jsonl'), 'utf8');
+    const stored = readFileSync(dayFile(dir, 'w', T0), 'utf8');
     expect(stored).not.toContain('secret');
     expect(stored).not.toContain('actorId');
   });
@@ -98,7 +108,7 @@ describe('PlayerLogStore', () => {
     const store = new PlayerLogStore(nested, logger);
     store.append('w', [ev('a', T0)]);
     await store.flush();
-    expect(readFileSync(path.join(nested, 'w.jsonl'), 'utf8')).toContain('"id":"a"');
+    expect(readFileSync(dayFile(nested, 'w', T0), 'utf8')).toContain('"id":"a"');
   });
 
   it('skips malformed lines when loading', () => {
@@ -109,7 +119,8 @@ describe('PlayerLogStore', () => {
       '',
       JSON.stringify(ev('c', T0 + 1)),
     ];
-    writeFileSync(path.join(dir, 'w.jsonl'), `${lines.join('\n')}\n`);
+    mkdirSync(path.join(dir, 'w'));
+    writeFileSync(dayFile(dir, 'w', T0), `${lines.join('\n')}\n`);
     const store = new PlayerLogStore(dir, logger);
     expect(store.sessions('w')[0].events.map(e => e.id)).toEqual(['a', 'c']);
   });
@@ -156,31 +167,79 @@ describe('PlayerLogStore', () => {
     expect(store.sessions('two')[0].events[0].id).toBe('b');
   });
 
-  it('drops the oldest events beyond the cap and rewrites the file', async () => {
+  it('keeps all of 40 long sessions and only appends on each new event', async () => {
     const store = new PlayerLogStore(dir, logger);
-    const first: PlayerEvent[] = [];
-    for (let i = 1; i <= PLAYER_LOG_MAX_EVENTS; i++) first.push(ev(`e${i}`, T0 + i));
-    store.append('w', first);
-    expect(
-      store.append('w', [
-        ev('new1', T0 + PLAYER_LOG_MAX_EVENTS + 1),
-        ev('new2', T0 + PLAYER_LOG_MAX_EVENTS + 2),
-      ])
-    ).toBe(2);
+    const DAY = 24 * HOUR;
+    for (let s = 0; s < 40; s++) {
+      const start = T0 + s * 7 * DAY;
+      const batch: PlayerEvent[] = [];
+      for (let i = 0; i < 600; i++) batch.push(ev(`s${s}-e${i}`, start + i * 1000));
+      store.append('w', batch);
+    }
     await store.flush();
+    const sessions = store.sessions('w');
+    expect(sessions).toHaveLength(40);
+    expect(sessions.every(s => s.events.length === 600)).toBe(true);
+    expect(sessions[0].events[0].id).toBe('s0-e0');
+    // One file per day, under the world folder.
+    expect((await fsp.readdir(path.join(dir, 'w'))).length).toBe(40);
 
-    const events = store.sessions('w').flatMap(s => s.events);
-    expect(events).toHaveLength(PLAYER_LOG_MAX_EVENTS);
-    expect(events[0].id).toBe('e3');
-    expect(events[events.length - 1].id).toBe('new2');
+    // A new event appends to its own day file; the older day files are not rewritten.
+    const firstFile = dayFile(dir, 'w', T0);
+    const old = new Date(Date.now() - 60_000);
+    await fsp.utimes(firstFile, old, old);
+    const before = (await fsp.stat(firstFile)).mtimeMs;
+    const last = T0 + 39 * 7 * DAY + 600 * 1000;
+    store.append('w', [ev('late', last)]);
+    await store.flush();
+    expect((await fsp.stat(firstFile)).mtimeMs).toBe(before);
+    expect(readFileSync(dayFile(dir, 'w', last), 'utf8')).toContain('"late"');
 
-    const lines = readFileSync(path.join(dir, 'w.jsonl'), 'utf8').trim().split('\n');
-    expect(lines).toHaveLength(PLAYER_LOG_MAX_EVENTS);
-    expect(lines[0]).toContain('"e3"');
-    expect(await fsp.readdir(dir)).toEqual(['w.jsonl']);
+    const reloaded = new PlayerLogStore(dir, logger);
+    expect(reloaded.sessions('w')).toHaveLength(40);
+    expect(reloaded.sessions('w').flatMap(s => s.events)).toHaveLength(40 * 600 + 1);
+  });
 
-    // A dropped id is new again if it comes back.
-    expect(store.append('w', [ev('e1', T0 + 1)])).toBe(1);
+  it('trims only a session over the per-session cap, oldest first, with a note', async () => {
+    const cap = 100;
+    const store = new PlayerLogStore(dir, logger, { maxSessionEvents: cap });
+    const small = [ev('old-1', T0 - 10 * HOUR), ev('old-2', T0 - 10 * HOUR + 1000)];
+    const big: PlayerEvent[] = [];
+    for (let i = 0; i < 130; i++) big.push(ev(`b${String(i).padStart(3, '0')}`, T0 + i * 1000));
+    store.append('w', [...small, ...big]);
+
+    const sessions = store.sessions('w');
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0].events.map(e => e.id)).toEqual(['old-1', 'old-2']);
+    const trimmed = sessions[1].events;
+    expect(trimmed[0].type).toBe(PLAYER_LOG_TRIMMED_TYPE);
+    expect(trimmed[0].text).toMatch(/^40 earlier events .* last 100 per session/);
+    const real = trimmed.slice(1);
+    expect(real).toHaveLength(90);
+    expect(real[0].id).toBe('b040');
+    expect(real[real.length - 1].id).toBe('b129');
+
+    // A second trim adds up the count in one note; the small session is never touched.
+    const more: PlayerEvent[] = [];
+    for (let i = 130; i < 150; i++) more.push(ev(`b${i}`, T0 + i * 1000));
+    store.append('w', more);
+    const again = store.sessions('w');
+    expect(again[0].events.map(e => e.id)).toEqual(['old-1', 'old-2']);
+    const notes = again[1].events.filter(e => e.type === PLAYER_LOG_TRIMMED_TYPE);
+    expect(notes).toHaveLength(1);
+    expect(notes[0].text).toMatch(/^60 earlier events/);
+    expect(again[1].events.filter(e => e.type !== PLAYER_LOG_TRIMMED_TYPE)).toHaveLength(90);
+    // A dropped event that comes back in this process stays dropped.
+    expect(store.append('w', [ev('b000', T0)])).toBe(0);
+
+    // The rewritten files hold the same log after a restart.
+    await store.flush();
+    const reloaded = new PlayerLogStore(dir, logger, { maxSessionEvents: cap });
+    expect(reloaded.sessions('w')).toEqual(again);
+  });
+
+  it('uses a generous default per-session cap', () => {
+    expect(PLAYER_LOG_MAX_SESSION_EVENTS).toBeGreaterThanOrEqual(5_000);
   });
 
   it('digest changes on new events and not on duplicates', () => {

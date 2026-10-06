@@ -52,8 +52,16 @@ export interface PlayerVaultServiceOptions {
   players: () => VaultPlayer[];
   /** Refresh the player list from the bridge when it is old. */
   refreshPlayers?: () => Promise<void>;
-  /** Revealed handouts, already sanitized (`PlayerViewSource.handouts`). */
-  handouts: () => PlayerHandout[];
+  /**
+   * The revealed handouts one player may see, sanitized with links cleaned for that player
+   * (`PlayerViewSource.handoutsFor`).
+   */
+  handouts: (userId: string) => PlayerHandout[];
+  /**
+   * False until the handout source has answered once (`PlayerViewSource.handoutsReady`); no vault
+   * is written before that, so an early pass never writes vaults without their handouts.
+   */
+  handoutsReady?: () => boolean;
   theme: (worldId: string) => ThemeId;
   /** Folder with `aitool-theme-<id>.css`; default {@link DEFAULT_SNIPPET_DIR}. */
   snippetDir?: string;
@@ -64,6 +72,8 @@ export interface PlayerVaultRebuild {
   written: string[];
   unchanged: string[];
   failed: string[];
+  /** True when the pass wrote nothing because the handouts were not loaded yet. */
+  waiting?: boolean;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -139,12 +149,15 @@ export class PlayerVaultService {
       this.pending = [];
     }
     await this.backfill(world.id);
+    if (this.options.handoutsReady && !this.options.handoutsReady()) {
+      result.waiting = true;
+      return result;
+    }
     await this.options.refreshPlayers?.().catch(() => undefined);
 
     const theme = this.options.theme(world.id);
     const css = this.snippet(theme);
     const sessions = this.options.store.sessions(world.id);
-    const handouts = this.options.handouts();
 
     for (const player of this.options.players()) {
       try {
@@ -157,7 +170,9 @@ export class PlayerVaultService {
         const input: PlayerVaultInput = {
           worldTitle: world.title,
           player,
-          handouts: handouts.filter(h => !h.players || h.players.includes(player.userId)),
+          handouts: this.options
+            .handouts(player.userId)
+            .filter(h => !h.players || h.players.includes(player.userId)),
           sheets,
           sessions,
           theme: { id: theme, css },

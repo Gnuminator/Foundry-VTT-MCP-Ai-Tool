@@ -42,7 +42,7 @@ test('all --fake builds the kit and every scenario passes', () => {
     assert.ok(report, 'a report was written');
     assert.equal(report.run.fake, true);
     assert.equal(report.summary.failed, 0);
-    assert.equal(report.summary.passed, 14, `passed ${report.summary.passed}`);
+    assert.equal(report.summary.passed, 18, `passed ${report.summary.passed}`);
     for (const s of report.scenarios) assert.equal(s.status, 'pass', `${s.id}: ${s.status}`);
     assert.equal(report.build.heroes.length, 6); // smoke: one level 5 hero per class
     assert.equal(report.build.monsters.length, 11);

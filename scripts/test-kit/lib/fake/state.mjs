@@ -51,6 +51,8 @@ export function createWorld({ world, moduleVersion }) {
       unresolved: /** @type {Set<string>} */ (new Set()),
       quirks: /** @type {Map<string, string>} */ (new Map()),
       restNoPact: false,
+      /** quirks of the origin actions (lib/fake/origins.mjs): "<quirk>" or "<quirk>:<name>" */
+      origin: /** @type {Set<string>} */ (new Set()),
       /** spell name -> a quirk of exerciseSpell (throws, noCard, noSlot, wrongSlot, drift, refuse, badData, skip, noActivity) */
       spellQuirks: /** @type {Map<string, string>} */ (new Map()),
     },

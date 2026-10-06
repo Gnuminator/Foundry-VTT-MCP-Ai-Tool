@@ -101,6 +101,13 @@ export const GM_ACTIONS = {
    * dnd5e.origins24 when no uuid is given. A Trait choice the system could not offer (every option
    * already taken) is a warning "<item>: <title> level N: x of y choice(s) left, every option is already
    * taken"; a Trait advancement with no choices gets no pick of ours.
+   * Additive (origins slice): `abilities` ({str..cha: number}) replaces the standard array; `speciesUuid` and `backgroundUuid`
+   * are applied to a new hero (and to an existing one only when given); `chooseSize: true` answers a Size advancement
+   * (option rotation % options, no k used; without it the system's default stays); `actorId` adds to an existing kit hero
+   * instead of making one (no new actor, no default origins, and the actor is kept on failure); `classUuid` may then be
+   * left out; `items: [{uuid, level?, subclassUuid?}]` are applied after the class through the same manager (a feat, or a
+   * second class at `level`, which is how a hero multiclasses). The reply also has `classes: [{identifier, levels,
+   * subclass}]` and `added: [{uuid, name, type}]`.
    */
   createHero: 'createHero',
   /**
@@ -111,6 +118,8 @@ export const GM_ACTIONS = {
    * {progression, ability} | null, spellSlots: {leveled: {"1": n, ...}, pact: {max, level} | null} | null
    * (the system's own table for a single-class caster), skillsChosen: number, subclassAt}.
    * Additive fields: grants.resolved, grants.optional, grants.why (an unresolved grant's reason), saves, spellSlots.
+   * Additive (origins slice): `multiclass: true` describes the class as a second class: the advancements marked primary-only
+   * (saving throws, the first skill choice) are left out, the multiclass-only ones are in, and every hit die level is the average.
    */
   describeClass: 'describeClass',
   /**
@@ -220,6 +229,30 @@ export const GM_ACTIONS = {
   adoptActor: 'adoptActor',
   /** ({actorId}) => {deleted: boolean} deletes an actor, only when it carries the kit flag. */
   deleteKitActor: 'deleteKitActor',
+  /**
+   * ({packIds, kind: 'species'|'background'|'feat'}) => {entries: [{packId, id, uuid, name, type, identifier, rules:
+   * '2024'|'2014'|'', book, featType?}], missing: string[]} the species (item type race), backgrounds or feats (item
+   * type feat whose type is "feat": class and species features are left out) of those packs, from the index (names and
+   * ids, no text). `featType` is the feat's subtype: origin, general, fightingStyle or epicBoon (general when unset).
+   */
+  listOrigins: 'listOrigins',
+  /**
+   * ({uuid, actorId?}) => {name, type, rules, featType, movement: {walk, fly, ...} | null, senses: {darkvision, ...} | null,
+   * creatureType, advancements: [{id, type, title, levels, classRestriction: 'primary'|'secondary'|'', grants?, choices?:
+   * [{count, pool}], mode?, items?: [{uuid, name, resolved, optional, playerFeat}], optional?, itemChoices?: [{level, count}],
+   * asi?: {points, cap, fixed, locked, max}, sizes?}], effects: [{name, transfer, disabled, changes, profs: ['weapon:mar', ...]}], activities:
+   * [{type, name}], uses, startingEquipment, primaryAbility: string[], primaryAll (a class needs all of them), hitDie, spellcasting: {progression, ability} | null,
+   * prerequisites: {level, repeatable} | null, actor?: {prerequisitesMet, detail}} what the data of one species,
+   * background, feat or class says (facts only; names of the item's own grants). With `actorId` the reply also says
+   * whether that actor meets a feat's prerequisites. Read only.
+   */
+  describeOrigin: 'describeOrigin',
+  /**
+   * ({actorId, name?, folderId?, abilityFloor?, drop?}) => {actorId, name} a copy of a kit hero (items and their advancement
+   * origins included), so one host hero can take many feats, one after the other. `abilityFloor` raises every ability score
+   * below it to it; `drop` is a list of item names to leave out of the copy. The copy carries the kit flag; deleteKitActor removes it. Refuses an actor without the kit flag.
+   */
+  cloneHero: 'cloneHero',
   /**
    * ({packIds}) => {entries: [{packId, id, uuid, name, level, school, rules: '2024'|'2014'|'', book, ritual,
    * concentration, activities: string[] (activity types), template: string (area shape or '')}],

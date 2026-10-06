@@ -20,7 +20,6 @@ import {
   STANDALONE_HELP,
 } from './standalone-config.js';
 import { waitForControlChannel } from './control-ping.js';
-import { foundryWebrtcPort } from './foundry-connector.js';
 
 async function main(): Promise<void> {
   let opts;
@@ -65,9 +64,7 @@ async function main(): Promise<void> {
     console.error(`✓ control channel ready on ${host}:${port}`);
     if (!controlOnly) {
       const linkPort = process.env.FOUNDRY_PORT ?? '31415';
-      console.error(
-        `  waiting for the Foundry module to connect (ws ${linkPort} / webrtc ${foundryWebrtcPort()})…`
-      );
+      console.error(`  waiting for the Foundry module to connect (ws ${linkPort})…`);
     }
   } else {
     console.error(

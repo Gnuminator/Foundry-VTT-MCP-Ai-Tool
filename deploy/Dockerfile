@@ -105,11 +105,8 @@ USER nodeapp
 #         Expose it if the Foundry host needs to reach the bridge directly.
 #         (Alternatively, run bridge and dashboard as separate services; see compose template.)
 #
-# 31416 — Foundry WebRTC signaling endpoint (HTTP POST). Same reach requirements as 31415.
-#
 EXPOSE 3000
 EXPOSE 31415
-EXPOSE 31416
 
 # ── Environment defaults ─────────────────────────────────────────────────────
 #

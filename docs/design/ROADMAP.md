@@ -139,7 +139,6 @@ Everything else outstanding is below, roughly in priority order.
 - [ ] Fix `link-quest-to-npc` silent no-op fallback (`tools/quest-creation.ts:888`) + real post-write verify.
 - [ ] Reject negative currency in `plan-scene-change` loot (`scene-plan.ts`).
 - [ ] `system-detection` — retry/expire the `'other'` cache instead of poisoning it forever (`utils/system-detection.ts:32`).
-- [ ] WebRTC incoming `chunked-message` reassembly (`foundry-module/src/webrtc-connection.ts`).
 - [ ] Fix the Foundry-mock 16-char-type id collision (`test-support/foundry-mock/documents.ts:88`).
 
 **Tests (High-risk untested files):**
@@ -167,13 +166,13 @@ Everything else outstanding is below, roughly in priority order.
 - Foundry stays on **molten-hosting** (remote); a separate later todo covers migrating it off.
 - **On the Pi:** the **standalone MCP backend** (`standalone.ts`, Foundry-link ON) + a **persistent
   headless-browser session** running the bridge module logged into the molten-hosted world + the
-  **co-GM dashboard**. All wire links (31414 control, 31415 WS, 31416 WebRTC) become **loopback on the
+  **co-GM dashboard**. All wire links (31414 control, 31415 WS) become **loopback on the
   Pi** — which dissolves the earlier cross-host / 0.0.0.0 exposure problem for those ports. Only the
   dashboard (:3000) is exposed externally, behind the reverse-proxy/tunnel + auth.
 - The dashboard is the AI surface (Anthropic API directly), so **Claude Desktop becomes optional**, not
   a dependency. A human can still point Claude Desktop at the Pi's backend over the VPN when wanted.
-- Because the module-browser and backend are co-located on the Pi, the **WebRTC path (31416) may be
-  droppable** — plain WebSocket over loopback should suffice. Evaluate.
+- Because the module-browser and backend are co-located on the Pi, the **WebRTC path (31416) was
+  dropped** (PB-09, 2026-10): plain WebSocket suffices.
 - Auth is **not** a from-scratch build: `cogm-dashboard/src/auth.ts` already has a shared GM/player
   token model (constant-time compared) + a Cloudflare-Access email path — _require + harden_ it (fail
   closed, strong random tokens, rate-limit/lockout, don't trust the CF header unless actually behind

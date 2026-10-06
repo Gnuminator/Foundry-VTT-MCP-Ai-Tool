@@ -34,21 +34,21 @@ here; see `combat-tracker.md` for detail.
 Each tab button is `button[data-action="tab"][data-tab="<id>"]` with `role="tab"`,
 `aria-pressed` set on the active one, and the tooltip text as `aria-label`.
 
-| # | `data-tab` | Tooltip / aria-label | Icon class | Who sees it |
-|---|------------|----------------------|------------|-------------|
-| 1 | `chat` | **Chat Messages** | `fa-comments` | everyone |
-| 2 | `combat` | **Combat Encounters** | `fa-swords` | everyone |
-| 3 | `scenes` | **Scenes** | `fa-map` | GM only (`gmOnly: true`) |
-| 4 | `placeables` | **Placeables** | `fa-puzzle-piece` | hidden when core setting "Disable Game Canvas" (`noCanvas`) is on; new in v14 |
-| 5 | `actors` | **Actors** | `fa-user` | everyone |
-| 6 | `items` | **Items** | `fa-suitcase` | everyone |
-| 7 | `journal` | **Journal** | `fa-book-open` | everyone |
-| 8 | `tables` | **Rollable Tables** | `fa-table-list` | everyone |
-| 9 | `cards` | **Card Stacks** | `fa-cards` | everyone |
-| 10 | `macros` | **Macros** | `fa-code` | everyone |
-| 11 | `playlists` | **Playlists** | `fa-music` | everyone |
-| 12 | `compendium` | **Compendium Packs** | `fa-book-atlas` | everyone |
-| 13 | `settings` | **Settings** | `fa-gears` | everyone |
+| #   | `data-tab`   | Tooltip / aria-label  | Icon class        | Who sees it                                                                   |
+| --- | ------------ | --------------------- | ----------------- | ----------------------------------------------------------------------------- |
+| 1   | `chat`       | **Chat Messages**     | `fa-comments`     | everyone                                                                      |
+| 2   | `combat`     | **Combat Encounters** | `fa-swords`       | everyone                                                                      |
+| 3   | `scenes`     | **Scenes**            | `fa-map`          | GM only (`gmOnly: true`)                                                      |
+| 4   | `placeables` | **Placeables**        | `fa-puzzle-piece` | hidden when core setting "Disable Game Canvas" (`noCanvas`) is on; new in v14 |
+| 5   | `actors`     | **Actors**            | `fa-user`         | everyone                                                                      |
+| 6   | `items`      | **Items**             | `fa-suitcase`     | everyone                                                                      |
+| 7   | `journal`    | **Journal**           | `fa-book-open`    | everyone                                                                      |
+| 8   | `tables`     | **Rollable Tables**   | `fa-table-list`   | everyone                                                                      |
+| 9   | `cards`      | **Card Stacks**       | `fa-cards`        | everyone                                                                      |
+| 10  | `macros`     | **Macros**            | `fa-code`         | everyone                                                                      |
+| 11  | `playlists`  | **Playlists**         | `fa-music`        | everyone                                                                      |
+| 12  | `compendium` | **Compendium Packs**  | `fa-book-atlas`   | everyone                                                                      |
+| 13  | `settings`   | **Settings**          | `fa-gears`        | everyone                                                                      |
 
 - Tooltips come from each Document's plural label, except Journal (**Journal**), Compendium
   (**Compendium Packs**), Placeables and Settings, which have fixed strings. [unverified]
@@ -478,8 +478,8 @@ Sidebar state and visible tabs:
     .map(b => `${b.dataset.tab}: ${b.getAttribute('aria-label')}`),
   popouts: Object.keys(ui.sidebar.popouts),
   release: `${game.release.display} build ${game.release.build}`,
-  system: `${game.system.id} ${game.system.version}`
-})
+  system: `${game.system.id} ${game.system.version}`,
+});
 ```
 
 Header of one directory (swap `ui.actors` for `ui.items`, `ui.journal`, ...):
@@ -489,24 +489,27 @@ Header of one directory (swap `ui.actors` for `ui.items`, `ui.journal`, ...):
   create: d.element.querySelector('.header-actions .create-entry')?.textContent.trim(),
   folder: d.element.querySelector('.header-actions .create-folder')?.textContent.trim(),
   placeholder: d.element.querySelector('search input')?.placeholder,
-  searchModeLabel: d.element.querySelector('[data-action=toggleSearch]')?.getAttribute('aria-label'),
+  searchModeLabel: d.element
+    .querySelector('[data-action=toggleSearch]')
+    ?.getAttribute('aria-label'),
   sortLabel: d.element.querySelector('[data-action=toggleSort]')?.getAttribute('aria-label'),
-  searchMode: d.collection.searchMode, sortMode: d.collection.sortingMode,
+  searchMode: d.collection.searchMode,
+  sortMode: d.collection.sortingMode,
   entries: d.collection.size,
-  folders: game.folders.filter(f => f.type === d.documentName).length
-}))(ui.actors)
+  folders: game.folders.filter(f => f.type === d.documentName).length,
+}))(ui.actors);
 ```
 
 Open context menu labels (run while a menu is open):
 
 ```js
-[...document.querySelectorAll('#context-menu .context-item')].map(li => li.textContent.trim())
+[...document.querySelectorAll('#context-menu .context-item')].map(li => li.textContent.trim());
 ```
 
 Open windows (after clicking a button that should open one):
 
 ```js
-[...foundry.applications.instances.values()].map(a => `${a.constructor.name}: ${a.title}`)
+[...foundry.applications.instances.values()].map(a => `${a.constructor.name}: ${a.title}`);
 ```
 
 Other checks:
@@ -535,7 +538,7 @@ Stable selectors and accessibility-tree names:
   `[data-action=collapseFolders]`. Compendium filter: `button.filter[data-action=filter]`.
   [unverified]
 - Entries: `li.directory-item[data-entry-id]`; folders: `li.directory-item.folder >
-  header.folder-header`; packs: `li.directory-item[data-pack]`; chat messages:
+header.folder-header`; packs: `li.directory-item[data-pack]`; chat messages:
   `li.message[data-message-id]`. [unverified]
 - Settings buttons: `#settings button[data-app="configure|controls|modules|world|players|tours|support|invitations|logout|setup"]`.
   [unverified]
@@ -581,7 +584,7 @@ World `ai-tool-test` on `http://localhost:30001` only, logged in as `Claude`.
   **Log Out** is harmless (rejoin as `Claude`); **User Management** leaves the game (come back
   without saving).
 - Never touch the live bridge ports (31414-31416) or `mcp__foundry-mcp__*` tools; the test
-  bridge is 31514-31516.
+  bridge is 31514-31515.
 
 ## Verification checklist
 
@@ -723,9 +726,9 @@ open. Each step is one action; "expect" is what should happen.
   - `C:/FoundryTest/app/client/game.mjs` (`shutDown`, `logOut`, client settings)
   - `C:/FoundryTest/app/client/config.mjs` (`CONFIG.ui`, `sidebarIcon`, `ChatMessage.modes`)
   - `C:/FoundryTest/app/common/constants.mjs` (`FOLDER_MAX_DEPTH`, `COMPENDIUM_DOCUMENT_TYPES`)
-  - `C:/FoundryTest/app/templates/sidebar/` (tabs.hbs, directory/*.hbs, partials/*.hbs,
-    tabs/settings.hbs, tabs/compendiums.hbs, tabs/chat/*.hbs, tabs/playlist/*.hbs,
-    tabs/placeable/*.hbs, compendium-create.hbs, document-create.html, cards-create.html,
+  - `C:/FoundryTest/app/templates/sidebar/` (tabs.hbs, directory/_.hbs, partials/_.hbs,
+    tabs/settings.hbs, tabs/compendiums.hbs, tabs/chat/_.hbs, tabs/playlist/_.hbs,
+    tabs/placeable/\*.hbs, compendium-create.hbs, document-create.html, cards-create.html,
     apps/invitation-links.hbs)
   - `C:/FoundryTest/app/templates/sheets/folder-config.hbs`
   - `C:/FoundryTest/app/public/lang/en.json`

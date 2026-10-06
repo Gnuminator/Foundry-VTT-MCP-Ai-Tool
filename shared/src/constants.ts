@@ -36,7 +36,7 @@ export const MODULE_TITLE = 'Foundry MCP Bridge';
 // ---------------------------------------------------------------------------
 // Foundry-link frame types (§3b)
 // Values are the string literals that appear in `{type: …}` frames exchanged
-// over the WebSocket / WebRTC DataChannel between the backend and the module.
+// over the WebSocket between the backend and the module.
 // ---------------------------------------------------------------------------
 
 export const SOCKET_EVENTS = {

@@ -155,8 +155,8 @@ rewritten (3.5). Deletes of embedded documents and user role changes move no tim
 
 Order is fixed (kinds in the order actor, scene, journal, item; then id ascending), so the cursor
 `"<kind>:<lastId>"` stays valid when documents are added or removed between pages. The backend query
-timeout is 10 s (`foundry-connector.ts:402-405`) and large frames are chunked at 50 KB, at most 1,000
-chunks (`shared/src/protocol.ts:249-260`).
+timeout is 10 s (`foundry-connector.ts:402-405`). WebSocket frames are not chunked; the bridge's ws
+server accepts frames up to the default 100 MiB `maxPayload`.
 
 | Limit                  | Value                                                                             |
 | ---------------------- | --------------------------------------------------------------------------------- |

@@ -14,14 +14,14 @@ setup; they change when the tool moves to the Orange Pi.
 not found". The dashboard says **Foundry: unreachable**, or **Bridge: disconnected** (with
 **Foundry: unknown**).
 
-| Likely cause                                                                          | Fix                                                                                                     |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Claude Desktop is not running (it starts the bridge).                                 | Start Claude Desktop and wait a few seconds. The module retries by itself; if not, reload Foundry (F5). |
-| You are not logged in to Foundry as a GM.                                             | Join as your GM user. The module only connects from a GM's browser tab.                                 |
-| The module is off in this world.                                                      | Settings tab (gear icon), **Module Management**, tick **Foundry AI Tool**, **Save Module Settings**.    |
-| The bridge is switched off in the module settings.                                    | **Game Settings**, category **Foundry AI Tool**, tick **Enable MCP Bridge**, **Save Changes**.          |
-| Your Foundry tab runs on another computer than the bridge.                            | Today they must be on the same PC. Log in to Foundry from the PC that runs Claude Desktop.              |
-| Something else uses the bridge's ports (31414 to 31416), for example a second bridge. | Close the other program, then quit and restart Claude Desktop.                                          |
+| Likely cause                                                                           | Fix                                                                                                     |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Claude Desktop is not running (it starts the bridge).                                  | Start Claude Desktop and wait a few seconds. The module retries by itself; if not, reload Foundry (F5). |
+| You are not logged in to Foundry as a GM.                                              | Join as your GM user. The module only connects from a GM's browser tab.                                 |
+| The module is off in this world.                                                       | Settings tab (gear icon), **Module Management**, tick **Foundry AI Tool**, **Save Module Settings**.    |
+| The bridge is switched off in the module settings.                                     | **Game Settings**, category **Foundry AI Tool**, tick **Enable MCP Bridge**, **Save Changes**.          |
+| Your Foundry tab runs on another computer than the bridge.                             | Today they must be on the same PC. Log in to Foundry from the PC that runs Claude Desktop.              |
+| Something else uses the bridge's ports (31414 and 31415), for example a second bridge. | Close the other program, then quit and restart Claude Desktop.                                          |
 
 When it works, the hint under **Enable MCP Bridge** in Game Settings ends with "Status: ✅
 Connected". If nothing helps, the bridge writes a log to

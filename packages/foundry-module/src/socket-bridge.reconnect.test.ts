@@ -6,7 +6,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { SocketBridge, reconnectDelayMs, type BridgeConfig } from './socket-bridge.js';
-import { WebRTCConnection } from './webrtc-connection.js';
 import { CONNECTION_STATES, MODULE_HELLO_TYPE } from './constants.js';
 import { MODULE_HELLO_TYPE as SHARED_HELLO_TYPE } from '../../../shared/src/protocol.js';
 
@@ -23,7 +22,6 @@ function makeConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig {
     reconnectDelay: 1000,
     connectionTimeout: 10,
     debugLogging: false,
-    connectionType: 'websocket',
     ...overrides,
   };
 }
@@ -307,60 +305,5 @@ describe('hello frame (PB-02)', () => {
     ) as any;
     await openBridge(bridge, fake);
     expect(bridge.isConnected()).toBe(true);
-  });
-});
-
-describe('WebRTC path', () => {
-  it('sends the hello over the channel when it opens', async () => {
-    const hello = {
-      userId: 'u1',
-      userName: 'GM',
-      isBridgeUser: false,
-      moduleVersion: 'unknown',
-      worldId: 'w1',
-    };
-    const sent: any[] = [];
-    vi.spyOn(WebRTCConnection.prototype, 'connect').mockImplementation((_m, events) => {
-      events?.onOpen?.();
-      return Promise.resolve();
-    });
-    vi.spyOn(WebRTCConnection.prototype, 'sendMessage').mockImplementation(message => {
-      sent.push(message);
-    });
-    const bridge = new SocketBridge(
-      makeConfig({ connectionType: 'webrtc', getHello: () => hello })
-    ) as any;
-
-    await bridge.connect();
-
-    expect(sent).toEqual([{ type: MODULE_HELLO_TYPE, data: hello }]);
-    expect(bridge.isConnected()).toBe(true);
-  });
-
-  it('a lost channel reconnects with one timer, and a failed retry retries again', async () => {
-    vi.useFakeTimers();
-    vi.spyOn(Math, 'random').mockReturnValue(0);
-    const events: any[] = [];
-    let failNext = false;
-    vi.spyOn(WebRTCConnection.prototype, 'connect').mockImplementation((_m, ev) => {
-      if (failNext) return Promise.reject(new Error('ICE gathering timeout'));
-      events.push(ev);
-      return Promise.resolve();
-    });
-    vi.spyOn(WebRTCConnection.prototype, 'disconnect').mockImplementation(() => undefined);
-    const bridge = new SocketBridge(makeConfig({ connectionType: 'webrtc' })) as any;
-
-    await bridge.connect();
-    expect(bridge.isConnected()).toBe(true);
-    events[0].onClose();
-    expect(bridge.getConnectionState()).toBe(CONNECTION_STATES.RECONNECTING);
-    events[0].onClose(); // the same loss reported twice
-    expect(vi.getTimerCount()).toBe(1);
-
-    failNext = true;
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(bridge.getConnectionState()).toBe(CONNECTION_STATES.RECONNECTING);
-    expect(vi.getTimerCount()).toBe(1);
-    expect(bridge.getConnectionInfo().reconnectAttempts).toBe(2);
   });
 });

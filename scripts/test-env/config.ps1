@@ -2,7 +2,7 @@
 #
 # A personal-only test setup, separate from the live campaign in every way:
 #   Foundry (Node.js build)  http://localhost:30001, own data folder
-#   test bridge              control 31514, Foundry link 31515, WebRTC 31516
+#   test bridge              control 31514, Foundry link 31515
 #   co-GM dashboard          http://localhost:3100
 #   bridge vault             <Root>/vault
 # The live bridge ports 31414-31416 are never used; every script refuses to run
@@ -24,7 +24,6 @@ $settings = [ordered]@{
   FoundryPort   = 30001
   ControlPort   = 31514
   LinkPort      = 31515
-  WebrtcPort    = 31516
   DashboardPort = 3100
   # Throwaway Obsidian vault the test bridge renders notes into (never the GM's
   # vault). Empty string = Obsidian auto-render off. Default: <Root>/obsidian.
@@ -39,6 +38,7 @@ $localFile = Join-Path $PSScriptRoot 'local.json'
 if (Test-Path $localFile) {
   $local = Get-Content $localFile -Raw | ConvertFrom-Json
   foreach ($p in $local.PSObject.Properties) {
+    if ($p.Name -eq 'WebrtcPort') { continue }  # retired setting (WebRTC was removed); ignore an old local.json
     if (-not $settings.Contains($p.Name)) { throw "Unknown setting '$($p.Name)' in $localFile" }
     $settings[$p.Name] = $p.Value
   }
@@ -54,7 +54,6 @@ $TestEnv = [pscustomobject]@{
   FoundryPort   = [int]$settings.FoundryPort
   ControlPort   = [int]$settings.ControlPort
   LinkPort      = [int]$settings.LinkPort
-  WebrtcPort    = [int]$settings.WebrtcPort
   DashboardPort = [int]$settings.DashboardPort
   ObsidianDir   = if ($null -eq $settings.ObsidianDir) { Join-Path $settings.Root 'obsidian' } else { [string]$settings.ObsidianDir }
 }
@@ -69,7 +68,7 @@ function Get-TestAdminCredential {
 }
 
 function Assert-SafePorts {
-  $ports = @($TestEnv.FoundryPort, $TestEnv.ControlPort, $TestEnv.LinkPort, $TestEnv.WebrtcPort, $TestEnv.DashboardPort)
+  $ports = @($TestEnv.FoundryPort, $TestEnv.ControlPort, $TestEnv.LinkPort, $TestEnv.DashboardPort)
   foreach ($port in $ports) {
     if ($LivePorts -contains $port) { throw "Test port $port is a live bridge port (31414-31416). Pick another in local.json." }
   }

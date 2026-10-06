@@ -206,7 +206,7 @@ set, then restart Claude Desktop. Two of the five entries:
 prep, build, admin). One entry without `FOUNDRY_AI_TOOL_SETS` serves all 84 tools, as before.
 
 The bridge links the AI client and the Foundry module over local sockets (control channel on
-`127.0.0.1:31414`; Foundry link on `31415`/`31416`). Foundry must be open in a GM's browser with
+`127.0.0.1:31414`; Foundry link on `31415`). Foundry must be open in a GM's browser with
 the module active. For Obsidian notes, add `"FOUNDRY_AI_OBSIDIAN_DIR": "<your vault folder>"` to
 the `env` of every entry.
 

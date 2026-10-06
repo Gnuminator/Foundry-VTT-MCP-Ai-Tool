@@ -3,7 +3,7 @@
  *
  * Guards the frozen frame shapes for both wire layers (ARCHITECTURE.md §3):
  *   - §3a control channel: request / response / call_tool / tool-result
- *   - §3b Foundry link: query / response / ping / pong / chunked-message
+ *   - §3b Foundry link: query / response / ping / pong
  *
  * If any of these fail, an implementation built against this contract is no
  * longer wire-compatible with the others.
@@ -15,8 +15,6 @@ import { SOCKET_EVENTS } from './constants.js';
 import {
   CONTROL_METHODS,
   CallToolParamsSchema,
-  ChunkedMessageFrameSchema,
-  CHUNKED_MESSAGE_TYPE,
   ControlRequestSchema,
   ControlResponseSchema,
   FoundryFrameSchema,
@@ -83,7 +81,6 @@ describe('Foundry-link contract (§3b)', () => {
   it('frame type strings are the frozen SOCKET_EVENTS values', () => {
     expect(SOCKET_EVENTS.MCP_QUERY).toBe('mcp-query');
     expect(SOCKET_EVENTS.MCP_RESPONSE).toBe('mcp-response');
-    expect(CHUNKED_MESSAGE_TYPE).toBe('chunked-message');
   });
 
   it('round-trips a query frame (backend → module)', () => {
@@ -122,20 +119,6 @@ describe('Foundry-link contract (§3b)', () => {
     expect(() =>
       FoundryFrameSchema.parse({ type: 'pong', id: 'p1', data: { timestamp: 1, status: 'ok' } })
     ).not.toThrow();
-  });
-
-  it('validates a chunked-message frame and rejects a zero-chunk count', () => {
-    const chunk = {
-      type: 'chunked-message',
-      chunkId: 'chunk-1',
-      chunkIndex: 0,
-      totalChunks: 3,
-      chunk: '{"part":1}',
-      originalType: 'mcp-response',
-      originalId: 'query-7',
-    };
-    expect(() => ChunkedMessageFrameSchema.parse(chunk)).not.toThrow();
-    expect(() => ChunkedMessageFrameSchema.parse({ ...chunk, totalChunks: 0 })).toThrow();
   });
 
   it('rejects an unknown frame type at the union boundary', () => {

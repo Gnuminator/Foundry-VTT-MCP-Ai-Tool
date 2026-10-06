@@ -5,7 +5,7 @@ import type { EventVisibility } from '@gnuminator/shared';
  * bridge tools `get-recent-events` and `get-combat-state` (see the Foundry
  * module's session-events / data-access layers). The feed itself is exposed
  * behind the `GameFeed` interface so the polling implementation can later be
- * swapped for a push-based (e.g. WebRTC) source without touching consumers.
+ * swapped for a push-based source without touching consumers.
  */
 
 /** One significant session event (combat, damage, condition, resource, etc.). */
@@ -127,7 +127,7 @@ export interface GameFeedHandlers {
 
 /**
  * A source of live game data. The polling implementation satisfies this today;
- * a future WebRTC/push feed can implement the same surface.
+ * a future push feed can implement the same surface.
  */
 export interface GameFeed {
   start(): void;

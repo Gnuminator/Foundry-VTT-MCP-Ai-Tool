@@ -5,7 +5,7 @@ description: Use and test this repo's own product on the local test server - the
 
 # Foundry AI Tool: tools, dashboard, smoke test
 
-The environment (Foundry 14 on 30001, test bridge 31514-31516, dashboard 3100, vault
+The environment (Foundry 14 on 30001, test bridge 31514-31515, dashboard 3100, vault
 `C:\FoundryTest\vault`) comes from the `foundry-test-env` skill; start it first. Foundry's own
 screens are in `foundry-core-ui`. Never the live bridge (31414-31416), never `mcp__foundry-mcp__*`.
 

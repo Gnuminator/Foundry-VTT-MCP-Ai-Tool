@@ -76,7 +76,6 @@ beforeEach(async () => {
     enabled: true,
     serverHost: 'localhost',
     serverPort: 31415,
-    connectionType: 'websocket',
     maxActorsPerRequest: 10,
     heartbeatInterval: 30,
     autoReconnectEnabled: true,

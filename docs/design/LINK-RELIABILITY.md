@@ -27,7 +27,7 @@ down until someone reloads.
 
 - **Module `socket-bridge.ts`:** no attempt limit. Backoff 1 s, 2 s, 4 s ... capped at 30 s, plus
   up to 20 % random jitter. One reconnect timer at most (error and close both fire on a failed
-  connect today). The cap and "forever" hold for WebSocket and WebRTC.
+  connect today). The cap and "forever" hold for the WebSocket link.
 - **Module `main.ts`:**
   - `start()` must never leave an old `SocketBridge` running: reuse the existing one (call its
     `connect()`) or `disconnect()` it before creating a new one. Today `canvasReady` and the

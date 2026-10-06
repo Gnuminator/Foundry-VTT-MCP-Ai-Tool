@@ -70,10 +70,8 @@ value. The complete list is in `docs/dev/REMOTE-ACCESS.md §5 (seams list)`. Sho
 
 ## What is not here (intentional gaps)
 
-- **TURN server config** — werift supports TURN but it is not wired up yet. Marked as a
-  seam in `docs/dev/REMOTE-ACCESS.md §4`.
-- **Reverse-proxy / TLS for the Foundry connectors** — ports 31415 / 31416 are exposed
-  directly; TLS termination for those is future work if the WebRTC path needs it.
+- **Reverse-proxy / TLS for the Foundry connector** — port 31415 is exposed directly;
+  TLS termination for it is future work.
 - **Auth middleware code** — the player/GM split is live in the dashboard config
   (`GM_EMAILS`, `GM_DASHBOARD_TOKEN`), but the middleware that enforces it per-route
   is a Phase 6 deliverable.

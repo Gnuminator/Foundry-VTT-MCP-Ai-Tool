@@ -166,24 +166,9 @@ export class ModuleSettings {
       onChange: this.onEnabledChange.bind(this),
     });
 
-    game.settings.register(this.moduleId, 'connectionType', {
-      name: 'Connection Type',
-      hint: 'Auto: Smart selection (HTTPS→WebRTC, HTTP→WebSocket). WebRTC: Encrypted P2P (works over internet). WebSocket: Traditional (localhost only).',
-      scope: 'world',
-      config: true,
-      type: String,
-      choices: {
-        auto: 'Auto (Recommended)',
-        webrtc: 'WebRTC (Internet)',
-        websocket: 'WebSocket (Local Only)',
-      },
-      default: 'auto',
-      onChange: this.onConnectionChange.bind(this),
-    });
-
     game.settings.register(this.moduleId, 'serverHost', {
       name: 'Websocket Server Host',
-      hint: 'IP address for local Websocket Server connections to the MCP Server (usually localhost). Not used for Remote Connections',
+      hint: 'IP address for local Websocket Server connections to the MCP Server (usually localhost).',
       scope: 'world',
       config: true,
       type: String,
@@ -426,8 +411,6 @@ export class ModuleSettings {
    * Get current bridge configuration from settings
    */
   getBridgeConfig(): BridgeConfig {
-    const connectionType = this.getSetting('connectionType');
-
     return {
       enabled: this.getSetting('enabled'),
       serverHost: this.getSetting('serverHost'),
@@ -437,7 +420,6 @@ export class ModuleSettings {
       reconnectDelay: DEFAULT_CONFIG.RECONNECT_DELAY, // Use sensible default
       connectionTimeout: DEFAULT_CONFIG.CONNECTION_TIMEOUT, // Use sensible default
       debugLogging: false, // Always false - use browser console for debugging
-      connectionType: connectionType as 'auto' | 'webrtc' | 'websocket',
       // Read live so a settings change applies to the next attempt.
       autoReconnect: () => this.getSetting('autoReconnectEnabled') !== false,
       getHello: () => buildModuleHello(this.getSetting('bridgeUserId')),
@@ -467,7 +449,6 @@ export class ModuleSettings {
       'enabled',
       'serverHost',
       'serverPort',
-      'connectionType',
       // Permissions
       'allowWriteOperations',
       // Safety Controls
@@ -597,7 +578,6 @@ export class ModuleSettings {
       'enabled',
       'serverHost',
       'serverPort',
-      'connectionType',
       // Permissions
       'allowWriteOperations',
       // Safety Controls

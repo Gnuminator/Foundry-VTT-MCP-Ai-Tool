@@ -184,7 +184,6 @@ describe('ModuleSettings: bridge user (PB-02)', () => {
       enabled: true,
       serverHost: 'localhost',
       serverPort: 31415,
-      connectionType: 'auto',
       autoReconnectEnabled: true,
       bridgeUserId: '',
     })) {

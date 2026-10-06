@@ -50,7 +50,7 @@ export class FoundryClient {
     });
   }
 
-  getConnectionType(): 'websocket' | 'webrtc' | null {
+  getConnectionType(): 'websocket' | null {
     return this.connector.getConnectionType();
   }
 

@@ -81,7 +81,9 @@
   fill: var(--mark-node);
 }
 
-/* ---- Neutral only: display type, mono numbers, the glow on the active control ---- */
+/* ---- Neutral only: display type, mono numbers, the glow on the active control ----
+   body:not(.paper) keeps /me's paper views (the official sheet in Georgia, black on white) as
+   they are. */
 :root:not([data-theme='veil']) .brand-icon {
   background: none;
   border: 0;
@@ -93,7 +95,7 @@
   font-weight: 600;
   letter-spacing: 0.02em;
 }
-:root:not([data-theme='veil']) :is(h1, h2, h3, h4),
+:root:not([data-theme='veil']) body:not(.paper) :is(h1, h2, h3, h4),
 :root:not([data-theme='veil']) :is(.moment-tab, .btn, .layout-switch button, .feature-pill) {
   font-family: var(--font-display);
 }
@@ -107,17 +109,22 @@
     0 0 14px -6px var(--accent);
 }
 
-/* ---- Neutral only: the banner's ground (a faint hex grid under a soft arcane-blue glow) ---- */
-:root:not([data-theme='veil']) body {
-  background:
-    radial-gradient(
-      1100px 620px at 82% -12%,
-      color-mix(in srgb, var(--accent) 10%, transparent),
-      transparent 62%
-    ),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50V16L28 0l28 16v34L28 66zm0 0v34' fill='none' stroke='%23e6e9ef' stroke-opacity='0.035' stroke-width='1'/%3E%3C/svg%3E"),
-    var(--bg);
-  background-attachment: fixed;
+/* ---- Neutral only: the banner's ground (a faint hex grid under a soft arcane-blue glow) ----
+   Screen only, and never under /me's paper views, so paper stays white and prints white.
+   player.html has no --accent token, hence the fallback (without it the whole shorthand is
+   invalid and the page falls back to white). */
+@media screen {
+  :root:not([data-theme='veil']) body:not(.paper) {
+    background:
+      radial-gradient(
+        1100px 620px at 82% -12%,
+        color-mix(in srgb, var(--accent, #4ea1ff) 10%, transparent),
+        transparent 62%
+      ),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50V16L28 0l28 16v34L28 66zm0 0v34' fill='none' stroke='%23e6e9ef' stroke-opacity='0.035' stroke-width='1'/%3E%3C/svg%3E"),
+      var(--bg, #0f1115);
+    background-attachment: fixed;
+  }
 }
 
 /* ---- The wordmark: "Foundry AI Tool", AI in arcane blue; the tagline in mono ---- */

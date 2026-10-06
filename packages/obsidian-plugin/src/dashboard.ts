@@ -13,6 +13,11 @@
  * The HTTP call is injected (Obsidian's `requestUrl` in the plugin, a stub in tests), so this file
  * does not import `obsidian`. `requestUrl` runs outside the browser: it sends no Origin and needs
  * no CORS allowance from the dashboard.
+ *
+ * Behind Cloudflare Access (the dashboard on the Pi, D-094 R1) the plugin cannot log in with a
+ * browser cookie, so it sends a Cloudflare service token (`CF-Access-Client-Id` and
+ * `CF-Access-Client-Secret`) to get through, and the GM token to be the GM. The Access headers go
+ * only to `https://` addresses, never in plain text.
  */
 
 import { themeFromPayload, type ThemeId } from './theme.js';
@@ -22,6 +27,15 @@ export const TOKEN_HEADER = 'X-CoGM-Token';
 /** Required on `POST /api/open` (mirror of the shared `OPEN_REQUEST_HEADER` / `_VALUE`). */
 export const OPEN_REQUEST_HEADER = 'X-CoGM-Request';
 export const OPEN_REQUEST_VALUE = 'open';
+/** Cloudflare Access service token headers. */
+export const ACCESS_ID_HEADER = 'CF-Access-Client-Id';
+export const ACCESS_SECRET_HEADER = 'CF-Access-Client-Secret';
+
+/** A Cloudflare Access service token (both parts, or none). */
+export interface AccessCredentials {
+  clientId: string;
+  clientSecret: string;
+}
 
 export interface HttpRequest {
   url: string;
@@ -110,13 +124,19 @@ export class DashboardClient {
   constructor(
     private readonly http: HttpClient,
     private readonly baseUrl: () => string,
-    private readonly token: () => string | null
+    private readonly token: () => string | null,
+    private readonly access: () => AccessCredentials | null = (): null => null
   ) {}
 
-  private headers(extra: Record<string, string> = {}): Record<string, string> {
+  private headers(base: string, extra: Record<string, string> = {}): Record<string, string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
     const token = this.token();
     if (token) headers[TOKEN_HEADER] = token;
+    const access = /^https:\/\//i.test(base) ? this.access() : null;
+    if (access?.clientId && access.clientSecret) {
+      headers[ACCESS_ID_HEADER] = access.clientId;
+      headers[ACCESS_SECRET_HEADER] = access.clientSecret;
+    }
     return headers;
   }
 
@@ -141,7 +161,7 @@ export class DashboardClient {
       return await this.http({
         url: `${base}${path}`,
         method,
-        headers: this.headers(extra),
+        headers: this.headers(base, extra),
         ...(method === 'POST' ? { body: JSON.stringify(body) } : {}),
       });
     } catch (error) {
@@ -242,6 +262,10 @@ export class DashboardClient {
 }
 
 function errorText(response: HttpResponse): string {
+  if (response.json === null) {
+    // Not the dashboard's JSON: Cloudflare Access's login page or refusal, or another server.
+    return `The answer (HTTP ${response.status}) did not come from the dashboard. If the dashboard is behind Cloudflare Access, check the Access Client ID and Secret in the plugin settings; else check the dashboard address.`;
+  }
   const body = rec(response.json);
   const message = str(body?.error) ?? str(body?.message);
   if (response.status === 401 || response.status === 403) {

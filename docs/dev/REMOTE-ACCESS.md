@@ -91,13 +91,13 @@ Pick the names yourself; `play` and `cogm` are examples. Below, `<domain>` is yo
     application add a second policy named `Obsidian plugin` with action **Service Auth** and
     include Service Token, that token. Do not add it to the `Foundry players` application: it must
     reach the dashboard name only. The Client ID and Secret go into the plugin's settings on the
-    GM's PC (the plugin change that sends them comes in a later Obsidian PR), never into the vault
-    or the repo. It expires after one year (Cloudflare emails a warning first); to revoke it earlier,
-    delete it under Service Tokens or remove the `Obsidian plugin` policy. **Known gap:** the
-    dashboard decides the GM role from the email in Cloudflare's signed token only, and a service
-    token's login carries no email, so the plugin will reach the dashboard but get the player view.
-    A dashboard change that maps the service token's client ID to the GM role is still needed; it
-    comes with the Obsidian R1 work (D-094) and is not part of stage 12.
+    GM's PC (Obsidian's secret storage; steps in [the GM's vault guide](../gm/obsidian.md)), never
+    into the vault or the repo. It expires after one year (Cloudflare emails a warning first); to
+    revoke it earlier, delete it under Service Tokens or remove the `Obsidian plugin` policy. A
+    service token's login carries no email, so it only gets the plugin through Cloudflare; the GM
+    role comes from the dashboard's GM token (`GM_DASHBOARD_TOKEN`, set by
+    `set-dashboard-access.sh`), which the GM also puts into the plugin (the user's pick,
+    2026-10-06). No dashboard change is needed.
 
 ### Step 10 in detail: the dashboard for the GM
 

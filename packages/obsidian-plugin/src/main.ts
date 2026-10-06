@@ -15,7 +15,9 @@
  *   seconds); Off turns the styling off in this Obsidian only. The CSS is the plugin's
  *   `styles.css` (built from `theme/obsidian-theme.css`); this file only sets classes.
  *
- * The GM token stays in Obsidian's secret storage; the plugin settings hold only its name.
+ * The GM token and the Cloudflare Access service token (for a dashboard behind Access, D-094 R1)
+ * stay in Obsidian's secret storage, which is per device and never in the vault; the plugin
+ * settings hold only the secrets' names.
  */
 import {
   MarkdownView,
@@ -37,6 +39,7 @@ import {
   DashboardClient,
   DashboardError,
   planLink,
+  type AccessCredentials,
   type GmChoice,
   type HttpClient,
   type RevealAction,
@@ -77,11 +80,16 @@ interface PluginSettings extends ThemeState {
   dashboardUrl: string;
   /** Name of the secret in Obsidian's secret storage that holds the GM token (may be empty). */
   tokenSecret: string;
+  /** Names of the secrets that hold the Cloudflare Access service token (may be empty). */
+  accessIdSecret: string;
+  accessSecretSecret: string;
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
   dashboardUrl: 'http://localhost:3000',
   tokenSecret: '',
+  accessIdSecret: '',
+  accessSecretSecret: '',
   theme: 'neutral',
   themeEnabled: true,
   pendingTheme: null,
@@ -148,7 +156,8 @@ export default class FoundryAiToolPlugin extends Plugin {
     this.client = new DashboardClient(
       http,
       () => this.settings.dashboardUrl,
-      () => this.token()
+      () => this.token(),
+      () => this.access()
     );
 
     this.statusEl = this.addStatusBarItem();
@@ -310,9 +319,18 @@ export default class FoundryAiToolPlugin extends Plugin {
   }
 
   private token(): string | null {
-    const name = this.settings.tokenSecret.trim();
-    if (!name) return null;
-    return this.app.secretStorage.getSecret(name);
+    return this.secret(this.settings.tokenSecret);
+  }
+
+  private secret(name: string): string | null {
+    const key = name.trim();
+    return key ? this.app.secretStorage.getSecret(key) : null;
+  }
+
+  private access(): AccessCredentials | null {
+    const clientId = this.secret(this.settings.accessIdSecret)?.trim();
+    const clientSecret = this.secret(this.settings.accessSecretSecret)?.trim();
+    return clientId && clientSecret ? { clientId, clientSecret } : null;
   }
 
   private noteFor(file: TFile | null): FoundryNote | null {
@@ -627,13 +645,39 @@ class FoundryAiToolSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName('GM token')
       .setDesc(
-        "Only when the dashboard asks for a GM token (the player split is on). Pick or create a secret with the dashboard's GM token; it stays in Obsidian's secret storage, not in the plugin settings."
+        "Only when the dashboard asks for a GM token (the player split is on, as on the Pi). Pick or create a secret with the dashboard's GM token; it stays in Obsidian's secret storage, not in the plugin settings."
       )
       .addComponent(el =>
         new SecretComponent(this.app, el)
           .setValue(this.plugin.settings.tokenSecret)
           .onChange(async value => {
             this.plugin.settings.tokenSecret = value;
+            await this.plugin.saveSettings();
+          })
+      );
+    new Setting(containerEl)
+      .setName('Cloudflare Access Client ID')
+      .setDesc(
+        "Only when the dashboard is behind Cloudflare Access (an https address). Pick or create a secret with the service token's Client ID. Sent only to https addresses."
+      )
+      .addComponent(el =>
+        new SecretComponent(this.app, el)
+          .setValue(this.plugin.settings.accessIdSecret)
+          .onChange(async value => {
+            this.plugin.settings.accessIdSecret = value;
+            await this.plugin.saveSettings();
+          })
+      );
+    new Setting(containerEl)
+      .setName('Cloudflare Access Client Secret')
+      .setDesc(
+        "The same service token's Client Secret, in a secret of its own. Both stay in Obsidian's secret storage on this PC, never in the vault."
+      )
+      .addComponent(el =>
+        new SecretComponent(this.app, el)
+          .setValue(this.plugin.settings.accessSecretSecret)
+          .onChange(async value => {
+            this.plugin.settings.accessSecretSecret = value;
             await this.plugin.saveSettings();
           })
       );

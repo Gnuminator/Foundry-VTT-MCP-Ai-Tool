@@ -1,0 +1,51 @@
+---
+title: Your Obsidian vault
+description: The GM's Obsidian vault on your own PC, what to edit in it, and how to connect the AI Tool plugin to the dashboard on the server.
+---
+
+# Your Obsidian vault
+
+The tool writes your world into an Obsidian vault on the server, and Syncthing copies it to your
+PC. You read it in Obsidian like any notes. It is the GM's vault: it has the secrets and the book
+text, so it stays on your PC. The players get vaults of their own without the secrets.
+
+## What is in it
+
+- **The AI Tool folder:** notes the tool writes. Characters, NPCs, scenes, journals, quests, the
+  Library (monsters, spells, rules), session notes and stats. The tool rewrites these, so don't
+  plan your game in them. A note you did edit stays where it is and is listed in `_status.md`.
+- **The Prep folder:** yours. The tool never writes there. Your session plans and notes on NPCs,
+  places and quests go here, and Claude reads them when you prepare a session (see the
+  [cookbook](cookbook.md), "Tip for Obsidian").
+
+Changes you make in Obsidian never reach Foundry by themselves. Things that change the game
+(revealing a handout, for example) are planned from Obsidian and confirmed in the dashboard.
+
+## Connect the plugin (once)
+
+The AI Tool plugin adds **Open in Foundry**, the reveal status of handouts and the shared theme. It
+talks only to the dashboard. When the dashboard runs on the server, Cloudflare guards it, and the
+plugin needs three values to get through. The builder gives them to you through a password
+manager, never in chat or in a note.
+
+1. In Obsidian: Settings, Community plugins, **Foundry AI Tool**, the gear icon.
+2. **Dashboard address:** the dashboard's https address.
+3. **GM token:** click it, create a secret, paste the dashboard's GM token.
+4. **Cloudflare Access Client ID:** create a secret, paste the Client ID.
+5. **Cloudflare Access Client Secret:** create another secret, paste the Client Secret.
+
+The three values stay in Obsidian's secret storage on your PC. They are not in the vault, so
+Syncthing never copies them anywhere. The Cloudflare values are sent only to https addresses.
+
+**Check it:** open an NPC note and click **Open in Foundry** in the status bar; the sheet opens on
+your Foundry screen.
+
+## When it does not work
+
+| Message                                         | What to do                                                                     |
+| ----------------------------------------------- | ------------------------------------------------------------------------------ |
+| "...did not come from the dashboard"            | The Cloudflare Client ID or Secret is wrong or expired: ask the builder.       |
+| "...Check the GM token in the plugin settings." | The GM token is wrong: paste it again.                                         |
+| "The dashboard at ... did not answer"           | The address is wrong, or the server is down: check the dashboard in a browser. |
+
+The Cloudflare token runs for a year; Cloudflare emails the builder before it expires.

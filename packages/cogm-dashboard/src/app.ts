@@ -1,5 +1,9 @@
 import express, { type Express, type Request, type Response } from 'express';
-import type { RecordUsageResult, UsageEvent } from '@gnuminator/shared';
+import {
+  createSpaceStatusReader,
+  type RecordUsageResult,
+  type UsageEvent,
+} from '@gnuminator/shared';
 
 import type { Config, Tone } from './config.js';
 import type { Logger } from './logger.js';
@@ -33,6 +37,7 @@ import { mountHandoutSeenRoute } from './handout-seen-route.js';
 import { mountSessionNotesRoute, type SessionNotesAction } from './session-notes-route.js';
 import { mountHelpRoute } from './help-route.js';
 import { mountMeRoute } from './me-route.js';
+import { mountSpaceRoute } from './space-route.js';
 import { PlayerLinkStore } from './player-links.js';
 import { DashboardPrefsStore, parsePrefsChange } from './dashboard-prefs.js';
 import { THEMES, ThemeStore, isTheme } from './theme.js';
@@ -89,6 +94,10 @@ export interface DashboardDeps {
   helpFile?: string | URL;
   /** Fetches Cloudflare Access's public keys (I-022); default the global fetch. Tests stub it. */
   accessFetch?: ConstructorParameters<typeof AccessJwtVerifier>[1];
+  /** The storage space check's status file; default env FOUNDRY_AI_SPACE_STATUS, else the Pi's path. */
+  spaceStatusFile?: string;
+  /** Test clock for the space check's age. */
+  spaceNow?: () => number;
 }
 
 export interface Dashboard {
@@ -545,6 +554,17 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     theme: () => themes.get(world?.id),
     publicDir: config.publicDir,
     pageHeaders: res => PLAYER_PAGE_HEADERS.apply(res),
+  });
+
+  // The storage space check (2026-10-06): GM only; nothing on /player or /me.
+  const spaceLogger = logger.child('space');
+  mountSpaceRoute(app, {
+    requireGm,
+    readStatus: createSpaceStatusReader({
+      ...(deps.spaceStatusFile ? { path: deps.spaceStatusFile } : {}),
+      ...(deps.spaceNow ? { now: deps.spaceNow } : {}),
+      log: message => spaceLogger.info(message),
+    }),
   });
 
   app.get('/api/health', (_req: Request, res: Response) => {

@@ -17,6 +17,7 @@ people is still to come. Works through Discord's end-to-end voice encryption (DA
    DISCORD_TOKEN=...
    DISCORD_GUILD_ID=<your server id, so /record shows up at once>
    # FVTT_SESSIONS_DIR=C:/Users/<you>/Documents/FoundrySessions (the default)
+   # DISCORD_OWNER_ID=<your Discord user id> (optional: who gets the storage space DMs)
    ```
 
 2. Invite the bot with the scopes `bot` and `applications.commands` and the permissions View
@@ -37,6 +38,32 @@ people is still to come. Works through Discord's end-to-end voice encryption (DA
 
 By default only members with Manage Server see `/record`; change that under Server Settings >
 Integrations. Ctrl+C in the bot window also stops and converts a running recording.
+
+## Storage space notices
+
+Every 15 minutes the bot reads the Pi's space check (`/var/lib/foundry-ai-tool/space/status.json`,
+written by the hourly space check in `scripts/pi/`; override the path with
+`FOUNDRY_AI_SPACE_STATUS`) and sends the owner a Discord DM:
+
+- one DM when space gets worse (under 20% free is low, under 5% or less than a job needs is
+  critical, or the check itself has not run for 3 hours);
+- while it stays bad, at most one reminder every 24 hours;
+- one "back to normal" DM when it recovers.
+
+The DM names the disk, the free percent and GB, and the backup, snapshot and sync jobs that use
+that disk. A missing, unreadable or invalid status file says nothing (the bot logs it once), so a
+PC without the Pi's file gets no notices and no errors.
+
+**Who gets the DM.** `DISCORD_OWNER_ID` in `discord-bot.env` (your Discord user id) when set;
+otherwise the owner of the bot application in the Developer Portal (the account that made the bot;
+for a team, the team's owner), which the bot asks Discord for at start. So nothing needs setting
+when you made the bot yourself. If neither gives an id, the bot logs "storage space DMs are off"
+once. The owner must share a server with the bot. If a DM fails, the bot logs it and tries again
+at the next check. The state is kept in memory: a restart can repeat one DM.
+
+The reader (`src/space-status.ts`) is an identical copy of `shared/src/space-status.ts`, because
+the bot is deployed alone on the Pi; a test fails while the two differ, so edit the shared one and
+copy it over.
 
 ## On the Orange Pi (D-068)
 

@@ -25,6 +25,13 @@ import * as log from './log.js';
 import { convertSession } from './convert/convert.js';
 import { RecordingSession, hrtimeClock, type SpeakerInfo } from './rec/session.js';
 import { VoiceRecorder } from './rec/voice.js';
+import {
+  SPACE_CHECK_INTERVAL_MS,
+  SpaceNotifier,
+  resolveOwnerId,
+  type ApplicationOwnerLike,
+} from './space-notify.js';
+import { createSpaceStatusReader } from './space-status.js';
 
 export const RECORD_COMMAND = new SlashCommandBuilder()
   .setName('record')
@@ -55,6 +62,7 @@ export class RecorderBot {
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
   });
   private active: Active | undefined;
+  private spaceTimer: NodeJS.Timeout | undefined;
 
   constructor(private readonly config: BotConfig) {}
 
@@ -69,6 +77,9 @@ export class RecorderBot {
       registered.then(
         where => log.info(`Registered /record ${where}`),
         (err: unknown) => log.error('Registering /record failed', err)
+      );
+      void this.startSpaceNotices(c).catch((err: unknown) =>
+        log.error('Space notices could not start', err)
       );
     });
     this.client.on('interactionCreate', i => {
@@ -87,6 +98,50 @@ export class RecorderBot {
       }
     });
     await this.client.login(this.config.token);
+  }
+
+  /**
+   * Storage space notices: every 15 minutes read the Pi's status file and DM the owner (see
+   * space-notify.ts). The owner is DISCORD_OWNER_ID, else the Discord application's owner.
+   */
+  private async startSpaceNotices(c: Client<true>): Promise<void> {
+    const app = await c.application.fetch();
+    const owner = app.owner as ApplicationOwnerLike | null;
+    const ownerId = resolveOwnerId(this.config.ownerId, owner);
+    if (!ownerId) {
+      log.info(
+        'Space notices: no owner found, so storage space DMs are off. Set DISCORD_OWNER_ID in the bot settings to turn them on.'
+      );
+      return;
+    }
+    const readStatus = createSpaceStatusReader({
+      ...(this.config.spaceStatusFile ? { path: this.config.spaceStatusFile } : {}),
+      log: log.info,
+    });
+    let dmFailureLogged = false;
+    const notifier = new SpaceNotifier({
+      send: async (text): Promise<boolean> => {
+        try {
+          const user = await c.users.fetch(ownerId);
+          await user.send(text);
+          dmFailureLogged = false;
+          return true;
+        } catch (err) {
+          if (!dmFailureLogged) {
+            dmFailureLogged = true;
+            log.error('Space notices: the DM to the owner failed (will retry)', err);
+          }
+          return false;
+        }
+      },
+    });
+    const tick = (): void => {
+      notifier.check(readStatus()).catch((err: unknown) => log.error('Space check failed', err));
+    };
+    tick();
+    this.spaceTimer = setInterval(tick, SPACE_CHECK_INTERVAL_MS);
+    this.spaceTimer.unref();
+    log.info(`Space notices: checking every ${SPACE_CHECK_INTERVAL_MS / 60000} minutes.`);
   }
 
   private speakerResolver(guild: Guild): (userId: string) => SpeakerInfo {
@@ -193,6 +248,7 @@ export class RecorderBot {
   }
 
   async shutdown(): Promise<void> {
+    if (this.spaceTimer) clearInterval(this.spaceTimer);
     if (this.active) log.info(await this.stop('shutdown'));
     await this.client.destroy();
   }

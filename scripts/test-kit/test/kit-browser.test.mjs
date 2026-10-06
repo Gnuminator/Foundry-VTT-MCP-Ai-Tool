@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createKitBrowser } from '../lib/dashboard-browser.mjs';
+import { createKitBrowser, redact } from '../lib/dashboard-browser.mjs';
 import { runScenarios, runScenariosDetailed } from '../lib/runner.mjs';
 import { groupConsoleErrors } from '../lib/console-errors.mjs';
 import { makeReport, renderHtml, renderMarkdown } from '../lib/report.mjs';
@@ -389,4 +389,13 @@ test('a Foundry error keeps its id and group shape without a page', () => {
   assert.ok(!('page' in g));
   assert.ok(g.id.startsWith('console:'));
   assert.ok(!g.id.startsWith('console:dashboard'));
+});
+
+test('redact takes dashboard tokens out of console lines', () => {
+  assert.equal(
+    redact('GET http://localhost:3100/api/state?token=abc123&x=1 401'),
+    'GET http://localhost:3100/api/state?token=<token>&x=1 401'
+  );
+  assert.equal(redact('/player?cogm_token=zz9'), '/player?cogm_token=<token>');
+  assert.equal(redact('no token here'), 'no token here');
 });

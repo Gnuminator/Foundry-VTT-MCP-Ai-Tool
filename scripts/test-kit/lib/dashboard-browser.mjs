@@ -16,6 +16,15 @@ import { launchBrowser } from './gm.mjs';
  */
 
 /**
+ * Takes a dashboard token out of a console line: a failed request names its URL, and the login split
+ * pass opens pages with `?token=`. The report must never carry a token, even a test one.
+ * @param {string} text
+ */
+export function redact(text) {
+  return String(text ?? '').replace(/([?&](?:token|cogm_token)=)[^&#\s"']+/gi, '$1<token>');
+}
+
+/**
  * @param {{
  *   dashboardUrl: string,
  *   context: import('playwright-core').BrowserContext,
@@ -44,7 +53,7 @@ export function createKitBrowser({ dashboardUrl, context, launchFresh = launchBr
     perPage.set(page, own);
     /** @param {string} message @param {string} source */
     const record = (message, source) => {
-      const entry = { at: new Date().toISOString(), message, source, page: kind };
+      const entry = { at: new Date().toISOString(), message: redact(message), source: redact(source), page: kind };
       own.push(entry);
       sink.push({ ...entry, scenario: scenarioId });
     };

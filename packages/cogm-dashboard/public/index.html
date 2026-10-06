@@ -3,9 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Co-GM Dashboard</title>
+    <title>Foundry AI Tool</title>
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./moments.css" />
+    <link rel="stylesheet" href="./themes/brand.css" />
     <link rel="stylesheet" href="./themes/veil.css" />
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
@@ -13,9 +14,21 @@
   <body>
     <header class="topbar">
       <div class="brand">
-        <span class="brand-icon">🧠</span>
+        <span class="brand-icon" aria-hidden="true">
+          <!-- The README brand's mark (docs/images/brand/logo.svg), coloured by themes/brand.css. -->
+          <svg class="brand-mark" viewBox="0 0 100 100">
+            <circle class="mark-glow" cx="50" cy="31" r="16" />
+            <polygon class="mark-hex" points="90,50 70,84.64 30,84.64 10,50 30,15.36 70,15.36" />
+            <line class="mark-edge" x1="34" y1="63" x2="50" y2="31" />
+            <line class="mark-edge" x1="34" y1="63" x2="66" y2="63" />
+            <line class="mark-spark" x1="50" y1="31" x2="66" y2="63" />
+            <circle class="mark-ring" cx="34" cy="63" r="4" />
+            <circle class="mark-ring" cx="66" cy="63" r="4" />
+            <circle class="mark-node" cx="50" cy="31" r="5.5" />
+          </svg>
+        </span>
         <div>
-          <h1>Co-GM</h1>
+          <h1>Foundry <span class="wordmark-ai">AI</span> Tool</h1>
           <p class="subtitle" id="world-subtitle">Live AI dungeon master's assistant</p>
         </div>
       </div>

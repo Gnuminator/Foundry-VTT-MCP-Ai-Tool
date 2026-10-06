@@ -35,6 +35,16 @@ test('the real stage scripts pass, except stage 1 (the foundry user) and stage 9
   }
 });
 
+test('the helper scripts the user runs over SSH (set-*.sh) pass the guard too', () => {
+  const dir = path.join(repo, 'scripts', 'pi', 'remote');
+  const names = readdirSync(dir).filter(n => /^set-.*\.sh$/.test(n));
+  assert.ok(names.includes('set-tunnel-token.sh') && names.includes('set-dashboard-access.sh'));
+  for (const name of names) {
+    const command = `cat scripts/pi/remote/${name} | ssh -o BatchMode=yes foundry-pi bash`;
+    assert.equal(kind(command), 'allow', `${name}: ${JSON.stringify(decide(command, repo))}`);
+  }
+});
+
 test('commands whose only target is this machine (a test container) pass', () => {
   const k = '-i /root/.ssh/testkey -o StrictHostKeyChecking=no';
   for (const c of [

@@ -44,15 +44,22 @@ One command removes a player's records from the bridge vault: every roll, change
 under their Foundry user name, and the dashboard usage records. It is not an AI tool on purpose:
 Claude cannot delete anyone's data.
 
-1. Quit Claude Desktop (the bridge keeps writing these logs while it runs; the command refuses
-   until it has stopped).
+You do not run this yourself: pass the request on to whoever set up the tool. It needs a terminal
+on the machine that runs the bridge (the Orange Pi, when the game is hosted there). For them:
+
+1. Stop the bridge (the bridge keeps writing these logs while it runs; the command refuses until it
+   has stopped). On a PC, quit Claude Desktop. On the Pi, stop the `foundry-ai-tool-bridge`
+   service and start it again after step 4.
 2. Open a terminal in the tool's folder. Find the world id with `npm run vault -- worlds`.
 3. See what would go, without changing anything:
    `npm run vault -- forget-user <world id> <user name> --dry-run`
 4. Remove it: the same command without `--dry-run`. To remove only the chat they wrote and keep
    their rolls in the stats, add `--chat-only`.
-5. Rebuild the Obsidian notes: `npm run obsidian -- export`. Notes that are no longer produced move
-   to Obsidian's `.trash` folder; empty it. A note you edited by hand is kept as it is: check it.
+5. The Obsidian notes catch up by themselves: when the bridge writes the GM vault (always on the
+   Pi), it renders them again the next time anything happens in the world. To rebuild them at
+   once, or when the bridge does not write a vault, run `npm run obsidian -- export`. Notes that
+   are no longer produced move to Obsidian's `.trash` folder; empty it. A note you edited by hand
+   is kept as it is: check it.
 
 The user name is the Foundry user name, not the character name (`Player`, not `Test Hero`); the
 Foundry user id works too. What Claude already read when you asked it something has gone to

@@ -37,7 +37,12 @@ import type { SessionNotesAction } from '../session-notes-route.js';
  * Emits: `connected`, `disconnected` (Error).
  */
 
-const MAX_BUFFER_BYTES = 1_000_000;
+/**
+ * The longest single (not yet newline-terminated) reply line we accept. The channel is a local
+ * loopback socket and one reply is one JSON line, so a big world's tool result (play stats, a
+ * journal list) can be several MB. The cap only guards against a line that never ends.
+ */
+export const MAX_LINE_CHARS = 32 * 1024 * 1024;
 
 /** The control channel/transport failed (down, write error, protocol error). */
 export class ChannelError extends Error {
@@ -460,15 +465,13 @@ export class McpControlClient extends EventEmitter {
 
   private onData(chunk: string): void {
     this.buffer += chunk;
-    if (this.buffer.length > MAX_BUFFER_BYTES) {
-      this.logger.warn('Control buffer overflow, resetting connection');
-      this.buffer = '';
-      this.failConnection(new ChannelError('Control buffer overflow'));
-      return;
-    }
 
+    // After every call the buffer holds no newline, so a chunk without one cannot complete a line:
+    // skip the scan and only do the cap check below. This keeps a multi-MB reply arriving in many
+    // small chunks linear instead of rescanning the growing buffer each time.
+    const scan = chunk.includes('\n');
     let idx: number;
-    while ((idx = this.buffer.indexOf('\n')) >= 0) {
+    while (scan && (idx = this.buffer.indexOf('\n')) >= 0) {
       const line = this.buffer.slice(0, idx).trim();
       this.buffer = this.buffer.slice(idx + 1);
       if (!line) continue;
@@ -502,6 +505,18 @@ export class McpControlClient extends EventEmitter {
       } else {
         pending.resolve(message.result);
       }
+    }
+
+    // Only the incomplete trailing line counts toward the cap: complete lines were consumed above.
+    if (this.buffer.length > MAX_LINE_CHARS) {
+      this.logger.warn('Control line overflow, resetting connection', {
+        chars: this.buffer.length,
+        limit: MAX_LINE_CHARS,
+      });
+      this.buffer = '';
+      this.failConnection(
+        new ChannelError(`Control reply line exceeds ${MAX_LINE_CHARS} characters`)
+      );
     }
   }
 

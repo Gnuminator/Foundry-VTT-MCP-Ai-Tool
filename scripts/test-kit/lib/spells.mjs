@@ -29,6 +29,7 @@
  * @property {boolean} concentration
  * @property {string[]} activities
  * @property {string} template
+ * @property {string[]} [hints]  for a spell with no activity: what its description says it does (save, attack, damage, heal, summon)
  */
 
 /** Pushes one problem. @param {Problem[]} problems @param {FailureKind} kind @param {string} what @param {string} evidence */
@@ -176,13 +177,93 @@ export function throwKind(message) {
   return /could not be found|no spell |no item/i.test(message) ? 'CONTENT' : 'SYSTEM';
 }
 
+/** The activity types the dnd5e system has. Any other type in an imported spell is dropped when the item loads. */
+export const SYSTEM_ACTIVITY_TYPES = [
+  'attack',
+  'cast',
+  'check',
+  'damage',
+  'enchant',
+  'forward',
+  'heal',
+  'order',
+  'save',
+  'summon',
+  'teleport',
+  'transform',
+  'utility',
+];
+
+/**
+ * What a spell with no activity is: nothing to roll, or data that lost its activity.
+ * - `foreign`: every activity in the pack is of a type the system does not have (an importer's macro
+ *   activity, say), so the item loads with none: CONTENT; the fix is the system spell of the same
+ *   name when there is one, else the module that provides the type, or a re-import;
+ * - `lost`: the same spell in the system's own pack (`reference`) has activities and this one has
+ *   none: CONTENT, copy them from there;
+ * - `described`: the system ships it with no activity too, or there is no counterpart and the
+ *   description has nothing to roll: expected, not a problem;
+ * - `rollable`: no counterpart and the description mentions a save, an attack, damage, healing or a
+ *   summon: CONTENT, add the activity or re-import.
+ * @param {SpellEntry} entry
+ * @param {SpellEntry | undefined} reference the same spell (by name) in the system's own spell pack
+ * @returns {{expected: boolean, kind: 'foreign' | 'lost' | 'described' | 'rollable', why: string, route: string}}
+ */
+export function classifyNoActivity(entry, reference) {
+  const types = entry.activities ?? [];
+  const foreign = types.filter(t => !SYSTEM_ACTIVITY_TYPES.includes(t));
+  const own = reference?.activities?.length ?? 0;
+  if (types.length && foreign.length === types.length) {
+    return {
+      expected: false,
+      kind: 'foreign',
+      why: `every activity is of a type the system does not have (${[...new Set(foreign)].join(', ')}), so the item loads with none`,
+      route: own
+        ? 'copy the activities from the system spell of the same name'
+        : 'enable the module that provides the activity type, or re-import the spell',
+    };
+  }
+  if (own) {
+    return {
+      expected: false,
+      kind: 'lost',
+      why: `the system's own pack has ${own} activity(ies) (${[...new Set(reference?.activities)].join(', ')}) for this spell`,
+      route: 'copy the activities from the system spell of the same name',
+    };
+  }
+  if (reference) {
+    return {
+      expected: true,
+      kind: 'described',
+      why: 'the system ships this spell with no activity either',
+      route: '',
+    };
+  }
+  const hints = entry.hints ?? [];
+  if (hints.length) {
+    return {
+      expected: false,
+      kind: 'rollable',
+      why: `no system counterpart; the description mentions ${hints.join(', ')}`,
+      route: 'add the activity by hand or re-import from a source that has it',
+    };
+  }
+  return {
+    expected: true,
+    kind: 'described',
+    why: 'a description-only spell (nothing in it to roll)',
+    route: '',
+  };
+}
+
 /**
  * Judges one cast of the broad pass.
  * @param {SpellEntry} entry
  * @param {CastResponse} res
+ * @param {SpellEntry} [reference] the same spell in the system's own pack, when there is one
  * @returns {Problem[]}
  */
-export function judgeCast(entry, res) {
+export function judgeCast(entry, res, reference) {
   /** @type {Problem[]} */
   const problems = [];
   const who = `${entry.name} (level ${entry.level})`;
@@ -194,7 +275,10 @@ export function judgeCast(entry, res) {
   } else if (cast.skipped) {
     // Left out with a reason (every activity of the spell asks for a dialog): not a problem.
   } else if (cast.noActivities) {
-    bad(problems, 'CONTENT', 'the spell has no activity', `${who}: there is nothing to cast`);
+    // A description-only spell is expected; one that lost its activity is CONTENT, with the reason.
+    const kind = classifyNoActivity(entry, reference);
+    if (!kind.expected)
+      bad(problems, 'CONTENT', 'the spell has no activity', `${who}: ${kind.why}`);
   } else if (cast.threw) {
     bad(problems, throwKind(cast.threw), 'the cast threw', `${who}: ${cast.threw}`);
   } else if (!cast.ok) {

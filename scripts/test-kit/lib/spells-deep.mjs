@@ -594,12 +594,15 @@ export const DEEP_SPELL_CHECKS = [
   // 19. Teleport.
   oneCast({
     id: 'teleport',
-    title: 'Misty Step: a teleport activity, cast with a 2nd level slot',
+    title: 'Misty Step: a bonus action teleport, cast with a 2nd level slot',
     spells: ['Misty Step'],
     who: ctx => ctx.caster(2),
     cast: ([e]) => ({ casts: [{ uuid: e.uuid }] }),
-    judge({ cast, problems }) {
-      expectEqual(problems, 'CONTENT', 'Misty Step activity', cast.facts.type, 'teleport');
+    judge({ cast, problems, notes }) {
+      // The rule is a bonus action that teleports; which activity type carries it is the data's choice
+      // (the system's own pack uses a teleport activity, an import may use a utility one): a note.
+      expectEqual(problems, 'CONTENT', 'Misty Step activation', cast.facts.itemActivation, 'bonus');
+      notes.push(`activity type ${cast.facts.type}`);
       expectEqual(
         problems,
         'SYSTEM',

@@ -17,6 +17,7 @@ import { loadProfile } from '../lib/profiles.mjs';
 import {
   casterCandidates,
   casterFor,
+  classifyNoActivity,
   judgeCast,
   sampleSpells,
   selectSpells,
@@ -43,11 +44,17 @@ export default {
     /** @type {any[]} */
     let candidates = [];
     const listing = { listed: 0, packsMissing: /** @type {string[]} */ ([]) };
+    /** The same spells in the system's own packs, to tell a spell with nothing to roll from one that lost its activity. */
+    /** @type {Map<string, import('../lib/spells.mjs').SpellEntry>} */
+    const reference = new Map();
 
     await t.step('list the spells and find the casters', async () => {
       const listed = await t.gm('listSpells', { packIds: profile.packs.spells });
       listing.listed = listed.entries.length;
       listing.packsMissing = listed.missing ?? [];
+      const own = await t.gm('listSpells', { packIds: ['dnd5e.spells24', 'dnd5e.spells'] });
+      for (const e of own.entries)
+        if (!reference.has(e.name.toLowerCase())) reference.set(e.name.toLowerCase(), e);
       const all = selectSpells(listed.entries, profile.select);
       selected = t.size === 'smoke' ? sampleSpells(all, 30) : all;
       t.check(all.length > 0, 'the profile has no spells (are its spell packs installed?)', {
@@ -73,6 +80,8 @@ export default {
     let forced = 0;
     /** @type {Record<string, number>} */
     const skippedBy = {};
+    /** @type {Array<{spell: string, level: number, pack: string, expected: boolean, kind: string, why: string, route: string}>} */
+    const noActivity = [];
 
     for (let level = 0; level <= 9; level += 1) {
       const ofLevel = selected.filter(s => s.level === level);
@@ -99,7 +108,11 @@ export default {
                 const why = res.casts[0].skipped;
                 skippedBy[why] = (skippedBy[why] ?? 0) + 1;
               }
-              found = judgeCast(entry, res);
+              found = judgeCast(entry, res, reference.get(entry.name.toLowerCase()));
+              if (res.casts?.[0]?.noActivities) {
+                const kind = classifyNoActivity(entry, reference.get(entry.name.toLowerCase()));
+                noActivity.push({ spell: entry.name, level, pack: entry.packId, ...kind });
+              }
             } catch (e) {
               found = [
                 {
@@ -135,6 +148,26 @@ export default {
       spellsCast: cast,
       slotsForced: forced,
       leftOut: skippedBy,
+      noActivity: {
+        expected: noActivity.filter(n => n.expected).length,
+        content: noActivity.filter(n => !n.expected).length,
+        byPack: Object.fromEntries(
+          [...new Set(noActivity.map(n => n.pack))].map(pack => [
+            pack,
+            {
+              expected: noActivity.filter(n => n.pack === pack && n.expected).length,
+              content: noActivity.filter(n => n.pack === pack && !n.expected).length,
+            },
+          ])
+        ),
+        byKind: Object.fromEntries(
+          [...new Set(noActivity.map(n => n.kind))].map(kind => [
+            kind,
+            noActivity.filter(n => n.kind === kind).length,
+          ])
+        ),
+        spells: noActivity,
+      },
       casters: candidates.map(c => `${c.hero.name} (${c.hero.classIdentifier} ${c.hero.level})`),
       byLevel,
       spellsFailed: failed.length,

@@ -27,6 +27,17 @@
 async function listSpells(args) {
   const entries = [];
   const missing = [];
+  const hintsOf = html => {
+    const text = html.replace(/<[^>]*>/g, ' ');
+    const out = [];
+    if (/saving throw/i.test(text)) out.push('save');
+    if (/(melee|ranged) (spell )?attack/i.test(text)) out.push('attack');
+    if (/[0-9]+d[0-9]+[^.]{0,60}damage|takes?[^.]{0,40}damage/i.test(text)) out.push('damage');
+    if (/regains?[^.]{0,40}hit points|temporary hit points/i.test(text)) out.push('heal');
+    if (/(summon|conjure)s?[^.]{0,60}(creature|spirit|elemental|animal|fey|beast)/i.test(text))
+      out.push('summon');
+    return out;
+  };
   const fields = [
     'system.level',
     'system.school',
@@ -34,6 +45,7 @@ async function listSpells(args) {
     'system.activities',
     'system.source',
     'system.target',
+    'system.description.value',
   ];
   for (const packId of args.packIds ?? []) {
     const pack = game.packs.get(packId);
@@ -70,6 +82,8 @@ async function listSpells(args) {
           props.includes('concentration') || acts.some(a => a.duration?.concentration === true),
         activities: acts.map(a => String(a.type ?? '')),
         template,
+        // For a spell with no activity: what its description says it does (words only, no text kept).
+        hints: acts.length ? [] : hintsOf(String(sys.description?.value ?? '')),
       });
     }
   }

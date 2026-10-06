@@ -13,6 +13,7 @@ import { runScenariosDetailed } from '../lib/runner.mjs';
 import {
   casterCandidates,
   casterFor,
+  classifyNoActivity,
   judgeCast,
   refusalOfCast,
   sampleSpells,
@@ -218,9 +219,12 @@ test('judgeCast: a throw, a refusal, no activity, a GM action error and a hero n
   assert.deepEqual(kinds(judgeCast(e3, good({ ok: false }))), [
     'SYSTEM the system refused the cast',
   ]);
-  assert.deepEqual(kinds(judgeCast(e3, good({ noActivities: true }))), [
-    'CONTENT the spell has no activity',
-  ]);
+  assert.deepEqual(
+    kinds(
+      judgeCast(entry({ name: 'Zap', level: 3, hints: ['save'] }), good({ noActivities: true }))
+    ),
+    ['CONTENT the spell has no activity']
+  );
   assert.deepEqual(kinds(judgeCast(e3, { casts: [], restored: true, drift: [], error: 'boom' })), [
     'KIT the GM action failed',
   ]);
@@ -246,6 +250,49 @@ test('judgeCast: a spell left out with a reason is not a problem', () => {
     error: null,
   };
   assert.deepEqual(judgeCast(e3, left), []);
+});
+
+test('classifyNoActivity: a lost activity is CONTENT, a description-only spell is expected', () => {
+  const lost = entry({ name: 'Zap', activities: [] });
+  const own = entry({ name: 'Zap', activities: ['save', 'save'] });
+  assert.equal(classifyNoActivity(lost, own).expected, false);
+  assert.equal(classifyNoActivity(lost, own).kind, 'lost');
+  const foreign = entry({ name: 'Zap', activities: ['ddbmacro'] });
+  assert.equal(classifyNoActivity(foreign, own).kind, 'foreign');
+  assert.match(classifyNoActivity(foreign, own).why, /type the system does not have \(ddbmacro\)/);
+  assert.match(classifyNoActivity(foreign, own).route, /copy the activities/);
+  assert.match(classifyNoActivity(foreign, undefined).route, /enable the module/);
+  assert.equal(
+    classifyNoActivity(entry({ name: 'Zap', activities: ['ddbmacro', 'save'] }), undefined)
+      .expected,
+    true,
+    'one system activity is enough: it does not load empty'
+  );
+  assert.match(classifyNoActivity(lost, own).why, /own pack has 2 activity/);
+  assert.match(classifyNoActivity(lost, own).route, /copy the activities/);
+  assert.equal(classifyNoActivity(lost, entry({ name: 'Zap', activities: [] })).expected, true);
+  assert.equal(
+    classifyNoActivity(entry({ name: 'Zap', activities: [], hints: [] }), undefined).expected,
+    true
+  );
+  const hinted = classifyNoActivity(
+    entry({ name: 'Zap', activities: [], hints: ['save', 'damage'] }),
+    undefined
+  );
+  assert.equal(hinted.expected, false);
+  assert.match(hinted.why, /mentions save, damage/);
+});
+
+test('judgeCast: a spell with no activity is a problem only when it lost one', () => {
+  const none = { casts: [{ noActivities: true }], restored: true, drift: [], error: null };
+  const zap = entry({ name: 'Zap', level: 2, activities: [] });
+  assert.deepEqual(judgeCast(zap, none), []);
+  assert.deepEqual(kinds(judgeCast(zap, none, entry({ name: 'Zap', activities: ['save'] }))), [
+    'CONTENT the spell has no activity',
+  ]);
+  assert.deepEqual(kinds(judgeCast(entry({ name: 'Zap', hints: ['attack'] }), none)), [
+    'CONTENT the spell has no activity',
+  ]);
 });
 
 test('refusalOfCast and throwKind classify by what the system said', () => {
@@ -356,6 +403,12 @@ test('spells-*: against the fake kit both scenarios pass and say what they cover
   assert.equal(cast.spellsListed, FAKE_SPELLS.length);
   assert.ok(cast.spellsCast >= 20, `${cast.spellsCast} cast`);
   assert.equal(cast.spellsFailed, 0);
+  assert.equal(
+    cast.noActivity.expected,
+    1,
+    'the description-only fake spell is expected, not a failure'
+  );
+  assert.equal(cast.noActivity.content, 0);
   assert.ok(cast.slotsForced > 0, 'a 9th level spell needs a forced slot at level 5');
   assert.deepEqual(
     cast.packsMissing,
@@ -491,4 +544,17 @@ test('spells-cast-all: a spell whose activities all ask for a dialog is left out
   const cov = attachment(scenario, 'coverage');
   assert.deepEqual(cov.leftOut, { 'a transform activity asks which form to take': 2 });
   assert.equal(cov.spellsFailed, 0);
+});
+
+test('spells-cast-all: a spell that lost its activity is CONTENT and the breakdown names the pack', async () => {
+  const r = await runSpells(world => {
+    world.faults.spellQuirks.set('Fireball', 'noActivity');
+  });
+  const scenario = r['spells-cast-all'];
+  assert.equal(scenario.status, 'fail');
+  const cov = attachment(scenario, 'coverage');
+  assert.deepEqual(cov.noActivity.byPack, { 'dnd5e.spells24': { expected: 1, content: 1 } });
+  const lost = cov.noActivity.spells.find((/** @type {any} */ n) => !n.expected);
+  assert.match(lost.why, /the system's own pack has 1 activity/);
+  assert.equal(cov.problemsByKind.CONTENT, 1);
 });

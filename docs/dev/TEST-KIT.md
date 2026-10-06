@@ -482,6 +482,21 @@ system did, and puts the hero back (items, slots, hit points, effects, chat mess
 - a spell that needs concentration made a concentration effect,
 - the hero is exactly as before (KIT when not).
 
+Two kinds of spell are left out of the cast instead of failing it, and the coverage attachment (`leftOut`,
+`noActivity`) counts them:
+
+- A spell whose only activities are of type `transform` or `order` asks for a dialog nobody can answer in a
+  headless page (a form to take, a bastion facility). When the spell has another activity that one is cast;
+  otherwise the spell is left out with that reason.
+- A spell that loads with no activity at all (`noActivity`) is classified (`classifyNoActivity`):
+  `described` (the system's own pack ships it with none too, or it has no system counterpart and its
+  description has nothing to roll) is expected and not a problem; `lost` (the system's own pack has
+  activities for the same name), `foreign` (every activity in the pack is of a type the system does not
+  have, such as an importer's macro activity, so the item loads empty) and `rollable` (no counterpart, the
+  description mentions a saving throw, an attack, damage, healing or a summon) are CONTENT, each with its
+  reason and a fix route in the attachment. `foreign` and `lost` have a counterpart to copy the activities
+  from.
+
 The coverage attachment has the spell counts by level, the casters, the forced slots, the problems by
 kind and every failed spell with its problems. A licensed profile's report stays in the kit home.
 
@@ -513,7 +528,7 @@ data has right and the system gets wrong is SYSTEM.
 | `upcast-heal`           | Cure Wounds in a 3rd level slot: 6d8                                                      |
 | `heal-roll`             | Cure Wounds: 2d8 plus the casting ability, a healing roll                                 |
 | `temp-hp`               | False Life: 2d4 + 4 temporary hit points, applied to the caster                           |
-| `teleport`              | Misty Step: a teleport activity, a 2nd level slot                                         |
+| `teleport`              | Misty Step: a bonus action teleport, a 2nd level slot (the activity type is a note)       |
 | `reaction-shield`       | Shield: a reaction, +5 Armor Class while it lasts                                         |
 | `mage-armor`            | Mage Armor: Armor Class 13 + Dexterity for a hero with no armor                           |
 | `bless-effects`         | Bless: +1d4 to attack rolls and saving throws while it lasts                              |
@@ -533,6 +548,20 @@ template is checked by creating the Region the system would build from the activ
 for the length of one call. The effects of a spell (a condition, an armor formula, bonus dice) are
 applied to the caster as a copy of the spell's effect, as the chat card's apply button does, and
 removed again by the restore.
+
+**What the first live runs showed (2026-10-06).** `srd` `smoke` and `full`: both spell scenarios pass. `full` casts all
+340 spells of the system's 2024 pack with no problem and all 31 deep checks pass; the `smoke` sample is 34 spells
+and the whole `smoke` run takes about a minute. `licensed` `full`: 1168 spells are listed in the three spell packs,
+845 are counted (each name once per rules version) and cast in about 80 seconds (the whole run with the 157-hero
+build is about 15 minutes); 5 of them have only a transform activity and are left out, and 2 have no activity
+after loading: both come from one licensed content pack and carry an activity of a type the system does not have
+(the `foreign` kind above), and both have a spell of the same name in the system's own pack to copy the activities
+from. All 31 deep checks pass on the licensed data. In the system's own packs and the licensed book pack no
+spell is without activities. The deep checks take about 4 seconds because they are about 40 casts of 0.1 seconds.
+Three things the first runs taught the kit: ending a concentration effect also ends the effects that depend on
+it, so the restore deletes new effects one by one; a transform activity waits for a dialog for ever, so the cast
+pass picks another activity or leaves the spell out; and whether a teleport spell uses a teleport or a utility
+activity is the data's choice, so the Misty Step check judges the bonus action and only notes the type.
 
 ### Failure classes
 

@@ -4,7 +4,7 @@
  * `listSpells` and `exerciseSpell`. The numbers are the 2024 SRD numbers; the fake does not
  * simulate dnd5e, so a clean fake run proves the plumbing (the scenarios, the judging and the
  * report), not the rules. A test breaks something by naming a quirk in `world.faults.spellQuirks`
- * ("<spell name>" -> throws, noCard, noSlot, wrongSlot, drift, refuse, badData, skip).
+ * ("<spell name>" -> throws, noCard, noSlot, wrongSlot, drift, refuse, badData, skip, noActivity).
  */
 import { FAKE_CLASSES } from './classes.mjs';
 import { ToolFailure } from './state.mjs';
@@ -74,7 +74,7 @@ function spell(name, level, o = {}) {
     school: o.school ?? 'evo',
     ritual: !!o.ritual,
     concentration: !!o.concentration,
-    activities: [o.type ?? 'utility'],
+    activities: o.noActivity ? [] : [o.type ?? 'utility'],
     template: template.type,
     facts: {
       type: o.type ?? 'utility',
@@ -111,6 +111,7 @@ const save = (/** @type {string} */ ability, onSave = 'half') => ({
 /** @type {FakeSpell[]} */
 export const FAKE_SPELLS = [
   spell('Light', 0, { school: 'evo' }),
+  spell('Comprehend Languages', 1, { school: 'div', ritual: true, noActivity: true }),
   spell('Fire Bolt', 0, {
     type: 'attack',
     attack: { type: 'ranged', classification: 'spell' },
@@ -188,7 +189,7 @@ export const FAKE_SPELLS = [
     template: area('radius', '30'),
   }),
   spell('Hex', 1, { type: 'utility', school: 'enc', concentration: true }),
-  spell('Misty Step', 2, { type: 'teleport', school: 'con' }),
+  spell('Misty Step', 2, { type: 'teleport', school: 'con', itemActivation: 'bonus' }),
   spell('Hold Person', 2, {
     type: 'save',
     school: 'enc',
@@ -270,6 +271,7 @@ export function fakeListSpells(_w, args) {
         concentration: s.concentration,
         activities: s.activities,
         template: s.template,
+        hints: [],
       });
     }
   }
@@ -379,6 +381,10 @@ export function fakeExerciseSpell(w, args) {
       itemLeft: !spec.scroll,
       itemUses: { spent: spec.scroll ? 1 : null, max: spec.scroll ? 1 : null, quantity: null },
     });
+    if (quirk === 'noActivity' || !s.activities.length) {
+      out.noActivities = true;
+      return out;
+    }
     if (quirk === 'skip') {
       out.skipped = 'a transform activity asks which form to take';
       return out;

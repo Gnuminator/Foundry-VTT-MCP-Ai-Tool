@@ -4,6 +4,10 @@
 # Every stage is safe to run again: it checks what is already there and only adds what is missing.
 
 set -euo pipefail
+# Files a stage makes are readable by the services (they run as foundry): never inherit a strict
+# umask from the SSH session (stage 9's wrapper once passed on 077, and a stage 5 build came out
+# root-only, so the bridge could not start; 2026-10-06). Secrets get their own modes where written.
+umask 022
 
 FOUNDRY_USER=foundry
 NODE_DIR=/opt/node24

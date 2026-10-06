@@ -66,34 +66,51 @@ wrapper_body="#!/bin/bash
 log_dir=$log_dir
 cmd=\"\${SSH_ORIGINAL_COMMAND-}\"
 from=\"\${SSH_CLIENT%% *}\"
+# The log and the saved scripts are root-only; the command itself gets the session's own umask back.
+session_umask=\"\$(umask)\"
 umask 077
 # The outer braces also silence the shell's own error when the log file cannot be opened.
 note() { { printf '%s %s %s\\n' \"\$(date '+%Y-%m-%d %H:%M:%S%z')\" \"\${from:-local}\" \"\$1\" >>\"\$log_dir/ssh-commands.log\"; } 2>/dev/null || true; }
 case \"\$cmd\" in
 '')
   note 'interactive login'
+  umask \"\$session_umask\"
   exec \"\${SHELL:-/bin/bash}\" -l
   ;;
 sftp | internal-sftp | /usr/lib/openssh/sftp-server)
   note 'sftp (file copy)'
+  umask \"\$session_umask\"
   exec /usr/lib/openssh/sftp-server
   ;;
 'bash -s')
   script=\"\$log_dir/scripts/\$(date '+%Y%m%d-%H%M%S')-\$\$.sh\"
   note \"bash -s (script saved: \$script)\"
   # tee keeps passing the input on even when it cannot write the copy.
-  tee \"\$script\" 2>/dev/null | \"\${SHELL:-/bin/bash}\" -s
+  tee \"\$script\" 2>/dev/null | { umask \"\$session_umask\"; \"\${SHELL:-/bin/bash}\" -s; }
   exit \"\${PIPESTATUS[1]}\"
   ;;
 *)
   note \"run: \$cmd\"
+  umask \"\$session_umask\"
   exec \"\${SHELL:-/bin/bash}\" -c \"\$cmd\"
   ;;
 esac"
 mkdir -p "$(dirname "$wrapper")"
-write_file "$wrapper" 0755 "$wrapper_body" || true
-chown root:root "$wrapper"
-bash -n "$wrapper" || die "the wrapper has a syntax error; nothing else changed"
+# Checked first, then swapped in with one rename: the SSH session running this stage is itself
+# executing the old wrapper, and bash reads a script as it goes, so it must never change in place.
+if [ -f "$wrapper" ] && [ "$(cat "$wrapper")" = "$wrapper_body" ]; then
+  ok "$wrapper unchanged"
+else
+  printf '%s\n' "$wrapper_body" >"$wrapper.new"
+  bash -n "$wrapper.new" || {
+    rm -f "$wrapper.new"
+    die "the new wrapper has a syntax error; the old one stays, nothing else changed"
+  }
+  chmod 0755 "$wrapper.new"
+  chown root:root "$wrapper.new"
+  mv -f "$wrapper.new" "$wrapper"
+  ok "wrote $wrapper"
+fi
 
 say "keeping the log 12 weeks"
 logrotate_conf="# Written by scripts/pi/remote/9-ssh-log.sh; edit it there.

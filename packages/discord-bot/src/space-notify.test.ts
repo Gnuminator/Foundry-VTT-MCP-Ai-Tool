@@ -168,7 +168,7 @@ describe('spaceMessage', () => {
     expect(text).toContain('12.3% free');
     expect(text).toContain('12.3 GB');
     expect(text).toContain('restic backup (destination)');
-    expect(text).not.toMatch(/—/);
+    expect(text).not.toMatch(/\u2014/);
   });
 
   it('only lists the disks that are not ok', () => {

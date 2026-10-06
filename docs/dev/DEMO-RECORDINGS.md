@@ -52,6 +52,12 @@ Every take writes a folder `C:\FoundryTest\demo\takes\<take>-<date>-<time>\`:
 | `take.json`   | Settings, the video's size and frame rate, screenshots, console errors per window, and the error if the take failed. |
 | `shots/*.png` | Screenshots at 1920x1080 for docs.                                                                                   |
 
+A screenshot of the window on air is not taken from the page while OBS records (Playwright's
+`scale: 'css'` makes Chromium draw the page at 1x for a few frames, so the recording shows the
+picture in the top-left quarter of the frame). The take notes the time and cuts the PNG out of
+the finished video with ffmpeg instead; screenshots of other windows, and every screenshot of a
+`--no-record` rehearsal, are real page screenshots.
+
 `steps.json` is a plain list, for captions, chapters and a later voiceover:
 
 ```json
@@ -64,6 +70,23 @@ Every take writes a folder `C:\FoundryTest\demo\takes\<take>-<date>-<time>\`:
   }
 ]
 ```
+
+A step also gets a `focus` box when a helper works on an element while that step runs
+(`humanClick`, `humanHover`, `humanType`; the last one in the step wins). It is the element's
+box as fractions of the recorded frame and the time in seconds from the recording start, for an
+automatic zoom in the video editor:
+
+```json
+{
+  "step": "ready",
+  "start": 12.5,
+  "end": 17.5,
+  "focus": { "x": 0.026, "y": 0.275, "w": 0.087, "h": 0.036, "at": 13.6 }
+}
+```
+
+A take can choose the element itself with `await t.focus(locator)` (it wins over the automatic
+ones in that step). Only the window on air counts.
 
 Takes stay out of the repo and the vault. Copy a screenshot into `docs/images/` by hand
 when a page needs it, and only after the design pick (the screens will change before then).
@@ -174,7 +197,8 @@ and a player can be logged in side by side. For a recording the window is fullsc
 the page is laid out at 1920x1080 CSS pixels in its top-left corner, drawn at 1x, 1.333x
 or 2x for 1080p, 1440p or 2160p. The layout is the same at every size; only the sharpness
 changes. The window title is pinned (for example "Demo Dashboard") so OBS can find it, and
-a yellow dot shows the mouse, since Playwright never moves the real cursor.
+a smoothed blue dot shows the mouse, with a ripple ring where a click lands, since Playwright
+never moves the real cursor (CSS only, so a take looks the same every run).
 
 The same helpers work for checks without recording (the test kit can reuse them):
 `openWindow` (default 1440x900, a size Foundry's canvas works with), `joinFoundry` and

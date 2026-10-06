@@ -29,6 +29,11 @@ if have_systemd; then
     tailscale up --hostname="$(hostname)" --timeout=10m
     ok "logged in"
   fi
+  # Names come from the router, not from Tailscale's MagicDNS: a DHCP lease renewal empties
+  # resolv.conf, Tailscale then keeps no upstream resolver and every public lookup fails
+  # (github.com, apt, Discord; seen 2026-10-06). The Pi needs no tailnet names.
+  tailscale set --accept-dns=false
+  ok "Tailscale DNS off: names from the router ($(awk '/^nameserver/ {print $2; exit}' /etc/resolv.conf))"
 else
   warn "no systemd here (a test container?): tailscaled not started"
 fi

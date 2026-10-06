@@ -24,7 +24,7 @@ Claude does not watch the game on its own. It reads what it needs at the moment 
 - The combat tracker, the current scene, tokens and their positions.
 - Journals in your world (it can search their text) and compendium entries such as monsters,
   spells and items (it finds them by name).
-- Chat, the session log and the play stats (per PC: damage, healing, downs, rolls, spells,
+- Chat, the session log and the play stats (per PC a player owns: damage, healing, downs, rolls, spells,
   resources, loot, XP).
 - The Tarokka reading and the list of revealed handouts (GM only).
 

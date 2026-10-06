@@ -59,6 +59,12 @@ export interface PlayActorRef {
   tokenUuid?: string;
   /** A player character (dnd5e `character`) rather than an NPC. */
   isPC: boolean;
+  /**
+   * For a `character`: whether a player owns it (Foundry `hasPlayerOwner`). The stats keep a PC
+   * only when a player owns it, so test or spare characters get no stats note (I-120). Absent on
+   * records from before 2026-10 and on NPCs.
+   */
+  playerOwned?: boolean;
   name: string;
 }
 

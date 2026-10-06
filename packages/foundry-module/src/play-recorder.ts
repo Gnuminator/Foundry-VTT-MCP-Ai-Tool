@@ -115,6 +115,7 @@ interface ActorLike {
   items?: unknown;
   isToken?: unknown;
   token?: unknown;
+  hasPlayerOwner?: unknown;
 }
 
 interface ItemLike {
@@ -796,6 +797,9 @@ export class PlayRecorder {
       isPC: str(actor.type) === 'character',
       name: str(actor.name) ?? 'Unknown',
     };
+    if (ref.isPC && typeof actor.hasPlayerOwner === 'boolean') {
+      ref.playerOwned = actor.hasPlayerOwner;
+    }
     if (bool(actor.isToken)) {
       const tokenUuid = str(asRecord(actor.token)?.uuid);
       if (tokenUuid) ref.tokenUuid = tokenUuid;

@@ -40,6 +40,33 @@ afterEach(() => {
 
 // --- Shadow diffs / document-state keys --------------------------------------
 
+describe('actor refs', () => {
+  it('say whether a player owns a character (I-120), not for NPCs', () => {
+    const now = Date.now();
+    const pc = makeFixtureActor({ system: { attributes: { hp: { value: 20 } } }, t: now });
+    pc.hasPlayerOwner = true;
+    const npc = makeFixtureActor({
+      id: 'npc1',
+      uuid: 'Actor.npc1',
+      type: 'npc',
+      system: { attributes: { hp: { value: 20 } } },
+      t: now,
+    });
+    npc.hasPlayerOwner = true;
+    for (const actor of [pc, npc]) {
+      world.actors.add(actor);
+      fireUpdate('updateActor', actor, { system: { attributes: { hp: { value: 15 } } } }, {}, 'u1');
+      actor._stats.modifiedTime = now + 1000;
+      fireUpdate('updateActor', actor, { system: { attributes: { hp: { value: 9 } } } }, {}, 'u1');
+    }
+    const actors = recorder.getPlayRecords({}).records.map(r => r.actor);
+    expect(actors).toEqual([
+      { uuid: pc.uuid, isPC: true, playerOwned: true, name: 'Hero' },
+      { uuid: 'Actor.npc1', isPC: false, name: npc.name },
+    ]);
+  });
+});
+
 describe('actor state shadows', () => {
   it('gives a before/after/delta only once a shadow exists, keyed off modifiedTime', () => {
     // A modifiedTime is trusted only within 60s of now, so the fixture clock is Date.now()-based.

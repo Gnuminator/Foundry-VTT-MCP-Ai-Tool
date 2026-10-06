@@ -234,6 +234,9 @@ function newCombatBuilder(combatId: string): CombatBuilder {
 interface PcAccumulator {
   uuid: string;
   name: string;
+  /** Whether a player owns it: true once any record says so, false when records say so and none
+   * says true, null when no record says (records from before `playerOwned`). */
+  playerOwned: boolean | null;
   sessions: Set<number>;
   damageDealt: number;
   damageTaken: number;
@@ -257,6 +260,7 @@ function newPcAccumulator(actor: PlayActorRef): PcAccumulator {
   return {
     uuid: actor.uuid,
     name: actor.name,
+    playerOwned: null,
     sessions: new Set(),
     damageDealt: 0,
     damageTaken: 0,
@@ -363,6 +367,8 @@ function pcFor(actor: PlayActorRef, ctx: SessionContext, sessionNumber: number):
     pc = newPcAccumulator(actor);
     ctx.pcs.set(actor.uuid, pc);
   }
+  if (actor.playerOwned === true) pc.playerOwned = true;
+  else if (actor.playerOwned === false && pc.playerOwned === null) pc.playerOwned = false;
   pc.sessions.add(sessionNumber);
   return pc;
 }
@@ -714,7 +720,10 @@ export function buildStats(input: BuildStatsInput): StatsModel {
 
   const sessions = groups.map((group, i) => buildSession(i + 1, group, ctx));
 
+  // Only characters a player owns (I-120): spare and test characters get no stats. Records
+  // from before `playerOwned` do not say, so those characters stay.
   const pcs: PcStats[] = [...ctx.pcs.values()]
+    .filter(pc => pc.playerOwned !== false)
     .map(
       (pc): PcStats => ({
         uuid: pc.uuid,

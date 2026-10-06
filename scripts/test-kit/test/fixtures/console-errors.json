@@ -1,0 +1,74 @@
+[
+  {
+    "at": "2026-10-06T01:06:31.000Z",
+    "message": "TypeError: Cannot set properties of null (setting 'hidden')\n    at #postNotification (http://127.0.0.1:30001/scripts/foundry.mjs:131192:20)",
+    "source": "pageerror",
+    "scenario": "heroes-features-use"
+  },
+  {
+    "at": "2026-10-06T01:06:32.000Z",
+    "message": "TypeError: Cannot set properties of null (setting 'hidden')\n    at #postNotification (http://127.0.0.1:30001/scripts/foundry.mjs:131192:20)",
+    "source": "pageerror",
+    "scenario": "heroes-features-use"
+  },
+  {
+    "at": "2026-10-06T01:07:10.000Z",
+    "message": "TypeError: Cannot set properties of null (setting 'hidden')\n    at #postNotification (http://127.0.0.1:30001/scripts/foundry.mjs:131195:20)",
+    "source": "pageerror",
+    "scenario": "heroes-features-deep"
+  },
+  {
+    "at": "2026-10-06T01:07:11.000Z",
+    "message": "TypeError: Cannot set properties of null (setting 'hidden')\n    at #postNotification (http://127.0.0.1:30001/scripts/foundry.mjs:131192:20)",
+    "source": "pageerror",
+    "scenario": "heroes-features-deep"
+  },
+  {
+    "at": "2026-10-06T01:20:01.000Z",
+    "message": "Error: Error thrown in hooked function '' for hook 'gas.captureAdvancement'. Syntax error, unrecognized expression: dnd5e-checkbox[aria-label*=\"average\" i]\n    at Hooks.onError (http://127.0.0.1:30001/scripts/foundry.mjs:26819:24)",
+    "source": "http://127.0.0.1:30001/modules/foundry-mcp-bridge/dist/diagnostics.js:35",
+    "scenario": "heroes-studio"
+  },
+  {
+    "at": "2026-10-06T01:20:02.000Z",
+    "message": "Error: Error thrown in hooked function '' for hook 'gas.captureAdvancement'. Syntax error, unrecognized expression: dnd5e-checkbox[aria-label*=\"average\" i]\n    at Hooks.onError (http://127.0.0.1:30001/scripts/foundry.mjs:26819:24)",
+    "source": "http://127.0.0.1:30001/modules/foundry-mcp-bridge/dist/diagnostics.js:35",
+    "scenario": "heroes-studio"
+  },
+  {
+    "at": "2026-10-06T01:20:03.000Z",
+    "message": "Error: Error thrown in hooked function '' for hook 'gas.captureAdvancement'. Syntax error, unrecognized expression: dnd5e-checkbox[aria-label*=\"average\" i]\n    at Hooks.onError (http://127.0.0.1:30001/scripts/foundry.mjs:26819:24)",
+    "source": "http://127.0.0.1:30001/modules/foundry-mcp-bridge/dist/diagnostics.js:35",
+    "scenario": "heroes-studio"
+  },
+  {
+    "at": "2026-10-06T01:20:04.000Z",
+    "message": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "source": "http://127.0.0.1:30001/modules/foundryvtt-actor-studio/modules/foundryvtt-actor-studio/assets/black-parchment.webp:0",
+    "scenario": "heroes-studio"
+  },
+  {
+    "at": "2026-10-06T01:20:05.000Z",
+    "message": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "source": "http://127.0.0.1:30001/modules/foundryvtt-actor-studio/modules/foundryvtt-actor-studio/assets/black-parchment.webp:0",
+    "scenario": "heroes-studio"
+  },
+  {
+    "at": "2026-10-06T01:25:00.000Z",
+    "message": "Texture Ab3dEf7890123456 failed to load",
+    "source": "http://127.0.0.1:30001/scripts/foundry.mjs:900:3",
+    "scenario": "scripted-fight"
+  },
+  {
+    "at": "2026-10-06T01:25:30.000Z",
+    "message": "Texture Zz9dEf7890123456 failed to load",
+    "source": "http://127.0.0.1:30001/scripts/foundry.mjs:911:3",
+    "scenario": "scripted-fight"
+  },
+  {
+    "at": "2026-10-06T01:26:00.000Z",
+    "message": "Error: boom",
+    "source": "pageerror",
+    "scenario": "scripted-fight"
+  }
+]

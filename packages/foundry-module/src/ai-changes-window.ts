@@ -75,6 +75,11 @@ export class AiChangesController {
     await this.load();
   }
 
+  /** Back to the first page (the window is one object per browser, so a reopen starts fresh). */
+  resetLimit(): void {
+    this.view = { ...this.view, limit: FIRST_PAGE_LIMIT };
+  }
+
   /** Remember whether an entry's diff is expanded, without redrawing. */
   setOpen(id: string, open: boolean): void {
     const openIds = new Set(this.view.openIds);
@@ -212,6 +217,7 @@ function defineWindowClass(): new () => AiChangesWindowInstance {
     }
 
     _onClose(): void {
+      this.controller.resetLimit();
       this.stopListening?.();
       this.stopListening = null;
       if (this.pushTimer !== null) clearTimeout(this.pushTimer);

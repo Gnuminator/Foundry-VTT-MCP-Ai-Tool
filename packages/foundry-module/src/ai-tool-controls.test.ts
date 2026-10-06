@@ -11,7 +11,6 @@ import {
   registerAiToolControls,
 } from './ai-tool-controls.js';
 import {
-  AI_CHANGES_APPLY_DELAY_MS,
   AI_CHANGES_SOCKET_TYPE,
   announceAiChangesUpdated,
   handleAiChangesSocketMessage,
@@ -119,19 +118,6 @@ describe('the AI changes signal', () => {
     stop();
     announceAiChangesUpdated();
     expect(listener).toHaveBeenCalledTimes(1);
-  });
-
-  it('an apply waits a moment so the backend can record the change first', () => {
-    install(true);
-    vi.useFakeTimers();
-    const listener = vi.fn();
-    const stop = onAiChangesUpdated(listener);
-
-    announceAiChangesUpdated(AI_CHANGES_APPLY_DELAY_MS);
-    expect(listener).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(AI_CHANGES_APPLY_DELAY_MS);
-    expect(listener).toHaveBeenCalledTimes(1);
-    stop();
   });
 
   it('the socket handler refreshes GM clients only, and ignores other messages', () => {

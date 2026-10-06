@@ -236,15 +236,26 @@ once when the link opens, so the backend knows which Foundry user holds it: lane
 the backend to run one tool for a GM's "AI changes" window inside Foundry (I-108). Only the tools
 in `MODULE_REQUEST_TOOLS` (`list-recent-changes`, `undo-change`; later lanes add more) are
 accepted, and only from the currently active module socket; anything else gets a
-`module-reply` with `success: false`. The `args` object may not exceed 20 kB as JSON. The backend
+`module-reply` with `success: false` (a socket that is not the active link gets the shared
+`MODULE_NOT_ACTIVE_LINK_ERROR`, and the module treats that like "not connected": it asks the next
+GM client instead of giving up). The `args` object may not exceed 20 kB as UTF-8 JSON bytes. The backend
 runs the tool through the same in-process dispatch table as the control channel's `call_tool`
 (the connector gets it as a callback, so it never imports the tool router) and answers on the same
 socket with the same `id`. The module times a request out after 30 seconds (120 seconds for an
 undo) and rejects it when the link closes. A GM whose own browser does not hold the link reaches
 it through Foundry's GM-only `user.query` to the browser that does, which forwards the request
-(`gm-helper-queries.ts`, the `aiToolRequest` helper query); when the bridge client logs a guarded
-change it also sends a `{type:"ai-changes-updated"}` message on the module's game socket, and open
-windows fetch the list again.
+(`gm-helper-queries.ts`, the `aiToolRequest` helper query); with "Any GM" a browser whose link is
+not the active one takes the same route. An undo from the window carries the GM's name into the
+undo's audit entry (`requestedBy`).
+
+The backend also sends one frame to a module socket when it connects, `bridge-hello`
+(`{"type":"bridge-hello","data":{"capabilities":["module-request"]}}`), so a new module facing an
+older bridge, which never sends it, fails fast with "Update the AI Tool bridge to use this window."
+instead of waiting out the timeout; an older module ignores the frame. After every recorded apply
+or undo (the guarded-write `addRecordedListener` hook, in `module-requests.ts`) the backend calls
+the module query `foundry-mcp-bridge.aiChangesUpdated`; the bridge client answers by sending a
+`{type:"ai-changes-updated"}` message on the module's game socket, and open windows fetch the list
+again.
 
 **Why two layers?** The control channel is process-local, trusted, and synchronous-feeling
 (request/response). The Foundry link crosses the trust/process boundary into a browser, may be

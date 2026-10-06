@@ -327,6 +327,8 @@ change, and **Refresh** reloads it by hand.
 
 If the window says the AI Tool bridge is not connected, the browser that holds the link to the AI
 Tool (the Assistant GM browser on the server) is not running; ask whoever runs the server.
+If it says "Update the AI Tool bridge to use this window", the bridge on the server is older than
+this module; ask whoever runs the server to update it.
 Clicking the AI Tool group leaves the map as it was: it only changes which buttons the toolbar
 shows, and clicking any other group (Tokens, for example) brings the usual tools back.
 

@@ -275,6 +275,26 @@ describe('the window class on a fake ApplicationV2', () => {
     );
   });
 
+  it('starts at the first page again after "Show more" and a close (one window object per client)', async () => {
+    await openAiChangesWindow();
+    const link = (await import('./bridge-link.js')).getOpenBridgeLink() as any;
+    await rendered[0].controller.showMore();
+    expect(rendered[0].controller.view.limit).toBe(100);
+
+    rendered[0]._onClose();
+    link.request.mockClear();
+    await openAiChangesWindow();
+
+    expect(rendered).toHaveLength(1);
+    expect(rendered[0].controller.view.limit).toBe(20);
+    expect(link.request).toHaveBeenCalledWith(
+      'list-recent-changes',
+      { limit: 20 },
+      expect.any(Object),
+      30_000
+    );
+  });
+
   it('stops listening when closed', async () => {
     await openAiChangesWindow();
     const link = (await import('./bridge-link.js')).getOpenBridgeLink() as any;

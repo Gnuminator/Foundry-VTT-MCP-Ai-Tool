@@ -184,14 +184,16 @@ export class GuardedChangeTools {
     return { changes: await this.guardedWrites.listRecentChanges(limit ?? 20) };
   }
 
-  async handleUndoChange(args: unknown): Promise<AppliedChange> {
+  /** `requestedBy`: who asked, when it was not Claude (a GM's "AI changes" window in Foundry). */
+  async handleUndoChange(args: unknown, requestedBy?: string): Promise<AppliedChange> {
     const params = z
       .object({ changeId: z.string().min(1), confirm: z.boolean().optional() })
       .parse(args ?? {});
     try {
       return await this.guardedWrites.undo(
         params.changeId,
-        params.confirm !== undefined ? { confirm: params.confirm } : {}
+        params.confirm !== undefined ? { confirm: params.confirm } : {},
+        requestedBy
       );
     } catch (error) {
       this.logger.warn('Change not undone', {

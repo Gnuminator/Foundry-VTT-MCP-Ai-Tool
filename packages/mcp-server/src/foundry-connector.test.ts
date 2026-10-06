@@ -3,13 +3,19 @@ import { EventEmitter } from 'events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 
+import { MODULE_NOT_ACTIVE_LINK_ERROR, MODULE_REQUEST_MAX_ARGS_BYTES } from '@gnuminator/shared';
+
 import { FoundryConnector, LINK_DOWN_WARN_MS } from './foundry-connector.js';
 
 class FakeSocket extends EventEmitter {
   readyState: number = WebSocket.OPEN;
+  /** Frames the backend sent, apart from the `bridge-hello` it sends on connect. */
   sent: any[] = [];
+  bridgeHellos: any[] = [];
   send = vi.fn((raw: string) => {
-    this.sent.push(JSON.parse(raw));
+    const frame = JSON.parse(raw);
+    if (frame.type === 'bridge-hello') this.bridgeHellos.push(frame);
+    else this.sent.push(frame);
   });
   close = vi.fn(() => this.drop());
 
@@ -326,7 +332,7 @@ describe('module requests (I-108)', () => {
     other.say(requestFrame('list-recent-changes'));
     await flush();
     expect(handler).not.toHaveBeenCalled();
-    expect(other.sent[0].data).toEqual({ success: false, error: 'Not the active bridge link' });
+    expect(other.sent[0].data).toEqual({ success: false, error: MODULE_NOT_ACTIVE_LINK_ERROR });
     expect(bridge.sent).toEqual([]);
   });
 
@@ -350,6 +356,30 @@ describe('module requests (I-108)', () => {
     await flush();
     expect(handler).not.toHaveBeenCalled();
     expect(a.sent[0].data).toEqual({ success: false, error: 'Request arguments are too large' });
+  });
+
+  it('counts real UTF-8 bytes, not characters, against the cap', async () => {
+    const handler = vi.fn(async () => ({}));
+    connector.setModuleRequestHandler(handler);
+    const a = connect();
+    // 8,000 three-byte characters: 8,000 characters, 24,000 bytes of JSON.
+    a.say(requestFrame('list-recent-changes', { pad: '€'.repeat(8_000) }));
+    await flush();
+    expect(handler).not.toHaveBeenCalled();
+    expect(a.sent[0].data).toEqual({ success: false, error: 'Request arguments are too large' });
+    // Just under the cap in bytes is accepted.
+    const room = MODULE_REQUEST_MAX_ARGS_BYTES - JSON.stringify({ pad: '' }).length - 2;
+    a.say(requestFrame('list-recent-changes', { pad: 'x'.repeat(room) }, 'req-ok'));
+    await flush();
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells every module socket what it supports, right after it connects', () => {
+    const a = connect();
+    expect(a.bridgeHellos).toEqual([
+      { type: 'bridge-hello', data: { capabilities: ['module-request'] } },
+    ]);
+    expect(a.sent).toEqual([]);
   });
 
   it('answers an invalid frame that still has an id, and ignores one without', async () => {

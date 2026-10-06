@@ -646,7 +646,8 @@ export class GuardedWriteService {
     this.undoGuards.set(feature, guard);
   }
 
-  undo(changeId: string, flags: ConfirmFlags): Promise<AppliedChange> {
+  /** `requestedBy`: the person who asked, when it was not Claude; recorded on the undo's audit entry. */
+  undo(changeId: string, flags: ConfirmFlags, requestedBy?: string): Promise<AppliedChange> {
     return this.exclusive(async () => {
       if (flags.confirm !== true) throw new Error('Undoing a change needs confirm: true');
       const worldId = await this.worldIds.current();
@@ -660,7 +661,7 @@ export class GuardedWriteService {
       const reason = guard ? await guard(worldId, entry) : null;
       if (reason) throw new Error(`Conflict, nothing was written: ${reason}`);
       const undoId = newId('chg', this.now());
-      return this.undoChange(worldId, undoId, entry);
+      return this.undoChange(worldId, undoId, entry, requestedBy);
     });
   }
 
@@ -763,7 +764,8 @@ export class GuardedWriteService {
   private async undoChange(
     worldId: string,
     undoId: string,
-    entry: AuditEntry
+    entry: AuditEntry,
+    requestedBy?: string
   ): Promise<AppliedChange> {
     const results = [...(await this.audit.resultsWithDeleted(worldId, entry))].reverse();
     const records = [...(entry.vaultOps ?? [])].reverse();
@@ -807,6 +809,7 @@ export class GuardedWriteService {
         .filter(line => !line.startsWith(SHOW_DIFF_PREFIX))
         .map(line => `undone: ${line}`),
       undoOf: entry.changeId,
+      ...(requestedBy ? { requestedBy } : {}),
       ...(foundry ? { results: foundry.results } : {}),
       ...(records.length > 0
         ? { vaultOps: records.map(r => ({ ...r, before: r.after, after: r.before })) }

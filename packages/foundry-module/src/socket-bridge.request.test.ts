@@ -5,10 +5,28 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
-import { SocketBridge, MODULE_REQUEST_TIMEOUT_MS, type BridgeConfig } from './socket-bridge.js';
-import { MODULE_REPLY_TYPE, MODULE_REQUEST_TOOLS, MODULE_REQUEST_TYPE } from './constants.js';
 import {
+  BRIDGE_HELLO_WAIT_MS,
+  SocketBridge,
+  MODULE_REQUEST_TIMEOUT_MS,
+  type BridgeConfig,
+} from './socket-bridge.js';
+import {
+  BRIDGE_CAPABILITY_MODULE_REQUEST,
+  BRIDGE_HELLO_TYPE,
+  BRIDGE_TOO_OLD_MESSAGE,
+  MODULE_NOT_ACTIVE_LINK_ERROR,
+  MODULE_REPLY_TYPE,
+  MODULE_REQUEST_MAX_ARGS_BYTES,
+  MODULE_REQUEST_TOOLS,
+  MODULE_REQUEST_TYPE,
+} from './constants.js';
+import {
+  BRIDGE_CAPABILITY_MODULE_REQUEST as SHARED_CAPABILITY,
+  BRIDGE_HELLO_TYPE as SHARED_HELLO_TYPE,
+  MODULE_NOT_ACTIVE_LINK_ERROR as SHARED_NOT_ACTIVE,
   MODULE_REPLY_TYPE as SHARED_REPLY_TYPE,
+  MODULE_REQUEST_MAX_ARGS_BYTES as SHARED_MAX_BYTES,
   MODULE_REQUEST_TOOLS as SHARED_TOOLS,
   MODULE_REQUEST_TYPE as SHARED_REQUEST_TYPE,
 } from '../../../shared/src/protocol.js';
@@ -46,13 +64,19 @@ function installFakeWebSocket(): { all: any[]; last: () => any } {
   return { all: instances, last: (): any => instances[instances.length - 1] };
 }
 
-async function openBridge(): Promise<{ bridge: SocketBridge; ws: any }> {
+function bridgeHello(ws: any, capabilities: string[] = [BRIDGE_CAPABILITY_MODULE_REQUEST]): void {
+  ws.onmessage({ data: JSON.stringify({ type: BRIDGE_HELLO_TYPE, data: { capabilities } }) });
+}
+
+/** Open a link; `hello: false` leaves it silent, like a bridge from before module requests. */
+async function openBridge(hello = true): Promise<{ bridge: SocketBridge; ws: any }> {
   const fake = installFakeWebSocket();
   const bridge = new SocketBridge(config);
   const p = bridge.connect();
   const ws = fake.last();
   ws.onopen();
   await p;
+  if (hello) bridgeHello(ws);
   ws.send.mockClear();
   return { bridge, ws };
 }
@@ -85,6 +109,10 @@ describe('module request contract copy', () => {
     expect(MODULE_REQUEST_TYPE).toBe(SHARED_REQUEST_TYPE);
     expect(MODULE_REPLY_TYPE).toBe(SHARED_REPLY_TYPE);
     expect([...MODULE_REQUEST_TOOLS]).toEqual([...SHARED_TOOLS]);
+    expect(MODULE_NOT_ACTIVE_LINK_ERROR).toBe(SHARED_NOT_ACTIVE);
+    expect(BRIDGE_HELLO_TYPE).toBe(SHARED_HELLO_TYPE);
+    expect(BRIDGE_CAPABILITY_MODULE_REQUEST).toBe(SHARED_CAPABILITY);
+    expect(MODULE_REQUEST_MAX_ARGS_BYTES).toBe(SHARED_MAX_BYTES);
   });
 });
 
@@ -165,6 +193,59 @@ describe('SocketBridge.request (I-108)', () => {
     installFakeWebSocket();
     const bridge = new SocketBridge(config);
     await expect(bridge.request('list-recent-changes', {}, gm)).rejects.toThrow(/not connected/);
+  });
+
+  it('fails fast with an update message when the bridge never says hello (old bridge)', async () => {
+    vi.useFakeTimers();
+    const { bridge, ws } = await openBridge(false);
+    const result = bridge.request('list-recent-changes', {}, gm);
+    const rejected = expect(result).rejects.toThrow(BRIDGE_TOO_OLD_MESSAGE);
+    await vi.advanceTimersByTimeAsync(BRIDGE_HELLO_WAIT_MS + 1);
+    await rejected;
+    expect(ws.send).not.toHaveBeenCalled();
+  });
+
+  it('fails fast when the bridge says hello without module-request support', async () => {
+    const { bridge, ws } = await openBridge(false);
+    bridgeHello(ws, ['something-else']);
+    await expect(bridge.request('list-recent-changes', {}, gm)).rejects.toThrow(
+      BRIDGE_TOO_OLD_MESSAGE
+    );
+    expect(ws.send).not.toHaveBeenCalled();
+  });
+
+  it('waits a moment for a hello that is still on its way, then sends', async () => {
+    vi.useFakeTimers();
+    const { bridge, ws } = await openBridge(false);
+    const result = bridge.request('list-recent-changes', {}, gm);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(ws.send).not.toHaveBeenCalled();
+    bridgeHello(ws);
+    await vi.advanceTimersByTimeAsync(0);
+    const frame = sentFrame(ws);
+    expect(frame.type).toBe('module-request');
+    reply(ws, frame.id, { success: true, data: 'ok' });
+    await expect(result).resolves.toBe('ok');
+  });
+
+  it('forgets the capabilities when the link drops, so a reconnect to an older bridge fails fast', async () => {
+    vi.useFakeTimers();
+    const fake = installFakeWebSocket();
+    const bridge = new SocketBridge(config);
+    const first = bridge.connect();
+    fake.last().onopen();
+    await first;
+    bridgeHello(fake.last());
+    fake.last().onclose({ wasClean: false, reason: '' });
+    // The module reconnects on its own; this time the bridge says nothing.
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(fake.all).toHaveLength(2);
+    fake.last().onopen();
+    await vi.advanceTimersByTimeAsync(0);
+    const result = bridge.request('list-recent-changes', {}, gm);
+    const rejected = expect(result).rejects.toThrow(BRIDGE_TOO_OLD_MESSAGE);
+    await vi.advanceTimersByTimeAsync(BRIDGE_HELLO_WAIT_MS + 1);
+    await rejected;
   });
 
   it('ignores a reply nobody is waiting for', async () => {

@@ -1,12 +1,16 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 import {
+  BRIDGE_CAPABILITY_MODULE_REQUEST,
+  BRIDGE_HELLO_TYPE,
+  MODULE_NOT_ACTIVE_LINK_ERROR,
   MODULE_REPLY_TYPE,
   MODULE_REQUEST_MAX_ARGS_BYTES,
   MODULE_REQUEST_TOOLS,
   MODULE_REQUEST_TYPE,
   ModuleHelloFrameSchema,
   ModuleRequestFrameSchema,
+  type BridgeHelloData,
   type ModuleHelloData,
   type ModuleReplyData,
   type ModuleRequestData,
@@ -165,6 +169,7 @@ export class FoundryConnector {
     this.sockets.set(ws, { seq: ++this.socketSeq, hello: null });
     this.selectActiveSocket();
     this.syncLinkState();
+    this.sendBridgeHello(ws);
 
     ws.on('close', () => {
       this.logger.info('Client disconnected');
@@ -216,6 +221,21 @@ export class FoundryConnector {
     this.selectActiveSocket();
   }
 
+  /**
+   * Tell a module socket what this bridge understands, so a new module can fail
+   * fast against an older bridge (which never sends this). Older modules ignore it.
+   */
+  private sendBridgeHello(ws: WebSocket): void {
+    const data: BridgeHelloData = { capabilities: [BRIDGE_CAPABILITY_MODULE_REQUEST] };
+    try {
+      ws.send(JSON.stringify({ type: BRIDGE_HELLO_TYPE, data }));
+    } catch (error) {
+      this.logger.debug('Could not send bridge-hello', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   /** Set the dispatcher for `module-request` frames (see {@link ModuleRequestHandler}). */
   setModuleRequestHandler(handler: ModuleRequestHandler | null): void {
     this.moduleRequestHandler = handler;
@@ -242,7 +262,7 @@ export class FoundryConnector {
     this.logger.info('Module request', { tool: data.tool, requestedBy });
 
     if (ws !== this.foundrySocket) {
-      this.replyToModule(ws, id, { success: false, error: 'Not the active bridge link' });
+      this.replyToModule(ws, id, { success: false, error: MODULE_NOT_ACTIVE_LINK_ERROR });
       return;
     }
     if (!(MODULE_REQUEST_TOOLS as readonly string[]).includes(data.tool)) {
@@ -252,7 +272,7 @@ export class FoundryConnector {
       });
       return;
     }
-    if (JSON.stringify(data.args).length > MODULE_REQUEST_MAX_ARGS_BYTES) {
+    if (Buffer.byteLength(JSON.stringify(data.args), 'utf8') > MODULE_REQUEST_MAX_ARGS_BYTES) {
       this.replyToModule(ws, id, { success: false, error: 'Request arguments are too large' });
       return;
     }

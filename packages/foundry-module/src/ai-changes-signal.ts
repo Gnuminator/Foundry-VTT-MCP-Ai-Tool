@@ -2,19 +2,16 @@
  * "The AI change log changed" signal (I-108): tells every GM client that has the
  * "AI changes" window open to fetch the list again.
  *
- * The bridge client calls {@link announceAiChangesUpdated} wherever it logs a
- * guarded change (an apply, an undo, a vault-only change). It emits one message
- * on the module's game socket for the other clients and tells its own window
- * directly (Foundry does not send a client its own socket message). Nothing
- * secret travels in it: only the type.
+ * The backend calls the `aiChangesUpdated` query on the bridge client after it has
+ * recorded a change (an apply, an undo, a vault-only change), and that handler calls
+ * {@link announceAiChangesUpdated}. It emits one message on the module's game socket
+ * for the other clients and tells its own window directly (Foundry does not send a
+ * client its own socket message). Nothing secret travels in it: only the type.
  */
 import { MODULE_ID } from './constants.js';
 
 /** The `type` of the module game-socket message. */
 export const AI_CHANGES_SOCKET_TYPE = 'ai-changes-updated';
-
-/** How long after an apply the signal goes out: the backend writes its audit entry just after the module answers. */
-export const AI_CHANGES_APPLY_DELAY_MS = 800;
 
 const listeners = new Set<() => void>();
 
@@ -45,13 +42,9 @@ function emitNow(): void {
   notifyLocal();
 }
 
-/**
- * Tell every GM client (and this one) the change log changed. `delayMs` waits
- * first, for callers that run before the backend has recorded the change.
- */
-export function announceAiChangesUpdated(delayMs = 0): void {
-  if (delayMs > 0) setTimeout(emitNow, delayMs);
-  else emitNow();
+/** Tell every GM client (and this one) the change log changed. */
+export function announceAiChangesUpdated(): void {
+  emitNow();
 }
 
 /**

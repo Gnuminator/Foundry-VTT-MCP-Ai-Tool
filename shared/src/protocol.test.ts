@@ -20,6 +20,10 @@ import {
   FoundryFrameSchema,
   FoundryQueryFrameSchema,
   FoundryResponseFrameSchema,
+  BRIDGE_CAPABILITY_MODULE_REQUEST,
+  BRIDGE_HELLO_TYPE,
+  BridgeHelloFrameSchema,
+  MODULE_NOT_ACTIVE_LINK_ERROR,
   MODULE_REPLY_TYPE,
   MODULE_REQUEST_MAX_ARGS_BYTES,
   MODULE_REQUEST_TOOLS,
@@ -185,5 +189,22 @@ describe('module-request / module-reply contract', () => {
     expect(
       ModuleReplyFrameSchema.safeParse({ type: 'module-reply', id: 'r', data: {} }).success
     ).toBe(false);
+  });
+});
+
+describe('bridge-hello (what the bridge supports)', () => {
+  it('pins the type, the capability and the not-active-link reply', () => {
+    expect(BRIDGE_HELLO_TYPE).toBe('bridge-hello');
+    expect(BRIDGE_CAPABILITY_MODULE_REQUEST).toBe('module-request');
+    expect(MODULE_NOT_ACTIVE_LINK_ERROR).toBe('Not the active bridge link');
+  });
+
+  it('round-trips a hello and rejects a malformed one', () => {
+    const hello = { type: 'bridge-hello', data: { capabilities: ['module-request'] } };
+    expect(BridgeHelloFrameSchema.parse(hello)).toEqual(hello);
+    expect(BridgeHelloFrameSchema.safeParse({ type: 'bridge-hello', data: {} }).success).toBe(
+      false
+    );
+    expect(() => FoundryFrameSchema.parse(hello)).toThrow();
   });
 });

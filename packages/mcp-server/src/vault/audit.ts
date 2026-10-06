@@ -47,6 +47,8 @@ export interface AuditEntry {
   rulesVersion?: RulesVersion;
   /** undo entries: the change they reverted. */
   undoOf?: string;
+  /** undo entries asked for by a person (a GM's "AI changes" window in Foundry): who. Absent for Claude. */
+  requestedBy?: string;
   /** apply entries that were undone. */
   undoneBy?: string;
   undoneAt?: string;

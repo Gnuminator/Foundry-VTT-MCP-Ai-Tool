@@ -245,8 +245,40 @@ export const MODULE_REQUEST_TOOLS = ['list-recent-changes', 'undo-change'] as co
 
 export type ModuleRequestTool = (typeof MODULE_REQUEST_TOOLS)[number];
 
-/** The largest `args` object (as JSON) the backend accepts in a `module-request`. */
+/** The largest `args` object (as UTF-8 JSON bytes) the backend accepts in a `module-request`. */
 export const MODULE_REQUEST_MAX_ARGS_BYTES = 20_000;
+
+/**
+ * The bridge's reply when a `module-request` arrives on a socket that is not the
+ * active link (with several GM browsers open, only the newest bridge-user socket is
+ * served). The module treats it like "not connected": it asks the next candidate.
+ */
+export const MODULE_NOT_ACTIVE_LINK_ERROR = 'Not the active bridge link';
+
+/**
+ * Backend → module, sent once when a module socket connects: what this bridge
+ * understands. An older bridge sends nothing, so a module that wants a
+ * capability fails fast with "update the bridge" instead of waiting for a reply
+ * that never comes. An older module ignores the frame.
+ */
+export const BRIDGE_HELLO_TYPE = 'bridge-hello' as const;
+
+/** The bridge answers `module-request` frames (I-108). */
+export const BRIDGE_CAPABILITY_MODULE_REQUEST = 'module-request' as const;
+
+export interface BridgeHelloData {
+  capabilities: string[];
+}
+
+export interface BridgeHelloFrame {
+  type: typeof BRIDGE_HELLO_TYPE;
+  data: BridgeHelloData;
+}
+
+export const BridgeHelloFrameSchema = z.object({
+  type: z.literal(BRIDGE_HELLO_TYPE),
+  data: z.object({ capabilities: z.array(z.string().max(100)).max(50) }),
+});
 
 export interface ModuleRequestData {
   tool: string;

@@ -15,6 +15,7 @@ import {
 } from './control-target.js';
 
 import { buildToolRouter, collectToolDefinitions } from './tool-router.js';
+import { createAiChangesAnnouncer, createModuleRequestHandler } from './module-requests.js';
 
 import { config } from './config.js';
 
@@ -447,12 +448,12 @@ async function startBackend(): Promise<void> {
   };
   const toolRouter = buildToolRouter(toolDeps);
   // A `module-request` from the linked browser runs through the same dispatch table as the
-  // control channel's call_tool (the connector only allows MODULE_REQUEST_TOOLS).
-  foundryClient.setModuleRequestHandler((tool, args) => {
-    const route = toolRouter[tool];
-    if (!route) return Promise.reject(new Error(`Unknown tool: ${tool}`));
-    return route(args);
-  });
+  // control channel's call_tool (MODULE_REQUEST_TOOLS only; an undo records who asked).
+  foundryClient.setModuleRequestHandler(
+    createModuleRequestHandler({ toolRouter, guardedChangeTools })
+  );
+  // After every recorded apply or undo the module's "AI changes" windows fetch the list again.
+  guardedWrites.addRecordedListener(createAiChangesAnnouncer(foundryClient, logger));
   const allTools = collectToolDefinitions(toolDeps);
   allToolNames = allTools.map(t => t.name);
 

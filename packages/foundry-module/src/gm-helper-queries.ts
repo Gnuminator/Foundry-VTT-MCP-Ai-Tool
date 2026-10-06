@@ -14,7 +14,13 @@
  * opening a journal page, without storing anything secret in world data.
  */
 import { getOpenBridgeLink } from './bridge-link.js';
-import { MODULE_ID, MODULE_REQUEST_TOOLS, type ModuleRequester } from './constants.js';
+import {
+  MODULE_ID,
+  MODULE_NOT_ACTIVE_LINK_ERROR,
+  MODULE_REQUEST_MAX_ARGS_BYTES,
+  MODULE_REQUEST_TOOLS,
+  type ModuleRequester,
+} from './constants.js';
 import { coreSupportsQuerySender } from './systems/core.js';
 import {
   parseProviderReading,
@@ -133,8 +139,17 @@ export function aiToolTimeoutMs(tool: string): number {
   return tool === 'undo-change' ? 120_000 : 30_000;
 }
 
-/** Largest `args` JSON a relayed request may carry (the backend enforces the same cap). */
-const AI_TOOL_MAX_ARGS_CHARS = 20_000;
+/**
+ * True when this client's link, or the GM client that answered, cannot serve the
+ * request but another GM's client might: no link is open, or the bridge serves a
+ * newer link. Any other error is the real answer and ends the search.
+ */
+export function isBridgeLinkUnavailable(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message === AI_TOOL_NOT_CONNECTED || error.message === MODULE_NOT_ACTIVE_LINK_ERROR)
+  );
+}
 
 /** Validate a `{tool, args}` relay payload. */
 export function parseAiToolPayload(data: unknown): {
@@ -149,7 +164,8 @@ export function parseAiToolPayload(data: unknown): {
   if (typeof args !== 'object' || args === null || Array.isArray(args)) {
     throw new Error('Invalid payload: args must be an object');
   }
-  if (JSON.stringify(args).length > AI_TOOL_MAX_ARGS_CHARS) {
+  // Real UTF-8 bytes, the unit the backend enforces.
+  if (new TextEncoder().encode(JSON.stringify(args)).length > MODULE_REQUEST_MAX_ARGS_BYTES) {
     throw new Error('Invalid payload: args are too large');
   }
   return { tool: d.tool, args: args as Record<string, unknown> };
@@ -199,7 +215,18 @@ export async function aiToolRequest(
   const timeoutMs = aiToolTimeoutMs(tool);
   const link = getOpenBridgeLink();
   if (link) {
-    return link.request(tool, args, { userId: game.user.id, userName: game.user.name }, timeoutMs);
+    try {
+      return await link.request(
+        tool,
+        args,
+        { userId: game.user.id, userName: game.user.name },
+        timeoutMs
+      );
+    } catch (error) {
+      // With "Any GM" every GM browser opens a link but the bridge serves only the newest one:
+      // an older tab asks the GM client that holds the active link instead.
+      if (!isBridgeLinkUnavailable(error)) throw error;
+    }
   }
   if (!coreSupportsQuerySender()) {
     throw new Error(
@@ -214,8 +241,8 @@ export async function aiToolRequest(
         { timeout: timeoutMs + 2_000 }
       );
     } catch (error) {
-      // A GM who does not hold the link says so; try the next one. Anything else is the real answer.
-      if (!(error instanceof Error) || error.message !== AI_TOOL_NOT_CONNECTED) throw error;
+      // A GM who does not hold the active link says so; try the next one. Anything else is the real answer.
+      if (!isBridgeLinkUnavailable(error)) throw error;
     }
   }
   throw new Error(AI_TOOL_NOT_CONNECTED);

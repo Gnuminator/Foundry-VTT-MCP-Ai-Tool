@@ -19,6 +19,7 @@ import { createTestWorld, type TestWorld } from './test-support/foundry-mock/ind
 import { QueryHandlers } from './queries.js';
 import { MODULE_ID } from './constants.js';
 import { bridgeHandlers } from './bridge-handlers.js';
+import { AI_CHANGES_SOCKET_TYPE, onAiChangesUpdated } from './ai-changes-signal.js';
 import { GM_HELPER_QUERIES, registerGmHelperQueries } from './gm-helper-queries.js';
 
 let world: TestWorld;
@@ -229,6 +230,29 @@ describe('QueryHandlers — guarded-write handlers', () => {
         success: false,
       });
     }
+  });
+});
+
+describe('QueryHandlers: aiChangesUpdated (I-108)', () => {
+  it('announces to the AI changes windows, GM only', async () => {
+    qh.registerHandlers();
+    stubDataAccess();
+    const emit = vi.fn();
+    (globalThis as any).game.socket = { emit, on: vi.fn() };
+    const listener = vi.fn();
+    const stop = onAiChangesUpdated(listener);
+
+    expect(await queries()[`${MODULE_ID}.aiChangesUpdated`]({})).toEqual({ announced: true });
+    expect(emit).toHaveBeenCalledWith(`module.${MODULE_ID}`, { type: AI_CHANGES_SOCKET_TYPE });
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    (globalThis as any).game.user = { ...(globalThis as any).game.user, isGM: false };
+    expect(await queries()[`${MODULE_ID}.aiChangesUpdated`]({})).toEqual({
+      error: 'Access denied',
+      success: false,
+    });
+    expect(listener).toHaveBeenCalledTimes(1);
+    stop();
   });
 });
 

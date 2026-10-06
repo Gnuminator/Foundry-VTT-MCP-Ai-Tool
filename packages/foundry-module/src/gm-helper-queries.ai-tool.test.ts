@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, makeUser, type TestWorld } from './test-support/foundry-mock/index.js';
 import { setBridgeLink } from './bridge-link.js';
+import { MODULE_NOT_ACTIVE_LINK_ERROR } from './constants.js';
 import {
   AI_TOOL_NOT_CONNECTED,
   GM_HELPER_QUERIES,
@@ -67,6 +68,16 @@ describe('parseAiToolPayload', () => {
     expect(() => parseAiToolPayload(data)).toThrow(/Invalid payload/);
   });
 
+  it('counts UTF-8 bytes, not characters', () => {
+    // 8,000 characters but 24,000 bytes of JSON.
+    expect(() =>
+      parseAiToolPayload({ tool: 'list-recent-changes', args: { pad: '€'.repeat(8_000) } })
+    ).toThrow(/too large/);
+    expect(() =>
+      parseAiToolPayload({ tool: 'list-recent-changes', args: { pad: '€'.repeat(5_000) } })
+    ).not.toThrow();
+  });
+
   it('gives an undo a longer timeout than a read', () => {
     expect(aiToolTimeoutMs('list-recent-changes')).toBe(30_000);
     expect(aiToolTimeoutMs('undo-change')).toBe(120_000);
@@ -90,6 +101,46 @@ describe('aiToolRequest on the client that holds the link', () => {
       30_000
     );
     expect(query).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the GM that holds the active link when the bridge says this one is not (Any GM)', async () => {
+    const link = fakeLink();
+    link.request.mockRejectedValue(new Error(MODULE_NOT_ACTIVE_LINK_ERROR));
+    setBridgeLink(link);
+    const holder = vi.fn().mockResolvedValue({ changes: ['via relay'] });
+    addUser({ id: 'gm2', name: 'Newer GM', isGM: true, active: true, role: 4, query: holder });
+    world.setSetting('foundry-mcp-bridge', 'bridgeUserId', '');
+
+    const result = await aiToolRequest('list-recent-changes', { limit: 20 });
+
+    expect(result).toEqual({ changes: ['via relay'] });
+    expect(link.request).toHaveBeenCalledTimes(1);
+    expect(holder).toHaveBeenCalledWith(
+      GM_HELPER_QUERIES.aiToolRequest,
+      { tool: 'list-recent-changes', args: { limit: 20 } },
+      { timeout: 32_000 }
+    );
+  });
+
+  it('still says the bridge is not connected when the direct link is inactive and no GM answers', async () => {
+    const link = fakeLink();
+    link.request.mockRejectedValue(new Error(MODULE_NOT_ACTIVE_LINK_ERROR));
+    setBridgeLink(link);
+    world.setSetting('foundry-mcp-bridge', 'bridgeUserId', '');
+    await expect(aiToolRequest('list-recent-changes', {})).rejects.toThrow(AI_TOOL_NOT_CONNECTED);
+  });
+
+  it('passes any other direct-link error through without trying the relay', async () => {
+    const link = fakeLink();
+    link.request.mockRejectedValue(new Error('Documents changed since the change'));
+    setBridgeLink(link);
+    const other = vi.fn();
+    addUser({ id: 'gm2', name: 'Other', isGM: true, active: true, role: 4, query: other });
+    world.setSetting('foundry-mcp-bridge', 'bridgeUserId', '');
+    await expect(aiToolRequest('undo-change', { changeId: 'c1', confirm: true })).rejects.toThrow(
+      'Documents changed since the change'
+    );
+    expect(other).not.toHaveBeenCalled();
   });
 
   it('refuses a tool that is not on the list before sending anything', async () => {
@@ -132,6 +183,25 @@ describe('aiToolRequest on another GM client (user.query)', () => {
       { tool: 'undo-change', args: { changeId: 'c1', confirm: true } },
       { timeout: 122_000 }
     );
+  });
+
+  it('with "Any GM", keeps looking when the first candidate holds an inactive link', async () => {
+    const inactive = vi.fn().mockRejectedValue(new Error(MODULE_NOT_ACTIVE_LINK_ERROR));
+    const active = vi.fn().mockResolvedValue('answered');
+    addUser({
+      id: 'gm2',
+      name: 'Older GM tab',
+      isGM: true,
+      active: true,
+      role: 4,
+      query: inactive,
+    });
+    addUser({ id: 'gm3', name: 'Newest GM tab', isGM: true, active: true, role: 4, query: active });
+    world.setSetting('foundry-mcp-bridge', 'bridgeUserId', '');
+
+    await expect(aiToolRequest('list-recent-changes', {})).resolves.toBe('answered');
+    expect(inactive).toHaveBeenCalledTimes(1);
+    expect(active).toHaveBeenCalledTimes(1);
   });
 
   it('passes a real backend error through (an undo conflict), without trying another GM', async () => {

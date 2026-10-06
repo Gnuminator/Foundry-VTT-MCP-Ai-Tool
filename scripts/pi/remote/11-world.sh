@@ -1,0 +1,292 @@
+#!/usr/bin/env bash
+# Stage 11: install a world bundle that scripts/pi/push-world.ps1 uploaded (docs/dev/PI-SETUP.md, "Licensed
+# content"). The bundle holds the campaign world, its private modules and the image folders it uses.
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh foundry-pi 'BUNDLE=/var/lib/foundry-import/curse-of-strahd-<stamp>.tar bash -s'
+# Take a snapshot first (dietpi-backup 1) and get the user's OK: this stops Foundry for a few minutes.
+# Env: BUNDLE (required, a .tar under /var/lib/foundry-import/), WORLD (curse-of-strahd), KIT_WORLD (strahd-kit; empty
+#   skips it), KIT_TITLE, LAUNCH (the world Foundry starts with; WORLD or KIT_WORLD, default WORLD),
+#   REPLACE_WORLD (1 replaces an existing WORLD; default 0 keeps it), GM_USER (the world's GM, default Gamemaster).
+# What it does: checks the tar before it extracts (no links or devices, no paths outside Data/, no env or cookie
+# files, no ddb-importer or bridge module), checks every checksum, moves the old copies to
+# /var/lib/foundry-import/prev-<stamp> (never deleted), installs, gives the worlds a generated GM password in a
+# root-only file (/etc/foundry-ai-tool/world-<id>.env, never printed), provisions the Assistant GM and the bridge,
+# and starts Foundry on LAUNCH. The real world is never replaced unless REPLACE_WORLD=1; the kit world is always
+# reset to the bundle's copy. Safe to run again (with a new bundle).
+
+require_root
+require_arm64
+BUNDLE="${BUNDLE:-}"
+WORLD="${WORLD:-curse-of-strahd}"
+KIT_WORLD="${KIT_WORLD-strahd-kit}"
+KIT_TITLE="${KIT_TITLE:-Curse of Strahd (test copy for kit runs)}"
+LAUNCH="${LAUNCH:-$WORLD}"
+REPLACE_WORLD="${REPLACE_WORLD:-0}"
+GM_USER="${GM_USER:-Gamemaster}"
+IMPORT=/var/lib/foundry-import
+data="$FOUNDRY_DATA/Data"
+options="$FOUNDRY_DATA/Config/options.json"
+assistant_env="$TOOL_ETC/assistant-gm.env"
+stamp="$(date +%Y%m%d-%H%M%S)"
+export PATH="$NODE_DIR/bin:$PATH"
+
+say "checking the request"
+[ -n "$BUNDLE" ] || die "BUNDLE is required, for example BUNDLE=$IMPORT/curse-of-strahd-<stamp>.tar"
+real="$(realpath -e -- "$BUNDLE" 2>/dev/null)" || die "no such bundle: $BUNDLE"
+case "$real" in "$IMPORT"/*.tar) ;; *) die "the bundle must be a .tar under $IMPORT/ (got $real)" ;; esac
+[ -f "$real" ] || die "$real is not a regular file"
+BUNDLE="$real"
+for id in "$WORLD" "$LAUNCH"; do
+  [[ "$id" =~ ^[a-z0-9-]+$ ]] || die "'$id' is not a valid world id (lowercase letters, digits, dashes)"
+done
+if [ -n "$KIT_WORLD" ]; then
+  [[ "$KIT_WORLD" =~ ^[a-z0-9-]+$ ]] || die "'$KIT_WORLD' is not a valid world id"
+  [ "$KIT_WORLD" != "$WORLD" ] || die "KIT_WORLD must differ from WORLD"
+fi
+[ "$LAUNCH" = "$WORLD" ] || { [ -n "$KIT_WORLD" ] && [ "$LAUNCH" = "$KIT_WORLD" ]; } || die "LAUNCH must be $WORLD or the kit world"
+[[ "$GM_USER" =~ ^[A-Za-z0-9._\ -]+$ ]] || die "GM_USER has odd characters"
+[ -f "$assistant_env" ] && [ -f "$TOOL_DIR/gm-browser/assistant-gm.mjs" ] || die "run stage 5 and 5-check-world first (no Assistant GM yet)"
+[ -d "$data/modules/foundry-mcp-bridge" ] || die "the bridge module is not installed: run stage 5 first"
+[ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
+bundle_size="$(stat -c %s "$BUNDLE")"
+
+say "inspecting $BUNDLE before extracting"
+install -d -m 700 "$IMPORT"
+work="$IMPORT/work-$stamp"
+install -d -m 700 "$work" "$work/extract"
+# The work folder only holds a copy of the bundle: remove it on any exit (the bundle stays until success).
+trap 'rm -rf "${work:?}"' EXIT
+tar --quoting-style=literal -tf "$BUNDLE" >"$work/names" || die "cannot read the tar"
+tar --quoting-style=literal -tvf "$BUNDLE" | cut -c1 >"$work/types"
+[ "$(wc -l <"$work/names")" = "$(wc -l <"$work/types")" ] || die "the tar listing is inconsistent (odd file names)"
+bad=0
+while IFS= read -r t; do
+  case "$t" in - | d) ;; *)
+    bad=1
+    break
+    ;;
+  esac
+done <"$work/types"
+[ "$bad" = 0 ] || die "the tar holds links, devices or other special entries; only files and folders are accepted"
+nfiles=0
+while IFS= read -r name; do
+  n="${name#./}"
+  n="${n%/}"
+  [ -n "$n" ] && [ "$n" != "." ] || continue
+  case "$n" in /*) die "refusing an absolute path: $name" ;; esac
+  case "/$n/" in /../* | */../* | */./*) die "refusing a path with .. or . parts: $name" ;; esac
+  lower="${n,,}"
+  case "$lower" in *.env | *dbb.env* | *cookie* | *ddb-proxy* | *adventure-muncher*) die "refusing a file that must not travel: $name" ;; esac
+  case "$n" in
+    MANIFEST.txt | SHA256SUMS | Data | Data/worlds | Data/modules | Data/ddb-images | Data/tokenizer) ;;
+    Data/worlds/"$WORLD" | Data/worlds/"$WORLD"/*) ;;
+    Data/modules/ddb-importer | Data/modules/ddb-importer/* | Data/modules/foundry-mcp-bridge | Data/modules/foundry-mcp-bridge/*)
+      die "refusing $name (ddb-importer stays on the PC, the bridge module comes from stage 5)"
+      ;;
+    Data/modules/*) [[ "${n#Data/modules/}" =~ ^[A-Za-z0-9._-]+(/.*)?$ ]] || die "odd module folder name: $name" ;;
+    Data/ddb-images/* | Data/tokenizer/*) ;;
+    *) die "refusing $name: not under Data/worlds/$WORLD, Data/modules, Data/ddb-images or Data/tokenizer" ;;
+  esac
+  nfiles=$((nfiles + 1))
+done <"$work/names"
+ok "$nfiles entries, all files and folders, all in the allowed places"
+
+say "extracting and checking every checksum"
+free_import="$(df --output=avail -B1 "$IMPORT" | tail -n1 | tr -d ' ')"
+[ "$free_import" -gt "$bundle_size" ] || die "not enough space in $IMPORT to extract ($bundle_size bytes needed)"
+tar -xf "$BUNDLE" -C "$work/extract" --no-same-owner --no-same-permissions
+cd "$work/extract" || die "cannot enter the work folder"
+[ -f SHA256SUMS ] && [ -d Data ] || die "the bundle has no SHA256SUMS or no Data folder"
+if grep -qvE '^[0-9a-f]{64}  Data/' SHA256SUMS; then die "SHA256SUMS has lines that are not for files under Data/"; fi
+sha256sum -c --quiet SHA256SUMS || die "a checksum does not match: the upload is damaged, nothing was installed"
+find Data -type f | LC_ALL=C sort >"$work/found"
+sed 's/^[0-9a-f]*  //' SHA256SUMS | LC_ALL=C sort >"$work/listed"
+extras="$(LC_ALL=C comm -23 "$work/found" "$work/listed" | head -n 3)"
+[ -z "$extras" ] || die "files in the bundle that SHA256SUMS does not list, for example: $extras"
+[ -f "Data/worlds/$WORLD/world.json" ] || die "the bundle has no Data/worlds/$WORLD/world.json"
+ok "all $(wc -l <"$work/listed") files match"
+modules=()
+for d in Data/modules/*/; do [ -d "$d" ] && modules+=("$(basename "$d")"); done
+assets=()
+for d in Data/ddb-images Data/tokenizer; do [ -d "$d" ] && assets+=("${d#Data/}"); done
+cd /
+
+say "free space"
+free_data="$(df --output=avail -B1 "$FOUNDRY_DATA" | tail -n1 | tr -d ' ')"
+[ "$free_data" -gt $((bundle_size * 2)) ] || die "$FOUNDRY_DATA has $free_data bytes free, the install needs twice the bundle ($((bundle_size * 2)))"
+ok "$free_data bytes free"
+
+say "owner and modes inside the work folder (755 folders, 644 files, owner $FOUNDRY_USER)"
+chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$work/extract/Data"
+find "$work/extract/Data" -type d -exec chmod 755 {} +
+find "$work/extract/Data" -type f -exec chmod 644 {} +
+
+if have_systemd; then
+  say "stopping the Assistant GM browser and Foundry"
+  systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
+  systemctl stop foundry.service
+fi
+
+prev="$IMPORT/prev-$stamp"
+install -d -m 700 "$prev"
+store_prev() { # $1 path under $data, $2 name inside prev
+  [ -e "$1" ] || return 0
+  mkdir -p "$(dirname "$prev/$2")"
+  mv "$1" "$prev/$2"
+  ok "the old $(basename "$1") moved to $prev/$2"
+}
+
+say "modules"
+install -d -m 755 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$data/modules"
+for id in "${modules[@]}"; do
+  store_prev "$data/modules/$id" "modules/$id"
+  mv "$work/extract/Data/modules/$id" "$data/modules/$id"
+  ok "module $id installed"
+done
+
+say "asset folders (merged; existing files are never deleted)"
+for a in "${assets[@]}"; do
+  install -d -m 755 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$data/$a"
+  cp -a "$work/extract/Data/$a/." "$data/$a/"
+  ok "$a merged"
+done
+
+say "worlds"
+install -d -m 755 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$data/worlds"
+todo=()
+if [ -n "$KIT_WORLD" ]; then
+  store_prev "$data/worlds/$KIT_WORLD" "worlds/$KIT_WORLD"
+  cp -a "$work/extract/Data/worlds/$WORLD" "$data/worlds/$KIT_WORLD"
+  node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));o.id=process.argv[2];o.title=process.argv[3];fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' \
+    "$data/worlds/$KIT_WORLD/world.json" "$KIT_WORLD" "$KIT_TITLE"
+  ok "kit world $KIT_WORLD reset from the bundle"
+  todo+=("$KIT_WORLD")
+fi
+real_state=installed
+if [ -e "$data/worlds/$WORLD" ] && [ "$REPLACE_WORLD" != 1 ]; then
+  real_state=kept
+  warn "KEPT: the campaign world $WORLD already exists; it is never replaced without REPLACE_WORLD=1"
+  [ -f "$TOOL_ETC/world-$WORLD.env" ] || todo+=("$WORLD")
+else
+  store_prev "$data/worlds/$WORLD" "worlds/$WORLD"
+  mv "$work/extract/Data/worlds/$WORLD" "$data/worlds/$WORLD"
+  ok "world $WORLD installed"
+  todo+=("$WORLD")
+fi
+
+# ---- provisioning: GM password file, options.json, Foundry, assistant-gm ------------------------------
+new_password() { head -c 24 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n'; }
+set_world() {
+  node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));o.world=process.argv[2];fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' "$options" "$1"
+}
+# /join answers 200 even when no world runs (an error page), so look for the join form's template.
+world_up() { curl -fs http://127.0.0.1:30000/join 2>/dev/null | grep -q 'id="join-game"'; }
+running=""
+provision_world() { # $1 world id
+  local id="$1" envf="$TOOL_ETC/world-$1.env"
+  if [ -f "$envf" ]; then
+    ok "$envf exists"
+  else
+    umask 077
+    printf 'GM_USER=%s\nGM_PASSWORD="%s"\n' "$GM_USER" "$(new_password)" >"$envf"
+    umask 022
+    chown root:root "$envf"
+    chmod 600 "$envf"
+    ok "wrote $envf"
+  fi
+  set_world "$id"
+  if ! have_systemd; then
+    warn "no systemd here (a test container?): $id is set in options.json but Foundry was not started and nothing was provisioned"
+    return 0
+  fi
+  systemctl start foundry.service
+  running="$id"
+  local up=0
+  for _ in $(seq 1 60); do
+    if world_up; then
+      up=1
+      break
+    fi
+    sleep 2
+  done
+  [ "$up" = 1 ] || die "$id is not running on port 30000 (see: journalctl -u foundry -n 50)"
+  ok "$id is running"
+  (
+    set -a
+    # shellcheck disable=SC1090
+    . "$assistant_env"
+    # shellcheck disable=SC1090
+    . "$envf"
+    set +a
+    runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
+      FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
+      ASSISTANT_GM_USER="$ASSISTANT_GM_USER" ASSISTANT_GM_PASSWORD="$ASSISTANT_GM_PASSWORD" \
+      PROVISION_GM_USER="$GM_USER" PROVISION_GM_PASSWORD="" PROVISION_GM_NEW_PASSWORD="$GM_PASSWORD" \
+      node "$TOOL_DIR/gm-browser/assistant-gm.mjs" provision
+  ) || die "provisioning $id failed (see the lines above)"
+  ok "$id provisioned"
+}
+
+say "provisioning (the world that launches goes last)"
+ordered=()
+for id in "${todo[@]}"; do [ "$id" = "$LAUNCH" ] || ordered+=("$id"); done
+for id in "${todo[@]}"; do [ "$id" != "$LAUNCH" ] || ordered+=("$id"); done
+for id in "${ordered[@]}"; do
+  if [ "$id" != "$LAUNCH" ] && have_systemd; then
+    provision_world "$id"
+    systemctl stop foundry.service
+    running=""
+  else
+    provision_world "$id"
+  fi
+done
+
+say "Foundry launches $LAUNCH"
+set_world "$LAUNCH"
+ok "options.json launches $LAUNCH"
+if have_systemd; then
+  if [ "$running" != "$LAUNCH" ]; then
+    systemctl restart foundry.service
+    for _ in $(seq 1 60); do
+      world_up && break
+      sleep 2
+    done
+    world_up || die "$LAUNCH is not running on port 30000 (see: journalctl -u foundry -n 50)"
+  fi
+  enable_unit foundry-ai-tool-gm-browser.service
+  for _ in $(seq 1 45); do
+    journalctl -u foundry-ai-tool-gm-browser --since '-3 min' --no-pager | grep -q 'joined world' && break
+    sleep 2
+  done
+  journalctl -u foundry-ai-tool-gm-browser -n 5 --no-pager | grep 'assistant-gm' || true
+  if journalctl -u foundry-ai-tool-bridge --since '-3 min' --no-pager | grep -qi 'foundry.*connect'; then
+    ok "the bridge reports a Foundry connection"
+  else
+    warn "no Foundry connection in the bridge log yet; see: journalctl -u foundry-ai-tool-bridge -n 50"
+  fi
+else
+  warn "no systemd here (a test container?): Foundry and the Assistant GM browser were not started"
+fi
+
+say "cleaning up"
+rm -rf "${work:?}"
+trap - EXIT
+rm -f "${BUNDLE:?}"
+if [ -z "$(ls -A "$prev")" ]; then
+  rmdir "$prev"
+  prev_note="nothing was replaced, so there is no prev folder"
+else
+  prev_note="old copies kept in $prev ($(du -sh "$prev" | cut -f1)); remove them later, only with the user's OK"
+fi
+
+say "summary"
+echo "    world $WORLD: $real_state"
+[ -z "$KIT_WORLD" ] || echo "    kit world $KIT_WORLD: reset ($KIT_TITLE)"
+for id in "${modules[@]}"; do
+  echo "    module $id $(node -e 'try{process.stdout.write(require(process.argv[1]).version||"")}catch{}' "$data/modules/$id/module.json")"
+done
+echo "    asset folders: ${assets[*]:-none}"
+echo "    Foundry launches: $LAUNCH"
+for id in "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"}; do
+  [ ! -f "$TOOL_ETC/world-$id.env" ] || echo "    GM password file for $id: $TOOL_ETC/world-$id.env (the GM reads it with: ssh foundry-pi cat $TOOL_ETC/world-$id.env)"
+done
+echo "    $prev_note"

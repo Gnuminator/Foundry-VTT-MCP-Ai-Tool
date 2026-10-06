@@ -84,3 +84,88 @@ describe('PlayerViewSource with a reveal copy', () => {
     expect(JSON.stringify(state)).not.toContain(COPY);
   });
 });
+
+describe('PlayerViewSource per player (O7 vaults)', () => {
+  const ALICE = 'aaaaaaaaaaaaaaaa';
+  const BOB = 'bbbbbbbbbbbbbbbb';
+  const CAROL = 'cccccccccccccccc';
+  const PUBLIC_PAGE = 'JournalEntry.jjjjjjjjjjjjjjjj.JournalEntryPage.pppppppppppppppp';
+  const BOB_PAGE = 'JournalEntry.jjjjjjjjjjjjjjjj.JournalEntryPage.bbbbbbbbbbbbbbbb';
+  const LINKS = `<p>See @UUID[${BOB_PAGE}]{Bob Door} and @UUID[${PUBLIC_PAGE}]{Town Door}.</p>`;
+
+  function source(): PlayerViewSource {
+    return new PlayerViewSource(
+      clientWith({
+        'get-player-visibility': { pcActorIds: [], tokens: [] },
+        'get-player-handouts': {
+          handouts: [
+            { id: 'pub', uuid: PUBLIC_PAGE, title: 'Town', html: LINKS, revealedAt: null },
+            {
+              id: 'alice',
+              uuid: 'JournalEntry.jjjjjjjjjjjjjjjj.JournalEntryPage.aaaaaaaaaaaaaaaa',
+              title: 'Alice letter',
+              html: LINKS,
+              revealedAt: null,
+              players: [ALICE],
+            },
+            {
+              id: 'bob',
+              uuid: BOB_PAGE,
+              title: 'Bob page',
+              html: '<p>Bob only</p>',
+              revealedAt: null,
+              players: [BOB],
+            },
+          ],
+          revealedUuids: [PUBLIC_PAGE, BOB_PAGE],
+        },
+      }),
+      new Logger('error'),
+      () => undefined
+    );
+  }
+
+  it('is not ready before the first answer, and ready after it', async () => {
+    const s = source();
+    expect(s.handoutsReady).toBe(false);
+    expect(s.handoutsFor(ALICE)).toEqual([]);
+    await s.refresh();
+    expect(s.handoutsReady).toBe(true);
+  });
+
+  it('stays not ready while get-player-handouts fails', async () => {
+    const s = new PlayerViewSource(
+      clientWith({ 'get-player-visibility': { pcActorIds: [], tokens: [] } }),
+      new Logger('error'),
+      () => undefined
+    );
+    await s.refresh();
+    expect(s.handoutsReady).toBe(false);
+  });
+
+  it('cleans links per player: a page revealed to Bob only keeps its label only for Bob', async () => {
+    const s = source();
+    await s.refresh();
+
+    const alice = s.handoutsFor(ALICE);
+    expect(alice.map(h => h.id)).toEqual(['pub', 'alice']);
+    for (const h of alice) {
+      expect(h.html).toContain('Town Door');
+      expect(h.html).not.toContain('Bob Door');
+    }
+
+    const bob = s.handoutsFor(BOB);
+    expect(bob.map(h => h.id)).toEqual(['pub', 'bob']);
+    expect(bob[0].html).toContain('Bob Door');
+    expect(bob[0].html).toContain('Town Door');
+
+    // A player on no list sees only the handouts for everyone, without Bob's label.
+    const carol = s.handoutsFor(CAROL);
+    expect(carol.map(h => h.id)).toEqual(['pub']);
+    expect(carol[0].html).not.toContain('Bob Door');
+
+    // The player page keeps its list: every handout, links cleaned against every revealed page.
+    expect(s.handouts.map(h => h.id)).toEqual(['pub', 'alice', 'bob']);
+    expect(s.handouts[0].html).toContain('Bob Door');
+  });
+});

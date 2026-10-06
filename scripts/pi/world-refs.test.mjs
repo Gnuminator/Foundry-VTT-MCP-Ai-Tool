@@ -166,6 +166,18 @@ test('the allow list never excuses a cookie, token, secret, password or key', ()
   );
 });
 
+test('harmless token settings and module names never count, named auth tokens do', () => {
+  const docs = [
+    { key: 'core.defaultToken', value: '{"displayName":30}' },
+    { key: 'vtta-tokenizer.image-upload-directory', value: '"[data] tokenizer"' },
+    { key: 'token-action-hud-core.style', value: '"foundryVTT"' },
+    { key: 'cookie-module.layout', value: '"wide"' },
+    { key: 'some-bot.bot-token', value: '"abc"' },
+    { key: 'other.accessToken', value: '"abc"' },
+  ];
+  assert.deepEqual(secretSettingKeys(docs), ['other.accessToken', 'some-bot.bot-token']);
+});
+
 test('checkExactPath compares the exact name, not the NTFS case-blind one', () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'world-refs-case-'));
   try {

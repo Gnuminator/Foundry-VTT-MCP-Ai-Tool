@@ -31,11 +31,22 @@ const CORE_ROOTS = new Set([
   'templates',
   'scripts',
 ]);
+// Matched against the setting name after the module id (the part after the first dot), so module
+// names like vtta-tokenizer or token-action-hud never count. Plain "token" is not on the list:
+// Foundry and modules have many harmless token settings (core.defaultToken); auth tokens are named.
 const SECRET_WORDS = [
   'cobalt',
   'patreon',
   'cookie',
-  'token',
+  'apitoken',
+  'api-token',
+  'accesstoken',
+  'access-token',
+  'authtoken',
+  'auth-token',
+  'bottoken',
+  'bot-token',
+  'bearer',
   'apikey',
   'api-key',
   'secret',
@@ -116,7 +127,8 @@ export function secretSettingKeys(docs, allow = []) {
     const lower = key.toLowerCase();
     if (!key) continue;
     // A secret word in the name always counts: the allow list can never excuse a cookie, token or key.
-    const hasSecretWord = SECRET_WORDS.some(w => lower.includes(w));
+    const name = lower.slice(lower.indexOf('.') + 1);
+    const hasSecretWord = SECRET_WORDS.some(w => name.includes(w));
     if (!hasSecretWord && (!lower.startsWith('ddb-importer.') || isAllowed(key, allow))) continue;
     const v = typeof d.value === 'string' ? d.value.trim() : JSON.stringify(d.value ?? '');
     if (empty.has(v) || /^(?:true|false|-?\d+(?:\.\d+)?)$/.test(v)) continue;
@@ -410,7 +422,11 @@ async function main() {
           p.caseMismatch.map(x => '  ' + x).join('\n')
       );
     for (const id of p.activeNotShipped)
-      console.log(`PROBLEM active in the world but not shipped: ${id}`);
+      console.log(
+        id === 'ddb-importer'
+          ? 'PROBLEM ddb-importer is active in the world: switch it off there after the import (it stays on the PC; its settings can hold the D&D Beyond cookie)'
+          : `PROBLEM active in the world but not shipped: ${id} (ship it with -Modules or switch it off in the world)`
+      );
     for (const m of p.gmUser) console.log(`PROBLEM ${m}`);
     if (p.otherRootsCount)
       console.log(

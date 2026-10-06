@@ -199,6 +199,23 @@ describe('McpControlClient reply size (large worlds)', () => {
     expect(dropped).toBe(false);
   });
 
+  it('a reply with no newline until its very last chunk still resolves', async () => {
+    const big = JSON.stringify({ rows: 'z'.repeat(3_000_000) });
+    const port = await replyServer(async (socket, id) => {
+      const body = toolReply(id, big).trimEnd();
+      for (let i = 0; i < body.length; i += 16 * 1024) {
+        socket.write(body.slice(i, i + 16 * 1024));
+        await new Promise(resolve => setImmediate(resolve));
+      }
+      socket.write('\n');
+    });
+    const client = await connectedClient(port, 10_000);
+
+    const result = await client.callTool<{ rows: string }>('get-play-stats');
+    expect(result.rows).toHaveLength(3_000_000);
+    expect(await client.ping()).toBe(true);
+  });
+
   it('two replies in one chunk both resolve', async () => {
     const ids: string[] = [];
     const port = await replyServer((socket, id) => {

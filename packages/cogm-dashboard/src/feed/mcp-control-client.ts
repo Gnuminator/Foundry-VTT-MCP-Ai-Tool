@@ -466,8 +466,12 @@ export class McpControlClient extends EventEmitter {
   private onData(chunk: string): void {
     this.buffer += chunk;
 
+    // After every call the buffer holds no newline, so a chunk without one cannot complete a line:
+    // skip the scan and only do the cap check below. This keeps a multi-MB reply arriving in many
+    // small chunks linear instead of rescanning the growing buffer each time.
+    const scan = chunk.includes('\n');
     let idx: number;
-    while ((idx = this.buffer.indexOf('\n')) >= 0) {
+    while (scan && (idx = this.buffer.indexOf('\n')) >= 0) {
       const line = this.buffer.slice(0, idx).trim();
       this.buffer = this.buffer.slice(idx + 1);
       if (!line) continue;

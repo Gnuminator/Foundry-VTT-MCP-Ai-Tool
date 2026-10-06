@@ -11,9 +11,15 @@
 //                                 a prefix). A key with cookie, token, secret, password and so on in its name is
 //                                 always a problem, whatever this list says.
 //     --gm-user <name>            the world's GM user (default Gamemaster); stage 11 joins it with an empty password
+//     --allow-missing a,b*        reviewed "known missing" asset paths: an exact path, or a prefix ending in *. A path
+//                                 that is really missing on disk and matches is not a problem; it is only counted
+//                                 (allowedMissingCount). A wrong-case path, or a path outside the bundle that exists on
+//                                 disk, stays a problem. No .., no leading slash, no empty entry, and a * needs a root and
+//                                 a folder before it (modules/<id>/*, ddb-images/adventures/<book>/*).
 //
 // Exit code 0: nothing to fix. 2: problems (the report is printed anyway). Setting VALUES are never
 // printed, only the names of keys that look like secrets.
+import { pbkdf2Sync } from 'node:crypto';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -30,6 +36,8 @@ const CORE_ROOTS = new Set([
   'canvas',
   'templates',
   'scripts',
+  // Foundry's own public files for the default scene (nue/defaultscene/*.webp, public/nue in the app).
+  'nue',
 ]);
 // Matched against the setting name after the module id (the part after the first dot), so module
 // names like vtta-tokenizer or token-action-hud never count.
@@ -95,13 +103,25 @@ export function pathsInString(str) {
   return found;
 }
 
-/** Walk any JSON value and collect every asset path into `into` (a Set). */
-export function collectPaths(value, into = new Set()) {
-  if (typeof value === 'string') for (const p of pathsInString(value)) into.add(p);
-  else if (Array.isArray(value)) for (const v of value) collectPaths(v, into);
-  else if (value && typeof value === 'object')
-    for (const v of Object.values(value)) collectPaths(v, into);
+/**
+ * Walk any JSON value and collect every asset path into `into` (a Set). With `skipDdbFlags`, the
+ * `flags.ddb` subtree of a document (at any depth: items[].flags.ddb, scenes.notes and so on) is left
+ * out: the D&D Beyond importer keeps its own metadata there (alternateIds[].img = "assets/cos1302.jpg"),
+ * and Foundry never loads those strings.
+ */
+export function collectPaths(value, into = new Set(), { skipDdbFlags = false } = {}) {
+  walk(value, into, skipDdbFlags, false);
   return into;
+}
+
+function walk(value, into, skipDdb, isFlags) {
+  if (typeof value === 'string') for (const p of pathsInString(value)) into.add(p);
+  else if (Array.isArray(value)) for (const v of value) walk(v, into, skipDdb, false);
+  else if (value && typeof value === 'object')
+    for (const [k, v] of Object.entries(value)) {
+      if (skipDdb && isFlags && k === 'ddb') continue;
+      walk(v, into, skipDdb, k === 'flags');
+    }
 }
 
 /** Where a path lives: { root, id?, folder? }. folder is what push-world copies for ddb-images / tokenizer. */
@@ -122,6 +142,33 @@ export function classifyPath(p) {
 /** True when `key` matches an allow entry: an exact key, or a prefix ending in `*` (ddb-importer.entity-*). */
 export function isAllowed(key, allow) {
   return allow.some(a => (a.endsWith('*') ? key.startsWith(a.slice(0, -1)) : key === a));
+}
+
+/**
+ * Check the --allow-missing entries: an exact path, or a prefix whose only `*` is the last character.
+ * Returns the clean list, throws on an empty entry, a leading slash, a `..` part, a `*` anywhere but
+ * the end, or a pattern that is too broad: before the `*` it must name a root and a folder
+ * ('ddb-images/adventures/X/*' and 'modules/JB2A_DnD5e/*' are fine; '*', 'modules/*' and 'ddb-images/*' are not).
+ */
+export function validateAllowMissing(entries) {
+  return entries.map(raw => {
+    const e = raw.trim();
+    if (!e) throw new Error('--allow-missing: empty entry');
+    if (e.startsWith('/') || e.startsWith('\\'))
+      throw new Error(`--allow-missing: ${e} must not start with a slash`);
+    if (e.split(/[\\/]/).includes('..'))
+      throw new Error(`--allow-missing: ${e} must not contain ..`);
+    const star = e.indexOf('*');
+    if (star !== -1) {
+      if (star !== e.length - 1 || e.indexOf('*', star + 1) !== -1)
+        throw new Error(`--allow-missing: ${e}: a * is only allowed as the last character`);
+      if (e.slice(0, star).split('/').length < 3)
+        throw new Error(
+          `--allow-missing: ${e} is too broad (name a root and a folder before the *, like modules/<id>/*)`
+        );
+    }
+    return e;
+  });
 }
 
 /**
@@ -170,14 +217,29 @@ export function unshippedActive(active, modules) {
 }
 
 /**
+ * True when `password` is Foundry's hash of the empty string for this salt. Foundry 14 stores a hash
+ * and `passwordSalt` even for a user with no password; its own code is
+ * crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex").
+ */
+function isEmptyPasswordHash(password, salt) {
+  if (typeof salt !== 'string' || salt === '') return false;
+  return pbkdf2Sync('', salt, 1000, 64, 'sha512').toString('hex') === password;
+}
+
+/**
  * The world's GM user, as the problems it would cause for stage 11 (which joins with an empty password).
- * users: user documents. Returns { found, hasPassword, problems } and never any password value.
+ * users: user documents ({ name, role, password, passwordSalt }). Returns { found, hasPassword, problems }
+ * and never any password or salt value. The stored hash of the empty string is not a password.
  */
 export function gmUserCheck(users, name) {
   const gm = users.find(u => u?.name === name && u?.role === 4);
   const problems = [];
   if (!gm) problems.push(`no user named ${name} with the Gamemaster role (role 4)`);
-  const hasPassword = !!gm && typeof gm.password === 'string' && gm.password !== '';
+  const hasPassword =
+    !!gm &&
+    typeof gm.password === 'string' &&
+    gm.password !== '' &&
+    !isEmptyPasswordHash(gm.password, gm.passwordSalt);
   if (hasPassword)
     problems.push(`${name} has a password (stage 11 joins with an empty one: clear it first)`);
   return { found: !!gm, hasPassword, problems };
@@ -233,8 +295,13 @@ export function checkExactPath(root, rel, cache = new Map()) {
 /**
  * Summarise a set of paths against the allowed ids. `check(path)` returns the state of the file on disk
  * ({ state: 'ok' | 'missing' | 'case', actual }); the older `exists(path)` boolean still works.
+ * `allowMissing` (the reviewed "known missing" list, see isAllowed): a matching path that is really
+ * missing on disk is no problem of any kind (no folder to copy either); it is listed in `allowedMissing`.
+ * A wrong-case match stays a problem (a rename fixes it). A path in no known root ('other') is looked up
+ * on disk too: if the file is there, push-world would not copy it, so it is always a problem
+ * (`otherPresent`), whatever the list says.
  */
-export function summarize(paths, { world, modules, exists, check }) {
+export function summarize(paths, { world, modules, exists, check, allowMissing = [] }) {
   const counts = {};
   const folders = new Set();
   const problems = {
@@ -243,22 +310,31 @@ export function summarize(paths, { world, modules, exists, check }) {
     missing: [],
     caseMismatch: [],
     other: [],
+    otherPresent: [],
   };
+  const allowedMissing = [];
   for (const p of [...paths].sort()) {
     const c = classifyPath(p);
     counts[c.root] = (counts[c.root] ?? 0) + 1;
+    if (c.root === 'core') continue;
+    const r = check ? check(p) : { state: exists(p) ? 'ok' : 'missing' };
+    const allowed = r.state === 'missing' && isAllowed(p, allowMissing);
+    if (allowed) {
+      allowedMissing.push(p);
+      continue;
+    }
+    if (c.root === 'other') {
+      (r.state === 'missing' ? problems.other : problems.otherPresent).push(p);
+      continue;
+    }
     if (c.folder) folders.add(c.folder);
-    if (c.root === 'other') problems.other.push(p);
     if (c.root === 'modules' && c.id !== 'foundry-mcp-bridge' && !modules.includes(c.id))
       problems.foreignModules.add(c.id);
     if (c.root === 'worlds' && c.id !== world) problems.foreignWorlds.add(c.id);
-    if (c.root !== 'core' && c.root !== 'other') {
-      const r = check ? check(p) : { state: exists(p) ? 'ok' : 'missing' };
-      if (r.state === 'missing') problems.missing.push(p);
-      else if (r.state === 'case') problems.caseMismatch.push(`case differs: ${p} vs ${r.actual}`);
-    }
+    if (r.state === 'missing') problems.missing.push(p);
+    else if (r.state === 'case') problems.caseMismatch.push(`case differs: ${p} vs ${r.actual}`);
   }
-  return { counts, folders: [...folders].sort(), problems };
+  return { counts, folders: [...folders].sort(), problems, allowedMissing };
 }
 
 // ---- LevelDB reading (CLI only) ----------------------------------------------------------------
@@ -293,7 +369,7 @@ async function readDb(ClassicLevel, src, tmpRoot, fn) {
   }
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const o = {
     data: 'C:/FoundryTest/data/Data',
     world: '',
@@ -301,6 +377,7 @@ function parseArgs(argv) {
     json: false,
     levelModule: '',
     allow: [],
+    allowMissing: [],
     gmUser: 'Gamemaster',
   };
   for (let i = 0; i < argv.length; i++) {
@@ -311,6 +388,8 @@ function parseArgs(argv) {
     else if (a === '--modules') o.modules = (argv[++i] ?? '').split(',').filter(Boolean);
     else if (a === '--level-module') o.levelModule = argv[++i];
     else if (a === '--allow-secret-keys') o.allow = (argv[++i] ?? '').split(',').filter(Boolean);
+    else if (a === '--allow-missing')
+      o.allowMissing = validateAllowMissing((argv[++i] ?? '').split(',').filter(Boolean));
     else if (a === '--gm-user') o.gmUser = argv[++i];
     else throw new Error(`unknown argument ${a}`);
   }
@@ -344,11 +423,16 @@ async function main() {
         path.normalize(db) === path.normalize(path.join(worldDir, 'data', 'settings'));
       const isUsers = path.normalize(db) === path.normalize(path.join(worldDir, 'data', 'users'));
       await readDb(ClassicLevel, db, tmpRoot, (_k, doc) => {
-        collectPaths(doc, paths);
+        collectPaths(doc, paths, { skipDdbFlags: true });
         if (isSettings && doc && typeof doc === 'object') settings.push(doc);
-        // only name, role and whether a password exists are kept; no password value leaves this block
+        // only name, role, password and salt are kept for gmUserCheck; no value leaves this block, only a boolean
         if (isUsers && doc && typeof doc === 'object')
-          users.push({ name: doc.name, role: doc.role, password: doc.password });
+          users.push({
+            name: doc.name,
+            role: doc.role,
+            password: doc.password,
+            passwordSalt: doc.passwordSalt,
+          });
       });
     }
   } finally {
@@ -359,12 +443,18 @@ async function main() {
     path.join(worldDir, 'world.json'),
     ...o.modules.map(m => path.join(o.data, 'modules', m, 'module.json')),
   ]) {
-    if (existsSync(f)) collectPaths(JSON.parse(readFileSync(f, 'utf8')), paths);
+    if (existsSync(f))
+      collectPaths(JSON.parse(readFileSync(f, 'utf8')), paths, { skipDdbFlags: true });
   }
 
   const dirCache = new Map();
   const check = p => checkExactPath(o.data, p, dirCache);
-  const s = summarize(paths, { world: o.world, modules: o.modules, check });
+  const s = summarize(paths, {
+    world: o.world,
+    modules: o.modules,
+    check,
+    allowMissing: o.allowMissing,
+  });
   const secrets = secretSettingKeys(settings, o.allow);
   const active = activeModules(settings);
   const gm = gmUserCheck(users, o.gmUser);
@@ -373,6 +463,8 @@ async function main() {
     modules: o.modules,
     dbsScanned: dbs.length,
     pathCount: paths.size,
+    allowedMissingCount: s.allowedMissing.length,
+    allowedMissing: s.allowedMissing.slice(0, 50),
     counts: s.counts,
     assetFolders: s.folders,
     problems: {
@@ -384,6 +476,8 @@ async function main() {
       caseMismatch: s.problems.caseMismatch.slice(0, 50),
       otherRoots: s.problems.other.slice(0, 50),
       otherRootsCount: s.problems.other.length,
+      otherPresent: s.problems.otherPresent.slice(0, 50),
+      otherPresentCount: s.problems.otherPresent.length,
       secretSettingKeys: secrets,
       activeNotShipped: unshippedActive(active, o.modules),
       gmUser: gm.problems,
@@ -397,6 +491,7 @@ async function main() {
     p.missingCount ||
     p.caseMismatchCount ||
     p.otherRootsCount ||
+    p.otherPresentCount ||
     p.secretSettingKeys.length ||
     p.activeNotShipped.length ||
     p.gmUser.length
@@ -429,6 +524,10 @@ async function main() {
         `PROBLEM ${p.caseMismatchCount} paths whose letter case differs from the file (first ${p.caseMismatch.length}):\n` +
           p.caseMismatch.map(x => '  ' + x).join('\n')
       );
+    if (s.allowedMissing.length)
+      console.log(
+        `${s.allowedMissing.length} known missing paths allowed by --allow-missing (not problems)`
+      );
     for (const id of p.activeNotShipped)
       console.log(
         id === 'ddb-importer'
@@ -440,6 +539,11 @@ async function main() {
       console.log(
         `PROBLEM ${p.otherRootsCount} paths in unknown roots (first ${p.otherRoots.length}):\n` +
           p.otherRoots.map(x => '  ' + x).join('\n')
+      );
+    if (p.otherPresentCount)
+      console.log(
+        `PROBLEM ${p.otherPresentCount} paths present on disk but outside the bundle (push-world copies only the modules, the world, ddb-images and tokenizer; first ${p.otherPresent.length}):\n` +
+          p.otherPresent.map(x => '  ' + x).join('\n')
       );
     if (p.secretSettingKeys.length)
       console.log(

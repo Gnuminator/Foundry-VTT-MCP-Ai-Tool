@@ -327,10 +327,20 @@ if have_systemd; then
     sleep 2
   done
   journalctl -u foundry-ai-tool-gm-browser -n 5 --no-pager | grep 'assistant-gm' || true
-  if journalctl -u foundry-ai-tool-bridge --since '-3 min' --no-pager | grep -qi 'foundry.*connect'; then
-    ok "the bridge reports a Foundry connection"
+  # The bridge does not log connects, so look for the connection itself: an established TCP
+  # connection on the bridge's Foundry port 31415 (the Assistant GM browser's module). A warning only.
+  linked=0
+  for _ in $(seq 1 15); do
+    if [ -n "$(ss -Htn state established '( sport = :31415 )' 2>/dev/null)" ]; then
+      linked=1
+      break
+    fi
+    sleep 2
+  done
+  if [ "$linked" = 1 ]; then
+    ok "a Foundry connection is established on the bridge's port 31415"
   else
-    warn "no Foundry connection in the bridge log yet; see: journalctl -u foundry-ai-tool-bridge -n 50"
+    warn "no established connection on the bridge's port 31415 yet; see: journalctl -u foundry-ai-tool-gm-browser -n 30"
   fi
 else
   warn "no systemd here (a test container?): Foundry and the Assistant GM browser were not started"

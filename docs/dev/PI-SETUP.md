@@ -18,7 +18,9 @@ How the work is split:
   the tool, backups and vault sync, in stages. Claude stops before each stage and at the few steps
   only you can do (licence key, logins in your browser).
 - **Part C, later: players and the GM from outside** through Cloudflare. Only after the dashboard
-  checks Cloudflare's signed login token (vault idea I-022).
+  checks Cloudflare's signed login token (vault idea I-022). Your steps:
+  [Remote access, Part C](REMOTE-ACCESS.md#part-c-players-and-the-gm-reach-the-orange-pi-through-cloudflare);
+  Claude's side is stage 12 below.
 
 Day-to-day development and testing stay on this PC's test server; the Pi only runs released builds
 and the campaign world.
@@ -138,6 +140,7 @@ listed).
 | 9. Command log  | Every SSH login with the PC's key goes through a small logger (`9-ssh-log.sh`: a `command=` prefix on the key line in `/root/.ssh/authorized_keys`, `sshd_config` untouched): one line per command in `/var/lib/foundry-ai-tool/ssh-log/ssh-commands.log`, plus a copy of every stage script; root only, 12 weeks kept; the token script is logged by name only. A logging error never blocks the command. A 5-minute safety timer restores the old key file unless a new connection confirms                                                                          | **yes:** your OK (an SSH change), and default permission mode while it runs                                                                                                                                                        |
 | 10. Space check | An hourly storage check (`10-space-check.sh`: `foundry-space-check.timer`, the checker in `/opt/foundry-ai-tool/space`) of every disk the backups, snapshots, the vault sync and the recordings use, written to `/var/lib/foundry-ai-tool/space/status.json` (below 20 % free is low, below 5 % is critical) and as a warning line in the journal. The nightly restic backup (stage 6) runs the check first: below 20 % it still runs, at critical it is skipped. `UNDO=1` removes it                                                                                  | **yes:** your OK (a new service and timer); then run stage 6 again so the backup gets its pre-check                                                                                                                                |
 | 11. World       | `11-world.sh` installs the bundle `push-world.ps1` built on this PC, after checking the tar and every checksum: the campaign world, its private modules and image folders. An existing campaign world is kept unless `REPLACE_WORLD=1`; a test copy `strahd-kit` is reset every time; old copies go to `/var/lib/foundry-import/prev-<time>`, never deleted. Each world gets a generated GM password (`/etc/foundry-ai-tool/world-<id>.env`) and is provisioned like stage 5. See "Licensed content"                                                                   | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
+| 12. Tunnel      | Part C (D-075): Cloudflare Tunnel, so players reach Foundry and the GM the dashboard through Cloudflare Access with no router port open (`12-tunnel.sh`). `cloudflared` from Cloudflare's signed apt repository (key pinned), service `foundry-ai-tool-cloudflared` in token mode: a root-only token file read through systemd `LoadCredential`, never an argument or environment variable; no token, no start. `FOUNDRY_PUBLIC_HOST=play.<domain>` sets Foundry's `hostname`, `proxySSL`, `proxyPort` 443. No firewall, SSH, network or Tailscale change              | **yes:** your OK and a snapshot; then run `set-tunnel-token.sh` yourself over SSH                                                                                                                                                  |
 
 Stage 5 in more detail, because it changes how Claude Desktop reaches the game: each entry in
 `%APPDATA%\Claude\claude_desktop_config.json` gets `MCP_CONTROL_HOST` set to the Pi's Tailscale name
@@ -516,7 +519,8 @@ scripts move the result to the Pi, in two steps so that you can look in between:
    Foundry), and stops when anything is wrong: a missing file or one whose letter case differs from
    the real name (Windows ignores case, the Pi does not), a module that is not in the bundle, a module
    that is switched on in the world but not shipped (turn it off in the world first, as ddb-importer
-   must be), a setting that looks like a secret, or a GM user that has a password. Then it checks the
+   must be), a setting that looks like a secret, or a GM user that has a password (the hash Foundry 14
+   stores for a user with no password does not count). Then it checks the
    free space on this PC and on the Pi (below 20 % free it warns, below 5 % it stops), builds one
    `.tar` with a checksum for every file, and uploads it to `/var/lib/foundry-import/` on the Pi. It
    never runs stage 11. `-NoUpload` builds and checks only.
@@ -544,6 +548,16 @@ cobalt, cookie, patreon, secret, password, credential, bearer, an API key or a p
 that is or ends in token or key (`discordToken`, `refresh-token`, `privateKey`), is always a problem,
 whatever the list says. Module names do not count (vtta-tokenizer, Token Action HUD); a harmless
 setting that ends in token goes on the short safe list in `world-refs.mjs` (today `core.defaultToken`).
+
+Images that the books point at but that are not on this PC stop the push too. When you have looked
+at them and they are known gaps (a book image the importer never fetched), list them with
+`-AllowMissing 'ddb-images/adventures/Curse_of_Strahd/gone.webp','modules/dnd-players-handbook/missing/*'` (an exact path or a
+prefix ending in `*` that names a root and a folder before it, so `modules/*` is refused; no `..`, no
+leading slash). A matching path that is really missing on disk is then no problem and is listed in
+the run. A wrong-case path stays a problem, and so does a path outside the bundle that exists on disk
+(a file under `Data/assets/`, say), because push-world would not copy it. The list goes into `MANIFEST.txt` (`allow-missing:`). `world-refs.mjs` also leaves
+out the D&D Beyond importer's own metadata under `flags.ddb` (Foundry never loads it) and treats
+`nue/defaultscene/` as one of Foundry's own files.
 
 What stage 11 does with it:
 

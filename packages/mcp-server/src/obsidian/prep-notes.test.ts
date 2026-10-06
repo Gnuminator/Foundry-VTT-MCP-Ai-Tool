@@ -22,6 +22,7 @@ import {
   type ReadPrepNotesInput,
   type WantedUuid,
 } from './prep-notes.js';
+import { PREP_TEMPLATES } from './prep-templates.js';
 
 const WORLD = 'w1';
 let vaultDir: string;
@@ -120,6 +121,21 @@ describe('prepNoteLines', () => {
     expect(prepNoteLines(text).lines).toEqual(['fears: Strahd, wolves', 'voice: Low', 'Body.']);
   });
 
+  it('leaves out Obsidian %% comments, also an unclosed one', () => {
+    const text = fm(
+      { type: 'npc-prep', voice: 'Low' },
+      'Before %% hidden %% after\n%% a hint\nover lines %%\nKept\n%% open to the end\nGone'
+    );
+    expect(prepNoteLines(text).lines).toEqual(['voice: Low', 'Before  after', 'Kept']);
+  });
+
+  it('reads an unfilled template as its headings only (R2)', () => {
+    expect(prepNoteLines(PREP_TEMPLATES['NPC.md'] ?? '').lines).toEqual([
+      '## What they do next',
+      '## What they know',
+    ]);
+  });
+
   it('reads a note without properties as body only', () => {
     expect(prepNoteLines('Just text\n\nmore')).toEqual({
       lines: ['Just text', 'more'],
@@ -172,6 +188,27 @@ describe('readPrepNotes', () => {
     expect(part.keptOut).toBe(1);
     expect(part.matchedAgainst).toBeNull();
     expect(JSON.stringify(part)).not.toContain('Private plan');
+  });
+
+  it('skips the prep templates, also a session plan template with a newer time (R2)', async () => {
+    await note('Prep/Session 1.md', fm({ type: 'session-plan', date: '2026-10-01' }, 'Real plan'));
+    for (const [name, text] of Object.entries(PREP_TEMPLATES)) {
+      await note(`Prep/Templates/${name}`, text.replace('fvtt_uuid:', 'fvtt_uuid: Actor.a1'));
+    }
+    await note('prep/templates/Extra.md', fm({ type: 'session-plan', date: '2027-01-01' }, 'T'));
+    const { part } = await readPrepNotes(input(WANTED));
+    expect(part.notes.map(n => n.path)).toEqual(['Prep/Session 1.md']);
+  });
+
+  it('skips an undated session plan that is only headings, even when newer (R2 review)', async () => {
+    await note('Prep/Session 1.md', fm({ type: 'session-plan', date: '2026-10-01' }, 'Real plan'));
+    await note(
+      'Prep/_templates/Session plan.md',
+      PREP_TEMPLATES['Session plan.md'] ?? '',
+      new Date('2030-01-01T00:00:00Z')
+    );
+    const { part } = await readPrepNotes(input());
+    expect(part.notes.map(n => n.path)).toEqual(['Prep/Session 1.md']);
   });
 
   it('matches scene, actor and quest notes by fvtt_uuid in the wanted order', async () => {

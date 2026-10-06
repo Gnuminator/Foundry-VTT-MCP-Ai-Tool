@@ -41,6 +41,7 @@ import { mergeChangeHistory, type ChangeEntry } from './audit-merge.js';
 import { groupWithPlayRecords, type SessionEvent } from './grouping.js';
 import { campaignDir, NoteWriter } from './note-writer.js';
 import { baseOwnershipCheck, checkCanvasOwnership, checkMarkdownOwnership } from './ownership.js';
+import { createPrepTemplates } from './prep-templates.js';
 import { renderUsageNote, USAGE_NOTE_PATH } from './render-usage.js';
 import { loadSessionNotesLinks, sessionNotesLines } from './session-notes-links.js';
 import {
@@ -122,7 +123,16 @@ const PREP_README = [
   '---',
   '# Prep',
   '',
-  'Your campaign notes: session plans, NPCs, locations, threads. The AI Tool never writes here.',
+  'Your campaign notes: session plans, NPCs, locations, threads. The AI Tool never changes them.',
+  '',
+  '- **Templates** for an NPC, a location, a quest and a session plan are in `Templates/`. Point',
+  "  Obsidian's Templates (or Templater) template folder at it, or copy one by hand.",
+  '- **New prep note for this:** on a Foundry note (an NPC, a scene, a quest journal), the AI Tool',
+  '  plugin makes a prep note from the matching template, with `fvtt_uuid` filled in and a link',
+  '  back.',
+  '- **What Claude reads:** when you ask Claude to prep, it reads the newest session plan and the',
+  '  notes whose `fvtt_uuid` is the current scene, a creature on it or an open quest. Set',
+  '  `ai_context: false` to keep a note out.',
   '',
 ].join('\n');
 
@@ -261,6 +271,7 @@ export async function exportWorldToObsidian(options: {
   await writer.createOnce('Home.md', renderCampaignHome(worldId));
   await writer.createOnce('Prep', null);
   await writer.createOnce('Prep/README.md', PREP_README);
+  await createPrepTemplates(writer);
 
   // Sessions: group the union of session-log events and play records into
   // play sessions (shared contract 5), one note per group, sharing the exact

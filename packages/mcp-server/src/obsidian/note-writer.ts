@@ -190,6 +190,34 @@ export class NoteWriter {
     }
   }
 
+  /** Whether a file or folder exists with any letter case in its names (a folder the GM renamed to
+   * `prep/templates` still counts on a case-sensitive disk, so it is not made a second time). */
+  async existsIgnoringCase(relPath: string): Promise<boolean> {
+    let dir = this.resolve('.');
+    for (const segment of relPath.split('/')) {
+      let names: string[];
+      try {
+        names = await fsp.readdir(dir);
+      } catch {
+        return false;
+      }
+      const found = names.find(n => n.toLowerCase() === segment.toLowerCase());
+      if (found === undefined) return false;
+      dir = path.join(dir, found);
+    }
+    return true;
+  }
+
+  /** Whether a file or folder exists (false also when the path cannot be checked). */
+  async exists(relPath: string): Promise<boolean> {
+    try {
+      await fsp.stat(this.resolve(relPath));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Create a GM-owned file or folder once; never touch it again. */
   async createOnce(relPath: string, text: string | null): Promise<void> {
     try {

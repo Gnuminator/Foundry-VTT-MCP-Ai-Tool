@@ -14,6 +14,15 @@ For a note with `fvtt_uuid` in its frontmatter (the Obsidian mirror writes it on
   `/?plan=<id>`, where the GM confirms it. The plugin never applies a change itself (D-067).
 - **Add to / Remove from the handout reveal queue**: stages the page for the dashboard's handout
   drawer ("Reveal next"); nothing changes in Foundry.
+- **New prep note for this** (R2, D-094): a command and a file-menu item on a world note (not a
+  compendium entry) in `Campaigns/<world>/`. The GM picks the kind (NPC, location, quest, session
+  plan; the likely one first) and the plugin creates `Prep/<kind folder>/<name>.md` (folders
+  NPCs, Locations, Quests and Session plans) from `Prep/Templates/<kind>.md` (the export writes
+  those once), with `fvtt_uuid` set (quest prep on a journal page points at its journal) and a
+  "Prep for" link back. An NPC, location or quest note already under `Prep/` for the same uuid
+  opens instead, also after the GM moved or renamed it; a session plan is always new, named
+  `Session <YYYY-MM-DD>` with `date` filled. A same-named note (in any letter case) gets a
+  number. The only note the plugin writes, only on a click, and without the dashboard.
 
 - **Theme** (I-099): the whole vault in the dashboard's look, **Neutral** or **The Veil**, one
   theme per world shared with the dashboard (`GET /api/theme`, `POST /api/control` `set-theme`).

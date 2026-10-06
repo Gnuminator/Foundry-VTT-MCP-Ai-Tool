@@ -486,6 +486,18 @@ describe('undo (Foundry ops)', () => {
     expect(await audit.get('curse-of-strahd', byClaude.changeId)).not.toHaveProperty('requestedBy');
   });
 
+  it('records who asked for an apply on its audit entry, and nothing for Claude', async () => {
+    const byGm = await service.applyPlan(
+      (await plan([HP_UPDATE])).planId,
+      { confirm: true },
+      'Danni'
+    );
+    expect((await audit.get('curse-of-strahd', byGm.changeId))?.requestedBy).toBe('Danni');
+
+    const byClaude = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    expect(await audit.get('curse-of-strahd', byClaude.changeId)).not.toHaveProperty('requestedBy');
+  });
+
   it('reports a conflict instead of clobbering a later edit', async () => {
     const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
     foundry.edit('Actor.ireena', { path: 'system.hp', present: true, value: 1 });

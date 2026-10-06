@@ -55,12 +55,15 @@ describe('GuardedChangeTools handlers', () => {
   it('passes the confirmation flags through to apply', async () => {
     const { tools, guardedWrites } = makeTools();
     await tools.handleApplyPlannedChange({ planId: 'p1', confirm: true, confirmDestructive: true });
-    expect(guardedWrites.applyPlan).toHaveBeenCalledWith('p1', {
-      confirm: true,
-      confirmDestructive: true,
-    });
+    expect(guardedWrites.applyPlan).toHaveBeenCalledWith(
+      'p1',
+      { confirm: true, confirmDestructive: true },
+      undefined
+    );
     await tools.handleApplyPlannedChange({ planId: 'p1' });
-    expect(guardedWrites.applyPlan).toHaveBeenLastCalledWith('p1', {});
+    expect(guardedWrites.applyPlan).toHaveBeenLastCalledWith('p1', {}, undefined);
+    await tools.handleApplyPlannedChange({ planId: 'p1', confirm: true }, 'Danni');
+    expect(guardedWrites.applyPlan).toHaveBeenLastCalledWith('p1', { confirm: true }, 'Danni');
     await expect(tools.handleApplyPlannedChange({})).rejects.toThrow();
     await expect(
       tools.handleApplyPlannedChange({ planId: 'p1', confirm: 'yes' })

@@ -151,10 +151,16 @@ describe('module-request / module-reply contract', () => {
     },
   };
 
-  it('pins the frame types, the first two tools and the size cap', () => {
+  it('pins the frame types, the tools and the size cap', () => {
     expect(MODULE_REQUEST_TYPE).toBe('module-request');
     expect(MODULE_REPLY_TYPE).toBe('module-reply');
-    expect([...MODULE_REQUEST_TOOLS]).toEqual(['list-recent-changes', 'undo-change']);
+    expect([...MODULE_REQUEST_TOOLS]).toEqual([
+      'list-recent-changes',
+      'undo-change',
+      'list-revealed-pages',
+      'plan-page-reveal',
+      'apply-planned-change',
+    ]);
     expect(MODULE_REQUEST_MAX_ARGS_BYTES).toBe(20_000);
   });
 

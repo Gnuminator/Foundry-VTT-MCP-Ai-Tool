@@ -38,7 +38,7 @@ function install(isGM: boolean): void {
 }
 
 describe('the AI Tool scene-controls group', () => {
-  it('adds a layer-less group with one button tool for a GM', () => {
+  it('adds a layer-less group with the AI changes and Handouts button tools for a GM', () => {
     install(true);
     const controls: Record<string, any> = { tokens: { name: 'tokens' } };
 
@@ -48,11 +48,18 @@ describe('the AI Tool scene-controls group', () => {
     expect(group).toMatchObject({ name: 'aiTool', title: 'AI Tool', visible: true });
     expect(group.layer).toBeUndefined();
     expect(group.order).toBeGreaterThan(10);
-    expect(Object.keys(group.tools)).toEqual(['aiChanges']);
+    expect(Object.keys(group.tools)).toEqual(['aiChanges', 'handouts']);
     expect(group.tools.aiChanges).toMatchObject({
       name: 'aiChanges',
       title: 'AI changes',
       order: 1,
+      button: true,
+      visible: true,
+    });
+    expect(group.tools.handouts).toMatchObject({
+      name: 'handouts',
+      title: 'Handouts',
+      order: 2,
       button: true,
       visible: true,
     });
@@ -72,10 +79,10 @@ describe('the AI Tool scene-controls group', () => {
     const controls: Record<string, any> = {};
     addAiToolControls(controls, [
       ...AI_TOOL_BUTTONS,
-      { name: 'handouts', title: 'Handouts', icon: 'fa-solid fa-scroll', open: vi.fn() },
+      { name: 'tarokka', title: 'Tarokka', icon: 'fa-solid fa-cards', open: vi.fn() },
     ]);
-    expect(Object.keys(controls.aiTool.tools)).toEqual(['aiChanges', 'handouts']);
-    expect(controls.aiTool.tools.handouts).toMatchObject({ order: 2, button: true });
+    expect(Object.keys(controls.aiTool.tools)).toEqual(['aiChanges', 'handouts', 'tarokka']);
+    expect(controls.aiTool.tools.tarokka).toMatchObject({ order: 3, button: true });
   });
 
   it('a click runs the button and reports a failure as a notification', async () => {

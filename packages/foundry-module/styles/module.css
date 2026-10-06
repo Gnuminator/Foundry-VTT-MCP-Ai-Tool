@@ -475,3 +475,45 @@
   justify-content: center;
   margin-top: 0.5rem;
 }
+
+/* Handouts window (I-108 part 2): reuses the AI changes window classes above. */
+.fmb-ho-toolbar {
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.fmb-ho-show {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-right: auto;
+  white-space: nowrap;
+}
+
+.fmb-ho-heading {
+  margin: 0.75rem 0 0.35rem;
+  font-size: var(--font-size-14, 0.875rem);
+  border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+}
+
+.fmb-ai-row.fmb-ho-next {
+  border-color: var(--color-text-secondary);
+}
+
+.fmb-ho-ticks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: var(--font-size-12, 0.75rem);
+}
+
+.fmb-ho-tick {
+  color: var(--color-text-subtle);
+}
+
+.fmb-ho-tick.fmb-ho-seen {
+  color: var(--color-text-primary);
+}

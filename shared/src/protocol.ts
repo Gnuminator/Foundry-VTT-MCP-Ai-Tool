@@ -241,7 +241,15 @@ export const MODULE_REQUEST_TYPE = 'module-request' as const;
 export const MODULE_REPLY_TYPE = 'module-reply' as const;
 
 /** The tools a `module-request` may name (later lanes extend this list). */
-export const MODULE_REQUEST_TOOLS = ['list-recent-changes', 'undo-change'] as const;
+export const MODULE_REQUEST_TOOLS = [
+  'list-recent-changes',
+  'undo-change',
+  // The Handouts window (I-108 part 2). The planner and the apply are narrowed by the backend
+  // (`MODULE_PLANNERS` in mcp-server `module-requests.ts`), not by this list.
+  'list-revealed-pages',
+  'plan-page-reveal',
+  'apply-planned-change',
+] as const;
 
 export type ModuleRequestTool = (typeof MODULE_REQUEST_TOOLS)[number];
 

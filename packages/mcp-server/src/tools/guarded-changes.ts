@@ -153,7 +153,8 @@ export class GuardedChangeTools {
     return Promise.resolve({ plans: this.guardedWrites.listPlans() });
   }
 
-  async handleApplyPlannedChange(args: unknown): Promise<AppliedChange> {
+  /** `requestedBy`: who asked, when it was not Claude (a GM's window in Foundry). */
+  async handleApplyPlannedChange(args: unknown, requestedBy?: string): Promise<AppliedChange> {
     const params = z
       .object({
         planId: z.string().min(1),
@@ -162,12 +163,16 @@ export class GuardedChangeTools {
       })
       .parse(args ?? {});
     try {
-      return await this.guardedWrites.applyPlan(params.planId, {
-        ...(params.confirm !== undefined ? { confirm: params.confirm } : {}),
-        ...(params.confirmDestructive !== undefined
-          ? { confirmDestructive: params.confirmDestructive }
-          : {}),
-      });
+      return await this.guardedWrites.applyPlan(
+        params.planId,
+        {
+          ...(params.confirm !== undefined ? { confirm: params.confirm } : {}),
+          ...(params.confirmDestructive !== undefined
+            ? { confirmDestructive: params.confirmDestructive }
+            : {}),
+        },
+        requestedBy
+      );
     } catch (error) {
       this.logger.warn('Planned change not applied', {
         planId: params.planId,

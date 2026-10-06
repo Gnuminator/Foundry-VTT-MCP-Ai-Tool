@@ -59,7 +59,7 @@ describe('parseAiToolPayload', () => {
   it.each([
     undefined,
     {},
-    { tool: 'apply-planned-change', args: {} },
+    { tool: 'plan-tarokka-reveal', args: {} },
     { tool: 'toString', args: {} },
     { tool: 'list-recent-changes', args: [1] },
     { tool: 'list-recent-changes', args: 'x' },
@@ -81,6 +81,8 @@ describe('parseAiToolPayload', () => {
   it('gives an undo a longer timeout than a read', () => {
     expect(aiToolTimeoutMs('list-recent-changes')).toBe(30_000);
     expect(aiToolTimeoutMs('undo-change')).toBe(120_000);
+    expect(aiToolTimeoutMs('apply-planned-change')).toBe(120_000);
+    expect(aiToolTimeoutMs('plan-page-reveal')).toBe(30_000);
   });
 });
 
@@ -146,7 +148,7 @@ describe('aiToolRequest on the client that holds the link', () => {
   it('refuses a tool that is not on the list before sending anything', async () => {
     const link = fakeLink();
     setBridgeLink(link);
-    await expect(aiToolRequest('apply-planned-change', {})).rejects.toThrow(/Invalid payload/);
+    await expect(aiToolRequest('plan-tarokka-reveal', {})).rejects.toThrow(/Invalid payload/);
     expect(link.request).not.toHaveBeenCalled();
   });
 });
@@ -322,7 +324,7 @@ describe('the registered aiToolRequest query (the link holder side)', () => {
     setBridgeLink(fakeLink());
     const danni = addUser({ id: 'danni', name: 'Danni', isGM: true, role: 4 });
     await expect(
-      handler()({ tool: 'apply-planned-change', args: {} }, { user: danni })
+      handler()({ tool: 'plan-tarokka-reveal', args: {} }, { user: danni })
     ).rejects.toThrow(/Invalid payload/);
   });
 });

@@ -332,6 +332,28 @@ this module; ask whoever runs the server to update it.
 Clicking the AI Tool group leaves the map as it was: it only changes which buttons the toolbar
 shows, and clicking any other group (Tokens, for example) brings the usual tools back.
 
+### Handouts inside Foundry
+
+The same **AI Tool** group has a **Handouts** button. It opens a window with what the dashboard's
+handout drawer shows, so you can reveal a handout without leaving Foundry:
+
+- **Queue**: the pages you staged, oldest first. Each row says which scene it is for (or "any
+  scene") and which players (or "all players"). **Remove** takes a page off the queue at once;
+  nothing changes in Foundry.
+- **Reveal next**: reveals the oldest queued page for the scene that is active now. A window shows
+  exactly what will change and asks you to confirm, because a reveal cannot be taken back at the
+  table. Cancel and nothing happens. Undo in **AI changes** hides the page again and puts it back
+  in the queue.
+- **Show it now**: tick it next to **Reveal next** to also pop the page up on the screens of the
+  players it is for. It is never ticked when the window opens or redraws, and goes back to unticked
+  after each reveal, so it is a choice you make each time. Undo cannot close the popup.
+- **Who has read what**: each revealed handout, who it is for, and a tick next to the name of each
+  player who has opened it on the player page (hover for the time).
+
+The window refreshes by itself when a handout is revealed or undone, and **Refresh** reloads it by
+hand. If something goes wrong (for example the handouts switch is off) the reason shows at the top
+of the window. It needs the same bridge connection as the AI changes window.
+
 ## The confirm window
 
 The dashboard's own buttons that make a planned change (Damage and Condition on the combatants you

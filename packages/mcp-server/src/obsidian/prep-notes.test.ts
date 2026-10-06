@@ -17,6 +17,7 @@ import {
 import {
   normalizeUuid,
   prepNoteLines,
+  rawUuids,
   readPrepNotes,
   type ReadPrepNotesInput,
   type WantedUuid,
@@ -103,6 +104,22 @@ describe('prepNoteLines', () => {
     expect(lines[0]?.endsWith('...')).toBe(true);
   });
 
+  it('reads a block list written at column 0 and the property after it', () => {
+    const text = [
+      '---',
+      'type: npc-prep',
+      'fvtt_uuid:',
+      '- Actor.a1',
+      'fears:',
+      '- Strahd',
+      '- wolves',
+      'voice: Low',
+      '---',
+      'Body.',
+    ].join('\n');
+    expect(prepNoteLines(text).lines).toEqual(['fears: Strahd, wolves', 'voice: Low', 'Body.']);
+  });
+
   it('reads a note without properties as body only', () => {
     expect(prepNoteLines('Just text\n\nmore')).toEqual({
       lines: ['Just text', 'more'],
@@ -115,6 +132,21 @@ describe('normalizeUuid', () => {
   it('accepts a bare uuid or a pasted @UUID link', () => {
     expect(normalizeUuid(' Actor.a1 ')).toBe('Actor.a1');
     expect(normalizeUuid('@UUID[Actor.a1]{Ismark}')).toBe('Actor.a1');
+  });
+});
+
+describe('rawUuids', () => {
+  it('reads a block list written at column 0 and stops at the next property', () => {
+    const text = [
+      '---',
+      'fvtt_uuid:',
+      '- Actor.a1',
+      '- "@UUID[Scene.s1]{Village}"',
+      'type: npc-prep',
+      '- stray',
+      '---',
+    ].join('\n');
+    expect(rawUuids(text)).toEqual(['Actor.a1', 'Scene.s1']);
   });
 });
 
@@ -252,9 +284,16 @@ describe('readPrepNotes', () => {
         'Mist.',
       ].join('\n')
     );
+    await note(
+      'Prep/Column0.md',
+      ['---', 'type: npc-prep', 'fvtt_uuid:', '- Actor.zz', '- Actor.a1', '---', 'Tired.'].join(
+        '\n'
+      )
+    );
     const { part } = await readPrepNotes(input(WANTED));
     expect(part.notes.map(n => [n.path, n.reason, n.fvttUuid])).toEqual([
       ['Prep/Block.md', 'scene', 'Scene.s1'],
+      ['Prep/Column0.md', 'actor', 'Actor.zz'],
       ['Prep/Link.md', 'actor', 'Actor.a1'],
       ['Prep/Flow.md', 'quest', 'Actor.zz'],
     ]);

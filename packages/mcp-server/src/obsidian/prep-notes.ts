@@ -132,6 +132,20 @@ function rawItem(raw: string): string {
 }
 
 /**
+ * The lines after the property on line `at` that belong to it: indented lines,
+ * plus column-0 "- item" lines when the property is a block list (valid YAML).
+ */
+function followingLines(block: string[], at: number, listOk: boolean): string[] {
+  const following: string[] = [];
+  for (let j = at + 1; j < block.length; j++) {
+    const line = block[j] ?? '';
+    if (!/^\s/.test(line) && !(listOk && /^-(\s|$)/.test(line))) break;
+    following.push(line);
+  }
+  return following;
+}
+
+/**
  * The `fvtt_uuid` values as the GM wrote them, for what the scan's scalar
  * parser leaves out: an unquoted `@UUID[Actor.a]{Name}` link, a flow list or a
  * block list. Normalised, empty ones dropped.
@@ -145,8 +159,8 @@ export function rawUuids(text: string): string[] {
   let items: string[];
   if (value === '') {
     items = [];
-    for (let j = at + 1; j < block.length && /^\s/.test(block[j] ?? ''); j++) {
-      const item = /^\s*-\s+(.*)$/.exec(block[j] ?? '')?.[1];
+    for (const line of followingLines(block, at, true)) {
+      const item = /^\s*-\s+(.*)$/.exec(line)?.[1];
       if (item !== undefined) items.push(rawItem(item));
     }
   } else if (value.startsWith('[') && value.endsWith(']')) {
@@ -204,10 +218,7 @@ export function prepNoteLines(text: string): { lines: string[]; truncated: boole
     for (let i = 0; i < block.length; i++) {
       const match = /^([A-Za-z_][\w -]*):(?:[ \t]+(.*))?$/.exec((block[i] ?? '').trimEnd());
       if (!match?.[1]) continue;
-      const following: string[] = [];
-      for (let j = i + 1; j < block.length && /^\s/.test(block[j] ?? ''); j++) {
-        following.push(block[j] ?? '');
-      }
+      const following = followingLines(block, i, (match[2] ?? '').trim() === '');
       const key = match[1].trim();
       if (META_PROPERTIES.has(key)) continue;
       const value = propertyValue(match[2] ?? '', following);

@@ -167,6 +167,21 @@ describe('rawUuids', () => {
 });
 
 describe('readPrepNotes', () => {
+  it('breaks a tie between two plans for the same night by file time (R2 follow-up)', async () => {
+    await note(
+      'Prep/Session plans/Session 2026-11-29 2.md',
+      fm({ type: 'session-plan', date: '2026-11-29' }, 'Older'),
+      new Date('2026-11-20T12:00:00Z')
+    );
+    await note(
+      'Prep/Session plans/Session 2026-11-29.md',
+      fm({ type: 'session-plan', date: '2026-11-29' }, 'Newer'),
+      new Date('2026-11-28T12:00:00Z')
+    );
+    const { part } = await readPrepNotes(input());
+    expect(part.notes.map(n => n.path)).toEqual(['Prep/Session plans/Session 2026-11-29.md']);
+  });
+
   it('picks the newest session plan the AI may read, by date, else file time', async () => {
     await note('Prep/Session 1.md', fm({ type: 'session-plan', date: '2026-10-01' }, 'Old plan'));
     await note(

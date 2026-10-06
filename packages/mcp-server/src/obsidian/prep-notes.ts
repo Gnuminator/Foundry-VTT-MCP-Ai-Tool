@@ -256,7 +256,6 @@ async function readHead(full: string, size: number): Promise<{ text: string; cut
   }
 }
 
-/** Sort key for "newest": the `date` property when it parses, else the file time. */
 /**
  * An undated session plan whose body is only headings (an untouched template copy, for example
  * in a renamed templates folder): it must not win "newest" by its file time.
@@ -271,11 +270,13 @@ async function isBlankPlan(root: string, note: Candidate): Promise<boolean> {
   return body.split('\n').every(line => !line.trim() || /^\s*#/.test(line));
 }
 
-async function planTime(root: string, note: Candidate): Promise<number> {
-  const fromDate = note.head.date ? Date.parse(note.head.date) : NaN;
-  if (Number.isFinite(fromDate)) return fromDate;
+/** Sort keys for "newest": the `date` property when it parses, else the file time; then the
+ * file time, so of two plans for the same game night the one written last wins. */
+async function planTime(root: string, note: Candidate): Promise<{ time: number; mtime: number }> {
   const stat = await fsp.stat(`${root}/${note.path}`).catch(() => null);
-  return stat?.mtimeMs ?? 0;
+  const mtime = stat?.mtimeMs ?? 0;
+  const fromDate = note.head.date ? Date.parse(note.head.date) : NaN;
+  return { time: Number.isFinite(fromDate) ? fromDate : mtime, mtime };
 }
 
 /** Find, pick and read the prep notes for the digest. Throws only when the walk itself fails. */
@@ -322,9 +323,9 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
   const blank = await Promise.all(allPlans.map(note => isBlankPlan(walked.root, note)));
   const plans = allPlans.filter((_, i) => !blank[i]);
   const timed = await Promise.all(
-    plans.map(async note => ({ note, time: await planTime(walked.root, note) }))
+    plans.map(async note => ({ note, ...(await planTime(walked.root, note)) }))
   );
-  timed.sort((a, b) => b.time - a.time); // stable: path order on ties
+  timed.sort((a, b) => b.time - a.time || b.mtime - a.mtime); // stable: path order on ties
   for (const { note } of timed) {
     if (isOff(note.head.ai_context)) {
       keptOut++;

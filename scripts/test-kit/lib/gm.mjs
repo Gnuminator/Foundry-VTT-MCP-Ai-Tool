@@ -163,6 +163,31 @@ export async function quietChatNotifications(page) {
 }
 
 /**
+ * Keep the chat card pop-ups off after the page reloads. Actor Studio setup, a failed Studio build
+ * and the module enabling in the kit world all reload the page, and a reload makes a new chat log
+ * with the pop-ups back on (a live full run logged thousands of the page error after the first
+ * reload). The script runs in every new document, waits for the chat log to exist, and applies the
+ * same change as `quietChatNotifications`.
+ * @param {import('playwright-core').Page} page
+ * @returns {Promise<void>}
+ */
+export async function keepChatNotificationsQuiet(page) {
+  await page.addInitScript(() => {
+    const timer = setInterval(() => {
+      const chat = globalThis.ui?.chat;
+      if (!chat || typeof chat._shouldShowNotifications !== 'function') return;
+      clearInterval(timer);
+      chat._shouldShowNotifications = () => false;
+      try {
+        chat._toggleNotifications?.();
+      } catch {
+        // not drawn yet: the pip mode is applied on its first draw
+      }
+    }, 100);
+  });
+}
+
+/**
  * Open a GM session in the kit world.
  * @param {{foundryUrl: string, world: string, user?: string, headless?: boolean, log?: (m: string) => void}} o
  * @returns {Promise<{call: (action: string, args?: object) => Promise<any>, close: () => Promise<void>, page: import('playwright-core').Page}>}
@@ -178,6 +203,7 @@ export async function openGmSession({
   const browser = await launchBrowser({ headless });
   const errors = collectErrors(browser.page);
   try {
+    await keepChatNotificationsQuiet(browser.page);
     log(`joining ${world} as ${user}`);
     await joinGame(browser.page, { foundryUrl, user });
     const who = await browser.page.evaluate(() => ({ isGM: game.user.isGM, name: game.user.name }));

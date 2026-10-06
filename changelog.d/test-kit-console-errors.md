@@ -6,4 +6,4 @@
   at the end of the run. The raw list stays in `report.json`.
 - **The notification error explained and fixed:** the hundreds of `Cannot set properties of null
 (setting 'hidden')` page errors in full runs came from chat cards the kit creates and deletes within
-  100 ms while Foundry animates them as pop-ups. The kit's GM page no longer shows chat pop-ups.
+  100 ms while Foundry animates them as pop-ups. The kit's GM page no longer shows chat pop-ups, also after the page reloads (confirmed in a live full run: 0 of them, where one run without the reload step logged 8440).

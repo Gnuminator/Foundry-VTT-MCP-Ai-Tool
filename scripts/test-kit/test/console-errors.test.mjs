@@ -13,7 +13,7 @@ import {
   normalizeSource,
 } from '../lib/console-errors.mjs';
 import { makeReport, renderHtml, renderMarkdown } from '../lib/report.mjs';
-import { quietChatNotifications } from '../lib/gm.mjs';
+import { keepChatNotificationsQuiet, quietChatNotifications } from '../lib/gm.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** Raw console errors shaped like a full run's (messages only, no book text). */
@@ -165,4 +165,32 @@ test('quietChatNotifications turns the pop-ups off, or says the chat log is miss
   assert.equal(toggled, 1);
   assert.equal(await run({}), false);
   assert.equal(await run(undefined), false);
+});
+
+test('keepChatNotificationsQuiet registers a script for every new page document', async () => {
+  let script;
+  await keepChatNotificationsQuiet({ addInitScript: async fn => (script = fn) });
+  assert.equal(typeof script, 'function');
+  // Run it the way a new document would: the chat log shows up after the script started.
+  const saved = { ui: globalThis.ui, setInterval: globalThis.setInterval };
+  const clearSaved = globalThis.clearInterval;
+  let tick;
+  let cleared = false;
+  globalThis.setInterval = fn => ((tick = fn), 1);
+  globalThis.clearInterval = () => (cleared = true);
+  try {
+    globalThis.ui = undefined;
+    script();
+    tick();
+    assert.equal(cleared, false, 'waits while there is no chat log');
+    const chat = { _shouldShowNotifications: () => true };
+    globalThis.ui = { chat };
+    tick();
+    assert.equal(cleared, true);
+    assert.equal(chat._shouldShowNotifications(), false);
+  } finally {
+    globalThis.ui = saved.ui;
+    globalThis.setInterval = saved.setInterval;
+    globalThis.clearInterval = clearSaved;
+  }
 });

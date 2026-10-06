@@ -604,9 +604,11 @@ spell, which makes a chat card, and puts the world back by deleting the card mom
 deleted in that time its element is gone, and the next line (`element.hidden = false`, Foundry
 `chat.mjs`, `#postNotification`) throws. It needs a card created and deleted within a tenth of a
 second, which a table never does, so this is a kit artifact and not a bug to report. The kit's GM
-page now answers "no" to `_shouldShowNotifications` after it joins (the same as the setting "Chat
-notifications: pip"; `quietChatNotifications` in `lib/gm.mjs`), so no pop-up is animated. If the
-error comes back it shows as NEW, which means the page hook no longer works.
+page now answers "no" to `_shouldShowNotifications` (the same as the setting "Chat notifications:
+pip"; `quietChatNotifications` and `keepChatNotificationsQuiet` in `lib/gm.mjs`), so no pop-up is
+animated. The change is made again after every page reload (Actor Studio setup and a failed Studio
+build reload the page, and a reload brings the pop-ups back). If the error comes back it shows as
+NEW, which means the page hook no longer works.
 
 ## How to write a scenario
 

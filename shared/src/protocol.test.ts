@@ -160,6 +160,8 @@ describe('module-request / module-reply contract', () => {
       'list-revealed-pages',
       'plan-page-reveal',
       'apply-planned-change',
+      'get-tarokka-reading',
+      'plan-tarokka-reveal',
     ]);
     expect(MODULE_REQUEST_MAX_ARGS_BYTES).toBe(20_000);
   });

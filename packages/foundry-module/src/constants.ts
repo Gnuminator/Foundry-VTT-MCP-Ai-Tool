@@ -36,7 +36,7 @@ export interface ModuleHelloData {
 /**
  * Frames for module-initiated requests (I-108): the bridge-linked browser asks
  * the backend to run one of `MODULE_REQUEST_TOOLS` for a GM's "AI changes"
- * or Handouts window. Local mirrors of `MODULE_REQUEST_TYPE`, `MODULE_REPLY_TYPE` and
+ * Handouts or Tarokka window. Local mirrors of `MODULE_REQUEST_TYPE`, `MODULE_REPLY_TYPE` and
  * `MODULE_REQUEST_TOOLS` in `shared/src/protocol.ts`, pinned by a contract test.
  */
 export const MODULE_REQUEST_TYPE = 'module-request' as const;
@@ -47,6 +47,8 @@ export const MODULE_REQUEST_TOOLS = [
   'list-revealed-pages',
   'plan-page-reveal',
   'apply-planned-change',
+  'get-tarokka-reading',
+  'plan-tarokka-reveal',
 ] as const;
 export type ModuleRequestTool = (typeof MODULE_REQUEST_TOOLS)[number];
 

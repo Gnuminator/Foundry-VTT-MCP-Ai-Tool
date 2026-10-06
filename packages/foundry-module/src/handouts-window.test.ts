@@ -139,7 +139,7 @@ describe('HandoutsController', () => {
     await c.load();
     deps.request.mockClear();
 
-    await c.revealNext(false);
+    await c.revealNext();
 
     expect(deps.request).toHaveBeenNthCalledWith(1, 'plan-page-reveal', {
       action: 'reveal-next',
@@ -174,7 +174,8 @@ describe('HandoutsController', () => {
     const c = new HandoutsController(deps, () => {});
     await c.load();
     deps.request.mockClear();
-    await c.revealNext(true);
+    c.setShowNow(true);
+    await c.revealNext();
     expect(deps.request).toHaveBeenNthCalledWith(1, 'plan-page-reveal', {
       action: 'reveal-next',
       showNow: true,
@@ -188,7 +189,7 @@ describe('HandoutsController', () => {
     const c = new HandoutsController(deps, () => {});
     await c.load();
     deps.request.mockClear();
-    await c.revealNext(false);
+    await c.revealNext();
     expect(deps.request.mock.calls.map(call => call[0])).toEqual([
       'plan-page-reveal',
       'list-revealed-pages',
@@ -202,12 +203,12 @@ describe('HandoutsController', () => {
     const c = new HandoutsController(deps, () => {});
     await c.load();
     deps.request.mockRejectedValueOnce(new Error('No page is queued for this scene'));
-    await expect(c.revealNext(false)).resolves.toBeUndefined();
+    await expect(c.revealNext()).resolves.toBeUndefined();
     expect(c.view.actionError).toBe('No page is queued for this scene');
 
     deps.request.mockImplementationOnce(async () => plan);
     deps.request.mockRejectedValueOnce(new Error('The page was edited since the plan'));
-    await c.revealNext(false);
+    await c.revealNext();
     expect(deps.notifyError).toHaveBeenLastCalledWith('The page was edited since the plan');
     expect(c.view.busy).toBe(false);
   });
@@ -217,7 +218,7 @@ describe('HandoutsController', () => {
     const c = new HandoutsController(deps, () => {});
     await c.load();
     deps.request.mockResolvedValueOnce({ note: 'nothing' });
-    await c.revealNext(false);
+    await c.revealNext();
     expect(c.view.actionError).toMatch(/no plan/);
     expect(deps.confirmReveal).not.toHaveBeenCalled();
   });
@@ -228,7 +229,8 @@ describe('HandoutsController', () => {
     await c.load();
     deps.request.mockResolvedValueOnce(plan);
     deps.request.mockResolvedValueOnce({ shown: { ok: false, error: 'nobody is online' } });
-    await c.revealNext(true);
+    c.setShowNow(true);
+    await c.revealNext();
     expect(deps.notifyInfo).toHaveBeenCalled();
     expect(c.view.actionError).toMatch(/could not be shown.*nobody is online/);
   });
@@ -239,7 +241,7 @@ describe('HandoutsController', () => {
     const c = new HandoutsController(deps, () => {});
     await c.load();
     deps.request.mockClear();
-    await c.revealNext(false);
+    await c.revealNext();
     expect(deps.request).not.toHaveBeenCalled();
 
     deps.request.mockImplementation(async (tool: string) =>
@@ -250,9 +252,9 @@ describe('HandoutsController', () => {
     deps.confirmReveal.mockImplementationOnce(
       () => new Promise<boolean>(resolve => (release = resolve))
     );
-    const running = c.revealNext(false);
+    const running = c.revealNext();
     await vi.waitFor(() => expect(deps.confirmReveal).toHaveBeenCalled());
-    await c.revealNext(false);
+    await c.revealNext();
     await c.remove('u');
     expect(deps.confirmReveal).toHaveBeenCalledTimes(1);
     release(false);
@@ -278,7 +280,14 @@ describe('the window class on a fake ApplicationV2', () => {
     rendered = [];
     class FakeApplicationV2 {
       static DEFAULT_OPTIONS: Record<string, unknown> = {};
-      content = { innerHTML: '', scrollTop: 0 };
+      content = {
+        innerHTML: '',
+        scrollTop: 0,
+        listeners: {} as Record<string, Array<(event: unknown) => void>>,
+        addEventListener(type: string, listener: (event: unknown) => void): void {
+          (this.listeners[type] ??= []).push(listener);
+        },
+      };
       state = 'closed';
       constructor(public options: Record<string, unknown> = {}) {
         rendered.push(this);
@@ -340,22 +349,20 @@ describe('the window class on a fake ApplicationV2', () => {
   });
 
   /** Click an action the way ApplicationV2 does: `this` is the window, the target holds the data. */
-  function click(
-    action: string,
-    data: Record<string, string> = {},
-    showNow = false
-  ): Promise<void> {
+  function click(action: string, data: Record<string, string> = {}): Promise<void> {
     const handler = rendered[0].constructor.DEFAULT_OPTIONS.actions[action] as (
       this: unknown,
       event: Event,
       target: unknown
     ) => void;
-    const target = {
-      dataset: data,
-      closest: () => ({ querySelector: () => ({ checked: showNow }) }),
-    };
-    handler.call(rendered[0], {} as Event, target);
+    handler.call(rendered[0], {} as Event, { dataset: data });
     return vi.advanceTimersByTimeAsync(0);
+  }
+
+  /** The GM ticks or unticks "Show it now": the browser fires a change event that bubbles to the content. */
+  function tickShowNow(checked: boolean): void {
+    const event = { target: { dataset: { field: 'showNow' }, type: 'checkbox', checked } };
+    for (const listener of rendered[0].content.listeners.change ?? []) listener(event);
   }
 
   it('opens one window and draws the lists with names from the world, every string escaped', async () => {
@@ -389,7 +396,8 @@ describe('the window class on a fake ApplicationV2', () => {
     await openHandoutsWindow();
     link.request.mockClear();
 
-    await click('reveal', {}, true);
+    tickShowNow(true);
+    await click('reveal');
 
     expect(link.request).toHaveBeenNthCalledWith(
       1,
@@ -419,6 +427,48 @@ describe('the window class on a fake ApplicationV2', () => {
     await click('reveal');
     expect(link.request.mock.calls.map(call => call[0])).not.toContain('apply-planned-change');
     expect(link.request.mock.calls[0]?.[1]).not.toHaveProperty('showNow');
+  });
+
+  it('Show it now survives a redraw while the window stays open', async () => {
+    await openHandoutsWindow();
+    expect(rendered[0].content.innerHTML).not.toMatch(/checked/);
+    tickShowNow(true);
+    await click('refresh');
+    expect(rendered[0].content.innerHTML).toContain('data-field="showNow" checked');
+    announceAiChangesUpdated();
+    await vi.advanceTimersByTimeAsync(350);
+    expect(rendered[0].content.innerHTML).toContain('data-field="showNow" checked');
+    await openHandoutsWindow(); // the toolbar button again: the same window, the same tick
+    expect(rendered[0].content.innerHTML).toContain('data-field="showNow" checked');
+    tickShowNow(false);
+    await click('refresh');
+    expect(rendered[0].content.innerHTML).not.toMatch(/checked/);
+  });
+
+  it('Show it now goes back to unticked after a reveal, a cancelled reveal and a failed one', async () => {
+    await openHandoutsWindow();
+    tickShowNow(true);
+    await click('reveal');
+    expect(rendered[0].content.innerHTML).not.toMatch(/checked/);
+
+    tickShowNow(true);
+    confirm.mockResolvedValue(null);
+    await click('reveal');
+    expect(rendered[0].content.innerHTML).not.toMatch(/checked/);
+
+    tickShowNow(true);
+    link.request.mockRejectedValueOnce(new Error('boom'));
+    await click('reveal');
+    expect(rendered[0].content.innerHTML).not.toMatch(/checked/);
+  });
+
+  it('Show it now is unticked when the window is opened again after a close', async () => {
+    await openHandoutsWindow();
+    tickShowNow(true);
+    rendered[0]._onClose();
+    rendered[0].state = 'closed';
+    await openHandoutsWindow();
+    expect(rendered[0].content.innerHTML).not.toMatch(/checked/);
   });
 
   it('Remove: unqueues the page named on the button', async () => {

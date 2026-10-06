@@ -345,14 +345,44 @@ handout drawer shows, so you can reveal a handout without leaving Foundry:
   table. Cancel and nothing happens. Undo in **AI changes** hides the page again and puts it back
   in the queue.
 - **Show it now**: tick it next to **Reveal next** to also pop the page up on the screens of the
-  players it is for. It is never ticked when the window opens or redraws, and goes back to unticked
-  after each reveal, so it is a choice you make each time. Undo cannot close the popup.
+  players it is for. It is unticked whenever the window opens and goes back to unticked after each
+  reveal (also after a cancel), so it is a choice you make each time. The tick stays while you are
+  deciding: a refresh does not clear it. Undo cannot close the popup.
 - **Who has read what**: each revealed handout, who it is for, and a tick next to the name of each
   player who has opened it on the player page (hover for the time).
 
 The window refreshes by itself when a handout is revealed or undone, and **Refresh** reloads it by
 hand. If something goes wrong (for example the handouts switch is off) the reason shows at the top
 of the window. It needs the same bridge connection as the AI changes window.
+
+### Tarokka inside Foundry
+
+The **AI Tool** group also has a **Tarokka** button (GMs only). It opens a window with the five
+positions of the current reading, so you can reveal a card without leaving Foundry. The reading is
+the one the dashboard's Tarokka drawer shows. The top line says where it came from, when it was
+dealt or imported, and how many older readings are archived. If there is no reading yet, the window
+says so: a reading is dealt or imported from the dashboard, or by asking Claude.
+
+- **Show cards**: the card names and your notes stay hidden ("Card hidden") until you tick this.
+  It is unticked whenever the window opens or closes, and a refresh does not clear it. Untick it
+  before anyone looks at your screen.
+- Each position shows its label, the card (once Show cards is ticked), and your note. **Open
+  Journal**, **Open Scene** or **Open Actor** open the linked document on your screen (nothing
+  changes); "not linked" when there is none. A position is either "hidden from players" or
+  "revealed", with **Open page** for the reveal page.
+- **Reveal...** (positions that are not revealed yet): opens a small form under the position. Type
+  exactly what the players may read (1 to 5000 characters) and, if you like, a page title. Tick
+  **Show it now** to pop the page up on the players' screens as soon as the reveal is applied; it
+  is unticked every time the form opens. Then click **Reveal**: a Foundry window shows exactly what
+  will change and asks you to confirm, because a reveal cannot be taken back at the table. Cancel and
+  nothing happens (your text stays in the form). Undo in **AI changes** takes the reveal back but
+  cannot close the popup. The players get only your text, never the card name.
+
+What you type in a form stays when the window refreshes by itself (it refreshes when a change is
+recorded, and **Refresh** reloads it by hand). Linking a card and dealing or importing a reading are
+not in this window: use the dashboard's Tarokka drawer, or ask Claude. Changing anything needs the
+same "AI Tool: Tarokka (writes)" switch as the drawer; if it is off, the reason shows at the top of
+the window.
 
 ## The confirm window
 

@@ -22,6 +22,7 @@ import {
   type RevealPlan,
 } from './handouts-model.js';
 import { aiToolRequest } from './gm-helper-queries.js';
+import { bindFields, replaceKeepingFocus } from './window-fields.js';
 
 /** The pieces of Foundry the controller needs; tests pass fakes. */
 export interface HandoutsDeps {
@@ -48,6 +49,7 @@ export class HandoutsController {
     revealed: [],
     nextTitle: null,
     busy: false,
+    showNow: false,
   };
   private loadSeq = 0;
 
@@ -73,6 +75,16 @@ export class HandoutsController {
     this.changed();
   }
 
+  /** The GM ticked or unticked "Show it now" (no redraw: the box already shows it). */
+  setShowNow(value: boolean): void {
+    this.view = { ...this.view, showNow: value };
+  }
+
+  /** The window closed: forget the tick, so the next time it opens it is unticked. */
+  resetForm(): void {
+    this.view = { ...this.view, showNow: false, actionError: '' };
+  }
+
   /** Take a page off the queue (applies at once: the queue is prep, nothing in Foundry changes). */
   async remove(pageUuid: string): Promise<void> {
     if (this.view.busy) return;
@@ -95,10 +107,12 @@ export class HandoutsController {
 
   /**
    * Plan the reveal of the next queued page, show the plan for the GM to confirm, then
-   * apply it. A cancel does nothing (the plan expires by itself).
+   * apply it. A cancel does nothing (the plan expires by itself). "Show it now" is the
+   * tick as it stands when this starts, and is cleared afterwards however it ended.
    */
-  async revealNext(showNow: boolean): Promise<void> {
+  async revealNext(): Promise<void> {
     if (this.view.busy || this.view.nextTitle === null) return;
+    const showNow = this.view.showNow;
     this.view = { ...this.view, busy: true, actionError: '' };
     this.changed();
     try {
@@ -127,7 +141,7 @@ export class HandoutsController {
     } catch (error) {
       this.failed(errorMessage(error));
     }
-    this.view = { ...this.view, busy: false };
+    this.view = { ...this.view, busy: false, showNow: false };
     await this.load();
   }
 
@@ -219,12 +233,9 @@ function defineWindowClass(): new () => HandoutsWindowInstance {
     const uuid = target.dataset.pageUuid;
     if (uuid) void this.controller.remove(uuid);
   };
-  const onReveal = function (this: Self, _event: Event, target: HTMLElement): void {
-    // The box is read now and is never ticked after a redraw, so "Show it now" is a choice made per reveal.
-    const box = target
-      .closest('.window-content')
-      ?.querySelector<HTMLInputElement>('[data-show-now]');
-    void this.controller.revealNext(box?.checked === true);
+  const onReveal = function (this: Self): void {
+    // The tick lives in the controller (kept across redraws, cleared after each reveal).
+    void this.controller.revealNext();
   };
 
   class HandoutsWindow extends Base implements HandoutsWindowInstance {
@@ -250,9 +261,10 @@ function defineWindowClass(): new () => HandoutsWindowInstance {
     }
 
     _replaceHTML(html: string, content: HTMLElement): void {
-      const scrollTop = content.scrollTop;
-      content.innerHTML = html;
-      content.scrollTop = scrollTop;
+      bindFields(content, (field, _position, value) => {
+        if (field === 'showNow') this.controller.setShowNow(value === true);
+      });
+      replaceKeepingFocus(content, html);
     }
 
     _onRender(): void {
@@ -267,6 +279,7 @@ function defineWindowClass(): new () => HandoutsWindowInstance {
     }
 
     _onClose(): void {
+      this.controller.resetForm();
       this.stopListening?.();
       this.stopListening = null;
       if (this.pushTimer !== null) clearTimeout(this.pushTimer);

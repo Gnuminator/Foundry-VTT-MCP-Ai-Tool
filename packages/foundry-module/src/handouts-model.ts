@@ -94,6 +94,8 @@ export interface HandoutsView {
   nextTitle: string | null;
   /** A Remove or a Reveal is running; the buttons are disabled. */
   busy: boolean;
+  /** The "Show it now" tick: kept across redraws, cleared after each reveal and when the window closes. */
+  showNow: boolean;
 }
 
 function text(value: unknown): string {
@@ -277,7 +279,7 @@ function renderRevealedRow(row: RevealedRow): string {
   );
 }
 
-/** The window's whole content as an HTML string. The "Show it now" box is never ticked here. */
+/** The window's whole content as an HTML string. The "Show it now" box is ticked only when the view says so. */
 export function renderHandoutsHtml(view: HandoutsView): string {
   const refresh =
     '<button type="button" class="fmb-ai-btn" data-action="refresh">' +
@@ -288,7 +290,9 @@ export function renderHandoutsHtml(view: HandoutsView): string {
     }><i class="fa-solid fa-eye"></i> ${
       view.nextTitle === null ? 'Reveal next' : `Reveal next: ${escapeHtml(view.nextTitle)}`
     }</button>` +
-    '<label class="fmb-ho-show"><input type="checkbox" data-show-now> Show it now</label>';
+    `<label class="fmb-ho-show"><input type="checkbox" data-field="showNow"${
+      view.showNow ? ' checked' : ''
+    }> Show it now</label>`;
   let notice = '';
   if (view.status === 'error') {
     notice = `<p class="fmb-ai-notice fmb-ai-error" role="alert">${escapeHtml(view.error)}</p>`;

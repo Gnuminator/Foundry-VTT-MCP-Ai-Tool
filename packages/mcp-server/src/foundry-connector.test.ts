@@ -340,7 +340,7 @@ describe('module requests (I-108)', () => {
     const handler = vi.fn(async () => ({}));
     connector.setModuleRequestHandler(handler);
     const a = connect();
-    a.say(requestFrame('plan-tarokka-reveal', { position: 'p', text: 't' }));
+    a.say(requestFrame('plan-tarokka-links', { position: 'p', text: 't' }));
     a.say(requestFrame('toString', {}, 'req-2'));
     await flush();
     expect(handler).not.toHaveBeenCalled();

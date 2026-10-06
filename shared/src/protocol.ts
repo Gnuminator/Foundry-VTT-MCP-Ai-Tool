@@ -249,6 +249,9 @@ export const MODULE_REQUEST_TOOLS = [
   'list-revealed-pages',
   'plan-page-reveal',
   'apply-planned-change',
+  // The Tarokka window (I-108 part 3). `plan-tarokka-reveal` is narrowed by `MODULE_PLANNERS`.
+  'get-tarokka-reading',
+  'plan-tarokka-reveal',
 ] as const;
 
 export type ModuleRequestTool = (typeof MODULE_REQUEST_TOOLS)[number];

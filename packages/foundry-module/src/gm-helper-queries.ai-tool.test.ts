@@ -56,10 +56,19 @@ describe('parseAiToolPayload', () => {
     expect(parseAiToolPayload({ tool: 'undo-change' }).args).toEqual({});
   });
 
+  it('accepts the Tarokka window tools', () => {
+    expect(parseAiToolPayload({ tool: 'get-tarokka-reading' }).args).toEqual({});
+    expect(
+      parseAiToolPayload({ tool: 'plan-tarokka-reveal', args: { position: 'tome', text: 'x' } })
+        .tool
+    ).toBe('plan-tarokka-reveal');
+  });
+
   it.each([
     undefined,
     {},
-    { tool: 'plan-tarokka-reveal', args: {} },
+    { tool: 'plan-tarokka-links', args: {} },
+    { tool: 'plan-tarokka-import', args: {} },
     { tool: 'toString', args: {} },
     { tool: 'list-recent-changes', args: [1] },
     { tool: 'list-recent-changes', args: 'x' },
@@ -83,6 +92,7 @@ describe('parseAiToolPayload', () => {
     expect(aiToolTimeoutMs('undo-change')).toBe(120_000);
     expect(aiToolTimeoutMs('apply-planned-change')).toBe(120_000);
     expect(aiToolTimeoutMs('plan-page-reveal')).toBe(30_000);
+    expect(aiToolTimeoutMs('plan-tarokka-reveal')).toBe(30_000);
   });
 });
 
@@ -148,7 +158,7 @@ describe('aiToolRequest on the client that holds the link', () => {
   it('refuses a tool that is not on the list before sending anything', async () => {
     const link = fakeLink();
     setBridgeLink(link);
-    await expect(aiToolRequest('plan-tarokka-reveal', {})).rejects.toThrow(/Invalid payload/);
+    await expect(aiToolRequest('plan-tarokka-links', {})).rejects.toThrow(/Invalid payload/);
     expect(link.request).not.toHaveBeenCalled();
   });
 });
@@ -324,7 +334,7 @@ describe('the registered aiToolRequest query (the link holder side)', () => {
     setBridgeLink(fakeLink());
     const danni = addUser({ id: 'danni', name: 'Danni', isGM: true, role: 4 });
     await expect(
-      handler()({ tool: 'plan-tarokka-reveal', args: {} }, { user: danni })
+      handler()({ tool: 'plan-tarokka-links', args: {} }, { user: danni })
     ).rejects.toThrow(/Invalid payload/);
   });
 });

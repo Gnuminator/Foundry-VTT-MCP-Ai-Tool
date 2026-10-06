@@ -517,3 +517,66 @@
 .fmb-ho-tick.fmb-ho-seen {
   color: var(--color-text-primary);
 }
+
+/* Tarokka window (I-108 part 3): reuses the AI changes and Handouts classes above. */
+.fmb-tk-sub {
+  margin: 0 0 0.4rem;
+  font-size: var(--font-size-12, 0.75rem);
+  color: var(--color-text-subtle);
+}
+
+.fmb-tk-card {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.fmb-tk-card code {
+  font-size: var(--font-size-12, 0.75rem);
+  color: var(--color-text-subtle);
+}
+
+.fmb-tk-card.fmb-tk-veiled {
+  font-style: italic;
+  color: var(--color-text-subtle);
+  user-select: none;
+}
+
+.fmb-tk-note {
+  margin-top: 0.3rem;
+  font-size: var(--font-size-12, 0.75rem);
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.fmb-tk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.4rem;
+}
+
+.fmb-tk-revealed {
+  color: var(--color-level-error, #ce0707);
+}
+
+.fmb-tk-form {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.fmb-tk-field {
+  display: grid;
+  gap: 0.15rem;
+  font-size: var(--font-size-12, 0.75rem);
+  color: var(--color-text-secondary);
+}
+
+.fmb-tk-formrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}

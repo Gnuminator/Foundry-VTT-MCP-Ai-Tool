@@ -34,9 +34,9 @@ credentials-file: /home/<YOUR_LINUX_USER>/.cloudflared/<TUNNEL_UUID>.json
 # Rule evaluation is top-to-bottom; the first match wins.
 # The ONLY service exposed here is the co-GM dashboard (PORT=3000 by default).
 #
-# The MCP control channel (31414), the Foundry WebSocket connector (31415), and
-# the WebRTC signaling endpoint (31416) are intentionally NOT listed — they must
-# stay on loopback or be firewalled; they are NOT fronted by this tunnel.
+# The MCP control channel (31414) and the Foundry WebSocket connector (31415)
+# are intentionally NOT listed — they must stay on loopback or be firewalled;
+# they are NOT fronted by this tunnel.
 # The Anthropic API key lives in the Node process on this host and never transits
 # this tunnel in either direction.
 

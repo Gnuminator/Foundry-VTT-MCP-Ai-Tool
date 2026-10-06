@@ -137,14 +137,14 @@ fields only) and **Save Changes** (`SETTINGS.Save`, submit). Six tabs (`SCENE.TA
 the four an older KB article describes — v14 split lighting into **Visibility**/**Environment** and
 added the whole **Levels** tab (see note below).
 
-| Tab (bold = exact label) | Key fields / controls |
-|---|---|
-| **Basics** | Scene Name, **Show in Navigation** + **Permissions** (GM Only/All Players), Navigation Name, background image + color, grid size/type shortcut, Darkness Level, Weather Effect. |
-| **Grid** | Grid Type (Gridless/Square/4 hex variants), Grid Size (px) with **Grid Configuration Tool** (drag-adjust via mousewheel/arrow keys), Distance + Units, Style + Thickness + Color + Opacity, Scene Dimensions (Width/Height, link/unlink toggle), Padding Percentage, X-/Y-Shift. |
-| **Levels** | New core feature (not a module): a scene can have multiple vertical **Levels**, each with its own background/foreground texture and an elevation range. **Add Level** (`+`), per-level **Edit Level** (pencil) / **Delete Level** (trash, disabled if only one level), **Initial View Position** (X/Y/Zoom + **Capture Current View**), **Initial Level** selector (only shown once >1 level exists). |
-| **Visibility** | **Token Vision** toggle, Fog of War **Exploration Mode** (None/Individual/Shared), Unexplored Image, Explored/Unexplored colors, **Global Illumination** enabled + darkness threshold. |
-| **Environment** | Base Environment (Luminosity/Saturation/Shadows/Hue/Hue Intensity sliders), Darkness Level + **Darkness Level Lock**, Darkness Environment (**Blend Ambience** toggle + its own Luminosity/Saturation/Shadows/Hue/Intensity). |
-| **Miscellaneous** | Linked **Journal Entry** + **Journal Entry Page**, **Scene Playlist** + **Playlist Sound**, **Transition Type** dropdown with a play (preview) button, Duration, **Active Only** toggle. |
+| Tab (bold = exact label) | Key fields / controls                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Basics**               | Scene Name, **Show in Navigation** + **Permissions** (GM Only/All Players), Navigation Name, background image + color, grid size/type shortcut, Darkness Level, Weather Effect.                                                                                                                                                                                                                       |
+| **Grid**                 | Grid Type (Gridless/Square/4 hex variants), Grid Size (px) with **Grid Configuration Tool** (drag-adjust via mousewheel/arrow keys), Distance + Units, Style + Thickness + Color + Opacity, Scene Dimensions (Width/Height, link/unlink toggle), Padding Percentage, X-/Y-Shift.                                                                                                                      |
+| **Levels**               | New core feature (not a module): a scene can have multiple vertical **Levels**, each with its own background/foreground texture and an elevation range. **Add Level** (`+`), per-level **Edit Level** (pencil) / **Delete Level** (trash, disabled if only one level), **Initial View Position** (X/Y/Zoom + **Capture Current View**), **Initial Level** selector (only shown once >1 level exists). |
+| **Visibility**           | **Token Vision** toggle, Fog of War **Exploration Mode** (None/Individual/Shared), Unexplored Image, Explored/Unexplored colors, **Global Illumination** enabled + darkness threshold.                                                                                                                                                                                                                |
+| **Environment**          | Base Environment (Luminosity/Saturation/Shadows/Hue/Hue Intensity sliders), Darkness Level + **Darkness Level Lock**, Darkness Environment (**Blend Ambience** toggle + its own Luminosity/Saturation/Shadows/Hue/Intensity).                                                                                                                                                                         |
+| **Miscellaneous**        | Linked **Journal Entry** + **Journal Entry Page**, **Scene Playlist** + **Playlist Sound**, **Transition Type** dropdown with a play (preview) button, Duration, **Active Only** toggle.                                                                                                                                                                                                              |
 
 - Levels sub-editor: clicking **Edit Level** (or the info icon next to an inherited field on
   Basics) opens a per-level fieldset with `SCENE_LEVEL.FIELDS.*` — Background/Foreground
@@ -170,13 +170,13 @@ placed Token instance; title = the token's/actor's name) and **Prototype Token C
 template new tokens are stamped from). 560px wide, `closeOnSubmit: true`. Five tabs
 (`TOKEN.TABS.*`):
 
-| Tab | Key fields |
-|---|---|
-| **Identity** | Token Name, Display Name (visibility level), Represented Actor / **Link Actor Data**, position fields (Token config only), Elevation, Rotation + **Lock Artwork Rotation**, Token Disposition (Hostile/Neutral/Friendly/Secret), Movement Action. |
+| Tab            | Key fields                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Identity**   | Token Name, Display Name (visibility level), Represented Actor / **Link Actor Data**, position fields (Token config only), Elevation, Rotation + **Lock Artwork Rotation**, Token Disposition (Hostile/Neutral/Friendly/Secret), Movement Action.                                                                                                                                                                  |
 | **Appearance** | Image Path (+ **Randomize Wildcard Images** on the prototype only, with an image-cycle preview button), X-/Y-/Z-Size, Shape (varies by grid type: square grids get Rectangle variants, gridless gets Ellipse/Rectangle), Scale/Mirror via the texture fields, Tint Color, Token Opacity, and the Dynamic Token Ring group (**Ring Enabled**, Ring/Background Color, Ring Effects, Subject Scale, Subject Texture). |
-| **Vision** | **Vision Enabled**, Vision Range, Vision Angle, Vision Mode, Vision Color, Attenuation, Vision Brightness, Saturation, Contrast; plus a Detection Modes list (**Override Detection Mode** / remove-mode actions) with per-mode range and enabled toggle. |
-| **Light** | Same field set as the Ambient Light placeable's config (radius, angle, color, animation, darkness activation range) — the token itself emits light. |
-| **Resources** | **Display Bars**, Bar 1/Bar 2 Attribute pickers (populate from the actor's `getBarAttribute`), plus the Turn Marker group (**Mode**: Default/Disabled/Custom, Animation, Media Source, **Disposition Tint** — Custom-mode fields disable unless Mode = Custom). |
+| **Vision**     | **Vision Enabled**, Vision Range, Vision Angle, Vision Mode, Vision Color, Attenuation, Vision Brightness, Saturation, Contrast; plus a Detection Modes list (**Override Detection Mode** / remove-mode actions) with per-mode range and enabled toggle.                                                                                                                                                           |
+| **Light**      | Same field set as the Ambient Light placeable's config (radius, angle, color, animation, darkness activation range) — the token itself emits light.                                                                                                                                                                                                                                                                |
+| **Resources**  | **Display Bars**, Bar 1/Bar 2 Attribute pickers (populate from the actor's `getBarAttribute`), plus the Turn Marker group (**Mode**: Default/Disabled/Custom, Animation, Media Source, **Disposition Tint** — Custom-mode fields disable unless Mode = Custom).                                                                                                                                                    |
 
 - Editing a placed Token's position/size live-previews the change on the canvas before you save
   (`_previewChanges`); closing without saving reverts the preview. GM/Owner (`TOKEN_CONFIGURE`
@@ -373,34 +373,52 @@ Read-only console snippets for the browser pane's `javascript_tool`. None change
 Open sheet/config windows, by class name:
 
 ```js
-[...foundry.applications.instances.values()].filter(a => a.rendered)
-  .map(a => ({id: a.id, cls: a.constructor.name, title: a.title}))
+[...foundry.applications.instances.values()]
+  .filter(a => a.rendered)
+  .map(a => ({ id: a.id, cls: a.constructor.name, title: a.title }));
 ```
 
 Journal Entry view state and Scene Config's active tab (getters, not localized text — stable
 across languages):
 
 ```js
-const j = [...foundry.applications.instances.values()].find(a => a.document?.documentName === "JournalEntry");
-j && ({mode: j.mode, isMultiple: j.isMultiple, locked: j.locked, sidebarExpanded: j.sidebarExpanded, pageId: j.pageId})
+const j = [...foundry.applications.instances.values()].find(
+  a => a.document?.documentName === 'JournalEntry'
+);
+j && {
+  mode: j.mode,
+  isMultiple: j.isMultiple,
+  locked: j.locked,
+  sidebarExpanded: j.sidebarExpanded,
+  pageId: j.pageId,
+};
 
-const sc = [...foundry.applications.instances.values()].find(a => a.constructor.name === "SceneConfig");
-sc && ({tab: sc.tabGroups.sheet, sceneId: sc.document.id})
+const sc = [...foundry.applications.instances.values()].find(
+  a => a.constructor.name === 'SceneConfig'
+);
+sc && { tab: sc.tabGroups.sheet, sceneId: sc.document.id };
 ```
 
 A document's registered sheet options (matches the Sheet Configuration dropdown):
 
 ```js
-CONFIG.JournalEntry.sheetClasses.base
-CONFIG.Actor.sheetClasses.character // typed documents key by sub-type
+CONFIG.JournalEntry.sheetClasses.base;
+CONFIG.Actor.sheetClasses.character; // typed documents key by sub-type
 ```
 
 Compendium pack state (Lock/Unlock, Configure Ownership) and an Actor's header-control flags,
 without opening any dialog:
 
 ```js
-[...game.packs].map(p => ({id: p.collection, locked: p.locked, customOwnership: !!p.config.ownership}))
-({isToken: actor.isToken, canConfigureToken: actor.isOwner, protoTexture: actor.prototypeToken.texture.src})
+[...game.packs].map(p => ({
+  id: p.collection,
+  locked: p.locked,
+  customOwnership: !!p.config.ownership,
+}))({
+  isToken: actor.isToken,
+  canConfigureToken: actor.isOwner,
+  protoTexture: actor.prototypeToken.texture.src,
+});
 ```
 
 Window header control **labels** are stable localization keys (`SHEETS.ConfigureSheet`,
@@ -425,7 +443,7 @@ strings rather than icon glyphs or DOM order, which differ per sheet.
   many new world documents at once — clean up test-created copies afterward if the world should
   stay tidy.
 - Never touch the live bridge ports (31414-31416) or `mcp__foundry-mcp__*` tools while doing this;
-  use the `foundry-test-env` skill's test bridge (31514-31516) and the `ai-tool-test` world only.
+  use the `foundry-test-env` skill's test bridge (31514-31515) and the `ai-tool-test` world only.
 - Reading a document's UUID (**Copy Document UUID**) and Compendium ID are safe, no-op reads.
 
 ## Verification checklist

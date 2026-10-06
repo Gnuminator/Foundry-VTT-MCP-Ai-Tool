@@ -27,7 +27,7 @@ What goes through the tunnel, and nothing else:
 | `play.<domain>` | Foundry, `localhost:30000`  | The players, the GM and you (Cloudflare Access) |
 | `cogm.<domain>` | Dashboard, `localhost:3000` | The GM and you only                             |
 
-The bridge ports (31414 to 31416), SSH, Syncthing and the Assistant GM browser are never published.
+The bridge ports (31414 and 31415), SSH, Syncthing and the Assistant GM browser are never published.
 Tailscale stays for your own admin access. Foundry's own login (a user per player, as today) still
 applies behind Access: Access decides who may reach the page, Foundry decides who they are.
 
@@ -169,12 +169,10 @@ anywhere, without exposing your home IP address and without port-forwarding.
   ┌─────────────────────────────────────────────────────────────────────┐
   │  HOSTED FOUNDRY VTT  (e.g. The Forge, Molten-Hosting, or a VPS)    │
   │  - foundry-mcp-bridge module loaded (dial-out, outbound)            │
-  │  - served over HTTPS → uses WebRTC transport (31416 signaling)       │
-  │  - served over HTTP  → uses WebSocket transport (31415)              │
+  │  - uses the WebSocket transport (31415)                              │
   └─────────────────┬───────────────────────────────────────────────────┘
                     │  outbound: module dials the bridge host
                     │  WebSocket  ws://<BRIDGE_HOST>:31415/foundry-mcp
-                    │  WebRTC     http://<BRIDGE_HOST>:31416/webrtc-offer (POST)
                     ▼
   ┌─────────────────────────────────────────────────────────────────────┐
   │  ALWAYS-ON HOST  (Raspberry Pi, cheap VPS, spare PC)                │
@@ -183,7 +181,6 @@ anywhere, without exposing your home IP address and without port-forwarding.
   │  │  mcp-server backend  (standalone.ts / npm run bridge:standalone) │
   │  │  - control channel  127.0.0.1:31414  (loopback only)         │   │
   │  │  - Foundry link WS  :31415  (FOUNDRY_LINK_HOST=0.0.0.0)     │   │
-  │  │  - Foundry link WebRTC signaling  :31416  (same setting)     │   │
   │  └──────────────────────────────────────────────────────────────┘   │
   │                │                                                     │
   │                │  loopback TCP 31414  (never exposed externally)     │
@@ -223,13 +220,12 @@ anywhere, without exposing your home IP address and without port-forwarding.
 
 ### What the Foundry module dials (outbound from the hosted Foundry host)
 
-| Port  | Protocol           | Notes                                       |
-| ----- | ------------------ | ------------------------------------------- |
-| 31415 | WebSocket          | Used when Foundry is served over plain HTTP |
-| 31416 | HTTP POST (WebRTC) | Used when Foundry is served over HTTPS      |
+| Port  | Protocol  | Notes                                          |
+| ----- | --------- | ---------------------------------------------- |
+| 31415 | WebSocket | The Foundry link (the module dials the bridge) |
 
-These ports must be reachable from the Foundry host's IP to the bridge host's IP (firewall
-rules, VPS security group, etc.). They are **not** fronted by Cloudflare Tunnel — the
+This port must be reachable from the Foundry host's IP to the bridge host's IP (firewall
+rules, VPS security group, etc.). It is **not** fronted by Cloudflare Tunnel — the
 tunnel only fronts the dashboard (port 3000).
 
 ---
@@ -241,26 +237,24 @@ the remote-hosting topology.
 
 ### Bridge / backend (`packages/mcp-server/src/backend.ts` + `config.ts`)
 
-| Variable                  | Default        | What it controls                                                                                                                          |
-| ------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `MCP_CONTROL_HOST`        | `127.0.0.1`    | Bind host for the control channel (31414). Keep loopback — always.                                                                        |
-| `MCP_CONTROL_PORT`        | `31414`        | Port for the control channel. Change if running two backends side-by-side.                                                                |
-| `MCP_FOUNDRY_LINK`        | _(enabled)_    | Set to `off` to run backend as control-only (no Foundry connector).                                                                       |
-| `FOUNDRY_LINK_HOST`       | `127.0.0.1`    | Interface for the Foundry link (31415 WS, 31416 WebRTC signaling). Set `0.0.0.0` only when the GM's browser is on another machine.        |
-| `FOUNDRY_AI_DATA_DIR`     | platform dir   | Bridge vault (GM-only data, audit log, session log). Default `%APPDATA%\foundry-ai-tool\vault` or `~/.local/share/foundry-ai-tool/vault`. |
-| `FOUNDRY_AI_EVENT_LOG`    | _(on)_         | `off` disables the persistent session event log (`sessions/<date>.jsonl`).                                                                |
-| `FOUNDRY_AI_USAGE_LOG`    | _(on)_         | `off` disables the usage log (`sessions/<date>.usage.jsonl`: which dashboard, player-page and module controls get used).                  |
-| `FOUNDRY_HOST`            | `localhost`    | **Not used by the bridge itself.** Was legacy; the module dials the bridge, not the other way round. (See note below.)                    |
-| `FOUNDRY_PORT`            | `31415`        | WebSocket listen port for the Foundry connector.                                                                                          |
-| `FOUNDRY_NAMESPACE`       | `/foundry-mcp` | WebSocket path prefix.                                                                                                                    |
-| `FOUNDRY_CONNECTION_TYPE` | `auto`         | `auto` \| `websocket` \| `webrtc`. `auto` picks WebSocket unless disabled.                                                                |
-| `FOUNDRY_STUN_SERVERS`    | Google STUN x2 | Comma-separated STUN URLs for WebRTC ICE. Override to use your own.                                                                       |
-| `FOUNDRY_REMOTE_MODE`     | `false`        | Set `true` when bridge and Foundry are on different machines. Logged at startup only; it changes no behaviour.                            |
-| `LOG_LEVEL`               | `warn`         | `error` \| `warn` \| `info` \| `debug`                                                                                                    |
+| Variable               | Default        | What it controls                                                                                                                          |
+| ---------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `MCP_CONTROL_HOST`     | `127.0.0.1`    | Bind host for the control channel (31414). Keep loopback — always.                                                                        |
+| `MCP_CONTROL_PORT`     | `31414`        | Port for the control channel. Change if running two backends side-by-side.                                                                |
+| `MCP_FOUNDRY_LINK`     | _(enabled)_    | Set to `off` to run backend as control-only (no Foundry connector).                                                                       |
+| `FOUNDRY_LINK_HOST`    | `127.0.0.1`    | Interface for the Foundry link (31415 WS). Set `0.0.0.0` only when the GM's browser is on another machine.                                |
+| `FOUNDRY_AI_DATA_DIR`  | platform dir   | Bridge vault (GM-only data, audit log, session log). Default `%APPDATA%\foundry-ai-tool\vault` or `~/.local/share/foundry-ai-tool/vault`. |
+| `FOUNDRY_AI_EVENT_LOG` | _(on)_         | `off` disables the persistent session event log (`sessions/<date>.jsonl`).                                                                |
+| `FOUNDRY_AI_USAGE_LOG` | _(on)_         | `off` disables the usage log (`sessions/<date>.usage.jsonl`: which dashboard, player-page and module controls get used).                  |
+| `FOUNDRY_HOST`         | `localhost`    | **Not used by the bridge itself.** Was legacy; the module dials the bridge, not the other way round. (See note below.)                    |
+| `FOUNDRY_PORT`         | `31415`        | WebSocket listen port for the Foundry connector.                                                                                          |
+| `FOUNDRY_NAMESPACE`    | `/foundry-mcp` | WebSocket path prefix.                                                                                                                    |
+| `FOUNDRY_REMOTE_MODE`  | `false`        | Set `true` when bridge and Foundry are on different machines. Logged at startup only; it changes no behaviour.                            |
+| `LOG_LEVEL`            | `warn`         | `error` \| `warn` \| `info` \| `debug`                                                                                                    |
 
 > **Note on `FOUNDRY_HOST`:** The Foundry module dials OUT to the bridge, not the reverse.
 > The bridge does not need to know the Foundry host's address. What matters is that the
-> bridge's 31415 / 31416 ports are reachable from where Foundry is running.
+> bridge's 31415 port is reachable from where Foundry is running.
 
 ### Dashboard (`packages/cogm-dashboard/src/config.ts`)
 
@@ -439,61 +433,21 @@ pairs with `GM_EMAILS`, `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`.
 
 ---
 
-## 4. WebSocket / WebRTC handshake across a real network + TURN seam
+## 4. The WebSocket link across a real network
 
-### How the Foundry module picks its transport
+The Foundry module always dials the bridge over a plain `ws://` WebSocket to port 31415
+(a WebRTC alternative existed earlier and was removed in PB-09; the old `connectionType`
+world setting is ignored if it is still stored in a world).
 
-The module auto-selects in `socket-bridge.ts`:
-
-- **Foundry on HTTP** → `ws://` WebSocket to port 31415 (simple, direct).
-- **Foundry on HTTPS** → WebRTC DataChannel via the signaling endpoint at port 31416.
-  The browser can POST a WebRTC offer from an HTTPS page to an HTTP endpoint **on
-  `localhost`** due to the browser's localhost exception, but it **cannot** do so to an
-  arbitrary remote host (mixed-content block). This means: if Foundry is hosted (HTTPS)
-  and the bridge is remote, you need the bridge's 31416 signaling endpoint to also be
-  reachable over HTTPS — either put it behind a reverse-proxy with a cert, or use a
-  tunnel.
-
-Override with `FOUNDRY_CONNECTION_TYPE=websocket|webrtc` if auto doesn't do what you want.
+A browser on an HTTPS page cannot open an insecure `ws://` to a remote host (mixed-content
+block). Foundry on the Pi is reached over Tailscale on plain HTTP, so this does not arise
+there. If Foundry is ever served over HTTPS with a remote bridge, put the bridge's 31415
+behind a TLS reverse proxy or tunnel and point the module at it.
 
 ### Port reachability for remote Foundry
 
-| Foundry served over | Transport used | Bridge port that must be reachable from Foundry's server/browser |
-| ------------------- | -------------- | ---------------------------------------------------------------- |
-| HTTP                | WebSocket      | 31415 (TCP) from the Foundry host                                |
-| HTTPS               | WebRTC         | 31416 (TCP/HTTPS) from the Foundry browser client's origin       |
-
-Your always-on host's firewall / VPS security group must allow inbound TCP on 31415 and/or
-31416 from the Foundry server's IP range (or from the internet if the source IPs vary).
-
-### STUN servers (used for WebRTC ICE)
-
-Default: two Google STUN servers (`stun.l.google.com:19302`, `stun1.l.google.com:19302`).
-These help the WebRTC peers discover their public addresses. For most topologies (bridge on
-a VPS with a public IP, Foundry on a hosted service) STUN is sufficient.
-
-Override: `FOUNDRY_STUN_SERVERS=stun:your-stun-server.example.com:3478,stun:backup.example.com:3478`
-
-### TURN server seam (future)
-
-If the bridge sits behind a strict NAT or the WebRTC ICE negotiation fails (peers cannot
-discover a path via STUN alone), a **TURN relay** is needed. werift (the WebRTC library
-used here) supports TURN, but the config schema has the TURN section intentionally
-commented out — it is a seam for the next phase of hardening.
-
-```ts
-// packages/mcp-server/src/config.ts — the commented seam:
-// turnServers: z.array(z.object({
-//   urls: z.string(),
-//   username: z.string().optional(),
-//   credential: z.string().optional()
-// })).optional()
-```
-
-When you need it: provision a TURN server (e.g. coturn on a VPS, or a managed service
-like Twilio's Network Traversal Service), then uncomment and wire `FOUNDRY_TURN_SERVERS`
-into the config and the werift peer constructor. That change is deferred and marked as a
-known seam here.
+Your always-on host's firewall / VPS security group must allow inbound TCP on 31415 from
+the Foundry browser client's network (or from the internet if the source IPs vary).
 
 ---
 
@@ -511,9 +465,8 @@ changing.
 | 4   | GM email allow-list        | `GM_EMAILS=you@example.com,cogm@example.com` in env/.env          |
 | 5   | `GM_DASHBOARD_TOKEN`       | A random secret (e.g. `openssl rand -hex 32`) in env/.env         |
 | 6   | `ANTHROPIC_API_KEY`        | Runtime secret / Docker secret / systemd EnvironmentFile          |
-| 7   | Bridge host firewall rules | Open 31415 TCP (WS) and/or 31416 TCP (WebRTC signaling)           |
+| 7   | Bridge host firewall rules | Open 31415 TCP (WS)                                               |
 | 8   | `FOUNDRY_REMOTE_MODE=true` | Set in backend env when bridge and Foundry are different machines |
-| 9   | TURN server (if needed)    | Uncomment `turnServers` in config.ts; set env var                 |
 
 ---
 
@@ -535,8 +488,6 @@ Work through this list top-to-bottom when you're ready to go remote.
   - [ ] `MCP_CONTROL_HOST=127.0.0.1` (keep loopback)
   - [ ] `MCP_CONTROL_PORT=31414`
   - [ ] `FOUNDRY_REMOTE_MODE=true`
-  - [ ] `FOUNDRY_STUN_SERVERS=<stun-url>,<stun-url>` (optional override)
-  - [ ] `FOUNDRY_CONNECTION_TYPE=websocket|webrtc|auto` (match your Foundry setup)
   - [ ] `LOG_LEVEL=info`
 - [ ] Start the bridge: `npm run bridge:standalone` (or via service/Docker).
 - [ ] Verify the control channel is up (ping on 127.0.0.1:31414 returns `{"ok":true}`).
@@ -576,8 +527,7 @@ Work through this list top-to-bottom when you're ready to go remote.
 
 ### Foundry module
 
-- [ ] Bridge's 31415 and/or 31416 are reachable from the Foundry host (firewall rules).
-- [ ] Foundry module settings: bridge host = `<BRIDGE_HOST_IP_OR_HOSTNAME>`, port = `31415`
-      (or 31416 for WebRTC).
+- [ ] Bridge's 31415 is reachable from the Foundry host (firewall rules).
+- [ ] Foundry module settings: bridge host = `<BRIDGE_HOST_IP_OR_HOSTNAME>`, port = `31415`.
 - [ ] Module shows "Connected" in the Foundry UI.
 - [ ] Dashboard shows Foundry reachable.

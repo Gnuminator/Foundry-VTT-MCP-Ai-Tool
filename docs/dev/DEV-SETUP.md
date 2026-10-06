@@ -73,7 +73,7 @@ For live work, in a terminal here:
 
 ```bash
 npm run build                 # ensure dist is current
-npm run bridge:standalone     # the MCP backend (werift) on 31414/31415/31416
+npm run bridge:standalone     # the MCP backend on 31414/31415
 npm run dev:cogm              # the dashboard → http://localhost:3000
 ```
 

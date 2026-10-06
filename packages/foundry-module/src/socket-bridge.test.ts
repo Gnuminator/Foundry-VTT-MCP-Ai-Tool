@@ -4,8 +4,8 @@
  *
  * This is a live contract with zero prior coverage, so the focus is the parts a
  * regression would break silently: inbound message routing, the MCP-query
- * dispatch into `CONFIG.queries`, connection-type selection, the send gate, and
- * reconnect backoff. The transport itself (real WebSocket / WebRTC) is stubbed —
+ * dispatch into `CONFIG.queries`, the send gate, and
+ * reconnect backoff. The transport itself (the real WebSocket) is stubbed —
  * we drive the bridge's own handlers and assert what it sends / how its state
  * moves. Globals come from the Foundry-mock harness (for `ui`/`CONFIG`/`Scene`/
  * `Folder`/`game`); `window` and `WebSocket` are installed per-test.
@@ -30,7 +30,6 @@ function makeConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig {
     reconnectDelay: 1000,
     connectionTimeout: 10,
     debugLogging: false,
-    connectionType: 'websocket',
     ...overrides,
   };
 }
@@ -79,42 +78,6 @@ afterEach(() => {
   vi.useRealTimers();
   delete (globalThis as any).window;
   delete (globalThis as any).WebSocket;
-});
-
-// ---------------------------------------------------------------------------
-// determineConnectionType
-// ---------------------------------------------------------------------------
-
-describe('SocketBridge — connection-type selection', () => {
-  it('honors an explicit websocket connection type', () => {
-    const bridge = new SocketBridge(makeConfig({ connectionType: 'websocket' })) as any;
-    expect(bridge.determineConnectionType()).toBe('websocket');
-  });
-
-  it('honors an explicit webrtc connection type', () => {
-    const bridge = new SocketBridge(makeConfig({ connectionType: 'webrtc' })) as any;
-    expect(bridge.determineConnectionType()).toBe('webrtc');
-  });
-
-  it('auto → webrtc on an https page', () => {
-    (globalThis as any).window = { location: { protocol: 'https:' } };
-    const bridge = new SocketBridge(makeConfig({ connectionType: 'auto' })) as any;
-    expect(bridge.determineConnectionType()).toBe('webrtc');
-  });
-
-  it('auto → websocket on an http page', () => {
-    (globalThis as any).window = { location: { protocol: 'http:' } };
-    const bridge = new SocketBridge(makeConfig({ connectionType: 'auto' })) as any;
-    expect(bridge.determineConnectionType()).toBe('websocket');
-  });
-
-  it('defaults to auto when connectionType is unset (http → websocket)', () => {
-    (globalThis as any).window = { location: { protocol: 'http:' } };
-    const cfg = makeConfig();
-    delete (cfg as any).connectionType;
-    const bridge = new SocketBridge(cfg) as any;
-    expect(bridge.determineConnectionType()).toBe('websocket');
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -260,18 +223,6 @@ describe('SocketBridge — send gate', () => {
     expect(ws.send).toHaveBeenCalledWith(JSON.stringify({ type: 'x', n: 1 }));
   });
 
-  it('routes to webrtc.sendMessage when the active transport is webrtc', () => {
-    const bridge = new SocketBridge(makeConfig()) as any;
-    const webrtc = { sendMessage: vi.fn() };
-    bridge.connectionState = CONNECTION_STATES.CONNECTED;
-    bridge.activeConnectionType = 'webrtc';
-    bridge.webrtc = webrtc;
-
-    bridge.sendMessage({ type: 'x' });
-
-    expect(webrtc.sendMessage).toHaveBeenCalledWith({ type: 'x' });
-  });
-
   it('emitToServer wraps the event as { type, data, timestamp } and sends it', () => {
     const { bridge, ws } = connectedBridge();
     bridge.emitToServer('bridge-status', { online: true });
@@ -289,7 +240,7 @@ describe('SocketBridge — connect lifecycle', () => {
   it('returns immediately when already connected', async () => {
     const bridge = new SocketBridge(makeConfig()) as any;
     bridge.connectionState = CONNECTION_STATES.CONNECTED;
-    const spy = vi.spyOn(bridge, 'determineConnectionType');
+    const spy = vi.spyOn(bridge, 'connectWebSocket');
     await bridge.connect();
     expect(spy).not.toHaveBeenCalled();
   });
@@ -297,7 +248,7 @@ describe('SocketBridge — connect lifecycle', () => {
   it('returns immediately when a connect is already in flight', async () => {
     const bridge = new SocketBridge(makeConfig()) as any;
     bridge.connectionState = CONNECTION_STATES.CONNECTING;
-    const spy = vi.spyOn(bridge, 'determineConnectionType');
+    const spy = vi.spyOn(bridge, 'connectWebSocket');
     await bridge.connect();
     expect(spy).not.toHaveBeenCalled();
   });
@@ -328,13 +279,11 @@ describe('SocketBridge — connect lifecycle', () => {
     vi.clearAllTimers();
   });
 
-  it('disconnect closes the socket, tears down webrtc, and resets state', () => {
+  it('disconnect closes the socket and resets state', () => {
     vi.useFakeTimers();
     const bridge = new SocketBridge(makeConfig()) as any;
     const ws = { close: vi.fn() };
-    const webrtc = { disconnect: vi.fn() };
     bridge.ws = ws;
-    bridge.webrtc = webrtc;
     bridge.connectionState = CONNECTION_STATES.CONNECTED;
     bridge.activeConnectionType = 'websocket';
     bridge.reconnectTimer = setTimeout(() => {}, 1000);
@@ -342,7 +291,6 @@ describe('SocketBridge — connect lifecycle', () => {
     bridge.disconnect();
 
     expect(ws.close).toHaveBeenCalledWith(1000, 'Manual disconnect');
-    expect(webrtc.disconnect).toHaveBeenCalled();
     expect(bridge.getConnectionState()).toBe(CONNECTION_STATES.DISCONNECTED);
     expect(bridge.activeConnectionType).toBeNull();
   });

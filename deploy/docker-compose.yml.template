@@ -47,8 +47,7 @@ services:
     # module can dial in. The dashboard port (3000) is intentionally NOT mapped
     # to the host — it is only reachable via the cloudflared tunnel.
     ports:
-      - "31415:31415"   # Foundry WebSocket connector (HTTP-hosted Foundry)
-      - "31416:31416"   # Foundry WebRTC signaling endpoint (HTTPS-hosted Foundry)
+      - "31415:31415"   # Foundry WebSocket connector
 
     # Bridge vault: GM-only data, audit log, session event log. Back it up
     # (npm run vault -- export <worldId> <file>); Foundry's backup does not have it.
@@ -83,10 +82,6 @@ services:
       FOUNDRY_LINK_HOST: "0.0.0.0"     # the GM's browser dials in from another machine
       FOUNDRY_REMOTE_MODE: "true"
       FOUNDRY_AI_DATA_DIR: "/data/vault"
-      FOUNDRY_CONNECTION_TYPE: "auto"   # auto | websocket | webrtc
-
-      # Override STUN servers if Google's are blocked or you need your own.
-      # FOUNDRY_STUN_SERVERS: "stun:<YOUR_STUN_HOST>:3478,stun:<BACKUP>:3478"
 
       # ── Logging ───────────────────────────────────────────────────────────
       LOG_LEVEL: "info"

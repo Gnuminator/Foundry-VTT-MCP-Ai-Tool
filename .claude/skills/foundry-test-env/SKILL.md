@@ -1,6 +1,6 @@
 ---
 name: foundry-test-env
-description: Start, use and stop the personal local Foundry VTT test environment for this repo (Foundry 14 on localhost:30001 with the dnd5e world "ai-tool-test", a test bridge on ports 31514-31516, the co-GM dashboard on 3100, a separate vault), join as the passwordless "Claude" GM or "Player" in the browser pane, sync the module after code changes, install packages or create worlds on the test server, inspect installed modules/systems, and troubleshoot. Use before any live check in Foundry. Testing the AI Tool itself (tools, dashboard, smoke checklist) is the foundry-ai-tool skill; Foundry's own UI is foundry-core-ui. Never touches the live campaign or the live bridge ports 31414-31416.
+description: Start, use and stop the personal local Foundry VTT test environment for this repo (Foundry 14 on localhost:30001 with the dnd5e world "ai-tool-test", a test bridge on ports 31514 and 31515, the co-GM dashboard on 3100, a separate vault), join as the passwordless "Claude" GM or "Player" in the browser pane, sync the module after code changes, install packages or create worlds on the test server, inspect installed modules/systems, and troubleshoot. Use before any live check in Foundry. Testing the AI Tool itself (tools, dashboard, smoke checklist) is the foundry-ai-tool skill; Foundry's own UI is foundry-core-ui. Never touches the live campaign or the live bridge ports 31414-31416.
 ---
 
 # Foundry test environment
@@ -15,7 +15,7 @@ hosting service and is driven by Claude Desktop's bridge on 31414-31416.
 | Test world  | id `ai-tool-test`, title "AI Tool Test", dnd5e 6.0.5, Modern Rules (2024)                                                              |
 | Users       | `Claude` (Gamemaster, no password), `Player` (Player, no password), `Gamemaster` (the GM's)                                            |
 | Test data   | PC `Test Hero` (level 3 Fighter, max HP 28 set by hand); world actor `Wolf` with unlinked tokens `Wolf 1`-`Wolf 3`, scene "Test Arena" |
-| Test bridge | control `31514`, Foundry link `31515`, WebRTC signaling `31516`                                                                        |
+| Test bridge | control `31514`, Foundry link `31515`                                                                                                  |
 | Dashboard   | `http://localhost:3100`                                                                                                                |
 | Vault       | `C:\FoundryTest\vault`                                                                                                                 |
 | Obsidian    | `C:\FoundryTest\obsidian` (throwaway vault the test bridge renders notes into; `ObsidianDir`)                                          |

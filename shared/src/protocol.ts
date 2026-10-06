@@ -13,9 +13,8 @@
  *        127.0.0.1:31414. Spoken between the MCP stdio wrapper / co-GM dashboard
  *        (clients) and the backend (server). Request/response correlated by `id`.
  *
- *   §3b  Foundry link — JSON frames over a WebSocket (:31415) or a WebRTC
- *        DataChannel (signaled on :31416). Spoken between the backend (server)
- *        and the in-Foundry module (client, dials out). Frames are discriminated
+ *   §3b  Foundry link — JSON frames over a WebSocket (:31415). Spoken between
+ *        the backend (server) and the in-Foundry module (client, dials out). Frames are discriminated
  *        by a `type` field; queries are correlated by `id`.
  *
  * IMPORTANT — every shape in this file is a FROZEN wire contract. Changing a
@@ -117,17 +116,13 @@ export const ToolResultPayloadSchema = z.object({
 });
 
 // ===========================================================================
-// §3b — Foundry link (WebSocket :31415 / WebRTC DataChannel)
+// §3b — Foundry link (WebSocket :31415)
 // ===========================================================================
 
 /**
  * Frame `type` discriminator strings. The query/response/ping/pong values are
- * the frozen `SOCKET_EVENTS` from constants.ts (reused so they cannot drift);
- * `chunked-message` is the WebRTC chunk envelope, which has no SOCKET_EVENTS
- * entry of its own.
+ * the frozen `SOCKET_EVENTS` from constants.ts (reused so they cannot drift).
  */
-export const CHUNKED_MESSAGE_TYPE = 'chunked-message' as const;
-
 /**
  * Backend → module: invoke a Foundry query handler. The inner `data` is the
  * `{ method, data }` pair (an {@link MCPQuery}); `method` is a fully-qualified
@@ -163,22 +158,6 @@ export interface FoundryPongFrame {
 }
 
 /**
- * A single slice of a payload too large for a WebRTC SCTP message (64 KB cap).
- * The sender splits the JSON into `totalChunks` ordered pieces sharing a
- * `chunkId`; the receiver reassembles by `chunkIndex` and re-parses the joined
- * string as the original frame of type `originalType`.
- */
-export interface ChunkedMessageFrame {
-  type: typeof CHUNKED_MESSAGE_TYPE;
-  chunkId: string;
-  chunkIndex: number;
-  totalChunks: number;
-  chunk: string;
-  originalType?: string;
-  originalId?: string;
-}
-
-/**
  * The core, stable Foundry-link frames. An auxiliary push frame also travels this
  * link today, `bridge-status`, but its payload shape is still loose in the current
  * implementation, so it is intentionally NOT frozen here yet. Tightening and
@@ -189,8 +168,7 @@ export type FoundryFrame =
   | FoundryQueryFrame
   | FoundryResponseFrame
   | FoundryPingFrame
-  | FoundryPongFrame
-  | ChunkedMessageFrame;
+  | FoundryPongFrame;
 
 export const FoundryQueryFrameSchema = z.object({
   type: z.literal(SOCKET_EVENTS.MCP_QUERY),
@@ -213,16 +191,6 @@ export const FoundryPongFrameSchema = z.object({
   type: z.literal(SOCKET_EVENTS.PONG),
   id: z.string(),
   data: z.object({ timestamp: z.number(), status: z.string() }).optional(),
-});
-
-export const ChunkedMessageFrameSchema = z.object({
-  type: z.literal(CHUNKED_MESSAGE_TYPE),
-  chunkId: z.string(),
-  chunkIndex: z.number().int().nonnegative(),
-  totalChunks: z.number().int().positive(),
-  chunk: z.string(),
-  originalType: z.string().optional(),
-  originalId: z.string().optional(),
 });
 
 /**
@@ -266,30 +234,4 @@ export const FoundryFrameSchema = z.discriminatedUnion('type', [
   FoundryResponseFrameSchema,
   FoundryPingFrameSchema,
   FoundryPongFrameSchema,
-  ChunkedMessageFrameSchema,
 ]);
-
-// ===========================================================================
-// WebRTC SCTP / chunking limits
-// ===========================================================================
-
-/**
- * SCTP message-size limits for the WebRTC DataChannel and the safe threshold at
- * which the sender switches to {@link ChunkedMessageFrame} chunking.
- *
- * This is the single source of truth: the MCP server's reassembly path and the
- * Foundry module's send path must agree, and historically each kept its own
- * copy. Implementations should import these rather than re-declaring them.
- */
-export const WEBRTC_LIMITS = {
-  /** SCTP hard cap; a single DataChannel send above this fails. */
-  MAX_MESSAGE_SIZE: 65536, // 64 KB
-  /** Chunk when a frame's JSON exceeds this (headroom under MAX_MESSAGE_SIZE). */
-  CHUNK_SIZE: 50 * 1024, // 50 KB
-  /** Drop incomplete chunk sets after this long to avoid leaks. */
-  CHUNK_TIMEOUT_MS: 30000,
-  /** Reject `totalChunks` above this (anti-"chunk bomb" guard). */
-  MAX_CHUNKS_PER_MESSAGE: 1000,
-  /** Sweep interval for timed-out partial messages. */
-  CHUNK_CLEANUP_INTERVAL_MS: 10000,
-} as const;

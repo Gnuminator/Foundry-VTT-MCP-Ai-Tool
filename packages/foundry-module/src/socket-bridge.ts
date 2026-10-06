@@ -5,7 +5,6 @@ import {
   RECONNECT_BACKOFF,
   type ModuleHelloData,
 } from './constants.js';
-import { WebRTCConnection, type WebRTCConfig } from './webrtc-connection.js';
 import { bridgeHandlers } from './bridge-handlers.js';
 
 export interface BridgeConfig {
@@ -18,7 +17,6 @@ export interface BridgeConfig {
   reconnectDelay: number;
   connectionTimeout: number;
   debugLogging: boolean;
-  connectionType?: 'auto' | 'webrtc' | 'websocket'; // Connection type: auto (HTTPS→WebRTC, HTTP→WebSocket), webrtc, websocket
   /**
    * Read live before every reconnect: false means a dropped (or failed) link is
    * not retried until someone calls `connect()` again. Default: on.
@@ -42,17 +40,16 @@ export function reconnectDelayMs(attempt: number, random: () => number = Math.ra
 }
 
 /**
- * Browser-compatible socket bridge that supports both WebSocket and WebRTC
+ * Browser-compatible socket bridge: one WebSocket link to the backend
  */
 export class SocketBridge {
   private ws: WebSocket | null = null;
-  private webrtc: WebRTCConnection | null = null;
   private connectionState: string = CONNECTION_STATES.DISCONNECTED;
   private reconnectAttempts = 0;
   private reconnectTimer: any = null;
   /** Set by `disconnect()`: the owner closed the link on purpose, so nothing reconnects. */
   private stopped = false;
-  private activeConnectionType: 'websocket' | 'webrtc' | null = null;
+  private activeConnectionType: 'websocket' | null = null;
 
   constructor(private config: BridgeConfig) {}
 
@@ -70,82 +67,12 @@ export class SocketBridge {
     this.connectionState = CONNECTION_STATES.CONNECTING;
     this.log('Connecting to MCP server...');
 
-    // Determine connection type
-    const connectionType = this.determineConnectionType();
-    this.log(`Using connection type: ${connectionType}`);
-
-    if (connectionType === 'webrtc') {
-      await this.connectWebRTC();
-    } else {
-      await this.connectWebSocket();
-    }
-  }
-
-  private determineConnectionType(): 'websocket' | 'webrtc' {
-    const configType = this.config.connectionType || 'auto';
-
-    if (configType === 'auto') {
-      // Use WebRTC for HTTPS (secure), WebSocket for HTTP (localhost)
-      // WebRTC provides P2P encrypted channel without needing SSL certificates
-      const isHttps = window.location.protocol === 'https:';
-      const type = isHttps ? 'webrtc' : 'websocket';
-      this.log(`Auto-detected connection type: ${type} (page is ${window.location.protocol})`);
-      return type;
-    }
-
-    // Use explicit connection type from config
-    return configType as 'websocket' | 'webrtc';
-  }
-
-  private async connectWebRTC(): Promise<void> {
-    this.activeConnectionType = 'webrtc';
-
-    const webrtcConfig: WebRTCConfig = {
-      serverHost: this.config.serverHost,
-      serverPort: this.config.serverPort,
-      namespace: this.config.namespace,
-      stunServers: [], // Empty for localhost - must match server configuration
-      connectionTimeout: this.config.connectionTimeout,
-      debugLogging: this.config.debugLogging,
-    };
-
-    this.webrtc?.disconnect();
-    const conn = new WebRTCConnection(webrtcConfig);
-    this.webrtc = conn;
-
-    try {
-      await conn.connect(this.handleMessage.bind(this), {
-        // The hello goes straight to this channel: it does not wait for the state flip below.
-        onOpen: () => {
-          if (this.webrtc === conn) this.sendHello(message => conn.sendMessage(message));
-        },
-        onClose: () => {
-          if (this.webrtc !== conn || this.stopped) return;
-          this.log('WebRTC link lost');
-          this.connectionState = CONNECTION_STATES.DISCONNECTED;
-          this.scheduleReconnect();
-        },
-      });
-      if (this.webrtc !== conn || this.stopped) return;
-      this.connectionState = CONNECTION_STATES.CONNECTED;
-      this.reconnectAttempts = 0;
-      this.log('Connected via WebRTC');
-    } catch (error) {
-      this.log(`WebRTC connection failed: ${error}`);
-      conn.disconnect();
-      if (this.webrtc === conn) {
-        this.webrtc = null;
-        this.connectionState = CONNECTION_STATES.DISCONNECTED;
-        this.scheduleReconnect();
-      }
-      throw error;
-    }
+    await this.connectWebSocket();
   }
 
   private async connectWebSocket(): Promise<void> {
     this.activeConnectionType = 'websocket';
 
-    // WebSocket for HTTP localhost connections only
     const protocol = 'ws';
     const host = this.config.serverHost;
     this.log(`Using WebSocket (${protocol}://${host}:${this.config.serverPort})`);
@@ -224,11 +151,6 @@ export class SocketBridge {
   disconnect(): void {
     this.stopped = true;
     this.clearReconnectTimer();
-
-    if (this.webrtc) {
-      this.webrtc.disconnect();
-      this.webrtc = null;
-    }
 
     if (this.ws) {
       const ws = this.ws;
@@ -348,12 +270,10 @@ export class SocketBridge {
   }
 
   /** Tell the backend who this browser is (PB-02). Never lets a hello problem break the link. */
-  private sendHello(
-    send: (message: unknown) => void = (message: unknown): void => this.sendMessage(message)
-  ): void {
+  private sendHello(): void {
     if (!this.config.getHello) return;
     try {
-      send({ type: MODULE_HELLO_TYPE, data: this.config.getHello() });
+      this.sendMessage({ type: MODULE_HELLO_TYPE, data: this.config.getHello() });
     } catch (error) {
       this.log(`Failed to send hello: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -366,9 +286,7 @@ export class SocketBridge {
     }
 
     try {
-      if (this.activeConnectionType === 'webrtc' && this.webrtc) {
-        this.webrtc.sendMessage(message);
-      } else if (this.activeConnectionType === 'websocket' && this.ws) {
+      if (this.activeConnectionType === 'websocket' && this.ws) {
         this.ws.send(JSON.stringify(message));
       } else {
         this.log('No active connection to send message');

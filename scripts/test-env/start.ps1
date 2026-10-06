@@ -93,7 +93,6 @@ if ($Only -in 'all', 'bridge') {
   Start-TestService 'bridge' $TestEnv.ControlPort @("`"$standalone`"", '--port', "$($TestEnv.ControlPort)") @{
     MCP_CONTROL_HOST    = '127.0.0.1'
     FOUNDRY_PORT        = $TestEnv.LinkPort
-    FOUNDRY_WEBRTC_PORT = $TestEnv.WebrtcPort
     FOUNDRY_LINK_HOST   = '127.0.0.1'
     FOUNDRY_AI_DATA_DIR = $TestEnv.VaultDir
     FOUNDRY_AI_OBSIDIAN_DIR = $TestEnv.ObsidianDir

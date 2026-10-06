@@ -12,7 +12,7 @@ interface ChatLogToolsOptions {
  * 3A: Chat log / combat play-by-play / in-character chat tools.
  *
  * The chat-log buffer itself lives in the Foundry module (browser memory); these
- * tools request it on demand over the existing WebRTC/WebSocket query channel.
+ * tools request it on demand over the existing WebSocket query channel.
  */
 export class ChatLogTools {
   private foundryClient: FoundryClient;

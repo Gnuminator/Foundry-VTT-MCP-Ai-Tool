@@ -58,9 +58,9 @@ a pair of well-defined wire contracts connect them.
                               (SSE server  │  - control-channel server (ping/list/call)    │
                                + tool proxy│  - tool dispatch → tool classes               │
                                in Node)    │  - system-adapter registry (D&D 5e)           │
-                                           │  - Foundry connector (WS / WebRTC server)     │
+                                           │  - Foundry connector (WebSocket server)       │
                                            └───────────────┬──────────────────────────────┘
-                                                           │ WebSocket :31415  /  WebRTC :31416
+                                                           │ WebSocket :31415
                                                            ▼
                                            ┌──────────────────────────────────────────────┐
                                            │  Foundry VTT (browser): foundry-mcp-bridge    │
@@ -75,13 +75,12 @@ The rest of this document walks each part and then traces two requests end-to-en
 
 ### Port map (localhost)
 
-| Port    | Protocol        | Spoken between                                        |
-| ------- | --------------- | ----------------------------------------------------- |
-| `31414` | TCP, JSON-lines | stdio wrapper **and** dashboard → backend (control)   |
-| `31415` | WebSocket       | Foundry module → backend (the "Foundry connector")    |
-| `31416` | HTTP POST       | Foundry module → backend (WebRTC signaling/handshake) |
+| Port    | Protocol        | Spoken between                                      |
+| ------- | --------------- | --------------------------------------------------- |
+| `31414` | TCP, JSON-lines | stdio wrapper **and** dashboard → backend (control) |
+| `31415` | WebSocket       | Foundry module → backend (the "Foundry connector")  |
 
-All three listen on `127.0.0.1` by default. The Foundry link (31415/31416) opens to other
+Both listen on `127.0.0.1` by default. The Foundry link (31415) opens to other
 interfaces only with `FOUNDRY_LINK_HOST`; the dashboard (3000) only with `DASHBOARD_HOST`
 plus a `GM_DASHBOARD_TOKEN` (it refuses to start otherwise).
 
@@ -123,21 +122,12 @@ The connection is **outbound**: the module dials the backend, not the other way 
 matters for the remote-hosting story — a hosted Foundry can reach a bridge, even though the
 bridge can't reach into a hosted Foundry.
 
-### Transport (`socket-bridge.ts` + `webrtc-connection.ts`)
+### Transport (`socket-bridge.ts`)
 
-The module supports two transports and auto-selects based on page security:
-
-- **WebSocket** (`ws://host:31415/foundry-mcp`) when Foundry is served over **HTTP**
-  (typical localhost). Simple and direct.
-- **WebRTC DataChannel** when Foundry is served over **HTTPS**. A browser on an HTTPS page
-  cannot open an insecure `ws://` to localhost, but it _can_ HTTP-POST a WebRTC offer to
-  `http://localhost:31416/webrtc-offer` (the localhost exception), receive an answer, and
-  bring up an encrypted peer DataChannel — no TLS certificate required. WebRTC's SCTP
-  messages are capped at 64 KB, so the module **chunks** large payloads (50 KB chunks with a
-  `chunked-message` envelope) and the backend reassembles them.
-
-Either way, the message protocol on top is identical (see §3's Foundry-link protocol). The
-bridge reconnects with exponential backoff and a heartbeat, because the backend cycles often.
+The module dials one **WebSocket** (`ws://host:31415/foundry-mcp`) to the backend. There is no
+other transport (a WebRTC alternative was removed in PB-09; a stale `connectionType` world setting
+from older versions is ignored). The message protocol on top is described in §3's Foundry-link
+protocol. The bridge reconnects with exponential backoff, because the backend cycles often.
 
 ### Query handlers (`queries.ts` + `data-access.ts`)
 
@@ -209,7 +199,7 @@ Callers unwrap `content[0].text` and `JSON.parse` it opportunistically.
 This is deliberately the _same_ protocol the stdio wrapper and the dashboard both speak, which
 is what lets the dashboard reuse the entire tool surface without a second backend.
 
-### 3b. The Foundry link — WebSocket `:31415` / WebRTC `:31416`
+### 3b. The Foundry link — WebSocket `:31415`
 
 This is the contract between the **backend** (acting as a server) and the **Foundry module**
 (acting as a client that dials out). Messages are JSON objects discriminated by a `type` field.
@@ -227,7 +217,6 @@ Module → backend:
 {"type":"mcp-response","id":"query-N","data":{"success":true,"data":<result>}}
 {"type":"mcp-response","id":"query-N","data":{"success":false,"error":"..."}}
 {"type":"pong","id":"...","data":{...}}
-{"type":"chunked-message", ...}             // a slice of an oversized WebRTC payload
 ```
 
 The backend keeps a `pendingQueries` map keyed by `query-N` with a 10-second timeout, exactly
@@ -236,7 +225,7 @@ other but never share identifiers or sockets.
 
 **Why two layers?** The control channel is process-local, trusted, and synchronous-feeling
 (request/response). The Foundry link crosses the trust/process boundary into a browser, may be
-remote, may need encryption without certificates (WebRTC), and must tolerate a flaky tab. By
+remote, and must tolerate a flaky tab. By
 keeping them distinct, each can evolve and harden independently, and the backend can serve
 multiple control-channel clients (wrapper + dashboard) while owning a single Foundry link.
 
@@ -295,10 +284,10 @@ The long-lived workhorse. Responsibilities:
    class's `getToolDefinitions()`; that union is what `list_tools` returns. Every tool also
    belongs to exactly one tool set (`tool-sets.ts`, checked by the tool catalog test); a new
    feature gets one tool with an `action` parameter rather than several small tools.
-4. **The Foundry connector** (`foundry-client.ts` → `foundry-connector.ts` → `webrtc-peer.ts`).
-   The backend _is the server_ for the Foundry link: it runs the WebSocket server on `31415`
-   and the WebRTC signaling endpoint on `31416`, registers the module when it connects,
-   and exposes `query(method, data)` / `sendMessage(msg)` over whichever transport won.
+4. **The Foundry connector** (`foundry-client.ts` → `foundry-connector.ts`).
+   The backend _is the server_ for the Foundry link: it runs the WebSocket server on `31415`,
+   registers the module when it connects, and exposes `query(method, data)` /
+   `sendMessage(msg)` over that socket.
 5. **Bridge vault, guarded writes and the event pump** (§4d).
 
 Tool handlers never see the transport. They call `FoundryClient.query()`, which throws a clear
@@ -308,11 +297,8 @@ dashboard distinguish "backend up, Foundry down" from "channel down" (§7).
 ### 4c. Configuration (`config.ts`)
 
 A Zod-validated config object sourced from environment variables with sane defaults: Foundry
-host/port (`31415`, namespace `/foundry-mcp`), connection type (`auto` | `websocket` |
-`webrtc`), WebRTC STUN servers, a `toolResponseMaxChars` cap to keep
-tool outputs from blowing past model context, and the server name/version. `WEBRTC_CONSTANTS`
-pins the SCTP limits (64 KB max message, 50 KB chunk threshold, chunk-count and timeout caps to
-defuse "chunk bomb" memory attacks) and **must stay in sync** with the module's chunking code.
+host/port (`31415`, namespace `/foundry-mcp`), a `toolResponseMaxChars` cap to keep
+tool outputs from blowing past model context, and the server name/version.
 
 ### 4d. Bridge vault, guarded writes, event pump
 
@@ -580,7 +566,7 @@ Claude → (MCP/stdio) → wrapper → (control 31414: call_tool list-creatures-
          │  looks up world systemId, gets DnD5eAdapter from the registry
          │  builds 5e filters {creatureType:"undead", challengeRating:5}
        → foundryClient.query("foundry-mcp-bridge.listCreaturesByCriteria", filters)
-       → (Foundry link 31415/31416: {type:"mcp-query", id, data:{method, data}})
+       → (Foundry link 31415: {type:"mcp-query", id, data:{method, data}})
        → module socket bridge → bridge handler table["foundry-mcp-bridge.listCreaturesByCriteria"]
          │  validateGMAccess() ✓
          │  reads the enhanced creature index, applies the adapter's matchesFilters()

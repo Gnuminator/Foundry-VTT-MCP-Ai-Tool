@@ -16,8 +16,8 @@ export interface StandaloneOptions {
   /** Control-channel bind port (→ MCP_CONTROL_PORT). */
   port?: number;
   /**
-   * Serve the control channel only — skip the Foundry connector (WS 31415 /
-   * WebRTC 31416) (→ MCP_FOUNDRY_LINK=off). Used for health checks,
+   * Serve the control channel only — skip the Foundry connector (WS 31415)
+   * (→ MCP_FOUNDRY_LINK=off). Used for health checks,
    * tool introspection, and the standalone smoke test on an alternate port.
    */
   controlOnly: boolean;
@@ -38,7 +38,7 @@ Options:
   --host <addr>     Control-channel bind host   (default 127.0.0.1, env MCP_CONTROL_HOST)
   --port <n>        Control-channel bind port    (default 31414,     env MCP_CONTROL_PORT)
   --control-only    Serve the control channel only — do NOT bind the Foundry
-                    connector (31415/31416). (env MCP_FOUNDRY_LINK=off)
+                    connector (31415). (env MCP_FOUNDRY_LINK=off)
   -h, --help        Show this help and exit
 
 Notes:

@@ -43,7 +43,7 @@ Everything else is strictly read-only.
 ```
 
 The feed sits behind a `GameFeed` interface (`src/feed/types.ts`), so the
-polling implementation can later be swapped for a push source (e.g. WebRTC)
+polling implementation can later be swapped for a push source
 without touching the rest of the app.
 
 ### Files

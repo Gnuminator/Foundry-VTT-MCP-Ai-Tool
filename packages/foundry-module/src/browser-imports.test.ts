@@ -60,6 +60,6 @@ describe('browser-loadable module build', () => {
     expect(
       runtimePackageImports("import type {\n  A,\n  B,\n} from '@gnuminator/shared';")
     ).toEqual([]);
-    expect(runtimePackageImports('// see @gnuminator/shared WEBRTC_LIMITS')).toEqual([]);
+    expect(runtimePackageImports('// see @gnuminator/shared RECONNECT_BACKOFF')).toEqual([]);
   });
 });

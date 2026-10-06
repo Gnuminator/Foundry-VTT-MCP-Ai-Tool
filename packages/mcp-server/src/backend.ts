@@ -101,8 +101,8 @@ const CONTROL_PORT = parseInt(
 );
 
 // When the Foundry link is disabled (MCP_FOUNDRY_LINK=off) the backend serves the
-// control channel ONLY — it does not bind the Foundry connector (WS 31415 / WebRTC
-// 31416). Used to smoke-test the standalone entrypoint on an
+// control channel ONLY — it does not bind the Foundry connector (WS 31415).
+// Used to smoke-test the standalone entrypoint on an
 // alternate port without colliding with a live bridge. Default: enabled (full backend).
 const FOUNDRY_LINK_ENABLED = !/^(off|false|0|no)$/i.test(process.env.MCP_FOUNDRY_LINK ?? '');
 
@@ -450,7 +450,7 @@ async function startBackend(): Promise<void> {
   allToolNames = allTools.map(t => t.name);
 
   // Start Foundry connector (owns app port 31415). Skipped in control-only mode
-  // so the standalone entrypoint can be smoke-tested without binding 31415/31416.
+  // so the standalone entrypoint can be smoke-tested without binding 31415.
 
   // Persistent session event log in the vault (FOUNDRY_AI_EVENT_LOG=off disables it), and the
   // play log (every roll and state change; FOUNDRY_AI_PLAY_LOG=off disables it).

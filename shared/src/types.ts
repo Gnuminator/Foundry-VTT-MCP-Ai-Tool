@@ -23,7 +23,7 @@
 
 /**
  * A query dispatched from the backend to the Foundry module over the
- * Foundry link (WebSocket or WebRTC DataChannel). Corresponds to the
+ * Foundry link (WebSocket). Corresponds to the
  * `data` payload inside a `{type:"mcp-query"}` frame.
  */
 export interface MCPQuery {

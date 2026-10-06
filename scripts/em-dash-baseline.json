@@ -1,5 +1,5 @@
 {
-  "total": 1534,
+  "total": 1533,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -120,7 +120,7 @@
     "packages/mcp-server/src/standalone-config.ts": 7,
     "packages/mcp-server/src/standalone.ts": 5,
     "packages/mcp-server/src/systems/dnd5e/adapter.test.ts": 3,
-    "packages/mcp-server/src/systems/dnd5e/adapter.ts": 5,
+    "packages/mcp-server/src/systems/dnd5e/adapter.ts": 4,
     "packages/mcp-server/src/systems/dnd5e/filters.test.ts": 36,
     "packages/mcp-server/src/systems/dnd5e/filters.ts": 4,
     "packages/mcp-server/src/systems/types.ts": 1,

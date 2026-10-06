@@ -11,3 +11,8 @@
   scenario and the console groups read the version from the GM page, so one run on upstream 2.10.5
   and one on the fork both pass with no new findings. An unknown version falls back to the upstream
   list and says so.
+- **Actor Studio fork 2.10.5-aitool.2 (heroes levelled up in Studio end with full spell slots):** the
+  `heroes-studio` scenario ran live on both kit worlds with that build and passes with no STUDIO
+  difference, no console errors and no spell slot finding (`licensed` SYSTEM 23 to 13, `srd` 21 to 13).
+  The slot entry in `studio-expected.json` carries `fixedIn: "2.10.5-aitool.2"`: still expected on
+  upstream 2.10.5 and on aitool.1, a new finding on aitool.2 and later.

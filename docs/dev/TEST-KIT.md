@@ -351,8 +351,9 @@ understood and accepted, add its line.
 (`lib/studio-expected.mjs`) leaves out every entry whose `fixedIn` is a fork build at or before the
 installed one (`2.10.5-aitool.1` and later builds of the fork). Upstream 2.10.5 therefore gets the whole
 list, the fork gets the list without the four fixed findings (the Subclass advancement, the selector
-error, the 404 and `feature-problems:no-slot-to-spend`), and one of those coming back on the fork is a new
-finding that fails. A version the list does not know (not 2.10.5, not a fork build) falls back to the
+error, the 404 and `feature-problems:no-slot-to-spend`), from `2.10.5-aitool.2` also without the spell
+slot finding (`spell-slots-available:spell-slots-a-new-hero-can-spend`, `fixedIn` `2.10.5-aitool.2`), and
+one of those coming back on the fork is a new finding that fails. A version the list does not know (not 2.10.5, not a fork build) falls back to the
 whole upstream list; the step line of the scenario says which list was used (`expectedList` in the
 coverage as well), and a fallback is also logged. The console groups of the report use the same
 version.
@@ -392,6 +393,14 @@ the Size step, the missing class spells of the raw hero, one sorcerer subclass's
 the spell slots: the fork fills the slots of a new level 1 hero, but a hero levelled to 5 keeps the slots
 of level 1 (for example 2 of 4), because the system does not refill slots on a level up. The expected
 list is version-aware (below), so the same file serves the fork and upstream 2.10.5.
+
+**The fork build 2.10.5-aitool.2 (2026-10-06).** It fills the slots again when a level up ends, one or many
+levels and multiclass included. The same `smoke` scenario passes on both worlds with no spell slot finding
+left: `licensed` 13 of 13 heroes, KIT 9, CONTENT 0, SYSTEM 13, STUDIO 0; `srd` 12 of 12, KIT 8, CONTENT 0,
+SYSTEM 13, STUDIO 0 (before: SYSTEM 23 and 21); no console errors. Every slot level and the pact slots of
+each hero levelled from 1 to 5 stand at their maximum. `heroes-studio` builds no multiclass hero, so that path
+is covered by the fork's own unit test only. What stays on the list: the Size step, the missing class
+spells of the raw hero and, in the `srd` run, one sorcerer subclass's current hit points.
 
 Development filters (environment variables): `KIT_STUDIO_CLASSES=fighter,wizard`, `KIT_STUDIO_LEVEL=3`,
 `KIT_KEEP_STUDIO=1` (keep the Studio heroes; they carry the kit flag and the next build wipes them),

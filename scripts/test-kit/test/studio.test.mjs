@@ -508,17 +508,18 @@ const FORK_FIXED = [
   'console:gas.captureAdvancement',
   'console:black-parchment.webp',
 ];
+// fixed one build later: 2.10.5-aitool.2 fills the slots on every level up; aitool.1 filled level 1 only
+const SLOTS = 'spell-slots-available:spell-slots-a-new-hero-can-spend';
 const ALWAYS = [
   'advancement-values:advancement-value-of-size',
   'spells:the-raw-hero-has-no-class-spells',
-  'spell-slots-available:spell-slots-a-new-hero-can-spend',
   'current-hit-points:a-new-hero-does-not-start-at-full-hit-points',
 ];
 
 test('the expected list for upstream 2.10.5 holds every finding, the fork-fixed ones too', () => {
   const list = loadExpected(undefined, '2.10.5');
   const ids = list.map(e => e.id);
-  for (const id of [...ALWAYS, ...FORK_FIXED]) assert.ok(ids.includes(id), id);
+  for (const id of [...ALWAYS, SLOTS, ...FORK_FIXED]) assert.ok(ids.includes(id), id);
   assert.ok(list.every(e => e.why && e.kind));
   // the fixed ones are the entries that carry fixedIn, and nothing else does
   assert.deepEqual(
@@ -526,12 +527,15 @@ test('the expected list for upstream 2.10.5 holds every finding, the fork-fixed 
       .filter(e => e.fixedIn)
       .map(e => e.id)
       .sort(),
-    [...FORK_FIXED].sort()
+    [...FORK_FIXED, SLOTS].sort()
   );
 });
 
 test('the expected list for the fork build drops what the fork fixed', () => {
-  for (const version of ['2.10.5-aitool.1', '2.10.5-aitool.2', '2.10.6-aitool.1']) {
+  // aitool.1 still expects the slot finding (it fills level 1 only), aitool.2 and later do not
+  const first = loadExpected(undefined, '2.10.5-aitool.1').map(e => e.id);
+  assert.deepEqual(first.sort(), [...ALWAYS, SLOTS].sort(), '2.10.5-aitool.1');
+  for (const version of ['2.10.5-aitool.2', '2.10.5-aitool.3', '2.10.6-aitool.1']) {
     const ids = loadExpected(undefined, version).map(e => e.id);
     assert.deepEqual(ids.sort(), [...ALWAYS].sort(), version);
   }
@@ -565,12 +569,14 @@ test('a fork build older than the fix does not get the entry dropped', () => {
 
 test('the installed version set by the scenario picks the list loadExpected() returns', () => {
   try {
-    setStudioVersion('2.10.5-aitool.1');
+    setStudioVersion('2.10.5-aitool.2');
     assert.equal(loadExpected().length, ALWAYS.length);
+    setStudioVersion('2.10.5-aitool.1');
+    assert.equal(loadExpected().length, ALWAYS.length + 1);
     setStudioVersion('2.10.5');
-    assert.equal(loadExpected().length, ALWAYS.length + FORK_FIXED.length);
+    assert.equal(loadExpected().length, ALWAYS.length + FORK_FIXED.length + 1);
     setStudioVersion(null);
-    assert.equal(loadExpected().length, ALWAYS.length + FORK_FIXED.length);
+    assert.equal(loadExpected().length, ALWAYS.length + FORK_FIXED.length + 1);
   } finally {
     setStudioVersion(null);
   }

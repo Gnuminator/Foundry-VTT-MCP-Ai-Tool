@@ -18,7 +18,8 @@
   {
     "id": "spell-slots-available:spell-slots-a-new-hero-can-spend",
     "kind": "SYSTEM",
-    "why": "the system leaves the slots of a new actor empty until a long rest; upstream Actor Studio does not fill them, and the fork (2.10.5-aitool.1 and later) fills level 1 only, so a hero levelled to 5 keeps the slots of level 1 (for example 2 of 4) while the raw builder fills all of them"
+    "why": "the system leaves the slots of a new actor empty until a long rest; upstream Actor Studio does not fill them, and the fork fills level 1 only in 2.10.5-aitool.1, so a hero levelled to 5 keeps the slots of level 1 (for example 2 of 4) while the raw builder fills all of them; fixed in 2.10.5-aitool.2 (a hero levelled up in Studio ends with every slot level and pact at its maximum)",
+    "fixedIn": "2.10.5-aitool.2"
   },
   {
     "id": "current-hit-points:a-new-hero-does-not-start-at-full-hit-points",

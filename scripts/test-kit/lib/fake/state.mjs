@@ -51,6 +51,8 @@ export function createWorld({ world, moduleVersion }) {
       unresolved: /** @type {Set<string>} */ (new Set()),
       quirks: /** @type {Map<string, string>} */ (new Map()),
       restNoPact: false,
+      /** quirks of the origin actions (lib/fake/origins.mjs): "<quirk>" or "<quirk>:<name>" */
+      origin: /** @type {Set<string>} */ (new Set()),
     },
     seq: 0,
     rng: 20261005,

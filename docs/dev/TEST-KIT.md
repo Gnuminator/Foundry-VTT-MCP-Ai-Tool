@@ -58,8 +58,8 @@ node scripts/test-kit/kit.mjs <command> [options]
 
 | Size    | Heroes                                                   | Scenarios                  |
 | ------- | -------------------------------------------------------- | -------------------------- |
-| `smoke` | every class once, at level 5, with its first subclass    | the twelve SRD scenarios   |
-| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20 | the twelve SRD scenarios   |
+| `smoke` | every class once, at level 5, with its first subclass    | the sixteen SRD scenarios  |
+| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20 | the sixteen SRD scenarios  |
 | `long`  | the same heroes as `full`                                | scenarios that list `long` |
 
 The monster scenarios also read the size (`t.size`): `smoke` probes a sample of the monsters (see "The monsters"), `full` and
@@ -169,8 +169,8 @@ Start a `full` run in the background and do not wait on it.
 
 ## The scenarios
 
-Twelve SRD scenarios ship in the repo. All are in `smoke` and `full`; `heroes-advancement`, the two
-feature scenarios, `heroes-studio` and the three monster scenarios are in `long` as well.
+Sixteen SRD scenarios ship in the repo. All are in `smoke` and `full`; `heroes-advancement`, the two
+feature scenarios, `heroes-studio`, the three monster scenarios and the four origin scenarios are in `long` as well.
 
 | Id                     | What it proves                                                                                                |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -186,6 +186,10 @@ feature scenarios, `heroes-studio` and the three monster scenarios are in `long`
 | `monsters-every`       | Every monster of every pack of the profile is copied in, uses one action and is deleted.                      |
 | `monsters-matrix`      | The monsters by CR band, type, size and trait, the gaps, and the data every creature needs.                   |
 | `monsters-odd`         | Legendary actions and resistance, lair, regeneration, shapechangers, movement, recharge, multiattack, spells. |
+| `origins-species`      | Every species gives its size, speed, senses, traits and features; each feature can be used.                   |
+| `origins-backgrounds`  | Every background gives its ability scores, proficiencies and origin feat.                                     |
+| `origins-feats`        | Every feat can be taken by a hero that meets its prerequisites and does what its data says.                   |
+| `heroes-multiclass`    | Multiclass heroes get the reduced proficiencies, the combined slots and the features of both classes.         |
 
 ### heroes-advancement
 
@@ -368,6 +372,78 @@ Development filters (environment variables): `KIT_STUDIO_CLASSES=fighter,wizard`
 `KIT_SKIP_STUDIO=1`. Against the fake the scenario builds the "Studio" hero with the builder, which
 tests the comparison and the report in CI; it clicks nothing.
 
+### Species, backgrounds, feats and multiclass
+
+Four scenarios (`origins-species`, `origins-backgrounds`, `origins-feats`, `heroes-multiclass`) check what a character gets
+before and besides its class. All four use the system's own advancement, make their heroes in the folder "Kit Origin Heroes"
+and delete them again (set `KIT_KEEP_ORIGINS=1` to keep them for a look). They run after the others and before the feature
+scenarios (order 90). The oracle is the data of the document, read by the GM action `describeOrigin` (what its advancements
+say), plus a few rules written down in `lib/origins.mjs`. The GM actions `listOrigins`, `describeOrigin` and `cloneHero` are
+new; `createHero` can now add items to an existing kit hero (`actorId`, `items`), start from given ability scores
+(`abilities`) and answer a Size choice (`chooseSize`).
+
+| Size    | Species | Backgrounds | Feats                                | Multiclass heroes |
+| ------- | ------- | ----------- | ------------------------------------ | ----------------- |
+| `smoke` | 3       | 2           | the first and last of each feat type | 4 combinations    |
+| `full`  | all     | all         | all                                  | all 12            |
+| `long`  | all     | all         | all                                  | all 12            |
+
+**Species** (`origins-species`). One step per species: a level 1 hero of the profile's fighter (else its first class) with
+that species. Checked against the species' data: the item and every granted feature, the fixed trait grants (languages,
+resistances) and the trait choices made, the size (a species with more than one size is asked, option number `rotation %
+options`, and the answer must stick), walking speed and every other movement mode, senses (darkvision and the rest). Each
+activity the species granted is used once and the hero put back, like `heroes-features-use`.
+
+**Backgrounds** (`origins-backgrounds`). One step per background, with the default species. Checked: the ability score
+increase under the 2024 rules (the points are all spent, none above the cap, none on a locked ability, and every score on the
+actor equals the standard array plus every increase the answers made), skill and tool proficiencies, and the origin feat the
+background grants: the feat is on the actor and is itself checked against its own data (its grants, trait choices and
+features), then used. Starting equipment is counted and named in a note, not applied: the system adds it only through a
+dialog, which has no answer in a headless page.
+
+**Feats** (`origins-feats`). A feat needs a hero that meets its prerequisites, so the scenario keeps a few hosts (a fighter at
+level 1, 4 and 19 and a wizard at level 4 and 19, `FEAT_HOSTS`), built once through the advancement. For each feat it asks the
+system (`assertPrerequisites`, through `describeOrigin` with an `actorId`) which host qualifies, first as built and then with
+every score raised to 15. A host that already has the feat (its background gave it) is copied without it. The feat is added
+to a copy of the host (`cloneHero`, so the next feat starts from the same host), then checked: the item and its grants, trait
+grants and choices, the ability score improvement (points, cap, locked abilities, the scores on the actor), nothing the host
+had is lost, and each granted activity is used once. A feat no host can take (a score of 17, say) passes with "skipped:" and
+the failed prerequisite and is listed under `unmetPrerequisites` in the coverage attachment; the kit never forces one.
+Origin, general, fighting style and epic boon feats all run.
+
+**Multiclass** (`heroes-multiclass`). Twelve combinations (`MULTICLASS_PLAN`): fighter and wizard; wizard and cleric; paladin
+and sorcerer (half and full caster); ranger and paladin (two half casters); wizard and warlock (Pact Magic beside the table);
+cleric, druid and warlock (three classes); barbarian and monk (no spellcasting); rogue and ranger; paladin and rogue; cleric 1
+and wizard 1; fighter 11 and wizard 9 (level 20); and a third caster subclass (a fighter or rogue subclass whose spellcasting
+is `third`, when the profile has one). A class the profile lacks skips its combination, with the reason in the coverage
+attachment. The kit sets the ability scores (15 in every primary ability either class asks for, Constitution 13), builds the
+first class and then adds each further class through the advancement manager at its own level. Checked:
+
+- the multiclass prerequisite (13 in the primary ability of both classes) holds for the scores the kit set (KIT when not),
+- for each further class: no saving throw proficiency, the multiclass-only advancements applied, nothing gained beyond them
+  and the choices made (`checkMulticlassProficiencies`),
+- the class levels, the character level, the proficiency bonus (`2 + floor((level - 1) / 4)`) and one hit die per level in
+  each class's size,
+- the spell slots by the multiclass rules: the caster level adds full caster levels, half casters rounded up (the 2024 rules;
+  a 2014 half caster rounds differently and skips the slot check) and a third of third caster levels rounded down, and the
+  slots are the table at that level; Pact Magic comes from the warlock levels alone and is checked on its own,
+- hit points: the first class at the full first level, every other level the die average, plus Constitution,
+- the features and scale values of every class (the data of each class at its level, read with `describeClass`; the second
+  class with `multiclass: true`, which leaves out the first-class-only advancements and counts every hit die level as an
+  average), and the choices made,
+- the features the added classes gave, used once (at most 12 per hero).
+
+**Failure classes and expected findings.** A difference from the data is SYSTEM, the data against the rules is CONTENT, a
+mistake of the kit is KIT. Findings the kit knows and accepts are listed in `data/origins-expected.json` (an id, a kind and
+the reason; the id is the scenario's category and what it says, such as `species:movement`). The scenarios count them in their
+coverage attachment (`expectedFindings`) and pass; a finding that is not on the list, or that changes kind, fails the step.
+The list starts empty: the first live run says what goes into it.
+
+**What only a live run can say.** The fake implements the rules the checks use, so a green fake run proves the plumbing, not
+dnd5e. Open points for the first live run: whether `assertPrerequisites` returns what `describeOrigin` reads, whether a second
+class added with `forNewItem` gets the secondary advancements only, how the system rounds a half caster in a multiclass table,
+and what a species' Size advancement accepts (`{size}`).
+
 ### The monsters
 
 Three scenarios cover the monster compendium of the content profile. The monsters of a profile are the actors of type npc in the
@@ -523,21 +599,23 @@ Rules of thumb:
 
 ## Where things live
 
-| What                                      | Where                                                                   |
-| ----------------------------------------- | ----------------------------------------------------------------------- |
-| The engine, the GM actions, the fake      | `scripts/test-kit/lib/`                                                 |
-| The contract everything builds against    | `scripts/test-kit/lib/contract.mjs`                                     |
-| The hero checks and failure classes       | `scripts/test-kit/lib/advancement.mjs`                                  |
-| The feature checks and rules tables       | `scripts/test-kit/lib/features.mjs`                                     |
-| The monster checks, matrix and odd checks | `scripts/test-kit/lib/monsters.mjs`                                     |
-| Driving Actor Studio, the answer pump     | `scripts/test-kit/lib/studio.mjs`, `studio-flow.mjs`, `studio-pump.mjs` |
-| Comparing a Studio hero with a raw hero   | `scripts/test-kit/lib/studio-compare.mjs`, `inspect-build.mjs`          |
-| The SRD scenarios (no licensed content)   | `scripts/test-kit/scenarios/*.scenario.mjs` (in the repo)               |
-| The SRD content profile                   | `scripts/test-kit/data/profiles/srd.json`                               |
-| The monsters and the scene                | `scripts/test-kit/data/smoke-matrix.json`                               |
-| The manifest of the last build            | `<kit home>\worlds\<world>\manifest.json`                               |
-| Reports                                   | `<kit home>\reports\` (this PC only)                                    |
-| Licensed profiles and scenarios           | `<kit home>\licensed\` (this PC only)                                   |
+| What                                      | Where                                                                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| The engine, the GM actions, the fake      | `scripts/test-kit/lib/`                                                                                                                     |
+| The contract everything builds against    | `scripts/test-kit/lib/contract.mjs`                                                                                                         |
+| The hero checks and failure classes       | `scripts/test-kit/lib/advancement.mjs`                                                                                                      |
+| The feature checks and rules tables       | `scripts/test-kit/lib/features.mjs`                                                                                                         |
+| The monster checks, matrix and odd checks | `scripts/test-kit/lib/monsters.mjs`                                                                                                         |
+| The origin checks, hosts and multiclass   | `scripts/test-kit/lib/origins.mjs`, `origins-flow.mjs`, `origins-list.mjs`, `origins-feats.mjs`, `origins-multiclass.mjs`, `gm-origins.mjs` |
+| The expected origin findings              | `scripts/test-kit/data/origins-expected.json`                                                                                               |
+| Driving Actor Studio, the answer pump     | `scripts/test-kit/lib/studio.mjs`, `studio-flow.mjs`, `studio-pump.mjs`                                                                     |
+| Comparing a Studio hero with a raw hero   | `scripts/test-kit/lib/studio-compare.mjs`, `inspect-build.mjs`                                                                              |
+| The SRD scenarios (no licensed content)   | `scripts/test-kit/scenarios/*.scenario.mjs` (in the repo)                                                                                   |
+| The SRD content profile                   | `scripts/test-kit/data/profiles/srd.json`                                                                                                   |
+| The monsters and the scene                | `scripts/test-kit/data/smoke-matrix.json`                                                                                                   |
+| The manifest of the last build            | `<kit home>\worlds\<world>\manifest.json`                                                                                                   |
+| Reports                                   | `<kit home>\reports\` (this PC only)                                                                                                        |
+| Licensed profiles and scenarios           | `<kit home>\licensed\` (this PC only)                                                                                                       |
 
 The kit home is `C:\FoundryTest\test-kit`, or the folder in the environment variable
 `TEST_KIT_HOME`. **Licensed profiles, scenarios and reports never go into a repo or the vault.** A
@@ -586,6 +664,6 @@ When you change a tool's result shape, change the fake with it.
 - The full matrix of spells (the monsters are done: see "The monsters").
 - Dashboard checks in a real browser (Playwright), not only the JSON the dashboard serves.
 - Actor Studio at other levels (1, 11, 17, 20), with equipment and its biography tab on, and a multiclass
-  level-up; the Actor Studio findings above sent to its author.
+  level-up (the plain route is covered by `heroes-multiclass`); the Actor Studio findings above sent to its author.
 - A Pi target: the same kit against the Orange Pi, once the Pi has a kit world.
 - The licensed layer: the Curse of Strahd scenarios, kept on this PC only.

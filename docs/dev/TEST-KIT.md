@@ -343,7 +343,20 @@ scores, skills, hit points) become notes under one `KIT` problem. A difference t
 the reason each). The scenario counts them in its report (`expectedFindings`) and passes; a finding that
 is not on the list, or that changes kind, fails (`newFindings`). An id is the category and what it says,
 the same for every class (`advancement-values:advancement-value-of-subclass`). When Actor Studio fixes
-one, remove its line; when a new one is understood and accepted, add its line.
+one in our fork, give its line `fixedIn` (for example `"fixedIn": "2.10.5-aitool.1"`); when a new one is
+understood and accepted, add its line.
+
+**The list follows the installed version.** The file holds the findings of upstream Actor Studio
+2.10.5. The scenario reads the module's version from the GM page (`game.modules`), and `loadExpected`
+(`lib/studio-expected.mjs`) leaves out every entry whose `fixedIn` is a fork build at or before the
+installed one (`2.10.5-aitool.1` and later builds of the fork). Upstream 2.10.5 therefore gets the whole
+list, the fork gets the list without the four fixed findings (the Subclass advancement, the selector
+error, the 404 and `feature-problems:no-slot-to-spend`), from `2.10.5-aitool.2` also without the spell
+slot finding (`spell-slots-available:spell-slots-a-new-hero-can-spend`, `fixedIn` `2.10.5-aitool.2`), and
+one of those coming back on the fork is a new finding that fails. A version the list does not know (not 2.10.5, not a fork build) falls back to the
+whole upstream list; the step line of the scenario says which list was used (`expectedList` in the
+coverage as well), and a fallback is also logged. The console groups of the report use the same
+version.
 
 **Findings of the first live runs (2026-10-06, Foundry 14.368, dnd5e 6.0.5, Actor Studio 2.10.5).** All
 12 `srd` classes and all 13 classes of the `licensed` profile were built through Actor Studio, with no
@@ -370,6 +383,24 @@ class and two console errors, the rest are the repeats below). What differs:
 - `KIT`, the 8 casters: the raw hero has **no class spells** (the system asks for none through
   advancement); Actor Studio's Spells tab adds them. Prepared casters get their whole list on the sheet,
   unprepared, and the always-prepared domain spells; nothing is prepared for a wizard.
+
+**The fork build (2026-10-06, Actor Studio 2.10.5-aitool.1).** The same `smoke` scenario against our fork
+of Actor Studio (branch `aitool/fixes` of `Gnuminator/foundryvtt-actor-studio`, upstream 2.10.5 plus five
+fixes) passes on both worlds: `licensed` 13 of 13 heroes, KIT 9, CONTENT 0, SYSTEM 23, STUDIO 0; `srd`
+12 of 12, KIT 8, CONTENT 0, SYSTEM 21, STUDIO 0; no console errors. Gone from the list: the unset
+Subclass advancement, the selector error, the 404 and `feature-problems:no-slot-to-spend`. Still on it:
+the Size step, the missing class spells of the raw hero, one sorcerer subclass's current hit points, and
+the spell slots: the fork fills the slots of a new level 1 hero, but a hero levelled to 5 keeps the slots
+of level 1 (for example 2 of 4), because the system does not refill slots on a level up. The expected
+list is version-aware (below), so the same file serves the fork and upstream 2.10.5.
+
+**The fork build 2.10.5-aitool.2 (2026-10-06).** It fills the slots again when a level up ends, one or many
+levels and multiclass included. The same `smoke` scenario passes on both worlds with no spell slot finding
+left: `licensed` 13 of 13 heroes, KIT 9, CONTENT 0, SYSTEM 13, STUDIO 0; `srd` 12 of 12, KIT 8, CONTENT 0,
+SYSTEM 13, STUDIO 0 (before: SYSTEM 23 and 21); no console errors. Every slot level and the pact slots of
+each hero levelled from 1 to 5 stand at their maximum. `heroes-studio` builds no multiclass hero, so that path
+is covered by the fork's own unit test only. What stays on the list: the Size step, the missing class
+spells of the raw hero and, in the `srd` run, one sorcerer subclass's current hit points.
 
 Development filters (environment variables): `KIT_STUDIO_CLASSES=fighter,wizard`, `KIT_STUDIO_LEVEL=3`,
 `KIT_KEEP_STUDIO=1` (keep the Studio heroes; they carry the kit flag and the next build wipes them),

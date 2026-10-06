@@ -41,7 +41,7 @@ import {
   studioSettingsFor,
 } from '../lib/studio.mjs';
 import { buildHeroInStudio, discardActor } from '../lib/studio-flow.mjs';
-import { loadExpected } from '../lib/studio-expected.mjs';
+import { describeBasis, loadExpected, setStudioVersion } from '../lib/studio-expected.mjs';
 
 const DEFAULT_LEVEL = 5;
 
@@ -139,7 +139,11 @@ export default {
           info.active,
           'the module foundryvtt-actor-studio is installed but not enabled in this world (kit init enables it; the profile lists it under modules)'
         );
-        return `${info.title} ${info.version}`;
+        // The expected list depends on the build: upstream 2.10.5 or our fork (see studio-expected.mjs).
+        setStudioVersion(info.version);
+        const basis = describeBasis(info.version);
+        if (basis.basis === 'fallback') t.log(basis.text);
+        return `${info.title} ${info.version} (${basis.text})`;
       });
       // The table's settings for the module, put back after the run. They are read and the restore is
       // registered first, so a write that fails halfway is still undone. Usage tracking is never put back.
@@ -348,7 +352,11 @@ export default {
       expectedFindings: overall.counts,
       newFindings: overall.fresh.map(p => `[${p.kind}] ${p.id ?? p.what}: ${p.evidence}`),
       profile: t.kit.profile,
-      actorStudio: { version: info.version, title: info.title },
+      actorStudio: {
+        version: info.version,
+        title: info.title,
+        expectedList: page ? describeBasis(info.version).text : 'fake run: the whole list',
+      },
       level,
       heroes: heroes.length,
       built: results.length,

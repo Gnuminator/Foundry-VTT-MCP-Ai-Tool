@@ -92,9 +92,14 @@ export function consoleErrorId(e) {
   return consoleFindingId(message, normalizeSource(source));
 }
 
-/** The expected console findings (id starts with "console:"). */
-export function loadKnownConsole(file) {
-  return loadExpected(file).filter(e => e.id.startsWith('console:'));
+/**
+ * The expected console findings (id starts with "console:") of the installed Actor Studio version.
+ * @param {string} [file]
+ * @param {string | null} [version]  defaults to the version the heroes-studio scenario read
+ */
+export function loadKnownConsole(file, version) {
+  const list = version === undefined ? loadExpected(file) : loadExpected(file, version);
+  return list.filter(e => e.id.startsWith('console:'));
 }
 
 /**

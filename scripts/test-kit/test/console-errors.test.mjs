@@ -20,6 +20,20 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = () =>
   JSON.parse(readFileSync(path.join(here, 'fixtures', 'console-errors.json'), 'utf8'));
 
+/** The two console findings of upstream Actor Studio 2.10.5; the fork fixed them, so they are on the list on disk with fixedIn. */
+const KNOWN = [
+  {
+    id: 'console:gas.captureAdvancement',
+    kind: 'STUDIO',
+    why: 'Actor Studio 2.10.5 throws a jQuery selector error on every advancement dialog',
+  },
+  {
+    id: 'console:black-parchment.webp',
+    kind: 'STUDIO',
+    why: 'Actor Studio asks for an asset under a doubled path (404)',
+  },
+];
+
 const target = {
   name: 'local',
   dashboard: 'http://127.0.0.1:3100',
@@ -57,13 +71,18 @@ test('finding ids: a hook, a file, or the function of a page error', () => {
   assert.equal(consoleErrorId(d), 'console:pageerror:error-boom');
 });
 
-test('the known list is the console findings of studio-expected.json', () => {
-  const ids = loadKnownConsole().map(e => e.id);
-  assert.deepEqual(ids.sort(), ['console:black-parchment.webp', 'console:gas.captureAdvancement']);
+test('the known console list is version-aware: both findings on upstream 2.10.5, none on the fork', () => {
+  assert.deepEqual(
+    loadKnownConsole(undefined, '2.10.5').map(e => e.id),
+    KNOWN.map(e => e.id)
+  );
+  assert.deepEqual(loadKnownConsole(undefined, '2.10.5-aitool.1'), []);
+  // an unknown version gets the upstream list
+  assert.equal(loadKnownConsole(undefined, '9.9.9').length, 2);
 });
 
 test('groups count, time and scenarios; the new ones come first', () => {
-  const groups = groupConsoleErrors(fixture());
+  const groups = groupConsoleErrors(fixture(), { known: KNOWN });
   assert.equal(groups.length, 5);
   assert.deepEqual(
     groups.map(g => [g.id, g.count, g.known]),
@@ -104,7 +123,7 @@ test('an injected list decides what is known; nothing known makes everything new
 });
 
 test('the summary lines name every new group and say none when quiet', () => {
-  const lines = consoleSummaryLines(groupConsoleErrors(fixture()));
+  const lines = consoleSummaryLines(groupConsoleErrors(fixture(), { known: KNOWN }));
   assert.match(lines[0], /12 in 5 groups \(5 known in 2, 7 NEW in 3\)/);
   assert.equal(lines.length, 4);
   assert.match(lines[1], /NEW x4 \[heroes-features-use, heroes-features-deep\] TypeError/);
@@ -118,6 +137,7 @@ test('the report keeps the raw list, adds the groups and warns about new ones', 
     startedAt: new Date('2026-10-06T01:00:00Z'),
     results: [],
     consoleErrors: fixture(),
+    knownConsole: KNOWN,
   });
   assert.equal(report.consoleErrors.length, 12);
   assert.equal(report.consoleGroups?.length, 5);
@@ -141,11 +161,13 @@ test('a report with only known console errors has no warning', () => {
     startedAt: new Date(),
     results: [],
     consoleErrors: known,
+    knownConsole: KNOWN,
   });
   assert.ok(!renderMarkdown(report).includes('WARNING'));
   assert.ok(!renderHtml(report).includes('WARNING'));
+  // an old report without groups is grouped again against the list on disk (empty since the fork)
   const old = { ...report, consoleGroups: undefined };
-  assert.match(renderMarkdown(old), /5 errors in 2 groups: 5 known \(2 groups\)/);
+  assert.match(renderMarkdown(old), /5 errors in 2 groups/);
 });
 
 test('quietChatNotifications turns the pop-ups off, or says the chat log is missing', async () => {

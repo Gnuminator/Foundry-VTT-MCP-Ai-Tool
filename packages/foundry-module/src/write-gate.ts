@@ -48,6 +48,8 @@ export const WRITE_METHODS: readonly string[] = [
   'setInitiative',
   // journals
   'createJournalEntry',
+  // "Show it now" (I-110): pops a page up on the players' screens (Show Players)
+  'showJournalPage',
   // the session notes folder (recap lane, D-087; GM-only)
   'ensureJournalFolder',
   'updateCampaignProgress',

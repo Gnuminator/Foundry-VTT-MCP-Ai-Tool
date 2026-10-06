@@ -70,6 +70,12 @@ export const OUTCOME_POLL_INTERVAL_MS = 5_000;
 export const OUTCOME_DEADLINE_MS = 120_000;
 /** The longest an apply or undo waits for its recorded-change listeners before it answers. */
 export const LISTENER_WAIT_MS = 5_000;
+/** Most players a plan's "show it now" may name. */
+export const MAX_SHOW_USERS = 50;
+/** Start of the diff text of a "show it now" line; an undo's diff leaves such lines out. */
+export const SHOW_DIFF_PREFIX = 'Show it now:';
+/** How long "show it now" waits for Foundry (it runs inside the guarded-write lock). */
+export const SHOW_TIMEOUT_MS = 15_000;
 
 const FEATURE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 /** Vault files features may not write through vault ops. */
@@ -111,6 +117,12 @@ export interface PlanInput {
    * Recent Changes and the undo keep.
    */
   pathLabels?: Record<string, string>;
+  /**
+   * "Show it now" (I-110): after a successful apply, pop this journal page (or journal) up on the
+   * players' screens through Foundry's Show Players. `users` are Foundry user ids; empty means every
+   * player who can see it. Undo takes back the change, never the popup.
+   */
+  showToPlayers?: { uuid: string; users: string[] };
 }
 
 /** Where a change is written. */
@@ -150,6 +162,7 @@ interface StoredPlan extends PlanView {
   vaultOps: VaultOp[];
   vaultExpected: PathValue[];
   rulesVersion?: RulesVersion;
+  showToPlayers?: { uuid: string; users: string[] };
   createdMs: number;
 }
 
@@ -170,6 +183,8 @@ export interface AppliedChange {
   undoOf?: string;
   diff: string[];
   documents?: string[];
+  /** Only for an apply whose plan asked to show the page: whether the popup went out. */
+  shown?: { ok: true; users: string[] } | { ok: false; error: string };
 }
 
 /** A row of `list-recent-changes`. */
@@ -232,6 +247,25 @@ function unwrap<T>(response: unknown, what: string): T {
     throw new Error(`${what}: ${typeof r.error === 'string' ? r.error : 'refused by Foundry'}`);
   }
   return response as T;
+}
+
+function validateShowToPlayers(show: unknown): { uuid: string; users: string[] } {
+  const { uuid, users } = (show ?? {}) as { uuid?: unknown; users?: unknown };
+  if (
+    typeof uuid !== 'string' ||
+    !uuid ||
+    !(uuid.includes('JournalEntryPage') || uuid.startsWith('JournalEntry.'))
+  ) {
+    throw new Error('showToPlayers needs the uuid of a journal page or journal');
+  }
+  if (
+    !Array.isArray(users) ||
+    users.length > MAX_SHOW_USERS ||
+    users.some(u => typeof u !== 'string' || !u)
+  ) {
+    throw new Error(`showToPlayers users must be a list of at most ${MAX_SHOW_USERS} user ids`);
+  }
+  return { uuid, users: [...(users as string[])] };
 }
 
 function validateFoundryOps(ops: unknown): GuardedOp[] {
@@ -458,6 +492,8 @@ export class GuardedWriteService {
     if (input.risk !== undefined && input.risk !== 'destructive') {
       throw new Error(`Unknown risk override: ${String(input.risk)}`);
     }
+    const showToPlayers =
+      input.showToPlayers === undefined ? undefined : validateShowToPlayers(input.showToPlayers);
     const ops = input.ops === undefined ? [] : validateFoundryOps(input.ops);
     const vaultOps = input.vaultOps === undefined ? [] : validateVaultOps(input.vaultOps);
     const worldId = await this.worldIds.current();
@@ -502,6 +538,22 @@ export class GuardedWriteService {
       });
     }
 
+    if (showToPlayers) {
+      const who =
+        showToPlayers.users.length === 0
+          ? 'every player who can see it'
+          : showToPlayers.users.length === 1
+            ? '1 player'
+            : `${showToPlayers.users.length} players`;
+      diff.push({
+        op: ops.length + vaultOps.length,
+        kind: 'show',
+        target: showToPlayers.uuid,
+        label: diff.find(d => d.target === showToPlayers.uuid)?.label ?? showToPlayers.uuid,
+        text: `${SHOW_DIFF_PREFIX} pops the page up for ${who} (Foundry's Show Players; Undo cannot take this back)`,
+      });
+    }
+
     // Removing a status effect (an ActiveEffect, e.g. Prone) is everyday play, not destructive:
     // it needs one confirm (F5, D-082). Any other delete raises the plan to destructive.
     const deletes =
@@ -527,6 +579,7 @@ export class GuardedWriteService {
       vaultExpected,
       createdMs,
       ...(input.rulesVersion ? { rulesVersion: input.rulesVersion } : {}),
+      ...(showToPlayers ? { showToPlayers } : {}),
     };
 
     this.prune();
@@ -678,7 +731,33 @@ export class GuardedWriteService {
     await this.notifyRecorded(worldId, entry.changeId);
     // A Foundry apply logs its own gm-change event; vault-only changes do it here.
     if (!foundry) await this.logGmChange(entry);
-    return this.appliedView(entry);
+    const shown = plan.showToPlayers ? await this.showToPlayers(plan.showToPlayers) : undefined;
+    return { ...this.appliedView(entry), ...(shown ? { shown } : {}) };
+  }
+
+  /** Pop the page up on the players' screens (I-110). Never throws: the change is already applied. */
+  private async showToPlayers(show: {
+    uuid: string;
+    users: string[];
+  }): Promise<NonNullable<AppliedChange['shown']>> {
+    try {
+      unwrap<unknown>(
+        await this.foundry.query(
+          'foundry-mcp-bridge.showJournalPage',
+          { uuid: show.uuid, userIds: show.users },
+          { timeoutMs: SHOW_TIMEOUT_MS }
+        ),
+        'Show refused'
+      );
+      return { ok: true, users: show.users };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn('Show it now failed after the change was applied', {
+        uuid: show.uuid,
+        error: message,
+      });
+      return { ok: false, error: message };
+    }
   }
 
   private async undoChange(
@@ -724,7 +803,9 @@ export class GuardedWriteService {
       target: entry.target,
       mode: 'undo',
       appliedAt: foundry?.appliedAt ?? new Date(this.now()).toISOString(),
-      diff: entry.diff.map(line => `undone: ${line}`),
+      diff: entry.diff
+        .filter(line => !line.startsWith(SHOW_DIFF_PREFIX))
+        .map(line => `undone: ${line}`),
       undoOf: entry.changeId,
       ...(foundry ? { results: foundry.results } : {}),
       ...(records.length > 0

@@ -58,6 +58,15 @@ describe('TarokkaTools', () => {
       title: 'T',
     });
     await expect(tools.handlePlanTarokkaReveal({ position: 'tome', text: '' })).rejects.toThrow();
+    await tools.handlePlanTarokkaReveal({ position: 'tome', text: 'Hi', showNow: true });
+    expect(tarokka.planReveal).toHaveBeenLastCalledWith({
+      position: 'tome',
+      text: 'Hi',
+      showNow: true,
+    });
+    await expect(
+      tools.handlePlanTarokkaReveal({ position: 'tome', text: 'Hi', showNow: 'yes' })
+    ).rejects.toThrow();
 
     await tools.handleSuggestTarokkaLinks({ query: 'vallaki', limit: 3 });
     expect(tarokka.suggestLinks).toHaveBeenLastCalledWith('vallaki', 3);

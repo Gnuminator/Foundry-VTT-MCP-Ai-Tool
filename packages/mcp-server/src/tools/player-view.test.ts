@@ -124,6 +124,31 @@ describe('PlayerViewTools', () => {
     await expect(tools.handlePlanPageReveal({ action: 'hide' })).rejects.toThrow();
   });
 
+  it('plan-page-reveal takes an optional showNow flag, forwards it, and refuses it for queueing', async () => {
+    const { tools, handouts } = makeTools();
+    const schema = tools.getToolDefinitions().find(d => d.name === 'plan-page-reveal')!;
+    expect(schema.inputSchema.properties.showNow).toMatchObject({ type: 'boolean' });
+    expect(schema.inputSchema.required).not.toContain('showNow');
+
+    await tools.handlePlanPageReveal({ pageUuid: 'x', action: 'reveal', showNow: true });
+    expect(handouts.planPageReveal).toHaveBeenLastCalledWith({
+      pageUuid: 'x',
+      action: 'reveal',
+      showNow: true,
+    });
+    await tools.handlePlanPageReveal({ action: 'reveal-next', showNow: true });
+    expect(handouts.planPageReveal).toHaveBeenLastCalledWith({
+      action: 'reveal-next',
+      showNow: true,
+    });
+    await expect(
+      tools.handlePlanPageReveal({ pageUuid: 'x', action: 'reveal', showNow: 'yes' })
+    ).rejects.toThrow();
+    await expect(
+      tools.handlePlanPageReveal({ pageUuid: 'x', action: 'queue', showNow: true })
+    ).rejects.toThrow(/showNow only goes with a reveal/);
+  });
+
   it('plan-page-reveal takes an optional copy flag and forwards it only when given', async () => {
     const { tools, handouts } = makeTools();
     const schema = tools.getToolDefinitions().find(d => d.name === 'plan-page-reveal')!;

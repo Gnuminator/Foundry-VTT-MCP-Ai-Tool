@@ -122,6 +122,7 @@ const els = {
   handoutsClose: $('handouts-close'),
   handoutsSub: $('handouts-sub'),
   handoutsNext: $('handouts-next'),
+  handoutsShowNow: $('handouts-show-now'),
   handoutsAdd: $('handouts-add'),
   handoutsRefresh: $('handouts-refresh'),
   handoutsQueue: $('handouts-queue'),
@@ -1716,7 +1717,10 @@ function showToolResult(ok, payload) {
 // players (copied into Handouts)'; other tools by their name.
 function doneText(name, result) {
   const summary = result && typeof result.summary === 'string' ? result.summary : '';
-  if (name === 'apply-planned-change' && summary) return `✓ Applied: ${summary}`;
+  if (name === 'apply-planned-change' && summary) {
+    const shown = result.shown && result.shown.ok === true ? ' and shown to players' : '';
+    return `✓ Applied: ${summary}${shown}`;
+  }
   if (name === 'undo-change' && summary) return `✓ ${summary}`;
   return `✓ ${name}`;
 }
@@ -1797,6 +1801,10 @@ async function runTool(name, args, mutates, opts = {}) {
       // A handout reveal that copies the page says where the copy goes ("Copied into Handouts").
       if (data.result && data.result.copy && typeof data.result.note === 'string') {
         toast(data.result.note, 'ok');
+      }
+      // "Show it now" (I-110): the change is in; only the popup on the players' screens failed.
+      if (data.result && data.result.shown && data.result.shown.ok === false) {
+        toast(`Revealed, but the popup failed: ${data.result.shown.error}`, 'warn');
       }
       if (opts.showResultInDrawer) showToolResult(true, data.result);
       if (name === 'apply-planned-change' || name === 'undo-change') {
@@ -2029,11 +2037,21 @@ function renderHandoutsDrawer() {
           .join('');
 }
 async function revealNextHandout() {
-  await planThenApply(
-    'plan-page-reveal',
-    { action: 'reveal-next', ...(activeSceneId ? { sceneId: activeSceneId } : {}) },
-    { oneClick: true }
-  );
+  // "Show it now" is off unless ticked for this reveal, and goes back to off after every attempt.
+  const showNow = els.handoutsShowNow.checked;
+  try {
+    await planThenApply(
+      'plan-page-reveal',
+      {
+        action: 'reveal-next',
+        ...(activeSceneId ? { sceneId: activeSceneId } : {}),
+        ...(showNow ? { showNow: true } : {}),
+      },
+      { oneClick: true }
+    );
+  } finally {
+    els.handoutsShowNow.checked = false;
+  }
   void loadHandouts();
 }
 async function unqueueHandout(uuid) {
@@ -2905,6 +2923,7 @@ function showRevealForm(position) {
   form.innerHTML = `
     <input class="field-control" type="text" placeholder="Page title (optional)" data-reveal-title />
     <textarea class="field-control" rows="4" placeholder="Exactly what the players may read" data-reveal-text></textarea>
+    <label class="show-now"><input type="checkbox" data-track="dash.tarokka.show-now" data-reveal-show /> Show it now</label>
     <button type="button" class="btn btn-small" data-track="dash.tarokka.plan-reveal" data-reveal-go="${escapeHtml(position)}">Plan reveal…</button>`;
   form.querySelector('[data-reveal-text]').focus();
 }
@@ -2942,11 +2961,18 @@ async function onTarokkaClick(e) {
       toast('Write the text the players will read first.', 'warn');
       return;
     }
-    return planThenApply('plan-tarokka-reveal', {
-      position: revealGo.dataset.revealGo,
-      text,
-      ...(title ? { title } : {}),
-    });
+    const showBox = form.querySelector('[data-reveal-show]');
+    const showNow = !!(showBox && showBox.checked);
+    try {
+      return await planThenApply('plan-tarokka-reveal', {
+        position: revealGo.dataset.revealGo,
+        text,
+        ...(title ? { title } : {}),
+        ...(showNow ? { showNow: true } : {}),
+      });
+    } finally {
+      if (showBox) showBox.checked = false;
+    }
   }
 }
 

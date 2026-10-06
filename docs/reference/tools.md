@@ -160,7 +160,7 @@ Parameters:
 
 ### apply-planned-change
 
-Apply a pending planned change after the GM has seen its diff and agreed. Requires confirm: true, plus confirmDestructive: true when the plan risk is "destructive" (it deletes something). Fails without writing anything if the affected documents changed since the plan was made, if "Allow Write Operations" or the feature is switched off in the module settings. The change is recorded and can be undone with undo-change.
+Apply a pending planned change after the GM has seen its diff and agreed. Requires confirm: true, plus confirmDestructive: true when the plan risk is "destructive" (it deletes something). Fails without writing anything if the affected documents changed since the plan was made, if "Allow Write Operations" or the feature is switched off in the module settings. The change is recorded and can be undone with undo-change. When the plan also pops a page up on the players' screens (showNow), the result has shown: { ok: true } or { ok: false, error }, and undo does not take the popup back.
 
 Parameters:
 
@@ -679,6 +679,7 @@ Parameters:
 - `text` (string, required): What the players read (1-5000 characters, plain text).
 - `title` (string): Page title (default "Card &lt;n>").
 - `journalName` (string): Name of the player journal when it is created (default "Tarokka reading").
+- `showNow` (boolean): Also pop the page up for the players it is revealed to (Show Players). Off by default. Undo cannot take the popup back.
 
 ### get-player-visibility
 
@@ -700,16 +701,17 @@ No parameters.
 
 ### plan-page-reveal
 
-Plan revealing a journal page to players, or hiding one already revealed. Reveal adds the page to the allowlist and, by default (setOwnership: true), raises its ownership to Observer if players cannot already see it, recording the previous ownership to restore later; refused if the page is already allowlisted and still observable. When no player can open the page's journal (typical for handouts inside a GM-only adventure chapter), the reveal instead COPIES the page into the player journal "Handouts" (created on first use, Observer for players): the copy gets the page's name and content, text without any secret blocks or @Embed enrichers and with links to documents players cannot open turned into plain text, or an image's source and caption; the source page and its journal are never changed. copy: true always copies, copy: false never does (refused while the page has a copy). Revealing the same source again updates its copy; only text and image pages can be copied. Destructive class (needs the second confirmation) because a reveal cannot be taken back at the table. Hide removes the page from the allowlist and, by default, restores the ownership recorded at reveal time; for a copied handout (pass the source or the copy) it deletes the copy, the "Handouts" journal stays. Write nothing but a title into the summary. Returns a planId for apply-planned-change, plus copy (where the copy goes) and note when the reveal copies.
+Plan revealing a journal page to players, or hiding one already revealed. Reveal adds the page to the allowlist and, by default (setOwnership: true), raises its ownership to Observer if players cannot already see it, recording the old ownership for Hide; refused if the page is already allowlisted and still observable. When no player can open the page's journal, the reveal instead COPIES the page into the player journal "Handouts" (created on first use, Observer for players): the copy gets the page's name and content, text without any secret blocks or @Embed enrichers and with links to documents players cannot open turned into plain text, or an image's source and caption; the source page and its journal are never changed. Revealing the same source again updates its copy; only text and image pages can be copied. Destructive class (needs the second confirmation) because a reveal cannot be taken back at the table. Hide removes the page from the allowlist and, by default, restores the ownership recorded at reveal time; for a copied handout (pass the source or the copy) it deletes the copy, the "Handouts" journal stays. Write nothing but a title into the summary. Returns a planId for apply-planned-change (plus copy and note when copying).
 
 Parameters:
 
-- `pageUuid` (string): The journal page to reveal, hide, queue or unqueue, e.g. JournalEntry.abc123.JournalEntryPage.def456. Not used by "reveal-next".
-- `action` (string, required): "reveal" adds it to the player allowlist; "hide" removes it. "queue" stages the page for later (with sceneId and players; changes nothing in Foundry, no plan, applies at once) and "unqueue" removes it from the queue. "reveal-next" plans the reveal of the oldest queued page for sceneId (or any), with the players it was queued for; applying it also takes the page off the queue. One of: `reveal`, `hide`, `queue`, `unqueue`, `reveal-next`.
-- `players` (array of string): Reveal (or queue) for these players only (Foundry user ids): their own ownership is raised instead of the default, or a copy is hidden from the rest. Omit for every player.
+- `pageUuid` (string): The journal page to reveal, hide, queue or unqueue. Not used by "reveal-next".
+- `action` (string, required): "reveal" adds it to the player allowlist; "hide" removes it. "queue" stages the page for later (changes nothing in Foundry, no plan, applies at once) and "unqueue" removes it from the queue. "reveal-next" plans the reveal of the oldest queued page for sceneId (or any), with the players it was queued for; applying it also takes the page off the queue. One of: `reveal`, `hide`, `queue`, `unqueue`, `reveal-next`.
+- `players` (array of string): Reveal (or queue) for these players only (Foundry user ids): the rest of the table does not get it. Omit for every player.
 - `sceneId` (string): queue: the scene the page belongs to (omit for any scene). reveal-next: take the next page queued for this scene (or for any scene).
 - `setOwnership` (boolean): Also change the page ownership (default true). False only changes the allowlist.
-- `copy` (boolean): Reveal as a copy in the player journal "Handouts" (secret blocks and embeds left out, the source unchanged). Omit for automatic: copy when no player can open the page's journal, or when the page already has a copy (the copy is updated). True: always copy. False: never copy (raise the page instead).
+- `copy` (boolean): Reveal as a copy in the player journal "Handouts" (secret blocks and embeds left out, the source unchanged). Omit for automatic: copy when no player can open the page's journal, or when the page already has a copy (the copy is updated). True: always copy. False: never copy (raise the page instead; refused while the page has a copy).
+- `showNow` (boolean): Also pop the page up for the players it is revealed to (Show Players). Off by default. Undo cannot take the popup back.
 
 ### list-ref-choices
 

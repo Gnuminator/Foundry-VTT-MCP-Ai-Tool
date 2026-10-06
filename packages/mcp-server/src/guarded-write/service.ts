@@ -609,7 +609,8 @@ export class GuardedWriteService {
   // Apply / undo
   // -------------------------------------------------------------------------
 
-  applyPlan(planId: string, flags: ConfirmFlags): Promise<AppliedChange> {
+  /** `requestedBy`: the person who asked, when it was not Claude; recorded on the apply's audit entry. */
+  applyPlan(planId: string, flags: ConfirmFlags, requestedBy?: string): Promise<AppliedChange> {
     return this.exclusive(async () => {
       const plan = this.requirePlan(planId);
       if (flags.confirm !== true) {
@@ -626,7 +627,7 @@ export class GuardedWriteService {
         throw new Error(`This plan was made for world "${plan.worldId}", not "${worldId}"`);
       }
       const changeId = newId('chg', this.now());
-      const applied = await this.applyChange(worldId, changeId, plan);
+      const applied = await this.applyChange(worldId, changeId, plan, requestedBy);
       this.plans.delete(plan.planId);
       return applied;
     });
@@ -646,7 +647,8 @@ export class GuardedWriteService {
     this.undoGuards.set(feature, guard);
   }
 
-  undo(changeId: string, flags: ConfirmFlags): Promise<AppliedChange> {
+  /** `requestedBy`: the person who asked, when it was not Claude; recorded on the undo's audit entry. */
+  undo(changeId: string, flags: ConfirmFlags, requestedBy?: string): Promise<AppliedChange> {
     return this.exclusive(async () => {
       if (flags.confirm !== true) throw new Error('Undoing a change needs confirm: true');
       const worldId = await this.worldIds.current();
@@ -660,7 +662,7 @@ export class GuardedWriteService {
       const reason = guard ? await guard(worldId, entry) : null;
       if (reason) throw new Error(`Conflict, nothing was written: ${reason}`);
       const undoId = newId('chg', this.now());
-      return this.undoChange(worldId, undoId, entry);
+      return this.undoChange(worldId, undoId, entry, requestedBy);
     });
   }
 
@@ -680,7 +682,8 @@ export class GuardedWriteService {
   private async applyChange(
     worldId: string,
     changeId: string,
-    plan: StoredPlan
+    plan: StoredPlan,
+    requestedBy?: string
   ): Promise<AppliedChange> {
     const records: VaultOpRecord[] = plan.vaultOps.map((op, i) => ({
       file: op.file,
@@ -723,6 +726,7 @@ export class GuardedWriteService {
       mode: 'apply',
       appliedAt: foundry?.appliedAt ?? new Date(this.now()).toISOString(),
       diff: plan.diff.map(d => d.text),
+      ...(requestedBy ? { requestedBy } : {}),
       ...(foundry ? { results: foundry.results } : {}),
       ...(records.length > 0 ? { vaultOps: records } : {}),
       ...(plan.rulesVersion ? { rulesVersion: plan.rulesVersion } : {}),
@@ -763,7 +767,8 @@ export class GuardedWriteService {
   private async undoChange(
     worldId: string,
     undoId: string,
-    entry: AuditEntry
+    entry: AuditEntry,
+    requestedBy?: string
   ): Promise<AppliedChange> {
     const results = [...(await this.audit.resultsWithDeleted(worldId, entry))].reverse();
     const records = [...(entry.vaultOps ?? [])].reverse();
@@ -807,6 +812,7 @@ export class GuardedWriteService {
         .filter(line => !line.startsWith(SHOW_DIFF_PREFIX))
         .map(line => `undone: ${line}`),
       undoOf: entry.changeId,
+      ...(requestedBy ? { requestedBy } : {}),
       ...(foundry ? { results: foundry.results } : {}),
       ...(records.length > 0
         ? { vaultOps: records.map(r => ({ ...r, before: r.after, after: r.before })) }

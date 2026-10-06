@@ -69,9 +69,10 @@ export const WRITE_METHODS: readonly string[] = [
 /**
  * Methods that do not change the world: reads, the guarded-write plumbing
  * (`applyGuardedOps` has its own gate), the GM feed line after an allowed
- * change, opening a sheet on the GM's screen and clearing the local error list.
+ * change, the announce that tells the "AI changes" windows to refresh, opening a sheet on the GM's screen and clearing the local error list.
  */
 export const NON_WRITE_METHODS: readonly string[] = [
+  'aiChangesUpdated',
   'applyGuardedOps',
   'characterSheet',
   'clearModuleErrors',

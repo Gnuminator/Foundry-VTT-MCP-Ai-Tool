@@ -293,6 +293,30 @@ describe('BackupPullNotifier', () => {
     expect(await h.notifier.check(loud)).toEqual([]);
   });
 
+  it('an unreadable or invalid record tells the owner to run that pull task once; a missing one does not', () => {
+    const unreadable = reading({
+      restic: HOUR,
+      snapshot: { problem: 'unreadable', ageMs: 4 * DAY },
+    });
+    const text = backupPullMessage('stale', unreadable, ['snapshot']);
+    expect(text).toContain(
+      'To fix the unreadable record, run "Foundry Pi snapshot pull" once in Task Scheduler: a successful run writes the record again.'
+    );
+    expect(text).not.toContain('"Foundry Pi restic copy" once');
+    const both = reading({
+      restic: { problem: 'invalid', ageMs: 5 * DAY },
+      snapshot: { problem: 'unreadable', ageMs: 4 * DAY },
+    });
+    expect(backupPullMessage('stale', both, ['restic', 'snapshot'])).toContain(
+      'run "Foundry Pi restic copy" and "Foundry Pi snapshot pull" once'
+    );
+    const missing = reading({ restic: HOUR, snapshot: { problem: 'missing', ageMs: 4 * DAY } });
+    expect(backupPullMessage('stale', missing, ['snapshot'])).not.toContain('unreadable record');
+    expect(backupPullMessage('stale', STALE, ['restic', 'snapshot'])).not.toContain(
+      'unreadable record'
+    );
+  });
+
   it('a never-recorded kind alarms once the reader says the other has been recorded past the limit', async () => {
     const h = harness();
     const r = reading({ restic: HOUR, snapshot: { problem: 'missing', ageMs: 4 * DAY } });

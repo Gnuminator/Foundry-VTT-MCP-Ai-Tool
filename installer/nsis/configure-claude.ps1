@@ -11,7 +11,9 @@
 
   -Uninstall removes only those five entries.
 
-  Exit codes: 0 done, 1 failed, 3 Claude Desktop is still running, 4 invalid address.
+  Exit codes: 0 done, 1 failed, 3 Claude Desktop is still running, 4 invalid address, 5 done, but
+  the installer runs as a different account than the signed-in user (a warning only: the entries
+  were written into the wrong profile, so the installer should be run again as the signed-in user).
 #>
 [CmdletBinding(DefaultParameterSetName = 'Configure')]
 param(
@@ -103,6 +105,32 @@ function Get-ClaudeDesktopProcess {
         elseif ($c.Path -match 'AnthropicClaude|WindowsApps\\Claude_|\\Packages\\Claude_') { $found += $c }
     }
     return $found
+}
+
+function Get-OtherAccountName {
+    # The Claude Desktop config lives in the profile of the account this script runs as
+    # (%APPDATA%). If someone ran the installer with "Run as administrator" and typed another admin
+    # account's password, that is not the account they use Claude Desktop with, and the entries land
+    # in the wrong profile. The signed-in user is the owner of this session's explorer.exe. Returns
+    # that account's name when it differs from the account running the script, else $null. It never
+    # throws and stays quiet when it cannot tell (no explorer, no WMI): this is only a warning.
+    try {
+        $mySession = (Get-Process -Id $PID).SessionId
+        $mySid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        $explorer = @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'explorer.exe'" -ErrorAction Stop |
+            Where-Object { [int]$_.SessionId -eq [int]$mySession }) | Select-Object -First 1
+        if (-not $explorer) { return $null }
+        $owner = Invoke-CimMethod -InputObject $explorer -MethodName GetOwner -ErrorAction Stop
+        $ownerSid = Invoke-CimMethod -InputObject $explorer -MethodName GetOwnerSid -ErrorAction Stop
+        if ($ownerSid.ReturnValue -ne 0 -or [string]::IsNullOrWhiteSpace($ownerSid.Sid)) { return $null }
+        if ($ownerSid.Sid -eq $mySid) { return $null }
+        if ($owner.ReturnValue -eq 0 -and $owner.User) { return ('{0}\{1}' -f $owner.Domain, $owner.User) }
+        return $ownerSid.Sid
+    }
+    catch {
+        Write-LogMessage "Could not check which account is signed in ($($_.Exception.Message))." 'WARN'
+        return $null
+    }
 }
 
 function Wait-ForClaudeToQuit {
@@ -356,6 +384,14 @@ try {
         if (Test-BridgeReachable) { Write-LogMessage 'The bridge answered.' }
         else { Write-LogMessage "The bridge at ${BridgeHost}:${BridgePort} did not answer from this PC. Check the address and that your private network (for example Tailscale) is connected." 'WARN' }
         Write-LogMessage 'Restart Claude Desktop to load the new entries.'
+        # Only a warning: the entries were written, but into this account's profile.
+        if (-not $ConfigPath) {
+            $other = Get-OtherAccountName
+            if ($other) {
+                Write-LogMessage ("This installer runs as '{0}', but '{1}' is signed in. Claude Desktop reads its settings from the signed-in user's profile, so it will not see the new entries. Run the installer again without 'Run as administrator' (as {1})." -f [System.Security.Principal.WindowsIdentity]::GetCurrent().Name, $other) 'WARN'
+                exit 5
+            }
+        }
     }
     exit 0
 }

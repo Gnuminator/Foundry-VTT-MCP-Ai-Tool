@@ -183,6 +183,9 @@ Environment=FOUNDRY_URL=http://127.0.0.1:30000
 Environment=CHROMIUM=/usr/bin/chromium
 Environment=GM_BROWSER_PROFILE=$TOOL_DATA/gm-browser
 EnvironmentFile=$TOOL_ETC/assistant-gm.env
+# Low priority: the Assistant GM's Chromium must never compete with Foundry's main thread on game night (I-098)
+Nice=10
+CPUWeight=20
 ExecStart=$NODE_DIR/bin/node $driver_dir/assistant-gm.mjs run
 Restart=always
 RestartSec=15

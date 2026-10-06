@@ -34,6 +34,44 @@ export interface ModuleHelloData {
 }
 
 /**
+ * Frames for module-initiated requests (I-108): the bridge-linked browser asks
+ * the backend to run one of `MODULE_REQUEST_TOOLS` for a GM's "AI changes"
+ * Handouts or Tarokka window. Local mirrors of `MODULE_REQUEST_TYPE`, `MODULE_REPLY_TYPE` and
+ * `MODULE_REQUEST_TOOLS` in `shared/src/protocol.ts`, pinned by a contract test.
+ */
+export const MODULE_REQUEST_TYPE = 'module-request' as const;
+export const MODULE_REPLY_TYPE = 'module-reply' as const;
+export const MODULE_REQUEST_TOOLS = [
+  'list-recent-changes',
+  'undo-change',
+  'list-revealed-pages',
+  'plan-page-reveal',
+  'apply-planned-change',
+  'get-tarokka-reading',
+  'plan-tarokka-reveal',
+] as const;
+export type ModuleRequestTool = (typeof MODULE_REQUEST_TOOLS)[number];
+
+/** The backend's reply when a request reaches a socket that is not the active link (mirror of `MODULE_NOT_ACTIVE_LINK_ERROR`). */
+export const MODULE_NOT_ACTIVE_LINK_ERROR = 'Not the active bridge link';
+
+/** Backend → module frame listing what the bridge understands (mirrors of the shared constants). */
+export const BRIDGE_HELLO_TYPE = 'bridge-hello' as const;
+export const BRIDGE_CAPABILITY_MODULE_REQUEST = 'module-request' as const;
+
+/** What a GM sees when the linked bridge is too old to answer module requests. */
+export const BRIDGE_TOO_OLD_MESSAGE = 'Update the AI Tool bridge to use this window.';
+
+/** Largest `args` JSON (UTF-8 bytes) a module request may carry (mirror of `MODULE_REQUEST_MAX_ARGS_BYTES`). */
+export const MODULE_REQUEST_MAX_ARGS_BYTES = 20_000;
+
+/** Who asked, as the backend logs it (the Foundry user that clicked, not the link holder). */
+export interface ModuleRequester {
+  userId: string;
+  userName: string;
+}
+
+/**
  * Reconnect backoff (lane 1, PB-03): 1 s, doubling, capped at 30 s, plus up to
  * 20 % random jitter. There is no attempt limit.
  */

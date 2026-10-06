@@ -1,6 +1,10 @@
 import { Logger } from './logger.js';
 import { Config } from './config.js';
-import { FoundryConnector, type QueryOptions } from './foundry-connector.js';
+import {
+  FoundryConnector,
+  type ModuleRequestHandler,
+  type QueryOptions,
+} from './foundry-connector.js';
 
 export interface FoundryQuery {
   method: string;
@@ -72,6 +76,11 @@ export class FoundryClient {
       this.logger.error('Query failed', { method, error: errorMessage });
       throw new Error(`Query ${method} failed: ${errorMessage}`);
     }
+  }
+
+  /** Wire in the dispatcher that answers `module-request` frames from the module. */
+  setModuleRequestHandler(handler: ModuleRequestHandler | null): void {
+    this.connector.setModuleRequestHandler(handler);
   }
 
   ping(): Promise<any> {

@@ -13,7 +13,14 @@
  * human GM's own Foundry client to do something on their screen, such as
  * opening a journal page, without storing anything secret in world data.
  */
-import { MODULE_ID } from './constants.js';
+import { getOpenBridgeLink } from './bridge-link.js';
+import {
+  MODULE_ID,
+  MODULE_NOT_ACTIVE_LINK_ERROR,
+  MODULE_REQUEST_MAX_ARGS_BYTES,
+  MODULE_REQUEST_TOOLS,
+  type ModuleRequester,
+} from './constants.js';
 import { coreSupportsQuerySender } from './systems/core.js';
 import {
   parseProviderReading,
@@ -31,6 +38,8 @@ export const GM_HELPER_QUERIES = {
   tarokkaReading: `${GM_HELPER_PREFIX}tarokkaReading`,
   /** Keep a reading offered by the dealing GM until the backend imports it. */
   offerTarokkaReading: `${GM_HELPER_PREFIX}offerTarokkaReading`,
+  /** Relay: run a module-request tool through the bridge link this client holds (I-108). */
+  aiToolRequest: `${GM_HELPER_PREFIX}aiToolRequest`,
 } as const;
 
 /** Query timeout for helper calls to another client. */
@@ -121,6 +130,124 @@ function offerTarokkaReadingQuery(data: unknown, context?: FoundryQueryContext):
   return { stored: true };
 }
 
+/** What a GM sees when no browser holds the bridge link. */
+export const AI_TOOL_NOT_CONNECTED =
+  'The AI Tool bridge is not connected. Is the Assistant GM browser running?';
+
+/** How long a relayed tool call may take; an undo or an apply writes in Foundry first, so they get longer. */
+export function aiToolTimeoutMs(tool: string): number {
+  return tool === 'undo-change' || tool === 'apply-planned-change' ? 120_000 : 30_000;
+}
+
+/**
+ * True when this client's link, or the GM client that answered, cannot serve the
+ * request but another GM's client might: no link is open, or the bridge serves a
+ * newer link. Any other error is the real answer and ends the search.
+ */
+export function isBridgeLinkUnavailable(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message === AI_TOOL_NOT_CONNECTED || error.message === MODULE_NOT_ACTIVE_LINK_ERROR)
+  );
+}
+
+/** Validate a `{tool, args}` relay payload. */
+export function parseAiToolPayload(data: unknown): {
+  tool: string;
+  args: Record<string, unknown>;
+} {
+  const d = (data ?? {}) as { tool?: unknown; args?: unknown };
+  if (typeof d.tool !== 'string' || !(MODULE_REQUEST_TOOLS as readonly string[]).includes(d.tool)) {
+    throw new Error(`Invalid payload: tool must be one of ${MODULE_REQUEST_TOOLS.join(', ')}`);
+  }
+  const args = d.args ?? {};
+  if (typeof args !== 'object' || args === null || Array.isArray(args)) {
+    throw new Error('Invalid payload: args must be an object');
+  }
+  // Real UTF-8 bytes, the unit the backend enforces.
+  if (new TextEncoder().encode(JSON.stringify(args)).length > MODULE_REQUEST_MAX_ARGS_BYTES) {
+    throw new Error('Invalid payload: args are too large');
+  }
+  return { tool: d.tool, args: args as Record<string, unknown> };
+}
+
+/**
+ * `CONFIG.queries` handler: run a module-request tool through this client's
+ * open bridge link for a GM sender. Only the client that holds the link can
+ * answer; any other client says the bridge is not connected.
+ */
+async function aiToolRequestQuery(data: unknown, context?: FoundryQueryContext): Promise<unknown> {
+  const sender = requireGmSender(context);
+  if (!game.user.isGM) throw new Error('Rejected: this client is not a GM');
+  const { tool, args } = parseAiToolPayload(data);
+  const link = getOpenBridgeLink();
+  if (!link) throw new Error(AI_TOOL_NOT_CONNECTED);
+  const requestedBy: ModuleRequester = { userId: sender.id, userName: sender.name };
+  return link.request(tool, args, requestedBy, aiToolTimeoutMs(tool));
+}
+
+/** The GM clients that may hold the bridge link: the configured bridge user, else every other active GM. */
+function bridgeLinkCandidates(): User[] {
+  let configured: unknown = '';
+  try {
+    configured = game.settings.get(MODULE_ID, 'bridgeUserId');
+  } catch {
+    // The setting is not registered (a partial world): treat as "Any GM".
+  }
+  if (typeof configured === 'string' && configured !== '') {
+    const user = game.users.get(configured);
+    return user && user.active && user.id !== game.user.id ? [user] : [];
+  }
+  return game.users.filter(u => u.isGM && u.active && u.id !== game.user.id);
+}
+
+/**
+ * Run a module-request tool (`MODULE_REQUEST_TOOLS`) for this GM
+ * through the backend. When this client holds the bridge link the request goes
+ * straight over it; otherwise it asks the GM client that does, through Foundry's
+ * GM-only `user.query`, and that client relays it over the link.
+ */
+export async function aiToolRequest(
+  tool: string,
+  args: Record<string, unknown> = {}
+): Promise<unknown> {
+  parseAiToolPayload({ tool, args });
+  const timeoutMs = aiToolTimeoutMs(tool);
+  const link = getOpenBridgeLink();
+  if (link) {
+    try {
+      return await link.request(
+        tool,
+        args,
+        { userId: game.user.id, userName: game.user.name },
+        timeoutMs
+      );
+    } catch (error) {
+      // With "Any GM" every GM browser opens a link but the bridge serves only the newest one:
+      // an older tab asks the GM client that holds the active link instead.
+      if (!isBridgeLinkUnavailable(error)) throw error;
+    }
+  }
+  if (!coreSupportsQuerySender()) {
+    throw new Error(
+      'Reaching the AI Tool bridge from another client needs Foundry 14.352 or newer'
+    );
+  }
+  for (const candidate of bridgeLinkCandidates()) {
+    try {
+      return await candidate.query(
+        GM_HELPER_QUERIES.aiToolRequest,
+        { tool, args },
+        { timeout: timeoutMs + 2_000 }
+      );
+    } catch (error) {
+      // A GM who does not hold the active link says so; try the next one. Anything else is the real answer.
+      if (!isBridgeLinkUnavailable(error)) throw error;
+    }
+  }
+  throw new Error(AI_TOOL_NOT_CONNECTED);
+}
+
 /** Ask another GM's client for its tarokka-reading reading. */
 export async function fetchTarokkaReadingFromUser(userId: string): Promise<ProviderReading | null> {
   if (!coreSupportsQuerySender()) {
@@ -152,6 +279,7 @@ export function registerGmHelperQueries(): boolean {
   CONFIG.queries[GM_HELPER_QUERIES.openDocument] = openDocumentQuery;
   CONFIG.queries[GM_HELPER_QUERIES.tarokkaReading] = tarokkaReadingQuery;
   CONFIG.queries[GM_HELPER_QUERIES.offerTarokkaReading] = offerTarokkaReadingQuery;
+  CONFIG.queries[GM_HELPER_QUERIES.aiToolRequest] = aiToolRequestQuery;
   return true;
 }
 

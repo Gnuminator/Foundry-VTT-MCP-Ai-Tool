@@ -1,9 +1,15 @@
 import {
   MODULE_ID,
   CONNECTION_STATES,
+  BRIDGE_CAPABILITY_MODULE_REQUEST,
+  BRIDGE_HELLO_TYPE,
+  BRIDGE_TOO_OLD_MESSAGE,
   MODULE_HELLO_TYPE,
+  MODULE_REPLY_TYPE,
+  MODULE_REQUEST_TYPE,
   RECONNECT_BACKOFF,
   type ModuleHelloData,
+  type ModuleRequester,
 } from './constants.js';
 import { bridgeHandlers } from './bridge-handlers.js';
 
@@ -39,6 +45,18 @@ export function reconnectDelayMs(attempt: number, random: () => number = Math.ra
   return Math.round(base * (1 - random() * RECONNECT_BACKOFF.JITTER));
 }
 
+/** How long a module-initiated request waits for the backend's reply. */
+export const MODULE_REQUEST_TIMEOUT_MS = 30_000;
+
+/** How long a request waits for the bridge's `bridge-hello` before it calls the bridge too old. */
+export const BRIDGE_HELLO_WAIT_MS = 1_500;
+
+interface PendingModuleRequest {
+  resolve: (value: unknown) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 /**
  * Browser-compatible socket bridge: one WebSocket link to the backend
  */
@@ -50,6 +68,12 @@ export class SocketBridge {
   /** Set by `disconnect()`: the owner closed the link on purpose, so nothing reconnects. */
   private stopped = false;
   private activeConnectionType: 'websocket' | null = null;
+  /** Module-initiated requests waiting for their `module-reply` (I-108). */
+  private pendingRequests = new Map<string, PendingModuleRequest>();
+  private requestSeq = 0;
+  /** What the linked bridge says it understands; null until its `bridge-hello` (an old bridge never sends one). */
+  private bridgeCapabilities: ReadonlySet<string> | null = null;
+  private bridgeHelloWaiters = new Set<() => void>();
 
   constructor(private config: BridgeConfig) {}
 
@@ -88,6 +112,7 @@ export class SocketBridge {
         if (!isCurrent()) return;
         this.log('Connection timeout');
         this.ws = null;
+        this.rejectPendingRequests('Connection closed');
         try {
           ws.close();
         } catch {
@@ -107,6 +132,7 @@ export class SocketBridge {
           clearTimeout(connectTimeout);
           this.connectionState = CONNECTION_STATES.CONNECTED;
           this.reconnectAttempts = 0;
+          this.bridgeCapabilities = null;
           this.log('Connected to MCP server via WebSocket');
           this.setupEventHandlers();
           this.sendHello();
@@ -160,6 +186,9 @@ export class SocketBridge {
 
     this.activeConnectionType = null;
     this.connectionState = CONNECTION_STATES.DISCONNECTED;
+    this.rejectPendingRequests('Connection closed');
+    this.bridgeCapabilities = null;
+    this.releaseBridgeHelloWaiters();
     this.log('Disconnected from MCP server');
   }
 
@@ -186,6 +215,10 @@ export class SocketBridge {
             data: response,
           });
         });
+      } else if ((message as { type?: unknown }).type === MODULE_REPLY_TYPE) {
+        this.handleModuleReply(message);
+      } else if ((message as { type?: unknown }).type === BRIDGE_HELLO_TYPE) {
+        this.handleBridgeHello(message);
       } else if (message.type === 'ping') {
         this.sendMessage({
           type: 'pong',
@@ -228,8 +261,96 @@ export class SocketBridge {
     }
   }
 
+  /**
+   * Ask the backend to run one of the module-request tools for the Foundry user
+   * `requestedBy` and resolve with its result (I-108). Rejects with the backend's
+   * error text, when the link closes, or after `timeoutMs`.
+   */
+  async request(
+    tool: string,
+    args: Record<string, unknown>,
+    requestedBy: ModuleRequester,
+    timeoutMs: number = MODULE_REQUEST_TIMEOUT_MS
+  ): Promise<unknown> {
+    if (!this.isConnected() || !this.ws) {
+      throw new Error('The AI Tool bridge is not connected');
+    }
+    // An old bridge never answers a module-request (it would sit until the timeout), so ask first.
+    if (this.bridgeCapabilities === null) await this.waitForBridgeHello(BRIDGE_HELLO_WAIT_MS);
+    if (!this.isConnected() || !this.ws) {
+      throw new Error('The AI Tool bridge is not connected');
+    }
+    if (!this.bridgeCapabilities?.has(BRIDGE_CAPABILITY_MODULE_REQUEST)) {
+      throw new Error(BRIDGE_TOO_OLD_MESSAGE);
+    }
+    const id = `module-req-${++this.requestSeq}`;
+    return new Promise<unknown>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(id);
+        reject(new Error(`The AI Tool backend did not answer in time (${tool})`));
+      }, timeoutMs);
+      this.pendingRequests.set(id, { resolve, reject, timer });
+      this.sendMessage({ type: MODULE_REQUEST_TYPE, id, data: { tool, args, requestedBy } });
+      // sendMessage swallows a send failure; the request then waits for its timeout or the close.
+    });
+  }
+
+  /** The bridge says what it understands; release any request that waited for it. */
+  private handleBridgeHello(message: unknown): void {
+    const capabilities = (message as { data?: { capabilities?: unknown } }).data?.capabilities;
+    this.bridgeCapabilities = new Set(
+      Array.isArray(capabilities) ? capabilities.filter(c => typeof c === 'string') : []
+    );
+    this.releaseBridgeHelloWaiters();
+  }
+
+  private waitForBridgeHello(ms: number): Promise<void> {
+    return new Promise<void>(resolve => {
+      const done = (): void => {
+        clearTimeout(timer);
+        this.bridgeHelloWaiters.delete(done);
+        resolve();
+      };
+      const timer = setTimeout(done, ms);
+      this.bridgeHelloWaiters.add(done);
+    });
+  }
+
+  private releaseBridgeHelloWaiters(): void {
+    for (const done of [...this.bridgeHelloWaiters]) done();
+  }
+
+  private handleModuleReply(message: unknown): void {
+    const frame = message as {
+      id?: unknown;
+      data?: { success?: unknown; data?: unknown; error?: unknown };
+    };
+    const id = typeof frame.id === 'string' ? frame.id : '';
+    const pending = this.pendingRequests.get(id);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingRequests.delete(id);
+    if (frame.data?.success === true) {
+      pending.resolve(frame.data.data);
+    } else {
+      const error = frame.data?.error;
+      pending.reject(new Error(typeof error === 'string' && error ? error : 'Request failed'));
+    }
+  }
+
+  private rejectPendingRequests(reason: string): void {
+    for (const [id, pending] of [...this.pendingRequests]) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error(reason));
+      this.pendingRequests.delete(id);
+    }
+  }
+
   /** The link is down: note it and plan the retry (a pending retry keeps its RECONNECTING state). */
   private linkDown(): void {
+    this.rejectPendingRequests('Connection closed');
+    this.bridgeCapabilities = null;
+    this.releaseBridgeHelloWaiters();
     if (!this.reconnectTimer) this.connectionState = CONNECTION_STATES.DISCONNECTED;
     this.scheduleReconnect();
   }

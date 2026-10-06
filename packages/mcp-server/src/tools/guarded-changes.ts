@@ -153,7 +153,8 @@ export class GuardedChangeTools {
     return Promise.resolve({ plans: this.guardedWrites.listPlans() });
   }
 
-  async handleApplyPlannedChange(args: unknown): Promise<AppliedChange> {
+  /** `requestedBy`: who asked, when it was not Claude (a GM's window in Foundry). */
+  async handleApplyPlannedChange(args: unknown, requestedBy?: string): Promise<AppliedChange> {
     const params = z
       .object({
         planId: z.string().min(1),
@@ -162,12 +163,16 @@ export class GuardedChangeTools {
       })
       .parse(args ?? {});
     try {
-      return await this.guardedWrites.applyPlan(params.planId, {
-        ...(params.confirm !== undefined ? { confirm: params.confirm } : {}),
-        ...(params.confirmDestructive !== undefined
-          ? { confirmDestructive: params.confirmDestructive }
-          : {}),
-      });
+      return await this.guardedWrites.applyPlan(
+        params.planId,
+        {
+          ...(params.confirm !== undefined ? { confirm: params.confirm } : {}),
+          ...(params.confirmDestructive !== undefined
+            ? { confirmDestructive: params.confirmDestructive }
+            : {}),
+        },
+        requestedBy
+      );
     } catch (error) {
       this.logger.warn('Planned change not applied', {
         planId: params.planId,
@@ -184,14 +189,16 @@ export class GuardedChangeTools {
     return { changes: await this.guardedWrites.listRecentChanges(limit ?? 20) };
   }
 
-  async handleUndoChange(args: unknown): Promise<AppliedChange> {
+  /** `requestedBy`: who asked, when it was not Claude (a GM's "AI changes" window in Foundry). */
+  async handleUndoChange(args: unknown, requestedBy?: string): Promise<AppliedChange> {
     const params = z
       .object({ changeId: z.string().min(1), confirm: z.boolean().optional() })
       .parse(args ?? {});
     try {
       return await this.guardedWrites.undo(
         params.changeId,
-        params.confirm !== undefined ? { confirm: params.confirm } : {}
+        params.confirm !== undefined ? { confirm: params.confirm } : {},
+        requestedBy
       );
     } catch (error) {
       this.logger.warn('Change not undone', {

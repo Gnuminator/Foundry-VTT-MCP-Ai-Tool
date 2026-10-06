@@ -348,3 +348,235 @@
 [data-service-type].hidden {
   display: none;
 }
+/* AI changes window (I-108). Colours come from Foundry's theme variables or from
+   currentColor, so the window reads the same in the dark and the light theme. */
+.fmb-ai-window .window-content {
+  padding: 0.5rem;
+  overflow-y: auto;
+  color: var(--color-text-primary);
+}
+
+.fmb-ai-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.fmb-ai-btn {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 0 0.75rem;
+  white-space: nowrap;
+}
+
+.fmb-ai-notice {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: var(--color-text-secondary);
+}
+
+.fmb-ai-notice.fmb-ai-error {
+  color: var(--color-level-error, #ce0707);
+  background: color-mix(in srgb, var(--color-level-error, #ce0707) 12%, transparent);
+}
+
+.fmb-ai-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.fmb-ai-row {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.fmb-ai-row.fmb-ai-undone {
+  opacity: 0.65;
+}
+
+.fmb-ai-row.fmb-ai-undo {
+  border-style: dashed;
+}
+
+.fmb-ai-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.fmb-ai-time {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-subtle);
+}
+
+.fmb-ai-summary {
+  flex: 1 1 auto;
+  font-weight: bold;
+  overflow-wrap: anywhere;
+}
+
+.fmb-ai-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+}
+
+.fmb-ai-meta:empty {
+  display: none;
+}
+
+.fmb-ai-tag,
+.fmb-ai-state {
+  padding: 0 0.4rem;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-radius: 3px;
+  font-size: var(--font-size-12, 0.75rem);
+  color: var(--color-text-secondary);
+}
+
+.fmb-ai-state {
+  font-style: italic;
+}
+
+.fmb-ai-details {
+  margin-top: 0.3rem;
+  font-size: var(--font-size-12, 0.75rem);
+}
+
+.fmb-ai-details > summary {
+  cursor: pointer;
+  color: var(--color-text-secondary);
+}
+
+.fmb-ai-diff {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.fmb-ai-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.3rem;
+}
+
+.fmb-ai-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+/* Handouts window (I-108 part 2): reuses the AI changes window classes above. */
+.fmb-ho-toolbar {
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.fmb-ho-show {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-right: auto;
+  white-space: nowrap;
+}
+
+.fmb-ho-heading {
+  margin: 0.75rem 0 0.35rem;
+  font-size: var(--font-size-14, 0.875rem);
+  border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+}
+
+.fmb-ai-row.fmb-ho-next {
+  border-color: var(--color-text-secondary);
+}
+
+.fmb-ho-ticks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: var(--font-size-12, 0.75rem);
+}
+
+.fmb-ho-tick {
+  color: var(--color-text-subtle);
+}
+
+.fmb-ho-tick.fmb-ho-seen {
+  color: var(--color-text-primary);
+}
+
+/* Tarokka window (I-108 part 3): reuses the AI changes and Handouts classes above. */
+.fmb-tk-sub {
+  margin: 0 0 0.4rem;
+  font-size: var(--font-size-12, 0.75rem);
+  color: var(--color-text-subtle);
+}
+
+.fmb-tk-card {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.fmb-tk-card code {
+  font-size: var(--font-size-12, 0.75rem);
+  color: var(--color-text-subtle);
+}
+
+.fmb-tk-card.fmb-tk-veiled {
+  font-style: italic;
+  color: var(--color-text-subtle);
+  user-select: none;
+}
+
+.fmb-tk-note {
+  margin-top: 0.3rem;
+  font-size: var(--font-size-12, 0.75rem);
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.fmb-tk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.4rem;
+}
+
+.fmb-tk-revealed {
+  color: var(--color-level-error, #ce0707);
+}
+
+.fmb-tk-form {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.fmb-tk-field {
+  display: grid;
+  gap: 0.15rem;
+  font-size: var(--font-size-12, 0.75rem);
+  color: var(--color-text-secondary);
+}
+
+.fmb-tk-formrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}

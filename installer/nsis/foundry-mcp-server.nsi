@@ -292,6 +292,14 @@ Function UpdateClaudeConfig
       Return
     ${EndIf}
 
+    ; 5: written, but this installer runs as another account than the signed-in user (a warning, not
+    ; an error: the files are in place, Claude Desktop just will not read them from that profile).
+    ${If} $0 == 5
+      DetailPrint "Warning: the installer runs as a different account than the signed-in user."
+      MessageBox MB_ICONEXCLAMATION|MB_OK "The Claude Desktop settings were written to the profile of the account running this installer, which is not the account you are signed in with.$\r$\n$\r$\nClaude Desktop will not see the new connectors. Run this installer again by double-clicking it (not with Run as administrator, which asks for another account's password), so it runs as you.$\r$\n$\r$\nDetails: $TEMP\foundry-mcp-claude-config.log" /SD IDOK
+      Return
+    ${EndIf}
+
     ${If} $0 == 3
       DetailPrint "Claude Desktop is still running."
       MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Claude Desktop is running.$\r$\n$\r$\nIt rewrites its settings when it closes, which would undo this change. Quit it completely (right-click its icon in the system tray, then Quit) and click Retry.$\r$\n$\r$\nCancel skips the Claude Desktop step; run this installer again later to finish." /SD IDCANCEL IDRETRY config_try

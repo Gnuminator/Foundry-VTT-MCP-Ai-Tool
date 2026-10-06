@@ -3,13 +3,19 @@ import { EventEmitter } from 'events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 
+import { MODULE_NOT_ACTIVE_LINK_ERROR, MODULE_REQUEST_MAX_ARGS_BYTES } from '@gnuminator/shared';
+
 import { FoundryConnector, LINK_DOWN_WARN_MS } from './foundry-connector.js';
 
 class FakeSocket extends EventEmitter {
   readyState: number = WebSocket.OPEN;
+  /** Frames the backend sent, apart from the `bridge-hello` it sends on connect. */
   sent: any[] = [];
+  bridgeHellos: any[] = [];
   send = vi.fn((raw: string) => {
-    this.sent.push(JSON.parse(raw));
+    const frame = JSON.parse(raw);
+    if (frame.type === 'bridge-hello') this.bridgeHellos.push(frame);
+    else this.sent.push(frame);
   });
   close = vi.fn(() => this.drop());
 
@@ -268,5 +274,128 @@ describe('link state (PB-03)', () => {
     const handle = spy.mock.results.at(-1)?.value as { hasRef?: () => boolean } | undefined;
     if (handle?.hasRef) expect(handle.hasRef()).toBe(false);
     spy.mockRestore();
+  });
+});
+
+describe('module requests (I-108)', () => {
+  const requestFrame = (
+    tool: string,
+    args: Record<string, unknown> = {},
+    id = 'req-1'
+  ): Record<string, unknown> => ({
+    type: 'module-request',
+    id,
+    data: { tool, args, requestedBy: { userId: 'u1', userName: 'Danni' } },
+  });
+  const flush = (): Promise<void> => vi.advanceTimersByTimeAsync(0);
+
+  it('runs an allowed tool through the dispatcher and replies on the same socket', async () => {
+    const handler = vi.fn(async () => ({ changes: [] }));
+    connector.setModuleRequestHandler(handler);
+    const a = connect();
+    a.say(requestFrame('list-recent-changes', { limit: 20 }));
+    await flush();
+    expect(handler).toHaveBeenCalledWith(
+      'list-recent-changes',
+      { limit: 20 },
+      { userId: 'u1', userName: 'Danni' }
+    );
+    expect(a.sent).toEqual([
+      { type: 'module-reply', id: 'req-1', data: { success: true, data: { changes: [] } } },
+    ]);
+    expect(logger.info).toHaveBeenCalledWith('Module request', {
+      tool: 'list-recent-changes',
+      requestedBy: 'Danni',
+    });
+  });
+
+  it('replies with the error message when the tool throws', async () => {
+    connector.setModuleRequestHandler(async () => {
+      throw new Error('Documents changed since the change was made');
+    });
+    const a = connect();
+    a.say(requestFrame('undo-change', { changeId: 'c1', confirm: true }));
+    await flush();
+    expect(a.sent[0].data).toEqual({
+      success: false,
+      error: 'Documents changed since the change was made',
+    });
+  });
+
+  it('refuses a request from a socket that is not the active bridge link', async () => {
+    const handler = vi.fn(async () => ({}));
+    connector.setModuleRequestHandler(handler);
+    const bridge = connect();
+    bridge.hello('Claude', true);
+    const other = connect();
+    other.hello('Gamemaster', false);
+    other.say(requestFrame('list-recent-changes'));
+    await flush();
+    expect(handler).not.toHaveBeenCalled();
+    expect(other.sent[0].data).toEqual({ success: false, error: MODULE_NOT_ACTIVE_LINK_ERROR });
+    expect(bridge.sent).toEqual([]);
+  });
+
+  it('refuses a tool that is not on the module-request list', async () => {
+    const handler = vi.fn(async () => ({}));
+    connector.setModuleRequestHandler(handler);
+    const a = connect();
+    a.say(requestFrame('plan-tarokka-links', { position: 'p', text: 't' }));
+    a.say(requestFrame('toString', {}, 'req-2'));
+    await flush();
+    expect(handler).not.toHaveBeenCalled();
+    expect(a.sent.map(m => m.data.success)).toEqual([false, false]);
+    expect(a.sent[0].data.error).toMatch(/not allowed/);
+  });
+
+  it('refuses arguments over 20 kB', async () => {
+    const handler = vi.fn(async () => ({}));
+    connector.setModuleRequestHandler(handler);
+    const a = connect();
+    a.say(requestFrame('list-recent-changes', { pad: 'x'.repeat(20_001) }));
+    await flush();
+    expect(handler).not.toHaveBeenCalled();
+    expect(a.sent[0].data).toEqual({ success: false, error: 'Request arguments are too large' });
+  });
+
+  it('counts real UTF-8 bytes, not characters, against the cap', async () => {
+    const handler = vi.fn(async () => ({}));
+    connector.setModuleRequestHandler(handler);
+    const a = connect();
+    // 8,000 three-byte characters: 8,000 characters, 24,000 bytes of JSON.
+    a.say(requestFrame('list-recent-changes', { pad: '€'.repeat(8_000) }));
+    await flush();
+    expect(handler).not.toHaveBeenCalled();
+    expect(a.sent[0].data).toEqual({ success: false, error: 'Request arguments are too large' });
+    // Just under the cap in bytes is accepted.
+    const room = MODULE_REQUEST_MAX_ARGS_BYTES - JSON.stringify({ pad: '' }).length - 2;
+    a.say(requestFrame('list-recent-changes', { pad: 'x'.repeat(room) }, 'req-ok'));
+    await flush();
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells every module socket what it supports, right after it connects', () => {
+    const a = connect();
+    expect(a.bridgeHellos).toEqual([
+      { type: 'bridge-hello', data: { capabilities: ['module-request'] } },
+    ]);
+    expect(a.sent).toEqual([]);
+  });
+
+  it('answers an invalid frame that still has an id, and ignores one without', async () => {
+    connector.setModuleRequestHandler(async () => ({}));
+    const a = connect();
+    a.say({ type: 'module-request', id: 'bad-1', data: { tool: 'list-recent-changes' } });
+    a.say({ type: 'module-request', data: {} });
+    await flush();
+    expect(a.sent).toHaveLength(1);
+    expect(a.sent[0]).toMatchObject({ id: 'bad-1', data: { success: false } });
+  });
+
+  it('says so when no dispatcher is wired in', async () => {
+    const a = connect();
+    a.say(requestFrame('list-recent-changes'));
+    await flush();
+    expect(a.sent[0].data).toEqual({ success: false, error: 'Module requests are not available' });
   });
 });

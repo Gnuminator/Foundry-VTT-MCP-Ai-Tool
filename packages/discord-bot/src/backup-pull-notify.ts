@@ -58,6 +58,12 @@ const KIND_LABEL: Record<BackupPullKind, string> = {
   snapshot: 'snapshot',
 };
 
+/** The PC's Task Scheduler task that copies each kind (and writes its record on success). */
+const TASK_NAME: Record<BackupPullKind, string> = {
+  restic: 'Foundry Pi restic copy',
+  snapshot: 'Foundry Pi snapshot pull',
+};
+
 /** "restic", "snapshot" or "restic and snapshot". */
 function kindsText(kinds: readonly BackupPullKind[]): string {
   return kinds.map(k => KIND_LABEL[k]).join(' and ');
@@ -124,9 +130,15 @@ export function backupPullMessage(
       .join('; ');
   }
   const limit = `${reading.limitDays} ${reading.limitDays === 1 ? 'day' : 'days'}`;
+  // A record that cannot be read is only fixed by a successful pull: it writes the file again.
+  const unreadable = pulls.filter(p => p.problem !== null && p.problem.reason !== 'missing');
+  const rewrite =
+    unreadable.length > 0
+      ? `To fix the unreadable record, run ${unreadable.map(p => `"${TASK_NAME[p.kind]}"`).join(' and ')} once in Task Scheduler: a successful run writes the record again.\n`
+      : '';
   return (
     `${headline}${again} (the limit is ${limit}).\n` +
-    `${kindLine('restic', pullOf(reading, 'restic'))}\n${kindLine('snapshot', pullOf(reading, 'snapshot'))}\n` +
+    `${kindLine('restic', pullOf(reading, 'restic'))}\n${kindLine('snapshot', pullOf(reading, 'snapshot'))}\n${rewrite}` +
     'Turn the PC on, or run the two tasks "Foundry Pi restic copy" and "Foundry Pi snapshot pull" in Task Scheduler. ' +
     'Until then the only copies are on the Pi.'
   );

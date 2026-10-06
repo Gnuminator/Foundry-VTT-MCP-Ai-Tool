@@ -141,12 +141,12 @@ async function loadSessionEvents(
     if (!stat) continue;
     const cached = cache.logs.get(file);
     if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
-      all.push(...cached.events);
+      for (const item of cached.events) all.push(item);
       continue;
     }
     const events = (await store.readLines(worldId, 'sessions', file)) as SessionEvent[];
     cache.logs.set(file, { size: stat.size, mtimeMs: stat.mtimeMs, events });
-    all.push(...events);
+    for (const item of events) all.push(item);
   }
   return all;
 }
@@ -179,12 +179,12 @@ async function loadPlayRecords(
     if (!stat) continue;
     const cached = cache.playLogs.get(file);
     if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
-      all.push(...cached.records);
+      for (const item of cached.records) all.push(item);
       continue;
     }
     const records = (await store.readLines(worldId, 'sessions', file)).filter(isPlayRecordLike);
     cache.playLogs.set(file, { size: stat.size, mtimeMs: stat.mtimeMs, records });
-    all.push(...records);
+    for (const item of records) all.push(item);
   }
   return all;
 }
@@ -219,12 +219,12 @@ async function loadUsageEvents(
     if (!stat) continue;
     const cached = cache.usageLogs.get(file);
     if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
-      all.push(...cached.events);
+      for (const item of cached.events) all.push(item);
       continue;
     }
     const events = (await store.readLines(worldId, 'sessions', file)).filter(isUsageEventLike);
     cache.usageLogs.set(file, { size: stat.size, mtimeMs: stat.mtimeMs, events });
-    all.push(...events);
+    for (const item of events) all.push(item);
   }
   return all;
 }

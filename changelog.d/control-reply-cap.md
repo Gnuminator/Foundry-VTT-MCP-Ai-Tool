@@ -5,3 +5,6 @@
   buffer overflow" and reset the control connection, failing every pending request. The size limit
   now applies only to one unfinished line and is 32 MB, so big replies arrive in many chunks and
   resolve; a line that never ends still resets the connection, and the log now says how large it was.
+- **`get-play-stats` works on a very long play log:** with a few hundred thousand records it failed with
+  "Maximum call stack size exceeded" (the stats and the Obsidian export spread whole logs into one
+  call). They now loop instead.

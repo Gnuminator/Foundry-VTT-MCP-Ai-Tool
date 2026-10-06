@@ -8,7 +8,8 @@
  *   rebuilt on every export (a note whose text did not change is left alone,
  *   and one the GM edited is skipped, both via `ownership.ts`).
  * - `Campaigns/<worldId>/Home.md` and `Prep/` are the GM's: created once if
- *   missing, never rewritten.
+ *   missing, never rewritten (except a Home that still holds an older
+ *   template untouched, which gets the current one: `campaign-home-legacy.ts`).
  * - Nothing outside `Campaigns/<worldId>/` is written. Writes are atomic
  *   (dot-prefixed temp file + rename, `atomic-write.ts`).
  * - A note this export no longer produces, but that is still ours (or a
@@ -38,6 +39,7 @@ import type { AuditEntry, AuditLog } from '../vault/audit.js';
 import type { VaultStore } from '../vault/store.js';
 
 import { mergeChangeHistory, type ChangeEntry } from './audit-merge.js';
+import { isUntouchedLegacyHome } from './campaign-home-legacy.js';
 import { groupWithPlayRecords, type SessionEvent } from './grouping.js';
 import { campaignDir, NoteWriter } from './note-writer.js';
 import { baseOwnershipCheck, checkCanvasOwnership, checkMarkdownOwnership } from './ownership.js';
@@ -268,7 +270,12 @@ export async function exportWorldToObsidian(options: {
   const root = campaignDir(options.vaultDir, worldId);
   const writer = new NoteWriter(root, path.resolve(options.vaultDir), worldId, cache);
 
-  await writer.createOnce('Home.md', renderCampaignHome(worldId));
+  await writer.createOrUpgrade(
+    'Home.md',
+    renderCampaignHome(worldId),
+    text => isUntouchedLegacyHome(worldId, text),
+    'your own Home (edited in Obsidian), so the tool did not upgrade it to the new template; a new Home also has an Adventures section'
+  );
   await writer.createOnce('Prep', null);
   await writer.createOnce('Prep/README.md', PREP_README);
   await createPrepTemplates(writer);

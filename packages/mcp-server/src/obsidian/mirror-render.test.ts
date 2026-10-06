@@ -1940,6 +1940,11 @@ describe('renderAdventureHub', () => {
     expect(relativeLinkTarget(note.path, BOOK.path)).toBe('../../Library/Books/Adventure%20X.md');
   });
 
+  it('links the Campaign Home with a relative link from Adventures (I-120 b)', () => {
+    const { body } = split(renderAdventureHub(W, makeHub(), null).text);
+    expect(body).toContain('Part of [the campaign home](../../../Home.md).');
+  });
+
   it('has no book line and no book property when there is no book', () => {
     const note = renderAdventureHub(W, makeHub(), null);
     expect(note.text).not.toContain('From the book');

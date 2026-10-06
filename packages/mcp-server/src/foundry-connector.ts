@@ -1,6 +1,20 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
-import { ModuleHelloFrameSchema, type ModuleHelloData } from '@gnuminator/shared';
+import {
+  BRIDGE_CAPABILITY_MODULE_REQUEST,
+  BRIDGE_HELLO_TYPE,
+  MODULE_NOT_ACTIVE_LINK_ERROR,
+  MODULE_REPLY_TYPE,
+  MODULE_REQUEST_MAX_ARGS_BYTES,
+  MODULE_REQUEST_TOOLS,
+  MODULE_REQUEST_TYPE,
+  ModuleHelloFrameSchema,
+  ModuleRequestFrameSchema,
+  type BridgeHelloData,
+  type ModuleHelloData,
+  type ModuleReplyData,
+  type ModuleRequestData,
+} from '@gnuminator/shared';
 import { Logger } from './logger.js';
 import { Config } from './config.js';
 
@@ -47,6 +61,17 @@ export interface QueryOptions {
   timeoutMs?: number;
 }
 
+/**
+ * Runs one tool for a `module-request` frame (the backend wires in the same
+ * in-process dispatch the control channel's `call_tool` uses, so the connector
+ * never imports the tool router). A throw becomes the reply's `error`.
+ */
+export type ModuleRequestHandler = (
+  tool: string,
+  args: Record<string, unknown>,
+  requestedBy: ModuleRequestData['requestedBy']
+) => Promise<unknown>;
+
 export class FoundryConnector {
   private wss: WebSocketServer | null = null;
   private httpServer: any;
@@ -68,6 +93,7 @@ export class FoundryConnector {
   private linkDownLogged = false;
   private linkDownTimer: NodeJS.Timeout | null = null;
   private linkWatchTimer: NodeJS.Timeout | null = null;
+  private moduleRequestHandler: ModuleRequestHandler | null = null;
 
   constructor({ config, logger }: FoundryConnectorOptions) {
     this.config = config;
@@ -143,6 +169,7 @@ export class FoundryConnector {
     this.sockets.set(ws, { seq: ++this.socketSeq, hello: null });
     this.selectActiveSocket();
     this.syncLinkState();
+    this.sendBridgeHello(ws);
 
     ws.on('close', () => {
       this.logger.info('Client disconnected');
@@ -161,6 +188,8 @@ export class FoundryConnector {
 
         if (message.type === 'module-hello') {
           this.handleHello(message, ws);
+        } else if (message.type === MODULE_REQUEST_TYPE) {
+          await this.handleModuleRequest(message, ws);
         } else {
           await this.handleMessage(message);
         }
@@ -190,6 +219,87 @@ export class FoundryConnector {
       moduleVersion: entry.hello.moduleVersion,
     });
     this.selectActiveSocket();
+  }
+
+  /**
+   * Tell a module socket what this bridge understands, so a new module can fail
+   * fast against an older bridge (which never sends this). Older modules ignore it.
+   */
+  private sendBridgeHello(ws: WebSocket): void {
+    const data: BridgeHelloData = { capabilities: [BRIDGE_CAPABILITY_MODULE_REQUEST] };
+    try {
+      ws.send(JSON.stringify({ type: BRIDGE_HELLO_TYPE, data }));
+    } catch (error) {
+      this.logger.debug('Could not send bridge-hello', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /** Set the dispatcher for `module-request` frames (see {@link ModuleRequestHandler}). */
+  setModuleRequestHandler(handler: ModuleRequestHandler | null): void {
+    this.moduleRequestHandler = handler;
+  }
+
+  /**
+   * A `module-request` frame: the bridge-linked browser asks for one of a short
+   * list of tools on behalf of a GM's Foundry window. Only the active socket may
+   * ask; the answer goes back on the same socket as a `module-reply`.
+   */
+  private async handleModuleRequest(message: unknown, ws: WebSocket): Promise<void> {
+    const parsed = ModuleRequestFrameSchema.safeParse(message);
+    if (!parsed.success) {
+      const id = (message as { id?: unknown }).id;
+      if (typeof id === 'string' && id.length > 0 && id.length <= 100) {
+        this.replyToModule(ws, id, { success: false, error: 'Invalid module request' });
+      } else {
+        this.logger.debug('Ignoring invalid module-request frame');
+      }
+      return;
+    }
+    const { id, data } = parsed.data;
+    const requestedBy = data.requestedBy.userName || data.requestedBy.userId;
+    this.logger.info('Module request', { tool: data.tool, requestedBy });
+
+    if (ws !== this.foundrySocket) {
+      this.replyToModule(ws, id, { success: false, error: MODULE_NOT_ACTIVE_LINK_ERROR });
+      return;
+    }
+    if (!(MODULE_REQUEST_TOOLS as readonly string[]).includes(data.tool)) {
+      this.replyToModule(ws, id, {
+        success: false,
+        error: `Tool not allowed for module requests: ${data.tool}`,
+      });
+      return;
+    }
+    if (Buffer.byteLength(JSON.stringify(data.args), 'utf8') > MODULE_REQUEST_MAX_ARGS_BYTES) {
+      this.replyToModule(ws, id, { success: false, error: 'Request arguments are too large' });
+      return;
+    }
+    if (!this.moduleRequestHandler) {
+      this.replyToModule(ws, id, { success: false, error: 'Module requests are not available' });
+      return;
+    }
+    try {
+      const result = await this.moduleRequestHandler(data.tool, data.args, data.requestedBy);
+      this.replyToModule(ws, id, { success: true, data: result });
+    } catch (error) {
+      this.replyToModule(ws, id, {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      });
+    }
+  }
+
+  private replyToModule(ws: WebSocket, id: string, data: ModuleReplyData): void {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    try {
+      ws.send(JSON.stringify({ type: MODULE_REPLY_TYPE, id, data }));
+    } catch (error) {
+      this.logger.warn('Could not send module-reply', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /**

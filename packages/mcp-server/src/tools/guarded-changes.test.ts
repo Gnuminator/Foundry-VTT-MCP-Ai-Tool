@@ -90,8 +90,14 @@ describe('GuardedChangeTools handlers', () => {
   it('undoes with the confirm flag', async () => {
     const { tools, guardedWrites } = makeTools();
     await tools.handleUndoChange({ changeId: 'c1', confirm: true });
-    expect(guardedWrites.undo).toHaveBeenCalledWith('c1', { confirm: true });
+    expect(guardedWrites.undo).toHaveBeenCalledWith('c1', { confirm: true }, undefined);
     await expect(tools.handleUndoChange({ confirm: true })).rejects.toThrow();
+  });
+
+  it('passes who asked on to the undo', async () => {
+    const { tools, guardedWrites } = makeTools();
+    await tools.handleUndoChange({ changeId: 'c1', confirm: true }, 'Danni');
+    expect(guardedWrites.undo).toHaveBeenCalledWith('c1', { confirm: true }, 'Danni');
   });
 
   it('opens a document through the bridge and surfaces refusals', async () => {

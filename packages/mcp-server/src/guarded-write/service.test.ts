@@ -476,6 +476,16 @@ describe('undo (Foundry ops)', () => {
     await expect(service.undo('chg-nope', { confirm: true })).rejects.toThrow(/No recorded change/);
   });
 
+  it('records who asked for an undo on its audit entry, and nothing for Claude', async () => {
+    const first = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    const byGm = await service.undo(first.changeId, { confirm: true }, 'Danni');
+    expect((await audit.get('curse-of-strahd', byGm.changeId))?.requestedBy).toBe('Danni');
+
+    const second = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    const byClaude = await service.undo(second.changeId, { confirm: true });
+    expect(await audit.get('curse-of-strahd', byClaude.changeId)).not.toHaveProperty('requestedBy');
+  });
+
   it('reports a conflict instead of clobbering a later edit', async () => {
     const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
     foundry.edit('Actor.ireena', { path: 'system.hp', present: true, value: 1 });

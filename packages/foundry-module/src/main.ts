@@ -1,4 +1,7 @@
 import { MODULE_ID } from './constants.js';
+import { handleAiChangesSocketMessage } from './ai-changes-signal.js';
+import { registerAiToolControls } from './ai-tool-controls.js';
+import { setBridgeLink } from './bridge-link.js';
 import { SocketBridge } from './socket-bridge.js';
 import { QueryHandlers } from './queries.js';
 import { ModuleSettings, isBridgeUser, registerSettingsUsageHooks } from './settings.js';
@@ -135,6 +138,9 @@ class FoundryMCPBridge {
       // CONFIG.queries entries; registered on Foundry 14.352+ only).
       this.queryHandlers.registerHandlers();
       registerGmHelperQueries();
+
+      // The GM-only "AI Tool" group in the scene controls (the AI changes window, I-108).
+      registerAiToolControls();
 
       // Register campaign hooks for interactive dashboards
       this.campaignHooks.register();
@@ -278,6 +284,7 @@ class FoundryMCPBridge {
     if (this.socketBridge) {
       this.socketBridge.disconnect();
       this.socketBridge = null;
+      setBridgeLink(null);
     }
 
     this.isConnecting = true;
@@ -296,6 +303,7 @@ class FoundryMCPBridge {
 
       // Create and connect socket bridge
       this.socketBridge = new SocketBridge(config);
+      setBridgeLink(this.socketBridge);
       dialled = true;
       await this.socketBridge.connect();
 
@@ -367,6 +375,7 @@ class FoundryMCPBridge {
 
       this.socketBridge.disconnect();
       this.socketBridge = null;
+      setBridgeLink(null);
 
       this.lastConnectionState = 'disconnected';
 
@@ -530,6 +539,9 @@ Hooks.once('ready', async () => {
           usageRecorder.receive(data, senderId);
           return;
         }
+
+        // The AI change log changed (I-108): GM clients with the "AI changes" window re-fetch.
+        if (handleAiChangesSocketMessage(data)) return;
 
         // Handle ChatMessage update requests (GM only)
         if (data.type === 'requestMessageUpdate' && data.buttonId && data.messageId) {

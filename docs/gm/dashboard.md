@@ -314,6 +314,24 @@ Only guarded changes are listed here: damage, healing, conditions, resources and
 edits and deletes are, while changes from other tools (rolls, new actors) are not and cannot be
 undone here.
 
+### The same list inside Foundry
+
+You do not need the dashboard open to see or undo what the AI changed. In Foundry's left toolbar
+(the scene controls) there is an **AI Tool** group, shown to GMs only. Click it, then click
+**AI changes**: a window opens with the same list, newest first. Each row shows the time, what
+changed, the feature as a small tag, and **Undo** while the change can still be undone. Click
+"Changes" on a row to see the lines that changed, and **Show more** for the last 100. **Undo** asks
+you to confirm first and then says "Undone: ...", or tells you why it refused (for example because
+the same thing was changed again since). The list refreshes by itself when the AI makes or undoes a
+change, and **Refresh** reloads it by hand.
+
+If the window says the AI Tool bridge is not connected, the browser that holds the link to the AI
+Tool (the Assistant GM browser on the server) is not running; ask whoever runs the server.
+If it says "Update the AI Tool bridge to use this window", the bridge on the server is older than
+this module; ask whoever runs the server to update it.
+Clicking the AI Tool group leaves the map as it was: it only changes which buttons the toolbar
+shows, and clicking any other group (Tokens, for example) brings the usual tools back.
+
 ## The confirm window
 
 The dashboard's own buttons that make a planned change (Damage and Condition on the combatants you

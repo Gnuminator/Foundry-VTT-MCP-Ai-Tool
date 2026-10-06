@@ -1,5 +1,6 @@
 import { MODULE_ID } from './constants.js';
 import { bridgeHandlers } from './bridge-handlers.js';
+import { announceAiChangesUpdated } from './ai-changes-signal.js';
 import { fetchTarokkaReadingFromUser, openDocumentForGm } from './gm-helper-queries.js';
 import { getTarokkaReading, searchLinkCandidates } from './tarokka.js';
 import { listRefChoices } from './data-access/ref-choices.js';
@@ -141,6 +142,13 @@ export class QueryHandlers {
     );
     handlers.set(`${modulePrefix}.logGmChange`, (data: unknown) =>
       this.withGmGate('Failed to log change', () => Promise.resolve(logGmChange(data)))
+    );
+    // The backend recorded an apply or undo: tell the GM clients' "AI changes" windows (I-108).
+    handlers.set(`${modulePrefix}.aiChangesUpdated`, () =>
+      this.withGmGate('Failed to announce the change', () => {
+        announceAiChangesUpdated();
+        return Promise.resolve({ announced: true });
+      })
     );
     handlers.set(`${modulePrefix}.ensureJournalFolder`, (data: unknown) =>
       this.withGmGate('Failed to find or create the journal folder', () =>

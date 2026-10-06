@@ -68,7 +68,8 @@ export class CombatResolutionTools {
           properties: {
             actorName: {
               type: 'string',
-              description: 'NPC actor name or ID.',
+              description:
+                'NPC actor name or ID. A token on the current scene with this name or ID (or the only token made from this actor) is used first, so an unlinked token spends its own uses.',
               ...toolRef('actor', 'id', { filter: { types: ['npc'] } }),
             },
             itemName: {

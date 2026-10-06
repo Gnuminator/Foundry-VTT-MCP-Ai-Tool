@@ -48,7 +48,7 @@ feed.start();
 dashboard.start();
 
 const server = dashboard.app.listen(config.port, config.host, () => {
-  logger.info(`Co-GM dashboard listening on http://${config.host}:${config.port}`, {
+  logger.info(`Dashboard listening on http://${config.host}:${config.port}`, {
     mcp: `${config.mcpHost}:${config.mcpPort}`,
     model: config.anthropicModel,
     aiEnabled: coGm.enabled,

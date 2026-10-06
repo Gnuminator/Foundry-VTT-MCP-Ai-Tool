@@ -351,7 +351,7 @@ function renderSettings(next) {
     setDot(els.statusAi, 'dot-red', 'AI: disabled');
     els.btnPause.disabled = true;
     els.btnDiag.disabled = true;
-    els.askInput.placeholder = 'Set ANTHROPIC_API_KEY to enable the co-GM';
+    els.askInput.placeholder = 'Set ANTHROPIC_API_KEY to enable the AI commentary';
   }
 
   // GM Actions master switch
@@ -3813,7 +3813,7 @@ $('btn-show-links').addEventListener('click', () => {
   if ($('pane-links').hidden) void loadPlayerLinks();
 });
 
-// The co-GM commentary, module diagnostics and player links open as panels over the page.
+// The AI commentary, module diagnostics and player links open as panels over the page.
 for (const [btnId, paneId] of [
   ['btn-show-ai', 'pane-ai'],
   ['btn-show-diag', 'pane-diagnostics'],

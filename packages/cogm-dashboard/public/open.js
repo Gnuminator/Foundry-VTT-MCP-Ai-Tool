@@ -105,7 +105,7 @@ export function describeAnswer(status, body, ctx) {
     return {
       tone: 'error',
       text:
-        'This browser is not signed in to the co-GM dashboard as the GM. Open the dashboard ' +
+        'This browser is not signed in to the dashboard as the GM. Open the dashboard ' +
         'once in this browser with your GM link, then click Open again. The web viewer ' +
         'built into Obsidian keeps its own storage: sign in there as well, or open the link ' +
         'in your normal browser.',
@@ -168,7 +168,7 @@ export function describeAnswer(status, body, ctx) {
   if (status === 0) {
     return {
       tone: 'error',
-      text: 'The co-GM dashboard did not answer. Is it running?',
+      text: 'The dashboard did not answer. Is it running?',
       canRetry: true,
     };
   }

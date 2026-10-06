@@ -11,7 +11,7 @@ each time the bridge/module/dashboard changes.
 
 ## Method
 
-- **Driver:** the co-GM dashboard's GM tool proxy — `GET /api/tools`,
+- **Driver:** the dashboard's GM tool proxy — `GET /api/tools`,
   `POST /api/tool` — against the live game. Single-user GM mode on localhost, so
   no auth needed. (Same path `scripts/live-read-sweep.mjs` uses.)
 - **Reads:** run freely; re-run `node scripts/live-read-sweep.mjs` for the bulk.
@@ -79,7 +79,7 @@ Spot-check that tool output matches what Foundry shows:
 - [ ] **Player view** (`/player`): server-side redaction — no GM-only combat numbers, no module-error feed, no settings; enemy HP shown only as bands (per config).
 - [ ] Player/GM split with a GM token + a player token (two browsers): roles resolve, the write surface is GM-gated (`requireGm` → 401/403).
 
-## 5. Co-GM dashboard UI review
+## 5. Dashboard UI review
 
 **GM view (`/`):**
 
@@ -98,7 +98,7 @@ Spot-check that tool output matches what Foundry shows:
 - [ ] Player view layout on tablet/phone widths.
 - [ ] Visual polish: spacing, contrast, truncation, long names (705-actor world has long names), empty states.
 
-## 6. AI co-GM behavior
+## 6. AI commentary behavior
 
 - [ ] Commentary is useful + grounded in the snapshot (no hallucinated state).
 - [ ] Ask answers are accurate; when it lacks data it says so (today it can't see inventory — fix C).

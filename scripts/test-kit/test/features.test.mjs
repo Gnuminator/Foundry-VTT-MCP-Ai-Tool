@@ -960,7 +960,10 @@ test('the feature scenarios run after the others (order), and a bad order is ref
     size: 'full',
     catalog,
   });
-  const ids = scenarios.map(s => s.scenario.id);
+  const all = scenarios.map(s => s.scenario.id);
+  // The login split restarts the dashboard, so it runs after everything, the feature scenarios too.
+  assert.equal(all.at(-1), 'dashboard-login-split');
+  const ids = all.filter(id => id !== 'dashboard-login-split');
   assert.deepEqual(ids.slice(-4).sort(), [
     'heroes-features-deep',
     'heroes-features-use',

@@ -93,7 +93,12 @@ test('the fake implements every GM action and every tool the scenarios and the b
     'get-compendium-item',
     'create-actor-from-compendium',
   ]);
-  for (const { scenario } of scenarios) for (const name of scenario.tools) wanted.add(name);
+  // A scenario that drives dashboard pages in a real browser (t.browser) skips itself against the fake,
+  // so the fake does not need the tools it clicks.
+  for (const { scenario, file, dir } of scenarios) {
+    if (readFileSync(path.join(dir, file), 'utf8').includes('t.browser')) continue;
+    for (const name of scenario.tools) wanted.add(name);
+  }
   const missing = [...wanted].filter(name => !FAKE_TOOL_NAMES.includes(name));
   assert.deepEqual(missing, []);
 });

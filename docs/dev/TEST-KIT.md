@@ -206,26 +206,38 @@ feature scenarios, `heroes-studio`, the three monster scenarios, the two spell s
 scenarios are in `long` as well. The spell scenarios use the sizes differently: `smoke` casts a sample of about
 thirty spells, `full` and `long` cast them all.
 
-| Id                     | What it proves                                                                                                |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `bridge-health`        | The bridge, dashboard and module agree: health, world, module version, all tools, the kit.                    |
-| `compendium-monsters`  | Every kit monster matches its compendium entry and has a token on the scene.                                  |
-| `guarded-damage-undo`  | A guarded damage change applies, is listed, undoes exactly, and healing stops at the max.                     |
-| `scripted-fight`       | A short fight shows up the same way in combat state, play-by-play, session log and stats.                     |
-| `player-no-spoilers`   | A hidden token and monster HP never reach the player screen; the player's hero shows HP.                      |
-| `heroes-advancement`   | Every hero has what its class and subclass give at its level.                                                 |
-| `heroes-features-use`  | Every feature of every hero can be used once with no dialog; the hero is put back.                            |
-| `heroes-features-deep` | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.                              |
-| `heroes-studio`        | A hero per class built in Actor Studio's own windows equals the raw kit hero.                                 |
-| `monsters-every`       | Every monster of every pack of the profile is copied in, uses one action and is deleted.                      |
-| `monsters-matrix`      | The monsters by CR band, type, size and trait, the gaps, and the data every creature needs.                   |
-| `monsters-odd`         | Legendary actions and resistance, lair, regeneration, shapechangers, movement, recharge, multiattack, spells. |
-| `origins-species`      | Every species gives its size, speed, senses, traits and features; each feature can be used.                   |
-| `origins-backgrounds`  | Every background gives its ability scores, proficiencies and origin feat.                                     |
-| `origins-feats`        | Every feat can be taken by a hero that meets its prerequisites and does what its data says.                   |
-| `heroes-multiclass`    | Multiclass heroes get the reduced proficiencies, the combined slots and the features of both classes.         |
-| `spells-cast-all`      | Every spell of the profile's spell packs can be cast once; the caster is put back.                            |
-| `spells-deep`          | 31 rule checks on SRD spells: attacks, saves, areas, concentration, upcasting, slots.                         |
+| Id                      | What it proves                                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `bridge-health`         | The bridge, dashboard and module agree: health, world, module version, all tools, the kit.                              |
+| `compendium-monsters`   | Every kit monster matches its compendium entry and has a token on the scene.                                            |
+| `guarded-damage-undo`   | A guarded damage change applies, is listed, undoes exactly, and healing stops at the max.                               |
+| `scripted-fight`        | A short fight shows up the same way in combat state, play-by-play, session log and stats.                               |
+| `player-no-spoilers`    | A hidden token and monster HP never reach the player screen; the player's hero shows HP.                                |
+| `heroes-advancement`    | Every hero has what its class and subclass give at its level.                                                           |
+| `heroes-features-use`   | Every feature of every hero can be used once with no dialog; the hero is put back.                                      |
+| `heroes-features-deep`  | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.                                        |
+| `heroes-studio`         | A hero per class built in Actor Studio's own windows equals the raw kit hero.                                           |
+| `monsters-every`        | Every monster of every pack of the profile is copied in, uses one action and is deleted.                                |
+| `monsters-matrix`       | The monsters by CR band, type, size and trait, the gaps, and the data every creature needs.                             |
+| `monsters-odd`          | Legendary actions and resistance, lair, regeneration, shapechangers, movement, recharge, multiattack, spells.           |
+| `origins-species`       | Every species gives its size, speed, senses, traits and features; each feature can be used.                             |
+| `origins-backgrounds`   | Every background gives its ability scores, proficiencies and origin feat.                                               |
+| `origins-feats`         | Every feat can be taken by a hero that meets its prerequisites and does what its data says.                             |
+| `heroes-multiclass`     | Multiclass heroes get the reduced proficiencies, the combined slots and the features of both classes.                   |
+| `spells-cast-all`       | Every spell of the profile's spell packs can be cast once; the caster is put back.                                      |
+| `spells-deep`           | 31 rule checks on SRD spells: attacks, saves, areas, concentration, upcasting, slots.                                   |
+| `dashboard-write-flows` | The dashboard's write flows clicked in Edge: confirm, Undo, Tarokka, party, handouts, notes, links. Full and long only. |
+| `dashboard-login-split` | With a GM and a player token: no token gets nothing, `/player` has no GM controls, the GM token works. Runs last.       |
+
+`dashboard-write-flows` and `dashboard-login-split` need a real browser (`t.browser`), so against the fake
+they skip themselves. The write flows click the real page (the tool runner form and its confirm window, Undo
+in Recent Changes and on the toast, the Tarokka, Party and Handouts drawers, a map note, the player links),
+read Foundry or the bridge to see the change is there, undo it and read again; they put everything back, also
+after a failure (the throwaway handout journal stays in the kit world). A flow skips itself with the reason
+when the world lacks something (no party group, a feature switched off). The login split restarts the test
+dashboard (`lib/dashboard-proc.mjs`: `stop.ps1` and `start.ps1 -Only dashboard`) with two random tokens made
+at run time, checks three states in a fresh Edge with no cookies, and restarts it in the normal mode on
+the way out, also after a failure, so the split never stays on.
 
 ### heroes-advancement
 

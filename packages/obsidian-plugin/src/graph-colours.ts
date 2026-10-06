@@ -149,16 +149,25 @@ export function mergeGraphColourGroups(
 
 /** What `applyGraphColoursTo` needs from Obsidian (main.ts implements it; tests fake it). */
 export interface GraphHost {
-  /** Closes every open graph view; returns how many were open. */
-  closeGraphViews(): Promise<number>;
+  /**
+   * Swaps every open graph view for an empty view in the same place (sidebar, split, popout and
+   * pin kept), so each one stores its current options; returns how many there were. Local graphs
+   * stay: they keep their own colour groups.
+   */
+  parkGraphViews(): Promise<number>;
+  /** Puts the parked graph views back where they were; returns how many came back. */
+  restoreGraphViews(): Promise<number>;
   /** The loaded graph plugin's live options, or null when there is no instance. */
   graphOptions(): Record<string, unknown> | null;
-  /** Puts the colour groups into the live options and saves them; false when that failed. */
+  /**
+   * Puts the colour groups into the live options (whenever there are live options) and saves
+   * them through the graph plugin; false when it could not save.
+   */
   setGraphOptions(options: Record<string, unknown>): Promise<boolean>;
   /** The vault's graph.json, parsed ({} when missing or unreadable). */
   readGraphJson(): Promise<unknown>;
   writeGraphJson(json: unknown): Promise<void>;
-  openGraphView(): Promise<void>;
+  wait(ms: number): Promise<void>;
 }
 
 export interface GraphColoursResult {
@@ -166,35 +175,55 @@ export interface GraphColoursResult {
   adventures: number;
   /** The GM's own colour groups that stay. */
   kept: number;
-  /** Graph views opened again (0 or 1). */
+  /** Graph views put back after the change. */
   reopened: number;
   /** The graph plugin's live options took the groups (no reopen needed to see them). */
   live: boolean;
+  /** A late save of the old options overwrote the groups, so they were set again. */
+  reapplied: boolean;
+}
+
+/** How long after the save the live options are checked once more. */
+export const GRAPH_SETTLE_MS = 1000;
+
+function sameGroups(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a ?? []) === JSON.stringify(b ?? []);
 }
 
 /**
- * Colours the adventures in the graph view (I-105). Open graph views close first, so Obsidian
- * stores their current options (a group the GM just added included); the merge starts from the
- * graph plugin's live options when it is loaded, else from graph.json. The plugin saves graph.json
- * itself; without it the file is written here. One graph view opens again when any was open.
+ * Colours the adventures in the graph view (I-105). Open graph views are parked first, so
+ * Obsidian stores their current options (a group the GM just added included); the merge starts
+ * from the graph plugin's live options when it is loaded, else from graph.json. The plugin saves
+ * graph.json itself; without it the file is written here. The parked views come back in place.
+ * A closing view could still store its old options late, so the live groups are checked once
+ * more after {@link GRAPH_SETTLE_MS} and set again when they changed.
  */
 export async function applyGraphColoursTo(
   host: GraphHost,
   hubs: HubInfo[],
   libraryRoots: string[]
 ): Promise<GraphColoursResult> {
-  const closed = await host.closeGraphViews();
+  const parked = await host.parkGraphViews();
   const options = host.graphOptions();
   const base = options ?? (await host.readGraphJson());
   const { json, kept } = mergeGraphColourGroups(base, ourGroups(hubs, libraryRoots));
-  const updated = options !== null && (await host.setGraphOptions(json));
-  if (!updated) await host.writeGraphJson(json);
-  let reopened = 0;
-  if (closed > 0) {
-    await host.openGraphView();
-    reopened = 1;
+  const save = async (): Promise<boolean> => {
+    const saved = options !== null && (await host.setGraphOptions(json));
+    if (!saved) await host.writeGraphJson(json);
+    return saved;
+  };
+  let live = await save();
+  const reopened = parked > 0 ? await host.restoreGraphViews() : 0;
+  let reapplied = false;
+  if (options !== null) {
+    await host.wait(GRAPH_SETTLE_MS);
+    const now = host.graphOptions();
+    if (now && !sameGroups(now.colorGroups, json.colorGroups)) {
+      live = await save();
+      reapplied = true;
+    }
   }
-  return { adventures: hubs.length, kept, reopened, live: updated };
+  return { adventures: hubs.length, kept, reopened, live, reapplied };
 }
 
 /** The notice after `applyGraphColoursTo`. */

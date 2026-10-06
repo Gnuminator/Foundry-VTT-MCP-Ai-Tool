@@ -28,8 +28,9 @@ For a note with `fvtt_uuid` in its frontmatter (the Obsidian mirror writes it on
   `AI Tool/Foundry/Adventures/` plus the folders it lists) and colours the Library grey. It
   merges into the vault's `graph.json`: your own colour groups stay first and keep winning, the
   tool's groups are replaced on every run, and a colour you change for one of them is kept.
-  The mirror itself never edits `.obsidian`; this runs only when you press it. An open graph
-  view closes and opens again with the new colours.
+  The mirror itself never edits `.obsidian`; this runs only when you press it. Open graph views
+  reload in place (sidebar, split and pin kept) with the new colours. A local graph keeps its
+  own colour groups.
 
 Settings: the dashboard address (default `http://localhost:3000`), the theme and, only when the
 dashboard's player split is on, the GM token, kept in Obsidian's secret storage.

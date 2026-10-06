@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ADVENTURE_PALETTE,
+  GRAPH_SETTLE_MS,
   LIBRARY_GREY,
   applyGraphColoursTo,
   campaignRootOf,
@@ -220,27 +221,45 @@ function fakeHost(state: {
   live?: Record<string, unknown> | null;
   disk?: unknown;
   setWorks?: boolean;
-}): GraphHost & { calls: string[]; written: unknown[]; saved: Record<string, unknown>[] } {
+  /** Runs during the settle wait (a late save of old options by a closing view). */
+  duringWait?: (live: Record<string, unknown>) => void;
+}): GraphHost & {
+  calls: string[];
+  written: unknown[];
+  saved: Record<string, unknown>[];
+  waits: number[];
+} {
   const calls: string[] = [];
   const written: unknown[] = [];
   const saved: Record<string, unknown>[] = [];
+  const waits: number[] = [];
   let open = state.openViews ?? 0;
+  let parked = 0;
   return {
     calls,
     written,
     saved,
-    closeGraphViews: (): Promise<number> => {
-      calls.push('close');
-      const n = open;
+    waits,
+    parkGraphViews: (): Promise<number> => {
+      calls.push('park');
+      parked = open;
       open = 0;
+      return Promise.resolve(parked);
+    },
+    restoreGraphViews: (): Promise<number> => {
+      calls.push('restore');
+      const n = parked;
+      open += n;
+      parked = 0;
       return Promise.resolve(n);
     },
     graphOptions: (): Record<string, unknown> | null => {
       calls.push('options');
-      return state.live ?? null;
+      return state.live ? { ...state.live } : null;
     },
     setGraphOptions: (options): Promise<boolean> => {
       calls.push('set');
+      if (state.live) state.live.colorGroups = options.colorGroups;
       if (state.setWorks === false) return Promise.resolve(false);
       saved.push(options);
       return Promise.resolve(true);
@@ -254,9 +273,10 @@ function fakeHost(state: {
       written.push(json);
       return Promise.resolve();
     },
-    openGraphView: (): Promise<void> => {
-      calls.push('open');
-      open += 1;
+    wait: (ms): Promise<void> => {
+      calls.push('wait');
+      waits.push(ms);
+      if (state.live) state.duringWait?.(state.live);
       return Promise.resolve();
     },
   };
@@ -266,11 +286,12 @@ const groupsOf = (json: unknown): unknown[] =>
   (json as { colorGroups?: unknown[] }).colorGroups ?? [];
 
 describe('applyGraphColoursTo', () => {
-  it('closes the graph views before it reads the options, and reopens one', async () => {
+  it('parks the graph views before it reads the options, and puts every one back', async () => {
     const host = fakeHost({ openViews: 2, live: { colorGroups: [] } });
     const result = await applyGraphColoursTo(host, [strahd], []);
-    expect(host.calls).toEqual(['close', 'options', 'set', 'open']);
-    expect(result).toEqual({ adventures: 1, kept: 0, reopened: 1, live: true });
+    expect(host.calls).toEqual(['park', 'options', 'set', 'restore', 'wait', 'options']);
+    expect(host.waits).toEqual([GRAPH_SETTLE_MS]);
+    expect(result).toEqual({ adventures: 1, kept: 0, reopened: 2, live: true, reapplied: false });
   });
 
   it('merges into the live options, not the older graph.json', async () => {
@@ -292,47 +313,71 @@ describe('applyGraphColoursTo', () => {
     expect(result.adventures).toBe(2);
   });
 
+  it('sets the groups again when a closing view saved its old options late', async () => {
+    const old = [userGroup];
+    const host = fakeHost({
+      openViews: 1,
+      live: { colorGroups: old },
+      duringWait: live => {
+        live.colorGroups = old;
+      },
+    });
+    const result = await applyGraphColoursTo(host, [strahd], []);
+    expect(host.calls).toEqual(['park', 'options', 'set', 'restore', 'wait', 'options', 'set']);
+    expect(host.saved).toHaveLength(2);
+    expect(host.saved[1]).toEqual(host.saved[0]);
+    expect(result.reapplied).toBe(true);
+    expect(result.live).toBe(true);
+  });
+
   it('falls back to graph.json when the graph plugin has no instance', async () => {
     const host = fakeHost({ live: null, disk: { scale: 2, colorGroups: [userGroup] } });
     const result = await applyGraphColoursTo(host, [strahd], []);
-    expect(host.calls).toEqual(['close', 'options', 'read', 'write']);
+    expect(host.calls).toEqual(['park', 'options', 'read', 'write']);
     const json = host.written[0] as Record<string, unknown>;
     expect(json.scale).toBe(2);
     expect(groupsOf(json)[0]).toEqual(userGroup);
-    expect(result).toEqual({ adventures: 1, kept: 1, reopened: 0, live: false });
+    expect(result).toEqual({ adventures: 1, kept: 1, reopened: 0, live: false, reapplied: false });
   });
 
   it('writes graph.json when the live options could not be saved', async () => {
-    const host = fakeHost({ live: { colorGroups: [userGroup] }, setWorks: false });
+    const live: Record<string, unknown> = { colorGroups: [userGroup] };
+    const host = fakeHost({ live, setWorks: false });
     const result = await applyGraphColoursTo(host, [strahd], []);
-    expect(host.calls).toEqual(['close', 'options', 'set', 'write']);
+    expect(host.calls).toEqual(['park', 'options', 'set', 'write', 'wait', 'options']);
     expect(groupsOf(host.written[0])[0]).toEqual(userGroup);
+    // The live options hold the new groups too, so they cannot write the old ones back.
+    expect(live.colorGroups).toEqual(groupsOf(host.written[0]));
     expect(result.live).toBe(false);
   });
 
-  it('opens no graph view when none was open', async () => {
+  it('puts no graph view back when none was open', async () => {
     const host = fakeHost({ openViews: 0, live: {} });
     const result = await applyGraphColoursTo(host, [strahd], []);
-    expect(host.calls).not.toContain('open');
+    expect(host.calls).not.toContain('restore');
     expect(result.reopened).toBe(0);
   });
 });
 
 describe('graphColoursNotice', () => {
   it('counts adventures and own groups', () => {
-    expect(graphColoursNotice({ adventures: 1, kept: 0, reopened: 1, live: true })).toBe(
-      'Graph colours set for 1 adventure, the Library in grey.'
-    );
-    expect(graphColoursNotice({ adventures: 3, kept: 1, reopened: 0, live: true })).toBe(
-      'Graph colours set for 3 adventures, the Library in grey. Your own colour group stays.'
-    );
-    expect(graphColoursNotice({ adventures: 2, kept: 4, reopened: 1, live: false })).toBe(
+    expect(
+      graphColoursNotice({ adventures: 1, kept: 0, reopened: 1, live: true, reapplied: false })
+    ).toBe('Graph colours set for 1 adventure, the Library in grey.');
+    expect(
+      graphColoursNotice({ adventures: 3, kept: 1, reopened: 0, live: true, reapplied: false })
+    ).toBe('Graph colours set for 3 adventures, the Library in grey. Your own colour group stays.');
+    expect(
+      graphColoursNotice({ adventures: 2, kept: 4, reopened: 1, live: false, reapplied: false })
+    ).toBe(
       'Graph colours set for 2 adventures, the Library in grey. Your 4 own colour groups stay.'
     );
   });
 
   it('asks to reopen the graph view only when nothing showed the colours', () => {
-    expect(graphColoursNotice({ adventures: 1, kept: 0, reopened: 0, live: false })).toBe(
+    expect(
+      graphColoursNotice({ adventures: 1, kept: 0, reopened: 0, live: false, reapplied: false })
+    ).toBe(
       'Graph colours set for 1 adventure, the Library in grey. Close and reopen the graph view to see them.'
     );
   });

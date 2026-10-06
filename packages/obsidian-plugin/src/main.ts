@@ -29,6 +29,8 @@ import {
   requestUrl,
   type App,
   type TFile,
+  type ViewState,
+  type WorkspaceLeaf,
 } from 'obsidian';
 
 import {
@@ -444,13 +446,33 @@ export default class FoundryAiToolPlugin extends Plugin {
         return null;
       }
     };
+    const wait = (ms: number): Promise<void> =>
+      new Promise(resolve => window.setTimeout(resolve, ms));
+    const parked: Array<{ leaf: WorkspaceLeaf; state: ViewState }> = [];
     return {
-      closeGraphViews: async (): Promise<number> => {
-        const leaves = app.workspace.getLeavesOfType('graph');
-        for (const leaf of leaves) leaf.detach();
+      parkGraphViews: async (): Promise<number> => {
+        parked.length = 0;
+        for (const leaf of app.workspace.getLeavesOfType('graph')) {
+          parked.push({ leaf, state: leaf.getViewState() });
+          // An empty view in the same leaf: the graph view closes (and stores its options)
+          // while the leaf keeps its place, pin and group.
+          await leaf.setViewState({ type: 'empty' });
+        }
         // A view stores its options while it closes; give that a moment before they are read.
-        if (leaves.length > 0) await new Promise(resolve => window.setTimeout(resolve, 100));
-        return leaves.length;
+        if (parked.length > 0) await wait(100);
+        return parked.length;
+      },
+      restoreGraphViews: async (): Promise<number> => {
+        let restored = 0;
+        for (const { leaf, state } of parked.splice(0)) {
+          try {
+            await leaf.setViewState(state);
+            restored += 1;
+          } catch {
+            // The leaf was closed meanwhile: nothing to put back.
+          }
+        }
+        return restored;
       },
       graphOptions: (): Record<string, unknown> | null => {
         const options = instance()?.options;
@@ -459,8 +481,10 @@ export default class FoundryAiToolPlugin extends Plugin {
       setGraphOptions: async (options): Promise<boolean> => {
         try {
           const found = instance();
-          if (!found?.options || typeof found.saveOptions !== 'function') return false;
+          if (!found?.options) return false;
+          // Set even when it cannot save, or the live options would write the old groups back.
           found.options.colorGroups = options.colorGroups;
+          if (typeof found.saveOptions !== 'function') return false;
           await found.saveOptions();
           return true;
         } catch {
@@ -476,8 +500,7 @@ export default class FoundryAiToolPlugin extends Plugin {
         }
       },
       writeGraphJson: json => adapter.write(file, `${JSON.stringify(json, null, 2)}\n`),
-      openGraphView: () =>
-        app.workspace.getLeaf('tab').setViewState({ type: 'graph', active: true }),
+      wait,
     };
   }
 

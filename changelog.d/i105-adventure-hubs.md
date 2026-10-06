@@ -6,7 +6,7 @@
   graph.
 - **Graph colours:** the Obsidian plugin has an "Apply AI Tool graph colours" command and button.
   It gives each adventure a colour and the Library grey in the graph view, and keeps your own
-  colour groups. An open graph view closes and opens again with the colours. The mirror itself
+  colour groups. Open graph views reload in place with the colours. The mirror itself
   never edits Obsidian's settings.
 
 ### Fixes

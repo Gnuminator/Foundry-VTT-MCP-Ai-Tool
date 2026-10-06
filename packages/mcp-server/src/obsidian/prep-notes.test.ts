@@ -211,4 +211,84 @@ describe('readPrepNotes', () => {
     expect(part.omitted).toBe(0);
     expect(errors).toEqual([]);
   });
+
+  it("matches an unlinked token's actor uuid to the token and to the base actor", async () => {
+    // The passport icon on an unlinked token's sheet copies the synthetic actor uuid.
+    await note('Prep/Goblin.md', fm({ type: 'npc-prep', fvtt_uuid: 'Scene.s9.Token.t9.Actor.a1' }));
+    await note('Prep/Guard.md', fm({ type: 'npc-prep', fvtt_uuid: 'Scene.s1.Token.t2.Actor.a7' }));
+    const { part } = await readPrepNotes(
+      input([...WANTED, { uuid: 'Scene.s1.Token.t2', reason: 'actor', matched: 'Guard' }])
+    );
+    expect(part.notes.map(n => [n.path, n.matched, n.fvttUuid])).toEqual([
+      ['Prep/Goblin.md', 'Ismark', 'Scene.s9.Token.t9.Actor.a1'],
+      ['Prep/Guard.md', 'Guard', 'Scene.s1.Token.t2.Actor.a7'],
+    ]);
+  });
+
+  it('does not match a compendium actor uuid', async () => {
+    await note(
+      'Prep/Wolf.md',
+      fm({ type: 'npc-prep', fvtt_uuid: 'Compendium.dnd5e.monsters.Actor.a1' })
+    );
+    const { part } = await readPrepNotes(input(WANTED));
+    expect(part.notes).toEqual([]);
+  });
+
+  it('reads an unquoted @UUID link, a flow list and a block list of uuids', async () => {
+    await note('Prep/Link.md', fm({ type: 'npc-prep', fvtt_uuid: '@UUID[Actor.a1]{Ismark}' }));
+    await note(
+      'Prep/Flow.md',
+      fm({ type: 'quest-prep', fvtt_uuid: '[Actor.zz, JournalEntry.q1]' })
+    );
+    await note(
+      'Prep/Block.md',
+      [
+        '---',
+        'type: location-prep',
+        'fvtt_uuid:',
+        '  - Scene.s1',
+        '  - "@UUID[Actor.zz]{Nobody}"',
+        '---',
+        'Mist.',
+      ].join('\n')
+    );
+    const { part } = await readPrepNotes(input(WANTED));
+    expect(part.notes.map(n => [n.path, n.reason, n.fvttUuid])).toEqual([
+      ['Prep/Block.md', 'scene', 'Scene.s1'],
+      ['Prep/Link.md', 'actor', 'Actor.a1'],
+      ['Prep/Flow.md', 'quest', 'Actor.zz'],
+    ]);
+  });
+
+  it('counts a kept-out session plan once, also when it matches by uuid', async () => {
+    await note(
+      'Prep/Session 4.md',
+      fm({ type: 'session-plan', date: '2026-10-20', ai_context: 'false', fvtt_uuid: 'Scene.s1' })
+    );
+    const { part } = await readPrepNotes(input(WANTED));
+    expect(part.notes).toEqual([]);
+    expect(part.keptOut).toBe(1);
+  });
+
+  it('reports a walk that stopped at a limit', async () => {
+    await note('Prep/A.md', fm({ type: 'session-plan' }));
+    await note('Prep/B.md', fm({ type: 'npc-prep' }));
+    const { errors } = await readPrepNotes({ ...input(), limits: { maxFiles: 1 } });
+    expect(errors.join(' ')).toMatch(/stopped at its file limit/);
+  });
+
+  it('reads a note over the read size as truncated', async () => {
+    const body = Array.from({ length: 3 }, (_, i) => `Line ${i}`).join('\n');
+    await note('Prep/Big.md', fm({ type: 'session-plan' }, `${body}\n${'x'.repeat(70_000)}`));
+    const { part } = await readPrepNotes(input());
+    expect(part.notes[0]?.lines.slice(0, 3)).toEqual(['Line 0', 'Line 1', 'Line 2']);
+    expect(part.notes[0]?.truncated).toBe(true);
+  });
+
+  it('skips a note whose properties block is never closed, without an error', async () => {
+    await note('Prep/Open.md', ['---', 'type: session-plan', 'mood: grim', 'Body?'].join('\n'));
+    const { part, errors } = await readPrepNotes(input());
+    expect(part.notes).toEqual([]);
+    expect(errors).toEqual([]);
+  });
 });

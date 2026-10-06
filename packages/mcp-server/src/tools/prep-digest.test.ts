@@ -562,6 +562,21 @@ describe('get-prep-digest', () => {
       expect(digest.warnings[0]).toMatch(/Foundry did not answer the prep scan/);
     });
 
+    it('a failed prep scan leaves openQuests unknown (null), not 0', async () => {
+      await seedPrep();
+      const digest = await makeTools({
+        vault: true,
+        scan: new Error('scan timed out'),
+        scene: SCENE,
+      }).handleGetPrepDigest({});
+      expect(digest.prep?.matchedAgainst).toEqual({
+        scene: 'Village',
+        tokens: 2,
+        openQuests: null,
+      });
+      expect(digest.prep?.notes.map(n => n.reason)).not.toContain('quest');
+    });
+
     it('a vault that hangs becomes a warning and the rest of the digest still comes back', async () => {
       await seedSessions();
       vaultHang.on = true;

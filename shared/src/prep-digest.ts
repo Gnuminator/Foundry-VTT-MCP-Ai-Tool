@@ -223,8 +223,11 @@ export interface PrepNotesPart {
   omitted: number;
   /** Matching notes the GM kept out with `ai_context: false`. */
   keptOut: number;
-  /** What the notes were matched against; null when Foundry did not say (only the session plan is looked for). */
-  matchedAgainst: { scene: string | null; tokens: number; openQuests: number } | null;
+  /**
+   * What the notes were matched against; null when Foundry did not say (only the session plan is
+   * looked for). openQuests is null when the prep scan failed (quest notes were not looked for).
+   */
+  matchedAgainst: { scene: string | null; tokens: number; openQuests: number | null } | null;
 }
 
 /** What `get-prep-digest` returns. */

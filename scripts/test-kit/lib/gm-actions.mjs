@@ -23,6 +23,7 @@
  */
 import { SPELL_GM_FUNCTIONS } from './gm-spells.mjs';
 
+import { ORIGIN_GM_FUNCTIONS } from './gm-origins.mjs';
 import { inspectBuild } from './inspect-build.mjs';
 import { studioPump } from './studio-pump.mjs';
 
@@ -186,8 +187,9 @@ async function describeClass(args) {
   const walk = async (doc, isClass) => {
     for (const adv of Object.values(doc.advancement.byId)) {
       const type = adv.constructor.typeName;
-      // A multiclass-only advancement (a second skill choice, say) does not apply to a first class.
-      if (adv.classRestriction === 'secondary') continue;
+      // A multiclass-only advancement (a second skill choice, say) does not apply to a first class; a
+      // primary-only one (saving throws) does not apply to a second class.
+      if (adv.classRestriction === (args.multiclass && isClass ? 'primary' : 'secondary')) continue;
       const levels = (adv.levels ?? []).map(Number).filter(l => l <= level);
       if (type === 'Subclass') {
         if (isClass && adv.levels?.length) subclassAt = Number(adv.levels[0]);
@@ -250,7 +252,7 @@ async function describeClass(args) {
   await walk(klass, true);
   if (sub) await walk(sub, false);
   const faces = parseInt(String(klass.system.hd.denomination).replace('d', ''), 10);
-  let hpFixed = faces;
+  let hpFixed = args.multiclass ? faces / 2 + 1 : faces;
   for (let l = 2; l <= level; l++) hpFixed += faces / 2 + 1;
   const progression = klass.system.spellcasting?.progression ?? 'none';
   const subProgression = sub?.system.spellcasting?.progression ?? 'none';
@@ -413,6 +415,8 @@ async function setOwnership(args) {
  * same count; the hit points take the average from level 2.
  * @param {{name: string, classUuid: string, subclassUuid?: string, level?: number, rotation?: number,
  *   speciesUuid?: string, backgroundUuid?: string, folderId?: string, featPackIds?: string[],
+ *   abilities?: Record<string, number>, chooseSize?: boolean, actorId?: string,
+ *   items?: Array<{uuid: string, level?: number, subclassUuid?: string}>,
  *   _kit: {flagScope: string, flagKey: string}}} args
  */
 async function createHero(args) {
@@ -427,6 +431,8 @@ async function createHero(args) {
   const traitMade = new Map();
   const warnings = [];
   let k = 0;
+  // The subclass the next Subclass advancement takes: the hero's own, or the one of the extra item being added.
+  let currentSubclass = args.subclassUuid;
   const pick = list => list[(rotation + k++) % list.length];
   const nameOf = uuid => fromUuidSync(uuid)?.name ?? uuid;
 
@@ -601,17 +607,28 @@ async function createHero(args) {
     },
 
     async Subclass(flow, adv, lvl, title) {
-      if (!args.subclassUuid) {
+      if (!currentSubclass) {
         warnings.push(`${title} level ${lvl}: no subclass asked for`);
         return;
       }
-      await adv.apply(lvl, { uuid: args.subclassUuid });
+      await adv.apply(lvl, { uuid: currentSubclass });
       picks.push({
         level: lvl,
         advancement: 'Subclass',
         title,
-        chosen: [nameOf(args.subclassUuid)],
+        chosen: [nameOf(currentSubclass)],
       });
+      await flow.render();
+    },
+
+    // A species' size, only when the caller asks for it (it takes no k, so no other choice moves).
+    async Size(flow, adv, lvl, title) {
+      if (!args.chooseSize) return;
+      const sizes = [...(adv.configuration.sizes ?? [])];
+      if (sizes.length < 2) return;
+      const size = sizes[rotation % sizes.length];
+      await adv.apply(lvl, { size });
+      picks.push({ level: lvl, advancement: 'Size', title, chosen: [size] });
       await flow.render();
     },
 
@@ -778,34 +795,51 @@ async function createHero(args) {
     }
   };
 
-  const actor = await Actor.implementation.create({
-    name: args.name,
-    type: 'character',
-    folder: args.folderId ?? null,
-    flags: kitFlags,
-    // The standard array, the same for everyone; Constitution 13 gives +1 hit point per level.
-    system: {
-      abilities: {
-        str: { value: 15 },
-        dex: { value: 14 },
-        con: { value: 13 },
-        int: { value: 12 },
-        wis: { value: 10 },
-        cha: { value: 8 },
+  // An existing kit hero (a feat or a second class is added to it), or a new one.
+  const existing = args.actorId ? game.actors.get(args.actorId) : null;
+  if (args.actorId && !existing) throw new Error(`createHero: no actor ${args.actorId}`);
+  if (existing && !existing.getFlag(flagScope, flagKey))
+    throw new Error(`createHero: ${existing.name} is not a kit actor; not changing it`);
+  const array = { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8, ...(args.abilities ?? {}) };
+  const actor =
+    existing ??
+    (await Actor.implementation.create({
+      name: args.name,
+      type: 'character',
+      folder: args.folderId ?? null,
+      flags: kitFlags,
+      // The standard array unless the caller gives scores; Constitution 13 gives +1 hit point per level.
+      system: {
+        abilities: Object.fromEntries(Object.entries(array).map(([id, value]) => [id, { value }])),
       },
-    },
-  });
+    }));
   try {
-    await runManager(actor, await findOrigin(args.speciesUuid, 'Human', 'race'), 'species');
-    await runManager(
-      actor,
-      await findOrigin(args.backgroundUuid, 'Soldier', 'background'),
-      'background'
-    );
-    const klass = await loadData(args.classUuid, 'class');
-    klass.system.levels = level;
-    klass.flags = { ...(klass.flags ?? {}), ...kitFlags };
-    await runManager(actor, klass, 'class');
+    if (!existing || args.speciesUuid)
+      await runManager(actor, await findOrigin(args.speciesUuid, 'Human', 'race'), 'species');
+    if (!existing || args.backgroundUuid)
+      await runManager(
+        actor,
+        await findOrigin(args.backgroundUuid, 'Soldier', 'background'),
+        'background'
+      );
+    const added = [];
+    if (args.classUuid) {
+      const klass = await loadData(args.classUuid, 'class');
+      klass.system.levels = level;
+      klass.flags = { ...(klass.flags ?? {}), ...kitFlags };
+      await runManager(actor, klass, 'class');
+    }
+    // Extra items through the same manager: a feat, or a second class at its own level.
+    for (const extra of args.items ?? []) {
+      const data = await loadData(extra.uuid, 'item');
+      if (data.type === 'class') {
+        data.system.levels = Math.max(1, Math.min(20, Number(extra.level ?? 1)));
+        data.flags = { ...(data.flags ?? {}), ...kitFlags };
+      }
+      currentSubclass = extra.subclassUuid;
+      await runManager(actor, data, `${data.type} ${data.name}`);
+      added.push({ uuid: extra.uuid, name: data.name, type: data.type });
+    }
     await auditTraits(actor);
     // A new hero starts at full health with every spell slot ready.
     const max = actor.system.attributes.hp.max;
@@ -816,7 +850,8 @@ async function createHero(args) {
     }
     if (Object.keys(fill).length) await actor.update(fill);
     const classItem = actor.itemTypes.class[0];
-    if (!classItem) throw new Error('createHero: the class item was not added');
+    if (!classItem && (args.classUuid || !existing))
+      throw new Error('createHero: the class item was not added');
     const subclassItem = actor.itemTypes.subclass[0] ?? null;
     if (args.subclassUuid && !subclassItem) {
       warnings.push(
@@ -826,15 +861,21 @@ async function createHero(args) {
     return {
       actorId: actor.id,
       name: actor.name,
-      classIdentifier: classItem.system.identifier,
+      classIdentifier: classItem?.system.identifier ?? '',
       subclassIdentifier: subclassItem?.system.identifier ?? '',
       level: actor.system.details.level,
       hp: { value: actor.system.attributes.hp.value, max: actor.system.attributes.hp.max },
       picks,
       warnings,
+      classes: actor.itemTypes.class.map(c => ({
+        identifier: c.system.identifier,
+        levels: c.system.levels,
+        subclass: c.subclass?.system.identifier ?? null,
+      })),
+      added,
     };
   } catch (err) {
-    await actor.delete().catch(() => {});
+    if (!existing) await actor.delete().catch(() => {});
     throw err;
   } finally {
     await closeStray();
@@ -1692,6 +1733,7 @@ async function deleteKitActor(args) {
 }
 
 export const GM_ACTION_FUNCTIONS = {
+  ...ORIGIN_GM_FUNCTIONS,
   inspectBuild,
   studioPump,
   adoptActor,

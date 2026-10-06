@@ -513,9 +513,13 @@ scripts move the result to the Pi, in two steps so that you can look in between:
 
    It scans the world and the compendium packs of the modules for every image and sound path
    (`scripts/pi/world-refs.mjs`, which reads copies of the databases and never touches a running
-   Foundry), stops if anything is missing, points at a module that is not in the bundle, or looks
-   like a secret, builds one `.tar` with a checksum for every file, and uploads it to
-   `/var/lib/foundry-import/` on the Pi. It never runs stage 11. `-NoUpload` builds and checks only.
+   Foundry), and stops when anything is wrong: a missing file or one whose letter case differs from
+   the real name (Windows ignores case, the Pi does not), a module that is not in the bundle, a module
+   that is switched on in the world but not shipped (turn it off in the world first, as ddb-importer
+   must be), a setting that looks like a secret, or a GM user that has a password. Then it checks the
+   free space on this PC and on the Pi (below 20 % free it warns, below 5 % it stops), builds one
+   `.tar` with a checksum for every file, and uploads it to `/var/lib/foundry-import/` on the Pi. It
+   never runs stage 11. `-NoUpload` builds and checks only.
 
 2. **Stage 11 on the Pi**, after a `dietpi-backup 1` snapshot and your OK. `push-world.ps1` prints
    the exact command at the end (`BUNDLE=...`).
@@ -533,18 +537,29 @@ What never leaves this PC: **ddb-importer** (its settings can hold the D&D Beyon
 bridge module (stage 5 installs it from the release), and any env file, proxy file or Adventure
 Muncher file. `push-world.ps1` refuses them, and stage 11 checks the tar again before it extracts
 anything. World settings whose names look like a secret (a cookie, a token, a key) stop the push; the
-names are shown, never the values. If a reviewed setting is only a setting (for example the folder
-names `ddb-importer.*`), `-AllowSettingKeys 'ddb-importer.*'` lets it pass.
+names are shown, never the values. A `ddb-importer.*` setting that you reviewed and that is only a
+setting (a folder name, a compendium name) can be let through with a narrow pattern, for example
+`-AllowSettingKeys 'ddb-importer.entity-*'`. A name with cookie, token, secret, password, patreon or
+key in it is always a problem, whatever the list says.
 
 What stage 11 does with it:
 
 - **The campaign world is never replaced** unless you run it with `REPLACE_WORLD=1`. If the world is
   already on the Pi, it stays as it is and only the modules and images are updated.
+- **The modules are always replaced**, even when the campaign world is kept. A run in the middle of the
+  campaign therefore swaps in the PC's copy of each module, and edits made on the Pi inside a module's
+  own compendiums (the content module's packs, say) are not in it. The old module folder is in
+  `prev-<time>/modules/<id>`: stop Foundry and copy the pack back from there (or ask Claude to). Edits
+  in the world itself (actors, journals, scenes) are not touched.
 - **A test copy, `strahd-kit`** ("Curse of Strahd (test copy for kit runs)"), is made from the bundle
   every time and replaced on every run. The test kit runs there, so a test never touches the
   campaign. `KIT_WORLD=` (empty) skips it. `LAUNCH=strahd-kit` starts Foundry on the copy instead.
 - **Old copies are moved, not deleted**, to `/var/lib/foundry-import/prev-<time>/`; remove them later
-  only with your OK. The images are merged into the existing folders, so nothing is deleted there.
+  only with your OK. The images are merged into the existing folders, so nothing is deleted there,
+  and an existing image with the same name but other content is copied to `prev-<time>/` first.
+- **Free space** is checked first (the 20 % rule: a warning below 20 %, a stop below 5 %, and a stop
+  when there is less room than twice the bundle). If a run fails after Foundry was stopped, the
+  `options.json` world is put back to what it was and Foundry and the Assistant GM browser start again.
 - **Each new world gets a generated GM password**, kept only in `/etc/foundry-ai-tool/world-<id>.env`
   (root only, never printed). The GM reads it with `ssh foundry-pi cat
 /etc/foundry-ai-tool/world-curse-of-strahd.env` and then changes it in Foundry if he likes. The

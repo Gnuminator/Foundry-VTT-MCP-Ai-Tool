@@ -7,7 +7,10 @@
 //   node scripts/pi/world-refs.mjs --world curse-of-strahd --modules aitool-content,dnd-players-handbook [--json]
 //     --data <Foundry Data dir>   default C:/FoundryTest/data/Data
 //     --level-module <path>       classic-level to use, default the one in C:/FoundryTest/app/node_modules
-//     --allow-secret-keys a,b*    setting keys that were reviewed and are not secrets (a trailing * is a prefix)
+//     --allow-secret-keys a,b*    ddb-importer.* setting keys that were reviewed and are not secrets (a trailing * is
+//                                 a prefix). A key with cookie, token, secret, password and so on in its name is
+//                                 always a problem, whatever this list says.
+//     --gm-user <name>            the world's GM user (default Gamemaster); stage 11 joins it with an empty password
 //
 // Exit code 0: nothing to fix. 2: problems (the report is printed anyway). Setting VALUES are never
 // printed, only the names of keys that look like secrets.
@@ -111,8 +114,10 @@ export function secretSettingKeys(docs, allow = []) {
   for (const d of docs) {
     const key = typeof d?.key === 'string' ? d.key : '';
     const lower = key.toLowerCase();
-    if (!key || isAllowed(key, allow)) continue;
-    if (!lower.startsWith('ddb-importer.') && !SECRET_WORDS.some(w => lower.includes(w))) continue;
+    if (!key) continue;
+    // A secret word in the name always counts: the allow list can never excuse a cookie, token or key.
+    const hasSecretWord = SECRET_WORDS.some(w => lower.includes(w));
+    if (!hasSecretWord && (!lower.startsWith('ddb-importer.') || isAllowed(key, allow))) continue;
     const v = typeof d.value === 'string' ? d.value.trim() : JSON.stringify(d.value ?? '');
     if (empty.has(v) || /^(?:true|false|-?\d+(?:\.\d+)?)$/.test(v)) continue;
     keys.add(key);
@@ -120,11 +125,105 @@ export function secretSettingKeys(docs, allow = []) {
   return [...keys].sort();
 }
 
-/** Summarise a set of paths against the allowed ids. `exists(path)` says whether the file is on disk. */
-export function summarize(paths, { world, modules, exists }) {
+/** The module ids a world switches on (its core.moduleConfiguration setting). docs: setting documents. */
+export function activeModules(docs) {
+  const doc = docs.find(d => d?.key === 'core.moduleConfiguration');
+  if (!doc) return [];
+  let cfg = doc.value;
+  if (typeof cfg === 'string') {
+    try {
+      cfg = JSON.parse(cfg);
+    } catch {
+      return [];
+    }
+  }
+  if (!cfg || typeof cfg !== 'object') return [];
+  return Object.entries(cfg)
+    .filter(([, on]) => on === true)
+    .map(([id]) => id)
+    .sort();
+}
+
+/** Active modules that are neither shipped nor the bridge (stage 5 installs the bridge). */
+export function unshippedActive(active, modules) {
+  return active.filter(id => id !== 'foundry-mcp-bridge' && !modules.includes(id));
+}
+
+/**
+ * The world's GM user, as the problems it would cause for stage 11 (which joins with an empty password).
+ * users: user documents. Returns { found, hasPassword, problems } and never any password value.
+ */
+export function gmUserCheck(users, name) {
+  const gm = users.find(u => u?.name === name && u?.role === 4);
+  const problems = [];
+  if (!gm) problems.push(`no user named ${name} with the Gamemaster role (role 4)`);
+  const hasPassword = !!gm && typeof gm.password === 'string' && gm.password !== '';
+  if (hasPassword)
+    problems.push(`${name} has a password (stage 11 joins with an empty one: clear it first)`);
+  return { found: !!gm, hasPassword, problems };
+}
+
+/**
+ * Check one path against the disk with its exact name: NTFS ignores case, the Pi does not. root is the
+ * Data folder, rel a path inside it, cache a Map that remembers each folder listing.
+ * Returns { state: 'ok' } | { state: 'missing' } | { state: 'case', actual }. A `*` in the last part
+ * matches any characters of that name.
+ */
+export function checkExactPath(root, rel, cache = new Map()) {
+  const list = dir => {
+    if (!cache.has(dir)) {
+      let entries = null;
+      try {
+        entries = readdirSync(dir);
+      } catch {
+        // not a folder, or not there
+      }
+      cache.set(dir, entries);
+    }
+    return cache.get(dir);
+  };
+  const parts = rel.split('/');
+  const actual = [];
+  let cur = root;
+  let caseDiffers = false;
+  for (let i = 0; i < parts.length; i++) {
+    const entries = list(cur);
+    if (!entries) return { state: 'missing' };
+    const part = parts[i];
+    if (i === parts.length - 1 && part.includes('*')) {
+      const re = new RegExp(
+        '^' + part.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$'
+      );
+      return entries.some(e => re.test(e))
+        ? { state: caseDiffers ? 'case' : 'ok', actual: [...actual, part].join('/') }
+        : { state: 'missing' };
+    }
+    let name = entries.includes(part) ? part : undefined;
+    if (name === undefined) {
+      name = entries.find(e => e.toLowerCase() === part.toLowerCase());
+      if (name === undefined) return { state: 'missing' };
+      caseDiffers = true;
+    }
+    actual.push(name);
+    cur = path.join(cur, name);
+  }
+  return caseDiffers ? { state: 'case', actual: actual.join('/') } : { state: 'ok' };
+}
+
+/**
+ * Summarise a set of paths against the allowed ids. `check(path)` returns the state of the file on disk
+ * ({ state: 'ok' | 'missing' | 'case', actual }); the older `exists(path)` boolean still works.
+ */
+export function summarize(paths, { world, modules, exists, check }) {
   const counts = {};
   const folders = new Set();
-  const problems = { foreignModules: new Set(), foreignWorlds: new Set(), missing: [], other: [] };
+  const problems = {
+    foreignModules: new Set(),
+    foreignWorlds: new Set(),
+    missing: [],
+    caseMismatch: [],
+    other: [],
+  };
   for (const p of [...paths].sort()) {
     const c = classifyPath(p);
     counts[c.root] = (counts[c.root] ?? 0) + 1;
@@ -133,7 +232,11 @@ export function summarize(paths, { world, modules, exists }) {
     if (c.root === 'modules' && c.id !== 'foundry-mcp-bridge' && !modules.includes(c.id))
       problems.foreignModules.add(c.id);
     if (c.root === 'worlds' && c.id !== world) problems.foreignWorlds.add(c.id);
-    if (c.root !== 'core' && c.root !== 'other' && !exists(p)) problems.missing.push(p);
+    if (c.root !== 'core' && c.root !== 'other') {
+      const r = check ? check(p) : { state: exists(p) ? 'ok' : 'missing' };
+      if (r.state === 'missing') problems.missing.push(p);
+      else if (r.state === 'case') problems.caseMismatch.push(`case differs: ${p} vs ${r.actual}`);
+    }
   }
   return { counts, folders: [...folders].sort(), problems };
 }
@@ -178,6 +281,7 @@ function parseArgs(argv) {
     json: false,
     levelModule: '',
     allow: [],
+    gmUser: 'Gamemaster',
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -187,6 +291,7 @@ function parseArgs(argv) {
     else if (a === '--modules') o.modules = (argv[++i] ?? '').split(',').filter(Boolean);
     else if (a === '--level-module') o.levelModule = argv[++i];
     else if (a === '--allow-secret-keys') o.allow = (argv[++i] ?? '').split(',').filter(Boolean);
+    else if (a === '--gm-user') o.gmUser = argv[++i];
     else throw new Error(`unknown argument ${a}`);
   }
   if (!/^[a-z0-9-]+$/.test(o.world))
@@ -212,13 +317,18 @@ async function main() {
   const tmpRoot = mkdtempSync(path.join(os.tmpdir(), 'world-refs-'));
   const paths = new Set();
   const settings = [];
+  const users = [];
   try {
     for (const db of dbs) {
       const isSettings =
         path.normalize(db) === path.normalize(path.join(worldDir, 'data', 'settings'));
+      const isUsers = path.normalize(db) === path.normalize(path.join(worldDir, 'data', 'users'));
       await readDb(ClassicLevel, db, tmpRoot, (_k, doc) => {
         collectPaths(doc, paths);
         if (isSettings && doc && typeof doc === 'object') settings.push(doc);
+        // only name, role and whether a password exists are kept; no password value leaves this block
+        if (isUsers && doc && typeof doc === 'object')
+          users.push({ name: doc.name, role: doc.role, password: doc.password });
       });
     }
   } finally {
@@ -232,21 +342,12 @@ async function main() {
     if (existsSync(f)) collectPaths(JSON.parse(readFileSync(f, 'utf8')), paths);
   }
 
-  const exists = p => {
-    if (!p.includes('*')) return existsSync(path.join(o.data, p));
-    const dir = path.join(o.data, path.dirname(p));
-    const re = new RegExp(
-      '^' +
-        path
-          .basename(p)
-          .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-          .replace(/\*/g, '.*') +
-        '$'
-    );
-    return existsSync(dir) && readdirSync(dir).some(f => re.test(f));
-  };
-  const s = summarize(paths, { world: o.world, modules: o.modules, exists });
+  const dirCache = new Map();
+  const check = p => checkExactPath(o.data, p, dirCache);
+  const s = summarize(paths, { world: o.world, modules: o.modules, check });
   const secrets = secretSettingKeys(settings, o.allow);
+  const active = activeModules(settings);
+  const gm = gmUserCheck(users, o.gmUser);
   const result = {
     world: o.world,
     modules: o.modules,
@@ -259,18 +360,26 @@ async function main() {
       foreignWorlds: [...s.problems.foreignWorlds].sort(),
       missingCount: s.problems.missing.length,
       missing: s.problems.missing.slice(0, 50),
+      caseMismatchCount: s.problems.caseMismatch.length,
+      caseMismatch: s.problems.caseMismatch.slice(0, 50),
       otherRoots: s.problems.other.slice(0, 50),
       otherRootsCount: s.problems.other.length,
       secretSettingKeys: secrets,
+      activeNotShipped: unshippedActive(active, o.modules),
+      gmUser: gm.problems,
     },
+    gmUser: { name: o.gmUser, found: gm.found, hasPassword: gm.hasPassword },
   };
   const p = result.problems;
   result.ok = !(
     p.foreignModules.length ||
     p.foreignWorlds.length ||
     p.missingCount ||
+    p.caseMismatchCount ||
     p.otherRootsCount ||
-    p.secretSettingKeys.length
+    p.secretSettingKeys.length ||
+    p.activeNotShipped.length ||
+    p.gmUser.length
   );
 
   if (o.json) {
@@ -295,6 +404,14 @@ async function main() {
         `PROBLEM ${p.missingCount} missing files (first ${p.missing.length}):\n` +
           p.missing.map(x => '  ' + x).join('\n')
       );
+    if (p.caseMismatchCount)
+      console.log(
+        `PROBLEM ${p.caseMismatchCount} paths whose letter case differs from the file (first ${p.caseMismatch.length}):\n` +
+          p.caseMismatch.map(x => '  ' + x).join('\n')
+      );
+    for (const id of p.activeNotShipped)
+      console.log(`PROBLEM active in the world but not shipped: ${id}`);
+    for (const m of p.gmUser) console.log(`PROBLEM ${m}`);
     if (p.otherRootsCount)
       console.log(
         `PROBLEM ${p.otherRootsCount} paths in unknown roots (first ${p.otherRoots.length}):\n` +

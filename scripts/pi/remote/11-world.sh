@@ -11,7 +11,9 @@
 # /var/lib/foundry-import/prev-<stamp> (never deleted), installs, gives the worlds a generated GM password in a
 # root-only file (/etc/foundry-ai-tool/world-<id>.env, never printed), provisions the Assistant GM and the bridge,
 # and starts Foundry on LAUNCH. The real world is never replaced unless REPLACE_WORLD=1; the kit world is always
-# reset to the bundle's copy. Safe to run again (with a new bundle).
+# reset to the bundle's copy. Modules are always replaced (old ones go to prev); an image with the same name
+# and other content is copied to prev first. Space is checked first (20% free warns, under 5% stops). If the run
+# fails after Foundry was stopped, options.json is put back and Foundry starts again. Safe to run again.
 
 require_root
 require_arm64
@@ -49,6 +51,34 @@ fi
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
 bundle_size="$(stat -c %s "$BUNDLE")"
 
+# options.json "world" is what Foundry launches. It is changed while worlds are provisioned, so the first
+# value is saved here and put back if the run fails (see on_exit).
+set_world() {
+  node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));o.world=process.argv[2]||null;fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' "$options" "$1"
+  world_changed=1
+}
+orig_world="$(node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.world||"")' "$options")"
+world_changed=0
+
+# The user's storage rule (2026-10-06, stage 10): every job checks its source and its destination for 20%
+# free; below 20% it warns and goes on, below 5% it stops. Integer percent, rounded down.
+check_space() { # $1 a path on the filesystem, $2 what to call it
+  local avail size pct
+  read -r avail size < <(df --output=avail,size -B1 "$1" | tail -n1)
+  [ "${size:-0}" -gt 0 ] || {
+    warn "cannot read the free space of $2"
+    return 0
+  }
+  pct=$((avail * 100 / size))
+  if [ "$pct" -lt 5 ]; then
+    die "space is critical on $2: $pct% free (under 5%). Free up space and run this stage again"
+  elif [ "$pct" -lt 20 ]; then
+    warn "space is low on $2: $pct% free (the rule is 20%); going on"
+  else
+    ok "$2: $pct% free"
+  fi
+}
+
 say "inspecting $BUNDLE before extracting"
 install -d -m 700 "$IMPORT"
 work="$IMPORT/work-$stamp"
@@ -61,7 +91,15 @@ stopped=0
 on_exit() {
   rm -rf "${work:?}"
   if [ "$stopped" = 1 ] && have_systemd; then
-    systemctl is-active --quiet foundry.service || systemctl start foundry.service || true
+    # A failure after set_world can leave Foundry running another world (the kit copy): put the original
+    # world back and restart, so the Pi runs what it ran before.
+    if [ "$world_changed" = 1 ]; then
+      set_world "$orig_world" || true
+      warn "options.json restored to launch '${orig_world:-no world}'"
+      systemctl restart foundry.service || true
+    else
+      systemctl is-active --quiet foundry.service || systemctl start foundry.service || true
+    fi
     systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service || true
     warn "the run did not finish: Foundry and the Assistant GM browser were started again; old copies are in $prev"
   fi
@@ -103,6 +141,8 @@ done <"$work/names"
 ok "$nfiles entries, all files and folders, all in the allowed places"
 
 say "extracting and checking every checksum"
+check_space "$IMPORT" "$IMPORT"
+check_space "$FOUNDRY_DATA" "$FOUNDRY_DATA"
 free_import="$(df --output=avail -B1 "$IMPORT" | tail -n1 | tr -d ' ')"
 [ "$free_import" -gt "$bundle_size" ] || die "not enough space in $IMPORT to extract ($bundle_size bytes needed)"
 tar -xf "$BUNDLE" -C "$work/extract" --no-same-owner --no-same-permissions
@@ -154,11 +194,20 @@ for id in "${modules[@]}"; do
   ok "module $id installed"
 done
 
-say "asset folders (merged; existing files are never deleted)"
+say "asset folders (merged; existing files are never deleted, changed ones are saved to prev first)"
 for a in "${assets[@]}"; do
   install -d -m 755 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$data/$a"
+  # Existing files with the same name and other content are kept in prev first, so nothing is lost.
+  saved=0
+  while IFS= read -r -d '' f; do
+    if [ -f "$data/$f" ] && ! cmp -s "$work/extract/Data/$f" "$data/$f"; then
+      mkdir -p "$prev/$(dirname "$f")"
+      cp -a "$data/$f" "$prev/$f"
+      saved=$((saved + 1))
+    fi
+  done < <(cd "$work/extract/Data" && find "$a" -type f -print0)
   cp -a "$work/extract/Data/$a/." "$data/$a/"
-  ok "$a merged"
+  ok "$a merged ($saved changed files saved to $prev first)"
 done
 
 say "worlds"
@@ -186,9 +235,6 @@ fi
 
 # ---- provisioning: GM password file, options.json, Foundry, assistant-gm ------------------------------
 new_password() { head -c 24 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n'; }
-set_world() {
-  node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));o.world=process.argv[2];fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' "$options" "$1"
-}
 # /join answers 200 even when no world runs (an error page), so look for the join form's template.
 world_up() { curl -fs http://127.0.0.1:30000/join 2>/dev/null | grep -q 'id="join-game"'; }
 running=""

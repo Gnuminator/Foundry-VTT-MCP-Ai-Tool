@@ -178,6 +178,20 @@ body {
   font-size: 0.92rem;
 }
 
+.link-banner.space-banner.is-critical {
+  background: var(--bad-soft);
+  border-bottom-color: var(--bad);
+  color: var(--bad);
+  font-weight: 600;
+}
+.diag-note {
+  margin: 0;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.88rem;
+  color: var(--warn);
+  border-bottom: 1px solid var(--border);
+}
+
 .brand {
   display: flex;
   align-items: center;

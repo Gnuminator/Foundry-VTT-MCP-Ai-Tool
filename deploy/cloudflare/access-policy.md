@@ -1,7 +1,7 @@
 # Cloudflare Access — Policy Setup Notes
 
 > **Scaffold — not deployed.** This documents how to create the Cloudflare Access
-> application and email allow-list that gate the co-GM dashboard, and exactly how those
+> application and email allow-list that gate the dashboard, and exactly how those
 > settings pair with the dashboard's `GM_EMAILS`, `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` env
 > vars.
 > Replace every `<PLACEHOLDER>` with your real values.
@@ -10,7 +10,7 @@
 
 ## What Cloudflare Access does here
 
-Cloudflare Access sits in front of the Cloudflare Tunnel that proxies the co-GM
+Cloudflare Access sits in front of the Cloudflare Tunnel that proxies the
 dashboard. It:
 
 1. Shows a login page to unauthenticated visitors (Google/GitHub OAuth, or email OTP).
@@ -43,7 +43,7 @@ Fill in:
 
 | Field              | Value                                           |
 | ------------------ | ----------------------------------------------- |
-| Application name   | `Co-GM Dashboard` (or any label you prefer)     |
+| Application name   | `Foundry AI Tool` (or any label you prefer)     |
 | Team domain        | `<YOUR_TEAM>.cloudflareaccess.com`              |
 | Application domain | `cogm.<YOUR_DOMAIN>`                            |
 | Session duration   | 24h (or longer — whatever suits your sessions)  |

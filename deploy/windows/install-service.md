@@ -54,7 +54,7 @@ REM Should print the tool catalog over the control channel.
 node "<REPO>\scripts\standalone-smoke-test.mjs"
 ```
 
-(That smoke test uses a throwaway port; to check the _real_ service, point the co-GM
+(That smoke test uses a throwaway port; to check the _real_ service, point the
 dashboard at `127.0.0.1:31414` — `npm run dev:cogm` — and confirm the feed connects.)
 
 ## ⚠️ Single-instance note

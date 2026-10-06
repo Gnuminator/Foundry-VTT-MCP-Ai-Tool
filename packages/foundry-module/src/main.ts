@@ -91,7 +91,7 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: 'handouts',
         name: 'AI Tool: Handouts (writes)',
-        hint: "Reveal or hide journal pages on the co-GM dashboard's player page.",
+        hint: "Reveal or hide journal pages on the dashboard's player page.",
       });
       registerGuardedFeature({
         id: 'obsidian-mirror',

@@ -474,9 +474,7 @@ class FoundryAiToolSettingTab extends PluginSettingTab {
     this.plugin.themeDocument(containerEl.ownerDocument);
     new Setting(containerEl)
       .setName('Dashboard address')
-      .setDesc(
-        'The co-GM dashboard, for example http://localhost:3000. The plugin talks only to it.'
-      )
+      .setDesc('The dashboard, for example http://localhost:3000. The plugin talks only to it.')
       .addText(text =>
         text
           .setPlaceholder('http://localhost:3000')

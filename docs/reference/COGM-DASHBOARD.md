@@ -1,9 +1,9 @@
-# The Co-GM Dashboard
+# The dashboard
 
-A live, AI-assisted **co-GM screen** that runs in a browser next to Foundry VTT. It watches the
+A live, AI-assisted **GM dashboard** that runs in a browser next to Foundry VTT. It watches the
 game as it happens — and now lets you **run the game from the dashboard**, too.
 
-![The Co-GM dashboard during a combat](../images/cogm/overview.png)
+![The dashboard during a combat](../images/cogm/overview.png)
 
 ---
 
@@ -46,7 +46,7 @@ help works offline and matches the installed version.
 
 **Advanced** (top right) holds the rest: the Pre-flight, Prep, Party, Handouts and Tarokka panels
 (a panel already on the screen is scrolled to; otherwise it opens over the page), the Tool Runner,
-the AI co-GM and module diagnostics, the player links, and the AI settings (pause, diagnostics
+the AI commentary and module diagnostics, the player links, and the AI settings (pause, diagnostics
 AI, tone, model).
 
 ### My character, one page per player
@@ -74,11 +74,11 @@ with secret sections and unidentified items' true names left out.
   `~/.foundry-ai-tool`). Until the dashboard knows the world (a GM in Foundry), each screen keeps
   the theme it showed last.
 
-### An AI co-GM that watches with you
+### AI commentary that watches with you
 
 - **Streaming commentary** — tactical or narrative call-outs when something significant happens
   ("the Goblin Boss is bloodied and prone — press the attack").
-- **Ask the co-GM** — type a question like _"who's in trouble?"_ and get an answer grounded in the
+- **Ask the AI** — type a question like _"who's in trouble?"_ and get an answer grounded in the
   current board state.
 - **Whisper to chat** — send any comment straight into Foundry as a GM whisper with one click.
 
@@ -122,7 +122,7 @@ must be open with the bridge connected).
 
 ```bash
 cd packages/cogm-dashboard
-# put your Anthropic API key in .env (ANTHROPIC_API_KEY=...) to enable the AI co-GM
+# put your Anthropic API key in .env (ANTHROPIC_API_KEY=...) to enable the AI commentary
 npm run dev          # → http://localhost:3000
 ```
 

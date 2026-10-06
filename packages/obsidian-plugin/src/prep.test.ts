@@ -76,6 +76,9 @@ describe('prepFileName and prepPathCandidates', () => {
     expect(prepFileName('Tab\there\u0007bell')).toBe('Tab here bell');
     expect(prepFileName('CON')).toBe('CON_');
     expect(prepFileName('com1')).toBe('com1_');
+    expect(prepFileName('AUX.')).toBe('AUX_');
+    expect(prepFileName('aux.notes')).toBe('aux_.notes');
+    expect(prepFileName('Auxiliary')).toBe('Auxiliary');
     expect(prepFileName('Console')).toBe('Console');
   });
 
@@ -190,6 +193,9 @@ describe('fillPrepNote', () => {
   it('reads an empty frontmatter block and fills a session plan date (R2 review)', () => {
     expect(fillPrepNote('---\n---\nBody', fill)).toBe(
       "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\n---\nPrep for [[Ismark]].\n\nBody\n"
+    );
+    expect(fillPrepNote('---\n---\nAbove\n\n---\n\nBelow', fill)).toBe(
+      "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\n---\nPrep for [[Ismark]].\n\nAbove\n\n---\n\nBelow\n"
     );
     const plan = '---\ntype: session-plan\nfvtt_uuid:\ndate:\n---\n## Opening scene\n';
     expect(

@@ -53,7 +53,7 @@ export const PREP_TEMPLATES: Readonly<Record<string, string>> = {
   'Session plan.md': template(
     'session-plan',
     ['date'],
-    'Session plan: date is the game night (YYYY-MM-DD); the newest plan is the one Claude reads.',
+    'Session plan: date is the game night (YYYY-MM-DD; the plugin fills in today, change it when the game night is another day); the newest plan is the one Claude reads.',
     ['Opening scene', 'Likely scenes', 'Loose ends']
   ),
 };

@@ -525,9 +525,12 @@ export default class FoundryAiToolPlugin extends Plugin {
       );
       await workspace.getLeaf(false).openFile(created);
       new Notice(
-        template === null
+        (template === null
           ? `Made ${target} (no ${kind.template} template in Prep/Templates, so a bare one).`
-          : `Made ${target}.`
+          : `Made ${target}.`) +
+          (isPlan
+            ? ` Its date is today (${today}); change it when the game night is another day.`
+            : '')
       );
     } catch (error) {
       new Notice(`New prep note: ${messageOf(error)}`);

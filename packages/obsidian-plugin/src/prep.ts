@@ -85,8 +85,8 @@ export function campaignRootOf(notePath: string, world: string | null): string |
   return notePath.startsWith(`${root}/`) ? root : null;
 }
 
-/** Windows device names: a file called `CON.md` or `com1.md` cannot be made there. */
-const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+/** Windows device names, alone or before a dot: `CON.md` or `aux.notes.md` cannot be made there. */
+const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?=\.|$)/i;
 
 /** Spaces collapsed, no leading or trailing dots or spaces. */
 function tidyName(text: string): string {
@@ -104,7 +104,7 @@ export function prepFileName(name: string | null): string {
   const unsafe = /[\u0000-\u001f\u007f\\/:*?"<>|#^[\]%]/g;
   const safe = tidyName(tidyName((name ?? '').replace(unsafe, ' ')).slice(0, 100));
   if (!safe) return 'Untitled';
-  return RESERVED_NAME.test(safe) ? `${safe}_` : safe;
+  return safe.replace(RESERVED_NAME, '$1_');
 }
 
 /** `YYYY-MM-DD` in local time. */
@@ -146,7 +146,7 @@ export function prepPathCandidates(folder: string, name: string, count = 20): st
   );
 }
 
-const FRONTMATTER = /^---\n(?:([\s\S]*?)\n)?---(?:\n|$)/;
+const FRONTMATTER = /^---\n(?:---|([\s\S]*?)\n---)(?:\n|$)/;
 
 /** Set `key: value` in frontmatter lines: replaces the key's line and its block list or indented
  * lines, or adds the line first when the key is missing. */

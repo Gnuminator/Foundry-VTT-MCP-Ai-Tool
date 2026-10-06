@@ -75,7 +75,7 @@ test('read tool detection', () => {
     'mark-play-session',
   ])
     assert.ok(isReadTool(n), n);
-  for (const n of ['apply-planned-change', 'undo-change', 'update-token', 'delete-map-note'])
+  for (const n of ['apply-planned-change', 'undo-change', 'update-token', 'clear-module-errors'])
     assert.ok(!isReadTool(n), n);
 });
 
@@ -92,7 +92,7 @@ test('confirm flags: none for reads, confirm for writes, both for destructive', 
   await c.tool('get-world-info');
   await c.tool('update-thing', { a: 1 });
   await c.tool('undo-change', { changeId: 'x' });
-  await c.tool('delete-map-note', { id: 'n' });
+  await c.tool('clear-module-errors', { id: 'n' });
   const bodies = seen.filter(s => s.url === '/api/tool').map(s => s.body);
   assert.equal(bodies[0].confirm, undefined);
   assert.equal(bodies[1].confirm, true);

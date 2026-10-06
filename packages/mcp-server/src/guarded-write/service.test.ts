@@ -147,6 +147,94 @@ describe('createPlan (Foundry ops)', () => {
     ]);
   });
 
+  it('names scene dressing in the diff (I-112): darkness, light, coins, templates, notes, chat', async () => {
+    // The fake module sends no parent labels or note texts; give the plan the ones Foundry sends.
+    const real = foundry.query.getMockImplementation()!;
+    foundry.query.mockImplementation((method: string, data?: any) =>
+      method === 'foundry-mcp-bridge.snapshotGuardedOps'
+        ? Promise.resolve([
+            {
+              exists: true,
+              documentName: 'Scene',
+              name: 'Field',
+              values: [
+                { path: 'environment.darknessLevel', present: true, value: 0.2 },
+                { path: 'environment.darknessLock', present: true, value: true },
+                { path: 'environment.globalLight.enabled', present: true, value: false },
+              ],
+            },
+            {
+              exists: true,
+              documentName: 'Actor',
+              name: 'Ireena',
+              values: [{ path: 'system.currency.gp', present: true, value: 10 }],
+            },
+            {
+              exists: true,
+              documentName: 'Region',
+              name: 'Circle Template',
+              parent: { documentName: 'Scene', name: 'Field' },
+              modifiedTime: 5,
+            },
+            {
+              exists: true,
+              documentName: 'Note',
+              name: 'Trap',
+              parent: { documentName: 'Scene', name: 'Field' },
+              modifiedTime: 6,
+            },
+            {
+              exists: true,
+              documentName: 'Region',
+              name: 'Circle Template',
+              parent: { documentName: 'Scene', name: 'Field' },
+            },
+            {
+              exists: true,
+              documentName: 'Note',
+              name: 'Trap',
+              parent: { documentName: 'Scene', name: 'Field' },
+            },
+            { exists: true, documentName: 'ChatMessage', name: null },
+          ])
+        : real(method, data)
+    );
+    const p = await plan([
+      {
+        kind: 'update',
+        uuid: 'Scene.s1',
+        changes: {
+          'environment.darknessLevel': 0.8,
+          'environment.darknessLock': true,
+          'environment.globalLight.enabled': true,
+        },
+      },
+      { kind: 'update', uuid: 'Actor.ireena', changes: { 'system.currency.gp': 15 } },
+      { kind: 'delete', uuid: 'Scene.s1.Region.r1' },
+      { kind: 'delete', uuid: 'Scene.s1.Note.n1' },
+      {
+        kind: 'create',
+        documentName: 'Region',
+        parentUuid: 'Scene.s1',
+        data: { name: 'Circle Template' },
+      },
+      { kind: 'create', documentName: 'Note', parentUuid: 'Scene.s1', data: { text: 'Trap' } },
+      { kind: 'create', documentName: 'ChatMessage', data: { content: 'Loot' } },
+    ]);
+    expect(p.risk).toBe('destructive');
+    expect(p.diff.map(d => d.text)).toEqual([
+      'Scene "Field": darkness 0.2 → 0.8',
+      'Scene "Field": darkness lock true → true',
+      'Scene "Field": global light false → true',
+      'Actor "Ireena": gp 10 → 15',
+      'Delete Region "Circle Template" from Scene "Field"',
+      'Delete Note "Trap" from Scene "Field"',
+      'Create Region "Circle Template" on Scene "Field"',
+      'Create Note "Trap" on Scene "Field"',
+      'Create ChatMessage',
+    ]);
+  });
+
   it('keeps removing a status effect at one confirm, any other delete stays destructive (F5)', async () => {
     foundry.add('Actor.ireena.ActiveEffect.prone', 'ActiveEffect', { name: 'Prone' });
     const effect = await plan([{ kind: 'delete', uuid: 'Actor.ireena.ActiveEffect.prone' }]);

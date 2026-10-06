@@ -1,6 +1,6 @@
 /**
  * AoE "template" regions on Foundry v14 (plan step M3, table 2.4:
- * `scene-fx.ts` `place-measured-template` / `delete-measured-template`).
+ * `scene-plan.ts` `plan-scene-change` actions `template` / `clear-templates`).
  *
  * MeasuredTemplate documents were removed from `common/` in 14.352 (#13089);
  * templates now live as Region documents with a `shapes` array
@@ -41,7 +41,7 @@ import { MODULE_ID } from '../constants.js';
 
 export type TemplateShapeKind = 'circle' | 'cone' | 'ray' | 'rect';
 
-/** The same shape parameters `placeMeasuredTemplate` already accepts. */
+/** The shape parameters a `template` plan accepts. */
 export interface TemplateParams {
   shape: TemplateShapeKind;
   distance: number;
@@ -123,7 +123,7 @@ export function templateToRegionShape(
 
 /**
  * Full `createEmbeddedDocuments('Region', ...)` payload for one AoE template,
- * flagged so {@link isToolTemplateRegion} (and `deleteMeasuredTemplate`'s
+ * flagged so {@link isToolTemplateRegion} (and a `clear-templates` plan's
  * `all=true`) can find only regions this tool created — never a hand-made GM
  * region.
  */

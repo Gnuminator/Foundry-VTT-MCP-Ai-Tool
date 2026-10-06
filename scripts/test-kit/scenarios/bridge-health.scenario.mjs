@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadToolCatalog } from '../lib/catalog.mjs';
-import { listOf } from '../lib/helpers.mjs';
+import { builtHeroes, listOf, tokenHeroes } from '../lib/helpers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
@@ -66,9 +66,10 @@ export default {
     await t.step('list-characters has every kit hero', async () => {
       const result = await t.tool('list-characters', {});
       const ids = new Set(listOf(result, 'characters').map(c => c.id));
-      const missing = t.kit.heroes.filter(h => !ids.has(h.actorId)).map(h => h.name);
+      const heroes = builtHeroes(t.kit);
+      const missing = heroes.filter(h => !ids.has(h.actorId)).map(h => h.name);
       t.check(missing.length === 0, `heroes missing from list-characters: ${missing.join(', ')}`);
-      return `${t.kit.heroes.length} heroes of ${ids.size} characters`;
+      return `${heroes.length} heroes of ${ids.size} characters`;
     });
 
     await t.step('list-scenes and get-current-scene show the kit scene', async () => {
@@ -79,7 +80,7 @@ export default {
       const current = await t.tool('get-current-scene', {});
       t.equal(current.id, t.kit.scene.sceneId, 'active scene id');
       const tokenIds = new Set((current.tokens || []).map((/** @type {any} */ x) => x.id));
-      const wanted = [...t.kit.heroes, ...t.kit.monsters].map(x => x.tokenId);
+      const wanted = [...tokenHeroes(t.kit), ...t.kit.monsters].map(x => x.tokenId);
       const missing = wanted.filter(id => !tokenIds.has(id));
       t.check(missing.length === 0, `${missing.length} kit tokens are not on the active scene`);
     });

@@ -19,7 +19,7 @@ class TimedOut extends Error {}
  * @typedef {import('./contract.mjs').Scenario} Scenario
  * @typedef {import('./contract.mjs').ScenarioResult} ScenarioResult
  * @typedef {import('./contract.mjs').StepResult} StepResult
- * @typedef {{call: (action: string, args?: object) => Promise<any>}} GmLike
+ * @typedef {{call: (action: string, args?: object) => Promise<any>, page?: import('playwright-core').Page}} GmLike
  * @typedef {{state: () => Promise<any>, html: () => Promise<string>}} PlayerLike
  * @typedef {object} RunOptions
  * @property {ReturnType<typeof import('./dashboard.mjs').createDashboardClient>} dashboard
@@ -27,6 +27,7 @@ class TimedOut extends Error {}
  * @property {PlayerLike} [player]   defaults to /api/player/state and /player on the dashboard
  * @property {import('./contract.mjs').KitManifest | null} [manifest]
  * @property {boolean} [fake]
+ * @property {'smoke'|'full'|'long'} [size]   the kit size of the run; scenarios read it as `t.size` (default smoke)
  * @property {(line: string) => void} [log]   one line per step, as the live scripts print them
  */
 
@@ -90,7 +91,7 @@ export async function runScenariosDetailed(list, opts) {
  * @returns {Promise<ScenarioResult>}
  */
 async function runOne({ scenario, file }, opts, consoleSink) {
-  const { dashboard, gm, manifest = null, fake = false } = opts;
+  const { dashboard, gm, manifest = null, fake = false, size = 'smoke' } = opts;
   const out = opts.log || (() => {});
   const declared = new Set(scenario.gmActions || []);
   const t0 = Date.now();
@@ -200,6 +201,7 @@ async function runOne({ scenario, file }, opts, consoleSink) {
     player,
     http: (path, o) => dashboard.http(path, o),
     kit: /** @type {any} */ (manifest),
+    page: gm?.page ?? null,
     log(message) {
       if (timedOut) return;
       result.logs.push(String(message));
@@ -212,6 +214,7 @@ async function runOne({ scenario, file }, opts, consoleSink) {
       cleanups.push(fn);
     },
     fake,
+    size,
   };
 
   // --- run, with a time limit ---
@@ -292,9 +295,12 @@ async function runOne({ scenario, file }, opts, consoleSink) {
         })
       );
       consoleSink.push(...errors);
+      // A scenario can name errors it reports itself (Actor Studio's own), so they are not blamed on the bridge module.
+      const known = (scenario.knownConsoleErrors ?? []).map(src => new RegExp(src));
       const ours = errors.filter(
         (/** @type {{message: string, source: string}} */ x) =>
-          x.message.includes(MODULE_ID) || x.source.includes(MODULE_ID)
+          (x.message.includes(MODULE_ID) || x.source.includes(MODULE_ID)) &&
+          !known.some(re => re.test(x.message))
       );
       if (ours.length) {
         record({

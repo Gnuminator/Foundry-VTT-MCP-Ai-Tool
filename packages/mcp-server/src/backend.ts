@@ -54,8 +54,7 @@ import { MovementTools } from './tools/movement.js';
 import { SessionLogTools } from './tools/session-log.js';
 import { CombatResolutionTools } from './tools/combat-resolution.js';
 import { EncounterTools } from './tools/encounter.js';
-import { SceneControlTools } from './tools/scene-control.js';
-import { LootTools } from './tools/loot.js';
+import { SceneChangeTools } from './tools/scene-change.js';
 import { DiagnosticsTools } from './tools/diagnostics.js';
 import { GuardedChangeTools } from './tools/guarded-changes.js';
 import { TarokkaTools } from './tools/tarokka.js';
@@ -287,10 +286,6 @@ async function startBackend(): Promise<void> {
 
   const encounterTools = new EncounterTools({ foundryClient, logger });
 
-  const sceneControlTools = new SceneControlTools({ foundryClient, logger });
-
-  const lootTools = new LootTools({ foundryClient, logger });
-
   const diagnosticsTools = new DiagnosticsTools({ foundryClient, logger });
 
   // Bridge vault (GM-only data off Foundry) + guarded writes (plan/apply/undo).
@@ -386,6 +381,7 @@ async function startBackend(): Promise<void> {
   const partyTools = new PartyTools({ foundryClient, guardedWrites, logger });
   const ownershipTools = new OwnershipTools({ foundryClient, guardedWrites, logger });
   const livePlayTools = new LivePlayTools({ foundryClient, guardedWrites, logger });
+  const sceneChangeTools = new SceneChangeTools({ foundryClient, guardedWrites, logger });
   // O4 Foundry mirror: the pump starts with the Foundry link below (vault dir set only).
   const mirrorEnv = mirrorEnvSettings();
   for (const warning of mirrorEnv.warnings) logger.warn(warning);
@@ -444,8 +440,7 @@ async function startBackend(): Promise<void> {
     prepDigestTools,
     partyTools,
     livePlayTools,
-    sceneControlTools,
-    lootTools,
+    sceneChangeTools,
     diagnosticsTools,
     refChoiceTools,
   };

@@ -94,6 +94,22 @@ describe('QueryHandlers — registration', () => {
     }
   });
 
+  it('no longer registers the direct scene-dressing write handlers (I-112)', () => {
+    qh.registerHandlers();
+    for (const key of [
+      'placeMeasuredTemplate',
+      'deleteMeasuredTemplate',
+      'setSceneMood',
+      'addMapNote',
+      'deleteMapNote',
+      'dropLoot',
+    ]) {
+      expect(queries()[`${MODULE_ID}.${key}`], key).toBeUndefined();
+    }
+    expect(typeof queries()[`${MODULE_ID}.planSceneChange`]).toBe('function');
+    expect(typeof queries()[`${MODULE_ID}.playPlaylist`]).toBe('function');
+  });
+
   it('getRegisteredMethods lists the stripped method names', () => {
     qh.registerHandlers();
     const methods = qh.getRegisteredMethods();

@@ -6,7 +6,7 @@
  * templates). Three things the tool API cannot do, so this query does them:
  *
  * - `snapshot`: the active scene's darkness and global light (no read tool shows them),
- *   so the sweep can restore them after `set-scene-mood`.
+ *   so the sweep can restore them after a `plan-scene-change` mood step.
  * - `combat`: start a combat on the active scene with the given tokens (no tool creates a
  *   combat), so the combat tools have something to act on.
  * - `cleanup` (the default): delete the world documents and tokens the sweep named with
@@ -48,7 +48,7 @@ export interface SweepCleanupResult {
   names: string[];
 }
 
-/** The active scene's lighting, as `set-scene-mood` takes it. */
+/** The active scene's lighting, as a `plan-scene-change` mood step takes it. */
 export interface SweepSnapshotResult {
   mode: 'snapshot';
   sceneId: string | null;

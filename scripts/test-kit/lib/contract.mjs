@@ -11,7 +11,7 @@
  */
 
 /** Bump when the report or manifest shape changes in a way readers must notice. */
-export const KIT_FORMAT_VERSION = 1;
+export const KIT_FORMAT_VERSION = 2;
 
 /** Kit sizes, smallest first (plan: "Three sizes"). A scenario lists the sizes that include it. */
 export const KIT_SIZES = ['smoke', 'full', 'long'];
@@ -23,10 +23,36 @@ export const KIT_TAGS = ['bridge', 'module', 'dashboard', 'player', 'vault', 'pl
  * Worlds the kit may build in and write to. Never a real campaign, never `ai-tool-test` (the
  * everyday test world) and never `ai-tool-kit` (the hand-made licensed import world).
  */
-export const KIT_WORLDS = ['ai-tool-kit-srd'];
+export const KIT_WORLDS = ['ai-tool-kit-srd', 'ai-tool-kit-licensed'];
 
 /** The kit's own world. */
 export const DEFAULT_KIT_WORLD = 'ai-tool-kit-srd';
+
+/**
+ * Content profiles: where the builder finds its content. `srd` ships in the repo
+ * (scripts/test-kit/data/profiles/srd.json); any other profile is a local file
+ * `<kitHome>/licensed/profiles/<id>.json` and never enters a repo. Selected with `--profile <id>`.
+ *
+ * @typedef {object} ContentProfile
+ * @property {string} id
+ * @property {string} world            the kit world it builds in (one of KIT_WORLDS)
+ * @property {string} title            world title when the world is created
+ * @property {string[]} modules        modules to enable besides foundry-mcp-bridge (e.g. a local content module)
+ * @property {{classes: string[], subclasses: string[], species: string[], backgrounds: string[], monsters: string[], spells: string[], feats: string[]}} packs
+ *   compendium ids per kind, searched in order; the first pack that has an entry wins for duplicates
+ * @property {{rules: Array<'2024'|'2014'>, skipNames?: string[], skipIds?: string}} [select]
+ *   which rules versions count (both = 2024 plus legacy that remain), names to skip, and an id regex to skip
+ */
+export const DEFAULT_PROFILE = 'srd';
+
+/** Hero levels per kit size (D-090 lane 2, the user's pick 2026-10-05). */
+export const HERO_PLAN = {
+  /** every class at this level with its first subclass */
+  smoke: { tierLevels: [5], subclassLevel: null },
+  /** every class at 1, 5, 11, 17 (first subclass from 3) and every subclass at 20 */
+  full: { tierLevels: [1, 5, 11, 17], subclassLevel: 20 },
+  long: { tierLevels: [1, 5, 11, 17], subclassLevel: 20 },
+};
 
 /** The live bridge ports: the kit refuses any target that uses one of them. */
 export const LIVE_BRIDGE_PORTS = [31414, 31415, 31416];
@@ -54,8 +80,51 @@ export const GM_ACTIONS = {
   wipeKit: 'wipeKit',
   /** ({type, name}) => {folderId} a kit folder, reused when it exists */
   ensureFolder: 'ensureFolder',
-  /** ({name, classId, level, speciesId?, backgroundId?, folderId}) => {actorId, name, classIdentifier, level, hp:{value,max}} */
+  /**
+   * ({packIds, type?, subtype?}) => {entries: [{packId, id, uuid, name, type, identifier, classIdentifier?,
+   * rules: '2024'|'2014'|'', book: string}]} the index of those packs (names and ids only, no text).
+   * `rules` from system.source.rules, `book` from system.source.book.
+   * Additive: the reply also has `missing: string[]`, the packIds that are not installed.
+   */
+  listCompendium: 'listCompendium',
+  /**
+   * ({name, classUuid, subclassUuid?, level, rotation, speciesUuid?, backgroundUuid?, folderId, featPackIds?}) =>
+   * {actorId, name, classIdentifier, subclassIdentifier, level, hp:{value,max},
+   *  picks: [{level, advancement, title, chosen: string[]}], warnings: string[]}
+   * Levels the hero through the system's advancement with no dialogs. Every choice picks option
+   * index (rotation + k) % options for its k-th pick, so a matrix of heroes with different
+   * rotations covers every option and a build is repeatable. Throws when the advancement fails.
+   * k counts the hero's picks in the order the system asks (species, background, then class); an
+   * ability score improvement alternates +2 (two +1 for odd rotations) and a general feat on the
+   * same count. `featPackIds` (additive) are the packs to take those feats from; without them an
+   * improvement is always taken. Species and background default to Human and Soldier of
+   * dnd5e.origins24 when no uuid is given. A Trait choice the system could not offer (every option
+   * already taken) is a warning "<item>: <title> level N: x of y choice(s) left, every option is already
+   * taken"; a Trait advancement with no choices gets no pick of ours.
+   */
   createHero: 'createHero',
+  /**
+   * ({classUuid, subclassUuid?, level}) => {expected} what the advancement data says a hero of that
+   * level must have: {grants: [{level, uuid, name, resolved, optional, why?}], choices: [{level, advancement, count}],
+   * scale: [{identifier, value}], saves: string[] (saving throw proficiencies the class grants),
+   * hitDie, hpFixed: number (sum of max die at 1 and averages, without CON), spellcasting:
+   * {progression, ability} | null, spellSlots: {leveled: {"1": n, ...}, pact: {max, level} | null} | null
+   * (the system's own table for a single-class caster), skillsChosen: number, subclassAt}.
+   * Additive fields: grants.resolved, grants.optional, grants.why (an unresolved grant's reason), saves, spellSlots.
+   */
+  describeClass: 'describeClass',
+  /**
+   * ({actorId}) => {name, level, classes: [{identifier, levels, subclass}], hp:{value, max,
+   * bonuses: {level, overall} (worked out), sources: [{item, keys}] (items whose effects change HP)},
+   * abilities: {str..cha: {value, mod}}, items: [{name, type, sourceUuid, identifier}],
+   * scale: {[classId]: {[identifier]: value}} (class and subclass values), spells: {spell1..spell9: {max},
+   * pact: {max, level}}, skills: {[id]: proficient}, saves: {[id]: proficient},
+   * saveSources: {[ability]: item names whose effects add that save}, ownership: {[userName]: level}}
+   * Additive fields: hp.bonuses, hp.sources, saveSources, subclass scale values under the class.
+   */
+  inspectActor: 'inspectActor',
+  /** ({actorId, userName, level}) => {ok: true} sets one user's ownership level (3 = owner) */
+  setOwnership: 'setOwnership',
   /** ({name, folderId, width, height, grid, walls, doors, lights}) => {sceneId, name} creates and activates */
   createCombatScene: 'createCombatScene',
   /** ({sceneId, actorId, x, y, hidden?, name?}) => {tokenId} grid square coordinates, not pixels */
@@ -72,6 +141,85 @@ export const GM_ACTIONS = {
   readActor: 'readActor',
   /** ({since?}) => {errors: [{at, message, source}]} console errors the GM page collected */
   consoleErrors: 'consoleErrors',
+  /**
+   * ({actorId}) => {name, level, prof, ac: {value, calc, armor}, hd: {value, max, classes: [{identifier,
+   * denomination, levels, spent}]}, hp: {value, max}, abilities: {str..cha: {value, mod}}, spells: {spell1..spell9, pact:
+   * {value, max, level, type}}, scale: {[classId]: {[identifier]: value}}, items: [{id, name, type, identifier,
+   * sourceUuid, equipped, uses: {max, spent, recovery: [{period, type, formula}]} | null, activities: [{id, type, name,
+   * activation, canUse, consumption: [{type, target, value}]}], effects: [{id, name, disabled, transfer, changes:
+   * [{key, value, type}]}]}]} everything the feature scenarios need to know about one actor. Read only.
+   * Additive (monster slice): each activity also has `activationValue` (number | null), and an npc actor has `npc`:
+   * {cr, creatureType, size, ac, movement: {walk, fly, swim, burrow, climb, hover}, movementSource: {same, as stored},
+   * resources: {legact: {max, spent} | null, legres: {max, spent} | null, lair: {value, initiative, inside} | null},
+   * spell: {ability, dc}}.
+   */
+  inspectFeatures: 'inspectFeatures',
+  /**
+   * Runs something on an actor and always puts the actor back as it was (items' uses, slots, hit
+   * points, hit dice, effects, new items and chat messages are all restored; `restored` and `drift` say
+   * whether that worked). One of:
+   * - ({actorId, op: 'use', itemId, activityId, consumeAction?}) => {ok, notes: [{level, message}], threw, chatCard,
+   *   uses: {before, after, max}, spells: {key: {before, after}}, effects: [{name, changes}], itemsCreated,
+   *   restored, drift}. Uses one activity with no dialog, no template, no roll and no action cost;
+   *   the system's error notifications are collected in `notes`.
+   *   `consumeAction: true` lets the system spend the action the activation stands for (a legendary action spends
+   *   resources.legact when the activity has no consumption target of its own); default false.
+   * - ({actorId, op: 'effect', itemId, effectId, enabled, read: [path]}) => {before, during, restored, drift}, each
+   *   `{[path]: {value, resolved?}}` read from the actor before and with a copy of the effect on the actor (an item's
+   *   effect applies to the actor as a copy, like the chat card's apply button; a Set comes back as an array).
+   * - ({actorId, op: 'rest', type: 'short'|'long'}) => {type, afterSpend, afterRest, restored, drift}: every use,
+   *   slot and hit die is spent and hit points set to 1, the rest is taken with no dialog, and both
+   *   states are reported as {items: [{id, name, max, spent, recovery}], spells, hp, hd}.
+   * - ({actorId, op: 'recharge', itemId, rolls?}) => {target, rolls: [{total, success, spentBefore, spentAfter}],
+   *   restored, drift}: the item's uses are all spent, then the system's own recharge roll (d6 against
+   *   the target, `uses.rollRecharge`) is made `rolls` times (default 6, uses spent again before each).
+   * Additive (monster slice): an `op: 'use'` reply also has `changed`, the paths of actor.system the use changed
+   * ({"resources.legact.spent": {before, after}}, at most 60), so a spent legendary action shows.
+   */
+  exerciseActor: 'exerciseActor',
+  /**
+   * ({packId, from?, count?}) => {packId, installed, total, skipped: {[actorType]: n}, from, entries: [{packId, id,
+   * uuid, name, cr, creatureType, size, book, rules, hp, ac, movement: {walk, fly, swim, burrow, climb, hover (bool), units},
+   * senses: {darkvision, blindsight, tremorsense, truesight, special (bool)}, languages: string[], resist: {dr, di,
+   * dv, ci: string[], dm (bool)}, spell: {spells, ability, innate (bool), dc}, legact (max), legres (max), lair (bool),
+   * items, activities, odd: {regeneration, shapechanger, damageThreshold, multiattack, innateSpellcasting (bool),
+   * recharge, summon, transform, legendaryActivities, lairActivities (counts)}}]}
+   * Reads the monsters (actors of type npc, sorted by name then id) of one compendium pack, `count` (default 100)
+   * from `from`, as the facts the monster scenarios need. Names, numbers and flags only, no text. Read only.
+   * `total` counts the npcs of the pack; `skipped` the other actor types (character, vehicle).
+   */
+  listMonsters: 'listMonsters',
+  /**
+   * ({packId, itemId, name?, folderId?}) => {actorId, name} a world copy of a compendium monster for a probe. It carries
+   * the kit flag, so a rebuild wipes it when a run died before deleteMonsters. Name default "Probe <name>".
+   */
+  createMonster: 'createMonster',
+  /** ({actorIds}) => {deleted: number, refused: string[]} deletes probe actors; refuses any actor that is not a probe (the flag createMonster sets) */
+  deleteMonsters: 'deleteMonsters',
+  /**
+   * ({actorId}) => {name, level, items: [{type, name, identifier, sourceUuid, origin: {item, advancement, title} | null,
+   * root, prepared, quantity, level (spells)}], advancements: [{item, id, type, title, level, value}], skills: {[id]: number},
+   * saves: {[id]: boolean}, proficiencies: {languages, weapons, armor, tools, damageResistances, damageImmunities,
+   * conditionImmunities}, senses, movement, size, hp: {max, bonuses}, ac: {value, calc}} what a build left on the
+   * actor that inspectActor and inspectFeatures do not show: where each item came from (the advancement that made
+   * it, by names and not by ids), what each advancement of the class, subclass, species and background holds, and
+   * the proficiencies. Read only. The studio scenario compares two heroes with it.
+   */
+  inspectBuild: 'inspectBuild',
+  /**
+   * ({op: 'start', rotation, k?, subclassUuid?, featPackIds?} | {op: 'status'} | {op: 'stop'}) => {running, k, picks,
+   * warnings, errors, answered, managersSeen, completed, lastStep, lastActivityAt} | null. A loop in the Foundry page
+   * that answers the system's advancement dialogs while Actor Studio shows them in its window, with the same rotation
+   * rule as createHero. `stop` ends it and returns what it picked. Used only by the studio scenario.
+   */
+  studioPump: 'studioPump',
+  /**
+   * ({actorId, name?, folderId?}) => {ok: true} marks an actor made outside the builder (by Actor Studio) as the
+   * kit's own: the kit flag, the kit folder, a new name. A rebuild then wipes it.
+   */
+  adoptActor: 'adoptActor',
+  /** ({actorId}) => {deleted: boolean} deletes an actor, only when it carries the kit flag. */
+  deleteKitActor: 'deleteKitActor',
 };
 
 /**
@@ -85,6 +233,10 @@ export const GM_ACTIONS = {
  * @property {string[]} tools       every bridge tool it calls; CI checks each exists in tool-sets.ts
  * @property {string[]} [gmActions] every GM action it calls (keys of {@link GM_ACTIONS})
  * @property {number} [timeoutMs]   whole scenario, default 120000
+ * @property {string[]} [knownConsoleErrors]  regular expressions (as text) for console errors the scenario reports itself;
+ *   the runner does not blame them on the bridge module (the studio scenario reports Actor Studio's own errors)
+ * @property {number} [order]       run order, lowest first (default 0; ties keep the file order). A scenario that floods
+ *   the play log (the feature scenarios) goes last, so it cannot starve the ones that read the log.
  * @property {(t: ScenarioContext) => Promise<void>} run
  */
 
@@ -102,10 +254,13 @@ export const GM_ACTIONS = {
  * @property {{state: () => Promise<any>, html: () => Promise<string>}} player  /api/player/state and /player
  * @property {(path: string, opts?: {method?: string, body?: unknown}) => Promise<{status: number, data: any}>} http
  * @property {KitManifest} kit        what the builder made
+ * @property {import('playwright-core').Page | null} page  the Foundry GM page, for a scenario that must click in a Foundry
+ *   window (Actor Studio); null against the fake
  * @property {(message: string) => void} log
  * @property {(name: string, data: unknown) => void} attach   JSON attachment in the report
  * @property {(fn: () => Promise<void>) => void} cleanup     runs after the scenario, last in first out
  * @property {boolean} fake           true when running against the fake (CI)
+ * @property {'smoke'|'full'|'long'} size   the kit size of this run (additive; scenarios that sample use it)
  */
 
 /**
@@ -115,7 +270,16 @@ export const GM_ACTIONS = {
  * @property {string} builtAt         ISO time
  * @property {string} systemVersion
  * @property {Record<string, string>} folders   type -> folderId
- * @property {Array<{actorId: string, name: string, classIdentifier: string, level: number, tokenId?: string}>} heroes
+ * @property {string} profile         the content profile id
+ * @property {Array<{actorId: string, name: string, classIdentifier: string, level: number, tokenId?: string,
+ *   classUuid: string, classRules: string, subclassUuid?: string, subclassIdentifier?: string, rules: string, book: string,
+ *   role: 'tier'|'subclass', rotation: number, owner?: string, picks?: unknown[], warnings?: string[],
+ *   buildError?: string}>} heroes
+ *   A hero whose advancement failed keeps its row with buildError (and no actorId), so the report
+ *   shows it instead of the build stopping.
+ * @property {{classes: {found: number, built: number}, subclasses: {found: number, built: number, failed: string[]}, heroes: number}} coverage
+ * @property {Array<{at: string, message: string, source: string}>} [consoleErrors]
+ *   console errors of the GM page over the whole build (additive in version 2)
  * @property {Array<{actorId: string, name: string, cell: string, cr: number, type: string, size: string, packId: string, itemId: string, tokenId?: string}>} monsters
  * @property {{sceneId: string, name: string, width: number, height: number}} scene
  */
@@ -182,6 +346,21 @@ export function validateScenario(s) {
     problems.push('licensed must be boolean');
   if (sc.timeoutMs !== undefined && (typeof sc.timeoutMs !== 'number' || sc.timeoutMs <= 0))
     problems.push('timeoutMs must be a positive number');
+  if (
+    sc.knownConsoleErrors !== undefined &&
+    (!Array.isArray(sc.knownConsoleErrors) ||
+      sc.knownConsoleErrors.some(x => {
+        try {
+          new RegExp(x);
+          return typeof x !== 'string';
+        } catch {
+          return true;
+        }
+      }))
+  )
+    problems.push('knownConsoleErrors must be a list of regular expressions (text)');
+  if (sc.order !== undefined && typeof sc.order !== 'number')
+    problems.push('order must be a number');
   if (typeof sc.run !== 'function') problems.push('run must be a function');
   return problems;
 }

@@ -5,10 +5,11 @@
  *
  * The rules are in packages/cogm-dashboard/src/player/projection.ts: HP numbers only for player
  * characters, bands (words) for others when the table allows them, hidden combatants dropped.
- * The kit heroes have no player owner, so the dashboard treats them as non-player combatants:
- * their HP does not appear as numbers either.
+ * A player character is an actor a player owns: the kit gives one hero (the manifest row with an
+ * `owner`) to the Kit Player user, so the player screen must show its HP as numbers that match
+ * Foundry, while the monsters stay hidden.
  */
-import { monsterOf, waitFor } from '../lib/helpers.mjs';
+import { monsterOf, playerHero, waitFor } from '../lib/helpers.mjs';
 
 const CANARY = 'KIT-CANARY-HIDDEN';
 const BANDS = [null, 'healthy', 'bloodied', 'critical', 'down'];
@@ -25,7 +26,7 @@ export default {
   timeoutMs: 120000,
 
   async run(t) {
-    const hero = t.kit.heroes[0];
+    const hero = playerHero(t.kit);
     const visible = monsterOf(t.kit, 'beast');
     const secret = monsterOf(t.kit, 'flyer');
     const sceneId = t.kit.scene.sceneId;
@@ -119,16 +120,26 @@ export default {
       }
     });
 
-    await t.step('the hero HP is words or nothing, never a number for a non-player', async () => {
+    await t.step('the player hero shows its HP as numbers that match Foundry', async () => {
       const row = state.combat.combatants.find(
         (/** @type {any} */ c) => c.id === combat.combatantIds[0]
       );
-      if (row.isPC) {
-        t.check(row.hpBand === null, 'a player character has a band as well as numbers');
-      } else {
-        t.check(row.hp === null, 'the hero has HP numbers', row.hp);
-        t.check(BANDS.includes(row.hpBand), `the hero band is a word, not ${row.hpBand}`);
-      }
+      t.check(row, 'the player hero is not in the player combat');
+      t.check(row.isPC === true, `the hero ${hero.name} is not a player character on the screen`);
+      t.check(
+        row.hpBand === null,
+        `a player character has a band as well as numbers: ${row.hpBand}`
+      );
+      const real = (
+        await t.gm('readActor', { actorId: hero.actorId, sceneId, tokenId: hero.tokenId })
+      ).hp;
+      t.check(row.hp !== null, 'a player character shows no HP numbers');
+      t.equal(
+        { value: row.hp.value, max: row.hp.max, temp: row.hp.temp },
+        { value: real.value, max: real.max, temp: real.temp },
+        'the player hero HP on the screen vs Foundry'
+      );
+      return `${row.hp.value}/${row.hp.max} HP`;
     });
   },
 };

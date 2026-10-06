@@ -193,7 +193,7 @@ works until v16, #8856); 14.368 a `darknessLevel` update on a scene with `darkne
 | `characters.ts:312`; `compendium.ts:600`; `resources-effects.ts:499`                                              | `effect.icon`                                     | removed in v14                                                                                                           | `img`                                                                                                             |
 | `session-events.ts:402-404, 448`                                                                                  | `flags.dnd5e.roll.type/...`                       | 6.0 moves roll kind to ChatMessage `type` and deletes the flags: damage detection degrades                               | `message.type === 'damage' \|\| flags...`                                                                         |
 | `shared.ts:336-339`; `combat.ts:404`; `player-rolls.ts:211-216, 363`                                              | `CONST.DICE_ROLL_MODES`, `'gmroll'`               | deprecated in v14 (`CONFIG.ChatMessage.modes`)                                                                           | map when the new config exists                                                                                    |
-| `scene-fx.ts:123-168` (tools `place-measured-template`, `delete-measured-template`)                               | MeasuredTemplate create/delete                    | **broken on v14 today**: the MeasuredTemplate document type was removed in 14.352 (#13089; old data migrates to Regions) | create a Region with `shapes`, `levels`, `restriction`, `visibility` (as dnd5e 6.0 `template-placement.mjs` does) |
+| `scene-fx.ts:123-168` (old tools `place-measured-template`, `delete-measured-template`, now `plan-scene-change`)  | MeasuredTemplate create/delete                    | **broken on v14 today**: the MeasuredTemplate document type was removed in 14.352 (#13089; old data migrates to Regions) | create a Region with `shapes`, `levels`, `restriction`, `visibility` (as dnd5e 6.0 `template-placement.mjs` does) |
 | `scenes-tokens.ts:106`                                                                                            | `_source.background`                              | v14 Scene has no `background`/`foreground`/`backgroundColor`; they live on each Level (`background.src`, 14.353)         | read `scene.levels.get(scene.initialLevel).background.src`                                                        |
 | `actor-creation.ts:433`; `scene-fx.ts:301`                                                                        | Token/Note creation                               | v14 Token `level` (one Level id, default `defaultLevel0000`); Note/Wall/Tile/Region/Light `levels` (set, empty = all)    | pass `canvas.level.id` explicitly (as dnd5e 6.0 does)                                                             |
 | `actor-builder.ts:498, 515-532, 545`                                                                              | `ac.calc/flat`, `movement.walk`, `details.source` | migrated in 6.0                                                                                                          | write `ac.override`, `movement.speeds.*`, `system.source`                                                         |
@@ -229,7 +229,7 @@ live-tested by the lead. Every row of the table above is handled:
   an empty `scene.templates`, so `supportsMeasuredTemplates()` now reads the Scene's embedded document
   types.
 - **Scene Levels:** backgrounds via `sceneBackgroundSrc`; tokens (`add-actors-to-scene`), map notes and
-  template regions get the current level. `set-scene-mood` sends `darknessLock` along (14.368 #14718;
+  template regions get the current level. `plan-scene-change` (mood) sends `darknessLock` along (14.368 #14718;
   live: darkness changed with the lock on).
 - **dnd5e 6 NPC writes:** AC `override`, `movement.speeds`, top-level `source` (live); `item.use` with
   the three-argument signature.
@@ -817,7 +817,7 @@ and pushed, and is summarized before the next starts.
 4. **M3** Foundry v14 + dnd5e 6.0 compatibility pass for existing tools (table 2.4 + pre-existing bugs).
    **Done 2026-09-28** (see "M3 as built", section 2.4).
    Some items are v14-core and affect you already. Templates are confirmed broken on v14 (MeasuredTemplate
-   removed in 14.352), so `place-measured-template` and `delete-measured-template` fail today; M0 makes them
+   removed in 14.352), so the old `place-measured-template` and `delete-measured-template` (now `plan-scene-change`) failed; M0 makes them
    return a clear "not available on Foundry 14 yet" error through the adapter, M3 ports them to Regions
    (question 11).
 5. **M4** feature 3, **M5** feature 4, **M6** feature 5, **M7** feature 6, **M8** feature 7, **M9** feature 8.

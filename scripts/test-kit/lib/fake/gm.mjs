@@ -3,10 +3,50 @@
  * arguments, same results.
  */
 import { GM_ACTIONS } from '../contract.mjs';
+import {
+  FAKE_CLASSES,
+  FAKE_ORIGINS,
+  FAKE_PACKS,
+  FAKE_SUBCLASSES,
+  describe,
+  featureUuid,
+  findClass,
+  findSubclass,
+  uuidOf,
+} from './classes.mjs';
+import { fakeExerciseActor, fakeFeatures, fakeInspectFeatures } from './features.mjs';
+import {
+  fakeCreateMonster,
+  fakeDeleteMonsters,
+  fakeExerciseMonster,
+  fakeInspectMonster,
+  fakeListMonsters,
+} from './monsters.mjs';
 import { markTurn, sortCombat } from './tools-combat.mjs';
 import { ToolFailure, addEvent, newId, roll, tick } from './state.mjs';
 
 /** @typedef {import('./state.mjs').World} World */
+
+const SKILL_IDS = [
+  'acr',
+  'ani',
+  'arc',
+  'ath',
+  'dec',
+  'his',
+  'ins',
+  'itm',
+  'inv',
+  'med',
+  'nat',
+  'prc',
+  'prf',
+  'per',
+  'rel',
+  'slt',
+  'ste',
+  'sur',
+];
 
 /** @type {Record<string, (w: World, args: any) => any>} */
 const ACTIONS = {
@@ -42,28 +82,225 @@ const ACTIONS = {
     return { folderId: w.folders.get(key) };
   },
 
+  listCompendium: (w, args) => {
+    /** @type {any[]} */
+    const entries = [];
+    /** @type {string[]} */
+    const missing = [];
+    for (const packId of args.packIds ?? []) {
+      if (!FAKE_PACKS.includes(packId)) {
+        missing.push(packId);
+        continue;
+      }
+      const row = (/** @type {any} */ d, /** @type {string} */ type) => ({
+        packId,
+        id: d.id,
+        uuid: uuidOf(packId, d.id),
+        name: d.name,
+        type,
+        identifier: d.identifier ?? d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        ...(d.classIdentifier ? { classIdentifier: d.classIdentifier } : {}),
+        rules: d.rules ?? '2024',
+        book: '',
+      });
+      for (const c of FAKE_CLASSES) if (c.pack === packId) entries.push(row(c, 'class'));
+      for (const c of FAKE_SUBCLASSES) if (c.pack === packId) entries.push(row(c, 'subclass'));
+      if (packId === 'dnd5e.origins24') for (const o of FAKE_ORIGINS) entries.push(row(o, o.type));
+    }
+    return { entries: entries.filter(e => !args.type || e.type === args.type), missing };
+  },
+
   createHero: (w, args) => {
-    const level = Number(args.level ?? 1);
-    const max = 7 + level + (args.classId.length % 5);
+    const k = findClass(String(args.classUuid));
+    if (!k) throw new ToolFailure(`createHero: no class ${args.classUuid}`);
+    const s = args.subclassUuid ? findSubclass(String(args.subclassUuid)) : null;
+    if (args.subclassUuid && !s)
+      throw new ToolFailure(`createHero: no subclass ${args.subclassUuid}`);
+    const level = Math.max(1, Math.min(20, Number(args.level ?? 1)));
+    const rotation = Math.max(0, Math.floor(Number(args.rotation ?? 0)));
+    let k2 = 0;
+    const pick = (/** @type {string[]} */ list) => list[(rotation + k2++) % list.length];
+    const expected = describe(k, s, level);
+    const hasSub = Boolean(s && level >= k.subclassAt);
+    /** @type {any[]} */
+    const picks = [
+      {
+        level: 0,
+        advancement: 'Trait',
+        title: 'Soldier: Background Proficiencies',
+        chosen: ['tool:game:card'],
+      },
+    ];
+    /** @type {string[]} */
+    const warnings = [];
+    /** @type {Array<{id: string, name: string, type: string, sourceUuid: string}>} */
+    const items = [
+      {
+        id: newId(w, 'itm'),
+        name: 'Human',
+        type: 'race',
+        sourceUuid: uuidOf('dnd5e.origins24', 'fakeSpHuman0000001'),
+      },
+      {
+        id: newId(w, 'itm'),
+        name: 'Soldier',
+        type: 'background',
+        sourceUuid: uuidOf('dnd5e.origins24', 'fakeBgSoldier00001'),
+      },
+      { id: newId(w, 'itm'), name: k.name, type: 'class', sourceUuid: args.classUuid },
+    ];
+    if (hasSub && s) {
+      items.push({
+        id: newId(w, 'itm'),
+        name: s.name,
+        type: 'subclass',
+        sourceUuid: args.subclassUuid,
+      });
+      picks.push({
+        level: k.subclassAt,
+        advancement: 'Subclass',
+        title: `${k.name}: Subclass`,
+        chosen: [s.name],
+      });
+    } else if (args.subclassUuid) {
+      warnings.push(
+        'the subclass was asked for but not applied (the class has no subclass step up to this level)'
+      );
+    }
+    for (const g of expected.grants) {
+      items.push({ id: newId(w, 'itm'), name: g.name, type: 'feat', sourceUuid: g.uuid });
+    }
+    for (const c of k.itemChoices.filter(x => x.level <= level)) {
+      const chosen = [];
+      for (let i = 0; i < c.count; i += 1) chosen.push(pick(c.options));
+      for (const name of chosen)
+        items.push({ id: newId(w, 'itm'), name, type: 'feat', sourceUuid: featureUuid(name) });
+      picks.push({
+        level: c.level,
+        advancement: 'ItemChoice',
+        title: `${k.name}: Choose a style`,
+        chosen,
+      });
+    }
+    const skills = [];
+    while (skills.length < k.skillsChosen) {
+      const key = `skills:${pick(k.skillPool)}`;
+      if (!skills.includes(key)) skills.push(key);
+    }
+    picks.push({
+      level: 1,
+      advancement: 'Trait',
+      title: `${k.name}: Skill Proficiencies`,
+      chosen: skills,
+    });
+    const improve = ['str', 'dex', 'wis', 'int', 'cha'];
+    for (const l of k.asi.filter(x => x <= level)) {
+      picks.push({
+        level: l,
+        advancement: 'AbilityScoreImprovement',
+        title: `${k.name}: Ability Score Improvement`,
+        chosen: [`${pick(improve)} +2`],
+      });
+    }
+    const max = expected.hpFixed + level; // Constitution 13 gives +1 a level
     const id = newId(w, 'hero');
+    /** @type {Record<string, number>} */
+    const skillMap = Object.fromEntries(SKILL_IDS.map(x => [x, 0]));
+    for (const key of [...skills, 'skills:ath']) skillMap[key.slice(7)] = 1;
+    /** @type {Record<string, any>} */
+    const spells = {};
+    for (const [n, count] of Object.entries(expected.spellSlots?.leveled ?? {}))
+      spells[`spell${n}`] = { max: count };
+    if (expected.spellSlots?.pact) spells.pact = expected.spellSlots.pact;
     w.actors.set(id, {
       id,
       name: args.name,
       type: 'character',
       hp: { value: max, max, temp: 0 },
-      items: [{ id: newId(w, 'itm'), name: String(args.classId), type: 'class' }],
+      items,
       cr: 0,
       creatureType: 'humanoid',
       size: 'med',
       level,
+      ownership: { default: 0, 'Kit GM': 3 },
+      sheet: {
+        classes: [
+          { identifier: k.identifier, levels: level, subclass: hasSub && s ? s.identifier : null },
+        ],
+        abilities: {
+          str: { value: 15, mod: 2 },
+          dex: { value: 14, mod: 2 },
+          con: { value: 13, mod: 1 },
+          int: { value: 12, mod: 1 },
+          wis: { value: 10, mod: 0 },
+          cha: { value: 8, mod: -1 },
+        },
+        scale: {
+          [k.identifier]: Object.fromEntries(expected.scale.map(x => [x.identifier, x.value])),
+        },
+        spells,
+        skills: skillMap,
+        saves: Object.fromEntries(
+          ['str', 'dex', 'con', 'int', 'wis', 'cha'].map(a => [a, k.saves.includes(a) ? 1 : 0])
+        ),
+        features: fakeFeatures(k, level, k.rules, id),
+      },
     });
     return {
       actorId: id,
       name: args.name,
-      classIdentifier: String(args.classId).toLowerCase(),
+      classIdentifier: k.identifier,
+      subclassIdentifier: hasSub && s ? s.identifier : '',
       level,
       hp: { value: max, max },
+      picks,
+      warnings,
     };
+  },
+
+  describeClass: (w, args) => {
+    const k = findClass(String(args.classUuid));
+    if (!k) throw new ToolFailure(`describeClass: no class ${args.classUuid}`);
+    const s = args.subclassUuid ? findSubclass(String(args.subclassUuid)) : null;
+    if (args.subclassUuid && !s)
+      throw new ToolFailure(`describeClass: no subclass ${args.subclassUuid}`);
+    const level = Math.max(1, Math.min(20, Number(args.level ?? 1)));
+    return { expected: describe(k, s, level, w.faults.unresolved) };
+  },
+
+  inspectActor: (w, args) => {
+    const actor = w.actors.get(args.actorId);
+    if (!actor || !actor.sheet) throw new ToolFailure(`inspectActor: no actor ${args.actorId}`);
+    return {
+      name: actor.name,
+      level: actor.level,
+      classes: actor.sheet.classes,
+      hp: {
+        value: actor.hp.value,
+        max: actor.hp.max,
+        bonuses: { level: 0, overall: 0 },
+        sources: [],
+      },
+      abilities: actor.sheet.abilities,
+      items: actor.items.map(i => ({
+        name: i.name,
+        type: i.type,
+        sourceUuid: i.sourceUuid ?? null,
+        identifier: i.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      })),
+      scale: actor.sheet.scale,
+      spells: actor.sheet.spells,
+      skills: actor.sheet.skills,
+      saves: actor.sheet.saves,
+      ownership: actor.ownership,
+    };
+  },
+
+  setOwnership: (w, args) => {
+    const actor = w.actors.get(args.actorId);
+    if (!actor) throw new ToolFailure(`setOwnership: no actor ${args.actorId}`);
+    actor.ownership = { ...(actor.ownership ?? {}), [args.userName]: Number(args.level) };
+    return { ok: true };
   },
 
   createCombatScene: (w, args) => {
@@ -194,6 +431,93 @@ const ACTIONS = {
       hp: { value: hp.value, max: hp.max, temp: hp.temp },
       conditions: [],
     };
+  },
+
+  inspectFeatures: (w, args) =>
+    w.actors.get(args.actorId)?.sheet?.monster
+      ? fakeInspectMonster(w, args)
+      : fakeInspectFeatures(w, args),
+
+  exerciseActor: (w, args) =>
+    w.actors.get(args.actorId)?.sheet?.monster
+      ? fakeExerciseMonster(w, args)
+      : fakeExerciseActor(w, args),
+
+  listMonsters: (w, args) => fakeListMonsters(w, args),
+
+  createMonster: (w, args) => fakeCreateMonster(w, args),
+
+  deleteMonsters: (w, args) => fakeDeleteMonsters(w, args),
+
+  inspectBuild: (w, args) => {
+    const actor = w.actors.get(args.actorId);
+    if (!actor || !actor.sheet) throw new ToolFailure(`inspectBuild: no actor ${args.actorId}`);
+    return {
+      name: actor.name,
+      level: actor.level,
+      items: actor.items.map(i => ({
+        type: i.type,
+        name: i.name,
+        identifier: i.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        sourceUuid: i.sourceUuid ?? '',
+        origin: null,
+        root: null,
+        prepared: null,
+        quantity: null,
+        level: i.type === 'spell' ? 1 : null,
+      })),
+      advancements: [],
+      skills: Object.fromEntries(
+        Object.entries(actor.sheet.skills ?? {}).map(([id, v]) => [id, v ? 1 : 0])
+      ),
+      saves: { ...(actor.sheet.saves ?? {}) },
+      proficiencies: {
+        languages: [],
+        weapons: [],
+        armor: [],
+        tools: [],
+        damageResistances: [],
+        damageImmunities: [],
+        conditionImmunities: [],
+      },
+      senses: {},
+      movement: { walk: 30 },
+      size: 'med',
+      hp: { max: actor.hp.max, bonuses: {} },
+      ac: { value: 10, calc: 'default' },
+    };
+  },
+
+  // The fake has no Actor Studio window: the studio scenario skips the real driver in the fake.
+  studioPump: (_w, args) =>
+    args.op === 'stop' || args.op === 'status'
+      ? null
+      : {
+          running: false,
+          k: 0,
+          picks: [],
+          warnings: [],
+          errors: [],
+          answered: 0,
+          managersSeen: 0,
+          completed: 0,
+          lastStep: '',
+          lastActivityAt: 0,
+        },
+
+  adoptActor: (w, args) => {
+    const actor = w.actors.get(args.actorId);
+    if (!actor) throw new ToolFailure(`adoptActor: no actor ${args.actorId}`);
+    if (args.name) actor.name = args.name;
+    actor.kit = true;
+    return { ok: true };
+  },
+
+  deleteKitActor: (w, args) => {
+    const actor = w.actors.get(args.actorId);
+    if (!actor) return { deleted: false };
+    w.actors.delete(args.actorId);
+    return { deleted: true };
   },
 
   consoleErrors: () => ({ errors: [] }),

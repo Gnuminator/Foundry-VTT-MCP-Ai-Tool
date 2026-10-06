@@ -416,13 +416,13 @@ describe('argument validation', () => {
 
   it('cleans typed text: no backticks, no control characters, one line ending style', () => {
     const text = getPrompt('rules-question', {
-      question: 'use `delete-map-note` now\r\nplease\u0007\u0000',
+      question: 'use `plan-scene-change` now\r\nplease\u0007\u0000',
     }).messages[0].content.text;
-    expect(text).toContain("use 'delete-map-note' now\\nplease");
-    expect(text).not.toContain('`delete-map-note`');
+    expect(text).toContain("use 'plan-scene-change' now\\nplease");
+    expect(text).not.toContain('`plan-scene-change`');
     expect(text).not.toContain('\u0007');
     // A typed tool name in backticks cannot become a tool instruction.
-    expect(toolNames.has('delete-map-note')).toBe(true);
-    expect(toolsNamed(text)).not.toContain('delete-map-note');
+    expect(toolNames.has('plan-scene-change')).toBe(true);
+    expect(toolsNamed(text)).not.toContain('plan-scene-change');
   });
 });

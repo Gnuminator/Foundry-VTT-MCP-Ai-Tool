@@ -27,6 +27,7 @@ class TimedOut extends Error {}
  * @property {PlayerLike} [player]   defaults to /api/player/state and /player on the dashboard
  * @property {import('./contract.mjs').KitManifest | null} [manifest]
  * @property {boolean} [fake]
+ * @property {'smoke'|'full'|'long'} [size]   the kit size of the run; scenarios read it as `t.size` (default smoke)
  * @property {(line: string) => void} [log]   one line per step, as the live scripts print them
  */
 
@@ -90,7 +91,7 @@ export async function runScenariosDetailed(list, opts) {
  * @returns {Promise<ScenarioResult>}
  */
 async function runOne({ scenario, file }, opts, consoleSink) {
-  const { dashboard, gm, manifest = null, fake = false } = opts;
+  const { dashboard, gm, manifest = null, fake = false, size = 'smoke' } = opts;
   const out = opts.log || (() => {});
   const declared = new Set(scenario.gmActions || []);
   const t0 = Date.now();
@@ -212,6 +213,7 @@ async function runOne({ scenario, file }, opts, consoleSink) {
       cleanups.push(fn);
     },
     fake,
+    size,
   };
 
   // --- run, with a time limit ---

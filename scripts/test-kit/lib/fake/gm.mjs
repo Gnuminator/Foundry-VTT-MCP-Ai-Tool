@@ -15,6 +15,13 @@ import {
   uuidOf,
 } from './classes.mjs';
 import { fakeExerciseActor, fakeFeatures, fakeInspectFeatures } from './features.mjs';
+import {
+  fakeCreateMonster,
+  fakeDeleteMonsters,
+  fakeExerciseMonster,
+  fakeInspectMonster,
+  fakeListMonsters,
+} from './monsters.mjs';
 import { markTurn, sortCombat } from './tools-combat.mjs';
 import { ToolFailure, addEvent, newId, roll, tick } from './state.mjs';
 
@@ -426,9 +433,21 @@ const ACTIONS = {
     };
   },
 
-  inspectFeatures: (w, args) => fakeInspectFeatures(w, args),
+  inspectFeatures: (w, args) =>
+    w.actors.get(args.actorId)?.sheet?.monster
+      ? fakeInspectMonster(w, args)
+      : fakeInspectFeatures(w, args),
 
-  exerciseActor: (w, args) => fakeExerciseActor(w, args),
+  exerciseActor: (w, args) =>
+    w.actors.get(args.actorId)?.sheet?.monster
+      ? fakeExerciseMonster(w, args)
+      : fakeExerciseActor(w, args),
+
+  listMonsters: (w, args) => fakeListMonsters(w, args),
+
+  createMonster: (w, args) => fakeCreateMonster(w, args),
+
+  deleteMonsters: (w, args) => fakeDeleteMonsters(w, args),
 
   consoleErrors: () => ({ errors: [] }),
 };

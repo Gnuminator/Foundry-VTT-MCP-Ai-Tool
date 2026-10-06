@@ -8,7 +8,7 @@
     "subclasses": ["dnd5e.classes24", "dnd5e.subclasses"],
     "species": ["dnd5e.origins24"],
     "backgrounds": ["dnd5e.origins24"],
-    "monsters": ["dnd5e.actors24"],
+    "monsters": ["dnd5e.actors24", "dnd5e.monsters"],
     "spells": ["dnd5e.spells24"],
     "feats": ["dnd5e.feats24"]
   },

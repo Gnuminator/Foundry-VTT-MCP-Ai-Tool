@@ -10,6 +10,7 @@ import {
   compendiumEntry,
   findCreature,
 } from './compendium.mjs';
+import { fakeMonsterStats } from './monsters.mjs';
 import { ToolFailure, newId } from './state.mjs';
 
 /** @param {any} v */
@@ -156,6 +157,7 @@ export const READ_TOOLS = {
         hitPoints: { current: a.hp.value, max: a.hp.max, temp: a.hp.temp },
         creatureType: a.creatureType,
         size: a.size,
+        ...fakeMonsterStats(a),
       },
       items: a.items.map(i => ({ id: i.id, name: i.name, type: i.type })),
       effects: [],

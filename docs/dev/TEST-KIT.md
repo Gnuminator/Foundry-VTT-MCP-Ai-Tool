@@ -58,9 +58,12 @@ node scripts/test-kit/kit.mjs <command> [options]
 
 | Size    | Heroes                                                   | Scenarios                  |
 | ------- | -------------------------------------------------------- | -------------------------- |
-| `smoke` | every class once, at level 5, with its first subclass    | the eight SRD scenarios    |
-| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20 | the eight SRD scenarios    |
+| `smoke` | every class once, at level 5, with its first subclass    | the eleven SRD scenarios   |
+| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20 | the eleven SRD scenarios   |
 | `long`  | the same heroes as `full`                                | scenarios that list `long` |
+
+The monster scenarios also read the size (`t.size`): `smoke` probes a sample of the monsters (see "The monsters"), `full` and
+`long` probe every one.
 
 The plan is `HERO_PLAN` in `lib/contract.mjs`. A class gets its subclass from the level its own
 Subclass advancement says (level 3 for most classes, earlier for a few). Below that level the
@@ -163,19 +166,22 @@ Start a `full` run in the background and do not wait on it.
 
 ## The scenarios
 
-Eight SRD scenarios ship in the repo. All are in `smoke` and `full`; `heroes-advancement` and the two
-feature scenarios are in `long` as well.
+Eleven SRD scenarios ship in the repo. All are in `smoke` and `full`; `heroes-advancement`, the two
+feature scenarios and the three monster scenarios are in `long` as well.
 
-| Id                     | What it proves                                                                             |
-| ---------------------- | ------------------------------------------------------------------------------------------ |
-| `bridge-health`        | The bridge, dashboard and module agree: health, world, module version, all tools, the kit. |
-| `compendium-monsters`  | Every kit monster matches its compendium entry and has a token on the scene.               |
-| `guarded-damage-undo`  | A guarded damage change applies, is listed, undoes exactly, and healing stops at the max.  |
-| `scripted-fight`       | A short fight shows up the same way in combat state, play-by-play, session log and stats.  |
-| `player-no-spoilers`   | A hidden token and monster HP never reach the player screen; the player's hero shows HP.   |
-| `heroes-advancement`   | Every hero has what its class and subclass give at its level.                              |
-| `heroes-features-use`  | Every feature of every hero can be used once with no dialog; the hero is put back.         |
-| `heroes-features-deep` | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.           |
+| Id                     | What it proves                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `bridge-health`        | The bridge, dashboard and module agree: health, world, module version, all tools, the kit.                    |
+| `compendium-monsters`  | Every kit monster matches its compendium entry and has a token on the scene.                                  |
+| `guarded-damage-undo`  | A guarded damage change applies, is listed, undoes exactly, and healing stops at the max.                     |
+| `scripted-fight`       | A short fight shows up the same way in combat state, play-by-play, session log and stats.                     |
+| `player-no-spoilers`   | A hidden token and monster HP never reach the player screen; the player's hero shows HP.                      |
+| `heroes-advancement`   | Every hero has what its class and subclass give at its level.                                                 |
+| `heroes-features-use`  | Every feature of every hero can be used once with no dialog; the hero is put back.                            |
+| `heroes-features-deep` | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.                              |
+| `monsters-every`       | Every monster of every pack of the profile is copied in, uses one action and is deleted.                      |
+| `monsters-matrix`      | The monsters by CR band, type, size and trait, the gaps, and the data every creature needs.                   |
+| `monsters-odd`         | Legendary actions and resistance, lair, regeneration, shapechangers, movement, recharge, multiattack, spells. |
 
 ### heroes-advancement
 
@@ -274,6 +280,89 @@ data, not kit failures. Two things the first runs taught the kit: a fresh item c
 source (the restore puts null back), and the system adds and removes the bloodied status when hit points change
 (the restore waits for it).
 
+### The monsters
+
+Three scenarios cover the monster compendium of the content profile. The monsters of a profile are the actors of type npc in the
+packs of `packs.monsters` (the `srd` profile lists `dnd5e.actors24` and the legacy `dnd5e.monsters`; a profile with licensed books
+lists theirs). Characters and vehicles in those packs are left out and counted. The GM action `listMonsters` reads them as facts
+(names, numbers and flags, never text); a probe copy is made with `createMonster` and removed with `deleteMonsters`, which refuses an
+actor without the kit flag. A probe is always deleted, also when a step fails, and carries the kit flag, so a rebuild wipes one a
+dead run left behind. All three scenarios run last (`order` 100), like the feature scenarios.
+
+A creature with no challenge rating (what a spell makes or summons: a steed, an animated object, a familiar) is a **stat block**.
+It is copied and used like any monster, but it is not held to the data a creature needs (a rating, a known type, hit points, armor
+class, items); the matrix counts it on its own line.
+
+| Size    | `monsters-every`                                                  | `monsters-odd`                              |
+| ------- | ----------------------------------------------------------------- | ------------------------------------------- |
+| `smoke` | a sample: the first monster of each CR band, type, size and trait | 2 monsters per check, one per movement mode |
+| `full`  | every monster                                                     | every monster a check applies to            |
+| `long`  | every monster                                                     | every monster a check applies to            |
+
+#### monsters-every
+
+One step per monster, labelled `<name> (<pack>, CR <rating>)`. For each: the copy is made, read (`inspectFeatures`, with an `npc`
+block) and checked against the compendium row (challenge rating, type, size, hit points, armor class, movement, legendary and
+lair pools, number of items; a difference is SYSTEM). One action is used through `exerciseActor` (op `use`, no dialog, no template,
+no summons, no roll after the card, no action cost): the first attack on an action of a weapon or feature, else another attack,
+else another action, else a spell (`planMonsterUse`). Legendary and lair actions are left out here; `monsters-odd` takes them.
+The use is judged like a hero's (`judgeUse`): no throw or refusal, a chat card, the uses it says it consumes, the monster put back.
+Finally the bridge tool `get-character` is called for the copy and must agree with Foundry (`judgeBridge`): challenge rating,
+type, size, hit points, armor class, the legendary pool, and spells.
+
+One thing is only noted, not failed: dnd5e 6 gives every npc a spellcasting ability and the bridge reports `hasSpells` for any
+ability, so a monster with no spells is shown as a spellcaster. The coverage attachment counts it as a note. A monster that has
+spells the bridge does not show is a SYSTEM problem.
+
+#### monsters-matrix
+
+Reads the packs and changes nothing. Steps: the packs are installed and have monsters, the counts add up, then the counts by CR
+band (9 bands), creature type (the 14 types), size, book and trait (28 traits: resistance, immunity, vulnerability, condition
+immunity, the four senses, languages, spells, innate spellcasting, legendary actions and resistance, lair, the five movement modes,
+regeneration, shapechanger, damage threshold, multiattack, recharge, summon, transform), the damage types and conditions and
+languages, and **the gaps**: a band, type, size or trait nobody in the profile has. The counts and gaps are attached
+(`matrix`) and do not fail the scenario. The last step checks the data every creature needs (`judgeRow`, CONTENT): a valid
+rating, a known type and size, hit points, armor class, items, a legendary pool that matches its legendary actions, sane speeds.
+
+#### monsters-odd
+
+One step per check, over the monsters it applies to. A check no monster applies to passes with "skipped:" and the reason and is
+listed in the coverage attachment. For each monster the scenario makes a probe copy, reads it, runs the check and deletes the copy.
+
+| Check                  | What it proves                                                                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `legendary-actions`    | the pool is full, the bridge shows it, the monster has legendary actions and each one spends the pool by its cost |
+| `legendary-resistance` | the feature exists and spends one use of the legendary resistance pool                                            |
+| `lair-actions`         | the lair flag survives, the lair count is sane, a lair action (when it is an activity) can be used                |
+| `regeneration`         | the feature is there; a note says whether it is only text (Foundry does not heal by itself)                       |
+| `damage-threshold`     | skipped when no monster has one (the SRD has none)                                                                |
+| `shapechangers`        | transform activities can be used; a non-transform activity of the feature is used                                 |
+| `movement-modes`       | fly, swim, burrow, climb and hover of the copy, and as stored, are the compendium's; hover needs a fly speed      |
+| `recharge`             | the target is 2 to 6, the ability has uses, it is used once, and six recharge rolls each agree with the target    |
+| `multiattack`          | Multiattack can be used and the monster has an attack activity                                                    |
+| `innate-spellcasting`  | an ability and a save DC are set, the bridge shows the spells, and a spell can be used                            |
+
+**Legendary actions and the Boss pips.** The dashboard's Boss pips read `resources.legact` (`max` and `spent`). A legendary action
+only moves a pip when its activity consumes from that pool (a consumption target `resources.legact.value`). A legendary action
+whose activity has no such target posts its chat card and leaves the pool alone: that is a CONTENT finding per action
+(`a legendary action does not spend the pool`). One that has the target and does not spend is SYSTEM. The recharge probe spends the
+ability, makes the system's own recharge roll (`uses.rollRecharge`) six times, and compares each roll with the target.
+
+**What the first live run showed (2026-10-06).** `srd` full: 722 monsters (385 in the 2024 pack, 337 in the legacy pack, 60 of them stat blocks). The three scenarios take about 90 seconds
+together (the copy, use, check and delete of one monster takes about 35 milliseconds). Findings, all of them about the imported
+data or the bridge and none about the kit: 4 monsters with data the matrix names (a feature-less Giant Fly, a creature type of
+"(lycanthrope)"), 5 monsters with no usable action (a Frog and a Sea Horse with items but no activity) and a bridge that
+reads the creature type of a legacy stat block as an empty object (SYSTEM). In `monsters-odd`: all 60 legendary monsters have
+legendary actions that do not spend the pool (153 actions with no consumption target in the data), so using them in Foundry does
+not move the Boss pips; legendary resistance, lair, regeneration, shapechangers, movement and recharge rolls all agree with the
+data; the SRD has no damage threshold (skipped) and no lair actions as activities (text only). The bridge's `hasSpells` is true for
+294 monsters that have no spells (a spellcasting ability is set on every npc), and false for a Cloaker that has spells and no
+ability. `licensed` full: 1499 monsters (1114 in the local content module, 385 in the 2024 pack, 47 stat blocks), about 3.5
+minutes: 3 data findings, 25 monsters with a finding in the broad pass (5 CONTENT, 20 SYSTEM, all of the bridge's `hasSpells`
+kind), and in `monsters-odd` 30 of 132 legendary monsters whose legendary actions do not spend the pool, 24 of 127 with a legendary
+resistance feature that has no activity, 23 spellcasters with data problems (a missing spellcasting ability or an innate spell with
+no uses). The `smoke` sample of the `licensed` profile has 31 monsters and takes seconds. These are findings, not kit failures.
+
 ### Failure classes
 
 Every failed check says which kind it is, first in the message, with its evidence:
@@ -342,18 +431,19 @@ Rules of thumb:
 
 ## Where things live
 
-| What                                    | Where                                                     |
-| --------------------------------------- | --------------------------------------------------------- |
-| The engine, the GM actions, the fake    | `scripts/test-kit/lib/`                                   |
-| The contract everything builds against  | `scripts/test-kit/lib/contract.mjs`                       |
-| The hero checks and failure classes     | `scripts/test-kit/lib/advancement.mjs`                    |
-| The feature checks and rules tables     | `scripts/test-kit/lib/features.mjs`                       |
-| The SRD scenarios (no licensed content) | `scripts/test-kit/scenarios/*.scenario.mjs` (in the repo) |
-| The SRD content profile                 | `scripts/test-kit/data/profiles/srd.json`                 |
-| The monsters and the scene              | `scripts/test-kit/data/smoke-matrix.json`                 |
-| The manifest of the last build          | `<kit home>\worlds\<world>\manifest.json`                 |
-| Reports                                 | `<kit home>\reports\` (this PC only)                      |
-| Licensed profiles and scenarios         | `<kit home>\licensed\` (this PC only)                     |
+| What                                      | Where                                                     |
+| ----------------------------------------- | --------------------------------------------------------- |
+| The engine, the GM actions, the fake      | `scripts/test-kit/lib/`                                   |
+| The contract everything builds against    | `scripts/test-kit/lib/contract.mjs`                       |
+| The hero checks and failure classes       | `scripts/test-kit/lib/advancement.mjs`                    |
+| The feature checks and rules tables       | `scripts/test-kit/lib/features.mjs`                       |
+| The monster checks, matrix and odd checks | `scripts/test-kit/lib/monsters.mjs`                       |
+| The SRD scenarios (no licensed content)   | `scripts/test-kit/scenarios/*.scenario.mjs` (in the repo) |
+| The SRD content profile                   | `scripts/test-kit/data/profiles/srd.json`                 |
+| The monsters and the scene                | `scripts/test-kit/data/smoke-matrix.json`                 |
+| The manifest of the last build            | `<kit home>\worlds\<world>\manifest.json`                 |
+| Reports                                   | `<kit home>\reports\` (this PC only)                      |
+| Licensed profiles and scenarios           | `<kit home>\licensed\` (this PC only)                     |
 
 The kit home is `C:\FoundryTest\test-kit`, or the folder in the environment variable
 `TEST_KIT_HOME`. **Licensed profiles, scenarios and reports never go into a repo or the vault.** A
@@ -399,7 +489,7 @@ When you change a tool's result shape, change the fake with it.
 
 ## What comes next
 
-- The full matrix of monsters and spells.
+- The full matrix of spells (the monsters are done: see "The monsters").
 - Dashboard checks in a real browser (Playwright), not only the JSON the dashboard serves.
 - A Pi target: the same kit against the Orange Pi, once the Pi has a kit world.
 - The licensed layer: the Curse of Strahd scenarios, kept on this PC only.

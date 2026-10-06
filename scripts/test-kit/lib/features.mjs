@@ -47,6 +47,7 @@
  * @property {string} type
  * @property {string} name
  * @property {string} activation
+ * @property {number | null} [activationValue]   the number of the activation, 1 for "1 legendary action" (additive)
  * @property {boolean} canUse
  * @property {Array<{type: string, target: string, value: string}>} consumption
  */

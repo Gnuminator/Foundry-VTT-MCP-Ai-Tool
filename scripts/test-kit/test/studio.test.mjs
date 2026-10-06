@@ -2,6 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   STUDIO_KINDS,
+  consoleFindingId,
+  featureProblemId,
+  findingId,
+  splitExpected,
   chooseHeroes,
   classify,
   compareHeroes,
@@ -10,7 +14,15 @@ import {
   multisetDiff,
   pickOrigin,
 } from '../lib/studio-compare.mjs';
-import { narrowSources, packOfUuid, shownAs, studioSettingsFor } from '../lib/studio.mjs';
+import {
+  NEVER_RESTORE,
+  narrowSources,
+  packOfUuid,
+  restorable,
+  shownAs,
+  studioSettingsFor,
+} from '../lib/studio.mjs';
+import { loadExpected } from '../lib/studio-expected.mjs';
 import { validateScenario } from '../lib/contract.mjs';
 
 /** Two heroes that agree on everything; each test breaks one thing on the Studio side. */
@@ -375,4 +387,108 @@ test('a scenario may name console errors it reports itself, and only as valid ex
     /knownConsoleErrors/
   );
   assert.match(validateScenario({ ...base, knownConsoleErrors: 'x' }).join(), /knownConsoleErrors/);
+});
+
+test('hit point effects that differ between the heroes make a maximum difference the systems own', () => {
+  const { raw, studio } = pair();
+  studio.actor.hp.max = 49;
+  studio.actor.hp.value = 49;
+  studio.actor.hp.sources = [{ item: 'Tough', keys: [] }];
+  raw.actor.hp.sources = [];
+  const v = compareHeroes({ raw, studio });
+  assert.deepEqual(
+    v.problems.map(p => [p.kind, p.what]),
+    [['SYSTEM', 'maximum hit points']]
+  );
+  assert.match(v.problems[0].evidence, /Tough/);
+  // Without a source that explains it, the difference is Actor Studio's.
+  const w = pair();
+  w.studio.actor.hp.max = 49;
+  w.studio.actor.hp.value = 49;
+  assert.deepEqual(
+    compareHeroes(w).problems.map(p => p.kind),
+    ['STUDIO']
+  );
+});
+
+test('findings carry an id that is the same for every class', () => {
+  const { raw, studio } = pair();
+  raw.build.advancements.push({
+    item: 'class:Fighter',
+    id: 'x',
+    type: 'Subclass',
+    title: 'Subclass',
+    level: 3,
+    value: { uuid: 'u' },
+  });
+  studio.build.advancements.push({
+    item: 'class:Fighter',
+    id: 'x',
+    type: 'Subclass',
+    title: 'Subclass',
+    level: 3,
+    value: { uuid: null },
+  });
+  const v = compareHeroes({ raw, studio });
+  assert.equal(v.problems[0].id, 'advancement-values:advancement-value-of-subclass');
+  assert.equal(
+    findingId('Spell slots', 'Spell slots a new hero can spend'),
+    'spell-slots:spell-slots-a-new-hero-can-spend'
+  );
+  assert.equal(
+    featureProblemId(
+      '[SYSTEM] refused: Font of Magic: No 1st Level slots available to spend, 1 required.'
+    ),
+    'feature-problems:no-slot-to-spend'
+  );
+  assert.equal(
+    consoleFindingId(
+      "Error thrown in hooked function '' for hook 'gas.captureAdvancement'. x",
+      'http://h/modules/m/a.js:9'
+    ),
+    'console:gas.captureAdvancement'
+  );
+  assert.equal(
+    consoleFindingId('Failed to load resource', 'http://h/modules/x/assets/black-parchment.webp:0'),
+    'console:black-parchment.webp'
+  );
+});
+
+test('expected findings are counted and anything new, or of another kind, is fresh', () => {
+  const problems = [
+    { kind: 'SYSTEM', what: 'a', evidence: '', id: 'c:a' },
+    { kind: 'SYSTEM', what: 'a', evidence: '', id: 'c:a' },
+    { kind: 'STUDIO', what: 'a', evidence: '', id: 'c:a' },
+    { kind: 'KIT', what: 'b', evidence: '', id: 'c:b' },
+    { kind: 'KIT', what: 'no id', evidence: '' },
+  ];
+  const r = splitExpected(problems, [{ id: 'c:a', kind: 'SYSTEM' }]);
+  assert.equal(r.expected.length, 2);
+  assert.deepEqual(r.counts, { 'c:a': 2 });
+  assert.deepEqual(
+    r.fresh.map(p => p.what),
+    ['a', 'b', 'no id']
+  );
+});
+
+test('the expected findings file is valid and names what the live runs found', () => {
+  const list = loadExpected();
+  const ids = list.map(e => e.id);
+  for (const id of [
+    'advancement-values:advancement-value-of-subclass',
+    'advancement-values:advancement-value-of-size',
+    'spells:the-raw-hero-has-no-class-spells',
+    'spell-slots-available:spell-slots-a-new-hero-can-spend',
+    'feature-problems:no-slot-to-spend',
+    'console:gas.captureAdvancement',
+  ])
+    assert.ok(ids.includes(id), id);
+  assert.ok(list.every(e => e.why && e.kind));
+});
+
+test('usage tracking is never put back by a restore', () => {
+  assert.deepEqual(NEVER_RESTORE, ['usage-tracking']);
+  assert.deepEqual(restorable({ 'usage-tracking': true, milestoneLeveling: false }), {
+    milestoneLeveling: false,
+  });
 });

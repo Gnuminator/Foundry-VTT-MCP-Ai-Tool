@@ -27,11 +27,21 @@ import {
   chooseHeroes,
   classify,
   compareHeroes,
+  consoleFindingId,
   countStudioKinds,
+  featureProblemId,
   pickOrigin,
+  splitExpected,
 } from '../lib/studio-compare.mjs';
-import { applyStudioSettings, studioInfo, studioSettingsFor } from '../lib/studio.mjs';
-import { buildHeroInStudio } from '../lib/studio-flow.mjs';
+import {
+  applyStudioSettings,
+  readStudioSettings,
+  restorable,
+  studioInfo,
+  studioSettingsFor,
+} from '../lib/studio.mjs';
+import { buildHeroInStudio, discardActor } from '../lib/studio-flow.mjs';
+import { loadExpected } from '../lib/studio-expected.mjs';
 
 const DEFAULT_LEVEL = 5;
 
@@ -80,7 +90,8 @@ async function usePass(t, actorId, level) {
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
   id: 'heroes-studio',
-  title: 'Heroes built in Actor Studio match the raw kit heroes of the same class and choices',
+  title:
+    'Heroes built in Actor Studio match the raw kit heroes (known findings counted, new ones fail)',
   sizes: ['smoke', 'full', 'long'],
   tags: ['build', 'module'],
   needs: ['heroes'],
@@ -130,11 +141,14 @@ export default {
         );
         return `${info.title} ${info.version}`;
       });
-      // The table's settings for the module, put back after the run.
-      const before = await applyStudioSettings(page, studioSettingsFor(profile));
+      // The table's settings for the module, put back after the run. They are read and the restore is
+      // registered first, so a write that fails halfway is still undone. Usage tracking is never put back.
+      const wanted = studioSettingsFor(profile);
+      const before = await readStudioSettings(page, Object.keys(wanted));
       t.cleanup(async () => {
-        await applyStudioSettings(page, before);
+        await applyStudioSettings(page, restorable(before));
       });
+      await applyStudioSettings(page, wanted);
     }
 
     // The species and background the builder used for the raw heroes.
@@ -156,6 +170,8 @@ export default {
       `the kit has no tier hero at or below level ${level} to compare with`
     );
     const settings = page ? studioSettingsFor(profile) : null;
+    // The findings that are known and accepted: counted, not failed. Anything else fails.
+    const expectedList = loadExpected();
 
     /** @type {Array<{hero: string, class: string, level: number, seconds: number, problems: import('../lib/studio-compare.mjs').StudioProblem[], notes: string[], summary: string, picks: number, spells: unknown, useProblems: string[], studioOnly: string[]}>} */
     const results = [];
@@ -189,7 +205,21 @@ export default {
               settings,
               log: m => t.log(`${raw.name}: ${m}`),
             });
-            await t.gm('adoptActor', { actorId: built.actorId, folderId: t.kit.folders?.Actor });
+            // The restore comes first: whatever fails after the build, the hero does not stay behind.
+            if (!keep)
+              t.cleanup(async () => {
+                try {
+                  await t.gm('deleteKitActor', { actorId: built.actorId });
+                } catch {
+                  await discardActor(page, built.actorId);
+                }
+              });
+            try {
+              await t.gm('adoptActor', { actorId: built.actorId, folderId: t.kit.folders?.Actor });
+            } catch (e) {
+              await discardActor(page, built.actorId);
+              throw e;
+            }
           } else {
             // The fake has no Actor Studio: the builder makes the "Studio" hero.
             const hero = await t.gm('createHero', {
@@ -213,7 +243,7 @@ export default {
             };
           }
           made.push(built.actorId);
-          if (!keep)
+          if (!keep && !page)
             t.cleanup(async () => {
               await t.gm('deleteKitActor', { actorId: built.actorId });
             });
@@ -240,6 +270,8 @@ export default {
               kind: c.kind,
               what: 'a feature problem only the Studio hero has',
               evidence: c.why ? `${l} (${c.why})` : l,
+              category: 'feature problems',
+              id: featureProblemId(l),
             });
           }
 
@@ -257,9 +289,15 @@ export default {
             studioOnly,
           });
           all.push(...problems);
-          t.check(problems.length === 0, problemText(problems, 6), { problems });
+          const split = splitExpected(problems, expectedList);
+          t.check(
+            split.fresh.length === 0,
+            `${split.fresh.length} new finding(s): ${problemText(split.fresh, 6)}`,
+            { fresh: split.fresh }
+          );
           return (
-            `${verdict.summary}; ${studioUse.used} activities used, ${built.seconds} s` +
+            `${verdict.summary}; ${split.expected.length} expected findings; ` +
+            `${studioUse.used} activities used, ${built.seconds} s` +
             `${verdict.notes.length ? `; ${verdict.notes.length} notes` : ''}`
           );
         },
@@ -289,16 +327,26 @@ export default {
           kind: /** @type {const} */ ('STUDIO'),
           what: `console error x${c.count}`,
           evidence: `${c.message} (${c.source.replace(/^https?:\/\/[^/]+\//, '')})`,
+          category: 'console',
+          id: consoleFindingId(c.message, c.source),
         }));
         all.push(...problems);
-        t.check(problems.length === 0, problemText(problems, 4), { problems });
-        return 'none';
+        const split = splitExpected(problems, expectedList);
+        t.check(
+          split.fresh.length === 0,
+          `${split.fresh.length} new console error(s): ${problemText(split.fresh, 4)}`,
+          { fresh: split.fresh }
+        );
+        return `${split.expected.length} expected console errors`;
       },
       { continueOnFail: true }
     );
 
     const byKind = countStudioKinds(all);
+    const overall = splitExpected(all, expectedList);
     t.attach('coverage', {
+      expectedFindings: overall.counts,
+      newFindings: overall.fresh.map(p => `[${p.kind}] ${p.id ?? p.what}: ${p.evidence}`),
       profile: t.kit.profile,
       actorStudio: { version: info.version, title: info.title },
       level,
@@ -322,7 +370,8 @@ export default {
     });
     t.log(
       `${results.length}/${heroes.length} heroes built in Actor Studio ${info.version}; ` +
-        `differences: ${STUDIO_KINDS.map(k => `${k} ${byKind[k]}`).join(', ')}`
+        `differences: ${STUDIO_KINDS.map(k => `${k} ${byKind[k]}`).join(', ')}; ` +
+        `${overall.expected.length} expected, ${overall.fresh.length} new`
     );
   },
 };

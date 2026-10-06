@@ -17,7 +17,11 @@
 import { builtHeroes } from './helpers.mjs';
 
 /** @typedef {'KIT'|'CONTENT'|'SYSTEM'|'STUDIO'} StudioKind */
-/** @typedef {{kind: StudioKind, what: string, evidence: string}} StudioProblem */
+/**
+ * @typedef {{kind: StudioKind, what: string, evidence: string, category?: string, id?: string}} StudioProblem
+ *   `id` names the finding independent of the class and the hero ("advancement values:advancement-value-of-size"),
+ *   so a list of expected findings can match it.
+ */
 
 export const STUDIO_KINDS = /** @type {const} */ (['KIT', 'CONTENT', 'SYSTEM', 'STUDIO']);
 
@@ -43,6 +47,70 @@ export function pickLine(p) {
  */
 export function comparablePicks(picks) {
   return (picks ?? []).filter(p => p.advancement !== 'Subclass').map(pickLine);
+}
+
+/** @param {string} text */
+const slug = text =>
+  String(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9.]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+
+/**
+ * The name of a finding, the same for every class: its category and what it says.
+ * @param {string} category
+ * @param {string} what
+ */
+export function findingId(category, what) {
+  return `${slug(category)}:${slug(what)}`;
+}
+
+/**
+ * The id of a feature problem that only the Studio hero has. A feature that cannot run for want of a
+ * spell slot is one finding (the empty slots), whatever the feature.
+ * @param {string} line
+ */
+export function featureProblemId(line) {
+  return /slots? available to spend/.test(line)
+    ? 'feature-problems:no-slot-to-spend'
+    : findingId('feature problems', line.slice(0, 70));
+}
+
+/**
+ * The id of a console error: the hook it names, else the file it failed to load.
+ * @param {string} message
+ * @param {string} source
+ */
+export function consoleFindingId(message, source) {
+  const hook = /for hook '([^']+)'/.exec(message)?.[1];
+  if (hook) return `console:${hook}`;
+  const file = String(source).split('?')[0].replace(/:\d+$/, '').split('/').pop();
+  return `console:${file || slug(message)}`;
+}
+
+/**
+ * Splits problems into the ones a list of expected findings names (same id and same kind) and the
+ * new ones. A finding that changes kind is new.
+ * @param {StudioProblem[]} problems
+ * @param {Array<{id: string, kind: StudioKind, why?: string}>} expected
+ * @returns {{expected: StudioProblem[], fresh: StudioProblem[], counts: Record<string, number>}}
+ */
+export function splitExpected(problems, expected) {
+  const known = new Map(expected.map(e => [`${e.id}|${e.kind}`, e]));
+  /** @type {StudioProblem[]} */
+  const seen = [];
+  /** @type {StudioProblem[]} */
+  const fresh = [];
+  /** @type {Record<string, number>} */
+  const counts = {};
+  for (const p of problems) {
+    if (p.id && known.has(`${p.id}|${p.kind}`)) {
+      seen.push(p);
+      counts[p.id] = (counts[p.id] ?? 0) + 1;
+    } else fresh.push(p);
+  }
+  return { expected: seen, fresh, counts };
 }
 
 /**
@@ -134,7 +202,13 @@ export function compareHeroes({ raw, studio, pumpErrors = [] }) {
   /** @param {string} category @param {StudioKind} kind @param {string} what @param {string} evidence */
   const bad = (category, kind, what, evidence) => {
     const c = classify(category, kind, evidence);
-    problems.push({ kind: c.kind, what, evidence: c.why ? `${evidence} (${c.why})` : evidence });
+    problems.push({
+      kind: c.kind,
+      what,
+      evidence: c.why ? `${evidence} (${c.why})` : evidence,
+      category,
+      id: findingId(category, what),
+    });
   };
   const tick = name => {
     checked[name] = (checked[name] ?? 0) + 1;
@@ -294,12 +368,22 @@ export function compareHeroes({ raw, studio, pumpErrors = [] }) {
       `raw ${abilities(raw)}, Studio ${abilities(studio)}`
     );
   tick('hit points');
-  if (raw.actor.hp?.max !== studio.actor.hp?.max)
-    dependent(
-      'hit points',
-      'maximum hit points',
-      `raw ${raw.actor.hp?.max}, Studio ${studio.actor.hp?.max}`
-    );
+  if (raw.actor.hp?.max !== studio.actor.hp?.max) {
+    // Items whose effects add to the maximum (a feat, a subclass feature) decide the total: when the
+    // two heroes carry different ones the system did it, from the items they have.
+    const sources = a =>
+      (a.actor.hp?.sources ?? [])
+        .map(x => x.item)
+        .sort()
+        .join(', ');
+    const evidence = `raw ${raw.actor.hp?.max}, Studio ${studio.actor.hp?.max}`;
+    if (sources(raw) !== sources(studio)) {
+      const why = `hit point effects differ: raw ${sources(raw) || 'none'}, Studio ${sources(studio) || 'none'}`;
+      if (sameChoices) bad('hit points', 'SYSTEM', 'maximum hit points', `${evidence} (${why})`);
+      else
+        notes.push(`maximum hit points: ${evidence} (${why}; follows from the different choices)`);
+    } else dependent('hit points', 'maximum hit points', evidence);
+  }
   tick('armor class');
   const ac = a => `${str(a.features.ac?.value)} ${a.features.ac?.calc ?? ''}`.trim();
   if (ac(raw) !== ac(studio))

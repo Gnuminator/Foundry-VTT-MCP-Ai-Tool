@@ -118,6 +118,38 @@ export function narrowSources(sources, packs) {
 }
 
 /**
+ * Settings that are switched off for good and never put back: the module posts anonymous usage data
+ * to its author's server while `usage-tracking` is on (it defaults to on, per user). `kit init` turns
+ * it off for the kit GM; a restore must not turn it on again.
+ */
+export const NEVER_RESTORE = ['usage-tracking'];
+
+/**
+ * What a restore may write: the saved values without the settings that stay off.
+ * @param {Record<string, unknown>} before
+ */
+export function restorable(before) {
+  return Object.fromEntries(Object.entries(before).filter(([key]) => !NEVER_RESTORE.includes(key)));
+}
+
+/**
+ * Read module settings, without changing anything. Read them first, register the restore, and only
+ * then write, so a write that fails halfway can still be undone.
+ * @param {import('playwright-core').Page} page
+ * @param {string[]} keys
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function readStudioSettings(page, keys) {
+  return page.evaluate(
+    ({ id, keys }) =>
+      Object.fromEntries(
+        keys.map(key => [key, foundry.utils.deepClone(game.settings.get(id, key))])
+      ),
+    { id: STUDIO_MODULE, keys }
+  );
+}
+
+/**
  * Write module settings and return what they were, so the caller can put them back. Some of the
  * module's settings need a reload (Foundry asks with a dialog); the page is reloaded when any
  * value changed, so the module reads the new settings.

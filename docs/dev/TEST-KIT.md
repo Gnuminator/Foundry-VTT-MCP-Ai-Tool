@@ -306,9 +306,11 @@ checkbox.
 rolls hit points, asks for XP). The scenario sets what a table would set and puts it back afterwards:
 the compendium sources (narrowed to the packs of the hero being built, so a profile with 2024 and
 legacy packs does not offer two Fighters), the average for hit points, milestone levelling, the Spells
-tab on, equipment off (the raw hero has none), and **usage tracking off** (the module posts anonymous
-usage data to its author's server unless the user switches it off). The `srd` profile lists the module
-under `modules`; `kit init` enables it in the kit world.
+tab on and equipment off (the raw hero has none). **Usage tracking** is different: the module posts
+anonymous usage data to its author's server on every page load while its per-user setting
+`usage-tracking` is on, and it is on by default. `kit init` turns it off for the kit GM and a run never
+puts it back. The `srd` profile lists the module under `modules`; `kit init` enables it in the kit
+world.
 
 **What is compared** (`lib/studio-compare.mjs`): class levels and subclass, character level, hit dice,
 proficiency bonus, spell slots and the slots a new hero can spend, scale values, saving throws, ability
@@ -322,6 +324,12 @@ failed, the raw hero lacks something), `CONTENT`, `SYSTEM` (the dnd5e system doe
 `STUDIO` (Actor Studio itself). When the choices differ, the choice-dependent differences (ability
 scores, skills, hit points) become notes under one `KIT` problem. A difference that was traced is in
 `KNOWN` in `lib/studio-compare.mjs`, with its reason.
+
+**Expected findings.** The known findings are listed in `data/studio-expected.json` (an id, a kind and
+the reason each). The scenario counts them in its report (`expectedFindings`) and passes; a finding that
+is not on the list, or that changes kind, fails (`newFindings`). An id is the category and what it says,
+the same for every class (`advancement-values:advancement-value-of-subclass`). When Actor Studio fixes
+one, remove its line; when a new one is understood and accepted, add its line.
 
 **Findings of the first live runs (2026-10-06, Foundry 14.368, dnd5e 6.0.5, Actor Studio 2.10.5).** All
 12 `srd` classes and all 13 classes of the `licensed` profile were built through Actor Studio, with no

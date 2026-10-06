@@ -13,3 +13,6 @@
   in CI. The `srd` profile now lists `foundryvtt-actor-studio` under `modules` (run `kit init` once).
   A scenario can name console errors it reports itself (`knownConsoleErrors`) and a scenario gets the
   GM page as `t.page` (null against the fake).
+  Known findings are listed in `data/studio-expected.json`: they are counted and the scenario passes,
+  a new one fails. `kit init` turns off Actor Studio's usage tracking (it posts to its author's server
+  by default) and a run never turns it back on.

@@ -144,6 +144,33 @@ export async function provisionWorld({ foundryUrl, world, modules = [], log = ()
       { id: MODULE_ID, gmName: KIT_GM_USER, playerName: KIT_PLAYER_USER, want: wanted.want }
     );
     changed.push(...result.done);
+
+    // Actor Studio posts anonymous usage data to its author's server while its per-user setting
+    // `usage-tracking` is on (the default). Turn it off for the user that joined; a fresh world joins
+    // as the default GM first, so join again as the kit GM and do it for that user too.
+    const turnOffTracking = () =>
+      page.evaluate(async studio => {
+        const key = `${studio}.usage-tracking`;
+        if (!game.modules.get(studio)?.active || !game.settings.settings.has(key)) return null;
+        if (game.settings.get(studio, 'usage-tracking') === false) return false;
+        await game.settings.set(studio, 'usage-tracking', false);
+        return true;
+      }, 'foundryvtt-actor-studio');
+    const tracked = [];
+    if ((await turnOffTracking()) === true) tracked.push(hasKitGm ? KIT_GM_USER : DEFAULT_GM);
+    if (!hasKitGm && wanted.want.includes('foundryvtt-actor-studio')) {
+      try {
+        await joinAs(KIT_GM_USER);
+        hasKitGm = true;
+        if ((await turnOffTracking()) === true) tracked.push(KIT_GM_USER);
+      } catch {
+        log(`could not join as ${KIT_GM_USER} to turn off usage tracking: run init again`);
+      }
+    }
+    if (tracked.length) {
+      changed.push(`turned off Actor Studio usage tracking for ${tracked.join(', ')}`);
+      log(`turned off Actor Studio usage tracking for ${tracked.join(', ')}`);
+    }
     if (result.bridgeUser !== KIT_GM_USER) throw new Error('the bridge user setting did not stick');
     log(`users: ${result.users.join(', ')}; bridge user: ${result.bridgeUser}`);
     return { changed, users: result.users, bridgeUser: result.bridgeUser, modules: wanted.want };

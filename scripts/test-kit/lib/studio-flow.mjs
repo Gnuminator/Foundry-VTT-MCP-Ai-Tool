@@ -375,3 +375,17 @@ async function recoverPage(page, before, name) {
     .catch(() => {});
   await sleep(1500);
 }
+
+/**
+ * Delete an actor that Actor Studio made, flagged or not (a hero that failed before it was adopted
+ * has no kit flag). Never throws.
+ * @param {import('playwright-core').Page} page
+ * @param {string} actorId
+ */
+export async function discardActor(page, actorId) {
+  await page
+    .evaluate(async id => {
+      await game.actors.get(id)?.delete();
+    }, actorId)
+    .catch(() => {});
+}

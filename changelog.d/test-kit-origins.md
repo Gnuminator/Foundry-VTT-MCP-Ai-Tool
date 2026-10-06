@@ -17,3 +17,4 @@
   can now add items (a feat, a second class at its level) to an existing kit hero, take its own ability
   scores and answer a Size choice; `describeClass` can describe a class as a second class. The fake has
   matching species, backgrounds, feats and multiclass rules, with quirks the tests switch on.
+- **Test kit slice 3c, first live run:** the four scenarios pass on the `srd` kit world and have no KIT finding on the licensed one. The run fixed how the kit reads dnd5e 6 species speeds and senses, skips advancements of a higher level than the hero, and allows the proficiencies a chosen feature or the class's subclass adds to a second class. Results and what is left: `docs/dev/TEST-KIT.md`.

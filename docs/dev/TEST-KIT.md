@@ -441,12 +441,32 @@ first class and then adds each further class through the advancement manager at 
 mistake of the kit is KIT. Findings the kit knows and accepts are listed in `data/origins-expected.json` (an id, a kind and
 the reason; the id is the scenario's category and what it says, such as `species:movement`). The scenarios count them in their
 coverage attachment (`expectedFindings`) and pass; a finding that is not on the list, or that changes kind, fails the step.
-The list starts empty: the first live run says what goes into it.
+The fake implements the rules the checks use, so a green fake run proves the plumbing, not dnd5e. One finding is on the list: `background:trait-choice-with-an-empty-pool` (CONTENT). The system's 2024 Criminal background has a Trait
+choice of 1 with an empty pool, which the system never offers.
 
-**What only a live run can say.** The fake implements the rules the checks use, so a green fake run proves the plumbing, not
-dnd5e. Open points for the first live run: whether `assertPrerequisites` returns what `describeOrigin` reads, whether a second
-class added with `forNewItem` gets the secondary advancements only, how the system rounds a half caster in a multiclass table,
-and what a species' Size advancement accepts (`{size}`).
+**What the live runs showed (2026-10-06, Foundry 14.368, dnd5e 6.0.5).** `srd` full: all four scenarios pass (14 species, 4
+backgrounds, 16 feats with a host each, 11 of 12 multiclass combinations; the twelfth needs a third caster subclass the SRD
+lacks, so it is skipped). The `licensed` profile (79 species, 19 backgrounds, 98 feats, 12 combinations): KIT 0. What the runs
+settled:
+
+- `assertPrerequisites` returns what `describeOrigin` reads: all 16 SRD feats and all 98 licensed feats found a host, none was
+  left unmet.
+- A second class added with `forNewItem` gets the secondary advancements only: no saving throw, the multiclass armor and weapon
+  set, nothing more. A chosen feature (a Divine Order) and the class's own subclass add their proficiencies on top, and the check
+  allows exactly those (read from the feature's Trait advancements and effects).
+- Half casters round up in the 2024 multiclass table (a paladin 5 and a sorcerer 3 give caster level 6; a ranger 4 and a paladin 4
+  give 4); the slot tables the system builds match.
+- A Size advancement takes `{size}`; the size of all 14 SRD species is answered and read back.
+
+What the live runs taught the kit (all KIT, fixed): dnd5e 6 keeps a species' speed and senses under `movement.speeds` and
+`senses.ranges`, and the speeds are strings ("30"); an advancement of a higher level (a species feature at level 5, a feat that
+learns more spells as you level) waits for the hero and is not checked at level 1; a module's copy of a system item has the same
+item id in another pack (a note, not a mix-up); a granted feature may raise a sense (superior darkvision).
+
+What is left in the `licensed` profile, all findings about the content and not kit failures: CONTENT, 24 species features whose
+attack or utility activity spends an item use but the item has none set (no uses to spend), 5 feats of the same kind, 1 feat whose
+cantrip choice offers no option, and 2 multiclass uses of an imported ward feature that starts with more uses spent than it has;
+SYSTEM, 1: a species feature whose damage activity consumes 0 of the 1 use the activity says.
 
 ### The monsters
 

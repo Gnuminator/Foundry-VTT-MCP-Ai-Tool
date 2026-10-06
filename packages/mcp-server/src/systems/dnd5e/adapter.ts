@@ -312,7 +312,7 @@ export class DnD5eAdapter implements SystemAdapter {
       }
     }
 
-    // Spellcasting — a truthy `system.spells` container is not a caster signal:
+    // Spellcasting: a truthy `system.spells` container is not a caster signal:
     // dnd5e always populates `system.spells` (a fixed level map, each slot
     // defaulting to value: 0), and `attributes.spellcasting` (the ability) is
     // not one either (see below). Same pre-existing-bug family as creature-index.ts:520-535.

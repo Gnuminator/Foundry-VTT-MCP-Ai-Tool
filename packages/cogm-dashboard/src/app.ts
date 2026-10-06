@@ -41,6 +41,8 @@ import { mountSpaceRoute } from './space-route.js';
 import { PlayerLinkStore } from './player-links.js';
 import { DashboardPrefsStore, parsePrefsChange } from './dashboard-prefs.js';
 import { THEMES, ThemeStore, isTheme } from './theme.js';
+import { PlayerLogStore } from './player-vault/log-store.js';
+import { PlayerVaultService } from './player-vault/service.js';
 import * as path from 'path';
 
 /**
@@ -268,6 +270,25 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     schedulePlayerBroadcast()
   );
 
+  // O7 player vaults: one kept-current Obsidian vault per player, off unless the folder is set.
+  const playerVaults = config.playerVaultsDir
+    ? new PlayerVaultService({
+        rootDir: config.playerVaultsDir,
+        intervalMs: config.playerVaultIntervalMs ?? 60_000,
+        client,
+        logger: logger.child('player-vault'),
+        store: new PlayerLogStore(
+          config.stateDir ? path.join(config.stateDir, 'player-vault-log') : null,
+          logger.child('player-vault')
+        ),
+        world: () => (world ? { id: world.id, title: world.title } : null),
+        players: () => playerDirectory.list(),
+        refreshPlayers: () => playerDirectory.refreshIfStale(),
+        handouts: () => playerView.handouts,
+        theme: worldId => themes.get(worldId),
+      })
+    : null;
+
   function currentPlayerState(): ReturnType<typeof buildPlayerState> {
     return buildPlayerState({
       status: currentStatus,
@@ -439,6 +460,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       }
     },
     onEvents(events, meta) {
+      playerVaults?.onEvents(events);
       const added = state.addEvents(events);
       if (added.length === 0) return;
       sse.broadcast('events', { events: added, initial: meta.initial }, gmOnly);
@@ -1086,10 +1108,12 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     handlers,
     start(): void {
       playerView.start(PLAYER_SOURCE_INTERVAL_MS);
+      playerVaults?.start();
     },
     close(): void {
       coGm.abortActive();
       playerView.stop();
+      playerVaults?.stop();
       if (playerTimer) clearTimeout(playerTimer);
       if (worldRetryTimer) clearTimeout(worldRetryTimer);
       // End the long-lived SSE responses first, or server.close() waits on them.

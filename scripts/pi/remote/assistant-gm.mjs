@@ -36,12 +36,27 @@ const log = msg => console.log(`[assistant-gm] ${msg}`);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function launch(profile) {
-  return chromium.launchPersistentContext(profile, {
+  const context = await chromium.launchPersistentContext(profile, {
     executablePath: env('CHROMIUM', '/usr/bin/chromium'),
     headless: true,
     args: ['--disable-gpu', '--disable-dev-shm-usage', '--mute-audio', '--no-first-run'],
     viewport: { width: 1280, height: 800 },
   });
+  // Even with no canvas, a paused world shows the "Game Paused" banner, whose CSS animation never
+  // ends: the browser redraws it 60 times a second in software, which kept the gpu process busy
+  // (measured on the PC: 15 % of a core down to 0.2 %; about 90 % on the Pi). Let every CSS
+  // animation run once and stop (animationend still fires). An init script, so it also applies
+  // after each reload and navigation; a constructable style sheet, so it needs no <head> yet.
+  await context.addInitScript(() => {
+    try {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync('*, *::before, *::after { animation-iteration-count: 1 !important; }');
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    } catch {
+      // an engine without adoptedStyleSheets: the CPU stays high, nothing breaks
+    }
+  });
+  return context;
 }
 
 // True when a world is running; false while Foundry shows setup, has no active world or is down.

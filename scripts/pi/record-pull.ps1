@@ -11,7 +11,7 @@
 
   The helper (installed by Pi stage 6) writes the Pi's own clock into
   /var/lib/foundry-ai-tool/backup-pulls/<kind>.json. The Discord bot on the Pi reads those files and
-  sends the owner a DM when the newest copy of either kind is older than 3 days (set
+  sends the owner a DM when a kind of copy (restic or snapshot) is older than 3 days (set
   FOUNDRY_AI_BACKUP_STALE_DAYS in the bot's settings to change it). The command takes no data from
   this PC, only the word restic or snapshot, and it shows in the Pi's SSH log (stage 9).
 

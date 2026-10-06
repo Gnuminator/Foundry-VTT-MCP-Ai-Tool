@@ -10,7 +10,7 @@
  * | `DISCORD_OWNER_ID`   | who gets the storage space DMs; default the bot application's owner |
  * | `FOUNDRY_AI_SPACE_STATUS` | the space check's status file (the Pi writes it)       |
  * | `FOUNDRY_AI_BACKUP_PULLS` | folder with the Pi's record of the PC's last backup copies |
- * | `FOUNDRY_AI_BACKUP_STALE_DAYS` | DM when the newest copy is older than this; default 3 |
+ * | `FOUNDRY_AI_BACKUP_STALE_DAYS` | DM when a kind of copy is older than this; default 3  |
  * | `REHEARSAL_TOKEN_1` to `_3` | speaker bot tokens for `rehearse` (one bot application each) |
  * | `REHEARSAL_CHANNEL_ID` | the voice channel rehearsals use                          |
  * | `FVTT_REHEARSAL_DIR` | where rehearsals go; default `Documents\FoundryRehearsals`  |

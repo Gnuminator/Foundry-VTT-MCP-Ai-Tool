@@ -63,27 +63,64 @@ describe('parseBackupPull', () => {
 });
 
 describe('createBackupPullReader', () => {
-  it('is fresh when the newest copy of either kind is within the limit', () => {
+  it('is fresh when both kinds are within the limit', () => {
     const r = reader({
       'restic.json': record('restic', '2026-10-09T12:30:00Z'),
-      'snapshot.json': record('snapshot', '2026-10-05T12:00:00Z'),
+      'snapshot.json': record('snapshot', '2026-10-08T12:00:00Z'),
     })();
     expect(r.state).toBe('available');
     if (r.state !== 'available') return;
     expect(r.stale).toBe(false);
-    expect(r.newestAt).toBe('2026-10-09T12:30:00Z');
     expect(r.pulls.map(p => p.kind)).toEqual(['restic', 'snapshot']);
-    expect(r.ageMs).toBe(23.5 * 60 * 60 * 1000);
+    expect(r.pulls.map(p => p.stale)).toEqual([false, false]);
+    expect(r.pulls[0]?.ageMs).toBe(23.5 * 60 * 60 * 1000);
+    expect(r.pulls[1]?.ageMs).toBe(2 * DAY);
     expect(r.limitDays).toBe(3);
   });
 
-  it('is stale when both kinds are older than 3 days (the newest decides)', () => {
+  it('judges each kind on its own: only restic stale', () => {
+    const r = reader({
+      'restic.json': record('restic', '2026-10-05T12:00:00Z'),
+      'snapshot.json': record('snapshot', '2026-10-09T12:00:00Z'),
+    })();
+    expect(r.state).toBe('available');
+    if (r.state !== 'available') return;
+    expect(r.stale).toBe(true);
+    expect(r.pulls.map(p => [p.kind, p.stale])).toEqual([
+      ['restic', true],
+      ['snapshot', false],
+    ]);
+  });
+
+  it('judges each kind on its own: only snapshot stale', () => {
+    const r = reader({
+      'restic.json': record('restic', '2026-10-09T12:00:00Z'),
+      'snapshot.json': record('snapshot', '2026-10-05T12:00:00Z'),
+    })();
+    expect(r.state).toBe('available');
+    if (r.state !== 'available') return;
+    expect(r.stale).toBe(true);
+    expect(r.pulls.map(p => [p.kind, p.stale])).toEqual([
+      ['restic', false],
+      ['snapshot', true],
+    ]);
+  });
+
+  it('is stale when both kinds are older than 3 days', () => {
     const r = reader({
       'restic.json': record('restic', '2026-10-06T12:30:00Z'),
       'snapshot.json': record('snapshot', '2026-10-06T12:00:00Z'),
     })();
     expect(r.state === 'available' && r.stale).toBe(true);
-    if (r.state === 'available') expect(r.newestAt).toBe('2026-10-06T12:30:00Z');
+    if (r.state === 'available') expect(r.pulls.map(p => p.stale)).toEqual([true, true]);
+  });
+
+  it('leaves out a kind that was never recorded and judges the other', () => {
+    const r = reader({ 'snapshot.json': record('snapshot', '2026-10-05T12:00:00Z') })();
+    expect(r.state).toBe('available');
+    if (r.state !== 'available') return;
+    expect(r.stale).toBe(true);
+    expect(r.pulls.map(p => p.kind)).toEqual(['snapshot']);
   });
 
   it('is not stale at exactly the limit and stale just past it', () => {
@@ -107,12 +144,14 @@ describe('createBackupPullReader', () => {
     const r = reader({ 'snapshot.json': record('snapshot', '2026-10-09T12:00:00Z') })();
     expect(r.state).toBe('available');
     if (r.state === 'available')
-      expect(r.pulls).toEqual([{ kind: 'snapshot', pulledAt: '2026-10-09T12:00:00Z' }]);
+      expect(r.pulls).toEqual([
+        { kind: 'snapshot', pulledAt: '2026-10-09T12:00:00Z', ageMs: DAY, stale: false },
+      ]);
   });
 
   it('treats a time ahead of the clock as fresh, not negative', () => {
     const r = reader({ 'restic.json': record('restic', '2026-10-10T12:05:00Z') })();
-    expect(r.state === 'available' && r.ageMs).toBe(0);
+    expect(r.state === 'available' && r.pulls[0]?.ageMs).toBe(0);
     expect(r.state === 'available' && r.stale).toBe(false);
   });
 

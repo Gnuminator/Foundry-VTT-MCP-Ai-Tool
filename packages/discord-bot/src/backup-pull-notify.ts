@@ -1,23 +1,35 @@
 /**
  * Stale backup copy notices (PB-06, 2026-10-06): the bot reads the Pi's record of when this PC last
  * copied its backups (backup-pull-status.ts) every 15 minutes and sends the owner a Discord DM
- * when the newest successful copy of either kind is older than the limit (3 days by default).
+ * when a kind of copy (restic or snapshot) is older than the limit (3 days by default).
  *
- * Rules, kept in `BackupPullNotifier` (no Discord in it, so tests run it with a fake `send`):
- * - one DM when the copies go stale;
- * - while they stay stale, at most one reminder every 24 hours;
- * - one "copied again" DM when a fresh copy arrives (only if a stale DM was sent);
- * - an unavailable reading (no copy ever recorded, unreadable or invalid file) says nothing and
- *   changes nothing, so a fresh install or a dev machine never raises a false alarm;
- * - if a DM cannot be sent, nothing is recorded, so the next check tries again.
+ * The two kinds are separate backups, so each is judged on its own: a restic copy that keeps
+ * arriving does not hide a snapshot copy that stopped, and the other way round.
+ *
+ * Rules, kept per kind in `BackupPullNotifier` (no Discord in it, so tests run it with a fake `send`):
+ * - one DM when a kind goes stale, naming the stale kind or kinds and how old each copy is;
+ * - while a kind stays stale, at most one reminder every 24 hours for that kind;
+ * - one "copied again" DM when a stale kind gets a fresh copy (only if a stale DM was sent for it),
+ *   while the other kind keeps its own reminder schedule;
+ * - a kind that was never recorded says nothing; an unavailable reading (no copy ever recorded,
+ *   unreadable or invalid file) says nothing and changes nothing, so a fresh install or a dev
+ *   machine never raises a false alarm;
+ * - if a DM cannot be sent, nothing is recorded for the kinds in it, so the next check tries again.
  * The state lives in memory: a bot restart can repeat one DM.
  */
 
-import type { BackupPull, BackupPullReading } from './backup-pull-status.js';
+import type { BackupPullKind, BackupPullReading, BackupPullStatus } from './backup-pull-status.js';
+import { BACKUP_PULL_KINDS } from './backup-pull-status.js';
 
 export const BACKUP_PULL_REMINDER_MS = 24 * 60 * 60 * 1000;
 
 export type BackupPullNoticeKind = 'stale' | 'reminder' | 'recovered';
+
+/** One DM that was sent: what it was, and which kinds it was about. */
+export interface BackupPullSent {
+  notice: BackupPullNoticeKind;
+  kinds: BackupPullKind[];
+}
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -37,29 +49,64 @@ export function agoText(ageMs: number): string {
   return `${spanText(ageMs)} ago`;
 }
 
-function kindLine(label: string, pull: BackupPull | undefined, now: number): string {
-  return pull
-    ? `${label}: ${agoText(Math.max(0, now - Date.parse(pull.pulledAt)))}.`
-    : `${label}: not recorded yet.`;
-}
-
 type AvailableReading = Extract<BackupPullReading, { state: 'available' }>;
 
-/** The DM text. Plain English; says how long ago each kind was copied and what to do. */
+const KIND_LABEL: Record<BackupPullKind, string> = {
+  restic: 'restic',
+  snapshot: 'snapshot',
+};
+
+/** "restic", "snapshot" or "restic and snapshot". */
+function kindsText(kinds: readonly BackupPullKind[]): string {
+  return kinds.map(k => KIND_LABEL[k]).join(' and ');
+}
+
+function kindLine(kind: BackupPullKind, pull: BackupPullStatus | undefined): string {
+  const label = `Last ${KIND_LABEL[kind]} copy`;
+  return pull ? `${label}: ${agoText(pull.ageMs)}.` : `${label}: not recorded yet.`;
+}
+
+function pullOf(reading: AvailableReading, kind: BackupPullKind): BackupPullStatus | undefined {
+  return reading.pulls.find(p => p.kind === kind);
+}
+
+/**
+ * The DM text. Plain English. For "stale" and "reminder", `kinds` are the stale kinds the DM is
+ * about; for "recovered", the kinds that were copied again. Both kinds' last copy times are shown.
+ */
 export function backupPullMessage(
-  kind: BackupPullNoticeKind,
+  notice: BackupPullNoticeKind,
   reading: AvailableReading,
-  now: number
+  kinds: readonly BackupPullKind[] = reading.pulls.filter(p => p.stale).map(p => p.kind)
 ): string {
-  if (kind === 'recovered') {
-    return `The PC has copied the Pi's backups again (${agoText(reading.ageMs)}). Backups are safe on both sides again.`;
+  const stillStale = reading.pulls.filter(p => p.stale).map(p => p.kind);
+  if (notice === 'recovered') {
+    const ages = kinds
+      .map(k => pullOf(reading, k))
+      .filter((p): p is BackupPullStatus => p !== undefined)
+      .map(p => agoText(p.ageMs));
+    const head = `The PC has copied the Pi's ${kindsText(kinds)} backups again (${ages.join(' and ')}).`;
+    const tail =
+      stillStale.length === 0
+        ? 'Backups are safe on both sides again.'
+        : `The ${kindsText(stillStale)} copy is still out of date.`;
+    return `${head} ${tail}`;
   }
-  const restic = reading.pulls.find(p => p.kind === 'restic');
-  const snapshot = reading.pulls.find(p => p.kind === 'snapshot');
-  const again = kind === 'reminder' ? ' (reminder)' : '';
+  const again = notice === 'reminder' ? ' (reminder)' : '';
+  const spans = kinds
+    .map(k => pullOf(reading, k))
+    .filter((p): p is BackupPullStatus => p !== undefined)
+    .map(p =>
+      kinds.length > 1 ? `${KIND_LABEL[p.kind]} for ${spanText(p.ageMs)}` : spanText(p.ageMs)
+    );
+  const copied =
+    kinds.length > 1
+      ? `backups have not been copied to your PC: ${spans.join(' and ')}`
+      : `backup has not been copied to your PC for ${spans.join(' and ')}`;
+  const limit = `${reading.limitDays} ${reading.limitDays === 1 ? 'day' : 'days'}`;
   return (
-    `The Pi's backups have not been copied to your PC for ${spanText(reading.ageMs)}${again} (the limit is ${reading.limitDays} ${reading.limitDays === 1 ? 'day' : 'days'}).\n` +
-    `${kindLine('Last restic copy', restic, now)}\n${kindLine('Last snapshot copy', snapshot, now)}\n` +
+    `The Pi's ${kindsText(kinds)} ${copied}${again} (the limit is ${limit}).\n` +
+    `${kindLine('restic', pullOf(reading, 'restic'))}\n${kindLine('snapshot', pullOf(reading, 'snapshot'))}\n` +
     'Turn the PC on, or run the two tasks "Foundry Pi restic copy" and "Foundry Pi snapshot pull" in Task Scheduler. ' +
     'Until then the only copies are on the Pi.'
   );
@@ -72,9 +119,14 @@ export interface BackupPullNotifierOptions {
   reminderMs?: number;
 }
 
+interface KindState {
+  stale: boolean;
+  /** When the last stale or reminder DM for this kind went out; null if none did. */
+  lastNoticeAt: number | null;
+}
+
 export class BackupPullNotifier {
-  private stale = false;
-  private lastNoticeAt: number | null = null;
+  private readonly states = new Map<BackupPullKind, KindState>();
   private readonly now: () => number;
   private readonly reminderMs: number;
 
@@ -83,31 +135,72 @@ export class BackupPullNotifier {
     this.reminderMs = options.reminderMs ?? BACKUP_PULL_REMINDER_MS;
   }
 
-  /** Look at one reading and send a DM when the rules say so. Returns what it sent, if anything. */
-  async check(reading: BackupPullReading): Promise<BackupPullNoticeKind | null> {
-    if (reading.state !== 'available') return null;
-    const now = this.now();
+  private stateOf(kind: BackupPullKind): KindState {
+    let state = this.states.get(kind);
+    if (!state) {
+      state = { stale: false, lastNoticeAt: null };
+      this.states.set(kind, state);
+    }
+    return state;
+  }
 
-    if (!reading.stale) {
-      if (!this.stale) return null;
-      // Nothing was ever sent for the stale state: recover silently.
-      if (this.lastNoticeAt === null) {
-        this.stale = false;
-        return null;
+  /**
+   * Look at one reading and send the DMs the rules say so: at most one for kinds that are due a
+   * stale notice or reminder, and at most one for kinds that were copied again. Returns what it
+   * sent (empty when nothing).
+   */
+  async check(reading: BackupPullReading): Promise<BackupPullSent[]> {
+    if (reading.state !== 'available') return [];
+    const now = this.now();
+    const sent: BackupPullSent[] = [];
+
+    const recovered: BackupPullKind[] = [];
+    const firstStale: BackupPullKind[] = [];
+    const reminderDue: BackupPullKind[] = [];
+    for (const kind of BACKUP_PULL_KINDS) {
+      const pull = pullOf(reading, kind);
+      if (!pull) continue; // never recorded (or its file is unusable): say nothing, change nothing
+      const state = this.stateOf(kind);
+      if (!pull.stale) {
+        if (!state.stale) continue;
+        if (state.lastNoticeAt === null) {
+          // Nothing was ever sent for this stale spell: recover silently.
+          state.stale = false;
+        } else {
+          recovered.push(kind);
+        }
+        continue;
       }
-      if (!(await this.options.send(backupPullMessage('recovered', reading, now)))) return null;
-      this.stale = false;
-      this.lastNoticeAt = null;
-      return 'recovered';
+      if (!state.stale || state.lastNoticeAt === null) {
+        firstStale.push(kind);
+      } else if (now - state.lastNoticeAt >= this.reminderMs) {
+        reminderDue.push(kind);
+      }
     }
 
-    const first = !this.stale || this.lastNoticeAt === null;
-    const reminderDue = this.lastNoticeAt !== null && now - this.lastNoticeAt >= this.reminderMs;
-    if (!first && !reminderDue) return null;
-    const kind: BackupPullNoticeKind = first ? 'stale' : 'reminder';
-    if (!(await this.options.send(backupPullMessage(kind, reading, now)))) return null;
-    this.stale = true;
-    this.lastNoticeAt = now;
-    return kind;
+    if (recovered.length > 0) {
+      if (await this.options.send(backupPullMessage('recovered', reading, recovered))) {
+        for (const kind of recovered) {
+          const state = this.stateOf(kind);
+          state.stale = false;
+          state.lastNoticeAt = null;
+        }
+        sent.push({ notice: 'recovered', kinds: recovered });
+      }
+    }
+
+    const due = BACKUP_PULL_KINDS.filter(k => firstStale.includes(k) || reminderDue.includes(k));
+    if (due.length > 0) {
+      const notice: BackupPullNoticeKind = firstStale.length > 0 ? 'stale' : 'reminder';
+      if (await this.options.send(backupPullMessage(notice, reading, due))) {
+        for (const kind of due) {
+          const state = this.stateOf(kind);
+          state.stale = true;
+          state.lastNoticeAt = now;
+        }
+        sent.push({ notice, kinds: due });
+      }
+    }
+    return sent;
   }
 }

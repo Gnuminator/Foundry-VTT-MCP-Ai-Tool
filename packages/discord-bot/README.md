@@ -77,14 +77,15 @@ run, the PC's `pull-restic.ps1` and `pull-snapshot.ps1` run a fixed command on t
 writes the Pi's own clock into `/var/lib/foundry-ai-tool/backup-pulls/<kind>.json`
 (`{"version":1,"kind":"restic","pulledAt":"2026-10-06T10:31:02Z"}`). Every 15 minutes the bot reads
 both files (`src/backup-pull-status.ts`) and DMs the owner (same owner and failed-DM rules as the
-space notices) when the newest copy of either kind is older than the limit
+space notices) when a kind of copy (restic or snapshot) is older than the limit, judged for each kind on its own
 (`src/backup-pull-notify.ts`):
 
-- one DM when the copies go stale, saying how long ago each kind was copied and what to do (turn
-  the PC on, or run the two scheduled tasks);
-- while they stay stale, at most one reminder every 24 hours;
-- one "copied again" DM when a fresh copy arrives (only if a stale DM went out);
-- nothing while no copy has ever been recorded, and nothing for a missing, unreadable or invalid
+- one DM when a kind goes stale, naming the stale kind or kinds and how old each copy is, and what
+  to do (turn the PC on, or run the two scheduled tasks);
+- while a kind stays stale, at most one reminder every 24 hours for it;
+- one "copied again" DM when a stale kind gets a fresh copy (only if a stale DM went out for it);
+  the other kind keeps its own reminder schedule;
+- nothing for a kind that has never been recorded, and nothing for a missing, unreadable or invalid
   file (logged once), so a fresh install or a dev PC never raises a false alarm.
 
 Settings (`discord-bot.env`): `FOUNDRY_AI_BACKUP_STALE_DAYS` (days, default 3; anything that is not

@@ -125,7 +125,7 @@ chmod 0755 "$backup_script"
 say "the record of the PC's copies (PB-06)"
 # After each successful run, the PC's pull scripts call `record-pull.sh restic|snapshot` over SSH. It
 # writes the Pi's own clock into $pulls_dir/<kind>.json, and the Discord bot (it runs here, as the
-# foundry user) DMs the owner when the newest copy of either kind is older than 3 days. The folder is
+# foundry user) DMs the owner when a kind of copy (restic or snapshot) is older than 3 days. The folder is
 # the tool's own (readable by the bot, written only through this helper); the files hold no secrets.
 install -d -m 0755 -o root -g root "$pulls_dir"
 ok "$pulls_dir (readable by the bot)"

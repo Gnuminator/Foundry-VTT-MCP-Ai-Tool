@@ -245,8 +245,9 @@ Copy a restored world to the Pi only with Foundry stopped, and keep the owner `f
 
 The copies on this PC are only worth something while they keep arriving. If this PC stays off (or
 the two tasks break) for days, the backups exist only on the Pi, and nothing says so. So the Pi's
-Discord bot (stage 8) DMs you when the newest successful copy of either kind, restic or snapshot,
-is older than 3 days (PB-06).
+Discord bot (stage 8) DMs you when the newest successful copy of a kind, restic or snapshot, is
+older than 3 days, checked for each kind on its own (PB-06). Restic arriving every night does not
+hide a snapshot copy that stopped, and the other way round.
 
 How it works: after a successful run, `pull-restic.ps1` and `pull-snapshot.ps1` (through
 `scripts/pi/record-pull.ps1`) run one fixed command on the Pi over SSH,
@@ -257,11 +258,13 @@ that skips because `dietpi-backup` is busy, fails, or is a dry run records nothi
 shows in the Pi's SSH log (stage 9). If the Pi cannot be told (it is off, or stage 6 has not been
 rerun), the pull only logs a WARNING and the copy still counts as done.
 
-The bot reads the folder every 15 minutes, with the same rules as the space notices: one DM when the
-copies go stale, a reminder at most once every 24 hours while they stay stale, one "copied again" DM
-when a fresh copy arrives, and nothing at all while no copy has ever been recorded (a fresh install
-or a Pi where stage 6 was just rerun never raises a false alarm). The DM says how long ago each
-kind was copied and what to do: turn the PC on, or run the two tasks in Task Scheduler. Change the
+The bot reads the folder every 15 minutes, with the same rules as the space notices: one DM when a
+kind goes stale (it names the stale kind or kinds and how long each has been quiet), a reminder at
+most once every 24 hours for each kind that stays stale, one "copied again" DM for a kind that gets
+a fresh copy (a kind that recovers while the other is still stale gets its own DM, and the other
+keeps its reminder schedule), and nothing at all for a kind that was never recorded (a fresh install
+or a Pi where stage 6 was just rerun never raises a false alarm). The DM also shows when each kind
+was last copied and what to do: turn the PC on, or run the two tasks in Task Scheduler. Change the
 limit with `FOUNDRY_AI_BACKUP_STALE_DAYS` in `/etc/foundry-ai-tool/discord-bot.env` (default 3),
 then restart the bot (`systemctl restart foundry-ai-tool-discord-bot`).
 
@@ -269,7 +272,8 @@ Rolling it out (each step with your OK, snapshot first): run stage 6 again (it i
 and the folder, and runs one backup now), then a new tool build (stage 5) and stage 8, so the bot
 runs the build that reads the folder. Nothing on the
 PC needs registering again: the scheduled tasks run the same scripts, which now call the helper. The
-first DM can come only after both a copy was recorded and 3 days have passed without another. By hand:
+first DM for a kind can come only after a copy of that kind was recorded and 3 days have passed
+without another. By hand:
 `ssh foundry-pi /opt/foundry-ai-tool/backup/record-pull.sh restic` records a copy now (it changes
 only that one file), `ssh foundry-pi cat /var/lib/foundry-ai-tool/backup-pulls/restic.json` shows it.
 Tests: `node --test scripts/pi/backup-pull-record.test.mjs`.

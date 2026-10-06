@@ -27,17 +27,21 @@ export interface BackupPull {
 
 export type BackupPullUnavailableReason = 'missing' | 'unreadable' | 'invalid';
 
+/** One recorded kind, judged on its own against the limit. */
+export interface BackupPullStatus extends BackupPull {
+  /** Milliseconds since `pulledAt`, never below 0 (a clock a little ahead counts as fresh). */
+  ageMs: number;
+  /** True when `ageMs` is over the limit the reader was made with. */
+  stale: boolean;
+}
+
 export type BackupPullReading =
   | { state: 'unavailable'; reason: BackupPullUnavailableReason; detail: string }
   | {
       state: 'available';
-      /** The kinds that have been recorded (one or two), newest first. */
-      pulls: BackupPull[];
-      /** The newest successful copy of either kind. */
-      newestAt: string;
-      /** Milliseconds since `newestAt`, never below 0 (a clock a little ahead counts as fresh). */
-      ageMs: number;
-      /** True when `ageMs` is over the limit the reader was made with. */
+      /** The kinds that have been recorded (one or two), each judged on its own, restic first. */
+      pulls: BackupPullStatus[];
+      /** True when any recorded kind is over the limit. */
       stale: boolean;
       /** The limit in days the reader was made with (for the message). */
       limitDays: number;
@@ -101,8 +105,10 @@ export interface BackupPullReaderOptions {
 
 /**
  * Make a reader for the record files. Each call reads them again. If neither kind has been
- * recorded the result is "unavailable" (nothing to judge yet, so no notice); a kind that was never
- * recorded is simply left out while the other one counts. When no file is usable, a broken file
+ * recorded the result is "unavailable" (nothing to judge yet, so no notice). Each recorded kind is
+ * judged on its own (restic and snapshot are separate copies, so one going quiet while the other
+ * keeps arriving still counts as stale); a kind that was never recorded is left out and says
+ * nothing. When no file is usable, a broken file
  * wins over a missing one, so the log names the real problem. Problems are logged once until the
  * files are usable again.
  */
@@ -149,15 +155,14 @@ export function createBackupPullReader(
       return unavailable('missing', 'no copy has been recorded yet');
     }
     lastProblem = null;
-    pulls.sort((a, b) => Date.parse(b.pulledAt) - Date.parse(a.pulledAt));
-    const newest = pulls[0];
-    const ageMs = Math.max(0, now() - Date.parse(newest.pulledAt));
+    const judged: BackupPullStatus[] = pulls.map(pull => {
+      const ageMs = Math.max(0, now() - Date.parse(pull.pulledAt));
+      return { ...pull, ageMs, stale: ageMs > staleMs };
+    });
     return {
       state: 'available',
-      pulls,
-      newestAt: newest.pulledAt,
-      ageMs,
-      stale: ageMs > staleMs,
+      pulls: judged,
+      stale: judged.some(p => p.stale),
       limitDays,
     };
   };

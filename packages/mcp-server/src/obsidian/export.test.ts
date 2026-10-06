@@ -20,10 +20,11 @@ import { AuditLog } from '../vault/audit.js';
 import { VaultStore } from '../vault/store.js';
 
 import { runObsidianCli } from './cli.js';
+import { LEGACY_CAMPAIGN_HOMES } from './campaign-home-legacy.js';
 import { campaignDir, exportWorldToObsidian, newExportCache } from './export.js';
 import { pathKey } from './mirror-common.js';
 import { allocateNotePaths } from './mirror-paths.js';
-import { cell, frontmatter, safeFileName } from './render.js';
+import { cell, frontmatter, renderCampaignHome, safeFileName } from './render.js';
 
 const WORLD = 'strahd-test';
 let dataDir: string;
@@ -352,11 +353,11 @@ describe('exportWorldToObsidian', () => {
   it('rewrites nothing when nothing changed (mtime kept), and never touches GM-owned files', async () => {
     await seed();
     await run(); // first run: everything created
-    await run(); // second run: _status.md's own counts settle (it reports the previous run)
-    const statusPath = path.join(campaignDir(vaultDir, WORLD), 'AI Tool/_status.md');
-    const before = await fsp.stat(statusPath);
     await fsp.writeFile(path.join(campaignDir(vaultDir, WORLD), 'Home.md'), 'my own home');
     await fsp.writeFile(path.join(campaignDir(vaultDir, WORLD), 'Prep/README.md'), 'mine');
+    await run(); // second run: _status.md settles (its counts, and the edited Home it lists)
+    const statusPath = path.join(campaignDir(vaultDir, WORLD), 'AI Tool/_status.md');
+    const before = await fsp.stat(statusPath);
     const again = await run();
     expect(again.written).toEqual([]);
     expect(again.created).toEqual([]);
@@ -365,6 +366,39 @@ describe('exportWorldToObsidian', () => {
     expect(await note('Prep/README.md')).toBe('mine');
     const after = await fsp.stat(statusPath);
     expect(after.mtimeMs).toBe(before.mtimeMs);
+  });
+
+  it('upgrades an untouched old Home to the current template, CRLF or not', async () => {
+    await seed();
+    const homePath = path.join(campaignDir(vaultDir, WORLD), 'Home.md');
+    for (const eol of ['\n', '\r\n']) {
+      const old = LEGACY_CAMPAIGN_HOMES[0](WORLD).replace(/\n/g, eol);
+      await fsp.mkdir(path.dirname(homePath), { recursive: true });
+      await fsp.writeFile(homePath, old);
+      const result = await run();
+      expect(result.written).toContain('Home.md');
+      expect(result.created).not.toContain('Home.md');
+      expect(await note('Home.md')).toBe(renderCampaignHome(WORLD));
+      expect(result.skipped).toEqual([]);
+      const again = await run();
+      expect(again.written).not.toContain('Home.md');
+    }
+  });
+
+  it('leaves an edited old Home alone and says so in _status.md', async () => {
+    await seed();
+    const homePath = path.join(campaignDir(vaultDir, WORLD), 'Home.md');
+    const edited = `${LEGACY_CAMPAIGN_HOMES[0](WORLD)}\nMy own line.\n`;
+    await fsp.mkdir(path.dirname(homePath), { recursive: true });
+    await fsp.writeFile(homePath, edited);
+    const result = await run();
+    expect(await note('Home.md')).toBe(edited);
+    expect(result.written).not.toContain('Home.md');
+    expect(result.skipped.map(s => s.path)).toEqual(['Home.md']);
+    const status = await note('AI Tool/_status.md');
+    expect(status).toMatch(
+      /- `Home\.md`: your own Home \(edited in Obsidian\).*Adventures section/
+    );
   });
 
   it('writes the prep templates only while their folder is missing (R2)', async () => {

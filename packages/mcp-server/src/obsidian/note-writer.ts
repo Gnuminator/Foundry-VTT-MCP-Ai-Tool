@@ -218,6 +218,39 @@ export class NoteWriter {
     }
   }
 
+  /**
+   * A GM-owned note that may follow a newer template: created when missing, replaced when it
+   * still holds an older template untouched (`isUntouched`), otherwise left alone and listed in
+   * `skipped` with `editedReason` (unless it already holds `text`).
+   */
+  async createOrUpgrade(
+    relPath: string,
+    text: string,
+    isUntouched: (existingText: string) => boolean,
+    editedReason: string
+  ): Promise<void> {
+    try {
+      const full = this.resolve(relPath);
+      const current = await fsp.readFile(full, 'utf8').catch(error => {
+        if (errorCode(error) === 'ENOENT') return null;
+        throw error;
+      });
+      if (current === null) {
+        await this.createOnce(relPath, text);
+        return;
+      }
+      if (current.replace(/\r\n/g, '\n') === text) return;
+      if (!isUntouched(current)) {
+        this.skipped.push({ path: relPath, reason: editedReason });
+        return;
+      }
+      await writeFileAtomic(full, text);
+      this.written.push(relPath);
+    } catch (error) {
+      this.errors.push({ path: relPath, error: errorMessage(error) });
+    }
+  }
+
   /** Create a GM-owned file or folder once; never touch it again. */
   async createOnce(relPath: string, text: string | null): Promise<void> {
     try {

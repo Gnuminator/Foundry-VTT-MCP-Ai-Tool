@@ -961,8 +961,11 @@ export const ADVENTURE_HUB_BANNER =
   'adventure as one cluster. The AI Tool rewrites this note; if you edit it here, the tool ' +
   'stops updating it. Write your own notes in `Prep/`.';
 
+/** Campaign-relative path of the Campaign Home note (`export.ts` writes it). */
+const CAMPAIGN_HOME_PATH = 'Home.md';
+
 /**
- * The hub note of one adventure: the book's Library hub when one matches, then a section per
+ * The hub note of one adventure: a link to the Campaign Home, the book's Library hub when one matches, then a section per
  * kind (journals first) with a link to every member note, grouped by subfolder.
  */
 export function renderAdventureHub(
@@ -988,7 +991,12 @@ export function renderAdventureHub(
     .filter(([n]) => n > 0)
     .map(([n, [one, many]]) => `${n} ${n === 1 ? one : many}`)
     .join(', ');
-  const lines: string[] = [`${counts}.`, ''];
+  const lines: string[] = [
+    `${counts}.`,
+    '',
+    `Part of ${noteLink(hub.path, CAMPAIGN_HOME_PATH, 'the campaign home')}.`,
+    '',
+  ];
   if (book) lines.push(`From the book: ${noteLink(hub.path, book.path, book.title)}.`, '');
   for (const section of HUB_SECTIONS) {
     const members = hub.members[section.type];

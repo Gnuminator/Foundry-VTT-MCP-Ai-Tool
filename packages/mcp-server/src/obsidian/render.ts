@@ -945,7 +945,10 @@ export function renderStatusNote(worldId: string, status: ExportStatusInput): st
 // Campaign home (created once, then the GM's)
 // ---------------------------------------------------------------------------
 
-/** The campaign's Home note: written only if missing, never overwritten. */
+/**
+ * The campaign's Home note: written when missing, and over an older template the GM never
+ * edited (`campaign-home-legacy.ts`); an edited Home is never overwritten.
+ */
 export function renderCampaignHome(worldId: string): string {
   const base = (folder: string, name: string, columns: string[], sortBy: string): string =>
     [
@@ -967,10 +970,31 @@ export function renderCampaignHome(worldId: string): string {
     frontmatter({ type: 'campaign-home', world: worldId }),
     `# ${worldId}`,
     '',
-    'Home of this campaign in Obsidian. This note is yours: the AI Tool created it once and never rewrites it.',
+    'Home of this campaign in Obsidian. This note is yours: the AI Tool created it, and once you edit it the tool never rewrites it.',
     '',
     '- `AI Tool/` is written by the bridge (session logs, change log, Tarokka). Read-only view; rebuilt on export.',
     '- `Prep/` is yours: session plans, NPCs, locations, ideas. The tool never writes there.',
+    '',
+    '## Adventures',
+    '',
+    'One hub note per adventure (a Foundry folder with chapters and scenes), linking its chapters, scenes, NPCs and story items. The hubs appear once the Foundry mirror has run.',
+    '',
+    [
+      '```base',
+      'filters:',
+      '  and:',
+      `    - file.inFolder("Campaigns/${worldId}/AI Tool/Foundry/Adventures")`,
+      'views:',
+      '  - type: table',
+      '    name: Adventures',
+      '    order:',
+      '      - file.name',
+      '      - book',
+      '    sort:',
+      '      - property: file.name',
+      '        direction: ASC',
+      '```',
+    ].join('\n'),
     '',
     '## Sessions',
     '',

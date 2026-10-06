@@ -69,6 +69,7 @@ import type {
   ExportPageText,
   ExportSceneEntry,
   ExportScenePin,
+  ExportSceneToken,
   PlayerAccess,
   RulesTag,
   TokenDisposition,
@@ -143,6 +144,7 @@ export const EXPORT_INDEX_LIMITS = {
   featuresPerActor: 80,
   notableItemsPerActor: 40,
   pinsPerScene: 300,
+  tokensPerScene: 200,
   pagesPerJournal: 1000,
   holdersPerItem: 20,
   statBlockBytes: 256 * 1024,
@@ -674,7 +676,8 @@ function effectiveTime(ctx: Context, kind: ExportKind, doc: Rec, uuid: string): 
       return maxTime([own, folder, ...embeddedItems(doc).map(timeOf)]);
     case 'scene':
       // Never tokens: they move all the time. A Note has no `_stats` in Foundry 14.368
-      // (`common/documents/note.mjs:45-57`), so pin edits are caught by `sig` only.
+      // (`common/documents/note.mjs:45-57`), so pin edits are caught by `sig` only, and so
+      // are token rows (added, removed, renamed, hidden), which never carry positions.
       return maxTime([own, folder, ...contentsOf(doc.notes).map(timeOf)]);
     case 'journal':
       return maxTime([
@@ -923,6 +926,54 @@ function noteLabel(note: Rec): string | null {
   return linkedName(note.entry);
 }
 
+/**
+ * The scene's tokens folded by world actor, name, disposition and hidden flag
+ * (`common/documents/token.mjs`: `actorId`, `actorLink`, `name`, `disposition`, `hidden`).
+ * An unlinked token's synthetic actor is not a world document, so the row names the world
+ * actor behind it (`actorId`); a token whose actor is gone keeps its name only.
+ */
+function sceneTokens(doc: Rec): ExportSceneToken[] {
+  const actors = rec(rec(game as unknown)?.actors);
+  const get = actors?.get;
+  const rows = new Map<string, ExportSceneToken>();
+  for (const token of contentsOf(doc.tokens)) {
+    const actorId = nonEmpty(token.actorId) ?? nonEmpty(dig(token, '_source', 'actorId'));
+    const actor =
+      actorId && typeof get === 'function'
+        ? rec((get as (key: string) => unknown).call(actors, actorId))
+        : null;
+    const row: ExportSceneToken = {
+      name: clip(str(token.name) ?? (actor ? sourceName(actor) : '')),
+      actorUuid: actor ? uuidOf(actor, 'Actor') : null,
+      actorType: actor ? nonEmpty(actor.type) : null,
+      actorLink: token.actorLink === true,
+      disposition: dispositionName(token.disposition),
+      hidden: token.hidden === true,
+      count: 1,
+    };
+    const key = JSON.stringify([
+      row.actorUuid,
+      row.name,
+      row.actorLink,
+      row.disposition,
+      row.hidden,
+    ]);
+    const seen = rows.get(key);
+    if (seen) seen.count += 1;
+    else rows.set(key, row);
+  }
+  return [...rows.values()]
+    .sort(
+      (a, b) =>
+        compare(a.name, b.name) ||
+        compare(a.actorUuid ?? '', b.actorUuid ?? '') ||
+        Number(a.hidden) - Number(b.hidden) ||
+        compare(a.disposition ?? '', b.disposition ?? '') ||
+        Number(a.actorLink) - Number(b.actorLink)
+    )
+    .slice(0, LIMITS.tokensPerScene);
+}
+
 function sceneFields(ctx: Context, c: Candidate): Omit<ExportSceneEntry, 'modified' | 'sig'> {
   const doc = c.doc;
   const access = highestPlayerLevel(ctx, doc);
@@ -972,6 +1023,7 @@ function sceneFields(ctx: Context, c: Candidate): Omit<ExportSceneEntry, 'modifi
         }
       : null,
     pins,
+    tokens: sceneTokens(doc),
     map,
   };
 }

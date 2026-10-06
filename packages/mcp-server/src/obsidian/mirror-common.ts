@@ -71,9 +71,10 @@ export const MIRROR_STATUS_PATH = `${MIRROR_ROOT}/_status.md`;
  * the Library by book (I-100), so every note is fetched once and moves to its folder; 5: every
  * Library note links its book's hub note (I-100); 6: an NPC note links what it was made from,
  * and a scene without a journal links the journal named like its folder (graph orphans);
- * 7: scene and journal notes link their prep note (I-121).
+ * 7: scene and journal notes link their prep note (I-121); 8: scene notes list who is here
+ * (the NPC and PC notes of their tokens).
  */
-export const MIRROR_RENDER_VERSION = 7;
+export const MIRROR_RENDER_VERSION = 8;
 
 /**
  * A module signature as the notes store it: with the renderer version and, optionally, a short

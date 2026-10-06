@@ -830,6 +830,7 @@ describe('getExportIndex: scene entries', () => {
       'playerVisible',
       'rules',
       'sig',
+      'tokens',
       'uuid',
     ]);
     expect(entry).toMatchObject({
@@ -849,6 +850,7 @@ describe('getExportIndex: scene entries', () => {
         pageUuid: `JournalEntry.${JOURNAL_ID}.JournalEntryPage.${PAGE_ID}`,
       },
       pins: [],
+      tokens: [],
       map: null,
     });
   });
@@ -929,6 +931,84 @@ describe('getExportIndex: scene entries', () => {
     expect(scene.pins.length).toBe(EXPORT_INDEX_LIMITS.pinsPerScene);
     expect(scene.pins[0]?.label).toBe('Pin 0');
     expect(scene.pins[299]?.label).toBe('Pin 299');
+  });
+
+  it('folds tokens by world actor, name, disposition and hidden, without positions', () => {
+    world.addActor({ id: id16('wolf'), name: 'Wolf', type: 'npc' });
+    world.addActor({ id: id16('strahd'), name: 'Strahd von Zarovich', type: 'npc' });
+    addScene({
+      tokens: [
+        makeToken({ id: id16('t1'), name: 'Wolf', actorId: id16('wolf'), disposition: -1, x: 1 }),
+        makeToken({ id: id16('t2'), name: 'Wolf', actorId: id16('wolf'), disposition: -1, x: 2 }),
+        makeToken({
+          id: id16('t3'),
+          name: 'Wolf',
+          actorId: id16('wolf'),
+          disposition: -1,
+          hidden: true,
+        }),
+        makeToken({
+          id: id16('t4'),
+          name: 'The Stranger',
+          actorId: id16('strahd'),
+          actorLink: true,
+          disposition: 0,
+        }),
+        makeToken({ id: id16('t5'), name: 'Lost', actorId: id16('gone') }),
+      ],
+    });
+    const scene = sceneRow(ok({ kinds: ['scene'] }), id16('scene'));
+    expect(scene.tokens).toEqual([
+      {
+        name: 'Lost',
+        actorUuid: null,
+        actorType: null,
+        actorLink: false,
+        disposition: 'neutral',
+        hidden: false,
+        count: 1,
+      },
+      {
+        name: 'The Stranger',
+        actorUuid: `Actor.${id16('strahd')}`,
+        actorType: 'npc',
+        actorLink: true,
+        disposition: 'neutral',
+        hidden: false,
+        count: 1,
+      },
+      {
+        name: 'Wolf',
+        actorUuid: `Actor.${id16('wolf')}`,
+        actorType: 'npc',
+        actorLink: false,
+        disposition: 'hostile',
+        hidden: false,
+        count: 2,
+      },
+      {
+        name: 'Wolf',
+        actorUuid: `Actor.${id16('wolf')}`,
+        actorType: 'npc',
+        actorLink: false,
+        disposition: 'hostile',
+        hidden: true,
+        count: 1,
+      },
+    ]);
+  });
+
+  it('caps token rows at 200', () => {
+    const tokens = Array.from({ length: 205 }, (_, index) =>
+      makeToken({
+        id: id16(`t${String(index).padStart(3, '0')}`),
+        name: `Token ${String(index).padStart(3, '0')}`,
+      })
+    );
+    addScene({ tokens });
+    const scene = sceneRow(ok({ kinds: ['scene'] }), id16('scene'));
+    expect(scene.tokens?.length).toBe(EXPORT_INDEX_LIMITS.tokensPerScene);
+    expect(scene.tokens?.[199]?.name).toBe('Token 199');
   });
 
   it('clips a long pin label and a long name to 200 characters', () => {
@@ -2238,6 +2318,22 @@ describe('getExportIndex: sig', () => {
     changing('the player who owns an actor is banned', 'hero', w => void (w.alice.role = 0)),
     changing('a pin is deleted', 'scene', w => void w.scene.notes.delete(id16('n2'))),
     changing(
+      'a token arrives',
+      'scene',
+      w => void w.scene.tokens.add(makeToken({ id: id16('t2'), name: 'Bat', x: 5 }))
+    ),
+    changing(
+      'a token is hidden',
+      'scene',
+      w => void (w.scene.tokens.get(id16('t1')).hidden = true)
+    ),
+    changing(
+      'a token is renamed',
+      'scene',
+      w => void (w.scene.tokens.get(id16('t1')).name = 'Dire Wolf')
+    ),
+    changing('a token leaves', 'scene', w => void w.scene.tokens.delete(id16('t1'))),
+    changing(
       'a pin is relabelled',
       'scene',
       w => void (w.scene.notes.get(id16('n1')).text = 'Cathedral')
@@ -2312,9 +2408,12 @@ describe('getExportIndex: sig', () => {
       'token art changes',
       w => void (w.hero.prototypeToken.texture = { src: 'tokens/new.webp' })
     ),
-    quiet('a token moves and another arrives', w => {
-      w.scene.tokens.get(id16('t1')).x = 900;
-      w.scene.tokens.add(makeToken({ id: id16('t2'), name: 'Bat', x: 5 }));
+    quiet('a token moves, turns and changes art', w => {
+      const token = w.scene.tokens.get(id16('t1'));
+      token.x = 900;
+      token.y = 450;
+      token.rotation = 90;
+      token.texture = { src: 'tokens/other.webp' };
     }),
     quiet('a wall is drawn', w => void w.scene.walls.add({ id: id16('w1'), c: [0, 0, 100, 100] })),
     quiet('scene flags change', w => void (w.scene.flags = { other: { note: 'x' } })),
@@ -2595,7 +2694,7 @@ describe('getExportIndex: canary', () => {
       tokens: [
         makeToken({
           id: id16('t1'),
-          name: 'CANARY_TOKEN',
+          name: 'Wolf',
           x: 424242,
           texture: { src: 'CANARY_TOKEN_TEXTURE.webp' },
         }),
@@ -2732,7 +2831,9 @@ describe('getExportIndex: canary', () => {
     expect(hero?.system.details.biography.value).toBe('CANARY_BIOGRAPHY');
     expect(hero?.system.attributes.hp.value).toBe(31415);
     expect(hero?.effects.contents[0]?.name).toBe('CANARY_EFFECT');
-    expect(world.scenes.get(SCENE_ID)?.tokens.get(id16('t1'))?.name).toBe('CANARY_TOKEN');
+    expect(world.scenes.get(SCENE_ID)?.tokens.get(id16('t1'))?.texture.src).toBe(
+      'CANARY_TOKEN_TEXTURE.webp'
+    );
     const html = world.journal.get(SECRET_JOURNAL)?.pages.get(id16('pgh'));
     expect(html?.text.content).toContain('CANARY_PAGE_HTML');
     expect(html?.text.markdown).toContain('CANARY_PAGE_MARKDOWN');

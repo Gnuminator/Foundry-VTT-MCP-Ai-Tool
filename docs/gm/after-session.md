@@ -32,6 +32,20 @@ is one action.
 - [ ] Write your own notes in your own files (for example in `Campaigns/<world id>/Prep/`), not in
       the notes the tool generated. A generated note you edit stops updating.
 
+## The players' own vaults (optional)
+
+Each player can have their own Obsidian vault that holds only what they may see: the handouts you
+revealed to them, their own character, and the public session log. The dashboard keeps one folder
+per player up to date (about once a minute) and rewrites a folder only when something in it
+changed. Edits made inside a player's folder are lost on the next update.
+
+- To turn it on, set `FOUNDRY_AI_PLAYER_VAULTS_DIR` to a folder before you start the dashboard.
+  Each player gets `<folder>/<player name>/`. Without it, nothing is written.
+- To give the players a recap, reveal it as a handout with "Recap" in its title. It lands in the
+  vault's `Recaps/` folder. The session notes journal itself never goes into a player vault.
+- Sharing the folders with the players comes with the Orange Pi setup (a send-only share per
+  player). Until then the folders stay on the computer that runs the dashboard.
+
 ## Before you shut down
 
 - [ ] Leave Foundry (Settings tab, **Log Out**) or close the Foundry tab.

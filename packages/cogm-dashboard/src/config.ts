@@ -90,6 +90,13 @@ export interface Config {
    * `COGM_STATE_DIR`, else `~/.foundry-ai-tool`. Absent: nothing is saved across restarts.
    */
   readonly stateDir?: string;
+  /**
+   * O7 player vaults: the folder that gets one kept-current Obsidian vault per player
+   * (`FOUNDRY_AI_PLAYER_VAULTS_DIR`). Empty or absent: the feature is off.
+   */
+  readonly playerVaultsDir?: string;
+  /** How often the player vaults are checked for changes (`FOUNDRY_AI_PLAYER_VAULT_INTERVAL_MS`, at least 10 s). */
+  readonly playerVaultIntervalMs?: number;
 }
 
 /**
@@ -245,4 +252,9 @@ export const config: Config = {
     process.env.FOUNDRY_AI_OBSIDIAN_DIR ?? ''
   ),
   stateDir: readString('COGM_STATE_DIR', path.join(os.homedir(), '.foundry-ai-tool')),
+  playerVaultsDir: readString('FOUNDRY_AI_PLAYER_VAULTS_DIR', ''),
+  playerVaultIntervalMs: Math.max(
+    10_000,
+    readNumber('FOUNDRY_AI_PLAYER_VAULT_INTERVAL_MS', 60_000)
+  ),
 };

@@ -470,6 +470,21 @@ design, the O4 route, O7 and reviews of anything that handles secrets or player 
   `create-quest-journal`. Tests: diff, confirm, audit, undo.
 - **O7: player vault** (after M2): separate folder written only by the backend from the projection
   (revealed pages, public log, player recap, allowed stats); the M2 canary suite run on every file.
+  **v1 built 2026-10-06** (`packages/cogm-dashboard/src/player-vault/`): the co-GM dashboard keeps
+  one vault per player in `FOUNDRY_AI_PLAYER_VAULTS_DIR/<player>/` (unset: off), rebuilt only when
+  its inputs change, updated in place (the folder is never renamed; a changed file is written by
+  temp file and rename, an unchanged one is not touched; Syncthing's `.st*` entries and files the
+  dashboard did not write are kept), with a marker file naming the user and listing the files it
+  wrote. Inputs: revealed handouts for that player (a handout titled "recap" goes to `Recaps/`;
+  the session-notes journal is never read; links are kept only to pages revealed to that player),
+  the player's own sheets (`character_sheet`), and the public log (events through `projectEvent`,
+  kept by the dashboard per world in one file per day, every session kept, sessions split at a 3
+  hour gap, a session over 10,000 events loses its oldest with a note, one-time backfill from
+  `get-session-log`), plus the world's theme snippet. No vault is written before the handouts have
+  loaded once. It never reads the GM mirror, so GM-only
+  notes such as adventure hubs cannot reach it. Notes carry no executable content (no wikilinks,
+  Templater or Dataview syntax, no `obsidian:` links). A spoiler canary test covers every file.
+  Later: play stats, and a send-only Syncthing share per player from a Pi stage script.
 - **O8: Orange Pi.** Vault dir on the Pi's data volume, synced to the PC (default Syncthing: whole
   vault as one Send & Receive folder, `.stignore` for `.obsidian/workspace*.json` and `Dev/`); Pi
   time zone; no Obsidian on the Pi. Tests: Windows-safe names, `.sync-conflict-*` files reported.

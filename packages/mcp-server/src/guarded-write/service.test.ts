@@ -842,3 +842,110 @@ describe('autoApplyEnabled', () => {
     await expect(service.autoApplyEnabled('live-play')).resolves.toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Show it now (I-110)
+// ---------------------------------------------------------------------------
+
+describe('showToPlayers (Show it now, I-110)', () => {
+  const PAGE = 'JournalEntry.aaaaaaaaaaaaaaaa.JournalEntryPage.bbbbbbbbbbbbbbbb';
+  const REVEAL: GuardedOp = {
+    kind: 'update',
+    uuid: PAGE,
+    changes: { 'ownership.default': 2 },
+  };
+  let show: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    foundry.add(PAGE, 'JournalEntryPage', { name: 'The letter', ownership: { default: 0 } });
+    show = vi.fn(() => ({ shown: true }));
+    foundry.handlers['foundry-mcp-bridge.showJournalPage'] = show;
+  });
+
+  const showCalls = (): unknown[] =>
+    foundry.calls.filter(([m]) => m.endsWith('showJournalPage')).map(([, d]) => d);
+
+  it('adds one show line at the end of the diff', async () => {
+    const p = await plan([REVEAL], { showToPlayers: { uuid: PAGE, users: [] } });
+    expect(p.diff).toHaveLength(2);
+    expect(p.diff[1]).toMatchObject({
+      op: 1,
+      kind: 'show',
+      target: PAGE,
+      label: 'JournalEntryPage "The letter"',
+      text: "Show it now: pops the page up for every player who can see it (Foundry's Show Players; Undo cannot take this back)",
+    });
+    expect(showCalls()).toHaveLength(0);
+    const one = await plan([REVEAL], { showToPlayers: { uuid: PAGE, users: ['u1'] } });
+    expect(one.diff[1].text).toContain('pops the page up for 1 player (');
+    const two = await plan([REVEAL], { showToPlayers: { uuid: PAGE, users: ['u1', 'u2'] } });
+    expect(two.diff[1].text).toContain('pops the page up for 2 players (');
+  });
+
+  it('falls back to the uuid as the label when the page is not in the ops', async () => {
+    const copy = 'JournalEntry.cccccccccccccccc.JournalEntryPage.dddddddddddddddd';
+    const p = await plan([REVEAL], { showToPlayers: { uuid: copy, users: [] } });
+    expect(p.diff[1]).toMatchObject({ kind: 'show', target: copy, label: copy });
+  });
+
+  it('shows the page after a successful apply, with the planned players', async () => {
+    const p = await plan([REVEAL], { showToPlayers: { uuid: PAGE, users: ['u1', 'u2'] } });
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect(showCalls()).toEqual([{ uuid: PAGE, userIds: ['u1', 'u2'] }]);
+    expect(applied.shown).toEqual({ ok: true, users: ['u1', 'u2'] });
+    const applyIndex = foundry.calls.findIndex(([m]) => m.endsWith('applyGuardedOps'));
+    const showIndex = foundry.calls.findIndex(([m]) => m.endsWith('showJournalPage'));
+    expect(showIndex).toBeGreaterThan(applyIndex);
+  });
+
+  it('does not ask to show anything without showToPlayers', async () => {
+    const applied = await service.applyPlan((await plan([REVEAL])).planId, { confirm: true });
+    expect(showCalls()).toHaveLength(0);
+    expect(applied).not.toHaveProperty('shown');
+  });
+
+  it('never shows on undo and leaves the show line out of the undo diff', async () => {
+    const p = await plan([REVEAL], { showToPlayers: { uuid: PAGE, users: [] } });
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect(applied.diff.some(line => line.startsWith('Show it now:'))).toBe(true);
+    const undone = await service.undo(applied.changeId, { confirm: true });
+    expect(showCalls()).toHaveLength(1);
+    expect(undone).not.toHaveProperty('shown');
+    expect(undone.diff).toHaveLength(1);
+    expect(undone.diff.some(line => line.includes('Show it now'))).toBe(false);
+    expect(foundry.docs.get(PAGE)!.source.ownership.default).toBe(0);
+  });
+
+  it('still returns the applied change when the popup fails', async () => {
+    show.mockImplementation(() => {
+      throw new Error('socket closed');
+    });
+    const p = await plan([REVEAL], { showToPlayers: { uuid: PAGE, users: [] } });
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect(applied).toMatchObject({ mode: 'apply', shown: { ok: false, error: 'socket closed' } });
+    expect(foundry.docs.get(PAGE)!.source.ownership.default).toBe(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Show it now failed'),
+      expect.objectContaining({ uuid: PAGE })
+    );
+  });
+
+  it('reports a refusal from the module as a failed popup', async () => {
+    show.mockReturnValue({ success: false, error: 'Access denied' });
+    const p = await plan([REVEAL], { showToPlayers: { uuid: PAGE, users: [] } });
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect(applied.shown).toEqual({ ok: false, error: 'Show refused: Access denied' });
+  });
+
+  it('refuses a bad uuid or users list when planning', async () => {
+    const bad = (showToPlayers: unknown): Promise<PlanView> => plan([REVEAL], { showToPlayers });
+    await expect(bad({ uuid: '', users: [] })).rejects.toThrow(/journal page or journal/);
+    await expect(bad({ uuid: 'Actor.ireena', users: [] })).rejects.toThrow(
+      /journal page or journal/
+    );
+    await expect(bad({ uuid: 42, users: [] })).rejects.toThrow(/journal page or journal/);
+    await expect(bad({ uuid: PAGE, users: 'u1' })).rejects.toThrow(/user ids/);
+    await expect(bad({ uuid: PAGE, users: [''] })).rejects.toThrow(/user ids/);
+    await expect(bad({ uuid: PAGE, users: Array(51).fill('u') })).rejects.toThrow(/at most 50/);
+  });
+});

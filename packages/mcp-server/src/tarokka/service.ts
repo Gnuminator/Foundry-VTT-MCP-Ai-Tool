@@ -418,11 +418,16 @@ export class TarokkaService {
     text: string;
     title?: string;
     journalName?: string;
+    /** Also pop the page up on the players' screens after the reveal (Foundry's Show Players). */
+    showNow?: boolean;
   }): Promise<PlanView & { pageUuid: string }> {
     if (!isTarokkaPosition(args.position)) {
       throw new Error(`position must be one of ${TAROKKA_POSITIONS.join(', ')}`);
     }
     const position = args.position;
+    if (args.showNow !== undefined && typeof args.showNow !== 'boolean') {
+      throw new Error('showNow must be true or false');
+    }
     const text = typeof args.text === 'string' ? args.text.trim() : '';
     if (!text || text.length > MAX_REVEAL_TEXT) {
       throw new Error(`text must be 1 to ${MAX_REVEAL_TEXT} characters (what the players read)`);
@@ -552,6 +557,7 @@ export class TarokkaService {
       ops,
       ...(vaultOps.length > 0 ? { vaultOps } : {}),
       risk: 'destructive',
+      ...(args.showNow ? { showToPlayers: { uuid: targetPageUuid, users: [] } } : {}),
     });
     return { ...plan, pageUuid: targetPageUuid };
   }

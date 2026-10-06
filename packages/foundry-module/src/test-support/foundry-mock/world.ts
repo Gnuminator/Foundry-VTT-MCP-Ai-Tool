@@ -70,6 +70,8 @@ export class TestWorld {
   currentCombat: AnyDoc | null = null;
   /** Notifications captured from `ui.notifications.*`. */
   readonly notifications: Array<{ level: string; message: string }> = [];
+  /** Calls to `Journal.show` (Show Players), in order. */
+  readonly journalShows: Array<{ doc: AnyDoc; options: Record<string, any> }> = [];
 
   constructor(
     readonly options: Required<Omit<TestWorldOptions, 'currentUser'>> & { currentUser: AnyDoc }
@@ -310,6 +312,17 @@ export function installFoundryGlobals(world: TestWorld): () => void {
   };
   g.CONFIG = { DND5E: {}, statusEffects: [], Actor: {}, Item: {} };
   g.foundry = {
+    documents: {
+      collections: {
+        // Show Players: records the call; the real one emits a socket event and resolves with the doc.
+        Journal: {
+          show: (doc: AnyDoc, options: Record<string, any> = {}): Promise<AnyDoc> => {
+            world.journalShows.push({ doc, options });
+            return Promise.resolve(doc);
+          },
+        },
+      },
+    },
     utils: {
       deepClone: <T>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v))),
       duplicate: <T>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v))),

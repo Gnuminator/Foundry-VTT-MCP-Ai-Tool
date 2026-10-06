@@ -147,7 +147,8 @@ set says so.
 - **Click:** **Reveal next** in **📜 Handouts**, or **say:** "Reveal the next queued handout for
   this scene."
 - **What happens:** the confirm window shows the plan; after your OK the page reaches the player
-  page and Foundry. The drawer ticks each player who has opened it.
+  page and Foundry. The drawer ticks each player who has opened it. Tick **Show it now** first if
+  you also want the page to pop up on their screens; Undo cannot close that popup.
 - **Tip:** a mistake is one click to fix: **Undo** in **Recent Changes** hides it again and puts it
   back in the queue.
 

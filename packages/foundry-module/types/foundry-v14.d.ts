@@ -520,7 +520,19 @@ declare global {
     };
     /** v14 exposes `foundry.data.ActiveEffectTypeDataModel` (core generation 14 marker). */
     readonly data: { readonly [key: string]: unknown };
-    readonly documents: { readonly [key: string]: unknown };
+    readonly documents: {
+      readonly collections: {
+        /** The journal collection class: `Journal.show` is Foundry's Show Players. */
+        readonly Journal: {
+          show(
+            doc: FoundryDocument,
+            options?: { force?: boolean; users?: string[] }
+          ): Promise<FoundryDocument>;
+        };
+        readonly [key: string]: unknown;
+      };
+      readonly [key: string]: unknown;
+    };
   }
 
   // -------------------------------------------------------------------------

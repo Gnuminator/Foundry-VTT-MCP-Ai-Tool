@@ -411,7 +411,9 @@ Each of the five positions shows:
 - **Link…**: search your world's journals, pages, scenes and actors, then click **Link** on the
   right one;
 - **Reveal…**: type an optional page title and exactly what the players may read, then **Plan
-  reveal…**. The players get only your text, never the card name.
+  reveal…**. The players get only your text, never the card name. Tick **Show it now** to pop the
+  page up on the players' screens as soon as you apply the reveal. It is off every time unless you
+  tick it, and Undo takes back the reveal but cannot close the popup.
 
 Import, new reading and link apply in one click, with an **Undo** message. A reveal opens the
 confirm window with the list of what will change and the destructive step, because the table
@@ -426,6 +428,9 @@ Queue handouts during prep, then reveal each with one click at the table. The dr
 - **Reveal next: `<title>`**: plans the reveal of the next queued page for the scene that is active
   now (or a page queued for any scene). The confirm window shows the change; applying it also takes
   the page off the queue. Undo in Recent Changes hides it again and puts it back in the queue.
+  Tick **Show it now** next to it to also pop the page up on the screens of the players it is for
+  (everyone when it is for every player). It is off every time unless you tick it, and Undo cannot
+  close the popup.
 - **+ Queue a page**: opens the tool runner on `plan-page-reveal` with `action` queue. Pick the page,
   optionally a scene and the players it is for, and run it.
 - **Revealed**: each handout, who it is for, and a tick for each player who has opened it on the

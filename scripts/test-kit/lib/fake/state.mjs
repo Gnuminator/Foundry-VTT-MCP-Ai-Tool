@@ -42,8 +42,16 @@ export function createWorld({ world, moduleVersion }) {
     combats: [],
     /** The combat that ended last, for the play-by-play. @type {any} */
     lastCombat: null,
-    /** Faults a test can switch on: feature names whose grant uuid does not resolve. */
-    faults: { unresolved: /** @type {Set<string>} */ (new Set()) },
+    /**
+     * Faults a test can switch on: feature names whose grant uuid does not resolve; quirks of
+     * exerciseActor ("<actor name>|<feature identifier>" -> throws, noCard, noConsume, drift, refuse);
+     * a rest that forgets the pact slots.
+     */
+    faults: {
+      unresolved: /** @type {Set<string>} */ (new Set()),
+      quirks: /** @type {Map<string, string>} */ (new Map()),
+      restNoPact: false,
+    },
     seq: 0,
     rng: 20261005,
     lastMs: 0,

@@ -803,10 +803,14 @@ async function createHero(args) {
     klass.flags = { ...(klass.flags ?? {}), ...kitFlags };
     await runManager(actor, klass, 'class');
     await auditTraits(actor);
+    // A new hero starts at full health with every spell slot ready.
     const max = actor.system.attributes.hp.max;
-    if (actor.system.attributes.hp.value !== max) {
-      await actor.update({ 'system.attributes.hp.value': max });
+    const fill = {};
+    if (actor.system.attributes.hp.value !== max) fill['system.attributes.hp.value'] = max;
+    for (const [key, slot] of Object.entries(actor.system.spells ?? {})) {
+      if (slot.max && slot.value !== slot.max) fill[`system.spells.${key}.value`] = slot.max;
     }
+    if (Object.keys(fill).length) await actor.update(fill);
     const classItem = actor.itemTypes.class[0];
     if (!classItem) throw new Error('createHero: the class item was not added');
     const subclassItem = actor.itemTypes.subclass[0] ?? null;
@@ -983,8 +987,455 @@ async function readActor(args) {
   };
 }
 
+/**
+ * Everything the feature scenarios need to know about one actor, read only: its features with
+ * their uses, activities (and what each consumes) and effects, plus the derived numbers the deep
+ * checks compare with the rules (proficiency bonus, armor class, hit dice, slots, scale values).
+ * Verified against dnd5e 6.0.5: `item.system.uses` has `max` (a number once prepared), `spent` and
+ * `recovery`; `item.system.activities` is a collection of activities with `consumption.targets`.
+ * @param {{actorId: string}} args
+ */
+async function inspectFeatures(args) {
+  const actor = game.actors.get(args.actorId);
+  if (!actor) throw new Error(`inspectFeatures: no actor ${args.actorId}`);
+  const list = coll => Array.from(coll?.values?.() ?? coll ?? []);
+  const numOrNull = v =>
+    v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
+  const plain = v => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') return v;
+    if (typeof v.value === 'number' || typeof v.value === 'string') return v.value;
+    return v.display ?? String(v);
+  };
+  const scale = {};
+  const classes = [];
+  for (const cls of actor.itemTypes.class) {
+    scale[cls.system.identifier] = {};
+    const own = { ...(cls.scaleValues ?? {}), ...(cls.subclass?.scaleValues ?? {}) };
+    for (const [id, v] of Object.entries(own)) scale[cls.system.identifier][id] = plain(v);
+    classes.push({
+      identifier: cls.system.identifier,
+      denomination: String(cls.system.hd?.denomination ?? ''),
+      levels: cls.system.levels,
+      spent: cls.system.hd?.spent ?? 0,
+    });
+  }
+  const abilities = {};
+  for (const [id, a] of Object.entries(actor.system.abilities))
+    abilities[id] = { value: a.value, mod: a.mod };
+  const spells = {};
+  for (const [key, s] of Object.entries(actor.system.spells ?? {})) {
+    if (!s.max) continue;
+    spells[key] = { value: s.value ?? 0, max: s.max, level: s.level ?? 0, type: s.type ?? '' };
+  }
+  const armorTypes = ['light', 'medium', 'heavy', 'shield'];
+  const items = actor.items.map(item => {
+    const u = item.system.uses;
+    const uses =
+      u && (numOrNull(u.max) !== null || (u.recovery?.length ?? 0) > 0)
+        ? {
+            max: numOrNull(u.max),
+            spent: numOrNull(u.spent) ?? 0,
+            recovery: Array.from(u.recovery ?? []).map(r => ({
+              period: String(r.period ?? ''),
+              type: String(r.type ?? ''),
+              formula: String(r.formula ?? ''),
+            })),
+          }
+        : null;
+    return {
+      id: item.id,
+      name: item.name,
+      type: item.type,
+      identifier: item.system?.identifier ?? null,
+      sourceUuid: item._stats?.compendiumSource ?? item.flags?.dnd5e?.sourceId ?? null,
+      equipped: !!item.system?.equipped,
+      uses,
+      activities: list(item.system?.activities).map(a => ({
+        id: a.id,
+        type: a.type,
+        name: a.name ?? '',
+        activation: a.activation?.type ?? '',
+        canUse: !!a.canUse,
+        consumption: list(a.consumption?.targets).map(t => ({
+          type: String(t.type ?? ''),
+          target: String(t.target ?? ''),
+          value: String(t.value ?? ''),
+        })),
+      })),
+      effects: item.effects.map(e => ({
+        id: e.id,
+        name: e.name,
+        disabled: !!e.disabled,
+        transfer: !!e.transfer,
+        changes: (e.changes ?? []).map(c => ({
+          key: String(c.key),
+          value: String(c.value),
+          type: String(c.type ?? ''),
+        })),
+      })),
+    };
+  });
+  const ac = actor.system.attributes.ac ?? {};
+  const hd = actor.system.attributes.hd ?? {};
+  return {
+    name: actor.name,
+    level: actor.system.details.level,
+    prof: actor.system.attributes.prof,
+    ac: {
+      value: ac.value,
+      calc: String(ac.calc ?? ''),
+      armor: actor.items.some(
+        i =>
+          i.type === 'equipment' && i.system.equipped && armorTypes.includes(i.system.type?.value)
+      ),
+    },
+    hd: { value: hd.value ?? 0, max: hd.max ?? 0, classes },
+    hp: { value: actor.system.attributes.hp.value, max: actor.system.attributes.hp.max },
+    abilities,
+    spells,
+    scale,
+    items,
+  };
+}
+
+/**
+ * Runs one thing on an actor and puts the actor back as it was found (see the contract). The state
+ * that is saved and restored: every item's uses (and each activity's), quantity, hit dice spent and
+ * effects' disabled flag; the spell slots; hit points; exhaustion; and the ids of the actor's
+ * effects, items and of the chat messages, so what the run created is deleted again. The reply says
+ * whether the restore worked (`restored`, `drift`).
+ * @param {{actorId: string, op: 'use'|'effect'|'rest', itemId?: string, activityId?: string, effectId?: string,
+ *   enabled?: boolean, read?: string[], type?: 'short'|'long'}} args
+ */
+async function exerciseActor(args) {
+  const actor = game.actors.get(args.actorId);
+  if (!actor) throw new Error(`exerciseActor: no actor ${args.actorId}`);
+  const list = coll => Array.from(coll?.values?.() ?? coll ?? []);
+
+  const state = () => {
+    const items = {};
+    for (const item of actor.items) {
+      items[item.id] = {
+        spent: item.system.uses?.spent ?? null,
+        quantity: item.system.quantity ?? null,
+        activities: Object.fromEntries(
+          list(item.system.activities).map(a => [a.id, a.uses?.spent ?? null])
+        ),
+        effects: Object.fromEntries(item.effects.map(e => [e.id, !!e.disabled])),
+        hd: item.type === 'class' ? (item.system.hd?.spent ?? 0) : null,
+      };
+    }
+    const spells = {};
+    for (const [key, s] of Object.entries(actor.system.spells ?? {})) spells[key] = s.value ?? 0;
+    const hp = actor.system.attributes.hp;
+    return {
+      items,
+      spells,
+      effects: actor.effects.map(e => e.id).sort(),
+      messages: game.messages.map(m => m.id).sort(),
+      hp: { value: hp.value, temp: hp.temp ?? 0 },
+      exhaustion: actor.system.attributes.exhaustion ?? 0,
+      // The whole stored actor.system, so any other change (death saves, currency, resources...) shows.
+      system: JSON.parse(JSON.stringify(actor._source.system)),
+    };
+  };
+
+  const restoreErrors = [];
+  const attempt = async (label, fn) => {
+    try {
+      await fn();
+    } catch (err) {
+      restoreErrors.push(`${label}: ${err?.message ?? err}`);
+    }
+  };
+
+  const restore = async before => {
+    // Hit points, slots and exhaustion first: the system adds and removes its own effects (the
+    // bloodied status) when hit points change, so what is left over is read after it has settled.
+    await attempt('actor', async () => {
+      const now = state();
+      const update = {};
+      for (const [key, value] of Object.entries(before.spells)) {
+        if (now.spells[key] !== value) update[`system.spells.${key}.value`] = value;
+      }
+      if (now.hp.value !== before.hp.value) update['system.attributes.hp.value'] = before.hp.value;
+      if (now.hp.temp !== before.hp.temp) update['system.attributes.hp.temp'] = before.hp.temp;
+      if (now.exhaustion !== before.exhaustion)
+        update['system.attributes.exhaustion'] = before.exhaustion;
+      if (Object.keys(update).length) await actor.update(update);
+      // Wait (up to 3 s) until the bloodied status is as it was: the system adds or removes it by itself.
+      const bloodied = () => actor.effects.some(e => e.statuses?.has('bloodied'));
+      const wasBloodied = actor.effects.some(
+        e => before.effects.includes(e.id) && e.statuses?.has('bloodied')
+      );
+      for (let i = 0; i < 30 && bloodied() !== wasBloodied; i += 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    });
+    // Whatever else differs in actor.system goes back by its path.
+    await attempt('system', async () => {
+      const was = foundry.utils.flattenObject(before.system);
+      const now = foundry.utils.flattenObject(state().system);
+      const update = {};
+      for (const [path, value] of Object.entries(was)) {
+        if (JSON.stringify(now[path]) !== JSON.stringify(value)) update[`system.${path}`] = value;
+      }
+      if (Object.keys(update).length) await actor.update(update);
+    });
+    await attempt('items', async () => {
+      const now = state();
+      for (const [id, was] of Object.entries(before.items)) {
+        const item = actor.items.get(id);
+        const cur = now.items[id];
+        if (!item || !cur) continue;
+        const update = {};
+        // A fresh item can have `spent: null` in its source; that goes back as null too.
+        if (cur.spent !== was.spent && item.system.uses) update['system.uses.spent'] = was.spent;
+        if (was.quantity !== null && cur.quantity !== was.quantity)
+          update['system.quantity'] = was.quantity;
+        for (const [aid, spent] of Object.entries(was.activities)) {
+          if (cur.activities[aid] !== spent && item.system.activities?.get(aid))
+            update[`system.activities.${aid}.uses.spent`] = spent;
+        }
+        if (was.hd !== null && cur.hd !== was.hd) update['system.hd.spent'] = was.hd;
+        if (Object.keys(update).length) await item.update(update);
+        const effects = Object.entries(was.effects)
+          .filter(
+            ([eid, disabled]) =>
+              item.effects.get(eid) && !!item.effects.get(eid).disabled !== disabled
+          )
+          .map(([eid, disabled]) => ({ _id: eid, disabled }));
+        if (effects.length) await item.updateEmbeddedDocuments('ActiveEffect', effects);
+      }
+    });
+    await attempt('new items', async () => {
+      const ids = actor.items.filter(i => !(i.id in before.items)).map(i => i.id);
+      if (ids.length) await actor.deleteEmbeddedDocuments('Item', ids);
+    });
+    await attempt('new effects', async () => {
+      const ids = actor.effects.filter(e => !before.effects.includes(e.id)).map(e => e.id);
+      if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
+    });
+    await attempt('new messages', async () => {
+      const ids = game.messages.filter(m => !before.messages.includes(m.id)).map(m => m.id);
+      if (ids.length) await ChatMessage.deleteDocuments(ids);
+    });
+  };
+
+  /** What differs between two states, in words (empty when they are equal). */
+  const drift = (a, b) => {
+    const out = [];
+    for (const id of new Set([...Object.keys(a.items), ...Object.keys(b.items)])) {
+      if (JSON.stringify(a.items[id]) !== JSON.stringify(b.items[id])) {
+        const fields = Object.keys({ ...a.items[id], ...b.items[id] }).filter(
+          f => JSON.stringify(a.items[id]?.[f]) !== JSON.stringify(b.items[id]?.[f])
+        );
+        out.push(
+          `item ${actor.items.get(id)?.name ?? id} (${fields.join(', ') || 'added or removed'})`
+        );
+      }
+    }
+    for (const key of ['spells', 'effects', 'messages', 'hp', 'exhaustion']) {
+      if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) out.push(key);
+    }
+    const was = foundry.utils.flattenObject(a.system);
+    const now = foundry.utils.flattenObject(b.system);
+    const paths = new Set([...Object.keys(was), ...Object.keys(now)]);
+    for (const path of paths) {
+      if (JSON.stringify(was[path]) !== JSON.stringify(now[path])) out.push(`system.${path}`);
+    }
+    return out;
+  };
+
+  const before = state();
+  let result;
+  try {
+    if (args.op === 'use') {
+      const item = actor.items.get(args.itemId);
+      const activity = item?.system.activities?.get(args.activityId);
+      if (!item || !activity)
+        throw new Error(`exerciseActor: no activity ${args.itemId}/${args.activityId}`);
+      // The system's error notifications become `notes` instead of toasts (and console errors).
+      const notes = [];
+      const patched = {};
+      const ours = (level, orig) => (message, options) => {
+        let text = String(message);
+        if (options?.localize || game.i18n.has(text)) text = game.i18n.localize(text);
+        notes.push({ level, message: text });
+        return orig;
+      };
+      for (const level of ['error', 'warn']) {
+        patched[level] = {
+          own: Object.prototype.hasOwnProperty.call(ui.notifications, level),
+          orig: ui.notifications[level],
+        };
+        ui.notifications[level] = ours(level, undefined);
+      }
+      let results;
+      let threw = null;
+      // A use that still opens a dialog would wait for ever: give it 20 s, then close what it opened.
+      const openBefore = new Set(foundry.applications.instances.keys());
+      try {
+        // No dialog, no measured template, no summons, no action cost, no roll after the card.
+        const use = activity.use(
+          {
+            consume: { action: false },
+            create: { measuredTemplate: false, summons: false },
+            concentration: { begin: false },
+            subsequentActions: false,
+          },
+          { configure: false },
+          {}
+        );
+        use.catch(() => {});
+        let timer;
+        const limit = new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('timed out after 20 s, probably waiting for a dialog')),
+            20000
+          );
+        });
+        try {
+          results = await Promise.race([use, limit]);
+        } finally {
+          clearTimeout(timer);
+        }
+      } catch (err) {
+        threw = String(err?.message ?? err);
+      } finally {
+        for (const level of ['error', 'warn']) {
+          if (patched[level].own) ui.notifications[level] = patched[level].orig;
+          else delete ui.notifications[level];
+        }
+        for (const [id, app] of [...foundry.applications.instances.entries()]) {
+          if (!openBefore.has(id)) await app.close({ skipConfirmation: true }).catch(() => {});
+        }
+      }
+      const after = state();
+      const messageId = results?.message?.id ?? null;
+      const spells = {};
+      for (const [key, value] of Object.entries(after.spells)) {
+        if (before.spells[key] !== value)
+          spells[key] = { before: before.spells[key] ?? 0, after: value };
+      }
+      result = {
+        ok: !!results && typeof results === 'object' && !threw,
+        notes,
+        threw,
+        chatCard: !!messageId && game.messages.has(messageId),
+        uses: {
+          before: before.items[item.id]?.spent ?? null,
+          after: after.items[item.id]?.spent ?? null,
+          max: Number.isFinite(Number(item.system.uses?.max)) ? Number(item.system.uses.max) : null,
+        },
+        spells,
+        effects: actor.effects
+          .filter(e => !before.effects.includes(e.id))
+          .map(e => ({
+            name: e.name,
+            changes: (e.changes ?? []).map(c => ({ key: String(c.key), value: String(c.value) })),
+          })),
+        itemsCreated: Object.keys(after.items).filter(id => !(id in before.items)).length,
+      };
+    } else if (args.op === 'effect') {
+      const item = actor.items.get(args.itemId);
+      const effect = item?.effects.get(args.effectId);
+      if (!item || !effect)
+        throw new Error(`exerciseActor: no effect ${args.itemId}/${args.effectId}`);
+      const read = () => {
+        const out = {};
+        const rollData = actor.getRollData();
+        for (const path of args.read ?? []) {
+          let v = foundry.utils.getProperty(actor, path);
+          if (v instanceof Set) v = [...v];
+          const entry = { value: v ?? null };
+          if (typeof v === 'string' && v.trim()) {
+            try {
+              entry.resolved = Number(dnd5e.utils.simplifyBonus(v, rollData));
+            } catch {
+              entry.resolved = null;
+            }
+          }
+          out[path] = entry;
+        }
+        return out;
+      };
+      const was = read();
+      // An effect on an item is applied to the actor as a copy (what the chat card's apply
+      // button does); the copy is deleted again by the restore.
+      if (args.enabled) {
+        const data = effect.toObject();
+        delete data._id;
+        data.origin = item.uuid;
+        data.disabled = false;
+        data.transfer = false;
+        await actor.createEmbeddedDocuments('ActiveEffect', [data]);
+      }
+      result = { before: was, during: read() };
+    } else if (args.op === 'rest') {
+      const summary = () => ({
+        items: actor.items
+          .filter(i => (i.system.uses?.recovery?.length ?? 0) > 0 && Number(i.system.uses.max) > 0)
+          .map(i => ({
+            id: i.id,
+            name: i.name,
+            max: Number(i.system.uses.max),
+            spent: Number(i.system.uses.spent) || 0,
+            recovery: Array.from(i.system.uses.recovery).map(r => ({
+              period: String(r.period ?? ''),
+              type: String(r.type ?? ''),
+              formula: String(r.formula ?? ''),
+            })),
+          })),
+        spells: Object.fromEntries(
+          Object.entries(actor.system.spells ?? {})
+            .filter(([, s]) => s.max)
+            .map(([key, s]) => [
+              key,
+              { value: s.value ?? 0, max: s.max, type: String(s.type ?? '') },
+            ])
+        ),
+        hp: { value: actor.system.attributes.hp.value, max: actor.system.attributes.hp.max },
+        hd: {
+          value: actor.system.attributes.hd?.value ?? 0,
+          max: actor.system.attributes.hd?.max ?? 0,
+        },
+      });
+      // Spend everything first, so a rest has something to give back.
+      for (const row of summary().items) {
+        await actor.items.get(row.id).update({ 'system.uses.spent': row.max });
+      }
+      for (const cls of actor.itemTypes.class) {
+        await cls.update({ 'system.hd.spent': cls.system.hd.max });
+      }
+      const update = { 'system.attributes.hp.value': 1 };
+      for (const [key, s] of Object.entries(actor.system.spells ?? {})) {
+        if (s.max) update[`system.spells.${key}.value`] = 0;
+      }
+      await actor.update(update);
+      const afterSpend = summary();
+      const config = { dialog: false, chat: false, advanceTime: false, advanceBastionTurn: false };
+      if (args.type === 'long') await actor.longRest(config);
+      else await actor.shortRest(config);
+      // Let the system finish what it does after a rest before the hero is put back.
+      await new Promise(resolve => setTimeout(resolve, 300));
+      result = { type: args.type, afterSpend, afterRest: summary() };
+    } else {
+      throw new Error(`exerciseActor: unknown op "${args.op}"`);
+    }
+  } finally {
+    await restore(before);
+  }
+  const final = state();
+  const differences = [...restoreErrors.map(e => `restore failed, ${e}`), ...drift(before, final)];
+  return { ...result, restored: differences.length === 0, drift: differences };
+}
+
 /** The functions gm.mjs runs in the page, by GM action. */
 export const GM_ACTION_FUNCTIONS = {
+  inspectFeatures,
+  exerciseActor,
   worldStatus,
   wipeKit,
   ensureFolder,

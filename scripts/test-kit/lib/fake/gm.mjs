@@ -14,6 +14,7 @@ import {
   findSubclass,
   uuidOf,
 } from './classes.mjs';
+import { fakeExerciseActor, fakeFeatures, fakeInspectFeatures } from './features.mjs';
 import { markTurn, sortCombat } from './tools-combat.mjs';
 import { ToolFailure, addEvent, newId, roll, tick } from './state.mjs';
 
@@ -235,6 +236,7 @@ const ACTIONS = {
         saves: Object.fromEntries(
           ['str', 'dex', 'con', 'int', 'wis', 'cha'].map(a => [a, k.saves.includes(a) ? 1 : 0])
         ),
+        features: fakeFeatures(k, level, k.rules, id),
       },
     });
     return {
@@ -423,6 +425,10 @@ const ACTIONS = {
       conditions: [],
     };
   },
+
+  inspectFeatures: (w, args) => fakeInspectFeatures(w, args),
+
+  exerciseActor: (w, args) => fakeExerciseActor(w, args),
 
   consoleErrors: () => ({ errors: [] }),
 };

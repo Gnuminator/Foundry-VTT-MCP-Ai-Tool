@@ -123,7 +123,7 @@ describe('Pi side (stage 6)', { skip: !hasBash && 'bash is not available' }, () 
   test('the helper syncs the temp file before it moves it into place', () => {
     const helper = heredoc('6-backup.sh', 'RECORD_PULL');
     const sync = helper.indexOf('sync "$tmp"');
-    assert.ok(sync > 0 && sync < helper.indexOf('mv -f'), 'sync "$tmp" comes before mv');
+    assert.ok(sync > 0 && sync < helper.indexOf('mv -fT'), 'sync "$tmp" comes before mv');
     assert.match(helper, /foundry-backup-pulls/);
   });
 

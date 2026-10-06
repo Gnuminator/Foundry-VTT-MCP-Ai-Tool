@@ -274,8 +274,13 @@ export class DnD5eAdapter implements SystemAdapter {
 
     // Creature-specific info
     if (actorData.type === 'npc') {
-      const creatureType = system.details?.type?.value ?? system.details?.type;
-      if (creatureType) {
+      // dnd5e 6 stores the type as an object ({value, subtype, custom, swarm});
+      // an unset type has no usable `value` (blank, or stripped by sanitizing,
+      // which used to leave the whole object, `{}`, in the output). Report only
+      // a non-blank string; otherwise leave the field out like size/alignment.
+      const rawType: unknown = system.details?.type;
+      const creatureType = typeof rawType === 'string' ? rawType : asRecord(rawType)?.value;
+      if (typeof creatureType === 'string' && creatureType.trim() !== '') {
         stats.creatureType = creatureType;
       }
 
@@ -307,11 +312,10 @@ export class DnD5eAdapter implements SystemAdapter {
       }
     }
 
-    // Spellcasting — a truthy `system.spells`/`system.attributes.spellcasting`
-    // container is not a caster signal: dnd5e always populates `system.spells`
-    // (a fixed level map, each slot defaulting to value: 0) and always gives
-    // NPCs an `attributes.spellcasting` StringField (blank "" when not a
-    // caster). Same pre-existing-bug family as creature-index.ts:520-535.
+    // Spellcasting — a truthy `system.spells` container is not a caster signal:
+    // dnd5e always populates `system.spells` (a fixed level map, each slot
+    // defaulting to value: 0), and `attributes.spellcasting` (the ability) is
+    // not one either (see below). Same pre-existing-bug family as creature-index.ts:520-535.
     // verified: dnd5e.mjs 6.0.5 — SpellcastingTemplate.spells (MappingField,
     // initialKeys spellLevels, value default 0); AttributesFields.creature
     // spellcasting (StringField, blank: true, default "").
@@ -324,13 +328,15 @@ export class DnD5eAdapter implements SystemAdapter {
             : typeof slot === 'number' && slot > 0;
         })
       : false;
-    const spellcastingAbility =
-      typeof system.attributes?.spellcasting === 'string'
-        ? system.attributes.spellcasting.trim()
-        : '';
+    // A spell item is the real signal: the 2024 monsters (dnd5e.actors24) set a
+    // casting ability on every NPC (a Wolf has "str") and their casters cast
+    // from spell items, while a caster can have spell items and no ability.
+    // dnd5e 6 models innate and at-will spells as spell items too.
+    const items = Array.isArray(actorData.items) ? (actorData.items as unknown[]) : [];
+    const hasSpellItem = items.some(item => asRecord(item)?.type === 'spell');
     const hasSpells = !!(
       hasSpellSlotValue ||
-      spellcastingAbility !== '' ||
+      hasSpellItem ||
       (system.details?.spellLevel && system.details.spellLevel > 0)
     );
     if (hasSpells) {

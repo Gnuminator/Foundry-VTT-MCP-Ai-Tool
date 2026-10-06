@@ -64,6 +64,11 @@ jobs:
         # (the PowerShell part is skipped where pwsh 7 is missing).
         run: node --test scripts/pi/space-check.test.mjs
 
+      - name: Pi world bundle
+        # push-world.ps1 and stage 11 (docs/dev/PI-SETUP.md, "Licensed content"): the asset path
+        # scanner's pure functions (scripts/pi/world-refs.mjs) and bash -n on stage 11.
+        run: node --test scripts/pi/world-refs.test.mjs
+
       - name: Changelog fragments
         # Each PR adds its CHANGELOG entry as a file in changelog.d/ (D-089); this checks the format.
         run: npm run changelog:check

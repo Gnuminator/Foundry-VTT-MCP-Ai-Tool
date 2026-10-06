@@ -1476,7 +1476,8 @@ export class ActorBuilderDataAccess {
     shared.validateFoundryState();
     shared.requireDnd5e('use-npc-activity');
 
-    const actor = shared.findActorByIdentifier(data.actorName);
+    // Token-aware: an unlinked token (a boss) spends its own uses and legendary actions.
+    const actor = shared.resolveTargetActor(data.actorName);
     if (!actor) throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.actorName}`);
     const item = actor.items.find(
       (i: any) =>

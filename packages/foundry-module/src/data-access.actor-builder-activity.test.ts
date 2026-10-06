@@ -21,7 +21,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ERROR_MESSAGES } from './constants.js';
-import { createTestWorld, makeItem, type TestWorld } from './test-support/foundry-mock/index.js';
+import {
+  createTestWorld,
+  makeActor,
+  makeItem,
+  makeToken,
+  type TestWorld,
+} from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 
 let world: TestWorld;
@@ -211,5 +217,66 @@ describe('FoundryDataAccess — useNpcActivity', () => {
 
     expect(result.item).toBe('Bite (Reach)');
     expect(result.hadAttack).toBe(true);
+  });
+});
+
+describe('FoundryDataAccess: useNpcActivity on an unlinked token', () => {
+  /** A world NPC plus an unlinked token on the active scene with its own synthetic copy. */
+  function bossOnScene(
+    tokenCount = 1,
+    tokenName = 'Boss'
+  ): { worldAttack: any; tokenAttacks: any[] } {
+    const world_ = attackItem({ id: 'w1', name: 'Bite' });
+    world.addActor({ id: 'strahd', name: 'Boss', type: 'npc', items: [world_.item] });
+    const tokenAttacks: any[] = [];
+    const tokens = Array.from({ length: tokenCount }, (_, i) => {
+      const own = attackItem({ id: `t${i}bite`, name: 'Bite' });
+      tokenAttacks.push(own.rollAttack);
+      return makeToken({
+        id: `tok${i}`,
+        name: tokenCount === 1 ? tokenName : `${tokenName} ${i + 1}`,
+        actorId: 'strahd',
+        actorLink: false,
+        actor: makeActor({ id: 'strahd', name: 'Boss', type: 'npc', items: [own.item] }),
+      });
+    });
+    world.addScene({ id: 's1', active: true, tokens });
+    return { worldAttack: world_.rollAttack, tokenAttacks };
+  }
+
+  it("uses the token's synthetic actor when named, not the world actor", async () => {
+    const { worldAttack, tokenAttacks } = bossOnScene();
+
+    await da.useNpcActivity({ actorName: 'Boss', itemName: 'Bite' });
+
+    expect(tokenAttacks[0]).toHaveBeenCalledTimes(1);
+    expect(worldAttack).not.toHaveBeenCalled();
+  });
+
+  it('uses the only token made from a world actor id (the dashboard picker sends ids)', async () => {
+    const { worldAttack, tokenAttacks } = bossOnScene();
+
+    await da.useNpcActivity({ actorName: 'strahd', itemName: 'Bite' });
+
+    expect(tokenAttacks[0]).toHaveBeenCalledTimes(1);
+    expect(worldAttack).not.toHaveBeenCalled();
+  });
+
+  it('uses the only token made from a world actor named, when the token has its own name', async () => {
+    const { worldAttack, tokenAttacks } = bossOnScene(1, 'Boss Token');
+
+    await da.useNpcActivity({ actorName: 'Boss', itemName: 'Bite' });
+
+    expect(tokenAttacks[0]).toHaveBeenCalledTimes(1);
+    expect(worldAttack).not.toHaveBeenCalled();
+  });
+
+  it('keeps the world actor when several tokens share that actor id', async () => {
+    const { worldAttack, tokenAttacks } = bossOnScene(2);
+
+    await da.useNpcActivity({ actorName: 'strahd', itemName: 'Bite' });
+
+    expect(worldAttack).toHaveBeenCalledTimes(1);
+    for (const t of tokenAttacks) expect(t).not.toHaveBeenCalled();
   });
 });

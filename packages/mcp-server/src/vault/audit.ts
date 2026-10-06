@@ -47,7 +47,7 @@ export interface AuditEntry {
   rulesVersion?: RulesVersion;
   /** undo entries: the change they reverted. */
   undoOf?: string;
-  /** undo entries asked for by a person (a GM's "AI changes" window in Foundry): who. Absent for Claude. */
+  /** Entries asked for by a person in a GM's window in Foundry (a module request): who. Absent for the control channel (Claude or the dashboard). */
   requestedBy?: string;
   /** apply entries that were undone. */
   undoneBy?: string;
@@ -70,7 +70,10 @@ interface DeletedBackup {
   deleted: Record<string, Record<string, unknown>>;
 }
 
-/** One line of `gm/audit-log.jsonl` (contract 2: no `results`, `vaultOps`, `backupRef`, `undoneBy`, `undoneAt`). */
+/**
+ * One line of `gm/audit-log.jsonl` (contract 2: no `results`, `vaultOps`, `backupRef`, `undoneBy`,
+ * `undoneAt`). `requestedBy` was added later, still `v: 1`: readers ignore fields they do not know.
+ */
 export interface AuditHistoryLine {
   v: 1;
   changeId: string;
@@ -84,6 +87,7 @@ export interface AuditHistoryLine {
   diff: string[];
   rulesVersion?: RulesVersion;
   undoOf?: string;
+  requestedBy?: string;
 }
 
 function historyLine(entry: AuditEntry): AuditHistoryLine {
@@ -100,6 +104,7 @@ function historyLine(entry: AuditEntry): AuditHistoryLine {
     diff: entry.diff,
     ...(entry.rulesVersion !== undefined ? { rulesVersion: entry.rulesVersion } : {}),
     ...(entry.undoOf !== undefined ? { undoOf: entry.undoOf } : {}),
+    ...(entry.requestedBy !== undefined ? { requestedBy: entry.requestedBy } : {}),
   };
 }
 

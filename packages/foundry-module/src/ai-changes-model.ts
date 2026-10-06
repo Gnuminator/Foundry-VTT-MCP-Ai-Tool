@@ -18,6 +18,8 @@ export interface AiChange {
   diff: string[];
   undoOf?: string;
   undoneBy?: string;
+  /** Who asked, when a GM did it from a window in Foundry (absent for Claude and the dashboard). */
+  requestedBy?: string;
   canUndo: boolean;
 }
 
@@ -31,6 +33,8 @@ export interface ChangeRow {
   /** The feature, readable ("live play"). */
   feature: string;
   isUndo: boolean;
+  /** Who asked ("by Danni" is shown), or empty when Claude or the dashboard did. */
+  requestedBy: string;
   /** "undone" when a later undo reverted this change, else empty. */
   state: string;
   diff: string[];
@@ -89,6 +93,7 @@ export function buildChangeRow(change: AiChange): ChangeRow {
     summary: isUndo ? `Undo of ${change.summary.replace(/^Undo:\s*/, '')}` : change.summary,
     feature: readableFeature(change.feature),
     isUndo,
+    requestedBy: text(change.requestedBy),
     state: undone ? 'undone' : '',
     diff: change.diff,
     canUndo: change.canUndo === true && !undone && !isUndo,
@@ -112,6 +117,7 @@ export function parseChanges(result: unknown): AiChange[] {
     if (typeof c.changeId !== 'string' || c.changeId === '') continue;
     const undoneBy = text(c.undoneBy);
     const undoOf = text(c.undoOf);
+    const requestedBy = text(c.requestedBy);
     out.push({
       changeId: c.changeId,
       feature: text(c.feature),
@@ -122,6 +128,7 @@ export function parseChanges(result: unknown): AiChange[] {
       diff: Array.isArray(c.diff) ? c.diff.filter((l): l is string => typeof l === 'string') : [],
       ...(undoOf ? { undoOf } : {}),
       ...(undoneBy ? { undoneBy } : {}),
+      ...(requestedBy ? { requestedBy } : {}),
       canUndo: c.canUndo === true,
     });
   }
@@ -145,6 +152,9 @@ function renderRow(row: ChangeRow, view: ChangesView): string {
     .join(' ');
   const state = row.state ? `<span class="fmb-ai-state">${escapeHtml(row.state)}</span>` : '';
   const tag = row.feature ? `<span class="fmb-ai-tag">${escapeHtml(row.feature)}</span>` : '';
+  const by = row.requestedBy
+    ? `<span class="fmb-ai-tag">by ${escapeHtml(row.requestedBy)}</span>`
+    : '';
   const diff =
     row.diff.length > 0
       ? `<details class="fmb-ai-details" data-change-id="${id}"${view.openIds.has(row.id) ? ' open' : ''}>` +
@@ -161,7 +171,7 @@ function renderRow(row: ChangeRow, view: ChangesView): string {
     `<li class="${classes}" data-change-id="${id}">` +
     `<div class="fmb-ai-head"><span class="fmb-ai-time">${escapeHtml(row.time)}</span>` +
     `<span class="fmb-ai-summary">${escapeHtml(row.summary)}</span></div>` +
-    `<div class="fmb-ai-meta">${tag}${state}</div>${diff}${
+    `<div class="fmb-ai-meta">${tag}${by}${state}</div>${diff}${
       undo ? `<div class="fmb-ai-actions">${undo}</div>` : ''
     }</li>`
   );

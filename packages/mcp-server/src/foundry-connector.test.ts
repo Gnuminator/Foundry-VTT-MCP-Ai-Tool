@@ -3,7 +3,13 @@ import { EventEmitter } from 'events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 
-import { MODULE_NOT_ACTIVE_LINK_ERROR, MODULE_REQUEST_MAX_ARGS_BYTES } from '@gnuminator/shared';
+import {
+  BridgeHelloFrameSchema,
+  MODULE_CAPABILITY_AI_CHANGES_SIGNAL,
+  MODULE_NOT_ACTIVE_LINK_ERROR,
+  MODULE_REQUEST_MAX_ARGS_BYTES,
+  MODULE_REQUEST_TOOLS,
+} from '@gnuminator/shared';
 
 import { FoundryConnector, LINK_DOWN_WARN_MS } from './foundry-connector.js';
 
@@ -29,10 +35,22 @@ class FakeSocket extends EventEmitter {
     this.emit('message', Buffer.from(JSON.stringify(message)));
   }
 
-  hello(userName: string, isBridgeUser: boolean, moduleVersion = '0.19.0'): void {
+  hello(
+    userName: string,
+    isBridgeUser: boolean,
+    moduleVersion = '0.19.0',
+    capabilities?: string[]
+  ): void {
     this.say({
       type: 'module-hello',
-      data: { userId: `id-${userName}`, userName, isBridgeUser, moduleVersion, worldId: 'w' },
+      data: {
+        userId: `id-${userName}`,
+        userName,
+        isBridgeUser,
+        moduleVersion,
+        worldId: 'w',
+        ...(capabilities ? { capabilities } : {}),
+      },
     });
   }
 }
@@ -277,6 +295,41 @@ describe('link state (PB-03)', () => {
   });
 });
 
+describe('module capabilities (I-108 follow-ups)', () => {
+  it('reports a capability only when the active socket hello lists it', () => {
+    expect(connector.activeModuleHasCapability(MODULE_CAPABILITY_AI_CHANGES_SIGNAL)).toBe(false);
+    const old = connect();
+    expect(connector.activeModuleHasCapability(MODULE_CAPABILITY_AI_CHANGES_SIGNAL)).toBe(false);
+    old.hello('Claude', true);
+    expect(connector.activeModuleHasCapability(MODULE_CAPABILITY_AI_CHANGES_SIGNAL)).toBe(false);
+    const fresh = connect();
+    fresh.hello('Claude', true, '0.20.0', [MODULE_CAPABILITY_AI_CHANGES_SIGNAL]);
+    expect(connector.activeModuleHasCapability(MODULE_CAPABILITY_AI_CHANGES_SIGNAL)).toBe(true);
+    expect(connector.activeModuleHasCapability('other')).toBe(false);
+    fresh.drop();
+    expect(connector.activeModuleHasCapability(MODULE_CAPABILITY_AI_CHANGES_SIGNAL)).toBe(false);
+  });
+
+  it('still accepts a hello without capabilities and ignores a malformed capabilities list', () => {
+    const a = connect();
+    a.hello('Claude', true);
+    expect(connector.getConnectionInfo().userName).toBe('Claude');
+    const b = connect();
+    b.say({
+      type: 'module-hello',
+      data: {
+        userId: 'x',
+        userName: 'Bad',
+        isBridgeUser: true,
+        moduleVersion: '1',
+        worldId: 'w',
+        capabilities: 'nope',
+      },
+    });
+    expect(connector.getConnectionInfo().userName).not.toBe('Bad');
+  });
+});
+
 describe('module requests (I-108)', () => {
   const requestFrame = (
     tool: string,
@@ -336,6 +389,50 @@ describe('module requests (I-108)', () => {
     expect(bridge.sent).toEqual([]);
   });
 
+  it('serves a non-active socket whose hello says isBridgeUser (Any-GM, two tabs of one user)', async () => {
+    const handler = vi.fn(async () => ({ changes: [] }));
+    connector.setModuleRequestHandler(handler);
+    const older = connect();
+    older.hello('Danni', true);
+    const newer = connect();
+    newer.hello('Danni', true);
+    // The newer tab is the active link; the older one is not, yet is still answered.
+    older.say(requestFrame('list-recent-changes'));
+    await flush();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(older.sent).toEqual([
+      { type: 'module-reply', id: 'req-1', data: { success: true, data: { changes: [] } } },
+    ]);
+    expect(newer.sent).toEqual([]);
+  });
+
+  it('still refuses a non-active socket with no hello (an older module)', async () => {
+    const handler = vi.fn(async () => ({}));
+    connector.setModuleRequestHandler(handler);
+    const older = connect();
+    connect().hello('Claude', true);
+    older.say(requestFrame('list-recent-changes'));
+    await flush();
+    expect(handler).not.toHaveBeenCalled();
+    expect(older.sent[0].data).toEqual({ success: false, error: MODULE_NOT_ACTIVE_LINK_ERROR });
+  });
+
+  it('a served non-active socket still goes through the tool allowlist and the size cap', async () => {
+    const handler = vi.fn(async () => ({}));
+    connector.setModuleRequestHandler(handler);
+    const older = connect();
+    older.hello('Danni', true);
+    connect().hello('Danni', true);
+    older.say(requestFrame('plan-tarokka-links', {}, 'r1'));
+    older.say(requestFrame('list-recent-changes', { pad: 'x'.repeat(20_001) }, 'r2'));
+    await flush();
+    expect(handler).not.toHaveBeenCalled();
+    expect(older.sent.map(m => m.data.error)).toEqual([
+      'Tool not allowed for module requests: plan-tarokka-links',
+      'Request arguments are too large',
+    ]);
+  });
+
   it('refuses a tool that is not on the module-request list', async () => {
     const handler = vi.fn(async () => ({}));
     connector.setModuleRequestHandler(handler);
@@ -377,9 +474,19 @@ describe('module requests (I-108)', () => {
   it('tells every module socket what it supports, right after it connects', () => {
     const a = connect();
     expect(a.bridgeHellos).toEqual([
-      { type: 'bridge-hello', data: { capabilities: ['module-request'] } },
+      {
+        type: 'bridge-hello',
+        data: {
+          capabilities: ['module-request', ...MODULE_REQUEST_TOOLS.map(t => `module-request:${t}`)],
+        },
+      },
     ]);
     expect(a.sent).toEqual([]);
+  });
+
+  it('keeps the bridge-hello within the schema limits as tools are added', () => {
+    const a = connect();
+    expect(BridgeHelloFrameSchema.safeParse(a.bridgeHellos[0]).success).toBe(true);
   });
 
   it('answers an invalid frame that still has an id, and ignores one without', async () => {

@@ -486,6 +486,22 @@ describe('undo (Foundry ops)', () => {
     expect(await audit.get('curse-of-strahd', byClaude.changeId)).not.toHaveProperty('requestedBy');
   });
 
+  it('shows who asked in list-recent-changes, only for changes a person asked for', async () => {
+    const byGm = await service.applyPlan(
+      (await plan([HP_UPDATE])).planId,
+      { confirm: true },
+      'Danni'
+    );
+    expect(byGm.requestedBy).toBe('Danni');
+    const byClaude = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    expect(byClaude).not.toHaveProperty('requestedBy');
+    const undone = await service.undo(byGm.changeId, { confirm: true }, 'Mira');
+    const rows = await service.listRecentChanges();
+    expect(rows.find(r => r.changeId === byGm.changeId)?.requestedBy).toBe('Danni');
+    expect(rows.find(r => r.changeId === undone.changeId)?.requestedBy).toBe('Mira');
+    expect(rows.find(r => r.changeId === byClaude.changeId)).not.toHaveProperty('requestedBy');
+  });
+
   it('records who asked for an apply on its audit entry, and nothing for Claude', async () => {
     const byGm = await service.applyPlan(
       (await plan([HP_UPDATE])).planId,

@@ -13,19 +13,25 @@ import {
 } from './socket-bridge.js';
 import {
   BRIDGE_CAPABILITY_MODULE_REQUEST,
+  BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX,
   BRIDGE_HELLO_TYPE,
   BRIDGE_TOO_OLD_MESSAGE,
   MODULE_NOT_ACTIVE_LINK_ERROR,
+  MODULE_CAPABILITY_AI_CHANGES_SIGNAL,
   MODULE_REPLY_TYPE,
+  MODULE_REQUEST_LEGACY_TOOLS,
   MODULE_REQUEST_MAX_ARGS_BYTES,
   MODULE_REQUEST_TOOLS,
   MODULE_REQUEST_TYPE,
 } from './constants.js';
 import {
   BRIDGE_CAPABILITY_MODULE_REQUEST as SHARED_CAPABILITY,
+  BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX as SHARED_TOOL_PREFIX,
   BRIDGE_HELLO_TYPE as SHARED_HELLO_TYPE,
+  MODULE_CAPABILITY_AI_CHANGES_SIGNAL as SHARED_AI_CHANGES_SIGNAL,
   MODULE_NOT_ACTIVE_LINK_ERROR as SHARED_NOT_ACTIVE,
   MODULE_REPLY_TYPE as SHARED_REPLY_TYPE,
+  MODULE_REQUEST_LEGACY_TOOLS as SHARED_LEGACY_TOOLS,
   MODULE_REQUEST_MAX_ARGS_BYTES as SHARED_MAX_BYTES,
   MODULE_REQUEST_TOOLS as SHARED_TOOLS,
   MODULE_REQUEST_TYPE as SHARED_REQUEST_TYPE,
@@ -64,7 +70,13 @@ function installFakeWebSocket(): { all: any[]; last: () => any } {
   return { all: instances, last: (): any => instances[instances.length - 1] };
 }
 
-function bridgeHello(ws: any, capabilities: string[] = [BRIDGE_CAPABILITY_MODULE_REQUEST]): void {
+/** What a current bridge says: `module-request` plus `module-request:<tool>` for every tool. */
+const FULL_CAPABILITIES = [
+  BRIDGE_CAPABILITY_MODULE_REQUEST,
+  ...MODULE_REQUEST_TOOLS.map(t => `${BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX}${t}`),
+];
+
+function bridgeHello(ws: any, capabilities: string[] = FULL_CAPABILITIES): void {
   ws.onmessage({ data: JSON.stringify({ type: BRIDGE_HELLO_TYPE, data: { capabilities } }) });
 }
 
@@ -112,6 +124,9 @@ describe('module request contract copy', () => {
     expect(MODULE_NOT_ACTIVE_LINK_ERROR).toBe(SHARED_NOT_ACTIVE);
     expect(BRIDGE_HELLO_TYPE).toBe(SHARED_HELLO_TYPE);
     expect(BRIDGE_CAPABILITY_MODULE_REQUEST).toBe(SHARED_CAPABILITY);
+    expect(BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX).toBe(SHARED_TOOL_PREFIX);
+    expect([...MODULE_REQUEST_LEGACY_TOOLS]).toEqual([...SHARED_LEGACY_TOOLS]);
+    expect(MODULE_CAPABILITY_AI_CHANGES_SIGNAL).toBe(SHARED_AI_CHANGES_SIGNAL);
     expect(MODULE_REQUEST_MAX_ARGS_BYTES).toBe(SHARED_MAX_BYTES);
   });
 });
@@ -212,6 +227,48 @@ describe('SocketBridge.request (I-108)', () => {
       BRIDGE_TOO_OLD_MESSAGE
     );
     expect(ws.send).not.toHaveBeenCalled();
+  });
+
+  it('a bridge with per-tool capabilities is asked only for the tools it lists', async () => {
+    const { bridge, ws } = await openBridge(false);
+    bridgeHello(ws, ['module-request', 'module-request:list-recent-changes']);
+    const ok = bridge.request('list-recent-changes', {}, gm);
+    expect(sentFrame(ws).data.tool).toBe('list-recent-changes');
+    reply(ws, sentFrame(ws).id, { success: true, data: 'ok' });
+    await expect(ok).resolves.toBe('ok');
+    ws.send.mockClear();
+    await expect(bridge.request('plan-tarokka-reveal', {}, gm)).rejects.toThrow(
+      BRIDGE_TOO_OLD_MESSAGE
+    );
+    expect(ws.send).not.toHaveBeenCalled();
+  });
+
+  it('a bridge from the first I-108 build (plain capability only) serves just the legacy tools', async () => {
+    const { bridge, ws } = await openBridge(false);
+    bridgeHello(ws, [BRIDGE_CAPABILITY_MODULE_REQUEST]);
+    for (const tool of MODULE_REQUEST_LEGACY_TOOLS) {
+      ws.send.mockClear();
+      const p = bridge.request(tool, {}, gm);
+      reply(ws, sentFrame(ws).id, { success: true, data: tool });
+      await expect(p).resolves.toBe(tool);
+    }
+    ws.send.mockClear();
+    for (const tool of MODULE_REQUEST_TOOLS.filter(
+      t => !(MODULE_REQUEST_LEGACY_TOOLS as readonly string[]).includes(t)
+    )) {
+      await expect(bridge.request(tool, {}, gm)).rejects.toThrow(BRIDGE_TOO_OLD_MESSAGE);
+    }
+    expect(ws.send).not.toHaveBeenCalled();
+  });
+
+  it('a current bridge serves every tool in the list', async () => {
+    const { bridge, ws } = await openBridge();
+    for (const tool of MODULE_REQUEST_TOOLS) {
+      ws.send.mockClear();
+      const p = bridge.request(tool, {}, gm);
+      reply(ws, sentFrame(ws).id, { success: true, data: tool });
+      await expect(p).resolves.toBe(tool);
+    }
   });
 
   it('waits a moment for a hello that is still on its way, then sends', async () => {

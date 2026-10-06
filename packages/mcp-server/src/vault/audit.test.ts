@@ -178,6 +178,16 @@ describe('AuditLog', () => {
     });
   });
 
+  it('keeps requestedBy on the history line when a person asked, and omits it otherwise', async () => {
+    await audit.append('w1', entry('c1', { requestedBy: 'Danni' }));
+    await audit.append('w1', entry('c2'));
+    const lines = (await store.readLines('w1', 'gm', AUDIT_HISTORY_FILE)) as Array<
+      Record<string, unknown>
+    >;
+    expect(lines[0]).toMatchObject({ v: 1, changeId: 'c1', requestedBy: 'Danni' });
+    expect(lines[1]).not.toHaveProperty('requestedBy');
+  });
+
   // 505 real atomic writes: about 7s on a Windows disk with Defender, past the 5s default.
   it('keeps every history line even past the ring size (append-only, never trimmed)', async () => {
     for (let i = 0; i < AUDIT_RING_SIZE + 5; i++) {

@@ -83,6 +83,11 @@ export class FoundryClient {
     this.connector.setModuleRequestHandler(handler);
   }
 
+  /** Whether the active module's hello lists `capability` (false for an older module). */
+  activeModuleHasCapability(capability: string): boolean {
+    return this.connector.activeModuleHasCapability(capability);
+  }
+
   ping(): Promise<any> {
     return this.query('foundry-mcp-bridge.ping');
   }

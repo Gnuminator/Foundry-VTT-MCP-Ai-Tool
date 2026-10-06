@@ -169,6 +169,7 @@ describe('ModuleSettings: bridge user (PB-02)', () => {
       isBridgeUser: true,
       moduleVersion: '0.19.0',
       worldId: 'test-world',
+      capabilities: ['ai-changes-signal'],
     });
     expect(buildModuleHello('someone-else').isBridgeUser).toBe(false);
     expect(buildModuleHello('gm').isBridgeUser).toBe(true);

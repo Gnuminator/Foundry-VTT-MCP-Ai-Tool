@@ -222,7 +222,10 @@ describe('FoundryDataAccess — useNpcActivity', () => {
 
 describe('FoundryDataAccess: useNpcActivity on an unlinked token', () => {
   /** A world NPC plus an unlinked token on the active scene with its own synthetic copy. */
-  function bossOnScene(tokenCount = 1): { worldAttack: any; tokenAttacks: any[] } {
+  function bossOnScene(
+    tokenCount = 1,
+    tokenName = 'Boss'
+  ): { worldAttack: any; tokenAttacks: any[] } {
     const world_ = attackItem({ id: 'w1', name: 'Bite' });
     world.addActor({ id: 'strahd', name: 'Boss', type: 'npc', items: [world_.item] });
     const tokenAttacks: any[] = [];
@@ -231,7 +234,7 @@ describe('FoundryDataAccess: useNpcActivity on an unlinked token', () => {
       tokenAttacks.push(own.rollAttack);
       return makeToken({
         id: `tok${i}`,
-        name: tokenCount === 1 ? 'Boss' : `Boss ${i + 1}`,
+        name: tokenCount === 1 ? tokenName : `${tokenName} ${i + 1}`,
         actorId: 'strahd',
         actorLink: false,
         actor: makeActor({ id: 'strahd', name: 'Boss', type: 'npc', items: [own.item] }),
@@ -254,6 +257,15 @@ describe('FoundryDataAccess: useNpcActivity on an unlinked token', () => {
     const { worldAttack, tokenAttacks } = bossOnScene();
 
     await da.useNpcActivity({ actorName: 'strahd', itemName: 'Bite' });
+
+    expect(tokenAttacks[0]).toHaveBeenCalledTimes(1);
+    expect(worldAttack).not.toHaveBeenCalled();
+  });
+
+  it('uses the only token made from a world actor named, when the token has its own name', async () => {
+    const { worldAttack, tokenAttacks } = bossOnScene(1, 'Boss Token');
+
+    await da.useNpcActivity({ actorName: 'Boss', itemName: 'Bite' });
 
     expect(tokenAttacks[0]).toHaveBeenCalledTimes(1);
     expect(worldAttack).not.toHaveBeenCalled();

@@ -213,7 +213,7 @@ export function findActorByIdentifier(identifier: string): any {
   );
 }
 
-/** The parts of a scene and its tokens that {@link resolveTargetActor} reads. */
+/** The parts of a scene and its tokens that {@link findSceneTokenActor} reads. */
 interface TargetScene {
   tokens: { contents: { id?: string; name?: string; actorId?: string; actor?: unknown }[] };
 }
@@ -221,21 +221,30 @@ interface TargetScene {
 /**
  * Resolve a damage/roll target to an Actor. Prefers a token on the current
  * scene (so unlinked NPC tokens use their own synthetic actor/HP), then the one
- * token on that scene made from a world actor id (the dashboard's actor picker
- * sends ids), then falls back to a world actor by name or id.
+ * token on that scene made from the world actor named or id'd (the dashboard's
+ * actor picker sends ids), then falls back to that world actor.
  */
 export function resolveTargetActor(identifier: string): any {
+  const worldActor = findActorByIdentifier(identifier) as { id?: string } | undefined;
+  return findSceneTokenActor(identifier, worldActor?.id) ?? worldActor;
+}
+
+/**
+ * The actor of a token on the current scene: the token named or id'd by `identifier`,
+ * else the one token made from the world actor `worldActorId` (default: `identifier`).
+ * Several tokens from one actor are ambiguous: `undefined` then, so callers keep the
+ * world actor. A linked token's actor is the world actor itself.
+ */
+export function findSceneTokenActor(identifier: string, worldActorId?: string): unknown {
   const scene = (game.scenes as unknown as { current?: TargetScene } | undefined)?.current;
-  if (scene) {
-    const tokens = scene.tokens.contents;
-    const lower = identifier.toLowerCase();
-    const token = tokens.find(t => t.id === identifier || t.name?.toLowerCase() === lower);
-    if (token?.actor) return token.actor;
-    // Several tokens from one actor are ambiguous: keep the world actor then.
-    const fromActor = tokens.filter(t => t.actorId === identifier);
-    if (fromActor.length === 1 && fromActor[0]?.actor) return fromActor[0].actor;
-  }
-  return findActorByIdentifier(identifier);
+  if (!scene) return undefined;
+  const tokens = scene.tokens.contents;
+  const lower = identifier.toLowerCase();
+  const token = tokens.find(t => t.id === identifier || t.name?.toLowerCase() === lower);
+  if (token?.actor) return token.actor;
+  const actorId = worldActorId ?? identifier;
+  const fromActor = tokens.filter(t => t.actorId === actorId);
+  return fromActor.length === 1 ? fromActor[0]?.actor : undefined;
 }
 
 /**

@@ -11,7 +11,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestWorld, makeActor, type TestWorld } from './test-support/foundry-mock/index.js';
+import {
+  createTestWorld,
+  makeActor,
+  makeToken,
+  type TestWorld,
+} from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 import { ERROR_MESSAGES } from './constants.js';
 
@@ -116,5 +121,37 @@ describe('getCharacterInfo — rules version (2014 vs 2024)', () => {
       tagged: null,
       detected: null,
     });
+  });
+});
+
+describe('getCharacterInfo: a token on the current scene', () => {
+  /** A world NPC plus `count` unlinked tokens from it, each with its own synthetic copy. */
+  function bossOnScene(count: number, tokenName = 'Boss Token'): void {
+    world.actors.add(makeActor({ id: 'strahd', name: 'Boss', type: 'npc' }));
+    const tokens = Array.from({ length: count }, (_, i) =>
+      makeToken({
+        id: `tok${i}`,
+        name: count === 1 ? tokenName : `${tokenName} ${i + 1}`,
+        actorId: 'strahd',
+        actorLink: false,
+        actor: makeActor({ id: 'strahd', name: `Boss copy ${i}`, type: 'npc' }),
+      })
+    );
+    world.addScene({ id: 's1', active: true, tokens });
+  }
+
+  it('reads the only token made from the world actor named', async () => {
+    bossOnScene(1);
+    expect((await da.getCharacterInfo('Boss')).name).toBe('Boss copy 0');
+  });
+
+  it('reads a token named that is not a world actor name', async () => {
+    bossOnScene(1);
+    expect((await da.getCharacterInfo('Boss Token')).name).toBe('Boss copy 0');
+  });
+
+  it('keeps the world actor when several tokens share it', async () => {
+    bossOnScene(2);
+    expect((await da.getCharacterInfo('Boss')).name).toBe('Boss');
   });
 });

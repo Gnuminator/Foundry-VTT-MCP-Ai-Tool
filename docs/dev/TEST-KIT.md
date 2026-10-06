@@ -367,6 +367,17 @@ class and two console errors, the rest are the repeats below). What differs:
   advancement); Actor Studio's Spells tab adds them. Prepared casters get their whole list on the sheet,
   unprepared, and the always-prepared domain spells; nothing is prepared for a wizard.
 
+**The fork build (2026-10-06, Actor Studio 2.10.5-aitool.1).** The same `smoke` scenario against our fork
+of Actor Studio (branch `aitool/fixes` of `Gnuminator/foundryvtt-actor-studio`, upstream 2.10.5 plus five
+fixes) passes on both worlds: `licensed` 13 of 13 heroes, KIT 9, CONTENT 0, SYSTEM 23, STUDIO 0; `srd`
+12 of 12, KIT 8, CONTENT 0, SYSTEM 21, STUDIO 0; no console errors. Gone from the list: the unset
+Subclass advancement, the selector error, the 404 and `feature-problems:no-slot-to-spend`. Still on it:
+the Size step, the missing class spells of the raw hero, one sorcerer subclass's current hit points, and
+the spell slots: the fork fills the slots of a new level 1 hero, but a hero levelled to 5 keeps the slots
+of level 1 (for example 2 of 4), because the system does not refill slots on a level up. The list now
+describes the fork. Against upstream 2.10.5 the four removed findings come back as new findings; restore
+their lines from `git log -p scripts/test-kit/data/studio-expected.json` for such a run.
+
 Development filters (environment variables): `KIT_STUDIO_CLASSES=fighter,wizard`, `KIT_STUDIO_LEVEL=3`,
 `KIT_KEEP_STUDIO=1` (keep the Studio heroes; they carry the kit flag and the next build wipes them),
 `KIT_SKIP_STUDIO=1`. Against the fake the scenario builds the "Studio" hero with the builder, which

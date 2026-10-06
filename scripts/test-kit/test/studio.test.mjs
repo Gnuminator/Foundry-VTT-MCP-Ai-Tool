@@ -497,14 +497,20 @@ test('the expected findings file is valid and names what the live runs found', (
   const list = loadExpected();
   const ids = list.map(e => e.id);
   for (const id of [
-    'advancement-values:advancement-value-of-subclass',
     'advancement-values:advancement-value-of-size',
     'spells:the-raw-hero-has-no-class-spells',
     'spell-slots-available:spell-slots-a-new-hero-can-spend',
-    'feature-problems:no-slot-to-spend',
-    'console:gas.captureAdvancement',
+    'current-hit-points:a-new-hero-does-not-start-at-full-hit-points',
   ])
     assert.ok(ids.includes(id), id);
+  // the fork of Actor Studio fixed these: they must not come back onto the list unseen
+  for (const id of [
+    'advancement-values:advancement-value-of-subclass',
+    'feature-problems:no-slot-to-spend',
+    'console:gas.captureAdvancement',
+    'console:black-parchment.webp',
+  ])
+    assert.ok(!ids.includes(id), `${id} was fixed in the fork`);
   assert.ok(list.every(e => e.why && e.kind));
 });
 

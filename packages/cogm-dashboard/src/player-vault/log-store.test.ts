@@ -21,7 +21,8 @@ beforeEach(async () => {
   dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'player-log-'));
 });
 afterEach(async () => {
-  await fsp.rm(dir, { recursive: true, force: true });
+  // Retries: a write still settling on Windows can leave the folder briefly not empty.
+  await fsp.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
 describe('PlayerLogStore', () => {

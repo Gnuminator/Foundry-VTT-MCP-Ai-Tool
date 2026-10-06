@@ -19,6 +19,9 @@
   - Every -TestEveryDays days (marker <Destination>\restic-last-test.txt) it also reads 10 % of the
     repository data and restores the newest snapshot's worlds into a temporary folder, checks that
     a world.json came back, and deletes the folder.
+  - Starts with the storage space check (space-check.ps1): below 20 % free on the Pi (the disk of the
+    restic repository) or on this PC's destination it logs a WARNING and shows a Windows notification;
+    at critical (under 5 %) on the destination it skips the copy and exits 1.
   - Logs to <Destination>\logs\restic-<yyyy-MM>.log (never a password) and writes
     restic-last-success.txt.
 
@@ -48,6 +51,8 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+. (Join-Path $PSScriptRoot 'space-check.ps1')
 
 $destRepo = Join-Path $Destination 'restic'
 $logDir = Join-Path $Destination 'logs'
@@ -103,6 +108,18 @@ try {
   $script:resticExe = Find-Restic
   $script:lastOutput = @()
   Write-Log ('start: ' + ((& $script:resticExe version) -join ' '))
+
+  # Space check first (never throws): warns below 20 % free, stops the copy at critical on the destination.
+  # Only an sftp source is the Pi; a local source repository (a test) has no Pi status to read.
+  $extra = @()
+  $vault = Get-SyncthingVaultPath
+  if ($vault) { $extra = @(@{ Path = $vault; Job = 'Syncthing vault (destination)' }) }
+  $space = Invoke-SpaceCheck -Job 'restic copy' -Destinations @($Destination) -Extra $extra `
+    -PiHost $(if ($SourceRepo -match '^sftp:') { $PiHost } else { '' }) -Ssh $Ssh `
+    -PiPaths @('/var/lib/foundry-backup/restic') -Log ${function:Write-Log} -Test:$DryRun
+  if ($space.Skip) {
+    if ($DryRun) { Write-Log 'dry run: the copy would be skipped (space is critical)' } else { throw $space.SkipReason }
+  }
 
   # sftp sources go through ssh without prompts: a hidden task has no one to answer one.
   $srcOpts = @()

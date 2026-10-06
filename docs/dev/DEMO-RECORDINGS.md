@@ -2,7 +2,7 @@
 
 Repeatable video takes and docs screenshots on the local test server (idea I-082). A take
 is a short script: it resets a demo world to a saved clean state, opens visible browser
-windows (Foundry as GM or player, the co-GM dashboard, the `/player` page), drives them
+windows (Foundry as GM or player, the dashboard, the `/player` page), drives them
 with Playwright, and records them with OBS Studio over its WebSocket. Running the same
 take again gives the same video, so videos and screenshots are cheap to redo after a UI
 change.
@@ -205,7 +205,7 @@ export const meta = { title: 'Plan a token move, apply it, undo it' };
 
 export async function setup(t) {
   await t.foundry('Foundry', { user: DEMO_USERS.gm }); // join as the demo GM
-  await t.dashboard(); // the co-GM dashboard
+  await t.dashboard(); // the dashboard
 }
 
 export async function run(t) {

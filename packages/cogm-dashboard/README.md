@@ -1,6 +1,6 @@
-# Co-GM Dashboard
+# The dashboard
 
-A standalone live **AI co-GM** for the Foundry VTT MCP bridge. It watches the
+A standalone live **dashboard with AI commentary** for the Foundry VTT MCP bridge. It watches the
 running game, streams an AI Game Master's-assistant commentary to a browser
 dashboard, and can optionally post a chosen comment back to Foundry chat.
 
@@ -16,15 +16,15 @@ dashboard, and can optionally post a chosen comment back to Foundry chat.
 - **Combat tracker** — initiative order, HP bars, conditions, and death saves
   from `get-combat-state`.
 - **Streaming AI commentary** — when something significant happens (damage,
-  death, conditions, combat start/turn, resource spend), the co-GM streams one
+  death, conditions, combat start/turn, resource spend), the AI streams one
   short tactical or narrative comment. Comments are **batched and rate-limited**,
   never one-per-event.
-- **Ask the co-GM** — type a question and get a streamed answer grounded in the
+- **Ask the AI** — type a question and get a streamed answer grounded in the
   current game state.
 - **Post to chat** _(the only thing that mutates the game)_ — push a chosen
   comment into Foundry as a GM whisper.
 - **Live module diagnostics** — polls `get-module-errors` and streams other
-  modules' errors/warnings to a diagnostics pane; the co-GM can offer a likely
+  modules' errors/warnings to a diagnostics pane; the AI can offer a likely
   cause/fix on new errors (toggleable "Diag AI", rate-capped, and deferred so it
   never preempts combat commentary).
 
@@ -33,7 +33,7 @@ Everything else is strictly read-only.
 ## Architecture
 
 ```text
- Foundry VTT  ──►  MCP backend  ──(JSON-lines TCP 127.0.0.1:31414)──►  Co-GM dashboard
+ Foundry VTT  ──►  MCP backend  ──(JSON-lines TCP 127.0.0.1:31414)──►  Dashboard
   (browser)        (bridge)              control channel                   │
                                                                            ├─ PollingGameFeed  (get-recent-events / get-combat-state / get-module-errors)
                                                                            ├─ GameState        (bounded rolling window + combat snapshot)

@@ -1,11 +1,11 @@
 ---
-title: The co-GM dashboard
-description: A tour of every panel and button on the co-GM dashboard, what each does and when to use it.
+title: The dashboard
+description: A tour of every panel and button on the dashboard, what each does and when to use it.
 ---
 
-# The co-GM dashboard
+# The dashboard
 
-The co-GM dashboard is your control panel. Open it in a browser on a second screen next to
+The dashboard is your control panel. Open it in a browser on a second screen next to
 Foundry. Today its address is `http://localhost:3000` (it changes when the tool moves to the
 Orange Pi).
 
@@ -26,7 +26,7 @@ Three lights at the top tell you if everything is connected:
 | ----------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Bridge**  | `connected`    | `disconnected`: the dashboard cannot reach the bridge. Is Claude Desktop running? `reconnecting…`: this page lost its connection to the dashboard program. Is the dashboard's window still open? |
 | **Foundry** | `live`         | `unreachable`: the bridge runs, but no GM's Foundry tab is connected. `unknown`: not checked yet, or the bridge is down.                                                                         |
-| **AI**      | `on`, `paused` | `disabled`: no Anthropic API key is set. This is normal; see "Co-GM Commentary" below.                                                                                                           |
+| **AI**      | `on`, `paused` | `disabled`: no Anthropic API key is set. This is normal; see "AI commentary" below.                                                                                                              |
 
 The line under the title shows your world, the game system and the Foundry version once Foundry is
 live.
@@ -260,7 +260,7 @@ scene changes and more. Each line shows its type and the time.
 - Private, blind and GM rolls appear as `gm-roll` lines. Players never see these.
 - `gm-change` lines appear when a guarded change is applied or undone.
 
-### Co-GM Commentary
+### AI commentary
 
 Optional AI comments on the fight and an **Ask** box ("who's in trouble?").
 
@@ -277,6 +277,23 @@ every player's browser, only its display is hidden.
 Errors and warnings from Foundry modules, caught in the GM's browser. Hover a line for details.
 Useful when something in Foundry misbehaves mid-session. Old entries can stay listed after a
 reload.
+
+At the top, a yellow line says when the server's storage space check has not run for over 3 hours.
+Nothing is wrong yet, but nobody is watching the space: tell the person who runs the server.
+
+### The storage space banner
+
+The server (the Orange Pi) checks its own free disk space every hour. The dashboard shows a banner
+under the header, for you only (players never see it):
+
+- **Yellow, "Storage space is low":** under 20% free. Backups still run. Tell the person who runs the
+  server; the banner names the disk and which jobs use it.
+- **Red, "Storage space is critical":** under 5% free, or less than a backup needs. A backup that
+  needs more space than is free will stop. Tell them now.
+
+No banner means plenty of space, or that this dashboard runs somewhere with no space check (for
+example a laptop). The same warning also arrives as a Discord message to the person who runs the
+server.
 
 ### Recent Changes
 

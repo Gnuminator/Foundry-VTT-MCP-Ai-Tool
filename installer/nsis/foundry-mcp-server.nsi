@@ -311,9 +311,10 @@ Section "Foundry AI Tool Client" SecMain
   SetOutPath $INSTDIR
 
   ; Remove what older installers put here (local backend, Foundry module helpers)
-  ; Only in a folder that holds our own earlier install (it has our Uninstall.exe), never in an
-  ; arbitrary folder the user typed.
+  ; Only in a folder that holds our own earlier install: our Uninstall.exe and the old layout's
+  ; foundry-mcp-server folder are both there. Never in an arbitrary folder the user typed.
   IfFileExists "$INSTDIR\Uninstall.exe" 0 skip_legacy_cleanup
+  IfFileExists "$INSTDIR\foundry-mcp-server\*.*" 0 skip_legacy_cleanup
     DetailPrint "Cleaning up files from older versions..."
     RMDir /r "$INSTDIR\foundry-mcp-server"
     RMDir /r "$INSTDIR\node"
@@ -412,20 +413,8 @@ Section "Uninstall"
   Delete "$INSTDIR\configure-claude.ps1"
   Delete "$INSTDIR\icon.ico"
 
-  ; Files and folders left by older versions, only where our own Uninstall.exe lives
-  IfFileExists "$INSTDIR\Uninstall.exe" 0 skip_legacy_removal
-    RMDir /r "$INSTDIR\foundry-mcp-server"
-    RMDir /r "$INSTDIR\node"
-    RMDir /r "$INSTDIR\node_modules"
-    Delete "$INSTDIR\configure-claude-wrapper.bat"
-    Delete "$INSTDIR\start-server.bat"
-    Delete "$INSTDIR\test-connection.bat"
-    Delete "$INSTDIR\THIRD_PARTY_NOTICES.txt"
-    Delete "$INSTDIR\start-comfyui.bat"
-    Delete "$INSTDIR\test-comfyui.bat"
-    RMDir /r "$INSTDIR\ComfyUI"
-    RMDir /r "$SMPROGRAMS\Foundry MCP Server"
-  skip_legacy_removal:
+  ; Only what this installer installed. Files from older layouts are cleaned up by the install
+  ; step (and by the older uninstaller), never here.
 
   RMDir /r "$SMPROGRAMS\Foundry AI Tool Client"
 

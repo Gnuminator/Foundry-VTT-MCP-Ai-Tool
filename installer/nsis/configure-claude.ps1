@@ -73,22 +73,28 @@ function Get-ClaudeDesktopProcess {
     # Roaming\Claude\claude-code folder), so look at where the program lives: the classic install
     # is under AnthropicClaude, the Microsoft Store build under WindowsApps\Claude_*.
     # This fails closed: a claude.exe whose path cannot be read counts as running.
-    $candidates = @()   # objects with Id and Path
+    # Another Windows user's session (a second logged-in user) has its own config, so only this
+    # session's processes count.
+    $mySession = (Get-Process -Id $PID).SessionId
+    $candidates = @()   # objects with Id, Path and SessionId
     try {
         $procs = Get-CimInstance -ClassName Win32_Process -Filter "Name = 'claude.exe'" -ErrorAction Stop
-        foreach ($p in $procs) { $candidates += [PSCustomObject]@{ Id = $p.ProcessId; Path = $p.ExecutablePath } }
+        foreach ($p in $procs) {
+            $candidates += [PSCustomObject]@{ Id = $p.ProcessId; Path = $p.ExecutablePath; SessionId = $p.SessionId }
+        }
     }
     catch {
         Write-LogMessage "Process list through WMI failed ($($_.Exception.Message)), using Get-Process." 'WARN'
         foreach ($p in @(Get-Process -Name claude -ErrorAction SilentlyContinue)) {
             $path = $null
             try { $path = $p.Path } catch { $path = $null }
-            $candidates += [PSCustomObject]@{ Id = $p.Id; Path = $path }
+            $candidates += [PSCustomObject]@{ Id = $p.Id; Path = $path; SessionId = $p.SessionId }
         }
     }
 
     $found = @()
     foreach ($c in $candidates) {
+        if ($null -ne $c.SessionId -and [int]$c.SessionId -ne [int]$mySession) { continue }
         if ([string]::IsNullOrWhiteSpace($c.Path)) {
             Write-LogMessage "A claude.exe (process $($c.Id)) has no readable path; counting it as Claude Desktop." 'WARN'
             $found += $c
@@ -180,8 +186,14 @@ function Save-Config {
     # Write a temporary file next to it, then replace: a crash never leaves a half-written config.
     # UTF-8 without a BOM in both PowerShell versions.
     $tmp = "$Path.tmp"
-    [System.IO.File]::WriteAllText($tmp, $json + "`n", (New-Object System.Text.UTF8Encoding($false)))
-    Move-Item -Path $tmp -Destination $Path -Force
+    try {
+        [System.IO.File]::WriteAllText($tmp, $json + "`n", (New-Object System.Text.UTF8Encoding($false)))
+        Move-Item -Path $tmp -Destination $Path -Force -ErrorAction Stop
+    }
+    catch {
+        if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+        throw
+    }
 }
 
 function New-Backup {
@@ -191,7 +203,10 @@ function New-Backup {
     Copy-Item -Path $Path -Destination $backup
     Write-LogMessage "Backup: $backup"
     # Keep the newest five (the stamp sorts by time; Copy-Item keeps the source's file time).
+    # Only files in exactly the format this script writes; look-alikes made by hand are left alone.
+    $pattern = '^' + [regex]::Escape((Split-Path -Leaf $Path)) + '\.backup-\d{8}-\d{6}-\d{3}$'
     $old = @(Get-ChildItem -Path (Split-Path -Parent $Path) -Filter ((Split-Path -Leaf $Path) + '.backup-*') -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -cmatch $pattern } |
         Sort-Object Name -Descending | Select-Object -Skip 5)
     foreach ($f in $old) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue }
     return $backup

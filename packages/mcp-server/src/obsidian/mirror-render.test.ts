@@ -6,6 +6,7 @@ import type {
   ExportJournalEntry,
   ExportPageEntry,
   ExportSceneEntry,
+  ExportSceneToken,
 } from '@gnuminator/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -351,7 +352,7 @@ const OWN: Record<MirrorNoteType, string[]> = {
     'source_book',
     'prep',
   ],
-  scene: ['nav_name', 'player_name', 'navigation', 'journal', 'pins', 'prep'],
+  scene: ['nav_name', 'player_name', 'navigation', 'journal', 'pins', 'tokens', 'prep'],
   journal: [
     'pages',
     'pages_player_visible',
@@ -542,6 +543,7 @@ describe('renderMirrorNote snapshots', () => {
       navigation: true
       journal: "[[Campaigns/strahd-test/AI Tool/Foundry/Journals/Barovia|Journal]]"
       pins: 3
+      tokens: null
       prep: null
       aliases:
         - "Castle Ravenloft"
@@ -555,7 +557,7 @@ describe('renderMirrorNote snapshots', () => {
         - "campaign/strahd-test"
         - "scene"
       generated_by: "foundry-ai-tool"
-      generated_hash: "a53fb4006ba8a0a9"
+      generated_hash: "ebefdbe2be7c2e98"
       ---
       # Castle Ravenloft
 
@@ -580,6 +582,63 @@ describe('renderMirrorNote snapshots', () => {
       - Unlinked note
       "
     `);
+  });
+
+  it('scene: who is here links the actor notes of its tokens', () => {
+    const tokens: ExportSceneToken[] = [
+      {
+        name: 'Lost',
+        actorUuid: null,
+        actorType: null,
+        actorLink: false,
+        disposition: 'neutral',
+        hidden: false,
+        count: 1,
+      },
+      {
+        name: 'Ghost',
+        actorUuid: `Actor.${fid('gone')}`,
+        actorType: 'npc',
+        actorLink: false,
+        disposition: null,
+        hidden: false,
+        count: 1,
+      },
+      {
+        name: 'Silvera',
+        actorUuid: PC_UUID,
+        actorType: 'character',
+        actorLink: true,
+        disposition: 'friendly',
+        hidden: false,
+        count: 1,
+      },
+      {
+        name: 'Wolf',
+        actorUuid: NPC_UUID,
+        actorType: 'npc',
+        actorLink: false,
+        disposition: 'hostile',
+        hidden: true,
+        count: 3,
+      },
+    ];
+    const text = render(scene({ tokens }));
+    expect(text).toContain('\ntokens: 6\n');
+    expect(text.split('## Who is here\n\n')[1]?.split('\n\n')[0]).toMatchInlineSnapshot(`
+      "- Lost (no actor, neutral)
+      - Ghost (no longer in this world)
+      - [Silvera](../PCs/Test%20Hero.md) (player character, friendly)
+      - [Wolf](../NPCs/Wolf.md) ×3 (hostile, hidden)
+      "
+    `);
+  });
+
+  it('scene: a module without tokens gives no section and a null count', () => {
+    const text = render(scene({ tokens: [] }));
+    expect(text).not.toContain('## Who is here');
+    expect(text).toContain('\ntokens: 0\n');
+    expect(render(scene())).toContain('\ntokens: null\n');
   });
 
   it('journal index and page notes', () => {

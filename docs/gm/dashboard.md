@@ -278,6 +278,23 @@ Errors and warnings from Foundry modules, caught in the GM's browser. Hover a li
 Useful when something in Foundry misbehaves mid-session. Old entries can stay listed after a
 reload.
 
+At the top, a yellow line says when the server's storage space check has not run for over 3 hours.
+Nothing is wrong yet, but nobody is watching the space: tell the person who runs the server.
+
+### The storage space banner
+
+The server (the Orange Pi) checks its own free disk space every hour. The dashboard shows a banner
+under the header, for you only (players never see it):
+
+- **Yellow, "Storage space is low":** under 20% free. Backups still run. Tell the person who runs the
+  server; the banner names the disk and which jobs use it.
+- **Red, "Storage space is critical":** under 5% free, or less than a backup needs. A backup that
+  needs more space than is free will stop. Tell them now.
+
+No banner means plenty of space, or that this dashboard runs somewhere with no space check (for
+example a laptop). The same warning also arrives as a Discord message to the person who runs the
+server.
+
 ### Recent Changes
 
 Every guarded change that was applied, newest first, up to 20. Each row shows:

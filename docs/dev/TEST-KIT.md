@@ -58,8 +58,8 @@ node scripts/test-kit/kit.mjs <command> [options]
 
 | Size    | Heroes                                                   | Scenarios                  |
 | ------- | -------------------------------------------------------- | -------------------------- |
-| `smoke` | every class once, at level 5, with its first subclass    | the twelve SRD scenarios   |
-| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20 | the twelve SRD scenarios   |
+| `smoke` | every class once, at level 5, with its first subclass    | the fourteen SRD scenarios |
+| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20 | the fourteen SRD scenarios |
 | `long`  | the same heroes as `full`                                | scenarios that list `long` |
 
 The monster scenarios also read the size (`t.size`): `smoke` probes a sample of the monsters (see "The monsters"), `full` and
@@ -169,8 +169,10 @@ Start a `full` run in the background and do not wait on it.
 
 ## The scenarios
 
-Twelve SRD scenarios ship in the repo. All are in `smoke` and `full`; `heroes-advancement`, the two
-feature scenarios, `heroes-studio` and the three monster scenarios are in `long` as well.
+Fourteen SRD scenarios ship in the repo. All are in `smoke` and `full`; `heroes-advancement`, the two
+feature scenarios, `heroes-studio`, the three monster scenarios and the two spell scenarios are in `long` as
+well. The spell scenarios use the sizes differently: `smoke` casts a sample of about thirty spells, `full` and
+`long` cast them all.
 
 | Id                     | What it proves                                                                                                |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -186,6 +188,8 @@ feature scenarios, `heroes-studio` and the three monster scenarios are in `long`
 | `monsters-every`       | Every monster of every pack of the profile is copied in, uses one action and is deleted.                      |
 | `monsters-matrix`      | The monsters by CR band, type, size and trait, the gaps, and the data every creature needs.                   |
 | `monsters-odd`         | Legendary actions and resistance, lair, regeneration, shapechangers, movement, recharge, multiattack, spells. |
+| `spells-cast-all`      | Every spell of the profile's spell packs can be cast once; the caster is put back.                            |
+| `spells-deep`          | 31 rule checks on SRD spells: attacks, saves, areas, concentration, upcasting, slots.                         |
 
 ### heroes-advancement
 
@@ -453,6 +457,112 @@ kind), and in `monsters-odd` all 132 legendary monsters spend their pool (362 of
 resistance feature that has no activity, 23 spellcasters with data problems (a missing spellcasting ability or an innate spell with
 no uses). The `smoke` sample of the `licensed` profile has 31 monsters and takes seconds. These are findings, not kit failures.
 
+### spells-cast-all
+
+One step per spell level. The GM action `listSpells` reads the profile's spell packs (names and numbers
+from the index, no text). `selectSpells` keeps each spell name once per rules version (the first pack
+wins) and the profile's rules versions; `smoke` then takes a repeatable sample of about thirty
+(`sampleSpells`: the first and last spell of every level, one of every kind of first activity and
+every area shape, a concentration spell, a ritual), `full` and `long` take them all.
+
+Each spell goes to a suitable caster: the best hero of each spellcasting class is a candidate, and the
+first one with slots of the spell's level by its own class table casts it (a cantrip goes to the first
+candidate). When no hero has such a slot, the GM action forces one (an override of 2 slots, put back
+after) and the report counts it as `slotsForced`. The GM action `exerciseSpell` gives the hero a copy
+of the compendium spell, casts its first activity at its base level through `activity.use` with no
+dialog, no measured template, no summons, no roll after the card and no action cost, reads what the
+system did, and puts the hero back (items, slots, hit points, effects, chat messages; a whole
+`actor.system` compare, like `exerciseActor`). Each cast is judged (`judgeCast` in `lib/spells.mjs`):
+
+- the system did not throw or refuse (a refusal about an item the actor lacks is CONTENT, a spell with
+  no activity is CONTENT, a slot problem after the kit forced a slot is KIT, anything else SYSTEM),
+- a chat card was posted,
+- the slot went down by one when the activity consumes one (and nothing else changed); a cantrip or a
+  spell cast by another method takes none,
+- a spell that needs concentration made a concentration effect,
+- the hero is exactly as before (KIT when not).
+
+Two kinds of spell are left out of the cast instead of failing it, and the coverage attachment (`leftOut`,
+`noActivity`) counts them:
+
+- A spell whose only activities are of type `transform` or `order` asks for a dialog nobody can answer in a
+  headless page (a form to take, a bastion facility). When the spell has another activity that one is cast;
+  otherwise the spell is left out with that reason.
+- A spell that loads with no activity at all (`noActivity`) is classified (`classifyNoActivity`):
+  `described` (the system's own pack ships it with none too, or it has no system counterpart and its
+  description has nothing to roll) is expected and not a problem; `lost` (the system's own pack has
+  activities for the same name), `foreign` (every activity in the pack is of a type the system does not
+  have, such as an importer's macro activity, so the item loads empty) and `rollable` (no counterpart, the
+  description mentions a saving throw, an attack, damage, healing or a summon) are CONTENT, each with its
+  reason and a fix route in the attachment. `foreign` and `lost` have a counterpart to copy the activities
+  from.
+
+The coverage attachment has the spell counts by level, the casters, the forced slots, the problems by
+kind and every failed spell with its problems. A licensed profile's report stays in the kit home.
+
+### spells-deep
+
+One step per check, 31 checks on SRD spells (the spell names are public SRD text; a licensed profile
+that has a spell of the same name is judged against the same table). A check whose spell the profile
+lacks is skipped with the reason and listed under `checksSkipped`. The oracle is the 2024 SRD rules
+written down in `lib/spells-deep.mjs`: a number the imported data gets wrong is CONTENT, a number the
+data has right and the system gets wrong is SYSTEM.
+
+| Check                   | What it proves                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| `attack-ranged`         | Fire Bolt: the attack bonus is proficiency plus the casting ability, a ranged attack      |
+| `attack-melee`          | Shocking Grasp: the same for a melee spell attack                                         |
+| `save-dc`               | Burning Hands: the save DC is 8 + proficiency + the casting ability, a Dexterity save     |
+| `save-half`             | Fireball: 8d6 fire, Dexterity save, half damage on a save, the rolled dice match          |
+| `save-negates`          | Hold Person: a Wisdom save, no damage, the paralyzed condition applies (and is removed)   |
+| `template-sphere`       | Fireball: a 20 ft sphere makes a circle Region                                            |
+| `template-cone`         | Burning Hands: a 15 ft cone makes a cone Region                                           |
+| `template-line`         | Lightning Bolt: a 100 ft line makes a line Region                                         |
+| `template-cube`         | Thunderwave: a 15 ft cube makes a rectangle Region                                        |
+| `template-wall`         | Wall of Fire: a wall of 60 ft makes a line Region                                         |
+| `concentration-begin`   | Bless: casting makes one concentration effect and takes a 1st level slot                  |
+| `concentration-replace` | Bless then Hold Person: the second concentration spell ends the first                     |
+| `concentration-none`    | Magic Missile: an instant spell does not begin concentration                              |
+| `upcast-dice`           | Burning Hands in a 3rd level slot: 5d6, scaling 2, only the 3rd level slot goes           |
+| `upcast-targets`        | Magic Missile in a 3rd level slot: 5 darts instead of 3, each 1d4 + 1                     |
+| `upcast-heal`           | Cure Wounds in a 3rd level slot: 6d8                                                      |
+| `heal-roll`             | Cure Wounds: 2d8 plus the casting ability, a healing roll                                 |
+| `temp-hp`               | False Life: 2d4 + 4 temporary hit points, applied to the caster                           |
+| `teleport`              | Misty Step: a bonus action teleport, a 2nd level slot (the activity type is a note)       |
+| `reaction-shield`       | Shield: a reaction, +5 Armor Class while it lasts                                         |
+| `mage-armor`            | Mage Armor: Armor Class 13 + Dexterity for a hero with no armor                           |
+| `bless-effects`         | Bless: +1d4 to attack rolls and saving throws while it lasts                              |
+| `ritual-no-slot`        | Detect Magic: a normal cast takes a slot, a ritual cast takes none                        |
+| `cantrip-no-slot`       | Fire Bolt: a cantrip takes no slot                                                        |
+| `cantrip-scaling`       | Fire Bolt: 1, 2, 3 and 4 dice at character level 1, 5, 11 and 17 (the levels the kit has) |
+| `pact-slot`             | Hex through Pact Magic: a pact slot goes, cast at the pact slot level                     |
+| `slot-choice`           | Cure Wounds in a 2nd level slot takes the 2nd level slot and not the 1st                  |
+| `no-slot-refused`       | Burning Hands with no 1st level slot left is refused, posts nothing, changes nothing      |
+| `summon-placed`         | Flaming Sphere: the summon is placed on the kit scene and cleaned up again                |
+| `scroll`                | A Fireball scroll: cast from the scroll, no slot, the scroll used up                      |
+| `auto-hit-damage`       | Magic Missile: a damage activity (no attack, no save), 1d4 + 1 force                      |
+
+Two things the checks do instead of the real thing, because the real thing is interactive: an area
+template is checked by creating the Region the system would build from the activity's template data
+(`TemplatePlacement.fromActivity` waits for a click), and the summon replaces `TokenPlacement.place`
+for the length of one call. The effects of a spell (a condition, an armor formula, bonus dice) are
+applied to the caster as a copy of the spell's effect, as the chat card's apply button does, and
+removed again by the restore.
+
+**What the first live runs showed (2026-10-06).** `srd` `smoke` and `full`: both spell scenarios pass. `full` casts all
+340 spells of the system's 2024 pack with no problem and all 31 deep checks pass; the `smoke` sample is 34 spells
+and the whole `smoke` run takes about a minute. `licensed` `full`: 1168 spells are listed in the three spell packs,
+845 are counted (each name once per rules version) and cast in about 80 seconds (the whole run with the 157-hero
+build is about 15 minutes); 5 of them have only a transform activity and are left out, and 2 have no activity
+after loading: both come from one licensed content pack and carry an activity of a type the system does not have
+(the `foreign` kind above), and both have a spell of the same name in the system's own pack to copy the activities
+from. All 31 deep checks pass on the licensed data. In the system's own packs and the licensed book pack no
+spell is without activities. The deep checks take about 4 seconds because they are about 40 casts of 0.1 seconds.
+Three things the first runs taught the kit: ending a concentration effect also ends the effects that depend on
+it, so the restore deletes new effects one by one; a transform activity waits for a dialog for ever, so the cast
+pass picks another activity or leaves the spell out; and whether a teleport spell uses a teleport or a utility
+activity is the data's choice, so the Misty Step check judges the bonus action and only notes the type.
+
 ### Failure classes
 
 Every failed check says which kind it is, first in the message, with its evidence:
@@ -468,6 +578,38 @@ Fix `KIT` failures in the kit. Report `CONTENT` and `SYSTEM` failures: do not ch
 content or the product to make the kit green. Report `STUDIO` failures to the module's author: do not
 change Actor Studio to make the kit green.
 
+## Console errors
+
+The GM page's console errors and page errors are collected for the whole run. A full run can log
+hundreds of the same one, so the report **groups** them: same message and place, with ids, hosts and
+line numbers stripped (`Texture <id> failed`), and for a page error the function it was thrown in.
+Each group shows its count, first and last time, and the scenarios it came during (`build` for the
+build). New groups come first. The raw list stays in `report.json` (`consoleErrors`, each with
+`at`, `message`, `source` and `scenario`); the groups are there too (`consoleGroups`).
+
+**Known groups.** A group is known when its finding id is in `data/studio-expected.json` (ids that
+start with `console:`: the hook it names, `console:gas.captureAdvancement`, or the file it failed to
+load, `console:black-parchment.webp`; a page error gets `console:pageerror:<function>`). Known groups
+show their kind (STUDIO, SYSTEM) and reason. Anything else is **NEW**: the report starts with a
+warning line, `report.md` and `report.html` mark the group, and the command prints the totals and
+every new group at the end. A new console error warns and does not fail the run; the older rules
+still fail: a console error from our own module fails its scenario (the `module console errors`
+step), and `heroes-studio` fails on a new Actor Studio finding. To accept a new known error, add an
+entry with its id to `studio-expected.json` and say why.
+
+**The notification error (fixed in the kit).** Full runs used to log hundreds of `TypeError: Cannot
+set properties of null (setting 'hidden')` from `#postNotification`. Cause: the kit uses an item or a
+spell, which makes a chat card, and puts the world back by deleting the card moments later. Foundry
+14 shows each new card as a pop-up notification and animates it for about 100 ms; when the card is
+deleted in that time its element is gone, and the next line (`element.hidden = false`, Foundry
+`chat.mjs`, `#postNotification`) throws. It needs a card created and deleted within a tenth of a
+second, which a table never does, so this is a kit artifact and not a bug to report. The kit's GM
+page now answers "no" to `_shouldShowNotifications` (the same as the setting "Chat notifications:
+pip"; `quietChatNotifications` and `keepChatNotificationsQuiet` in `lib/gm.mjs`), so no pop-up is
+animated. The change is made again after every page reload (Actor Studio setup and a failed Studio
+build reload the page, and a reload brings the pop-ups back). If the error comes back it shows as
+NEW, which means the page hook no longer works.
+
 ## How to write a scenario
 
 A scenario is a file `<id>.scenario.mjs` whose default export describes it. The full contract is in
@@ -476,6 +618,7 @@ A scenario is a file `<id>.scenario.mjs` whose default export describes it. The 
 - `id` (kebab-case), `title`, `sizes`, `tags`, `needs` (which parts of the manifest it uses).
 - `order` (optional number, default 0): lowest runs first. The feature scenarios have 100, so they run last: they
   post thousands of chat cards.
+- `t.size` (read only): the kit size of the run, for a scenario that samples.
 - `tools`: every bridge tool it calls. `kit check` fails if a tool is not in `tool-sets.ts`.
 - `gmActions`: every GM action it calls (the only way to run code inside Foundry).
 - `run(t)`: the scenario. `t` has `step`, `check`, `equal`, `tool`, `guarded.planApply`,
@@ -530,6 +673,9 @@ Rules of thumb:
 | The hero checks and failure classes       | `scripts/test-kit/lib/advancement.mjs`                                  |
 | The feature checks and rules tables       | `scripts/test-kit/lib/features.mjs`                                     |
 | The monster checks, matrix and odd checks | `scripts/test-kit/lib/monsters.mjs`                                     |
+| The spell judging and the sampling        | `scripts/test-kit/lib/spells.mjs`                                       |
+| The deep spell checks and their rules     | `scripts/test-kit/lib/spells-deep.mjs`                                  |
+| The spell GM actions (in the page)        | `scripts/test-kit/lib/gm-spells.mjs`                                    |
 | Driving Actor Studio, the answer pump     | `scripts/test-kit/lib/studio.mjs`, `studio-flow.mjs`, `studio-pump.mjs` |
 | Comparing a Studio hero with a raw hero   | `scripts/test-kit/lib/studio-compare.mjs`, `inspect-build.mjs`          |
 | The SRD scenarios (no licensed content)   | `scripts/test-kit/scenarios/*.scenario.mjs` (in the repo)               |
@@ -537,6 +683,7 @@ Rules of thumb:
 | The monsters and the scene                | `scripts/test-kit/data/smoke-matrix.json`                               |
 | The manifest of the last build            | `<kit home>\worlds\<world>\manifest.json`                               |
 | Reports                                   | `<kit home>\reports\` (this PC only)                                    |
+| Console error groups, known list          | `scripts/test-kit/lib/console-errors.mjs`, `data/studio-expected.json`  |
 | Licensed profiles and scenarios           | `<kit home>\licensed\` (this PC only)                                   |
 
 The kit home is `C:\FoundryTest\test-kit`, or the folder in the environment variable
@@ -583,7 +730,7 @@ When you change a tool's result shape, change the fake with it.
 
 ## What comes next
 
-- The full matrix of spells (the monsters are done: see "The monsters").
+- The full matrix of spells is done (slice 3b: see "spells-cast-all" and "spells-deep").
 - Dashboard checks in a real browser (Playwright), not only the JSON the dashboard serves.
 - Actor Studio at other levels (1, 11, 17, 20), with equipment and its biography tab on, and a multiclass
   level-up; the Actor Studio findings above sent to its author.

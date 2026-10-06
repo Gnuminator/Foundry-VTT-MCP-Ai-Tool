@@ -220,6 +220,33 @@ export const GM_ACTIONS = {
   adoptActor: 'adoptActor',
   /** ({actorId}) => {deleted: boolean} deletes an actor, only when it carries the kit flag. */
   deleteKitActor: 'deleteKitActor',
+  /**
+   * ({packIds}) => {entries: [{packId, id, uuid, name, level, school, rules: '2024'|'2014'|'', book, ritual,
+   * concentration, activities: string[] (activity types), template: string (area shape or '')}],
+   * missing: string[]} the spells of those packs, from the index (names and numbers, no text). Read only.
+   */
+  listSpells: 'listSpells',
+  /**
+   * ({actorId, sceneId?, slots?: {[key]: number}, casts: CastSpec[]}) => {casts: CastResult[], caster: {ability, abilityMod,
+   * attack, dc, mod, prof, level} (the actor's own spellcasting numbers), error: string | null, restored, drift}. Gives each spell to the actor (a copy of the compendium spell, or a scroll of it), casts it
+   * once with no dialog, no measured template, no summons, no roll after the card and no action cost, reads what
+   * the system did, and puts the actor back (items, slots, hit points, effects, chat messages, and the scene's
+   * regions and tokens and the world actors a summon made). `slots` sets slots first (a number left; more than
+   * the actor has gets an override). CastSpec: {uuid, as?: 'spell'|'pact'|'ritual', slot?: 'spell3'|'pact', scroll?: {level},
+   * activity?: index, activityType?, concentration?: false, noForce?: true (no forced slot), rolls?: ('attack'|'damage'|'heal')[],
+   * applyTemp?: true (healing roll as temporary hit points), apply?: true (copy the spell's effects onto the caster),
+   * effectName?, read?: paths, region?: true (a Region from the template data; needs sceneId), summon?: true (place the
+   * summon; needs sceneId)}. CastResult: {uuid, name, itemId, level, school, properties, method, activities: [{type, name}],
+   * noActivities?, activityIndex, facts: {type, name, activation, itemActivation, consumesSlot, concentration, range, duration,
+   * target: {type, count, resolvedCount, template: {type, size, width, height, units}}, save: {ability, dc, calc, onSave} | null,
+   * attack: {type, classification} | null, damage: parts, healing: parts, effects: [{name, statuses, changes}], summon}, slotKey,
+   * slotForced?, slotBefore/slotAfter: {value, max, level} | null, ok, threw, notes: [{level, message}], chatCard, spells: {key: {before, after}},
+   * scaling, extraItems, effects: [{name, statuses, changes}] (made by the cast), concentrating: string[], itemLeft, itemUses,
+   * scaled?: facts at the scaling, rolled?: {attack?: {formula, total, dice, types, d20, bonus}, damage?: roll[], heal?: roll[], <kind>Error?},
+   * hp?: {value, temp}, applied?: {count, statuses, before, during}, region?: {templateType, size, shapeType, created, shapes},
+   * summoned?: {placed, tokens, skipped?}}. A cast that throws is reported in `threw`, not raised.
+   */
+  exerciseSpell: 'exerciseSpell',
 };
 
 /**
@@ -290,7 +317,10 @@ export const GM_ACTIONS = {
  * @property {{size: string, target: {name: string, dashboard: string, foundry: string, world: string}, startedAt: string, finishedAt: string, durationMs: number, gitSha: string, node: string, fake: boolean}} run
  * @property {KitManifest | null} build
  * @property {{passed: number, failed: number, skipped: number, total: number}} summary
- * @property {Array<{at: string, message: string, source: string}>} consoleErrors
+ * @property {Array<{at: string, message: string, source: string, scenario?: string}>} consoleErrors
+ *   every console error of the GM page, raw (`scenario` names the scenario it came during)
+ * @property {Array<import('./console-errors.mjs').ConsoleGroup>} [consoleGroups]
+ *   the same errors grouped by message and place, known ones marked (additive in version 2)
  * @property {ScenarioResult[]} scenarios
  *
  * @typedef {object} ScenarioResult

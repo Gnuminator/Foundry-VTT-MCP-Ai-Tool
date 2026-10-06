@@ -31,3 +31,4 @@ export * from './live-play.js';
 export * from './ownership.js';
 export * from './character-sheet.js';
 export * from './scene-change.js';
+export * from './space-status.js';

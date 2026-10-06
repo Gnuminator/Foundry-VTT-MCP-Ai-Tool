@@ -416,10 +416,11 @@ async function setOwnership(args) {
  * flow offers (a rendered ItemChoice checkbox list, the Trait choices, a feat or spell candidate
  * list), where k counts the hero's picks in order of asking, so siblings with different rotations
  * differ and a build is repeatable. An ability score improvement alternates +2 and a feat on the
- * same count; the hit points take the average from level 2.
+ * same count; the hit points take the average from level 2. `prefer` (the coverage heroes) names options to
+ * take first, per choice title.
  * @param {{name: string, classUuid: string, subclassUuid?: string, level?: number, rotation?: number,
  *   speciesUuid?: string, backgroundUuid?: string, folderId?: string, featPackIds?: string[],
- *   abilities?: Record<string, number>, chooseSize?: boolean, actorId?: string,
+ *   abilities?: Record<string, number>, chooseSize?: boolean, actorId?: string, prefer?: Record<string, string[]>,
  *   items?: Array<{uuid: string, level?: number, subclassUuid?: string}>,
  *   _kit: {flagScope: string, flagKey: string}}} args
  */
@@ -438,6 +439,22 @@ async function createHero(args) {
   // The subclass the next Subclass advancement takes: the hero's own, or the one of the extra item being added.
   let currentSubclass = args.subclassUuid;
   const pick = list => list[(rotation + k++) % list.length];
+  // The options to take first, per choice title (the coverage heroes): a pick takes the first
+  // preferred option the system offers and removes it from the list, else the rotation rule. k counts
+  // every pick either way, so the heroes' other choices stay as they were. (lib/coverage.mjs takePreferred)
+  const prefer = new Map(Object.entries(args.prefer ?? {}).map(([t, list]) => [t, [...list]]));
+  const pickFor = (list, title, label = x => x) => {
+    const base = pick(list);
+    const wanted = prefer.get(title) ?? [];
+    for (let i = 0; i < wanted.length; i++) {
+      const hit = list.find(x => label(x) === wanted[i]);
+      if (hit !== undefined) {
+        wanted.splice(i, 1);
+        return hit;
+      }
+    }
+    return base;
+  };
   // The most options a pick records as offered (a spell list can be long).
   const OFFERED_MAX = 300;
   const nameOf = uuid => fromUuidSync(uuid)?.name ?? uuid;
@@ -561,7 +578,7 @@ async function createHero(args) {
         const keys = available ? [...available.choices.asSet()] : [];
         offered ??= keys.slice(0, OFFERED_MAX);
         if (!keys.length) break;
-        const key = pick(keys);
+        const key = pickFor(keys, title);
         await adv.apply(lvl, { key });
         chosen.push(key);
       }
@@ -595,7 +612,7 @@ async function createHero(args) {
           warnings.push(`${title} level ${lvl}: ${need - i} choice(s) left, no options offered`);
           break;
         }
-        const uuid = pick(options);
+        const uuid = pickFor(options, title, nameOf);
         try {
           await adv.apply(lvl, { selected: [uuid] });
         } catch (err) {
@@ -612,6 +629,7 @@ async function createHero(args) {
           title,
           chosen: chosen.map(nameOf),
           offered: offered ?? [],
+          pool: adv.configuration.type,
         });
     },
 
@@ -766,8 +784,14 @@ async function createHero(args) {
         idle = 0;
         const adv = flow.advancement;
         const type = adv?.constructor?.typeName;
+        const made = picks.length;
         if (answers[type])
           await answers[type](flow, adv, flow.level, `${flow.item.name}: ${adv.title}`);
+        // Which item asked (class, subclass, feat, race, background), for the mechanical filter of the report.
+        for (const p of picks.slice(made)) {
+          p.itemType ??= flow.item.type;
+          if (flow.item.type === 'feat') p.featType ??= flow.item.system?.type?.value ?? '';
+        }
         (
           mgr.element?.querySelector('[data-action="next"],[data-action="complete"]') ?? button
         ).click();

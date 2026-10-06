@@ -106,6 +106,7 @@ test('picks: coverage per class and choice, with the options no hero picked', ()
     offered: 3,
     picked: { 'skills:acr': 1, 'skills:ath': 1 },
     never: ['skills:dec'],
+    mechanicalNever: [],
   });
   assert.equal(pickSummary(rows), '1 choices, 2 of 3 offered options picked at least once');
   const md = picksMarkdown(

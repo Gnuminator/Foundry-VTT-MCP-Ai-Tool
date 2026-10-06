@@ -19,6 +19,7 @@ import {
   KIT_WORLDS,
   KIT_FORMAT_VERSION,
 } from './lib/contract.mjs';
+import { DEFAULT_COVERAGE_CAP } from './lib/coverage.mjs';
 import { EnvError, KitToolError } from './lib/errors.mjs';
 import { foundryDataDir, kitHome, resolveTarget } from './lib/targets.mjs';
 import { loadProfile } from './lib/profiles.mjs';
@@ -52,6 +53,9 @@ Options
   --profile <id>           the content profile: srd (default, in the repo) or a local file
                            <kit home>/licensed/profiles/<id>.json; it picks the kit world
   --classes a,b            build only these classes (identifier or name); a development filter
+  --no-coverage            skip the coverage pass (extra heroes for play-changing options no hero picked;
+                           it runs at size full and long, never at smoke)
+  --coverage-cap <n>       the most coverage heroes one run builds (default ${DEFAULT_COVERAGE_CAP})
   --world <id>             the kit world, only to check it matches the profile: ${KIT_WORLDS.join(', ')}
   --report-dir <dir>       where the report goes (default <kit home>/reports/<time>-<size>)
   --fake                   run against the in-process fake instead of Foundry (CI)
@@ -64,7 +68,7 @@ Exit codes: 0 all passed, 1 a scenario failed, 2 environment not ready or target
 
 /**
  * @param {string[]} argv
- * @returns {{command: string | null, size: string, only: string[], scenarios: string[], world: string | null, profile: string, classes: string[], reportDir: string | null, fake: boolean, headed: boolean, help: boolean}}
+ * @returns {{command: string | null, size: string, only: string[], scenarios: string[], world: string | null, profile: string, classes: string[], coverage: boolean, coverageCap: number, reportDir: string | null, fake: boolean, headed: boolean, help: boolean}}
  */
 export function parseArgs(argv) {
   const o = {
@@ -75,6 +79,8 @@ export function parseArgs(argv) {
     world: null,
     profile: DEFAULT_PROFILE,
     classes: [],
+    coverage: true,
+    coverageCap: DEFAULT_COVERAGE_CAP,
     reportDir: null,
     fake: false,
     headed: false,
@@ -109,7 +115,13 @@ export function parseArgs(argv) {
           .map(s => s.trim().toLowerCase())
           .filter(Boolean)
       );
-    else if (a === '--report-dir') o.reportDir = path.resolve(value(a));
+    else if (a === '--no-coverage') o.coverage = false;
+    else if (a === '--coverage-cap') {
+      const n = Number(value(a));
+      if (!Number.isInteger(n) || n < 0)
+        throw new EnvError('--coverage-cap must be a whole number, 0 or more');
+      o.coverageCap = n;
+    } else if (a === '--report-dir') o.reportDir = path.resolve(value(a));
     else if (a.startsWith('-')) throw new EnvError(`unknown option ${a} (see --help)`);
     else if (o.command === null) o.command = a;
     else throw new EnvError(`unexpected argument "${a}" (see --help)`);
@@ -281,6 +293,8 @@ async function doBuild(o, { dashboard, gm }) {
     size: o.size,
     profile: o.profileData,
     classes: o.classes,
+    coverage: o.coverage,
+    coverageCap: o.coverageCap,
     log: say,
   });
 }

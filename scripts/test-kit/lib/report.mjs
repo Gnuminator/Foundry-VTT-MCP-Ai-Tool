@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { KIT_FORMAT_VERSION } from './contract.mjs';
 import { consoleCounts, groupConsoleErrors } from './console-errors.mjs';
+import { mechanicalNever } from './picks.mjs';
 
 /**
  * @typedef {import('./contract.mjs').KitReport} KitReport
@@ -265,8 +266,30 @@ export function knownMarkdown(r) {
 }
 
 /**
+ * The coverage line of the "Picks" section: how many coverage heroes the build made (extra heroes
+ * for play-changing options no other hero picked, lib/coverage.mjs) and how many of those options
+ * are still never picked.
+ * @param {KitReport} r
+ * @returns {string | null} null when the report has no build
+ */
+export function coverageHeroesLine(r) {
+  if (!r.build) return null;
+  const heroes = r.build.heroes ?? [];
+  const built = heroes.filter(h => h.role === 'coverage' && h.actorId && !h.buildError).length;
+  const left = mechanicalNever(/** @type {any} */ (heroes)).length;
+  const pass = r.build.coveragePass;
+  if (pass && !pass.enabled)
+    return `Coverage heroes: none built (smoke size or --no-coverage), ${left} mechanical options never picked.`;
+  if (!pass && !built)
+    return `Coverage heroes: none built (this manifest has no coverage pass), ${left} mechanical options never picked.`;
+  const cap = pass?.capHit ? ` (cap of ${pass.cap} reached)` : '';
+  return `Coverage heroes: ${built} built, ${left} mechanical options still never picked${cap}.`;
+}
+
+/**
  * The "Picks" section: per class choice (lib/picks.mjs), the options offered, how many were picked
- * at least once, and the ones no hero picked (the first 12 names, the rest counted).
+ * at least once, and the ones no hero picked (the first 12 names, the rest counted), then the
+ * coverage heroes line.
  * @param {KitReport} r
  * @returns {string[]}
  */
@@ -284,6 +307,8 @@ export function picksMarkdown(r) {
         `${row.offered - row.never.length} | ${mdCell(never || '-')} |`
     );
   }
+  const covered = coverageHeroesLine(r);
+  if (covered) lines.push('', covered);
   lines.push('', 'Every pick per hero is in the manifest (`picks`) and in report.json.', '');
   return lines;
 }

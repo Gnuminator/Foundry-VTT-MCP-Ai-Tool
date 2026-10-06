@@ -8,10 +8,10 @@
  * Like every GM action it is serialized into the page by Playwright, so it is self-contained: no
  * closures over module scope. The pump keeps its state on `globalThis.__kitPump` between calls.
  *
- * Ops: `start` ({rotation, subclassUuid?, featPackIds?, k?}), `status`, `stop`. `stop` returns what
+ * Ops: `start` ({rotation, subclassUuid?, featPackIds?, k?, prefer?}), `status`, `stop`. `stop` returns what
  * was picked. The answer code mirrors `createHero` in gm-actions.mjs (keep the two in step).
  *
- * @param {{op: 'start'|'status'|'stop', rotation?: number, k?: number, subclassUuid?: string, featPackIds?: string[], _kit?: object}} args
+ * @param {{op: 'start'|'status'|'stop', rotation?: number, k?: number, subclassUuid?: string, featPackIds?: string[], prefer?: Record<string, string[]>, _kit?: object}} args
  */
 export async function studioPump(args) {
   const G = globalThis;
@@ -70,6 +70,20 @@ export async function studioPump(args) {
   const warnings = st.warnings;
   const traitMade = st.traitMade;
   const pick = list => list[(rotation + st.k++) % list.length];
+  // The options to take first, per choice title, as in createHero (the coverage heroes).
+  const prefer = new Map(Object.entries(args.prefer ?? {}).map(([t, list]) => [t, [...list]]));
+  const pickFor = (list, title, label = x => x) => {
+    const base = pick(list);
+    const wanted = prefer.get(title) ?? [];
+    for (let i = 0; i < wanted.length; i++) {
+      const hit = list.find(x => label(x) === wanted[i]);
+      if (hit !== undefined) {
+        wanted.splice(i, 1);
+        return hit;
+      }
+    }
+    return base;
+  };
   const nameOf = uuid => fromUuidSync(uuid)?.name ?? uuid;
   const describe = step => {
     const f = step?.flow;
@@ -172,7 +186,7 @@ export async function studioPump(args) {
         const available = await adv.availableChoices();
         const keys = available ? [...available.choices.asSet()] : [];
         if (!keys.length) break;
-        const key = pick(keys);
+        const key = pickFor(keys, title);
         await adv.apply(lvl, { key });
         chosen.push(key);
       }
@@ -204,7 +218,7 @@ export async function studioPump(args) {
           warnings.push(`${title} level ${lvl}: ${need - i} choice(s) left, no options offered`);
           break;
         }
-        const uuid = pick(options);
+        const uuid = pickFor(options, title, nameOf);
         try {
           await adv.apply(lvl, { selected: [uuid] });
         } catch (err) {

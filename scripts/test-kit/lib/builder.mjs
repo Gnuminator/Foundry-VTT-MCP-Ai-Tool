@@ -12,12 +12,19 @@
  * legacy subclass is paired with the legacy version of its class when the profile has one, else
  * with the 2024 class. How many heroes and at which levels is HERO_PLAN (contract.mjs).
  *
+ * Coverage heroes (the user's pick, 2026-10-06): at size full and long, once the heroes above are
+ * built, options that change how a hero plays and that no hero picked (fighting styles, maneuvers,
+ * invocations, damage resistances, see picks.mjs) get extra heroes, role "coverage", that copy a hero
+ * that was offered the choice and take the missing options first (coverage.mjs). `--no-coverage`
+ * turns the pass off and `--coverage-cap N` limits it (default 40 heroes).
+ *
  * The monsters and the scene are data: scripts/test-kit/data/smoke-matrix.json.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HERO_PLAN, KIT_FORMAT_VERSION, KIT_PLAYER_USER } from './contract.mjs';
+import { DEFAULT_COVERAGE_CAP, planCoverage } from './coverage.mjs';
 import { EnvError } from './errors.mjs';
 import { loadProfile } from './profiles.mjs';
 
@@ -204,8 +211,8 @@ export function selectContent({ classes, subclasses, select }) {
  * Pure.
  * @param {{classes: IndexEntry[], subclasses: Array<{entry: IndexEntry, classEntry: IndexEntry | null}>,
  *   size: 'smoke'|'full'|'long', subclassAt?: Record<string, number>}} o  subclassAt: class uuid -> level
- * @returns {Array<{name: string, role: 'tier'|'subclass', level: number, rotation: number,
- *   classEntry: IndexEntry | null, subclassEntry: IndexEntry | null}>}
+ * @returns {Array<{name: string, role: 'tier'|'subclass'|'coverage', level: number, rotation: number,
+ *   classEntry: IndexEntry | null, subclassEntry: IndexEntry | null, prefer?: Record<string, string[]>, template?: string}>}
  */
 export function planHeroes({ classes, subclasses, size, subclassAt = {} }) {
   const plan = HERO_PLAN[size];
@@ -323,8 +330,10 @@ function pickOrigin(entries, name) {
  * back as it found it.
  * @param {{dashboard: any, gm: {call: (action: string, args?: object) => Promise<any>}, world: string,
  *   size?: 'smoke'|'full'|'long', log?: (m: string) => void, matrix?: any,
- *   profile?: ReturnType<typeof loadProfile>, classes?: string[]}} o
+ *   profile?: ReturnType<typeof loadProfile>, classes?: string[], coverage?: boolean, coverageCap?: number}} o
  *   classes: a development filter, class identifiers or names (lower case); empty builds all
+ *   coverage: false turns the coverage pass off (it never runs at size smoke); coverageCap: the most
+ *   coverage heroes one run builds (default 40)
  * @returns {Promise<import('./contract.mjs').KitManifest>}
  */
 export async function buildKit({
@@ -336,6 +345,8 @@ export async function buildKit({
   matrix = loadMatrix(),
   profile = loadProfile(),
   classes: classFilter = [],
+  coverage: coverageOn = true,
+  coverageCap = DEFAULT_COVERAGE_CAP,
 }) {
   if (profile.world !== world) {
     throw new EnvError(`The profile "${profile.id}" builds in ${profile.world}, not ${world}.`);
@@ -428,7 +439,13 @@ export async function buildKit({
   /** @type {import('./contract.mjs').KitManifest['heroes']} */
   const heroes = [];
   const started = Date.now();
-  for (const [i, row] of plan.entries()) {
+  /**
+   * Builds one planned hero and adds its row (a failed one keeps its row with buildError).
+   * @param {ReturnType<typeof planHeroes>[number]} row
+   * @param {number} i
+   * @param {number} total
+   */
+  const buildOne = async (row, i, total) => {
     const t0 = Date.now();
     const base = {
       name: row.name,
@@ -445,8 +462,13 @@ export async function buildKit({
       book: (row.subclassEntry ?? row.classEntry)?.book ?? '',
       role: row.role,
       rotation: row.rotation,
+      // The names of the class and subclass items, which the pick filter (picks.mjs) matches titles on.
+      ...(row.classEntry ? { className: row.classEntry.name } : {}),
+      ...(row.subclassEntry ? { subclassName: row.subclassEntry.name } : {}),
+      ...(row.template ? { template: row.template } : {}),
+      ...(row.prefer ? { prefer: row.prefer } : {}),
     };
-    const tag = `hero ${i + 1}/${plan.length} ${row.name}`;
+    const tag = `hero ${i + 1}/${total} ${row.name}`;
     if (!row.classEntry) {
       heroes.push({
         ...base,
@@ -454,7 +476,7 @@ export async function buildKit({
         buildError: `no class "${base.classIdentifier}" in the profile's class packs`,
       });
       log(`${tag}: FAILED, no class entry for the subclass`);
-      continue;
+      return;
     }
     const abilities = abilitiesOf[row.classEntry.uuid] ?? heroAbilities(null);
     try {
@@ -469,6 +491,7 @@ export async function buildKit({
         backgroundUuid,
         folderId: folders.Actor,
         featPackIds: profile.packs.feats,
+        ...(row.prefer ? { prefer: row.prefer } : {}),
       });
       const row2 = {
         ...base,
@@ -493,6 +516,45 @@ export async function buildKit({
       const message = (e instanceof Error ? e.message : String(e)).split('\n')[0];
       heroes.push({ ...base, actorId: '', buildError: message });
       log(`${tag}: FAILED after ${((Date.now() - t0) / 1000).toFixed(1)}s: ${message}`);
+    }
+  };
+  for (const [i, row] of plan.entries()) await buildOne(row, i, plan.length);
+
+  // The coverage pass: extra heroes for the mechanical options no hero picked. Planned from the picks
+  // built so far; a later round plans only what an earlier round's heroes did not take.
+  const coverageRan = coverageOn && size !== 'smoke';
+  let coverageBuilt = 0;
+  let coverageCapHit = false;
+  let coverageRounds = 0;
+  if (coverageRan) {
+    const classByUuid = new Map(found.classes.map(c => [c.uuid, c]));
+    const subByUuid = new Map(content.subclasses.map(s => [s.entry.uuid, s.entry]));
+    for (let round = 1; round <= 3; round += 1) {
+      const planned = planCoverage({ heroes, cap: coverageCap - coverageBuilt });
+      coverageCapHit = planned.capHit;
+      if (!planned.specs.length) break;
+      coverageRounds = round;
+      log(
+        `coverage round ${round}: ${planned.specs.length} extra heroes for ${planned.specs.reduce((n, x) => n + x.options, 0)} unpicked options` +
+          (planned.capHit ? ` (${planned.remaining} more over the cap of ${coverageCap})` : '')
+      );
+      for (const [i, spec] of planned.specs.entries()) {
+        await buildOne(
+          {
+            name: spec.name,
+            role: 'coverage',
+            level: spec.level,
+            rotation: spec.rotation,
+            classEntry: classByUuid.get(spec.classUuid) ?? null,
+            subclassEntry: spec.subclassUuid ? (subByUuid.get(spec.subclassUuid) ?? null) : null,
+            prefer: spec.prefer,
+            template: spec.template,
+          },
+          i,
+          planned.specs.length
+        );
+        coverageBuilt += 1;
+      }
     }
   }
   const built = heroes.filter(h => h.actorId && !h.buildError);
@@ -594,6 +656,13 @@ export async function buildKit({
         failed: [...failedSubs].sort(),
       },
       heroes: built.length,
+    },
+    coveragePass: {
+      enabled: coverageRan,
+      built: coverageBuilt,
+      cap: coverageCap,
+      capHit: coverageCapHit,
+      rounds: coverageRounds,
     },
     consoleErrors,
     monsters,

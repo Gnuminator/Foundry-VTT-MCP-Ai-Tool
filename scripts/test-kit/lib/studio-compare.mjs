@@ -583,12 +583,16 @@ export function countStudioKinds(problems) {
 const rulesOf = e => (e.rules === '2024' ? '2024' : '2014');
 
 /**
- * One hero per class: the tier hero at the wanted level, else the highest tier hero below it.
+ * One hero per class: the tier hero at the wanted level, else the highest tier hero below it. With
+ * `coverage` (the scenario passes it at size long only: each Studio hero costs minutes) the coverage
+ * heroes follow, each at its own level, because the options they were built for are picked at
+ * levels the wanted level may not reach.
  * @param {import('./contract.mjs').KitManifest} kit
  * @param {number} level
  * @param {string[]} [only] class identifiers, empty for all
+ * @param {{coverage?: boolean}} [opts]
  */
-export function chooseHeroes(kit, level, only = []) {
+export function chooseHeroes(kit, level, only = [], { coverage = false } = {}) {
   const tiers = builtHeroes(kit).filter(h => h.role === 'tier' && h.classUuid);
   /** @type {Map<string, any>} */
   const byClass = new Map();
@@ -598,7 +602,15 @@ export function chooseHeroes(kit, level, only = []) {
     const best = byClass.get(hero.classUuid);
     if (!best || hero.level > best.level) byClass.set(hero.classUuid, hero);
   }
-  return [...byClass.values()];
+  const chosen = [...byClass.values()];
+  if (coverage) {
+    for (const hero of builtHeroes(kit)) {
+      if (hero.role !== 'coverage' || !hero.classUuid) continue;
+      if (only.length && !only.includes(hero.classIdentifier)) continue;
+      chosen.push(hero);
+    }
+  }
+  return chosen;
 }
 
 /**

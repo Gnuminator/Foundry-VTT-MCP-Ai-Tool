@@ -45,6 +45,8 @@ node scripts/test-kit/kit.mjs <command> [options]
 | `--size smoke\|full\|long` | How big the kit is and which scenarios run. Default `smoke`. See "Sizes".  |
 | `--profile <id>`           | The content profile. Default `srd`. It also picks the kit world.           |
 | `--classes a,b`            | Build only these classes (identifier or name). A development filter.       |
+| `--no-coverage`            | Skip the coverage pass (see "Pick coverage").                              |
+| `--coverage-cap <n>`       | The most coverage heroes one run builds. Default 40.                       |
 | `--only a,b`               | Run only these scenario ids.                                               |
 | `--scenarios <dir>`        | An extra scenario folder (repeatable). The repo's own folder is always on. |
 | `--world <id>`             | Only a check: it must match the profile's world, or the run stops.         |
@@ -56,11 +58,11 @@ node scripts/test-kit/kit.mjs <command> [options]
 
 ### Sizes
 
-| Size    | Heroes                                                   | Scenarios                  |
-| ------- | -------------------------------------------------------- | -------------------------- |
-| `smoke` | every class once, at level 5, with its first subclass    | the eighteen SRD scenarios |
-| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20 | the eighteen SRD scenarios |
-| `long`  | the same heroes as `full`                                | scenarios that list `long` |
+| Size    | Heroes                                                                         | Scenarios                  |
+| ------- | ------------------------------------------------------------------------------ | -------------------------- |
+| `smoke` | every class once, at level 5, with its first subclass                          | the eighteen SRD scenarios |
+| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20, plus coverage heroes | the eighteen SRD scenarios |
+| `long`  | the same heroes as `full`                                                      | scenarios that list `long` |
 
 The monster scenarios also read the size (`t.size`): `smoke` probes a sample of the monsters (see "The monsters"), `full` and
 `long` probe every one.
@@ -151,6 +153,24 @@ offered (`offered`, at most 300 options). The `heroes-advancement` scenario atta
 (`lib/picks.mjs`): per class and choice, the options offered, how often each was picked, and the
 options no hero picked. The report's "Picks" section shows it. An option no hero picked is not a
 failure, but its feature was never built, so `heroes-features-use` never used it either.
+
+**Coverage heroes.** Some of those options change how a hero plays: a feature pool that a class or
+subclass offers (a fighting style, a maneuver, an invocation, a rune) and a damage resistance,
+damage immunity or condition immunity choice. Skills, tools, languages, saving throws, weapon
+mastery, expertise, spells, and anything a background, a species or an origin feat asks are not
+mechanical and stay in the report only (the filter is `mechanicalPick` in `lib/picks.mjs`). At sizes
+`full` and `long`, after the normal heroes are built, the builder plans extra heroes with role
+`coverage` for the mechanical options nobody picked (`lib/coverage.mjs`). Each one copies a template
+hero that was offered the choice (class, subclass, level and rotation; among the heroes that cover
+the most open options, the lowest level wins) and carries `prefer`, per choice title, the options to
+take first: a hero with N picks of a choice takes N unpicked options, the rest of its choices follow
+the rotation. A hero is named `Kit Fighter 3 cov 1`. The planner repeats until every mechanical
+option is picked or the cap is reached (`--coverage-cap`, default 40), at most three rounds;
+an option a coverage hero was asked for and did not take is not asked again. `--no-coverage` turns the
+pass off, and `smoke` never runs it. The coverage heroes go through the same scenarios as the others;
+`heroes-studio` builds them in Actor Studio only at size `long`, each at its own level, with the same
+forced options. The Picks section ends with a line "Coverage heroes: X built, Y mechanical options
+still never picked", and says when the cap stopped the pass.
 
 The hero the kit gives to the player user ("Kit Player") is the first class's level 5 hero. The
 manifest marks it with `owner`, and the player screen must show its HP as numbers.

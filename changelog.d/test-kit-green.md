@@ -12,3 +12,6 @@
   the item came from, so a known-list entry can cover one pack's import gaps.
 - **Pick coverage (slice 2a):** every pick records what the system offered, and the report's "Picks"
   section lists per class and choice the options no hero picked.
+- **Coverage heroes:** at sizes `full` and `long` the kit builds extra heroes (role `coverage`, "Kit
+  Fighter 3 cov 1") for play-changing options no hero picked (fighting styles, maneuvers, invocations,
+  damage resistances), up to `--coverage-cap` (default 40); `--no-coverage` turns it off.

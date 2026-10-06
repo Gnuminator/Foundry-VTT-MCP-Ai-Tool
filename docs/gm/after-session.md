@@ -62,7 +62,7 @@ You do not run this yourself: pass the request on to whoever set up the tool. It
 on the machine that runs the bridge (the Orange Pi, when the game is hosted there). For them:
 
 1. Stop the bridge (the bridge keeps writing these logs while it runs; the command refuses until it
-   has stopped). On a PC, quit Claude Desktop. On the Pi, stop the `foundry-ai-tool-bridge`
+   has stopped). On a PC, quit Claude Desktop. On the Pi, stop the foundry-ai-tool-bridge
    service and start it again after step 4.
 2. Open a terminal in the tool's folder. Find the world id with `npm run vault -- worlds`.
 3. See what would go, without changing anything:

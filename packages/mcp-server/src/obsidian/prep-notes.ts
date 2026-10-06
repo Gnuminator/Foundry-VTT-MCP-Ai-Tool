@@ -40,6 +40,7 @@ import {
   type ScanOptions,
 } from './mirror-scan.js';
 import { errorCode, errorMessage } from './note-writer.js';
+import { PREP_TEMPLATES_DIR } from './prep-templates.js';
 
 /** A note is read up to this many bytes; the rest counts as truncated. */
 export const PREP_NOTE_READ_BYTES = 65_536;
@@ -50,6 +51,8 @@ const READ_CONCURRENCY = 16;
 /** The tool's own folder (mirror, session notes, stats): never the GM's prep. */
 const TOOL_FOLDER = MIRROR_ROOT.split('/')[0] ?? MIRROR_ROOT;
 const SYNC_CONFLICT = /\.sync-conflict-/i;
+/** The prep templates (R2): they carry prep types but are not prep notes. */
+const TEMPLATES_PREFIX = `${PREP_TEMPLATES_DIR.toLowerCase()}/`;
 /** Properties that say what a note is, not what it says. */
 const META_PROPERTIES: ReadonlySet<string> = new Set([
   'type',
@@ -203,6 +206,11 @@ function propertyValue(raw: string, following: string[]): string | null {
   return parseScalar(text);
 }
 
+/** Body text without Obsidian comments (`%% ... %%`, an unclosed one runs to the end), as the GM sees it. */
+function withoutComments(text: string): string {
+  return text.replace(/%%[\s\S]*?(%%|$)/g, '');
+}
+
 /**
  * A prep note as lines: its properties ("key: value", meta properties left out),
  * then the non-empty body lines, each clipped, at most PREP_NOTE_MAX_LINES.
@@ -225,8 +233,8 @@ export function prepNoteLines(text: string): { lines: string[]; truncated: boole
       if (value !== null) properties.push(`${key}: ${value}`);
     }
   }
-  const body = all
-    .slice(bodyStart)
+  const body = withoutComments(all.slice(bodyStart).join('\n'))
+    .split('\n')
     .map(l => l.trim())
     .filter(Boolean);
   const lines = [...properties, ...body].map(clip);
@@ -268,7 +276,9 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
       `(campaign folder): the walk stopped at its ${limit === 'files' ? 'file' : 'folder depth'} limit, so some notes were not looked at`
     );
   }
-  const files = walked.markdown.filter(rel => !SYNC_CONFLICT.test(rel));
+  const files = walked.markdown.filter(
+    rel => !SYNC_CONFLICT.test(rel) && !rel.toLowerCase().startsWith(TEMPLATES_PREFIX)
+  );
   const heads = await mapLimit(files, READ_CONCURRENCY, async rel => {
     try {
       const head = await readFrontmatter(`${walked.root}/${rel}`);

@@ -10,6 +10,10 @@
  *   the GM confirms it (D-067: Obsidian never applies a change itself). **Queue / unqueue** only
  *   stage the page in the GM's reveal queue; the reveal still happens in the dashboard.
  *
+ * - **New prep note for this** (R2, D-094; command and file menu): a prep note in `Prep/` from the
+ *   vault's template of the picked kind, with `fvtt_uuid` filled in and a link back (`prep.ts`).
+ *   The only note the plugin writes, and only on the GM's click; it never needs the dashboard.
+ *
  * - **Theme** (I-099): Neutral or The Veil for the whole vault, one theme per world shared with the
  *   dashboard (a pick here sets the dashboard's, and the dashboard's reaches Obsidian within 30
  *   seconds); Off turns the styling off in this Obsidian only. The CSS is the plugin's
@@ -27,10 +31,10 @@ import {
   SecretComponent,
   Setting,
   SuggestModal,
+  TFile,
   debounce,
   requestUrl,
   type App,
-  type TFile,
   type ViewState,
   type WorkspaceLeaf,
 } from 'obsidian';
@@ -72,6 +76,16 @@ import {
   statCards,
   type ThemeId,
 } from './theme.js';
+import {
+  campaignRootOf,
+  fillPrepNote,
+  isPrepType,
+  prepFileName,
+  prepKindsFor,
+  prepPathCandidates,
+  prepUuid,
+  type PrepKind,
+} from './prep.js';
 import { pickTheme, sameThemeState, syncTheme, type ThemeState } from './theme-sync.js';
 
 /** The plugin settings, plus the theme state (I-099, theme-sync.ts). */
@@ -143,6 +157,40 @@ class GmPicker extends SuggestModal<GmChoice> {
   }
 }
 
+/** A mirror note "New prep note for this" works on (R2). */
+interface PrepSource {
+  file: TFile;
+  note: FoundryNote;
+  /** Its campaign folder, `Campaigns/<world>`. */
+  root: string;
+  /** The kinds to offer, the likely one first. */
+  kinds: PrepKind[];
+}
+
+class PrepKindPicker extends SuggestModal<PrepKind> {
+  constructor(
+    app: App,
+    private readonly kinds: PrepKind[],
+    private readonly onPick: (kind: PrepKind) => void
+  ) {
+    super(app);
+    this.setPlaceholder('New prep note: which kind?');
+  }
+
+  getSuggestions(query: string): PrepKind[] {
+    const q = query.toLowerCase();
+    return this.kinds.filter(kind => kind.label.toLowerCase().includes(q));
+  }
+
+  renderSuggestion(kind: PrepKind, el: HTMLElement): void {
+    el.setText(kind.label);
+  }
+
+  onChooseSuggestion(kind: PrepKind): void {
+    this.onPick(kind);
+  }
+}
+
 export default class FoundryAiToolPlugin extends Plugin {
   settings: PluginSettings = { ...DEFAULT_SETTINGS };
   private client!: DashboardClient;
@@ -189,6 +237,17 @@ export default class FoundryAiToolPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: 'new-prep-note',
+      name: 'New prep note for this',
+      checkCallback: checking => {
+        const source = this.prepSourceFor(this.app.workspace.getActiveFile());
+        if (!source) return false;
+        if (!checking) this.pickPrepKind(source);
+        return true;
+      },
+    });
+
+    this.addCommand({
       id: 'apply-graph-colours',
       name: 'Apply AI Tool graph colours',
       callback: () => void this.applyGraphColours(),
@@ -204,6 +263,15 @@ export default class FoundryAiToolPlugin extends Plugin {
             .setIcon('external-link')
             .onClick(() => void this.open(note))
         );
+        const source = this.prepSourceFor(file as TFile);
+        if (source) {
+          menu.addItem(item =>
+            item
+              .setTitle('New prep note for this')
+              .setIcon('file-plus')
+              .onClick(() => this.pickPrepKind(source))
+          );
+        }
       })
     );
     this.registerEvent(this.app.workspace.on('file-open', () => void this.refreshStatus(false)));
@@ -361,6 +429,74 @@ export default class FoundryAiToolPlugin extends Plugin {
       checkCallback: checking =>
         this.withActiveNote(checking, note => void this.reveal(note, action), true),
     });
+  }
+
+  /** A mirror note that can get a prep note: a world document (not a compendium entry or a prep
+   * note itself) in its world's campaign folder. */
+  private prepSourceFor(file: TFile | null): PrepSource | null {
+    const note = this.noteFor(file);
+    if (!file || !note || note.uuid.startsWith('Compendium.')) return null;
+    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter as
+      | Record<string, unknown>
+      | undefined;
+    if (isPrepType(frontmatter?.type)) return null;
+    const root = campaignRootOf(file.path, note.world);
+    if (!root) return null;
+    const type = typeof frontmatter?.type === 'string' ? frontmatter.type : null;
+    return { file, note, root, kinds: prepKindsFor(type, note.type) };
+  }
+
+  private pickPrepKind(source: PrepSource): void {
+    new PrepKindPicker(this.app, source.kinds, kind => void this.newPrepNote(source, kind)).open();
+  }
+
+  /** Make (or open, when it is already there) the prep note of this kind for a mirror note. */
+  private async newPrepNote(source: PrepSource, kind: PrepKind): Promise<void> {
+    const { vault, fileManager, metadataCache, workspace } = this.app;
+    try {
+      const uuid = prepUuid(kind, source.note.uuid);
+      const folder = `${source.root}/Prep/${kind.folder}`;
+      const name = prepFileName(source.note.name ?? source.file.basename);
+      let target: string | null = null;
+      for (const candidate of prepPathCandidates(folder, name)) {
+        const existing = vault.getAbstractFileByPath(candidate);
+        if (!existing) {
+          target = candidate;
+          break;
+        }
+        const existingUuid: unknown =
+          existing instanceof TFile
+            ? metadataCache.getFileCache(existing)?.frontmatter?.fvtt_uuid
+            : null;
+        if (existing instanceof TFile && existingUuid === uuid) {
+          await workspace.getLeaf(false).openFile(existing);
+          new Notice(`${kind.label} for ${name} is already there: opened it.`);
+          return;
+        }
+      }
+      if (!target) {
+        new Notice(`${kind.label}: ${folder} already has too many notes called ${name}.`);
+        return;
+      }
+      if (!vault.getAbstractFileByPath(folder)) await vault.createFolder(folder);
+      const templateFile = vault.getAbstractFileByPath(
+        `${source.root}/Prep/Templates/${kind.template}`
+      );
+      const template = templateFile instanceof TFile ? await vault.cachedRead(templateFile) : null;
+      const link = fileManager.generateMarkdownLink(source.file, target);
+      const created = await vault.create(
+        target,
+        fillPrepNote(template, { type: kind.type, uuid, link })
+      );
+      await workspace.getLeaf(false).openFile(created);
+      new Notice(
+        template === null
+          ? `Made ${target} (no ${kind.template} template in Prep/Templates, so a bare one).`
+          : `Made ${target}.`
+      );
+    } catch (error) {
+      new Notice(`New prep note: ${messageOf(error)}`);
+    }
   }
 
   private async openActive(): Promise<void> {

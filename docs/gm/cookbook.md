@@ -48,7 +48,8 @@ set says so.
   world. "Newest" session plan means the latest "date" property (else the latest saved file), so
   a plan dated two sessions ahead wins over next week's. Set "ai_context" to false to keep a note
   away from Claude. Claude sees about 12 lines per note (properties first), so put the key points
-  at the top.
+  at the top. The easy way: **New prep note for this** on the NPC, scene or quest note sets all
+  of this for you (see [Your Obsidian vault](obsidian.md), "Make a prep note").
 
 ### Check that everything is ready
 

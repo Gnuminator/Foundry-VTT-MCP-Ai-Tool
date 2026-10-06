@@ -14,9 +14,23 @@ text, so it stays on your PC. The players get vaults of their own without the se
 - **The AI Tool folder:** notes the tool writes. Characters, NPCs, scenes, journals, quests, the
   Library (monsters, spells, rules), session notes and stats. The tool rewrites these, so don't
   plan your game in them. A note you did edit stays where it is and is listed in `_status.md`.
-- **The Prep folder:** yours. The tool never writes there. Your session plans and notes on NPCs,
-  places and quests go here, and Claude reads them when you prepare a session (see the
-  [cookbook](cookbook.md), "Tip for Obsidian").
+- **The Prep folder:** yours. The tool never changes your notes there. Your session plans and
+  notes on NPCs, places and quests go here, and Claude reads them when you prepare a session (see
+  the [cookbook](cookbook.md), "Tip for Obsidian"). Prep/Templates has a template for an NPC, a
+  location, a quest and a session plan.
+
+## Make a prep note
+
+On an NPC, a scene or a quest journal note, open the note's file menu (the three dots) and click
+**New prep note for this**, or run the command of the same name. Pick the kind (the likely one is
+first). The plugin makes a note in Prep (for example Prep/NPCs/Ismark.md) from the template,
+ties it to the thing in Foundry and links back to it. Fill in what you need, leave the rest empty.
+If that note is already there, it opens instead. This works without the dashboard.
+
+A template's grey line between %% marks is a hint for you; Claude skips it. To use the templates
+for notes you start yourself, point Obsidian's Templates (or Templater) template folder at
+Prep/Templates. Edit the templates as you like: the tool writes them only when the folder is
+missing.
 
 Changes you make in Obsidian never reach Foundry by themselves. Things that change the game
 (revealing a handout, for example) are planned from Obsidian and confirmed in the dashboard.

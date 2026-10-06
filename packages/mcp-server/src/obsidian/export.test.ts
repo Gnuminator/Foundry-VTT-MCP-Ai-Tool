@@ -231,7 +231,15 @@ describe('exportWorldToObsidian', () => {
   it('writes session, change, Tarokka and Bases notes plus the GM-owned Home and Prep', async () => {
     await seed();
     const result = await run();
-    expect(result.created.sort()).toEqual(['Home.md', 'Prep', 'Prep/README.md']);
+    expect(result.created.sort()).toEqual([
+      'Home.md',
+      'Prep',
+      'Prep/README.md',
+      'Prep/Templates/Location.md',
+      'Prep/Templates/NPC.md',
+      'Prep/Templates/Quest.md',
+      'Prep/Templates/Session plan.md',
+    ]);
     expect(result.written.sort()).toEqual(
       [
         'AI Tool/Bases/Changes.base',
@@ -357,6 +365,24 @@ describe('exportWorldToObsidian', () => {
     expect(await note('Prep/README.md')).toBe('mine');
     const after = await fsp.stat(statusPath);
     expect(after.mtimeMs).toBe(before.mtimeMs);
+  });
+
+  it('writes the prep templates only while their folder is missing (R2)', async () => {
+    await seed();
+    await run();
+    const templates = path.join(campaignDir(vaultDir, WORLD), 'Prep/Templates');
+    await fsp.rm(path.join(templates, 'Quest.md'));
+    await fsp.writeFile(path.join(templates, 'NPC.md'), 'my own NPC template');
+    expect((await run()).created).toEqual([]);
+    expect(await note('Prep/Templates/NPC.md')).toBe('my own NPC template');
+    expect((await fsp.readdir(templates)).sort()).toEqual([
+      'Location.md',
+      'NPC.md',
+      'Session plan.md',
+    ]);
+    await fsp.rm(templates, { recursive: true });
+    expect((await run()).created).toHaveLength(4);
+    expect(await note('Prep/Templates/NPC.md')).toMatch(/^---\ntype: npc-prep\nfvtt_uuid:\n/);
   });
 
   it('an empty world still gets Bases and a status note, but no Tarokka files', async () => {
@@ -697,7 +723,7 @@ describe('obsidian CLI', () => {
     expect(await runObsidianCli(['export'], io)).toBe(2);
     expect(err[0]).toMatch(/No Obsidian vault/);
     expect(await runObsidianCli(['export', '--vault', vaultDir], io)).toBe(0);
-    expect(out[0]).toMatch(/^strahd-test: 12 written, 0 unchanged, 3 created/);
+    expect(out[0]).toMatch(/^strahd-test: 12 written, 0 unchanged, 7 created/);
     expect(await runObsidianCli(['nope'], io)).toBe(2);
   });
 

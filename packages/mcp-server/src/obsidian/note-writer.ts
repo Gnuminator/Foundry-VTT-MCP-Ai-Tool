@@ -190,6 +190,16 @@ export class NoteWriter {
     }
   }
 
+  /** Whether a file or folder exists (false also when the path cannot be checked). */
+  async exists(relPath: string): Promise<boolean> {
+    try {
+      await fsp.stat(this.resolve(relPath));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Create a GM-owned file or folder once; never touch it again. */
   async createOnce(relPath: string, text: string | null): Promise<void> {
     try {

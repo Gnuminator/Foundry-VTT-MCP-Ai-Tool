@@ -166,16 +166,32 @@ test('the allow list never excuses a cookie, token, secret, password or key', ()
   );
 });
 
-test('harmless token settings and module names never count, named auth tokens do', () => {
-  const docs = [
+test('harmless token settings and module names never count, credential names do', () => {
+  const safe = [
     { key: 'core.defaultToken', value: '{"displayName":30}' },
     { key: 'vtta-tokenizer.image-upload-directory', value: '"[data] tokenizer"' },
+    { key: 'vtta-tokenizer.frame-directory', value: '"[data] tokenizer/frames"' },
     { key: 'token-action-hud-core.style', value: '"foundryVTT"' },
     { key: 'cookie-module.layout', value: '"wide"' },
-    { key: 'some-bot.bot-token', value: '"abc"' },
-    { key: 'other.accessToken', value: '"abc"' },
+    { key: 'core.tokenAutoRotate', value: '"on"' },
   ];
-  assert.deepEqual(secretSettingKeys(docs), ['other.accessToken', 'some-bot.bot-token']);
+  assert.deepEqual(secretSettingKeys(safe), []);
+  const secret = [
+    'foo.token',
+    'foo.discordToken',
+    'foo.refreshToken',
+    'foo.sessionToken',
+    'foo.privateKey',
+    'foo.credentials',
+    'foo.refresh-token',
+    'foo.session_token',
+    'some-bot.bot-token',
+    'other.accessToken',
+    'foo.private-key',
+  ];
+  const docs = secret.map(key => ({ key, value: '"abc"' }));
+  // the allow list never excuses them either
+  assert.deepEqual(secretSettingKeys(docs, ['foo.*', 'some-bot.*', 'other.*']), [...secret].sort());
 });
 
 test('checkExactPath compares the exact name, not the NTFS case-blind one', () => {

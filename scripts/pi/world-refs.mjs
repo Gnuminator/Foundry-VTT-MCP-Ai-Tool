@@ -32,26 +32,35 @@ const CORE_ROOTS = new Set([
   'scripts',
 ]);
 // Matched against the setting name after the module id (the part after the first dot), so module
-// names like vtta-tokenizer or token-action-hud never count. Plain "token" is not on the list:
-// Foundry and modules have many harmless token settings (core.defaultToken); auth tokens are named.
+// names like vtta-tokenizer or token-action-hud never count.
 const SECRET_WORDS = [
   'cobalt',
   'patreon',
   'cookie',
-  'apitoken',
-  'api-token',
-  'accesstoken',
-  'access-token',
-  'authtoken',
-  'auth-token',
-  'bottoken',
-  'bot-token',
   'bearer',
   'apikey',
   'api-key',
+  'api_key',
+  'privatekey',
+  'private-key',
+  'private_key',
+  'credential',
   'secret',
   'password',
 ];
+// A name that is or ends in token or key (discordToken, refresh-token, session_token, privateKey)
+// counts too. Names that end so but hold no secret go on the short safe list below, never on a
+// pattern, so a new credential setting can never slip through.
+const SECRET_ENDING = /(?:token|key)$/;
+const SAFE_SETTING_KEYS = new Set(['core.defaultToken']);
+
+/** Whether a setting key's own name (after the module id) looks like it holds a secret. */
+export function looksSecret(key) {
+  if (SAFE_SETTING_KEYS.has(key)) return false;
+  const lower = key.toLowerCase();
+  const name = lower.slice(lower.indexOf('.') + 1);
+  return SECRET_WORDS.some(w => name.includes(w)) || SECRET_ENDING.test(name);
+}
 
 /** A candidate string to a clean relative path, or null when it is not a local asset path. */
 export function normalizeAssetPath(raw) {
@@ -126,9 +135,8 @@ export function secretSettingKeys(docs, allow = []) {
     const key = typeof d?.key === 'string' ? d.key : '';
     const lower = key.toLowerCase();
     if (!key) continue;
-    // A secret word in the name always counts: the allow list can never excuse a cookie, token or key.
-    const name = lower.slice(lower.indexOf('.') + 1);
-    const hasSecretWord = SECRET_WORDS.some(w => name.includes(w));
+    // A secret-looking name always counts: the allow list can never excuse a cookie, token or key.
+    const hasSecretWord = looksSecret(key);
     if (!hasSecretWord && (!lower.startsWith('ddb-importer.') || isAllowed(key, allow))) continue;
     const v = typeof d.value === 'string' ? d.value.trim() : JSON.stringify(d.value ?? '');
     if (empty.has(v) || /^(?:true|false|-?\d+(?:\.\d+)?)$/.test(v)) continue;

@@ -1,5 +1,5 @@
 {
-  "total": 1521,
+  "total": 1518,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -15,10 +15,10 @@
     "deploy/windows/install-service.md": 8,
     "docs/design/BRAND-BRIEF.md": 77,
     "docs/design/ROADMAP.md": 34,
-    "docs/dev/ARCHITECTURE.md": 42,
+    "docs/dev/ARCHITECTURE.md": 41,
     "docs/dev/DEPLOYMENT.md": 9,
     "docs/dev/DEV-SETUP.md": 3,
-    "docs/dev/REMOTE-ACCESS.md": 10,
+    "docs/dev/REMOTE-ACCESS.md": 8,
     "docs/dev/RUNTIME-TEST-PLAN.md": 20,
     "docs/dev/SMOKE-TEST.md": 8,
     "docs/reference/COGM-DASHBOARD.md": 9,

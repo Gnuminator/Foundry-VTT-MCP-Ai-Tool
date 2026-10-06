@@ -5,6 +5,8 @@
   the chunk reassembly code and the `FOUNDRY_CONNECTION_TYPE`, `FOUNDRY_STUN_SERVERS` and
   `FOUNDRY_WEBRTC_PORT` settings are gone, which clears the two audit findings tied to `werift`.
   The module setting "Connection Type" is no longer registered; a value still stored in a world
-  is ignored and the module always uses the WebSocket. Nothing used WebRTC (Foundry runs on the
+  is ignored and the module always uses the WebSocket. The setting is unregistered rather than kept
+  hidden (as PB-03 did for retired settings) because Foundry ignores stored values of unregistered
+  module settings; checked live with a stale "webrtc" value. Nothing used WebRTC (Foundry runs on the
   Pi and is reached over Tailscale). Docs, the compose and Docker files and the test-environment
   scripts no longer mention it.

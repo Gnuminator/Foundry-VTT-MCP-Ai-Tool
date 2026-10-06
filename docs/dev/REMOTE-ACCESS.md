@@ -225,7 +225,7 @@ anywhere, without exposing your home IP address and without port-forwarding.
 | 31415 | WebSocket | The Foundry link (the module dials the bridge) |
 
 This port must be reachable from the Foundry host's IP to the bridge host's IP (firewall
-rules, VPS security group, etc.). It is **not** fronted by Cloudflare Tunnel — the
+rules, VPS security group, etc.). It is **not** fronted by Cloudflare Tunnel: the
 tunnel only fronts the dashboard (port 3000).
 
 ---
@@ -239,7 +239,7 @@ the remote-hosting topology.
 
 | Variable               | Default        | What it controls                                                                                                                          |
 | ---------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `MCP_CONTROL_HOST`     | `127.0.0.1`    | Bind host for the control channel (31414). Keep loopback — always.                                                                        |
+| `MCP_CONTROL_HOST`     | `127.0.0.1`    | Bind host for the control channel (31414). Keep loopback, always.                                                                         |
 | `MCP_CONTROL_PORT`     | `31414`        | Port for the control channel. Change if running two backends side-by-side.                                                                |
 | `MCP_FOUNDRY_LINK`     | _(enabled)_    | Set to `off` to run backend as control-only (no Foundry connector).                                                                       |
 | `FOUNDRY_LINK_HOST`    | `127.0.0.1`    | Interface for the Foundry link (31415 WS). Set `0.0.0.0` only when the GM's browser is on another machine.                                |
@@ -440,9 +440,11 @@ The Foundry module always dials the bridge over a plain `ws://` WebSocket to por
 world setting is ignored if it is still stored in a world).
 
 A browser on an HTTPS page cannot open an insecure `ws://` to a remote host (mixed-content
-block). Foundry on the Pi is reached over Tailscale on plain HTTP, so this does not arise
-there. If Foundry is ever served over HTTPS with a remote bridge, put the bridge's 31415
-behind a TLS reverse proxy or tunnel and point the module at it.
+block). On the Pi this does not arise: the module link is held by the Assistant GM browser
+there, which loads `http://127.0.0.1:30000` and dials the bridge on loopback (browsers also
+allow `ws://` to loopback from HTTPS pages). If a browser on an HTTPS page ever has to reach a
+remote bridge, put the bridge's 31415 behind a TLS reverse proxy or tunnel and point the module
+at it.
 
 ### Port reachability for remote Foundry
 

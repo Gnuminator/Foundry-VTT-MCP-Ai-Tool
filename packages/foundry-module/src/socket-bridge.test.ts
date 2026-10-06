@@ -265,6 +265,18 @@ describe('SocketBridge — connect lifecycle', () => {
     expect(bridge.getConnectionState()).toBe(CONNECTION_STATES.CONNECTED);
   });
 
+  it('builds a ws:// URL even when the page is served over https', async () => {
+    (globalThis as any).window = { location: { protocol: 'https:' } };
+    const fake = installFakeWebSocket();
+    const bridge = new SocketBridge(makeConfig()) as any;
+
+    const p = bridge.connect();
+    fake.last().onopen();
+    await p;
+
+    expect(fake.last().url).toBe('ws://localhost:31415/mcp');
+  });
+
   it('rejects and schedules a reconnect when the websocket errors', async () => {
     vi.useFakeTimers();
     const fake = installFakeWebSocket();

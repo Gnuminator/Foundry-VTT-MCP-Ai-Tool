@@ -199,7 +199,7 @@ Callers unwrap `content[0].text` and `JSON.parse` it opportunistically.
 This is deliberately the _same_ protocol the stdio wrapper and the dashboard both speak, which
 is what lets the dashboard reuse the entire tool surface without a second backend.
 
-### 3b. The Foundry link — WebSocket `:31415`
+### 3b. The Foundry link: WebSocket `:31415`
 
 This is the contract between the **backend** (acting as a server) and the **Foundry module**
 (acting as a client that dials out). Messages are JSON objects discriminated by a `type` field.

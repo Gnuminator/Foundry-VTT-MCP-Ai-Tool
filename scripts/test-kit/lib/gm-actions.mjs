@@ -164,17 +164,21 @@ async function describeClass(args) {
   let subclassAt = null;
   let skillsChosen = 0;
   const found = new Map();
-  const resolve = async uuid => {
-    if (!found.has(uuid)) {
+  // A grant inside a pack may name its item by a short "Item.<id>" uuid; Foundry finds it in the
+  // granting document's own pack (the PHB College of Dance grants its Unarmed Strike that way).
+  const resolve = async (uuid, owner) => {
+    const full =
+      owner?.pack && /^Item\.[^.]+$/.test(String(uuid)) ? `Compendium.${owner.pack}.${uuid}` : uuid;
+    if (!found.has(full)) {
       let doc = null;
       try {
-        doc = (await fromUuid(uuid)) ?? null;
+        doc = (await fromUuid(full)) ?? null;
       } catch {
         doc = null;
       }
-      found.set(uuid, doc);
+      found.set(full, doc);
     }
-    return found.get(uuid);
+    return found.get(full);
   };
   // Why a grant's uuid does not resolve: the pack is missing, or it has no entry with that id.
   const whyMissing = uuid => {
@@ -201,10 +205,10 @@ async function describeClass(args) {
       } else if (type === 'ItemGrant') {
         for (const l of levels) {
           for (const item of adv.configuration.items ?? []) {
-            const doc2 = await resolve(item.uuid);
+            const doc2 = await resolve(item.uuid, doc);
             grants.push({
               level: l,
-              uuid: item.uuid,
+              uuid: doc2?.uuid ?? item.uuid,
               name: doc2?.name ?? '',
               resolved: !!doc2,
               optional: !!(adv.configuration.optional || item.optional),

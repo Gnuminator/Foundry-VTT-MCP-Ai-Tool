@@ -215,7 +215,8 @@ oracle. The actor (`inspectActor`) is what is checked:
 
 - the class and its levels, the subclass from its level, and the item each was made from,
 - every grant the data gives up to that level is on the actor (matched by source uuid, else by
-  name; optional grants are skipped),
+  name; optional grants are skipped). A grant inside a pack may name its item by a short
+  `Item.<id>` uuid; like Foundry, the kit looks for it in the granting class's or subclass's own pack,
 - every choice the data asks for was made, per level (items, traits, ability score improvements),
   and every item the builder picked is on the actor,
 - every scale value (rage damage, ki points and so on) has the expected value,
@@ -240,9 +241,13 @@ run with no dialog is used once through `exerciseActor` (op `use`): no dialog, n
 no roll after the card, no action cost. Each use is judged (`judgeUse` in `lib/features.mjs`):
 
 - the system did not throw or refuse (a refusal because the uses resolve to 0 is CONTENT, any other
-  refusal and any throw is SYSTEM),
+  refusal and any throw is SYSTEM; a CONTENT note ends with `; from <pack>` when the item came from a
+  compendium, so a known-list entry can name the content it is about),
 - a chat card was posted,
-- the item's uses went up by what the activity says it consumes (when that is a plain number),
+- the item's uses went up by what the activity says it consumes (when that is a plain number). Uses
+  that only recover on combat periods (each turn, the start or end of a turn: Sneak Attack, Gathered
+  Swarm) are spent only in combat, as in dnd5e, and the kit uses features outside combat, so it
+  expects 0 for them,
 - the hero is exactly as before: uses, activity uses, slots, hit points, hit dice, effects, new
   items and the chat messages the use created are put back, and the GM action says when that failed
   (KIT).
@@ -734,12 +739,12 @@ an empty list. An entry:
 
 ```json
 {
-  "id": "barbarian-2014-reckless-no-uses",
+  "id": "some-pack-uses-not-set",
   "scenario": "heroes-features-use",
   "kind": "CONTENT",
   "what": "the system refused the use",
-  "match": "Reckless Attack / Use",
-  "why": "the imported 2014 feature's Use activity consumes 1 use, but the item has none"
+  "match": "none are set; from some-module.classes",
+  "why": "the pack's features spend their own uses, but the items have none set"
 }
 ```
 

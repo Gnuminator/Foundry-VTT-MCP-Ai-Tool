@@ -432,14 +432,22 @@ export function judgePlan(hero, plan) {
   return problems;
 }
 
+/** dnd5e recovery periods of type "combat" (CONFIG.DND5E.limitedUsePeriods). */
+const COMBAT_PERIODS = new Set(['turn', 'turnStart', 'turnEnd']);
+
 /**
  * What using an activity must consume from its own item: the sum of its plain itemUses targets.
  * `exact` is false when a target is a formula or points at another item (then only "something
- * was consumed or not" can be said).
+ * was consumed or not" can be said). Uses that only recover on combat periods (Sneak Attack: once
+ * per turn) are spent only during combat, as dnd5e does (ConsumptionTargetData.combatOnly); the kit
+ * uses features outside combat unless `inCombat` says otherwise.
  * @param {FeatureItem} item
  * @param {FeatureActivity} activity
+ * @param {{inCombat?: boolean}} [opts]
  */
-export function expectedSpend(item, activity) {
+export function expectedSpend(item, activity, { inCombat = false } = {}) {
+  const recovery = item.uses?.recovery ?? [];
+  const combatOnly = recovery.length > 0 && recovery.every(r => COMBAT_PERIODS.has(r.period));
   let total = 0;
   let exact = true;
   for (const c of activity.consumption) {
@@ -448,6 +456,7 @@ export function expectedSpend(item, activity) {
       exact = false;
       continue;
     }
+    if (combatOnly && !inCombat) continue;
     const text = String(c.value ?? '').trim();
     if (/^[0-9]+$/.test(text)) total += Number(text);
     else exact = false;
@@ -470,6 +479,16 @@ export function expectedSpend(item, activity) {
  */
 
 /**
+ * "; from <pack>" for an item that came from a compendium, so a known-list entry can name the
+ * content it is about; empty otherwise.
+ * @param {FeatureItem} item
+ */
+export function packOf(item) {
+  const m = /^Compendium\.([^.]+\.[^.]+)\./.exec(item.sourceUuid ?? '');
+  return m ? `; from ${m[1]}` : '';
+}
+
+/**
  * Why the system refused a use, from what it said and what the item looks like:
  * - the activity points at an item the actor does not have: CONTENT,
  * - it needs more uses than the item can ever have, or the item has no uses at all: CONTENT,
@@ -481,24 +500,25 @@ export function expectedSpend(item, activity) {
  */
 export function refusalKind(text, item) {
   const max = item.uses?.max;
+  const from = packOf(item);
   if (/could not be found/i.test(text)) {
-    return { kind: 'CONTENT', note: ' (the activity consumes an item the actor does not have)' };
+    return { kind: 'CONTENT', note: ` (the activity consumes an item the actor does not have${from})` };
   }
   const needs = Number(/([0-9]+) required/i.exec(text)?.[1] ?? 0);
   const usesLimit = /no uses on|not enough uses/i.test(text);
   if (usesLimit && (!item.uses || !max)) {
-    return { kind: 'CONTENT', note: ' (the item has no uses at this level, or none are set)' };
+    return { kind: 'CONTENT', note: ` (the item has no uses at this level, or none are set${from})` };
   }
   if (usesLimit && needs > (max ?? 0)) {
     return {
       kind: 'CONTENT',
-      note: ` (the activity needs ${needs} uses, the item has at most ${max})`,
+      note: ` (the activity needs ${needs} uses, the item has at most ${max}${from})`,
     };
   }
   if (usesLimit && item.uses && typeof max === 'number' && item.uses.spent >= max) {
     return {
       kind: 'CONTENT',
-      note: ` (the imported item starts with ${item.uses.spent} of ${max} uses already spent)`,
+      note: ` (the imported item starts with ${item.uses.spent} of ${max} uses already spent${from})`,
     };
   }
   return { kind: 'SYSTEM', note: '' };
@@ -538,7 +558,7 @@ export function judgeUse({ item, activity }, result) {
         problems,
         noUses ? 'CONTENT' : 'SYSTEM',
         'uses consumed',
-        `${who}: the use consumed ${after - before}, the activity says ${total}${noUses ? ' (the item has no uses at this level, or none are set)' : ''}`
+        `${who}: the use consumed ${after - before}, the activity says ${total}${noUses ? ` (the item has no uses at this level, or none are set${packOf(item)})` : ''}`
       );
     }
   }

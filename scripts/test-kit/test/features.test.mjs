@@ -244,6 +244,37 @@ test('expectedSpend adds the plain item uses of its own item and flags the rest'
   });
 });
 
+test('expectedSpend spends once-per-turn uses only in combat, as dnd5e does', () => {
+  const perTurn = item({
+    identifier: 'sneak-attack',
+    id: 's1',
+    uses: { max: 1, spent: 0, recovery: [{ period: 'turn', type: 'recoverAll', formula: '' }] },
+  });
+  const act = {
+    id: 'a',
+    type: 'damage',
+    name: '',
+    activation: 'special',
+    canUse: true,
+    consumption: [{ type: 'itemUses', target: '', value: '1' }],
+  };
+  assert.deepEqual(expectedSpend(perTurn, act), { total: 0, exact: true });
+  assert.deepEqual(expectedSpend(perTurn, act, { inCombat: true }), { total: 1, exact: true });
+  const mixed = item({
+    identifier: 'x',
+    id: 'x1',
+    uses: {
+      max: 1,
+      spent: 0,
+      recovery: [
+        { period: 'turn', type: 'recoverAll', formula: '' },
+        { period: 'lr', type: 'recoverAll', formula: '' },
+      ],
+    },
+  });
+  assert.deepEqual(expectedSpend(mixed, act), { total: 1, exact: true });
+});
+
 test('judgePlan fails a level 2 or higher hero with nothing the pass can use, but not a level 1 hero', () => {
   const none = { use: [], skipped: [{ item: 'x', activity: 'summon', why: 'w' }], features: 1 };
   assert.deepEqual(judgePlan({ level: 1 }, none), []);
@@ -913,6 +944,11 @@ test('refusalKind tells the imported data from the system', () => {
     'SYSTEM'
   );
   assert.equal(refusalKind('something else happened', withUses(3, 0)).kind, 'SYSTEM');
+  const imported = { ...item({ identifier: 'x' }), sourceUuid: 'Compendium.some-module.classes.Item.abc' };
+  assert.equal(
+    refusalKind('No uses on X available to spend, 1 required.', imported).note,
+    ' (the item has no uses at this level, or none are set; from some-module.classes)'
+  );
 });
 
 test('the feature scenarios run after the others (order), and a bad order is refused', async () => {

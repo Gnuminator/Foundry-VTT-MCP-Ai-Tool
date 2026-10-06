@@ -18,8 +18,9 @@
  *   3. GM Actions switched on (its previous state is restored at the end)
  *   4. set up: a small test journal with one text page "Roundtrip Handout" (created once
  *      with create-quest-journal, reused by every later run; nothing to clean up)
- *   5. plan: plan-page-reveal (reveal, copy: true) of that page
- *   6. confirm: apply-planned-change (destructive class, so both confirmations)
+ *   5. plan: plan-page-reveal (reveal, copy: true, showNow: true) of that page
+ *   6. confirm: apply-planned-change (destructive class, so both confirmations); the result
+ *      must say the Show Players popup went out (shown.ok)
  *   7. verify: list-revealed-pages shows the copy in "Handouts", get-player-handouts has it
  *   8. undo: list-recent-changes, undo-change
  *   9. verify gone: the copy is no longer listed or handed to players
@@ -475,7 +476,12 @@ async function main() {
     // 5. plan
     let planId = null;
     const planned = await step('plan: plan-page-reveal (reveal as a copy)', async () => {
-      const plan = await tool('plan-page-reveal', { pageUuid, action: 'reveal', copy: true });
+      const plan = await tool('plan-page-reveal', {
+        pageUuid,
+        action: 'reveal',
+        copy: true,
+        showNow: true,
+      });
       assert(plan && plan.planId, 'the plan has no planId');
       planId = plan.planId;
       return `planId ${planId}`;
@@ -492,7 +498,12 @@ async function main() {
         );
         assert(change && change.changeId, 'the apply returned no changeId');
         appliedChangeId = change.changeId;
-        return `changeId ${appliedChangeId}`;
+        // "Show it now" (I-110): the reveal also popped the page up through Show Players.
+        assert(
+          change.shown && change.shown.ok === true,
+          `the show-it-now popup did not go out: ${JSON.stringify(change.shown)}`
+        );
+        return `changeId ${appliedChangeId}, shown to players`;
       } catch (e) {
         if (/switched off/i.test(String(e.message))) {
           throw new EnvError(

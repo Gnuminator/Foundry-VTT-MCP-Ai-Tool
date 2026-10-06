@@ -399,6 +399,31 @@ describe('reveal', () => {
     expect(again.diff.some(d => d.text.startsWith('Create JournalEntry'))).toBe(true);
   });
 
+  it('shows the page to every player after the reveal only when showNow is true (I-110)', async () => {
+    const show = vi.fn(() => ({ shown: true }));
+    foundry.handlers['foundry-mcp-bridge.showJournalPage'] = show;
+    const plain = await tarokka.planReveal({ position: 'tome', text: 'One.' });
+    expect(plain.diff.some(d => d.kind === 'show')).toBe(false);
+    await apply(plain.planId, true);
+    expect(show).not.toHaveBeenCalled();
+
+    // A re-reveal updates the page in place; the popup targets that same page.
+    const again = await tarokka.planReveal({
+      position: 'tome',
+      text: 'One, revised.',
+      showNow: true,
+    });
+    expect(again.diff.find(d => d.kind === 'show')).toMatchObject({ target: plain.pageUuid });
+    await apply(again.planId, true);
+    expect(show).toHaveBeenCalledWith({ uuid: plain.pageUuid, userIds: [] });
+
+    const first = await tarokka.planReveal({ position: 'ally', text: 'Two.', showNow: true });
+    expect(first.diff.at(-1)).toMatchObject({ kind: 'show', target: first.pageUuid });
+    await expect(
+      tarokka.planReveal({ position: 'tome', text: 'x', showNow: 'yes' as never })
+    ).rejects.toThrow(/showNow must be/);
+  });
+
   it('validates the request', async () => {
     await expect(tarokka.planReveal({ position: 'x', text: 'a' })).rejects.toThrow(/position/);
     await expect(tarokka.planReveal({ position: 'tome', text: '  ' })).rejects.toThrow(

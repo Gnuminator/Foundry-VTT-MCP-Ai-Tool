@@ -196,6 +196,31 @@ describe('buildStats', () => {
     expect(stats.pcs.find(p => p.uuid === 'Actor.pc3')?.rolls).toBe(2);
   });
 
+  it('leaves spare characters out of the party totals too, but keeps the table counts', () => {
+    const spare: PlayActorRef = {
+      uuid: 'Actor.kit',
+      isPC: true,
+      name: 'Kit Hero',
+      playerOwned: false,
+    };
+    const stats = build([
+      hp('hp:pc', T0, PC, 10, 6),
+      hp('hp:spare', T0 + 1, spare, 10, 0),
+      hp('hp:spare-heal', T0 + 2, spare, 0, 5),
+      roll('r:spare', T0 + 3, spare, 'm1'),
+    ]);
+    const session = stats.sessions[0];
+    expect(session?.partyDamageTaken).toBe(4);
+    expect(session?.partyHealing).toBe(0);
+    expect(session?.pcDowns).toBe(0);
+    expect(session?.pcDownsByName).toEqual({});
+    expect(session?.npcKills).toBe(0);
+    expect(session?.highestRoll).toBeNull();
+    expect(session?.rolls).toBe(1);
+    expect(stats.campaign.pcDowns).toBe(0);
+    expect(stats.pcs.map(p => p.uuid)).toEqual([PC.uuid]);
+  });
+
   it('names every PC down of the session, in a fight or not (a trap, a fall)', () => {
     const stats = build([
       hp('hp:trap', T0, PC, 4, 0),

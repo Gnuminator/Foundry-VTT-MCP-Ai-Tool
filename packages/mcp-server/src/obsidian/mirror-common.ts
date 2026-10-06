@@ -70,9 +70,12 @@ export const MIRROR_STATUS_PATH = `${MIRROR_ROOT}/_status.md`;
  * 3: a feature name the text already opens with is not repeated; 4: notes by Foundry folder and
  * the Library by book (I-100), so every note is fetched once and moves to its folder; 5: every
  * Library note links its book's hub note (I-100); 6: an NPC note links what it was made from,
- * and a scene without a journal links the journal named like its folder (graph orphans).
+ * and a scene without a journal links the journal named like its folder (graph orphans);
+ * 7: scene and journal notes link their prep note (I-121); 8: scene notes list who is here
+ * (the NPC and PC notes of their tokens); 9: compendium actor links in page notes go to the
+ * world NPC that stands for them (source first, then a unique name).
  */
-export const MIRROR_RENDER_VERSION = 6;
+export const MIRROR_RENDER_VERSION = 9;
 
 /**
  * A module signature as the notes store it: with the renderer version and, optionally, a short
@@ -172,6 +175,11 @@ export interface LinkContext {
   image?(src: string, alt: string): string | null;
   /** The document the text describes (`[[lookup @name]]`). */
   selfName?: string | null;
+  /**
+   * A compendium actor (`Compendium.pkg.pack.Actor.id`) to the world NPC it stands for (the
+   * journal row's `actorLinks`), or null: then the link goes to the Library note.
+   */
+  worldActor?(compendiumUuid: string): string | null;
 }
 
 /** Everything `renderMirrorNote` needs besides the entry (C4; built by the pump, C5). */

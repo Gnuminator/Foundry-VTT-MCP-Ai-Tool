@@ -16,6 +16,7 @@ function result(worldId: string, extra: Partial<ExportResult> = {}): ExportResul
     unchanged: [],
     created: [],
     skipped: [],
+    kept: [],
     trashed: [],
     errors: [],
     ...extra,

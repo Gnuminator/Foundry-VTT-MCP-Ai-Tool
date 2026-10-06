@@ -643,6 +643,27 @@ describe('LibrarySync', () => {
     expect(sync.status([PACK, SPELLS]).counts).toEqual({ monster: 1, spell: 2 });
   });
 
+  it('writes the "Without a book" note only after a complete refresh', async () => {
+    const sync = new LibrarySync(WORLD);
+    await sync.refresh([PACK, SPELLS], deps());
+    await sync.work(Date.now() + 10_000, deps());
+    const noBookPath = path.join(
+      dir,
+      'Campaigns',
+      WORLD,
+      'AI Tool/Library/Books/Without a book.md'
+    );
+    const before = await fsp.readFile(noBookPath, 'utf8');
+    expect(before).toContain('3 notes.');
+    // A row Foundry sent malformed makes the refresh incomplete: the note keeps all three.
+    fake.rows = fake.rows.map(r =>
+      r.uuid === SPARK_2024 ? ({ ...r, name: 42 } as unknown as LibraryIndexRow) : r
+    );
+    sync.requestRefresh();
+    await sync.refresh([PACK, SPELLS], deps());
+    expect(await fsp.readFile(noBookPath, 'utf8')).toBe(before);
+  });
+
   it('fetches nothing again while the signatures stay the same, and only the changed one after', async () => {
     const first = new LibrarySync(WORLD);
     await first.refresh([PACK, SPELLS], deps());

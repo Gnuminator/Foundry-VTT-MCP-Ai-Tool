@@ -80,7 +80,11 @@ export const EXPORT_INDEX_LIMITS = {
   featuresPerActor: 80,
   notableItemsPerActor: 40,
   pinsPerScene: 300,
+  /** Token rows (tokens folded by actor, name, disposition and hidden). */
+  tokensPerScene: 200,
   pagesPerJournal: 1000,
+  /** Compendium actor links resolved to world NPCs, per journal. */
+  actorLinksPerJournal: 500,
   holdersPerItem: 20,
   /** Feature and description HTML per stat block. */
   statBlockBytes: 256 * 1024,
@@ -231,6 +235,25 @@ export interface ExportScenePin {
   pageUuid: string | null;
 }
 
+/**
+ * The scene's tokens, folded: one row per world actor, token name, disposition and hidden
+ * flag, with the number of tokens behind it. Positions are never here: tokens move all the
+ * time, and the row is part of the scene's `sig`.
+ */
+export interface ExportSceneToken {
+  /** The token's own name (what the map shows). */
+  name: string;
+  /** The world actor (`Actor.<id>`), or null when the token has none or it is gone. */
+  actorUuid: string | null;
+  /** The world actor's type (`npc`, `character`, ...), or null without one. */
+  actorType: string | null;
+  /** Linked to the world actor (a unique NPC or a PC) rather than its own copy. */
+  actorLink: boolean;
+  disposition: TokenDisposition | null;
+  hidden: boolean;
+  count: number;
+}
+
 export interface ExportSceneEntry extends ExportEntryBase {
   kind: 'scene';
   navName: string | null;
@@ -238,6 +261,8 @@ export interface ExportSceneEntry extends ExportEntryBase {
   journal: { uuid: string; pageUuid: string | null } | null;
   /** Map Notes (max `pinsPerScene`). */
   pins: ExportScenePin[];
+  /** Tokens (max `tokensPerScene` rows); absent from older modules. */
+  tokens?: ExportSceneToken[];
   /** The map image (the background of the scene's first level), or null. */
   map: string | null;
 }
@@ -270,6 +295,19 @@ export interface ExportPageEntry {
   textOmitted?: 'budget';
 }
 
+/**
+ * A compendium actor that the journal's page text links to, standing for a world NPC: the NPC
+ * made from it (`source`: its compendium, duplicate or core source), else the only world NPC
+ * with the compendium actor's name (`name`, case-insensitive).
+ */
+export interface ExportActorLink {
+  /** `Compendium.<package>.<pack>.Actor.<id>`. */
+  compendiumUuid: string;
+  /** The world NPC (`Actor.<id>`). */
+  actorUuid: string;
+  match: 'source' | 'name';
+}
+
 export interface ExportJournalEntry extends ExportEntryBase {
   kind: 'journal';
   categories: Array<{ id: string; name: string; sort: number }>;
@@ -279,6 +317,12 @@ export interface ExportJournalEntry extends ExportEntryBase {
   pages: ExportPageEntry[];
   /** Page count before the cap. */
   pagesTotal: number;
+  /**
+   * Opted-in journals only (else empty): the compendium actors its page text links to that stand
+   * for a world NPC, max `actorLinksPerJournal`, by `compendiumUuid`. Part of the `sig`, so a
+   * world copy that appears or goes re-renders the notes. Absent from older modules.
+   */
+  actorLinks?: ExportActorLink[];
 }
 
 export interface ExportItemHolder {

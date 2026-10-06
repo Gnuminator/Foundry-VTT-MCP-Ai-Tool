@@ -278,3 +278,28 @@ describe('seen log', () => {
     await expect(handouts.queue.markSeen('x', ANNA, 'Anna')).rejects.toThrow(/document ids/);
   });
 });
+
+describe('reveal-next with show it now (I-110)', () => {
+  it('shows the next queued page to the players it was queued for', async () => {
+    foundry.handlers['foundry-mcp-bridge.showJournalPage'] = (): unknown => ({ shown: true });
+    await handouts.queuePage({ pageUuid: PAGE1, players: [ANNA] });
+    const plan = await handouts.planPageReveal({ action: 'reveal-next', showNow: true });
+    const line = plan.diff.find(d => d.kind === 'show');
+    expect(line).toMatchObject({ target: PAGE1 });
+    expect(line!.text).toContain('1 player');
+    const applied = await guarded.applyPlan(plan.planId, {
+      confirm: true,
+      confirmDestructive: true,
+    });
+    expect(applied.shown).toEqual({ ok: true, users: [ANNA] });
+    expect(foundry.calls.filter(([m]) => m.endsWith('showJournalPage')).map(([, d]) => d)).toEqual([
+      { uuid: PAGE1, userIds: [ANNA] },
+    ]);
+  });
+
+  it('plans no popup without showNow', async () => {
+    await handouts.queuePage({ pageUuid: PAGE1 });
+    const plan = await handouts.planPageReveal({ action: 'reveal-next' });
+    expect(plan.diff.some(d => d.kind === 'show')).toBe(false);
+  });
+});

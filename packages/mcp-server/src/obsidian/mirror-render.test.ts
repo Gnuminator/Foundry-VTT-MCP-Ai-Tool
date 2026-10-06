@@ -6,6 +6,7 @@ import type {
   ExportJournalEntry,
   ExportPageEntry,
   ExportSceneEntry,
+  ExportSceneToken,
 } from '@gnuminator/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -351,8 +352,15 @@ const OWN: Record<MirrorNoteType, string[]> = {
     'source_book',
     'prep',
   ],
-  scene: ['nav_name', 'player_name', 'navigation', 'journal', 'pins'],
-  journal: ['pages', 'pages_player_visible', 'pages_revealed', 'text_mirrored', 'categories'],
+  scene: ['nav_name', 'player_name', 'navigation', 'journal', 'pins', 'tokens', 'prep'],
+  journal: [
+    'pages',
+    'pages_player_visible',
+    'pages_revealed',
+    'text_mirrored',
+    'categories',
+    'prep',
+  ],
   'journal-page': ['fvtt_journal', 'journal', 'page_type', 'revealed', 'sort'],
   'story-item': [
     'item_type',
@@ -535,6 +543,8 @@ describe('renderMirrorNote snapshots', () => {
       navigation: true
       journal: "[[Campaigns/strahd-test/AI Tool/Foundry/Journals/Barovia|Journal]]"
       pins: 3
+      tokens: null
+      prep: null
       aliases:
         - "Castle Ravenloft"
       fvtt_modified: "2026-09-29T10:30:00.000Z"
@@ -547,7 +557,7 @@ describe('renderMirrorNote snapshots', () => {
         - "campaign/strahd-test"
         - "scene"
       generated_by: "foundry-ai-tool"
-      generated_hash: "6ee377c93466fb78"
+      generated_hash: "ebefdbe2be7c2e98"
       ---
       # Castle Ravenloft
 
@@ -574,6 +584,63 @@ describe('renderMirrorNote snapshots', () => {
     `);
   });
 
+  it('scene: who is here links the actor notes of its tokens', () => {
+    const tokens: ExportSceneToken[] = [
+      {
+        name: 'Lost',
+        actorUuid: null,
+        actorType: null,
+        actorLink: false,
+        disposition: 'neutral',
+        hidden: false,
+        count: 1,
+      },
+      {
+        name: 'Ghost',
+        actorUuid: `Actor.${fid('gone')}`,
+        actorType: 'npc',
+        actorLink: false,
+        disposition: null,
+        hidden: false,
+        count: 1,
+      },
+      {
+        name: 'Silvera',
+        actorUuid: PC_UUID,
+        actorType: 'character',
+        actorLink: true,
+        disposition: 'friendly',
+        hidden: false,
+        count: 1,
+      },
+      {
+        name: 'Wolf',
+        actorUuid: NPC_UUID,
+        actorType: 'npc',
+        actorLink: false,
+        disposition: 'hostile',
+        hidden: true,
+        count: 3,
+      },
+    ];
+    const text = render(scene({ tokens }));
+    expect(text).toContain('\ntokens: 6\n');
+    expect(text.split('## Who is here\n\n')[1]?.split('\n\n')[0]).toMatchInlineSnapshot(`
+      "- Lost (no actor, neutral)
+      - Ghost (no longer in this world)
+      - [Silvera](../PCs/Test%20Hero.md) (player character, friendly)
+      - [Wolf](../NPCs/Wolf.md) ×3 (hostile, hidden)
+      "
+    `);
+  });
+
+  it('scene: a module without tokens gives no section and a null count', () => {
+    const text = render(scene({ tokens: [] }));
+    expect(text).not.toContain('## Who is here');
+    expect(text).toContain('\ntokens: 0\n');
+    expect(render(scene())).toContain('\ntokens: null\n');
+  });
+
   it('journal index and page notes', () => {
     const notes = renderMirrorNote(W, journal(), makeCtx());
     expect(notes.map(n => n.path)).toMatchInlineSnapshot(`
@@ -598,6 +665,7 @@ describe('renderMirrorNote snapshots', () => {
       categories:
         - "People"
         - "Places"
+      prep: null
       aliases:
         - "Barovia"
       fvtt_modified: "2026-09-29T10:30:00.000Z"
@@ -610,7 +678,7 @@ describe('renderMirrorNote snapshots', () => {
         - "campaign/strahd-test"
         - "journal"
       generated_by: "foundry-ai-tool"
-      generated_hash: "215bf41f51cae1dd"
+      generated_hash: "bf0de82d674ac1c2"
       ---
       # Barovia
 
@@ -861,6 +929,21 @@ describe('renderMirrorNote behavior', () => {
     }
   });
 
+  it('hands page notes the compendium actor links of the journal', () => {
+    const wolf = 'Compendium.aitool-content.monsters.Actor.AAAAAAAAAAAAAAAA';
+    const entry = journal({
+      actorLinks: [{ compendiumUuid: wolf, actorUuid: NPC_UUID, match: 'source' }],
+    });
+    renderMirrorNote(W, entry, makeCtx());
+    const seen = converter.html.mock.calls[0]?.[1];
+    expect(seen?.worldActor?.(wolf)).toBe(NPC_UUID);
+    expect(seen?.worldActor?.('Compendium.x.y.Actor.BBBBBBBBBBBBBBBB')).toBeNull();
+    // An older module without the row: no lookup at all.
+    converter.html.mockClear();
+    renderMirrorNote(W, journal(), makeCtx());
+    expect('worldActor' in (converter.html.mock.calls[0]?.[1] ?? {})).toBe(false);
+  });
+
   it('leaves the stats and prep properties null without those notes', () => {
     const text = render(pc(), makeCtx({ stats: {}, prep: {} }));
     expect(text).toContain('stats: null');
@@ -904,6 +987,29 @@ describe('scene notes', () => {
     expect(render(scene())).toContain('[!warning] Players see the true name');
     expect(render(scene({ navName: 'The Keep' }))).not.toContain('[!warning]');
     expect(render(scene({ navigation: false }))).not.toContain('[!warning]');
+  });
+
+  it('links a journal to its quest prep note, from the index note only (I-121)', () => {
+    expect(renderIndex(journal())).toContain('prep: null');
+    const ctx = makeCtx({ prep: { [JOURNAL_UUID]: 'Prep/Quests/Barovia.md' } });
+    const text = renderIndex(journal(), ctx);
+    expect(text).toContain('prep: "[[Campaigns/strahd-test/Prep/Quests/Barovia|Barovia prep]]"');
+    expect(text).toMatch(/## Related notes\n\n- \[Prep\]\(.*Prep\/Quests\/Barovia\.md\)/);
+    const pages = renderMirrorNote(W, journal(), ctx).slice(1);
+    expect(pages.length).toBeGreaterThan(0);
+    for (const page of pages) expect(page.text).not.toContain('Prep/Quests');
+  });
+
+  it('links its location prep note, and says prep: null without one (I-121)', () => {
+    const plain = render(scene());
+    expect(plain).toContain('prep: null');
+    expect(plain).not.toContain('## Related notes');
+    const text = render(scene(), makeCtx({ prep: { [SCENE_UUID]: 'Prep/Places/Castle.md' } }));
+    expect(text).toContain(
+      'prep: "[[Campaigns/strahd-test/Prep/Places/Castle|Castle Ravenloft prep]]"'
+    );
+    expect(text).toContain('## Related notes');
+    expect(text).toMatch(/- \[Prep\]\(.*Prep\/Places\/Castle\.md\)/);
   });
 
   it('gives the name players see', () => {

@@ -30,11 +30,13 @@ import {
   EXPORT_INDEX_LIMITS,
   isFoundryUuid,
   type ExportActorEntry,
+  type ExportActorLink,
   type ExportEntry,
   type ExportItemEntry,
   type ExportJournalEntry,
   type ExportPageEntry,
   type ExportSceneEntry,
+  type ExportSceneToken,
   type PlayerAccess,
   type RulesTag,
 } from '@gnuminator/shared';
@@ -214,12 +216,15 @@ function targetLink(
   fallbackLabel: string | null = null
 ): string {
   const target: LinkTarget | null = ctx.resolve(uuid);
+  const head = uuid.split('.')[0];
   const kind =
-    uuid.split('.')[0] === 'Scene'
+    head === 'Scene'
       ? 'scene'
-      : uuid.includes('JournalEntryPage')
-        ? 'journal page'
-        : 'journal';
+      : head === 'Actor'
+        ? 'character'
+        : uuid.includes('JournalEntryPage')
+          ? 'journal page'
+          : 'journal';
   if (target === null) {
     // Never a raw uuid: name what is missing in words.
     return `${escapeMd(label ?? fallbackLabel ?? `A ${kind}`)} (no longer in this world)`;
@@ -264,8 +269,10 @@ function linkContext(
   ctx: MirrorRenderContext,
   pageUuid: string,
   fromPath: string,
-  selfName: string | null = null
+  selfName: string | null = null,
+  actorLinks: ReadonlyArray<ExportActorLink> = []
 ): LinkContext {
+  const worlds = new Map(actorLinks.map(link => [link.compendiumUuid, link.actorUuid]));
   const findByName = ctx.findByName;
   const image = ctx.image
     ? (src: string, alt: string): string | null => ctx.image?.(src, alt) ?? null
@@ -279,6 +286,7 @@ function linkContext(
     ...(ctx.library ? { library: ctx.library } : {}),
     ...(image ? { image: (src: string, alt: string) => image(src, alt) } : {}),
     selfName,
+    ...(worlds.size > 0 ? { worldActor: (uuid: string) => worlds.get(uuid) ?? null } : {}),
   };
 }
 
@@ -583,6 +591,27 @@ function journalByFolder(ctx: MirrorRenderContext, entry: ExportSceneEntry): str
   return uuid !== null && ctx.notePath(uuid) !== null ? uuid : null;
 }
 
+/**
+ * One "Who is here" line: the token's world actor note (labelled with the token's name), how
+ * many tokens share the row, and the disposition and hidden flag in words. A token without a
+ * world actor keeps its name only.
+ */
+function whoLine(ctx: MirrorRenderContext, path: string, token: ExportSceneToken): string {
+  const label = oneLine(token.name) || null;
+  const link =
+    token.actorUuid === null
+      ? escapeMd(label ?? 'Unnamed token')
+      : targetLink(ctx, path, token.actorUuid, label, 'A character');
+  const times = token.count > 1 ? ` ×${count(token.count)}` : '';
+  const notes = [
+    token.actorUuid === null ? 'no actor' : null,
+    token.actorType === 'character' ? 'player character' : null,
+    token.disposition,
+    token.hidden ? 'hidden' : null,
+  ].filter((word): word is string => word !== null);
+  return `- ${link}${times}${notes.length ? ` (${notes.join(', ')})` : ''}`;
+}
+
 function renderScene(
   worldId: string,
   entry: ExportSceneEntry,
@@ -643,6 +672,12 @@ function renderScene(
     }
     lines.push('');
   }
+  const tokens = entry.tokens ?? null;
+  if (tokens !== null && tokens.length > 0) {
+    lines.push('## Who is here', '', ...tokens.map(token => whoLine(ctx, path, token)), '');
+  }
+  const prepPath = ctx.prepNotePath(entry.uuid);
+  if (prepPath) lines.push('## Related notes', '', `- ${noteLink(path, prepPath, 'Prep')}`, '');
 
   const props = mirrorProps(worldId, {
     type: 'scene',
@@ -656,6 +691,8 @@ function renderScene(
       navigation: entry.navigation,
       journal: journalProp,
       pins: count(entry.pins.length),
+      tokens: tokens === null ? null : count(tokens.reduce((sum, token) => sum + token.count, 0)),
+      prep: noteProp(worldId, prepPath, `${propText(entry.name) || 'Untitled'} prep`),
     },
     modified: entry.modified,
     sig: entry.sig,
@@ -747,6 +784,9 @@ function renderJournalIndex(
       lines.push('');
     }
   }
+  // Quest prep points at the journal, not a page (I-121).
+  const prepPath = ctx.prepNotePath(entry.uuid);
+  if (prepPath) lines.push('## Related notes', '', `- ${noteLink(path, prepPath, 'Prep')}`, '');
 
   const props = mirrorProps(worldId, {
     type: 'journal',
@@ -763,6 +803,7 @@ function renderJournalIndex(
         .sort((a, b) => a.sort - b.sort || cmp(a.id, b.id))
         .map(c => propText(c.name))
         .filter(name => name !== ''),
+      prep: noteProp(worldId, prepPath, `${propText(entry.name) || 'Untitled'} prep`),
     },
     modified: entry.modified,
     sig: entry.sig,
@@ -799,7 +840,7 @@ function renderJournalPage(
         ''
       );
     }
-    const link = linkContext(ctx, page.uuid, pagePath);
+    const link = linkContext(ctx, page.uuid, pagePath, null, journal.actorLinks ?? []);
     const converted =
       text.format === 'html'
         ? htmlToMarkdown(text.content, link)

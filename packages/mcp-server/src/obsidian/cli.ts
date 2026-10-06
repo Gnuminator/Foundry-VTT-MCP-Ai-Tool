@@ -60,6 +60,10 @@ export async function runObsidianCli(argv: string[], io: CliIo): Promise<number>
         io.out(`  skipped (edited or foreign):`);
         for (const s of r.skipped) io.out(`    ${s.path}: ${s.reason}`);
       }
+      if (r.kept.length) {
+        io.out(`  kept as you edited them:`);
+        for (const k of r.kept) io.out(`    ${k.path}: ${k.reason}`);
+      }
       if (r.trashed.length) {
         io.out(`  trashed:`);
         for (const t of r.trashed) io.out(`    ${t}`);

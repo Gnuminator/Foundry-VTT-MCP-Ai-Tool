@@ -253,6 +253,18 @@ function assertSceneId(value: unknown): string | null {
   return value;
 }
 
+/**
+ * "Show it now" (I-110): the plan option that pops the page up on the players' screens after the
+ * reveal, for the players it is revealed to (every player when `players` is not set).
+ */
+function showPlayers(
+  showNow: boolean,
+  uuid: string,
+  players: string[] | undefined
+): { showToPlayers?: { uuid: string; users: string[] } } {
+  return showNow ? { showToPlayers: { uuid, users: players ?? [] } } : {};
+}
+
 /** A player-facing sentence: "to every player" or "to 2 chosen players". */
 function audience(players: string[] | undefined): string {
   if (!players) return 'players';
@@ -539,6 +551,8 @@ export class HandoutsService {
     copy?: boolean;
     players?: unknown;
     sceneId?: unknown;
+    /** Also pop the page up on the players' screens after the reveal (Foundry's Show Players). */
+    showNow?: boolean;
   }): Promise<PageRevealPlan> {
     const action = assertAction(args.action);
     if (action === 'queue' || action === 'unqueue') {
@@ -547,6 +561,12 @@ export class HandoutsService {
     if (args.copy !== undefined && typeof args.copy !== 'boolean') {
       throw new Error('copy must be true or false');
     }
+    if (args.showNow !== undefined && typeof args.showNow !== 'boolean') {
+      throw new Error('showNow must be true or false');
+    }
+    if (args.showNow === true && action === 'hide') {
+      throw new Error('showNow only goes with a reveal: hiding a page never shows it');
+    }
     const players = assertPlayers(args.players);
     const sceneId = assertSceneId(args.sceneId);
     if (action === 'reveal-next') return this.planRevealNext(sceneId, args);
@@ -554,6 +574,7 @@ export class HandoutsService {
     return this.planRevealOrHide(pageUuid, action, {
       setOwnership: args.setOwnership ?? true,
       ...(args.copy !== undefined ? { copy: args.copy } : {}),
+      ...(args.showNow ? { showNow: true } : {}),
       ...(players ? { players } : {}),
       extraVaultOps: [],
     });
@@ -598,7 +619,7 @@ export class HandoutsService {
    */
   private async planRevealNext(
     sceneId: string | null,
-    args: { setOwnership?: boolean; copy?: boolean }
+    args: { setOwnership?: boolean; copy?: boolean; showNow?: boolean }
   ): Promise<PageRevealPlan> {
     const entries = orderedQueue(await this.queue.load());
     const next = entries.find(
@@ -612,6 +633,7 @@ export class HandoutsService {
       return await this.planRevealOrHide(entry.uuid, 'reveal', {
         setOwnership: args.setOwnership ?? true,
         ...(args.copy !== undefined ? { copy: args.copy } : {}),
+        ...(args.showNow ? { showNow: true } : {}),
         ...(entry.players ? { players: entry.players } : {}),
         extraVaultOps: [{ kind: 'vault-delete', file: QUEUE_FILE, path: `entries.${entryId}` }],
       });
@@ -630,10 +652,12 @@ export class HandoutsService {
       setOwnership: boolean;
       copy?: boolean;
       players?: string[];
+      showNow?: boolean;
       extraVaultOps: VaultOp[];
     }
   ): Promise<PageRevealPlan> {
     const { setOwnership, players, extraVaultOps } = opts;
+    const showNow = opts.showNow === true;
     const worldId = await this.worldIds.current();
     const file = await this.load(worldId);
     const pageId = pageIdOf(pageUuid);
@@ -674,7 +698,8 @@ export class HandoutsService {
           copies,
           pages,
           players,
-          extraVaultOps
+          extraVaultOps,
+          showNow
         );
       }
       return this.planReveal(
@@ -685,7 +710,8 @@ export class HandoutsService {
         allowlisted,
         setOwnership,
         players,
-        extraVaultOps
+        extraVaultOps,
+        showNow
       );
     }
     // Hide always drops the stale allowlist entry, even for a page deleted since it was
@@ -701,7 +727,8 @@ export class HandoutsService {
     allowlisted: RevealedPageEntry | undefined,
     setOwnership: boolean,
     players: string[] | undefined,
-    extraVaultOps: VaultOp[]
+    extraVaultOps: VaultOp[],
+    showNow: boolean
   ): Promise<PageRevealPlan> {
     if (allowlisted && (page.observable || !setOwnership)) {
       throw new Error('That page is already revealed to players');
@@ -771,6 +798,7 @@ export class HandoutsService {
       ...(ops.length > 0 ? { ops } : {}),
       vaultOps,
       risk: 'destructive',
+      ...showPlayers(showNow, pageUuid, players),
     });
     return { ...plan, pageUuid };
   }
@@ -784,7 +812,8 @@ export class HandoutsService {
     copies: Array<[string, RevealedPageEntry]>,
     pages: Map<string, PageForPlayers>,
     players: string[] | undefined,
-    extraVaultOps: VaultOp[]
+    extraVaultOps: VaultOp[],
+    showNow: boolean
   ): Promise<PageRevealPlan> {
     const name = source.name ?? 'Handout';
     const revealed = new Set(Object.values(file.pages ?? {}).map(entry => entry.uuid));
@@ -799,7 +828,8 @@ export class HandoutsService {
         copyPage,
         content,
         players,
-        extraVaultOps
+        extraVaultOps,
+        showNow
       );
     }
     return this.planCopyCreate(
@@ -810,7 +840,8 @@ export class HandoutsService {
       copies,
       content,
       players,
-      extraVaultOps
+      extraVaultOps,
+      showNow
     );
   }
 
@@ -822,7 +853,8 @@ export class HandoutsService {
     copyPage: PageForPlayers,
     content: CopyContent,
     players: string[] | undefined,
-    extraVaultOps: VaultOp[]
+    extraVaultOps: VaultOp[],
+    showNow: boolean
   ): Promise<PageRevealPlan> {
     const copyType = pageTypeOf(copyPage);
     if (copyType !== undefined && copyType !== content.type) {
@@ -877,6 +909,7 @@ export class HandoutsService {
       ops: [updateOpFor(entry.uuid, changed)],
       ...(vaultOps.length > 0 ? { vaultOps } : {}),
       risk: 'destructive',
+      ...showPlayers(showNow, entry.uuid, players),
     });
     return { ...plan, pageUuid: sourceUuid, copy, note: copyNote(title, copy) };
   }
@@ -893,7 +926,8 @@ export class HandoutsService {
     copies: Array<[string, RevealedPageEntry]>,
     content: CopyContent,
     players: string[] | undefined,
-    extraVaultOps: VaultOp[]
+    extraVaultOps: VaultOp[],
+    showNow: boolean
   ): Promise<PageRevealPlan> {
     const remembered = file.handoutsJournal?.uuid;
     let journalExists = false;
@@ -984,6 +1018,7 @@ export class HandoutsService {
       ops,
       vaultOps,
       risk: 'destructive',
+      ...showPlayers(showNow, copyUuid, players),
     });
     return { ...plan, pageUuid: sourceUuid, copy, note: copyNote(title, copy, warning) };
   }

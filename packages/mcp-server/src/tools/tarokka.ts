@@ -24,6 +24,9 @@ interface TarokkaToolsOptions {
   logger: Logger;
 }
 
+const SHOW_NOW_DESCRIPTION =
+  'Also pop the page up for the players it is revealed to (Show Players). Off by default. Undo cannot take the popup back.';
+
 const POSITION_SCHEMA = {
   type: 'string',
   enum: [...TAROKKA_POSITIONS],
@@ -134,6 +137,10 @@ export class TarokkaTools {
                 'Name of the player journal when it is created (default "Tarokka reading").',
               ...freeText('The name for a journal that is created on first use'),
             },
+            showNow: {
+              type: 'boolean',
+              description: SHOW_NOW_DESCRIPTION,
+            },
           },
           required: ['position', 'text'],
         },
@@ -196,6 +203,7 @@ export class TarokkaTools {
         text: z.string().min(1).max(5000),
         title: z.string().max(120).optional(),
         journalName: z.string().max(120).optional(),
+        showNow: z.boolean().optional(),
       })
       .parse(args ?? {});
     return this.logged('reveal', () =>
@@ -204,6 +212,7 @@ export class TarokkaTools {
         text: params.text,
         ...(params.title !== undefined ? { title: params.title } : {}),
         ...(params.journalName !== undefined ? { journalName: params.journalName } : {}),
+        ...(params.showNow !== undefined ? { showNow: params.showNow } : {}),
       })
     );
   }

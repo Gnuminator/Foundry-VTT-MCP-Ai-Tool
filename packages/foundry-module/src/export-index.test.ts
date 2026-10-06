@@ -830,6 +830,7 @@ describe('getExportIndex: scene entries', () => {
       'playerVisible',
       'rules',
       'sig',
+      'tokens',
       'uuid',
     ]);
     expect(entry).toMatchObject({
@@ -849,6 +850,7 @@ describe('getExportIndex: scene entries', () => {
         pageUuid: `JournalEntry.${JOURNAL_ID}.JournalEntryPage.${PAGE_ID}`,
       },
       pins: [],
+      tokens: [],
       map: null,
     });
   });
@@ -931,6 +933,84 @@ describe('getExportIndex: scene entries', () => {
     expect(scene.pins[299]?.label).toBe('Pin 299');
   });
 
+  it('folds tokens by world actor, name, disposition and hidden, without positions', () => {
+    world.addActor({ id: id16('wolf'), name: 'Wolf', type: 'npc' });
+    world.addActor({ id: id16('strahd'), name: 'Strahd von Zarovich', type: 'npc' });
+    addScene({
+      tokens: [
+        makeToken({ id: id16('t1'), name: 'Wolf', actorId: id16('wolf'), disposition: -1, x: 1 }),
+        makeToken({ id: id16('t2'), name: 'Wolf', actorId: id16('wolf'), disposition: -1, x: 2 }),
+        makeToken({
+          id: id16('t3'),
+          name: 'Wolf',
+          actorId: id16('wolf'),
+          disposition: -1,
+          hidden: true,
+        }),
+        makeToken({
+          id: id16('t4'),
+          name: 'The Stranger',
+          actorId: id16('strahd'),
+          actorLink: true,
+          disposition: 0,
+        }),
+        makeToken({ id: id16('t5'), name: 'Lost', actorId: id16('gone') }),
+      ],
+    });
+    const scene = sceneRow(ok({ kinds: ['scene'] }), id16('scene'));
+    expect(scene.tokens).toEqual([
+      {
+        name: 'Lost',
+        actorUuid: null,
+        actorType: null,
+        actorLink: false,
+        disposition: 'neutral',
+        hidden: false,
+        count: 1,
+      },
+      {
+        name: 'The Stranger',
+        actorUuid: `Actor.${id16('strahd')}`,
+        actorType: 'npc',
+        actorLink: true,
+        disposition: 'neutral',
+        hidden: false,
+        count: 1,
+      },
+      {
+        name: 'Wolf',
+        actorUuid: `Actor.${id16('wolf')}`,
+        actorType: 'npc',
+        actorLink: false,
+        disposition: 'hostile',
+        hidden: false,
+        count: 2,
+      },
+      {
+        name: 'Wolf',
+        actorUuid: `Actor.${id16('wolf')}`,
+        actorType: 'npc',
+        actorLink: false,
+        disposition: 'hostile',
+        hidden: true,
+        count: 1,
+      },
+    ]);
+  });
+
+  it('caps token rows at 200', () => {
+    const tokens = Array.from({ length: 205 }, (_, index) =>
+      makeToken({
+        id: id16(`t${String(index).padStart(3, '0')}`),
+        name: `Token ${String(index).padStart(3, '0')}`,
+      })
+    );
+    addScene({ tokens });
+    const scene = sceneRow(ok({ kinds: ['scene'] }), id16('scene'));
+    expect(scene.tokens?.length).toBe(EXPORT_INDEX_LIMITS.tokensPerScene);
+    expect(scene.tokens?.[199]?.name).toBe('Token 199');
+  });
+
   it('clips a long pin label and a long name to 200 characters', () => {
     addScene({
       name: 'S'.repeat(300),
@@ -966,6 +1046,120 @@ function addJournal(overrides: Record<string, unknown> = {}): Doc {
   });
 }
 
+describe('getExportIndex: compendium actor links', () => {
+  const PACK = 'aitool-content.monsters';
+  const actorLink = (id: string): string => `Compendium.${PACK}.Actor.${id}`;
+  const optIn = { kinds: ['journal'], includeText: { folderIds: [], journalIds: [JOURNAL_ID] } };
+
+  beforeEach(() => {
+    addPlayer('p1', 'Alice');
+    world.addPack({
+      id: PACK,
+      type: 'Actor',
+      documents: [
+        world.addActor({ id: id16('cwolf'), name: 'Wolf', type: 'npc' }),
+        world.addActor({ id: id16('cstrahd'), name: 'Strahd', type: 'npc' }),
+        world.addActor({ id: id16('czombie'), name: 'Zombie', type: 'npc' }),
+        world.addActor({ id: id16('cguard'), name: 'Guard', type: 'npc' }),
+      ].map(doc => {
+        world.actors.delete(doc.id);
+        return doc;
+      }),
+    });
+    world.addPack({
+      id: 'aitool-content.items',
+      type: 'Item',
+      documents: [makeItem({ id: id16('csword'), name: 'Wolf' })],
+    });
+    world.addActor({
+      id: id16('wleader'),
+      name: 'Pack Leader',
+      type: 'npc',
+      _stats: { compendiumSource: actorLink(id16('cwolf')) },
+    });
+    world.addActor({ id: id16('wstrahd'), name: 'strahd ', type: 'npc' });
+    world.addActor({ id: id16('wzomb1'), name: 'Zombie', type: 'npc' });
+    world.addActor({ id: id16('wzomb2'), name: 'Zombie', type: 'npc' });
+    world.addActor({
+      id: id16('wguard'),
+      name: 'Gate Guard',
+      type: 'npc',
+      flags: { core: { sourceId: actorLink(id16('cguard')) } },
+    });
+    world.addActor({ id: id16('pcwolf'), name: 'Wolf', type: 'character' });
+    addJournal({
+      pages: [
+        page(id16('pg01'), {
+          text: {
+            content: [
+              `<p>@UUID[${actorLink(id16('cwolf'))}]{wolves}`,
+              `@UUID[${actorLink(id16('cstrahd'))}]{the Devil}`,
+              `@UUID[${actorLink(id16('czombie'))}]{zombies}`,
+              `@Compendium[${PACK}.${id16('cguard')}]{guards}`,
+              `@UUID[Compendium.aitool-content.items.Item.${id16('csword')}]{a sword}</p>`,
+            ].join(' '),
+          },
+        }),
+        page(id16('pg02'), {
+          text: { content: `<p>@UUID[${actorLink(id16('cwolf'))}.Item.${id16('bite')}]{bite}</p>` },
+        }),
+      ],
+    });
+  });
+
+  it('resolves by source first, then by a unique name, and skips ambiguous names and items', () => {
+    expect(journalRow(ok(optIn), JOURNAL_ID).actorLinks).toEqual([
+      {
+        compendiumUuid: actorLink(id16('cguard')),
+        actorUuid: `Actor.${id16('wguard')}`,
+        match: 'source',
+      },
+      {
+        compendiumUuid: actorLink(id16('cstrahd')),
+        actorUuid: `Actor.${id16('wstrahd')}`,
+        match: 'name',
+      },
+      {
+        compendiumUuid: actorLink(id16('cwolf')),
+        actorUuid: `Actor.${id16('wleader')}`,
+        match: 'source',
+      },
+    ]);
+  });
+
+  it('is empty for a journal that is not opted in for text', () => {
+    expect(journalRow(ok({ kinds: ['journal'] }), JOURNAL_ID).actorLinks).toEqual([]);
+  });
+
+  it('among several NPCs made from the same actor, picks the one with its name', () => {
+    world.addActor({
+      id: id16('wwolf'),
+      name: 'Wolf',
+      type: 'npc',
+      _stats: { duplicateSource: actorLink(id16('cwolf')) },
+    });
+    const links = journalRow(ok(optIn), JOURNAL_ID).actorLinks ?? [];
+    expect(links.find(l => l.compendiumUuid === actorLink(id16('cwolf')))?.actorUuid).toBe(
+      `Actor.${id16('wwolf')}`
+    );
+  });
+
+  it('changes the sig when a world copy appears or goes', () => {
+    const before = sigOf(JOURNAL_ID, optIn);
+    world.actors.delete(id16('wzomb2'));
+    const appeared = sigOf(JOURNAL_ID, optIn);
+    expect(appeared).not.toBe(before);
+    expect(sigOf(JOURNAL_ID, { ...optIn, idsOnly: true })).toBe(appeared);
+    world.actors.delete(id16('wleader'));
+    expect(sigOf(JOURNAL_ID, optIn)).not.toBe(appeared);
+  });
+
+  it('reads the source from the core flag for the NPC source as well', () => {
+    const response = ok({ kinds: ['actor'] });
+    expect(actorRow(response, id16('wguard')).sourceUuid).toBe(actorLink(id16('cguard')));
+  });
+});
+
 describe('getExportIndex: journal entries', () => {
   beforeEach(() => {
     addPlayer('p1', 'Alice');
@@ -975,6 +1169,7 @@ describe('getExportIndex: journal entries', () => {
     addJournal();
     const entry = journalRow(ok({ kinds: ['journal'] }), JOURNAL_ID);
     expect(Object.keys(entry).sort()).toEqual([
+      'actorLinks',
       'categories',
       'created',
       'folder',
@@ -2238,6 +2433,22 @@ describe('getExportIndex: sig', () => {
     changing('the player who owns an actor is banned', 'hero', w => void (w.alice.role = 0)),
     changing('a pin is deleted', 'scene', w => void w.scene.notes.delete(id16('n2'))),
     changing(
+      'a token arrives',
+      'scene',
+      w => void w.scene.tokens.add(makeToken({ id: id16('t2'), name: 'Bat', x: 5 }))
+    ),
+    changing(
+      'a token is hidden',
+      'scene',
+      w => void (w.scene.tokens.get(id16('t1')).hidden = true)
+    ),
+    changing(
+      'a token is renamed',
+      'scene',
+      w => void (w.scene.tokens.get(id16('t1')).name = 'Dire Wolf')
+    ),
+    changing('a token leaves', 'scene', w => void w.scene.tokens.delete(id16('t1'))),
+    changing(
       'a pin is relabelled',
       'scene',
       w => void (w.scene.notes.get(id16('n1')).text = 'Cathedral')
@@ -2312,9 +2523,12 @@ describe('getExportIndex: sig', () => {
       'token art changes',
       w => void (w.hero.prototypeToken.texture = { src: 'tokens/new.webp' })
     ),
-    quiet('a token moves and another arrives', w => {
-      w.scene.tokens.get(id16('t1')).x = 900;
-      w.scene.tokens.add(makeToken({ id: id16('t2'), name: 'Bat', x: 5 }));
+    quiet('a token moves, turns and changes art', w => {
+      const token = w.scene.tokens.get(id16('t1'));
+      token.x = 900;
+      token.y = 450;
+      token.rotation = 90;
+      token.texture = { src: 'tokens/other.webp' };
     }),
     quiet('a wall is drawn', w => void w.scene.walls.add({ id: id16('w1'), c: [0, 0, 100, 100] })),
     quiet('scene flags change', w => void (w.scene.flags = { other: { note: 'x' } })),
@@ -2595,7 +2809,7 @@ describe('getExportIndex: canary', () => {
       tokens: [
         makeToken({
           id: id16('t1'),
-          name: 'CANARY_TOKEN',
+          name: 'Wolf',
           x: 424242,
           texture: { src: 'CANARY_TOKEN_TEXTURE.webp' },
         }),
@@ -2732,7 +2946,9 @@ describe('getExportIndex: canary', () => {
     expect(hero?.system.details.biography.value).toBe('CANARY_BIOGRAPHY');
     expect(hero?.system.attributes.hp.value).toBe(31415);
     expect(hero?.effects.contents[0]?.name).toBe('CANARY_EFFECT');
-    expect(world.scenes.get(SCENE_ID)?.tokens.get(id16('t1'))?.name).toBe('CANARY_TOKEN');
+    expect(world.scenes.get(SCENE_ID)?.tokens.get(id16('t1'))?.texture.src).toBe(
+      'CANARY_TOKEN_TEXTURE.webp'
+    );
     const html = world.journal.get(SECRET_JOURNAL)?.pages.get(id16('pgh'));
     expect(html?.text.content).toContain('CANARY_PAGE_HTML');
     expect(html?.text.markdown).toContain('CANARY_PAGE_MARKDOWN');

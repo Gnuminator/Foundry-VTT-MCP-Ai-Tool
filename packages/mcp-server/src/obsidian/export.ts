@@ -99,6 +99,8 @@ export interface ExportResult {
   unchanged: string[];
   created: string[];
   skipped: Array<{ path: string; reason: string }>;
+  /** GM-owned notes left as the GM edited them (a standing note, not a problem). */
+  kept: Array<{ path: string; reason: string }>;
   trashed: string[];
   errors: Array<{ path: string; error: string }>;
 }
@@ -426,6 +428,7 @@ export async function exportWorldToObsidian(options: {
     renderStatusNote(worldId, {
       notesManaged: writer.producedCount,
       skipped: [...writer.skipped],
+      kept: [...writer.kept],
       errors: [...writer.errors],
     }),
     checkMarkdownOwnership
@@ -438,6 +441,7 @@ export async function exportWorldToObsidian(options: {
     unchanged: writer.unchanged,
     created: writer.created,
     skipped: writer.skipped,
+    kept: writer.kept,
     trashed: writer.trashed,
     errors: writer.errors,
   };

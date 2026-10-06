@@ -558,6 +558,28 @@ describe('ObsidianMirrorPump: the GM owns what the GM touched', () => {
     expect(await listFiles(full('AI Tool/Foundry/NPCs'))).toEqual([]);
   });
 
+  it('links a prep note the GM adds later from the scene and journal notes, and unlinks it (I-121)', async () => {
+    const pump = await started();
+    expect(await read(P.arena)).toContain('prep: null');
+    const prepNote = (type: string, uuid: string): string =>
+      ['---', `type: ${type}`, `fvtt_uuid: ${JSON.stringify(uuid)}`, '---', 'Mine', ''].join('\n');
+    await fsp.mkdir(full('Prep/Places'), { recursive: true });
+    await fsp.mkdir(full('Prep/Quests'), { recursive: true });
+    await fsp.writeFile(full('Prep/Places/Arena.md'), prepNote('location-prep', ARENA.uuid));
+    await fsp.writeFile(full('Prep/Quests/Lore.md'), prepNote('quest-prep', LORE.uuid));
+    // No document changed: the next reconcile's scan finds the new prep notes.
+    await tickAfter(pump, RECONCILE_EVERY_MS);
+    const arena = (await read(P.arena)) ?? '';
+    expect(arena).toMatch(/^prep: "\[\[.*\/Prep\/Places\/Arena\|Test Arena prep\]\]"$/m);
+    expect(arena).toContain('## Related notes');
+    expect(arena).toContain('- [Prep](../../../Prep/Places/Arena.md)');
+    expect(await read(P.lore)).toMatch(/^prep: "\[\[.*\/Prep\/Quests\/Lore\|Lore prep\]\]"$/m);
+    await fsp.rm(full('Prep/Places/Arena.md'));
+    await tickAfter(pump, RECONCILE_EVERY_MS);
+    expect(await read(P.arena)).toContain('prep: null');
+    expect(await read(P.arena)).not.toContain('## Related notes');
+  });
+
   it('reports a second note with the same uuid as a duplicate', async () => {
     const pump = await started();
     const copy = 'AI Tool/Foundry/NPCs/Wolf2.md';

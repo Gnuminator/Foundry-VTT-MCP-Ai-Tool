@@ -394,11 +394,15 @@ describe('exportWorldToObsidian', () => {
     const result = await run();
     expect(await note('Home.md')).toBe(edited);
     expect(result.written).not.toContain('Home.md');
-    expect(result.skipped.map(s => s.path)).toEqual(['Home.md']);
+    expect(result.skipped).toEqual([]);
+    expect(result.kept.map(s => s.path)).toEqual(['Home.md']);
     const status = await note('AI Tool/_status.md');
+    expect(status).toContain('## Your own notes (kept as you edited them)');
     expect(status).toMatch(
       /- `Home\.md`: your own Home \(edited in Obsidian\).*Adventures section/
     );
+    expect(status).toContain('notes_skipped: 0');
+    expect(status).toMatch(/## Skipped[^\n]*\n\n- \(none\)/);
   });
 
   it('writes the prep templates only while their folder is missing (R2)', async () => {

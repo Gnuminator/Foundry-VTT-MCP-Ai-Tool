@@ -56,6 +56,7 @@
  */
 import type {
   ExportActorEntry,
+  ExportActorLink,
   ExportEntry,
   ExportFolderRef,
   ExportIdEntry,
@@ -69,6 +70,7 @@ import type {
   ExportPageText,
   ExportSceneEntry,
   ExportScenePin,
+  ExportSceneToken,
   PlayerAccess,
   RulesTag,
   TokenDisposition,
@@ -143,7 +145,9 @@ export const EXPORT_INDEX_LIMITS = {
   featuresPerActor: 80,
   notableItemsPerActor: 40,
   pinsPerScene: 300,
+  tokensPerScene: 200,
   pagesPerJournal: 1000,
+  actorLinksPerJournal: 500,
   holdersPerItem: 20,
   statBlockBytes: 256 * 1024,
   pathChars: 1024,
@@ -408,6 +412,16 @@ interface Context {
   folderCache: Map<string, FolderInfo | null>;
   holderIndex: HolderIndex | null;
   holderCache: Map<string, HolderResult>;
+  npcIndex: NpcIndex | null;
+  /** Compendium actor uuid -> the world NPC it stands for (null: none or ambiguous). */
+  actorLinkCache: Map<string, { actorUuid: string; match: 'source' | 'name' } | null>;
+}
+
+interface NpcIndex {
+  /** Compendium source uuid -> world NPCs made from it. */
+  bySource: Map<string, Rec[]>;
+  /** Lowercased name -> world NPCs. */
+  byName: Map<string, Rec[]>;
 }
 
 /** The parent chain of a folder (parent first), bounded against cycles. */
@@ -544,11 +558,22 @@ function sourceUuidOf(item: Rec): string | null {
  */
 function actorSourceUuidOf(actor: Rec, ownUuid: string): string | null {
   const own = new Set([ownUuid, `Actor.${str(actor.id) ?? ''}`]);
-  for (const key of ['compendiumSource', 'duplicateSource']) {
-    const value = nonEmpty(dig(actor, '_stats', key));
-    if (value && !own.has(value)) return value;
+  for (const value of actorSources(actor)) {
+    if (!own.has(value)) return value;
   }
   return null;
+}
+
+/**
+ * An actor's recorded sources in order: `_stats.compendiumSource`, `_stats.duplicateSource`,
+ * then the pre-v12 `flags.core.sourceId` that older imports still carry.
+ */
+function actorSources(actor: Rec): string[] {
+  return [
+    nonEmpty(dig(actor, '_stats', 'compendiumSource')),
+    nonEmpty(dig(actor, '_stats', 'duplicateSource')),
+    nonEmpty(dig(actor, 'flags', 'core', 'sourceId')),
+  ].filter((x): x is string => x !== null);
 }
 
 function rulesOf(doc: Rec): RulesTag | null {
@@ -674,7 +699,8 @@ function effectiveTime(ctx: Context, kind: ExportKind, doc: Rec, uuid: string): 
       return maxTime([own, folder, ...embeddedItems(doc).map(timeOf)]);
     case 'scene':
       // Never tokens: they move all the time. A Note has no `_stats` in Foundry 14.368
-      // (`common/documents/note.mjs:45-57`), so pin edits are caught by `sig` only.
+      // (`common/documents/note.mjs:45-57`), so pin edits are caught by `sig` only, and so
+      // are token rows (added, removed, renamed, hidden), which never carry positions.
       return maxTime([own, folder, ...contentsOf(doc.notes).map(timeOf)]);
     case 'journal':
       return maxTime([
@@ -923,6 +949,54 @@ function noteLabel(note: Rec): string | null {
   return linkedName(note.entry);
 }
 
+/**
+ * The scene's tokens folded by world actor, name, disposition and hidden flag
+ * (`common/documents/token.mjs`: `actorId`, `actorLink`, `name`, `disposition`, `hidden`).
+ * An unlinked token's synthetic actor is not a world document, so the row names the world
+ * actor behind it (`actorId`); a token whose actor is gone keeps its name only.
+ */
+function sceneTokens(doc: Rec): ExportSceneToken[] {
+  const actors = rec(rec(game as unknown)?.actors);
+  const get = actors?.get;
+  const rows = new Map<string, ExportSceneToken>();
+  for (const token of contentsOf(doc.tokens)) {
+    const actorId = nonEmpty(token.actorId) ?? nonEmpty(dig(token, '_source', 'actorId'));
+    const actor =
+      actorId && typeof get === 'function'
+        ? rec((get as (key: string) => unknown).call(actors, actorId))
+        : null;
+    const row: ExportSceneToken = {
+      name: clip(str(token.name) ?? (actor ? sourceName(actor) : '')),
+      actorUuid: actor ? uuidOf(actor, 'Actor') : null,
+      actorType: actor ? nonEmpty(actor.type) : null,
+      actorLink: token.actorLink === true,
+      disposition: dispositionName(token.disposition),
+      hidden: token.hidden === true,
+      count: 1,
+    };
+    const key = JSON.stringify([
+      row.actorUuid,
+      row.name,
+      row.actorLink,
+      row.disposition,
+      row.hidden,
+    ]);
+    const seen = rows.get(key);
+    if (seen) seen.count += 1;
+    else rows.set(key, row);
+  }
+  return [...rows.values()]
+    .sort(
+      (a, b) =>
+        compare(a.name, b.name) ||
+        compare(a.actorUuid ?? '', b.actorUuid ?? '') ||
+        Number(a.hidden) - Number(b.hidden) ||
+        compare(a.disposition ?? '', b.disposition ?? '') ||
+        Number(a.actorLink) - Number(b.actorLink)
+    )
+    .slice(0, LIMITS.tokensPerScene);
+}
+
 function sceneFields(ctx: Context, c: Candidate): Omit<ExportSceneEntry, 'modified' | 'sig'> {
   const doc = c.doc;
   const access = highestPlayerLevel(ctx, doc);
@@ -972,8 +1046,114 @@ function sceneFields(ctx: Context, c: Candidate): Omit<ExportSceneEntry, 'modifi
         }
       : null,
     pins,
+    tokens: sceneTokens(doc),
     map,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Compendium actor links -> world NPCs (journal page text)
+// ---------------------------------------------------------------------------
+
+/** `Compendium.pkg.pack[.Actor].id` in any link form; `@Compendium[pkg.pack.id]` (legacy). */
+const COMPENDIUM_ID_LINK = /Compendium\.([\w-]+)\.([\w-]+)\.(?:Actor\.)?([A-Za-z0-9]{16})(?!\w)/g;
+const LEGACY_COMPENDIUM_LINK = /@Compendium\[([\w-]+)\.([\w-]+)\.([A-Za-z0-9]{16})\]/g;
+
+function nameKey(name: string): string {
+  return name.normalize('NFC').trim().toLowerCase();
+}
+
+function buildNpcIndex(): NpcIndex {
+  const index: NpcIndex = { bySource: new Map(), byName: new Map() };
+  for (const actor of contentsOf(rec(game as unknown)?.actors)) {
+    if (actor.type !== 'npc' || !nonEmpty(actor.id)) continue;
+    for (const source of new Set(actorSources(actor))) {
+      if (!source.startsWith('Compendium.')) continue;
+      const list = index.bySource.get(source) ?? [];
+      list.push(actor);
+      index.bySource.set(source, list);
+    }
+    const key = nameKey(sourceName(actor));
+    if (!key) continue;
+    const named = index.byName.get(key) ?? [];
+    named.push(actor);
+    index.byName.set(key, named);
+  }
+  return index;
+}
+
+/** The pack's index entry name for an Actor pack, else null (`CompendiumCollection#index`). */
+function compendiumActorName(collection: string, id: string): string | null {
+  const packs = rec(rec(game as unknown)?.packs);
+  const get = packs?.get;
+  const pack =
+    typeof get === 'function' ? rec((get as (k: string) => unknown).call(packs, collection)) : null;
+  if (!pack || pack.documentName !== 'Actor') return null;
+  const index = rec(pack.index);
+  const lookup = index?.get;
+  const entry =
+    typeof lookup === 'function' ? rec((lookup as (k: string) => unknown).call(index, id)) : null;
+  return nonEmpty(entry?.name);
+}
+
+/**
+ * The world NPC a compendium actor stands for (the user's rule, 2026-10-06): the one NPC made
+ * from it (several: the one among them with its name); else the only world NPC whose name is the
+ * compendium actor's name (case-insensitive). Ambiguous or none: null, and the link stays a
+ * Library link.
+ */
+function worldActorFor(
+  ctx: Context,
+  collection: string,
+  id: string
+): { compendiumUuid: string; actorUuid: string; match: 'source' | 'name' } | null {
+  const compendiumUuid = `Compendium.${collection}.Actor.${id}`;
+  let found = ctx.actorLinkCache.get(compendiumUuid);
+  if (found === undefined) {
+    found = null;
+    const name = compendiumActorName(collection, id);
+    if (name !== null) {
+      ctx.npcIndex ??= buildNpcIndex();
+      const fromSource = ctx.npcIndex.bySource.get(compendiumUuid) ?? [];
+      const pool =
+        fromSource.length > 0 ? fromSource : (ctx.npcIndex.byName.get(nameKey(name)) ?? []);
+      const picked =
+        pool.length === 1
+          ? pool
+          : pool.filter(actor => nameKey(sourceName(actor)) === nameKey(name));
+      const actor = picked.length === 1 ? picked[0] : undefined;
+      if (actor) {
+        found = {
+          actorUuid: uuidOf(actor, 'Actor'),
+          match: fromSource.length > 0 ? 'source' : 'name',
+        };
+      }
+    }
+    ctx.actorLinkCache.set(compendiumUuid, found);
+  }
+  return found ? { compendiumUuid, ...found } : null;
+}
+
+/** The compendium actors an opted-in journal's text pages link to that stand for a world NPC. */
+function journalActorLinks(ctx: Context, pageDocs: Rec[]): ExportActorLink[] {
+  const links = new Map<string, ExportActorLink>();
+  for (const page of pageDocs) {
+    if ((str(page.type) ?? 'text') !== 'text') continue;
+    const { content } = pageText(page);
+    if (!content.includes('Compendium')) continue;
+    for (const pattern of [COMPENDIUM_ID_LINK, LEGACY_COMPENDIUM_LINK]) {
+      for (const match of content.matchAll(pattern)) {
+        const collection = `${match[1] ?? ''}.${match[2] ?? ''}`;
+        const key = `Compendium.${collection}.Actor.${match[3] ?? ''}`;
+        if (links.has(key)) continue;
+        const link = worldActorFor(ctx, collection, match[3] ?? '');
+        if (link) links.set(key, link);
+      }
+    }
+  }
+  return [...links.values()]
+    .sort((a, b) => compare(a.compendiumUuid, b.compendiumUuid))
+    .slice(0, LIMITS.actorLinksPerJournal);
 }
 
 interface JournalBuilt {
@@ -1028,14 +1208,21 @@ function journalFields(ctx: Context, c: Candidate): JournalBuilt {
     playerVisible: pageAccessForPlayers(page as unknown as JournalEntryPage).page,
   }));
 
+  const textIncluded = textOptedIn(ctx, c);
   return {
     fields: {
       ...commonFields(ctx, c, access, observed, false),
       kind: 'journal',
       categories,
-      textIncluded: textOptedIn(ctx, c),
+      textIncluded,
       pages,
       pagesTotal: allPages.length,
+      actorLinks: textIncluded
+        ? journalActorLinks(
+            ctx,
+            kept.map(entry => entry.page)
+          )
+        : [],
     },
     pageDocs: kept.map(entry => entry.page),
   };
@@ -1186,6 +1373,8 @@ export function getExportIndex(data: unknown): ExportIndexResponse | ExportIndex
     folderCache: new Map(),
     holderIndex: null,
     holderCache: new Map(),
+    npcIndex: null,
+    actorLinkCache: new Map(),
   };
 
   const universe = collectUniverse(ctx);

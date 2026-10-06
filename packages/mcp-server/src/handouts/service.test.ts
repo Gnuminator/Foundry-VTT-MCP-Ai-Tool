@@ -916,3 +916,104 @@ describe('planPageReveal: copying page types', () => {
     ).rejects.toThrow(/does not report page types. Update the module/);
   });
 });
+
+describe('planPageReveal: show it now (I-110)', () => {
+  const ANNA = 'aaaaaaaaaaaaaaaa';
+  const BO = 'bbbbbbbbbbbbbbbb';
+  const showLine = (plan: { diff: Array<{ kind: string }> }): any =>
+    plan.diff.find(d => d.kind === 'show');
+  const shown = (): unknown[] =>
+    foundry.calls.filter(([m]) => m.endsWith('showJournalPage')).map(([, d]) => d);
+
+  beforeEach(() => {
+    foundry.handlers['foundry-mcp-bridge.showJournalPage'] = (): unknown => ({ shown: true });
+  });
+
+  it('without showNow the plan has no show line and nothing is shown', async () => {
+    const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
+    expect(showLine(plan)).toBeUndefined();
+    const applied = await guarded.applyPlan(plan.planId, {
+      confirm: true,
+      confirmDestructive: true,
+    });
+    expect(shown()).toEqual([]);
+    expect(applied.shown).toBeUndefined();
+    await expect(
+      handouts.planPageReveal({ pageUuid: PAGE2, action: 'reveal', showNow: false })
+    ).resolves.toBeDefined();
+  });
+
+  it('a direct reveal shows the revealed page to every player', async () => {
+    const plan = await handouts.planPageReveal({
+      pageUuid: PAGE1,
+      action: 'reveal',
+      copy: false,
+      showNow: true,
+    });
+    expect(showLine(plan)).toMatchObject({ target: PAGE1, label: expect.stringContaining('Wine') });
+    expect(showLine(plan).text).toContain('every player who can see it');
+    const applied = await guarded.applyPlan(plan.planId, {
+      confirm: true,
+      confirmDestructive: true,
+    });
+    expect(shown()).toEqual([{ uuid: PAGE1, userIds: [] }]);
+    expect(applied.shown).toEqual({ ok: true, users: [] });
+  });
+
+  it('a reveal to chosen players shows it to those players only', async () => {
+    const plan = await handouts.planPageReveal({
+      pageUuid: PAGE1,
+      action: 'reveal',
+      copy: false,
+      players: [ANNA, BO],
+      showNow: true,
+    });
+    expect(showLine(plan).text).toContain('2 players');
+    await guarded.applyPlan(plan.planId, { confirm: true, confirmDestructive: true });
+    expect(shown()).toEqual([{ uuid: PAGE1, userIds: [ANNA, BO] }]);
+  });
+
+  it('a new copy in "Handouts" is shown by its own uuid', async () => {
+    hiddenJournal.add(PAGE1);
+    const plan = await handouts.planPageReveal({
+      pageUuid: PAGE1,
+      action: 'reveal',
+      showNow: true,
+    });
+    expect(plan.copy).toMatchObject({ action: 'create' });
+    expect(showLine(plan)).toMatchObject({ target: plan.copy!.pageUuid });
+    await guarded.applyPlan(plan.planId, { confirm: true, confirmDestructive: true });
+    expect(shown()).toEqual([{ uuid: plan.copy!.pageUuid, userIds: [] }]);
+    expect(foundry.docs.has(plan.copy!.pageUuid)).toBe(true);
+  });
+
+  it('an updated copy is shown by the existing copy uuid', async () => {
+    hiddenJournal.add(PAGE1);
+    const first = await planAndApply({ pageUuid: PAGE1, action: 'reveal' });
+    const copyUuid = first.plan.copy!.pageUuid;
+    foundry.edit(PAGE1, { path: 'text.content', present: true, value: '<p>It was wine.</p>' });
+    const plan = await handouts.planPageReveal({
+      pageUuid: PAGE1,
+      action: 'reveal',
+      players: [ANNA],
+      showNow: true,
+    });
+    expect(plan.copy).toMatchObject({ action: 'update', pageUuid: copyUuid });
+    expect(showLine(plan)).toMatchObject({ target: copyUuid });
+    await guarded.applyPlan(plan.planId, { confirm: true, confirmDestructive: true });
+    expect(shown()).toEqual([{ uuid: copyUuid, userIds: [ANNA] }]);
+  });
+
+  it('refuses showNow with hide, and a non-boolean showNow', async () => {
+    await apply(
+      (await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal', copy: false })).planId,
+      true
+    );
+    await expect(
+      handouts.planPageReveal({ pageUuid: PAGE1, action: 'hide', showNow: true })
+    ).rejects.toThrow(/never shows/);
+    await expect(
+      handouts.planPageReveal({ pageUuid: PAGE2, action: 'reveal', showNow: 'yes' as never })
+    ).rejects.toThrow(/showNow must be true or false/);
+  });
+});

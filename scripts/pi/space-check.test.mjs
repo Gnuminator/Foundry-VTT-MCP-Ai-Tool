@@ -62,6 +62,42 @@ describe('Pi scripts', { skip: !hasBash && 'bash is not available' }, () => {
     assert.match(script, /\|\| space_rc=\$\?/);
   });
 
+  test('the pre-check sizes nothing, and a failing or hanging checker only warns', () => {
+    const script = heredoc('6-backup.sh', 'BACKUP_SCRIPT');
+    assert.doesNotMatch(script.replace(/^#.*$/gm, ''), /\bdu\b|need-bytes|need-path/);
+    const start = script.indexOf('space_check=');
+    const end = script.indexOf('# Foundry keeps its worlds');
+    assert.ok(start > 0 && end > start);
+    const section = script.slice(start, end);
+    assert.match(section, /timeout 60 "\$space_check"/);
+    // Run just the pre-check with stand-in checkers (a 1 second limit instead of 60).
+    const hasTimeout = spawnSync('bash', ['-c', 'command -v timeout']).status === 0;
+    const precheck = body => {
+      const fake = path.join(tmp, 'fake-checker.sh');
+      writeFileSync(fake, `#!/usr/bin/env bash\n${body}\n`);
+      chmodSync(fake, 0o755);
+      const text = section.replace('space_check=/opt/foundry-ai-tool/space/space-check.sh', `space_check=${slash(fake)}`).replace('timeout 60', 'timeout 1');
+      return spawnSync('bash', ['-c', `set -euo pipefail\n${text}\necho REACHED`], { encoding: 'utf8' });
+    };
+    let r = precheck('exit 0');
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /REACHED/);
+    r = precheck('exit 3');
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /backup skipped: disk space is critical/);
+    assert.doesNotMatch(r.stdout, /REACHED/);
+    r = precheck('exit 7');
+    assert.match(r.stdout, /REACHED/);
+    assert.match(r.stderr, /space check failed \(exit 7\); backing up anyway/);
+    if (hasTimeout) {
+      const t = Date.now();
+      r = precheck('exec sleep 30');
+      assert.ok(Date.now() - t < 15000, 'the hung checker was not stopped');
+      assert.match(r.stdout, /REACHED/);
+      assert.match(r.stderr, /did not finish within 60 seconds; backing up anyway/);
+    }
+  });
+
   // A fake df: the last argument is the path; a, a2 share one filesystem, b is 12% free, c is 3% free.
   const fakeDf = `#!/usr/bin/env bash
 path="\${@: -1}"
@@ -70,6 +106,7 @@ case "$(basename "$path")" in
 a | a2) echo "/dev/a 1000000000 368000000 632000000 37% /mnt/a" ;;
 b) echo "/dev/b 1000000000 880000000 120000000 88% /mnt/b" ;;
 c) echo "/dev/c 1000000000 970000000 30000000 97% /mnt/c" ;;
+d | d2) echo "/dev/d 32000000000 24960000000 7040000000 78% /mnt/d" ;;
 *) exit 1 ;;
 esac
 `;
@@ -87,7 +124,7 @@ esac
     const df = path.join(tmp, 'fake-df.sh');
     writeFileSync(df, fakeDf);
     chmodSync(df, 0o755);
-    dirs = Object.fromEntries(['a', 'a2', 'b', 'c'].map(n => [n, slash(path.join(tmp, 'disks', n))]));
+    dirs = Object.fromEntries(['a', 'a2', 'b', 'c', 'd', 'd2'].map(n => [n, slash(path.join(tmp, 'disks', n))]));
     for (const d of Object.values(dirs)) mkdirSync(d, { recursive: true });
     statusFile = slash(path.join(tmp, 'status', 'status.json'));
     env = {
@@ -155,15 +192,36 @@ esac
     assert.equal(s.lastJob.ran, false);
   });
 
-  test('less free space than the job needs is critical on the destination', () => {
-    // Disk b has 120 MB free (12%): fine for 100 MB, critical for 150 MB.
-    let r = run(['--job', 'restic backup', '--need-bytes', '100000000', '--need-path', dirs.b]);
+  test('a job run never changes the levels of the disks or the overall level, only lastJob', () => {
+    const levels = s => [s.level, ...s.disks.map(d => d.level)];
+    run();
+    const hourly = readStatus();
+    for (const job of ['restic backup', 'snapshot pull', 'recordings']) {
+      run(['--job', job]);
+      const s = readStatus();
+      assert.deepEqual(levels(s), levels(hourly), job);
+      assert.deepEqual(s.disks.map(d => d.freePercent), hourly.disks.map(d => d.freePercent), job);
+      assert.equal(s.lastJob.name, job);
+    }
+    // The old "needs N bytes" options are gone.
+    assert.equal(run(['--job', 'restic backup', '--need-bytes', '1']).status, 64);
+    assert.equal(run(['--need-path', dirs.b]).status, 64);
+  });
+
+  test('a restic repository on the disk of its sources at 22% free (8 GB of data, 7 GB free): the backup runs, all ok', () => {
+    // One filesystem holds the data, the repository and the system (the Pi's single SD card).
+    const shared = [
+      `${dirs.d}|restic backup (source)`,
+      `${dirs.d2}|restic backup (destination)`,
+    ].join('\n');
+    const r = run(['--job', 'restic backup'], { FOUNDRY_AI_SPACE_ENTRIES: shared });
     assert.equal(r.status, 0, r.stderr);
-    r = run(['--job', 'restic backup', '--need-bytes', '150000000', '--need-path', dirs.b]);
-    assert.equal(r.status, 3, r.stderr);
-    assert.match(r.stderr, /CRITICAL: disk \/mnt\/b/);
-    assert.match(r.stderr, /restic backup needs about 0\.1 GB on \/mnt\/b/);
-    assert.equal(readStatus().lastJob.ran, false);
+    const s = readStatus();
+    assert.equal(s.level, 'ok');
+    assert.equal(s.disks.length, 1);
+    assert.deepEqual([s.disks[0].level, s.disks[0].freePercent], ['ok', 22]);
+    assert.deepEqual(s.lastJob, { ...s.lastJob, name: 'restic backup', level: 'ok', ran: true });
+    assert.doesNotMatch(r.stderr, /WARNING|CRITICAL|needs about/);
   });
 
   test('the hourly run keeps the last job and the output is valid on a bad option', () => {

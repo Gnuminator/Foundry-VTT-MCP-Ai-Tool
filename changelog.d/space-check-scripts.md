@@ -7,7 +7,9 @@
   `UNDO=1` removes it. The Discord bot and the dashboard read the status file (separate change).
 - **The nightly restic backup checks first** (`6-backup.sh`): it runs the checker as its own job,
   records `lastJob`, still runs below 20 %, and is skipped before Foundry stops when space is critical
-  (under 5 % free, or less free than the data it would back up). Run stage 6 again after stage 10.
+  (under 5 % free on a disk it uses; no source-size test, since restic stores only changes and the
+  repository shares the disk). The call has a 60 second limit and a failing checker only warns. A job
+  run changes only `lastJob`, never the disks' levels. Run stage 6 again after stage 10.
 - **The PC pulls check space** (`scripts/pi/space-check.ps1`, called at the start of
   `pull-snapshot.ps1` and `pull-restic.ps1`): the backup drive, the Syncthing vault folder and the
   Pi's status (read-only over SSH). Below 20 % free they log a WARNING and show a Windows
@@ -20,3 +22,7 @@
 - `scripts/pi/space-check.test.mjs` (CI step "Pi space check"): the stage scripts parse, the checker's
   JSON follows the contract, job blocking and `lastJob`, and the PC helper's levels and Pi-status
   handling. The remote command guard test now includes stages numbered 10 and up.
+- **Remote command guard** (`.claude/hooks/guard-remote-commands.mjs`): two patterns backtracked
+  without end (`ssh host cat file` with no pipe after it, and `rm -rf -rf -rf ...` with no target).
+  They are linear now, with tests for those commands and a timing guard; nothing it blocked before
+  is allowed now.

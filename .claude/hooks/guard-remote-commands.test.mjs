@@ -121,3 +121,40 @@ test('an ask becomes a deny where nobody would see the prompt', () => {
   assert.equal(finalDecision('ask', undefined), 'deny');
   assert.equal(finalDecision('deny', 'default'), 'deny');
 });
+
+test('a remote cat with no pipe after it returns at once (it used to backtrack forever)', () => {
+  const t = performance.now();
+  assert.equal(kind('ssh foundry-pi cat /var/lib/foundry-ai-tool/space/status.json'), 'allow');
+  assert.equal(kind("ssh foundry-pi 'cat /var/lib/foundry-ai-tool/space/status.json'"), 'allow');
+  assert.equal(kind('ssh foundry-pi cat /a /b "/c d"'), 'allow');
+  assert.ok(performance.now() - t < 1000);
+  // A local cat piped into ssh still feeds the script file to the checks.
+  assert.equal(kind('cat scripts/pi/remote/lib.sh scripts/pi/remote/9-ssh-log.sh | ssh foundry-pi bash'), 'ask');
+});
+
+test('long adversarial commands are checked in linear time', () => {
+  const long = [
+    'ssh foundry-pi cat ' + 'a'.repeat(2000),
+    'ssh foundry-pi cat ' + 'a;'.repeat(1000),
+    "ssh foundry-pi cat '" + 'a '.repeat(1000),
+    'ssh foundry-pi rm ' + '-rf '.repeat(500) + 'x',
+    'ssh foundry-pi rm ' + '-rf '.repeat(500),
+    'ssh foundry-pi chmod -R ' + 'a/'.repeat(1000),
+    'ssh foundry-pi systemctl stop ' + 'a '.repeat(1000),
+    'ssh foundry-pi ' + 'a.sh '.repeat(400),
+    ('# x\n' + 'ssh foundry-pi cat a\n').repeat(80),
+  ];
+  for (const c of long) {
+    const t = performance.now();
+    decide(c, repo);
+    const ms = performance.now() - t;
+    assert.ok(ms < 100, `${ms.toFixed(0)} ms for ${c.slice(0, 40)}...`);
+  }
+});
+
+test('repeated flags do not hide a recursive delete of / or a system folder', () => {
+  assert.equal(kind("ssh foundry-pi 'rm -rf -rf /'"), 'deny');
+  assert.equal(kind("ssh foundry-pi 'rm -f -r --recursive /etc'"), 'deny');
+  assert.equal(kind("ssh foundry-pi 'rm --recursive --force /*'"), 'deny');
+  assert.equal(kind("ssh foundry-pi 'rm -rf -rf /opt/foundry/old'"), 'allow');
+});

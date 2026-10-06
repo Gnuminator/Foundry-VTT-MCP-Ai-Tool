@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Stage 10: a storage space check on the Pi. The user's rule (2026-10-06): every backup, snapshot and
 # sync checks its source and its destination for at least 20% free space; below 20% the job still
-# runs but warns, and it stops only when space is critical (under 5% free, or less free space than
-# the job needs when that is known). This stage installs:
+# runs but warns, and it stops only when space is critical (under 5% free). This stage installs:
 #   - the checker $TOOL_DIR/space/space-check.sh, which writes the status file
 #     $TOOL_DATA/space/status.json (one entry per filesystem; the contract is in the checker's header)
 #     and logs a WARNING line to the journal when a disk is low or critical;
@@ -54,15 +53,17 @@ checker_body="$(
 # Storage space check (written by scripts/pi/remote/10-space-check.sh; edit it there).
 #
 #   space-check.sh                     write the status file (the hourly timer)
-#   space-check.sh --job "restic backup" [--need-bytes N] [--need-path P]
+#   space-check.sh --job "restic backup"
 #                                      a job's pre-check: also record lastJob; exit 3 when space is
 #                                      critical for that job (the job must not run), else 0
 #   space-check.sh --print             print the JSON instead of writing the file
 #
-# Levels per filesystem: "low" below 20% free, "critical" below 5% free or (with --need-bytes) less
-# free space than the job needs on --need-path's filesystem; "ok" otherwise. The overall level is the
-# worst one. A job is blocked only by disks that list it (a job name matches the start of a job label
-# such as "restic backup (source)"): a full snapshot disk never stops the restic backup.
+# Levels per filesystem: "low" below 20% free, "critical" below 5% free, "ok" otherwise. They depend
+# on the disk alone: a job run never changes disks[].level or the overall level, only lastJob. The
+# overall level is the worst one. A job is blocked only by disks that list it (a job name matches the
+# start of a job label such as "restic backup (source)"): a full snapshot disk never stops the restic
+# backup. There is deliberately no "needs N bytes" check: restic stores only changes and its
+# repository shares the disk with the data it copies, so the size of the sources says nothing.
 # The status file is written atomically (a temp file in the same folder, then mv). No secrets in it.
 # Environment (tests): FOUNDRY_AI_SPACE_STATUS (the file), FOUNDRY_AI_SPACE_DF (df program),
 # FOUNDRY_AI_SPACE_ENTRIES (lines "path|job;job" replacing the default list), FOUNDRY_AI_SPACE_HOST.
@@ -84,21 +85,11 @@ default_entries='/var/lib/foundry|restic backup (source)
 entries="${FOUNDRY_AI_SPACE_ENTRIES:-$default_entries}"
 
 job=""
-need_bytes=""
-need_path=""
 print_only=0
 while [ $# -gt 0 ]; do
   case "$1" in
   --job)
     job="${2:?--job needs a name}"
-    shift 2
-    ;;
-  --need-bytes)
-    need_bytes="${2:?--need-bytes needs a number}"
-    shift 2
-    ;;
-  --need-path)
-    need_path="${2:?--need-path needs a path}"
     shift 2
     ;;
   --print)
@@ -111,12 +102,6 @@ while [ $# -gt 0 ]; do
     ;;
   esac
 done
-case "$need_bytes" in
-*[!0-9]*)
-  echo "space-check: --need-bytes must be a whole number of bytes" >&2
-  exit 64
-  ;;
-esac
 
 # Journal priorities (systemd sets JOURNAL_STREAM): <4> warning, <2> critical.
 prio() { if [ -n "${JOURNAL_STREAM:-}" ]; then printf '<%s>' "$1"; fi; }
@@ -126,10 +111,10 @@ json_escape() {
   s="${s//\"/\\\"}"
   printf '%s' "$s"
 }
-# level TOTAL FREE NEED
+# level TOTAL FREE
 level_of() {
-  awk -v t="$1" -v f="$2" -v n="${3:-0}" -v th="$THRESHOLD" -v cr="$CRITICAL" \
-    'BEGIN { p = f * 100 / t; if (p < cr || (n > 0 && f < n)) print "critical"; else if (p < th) print "low"; else print "ok" }'
+  awk -v t="$1" -v f="$2" -v th="$THRESHOLD" -v cr="$CRITICAL" \
+    'BEGIN { p = f * 100 / t; if (p < cr) print "critical"; else if (p < th) print "low"; else print "ok" }'
 }
 percent_of() { awk -v t="$1" -v f="$2" 'BEGIN { printf "%.1f", f * 100 / t }'; }
 gb_of() { awk -v b="$1" 'BEGIN { printf "%.1f", b / 1073741824 }'; }
@@ -147,10 +132,8 @@ json_list() {
 
 declare -A m_total m_free m_paths m_jobs
 order=()
-need_mount=""
-add_path() { # path joblist (; separated); returns the mount through $mount
-  local path="$1" joblist="$2" line total avail
-  mount=""
+add_path() { # path joblist (; separated)
+  local path="$1" joblist="$2" line total avail mount
   [ -e "$path" ] || return 0
   line="$("$DF" -P -B1 -- "$path" 2>/dev/null | tail -n 1)" || return 0
   [ -n "$line" ] || return 0
@@ -175,22 +158,13 @@ while IFS='|' read -r path joblist; do
   add_path "$path" "$joblist"
 done <<<"$entries"
 
-if [ -n "$need_path" ]; then
-  p="$need_path"
-  while [ ! -e "$p" ] && [ "$p" != / ]; do p="$(dirname "$p")"; done
-  add_path "$p" "${job:-job} (destination)"
-  need_mount="$mount"
-fi
-
 overall=ok
 job_level=ok
 disks_json=""
 for mount in "${order[@]}"; do
   total="${m_total[$mount]}"
   free="${m_free[$mount]}"
-  need=0
-  if [ "$mount" = "$need_mount" ] && [ -n "$need_bytes" ]; then need="$need_bytes"; fi
-  level="$(level_of "$total" "$free" "$need")"
+  level="$(level_of "$total" "$free")"
   pct="$(percent_of "$total" "$free")"
   overall="$(worse "$overall" "$level")"
   if [ -n "$job" ] && [[ $'\n'"${m_jobs[$mount]}" == *$'\n'"$job ("* ]]; then
@@ -211,9 +185,6 @@ for mount in "${order[@]}"; do
     if [ "$level" = critical ]; then tag=CRITICAL; sev=2; else tag=WARNING; sev=4; fi
     printf '%s%s: disk %s has %s%% free (%s GB of %s GB); used by: %s\n' "$(prio "$sev")" "$tag" "$mount" "$pct" \
       "$(gb_of "$free")" "$(gb_of "$total")" "$uses" >&2
-    if [ "$level" = critical ] && [ "$need" -gt "$free" ]; then
-      printf '%s%s: %s needs about %s GB on %s\n' "$(prio "$sev")" "$tag" "${job:-the job}" "$(gb_of "$need")" "$mount" >&2
-    fi
   fi
 done
 

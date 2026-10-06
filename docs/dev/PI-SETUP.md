@@ -280,8 +280,9 @@ notes are written to the vault whenever the folder is set, mirror or not.
 
 The user's rule (2026-10-06): every backup, snapshot and sync checks its source and its destination
 for at least 20 % free space. Below 20 % the job still runs but warns; it stops only when space is
-critical: under 5 % free, or (for the nightly restic backup) less free space than the data it backs
-up. A full disk is the quiet way a backup chain stops working, so the warning has to reach someone.
+critical: under 5 % free on a disk the job uses. There is no "enough room for the data" test: restic
+stores only what changed and its repository sits on the same disk as its sources, so the size of the
+sources says nothing about what is needed. A full disk is the quiet way a backup chain stops working, so the warning has to reach someone.
 
 **On the Pi** (stage 10, `10-space-check.sh`): `/opt/foundry-ai-tool/space/space-check.sh` runs every
 hour from the systemd timer `foundry-space-check.timer` (and once after a boot or a missed hour) and
@@ -294,9 +295,11 @@ CRITICAL line to the journal: `journalctl -u foundry-space-check -n 20`. The sta
 secrets. The Discord bot (a DM) and the dashboard (a GM-only banner) read it.
 
 **The nightly restic backup** (stage 6) calls the checker first, as its own job: it records `lastJob`
-in the status file, runs anyway below 20 %, and at critical (disks that hold its sources or the
-repository, or less free than the data it would back up) exits without stopping Foundry, with the
-message "backup skipped: disk space is critical" in `journalctl -u foundry-backup`. Run stage 6 again
+in the status file, runs anyway below 20 %, and at critical (a disk that holds its sources or the
+repository is under 5 % free) exits without stopping Foundry, with the message "backup skipped: disk
+space is critical" in `journalctl -u foundry-backup`. The call has a 60 second limit; a checker that
+fails or hangs only logs a warning and the backup runs. A job run never changes the disks' levels in
+the status file, only `lastJob`. Run stage 6 again
 after stage 10 so the backup script gets the call; without the checker the backup simply runs as
 before. The system snapshots are DietPi's own job (`dietpi-backup`): they are not changed, and the
 hourly check covers the disk they sit on.

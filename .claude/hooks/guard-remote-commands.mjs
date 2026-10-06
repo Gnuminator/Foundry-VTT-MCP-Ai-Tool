@@ -44,7 +44,7 @@ const DENY = [
   [/--no-preserve-root/, 'rm --no-preserve-root'],
   [
     new RegExp(
-      String.raw`\brm\s+(?:-[a-zA-Z]*[rR][a-zA-Z]*\s+|--recursive\s+|-[a-zA-Z]+\s+)*(?:-[a-zA-Z]*[rR][a-zA-Z]*\s+)?["']?(?:/|/\*|~/?|\$HOME/?|/(?:${SYSTEM_DIRS})/?\*?)["']?(?=\s|$|[;&|)])`
+      String.raw`\brm\s+(?:(?:-[a-zA-Z]+|--[a-zA-Z-]+)\s+)*["']?(?:/|/\*|~/?|\$HOME/?|/(?:${SYSTEM_DIRS})/?\*?)["']?(?=\s|$|[;&|)])`
     ),
     'recursive delete of / , a system folder or the home folder',
   ],
@@ -128,7 +128,10 @@ function recursiveDeleteOutsideOwn(text) {
 function fedFiles(command, cwd) {
   const names = new Set();
   for (const m of command.matchAll(/<\s*("[^"]+"|'[^']+'|\S+)/g)) names.add(m[1]);
-  for (const m of command.matchAll(/\bcat\s+((?:("[^"]+"|'[^']+'|[^\s|;&<>]+)\s*)+)\|/g)) {
+  // `cat a b |`: take everything up to the next pipe with one character class, then split it into
+  // words. (An earlier single pattern with nested repeats over the same characters backtracked
+  // forever on `ssh host cat file` with no pipe after it.)
+  for (const m of command.matchAll(/\bcat\s([^|;&<>]*)\|/g)) {
     for (const t of m[1].matchAll(/"[^"]+"|'[^']+'|[^\s]+/g)) names.add(t[0]);
   }
   for (const m of command.matchAll(/("[^"]+\.sh"|'[^']+\.sh'|[^\s'"|;&<>]+\.sh)\b/g))

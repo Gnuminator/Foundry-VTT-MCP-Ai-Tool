@@ -73,9 +73,10 @@ export const MIRROR_STATUS_PATH = `${MIRROR_ROOT}/_status.md`;
  * and a scene without a journal links the journal named like its folder (graph orphans);
  * 7: scene and journal notes link their prep note (I-121); 8: scene notes list who is here
  * (the NPC and PC notes of their tokens); 9: compendium actor links in page notes go to the
- * world NPC that stands for them (source first, then a unique name).
+ * world NPC that stands for them (source first, then a unique name); 10: NPC and scene notes
+ * list the sessions they were seen in (R4) and carry `last_seen`.
  */
-export const MIRROR_RENDER_VERSION = 9;
+export const MIRROR_RENDER_VERSION = 10;
 
 /**
  * A module signature as the notes store it: with the renderer version and, optionally, a short
@@ -197,6 +198,11 @@ export interface MirrorRenderContext {
   statsNotePath(actorUuid: string): string | null;
   /** The GM's prep note (`npc-prep` etc., same `fvtt_uuid`), campaign-relative. */
   prepNotePath(uuid: string): string | null;
+  /**
+   * The session labels (`2026-11-29 S01`, oldest first) an NPC or scene was seen in (R4, from the
+   * play log by Foundry id; `[]` when none or not known yet).
+   */
+  seenSessions(uuid: string): readonly string[];
   /** Compendium links to Library notes. */
   library?: LibraryLinks;
   /** A Foundry image path to the Markdown embed of its copy in the vault (optionally `width` px wide), or null (no copy). */

@@ -17,6 +17,7 @@ import type {
   PlayRecordKind,
   PlayRecordsResponse,
   PlayRollInfo,
+  PlaySceneToken,
 } from '@gnuminator/shared';
 
 /**
@@ -137,8 +138,11 @@ interface EffectLike {
 
 interface TokenDocLike {
   uuid?: unknown;
+  name?: unknown;
   actor?: unknown;
+  actorId?: unknown;
   actorLink?: unknown;
+  hidden?: unknown;
   x?: unknown;
   y?: unknown;
 }
@@ -160,6 +164,7 @@ interface CombatLike {
 interface UserLike {
   id?: unknown;
   name?: unknown;
+  isGM?: unknown;
 }
 
 interface ChatMessageLike {
@@ -333,6 +338,45 @@ function tokensOf(scene: { tokens?: unknown } | null | undefined): TokenDocLike[
   const contents = asRecord(scene)?.tokens;
   const list = Array.isArray(contents) ? contents : asRecord(contents)?.contents;
   return Array.isArray(list) ? (list as unknown as TokenDocLike[]) : [];
+}
+
+/** Most actors a scene snapshot lists (`data.tokens` of `scene` and `user-join` records). */
+const MAX_SCENE_TOKENS = 200;
+
+/**
+ * A scene's tokens folded by base world actor, for the `data.tokens` snapshot: `Actor.<actorId>`
+ * for linked and unlinked tokens alike (never the token-synthetic uuid), the base actor's name,
+ * `hidden` only when every token of that actor is hidden. Tokens without an actor id are
+ * skipped. Sorted by uuid and capped, so the same scene always gives the same list.
+ */
+function sceneTokensOf(sceneId: string | null): PlaySceneToken[] {
+  if (!sceneId) return [];
+  const scene = game.scenes.get(sceneId);
+  const byActor = new Map<string, PlaySceneToken & { allHidden: boolean }>();
+  for (const token of tokensOf(scene)) {
+    const actorId = str(token.actorId);
+    if (!actorId) continue;
+    const actorUuid = `Actor.${actorId}`;
+    const hidden = bool(token.hidden);
+    const known = byActor.get(actorUuid);
+    if (known) {
+      known.allHidden = known.allHidden && hidden;
+      continue;
+    }
+    const base = shape<ActorLike>(game.actors.get(actorId));
+    byActor.set(actorUuid, {
+      actorUuid,
+      name: str(base?.name) ?? str(token.name) ?? actorUuid,
+      isPC: str(base?.type) === 'character',
+      allHidden: hidden,
+    });
+  }
+  return [...byActor.values()]
+    .sort((a, b) => (a.actorUuid < b.actorUuid ? -1 : a.actorUuid > b.actorUuid ? 1 : 0))
+    .slice(0, MAX_SCENE_TOKENS)
+    .map(
+      ({ allHidden, ...entry }): PlaySceneToken => (allHidden ? { ...entry, hidden: true } : entry)
+    );
 }
 
 /** Sum of `system.levels` across an actor's `class` items; null for non-characters. */
@@ -1721,7 +1765,7 @@ export class PlayRecorder {
         kind: 'scene',
         key: playRecordKeys.scene(sceneId, t),
         t,
-        data: { sceneName: name },
+        data: { sceneName: name, tokens: sceneTokensOf(sceneId) },
       })
     );
   }
@@ -1764,6 +1808,11 @@ export class PlayRecorder {
     const key =
       connected === true ? playRecordKeys.userJoin(userId, t) : playRecordKeys.userLeave(userId, t);
     const name = str(user?.name);
+    // A player joining sees the scene the GM views: snapshot who is on it (not for a GM joining).
+    const data: Record<string, unknown> = { name: name ?? null };
+    if (kind === 'user-join' && user?.isGM !== true) {
+      data.tokens = sceneTokensOf(this.currentSceneId());
+    }
     this.push(
       this.build({
         kind,
@@ -1771,7 +1820,7 @@ export class PlayRecorder {
         t,
         userId,
         userName: name,
-        data: { name: name ?? null },
+        data,
       })
     );
   }

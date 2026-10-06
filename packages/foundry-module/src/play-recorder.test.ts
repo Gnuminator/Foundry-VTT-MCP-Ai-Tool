@@ -8,8 +8,9 @@
  * harness's full document builders, since PlayRecorder only ever reads the
  * duck-typed hook arguments.
  */
+import type { PlayRecord } from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
+import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
   d20Roll,
   fireUpdate,
@@ -591,6 +592,84 @@ describe('combat, scene, world time and users', () => {
     Hooks.callAll('userConnected', { id: 'p1', name: 'Alice' }, false);
     const kinds = recorder.getPlayRecords({}).records.map(r => r.kind);
     expect(kinds).toEqual(['user-join', 'user-leave']);
+  });
+});
+
+// --- Scene token snapshots (R4 "Seen in") ----------------------------------------
+
+describe('scene token snapshots', () => {
+  /** A viewed scene with a hero, a goblin on two tokens (one unlinked), a hidden ghost and a token without an actor. */
+  function setupScene(): void {
+    world.actors.add(makeFixtureActor({ id: 'hero', name: 'Hero', type: 'character' }));
+    world.actors.add(makeFixtureActor({ id: 'gob', name: 'Goblin', type: 'npc' }));
+    world.actors.add(makeFixtureActor({ id: 'ghost', name: 'Ghost', type: 'npc' }));
+    world.actors.add(makeFixtureActor({ id: 'mix', name: 'Mixed', type: 'npc' }));
+    world.addScene({
+      id: 'sceneA',
+      tokens: [
+        makeToken({ id: 't1', name: 'Hero tok', actorId: 'hero', actorLink: true }),
+        makeToken({ id: 't2', name: 'Goblin 1', actorId: 'gob', actorLink: false }),
+        makeToken({ id: 't3', name: 'Goblin 2', actorId: 'gob', actorLink: false }),
+        makeToken({ id: 't4', name: 'Ghost tok', actorId: 'ghost', hidden: true }),
+        makeToken({ id: 't5', name: 'Mixed 1', actorId: 'mix', hidden: true }),
+        makeToken({ id: 't6', name: 'Mixed 2', actorId: 'mix', hidden: false }),
+        makeToken({ id: 't7', name: 'Prop' }),
+      ],
+    });
+    (globalThis as any).canvas = { scene: { id: 'sceneA' } };
+  }
+
+  function sceneRecord(): PlayRecord | undefined {
+    Hooks.callAll('canvasReady');
+    return recorder.getPlayRecords({}).records.find(r => r.kind === 'scene');
+  }
+
+  it('folds linked and unlinked tokens to the base actor and sorts by uuid', () => {
+    setupScene();
+    expect(sceneRecord()?.data?.tokens).toEqual([
+      { actorUuid: 'Actor.ghost', name: 'Ghost', isPC: false, hidden: true },
+      { actorUuid: 'Actor.gob', name: 'Goblin', isPC: false },
+      { actorUuid: 'Actor.hero', name: 'Hero', isPC: true },
+      { actorUuid: 'Actor.mix', name: 'Mixed', isPC: false },
+    ]);
+  });
+
+  it('falls back to the token name when the base actor is gone', () => {
+    world.addScene({
+      id: 'sceneA',
+      tokens: [makeToken({ id: 't1', name: 'Orphan', actorId: 'missing' })],
+    });
+    (globalThis as any).canvas = { scene: { id: 'sceneA' } };
+    expect(sceneRecord()?.data?.tokens).toEqual([
+      { actorUuid: 'Actor.missing', name: 'Orphan', isPC: false },
+    ]);
+  });
+
+  it('caps the list at 200 actors', () => {
+    world.addScene({
+      id: 'sceneA',
+      tokens: Array.from({ length: 250 }, (_, i) =>
+        makeToken({ id: `t${i}`, actorId: `a${String(i).padStart(3, '0')}` })
+      ),
+    });
+    (globalThis as any).canvas = { scene: { id: 'sceneA' } };
+    const tokens = sceneRecord()?.data?.tokens as Array<{ actorUuid: string }>;
+    expect(tokens).toHaveLength(200);
+    expect(tokens[0]?.actorUuid).toBe('Actor.a000');
+  });
+
+  it('adds the snapshot to a player user-join but not to a GM user-join or a leave', () => {
+    setupScene();
+    Hooks.callAll('canvasReady');
+    Hooks.callAll('userConnected', { id: 'p1', name: 'Alice', isGM: false }, true);
+    Hooks.callAll('userConnected', { id: 'gm2', name: 'Co-GM', isGM: true }, true);
+    Hooks.callAll('userConnected', { id: 'p1', name: 'Alice', isGM: false }, false);
+    const [join, gmJoin, leave] = recorder
+      .getPlayRecords({})
+      .records.filter(r => r.kind === 'user-join' || r.kind === 'user-leave');
+    expect((join?.data?.tokens as unknown[]).length).toBe(4);
+    expect(gmJoin?.data).toEqual({ name: 'Co-GM' });
+    expect(leave?.data).toEqual({ name: 'Alice' });
   });
 });
 

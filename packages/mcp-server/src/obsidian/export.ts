@@ -45,6 +45,7 @@ import { campaignDir, NoteWriter } from './note-writer.js';
 import { baseOwnershipCheck, checkCanvasOwnership, checkMarkdownOwnership } from './ownership.js';
 import { createPrepTemplates } from './prep-templates.js';
 import { renderUsageNote, USAGE_NOTE_PATH } from './render-usage.js';
+import { buildSeenIndex, SEEN_INDEX_FILE, type SeenIndex } from './seen-in.js';
 import { loadSessionNotesLinks, sessionNotesLines } from './session-notes-links.js';
 import {
   renderCampaignHome,
@@ -308,6 +309,14 @@ export async function exportWorldToObsidian(options: {
       ),
       checkMarkdownOwnership
     );
+  }
+
+  // "Seen in" (R4): which sessions each NPC and scene appeared in, for the mirror pump. Written
+  // only when it changed, so the mirror does not wake for nothing.
+  const seen = buildSeenIndex(groups, stats.sessions);
+  const storedSeen = (await store.read<SeenIndex>(worldId, 'gm', SEEN_INDEX_FILE))?.data;
+  if (JSON.stringify(storedSeen) !== JSON.stringify(seen)) {
+    await store.write(worldId, 'gm', SEEN_INDEX_FILE, seen);
   }
 
   // Change log: merge the append-only history with the audit ring, one note

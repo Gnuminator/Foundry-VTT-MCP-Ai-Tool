@@ -68,6 +68,22 @@ export interface PlayActorRef {
   name: string;
 }
 
+/**
+ * One actor on a scene, as `scene` and `user-join` records snapshot it in `data.tokens`: the
+ * tokens of the recording GM's viewed scene folded by world actor. Linked and unlinked tokens
+ * both name the base world actor, so "who was in the scene" needs no name matching.
+ */
+export interface PlaySceneToken {
+  /** `Actor.<id>` of the base world actor (never a token-synthetic uuid). */
+  actorUuid: string;
+  /** The base actor's name (the token's own name when the actor is gone). */
+  name: string;
+  /** A player character (dnd5e `character`) rather than an NPC. */
+  isPC: boolean;
+  /** Present (true) only when every token of this actor on the scene is hidden. */
+  hidden?: true;
+}
+
 /** One term of a roll, in order: dice (with what they rolled) or a flat bonus or penalty. */
 export type PlayRollPart =
   | {
@@ -162,7 +178,13 @@ export interface PlayRecord {
    * 10 s whose total fits the change); a guarded change's id for AI Tool writes.
    */
   source?: { messageId?: string; changeId?: string; attributed?: boolean; exact?: boolean };
-  /** Kind-specific extras (effect name and statuses, chat style and text, rest type, ...). */
+  /**
+   * Kind-specific extras (effect name and statuses, chat style and text, rest type, ...).
+   * `scene` records, and `user-join` records of non-GM users, may carry `tokens: PlaySceneToken[]`:
+   * the tokens on the recording GM's viewed scene, folded by actor, sorted by `actorUuid`, at
+   * most 200 entries. GM-only like everything in the play log (hidden tokens are marked, not
+   * dropped).
+   */
   data?: Record<string, unknown>;
 }
 

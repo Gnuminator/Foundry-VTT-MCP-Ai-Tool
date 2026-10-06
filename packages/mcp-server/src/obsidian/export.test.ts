@@ -24,6 +24,7 @@ import { LEGACY_CAMPAIGN_HOMES } from './campaign-home-legacy.js';
 import { campaignDir, exportWorldToObsidian, newExportCache } from './export.js';
 import { pathKey } from './mirror-common.js';
 import { allocateNotePaths } from './mirror-paths.js';
+import { SEEN_INDEX_FILE, type SeenIndex } from './seen-in.js';
 import { cell, frontmatter, renderCampaignHome, safeFileName } from './render.js';
 
 const WORLD = 'strahd-test';
@@ -1110,6 +1111,28 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
     expect(pc).toContain('spell1 | 1');
 
     expect(result.written).toContain('AI Tool/Bases/PC stats.base');
+  });
+
+  it('writes the "Seen in" index for the mirror (R4), and only when it changed', async () => {
+    await seedPlayLog(richPlayLog());
+    const run = (): ReturnType<typeof exportWorldToObsidian> =>
+      exportWorldToObsidian({ store, audit: new AuditLog(store), worldId: PLAY_WORLD, vaultDir });
+    const result = await run();
+    const label = result.written
+      .find(p => p.startsWith('AI Tool/Sessions/'))
+      ?.slice('AI Tool/Sessions/'.length, -'.md'.length);
+    expect(label).toBeDefined();
+    const first = await store.read<SeenIndex>(PLAY_WORLD, 'gm', SEEN_INDEX_FILE);
+    expect(first?.data.v).toBe(1);
+    expect(first?.data.actors[RAHADIN.uuid]).toEqual([label]);
+    expect(first?.data.scenes['Scene.scene1']).toEqual([label]);
+    // PCs are not "seen in": they have stats notes.
+    expect(first?.data.actors[IREENA.uuid]).toBeUndefined();
+
+    const write = vi.spyOn(store, 'write');
+    await run();
+    expect(write.mock.calls.filter(call => call[2] === SEEN_INDEX_FILE)).toHaveLength(0);
+    write.mockRestore();
   });
 
   it('gives the same stats from a warm cache (appended lines) as a cold export', async () => {

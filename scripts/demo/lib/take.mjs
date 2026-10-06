@@ -1,9 +1,10 @@
 // The context a take script gets: open the demo windows, switch OBS scenes, time
 // named steps (steps.json) and save screenshots.
 
-import { mkdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { collectConsoleErrors, measure, openWindow } from './browser.mjs';
+import { collectConsoleErrors, markFocus, measure, openWindow, setFocusSink } from './browser.mjs';
 import { CSS_SIZE, DEMO_USERS, RESOLUTIONS, demoWorld } from './env.mjs';
 import { joinFoundry, waitForCanvasReady } from './foundry.mjs';
 import { waitForDashboard } from './dashboard.mjs';
@@ -22,11 +23,21 @@ export class Take {
     this.obs = obs;
     /** @type {Record<string, {title: string, page: import('playwright-core').Page, close: () => Promise<void>, errors: any[]}>} scene name -> window */
     this.windows = {};
-    /** @type {{step: string, title: string, start: number, end: number}[]} */
+    /** @type {{step: string, title: string, start: number, end: number, focus?: {x: number, y: number, w: number, h: number, at: number}}[]} */
     this.steps = [];
     /** @type {string[]} */
     this.shots = [];
     this.t0 = 0;
+    /** True from markStart until the recording stops. */
+    this.recording = false;
+    /** The scene on air (the window OBS records). */
+    this.activeScene = null;
+    /** @type {{x: number, y: number, w: number, h: number, at: number} | null} the current step's focus box */
+    this.focusBox = null;
+    this.focusExplicit = false;
+    /** @type {{path: string, at: number, width: number, height: number}[]} shots to cut from the video */
+    this.pendingShots = [];
+    setFocusSink((page, box, explicit) => this.#noteFocus(page, box, explicit));
     /** @type {typeof import('./index.mjs') | null} the kit's helpers, for takes kept outside the repo */
     this.lib = null;
   }
@@ -113,12 +124,49 @@ export class Take {
     await win.page.bringToFront();
     if (sceneName.startsWith('Foundry')) await waitForCanvasReady(win.page, 15000);
     if (this.obs) await this.obs.setScene(sceneName);
+    this.activeScene = sceneName;
     return win;
+  }
+
+  /**
+   * Remember the element a helper worked on as the step's focus box (fractions of the recorded
+   * frame, and when, in seconds from the recording start). The last automatic mark in a step
+   * wins; an explicit one (t.focus) wins over all automatic ones. Only the window on air counts.
+   */
+  #noteFocus(page, box, explicit) {
+    if (!this.recording || !this.#inStep) return;
+    const sceneName = this.activeScene;
+    const win = sceneName ? this.windows[sceneName] : null;
+    if (!win || win.page !== page) return;
+    if (this.focusExplicit && !explicit) return;
+    const { width, height } = win.css;
+    const r = v => Math.round(v * 10000) / 10000;
+    const x = Math.min(1, Math.max(0, box.x / width));
+    const y = Math.min(1, Math.max(0, box.y / height));
+    this.focusBox = {
+      x: r(x),
+      y: r(y),
+      w: r(Math.min(1 - x, box.width / width)),
+      h: r(Math.min(1 - y, box.height / height)),
+      at: this.#now(),
+    };
+    if (explicit) this.focusExplicit = true;
+  }
+
+  /** Mark an element as the zoom focus of the current step (see markFocus in browser.mjs). */
+  focus(locator) {
+    return markFocus(locator);
   }
 
   /** Mark the recording start; step times count from here. */
   markStart() {
     this.t0 = performance.now();
+    this.recording = true;
+  }
+
+  /** The recording has stopped: shots go back to being real screenshots. */
+  markStop() {
+    this.recording = false;
   }
 
   #now() {
@@ -126,25 +174,88 @@ export class Take {
   }
 
   /** A named step: its start and end go into steps.json (for captions and narration). */
+  #inStep = false;
+
   async step(step, title, fn) {
     const start = this.#now();
     console.log(`  ${start.toFixed(1).padStart(6)}s  ${step}: ${title}`);
-    await fn();
-    this.steps.push({ step, title, start, end: this.#now() });
+    this.focusBox = null;
+    this.focusExplicit = false;
+    this.#inStep = true;
+    try {
+      await fn();
+    } finally {
+      this.#inStep = false;
+    }
+    this.steps.push({
+      step,
+      title,
+      start,
+      end: this.#now(),
+      ...(this.focusBox ? { focus: this.focusBox } : {}),
+    });
   }
 
   pause(ms) {
     return new Promise(r => setTimeout(r, ms));
   }
 
-  /** Save a screenshot at 1920x1080 (CSS pixels) into the take's shots folder. */
+  /**
+   * Save a screenshot at 1920x1080 (CSS pixels) into the take's shots folder.
+   *
+   * Not while the window on air is being recorded: page.screenshot with scale "css" makes
+   * Chromium draw the page at 1x for a few frames, and OBS records the page in the top-left
+   * quarter of the frame (found in the GM video's raw takes: one glitch per shot). The shot is
+   * then cut from the recording afterwards (extractShots).
+   */
   async shot(sceneName, name) {
     const win = this.windows[sceneName];
     const dir = join(this.outDir, 'shots');
     mkdirSync(dir, { recursive: true });
     const path = join(dir, `${name}.png`);
-    await win.page.screenshot({ path, scale: 'css' });
+    if (this.obs && this.recording && sceneName === this.activeScene) {
+      this.pendingShots.push({
+        path,
+        at: this.#now(),
+        width: win.css.width,
+        height: win.css.height,
+      });
+    } else {
+      await win.page.screenshot({ path, scale: 'css' });
+    }
     this.shots.push(path);
+  }
+
+  /** Cut the shots taken during the recording out of the video (needs ffmpeg on PATH). */
+  extractShots(video) {
+    for (const s of this.pendingShots) {
+      const r = spawnSync(
+        'ffmpeg',
+        [
+          '-hide_banner',
+          '-loglevel',
+          'error',
+          '-y',
+          '-ss',
+          String(s.at),
+          '-i',
+          video,
+          '-frames:v',
+          '1',
+          '-vf',
+          `scale=${s.width}:${s.height}:flags=lanczos`,
+          s.path,
+        ],
+        { encoding: 'utf8' }
+      );
+      if (r.status !== 0 || !existsSync(s.path)) {
+        console.warn(
+          `Could not cut ${s.path} from the video (ffmpeg on PATH?): ${r.stderr || r.error}`
+        );
+        this.shots = this.shots.filter(p => p !== s.path);
+      }
+    }
+    this.pendingShots = [];
   }
 
   /** Console errors per window, for take.json. */

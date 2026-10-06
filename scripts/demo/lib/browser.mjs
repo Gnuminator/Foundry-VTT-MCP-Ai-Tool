@@ -37,14 +37,27 @@ function initScript({ title, cursor }) {
   // A <title> in the HTML bypasses the setter; pin it once the page is parsed.
   document.addEventListener('DOMContentLoaded', () => desc.set.call(document, title));
   if (!cursor) return;
+  // A smoothed dot that follows the mouse (the transition eases Playwright's stepped moves) and
+  // a ripple ring where a click lands. CSS only: no timers, so a take looks the same every run.
+  // Brand colours: arcane blue (--accent) on the near-black base.
   const install = () => {
     if (document.getElementById('demo-cursor')) return;
+    const style = document.createElement('style');
+    style.id = 'demo-cursor-style';
+    style.textContent =
+      '#demo-cursor{position:fixed;left:0;top:0;width:24px;height:24px;margin:-12px 0 0 -12px;' +
+      'border-radius:50%;background:rgba(78,161,255,.35);border:2px solid #e6e9ef;' +
+      'box-shadow:0 0 0 1.5px rgba(15,17,21,.85),0 0 14px rgba(78,161,255,.55);pointer-events:none;' +
+      'z-index:2147483647;transition:transform .14s cubic-bezier(.2,.7,.2,1)}' +
+      '.demo-ripple{position:fixed;left:0;top:0;width:24px;height:24px;margin:-12px 0 0 -12px;' +
+      'border-radius:50%;border:3px solid #8cc2ff;box-shadow:0 0 12px rgba(78,161,255,.6);' +
+      'pointer-events:none;z-index:2147483646;animation:demo-ripple .6s ease-out forwards}' +
+      '@keyframes demo-ripple{from{transform:var(--at) scale(.5);opacity:.95}' +
+      'to{transform:var(--at) scale(3);opacity:0}}';
+    document.documentElement.appendChild(style);
     const dot = document.createElement('div');
     dot.id = 'demo-cursor';
-    dot.style.cssText =
-      'position:fixed;left:0;top:0;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;' +
-      'background:rgba(255,214,0,.45);border:2px solid rgba(20,20,20,.85);pointer-events:none;' +
-      'z-index:2147483647;transition:transform .12s ease;transform:translate(-100px,-100px)';
+    dot.style.transform = 'translate(-100px,-100px)';
     document.documentElement.appendChild(dot);
     let pos = 'translate(-100px,-100px)';
     addEventListener(
@@ -55,7 +68,18 @@ function initScript({ title, cursor }) {
       },
       true
     );
-    addEventListener('mousedown', () => (dot.style.transform = `${pos} scale(.7)`), true);
+    addEventListener(
+      'mousedown',
+      e => {
+        dot.style.transform = `${pos} scale(.7)`;
+        const ring = document.createElement('div');
+        ring.className = 'demo-ripple';
+        ring.style.setProperty('--at', `translate(${e.clientX}px,${e.clientY}px)`);
+        document.documentElement.appendChild(ring);
+        ring.addEventListener('animationend', () => ring.remove());
+      },
+      true
+    );
     addEventListener('mouseup', () => (dot.style.transform = pos), true);
   };
   if (document.documentElement) install();
@@ -190,18 +214,57 @@ export function measure(page) {
  * @param {import('playwright-core').Locator} locator
  */
 export async function humanClick(locator, { steps = 20, pauseMs = 250 } = {}) {
-  await locator.scrollIntoViewIfNeeded();
-  const box = await locator.boundingBox();
-  if (!box) throw new Error(`Not visible: ${locator}`);
-  const page = locator.page();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps });
-  await page.waitForTimeout(pauseMs);
+  const box = await moveTo(locator, { steps, pauseMs });
+  focusSink?.(locator.page(), box, false);
   await locator.click();
+}
+
+/** Move the visible cursor onto an element and rest there (a hover the viewer can follow). */
+export async function humanHover(locator, { steps = 20, pauseMs = 400 } = {}) {
+  const box = await moveTo(locator, { steps, pauseMs });
+  focusSink?.(locator.page(), box, false);
+  await locator.hover();
 }
 
 /** Type like a person, one character at a time. */
 export async function humanType(locator, text, { delay = 55 } = {}) {
+  const box = await locator.boundingBox().catch(() => null);
+  if (box) focusSink?.(locator.page(), box, false);
   await locator.pressSequentially(text, { delay });
+}
+
+async function moveTo(locator, { steps, pauseMs }) {
+  await locator.scrollIntoViewIfNeeded();
+  const box = await locator.boundingBox();
+  if (!box) throw new Error(`Not visible: ${locator}`);
+  await locator.page().mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps });
+  await locator.page().waitForTimeout(pauseMs);
+  return box;
+}
+
+/**
+ * Where the video should zoom. The harness calls `focusSink(page, box, explicit)` when a helper
+ * (humanClick, humanHover, humanType) works on an element; the running Take registers itself
+ * as the sink and writes the element's box into the step in steps.json.
+ * @type {((page: import('playwright-core').Page, box: {x: number, y: number, width: number, height: number}, explicit: boolean) => void) | null}
+ */
+let focusSink = null;
+
+/** Register the function that receives focus boxes (the Take does this). */
+export function setFocusSink(fn) {
+  focusSink = fn;
+}
+
+/**
+ * Mark an element as the focus of the current step by hand, instead of the last element a
+ * helper touched. A step's last explicit mark wins over automatic ones.
+ * @param {import('playwright-core').Locator} locator
+ */
+export async function markFocus(locator) {
+  await locator.scrollIntoViewIfNeeded();
+  const box = await locator.boundingBox();
+  if (!box) throw new Error(`Not visible: ${locator}`);
+  focusSink?.(locator.page(), box, true);
 }
 
 /**

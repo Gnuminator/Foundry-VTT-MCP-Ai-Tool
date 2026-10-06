@@ -132,10 +132,12 @@ async function cmdTake(opts) {
   } finally {
     if (recording) {
       const raw = await obs.stopRecord();
+      take.markStop();
       const video = join(outDir, `${name}${extname(raw) || '.mp4'}`);
       renameSync(raw, video);
       report.video = video;
       report.probe = probe(video);
+      take.extractShots(video);
     }
     obs?.close();
     report.steps = take.steps;
@@ -144,7 +146,13 @@ async function cmdTake(opts) {
     writeFileSync(
       join(outDir, 'steps.json'),
       `${JSON.stringify(
-        take.steps.map(({ step, title, start, end }) => ({ step, title, start, end })),
+        take.steps.map(({ step, title, start, end, focus }) => ({
+          step,
+          title,
+          start,
+          end,
+          ...(focus ? { focus } : {}),
+        })),
         null,
         2
       )}\n`

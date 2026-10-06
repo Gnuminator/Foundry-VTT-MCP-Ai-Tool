@@ -161,6 +161,8 @@ Environment=DASHBOARD_HOST=127.0.0.1
 Environment=COGM_STATE_DIR=$TOOL_DATA/dashboard
 Environment=DASHBOARD_ALLOWED_HOSTS=$ts_name
 EnvironmentFile=-$TOOL_ETC/dashboard.env
+# Cloudflare Access settings (Part C): their own file, read after dashboard.env, which stage 7 rewrites whole
+EnvironmentFile=-$TOOL_ETC/dashboard-access.env
 WorkingDirectory=$app/packages/cogm-dashboard
 ExecStart=$NODE_DIR/bin/node $app/packages/cogm-dashboard/dist/server.js
 Restart=always

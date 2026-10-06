@@ -13,9 +13,22 @@ import { applyTheme, currentMist, setMist } from './theme.js';
 const COGM_TOKEN = (() => {
   const fromUrl = new URL(location.href).searchParams.get('token');
   if (fromUrl) {
+    let saved = false;
     try {
       localStorage.setItem('cogm_token', fromUrl);
+      saved = true;
     } catch {}
+    // Once saved, take the token out of the address bar and the current history entry (other query
+    // parameters and the hash are kept). The browser's own history database may still list the first
+    // visit with the token, so the GM should open the link in a private window or delete that entry.
+    // Not saved: leave it, so a refresh works.
+    if (saved) {
+      try {
+        const url = new URL(location.href);
+        url.searchParams.delete('token');
+        history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+      } catch {}
+    }
     return fromUrl;
   }
   try {

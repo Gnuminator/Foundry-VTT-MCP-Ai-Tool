@@ -253,5 +253,8 @@ export const config: Config = {
   ),
   stateDir: readString('COGM_STATE_DIR', path.join(os.homedir(), '.foundry-ai-tool')),
   playerVaultsDir: readString('FOUNDRY_AI_PLAYER_VAULTS_DIR', ''),
-  playerVaultIntervalMs: Math.max(10_000, readNumber('FOUNDRY_AI_PLAYER_VAULT_INTERVAL_MS', 60_000)),
+  playerVaultIntervalMs: Math.max(
+    10_000,
+    readNumber('FOUNDRY_AI_PLAYER_VAULT_INTERVAL_MS', 60_000)
+  ),
 };

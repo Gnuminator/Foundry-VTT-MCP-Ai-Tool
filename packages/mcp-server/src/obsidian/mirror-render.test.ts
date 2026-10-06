@@ -941,7 +941,7 @@ describe('renderMirrorNote behavior', () => {
     // An older module without the row: no lookup at all.
     converter.html.mockClear();
     renderMirrorNote(W, journal(), makeCtx());
-    expect(converter.html.mock.calls[0]?.[1].worldActor).toBeUndefined();
+    expect('worldActor' in (converter.html.mock.calls[0]?.[1] ?? {})).toBe(false);
   });
 
   it('leaves the stats and prep properties null without those notes', () => {

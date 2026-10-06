@@ -929,6 +929,21 @@ describe('renderMirrorNote behavior', () => {
     }
   });
 
+  it('hands page notes the compendium actor links of the journal', () => {
+    const wolf = 'Compendium.aitool-content.monsters.Actor.AAAAAAAAAAAAAAAA';
+    const entry = journal({
+      actorLinks: [{ compendiumUuid: wolf, actorUuid: NPC_UUID, match: 'source' }],
+    });
+    renderMirrorNote(W, entry, makeCtx());
+    const seen = converter.html.mock.calls[0]?.[1];
+    expect(seen?.worldActor?.(wolf)).toBe(NPC_UUID);
+    expect(seen?.worldActor?.('Compendium.x.y.Actor.BBBBBBBBBBBBBBBB')).toBeNull();
+    // An older module without the row: no lookup at all.
+    converter.html.mockClear();
+    renderMirrorNote(W, journal(), makeCtx());
+    expect(converter.html.mock.calls[0]?.[1].worldActor).toBeUndefined();
+  });
+
   it('leaves the stats and prep properties null without those notes', () => {
     const text = render(pc(), makeCtx({ stats: {}, prep: {} }));
     expect(text).toContain('stats: null');

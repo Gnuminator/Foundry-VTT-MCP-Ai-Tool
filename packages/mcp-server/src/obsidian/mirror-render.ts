@@ -30,6 +30,7 @@ import {
   EXPORT_INDEX_LIMITS,
   isFoundryUuid,
   type ExportActorEntry,
+  type ExportActorLink,
   type ExportEntry,
   type ExportItemEntry,
   type ExportJournalEntry,
@@ -268,8 +269,10 @@ function linkContext(
   ctx: MirrorRenderContext,
   pageUuid: string,
   fromPath: string,
-  selfName: string | null = null
+  selfName: string | null = null,
+  actorLinks: ReadonlyArray<ExportActorLink> = []
 ): LinkContext {
+  const worlds = new Map(actorLinks.map(link => [link.compendiumUuid, link.actorUuid]));
   const findByName = ctx.findByName;
   const image = ctx.image
     ? (src: string, alt: string): string | null => ctx.image?.(src, alt) ?? null
@@ -283,6 +286,7 @@ function linkContext(
     ...(ctx.library ? { library: ctx.library } : {}),
     ...(image ? { image: (src: string, alt: string) => image(src, alt) } : {}),
     selfName,
+    ...(worlds.size > 0 ? { worldActor: (uuid: string) => worlds.get(uuid) ?? null } : {}),
   };
 }
 
@@ -836,7 +840,7 @@ function renderJournalPage(
         ''
       );
     }
-    const link = linkContext(ctx, page.uuid, pagePath);
+    const link = linkContext(ctx, page.uuid, pagePath, null, journal.actorLinks ?? []);
     const converted =
       text.format === 'html'
         ? htmlToMarkdown(text.content, link)

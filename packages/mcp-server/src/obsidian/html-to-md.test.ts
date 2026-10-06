@@ -103,6 +103,41 @@ describe('links: section 5 table', () => {
     );
   });
 
+  it('links a compendium actor that stands for a world NPC to that NPC note, in every form', () => {
+    const SEP = 'Compendium.world.monsters.Actor.quill00000000001';
+    const library = {
+      byUuid: (uuid: string): { notePath: string; name: string } | null =>
+        uuid === SEP ? { notePath: 'AI Tool/Library/Monsters/Quillfang.md', name: 'Q' } : null,
+      legacy: (): string | null => null,
+    };
+    const world = (html: string, withLibrary = true): string =>
+      htmlToMarkdown(html, {
+        ...ctx(),
+        ...(withLibrary ? { library } : {}),
+        worldActor: uuid => (uuid === SEP ? WOLF : null),
+      });
+    const npc = '../../NPCs/Wolf.md';
+    expect(world(`<p>@UUID[${SEP}]{the killer}</p>`)).toBe(`[the killer](${npc})`);
+    expect(world(`<p>@UUID[${SEP}.Item.bite000000000001]{its bite}</p>`)).toBe(
+      `[its bite](${npc})`
+    );
+    // Typeless and legacy forms work without the Library: the module resolved them.
+    expect(world('<p>@UUID[Compendium.world.monsters.quill00000000001]{a quill}</p>', false)).toBe(
+      `[a quill](${npc})`
+    );
+    expect(world('<p>@Compendium[world.monsters.quill00000000001]{Quills}</p>', false)).toBe(
+      `[Quills](${npc})`
+    );
+    expect(world(`<p>@UUID[${SEP}]</p>`)).toBe(`[Wolf](${npc})`);
+    // A world NPC without a note: the Library note stays the target.
+    const noNote = htmlToMarkdown(`<p>@UUID[${SEP}]{x}</p>`, {
+      ...ctx(),
+      library,
+      worldActor: () => GONE,
+    });
+    expect(noNote).toBe('[x](../../../Library/Monsters/Quillfang.md)');
+  });
+
   it('shows unmirrored documents as an Open in Foundry link and missing ones as their label', () => {
     expect(md(`<p>@UUID[${MACRO}]{Macro}</p>`)).toBe(
       `[Macro](http://localhost:3100/open?uuid=${MACRO})`

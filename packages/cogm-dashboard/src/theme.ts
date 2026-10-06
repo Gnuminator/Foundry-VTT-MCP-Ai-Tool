@@ -28,6 +28,8 @@ export interface ThemeStoreLogger {
 
 export class ThemeStore {
   private readonly worlds = new Map<string, ThemeId>();
+  /** Writes run one after another: two tabs saving at once must not race on the tmp file. */
+  private writing: Promise<void> = Promise.resolve();
 
   /** @param file the JSON file to persist to, or null to keep themes in memory only */
   constructor(
@@ -59,6 +61,13 @@ export class ThemeStore {
   /** Choose a world's theme and save it. Resolves once the file is written. */
   async set(worldId: string, theme: ThemeId): Promise<void> {
     this.worlds.set(worldId, theme);
+    const write = (): Promise<void> => this.write();
+    this.writing = this.writing.then(write, write);
+    await this.writing;
+  }
+
+  /** Save every world's theme as it is now (the newest state wins). */
+  private async write(): Promise<void> {
     if (!this.file) return;
     const data: ThemeFile = { worlds: Object.fromEntries(this.worlds) };
     await fsp.mkdir(path.dirname(this.file), { recursive: true });

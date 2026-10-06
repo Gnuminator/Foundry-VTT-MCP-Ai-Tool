@@ -7,8 +7,9 @@
  * own `AI Tool/` folder, and picks:
  *
  * - the newest `session-plan` note (by its `date` property, else the file time);
- * - the notes whose `fvtt_uuid` is one of the wanted uuids (the current scene,
- *   the actors with tokens on it, the open quest journals), in that order.
+ * - the notes whose `fvtt_uuid` (one uuid, a `@UUID[...]` link or a list) is one
+ *   of the wanted uuids (the current scene, the tokens and actors on it, the open
+ *   quest journals), in that order; see `matchKeys` for unlinked tokens.
  *
  * Notes with `ai_context: false` are left out and counted; Syncthing conflict
  * copies (`*.sync-conflict-*`) are skipped. Each note becomes at most
@@ -36,11 +37,14 @@ import {
   readFrontmatter,
   walkCampaign,
   type HeadValues,
+  type ScanOptions,
 } from './mirror-scan.js';
 import { errorCode, errorMessage } from './note-writer.js';
 
 /** A note is read up to this many bytes; the rest counts as truncated. */
 export const PREP_NOTE_READ_BYTES = 65_536;
+/** How much of a prep note is read to find an fvtt_uuid the scan's parser skipped. */
+const UUID_READ_BYTES = 16_384;
 
 const READ_CONCURRENCY = 16;
 /** The tool's own folder (mirror, session notes, stats): never the GM's prep. */
@@ -76,6 +80,8 @@ export interface ReadPrepNotesInput {
   /** In priority order (scene, actors, quests); null when Foundry did not say. */
   wanted: WantedUuid[] | null;
   matchedAgainst: PrepNotesPart['matchedAgainst'];
+  /** Walk limits; the scan's defaults when absent (tests lower them). */
+  limits?: ScanOptions;
 }
 
 export interface ReadPrepNotesResult {
@@ -87,6 +93,8 @@ export interface ReadPrepNotesResult {
 interface Candidate {
   path: string;
   head: HeadValues;
+  /** The note's fvtt_uuid values, normalised; empty when it has none. */
+  uuids: string[];
 }
 
 function isOff(value: string | null): boolean {
@@ -98,6 +106,55 @@ export function normalizeUuid(raw: string): string {
   const text = raw.trim();
   const link = /^@UUID\[([^\]]+)\]/.exec(text);
   return (link?.[1] ?? text).trim();
+}
+
+/**
+ * The wanted uuids a note's uuid can match. An unlinked token's sheet copies
+ * `Scene.S.Token.T.Actor.A` (its synthetic actor): that also matches the token
+ * and the base actor, so a note for one goblin covers every goblin token.
+ */
+export function matchKeys(uuid: string): string[] {
+  const synthetic = /^(Scene\.[^.]+\.Token\.[^.]+)\.Actor\.([^.]+)$/.exec(uuid);
+  return synthetic?.[1] && synthetic[2] ? [uuid, synthetic[1], `Actor.${synthetic[2]}`] : [uuid];
+}
+
+/** The lines of a leading `---` block and where the body starts; null without one. */
+function frontmatterBlock(all: string[]): { block: string[]; bodyStart: number } | null {
+  if ((all[0] ?? '').trimEnd() !== '---') return null;
+  let end = all.findIndex((l, i) => i > 0 && (l.trimEnd() === '---' || l.trimEnd() === '...'));
+  if (end < 0) end = all.length;
+  return { block: all.slice(1, end), bodyStart: end + 1 };
+}
+
+/** A list item or scalar as text: parsed when it is valid YAML, else as written. */
+function rawItem(raw: string): string {
+  return parseScalar(raw) ?? raw.trim();
+}
+
+/**
+ * The `fvtt_uuid` values as the GM wrote them, for what the scan's scalar
+ * parser leaves out: an unquoted `@UUID[Actor.a]{Name}` link, a flow list or a
+ * block list. Normalised, empty ones dropped.
+ */
+export function rawUuids(text: string): string[] {
+  const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const block = frontmatterBlock(source.split(/\r?\n/))?.block ?? [];
+  const at = block.findIndex(l => /^fvtt_uuid:(\s|$)/.test(l));
+  if (at < 0) return [];
+  const value = (block[at] ?? '').slice('fvtt_uuid:'.length).trim();
+  let items: string[];
+  if (value === '') {
+    items = [];
+    for (let j = at + 1; j < block.length && /^\s/.test(block[j] ?? ''); j++) {
+      const item = /^\s*-\s+(.*)$/.exec(block[j] ?? '')?.[1];
+      if (item !== undefined) items.push(rawItem(item));
+    }
+  } else if (value.startsWith('[') && value.endsWith(']')) {
+    items = value.slice(1, -1).split(',').map(rawItem);
+  } else {
+    items = [rawItem(value)];
+  }
+  return items.map(normalizeUuid).filter(Boolean);
 }
 
 function clip(line: string): string {
@@ -140,12 +197,10 @@ export function prepNoteLines(text: string): { lines: string[]; truncated: boole
   const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
   const all = source.split(/\r?\n/);
   const properties: string[] = [];
-  let bodyStart = 0;
-  if ((all[0] ?? '').trimEnd() === '---') {
-    let end = all.findIndex((l, i) => i > 0 && (l.trimEnd() === '---' || l.trimEnd() === '...'));
-    if (end < 0) end = all.length;
-    bodyStart = end + 1;
-    const block = all.slice(1, end);
+  const front = frontmatterBlock(all);
+  const bodyStart = front?.bodyStart ?? 0;
+  if (front) {
+    const { block } = front;
     for (let i = 0; i < block.length; i++) {
       const match = /^([A-Za-z_][\w -]*):(?:[ \t]+(.*))?$/.exec((block[i] ?? '').trimEnd());
       if (!match?.[1]) continue;
@@ -193,26 +248,38 @@ async function planTime(root: string, note: Candidate): Promise<number> {
 /** Find, pick and read the prep notes for the digest. Throws only when the walk itself fails. */
 export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrepNotesResult> {
   const walked = await walkCampaign(input.vaultDir, input.worldId, {
+    ...input.limits,
     skipDir: rel => rel === TOOL_FOLDER,
   });
   const errors = walked.errors.map(e => `${e.path || '(campaign folder)'}: ${e.error}`);
+  for (const limit of walked.limitsHit) {
+    errors.push(
+      `(campaign folder): the walk stopped at its ${limit === 'files' ? 'file' : 'folder depth'} limit, so some notes were not looked at`
+    );
+  }
   const files = walked.markdown.filter(rel => !SYNC_CONFLICT.test(rel));
   const heads = await mapLimit(files, READ_CONCURRENCY, async rel => {
     try {
-      return await readFrontmatter(`${walked.root}/${rel}`);
+      const head = await readFrontmatter(`${walked.root}/${rel}`);
+      if (!head?.type || !isPrepType(head.type)) return null;
+      if (head.fvtt_uuid) return { head, uuids: [normalizeUuid(head.fvtt_uuid)] };
+      // The scan's parser skips a link, a list or a block: look at the raw text.
+      const { text } = await readHead(`${walked.root}/${rel}`, UUID_READ_BYTES);
+      return { head, uuids: rawUuids(text) };
     } catch (error) {
       if (errorCode(error) !== 'ENOENT') errors.push(`${rel}: ${errorMessage(error)}`);
       return null;
     }
   });
   const candidates: Candidate[] = [];
-  heads.forEach((head, index) => {
+  heads.forEach((found, index) => {
     const rel = files[index];
-    if (head?.type && rel !== undefined && isPrepType(head.type))
-      candidates.push({ path: rel, head });
+    if (found && rel !== undefined) candidates.push({ path: rel, ...found });
   });
 
   let keptOut = 0;
+  /** Notes kept out by ai_context: false, so a note is counted once. */
+  const keptOutPaths = new Set<string>();
   const picked: Array<{ note: Candidate; reason: PrepNoteReason; matched: string | null }> = [];
 
   // The newest session plan the GM lets the AI read.
@@ -224,6 +291,7 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
   for (const { note } of timed) {
     if (isOff(note.head.ai_context)) {
       keptOut++;
+      keptOutPaths.add(note.path);
       continue;
     }
     picked.push({ note, reason: 'session-plan', matched: null });
@@ -236,12 +304,15 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
     input.wanted.forEach((w, i) => {
       if (!order.has(w.uuid)) order.set(w.uuid, i);
     });
-    const taken = new Set(picked.map(p => p.note.path));
+    const taken = new Set([...picked.map(p => p.note.path), ...keptOutPaths]);
     const matches = candidates
-      .map(note => ({
-        note,
-        index: note.head.fvtt_uuid ? order.get(normalizeUuid(note.head.fvtt_uuid)) : undefined,
-      }))
+      .map(note => {
+        const indexes = note.uuids
+          .flatMap(matchKeys)
+          .map(key => order.get(key))
+          .filter((i): i is number => i !== undefined);
+        return { note, index: indexes.length > 0 ? Math.min(...indexes) : undefined };
+      })
       .filter((m): m is { note: Candidate; index: number } => m.index !== undefined)
       .filter(m => !taken.has(m.note.path))
       .sort((a, b) => a.index - b.index); // stable: path order within one uuid
@@ -280,7 +351,7 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
     notes.push({
       path: note.path,
       type: note.head.type ?? '',
-      fvttUuid: note.head.fvtt_uuid ? normalizeUuid(note.head.fvtt_uuid) : null,
+      fvttUuid: note.uuids[0] ?? null,
       reason,
       matched,
       lines,

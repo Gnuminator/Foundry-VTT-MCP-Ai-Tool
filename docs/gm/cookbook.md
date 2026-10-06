@@ -42,9 +42,13 @@ set says so.
   drawer): your newest session plan, and the notes tied to the scene the party is on, a creature on
   it or an open quest. Give a note the property "type" set to "session-plan" (or "npc-prep",
   "location-prep", "quest-prep" and so on). To tie it to something in Foundry, set "fvtt_uuid" to
-  its UUID: the passport icon on the sheet's title bar copies it. Set "ai_context" to false to keep
-  a note away from Claude. Claude sees about 12 lines per note (properties first), so put the key
-  points at the top.
+  its UUID: the passport icon on the sheet's title bar copies it. A pasted link works too, and so
+  does a list of UUIDs for a note about several things. A note made from one goblin token covers
+  every goblin token. UUIDs from a compendium do not match: copy the one from the actor in your
+  world. "Newest" session plan means the latest "date" property (else the latest saved file), so
+  a plan dated two sessions ahead wins over next week's. Set "ai_context" to false to keep a note
+  away from Claude. Claude sees about 12 lines per note (properties first), so put the key points
+  at the top.
 
 ### Check that everything is ready
 

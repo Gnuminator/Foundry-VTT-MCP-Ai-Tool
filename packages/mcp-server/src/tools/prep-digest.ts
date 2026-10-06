@@ -391,7 +391,7 @@ export class PrepDigestTools {
       ? {
           scene: knownScene ? knownScene.name : null,
           tokens: knownScene ? knownScene.tokens.length : 0,
-          openQuests: quests.length,
+          openQuests: scan ? quests.length : null,
         }
       : null;
 

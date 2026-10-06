@@ -70,5 +70,7 @@ export async function loadScenarios(dirs, { size, only, catalog } = {}) {
       (!size || scenario.sizes.includes(size)) &&
       (!only || !only.length || only.includes(scenario.id))
   );
+  // Lowest `order` first; the sort is stable, so equal orders keep the folder and file order.
+  scenarios.sort((a, b) => (a.scenario.order ?? 0) - (b.scenario.order ?? 0));
   return { scenarios, problems };
 }

@@ -22,7 +22,6 @@ import type { DnD5eNpcTools } from './tools/dnd5e/npc.js';
 import type { EffectsTools } from './tools/effects.js';
 import type { EncounterTools } from './tools/encounter.js';
 import type { GuardedChangeTools } from './tools/guarded-changes.js';
-import type { LootTools } from './tools/loot.js';
 import type { MovementTools } from './tools/movement.js';
 import type { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import type { OwnershipTools } from './tools/ownership.js';
@@ -36,7 +35,7 @@ import type { PrepDigestTools } from './tools/prep-digest.js';
 import type { QuestCreationTools } from './tools/quest-creation.js';
 import type { RefChoiceTools } from './tools/ref-choices.js';
 import type { ResourceTools } from './tools/resources.js';
-import type { SceneControlTools } from './tools/scene-control.js';
+import type { SceneChangeTools } from './tools/scene-change.js';
 import type { SceneTools } from './tools/scene.js';
 import type { SessionLogTools } from './tools/session-log.js';
 import type { TarokkaTools } from './tools/tarokka.js';
@@ -60,7 +59,6 @@ export interface ToolRouterDeps {
   encounterTools: EncounterTools;
   guardedChangeTools: GuardedChangeTools;
   livePlayTools: LivePlayTools;
-  lootTools: LootTools;
   movementTools: MovementTools;
   obsidianMirrorTools: ObsidianMirrorTools;
   ownershipTools: OwnershipTools;
@@ -73,7 +71,7 @@ export interface ToolRouterDeps {
   questCreationTools: QuestCreationTools;
   refChoiceTools: RefChoiceTools;
   resourceTools: ResourceTools;
-  sceneControlTools: SceneControlTools;
+  sceneChangeTools: SceneChangeTools;
   sceneTools: SceneTools;
   sessionLogTools: SessionLogTools;
   tarokkaTools: TarokkaTools;
@@ -132,14 +130,11 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'dnd5e-create-npc': args => deps.dnd5eNpcTools.handleCreateNpc(args),
     'get-active-effects': args => deps.effectsTools.handleGetActiveEffects(args),
     'suggest-balanced-encounter': args => deps.encounterTools.handleSuggestBalancedEncounter(args),
-    'place-measured-template': args => deps.encounterTools.handlePlaceMeasuredTemplate(args),
-    'delete-measured-template': args => deps.encounterTools.handleDeleteMeasuredTemplate(args),
     'get-planned-change': args => deps.guardedChangeTools.handleGetPlannedChange(args),
     'apply-planned-change': args => deps.guardedChangeTools.handleApplyPlannedChange(args),
     'list-recent-changes': args => deps.guardedChangeTools.handleListRecentChanges(args),
     'undo-change': args => deps.guardedChangeTools.handleUndoChange(args),
     'open-in-foundry': args => deps.guardedChangeTools.handleOpenInFoundry(args),
-    'drop-loot': args => deps.lootTools.handleDropLoot(args),
     'list-scenes': args => deps.sceneTools.listScenes(args),
     'switch-scene': args => deps.sceneTools.switchScene(args),
     'get-token-positions': args => deps.movementTools.handleGetTokenPositions(args),
@@ -160,9 +155,6 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'list-journals': args => deps.questCreationTools.handleListJournals(args),
     'search-journals': args => deps.questCreationTools.handleSearchJournals(args),
     'get-character-resources': args => deps.resourceTools.handleGetCharacterResources(args),
-    'set-scene-mood': args => deps.sceneControlTools.handleSetSceneMood(args),
-    'add-map-note': args => deps.sceneControlTools.handleAddMapNote(args),
-    'delete-map-note': args => deps.sceneControlTools.handleDeleteMapNote(args),
     'get-current-scene': args => deps.sceneTools.handleGetCurrentScene(args),
     'get-world-info': args => deps.sceneTools.handleGetWorldInfo(args),
     'get-session-log': args => deps.sessionLogTools.handleGetSessionLog(args),
@@ -183,6 +175,8 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'plan-party-change': args => deps.partyTools.handlePlanPartyChange(args),
     'plan-actor-change': args => deps.livePlayTools.handlePlanActorChange(args),
     'plan-token-change': args => deps.livePlayTools.handlePlanTokenChange(args),
+    'plan-scene-change': args => deps.sceneChangeTools.handlePlanSceneChange(args),
+    'play-playlist': args => deps.sceneChangeTools.handlePlayPlaylist(args),
     'list-ref-choices': args => deps.refChoiceTools.handleListRefChoices(args),
     'get-token-details': args => deps.tokenManipulationTools.handleGetTokenDetails(args),
     'get-available-conditions': args =>
@@ -226,8 +220,6 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.sessionLogTools.getToolDefinitions(),
     ...deps.combatResolutionTools.getToolDefinitions(),
     ...deps.encounterTools.getToolDefinitions(),
-    ...deps.sceneControlTools.getToolDefinitions(),
-    ...deps.lootTools.getToolDefinitions(),
     ...deps.diagnosticsTools.getToolDefinitions(),
     ...deps.guardedChangeTools.getToolDefinitions(),
     ...deps.tarokkaTools.getToolDefinitions(),
@@ -239,6 +231,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.prepDigestTools.getToolDefinitions(),
     ...deps.partyTools.getToolDefinitions(),
     ...deps.livePlayTools.getToolDefinitions(),
+    ...deps.sceneChangeTools.getToolDefinitions(),
     ...deps.refChoiceTools.getToolDefinitions(),
   ];
 }

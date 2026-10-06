@@ -549,8 +549,8 @@ present, the AI is disabled gracefully and the _feed still runs_.
 
 - Tools are classified (`tool-policy.ts`) as `read` (the `get-`/`list-`/`search-`/`measure-`/
   `plan-`/`suggest-` prefixes plus a small allowlist such as `open-in-foundry`), `write`, or
-  `destructive` (an explicit set: delete tokens, delete map note, remove ownership, clear
-  errors, `undo-change`, etc.).
+  `destructive` (an explicit set: `clear-module-errors`, `undo-change`). Deletes inside a
+  guarded plan (a template, a map note) are not tools of their own: the plan is destructive.
 - `apply-planned-change` and `undo-change` get their `confirm` / `confirmDestructive`
   arguments only from the dashboard's own confirmation. The confirm modal shows the plan's
   diff and asks for the destructive confirmation when the plan deletes something; a **Recent

@@ -622,12 +622,42 @@ describe('DnD5eAdapter', () => {
       expect(stats.spellcasting?.hasSpells).toBe(true);
     });
 
-    it('detects spellcasting via a non-blank attributes.spellcasting ability even with zeroed spell slots', () => {
+    it('detects spellcasting from a spell item even with no casting ability and zeroed slots', () => {
       const caster = makeNpcActorData();
-      caster.system.attributes.spellcasting = 'wis';
+      caster.system.attributes.spellcasting = '';
       caster.system.spells = { spell1: { value: 0, override: null } };
+      (caster as any).items = [
+        { name: 'Bite', type: 'weapon' },
+        { name: 'Misty Step', type: 'spell' },
+      ];
       const stats = adapter.extractCharacterStats(caster);
       expect(stats.spellcasting?.hasSpells).toBe(true);
+    });
+
+    it('does not report spellcasting for a casting ability alone (2024 monsters set one on every NPC)', () => {
+      const wolf = makeNpcActorData();
+      wolf.system.attributes.spellcasting = 'str';
+      wolf.system.spells = { spell1: { value: 0, override: null } };
+      (wolf as any).items = [{ name: 'Bite', type: 'weapon' }];
+      const stats = adapter.extractCharacterStats(wolf);
+      expect(stats.spellcasting).toBeUndefined();
+    });
+
+    it('reports an unset creature type as absent, not as an empty object', () => {
+      for (const type of [{}, { value: '' }, { value: null }, '', null]) {
+        const npc = makeNpcActorData();
+        npc.system.details.type = type as any;
+        const stats = adapter.extractCharacterStats(npc);
+        expect(stats.creatureType).toBeUndefined();
+        expect('creatureType' in stats).toBe(false);
+      }
+    });
+
+    it('still extracts a set creature type (object value or plain string)', () => {
+      expect(adapter.extractCharacterStats(makeNpcActorData()).creatureType).toBe('humanoid');
+      const npc = makeNpcActorData();
+      npc.system.details.type = 'undead' as any;
+      expect(adapter.extractCharacterStats(npc).creatureType).toBe('undead');
     });
 
     it('does not include spellcasting when no spells present', () => {

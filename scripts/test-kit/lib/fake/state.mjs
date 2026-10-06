@@ -5,7 +5,7 @@
  */
 
 /** @typedef {{value: number, max: number, temp: number}} Hp */
-/** @typedef {{id: string, name: string, type: 'character' | 'npc', hp: Hp, items: Array<{id: string, name: string, type: string}>, cr: number, creatureType: string, size: string, level: number, sourcePack?: string, sourceId?: string}} FakeActor */
+/** @typedef {{id: string, name: string, type: 'character' | 'npc', hp: Hp, items: Array<{id: string, name: string, type: string, sourceUuid?: string}>, cr: number, creatureType: string, size: string, level: number, sourcePack?: string, sourceId?: string, ownership?: Record<string, number>, sheet?: any}} FakeActor */
 /** @typedef {{id: string, sceneId: string, actorId: string, name: string, x: number, y: number, hidden: boolean, hp: Hp}} FakeToken */
 /** @typedef {{id: string, tokenId: string, actorId: string, name: string, initiative: number, hidden: boolean, category: string}} FakeCombatant */
 
@@ -42,6 +42,16 @@ export function createWorld({ world, moduleVersion }) {
     combats: [],
     /** The combat that ended last, for the play-by-play. @type {any} */
     lastCombat: null,
+    /**
+     * Faults a test can switch on: feature names whose grant uuid does not resolve; quirks of
+     * exerciseActor ("<actor name>|<feature identifier>" -> throws, noCard, noConsume, drift, refuse);
+     * a rest that forgets the pact slots.
+     */
+    faults: {
+      unresolved: /** @type {Set<string>} */ (new Set()),
+      quirks: /** @type {Map<string, string>} */ (new Map()),
+      restNoPact: false,
+    },
     seq: 0,
     rng: 20261005,
     lastMs: 0,

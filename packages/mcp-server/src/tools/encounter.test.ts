@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { EncounterTools } from './encounter.js';
 
@@ -7,10 +7,7 @@ import { EncounterTools } from './encounter.js';
  * Pattern: validate args → dispatch correct `foundry-mcp-bridge.*` method →
  * propagate foundry-side failures → shape the result.
  *
- * Validation-error behaviour differs per handler (matches source exactly):
- *   - handleSuggestBalancedEncounter  → THROWS  (no string return path)
- *   - handlePlaceMeasuredTemplate     → RETURNS string on ZodError
- *   - handleDeleteMeasuredTemplate    → THROWS  (no string return path)
+ * handleSuggestBalancedEncounter THROWS on a validation error (no string return path).
  *
  * The FoundryClient is mocked so these tests run with no bridge connection.
  */
@@ -34,14 +31,10 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
 // ---------------------------------------------------------------------------
 
 describe('EncounterTools.getToolDefinitions', () => {
-  it('exposes the three encounter tools with object input schemas', () => {
+  it('exposes the encounter tool with an object input schema', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();
-    expect(defs.map(d => d.name)).toEqual([
-      'suggest-balanced-encounter',
-      'place-measured-template',
-      'delete-measured-template',
-    ]);
+    expect(defs.map(d => d.name)).toEqual(['suggest-balanced-encounter']);
     for (const d of defs) {
       expect((d.inputSchema as any).type).toBe('object');
     }
@@ -52,20 +45,6 @@ describe('EncounterTools.getToolDefinitions', () => {
     const defs = tools.getToolDefinitions();
     const suggest = defs.find(d => d.name === 'suggest-balanced-encounter')!;
     expect((suggest.inputSchema as any).required).toBeUndefined();
-  });
-
-  it('place-measured-template requires shape and distance', () => {
-    const { tools } = makeTools();
-    const defs = tools.getToolDefinitions();
-    const place = defs.find(d => d.name === 'place-measured-template')!;
-    expect((place.inputSchema as any).required).toEqual(['shape', 'distance']);
-  });
-
-  it('delete-measured-template has no required fields', () => {
-    const { tools } = makeTools();
-    const defs = tools.getToolDefinitions();
-    const del = defs.find(d => d.name === 'delete-measured-template')!;
-    expect((del.inputSchema as any).required).toBeUndefined();
   });
 });
 
@@ -132,159 +111,5 @@ describe('EncounterTools.handleSuggestBalancedEncounter', () => {
     const { tools, query } = makeTools();
     await expect(tools.handleSuggestBalancedEncounter({ difficulty: 'deadly' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// handlePlaceMeasuredTemplate
-// ---------------------------------------------------------------------------
-
-describe('EncounterTools.handlePlaceMeasuredTemplate', () => {
-  it('dispatches with required shape and distance', async () => {
-    const payload = { success: true, templateId: 'tpl-1', coveredTokens: [] };
-    const { tools, query } = makeTools(() => payload);
-    const result = await tools.handlePlaceMeasuredTemplate({ shape: 'circle', distance: 20 });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.placeMeasuredTemplate', {
-      shape: 'circle',
-      distance: 20,
-    });
-    expect(result).toBe(payload);
-  });
-
-  it('dispatches with all optional fields when provided', async () => {
-    const { tools, query } = makeTools(() => ({ success: true }));
-    await tools.handlePlaceMeasuredTemplate({
-      shape: 'cone',
-      distance: 30,
-      x: 100,
-      y: 200,
-      direction: 45,
-      angle: 53,
-      width: 5,
-      fillColor: '#ff0000',
-    });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.placeMeasuredTemplate', {
-      shape: 'cone',
-      distance: 30,
-      x: 100,
-      y: 200,
-      direction: 45,
-      angle: 53,
-      width: 5,
-      fillColor: '#ff0000',
-    });
-  });
-
-  it('dispatches with originTokenName instead of x/y', async () => {
-    const { tools, query } = makeTools(() => ({ success: true }));
-    await tools.handlePlaceMeasuredTemplate({
-      shape: 'ray',
-      distance: 60,
-      originTokenName: 'Gandalf',
-    });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.placeMeasuredTemplate', {
-      shape: 'ray',
-      distance: 60,
-      originTokenName: 'Gandalf',
-    });
-  });
-
-  it('returns a parameter-error string (not a throw) when shape is missing', async () => {
-    const { tools, query } = makeTools();
-    const result = await tools.handlePlaceMeasuredTemplate({ distance: 20 });
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it('returns a parameter-error string (not a throw) when distance is missing', async () => {
-    const { tools, query } = makeTools();
-    const result = await tools.handlePlaceMeasuredTemplate({ shape: 'circle' });
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it('returns a parameter-error string (not a throw) when shape is an invalid enum', async () => {
-    const { tools, query } = makeTools();
-    const result = await tools.handlePlaceMeasuredTemplate({ shape: 'sphere', distance: 20 });
-    expect(typeof result).toBe('string');
-    expect(result as string).toMatch(/Parameter error/i);
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it('throws when Foundry reports a failure with an error message', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'no active scene' }));
-    await expect(
-      tools.handlePlaceMeasuredTemplate({ shape: 'circle', distance: 20 })
-    ).rejects.toThrow('no active scene');
-  });
-
-  it('throws a generic message when Foundry reports failure with no error field', async () => {
-    const { tools } = makeTools(() => ({ success: false }));
-    await expect(
-      tools.handlePlaceMeasuredTemplate({ shape: 'circle', distance: 20 })
-    ).rejects.toThrow('Failed to place template');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// handleDeleteMeasuredTemplate
-// ---------------------------------------------------------------------------
-
-describe('EncounterTools.handleDeleteMeasuredTemplate', () => {
-  let consoleErr: ReturnType<typeof vi.spyOn>;
-  beforeEach(() => {
-    consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
-  });
-
-  it('dispatches with a templateId', async () => {
-    const payload = { success: true };
-    const { tools, query } = makeTools(() => payload);
-    const result = await tools.handleDeleteMeasuredTemplate({ templateId: 'tpl-abc' });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.deleteMeasuredTemplate', {
-      templateId: 'tpl-abc',
-    });
-    expect(result).toBe(payload);
-    consoleErr.mockRestore();
-  });
-
-  it('dispatches with all=true to clear all templates', async () => {
-    const { tools, query } = makeTools(() => ({ success: true }));
-    await tools.handleDeleteMeasuredTemplate({ all: true });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.deleteMeasuredTemplate', {
-      all: true,
-    });
-    consoleErr.mockRestore();
-  });
-
-  it('defaults to empty params when args are omitted (undefined)', async () => {
-    const { tools, query } = makeTools();
-    await tools.handleDeleteMeasuredTemplate(undefined);
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.deleteMeasuredTemplate', {});
-    consoleErr.mockRestore();
-  });
-
-  it('defaults to empty params when args are null', async () => {
-    const { tools, query } = makeTools();
-    await tools.handleDeleteMeasuredTemplate(null);
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.deleteMeasuredTemplate', {});
-    consoleErr.mockRestore();
-  });
-
-  it('throws when Foundry reports a failure with an error message', async () => {
-    const { tools } = makeTools(() => ({ success: false, error: 'template not found' }));
-    await expect(tools.handleDeleteMeasuredTemplate({ templateId: 'tpl-xyz' })).rejects.toThrow(
-      'template not found'
-    );
-    consoleErr.mockRestore();
-  });
-
-  it('throws a generic message when Foundry reports failure with no error field', async () => {
-    const { tools } = makeTools(() => ({ success: false }));
-    await expect(tools.handleDeleteMeasuredTemplate({})).rejects.toThrow(
-      'Failed to delete template'
-    );
-    consoleErr.mockRestore();
   });
 });

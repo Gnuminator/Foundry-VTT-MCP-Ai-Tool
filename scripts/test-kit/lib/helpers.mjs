@@ -60,3 +60,29 @@ export function listOf(result, key) {
   if (Array.isArray(result)) return result;
   return Array.isArray(result?.[key]) ? result[key] : [];
 }
+
+/**
+ * The kit heroes that were built (no build error, an actor).
+ * @param {import('./contract.mjs').KitManifest} kit
+ */
+export function builtHeroes(kit) {
+  return kit.heroes.filter(h => h.actorId && !h.buildError);
+}
+
+/**
+ * The kit heroes that stand on the kit scene, in manifest order. Scenarios that fight use these.
+ * @param {import('./contract.mjs').KitManifest} kit
+ */
+export function tokenHeroes(kit) {
+  return builtHeroes(kit).filter(h => h.tokenId);
+}
+
+/**
+ * The hero the kit gave to the player user (the manifest row with an owner and a token).
+ * @param {import('./contract.mjs').KitManifest} kit
+ */
+export function playerHero(kit) {
+  const hero = tokenHeroes(kit).find(h => h.owner);
+  if (!hero) throw new KitAssertion('the kit manifest has no player hero with a token');
+  return hero;
+}

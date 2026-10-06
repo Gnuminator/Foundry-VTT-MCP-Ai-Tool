@@ -10,8 +10,6 @@ const READ_EXTRA = new Set(['check-secret-terms', 'open-in-foundry', 'mark-play-
 /** Tools whose class is destructive in the dashboard's tool policy: both confirmations. */
 const DESTRUCTIVE = new Set([
   'undo-change',
-  'delete-map-note',
-  'delete-measured-template',
   'clear-module-errors',
 ]);
 

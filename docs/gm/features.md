@@ -31,8 +31,9 @@ GM Actions. **End session** turns off again what it turned on. See
 
 - **What it does:** damage, healing, temporary hit points, conditions and resources (spell slots,
   class resources, item uses) on one or several creatures, worked out by dnd5e with resistances;
-  moving, changing or deleting tokens. From the dashboard's turn-order strip or by asking Claude.
-  Every change can be undone in Recent Changes.
+  moving, changing or deleting tokens; and scene dressing (area templates, darkness and light, map
+  notes, loot for a character). From the dashboard's turn-order strip or by asking Claude. Every
+  change can be undone in Recent Changes.
 - **Starts:** on. Setting "AI Tool: Live play (writes)".
 - **Turn it on when:** it is on already. Leave it on.
 - **More:** [Combat Tracker](dashboard.md#combat-tracker).

@@ -3,9 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Co-GM Dashboard</title>
+    <title>Foundry AI Tool</title>
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./moments.css" />
+    <link rel="stylesheet" href="./themes/brand.css" />
     <link rel="stylesheet" href="./themes/veil.css" />
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
@@ -13,9 +14,21 @@
   <body>
     <header class="topbar">
       <div class="brand">
-        <span class="brand-icon">🧠</span>
+        <span class="brand-icon" aria-hidden="true">
+          <!-- The README brand's mark (docs/images/brand/logo.svg), coloured by themes/brand.css. -->
+          <svg class="brand-mark" viewBox="0 0 100 100">
+            <circle class="mark-glow" cx="50" cy="31" r="16" />
+            <polygon class="mark-hex" points="90,50 70,84.64 30,84.64 10,50 30,15.36 70,15.36" />
+            <line class="mark-edge" x1="34" y1="63" x2="50" y2="31" />
+            <line class="mark-edge" x1="34" y1="63" x2="66" y2="63" />
+            <line class="mark-spark" x1="50" y1="31" x2="66" y2="63" />
+            <circle class="mark-ring" cx="34" cy="63" r="4" />
+            <circle class="mark-ring" cx="66" cy="63" r="4" />
+            <circle class="mark-node" cx="50" cy="31" r="5.5" />
+          </svg>
+        </span>
         <div>
-          <h1>Co-GM</h1>
+          <h1>Foundry <span class="wordmark-ai">AI</span> Tool</h1>
           <p class="subtitle" id="world-subtitle">Live AI dungeon master's assistant</p>
         </div>
       </div>
@@ -156,6 +169,23 @@
             >
               🃏 Tarokka
             </button>
+            <p class="menu-label">During screen</p>
+            <button
+              id="btn-combat-buttons"
+              class="btn"
+              data-track="dash.header.combat-buttons"
+              title="Damage / Heal, Condition and Clear on selected combatants in the turn-order strip. Off by default: dnd5e's chat cards already apply damage."
+            >
+              ⚔ Combat buttons: off
+            </button>
+            <button
+              id="btn-layout-tour"
+              class="btn"
+              data-track="dash.header.layout-tour"
+              title="Try the three During layouts on the real screen and keep one"
+            >
+              ▦ Try the During layouts
+            </button>
             <p class="menu-label">Tools</p>
             <button
               id="btn-tools"
@@ -232,6 +262,24 @@
     <main class="moment-views" id="moment-views">
       <!-- Before the session: get ready, then see what the session needs. -->
       <section class="moment" id="moment-before" aria-label="Before the session" hidden>
+        <!-- The During layout trial (I-107): shown until the GM keeps a layout. Never blocks. -->
+        <section class="layout-trial" id="layout-trial" aria-label="Pick your During layout" hidden>
+          <div>
+            <h2>Pick your During layout</h2>
+            <p class="pf-detail">
+              The During screen comes in three layouts. Try each one on the real screen and keep the
+              one you like. Skip this and Cards stays; you can switch any time on the During screen.
+            </p>
+          </div>
+          <div class="ready-actions">
+            <button class="btn lamp" id="btn-layout-trial" data-track="dash.trial.start">
+              Try the layouts
+            </button>
+            <button class="btn btn-quiet" id="btn-layout-trial-skip" data-track="dash.trial.skip">
+              Keep Cards
+            </button>
+          </div>
+        </section>
         <div class="slot" data-slot="preflight"></div>
         <div class="slot" data-slot="prep"></div>
         <!-- Feature cards (I-064, D-081): what is on, and when to turn the rest on. -->
@@ -249,14 +297,89 @@
         </section>
       </section>
       <!-- During: Foundry is the table; this screen watches, remembers and can take back. -->
-      <section class="moment" id="moment-during" aria-label="During the session" hidden>
+      <!-- Three layouts (D-092, I-107): A cards (data-layout="layered"), B Simple/Full
+           ("toggle"), C auto by context ("auto"). Every slot is a grid child, so moments.css
+           can place them per layout, per context and per screen width. -->
+      <section
+        class="moment"
+        id="moment-during"
+        aria-label="During the session"
+        data-layout="layered"
+        hidden
+      >
+        <div class="during-bar" id="during-bar">
+          <div class="layout-switch" role="group" aria-label="During layout">
+            <span class="layout-switch-label">Layout</span>
+            <button
+              type="button"
+              data-layout-pick="layered"
+              data-track="dash.during.layout-layered"
+              aria-pressed="true"
+              title="Live Feed first, cards at the side"
+            >
+              Cards
+            </button>
+            <button
+              type="button"
+              data-layout-pick="toggle"
+              data-track="dash.during.layout-toggle"
+              aria-pressed="false"
+              title="A short screen, or everything with one switch"
+            >
+              Simple/Full
+            </button>
+            <button
+              type="button"
+              data-layout-pick="auto"
+              data-track="dash.during.layout-auto"
+              aria-pressed="false"
+              title="Follows the game: combat brings the turn order and the party forward"
+            >
+              Auto
+            </button>
+          </div>
+          <button
+            type="button"
+            class="help-q"
+            data-help="dashboard#during-layouts"
+            data-track="dash.help.during-layouts"
+            title="What the layouts do. Opens the guide"
+            aria-label="Help for the During layouts"
+          >
+            ?
+          </button>
+          <button
+            type="button"
+            class="btn btn-quiet"
+            id="btn-during-full"
+            data-track="dash.during.full-toggle"
+            hidden
+          >
+            Show everything
+          </button>
+          <span class="during-auto-note" id="during-auto-note" hidden></span>
+          <p class="layout-hint" id="layout-hint" hidden>
+            <span
+              >New: the During screen has three layouts. Try Simple/Full or Auto here, or keep
+              Cards.</span
+            >
+            <button
+              type="button"
+              class="icon-btn"
+              id="layout-hint-close"
+              data-track="dash.during.hint-dismiss"
+              title="Hide this hint"
+              aria-label="Hide this hint"
+            >
+              ✕
+            </button>
+          </p>
+        </div>
         <div class="slot slot-strip" data-slot="strip"></div>
         <div class="slot slot-feed" data-slot="feed"></div>
-        <div class="moment-side">
-          <div class="slot" data-slot="party"></div>
-          <div class="slot" data-slot="handouts"></div>
-          <div class="slot" data-slot="changes"></div>
-        </div>
+        <div class="slot slot-changes" data-slot="changes"></div>
+        <div class="slot slot-handouts" data-slot="handouts"></div>
+        <div class="slot slot-party" data-slot="party"></div>
       </section>
       <!-- After: what happened tonight. -->
       <section class="moment" id="moment-after" aria-label="After the session" hidden>
@@ -733,6 +856,22 @@
     </div>
 
     <!-- Toast notifications -->
+    <!-- The layout trial's guide (I-107): a small card in the corner, never over the screen. -->
+    <aside class="layout-tour" id="layout-tour" aria-label="Try the During layouts" hidden>
+      <p class="layout-tour-step" id="layout-tour-step"></p>
+      <h3 id="layout-tour-title"></h3>
+      <p class="layout-tour-text" id="layout-tour-text"></p>
+      <div class="ready-actions">
+        <button class="btn lamp" id="layout-tour-use" data-track="dash.trial.use">
+          Use this one
+        </button>
+        <button class="btn" id="layout-tour-next" data-track="dash.trial.next">Next</button>
+        <button class="btn btn-quiet" id="layout-tour-stop" data-track="dash.trial.stop">
+          Stop
+        </button>
+      </div>
+    </aside>
+
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
 
     <script

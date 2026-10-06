@@ -58,7 +58,7 @@ fixtures. Track each as ✅ / ⚠️ / ❌ with the result shape.
 - [ ] **Dice/rolls**: `request-player-rolls`, `request-ability-check`, `request-attack-roll`, `roll-npc-check` — verify the roll button appears + resolves.
 - [ ] **Resources/effects**: `get-character-resources`, `plan-actor-change` resource and clear-conditions (apply, then undo), `get-active-effects` (test actor).
 - [ ] **Chat/log**: `send-chat-message` (ooc/ic/whisper, speaker), `get-chat-log`, `get-combat-play-by-play`.
-- [ ] **Encounter & scene-fx**: `suggest-balanced-encounter`, `place`/`delete-measured-template`, `set-scene-mood` (+ restore), `add`/`delete-map-note`, `plan-token-change` update with light (apply, then undo), `drop-loot` (test scene).
+- [ ] **Encounter & scene-fx**: `suggest-balanced-encounter`, `plan-scene-change` (template, clear-templates, mood, note, remove-note, loot: apply, then undo each, check Recent Changes), `play-playlist`, `plan-token-change` update with light (apply, then undo) (test scene).
 - [ ] **Ownership**: `plan-ownership-change` assign and remove (apply, then undo), `list-actor-ownership`, on a test actor.
 - [ ] **Journals/quests**: `create-quest-journal`, `update-quest-journal`, `link-quest-to-npc`, `list`/`search-journals`. (No delete-journal tool — clean up manually.)
 - [ ] **Diagnostics**: `get-modules`, `get-module-errors`, `clear-module-errors`, `get-module-manifest`.

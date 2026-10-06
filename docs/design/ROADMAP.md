@@ -22,8 +22,8 @@ See also: [BUILT.md](../history/BUILT.md), [FIXES.md](../history/FIXES.md), [FEA
 
 - **Combat-resolution suite** — `apply-damage-and-healing`, `roll-saving-throws`,
   `roll-initiative-for-npcs`, `manage-rest`, `use-npc-activity`. The AI can actually run a 5e round.
-- **Encounter & scene tooling** — `suggest-balanced-encounter`, `place-measured-template`,
-  `set-scene-mood`, `drop-loot`, `add-map-note`, `set-token-vision-light`.
+- **Encounter & scene tooling** — `suggest-balanced-encounter`, `plan-scene-change` (templates,
+  mood, map notes and loot, as guarded writes with Undo), `play-playlist`, `set-token-vision-light`.
 - **`get-recent-events`** — the incremental "what changed since timestamp X" session delta.
 - **Module diagnostics** (v0.12.0) — `get-module-errors` / `get-modules` / `get-module-manifest` /
   `clear-module-errors`.
@@ -137,7 +137,7 @@ Everything else outstanding is below, roughly in priority order.
 **Correctness / functionality:**
 
 - [ ] Fix `link-quest-to-npc` silent no-op fallback (`tools/quest-creation.ts:888`) + real post-write verify.
-- [ ] Reject negative currency in `drop-loot` (`tools/loot.ts:64`).
+- [ ] Reject negative currency in `plan-scene-change` loot (`scene-plan.ts`).
 - [ ] `system-detection` — retry/expire the `'other'` cache instead of poisoning it forever (`utils/system-detection.ts:32`).
 - [ ] WebRTC incoming `chunked-message` reassembly (`foundry-module/src/webrtc-connection.ts`).
 - [ ] Fix the Foundry-mock 16-char-type id collision (`test-support/foundry-mock/documents.ts:88`).

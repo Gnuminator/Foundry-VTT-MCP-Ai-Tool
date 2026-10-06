@@ -297,6 +297,10 @@ const PATH_LABELS: Array<[RegExp, (m: RegExpMatchArray) => string]> = [
     (m): string => `${m[1] === 'pact' ? 'pact' : `level ${String(m[1]).slice(5)}`} slots`,
   ],
   [/^system\.resources\.(primary|secondary|tertiary)\.value$/, (m): string => `${m[1]} resource`],
+  [/^environment\.darknessLevel$/, (): string => 'darkness'],
+  [/^environment\.darknessLock$/, (): string => 'darkness lock'],
+  [/^environment\.globalLight\.enabled$/, (): string => 'global light'],
+  [/^system\.currency\.(pp|gp|ep|sp|cp)$/, (m): string => String(m[1])],
   [/^ownership\.default$/, (): string => 'default ownership'],
   [/^ownership\.([A-Za-z0-9]+)$/, (m): string => `ownership for user ${m[1]}`],
   [/^(x|y)$/, (m): string => `position ${m[1]}`],
@@ -369,7 +373,9 @@ function foundryDiff(
     } else if (op.kind === 'create') {
       if (!snap.exists) throw new Error(`Op ${i}: parent not found: ${String(op.parentUuid)}`);
       if (snap.idTaken) throw new Error(`Op ${i}: a document with that id already exists`);
-      const name = typeof op.data.name === 'string' ? ` "${op.data.name}"` : '';
+      // A map note carries its label in `text`, not `name`.
+      const named = op.documentName === 'Note' ? (op.data.text ?? op.data.name) : op.data.name;
+      const name = typeof named === 'string' && named ? ` "${named}"` : '';
       const parent = parentText(snap);
       const where = parent ? ` on ${parent}` : op.parentUuid ? ` in ${op.parentUuid}` : '';
       const label = `${op.documentName}${name}`;

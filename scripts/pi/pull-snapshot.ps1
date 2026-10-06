@@ -13,6 +13,9 @@
   - Test-reads every new archive (Windows' tar must decode and list it) before keeping it.
   - Keeps the newest -KeepDaily archives plus the newest one of each of the last -KeepWeekly
     weeks; deletes only its own older archives in this folder, never anything on the Pi.
+  - Starts with the storage space check (space-check.ps1): below 20 % free on the Pi's snapshot disk or
+    on this PC's destination it logs a WARNING and shows a Windows notification; at critical (under
+    5 %) on the destination it skips the copy and exits 1.
   - Logs to <Destination>\logs\pull-<yyyy-MM>.log and writes last-success.txt.
 
 .EXAMPLE
@@ -34,6 +37,8 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+. (Join-Path $PSScriptRoot 'space-check.ps1')
 
 $snapDir = Join-Path $Destination 'snapshots'
 $logDir = Join-Path $Destination 'logs'
@@ -64,6 +69,16 @@ try {
     if ($null -ne (Invoke-Remote $h 'true')) { $target = $h; break }
   }
   if (-not $target) { throw "The Pi does not answer on: $($Hosts -join ', ')" }
+
+  # Space check first (never throws): warns below 20 % free, stops the copy at critical on the destination.
+  $extra = @()
+  $vault = Get-SyncthingVaultPath
+  if ($vault) { $extra = @(@{ Path = $vault; Job = 'Syncthing vault (destination)' }) }
+  $space = Invoke-SpaceCheck -Job 'snapshot copy' -Destinations @($Destination) -Extra $extra -PiHost $target -Ssh $Ssh `
+    -PiPaths @($SnapshotRoot) -Log ${function:Write-Log} -Test:$DryRun
+  if ($space.Skip) {
+    if ($DryRun) { Write-Log 'dry run: the copy would be skipped (space is critical)' } else { throw $space.SkipReason }
+  }
 
   if ($null -ne (Invoke-Remote $target 'pgrep -f "dietpi-backup [0-9]"')) {
     Write-Log "skip: dietpi-backup is running on $target; next run tries again"

@@ -399,8 +399,8 @@ player vault from the M2 projection and never copies or filters mirror notes.
 ## 5. Page text: HTML to Markdown and the `@UUID` rewrite
 
 Only pages of opted-in journals have text. The converter (`obsidian/html-to-md.ts`) parses with
-`htmlparser2` ^10.1.0 (already vetted for the dashboard; v12 needs Node 20.19+, the installer bundles
-20.12.2) and **rebuilds** Markdown from an allowlist: headings, paragraphs, line breaks, bold, italic,
+`htmlparser2` ^10.1.0 (already vetted for the dashboard; v12 needs Node 20.19+; the floor is now Node 22, so
+v12 is allowed) and **rebuilds** Markdown from an allowlist: headings, paragraphs, line breaks, bold, italic,
 lists, blockquotes, simple tables (else paragraphs), `pre` (a fence one backtick longer than any run inside,
 info string `text`), horizontal rules. `section.secret` becomes a collapsed `> [!secret]- GM secret`
 callout (the GM vault may hold secrets, decision 3). Images become `[image: <alt>]`. No raw HTML is ever

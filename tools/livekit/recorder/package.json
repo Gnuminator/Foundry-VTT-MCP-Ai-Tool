@@ -4,7 +4,9 @@
   "private": true,
   "description": "Webhook service that starts a LiveKit track egress for every published track.",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node src/index.js",
     "test": "vitest run"

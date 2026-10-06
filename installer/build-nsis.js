@@ -18,6 +18,7 @@
  */
 
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const { execSync } = require('child_process');
 
@@ -50,9 +51,13 @@ console.log(`Version: ${version}\n`);
 // Configuration
 const rootDir = path.join(__dirname, '..');
 const config = {
-  nodeVersion: 'v20.12.2',
-  nodeArchive: 'node-v20.12.2-win-x64.zip',
-  nodeUrl: 'https://nodejs.org/dist/v20.12.2/node-v20.12.2-win-x64.zip',
+  // Node 22 LTS ("Jod"). The SHA-256 is the line for this zip in
+  // https://nodejs.org/dist/v22.23.3/SHASUMS256.txt; the build fails if the download differs.
+  // To bump: change the three Node lines and the hash together.
+  nodeVersion: 'v22.23.3',
+  nodeArchive: 'node-v22.23.3-win-x64.zip',
+  nodeUrl: 'https://nodejs.org/dist/v22.23.3/node-v22.23.3-win-x64.zip',
+  nodeSha256: '2b0ff57b049cda1bbcea2240eec20467018713c1efe1f7360c2681859b90ed71',
   buildDir: path.join(__dirname, 'build'),
   nsisDir: path.join(__dirname, 'nsis'),
   outputDir: path.join(__dirname, 'build', 'installer-files'),
@@ -90,6 +95,20 @@ function downloadAndExtractNode() {
       process.exit(1);
     }
   }
+
+  // Verify the archive (fresh download or cached) against the pinned hash before it is unpacked.
+  const actualSha256 = crypto
+    .createHash('sha256')
+    .update(fs.readFileSync(nodeZipPath))
+    .digest('hex');
+  if (actualSha256 !== config.nodeSha256) {
+    console.error(`   Node.js archive checksum mismatch for ${config.nodeArchive}`);
+    console.error(`   expected ${config.nodeSha256}`);
+    console.error(`   actual   ${actualSha256}`);
+    console.error('   Delete the file in installer/build/temp and try again, or update the pin.');
+    process.exit(1);
+  }
+  console.log('   Node.js archive checksum OK (SHA-256)');
 
   console.log('   Extracting Node.js...');
   ensureDir(nodeExtractPath);

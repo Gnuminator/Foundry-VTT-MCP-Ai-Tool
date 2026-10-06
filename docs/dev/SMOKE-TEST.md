@@ -42,9 +42,9 @@ running inside it.
 - [ ] Confirm the bridge connects — the module reports connected and the loopback ports are live
       (`31414` control / `31415` Foundry link). No connection errors in the module status.
 
-### 5. Verify the co-GM dashboard
+### 5. Verify the dashboard
 
-- [ ] Open the co-GM dashboard.
+- [ ] Open the dashboard.
 - [ ] Confirm the **live feed** populates (session events appear).
 - [ ] Confirm a **read tool** returns data (e.g. current scene / character list / world info shows real
       values, not an error).

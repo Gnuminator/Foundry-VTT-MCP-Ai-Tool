@@ -6,7 +6,7 @@ description: Bring up the Orange Pi 5 Pro from scratch as the home server for Fo
 # Orange Pi setup
 
 The Orange Pi 5 Pro (16 GB) becomes the always-on home server: Foundry VTT itself, the bridge, the
-co-GM dashboard, the Discord bot, backups and vault sync. Decisions: vault notes D-068 (the Pi),
+dashboard, the Discord bot, backups and vault sync. Decisions: vault notes D-068 (the Pi),
 D-075 (how players reach it).
 
 How the work is split:

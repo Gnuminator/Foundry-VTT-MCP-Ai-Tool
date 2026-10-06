@@ -805,7 +805,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       return;
     }
 
-    const message = `🧠 Co-GM: ${text}`;
+    const message = `🧠 AI: ${text}`;
     // Always a whisper. gmNames lists only the GMs logged in right now; with none (or no world
     // info yet) the module whispers to every GM user, and refuses rather than post publicly.
     const gmNames = world?.gmNames ?? [];

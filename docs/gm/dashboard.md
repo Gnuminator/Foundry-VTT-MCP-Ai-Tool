@@ -1,11 +1,11 @@
 ---
-title: The co-GM dashboard
-description: A tour of every panel and button on the co-GM dashboard, what each does and when to use it.
+title: The dashboard
+description: A tour of every panel and button on the dashboard, what each does and when to use it.
 ---
 
-# The co-GM dashboard
+# The dashboard
 
-The co-GM dashboard is your control panel. Open it in a browser on a second screen next to
+The dashboard is your control panel. Open it in a browser on a second screen next to
 Foundry. Today its address is `http://localhost:3000` (it changes when the tool moves to the
 Orange Pi).
 
@@ -26,7 +26,7 @@ Three lights at the top tell you if everything is connected:
 | ----------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Bridge**  | `connected`    | `disconnected`: the dashboard cannot reach the bridge. Is Claude Desktop running? `reconnecting…`: this page lost its connection to the dashboard program. Is the dashboard's window still open? |
 | **Foundry** | `live`         | `unreachable`: the bridge runs, but no GM's Foundry tab is connected. `unknown`: not checked yet, or the bridge is down.                                                                         |
-| **AI**      | `on`, `paused` | `disabled`: no Anthropic API key is set. This is normal; see "Co-GM Commentary" below.                                                                                                           |
+| **AI**      | `on`, `paused` | `disabled`: no Anthropic API key is set. This is normal; see "AI commentary" below.                                                                                                              |
 
 The line under the title shows your world, the game system and the Foundry version once Foundry is
 live.
@@ -260,7 +260,7 @@ scene changes and more. Each line shows its type and the time.
 - Private, blind and GM rolls appear as `gm-roll` lines. Players never see these.
 - `gm-change` lines appear when a guarded change is applied or undone.
 
-### Co-GM Commentary
+### AI commentary
 
 Optional AI comments on the fight and an **Ask** box ("who's in trouble?").
 

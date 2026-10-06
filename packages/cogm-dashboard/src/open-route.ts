@@ -307,7 +307,7 @@ export function mountOpenRoute(app: Express, deps: OpenRouteDeps): void {
         auth,
         'gm-required',
         auth === 401
-          ? 'GM sign-in is required. Open the co-GM dashboard once in this browser.'
+          ? 'GM sign-in is required. Open the dashboard once in this browser.'
           : 'Only the GM can open documents in Foundry.'
       );
       return;

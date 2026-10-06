@@ -33,8 +33,8 @@ Once Foundry's capabilities are expressed as MCP tools, two things become possib
 1. **A conversational GM assistant.** A GM talks to Claude ("set up the goblin ambush from
    the module on the current scene") and Claude calls the tools to make it happen, narrating
    and reasoning as it goes.
-2. **A live co-GM dashboard.** A standalone web app watches the session in real time and
-   surfaces an AI co-GM that comments on combat, answers tactical questions, and can drive
+2. **A live dashboard.** A standalone web app watches the session in real time and
+   surfaces an AI that comments on combat, answers tactical questions, and can drive
    the same tool surface — without Claude Desktop in the loop at all.
 
 The trick is that the AI never touches Foundry directly. Every capability is mediated by a
@@ -52,7 +52,7 @@ a pair of well-defined wire contracts connect them.
                                           └───────────────┬──────────────────────────────┘
                                                           │ TCP, JSON-lines
    ┌──────────────────┐   HTTP + SSE                      │ 127.0.0.1:31414  (control channel)
-   │  Browser: co-GM   │◄───────────┐                     ▼
+   │  Dashboard (web)  │◄───────────┐                     ▼
    │  dashboard UI     │            │      ┌──────────────────────────────────────────────┐
    └──────────────────┘            └─────►│  mcp-server: BACKEND (backend.ts)             │
                               (SSE server  │  - control-channel server (ping/list/call)    │
@@ -75,11 +75,11 @@ The rest of this document walks each part and then traces two requests end-to-en
 
 ### Port map (localhost)
 
-| Port    | Protocol        | Spoken between                                            |
-| ------- | --------------- | --------------------------------------------------------- |
-| `31414` | TCP, JSON-lines | stdio wrapper **and** co-GM dashboard → backend (control) |
-| `31415` | WebSocket       | Foundry module → backend (the "Foundry connector")        |
-| `31416` | HTTP POST       | Foundry module → backend (WebRTC signaling/handshake)     |
+| Port    | Protocol        | Spoken between                                        |
+| ------- | --------------- | ----------------------------------------------------- |
+| `31414` | TCP, JSON-lines | stdio wrapper **and** dashboard → backend (control)   |
+| `31415` | WebSocket       | Foundry module → backend (the "Foundry connector")    |
+| `31416` | HTTP POST       | Foundry module → backend (WebRTC signaling/handshake) |
 
 All three listen on `127.0.0.1` by default. The Foundry link (31415/31416) opens to other
 interfaces only with `FOUNDRY_LINK_HOST`; the dashboard (3000) only with `DASHBOARD_HOST`
@@ -174,7 +174,7 @@ There are **two** distinct socket layers, and keeping them separate is central t
 ### 3a. The control channel — `127.0.0.1:31414` (TCP, JSON-lines)
 
 This is the contract between the **MCP server's outer clients** (the stdio wrapper, and the
-co-GM dashboard) and the **backend**. It is a plain TCP socket carrying **newline-delimited
+dashboard) and the **backend**. It is a plain TCP socket carrying **newline-delimited
 JSON**. One JSON object per line, request and response correlated by an `id` the caller
 generates.
 
@@ -502,13 +502,13 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
    (delete what was created, restore originals, recreate what was deleted). On failure the
    transaction rolls back in reverse order; a bounded history is kept for after-the-fact undo.
 
-**Secrets.** The Anthropic API key used by the co-GM lives **only** on the dashboard's Node
+**Secrets.** The Anthropic API key used by the AI commentary lives **only** on the dashboard's Node
 server, read from the environment. It is never sent to the browser and never crosses the
 control channel.
 
 ---
 
-## 7. The co-GM dashboard (`packages/cogm-dashboard`)
+## 7. The dashboard (`packages/cogm-dashboard`)
 
 A standalone product that turns the same bridge into a **live session companion**. It is
 original work (not derived from upstream) and has **no Claude Desktop dependency at runtime** —
@@ -535,7 +535,7 @@ failure doesn't flap the "Foundry reachable" badge. It distinguishes channel-dow
 `unknown`) from "backend up, Foundry module not connected" (report `unreachable`) using the
 typed errors from §4b.
 
-**The AI co-GM (`ai/`).** `CoGm` is a thin wrapper over the Anthropic **Messages API** with
+**The AI commentary (`ai/`).** `CoGm` is a thin wrapper over the Anthropic **Messages API** with
 streaming. The large persona/rules/world block carries a `cache_control` breakpoint and is
 byte-identical every call (served from the prompt cache after the first request); the volatile
 game state goes in the user turn and is never cached. Each request is independent (no growing
@@ -559,7 +559,7 @@ present, the AI is disabled gracefully and the _feed still runs_.
 - **Reads are always free.** Writes require a master **GM Actions** switch (off by default) to
   be on **and** an explicit `confirm`. Destructive tools require a _second_ `confirmDestructive`.
   Gating is enforced on the **server**, not in CSS — a hostile browser can't bypass it.
-- `send-chat-message` is the one always-available write the co-GM uses to whisper the GM (it
+- `send-chat-message` is the one always-available write the AI commentary uses to whisper the GM (it
   targets the world's GM names, derived from `get-world-info`).
 
 This is also where the **player vs GM split** lives (built in Phase 6: `auth.ts`, `redact.ts`,
@@ -641,7 +641,7 @@ sees_ in the UI comes from the live SSE feed, not from the tool's return value.
 | ------------------------- | --------------------------------------------------------------------------------- | ----------------- |
 | `packages/mcp-server`     | stdio MCP wrapper + backend (control channel, tools, registry, Foundry connector) | Node.js (Windows) |
 | `packages/foundry-module` | `foundry-mcp-bridge` — the in-Foundry gateway                                     | Foundry's browser |
-| `packages/cogm-dashboard` | standalone co-GM dashboard (Node SSE server + browser client)                     | Node.js + browser |
+| `packages/cogm-dashboard` | standalone dashboard (Node SSE server + browser client)                           | Node.js + browser |
 | `shared`                  | shared types/vocabulary                                                           | both              |
 
 The end-to-end test kit (a known world, scenarios, a report, and a fake for CI) is described in

@@ -12,7 +12,7 @@ play.
 | Page                                                   | What it is for                                                                        |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------- |
 | [Getting started](getting-started.md)                  | What the tool is, its parts, how they fit together, a glossary, and today's setup.    |
-| [The co-GM dashboard](dashboard.md)                    | Every panel and button on the dashboard, what it does and when to use it.             |
+| [The dashboard](dashboard.md)                          | Every panel and button on the dashboard, what it does and when to use it.             |
 | [Features and when to turn them on](features.md)       | Each feature switch, what it does, and the moment to turn it on.                      |
 | [Asking Claude](asking-claude.md)                      | Good requests, the ready-made prompts, how Claude's changes are approved, its limits. |
 | [Cookbook](cookbook.md)                                | Ready-to-use requests and clicks before, during and after a session.                  |

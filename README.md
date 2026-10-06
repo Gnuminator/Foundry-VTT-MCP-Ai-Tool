@@ -13,7 +13,7 @@
 ---
 
 Foundry AI Tool lets Claude **see and act on** a live Foundry VTT game. It also gives the GM a
-browser **co-GM dashboard** that watches the table in real time and lists Claude's guarded changes
+browser **dashboard** that watches the table in real time and lists Claude's guarded changes
 with an Undo button, a **spoiler-safe page for the players**, and **Obsidian notes** of every
 session.
 
@@ -27,7 +27,7 @@ currently shaped around a Curse of Strahd campaign.
 > **[documentation index](docs/README.md)**.
 
 <p align="center">
-  <img src="docs/images/brand/demo.gif" alt="Foundry AI Tool: the co-GM dashboard in action, with the live combat tracker, the GM tool runner, confirm-gated actions and the brand lockup" width="100%">
+  <img src="docs/images/brand/demo.gif" alt="Foundry AI Tool: the dashboard in action, with the live combat tracker, the GM tool runner, confirm-gated actions and the brand lockup" width="100%">
 </p>
 
 ## What it does
@@ -55,7 +55,7 @@ currently shaped around a Curse of Strahd campaign.
 - **Obsidian notes.** One note per play session, the change history, the Tarokka reading, stats,
   and an optional mirror of the Foundry world (PCs, NPCs, scenes, journals, items) with links back
   into Foundry. Notes you edit are never overwritten.
-- **Co-GM dashboard.** Live combat tracker and event feed, combat controls, a tool runner for every
+- **The dashboard.** Live combat tracker and event feed, combat controls, a tool runner for every
   tool, Recent Changes with Undo, a Tarokka drawer and play session markers.
 
 ## The parts
@@ -64,19 +64,19 @@ currently shaped around a Curse of Strahd campaign.
 | ----------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------- |
 | **Foundry module** (`foundry-mcp-bridge`) | A GM-gated gateway inside Foundry: bridge handlers, the play recorder, the version adapter | a GM's browser    |
 | **Bridge** (MCP server)                   | MCP tools, guarded writes, the GM-only bridge vault, the Obsidian renderer                 | Node.js           |
-| **Co-GM dashboard**                       | The GM's control panel and the players' `/player` page                                     | Node.js + browser |
+| **The dashboard**                         | The GM's control panel and the players' `/player` page                                     | Node.js + browser |
 
 ```text
   Claude / MCP client ──(MCP)──► bridge ──(socket)──► Foundry module ──► your game
                                    ▲  │
-  Co-GM dashboard ──(control)──────┘  └──► Obsidian notes (one way)
+  The dashboard ──(control)────────┘  └──► Obsidian notes (one way)
 ```
 
 > Architecture deep-dive: **[docs/dev/ARCHITECTURE.md](docs/dev/ARCHITECTURE.md)**.
 
 ---
 
-## Co-GM dashboard
+## The dashboard
 
 A live session control surface that runs in a browser tab on a second screen.
 
@@ -210,7 +210,7 @@ The bridge links the AI client and the Foundry module over local sockets (contro
 the module active. For Obsidian notes, add `"FOUNDRY_AI_OBSIDIAN_DIR": "<your vault folder>"` to
 the `env` of every entry.
 
-### 3. Run the co-GM dashboard
+### 3. Run the dashboard
 
 ```bash
 npm run dev:cogm              # → http://localhost:3000 (the player page is /player)
@@ -242,7 +242,7 @@ closed, start the bridge standalone first: `npm run bridge:standalone`.
 ## Attribution
 
 Built on top of [foundry-vtt-mcp](https://github.com/adambdooley/foundry-vtt-mcp) by Adam Dooley (MIT).
-The MCP server and Foundry module packages are derived from that upstream project; the co-GM dashboard
+The MCP server and Foundry module packages are derived from that upstream project; the dashboard
 (`packages/cogm-dashboard`) is original work. Full attribution in [CREDITS.md](CREDITS.md).
 
 ---

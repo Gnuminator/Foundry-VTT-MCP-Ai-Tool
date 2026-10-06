@@ -347,7 +347,7 @@ export function renderChangesNote(worldId: string, month: string, entries: Chang
       '',
       GENERATED_BANNER,
       '',
-      'Every change the AI Tool applied or undid through guarded writes (times in UTC). Undo from the co-GM dashboard (Recent Changes).',
+      'Every change the AI Tool applied or undid through guarded writes (times in UTC). Undo from the dashboard (Recent Changes).',
       '',
       ...blocks,
     ].join('\n')
@@ -448,7 +448,7 @@ export function renderTarokkaNote(
         '',
         GENERATED_BANNER,
         '',
-        'No reading is stored yet. Deal or import one from the co-GM dashboard (🃏 Tarokka).',
+        'No reading is stored yet. Deal or import one from the dashboard (🃏 Tarokka).',
         '',
       ].join('\n')
     );

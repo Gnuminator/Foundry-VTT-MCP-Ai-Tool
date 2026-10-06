@@ -1,7 +1,7 @@
 # Foundry AI Tool: Obsidian plugin
 
 A small desktop plugin for the GM's Obsidian vault (idea I-059, `docs/design/OBSIDIAN-PLAN.md`
-section 10, P1). It talks only to the co-GM dashboard, never to Foundry or the bridge directly.
+section 10, P1). It talks only to the dashboard, never to Foundry or the bridge directly.
 
 For a note with `fvtt_uuid` in its frontmatter (the Obsidian mirror writes it on every note):
 

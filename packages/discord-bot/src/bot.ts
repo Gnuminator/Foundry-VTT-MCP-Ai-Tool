@@ -33,6 +33,8 @@ import {
   type ApplicationOwnerLike,
 } from './space-notify.js';
 import { createSpaceStatusReader } from './space-status.js';
+import { createBackupPullReader } from './backup-pull-status.js';
+import { BackupPullNotifier } from './backup-pull-notify.js';
 
 export const RECORD_COMMAND = new SlashCommandBuilder()
   .setName('record')
@@ -102,8 +104,9 @@ export class RecorderBot {
   }
 
   /**
-   * Storage space notices: every 15 minutes read the Pi's status file and DM the owner (see
-   * space-notify.ts). The owner is DISCORD_OWNER_ID, else the Discord application's owner.
+   * Notices by DM to the owner, every 15 minutes: storage space (space-notify.ts, from the Pi's
+   * status file) and stale backup copies on the PC (backup-pull-notify.ts, from the Pi's record of
+   * the PC's last pulls). The owner is DISCORD_OWNER_ID, else the Discord application's owner.
    */
   private async startSpaceNotices(c: Client<true>): Promise<void> {
     const app = await c.application.fetch();
@@ -120,31 +123,41 @@ export class RecorderBot {
       log: log.info,
     });
     const dmFailureLog = new LogThrottle();
-    const notifier = new SpaceNotifier({
-      send: async (text): Promise<boolean> => {
-        try {
-          const user = await c.users.fetch(ownerId);
-          await user.send(text);
-          dmFailureLog.reset();
-          return true;
-        } catch (err) {
-          if (dmFailureLog.shouldLog()) {
-            log.error(
-              'Space notices: the DM to the owner failed (will retry; logged at most once per 24 hours)',
-              err
-            );
-          }
-          return false;
+    const send = async (text: string): Promise<boolean> => {
+      try {
+        const user = await c.users.fetch(ownerId);
+        await user.send(text);
+        dmFailureLog.reset();
+        return true;
+      } catch (err) {
+        if (dmFailureLog.shouldLog()) {
+          log.error(
+            'Notices: the DM to the owner failed (will retry; logged at most once per 24 hours)',
+            err
+          );
         }
-      },
+        return false;
+      }
+    };
+    const notifier = new SpaceNotifier({ send });
+    const readPulls = createBackupPullReader({
+      ...(this.config.backupPullsDir ? { dir: this.config.backupPullsDir } : {}),
+      ...(this.config.backupStaleDays ? { staleDays: this.config.backupStaleDays } : {}),
+      log: log.info,
     });
+    const pullNotifier = new BackupPullNotifier({ send });
     const tick = (): void => {
       notifier.check(readStatus()).catch((err: unknown) => log.error('Space check failed', err));
+      pullNotifier
+        .check(readPulls())
+        .catch((err: unknown) => log.error('Backup copy check failed', err));
     };
     tick();
     this.spaceTimer = setInterval(tick, SPACE_CHECK_INTERVAL_MS);
     this.spaceTimer.unref();
-    log.info(`Space notices: checking every ${SPACE_CHECK_INTERVAL_MS / 60000} minutes.`);
+    log.info(
+      `Space and backup copy notices: checking every ${SPACE_CHECK_INTERVAL_MS / 60000} minutes (backup copies are stale after ${this.config.backupStaleDays ?? 3} days).`
+    );
   }
 
   private speakerResolver(guild: Guild): (userId: string) => SpeakerInfo {

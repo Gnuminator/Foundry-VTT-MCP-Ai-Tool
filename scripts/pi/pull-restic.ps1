@@ -24,6 +24,9 @@
     at critical (under 5 %) on the destination it skips the copy and exits 1.
   - Logs to <Destination>\logs\restic-<yyyy-MM>.log (never a password) and writes
     restic-last-success.txt.
+  - After a successful copy it tells the Pi (record-pull.ps1: one fixed ssh command, Pi stage 6's
+    record-pull.sh), so the Pi's Discord bot can DM you when no copy has arrived for 3 days. A Pi
+    that cannot be told only logs a WARNING.
 
 .EXAMPLE
   .\scripts\pi\pull-restic.ps1
@@ -53,6 +56,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'space-check.ps1')
+. (Join-Path $PSScriptRoot 'record-pull.ps1')
 
 $destRepo = Join-Path $Destination 'restic'
 $logDir = Join-Path $Destination 'logs'
@@ -123,7 +127,9 @@ try {
 
   # sftp sources go through ssh without prompts: a hidden task has no one to answer one.
   $srcOpts = @()
+  $sftpHost = $null
   if ($SourceRepo -match '^sftp:([^:]+):') {
+    $sftpHost = $Matches[1]
     $srcOpts = @('-o', "sftp.command=ssh -o BatchMode=yes -o ConnectTimeout=10 $($Matches[1]) -s sftp")
   }
 
@@ -227,6 +233,8 @@ try {
       Set-Content -Path $testFile -Value (Get-Date -Format 's')
     }
     Write-Log 'ok'
+    # Tell the Pi (its bot DMs you when no copy has arrived for 3 days). Only for the real Pi, never a test repository.
+    if ($sftpHost) { [void](Send-PullRecord -Kind restic -PiHost $sftpHost -Ssh $Ssh -Log ${function:Write-Log}) }
   }
 } catch {
   Write-Log "FAILED: $($_.Exception.Message)"

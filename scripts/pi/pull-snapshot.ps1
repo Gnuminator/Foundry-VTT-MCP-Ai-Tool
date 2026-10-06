@@ -17,6 +17,9 @@
     on this PC's destination it logs a WARNING and shows a Windows notification; at critical (under
     5 %) on the destination it skips the copy and exits 1.
   - Logs to <Destination>\logs\pull-<yyyy-MM>.log and writes last-success.txt.
+  - After a successful run (also when the newest snapshot was already here) it tells the Pi
+    (record-pull.ps1: one fixed ssh command, Pi stage 6's record-pull.sh), so the Pi's Discord bot can
+    DM you when no copy has arrived for 3 days. A Pi that cannot be told only logs a WARNING.
 
 .EXAMPLE
   .\scripts\pi\pull-snapshot.ps1
@@ -39,6 +42,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'space-check.ps1')
+. (Join-Path $PSScriptRoot 'record-pull.ps1')
 
 $snapDir = Join-Path $Destination 'snapshots'
 $logDir = Join-Path $Destination 'logs'
@@ -142,7 +146,11 @@ try {
   Get-ChildItem $snapDir -Filter '*.partial' | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-1) } |
     ForEach-Object { Remove-Item -Force $_.FullName; Write-Log "removed stale $($_.Name)" }
 
-  if (-not $DryRun) { Set-Content -Path $successFile -Value ("{0}  snapshot {1}" -f (Get-Date -Format 's'), $stamp) }
+  if (-not $DryRun) {
+    Set-Content -Path $successFile -Value ("{0}  snapshot {1}" -f (Get-Date -Format 's'), $stamp)
+    # Tell the Pi (its bot DMs you when no copy has arrived for 3 days). Having the newest snapshot already counts.
+    [void](Send-PullRecord -Kind snapshot -PiHost $target -Ssh $Ssh -Log ${function:Write-Log})
+  }
 } catch {
   Write-Log "FAILED: $($_.Exception.Message)"
   $exitCode = 1

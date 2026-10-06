@@ -7,6 +7,8 @@
 # The repository lives on the Pi's own disk (/var/lib/foundry-backup/restic); this PC copies it to
 # E:\PiBackup\restic every day (scripts/pi/pull-restic.ps1), so the Pi's disk is not the only copy.
 # Before it runs, the backup calls the storage space check from stage 10 (skipped at critical).
+# The same stage installs record-pull.sh: the PC's pull scripts call it after each successful copy,
+# and the Discord bot DMs the owner when no copy has arrived for 3 days (PB-06).
 # The repository password is generated here, kept in a root-only file and never printed.
 
 require_root
@@ -17,6 +19,8 @@ repo="$backup_root/restic"
 pass_file="$TOOL_ETC/restic-pi.pass"
 script_dir="$TOOL_DIR/backup"
 backup_script="$script_dir/foundry-backup.sh"
+record_script="$script_dir/record-pull.sh"
+pulls_dir="$TOOL_DATA/backup-pulls"
 
 say "restic"
 apt_install restic
@@ -118,6 +122,46 @@ write_file "$backup_script" 0755 "$script_body" || true
 chown root:root "$backup_script"
 chmod 0755 "$backup_script"
 
+say "the record of the PC's copies (PB-06)"
+# After each successful run, the PC's pull scripts call `record-pull.sh restic|snapshot` over SSH. It
+# writes the Pi's own clock into $pulls_dir/<kind>.json, and the Discord bot (it runs here, as the
+# foundry user) DMs the owner when the newest copy of either kind is older than 3 days. The folder is
+# the tool's own (readable by the bot, written only through this helper); the files hold no secrets.
+install -d -m 0755 -o root -g root "$pulls_dir"
+ok "$pulls_dir (readable by the bot)"
+record_body="$(
+  cat <<'RECORD_PULL'
+#!/usr/bin/env bash
+# Records that the PC copied the Pi's backups just now (written by scripts/pi/remote/6-backup.sh; edit it there).
+#   record-pull.sh restic      pull-restic.ps1 finished a copy
+#   record-pull.sh snapshot    pull-snapshot.ps1 finished a copy
+# Writes <folder>/<kind>.json atomically: {"version":1,"kind":"restic","pulledAt":"2026-10-06T10:31:02Z"}.
+# The only argument that works is restic or snapshot; nothing else is read or run. Environment (tests):
+# FOUNDRY_AI_BACKUP_PULLS (the folder).
+set -euo pipefail
+kind="${1:-}"
+case "$kind" in
+restic | snapshot) ;;
+*)
+  echo "usage: record-pull.sh restic|snapshot" >&2
+  exit 64
+  ;;
+esac
+dir="${FOUNDRY_AI_BACKUP_PULLS:-/var/lib/foundry-ai-tool/backup-pulls}"
+mkdir -p "$dir"
+tmp="$(mktemp "$dir/.$kind.XXXXXX")"
+trap 'rm -f "$tmp"' EXIT
+printf '{"version":1,"kind":"%s","pulledAt":"%s"}\n' "$kind" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$tmp"
+chmod 0644 "$tmp"
+mv -f "$tmp" "$dir/$kind.json"
+trap - EXIT
+echo "recorded: $kind copied to the PC"
+RECORD_PULL
+)"
+write_file "$record_script" 0755 "$record_body" || true
+chown root:root "$record_script"
+chmod 0755 "$record_script"
+
 say "the timer"
 service_unit="[Unit]
 Description=Foundry nightly restic backup (stops Foundry for a few minutes)
@@ -159,4 +203,4 @@ fi
 say "snapshots"
 restic snapshots --compact </dev/null || true
 
-say "stage 6 done: restic repository $repo on the Pi, nightly at 04:30; this PC copies it once pull-restic.ps1 runs"
+say "stage 6 done: restic repository $repo on the Pi, nightly at 04:30; this PC copies it once pull-restic.ps1 runs; the PC's copies are recorded in $pulls_dir by $record_script"

@@ -352,16 +352,16 @@ first version of this check left action consumption off and so reported every no
 the pool; that was a kit artifact.) The recharge probe spends the ability, makes the system's own recharge roll (`uses.rollRecharge`)
 six times, and compares each roll with the target.
 
-**What the first live run showed (2026-10-06).** `srd` full: 722 monsters (385 in the 2024 pack, 337 in the legacy pack, 60 of them stat blocks). The three scenarios take about 90 seconds
+**What the live runs showed (2026-10-06, after the legendary fix).** `srd` full: 722 monsters (385 in the 2024 pack, 337 in the legacy pack, 60 of them stat blocks). The three scenarios take about 90 seconds
 together (the copy, use, check and delete of one monster takes about 35 milliseconds). Findings, all of them about the imported
 data or the bridge and none about the kit: 4 monsters with data the matrix names (a feature-less Giant Fly, a creature type of
 "(lycanthrope)"), 5 monsters with no usable action (a Frog and a Sea Horse with items but no activity) and a bridge that
-reads the creature type of a legacy stat block as an empty object (SYSTEM). In `monsters-odd`: the legendary actions are being rerun with action consumption on; legendary resistance, lair, regeneration, shapechangers, movement and recharge rolls all agree with the
+reads the creature type of a legacy stat block as an empty object (SYSTEM). In `monsters-odd`: all 60 legendary monsters spend their legendary pool (175 of 200 legendary activities were used: 19 spend it through a consumption target, 156 through the system's action consumption, and 25 need a dialog and were left out), so using them in Foundry moves the Boss pips; legendary resistance, lair, regeneration, shapechangers, movement and recharge rolls all agree with the
 data; the SRD has no damage threshold (skipped) and no lair actions as activities (text only). The bridge's `hasSpells` is true for
 294 monsters that have no spells (a spellcasting ability is set on every npc), and false for a Cloaker that has spells and no
 ability. `licensed` full: 1499 monsters (1114 in the local content module, 385 in the 2024 pack, 47 stat blocks), about 3.5
 minutes: 3 data findings, 25 monsters with a finding in the broad pass (5 CONTENT, 20 SYSTEM, all of the bridge's `hasSpells`
-kind), and in `monsters-odd` the legendary actions (being rerun), 24 of 127 with a legendary
+kind), and in `monsters-odd` all 132 legendary monsters spend their pool (362 of 405 legendary activities used: 298 through a target, 64 through the action, 43 left out for a dialog), 24 of 127 with a legendary
 resistance feature that has no activity, 23 spellcasters with data problems (a missing spellcasting ability or an innate spell with
 no uses). The `smoke` sample of the `licensed` profile has 31 monsters and takes seconds. These are findings, not kit failures.
 

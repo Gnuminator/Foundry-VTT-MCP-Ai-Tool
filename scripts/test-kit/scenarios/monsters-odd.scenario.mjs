@@ -75,7 +75,7 @@ export default {
             applicable: applicable.length,
             probed: r.checked.length,
             failed,
-            notes: r.notes.slice(0, 40).map(n => `${n.name}: ${n.note}`),
+            notes: r.notes.slice(0, 500).map(n => `${n.name}: ${n.note}`),
           });
           t.check(
             r.failed.length === 0,

@@ -5,5 +5,9 @@
   as having a password; the salt is read but never printed. `nue/defaultscene/*` counts as one of
   Foundry's own files. Strings under a document's `flags.ddb` (D&D Beyond importer metadata such as
   `assets/cos1302.jpg`) are no longer collected. New `--allow-missing a,b*` (and `-AllowMissing` in
-  `push-world.ps1`) for a reviewed list of known missing paths: matching paths are no problem of any
-  kind, are counted in `allowedMissingCount`, and the list is written into `MANIFEST.txt`.
+  `push-world.ps1`) for a reviewed list of known missing paths: a path that is really missing on disk
+  and matches is no problem, is listed and counted in `allowedMissingCount`, and the list is written
+  into `MANIFEST.txt`. A `*` needs a root and a folder before it (`modules/*` is refused), a
+  wrong-case path stays a problem, and a path in an unknown root is now looked up on disk: one that
+  exists (for example under `Data/assets/`) is reported as present but outside the bundle and can
+  never be allowed.

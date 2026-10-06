@@ -15,6 +15,7 @@ import {
   collectPaths,
   gmUserCheck,
   normalizeAssetPath,
+  parseArgs,
   pathsInString,
   secretSettingKeys,
   summarize,
@@ -104,7 +105,7 @@ test('summarize reports the problems and the folders', () => {
   const s = summarize(paths, {
     world: 'curse-of-strahd',
     modules: ['aitool-content'],
-    exists: p => !p.endsWith('gone.webp'),
+    exists: p => !p.endsWith('gone.webp') && !p.startsWith('weird/'),
   });
   assert.equal(s.counts['ddb-images'], 2);
   assert.deepEqual(s.folders, ['ddb-images/other/monster']);
@@ -364,18 +365,21 @@ test('summarize with allowMissing: matching paths are no problem anywhere, only 
   // here.webp exists, so it is not "allowed missing"; icons are core and never checked
   assert.deepEqual(s.allowedMissing, [
     'assets/cos1302.jpg',
-    'ddb-images/adventures/Strahd/assets/case.png',
     'ddb-images/adventures/Strahd/assets/gone.png',
     'ddb-images/other/monster/gone.webp',
     'modules/JB2A_DnD5e/a.webm',
     'modules/aitool-content/miss.png',
   ]);
   assert.deepEqual(s.problems.missing, []);
-  assert.deepEqual(s.problems.caseMismatch, []);
+  // a wrong-case path stays a problem even when the list matches it (a rename fixes it)
+  assert.deepEqual(s.problems.caseMismatch, [
+    'case differs: ddb-images/adventures/Strahd/assets/case.png vs x',
+  ]);
   assert.deepEqual([...s.problems.foreignModules], []);
   assert.deepEqual(s.problems.other, ['weird/b.png']);
-  // an allowed missing path leaves no folder to copy; the file that exists still does
-  assert.deepEqual(s.folders, ['ddb-images/other/monster']);
+  assert.deepEqual(s.problems.otherPresent, []);
+  // an allowed missing path leaves no folder to copy; files that exist (or need a rename) still do
+  assert.deepEqual(s.folders, ['ddb-images/adventures/Strahd', 'ddb-images/other/monster']);
   // an exact entry matches only that path
   const one = summarize(new Set(['a/b.png', 'a/b.png.bak.png']), {
     ...base,
@@ -383,6 +387,91 @@ test('summarize with allowMissing: matching paths are no problem anywhere, only 
     allowMissing: ['a/b.png'],
   });
   assert.deepEqual(one.allowedMissing, ['a/b.png']);
+});
+
+test('an unknown-root path that exists on disk is always a problem, allowed or not', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'world-refs-other-'));
+  try {
+    mkdirSync(path.join(root, 'assets', 'aitool-castle'), { recursive: true });
+    writeFileSync(path.join(root, 'assets', 'aitool-castle', 'f1.webp'), 'x');
+    const cache = new Map();
+    const paths = new Set([
+      'assets/aitool-castle/f1.webp',
+      'assets/aitool-castle/F1.webp',
+      'assets/aitool-castle/gone.webp',
+      'assets/never/gone.webp',
+    ]);
+    const check = p => checkExactPath(root, p, cache);
+    const plain = summarize(paths, { world: 'w', modules: [], check });
+    assert.deepEqual(plain.problems.otherPresent, [
+      'assets/aitool-castle/F1.webp',
+      'assets/aitool-castle/f1.webp',
+    ]);
+    assert.deepEqual(plain.problems.other, [
+      'assets/aitool-castle/gone.webp',
+      'assets/never/gone.webp',
+    ]);
+    const allow = ['assets/aitool-castle/*', 'assets/aitool-castle/f1.webp', 'assets/never/*'];
+    const s = summarize(paths, { world: 'w', modules: [], check, allowMissing: allow });
+    // existing files stay problems; only the really missing ones are excused
+    assert.deepEqual(s.problems.otherPresent, [
+      'assets/aitool-castle/F1.webp',
+      'assets/aitool-castle/f1.webp',
+    ]);
+    assert.deepEqual(s.allowedMissing, [
+      'assets/aitool-castle/gone.webp',
+      'assets/never/gone.webp',
+    ]);
+    assert.deepEqual(s.problems.other, []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('validateAllowMissing refuses patterns that are too broad or misplace the star', () => {
+  for (const ok of [
+    'ddb-images/adventures/Curse_of_Strahd/*',
+    'modules/JB2A_DnD5e/*',
+    'modules/JB2A_DnD5e/a*',
+    'assets/x/gone.webp',
+    'assets/cos1302.jpg',
+  ])
+    assert.deepEqual(validateAllowMissing([ok]), [ok]);
+  for (const bad of [
+    '*',
+    'modules/*',
+    'ddb-images/*',
+    'modules/JB2A*',
+    'a*b/c/d',
+    'a/b/c/**',
+    'x/*/y/*',
+  ])
+    assert.throws(() => validateAllowMissing([bad]), /too broad|last character/, bad);
+});
+
+test('--allow-missing on the command line: parsed, validated, and a bad entry stops the run', () => {
+  const base = ['--world', 'curse-of-strahd'];
+  assert.deepEqual(parseArgs(base).allowMissing, []);
+  assert.deepEqual(
+    parseArgs([...base, '--allow-missing', 'assets/a.png,modules/x/y/*,,']).allowMissing,
+    ['assets/a.png', 'modules/x/y/*']
+  );
+  for (const bad of ['*', 'modules/*', '/a/b.png', 'a/../b.png'])
+    assert.throws(() => parseArgs([...base, '--allow-missing', bad]), /allow-missing/, bad);
+  assert.throws(() => parseArgs([...base, '--allow-missing', ' ,x/y.png']), /empty/);
+  // the real script exits 1 with the message and runs nothing
+  const r = spawnSync(
+    process.execPath,
+    [
+      path.join(path.dirname(fileURLToPath(import.meta.url)), 'world-refs.mjs'),
+      ...base,
+      '--allow-missing',
+      '*',
+    ],
+    { encoding: 'utf8' }
+  );
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /too broad/);
 });
 
 const remote = path.join(path.dirname(fileURLToPath(import.meta.url)), 'remote');

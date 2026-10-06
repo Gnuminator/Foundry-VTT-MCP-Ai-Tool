@@ -548,9 +548,11 @@ setting that ends in token goes on the short safe list in `world-refs.mjs` (toda
 
 Images that the books point at but that are not on this PC stop the push too. When you have looked
 at them and they are known gaps (a book image the importer never fetched), list them with
-`-AllowMissing 'ddb-images/adventures/Curse_of_Strahd/gone.webp','assets/cos13*'` (an exact path or a
-prefix ending in `*`; no `..`, no leading slash). A matching path is then no problem of any kind and
-is only counted; the list goes into `MANIFEST.txt` (`allow-missing:`). `world-refs.mjs` also leaves
+`-AllowMissing 'ddb-images/adventures/Curse_of_Strahd/gone.webp','modules/dnd-players-handbook/missing/*'` (an exact path or a
+prefix ending in `*` that names a root and a folder before it, so `modules/*` is refused; no `..`, no
+leading slash). A matching path that is really missing on disk is then no problem and is listed in
+the run. A wrong-case path stays a problem, and so does a path outside the bundle that exists on disk
+(a file under `Data/assets/`, say), because push-world would not copy it. The list goes into `MANIFEST.txt` (`allow-missing:`). `world-refs.mjs` also leaves
 out the D&D Beyond importer's own metadata under `flags.ddb` (Foundry never loads it) and treats
 `nue/defaultscene/` as one of Foundry's own files.
 

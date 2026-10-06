@@ -12,8 +12,10 @@
 //                                 always a problem, whatever this list says.
 //     --gm-user <name>            the world's GM user (default Gamemaster); stage 11 joins it with an empty password
 //     --allow-missing a,b*        reviewed "known missing" asset paths: an exact path, or a prefix ending in *. A path
-//                                 that matches is not a problem (missing, letter case, other module or root); it is
-//                                 only counted (allowedMissingCount). No .., no leading slash, no empty entry.
+//                                 that is really missing on disk and matches is not a problem; it is only counted
+//                                 (allowedMissingCount). A wrong-case path, or a path outside the bundle that exists on
+//                                 disk, stays a problem. No .., no leading slash, no empty entry, and a * needs a root and
+//                                 a folder before it (modules/<id>/*, ddb-images/adventures/<book>/*).
 //
 // Exit code 0: nothing to fix. 2: problems (the report is printed anyway). Setting VALUES are never
 // printed, only the names of keys that look like secrets.
@@ -143,8 +145,10 @@ export function isAllowed(key, allow) {
 }
 
 /**
- * Check the --allow-missing entries: an exact path or a prefix ending in `*`. Returns the clean list,
- * throws on an empty entry, a leading slash or a `..` part.
+ * Check the --allow-missing entries: an exact path, or a prefix whose only `*` is the last character.
+ * Returns the clean list, throws on an empty entry, a leading slash, a `..` part, a `*` anywhere but
+ * the end, or a pattern that is too broad: before the `*` it must name a root and a folder
+ * ('ddb-images/adventures/X/*' and 'modules/JB2A_DnD5e/*' are fine; '*', 'modules/*' and 'ddb-images/*' are not).
  */
 export function validateAllowMissing(entries) {
   return entries.map(raw => {
@@ -152,7 +156,17 @@ export function validateAllowMissing(entries) {
     if (!e) throw new Error('--allow-missing: empty entry');
     if (e.startsWith('/') || e.startsWith('\\'))
       throw new Error(`--allow-missing: ${e} must not start with a slash`);
-    if (e.split(/[\\/]/).includes('..')) throw new Error(`--allow-missing: ${e} must not contain ..`);
+    if (e.split(/[\\/]/).includes('..'))
+      throw new Error(`--allow-missing: ${e} must not contain ..`);
+    const star = e.indexOf('*');
+    if (star !== -1) {
+      if (star !== e.length - 1 || e.indexOf('*', star + 1) !== -1)
+        throw new Error(`--allow-missing: ${e}: a * is only allowed as the last character`);
+      if (e.slice(0, star).split('/').length < 3)
+        throw new Error(
+          `--allow-missing: ${e} is too broad (name a root and a folder before the *, like modules/<id>/*)`
+        );
+    }
     return e;
   });
 }
@@ -281,8 +295,11 @@ export function checkExactPath(root, rel, cache = new Map()) {
 /**
  * Summarise a set of paths against the allowed ids. `check(path)` returns the state of the file on disk
  * ({ state: 'ok' | 'missing' | 'case', actual }); the older `exists(path)` boolean still works.
- * `allowMissing` (the reviewed "known missing" list, see isAllowed): a matching path that is not a
- * good file on disk is no problem of any kind (no folder to copy either); it is listed in `allowedMissing`.
+ * `allowMissing` (the reviewed "known missing" list, see isAllowed): a matching path that is really
+ * missing on disk is no problem of any kind (no folder to copy either); it is listed in `allowedMissing`.
+ * A wrong-case match stays a problem (a rename fixes it). A path in no known root ('other') is looked up
+ * on disk too: if the file is there, push-world would not copy it, so it is always a problem
+ * (`otherPresent`), whatever the list says.
  */
 export function summarize(paths, { world, modules, exists, check, allowMissing = [] }) {
   const counts = {};
@@ -293,33 +310,29 @@ export function summarize(paths, { world, modules, exists, check, allowMissing =
     missing: [],
     caseMismatch: [],
     other: [],
+    otherPresent: [],
   };
   const allowedMissing = [];
   for (const p of [...paths].sort()) {
     const c = classifyPath(p);
     counts[c.root] = (counts[c.root] ?? 0) + 1;
-    if (allowMissing.length && c.root !== 'core' && isAllowed(p, allowMissing)) {
-      const r =
-        c.root === 'other'
-          ? { state: 'missing' }
-          : check
-            ? check(p)
-            : { state: exists(p) ? 'ok' : 'missing' };
-      if (r.state !== 'ok') {
-        allowedMissing.push(p);
-        continue;
-      }
+    if (c.root === 'core') continue;
+    const r = check ? check(p) : { state: exists(p) ? 'ok' : 'missing' };
+    const allowed = r.state === 'missing' && isAllowed(p, allowMissing);
+    if (allowed) {
+      allowedMissing.push(p);
+      continue;
+    }
+    if (c.root === 'other') {
+      (r.state === 'missing' ? problems.other : problems.otherPresent).push(p);
+      continue;
     }
     if (c.folder) folders.add(c.folder);
-    if (c.root === 'other') problems.other.push(p);
     if (c.root === 'modules' && c.id !== 'foundry-mcp-bridge' && !modules.includes(c.id))
       problems.foreignModules.add(c.id);
     if (c.root === 'worlds' && c.id !== world) problems.foreignWorlds.add(c.id);
-    if (c.root !== 'core' && c.root !== 'other') {
-      const r = check ? check(p) : { state: exists(p) ? 'ok' : 'missing' };
-      if (r.state === 'missing') problems.missing.push(p);
-      else if (r.state === 'case') problems.caseMismatch.push(`case differs: ${p} vs ${r.actual}`);
-    }
+    if (r.state === 'missing') problems.missing.push(p);
+    else if (r.state === 'case') problems.caseMismatch.push(`case differs: ${p} vs ${r.actual}`);
   }
   return { counts, folders: [...folders].sort(), problems, allowedMissing };
 }
@@ -356,7 +369,7 @@ async function readDb(ClassicLevel, src, tmpRoot, fn) {
   }
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const o = {
     data: 'C:/FoundryTest/data/Data',
     world: '',
@@ -430,7 +443,8 @@ async function main() {
     path.join(worldDir, 'world.json'),
     ...o.modules.map(m => path.join(o.data, 'modules', m, 'module.json')),
   ]) {
-    if (existsSync(f)) collectPaths(JSON.parse(readFileSync(f, 'utf8')), paths, { skipDdbFlags: true });
+    if (existsSync(f))
+      collectPaths(JSON.parse(readFileSync(f, 'utf8')), paths, { skipDdbFlags: true });
   }
 
   const dirCache = new Map();
@@ -462,6 +476,8 @@ async function main() {
       caseMismatch: s.problems.caseMismatch.slice(0, 50),
       otherRoots: s.problems.other.slice(0, 50),
       otherRootsCount: s.problems.other.length,
+      otherPresent: s.problems.otherPresent.slice(0, 50),
+      otherPresentCount: s.problems.otherPresent.length,
       secretSettingKeys: secrets,
       activeNotShipped: unshippedActive(active, o.modules),
       gmUser: gm.problems,
@@ -475,6 +491,7 @@ async function main() {
     p.missingCount ||
     p.caseMismatchCount ||
     p.otherRootsCount ||
+    p.otherPresentCount ||
     p.secretSettingKeys.length ||
     p.activeNotShipped.length ||
     p.gmUser.length
@@ -522,6 +539,11 @@ async function main() {
       console.log(
         `PROBLEM ${p.otherRootsCount} paths in unknown roots (first ${p.otherRoots.length}):\n` +
           p.otherRoots.map(x => '  ' + x).join('\n')
+      );
+    if (p.otherPresentCount)
+      console.log(
+        `PROBLEM ${p.otherPresentCount} paths present on disk but outside the bundle (push-world copies only the modules, the world, ddb-images and tokenizer; first ${p.otherPresent.length}):\n` +
+          p.otherPresent.map(x => '  ' + x).join('\n')
       );
     if (p.secretSettingKeys.length)
       console.log(

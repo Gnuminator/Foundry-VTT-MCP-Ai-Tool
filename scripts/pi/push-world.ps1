@@ -31,8 +31,8 @@
 .PARAMETER AllowSettingKeys  World setting keys that world-refs flags as secret-looking but that you reviewed (a trailing * is a prefix,
                        for example ddb-importer.entity-*). Only ddb-importer.* settings can be excused, and
                        never one with cookie, token, secret, password or key in its name.
-.PARAMETER AllowMissing  Reviewed "known missing" asset paths (an exact path, or a prefix ending in *, for example assets/cos13*). A path that
-                       matches is not a problem for world-refs (missing, letter case, other module or root) and is only counted. No
+.PARAMETER AllowMissing  Reviewed "known missing" asset paths (an exact path, or a prefix ending in *, for example modules/<id>/missing/*; the * needs a root and a folder before it, so modules/* is refused). A path that
+                       is really missing on disk and matches is not a problem for world-refs and is only listed. A wrong-case path, or one outside the bundle that exists on disk, stays a problem. No
                        .., no leading slash. The list is written into MANIFEST.txt (allow-missing:).
 .PARAMETER GmUser     The world's GM user (default Gamemaster). Stage 11 joins it with an empty password, so it must have none here
                        (the hash Foundry 14 stores for a user with no password does not count as one).
@@ -98,12 +98,16 @@ if ($SkipRefs) {
   Write-Host '    -SkipRefs: asset scan skipped (tests only)' -ForegroundColor Yellow
 } else {
   Step 'scanning the world and the module packs for asset paths (scripts/pi/world-refs.mjs)'
-  $refsJson = & node (Join-Path $PSScriptRoot 'world-refs.mjs') --data $DataPath --world $World --modules ($Modules -join ',') --allow-secret-keys ($AllowSettingKeys -join ',') --allow-missing ($AllowMissing -join ',') --gm-user $GmUser --json
+  $AllowMissingArgs = if ($AllowMissing.Count) { @('--allow-missing', ($AllowMissing -join ',')) } else { @() }
+  $refsJson = & node (Join-Path $PSScriptRoot 'world-refs.mjs') --data $DataPath --world $World --modules ($Modules -join ',') --allow-secret-keys ($AllowSettingKeys -join ',') $AllowMissingArgs --gm-user $GmUser --json
   $refsRc = $LASTEXITCODE
   if ($refsRc -eq 1 -or -not $refsJson) { Fail "world-refs failed to run (exit $refsRc); see the message above" }
   $refs = ($refsJson -join "`n") | ConvertFrom-Json
   Write-Host ("    {0} asset paths in {1} databases; per root: {2}" -f $refs.pathCount, $refs.dbsScanned, (($refs.counts.PSObject.Properties | ForEach-Object { "$($_.Name) $($_.Value)" }) -join ', '))
-  if ($refs.allowedMissingCount) { Write-Host "    $($refs.allowedMissingCount) known missing paths allowed by -AllowMissing (not problems)" -ForegroundColor Yellow }
+  if ($refs.allowedMissingCount) {
+    Write-Host "    $($refs.allowedMissingCount) known missing paths allowed by -AllowMissing (not problems; first $($refs.allowedMissing.Count)):" -ForegroundColor Yellow
+    $refs.allowedMissing | ForEach-Object { Write-Host "      $_" -ForegroundColor Yellow }
+  }
   if ($refsRc -ne 0) {
     $p = $refs.problems
     Write-Host 'world-refs found problems:' -ForegroundColor Red
@@ -113,6 +117,7 @@ if ($SkipRefs) {
     if ($p.caseMismatchCount) { Write-Host "  $($p.caseMismatchCount) paths whose letter case differs from the file (the Pi is case-sensitive):"; $p.caseMismatch | ForEach-Object { Write-Host "    $_" } }
     if ($p.activeNotShipped.Count) { Write-Host ('  modules active in the world but not shipped (turn them off in the world, or add them to -Modules): ' + ($p.activeNotShipped -join ', ')) }
     if ($p.gmUser.Count) { $p.gmUser | ForEach-Object { Write-Host "  $_" } }
+    if ($p.otherPresentCount) { Write-Host "  $($p.otherPresentCount) paths present on disk but outside the bundle (only the modules, the world, ddb-images and tokenizer are copied):"; $p.otherPresent | ForEach-Object { Write-Host "    $_" } }
     if ($p.otherRootsCount) { Write-Host "  $($p.otherRootsCount) paths in unknown roots:"; $p.otherRoots | ForEach-Object { Write-Host "    $_" } }
     if ($p.secretSettingKeys.Count) { Write-Host ('  world settings that look like secrets (names only): ' + ($p.secretSettingKeys -join ', ')) }
     Fail 'fix these first (or add the missing module or folder), then run again'

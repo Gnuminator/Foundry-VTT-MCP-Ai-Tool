@@ -74,15 +74,74 @@ export function dnd5eConfig(): Rec {
   return rec(rec((globalThis as { CONFIG?: unknown }).CONFIG).DND5E);
 }
 
+/** Classes that mark GM-only content (the same set as the bridge's handout copy stripper). */
+const SECRET_CLASSES = new Set(['secret', 'gm-only', 'gmonly', 'gm-note', 'gmnote']);
+/** Elements without a closing tag. */
+const VOID_TAGS = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'source',
+  'track',
+  'wbr',
+]);
+/** One tag or comment; quoted attribute values may hold `>`. */
+const TAG = /<!--[\s\S]*?(?:-->|$)|<(\/?)([a-zA-Z][\w-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+
+function isSecretTag(name: string, attrs: string): boolean {
+  if (name === 'secret-block') return true;
+  const cls = /(?:^|\s)class\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(attrs);
+  const classes = (cls?.[1] ?? cls?.[2] ?? cls?.[3] ?? '').toLowerCase().split(/\s+/);
+  return classes.some(c => SECRET_CLASSES.has(c) || c.includes('secret'));
+}
+
+/**
+ * `html` without secret elements (with everything inside them, nested ones too) and comments.
+ * A secret element that never closes takes the rest of the text with it.
+ */
+export function stripSecrets(html: string): string {
+  let out = '';
+  let last = 0;
+  let skipTag: string | null = null;
+  let depth = 0;
+  for (const m of html.matchAll(TAG)) {
+    const start = m.index ?? 0;
+    if (skipTag === null) out += html.slice(last, start);
+    last = start + m[0].length;
+    if (m[2] === undefined) continue; // a comment
+    const name = m[2].toLowerCase();
+    const closing = m[1] === '/';
+    const selfClosing = VOID_TAGS.has(name) || /\/\s*$/.test(m[3] ?? '');
+    if (skipTag !== null) {
+      if (name !== skipTag || selfClosing) continue;
+      depth += closing ? -1 : 1;
+      if (depth === 0) skipTag = null;
+    } else if (!closing && !selfClosing && isSecretTag(name, m[3] ?? '')) {
+      skipTag = name;
+      depth = 1;
+    } else {
+      out += m[0];
+    }
+  }
+  if (skipTag === null) out += html.slice(last);
+  return out;
+}
+
 /**
  * Plain text from item or biography HTML, without secret blocks, at most `max` characters.
  * Secret sections (`<section class="secret">`) are the GM's even on a player's own sheet.
  */
 export function plainText(html: unknown, max = 600): string {
-  const text = str(html)
-    .replace(/<section[^>]*class="[^"]*secret[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '')
+  const text = stripSecrets(str(html))
     .replace(/<(br|\/p|\/li|\/h[1-6])\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
+    .replace(TAG, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')

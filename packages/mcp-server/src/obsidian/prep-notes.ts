@@ -257,6 +257,20 @@ async function readHead(full: string, size: number): Promise<{ text: string; cut
 }
 
 /** Sort key for "newest": the `date` property when it parses, else the file time. */
+/**
+ * An undated session plan whose body is only headings (an untouched template copy, for example
+ * in a renamed templates folder): it must not win "newest" by its file time.
+ */
+async function isBlankPlan(root: string, note: Candidate): Promise<boolean> {
+  if (note.head.date && Number.isFinite(Date.parse(note.head.date))) return false;
+  const { text } = await readHead(`${root}/${note.path}`, UUID_READ_BYTES).catch(() => ({
+    text: '',
+  }));
+  const all = (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text).split(/\r?\n/);
+  const body = withoutComments(all.slice(frontmatterBlock(all)?.bodyStart ?? 0).join('\n'));
+  return body.split('\n').every(line => !line.trim() || /^\s*#/.test(line));
+}
+
 async function planTime(root: string, note: Candidate): Promise<number> {
   const fromDate = note.head.date ? Date.parse(note.head.date) : NaN;
   if (Number.isFinite(fromDate)) return fromDate;
@@ -304,7 +318,9 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
   const picked: Array<{ note: Candidate; reason: PrepNoteReason; matched: string | null }> = [];
 
   // The newest session plan the GM lets the AI read.
-  const plans = candidates.filter(c => c.head.type === 'session-plan');
+  const allPlans = candidates.filter(c => c.head.type === 'session-plan');
+  const blank = await Promise.all(allPlans.map(note => isBlankPlan(walked.root, note)));
+  const plans = allPlans.filter((_, i) => !blank[i]);
   const timed = await Promise.all(
     plans.map(async note => ({ note, time: await planTime(walked.root, note) }))
   );

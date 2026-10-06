@@ -33,7 +33,9 @@ import {
   SuggestModal,
   TFile,
   debounce,
+  normalizePath,
   requestUrl,
+  type TAbstractFile,
   type App,
   type ViewState,
   type WorkspaceLeaf,
@@ -79,7 +81,9 @@ import {
 import {
   campaignRootOf,
   fillPrepNote,
+  findPrepNote,
   isPrepType,
+  localDate,
   prepFileName,
   prepKindsFor,
   prepPathCandidates,
@@ -450,43 +454,74 @@ export default class FoundryAiToolPlugin extends Plugin {
     new PrepKindPicker(this.app, source.kinds, kind => void this.newPrepNote(source, kind)).open();
   }
 
+  /** A vault file or folder at this path in any letter case (NTFS and APFS ignore case, so
+   * `Prep/npcs` is the same folder as `Prep/NPCs` there). */
+  private findIgnoringCase(path: string): TAbstractFile | null {
+    const { vault } = this.app;
+    const exact = vault.getAbstractFileByPath(path);
+    if (exact) return exact;
+    const lower = path.toLowerCase();
+    return vault.getAllLoadedFiles().find(f => f.path.toLowerCase() === lower) ?? null;
+  }
+
   /** Make (or open, when it is already there) the prep note of this kind for a mirror note. */
   private async newPrepNote(source: PrepSource, kind: PrepKind): Promise<void> {
     const { vault, fileManager, metadataCache, workspace } = this.app;
     try {
       const uuid = prepUuid(kind, source.note.uuid);
-      const folder = `${source.root}/Prep/${kind.folder}`;
-      const name = prepFileName(source.note.name ?? source.file.basename);
+      const today = localDate(new Date());
+      // A session plan is one per game night, so it never reuses an older plan.
+      const isPlan = kind.id === 'session';
+      if (!isPlan) {
+        const found = findPrepNote(
+          vault.getMarkdownFiles().map(f => ({
+            path: f.path,
+            frontmatter: metadataCache.getFileCache(f)?.frontmatter,
+          })),
+          source.root,
+          uuid,
+          kind.type
+        );
+        const existing = found ? vault.getAbstractFileByPath(found) : null;
+        if (existing instanceof TFile) {
+          await workspace.getLeaf(false).openFile(existing);
+          new Notice(
+            `${kind.label} for ${source.note.name ?? existing.basename} is already there: opened ${existing.path}.`
+          );
+          return;
+        }
+      }
+      const wanted = normalizePath(`${source.root}/Prep/${kind.folder}`);
+      const folder = this.findIgnoringCase(wanted)?.path ?? wanted;
+      const name = isPlan
+        ? `Session ${today}`
+        : prepFileName(source.note.name ?? source.file.basename);
       let target: string | null = null;
       for (const candidate of prepPathCandidates(folder, name)) {
-        const existing = vault.getAbstractFileByPath(candidate);
-        if (!existing) {
-          target = candidate;
+        const path = normalizePath(candidate);
+        if (!this.findIgnoringCase(path) && !(await vault.adapter.exists(path))) {
+          target = path;
           break;
-        }
-        const existingUuid: unknown =
-          existing instanceof TFile
-            ? metadataCache.getFileCache(existing)?.frontmatter?.fvtt_uuid
-            : null;
-        if (existing instanceof TFile && existingUuid === uuid) {
-          await workspace.getLeaf(false).openFile(existing);
-          new Notice(`${kind.label} for ${name} is already there: opened it.`);
-          return;
         }
       }
       if (!target) {
         new Notice(`${kind.label}: ${folder} already has too many notes called ${name}.`);
         return;
       }
-      if (!vault.getAbstractFileByPath(folder)) await vault.createFolder(folder);
-      const templateFile = vault.getAbstractFileByPath(
-        `${source.root}/Prep/Templates/${kind.template}`
+      if (!this.findIgnoringCase(folder)) await vault.createFolder(folder);
+      const templateFile = this.findIgnoringCase(
+        normalizePath(`${source.root}/Prep/Templates/${kind.template}`)
       );
       const template = templateFile instanceof TFile ? await vault.cachedRead(templateFile) : null;
       const link = fileManager.generateMarkdownLink(source.file, target);
       const created = await vault.create(
         target,
-        fillPrepNote(template, { type: kind.type, uuid, link })
+        fillPrepNote(template, {
+          type: kind.type,
+          uuid,
+          link,
+          ...(isPlan ? { date: today } : {}),
+        })
       );
       await workspace.getLeaf(false).openFile(created);
       new Notice(

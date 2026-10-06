@@ -85,16 +85,58 @@ export function campaignRootOf(notePath: string, world: string | null): string |
   return notePath.startsWith(`${root}/`) ? root : null;
 }
 
-/** A note name safe as an Obsidian file name: no link-breaking or reserved characters. */
-export function prepFileName(name: string | null): string {
-  const safe = (name ?? '')
-    .replace(/[\\/:*?"<>|#^[\]%]/g, ' ')
+/** Windows device names: a file called `CON.md` or `com1.md` cannot be made there. */
+const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
+/** Spaces collapsed, no leading or trailing dots or spaces. */
+function tidyName(text: string): string {
+  return text
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/^\.+|\.+$/g, '')
-    .slice(0, 100)
     .trim();
-  return safe || 'Untitled';
+}
+
+/** A note name safe as an Obsidian file name on every OS: no link-breaking, reserved or control
+ * characters, no leading or trailing dots (also after the cut), not a Windows device name. */
+export function prepFileName(name: string | null): string {
+  // eslint-disable-next-line no-control-regex
+  const unsafe = /[\u0000-\u001f\u007f\\/:*?"<>|#^[\]%]/g;
+  const safe = tidyName(tidyName((name ?? '').replace(unsafe, ' ')).slice(0, 100));
+  if (!safe) return 'Untitled';
+  return RESERVED_NAME.test(safe) ? `${safe}_` : safe;
+}
+
+/** `YYYY-MM-DD` in local time. */
+export function localDate(day: Date): string {
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+}
+
+/** A vault note as the prep lookup sees it: its path and frontmatter. */
+export interface PrepLookupNote {
+  path: string;
+  frontmatter: Record<string, unknown> | undefined;
+}
+
+/**
+ * The prep note already there for this uuid and type anywhere under `<root>/Prep/` (also one the
+ * GM moved or renamed, and `Prep` in another letter case), leaving out `Prep/Templates/`; or null.
+ */
+export function findPrepNote(
+  notes: Iterable<PrepLookupNote>,
+  root: string,
+  uuid: string,
+  type: string
+): string | null {
+  const prefix = `${root}/prep/`.toLowerCase();
+  const templates = `${prefix}templates/`;
+  for (const note of notes) {
+    const lower = note.path.toLowerCase();
+    if (!lower.startsWith(prefix) || lower.startsWith(templates)) continue;
+    if (note.frontmatter?.type === type && note.frontmatter.fvtt_uuid === uuid) return note.path;
+  }
+  return null;
 }
 
 /** The paths to try in turn: `<folder>/<name>.md`, then `<name> 2.md` and so on. */
@@ -104,7 +146,21 @@ export function prepPathCandidates(folder: string, name: string, count = 20): st
   );
 }
 
-const FRONTMATTER = /^---\n([\s\S]*?)\n---(?:\n|$)/;
+const FRONTMATTER = /^---\n(?:([\s\S]*?)\n)?---(?:\n|$)/;
+
+/** Set `key: value` in frontmatter lines: replaces the key's line and its block list or indented
+ * lines, or adds the line first when the key is missing. */
+function setProperty(lines: string[], key: string, value: string): void {
+  const line = `${key}: ${value}`;
+  const at = lines.findIndex(l => l.startsWith(`${key}:`));
+  if (at < 0) {
+    lines.unshift(line);
+    return;
+  }
+  let end = at + 1;
+  while (end < lines.length && /^(\s|-(\s|$))/.test(lines[end] ?? '')) end++;
+  lines.splice(at, end - at, line);
+}
 
 /**
  * The new note's text: the template (or a bare one when the vault has none) with `type` kept
@@ -112,22 +168,20 @@ const FRONTMATTER = /^---\n([\s\S]*?)\n---(?:\n|$)/;
  */
 export function fillPrepNote(
   template: string | null,
-  fill: { type: string; uuid: string; link: string }
+  fill: { type: string; uuid: string; link: string; date?: string }
 ): string {
   const text = (template ?? '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
   const match = FRONTMATTER.exec(text);
-  const lines = match ? (match[1] ?? '').split('\n') : ['ai_context: true', 'secret:'];
+  const inner = match?.[1];
+  const lines = match
+    ? inner === undefined
+      ? []
+      : inner.split('\n')
+    : ['ai_context: true', 'secret:'];
   const body = match ? text.slice(match[0].length) : text;
 
-  const uuidLine = `fvtt_uuid: '${fill.uuid}'`;
-  const at = lines.findIndex(line => /^fvtt_uuid:/.test(line));
-  if (at >= 0) {
-    let end = at + 1;
-    while (end < lines.length && /^(\s|-(\s|$))/.test(lines[end] ?? '')) end++;
-    lines.splice(at, end - at, uuidLine);
-  } else {
-    lines.unshift(uuidLine);
-  }
+  setProperty(lines, 'fvtt_uuid', `'${fill.uuid}'`);
+  if (fill.date !== undefined) setProperty(lines, 'date', fill.date);
   if (!lines.some(line => /^type:/.test(line))) lines.unshift(`type: ${fill.type}`);
 
   const rest = body.replace(/^\n+/, '');

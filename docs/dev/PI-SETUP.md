@@ -328,7 +328,10 @@ foundry`; the restore refuses to run while Foundry runs. Stage 4 (Tailscale) can
   copy. The drill's check compares the hash of the restored device certificate with the one in the
   container and fails if the real Pi's identity is there. The `DRILL_KEEP_SYNCTHING=1` path (the
   real rebuild, where the hashes must match) has **not been run yet**: the first real rebuild is its
-  first run.
+  first run. Notes written only once (`Home.md`, `Prep/Templates/`) come back from the snapshot;
+  if the snapshot is older than the GM's last edits, the GM's PC holds the newer copy and Syncthing
+  may keep one side as a `.sync-conflict` file. After a rebuild, look for those in the GM vault and
+  keep the GM's version.
 - **A restore on Windows exits 1** with "A required privilege is not held by the client" for one
   Chromium symlink under `/var/lib/foundry-ai-tool/.config/pulse`. Everything else is restored; the
   drill script excludes that folder. The restore on Windows drops Linux owners and modes, so for a

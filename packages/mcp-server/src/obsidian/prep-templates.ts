@@ -60,7 +60,7 @@ export const PREP_TEMPLATES: Readonly<Record<string, string>> = {
 
 /** Write the templates when PREP_TEMPLATES_DIR is missing (created ones land in the writer's list). */
 export async function createPrepTemplates(writer: NoteWriter): Promise<void> {
-  if (await writer.exists(PREP_TEMPLATES_DIR)) return;
+  if (await writer.existsIgnoringCase(PREP_TEMPLATES_DIR)) return;
   for (const [name, text] of Object.entries(PREP_TEMPLATES)) {
     await writer.createOnce(`${PREP_TEMPLATES_DIR}/${name}`, text);
   }

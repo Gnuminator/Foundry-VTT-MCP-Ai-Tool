@@ -25,7 +25,9 @@ On an NPC, a scene or a quest journal note, open the note's file menu (the three
 **New prep note for this**, or run the command of the same name. Pick the kind (the likely one is
 first). The plugin makes a note in Prep (for example Prep/NPCs/Ismark.md) from the template,
 ties it to the thing in Foundry and links back to it. Fill in what you need, leave the rest empty.
-If that note is already there, it opens instead. This works without the dashboard.
+If that note is already there, it opens instead, even after you moved or renamed it inside Prep.
+A session plan is new each time, named after today's date (for example Prep/Session plans/Session
+2026-11-29.md), and Claude reads the newest one. This works without the dashboard.
 
 A template's grey line between %% marks is a hint for you; Claude skips it. To use the templates
 for notes you start yourself, point Obsidian's Templates (or Templater) template folder at

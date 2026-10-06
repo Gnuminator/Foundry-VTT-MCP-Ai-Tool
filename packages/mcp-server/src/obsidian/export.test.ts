@@ -385,6 +385,15 @@ describe('exportWorldToObsidian', () => {
     expect(await note('Prep/Templates/NPC.md')).toMatch(/^---\ntype: npc-prep\nfvtt_uuid:\n/);
   });
 
+  it('leaves a templates folder renamed in another letter case alone (R2 review)', async () => {
+    await seed();
+    await run();
+    const prep = path.join(campaignDir(vaultDir, WORLD), 'Prep');
+    await fsp.rename(path.join(prep, 'Templates'), path.join(prep, 'templates'));
+    expect((await run()).created).toEqual([]);
+    expect((await fsp.readdir(prep)).sort()).toEqual(['README.md', 'templates']);
+  });
+
   it('an empty world still gets Bases and a status note, but no Tarokka files', async () => {
     const r = await exportWorldToObsidian({
       store,

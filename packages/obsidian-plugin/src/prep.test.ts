@@ -4,12 +4,15 @@ import {
   PREP_KINDS,
   campaignRootOf,
   fillPrepNote,
+  findPrepNote,
   isPrepType,
+  localDate,
   prepFileName,
   prepKindsFor,
   prepPathCandidates,
   prepUuid,
   type PrepKind,
+  type PrepLookupNote,
 } from './prep.js';
 
 function kind(id: PrepKind['id']): PrepKind {
@@ -69,6 +72,11 @@ describe('prepFileName and prepPathCandidates', () => {
     expect(prepFileName('...')).toBe('Untitled');
     expect(prepFileName(null)).toBe('Untitled');
     expect(prepFileName('x'.repeat(300))).toHaveLength(100);
+    expect(prepFileName(`${'x'.repeat(98)}. y`)).toBe('x'.repeat(98));
+    expect(prepFileName('Tab\there\u0007bell')).toBe('Tab here bell');
+    expect(prepFileName('CON')).toBe('CON_');
+    expect(prepFileName('com1')).toBe('com1_');
+    expect(prepFileName('Console')).toBe('Console');
   });
 
   it('numbers the names after the first', () => {
@@ -77,6 +85,41 @@ describe('prepFileName and prepPathCandidates', () => {
       'P/NPCs/Guard 2.md',
       'P/NPCs/Guard 3.md',
     ]);
+  });
+});
+
+describe('findPrepNote', () => {
+  const root = 'Campaigns/strahd';
+  const note = (path: string, type: string, uuid: string): PrepLookupNote => ({
+    path,
+    frontmatter: { type, fvtt_uuid: uuid },
+  });
+  it('finds a moved or renamed note by uuid and type under Prep, never a template', () => {
+    const notes = [
+      note('Campaigns/strahd/Prep/Templates/NPC.md', 'npc-prep', 'Actor.a1'),
+      note('Campaigns/other/Prep/NPCs/Ismark.md', 'npc-prep', 'Actor.a1'),
+      note('Campaigns/strahd/Prep/Quests/Ismark.md', 'quest-prep', 'Actor.a1'),
+      note('Campaigns/strahd/prep/Old/Ismark the Lesser.md', 'npc-prep', 'Actor.a1'),
+    ];
+    expect(findPrepNote(notes, root, 'Actor.a1', 'npc-prep')).toBe(
+      'Campaigns/strahd/prep/Old/Ismark the Lesser.md'
+    );
+    expect(findPrepNote(notes.slice(0, 3), root, 'Actor.a1', 'npc-prep')).toBeNull();
+    expect(
+      findPrepNote(
+        [{ path: 'Campaigns/strahd/Prep/x.md', frontmatter: undefined }],
+        root,
+        'Actor.a1',
+        'npc-prep'
+      )
+    ).toBeNull();
+  });
+});
+
+describe('localDate', () => {
+  it('is YYYY-MM-DD in local time', () => {
+    expect(localDate(new Date(2026, 9, 6, 23, 59))).toBe('2026-10-06');
+    expect(localDate(new Date(2027, 0, 2))).toBe('2027-01-02');
   });
 });
 
@@ -141,6 +184,23 @@ describe('fillPrepNote', () => {
     );
     expect(fillPrepNote(null, fill)).toBe(
       "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\nai_context: true\nsecret:\n---\nPrep for [[Ismark]].\n"
+    );
+  });
+
+  it('reads an empty frontmatter block and fills a session plan date (R2 review)', () => {
+    expect(fillPrepNote('---\n---\nBody', fill)).toBe(
+      "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\n---\nPrep for [[Ismark]].\n\nBody\n"
+    );
+    const plan = '---\ntype: session-plan\nfvtt_uuid:\ndate:\n---\n## Opening scene\n';
+    expect(
+      fillPrepNote(plan, {
+        type: 'session-plan',
+        uuid: 'Scene.s1',
+        link: '[[Barovia]]',
+        date: '2026-10-06',
+      })
+    ).toBe(
+      "---\ntype: session-plan\nfvtt_uuid: 'Scene.s1'\ndate: 2026-10-06\n---\nPrep for [[Barovia]].\n\n## Opening scene\n"
     );
   });
 });

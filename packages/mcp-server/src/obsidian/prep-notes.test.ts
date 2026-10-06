@@ -200,6 +200,17 @@ describe('readPrepNotes', () => {
     expect(part.notes.map(n => n.path)).toEqual(['Prep/Session 1.md']);
   });
 
+  it('skips an undated session plan that is only headings, even when newer (R2 review)', async () => {
+    await note('Prep/Session 1.md', fm({ type: 'session-plan', date: '2026-10-01' }, 'Real plan'));
+    await note(
+      'Prep/_templates/Session plan.md',
+      PREP_TEMPLATES['Session plan.md'] ?? '',
+      new Date('2030-01-01T00:00:00Z')
+    );
+    const { part } = await readPrepNotes(input());
+    expect(part.notes.map(n => n.path)).toEqual(['Prep/Session 1.md']);
+  });
+
   it('matches scene, actor and quest notes by fvtt_uuid in the wanted order', async () => {
     await note(
       'Prep/Quests/Sunsword.md',

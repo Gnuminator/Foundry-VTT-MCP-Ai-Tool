@@ -213,18 +213,27 @@ export function findActorByIdentifier(identifier: string): any {
   );
 }
 
+/** The parts of a scene and its tokens that {@link resolveTargetActor} reads. */
+interface TargetScene {
+  tokens: { contents: { id?: string; name?: string; actorId?: string; actor?: unknown }[] };
+}
+
 /**
  * Resolve a damage/roll target to an Actor. Prefers a token on the current
- * scene (so unlinked NPC tokens use their own synthetic actor/HP), then falls
- * back to a world actor by name or id.
+ * scene (so unlinked NPC tokens use their own synthetic actor/HP), then the one
+ * token on that scene made from a world actor id (the dashboard's actor picker
+ * sends ids), then falls back to a world actor by name or id.
  */
 export function resolveTargetActor(identifier: string): any {
-  const scene = (game.scenes as any)?.current;
+  const scene = (game.scenes as unknown as { current?: TargetScene } | undefined)?.current;
   if (scene) {
-    const token = scene.tokens.find(
-      (t: any) => t.id === identifier || t.name?.toLowerCase() === identifier.toLowerCase()
-    );
+    const tokens = scene.tokens.contents;
+    const lower = identifier.toLowerCase();
+    const token = tokens.find(t => t.id === identifier || t.name?.toLowerCase() === lower);
     if (token?.actor) return token.actor;
+    // Several tokens from one actor are ambiguous: keep the world actor then.
+    const fromActor = tokens.filter(t => t.actorId === identifier);
+    if (fromActor.length === 1 && fromActor[0]?.actor) return fromActor[0].actor;
   }
   return findActorByIdentifier(identifier);
 }

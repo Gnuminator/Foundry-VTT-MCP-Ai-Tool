@@ -44,14 +44,16 @@ Pick the names yourself; `play` and `cogm` are examples. Below, `<domain>` is yo
    name it `foundry-pi`. On the next page pick Debian and 64-bit ARM. **Do not run the command it
    shows.** It contains the token (the long text after `install`). Leave the page open: you copy the
    token in step 8. Never paste the token into a chat, a file in the repo or the vault.
-4. **The Foundry name.** Still in the tunnel, Published application routes (or Public hostname),
+4. **Who may open Foundry (do this before the name exists).** Zero Trust, Access controls,
+   Applications, Add an application, Self-hosted. Name `Foundry players`, domain `play.<domain>`,
+   session duration 30 days. Add a policy named `Players`: action Allow, include Emails, then the
+   email of each player, the GM and you. Under login methods keep only One-time PIN. Save. Players
+   will get a code by email the first time and about once a month after.
+5. **The Foundry name.** Back in the tunnel, Published application routes (or Public hostname),
    add: subdomain `play`, your domain, service type `HTTP`, URL `localhost:30000`. Leave every
-   option under Additional settings as it is (WebSockets work by default). Save the tunnel.
-5. **Who may open Foundry.** Zero Trust, Access controls, Applications, Add an application,
-   Self-hosted. Name `Foundry players`, domain `play.<domain>`, session duration 30 days. Add a
-   policy named `Players`: action Allow, include Emails, then the email of each player, the GM and
-   you. Under login methods keep only One-time PIN. Save. Players now get a code by email the first
-   time and about once a month after.
+   option under Additional settings as it is (WebSockets work by default); in particular **never
+   set "HTTP Host Header"**, because the dashboard's host check (a `421` for names it does not
+   know) is what keeps an unconfigured name closed. Save the tunnel.
 6. **Pi: install the tunnel (Claude, with your OK).** Claude takes a `dietpi-backup 1` snapshot, then
    runs stage 12 (`12-tunnel.sh`, see [Orange Pi setup](PI-SETUP.md)). It installs Cloudflare's
    `cloudflared` from Cloudflare's own signed package source and sets it up as a service that stays
@@ -78,15 +80,29 @@ Pick the names yourself; `play` and `cogm` are examples. Below, `<domain>` is yo
    address on it gets a code by email, then Foundry's login page. Then check that Foundry loads and
    a token can be moved, which proves WebSockets work. Test with one player's real address before
    telling the others.
-10. **The dashboard, for the GM (later, in this order).** The dashboard must check Cloudflare's
-    signed login token before it goes behind Access (idea I-022, built). So first tell Claude your
-    team name (`<team>.cloudflareaccess.com`) and, after creating the Access application below, its
-    Application Audience (AUD) tag; Claude sets `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `GM_EMAILS`
-    and `DASHBOARD_ALLOWED_HOSTS=cogm.<domain>` in `/etc/foundry-ai-tool/dashboard.env` (with your
-    OK) and restarts the dashboard. Only then add the name: tunnel, Published application routes,
-    subdomain `cogm`, `HTTP`, `localhost:3000`. Create the Access application `Foundry dashboard`
-    for `cogm.<domain>` with one Allow policy that includes only the GM's and your email (a
-    different, shorter list than the players').
+10. **The dashboard, for the GM (later). The order matters: Access first, the name last.** The
+    dashboard checks Cloudflare's signed login token (idea I-022, built) and, once it is set up
+    with GM emails, shows everyone else the read-only player view. Until the Access application
+    exists that view would be open to the internet, so: 1. In Cloudflare create the Access application `Foundry dashboard` for `cogm.<domain>` with
+    one Allow policy that includes only the GM's and your email (a shorter list than the
+    players'). Save, open it and copy its **Application Audience (AUD) Tag**. Do not add the
+    `cogm` route yet. 2. Tell Claude your team name (`<team>.cloudflareaccess.com`), the AUD tag, the GM's and your
+    emails, and the Pi's Tailscale name. With your OK Claude writes
+    `/etc/foundry-ai-tool/dashboard-access.env` (root, group `foundry`, 0640) with
+    `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `GM_EMAILS`, `DASHBOARD_ALLOWED_HOSTS` and
+    `GM_DASHBOARD_TOKEN` (generated on the Pi, never printed), runs stage 5 again once (the build
+    is skipped; it only adds this file to the dashboard's service) and restarts the dashboard.
+    Why a file of its own: stage 7 rewrites `dashboard.env` whole, which would drop these lines,
+    and `dashboard-access.env` is read after it and never rewritten. The service's own
+    `DASHBOARD_ALLOWED_HOSTS` is replaced by this file's value, so it must list **both** names,
+    `<tailscale name>,cogm.<domain>`, or the GM's Tailscale address would answer `421`. 3. Over Tailscale the GM has no Cloudflare login, so with the split on he would see the player
+    view. `GM_DASHBOARD_TOKEN` fixes that: once, open
+    `http://<tailscale name>:3000/?token=<the token>` in his browser; the dashboard remembers it
+    there. You read the token with `ssh foundry-pi grep GM_DASHBOARD_TOKEN
+/etc/foundry-ai-tool/dashboard-access.env` and pass it on yourself; keep it out of the repo
+    and the vault. 4. Only now add the name: tunnel, Published application routes, subdomain `cogm`, `HTTP`,
+    `localhost:3000` (again no "HTTP Host Header"). Test: `https://cogm.<domain>` must ask for a
+    Cloudflare login, and only the listed emails reach the dashboard as GM.
 11. **Service token for the GM's Obsidian plugin (D-094).** Zero Trust, Access controls, Service
     credentials, Service Tokens, Create. Name it `obsidian-gm-plugin`, duration 1 year. Copy the
     Client ID and Client Secret now; the secret is shown once. On the `Foundry dashboard`
@@ -95,7 +111,11 @@ Pick the names yourself; `play` and `cogm` are examples. Below, `<domain>` is yo
     reach the dashboard name only. The Client ID and Secret go into the plugin's settings on the
     GM's PC (the plugin change that sends them comes in a later Obsidian PR), never into the vault
     or the repo. It expires after one year (Cloudflare emails a warning first); to revoke it earlier,
-    delete it under Service Tokens or remove the `Obsidian plugin` policy.
+    delete it under Service Tokens or remove the `Obsidian plugin` policy. **Known gap:** the
+    dashboard decides the GM role from the email in Cloudflare's signed token only, and a service
+    token's login carries no email, so the plugin will reach the dashboard but get the player view.
+    A dashboard change that maps the service token's client ID to the GM role is still needed; it
+    comes with the Obsidian R1 work (D-094) and is not part of stage 12.
 
 ### Removing a player
 
@@ -285,7 +305,7 @@ When Cloudflare Access is in front:
    issuer, audience, expiry) and compares its email against `GM_EMAILS` (lowercased,
    comma-separated list). Match → GM role. The plain email header is never trusted (I-022).
 4. `GM_DASHBOARD_TOKEN` is an alternative / additional credential: present it as a
-   `X-GM-Token` header, `?gm_token=` query parameter, or `gm_token` cookie → GM role.
+   `X-CoGM-Token` header, `?token=` query parameter, or `cogm_token` cookie → GM role.
 
 ---
 

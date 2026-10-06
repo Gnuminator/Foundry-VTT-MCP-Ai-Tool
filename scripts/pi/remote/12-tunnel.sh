@@ -53,7 +53,14 @@ token_looks_valid() {
 # ---- cloudflared from Cloudflare's apt repository ---------------------------------------------------
 say "cloudflared"
 apt_install ca-certificates curl gnupg
-key_fpr_of() { gpg --show-keys --with-colons "$1" 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }'; }
+# The primary key's fingerprint of a key file, or nothing unless the file holds exactly one primary key
+# (a file with a second key in it must not pass on the first one's fingerprint).
+key_fpr_of() {
+  gpg --show-keys --with-colons "$1" 2>/dev/null | awk -F: '
+    $1 == "pub" { pubs++ }
+    $1 == "fpr" && !fpr { fpr = $10 }
+    END { if (pubs == 1) print fpr }'
+}
 if [ -f "$keyring" ] && [ "$(key_fpr_of "$keyring")" = "$key_fpr" ]; then
   ok "repository key already in place ($key_fpr)"
 else
@@ -116,7 +123,8 @@ WantedBy=multi-user.target"
 unit_changed=0
 if write_file "/etc/systemd/system/$unit" 0644 "$unit_body"; then unit_changed=1; fi
 
-install -d -m 0755 -o root -g root "$TOOL_ETC"
+# Stage 1 made it 0750 root:foundry; never loosen it here.
+[ -d "$TOOL_ETC" ] || die "$TOOL_ETC is missing: run stage 1 first"
 has_token=0
 if [ -f "$token_file" ]; then
   chown root:root "$token_file"
@@ -163,9 +171,25 @@ else
   if [ "$current" = "$public_host true 443" ]; then
     ok "options.json already has hostname $public_host, proxySSL true, proxyPort 443"
   else
-    # Foundry may rewrite options.json when it stops, so it is stopped before the edit.
+    # Foundry may rewrite options.json when it stops, so it is stopped before the edit. Each run keeps
+    # its own copy (a rerun never overwrites an older one); if anything fails while Foundry is stopped,
+    # that copy is put back and Foundry is started again.
+    run_backup="$options.before-tunnel.$(date +%Y%m%d-%H%M%S)"
+    in_edit=0
+    restore_foundry() {
+      local rc=$?
+      trap - EXIT
+      if [ "$rc" -ne 0 ] && [ "$in_edit" = 1 ]; then
+        cp -a "$run_backup" "$options" || true
+        if have_systemd; then systemctl start foundry.service || true; fi
+        printf 'ERROR: stage 12 failed while Foundry was stopped: options.json put back from %s and Foundry started again\n' "$run_backup" >&2
+      fi
+      exit "$rc"
+    }
+    trap restore_foundry EXIT
+    cp -a "$options" "$run_backup"
+    in_edit=1
     if have_systemd; then systemctl stop foundry.service; fi
-    cp -a "$options" "$options.before-tunnel"
     node -e '
       const fs = require("fs");
       const [p, host] = process.argv.slice(1);
@@ -175,14 +199,16 @@ else
       o.proxyPort = 443;
       fs.writeFileSync(p, JSON.stringify(o, null, 2) + "\n");
     ' "$options" "$public_host"
-    chown --reference="$options.before-tunnel" "$options"
-    ok "options.json: hostname $public_host, proxySSL true, proxyPort 443 (old file: $options.before-tunnel)"
+    chown --reference="$run_backup" "$options"
+    ok "options.json: hostname $public_host, proxySSL true, proxyPort 443 (old file: $run_backup)"
     if have_systemd; then
       systemctl start foundry.service
       ok "Foundry restarted (players in a session reconnect by themselves)"
     else
       warn "no systemd here (a test container?): Foundry not restarted"
     fi
+    in_edit=0
+    trap - EXIT
   fi
 fi
 

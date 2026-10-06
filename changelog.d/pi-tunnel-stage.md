@@ -7,7 +7,9 @@
   unit does not start without it. Optional `FOUNDRY_PUBLIC_HOST` sets Foundry's `hostname`,
   `proxySSL` and `proxyPort` 443. It opens no port and changes no firewall, SSH, network or
   Tailscale setting. `set-tunnel-token.sh` is the helper the user runs in their own SSH session:
-  it reads the token without showing it. Nothing was run on the Pi.
+  it reads the token without showing it. The dashboard's service (stage 5) now also reads an
+  optional `/etc/foundry-ai-tool/dashboard-access.env` for the Cloudflare Access settings, a file
+  stage 7 never rewrites. Nothing was run on the Pi.
 - **Docs:** [Remote access](../docs/dev/REMOTE-ACCESS.md) has a "Part C" section with plain steps
   (domain, Zero Trust team, tunnel, Access policies for the players and the GM, a service token
   for the GM's Obsidian plugin, testing from a phone, removing a player); the Pi guide lists stage 12.

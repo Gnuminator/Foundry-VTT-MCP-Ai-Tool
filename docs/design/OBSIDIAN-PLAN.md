@@ -380,9 +380,13 @@ timeline die with the browser, one hit logs both `damage-roll` and `damage`, `de
   `actor` (`uuid`, `tokenUuid`, `isPC`, `name`), `combat` (`id`, `round`, `turn`), `path`, `before`,
   `after`, `delta`, `roll` (`formula`, `total`, `dice`, `crit`, `fumble`, `advantage`, `rollType`,
   `dc`, `outcome`), `source` (`messageId` or `changeId`).
-  `scene` records (and `user-join` records of players) also carry `data.tokens`: the tokens on the
-  viewed scene folded by world actor (`actorUuid`, `name`, `isPC`, `hidden` only when all are hidden),
-  at most 200. The mirror's "Seen in" lists (R4) are built from it, by id, never by name.
+  `scene` records carry `data.active` (active scene or GM preview), `data.players` (players
+  online) and `data.tokens`: the tokens on that scene folded by world actor (`actorUuid`, `name`,
+  `isPC`, `hidden` only when all are hidden), at most 200. A player's `user-join` carries the active
+  scene's id and tokens; joins and leaves carry `data.isGM`. The mirror's "Seen in" lists (R4) are
+  built from these by id, never by name, and count only while a player is online: table records
+  (rolls, item use and chat that are not whispered or blind, HP, conditions, combat turns) and the
+  visible tokens of the active scene. GM lifecycle work and scene previews never count.
 - **Kinds:** rolls (attack, damage, save, check, skill, tool, initiative, death save, hit die), spell
   casts (level, slot, upcast), slots, class resources, hit dice, item uses/charges/quantity, loot,
   currency, HP, conditions/effects, XP/level, rests, actor/token create/delete, scene change, combat

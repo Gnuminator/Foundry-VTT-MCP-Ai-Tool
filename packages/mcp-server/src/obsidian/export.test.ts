@@ -816,7 +816,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'user-join',
         userId: 'user1',
         sceneId: null,
-        data: { name: 'Alice' },
+        data: { name: 'Alice', isGM: false },
       },
       {
         v: 2,
@@ -826,7 +826,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'scene',
         userId: null,
         sceneId: 'scene1',
-        data: { sceneName: 'Village of Barovia' },
+        data: { sceneName: 'Village of Barovia', active: true },
       },
       {
         v: 2,
@@ -1126,8 +1126,8 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
     expect(first?.data.v).toBe(1);
     expect(first?.data.actors[RAHADIN.uuid]).toEqual([label]);
     expect(first?.data.scenes['Scene.scene1']).toEqual([label]);
-    // PCs are not "seen in": they have stats notes.
-    expect(first?.data.actors[IREENA.uuid]).toBeUndefined();
+    // Every world actor is indexed (the mirror shows no list on PC notes).
+    expect(first?.data.actors[IREENA.uuid]).toEqual([label]);
 
     const write = vi.spyOn(store, 'write');
     await run();

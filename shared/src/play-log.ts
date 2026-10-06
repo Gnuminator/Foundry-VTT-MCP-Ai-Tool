@@ -70,7 +70,7 @@ export interface PlayActorRef {
 
 /**
  * One actor on a scene, as `scene` and `user-join` records snapshot it in `data.tokens`: the
- * tokens of the recording GM's viewed scene folded by world actor. Linked and unlinked tokens
+ * tokens of the recorded scene (a `user-join`: the active scene) folded by world actor. Linked and unlinked tokens
  * both name the base world actor, so "who was in the scene" needs no name matching.
  */
 export interface PlaySceneToken {
@@ -180,10 +180,13 @@ export interface PlayRecord {
   source?: { messageId?: string; changeId?: string; attributed?: boolean; exact?: boolean };
   /**
    * Kind-specific extras (effect name and statuses, chat style and text, rest type, ...).
-   * `scene` records, and `user-join` records of non-GM users, may carry `tokens: PlaySceneToken[]`:
-   * the tokens on the recording GM's viewed scene, folded by actor, sorted by `actorUuid`, at
-   * most 200 entries. GM-only like everything in the play log (hidden tokens are marked, not
-   * dropped).
+   * `scene` records carry `active` (the active scene, false for a GM preview), `players` (ids of
+   * the non-GM users online) and `tokens: PlaySceneToken[]` (that scene's tokens folded by actor,
+   * sorted by `actorUuid`, at most 200, visible actors kept first). `user-join` and `user-leave`
+   * records carry `isGM`; a non-GM `user-join` adds `activeSceneId` and that scene's `tokens`.
+   * `roll` and `item-use` records carry `whisper: true` and `blind: true` when set (`chat`
+   * records always carry both). GM-only like everything in the play log (hidden tokens are
+   * marked, not dropped). Records from before 2026-10 lack these fields.
    */
   data?: Record<string, unknown>;
 }

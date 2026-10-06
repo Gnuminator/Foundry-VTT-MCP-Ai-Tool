@@ -1118,8 +1118,17 @@ export class ObsidianMirrorPump {
     for (const row of rows.values()) {
       if (this.needsFetch(state, row, forceAll)) toFetch.add(row.uuid);
     }
-    for (const uuid of state.pendingRefetch) if (rows.has(uuid)) toFetch.add(uuid);
-    state.pendingRefetch.clear();
+    // Pending uuids stay pending until the fetch below succeeds: a reconcile that aborts must not
+    // lose a refetch nothing else would trigger again (a changed Seen in list). Gone ones drop.
+    const refetched: string[] = [];
+    for (const uuid of state.pendingRefetch) {
+      if (rows.has(uuid)) {
+        toFetch.add(uuid);
+        refetched.push(uuid);
+      } else {
+        state.pendingRefetch.delete(uuid);
+      }
+    }
 
     if (complete) {
       await this.reconcileDeletes(cycle, rows, toFetch);
@@ -1136,6 +1145,7 @@ export class ObsidianMirrorPump {
 
     state.known = new Set(rows.keys());
     await this.fetchAndApply(cycle, [...toFetch]);
+    for (const uuid of refetched) state.pendingRefetch.delete(uuid);
     await this.writeBases(cycle);
     await this.writeHubs(cycle);
 

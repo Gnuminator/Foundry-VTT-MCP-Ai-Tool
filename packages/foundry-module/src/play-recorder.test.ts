@@ -658,18 +658,92 @@ describe('scene token snapshots', () => {
     expect(tokens[0]?.actorUuid).toBe('Actor.a000');
   });
 
-  it('adds the snapshot to a player user-join but not to a GM user-join or a leave', () => {
+  it('keeps visible actors before hidden ones when it caps the list', () => {
+    world.addScene({
+      id: 'sceneA',
+      tokens: [
+        ...Array.from({ length: 150 }, (_, i) =>
+          makeToken({ id: `h${i}`, actorId: `a${String(i).padStart(3, '0')}`, hidden: true })
+        ),
+        ...Array.from({ length: 100 }, (_, i) =>
+          makeToken({ id: `v${i}`, actorId: `z${String(i).padStart(3, '0')}` })
+        ),
+      ],
+    });
+    (globalThis as any).canvas = { scene: { id: 'sceneA' } };
+    const tokens = sceneRecord()?.data?.tokens as Array<{ actorUuid: string; hidden?: true }>;
+    expect(tokens).toHaveLength(200);
+    expect(tokens.filter(t => t.hidden !== true)).toHaveLength(100);
+    expect(tokens[0]?.actorUuid).toBe('Actor.a000');
+  });
+
+  it('marks a GM preview as not active and lists the players online', () => {
     setupScene();
+    world.addScene({ id: 'sceneB', tokens: [] });
+    world.setActiveScene('sceneB');
+    world.addUser({ id: 'p2', name: 'Bob', isGM: false, active: true });
+    world.addUser({ id: 'p1', name: 'Alice', isGM: false, active: true });
+    world.addUser({ id: 'p3', name: 'Away', isGM: false, active: false });
+    const record = sceneRecord();
+    expect(record?.data?.active).toBe(false);
+    expect(record?.data?.players).toEqual(['p1', 'p2']);
+  });
+
+  it('records the same scene again when the GM activates the scene they preview', () => {
+    setupScene();
+    world.addScene({ id: 'sceneB', tokens: [] });
+    world.setActiveScene('sceneB');
     Hooks.callAll('canvasReady');
+    world.setActiveScene('sceneA');
+    Hooks.callAll('updateScene', { id: 'sceneA', name: 'Scene A' }, { active: true });
+    Hooks.callAll('canvasReady');
+    const scenes = recorder.getPlayRecords({}).records.filter(r => r.kind === 'scene');
+    expect(scenes.map(r => [r.sceneId, r.data?.active])).toEqual([
+      ['sceneA', false],
+      ['sceneA', true],
+    ]);
+  });
+
+  it('snapshots the active scene for a joining player, and marks who is a GM', () => {
+    setupScene();
+    world.addScene({
+      id: 'sceneB',
+      tokens: [makeToken({ id: 'b1', name: 'Goblin B', actorId: 'gob' })],
+    });
+    world.setActiveScene('sceneB');
+    Hooks.callAll('canvasReady'); // the GM previews sceneA
     Hooks.callAll('userConnected', { id: 'p1', name: 'Alice', isGM: false }, true);
     Hooks.callAll('userConnected', { id: 'gm2', name: 'Co-GM', isGM: true }, true);
     Hooks.callAll('userConnected', { id: 'p1', name: 'Alice', isGM: false }, false);
     const [join, gmJoin, leave] = recorder
       .getPlayRecords({})
       .records.filter(r => r.kind === 'user-join' || r.kind === 'user-leave');
-    expect((join?.data?.tokens as unknown[]).length).toBe(4);
-    expect(gmJoin?.data).toEqual({ name: 'Co-GM' });
-    expect(leave?.data).toEqual({ name: 'Alice' });
+    expect(join?.data).toEqual({
+      name: 'Alice',
+      isGM: false,
+      activeSceneId: 'sceneB',
+      tokens: [{ actorUuid: 'Actor.gob', name: 'Goblin', isPC: false }],
+    });
+    expect(gmJoin?.data).toEqual({ name: 'Co-GM', isGM: true });
+    expect(leave?.data).toEqual({ name: 'Alice', isGM: false });
+  });
+
+  it('marks whispered and blind rolls and item use', () => {
+    world.actors.add(makeFixtureActor());
+    const roll = (id: string, extra: Record<string, unknown>): Record<string, unknown> => ({
+      id,
+      type: 'check',
+      speaker: { actor: 'a1' },
+      rolls: [d20Roll({ total: 12 })],
+      flags: {},
+      _stats: { modifiedTime: 1000 },
+      ...extra,
+    });
+    Hooks.callAll('createChatMessage', roll('w1', { whisper: ['gm'], blind: true }), {}, 'u1');
+    Hooks.callAll('createChatMessage', roll('o1', { whisper: [], blind: false }), {}, 'u1');
+    const [whispered, open] = recorder.getPlayRecords({}).records.filter(r => r.kind === 'roll');
+    expect(whispered?.data).toEqual({ whisper: true, blind: true });
+    expect(open?.data).toBeUndefined();
   });
 });
 

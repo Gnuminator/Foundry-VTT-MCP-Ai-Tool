@@ -560,6 +560,25 @@ describe('ObsidianMirrorPump: Seen in (R4)', () => {
     expect(fetchedUuids()).toHaveLength(after);
   });
 
+  it('keeps a changed list pending when the reconcile that should render it aborts', async () => {
+    await writeSeen({ [WOLF.uuid]: [S1] });
+    const pump = await started();
+    await writeSeen({ [WOLF.uuid]: [S1, S2] });
+    // The reconcile reads the new index, then its document fetch fails.
+    fake.beforeQuery = (request): void => {
+      if (request.uuids && !request.idsOnly) {
+        fake.failNext = 'Foundry is busy';
+        fake.beforeQuery = null;
+      }
+    };
+    await reconcileNow(pump);
+    expect(pump.status().lastError).toMatch(/Foundry is busy/);
+    expect(await read(P.wolf)).toContain('last_seen: "2026-11-29"');
+    // The next cycle still renders it, although the index did not change again.
+    await tickAfter(pump, 10_000);
+    expect(await read(P.wolf)).toContain('last_seen: "2026-12-06"');
+  });
+
   it('a missing or unreadable index file is harmless', async () => {
     const pump = await started();
     expect(await read(P.wolf)).toContain('last_seen: null');

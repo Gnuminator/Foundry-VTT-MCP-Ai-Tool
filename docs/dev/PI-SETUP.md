@@ -251,31 +251,48 @@ hide a snapshot copy that stopped, and the other way round.
 
 How it works: after a successful run, `pull-restic.ps1` and `pull-snapshot.ps1` (through
 `scripts/pi/record-pull.ps1`) run one fixed command on the Pi over SSH,
-`/opt/foundry-ai-tool/backup/record-pull.sh restic` or `... snapshot`. The helper (installed by stage 6) writes the Pi's own clock into `/var/lib/foundry-ai-tool/backup-pulls/restic.json` or
+`/opt/foundry-ai-tool/backup/record-pull.sh restic` or `... snapshot`. The helper (installed by
+stage 6) writes the Pi's own clock into `/var/lib/foundry-backup-pulls/restic.json` or
 `snapshot.json`: `{"version":1,"kind":"restic","pulledAt":"2026-10-06T10:31:02Z"}`. The files hold
-no secrets. A snapshot run that finds the newest snapshot already on this PC counts as a copy; a run
-that skips because `dietpi-backup` is busy, fails, or is a dry run records nothing. The command also
-shows in the Pi's SSH log (stage 9). If the Pi cannot be told (it is off, or stage 6 has not been
-rerun), the pull only logs a WARNING and the copy still counts as done.
+no secrets. The folder is `root:root` 0755 and sits outside `/var/lib/foundry-ai-tool` on purpose:
+the foundry user owns that tree, so a compromised foundry process could swap a folder inside it for
+a symbolic link and make the root helper write somewhere else. The bot (as foundry) only reads the
+folder. Stage 6 refuses a symbolic link in its place, and the helper refuses a symbolic link as the
+folder or as the target file (exit 70). A run that skips because `dietpi-backup` is busy, fails, or
+is a dry run records nothing. The command also shows in the Pi's SSH log (stage 9). If the Pi
+cannot be told (it is off, or stage 6 has not been rerun), the pull only logs a WARNING and the
+copy still counts as done.
 
-The bot reads the folder every 15 minutes, with the same rules as the space notices: one DM when a
-kind goes stale (it names the stale kind or kinds and how long each has been quiet), a reminder at
-most once every 24 hours for each kind that stays stale, one "copied again" DM for a kind that gets
-a fresh copy (a kind that recovers while the other is still stale gets its own DM, and the other
-keeps its reminder schedule), and nothing at all for a kind that was never recorded (a fresh install
-or a Pi where stage 6 was just rerun never raises a false alarm). The DM also shows when each kind
-was last copied and what to do: turn the PC on, or run the two tasks in Task Scheduler. Change the
-limit with `FOUNDRY_AI_BACKUP_STALE_DAYS` in `/etc/foundry-ai-tool/discord-bot.env` (default 3),
-then restart the bot (`systemctl restart foundry-ai-tool-discord-bot`).
+What the snapshot record means: it says "this PC has the newest snapshot", not "the snapshot is
+fresh". A snapshot run that finds the newest snapshot already on this PC counts as a copy, so if
+`dietpi-backup` itself stops on the Pi, the record keeps being renewed. That case is covered on the
+PC by the `WarnAfterDays` log line in `pull-snapshot.ps1`, not by the DM.
+
+The bot reads the folder every 15 minutes (the first check after a bot start waits one interval, so
+a restart or a crash loop does not repeat the DM), with the same rules as the space notices. Each
+kind is judged on its own: one DM when a kind goes stale (it names the stale kind or kinds and how
+long each has been quiet), a reminder at most once every 24 hours for each kind that stays stale,
+one "copied again" DM for a kind that gets a fresh copy (a kind that recovers while the other is
+still stale gets its own DM, and the other keeps its reminder schedule). A record that cannot be
+used also counts: a file that is unreadable or invalid (for example a zero-length file after a power
+cut, or a time more than a day in the future), or a kind with no record at all while the other kind
+is recorded (the snapshot task missing on a rebuilt PC), is stale once that has lasted longer than
+the limit, counted from when the bot first saw it (a bot restart starts that count again). The DM
+then says "record unreadable" or "not recorded yet". While nothing at all has been recorded the bot
+says nothing (a fresh install or a Pi where stage 6 was just rerun never raises a false alarm). The
+DM also shows when each kind was last copied and what to do: turn the PC on, or run the two tasks
+in Task Scheduler. Change the limit with `FOUNDRY_AI_BACKUP_STALE_DAYS` in
+`/etc/foundry-ai-tool/discord-bot.env` (default 3), then restart the bot
+(`systemctl restart foundry-ai-tool-discord-bot`).
 
 Rolling it out (each step with your OK, snapshot first): run stage 6 again (it installs the helper
-and the folder, and runs one backup now), then a new tool build (stage 5) and stage 8, so the bot
-runs the build that reads the folder. Nothing on the
-PC needs registering again: the scheduled tasks run the same scripts, which now call the helper. The
-first DM for a kind can come only after a copy of that kind was recorded and 3 days have passed
-without another. By hand:
+and the folder, and runs one backup now: **Foundry stops for a minute or two, so never run it during
+a game**), then a new tool build (stage 5) and stage 8, so the bot runs the build that reads the
+folder. Nothing on the PC needs registering again: the scheduled tasks run the same scripts, which
+now call the helper. The first DM for a kind can come only after a copy of that kind was recorded
+and 3 days have passed without another. By hand:
 `ssh foundry-pi /opt/foundry-ai-tool/backup/record-pull.sh restic` records a copy now (it changes
-only that one file), `ssh foundry-pi cat /var/lib/foundry-ai-tool/backup-pulls/restic.json` shows it.
+only that one file), `ssh foundry-pi cat /var/lib/foundry-backup-pulls/restic.json` shows it.
 Tests: `node --test scripts/pi/backup-pull-record.test.mjs`.
 
 ## Rebuild drill
@@ -657,7 +674,7 @@ boot problems for others, so it is not tried.
 | Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                  |
 | GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                 |
 | Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                           |
-| When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-ai-tool/backup-pulls/<kind>.json`                                    |
+| When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-backup-pulls/<kind>.json`                                            |
 
 ## Sources
 

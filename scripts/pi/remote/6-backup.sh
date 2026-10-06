@@ -20,7 +20,9 @@ pass_file="$TOOL_ETC/restic-pi.pass"
 script_dir="$TOOL_DIR/backup"
 backup_script="$script_dir/foundry-backup.sh"
 record_script="$script_dir/record-pull.sh"
-pulls_dir="$TOOL_DATA/backup-pulls"
+# Root-owned and outside /var/lib/foundry-ai-tool (which the foundry user owns), so a compromised foundry
+# process cannot swap the folder for a symlink and make root write somewhere else.
+pulls_dir=/var/lib/foundry-backup-pulls
 
 say "restic"
 apt_install restic
@@ -126,9 +128,13 @@ say "the record of the PC's copies (PB-06)"
 # After each successful run, the PC's pull scripts call `record-pull.sh restic|snapshot` over SSH. It
 # writes the Pi's own clock into $pulls_dir/<kind>.json, and the Discord bot (it runs here, as the
 # foundry user) DMs the owner when a kind of copy (restic or snapshot) is older than 3 days. The folder is
-# the tool's own (readable by the bot, written only through this helper); the files hold no secrets.
+# root:root 0755 (the bot only reads it, the helper writes it as root); the files hold no secrets.
+# `install -d` would follow a symlink and re-own its target, so refuse a symlink first.
+if [ -L "$pulls_dir" ]; then
+  die "$pulls_dir is a symbolic link: remove it by hand (after looking at where it points), then run stage 6 again"
+fi
 install -d -m 0755 -o root -g root "$pulls_dir"
-ok "$pulls_dir (readable by the bot)"
+ok "$pulls_dir (root-owned; the bot only reads it)"
 record_body="$(
   cat <<'RECORD_PULL'
 #!/usr/bin/env bash
@@ -136,8 +142,9 @@ record_body="$(
 #   record-pull.sh restic      pull-restic.ps1 finished a copy
 #   record-pull.sh snapshot    pull-snapshot.ps1 finished a copy
 # Writes <folder>/<kind>.json atomically: {"version":1,"kind":"restic","pulledAt":"2026-10-06T10:31:02Z"}.
-# The only argument that works is restic or snapshot; nothing else is read or run. Environment (tests):
-# FOUNDRY_AI_BACKUP_PULLS (the folder).
+# The only argument that works is restic or snapshot; nothing else is read or run. The folder is
+# root-owned and outside the foundry user's tree; a symbolic link as the folder or as the target file
+# is refused (exit 70). Environment (tests): FOUNDRY_AI_BACKUP_PULLS (the folder).
 set -euo pipefail
 kind="${1:-}"
 case "$kind" in
@@ -147,12 +154,21 @@ restic | snapshot) ;;
   exit 64
   ;;
 esac
-dir="${FOUNDRY_AI_BACKUP_PULLS:-/var/lib/foundry-ai-tool/backup-pulls}"
+dir="${FOUNDRY_AI_BACKUP_PULLS:-/var/lib/foundry-backup-pulls}"
+if [ -L "$dir" ]; then
+  echo "refusing: $dir is a symbolic link" >&2
+  exit 70
+fi
 mkdir -p "$dir"
+if [ -L "$dir/$kind.json" ]; then
+  echo "refusing: $dir/$kind.json is a symbolic link" >&2
+  exit 70
+fi
 tmp="$(mktemp "$dir/.$kind.XXXXXX")"
 trap 'rm -f "$tmp"' EXIT
 printf '{"version":1,"kind":"%s","pulledAt":"%s"}\n' "$kind" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$tmp"
 chmod 0644 "$tmp"
+sync "$tmp" 2>/dev/null || true # best effort: flush the new file before it replaces the old one
 mv -f "$tmp" "$dir/$kind.json"
 trap - EXIT
 echo "recorded: $kind copied to the PC"

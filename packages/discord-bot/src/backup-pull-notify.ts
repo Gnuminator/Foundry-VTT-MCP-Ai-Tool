@@ -11,9 +11,11 @@
  * - while a kind stays stale, at most one reminder every 24 hours for that kind;
  * - one "copied again" DM when a stale kind gets a fresh copy (only if a stale DM was sent for it),
  *   while the other kind keeps its own reminder schedule;
- * - a kind that was never recorded says nothing; an unavailable reading (no copy ever recorded,
- *   unreadable or invalid file) says nothing and changes nothing, so a fresh install or a dev
- *   machine never raises a false alarm;
+ * - a kind whose record is missing, unreadable or invalid is judged by the reader (see
+ *   backup-pull-status.ts): it counts as stale once that has lasted longer than the limit and the DM
+ *   says "record unreadable" or "not recorded"; before that it says nothing and changes nothing;
+ * - an unavailable reading (no copy ever recorded at all) says nothing and changes nothing, so a
+ *   fresh install or a dev machine never raises a false alarm;
  * - if a DM cannot be sent, nothing is recorded for the kinds in it, so the next check tries again.
  * The state lives in memory: a bot restart can repeat one DM.
  */
@@ -63,7 +65,9 @@ function kindsText(kinds: readonly BackupPullKind[]): string {
 
 function kindLine(kind: BackupPullKind, pull: BackupPullStatus | undefined): string {
   const label = `Last ${KIND_LABEL[kind]} copy`;
-  return pull ? `${label}: ${agoText(pull.ageMs)}.` : `${label}: not recorded yet.`;
+  if (!pull || pull.problem?.reason === 'missing') return `${label}: not recorded yet.`;
+  if (pull.problem) return `${label}: record unreadable.`;
+  return `${label}: ${agoText(pull.ageMs)}.`;
 }
 
 function pullOf(reading: AvailableReading, kind: BackupPullKind): BackupPullStatus | undefined {
@@ -93,19 +97,35 @@ export function backupPullMessage(
     return `${head} ${tail}`;
   }
   const again = notice === 'reminder' ? ' (reminder)' : '';
-  const spans = kinds
+  const pulls = kinds
     .map(k => pullOf(reading, k))
-    .filter((p): p is BackupPullStatus => p !== undefined)
-    .map(p =>
-      kinds.length > 1 ? `${KIND_LABEL[p.kind]} for ${spanText(p.ageMs)}` : spanText(p.ageMs)
+    .filter((p): p is BackupPullStatus => p !== undefined);
+  let headline: string;
+  if (pulls.every(p => p.problem === null)) {
+    const spans = pulls.map(p =>
+      pulls.length > 1 ? `${KIND_LABEL[p.kind]} for ${spanText(p.ageMs)}` : spanText(p.ageMs)
     );
-  const copied =
-    kinds.length > 1
-      ? `backups have not been copied to your PC: ${spans.join(' and ')}`
-      : `backup has not been copied to your PC for ${spans.join(' and ')}`;
+    headline =
+      kinds.length > 1
+        ? `The Pi's ${kindsText(kinds)} backups have not been copied to your PC: ${spans.join(' and ')}`
+        : `The Pi's ${kindsText(kinds)} backup has not been copied to your PC for ${spans.join(' and ')}`;
+  } else {
+    // At least one kind has no usable record: say which, so the cause is clear.
+    headline = pulls
+      .map(p => {
+        if (p.problem === null) {
+          return `The Pi's ${KIND_LABEL[p.kind]} backup has not been copied to your PC for ${spanText(p.ageMs)}`;
+        }
+        if (p.problem.reason === 'missing') {
+          return `No ${KIND_LABEL[p.kind]} copy has been recorded for ${spanText(p.ageMs)}`;
+        }
+        return `The Pi's record of the ${KIND_LABEL[p.kind]} copy has been unreadable for ${spanText(p.ageMs)}, so the copy cannot be checked`;
+      })
+      .join('; ');
+  }
   const limit = `${reading.limitDays} ${reading.limitDays === 1 ? 'day' : 'days'}`;
   return (
-    `The Pi's ${kindsText(kinds)} ${copied}${again} (the limit is ${limit}).\n` +
+    `${headline}${again} (the limit is ${limit}).\n` +
     `${kindLine('restic', pullOf(reading, 'restic'))}\n${kindLine('snapshot', pullOf(reading, 'snapshot'))}\n` +
     'Turn the PC on, or run the two tasks "Foundry Pi restic copy" and "Foundry Pi snapshot pull" in Task Scheduler. ' +
     'Until then the only copies are on the Pi.'
@@ -159,7 +179,10 @@ export class BackupPullNotifier {
     const reminderDue: BackupPullKind[] = [];
     for (const kind of BACKUP_PULL_KINDS) {
       const pull = pullOf(reading, kind);
-      if (!pull) continue; // never recorded (or its file is unusable): say nothing, change nothing
+      if (!pull) continue;
+      // A record that is missing, unreadable or invalid but not yet over the limit tells nothing:
+      // say nothing and change nothing (a stale kind whose file just broke is not "copied again").
+      if (pull.problem && !pull.stale) continue;
       const state = this.stateOf(kind);
       if (!pull.stale) {
         if (!state.stale) continue;

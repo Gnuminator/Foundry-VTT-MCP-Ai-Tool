@@ -16,18 +16,34 @@ const LIMIT = 3 * DAY;
 
 type Available = Extract<BackupPullReading, { state: 'available' }>;
 
-/** A reading from the age of each kind (a kind left out was never recorded). */
-function reading(ages: Partial<Record<BackupPullKind, number>>): Available {
+type Spec = number | { problem: 'missing' | 'invalid' | 'unreadable'; ageMs: number };
+
+/**
+ * A reading from the age of each kind. A number is the age of a good record; a problem spec is a
+ * kind with no usable record, with the time the reader has seen the problem; a kind left out is
+ * "missing" with no clock running.
+ */
+function reading(specs: Partial<Record<BackupPullKind, Spec>>): Available {
   const pulls: Available['pulls'] = [];
   for (const kind of ['restic', 'snapshot'] as const) {
-    const ageMs = ages[kind];
-    if (ageMs === undefined) continue;
-    pulls.push({
-      kind,
-      pulledAt: new Date(T0 - ageMs).toISOString(),
-      ageMs,
-      stale: ageMs > LIMIT,
-    });
+    const spec = specs[kind] ?? { problem: 'missing' as const, ageMs: 0 };
+    if (typeof spec === 'number') {
+      pulls.push({
+        kind,
+        pulledAt: new Date(T0 - spec).toISOString(),
+        problem: null,
+        ageMs: spec,
+        stale: spec > LIMIT,
+      });
+    } else {
+      pulls.push({
+        kind,
+        pulledAt: null,
+        problem: { reason: spec.problem, detail: 'test' },
+        ageMs: spec.ageMs,
+        stale: spec.ageMs > LIMIT,
+      });
+    }
   }
   return { state: 'available', pulls, stale: pulls.some(p => p.stale), limitDays: 3 };
 }
@@ -262,6 +278,49 @@ describe('BackupPullNotifier', () => {
     expect(await h.notifier.check(FRESH)).toEqual([
       { notice: 'recovered', kinds: ['restic', 'snapshot'] },
     ]);
+  });
+
+  it('a kind with an unreadable record alarms after the limit, with a "record unreadable" line', async () => {
+    const h = harness();
+    const quiet = reading({ restic: HOUR, snapshot: { problem: 'invalid', ageMs: DAY } });
+    expect(await h.notifier.check(quiet)).toEqual([]);
+    const loud = reading({ restic: HOUR, snapshot: { problem: 'invalid', ageMs: 4 * DAY } });
+    expect(await h.notifier.check(loud)).toEqual([{ notice: 'stale', kinds: ['snapshot'] }]);
+    expect(h.sent[0]).toContain('record of the snapshot copy has been unreadable for 4 days');
+    expect(h.sent[0]).toContain('Last snapshot copy: record unreadable.');
+    expect(h.sent[0]).toContain('Last restic copy: 1 hour ago.');
+    // Not repeated before the reminder is due.
+    expect(await h.notifier.check(loud)).toEqual([]);
+  });
+
+  it('a never-recorded kind alarms once the reader says the other has been recorded past the limit', async () => {
+    const h = harness();
+    const r = reading({ restic: HOUR, snapshot: { problem: 'missing', ageMs: 4 * DAY } });
+    expect(await h.notifier.check(r)).toEqual([{ notice: 'stale', kinds: ['snapshot'] }]);
+    expect(h.sent[0]).toContain('No snapshot copy has been recorded for 4 days');
+    expect(h.sent[0]).toContain('Last snapshot copy: not recorded yet.');
+    // Its first good copy later sends "copied again".
+    expect(await h.notifier.check(FRESH)).toEqual([{ notice: 'recovered', kinds: ['snapshot'] }]);
+  });
+
+  it('a stale kind whose file just broke is not "copied again" and keeps its reminder schedule', async () => {
+    const h = harness();
+    await h.notifier.check(RESTIC_STALE);
+    h.advance(HOUR);
+    const broke = reading({ restic: { problem: 'invalid', ageMs: 0 }, snapshot: 6 * HOUR });
+    expect(await h.notifier.check(broke)).toEqual([]);
+    h.advance(BACKUP_PULL_REMINDER_MS);
+    const brokeLong = reading({ restic: { problem: 'invalid', ageMs: 5 * DAY }, snapshot: HOUR });
+    expect(await h.notifier.check(brokeLong)).toEqual([{ notice: 'reminder', kinds: ['restic'] }]);
+    expect(h.sent).toHaveLength(2);
+  });
+
+  it('alarms for both a stale kind and a broken kind in one DM', async () => {
+    const h = harness();
+    const r = reading({ restic: 4 * DAY, snapshot: { problem: 'unreadable', ageMs: 5 * DAY } });
+    expect(await h.notifier.check(r)).toEqual([{ notice: 'stale', kinds: ['restic', 'snapshot'] }]);
+    expect(h.sent[0]).toContain("The Pi's restic backup has not been copied to your PC for 4 days");
+    expect(h.sent[0]).toContain('record of the snapshot copy has been unreadable for 5 days');
   });
 });
 

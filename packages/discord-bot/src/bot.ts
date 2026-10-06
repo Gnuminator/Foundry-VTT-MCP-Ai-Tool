@@ -33,7 +33,7 @@ import {
   type ApplicationOwnerLike,
 } from './space-notify.js';
 import { createSpaceStatusReader } from './space-status.js';
-import { createBackupPullReader } from './backup-pull-status.js';
+import { DEFAULT_BACKUP_STALE_DAYS, createBackupPullReader } from './backup-pull-status.js';
 import { BackupPullNotifier } from './backup-pull-notify.js';
 
 export const RECORD_COMMAND = new SlashCommandBuilder()
@@ -146,17 +146,20 @@ export class RecorderBot {
       log: log.info,
     });
     const pullNotifier = new BackupPullNotifier({ send });
-    const tick = (): void => {
+    const tick = (withBackupCheck: boolean): void => {
       notifier.check(readStatus()).catch((err: unknown) => log.error('Space check failed', err));
+      if (!withBackupCheck) return;
       pullNotifier
         .check(readPulls())
         .catch((err: unknown) => log.error('Backup copy check failed', err));
     };
-    tick();
-    this.spaceTimer = setInterval(tick, SPACE_CHECK_INTERVAL_MS);
+    // The first backup check waits one interval: the notice state lives in memory, so a restart (or a
+    // crash loop) would otherwise repeat the stale DM at every start. The space check runs at once.
+    tick(false);
+    this.spaceTimer = setInterval(() => tick(true), SPACE_CHECK_INTERVAL_MS);
     this.spaceTimer.unref();
     log.info(
-      `Space and backup copy notices: checking every ${SPACE_CHECK_INTERVAL_MS / 60000} minutes (backup copies are stale after ${this.config.backupStaleDays ?? 3} days).`
+      `Space and backup copy notices: checking every ${SPACE_CHECK_INTERVAL_MS / 60000} minutes (backup copies are stale after ${this.config.backupStaleDays ?? DEFAULT_BACKUP_STALE_DAYS} days).`
     );
   }
 

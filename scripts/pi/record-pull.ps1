@@ -10,7 +10,7 @@
       /opt/foundry-ai-tool/backup/record-pull.sh restic      (or: snapshot)
 
   The helper (installed by Pi stage 6) writes the Pi's own clock into
-  /var/lib/foundry-ai-tool/backup-pulls/<kind>.json. The Discord bot on the Pi reads those files and
+  /var/lib/foundry-backup-pulls/<kind>.json. The Discord bot on the Pi reads those files and
   sends the owner a DM when a kind of copy (restic or snapshot) is older than 3 days (set
   FOUNDRY_AI_BACKUP_STALE_DAYS in the bot's settings to change it). The command takes no data from
   this PC, only the word restic or snapshot, and it shows in the Pi's SSH log (stage 9).
@@ -33,7 +33,7 @@ function Send-PullRecord {
     [scriptblock]$Log = { param($m) Write-Host $m }
   )
   try {
-    $out = & $Ssh -o BatchMode=yes -o ConnectTimeout=10 $PiHost "$HelperPath $Kind" 2>&1 | ForEach-Object { "$_" }
+    $out = & $Ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 $PiHost "$HelperPath $Kind" 2>&1 | ForEach-Object { "$_" }
     $code = $LASTEXITCODE
     if ($code -eq 0) {
       & $Log "recorded on the Pi: the $Kind copy is done"
@@ -43,9 +43,12 @@ function Send-PullRecord {
     $detail = (@($out) -join ' ').Trim()
     $line = "WARNING: could not tell the Pi about the $Kind copy (exit $code)$hint; the Pi's stale-backup DM may be wrong until the next run. $detail"
     & $Log $line.TrimEnd()
+    # The failed ssh left its exit code behind; the pull script must still end as a success.
+    $global:LASTEXITCODE = 0
     return $false
   } catch {
     & $Log "WARNING: could not tell the Pi about the $Kind copy: $($_.Exception.Message)"
+    $global:LASTEXITCODE = 0
     return $false
   }
 }

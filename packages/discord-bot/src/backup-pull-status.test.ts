@@ -10,7 +10,8 @@ import {
 } from './backup-pull-status.js';
 
 const NOW = Date.parse('2026-10-10T12:00:00Z');
-const DAY = 24 * 60 * 60 * 1000;
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
 
 function record(kind: string, at: string): string {
   return JSON.stringify({ version: 1, kind, pulledAt: at });
@@ -19,11 +20,16 @@ function record(kind: string, at: string): string {
 /** A fake folder: file name to text; a missing name throws ENOENT, a name in `denied` EACCES. */
 function reader(
   files: Record<string, string>,
-  opts: { staleDays?: number; denied?: string[]; log?: (m: string) => void } = {}
+  opts: {
+    staleDays?: number;
+    denied?: string[];
+    log?: (m: string) => void;
+    clock?: { now: number };
+  } = {}
 ): ReturnType<typeof createBackupPullReader> {
   return createBackupPullReader({
     dir: '/pulls',
-    now: () => NOW,
+    now: () => opts.clock?.now ?? NOW,
     ...(opts.staleDays !== undefined ? { staleDays: opts.staleDays } : {}),
     ...(opts.log ? { log: opts.log } : {}),
     readFile: path => {
@@ -40,7 +46,7 @@ function reader(
 
 describe('parseBackupPull', () => {
   it('accepts a version 1 record of the right kind', () => {
-    expect(parseBackupPull('restic', record('restic', '2026-10-09T10:00:00Z'))).toEqual({
+    expect(parseBackupPull('restic', record('restic', '2026-10-09T10:00:00Z'), NOW)).toEqual({
       ok: true,
       pull: { kind: 'restic', pulledAt: '2026-10-09T10:00:00Z' },
     });
@@ -57,7 +63,7 @@ describe('parseBackupPull', () => {
       JSON.stringify({ version: 1, kind: 'restic', pulledAt: 'yesterday' }),
       JSON.stringify({ version: 1, kind: 'restic', pulledAt: 42 }),
     ]) {
-      expect(parseBackupPull('restic', text).ok, text).toBe(false);
+      expect(parseBackupPull('restic', text, NOW).ok, text).toBe(false);
     }
   });
 });
@@ -115,12 +121,15 @@ describe('createBackupPullReader', () => {
     if (r.state === 'available') expect(r.pulls.map(p => p.stale)).toEqual([true, true]);
   });
 
-  it('leaves out a kind that was never recorded and judges the other', () => {
-    const r = reader({ 'snapshot.json': record('snapshot', '2026-10-05T12:00:00Z') })();
+  it('leaves a kind that was never recorded silent while the other is recent', () => {
+    const r = reader({ 'snapshot.json': record('snapshot', '2026-10-09T12:00:00Z') })();
     expect(r.state).toBe('available');
     if (r.state !== 'available') return;
-    expect(r.stale).toBe(true);
-    expect(r.pulls.map(p => p.kind)).toEqual(['snapshot']);
+    expect(r.stale).toBe(false);
+    expect(r.pulls.map(p => [p.kind, p.problem?.reason ?? null, p.stale])).toEqual([
+      ['restic', 'missing', false],
+      ['snapshot', null, false],
+    ]);
   });
 
   it('is not stale at exactly the limit and stale just past it', () => {
@@ -140,16 +149,7 @@ describe('createBackupPullReader', () => {
     if (two.state === 'available') expect(two.limitDays).toBe(1);
   });
 
-  it('counts a single recorded kind', () => {
-    const r = reader({ 'snapshot.json': record('snapshot', '2026-10-09T12:00:00Z') })();
-    expect(r.state).toBe('available');
-    if (r.state === 'available')
-      expect(r.pulls).toEqual([
-        { kind: 'snapshot', pulledAt: '2026-10-09T12:00:00Z', ageMs: DAY, stale: false },
-      ]);
-  });
-
-  it('treats a time ahead of the clock as fresh, not negative', () => {
+  it('treats a time slightly ahead of the clock as fresh, not negative', () => {
     const r = reader({ 'restic.json': record('restic', '2026-10-10T12:05:00Z') })();
     expect(r.state === 'available' && r.pulls[0]?.ageMs).toBe(0);
     expect(r.state === 'available' && r.stale).toBe(false);
@@ -167,42 +167,123 @@ describe('createBackupPullReader', () => {
     expect(messages).toHaveLength(1);
   });
 
-  it('is unavailable for bad JSON in every file, and logs once', () => {
-    const messages: string[] = [];
-    const read = reader(
-      { 'restic.json': '{oops', 'snapshot.json': '' },
-      { log: m => messages.push(m) }
-    );
+  it('a kind that stays missing becomes stale once the other has been recorded longer than the limit', () => {
+    const clock = { now: NOW };
+    const files = { 'restic.json': record('restic', '2026-10-10T11:00:00Z') };
+    const read = reader(files, { clock });
+    const first = read();
+    expect(first.state === 'available' && first.pulls[1]?.stale).toBe(false);
+    clock.now += 3 * DAY;
+    files['restic.json'] = record('restic', new Date(clock.now - HOUR).toISOString());
+    const at3 = read();
+    expect(at3.state === 'available' && at3.pulls[1]?.stale).toBe(false);
+    clock.now += 1000;
+    const after = read();
+    expect(after.state).toBe('available');
+    if (after.state !== 'available') return;
+    expect(after.stale).toBe(true);
+    expect(after.pulls[0]?.stale).toBe(false);
+    expect(after.pulls[1]).toMatchObject({
+      kind: 'snapshot',
+      pulledAt: null,
+      problem: { reason: 'missing' },
+      stale: true,
+    });
+  });
+
+  it('a missing kind stays silent while nothing else is recorded, and the clock starts only when one is', () => {
+    const clock = { now: NOW };
+    const files: Record<string, string> = {};
+    const read = reader(files, { clock });
+    read();
+    clock.now += 10 * DAY;
+    files['restic.json'] = record('restic', new Date(clock.now).toISOString());
     const r = read();
-    expect(r.state === 'unavailable' && r.reason).toBe('invalid');
+    expect(r.state === 'available' && r.stale).toBe(false);
+  });
+
+  it('an invalid record (a zero-length file after a power cut) counts as stale after the limit, and is logged once', () => {
+    const clock = { now: NOW };
+    const messages: string[] = [];
+    const files = {
+      'restic.json': record('restic', '2026-10-10T11:00:00Z'),
+      'snapshot.json': '',
+    };
+    const read = reader(files, { clock, log: m => messages.push(m) });
+    const first = read();
+    expect(first.state === 'available' && first.stale).toBe(false);
+    expect(first.state === 'available' && first.pulls[1]?.problem?.reason).toBe('invalid');
     read();
     expect(messages).toHaveLength(1);
-    expect(messages[0]).toContain('invalid');
+    expect(messages[0]).toContain('snapshot invalid');
+    clock.now += 3 * DAY + 1000;
+    files['restic.json'] = record('restic', new Date(clock.now - HOUR).toISOString());
+    const later = read();
+    expect(later.state === 'available' && later.stale).toBe(true);
+    expect(later.state === 'available' && later.pulls.map(p => p.stale)).toEqual([false, true]);
+    expect(messages).toHaveLength(1);
   });
 
-  it('uses the good file when the other one is broken', () => {
+  it('an unreadable record counts as stale after the limit', () => {
+    const clock = { now: NOW };
+    const files = { 'restic.json': record('restic', '2026-10-10T11:00:00Z') };
+    const read = reader(files, { clock, denied: ['snapshot.json'] });
+    const first = read();
+    expect(first.state === 'available' && first.pulls[1]?.problem).toEqual({
+      reason: 'unreadable',
+      detail: 'EACCES',
+    });
+    expect(first.state === 'available' && first.stale).toBe(false);
+    clock.now += 4 * DAY;
+    files['restic.json'] = record('restic', new Date(clock.now - HOUR).toISOString());
+    const later = read();
+    expect(later.state === 'available' && later.pulls[1]?.stale).toBe(true);
+  });
+
+  it('a problem clears when the file is good again, and is logged again if it returns', () => {
+    const clock = { now: NOW };
+    const messages: string[] = [];
+    const files: Record<string, string> = {
+      'restic.json': record('restic', '2026-10-10T11:00:00Z'),
+      'snapshot.json': '{oops',
+    };
+    const read = reader(files, { clock, log: m => messages.push(m) });
+    read();
+    files['snapshot.json'] = record('snapshot', '2026-10-10T11:30:00Z');
+    const ok = read();
+    expect(ok.state === 'available' && ok.pulls.map(p => p.problem)).toEqual([null, null]);
+    files['snapshot.json'] = '';
+    clock.now += HOUR;
+    const again = read();
+    // The clock started over: only an hour of trouble, not stale.
+    expect(again.state === 'available' && again.pulls[1]?.ageMs).toBe(0);
+    expect(messages).toHaveLength(2);
+  });
+
+  it('with every file broken the reading is still available, so the problem can alarm', () => {
+    const clock = { now: NOW };
+    const read = reader({ 'restic.json': '{oops', 'snapshot.json': '' }, { clock });
+    const r = read();
+    expect(r.state).toBe('available');
+    expect(r.state === 'available' && r.pulls.map(p => p.problem?.reason)).toEqual([
+      'invalid',
+      'invalid',
+    ]);
+    clock.now += 4 * DAY;
+    const later = read();
+    expect(later.state === 'available' && later.pulls.map(p => p.stale)).toEqual([true, true]);
+  });
+
+  it('a time more than a day in the future is an invalid record', () => {
     const r = reader({
-      'restic.json': '{oops',
+      'restic.json': record('restic', '2026-10-11T12:00:01Z'),
       'snapshot.json': record('snapshot', '2026-10-09T12:00:00Z'),
     })();
-    expect(r.state).toBe('available');
-  });
-
-  it('is unavailable and unreadable when the folder cannot be read', () => {
-    const r = reader({}, { denied: ['restic.json', 'snapshot.json'] })();
-    expect(r.state === 'unavailable' && r.reason).toBe('unreadable');
-  });
-
-  it('logs a problem again after the files were usable in between', () => {
-    const messages: string[] = [];
-    const files: Record<string, string> = {};
-    const read = reader(files, { log: m => messages.push(m) });
-    read();
-    files['restic.json'] = record('restic', '2026-10-09T12:00:00Z');
-    expect(read().state).toBe('available');
-    delete files['restic.json'];
-    read();
-    expect(messages).toHaveLength(2);
+    expect(r.state === 'available' && r.pulls[0]?.problem?.reason).toBe('invalid');
+    expect(r.state === 'available' && r.pulls[0]?.problem?.detail).toContain('in the future');
+    // Exactly a day ahead is still tolerated.
+    const edge = reader({ 'restic.json': record('restic', '2026-10-11T12:00:00Z') })();
+    expect(edge.state === 'available' && edge.pulls[0]?.problem).toBeNull();
   });
 });
 

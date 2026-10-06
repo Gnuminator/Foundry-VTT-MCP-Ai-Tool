@@ -317,7 +317,10 @@ export const GM_ACTIONS = {
  * @property {{size: string, target: {name: string, dashboard: string, foundry: string, world: string}, startedAt: string, finishedAt: string, durationMs: number, gitSha: string, node: string, fake: boolean}} run
  * @property {KitManifest | null} build
  * @property {{passed: number, failed: number, skipped: number, total: number}} summary
- * @property {Array<{at: string, message: string, source: string}>} consoleErrors
+ * @property {Array<{at: string, message: string, source: string, scenario?: string}>} consoleErrors
+ *   every console error of the GM page, raw (`scenario` names the scenario it came during)
+ * @property {Array<import('./console-errors.mjs').ConsoleGroup>} [consoleGroups]
+ *   the same errors grouped by message and place, known ones marked (additive in version 2)
  * @property {ScenarioResult[]} scenarios
  *
  * @typedef {object} ScenarioResult

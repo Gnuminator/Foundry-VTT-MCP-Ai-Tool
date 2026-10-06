@@ -578,6 +578,38 @@ Fix `KIT` failures in the kit. Report `CONTENT` and `SYSTEM` failures: do not ch
 content or the product to make the kit green. Report `STUDIO` failures to the module's author: do not
 change Actor Studio to make the kit green.
 
+## Console errors
+
+The GM page's console errors and page errors are collected for the whole run. A full run can log
+hundreds of the same one, so the report **groups** them: same message and place, with ids, hosts and
+line numbers stripped (`Texture <id> failed`), and for a page error the function it was thrown in.
+Each group shows its count, first and last time, and the scenarios it came during (`build` for the
+build). New groups come first. The raw list stays in `report.json` (`consoleErrors`, each with
+`at`, `message`, `source` and `scenario`); the groups are there too (`consoleGroups`).
+
+**Known groups.** A group is known when its finding id is in `data/studio-expected.json` (ids that
+start with `console:`: the hook it names, `console:gas.captureAdvancement`, or the file it failed to
+load, `console:black-parchment.webp`; a page error gets `console:pageerror:<function>`). Known groups
+show their kind (STUDIO, SYSTEM) and reason. Anything else is **NEW**: the report starts with a
+warning line, `report.md` and `report.html` mark the group, and the command prints the totals and
+every new group at the end. A new console error warns and does not fail the run; the older rules
+still fail: a console error from our own module fails its scenario (the `module console errors`
+step), and `heroes-studio` fails on a new Actor Studio finding. To accept a new known error, add an
+entry with its id to `studio-expected.json` and say why.
+
+**The notification error (fixed in the kit).** Full runs used to log hundreds of `TypeError: Cannot
+set properties of null (setting 'hidden')` from `#postNotification`. Cause: the kit uses an item or a
+spell, which makes a chat card, and puts the world back by deleting the card moments later. Foundry
+14 shows each new card as a pop-up notification and animates it for about 100 ms; when the card is
+deleted in that time its element is gone, and the next line (`element.hidden = false`, Foundry
+`chat.mjs`, `#postNotification`) throws. It needs a card created and deleted within a tenth of a
+second, which a table never does, so this is a kit artifact and not a bug to report. The kit's GM
+page now answers "no" to `_shouldShowNotifications` (the same as the setting "Chat notifications:
+pip"; `quietChatNotifications` and `keepChatNotificationsQuiet` in `lib/gm.mjs`), so no pop-up is
+animated. The change is made again after every page reload (Actor Studio setup and a failed Studio
+build reload the page, and a reload brings the pop-ups back). If the error comes back it shows as
+NEW, which means the page hook no longer works.
+
 ## How to write a scenario
 
 A scenario is a file `<id>.scenario.mjs` whose default export describes it. The full contract is in
@@ -651,6 +683,7 @@ Rules of thumb:
 | The monsters and the scene                | `scripts/test-kit/data/smoke-matrix.json`                               |
 | The manifest of the last build            | `<kit home>\worlds\<world>\manifest.json`                               |
 | Reports                                   | `<kit home>\reports\` (this PC only)                                    |
+| Console error groups, known list          | `scripts/test-kit/lib/console-errors.mjs`, `data/studio-expected.json`  |
 | Licensed profiles and scenarios           | `<kit home>\licensed\` (this PC only)                                   |
 
 The kit home is `C:\FoundryTest\test-kit`, or the folder in the environment variable

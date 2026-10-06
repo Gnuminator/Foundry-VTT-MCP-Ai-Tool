@@ -222,6 +222,12 @@ export function monsterItems(c, actorId) {
       });
     }
   }
+  if (c.legendary) {
+    // No consumption target: the system spends the pool through the action consumption.
+    add('Wing Buffet', 'feat', {
+      activities: [{ type: 'utility', activation: 'legendary', activationValue: 1 }],
+    });
+  }
   if (c.legres) {
     add('Legendary Resistance', 'feat', {
       activities: [

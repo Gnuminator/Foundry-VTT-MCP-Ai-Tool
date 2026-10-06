@@ -466,11 +466,34 @@ test('legendary-actions: a legendary action that spends the pool is clean', asyn
   assert.deepEqual(r.problems, []);
 });
 
-test('legendary-actions: no consumption target and no spend is CONTENT; a target and no spend is SYSTEM', async () => {
+test('legendary-actions: the check asks for action consumption, so a no-target action that spends is clean', async () => {
+  const none = bossFacts([activity({ activation: 'legendary', activationValue: 1 })]);
+  /** @type {any[]} */
+  const calls = [];
+  const r = await runCheck('legendary-actions', bossRow, none, {
+    reply: shown,
+    use: args => {
+      calls.push(args);
+      return {
+        ok: true,
+        chatCard: true,
+        uses: { before: 0, after: 0, max: 0 },
+        restored: true,
+        // What the system does when the action is consumed (dnd5e 6, _prepareUsageUpdates).
+        changed: args.consumeAction ? { 'resources.legact.spent': { before: 0, after: 1 } } : {},
+      };
+    },
+  });
+  assert.deepEqual(r.problems, []);
+  assert.equal(calls[0].consumeAction, true);
+  assert.match(r.notes[0], /1 spend the pool \(0 by a target, 1 by the action\)/);
+});
+
+test('legendary-actions: an action that spends nothing, or the wrong amount, is SYSTEM', async () => {
   const none = bossFacts([activity({ activation: 'legendary', activationValue: 1 })]);
   const r1 = await runCheck('legendary-actions', bossRow, none, { reply: shown });
-  assert.equal(r1.problems[0].kind, 'CONTENT');
-  assert.match(r1.problems[0].what, /does not spend the pool/);
+  assert.equal(r1.problems[0].kind, 'SYSTEM');
+  assert.match(r1.problems[0].what, /did not spend the pool/);
   const target = bossFacts([
     activity({
       activation: 'legendary',
@@ -480,7 +503,17 @@ test('legendary-actions: no consumption target and no spend is CONTENT; a target
   ]);
   const r2 = await runCheck('legendary-actions', bossRow, target, { reply: shown });
   assert.equal(r2.problems[0].kind, 'SYSTEM');
-  assert.match(r2.problems[0].what, /did not spend the pool/);
+  const r3 = await runCheck('legendary-actions', bossRow, target, {
+    reply: shown,
+    use: () => ({
+      ok: true,
+      chatCard: true,
+      uses: { before: 0, after: 0, max: 0 },
+      restored: true,
+      changed: { 'resources.legact.spent': { before: 0, after: 2 } },
+    }),
+  });
+  assert.match(r3.problems[0].what, /spent the wrong amount/);
 });
 
 test('legendary-actions: the bridge must show the pool, and a pool with no legendary action is CONTENT', async () => {
@@ -851,4 +884,45 @@ test('monsters-odd: a legendary action that does not spend the pool and a wrong 
   );
   const recharge = odd.steps.find(s => s.label.startsWith('recharge'));
   assert.match(recharge?.error?.message ?? '', /the uses did not follow the recharge roll/);
+});
+
+test('the fake: a legendary action with no target spends the pool only when the action is consumed; deleteMonsters refuses a non-probe', async () => {
+  const fake = await startFake({ world: WORLD });
+  try {
+    const list = await fake.gm.call('listMonsters', { packId: 'dnd5e.actors24' });
+    const dragon = list.entries.find((/** @type {any} */ e) => e.name === 'Vampire');
+    const made = await fake.gm.call('createMonster', { packId: dragon.packId, itemId: dragon.id });
+    const facts = await fake.gm.call('inspectFeatures', { actorId: made.actorId });
+    const buffet = facts.items.find((/** @type {any} */ i) => i.name === 'Wing Buffet');
+    assert.equal(buffet.activities[0].consumption.length, 0);
+    const use = (/** @type {any} */ extra) =>
+      fake.gm.call('exerciseActor', {
+        actorId: made.actorId,
+        op: 'use',
+        itemId: buffet.id,
+        activityId: buffet.activities[0].id,
+        ...extra,
+      });
+    assert.deepEqual((await use({})).changed, {});
+    assert.deepEqual((await use({ consumeAction: true })).changed, {
+      'resources.legact.spent': { before: 0, after: 1 },
+    });
+    // A hero (not a probe) is never deleted.
+    fake.world.actors.set('hero1', {
+      id: 'hero1',
+      name: 'Kit Hero',
+      type: 'character',
+      hp: { value: 1, max: 1, temp: 0 },
+      items: [],
+      cr: 0,
+      creatureType: 'humanoid',
+      size: 'med',
+      level: 1,
+    });
+    const gone = await fake.gm.call('deleteMonsters', { actorIds: ['hero1', made.actorId] });
+    assert.deepEqual(gone, { deleted: 1, refused: ['hero1'] });
+    assert.ok(fake.world.actors.has('hero1'));
+  } finally {
+    await fake.close();
+  }
 });

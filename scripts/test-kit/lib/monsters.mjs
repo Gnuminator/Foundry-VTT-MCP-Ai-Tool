@@ -558,15 +558,18 @@ function allActivities(facts) {
 const usable = a => a.canUse && !(a.type in SKIP_ACTIVITY_TYPES);
 
 /**
- * Uses one activity and judges it the way the broad pass does.
+ * Uses one activity and judges it the way the broad pass does. `consumeAction` lets the system spend
+ * the action the activation stands for (a legendary action's pool).
  * @param {OddContext} ctx @param {FeatureItem} item @param {FeatureActivity} activity
+ * @param {{consumeAction?: boolean}} [opts]
  */
-async function useOnce(ctx, item, activity) {
+async function useOnce(ctx, item, activity, { consumeAction = false } = {}) {
   const result = await ctx.call('exerciseActor', {
     actorId: ctx.actorId,
     op: 'use',
     itemId: item.id,
     activityId: activity.id,
+    ...(consumeAction ? { consumeAction: true } : {}),
   });
   return { result, problems: judgeUse({ item, activity }, result) };
 }
@@ -620,48 +623,40 @@ export const ODD_CHECKS = [
         );
       }
       let spendsPool = 0;
-      let noSpend = 0;
+      let byTarget = 0;
+      let byAction = 0;
       let leftOut = 0;
       for (const { item, activity } of legendary) {
         if (!usable(activity)) {
           leftOut += 1;
           continue;
         }
-        const { result, problems: own } = await useOnce(ctx, item, activity);
+        // The system spends the pool for a legendary activation: through the activity's own consumption
+        // target when it has one, else through the action consumption (dnd5e 6 _prepareUsageUpdates).
+        const { result, problems: own } = await useOnce(ctx, item, activity, {
+          consumeAction: true,
+        });
         problems.push(...own);
         if (own.length) continue;
         const cost = activity.activationValue ?? 1;
         const spent = spentBy(result, 'legact');
-        if (consumesPool(activity, 'legact')) {
-          if (spent !== cost)
-            bad(
-              problems,
-              'SYSTEM',
-              'a legendary action did not spend the pool',
-              `${ctx.row.name} / ${item.name}: it consumes the pool and the pool changed by ${spent}, cost ${cost}`
-            );
-          else spendsPool += 1;
-        } else if (spent === cost) {
+        if (spent === cost) {
           spendsPool += 1;
-        } else if (spent === 0) {
-          noSpend += 1;
-          bad(
-            problems,
-            'CONTENT',
-            'a legendary action does not spend the pool',
-            `${ctx.row.name} / ${item.name}: costs ${cost} and consumes nothing from the pool, so using it in Foundry leaves the pips as they are`
-          );
+          if (consumesPool(activity, 'legact')) byTarget += 1;
+          else byAction += 1;
         } else {
           bad(
             problems,
             'SYSTEM',
-            'a legendary action spent the wrong amount',
-            `${ctx.row.name} / ${item.name}: cost ${cost}, the pool changed by ${spent}`
+            spent === 0
+              ? 'a legendary action did not spend the pool'
+              : 'a legendary action spent the wrong amount',
+            `${ctx.row.name} / ${item.name}: cost ${cost}, the pool changed by ${spent}${consumesPool(activity, 'legact') ? ' (the activity consumes the pool itself)' : ' (no consumption target, the system should spend the action)'}`
           );
         }
       }
       notes.push(
-        `${legendary.length} legendary activities: ${spendsPool} spend the pool, ${noSpend} do not, ${leftOut} need a dialog`
+        `${legendary.length} legendary activities: ${spendsPool} spend the pool (${byTarget} by a target, ${byAction} by the action), ${leftOut} need a dialog`
       );
       return { problems, notes };
     },

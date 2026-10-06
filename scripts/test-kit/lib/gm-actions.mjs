@@ -1320,7 +1320,9 @@ async function exerciseActor(args) {
         // No dialog, no measured template, no summons, no action cost, no roll after the card.
         const use = activity.use(
           {
-            consume: { action: false },
+            // Action consumption is what spends resources.legact for a legendary activation that has
+            // no consumption target of its own (dnd5e 6, _prepareUsageUpdates): off unless asked for.
+            consume: { action: args.consumeAction === true },
             create: { measuredTemplate: false, summons: false },
             concentration: { begin: false },
             subsequentActions: false,
@@ -1636,7 +1638,8 @@ async function createMonster(args) {
 }
 
 /**
- * Deletes probe actors. An actor without the kit flag is refused, never deleted.
+ * Deletes probe actors. Only an actor that createMonster made (the kit flag with `probe: true`) is
+ * deleted; any other actor, kit hero or kit monster included, is refused.
  * @param {{actorIds: string[], _kit: {flagScope: string, flagKey: string}}} args
  */
 async function deleteMonsters(args) {
@@ -1646,7 +1649,7 @@ async function deleteMonsters(args) {
   for (const id of args.actorIds ?? []) {
     const actor = game.actors.get(id);
     if (!actor) continue;
-    if (actor.getFlag(flagScope, flagKey)) ids.push(id);
+    if (actor.getFlag(flagScope, flagKey)?.probe === true) ids.push(id);
     else refused.push(id);
   }
   if (ids.length) await Actor.deleteDocuments(ids);

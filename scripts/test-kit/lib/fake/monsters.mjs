@@ -216,6 +216,19 @@ export function fakeExerciseMonster(w, args) {
   }
   /** @type {Record<string, {before: number, after: number}>} */
   const changed = {};
+  // A legendary activation with no target of its own spends the pool only when the action is consumed.
+  if (
+    activity.activation === 'legendary' &&
+    args.consumeAction === true &&
+    quirk !== 'noPool' &&
+    !activity.consumption.some(c => c.target === 'resources.legact.value')
+  ) {
+    const was = m.resources.legact?.spent ?? 0;
+    changed['resources.legact.spent'] = {
+      before: was,
+      after: was + (activity.activationValue ?? 1),
+    };
+  }
   for (const c of activity.consumption) {
     const pool = /^resources\.(legact|legres)\.value$/.exec(c.target)?.[1];
     if (c.type !== 'attribute' || !pool || quirk === 'noPool') continue;

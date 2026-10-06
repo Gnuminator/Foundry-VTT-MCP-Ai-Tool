@@ -158,10 +158,12 @@ export const GM_ACTIONS = {
    * Runs something on an actor and always puts the actor back as it was (items' uses, slots, hit
    * points, hit dice, effects, new items and chat messages are all restored; `restored` and `drift` say
    * whether that worked). One of:
-   * - ({actorId, op: 'use', itemId, activityId}) => {ok, notes: [{level, message}], threw, chatCard,
+   * - ({actorId, op: 'use', itemId, activityId, consumeAction?}) => {ok, notes: [{level, message}], threw, chatCard,
    *   uses: {before, after, max}, spells: {key: {before, after}}, effects: [{name, changes}], itemsCreated,
    *   restored, drift}. Uses one activity with no dialog, no template, no roll and no action cost;
    *   the system's error notifications are collected in `notes`.
+   *   `consumeAction: true` lets the system spend the action the activation stands for (a legendary action spends
+   *   resources.legact when the activity has no consumption target of its own); default false.
    * - ({actorId, op: 'effect', itemId, effectId, enabled, read: [path]}) => {before, during, restored, drift}, each
    *   `{[path]: {value, resolved?}}` read from the actor before and with a copy of the effect on the actor (an item's
    *   effect applies to the actor as a copy, like the chat card's apply button; a Set comes back as an array).
@@ -192,7 +194,7 @@ export const GM_ACTIONS = {
    * the kit flag, so a rebuild wipes it when a run died before deleteMonsters. Name default "Probe <name>".
    */
   createMonster: 'createMonster',
-  /** ({actorIds}) => {deleted: number, refused: string[]} deletes probe actors; refuses an actor without the kit flag */
+  /** ({actorIds}) => {deleted: number, refused: string[]} deletes probe actors; refuses any actor that is not a probe (the flag createMonster sets) */
   deleteMonsters: 'deleteMonsters',
 };
 

@@ -342,24 +342,26 @@ listed in the coverage attachment. For each monster the scenario makes a probe c
 | `multiattack`          | Multiattack can be used and the monster has an attack activity                                                    |
 | `innate-spellcasting`  | an ability and a save DC are set, the bridge shows the spells, and a spell can be used                            |
 
-**Legendary actions and the Boss pips.** The dashboard's Boss pips read `resources.legact` (`max` and `spent`). A legendary action
-only moves a pip when its activity consumes from that pool (a consumption target `resources.legact.value`). A legendary action
-whose activity has no such target posts its chat card and leaves the pool alone: that is a CONTENT finding per action
-(`a legendary action does not spend the pool`). One that has the target and does not spend is SYSTEM. The recharge probe spends the
-ability, makes the system's own recharge roll (`uses.rollRecharge`) six times, and compares each roll with the target.
+**Legendary actions and the Boss pips.** The dashboard's Boss pips read `resources.legact` (`max` and `spent`). In dnd5e 6 a
+legendary activation spends that pool in one of two ways: through a consumption target of the activity itself
+(`resources.legact.value`), or, when the activity has no such target, through the system's action consumption
+(`consume.action`, `_prepareUsageUpdates`). The kit's normal use turns action consumption off (a hero's action cost is not what it
+tests), so the legendary check asks for it (`consumeAction: true` on `exerciseActor`) and expects the pool to change by the
+activity's cost, whichever way the system spends it. A pool that does not change, or changes by another amount, is SYSTEM. (The
+first version of this check left action consumption off and so reported every no-target legendary action as data that does not spend
+the pool; that was a kit artifact.) The recharge probe spends the ability, makes the system's own recharge roll (`uses.rollRecharge`)
+six times, and compares each roll with the target.
 
 **What the first live run showed (2026-10-06).** `srd` full: 722 monsters (385 in the 2024 pack, 337 in the legacy pack, 60 of them stat blocks). The three scenarios take about 90 seconds
 together (the copy, use, check and delete of one monster takes about 35 milliseconds). Findings, all of them about the imported
 data or the bridge and none about the kit: 4 monsters with data the matrix names (a feature-less Giant Fly, a creature type of
 "(lycanthrope)"), 5 monsters with no usable action (a Frog and a Sea Horse with items but no activity) and a bridge that
-reads the creature type of a legacy stat block as an empty object (SYSTEM). In `monsters-odd`: all 60 legendary monsters have
-legendary actions that do not spend the pool (153 actions with no consumption target in the data), so using them in Foundry does
-not move the Boss pips; legendary resistance, lair, regeneration, shapechangers, movement and recharge rolls all agree with the
+reads the creature type of a legacy stat block as an empty object (SYSTEM). In `monsters-odd`: the legendary actions are being rerun with action consumption on; legendary resistance, lair, regeneration, shapechangers, movement and recharge rolls all agree with the
 data; the SRD has no damage threshold (skipped) and no lair actions as activities (text only). The bridge's `hasSpells` is true for
 294 monsters that have no spells (a spellcasting ability is set on every npc), and false for a Cloaker that has spells and no
 ability. `licensed` full: 1499 monsters (1114 in the local content module, 385 in the 2024 pack, 47 stat blocks), about 3.5
 minutes: 3 data findings, 25 monsters with a finding in the broad pass (5 CONTENT, 20 SYSTEM, all of the bridge's `hasSpells`
-kind), and in `monsters-odd` 30 of 132 legendary monsters whose legendary actions do not spend the pool, 24 of 127 with a legendary
+kind), and in `monsters-odd` the legendary actions (being rerun), 24 of 127 with a legendary
 resistance feature that has no activity, 23 spellcasters with data problems (a missing spellcasting ability or an innate spell with
 no uses). The `smoke` sample of the `licensed` profile has 31 monsters and takes seconds. These are findings, not kit failures.
 

@@ -262,7 +262,7 @@ export function fakeMonsterStats(actor) {
           },
         }
       : {}),
-    // Like the real adapter: any spellcasting ability counts, so every npc is shown with spells.
-    spellcasting: { hasSpells: true, spellLevel: 0 },
+    // Like the real adapter since PR #134: the spell items decide, not the spellcasting ability.
+    ...(m.row.spell.spells > 0 ? { spellcasting: { hasSpells: true, spellLevel: 0 } } : {}),
   };
 }

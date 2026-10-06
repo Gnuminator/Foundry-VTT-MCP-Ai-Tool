@@ -2,7 +2,7 @@
   "id": "srd",
   "world": "ai-tool-kit-srd",
   "title": "AI Tool Kit (SRD)",
-  "modules": [],
+  "modules": ["foundryvtt-actor-studio"],
   "packs": {
     "classes": ["dnd5e.classes24", "dnd5e.classes"],
     "subclasses": ["dnd5e.classes24", "dnd5e.subclasses"],

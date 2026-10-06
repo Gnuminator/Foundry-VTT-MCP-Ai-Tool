@@ -196,6 +196,30 @@ export const GM_ACTIONS = {
   createMonster: 'createMonster',
   /** ({actorIds}) => {deleted: number, refused: string[]} deletes probe actors; refuses any actor that is not a probe (the flag createMonster sets) */
   deleteMonsters: 'deleteMonsters',
+  /**
+   * ({actorId}) => {name, level, items: [{type, name, identifier, sourceUuid, origin: {item, advancement, title} | null,
+   * root, prepared, quantity, level (spells)}], advancements: [{item, id, type, title, level, value}], skills: {[id]: number},
+   * saves: {[id]: boolean}, proficiencies: {languages, weapons, armor, tools, damageResistances, damageImmunities,
+   * conditionImmunities}, senses, movement, size, hp: {max, bonuses}, ac: {value, calc}} what a build left on the
+   * actor that inspectActor and inspectFeatures do not show: where each item came from (the advancement that made
+   * it, by names and not by ids), what each advancement of the class, subclass, species and background holds, and
+   * the proficiencies. Read only. The studio scenario compares two heroes with it.
+   */
+  inspectBuild: 'inspectBuild',
+  /**
+   * ({op: 'start', rotation, k?, subclassUuid?, featPackIds?} | {op: 'status'} | {op: 'stop'}) => {running, k, picks,
+   * warnings, errors, answered, managersSeen, completed, lastStep, lastActivityAt} | null. A loop in the Foundry page
+   * that answers the system's advancement dialogs while Actor Studio shows them in its window, with the same rotation
+   * rule as createHero. `stop` ends it and returns what it picked. Used only by the studio scenario.
+   */
+  studioPump: 'studioPump',
+  /**
+   * ({actorId, name?, folderId?}) => {ok: true} marks an actor made outside the builder (by Actor Studio) as the
+   * kit's own: the kit flag, the kit folder, a new name. A rebuild then wipes it.
+   */
+  adoptActor: 'adoptActor',
+  /** ({actorId}) => {deleted: boolean} deletes an actor, only when it carries the kit flag. */
+  deleteKitActor: 'deleteKitActor',
 };
 
 /**
@@ -209,6 +233,8 @@ export const GM_ACTIONS = {
  * @property {string[]} tools       every bridge tool it calls; CI checks each exists in tool-sets.ts
  * @property {string[]} [gmActions] every GM action it calls (keys of {@link GM_ACTIONS})
  * @property {number} [timeoutMs]   whole scenario, default 120000
+ * @property {string[]} [knownConsoleErrors]  regular expressions (as text) for console errors the scenario reports itself;
+ *   the runner does not blame them on the bridge module (the studio scenario reports Actor Studio's own errors)
  * @property {number} [order]       run order, lowest first (default 0; ties keep the file order). A scenario that floods
  *   the play log (the feature scenarios) goes last, so it cannot starve the ones that read the log.
  * @property {(t: ScenarioContext) => Promise<void>} run
@@ -228,6 +254,8 @@ export const GM_ACTIONS = {
  * @property {{state: () => Promise<any>, html: () => Promise<string>}} player  /api/player/state and /player
  * @property {(path: string, opts?: {method?: string, body?: unknown}) => Promise<{status: number, data: any}>} http
  * @property {KitManifest} kit        what the builder made
+ * @property {import('playwright-core').Page | null} page  the Foundry GM page, for a scenario that must click in a Foundry
+ *   window (Actor Studio); null against the fake
  * @property {(message: string) => void} log
  * @property {(name: string, data: unknown) => void} attach   JSON attachment in the report
  * @property {(fn: () => Promise<void>) => void} cleanup     runs after the scenario, last in first out
@@ -318,6 +346,19 @@ export function validateScenario(s) {
     problems.push('licensed must be boolean');
   if (sc.timeoutMs !== undefined && (typeof sc.timeoutMs !== 'number' || sc.timeoutMs <= 0))
     problems.push('timeoutMs must be a positive number');
+  if (
+    sc.knownConsoleErrors !== undefined &&
+    (!Array.isArray(sc.knownConsoleErrors) ||
+      sc.knownConsoleErrors.some(x => {
+        try {
+          new RegExp(x);
+          return typeof x !== 'string';
+        } catch {
+          return true;
+        }
+      }))
+  )
+    problems.push('knownConsoleErrors must be a list of regular expressions (text)');
   if (sc.order !== undefined && typeof sc.order !== 'number')
     problems.push('order must be a number');
   if (typeof sc.run !== 'function') problems.push('run must be a function');

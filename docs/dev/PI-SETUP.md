@@ -516,7 +516,8 @@ scripts move the result to the Pi, in two steps so that you can look in between:
    Foundry), and stops when anything is wrong: a missing file or one whose letter case differs from
    the real name (Windows ignores case, the Pi does not), a module that is not in the bundle, a module
    that is switched on in the world but not shipped (turn it off in the world first, as ddb-importer
-   must be), a setting that looks like a secret, or a GM user that has a password. Then it checks the
+   must be), a setting that looks like a secret, or a GM user that has a password (the hash Foundry 14
+   stores for a user with no password does not count). Then it checks the
    free space on this PC and on the Pi (below 20 % free it warns, below 5 % it stops), builds one
    `.tar` with a checksum for every file, and uploads it to `/var/lib/foundry-import/` on the Pi. It
    never runs stage 11. `-NoUpload` builds and checks only.
@@ -544,6 +545,16 @@ cobalt, cookie, patreon, secret, password, credential, bearer, an API key or a p
 that is or ends in token or key (`discordToken`, `refresh-token`, `privateKey`), is always a problem,
 whatever the list says. Module names do not count (vtta-tokenizer, Token Action HUD); a harmless
 setting that ends in token goes on the short safe list in `world-refs.mjs` (today `core.defaultToken`).
+
+Images that the books point at but that are not on this PC stop the push too. When you have looked
+at them and they are known gaps (a book image the importer never fetched), list them with
+`-AllowMissing 'ddb-images/adventures/Curse_of_Strahd/gone.webp','modules/dnd-players-handbook/missing/*'` (an exact path or a
+prefix ending in `*` that names a root and a folder before it, so `modules/*` is refused; no `..`, no
+leading slash). A matching path that is really missing on disk is then no problem and is listed in
+the run. A wrong-case path stays a problem, and so does a path outside the bundle that exists on disk
+(a file under `Data/assets/`, say), because push-world would not copy it. The list goes into `MANIFEST.txt` (`allow-missing:`). `world-refs.mjs` also leaves
+out the D&D Beyond importer's own metadata under `flags.ddb` (Foundry never loads it) and treats
+`nue/defaultscene/` as one of Foundry's own files.
 
 What stage 11 does with it:
 

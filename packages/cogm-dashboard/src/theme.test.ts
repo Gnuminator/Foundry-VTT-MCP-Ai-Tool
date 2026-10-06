@@ -45,6 +45,15 @@ describe('ThemeStore', () => {
     expect(new ThemeStore(file).get('strahd')).toBe('veil');
   });
 
+  it('saves changes made at once without a race, every change kept', async () => {
+    const file = path.join(dir, 'dashboard-themes.json');
+    const store = new ThemeStore(file);
+    await Promise.all([store.set('a', 'veil'), store.set('b', 'veil'), store.set('a', 'neutral')]);
+    const reread = new ThemeStore(file);
+    expect(reread.get('a')).toBe('neutral');
+    expect(reread.get('b')).toBe('veil');
+  });
+
   it('ignores unknown themes in the file and warns about a broken file', async () => {
     const file = path.join(dir, 'dashboard-themes.json');
     await fsp.writeFile(file, JSON.stringify({ worlds: { a: 'veil', b: 'disco' } }));

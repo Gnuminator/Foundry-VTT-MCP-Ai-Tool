@@ -4,7 +4,7 @@
  * `listSpells` and `exerciseSpell`. The numbers are the 2024 SRD numbers; the fake does not
  * simulate dnd5e, so a clean fake run proves the plumbing (the scenarios, the judging and the
  * report), not the rules. A test breaks something by naming a quirk in `world.faults.spellQuirks`
- * ("<spell name>" -> throws, noCard, noSlot, wrongSlot, drift, refuse, badData).
+ * ("<spell name>" -> throws, noCard, noSlot, wrongSlot, drift, refuse, badData, skip).
  */
 import { FAKE_CLASSES } from './classes.mjs';
 import { ToolFailure } from './state.mjs';
@@ -379,6 +379,10 @@ export function fakeExerciseSpell(w, args) {
       itemLeft: !spec.scroll,
       itemUses: { spent: spec.scroll ? 1 : null, max: spec.scroll ? 1 : null, quantity: null },
     });
+    if (quirk === 'skip') {
+      out.skipped = 'a transform activity asks which form to take';
+      return out;
+    }
     if (quirk === 'drift') drifted = true;
     if (quirk === 'throws') {
       out.threw = 'Cannot read properties of undefined (reading "system")';

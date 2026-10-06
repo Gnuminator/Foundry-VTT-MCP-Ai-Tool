@@ -191,6 +191,8 @@ export function judgeCast(entry, res) {
     bad(problems, 'KIT', 'the GM action failed', `${who}: ${res.error}`);
   } else if (!cast) {
     bad(problems, 'KIT', 'the GM action returned no cast', who);
+  } else if (cast.skipped) {
+    // Left out with a reason (every activity of the spell asks for a dialog): not a problem.
   } else if (cast.noActivities) {
     bad(problems, 'CONTENT', 'the spell has no activity', `${who}: there is nothing to cast`);
   } else if (cast.threw) {

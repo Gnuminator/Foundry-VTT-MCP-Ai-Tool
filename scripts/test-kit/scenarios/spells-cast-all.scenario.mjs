@@ -71,6 +71,8 @@ export default {
     const byLevel = {};
     let cast = 0;
     let forced = 0;
+    /** @type {Record<string, number>} */
+    const skippedBy = {};
 
     for (let level = 0; level <= 9; level += 1) {
       const ofLevel = selected.filter(s => s.level === level);
@@ -93,6 +95,10 @@ export default {
               });
               cast += 1;
               if (res.casts?.[0]?.slotForced) forced += 1;
+              if (res.casts?.[0]?.skipped) {
+                const why = res.casts[0].skipped;
+                skippedBy[why] = (skippedBy[why] ?? 0) + 1;
+              }
               found = judgeCast(entry, res);
             } catch (e) {
               found = [
@@ -128,6 +134,7 @@ export default {
       spellsCounted: selected.length,
       spellsCast: cast,
       slotsForced: forced,
+      leftOut: skippedBy,
       casters: candidates.map(c => `${c.hero.name} (${c.hero.classIdentifier} ${c.hero.level})`),
       byLevel,
       spellsFailed: failed.length,

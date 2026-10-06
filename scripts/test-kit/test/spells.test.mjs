@@ -238,6 +238,16 @@ test('judgeCast: a concentration activity with no concentration effect is a SYST
   assert.deepEqual(judgeCast(e3, ok), []);
 });
 
+test('judgeCast: a spell left out with a reason is not a problem', () => {
+  const left = {
+    casts: [{ skipped: 'a transform activity asks which form to take' }],
+    restored: true,
+    drift: [],
+    error: null,
+  };
+  assert.deepEqual(judgeCast(e3, left), []);
+});
+
 test('refusalOfCast and throwKind classify by what the system said', () => {
   assert.equal(refusalOfCast('No slots left', { slotKey: 'spell1', slotForced: true }).kind, 'KIT');
   assert.equal(refusalOfCast('No slots left', { slotKey: 'spell1' }).kind, 'SYSTEM');
@@ -469,4 +479,16 @@ test('spells-deep: a spell the profile lacks skips its checks with the reason', 
   } finally {
     FAKE_SPELLS.splice(removed, 0, hex);
   }
+});
+
+test('spells-cast-all: a spell whose activities all ask for a dialog is left out and counted, not failed', async () => {
+  const r = await runSpells(world => {
+    world.faults.spellQuirks.set('Wish', 'skip');
+    world.faults.spellQuirks.set('Mind Blank', 'skip');
+  });
+  const scenario = r['spells-cast-all'];
+  assert.equal(scenario.status, 'pass');
+  const cov = attachment(scenario, 'coverage');
+  assert.deepEqual(cov.leftOut, { 'a transform activity asks which form to take': 2 });
+  assert.equal(cov.spellsFailed, 0);
 });

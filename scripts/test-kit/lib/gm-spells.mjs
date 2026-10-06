@@ -200,13 +200,24 @@ async function exerciseSpell(args) {
         if (effects.length) await item.updateEmbeddedDocuments('ActiveEffect', effects);
       }
     });
+    await attempt('new effects', async () => {
+      // One at a time: ending a concentration effect removes the effects that depend on it, so an id
+      // read a moment ago may be gone by the time its turn comes.
+      const ids = actor.effects.filter(e => !before.effects.includes(e.id)).map(e => e.id);
+      for (const id of ids) {
+        if (!actor.effects.has(id)) continue;
+        try {
+          await actor.deleteEmbeddedDocuments('ActiveEffect', [id]);
+        } catch (err) {
+          // Gone by itself in the meantime (a dependent of an effect that was just ended): fine.
+          await new Promise(resolve => setTimeout(resolve, 200));
+          if (actor.effects.has(id)) throw err;
+        }
+      }
+    });
     await attempt('new items', async () => {
       const ids = actor.items.filter(i => !(i.id in before.items)).map(i => i.id);
       if (ids.length) await actor.deleteEmbeddedDocuments('Item', ids);
-    });
-    await attempt('new effects', async () => {
-      const ids = actor.effects.filter(e => !before.effects.includes(e.id)).map(e => e.id);
-      if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
     });
     await attempt('new messages', async () => {
       const ids = game.messages.filter(m => !before.messages.includes(m.id)).map(m => m.id);
@@ -462,10 +473,22 @@ async function exerciseSpell(args) {
         result.noActivities = true;
         return result;
       }
-      const activity =
-        (spec.activityType ? acts.find(a => a.type === spec.activityType) : null) ??
-        acts[spec.activity ?? 0] ??
-        acts[0];
+      // Activities that ask for a dialog nobody can answer in a headless page (a form to take, a
+      // bastion facility): the first one that does not is cast; a spell with only those is left out.
+      const needsDialog = {
+        transform: 'a transform activity asks which form to take',
+        order: 'an order activity needs a bastion facility',
+      };
+      const explicit = spec.activityType !== undefined || spec.activity !== undefined;
+      const activity = explicit
+        ? ((spec.activityType ? acts.find(a => a.type === spec.activityType) : null) ??
+          acts[spec.activity ?? 0] ??
+          acts[0])
+        : (acts.find(a => !needsDialog[a.type]) ?? null);
+      if (!activity) {
+        result.skipped = needsDialog[acts[0].type];
+        return result;
+      }
       result.activityIndex = acts.indexOf(activity);
       result.facts = describe(item, activity);
 

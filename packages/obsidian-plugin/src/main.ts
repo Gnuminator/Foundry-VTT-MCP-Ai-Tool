@@ -29,6 +29,8 @@ import {
   requestUrl,
   type App,
   type TFile,
+  type ViewState,
+  type WorkspaceLeaf,
 } from 'obsidian';
 
 import {
@@ -40,6 +42,13 @@ import {
   type RevealAction,
   type RevealState,
 } from './dashboard.js';
+import {
+  applyGraphColoursTo,
+  graphColoursNotice,
+  libraryRootOf,
+  type GraphHost,
+  type HubInfo,
+} from './graph-colours.js';
 import {
   foundryNoteFrom,
   isJournalPage,
@@ -168,6 +177,12 @@ export default class FoundryAiToolPlugin extends Plugin {
       id: 'refresh-status',
       name: 'Refresh Foundry status',
       callback: () => void this.refreshStatus(true),
+    });
+
+    this.addCommand({
+      id: 'apply-graph-colours',
+      name: 'Apply AI Tool graph colours',
+      callback: () => void this.applyGraphColours(),
     });
 
     this.registerEvent(
@@ -374,6 +389,121 @@ export default class FoundryAiToolPlugin extends Plugin {
     await this.refreshStatus(true);
   }
 
+  /** The adventure hub notes of the mirror and the campaign roots that have a Library. */
+  private collectGraphSources(): { hubs: HubInfo[]; libraryRoots: string[] } {
+    const hubs: HubInfo[] = [];
+    const libraryRoots = new Set<string>();
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const fm = this.app.metadataCache.getFileCache(file)?.frontmatter as
+        | Record<string, unknown>
+        | undefined;
+      if (!fm) continue;
+      if (fm.type === 'adventure-hub' && fm.generated_by === 'foundry-ai-tool') {
+        const raw = fm.adventure_folders;
+        const folders = Array.isArray(raw)
+          ? raw.filter((folder): folder is string => typeof folder === 'string')
+          : [];
+        hubs.push({ path: file.path, folders });
+      } else if (fm.type === 'library-book') {
+        const root = libraryRootOf(file.path);
+        if (root !== null) libraryRoots.add(root);
+      }
+    }
+    return { hubs, libraryRoots: [...libraryRoots] };
+  }
+
+  /**
+   * Colours each adventure's notes in the graph view and the Library grey (I-105): merges the
+   * mirror's colour groups into the graph options, next to the GM's own groups. The mirror
+   * itself never edits .obsidian; this runs only when the GM starts it.
+   */
+  async applyGraphColours(): Promise<void> {
+    try {
+      const { hubs, libraryRoots } = this.collectGraphSources();
+      if (hubs.length === 0) {
+        new Notice('No adventure hub notes yet. Let the mirror run a full update first.');
+        return;
+      }
+      const result = await applyGraphColoursTo(this.graphHost(), hubs, libraryRoots);
+      new Notice(graphColoursNotice(result));
+    } catch (error) {
+      new Notice(`Graph colours: ${messageOf(error)}`);
+    }
+  }
+
+  /** Obsidian's side of the graph colours: the graph views, the graph plugin and graph.json. */
+  private graphHost(): GraphHost {
+    const app = this.app;
+    const adapter = app.vault.adapter;
+    const file = `${app.vault.configDir}/graph.json`;
+    const instance = (): GraphPluginInstance | null => {
+      try {
+        // Internal API, may change: without it the colours go to graph.json only.
+        const internal = (app as unknown as { internalPlugins?: InternalPlugins }).internalPlugins;
+        const found = internal?.getPluginById?.('graph')?.instance;
+        return found?.options && typeof found.options === 'object' ? found : null;
+      } catch {
+        return null;
+      }
+    };
+    const wait = (ms: number): Promise<void> =>
+      new Promise(resolve => window.setTimeout(resolve, ms));
+    const parked: Array<{ leaf: WorkspaceLeaf; state: ViewState }> = [];
+    return {
+      parkGraphViews: async (): Promise<number> => {
+        parked.length = 0;
+        for (const leaf of app.workspace.getLeavesOfType('graph')) {
+          parked.push({ leaf, state: leaf.getViewState() });
+          // An empty view in the same leaf: the graph view closes (and stores its options)
+          // while the leaf keeps its place, pin and group.
+          await leaf.setViewState({ type: 'empty' });
+        }
+        // A view stores its options while it closes; give that a moment before they are read.
+        if (parked.length > 0) await wait(100);
+        return parked.length;
+      },
+      restoreGraphViews: async (): Promise<number> => {
+        let restored = 0;
+        for (const { leaf, state } of parked.splice(0)) {
+          try {
+            await leaf.setViewState(state);
+            restored += 1;
+          } catch {
+            // The leaf was closed meanwhile: nothing to put back.
+          }
+        }
+        return restored;
+      },
+      graphOptions: (): Record<string, unknown> | null => {
+        const options = instance()?.options;
+        return options ? { ...options } : null;
+      },
+      setGraphOptions: async (options): Promise<boolean> => {
+        try {
+          const found = instance();
+          if (!found?.options) return false;
+          // Set even when it cannot save, or the live options would write the old groups back.
+          found.options.colorGroups = options.colorGroups;
+          if (typeof found.saveOptions !== 'function') return false;
+          await found.saveOptions();
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      readGraphJson: async (): Promise<unknown> => {
+        if (!(await adapter.exists(file))) return {};
+        try {
+          return JSON.parse(await adapter.read(file)) as unknown;
+        } catch {
+          return {};
+        }
+      },
+      writeGraphJson: json => adapter.write(file, `${JSON.stringify(json, null, 2)}\n`),
+      wait,
+    };
+  }
+
   private async revealState(force: boolean): Promise<RevealState> {
     const now = Date.now();
     if (!force && this.revealCache && now - this.revealCache.at < REVEAL_CACHE_MS) {
@@ -455,6 +585,16 @@ function decorateNote(el: HTMLElement): void {
   }
 }
 
+/** The graph core plugin's instance, as far as the colours need it (internal API). */
+interface GraphPluginInstance {
+  options?: Record<string, unknown>;
+  saveOptions?: () => unknown;
+}
+
+interface InternalPlugins {
+  getPluginById?: (id: string) => { instance?: GraphPluginInstance } | null;
+}
+
 function messageOf(error: unknown): string {
   if (error instanceof DashboardError) return error.message;
   return error instanceof Error ? error.message : String(error);
@@ -518,5 +658,15 @@ class FoundryAiToolSettingTab extends PluginSettingTab {
           });
         void this.plugin.syncTheme().then(show);
       });
+    new Setting(containerEl)
+      .setName('Graph colours')
+      .setDesc(
+        "Colours each adventure's notes in the graph view and the Library grey. Your own colour groups stay."
+      )
+      .addButton(button =>
+        button.setButtonText('Apply AI Tool graph colours').onClick(() => {
+          void this.plugin.applyGraphColours();
+        })
+      );
   }
 }

@@ -78,6 +78,7 @@ interface HeadValues {
   fvtt_sig: string | null;
   fvtt_journal: string | null;
   name: string | null;
+  folder: string | null;
   generated_by: string | null;
 }
 
@@ -87,6 +88,7 @@ const KEYS: ReadonlySet<string> = new Set([
   'fvtt_sig',
   'fvtt_journal',
   'name',
+  'folder',
   'generated_by',
 ]);
 
@@ -166,6 +168,7 @@ export function parseFrontmatter(head: string): FrontmatterResult {
     fvtt_sig: null,
     fvtt_journal: null,
     name: null,
+    folder: null,
     generated_by: null,
   };
   const seen = new Set<string>();
@@ -327,6 +330,7 @@ async function classify(root: string, rel: string): Promise<Classified> {
           owned: checkMarkdownOwnership(text).owned,
           name: head.name,
           journalUuid: head.fvtt_journal,
+          folder: head.folder,
         },
       };
     }

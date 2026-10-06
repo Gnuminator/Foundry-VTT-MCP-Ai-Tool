@@ -58,6 +58,8 @@ export const MIRROR_FOLDERS = {
   scene: `${MIRROR_ROOT}/Scenes`,
   journal: `${MIRROR_ROOT}/Journals`,
   item: `${MIRROR_ROOT}/Items`,
+  /** Adventure hub notes (I-105), one per adventure folder; not a Foundry document kind. */
+  adventure: `${MIRROR_ROOT}/Adventures`,
 } as const;
 export const MIRROR_STATUS_PATH = `${MIRROR_ROOT}/_status.md`;
 
@@ -97,6 +99,8 @@ export interface ScannedNote {
   name: string | null;
   /** `fvtt_journal` property (page notes: their journal's uuid), or null. */
   journalUuid: string | null;
+  /** `folder` property (Foundry folder names joined with `/`), or null; absent in older maps. */
+  folder?: string | null;
 }
 
 /** Key for case-insensitive, Unicode-normalized path comparison (Windows and Obsidian). */

@@ -85,9 +85,11 @@ work="$IMPORT/work-$stamp"
 prev="$IMPORT/prev-$stamp"
 install -d -m 700 "$work" "$work/extract"
 # The work folder only holds a copy of the bundle: remove it on any exit (the bundle stays until success).
-# A run that stopped Foundry and then failed starts it again (on whatever options.json names), so the Pi
-# is never left without Foundry and the Assistant GM.
+# A run that stopped Foundry and then failed puts back what ran before (the world in options.json,
+# Foundry and the Assistant GM browser), so the Pi is never left in a half state.
 stopped=0
+was_foundry=0
+was_gm_browser=0
 on_exit() {
   rm -rf "${work:?}"
   if [ "$stopped" = 1 ] && have_systemd; then
@@ -96,12 +98,17 @@ on_exit() {
     if [ "$world_changed" = 1 ]; then
       set_world "$orig_world" || true
       warn "options.json restored to launch '${orig_world:-no world}'"
+    fi
+    # Back to what ran before the run: stop what provisioning started, start what was running.
+    if [ "$was_foundry" = 1 ]; then
       systemctl restart foundry.service || true
     else
-      systemctl is-active --quiet foundry.service || systemctl start foundry.service || true
+      systemctl stop foundry.service 2>/dev/null || true
     fi
-    systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service || true
-    warn "the run did not finish: Foundry and the Assistant GM browser were started again; old copies are in $prev"
+    if [ "$was_gm_browser" = 1 ]; then
+      systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service || true
+    fi
+    warn "the run did not finish: Foundry and the Assistant GM browser are back as they were before it; old copies are in $prev"
   fi
 }
 trap on_exit EXIT
@@ -173,6 +180,11 @@ find "$work/extract/Data" -type d -exec chmod 755 {} +
 find "$work/extract/Data" -type f -exec chmod 644 {} +
 
 if have_systemd; then
+  # Remember what ran, so a failed run starts only that again.
+  was_foundry=0
+  was_gm_browser=0
+  systemctl is-active --quiet foundry.service && was_foundry=1
+  systemctl is-active --quiet foundry-ai-tool-gm-browser.service && was_gm_browser=1
   say "stopping the Assistant GM browser and Foundry"
   systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
   systemctl stop foundry.service

@@ -539,8 +539,11 @@ Muncher file. `push-world.ps1` refuses them, and stage 11 checks the tar again b
 anything. World settings whose names look like a secret (a cookie, a token, a key) stop the push; the
 names are shown, never the values. A `ddb-importer.*` setting that you reviewed and that is only a
 setting (a folder name, a compendium name) can be let through with a narrow pattern, for example
-`-AllowSettingKeys 'ddb-importer.entity-*'`. A name with cookie, token, secret, password, patreon or
-key in it is always a problem, whatever the list says.
+`-AllowSettingKeys 'ddb-importer.entity-*'`. A setting whose own name (after the module id) has
+cobalt, cookie, patreon, secret, password, credential, bearer, an API key or a private key in it, or
+that is or ends in token or key (`discordToken`, `refresh-token`, `privateKey`), is always a problem,
+whatever the list says. Module names do not count (vtta-tokenizer, Token Action HUD); a harmless
+setting that ends in token goes on the short safe list in `world-refs.mjs` (today `core.defaultToken`).
 
 What stage 11 does with it:
 

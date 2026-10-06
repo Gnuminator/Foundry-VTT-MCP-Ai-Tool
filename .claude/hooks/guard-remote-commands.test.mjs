@@ -1,6 +1,7 @@
-// Tests for guard-remote-commands.mjs:  node --test .claude/hooks/
+// Tests for guard-remote-commands.mjs:  node --test .claude/hooks/guard-remote-commands.test.mjs
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -120,6 +121,18 @@ test('an ask becomes a deny where nobody would see the prompt', () => {
   assert.equal(finalDecision('ask', 'auto'), 'deny');
   assert.equal(finalDecision('ask', undefined), 'deny');
   assert.equal(finalDecision('deny', 'default'), 'deny');
+});
+
+test('a fed file whose quoted name holds ; or & is still read', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'guard-'));
+  for (const name of ['a;b.txt', 'a&b.txt']) {
+    const file = path.join(dir, name).replace(/\\/g, '/');
+    writeFileSync(file, 'rm -rf /etc/ssh\n');
+    for (const q of ['"', "'"]) {
+      const c = `cat ${q}${file}${q} | ssh foundry-pi bash -s`;
+      assert.equal(kind(c), 'ask', c);
+    }
+  }
 });
 
 test('a remote cat with no pipe after it returns at once (it used to backtrack forever)', () => {

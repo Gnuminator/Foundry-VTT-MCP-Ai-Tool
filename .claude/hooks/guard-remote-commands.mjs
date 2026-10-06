@@ -128,10 +128,11 @@ function recursiveDeleteOutsideOwn(text) {
 function fedFiles(command, cwd) {
   const names = new Set();
   for (const m of command.matchAll(/<\s*("[^"]+"|'[^']+'|\S+)/g)) names.add(m[1]);
-  // `cat a b |`: take everything up to the next pipe with one character class, then split it into
-  // words. (An earlier single pattern with nested repeats over the same characters backtracked
-  // forever on `ssh host cat file` with no pipe after it.)
-  for (const m of command.matchAll(/\bcat\s([^|;&<>]*)\|/g)) {
+  // `cat a b |`: take everything up to the next pipe (quoted words may hold `;` or `&`, so
+  // `cat "a;b.txt" |` is still read), then split it into words. The alternatives share no first
+  // character, so this cannot backtrack. (An earlier single pattern with nested repeats over the
+  // same characters backtracked forever on `ssh host cat file` with no pipe after it.)
+  for (const m of command.matchAll(/\bcat\s((?:"[^"]*"|'[^']*'|[^|;&<>"'])*)\|/g)) {
     for (const t of m[1].matchAll(/"[^"]+"|'[^']+'|[^\s]+/g)) names.add(t[0]);
   }
   for (const m of command.matchAll(/("[^"]+\.sh"|'[^']+\.sh'|[^\s'"|;&<>]+\.sh)\b/g))

@@ -154,7 +154,8 @@ tries to run the bridge.
 
 The Assistant GM browser (`assistant-gm.mjs`, service `foundry-ai-tool-gm-browser`) runs as the
 `foundry` user with Foundry's "no canvas" setting, which saves the Pi's CPU (the bridge reads
-documents; only panning and measuring fall back). It reads its user name and password from
+documents; only panning and measuring fall back) and at low priority (`Nice=10`, `CPUWeight=20`), so
+it never competes with Foundry's main thread. It reads its user name and password from
 `/etc/foundry-ai-tool/assistant-gm.env` (root only). For the throwaway check world
 `5-check-world.sh` generates that password and creates the user, so nobody types it; Foundry
 launches that world by itself (`options.json`), so no admin password is needed. For the Strahd

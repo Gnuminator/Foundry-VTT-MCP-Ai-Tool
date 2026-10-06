@@ -21,6 +21,7 @@
  *   re-renders the flow (its form would otherwise hold stale values and undo the answer) and clicks
  *   "next" until the `dnd5e.advancementManagerComplete` hook fires.
  */
+import { SPELL_GM_FUNCTIONS } from './gm-spells.mjs';
 
 import { inspectBuild } from './inspect-build.mjs';
 import { studioPump } from './studio-pump.mjs';
@@ -1695,6 +1696,7 @@ export const GM_ACTION_FUNCTIONS = {
   studioPump,
   adoptActor,
   deleteKitActor,
+  ...SPELL_GM_FUNCTIONS,
   inspectFeatures,
   exerciseActor,
   worldStatus,

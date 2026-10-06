@@ -278,6 +278,47 @@ function renderLinkBanner() {
 // Re-check on a timer too, so the banner appears without a new status event.
 setInterval(renderLinkBanner, 15000);
 
+// Storage space on the server (GM only): GET /api/space, read from the Pi's space check. Not shown
+// at all when there is no check (a dev machine). Low is yellow, critical is red; "stale" (the check
+// has not run for 3 hours) shows only in Module Diagnostics.
+const SPACE_POLL_MS = 5 * 60 * 1000;
+function spaceDiskText(d) {
+  const jobs = Array.isArray(d.jobs) && d.jobs.length > 0 ? ` Used by: ${d.jobs.join(', ')}.` : '';
+  return `${d.mount} has ${d.freePercent}% free (${d.freeGb} GB).${jobs}`;
+}
+function renderSpace(data) {
+  const banner = $('space-banner');
+  const note = $('diag-space');
+  const ok = data && data.available === true;
+  note.hidden = !(ok && data.stale);
+  if (ok && data.stale) {
+    note.textContent = `The space check on ${data.host} has not run for over 3 hours (last check ${new Date(data.checkedAt).toLocaleString()}).`;
+  }
+  const level = ok ? data.level : 'ok';
+  if (level !== 'low' && level !== 'critical') {
+    banner.hidden = true;
+    return;
+  }
+  const bad = data.disks.filter(d => d.level !== 'ok');
+  const lines = (bad.length > 0 ? bad : data.disks).map(spaceDiskText).join(' ');
+  banner.classList.toggle('is-critical', level === 'critical');
+  banner.textContent =
+    level === 'critical'
+      ? `Storage space is critical on ${data.host}. ${lines} A backup that needs more space than is free will stop. Free some space now.`
+      : `Storage space is low on ${data.host}. ${lines} Backups still run; free some space soon.`;
+  banner.hidden = false;
+}
+async function pollSpace() {
+  try {
+    const res = await fetch('/api/space', { headers: authHeaders() });
+    renderSpace(res.ok ? await res.json().catch(() => null) : null);
+  } catch {
+    renderSpace(null);
+  }
+}
+void pollSpace();
+setInterval(() => void pollSpace(), SPACE_POLL_MS);
+
 let foundryLive = false;
 function renderStatus(status) {
   lastStatus = status;
@@ -351,7 +392,7 @@ function renderSettings(next) {
     setDot(els.statusAi, 'dot-red', 'AI: disabled');
     els.btnPause.disabled = true;
     els.btnDiag.disabled = true;
-    els.askInput.placeholder = 'Set ANTHROPIC_API_KEY to enable the co-GM';
+    els.askInput.placeholder = 'Set ANTHROPIC_API_KEY to enable the AI commentary';
   }
 
   // GM Actions master switch
@@ -3813,7 +3854,7 @@ $('btn-show-links').addEventListener('click', () => {
   if ($('pane-links').hidden) void loadPlayerLinks();
 });
 
-// The co-GM commentary, module diagnostics and player links open as panels over the page.
+// The AI commentary, module diagnostics and player links open as panels over the page.
 for (const [btnId, paneId] of [
   ['btn-show-ai', 'pane-ai'],
   ['btn-show-diag', 'pane-diagnostics'],

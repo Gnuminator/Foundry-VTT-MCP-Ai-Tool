@@ -7,6 +7,8 @@
  * | `DISCORD_TOKEN`      | the bot token (required to run the bot)                     |
  * | `DISCORD_GUILD_ID`   | register the slash commands in this server only (instant)   |
  * | `FVTT_SESSIONS_DIR`  | where recordings go; default `Documents\FoundrySessions`    |
+ * | `DISCORD_OWNER_ID`   | who gets the storage space DMs; default the bot application's owner |
+ * | `FOUNDRY_AI_SPACE_STATUS` | the space check's status file (the Pi writes it)       |
  * | `REHEARSAL_TOKEN_1` to `_3` | speaker bot tokens for `rehearse` (one bot application each) |
  * | `REHEARSAL_CHANNEL_ID` | the voice channel rehearsals use                          |
  * | `FVTT_REHEARSAL_DIR` | where rehearsals go; default `Documents\FoundryRehearsals`  |
@@ -21,6 +23,10 @@ export interface BotConfig {
   guildId: string | undefined;
   sessionsDir: string;
   envFile: string;
+  /** Who gets the storage space DMs; unset means the bot application's owner. */
+  ownerId?: string | undefined;
+  /** The space check's status file; unset means the default path (see space-status.ts). */
+  spaceStatusFile?: string | undefined;
 }
 
 export interface RehearsalConfig {
@@ -66,6 +72,8 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
     guildId: get('DISCORD_GUILD_ID'),
     sessionsDir: get('FVTT_SESSIONS_DIR') ?? join(homedir(), 'Documents', 'FoundrySessions'),
     envFile,
+    ownerId: get('DISCORD_OWNER_ID'),
+    spaceStatusFile: get('FOUNDRY_AI_SPACE_STATUS'),
   };
 }
 

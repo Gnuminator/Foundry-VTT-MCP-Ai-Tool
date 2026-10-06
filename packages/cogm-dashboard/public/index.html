@@ -199,9 +199,9 @@
               id="btn-show-ai"
               class="btn"
               data-track="dash.header.show-ai"
-              title="The AI co-GM: commentary and questions (needs an Anthropic API key)"
+              title="AI commentary and questions (needs an Anthropic API key)"
             >
-              🧠 AI co-GM
+              🧠 AI commentary
             </button>
             <button
               id="btn-show-diag"
@@ -219,7 +219,7 @@
             >
               🔗 Player links
             </button>
-            <p class="menu-label">AI co-GM settings</p>
+            <p class="menu-label">AI commentary settings</p>
             <button
               id="btn-pause"
               class="btn"
@@ -258,6 +258,8 @@
 
     <div class="link-banner" id="link-banner" role="alert" hidden></div>
     <div class="link-banner" id="version-banner" role="alert" hidden></div>
+    <!-- Storage space on the server (GM only; the Pi's space check). Hidden when there is no check. -->
+    <div class="link-banner space-banner" id="space-banner" role="alert" hidden></div>
 
     <main class="moment-views" id="moment-views">
       <!-- Before the session: get ready, then see what the session needs. -->
@@ -479,25 +481,25 @@
       </section>
     </div>
 
-    <!-- Advanced: the AI co-GM and module diagnostics, over the page when asked for. -->
+    <!-- Advanced: the AI commentary and module diagnostics, over the page when asked for. -->
     <!-- AI commentary -->
     <section class="pane overlay-pane" id="pane-ai" hidden>
       <div class="pane-head">
-        <h2>Co-GM Commentary</h2>
+        <h2>AI commentary</h2>
         <span class="pane-meta" id="ai-meta"></span>
-        <button class="icon-btn overlay-close" title="Close" aria-label="Close the AI co-GM">
+        <button class="icon-btn overlay-close" title="Close" aria-label="Close the AI commentary">
           ✕
         </button>
       </div>
       <div class="pane-body" id="ai-body">
-        <p class="empty">The co-GM will chime in when something significant happens.</p>
+        <p class="empty">The AI will chime in when something significant happens.</p>
       </div>
       <form class="ask-bar" id="ask-form" data-track="dash.ai.ask">
         <input
           id="ask-input"
           class="ask-input"
           type="text"
-          placeholder="Ask the co-GM… (e.g. who's in trouble?)"
+          placeholder="Ask the AI… (e.g. who's in trouble?)"
           autocomplete="off"
         />
         <button class="btn btn-primary" type="submit">Ask</button>
@@ -512,6 +514,7 @@
           ✕
         </button>
       </div>
+      <p class="diag-note" id="diag-space" hidden></p>
       <div class="pane-body" id="diag-body">
         <p class="empty">No module errors captured.</p>
       </div>

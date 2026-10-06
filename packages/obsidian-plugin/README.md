@@ -23,6 +23,15 @@ For a note with `fvtt_uuid` in its frontmatter (the Obsidian mirror writes it on
   (`[!statblock]`, `[!secret]`, `[!info]`, `[!quote]`), never on folders. In reading view the
   plugin also turns a session's stats line into cards and the d20 spread into bars.
 
+- **Graph colours** (I-105): the command and settings button **Apply AI Tool graph colours**
+  gives each adventure its own colour in the graph view (the hub note under
+  `AI Tool/Foundry/Adventures/` plus the folders it lists) and colours the Library grey. It
+  merges into the vault's `graph.json`: your own colour groups stay first and keep winning, the
+  tool's groups are replaced on every run, and a colour you change for one of them is kept.
+  The mirror itself never edits `.obsidian`; this runs only when you press it. Open graph views
+  reload in place (sidebar, split and pin kept) with the new colours. A local graph keeps its
+  own colour groups.
+
 Settings: the dashboard address (default `http://localhost:3000`), the theme and, only when the
 dashboard's player split is on, the GM token, kept in Obsidian's secret storage.
 
@@ -36,6 +45,7 @@ Install: `pwsh scripts/install-obsidian-plugin.ps1 -Vault <vault folder>` (build
 `-From foundry-ai-tool-obsidian.zip` from a release. The GM's guide is the "Open in Obsidian" part of `docs/gm/dashboard.md`.
 
 Code: `src/dashboard.ts` (the dashboard client, no `obsidian` import), `src/note.ts` (frontmatter
-and status text), `src/theme.ts` and `src/theme-sync.ts` (theme classes and the shared theme),
+and status text), `src/theme.ts` and `src/theme-sync.ts` (theme classes and the shared theme), `src/graph-colours.ts` (the graph
+colour groups and the graph.json merge),
 `src/main.ts` (the Obsidian glue), `theme/build-css.mjs` (the CSS build). `npm run build -w @gnuminator/obsidian-plugin`
 writes `dist/`.

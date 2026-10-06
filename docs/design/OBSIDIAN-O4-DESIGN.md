@@ -344,6 +344,40 @@ note with `player_visible` true: "what can players open in Foundry"). Filters us
 `file.inFolder("Campaigns/<w>/AI Tool/Foundry")` and `file.hasTag("<type>")`. `renderCampaignHome`
 (`render.ts:910-955`, created once) gains a Foundry section for new worlds; existing Homes are the GM's.
 
+### 3.7 Adventure hubs and graph colours (I-105, 2026-10-06)
+
+So the graph shows each adventure as its own cluster instead of one ball with the Library in it,
+the mirror writes one hub note per adventure: `AI Tool/Foundry/Adventures/<folder>.md`, `type:
+adventure-hub` (`adventure-hubs.ts`, `renderAdventureHub` in `mirror-render.ts`).
+
+- **What counts as an adventure:** the first Foundry folder below a kind folder. Foundry keeps
+  folders per document type, so an imported adventure has a folder of the same name for journals,
+  scenes and actors; the hub joins them by name (case-insensitive). The name comes from each note's
+  `folder` property (the Foundry folder names), not its path: a long name may be shortened in one
+  kind's paths (deep chapter folders) and not in another's. A folder counts when it holds at
+  least one journal note and one scene note. No setting yet; to keep a folder out of the mirror,
+  `excludeFolderIds` still works.
+- **Source:** the mirror's own note map (notes inside the fence), after each reconcile, right after
+  the bases. No extra module query, no module change. New notes from an incremental cycle reach the
+  hub at the next reconcile.
+- **Body:** a count line, the book's Library hub (`Library/Books/<title>.md`, I-100) when a book
+  title matches the folder name, then one section per kind (journals, scenes, NPCs, PCs, story
+  items) with a relative link to every note, grouped by subfolder, at most 400 per section.
+  Properties: `name`, `aliases`, `adventure_folders` (campaign-relative), `book`, `tags`, the
+  ownership pair. No `fvtt_uuid`, so the scan ignores hubs.
+- **Ownership:** as for other mirror notes (`checkMarkdownOwnership`): an edited hub is kept and
+  listed. Hubs are written and trashed only after a complete scan (an incomplete one may miss
+  notes). A hub whose adventure is gone moves to the vault trash; an edited one stays and is listed.
+- **Graph colours:** the mirror never edits `.obsidian`. The design plugin has a button and command
+  "Apply AI Tool graph colours" (`packages/obsidian-plugin/src/graph-colours.ts`): it reads the hub
+  notes, builds one colour group per adventure (query: the hub path and its `adventure_folders`)
+  and a grey group for `AI Tool/Library/`, and merges them into `.obsidian/graph.json` after the
+  GM's own groups (first match wins in Obsidian, so the GM's groups win). Our groups are found by
+  their query form, replaced on each run, and keep a colour the GM changed. Open graph views close
+  first (Obsidian stores their options, a group the GM just added included), the merge starts from
+  the graph plugin's live options when it is loaded (else `graph.json`), the plugin saves them, and
+  one graph view opens again when any was open.
+
 ## 4. `player_visible`
 
 "Players" are users with `!isGM`; banned users count as NONE and GMs as OWNER inside

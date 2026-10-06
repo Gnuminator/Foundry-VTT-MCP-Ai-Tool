@@ -39,6 +39,12 @@ import {
   type RulesTag,
 } from '@gnuminator/shared';
 
+import {
+  ADVENTURE_HUB_TYPE,
+  HUB_SECTION_LIMIT,
+  HUB_SECTIONS,
+  type AdventureHub,
+} from './adventure-hubs.js';
 import { htmlToMarkdown, markdownPageText } from './html-to-md.js';
 import {
   MIRROR_NOTE_TYPES,
@@ -383,7 +389,8 @@ function mirrorProps(worldId: string, c: CommonInput): Props {
   };
 }
 
-function folderText(entry: ExportEntry): string | null {
+/** The `folder` property of an entry's note: its Foundry folder names joined with `/`, or null. */
+export function folderText(entry: ExportEntry): string | null {
   if (!entry.folder) return null;
   const path = entry.folder.path.map(segment => clip(oneLine(segment), NAME_CHARS)).join('/');
   return propText(path, NAME_CHARS * 5) || null;
@@ -941,6 +948,92 @@ function withoutVolatileProperties(text: string): string {
  */
 export function sameMirrorContent(existingText: string, nextText: string): boolean {
   return withoutVolatileProperties(existingText) === withoutVolatileProperties(nextText);
+}
+
+// ---------------------------------------------------------------------------
+// Public: adventure hubs (I-105)
+// ---------------------------------------------------------------------------
+
+/** Banner on an adventure hub: what it is and what an edit does. */
+export const ADVENTURE_HUB_BANNER =
+  '> [!info] Adventure hub from the AI Tool\n' +
+  "> Links every mirror note in this adventure's Foundry folders, so the graph shows the " +
+  'adventure as one cluster. The AI Tool rewrites this note; if you edit it here, the tool ' +
+  'stops updating it. Write your own notes in `Prep/`.';
+
+/**
+ * The hub note of one adventure: the book's Library hub when one matches, then a section per
+ * kind (journals first) with a link to every member note, grouped by subfolder.
+ */
+export function renderAdventureHub(
+  worldId: string,
+  hub: AdventureHub,
+  book: { title: string; path: string } | null
+): RenderedNote {
+  assertWorldId(worldId);
+  const name = propText(hub.name) || 'Untitled';
+  const props: Props = {
+    type: ADVENTURE_HUB_TYPE,
+    fvtt_world: worldId,
+    name,
+    aliases: [name],
+    adventure_folders: hub.folders.map(folder => propText(folder, NAME_CHARS * 5)),
+    book: book ? propText(book.title) : undefined,
+    schema: 1,
+    tags: [`campaign/${worldId}`, ADVENTURE_HUB_TYPE],
+    generated_by: GENERATED_BY,
+    generated_hash: '',
+  };
+  const counts = HUB_SECTIONS.map(s => [hub.members[s.type].length, s.count] as const)
+    .filter(([n]) => n > 0)
+    .map(([n, [one, many]]) => `${n} ${n === 1 ? one : many}`)
+    .join(', ');
+  const lines: string[] = [`${counts}.`, ''];
+  if (book) lines.push(`From the book: ${noteLink(hub.path, book.path, book.title)}.`, '');
+  for (const section of HUB_SECTIONS) {
+    const members = hub.members[section.type];
+    if (members.length === 0) continue;
+    lines.push(`## ${section.heading}`, '');
+    let subfolder: string | null = null;
+    for (const member of members.slice(0, HUB_SECTION_LIMIT)) {
+      if (member.subfolder !== subfolder) {
+        if (member.subfolder) {
+          if (subfolder !== null) lines.push('');
+          lines.push(
+            `**${escapeMd(member.subfolder.split('/').join(' / '), NAME_CHARS * 2)}**`,
+            ''
+          );
+        }
+        subfolder = member.subfolder;
+      }
+      lines.push(`- ${noteLink(hub.path, member.path, member.name)}`);
+    }
+    if (members.length > HUB_SECTION_LIMIT) {
+      lines.push(`- and ${members.length - HUB_SECTION_LIMIT} more`);
+    }
+    lines.push('');
+  }
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  const text = withGeneratedHash(
+    [
+      frontmatter(props),
+      `# ${escapeMd(hub.name) || 'Untitled'}`,
+      '',
+      ADVENTURE_HUB_BANNER,
+      '',
+      ...lines,
+      '',
+    ].join('\n')
+  );
+  return { path: hub.path, text };
+}
+
+/** Whether a note's text is an adventure hub we wrote (its type and marker), from its head. */
+export function isAdventureHubText(text: string): boolean {
+  return (
+    new RegExp(`^type: "?${ADVENTURE_HUB_TYPE}"?$`, 'm').test(text) &&
+    new RegExp(`^generated_by: "?${GENERATED_BY}"?$`, 'm').test(text)
+  );
 }
 
 // ---------------------------------------------------------------------------

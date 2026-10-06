@@ -100,6 +100,7 @@ import {
   type RenderedNote,
   type ScannedNote,
 } from './mirror-common.js';
+import { ADVENTURES_FOLDER, collectAdventureHubs, matchBookNote } from './adventure-hubs.js';
 import { AttachmentStore, type Fetcher } from './attachments.js';
 import { LibrarySync, type LibrarySyncDeps } from './library-sync.js';
 import {
@@ -119,7 +120,10 @@ import {
   type PathRequest,
 } from './mirror-paths.js';
 import {
+  folderText,
+  isAdventureHubText,
   mirrorNoteType,
+  renderAdventureHub,
   renderMirrorBases,
   renderMirrorNote,
   renderMirrorStatusNote,
@@ -581,6 +585,8 @@ interface NoteMeta {
   sig: string | null;
   name: string;
   journalUuid: string | null;
+  /** The note's `folder` property (Foundry folder names joined with `/`), or null. */
+  folder: string | null;
   isNew: boolean;
   /** The note moves here from this path before it is written (its folder changed). */
   moveFrom?: string;
@@ -819,6 +825,7 @@ export class ObsidianMirrorPump {
     try {
       await writer.assertRealFence(MIRROR_ROOT);
       await writer.assertRealFence(BASES_FOLDER);
+      await writer.assertRealFence(ADVENTURES_FOLDER);
       await this.assertTrashFence(state.worldId, '');
     } catch (error) {
       throw new CycleAbort(errorMessage(error), true);
@@ -1086,6 +1093,7 @@ export class ObsidianMirrorPump {
     state.known = new Set(rows.keys());
     await this.fetchAndApply(cycle, [...toFetch]);
     await this.writeBases(cycle);
+    await this.writeHubs(cycle);
 
     state.watermark = head.watermark;
     state.lastReconcileAt = this.now();
@@ -1678,6 +1686,7 @@ export class ObsidianMirrorPump {
             sig: null,
             name: page.name,
             journalUuid: entry.uuid,
+            folder: folderText(entry),
             isNew: pages.has(page.uuid) && moveFrom === undefined,
           }
         : {
@@ -1686,6 +1695,7 @@ export class ObsidianMirrorPump {
             sig: entry.sig,
             name: entry.name,
             journalUuid: null,
+            folder: folderText(entry),
             isNew: top.has(entry.uuid) && moveFrom === undefined,
           };
       const meta: NoteMeta = moveFrom === undefined ? base : { ...base, moveFrom };
@@ -1770,6 +1780,7 @@ export class ObsidianMirrorPump {
         owned: true,
         name: meta.name,
         journalUuid: meta.journalUuid,
+        folder: meta.folder,
       });
       if (meta.isNew) {
         cycle.created += 1;
@@ -1850,6 +1861,56 @@ export class ObsidianMirrorPump {
     for (const base of renderMirrorBases(cycle.state.worldId)) {
       this.checkDeadline(cycle);
       await this.writeOwned(cycle, base.path, base.text, baseOwnershipCheck(base.text));
+    }
+  }
+
+  /**
+   * Adventure hub notes (I-105) from the note map, after a reconcile: one per adventure folder,
+   * linking its notes and the book's Library hub. A hub whose adventure is gone goes to the
+   * vault trash (only an unedited one). Only after a complete scan: the note map of an
+   * incomplete one may miss notes, and the hubs would lose their links.
+   */
+  private async writeHubs(cycle: Cycle): Promise<void> {
+    const state = cycle.state;
+    if (!cycle.allowChanges) return;
+    const library = state.licensed?.library;
+    const books = library?.ready ? library.bookNotes() : new Map<string, string>();
+    const wanted = new Set<string>();
+    for (const hub of collectAdventureHubs(
+      [...state.notes.values()].map(note => ({
+        ...note,
+        name: state.names.get(note.uuid) ?? note.name,
+      }))
+    )) {
+      this.checkDeadline(cycle);
+      wanted.add(pathKey(hub.path));
+      const note = renderAdventureHub(state.worldId, hub, matchBookNote(hub.name, books));
+      await this.writeOwned(cycle, note.path, note.text, checkMarkdownOwnership);
+    }
+    const folder = path.join(cycle.root, ...ADVENTURES_FOLDER.split('/'));
+    const files = await fsp.readdir(folder, { withFileTypes: true }).catch(() => []);
+    for (const file of files) {
+      if (!file.isFile() || !file.name.toLowerCase().endsWith('.md')) continue;
+      const rel = `${ADVENTURES_FOLDER}/${file.name}`;
+      if (wanted.has(pathKey(rel))) continue;
+      const text = await fsp.readFile(path.join(folder, file.name), 'utf8').catch(() => '');
+      if (!isAdventureHubText(text)) continue;
+      try {
+        await this.assertTrashFence(state.worldId, rel);
+      } catch (error) {
+        throw new CycleAbort(errorMessage(error), false);
+      }
+      const skippedBefore = cycle.writer.skipped.length;
+      const errorsBefore = cycle.writer.errors.length;
+      const result = await cycle.writer.trash(rel, checkMarkdownOwnership);
+      if (result === 'trashed' || result === 'missing') {
+        state.skipped.delete(rel);
+        state.errors.delete(rel);
+      } else {
+        for (const s of cycle.writer.skipped.slice(skippedBefore))
+          state.skipped.set(s.path, s.reason);
+        for (const e of cycle.writer.errors.slice(errorsBefore)) state.errors.set(e.path, e.error);
+      }
     }
   }
 

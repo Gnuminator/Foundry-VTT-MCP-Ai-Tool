@@ -51,6 +51,7 @@ interface NoteSpec {
   name?: string;
   sig?: string;
   journal?: string;
+  folder?: string;
 }
 
 /** A mirror note as the renderer writes it: JSON-quoted values, hash filled in. */
@@ -60,6 +61,7 @@ function mirrorText(spec: NoteSpec, body = 'Body'): string {
   lines.push(`fvtt_uuid: ${JSON.stringify(spec.uuid)}`);
   if (spec.sig !== undefined) lines.push(`fvtt_sig: ${JSON.stringify(spec.sig)}`);
   if (spec.journal !== undefined) lines.push(`fvtt_journal: ${JSON.stringify(spec.journal)}`);
+  if (spec.folder !== undefined) lines.push(`folder: ${JSON.stringify(spec.folder)}`);
   lines.push('generated_by: "foundry-ai-tool"', 'generated_hash: ""', '---', body, '');
   return withGeneratedHash(lines.join('\n'));
 }
@@ -99,6 +101,7 @@ function note(
     owned: flags.owned,
     name: spec.name ?? null,
     journalUuid: spec.journal ?? null,
+    folder: spec.folder ?? null,
   };
 }
 
@@ -106,7 +109,13 @@ const paths = (notes: ScannedNote[]): string[] => notes.map(n => n.path);
 
 describe('scanCampaign: mirror notes', () => {
   it('finds notes by their properties, inside and outside the fence, edited or not', async () => {
-    const wolf: NoteSpec = { type: 'npc', uuid: 'Actor.wolf', name: 'Wolf', sig: 's-wolf' };
+    const wolf: NoteSpec = {
+      type: 'npc',
+      uuid: 'Actor.wolf',
+      name: 'Wolf',
+      sig: 's-wolf',
+      folder: 'Curse of Strahd/Wolves',
+    };
     const hero: NoteSpec = { type: 'pc', uuid: 'Actor.hero', name: 'Hero' };
     const bear: NoteSpec = { type: 'npc', uuid: 'Actor.bear', name: 'Bear' };
     await put('AI Tool/Foundry/NPCs/Wolf.md', mirrorText(wolf));
@@ -907,6 +916,7 @@ describe('parseFrontmatter', () => {
       fvtt_sig: 's',
       fvtt_journal: 'JournalEntry.j',
       name: 'A',
+      folder: null,
       generated_by: 'foundry-ai-tool',
     });
   });

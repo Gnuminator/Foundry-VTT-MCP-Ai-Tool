@@ -9,6 +9,7 @@ import type {
 } from '@gnuminator/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { HUB_SECTION_LIMIT, type AdventureHub } from './adventure-hubs.js';
 import {
   emptyMirrorStatus,
   MIRROR_NOTE_TYPES,
@@ -22,8 +23,10 @@ import {
   type RenderedNote,
 } from './mirror-common.js';
 import {
+  isAdventureHubText,
   mirrorNoteType,
   MIRROR_BASE_FILES,
+  renderAdventureHub,
   renderMirrorBases,
   renderMirrorNote,
   renderMirrorStatusNote,
@@ -1870,5 +1873,181 @@ describe('renderMirrorStatusNote', () => {
         emptyMirrorStatus({ enabled: true, vaultDirSet: true, worldId: null, openBase: OPEN })
       )
     ).toThrow(/world id/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Adventure hubs (I-105)
+// ---------------------------------------------------------------------------
+
+describe('renderAdventureHub', () => {
+  const J = 'AI Tool/Foundry/Journals';
+  const S = 'AI Tool/Foundry/Scenes';
+  const N = 'AI Tool/Foundry/NPCs';
+
+  function makeHub(overrides: Partial<AdventureHub> = {}): AdventureHub {
+    return {
+      name: 'Adventure X',
+      path: 'AI Tool/Foundry/Adventures/Adventure X.md',
+      folders: [`${J}/Adventure X`, `${S}/Adventure X`],
+      members: {
+        journal: [
+          { path: `${J}/Adventure X/Intro.md`, name: 'Intro', subfolder: '' },
+          { path: `${J}/Adventure X/Ch 1/Start.md`, name: 'Start', subfolder: 'Ch 1' },
+          { path: `${J}/Adventure X/Ch 1/Maps/End.md`, name: 'End', subfolder: 'Ch 1/Maps' },
+        ],
+        scene: [{ path: `${S}/Adventure X/Hall.md`, name: 'Hall', subfolder: '' }],
+        npc: [],
+        pc: [],
+        'story-item': [],
+      },
+      ...overrides,
+    };
+  }
+
+  const BOOK = { title: 'Adventure X', path: 'AI Tool/Library/Books/Adventure X.md' };
+
+  it('writes the hub at its path with the hub frontmatter', () => {
+    const note = renderAdventureHub(W, makeHub(), null);
+    expect(note.path).toBe('AI Tool/Foundry/Adventures/Adventure X.md');
+    const { head } = split(note.text);
+    expect(head).toContain('type: "adventure-hub"');
+    expect(head).toContain(`fvtt_world: "${W}"`);
+    expect(head).toContain('name: "Adventure X"');
+    expect(note.text).toContain('aliases:\n  - "Adventure X"');
+    expect(note.text).toContain(
+      `adventure_folders:\n  - "${J}/Adventure X"\n  - "${S}/Adventure X"`
+    );
+    expect(note.text).toContain(`tags:\n  - "campaign/${W}"\n  - "adventure-hub"`);
+    expect(head).toContain('generated_by: "foundry-ai-tool"');
+    expect(head.some(line => /^generated_hash: ".{8,}"$/.test(line))).toBe(true);
+    expect(propertyKeys(note.text)).not.toContain('book');
+    expect(note.text).toContain('# Adventure X');
+  });
+
+  it('carries a valid ownership hash, and an edit breaks it', () => {
+    const note = renderAdventureHub(W, makeHub(), BOOK);
+    expect(checkMarkdownOwnership(note.text).owned).toBe(true);
+    expect(checkMarkdownOwnership(`${note.text}\nMy own line.\n`).owned).toBe(false);
+  });
+
+  it('links the book with a relative link from Adventures to Library/Books', () => {
+    const note = renderAdventureHub(W, makeHub(), BOOK);
+    expect(note.text).toContain('book: "Adventure X"');
+    expect(note.text).toContain(
+      'From the book: [Adventure X](../../Library/Books/Adventure%20X.md).'
+    );
+    expect(relativeLinkTarget(note.path, BOOK.path)).toBe('../../Library/Books/Adventure%20X.md');
+  });
+
+  it('has no book line and no book property when there is no book', () => {
+    const note = renderAdventureHub(W, makeHub(), null);
+    expect(note.text).not.toContain('From the book');
+    expect(note.text).not.toContain('book:');
+    expect(note.text).not.toContain('Library/Books');
+  });
+
+  it('writes a count line, then one section per non-empty kind, journals first', () => {
+    const note = renderAdventureHub(W, makeHub(), null);
+    const { body } = split(note.text);
+    expect(body).toContain('3 chapters and journals, 1 scene.');
+    const headings = body.filter(line => line.startsWith('## '));
+    expect(headings).toEqual(['## Chapters and journals', '## Scenes']);
+  });
+
+  it('lists every section kind when it has members', () => {
+    const hub = makeHub();
+    hub.members.npc = [{ path: `${N}/Adventure X/Wolf.md`, name: 'Wolf', subfolder: '' }];
+    hub.members.pc = [
+      { path: 'AI Tool/Foundry/PCs/Adventure X/Hero.md', name: 'Hero', subfolder: '' },
+    ];
+    hub.members['story-item'] = [
+      { path: 'AI Tool/Foundry/Items/Adventure X/Sword.md', name: 'Sword', subfolder: '' },
+    ];
+    const headings = split(renderAdventureHub(W, hub, null).text).body.filter(line =>
+      line.startsWith('## ')
+    );
+    expect(headings).toEqual([
+      '## Chapters and journals',
+      '## Scenes',
+      '## NPCs',
+      '## PCs',
+      '## Story items',
+    ]);
+  });
+
+  it('links every member with a relative link, spaces encoded', () => {
+    const { body } = split(renderAdventureHub(W, makeHub(), null).text);
+    expect(body).toContain('- [Intro](../Journals/Adventure%20X/Intro.md)');
+    expect(body).toContain('- [Start](../Journals/Adventure%20X/Ch%201/Start.md)');
+    expect(body).toContain('- [Hall](../Scenes/Adventure%20X/Hall.md)');
+  });
+
+  it('labels subfolders in bold with slashes spaced, and none for the top level', () => {
+    const { body } = split(renderAdventureHub(W, makeHub(), null).text);
+    expect(body).toContain('**Ch 1**');
+    expect(body).toContain('**Ch 1 / Maps**');
+    const intro = body.indexOf('- [Intro](../Journals/Adventure%20X/Intro.md)');
+    expect(intro).toBeGreaterThan(-1);
+    expect(intro).toBeLessThan(body.indexOf('**Ch 1**'));
+    // The Scenes section has no subfolders, so no label there.
+    const scenes = body.slice(body.indexOf('## Scenes'));
+    expect(scenes.some(line => line.startsWith('**'))).toBe(false);
+  });
+
+  it('caps a section at the limit and counts the rest', () => {
+    const hub = makeHub();
+    hub.members.npc = Array.from({ length: HUB_SECTION_LIMIT + 7 }, (_, i) => ({
+      path: `${N}/Adventure X/Npc ${i}.md`,
+      name: `Npc ${i}`,
+      subfolder: '',
+    }));
+    const { body } = split(renderAdventureHub(W, hub, null).text);
+    expect(body.filter(line => line.startsWith('- [Npc '))).toHaveLength(HUB_SECTION_LIMIT);
+    expect(body.filter(line => line.startsWith('- and '))).toEqual(['- and 7 more']);
+    // The count line still says the true total.
+    expect(body.join('\n')).toContain(`${HUB_SECTION_LIMIT + 7} NPCs`);
+  });
+
+  it('writes no "and N more" line at exactly the limit', () => {
+    const hub = makeHub();
+    hub.members.npc = Array.from({ length: HUB_SECTION_LIMIT }, (_, i) => ({
+      path: `${N}/Adventure X/Npc ${i}.md`,
+      name: `Npc ${i}`,
+      subfolder: '',
+    }));
+    expect(split(renderAdventureHub(W, hub, null).text).body.join('\n')).not.toContain('more');
+  });
+
+  it('keeps hostile names inert', () => {
+    const hub = makeHub({
+      name: 'Bad <% tp.x %>',
+      path: 'AI Tool/Foundry/Adventures/Bad.md',
+    });
+    hub.members.journal = [
+      { path: `${J}/Bad/Evil.md`, name: '[x](http://evil) <% tp.y %>', subfolder: '' },
+    ];
+    const note = renderAdventureHub(W, hub, null);
+    expect(note.text).not.toContain('<%');
+    expect(checkMarkdownOwnership(note.text).owned).toBe(true);
+    expect(note.text).not.toContain('[x](http://evil)');
+  });
+
+  it('rejects a bad world id', () => {
+    expect(() => renderAdventureHub('../x', makeHub(), null)).toThrow(/world id/);
+  });
+
+  it('isAdventureHubText is true for a hub, with or without a book', () => {
+    expect(isAdventureHubText(renderAdventureHub(W, makeHub(), null).text)).toBe(true);
+    expect(isAdventureHubText(renderAdventureHub(W, makeHub(), BOOK).text)).toBe(true);
+  });
+
+  it('isAdventureHubText is false for other note types and plain text', () => {
+    expect(isAdventureHubText(renderMirrorStatusNote(W, fullStatus()).text)).toBe(false);
+    expect(isAdventureHubText(render(scene()))).toBe(false);
+    expect(isAdventureHubText(renderIndex(journal()))).toBe(false);
+    // The type alone is not enough: the generated_by marker has to be there too.
+    expect(isAdventureHubText('---\ntype: "adventure-hub"\n---\nBody\n')).toBe(false);
+    expect(isAdventureHubText('')).toBe(false);
   });
 });

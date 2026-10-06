@@ -172,6 +172,13 @@ about your world follow Foundry's own folders the same way: a journal in Foundry
 is at `AI Tool/Foundry/Journals/Act 1/`. When something moves in Foundry, its note moves with it.
 A note you edited stays where it is, and `_status.md` lists it.
 
+Each adventure also gets a hub note in `AI Tool/Foundry/Adventures/`: a top Foundry folder with
+journals and scenes in it (the same folder name for each, as an adventure import makes them)
+counts as an adventure. The hub links every chapter, scene, NPC and item note in it and the
+book's note in the Library. To colour the graph by adventure, run **Apply AI Tool graph colours**
+in Obsidian (command palette, or the button in the AI Tool plugin's settings): each adventure gets
+a colour and the Library goes grey. Your own colour groups stay, ahead of ours.
+
 This is book content you bought, so it stays on your computer:
 
 - The tool writes a `.gitignore` that keeps `Library/` and `Attachments/` out of git.

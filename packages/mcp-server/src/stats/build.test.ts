@@ -78,6 +78,18 @@ function build(records: PlayRecord[], logEvents: SessionEvent[] = []): StatsMode
   return buildStats({ worldId: 'test-world', logEvents, playRecords: records });
 }
 
+describe('buildStats: a long play log', () => {
+  it('handles more records than fit in a spread (no "Maximum call stack size exceeded")', () => {
+    // 200k records: Math.min(...times) or push(...records) would overflow the stack here.
+    const records: PlayRecord[] = [];
+    for (let i = 0; i < 200_000; i += 1) records.push(hp(`h${i}`, T0 + i, PC, 20, 19));
+    const stats = build(records);
+    expect(stats.sessions).toHaveLength(1);
+    expect(stats.sessions[0].startedAt).toBe(new Date(T0).toISOString());
+    expect(stats.sessions[0].endedAt).toBe(new Date(T0 + 199_999).toISOString());
+  });
+});
+
 describe('buildStats: the highest roll', () => {
   it('is the highest PC d20 roll; NPC rolls and damage totals never win, the earliest wins a tie', () => {
     const stats = build([

@@ -222,6 +222,36 @@ test('50,000-character crafted commands are checked in well under 200 ms', () =>
     P + "'find $" + rep('{a}') + "${ -delete'",
     'scp ' + rep('scp a: '),
     rep('ssh -o '),
+    // The shapes added for the older gaps (quoted ssh, wrappers, flags after the path).
+    rep('"ssh" -o '),
+    rep("'ssh' a "),
+    rep('/usr/bin/ssh '),
+    'ssh localhost ' + rep('"ssh x '),
+    P + rep('sudo -n '),
+    P + rep('sudo -u '),
+    P + 'sudo ' + rep('-n '),
+    P + rep('nohup timeout 5 env A=1 '),
+    P + rep('then '),
+    P + rep('do do '),
+    P + 'rm x ' + rep('a '),
+    P + 'rm x -' + rep('r') + '_',
+    P + 'chown x -' + rep('R') + '_',
+    P + rep('rm x -f '),
+    P + rep('chmod -R '),
+    P + 'chmod -R ' + rep('/a '),
+    P + rep('chown -R x /usr/lib '),
+    P + rep('sed -i /boot '),
+    P + rep('install /etc/ssh '),
+    P + rep('ip '),
+    P + 'ip ' + rep('link '),
+    P + rep('nmcli '),
+    P + 'tailscale ' + rep('-a '),
+    P + rep('systemctl stop "x" '),
+    P + rep('service '),
+    P + 'service ssh ' + rep(' '),
+    P + rep('pkill -'),
+    P + 'apt-get ' + rep('-o x '),
+    P + 'apt-get ' + rep('-o -o '),
     rep('# x\nssh foundry-pi cat a\n'),
   ];
   for (const c of long) {
@@ -286,6 +316,77 @@ test('deletes in our own folders, by find too, and the documented drill commands
     "Get-Content .\\scripts\\pi\\drill\\restore.sh -Raw | ssh foundry-pi 'DRILL_KEEP_SYNCTHING=1 bash -s'",
     "ssh foundry-pi 'rm -rf /var/lib/foundry-restore'",
     'ssh foundry-pi /opt/foundry-ai-tool/space/space-check.sh --print',
+  ]) {
+    assert.equal(kind(c), 'allow', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
+});
+
+test('the older gaps from the PR #146 review are closed', () => {
+  for (const c of [
+    // The tool not as a bare word.
+    "bash -c 'ssh foundry-pi reboot'",
+    '/usr/bin/ssh foundry-pi reboot',
+    '"ssh" foundry-pi reboot',
+    '& "ssh" foundry-pi reboot',
+    'ssh localhost "ssh foundry-pi reboot"',
+    'ssh localhost \'bash -c "ssh foundry-pi reboot"\'',
+    // A reboot behind a wrapper.
+    "ssh foundry-pi 'sudo -n reboot'",
+    "ssh foundry-pi 'nohup reboot &'",
+    "ssh foundry-pi 'if true; then reboot; fi'",
+    "ssh foundry-pi 'sudo -u root -n reboot'",
+    "ssh foundry-pi 'timeout -s KILL 10 nice -n 5 reboot'",
+    "ssh foundry-pi 'env A=1 userdel foundry'",
+    // Options after the path.
+    "ssh foundry-pi 'rm /srv/data -rf'",
+    "ssh foundry-pi 'rm -f /srv/data -r'",
+    "ssh foundry-pi 'rm /srv/data --recursive'",
+    // Permission changes below a system folder or on a critical file.
+    "ssh foundry-pi 'chmod -R 777 /etc/ssh'",
+    "ssh foundry-pi 'chmod 777 /etc/shadow'",
+    "ssh foundry-pi 'chown -R foundry /usr/lib'",
+    // Boot and SSH files written another way.
+    'ssh foundry-pi "sed -i \'s/a/b/\' /boot/dietpiEnv.txt"',
+    "ssh foundry-pi 'install -m 0600 /tmp/x /etc/ssh/sshd_config'",
+    "ssh foundry-pi 'cp /tmp/cmdline.txt /boot/cmdline.txt'",
+    // Network and SSH services.
+    "ssh foundry-pi 'ip link set eth0 down'",
+    "ssh foundry-pi 'ip addr flush dev eth0'",
+    "ssh foundry-pi 'ifconfig eth0 down'",
+    "ssh foundry-pi 'nmcli networking off'",
+    "ssh foundry-pi 'tailscale down'",
+    "ssh foundry-pi 'tailscale logout'",
+    'ssh foundry-pi \'systemctl stop "ssh"\'',
+    "ssh foundry-pi 'service ssh stop'",
+    "ssh foundry-pi '/etc/init.d/ssh restart'",
+    "ssh foundry-pi 'pkill sshd'",
+    // apt options with an argument before remove.
+    "ssh foundry-pi 'apt-get -o Dpkg::Options::=--force-confold remove openssh-server'",
+    "ssh foundry-pi 'apt-get -t bookworm purge x'",
+  ]) {
+    assert.equal(kind(c), 'ask', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
+  for (const c of [
+    "ssh foundry-pi 'rm / -rf'",
+    "ssh foundry-pi 'rm x /etc -rf'",
+    "ssh foundry-pi 'chmod -R 777 /usr/*'",
+    "bash -c 'ssh foundry-pi rm -rf /'",
+  ]) {
+    assert.equal(kind(c), 'deny', `${c}: ${JSON.stringify(decide(c, repo))}`);
+  }
+  // Read-only look-ups and our own folders still pass.
+  for (const c of [
+    "ssh foundry-pi 'command -v ufw; command -v tailscale'",
+    "ssh foundry-pi 'ip -br a; ip route get 1.1.1.1; tailscale ip -4; tailscale status'",
+    "ssh foundry-pi 'systemctl status ssh; service ssh status'",
+    "ssh foundry-pi 'cat /boot/dietpiEnv.txt; ls -l /boot'",
+    "ssh foundry-pi 'last reboot; journalctl -u ssh -n 20; grep reboot /var/log/syslog'",
+    "ssh foundry-pi 'if systemctl is-active --quiet foundry; then echo up; fi'",
+    "ssh foundry-pi 'chown -R foundry:foundry /var/lib/foundry /var/lib/foundry-ai-tool'",
+    "ssh foundry-pi 'chmod -R 755 /opt/foundry'",
+    "ssh foundry-pi 'rm -- -rf'",
+    "ssh foundry-pi 'apt-get -o Acquire::Retries=3 install -y restic'",
+    "bash -c 'ssh localhost true'",
   ]) {
     assert.equal(kind(c), 'allow', `${c}: ${JSON.stringify(decide(c, repo))}`);
   }

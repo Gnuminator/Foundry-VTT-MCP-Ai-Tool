@@ -24,7 +24,13 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const REMOTE = /(^|[\s;&|(])(ssh|scp|sftp|rsync|plink)(\.exe)?(?=\s|$)/;
+// The tool as a word of its own, also quoted ("ssh", bash -c 'ssh ...'), in a backtick or with a
+// folder (/usr/bin/ssh, C:\Windows\System32\OpenSSH\ssh.exe).
+const REMOTE_SOURCE = String.raw`(?:^|[\s;&|(\`'"/\\])(ssh|scp|sftp|rsync|plink)(?:\.exe)?(?=[\s'"\`;&|)]|$)`;
+const REMOTE = new RegExp(REMOTE_SOURCE);
+const REMOTE_ALL = new RegExp(REMOTE_SOURCE, 'g');
+/** A whole word that is one of the tools (see remoteHosts and unquotedRemoteCommands). */
+const TOOL_WORD = /(?:^|[\\/;&|(`'"])(ssh|scp|sftp|rsync|plink)(?:\.exe)?['"`]?$/;
 
 // Folders the stage scripts own; recursive deletes below them are allowed.
 const OWN_PREFIXES = [
@@ -39,11 +45,83 @@ const SYSTEM_DIRS =
   'bin|boot|dev|etc|home|lib|lib32|lib64|media|mnt|opt|proc|root|run|sbin|srv|sys|usr|var';
 
 // A command word in command position: start of a line, after ; & | ( `$(`, a quote that opens a
-// remote command, or sudo; an optional folder may come before it (/sbin/reboot). The folder part
-// stops at the characters that open a new position, and the space part at a newline, so no
-// stretch of the command is read from more than one start.
-const AT = String.raw`(?:^|[;&|(\n]|\$\(|['"]|\bsudo(?=\s))[^\S\n]*(?:[^\s/;&|('"]*/)*`;
-const word = w => new RegExp(`${AT}(?:${w})(?=\\s|$|[;&|)'"])`, 'm');
+// remote command, `{` or a backtick, or sudo; an optional folder may come before it (/sbin/reboot).
+// The folder part stops at the characters that open a new position, and the space part at a
+// newline, so no stretch of the command is read from more than one start.
+const FOLDER = String.raw`(?:[^\s/;&|({\`'"]*/)*`;
+const AT = String.raw`(?:^|[;&|({\n\`]|\$\(|['"]|\bsudo(?=\s))[^\S\n]*${FOLDER}`;
+const WORD_END = String.raw`(?=\s|$|[;&|)'"\`])`;
+
+/**
+ * Words that run the command after them (`sudo -n reboot`, `nohup reboot`, `then reboot`), with
+ * the options of each that take an argument (`sudo -u root reboot`). Not `command` or `builtin`:
+ * `command -v ufw` only looks a command up.
+ */
+const WRAPPER_ARGS = new Map(
+  Object.entries({
+    sudo: '-u -g -h -p -C -D -R -T -U -r -t',
+    doas: '-u -C',
+    su: '-s -g -G',
+    nohup: '',
+    exec: '-a',
+    env: '-u -C -S',
+    nice: '-n',
+    ionice: '-c -n -p',
+    timeout: '-s -k',
+    setsid: '',
+    stdbuf: '-i -o -e',
+    time: '',
+    then: '',
+    do: '',
+    else: '',
+    elif: '',
+    if: '',
+    while: '',
+    until: '',
+    '!': '',
+  }).map(([w, args]) => [w, new Set(args.split(' ').filter(Boolean))])
+);
+const WRAPPER = new RegExp(
+  String.raw`(?:^|[\s;&|(\`'"{])(${[...WRAPPER_ARGS.keys()].join('|')})(?=[^\S\n])`,
+  'g'
+);
+const TOKEN = /[^\S\n]+(\S+)/y;
+
+/**
+ * Whether a word after a wrapper, its options (and their arguments), variable settings and numbers
+ * (`timeout 5 reboot`) matches the sticky `target`. Each word is read once: the search for the
+ * next wrapper goes on after the words a wrapper already read.
+ */
+function afterWrapper(text, target) {
+  WRAPPER.lastIndex = 0;
+  for (let m; (m = WRAPPER.exec(text)); ) {
+    let args = WRAPPER_ARGS.get(m[1]);
+    let p = WRAPPER.lastIndex;
+    for (;;) {
+      TOKEN.lastIndex = p;
+      const t = TOKEN.exec(text);
+      if (!t) break;
+      target.lastIndex = TOKEN.lastIndex - t[1].length;
+      if (target.test(text)) return true;
+      const w = t[1];
+      if (WRAPPER_ARGS.has(w)) args = WRAPPER_ARGS.get(w);
+      else if (w.startsWith('-')) {
+        // TOKEN.lastIndex is after the option: read its argument.
+        if (args.has(w) && !TOKEN.exec(text)) break;
+      } else if (!/^\w+=/.test(w) && !/^\d/.test(w)) break;
+      p = TOKEN.lastIndex;
+    }
+    WRAPPER.lastIndex = Math.max(WRAPPER.lastIndex, p);
+  }
+  return false;
+}
+
+/** A command word in command position, or after a wrapper (see AT and afterWrapper). */
+const word = w => {
+  const re = new RegExp(`${AT}(?:${w})${WORD_END}`, 'm');
+  const after = new RegExp(`${FOLDER}(?:${w})${WORD_END}`, 'y');
+  return text => re.test(text) || afterWrapper(text, after);
+};
 
 /** Start positions of every match of a global regex. */
 function positions(text, re) {
@@ -173,14 +251,28 @@ const dpkgRemove = text =>
     return false;
   });
 
-/** systemctl stop, disable, mask or restart of an SSH or network service on the same line. */
+/** apt with `-o X=y`, `-c file` or `-t release` (an option and its argument) before remove. */
+const aptRemoveAfterArgs = text =>
+  scan(
+    text,
+    /\b(?:apt|apt-get|aptitude)\s+/g,
+    /(?:(?:-[otc]|--option|--config-file|--target-release|--default-release)\s+(?!-)\S+\s+|-\S+\s+)*/y,
+    tailAt(/(?:remove|purge|autoremove)\b/y)
+  );
+
+const REMOTE_ACCESS_UNITS =
+  'ssh|sshd|dropbear|networking|systemd-networkd|NetworkManager|tailscaled';
+
+/** systemctl stop, disable, mask, restart or kill of an SSH or network service on the same line. */
 function stopsRemoteAccess(text) {
   const start = /\bsystemctl[ \t]+/g;
   const options = /(?:-\S+[ \t]+)*/y;
-  const verb = /(?:stop|disable|mask|restart)[ \t]+/y;
+  const verb = /(?:stop|disable|mask|restart|kill)[ \t]+/y;
   const next = /\S+[ \t]+/y;
-  const unit =
-    /(?:ssh|sshd|dropbear|networking|systemd-networkd|NetworkManager|tailscaled)(?:\.service)?\b/y;
+  const unit = new RegExp(
+    String.raw`["']?(?:${REMOTE_ACCESS_UNITS})(?:\.service|\.socket)?\b`,
+    'y'
+  );
   while (start.exec(text)) {
     options.lastIndex = start.lastIndex;
     options.exec(text);
@@ -197,6 +289,56 @@ function stopsRemoteAccess(text) {
     start.lastIndex = Math.max(start.lastIndex, p);
   }
   return false;
+}
+
+/** The same through `service`, `/etc/init.d` or by killing the daemon. */
+const SERVICE_STOP = new RegExp(
+  String.raw`\bservice[ \t]+["']?(?:${REMOTE_ACCESS_UNITS})["']?[ \t]+["']?(?:stop|restart|force-stop|force-reload)\b|/etc/init\.d/(?:ssh|dropbear|networking)[ \t]+["']?(?:stop|restart|force-stop|force-reload)\b`
+);
+const killsRemoteAccess = text =>
+  scan(
+    text,
+    /\b(?:pkill|killall)\s+/g,
+    /(?:-\S+\s+)*/y,
+    tailAt(/["']?(?:sshd?|dropbear|tailscaled|NetworkManager|systemd-networkd)\b/y)
+  );
+
+/** Network changes: `ip link set eth0 down`, `ifconfig eth0 down`, `nmcli con down x`. */
+const NETWORK_CHANGE_VERB =
+  /(?<=\s)(?:set|add|del|delete|flush|change|replace|down|up|append|prepend)(?=\s|$|[;&|)'"`])/g;
+const networkChanges = text =>
+  followedInCommand(
+    text,
+    [{ re: new RegExp(`${AT}(?:ip|ifconfig)(?=[^\\S\\n])`, 'gm') }],
+    NETWORK_CHANGE_VERB
+  ) ||
+  followedInCommand(
+    text,
+    [{ re: /\bnmcli\b/g }],
+    /(?<=\s)(?:down|off|delete|del|modify|disconnect)(?=\s|$|[;&|)'"`])/g
+  ) ||
+  scan(text, /\btailscale\s+/g, /(?:-\S+\s+)*/y, tailAt(/(?:down|logout)\b/y));
+
+/** Recursive chmod, chown or chgrp of an absolute path outside our own folders. */
+const MODE_CHANGE = /\b(?:chmod|chown|chgrp)\s+([^\n;&|)]*)/g;
+function modeChanges(text) {
+  const ask = [];
+  const deny = [];
+  for (const m of text.matchAll(MODE_CHANGE)) {
+    const words = m[1].trim().split(/\s+/);
+    const end = words.indexOf('--');
+    const options = end < 0 ? words : words.slice(0, end);
+    // Anchored with one run of letters: `[a-zA-Z]*R[a-zA-Z]*$` re-read -RRR..._ from every R.
+    if (!options.some(w => /^-(?:[a-zA-Z]*R|-recursive$)/.test(w))) continue;
+    for (const raw of words) {
+      const target = unquote(raw);
+      if (!target.startsWith('/') || target.includes('$')) continue;
+      const need = absoluteNeed(target.replace(/\/\*$/, '') || '/');
+      if (need === 'deny') deny.push('recursive permission change on / or a system folder');
+      else if (need) ask.push(`recursive permission change outside our own folders (${target})`);
+    }
+  }
+  return { ask, deny };
 }
 
 /** The SSH keys path kept in a variable (keys=/root/.ssh/authorized_keys; mv "$tmp" "$keys"). */
@@ -224,6 +366,8 @@ const WRITERS = [
   { re: /\brm\b/g },
   { re: /\bln\b/g },
   { re: /\btruncate\b/g },
+  { re: /\binstall\b/g },
+  { re: /\b(?:chmod|chown|chgrp|chattr)\b/g },
 ];
 const KEY_WRITERS = [
   { re: />/g },
@@ -232,9 +376,14 @@ const KEY_WRITERS = [
   { re: /\brm\b/g },
   { re: /\bcp\b/g },
   { re: /\bmv\b/g },
+  { re: /\binstall\b/g },
+  { re: /\b(?:chmod|chown|chattr)\b/g },
 ];
+// A folder name matches with or without a slash after it (/etc/ssh, /etc/ssh/sshd_config).
 const CRITICAL_ETC =
-  /\/etc\/(?:passwd|shadow|group|gshadow|sudoers|fstab|hosts|hostname|ssh\/|network\/|systemd\/network\/|crypttab|default\/grub)/g;
+  /\/etc\/(?:passwd|shadow|group|gshadow|sudoers|fstab|hosts|hostname|ssh(?:\/|(?![\w.-]))|network(?:\/|(?![\w.-]))|systemd\/network(?:\/|(?![\w.-]))|crypttab|default\/grub)/g;
+// The boot files (dietpiEnv.txt, config.txt, cmdline.txt, the kernel and the firmware).
+const BOOT_FILES = /\/boot(?:\/|(?![\w.-]))/g;
 
 /** Rules that ask: allowed only with the user's explicit OK, every time. */
 const ASK = [
@@ -258,6 +407,7 @@ const ASK = [
       ),
     'removing packages',
   ],
+  [aptRemoveAfterArgs, 'removing packages'],
   [dpkgRemove, 'removing packages'],
   [word('reboot|shutdown|poweroff|halt'), 'reboot or shutdown'],
   [
@@ -272,7 +422,12 @@ const ASK = [
   ],
   [word('ufw|iptables|ip6tables|nft|firewall-cmd'), 'firewall'],
   [stopsRemoteAccess, 'SSH or network service'],
+  [SERVICE_STOP, 'SSH or network service'],
+  [killsRemoteAccess, 'SSH or network service'],
+  [word('ifdown|ifup'), 'network settings'],
+  [networkChanges, 'network settings'],
   [text => followedInCommand(text, WRITERS, CRITICAL_ETC), 'critical file in /etc'],
+  [text => followedInCommand(text, WRITERS, BOOT_FILES), 'boot files in /boot'],
   [text => followedInCommand(text, KEY_WRITERS, /authorized_keys/g), 'SSH login keys'],
   [keysPathInVariable, 'SSH login keys (path in a variable)'],
   [/\bdietpi-backup\s+-1\b/, 'restoring a system snapshot'],
@@ -415,8 +570,17 @@ function deletes(text, starts) {
     events.push({ at: m.index, cd: null, reset: true });
   }
   for (const m of text.matchAll(RM)) {
-    if (!/(?:^|\s)-(?:[a-zA-Z]*[rR][a-zA-Z]*|-recursive)\b/.test(` ${m[1] ?? ''}`)) continue;
-    events.push({ at: m.index, rm: (m[2] ?? '').trim().split(/\s+/) });
+    const words = (m[2] ?? '').trim().split(/\s+/);
+    // GNU rm reads options after the paths too (rm /srv/data -rf), up to a `--`.
+    const before = (m[1] ?? '').trim().split(/\s+/);
+    const end = words.indexOf('--');
+    const flags = before.includes('--')
+      ? before
+      : [...before, ...(end < 0 ? words : words.slice(0, end))];
+    // Per word and anchored (a superset of the old /\s-[a-zA-Z]*[rR][a-zA-Z]*\b/, which re-read
+    // -rrr..._ from every r).
+    if (!flags.some(w => /^-(?:[a-zA-Z]*[rR]|-recursive\b)/.test(w))) continue;
+    events.push({ at: m.index, rm: words });
   }
   findDeletes(text, events);
   events.sort((a, b) => a.at - b.at);
@@ -630,20 +794,40 @@ const SSH_ARG_OPTS = new Set(
   '-B -b -c -D -E -e -F -I -i -J -L -l -m -O -o -p -Q -R -S -W -w'.split(' ')
 );
 
+/** hostAt[i]: the first word from i on that is not an option (or one of its arguments). */
+function hostTable(words) {
+  const hostAt = new Int32Array(words.length + 2).fill(words.length);
+  for (let i = words.length - 1; i >= 0; i--) {
+    const step = SSH_ARG_OPTS.has(words[i]) || words[i] === '-P' ? 2 : 1;
+    hostAt[i] = words[i].startsWith('-') ? hostAt[Math.min(i + step, words.length)] : i;
+  }
+  return hostAt;
+}
+
 /**
  * The remote command of `ssh [options] host command...` written without quotes, put on a line of
- * its own so the command-position rules see it (`ssh foundry-pi reboot`).
+ * its own so the command-position rules see it (`ssh foundry-pi reboot`). Each ssh on a line gets
+ * the words up to the next tool (`ssh localhost "ssh foundry-pi reboot"`, `bash -c 'ssh ...'`);
+ * no word is copied twice.
  */
 function unquotedRemoteCommands(command) {
   const out = [];
   for (const line of command.split('\n')) {
     const words = line.trim().split(/\s+/);
-    const at = words.findIndex(w => /(^|[\\/])ssh(\.exe)?$/.test(w));
-    if (at < 0) continue;
-    let i = at + 1;
-    while (i < words.length && words[i].startsWith('-')) i += SSH_ARG_OPTS.has(words[i]) ? 2 : 1;
-    const rest = words.slice(i + 1).join(' ');
-    if (rest) out.push(rest.replace(/^['"]/, ''));
+    const tools = words.map(w => TOOL_WORD.exec(w)?.[1]);
+    if (!tools.some(t => t === 'ssh' || t === 'plink')) continue;
+    const hostAt = hostTable(words);
+    const nextTool = new Int32Array(words.length + 1).fill(words.length);
+    for (let i = words.length - 1; i >= 0; i--) nextTool[i] = tools[i] ? i : nextTool[i + 1];
+    let covered = 0;
+    for (let at = 0; at < words.length; at++) {
+      if (tools[at] !== 'ssh' && tools[at] !== 'plink') continue;
+      const from = Math.max(hostAt[at + 1] + 1, covered);
+      const to = Math.max(from, nextTool[Math.min(from, words.length)]);
+      covered = to;
+      const rest = words.slice(from, to).join(' ');
+      if (rest) out.push(rest.replace(/^['"]/, ''));
+    }
   }
   return out;
 }
@@ -660,17 +844,12 @@ const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 function remoteHosts(command) {
   if (/(?:^|\s)-J\S*|\bProxy(?:Jump|Command)\b|\bHostName\b/i.test(command)) return null;
   const hosts = [];
+  let found = 0;
   for (const line of command.split('\n')) {
     const words = line.trim().split(/\s+/);
-    const tools = words.map(
-      w => w.match(/(?:^|[\\/;&|(])(ssh|scp|sftp|rsync|plink)(?:\.exe)?$/)?.[1]
-    );
-    // hostAt[i]: the first word from i on that is not an option (or one of its arguments).
-    const hostAt = new Int32Array(words.length + 2).fill(words.length);
-    for (let i = words.length - 1; i >= 0; i--) {
-      const step = SSH_ARG_OPTS.has(words[i]) || words[i] === '-P' ? 2 : 1;
-      hostAt[i] = words[i].startsWith('-') ? hostAt[Math.min(i + step, words.length)] : i;
-    }
+    const tools = words.map(w => TOOL_WORD.exec(w)?.[1]);
+    found += tools.filter(Boolean).length;
+    const hostAt = hostTable(words);
     for (let at = 0; at < words.length; at++) {
       const tool = tools[at];
       if (!tool) continue;
@@ -689,6 +868,8 @@ function remoteHosts(command) {
       hosts.push(words[i].replace(/^["']|["']$/g, '').replace(/^[^@]+@/, ''));
     }
   }
+  // A tool inside a word (x;ssh;y) whose target was not read: cannot tell.
+  if ((command.match(REMOTE_ALL)?.length ?? 0) > found) return null;
   return hosts.length ? hosts : null;
 }
 
@@ -715,9 +896,18 @@ export function decide(command, cwd = process.cwd()) {
   }
   const text = parts.join('\n');
   const removal = deletes(text, starts);
-  const deny = [...DENY.filter(([rule]) => hit(rule, text)).map(([, why]) => why), ...removal.deny];
+  const modes = modeChanges(text);
+  const deny = [
+    ...DENY.filter(([rule]) => hit(rule, text)).map(([, why]) => why),
+    ...removal.deny,
+    ...modes.deny,
+  ];
   if (deny.length) return { decision: 'deny', reasons: [...new Set(deny)] };
-  const ask = [...ASK.filter(([rule]) => hit(rule, text)).map(([, why]) => why), ...removal.ask];
+  const ask = [
+    ...ASK.filter(([rule]) => hit(rule, text)).map(([, why]) => why),
+    ...removal.ask,
+    ...modes.ask,
+  ];
   if (ask.length) return { decision: 'ask', reasons: [...new Set(ask)] };
   return null;
 }

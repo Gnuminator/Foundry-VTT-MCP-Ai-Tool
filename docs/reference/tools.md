@@ -452,7 +452,7 @@ Trigger an NPC's attack (or other item activity) and report the attack roll tota
 
 Parameters:
 
-- `actorName` (string, required): NPC actor name or ID.
+- `actorName` (string, required): NPC actor name or ID. A token on the current scene with this name or ID (or the only token made from this actor) is used first, so an unlinked token spends its own uses.
 - `itemName` (string, required): Name of the weapon/feature/spell to use (e.g. "Scimitar").
 - `targetAC` (integer): Optional target AC to compute hit/miss against.
 - `isPublic` (boolean): Public roll (true or omitted, the default) or whispered to the GM only (false).

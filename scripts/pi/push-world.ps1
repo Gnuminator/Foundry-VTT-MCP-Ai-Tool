@@ -31,7 +31,11 @@
 .PARAMETER AllowSettingKeys  World setting keys that world-refs flags as secret-looking but that you reviewed (a trailing * is a prefix,
                        for example ddb-importer.entity-*). Only ddb-importer.* settings can be excused, and
                        never one with cookie, token, secret, password or key in its name.
-.PARAMETER GmUser     The world's GM user (default Gamemaster). Stage 11 joins it with an empty password, so it must have none here.
+.PARAMETER AllowMissing  Reviewed "known missing" asset paths (an exact path, or a prefix ending in *, for example assets/cos13*). A path that
+                       matches is not a problem for world-refs (missing, letter case, other module or root) and is only counted. No
+                       .., no leading slash. The list is written into MANIFEST.txt (allow-missing:).
+.PARAMETER GmUser     The world's GM user (default Gamemaster). Stage 11 joins it with an empty password, so it must have none here
+                       (the hash Foundry 14 stores for a user with no password does not count as one).
 .PARAMETER SkipRefs    FOR TESTS ONLY: skip the asset scan (the script's own test uses a fake Data folder with no
                        LevelDB). The real run never uses it, because the scan is what proves nothing is left behind.
 #>
@@ -46,6 +50,7 @@ param(
   [switch]$NoUpload,
   [string]$FoundryUrl = 'http://localhost:30001',
   [string[]]$AllowSettingKeys = @(),
+  [string[]]$AllowMissing = @(),
   [string]$GmUser = 'Gamemaster',
   [switch]$SkipRefs
 )
@@ -93,11 +98,12 @@ if ($SkipRefs) {
   Write-Host '    -SkipRefs: asset scan skipped (tests only)' -ForegroundColor Yellow
 } else {
   Step 'scanning the world and the module packs for asset paths (scripts/pi/world-refs.mjs)'
-  $refsJson = & node (Join-Path $PSScriptRoot 'world-refs.mjs') --data $DataPath --world $World --modules ($Modules -join ',') --allow-secret-keys ($AllowSettingKeys -join ',') --gm-user $GmUser --json
+  $refsJson = & node (Join-Path $PSScriptRoot 'world-refs.mjs') --data $DataPath --world $World --modules ($Modules -join ',') --allow-secret-keys ($AllowSettingKeys -join ',') --allow-missing ($AllowMissing -join ',') --gm-user $GmUser --json
   $refsRc = $LASTEXITCODE
   if ($refsRc -eq 1 -or -not $refsJson) { Fail "world-refs failed to run (exit $refsRc); see the message above" }
   $refs = ($refsJson -join "`n") | ConvertFrom-Json
   Write-Host ("    {0} asset paths in {1} databases; per root: {2}" -f $refs.pathCount, $refs.dbsScanned, (($refs.counts.PSObject.Properties | ForEach-Object { "$($_.Name) $($_.Value)" }) -join ', '))
+  if ($refs.allowedMissingCount) { Write-Host "    $($refs.allowedMissingCount) known missing paths allowed by -AllowMissing (not problems)" -ForegroundColor Yellow }
   if ($refsRc -ne 0) {
     $p = $refs.problems
     Write-Host 'world-refs found problems:' -ForegroundColor Red
@@ -207,6 +213,7 @@ $manifest = @(
   "world: $World", 'modules:') + $moduleLines + @('asset folders:') + ($assetFolders | ForEach-Object { "  $_" }) + @(
   "files: $($files.Count)", "bytes: $bytes", "built (UTC): $([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ', [CultureInfo]::InvariantCulture))",
   "repo commit: $(if ($sha) { $sha } else { 'unknown' })")
+if ($AllowMissing.Count) { $manifest += "allow-missing: $($AllowMissing -join ', ')" }
 [System.IO.File]::WriteAllText((Join-Path $stage 'MANIFEST.txt'), ($manifest -join "`n") + "`n", $utf8)
 
 Step 'tar (no compression)'

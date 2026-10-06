@@ -1,6 +1,7 @@
 // Tests for the pure parts of scripts/pi/world-refs.mjs (no LevelDB):
 //   node --test scripts/pi/world-refs.test.mjs
 import assert from 'node:assert/strict';
+import { pbkdf2Sync } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
@@ -18,6 +19,7 @@ import {
   secretSettingKeys,
   summarize,
   unshippedActive,
+  validateAllowMissing,
 } from './world-refs.mjs';
 
 test('normalizeAssetPath keeps local asset paths and drops everything else', () => {
@@ -83,7 +85,9 @@ test('classifyPath sorts paths by root and names the folder to copy', () => {
     root: 'tokenizer',
     folder: 'tokenizer/npc-images',
   });
-  assert.deepEqual(classifyPath('nue/defaultscene/a.webp'), { root: 'other' });
+  // Foundry's own public files for the default scene
+  assert.deepEqual(classifyPath('nue/defaultscene/a.webp'), { root: 'core' });
+  assert.deepEqual(classifyPath('assets/cos1302.jpg'), { root: 'other' });
 });
 
 test('summarize reports the problems and the folders', () => {
@@ -263,6 +267,122 @@ test('gmUserCheck reports a password or a missing GM, never a value', () => {
     false
   );
   assert.equal(gmUserCheck(users, 'Nobody').problems.length, 1);
+});
+
+test('gmUserCheck: the stored hash of an empty password is not a password (Foundry 14)', () => {
+  const salt = 'a1b2c3d4e5f60718';
+  const hashOf = pw => pbkdf2Sync(pw, salt, 1000, 64, 'sha512').toString('hex');
+  const check = u => gmUserCheck([{ name: 'Gamemaster', role: 4, ...u }], 'Gamemaster');
+  // an empty string, with or without a salt
+  assert.equal(check({ password: '' }).hasPassword, false);
+  assert.equal(check({ password: '', passwordSalt: salt }).hasPassword, false);
+  // the hash of the empty password with its salt: no password, no problem
+  const empty = check({ password: hashOf(''), passwordSalt: salt });
+  assert.equal(empty.found, true);
+  assert.equal(empty.hasPassword, false);
+  assert.deepEqual(empty.problems, []);
+  // the hash of a real password with the same salt: a password
+  const real = check({ password: hashOf('x'), passwordSalt: salt });
+  assert.equal(real.hasPassword, true);
+  assert.equal(real.problems.length, 1);
+  // a non-empty password with no salt (or an empty one) still counts, even if it is some other hash
+  assert.equal(check({ password: hashOf('') }).hasPassword, true);
+  assert.equal(check({ password: hashOf(''), passwordSalt: '' }).hasPassword, true);
+  // a salt of another user does not turn the empty hash into a non-password
+  assert.equal(check({ password: hashOf(''), passwordSalt: 'other-salt' }).hasPassword, true);
+  // neither the hash nor the salt is ever in the result
+  for (const r of [empty, real]) {
+    const text = JSON.stringify(r);
+    assert.ok(!text.includes(salt) && !text.includes(hashOf('x').slice(0, 16)));
+  }
+});
+
+test('collectPaths skips the D&D Beyond importer metadata under flags.ddb when asked', () => {
+  const doc = {
+    img: 'icons/svg/a.svg',
+    flags: { ddb: { alternateIds: [{ img: 'assets/cos1302.jpg' }] }, other: { img: 'x/keep.png' } },
+    items: [{ img: 'worlds/w/i.webp', flags: { ddb: { img: 'assets/item.jpg' } } }],
+    notes: [{ flags: { ddb: { img: 'assets/note.jpg' }, mod: { ddb: 'y/z.png' } } }],
+    ddb: { img: 'top/ddb-key.png' },
+  };
+  assert.deepEqual([...collectPaths(doc, new Set(), { skipDdbFlags: true })].sort(), [
+    'icons/svg/a.svg',
+    'top/ddb-key.png',
+    'worlds/w/i.webp',
+    'x/keep.png',
+    'y/z.png',
+  ]);
+  // without the option nothing changes for other callers
+  assert.ok(collectPaths(doc).has('assets/cos1302.jpg'));
+  assert.ok(collectPaths(doc).has('assets/item.jpg'));
+});
+
+test('validateAllowMissing accepts paths and prefixes, refuses unsafe entries', () => {
+  assert.deepEqual(validateAllowMissing(['a/b.png', ' ddb-images/x/* ']), [
+    'a/b.png',
+    'ddb-images/x/*',
+  ]);
+  assert.throws(() => validateAllowMissing(['']), /empty/);
+  assert.throws(() => validateAllowMissing(['  ']), /empty/);
+  assert.throws(() => validateAllowMissing(['/a/b.png']), /slash/);
+  assert.throws(() => validateAllowMissing(['a/../b.png']), /\.\./);
+  assert.throws(() => validateAllowMissing(['..']), /\.\./);
+});
+
+test('summarize with allowMissing: matching paths are no problem anywhere, only counted', () => {
+  const paths = new Set([
+    'ddb-images/other/monster/gone.webp',
+    'ddb-images/other/monster/here.webp',
+    'ddb-images/adventures/Strahd/assets/gone.png',
+    'ddb-images/adventures/Strahd/assets/case.png',
+    'modules/JB2A_DnD5e/a.webm',
+    'modules/aitool-content/miss.png',
+    'assets/cos1302.jpg',
+    'weird/b.png',
+    'icons/svg/a.svg',
+  ]);
+  const check = p => {
+    if (p.endsWith('here.webp')) return { state: 'ok' };
+    if (p.endsWith('case.png')) return { state: 'case', actual: 'x' };
+    return { state: 'missing' };
+  };
+  const base = { world: 'w', modules: ['aitool-content'], check };
+  const plain = summarize(paths, base);
+  assert.equal(plain.allowedMissing.length, 0);
+  assert.equal(plain.problems.missing.length, 4);
+  const s = summarize(paths, {
+    ...base,
+    allowMissing: [
+      'ddb-images/other/monster/*',
+      'ddb-images/adventures/Strahd/assets/*',
+      'modules/JB2A_DnD5e/a.webm',
+      'modules/aitool-content/miss.png',
+      'assets/cos1302.jpg',
+      'icons/svg/a.svg',
+    ],
+  });
+  // here.webp exists, so it is not "allowed missing"; icons are core and never checked
+  assert.deepEqual(s.allowedMissing, [
+    'assets/cos1302.jpg',
+    'ddb-images/adventures/Strahd/assets/case.png',
+    'ddb-images/adventures/Strahd/assets/gone.png',
+    'ddb-images/other/monster/gone.webp',
+    'modules/JB2A_DnD5e/a.webm',
+    'modules/aitool-content/miss.png',
+  ]);
+  assert.deepEqual(s.problems.missing, []);
+  assert.deepEqual(s.problems.caseMismatch, []);
+  assert.deepEqual([...s.problems.foreignModules], []);
+  assert.deepEqual(s.problems.other, ['weird/b.png']);
+  // an allowed missing path leaves no folder to copy; the file that exists still does
+  assert.deepEqual(s.folders, ['ddb-images/other/monster']);
+  // an exact entry matches only that path
+  const one = summarize(new Set(['a/b.png', 'a/b.png.bak.png']), {
+    ...base,
+    check: () => ({ state: 'missing' }),
+    allowMissing: ['a/b.png'],
+  });
+  assert.deepEqual(one.allowedMissing, ['a/b.png']);
 });
 
 const remote = path.join(path.dirname(fileURLToPath(import.meta.url)), 'remote');

@@ -405,10 +405,13 @@ async function executeUpdate(
   const paths = [...Object.keys(changes), ...unset];
   const beforeSource = sourceOf(doc);
   const before = paths.map(path => readPath(beforeSource, path));
+  const ownershipKeys = unset.map(ownershipKeyOf).filter((key): key is string => key !== null);
   const update: Record<string, unknown> = { ...changes };
-  for (const path of unset) Object.assign(update, unsetKeyUpdate(path));
-  await doc.update(update);
-  await removeOwnershipKeys(doc, unset);
+  for (const path of unset) {
+    if (ownershipKeyOf(path) === null) Object.assign(update, unsetKeyUpdate(path));
+  }
+  if (Object.keys(update).length > 0) await doc.update(update);
+  await removeOwnershipKeys(doc, ownershipKeys);
   const afterSource = sourceOf(doc);
   return {
     index,
@@ -422,18 +425,21 @@ async function executeUpdate(
   };
 }
 
+/** The user key of a single-key `ownership.<key>` path, or null for any other path. */
+function ownershipKeyOf(path: string): string | null {
+  return /^ownership\.([^.]+)$/.exec(path)?.[1] ?? null;
+}
+
 /**
- * Foundry 14 ignores a deletion of one `ownership.<userId>` key (neither the
- * ForcedDeletion marker nor `-=`; seen live, F5 L3), so undoing "give Player
- * OBSERVER" left the entry. When such a key survives the update, replace the
- * whole ownership map without it, the way Foundry's own ownership dialog does
- * (`recursive: false`). Only the top-level `ownership` field, so nothing else
- * can be replaced by accident.
+ * Foundry 14 rejects a deletion of one `ownership.<userId>` key (neither the
+ * ForcedDeletion marker nor `-=`; seen live, F5 L3): it logs "ownership: is
+ * not a mapping of user IDs and document permission levels" and keeps the
+ * entry, so undoing "give Player OBSERVER" left it. Such keys are never sent
+ * as deletions; when one is present, replace the whole ownership map without
+ * it, the way Foundry's own ownership dialog does (`recursive: false`). Only
+ * the top-level `ownership` field, so nothing else can be replaced by accident.
  */
-async function removeOwnershipKeys(doc: FoundryDocument, unset: string[]): Promise<void> {
-  const keys = unset
-    .map(path => /^ownership\.([^.]+)$/.exec(path)?.[1])
-    .filter((key): key is string => key !== undefined);
+async function removeOwnershipKeys(doc: FoundryDocument, keys: string[]): Promise<void> {
   if (keys.length === 0) return;
   const current = (sourceOf(doc) as { ownership?: Record<string, unknown> }).ownership;
   if (!current || !keys.some(key => key in current)) return;

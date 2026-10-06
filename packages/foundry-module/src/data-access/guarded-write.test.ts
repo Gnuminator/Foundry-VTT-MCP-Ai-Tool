@@ -50,6 +50,11 @@ class FakeDoc {
   failUpdates = false;
   /** Foundry 14 ignores the deletion of one `ownership.<userId>` key (seen live, F5 L3). */
   ignoreOwnershipKeyDeletion = false;
+  /**
+   * Every `ownership.<key>` deletion sent to update(), honoured or not. Foundry 14 logs
+   * "ownership: is not a mapping of user IDs and document permission levels" for each.
+   */
+  ownershipKeyDeletions: string[] = [];
 
   constructor(
     readonly documentName: string,
@@ -92,7 +97,10 @@ class FakeDoc {
       const parts = path.split('.');
       const last = parts.pop()!;
       const isDeletion = last.startsWith('-=') || (g._del !== undefined && value === g._del);
-      if (this.ignoreOwnershipKeyDeletion && parts[0] === 'ownership' && isDeletion) continue;
+      if (parts[0] === 'ownership' && isDeletion) {
+        this.ownershipKeyDeletions.push(path);
+        if (this.ignoreOwnershipKeyDeletion) continue;
+      }
       let node = this.source;
       for (const key of parts) node = node[key] ??= {};
       if (last.startsWith('-=')) delete node[last.slice(2)];
@@ -935,7 +943,7 @@ describe('guardedApplyOutcome', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Ownership keys (F5 L3): Foundry 14 ignores deleting one `ownership.<userId>` key
+// Ownership keys (F5 L3): Foundry 14 rejects deleting one `ownership.<userId>` key
 // ---------------------------------------------------------------------------
 
 describe('ownership key removal (F5 L3)', () => {
@@ -945,46 +953,86 @@ describe('ownership key removal (F5 L3)', () => {
     return actor;
   }
 
-  it('replaces the ownership map without the key when the deletion was ignored', async () => {
+  it('replaces the ownership map without the key, in one update', async () => {
     const actor = ownershipActor({ default: 0, u1: 2, u2: 3 });
     const updateSpy = vi.spyOn(actor, 'update');
     const result = await applyGuardedOps(
-      await request([{ kind: 'update', uuid: actor.uuid, changes: {}, unset: ['ownership.u1'] }])
+      await request([{ kind: 'update', uuid: actor.uuid, changes: {}, unset: ['ownership.u1'] }], {
+        mode: 'undo',
+      })
     );
     expect(actor.source.ownership).toEqual({ default: 0, u2: 3 });
-    expect(updateSpy).toHaveBeenCalledTimes(2);
-    expect(updateSpy.mock.calls[1]).toEqual([
-      { ownership: { default: 0, u2: 3 } },
-      { diff: false, recursive: false },
+    expect(updateSpy.mock.calls).toEqual([
+      [{ ownership: { default: 0, u2: 3 } }, { diff: false, recursive: false }],
     ]);
     // The recorded after value reads the final state: the entry is gone.
     expect(result.results[0].after).toContainEqual({ path: 'ownership.u1', present: false });
   });
 
-  it('does the same with the v14 _del marker', async () => {
-    restore();
-    install('14.368');
-    g._del = Object.freeze({ forcedDeletion: true });
-    const actor = ownershipActor({ default: 0, u1: 2 });
-    const updateSpy = vi.spyOn(actor, 'update');
-    await applyGuardedOps(
-      await request([{ kind: 'update', uuid: actor.uuid, changes: {}, unset: ['ownership.u1'] }])
-    );
-    expect(actor.source.ownership).toEqual({ default: 0 });
-    expect(updateSpy).toHaveBeenCalledTimes(2);
-    expect(updateSpy.mock.calls[1][1]).toEqual({ diff: false, recursive: false });
+  it('never sends a per-key ownership deletion (Foundry 14 logs a validation error)', async () => {
+    // Seen live in live:sweep: "ownership: is not a mapping of user IDs and document
+    // permission levels" for both the `-=` key and the v14 `_del` marker.
+    for (const marker of [undefined, Object.freeze({ forcedDeletion: true })]) {
+      restore();
+      install(marker ? '14.368' : '13.351');
+      g._del = marker;
+      const actor = ownershipActor({ default: 0, u1: 2, u2: 3 });
+      await applyGuardedOps(
+        await request([
+          {
+            kind: 'update',
+            uuid: actor.uuid,
+            changes: { 'ownership.u2': 1 },
+            unset: ['ownership.u1'],
+          },
+        ])
+      );
+      expect(actor.ownershipKeyDeletions).toEqual([]);
+      expect(actor.source.ownership).toEqual({ default: 0, u2: 1 });
+    }
   });
 
-  it('removes several ownership keys in the one extra update', async () => {
-    const actor = ownershipActor({ default: 0, u1: 2, u2: 3, u3: 1 });
+  it('applies the other changes first, then replaces the map', async () => {
+    const actor = ownershipActor({ default: 0, u1: 2 });
+    actor.source.flags = { x: { y: 1 } };
     const updateSpy = vi.spyOn(actor, 'update');
     await applyGuardedOps(
       await request([
-        { kind: 'update', uuid: actor.uuid, changes: {}, unset: ['ownership.u1', 'ownership.u3'] },
+        {
+          kind: 'update',
+          uuid: actor.uuid,
+          changes: { 'ownership.u2': 3 },
+          unset: ['ownership.u1', 'flags.x.y'],
+        },
       ])
     );
-    expect(actor.source.ownership).toEqual({ default: 0, u2: 3 });
     expect(updateSpy).toHaveBeenCalledTimes(2);
+    expect(Object.keys(updateSpy.mock.calls[0][0])).not.toContain('ownership.-=u1');
+    expect(updateSpy.mock.calls[1]).toEqual([
+      { ownership: { default: 0, u2: 3 } },
+      { diff: false, recursive: false },
+    ]);
+    expect(actor.source.flags.x).not.toHaveProperty('y');
+  });
+
+  it('removes several ownership keys in the one update', async () => {
+    const actor = ownershipActor({ default: 0, u1: 2, u2: 3, u3: 1 });
+    const updateSpy = vi.spyOn(actor, 'update');
+    await applyGuardedOps(
+      await request(
+        [
+          {
+            kind: 'update',
+            uuid: actor.uuid,
+            changes: {},
+            unset: ['ownership.u1', 'ownership.u3'],
+          },
+        ],
+        { mode: 'undo' }
+      )
+    );
+    expect(actor.source.ownership).toEqual({ default: 0, u2: 3 });
+    expect(updateSpy).toHaveBeenCalledTimes(1);
   });
 
   it('undoes "give a player a level" so the entry is gone again (round trip)', async () => {
@@ -1000,22 +1048,19 @@ describe('ownership key removal (F5 L3)', () => {
     });
     await applyGuardedOps(undo);
     expect(actor.source.ownership).toEqual({ default: 0 });
+    expect(actor.ownershipKeyDeletions).toEqual([]);
   });
 
-  it('makes no extra update when the key is already gone after the update', async () => {
-    // Foundry honoured the deletion (the key is gone), and a missing key was never there.
-    for (const [ignores, ownership] of [
-      [false, { default: 0, u1: 2 }],
-      [true, { default: 0 }],
-    ] as const) {
-      const actor = ownershipActor({ ...ownership }, ignores);
-      const updateSpy = vi.spyOn(actor, 'update');
-      await applyGuardedOps(
-        await request([{ kind: 'update', uuid: actor.uuid, changes: {}, unset: ['ownership.u1'] }])
-      );
-      expect(updateSpy).toHaveBeenCalledTimes(1);
-      expect(actor.source.ownership).toEqual({ default: 0 });
-    }
+  it('makes no update when the key is not there', async () => {
+    const actor = ownershipActor({ default: 0 });
+    const updateSpy = vi.spyOn(actor, 'update');
+    await applyGuardedOps(
+      await request([{ kind: 'update', uuid: actor.uuid, changes: {}, unset: ['ownership.u1'] }], {
+        mode: 'undo',
+      })
+    );
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(actor.source.ownership).toEqual({ default: 0 });
   });
 
   it('makes no extra update when no ownership key is unset', async () => {

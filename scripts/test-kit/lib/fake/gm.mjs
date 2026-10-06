@@ -430,6 +430,77 @@ const ACTIONS = {
 
   exerciseActor: (w, args) => fakeExerciseActor(w, args),
 
+  inspectBuild: (w, args) => {
+    const actor = w.actors.get(args.actorId);
+    if (!actor || !actor.sheet) throw new ToolFailure(`inspectBuild: no actor ${args.actorId}`);
+    return {
+      name: actor.name,
+      level: actor.level,
+      items: actor.items.map(i => ({
+        type: i.type,
+        name: i.name,
+        identifier: i.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        sourceUuid: i.sourceUuid ?? '',
+        origin: null,
+        root: null,
+        prepared: null,
+        quantity: null,
+        level: i.type === 'spell' ? 1 : null,
+      })),
+      advancements: [],
+      skills: Object.fromEntries(
+        Object.entries(actor.sheet.skills ?? {}).map(([id, v]) => [id, v ? 1 : 0])
+      ),
+      saves: { ...(actor.sheet.saves ?? {}) },
+      proficiencies: {
+        languages: [],
+        weapons: [],
+        armor: [],
+        tools: [],
+        damageResistances: [],
+        damageImmunities: [],
+        conditionImmunities: [],
+      },
+      senses: {},
+      movement: { walk: 30 },
+      size: 'med',
+      hp: { max: actor.hp.max, bonuses: {} },
+      ac: { value: 10, calc: 'default' },
+    };
+  },
+
+  // The fake has no Actor Studio window: the studio scenario skips the real driver in the fake.
+  studioPump: (_w, args) =>
+    args.op === 'stop' || args.op === 'status'
+      ? null
+      : {
+          running: false,
+          k: 0,
+          picks: [],
+          warnings: [],
+          errors: [],
+          answered: 0,
+          managersSeen: 0,
+          completed: 0,
+          lastStep: '',
+          lastActivityAt: 0,
+        },
+
+  adoptActor: (w, args) => {
+    const actor = w.actors.get(args.actorId);
+    if (!actor) throw new ToolFailure(`adoptActor: no actor ${args.actorId}`);
+    if (args.name) actor.name = args.name;
+    actor.kit = true;
+    return { ok: true };
+  },
+
+  deleteKitActor: (w, args) => {
+    const actor = w.actors.get(args.actorId);
+    if (!actor) return { deleted: false };
+    w.actors.delete(args.actorId);
+    return { deleted: true };
+  },
+
   consoleErrors: () => ({ errors: [] }),
 };
 

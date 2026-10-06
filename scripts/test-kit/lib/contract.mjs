@@ -325,11 +325,30 @@ export const GM_ACTIONS = {
  * @property {KitManifest} kit        what the builder made
  * @property {import('playwright-core').Page | null} page  the Foundry GM page, for a scenario that must click in a Foundry
  *   window (Actor Studio); null against the fake
+ * @property {KitBrowser | null} browser   dashboard pages in a real Edge (slice 4); null against the fake
  * @property {(message: string) => void} log
  * @property {(name: string, data: unknown) => void} attach   JSON attachment in the report
+ * @property {(name: string, data: Buffer | string, opts?: {type?: string}) => string | null} attachFile
+ *   A file attachment (a screenshot: `type` 'image/png', the default; or text). Written to
+ *   `<report dir>/files/<scenario id>/<name>` (name reduced to [a-z0-9._-]); the report links it and shows
+ *   images. Returns the written path, or null when the run has no report dir (unit tests) or the time is up.
  * @property {(fn: () => Promise<void>) => void} cleanup     runs after the scenario, last in first out
  * @property {boolean} fake           true when running against the fake (CI)
  * @property {'smoke'|'full'|'long'} size   the kit size of this run (additive; scenarios that sample use it)
+ */
+
+/**
+ * Dashboard pages for a scenario (slice 4). Pages are tabs in the GM's Edge (so the dashboard and Foundry
+ * share one browser), or with `fresh` in a separate throwaway headless Edge with no cookies (the login split
+ * pass). The runner closes every page (and a fresh Edge) after the scenario. Every console error and page
+ * error of these pages goes into the report's consoleErrors with `page: 'dashboard'` (or 'player' for a
+ * path starting with /player), and the scenario reads its own with consoleErrors().
+ * @typedef {object} KitBrowser
+ * @property {string} dashboardUrl   e.g. http://localhost:3100 (no trailing slash)
+ * @property {(path?: string, opts?: {fresh?: boolean, viewport?: {width: number, height: number}}) =>
+ *   Promise<import('playwright-core').Page>} open   path relative to dashboardUrl (default '/'); waits for 'load'
+ * @property {(page?: import('playwright-core').Page) => Array<{at: string, message: string, source: string, page: string}>} consoleErrors
+ *   the errors of that page (or of every page this scenario opened) so far, oldest first
  */
 
 /**
@@ -366,7 +385,7 @@ export const GM_ACTIONS = {
  * @property {{size: string, target: {name: string, dashboard: string, foundry: string, world: string}, startedAt: string, finishedAt: string, durationMs: number, gitSha: string, node: string, fake: boolean}} run
  * @property {KitManifest | null} build
  * @property {{passed: number, failed: number, skipped: number, total: number}} summary
- * @property {Array<{at: string, message: string, source: string, scenario?: string}>} consoleErrors
+ * @property {Array<{at: string, message: string, source: string, scenario?: string, page?: string}>} consoleErrors
  *   every console error of the GM page, raw (`scenario` names the scenario it came during)
  * @property {Array<import('./console-errors.mjs').ConsoleGroup>} [consoleGroups]
  *   the same errors grouped by message and place, known ones marked (additive in version 2)
@@ -382,7 +401,8 @@ export const GM_ACTIONS = {
  * @property {number} durationMs
  * @property {StepResult[]} steps
  * @property {string[]} logs
- * @property {Array<{name: string, data: unknown}>} attachments
+ * @property {Array<{name: string, data?: unknown, file?: string, type?: string}>} attachments
+ *   JSON (`data`) or a file (`file`: path relative to the report dir, forward slashes; `type`: media type)
  *
  * @typedef {object} StepResult
  * @property {string} label

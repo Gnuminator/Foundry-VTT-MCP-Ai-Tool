@@ -12,7 +12,8 @@ import { consoleFindingId } from './studio-compare.mjs';
 import { loadExpected } from './studio-expected.mjs';
 
 /**
- * @typedef {{at: string, message: string, source: string, scenario?: string}} RawConsoleError
+ * @typedef {{at: string, message: string, source: string, scenario?: string, page?: string}} RawConsoleError
+ *   page: 'dashboard' or 'player' for a slice 4 page (absent: the Foundry GM page)
  * @typedef {object} ConsoleGroup
  * @property {string} id         the finding id ("console:gas.captureAdvancement")
  * @property {string} message    the first line, with ids and positions stripped

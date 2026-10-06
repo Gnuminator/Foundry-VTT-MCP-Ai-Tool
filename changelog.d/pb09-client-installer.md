@@ -16,6 +16,11 @@
 - **Claude Desktop must be closed** (it rewrites its settings when it quits): the installer asks you
   to quit it from the tray icon and retry, waits up to two minutes in a silent install (exit code 3
   if it is still open) and never closes it. Uninstall removes only the five entries.
+- The settings file is read and written as UTF-8 without a BOM (Windows PowerShell 5.1 would
+  otherwise garble every non-ASCII character), replaced atomically, and only the newest five
+  timestamped backups are kept. The classic `%APPDATA%\Claude` file is created only when no
+  Microsoft Store Claude Desktop was found. Process detection fails closed and ignores Claude Code.
+  The address is a host name, IPv4 address or bracketed IPv6 literal.
 - `configure-claude.ps1` takes `-BridgeHost`, `-BridgePort`, `-Uninstall` and `-ConfigPath` (one file,
   for tests). The batch fallback wrapper, the local `start-server.bat` and `test-connection.bat`
   are gone. The installer ships `node.exe` only (not npm or a second copy of node.exe) and uses LZMA

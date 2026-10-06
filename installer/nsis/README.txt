@@ -27,10 +27,12 @@ SILENT INSTALL
 --------------
   FoundryMCPServer-Setup-vX.Y.Z.exe /S /HOST=<name or IP> [/PORT=31414] [/D=<folder>]
 
-/HOST is required with /S. The installer waits up to two minutes for Claude Desktop to quit; if
-it is still running, the Claude Desktop step is skipped and the exit code is 3. Exit code 2 means
-the address was missing or invalid. /D must be the last parameter and the folder must not be in
-quotes.
+/HOST is required on a first silent install (a later one can reuse the address the installer
+remembered). The installer waits up to two minutes for Claude Desktop to quit; if it is still
+running, the Claude Desktop step is skipped and the exit code is 3. Exit code 2 means the address
+was missing or invalid, and 1 means Claude Desktop could not be configured (see the log below).
+The address is a host name or IP address; an IPv6 address goes in brackets. /D must be the last
+parameter and the folder must not be in quotes.
 
 CHANGING THE ADDRESS
 --------------------

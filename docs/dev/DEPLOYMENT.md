@@ -62,8 +62,10 @@ Foundry module or a local bridge. It asks for the bridge address, which for now 
 name on your private network (for example its Tailscale name); a Cloudflare route is planned.
 
 - **Silent install:** `FoundryMCPServer-Setup-vX.Y.Z.exe /S /HOST=<name or IP> [/PORT=31414]`.
+  `/HOST` is required on a first silent install (a later one reuses the remembered address).
   Exit code 3 means Claude Desktop was still running after two minutes, 2 means the address was
-  missing or invalid.
+  missing or invalid, and 1 means Claude Desktop could not be configured (log:
+  `%TEMP%\foundry-mcp-claude-config.log`).
 - **Claude Desktop must be closed** while the installer writes its settings (Claude Desktop
   rewrites them when it quits). The installer asks you to quit it from the tray icon and retry; it
   never closes it. It backs up each settings file first and keeps every other entry.

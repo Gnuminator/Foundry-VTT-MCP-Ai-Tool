@@ -56,30 +56,45 @@ function Write-LogMessage {
 
 function Test-BridgeHost {
     param([string]$Value)
-    # Host name, IPv4 or bracketed IPv6. No spaces, quotes or shell characters.
-    return ($Value -match '^[A-Za-z0-9._:\[\]-]+$')
+    # A host name or IPv4 address (letters, digits, dots, dashes) or a bracketed IPv6 literal.
+    # No spaces, quotes or shell characters.
+    return ($Value -match '^[A-Za-z0-9.-]+$') -or ($Value -match '^\[[0-9A-Fa-f:.]+\]$')
 }
 
 function Test-BridgePort {
     param([string]$Value)
+    # No leading zero (some tools read it as octal), 1 to 65535.
     $n = 0
-    return ($Value -match '^[0-9]{1,5}$') -and [int]::TryParse($Value, [ref]$n) -and $n -ge 1 -and $n -le 65535
+    return ($Value -match '^[1-9][0-9]{0,4}$') -and [int]::TryParse($Value, [ref]$n) -and $n -le 65535
 }
 
 function Get-ClaudeDesktopProcess {
-    # Claude Code's CLI is also called claude.exe, so look at where the program lives: the classic
-    # install is under AnthropicClaude, the Microsoft Store build under WindowsApps\Claude_*.
-    $found = @()
+    # Claude Code's CLI is also called claude.exe (and a copy lives under the Store package's
+    # Roaming\Claude\claude-code folder), so look at where the program lives: the classic install
+    # is under AnthropicClaude, the Microsoft Store build under WindowsApps\Claude_*.
+    # This fails closed: a claude.exe whose path cannot be read counts as running.
+    $candidates = @()   # objects with Id and Path
     try {
         $procs = Get-CimInstance -ClassName Win32_Process -Filter "Name = 'claude.exe'" -ErrorAction Stop
-        foreach ($p in $procs) {
-            if ($p.ExecutablePath -and $p.ExecutablePath -match 'AnthropicClaude|WindowsApps\\Claude_|\\Packages\\Claude_') {
-                $found += $p
-            }
-        }
+        foreach ($p in $procs) { $candidates += [PSCustomObject]@{ Id = $p.ProcessId; Path = $p.ExecutablePath } }
     }
     catch {
-        Write-LogMessage "Could not list processes: $($_.Exception.Message)" 'WARN'
+        Write-LogMessage "Process list through WMI failed ($($_.Exception.Message)), using Get-Process." 'WARN'
+        foreach ($p in @(Get-Process -Name claude -ErrorAction SilentlyContinue)) {
+            $path = $null
+            try { $path = $p.Path } catch { $path = $null }
+            $candidates += [PSCustomObject]@{ Id = $p.Id; Path = $path }
+        }
+    }
+
+    $found = @()
+    foreach ($c in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($c.Path)) {
+            Write-LogMessage "A claude.exe (process $($c.Id)) has no readable path; counting it as Claude Desktop." 'WARN'
+            $found += $c
+        }
+        elseif ($c.Path -match '\\claude-code\\') { continue }
+        elseif ($c.Path -match 'AnthropicClaude|WindowsApps\\Claude_|\\Packages\\Claude_') { $found += $c }
     }
     return $found
 }
@@ -99,34 +114,36 @@ function Wait-ForClaudeToQuit {
 function Get-ClaudeConfigFiles {
     # Every config file Claude Desktop may read: the classic %APPDATA%\Claude one and, for the
     # Microsoft Store build, the virtualised copy under Packages\Claude_*\LocalCache\Roaming.
-    # Writes every one that exists; when none does, the classic one is created.
+    # Writes every one that exists. The classic file is created only when no Store package was
+    # found: %APPDATA%\Claude also exists on Store-only PCs (Claude Code lives there).
     $files = [System.Collections.Generic.List[string]]::new()
-
-    $classicDir = Join-Path $env:APPDATA 'Claude'
-    $classicFile = Join-Path $classicDir 'claude_desktop_config.json'
-    if ((Test-Path $classicFile) -or (Test-Path $classicDir)) { $files.Add($classicFile) }
+    $classicFile = Join-Path (Join-Path $env:APPDATA 'Claude') 'claude_desktop_config.json'
+    $store = [System.Collections.Generic.List[string]]::new()
 
     $packagesRoot = Join-Path $env:LOCALAPPDATA 'Packages'
     if (Test-Path $packagesRoot) {
         $packages = Get-ChildItem -Path $packagesRoot -Directory -Filter 'Claude_*' -ErrorAction SilentlyContinue
         foreach ($pkg in $packages) {
             $roaming = Join-Path $pkg.FullName 'LocalCache\Roaming'
-            if (Test-Path $roaming) {
-                $files.Add((Join-Path $roaming 'Claude\claude_desktop_config.json'))
-            }
+            if (Test-Path $roaming) { $store.Add((Join-Path $roaming 'Claude\claude_desktop_config.json')) }
         }
     }
 
-    if ($files.Count -eq 0) { $files.Add($classicFile) }
+    if ((Test-Path $classicFile) -or $store.Count -eq 0) { $files.Add($classicFile) }
+    foreach ($f in $store) { $files.Add($f) }
     return $files
 }
 
 function Read-ConfigObject {
-    param([string]$Path)
+    param([string]$Path, [ref]$TextOut)
     # Returns $null for a missing or empty file. Throws for text that is not a JSON object, so a
-    # damaged file is never overwritten (the caller leaves it alone).
+    # damaged file is never overwritten (the caller leaves it alone). The raw text goes to $TextOut.
+    $TextOut.Value = ''
     if (-not (Test-Path $Path)) { return $null }
-    $text = Get-Content -Path $Path -Raw -ErrorAction Stop
+    # Windows PowerShell 5.1 reads a file without a BOM as ANSI, which garbles every non-ASCII
+    # character, so read it as UTF-8 explicitly.
+    $text = [System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8)
+    $TextOut.Value = $text
     if ([string]::IsNullOrWhiteSpace($text)) { return $null }
     try {
         $obj = $text | ConvertFrom-Json -ErrorAction Stop
@@ -151,12 +168,20 @@ function Set-Prop {
 }
 
 function Save-Config {
-    param([string]$Path, $Config)
-    $json = $Config | ConvertTo-Json -Depth 20
+    param([string]$Path, $Config, [string]$OriginalText)
+    $json = $Config | ConvertTo-Json -Depth 100
+    # ConvertTo-Json turns an object nested too deeply into the text "@{...}"; refuse to write that.
+    if ($json.Contains('"@{') -and -not $OriginalText.Contains('"@{')) {
+        throw 'The settings could not be serialised safely (nested data was flattened). The file was not changed.'
+    }
     $null = $json | ConvertFrom-Json   # throws if the text we are about to write is not valid
     $dir = Split-Path -Parent $Path
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    [System.IO.File]::WriteAllText($Path, $json + "`n", [System.Text.UTF8Encoding]::new($false))
+    # Write a temporary file next to it, then replace: a crash never leaves a half-written config.
+    # UTF-8 without a BOM in both PowerShell versions.
+    $tmp = "$Path.tmp"
+    [System.IO.File]::WriteAllText($tmp, $json + "`n", (New-Object System.Text.UTF8Encoding($false)))
+    Move-Item -Path $tmp -Destination $Path -Force
 }
 
 function New-Backup {
@@ -165,13 +190,18 @@ function New-Backup {
     $backup = '{0}.backup-{1}' -f $Path, (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
     Copy-Item -Path $Path -Destination $backup
     Write-LogMessage "Backup: $backup"
+    # Keep the newest five (the stamp sorts by time; Copy-Item keeps the source's file time).
+    $old = @(Get-ChildItem -Path (Split-Path -Parent $Path) -Filter ((Split-Path -Leaf $Path) + '.backup-*') -File -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending | Select-Object -Skip 5)
+    foreach ($f in $old) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue }
     return $backup
 }
 
 function Set-FoundryEntries {
     param([string]$Path, [string]$NodeExe, [string]$ClientScript)
 
-    $config = Read-ConfigObject -Path $Path
+    $original = ''
+    $config = Read-ConfigObject -Path $Path -TextOut ([ref]$original)
     $backup = New-Backup -Path $Path
     if ($null -eq $config) { $config = [PSCustomObject]@{} }
 
@@ -198,7 +228,7 @@ function Set-FoundryEntries {
             foreach ($prop in $servers.$name.env.PSObject.Properties) { $entryEnv[$prop.Name] = $prop.Value }
         }
         $entryEnv['FOUNDRY_AI_TOOL_SETS'] = $ToolSetEntries[$name]
-        $entryEnv['MCP_CONTROL_HOST'] = $BridgeHost
+        $entryEnv['MCP_CONTROL_HOST'] = $script:HostValue
         $entryEnv['MCP_CONTROL_PORT'] = $BridgePort
         $entryEnv['MCP_NO_SPAWN'] = '1'
 
@@ -211,7 +241,7 @@ function Set-FoundryEntries {
     }
 
     try {
-        Save-Config -Path $Path -Config $config
+        Save-Config -Path $Path -Config $config -OriginalText $original
     }
     catch {
         if ($backup) { Copy-Item -Path $backup -Destination $Path -Force }
@@ -223,7 +253,8 @@ function Set-FoundryEntries {
 function Remove-FoundryEntries {
     param([string]$Path)
     if (-not (Test-Path $Path)) { Write-LogMessage "No config file at $Path"; return }
-    $config = Read-ConfigObject -Path $Path
+    $original = ''
+    $config = Read-ConfigObject -Path $Path -TextOut ([ref]$original)
     if ($null -eq $config -or -not ($config.PSObject.Properties.Name -contains 'mcpServers') -or $null -eq $config.mcpServers) {
         Write-LogMessage "No mcpServers in $Path, nothing to remove"
         return
@@ -236,7 +267,7 @@ function Remove-FoundryEntries {
     $backup = New-Backup -Path $Path
     foreach ($name in $present) { $config.mcpServers.PSObject.Properties.Remove($name) }
     try {
-        Save-Config -Path $Path -Config $config
+        Save-Config -Path $Path -Config $config -OriginalText $original
     }
     catch {
         if ($backup) { Copy-Item -Path $backup -Destination $Path -Force }
@@ -250,7 +281,7 @@ function Test-BridgeReachable {
     # is up, so a failure here is a warning, never an error.
     try {
         $client = [System.Net.Sockets.TcpClient]::new()
-        $task = $client.ConnectAsync($BridgeHost, [int]$BridgePort)
+        $task = $client.ConnectAsync($script:HostValue, [int]$BridgePort)
         $ok = $task.Wait(4000) -and $client.Connected
         $client.Close()
         return $ok
@@ -267,7 +298,7 @@ try {
     }
     else {
         if (-not (Test-BridgeHost $BridgeHost)) {
-            Write-LogMessage "Invalid bridge address: '$BridgeHost' (letters, digits, dots, dashes and colons only)" 'ERROR'
+            Write-LogMessage "Invalid bridge address: '$BridgeHost' (letters, digits, dots and dashes, or an IPv6 literal in brackets)" 'ERROR'
             exit 4
         }
         if (-not (Test-BridgePort $BridgePort)) {
@@ -278,7 +309,9 @@ try {
         $clientScript = Join-Path $InstallDir 'foundry-mcp-client\index.cjs'
         if (-not (Test-Path $nodeExe)) { throw "Node.js runtime not found: $nodeExe" }
         if (-not (Test-Path $clientScript)) { throw "Client not found: $clientScript" }
-        Write-LogMessage "Bridge: ${BridgeHost}:${BridgePort}"
+        # An IPv6 literal is written without its brackets (the client takes a bare host).
+        $script:HostValue = $BridgeHost.Trim('[', ']')
+        Write-LogMessage "Bridge: ${script:HostValue}:${BridgePort}"
     }
 
     if (-not $ConfigPath) {

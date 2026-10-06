@@ -76,7 +76,6 @@ VIAddVersionKey "LegalCopyright" "(c) 2024 Foundry MCP Bridge"
 
 ; Finish page
 !define MUI_FINISHPAGE_TITLE "Installation Complete"
-!define MUI_FINISHPAGE_TEXT_NOREBOOTSUPPORT
 !define MUI_FINISHPAGE_TEXT "The client is installed and Claude Desktop has five Foundry AI Tool connectors (Core, Play, Prep, Build, Admin).$\r$\n$\r$\nNext steps:$\r$\n$\r$\n1. Start Claude Desktop (it must have been closed while this ran)$\r$\n2. Make sure your private network (for example Tailscale) is connected$\r$\n3. Open the Search and tools menu and switch the connectors on$\r$\n$\r$\nFor help, see the GitHub repository."
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "Open the Foundry AI Tool GitHub page"
@@ -192,11 +191,26 @@ Function ValidateBridge
     StrCpy $0 "Enter the bridge address: a host name or IP address, for example the name of the server on your private network."
     Return
   ${EndIf}
-  StrCpy $R0 "$BridgeHost"
-  StrCpy $R1 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_:[]"
+  ; A host name or IPv4 address (letters, digits, dots, dashes), or an IPv6 literal in brackets
+  StrCpy $2 "$BridgeHost" 1
+  ${If} $2 == "["
+    StrCpy $3 "$BridgeHost" 1 -1
+    ${If} $3 != "]"
+      StrCpy $0 "An IPv6 address must be written in brackets, like [fd7a::1]."
+      Return
+    ${EndIf}
+    StrCpy $R0 "$BridgeHost" "" 1
+    StrCpy $R0 "$R0" -1
+    StrCpy $R1 "0123456789abcdefABCDEF:."
+  ${Else}
+    StrCpy $R0 "$BridgeHost"
+    StrCpy $R1 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-"
+  ${EndIf}
   Call CharsAllowed
+  StrLen $1 "$R0"
   ${If} $R2 != "1"
-    StrCpy $0 "The bridge address may only contain letters, digits, dots, dashes, underscores and colons. No spaces or quotes."
+  ${OrIf} $1 == 0
+    StrCpy $0 "The bridge address may only contain letters, digits, dots and dashes (or an IPv6 address in brackets). No spaces, quotes or other characters."
     Return
   ${EndIf}
 
@@ -208,9 +222,11 @@ Function ValidateBridge
   StrCpy $R0 "$BridgePort"
   StrCpy $R1 "0123456789"
   Call CharsAllowed
+  StrCpy $2 "$BridgePort" 1
   ${If} $R2 != "1"
   ${OrIf} $1 > 5
-    StrCpy $0 "The port must be a number between 1 and 65535 (the default is 31414)."
+  ${OrIf} $2 == "0"
+    StrCpy $0 "The port must be a number between 1 and 65535 without a leading zero (the default is 31414)."
     Return
   ${EndIf}
   ${If} $BridgePort < 1
@@ -295,14 +311,18 @@ Section "Foundry AI Tool Client" SecMain
   SetOutPath $INSTDIR
 
   ; Remove what older installers put here (local backend, Foundry module helpers)
-  DetailPrint "Cleaning up files from older versions..."
-  RMDir /r "$INSTDIR\foundry-mcp-server"
-  RMDir /r "$INSTDIR\node"
-  RMDir /r "$INSTDIR\node_modules"
-  Delete "$INSTDIR\start-server.bat"
-  Delete "$INSTDIR\test-connection.bat"
-  Delete "$INSTDIR\configure-claude-wrapper.bat"
-  RMDir /r "$SMPROGRAMS\Foundry MCP Server"
+  ; Only in a folder that holds our own earlier install (it has our Uninstall.exe), never in an
+  ; arbitrary folder the user typed.
+  IfFileExists "$INSTDIR\Uninstall.exe" 0 skip_legacy_cleanup
+    DetailPrint "Cleaning up files from older versions..."
+    RMDir /r "$INSTDIR\foundry-mcp-server"
+    RMDir /r "$INSTDIR\node"
+    RMDir /r "$INSTDIR\node_modules"
+    Delete "$INSTDIR\start-server.bat"
+    Delete "$INSTDIR\test-connection.bat"
+    Delete "$INSTDIR\configure-claude-wrapper.bat"
+    RMDir /r "$SMPROGRAMS\Foundry MCP Server"
+  skip_legacy_cleanup:
 
   ; Node.js runtime (only node.exe is needed to run the client)
   DetailPrint "Installing Node.js runtime..."
@@ -392,18 +412,20 @@ Section "Uninstall"
   Delete "$INSTDIR\configure-claude.ps1"
   Delete "$INSTDIR\icon.ico"
 
-  ; Files and folders left by older versions
-  RMDir /r "$INSTDIR\foundry-mcp-server"
-  RMDir /r "$INSTDIR\node"
-  RMDir /r "$INSTDIR\node_modules"
-  Delete "$INSTDIR\configure-claude-wrapper.bat"
-  Delete "$INSTDIR\start-server.bat"
-  Delete "$INSTDIR\test-connection.bat"
-  Delete "$INSTDIR\THIRD_PARTY_NOTICES.txt"
-  Delete "$INSTDIR\start-comfyui.bat"
-  Delete "$INSTDIR\test-comfyui.bat"
-  RMDir /r "$INSTDIR\ComfyUI"
-  RMDir /r "$SMPROGRAMS\Foundry MCP Server"
+  ; Files and folders left by older versions, only where our own Uninstall.exe lives
+  IfFileExists "$INSTDIR\Uninstall.exe" 0 skip_legacy_removal
+    RMDir /r "$INSTDIR\foundry-mcp-server"
+    RMDir /r "$INSTDIR\node"
+    RMDir /r "$INSTDIR\node_modules"
+    Delete "$INSTDIR\configure-claude-wrapper.bat"
+    Delete "$INSTDIR\start-server.bat"
+    Delete "$INSTDIR\test-connection.bat"
+    Delete "$INSTDIR\THIRD_PARTY_NOTICES.txt"
+    Delete "$INSTDIR\start-comfyui.bat"
+    Delete "$INSTDIR\test-comfyui.bat"
+    RMDir /r "$INSTDIR\ComfyUI"
+    RMDir /r "$SMPROGRAMS\Foundry MCP Server"
+  skip_legacy_removal:
 
   RMDir /r "$SMPROGRAMS\Foundry AI Tool Client"
 

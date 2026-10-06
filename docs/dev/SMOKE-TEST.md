@@ -1,70 +1,73 @@
-# v0.16.0 release — live smoke-test checklist (user-driven)
+# Release smoke test: the Windows client installer (user-driven)
 
-This is the final acceptance check for the v0.16.0 release. It must be run **by you**, not from a Claude
-Code session inside Claude Desktop, because **step 3 restarts Claude Desktop**, which ends any session
+The acceptance check for a release's `FoundryMCPServer-Setup-vX.Y.Z.exe`, which installs only the
+Claude Desktop client (Node.js and the MCP client) and points Claude Desktop at a bridge that runs
+on another machine. It must be run **by you**, not from a Claude Code session inside Claude Desktop,
+because the installer needs Claude Desktop closed and **step 3 restarts it**, which ends any session
 running inside it.
 
-> Why you and not the assistant: the MCP server is launched by Claude Desktop. To load the new build,
-> Claude Desktop has to restart — and that terminates the in-app Claude Code session. So the assistant
-> prepares everything; you run the actual restart-and-verify.
+> Why you and not the assistant: Claude Desktop rewrites its settings when it quits, so the installer
+> only writes them while Claude Desktop is closed, and the new connectors load only after a restart.
+> That ends the in-app Claude Code session. The assistant prepares everything; you run the
+> install-and-restart.
 
 ## Before you start
 
-- The GitHub Release for `v0.16.0` exists on
+- The GitHub Release for `vX.Y.Z` exists on
   [Gnuminator/Foundry-VTT-MCP-Ai-Tool](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases)
-  with these assets: `FoundryMCPServer-Setup-v0.16.0.exe`, `foundry-mcp-bridge.zip`,
-  `foundry-mcp-server-v0.16.0.zip`, `module.json`.
-- Close any Foundry world that has the bridge module enabled (you'll re-open it).
+  with these assets: `FoundryMCPServer-Setup-vX.Y.Z.exe`, `foundry-mcp-bridge.zip`,
+  `foundry-mcp-server-vX.Y.Z.zip`, `module.json`.
+- The bridge and Foundry are running on the home server with the module active in the world, and this
+  PC can reach the server over your private network (for example Tailscale is connected).
+- You know the bridge address: the server's name or IP address on that network (port 31414).
 
 ## Checklist
 
-### 1. Install the new MCP server build
+### 1. Close Claude Desktop
 
-- [ ] Download and run `FoundryMCPServer-Setup-v0.16.0.exe` from the v0.16.0 release.
-- [ ] Let it update the Claude Desktop MCP config (or confirm your existing config still points at the
-      installed server).
+- [ ] Quit Claude Desktop completely (right-click its tray icon, **Quit**). The installer will not
+      close it for you.
 
-### 2. Update the Foundry module to the new repo (one-time)
+### 2. Run the installer
 
-- [ ] In Foundry → **Add-on Modules** → **Install Module**, paste the new manifest URL:
-      `https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/releases/latest/download/module.json`
-- [ ] Confirm it installs/updates to **v0.16.0** and the source now reads `Foundry-VTT-MCP-Ai-Tool`.
-      (Full details in [MIGRATION.md](../history/MIGRATION.md).)
+- [ ] Run `FoundryMCPServer-Setup-vX.Y.Z.exe`. On the **Bridge address** page enter the server's name
+      or IP address (leave the port at 31414). An empty address, a space or a quote is refused.
+- [ ] The installer finishes without an error box. If it says Claude Desktop is running, quit it and
+      click **Retry**.
+- [ ] `%TEMP%\foundry-mcp-claude-config.log` says "The bridge answered." (a warning that the bridge did
+      not answer means the address or the private network is wrong).
+- [ ] Claude Desktop's settings file now holds five `foundry-mcp*` entries with
+      `MCP_CONTROL_HOST`, `MCP_CONTROL_PORT` and `MCP_NO_SPAWN`, and your other connectors are still there.
 
-### 3. Restart Claude Desktop
+### 3. Start Claude Desktop
 
-- [ ] Fully quit and reopen Claude Desktop so it reloads the new MCP server.
-      **(This ends any Claude Code session that was running inside it — expected.)**
+- [ ] Start Claude Desktop. In the **Search and tools** menu the five Foundry AI Tool connectors
+      (Core, Play, Prep, Build, Admin) are listed; switch Core on.
+      **(Anything that was running inside Claude Desktop ended when you quit it: expected.)**
 
-### 4. Open Foundry as GM with the bridge enabled
+### 4. Read through Claude
 
-- [ ] Launch the world as the **GM**, with the bridge module enabled.
-- [ ] Confirm the bridge connects — the module reports connected and the loopback ports are live
-      (`31414` control / `31415` Foundry link). No connection errors in the module status.
+- [ ] Ask for something read-only (for example "list the characters in my Foundry world") and confirm it
+      returns live data from the server.
+- [ ] Open the dashboard on the server and confirm the live feed shows the request.
 
-### 5. Verify the dashboard
+### 5. Uninstall (optional)
 
-- [ ] Open the dashboard.
-- [ ] Confirm the **live feed** populates (session events appear).
-- [ ] Confirm a **read tool** returns data (e.g. current scene / character list / world info shows real
-      values, not an error).
-
-### 6. (Optional) One read via Claude
-
-- [ ] In Claude Desktop, ask for something read-only (e.g. "list the characters in my Foundry world")
-      and confirm it returns live data through the new server.
+- [ ] With Claude Desktop closed, uninstall from Windows Settings, Apps. Only the five Foundry AI Tool
+      entries disappear from Claude Desktop's settings; other connectors stay.
 
 ## Pass / fail
 
-- **PASS** — bridge connects on `31414`/`31415`, the dashboard's live feed updates, and a read tool
-  returns real data. Record the result and close out Phase 5.
-- **FAIL** — note exactly which step failed (and any console/module error text) and report back; a fresh
-  Claude Code session can diagnose from there. Common first suspects: manifest/download URL mismatch
-  (404 on install), Claude Desktop not actually restarted, or the module not enabled in the world.
+- **PASS:** the connectors appear, a read tool returns real data from the server, and the dashboard's
+  live feed updates. Record the result.
+- **FAIL:** note exactly which step failed and any text from the log
+  (`%TEMP%\foundry-mcp-claude-config.log`) and report back; a fresh Claude Code session can diagnose
+  from there. Common first suspects: wrong address or Tailscale not connected ("The Foundry AI Tool
+  bridge is not reachable" in Claude), Claude Desktop still running during the install (the
+  connectors are missing), or the module not enabled in the world.
 
 ## Notes
 
-- The assistant **cannot** observe steps 3–6 (the restart ends its session) — that's by design. Report
-  back, or start a fresh session to verify.
-- Do **not** run a second backend from a dev session during the test — it would bind `31414`/`31415` and
-  collide with the live bridge.
+- The assistant **cannot** observe steps 3 to 5 (the restart ends its session). Report back, or start a
+  fresh session to verify.
+- For a silent install use `/S /HOST=<name or IP>` (see `installer/nsis/README.txt`).

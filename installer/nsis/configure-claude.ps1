@@ -1,387 +1,366 @@
+<#
+.SYNOPSIS
+  Points Claude Desktop at a Foundry AI Tool bridge that runs on another machine.
+
+.DESCRIPTION
+  Adds (or updates) the five Foundry AI Tool entries in Claude Desktop's config file
+  (foundry-mcp, foundry-mcp-play, -prep, -build, -admin). Every entry runs the bundled client
+  with MCP_CONTROL_HOST, MCP_CONTROL_PORT and MCP_NO_SPAWN=1, so it only connects to the remote
+  bridge and never starts a backend on this PC. Every other entry and key in the file is kept.
+  A timestamped backup is made before each write.
+
+  -Uninstall removes only those five entries.
+
+  Exit codes: 0 done, 1 failed, 3 Claude Desktop is still running, 4 invalid address.
+#>
+[CmdletBinding(DefaultParameterSetName = 'Configure')]
 param(
-    [Parameter(Mandatory=$true)]
-    [string]$InstallDir
+    [Parameter(Mandatory = $true, ParameterSetName = 'Configure')]
+    [string]$InstallDir,
+
+    [Parameter(Mandatory = $true, ParameterSetName = 'Configure')]
+    [string]$BridgeHost,
+
+    [Parameter(ParameterSetName = 'Configure')]
+    [string]$BridgePort = '31414',
+
+    [Parameter(Mandatory = $true, ParameterSetName = 'Uninstall')]
+    [switch]$Uninstall,
+
+    # Write only this file (for tests). Skips the "is Claude running" check.
+    [string]$ConfigPath,
+
+    # How long to wait for Claude Desktop to quit before giving up (exit 3). 0 = do not wait.
+    [int]$WaitSeconds = 0
 )
 
-# Configure Claude Desktop for Foundry MCP Server
-# This script safely merges MCP server configuration into existing Claude Desktop config
+$ErrorActionPreference = 'Stop'
 
-$ErrorActionPreference = "Stop"
+$LogFile = Join-Path $env:TEMP 'foundry-mcp-claude-config.log'
 
-# Enhanced logging with file output
-$LogFile = Join-Path $env:TEMP "foundry-mcp-claude-config.log"
+# Entry name -> tool set it serves (tool-sets.ts). "foundry-mcp" keeps its old name and serves core.
+$ToolSetEntries = [ordered]@{
+    'foundry-mcp'       = 'core'
+    'foundry-mcp-play'  = 'play'
+    'foundry-mcp-prep'  = 'prep'
+    'foundry-mcp-build' = 'build'
+    'foundry-mcp-admin' = 'admin'
+}
 
 function Write-LogMessage {
-    param([string]$Message, [string]$Level = "INFO")
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logEntry = "[$timestamp] [$Level] $Message"
-    Write-Host $logEntry
-    Add-Content -Path $LogFile -Value $logEntry -ErrorAction SilentlyContinue
+    param([string]$Message, [string]$Level = 'INFO')
+    $line = '[{0}] [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message
+    Write-Host $line
+    Add-Content -Path $LogFile -Value $line -ErrorAction SilentlyContinue
 }
 
-function Test-JsonValid {
-    param([string]$JsonString)
+function Test-BridgeHost {
+    param([string]$Value)
+    # A host name or IPv4 address (letters, digits, dots, dashes) or a bracketed IPv6 literal.
+    # No spaces, quotes or shell characters.
+    return ($Value -match '^[A-Za-z0-9.-]+$') -or ($Value -match '^\[[0-9A-Fa-f:.]+\]$')
+}
+
+function Test-BridgePort {
+    param([string]$Value)
+    # No leading zero (some tools read it as octal), 1 to 65535.
+    $n = 0
+    return ($Value -match '^[1-9][0-9]{0,4}$') -and [int]::TryParse($Value, [ref]$n) -and $n -le 65535
+}
+
+function Get-ClaudeDesktopProcess {
+    # Claude Code's CLI is also called claude.exe (and a copy lives under the Store package's
+    # Roaming\Claude\claude-code folder), so look at where the program lives: the classic install
+    # is under AnthropicClaude, the Microsoft Store build under WindowsApps\Claude_*.
+    # This fails closed: a claude.exe whose path cannot be read counts as running.
+    # Another Windows user's session (a second logged-in user) has its own config, so only this
+    # session's processes count.
+    $mySession = (Get-Process -Id $PID).SessionId
+    $candidates = @()   # objects with Id, Path and SessionId
     try {
-        $JsonString | ConvertFrom-Json | Out-Null
-        return $true
+        $procs = Get-CimInstance -ClassName Win32_Process -Filter "Name = 'claude.exe'" -ErrorAction Stop
+        foreach ($p in $procs) {
+            $candidates += [PSCustomObject]@{ Id = $p.ProcessId; Path = $p.ExecutablePath; SessionId = $p.SessionId }
+        }
     }
     catch {
-        return $false
-    }
-}
-
-function Get-ClaudeConfigTargets {
-    # Returns the list of Claude Desktop config directories to configure.
-    #
-    # Standalone Claude Desktop reads %APPDATA%\Claude\.
-    # The Microsoft Store (MSIX) build is filesystem-virtualised and reads
-    # from a sandboxed container instead:
-    #   %LOCALAPPDATA%\Packages\<PackageFamilyName>\LocalCache\Roaming\Claude\
-    # Writing only to %APPDATA% silently fails for Store installs (issue #40),
-    # so we configure every location that exists (or plausibly should).
-
-    $targets = [System.Collections.Generic.List[object]]::new()
-
-    # 1. Standard standalone path (always a candidate)
-    $standardDir = Join-Path $env:APPDATA "Claude"
-    $targets.Add([PSCustomObject]@{
-        Kind   = "Standalone"
-        Dir    = $standardDir
-        Create = $true   # safe to create if missing — standalone reads it
-    })
-
-    # 2. MSIX virtualised path(s). The package family name contains "Claude"
-    #    but the exact id varies, so glob for it.
-    $packagesRoot = Join-Path $env:LOCALAPPDATA "Packages"
-    if (Test-Path $packagesRoot) {
-        $claudePackages = Get-ChildItem -Path $packagesRoot -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -like "*Claude*" }
-        foreach ($pkg in $claudePackages) {
-            $virtualDir = Join-Path $pkg.FullName "LocalCache\Roaming\Claude"
-            $targets.Add([PSCustomObject]@{
-                Kind   = "MSIX ($($pkg.Name))"
-                Dir    = $virtualDir
-                # Only create if the package's LocalCache\Roaming exists — that
-                # confirms it's a real installed Claude container, not noise.
-                Create = (Test-Path (Join-Path $pkg.FullName "LocalCache\Roaming"))
-            })
+        Write-LogMessage "Process list through WMI failed ($($_.Exception.Message)), using Get-Process." 'WARN'
+        foreach ($p in @(Get-Process -Name claude -ErrorAction SilentlyContinue)) {
+            $path = $null
+            try { $path = $p.Path } catch { $path = $null }
+            $candidates += [PSCustomObject]@{ Id = $p.Id; Path = $path; SessionId = $p.SessionId }
         }
     }
 
-    return $targets
+    $found = @()
+    foreach ($c in $candidates) {
+        if ($null -ne $c.SessionId -and [int]$c.SessionId -ne [int]$mySession) { continue }
+        if ([string]::IsNullOrWhiteSpace($c.Path)) {
+            Write-LogMessage "A claude.exe (process $($c.Id)) has no readable path; counting it as Claude Desktop." 'WARN'
+            $found += $c
+        }
+        elseif ($c.Path -match '\\claude-code\\') { continue }
+        elseif ($c.Path -match 'AnthropicClaude|WindowsApps\\Claude_|\\Packages\\Claude_') { $found += $c }
+    }
+    return $found
 }
 
-function Get-ConfigFileState {
-    param([string]$ConfigPath)
+function Wait-ForClaudeToQuit {
+    # Claude Desktop rewrites its config when it exits, which would undo our change, so we never
+    # write while it runs and never kill it: the user quits it from the tray icon.
+    $deadline = (Get-Date).AddSeconds($WaitSeconds)
+    while ($true) {
+        $running = Get-ClaudeDesktopProcess
+        if (-not $running -or $running.Count -eq 0) { return $true }
+        if ((Get-Date) -ge $deadline) { return $false }
+        Start-Sleep -Seconds 2
+    }
+}
 
-    if (-not (Test-Path $ConfigPath)) {
-        return "Missing"
+function Get-ClaudeConfigFiles {
+    # Every config file Claude Desktop may read: the classic %APPDATA%\Claude one and, for the
+    # Microsoft Store build, the virtualised copy under Packages\Claude_*\LocalCache\Roaming.
+    # Writes every one that exists. The classic file is created only when no Store package was
+    # found: %APPDATA%\Claude also exists on Store-only PCs (Claude Code lives there).
+    $files = [System.Collections.Generic.List[string]]::new()
+    $classicFile = Join-Path (Join-Path $env:APPDATA 'Claude') 'claude_desktop_config.json'
+    $store = [System.Collections.Generic.List[string]]::new()
+
+    $packagesRoot = Join-Path $env:LOCALAPPDATA 'Packages'
+    if (Test-Path $packagesRoot) {
+        $packages = Get-ChildItem -Path $packagesRoot -Directory -Filter 'Claude_*' -ErrorAction SilentlyContinue
+        foreach ($pkg in $packages) {
+            $roaming = Join-Path $pkg.FullName 'LocalCache\Roaming'
+            if (Test-Path $roaming) { $store.Add((Join-Path $roaming 'Claude\claude_desktop_config.json')) }
+        }
     }
-    
-    $content = Get-Content $ConfigPath -Raw -ErrorAction SilentlyContinue
-    if (-not $content) {
-        return "Empty"
+
+    if ((Test-Path $classicFile) -or $store.Count -eq 0) { $files.Add($classicFile) }
+    foreach ($f in $store) { $files.Add($f) }
+    return $files
+}
+
+function Read-ConfigObject {
+    param([string]$Path, [ref]$TextOut)
+    # Returns $null for a missing or empty file. Throws for text that is not a JSON object, so a
+    # damaged file is never overwritten (the caller leaves it alone). The raw text goes to $TextOut.
+    $TextOut.Value = ''
+    if (-not (Test-Path $Path)) { return $null }
+    # Windows PowerShell 5.1 reads a file without a BOM as ANSI, which garbles every non-ASCII
+    # character, so read it as UTF-8 explicitly.
+    $text = [System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8)
+    $TextOut.Value = $text
+    if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+    try {
+        $obj = $text | ConvertFrom-Json -ErrorAction Stop
     }
-    
-    $content = $content.Trim()
-    
-    # Check for common corruption patterns
-    if ($content -eq "{") {
-        return "PartialOpen"
+    catch {
+        throw "$Path is not valid JSON ($($_.Exception.Message)). Fix or delete it, then run the installer again."
     }
-    if ($content -eq "}") {
-        return "PartialClose" 
+    if ($obj -isnot [System.Management.Automation.PSCustomObject]) {
+        throw "$Path does not hold a JSON object."
     }
-    if ($content.StartsWith("{") -and -not $content.EndsWith("}")) {
-        return "IncompleteJSON"
-    }
-    if (-not $content.StartsWith("{")) {
-        return "InvalidFormat"
-    }
-    
-    # Test if it's valid JSON
-    if (Test-JsonValid $content) {
-        return "ValidJSON"
+    return $obj
+}
+
+function Set-Prop {
+    param($Object, [string]$Name, $Value)
+    if ($Object.PSObject.Properties.Name -contains $Name) {
+        $Object.$Name = $Value
     }
     else {
-        return "CorruptedJSON"
+        $Object | Add-Member -MemberType NoteProperty -Name $Name -Value $Value
     }
 }
 
-
-function Set-FoundryMcpConfig {
-    param(
-        [Parameter(Mandatory=$true)][string]$ConfigPath,
-        [Parameter(Mandatory=$true)][string]$NodeExe,
-        [Parameter(Mandatory=$true)][string]$McpServer
-    )
-
-    # Analyze and handle existing configuration
-    $config = $null
-    $backupPath = $null
-
-    $fileState = Get-ConfigFileState $ConfigPath
-    Write-LogMessage "Claude config file state: $fileState"
-
-    switch ($fileState) {
-        "Missing" {
-            Write-LogMessage "No existing configuration found, creating new..."
-            $config = [PSCustomObject]@{
-                mcpServers = [PSCustomObject]@{}
-            }
-        }
-        
-        { $_ -in "Empty", "PartialOpen", "PartialClose", "IncompleteJSON", "InvalidFormat", "CorruptedJSON" } {
-            Write-LogMessage "Configuration file is corrupted ($fileState), recreating from scratch..."
-            
-            # Create backup of corrupted file for troubleshooting
-            if (Test-Path $configPath) {
-                $backupPath = "$configPath.corrupted-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-                Copy-Item $configPath $backupPath
-                Write-LogMessage "Backed up corrupted file: $backupPath"
-            }
-            
-            # Create fresh configuration
-            $config = [PSCustomObject]@{
-                mcpServers = [PSCustomObject]@{}
-            }
-        }
-        
-        "ValidJSON" {
-            Write-LogMessage "Reading existing valid configuration..."
-            
-            # Create backup
-            $backupPath = "$configPath.backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-            Copy-Item $configPath $backupPath
-            Write-LogMessage "Created backup: $backupPath"
-            
-            try {
-                $configContent = Get-Content $configPath -Raw
-                $config = $configContent | ConvertFrom-Json
-                Write-LogMessage "Existing configuration loaded successfully"
-                
-                # Log basic structure (not full content to avoid huge logs)
-                $propCount = $config.PSObject.Properties.Name.Count
-                Write-LogMessage "Configuration has $propCount top-level properties"
-            }
-            catch {
-                Write-LogMessage "Failed to parse supposedly valid JSON, recreating..." "ERROR"
-                $config = [PSCustomObject]@{
-                    mcpServers = [PSCustomObject]@{}
-                }
-            }
-        }
+function Save-Config {
+    param([string]$Path, $Config, [string]$OriginalText)
+    $json = $Config | ConvertTo-Json -Depth 100
+    # ConvertTo-Json turns an object nested too deeply into the text "@{...}"; refuse to write that.
+    if ($json.Contains('"@{') -and -not $OriginalText.Contains('"@{')) {
+        throw 'The settings could not be serialised safely (nested data was flattened). The file was not changed.'
     }
-    
-    # Ensure mcpServers section exists and is valid
-    if (-not $config.PSObject.Properties.Name -contains "mcpServers" -or $null -eq $config.mcpServers) {
-        Write-LogMessage "Adding mcpServers section to configuration..."
-        if ($config.PSObject.Properties.Name -contains "mcpServers") {
-            $config.mcpServers = [PSCustomObject]@{}
-        } else {
-            $config | Add-Member -Type NoteProperty -Name "mcpServers" -Value ([PSCustomObject]@{})
-        }
+    $null = $json | ConvertFrom-Json   # throws if the text we are about to write is not valid
+    $dir = Split-Path -Parent $Path
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    # Write a temporary file next to it, then replace: a crash never leaves a half-written config.
+    # UTF-8 without a BOM in both PowerShell versions.
+    $tmp = "$Path.tmp"
+    try {
+        [System.IO.File]::WriteAllText($tmp, $json + "`n", (New-Object System.Text.UTF8Encoding($false)))
+        Move-Item -Path $tmp -Destination $Path -Force -ErrorAction Stop
     }
-    
-    # Configure Foundry MCP Server: one Claude Desktop entry per tool set (PB-12), so the GM can
-    # switch sets on and off in Claude Desktop's "Search and tools" menu. All entries share one
-    # bridge. "foundry-mcp" keeps its old name and serves the core set.
-    Write-LogMessage "Configuring Foundry MCP Server (one entry per tool set)..."
-
-    $toolSetEntries = [ordered]@{
-        "foundry-mcp"       = "core"
-        "foundry-mcp-play"  = "play"
-        "foundry-mcp-prep"  = "prep"
-        "foundry-mcp-build" = "build"
-        "foundry-mcp-admin" = "admin"
+    catch {
+        if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+        throw
     }
+}
 
-    # Keep settings the user added to the old entry (e.g. MCP_CONTROL_HOST for a bridge on the Pi)
-    # and give them to every entry.
+function New-Backup {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return $null }
+    $backup = '{0}.backup-{1}' -f $Path, (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
+    Copy-Item -Path $Path -Destination $backup
+    Write-LogMessage "Backup: $backup"
+    # Keep the newest five (the stamp sorts by time; Copy-Item keeps the source's file time).
+    # Only files in exactly the format this script writes; look-alikes made by hand are left alone.
+    $pattern = '^' + [regex]::Escape((Split-Path -Leaf $Path)) + '\.backup-\d{8}-\d{6}-\d{3}$'
+    $old = @(Get-ChildItem -Path (Split-Path -Parent $Path) -Filter ((Split-Path -Leaf $Path) + '.backup-*') -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -cmatch $pattern } |
+        Sort-Object Name -Descending | Select-Object -Skip 5)
+    foreach ($f in $old) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue }
+    return $backup
+}
+
+function Set-FoundryEntries {
+    param([string]$Path, [string]$NodeExe, [string]$ClientScript)
+
+    $original = ''
+    $config = Read-ConfigObject -Path $Path -TextOut ([ref]$original)
+    $backup = New-Backup -Path $Path
+    if ($null -eq $config) { $config = [PSCustomObject]@{} }
+
+    if (-not ($config.PSObject.Properties.Name -contains 'mcpServers') -or $null -eq $config.mcpServers) {
+        Set-Prop $config 'mcpServers' ([PSCustomObject]@{})
+    }
+    $servers = $config.mcpServers
+
+    # Settings the user added to the old "foundry-mcp" entry (for example FOUNDRY_AI_OBSIDIAN_DIR)
+    # go to every entry that lacks them.
     $sharedEnv = [ordered]@{}
-    if ($config.mcpServers.PSObject.Properties.Name -contains "foundry-mcp" -and $config.mcpServers."foundry-mcp".env) {
-        foreach ($prop in $config.mcpServers."foundry-mcp".env.PSObject.Properties) {
-            if ($prop.Name -ne "FOUNDRY_AI_TOOL_SETS") { $sharedEnv[$prop.Name] = $prop.Value }
+    if ($servers.PSObject.Properties.Name -contains 'foundry-mcp' -and $servers.'foundry-mcp'.env) {
+        foreach ($prop in $servers.'foundry-mcp'.env.PSObject.Properties) {
+            if ($prop.Name -notin 'FOUNDRY_AI_TOOL_SETS', 'MCP_CONTROL_HOST', 'MCP_CONTROL_PORT', 'MCP_NO_SPAWN') {
+                $sharedEnv[$prop.Name] = $prop.Value
+            }
         }
     }
 
-    foreach ($entryName in $toolSetEntries.Keys) {
+    foreach ($name in $ToolSetEntries.Keys) {
         $entryEnv = [ordered]@{}
-        foreach ($key in $sharedEnv.Keys) { $entryEnv[$key] = $sharedEnv[$key] }
-        $entryEnv["FOUNDRY_AI_TOOL_SETS"] = $toolSetEntries[$entryName]
+        foreach ($k in $sharedEnv.Keys) { $entryEnv[$k] = $sharedEnv[$k] }
+        if ($servers.PSObject.Properties.Name -contains $name -and $servers.$name.env) {
+            foreach ($prop in $servers.$name.env.PSObject.Properties) { $entryEnv[$prop.Name] = $prop.Value }
+        }
+        $entryEnv['FOUNDRY_AI_TOOL_SETS'] = $ToolSetEntries[$name]
+        $entryEnv['MCP_CONTROL_HOST'] = $script:HostValue
+        $entryEnv['MCP_CONTROL_PORT'] = $BridgePort
+        $entryEnv['MCP_NO_SPAWN'] = '1'
 
-        $entryConfig = [PSCustomObject]@{
-            command = $nodeExe
-            args = @($mcpServer)
-            env = [PSCustomObject]$entryEnv
+        $entry = [PSCustomObject]@{
+            command = $NodeExe
+            args    = @($ClientScript)
+            env     = [PSCustomObject]$entryEnv
         }
+        Set-Prop $servers $name $entry
+    }
 
-        if ($config.mcpServers.PSObject.Properties.Name -contains $entryName) {
-            Write-LogMessage "Updating existing $entryName configuration..."
-            $config.mcpServers.$entryName = $entryConfig
-        }
-        else {
-            Write-LogMessage "Adding new $entryName configuration..."
-            $config.mcpServers | Add-Member -Type NoteProperty -Name $entryName -Value $entryConfig
-        }
-    }
-    
-    # Convert to JSON with proper formatting for Claude Desktop
-    Write-LogMessage "Generating new configuration JSON..."
-    
-    # Use PowerShell's ConvertTo-Json - it handles escaping correctly
-    $newConfigJson = $config | ConvertTo-Json -Depth 10
-    
-    # Validate generated JSON
-    if (-not (Test-JsonValid $newConfigJson)) {
-        throw "Generated configuration JSON is invalid"
-    }
-    
-    Write-LogMessage "Generated configuration validated"
-    
-    # Write new configuration
     try {
-        # Use UTF8 without BOM for better compatibility
-        [System.IO.File]::WriteAllText($configPath, $newConfigJson, [System.Text.UTF8Encoding]::new($false))
-        Write-LogMessage "Claude Desktop configuration updated successfully"
+        Save-Config -Path $Path -Config $config -OriginalText $original
     }
     catch {
-        # Restore backup if write failed
-        if ($backupPath -and (Test-Path $backupPath)) {
-            Write-LogMessage "Write failed, restoring backup..."
-            Copy-Item $backupPath $configPath -Force
-        }
-        throw "Failed to write Claude Desktop configuration: $($_.Exception.Message)"
+        if ($backup) { Copy-Item -Path $backup -Destination $Path -Force }
+        throw "Could not write ${Path}: $($_.Exception.Message)"
     }
-    
-    # Verify written file is valid
-    try {
-        $verification = Get-Content $configPath -Raw | ConvertFrom-Json
-        Write-LogMessage "Written configuration verified"
-    }
-    catch {
-        # Restore backup if verification failed
-        if ($backupPath -and (Test-Path $backupPath)) {
-            Write-LogMessage "Verification failed, restoring backup..."
-            Copy-Item $backupPath $configPath -Force
-        }
-        throw "Written configuration file is invalid: $($_.Exception.Message)"
-    }
-
-    Write-LogMessage "Configuration written and verified for: $configPath"
+    Write-LogMessage "Configured: $Path"
 }
+
+function Remove-FoundryEntries {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { Write-LogMessage "No config file at $Path"; return }
+    $original = ''
+    $config = Read-ConfigObject -Path $Path -TextOut ([ref]$original)
+    if ($null -eq $config -or -not ($config.PSObject.Properties.Name -contains 'mcpServers') -or $null -eq $config.mcpServers) {
+        Write-LogMessage "No mcpServers in $Path, nothing to remove"
+        return
+    }
+    $present = @($ToolSetEntries.Keys | Where-Object { $config.mcpServers.PSObject.Properties.Name -contains $_ })
+    if ($present.Count -eq 0) {
+        Write-LogMessage "None of the Foundry AI Tool entries are in $Path"
+        return
+    }
+    $backup = New-Backup -Path $Path
+    foreach ($name in $present) { $config.mcpServers.PSObject.Properties.Remove($name) }
+    try {
+        Save-Config -Path $Path -Config $config -OriginalText $original
+    }
+    catch {
+        if ($backup) { Copy-Item -Path $backup -Destination $Path -Force }
+        throw "Could not write ${Path}: $($_.Exception.Message)"
+    }
+    Write-LogMessage "Removed $($present.Count) entries from $Path"
+}
+
+function Test-BridgeReachable {
+    # Informational only: the bridge may be reachable only once the private network (Tailscale)
+    # is up, so a failure here is a warning, never an error.
+    try {
+        $client = [System.Net.Sockets.TcpClient]::new()
+        $task = $client.ConnectAsync($script:HostValue, [int]$BridgePort)
+        $ok = $task.Wait(4000) -and $client.Connected
+        $client.Close()
+        return $ok
+    }
+    catch { return $false }
+}
+
 try {
-    Write-LogMessage "=============================================="
-    Write-LogMessage "Starting Claude Desktop configuration..."
-    Write-LogMessage "=============================================="
-    Write-LogMessage "Log file location: $LogFile"
-    Write-LogMessage "PowerShell version: $($PSVersionTable.PSVersion)"
-    Write-LogMessage "Current user: $($env:USERNAME)"
-    Write-LogMessage "Install directory: $InstallDir"
-    Write-LogMessage "APPDATA: $($env:APPDATA)"
-    Write-LogMessage "Script parameters: $($PSBoundParameters | ConvertTo-Json)"
-    
-    # Validate installation directory exists
-    if (-not (Test-Path $InstallDir)) {
-        throw "Installation directory does not exist: $InstallDir"
+    Write-LogMessage '=============================================='
+    Write-LogMessage ("Foundry AI Tool, Claude Desktop {0}" -f $(if ($Uninstall) { 'cleanup' } else { 'setup' }))
+
+    if ($Uninstall) {
+        # no address to check
     }
-    
-    # Validate required files exist
-    $nodeExe = Join-Path $InstallDir "node.exe"
-    $mcpServer = Join-Path $InstallDir "foundry-mcp-server\packages\mcp-server\dist\index.cjs"
-    
-    if (-not (Test-Path $nodeExe)) {
-        throw "Node.js executable not found: $nodeExe"
-    }
-    
-    if (-not (Test-Path $mcpServer)) {
-        throw "MCP server not found: $mcpServer"
-    }
-    
-    Write-LogMessage "Installation files validated"
-
-    # Determine all Claude Desktop config locations (standalone + MSIX/Store)
-    $targets = Get-ClaudeConfigTargets
-    Write-LogMessage "Discovered $($targets.Count) potential Claude config location(s)"
-
-    $configuredCount = 0
-    $skippedCount = 0
-    $failures = [System.Collections.Generic.List[string]]::new()
-
-    foreach ($target in $targets) {
-        $claudeConfigDir = $target.Dir
-        $configPath = Join-Path $claudeConfigDir "claude_desktop_config.json"
-
-        Write-LogMessage "----------------------------------------------"
-        Write-LogMessage "Target: $($target.Kind)"
-        Write-LogMessage "Claude config path: $configPath"
-
-        $dirExists = Test-Path $claudeConfigDir
-        if (-not $dirExists) {
-            if (-not $target.Create) {
-                Write-LogMessage "Directory missing and not eligible for creation, skipping this target."
-                $skippedCount++
-                continue
-            }
-            Write-LogMessage "Creating Claude Desktop directory..."
-            try {
-                New-Item -ItemType Directory -Path $claudeConfigDir -Force | Out-Null
-            }
-            catch {
-                Write-LogMessage "Failed to create directory: $($_.Exception.Message)" "ERROR"
-                $failures.Add("$($target.Kind): could not create config directory")
-                continue
-            }
+    else {
+        if (-not (Test-BridgeHost $BridgeHost)) {
+            Write-LogMessage "Invalid bridge address: '$BridgeHost' (letters, digits, dots and dashes, or an IPv6 literal in brackets)" 'ERROR'
+            exit 4
         }
+        if (-not (Test-BridgePort $BridgePort)) {
+            Write-LogMessage "Invalid bridge port: '$BridgePort' (1 to 65535)" 'ERROR'
+            exit 4
+        }
+        $nodeExe = Join-Path $InstallDir 'node.exe'
+        $clientScript = Join-Path $InstallDir 'foundry-mcp-client\index.cjs'
+        if (-not (Test-Path $nodeExe)) { throw "Node.js runtime not found: $nodeExe" }
+        if (-not (Test-Path $clientScript)) { throw "Client not found: $clientScript" }
+        # An IPv6 literal is written without its brackets (the client takes a bare host).
+        $script:HostValue = $BridgeHost.Trim('[', ']')
+        Write-LogMessage "Bridge: ${script:HostValue}:${BridgePort}"
+    }
 
+    if (-not $ConfigPath) {
+        if (-not (Wait-ForClaudeToQuit)) {
+            Write-LogMessage 'Claude Desktop is running. Quit it from the tray icon (right-click, Quit), then run this again.' 'WARN'
+            exit 3
+        }
+    }
+
+    $files = if ($ConfigPath) { @($ConfigPath) } else { @(Get-ClaudeConfigFiles) }
+    $failures = @()
+    foreach ($file in $files) {
+        Write-LogMessage "Config file: $file"
         try {
-            Set-FoundryMcpConfig -ConfigPath $configPath -NodeExe $nodeExe -McpServer $mcpServer
-            $configuredCount++
-            Write-LogMessage "Configured: $($target.Kind)"
+            if ($Uninstall) { Remove-FoundryEntries -Path $file }
+            else { Set-FoundryEntries -Path $file -NodeExe $nodeExe -ClientScript $clientScript }
         }
         catch {
-            Write-LogMessage "Failed to configure $($target.Kind): $($_.Exception.Message)" "ERROR"
-            $failures.Add("$($target.Kind): $($_.Exception.Message)")
+            Write-LogMessage $_.Exception.Message 'ERROR'
+            $failures += $file
         }
     }
+    if ($failures.Count -eq $files.Count) { throw 'No Claude Desktop config file could be updated.' }
+    if ($failures.Count -gt 0) { Write-LogMessage "Some files failed: $($failures -join '; ')" 'WARN' }
 
-    Write-LogMessage "=============================================="
-    Write-LogMessage "Configured $configuredCount location(s), skipped $skippedCount."
-
-    if ($configuredCount -eq 0) {
-        throw "No Claude Desktop configuration locations could be configured. Failures: $($failures -join '; ')"
+    if (-not $Uninstall) {
+        if (Test-BridgeReachable) { Write-LogMessage 'The bridge answered.' }
+        else { Write-LogMessage "The bridge at ${BridgeHost}:${BridgePort} did not answer from this PC. Check the address and that your private network (for example Tailscale) is connected." 'WARN' }
+        Write-LogMessage 'Restart Claude Desktop to load the new entries.'
     }
-
-    if ($failures.Count -gt 0) {
-        Write-LogMessage "Some locations failed but at least one succeeded: $($failures -join '; ')" "WARN"
-    }
-
-    Write-LogMessage "Claude Desktop configuration completed successfully"
-    Write-LogMessage "Please restart Claude Desktop to load the new configuration"
-
     exit 0
 }
 catch {
-    $errorMsg = $_.Exception.Message
-    Write-LogMessage "Configuration failed: $errorMsg" "ERROR"
-    Write-LogMessage "Full exception details: $($_.Exception | ConvertTo-Json -Depth 3)" "ERROR"
-    Write-LogMessage "Stack trace: $($_.ScriptStackTrace)" "ERROR"
-    Write-LogMessage "The Claude Desktop configuration was not modified" "ERROR"
-    Write-LogMessage "=============================================="
-    Write-LogMessage "For detailed error information, check: $LogFile" "ERROR"
-    Write-LogMessage "=============================================="
-
-    # Provide concise error message for NSIS/user display
-    $shortError = switch -Wildcard ($errorMsg) {
-        "*MCP server not found*" { "MCP server files missing from installation" }
-        "*Node.js executable not found*" { "Node.js runtime missing from installation" }
-        "*Installation directory does not exist*" { "Installation directory not found" }
-        "*Cannot bind argument*" { "Claude Desktop configuration format error" }
-        "*ConvertFrom-Json*" { "Claude Desktop configuration file corrupted" }
-        "*Access*denied*" { "Permission denied accessing Claude Desktop configuration" }
-        Default { "Claude Desktop configuration failed" }
-    }
-
-    Write-Error "$shortError. Details in log: $LogFile"
+    Write-LogMessage "Failed: $($_.Exception.Message)" 'ERROR'
+    Write-LogMessage "Details: $LogFile" 'ERROR'
     exit 1
 }

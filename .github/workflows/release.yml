@@ -5,7 +5,7 @@ name: Release
 #   - module.json                     Foundry manifest whose manifest/download URLs point at this tag
 #   - foundry-mcp-bridge.zip          the Foundry module with its built code
 #   - foundry-mcp-server-vX.Y.Z.zip   the standalone bridge (bundled Node server)
-#   - FoundryMCPServer-Setup-vX.Y.Z.exe   the Windows installer (bridge + module + Claude Desktop config)
+#   - FoundryMCPServer-Setup-vX.Y.Z.exe   the Windows client installer (Node.js + MCP client + Claude Desktop entries)
 #   - foundry-ai-tool-obsidian.zip    the Obsidian companion plugin (a foundry-ai-tool folder)
 # workflow_dispatch runs the same build as a dry run (artifacts only, no release is created).
 #
@@ -273,7 +273,8 @@ jobs:
             For Foundry VTT 14 with D&D 5e (dnd5e 6).
 
             **Windows:** download `FoundryMCPServer-Setup-${{ github.ref_name }}.exe` and run it. It installs
-            the bridge, offers to install the Foundry module and sets up Claude Desktop.
+            a small client and connects Claude Desktop to your bridge (it asks for the address). It does
+            not install Foundry, the module or the bridge.
 
             **Foundry module only:** in Foundry, Install Module, paste this manifest URL:
             `${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/module.json`

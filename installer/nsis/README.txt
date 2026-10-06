@@ -1,43 +1,62 @@
-Foundry MCP Server v0.4.8
-===========================
+Foundry AI Tool Client
+======================
 
-Thank you for installing Foundry MCP Server!
+This installer connects Claude Desktop on this PC to a Foundry AI Tool bridge that runs on
+another machine (the home server). Foundry, the bridge and the Foundry module live on that
+machine, so none of them is installed here. This PC gets:
 
-This software enables AI-powered campaign management for Foundry VTT 
-using Claude Desktop.
+  - node.exe, the Node.js runtime that runs the client
+  - foundry-mcp-client\index.cjs, the MCP client Claude Desktop starts
+  - configure-claude.ps1, which edits Claude Desktop's settings
 
-🚀 QUICK START:
-1. Restart Claude Desktop completely (close and reopen)
-2. Install the MCP Bridge module in Foundry VTT
-3. Enable the module in your world
-4. Start creating AI-powered campaigns!
+QUICK START
+-----------
+1. Quit Claude Desktop completely (right-click its tray icon, Quit). The installer will ask
+   again if it is still running; it never closes Claude Desktop for you.
+2. Run the installer and enter the bridge address: the name or IP address of the server on your
+   private network (for example its Tailscale name). The port is 31414 unless you were told
+   otherwise. A Cloudflare route for players and GMs outside the private network is planned.
+3. Start Claude Desktop. Make sure your private network (Tailscale) is connected, then switch
+   the connectors on in the "Search and tools" menu.
 
-📋 FEATURES:
-• 22 MCP tools for comprehensive Foundry VTT integration
-• Actor creation with natural language processing  
-• Quest management with HTML generation and updates
-• Campaign system with multi-part structure and progress tracking
-• Dice roll coordination between Claude and Foundry players
-• Actor ownership management with bulk operations
-• Enhanced creature index for instant monster searches
+Claude Desktop gets five connectors, one per tool set: foundry-mcp (Core), foundry-mcp-play,
+foundry-mcp-prep, foundry-mcp-build and foundry-mcp-admin. Each one only connects to the bridge
+and never starts a bridge on this PC (MCP_NO_SPAWN=1).
 
-🔧 UTILITY SCRIPTS:
-• Start Menu → Foundry MCP Server → Foundry MCP Server (start server)
-• Start Menu → Foundry MCP Server → Test Connection (verify installation)
+SILENT INSTALL
+--------------
+  FoundryMCPServer-Setup-vX.Y.Z.exe /S /HOST=<name or IP> [/PORT=31414] [/D=<folder>]
 
-📚 DOCUMENTATION:
-Complete setup guide: https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool
+/HOST is required on a first silent install (a later one can reuse the address the installer
+remembered). The installer waits up to two minutes for Claude Desktop to quit; if it is still
+running, the Claude Desktop step is skipped and the exit code is 3. Exit code 2 means the address
+was missing or invalid, and 1 means Claude Desktop could not be configured (see the log below).
+The address is a host name or IP address; an IPv6 address goes in brackets. /D must be the last
+parameter and the folder must not be in quotes.
 
-💡 TROUBLESHOOTING:
-If you encounter issues:
-1. Ensure Claude Desktop was restarted after installation
-2. Verify Foundry VTT has the MCP Bridge module installed and enabled
-3. Run "Test Connection" from the Start Menu
-4. Visit: https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/issues
+CHANGING THE ADDRESS
+--------------------
+Run the installer again. It remembers the last address. The old entries are replaced, and every
+other connector in Claude Desktop's settings is left alone. A backup of each settings file
+(claude_desktop_config.json.backup-<date>) is made first.
 
-🎯 SUPPORT:
-• Documentation: https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool
-• Issues: https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/issues
-• Foundry VTT Community: https://foundryvtt.com/community
+Both the classic Claude Desktop (%APPDATA%\Claude) and the Microsoft Store version
+(%LOCALAPPDATA%\Packages\Claude_...\LocalCache\Roaming\Claude) are handled.
 
-Enjoy your AI-powered Foundry VTT campaigns! 🎲
+UNINSTALL
+---------
+Settings, Apps (or Start Menu, Foundry AI Tool Client, Uninstall). It removes only the five
+Foundry AI Tool entries from Claude Desktop's settings and the files it installed.
+
+TROUBLESHOOTING
+---------------
+- The log is %TEMP%\foundry-mcp-claude-config.log.
+- "The bridge is not reachable" in Claude: check that Tailscale is connected and that the
+  address is right (run the installer again to change it).
+- The connectors are missing after the install: Claude Desktop was probably still running and
+  rewrote its settings when it closed. Quit it completely and run the installer again.
+
+SUPPORT
+-------
+Documentation: https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool
+Issues: https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/issues

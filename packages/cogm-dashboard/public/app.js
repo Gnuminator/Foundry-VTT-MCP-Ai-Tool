@@ -13,9 +13,20 @@ import { applyTheme, currentMist, setMist } from './theme.js';
 const COGM_TOKEN = (() => {
   const fromUrl = new URL(location.href).searchParams.get('token');
   if (fromUrl) {
+    let saved = false;
     try {
       localStorage.setItem('cogm_token', fromUrl);
+      saved = true;
     } catch {}
+    // Once saved, take the token out of the address bar so it does not stay in the browser's
+    // history (other query parameters and the hash are kept). Not saved: leave it, so a refresh works.
+    if (saved) {
+      try {
+        const url = new URL(location.href);
+        url.searchParams.delete('token');
+        history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+      } catch {}
+    }
     return fromUrl;
   }
   try {

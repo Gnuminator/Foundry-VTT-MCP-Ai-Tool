@@ -81,28 +81,10 @@ Pick the names yourself; `play` and `cogm` are examples. Below, `<domain>` is yo
    a token can be moved, which proves WebSockets work. Test with one player's real address before
    telling the others.
 10. **The dashboard, for the GM (later). The order matters: Access first, the name last.** The
-    dashboard checks Cloudflare's signed login token (idea I-022, built) and, once it is set up
-    with GM emails, shows everyone else the read-only player view. Until the Access application
-    exists that view would be open to the internet, so: 1. In Cloudflare create the Access application `Foundry dashboard` for `cogm.<domain>` with
-    one Allow policy that includes only the GM's and your email (a shorter list than the
-    players'). Save, open it and copy its **Application Audience (AUD) Tag**. Do not add the
-    `cogm` route yet. 2. Tell Claude your team name (`<team>.cloudflareaccess.com`), the AUD tag, the GM's and your
-    emails, and the Pi's Tailscale name. With your OK Claude writes
-    `/etc/foundry-ai-tool/dashboard-access.env` (root, group `foundry`, 0640) with
-    `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `GM_EMAILS`, `DASHBOARD_ALLOWED_HOSTS` and
-    `GM_DASHBOARD_TOKEN` (generated on the Pi, never printed), runs stage 5 again once (the build
-    is skipped; it only adds this file to the dashboard's service) and restarts the dashboard.
-    Why a file of its own: stage 7 rewrites `dashboard.env` whole, which would drop these lines,
-    and `dashboard-access.env` is read after it and never rewritten. The service's own
-    `DASHBOARD_ALLOWED_HOSTS` is replaced by this file's value, so it must list **both** names,
-    `<tailscale name>,cogm.<domain>`, or the GM's Tailscale address would answer `421`. 3. Over Tailscale the GM has no Cloudflare login, so with the split on he would see the player
-    view. `GM_DASHBOARD_TOKEN` fixes that: once, open
-    `http://<tailscale name>:3000/?token=<the token>` in his browser; the dashboard remembers it
-    there. You read the token with `ssh foundry-pi grep GM_DASHBOARD_TOKEN
-/etc/foundry-ai-tool/dashboard-access.env` and pass it on yourself; keep it out of the repo
-    and the vault. 4. Only now add the name: tunnel, Published application routes, subdomain `cogm`, `HTTP`,
-    `localhost:3000` (again no "HTTP Host Header"). Test: `https://cogm.<domain>` must ask for a
-    Cloudflare login, and only the listed emails reach the dashboard as GM.
+    dashboard checks Cloudflare's signed login token (idea I-022, built) and, once it has GM
+    emails, shows everyone else the read-only player view. Until the Access application exists
+    that view would be open to the internet, so the `cogm` name is added last. The four parts are
+    under "Step 10 in detail" below.
 11. **Service token for the GM's Obsidian plugin (D-094).** Zero Trust, Access controls, Service
     credentials, Service Tokens, Create. Name it `obsidian-gm-plugin`, duration 1 year. Copy the
     Client ID and Client Secret now; the secret is shown once. On the `Foundry dashboard`
@@ -116,6 +98,45 @@ Pick the names yourself; `play` and `cogm` are examples. Below, `<domain>` is yo
     token's login carries no email, so the plugin will reach the dashboard but get the player view.
     A dashboard change that maps the service token's client ID to the GM role is still needed; it
     comes with the Obsidian R1 work (D-094) and is not part of stage 12.
+
+### Step 10 in detail: the dashboard for the GM
+
+Do these in order. Nothing here is done by ad hoc commands: the Pi changes come from reviewed
+scripts, and the two that touch secrets are run by you.
+
+1. **Access application first.** In Cloudflare create the Access application `Foundry dashboard`
+   for `cogm.<domain>` with one Allow policy that includes only the GM's and your email (a shorter
+   list than the players'). Save, open it and copy its **Application Audience (AUD) Tag**. Do not
+   add the `cogm` route yet.
+2. **Stage 5 again, once (Claude, with your OK, not during play).** It adds one line to the
+   dashboard's service so it reads `/etc/foundry-ai-tool/dashboard-access.env`. The rerun restarts
+   the bridge, the dashboard and the Assistant GM browser. It must be told which build is already
+   on the Pi, or it would build its default version instead (a downgrade): Claude runs it with
+   `TOOL_REF` set to the contents of `/opt/foundry-ai-tool/app/.tool-ref` (the file stage 5 itself
+   writes after a build), so the build is skipped. Take a `dietpi-backup 1` snapshot first.
+3. **The access settings (you, in your own SSH session).** Claude does not type these. From the
+   repo folder in PowerShell:
+
+   ```powershell
+   scp scripts\pi\remote\set-dashboard-access.sh foundry-pi:/tmp/set-dashboard-access.sh
+   ssh -t foundry-pi bash /tmp/set-dashboard-access.sh
+   ```
+
+   It asks for your Cloudflare team name, the AUD tag from part 1, the GM's and your emails, and
+   the `cogm.<domain>` name, and reads the Pi's Tailscale name by itself. It checks every answer,
+   makes the GM token, writes `/etc/foundry-ai-tool/dashboard-access.env` (root, group `foundry`,
+   0640), restarts the dashboard and prints the GM's one-time link on your screen only. Why a file
+   of its own: stage 7 rewrites `dashboard.env` whole, which would drop these settings. The file's
+   `DASHBOARD_ALLOWED_HOSTS` replaces the service's own, so it lists both `<tailscale name>` and
+   `cogm.<domain>`; the script does that. Over Tailscale the GM has no Cloudflare login, so with
+   the split on he would see the player view; the token fixes that. Give him the link (outside the
+   repo and the vault): he opens `http://<tailscale name>:3000/?token=<token>` once, the browser
+   remembers the token and removes it from the address bar. Run the script again to change an
+   answer; add `--rotate-token` for a new token (the GM then opens the new link once).
+
+4. **The name last.** In the tunnel, Published application routes, add subdomain `cogm`, service
+   `HTTP`, URL `localhost:3000` (again no "HTTP Host Header"). Test: `https://cogm.<domain>` must
+   ask for a Cloudflare login, and only the listed emails reach the dashboard as GM.
 
 ### Removing a player
 

@@ -1,5 +1,11 @@
 [
   {
+    "id": "advancement-values:advancement-value-of-subclass",
+    "kind": "STUDIO",
+    "why": "Actor Studio drops the subclass item itself, so the class's Subclass advancement stays unset (value.uuid null) while the hero has the subclass and its features",
+    "fixedIn": "2.10.5-aitool.1"
+  },
+  {
     "id": "advancement-values:advancement-value-of-size",
     "kind": "SYSTEM",
     "why": "the Human species offers Medium or Small and the system shows Small first; the raw route leaves the choice unset, both heroes are Small"
@@ -12,11 +18,29 @@
   {
     "id": "spell-slots-available:spell-slots-a-new-hero-can-spend",
     "kind": "SYSTEM",
-    "why": "the system does not refill slots on a level up: the fork fills the slots of a new level 1 hero, so a hero levelled to 5 keeps the slots of level 1 (for example 2 of 4) while the raw builder fills all of them"
+    "why": "the system leaves the slots of a new actor empty until a long rest; upstream Actor Studio does not fill them, and the fork (2.10.5-aitool.1 and later) fills level 1 only, so a hero levelled to 5 keeps the slots of level 1 (for example 2 of 4) while the raw builder fills all of them"
   },
   {
     "id": "current-hit-points:a-new-hero-does-not-start-at-full-hit-points",
     "kind": "SYSTEM",
     "why": "an effect that adds to the maximum raises the maximum, not the current value"
+  },
+  {
+    "id": "feature-problems:no-slot-to-spend",
+    "kind": "SYSTEM",
+    "why": "a feature that spends a slot cannot run on a hero with empty slots",
+    "fixedIn": "2.10.5-aitool.1"
+  },
+  {
+    "id": "console:gas.captureAdvancement",
+    "kind": "STUDIO",
+    "why": "Actor Studio 2.10.5 throws a jQuery selector error (dnd5e-checkbox[aria-label*=\"average\" i]) on every advancement dialog when take average hit points is on",
+    "fixedIn": "2.10.5-aitool.1"
+  },
+  {
+    "id": "console:black-parchment.webp",
+    "kind": "STUDIO",
+    "why": "Actor Studio asks for an asset under a doubled path (404)",
+    "fixedIn": "2.10.5-aitool.1"
   }
 ]

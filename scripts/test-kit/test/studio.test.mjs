@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import {
   STUDIO_KINDS,
   consoleFindingId,
@@ -22,7 +25,13 @@ import {
   shownAs,
   studioSettingsFor,
 } from '../lib/studio.mjs';
-import { loadExpected } from '../lib/studio-expected.mjs';
+import {
+  describeBasis,
+  isFixedIn,
+  loadExpected,
+  parseForkVersion,
+  setStudioVersion,
+} from '../lib/studio-expected.mjs';
 import { validateScenario } from '../lib/contract.mjs';
 
 /** Two heroes that agree on everything; each test breaks one thing on the Studio side. */
@@ -493,25 +502,88 @@ test('expected findings are counted and anything new, or of another kind, is fre
   );
 });
 
-test('the expected findings file is valid and names what the live runs found', () => {
-  const list = loadExpected();
+const FORK_FIXED = [
+  'advancement-values:advancement-value-of-subclass',
+  'feature-problems:no-slot-to-spend',
+  'console:gas.captureAdvancement',
+  'console:black-parchment.webp',
+];
+const ALWAYS = [
+  'advancement-values:advancement-value-of-size',
+  'spells:the-raw-hero-has-no-class-spells',
+  'spell-slots-available:spell-slots-a-new-hero-can-spend',
+  'current-hit-points:a-new-hero-does-not-start-at-full-hit-points',
+];
+
+test('the expected list for upstream 2.10.5 holds every finding, the fork-fixed ones too', () => {
+  const list = loadExpected(undefined, '2.10.5');
   const ids = list.map(e => e.id);
-  for (const id of [
-    'advancement-values:advancement-value-of-size',
-    'spells:the-raw-hero-has-no-class-spells',
-    'spell-slots-available:spell-slots-a-new-hero-can-spend',
-    'current-hit-points:a-new-hero-does-not-start-at-full-hit-points',
-  ])
-    assert.ok(ids.includes(id), id);
-  // the fork of Actor Studio fixed these: they must not come back onto the list unseen
-  for (const id of [
-    'advancement-values:advancement-value-of-subclass',
-    'feature-problems:no-slot-to-spend',
-    'console:gas.captureAdvancement',
-    'console:black-parchment.webp',
-  ])
-    assert.ok(!ids.includes(id), `${id} was fixed in the fork`);
+  for (const id of [...ALWAYS, ...FORK_FIXED]) assert.ok(ids.includes(id), id);
   assert.ok(list.every(e => e.why && e.kind));
+  // the fixed ones are the entries that carry fixedIn, and nothing else does
+  assert.deepEqual(
+    list
+      .filter(e => e.fixedIn)
+      .map(e => e.id)
+      .sort(),
+    [...FORK_FIXED].sort()
+  );
+});
+
+test('the expected list for the fork build drops what the fork fixed', () => {
+  for (const version of ['2.10.5-aitool.1', '2.10.5-aitool.2', '2.10.6-aitool.1']) {
+    const ids = loadExpected(undefined, version).map(e => e.id);
+    assert.deepEqual(ids.sort(), [...ALWAYS].sort(), version);
+  }
+});
+
+test('an unknown version, or none, falls back to the upstream list and says so', () => {
+  const upstream = loadExpected(undefined, '2.10.5').map(e => e.id);
+  for (const version of ['2.11.0', '', null, 'fake', '2.10.5-beta', '2.10.4-aitool.1']) {
+    assert.deepEqual(
+      loadExpected(undefined, version).map(e => e.id),
+      upstream,
+      String(version)
+    );
+  }
+  assert.equal(describeBasis('2.10.5').basis, 'upstream');
+  assert.equal(describeBasis('2.10.5-aitool.1').basis, 'fork');
+  const unknown = describeBasis('2.11.0');
+  assert.equal(unknown.basis, 'fallback');
+  assert.match(unknown.text, /not one the list knows/);
+  assert.equal(describeBasis(null).basis, 'fallback');
+});
+
+test('a fork build older than the fix does not get the entry dropped', () => {
+  assert.deepEqual(parseForkVersion('2.10.5-aitool.12'), [2, 10, 5, 12]);
+  assert.equal(parseForkVersion('2.10.5'), null);
+  assert.equal(isFixedIn('2.10.5-aitool.1', '2.10.5-aitool.1'), true);
+  assert.equal(isFixedIn('2.10.5-aitool.10', '2.10.5-aitool.2'), true);
+  assert.equal(isFixedIn('2.10.4-aitool.9', '2.10.5-aitool.1'), false);
+  assert.equal(isFixedIn('2.10.5', '2.10.5-aitool.1'), false);
+});
+
+test('the installed version set by the scenario picks the list loadExpected() returns', () => {
+  try {
+    setStudioVersion('2.10.5-aitool.1');
+    assert.equal(loadExpected().length, ALWAYS.length);
+    setStudioVersion('2.10.5');
+    assert.equal(loadExpected().length, ALWAYS.length + FORK_FIXED.length);
+    setStudioVersion(null);
+    assert.equal(loadExpected().length, ALWAYS.length + FORK_FIXED.length);
+  } finally {
+    setStudioVersion(null);
+  }
+});
+
+test('a fixedIn that is not a fork build is refused', () => {
+  const file = path.join(tmpdir(), `studio-expected-bad-${process.pid}.json`);
+  writeFileSync(file, JSON.stringify([{ id: 'a:b', kind: 'STUDIO', why: 'x', fixedIn: '2.10.5' }]));
+  try {
+    assert.throws(() => loadExpected(file, null), /fixedIn/);
+  } finally {
+    rmSync(file, { force: true });
+  }
 });
 
 test('usage tracking is never put back by a restore', () => {

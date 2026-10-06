@@ -20,7 +20,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = () =>
   JSON.parse(readFileSync(path.join(here, 'fixtures', 'console-errors.json'), 'utf8'));
 
-/** The two console findings of upstream Actor Studio 2.10.5; the fork fixed them, so they are no longer on the list on disk. */
+/** The two console findings of upstream Actor Studio 2.10.5; the fork fixed them, so they are on the list on disk with fixedIn. */
 const KNOWN = [
   {
     id: 'console:gas.captureAdvancement',
@@ -71,8 +71,14 @@ test('finding ids: a hook, a file, or the function of a page error', () => {
   assert.equal(consoleErrorId(d), 'console:pageerror:error-boom');
 });
 
-test('the known list is the console findings of studio-expected.json (none: the fork fixed them)', () => {
-  assert.deepEqual(loadKnownConsole(), []);
+test('the known console list is version-aware: both findings on upstream 2.10.5, none on the fork', () => {
+  assert.deepEqual(
+    loadKnownConsole(undefined, '2.10.5').map(e => e.id),
+    KNOWN.map(e => e.id)
+  );
+  assert.deepEqual(loadKnownConsole(undefined, '2.10.5-aitool.1'), []);
+  // an unknown version gets the upstream list
+  assert.equal(loadKnownConsole(undefined, '9.9.9').length, 2);
 });
 
 test('groups count, time and scenarios; the new ones come first', () => {

@@ -343,7 +343,19 @@ scores, skills, hit points) become notes under one `KIT` problem. A difference t
 the reason each). The scenario counts them in its report (`expectedFindings`) and passes; a finding that
 is not on the list, or that changes kind, fails (`newFindings`). An id is the category and what it says,
 the same for every class (`advancement-values:advancement-value-of-subclass`). When Actor Studio fixes
-one, remove its line; when a new one is understood and accepted, add its line.
+one in our fork, give its line `fixedIn` (for example `"fixedIn": "2.10.5-aitool.1"`); when a new one is
+understood and accepted, add its line.
+
+**The list follows the installed version.** The file holds the findings of upstream Actor Studio
+2.10.5. The scenario reads the module's version from the GM page (`game.modules`), and `loadExpected`
+(`lib/studio-expected.mjs`) leaves out every entry whose `fixedIn` is a fork build at or before the
+installed one (`2.10.5-aitool.1` and later builds of the fork). Upstream 2.10.5 therefore gets the whole
+list, the fork gets the list without the four fixed findings (the Subclass advancement, the selector
+error, the 404 and `feature-problems:no-slot-to-spend`), and one of those coming back on the fork is a new
+finding that fails. A version the list does not know (not 2.10.5, not a fork build) falls back to the
+whole upstream list; the step line of the scenario says which list was used (`expectedList` in the
+coverage as well), and a fallback is also logged. The console groups of the report use the same
+version.
 
 **Findings of the first live runs (2026-10-06, Foundry 14.368, dnd5e 6.0.5, Actor Studio 2.10.5).** All
 12 `srd` classes and all 13 classes of the `licensed` profile were built through Actor Studio, with no
@@ -378,9 +390,8 @@ fixes) passes on both worlds: `licensed` 13 of 13 heroes, KIT 9, CONTENT 0, SYST
 Subclass advancement, the selector error, the 404 and `feature-problems:no-slot-to-spend`. Still on it:
 the Size step, the missing class spells of the raw hero, one sorcerer subclass's current hit points, and
 the spell slots: the fork fills the slots of a new level 1 hero, but a hero levelled to 5 keeps the slots
-of level 1 (for example 2 of 4), because the system does not refill slots on a level up. The list now
-describes the fork. Against upstream 2.10.5 the four removed findings come back as new findings; restore
-their lines from `git log -p scripts/test-kit/data/studio-expected.json` for such a run.
+of level 1 (for example 2 of 4), because the system does not refill slots on a level up. The expected
+list is version-aware (below), so the same file serves the fork and upstream 2.10.5.
 
 Development filters (environment variables): `KIT_STUDIO_CLASSES=fighter,wizard`, `KIT_STUDIO_LEVEL=3`,
 `KIT_KEEP_STUDIO=1` (keep the Studio heroes; they carry the kit flag and the next build wipes them),

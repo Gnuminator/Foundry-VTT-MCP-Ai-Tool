@@ -995,6 +995,11 @@ export class ObsidianMirrorPump {
   private adoptScan(state: WorldState, scan: MirrorScan, complete: boolean): void {
     state.notes = new Map(scan.mirror);
     state.pages = new Map(scan.pages);
+    // A prep note the GM added, moved or removed changes the note it links back from (I-121):
+    // render that note again, even though its document did not change.
+    for (const uuid of new Set([...state.prep.keys(), ...scan.prep.keys()])) {
+      if (state.prep.get(uuid) !== scan.prep.get(uuid)) state.pendingRefetch.add(uuid);
+    }
     state.prep = scan.prep;
     state.stats = scan.stats;
     state.taken = new Set(scan.takenPaths);

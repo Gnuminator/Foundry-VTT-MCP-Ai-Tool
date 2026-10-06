@@ -643,6 +643,8 @@ function renderScene(
     }
     lines.push('');
   }
+  const prepPath = ctx.prepNotePath(entry.uuid);
+  if (prepPath) lines.push('## Related notes', '', `- ${noteLink(path, prepPath, 'Prep')}`, '');
 
   const props = mirrorProps(worldId, {
     type: 'scene',
@@ -656,6 +658,7 @@ function renderScene(
       navigation: entry.navigation,
       journal: journalProp,
       pins: count(entry.pins.length),
+      prep: noteProp(worldId, prepPath, `${propText(entry.name) || 'Untitled'} prep`),
     },
     modified: entry.modified,
     sig: entry.sig,
@@ -747,6 +750,9 @@ function renderJournalIndex(
       lines.push('');
     }
   }
+  // Quest prep points at the journal, not a page (I-121).
+  const prepPath = ctx.prepNotePath(entry.uuid);
+  if (prepPath) lines.push('## Related notes', '', `- ${noteLink(path, prepPath, 'Prep')}`, '');
 
   const props = mirrorProps(worldId, {
     type: 'journal',
@@ -763,6 +769,7 @@ function renderJournalIndex(
         .sort((a, b) => a.sort - b.sort || cmp(a.id, b.id))
         .map(c => propText(c.name))
         .filter(name => name !== ''),
+      prep: noteProp(worldId, prepPath, `${propText(entry.name) || 'Untitled'} prep`),
     },
     modified: entry.modified,
     sig: entry.sig,

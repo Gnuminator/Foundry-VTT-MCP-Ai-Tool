@@ -19,7 +19,7 @@
  * It has no imports from other packages and uses only `node:fs` and `node:path`.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 export type BackupPullKind = 'restic' | 'snapshot';
@@ -47,7 +47,8 @@ export interface BackupPullStatus {
   problem: BackupPullProblem | null;
   /**
    * Milliseconds since `pulledAt` (never below 0: a clock a little ahead counts as fresh); for a
-   * kind with a problem, milliseconds since the reader first saw the problem.
+   * kind with a problem, milliseconds since the problem started (the reader first saw it, or the
+   * record file's modified time when that is earlier).
    */
   ageMs: number;
   /** True when `ageMs` is over the limit the reader was made with. */
@@ -127,6 +128,8 @@ export interface BackupPullReaderOptions {
   log?: (message: string) => void;
   /** Test hook for the file read. */
   readFile?: (path: string) => string;
+  /** Test hook: the file's modified time in ms since the epoch, or null when it cannot be read. */
+  fileMtime?: (path: string) => number | null;
 }
 
 /**
@@ -138,7 +141,9 @@ export interface BackupPullReaderOptions {
  *   stale when its copy is older than the limit. A kind with no usable record (missing while the
  *   other kind is recorded, unreadable or invalid) starts a clock when the reader first sees the
  *   problem and is stale once that has lasted longer than the limit; the clock lives in memory, so a
- *   restart starts it again. A kind that is missing while nothing else is recorded stays silent.
+ *   restart starts it again. For an unreadable or invalid file the clock starts at the earlier of the
+ *   file's modified time and now, so a file that has been broken for a long time alarms on time after
+ *   a restart, and a modified time in the future cannot push the alarm out. A kind that is missing while nothing else is recorded stays silent.
  * - Each problem is logged once per kind until that kind is usable again.
  */
 export function createBackupPullReader(
@@ -150,6 +155,15 @@ export function createBackupPullReader(
   const staleMs = limitDays * DAY_MS;
   const now = options.now ?? Date.now;
   const read = options.readFile ?? ((p: string): string => readFileSync(p, 'utf8'));
+  const mtimeOf =
+    options.fileMtime ??
+    ((p: string): number | null => {
+      try {
+        return statSync(p).mtimeMs;
+      } catch {
+        return null;
+      }
+    });
   let lastProblem: string | null = null;
   const problemSince = new Map<BackupPullKind, number>();
   const loggedProblem = new Map<BackupPullKind, string>();
@@ -165,54 +179,69 @@ export function createBackupPullReader(
 
   return () => {
     const t = now();
-    const recorded = new Map<BackupPullKind, BackupPull>();
-    const problems = new Map<BackupPullKind, BackupPullProblem>();
+    // Every kind ends up with exactly one outcome, in kind order: a usable record or a problem.
+    const outcomes = new Map<
+      BackupPullKind,
+      { pull: BackupPull } | { problem: BackupPullProblem }
+    >();
     for (const kind of BACKUP_PULL_KINDS) {
       let fileText: string;
       try {
         fileText = read(join(dir, `${kind}.json`));
       } catch (err) {
         const code = (err as NodeJS.ErrnoException | undefined)?.code;
-        if (code === 'ENOENT' || code === 'ENOTDIR') {
-          problems.set(kind, { reason: 'missing', detail: 'no copy has been recorded yet' });
-        } else {
-          problems.set(kind, { reason: 'unreadable', detail: code ?? 'read failed' });
-        }
+        outcomes.set(kind, {
+          problem:
+            code === 'ENOENT' || code === 'ENOTDIR'
+              ? { reason: 'missing', detail: 'no copy has been recorded yet' }
+              : { reason: 'unreadable', detail: code ?? 'read failed' },
+        });
         continue;
       }
       const parsed = parseBackupPull(kind, fileText, t);
-      if (parsed.ok) recorded.set(kind, parsed.pull);
-      else problems.set(kind, { reason: 'invalid', detail: parsed.detail });
+      outcomes.set(
+        kind,
+        parsed.ok
+          ? { pull: parsed.pull }
+          : { problem: { reason: 'invalid', detail: parsed.detail } }
+      );
     }
 
-    const anyBroken = [...problems.values()].some(p => p.reason !== 'missing');
-    if (recorded.size === 0 && !anyBroken) {
+    const recordedCount = [...outcomes.values()].filter(o => 'pull' in o).length;
+    const anyBroken = [...outcomes.values()].some(
+      o => 'problem' in o && o.problem.reason !== 'missing'
+    );
+    if (recordedCount === 0 && !anyBroken) {
       problemSince.clear();
       loggedProblem.clear();
       return unavailable('missing', 'no copy has been recorded yet');
     }
     lastProblem = null;
 
-    const pulls: BackupPullStatus[] = BACKUP_PULL_KINDS.map(kind => {
-      const pull = recorded.get(kind);
-      if (pull) {
+    const pulls: BackupPullStatus[] = [...outcomes].map(([kind, outcome]) => {
+      if ('pull' in outcome) {
+        const pull = outcome.pull;
         problemSince.delete(kind);
         loggedProblem.delete(kind);
         const ageMs = Math.max(0, t - Date.parse(pull.pulledAt));
         return { kind, pulledAt: pull.pulledAt, problem: null, ageMs, stale: ageMs > staleMs };
       }
-      const problem: BackupPullProblem = problems.get(kind) ?? {
-        reason: 'missing',
-        detail: 'not read',
-      };
-      if (problem.reason === 'missing' && recorded.size === 0) {
+      const problem = outcome.problem;
+      if (problem.reason === 'missing' && recordedCount === 0) {
         // Never recorded and nothing else is recorded either: nothing to judge, so say nothing.
         problemSince.delete(kind);
         loggedProblem.delete(kind);
         return { kind, pulledAt: null, problem, ageMs: 0, stale: false };
       }
-      const since = problemSince.get(kind) ?? t;
-      problemSince.set(kind, since);
+      let since = problemSince.get(kind);
+      if (since === undefined) {
+        // A file that exists but is broken has been broken since it was last written at the
+        // latest: start there, never later than now, so a modified time in the future changes
+        // nothing. A missing file has no time, so its clock starts now.
+        const mtime = problem.reason === 'missing' ? null : mtimeOf(join(dir, `${kind}.json`));
+        since = mtime !== null && Number.isFinite(mtime) ? Math.min(mtime, t) : t;
+        problemSince.set(kind, since);
+      }
       const key = `${problem.reason}:${problem.detail}`;
       if (loggedProblem.get(kind) !== key) {
         loggedProblem.set(kind, key);

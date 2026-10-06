@@ -25,11 +25,14 @@ function reader(
     denied?: string[];
     log?: (m: string) => void;
     clock?: { now: number };
+    /** File name to modified time (ms); a name left out has none (stat fails). */
+    mtimes?: Record<string, number>;
   } = {}
 ): ReturnType<typeof createBackupPullReader> {
   return createBackupPullReader({
     dir: '/pulls',
     now: () => opts.clock?.now ?? NOW,
+    fileMtime: path => opts.mtimes?.[path.replace(/\\/g, '/').split('/').pop() ?? ''] ?? null,
     ...(opts.staleDays !== undefined ? { staleDays: opts.staleDays } : {}),
     ...(opts.log ? { log: opts.log } : {}),
     readFile: path => {
@@ -238,6 +241,52 @@ describe('createBackupPullReader', () => {
     files['restic.json'] = record('restic', new Date(clock.now - HOUR).toISOString());
     const later = read();
     expect(later.state === 'available' && later.pulls[1]?.stale).toBe(true);
+  });
+
+  it('an invalid record starts its clock at the file modified time, so a long-broken file alarms at once', () => {
+    const files = {
+      'restic.json': record('restic', '2026-10-10T11:00:00Z'),
+      'snapshot.json': '',
+    };
+    const read = reader(files, { mtimes: { 'snapshot.json': NOW - 5 * DAY } });
+    const r = read();
+    expect(r.state === 'available' && r.pulls[1]?.ageMs).toBe(5 * DAY);
+    expect(r.state === 'available' && r.pulls.map(p => p.stale)).toEqual([false, true]);
+  });
+
+  it('an unreadable record also starts its clock at the file modified time', () => {
+    const files = { 'restic.json': record('restic', '2026-10-10T11:00:00Z') };
+    const read = reader(files, {
+      denied: ['snapshot.json'],
+      mtimes: { 'snapshot.json': NOW - 4 * DAY },
+    });
+    const r = read();
+    expect(r.state === 'available' && r.pulls[1]?.stale).toBe(true);
+  });
+
+  it('a modified time in the future cannot push the clock out: it starts now', () => {
+    const clock = { now: NOW };
+    const files = {
+      'restic.json': record('restic', '2026-10-10T11:00:00Z'),
+      'snapshot.json': '{oops',
+    };
+    const read = reader(files, { clock, mtimes: { 'snapshot.json': NOW + 10 * DAY } });
+    const first = read();
+    expect(first.state === 'available' && first.pulls[1]?.ageMs).toBe(0);
+    clock.now += 3 * DAY + 1000;
+    files['restic.json'] = record('restic', new Date(clock.now - HOUR).toISOString());
+    const later = read();
+    expect(later.state === 'available' && later.pulls[1]?.stale).toBe(true);
+  });
+
+  it('a file with no readable modified time starts its clock now', () => {
+    const files = {
+      'restic.json': record('restic', '2026-10-10T11:00:00Z'),
+      'snapshot.json': '',
+    };
+    const r = reader(files)();
+    expect(r.state === 'available' && r.pulls[1]?.ageMs).toBe(0);
+    expect(r.state === 'available' && r.pulls[1]?.stale).toBe(false);
   });
 
   it('a problem clears when the file is good again, and is logged again if it returns', () => {

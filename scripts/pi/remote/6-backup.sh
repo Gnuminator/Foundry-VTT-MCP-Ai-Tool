@@ -169,7 +169,8 @@ trap 'rm -f "$tmp"' EXIT
 printf '{"version":1,"kind":"%s","pulledAt":"%s"}\n' "$kind" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$tmp"
 chmod 0644 "$tmp"
 sync "$tmp" 2>/dev/null || true # best effort: flush the new file before it replaces the old one
-mv -f "$tmp" "$dir/$kind.json"
+# -T: the target is always a file, so a directory at that name is an error, never moved into
+mv -fT "$tmp" "$dir/$kind.json"
 trap - EXIT
 echo "recorded: $kind copied to the PC"
 RECORD_PULL

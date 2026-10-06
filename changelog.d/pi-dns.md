@@ -11,3 +11,6 @@
   and the bridge (it runs as `foundry`) could not start. `lib.sh` now sets `umask 022` for every
   stage, and the wrapper keeps 077 for its own log and saved scripts only, giving each command the
   session's umask back (checked in an ARM64 Debian container).
+- **Stage 9 swaps its wrapper in one rename:** it used to rewrite the wrapper in place while the SSH
+  session running the stage was executing it (bash reads a script as it goes), and checked the
+  syntax only afterwards. The new wrapper is now written beside it, checked, then renamed over it.

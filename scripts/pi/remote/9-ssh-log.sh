@@ -96,9 +96,21 @@ sftp | internal-sftp | /usr/lib/openssh/sftp-server)
   ;;
 esac"
 mkdir -p "$(dirname "$wrapper")"
-write_file "$wrapper" 0755 "$wrapper_body" || true
-chown root:root "$wrapper"
-bash -n "$wrapper" || die "the wrapper has a syntax error; nothing else changed"
+# Checked first, then swapped in with one rename: the SSH session running this stage is itself
+# executing the old wrapper, and bash reads a script as it goes, so it must never change in place.
+if [ -f "$wrapper" ] && [ "$(cat "$wrapper")" = "$wrapper_body" ]; then
+  ok "$wrapper unchanged"
+else
+  printf '%s\n' "$wrapper_body" >"$wrapper.new"
+  bash -n "$wrapper.new" || {
+    rm -f "$wrapper.new"
+    die "the new wrapper has a syntax error; the old one stays, nothing else changed"
+  }
+  chmod 0755 "$wrapper.new"
+  chown root:root "$wrapper.new"
+  mv -f "$wrapper.new" "$wrapper"
+  ok "wrote $wrapper"
+fi
 
 say "keeping the log 12 weeks"
 logrotate_conf="# Written by scripts/pi/remote/9-ssh-log.sh; edit it there.

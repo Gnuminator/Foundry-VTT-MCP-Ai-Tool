@@ -36,12 +36,18 @@ export interface ModuleHelloData {
 /**
  * Frames for module-initiated requests (I-108): the bridge-linked browser asks
  * the backend to run one of `MODULE_REQUEST_TOOLS` for a GM's "AI changes"
- * window. Local mirrors of `MODULE_REQUEST_TYPE`, `MODULE_REPLY_TYPE` and
+ * or Handouts window. Local mirrors of `MODULE_REQUEST_TYPE`, `MODULE_REPLY_TYPE` and
  * `MODULE_REQUEST_TOOLS` in `shared/src/protocol.ts`, pinned by a contract test.
  */
 export const MODULE_REQUEST_TYPE = 'module-request' as const;
 export const MODULE_REPLY_TYPE = 'module-reply' as const;
-export const MODULE_REQUEST_TOOLS = ['list-recent-changes', 'undo-change'] as const;
+export const MODULE_REQUEST_TOOLS = [
+  'list-recent-changes',
+  'undo-change',
+  'list-revealed-pages',
+  'plan-page-reveal',
+  'apply-planned-change',
+] as const;
 export type ModuleRequestTool = (typeof MODULE_REQUEST_TOOLS)[number];
 
 /** The backend's reply when a request reaches a socket that is not the active link (mirror of `MODULE_NOT_ACTIVE_LINK_ERROR`). */

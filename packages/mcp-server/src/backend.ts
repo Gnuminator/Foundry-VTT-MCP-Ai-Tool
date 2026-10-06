@@ -450,7 +450,7 @@ async function startBackend(): Promise<void> {
   // A `module-request` from the linked browser runs through the same dispatch table as the
   // control channel's call_tool (MODULE_REQUEST_TOOLS only; an undo records who asked).
   foundryClient.setModuleRequestHandler(
-    createModuleRequestHandler({ toolRouter, guardedChangeTools })
+    createModuleRequestHandler({ toolRouter, guardedChangeTools, guardedWrites })
   );
   // After every recorded apply or undo the module's "AI changes" windows fetch the list again.
   guardedWrites.addRecordedListener(createAiChangesAnnouncer(foundryClient, logger));

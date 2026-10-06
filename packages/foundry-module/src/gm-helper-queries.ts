@@ -134,9 +134,9 @@ function offerTarokkaReadingQuery(data: unknown, context?: FoundryQueryContext):
 export const AI_TOOL_NOT_CONNECTED =
   'The AI Tool bridge is not connected. Is the Assistant GM browser running?';
 
-/** How long a relayed tool call may take; an undo applies in Foundry first, so it gets longer. */
+/** How long a relayed tool call may take; an undo or an apply writes in Foundry first, so they get longer. */
 export function aiToolTimeoutMs(tool: string): number {
-  return tool === 'undo-change' ? 120_000 : 30_000;
+  return tool === 'undo-change' || tool === 'apply-planned-change' ? 120_000 : 30_000;
 }
 
 /**
@@ -202,7 +202,7 @@ function bridgeLinkCandidates(): User[] {
 }
 
 /**
- * Run a module-request tool (`list-recent-changes`, `undo-change`) for this GM
+ * Run a module-request tool (`MODULE_REQUEST_TOOLS`) for this GM
  * through the backend. When this client holds the bridge link the request goes
  * straight over it; otherwise it asks the GM client that does, through Foundry's
  * GM-only `user.query`, and that client relays it over the link.

@@ -431,6 +431,28 @@ test('findings carry an id that is the same for every class', () => {
   });
   const v = compareHeroes({ raw, studio });
   assert.equal(v.problems[0].id, 'advancement-values:advancement-value-of-subclass');
+  // The advancement is titled after the class, the finding is not.
+  const t2 = pair();
+  t2.raw.build.advancements.push({
+    item: 'class:X',
+    id: 'y',
+    type: 'Subclass',
+    title: 'Artificer Specialist',
+    level: 3,
+    value: { uuid: 'u' },
+  });
+  t2.studio.build.advancements.push({
+    item: 'class:X',
+    id: 'y',
+    type: 'Subclass',
+    title: 'Artificer Specialist',
+    level: 3,
+    value: { uuid: null },
+  });
+  assert.equal(
+    compareHeroes(t2).problems[0].id,
+    'advancement-values:advancement-value-of-subclass'
+  );
   assert.equal(
     findingId('Spell slots', 'Spell slots a new hero can spend'),
     'spell-slots:spell-slots-a-new-hero-can-spend'

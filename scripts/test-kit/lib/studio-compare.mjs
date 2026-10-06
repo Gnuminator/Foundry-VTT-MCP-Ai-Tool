@@ -200,14 +200,14 @@ export function compareHeroes({ raw, studio, pumpErrors = [] }) {
   /** @type {Record<string, number>} */
   const checked = {};
   /** @param {string} category @param {StudioKind} kind @param {string} what @param {string} evidence */
-  const bad = (category, kind, what, evidence) => {
+  const bad = (category, kind, what, evidence, idWhat = what) => {
     const c = classify(category, kind, evidence);
     problems.push({
       kind: c.kind,
       what,
       evidence: c.why ? `${evidence} (${c.why})` : evidence,
       category,
-      id: findingId(category, what),
+      id: findingId(category, idWhat),
     });
   };
   const tick = name => {
@@ -537,7 +537,18 @@ export function compareHeroes({ raw, studio, pumpErrors = [] }) {
       const evidence = `${a.item} "${a.title}" (${a.type}): raw ${va.slice(0, 160)} | Studio ${vb.slice(0, 160)}`;
       if (CHOICE_TYPES.has(a.type))
         dependent('advancement values', `advancement value of ${a.title}`, evidence);
-      else bad('advancement values', 'STUDIO', `advancement value of ${a.title}`, evidence);
+      else {
+        // A subclass advancement is titled after the class (Martial Archetype, Artificer Specialist):
+        // name the finding by the advancement type, so it is the same for every class.
+        const byType = ['Subclass', 'Size'].includes(a.type);
+        bad(
+          'advancement values',
+          'STUDIO',
+          `advancement value of ${a.title}`,
+          evidence,
+          byType ? `advancement value of ${a.type}` : undefined
+        );
+      }
     }
     for (const [key, b] of sa)
       if (!ra.has(key))

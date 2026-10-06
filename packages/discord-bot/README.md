@@ -69,6 +69,35 @@ The reader (`src/space-status.ts`) is an identical copy of `shared/src/space-sta
 the bot is deployed alone on the Pi; a test fails while the two differ, so edit the shared one and
 copy it over.
 
+## Stale backup copy notices
+
+On the Pi the bot also watches that this PC keeps copying the Pi's backups. After each successful
+run, the PC's `pull-restic.ps1` and `pull-snapshot.ps1` run a fixed command on the Pi
+(`/opt/foundry-ai-tool/backup/record-pull.sh restic|snapshot`, installed by Pi stage 6), which
+writes the Pi's own clock into `/var/lib/foundry-backup-pulls/<kind>.json`
+(`{"version":1,"kind":"restic","pulledAt":"2026-10-06T10:31:02Z"}`). Every 15 minutes the bot reads
+both files (`src/backup-pull-status.ts`) and DMs the owner (same owner and failed-DM rules as the
+space notices) when a kind of copy (restic or snapshot) is older than the limit, judged for each kind on its own
+(`src/backup-pull-notify.ts`):
+
+- one DM when a kind goes stale, naming the stale kind or kinds and how old each copy is, and what
+  to do (turn the PC on, or run the two scheduled tasks);
+- while a kind stays stale, at most one reminder every 24 hours for it;
+- one "copied again" DM when a stale kind gets a fresh copy (only if a stale DM went out for it);
+  the other kind keeps its own reminder schedule;
+- a record that cannot be used also counts: a file that is unreadable or invalid (or dated more than
+  a day ahead), or a kind with no record while the other kind is recorded, is stale once that has
+  lasted longer than the limit (counted from when the bot first saw it) and the DM says "record
+  unreadable" or "not recorded yet"; each problem is logged once;
+- nothing while no copy has ever been recorded at all, so a fresh install or a dev PC never raises
+  a false alarm; the first check after a bot start waits one interval.
+
+Settings (`discord-bot.env`): `FOUNDRY_AI_BACKUP_STALE_DAYS` (days, default 3; anything that is not
+a positive number falls back to 3) and `FOUNDRY_AI_BACKUP_PULLS` (the folder; leave it alone on the
+Pi). Details and rollout: `docs/dev/PI-SETUP.md`, "Stale backup copies". The folder is root-owned and
+read-only for the bot. The state is kept in memory: a restart can repeat one DM, which is why the
+first check waits 15 minutes.
+
 ## On the Orange Pi (D-068)
 
 The bot runs on the Pi as a service (Pi setup Part B stage 8, `docs/dev/PI-SETUP.md`); the Pi has

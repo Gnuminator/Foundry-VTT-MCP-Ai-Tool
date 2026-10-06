@@ -64,6 +64,11 @@ jobs:
         # (the PowerShell part is skipped where pwsh 7 is missing).
         run: node --test scripts/pi/space-check.test.mjs
 
+      - name: Pi backup copy record
+        # PB-06: stage 6's record-pull.sh (bash -n, the file the bot reads) and the PC's
+        # Send-PullRecord (record-pull.ps1; the PowerShell part is skipped where pwsh 7 is missing).
+        run: node --test scripts/pi/backup-pull-record.test.mjs
+
       - name: Pi world bundle
         # push-world.ps1 and stage 11 (docs/dev/PI-SETUP.md, "Licensed content"): the asset path
         # scanner's pure functions (scripts/pi/world-refs.mjs) and bash -n on stage 11.

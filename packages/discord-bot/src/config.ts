@@ -9,6 +9,8 @@
  * | `FVTT_SESSIONS_DIR`  | where recordings go; default `Documents\FoundrySessions`    |
  * | `DISCORD_OWNER_ID`   | who gets the storage space DMs; default the bot application's owner |
  * | `FOUNDRY_AI_SPACE_STATUS` | the space check's status file (the Pi writes it)       |
+ * | `FOUNDRY_AI_BACKUP_PULLS` | folder with the Pi's record of the PC's last backup copies |
+ * | `FOUNDRY_AI_BACKUP_STALE_DAYS` | DM when a kind of copy is older than this; default 3  |
  * | `REHEARSAL_TOKEN_1` to `_3` | speaker bot tokens for `rehearse` (one bot application each) |
  * | `REHEARSAL_CHANNEL_ID` | the voice channel rehearsals use                          |
  * | `FVTT_REHEARSAL_DIR` | where rehearsals go; default `Documents\FoundryRehearsals`  |
@@ -17,6 +19,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+
+import { parseStaleDays } from './backup-pull-status.js';
 
 export interface BotConfig {
   token: string;
@@ -27,6 +31,10 @@ export interface BotConfig {
   ownerId?: string | undefined;
   /** The space check's status file; unset means the default path (see space-status.ts). */
   spaceStatusFile?: string | undefined;
+  /** The folder with the record of the PC's backup copies; unset means the default (backup-pull-status.ts). */
+  backupPullsDir?: string | undefined;
+  /** Days before a copy counts as stale; unset or invalid means 3. */
+  backupStaleDays?: number | undefined;
 }
 
 export interface RehearsalConfig {
@@ -74,6 +82,8 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
     envFile,
     ownerId: get('DISCORD_OWNER_ID'),
     spaceStatusFile: get('FOUNDRY_AI_SPACE_STATUS'),
+    backupPullsDir: get('FOUNDRY_AI_BACKUP_PULLS'),
+    backupStaleDays: parseStaleDays(get('FOUNDRY_AI_BACKUP_STALE_DAYS')),
   };
 }
 

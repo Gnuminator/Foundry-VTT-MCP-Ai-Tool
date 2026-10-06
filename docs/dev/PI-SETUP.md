@@ -136,6 +136,7 @@ listed).
 | 7. Vault sync   | Syncthing (Debian's, as its own service `foundry-ai-tool-syncthing`, files in `/var/lib/foundry-ai-tool/syncthing`) shares the GM vault with the GM's PC (and this PC, for checking) (`7-vault.sh`). The bridge writes the vault to `/var/lib/foundry-ai-tool/obsidian/gm` (`bridge.env`: `FOUNDRY_AI_OBSIDIAN_DIR`, `FOUNDRY_AI_OPEN_BASE`, `FOUNDRY_AI_FOUNDRY_URL`); relays on, UPnP off, GUI on loopback. The Foundry mirror switch stays off (a GM decision per world). The player vault waits for O7 (D-091)                                                     | **yes:** on each receiving PC run `scripts/pi/setup-syncthing-pc.ps1` (or accept the Pi in the Syncthing GUI), then give Claude that PC's device ID                                                                                |
 | 8. Discord bot  | The recorder bot as a service (`8-recorder.sh`: `foundry-ai-tool-discord-bot`, runs as `foundry`, from the stage 5 build, so it shares the tool version; run it again after a new stage 5 build), recordings in `/var/lib/foundry-ai-tool/recordings`; this PC copies finished recordings over Tailscale for transcription. The service stays off until the token is in                                                                                                                                                                                                | **yes:** run `scripts/pi/set-discord-token.ps1` on this PC and paste the bot token from the Discord developer page (not shown on screen; Claude never sees it); it starts the bot                                                  |
 | 9. Command log  | Every SSH login with the PC's key goes through a small logger (`9-ssh-log.sh`: a `command=` prefix on the key line in `/root/.ssh/authorized_keys`, `sshd_config` untouched): one line per command in `/var/lib/foundry-ai-tool/ssh-log/ssh-commands.log`, plus a copy of every stage script; root only, 12 weeks kept; the token script is logged by name only. A logging error never blocks the command. A 5-minute safety timer restores the old key file unless a new connection confirms                                                                          | **yes:** your OK (an SSH change), and default permission mode while it runs                                                                                                                                                        |
+| 10. Space check | An hourly storage check (`10-space-check.sh`: `foundry-space-check.timer`, the checker in `/opt/foundry-ai-tool/space`) of every disk the backups, snapshots, the vault sync and the recordings use, written to `/var/lib/foundry-ai-tool/space/status.json` (below 20 % free is low, below 5 % is critical) and as a warning line in the journal. The nightly restic backup (stage 6) runs the check first: below 20 % it still runs, at critical it is skipped. `UNDO=1` removes it                                                                                  | **yes:** your OK (a new service and timer); then run stage 6 again so the backup gets its pre-check                                                                                                                                |
 
 Stage 5 in more detail, because it changes how Claude Desktop reaches the game: each entry in
 `%APPDATA%\Claude\claude_desktop_config.json` gets `MCP_CONTROL_HOST` set to the Pi's Tailscale name
@@ -275,6 +276,60 @@ mirror (writes)" plus the guarded `plan-obsidian-mirror` tool, which the GM asks
 (Admin set). It stays off until the GM decides to use it for a world. The session, change and stats
 notes are written to the vault whenever the folder is set, mirror or not.
 
+## Storage space check
+
+The user's rule (2026-10-06): every backup, snapshot and sync checks its source and its destination
+for at least 20 % free space. Below 20 % the job still runs but warns; it stops only when space is
+critical: under 5 % free, or (for the nightly restic backup) less free space than the data it backs
+up. A full disk is the quiet way a backup chain stops working, so the warning has to reach someone.
+
+**On the Pi** (stage 10, `10-space-check.sh`): `/opt/foundry-ai-tool/space/space-check.sh` runs every
+hour from the systemd timer `foundry-space-check.timer` (and once after a boot or a missed hour) and
+writes `/var/lib/foundry-ai-tool/space/status.json`: one entry per filesystem with its free bytes and
+percentage, the paths and jobs that use it, and a level (`ok`, `low` below 20 %, `critical` below
+5 %). It looks at `/var/lib/foundry` (the restic source), `/var/lib/foundry-ai-tool` (the tool's
+storage, the Syncthing vault, the recordings), `/etc/foundry-ai-tool`, the restic repository on the
+Pi and `/mnt/dietpi-backup` (the system snapshots). A low or critical disk also logs a WARNING or
+CRITICAL line to the journal: `journalctl -u foundry-space-check -n 20`. The status file holds no
+secrets. The Discord bot (a DM) and the dashboard (a GM-only banner) read it.
+
+**The nightly restic backup** (stage 6) calls the checker first, as its own job: it records `lastJob`
+in the status file, runs anyway below 20 %, and at critical (disks that hold its sources or the
+repository, or less free than the data it would back up) exits without stopping Foundry, with the
+message "backup skipped: disk space is critical" in `journalctl -u foundry-backup`. Run stage 6 again
+after stage 10 so the backup script gets the call; without the checker the backup simply runs as
+before. The system snapshots are DietPi's own job (`dietpi-backup`): they are not changed, and the
+hourly check covers the disk they sit on.
+
+**Syncthing** (stage 7): the Pi's side is covered by the hourly check (the vault folder is on
+`/var/lib/foundry-ai-tool`). Each receiving PC is covered by the PC check below, which looks at the
+folder Syncthing writes the vault into.
+
+**On this PC**: `scripts/pi/space-check.ps1` is the helper both pull scripts call at their start
+(`pull-snapshot.ps1` and `pull-restic.ps1`). It checks this PC's backup drive (`E:\PiBackup`) and
+the vault folder Syncthing writes into (read from Syncthing's config, else `Documents\Obsidian\Foundry
+GM vault`), and reads the Pi's `status.json` over read-only SSH (`ssh foundry-pi cat ...`). A status
+that is missing, unreachable or older than 3 hours is only a warning line in the log, never an error.
+Below 20 % free on the Pi's source or on a local disk the pull logs a WARNING (in
+`E:\PiBackup\logs\`) and shows a Windows notification that names the disk, the free percentage and
+GB, and the job. At critical (under 5 %) on the backup drive the pull skips the copy and exits 1 with
+a clear log line; a critical Pi source only warns, because the copy is how its data gets away.
+The notification uses Windows PowerShell 5.1's toast classes (built in, no module to install) and
+works from the scheduled tasks, which run as you while you are signed in.
+
+Run the PC check by hand (PowerShell 7). `-Test` prints what it would notify and shows nothing;
+`-SimulateFreePercent` pretends every disk has that much free, to see the warnings:
+
+```powershell
+pwsh -NoProfile -File .\scripts\pi\space-check.ps1 -Test
+pwsh -NoProfile -File .\scripts\pi\space-check.ps1 -Test -SimulateFreePercent 3
+pwsh -NoProfile -File .\scripts\pi\space-check.ps1          # the real check, with notifications
+```
+
+The Pi's side by hand: `ssh foundry-pi cat /var/lib/foundry-ai-tool/space/status.json`, or run the
+checker itself with `ssh foundry-pi /opt/foundry-ai-tool/space/space-check.sh --print` (prints,
+writes nothing). Tests: `node --test scripts/pi/space-check.test.mjs`.
+
 ## Recordings
 
 The Pi records the Discord voice channel but does not transcribe: it has no graphics card, and speech
@@ -377,6 +432,7 @@ boot problems for others, so it is not tried.
 | Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)             |
 | Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                  |
 | GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                 |
+| Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                           |
 
 ## Sources
 

@@ -58,6 +58,12 @@ jobs:
         # The Pi safety hook (.claude/hooks/guard-remote-commands.mjs) against the real stage scripts.
         run: node --test .claude/hooks/guard-remote-commands.test.mjs
 
+      - name: Pi space check
+        # The storage space check (stage 10, the nightly backup's pre-check, scripts/pi/space-check.ps1):
+        # bash -n on the stage scripts, the checker's JSON against a fake df, the PC helper's levels
+        # (the PowerShell part is skipped where pwsh 7 is missing).
+        run: node --test scripts/pi/space-check.test.mjs
+
       - name: Changelog fragments
         # Each PR adds its CHANGELOG entry as a file in changelog.d/ (D-089); this checks the format.
         run: npm run changelog:check

@@ -6,6 +6,7 @@
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/6-backup.sh | ssh foundry-pi 'bash -s'
 # The repository lives on the Pi's own disk (/var/lib/foundry-backup/restic); this PC copies it to
 # E:\PiBackup\restic every day (scripts/pi/pull-restic.ps1), so the Pi's disk is not the only copy.
+# Before it runs, the backup calls the storage space check from stage 10 (skipped at critical).
 # The repository password is generated here, kept in a root-only file and never printed.
 
 require_root
@@ -54,6 +55,31 @@ set -euo pipefail
 
 export RESTIC_REPOSITORY=/var/lib/foundry-backup/restic
 export RESTIC_PASSWORD_FILE=/etc/foundry-ai-tool/restic-pi.pass
+
+# Space pre-check (stage 10 installs the checker; without it the backup just runs). The checker
+# records the result in the status file the bot and the dashboard read. Below 20% free it warns in
+# the journal and the backup still runs; at critical (under 5% free, or less free space than the
+# data to back up) it exits 3 and the backup is skipped, before Foundry is stopped. Any other
+# checker failure only warns: a broken check must never stop the backup.
+space_check=/opt/foundry-ai-tool/space/space-check.sh
+if [ -x "$space_check" ]; then
+  need=""
+  if du_out="$(timeout 120 du -sbx --exclude=Logs --exclude=gm-browser --exclude=recordings \
+    /var/lib/foundry /var/lib/foundry-ai-tool /etc/foundry-ai-tool 2>/dev/null)"; then
+    need="$(printf '%s\n' "$du_out" | awk '{ s += $1 } END { if (NR) print s + 0 }')"
+  fi
+  space_rc=0
+  "$space_check" --job "restic backup" ${need:+--need-bytes "$need"} \
+    --need-path /var/lib/foundry-backup/restic </dev/null || space_rc=$?
+  if [ "$space_rc" = 3 ]; then
+    echo "ERROR: backup skipped: disk space is critical (see the lines above). Free up space, then run: systemctl start foundry-backup.service" >&2
+    exit 1
+  elif [ "$space_rc" != 0 ]; then
+    echo "WARNING: the space check failed (exit $space_rc); backing up anyway" >&2
+  fi
+else
+  echo "space check not installed (stage 10): backing up without it"
+fi
 
 # Foundry keeps its worlds in LevelDB, which must not change while it is copied, so Foundry is
 # stopped for the backup. The trap starts it again whatever happens, including a failed backup.

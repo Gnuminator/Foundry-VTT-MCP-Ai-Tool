@@ -27,7 +27,7 @@ test('read-only remote commands pass', () => {
 
 test('the real stage scripts pass, except stage 1 (the foundry user) and stage 9 (SSH login keys), which ask', () => {
   const dir = path.join(repo, 'scripts', 'pi', 'remote');
-  for (const name of readdirSync(dir).filter(n => /^\d-.*\.sh$/.test(n))) {
+  for (const name of readdirSync(dir).filter(n => /^\d+-.*\.sh$/.test(n))) {
     const command = `cat scripts/pi/remote/lib.sh scripts/pi/remote/${name} | ssh -o BatchMode=yes foundry-pi bash`;
     const expected = /^(1|9)-/.test(name) ? 'ask' : 'allow';
     assert.equal(kind(command), expected, `${name}: ${JSON.stringify(decide(command, repo))}`);

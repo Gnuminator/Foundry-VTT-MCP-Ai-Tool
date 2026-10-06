@@ -899,15 +899,18 @@ export interface ExportStatusInput {
   /** Notes this export produced (not counting `_status.md` itself). */
   notesManaged: number;
   skipped: Array<{ path: string; reason: string }>;
+  /** GM-owned notes kept as the GM edited them (an edited Home): a standing note. */
+  kept?: Array<{ path: string; reason: string }>;
   errors: Array<{ path: string; error: string }>;
 }
 
-/** `AI Tool/_status.md`: how many notes the tool manages, the ones it skipped
- * (edited in Obsidian, or foreign) and errors. Only lasting facts (no times, no
+/** `AI Tool/_status.md`: how many notes the tool manages, the GM's own notes it keeps as
+ * edited, the ones it skipped (edited in Obsidian, or foreign) and errors. Only lasting facts (no times, no
  * per-run counts), so it is not rewritten on every render. */
 export function renderStatusNote(worldId: string, status: ExportStatusInput): string {
   const skipped = [...status.skipped].sort((a, b) => a.path.localeCompare(b.path));
   const errors = [...status.errors].sort((a, b) => a.path.localeCompare(b.path));
+  const kept = [...(status.kept ?? [])].sort((a, b) => a.path.localeCompare(b.path));
   const props = generatedProps(
     'status',
     worldId,
@@ -929,6 +932,16 @@ export function renderStatusNote(worldId: string, status: ExportStatusInput): st
       '',
       'The Foundry mirror keeps its own status in [Foundry/_status.md](Foundry/_status.md); that note exists only when the mirror is on.',
       '',
+      ...(kept.length
+        ? [
+            '## Your own notes (kept as you edited them)',
+            '',
+            'Nothing to fix here: the tool leaves these as they are.',
+            '',
+            ...kept.map(k => `- \`${k.path}\`: ${k.reason}`),
+            '',
+          ]
+        : []),
       '## Skipped (edited in Obsidian, or foreign)',
       '',
       ...(skipped.length ? skipped.map(s => `- \`${s.path}\`: ${s.reason}`) : ['- (none)']),

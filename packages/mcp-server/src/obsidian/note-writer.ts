@@ -98,6 +98,9 @@ export class NoteWriter {
   readonly unchanged: string[] = [];
   readonly created: string[] = [];
   readonly skipped: Array<{ path: string; reason: string }> = [];
+  /** GM-owned notes kept as the GM edited them instead of a newer template: a standing
+   * fact, not a problem ({@link NoteWriter.createOrUpgrade}). */
+  readonly kept: Array<{ path: string; reason: string }> = [];
   readonly trashed: string[] = [];
   /** Notes moved to a new path ({@link NoteWriter.move}). */
   readonly moved: Array<{ from: string; to: string }> = [];
@@ -221,7 +224,7 @@ export class NoteWriter {
   /**
    * A GM-owned note that may follow a newer template: created when missing, replaced when it
    * still holds an older template untouched (`isUntouched`), otherwise left alone and listed in
-   * `skipped` with `editedReason` (unless it already holds `text`).
+   * `kept` with `editedReason` (unless it already holds `text`).
    */
   async createOrUpgrade(
     relPath: string,
@@ -241,7 +244,7 @@ export class NoteWriter {
       }
       if (current.replace(/\r\n/g, '\n') === text) return;
       if (!isUntouched(current)) {
-        this.skipped.push({ path: relPath, reason: editedReason });
+        this.kept.push({ path: relPath, reason: editedReason });
         return;
       }
       await writeFileAtomic(full, text);

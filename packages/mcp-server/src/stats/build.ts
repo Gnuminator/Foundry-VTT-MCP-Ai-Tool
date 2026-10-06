@@ -234,9 +234,6 @@ function newCombatBuilder(combatId: string): CombatBuilder {
 interface PcAccumulator {
   uuid: string;
   name: string;
-  /** Whether a player owns it: true once any record says so, false when records say so and none
-   * says true, null when no record says (records from before `playerOwned`). */
-  playerOwned: boolean | null;
   sessions: Set<number>;
   damageDealt: number;
   damageTaken: number;
@@ -260,7 +257,6 @@ function newPcAccumulator(actor: PlayActorRef): PcAccumulator {
   return {
     uuid: actor.uuid,
     name: actor.name,
-    playerOwned: null,
     sessions: new Set(),
     damageDealt: 0,
     damageTaken: 0,
@@ -358,7 +354,32 @@ interface SessionContext {
   rollsByMessage: Map<string, PlayRecord[]>;
   userNames: Map<string, string>;
   pcs: Map<string, PcAccumulator>;
+  /** Player characters no player owns in any record (spare and test characters, I-120). */
+  spare: ReadonlySet<string>;
   dice: DiceAccumulator;
+}
+
+/** A party member: a player character a player owns (or whose records do not say). */
+function isParty(
+  actor: PlayActorRef | null | undefined,
+  ctx: SessionContext
+): actor is PlayActorRef {
+  return !!actor?.isPC && !ctx.spare.has(actor.uuid);
+}
+
+/** Characters marked as not player-owned in some record and owned in none (a character handed
+ * out later counts for the whole world, matching its per-PC stats). */
+function spareCharacters(records: readonly PlayRecord[]): Set<string> {
+  const owned = new Set<string>();
+  const unowned = new Set<string>();
+  for (const record of records) {
+    const actor = record.actor;
+    if (!actor?.isPC) continue;
+    if (actor.playerOwned === true) owned.add(actor.uuid);
+    else if (actor.playerOwned === false) unowned.add(actor.uuid);
+  }
+  for (const uuid of owned) unowned.delete(uuid);
+  return unowned;
 }
 
 function pcFor(actor: PlayActorRef, ctx: SessionContext, sessionNumber: number): PcAccumulator {
@@ -367,8 +388,6 @@ function pcFor(actor: PlayActorRef, ctx: SessionContext, sessionNumber: number):
     pc = newPcAccumulator(actor);
     ctx.pcs.set(actor.uuid, pc);
   }
-  if (actor.playerOwned === true) pc.playerOwned = true;
-  else if (actor.playerOwned === false && pc.playerOwned === null) pc.playerOwned = false;
   pc.sessions.add(sessionNumber);
   return pc;
 }
@@ -461,7 +480,7 @@ function buildSession(
           }
           ctx.dice.byUser.set(key, u);
         }
-        if (record.actor?.isPC) {
+        if (isParty(record.actor, ctx)) {
           const roll = record.roll;
           if (roll && HIGHEST_ROLL_TYPES.has(roll.rollType) && Number.isFinite(roll.total)) {
             if (!highestRoll || roll.total > highestRoll.total) {
@@ -492,7 +511,7 @@ function buildSession(
         itemsUsed++;
         const isSpell = record.item?.type === 'spell';
         if (isSpell) spellsCast++;
-        if (record.actor?.isPC) {
+        if (isParty(record.actor, ctx)) {
           const pc = pcFor(record.actor, ctx, number);
           pc.itemsUsed++;
           if (isSpell) pc.spellsCast++;
@@ -503,7 +522,7 @@ function buildSession(
         const delta = numDelta(record);
         if (delta >= 0) break;
         spellSlotsSpent += -delta;
-        if (record.actor?.isPC) {
+        if (isParty(record.actor, ctx)) {
           const pc = pcFor(record.actor, ctx, number);
           bump(pc.slotsSpent, slotKeyFromPath(record.path), -delta);
         }
@@ -513,7 +532,7 @@ function buildSession(
         const delta = numDelta(record);
         if (delta >= 0) break;
         resourcesSpent += -delta;
-        if (record.actor?.isPC) {
+        if (isParty(record.actor, ctx)) {
           const pc = pcFor(record.actor, ctx, number);
           bump(pc.resourcesSpent, resourceKeyFromPath(record.path), -delta);
         }
@@ -525,7 +544,7 @@ function buildSession(
         const spent = legacy ? (delta < 0 ? -delta : 0) : delta > 0 ? delta : 0;
         if (spent <= 0) break;
         resourcesSpent += spent;
-        if (record.actor?.isPC) {
+        if (isParty(record.actor, ctx)) {
           const pc = pcFor(record.actor, ctx, number);
           bump(pc.resourcesSpent, record.item?.name ?? 'Item uses', spent);
         }
@@ -535,14 +554,14 @@ function buildSession(
         const delta = numDelta(record);
         if (delta <= 0) break;
         resourcesSpent += delta;
-        if (record.actor?.isPC) {
+        if (isParty(record.actor, ctx)) {
           const pc = pcFor(record.actor, ctx, number);
           bump(pc.resourcesSpent, record.item?.name ?? 'Hit dice', delta);
         }
         break;
       }
       case 'item-create': {
-        if (record.actor?.isPC && record.item) {
+        if (isParty(record.actor, ctx) && record.item) {
           const pc = pcFor(record.actor, ctx, number);
           const qty = typeof record.after === 'number' ? record.after : 1;
           bump(pc.lootGained, record.item.name, qty);
@@ -551,7 +570,7 @@ function buildSession(
       }
       case 'item-quantity': {
         const delta = numDelta(record);
-        if (delta > 0 && record.actor?.isPC && record.item) {
+        if (delta > 0 && isParty(record.actor, ctx) && record.item) {
           const pc = pcFor(record.actor, ctx, number);
           bump(pc.lootGained, record.item.name, delta);
         }
@@ -559,7 +578,7 @@ function buildSession(
       }
       case 'currency': {
         const delta = numDelta(record);
-        if (delta !== 0 && record.actor?.isPC) {
+        if (delta !== 0 && isParty(record.actor, ctx)) {
           const pc = pcFor(record.actor, ctx, number);
           bump(pc.currencyDelta, currencyKeyFromPath(record.path), delta);
         }
@@ -567,7 +586,7 @@ function buildSession(
       }
       case 'xp': {
         const delta = numDelta(record);
-        if (delta > 0 && record.actor?.isPC) {
+        if (delta > 0 && isParty(record.actor, ctx)) {
           const pc = pcFor(record.actor, ctx, number);
           pc.xpGained += delta;
         }
@@ -582,14 +601,14 @@ function buildSession(
         const after = typeof record.after === 'number' ? record.after : null;
         if (delta < 0) {
           const amount = -delta;
-          if (actor.isPC) {
+          if (isParty(actor, ctx)) {
             partyDamageTaken += amount;
             pcFor(actor, ctx, number).damageTaken += amount;
           }
           if (record.combat) bump(combatFor(record.combat.id).damageTaken, actor.name, amount);
           const attacker = attributedActor(record, ctx.rollsByMessage, 'damage');
           if (attacker) {
-            if (attacker.isPC) {
+            if (isParty(attacker, ctx)) {
               partyDamageDealt += amount;
               pcFor(attacker, ctx, number).damageDealt += amount;
             }
@@ -597,19 +616,22 @@ function buildSession(
           }
           if (before !== null && after !== null && before > 0 && after <= 0) {
             if (actor.isPC) {
-              pcDowns++;
-              pcDownsByName.set(actor.name, (pcDownsByName.get(actor.name) ?? 0) + 1);
-              pcFor(actor, ctx, number).downs++;
+              // A spare character's down stays in its fight, out of the party counts.
               if (record.combat) combatFor(record.combat.id).downs.push(actor.name);
+              if (isParty(actor, ctx)) {
+                pcDowns++;
+                pcDownsByName.set(actor.name, (pcDownsByName.get(actor.name) ?? 0) + 1);
+                pcFor(actor, ctx, number).downs++;
+              }
             } else {
               npcKills++;
               if (record.combat) combatFor(record.combat.id).kills.push(actor.name);
-              if (attacker?.isPC) pcFor(attacker, ctx, number).kills++;
+              if (isParty(attacker, ctx)) pcFor(attacker, ctx, number).kills++;
             }
           }
         } else if (delta > 0) {
           const amount = delta;
-          if (actor.isPC) {
+          if (isParty(actor, ctx)) {
             partyHealing += amount;
             pcFor(actor, ctx, number).healingReceived += amount;
           }
@@ -715,15 +737,15 @@ export function buildStats(input: BuildStatsInput): StatsModel {
     rollsByMessage: buildRollsByMessage(input.playRecords),
     userNames: buildUserNames(input.playRecords),
     pcs: new Map(),
+    spare: spareCharacters(input.playRecords),
     dice: { d20: new Array<number>(20).fill(0), byUser: new Map() },
   };
 
   const sessions = groups.map((group, i) => buildSession(i + 1, group, ctx));
 
-  // Only characters a player owns (I-120): spare and test characters get no stats. Records
-  // from before `playerOwned` do not say, so those characters stay.
+  // Only characters a player owns (I-120): spare and test characters never reach `ctx.pcs`
+  // (`isParty`). Records from before `playerOwned` do not say, so those characters stay.
   const pcs: PcStats[] = [...ctx.pcs.values()]
-    .filter(pc => pc.playerOwned !== false)
     .map(
       (pc): PcStats => ({
         uuid: pc.uuid,

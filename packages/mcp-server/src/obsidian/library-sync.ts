@@ -982,13 +982,14 @@ export class LibrarySync {
     const keep = new Set([...wanted.values()].map(pathKey));
     const keepNotes = new Set([...wanted.values()].map(p => pathKey(bookNotePath(p))));
     // The note that links the entries without a book (I-120 c), unless a book took its path.
+    // Only after a complete refresh: rows seen so far would shrink the list until the next run.
     const noBook: Array<{ path: string; name: string }> = [];
     for (const row of run.rows.values()) {
       if (bookProperty(row) !== null) continue;
       const notePath = world.paths.get(row.uuid);
       if (notePath?.startsWith(FENCE_PREFIX)) noBook.push({ path: notePath, name: row.name });
     }
-    if (noBook.length > 0 && !keepNotes.has(pathKey(NO_BOOK_NOTE_PATH))) {
+    if (complete && noBook.length > 0 && !keepNotes.has(pathKey(NO_BOOK_NOTE_PATH))) {
       const note = renderNoBookNote(deps.worldId, NO_BOOK_NOTE_PATH, noBook);
       await writer.owned(NO_BOOK_NOTE_PATH, note, checkMarkdownOwnership);
       keepNotes.add(pathKey(NO_BOOK_NOTE_PATH));

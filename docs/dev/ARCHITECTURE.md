@@ -223,6 +223,29 @@ The backend keeps a `pendingQueries` map keyed by `query-N` with a 10-second tim
 as the control channel keeps its own pending map keyed by `id`. The two layers mirror each
 other but never share identifiers or sockets.
 
+Two more frames are additive and sit outside the core frame union, like `module-hello` (sent
+once when the link opens, so the backend knows which Foundry user holds it: lane 1, PB-02):
+
+```json
+{"type":"module-request","id":"module-req-N","data":{"tool":"list-recent-changes","args":{"limit":20},"requestedBy":{"userId":"...","userName":"..."}}}
+{"type":"module-reply","id":"module-req-N","data":{"success":true,"data":<result>}}
+{"type":"module-reply","id":"module-req-N","data":{"success":false,"error":"..."}}
+```
+
+`module-request` runs the other way round (module → backend): the browser that holds the link asks
+the backend to run one tool for a GM's "AI changes" window inside Foundry (I-108). Only the tools
+in `MODULE_REQUEST_TOOLS` (`list-recent-changes`, `undo-change`; later lanes add more) are
+accepted, and only from the currently active module socket; anything else gets a
+`module-reply` with `success: false`. The `args` object may not exceed 20 kB as JSON. The backend
+runs the tool through the same in-process dispatch table as the control channel's `call_tool`
+(the connector gets it as a callback, so it never imports the tool router) and answers on the same
+socket with the same `id`. The module times a request out after 30 seconds (120 seconds for an
+undo) and rejects it when the link closes. A GM whose own browser does not hold the link reaches
+it through Foundry's GM-only `user.query` to the browser that does, which forwards the request
+(`gm-helper-queries.ts`, the `aiToolRequest` helper query); when the bridge client logs a guarded
+change it also sends a `{type:"ai-changes-updated"}` message on the module's game socket, and open
+windows fetch the list again.
+
 **Why two layers?** The control channel is process-local, trusted, and synchronous-feeling
 (request/response). The Foundry link crosses the trust/process boundary into a browser, may be
 remote, and must tolerate a flaky tab. By

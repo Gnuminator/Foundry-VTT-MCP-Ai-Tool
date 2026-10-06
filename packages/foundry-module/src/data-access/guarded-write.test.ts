@@ -11,6 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from '../test-support/foundry-mock/index.js';
 import { eventTracker, type SessionLogEntry } from '../session-events.js';
+import { AI_CHANGES_APPLY_DELAY_MS, onAiChangesUpdated } from '../ai-changes-signal.js';
 import { registerGuardedFeature, resetGuardedFeaturesForTests } from '../guarded-features.js';
 import {
   GUARDED_OUTCOME_MEMORY,
@@ -422,6 +423,26 @@ describe('applyGuardedOps: apply', () => {
     });
   });
 
+  it('tells the AI changes window, after a short wait for the backend to record it (I-108)', async () => {
+    vi.useFakeTimers();
+    try {
+      const listener = vi.fn();
+      const stop = onAiChangesUpdated(listener);
+      const actor = addActor();
+      await applyGuardedOps(
+        await request([
+          { kind: 'update', uuid: actor.uuid, changes: { 'system.attributes.hp.value': 4 } },
+        ])
+      );
+      expect(listener).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(AI_CHANGES_APPLY_DELAY_MS);
+      expect(listener).toHaveBeenCalledTimes(1);
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('uses the GM rules choice and keeps an explicit rules tag in the changes', async () => {
     const actor = addActor({ system: { source: {} } });
     await applyGuardedOps(
@@ -813,6 +834,14 @@ describe('logGmChange', () => {
       summary: 'Undo: Update Tarokka links (Ally)',
     });
     expect(gmChangeEvents('vault-3')[0].description).toBe('Undid: Update Tarokka links (Ally)');
+  });
+
+  it('tells the AI changes window at once (the backend recorded the change first)', () => {
+    const listener = vi.fn();
+    const stop = onAiChangesUpdated(listener);
+    logGmChange({ changeId: 'vault-9', feature: 'tarokka', summary: 'x' });
+    expect(listener).toHaveBeenCalledTimes(1);
+    stop();
   });
 
   it('needs changeId and feature', () => {

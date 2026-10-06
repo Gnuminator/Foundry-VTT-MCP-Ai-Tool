@@ -34,6 +34,23 @@ export interface ModuleHelloData {
 }
 
 /**
+ * Frames for module-initiated requests (I-108): the bridge-linked browser asks
+ * the backend to run one of `MODULE_REQUEST_TOOLS` for a GM's "AI changes"
+ * window. Local mirrors of `MODULE_REQUEST_TYPE`, `MODULE_REPLY_TYPE` and
+ * `MODULE_REQUEST_TOOLS` in `shared/src/protocol.ts`, pinned by a contract test.
+ */
+export const MODULE_REQUEST_TYPE = 'module-request' as const;
+export const MODULE_REPLY_TYPE = 'module-reply' as const;
+export const MODULE_REQUEST_TOOLS = ['list-recent-changes', 'undo-change'] as const;
+export type ModuleRequestTool = (typeof MODULE_REQUEST_TOOLS)[number];
+
+/** Who asked, as the backend logs it (the Foundry user that clicked, not the link holder). */
+export interface ModuleRequester {
+  userId: string;
+  userName: string;
+}
+
+/**
  * Reconnect backoff (lane 1, PB-03): 1 s, doubling, capped at 30 s, plus up to
  * 20 % random jitter. There is no attempt limit.
  */

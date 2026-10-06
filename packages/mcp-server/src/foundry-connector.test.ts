@@ -270,3 +270,102 @@ describe('link state (PB-03)', () => {
     spy.mockRestore();
   });
 });
+
+describe('module requests (I-108)', () => {
+  const requestFrame = (
+    tool: string,
+    args: Record<string, unknown> = {},
+    id = 'req-1'
+  ): Record<string, unknown> => ({
+    type: 'module-request',
+    id,
+    data: { tool, args, requestedBy: { userId: 'u1', userName: 'Danni' } },
+  });
+  const flush = (): Promise<void> => vi.advanceTimersByTimeAsync(0);
+
+  it('runs an allowed tool through the dispatcher and replies on the same socket', async () => {
+    const handler = vi.fn(async () => ({ changes: [] }));
+    connector.setModuleRequestHandler(handler);
+    const a = connect();
+    a.say(requestFrame('list-recent-changes', { limit: 20 }));
+    await flush();
+    expect(handler).toHaveBeenCalledWith(
+      'list-recent-changes',
+      { limit: 20 },
+      { userId: 'u1', userName: 'Danni' }
+    );
+    expect(a.sent).toEqual([
+      { type: 'module-reply', id: 'req-1', data: { success: true, data: { changes: [] } } },
+    ]);
+    expect(logger.info).toHaveBeenCalledWith('Module request', {
+      tool: 'list-recent-changes',
+      requestedBy: 'Danni',
+    });
+  });
+
+  it('replies with the error message when the tool throws', async () => {
+    connector.setModuleRequestHandler(async () => {
+      throw new Error('Documents changed since the change was made');
+    });
+    const a = connect();
+    a.say(requestFrame('undo-change', { changeId: 'c1', confirm: true }));
+    await flush();
+    expect(a.sent[0].data).toEqual({
+      success: false,
+      error: 'Documents changed since the change was made',
+    });
+  });
+
+  it('refuses a request from a socket that is not the active bridge link', async () => {
+    const handler = vi.fn(async () => ({}));
+    connector.setModuleRequestHandler(handler);
+    const bridge = connect();
+    bridge.hello('Claude', true);
+    const other = connect();
+    other.hello('Gamemaster', false);
+    other.say(requestFrame('list-recent-changes'));
+    await flush();
+    expect(handler).not.toHaveBeenCalled();
+    expect(other.sent[0].data).toEqual({ success: false, error: 'Not the active bridge link' });
+    expect(bridge.sent).toEqual([]);
+  });
+
+  it('refuses a tool that is not on the module-request list', async () => {
+    const handler = vi.fn(async () => ({}));
+    connector.setModuleRequestHandler(handler);
+    const a = connect();
+    a.say(requestFrame('apply-planned-change', { planId: 'p', confirm: true }));
+    a.say(requestFrame('toString', {}, 'req-2'));
+    await flush();
+    expect(handler).not.toHaveBeenCalled();
+    expect(a.sent.map(m => m.data.success)).toEqual([false, false]);
+    expect(a.sent[0].data.error).toMatch(/not allowed/);
+  });
+
+  it('refuses arguments over 20 kB', async () => {
+    const handler = vi.fn(async () => ({}));
+    connector.setModuleRequestHandler(handler);
+    const a = connect();
+    a.say(requestFrame('list-recent-changes', { pad: 'x'.repeat(20_001) }));
+    await flush();
+    expect(handler).not.toHaveBeenCalled();
+    expect(a.sent[0].data).toEqual({ success: false, error: 'Request arguments are too large' });
+  });
+
+  it('answers an invalid frame that still has an id, and ignores one without', async () => {
+    connector.setModuleRequestHandler(async () => ({}));
+    const a = connect();
+    a.say({ type: 'module-request', id: 'bad-1', data: { tool: 'list-recent-changes' } });
+    a.say({ type: 'module-request', data: {} });
+    await flush();
+    expect(a.sent).toHaveLength(1);
+    expect(a.sent[0]).toMatchObject({ id: 'bad-1', data: { success: false } });
+  });
+
+  it('says so when no dispatcher is wired in', async () => {
+    const a = connect();
+    a.say(requestFrame('list-recent-changes'));
+    await flush();
+    expect(a.sent[0].data).toEqual({ success: false, error: 'Module requests are not available' });
+  });
+});

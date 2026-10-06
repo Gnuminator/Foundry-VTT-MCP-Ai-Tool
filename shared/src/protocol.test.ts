@@ -20,6 +20,12 @@ import {
   FoundryFrameSchema,
   FoundryQueryFrameSchema,
   FoundryResponseFrameSchema,
+  MODULE_REPLY_TYPE,
+  MODULE_REQUEST_MAX_ARGS_BYTES,
+  MODULE_REQUEST_TOOLS,
+  MODULE_REQUEST_TYPE,
+  ModuleReplyFrameSchema,
+  ModuleRequestFrameSchema,
   ToolResultPayloadSchema,
 } from './protocol.js';
 
@@ -123,5 +129,61 @@ describe('Foundry-link contract (§3b)', () => {
 
   it('rejects an unknown frame type at the union boundary', () => {
     expect(() => FoundryFrameSchema.parse({ type: 'totally-made-up', id: 'x' })).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// module-request / module-reply (I-108: the AI changes window inside Foundry)
+// ---------------------------------------------------------------------------
+
+describe('module-request / module-reply contract', () => {
+  const request = {
+    type: 'module-request',
+    id: 'req-1',
+    data: {
+      tool: 'list-recent-changes',
+      args: { limit: 20 },
+      requestedBy: { userId: 'abc123', userName: 'Danni' },
+    },
+  };
+
+  it('pins the frame types, the first two tools and the size cap', () => {
+    expect(MODULE_REQUEST_TYPE).toBe('module-request');
+    expect(MODULE_REPLY_TYPE).toBe('module-reply');
+    expect([...MODULE_REQUEST_TOOLS]).toEqual(['list-recent-changes', 'undo-change']);
+    expect(MODULE_REQUEST_MAX_ARGS_BYTES).toBe(20_000);
+  });
+
+  it('round-trips a request frame', () => {
+    expect(ModuleRequestFrameSchema.parse(request)).toEqual(request);
+  });
+
+  it('rejects a request without requestedBy, with non-object args or an empty id', () => {
+    expect(
+      ModuleRequestFrameSchema.safeParse({ ...request, data: { tool: 'x', args: {} } }).success
+    ).toBe(false);
+    expect(
+      ModuleRequestFrameSchema.safeParse({ ...request, data: { ...request.data, args: [1] } })
+        .success
+    ).toBe(false);
+    expect(ModuleRequestFrameSchema.safeParse({ ...request, id: '' }).success).toBe(false);
+  });
+
+  it('is not part of the core frame union (additive, like module-hello)', () => {
+    expect(() => FoundryFrameSchema.parse(request)).toThrow();
+  });
+
+  it('round-trips a success and an error reply', () => {
+    const ok = {
+      type: 'module-reply',
+      id: 'req-1',
+      data: { success: true, data: { changes: [] } },
+    };
+    const bad = { type: 'module-reply', id: 'req-1', data: { success: false, error: 'nope' } };
+    expect(ModuleReplyFrameSchema.parse(ok)).toEqual(ok);
+    expect(ModuleReplyFrameSchema.parse(bad)).toEqual(bad);
+    expect(
+      ModuleReplyFrameSchema.safeParse({ type: 'module-reply', id: 'r', data: {} }).success
+    ).toBe(false);
   });
 });

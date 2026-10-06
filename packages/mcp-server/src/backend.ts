@@ -446,6 +446,13 @@ async function startBackend(): Promise<void> {
     refChoiceTools,
   };
   const toolRouter = buildToolRouter(toolDeps);
+  // A `module-request` from the linked browser runs through the same dispatch table as the
+  // control channel's call_tool (the connector only allows MODULE_REQUEST_TOOLS).
+  foundryClient.setModuleRequestHandler((tool, args) => {
+    const route = toolRouter[tool];
+    if (!route) return Promise.reject(new Error(`Unknown tool: ${tool}`));
+    return route(args);
+  });
   const allTools = collectToolDefinitions(toolDeps);
   allToolNames = allTools.map(t => t.name);
 

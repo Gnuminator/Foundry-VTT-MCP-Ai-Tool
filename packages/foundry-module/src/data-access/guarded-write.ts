@@ -19,6 +19,7 @@
  * the shared package); `GUARDED_OP_KINDS` is compared in a test.
  */
 import { MODULE_ID } from '../constants.js';
+import { AI_CHANGES_APPLY_DELAY_MS, announceAiChangesUpdated } from '../ai-changes-signal.js';
 import { eventTracker } from '../session-events.js';
 import { isFeatureEnabled, isKnownFeature } from '../guarded-features.js';
 import { unsetKeyUpdate } from '../systems/core.js';
@@ -633,6 +634,8 @@ async function runGuardedApply(
       documents: done.map(d => d.result.uuid),
     },
   });
+  // The backend writes its audit entry just after this returns, so the signal waits a moment.
+  announceAiChangesUpdated(AI_CHANGES_APPLY_DELAY_MS);
   return { changeId: req.changeId, mode: req.mode, appliedAt, results: done.map(d => d.result) };
 }
 
@@ -663,5 +666,7 @@ export function logGmChange(data: unknown): { logged: true } {
   eventTracker.logSessionEvent('gm-change', gmChangeText(d.mode, d.summary), {
     details: { changeId: d.changeId, feature: d.feature, mode: d.mode ?? 'apply', vault: true },
   });
+  // The backend recorded this change before it called here, so the list is already current.
+  announceAiChangesUpdated();
   return { logged: true };
 }

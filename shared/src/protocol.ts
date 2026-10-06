@@ -228,6 +228,74 @@ export const ModuleHelloFrameSchema = z.object({
   }),
 });
 
+/**
+ * Module → backend: the bridge-linked browser asks the backend to run one of a
+ * short list of tools for a GM's Foundry window (I-108: the "AI changes" window
+ * inside Foundry). The backend runs the same in-process tool the dashboard
+ * would call and answers with a {@link MODULE_REPLY_TYPE} frame carrying the
+ * same `id`. Additive and not part of {@link FoundryFrame}, like `module-hello`.
+ */
+export const MODULE_REQUEST_TYPE = 'module-request' as const;
+
+/** Backend → module: the answer to one `module-request`. */
+export const MODULE_REPLY_TYPE = 'module-reply' as const;
+
+/** The tools a `module-request` may name (later lanes extend this list). */
+export const MODULE_REQUEST_TOOLS = ['list-recent-changes', 'undo-change'] as const;
+
+export type ModuleRequestTool = (typeof MODULE_REQUEST_TOOLS)[number];
+
+/** The largest `args` object (as JSON) the backend accepts in a `module-request`. */
+export const MODULE_REQUEST_MAX_ARGS_BYTES = 20_000;
+
+export interface ModuleRequestData {
+  tool: string;
+  args: Record<string, unknown>;
+  /** The Foundry GM who asked (the browser that holds the link relays for others). */
+  requestedBy: { userId: string; userName: string };
+}
+
+export interface ModuleRequestFrame {
+  type: typeof MODULE_REQUEST_TYPE;
+  id: string;
+  data: ModuleRequestData;
+}
+
+export interface ModuleReplyData {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}
+
+export interface ModuleReplyFrame {
+  type: typeof MODULE_REPLY_TYPE;
+  id: string;
+  data: ModuleReplyData;
+}
+
+export const ModuleRequestFrameSchema = z.object({
+  type: z.literal(MODULE_REQUEST_TYPE),
+  id: z.string().min(1).max(100),
+  data: z.object({
+    tool: z.string().min(1).max(100),
+    args: z.record(z.string(), z.unknown()),
+    requestedBy: z.object({
+      userId: z.string().max(100),
+      userName: z.string().max(200),
+    }),
+  }),
+});
+
+export const ModuleReplyFrameSchema = z.object({
+  type: z.literal(MODULE_REPLY_TYPE),
+  id: z.string().min(1).max(100),
+  data: z.object({
+    success: z.boolean(),
+    data: z.unknown().optional(),
+    error: z.string().optional(),
+  }),
+});
+
 /** Discriminated union over the core frame `type`s. */
 export const FoundryFrameSchema = z.discriminatedUnion('type', [
   FoundryQueryFrameSchema,

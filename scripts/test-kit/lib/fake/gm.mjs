@@ -22,6 +22,7 @@ import {
   fakeInspectMonster,
   fakeListMonsters,
 } from './monsters.mjs';
+import { fakeExerciseSpell, fakeListSpells } from './spells.mjs';
 import { markTurn, sortCombat } from './tools-combat.mjs';
 import { ToolFailure, addEvent, newId, roll, tick } from './state.mjs';
 
@@ -519,6 +520,10 @@ const ACTIONS = {
     w.actors.delete(args.actorId);
     return { deleted: true };
   },
+
+  listSpells: (w, args) => fakeListSpells(w, args),
+
+  exerciseSpell: (w, args) => fakeExerciseSpell(w, args),
 
   consoleErrors: () => ({ errors: [] }),
 };

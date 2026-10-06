@@ -216,6 +216,10 @@ test('50,000-character crafted commands are checked in well under 200 ms', () =>
     P + rep('find '),
     P + 'find / ' + rep('-exec '),
     P + rep('xargs '),
+    // Found by the review of PR #146: a long wildcard path and many unclosed `${`.
+    P + "'rm -rf " + rep('*') + "x'",
+    P + "'find " + rep('${') + " -delete'",
+    P + "'find $" + rep('{a}') + "${ -delete'",
     'scp ' + rep('scp a: '),
     rep('ssh -o '),
     rep('# x\nssh foundry-pi cat a\n'),

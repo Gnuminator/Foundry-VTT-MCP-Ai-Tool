@@ -318,7 +318,13 @@ const homeNeed = raw => (/^~\/?\*?$/.test(path.posix.normalize(raw)) ? 'deny' : 
 /** A relative path that means the whole current folder or above it (., .., ../x, *, .*). */
 function wholeFolder(raw) {
   const p = path.posix.normalize(raw).replace(/\/+$/, '');
-  return p === '.' || p === '..' || p.startsWith('../') || /^[*?.]*\*[*?.]*$/.test(p.split('/')[0]);
+  const first = p.split('/')[0];
+  return (
+    p === '.' ||
+    p === '..' ||
+    p.startsWith('../') ||
+    (/^[*?.]+$/.test(first) && first.includes('*'))
+  );
 }
 
 /**
@@ -439,7 +445,7 @@ function deletes(text, starts) {
         } else {
           // find "$stage/dist" -delete: an empty variable leaves /dist, which is harmless; a bare
           // variable or one before a system folder leaves / or that folder.
-          const bare = target.replace(/\$\{[^}]*\}|\$\w+|\$./g, '') || '/';
+          const bare = withoutVariables(target) || '/';
           const first = bare.split('/').filter(Boolean)[0];
           if (!first || new RegExp(`^(?:${SYSTEM_DIRS})$`).test(first)) {
             ask.push(`find deleting below a variable path without a guard (${target})`);
@@ -453,6 +459,37 @@ function deletes(text, starts) {
     }
   }
   return { ask, deny };
+}
+
+/**
+ * A path with its variables (${x}, $x, $1) left out, what an empty value leaves. A loop: the
+ * regex /\$\{[^}]*\}|.../g read to the end of the path from every `${` without a `}`.
+ */
+function withoutVariables(s) {
+  const name = /\w+/y;
+  let out = '';
+  let close = -1; // the next `}` at or after i + 2, or -2 when there is none left
+  for (let i = 0; i < s.length; ) {
+    if (s[i] !== '$') {
+      out += s[i++];
+      continue;
+    }
+    if (s[i + 1] === '{' && close !== -2) {
+      if (close < i + 2) {
+        const at = s.indexOf('}', i + 2);
+        close = at === -1 ? -2 : at;
+      }
+      if (close >= 0) {
+        i = close + 1;
+        continue;
+      }
+    }
+    name.lastIndex = i + 1;
+    if (name.test(s)) i = name.lastIndex;
+    else if (i + 1 < s.length && s[i + 1] !== '\n') i += 2;
+    else out += s[i++];
+  }
+  return out;
 }
 
 /** `find <paths> ... -delete` (or -exec rm) events, pushed to `events` with their start paths. */

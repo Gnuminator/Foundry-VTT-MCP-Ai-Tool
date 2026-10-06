@@ -137,6 +137,7 @@ listed).
 | 8. Discord bot  | The recorder bot as a service (`8-recorder.sh`: `foundry-ai-tool-discord-bot`, runs as `foundry`, from the stage 5 build, so it shares the tool version; run it again after a new stage 5 build), recordings in `/var/lib/foundry-ai-tool/recordings`; this PC copies finished recordings over Tailscale for transcription. The service stays off until the token is in                                                                                                                                                                                                | **yes:** run `scripts/pi/set-discord-token.ps1` on this PC and paste the bot token from the Discord developer page (not shown on screen; Claude never sees it); it starts the bot                                                  |
 | 9. Command log  | Every SSH login with the PC's key goes through a small logger (`9-ssh-log.sh`: a `command=` prefix on the key line in `/root/.ssh/authorized_keys`, `sshd_config` untouched): one line per command in `/var/lib/foundry-ai-tool/ssh-log/ssh-commands.log`, plus a copy of every stage script; root only, 12 weeks kept; the token script is logged by name only. A logging error never blocks the command. A 5-minute safety timer restores the old key file unless a new connection confirms                                                                          | **yes:** your OK (an SSH change), and default permission mode while it runs                                                                                                                                                        |
 | 10. Space check | An hourly storage check (`10-space-check.sh`: `foundry-space-check.timer`, the checker in `/opt/foundry-ai-tool/space`) of every disk the backups, snapshots, the vault sync and the recordings use, written to `/var/lib/foundry-ai-tool/space/status.json` (below 20 % free is low, below 5 % is critical) and as a warning line in the journal. The nightly restic backup (stage 6) runs the check first: below 20 % it still runs, at critical it is skipped. `UNDO=1` removes it                                                                                  | **yes:** your OK (a new service and timer); then run stage 6 again so the backup gets its pre-check                                                                                                                                |
+| 11. World       | `11-world.sh` installs the bundle `push-world.ps1` built on this PC, after checking the tar and every checksum: the campaign world, its private modules and image folders. An existing campaign world is kept unless `REPLACE_WORLD=1`; a test copy `strahd-kit` is reset every time; old copies go to `/var/lib/foundry-import/prev-<time>`, never deleted. Each world gets a generated GM password (`/etc/foundry-ai-tool/world-<id>.env`) and is provisioned like stage 5. See "Licensed content"                                                                   | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
 
 Stage 5 in more detail, because it changes how Claude Desktop reaches the game: each entry in
 `%APPDATA%\Claude\claude_desktop_config.json` gets `MCP_CONTROL_HOST` set to the Pi's Tailscale name
@@ -501,13 +502,71 @@ the address. Templates: `deploy/cloudflare/`; background: [Remote access](REMOTE
 
 D&D Beyond imports stay a job for this PC: DDB Importer calls its proxy from the GM's browser, and the
 proxy holds your D&D Beyond login cookie, so it must never be reachable through Cloudflare or from
-another machine. Import on the PC (the proxy and Adventure Muncher against the PC's Foundry), then
-Claude copies the results to the Pi with Foundry stopped:
+another machine. Import on the PC (the proxy and Adventure Muncher against the PC's Foundry). Then two
+scripts move the result to the Pi, in two steps so that you can look in between:
 
-- the private content module (`Data/modules/aitool-content`, its images inside, D-084);
-- the adventure images and files, which live outside the world: `Data/ddb-images/` and
-  `Data/ddb-adventure/`;
-- token art from an older world: `Data/tokenizer/` (without it, tokens show broken images).
+1. **On this PC, with the world stopped in Foundry** (its database files are in use while it runs):
+
+   ```powershell
+   .\scripts\pi\push-world.ps1 -World curse-of-strahd
+   ```
+
+   It scans the world and the compendium packs of the modules for every image and sound path
+   (`scripts/pi/world-refs.mjs`, which reads copies of the databases and never touches a running
+   Foundry), and stops when anything is wrong: a missing file or one whose letter case differs from
+   the real name (Windows ignores case, the Pi does not), a module that is not in the bundle, a module
+   that is switched on in the world but not shipped (turn it off in the world first, as ddb-importer
+   must be), a setting that looks like a secret, or a GM user that has a password. Then it checks the
+   free space on this PC and on the Pi (below 20 % free it warns, below 5 % it stops), builds one
+   `.tar` with a checksum for every file, and uploads it to `/var/lib/foundry-import/` on the Pi. It
+   never runs stage 11. `-NoUpload` builds and checks only.
+
+2. **Stage 11 on the Pi**, after a `dietpi-backup 1` snapshot and your OK. `push-world.ps1` prints
+   the exact command at the end (`BUNDLE=...`).
+
+What is copied:
+
+- the world (`Data/worlds/<id>`);
+- the private modules (default `aitool-content`, `dnd-players-handbook`, `foundryvtt-actor-studio`;
+  the content module holds the imported book images, D-084);
+- the `Data/ddb-images/` and `Data/tokenizer/` folders the world uses (without them, scenes and
+  tokens show broken images). The adventure archives in `Data/ddb-adventure/` are not copied: they
+  are only needed to import again, which stays a job for this PC.
+
+What never leaves this PC: **ddb-importer** (its settings can hold the D&D Beyond cookie) and the
+bridge module (stage 5 installs it from the release), and any env file, proxy file or Adventure
+Muncher file. `push-world.ps1` refuses them, and stage 11 checks the tar again before it extracts
+anything. World settings whose names look like a secret (a cookie, a token, a key) stop the push; the
+names are shown, never the values. A `ddb-importer.*` setting that you reviewed and that is only a
+setting (a folder name, a compendium name) can be let through with a narrow pattern, for example
+`-AllowSettingKeys 'ddb-importer.entity-*'`. A name with cookie, token, secret, password, patreon or
+key in it is always a problem, whatever the list says.
+
+What stage 11 does with it:
+
+- **The campaign world is never replaced** unless you run it with `REPLACE_WORLD=1`. If the world is
+  already on the Pi, it stays as it is and only the modules and images are updated.
+- **The modules are always replaced**, even when the campaign world is kept. A run in the middle of the
+  campaign therefore swaps in the PC's copy of each module, and edits made on the Pi inside a module's
+  own compendiums (the content module's packs, say) are not in it. The old module folder is in
+  `prev-<time>/modules/<id>`: stop Foundry and copy the pack back from there (or ask Claude to). Edits
+  in the world itself (actors, journals, scenes) are not touched.
+- **A test copy, `strahd-kit`** ("Curse of Strahd (test copy for kit runs)"), is made from the bundle
+  every time and replaced on every run. The test kit runs there, so a test never touches the
+  campaign. `KIT_WORLD=` (empty) skips it. `LAUNCH=strahd-kit` starts Foundry on the copy instead.
+- **Old copies are moved, not deleted**, to `/var/lib/foundry-import/prev-<time>/`; remove them later
+  only with your OK. The images are merged into the existing folders, so nothing is deleted there,
+  and an existing image with the same name but other content is copied to `prev-<time>/` first.
+- **Free space** is checked first (the 20 % rule: a warning below 20 %, a stop below 5 %, and a stop
+  when there is less room than twice the bundle). If a run fails after Foundry was stopped, the
+  `options.json` world is put back to what it was and Foundry and the Assistant GM browser start again.
+- **Each new world gets a generated GM password**, kept only in `/etc/foundry-ai-tool/world-<id>.env`
+  (root only, never printed). The GM reads it with `ssh foundry-pi cat
+/etc/foundry-ai-tool/world-curse-of-strahd.env` and then changes it in Foundry if he likes. The
+  Assistant GM and the bridge are set up in each world like in stage 5, and the Assistant GM browser
+  restarts on the campaign world.
+- The world's GM user is `Gamemaster` (`GM_USER=` for another name) and must have no password on the
+  PC when you push, because stage 11 joins as that user once to set the new password.
 
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).

@@ -58,8 +58,8 @@ node scripts/test-kit/kit.mjs <command> [options]
 
 | Size    | Heroes                                                   | Scenarios                  |
 | ------- | -------------------------------------------------------- | -------------------------- |
-| `smoke` | every class once, at level 5, with its first subclass    | the eight SRD scenarios    |
-| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20 | the eight SRD scenarios    |
+| `smoke` | every class once, at level 5, with its first subclass    | the nine SRD scenarios     |
+| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20 | the nine SRD scenarios     |
 | `long`  | the same heroes as `full`                                | scenarios that list `long` |
 
 The plan is `HERO_PLAN` in `lib/contract.mjs`. A class gets its subclass from the level its own
@@ -77,6 +77,9 @@ pwsh scripts/test-env/start.ps1 -World ai-tool-kit-srd
 node scripts/test-kit/kit.mjs all --profile srd
 pwsh scripts/test-env/stop.ps1
 ```
+
+The `srd` profile lists the Actor Studio module under `modules`; run `kit init` once on a kit world to
+enable it (the `heroes-studio` scenario fails with that advice when the module is not active).
 
 The kit opens its own GM page first. The bridge only has a Foundry link while that page is open.
 The test server is shared: run one live job at a time. See the `foundry-test-env` skill.
@@ -163,8 +166,8 @@ Start a `full` run in the background and do not wait on it.
 
 ## The scenarios
 
-Eight SRD scenarios ship in the repo. All are in `smoke` and `full`; `heroes-advancement` and the two
-feature scenarios are in `long` as well.
+Nine SRD scenarios ship in the repo. All are in `smoke` and `full`; `heroes-advancement`, the two
+feature scenarios and `heroes-studio` are in `long` as well.
 
 | Id                     | What it proves                                                                             |
 | ---------------------- | ------------------------------------------------------------------------------------------ |
@@ -176,6 +179,7 @@ feature scenarios are in `long` as well.
 | `heroes-advancement`   | Every hero has what its class and subclass give at its level.                              |
 | `heroes-features-use`  | Every feature of every hero can be used once with no dialog; the hero is put back.         |
 | `heroes-features-deep` | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.           |
+| `heroes-studio`        | A hero per class built in Actor Studio's own windows equals the raw kit hero.              |
 
 ### heroes-advancement
 
@@ -274,18 +278,104 @@ data, not kit failures. Two things the first runs taught the kit: a fresh item c
 source (the restore puts null back), and the system adds and removes the bloodied status when hit points change
 (the restore waits for it).
 
+### heroes-studio
+
+The table builds its characters with the Actor Studio module (`foundryvtt-actor-studio`, tested with
+2.10.5). For each class of the profile this scenario builds one hero through Actor Studio's own windows
+and compares it with the raw kit hero of the same class, level and choices. The hero is the tier hero
+at level 5 (the highest tier level at or below 5 when there is none). One class takes 50 to 160
+seconds, a whole `srd` run about 15 minutes and a `licensed` run (13 classes) about 17.
+
+What it clicks (Playwright on the GM page, never a password):
+
+1. The Actors tab, the Actor Studio button, the six ability scores (the standard array, as the raw
+   heroes use), the Species, Background and Class drop-downs, the character name, "Create Character".
+2. The Spells tab when the window shows it: cantrips first, then spells, by the kit's rotation rule over
+   the list the tab offers, then "Finalize".
+3. For each level from 2: the "level up" button on the character sheet, the class row, the subclass
+   drop-down when the level asks for one, "Add Level".
+
+Actor Studio embeds the system's advancement questions (skills, weapon masteries, fighting styles,
+feats, ability score improvements) in its window. The answer pump (`lib/studio-pump.mjs`, the GM action
+`studioPump`) answers them with the same rotation rule as `createHero`, so both heroes make the same
+choices; the subclass is left to Actor Studio's own drop-down. The pump is the one part that is not a
+click: the question dialogs are the system's, and answering them by hand would be one click per
+checkbox.
+
+**Settings.** Actor Studio's own defaults would build a different hero (it reads the 2014 SRD packs,
+rolls hit points, asks for XP). The scenario sets what a table would set and puts it back afterwards:
+the compendium sources (narrowed to the packs of the hero being built, so a profile with 2024 and
+legacy packs does not offer two Fighters), the average for hit points, milestone levelling, the Spells
+tab on and equipment off (the raw hero has none). **Usage tracking** is different: the module posts
+anonymous usage data to its author's server on every page load while its per-user setting
+`usage-tracking` is on, and it is on by default. `kit init` turns it off for the kit GM and a run never
+puts it back. The `srd` profile lists the module under `modules`; `kit init` enables it in the kit
+world.
+
+**What is compared** (`lib/studio-compare.mjs`): class levels and subclass, character level, hit dice,
+proficiency bonus, spell slots and the slots a new hero can spend, scale values, saving throws, ability
+scores, hit points (maximum and current), armor class, skills, other proficiencies, size, movement and
+senses, the items granted and the items chosen, spells, where each item came from (its advancement
+origin) and what each advancement of the class, subclass, species and background holds. The feature use
+pass of `heroes-features-use` then runs on both heroes; a problem only the Studio hero has is a finding.
+
+**Kinds.** A difference is one of `KIT` (our side: the two heroes made different choices, the pump
+failed, the raw hero lacks something), `CONTENT`, `SYSTEM` (the dnd5e system does it for any actor) and
+`STUDIO` (Actor Studio itself). When the choices differ, the choice-dependent differences (ability
+scores, skills, hit points) become notes under one `KIT` problem. A difference that was traced is in
+`KNOWN` in `lib/studio-compare.mjs`, with its reason.
+
+**Expected findings.** The known findings are listed in `data/studio-expected.json` (an id, a kind and
+the reason each). The scenario counts them in its report (`expectedFindings`) and passes; a finding that
+is not on the list, or that changes kind, fails (`newFindings`). An id is the category and what it says,
+the same for every class (`advancement-values:advancement-value-of-subclass`). When Actor Studio fixes
+one, remove its line; when a new one is understood and accepted, add its line.
+
+**Findings of the first live runs (2026-10-06, Foundry 14.368, dnd5e 6.0.5, Actor Studio 2.10.5).** All
+12 `srd` classes and all 13 classes of the `licensed` profile were built through Actor Studio, with no
+build failure. In every class the choices, ability scores, hit points, armor class, hit dice, scale
+values, features granted and their origins equal the raw hero. The findings: `srd` KIT 8, CONTENT 0,
+SYSTEM 24, STUDIO 14; `licensed` KIT 9, CONTENT 0, SYSTEM 29, STUDIO 15 (one subclass finding per
+class and two console errors, the rest are the repeats below). What differs:
+
+- `STUDIO`, every class: the class's **Subclass advancement is left unset** (`value.uuid` is null). Actor
+  Studio drops the subclass item itself after the class level, so the hero has the subclass and all of
+  its features, but the class does not record which subclass it was.
+- `STUDIO`, every run: the module's `gas.captureAdvancement` hook **throws a selector error** on every
+  advancement dialog when "take average hit points" is on (`dnd5e-checkbox[aria-label*="average" i]`: the
+  `i` flag is not valid in the jQuery that Foundry 14 ships). Hundreds of console errors per run; the
+  hero is still built. Also one 404 for `black-parchment.webp` (a doubled path).
+- `SYSTEM`, casters: a hero from Actor Studio starts with **empty spell slots** (0 of max). The system
+  leaves a new actor's slots empty until a long rest and the raw builder fills them. So a table that
+  builds a hero and presses play has no slots until the first long rest, and the features that spend a
+  slot (Font of Inspiration, Wild Resurgence, Font of Magic and their kin) refuse to run.
+- `SYSTEM`, one sorcerer subclass: its hit point bonus per level raises the maximum, not the current
+  value, so the hero starts at 32 of 37. The same for any effect that adds to the maximum.
+- `SYSTEM`, every class: the Human species' Size step shows Small first; both heroes come out Small. A
+  player who presses Next keeps Small.
+- `KIT`, the 8 casters: the raw hero has **no class spells** (the system asks for none through
+  advancement); Actor Studio's Spells tab adds them. Prepared casters get their whole list on the sheet,
+  unprepared, and the always-prepared domain spells; nothing is prepared for a wizard.
+
+Development filters (environment variables): `KIT_STUDIO_CLASSES=fighter,wizard`, `KIT_STUDIO_LEVEL=3`,
+`KIT_KEEP_STUDIO=1` (keep the Studio heroes; they carry the kit flag and the next build wipes them),
+`KIT_SKIP_STUDIO=1`. Against the fake the scenario builds the "Studio" hero with the builder, which
+tests the comparison and the report in CI; it clicks nothing.
+
 ### Failure classes
 
 Every failed check says which kind it is, first in the message, with its evidence:
 
-| Class     | Meaning                                                      | Example                                         |
-| --------- | ------------------------------------------------------------ | ----------------------------------------------- |
-| `KIT`     | Our builder or our check is wrong.                           | a choice was not made, the hit point sum is off |
-| `CONTENT` | The imported data is wrong or incomplete.                    | a grant whose uuid does not resolve             |
-| `SYSTEM`  | The dnd5e system did something other than its own data says. | a grant not applied, a slot table that differs  |
+| Class     | Meaning                                                      | Example                                                  |
+| --------- | ------------------------------------------------------------ | -------------------------------------------------------- |
+| `KIT`     | Our builder or our check is wrong.                           | a choice was not made, the hit point sum is off          |
+| `CONTENT` | The imported data is wrong or incomplete.                    | a grant whose uuid does not resolve                      |
+| `SYSTEM`  | The dnd5e system did something other than its own data says. | a grant not applied, a slot table that differs           |
+| `STUDIO`  | Actor Studio did something the plain system route does not.  | a Subclass advancement left unset (`heroes-studio` only) |
 
 Fix `KIT` failures in the kit. Report `CONTENT` and `SYSTEM` failures: do not change the imported
-content or the product to make the kit green.
+content or the product to make the kit green. Report `STUDIO` failures to the module's author: do not
+change Actor Studio to make the kit green.
 
 ## How to write a scenario
 
@@ -342,18 +432,20 @@ Rules of thumb:
 
 ## Where things live
 
-| What                                    | Where                                                     |
-| --------------------------------------- | --------------------------------------------------------- |
-| The engine, the GM actions, the fake    | `scripts/test-kit/lib/`                                   |
-| The contract everything builds against  | `scripts/test-kit/lib/contract.mjs`                       |
-| The hero checks and failure classes     | `scripts/test-kit/lib/advancement.mjs`                    |
-| The feature checks and rules tables     | `scripts/test-kit/lib/features.mjs`                       |
-| The SRD scenarios (no licensed content) | `scripts/test-kit/scenarios/*.scenario.mjs` (in the repo) |
-| The SRD content profile                 | `scripts/test-kit/data/profiles/srd.json`                 |
-| The monsters and the scene              | `scripts/test-kit/data/smoke-matrix.json`                 |
-| The manifest of the last build          | `<kit home>\worlds\<world>\manifest.json`                 |
-| Reports                                 | `<kit home>\reports\` (this PC only)                      |
-| Licensed profiles and scenarios         | `<kit home>\licensed\` (this PC only)                     |
+| What                                    | Where                                                                   |
+| --------------------------------------- | ----------------------------------------------------------------------- |
+| The engine, the GM actions, the fake    | `scripts/test-kit/lib/`                                                 |
+| The contract everything builds against  | `scripts/test-kit/lib/contract.mjs`                                     |
+| The hero checks and failure classes     | `scripts/test-kit/lib/advancement.mjs`                                  |
+| The feature checks and rules tables     | `scripts/test-kit/lib/features.mjs`                                     |
+| Driving Actor Studio, the answer pump   | `scripts/test-kit/lib/studio.mjs`, `studio-flow.mjs`, `studio-pump.mjs` |
+| Comparing a Studio hero with a raw hero | `scripts/test-kit/lib/studio-compare.mjs`, `inspect-build.mjs`          |
+| The SRD scenarios (no licensed content) | `scripts/test-kit/scenarios/*.scenario.mjs` (in the repo)               |
+| The SRD content profile                 | `scripts/test-kit/data/profiles/srd.json`                               |
+| The monsters and the scene              | `scripts/test-kit/data/smoke-matrix.json`                               |
+| The manifest of the last build          | `<kit home>\worlds\<world>\manifest.json`                               |
+| Reports                                 | `<kit home>\reports\` (this PC only)                                    |
+| Licensed profiles and scenarios         | `<kit home>\licensed\` (this PC only)                                   |
 
 The kit home is `C:\FoundryTest\test-kit`, or the folder in the environment variable
 `TEST_KIT_HOME`. **Licensed profiles, scenarios and reports never go into a repo or the vault.** A
@@ -401,5 +493,7 @@ When you change a tool's result shape, change the fake with it.
 
 - The full matrix of monsters and spells.
 - Dashboard checks in a real browser (Playwright), not only the JSON the dashboard serves.
+- Actor Studio at other levels (1, 11, 17, 20), with equipment and its biography tab on, and a multiclass
+  level-up; the Actor Studio findings above sent to its author.
 - A Pi target: the same kit against the Orange Pi, once the Pi has a kit world.
 - The licensed layer: the Curse of Strahd scenarios, kept on this PC only.

@@ -22,6 +22,9 @@
  *   "next" until the `dnd5e.advancementManagerComplete` hook fires.
  */
 
+import { inspectBuild } from './inspect-build.mjs';
+import { studioPump } from './studio-pump.mjs';
+
 /** @param {object} _args */
 async function worldStatus(_args) {
   const mod = game.modules.get('foundry-mcp-bridge');
@@ -1433,7 +1436,41 @@ async function exerciseActor(args) {
 }
 
 /** The functions gm.mjs runs in the page, by GM action. */
+/**
+ * Marks an actor that Actor Studio made as one of the kit's own (the kit flag and folder, a name), so
+ * a rebuild wipes it and the world is left as the kit found it.
+ * @param {{actorId: string, name?: string, folderId?: string, _kit: {flagScope: string, flagKey: string}}} args
+ */
+async function adoptActor(args) {
+  const { flagScope, flagKey } = args._kit;
+  const actor = game.actors.get(args.actorId);
+  if (!actor) throw new Error(`adoptActor: no actor ${args.actorId}`);
+  const update = { [`flags.${flagScope}.${flagKey}`]: { built: true, studio: true } };
+  if (args.name) update.name = args.name;
+  if (args.folderId) update.folder = args.folderId;
+  await actor.update(update);
+  return { ok: true };
+}
+
+/**
+ * Delete an actor, but only one that carries the kit flag.
+ * @param {{actorId: string, _kit: {flagScope: string, flagKey: string}}} args
+ */
+async function deleteKitActor(args) {
+  const { flagScope, flagKey } = args._kit;
+  const actor = game.actors.get(args.actorId);
+  if (!actor) return { deleted: false };
+  if (!actor.getFlag(flagScope, flagKey))
+    throw new Error(`deleteKitActor: ${actor.name} is not a kit actor; not deleting it`);
+  await actor.delete();
+  return { deleted: true };
+}
+
 export const GM_ACTION_FUNCTIONS = {
+  inspectBuild,
+  studioPump,
+  adoptActor,
+  deleteKitActor,
   inspectFeatures,
   exerciseActor,
   worldStatus,

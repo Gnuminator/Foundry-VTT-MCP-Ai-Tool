@@ -1,5 +1,5 @@
 {
-  "total": 1534,
+  "total": 1530,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -7,7 +7,6 @@
     ".claude/skills/foundry-core-ui/reference/setup-and-packages.md": 86,
     ".gitignore": 1,
     "CHANGELOG.md": 25,
-    "CREDITS.md": 2,
     "deploy/cloudflare/access-policy.md": 11,
     "deploy/cloudflare/config.yml.template": 3,
     "deploy/docker-compose.yml.template": 8,
@@ -28,7 +27,7 @@
     "packages/cogm-dashboard/.env.example": 4,
     "packages/cogm-dashboard/public/app.js": 10,
     "packages/cogm-dashboard/public/index.html": 2,
-    "packages/cogm-dashboard/public/player.html": 2,
+    "packages/cogm-dashboard/public/player.html": 1,
     "packages/cogm-dashboard/public/player.js": 3,
     "packages/cogm-dashboard/public/styles.css": 4,
     "packages/cogm-dashboard/README.md": 16,
@@ -120,7 +119,7 @@
     "packages/mcp-server/src/standalone-config.ts": 7,
     "packages/mcp-server/src/standalone.ts": 5,
     "packages/mcp-server/src/systems/dnd5e/adapter.test.ts": 3,
-    "packages/mcp-server/src/systems/dnd5e/adapter.ts": 5,
+    "packages/mcp-server/src/systems/dnd5e/adapter.ts": 4,
     "packages/mcp-server/src/systems/dnd5e/filters.test.ts": 36,
     "packages/mcp-server/src/systems/dnd5e/filters.ts": 4,
     "packages/mcp-server/src/systems/types.ts": 1,

@@ -14,7 +14,7 @@
 
 ## 1. Target network topology
 
-The goal is to let you (the GM) and optionally co-GMs reach the co-GM dashboard from
+The goal is to let you (the GM) and optionally co-GMs reach the dashboard from
 anywhere, without exposing your home IP address and without port-forwarding.
 
 ```text
@@ -124,7 +124,7 @@ the remote-hosting topology.
 | `MCP_CONTROL_HOST`             | `127.0.0.1`                      | Where the dashboard connects for the control channel.                                 |
 | `MCP_CONTROL_PORT`             | `31414`                          | Control channel port (must match the backend).                                        |
 | `ANTHROPIC_API_KEY`            | _(unset — AI disabled if empty)_ | Anthropic API key. **Server-side only. Never reaches browser.**                       |
-| `ANTHROPIC_MODEL`              | `claude-opus-5-5`                | Claude model used for co-GM commentary.                                               |
+| `ANTHROPIC_MODEL`              | `claude-opus-5-5`                | Claude model used for AI commentary.                                                  |
 | `GM_DASHBOARD_TOKEN`           | _(unset)_                        | Shared secret that grants GM role. Setting this enables the GM/player split.          |
 | `PLAYER_DASHBOARD_TOKEN`       | _(unset)_                        | Optional token required to view the player page.                                      |
 | `GM_EMAILS`                    | _(unset)_                        | Comma-separated email addresses that map to GM role (via Cloudflare Access).          |
@@ -273,7 +273,7 @@ This is what prevents anyone with the URL from reaching your dashboard.
 In the Cloudflare Zero Trust dashboard (`one.dash.cloudflare.com`):
 
 1. **Access → Applications → Add an application → Self-hosted**
-2. Application name: `Co-GM Dashboard` (or anything)
+2. Application name: `Foundry AI Tool` (or anything)
 3. Application domain: `cogm.<YOUR_DOMAIN>` (must match the tunnel hostname)
 4. Session duration: pick something sane — e.g. 24 hours
 5. **Add a policy** named e.g. `GM allow-list`:

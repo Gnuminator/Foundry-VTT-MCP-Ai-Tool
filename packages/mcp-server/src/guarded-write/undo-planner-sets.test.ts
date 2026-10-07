@@ -192,6 +192,7 @@ describe('everything-since', () => {
     );
     const view = await plan('act:first', 'everything-since');
     expect(view.later).toEqual([]);
+    expect(view.count).toBe(3);
     expect(opsOf()).toEqual([
       { kind: 'update', uuid: 'Actor.a', changes: { [HP]: 10 }, unset: [] },
       { kind: 'update', uuid: 'Actor.a.Item.i', changes: { 'system.quantity': 4 }, unset: [] },

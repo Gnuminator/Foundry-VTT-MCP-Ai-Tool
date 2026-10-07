@@ -66,6 +66,8 @@ export interface UndoPlanView extends PlanView {
   scope: UndoScope;
   /** `just-this` only: later live changes to the same things, newest first (at most MAX_LATER). */
   later: LaterChange[];
+  /** How many changes (history items) the plan undoes: what a UI names on the confirm button. */
+  count: number;
 }
 
 export interface UndoPlannerOptions {
@@ -360,6 +362,7 @@ export class UndoPlanner {
     return {
       ...view,
       scope,
+      count: set.length,
       later: justThis ? [...touching].reverse().slice(0, MAX_LATER).map(laterOf) : [],
     };
   }

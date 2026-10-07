@@ -669,10 +669,15 @@ async function tokenTools() {
         npcEffects = await effectNames(ctx.npcId);
       }
       assert(!npcEffects.includes(held), 'dnd5e did not remove the dependent effect');
-      // Undo: both come back (the dependent from the change journal's follow-up record; the
-      // pump needs a moment to have it).
+      // Undo through the planner (plan-undo-changes; undo-change is the plain inverse of the
+      // audit entry): both come back, the dependent from the change journal's follow-up record,
+      // which the pump needs a moment to have.
       await new Promise(r => setTimeout(r, 1500));
-      const undone = await undo(ended.change);
+      const undone = await planAndApply({ id: ended.change.changeId }, 'plan-undo-changes');
+      assert(
+        (undone.plan.notes || []).some(n => /^Also restored with /.test(n)),
+        `no "Also restored" note in ${brief(undone.plan.notes)}`
+      );
       assert(
         (await effectNames(ctx.wolfActorId)).includes(concentrating),
         'the concentration effect did not come back'
@@ -682,7 +687,7 @@ async function tokenTools() {
         'the dependent effect did not come back with the undo'
       );
       // Redo (undo the undo): both go again in one plan, the dependent before the effect.
-      await undo(undone);
+      await planAndApply({ id: undone.change.changeId }, 'plan-undo-changes');
       assert(
         !(await effectNames(ctx.wolfActorId)).includes(concentrating),
         'the concentration effect is still there after the redo'

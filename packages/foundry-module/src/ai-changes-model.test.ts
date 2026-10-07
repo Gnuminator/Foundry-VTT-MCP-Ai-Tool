@@ -238,6 +238,22 @@ describe('buildChangeRow', () => {
     expect(rows[1]).toMatchObject({ isAi: true, feature: 'change undo' });
   });
 
+  it('calls an undo of an undo a redo, and a window redo the person’s', () => {
+    const rows = buildRows({
+      changes: [
+        aiItem({ id: 'r1', mode: 'undo', summary: 'Undo: Undo: 4 damage', requestedBy: 'Danni' }),
+        aiItem({ id: 'r2', mode: 'undo', summary: 'Undo: Undo since 10:20: 6 changes on X' }),
+        aiItem({ id: 'r3', mode: 'undo', summary: 'Undo: 4 damage' }),
+      ],
+    });
+    expect(rows[0]).toMatchObject({ summary: 'Redo: 4 damage', isAi: false, who: 'Danni' });
+    expect(rows[1]).toMatchObject({
+      summary: 'Redo of Undo since 10:20: 6 changes on X',
+      isAi: true,
+    });
+    expect(rows[2]).toMatchObject({ summary: 'Undo of 4 damage', isAi: true });
+  });
+
   it('offers Redo on an undone change when the undo entry is itself live and undoable', () => {
     const changes = (undoer: Record<string, unknown>): unknown => ({
       changes: [

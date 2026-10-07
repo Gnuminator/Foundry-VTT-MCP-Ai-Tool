@@ -225,9 +225,9 @@ export function buildChangeRow(
   legacy = false
 ): ChangeRow {
   const isUndo = entry.mode === 'undo';
-  // An undo a person asked for in a Foundry window is theirs, not the AI's.
+  // An undo or redo a person asked for in a Foundry window is theirs, not the AI's.
   const personUndo =
-    entry.kind === 'ai' && entry.feature === 'change-undo' && entry.requestedBy !== '';
+    entry.kind === 'ai' && (isUndo || entry.feature === 'change-undo') && entry.requestedBy !== '';
   const isAi = entry.kind === 'ai' && !personUndo;
   const undoer = entry.undone ? byId.get(entry.undoneBy) : undefined;
   const redoable = !legacy && undoer !== undefined && undoer.canUndo && !undoer.undone;
@@ -235,7 +235,7 @@ export function buildChangeRow(
     id: entry.id,
     time: formatLocalTime(entry.at),
     at: entry.at,
-    summary: isUndo ? `Undo of ${entry.summary.replace(/^Undo:\s*/, '')}` : entry.summary,
+    summary: isUndo ? undoSummary(entry.summary) : entry.summary,
     feature: isAi ? readableFeature(entry.feature) : '',
     isUndo,
     isAi,
@@ -248,6 +248,14 @@ export function buildChangeRow(
     canUndo: entry.canUndo && !entry.undone && !isUndo,
     redoId: redoable ? undoer.id : '',
   };
+}
+
+/** An undo entry's line: undoing an undo is a redo. */
+function undoSummary(summary: string): string {
+  const undone = summary.replace(/^Undo:\s*/, '');
+  if (/^Undo:\s*/.test(undone)) return `Redo: ${undone.replace(/^Undo:\s*/, '')}`;
+  if (/^Undo\b/.test(undone)) return `Redo of ${undone}`;
+  return `Undo of ${undone}`;
 }
 
 /** The rows for a `list-changes` (or, on an older bridge, `list-recent-changes`) result. */

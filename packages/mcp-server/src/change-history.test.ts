@@ -482,6 +482,22 @@ describe('ChangeHistory.list', () => {
     expect(changes[1]).not.toHaveProperty('covers');
   });
 
+  it('groups everyone by local day, oldest first, without a limit or a pull', async () => {
+    const yesterday = new Date(2026, 9, 6, 20).getTime();
+    const records = [hpChange(11, 5, { actionId: 'old', t: yesterday })];
+    for (let i = 0; i < 40; i++)
+      records.push(hpChange(10 - i, 9 - i, { actionId: `a${i}`, t: NOW - (50 - i) * MIN }));
+    await writeDay(records);
+    audit = [aiChange({ changeId: 'chg-x', appliedAt: new Date(NOW - 44.5 * MIN).toISOString() })];
+    const days = await makeHistory().byDay();
+    expect(days.map(d => d.date)).toEqual(['2026-10-06', '2026-10-07']);
+    expect(days[0].changes.map(c => c.id)).toEqual(['act:old']);
+    expect(days[1].changes.length).toBe(41);
+    expect(days[1].changes[0].id).toBe('act:a0');
+    expect(days[1].changes[6].id).toBe('chg-x');
+    expect(pullNow).not.toHaveBeenCalled();
+  });
+
   it('counts an undo-change undo (the AI tab, the toast) as covering the one change it undid', async () => {
     audit = [aiChange({ changeId: 'undo-2', mode: 'undo', undoOf: 'chg-0' })];
     const { changes } = await makeHistory().list({ source: 'ai' });

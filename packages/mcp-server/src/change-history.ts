@@ -152,6 +152,13 @@ export interface ChangeListResult {
   note?: string;
 }
 
+/** One local day's changes, oldest first (`byDay`). */
+export interface ChangeDay {
+  /** `YYYY-MM-DD`, the bridge's local date. */
+  date: string;
+  changes: ChangeListItem[];
+}
+
 // ---------------------------------------------------------------------------
 // Readable lines
 
@@ -495,7 +502,6 @@ export class ChangeHistory {
     const cutoff = this.now() - CHANGE_HISTORY_DAYS * DAY_MS;
     const sinceMs = options.sinceIso ? Date.parse(options.sinceIso) : Number.NaN;
     const from = Number.isFinite(sinceMs) ? Math.max(sinceMs, cutoff) : cutoff;
-    const worldId = await this.worldIds.current();
     const start = await this.historyStart();
     if (start > cutoff && source !== 'ai') {
       notes.push(
@@ -503,6 +509,40 @@ export class ChangeHistory {
       );
     }
 
+    const entries = await this.collect(options, from);
+    entries.sort((a, b) => b.at - a.at);
+    return {
+      changes: entries.slice(0, limit).map(e => e.item),
+      ...(notes.length > 0 ? { note: notes.join(' ') } : {}),
+    };
+  }
+
+  /**
+   * Everyone's changes of the kept span grouped by local day, oldest day first and oldest
+   * change first within a day; no filter, no limit, no pull (for the GM vault's daily notes,
+   * rendered right after the pump appended). Days without changes are left out.
+   */
+  async byDay(): Promise<ChangeDay[]> {
+    const cutoff = this.now() - CHANGE_HISTORY_DAYS * DAY_MS;
+    const entries = await this.collect({}, cutoff);
+    entries.sort((a, b) => a.at - b.at);
+    const days = new Map<string, ChangeListItem[]>();
+    for (const { at, item } of entries) {
+      const date = localDateKey(at);
+      days.set(date, [...(days.get(date) ?? []), item]);
+    }
+    return [...days.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([date, changes]) => ({ date, changes }));
+  }
+
+  /** The matching changes of both sources, with the time they sort by (the human action's last record). */
+  private async collect(
+    options: ChangeListOptions,
+    from: number
+  ): Promise<Array<{ at: number; item: ChangeListItem }>> {
+    const source = options.source ?? 'all';
+    const worldId = await this.worldIds.current();
     const entries: Array<{ at: number; item: ChangeListItem }> = [];
     if (source !== 'ai') {
       const undoState = await this.guardedWrites.undoState();
@@ -549,12 +589,7 @@ export class ChangeHistory {
         entries.push({ at: Number.isFinite(at) ? at : 0, item: aiItem(change) });
       }
     }
-
-    entries.sort((a, b) => b.at - a.at);
-    return {
-      changes: entries.slice(0, limit).map(e => e.item),
-      ...(notes.length > 0 ? { note: notes.join(' ') } : {}),
-    };
+    return entries;
   }
 
   // -------------------------------------------------------------------------

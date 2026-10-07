@@ -327,7 +327,8 @@ the table since then; it shows how many changes that is and asks twice. An undon
 "Undone by ...", with **Redo** to put it back when that is still possible. When it was undone
 together with other changes (Everything since or a rewind), Redo says so and brings all of them
 back. Undo needs GM Actions on, like everything that changes the game. The same list is in Foundry
-too, as the **Changes** window (below).
+too, as the **Changes** window (below), and, when Obsidian is set up, in your vault as one note per
+day under `AI Tool/Everyone/` (to read, not to undo from).
 
 ### The same list inside Foundry
 

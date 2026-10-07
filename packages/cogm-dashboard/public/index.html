@@ -475,6 +475,37 @@
             ↻
           </button>
         </div>
+        <div class="changes-toolbar" id="changes-toolbar" hidden>
+          <div class="changes-tabs" role="group" aria-label="Which changes to show">
+            <button
+              type="button"
+              class="changes-tab"
+              id="changes-tab-ai"
+              data-changes-tab="ai"
+              data-track="dash.changes.tab-ai"
+              aria-pressed="true"
+            >
+              AI
+            </button>
+            <button
+              type="button"
+              class="changes-tab"
+              id="changes-tab-everyone"
+              data-changes-tab="everyone"
+              data-track="dash.changes.tab-everyone"
+              aria-pressed="false"
+            >
+              Everyone
+            </button>
+          </div>
+          <select
+            id="changes-person"
+            class="select changes-person"
+            data-track="dash.changes.person"
+            aria-label="Show changes by"
+            hidden
+          ></select>
+        </div>
         <div class="pane-body" id="changes-body">
           <p class="empty">No guarded changes yet.</p>
         </div>
@@ -859,6 +890,23 @@
             Confirm
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Undo window (Recent Changes, Everyone tab): the plan, the choice and the confirm -->
+    <div class="modal-backdrop" id="undo-backdrop" hidden>
+      <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="undo-title">
+        <h3 id="undo-title">Undo this change?</h3>
+        <div class="modal-body" id="undo-body"></div>
+        <label class="modal-destructive" id="undo-destructive" hidden>
+          <input
+            type="checkbox"
+            id="undo-destructive-check"
+            data-track="dash.undo.destructive-check"
+          />
+          <span>I understand this changes the live game and may be hard to undo.</span>
+        </label>
+        <div class="modal-actions" id="undo-actions"></div>
       </div>
     </div>
 

@@ -23,6 +23,8 @@ interface Change {
   undone: boolean;
   undoneBy?: string;
   requestedBy?: string;
+  mode?: string;
+  feature?: string;
   things?: Array<{ uuid: string; name: string | null }>;
 }
 
@@ -130,6 +132,19 @@ describe('person filter', () => {
     expect(h.filterChanges(all, 'all')).toHaveLength(4);
     expect(h.filterChanges(all, 'ai').map(c => c.id)).toEqual(['c1']);
     expect(h.filterChanges(all, h.personFilter('Zed')).map(c => c.id)).toEqual(['act:1', 'act:3']);
+  });
+
+  it('counts an undo or redo a person asked for as theirs, not the AI', () => {
+    const undo = ai('u1', { feature: 'change-undo', requestedBy: 'Danni', summary: 'Undo: x' });
+    const redo = ai('u2', { mode: 'undo', requestedBy: 'Danni', summary: 'Undo: Undo: 4 damage' });
+    const mine = [...all, undo, redo];
+    expect(h.filterChanges(mine, 'ai').map(c => c.id)).toEqual(['c1']);
+    expect(h.filterChanges(mine, h.personFilter('Danni')).map(c => c.id)).toEqual(['u1', 'u2']);
+    expect(h.filterOptions(mine).map(o => o.label)).toContain('Danni');
+    expect(h.rowView(undo, mine)).toMatchObject({ who: 'Danni', summary: 'Undo: x' });
+    expect(h.rowView(redo, mine)).toMatchObject({ who: 'Danni', summary: 'Redo: 4 damage' });
+    // Claude's own undo (no Foundry window, no dashboard) stays the AI's.
+    expect(h.rowView(ai('u3', { mode: 'undo' }), mine).who).toBe('AI');
   });
 
   it('falls back to everyone when the chosen person is no longer in the list', () => {

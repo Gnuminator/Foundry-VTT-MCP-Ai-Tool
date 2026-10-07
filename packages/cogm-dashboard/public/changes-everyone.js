@@ -14,14 +14,32 @@ export function personFilter(name) {
   return PERSON_PREFIX + String(name);
 }
 
+/** An undo or redo a person asked for in a Foundry window or here: theirs, not the AI's. */
+function isPersonUndo(change) {
+  return (
+    change.kind === 'ai' &&
+    (change.mode === 'undo' || change.feature === 'change-undo') &&
+    typeof change.requestedBy === 'string' &&
+    change.requestedBy !== ''
+  );
+}
+
 function whoOf(change) {
+  if (isPersonUndo(change)) return change.requestedBy;
   return typeof change.by === 'string' && change.by ? change.by : 'Someone';
+}
+
+/** Undoing an undo is a redo: "Undo: Undo: 4 damage" reads "Redo: 4 damage". */
+function summaryOf(change) {
+  const summary = typeof change.summary === 'string' ? change.summary : '';
+  const twice = /^Undo:\s*Undo:\s*/;
+  return twice.test(summary) ? `Redo: ${summary.replace(twice, '')}` : summary;
 }
 
 /** The choices of the person filter: All, AI, then everyone seen in the list, A to Z. */
 export function filterOptions(changes) {
   const names = new Set();
-  for (const c of changes) if (c.kind === 'human') names.add(whoOf(c));
+  for (const c of changes) if (c.kind === 'human' || isPersonUndo(c)) names.add(whoOf(c));
   const people = [...names]
     .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
     .map(name => ({ value: personFilter(name), label: name }));
@@ -30,10 +48,10 @@ export function filterOptions(changes) {
 
 /** The changes a filter value keeps (an unknown value keeps all; see `validFilter`). */
 export function filterChanges(changes, filter) {
-  if (filter === FILTER_AI) return changes.filter(c => c.kind === 'ai');
+  if (filter === FILTER_AI) return changes.filter(c => c.kind === 'ai' && !isPersonUndo(c));
   if (typeof filter === 'string' && filter.startsWith(PERSON_PREFIX)) {
     const name = filter.slice(PERSON_PREFIX.length);
-    return changes.filter(c => c.kind === 'human' && whoOf(c) === name);
+    return changes.filter(c => (c.kind === 'human' || isPersonUndo(c)) && whoOf(c) === name);
   }
   return changes;
 }
@@ -84,7 +102,7 @@ export function rowView(change, all) {
     kind: change.kind,
     who: whoOf(change),
     at: change.at,
-    summary: typeof change.summary === 'string' ? change.summary : '',
+    summary: summaryOf(change),
     lines: Array.isArray(change.lines) ? change.lines : [],
     canUndo: change.canUndo === true && !change.undone,
     undone: change.undone === true,

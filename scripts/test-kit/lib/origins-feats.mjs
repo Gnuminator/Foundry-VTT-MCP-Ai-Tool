@@ -4,6 +4,7 @@
  * data and what it granted is used once. A feat no host can take is recorded, never forced.
  */
 import { problemText } from './advancement.mjs';
+import { loadKnown } from './known.mjs';
 import { FEAT_HOSTS, HOST_FLOOR, checkOrigin, sampleFeats } from './origins.mjs';
 import {
   buildFailure,
@@ -131,7 +132,10 @@ export async function runFeats(t) {
     return { unmet: reasons.slice(-4).join(' | ') };
   };
 
-  const ledger = newLedger('feats', expectedFindings());
+  const ledger = newLedger('feats', expectedFindings(), {
+    list: loadKnown(t.kit.profile),
+    scenario: 'origins-feats',
+  });
   /** @type {Array<{name: string, featType: string, why: string}>} */
   const unmet = [];
   /** @type {Record<string, number>} */
@@ -239,6 +243,7 @@ export async function runFeats(t) {
     leftOut,
     problemsByKind: byKind,
     expectedFindings: ledger.expectedCounts,
+    knownFindings: ledger.known(),
     failed: ledger.failed,
     notes: [...notes].slice(0, 80),
   });

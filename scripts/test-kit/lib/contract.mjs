@@ -90,7 +90,16 @@ export const GM_ACTIONS = {
   /**
    * ({name, classUuid, subclassUuid?, level, rotation, speciesUuid?, backgroundUuid?, folderId, featPackIds?}) =>
    * {actorId, name, classIdentifier, subclassIdentifier, level, hp:{value,max},
-   *  picks: [{level, advancement, title, chosen: string[]}], warnings: string[]}
+   *  picks: [{level, advancement, title, chosen: string[], offered?: string[]}], warnings: string[]}
+   * `offered` (additive, Trait and ItemChoice picks): what the system offered before the first pick of that
+   * advancement (trait keys, or item names), at most 300; the report's pick coverage reads it.
+   * Also additive on every pick: `itemType` (the type of the item whose advancement asked: class, subclass, feat,
+   * race, background), `featType` (a feat item's type value) and, on an ItemChoice, `pool` (what it picks:
+   * feat, spell); the mechanical filter in lib/picks.mjs reads them.
+   * Additive: `prefer` ({[pick title]: string[]}), the options to take first for the choice with that title
+   * (an item name for an ItemChoice, a trait key for a Trait): a pick takes the first preferred option the
+   * system offers and removes it from the list, else the rotation rule. k still counts every pick. The coverage
+   * heroes use it (lib/coverage.mjs).
    * Levels the hero through the system's advancement with no dialogs. Every choice picks option
    * index (rotation + k) % options for its k-th pick, so a matrix of heroes with different
    * rotations covers every option and a build is repeatable. Throws when the advancement fails.
@@ -216,7 +225,7 @@ export const GM_ACTIONS = {
    */
   inspectBuild: 'inspectBuild',
   /**
-   * ({op: 'start', rotation, k?, subclassUuid?, featPackIds?} | {op: 'status'} | {op: 'stop'}) => {running, k, picks,
+   * ({op: 'start', rotation, k?, subclassUuid?, featPackIds?, prefer?} | {op: 'status'} | {op: 'stop'}) => {running, k, picks,
    * warnings, errors, answered, managersSeen, completed, lastStep, lastActivityAt} | null. A loop in the Foundry page
    * that answers the system's advancement dialogs while Actor Studio shows them in its window, with the same rotation
    * rule as createHero. `stop` ends it and returns what it picked. Used only by the studio scenario.
@@ -333,10 +342,17 @@ export const GM_ACTIONS = {
  * @property {string} profile         the content profile id
  * @property {Array<{actorId: string, name: string, classIdentifier: string, level: number, tokenId?: string,
  *   classUuid: string, classRules: string, subclassUuid?: string, subclassIdentifier?: string, rules: string, book: string,
- *   role: 'tier'|'subclass', rotation: number, owner?: string, picks?: unknown[], warnings?: string[],
+ *   role: 'tier'|'subclass'|'coverage', rotation: number, abilities?: Record<string, number>, owner?: string, picks?: unknown[], warnings?: string[],
+ *   className?: string, subclassName?: string, template?: string, prefer?: Record<string, string[]>,
  *   buildError?: string}>} heroes
  *   A hero whose advancement failed keeps its row with buildError (and no actorId), so the report
- *   shows it instead of the build stopping.
+ *   shows it instead of the build stopping. Role 'coverage' (additive, size full and long): an extra hero
+ *   the coverage pass built to pick options no other hero picked (lib/coverage.mjs). It copies the hero named
+ *   by `template` (class, subclass, level, rotation) and `prefer` lists, per choice title, the options it was
+ *   asked to take first. `className` and `subclassName` (additive) are the names of the items whose advancement
+ *   asks, which the pick filter (lib/picks.mjs) uses on a manifest whose picks carry no `itemType`.
+ * @property {{enabled: boolean, built: number, cap: number, capHit: boolean, rounds: number}} [coveragePass]
+ *   what the coverage pass did (additive): `built` coverage heroes, the cap, and whether the cap stopped it
  * @property {{classes: {found: number, built: number}, subclasses: {found: number, built: number, failed: string[]}, heroes: number}} coverage
  * @property {Array<{at: string, message: string, source: string}>} [consoleErrors]
  *   console errors of the GM page over the whole build (additive in version 2)

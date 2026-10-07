@@ -181,6 +181,35 @@ test('planUses uses features with activities and leaves out the ones that need a
   assert.match(plan.skipped[1].why, /cannot be used/);
 });
 
+test('planUses leaves out spending an item that starts empty by design (a ward a rest empties), not filling it', () => {
+  const act = (/** @type {string} */ id, /** @type {string} */ value) => ({
+    id,
+    type: 'utility',
+    name: id,
+    canUse: true,
+    consumption: [{ type: 'itemUses', target: '', value }],
+  });
+  const ward = item({
+    identifier: 'ward',
+    uses: { max: 11, spent: 11, recovery: [{ period: 'lr', type: 'loseAll', formula: '' }] },
+    activities: [act('create', '-@item.uses.max'), act('damage', '1'), act('restore', '-2')],
+  });
+  const plan = planUses(facts({ items: [ward] }));
+  assert.deepEqual(
+    plan.use.map(u => u.activity.id),
+    ['create', 'restore']
+  );
+  assert.equal(plan.skipped.length, 1);
+  assert.match(plan.skipped[0].why, /starts empty by design/);
+  // An item that recovers normally and starts spent is not left out (that is a CONTENT finding).
+  const spent = item({
+    identifier: 'spent',
+    uses: { max: 2, spent: 2, recovery: [{ period: 'lr', type: 'recoverAll', formula: '' }] },
+    activities: [act('use', '1')],
+  });
+  assert.equal(planUses(facts({ items: [spent] })).use.length, 1);
+});
+
 test('expectedSpend adds the plain item uses of its own item and flags the rest', () => {
   const it = item({ identifier: 'x', id: 'x1' });
   const act = (/** @type {any[]} */ consumption) => ({
@@ -213,6 +242,37 @@ test('expectedSpend adds the plain item uses of its own item and flags the rest'
     total: 0,
     exact: false,
   });
+});
+
+test('expectedSpend spends once-per-turn uses only in combat, as dnd5e does', () => {
+  const perTurn = item({
+    identifier: 'sneak-attack',
+    id: 's1',
+    uses: { max: 1, spent: 0, recovery: [{ period: 'turn', type: 'recoverAll', formula: '' }] },
+  });
+  const act = {
+    id: 'a',
+    type: 'damage',
+    name: '',
+    activation: 'special',
+    canUse: true,
+    consumption: [{ type: 'itemUses', target: '', value: '1' }],
+  };
+  assert.deepEqual(expectedSpend(perTurn, act), { total: 0, exact: true });
+  assert.deepEqual(expectedSpend(perTurn, act, { inCombat: true }), { total: 1, exact: true });
+  const mixed = item({
+    identifier: 'x',
+    id: 'x1',
+    uses: {
+      max: 1,
+      spent: 0,
+      recovery: [
+        { period: 'turn', type: 'recoverAll', formula: '' },
+        { period: 'lr', type: 'recoverAll', formula: '' },
+      ],
+    },
+  });
+  assert.deepEqual(expectedSpend(mixed, act), { total: 1, exact: true });
 });
 
 test('judgePlan fails a level 2 or higher hero with nothing the pass can use, but not a level 1 hero', () => {
@@ -884,6 +944,14 @@ test('refusalKind tells the imported data from the system', () => {
     'SYSTEM'
   );
   assert.equal(refusalKind('something else happened', withUses(3, 0)).kind, 'SYSTEM');
+  const imported = {
+    ...item({ identifier: 'x' }),
+    sourceUuid: 'Compendium.some-module.classes.Item.abc',
+  };
+  assert.equal(
+    refusalKind('No uses on X available to spend, 1 required.', imported).note,
+    ' (the item has no uses at this level, or none are set; from some-module.classes)'
+  );
 });
 
 test('the feature scenarios run after the others (order), and a bad order is refused', async () => {

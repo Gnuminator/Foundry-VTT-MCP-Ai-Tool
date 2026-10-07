@@ -1,0 +1,21 @@
+### Test kit (D-090 lane 2)
+
+- **Heroes get the ability scores of their class:** the standard array is placed for the class (15 in
+  its primary ability, Constitution 13), so a Bard or a Sorcerer no longer has Charisma 8 and no
+  uses of its Charisma features. Actor Studio heroes get the same scores.
+- **Known findings per profile:** `heroes-advancement`, `heroes-features-use`, `heroes-multiclass`
+  and the origins scenarios count the CONTENT and SYSTEM problems on the profile's known list instead
+  of failing on them, and a new problem still fails. An entry must name the problem it covers
+  (`what`, with the count where one problem packs several items) and may cap its matches per run
+  (`max`); a hero that did not build is never known. The licensed list stays on this PC; the srd list
+  in the repo has one entry (the dnd5e 6.0.5 Monk Self-Restoration grant). The report has a "Known
+  findings" section.
+- **Fewer false failures in the feature checks:** a use that only recovers each turn (Sneak Attack)
+  is not expected to spend outside combat, as in dnd5e; a grant named by a short `Item.<id>` uuid is
+  looked up in its own pack (a 2024 subclass grants its Unarmed Strike that way); and a CONTENT note
+  names the pack the item came from, so a known-list entry can cover one pack's import gaps.
+- **Pick coverage (slice 2a):** every pick records what the system offered, and the report's "Picks"
+  section lists per class and choice the options no hero picked.
+- **Coverage heroes:** at sizes `full` and `long` the kit builds extra heroes (role `coverage`, "Kit
+  Fighter 3 cov 1") for play-changing options no hero picked (fighting styles, maneuvers, invocations,
+  damage resistances), up to `--coverage-cap` (default 40); `--no-coverage` turns it off.

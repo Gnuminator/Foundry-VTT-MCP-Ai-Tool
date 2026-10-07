@@ -168,7 +168,8 @@ export default {
       'the profile has no species or no background to build with'
     );
 
-    const heroes = chooseHeroes(t.kit, level, only);
+    // The coverage heroes (options no other hero picked) only at size long: each one costs minutes.
+    const heroes = chooseHeroes(t.kit, level, only, { coverage: t.size === 'long' });
     t.check(
       heroes.length > 0,
       `the kit has no tier hero at or below level ${level} to compare with`
@@ -205,6 +206,10 @@ export default {
               speciesUuid,
               backgroundUuid,
               rotation: raw.rotation,
+              // The raw hero's scores (placed for its class), so both heroes start alike.
+              abilities: raw.abilities,
+              // A coverage hero's forced options, so the Studio hero takes the same ones.
+              prefer: raw.prefer,
               featPackIds: profile.packs.feats,
               settings,
               log: m => t.log(`${raw.name}: ${m}`),
@@ -232,10 +237,12 @@ export default {
               subclassUuid: raw.subclassUuid,
               level: raw.level,
               rotation: raw.rotation,
+              abilities: raw.abilities,
               speciesUuid,
               backgroundUuid,
               folderId: t.kit.folders?.Actor,
               featPackIds: profile.packs.feats,
+              ...(raw.prefer ? { prefer: raw.prefer } : {}),
             });
             built = {
               actorId: hero.actorId,

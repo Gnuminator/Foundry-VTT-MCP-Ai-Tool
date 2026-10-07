@@ -2,6 +2,7 @@
  * The fake's twin of lib/gm-actions.mjs: every GM_ACTIONS action, on the in-memory world. Same
  * arguments, same results.
  */
+import { takePreferred } from '../coverage.mjs';
 import { GM_ACTIONS } from '../contract.mjs';
 import {
   FAKE_CLASSES,
@@ -68,6 +69,11 @@ function baseCreateHero(/** @type {World} */ w, /** @type {any} */ args) {
   const rotation = Math.max(0, Math.floor(Number(args.rotation ?? 0)));
   let k2 = 0;
   const pick = (/** @type {string[]} */ list) => list[(rotation + k2++) % list.length];
+  // The options to take first per choice title (the coverage heroes), as the real createHero does.
+  /** @type {Map<string, string[]>} */
+  const prefer = new Map(
+    Object.entries(args.prefer ?? {}).map(([t, list]) => [t, [.../** @type {string[]} */ (list)]])
+  );
   const expected = describe(k, s, level);
   const hasSub = Boolean(s && level >= k.subclassAt);
   /** @type {any[]} */
@@ -120,14 +126,26 @@ function baseCreateHero(/** @type {World} */ w, /** @type {any} */ args) {
   }
   for (const c of k.itemChoices.filter(x => x.level <= level)) {
     const chosen = [];
-    for (let i = 0; i < c.count; i += 1) chosen.push(pick(c.options));
+    const title = `${k.name}: Choose a style`;
+    for (let i = 0; i < c.count; i += 1) {
+      const base = pick(c.options);
+      const wanted = prefer.get(title) ?? [];
+      const taken = takePreferred(
+        c.options.filter(o => !chosen.includes(o)),
+        wanted
+      );
+      chosen.push(taken ?? base);
+    }
     for (const name of chosen)
       items.push({ id: newId(w, 'itm'), name, type: 'feat', sourceUuid: featureUuid(name) });
     picks.push({
       level: c.level,
       advancement: 'ItemChoice',
-      title: `${k.name}: Choose a style`,
+      title,
       chosen,
+      offered: [...c.options],
+      pool: 'feat',
+      itemType: 'class',
     });
   }
   const skills = [];
@@ -140,6 +158,7 @@ function baseCreateHero(/** @type {World} */ w, /** @type {any} */ args) {
     advancement: 'Trait',
     title: `${k.name}: Skill Proficiencies`,
     chosen: skills,
+    offered: k.skillPool.map(x => `skills:${x}`),
   });
   const improve = ['str', 'dex', 'wis', 'int', 'cha'];
   for (const l of k.asi.filter(x => x <= level)) {

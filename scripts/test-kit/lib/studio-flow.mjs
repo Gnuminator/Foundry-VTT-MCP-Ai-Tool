@@ -180,7 +180,8 @@ export const pumpStatus = page => page.evaluate(studioPump, { op: 'status' });
  * Create one hero in the creation window and run it to the end of level 1.
  * @param {import('playwright-core').Page} page
  * @param {{name: string, classUuid: string, speciesUuid: string, backgroundUuid: string, rotation: number,
- *   featPackIds?: string[], subclassUuid?: string, abilities?: Record<string, number>, log?: (m: string) => void}} o
+ *   featPackIds?: string[], subclassUuid?: string, abilities?: Record<string, number>,
+ *   prefer?: Record<string, string[]>, log?: (m: string) => void}} o
  * @returns {Promise<{actorId: string, pump: any, spells: any}>}
  */
 export async function createInStudio(page, o) {
@@ -212,6 +213,7 @@ export async function createInStudio(page, o) {
     rotation: o.rotation,
     subclassUuid: o.subclassUuid ?? '',
     featPackIds: o.featPackIds ?? [],
+    prefer: o.prefer ?? {},
   });
   log(`creating ${o.name} in Actor Studio`);
   await until(() => pressFooter(page, 'gas-create-character-btn'), {
@@ -296,7 +298,7 @@ export async function levelUpInStudio(page, o) {
  * @param {import('playwright-core').Page} page
  * @param {{name: string, level: number, classUuid: string, subclassUuid?: string, speciesUuid: string,
  *   backgroundUuid: string, rotation: number, featPackIds: string[], settings: any,
- *   log?: (m: string) => void}} o
+ *   abilities?: Record<string, number>, prefer?: Record<string, string[]>, log?: (m: string) => void}} o
  * @returns {Promise<{actorId: string, picks: any[], warnings: string[], errors: string[], spells: Array<{level: number, cantrips: number, spells: number, names: string[]}>, seconds: number}>}
  */
 export async function buildHeroInStudio(page, o) {
@@ -323,6 +325,8 @@ export async function buildHeroInStudio(page, o) {
       subclassUuid: o.subclassUuid,
       rotation: o.rotation,
       featPackIds: o.featPackIds,
+      abilities: o.abilities,
+      prefer: o.prefer,
       log,
     });
     if (made.spells) spells.push({ level: 1, ...made.spells });

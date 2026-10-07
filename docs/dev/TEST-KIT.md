@@ -45,6 +45,8 @@ node scripts/test-kit/kit.mjs <command> [options]
 | `--size smoke\|full\|long` | How big the kit is and which scenarios run. Default `smoke`. See "Sizes".  |
 | `--profile <id>`           | The content profile. Default `srd`. It also picks the kit world.           |
 | `--classes a,b`            | Build only these classes (identifier or name). A development filter.       |
+| `--no-coverage`            | Skip the coverage pass (see "Pick coverage").                              |
+| `--coverage-cap <n>`       | The most coverage heroes one run builds. Default 40.                       |
 | `--only a,b`               | Run only these scenario ids.                                               |
 | `--scenarios <dir>`        | An extra scenario folder (repeatable). The repo's own folder is always on. |
 | `--world <id>`             | Only a check: it must match the profile's world, or the run stops.         |
@@ -56,11 +58,11 @@ node scripts/test-kit/kit.mjs <command> [options]
 
 ### Sizes
 
-| Size    | Heroes                                                   | Scenarios                  |
-| ------- | -------------------------------------------------------- | -------------------------- |
-| `smoke` | every class once, at level 5, with its first subclass    | the eighteen SRD scenarios |
-| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20 | the eighteen SRD scenarios |
-| `long`  | the same heroes as `full`                                | scenarios that list `long` |
+| Size    | Heroes                                                                         | Scenarios                  |
+| ------- | ------------------------------------------------------------------------------ | -------------------------- |
+| `smoke` | every class once, at level 5, with its first subclass                          | the eighteen SRD scenarios |
+| `full`  | every class at 1, 5, 11 and 17, and every subclass at 20, plus coverage heroes | the eighteen SRD scenarios |
+| `long`  | the same heroes as `full`                                                      | scenarios that list `long` |
 
 The monster scenarios also read the size (`t.size`): `smoke` probes a sample of the monsters (see "The monsters"), `full` and
 `long` probe every one.
@@ -131,7 +133,13 @@ The builder reads the profile's class and subclass packs through the GM page and
 
 Each hero is made with the system's advancement manager, with no dialogs: the species (Human) and
 the background (Soldier) first, then the class in one run up to the hero's level, and the
-subclass when the level reaches it. Every hero starts from the same standard array (Constitution 13) and takes the average for hit points.
+subclass when the level reaches it. Every hero takes the average for hit points and starts from the
+standard array placed for its class (`heroAbilities` in `lib/builder.mjs`): 15 in the class's primary
+ability (15 and 14 when the class needs both of two, like the Monk), Constitution always 13, the rest
+in the order Dexterity, Wisdom, Strength, Intelligence, Charisma. A class with no primary ability in
+its data uses its spellcasting ability. The manifest keeps the scores (`abilities`), and the
+`heroes-studio` scenario types the same scores into Actor Studio. (Before 2026-10-06 every hero had
+Strength 15 and Charisma 8, so a Bard's Bardic Inspiration had no uses.)
 
 **Choice rotation.** Every choice (a skill, a weapon mastery, a spell, a feat, an ability score
 improvement) takes option number `(rotation + k) % options` of the options the system offers, where
@@ -139,6 +147,30 @@ improvement) takes option number `(rotation + k) % options` of the options the s
 its class (0 for the first, 1 for the second, and so on). So the heroes of one class differ from
 each other, together they cover many options, and a rebuild makes the same choices. An ability score
 improvement alternates between +2 and a general feat on the same count.
+
+**Pick coverage.** Each Trait and ItemChoice pick in the manifest also records what the system
+offered (`offered`, at most 300 options). The `heroes-advancement` scenario attaches `picks`
+(`lib/picks.mjs`): per class and choice, the options offered, how often each was picked, and the
+options no hero picked. The report's "Picks" section shows it. An option no hero picked is not a
+failure, but its feature was never built, so `heroes-features-use` never used it either.
+
+**Coverage heroes.** Some of those options change how a hero plays: a feature pool that a class or
+subclass offers (a fighting style, a maneuver, an invocation, a rune) and a damage resistance,
+damage immunity or condition immunity choice. Skills, tools, languages, saving throws, weapon
+mastery, expertise, spells, and anything a background, a species or an origin feat asks are not
+mechanical and stay in the report only (the filter is `mechanicalPick` in `lib/picks.mjs`). At sizes
+`full` and `long`, after the normal heroes are built, the builder plans extra heroes with role
+`coverage` for the mechanical options nobody picked (`lib/coverage.mjs`). Each one copies a template
+hero that was offered the choice (class, subclass, level and rotation; among the heroes that cover
+the most open options, the lowest level wins) and carries `prefer`, per choice title, the options to
+take first: a hero with N picks of a choice takes N unpicked options, the rest of its choices follow
+the rotation. A hero is named `Kit Fighter 3 cov 1`. The planner repeats until every mechanical
+option is picked or the cap is reached (`--coverage-cap`, default 40), at most three rounds;
+an option a coverage hero was asked for and did not take is not asked again. `--no-coverage` turns the
+pass off, and `smoke` never runs it. The coverage heroes go through the same scenarios as the others;
+`heroes-studio` builds them in Actor Studio only at size `long`, each at its own level, with the same
+forced options. The Picks section ends with a line "Coverage heroes: X built, Y mechanical options
+still never picked", and says when the cap stopped the pass.
 
 The hero the kit gives to the player user ("Kit Player") is the first class's level 5 hero. The
 manifest marks it with `owner`, and the player screen must show its HP as numbers.
@@ -203,7 +235,8 @@ oracle. The actor (`inspectActor`) is what is checked:
 
 - the class and its levels, the subclass from its level, and the item each was made from,
 - every grant the data gives up to that level is on the actor (matched by source uuid, else by
-  name; optional grants are skipped),
+  name; optional grants are skipped). A grant inside a pack may name its item by a short
+  `Item.<id>` uuid; like Foundry, the kit looks for it in the granting class's or subclass's own pack,
 - every choice the data asks for was made, per level (items, traits, ability score improvements),
   and every item the builder picked is on the actor,
 - every scale value (rage damage, ki points and so on) has the expected value,
@@ -228,9 +261,13 @@ run with no dialog is used once through `exerciseActor` (op `use`): no dialog, n
 no roll after the card, no action cost. Each use is judged (`judgeUse` in `lib/features.mjs`):
 
 - the system did not throw or refuse (a refusal because the uses resolve to 0 is CONTENT, any other
-  refusal and any throw is SYSTEM),
+  refusal and any throw is SYSTEM; a CONTENT note ends with `; from <pack>` when the item came from a
+  compendium, so a known-list entry can name the content it is about),
 - a chat card was posted,
-- the item's uses went up by what the activity says it consumes (when that is a plain number),
+- the item's uses went up by what the activity says it consumes (when that is a plain number). Uses
+  that only recover on combat periods (each turn, the start or end of a turn: Sneak Attack and other
+  once-per-turn features) are spent only in combat, as in dnd5e, and the kit uses features outside combat, so it
+  expects 0 for them,
 - the hero is exactly as before: uses, activity uses, slots, hit points, hit dice, effects, new
   items and the chat messages the use created are put back, and the GM action says when that failed
   (KIT).
@@ -705,6 +742,44 @@ Fix `KIT` failures in the kit. Report `CONTENT` and `SYSTEM` failures: do not ch
 content or the product to make the kit green. Report `STUDIO` failures to the module's author: do not
 change Actor Studio to make the kit green.
 
+### Known findings
+
+A `CONTENT` or `SYSTEM` failure that is understood and reported goes on the profile's known list, so
+the next run counts it instead of failing on it, and a new failure stands out. `heroes-advancement`,
+`heroes-features-use`, `heroes-multiclass` and the origins scenarios read the list (`lib/known.mjs`;
+the origins ones after their own `data/origins-expected.json`); `heroes-studio` keeps its own
+(`data/studio-expected.json`).
+
+| Profile    | Known list                                                    |
+| ---------- | ------------------------------------------------------------- |
+| `srd`      | `scripts/test-kit/data/profiles/srd.known.json` (in the repo) |
+| a local id | `<kit home>\licensed\profiles\<id>.known.json` (this PC only) |
+
+The licensed list names licensed features, so it stays on this PC like its profile. A missing file is
+an empty list. An entry:
+
+```json
+{
+  "id": "some-pack-uses-not-set",
+  "scenario": "heroes-features-use",
+  "kind": "CONTENT",
+  "what": ["the system refused the use", "uses consumed"],
+  "max": 530,
+  "match": "none are set; from some-module.classes",
+  "why": "the pack's features spend their own uses, but the items have none set"
+}
+```
+
+A problem is known when the scenario and kind are equal, the problem's `what` is the entry's `what`
+(or one of them, when it is a list), and the problem's evidence contains `match`. `what` is required,
+so an entry covers only the problem it names; where one problem packs several items ("2 grant(s)
+missing: ..."), put the count in `what`, so a new item beside the old one fails. `max` (optional)
+caps the problems an entry may cover in one run, and the ones over it fail: give a pack-wide entry a
+`max` near the count a `full` run sees, so new findings of its kind are not absorbed. A `KIT` problem
+is never known, and neither is a hero that was not built. A step whose problems are all known passes and names the entries in its detail; the report's "Known findings" section lists how
+often each entry matched and the entries a run did not see (normal in `smoke`; in `full` the content
+may have been fixed, so remove the entry).
+
 ## Console errors
 
 The GM page's console errors and page errors are collected for the whole run. A full run can log
@@ -809,6 +884,8 @@ Rules of thumb:
 | Comparing a Studio hero with a raw hero   | `scripts/test-kit/lib/studio-compare.mjs`, `inspect-build.mjs`                                                                              |
 | The SRD scenarios (no licensed content)   | `scripts/test-kit/scenarios/*.scenario.mjs` (in the repo)                                                                                   |
 | The SRD content profile                   | `scripts/test-kit/data/profiles/srd.json`                                                                                                   |
+| The known findings of a profile           | `scripts/test-kit/lib/known.mjs`, `data/profiles/srd.known.json`, `<kit home>\licensed\profiles\<id>.known.json`                            |
+| The pick coverage                         | `scripts/test-kit/lib/picks.mjs`                                                                                                            |
 | The monsters and the scene                | `scripts/test-kit/data/smoke-matrix.json`                                                                                                   |
 | The manifest of the last build            | `<kit home>\worlds\<world>\manifest.json`                                                                                                   |
 | Reports                                   | `<kit home>\reports\` (this PC only)                                                                                                        |

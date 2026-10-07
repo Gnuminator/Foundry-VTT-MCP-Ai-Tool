@@ -164,17 +164,21 @@ async function describeClass(args) {
   let subclassAt = null;
   let skillsChosen = 0;
   const found = new Map();
-  const resolve = async uuid => {
-    if (!found.has(uuid)) {
+  // A grant inside a pack may name its item by a short "Item.<id>" uuid; Foundry finds it in the
+  // granting document's own pack (a 2024 subclass grants its Unarmed Strike by a short uuid that way).
+  const resolve = async (uuid, owner) => {
+    const full =
+      owner?.pack && /^Item\.[^.]+$/.test(String(uuid)) ? `Compendium.${owner.pack}.${uuid}` : uuid;
+    if (!found.has(full)) {
       let doc = null;
       try {
-        doc = (await fromUuid(uuid)) ?? null;
+        doc = (await fromUuid(full)) ?? null;
       } catch {
         doc = null;
       }
-      found.set(uuid, doc);
+      found.set(full, doc);
     }
-    return found.get(uuid);
+    return found.get(full);
   };
   // Why a grant's uuid does not resolve: the pack is missing, or it has no entry with that id.
   const whyMissing = uuid => {
@@ -201,10 +205,10 @@ async function describeClass(args) {
       } else if (type === 'ItemGrant') {
         for (const l of levels) {
           for (const item of adv.configuration.items ?? []) {
-            const doc2 = await resolve(item.uuid);
+            const doc2 = await resolve(item.uuid, doc);
             grants.push({
               level: l,
-              uuid: item.uuid,
+              uuid: doc2?.uuid ?? item.uuid,
               name: doc2?.name ?? '',
               resolved: !!doc2,
               optional: !!(adv.configuration.optional || item.optional),
@@ -412,10 +416,11 @@ async function setOwnership(args) {
  * flow offers (a rendered ItemChoice checkbox list, the Trait choices, a feat or spell candidate
  * list), where k counts the hero's picks in order of asking, so siblings with different rotations
  * differ and a build is repeatable. An ability score improvement alternates +2 and a feat on the
- * same count; the hit points take the average from level 2.
+ * same count; the hit points take the average from level 2. `prefer` (the coverage heroes) names options to
+ * take first, per choice title.
  * @param {{name: string, classUuid: string, subclassUuid?: string, level?: number, rotation?: number,
  *   speciesUuid?: string, backgroundUuid?: string, folderId?: string, featPackIds?: string[],
- *   abilities?: Record<string, number>, chooseSize?: boolean, actorId?: string,
+ *   abilities?: Record<string, number>, chooseSize?: boolean, actorId?: string, prefer?: Record<string, string[]>,
  *   items?: Array<{uuid: string, level?: number, subclassUuid?: string}>,
  *   _kit: {flagScope: string, flagKey: string}}} args
  */
@@ -434,6 +439,24 @@ async function createHero(args) {
   // The subclass the next Subclass advancement takes: the hero's own, or the one of the extra item being added.
   let currentSubclass = args.subclassUuid;
   const pick = list => list[(rotation + k++) % list.length];
+  // The options to take first, per choice title (the coverage heroes): a pick takes the first
+  // preferred option the system offers and removes it from the list, else the rotation rule. k counts
+  // every pick either way, so the heroes' other choices stay as they were. (lib/coverage.mjs takePreferred)
+  const prefer = new Map(Object.entries(args.prefer ?? {}).map(([t, list]) => [t, [...list]]));
+  const pickFor = (list, title, label = x => x) => {
+    const base = pick(list);
+    const wanted = prefer.get(title) ?? [];
+    for (let i = 0; i < wanted.length; i++) {
+      const hit = list.find(x => label(x) === wanted[i]);
+      if (hit !== undefined) {
+        wanted.splice(i, 1);
+        return hit;
+      }
+    }
+    return base;
+  };
+  // The most options a pick records as offered (a spell list can be long).
+  const OFFERED_MAX = 300;
   const nameOf = uuid => fromUuidSync(uuid)?.name ?? uuid;
 
   const loadData = async (uuid, label) => {
@@ -545,19 +568,22 @@ async function createHero(args) {
 
     async Trait(flow, adv, lvl, title) {
       const chosen = [];
+      // What the system offered before the first pick, for the report's pick coverage.
+      let offered = null;
       // Only as many picks as the data asks for: an advancement with fixed grants and no choices
       // (a subclass's skill grants, say) must not get a pick of ours.
       const total = (adv.configuration.choices ?? []).reduce((n, c) => n + (c.count ?? 0), 0);
       for (let guard = 0; guard < total; guard++) {
         const available = await adv.availableChoices();
         const keys = available ? [...available.choices.asSet()] : [];
+        offered ??= keys.slice(0, OFFERED_MAX);
         if (!keys.length) break;
-        const key = pick(keys);
+        const key = pickFor(keys, title);
         await adv.apply(lvl, { key });
         chosen.push(key);
       }
       if (chosen.length) {
-        picks.push({ level: lvl, advancement: 'Trait', title, chosen });
+        picks.push({ level: lvl, advancement: 'Trait', title, chosen, offered: offered ?? [] });
         await flow.render();
       }
       traitMade.set(adv.id, (traitMade.get(adv.id) ?? 0) + chosen.length);
@@ -570,6 +596,7 @@ async function createHero(args) {
       if (need <= 0) return;
       await chooseAbility(adv, lvl, title);
       const chosen = [];
+      let offered = null;
       let browse = null;
       for (let i = 0; i < need; i++) {
         let options = [...flow.element.querySelectorAll('dnd5e-checkbox')]
@@ -580,11 +607,12 @@ async function createHero(args) {
           browse ??= await browseCandidates(adv, flow, lvl);
           options = browse.filter(u => !chosen.includes(u));
         }
+        offered ??= options.slice(0, OFFERED_MAX).map(nameOf);
         if (!options.length) {
           warnings.push(`${title} level ${lvl}: ${need - i} choice(s) left, no options offered`);
           break;
         }
-        const uuid = pick(options);
+        const uuid = pickFor(options, title, nameOf);
         try {
           await adv.apply(lvl, { selected: [uuid] });
         } catch (err) {
@@ -595,7 +623,14 @@ async function createHero(args) {
         await flow.render();
       }
       if (chosen.length)
-        picks.push({ level: lvl, advancement: 'ItemChoice', title, chosen: chosen.map(nameOf) });
+        picks.push({
+          level: lvl,
+          advancement: 'ItemChoice',
+          title,
+          chosen: chosen.map(nameOf),
+          offered: offered ?? [],
+          pool: adv.configuration.type,
+        });
     },
 
     async ItemGrant(flow, adv, lvl, title) {
@@ -749,8 +784,14 @@ async function createHero(args) {
         idle = 0;
         const adv = flow.advancement;
         const type = adv?.constructor?.typeName;
+        const made = picks.length;
         if (answers[type])
           await answers[type](flow, adv, flow.level, `${flow.item.name}: ${adv.title}`);
+        // Which item asked (class, subclass, feat, race, background), for the mechanical filter of the report.
+        for (const p of picks.slice(made)) {
+          p.itemType ??= flow.item.type;
+          if (flow.item.type === 'feat') p.featType ??= flow.item.system?.type?.value ?? '';
+        }
         (
           mgr.element?.querySelector('[data-action="next"],[data-action="complete"]') ?? button
         ).click();

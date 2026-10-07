@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { KIT_FORMAT_VERSION } from './contract.mjs';
 import { consoleCounts, groupConsoleErrors } from './console-errors.mjs';
+import { mechanicalNever } from './picks.mjs';
 
 /**
  * @typedef {import('./contract.mjs').KitReport} KitReport
@@ -237,6 +238,81 @@ function consoleHtmlTable(groups, total) {
 
 // --- markdown -----------------------------------------------------------------
 
+/**
+ * The "Known findings" section: per scenario with a `known` attachment (lib/known.mjs), the entries
+ * that matched and how often, and the entries this run did not see.
+ * @param {KitReport} r
+ * @returns {string[]}
+ */
+export function knownMarkdown(r) {
+  const lines = [];
+  for (const s of r.scenarios) {
+    const att = s.attachments.find(a => a.name === 'known');
+    const data = /** @type {any} */ (att?.data);
+    if (!data || !data.entries) continue;
+    if (!lines.length) lines.push('## Known findings', '');
+    const matched = Object.entries(data.matched ?? {});
+    lines.push(
+      `### ${s.id}: ${matched.length} of ${data.entries} entries matched`,
+      ''
+    );
+    for (const [id, m] of matched)
+      lines.push(`- ${mdCell(id)} (${m.kind}, ${m.problems} problem(s)): ${mdCell(m.why)}`);
+    if (data.unseen?.length)
+      lines.push(`- Not seen in this run: ${data.unseen.map(mdCell).join(', ')}`);
+    lines.push('');
+  }
+  return lines;
+}
+
+/**
+ * The coverage line of the "Picks" section: how many coverage heroes the build made (extra heroes
+ * for play-changing options no other hero picked, lib/coverage.mjs) and how many of those options
+ * are still never picked.
+ * @param {KitReport} r
+ * @returns {string | null} null when the report has no build
+ */
+export function coverageHeroesLine(r) {
+  if (!r.build) return null;
+  const heroes = r.build.heroes ?? [];
+  const built = heroes.filter(h => h.role === 'coverage' && h.actorId && !h.buildError).length;
+  const left = mechanicalNever(/** @type {any} */ (heroes)).length;
+  const pass = r.build.coveragePass;
+  if (pass && !pass.enabled)
+    return `Coverage heroes: none built (smoke size or --no-coverage), ${left} mechanical options never picked.`;
+  if (!pass && !built)
+    return `Coverage heroes: none built (this manifest has no coverage pass), ${left} mechanical options never picked.`;
+  const cap = pass?.capHit ? ` (cap of ${pass.cap} reached)` : '';
+  return `Coverage heroes: ${built} built, ${left} mechanical options still never picked${cap}.`;
+}
+
+/**
+ * The "Picks" section: per class choice (lib/picks.mjs), the options offered, how many were picked
+ * at least once, and the ones no hero picked (the first 12 names, the rest counted), then the
+ * coverage heroes line.
+ * @param {KitReport} r
+ * @returns {string[]}
+ */
+export function picksMarkdown(r) {
+  const s = r.scenarios.find(x => x.attachments.some(a => a.name === 'picks'));
+  const rows = /** @type {any[]} */ (s?.attachments.find(a => a.name === 'picks')?.data);
+  if (!Array.isArray(rows) || !rows.length) return [];
+  const lines = ['## Picks', ''];
+  lines.push('| Class | Choice | Heroes | Offered | Picked | Never picked |');
+  lines.push('| --- | --- | --- | --- | --- | --- |');
+  for (const row of rows) {
+    const never = row.never.slice(0, 12).join(', ') + (row.never.length > 12 ? ` and ${row.never.length - 12} more` : '');
+    lines.push(
+      `| ${mdCell(row.classIdentifier)} | ${mdCell(row.title)} | ${row.heroes} | ${row.offered} | ` +
+        `${row.offered - row.never.length} | ${mdCell(never || '-')} |`
+    );
+  }
+  const covered = coverageHeroesLine(r);
+  if (covered) lines.push('', covered);
+  lines.push('', 'Every pick per hero is in the manifest (`picks`) and in report.json.', '');
+  return lines;
+}
+
 /** @param {KitReport} r */
 export function renderMarkdown(r) {
   const { run, summary } = r;
@@ -299,6 +375,8 @@ export function renderMarkdown(r) {
     for (const [label, value] of coverage) lines.push(`- ${label}: ${value}`);
     lines.push('');
   }
+  lines.push(...knownMarkdown(r));
+  lines.push(...picksMarkdown(r));
   const con = consoleSections(r);
   if (r.build) {
     lines.push('## Build console errors');

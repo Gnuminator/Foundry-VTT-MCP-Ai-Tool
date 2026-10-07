@@ -6,6 +6,7 @@
  * the features of every class.
  */
 import { problemText } from './advancement.mjs';
+import { loadKnown } from './known.mjs';
 import {
   MULTICLASS_PLAN,
   checkMulticlass,
@@ -28,7 +29,10 @@ export async function runMulticlass(t) {
   const ctx = await loadOriginContext(t);
   const plan = t.size === 'smoke' ? MULTICLASS_PLAN.filter(c => c.smoke) : MULTICLASS_PLAN;
   t.log(`${plan.length} of ${MULTICLASS_PLAN.length} combinations (${t.size})`);
-  const ledger = newLedger('multiclass', expectedFindings());
+  const ledger = newLedger('multiclass', expectedFindings(), {
+    list: loadKnown(t.kit.profile),
+    scenario: 'heroes-multiclass',
+  });
   /** @type {Record<string, number>} */
   const leftOut = {};
   /** @type {Set<string>} */
@@ -264,6 +268,7 @@ export async function runMulticlass(t) {
     leftOut,
     problemsByKind: byKind,
     expectedFindings: ledger.expectedCounts,
+    knownFindings: ledger.known(),
     failed: ledger.failed,
     notes: [...notes].slice(0, 80),
   });

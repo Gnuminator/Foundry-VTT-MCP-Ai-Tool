@@ -80,7 +80,13 @@ export interface ToolRouterDeps {
   tokenManipulationTools: TokenManipulationTools;
 }
 
-export type ToolHandler = (args: any) => Promise<any>;
+/** What the control channel knows about a call besides its arguments. */
+export interface ToolCallContext {
+  /** Who asked (`CallToolParams.requestedBy`), for the writes that record a person's name. */
+  requestedBy?: string;
+}
+
+export type ToolHandler = (args: any, context?: ToolCallContext) => Promise<any>;
 
 /**
  * Build the `call_tool` name → handler map. Unknown names are absent from the
@@ -133,11 +139,13 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'get-active-effects': args => deps.effectsTools.handleGetActiveEffects(args),
     'suggest-balanced-encounter': args => deps.encounterTools.handleSuggestBalancedEncounter(args),
     'get-planned-change': args => deps.guardedChangeTools.handleGetPlannedChange(args),
-    'apply-planned-change': args => deps.guardedChangeTools.handleApplyPlannedChange(args),
+    'apply-planned-change': (args, context) =>
+      deps.guardedChangeTools.handleApplyPlannedChange(args, context?.requestedBy),
     'list-recent-changes': args => deps.guardedChangeTools.handleListRecentChanges(args),
     'list-changes': args => deps.changeHistoryTools.handleListChanges(args),
     'plan-undo-changes': args => deps.changeHistoryTools.handlePlanUndoChanges(args),
-    'undo-change': args => deps.guardedChangeTools.handleUndoChange(args),
+    'undo-change': (args, context) =>
+      deps.guardedChangeTools.handleUndoChange(args, context?.requestedBy),
     'open-in-foundry': args => deps.guardedChangeTools.handleOpenInFoundry(args),
     'list-scenes': args => deps.sceneTools.listScenes(args),
     'switch-scene': args => deps.sceneTools.switchScene(args),

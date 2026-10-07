@@ -138,10 +138,10 @@ function advancedRewind(explain: string): string {
 export function redoDialog(row: ChangeRow, undo?: ChangeRow): DialogSpec {
   // One undo can cover several changes (Everything since): a redo brings all of them back.
   const whole =
-    undo && undo.diff.length > 1
+    undo && undo.coversSeveral
       ? `<p>It was undone together with other changes in <strong>${escapeHtml(
           undo.summary
-        )}</strong>. The redo brings back all ${undo.diff.length} changes.</p>`
+        )}</strong>. The redo brings all of them back.</p>`
       : '';
   return {
     title: 'Redo change',

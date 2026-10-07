@@ -12,10 +12,13 @@ export const CHANGE_JOURNAL_VERSION = 1;
 /** Records kept per GM browser (lost on reload; the backend stores what it pulled). */
 export const CHANGE_JOURNAL_RING = 5000;
 
+/** Most bytes (UTF-8 JSON) the ring keeps in all: the oldest records go first. */
+export const CHANGE_JOURNAL_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
+
 /** Most records one `getChangeJournal` call returns. */
 export const CHANGE_JOURNAL_MAX_LIMIT = 500;
 
-/** A record whose JSON is larger than this keeps its metadata but drops its values. */
+/** A record whose JSON (UTF-8 bytes) is larger than this keeps its metadata but drops its values. */
 export const CHANGE_JOURNAL_MAX_RECORD_BYTES = 256 * 1024;
 
 /** Two changes from this browser closer together than this share an `actionId`. */

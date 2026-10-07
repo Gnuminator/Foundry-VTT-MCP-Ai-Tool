@@ -41,6 +41,7 @@ function entry(over: Partial<ChangeEntry> = {}): ChangeEntry {
     canUndo: true,
     undone: false,
     undoneBy: '',
+    coversSeveral: false,
     ...over,
   };
 }
@@ -186,6 +187,20 @@ describe('parseChanges', () => {
     expect(list[1]).toMatchObject({ kind: 'ai', by: 'AI', requestedBy: 'Danni', mode: 'apply' });
   });
 
+  it('reads whether an undo took back several changes: the covers count, else the lines', () => {
+    const lines = ['Ireena: HP 5 -> 10', 'Ireena: effect "Bloodied" removed'];
+    const [counted, one, old] = parseChanges({
+      changes: [
+        aiItem({ id: 'u1', mode: 'undo', lines, covers: 3 }),
+        aiItem({ id: 'u2', mode: 'undo', lines, covers: 1 }),
+        aiItem({ id: 'u3', mode: 'undo', lines }),
+      ],
+    });
+    expect(counted.coversSeveral).toBe(true);
+    expect(one.coversSeveral).toBe(false);
+    expect(old.coversSeveral).toBe(true);
+  });
+
   it('reads the AI-only list of an older bridge (changeId, diff, appliedAt)', () => {
     const [a, b] = parseChanges({
       changes: [
@@ -225,6 +240,7 @@ describe('buildChangeRow', () => {
       diff: ['Ireena hp 20 -> 15'],
       canUndo: true,
       redoId: '',
+      coversSeveral: false,
     });
   });
 
@@ -327,6 +343,21 @@ describe('renderChangesHtml', () => {
     expect(renderChangesHtml(view({ status: 'loading' }))).toContain('Loading the changes');
     expect(renderChangesHtml(view())).toContain('No changes yet.');
     expect(renderChangesHtml(view({ filter: 'ai' }))).toContain('No changes match this filter.');
+    // A full first page of hidden rows: a later page may still match.
+    const hidden = Array.from({ length: FIRST_PAGE_LIMIT }, (_, i) =>
+      humanItem({ id: `act:h${i}` })
+    );
+    const full = view({
+      filter: 'ai',
+      rows: buildRows({ changes: hidden }),
+      limit: FIRST_PAGE_LIMIT,
+    });
+    expect(renderChangesHtml(full)).toContain(
+      'No changes match this filter on this page. Show more may find some.'
+    );
+    const last = view({ filter: 'ai', rows: buildRows({ changes: hidden }), limit: MORE_LIMIT });
+    expect(renderChangesHtml(last)).toContain('No changes match this filter.');
+    expect(renderChangesHtml(last)).not.toContain('on this page');
     expect(renderChangesHtml(view({ legacy: true }))).toContain('No AI changes yet.');
     const html = renderChangesHtml(
       view({

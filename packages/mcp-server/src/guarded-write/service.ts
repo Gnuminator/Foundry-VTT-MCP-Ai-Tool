@@ -193,8 +193,10 @@ export interface AppliedChange {
   risk: GuardedRisk;
   appliedAt: string;
   undoOf?: string;
-  /** Who asked, for a change made from a GM's window in Foundry. Absent for the control channel (Claude or the dashboard). */
+  /** Who asked, for a change made from a GM's window in Foundry or the dashboard. Absent for Claude. */
   requestedBy?: string;
+  /** An undo made with plan-undo-changes: the people's actions and AI changes it took back. */
+  undoes?: { actions?: string[]; changes?: string[] };
   diff: string[];
   documents?: string[];
   /** Only for an apply whose plan asked to show the page: whether the popup went out. */
@@ -1178,6 +1180,7 @@ export class GuardedWriteService {
       appliedAt: entry.appliedAt,
       ...(entry.undoOf ? { undoOf: entry.undoOf } : {}),
       ...(entry.requestedBy ? { requestedBy: entry.requestedBy } : {}),
+      ...(entry.undoes ? { undoes: entry.undoes } : {}),
       diff: entry.diff,
       ...(documents ? { documents } : {}),
     };

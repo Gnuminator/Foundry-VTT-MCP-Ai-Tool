@@ -19,7 +19,15 @@
  */
 import type { GuardedOp, OpSnapshot, PathValue } from '@gnuminator/shared';
 
-import { labelOf, undoBlocker, type ChangeAction, type ChangeHistory } from '../change-history.js';
+import {
+  CHANGE_HISTORY_DAYS,
+  labelOf,
+  undoBlocker,
+  type ChangeAction,
+  type ChangeHistory,
+  type UserNames,
+} from '../change-history.js';
+import { localDateKey } from '../event-pump.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { AuditEntry, AuditLog } from '../vault/audit.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
@@ -71,7 +79,12 @@ export interface UndoPlanView extends PlanView {
 }
 
 export interface UndoPlannerOptions {
-  changeHistory: Pick<ChangeHistory, 'humanActions'>;
+  /**
+   * `userNames` is optional: without it, ownership lines name users by id. `historyStart` is
+   * optional: without it, a rewind may reach back past the kept history.
+   */
+  changeHistory: Pick<ChangeHistory, 'humanActions'> &
+    Partial<Pick<ChangeHistory, 'userNames' | 'historyStart'>>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   audit: Pick<AuditLog, 'ring' | 'resultsWithDeleted'>;
   worldIds: Pick<WorldIdResolver, 'current'>;
@@ -274,7 +287,8 @@ function checkedPaths(
   net: NetUpdate,
   snapshot: OpSnapshot,
   justThis: boolean,
-  notes: string[]
+  notes: string[],
+  users?: UserNames
 ): PathValue[] {
   const valueAt = (path: string): PathValue =>
     snapshot.values?.find(v => v.path === path) ?? { path, present: false };
@@ -287,7 +301,7 @@ function checkedPaths(
       const adjusted = adjustedNumber(p, now, valueAt);
       if (adjusted === null) {
         notes.push(
-          `Kept, changed later: ${who}: ${labelOf(p.path) ?? p.path} stays ${formatValue(now)}`
+          `Kept, changed later: ${who}: ${labelOf(p.path, users) ?? p.path} stays ${formatValue(now)}`
         );
       } else if (now.present && adjusted !== now.value) {
         keep.push({ path: p.path, present: true, value: adjusted });
@@ -341,10 +355,13 @@ export class UndoPlanner {
     const ring = await this.audit.ring(worldId);
     const state = computeUndoState(ring);
     const actions = await this.changeHistory.humanActions();
+    const users = await this.changeHistory.userNames?.();
 
     const items = [...actions.map(humanItem), ...ring.filter(e => e.results?.length).map(aiItem)];
     items.sort((a, b) => a.t - b.t);
     const target = this.resolveTarget(request.id, items, ring, actions, state);
+    const notes: string[] = [];
+    this.checkHistoryStart(target, scope, (await this.changeHistory.historyStart?.()) ?? 0, notes);
     const touches = (i: Item): boolean => i.roots.some(root => target.roots.includes(root));
     // Everything after the target, undone or not: an undone change and the undo that took it back
     // both lie after it and cancel out in the fold. Leaving out only the undone one would restore
@@ -353,7 +370,6 @@ export class UndoPlanner {
     // What the GM sees as later changes (the dialog, and the number adjustment of `just-this`).
     const touching = since.filter(i => !state.has(i.id) && touches(i));
 
-    const notes: string[] = [];
     const chosen =
       scope === 'just-this' ? [] : scope === 'world-since' ? since : since.filter(touches);
     const skipped = chosen.filter(i => this.skipItem(i, notes));
@@ -379,7 +395,8 @@ export class UndoPlanner {
       foldEvents(events),
       justThis,
       justThis && touching.length > 0,
-      notes
+      notes,
+      users
     );
     if (ops.length === 0) {
       const why = notes.length > 0 ? notes.join('; ') : 'everything is already as it was before';
@@ -395,7 +412,7 @@ export class UndoPlanner {
     for (const net of resolved) {
       if (net.kind !== 'update') continue;
       for (const p of net.paths) {
-        const label = labelOf(p.path);
+        const label = labelOf(p.path, users);
         if (label) pathLabels[p.path] = label;
       }
     }
@@ -419,6 +436,24 @@ export class UndoPlanner {
 
   // -------------------------------------------------------------------------
 
+  /**
+   * People's changes before `start` are gone (the journal keeps CHANGE_HISTORY_DAYS days, less
+   * when its size cap removed files inside them), so a set that starts before it would skip
+   * them without a word: refused. `just-this` undoes one change and only says it.
+   */
+  private checkHistoryStart(target: Item, scope: UndoScope, start: number, notes: string[]): void {
+    if (!(target.t < start)) return;
+    const day = localDateKey(start);
+    if (scope !== 'just-this') {
+      throw new Error(
+        `People's changes before ${day} are no longer in the history (it keeps ${CHANGE_HISTORY_DAYS} days, less when the change journal's size cap is reached), so not every change since "${target.summary}" is known. Undo just this change instead, or undo the later changes one by one.`
+      );
+    }
+    notes.push(
+      `People's changes before ${day} are no longer in the history: a later change to the same thing may not be listed`
+    );
+  }
+
   private resolveTarget(
     id: string,
     items: Item[],
@@ -431,7 +466,7 @@ export class UndoPlanner {
       const action = actions.find(a => `act:${a.actionId}` === id);
       if (!action) {
         throw new Error(
-          `No change ${id} in the last days of history (it may be older than 7 days)`
+          `No change ${id} in the kept history (people's changes are kept ${CHANGE_HISTORY_DAYS} days, less when the change journal's size cap is reached)`
         );
       }
       if (undone) throw new Error(`Change ${id} was already undone (${undone.undoneBy})`);
@@ -481,7 +516,8 @@ export class UndoPlanner {
     folded: NetChange[],
     justThis: boolean,
     laterTouches: boolean,
-    notes: string[]
+    notes: string[],
+    users?: UserNames
   ): Promise<{ ops: GuardedOp[]; resolved: NetChange[] }> {
     // A document inside one that is deleted goes with it.
     const deleted = folded.filter(n => n.kind === 'delete').map(n => n.uuid);
@@ -523,7 +559,7 @@ export class UndoPlanner {
           notes.push(`Not restored: ${who} (what it belonged to is gone)`);
         } else {
           for (const child of change.unrecorded ?? []) {
-            const labels = child.paths.map(path => labelOf(path) ?? path).join(', ');
+            const labels = child.paths.map(path => labelOf(path, users) ?? path).join(', ');
             notes.push(`Not recorded, kept: ${child.name ?? child.uuid}: ${labels}`);
           }
           keep(change, opOf(change));
@@ -539,9 +575,9 @@ export class UndoPlanner {
         if (justThis && changedSince) notes.push(`${who}: later changes to it go with it`);
         keep(change, opOf(change));
       } else {
-        const paths = checkedPaths(change, snap, justThis, notes);
+        const paths = checkedPaths(change, snap, justThis, notes, users);
         if (change.unrecorded.length > 0) {
-          const labels = change.unrecorded.map(path => labelOf(path) ?? path).join(', ');
+          const labels = change.unrecorded.map(path => labelOf(path, users) ?? path).join(', ');
           notes.push(`Not recorded, kept: ${who}: ${labels}`);
         }
         if (paths.length > 0) keep(change, opOf(change, paths));

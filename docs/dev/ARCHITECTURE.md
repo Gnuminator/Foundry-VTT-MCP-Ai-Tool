@@ -260,7 +260,9 @@ there, plus its name in `MODULE_REQUEST_TOOLS`), and
 request and whose feature still matches (looked up through the guarded-write service), passing on
 only `planId`, `confirm` and `confirmDestructive`. An apply carries the GM's name into its audit
 entry (`requestedBy`) like an undo does. Plans made by Claude or the dashboard cannot be applied
-from a window.
+from a window. The dashboard's own `apply-planned-change` and `undo-change` calls carry
+`requestedBy: "GM (dashboard)"` on the control channel (`CallToolParams`), so an undo made there is
+listed as the GM's, not the AI's; Claude's calls carry no name.
 
 The backend also sends one frame to a module socket when it connects, `bridge-hello`
 (`{"type":"bridge-hello","data":{"capabilities":["module-request"]}}`), so a new module facing an

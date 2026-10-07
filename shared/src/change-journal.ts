@@ -34,12 +34,19 @@ export const CHANGE_JOURNAL_VERSION = 1;
 /** Records kept per GM browser (lost on reload; the backend stores what it pulled). */
 export const CHANGE_JOURNAL_RING = 5000;
 
+/**
+ * Most bytes (UTF-8 JSON) the ring keeps in all: the oldest records go first.
+ * 5000 records of up to CHANGE_JOURNAL_MAX_RECORD_BYTES would be 1.3 GB in a
+ * headless GM browser; this keeps it at a fixed size.
+ */
+export const CHANGE_JOURNAL_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
+
 /** Most records one `getChangeJournal` call returns. */
 export const CHANGE_JOURNAL_MAX_LIMIT = 500;
 
 /**
- * A record whose JSON is larger than this keeps its metadata but drops
- * `before`, `after` and `data` and sets `oversize` (shown, not undoable).
+ * A record whose JSON (UTF-8 bytes) is larger than this keeps its metadata but
+ * drops `before`, `after` and `data` and sets `oversize` (shown, not undoable).
  */
 export const CHANGE_JOURNAL_MAX_RECORD_BYTES = 256 * 1024;
 
@@ -133,7 +140,9 @@ export interface ChangeRecord {
    * operation's server time (`options.modifiedTime`) for an update or a
    * delete, else the document's `_stats.modifiedTime`, and `_stats.createdTime`
    * for a create (server times, so every client agrees; a synthetic actor's
-   * delta has no `_stats` of its own).
+   * delta has no `_stats` of its own). An update adds `:<hash>` of its `after`
+   * values, so two updates to one document in the same server millisecond
+   * stay two records (the same values in every browser give the same hash).
    */
   key: string;
   /** Per browser, from 1; restarts with a new `clientId`. */

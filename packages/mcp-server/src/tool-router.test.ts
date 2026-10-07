@@ -70,6 +70,28 @@ describe('buildToolRouter', () => {
     expect((deps as any).sceneTools.switchScene).toHaveBeenCalledWith(args);
   });
 
+  it('passes who asked to the writes that record a name, and nothing without a context', async () => {
+    const deps = makeDeps();
+    const router = buildToolRouter(deps);
+    const args = { planId: 'p1', confirm: true };
+
+    await router['apply-planned-change'](args, { requestedBy: 'GM (dashboard)' });
+    expect((deps as any).guardedChangeTools.handleApplyPlannedChange).toHaveBeenCalledWith(
+      args,
+      'GM (dashboard)'
+    );
+    await router['undo-change']({ changeId: 'c1' }, { requestedBy: 'GM (dashboard)' });
+    expect((deps as any).guardedChangeTools.handleUndoChange).toHaveBeenCalledWith(
+      { changeId: 'c1' },
+      'GM (dashboard)'
+    );
+    await router['apply-planned-change'](args);
+    expect((deps as any).guardedChangeTools.handleApplyPlannedChange).toHaveBeenLastCalledWith(
+      args,
+      undefined
+    );
+  });
+
   it('routes ownership tools through the generic handleToolCall dispatcher', async () => {
     const deps = makeDeps();
     const router = buildToolRouter(deps);

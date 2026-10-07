@@ -77,6 +77,8 @@ function update(uuid: string, before: PathValue[], after: PathValue[]): GuardedO
 
 let ring: AuditEntry[];
 let records: ChangeRecord[];
+/** What the history says it is complete from (0: everything the tests hold). */
+let historyStart = 0;
 let foundry: FakeFoundry;
 let createPlan: ReturnType<typeof vi.fn>;
 let planner: UndoPlanner;
@@ -97,6 +99,7 @@ beforeEach((): void => {
   counter = 0;
   ring = [];
   records = [];
+  historyStart = 0;
   foundry = new FakeFoundry();
   foundry.add('Actor.a', 'Actor', {
     name: 'Ireena',
@@ -121,6 +124,7 @@ beforeEach((): void => {
   planner = new UndoPlanner({
     changeHistory: {
       humanActions: (): Promise<ChangeAction[]> => Promise.resolve(buildActions(records)),
+      historyStart: (): Promise<number> => Promise.resolve(historyStart),
     },
     guardedWrites: { createPlan } as never,
     audit: {
@@ -134,9 +138,26 @@ beforeEach((): void => {
 });
 
 describe('refusals', () => {
-  it('says an unknown change is unknown', async () => {
-    await expect(plan('act:nope')).rejects.toThrow(/No change act:nope/);
+  it("says an unknown change is unknown, and how long people's changes are kept", async () => {
+    await expect(plan('act:nope')).rejects.toThrow(/No change act:nope in the kept history/);
+    await expect(plan('act:nope')).rejects.toThrow(/kept 7 days, less when/);
     await expect(plan('chg-nope')).rejects.toThrow(/No recorded change chg-nope/);
+  });
+
+  it('refuses a set that starts before the kept history, and only says so for just-this', async () => {
+    ring.push(entry('chg-old', 1, { results: [update('Actor.a', [num(HP, 12)], [num(HP, 5)])] }));
+    records.push(hp(10, 5, 3, 'later'));
+    historyStart = T0 + 5 * MIN;
+    await expect(plan('chg-old', 'world-since', true)).rejects.toThrow(
+      /changes before 2026-10-07 are no longer in the history/
+    );
+    await expect(plan('chg-old', 'everything-since')).rejects.toThrow(/Undo just this change/);
+    await expect(plan('chg-old')).resolves.toMatchObject({ scope: 'just-this' });
+    expect(planInput().notes).toContainEqual(expect.stringMatching(/no longer in the history/));
+    // A target inside the kept history is not affected.
+    historyStart = T0;
+    await plan('chg-old', 'everything-since');
+    expect(planInput().notes ?? []).not.toContainEqual(expect.stringMatching(/no longer/));
   });
 
   it('refuses a change that is already undone, from the derived state', async () => {

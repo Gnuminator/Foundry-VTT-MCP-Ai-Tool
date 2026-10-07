@@ -70,7 +70,17 @@ export interface ControlResponse {
 export interface CallToolParams {
   name: string;
   args?: Record<string, unknown>;
+  /**
+   * Who asked, for a write the backend records with a person's name (`apply-planned-change`,
+   * `undo-change`): the dashboard sends {@link DASHBOARD_REQUESTER}; the stdio wrapper (Claude)
+   * sends nothing. Trimmed and cut to {@link MAX_REQUESTER_LENGTH} by the backend.
+   */
+  requestedBy?: string;
 }
+
+/** The name the dashboard's guarded writes carry: the GM at the dashboard (no login there). */
+export const DASHBOARD_REQUESTER = 'GM (dashboard)';
+export const MAX_REQUESTER_LENGTH = 80;
 
 /**
  * The payload a successful `call_tool` resolves to: the MCP tool-content

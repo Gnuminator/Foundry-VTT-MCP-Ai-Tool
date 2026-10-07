@@ -13,6 +13,7 @@ import { ChangeJournal, changedPaths } from './change-journal.js';
 import {
   CHANGE_JOURNAL_ACTION_GAP_MS,
   CHANGE_JOURNAL_DOCUMENTS,
+  CHANGE_JOURNAL_MAX_BUFFER_BYTES,
   CHANGE_JOURNAL_MAX_LIMIT,
   CHANGE_JOURNAL_MAX_RECORD_BYTES,
   CHANGE_JOURNAL_RING,
@@ -337,7 +338,9 @@ describe('update records: values', () => {
     ]);
     expect(r.unknownBefore).toBeUndefined();
     expect(r.modifiedTime).toBe(actor._source._stats.modifiedTime);
-    expect(r.key).toBe(`update:Actor.act1:${actor._source._stats.modifiedTime}`);
+    expect(r.key).toMatch(
+      new RegExp(`^update:Actor.act1:${actor._source._stats.modifiedTime}:[0-9a-z]+$`)
+    );
     expect(r.t).toBe(actor._source._stats.modifiedTime);
   });
 
@@ -664,7 +667,7 @@ describe('synthetic actor times', () => {
       extra: { isToken: true, token },
     });
     simulateUpdate(synthetic, { 'system.x': 2 });
-    expect(records()[0].key).toBe(`update:${synthetic.uuid}:4242`);
+    expect(records()[0].key).toMatch(new RegExp(`^update:${synthetic.uuid}:4242:`));
   });
 
   it('prefers the operation time from the options (Foundry 14: a delta has no _stats)', () => {
@@ -680,7 +683,7 @@ describe('synthetic actor times', () => {
     });
     simulateUpdate(synthetic, { 'system.x': 2 }, { options: { modifiedTime: 5151 } });
     const r = records()[0];
-    expect(r.key).toBe(`update:${synthetic.uuid}:5151`);
+    expect(r.key).toMatch(new RegExp(`^update:${synthetic.uuid}:5151:`));
     expect(r.t).toBe(5151);
     expect(r.modifiedTime).toBeNull();
   });
@@ -692,9 +695,23 @@ describe('operation times and no-op updates', () => {
     simulateUpdate(actor, { 'system.attributes.hp.value': 5 }, { options: { modifiedTime: 7001 } });
     simulateDelete(actor, { options: { modifiedTime: 7002 } });
     const [upd, del] = records();
-    expect(upd.key).toBe('update:Actor.act1:7001');
+    expect(upd.key).toMatch(/^update:Actor\.act1:7001:[0-9a-z]+$/);
     expect(upd.modifiedTime).toBe(actor._source._stats.modifiedTime);
     expect(del.key).toBe('delete:Actor.act1:7002');
+  });
+
+  it('keeps two updates to one document in the same server millisecond apart, by their values', () => {
+    const actor = makeActor();
+    simulateUpdate(actor, { 'system.attributes.hp.value': 5 }, { options: { modifiedTime: 7001 } });
+    simulateUpdate(actor, { 'system.attributes.hp.value': 3 }, { options: { modifiedTime: 7001 } });
+    const [first, second] = records();
+    expect(first.key).not.toBe(second.key);
+    expect(first.key.startsWith('update:Actor.act1:7001:')).toBe(true);
+    expect(second.key.startsWith('update:Actor.act1:7001:')).toBe(true);
+    // The same change seen by another GM browser gets the same key (the values decide).
+    const other = makeActor();
+    simulateUpdate(other, { 'system.attributes.hp.value': 5 }, { options: { modifiedTime: 7001 } });
+    expect(records()[2].key).toBe(first.key);
   });
 
   it('drops a path the server left unchanged, and the record when none is left', () => {
@@ -768,6 +785,28 @@ describe('limits', () => {
       CHANGE_JOURNAL_RING + 2,
       CHANGE_JOURNAL_RING + 3,
     ]);
+  });
+
+  it('drops the oldest records once the buffer holds more bytes than the cap', () => {
+    const actor = makeActor();
+    // About 120 KB per update record, measured in UTF-8 bytes (two bytes per character here).
+    const chars = 60_000;
+    const big = String.fromCharCode(0xe9).repeat(chars);
+    const count = Math.ceil(CHANGE_JOURNAL_MAX_BUFFER_BYTES / (chars * 2)) + 2;
+    for (let i = 0; i < count; i += 1) {
+      const item = fixture({
+        documentName: 'Item',
+        id: `i${i}`,
+        parent: actor,
+        source: { system: { description: { value: 'a' } } },
+      });
+      simulateUpdate(item, { 'system.description.value': big }, { options: { modifiedTime: i } });
+    }
+    const all = journal.getChangeJournal({ limit: CHANGE_JOURNAL_MAX_LIMIT });
+    expect(all.latestSeq).toBe(count);
+    expect(all.oldestSeq).toBeGreaterThan(1);
+    expect(all.records.length).toBeLessThan(count);
+    for (const r of all.records) expect(r.oversize).toBeUndefined();
   });
 });
 

@@ -2,6 +2,7 @@ import { MODULE_ID } from './constants.js';
 import {
   CHANGE_JOURNAL_ACTION_GAP_MS,
   CHANGE_JOURNAL_DOCUMENTS,
+  CHANGE_JOURNAL_MAX_BUFFER_BYTES,
   CHANGE_JOURNAL_MAX_LIMIT,
   CHANGE_JOURNAL_MAX_RECORD_BYTES,
   CHANGE_JOURNAL_RING,
@@ -107,6 +108,31 @@ function randomId(): string {
     // fall through
   }
   return `cj-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** The UTF-8 size of a string (what the vault file and the wire carry), not its character count. */
+function utf8Bytes(text: string): number {
+  if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(text).length;
+  return text.length;
+}
+
+/** A short, stable hash (FNV-1a, 32 bit) of a string, as base 36. */
+export function shortHash(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+/** The hash an update's key carries: its values after (and the paths without a before value). */
+function afterHash(record: Pick<ChangeRecord, 'after' | 'unknownBefore'>): string {
+  try {
+    return shortHash(JSON.stringify([record.after ?? [], record.unknownBefore ?? []]));
+  } catch {
+    return '0';
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +292,9 @@ export class ChangeJournal {
   private readonly clientId = randomId();
   private seq = 0;
   private buffer: ChangeRecord[] = [];
+  /** The UTF-8 JSON size of each record in `buffer`, in the same order, and their sum. */
+  private sizes: number[] = [];
+  private bufferBytes = 0;
   private hooksRegistered = false;
   private warned = false;
   /** This browser's current change group and when its last change happened. */
@@ -411,9 +440,7 @@ export class ChangeJournal {
     // delta has no `_stats`) and for an update the server reduced to nothing.
     const opTime = num(asRecord(options)?.modifiedTime);
     const t = (op === 'create' ? (serverTime ?? opTime) : (opTime ?? serverTime)) ?? Date.now();
-    const key = `${op}:${uuid}:${t}`;
     const stash = asRecord(asRecord(asRecord(options)?.[MODULE_ID])?.journal);
-    const actionId = str(stash?.actionId) ?? `solo:${key}`;
 
     const author = typeof userId === 'string' ? game.users?.get(userId) : undefined;
     const root = rootOf(d);
@@ -421,10 +448,10 @@ export class ChangeJournal {
 
     const record: ChangeRecord = {
       v: CHANGE_JOURNAL_VERSION,
-      key,
+      key: '',
       seq: 0,
       t,
-      actionId,
+      actionId: '',
       op,
       userId: typeof userId === 'string' ? userId : null,
       userName: str(author?.name) ?? null,
@@ -450,6 +477,12 @@ export class ChangeJournal {
           : sourceOf(d)
       );
     }
+
+    // The key is the same in every GM browser (server time, and for an update the values after,
+    // which every browser reads from the same updated source): two updates to one document in the
+    // same server millisecond stay two records, and the backend still dedupes across browsers.
+    record.key = `${op}:${uuid}:${t}${op === 'update' ? `:${afterHash(record)}` : ''}`;
+    record.actionId = str(stash?.actionId) ?? `solo:${record.key}`;
 
     Object.assign(record, markerOf(options));
     this.push(this.capSize(record));
@@ -488,29 +521,48 @@ export class ChangeJournal {
     return true;
   }
 
-  /** A record over the size cap keeps its metadata but drops its values. */
-  private capSize(record: ChangeRecord): ChangeRecord {
-    let size = 0;
-    try {
-      size = JSON.stringify(record).length;
-    } catch {
-      size = Number.POSITIVE_INFINITY;
-    }
-    if (size <= CHANGE_JOURNAL_MAX_RECORD_BYTES) return record;
+  /** A record over the size cap keeps its metadata but drops its values. Returns it with its size. */
+  private capSize(record: ChangeRecord): { record: ChangeRecord; size: number } {
+    let size = this.sizeOf(record);
+    if (size <= CHANGE_JOURNAL_MAX_RECORD_BYTES) return { record, size };
     delete record.before;
     delete record.after;
     delete record.data;
     delete record.unknownBefore;
     record.oversize = true;
-    return record;
+    size = this.sizeOf(record);
+    return { record, size: Number.isFinite(size) ? size : 0 };
   }
 
-  private push(record: ChangeRecord): void {
+  /** The UTF-8 size of the record's JSON; infinite when it cannot be serialized. */
+  private sizeOf(record: ChangeRecord): number {
+    try {
+      return utf8Bytes(JSON.stringify(record));
+    } catch {
+      return Number.POSITIVE_INFINITY;
+    }
+  }
+
+  /** Keep the newest records: at most CHANGE_JOURNAL_RING of them and CHANGE_JOURNAL_MAX_BUFFER_BYTES in all. */
+  private push({ record, size }: { record: ChangeRecord; size: number }): void {
     this.seq += 1;
     record.seq = this.seq;
     this.buffer.push(record);
-    if (this.buffer.length > CHANGE_JOURNAL_RING) {
-      this.buffer.splice(0, this.buffer.length - CHANGE_JOURNAL_RING);
+    this.sizes.push(size);
+    this.bufferBytes += size;
+    // Drop the oldest until both caps hold; never the record just pushed.
+    let drop = 0;
+    while (
+      drop < this.buffer.length - 1 &&
+      (this.buffer.length - drop > CHANGE_JOURNAL_RING ||
+        this.bufferBytes > CHANGE_JOURNAL_MAX_BUFFER_BYTES)
+    ) {
+      this.bufferBytes -= this.sizes[drop] ?? 0;
+      drop += 1;
+    }
+    if (drop > 0) {
+      this.buffer.splice(0, drop);
+      this.sizes.splice(0, drop);
     }
   }
 

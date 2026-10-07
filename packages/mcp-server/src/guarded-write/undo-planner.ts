@@ -64,8 +64,6 @@ export interface LaterChange {
 
 export interface UndoPlanView extends PlanView {
   scope: UndoScope;
-  /** How many changes the plan undoes (the first one and any chosen with it). */
-  count: number;
   /** `just-this` only: later live changes to the same things, newest first (at most MAX_LATER). */
   later: LaterChange[];
   /** How many changes (history items) the plan undoes: what a UI names on the confirm button. */

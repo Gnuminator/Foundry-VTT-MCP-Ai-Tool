@@ -51,7 +51,7 @@ describe('the AI Tool scene-controls group', () => {
     expect(Object.keys(group.tools)).toEqual(['aiChanges', 'handouts', 'tarokka']);
     expect(group.tools.aiChanges).toMatchObject({
       name: 'aiChanges',
-      title: 'AI changes',
+      title: 'Changes',
       order: 1,
       button: true,
       visible: true,

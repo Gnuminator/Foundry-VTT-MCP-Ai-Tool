@@ -144,7 +144,7 @@ export class QueryHandlers {
     handlers.set(`${modulePrefix}.logGmChange`, (data: unknown) =>
       this.withGmGate('Failed to log change', () => Promise.resolve(logGmChange(data)))
     );
-    // The backend recorded an apply or undo: tell the GM clients' "AI changes" windows (I-108).
+    // The backend recorded an apply or undo: tell the GM clients' "Changes" windows (I-108).
     handlers.set(`${modulePrefix}.aiChangesUpdated`, () =>
       this.withGmGate('Failed to announce the change', () => {
         announceAiChangesUpdated();

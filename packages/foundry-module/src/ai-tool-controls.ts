@@ -5,7 +5,7 @@
  * which tools the toolbar lists. The canvas keeps the layer that was active, and
  * clicking any core group takes the toolbar back. Its tools are plain buttons
  * (`button: true`): a click runs `onChange` at once and nothing becomes the
- * active tool. "AI changes", "Handouts" and "Tarokka" are the buttons; a later one is one more
+ * active tool. "Changes", "Handouts" and "Tarokka" are the buttons; a later one is one more
  * entry in {@link AI_TOOL_BUTTONS}.
  */
 import { openAiChangesWindow } from './ai-changes-window.js';
@@ -25,7 +25,7 @@ export interface AiToolButton {
 export const AI_TOOL_BUTTONS: readonly AiToolButton[] = [
   {
     name: 'aiChanges',
-    title: 'AI changes',
+    title: 'Changes',
     icon: 'fa-solid fa-clock-rotate-left',
     open: () => openAiChangesWindow(),
   },

@@ -19,11 +19,14 @@ function makeHandler(planFeature = 'handouts') {
   const handleApplyPlannedChange = vi.fn(async () => ({ changeId: 'chg-1' }));
   const tarokkaPlan = vi.fn(async () => ({ planId: 'plan-tarokka' }));
   const readTarokka = vi.fn(async () => ({ available: false }));
+  const listChanges = vi.fn(async () => ({ changes: [] }));
+  const planUndo = vi.fn(async () => ({ planId: 'plan-undo' }));
   const revealed = new Set<string>();
   const tarokkaPositionRevealed = vi.fn(async (position: string) => revealed.has(position));
   const getPlan = vi.fn((planId: string) => {
     if (planId === 'plan-1' || planId === 'plan-2') return { planId, feature: planFeature };
     if (planId === 'plan-tarokka') return { planId, feature: 'tarokka' };
+    if (planId === 'plan-undo') return { planId, feature: 'change-undo' };
     throw new Error(`No pending plan ${planId} (plans expire after 15 minutes)`);
   });
   const handler = createModuleRequestHandler({
@@ -34,6 +37,8 @@ function makeHandler(planFeature = 'handouts') {
       'apply-planned-change': apply,
       'plan-tarokka-reveal': tarokkaPlan,
       'get-tarokka-reading': readTarokka,
+      'list-changes': listChanges,
+      'plan-undo-changes': planUndo,
       'plan-tarokka-links': vi.fn(async () => ({ planId: 'plan-links' })),
       'plan-tarokka-import': vi.fn(async () => ({ planId: 'plan-import' })),
     },
@@ -52,6 +57,8 @@ function makeHandler(planFeature = 'handouts') {
     getPlan,
     tarokkaPlan,
     readTarokka,
+    listChanges,
+    planUndo,
     revealed,
     tarokkaPositionRevealed,
   };
@@ -145,6 +152,43 @@ describe('createModuleRequestHandler', () => {
       const { handler, handleApplyPlannedChange } = makeHandler();
       await expect(
         handler('apply-planned-change', { planId: 'plan-tarokka', confirm: true }, danni)
+      ).rejects.toThrow(/only apply a plan it made itself/);
+      expect(handleApplyPlannedChange).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('the Changes window', () => {
+    it('lists the changes of everyone through the router', async () => {
+      const { handler, listChanges } = makeHandler();
+      await handler('list-changes', { limit: 20, source: 'ai' }, danni);
+      expect(listChanges).toHaveBeenCalledWith({ limit: 20, source: 'ai' });
+    });
+
+    it('plans an undo in any scope and applies the plan it made, with the GM named', async () => {
+      const { handler, planUndo, handleApplyPlannedChange } = makeHandler();
+      for (const args of [
+        { id: 'act:a1', scope: 'just-this' },
+        { id: 'act:a1', scope: 'everything-since' },
+        { id: 'act:a1', scope: 'world-since', rewindTable: true },
+      ]) {
+        await handler('plan-undo-changes', args, danni);
+        expect(planUndo).toHaveBeenLastCalledWith(args);
+      }
+      await handler(
+        'apply-planned-change',
+        { planId: 'plan-undo', confirm: true, confirmDestructive: true },
+        danni
+      );
+      expect(handleApplyPlannedChange).toHaveBeenCalledWith(
+        { planId: 'plan-undo', confirm: true, confirmDestructive: true },
+        'Danni'
+      );
+    });
+
+    it('refuses to apply an undo plan Claude or the dashboard made', async () => {
+      const { handler, handleApplyPlannedChange } = makeHandler();
+      await expect(
+        handler('apply-planned-change', { planId: 'plan-undo', confirm: true }, danni)
       ).rejects.toThrow(/only apply a plan it made itself/);
       expect(handleApplyPlannedChange).not.toHaveBeenCalled();
     });
@@ -247,6 +291,7 @@ describe('MODULE_PLANNERS', () => {
     expect(MODULE_PLANNERS).toEqual({
       'plan-page-reveal': { feature: 'handouts', actions: ['reveal-next', 'unqueue'] },
       'plan-tarokka-reveal': { feature: 'tarokka' },
+      'plan-undo-changes': { feature: 'change-undo' },
     });
   });
 });

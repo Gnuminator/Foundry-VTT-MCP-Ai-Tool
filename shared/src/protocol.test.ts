@@ -166,6 +166,8 @@ describe('module-request / module-reply contract', () => {
       'apply-planned-change',
       'get-tarokka-reading',
       'plan-tarokka-reveal',
+      'list-changes',
+      'plan-undo-changes',
     ]);
     expect(MODULE_REQUEST_MAX_ARGS_BYTES).toBe(20_000);
   });

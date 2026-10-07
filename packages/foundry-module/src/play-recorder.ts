@@ -17,6 +17,7 @@ import type {
   PlayRecordKind,
   PlayRecordsResponse,
   PlayRollInfo,
+  PlaySceneToken,
 } from '@gnuminator/shared';
 
 /**
@@ -137,8 +138,11 @@ interface EffectLike {
 
 interface TokenDocLike {
   uuid?: unknown;
+  name?: unknown;
   actor?: unknown;
+  actorId?: unknown;
   actorLink?: unknown;
+  hidden?: unknown;
   x?: unknown;
   y?: unknown;
 }
@@ -160,6 +164,7 @@ interface CombatLike {
 interface UserLike {
   id?: unknown;
   name?: unknown;
+  isGM?: unknown;
 }
 
 interface ChatMessageLike {
@@ -333,6 +338,114 @@ function tokensOf(scene: { tokens?: unknown } | null | undefined): TokenDocLike[
   const contents = asRecord(scene)?.tokens;
   const list = Array.isArray(contents) ? contents : asRecord(contents)?.contents;
   return Array.isArray(list) ? (list as unknown as TokenDocLike[]) : [];
+}
+
+/** The id of the active scene (the one players see), or null. */
+function activeSceneId(): string | null {
+  try {
+    return str(game.scenes.active?.id) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Ids of the non-GM users online now, sorted. */
+function onlinePlayerIds(): string[] {
+  try {
+    return game.users.contents
+      .filter(user => user.active && !user.isGM)
+      .map(user => str(user.id))
+      .filter((id): id is string => id !== undefined)
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+/** `whisper`/`blind` flags for records made from a chat message (only the ones that are set). */
+function privacyOf(message: ChatMessageLike): Record<string, true> {
+  const flags: Record<string, true> = {};
+  if (arr(message.whisper).length > 0) flags.whisper = true;
+  if (bool(message.blind)) flags.blind = true;
+  return flags;
+}
+
+/** State kinds that carry `data.hidden: true` when made through a token hidden from players. */
+const HIDDEN_FLAG_KINDS: ReadonlySet<string> = new Set([
+  'hp',
+  'hp-temp',
+  'death-save',
+  'effect-add',
+  'effect-remove',
+  'combat-turn',
+]);
+
+/**
+ * Whether the players cannot see this actor's token: the record's own token for an unlinked
+ * actor, or for a world actor every one of its tokens on the active scene (false when it has
+ * none there).
+ */
+function actorTokenHidden(ref: PlayActorRef): boolean {
+  try {
+    if (ref.tokenUuid) {
+      const [, sceneId] = ref.tokenUuid.split('.');
+      const scene = sceneId ? game.scenes.get(sceneId) : undefined;
+      const token = tokensOf(scene).find(t => str(t.uuid) === ref.tokenUuid);
+      return bool(token?.hidden);
+    }
+    const parts = ref.uuid.split('.');
+    if (parts.length !== 2 || parts[0] !== 'Actor') return false;
+    const sceneId = activeSceneId();
+    const tokens = tokensOf(sceneId ? game.scenes.get(sceneId) : undefined).filter(
+      t => str(t.actorId) === parts[1]
+    );
+    return tokens.length > 0 && tokens.every(t => bool(t.hidden));
+  } catch {
+    return false;
+  }
+}
+
+/** Most actors a scene snapshot lists (`data.tokens` of `scene` and `user-join` records). */
+const MAX_SCENE_TOKENS = 200;
+
+/**
+ * A scene's tokens folded by base world actor, for the `data.tokens` snapshot: `Actor.<actorId>`
+ * for linked and unlinked tokens alike (never the token-synthetic uuid), the base actor's name,
+ * `hidden` only when every token of that actor is hidden. Tokens without an actor id are
+ * skipped. Sorted by uuid and capped (visible actors are kept before hidden ones), so the same
+ * scene always gives the same list.
+ */
+function sceneTokensOf(sceneId: string | null): PlaySceneToken[] {
+  if (!sceneId) return [];
+  const scene = game.scenes.get(sceneId);
+  const byActor = new Map<string, PlaySceneToken & { allHidden: boolean }>();
+  for (const token of tokensOf(scene)) {
+    const actorId = str(token.actorId);
+    if (!actorId) continue;
+    const actorUuid = `Actor.${actorId}`;
+    const hidden = bool(token.hidden);
+    const known = byActor.get(actorUuid);
+    if (known) {
+      known.allHidden = known.allHidden && hidden;
+      continue;
+    }
+    const base = shape<ActorLike>(game.actors.get(actorId));
+    byActor.set(actorUuid, {
+      actorUuid,
+      name: str(base?.name) ?? str(token.name) ?? actorUuid,
+      isPC: str(base?.type) === 'character',
+      allHidden: hidden,
+    });
+  }
+  const byUuid = (a: PlaySceneToken, b: PlaySceneToken): number =>
+    a.actorUuid < b.actorUuid ? -1 : a.actorUuid > b.actorUuid ? 1 : 0;
+  return [...byActor.values()]
+    .sort((a, b) => Number(a.allHidden) - Number(b.allHidden) || byUuid(a, b))
+    .slice(0, MAX_SCENE_TOKENS)
+    .sort(byUuid)
+    .map(
+      ({ allHidden, ...entry }): PlaySceneToken => (allHidden ? { ...entry, hidden: true } : entry)
+    );
 }
 
 /** Sum of `system.levels` across an actor's `class` items; null for non-characters. */
@@ -622,6 +735,8 @@ export class PlayRecorder {
 
   private readonly actorShadows = new Map<string, ActorShadow>();
   private viewedSceneId: string | null = null;
+  /** Whether the viewed scene was the active one at its last `scene` record; null before the first. */
+  private viewedSceneActive: boolean | null = null;
   private recentDamage: RecentRoll[] = [];
   private recentHealing: RecentRoll[] = [];
   private readonly pendingApply = new Map<string, PendingApply>();
@@ -707,6 +822,9 @@ export class PlayRecorder {
         }
       }
       this.viewedSceneId = currentCanvas()?.scene?.id ?? game.scenes.current?.id ?? null;
+      // A client without a canvas (canvasReady never fires) still records who is online at
+      // load, on the active scene, so "Seen in" does not wait for a join or an activation.
+      if (!currentCanvas()?.scene) this.maybeRecordScene(activeSceneId(), true);
     } catch (error) {
       console.warn(`[${MODULE_ID}] PlayRecorder seed failed:`, error);
     }
@@ -868,6 +986,10 @@ export class PlayRecorder {
     if (opts.roll) record.roll = opts.roll;
     if (opts.source) record.source = opts.source;
     if (opts.data) record.data = opts.data;
+    // "Seen in" skips state changes the players could not see (a hidden ambusher's HP).
+    if (opts.actor && HIDDEN_FLAG_KINDS.has(opts.kind) && actorTokenHidden(opts.actor)) {
+      record.data = { ...(record.data ?? {}), hidden: true };
+    }
     return record;
   }
 
@@ -1700,7 +1822,8 @@ export class PlayRecorder {
 
   private onCanvasReady(): void {
     if (!this.isGM()) return;
-    this.maybeRecordScene(currentCanvas()?.scene?.id ?? null);
+    const sceneId = currentCanvas()?.scene?.id ?? null;
+    this.maybeRecordScene(sceneId, sceneId !== null && activeSceneId() === sceneId);
   }
 
   private onUpdateScene(rawScene: unknown, rawChanged: unknown): void {
@@ -1708,22 +1831,40 @@ export class PlayRecorder {
     const changed = asRecord(rawChanged);
     if (changed?.active !== true) return;
     const scene = asRecord(rawScene);
-    this.maybeRecordScene(str(scene?.id) ?? null, str(scene?.name));
+    this.maybeRecordScene(str(scene?.id) ?? null, true, str(scene?.name));
   }
 
-  private maybeRecordScene(sceneId: string | null, sceneName?: string | undefined): void {
-    if (!sceneId || sceneId === this.viewedSceneId) return;
+  /**
+   * A `scene` record when the viewed scene, or whether it is the active one, changed. `active`
+   * tells a GM-only preview (false) from the scene the players see (true); `players` lists the
+   * players online at that moment ("Seen in" counts only what players saw).
+   */
+  private maybeRecordScene(
+    sceneId: string | null,
+    active: boolean,
+    sceneName?: string | undefined
+  ): void {
+    if (!sceneId) return;
+    if (sceneId === this.viewedSceneId && active === this.viewedSceneActive) return;
     this.viewedSceneId = sceneId;
+    this.viewedSceneActive = active;
     const t = Date.now();
     const name = sceneName ?? game.scenes.get(sceneId)?.name ?? null;
-    this.push(
-      this.build({
-        kind: 'scene',
-        key: playRecordKeys.scene(sceneId, t),
-        t,
-        data: { sceneName: name },
-      })
-    );
+    const record = this.build({
+      kind: 'scene',
+      key: playRecordKeys.scene(sceneId, t),
+      t,
+      data: {
+        sceneName: name,
+        active,
+        players: onlinePlayerIds(),
+        tokens: sceneTokensOf(sceneId),
+      },
+    });
+    // The recorded scene, not the canvas: activating a scene fires updateScene before the
+    // canvas switches to it, so the canvas still shows the previous one.
+    record.sceneId = sceneId;
+    this.push(record);
   }
 
   private onUpdateWorldTime(
@@ -1764,6 +1905,14 @@ export class PlayRecorder {
     const key =
       connected === true ? playRecordKeys.userJoin(userId, t) : playRecordKeys.userLeave(userId, t);
     const name = str(user?.name);
+    // A player joining lands on the active scene: snapshot who is on it (not for a GM joining).
+    const isGM = user?.isGM === true;
+    const data: Record<string, unknown> = { name: name ?? null, isGM };
+    if (kind === 'user-join' && !isGM) {
+      const sceneId = activeSceneId();
+      data.activeSceneId = sceneId;
+      data.tokens = sceneTokensOf(sceneId);
+    }
     this.push(
       this.build({
         kind,
@@ -1771,7 +1920,7 @@ export class PlayRecorder {
         t,
         userId,
         userName: name,
-        data: { name: name ?? null },
+        data,
       })
     );
   }
@@ -1818,6 +1967,7 @@ export class PlayRecorder {
     const actor = resolveSpeakerActor(message);
     const actorRef = actor ? this.actorRefFor(actor) : undefined;
     const t = chatMessageTime(message);
+    const privacy = privacyOf(message);
 
     let recorded = false;
     let total = 0;
@@ -1834,6 +1984,7 @@ export class PlayRecorder {
             item: itemRef,
             roll: info,
             source: { messageId },
+            ...(Object.keys(privacy).length > 0 ? { data: privacy } : {}),
           })
         );
         recorded = true;
@@ -1871,6 +2022,8 @@ export class PlayRecorder {
     const actorRef = actor ? this.actorRefFor(actor) : undefined;
     const t = chatMessageTime(message);
     const spellLevel = dnd5eSpellLevel(dnd5eMessage);
+    const data: Record<string, unknown> = { ...privacyOf(message) };
+    if (spellLevel !== undefined) data.spellLevel = spellLevel;
     this.push(
       this.build({
         kind: 'item-use',
@@ -1880,7 +2033,7 @@ export class PlayRecorder {
         actor: actorRef,
         item: itemRef,
         source: { messageId },
-        data: spellLevel !== undefined ? { spellLevel } : undefined,
+        data: Object.keys(data).length > 0 ? data : undefined,
       })
     );
   }

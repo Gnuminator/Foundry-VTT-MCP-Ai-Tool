@@ -8,8 +8,9 @@
  * harness's full document builders, since PlayRecorder only ever reads the
  * duck-typed hook arguments.
  */
+import type { PlayRecord } from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
+import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
   d20Roll,
   fireUpdate,
@@ -591,6 +592,172 @@ describe('combat, scene, world time and users', () => {
     Hooks.callAll('userConnected', { id: 'p1', name: 'Alice' }, false);
     const kinds = recorder.getPlayRecords({}).records.map(r => r.kind);
     expect(kinds).toEqual(['user-join', 'user-leave']);
+  });
+});
+
+// --- Scene token snapshots (R4 "Seen in") ----------------------------------------
+
+describe('scene token snapshots', () => {
+  /** A viewed scene with a hero, a goblin on two tokens (one unlinked), a hidden ghost and a token without an actor. */
+  function setupScene(): void {
+    world.actors.add(makeFixtureActor({ id: 'hero', name: 'Hero', type: 'character' }));
+    world.actors.add(makeFixtureActor({ id: 'gob', name: 'Goblin', type: 'npc' }));
+    world.actors.add(makeFixtureActor({ id: 'ghost', name: 'Ghost', type: 'npc' }));
+    world.actors.add(makeFixtureActor({ id: 'mix', name: 'Mixed', type: 'npc' }));
+    world.addScene({
+      id: 'sceneA',
+      tokens: [
+        makeToken({ id: 't1', name: 'Hero tok', actorId: 'hero', actorLink: true }),
+        makeToken({ id: 't2', name: 'Goblin 1', actorId: 'gob', actorLink: false }),
+        makeToken({ id: 't3', name: 'Goblin 2', actorId: 'gob', actorLink: false }),
+        makeToken({ id: 't4', name: 'Ghost tok', actorId: 'ghost', hidden: true }),
+        makeToken({ id: 't5', name: 'Mixed 1', actorId: 'mix', hidden: true }),
+        makeToken({ id: 't6', name: 'Mixed 2', actorId: 'mix', hidden: false }),
+        makeToken({ id: 't7', name: 'Prop' }),
+      ],
+    });
+    (globalThis as any).canvas = { scene: { id: 'sceneA' } };
+  }
+
+  function sceneRecord(): PlayRecord | undefined {
+    Hooks.callAll('canvasReady');
+    return recorder.getPlayRecords({}).records.find(r => r.kind === 'scene');
+  }
+
+  it('folds linked and unlinked tokens to the base actor and sorts by uuid', () => {
+    setupScene();
+    expect(sceneRecord()?.data?.tokens).toEqual([
+      { actorUuid: 'Actor.ghost', name: 'Ghost', isPC: false, hidden: true },
+      { actorUuid: 'Actor.gob', name: 'Goblin', isPC: false },
+      { actorUuid: 'Actor.hero', name: 'Hero', isPC: true },
+      { actorUuid: 'Actor.mix', name: 'Mixed', isPC: false },
+    ]);
+  });
+
+  it('falls back to the token name when the base actor is gone', () => {
+    world.addScene({
+      id: 'sceneA',
+      tokens: [makeToken({ id: 't1', name: 'Orphan', actorId: 'missing' })],
+    });
+    (globalThis as any).canvas = { scene: { id: 'sceneA' } };
+    expect(sceneRecord()?.data?.tokens).toEqual([
+      { actorUuid: 'Actor.missing', name: 'Orphan', isPC: false },
+    ]);
+  });
+
+  it('caps the list at 200 actors', () => {
+    world.addScene({
+      id: 'sceneA',
+      tokens: Array.from({ length: 250 }, (_, i) =>
+        makeToken({ id: `t${i}`, actorId: `a${String(i).padStart(3, '0')}` })
+      ),
+    });
+    (globalThis as any).canvas = { scene: { id: 'sceneA' } };
+    const tokens = sceneRecord()?.data?.tokens as Array<{ actorUuid: string }>;
+    expect(tokens).toHaveLength(200);
+    expect(tokens[0]?.actorUuid).toBe('Actor.a000');
+  });
+
+  it('keeps visible actors before hidden ones when it caps the list', () => {
+    world.addScene({
+      id: 'sceneA',
+      tokens: [
+        ...Array.from({ length: 150 }, (_, i) =>
+          makeToken({ id: `h${i}`, actorId: `a${String(i).padStart(3, '0')}`, hidden: true })
+        ),
+        ...Array.from({ length: 100 }, (_, i) =>
+          makeToken({ id: `v${i}`, actorId: `z${String(i).padStart(3, '0')}` })
+        ),
+      ],
+    });
+    (globalThis as any).canvas = { scene: { id: 'sceneA' } };
+    const tokens = sceneRecord()?.data?.tokens as Array<{ actorUuid: string; hidden?: true }>;
+    expect(tokens).toHaveLength(200);
+    expect(tokens.filter(t => t.hidden !== true)).toHaveLength(100);
+    expect(tokens[0]?.actorUuid).toBe('Actor.a000');
+  });
+
+  it('marks a GM preview as not active and lists the players online', () => {
+    setupScene();
+    world.addScene({ id: 'sceneB', tokens: [] });
+    world.setActiveScene('sceneB');
+    world.addUser({ id: 'p2', name: 'Bob', isGM: false, active: true });
+    world.addUser({ id: 'p1', name: 'Alice', isGM: false, active: true });
+    world.addUser({ id: 'p3', name: 'Away', isGM: false, active: false });
+    const record = sceneRecord();
+    expect(record?.data?.active).toBe(false);
+    expect(record?.data?.players).toEqual(['p1', 'p2']);
+  });
+
+  it('records the same scene again when the GM activates the scene they preview', () => {
+    setupScene();
+    world.addScene({ id: 'sceneB', tokens: [] });
+    world.setActiveScene('sceneB');
+    Hooks.callAll('canvasReady');
+    world.setActiveScene('sceneA');
+    Hooks.callAll('updateScene', { id: 'sceneA', name: 'Scene A' }, { active: true });
+    Hooks.callAll('canvasReady');
+    const scenes = recorder.getPlayRecords({}).records.filter(r => r.kind === 'scene');
+    expect(scenes.map(r => [r.sceneId, r.data?.active])).toEqual([
+      ['sceneA', false],
+      ['sceneA', true],
+    ]);
+  });
+
+  it('records the activated scene, not the one the canvas still shows', () => {
+    setupScene();
+    world.addScene({ id: 'sceneB', name: 'Scene B', tokens: [] });
+    Hooks.callAll('canvasReady');
+    world.setActiveScene('sceneB');
+    // updateScene fires before the canvas switches: the canvas still shows sceneA.
+    Hooks.callAll('updateScene', { id: 'sceneB', name: 'Scene B' }, { active: true });
+    const scenes = recorder.getPlayRecords({}).records.filter(r => r.kind === 'scene');
+    expect(scenes.map(r => [r.sceneId, r.data?.sceneName, r.data?.active])).toEqual([
+      ['sceneA', 'Scene', false],
+      ['sceneB', 'Scene B', true],
+    ]);
+  });
+
+  it('snapshots the active scene for a joining player, and marks who is a GM', () => {
+    setupScene();
+    world.addScene({
+      id: 'sceneB',
+      tokens: [makeToken({ id: 'b1', name: 'Goblin B', actorId: 'gob' })],
+    });
+    world.setActiveScene('sceneB');
+    Hooks.callAll('canvasReady'); // the GM previews sceneA
+    Hooks.callAll('userConnected', { id: 'p1', name: 'Alice', isGM: false }, true);
+    Hooks.callAll('userConnected', { id: 'gm2', name: 'Co-GM', isGM: true }, true);
+    Hooks.callAll('userConnected', { id: 'p1', name: 'Alice', isGM: false }, false);
+    const [join, gmJoin, leave] = recorder
+      .getPlayRecords({})
+      .records.filter(r => r.kind === 'user-join' || r.kind === 'user-leave');
+    expect(join?.data).toEqual({
+      name: 'Alice',
+      isGM: false,
+      activeSceneId: 'sceneB',
+      tokens: [{ actorUuid: 'Actor.gob', name: 'Goblin', isPC: false }],
+    });
+    expect(gmJoin?.data).toEqual({ name: 'Co-GM', isGM: true });
+    expect(leave?.data).toEqual({ name: 'Alice', isGM: false });
+  });
+
+  it('marks whispered and blind rolls and item use', () => {
+    world.actors.add(makeFixtureActor());
+    const roll = (id: string, extra: Record<string, unknown>): Record<string, unknown> => ({
+      id,
+      type: 'check',
+      speaker: { actor: 'a1' },
+      rolls: [d20Roll({ total: 12 })],
+      flags: {},
+      _stats: { modifiedTime: 1000 },
+      ...extra,
+    });
+    Hooks.callAll('createChatMessage', roll('w1', { whisper: ['gm'], blind: true }), {}, 'u1');
+    Hooks.callAll('createChatMessage', roll('o1', { whisper: [], blind: false }), {}, 'u1');
+    const [whispered, open] = recorder.getPlayRecords({}).records.filter(r => r.kind === 'roll');
+    expect(whispered?.data).toEqual({ whisper: true, blind: true });
+    expect(open?.data).toBeUndefined();
   });
 });
 
@@ -1282,5 +1449,100 @@ describe('the ring buffer and getPlayRecords', () => {
     }
     expect(Date.now() - start).toBeLessThan(1000);
     expect(recorder.getPlayRecords({ limit: 5000 }).records).toHaveLength(1000);
+  });
+});
+
+describe('Seen in presence and hidden tokens', () => {
+  /** Two HP changes on an actor (the first seeds the shadow), returning the `hp` record. */
+  function hpChange(actor: any): PlayRecord | undefined {
+    const now = Date.now();
+    actor._stats.modifiedTime = now;
+    fireUpdate('updateActor', actor, { system: { attributes: { hp: { value: 15 } } } }, {}, 'u1');
+    actor._stats.modifiedTime = now + 1000;
+    fireUpdate('updateActor', actor, { system: { attributes: { hp: { value: 9 } } } }, {}, 'u1');
+    return recorder.getPlayRecords({}).records.find(r => r.kind === 'hp');
+  }
+
+  function npcActor(opts: Record<string, unknown>): any {
+    return makeFixtureActor({
+      type: 'npc',
+      system: { attributes: { hp: { value: 20 } } },
+      t: Date.now(),
+      ...opts,
+    });
+  }
+
+  it('marks a state change made through a hidden unlinked token', () => {
+    world.addScene({
+      id: 'sceneA',
+      tokens: [
+        makeToken({ id: 't1', uuid: 'Scene.sceneA.Token.t1', actorId: 'amb', hidden: true }),
+      ],
+    });
+    const actor = npcActor({
+      id: 'amb',
+      uuid: 'Scene.sceneA.Token.t1.Actor.amb',
+      isToken: true,
+      tokenUuid: 'Scene.sceneA.Token.t1',
+    });
+    expect(hpChange(actor)?.data).toEqual({ hidden: true });
+  });
+
+  it('marks a linked actor only when all its tokens on the active scene are hidden', () => {
+    world.addScene({
+      id: 'sceneA',
+      tokens: [
+        makeToken({ id: 't1', actorId: 'hid', hidden: true }),
+        makeToken({ id: 't2', actorId: 'mix', hidden: true }),
+        makeToken({ id: 't3', actorId: 'mix', hidden: false }),
+      ],
+    });
+    world.setActiveScene('sceneA');
+    const hidden = npcActor({ id: 'hid' });
+    world.actors.add(hidden);
+    expect(hpChange(hidden)?.data).toEqual({ hidden: true });
+
+    restore();
+    setup();
+    world.addScene({
+      id: 'sceneA',
+      tokens: [
+        makeToken({ id: 't2', actorId: 'mix', hidden: true }),
+        makeToken({ id: 't3', actorId: 'mix', hidden: false }),
+      ],
+    });
+    world.setActiveScene('sceneA');
+    const mixed = npcActor({ id: 'mix' });
+    world.actors.add(mixed);
+    expect(hpChange(mixed)?.data).toBeUndefined();
+
+    const offScene = npcActor({ id: 'away' });
+    world.actors.add(offScene);
+    hpChange(offScene);
+    const awayRecord = recorder
+      .getPlayRecords({})
+      .records.find(r => r.kind === 'hp' && r.actor?.uuid === 'Actor.away');
+    expect(awayRecord).toBeDefined();
+    expect(awayRecord?.data).toBeUndefined();
+  });
+
+  it('records the active scene and who is online at load when there is no canvas', () => {
+    world.addScene({ id: 'sceneA', tokens: [makeToken({ id: 't1', actorId: 'gob' })] });
+    world.setActiveScene('sceneA');
+    world.addUser({ id: 'p1', name: 'Alice', isGM: false, active: true });
+    recorder.seed();
+    const scenes = recorder.getPlayRecords({}).records.filter(r => r.kind === 'scene');
+    expect(scenes).toHaveLength(1);
+    expect(scenes[0]?.sceneId).toBe('sceneA');
+    expect(scenes[0]?.data?.active).toBe(true);
+    expect(scenes[0]?.data?.players).toEqual(['p1']);
+  });
+
+  it('records no extra scene at load when a canvas shows a scene', () => {
+    world.addScene({ id: 'sceneA', tokens: [] });
+    world.setActiveScene('sceneA');
+    (globalThis as any).canvas = { scene: { id: 'sceneA' } };
+    recorder.seed();
+    expect(recorder.getPlayRecords({}).records.filter(r => r.kind === 'scene')).toHaveLength(0);
   });
 });

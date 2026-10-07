@@ -142,6 +142,29 @@ function optText(text: string | null): string | null {
   return propText(text) || null;
 }
 
+/** The most "Seen in" sessions listed on a note; older ones are counted. */
+const SEEN_IN_MAX = 12;
+
+/** The date (`YYYY-MM-DD`) of the newest session in a "Seen in" list (labels run oldest first), or null. */
+function lastSeen(sessions: readonly string[]): string | null {
+  const newest = sessions[sessions.length - 1];
+  return newest === undefined ? null : optText(newest.slice(0, 10));
+}
+
+/** The `## Seen in` section of an NPC or scene note: session notes, newest first (R4); empty when none. */
+function seenInSection(path: string, sessions: readonly string[]): string[] {
+  if (sessions.length === 0) return [];
+  const newest = [...sessions].reverse();
+  const lines = ['## Seen in', ''];
+  for (const label of newest.slice(0, SEEN_IN_MAX)) {
+    lines.push(`- ${noteLink(path, `AI Tool/Sessions/${label}.md`, label)}`);
+  }
+  const more = newest.length - SEEN_IN_MAX;
+  if (more > 0) lines.push(`- and ${count(more)} earlier sessions`);
+  lines.push('');
+  return lines;
+}
+
 function optNumber(value: number | null): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
@@ -481,6 +504,8 @@ function renderActor(
   const label = propText(entry.name) || 'Untitled';
   const prep = noteProp(worldId, ctx.prepNotePath(entry.uuid), `${label} prep`);
   const prepPath = ctx.prepNotePath(entry.uuid);
+  // PCs have stats notes; only NPCs list the sessions they were seen in.
+  const seen = type === 'pc' ? [] : ctx.seenSessions(entry.uuid);
   let own: Props;
   const lines: string[] = [openLine(ctx, entry.uuid), ''];
 
@@ -530,6 +555,7 @@ function renderActor(
       hp_max: optNumber(entry.hpMax),
       ac: optNumber(entry.ac),
       source_book: optText(entry.sourceBook),
+      last_seen: lastSeen(seen),
       prep,
     };
     lines.push(`Players see this creature as: **${escapeMd(entry.playerName) || 'Unknown'}**.`, '');
@@ -552,6 +578,7 @@ function renderActor(
     } else {
       lines.push(...featureSections(entry.features));
     }
+    lines.push(...seenInSection(path, seen));
     const related: string[] = [];
     const source = sourceLink(ctx, path, entry);
     if (source) related.push(`- Made from ${source}`);
@@ -619,6 +646,7 @@ function renderScene(
   path: string
 ): string {
   const navName = optText(entry.navName);
+  const seen = ctx.seenSessions(entry.uuid);
   const journalUuid = entry.journal
     ? pickTarget(ctx, [entry.journal.pageUuid, entry.journal.uuid])
     : null;
@@ -676,6 +704,7 @@ function renderScene(
   if (tokens !== null && tokens.length > 0) {
     lines.push('## Who is here', '', ...tokens.map(token => whoLine(ctx, path, token)), '');
   }
+  lines.push(...seenInSection(path, seen));
   const prepPath = ctx.prepNotePath(entry.uuid);
   if (prepPath) lines.push('## Related notes', '', `- ${noteLink(path, prepPath, 'Prep')}`, '');
 
@@ -692,6 +721,7 @@ function renderScene(
       journal: journalProp,
       pins: count(entry.pins.length),
       tokens: tokens === null ? null : count(tokens.reduce((sum, token) => sum + token.count, 0)),
+      last_seen: lastSeen(seen),
       prep: noteProp(worldId, prepPath, `${propText(entry.name) || 'Untitled'} prep`),
     },
     modified: entry.modified,

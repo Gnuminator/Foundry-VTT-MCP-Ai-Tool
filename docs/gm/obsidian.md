@@ -19,6 +19,20 @@ text, so it stays on your PC. The players get vaults of their own without the se
   the [cookbook](cookbook.md), "Tip for Obsidian"). Prep/Templates has a template for an NPC, a
   location, a quest and a session plan.
 
+## Seen in
+
+An NPC note and a scene note have a **Seen in** list: the play sessions where that NPC or scene
+turned up, newest first, each a link to the session note. It comes from what Foundry recorded at
+the table, so it needs no setup and never guesses from names. Only what the players saw counts:
+nothing is listed while no player is connected (your prep, making NPCs and placing tokens never
+count). An NPC counts when it rolled, spoke, used something, was hit or healed, took its combat
+turn, or had a visible token on the active scene when you activated it or a player joined. What
+happens to a hidden token (damage, conditions, its combat turn), a whispered or blind roll and a
+scene you only previewed do not count; a public roll by a hidden NPC does, because the players
+read it in the chat. Players who joined before you marked the session start still count. The
+`last_seen` property holds the date of the newest session, for sorting in a Base. A player
+character has no list, because its stats note says it all.
+
 ## Make a prep note
 
 On an NPC, a scene or a quest journal note, open the note's file menu (the three dots) and click

@@ -517,6 +517,87 @@ describe('ObsidianMirrorPump: reconcile and deletes', () => {
 });
 
 // ---------------------------------------------------------------------------
+// "Seen in" (R4): the export's index of sessions per NPC and scene
+// ---------------------------------------------------------------------------
+
+describe('ObsidianMirrorPump: Seen in (R4)', () => {
+  const S1 = '2026-11-29 S01';
+  const S2 = '2026-12-06 S02';
+  const writeSeen = (
+    actors: Record<string, string[]>,
+    scenes: Record<string, string[]> = {}
+  ): Promise<unknown> => store.write(WORLD, 'gm', 'obsidian-seen.json', { v: 1, actors, scenes });
+  const fetchedUuids = (): string[] =>
+    fake.requests.filter(r => r.uuids && !r.idsOnly).flatMap(r => r.uuids ?? []);
+
+  it('renders the sessions at the first cycle', async () => {
+    await writeSeen({ [WOLF.uuid]: [S1] }, { [ARENA.uuid]: [S1, S2] });
+    await started();
+    const wolf = (await read(P.wolf)) ?? '';
+    expect(wolf).toContain('## Seen in');
+    expect(wolf).toContain('last_seen: "2026-11-29"');
+    const arena = (await read(P.arena)) ?? '';
+    expect(arena).toContain('last_seen: "2026-12-06"');
+    expect(arena.indexOf('2026-12-06 S02')).toBeLessThan(arena.indexOf('2026-11-29 S01'));
+  });
+
+  it('refetches only the uuid whose sessions changed, and nothing when the index is unchanged', async () => {
+    await writeSeen({ [WOLF.uuid]: [S1] }, { [ARENA.uuid]: [S1] });
+    const pump = await started();
+    const before = fetchedUuids().length;
+    await tickAfter(pump, 10_000);
+    expect(fetchedUuids()).toHaveLength(before); // unchanged index: no refetch
+
+    await writeSeen({ [WOLF.uuid]: [S1, S2] }, { [ARENA.uuid]: [S1] });
+    await tickAfter(pump, 10_000);
+    expect(fetchedUuids().slice(before)).toEqual([WOLF.uuid]);
+    expect(await read(P.wolf)).toContain('last_seen: "2026-12-06"');
+    expect(await read(P.arena)).toContain('last_seen: "2026-11-29"');
+
+    // The same index again: still nothing.
+    const after = fetchedUuids().length;
+    await tickAfter(pump, 10_000);
+    expect(fetchedUuids()).toHaveLength(after);
+  });
+
+  it('keeps a changed list pending when the reconcile that should render it aborts', async () => {
+    await writeSeen({ [WOLF.uuid]: [S1] });
+    const pump = await started();
+    await writeSeen({ [WOLF.uuid]: [S1, S2] });
+    // The reconcile reads the new index, then its document fetch fails.
+    fake.beforeQuery = (request): void => {
+      if (request.uuids && !request.idsOnly) {
+        fake.failNext = 'Foundry is busy';
+        fake.beforeQuery = null;
+      }
+    };
+    await reconcileNow(pump);
+    expect(pump.status().lastError).toMatch(/Foundry is busy/);
+    expect(await read(P.wolf)).toContain('last_seen: "2026-11-29"');
+    // The next cycle still renders it, although the index did not change again.
+    await tickAfter(pump, 10_000);
+    expect(await read(P.wolf)).toContain('last_seen: "2026-12-06"');
+  });
+
+  it('a missing or unreadable index file is harmless', async () => {
+    const pump = await started();
+    expect(await read(P.wolf)).toContain('last_seen: null');
+    expect(await read(P.wolf)).not.toContain('## Seen in');
+    await fsp.mkdir(path.dirname(store.filePath(WORLD, 'gm', 'obsidian-seen.json')), {
+      recursive: true,
+    });
+    await fsp.writeFile(store.filePath(WORLD, 'gm', 'obsidian-seen.json'), '{ not json', 'utf8');
+    await tickAfter(pump, 10_000);
+    expect(pump.status().errors).toEqual([]);
+    expect(await read(P.wolf)).not.toContain('## Seen in');
+    // Once a good file appears the note picks it up.
+    await writeSeen({ [WOLF.uuid]: [S1] });
+    await tickAfter(pump, 10_000);
+    expect(await read(P.wolf)).toContain('## Seen in');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // The GM's notes: edits, moves, duplicates, incomplete scans
 // ---------------------------------------------------------------------------
 

@@ -141,6 +141,7 @@ import {
   type WrittenCache,
 } from './note-writer.js';
 import { baseOwnershipCheck, checkMarkdownOwnership, type OwnershipResult } from './ownership.js';
+import { EMPTY_SEEN_INDEX, parseSeenIndex, SEEN_INDEX_FILE, type SeenIndex } from './seen-in.js';
 
 /** Wire name of the module query (`foundry-mcp-bridge.getExportIndex`). */
 export const EXPORT_INDEX_METHOD = `${MODULE_ID}.${EXPORT_INDEX_QUERY}`;
@@ -487,6 +488,8 @@ interface WorldState {
   expectedPages: Map<string, string[]>;
   /** The revealed page uuids of the last cycle (null before). */
   revealed: Set<string> | null;
+  /** The "Seen in" index of the last cycle (R4; null until the first load). */
+  seen: SeenIndex | null;
   /** Top-level uuids to fetch at the next cycle (a journal whose reveal state changed). */
   pendingRefetch: Set<string>;
   skipped: Map<string, string>;
@@ -534,6 +537,7 @@ function newWorldState(worldId: string): WorldState {
     names: new Map(),
     expectedPages: new Map(),
     revealed: null,
+    seen: null,
     pendingRefetch: new Set(),
     skipped: new Map(),
     errors: new Map(),
@@ -831,6 +835,7 @@ export class ObsidianMirrorPump {
       throw new CycleAbort(errorMessage(error), true);
     }
     cycle.revealed = await this.loadRevealed(cycle);
+    await this.loadSeen(state);
     return cycle;
   }
 
@@ -875,6 +880,40 @@ export class ObsidianMirrorPump {
     }
     state.revealed = revealed;
     return revealed;
+  }
+
+  /**
+   * The "Seen in" index the export writes next to the session notes (R4). A missing or bad
+   * file is an empty index. An NPC or scene whose session list changed is rendered again (the
+   * first load renders every one); one without a note yet is made by the normal flow.
+   */
+  private async loadSeen(state: WorldState): Promise<void> {
+    let seen: SeenIndex = EMPTY_SEEN_INDEX;
+    try {
+      seen = parseSeenIndex(
+        (await this.store.read<unknown>(state.worldId, 'gm', SEEN_INDEX_FILE))?.data
+      );
+    } catch (error) {
+      this.logger.warn('Obsidian mirror: the Seen in index could not be read', {
+        worldId: state.worldId,
+        error: errorMessage(error),
+      });
+    }
+    const before = state.seen;
+    const lists = (index: SeenIndex, uuid: string): string =>
+      JSON.stringify(index.actors[uuid] ?? index.scenes[uuid] ?? []);
+    const uuids = new Set([
+      ...Object.keys(seen.actors),
+      ...Object.keys(seen.scenes),
+      ...(before ? [...Object.keys(before.actors), ...Object.keys(before.scenes)] : []),
+    ]);
+    for (const uuid of uuids) {
+      if (before === null) state.pendingRefetch.add(uuid);
+      else if (lists(before, uuid) !== lists(seen, uuid) && state.notes.has(uuid)) {
+        state.pendingRefetch.add(uuid);
+      }
+    }
+    state.seen = seen;
   }
 
   private checkDeadline(cycle: Cycle): void {
@@ -1079,8 +1118,17 @@ export class ObsidianMirrorPump {
     for (const row of rows.values()) {
       if (this.needsFetch(state, row, forceAll)) toFetch.add(row.uuid);
     }
-    for (const uuid of state.pendingRefetch) if (rows.has(uuid)) toFetch.add(uuid);
-    state.pendingRefetch.clear();
+    // Pending uuids stay pending until the fetch below succeeds: a reconcile that aborts must not
+    // lose a refetch nothing else would trigger again (a changed Seen in list). Gone ones drop.
+    const refetched: string[] = [];
+    for (const uuid of state.pendingRefetch) {
+      if (rows.has(uuid)) {
+        toFetch.add(uuid);
+        refetched.push(uuid);
+      } else {
+        state.pendingRefetch.delete(uuid);
+      }
+    }
 
     if (complete) {
       await this.reconcileDeletes(cycle, rows, toFetch);
@@ -1097,6 +1145,7 @@ export class ObsidianMirrorPump {
 
     state.known = new Set(rows.keys());
     await this.fetchAndApply(cycle, [...toFetch]);
+    for (const uuid of refetched) state.pendingRefetch.delete(uuid);
     await this.writeBases(cycle);
     await this.writeHubs(cycle);
 
@@ -1444,6 +1493,7 @@ export class ObsidianMirrorPump {
       revealedPageUuids: cycle.revealed,
       statsNotePath: uuid => state.stats.get(uuid) ?? null,
       prepNotePath: uuid => state.prep.get(uuid) ?? null,
+      seenSessions: uuid => state.seen?.actors[uuid] ?? state.seen?.scenes[uuid] ?? [],
       ...(licensed ? { library: licensed.library.links() } : {}),
       ...(licensed && licensedOk
         ? {

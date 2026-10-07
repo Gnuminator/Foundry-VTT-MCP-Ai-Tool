@@ -97,6 +97,8 @@ interface CtxOptions {
   revealed?: string[];
   stats?: Record<string, string>;
   prep?: Record<string, string>;
+  /** Uuid to the sessions it was seen in, oldest first (R4). */
+  seen?: Record<string, string[]>;
   openBase?: string;
   findByName?: LinkContext['findByName'];
 }
@@ -107,6 +109,7 @@ function makeCtx(options: CtxOptions = {}): MirrorRenderContext {
   const targets = options.targets ?? {};
   const stats = options.stats ?? { [PC_UUID]: 'AI Tool/Stats/PCs/Test Hero.md' };
   const prep = options.prep ?? { [NPC_UUID]: 'Prep/NPCs/Wolf.md' };
+  const seen = options.seen ?? {};
   const revealed = new Set(options.revealed ?? [PAGE2_UUID]);
   return {
     openBase: options.openBase ?? OPEN,
@@ -122,6 +125,7 @@ function makeCtx(options: CtxOptions = {}): MirrorRenderContext {
     revealedPageUuids: revealed,
     statsNotePath: uuid => stats[uuid] ?? null,
     prepNotePath: uuid => prep[uuid] ?? null,
+    seenSessions: uuid => seen[uuid] ?? [],
   };
 }
 
@@ -350,9 +354,19 @@ const OWN: Record<MirrorNoteType, string[]> = {
     'hp_max',
     'ac',
     'source_book',
+    'last_seen',
     'prep',
   ],
-  scene: ['nav_name', 'player_name', 'navigation', 'journal', 'pins', 'tokens', 'prep'],
+  scene: [
+    'nav_name',
+    'player_name',
+    'navigation',
+    'journal',
+    'pins',
+    'tokens',
+    'last_seen',
+    'prep',
+  ],
   journal: [
     'pages',
     'pages_player_visible',
@@ -487,6 +501,7 @@ describe('renderMirrorNote snapshots', () => {
       hp_max: 11
       ac: 13
       source_book: "MM 2014"
+      last_seen: null
       prep: "[[Campaigns/strahd-test/Prep/NPCs/Wolf|Wolf prep]]"
       aliases:
         - "Wolf"
@@ -500,7 +515,7 @@ describe('renderMirrorNote snapshots', () => {
         - "campaign/strahd-test"
         - "npc"
       generated_by: "foundry-ai-tool"
-      generated_hash: "2a0303ae81b95e5b"
+      generated_hash: "8c9b6808bf3f2211"
       ---
       # Wolf
 
@@ -544,6 +559,7 @@ describe('renderMirrorNote snapshots', () => {
       journal: "[[Campaigns/strahd-test/AI Tool/Foundry/Journals/Barovia|Journal]]"
       pins: 3
       tokens: null
+      last_seen: null
       prep: null
       aliases:
         - "Castle Ravenloft"
@@ -557,7 +573,7 @@ describe('renderMirrorNote snapshots', () => {
         - "campaign/strahd-test"
         - "scene"
       generated_by: "foundry-ai-tool"
-      generated_hash: "ebefdbe2be7c2e98"
+      generated_hash: "dcc7cb459f7931ad"
       ---
       # Castle Ravenloft
 
@@ -1012,6 +1028,25 @@ describe('scene notes', () => {
     expect(text).toMatch(/- \[Prep\]\(.*Prep\/Places\/Castle\.md\)/);
   });
 
+  it('lists the sessions it was seen in, newest first, before Related notes (R4)', () => {
+    const seen = { [SCENE_UUID]: ['2026-11-29 S01', '2026-12-06 S02'] };
+    const prep = { [SCENE_UUID]: 'Prep/Places/Castle.md' };
+    const text = render(scene(), makeCtx({ seen, prep }));
+    expect(text).toContain('last_seen: "2026-12-06"');
+    const section = text.split('## Seen in\n\n')[1] ?? '';
+    const lines = section.split('\n\n')[0]?.split('\n') ?? [];
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatch(/^- \[2026-12-06 S02\]\(.*Sessions\/2026-12-06%20S02\.md\)$/);
+    expect(lines[1]).toMatch(/^- \[2026-11-29 S01\]\(.*Sessions\/2026-11-29%20S01\.md\)$/);
+    expect(text.indexOf('## Seen in')).toBeLessThan(text.indexOf('## Related notes'));
+  });
+
+  it('renders as before without sessions, apart from last_seen: null (R4)', () => {
+    const plain = render(scene());
+    expect(plain).not.toContain('## Seen in');
+    expect(plain).toContain('last_seen: null');
+  });
+
   it('gives the name players see', () => {
     expect(render(scene({ navName: 'The Keep' }))).toContain('player_name: "The Keep"');
     expect(render(scene())).toContain('player_name: "Castle Ravenloft"');
@@ -1137,6 +1172,43 @@ describe('scene notes', () => {
     );
     expect(text).toContain('[Village](../Journals/Barovia.md)');
     expect(text).not.toContain('x y^z');
+  });
+});
+
+describe('Seen in on actor notes (R4)', () => {
+  const labels = Array.from({ length: 14 }, (_, i) => {
+    const n = String(i + 1).padStart(2, '0');
+    return `2026-11-${n} S${n}`;
+  });
+
+  it('lists the sessions of an NPC, and sets last_seen to the newest date', () => {
+    const text = render(npc(), makeCtx({ seen: { [NPC_UUID]: labels.slice(0, 2) } }));
+    expect(text).toContain('last_seen: "2026-11-02"');
+    expect(text).toMatch(
+      /## Seen in\n\n- \[2026-11-02 S02\]\(.*\)\n- \[2026-11-01 S01\]\(.*\)\n\n/
+    );
+    expect(text).not.toContain('earlier sessions');
+    expect(text.indexOf('## Seen in')).toBeLessThan(text.indexOf('## Related notes'));
+  });
+
+  it('shows at most 12 sessions and counts the rest', () => {
+    const text = render(npc(), makeCtx({ seen: { [NPC_UUID]: labels } }));
+    expect(text.match(/^- \[2026-11-\d\d S\d\d\]/gm)).toHaveLength(12);
+    expect(text).toContain('- [2026-11-14 S14]');
+    expect(text).not.toContain('2026-11-02 S02');
+    expect(text).toContain('- and 2 earlier sessions');
+  });
+
+  it('gives a PC nothing: PCs have stats notes', () => {
+    const text = render(pc(), makeCtx({ seen: { [PC_UUID]: labels } }));
+    expect(text).not.toContain('## Seen in');
+    expect(text).not.toContain('last_seen');
+  });
+
+  it('renders as before without sessions, apart from last_seen: null', () => {
+    const plain = render(npc());
+    expect(plain).not.toContain('## Seen in');
+    expect(plain).toContain('last_seen: null');
   });
 });
 

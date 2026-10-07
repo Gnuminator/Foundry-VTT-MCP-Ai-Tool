@@ -68,6 +68,22 @@ export interface PlayActorRef {
   name: string;
 }
 
+/**
+ * One actor on a scene, as `scene` and `user-join` records snapshot it in `data.tokens`: the
+ * tokens of the recorded scene (a `user-join`: the active scene) folded by world actor. Linked and unlinked tokens
+ * both name the base world actor, so "who was in the scene" needs no name matching.
+ */
+export interface PlaySceneToken {
+  /** `Actor.<id>` of the base world actor (never a token-synthetic uuid). */
+  actorUuid: string;
+  /** The base actor's name (the token's own name when the actor is gone). */
+  name: string;
+  /** A player character (dnd5e `character`) rather than an NPC. */
+  isPC: boolean;
+  /** Present (true) only when every token of this actor on the scene is hidden. */
+  hidden?: true;
+}
+
 /** One term of a roll, in order: dice (with what they rolled) or a flat bonus or penalty. */
 export type PlayRollPart =
   | {
@@ -162,7 +178,16 @@ export interface PlayRecord {
    * 10 s whose total fits the change); a guarded change's id for AI Tool writes.
    */
   source?: { messageId?: string; changeId?: string; attributed?: boolean; exact?: boolean };
-  /** Kind-specific extras (effect name and statuses, chat style and text, rest type, ...). */
+  /**
+   * Kind-specific extras (effect name and statuses, chat style and text, rest type, ...).
+   * `scene` records carry `active` (the active scene, false for a GM preview), `players` (ids of
+   * the non-GM users online) and `tokens: PlaySceneToken[]` (that scene's tokens folded by actor,
+   * sorted by `actorUuid`, at most 200, visible actors kept first). `user-join` and `user-leave`
+   * records carry `isGM`; a non-GM `user-join` adds `activeSceneId` and that scene's `tokens`.
+   * `roll` and `item-use` records carry `whisper: true` and `blind: true` when set (`chat`
+   * records always carry both). GM-only like everything in the play log (hidden tokens are
+   * marked, not dropped). Records from before 2026-10 lack these fields.
+   */
   data?: Record<string, unknown>;
 }
 

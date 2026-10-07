@@ -187,9 +187,9 @@ describe('AiChangesController: loading', () => {
     expect(c.view.limit).toBe(20);
 
     await c.setFilter('user:u1');
-    expect(deps.request).toHaveBeenLastCalledWith('list-changes', { limit: 20, person: 'u1' });
+    expect(deps.request).toHaveBeenLastCalledWith('list-changes', { limit: 20, person: 'Danni' });
     await c.load();
-    expect(deps.request).toHaveBeenLastCalledWith('list-changes', { limit: 20, person: 'u1' });
+    expect(deps.request).toHaveBeenLastCalledWith('list-changes', { limit: 20, person: 'Danni' });
 
     await c.setFilter('all');
     expect(deps.request).toHaveBeenLastCalledWith('list-changes', { limit: 20 });

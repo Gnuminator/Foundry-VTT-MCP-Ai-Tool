@@ -128,11 +128,19 @@ function textLines(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((l): l is string => typeof l === 'string') : [];
 }
 
-/** The `list-changes` args for a filter value (`all`, `ai`, `user:<id>`) and a page size. */
-export function filterArgs(filter: string, limit: number): Record<string, unknown> {
+/**
+ * The `list-changes` args for a filter value (`all`, `ai`, `user:<id>`) and a page size. A person
+ * goes by name: the backend matches a window undo by its `requestedBy`, which is the name.
+ */
+export function filterArgs(
+  filter: string,
+  limit: number,
+  users: readonly ChangeUser[] = []
+): Record<string, unknown> {
   if (filter === FILTER_AI) return { limit, source: 'ai' };
   if (filter.startsWith(FILTER_USER_PREFIX) && filter.length > FILTER_USER_PREFIX.length) {
-    return { limit, person: filter.slice(FILTER_USER_PREFIX.length) };
+    const id = filter.slice(FILTER_USER_PREFIX.length);
+    return { limit, person: users.find(u => u.id === id)?.name ?? id };
   }
   return { limit };
 }
@@ -265,6 +273,17 @@ export function buildRows(result: unknown, options: { legacy?: boolean } = {}): 
   return entries.map(e => buildChangeRow(e, byId, options.legacy === true));
 }
 
+/**
+ * The rows the filter shows, as the dashboard's filter does: "AI" leaves out the undos and
+ * redos a person ran from a window, and a person's filter shows only that person's own changes
+ * and undos. `rows` keeps the whole page, so a redo still finds its undo entry.
+ */
+export function shownRows(view: Pick<ChangesView, 'filter' | 'rows'>): ChangeRow[] {
+  if (view.filter === FILTER_AI) return view.rows.filter(r => r.isAi);
+  if (view.filter.startsWith(FILTER_USER_PREFIX)) return view.rows.filter(r => !r.isAi);
+  return view.rows;
+}
+
 /** Whether "Show more" is offered: the first page came back full. */
 export function canShowMore(view: Pick<ChangesView, 'limit' | 'rows'>): boolean {
   return view.limit < MORE_LIMIT && view.rows.length >= view.limit;
@@ -325,12 +344,13 @@ export function renderChangesHtml(view: ChangesView): string {
   const refresh =
     '<button type="button" class="fmb-ai-btn" data-action="refresh">' +
     '<i class="fa-solid fa-rotate"></i> Refresh</button>';
+  const rows = shownRows(view);
   let notice = '';
   if (view.status === 'error') {
     notice = `<p class="fmb-ai-notice fmb-ai-error" role="alert">${escapeHtml(view.error)}</p>`;
-  } else if (view.status === 'loading' && view.rows.length === 0) {
+  } else if (view.status === 'loading' && rows.length === 0) {
     notice = '<p class="fmb-ai-notice">Loading the changes...</p>';
-  } else if (view.status === 'ready' && view.rows.length === 0) {
+  } else if (view.status === 'ready' && rows.length === 0) {
     notice = `<p class="fmb-ai-notice">${
       view.legacy
         ? 'No AI changes yet.'
@@ -343,8 +363,8 @@ export function renderChangesHtml(view: ChangesView): string {
     notice += `<p class="fmb-ai-notice">${escapeHtml(view.note)}</p>`;
   }
   const list =
-    view.rows.length > 0
-      ? `<ol class="fmb-ai-list">${view.rows.map(row => renderRow(row, view)).join('')}</ol>`
+    rows.length > 0
+      ? `<ol class="fmb-ai-list">${rows.map(row => renderRow(row, view)).join('')}</ol>`
       : '';
   const more = canShowMore(view)
     ? '<div class="fmb-ai-more"><button type="button" class="fmb-ai-btn" data-action="more">' +

@@ -16,6 +16,7 @@ import {
   parseChanges,
   parseNote,
   renderChangesHtml,
+  shownRows,
   userFilter,
   validFilter,
   type ChangeEntry,
@@ -128,12 +129,34 @@ describe('formatLocalTime', () => {
 });
 
 describe('the filter', () => {
-  it('turns the Show choice into list-changes arguments (person = user id, AI = source ai)', () => {
+  it('turns the Show choice into list-changes arguments (person = user name, AI = source ai)', () => {
+    const users = [{ id: 'u1', name: 'Danni' }];
     expect(filterArgs('all', 20)).toEqual({ limit: 20 });
     expect(filterArgs('ai', 100)).toEqual({ limit: 100, source: 'ai' });
-    expect(filterArgs(userFilter('u1'), 20)).toEqual({ limit: 20, person: 'u1' });
+    expect(filterArgs(userFilter('u1'), 20, users)).toEqual({ limit: 20, person: 'Danni' });
+    // Someone the window does not know goes by id.
+    expect(filterArgs(userFilter('u9'), 20, users)).toEqual({ limit: 20, person: 'u9' });
     expect(filterArgs('user:', 20)).toEqual({ limit: 20 });
     expect(filterArgs('nonsense', 20)).toEqual({ limit: 20 });
+  });
+
+  it('shows what the dashboard filter shows: AI without window undos, a person without AI changes', () => {
+    const rows = buildRows({
+      changes: [
+        aiItem({ id: 'u-1', mode: 'undo', summary: 'Undo: Wolf: 4 damage', requestedBy: 'Danni' }),
+        humanItem({ by: 'Danni', userId: 'u1' }),
+        aiItem({ undone: true, undoneBy: 'u-1' }),
+      ],
+    });
+    const ids = (filter: string): string[] => shownRows(view({ rows, filter })).map(r => r.id);
+    expect(ids('all')).toEqual(['u-1', 'act:a1', 'chg-1']);
+    expect(ids('ai')).toEqual(['chg-1']);
+    expect(ids(userFilter('u1'))).toEqual(['u-1', 'act:a1']);
+    // The rendered list follows the filter; the AI row keeps its Redo (its undo entry is on the page).
+    const html = renderChangesHtml(view({ rows, filter: 'ai' }));
+    expect(html).not.toMatch(/<li [^>]*data-change-id="u-1"/);
+    expect(html).toMatch(/<li [^>]*data-change-id="chg-1"/);
+    expect(rows.find(r => r.id === 'chg-1')?.redoId).toBe('u-1');
   });
 
   it('falls back to All for a person who is not in the list', () => {

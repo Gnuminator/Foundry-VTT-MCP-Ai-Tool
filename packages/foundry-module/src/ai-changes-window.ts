@@ -103,7 +103,7 @@ export class AiChangesController {
       let result: unknown;
       let legacy = false;
       try {
-        result = await this.deps.request('list-changes', filterArgs(filter, limit));
+        result = await this.deps.request('list-changes', filterArgs(filter, limit, users));
       } catch (error) {
         if (!bridgeTooOld(error)) throw error;
         legacy = true;

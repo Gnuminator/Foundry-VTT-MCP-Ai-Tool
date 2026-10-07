@@ -322,7 +322,8 @@ scene controls) there is an **AI Tool** group, shown to GMs only. Click it, then
 players, by you and by the AI. Each row shows the time, who did it ("by Ireena", or an **AI** tag),
 what changed, and **Undo** while the change can still be undone. Click "Changes" on a row to see
 the lines that changed, and **Show more** for the last 100. **Show:** at the top narrows the list
-to **All**, **AI** or one person.
+to **All**, **AI** or one person. **AI** shows only what the AI changed; a person shows what that
+person changed and the undos they ran from this window.
 
 **Undo** asks you to confirm first, listing what will be put back, and then says "Undone: ...", or
 tells you why it refused (for example because the same thing was changed again since). If the

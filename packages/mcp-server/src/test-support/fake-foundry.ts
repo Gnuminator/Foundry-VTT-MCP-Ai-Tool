@@ -121,7 +121,12 @@ export class FakeFoundry {
       const feature = this.features.find(f => f.id === req.feature);
       if (!feature?.enabled) throw new Error(`The "${req.feature}" feature is switched off`);
     }
+    // Like the module: in an undo or redo a delete whose document is already gone (dnd5e took
+    // it first) is as wanted and comes back as `alreadyGone` instead of a conflict.
+    const gone = (op: GuardedOp): boolean =>
+      req.mode === 'undo' && op.kind === 'delete' && !this.docs.has(op.uuid);
     req.ops.forEach((op, i) => {
+      if (gone(op)) return;
       const now = this.snapshot(op);
       const want = req.expected[i];
       const same =
@@ -174,13 +179,24 @@ export class FakeFoundry {
           modifiedTime: doc.source._stats.modifiedTime,
         };
       }
+      // Like Foundry's `doc.parent?.uuid`: an embedded document's parent, so undo
+      // re-creates it in place (`JournalEntry.j.JournalEntryPage.p` -> `JournalEntry.j`).
+      const segments = op.uuid.split('.');
+      if (gone(op)) {
+        return {
+          index,
+          kind: 'delete',
+          uuid: op.uuid,
+          documentName: segments.length >= 2 ? segments[segments.length - 2] : 'Document',
+          name: null,
+          parentUuid: segments.length > 2 ? segments.slice(0, -2).join('.') : null,
+          alreadyGone: true,
+        };
+      }
       const doc = this.docs.get(op.uuid)!;
       for (const key of [...this.docs.keys()]) {
         if (key === op.uuid || key.startsWith(`${op.uuid}.`)) this.docs.delete(key);
       }
-      // Like Foundry's `doc.parent?.uuid`: an embedded document's parent, so undo
-      // re-creates it in place (`JournalEntry.j.JournalEntryPage.p` -> `JournalEntry.j`).
-      const segments = op.uuid.split('.');
       return {
         index,
         kind: 'delete',

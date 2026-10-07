@@ -598,8 +598,14 @@ async function executionOrder(ops: GuardedOp[]): Promise<number[]> {
   return order;
 }
 
-/** The op that reverses an executed op (used for rollback here and undo in the backend). */
+/**
+ * The op that reverses an executed op (used for rollback here and undo in the backend). A
+ * delete marked `alreadyGone` removed nothing and has no inverse; the rollback skips it.
+ */
 export function inverseOf(executed: GuardedOpResult): GuardedOp {
+  if (executed.kind === 'delete' && executed.alreadyGone) {
+    throw new Error(`${executed.uuid} was already gone when it was deleted; nothing to reverse`);
+  }
   switch (executed.kind) {
     case 'update': {
       const changes: Record<string, unknown> = {};

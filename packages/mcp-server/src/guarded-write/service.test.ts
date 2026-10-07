@@ -501,6 +501,45 @@ describe('undo (Foundry ops)', () => {
     expect((await service.undoState()).get(applied.changeId)?.undoneBy).toBe(again.changeId);
   });
 
+  it('leaves a delete that found its document already gone out of the undo (no blank create)', async () => {
+    // The redo of an AI item delete: dnd5e ends the concentration effect by itself when the
+    // item goes, so the module reports that delete as alreadyGone. Undoing the redo must bring
+    // the item back and leave the effect alone instead of sending `create ActiveEffect {}`.
+    foundry.add('Actor.ireena.Item.spell', 'Item', { _id: 'spell', name: 'Bless' });
+    foundry.add('Actor.ireena.ActiveEffect.conc', 'ActiveEffect', {
+      _id: 'conc',
+      name: 'Concentrating',
+    });
+    const p = await plan([
+      { kind: 'delete', uuid: 'Actor.ireena.ActiveEffect.conc' },
+      { kind: 'delete', uuid: 'Actor.ireena.Item.spell' },
+    ]);
+    const applied = await service.applyPlan(p.planId, { confirm: true, confirmDestructive: true });
+    const undone = await service.undo(applied.changeId, { confirm: true });
+    expect(foundry.docs.has('Actor.ireena.ActiveEffect.conc')).toBe(true);
+
+    foundry.docs.delete('Actor.ireena.ActiveEffect.conc'); // dnd5e ends the concentration first
+    const redone = await service.undo(undone.changeId, { confirm: true });
+    const redoEntry = await audit.get('curse-of-strahd', redone.changeId);
+    expect(redoEntry?.results?.map(r => [r.kind, r.alreadyGone ?? false])).toEqual([
+      ['delete', true],
+      ['delete', false],
+    ]);
+
+    const again = await service.undo(redone.changeId, { confirm: true });
+    const requests = foundry.calls.filter(([m]) => m.endsWith('applyGuardedOps'));
+    expect(requests).toHaveLength(4);
+    const lastOps = requests[3][1].ops as GuardedOp[];
+    expect(lastOps).toHaveLength(1);
+    expect(lastOps[0]).toMatchObject({ kind: 'create', documentName: 'Item', keepId: true });
+    expect(foundry.docs.get('Actor.ireena.Item.spell')?.source.name).toBe('Bless');
+    expect([...foundry.docs.keys()].filter(k => k.includes('ActiveEffect'))).toEqual([]);
+    const entry = await audit.get('curse-of-strahd', again.changeId);
+    expect(entry?.diff).toContain(
+      'Left alone: Actor.ireena.ActiveEffect.conc (it was already gone when the change ran)'
+    );
+  });
+
   it("refuses a redo while the original feature's switch is off (undo-change and a planned undo)", async () => {
     const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
     foundry.features[0].enabled = false;
@@ -835,6 +874,28 @@ describe('mixed plans', () => {
       flags: { 'foundry-mcp-bridge': { attitude: 'friendly' } },
     });
     expect(await service.listRecentChanges()).toEqual([]);
+  });
+
+  it('rolls back without a blank create when the Foundry part only found things already gone', async () => {
+    foundry.add('Actor.ireena.ActiveEffect.conc', 'ActiveEffect', {
+      _id: 'conc',
+      name: 'Concentrating',
+    });
+    const p = await service.createPlan({
+      ...MIXED,
+      ops: [{ kind: 'delete', uuid: 'Actor.ireena.ActiveEffect.conc' }],
+    } as never);
+    const applied = await service.applyPlan(p.planId, { confirm: true, confirmDestructive: true });
+    const undone = await service.undo(applied.changeId, { confirm: true });
+    foundry.docs.delete('Actor.ireena.ActiveEffect.conc'); // dnd5e took it first
+
+    vi.spyOn(store, 'update').mockRejectedValueOnce(new Error('disk full'));
+    await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
+      /vault write failed \(disk full\); the Foundry part was rolled back/
+    );
+    // apply, undo, the failed redo: no rollback request, nothing re-created from empty data.
+    expect(foundry.calls.filter(([m]) => m.endsWith('applyGuardedOps'))).toHaveLength(3);
+    expect([...foundry.docs.keys()].filter(k => k.includes('ActiveEffect'))).toEqual([]);
   });
 
   it('reports a rollback that also fails', async () => {

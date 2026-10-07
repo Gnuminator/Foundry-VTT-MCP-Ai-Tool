@@ -152,6 +152,11 @@ export function rewindButtonLabel(count) {
 }
 
 const CANCEL = { key: 'cancel', label: 'Cancel' };
+const REWIND_ADVANCED = {
+  title: 'Advanced',
+  text: 'Put the whole table back to how it was at this change, not only this one thing.',
+  button: { key: 'rewind', label: 'Rewind the whole table to here' },
+};
 
 function applyButton(plan, label, danger) {
   return {
@@ -182,11 +187,7 @@ export function dialogFor(stage, plan, change) {
       later: laterOf(plan),
       lines: [],
       destructive: false,
-      advanced: {
-        title: 'Advanced',
-        text: 'Put the whole table back to how it was at this change, not only this one thing.',
-        button: { key: 'rewind', label: 'Rewind the whole table to here' },
-      },
+      advanced: REWIND_ADVANCED,
       buttons: [
         CANCEL,
         { key: 'just-this', label: 'Just this', primary: true },
@@ -230,8 +231,30 @@ export function dialogFor(stage, plan, change) {
     intro: (plan && plan.summary) || '',
     lines,
     destructive: needsDestructive(plan),
+    // The latest change on its thing: the rewind is under Advanced here too, as in Foundry.
+    ...(!everything && laterOf(plan).length === 0 ? { advanced: REWIND_ADVANCED } : {}),
     buttons: [CANCEL, applyButton(plan, 'Undo', false)],
   };
+}
+
+/**
+ * What the Redo confirm shows. Redo undoes the undo entry, and one undo can cover several
+ * changes (Everything since, a rewind): then all of them come back, so it says how many and
+ * lists the undo entry's lines instead of this row's.
+ */
+export function redoConfirm(change, all) {
+  const row = rowView(change, all);
+  const undo = redoTarget(change, all);
+  const undoLines = undo && Array.isArray(undo.lines) ? undo.lines : [];
+  if (undoLines.length > 1) {
+    return {
+      summary:
+        `Redo: ${row.summary}. It was undone together with other changes in ` +
+        `"${summaryOf(undo)}"; the redo brings back all ${undoLines.length} changes.`,
+      diff: undoLines,
+    };
+  }
+  return { summary: `Redo: ${row.summary}`, diff: row.lines };
 }
 
 /**
@@ -253,9 +276,9 @@ export function nextStep(stage, key) {
     if (key === 'just-this') return { stage: 'confirm' };
     if (key === 'everything-since')
       return { plan: { scope: 'everything-since' }, stage: 'confirm' };
-    if (key === 'rewind')
-      return { plan: { scope: 'world-since', rewindTable: true }, stage: 'rewind-1' };
   }
+  if ((stage === 'choose' || stage === 'confirm') && key === 'rewind')
+    return { plan: { scope: 'world-since', rewindTable: true }, stage: 'rewind-1' };
   if (stage === 'rewind-1' && key === 'next') return { stage: 'rewind-2' };
   if (key === 'apply' && (stage === 'confirm' || stage === 'rewind-2')) return { apply: true };
   return { done: true };

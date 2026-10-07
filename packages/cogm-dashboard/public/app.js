@@ -10,6 +10,7 @@ import {
   needsDestructive,
   nextStep,
   planArgs,
+  redoConfirm,
   rowView,
   validFilter,
   FILTER_ALL,
@@ -2102,7 +2103,18 @@ function closeUndoDialog(key) {
 }
 // Undo anyone's change: plan it, then walk the choice (just this, everything since, or the
 // advanced rewind) until the GM applies a plan or cancels. Nothing changes before "apply".
+// One flow at a time: a second click while one runs is ignored.
+let everyoneUndoBusy = false;
 async function undoFromEveryone(id) {
+  if (everyoneUndoBusy) return;
+  everyoneUndoBusy = true;
+  try {
+    await undoFlow(id);
+  } finally {
+    everyoneUndoBusy = false;
+  }
+}
+async function undoFlow(id) {
   const change = everyoneChanges.find(c => c.id === id);
   if (!change) return;
   if (!settings.gmActionsEnabled) {
@@ -2153,10 +2165,12 @@ function redoFromEveryone(id) {
   const change = everyoneChanges.find(c => c.id === id);
   const row = change && rowView(change, everyoneChanges);
   if (!row || !row.redoId) return;
-  void runTool('undo-change', { changeId: row.redoId }, 'destructive', {
-    diff: row.lines,
-    summary: `Redo: ${row.summary}`,
-  });
+  void runTool(
+    'undo-change',
+    { changeId: row.redoId },
+    'destructive',
+    redoConfirm(change, everyoneChanges)
+  );
 }
 function setChangesTab(tab) {
   if (tab === changesTab) return;

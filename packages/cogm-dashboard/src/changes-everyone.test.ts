@@ -73,6 +73,7 @@ interface Helpers {
   redoTarget(change: Change, all: Change[]): Change | null;
   thingLabel(change: Change): string;
   rowView(change: Change, all: Change[]): Record<string, unknown> & { redoId: string | null };
+  redoConfirm(change: Change, all: Change[]): { summary: string; diff: string[] };
   planLines(plan: Plan): Array<{ text: string; note: boolean }>;
   needsDestructive(plan: Plan): boolean;
   rewindCount(plan: Plan): number | null;
@@ -182,6 +183,21 @@ describe('rows, badge and redo', () => {
     expect(h.redoTarget(human('act:2', 'Anna'), [ai('u1')])).toBeNull();
   });
 
+  it('Redo confirms with what really comes back: all the changes one undo covered', () => {
+    const row = human('act:1', 'Anna', { undone: true, undoneBy: 'u1' });
+    const single = ai('u1', { summary: 'Undo: Anna did something', lines: ['Ireena: HP 5 -> 10'] });
+    expect(h.redoConfirm(row, [row, single])).toEqual({
+      summary: 'Redo: Anna did something',
+      diff: ['Ireena: HP 10 -> 5'],
+    });
+    const lines = ['Ireena: HP 5 -> 10', 'Ireena: Poisoned removed', 'Wolf: moved back'];
+    const since = ai('u1', { summary: 'Undo since 19:00: 3 changes', lines });
+    const many = h.redoConfirm(row, [row, since]);
+    expect(many.summary).toContain('brings back all 3 changes');
+    expect(many.summary).toContain('"Undo since 19:00: 3 changes"');
+    expect(many.diff).toEqual(lines);
+  });
+
   it('names the thing a change touched', () => {
     expect(h.thingLabel(human('a', 'Anna'))).toBe('this thing');
     const one = human('a', 'Anna', { things: [{ uuid: 'Actor.1', name: 'Ireena' }] });
@@ -225,6 +241,19 @@ describe('the undo choice', () => {
     expect(h.nextStep('confirm', 'apply')).toEqual({ apply: true });
     expect(h.nextStep('confirm', 'cancel')).toEqual({ done: true });
     expect(h.nextStep('confirm', null)).toEqual({ done: true });
+    // The rewind is under Advanced in the plain confirm too, as in the Foundry window.
+    expect(d.advanced?.button).toEqual({ key: 'rewind', label: 'Rewind the whole table to here' });
+    expect(h.nextStep('confirm', 'rewind')).toEqual({
+      plan: { scope: 'world-since', rewindTable: true },
+      stage: 'rewind-1',
+    });
+  });
+
+  it('offers the rewind only in the first dialog, not after Just this or Everything since', () => {
+    expect(h.dialogFor('confirm', plan({ later }), row).advanced).toBeUndefined();
+    expect(
+      h.dialogFor('confirm', plan({ scope: 'everything-since' }), row).advanced
+    ).toBeUndefined();
   });
 
   it('flags the notes of a plan so they read as notes, not changes', () => {

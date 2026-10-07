@@ -321,10 +321,13 @@ to see only their changes. Each row shows who, when, what changed and, under "N 
 details. **Undo** works on anyone's change. It first shows what it will put back, and you confirm.
 If something changed on the same thing since, it says "This is not the latest change to ..." and
 lists those later changes, and you choose **Just this** (keeps the later changes), **Everything
-since** (puts the thing back to how it was before this change) or **Cancel**. Under **Advanced**,
-**Rewind the whole table to here** undoes every change at the table since then; it shows how many
-changes that is and asks twice. An undone change is marked "Undone by ...", with **Redo** to put it
-back when that is still possible. Undo needs GM Actions on, like everything that changes the game.
+since** (puts the thing back to how it was before this change) or **Cancel**. Under **Advanced**
+(in the first question, whichever it is), **Rewind the whole table to here** undoes every change at
+the table since then; it shows how many changes that is and asks twice. An undone change is marked
+"Undone by ...", with **Redo** to put it back when that is still possible. When it was undone
+together with other changes (Everything since or a rewind), Redo says so and brings all of them
+back. Undo needs GM Actions on, like everything that changes the game. The same list is in Foundry
+too, as the **Changes** window (below).
 
 ### The same list inside Foundry
 

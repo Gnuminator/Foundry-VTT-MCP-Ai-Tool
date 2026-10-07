@@ -21,13 +21,13 @@ import type { GuardedOp, OpSnapshot, PathValue } from '@gnuminator/shared';
 
 import {
   CHANGE_HISTORY_DAYS,
+  historyStartLabel,
   labelOf,
   undoBlocker,
   type ChangeAction,
   type ChangeHistory,
   type UserNames,
 } from '../change-history.js';
-import { localDateKey } from '../event-pump.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { AuditEntry, AuditLog } from '../vault/audit.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
@@ -443,14 +443,14 @@ export class UndoPlanner {
    */
   private checkHistoryStart(target: Item, scope: UndoScope, start: number, notes: string[]): void {
     if (!(target.t < start)) return;
-    const day = localDateKey(start);
+    const from = historyStartLabel(start);
     if (scope !== 'just-this') {
       throw new Error(
-        `People's changes before ${day} are no longer in the history (it keeps ${CHANGE_HISTORY_DAYS} days, less when the change journal's size cap is reached), so not every change since "${target.summary}" is known. Undo just this change instead, or undo the later changes one by one.`
+        `People's changes before ${from} are no longer in the history (it keeps ${CHANGE_HISTORY_DAYS} days, less when the change journal's size cap is reached or its records were lost), so not every change since "${target.summary}" is known. Undo just this change instead, or undo the later changes one by one.`
       );
     }
     notes.push(
-      `People's changes before ${day} are no longer in the history: a later change to the same thing may not be listed`
+      `People's changes before ${from} are no longer in the history: a later change to the same thing may not be listed`
     );
   }
 

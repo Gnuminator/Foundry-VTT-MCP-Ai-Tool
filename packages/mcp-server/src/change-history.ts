@@ -20,13 +20,16 @@
  *
  * Foundry's own follow-ups on other things are kept with the AI change too: deleting a token
  * removes its combatant and moves the turn (root Combat, not the token's scene), so records on a
- * Combat in an AI burst are never split off as a person's action. A GM's own click on the
- * tracker within the action gap of an AI write, in the bridge's browser, is the one case this
+ * Combat in an AI burst are never split off as a person's action. The same goes for dnd5e's
+ * dependent deletes: when the AI deleted an effect or an item, the effects on other actors, the
+ * templates, regions and summoned tokens dnd5e removes with it (in the active GM's browser)
+ * stay with the AI change. A GM's own click on the tracker, or own delete of such a thing,
+ * within the action gap of such an AI write, in the bridge's browser, is the one case this
  * cannot tell apart (it is then hidden under the AI change, not undone with it).
  *
  * `historyStart()` says from when the history is complete: the pump's retention can remove
- * files inside the span when they exceed the byte cap, and the undo planner refuses a rewind
- * that reaches back before that.
+ * files inside the span when they exceed the byte cap, the module's buffer can wrap before the
+ * pump read it, and the undo planner refuses a rewind that reaches back before that.
  *
  * Read-only. The undo planner (`guarded-write/undo-planner.ts`) reads the actions from here
  * (`humanActions`); `undoBlocker` says which of them can be undone, and `list()` marks what is
@@ -36,6 +39,7 @@ import type { ChangeRecord, PathValue } from '@gnuminator/shared';
 
 import {
   CHANGE_JOURNAL_RETENTION_DAYS,
+  type ChangeJournalPump,
   changeJournalFileName,
   dateKeyStart,
   isChangeRecord,
@@ -64,6 +68,21 @@ export const OWN_ACTION_SUFFIX = ':own';
  * token deletes its combatant and may move the turn): never split off as a person's own action.
  */
 const CASCADE_ROOT_KINDS: ReadonlySet<string> = new Set(['Combat']);
+/**
+ * Document kinds dnd5e 6 deletes as dependents of an effect or item delete (ending concentration
+ * removes the effects it put on other actors, its templates and its summoned tokens; a region
+ * can be one too), in the active GM's browser. In an AI burst where the AI deleted an effect or
+ * an item, deletes of these kinds stay with the AI change instead of becoming the bridge user's
+ * own action (see the file comment).
+ */
+const DEPENDENT_DELETE_KINDS: ReadonlySet<string> = new Set([
+  'ActiveEffect',
+  'Region',
+  'MeasuredTemplate',
+  'Token',
+]);
+/** The AI deletes whose dependents dnd5e removes (see DEPENDENT_DELETE_KINDS). */
+const DEPENDENT_SOURCE_KINDS: ReadonlySet<string> = new Set(['ActiveEffect', 'Item']);
 
 /** User id to user name, as the journal records have seen them (for ownership lines). */
 export type UserNames = ReadonlyMap<string, string>;
@@ -244,6 +263,23 @@ function isCascade(r: ChangeRecord): boolean {
   return kind !== null && CASCADE_ROOT_KINDS.has(kind);
 }
 
+/** A delete dnd5e makes as a dependent of an AI effect or item delete (see DEPENDENT_DELETE_KINDS). */
+function isDependentDelete(r: ChangeRecord): boolean {
+  return r.op === 'delete' && DEPENDENT_DELETE_KINDS.has(r.documentName);
+}
+
+/**
+ * The local date of `ms`, with the time of day (`YYYY-MM-DD HH:MM`) unless it is midnight: the
+ * history start is a day when retention removed a file, a time when the buffer wrapped.
+ */
+export function historyStartLabel(ms: number): string {
+  const d = new Date(ms);
+  const date = localDateKey(ms);
+  if (d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0) return date;
+  const two = (n: number): string => String(n).padStart(2, '0');
+  return `${date} ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
 function isEmptyValue(v: PathValue): boolean {
   return !v.present || v.value === null || v.value === 0 || v.value === '';
 }
@@ -341,7 +377,8 @@ export function undoBlocker(action: ChangeAction): string | null {
  * order of their first record). Records of a guarded write that was rolled back are left out.
  * In a burst with an AI write, a person's records on things the AI did not touch become an
  * action of their own (`<actionId>:own`, right after the AI's); Foundry's own cascades (a
- * combatant removed with its token) stay with the AI's.
+ * combatant removed with its token) and dnd5e's dependent deletes (the effects, templates and
+ * summons that go when the AI deleted an effect or an item) stay with the AI's.
  */
 export function buildActions(records: ChangeRecord[], users?: UserNames): ChangeAction[] {
   const rolledBack = new Set<string>();
@@ -363,7 +400,16 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
       split.push([actionId, group]);
       continue;
     }
-    const own = group.filter(r => !r.changeId && !aiRoots.has(r.rootUuid) && !isCascade(r));
+    const aiDeletedSource = group.some(
+      r => r.changeId && r.op === 'delete' && DEPENDENT_SOURCE_KINDS.has(r.documentName)
+    );
+    const own = group.filter(
+      r =>
+        !r.changeId &&
+        !aiRoots.has(r.rootUuid) &&
+        !isCascade(r) &&
+        !(aiDeletedSource && isDependentDelete(r))
+    );
     split.push([actionId, own.length > 0 ? group.filter(r => !own.includes(r)) : group]);
     if (own.length > 0) split.push([`${actionId}${OWN_ACTION_SUFFIX}`, own]);
   }
@@ -427,6 +473,21 @@ export interface ChangeHistoryOptions {
    */
   journalStart?: (worldId: string) => Promise<number>;
   now?: () => number;
+}
+
+/**
+ * The history's links to the change-journal pump, for the backend: `pullNow` and `journalStart`
+ * delegate to the pump the getter returns at call time (the pump is made after the history,
+ * once the Foundry link starts) and stand in for it while there is none.
+ */
+export function journalLinks(
+  pump: () => Pick<ChangeJournalPump, 'pullNow' | 'historyStart'> | null
+): Required<Pick<ChangeHistoryOptions, 'pullNow' | 'journalStart'>> {
+  return {
+    pullNow: (): Promise<void> => pump()?.pullNow() ?? Promise.resolve(),
+    journalStart: (worldId: string): Promise<number> =>
+      pump()?.historyStart(worldId) ?? Promise.resolve(0),
+  };
 }
 
 export class ChangeHistory {
@@ -514,7 +575,7 @@ export class ChangeHistory {
     const start = await this.historyStart();
     if (start > cutoff && source !== 'ai') {
       notes.push(
-        `People's changes before ${localDateKey(start)} are gone: the change journal's size cap removed them.`
+        `People's changes before ${historyStartLabel(start)} are gone: the change journal lost them (its size cap removed old files, or Foundry's buffer wrapped before the bridge read it).`
       );
     }
 

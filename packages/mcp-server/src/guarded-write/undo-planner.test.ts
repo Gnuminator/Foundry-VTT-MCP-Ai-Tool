@@ -149,7 +149,7 @@ describe('refusals', () => {
     records.push(hp(10, 5, 3, 'later'));
     historyStart = T0 + 5 * MIN;
     await expect(plan('chg-old', 'world-since', true)).rejects.toThrow(
-      /changes before 2026-10-07 are no longer in the history/
+      /changes before 2026-10-07 \d\d:\d\d are no longer in the history/
     );
     await expect(plan('chg-old', 'everything-since')).rejects.toThrow(/Undo just this change/);
     await expect(plan('chg-old')).resolves.toMatchObject({ scope: 'just-this' });

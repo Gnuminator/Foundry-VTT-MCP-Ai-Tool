@@ -34,6 +34,13 @@
  * browser reload would otherwise recreate a removed file). A file that cannot be removed
  * (a Windows lock) is retried after `RETENTION_RETRY_MS`, the others are still removed.
  *
+ * Lost records: when the module's ring buffer wrapped before the pump read it (the "records
+ * lost" warning), the state keeps `completeFrom`, the time of the oldest record the buffer still
+ * held, and `historyStart` moves up to it, so a rewind across the gap is refused instead of
+ * skipping changes without a word. Known gaps it cannot see: a GM browser reload while the
+ * bridge was down loses the old page's unread records with no trace (the new `clientId` is
+ * also what a plain reload looks like), and nothing is recorded while the journal is off.
+ *
  * On by default; `FOUNDRY_AI_CHANGE_JOURNAL=off` disables it. The poll interval is
  * `FOUNDRY_AI_EVENT_POLL_MS`, shared with the event pump; the byte cap is
  * `FOUNDRY_AI_CHANGE_JOURNAL_MAX_MB` (default 64).
@@ -98,6 +105,12 @@ interface ChangePumpState {
    * newest file retention removed. Absent until a file was removed.
    */
   historyFrom?: string;
+  /**
+   * Epoch ms from which the records are complete after the module's ring buffer wrapped before
+   * the pump read it: the time of the oldest record the buffer still held (the lost ones came
+   * before it). Absent until records were lost. `historyStart` takes the later of the two.
+   */
+  completeFrom?: number;
 }
 
 interface PumpState extends ChangePumpState {
@@ -235,15 +248,15 @@ export class ChangeJournalPump {
   }
 
   /**
-   * Local midnight (epoch ms) of the first day whose journal file is complete, or 0 when
-   * retention has never removed a file of this world. The history index and the undo
-   * planner treat anything before it as unknown.
+   * Epoch ms from which the kept records are complete: local midnight of the first day whose
+   * journal file retention left whole, or the time the records were complete from again after
+   * the module's buffer wrapped, whichever is later; 0 when neither has happened to this world.
+   * The history index and the undo planner treat anything before it as unknown.
    */
   async historyStart(worldId: string): Promise<number> {
     const state = await this.loadState(worldId);
-    if (!state.historyFrom) return 0;
-    const start = dateKeyStart(state.historyFrom);
-    return Number.isFinite(start) ? start : 0;
+    const fromFiles = state.historyFrom ? dateKeyStart(state.historyFrom) : 0;
+    return Math.max(Number.isFinite(fromFiles) ? fromFiles : 0, state.completeFrom ?? 0);
   }
 
   private async poll(): Promise<number> {
@@ -256,6 +269,7 @@ export class ChangeJournalPump {
     // Pages of at most CHANGE_JOURNAL_MAX_LIMIT records, until one comes back short.
     let sinceSeq = state.lastSeq;
     let restarted = false;
+    let lost = false;
     for (let page = 0; page < MAX_PAGES; page++) {
       let response = await this.fetchPage(sinceSeq);
       if (state.clientId !== null && response.clientId !== state.clientId) {
@@ -268,6 +282,15 @@ export class ChangeJournalPump {
         sinceSeq = 0;
         response = await this.fetchPage(0);
       } else if (page === 0 && state.clientId !== null && response.oldestSeq > state.lastSeq + 1) {
+        // The lost records all came before the oldest one the buffer still holds (its records
+        // are in order of their seq), so the history is complete again from that record's time.
+        const oldest = Array.isArray(response.records) ? response.records[0] : undefined;
+        const oldestT = (oldest as { t?: unknown } | undefined)?.t;
+        const completeFrom = typeof oldestT === 'number' && oldestT > 0 ? oldestT : this.now();
+        if (completeFrom > (state.completeFrom ?? 0)) {
+          state.completeFrom = completeFrom;
+          lost = true;
+        }
         this.logger.warn(
           'Change journal records lost: the ring buffer wrapped before the pump read them',
           {
@@ -275,6 +298,7 @@ export class ChangeJournalPump {
             clientId: response.clientId,
             expectedFrom: state.lastSeq + 1,
             oldestSeq: response.oldestSeq,
+            completeFrom: new Date(completeFrom).toISOString(),
           }
         );
       }
@@ -301,7 +325,8 @@ export class ChangeJournalPump {
       );
       const caughtUp = rawRecords.length < CHANGE_JOURNAL_MAX_LIMIT;
       const newSeq = caughtUp ? Math.max(lastRead, response.latestSeq) : lastRead;
-      const changed = state.clientId !== response.clientId || state.lastSeq !== newSeq;
+      const changed = lost || state.clientId !== response.clientId || state.lastSeq !== newSeq;
+      lost = false;
       state.clientId = response.clientId;
       state.lastSeq = newSeq;
       sinceSeq = newSeq;
@@ -493,7 +518,17 @@ export class ChangeJournalPump {
       Number.isFinite(dateKeyStart(saved.data.historyFrom))
         ? saved.data.historyFrom
         : undefined;
-    this.state = { worldId, clientId, lastSeq, ...(historyFrom ? { historyFrom } : {}) };
+    const completeFrom =
+      typeof saved?.data.completeFrom === 'number' && saved.data.completeFrom > 0
+        ? saved.data.completeFrom
+        : undefined;
+    this.state = {
+      worldId,
+      clientId,
+      lastSeq,
+      ...(historyFrom ? { historyFrom } : {}),
+      ...(completeFrom ? { completeFrom } : {}),
+    };
     return this.state;
   }
 
@@ -503,6 +538,7 @@ export class ChangeJournalPump {
       clientId: this.state.clientId,
       lastSeq: this.state.lastSeq,
       ...(this.state.historyFrom ? { historyFrom: this.state.historyFrom } : {}),
+      ...(this.state.completeFrom ? { completeFrom: this.state.completeFrom } : {}),
     };
     await this.store.write(worldId, 'gm', CHANGE_PUMP_STATE_FILE, data);
   }

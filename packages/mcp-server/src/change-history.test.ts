@@ -5,7 +5,11 @@ import * as path from 'path';
 import type { ChangeRecord, PathValue } from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { changeJournalFileName } from './change-journal-pump.js';
+import {
+  CHANGE_JOURNAL_RETENTION_DAYS,
+  ChangeJournalPump,
+  changeJournalFileName,
+} from './change-journal-pump.js';
 import {
   CHANGE_HISTORY_DAYS,
   ChangeHistory,
@@ -13,6 +17,8 @@ import {
   OWN_ACTION_SUFFIX,
   buildActions,
   describeRecord,
+  historyStartLabel,
+  journalLinks,
   labelOf,
   undoBlocker,
 } from './change-history.js';
@@ -79,6 +85,13 @@ function aiChange(overrides: Partial<RecentChange> = {}): RecentChange {
     ...overrides,
   };
 }
+
+describe('historyStartLabel', () => {
+  it('says a day for midnight and adds the time otherwise', () => {
+    expect(historyStartLabel(new Date(2026, 9, 5).getTime())).toBe('2026-10-05');
+    expect(historyStartLabel(new Date(2026, 9, 5, 9, 7, 30).getTime())).toBe('2026-10-05 09:07');
+  });
+});
 
 describe('describeRecord', () => {
   it('reads an HP change with its label', () => {
@@ -344,6 +357,90 @@ describe('buildActions', () => {
     expect(actions[1]).toMatchObject({ records: [own] });
   });
 
+  it("keeps dnd5e's dependent deletes with the AI change that deleted an effect or an item", () => {
+    // The AI ends concentration on Strahd: dnd5e removes the effect it put on Ireena, the spell's
+    // template, its region and the summoned token, in the GM browser that is the bridge's.
+    const ai = rec({
+      actionId: 'E',
+      changeId: 'chg-3',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.e1',
+      parentUuid: 'Actor.a2',
+      name: 'Concentrating: Hold Person',
+      rootUuid: 'Actor.a2',
+      rootName: 'Strahd',
+    });
+    const dependents = [
+      rec({
+        actionId: 'E',
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a1.ActiveEffect.e2',
+        parentUuid: 'Actor.a1',
+        name: 'Hold Person',
+      }),
+      rec({
+        actionId: 'E',
+        op: 'delete',
+        documentName: 'MeasuredTemplate',
+        uuid: 'Scene.s1.MeasuredTemplate.m1',
+        parentUuid: 'Scene.s1',
+        name: null,
+        rootUuid: 'Scene.s1',
+        rootName: 'Castle',
+      }),
+      rec({
+        actionId: 'E',
+        op: 'delete',
+        documentName: 'Region',
+        uuid: 'Scene.s1.Region.r1',
+        parentUuid: 'Scene.s1',
+        name: 'Darkness',
+        rootUuid: 'Scene.s1',
+        rootName: 'Castle',
+      }),
+      rec({
+        actionId: 'E',
+        op: 'delete',
+        documentName: 'Token',
+        uuid: 'Scene.s1.Token.t9',
+        parentUuid: 'Scene.s1',
+        name: 'Wolf (summoned)',
+        rootUuid: 'Scene.s1',
+        rootName: 'Castle',
+      }),
+    ];
+    // The GM's own HP edit of Ireena in the same burst still splits off.
+    const own = hpChange(20, 18, { actionId: 'E' });
+    const actions = buildActions([ai, ...dependents, own]);
+    expect(actions.map(a => a.actionId)).toEqual(['E', `E${OWN_ACTION_SUFFIX}`]);
+    expect(actions[0]).toMatchObject({ changeId: 'chg-3', records: [ai, ...dependents] });
+    expect(actions[1]).toMatchObject({ records: [own] });
+
+    // An AI item delete counts as a source too.
+    const item = rec({
+      ...ai,
+      documentName: 'Item',
+      uuid: 'Actor.a2.Item.i1',
+      name: 'Wand of Hold Person',
+    });
+    expect(buildActions([item, dependents[0]]).map(a => a.actionId)).toEqual(['E']);
+
+    // Without an AI effect or item delete, the same deletes are the person's own action.
+    const update = rec({ ...ai, op: 'update', before: [val('disabled', false)] });
+    expect(buildActions([update, ...dependents]).map(a => a.actionId)).toEqual([
+      'E',
+      `E${OWN_ACTION_SUFFIX}`,
+    ]);
+    const creates = dependents.map(r => ({ ...r, op: 'create' as const }));
+    expect(buildActions([ai, ...creates]).map(a => a.actionId)).toEqual([
+      'E',
+      `E${OWN_ACTION_SUFFIX}`,
+    ]);
+  });
+
   it('names the owner in an ownership line when the user is known', () => {
     const owner = rec({
       before: [val('ownership.u2', 0)],
@@ -565,6 +662,104 @@ describe('ChangeHistory.list', () => {
     expect(await pruned.historyStart()).toBe(twoDaysAgo);
     expect((await pruned.list()).note).toMatch(/before 2026-10-05 are gone/);
     expect((await pruned.list({ source: 'ai' })).note).toBeUndefined();
+
+    // A start inside a day (the module's buffer wrapped) is said with its time.
+    const wrapped = makeHistory({ journalStart: NOW - 2 * 60 * MIN });
+    expect((await wrapped.list()).note).toMatch(/before 2026-10-07 10:00 are gone/);
+    expect((await wrapped.list()).note).toMatch(/buffer wrapped/);
+  });
+
+  it('leaves the start at the span cutoff with no note when the pump only removed files by age', async () => {
+    const cutoff = NOW - CHANGE_HISTORY_DAYS * DAY;
+    const day = (back: number): string => localDateKey(NOW - back * DAY);
+    const seed = (back: number, size = 10): Promise<void> =>
+      store.appendLines('w1', 'gm', changeJournalFileName(day(back)), [
+        { key: `${day(back)}-1`, pad: 'x'.repeat(size) },
+      ]);
+    const emptyJournal = {
+      query: (): Promise<unknown> =>
+        Promise.resolve({
+          success: true,
+          clientId: 'c1',
+          records: [],
+          oldestSeq: 0,
+          latestSeq: 0,
+        }),
+      isConnected: (): boolean => true,
+    };
+    const worldIds = { current: (): Promise<string> => Promise.resolve('w1') };
+    const makePump = (maxBytes?: number): ChangeJournalPump =>
+      new ChangeJournalPump({
+        foundryClient: emptyJournal,
+        worldIds,
+        store,
+        logger,
+        now: () => NOW,
+        ...(maxBytes !== undefined ? { maxBytes } : {}),
+      });
+
+    // Two files older than the span go; the oldest kept day starts before the cutoff.
+    await seed(CHANGE_JOURNAL_RETENTION_DAYS + 2);
+    await seed(CHANGE_JOURNAL_RETENTION_DAYS + 1);
+    await seed(CHANGE_JOURNAL_RETENTION_DAYS);
+    await seed(1);
+    const pump = makePump();
+    await pump.pollOnce();
+    expect(await pump.historyStart('w1')).toBeLessThan(cutoff);
+    const history = makeHistory({ pullNow: null, journalStart: undefined });
+    const linked = new ChangeHistory({
+      store,
+      worldIds,
+      guardedWrites: {
+        listRecentChanges: (): Promise<RecentChange[]> => Promise.resolve(audit),
+        undoState: (): Promise<UndoState> => Promise.resolve(undoState),
+      },
+      logger,
+      ...journalLinks(() => pump),
+      now: (): number => NOW,
+    });
+    expect(await linked.historyStart()).toBe(cutoff);
+    expect(await history.historyStart()).toBe(cutoff);
+    expect((await linked.list()).note).toBeUndefined();
+
+    // The size cap removing a file inside the span moves the start and says so.
+    await seed(3, 1000);
+    await seed(2, 1000);
+    const capped = makePump(1500);
+    await capped.pollOnce();
+    expect(await capped.historyStart('w1')).toBe(new Date(2026, 9, 5).getTime());
+    const cappedHistory = new ChangeHistory({
+      store,
+      worldIds,
+      guardedWrites: {
+        listRecentChanges: (): Promise<RecentChange[]> => Promise.resolve(audit),
+        undoState: (): Promise<UndoState> => Promise.resolve(undoState),
+      },
+      logger,
+      ...journalLinks(() => capped),
+      now: (): number => NOW,
+    });
+    expect(await cappedHistory.historyStart()).toBe(new Date(2026, 9, 5).getTime());
+    expect((await cappedHistory.list()).note).toMatch(/before 2026-10-05 are gone/);
+  });
+
+  it('links the history to a pump that is made later, and stands in while there is none', async () => {
+    let pump: Pick<ChangeJournalPump, 'pullNow' | 'historyStart'> | null = null;
+    const links = journalLinks(() => pump);
+    await expect(links.pullNow()).resolves.toBeUndefined();
+    expect(await links.journalStart('w1')).toBe(0);
+    const pulled = vi.fn(() => Promise.resolve());
+    pump = { pullNow: pulled, historyStart: (): Promise<number> => Promise.resolve(123) };
+    await links.pullNow();
+    expect(pulled).toHaveBeenCalledOnce();
+    expect(await links.journalStart('w1')).toBe(123);
+  });
+
+  it('is wired to the pump in the backend (the history gets the pump links)', async () => {
+    const backend = await fsp.readFile(new URL('./backend.ts', import.meta.url), 'utf8');
+    const wiring =
+      /new ChangeHistory\(\{[\s\S]*?journalLinks\([\s\S]*?changeJournalPump[\s\S]*?\}\);/;
+    expect(backend).toMatch(wiring);
   });
 
   it('skips lines of the files that are not change records', async () => {

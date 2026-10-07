@@ -397,6 +397,43 @@ describe('ChangeJournalPump.pollOnce', () => {
     );
   });
 
+  it('moves the history start to the oldest record still held when the buffer wrapped, and keeps it', async () => {
+    foundry.add({ key: 'a', t: T0 });
+    await makePump().pollOnce();
+    expect(await makePump().historyStart('w1')).toBe(0);
+
+    foundry.add({ key: 'b', t: T0 + 1000 });
+    foundry.add({ key: 'c', t: T0 + 2000 });
+    foundry.add({ key: 'd', t: T0 + 3000 });
+    foundry.evictOldest(2); // 'b' is lost; 'c' is the oldest the buffer still holds
+    const pump = makePump();
+    await pump.pollOnce();
+    expect(await pump.historyStart('w1')).toBe(T0 + 2000);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Change journal records lost: the ring buffer wrapped before the pump read them',
+      expect.objectContaining({ completeFrom: new Date(T0 + 2000).toISOString() })
+    );
+    const saved = await store.read<{ completeFrom?: number }>('w1', 'gm', CHANGE_PUMP_STATE_FILE);
+    expect(saved?.data.completeFrom).toBe(T0 + 2000);
+
+    // A fresh process reads it back; a later poll without loss leaves it alone.
+    foundry.add({ key: 'e', t: T0 + 4000 });
+    const next = makePump();
+    await next.pollOnce();
+    expect(await next.historyStart('w1')).toBe(T0 + 2000);
+
+    // The later of the two starts wins: a file removed by age the day before does not lower it.
+    await store.appendLines(
+      'w1',
+      'gm',
+      changeJournalFileName(localDateKey(T0 - 30 * 24 * 60 * 60 * 1000)),
+      [{ key: 'old' }]
+    );
+    const retained = makePump({ now: () => T0 + 5000 });
+    await retained.pollOnce();
+    expect(await retained.historyStart('w1')).toBe(T0 + 2000);
+  });
+
   it('does not warn about loss across a clientId change', async () => {
     foundry.add({ key: 'a' });
     await makePump().pollOnce();

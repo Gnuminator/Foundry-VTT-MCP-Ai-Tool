@@ -12,11 +12,13 @@ import { consoleFindingId } from './studio-compare.mjs';
 import { loadExpected } from './studio-expected.mjs';
 
 /**
- * @typedef {{at: string, message: string, source: string, scenario?: string}} RawConsoleError
+ * @typedef {{at: string, message: string, source: string, scenario?: string, page?: string}} RawConsoleError
+ *   page: 'dashboard' or 'player' for a slice 4 page (absent: the Foundry GM page)
  * @typedef {object} ConsoleGroup
  * @property {string} id         the finding id ("console:gas.captureAdvancement")
  * @property {string} message    the first line, with ids and positions stripped
  * @property {string} source     the place, without host and line numbers ("pageerror" stays)
+ * @property {string} [page]     'dashboard' or 'player' for a slice 4 page (absent: the Foundry GM page)
  * @property {number} count
  * @property {string} first      time of the first one
  * @property {string} last       time of the last one
@@ -79,10 +81,17 @@ const slug = text =>
 
 /**
  * The finding id of one console error: the hook it names, else the file it failed to load; a page
- * error gets its own id from the function it was thrown in.
+ * error gets its own id from the function it was thrown in. An error of a slice 4 page (`e.page`)
+ * gets `console:<page>:...`, so it is never taken for a known Foundry finding.
  * @param {RawConsoleError} e
  */
 export function consoleErrorId(e) {
+  const id = foundryErrorId(e);
+  return e.page ? id.replace(/^console:/, `console:${e.page}:`) : id;
+}
+
+/** @param {RawConsoleError} e */
+function foundryErrorId(e) {
   const message = String(e.message ?? '');
   const source = String(e.source ?? '');
   if (source === 'pageerror' && !/for hook '/.test(message)) {
@@ -116,7 +125,7 @@ export function groupConsoleErrors(errors, opts = {}) {
   for (const e of errors ?? []) {
     const source = normalizeSource(e.source);
     const message = normalizeMessage(e.message, String(e.source));
-    const key = `${message}\u0000${source}`;
+    const key = `${message}\u0000${source}${e.page ? `\u0000${e.page}` : ''}`;
     const scenario = e.scenario || '';
     let g = groups.get(key);
     if (!g) {
@@ -126,6 +135,7 @@ export function groupConsoleErrors(errors, opts = {}) {
         id,
         message,
         source,
+        ...(e.page ? { page: e.page } : {}),
         count: 0,
         first: String(e.at),
         last: String(e.at),

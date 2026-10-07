@@ -1724,6 +1724,46 @@ async function createMonster(args) {
 }
 
 /**
+ * Sets the bridge module's feature switches (`feature.<id>.enabled`); returns the values before, so the
+ * caller can put them back. A switch this module version does not register is left out of `before`.
+ * @param {{switches: Record<string, boolean>}} args
+ */
+async function setFeatureSwitches(args) {
+  const id = 'foundry-mcp-bridge';
+  /** @type {Record<string, boolean>} */
+  const before = {};
+  for (const [feature, value] of Object.entries(args.switches ?? {})) {
+    const key = `feature.${feature}.enabled`;
+    if (!game.settings.settings.has(`${id}.${key}`)) continue;
+    before[feature] = game.settings.get(id, key) === true;
+    if (before[feature] !== value) await game.settings.set(id, key, value);
+  }
+  return { before };
+}
+
+/**
+ * The kit's party group (a dnd5e `group` actor of type party, flagged as kit so a rebuild wipes it),
+ * made with the given members when the world has none. Test data: it stays in the kit world.
+ * @param {{name: string, memberIds: string[], folderId?: string, _kit: {flagScope: string, flagKey: string}}} args
+ */
+async function ensurePartyGroup(args) {
+  const { flagScope, flagKey } = args._kit;
+  const found = game.actors.find(
+    a => a.type === 'group' && a.name === args.name && a.getFlag(flagScope, flagKey)
+  );
+  if (found) return { groupId: found.id, created: false };
+  const data = {
+    name: args.name,
+    type: 'group',
+    system: { type: { value: 'party' }, members: (args.memberIds ?? []).map(actor => ({ actor })) },
+  };
+  if (args.folderId) data.folder = args.folderId;
+  foundry.utils.setProperty(data, `flags.${flagScope}.${flagKey}`, { built: true, party: true });
+  const group = await Actor.implementation.create(data);
+  return { groupId: group.id, created: true };
+}
+
+/**
  * Deletes probe actors. Only an actor that createMonster made (the kit flag with `probe: true`) is
  * deleted; any other actor, kit hero or kit monster included, is refused.
  * @param {{actorIds: string[], _kit: {flagScope: string, flagKey: string}}} args
@@ -1795,6 +1835,8 @@ export const GM_ACTION_FUNCTIONS = {
   startCombat,
   endCombats,
   readActor,
+  setFeatureSwitches,
+  ensurePartyGroup,
   listMonsters,
   createMonster,
   deleteMonsters,

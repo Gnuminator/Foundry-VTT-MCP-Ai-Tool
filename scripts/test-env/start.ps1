@@ -57,6 +57,11 @@ function Start-TestService([string]$Name, [int]$Port, [string[]]$NodeArgs, [hash
   }
   $script:pids[$Name] = $nodePid
   Write-Pids $script:pids
+  # The start time (pids.started.json) lets stop.ps1 tell this process from one that reused its pid.
+  $starts = Read-Starts
+  $started = Get-ProcessStartTime $nodePid
+  if ($started) { $starts[$Name] = @{ pid = $nodePid; started = $started } } else { $starts.Remove($Name) }
+  Write-Starts $starts
   if ($opened) {
     Write-Host "$Name : listening on 127.0.0.1:$Port (pid $nodePid)"
   } else {

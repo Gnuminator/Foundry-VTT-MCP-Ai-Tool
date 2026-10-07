@@ -417,6 +417,18 @@ async function cmdTarget(command, o) {
       return EXIT.PASS;
     }
     say(`running ${list.length} scenarios (${o.size}) in ${o.world}`);
+    // The report folder is decided before the scenarios run, so t.attachFile can write into it.
+    const dir = o.reportDir || newRunDir(kitHome(), o.size);
+    mkdirSync(dir, { recursive: true });
+    // Dashboard pages in the GM's Edge for the scenarios (not against the fake, which has no Edge).
+    /** @type {any} */
+    let browserFactory;
+    if (!fake && gmSession?.page) {
+      const { createKitBrowser } = await importLib('lib/dashboard-browser.mjs');
+      const context = gmSession.page.context();
+      browserFactory = (scenarioId, sink) =>
+        createKitBrowser({ dashboardUrl: target.dashboard, context, scenarioId, sink });
+    }
     /** @type {any[]} */
     let results = [];
     /** @type {any[]} */
@@ -431,6 +443,7 @@ async function cmdTarget(command, o) {
         fake: o.fake,
         size: /** @type {'smoke'|'full'|'long'} */ (o.size),
         log: say,
+        ...(browserFactory ? { browserFactory, filesDir: path.join(dir, 'files') } : {}),
       }));
     } catch (e) {
       if (!(e instanceof EnvError)) throw e;
@@ -449,7 +462,6 @@ async function cmdTarget(command, o) {
       results,
       consoleErrors,
     });
-    const dir = o.reportDir || newRunDir(kitHome(), o.size);
     const files = writeReport(report, dir);
     const s = report.summary;
     say('');

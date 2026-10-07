@@ -482,6 +482,23 @@ const ACTIONS = {
     };
   },
 
+  setFeatureSwitches: (w, args) => {
+    w.featureSwitches ??= {};
+    /** @type {Record<string, boolean>} */
+    const before = {};
+    for (const [feature, value] of Object.entries(args.switches ?? {})) {
+      before[feature] = w.featureSwitches[feature] === true;
+      w.featureSwitches[feature] = value;
+    }
+    return { before };
+  },
+
+  ensurePartyGroup: (w, args) => {
+    if (w.partyGroupId) return { groupId: w.partyGroupId, created: false };
+    w.partyGroupId = `group-${args.name}`;
+    return { groupId: w.partyGroupId, created: true };
+  },
+
   inspectFeatures: (w, args) =>
     w.actors.get(args.actorId)?.sheet?.monster
       ? fakeInspectMonster(w, args)

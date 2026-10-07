@@ -201,31 +201,83 @@ Start a `full` run in the background and do not wait on it.
 
 ## The scenarios
 
-Eighteen SRD scenarios ship in the repo. All are in `smoke` and `full`; `heroes-advancement`, the two
+Twenty-two SRD scenarios ship in the repo. The first eighteen in the table are in `smoke` and `full`; `heroes-advancement`, the two
 feature scenarios, `heroes-studio`, the three monster scenarios, the two spell scenarios and the four origin
 scenarios are in `long` as well. The spell scenarios use the sizes differently: `smoke` casts a sample of about
-thirty spells, `full` and `long` cast them all.
+thirty spells, `full` and `long` cast them all. The dashboard scenarios at the end of the table are real-browser
+scenarios with their own sizes, named in the table and in the text after it.
 
-| Id                     | What it proves                                                                                                |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `bridge-health`        | The bridge, dashboard and module agree: health, world, module version, all tools, the kit.                    |
-| `compendium-monsters`  | Every kit monster matches its compendium entry and has a token on the scene.                                  |
-| `guarded-damage-undo`  | A guarded damage change applies, is listed, undoes exactly, and healing stops at the max.                     |
-| `scripted-fight`       | A short fight shows up the same way in combat state, play-by-play, session log and stats.                     |
-| `player-no-spoilers`   | A hidden token and monster HP never reach the player screen; the player's hero shows HP.                      |
-| `heroes-advancement`   | Every hero has what its class and subclass give at its level.                                                 |
-| `heroes-features-use`  | Every feature of every hero can be used once with no dialog; the hero is put back.                            |
-| `heroes-features-deep` | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.                              |
-| `heroes-studio`        | A hero per class built in Actor Studio's own windows equals the raw kit hero.                                 |
-| `monsters-every`       | Every monster of every pack of the profile is copied in, uses one action and is deleted.                      |
-| `monsters-matrix`      | The monsters by CR band, type, size and trait, the gaps, and the data every creature needs.                   |
-| `monsters-odd`         | Legendary actions and resistance, lair, regeneration, shapechangers, movement, recharge, multiattack, spells. |
-| `origins-species`      | Every species gives its size, speed, senses, traits and features; each feature can be used.                   |
-| `origins-backgrounds`  | Every background gives its ability scores, proficiencies and origin feat.                                     |
-| `origins-feats`        | Every feat can be taken by a hero that meets its prerequisites and does what its data says.                   |
-| `heroes-multiclass`    | Multiclass heroes get the reduced proficiencies, the combined slots and the features of both classes.         |
-| `spells-cast-all`      | Every spell of the profile's spell packs can be cast once; the caster is put back.                            |
-| `spells-deep`          | 31 rule checks on SRD spells: attacks, saves, areas, concentration, upcasting, slots.                         |
+| Id                      | What it proves                                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `bridge-health`         | The bridge, dashboard and module agree: health, world, module version, all tools, the kit.                              |
+| `compendium-monsters`   | Every kit monster matches its compendium entry and has a token on the scene.                                            |
+| `guarded-damage-undo`   | A guarded damage change applies, is listed, undoes exactly, and healing stops at the max.                               |
+| `scripted-fight`        | A short fight shows up the same way in combat state, play-by-play, session log and stats.                               |
+| `player-no-spoilers`    | A hidden token and monster HP never reach the player screen; the player's hero shows HP.                                |
+| `heroes-advancement`    | Every hero has what its class and subclass give at its level.                                                           |
+| `heroes-features-use`   | Every feature of every hero can be used once with no dialog; the hero is put back.                                      |
+| `heroes-features-deep`  | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.                                        |
+| `heroes-studio`         | A hero per class built in Actor Studio's own windows equals the raw kit hero.                                           |
+| `monsters-every`        | Every monster of every pack of the profile is copied in, uses one action and is deleted.                                |
+| `monsters-matrix`       | The monsters by CR band, type, size and trait, the gaps, and the data every creature needs.                             |
+| `monsters-odd`          | Legendary actions and resistance, lair, regeneration, shapechangers, movement, recharge, multiattack, spells.           |
+| `origins-species`       | Every species gives its size, speed, senses, traits and features; each feature can be used.                             |
+| `origins-backgrounds`   | Every background gives its ability scores, proficiencies and origin feat.                                               |
+| `origins-feats`         | Every feat can be taken by a hero that meets its prerequisites and does what its data says.                             |
+| `heroes-multiclass`     | Multiclass heroes get the reduced proficiencies, the combined slots and the features of both classes.                   |
+| `spells-cast-all`       | Every spell of the profile's spell packs can be cast once; the caster is put back.                                      |
+| `spells-deep`           | 31 rule checks on SRD spells: attacks, saves, areas, concentration, upcasting, slots.                                   |
+| `dashboard-write-flows` | The dashboard's write flows clicked in Edge: confirm, Undo, Tarokka, party, handouts, notes, links. Full and long only. |
+| `dashboard-login-split` | With a GM and a player token: no token gets nothing, `/player` has no GM controls, the GM token works. Runs last.       |
+| `dashboard-controls`    | Every dashboard and player control is there, opens what it should and logs no console error. Full and long only.        |
+| `player-rendered`       | The drawn player page shows no hidden token, true monster name or canary. Smoke and full.                               |
+
+`dashboard-write-flows` and `dashboard-login-split` need a real browser (`t.browser`), so against the fake
+they skip themselves. The write flows click the real page (the tool runner form and its confirm window, Undo
+in Recent Changes and on the toast, the Tarokka, Party and Handouts drawers, a map note, the player links),
+read Foundry or the bridge to see the change is there, undo it and read again; they put everything back, also
+after a failure (the throwaway handout journal and the "Kit Party" group stay in the kit world). The Tarokka,
+handouts and party features are switched on for the run and put back afterwards; a flow skips itself with the
+reason when the world still lacks something (a switch the run does not manage), but a refusal that names a
+switch the run turned on itself (those three features, GM Actions) fails the flow. The page the login
+split opens with no token is meant to fail: its console errors are attached to the scenario instead of the
+report's console list and checked there (each one must be a 401 or a failed resource with no status; a script
+error fails the step), and every page is closed before a restart. The login split restarts the test
+dashboard (`lib/dashboard-proc.mjs`: `stop.ps1` and `start.ps1 -Only dashboard`) with two random tokens made
+at run time, checks three states in a fresh Edge with no cookies (the player page is read once it has drawn
+its world line), and restarts it in the normal mode on the way out, also after a failure, so the split never
+stays on. The restart is guarded three ways: the kit refuses before stopping anything when its own checkout has
+no built dashboard (`start.ps1` would leave it down), it skips itself when the dashboard already runs in a
+split it did not make (it cannot put those tokens back), and `stop.ps1` kills a recorded pid only when it is
+ours: a node process that owns the service's port or whose command line shows the service `start.ps1` starts
+(ours, but not on its port yet), or the `cmd.exe` wrapper with our command line (its node child is stopped
+first). `start.ps1` records each process's start time, with its pid, in `pids.started.json` next to `pids.json`
+(a separate file, so older checkouts' readers never see it; the time counts only for the pid it was recorded
+with, since an older checkout may cycle a service without touching it), so a pid another process holds by now
+(another start time, or another command line) is reported as not running and forgotten; one that holds our port, or one whose command
+line cannot be read and listens on nothing, is refused with exit code 1 (the pid is kept in the second case), as
+is a kill that did not take or a port still open after our process was stopped. `reset-demo-world.ps1` stops on
+a refusal, or on an open Foundry port, instead of copying over an open world. The decision is a pure function (`Resolve-StopAction` in `config.ps1`) with a table test
+(`stop-decision.test.mjs`, through `pwsh`).
+
+`dashboard-controls` and `player-rendered` also need a real browser and skip themselves against the fake.
+The control sweep walks a classification table (`lib/dashboard-controls.mjs`) with one row for every
+dashboard and player control in the usage catalog, and a unit test fails when a control has no row (a new
+control must be classified on purpose). A row says what a test may do with the control: open it, read it,
+toggle it and put it back, check it is present (Obsidian and Foundry links, the AI controls), or never click it
+(it changes the game or the world, and the write flows cover it). One report step per drawer or group lists
+the controls that failed; the `controls` attachment has one row per control (pass, fail or skip with the
+reason), and the report links one screenshot per drawer, view, moment and During layout for a person to
+look at (no pixel comparison). A control that depends on data (a boss in the combat, a stored Tarokka reading,
+AI on) is skipped with a note when it is not on the screen, never failed; a console error during a row fails
+it even so (the sweep waits a moment after each row so a late error lands on the row that caused it). The
+tool runner's Pick button and the player page's name picker are required rows: every kit world has tools with
+a picker and the kit player user. The sweep turns GM Actions on for the run (put back afterwards) so the
+Everyone tab's Undo opens its window, and walks that window read-only: Just this, Everything since and the
+rewind under Advanced only plan, Apply is never clicked. The sweep puts the page back after
+each control: the theme, the During layout, any open drawer, the undo window and the AI tab of Recent Changes. `player-rendered` places a hidden token with a
+canary name in a combat, opens `/player`, waits for the page to draw the combat and checks that neither the
+HTML nor the text of the page names the canary or the monsters' true names.
 
 ### heroes-advancement
 
@@ -828,7 +880,7 @@ A scenario is a file `<id>.scenario.mjs` whose default export describes it. The 
 - `gmActions`: every GM action it calls (the only way to run code inside Foundry).
 - `run(t)`: the scenario. `t` has `step`, `check`, `equal`, `tool`, `guarded.planApply`,
   `guarded.undo`, `gm`, `player.state`, `player.html`, `http`, `kit` (the manifest), `log`,
-  `attach` and `cleanup`.
+  `attach`, `attachFile`, `browser` (dashboard pages in Edge, see below) and `cleanup`.
 
 A tiny example:
 
@@ -868,6 +920,32 @@ Rules of thumb:
   that worked.
 - A `continueOnFail` step lets the scenario go on after a failure. Use it for lists of
   independent checks, such as one step per monster or per hero.
+
+### Dashboard pages and screenshots
+
+A scenario that checks the dashboard or the player view in a real browser uses `t.browser` and
+`t.attachFile`. Both are for the live run only: against the fake `t.browser` is null (check for it and
+call `t.skip(...)`), and `t.attachFile` returns null when the run has no report folder.
+
+- `await t.browser.open(path, { fresh, viewport })` opens a page of the dashboard (`path` is relative,
+  for example `/` or `/player`) and waits for it to load. It returns a Playwright page. By default the
+  page is a new tab in the GM's Edge. With `fresh: true` it is a separate headless Edge with no cookies,
+  for the login checks; that browser starts the first time a scenario asks for it. `viewport` sets the
+  size, for example `{ width: 390, height: 844 }` for a phone.
+- `t.browser.consoleErrors(page)` returns the console and page errors of that page so far (of every page
+  of the scenario without an argument). The runner also puts them in the report's console errors with
+  `page: 'dashboard'` or `'player'` (a path starting with `/player`), grouped apart from Foundry's errors.
+  Close nothing yourself: the runner closes every page after the scenario, even when it failed.
+- `t.attachFile(name, data, { type })` writes a file (a screenshot from `page.screenshot()`, `type`
+  `'image/png'` by default) to `<report folder>/files/<scenario id>/<name>`. The name is cut down to
+  lower case letters, digits, `.`, `_` and `-`. The report links the file in `report.md` and shows images
+  in `report.html`. It returns the written path.
+
+```js
+const page = await t.browser.open('/player', { viewport: { width: 390, height: 844 } });
+t.attachFile('player-phone.png', await page.screenshot({ fullPage: true }));
+t.check(t.browser.consoleErrors(page).length === 0, 'the player page logs no errors');
+```
 
 ## Where things live
 

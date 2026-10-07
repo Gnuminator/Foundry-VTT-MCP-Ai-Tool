@@ -42,8 +42,19 @@ test('all --fake builds the kit and every scenario passes', () => {
     assert.ok(report, 'a report was written');
     assert.equal(report.run.fake, true);
     assert.equal(report.summary.failed, 0);
+    // A scenario that drives dashboard pages in a real browser skips itself against the fake, saying so.
+    const needsBrowser = report.scenarios.filter(s => s.status === 'skip');
+    for (const s of needsBrowser) {
+      assert.ok(
+        s.steps.some(x => x.status === 'skip' && /real browser/.test(x.detail ?? '')),
+        `${s.id} skipped without saying it needs a real browser`
+      );
+    }
     assert.equal(report.summary.passed, 18, `passed ${report.summary.passed}`);
-    for (const s of report.scenarios) assert.equal(s.status, 'pass', `${s.id}: ${s.status}`);
+    for (const s of report.scenarios) {
+      if (needsBrowser.includes(s)) continue;
+      assert.equal(s.status, 'pass', `${s.id}: ${s.status}`);
+    }
     assert.equal(report.build.heroes.length, 6); // smoke: one level 5 hero per class
     assert.equal(report.build.monsters.length, 11);
   } finally {
@@ -93,7 +104,12 @@ test('the fake implements every GM action and every tool the scenarios and the b
     'get-compendium-item',
     'create-actor-from-compendium',
   ]);
-  for (const { scenario } of scenarios) for (const name of scenario.tools) wanted.add(name);
+  // A scenario that drives dashboard pages in a real browser (t.browser) skips itself against the fake,
+  // so the fake does not need the tools it clicks.
+  for (const { scenario, file, dir } of scenarios) {
+    if (readFileSync(path.join(dir, file), 'utf8').includes('t.browser')) continue;
+    for (const name of scenario.tools) wanted.add(name);
+  }
   const missing = [...wanted].filter(name => !FAKE_TOOL_NAMES.includes(name));
   assert.deepEqual(missing, []);
 });

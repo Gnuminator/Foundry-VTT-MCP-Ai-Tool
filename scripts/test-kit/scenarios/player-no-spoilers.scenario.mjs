@@ -44,7 +44,11 @@ export default {
       });
       // Runs last: the combat is over by then, so the token can go.
       t.cleanup(async () => {
-        await t.guarded.planApply('plan-token-change', { action: 'delete', tokens: [CANARY] });
+        // By id: a run that died before its cleanup leaves a token of the same name behind.
+        await t.guarded.planApply('plan-token-change', {
+          action: 'delete',
+          tokens: [hidden.tokenId],
+        });
       });
     });
 

@@ -117,6 +117,10 @@ test(
         CommandLine: '"node.exe" other-server.js',
         StartTime: '2026-10-07T18:30:00.0000000Z',
       }),
+      // 16 the same instant written with a zone offset (as a tool may hand it back): still ours
+      facts({ RecordedStart: '2026-10-07T18:00:00.0000000+02:00' }),
+      // 17 start times a second apart (two reads of one process): still ours
+      facts({ RecordedStart: '2026-10-07T16:00:01.0000000Z' }),
     ];
     const got = decide(cases).map(d => d.Action);
     assert.deepEqual(got, [
@@ -136,6 +140,8 @@ test(
       'stop',
       'refuse',
       'none',
+      'stop',
+      'stop',
     ]);
     const messages = decide(cases).map(d => d.Message);
     assert.match(messages[3], /reused by pwsh, started at another time/);

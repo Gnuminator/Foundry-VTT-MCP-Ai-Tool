@@ -235,18 +235,27 @@ function Read-Pids {
   if (Test-Path $TestEnv.PidFile) {
     $h = @{}
     (Get-Content $TestEnv.PidFile -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object {
-      if ($_.Name -like '*.started') { $h[$_.Name] = [string]$_.Value } else { $h[$_.Name] = [int]$_.Value }
+      # ConvertFrom-Json turns an ISO 8601 text into a DateTime: keep the instant, as UTC text.
+      if ($_.Name -like '*.started') { $h[$_.Name] = ConvertTo-UtcInstant $_.Value } else { $h[$_.Name] = [int]$_.Value }
     }
     return $h
   }
   return @{}
 }
 
+# A point in time as UTC ISO 8601 text ('o'), from a DateTime or an ISO 8601 text; $null when empty.
+function ConvertTo-UtcInstant($Value) {
+  if ($null -eq $Value -or $Value -eq '') { return $null }
+  if ($Value -is [DateTime]) { return $Value.ToUniversalTime().ToString('o') }
+  if ($Value -is [DateTimeOffset]) { return $Value.UtcDateTime.ToString('o') }
+  return [DateTime]::Parse([string]$Value, [Globalization.CultureInfo]::InvariantCulture, 'RoundtripKind').ToUniversalTime().ToString('o')
+}
+
 # The start time of a process as ISO 8601 text, or $null when it cannot be read.
 function Get-ProcessStartTime([int]$ProcessId) {
   try {
     $p = Get-Process -Id $ProcessId -ErrorAction Stop
-    return $p.StartTime.ToUniversalTime().ToString('o')
+    return ConvertTo-UtcInstant $p.StartTime
   } catch {
     return $null
   }
@@ -272,9 +281,11 @@ function Get-ProcessStartTime([int]$ProcessId) {
 function Resolve-StopAction([hashtable]$F) {
   $who = "the recorded pid $($F.ProcessId) ($($F.ProcessName))"
   if (-not $F.Exists) { return @{ Action = 'none'; Message = 'not running' } }
-  if ($F.RecordedStart -and $F.StartTime) {
-    $recorded = [DateTime]::Parse($F.RecordedStart, $null, 'RoundtripKind')
-    $actual = [DateTime]::Parse($F.StartTime, $null, 'RoundtripKind')
+  $recordedText = ConvertTo-UtcInstant $F.RecordedStart
+  $actualText = ConvertTo-UtcInstant $F.StartTime
+  if ($recordedText -and $actualText) {
+    $recorded = [DateTime]::Parse($recordedText, [Globalization.CultureInfo]::InvariantCulture, 'RoundtripKind')
+    $actual = [DateTime]::Parse($actualText, [Globalization.CultureInfo]::InvariantCulture, 'RoundtripKind')
     if ([Math]::Abs(($actual - $recorded).TotalSeconds) -gt 2) {
       return @{ Action = 'none'; Message = "not running (pid $($F.ProcessId) was reused by $($F.ProcessName), started at another time)" }
     }

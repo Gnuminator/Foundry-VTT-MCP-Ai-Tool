@@ -81,6 +81,23 @@ describe('describeRecord', () => {
     expect(describeRecord(hpChange(10, 5))).toEqual(['Ireena: HP 10 -> 5']);
   });
 
+  it('names a nameless root (a Combat) by its kind', () => {
+    const combatant = {
+      documentName: 'Combatant',
+      uuid: 'Combat.cb1.Combatant.cm1',
+      parentUuid: 'Combat.cb1',
+      name: 'Wolf 1',
+      rootUuid: 'Combat.cb1',
+      before: [val('initiative', null)],
+      after: [val('initiative', 12)],
+    };
+    expect(describeRecord(rec({ ...combatant, rootName: null }))).toEqual([
+      'Combat: Combatant "Wolf 1" initiative null -> 12',
+    ]);
+    // Records made before the module sent null for an empty name.
+    expect(describeRecord(rec({ ...combatant, rootName: '' }))[0]).toMatch(/^Combat: /);
+  });
+
   it('names a plain path when it has no label, and says "now" without a before value', () => {
     expect(
       describeRecord(

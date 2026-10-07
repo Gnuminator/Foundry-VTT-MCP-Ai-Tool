@@ -154,9 +154,16 @@ function subjectOf(r: ChangeRecord): { subject: string; inner: string } {
   }
   if (isRoot) return { subject: `${documentLabel(r.documentName)}${quoted(r.name)}`, inner: '' };
   return {
-    subject: r.rootName ?? 'Something',
+    subject: r.rootName || rootLabel(r.rootUuid),
     inner: `${documentLabel(r.documentName)}${quoted(r.name)}`,
   };
+}
+
+/** A nameless root (a Combat) by its kind, read from its uuid (`Combat.cb1` gives `Combat`). */
+function rootLabel(rootUuid: string): string {
+  const parts = rootUuid.split('.');
+  const kind = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+  return kind ? documentLabel(kind) : 'Something';
 }
 
 function beforeOf(r: ChangeRecord, path: string): PathValue | undefined {

@@ -6,6 +6,7 @@ import { getTarokkaReading, searchLinkCandidates } from './tarokka.js';
 import { listRefChoices } from './data-access/ref-choices.js';
 import { setCampaignPartStatus } from './campaign-hooks.js';
 import { listGuardedFeatures } from './guarded-features.js';
+import { changeJournal } from './change-journal.js';
 import { playRecorder } from './play-recorder.js';
 import { usageRecorder } from './usage-recorder.js';
 import {
@@ -424,6 +425,15 @@ export class QueryHandlers {
       (data: { sinceSeq?: unknown; limit?: unknown } | undefined) =>
         this.withGmGate('Failed to get play records', () =>
           Promise.resolve(playRecorder.getPlayRecords(data))
+        )
+    );
+
+    // I-109: change journal (every create, update and delete with before and after, for full undo)
+    handlers.set(
+      `${modulePrefix}.getChangeJournal`,
+      (data: { sinceSeq?: unknown; limit?: unknown } | undefined) =>
+        this.withGmGate('Failed to get the change journal', () =>
+          Promise.resolve(changeJournal.getChangeJournal(data))
         )
     );
 

@@ -18,6 +18,7 @@
  * Wire types mirror `shared/src/guarded-write.ts` (the module does not import
  * the shared package); `GUARDED_OP_KINDS` is compared in a test.
  */
+import type { ChangeWriteMode } from '../change-journal-types.js';
 import { MODULE_ID } from '../constants.js';
 import { eventTracker } from '../session-events.js';
 import { isFeatureEnabled, isKnownFeature } from '../guarded-features.js';
@@ -390,10 +391,24 @@ interface Executed {
   result: GuardedOpResult;
 }
 
+/**
+ * The marker every write of the executor carries in its operation options, so
+ * the change journal (I-109) can say which AI change made it. A rollback
+ * carries the original apply's changeId with mode `rollback`. A new object per
+ * write: Foundry's pre-hooks add their stash to it.
+ */
+function writeMarker(
+  req: GuardedApplyRequest,
+  changeMode: ChangeWriteMode = req.mode
+): Record<string, unknown> {
+  return { [MODULE_ID]: { changeId: req.changeId, changeMode } };
+}
+
 async function executeUpdate(
   op: GuardedUpdateOp,
   index: number,
-  req: GuardedApplyRequest
+  req: GuardedApplyRequest,
+  changeMode?: ChangeWriteMode
 ): Promise<GuardedOpResult> {
   const doc = await resolve(op.uuid);
   if (!doc) throw new Error(`Document not found: ${op.uuid}`);
@@ -410,8 +425,8 @@ async function executeUpdate(
   for (const path of unset) {
     if (ownershipKeyOf(path) === null) Object.assign(update, unsetKeyUpdate(path));
   }
-  if (Object.keys(update).length > 0) await doc.update(update);
-  await removeOwnershipKeys(doc, ownershipKeys);
+  if (Object.keys(update).length > 0) await doc.update(update, writeMarker(req, changeMode));
+  await removeOwnershipKeys(doc, ownershipKeys, writeMarker(req, changeMode));
   const afterSource = sourceOf(doc);
   return {
     index,
@@ -439,19 +454,24 @@ function ownershipKeyOf(path: string): string | null {
  * it, the way Foundry's own ownership dialog does (`recursive: false`). Only
  * the top-level `ownership` field, so nothing else can be replaced by accident.
  */
-async function removeOwnershipKeys(doc: FoundryDocument, keys: string[]): Promise<void> {
+async function removeOwnershipKeys(
+  doc: FoundryDocument,
+  keys: string[],
+  marker: Record<string, unknown>
+): Promise<void> {
   if (keys.length === 0) return;
   const current = (sourceOf(doc) as { ownership?: Record<string, unknown> }).ownership;
   if (!current || !keys.some(key => key in current)) return;
   const ownership = { ...current };
   for (const key of keys) delete ownership[key];
-  await doc.update({ ownership }, { diff: false, recursive: false });
+  await doc.update({ ownership }, { diff: false, recursive: false, ...marker });
 }
 
 async function executeCreate(
   op: GuardedCreateOp,
   index: number,
-  req: GuardedApplyRequest
+  req: GuardedApplyRequest,
+  changeMode?: ChangeWriteMode
 ): Promise<GuardedOpResult> {
   const data = foundry.utils.deepClone(op.data);
   if (req.mode === 'apply' && isRulesTagged(op.documentName)) {
@@ -461,7 +481,7 @@ async function executeCreate(
       flags[MODULE_ID] = { ...(flags[MODULE_ID] ?? {}), rules: tag };
     }
   }
-  const operation = op.keepId ? { keepId: true } : {};
+  const operation = { ...(op.keepId ? { keepId: true } : {}), ...writeMarker(req, changeMode) };
   let created: FoundryDocument | undefined;
   if (op.parentUuid) {
     const parent = await resolve(op.parentUuid);
@@ -483,7 +503,12 @@ async function executeCreate(
   };
 }
 
-async function executeDelete(op: GuardedDeleteOp, index: number): Promise<GuardedOpResult> {
+async function executeDelete(
+  op: GuardedDeleteOp,
+  index: number,
+  req: GuardedApplyRequest,
+  changeMode?: ChangeWriteMode
+): Promise<GuardedOpResult> {
   const doc = await resolve(op.uuid);
   if (!doc) throw new Error(`Document not found: ${op.uuid}`);
   const deleted = sourceOf(doc);
@@ -496,7 +521,7 @@ async function executeDelete(op: GuardedDeleteOp, index: number): Promise<Guarde
     parentUuid: doc.parent?.uuid ?? null,
     deleted,
   };
-  await doc.delete();
+  await doc.delete(writeMarker(req, changeMode));
   return result;
 }
 
@@ -527,10 +552,10 @@ export function inverseOf(executed: GuardedOpResult): GuardedOp {
   }
 }
 
-async function rollback(done: Executed[]): Promise<string[]> {
+async function rollback(done: Executed[], original: GuardedApplyRequest): Promise<string[]> {
   const failures: string[] = [];
   const undoReq: GuardedApplyRequest = {
-    changeId: 'rollback',
+    changeId: original.changeId,
     feature: 'rollback',
     mode: 'undo',
     summary: 'rollback',
@@ -539,7 +564,7 @@ async function rollback(done: Executed[]): Promise<string[]> {
   };
   for (const { result } of [...done].reverse()) {
     try {
-      await executeOp(inverseOf(result), result.index, undoReq);
+      await executeOp(inverseOf(result), result.index, undoReq, 'rollback');
     } catch (error) {
       failures.push(
         `op ${result.index}: ${error instanceof Error ? error.message : String(error)}`
@@ -552,15 +577,16 @@ async function rollback(done: Executed[]): Promise<string[]> {
 function executeOp(
   op: GuardedOp,
   index: number,
-  req: GuardedApplyRequest
+  req: GuardedApplyRequest,
+  changeMode?: ChangeWriteMode
 ): Promise<GuardedOpResult> {
   switch (op.kind) {
     case 'update':
-      return executeUpdate(op, index, req);
+      return executeUpdate(op, index, req, changeMode);
     case 'create':
-      return executeCreate(op, index, req);
+      return executeCreate(op, index, req, changeMode);
     case 'delete':
-      return executeDelete(op, index);
+      return executeDelete(op, index, req, changeMode);
   }
 }
 
@@ -614,7 +640,7 @@ async function runGuardedApply(
       done.push({ op, result: await executeOp(op, index, req) });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const failures = await rollback(done);
+      const failures = await rollback(done, req);
       const rolled =
         failures.length === 0
           ? `the ${done.length} earlier op(s) were rolled back`

@@ -85,6 +85,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getActorOwnership',
   'getAvailableConditions',
   'getAvailablePacks',
+  'getChangeJournal',
   'getCharacterInfo',
   'getCharacterResources',
   'getChatLog',

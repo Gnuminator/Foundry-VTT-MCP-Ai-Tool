@@ -369,7 +369,8 @@ export class ChangeHistory {
   async humanActions(): Promise<ChangeAction[]> {
     await this.pull([]);
     const worldId = await this.worldIds.current();
-    return (await this.actionsFor(worldId)).filter(a => a.records.some(r => !r.changeId));
+    // Same rule as `list()`: an action with an AI record is the AI change's.
+    return (await this.actionsFor(worldId)).filter(a => !a.changeId);
   }
 
   /** Fetch the newest journal records; says in `notes` when that did not work. */

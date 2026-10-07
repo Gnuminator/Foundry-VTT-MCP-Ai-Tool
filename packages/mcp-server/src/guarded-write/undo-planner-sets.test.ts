@@ -417,6 +417,16 @@ describe('guards on one change', () => {
     expect(planInput().notes).toEqual([]);
   });
 
+  it('says nothing when a document the set created is already gone', async () => {
+    records.push(hp(1, 10, 8, 'first'), itemRecord(2, 'made', { op: 'create' }));
+    foundry.edit('Actor.a', num(HP, 8));
+    await plan('act:first', 'everything-since');
+    expect(opsOf()).toEqual([
+      { kind: 'update', uuid: 'Actor.a', changes: { [HP]: 10 }, unset: [] },
+    ]);
+    expect(planInput().notes).toEqual([]);
+  });
+
   it('skips a document that no longer exists', async () => {
     foundry.docs.delete('Actor.a');
     records.push(hp(1, 10, 5, 'x'));

@@ -490,7 +490,8 @@ export class UndoPlanner {
           notes.push(`Not restored: ${who} (what it belonged to is gone)`);
         } else keep(change, opOf(change));
       } else if (!snap.exists) {
-        notes.push(`Skipped: ${who} no longer exists`);
+        // A document the set created is already gone (dnd5e removes Bloodied by itself): as wanted.
+        if (change.kind !== 'delete') notes.push(`Skipped: ${who} no longer exists`);
       } else if (change.kind === 'delete') {
         const changedSince =
           isNumber(change.modifiedTime) && isNumber(snap.modifiedTime)

@@ -745,8 +745,9 @@ change Actor Studio to make the kit green.
 ### Known findings
 
 A `CONTENT` or `SYSTEM` failure that is understood and reported goes on the profile's known list, so
-the next run counts it instead of failing on it, and a new failure stands out. `heroes-advancement`
-and `heroes-features-use` read the list (`lib/known.mjs`); `heroes-studio` keeps its own
+the next run counts it instead of failing on it, and a new failure stands out. `heroes-advancement`,
+`heroes-features-use`, `heroes-multiclass` and the origins scenarios read the list (`lib/known.mjs`;
+the origins ones after their own `data/origins-expected.json`); `heroes-studio` keeps its own
 (`data/studio-expected.json`).
 
 | Profile    | Known list                                                    |

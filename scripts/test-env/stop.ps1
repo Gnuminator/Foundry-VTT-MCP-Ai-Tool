@@ -62,7 +62,8 @@ foreach ($name in @('dashboard', 'bridge', 'foundry')) {
     Exists        = [bool]$proc
     ProcessName   = if ($proc) { $proc.ProcessName } else { '' }
     StartTime     = if ($proc) { Get-ProcessStartTime $recordedPid } else { $null }
-    RecordedStart = if ($starts.ContainsKey($name)) { $starts[$name] } else { $null }
+    RecordedStart = Get-RecordedStart $starts $name $recordedPid
+    RecordedStartPid = $recordedPid
     Owners        = @(Get-PortOwners $port)
     CommandLine   = if ($proc) { Get-ProcessCommandLine $recordedPid } else { $null }
     ChildNode     = $null

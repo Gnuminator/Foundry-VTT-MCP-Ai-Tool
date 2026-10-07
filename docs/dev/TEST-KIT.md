@@ -251,9 +251,10 @@ no built dashboard (`start.ps1` would leave it down), it skips itself when the d
 split it did not make (it cannot put those tokens back), and `stop.ps1` kills a recorded pid only when it is
 ours: a node process that owns the service's port or whose command line shows the service `start.ps1` starts
 (ours, but not on its port yet), or the `cmd.exe` wrapper with our command line (its node child is stopped
-first). `start.ps1` records each process's start time in `pids.started.json` next to `pids.json` (a separate
-file, so older checkouts' readers never see it), so a pid another process holds by now (another start time, or
-another command line) is reported as not running and forgotten; one that holds our port, or one whose command
+first). `start.ps1` records each process's start time, with its pid, in `pids.started.json` next to `pids.json`
+(a separate file, so older checkouts' readers never see it; the time counts only for the pid it was recorded
+with, since an older checkout may cycle a service without touching it), so a pid another process holds by now
+(another start time, or another command line) is reported as not running and forgotten; one that holds our port, or one whose command
 line cannot be read and listens on nothing, is refused with exit code 1 (the pid is kept in the second case), as
 is a kill that did not take or a port still open after our process was stopped. `reset-demo-world.ps1` stops on
 a refusal, or on an open Foundry port, instead of copying over an open world. The decision is a pure function (`Resolve-StopAction` in `config.ps1`) with a table test

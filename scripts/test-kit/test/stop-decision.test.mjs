@@ -143,6 +143,15 @@ test(
       }),
       // 22 refuse-keep with a recorded start present: nothing readable, nothing on the port
       facts({ StartTime: null, CommandLine: null, Owners: [] }),
+      // 23 our wrapper, but the child lookup failed: nothing is stopped (a kill of the wrapper alone
+      //    would orphan the child)
+      facts({ ProcessName: 'cmd', CommandLine: WRAPPER, Owners: [501], ChildNode: 'unknown' }),
+      // 24 a reused pid that is neither node nor cmd (a system process after a reboot: nothing
+      //    readable, nothing on the port) is not ours, whatever was recorded
+      facts({ ProcessName: 'svchost', StartTime: null, CommandLine: null, Owners: [] }),
+      // 25 a stale start time: recorded for another pid (an older checkout cycled the service since),
+      //    so it is ignored and the node on its port is ours
+      facts({ RecordedStartPid: 400, RecordedStart: '2026-10-01T00:00:00.0000000Z' }),
     ];
     const got = decide(cases).map(d => d.Action);
     assert.deepEqual(got, [
@@ -169,6 +178,9 @@ test(
       'none',
       'none',
       'refuse-keep',
+      'refuse-keep',
+      'none',
+      'stop',
     ]);
     const messages = decide(cases).map(d => d.Message);
     assert.match(messages[3], /reused by pwsh, started at another time/);
@@ -183,6 +195,9 @@ test(
     assert.match(messages[20], /is now cmd, not the service/);
     assert.match(messages[21], /reused by cmd, started at another time/);
     assert.match(messages[22], /the pid is kept/);
+    assert.match(messages[23], /node child could not be looked up/);
+    assert.match(messages[24], /is now svchost, not the service/);
+    assert.equal(messages[25], 'ours');
   }
 );
 
@@ -195,7 +210,8 @@ test(
       { RoundTrip: '2026-10-07T18:22:28.1569560+02:00' },
     ]);
     assert.equal(utc.Action, 'roundtrip');
-    assert.equal(utc.Message, '2026-10-07T16:22:28.1569560Z');
-    assert.equal(offset.Message, '2026-10-07T16:22:28.1569560Z');
+    // "<the time for the recorded pid>|<the time for another pid: nothing>"
+    assert.equal(utc.Message, '2026-10-07T16:22:28.1569560Z|');
+    assert.equal(offset.Message, '2026-10-07T16:22:28.1569560Z|');
   }
 );

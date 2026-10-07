@@ -18,10 +18,12 @@ $out = foreach ($c in $cases) {
     $TestEnv.LogDir = $dir
     $TestEnv.PidFile = Join-Path $dir 'pids.json'
     # ConvertFrom-Json already made the value a DateTime (Local kind); store it and read it back.
-    Write-Starts @{ x = $c.RoundTrip }
+    Write-Starts @{ x = @{ pid = 42; started = $c.RoundTrip } }
     $back = Read-Starts
     Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
-    [pscustomobject]@{ Action = 'roundtrip'; Message = [string]$back['x'] }
+    $same = Get-RecordedStart $back 'x' 42
+    $other = Get-RecordedStart $back 'x' 43
+    [pscustomobject]@{ Action = 'roundtrip'; Message = "$same|$other" }
     continue
   }
   $facts = @{}

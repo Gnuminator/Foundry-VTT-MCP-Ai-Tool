@@ -241,20 +241,26 @@ function Read-Pids {
   return @{}
 }
 
-# pids.started.json, next to pids.json: { "<service>": "<the process start time, UTC ISO 8601>" }.
+# pids.started.json, next to pids.json: { "<service>": { "pid": <pid>, "started": "<UTC ISO 8601>" } }.
 # The start time tells a reused pid (after a reboot, or any other program) from the process we
-# started; a service without one (an older start.ps1) is judged by the port and the command line
-# alone. A separate file, so older checkouts' Read-Pids never see it.
+# started. It counts only for the pid it was recorded with: an older checkout's start.ps1 and
+# stop.ps1 never touch this file, so after they cycle a service the entry is stale, and stop.ps1
+# must not compare it with the new pid. A service without an entry is judged by the port and the
+# command line alone. A separate file, so older checkouts' Read-Pids never see it.
 function Get-StartFile { return ($TestEnv.PidFile -replace '\.json$', '.started.json') }
 
+# name -> @{ pid = <int>; started = <UTC ISO 8601 text> }; an entry of an older shape is skipped.
 function Read-Starts {
   $file = Get-StartFile
   if (Test-Path $file) {
     $h = @{}
     (Get-Content $file -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object {
+      $e = $_.Value
+      if ($null -eq $e -or -not ($e.PSObject.Properties.Name -contains 'pid')) { return }
+      if (-not ("$($e.pid)" -match '^\d+$')) { return }
       # ConvertFrom-Json turns an ISO 8601 text into a DateTime: keep the instant, as UTC text.
-      $v = ConvertTo-UtcInstant $_.Value
-      if ($v) { $h[$_.Name] = $v }
+      $started = ConvertTo-UtcInstant $e.started
+      if ($started) { $h[$_.Name] = @{ pid = [int]$e.pid; started = $started } }
     }
     return $h
   }
@@ -264,8 +270,20 @@ function Read-Starts {
 function Write-Starts([hashtable]$Starts) {
   New-Item -ItemType Directory -Force $TestEnv.LogDir | Out-Null
   $out = @{}
-  foreach ($k in $Starts.Keys) { $v = ConvertTo-UtcInstant $Starts[$k]; if ($v) { $out[$k] = $v } }
+  foreach ($k in $Starts.Keys) {
+    $e = $Starts[$k]
+    $started = ConvertTo-UtcInstant $e.started
+    if ($started -and "$($e.pid)" -match '^\d+$') { $out[$k] = @{ pid = [int]$e.pid; started = $started } }
+  }
   $out | ConvertTo-Json | Set-Content (Get-StartFile)
+}
+
+# The recorded start time of a service, when it was recorded for this very pid; else $null.
+function Get-RecordedStart([hashtable]$Starts, [string]$Name, [int]$ProcessId) {
+  if (-not $Starts.ContainsKey($Name)) { return $null }
+  $e = $Starts[$Name]
+  if ([int]$e.pid -ne $ProcessId) { return $null }
+  return $e.started
 }
 
 # A point in time as UTC ISO 8601 text ('o'), from a DateTime or an ISO 8601 text; $null when empty.
@@ -293,10 +311,14 @@ function Get-ProcessStartTime([int]$ProcessId) {
 #   Exists         whether a process with that pid runs
 #   ProcessName    its name (node, cmd, pwsh, ...)
 #   StartTime      its start time (ISO 8601) or $null when it cannot be read
-#   RecordedStart  the start time pids.json recorded, or $null (an older file)
+#   RecordedStart  the start time pids.started.json recorded, or $null (none, or an older checkout
+#                  cycled the service since: see Get-RecordedStart)
+#   RecordedStartPid  the pid that start time was recorded with (when given, the time counts only
+#                  when it equals ProcessId)
 #   Owners         the pids listening on the service's port
 #   CommandLine    the process's command line, or $null when it cannot be read
-#   ChildNode      for a cmd.exe wrapper: the pid of its node child whose command line is ours, or $null
+#   ChildNode      for a cmd.exe wrapper: the pid of its node child whose command line is ours, $null
+#                  when it has none, 'unknown' when the lookup failed
 # The answer: Action = none | stop | stop-wrapper | refuse | refuse-keep, and Message.
 #   none          nothing to stop; the pid is forgotten
 #   stop          our process: stop it
@@ -307,6 +329,9 @@ function Resolve-StopAction([hashtable]$F) {
   $who = "the recorded pid $($F.ProcessId) ($($F.ProcessName))"
   if (-not $F.Exists) { return @{ Action = 'none'; Message = 'not running' } }
   $recordedText = ConvertTo-UtcInstant $F.RecordedStart
+  if ($recordedText -and $F.ContainsKey('RecordedStartPid') -and $null -ne $F.RecordedStartPid -and [int]$F.RecordedStartPid -ne [int]$F.ProcessId) {
+    $recordedText = $null # recorded for another pid: an older checkout cycled the service since
+  }
   $actualText = ConvertTo-UtcInstant $F.StartTime
   $timeUnknown = $false
   if ($recordedText -and $actualText) {
@@ -325,19 +350,24 @@ function Resolve-StopAction([hashtable]$F) {
   $ours = (-not $timeUnknown) -and (Test-OurServiceCommandLine $F.Name $F.CommandLine)
   $onPort = @($F.Owners) -contains [int]$F.ProcessId
   if ($isNode -and ($onPort -or $ours)) { return @{ Action = 'stop'; Message = 'ours' } }
+  $reused = @{ Action = 'none'; Message = "not running (pid $($F.ProcessId) is now $($F.ProcessName), not the service we started)" }
   if ($timeUnknown -and -not $onPort) {
+    # Our services are node under a cmd.exe wrapper: anything else holding the pid is a reuse.
+    if (-not ($isNode -or $isCmd)) { return $reused }
     return @{ Action = 'refuse-keep'; Message = "REFUSED: $($F.Name) : $who has a recorded start time that cannot be checked (its start time is not readable) and it listens on nothing, so it is left alone. Check it with Get-Process -Id $($F.ProcessId) and run stop.ps1 again; the pid is kept." }
   }
   if ($isCmd -and $ours) {
+    if ("$($F.ChildNode)" -eq 'unknown') {
+      return @{ Action = 'refuse-keep'; Message = "REFUSED: $($F.Name) : $who is our cmd.exe wrapper, but its node child could not be looked up (the process query failed), so nothing is stopped: a kill of the wrapper alone would leave the child running. Run stop.ps1 again; the pid is kept." }
+    }
     if ($F.ChildNode) { return @{ Action = 'stop-wrapper'; Message = "the cmd.exe wrapper and its node child (pid $($F.ChildNode))" } }
     return @{ Action = 'stop'; Message = 'the cmd.exe wrapper (its node child is gone)' }
   }
   if ($onPort) {
     return @{ Action = 'refuse'; Message = "REFUSED: $($F.Name) : $who holds port $($F.Port) but is not the service we started; nothing stopped. If that is yours, stop it yourself; the stale pid is forgotten." }
   }
-  if ($F.CommandLine) {
-    return @{ Action = 'none'; Message = "not running (pid $($F.ProcessId) is now $($F.ProcessName), not the service we started)" }
-  }
+  if ($F.CommandLine) { return $reused }
+  if (-not ($isNode -or $isCmd)) { return $reused }
   return @{ Action = 'refuse-keep'; Message = "REFUSED: $($F.Name) : $who listens on nothing and its command line cannot be read, so it is left alone (it may still be ours, loading). Check it with Get-Process -Id $($F.ProcessId) and run stop.ps1 again; the pid is kept." }
 }
 

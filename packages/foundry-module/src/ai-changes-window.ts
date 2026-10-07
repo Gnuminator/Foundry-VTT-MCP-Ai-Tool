@@ -179,7 +179,8 @@ export class AiChangesController {
     const row = this.view.rows.find(r => r.redoId === undoChangeId);
     if (!row) return;
     await this.run(undoChangeId, async () => {
-      if (!(await this.confirm(redoDialog(row)))) return false;
+      const undo = this.view.rows.find(r => r.id === undoChangeId);
+      if (!(await this.confirm(redoDialog(row, undo)))) return false;
       await this.deps.request('undo-change', { changeId: undoChangeId, confirm: true });
       this.deps.notifyInfo(`Redone: ${row.summary}`);
       return true;

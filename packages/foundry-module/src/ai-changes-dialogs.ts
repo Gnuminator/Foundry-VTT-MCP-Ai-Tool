@@ -122,11 +122,19 @@ export function undoPlanDialog(row: ChangeRow, plan: UndoPlan): DialogSpec {
 }
 
 /** Bring a change back (undo the undo that took it back). */
-export function redoDialog(row: ChangeRow): DialogSpec {
+export function redoDialog(row: ChangeRow, undo?: ChangeRow): DialogSpec {
+  // One undo can cover several changes (Everything since): a redo brings all of them back.
+  const whole =
+    undo && undo.diff.length > 1
+      ? `<p>It was undone together with other changes in <strong>${escapeHtml(
+          undo.summary
+        )}</strong>. The redo brings back all ${undo.diff.length} changes.</p>`
+      : '';
   return {
     title: 'Redo change',
     content:
       `<p>Bring this change back?</p><p><strong>${escapeHtml(row.summary)}</strong></p>` +
+      whole +
       '<p>This undoes the undo. If something was edited since, it is refused and nothing is changed.</p>',
     buttons: [{ action: ACTION_YES, label: 'Redo', default: true }, cancel],
   };

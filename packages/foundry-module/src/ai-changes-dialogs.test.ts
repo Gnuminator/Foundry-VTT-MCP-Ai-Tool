@@ -103,6 +103,20 @@ describe('the dialogs', () => {
     expect(d.content).toContain('Bring this change back?');
     expect(d.content).toContain('Ireena: HP 10 -&gt; 5');
     expect(d.buttons.map(b => b.label)).toEqual(['Redo', 'Cancel']);
+    expect(d.content).not.toContain('brings back all');
+  });
+
+  it('redo: says when the undo covered several changes, all of which come back', () => {
+    const undo = {
+      ...row,
+      id: 'u1',
+      summary: 'Undo since 10:20: 6 changes on Ireena',
+      diff: ['a', 'b', 'c'],
+    };
+    const d = redoDialog(row, undo);
+    expect(d.content).toContain('Undo since 10:20: 6 changes on Ireena');
+    expect(d.content).toContain('The redo brings back all 3 changes.');
+    expect(redoDialog(row, { ...undo, diff: ['a'] }).content).not.toContain('brings back all');
   });
 
   it('later changes: "not the latest", who and what came after, three buttons, rewind under Advanced', () => {

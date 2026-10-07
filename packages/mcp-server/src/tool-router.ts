@@ -9,6 +9,7 @@
  */
 import type { ActorCreationTools } from './tools/actor-creation.js';
 import type { CampaignManagementTools } from './tools/campaign-management.js';
+import type { ChangeHistoryTools } from './tools/change-history.js';
 import type { CharacterTools } from './tools/character.js';
 import type { ChatLogTools } from './tools/chat-log.js';
 import type { CombatResolutionTools } from './tools/combat-resolution.js';
@@ -45,6 +46,7 @@ import type { TokenManipulationTools } from './tools/token-manipulation.js';
 export interface ToolRouterDeps {
   actorCreationTools: ActorCreationTools;
   campaignManagementTools: CampaignManagementTools;
+  changeHistoryTools: ChangeHistoryTools;
   characterTools: CharacterTools;
   chatLogTools: ChatLogTools;
   combatResolutionTools: CombatResolutionTools;
@@ -133,6 +135,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'get-planned-change': args => deps.guardedChangeTools.handleGetPlannedChange(args),
     'apply-planned-change': args => deps.guardedChangeTools.handleApplyPlannedChange(args),
     'list-recent-changes': args => deps.guardedChangeTools.handleListRecentChanges(args),
+    'list-changes': args => deps.changeHistoryTools.handleListChanges(args),
     'undo-change': args => deps.guardedChangeTools.handleUndoChange(args),
     'open-in-foundry': args => deps.guardedChangeTools.handleOpenInFoundry(args),
     'list-scenes': args => deps.sceneTools.listScenes(args),
@@ -222,6 +225,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.encounterTools.getToolDefinitions(),
     ...deps.diagnosticsTools.getToolDefinitions(),
     ...deps.guardedChangeTools.getToolDefinitions(),
+    ...deps.changeHistoryTools.getToolDefinitions(),
     ...deps.tarokkaTools.getToolDefinitions(),
     ...deps.playSessionTools.getToolDefinitions(),
     ...deps.playStatsTools.getToolDefinitions(),

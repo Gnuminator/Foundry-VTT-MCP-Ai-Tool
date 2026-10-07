@@ -152,6 +152,42 @@ describe('reveal queue', () => {
     );
   });
 
+  it('tells the queue-changed listeners after a queue or unqueue, and not after a refusal', async () => {
+    const listener = vi.fn();
+    handouts.addQueueChangedListener(listener);
+    await handouts.queuePage({ pageUuid: PAGE1 });
+    expect(listener).toHaveBeenCalledTimes(1);
+    await handouts.queuePage({ pageUuid: PAGE1, sceneId: SCENE });
+    expect(listener).toHaveBeenCalledTimes(2);
+    await handouts.unqueuePage({ pageUuid: PAGE1 });
+    expect(listener).toHaveBeenCalledTimes(3);
+    await expect(handouts.unqueuePage({ pageUuid: PAGE1 })).rejects.toThrow();
+    await expect(
+      handouts.queuePage({
+        pageUuid: 'JournalEntry.jjjjjjjjjjjjjjjj.JournalEntryPage.zzzzzzzzzzzzzzzz',
+      })
+    ).rejects.toThrow();
+    expect(listener).toHaveBeenCalledTimes(3);
+  });
+
+  it('a throwing or rejecting queue-changed listener never fails the queue change', async () => {
+    handouts.addQueueChangedListener(() => {
+      throw new Error('boom');
+    });
+    // eslint-disable-next-line @typescript-eslint/require-await -- a listener that rejects
+    handouts.addQueueChangedListener(async () => {
+      throw new Error('async boom');
+    });
+    const last = vi.fn();
+    handouts.addQueueChangedListener(last);
+    await expect(handouts.queuePage({ pageUuid: PAGE1 })).resolves.toMatchObject({ queued: true });
+    await expect(handouts.unqueuePage({ pageUuid: PAGE1 })).resolves.toMatchObject({
+      queued: false,
+    });
+    expect(last).toHaveBeenCalledTimes(2);
+    expect(await handouts.listQueue()).toEqual([]);
+  });
+
   it('refuses to queue a page that does not exist, and bad players or scenes', async () => {
     const missing = 'JournalEntry.jjjjjjjjjjjjjjjj.JournalEntryPage.zzzzzzzzzzzzzzzz';
     await expect(handouts.queuePage({ pageUuid: missing })).rejects.toThrow(/does not exist/);

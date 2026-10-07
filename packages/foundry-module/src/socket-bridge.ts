@@ -2,10 +2,12 @@ import {
   MODULE_ID,
   CONNECTION_STATES,
   BRIDGE_CAPABILITY_MODULE_REQUEST,
+  BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX,
   BRIDGE_HELLO_TYPE,
   BRIDGE_TOO_OLD_MESSAGE,
   MODULE_HELLO_TYPE,
   MODULE_REPLY_TYPE,
+  MODULE_REQUEST_LEGACY_TOOLS,
   MODULE_REQUEST_TYPE,
   RECONNECT_BACKOFF,
   type ModuleHelloData,
@@ -280,7 +282,7 @@ export class SocketBridge {
     if (!this.isConnected() || !this.ws) {
       throw new Error('The AI Tool bridge is not connected');
     }
-    if (!this.bridgeCapabilities?.has(BRIDGE_CAPABILITY_MODULE_REQUEST)) {
+    if (!this.bridgeSupportsTool(tool)) {
       throw new Error(BRIDGE_TOO_OLD_MESSAGE);
     }
     const id = `module-req-${++this.requestSeq}`;
@@ -293,6 +295,25 @@ export class SocketBridge {
       this.sendMessage({ type: MODULE_REQUEST_TYPE, id, data: { tool, args, requestedBy } });
       // sendMessage swallows a send failure; the request then waits for its timeout or the close.
     });
+  }
+
+  /**
+   * Whether the linked bridge answers `tool`. A bridge that lists `module-request:<tool>`
+   * entries is taken at its word; one with only the plain `module-request` capability (the
+   * first I-108 build) answers just the legacy tools (the AI changes window).
+   */
+  private bridgeSupportsTool(tool: string): boolean {
+    const caps = this.bridgeCapabilities;
+    if (!caps?.has(BRIDGE_CAPABILITY_MODULE_REQUEST)) return false;
+    let perTool = false;
+    for (const cap of caps) {
+      if (cap.startsWith(BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX)) {
+        perTool = true;
+        break;
+      }
+    }
+    if (!perTool) return (MODULE_REQUEST_LEGACY_TOOLS as readonly string[]).includes(tool);
+    return caps.has(`${BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX}${tool}`);
   }
 
   /** The bridge says what it understands; release any request that waited for it. */

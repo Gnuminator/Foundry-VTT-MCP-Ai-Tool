@@ -21,6 +21,10 @@ import {
   FoundryQueryFrameSchema,
   FoundryResponseFrameSchema,
   BRIDGE_CAPABILITY_MODULE_REQUEST,
+  BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX,
+  MODULE_CAPABILITY_AI_CHANGES_SIGNAL,
+  MODULE_REQUEST_LEGACY_TOOLS,
+  ModuleHelloFrameSchema,
   BRIDGE_HELLO_TYPE,
   BridgeHelloFrameSchema,
   MODULE_NOT_ACTIVE_LINK_ERROR,
@@ -205,6 +209,54 @@ describe('bridge-hello (what the bridge supports)', () => {
     expect(BRIDGE_HELLO_TYPE).toBe('bridge-hello');
     expect(BRIDGE_CAPABILITY_MODULE_REQUEST).toBe('module-request');
     expect(MODULE_NOT_ACTIVE_LINK_ERROR).toBe('Not the active bridge link');
+  });
+
+  it('pins the per-tool prefix, the legacy tool list and the module capability', () => {
+    expect(BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX).toBe('module-request:');
+    expect([...MODULE_REQUEST_LEGACY_TOOLS]).toEqual(['list-recent-changes', 'undo-change']);
+    for (const tool of MODULE_REQUEST_LEGACY_TOOLS) {
+      expect((MODULE_REQUEST_TOOLS as readonly string[]).includes(tool)).toBe(true);
+    }
+    expect(MODULE_CAPABILITY_AI_CHANGES_SIGNAL).toBe('ai-changes-signal');
+  });
+
+  it('a hello with module-request plus one entry per tool fits the schema', () => {
+    const capabilities = [
+      BRIDGE_CAPABILITY_MODULE_REQUEST,
+      ...MODULE_REQUEST_TOOLS.map(t => `${BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX}${t}`),
+    ];
+    expect(capabilities.length).toBeLessThanOrEqual(50);
+    expect(
+      BridgeHelloFrameSchema.safeParse({ type: 'bridge-hello', data: { capabilities } }).success
+    ).toBe(true);
+  });
+
+  it('round-trips a module-hello with and without capabilities, and bounds them', () => {
+    const base = {
+      userId: 'u',
+      userName: 'n',
+      isBridgeUser: true,
+      moduleVersion: '1',
+      worldId: 'w',
+    };
+    const without = { type: 'module-hello', data: base };
+    expect(ModuleHelloFrameSchema.parse(without)).toEqual(without);
+    const withCaps = {
+      type: 'module-hello',
+      data: { ...base, capabilities: [MODULE_CAPABILITY_AI_CHANGES_SIGNAL] },
+    };
+    expect(ModuleHelloFrameSchema.parse(withCaps)).toEqual(withCaps);
+    for (const capabilities of [
+      'x',
+      [1],
+      Array.from({ length: 51 }, () => 'a'),
+      ['a'.repeat(101)],
+    ]) {
+      expect(
+        ModuleHelloFrameSchema.safeParse({ type: 'module-hello', data: { ...base, capabilities } })
+          .success
+      ).toBe(false);
+    }
   });
 
   it('round-trips a hello and rejects a malformed one', () => {

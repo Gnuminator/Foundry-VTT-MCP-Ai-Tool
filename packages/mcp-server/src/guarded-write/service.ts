@@ -181,6 +181,8 @@ export interface AppliedChange {
   risk: GuardedRisk;
   appliedAt: string;
   undoOf?: string;
+  /** Who asked, for a change made from a GM's window in Foundry. Absent for the control channel (Claude or the dashboard). */
+  requestedBy?: string;
   diff: string[];
   documents?: string[];
   /** Only for an apply whose plan asked to show the page: whether the popup went out. */
@@ -609,7 +611,7 @@ export class GuardedWriteService {
   // Apply / undo
   // -------------------------------------------------------------------------
 
-  /** `requestedBy`: the person who asked, when it was not Claude; recorded on the apply's audit entry. */
+  /** `requestedBy`: the person who asked, from a GM's window in Foundry; absent for the control channel (Claude or the dashboard); recorded on the apply's audit entry. */
   applyPlan(planId: string, flags: ConfirmFlags, requestedBy?: string): Promise<AppliedChange> {
     return this.exclusive(async () => {
       const plan = this.requirePlan(planId);
@@ -647,7 +649,7 @@ export class GuardedWriteService {
     this.undoGuards.set(feature, guard);
   }
 
-  /** `requestedBy`: the person who asked, when it was not Claude; recorded on the undo's audit entry. */
+  /** `requestedBy`: the person who asked, from a GM's window in Foundry; absent for the control channel (Claude or the dashboard); recorded on the undo's audit entry. */
   undo(changeId: string, flags: ConfirmFlags, requestedBy?: string): Promise<AppliedChange> {
     return this.exclusive(async () => {
       if (flags.confirm !== true) throw new Error('Undoing a change needs confirm: true');
@@ -1124,6 +1126,7 @@ export class GuardedWriteService {
       risk: entry.risk,
       appliedAt: entry.appliedAt,
       ...(entry.undoOf ? { undoOf: entry.undoOf } : {}),
+      ...(entry.requestedBy ? { requestedBy: entry.requestedBy } : {}),
       diff: entry.diff,
       ...(documents ? { documents } : {}),
     };

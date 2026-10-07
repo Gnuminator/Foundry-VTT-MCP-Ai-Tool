@@ -19,6 +19,8 @@ function makeHandler(planFeature = 'handouts') {
   const handleApplyPlannedChange = vi.fn(async () => ({ changeId: 'chg-1' }));
   const tarokkaPlan = vi.fn(async () => ({ planId: 'plan-tarokka' }));
   const readTarokka = vi.fn(async () => ({ available: false }));
+  const revealed = new Set<string>();
+  const tarokkaPositionRevealed = vi.fn(async (position: string) => revealed.has(position));
   const getPlan = vi.fn((planId: string) => {
     if (planId === 'plan-1' || planId === 'plan-2') return { planId, feature: planFeature };
     if (planId === 'plan-tarokka') return { planId, feature: 'tarokka' };
@@ -37,6 +39,7 @@ function makeHandler(planFeature = 'handouts') {
     },
     guardedChangeTools: { handleUndoChange, handleApplyPlannedChange } as never,
     guardedWrites: { getPlan } as never,
+    tarokkaPositionRevealed,
   });
   return {
     handler,
@@ -49,6 +52,8 @@ function makeHandler(planFeature = 'handouts') {
     getPlan,
     tarokkaPlan,
     readTarokka,
+    revealed,
+    tarokkaPositionRevealed,
   };
 }
 
@@ -101,6 +106,25 @@ describe('createModuleRequestHandler', () => {
         title: 'T',
         showNow: true,
       });
+    });
+
+    it('refuses to plan a position that is already revealed, and plans an unrevealed one', async () => {
+      const { handler, tarokkaPlan, revealed, tarokkaPositionRevealed } = makeHandler();
+      revealed.add('tome');
+      await expect(
+        handler('plan-tarokka-reveal', { position: 'tome', text: 'x' }, danni)
+      ).rejects.toThrow(/already revealed; change it from the dashboard or with Claude/);
+      expect(tarokkaPlan).not.toHaveBeenCalled();
+      expect(tarokkaPositionRevealed).toHaveBeenCalledWith('tome');
+      await handler('plan-tarokka-reveal', { position: 'ally', text: 'x' }, danni);
+      expect(tarokkaPlan).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves a bad position to the planner (no revealed lookup for a non-text one)', async () => {
+      const { handler, tarokkaPlan, tarokkaPositionRevealed } = makeHandler();
+      await handler('plan-tarokka-reveal', { position: 5, text: 'x' }, danni);
+      expect(tarokkaPositionRevealed).not.toHaveBeenCalled();
+      expect(tarokkaPlan).toHaveBeenCalledTimes(1);
     });
 
     it('applies the Tarokka plan it made, with the GM named and only the allowed arguments', async () => {
@@ -239,7 +263,10 @@ describe('createAiChangesAnnouncer', () => {
     let finish: (value: unknown) => void = () => undefined;
     const query = vi.fn(() => new Promise(resolve => (finish = resolve)));
     const logger = { debug: vi.fn() };
-    const result = createAiChangesAnnouncer({ query }, logger)('world', 'chg-1');
+    const result = createAiChangesAnnouncer(
+      { query, activeModuleHasCapability: () => true },
+      logger
+    )('world', 'chg-1');
     expect(result).toBeUndefined(); // the recorded hook never waits for the module
     expect(query).toHaveBeenCalledWith(
       AI_CHANGES_UPDATED_QUERY,
@@ -249,12 +276,32 @@ describe('createAiChangesAnnouncer', () => {
     finish({ announced: true });
   });
 
+  it('does not ask a module that does not list the signal capability (older than I-108)', () => {
+    const query = vi.fn(async () => ({}));
+    const has = vi.fn(() => false);
+    const announce = createAiChangesAnnouncer(
+      { query, activeModuleHasCapability: has },
+      { debug: vi.fn() }
+    );
+    announce();
+    expect(has).toHaveBeenCalledWith('ai-changes-signal');
+    expect(query).not.toHaveBeenCalled();
+    has.mockReturnValue(true);
+    announce();
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
   it('logs and swallows a failure (Foundry disconnected, or an older module)', async () => {
     const query = vi.fn(async () => {
       throw new Error('Foundry VTT module not connected');
     });
     const logger = { debug: vi.fn() };
-    expect(() => createAiChangesAnnouncer({ query }, logger)('world', 'chg-1')).not.toThrow();
+    expect(() =>
+      createAiChangesAnnouncer({ query, activeModuleHasCapability: () => true }, logger)(
+        'world',
+        'chg-1'
+      )
+    ).not.toThrow();
     await Promise.resolve();
     await Promise.resolve();
     expect(logger.debug).toHaveBeenCalledWith(

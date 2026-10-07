@@ -4,8 +4,12 @@
  *
  * Kept out of `backend.ts` so both can be tested without starting the backend.
  */
-import { MODULE_REQUEST_TOOLS, type ModuleRequestData } from '@gnuminator/shared';
-import type { GuardedWriteService, RecordedListener } from './guarded-write/service.js';
+import {
+  MODULE_CAPABILITY_AI_CHANGES_SIGNAL,
+  MODULE_REQUEST_TOOLS,
+  type ModuleRequestData,
+} from '@gnuminator/shared';
+import type { GuardedWriteService } from './guarded-write/service.js';
 import { HANDOUTS_FEATURE } from './handouts/service.js';
 import type { ModuleRequestHandler } from './foundry-connector.js';
 import type { Logger } from './logger.js';
@@ -51,6 +55,11 @@ export interface ModuleRequestDeps {
   toolRouter: Record<string, ToolHandler>;
   guardedChangeTools: Pick<GuardedChangeTools, 'handleUndoChange' | 'handleApplyPlannedChange'>;
   guardedWrites: Pick<GuardedWriteService, 'getPlan'>;
+  /**
+   * Whether the Tarokka position is already revealed in the current reading. A module request
+   * may not plan it again (the window never offers it); Claude and the dashboard still can.
+   */
+  tarokkaPositionRevealed: (position: string) => Promise<boolean>;
 }
 
 /**
@@ -93,6 +102,15 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
             .join(' or ')}`
         );
       }
+      if (
+        tool === 'plan-tarokka-reveal' &&
+        typeof args.position === 'string' &&
+        (await deps.tarokkaPositionRevealed(args.position))
+      ) {
+        throw new Error(
+          'This Tarokka position is already revealed; change it from the dashboard or with Claude'
+        );
+      }
       const route = deps.toolRouter[tool];
       if (!route) throw new Error(`Unknown tool: ${tool}`);
       const result: unknown = await route(args);
@@ -122,18 +140,22 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
 }
 
 /**
- * A recorded-change listener that tells the module (and so every GM client with
- * the "AI changes" window open) to fetch the list again. It never waits for the
- * module and never fails the change: an older module has no such query, and
- * Foundry may be disconnected.
+ * A listener that tells the module (and so every GM client with an "AI changes",
+ * Handouts or Tarokka window open) to fetch again. It serves as the recorded-change
+ * listener and the Handouts queue-changed listener alike. It never waits for the
+ * module and never fails the change: Foundry may be disconnected, and a module that does
+ * not list {@link MODULE_CAPABILITY_AI_CHANGES_SIGNAL} (older than I-108) is not asked, so it
+ * does not log one failed query per change.
  */
 export function createAiChangesAnnouncer(
   foundry: {
     query(method: string, data?: unknown, options?: { timeoutMs?: number }): Promise<unknown>;
+    activeModuleHasCapability(capability: string): boolean;
   },
   logger: Pick<Logger, 'debug'>
-): RecordedListener {
+): (...args: unknown[]) => void {
   return () => {
+    if (!foundry.activeModuleHasCapability(MODULE_CAPABILITY_AI_CHANGES_SIGNAL)) return;
     foundry.query(AI_CHANGES_UPDATED_QUERY, {}, { timeoutMs: ANNOUNCE_TIMEOUT_MS }).catch(error => {
       logger.debug('Could not announce the recorded change to the module', {
         error: error instanceof Error ? error.message : String(error),

@@ -130,9 +130,10 @@ export interface ChangeRecord {
   v: typeof CHANGE_JOURNAL_VERSION;
   /**
    * The same in every GM browser: `<op>:<uuid>:<time>`, where time is the
-   * document's `_stats.modifiedTime` after an update, `_stats.createdTime`
-   * for a create and the last `_stats.modifiedTime` for a delete (server
-   * times, so every client agrees).
+   * operation's server time (`options.modifiedTime`) for an update or a
+   * delete, else the document's `_stats.modifiedTime`, and `_stats.createdTime`
+   * for a create (server times, so every client agrees; a synthetic actor's
+   * delta has no `_stats` of its own).
    */
   key: string;
   /** Per browser, from 1; restarts with a new `clientId`. */

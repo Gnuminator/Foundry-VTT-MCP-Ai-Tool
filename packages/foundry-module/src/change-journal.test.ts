@@ -666,6 +666,61 @@ describe('synthetic actor times', () => {
     simulateUpdate(synthetic, { 'system.x': 2 });
     expect(records()[0].key).toBe(`update:${synthetic.uuid}:4242`);
   });
+
+  it('prefers the operation time from the options (Foundry 14: a delta has no _stats)', () => {
+    const scene = fixture({ documentName: 'Scene', id: 'sc1', name: 'Courtyard' });
+    const token = fixture({ documentName: 'Token', id: 'tk1', name: 'Wolf', parent: scene });
+    const synthetic = fixture({
+      documentName: 'Actor',
+      id: 'act9',
+      name: 'Wolf',
+      parent: token,
+      source: { system: { x: 1 } },
+      extra: { isToken: true, token },
+    });
+    simulateUpdate(synthetic, { 'system.x': 2 }, { options: { modifiedTime: 5151 } });
+    const r = records()[0];
+    expect(r.key).toBe(`update:${synthetic.uuid}:5151`);
+    expect(r.t).toBe(5151);
+    expect(r.modifiedTime).toBeNull();
+  });
+});
+
+describe('operation times and no-op updates', () => {
+  it('keys an update and a delete by the operation time, a create by createdTime', () => {
+    const actor = makeActor();
+    simulateUpdate(actor, { 'system.attributes.hp.value': 5 }, { options: { modifiedTime: 7001 } });
+    simulateDelete(actor, { options: { modifiedTime: 7002 } });
+    const [upd, del] = records();
+    expect(upd.key).toBe('update:Actor.act1:7001');
+    expect(upd.modifiedTime).toBe(actor._source._stats.modifiedTime);
+    expect(del.key).toBe('delete:Actor.act1:7002');
+  });
+
+  it('drops a path the server left unchanged, and the record when none is left', () => {
+    const actor = makeActor();
+    // The server cleaned the value away: the post-hook sees no change of it.
+    Hooks.callAll(
+      'preUpdateActor',
+      actor,
+      { system: { attributes: { hp: { value: 10 } } } },
+      {},
+      'gm'
+    );
+    Hooks.callAll('updateActor', actor, { _id: 'act1' }, {}, 'gm');
+    expect(records()).toHaveLength(0);
+
+    simulateUpdate(actor, { 'system.attributes.hp.value': 10, 'system.attributes.hp.max': 25 });
+    const r = records()[0];
+    expect(r.before).toEqual([{ path: 'system.attributes.hp.max', present: true, value: 20 }]);
+    expect(r.after).toEqual([{ path: 'system.attributes.hp.max', present: true, value: 25 }]);
+  });
+
+  it('records an empty name (a Combat) as no name', () => {
+    const combat = fixture({ documentName: 'Combat', id: 'cb1', name: '' });
+    simulateUpdate(combat, { round: 1 });
+    expect(records()[0]).toMatchObject({ name: null, rootName: null });
+  });
 });
 
 // --- Size, ring, query -----------------------------------------------------------

@@ -170,6 +170,16 @@ function readPath(source: Record<string, unknown>, path: string): PathValue {
     : { path, present: true, value: cloneValue(node) };
 }
 
+function samePathValue(a: PathValue, b: PathValue): boolean {
+  if (a.present !== b.present) return false;
+  if (!a.present) return true;
+  try {
+    return JSON.stringify(a.value) === JSON.stringify(b.value);
+  } catch {
+    return false;
+  }
+}
+
 /** True when `path` is `covering` or lies below it. */
 function isCoveredBy(path: string, covering: readonly string[]): boolean {
   return covering.some(c => path === c || path.startsWith(`${c}.`));
@@ -189,7 +199,8 @@ function sourceOf(doc: DocLike): Record<string, unknown> {
 // ---------------------------------------------------------------------------
 
 function nameOf(doc: DocLike): string | null {
-  if (typeof doc.name === 'string') return doc.name;
+  // A Combat's name is an empty string: no name.
+  if (typeof doc.name === 'string' && doc.name) return doc.name;
   // A map note carries its label in `text`.
   return doc.documentName === 'Note' && typeof doc.text === 'string' && doc.text ? doc.text : null;
 }
@@ -395,7 +406,11 @@ export class ChangeJournal {
     const id = str(d.id);
 
     const serverTime = statsTime(d, op === 'create' ? 'createdTime' : 'modifiedTime');
-    const t = serverTime ?? Date.now();
+    // The server stamps every update and delete operation with its own time (Foundry 14,
+    // `options.modifiedTime`): the same in every GM browser, also for a synthetic actor (its
+    // delta has no `_stats`) and for an update the server reduced to nothing.
+    const opTime = num(asRecord(options)?.modifiedTime);
+    const t = (op === 'create' ? (serverTime ?? opTime) : (opTime ?? serverTime)) ?? Date.now();
     const key = `${op}:${uuid}:${t}`;
     const stash = asRecord(asRecord(asRecord(options)?.[MODULE_ID])?.journal);
     const actionId = str(stash?.actionId) ?? `solo:${key}`;
@@ -461,11 +476,13 @@ export class ChangeJournal {
     const unknownBefore = changedPaths(changed, recursive).filter(
       path => !isCoveredBy(path, stashPaths)
     );
-    const paths = [...stashPaths, ...unknownBefore];
+    const source = sourceOf(doc);
+    // A path the server left as it was (a value it cleaned away or refused) is not a change.
+    const kept = (before ?? []).filter(v => !samePathValue(v, readPath(source, v.path)));
+    const paths = [...kept.map(v => v.path), ...unknownBefore];
     if (paths.length === 0) return false;
 
-    const source = sourceOf(doc);
-    if (before) record.before = cloneValue(before);
+    if (kept.length > 0) record.before = cloneValue(kept);
     record.after = paths.map(path => readPath(source, path));
     if (unknownBefore.length > 0) record.unknownBefore = unknownBefore;
     return true;

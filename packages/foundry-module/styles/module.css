@@ -348,7 +348,7 @@
 [data-service-type].hidden {
   display: none;
 }
-/* AI changes window (I-108). Colours come from Foundry's theme variables or from
+/* Changes window (I-108, I-109). Colours come from Foundry's theme variables or from
    currentColor, so the window reads the same in the dark and the light theme. */
 .fmb-ai-window .window-content {
   padding: 0.5rem;
@@ -358,8 +358,37 @@
 
 .fmb-ai-toolbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
   margin-bottom: 0.5rem;
+}
+
+.fmb-ai-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-right: auto;
+}
+
+/* The undo dialogs (DialogV2 content). */
+.fmb-ai-scroll {
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.fmb-ai-plan-note {
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.fmb-ai-advanced {
+  margin-top: 0.5rem;
+}
+
+.fmb-ai-advanced > summary {
+  cursor: pointer;
+  color: var(--color-text-secondary);
 }
 
 .fmb-ai-btn {

@@ -146,7 +146,7 @@ class FoundryMCPBridge {
       this.queryHandlers.registerHandlers();
       registerGmHelperQueries();
 
-      // The GM-only "AI Tool" group in the scene controls (the AI changes window, I-108).
+      // The GM-only "AI Tool" group in the scene controls (the Changes window, I-108).
       registerAiToolControls();
 
       // Register campaign hooks for interactive dashboards
@@ -552,7 +552,7 @@ Hooks.once('ready', async () => {
           return;
         }
 
-        // The AI change log changed (I-108): GM clients with the "AI changes" window re-fetch.
+        // The AI change log changed (I-108): GM clients with the "Changes" window re-fetch.
         if (handleAiChangesSocketMessage(data)) return;
 
         // Handle ChatMessage update requests (GM only)

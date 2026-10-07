@@ -316,14 +316,33 @@ undone here.
 
 ### The same list inside Foundry
 
-You do not need the dashboard open to see or undo what the AI changed. In Foundry's left toolbar
-(the scene controls) there is an **AI Tool** group, shown to GMs only. Click it, then click
-**AI changes**: a window opens with the same list, newest first. Each row shows the time, what
-changed, the feature as a small tag, and **Undo** while the change can still be undone. Click
-"Changes" on a row to see the lines that changed, and **Show more** for the last 100. **Undo** asks
-you to confirm first and then says "Undone: ...", or tells you why it refused (for example because
-the same thing was changed again since). The list refreshes by itself when the AI makes or undoes a
-change, and **Refresh** reloads it by hand.
+You do not need the dashboard open to see or undo what changed. In Foundry's left toolbar (the
+scene controls) there is an **AI Tool** group, shown to GMs only. Click it, then click
+**Changes**: a window opens with everything that changed in the last week, newest first, by
+players, by you and by the AI. Each row shows the time, who did it ("by Ireena", or an **AI** tag),
+what changed, and **Undo** while the change can still be undone. Click "Changes" on a row to see
+the lines that changed, and **Show more** for the last 100. **Show:** at the top narrows the list
+to **All**, **AI** or one person. **AI** shows only what the AI changed; a person shows what that
+person changed and the undos they ran from this window.
+
+**Undo** asks you to confirm first, listing what will be put back, and then says "Undone: ...", or
+tells you why it refused (for example because the same thing was changed again since). If the
+change is not the latest one on that thing (Ireena's HP was changed again afterwards, say), the
+window lists the later changes and asks:
+
+- **Just this**: undo only this change and keep the later ones.
+- **Everything since**: undo this change and every later change to the same thing.
+- **Cancel**: nothing changes.
+
+Under **Advanced** there is also **Rewind the whole table to here**. It undoes every change by
+everyone at the table since then, so it asks twice: first with the full list and the number of
+changes, then again with a button that names that number.
+
+A row that was undone says "undone" (and by whom, when it is known). It gets **Redo** when the undo
+can itself be taken back; Redo asks you to confirm and brings the change back. The list refreshes
+by itself when something changes, and **Refresh** reloads it by hand. On an older AI Tool bridge
+the window shows only the AI's changes, without the filter or Redo, and Undo just undoes that one
+change.
 
 If the window says the AI Tool bridge is not connected, the browser that holds the link to the AI
 Tool (the Assistant GM browser on the server) is not running; ask whoever runs the server.
@@ -342,7 +361,7 @@ handout drawer shows, so you can reveal a handout without leaving Foundry:
   nothing changes in Foundry.
 - **Reveal next**: reveals the oldest queued page for the scene that is active now. A window shows
   exactly what will change and asks you to confirm, because a reveal cannot be taken back at the
-  table. Cancel and nothing happens. Undo in **AI changes** hides the page again and puts it back
+  table. Cancel and nothing happens. Undo in **Changes** hides the page again and puts it back
   in the queue.
 - **Show it now**: tick it next to **Reveal next** to also pop the page up on the screens of the
   players it is for. It is unticked whenever the window opens and goes back to unticked after each
@@ -353,7 +372,7 @@ handout drawer shows, so you can reveal a handout without leaving Foundry:
 
 The window refreshes by itself when a handout is revealed or undone, and **Refresh** reloads it by
 hand. If something goes wrong (for example the handouts switch is off) the reason shows at the top
-of the window. It needs the same bridge connection as the AI changes window.
+of the window. It needs the same bridge connection as the Changes window.
 
 ### Tarokka inside Foundry
 
@@ -375,7 +394,7 @@ says so: a reading is dealt or imported from the dashboard, or by asking Claude.
   **Show it now** to pop the page up on the players' screens as soon as the reveal is applied; it
   is unticked every time the form opens. Then click **Reveal**: a Foundry window shows exactly what
   will change and asks you to confirm, because a reveal cannot be taken back at the table. Cancel and
-  nothing happens (your text stays in the form). Undo in **AI changes** takes the reveal back but
+  nothing happens (your text stays in the form). Undo in **Changes** takes the reveal back but
   cannot close the popup. The players get only your text, never the card name.
 
 What you type in a form stays when the window refreshes by itself (it refreshes when a change is

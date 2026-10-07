@@ -233,10 +233,10 @@ once when the link opens, so the backend knows which Foundry user holds it: lane
 ```
 
 `module-request` runs the other way round (module → backend): the browser that holds the link asks
-the backend to run one tool for a GM's "AI changes", "Handouts" or "Tarokka" window inside Foundry
+the backend to run one tool for a GM's "Changes", "Handouts" or "Tarokka" window inside Foundry
 (I-108). Only the tools in `MODULE_REQUEST_TOOLS` (`list-recent-changes`, `undo-change`,
 `list-revealed-pages`, `plan-page-reveal`, `apply-planned-change`, `get-tarokka-reading`,
-`plan-tarokka-reveal`; later lanes add more) are
+`plan-tarokka-reveal`, `list-changes`, `plan-undo-changes`; later lanes add more) are
 accepted, and only from the currently active module socket; anything else gets a
 `module-reply` with `success: false` (a socket that is not the active link gets the shared
 `MODULE_NOT_ACTIVE_LINK_ERROR`, and the module treats that like "not connected": it asks the next
@@ -253,7 +253,8 @@ undo's audit entry (`requestedBy`).
 The plan and apply tools are narrowed further by the backend (`module-requests.ts`), so a
 module request cannot reach a general write: a planner runs only for the actions listed in
 `MODULE_PLANNERS` (today `plan-page-reveal` with `reveal-next` or `unqueue`, and
-`plan-tarokka-reveal`, which has no action argument to narrow; a later planner is one more line
+`plan-tarokka-reveal`, which has no action argument to narrow, and `plan-undo-changes`, which
+takes only `id`, `scope` and `rewindTable`; a later planner is one more line
 there, plus its name in `MODULE_REQUEST_TOOLS`), and
 `apply-planned-change` runs only for a plan that one of those planners made through a module
 request and whose feature still matches (looked up through the guarded-write service), passing on

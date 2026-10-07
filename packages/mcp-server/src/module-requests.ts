@@ -1,5 +1,5 @@
 /**
- * Backend side of the "AI changes" window inside Foundry (I-108): what answers a
+ * Backend side of the "Changes" window inside Foundry (I-108): what answers a
  * `module-request` frame, and what tells the module a change was recorded.
  *
  * Kept out of `backend.ts` so both can be tested without starting the backend.
@@ -10,6 +10,7 @@ import {
   type ModuleRequestData,
 } from '@gnuminator/shared';
 import type { GuardedWriteService } from './guarded-write/service.js';
+import { UNDO_FEATURE } from './guarded-write/undo-planner.js';
 import { HANDOUTS_FEATURE } from './handouts/service.js';
 import type { ModuleRequestHandler } from './foundry-connector.js';
 import type { Logger } from './logger.js';
@@ -43,6 +44,9 @@ export const MODULE_PLANNERS: Readonly<
   // Reveal one Tarokka position with the text the GM typed. Linking, dealing and importing
   // stay with Claude and the dashboard.
   'plan-tarokka-reveal': { feature: TAROKKA_FEATURE },
+  // Plan undoing (or redoing) a change from the Changes window, in any scope. The planner takes
+  // only id, scope and rewindTable, and the apply is confirmed in the window first.
+  'plan-undo-changes': { feature: UNDO_FEATURE },
 };
 
 /** The arguments of `apply-planned-change` a module request passes on (nothing else). */

@@ -652,10 +652,11 @@ async function tokenTools() {
       const concentrating = `${PREFIX} Concentrating`;
       const held = `${PREFIX} Held`;
       assert((await effectNames(ctx.npcId)).includes(held), 'the dependent effect was not made');
-      // The AI ends the concentration: dnd5e removes the dependent on the NPC by itself.
+      // The AI ends the concentration (on the world actor: the helper put the effect there, and
+      // the sweep token is unlinked); dnd5e removes the dependent on the NPC by itself.
       const ended = await planAndApply({
         action: 'clear-conditions',
-        targets: [ctx.wolfTokenId],
+        targets: [ctx.wolfActorId],
         conditions: [concentrating],
       });
       assert(

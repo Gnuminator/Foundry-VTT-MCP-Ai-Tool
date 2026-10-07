@@ -236,8 +236,11 @@ scenarios with their own sizes, named in the table and in the text after it.
 they skip themselves. The write flows click the real page (the tool runner form and its confirm window, Undo
 in Recent Changes and on the toast, the Tarokka, Party and Handouts drawers, a map note, the player links),
 read Foundry or the bridge to see the change is there, undo it and read again; they put everything back, also
-after a failure (the throwaway handout journal stays in the kit world). A flow skips itself with the reason
-when the world lacks something (no party group, a feature switched off). The login split restarts the test
+after a failure (the throwaway handout journal and the "Kit Party" group stay in the kit world). The Tarokka,
+handouts and party features are switched on for the run and put back afterwards; a flow skips itself with the
+reason when the world still lacks something (a switch this module version does not have). The page the login
+split opens with no token is meant to fail: its console errors are attached to the scenario instead of the
+report's console list, and every page is closed before a restart. The login split restarts the test
 dashboard (`lib/dashboard-proc.mjs`: `stop.ps1` and `start.ps1 -Only dashboard`) with two random tokens made
 at run time, checks three states in a fresh Edge with no cookies, and restarts it in the normal mode on
 the way out, also after a failure, so the split never stays on.

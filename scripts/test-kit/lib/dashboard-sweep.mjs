@@ -58,7 +58,11 @@ export async function resetDashboard(page) {
   await page.evaluate(() => {
     const shown = /** @param {Element | null} el */ el =>
       !!el &&
-      !!(/** @type {HTMLElement} */ (el).offsetWidth || /** @type {HTMLElement} */ (el).offsetHeight) &&
+      !!(
+        /** @type {HTMLElement} */ (
+          (el).offsetWidth || /** @type {HTMLElement} */ (el).offsetHeight
+        )
+      ) &&
       getComputedStyle(el).visibility !== 'hidden';
     const press = /** @param {string} s */ s => {
       const el = document.querySelector(s);
@@ -161,7 +165,9 @@ async function waitGone(page, selector, timeout) {
     await page.waitForFunction(
       sel =>
         !Array.from(document.querySelectorAll(sel)).some(
-          el => /** @type {HTMLElement} */ (el).offsetWidth || /** @type {HTMLElement} */ (el).offsetHeight
+          el =>
+            /** @type {HTMLElement} */ (el).offsetWidth ||
+            /** @type {HTMLElement} */ (el).offsetHeight
         ),
       selector,
       { timeout }
@@ -250,9 +256,12 @@ async function withTheme(page, theme) {
  */
 async function actOn(page, row, control) {
   const wait = row.slow ? SLOW_MS : WAIT_MS;
-  const tag = await control.evaluate(el => `${el.tagName}:${/** @type {HTMLInputElement} */ (el).type || ''}`);
+  const tag = await control.evaluate(
+    el => `${el.tagName}:${/** @type {HTMLInputElement} */ (el).type || ''}`
+  );
   const watch = typeof row.changes === 'string' ? visible(page, row.changes).first() : control;
-  const read = () => watch.evaluate(stateScript(), undefined, { timeout: 1500 }).catch(() => 'gone');
+  const read = () =>
+    watch.evaluate(stateScript(), undefined, { timeout: 1500 }).catch(() => 'gone');
 
   if (tag.startsWith('SELECT')) {
     const options = await control.evaluate(el =>
@@ -263,7 +272,8 @@ async function actOn(page, row, control) {
     if (!other) throw new Skip('the select has only one option');
     await control.selectOption(other);
     await page.waitForTimeout(SETTLE_MS);
-    if ((await control.inputValue()) !== other) throw new Error(`the select did not take "${other}"`);
+    if ((await control.inputValue()) !== other)
+      throw new Error(`the select did not take "${other}"`);
     if (row.name === 'dash.header.theme') {
       await page.waitForFunction(t => document.documentElement.dataset.theme === t, other, {
         timeout: WAIT_MS,
@@ -341,6 +351,7 @@ export async function runRow(ctx, row) {
     await walkReach(page, row);
     let note = '';
     const wait = row.slow ? SLOW_MS : WAIT_MS;
+    if (row.idle) await waitVisible(page, row.idle, SLOW_MS);
     if (row.how === 'view') {
       if (row.expect) await waitVisible(page, row.expect, wait);
       note = 'drawn';
@@ -368,7 +379,9 @@ export async function runRow(ctx, row) {
         const isLink = (await control.evaluate(el => el.tagName)) === 'A';
         if (isLink && (!href || href === '#')) throw new Error('the link has no address');
         if (row.expect) await waitVisible(page, row.expect, wait);
-        note = isLink ? `present, enabled, links to ${href.slice(0, 40)}` : 'present, enabled (not clicked)';
+        note = isLink
+          ? `present, enabled, links to ${href.slice(0, 40)}`
+          : 'present, enabled (not clicked)';
       } else if (row.how === 'ai') {
         if (row.expect) await waitVisible(page, row.expect, wait);
         note = 'present (not used)';
@@ -386,7 +399,11 @@ export async function runRow(ctx, row) {
     result =
       e instanceof Skip
         ? { ...base, status: 'skip', note: e.message }
-        : { ...base, status: 'fail', note: String(/** @type {any} */ (e)?.message || e).split('\n')[0] };
+        : {
+            ...base,
+            status: 'fail',
+            note: String(/** @type {any} */ (e)?.message || e).split('\n')[0],
+          };
   } finally {
     await undoTheme().catch(() => {});
   }
@@ -433,8 +450,14 @@ export async function sweepGroups({ t, page, surface, groups, results }) {
         if (layout) {
           // Put the layout back (the trial's "kept" flag stays set: there is no way back in the screen).
           await resetDashboard(page);
-          await visible(page, '[data-track="dash.moment.during"]').first().click().catch(() => {});
-          await visible(page, `[data-layout-pick="${layout}"]`).first().click().catch(() => {});
+          await visible(page, '[data-track="dash.moment.during"]')
+            .first()
+            .click()
+            .catch(() => {});
+          await visible(page, `[data-layout-pick="${layout}"]`)
+            .first()
+            .click()
+            .catch(() => {});
         }
         const failed = mine.filter(r => r.status === 'fail');
         const passed = mine.filter(r => r.status === 'pass').length;

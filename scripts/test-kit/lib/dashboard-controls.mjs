@@ -42,6 +42,8 @@
  * - theme     switch the theme select to this value first and put it back afterwards (the mist only shows
  *             with the Veil theme)
  * - slow      the control loads from the bridge: wait up to 60 s for `expect`
+ * - idle      a selector that shows when the panel has finished loading; the sweep waits for it before
+ *             the click, so a reload the previous row started does not redraw the panel under the click
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -63,7 +65,7 @@ export const HOWS = [
 /** @typedef {{
  *   name: string, how: string, reach?: string[], expect?: string, gone?: string, key?: string, why?: string,
  *   optional?: boolean, selector?: string, fill?: string, at?: {x: number, y: number}, restore?: boolean,
- *   needs?: string, theme?: string, slow?: boolean, changes?: boolean | string
+ *   needs?: string, theme?: string, slow?: boolean, changes?: boolean | string, idle?: string
  * }} ControlRow */
 
 /** The reason every module entry is skipped. */
@@ -81,6 +83,8 @@ const TOOLS = [ADV, 'dash.header.tools'];
 const TAROKKA = [ADV, 'dash.header.tarokka'];
 const PREFLIGHT = [MOMENT_DURING, ADV, 'dash.header.preflight']; // overlay in During and After
 const PREP = [MOMENT_DURING, ADV, 'dash.header.prep']; // overlay in During
+/** The Prep drawer has finished loading (its Refresh button is disabled while it loads). */
+const PREP_IDLE = '#prep-refresh:not([disabled])';
 const PARTY = [MOMENT_BEFORE, ADV, 'dash.header.party']; // overlay in Before and After
 const HANDOUTS = [MOMENT_BEFORE, ADV, 'dash.header.handouts']; // overlay in Before
 const AI = [ADV, 'dash.header.show-ai'];
@@ -147,7 +151,14 @@ export const DASHBOARD_CONTROLS = [
   },
 
   // --- the During layout trial (before the layout buttons: picking a layout hides the trial card) ---
-  { name: 'dash.trial.start', how: 'open', reach: [MOMENT_BEFORE], expect: '#layout-tour', optional: true, why: 'the card is gone once a layout was picked' },
+  {
+    name: 'dash.trial.start',
+    how: 'open',
+    reach: [MOMENT_BEFORE],
+    expect: '#layout-tour',
+    optional: true,
+    why: 'the card is gone once a layout was picked',
+  },
   { name: 'dash.trial.view', how: 'view', reach: LAYOUT_TOUR, expect: '#layout-tour' },
   { name: 'dash.trial.next', how: 'open', reach: LAYOUT_TOUR, changes: '#layout-tour-step' },
   { name: 'dash.trial.stop', how: 'open', reach: LAYOUT_TOUR, gone: '#layout-tour' },
@@ -163,10 +174,33 @@ export const DASHBOARD_CONTROLS = [
   },
 
   // --- the During screen ---
-  { name: 'dash.during.layout-layered', how: 'toggle', reach: [MOMENT_DURING], restore: false, expect: '#moment-during[data-layout="layered"]' },
-  { name: 'dash.during.layout-toggle', how: 'toggle', reach: [MOMENT_DURING], restore: false, expect: '#moment-during[data-layout="toggle"]' },
-  { name: 'dash.during.layout-auto', how: 'toggle', reach: [MOMENT_DURING], restore: false, expect: '#moment-during[data-layout="auto"]' },
-  { name: 'dash.during.full-toggle', how: 'toggle', reach: [MOMENT_DURING, 'dash.during.layout-toggle'], changes: true },
+  {
+    name: 'dash.during.layout-layered',
+    how: 'toggle',
+    reach: [MOMENT_DURING],
+    restore: false,
+    expect: '#moment-during[data-layout="layered"]',
+  },
+  {
+    name: 'dash.during.layout-toggle',
+    how: 'toggle',
+    reach: [MOMENT_DURING],
+    restore: false,
+    expect: '#moment-during[data-layout="toggle"]',
+  },
+  {
+    name: 'dash.during.layout-auto',
+    how: 'toggle',
+    reach: [MOMENT_DURING],
+    restore: false,
+    expect: '#moment-during[data-layout="auto"]',
+  },
+  {
+    name: 'dash.during.full-toggle',
+    how: 'toggle',
+    reach: [MOMENT_DURING, 'dash.during.layout-toggle'],
+    changes: true,
+  },
   {
     name: 'dash.during.hint-dismiss',
     how: 'write',
@@ -247,10 +281,27 @@ export const DASHBOARD_CONTROLS = [
   // --- the Tool Runner ---
   { name: 'dash.tools.view', how: 'view', reach: TOOLS, expect: '#tools-drawer' },
   { name: 'dash.tools.close', how: 'open', reach: TOOLS, gone: '#tools-drawer' },
-  { name: 'dash.drawer.backdrop', how: 'open', reach: TOOLS, at: { x: 10, y: 300 }, gone: '#tools-drawer' },
-  { name: 'dash.tools.search', how: 'read', reach: TOOLS, fill: 'get', expect: '#tool-list .tool-item' },
+  {
+    name: 'dash.drawer.backdrop',
+    how: 'open',
+    reach: TOOLS,
+    at: { x: 10, y: 300 },
+    gone: '#tools-drawer',
+  },
+  {
+    name: 'dash.tools.search',
+    how: 'read',
+    reach: TOOLS,
+    fill: 'get',
+    expect: '#tool-list .tool-item',
+  },
   { name: 'dash.tools.open-tool', how: 'open', reach: TOOLS, expect: '#tool-detail' },
-  { name: 'dash.tools.back', how: 'open', reach: [...TOOLS, 'dash.tools.open-tool'], expect: '#tool-browser' },
+  {
+    name: 'dash.tools.back',
+    how: 'open',
+    reach: [...TOOLS, 'dash.tools.open-tool'],
+    expect: '#tool-browser',
+  },
   {
     name: 'dash.tools.pick-open',
     how: 'open',
@@ -292,7 +343,11 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.handouts.refresh', how: 'read', reach: HANDOUTS, expect: '#handouts-queue' },
   { name: 'dash.handouts.queue-page', how: 'open', reach: HANDOUTS, expect: '#tool-detail' },
   { name: 'dash.handouts.show-now', how: 'toggle', reach: HANDOUTS },
-  { name: 'dash.handouts.reveal-next', how: 'write', why: 'reveals the next queued page to the players' },
+  {
+    name: 'dash.handouts.reveal-next',
+    how: 'write',
+    why: 'reveals the next queued page to the players',
+  },
   { name: 'dash.handouts.unqueue', how: 'write', why: 'removes a page from the reveal queue' },
 
   // --- Prep ---
@@ -301,6 +356,7 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.prep.refresh', how: 'read', reach: PREP, expect: '#prep-last' },
   {
     name: 'dash.prep.all-beats',
+    idle: PREP_IDLE,
     how: 'read',
     reach: PREP,
     expect: '#prep-last',
@@ -309,6 +365,7 @@ export const DASHBOARD_CONTROLS = [
   },
   {
     name: 'dash.prep.show-beats',
+    idle: PREP_IDLE,
     how: 'toggle',
     reach: PREP,
     expect: '#prep-last .prep-beats ul',
@@ -317,6 +374,7 @@ export const DASHBOARD_CONTROLS = [
   },
   {
     name: 'dash.prep.open-journal',
+    idle: PREP_IDLE,
     how: 'external',
     reach: PREP,
     optional: true,
@@ -358,7 +416,13 @@ export const DASHBOARD_CONTROLS = [
   // --- Pre-flight and Ready for session ---
   { name: 'dash.preflight.view', how: 'view', reach: PREFLIGHT, expect: '#preflight-drawer' },
   { name: 'dash.preflight.close', how: 'open', reach: PREFLIGHT, gone: '#preflight-drawer' },
-  { name: 'dash.preflight.run', how: 'read', reach: PREFLIGHT, expect: '#preflight-summary', slow: true },
+  {
+    name: 'dash.preflight.run',
+    how: 'read',
+    reach: PREFLIGHT,
+    expect: '#preflight-summary',
+    slow: true,
+  },
   { name: 'dash.preflight.manual-tick', how: 'toggle', reach: PREFLIGHT },
   {
     name: 'dash.preflight.clear-ticks',
@@ -376,8 +440,16 @@ export const DASHBOARD_CONTROLS = [
     why: 'only shown when the scan has findings',
   },
   { name: 'dash.ready.turn-on', how: 'write', why: 'turns the module switches and GM Actions on' },
-  { name: 'dash.ready.turn-off', how: 'write', why: 'turns the switches Ready turned on off again' },
-  { name: 'dash.ready.start-log', how: 'write', why: 'starts a play session (writes the bridge session log)' },
+  {
+    name: 'dash.ready.turn-off',
+    how: 'write',
+    why: 'turns the switches Ready turned on off again',
+  },
+  {
+    name: 'dash.ready.start-log',
+    how: 'write',
+    why: 'starts a play session (writes the bridge session log)',
+  },
 
   // --- Tarokka ---
   { name: 'dash.tarokka.view', how: 'view', reach: TAROKKA, expect: '#tarokka-drawer' },
@@ -432,7 +504,11 @@ export const DASHBOARD_CONTROLS = [
     optional: true,
     why: 'needs a stored reading',
   },
-  { name: 'dash.tarokka.plan-reveal', how: 'write', why: 'plans a reveal of a card to the players' },
+  {
+    name: 'dash.tarokka.plan-reveal',
+    how: 'write',
+    why: 'plans a reveal of a card to the players',
+  },
 
   // --- the Before screen's feature cards ---
   { name: 'dash.features.read-more', how: 'open', reach: [MOMENT_BEFORE], expect: '#pane-help' },
@@ -474,7 +550,11 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.notes.undo', how: 'write', why: 'takes the session notes out of Foundry again' },
 
   // --- the session marker in the header ---
-  { name: 'dash.session.toggle', how: 'write', why: 'starts or ends a play session (writes the bridge session log)' },
+  {
+    name: 'dash.session.toggle',
+    how: 'write',
+    why: 'starts or ends a play session (writes the bridge session log)',
+  },
   {
     name: 'dash.session.open-obsidian',
     how: 'external',
@@ -491,7 +571,11 @@ export const DASHBOARD_CONTROLS = [
     why: 'writes the clipboard; shown only for a player with a link',
   },
   { name: 'dash.links.make', how: 'write', why: 'makes a player link' },
-  { name: 'dash.links.replace', how: 'write', why: 'replaces a player link (the old one stops working)' },
+  {
+    name: 'dash.links.replace',
+    how: 'write',
+    why: 'replaces a player link (the old one stops working)',
+  },
   { name: 'dash.links.remove', how: 'write', why: 'removes a player link' },
 
   // --- AI commentary ---
@@ -510,7 +594,11 @@ export const DASHBOARD_CONTROLS = [
     optional: true,
     why: 'posts a comment to the Foundry chat; shown only under a finished AI comment',
   },
-  { name: 'dash.ai.error', how: 'error', why: 'the message under an AI comment that failed; cannot be clicked' },
+  {
+    name: 'dash.ai.error',
+    how: 'error',
+    why: 'the message under an AI comment that failed; cannot be clicked',
+  },
 
   // --- help ---
   { name: 'dash.help.view', how: 'view', reach: [ADV, 'dash.header.guides'], expect: '#pane-help' },
@@ -518,18 +606,38 @@ export const DASHBOARD_CONTROLS = [
   // --- toasts and the confirm window ---
   { name: 'dash.toast.error', how: 'error', why: 'an error toast; cannot be clicked' },
   { name: 'dash.toast.undo', how: 'write', why: 'undoes the change the toast reports' },
-  { name: 'dash.modal.cancel', how: 'write', why: 'the confirm window opens only from a write flow; its checks cover it' },
+  {
+    name: 'dash.modal.cancel',
+    how: 'write',
+    why: 'the confirm window opens only from a write flow; its checks cover it',
+  },
   { name: 'dash.modal.confirm', how: 'write', why: 'confirms a write; the write checks cover it' },
-  { name: 'dash.modal.destructive-check', how: 'write', why: 'the destructive tick of the confirm window; the write checks cover it' },
+  {
+    name: 'dash.modal.destructive-check',
+    how: 'write',
+    why: 'the destructive tick of the confirm window; the write checks cover it',
+  },
 
   // --- Escape ---
-  { name: 'dash.shortcut.escape-handouts', how: 'shortcut', reach: HANDOUTS, key: 'Escape', gone: '#handouts-drawer' },
+  {
+    name: 'dash.shortcut.escape-handouts',
+    how: 'shortcut',
+    reach: HANDOUTS,
+    key: 'Escape',
+    gone: '#handouts-drawer',
+  },
   {
     name: 'dash.shortcut.escape-modal',
     how: 'skip',
     why: 'closes the confirm window, which opens only from a write flow',
   },
-  { name: 'dash.shortcut.escape-party', how: 'shortcut', reach: PARTY, key: 'Escape', gone: '#party-drawer' },
+  {
+    name: 'dash.shortcut.escape-party',
+    how: 'shortcut',
+    reach: PARTY,
+    key: 'Escape',
+    gone: '#party-drawer',
+  },
   {
     name: 'dash.shortcut.escape-picker',
     how: 'shortcut',
@@ -540,10 +648,34 @@ export const DASHBOARD_CONTROLS = [
     optional: true,
     why: 'needs a tool whose form has a Pick button',
   },
-  { name: 'dash.shortcut.escape-preflight', how: 'shortcut', reach: PREFLIGHT, key: 'Escape', gone: '#preflight-drawer' },
-  { name: 'dash.shortcut.escape-prep', how: 'shortcut', reach: PREP, key: 'Escape', gone: '#prep-drawer' },
-  { name: 'dash.shortcut.escape-tarokka', how: 'shortcut', reach: TAROKKA, key: 'Escape', gone: '#tarokka-drawer' },
-  { name: 'dash.shortcut.escape-tools', how: 'shortcut', reach: TOOLS, key: 'Escape', gone: '#tools-drawer' },
+  {
+    name: 'dash.shortcut.escape-preflight',
+    how: 'shortcut',
+    reach: PREFLIGHT,
+    key: 'Escape',
+    gone: '#preflight-drawer',
+  },
+  {
+    name: 'dash.shortcut.escape-prep',
+    how: 'shortcut',
+    reach: PREP,
+    key: 'Escape',
+    gone: '#prep-drawer',
+  },
+  {
+    name: 'dash.shortcut.escape-tarokka',
+    how: 'shortcut',
+    reach: TAROKKA,
+    key: 'Escape',
+    gone: '#tarokka-drawer',
+  },
+  {
+    name: 'dash.shortcut.escape-tools',
+    how: 'shortcut',
+    reach: TOOLS,
+    key: 'Escape',
+    gone: '#tools-drawer',
+  },
 ];
 
 /** The player page (/player). The sweep reloads it with no stored name before each row. */
@@ -616,8 +748,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
  */
 export function readUsageCatalog(root = repoRoot) {
   const text = readFileSync(path.join(root, 'shared', 'src', 'usage-catalog.generated.ts'), 'utf8');
-  const re =
-    /name:\s*'([^']+)',\s*kind:\s*'([^']+)',\s*surface:\s*'([^']+)',\s*file:\s*'([^']+)'/g;
+  const re = /name:\s*'([^']+)',\s*kind:\s*'([^']+)',\s*surface:\s*'([^']+)',\s*file:\s*'([^']+)'/g;
   const out = [];
   for (let m = re.exec(text); m; m = re.exec(text)) {
     out.push({ name: m[1], kind: m[2], surface: m[3], file: m[4] });
@@ -637,10 +768,12 @@ export function unclassified(catalog) {
   const problems = [];
   for (const c of catalog) {
     if (c.surface === 'module') continue;
-    if (!rows.has(c.name)) problems.push({ name: c.name, problem: /** @type {const} */ ('missing') });
+    if (!rows.has(c.name))
+      problems.push({ name: c.name, problem: /** @type {const} */ ('missing') });
   }
   for (const r of CONTROLS) {
-    if (!all.has(r.name)) problems.push({ name: r.name, problem: /** @type {const} */ ('not in the catalog') });
+    if (!all.has(r.name))
+      problems.push({ name: r.name, problem: /** @type {const} */ ('not in the catalog') });
   }
   return problems;
 }

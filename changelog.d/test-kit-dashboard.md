@@ -13,3 +13,8 @@
   classifies each one; a unit test keeps it complete) and attaches a result row per control and one
   screenshot per drawer, view and During layout; a second scenario checks that the drawn `/player`
   page names no hidden token, canary or true monster name.
+- **The write flows switch their own features on (slice 4):** `dashboard-write-flows` turns the
+  Tarokka, handouts and party features on for the run and puts them back afterwards, and makes a kit
+  party group when the world has none, so no flow is skipped for a switch or a missing group. The page
+  the login split opens with no token keeps its expected 401 errors out of the report, and the player
+  checks delete their canary token by id.

@@ -154,7 +154,8 @@ function subjectOf(r: ChangeRecord): { subject: string; inner: string } {
   }
   if (isRoot) return { subject: `${documentLabel(r.documentName)}${quoted(r.name)}`, inner: '' };
   return {
-    subject: r.rootName || rootLabel(r.rootUuid),
+    // An empty name (older records of a Combat) counts as no name.
+    subject: r.rootName !== null && r.rootName !== '' ? r.rootName : rootLabel(r.rootUuid),
     inner: `${documentLabel(r.documentName)}${quoted(r.name)}`,
   };
 }

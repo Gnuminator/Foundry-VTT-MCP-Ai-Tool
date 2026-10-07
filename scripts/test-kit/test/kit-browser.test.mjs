@@ -103,7 +103,12 @@ test('console and page errors are recorded per page, with the page kind, and go 
   const log = [];
   const context = fakeContext(log, 'gm');
   const sink = [];
-  const { browser } = createKitBrowser({ dashboardUrl: 'http://d', context, scenarioId: 's1', sink });
+  const { browser } = createKitBrowser({
+    dashboardUrl: 'http://d',
+    context,
+    scenarioId: 's1',
+    sink,
+  });
   const dash = await browser.open('/');
   const player = await browser.open('/player/x');
   dash.emit('console', consoleMsg('boom'));
@@ -124,6 +129,14 @@ test('console and page errors are recorded per page, with the page kind, and go 
       ['s1', 'player'],
     ]
   );
+  // A page the scenario expects to fail keeps its errors in its own list, out of the sink.
+  const noToken = await browser.open('/', { expectErrors: true });
+  noToken.emit('console', consoleMsg('401'));
+  assert.deepEqual(
+    browser.consoleErrors(noToken).map(e => e.message),
+    ['401']
+  );
+  assert.equal(sink.length, 2);
   // copies: changing a returned entry changes nothing
   browser.consoleErrors(dash)[0].message = 'changed';
   assert.equal(browser.consoleErrors(dash)[0].message, 'boom');
@@ -234,7 +247,13 @@ test('dashboard errors reach the run result through the sink', async () => {
       dashboard: stubDashboard(),
       manifest: null,
       browserFactory: (id, sink) => {
-        sink.push({ at: '2026-10-06T10:00:00.000Z', message: 'x', source: 'pageerror', page: 'dashboard', scenario: id });
+        sink.push({
+          at: '2026-10-06T10:00:00.000Z',
+          message: 'x',
+          source: 'pageerror',
+          page: 'dashboard',
+          scenario: id,
+        });
         return { browser: {}, close: async () => {} };
       },
     }
@@ -260,7 +279,11 @@ test('t.attachFile writes the file, cleans the name and records the attachment',
   assert.deepEqual([...readFileSync(expected)], [1, 2, 3]);
   assert.equal(readFileSync(path.join(dir, 'demo-shots', 'notes.txt'), 'utf8'), 'hello');
   assert.deepEqual(r.attachments, [
-    { name: 'home-page--390-.png', file: 'files/demo-shots/home-page--390-.png', type: 'image/png' },
+    {
+      name: 'home-page--390-.png',
+      file: 'files/demo-shots/home-page--390-.png',
+      type: 'image/png',
+    },
     { name: 'notes.txt', file: 'files/demo-shots/notes.txt', type: 'text/plain' },
   ]);
   assert.ok(!r.attachments[0].file.includes('\\'));
@@ -340,7 +363,10 @@ test('report.md links file attachments', () => {
 
 test('report.html shows image attachments as lazy images and other files as links, escaped', () => {
   const html = renderHtml(reportWithFile());
-  assert.match(html, /<img src="files\/shots\/home\.png" alt="home\.png" loading="lazy" style="max-width:100%">/);
+  assert.match(
+    html,
+    /<img src="files\/shots\/home\.png" alt="home\.png" loading="lazy" style="max-width:100%">/
+  );
   assert.match(html, /<a href="files\/shots\/a%20b\.txt">a&lt;b&gt;\.txt<\/a>/);
   assert.ok(!html.includes('a<b>'));
   assert.match(html, /<pre>\{\s+&quot;a&quot;: 1\s+\}<\/pre>/); // a JSON attachment is unchanged
@@ -353,7 +379,13 @@ test('console errors with a page show the page in the report', () => {
     startedAt: new Date(),
     results: [],
     consoleErrors: [
-      { at: '2026-10-06T10:00:00.000Z', message: 'Oops', source: 'pageerror', page: 'player', scenario: 'a' },
+      {
+        at: '2026-10-06T10:00:00.000Z',
+        message: 'Oops',
+        source: 'pageerror',
+        page: 'player',
+        scenario: 'a',
+      },
     ],
   });
   assert.match(renderMarkdown(report), /player: pageerror/);
@@ -363,7 +395,11 @@ test('console errors with a page show the page in the report', () => {
 // --- grouping -----------------------------------------------------------------
 
 test('a dashboard error is not merged with a Foundry error of the same text', () => {
-  const same = { at: '2026-10-06T10:00:00.000Z', message: 'Failed to load x', source: 'http://h/a.js:1:2' };
+  const same = {
+    at: '2026-10-06T10:00:00.000Z',
+    message: 'Failed to load x',
+    source: 'http://h/a.js:1:2',
+  };
   const groups = groupConsoleErrors(
     [
       { ...same, scenario: 'a' },

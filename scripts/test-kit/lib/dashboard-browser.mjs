@@ -5,8 +5,10 @@
  * `fresh: true` in a separate throwaway headless Edge with no cookies (the login split pass), launched
  * at most once per scenario. Every console error and page error of these pages is recorded with the
  * page kind ('dashboard', or 'player' for a path starting with /player) into the scenario's own list and
- * into the run's sink, which ends up in the report. `close()` closes what this module opened and never
- * the GM context or the GM page.
+ * into the run's sink, which ends up in the report, except for a page opened with `expectErrors` (one the
+ * scenario expects to fail, such as the GM page with no token): its errors stay in its own list, for the
+ * scenario to check and attach. `close()` closes what this module opened and never the GM context or the
+ * GM page.
  */
 import { launchBrowser } from './gm.mjs';
 
@@ -34,7 +36,13 @@ export function redact(text) {
  * }} p
  * @returns {{browser: KitBrowser, close: () => Promise<void>}}
  */
-export function createKitBrowser({ dashboardUrl, context, launchFresh = launchBrowser, scenarioId, sink }) {
+export function createKitBrowser({
+  dashboardUrl,
+  context,
+  launchFresh = launchBrowser,
+  scenarioId,
+  sink,
+}) {
   const base = String(dashboardUrl).replace(/\/+$/, '');
   /** @type {Array<import('playwright-core').Page>} */
   const opened = [];
@@ -46,16 +54,22 @@ export function createKitBrowser({ dashboardUrl, context, launchFresh = launchBr
   /**
    * @param {import('playwright-core').Page} page
    * @param {string} kind
+   * @param {boolean} toSink
    */
-  function listen(page, kind) {
+  function listen(page, kind, toSink) {
     /** @type {Array<{at: string, message: string, source: string, page: string}>} */
     const own = [];
     perPage.set(page, own);
     /** @param {string} message @param {string} source */
     const record = (message, source) => {
-      const entry = { at: new Date().toISOString(), message: redact(message), source: redact(source), page: kind };
+      const entry = {
+        at: new Date().toISOString(),
+        message: redact(message),
+        source: redact(source),
+        page: kind,
+      };
       own.push(entry);
-      sink.push({ ...entry, scenario: scenarioId });
+      if (toSink) sink.push({ ...entry, scenario: scenarioId });
     };
     page.on('console', msg => {
       if (msg.type() !== 'error') return;
@@ -71,7 +85,7 @@ export function createKitBrowser({ dashboardUrl, context, launchFresh = launchBr
   const browser = {
     dashboardUrl: base,
     async open(path = '/', opts = {}) {
-      const { fresh = false, viewport } = opts;
+      const { fresh = false, viewport, expectErrors = false } = opts;
       let ctx = context;
       if (fresh) {
         freshBrowser ??= launchFresh({ headless: true });
@@ -81,7 +95,7 @@ export function createKitBrowser({ dashboardUrl, context, launchFresh = launchBr
       opened.push(page);
       if (viewport) await page.setViewportSize(viewport);
       const rel = path.startsWith('/') ? path : `/${path}`;
-      listen(page, rel.startsWith('/player') ? 'player' : 'dashboard');
+      listen(page, rel.startsWith('/player') ? 'player' : 'dashboard', !expectErrors);
       await page.goto(`${base}${rel}`, { waitUntil: 'load' });
       return page;
     },

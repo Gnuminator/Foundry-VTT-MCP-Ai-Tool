@@ -24,7 +24,8 @@ const VIEWPORT = { width: 1440, height: 900 };
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
   id: 'dashboard-login-split',
-  title: 'The login split in a real browser: no token gets nothing, the player page has no GM controls, the GM token works',
+  title:
+    'The login split in a real browser: no token gets nothing, the player page has no GM controls, the GM token works',
   sizes: ['full', 'long'],
   tags: ['dashboard', 'player'],
   needs: [],
@@ -134,22 +135,41 @@ export default {
           ['/api/control', 'POST', { action: 'kit-split-check' }],
         ])) {
           const r = await call(p, { method, body });
-          t.check(r.status === 401 || r.status === 403, `${method} ${p} with no token answers ${r.status}`);
+          t.check(
+            r.status === 401 || r.status === 403,
+            `${method} ${p} with no token answers ${r.status}`
+          );
         }
-        const page = await browser.open('/', { fresh: true, viewport: VIEWPORT });
+        // The page is meant to fail (401s): its console errors stay out of the run's report and are attached here.
+        const page = await browser.open('/', {
+          fresh: true,
+          viewport: VIEWPORT,
+          expectErrors: true,
+        });
         // Give the page time to try its stream and its state calls.
         await page.waitForTimeout(4000);
         const seen = await page.evaluate(async () => {
           const res = await fetch('/api/state');
           return {
             apiStatus: res.status,
-            bridge: document.querySelector('#status-bridge')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+            bridge:
+              document.querySelector('#status-bridge')?.textContent?.replace(/\s+/g, ' ').trim() ??
+              '',
             subtitle: document.querySelector('#world-subtitle')?.textContent?.trim() ?? '',
           };
         });
         await shot(page, 'gm-page-no-token.png');
+        const refused = browser.consoleErrors(page);
+        await page.close();
+        t.attach(
+          'no-token-console',
+          refused.map(e => `${scrub(e.message).slice(0, 200)} (${scrub(e.source)})`)
+        );
         t.check(seen.apiStatus === 401, `the page's own /api/state call answers ${seen.apiStatus}`);
-        t.check(!/Bridge: connected/.test(seen.bridge), `the page shows "${seen.bridge}" without a token`);
+        t.check(
+          !/Bridge: connected/.test(seen.bridge),
+          `the page shows "${seen.bridge}" without a token`
+        );
         t.check(
           !/Foundry \d/.test(seen.subtitle),
           `the page shows no world without a token ("${seen.subtitle}")`
@@ -158,44 +178,55 @@ export default {
       })
     );
 
-    await t.step('/player with the player token has no GM controls and the GM API refuses the token', () =>
-      guard(async () => {
-        const noToken = await call('/api/player/state');
-        t.check(noToken.status === 401, `/api/player/state with no token answers ${noToken.status}`);
-        const state = await call('/api/player/state', { token: playerToken });
-        t.check(state.status === 200, `/api/player/state with the player token answers ${state.status}`);
-        // The GM surface refuses the player token: reads and writes alike.
-        for (const [p, method, body] of /** @type {const} */ ([
-          ['/api/tools', 'GET', undefined],
-          ['/api/tool', 'POST', { name: 'get-world-info', args: {} }],
-          ['/api/control', 'POST', { action: 'kit-split-check' }],
-          ['/api/player-links', 'GET', undefined],
-        ])) {
-          const r = await call(p, { method, token: playerToken, body });
+    await t.step(
+      '/player with the player token has no GM controls and the GM API refuses the token',
+      () =>
+        guard(async () => {
+          const noToken = await call('/api/player/state');
           t.check(
-            r.status === 401 || r.status === 403,
-            `${method} ${p} with the player token answers ${r.status}`
+            noToken.status === 401,
+            `/api/player/state with no token answers ${noToken.status}`
           );
-        }
-        const page = await browser.open(`/player?token=${playerToken}`, {
-          fresh: true,
-          viewport: VIEWPORT,
-        });
-        await page.waitForTimeout(3000);
-        const gmControls = await page.locator('[data-track^="dash."]').count();
-        const gmButton = await page.locator('#btn-gm').count();
-        const text = await page.evaluate(() => document.body.innerText);
-        await shot(page, 'player-page-player-token.png');
-        t.equal(gmControls, 0, 'GM controls (data-track "dash.*") on the player page');
-        t.equal(gmButton, 0, 'the GM Actions button on the player page');
-        t.check(!/GM Actions/i.test(text), 'the player page text names GM Actions');
-        t.check(
-          browser.consoleErrors(page).length === 0,
-          'the player page logs no console errors',
-          browser.consoleErrors(page).map(e => scrub(e.message).slice(0, 200))
-        );
-        return 'player page clean, GM API refused';
-      })
+          const state = await call('/api/player/state', { token: playerToken });
+          t.check(
+            state.status === 200,
+            `/api/player/state with the player token answers ${state.status}`
+          );
+          // The GM surface refuses the player token: reads and writes alike.
+          for (const [p, method, body] of /** @type {const} */ ([
+            ['/api/tools', 'GET', undefined],
+            ['/api/tool', 'POST', { name: 'get-world-info', args: {} }],
+            ['/api/control', 'POST', { action: 'kit-split-check' }],
+            ['/api/player-links', 'GET', undefined],
+          ])) {
+            const r = await call(p, { method, token: playerToken, body });
+            t.check(
+              r.status === 401 || r.status === 403,
+              `${method} ${p} with the player token answers ${r.status}`
+            );
+          }
+          const page = await browser.open(`/player?token=${playerToken}`, {
+            fresh: true,
+            viewport: VIEWPORT,
+          });
+          await page.waitForTimeout(3000);
+          const gmControls = await page.locator('[data-track^="dash."]').count();
+          const gmButton = await page.locator('#btn-gm').count();
+          const text = await page.evaluate(() => document.body.innerText);
+          await shot(page, 'player-page-player-token.png');
+          t.equal(gmControls, 0, 'GM controls (data-track "dash.*") on the player page');
+          t.equal(gmButton, 0, 'the GM Actions button on the player page');
+          t.check(!/GM Actions/i.test(text), 'the player page text names GM Actions');
+          const playerErrors = browser.consoleErrors(page);
+          // Closed now, so the restart at the end does not cut its stream (a connection error that says nothing).
+          await page.close();
+          t.check(
+            playerErrors.length === 0,
+            'the player page logs no console errors',
+            playerErrors.map(e => scrub(e.message).slice(0, 200))
+          );
+          return 'player page clean, GM API refused';
+        })
     );
 
     await t.step('the GM page with the GM token loads and shows the GM header', () =>
@@ -206,7 +237,8 @@ export default {
         await page.locator('#btn-gm').waitFor({ state: 'visible', timeout: 15000 });
         await page
           .waitForFunction(
-            () => /Bridge: connected/.test(document.querySelector('#status-bridge')?.textContent ?? ''),
+            () =>
+              /Bridge: connected/.test(document.querySelector('#status-bridge')?.textContent ?? ''),
             undefined,
             { timeout: 30000 }
           )
@@ -214,20 +246,30 @@ export default {
             /* checked below, with what the page says */
           });
         const seen = await page.evaluate(() => ({
-          bridge: document.querySelector('#status-bridge')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+          bridge:
+            document.querySelector('#status-bridge')?.textContent?.replace(/\s+/g, ' ').trim() ??
+            '',
           gm: document.querySelector('#btn-gm')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
           controls: document.querySelectorAll('[data-track^="dash."]').length,
         }));
         const url = new URL(page.url());
         await shot(page, 'gm-page-gm-token.png');
-        t.check(/GM Actions/.test(seen.gm), `the GM header shows the GM Actions button ("${seen.gm}")`);
-        t.check(seen.controls > 10, `the GM page has its controls (${seen.controls} found)`);
-        t.check(/Bridge: connected/.test(seen.bridge), `the page says "${seen.bridge}" with the GM token`);
-        t.check(!url.searchParams.has('token'), 'the token is taken out of the address bar');
         t.check(
-          browser.consoleErrors(page).length === 0,
+          /GM Actions/.test(seen.gm),
+          `the GM header shows the GM Actions button ("${seen.gm}")`
+        );
+        t.check(seen.controls > 10, `the GM page has its controls (${seen.controls} found)`);
+        t.check(
+          /Bridge: connected/.test(seen.bridge),
+          `the page says "${seen.bridge}" with the GM token`
+        );
+        t.check(!url.searchParams.has('token'), 'the token is taken out of the address bar');
+        const gmErrors = browser.consoleErrors(page);
+        await page.close();
+        t.check(
+          gmErrors.length === 0,
           'the GM page logs no console errors',
-          browser.consoleErrors(page).map(e => scrub(e.message).slice(0, 200))
+          gmErrors.map(e => scrub(e.message).slice(0, 200))
         );
         return `${seen.controls} controls, ${seen.bridge}`;
       })

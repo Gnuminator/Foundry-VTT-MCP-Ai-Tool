@@ -157,6 +157,10 @@ export const GM_ACTIONS = {
    * and a guarded damage change lands there, not on the world actor.
    */
   readActor: 'readActor',
+  /** ({switches: {[featureId]: boolean}}) => {before: {[featureId]: boolean}} sets the bridge module's feature switches */
+  setFeatureSwitches: 'setFeatureSwitches',
+  /** ({name, memberIds, folderId?}) => {groupId, created} the kit's party group actor, made when missing */
+  ensurePartyGroup: 'ensurePartyGroup',
   /** ({since?}) => {errors: [{at, message, source}]} console errors the GM page collected */
   consoleErrors: 'consoleErrors',
   /**
@@ -342,10 +346,11 @@ export const GM_ACTIONS = {
  * share one browser), or with `fresh` in a separate throwaway headless Edge with no cookies (the login split
  * pass). The runner closes every page (and a fresh Edge) after the scenario. Every console error and page
  * error of these pages goes into the report's consoleErrors with `page: 'dashboard'` (or 'player' for a
- * path starting with /player), and the scenario reads its own with consoleErrors().
+ * path starting with /player), and the scenario reads its own with consoleErrors(). A page opened with
+ * `expectErrors` (one the scenario expects to fail) keeps its errors out of the report.
  * @typedef {object} KitBrowser
  * @property {string} dashboardUrl   e.g. http://localhost:3100 (no trailing slash)
- * @property {(path?: string, opts?: {fresh?: boolean, viewport?: {width: number, height: number}}) =>
+ * @property {(path?: string, opts?: {fresh?: boolean, expectErrors?: boolean, viewport?: {width: number, height: number}}) =>
  *   Promise<import('playwright-core').Page>} open   path relative to dashboardUrl (default '/'); waits for 'load'
  * @property {(page?: import('playwright-core').Page) => Array<{at: string, message: string, source: string, page: string}>} consoleErrors
  *   the errors of that page (or of every page this scenario opened) so far, oldest first

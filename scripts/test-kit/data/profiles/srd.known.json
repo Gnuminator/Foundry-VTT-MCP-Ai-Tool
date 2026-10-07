@@ -6,5 +6,50 @@
     "what": "1 grant uuid(s) do not resolve",
     "match": "Compendium.dnd5e.classes24.Item.phbmnkSelfrestor",
     "why": "dnd5e 6.0.5: the SRD 2024 Monk class grants Self-Restoration at level 10 by a uuid that has no entry in dnd5e.classes24, so every Monk of level 10 or higher misses that one feature. System data, nothing for us to fix; seen on every srd full run since 2026-10-06 03:52. Remove the entry when a dnd5e release ships the item (the run then lists it as unseen)."
+  },
+  {
+    "id": "dnd5e-srd-werewolf-creature-type",
+    "scenario": "monsters-matrix",
+    "kind": "CONTENT",
+    "what": "unknown creature type",
+    "max": 1,
+    "match": "Werewolf: \"(lycanthrope)\"",
+    "why": "dnd5e 6.0.5, dnd5e.monsters (SRD 2024): the Werewolf's creature type value is the text \"(lycanthrope)\" instead of monstrosity with a lycanthrope subtype, so it is none of the 14 types. System data; the sheet still shows it. Seen on every srd full run since 2026-10-07 (test kit 5). Remove when a dnd5e release fixes the type."
+  },
+  {
+    "id": "dnd5e-srd-unseen-servant-creature-type",
+    "scenario": "monsters-matrix",
+    "kind": "CONTENT",
+    "what": "unknown creature type",
+    "max": 1,
+    "match": "Unseen Servant: \"\"",
+    "why": "dnd5e 6.0.5, dnd5e.monsters (SRD 2024): the Unseen Servant (the spell's servant, challenge rating 0) has no creature type at all. System data; it is not a creature in the rules either. Seen on every srd full run since 2026-10-07 (test kit 5). Remove when a dnd5e release sets a type."
+  },
+  {
+    "id": "dnd5e-srd-avatar-of-death-multiattack",
+    "scenario": "monsters-odd",
+    "kind": "CONTENT",
+    "what": "multiattack and no attack",
+    "max": 1,
+    "match": "Avatar of Death has no activity of type attack",
+    "why": "dnd5e 6.0.5, dnd5e.monsters (SRD 2024): the Avatar of Death has Multiattack, but its Reaping Scythe is a damage activity, not an attack, so the check finds no attack to go with it. System data; the scythe still rolls its damage. Seen on every srd full run since 2026-10-07 (test kit 5). Remove when a dnd5e release gives the scythe an attack roll."
+  },
+  {
+    "id": "dnd5e-srd-cloaker-spellcasting-ability",
+    "scenario": "monsters-odd",
+    "kind": "CONTENT",
+    "what": "spells and no spellcasting ability",
+    "max": 1,
+    "match": "Cloaker: the ability is empty",
+    "why": "dnd5e 6.0.5, dnd5e.monsters (SRD 2024): the Cloaker carries spells but no spellcasting ability, so there is no save DC for them. System data. Seen on every srd full run since 2026-10-07 (test kit 5). Remove when a dnd5e release sets the ability."
+  },
+  {
+    "id": "dnd5e-srd-cloud-giant-misty-step-uses",
+    "scenario": "monsters-odd",
+    "kind": "CONTENT",
+    "what": "the system refused the use",
+    "max": 1,
+    "match": "Misty Step / Use (utility): No uses on Misty Step available to spend",
+    "why": "dnd5e 6.0.5, dnd5e.monsters (SRD 2024): the Cloud Giant's innate Misty Step (from dnd5e.spells24) spends one of its own uses while the monster's copy has no uses set, so the system refuses the cast. System data. Seen on every srd full run since 2026-10-07 (test kit 5). Remove when a dnd5e release sets the uses."
   }
 ]

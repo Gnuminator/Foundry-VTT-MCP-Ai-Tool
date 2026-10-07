@@ -168,7 +168,9 @@ export function judgeRow(m) {
       bad(problems, 'CONTENT', 'unknown creature type', `${who}: "${m.creatureType}"`);
     if (!(m.hp > 0)) bad(problems, 'CONTENT', 'no hit points', `${who}: ${m.hp}`);
     if (!(m.ac > 0)) bad(problems, 'CONTENT', 'no armor class', `${who}: ${m.ac}`);
-    if (!(m.items > 0)) bad(problems, 'CONTENT', 'no items', `${who} has no features or attacks`);
+    // A challenge rating 0 creature may carry nothing at all (the Giant Fly is a mount).
+    if (!(m.items > 0) && m.cr !== 0)
+      bad(problems, 'CONTENT', 'no items', `${who} has no features or attacks`);
   }
   if (!SIZES.includes(m.size)) bad(problems, 'CONTENT', 'unknown size', `${who}: "${m.size}"`);
   if (m.legact > 0 && m.odd.legendaryActivities === 0)
@@ -421,6 +423,30 @@ export function planMonsterUse(facts) {
 }
 
 /**
+ * The problem when the broad pass found nothing to use. A stat block is never held to it. A
+ * challenge rating 0 creature whose items carry no activity at all has nothing to do by design (a
+ * mount, a familiar, a summoned servant: Giant Fly, Sea Horse, Unseen Servant), so that is a note,
+ * not a problem. Anything else with no usable action is CONTENT: the import lost the actions, or
+ * every one of them needs a dialog.
+ * @param {MonsterRow} row
+ * @param {MonsterFacts} facts
+ * @param {ReturnType<typeof planMonsterUse>} plan
+ * @returns {Problem[]}
+ */
+export function judgeNoAction(row, facts, plan) {
+  if (plan.planned || isStatBlock(row)) return [];
+  const activities = facts.items.reduce((n, i) => n + i.activities.length, 0);
+  if (row.cr === 0 && activities === 0) return [];
+  return [
+    {
+      kind: 'CONTENT',
+      what: 'no action to use',
+      evidence: `${row.name}: ${facts.items.length} items, ${plan.skipped.length} activities left out, none usable`,
+    },
+  ];
+}
+
+/**
  * The world copy against the compendium row it came from: what create-from-compendium must keep.
  * A difference is SYSTEM (Foundry or the system changed the data on the way).
  * @param {MonsterRow} row
@@ -501,7 +527,8 @@ export function judgeBridge(row, reply, notes = []) {
   same('type', reply?.type, 'npc');
   if (!isStatBlock(row)) {
     same('challenge rating', stats.challengeRating, row.cr);
-    same('creature type', stats.creatureType, row.creatureType);
+    // A creature with no type (the SRD Unseen Servant) is "" in Foundry and left out by the bridge.
+    same('creature type', stats.creatureType ?? '', row.creatureType ?? '');
     same('hit point maximum', stats.hitPoints?.max, row.hp);
     same('armor class', stats.armorClass, row.ac);
   }

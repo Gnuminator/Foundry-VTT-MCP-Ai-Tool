@@ -612,7 +612,9 @@ six times, and compares each roll with the target.
 together (the copy, use, check and delete of one monster takes about 35 milliseconds). Findings, all of them about the imported
 data or the bridge and none about the kit: 4 monsters with data the matrix names (a feature-less Giant Fly, a creature type of
 "(lycanthrope)"), 5 monsters with no usable action (a Frog and a Sea Horse with items but no activity) and a bridge that
-reads the creature type of a legacy stat block as an empty object (SYSTEM). In `monsters-odd`: all 60 legendary monsters spend their legendary pool (175 of 200 legendary activities were used: 19 spend it through a consumption target, 156 through the system's action consumption, and 25 need a dialog and were left out), so using them in Foundry moves the Boss pips; legendary resistance, lair, regeneration, shapechangers, movement and recharge rolls all agree with the
+reads the creature type of a legacy stat block as an empty object (SYSTEM). Since 2026-10-07 (test kit 8) a challenge
+rating 0 creature with no items or no activity at all is no problem, a creature with no type does not make the bridge
+disagree, and the rest of those findings are on the srd known list, so the three scenarios pass on `srd`. In `monsters-odd`: all 60 legendary monsters spend their legendary pool (175 of 200 legendary activities were used: 19 spend it through a consumption target, 156 through the system's action consumption, and 25 need a dialog and were left out), so using them in Foundry moves the Boss pips; legendary resistance, lair, regeneration, shapechangers, movement and recharge rolls all agree with the
 data; the SRD has no damage threshold (skipped) and no lair actions as activities (text only). Before PR #134 the bridge's `hasSpells`
 was true for 294 monsters that have no spells (a spellcasting ability is set on every npc), and false for a Cloaker that has
 spells and no ability (the live runs here were made before that fix and have not been repeated). `licensed` full: 1499 monsters (1114 in the local content module, 385 in the 2024 pack, 47 stat blocks), about 3.5
@@ -746,9 +748,10 @@ change Actor Studio to make the kit green.
 
 A `CONTENT` or `SYSTEM` failure that is understood and reported goes on the profile's known list, so
 the next run counts it instead of failing on it, and a new failure stands out. `heroes-advancement`,
-`heroes-features-use`, `heroes-multiclass` and the origins scenarios read the list (`lib/known.mjs`;
-the origins ones after their own `data/origins-expected.json`); `heroes-studio` keeps its own
-(`data/studio-expected.json`).
+`heroes-features-use`, `heroes-multiclass`, the origins scenarios, `monsters-matrix`, `monsters-every`
+and `monsters-odd` read the list (`lib/known.mjs`; the origins ones after their own `data/origins-expected.json`);
+`heroes-studio` keeps its own (`data/studio-expected.json`). In `monsters-odd` a monster whose
+problems are all known is counted in the check's `known` number and does not fail the check.
 
 | Profile    | Known list                                                    |
 | ---------- | ------------------------------------------------------------- |

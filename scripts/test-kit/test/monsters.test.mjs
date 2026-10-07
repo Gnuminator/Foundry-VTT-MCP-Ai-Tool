@@ -15,6 +15,7 @@ import {
   isStatBlock,
   judgeBridge,
   judgeCopy,
+  judgeNoAction,
   judgeRecharge,
   judgeRow,
   matrixOf,
@@ -258,6 +259,12 @@ test('judgeRow: a good creature has no problem, a bad one has CONTENT problems',
     ]
   );
   assert.ok(bad.every(p => p.kind === 'CONTENT'));
+  // A challenge rating 0 creature may carry nothing at all (a mount); above 0 it is a problem.
+  assert.deepEqual(judgeRow(row({ cr: 0, items: 0 })), []);
+  assert.deepEqual(
+    judgeRow(row({ cr: 0.125, items: 0 })).map(p => p.what),
+    ['no items']
+  );
 });
 
 test('judgeRow: a stat block with no challenge rating is only held to its pools and its movement', () => {
@@ -339,6 +346,32 @@ test('planMonsterUse leaves out dialogs, legendary and lair actions, cannot-use 
   assert.equal(plan.candidates, 0);
 });
 
+test('judgeNoAction: nothing usable is CONTENT, except a stat block or a CR 0 creature with no activities at all', () => {
+  const none = facts({ items: [item({ id: 'p', name: 'Water Breathing', activities: [] })] });
+  const plan = planMonsterUse(none);
+  assert.equal(plan.planned, null);
+  // A Sea Horse: challenge rating 0 and not one activity: nothing to do by design.
+  assert.deepEqual(judgeNoAction(row({ cr: 0 }), none, plan), []);
+  // A stat block (no challenge rating) is never held to it.
+  assert.deepEqual(judgeNoAction(row({ cr: null }), none, plan), []);
+  // The same creature at challenge rating 1 lost its actions on the way in.
+  const lost = judgeNoAction(row({ cr: 1, name: 'Wolf' }), none, plan);
+  assert.deepEqual(
+    lost.map(p => [p.kind, p.what]),
+    [['CONTENT', 'no action to use']]
+  );
+  assert.match(lost[0].evidence, /^Wolf: 1 items, 0 activities left out/);
+  // A CR 0 creature whose only activities were all left out is still CONTENT.
+  const dialogs = facts({
+    items: [item({ id: 'x', name: 'Summon', activities: [activity({ id: '1', type: 'summon' })] })],
+  });
+  const left = planMonsterUse(dialogs);
+  assert.equal(judgeNoAction(row({ cr: 0 }), dialogs, left).length, 1);
+  // Planned: never a problem.
+  const bite = facts({ items: [item({ id: 'b', name: 'Bite' })] });
+  assert.deepEqual(judgeNoAction(row({ cr: 0 }), bite, planMonsterUse(bite)), []);
+});
+
 test('judgeCopy: a copy that differs from the compendium entry is SYSTEM; a matching one is clean', () => {
   const r = row({ items: 1 });
   const f = facts();
@@ -381,6 +414,14 @@ test('judgeBridge: the bridge must agree; a spell-less monster shown with spells
   assert.equal(notes.length, 1);
   const wrong = judgeBridge(r, { ...reply, stats: { ...reply.stats, hitPoints: { max: 9 } } });
   assert.equal(wrong[0].kind, 'SYSTEM');
+  // No creature type at all (the SRD Unseen Servant): "" in Foundry, left out by the bridge: no problem.
+  assert.deepEqual(
+    judgeBridge(row({ creatureType: '' }), {
+      ...reply,
+      stats: { ...reply.stats, creatureType: undefined },
+    }),
+    []
+  );
   // Spells the bridge does not show are a problem.
   const caster = row({ spell: { spells: 2, ability: '', innate: false, dc: 0 } });
   assert.match(judgeBridge(caster, reply)[0].evidence, /has spells is false/);

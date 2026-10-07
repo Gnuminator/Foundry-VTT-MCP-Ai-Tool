@@ -847,6 +847,43 @@ describe('applyGuardedOps: undo', () => {
     expect(registry.has(applyCase.conc.uuid)).toBe(true);
   });
 
+  it('takes the concentration effect dnd5e ends with an item delete as deleted in a redo (no link to read)', async () => {
+    // The item names no dependents, so `executionOrder` keeps the plan's order: the item goes
+    // first and dnd5e ends the concentration with it; the effect is gone when its turn comes.
+    const caster = addActor({ name: 'Strahd' });
+    const spell = makeDoc('Item', { name: 'Hold Person' }, caster);
+    const conc = makeDoc(
+      'ActiveEffect',
+      { name: 'Concentrating', statuses: ['concentrating'] },
+      caster
+    );
+    const concDelete = conc.delete.bind(conc);
+    const spellDelete = spell.delete.bind(spell);
+    spell.delete = async (): Promise<FakeDoc> => {
+      if (registry.has(conc.uuid)) await concDelete();
+      return spellDelete();
+    };
+    const result = await applyGuardedOps(
+      await request(
+        [
+          { kind: 'delete', uuid: spell.uuid },
+          { kind: 'delete', uuid: conc.uuid },
+        ],
+        { mode: 'undo' }
+      )
+    );
+    expect(registry.has(spell.uuid)).toBe(false);
+    expect(registry.has(conc.uuid)).toBe(false);
+    expect(result.results[0]).toMatchObject({ kind: 'delete', uuid: spell.uuid });
+    expect(result.results[0].deleted).toMatchObject({ name: 'Hold Person' });
+    expect(result.results[1]).toMatchObject({
+      kind: 'delete',
+      uuid: conc.uuid,
+      documentName: 'ActiveEffect',
+      alreadyGone: true,
+    });
+  });
+
   it('a second change to the same actor leaves the rules tag alone, so the first undo still works (F5)', async () => {
     const actor = addActor();
     const first = await applyGuardedOps(

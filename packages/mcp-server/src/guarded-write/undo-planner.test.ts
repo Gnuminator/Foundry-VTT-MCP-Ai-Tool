@@ -442,6 +442,210 @@ describe('just-this', () => {
     ]);
   });
 
+  it('undoing the redo of an AI item delete restores the concentration effect dnd5e ended, once', async () => {
+    // The redo deleted the item; dnd5e ended the concentration effect by itself, so the module
+    // reported that delete as already gone. The journal holds dnd5e's delete as the redo's
+    // follow-up, which puts the effect back: no "already gone" note beside it.
+    ring.push(
+      entry('chg-1', 1, {
+        results: [
+          {
+            index: 0,
+            kind: 'delete',
+            uuid: 'Actor.a.Item.i1',
+            documentName: 'Item',
+            name: 'Hold Person',
+            parentUuid: 'Actor.a',
+            deleted: { _id: 'i1', name: 'Hold Person' },
+          },
+        ],
+      }),
+      entry('chg-u', 2, {
+        mode: 'undo',
+        undoOf: 'chg-1',
+        results: [
+          {
+            index: 0,
+            kind: 'create',
+            uuid: 'Actor.a.Item.i1',
+            documentName: 'Item',
+            name: 'Hold Person',
+            parentUuid: 'Actor.a',
+            modifiedTime: 7,
+          },
+        ],
+      }),
+      entry('chg-r', 3, {
+        mode: 'undo',
+        undoOf: 'chg-u',
+        results: [
+          {
+            index: 0,
+            kind: 'delete',
+            uuid: 'Actor.a.Item.i1',
+            documentName: 'Item',
+            name: 'Hold Person',
+            parentUuid: 'Actor.a',
+            deleted: { _id: 'i1', name: 'Hold Person' },
+          },
+          {
+            index: 1,
+            kind: 'delete',
+            uuid: 'Actor.a.ActiveEffect.e1',
+            documentName: 'ActiveEffect',
+            name: null,
+            parentUuid: 'Actor.a',
+            alreadyGone: true,
+          },
+        ],
+      })
+    );
+    records.push(
+      rec(3, {
+        actionId: 'R',
+        changeId: 'chg-r',
+        changeMode: 'undo',
+        op: 'delete',
+        documentName: 'Item',
+        uuid: 'Actor.a.Item.i1',
+        parentUuid: 'Actor.a',
+        name: 'Hold Person',
+        data: { _id: 'i1', name: 'Hold Person' },
+      }),
+      rec(3, {
+        actionId: 'R',
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a.ActiveEffect.e1',
+        parentUuid: 'Actor.a',
+        name: 'Concentrating',
+        data: { _id: 'e1', name: 'Concentrating', statuses: ['concentrating'] },
+      })
+    );
+    await plan('chg-r');
+    expect(planInput().ops).toEqual([
+      expect.objectContaining({
+        kind: 'create',
+        documentName: 'Item',
+        data: { _id: 'i1', name: 'Hold Person' },
+      }),
+      expect.objectContaining({
+        kind: 'create',
+        documentName: 'ActiveEffect',
+        data: { _id: 'e1', name: 'Concentrating', statuses: ['concentrating'] },
+      }),
+    ]);
+    expect(planInput().notes).toEqual([
+      'Also restored with "AI chg-r": 1 thing Foundry and dnd5e removed or changed with it',
+    ]);
+  });
+
+  it('names an already gone document by kind when no follow-up puts it back', async () => {
+    ring.push(
+      entry('chg-r', 3, {
+        mode: 'undo',
+        undoOf: 'chg-u',
+        results: [
+          {
+            index: 0,
+            kind: 'delete',
+            uuid: 'Actor.a.Item.i1',
+            documentName: 'Item',
+            name: 'Hold Person',
+            parentUuid: 'Actor.a',
+            deleted: { _id: 'i1', name: 'Hold Person' },
+          },
+          {
+            index: 1,
+            kind: 'delete',
+            uuid: 'Actor.a.ActiveEffect.e1',
+            documentName: 'ActiveEffect',
+            name: null,
+            parentUuid: 'Actor.a',
+            alreadyGone: true,
+          },
+        ],
+      })
+    );
+    await plan('chg-r');
+    expect(planInput().ops.map(op => op.kind)).toEqual(['create']);
+    expect(planInput().notes).toEqual([
+      'Not restored: ActiveEffect Actor.a.ActiveEffect.e1 (it was already gone when the undo ran)',
+    ]);
+  });
+
+  it("keeps a follow-up's newer values in everything-since too (its thing is not in the set)", async () => {
+    // The AI deleted a token; Foundry moved the combat turn with it (a follow-up on the Combat).
+    // The GM then clicked the tracker, a change on the Combat, which is not among the things the
+    // set is chosen by. The undo must not put the old turn back over the GM's click.
+    ring.push(
+      entry('chg-1', 1, {
+        results: [
+          {
+            index: 0,
+            kind: 'delete',
+            uuid: 'Scene.s1.Token.t1',
+            documentName: 'Token',
+            name: 'Wolf',
+            parentUuid: 'Scene.s1',
+            deleted: { _id: 't1', name: 'Wolf' },
+          },
+        ],
+      })
+    );
+    records.push(
+      rec(1, {
+        actionId: 'F',
+        changeId: 'chg-1',
+        changeMode: 'apply',
+        op: 'delete',
+        documentName: 'Token',
+        uuid: 'Scene.s1.Token.t1',
+        parentUuid: 'Scene.s1',
+        name: 'Wolf',
+        rootUuid: 'Scene.s1',
+        rootName: 'Castle',
+        data: { _id: 't1', name: 'Wolf' },
+      }),
+      rec(1, {
+        actionId: 'F',
+        documentName: 'Combat',
+        uuid: 'Combat.c1',
+        name: null,
+        rootUuid: 'Combat.c1',
+        rootName: null,
+        before: [num('turn', 1)],
+        after: [num('turn', 0)],
+      }),
+      rec(3, {
+        actionId: 'G',
+        userName: 'Gamemaster',
+        userIsGM: true,
+        documentName: 'Combat',
+        uuid: 'Combat.c1',
+        name: null,
+        rootUuid: 'Combat.c1',
+        rootName: null,
+        before: [num('turn', 0)],
+        after: [num('turn', 2)],
+      })
+    );
+    foundry.add('Scene.s1', 'Scene', { name: 'Castle' });
+    foundry.add('Combat.c1', 'Combat', { turn: 2 });
+    for (const scope of ['everything-since', 'just-this'] as const) {
+      await plan('chg-1', scope);
+      expect(planInput().ops).toEqual([
+        expect.objectContaining({ kind: 'create', documentName: 'Token', parentUuid: 'Scene.s1' }),
+      ]);
+      expect(planInput().notes).toContainEqual('Kept, changed later: Combat.c1: turn stays 2');
+    }
+    // A rewind undoes the GM's click as well, so the turn goes back.
+    await plan('chg-1', 'world-since', true);
+    expect(planInput().ops).toContainEqual(
+      expect.objectContaining({ kind: 'update', uuid: 'Combat.c1', changes: { turn: 1 } })
+    );
+  });
+
   it('undoes an AI undo entry too (the redo of an AI undo)', async () => {
     ring.push(
       entry('chg-1', 1, { results: [update('Actor.a', [num(HP, 10)], [num(HP, 5)])] }),

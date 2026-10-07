@@ -50,21 +50,33 @@ function blockId(id: string): string {
 }
 
 function who(item: ChangeListItem): string {
-  if (item.kind === 'human') return `${item.by}${item.isGM ? ' (GM)' : ''}`;
-  return item.requestedBy ? `AI, asked by ${item.requestedBy}` : 'AI';
+  if (item.kind === 'ai') return item.requestedBy ? `AI, asked by ${item.requestedBy}` : 'AI';
+  // A player who goes by the AI's own name is told apart from it (`carriedBlocks` reads it back).
+  const name = isAiName(item.by) && !item.isGM ? `${item.by} (player)` : item.by;
+  return `${name}${item.isGM ? ' (GM)' : ''}`;
+}
+
+/** The `who` text of an AI item. */
+function isAiName(text: string): boolean {
+  return text === 'AI' || text.startsWith('AI, asked by ');
 }
 
 /**
  * Text from Foundry (names, summaries, lines) as inert Markdown (the O4 rule, `md-escape.ts`), on
- * one line: a newline in a name would break the list item.
+ * one line: a newline in a name would break the list item, and the middle dot is the head's
+ * separator, so one in a name or summary is written as its entity.
  */
 function esc(text: string): string {
-  return escapeInlineText(text.replace(/[\r\n]+/g, ' '));
+  return escapeInlineText(text.replace(/[\r\n]+/g, ' ')).replace(/·/g, '&middot;');
 }
 
 /** The text back from `esc`, for the `people` property (the head of a carried block holds it escaped). */
 function unesc(text: string): string {
-  return text.replace(/\\(.)/g, '$1').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+  return text
+    .replace(/\\(.)/g, '$1')
+    .replace(/&middot;/g, '·')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&');
 }
 
 /** A `people` value: a plain name, never a link (`[[x]]` in a property is a graph link). */
@@ -79,6 +91,8 @@ export interface CarriedBlock {
   /** `HH:MM` from the head, for the order. */
   time: string;
   who: string;
+  /** The summary as written (escaped), to tell a renamed copy of a fresh item. */
+  summary: string;
   isAi: boolean;
   undone: boolean;
   /** The head line and the lines below it, as they were. */
@@ -98,12 +112,15 @@ export function carriedBlocks(noteText: string): CarriedBlock[] {
   for (const line of noteText.split('\n')) {
     const head = BLOCK_HEAD.exec(line);
     if (head) {
-      const whoText = head[2].split(' · ')[0];
+      // `esc` writes a middle dot inside a name or summary as `&middot;`, so the separators
+      // are the only ` · ` in the head: who, the summary, then the undone state if any.
+      const [whoText, summary = ''] = head[2].split(' · ');
       current = {
         id: head[3],
         time: head[1],
         who: unesc(whoText),
-        isAi: whoText === 'AI' || whoText.startsWith('AI, asked by '),
+        summary,
+        isAi: isAiName(whoText),
         undone: head[2].includes(' · undone'),
         text: [line],
       };
@@ -115,6 +132,22 @@ export function carriedBlocks(noteText: string): CarriedBlock[] {
     }
   }
   return blocks;
+}
+
+/**
+ * A block of the existing note is the fresh item `c`, so it is not carried beside it: the same
+ * id, or an id that regrouping lengthened or shortened (`act:x` beside `act:x:own` when a
+ * person's records were split from an AI burst on a later render), or the same minute and
+ * summary under a new id (the attribution changed).
+ */
+function sameItem(block: CarriedBlock, c: ChangeListItem): boolean {
+  const id = blockId(c.id);
+  return (
+    block.id === id ||
+    id.startsWith(`${block.id}-`) ||
+    block.id.startsWith(`${id}-`) ||
+    (block.time === clock(c.at) && block.summary === esc(c.summary))
+  );
 }
 
 /**
@@ -321,8 +354,7 @@ export class EveryoneNotes {
       if (day.incompleteBefore !== undefined) {
         const existing = await fsp.readFile(path.join(root, relPath), 'utf8').catch(() => null);
         if (existing !== null && checkMarkdownOwnership(existing).owned) {
-          const have = new Set(day.changes.map(c => blockId(c.id)));
-          carried = carriedBlocks(existing).filter(b => !have.has(b.id));
+          carried = carriedBlocks(existing).filter(b => !day.changes.some(c => sameItem(b, c)));
         }
       }
       await writer.owned(

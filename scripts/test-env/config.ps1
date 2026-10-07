@@ -249,22 +249,31 @@ function Read-Pids {
 # command line alone. A separate file, so older checkouts' Read-Pids never see it.
 function Get-StartFile { return ($TestEnv.PidFile -replace '\.json$', '.started.json') }
 
-# name -> @{ pid = <int>; started = <UTC ISO 8601 text> }; an entry of an older shape is skipped.
+# name -> @{ pid = <int>; started = <UTC ISO 8601 text> }. An entry of another shape (no pid, no
+# started, a time that does not parse) is skipped, and a file that is not a JSON object (empty,
+# broken, a list) is no entries: a damaged file must never stop start.ps1 or stop.ps1, which then
+# judge the service by its port and command line alone.
 function Read-Starts {
   $file = Get-StartFile
-  if (Test-Path $file) {
-    $h = @{}
-    (Get-Content $file -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object {
-      $e = $_.Value
-      if ($null -eq $e -or -not ($e.PSObject.Properties.Name -contains 'pid')) { return }
-      if (-not ("$($e.pid)" -match '^\d+$')) { return }
-      # ConvertFrom-Json turns an ISO 8601 text into a DateTime: keep the instant, as UTC text.
-      $started = ConvertTo-UtcInstant $e.started
-      if ($started) { $h[$_.Name] = @{ pid = [int]$e.pid; started = $started } }
-    }
-    return $h
+  if (-not (Test-Path $file)) { return @{} }
+  $h = @{}
+  try {
+    $parsed = Get-Content $file -Raw | ConvertFrom-Json
+  } catch {
+    return @{}
   }
-  return @{}
+  if ($null -eq $parsed -or $parsed -isnot [pscustomobject]) { return @{} }
+  foreach ($p in $parsed.PSObject.Properties) {
+    $e = $p.Value
+    if ($null -eq $e -or $e -isnot [pscustomobject]) { continue }
+    $names = @($e.PSObject.Properties.Name)
+    if (-not ($names -contains 'pid') -or -not ($names -contains 'started')) { continue }
+    if (-not ("$($e.pid)" -match '^\d+$')) { continue }
+    # ConvertFrom-Json turns an ISO 8601 text into a DateTime: keep the instant, as UTC text.
+    try { $started = ConvertTo-UtcInstant $e.started } catch { continue }
+    if ($started) { $h[$p.Name] = @{ pid = [int]$e.pid; started = $started } }
+  }
+  return $h
 }
 
 function Write-Starts([hashtable]$Starts) {

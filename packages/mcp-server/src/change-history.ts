@@ -114,6 +114,13 @@ export interface ChangeAction {
   things: ChangeThing[];
   /** Set when any record was made by an AI guarded write. */
   changeId?: string;
+  /**
+   * An AI change's follow-ups: what Foundry and dnd5e removed or changed with it on other
+   * things (a cascade root, the dependents of an ended concentration), for the undo planner to
+   * put back with it. dnd5e's derived records on the AI's own targets (Bloodied) are in
+   * `records` but not here: Foundry makes them again by itself. Empty for a person's action.
+   */
+  followUps: ChangeRecord[];
   summary: string;
   lines: string[];
 }
@@ -278,12 +285,22 @@ function dependentUuidsOf(r: ChangeRecord): string[] {
     .filter((u): u is string => typeof u === 'string');
 }
 
+/** A deleted effect's data says it was a concentration effect, or it named dependents. */
+function isConcentrationEffect(r: ChangeRecord): boolean {
+  const statuses = r.data?.statuses;
+  return (
+    (Array.isArray(statuses) && statuses.includes('concentrating')) ||
+    dependentUuidsOf(r).length > 0
+  );
+}
+
 /**
  * Which deletes in a burst dnd5e made as dependents of the AI's effect or item delete (see
  * DEPENDENT_DELETE_KINDS): the documents named in `flags.dnd5e.dependents` of the AI's deleted
- * documents and of the same-root deletes that went with them (an item's concentration effect),
- * followed through. When one of those sources lost its data (oversize), every delete of a
- * dependent kind in the burst counts, since the link cannot be read.
+ * documents and of the same-root deletes that went with them (an item's concentration effect,
+ * which counts as a dependent itself), followed through. When a source lost its data
+ * (oversize), every delete of a dependent kind in the burst counts, since the link cannot be
+ * read; a dependent without data only cannot be followed further.
  */
 function dependentDeletes(
   group: ChangeRecord[],
@@ -293,17 +310,23 @@ function dependentDeletes(
     r => r.changeId && r.op === 'delete' && DEPENDENT_SOURCE_KINDS.has(r.documentName)
   );
   if (sources.length === 0) return (): boolean => false;
+  const itemSource = sources.some(r => r.documentName === 'Item');
   const linked = new Set<string>();
+  // The records whose data names the dependents: the sources and, when the AI deleted an item,
+  // the concentration effect dnd5e ended with it on the same actor (a dependent itself).
+  const chain = new Set(sources);
   let unreadable = false;
-  const queue = [
-    ...sources,
-    ...group.filter(r => !r.changeId && r.op === 'delete' && aiRoots.has(r.rootUuid)),
-  ];
+  const sameRoot = group.filter(r => !r.changeId && r.op === 'delete' && aiRoots.has(r.rootUuid));
+  for (const r of sameRoot) {
+    if (itemSource && r.documentName === 'ActiveEffect' && isConcentrationEffect(r)) {
+      linked.add(r.uuid);
+      chain.add(r);
+    }
+  }
+  const queue = [...sources, ...sameRoot];
   for (let i = 0; i < queue.length; i += 1) {
     const r = queue[i];
-    // A source whose data is gone cannot name its dependents; a dependent without data only
-    // cannot be followed further.
-    if (r.oversize === true || (!r.data && sources.includes(r))) unreadable = true;
+    if (chain.has(r) && (r.oversize === true || !r.data)) unreadable = true;
     for (const uuid of dependentUuidsOf(r)) {
       if (linked.has(uuid)) continue;
       linked.add(uuid);
@@ -441,23 +464,24 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
     else groups.set(r.actionId, [r]);
   }
 
-  const split: Array<[string, ChangeRecord[]]> = [];
+  const split: Array<[string, ChangeRecord[], ChangeRecord[]]> = [];
   for (const [actionId, group] of groups) {
     const aiRoots = new Set(group.filter(r => r.changeId).map(r => r.rootUuid));
     if (aiRoots.size === 0) {
-      split.push([actionId, group]);
+      split.push([actionId, group, []]);
       continue;
     }
     const dependents = dependentDeletes(group, aiRoots);
+    const followUps = group.filter(r => !r.changeId && (isCascade(r) || dependents(r)));
     const own = group.filter(
-      r => !r.changeId && !aiRoots.has(r.rootUuid) && !isCascade(r) && !dependents(r)
+      r => !r.changeId && !aiRoots.has(r.rootUuid) && !followUps.includes(r)
     );
-    split.push([actionId, own.length > 0 ? group.filter(r => !own.includes(r)) : group]);
-    if (own.length > 0) split.push([`${actionId}${OWN_ACTION_SUFFIX}`, own]);
+    split.push([actionId, own.length > 0 ? group.filter(r => !own.includes(r)) : group, followUps]);
+    if (own.length > 0) split.push([`${actionId}${OWN_ACTION_SUFFIX}`, own, []]);
   }
 
   const actions: ChangeAction[] = [];
-  for (const [actionId, group] of split) {
+  for (const [actionId, group, followUps] of split) {
     const first = group[0];
     const things = new Map<string, ChangeThing>();
     for (const r of group) {
@@ -478,6 +502,7 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
       records: group,
       things: [...things.values()],
       ...(changeId ? { changeId } : {}),
+      followUps,
       summary,
       lines,
     });
@@ -582,15 +607,15 @@ export class ChangeHistory {
   }
 
   /**
-   * Foundry's and dnd5e's own follow-ups of an AI change (the combatant that went with a token,
-   * the dependents of an ended concentration): the records of its burst that are not the AI's
-   * own, for the undo planner to put back with it. Empty when the journal has none. No pull:
+   * Foundry's and dnd5e's own follow-ups of an AI change on other things (the combatant that
+   * went with a token, the dependents of an ended concentration; see `ChangeAction.followUps`),
+   * for the undo planner to put back with it. Empty when the journal has none. No pull:
    * `humanActions` (called first by the planner) fetched the newest records.
    */
   async aiFollowUps(changeId: string): Promise<ChangeRecord[]> {
     const worldId = await this.worldIds.current();
     const action = (await this.actionsFor(worldId)).find(a => a.changeId === changeId);
-    return action ? action.records.filter(r => !r.changeId) : [];
+    return action ? action.followUps : [];
   }
 
   /** The readable lines of every AI change's follow-ups (see `aiFollowUps`), by changeId. */
@@ -598,14 +623,11 @@ export class ChangeHistory {
     const users = (await this.load(worldId)).users;
     const lines = new Map<string, string[]>();
     for (const action of await this.actionsFor(worldId)) {
-      if (!action.changeId) continue;
-      const own = action.records.filter(r => !r.changeId);
-      if (own.length > 0) {
-        lines.set(
-          action.changeId,
-          own.flatMap(r => describeRecord(r, users))
-        );
-      }
+      if (!action.changeId || action.followUps.length === 0) continue;
+      lines.set(
+        action.changeId,
+        action.followUps.flatMap(r => describeRecord(r, users))
+      );
     }
     return lines;
   }
@@ -755,9 +777,9 @@ export class ChangeHistory {
         const oldest = Date.parse(recent[recent.length - 1].appliedAt);
         if (Number.isFinite(oldest)) aiFrom = oldest;
       }
+      const followUps = await this.followUpLines(worldId);
       for (const change of recent) {
         const at = Date.parse(change.appliedAt);
-      const followUps = await this.followUpLines(worldId);
         if (Number.isFinite(at) && at < from) continue;
         if (!matchesPerson(options, null, change.requestedBy ?? null)) continue;
         if (options.thingUuid) {

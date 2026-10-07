@@ -9,6 +9,9 @@
  *   so the sweep can restore them after a `plan-scene-change` mood step.
  * - `combat`: start a combat on the active scene with the given tokens (no tool creates a
  *   combat), so the combat tools have something to act on.
+ * - `concentration`: a concentration effect on one sweep actor with a dependent effect on
+ *   another, linked as dnd5e links them, for the undo and redo check of an AI-ended
+ *   concentration.
  * - `cleanup` (the default): delete the world documents and tokens the sweep named with
  *   {@link SWEEP_PREFIX} (NPCs, journals, items, folders, its wolf token), plus the chat
  *   messages and combats created since the run started.
@@ -64,7 +67,18 @@ export interface SweepCombatResult {
   combatants: string[];
 }
 
-export type LiveSweepResult = SweepCleanupResult | SweepSnapshotResult | SweepCombatResult;
+/** The concentration effect and the dependent effect the helper made (see `concentration`). */
+export interface SweepConcentrationResult {
+  mode: 'concentration';
+  effectUuid: string;
+  dependentUuid: string;
+}
+
+export type LiveSweepResult =
+  | SweepCleanupResult
+  | SweepSnapshotResult
+  | SweepCombatResult
+  | SweepConcentrationResult;
 
 interface LiveSweepRequest {
   mode?: unknown;
@@ -72,6 +86,17 @@ interface LiveSweepRequest {
   since?: unknown;
   /** combat: token ids on the active scene. */
   tokenIds?: unknown;
+  /** concentration: the caster's and the target's actor ids. */
+  actorIds?: unknown;
+}
+
+interface SweepActor {
+  uuid: string;
+  createEmbeddedDocuments(type: string, data: Record<string, unknown>[]): Promise<SweepEffect[]>;
+}
+
+interface SweepEffect {
+  uuid: string;
 }
 
 /** World collections whose sweep-made documents are found by name, with their type. */
@@ -153,6 +178,8 @@ export async function liveSweep(data: unknown): Promise<LiveSweepResult> {
       return snapshot();
     case 'combat':
       return startCombat(request.tokenIds);
+    case 'concentration':
+      return concentration(request.actorIds);
     case 'cleanup':
       return cleanup(worldId, request.since);
     default:
@@ -199,6 +226,32 @@ async function startCombat(tokenIds: unknown): Promise<SweepCombatResult> {
   foundry.Hooks?.callAll('combatStart', combat, start);
   await combat.update(start);
   return { mode: 'combat', combatId: combat.id, combatants: tokens.map(t => String(t.name)) };
+}
+
+/**
+ * A concentration as dnd5e links it: an effect on the caster whose `flags.dnd5e.dependents`
+ * names an effect on the target, so dnd5e deletes the target's effect when the caster's goes
+ * (the sweep checks that an AI delete of the caster's effect, its undo and its redo take the
+ * dependent along). Both carry the sweep prefix; the actors are the sweep's own, so the
+ * clean-up removes what is left.
+ */
+async function concentration(actorIds: unknown): Promise<SweepConcentrationResult> {
+  const ids = Array.isArray(actorIds) ? actorIds.map(String) : [];
+  const actors = sweepGame().actors as { get(id: string): SweepActor | undefined } | undefined;
+  const caster = ids[0] ? actors?.get(ids[0]) : undefined;
+  const target = ids[1] ? actors?.get(ids[1]) : undefined;
+  if (!caster || !target) throw new Error('concentration needs two actor ids: caster, target');
+  const [dependent] = await target.createEmbeddedDocuments('ActiveEffect', [
+    { name: `${SWEEP_PREFIX} Held`, img: 'icons/svg/paralysis.svg' },
+  ]);
+  const [effect] = await caster.createEmbeddedDocuments('ActiveEffect', [
+    {
+      name: `${SWEEP_PREFIX} Concentrating`,
+      img: 'icons/svg/aura.svg',
+      flags: { dnd5e: { dependents: [{ uuid: dependent.uuid }] } },
+    },
+  ]);
+  return { mode: 'concentration', effectUuid: effect.uuid, dependentUuid: dependent.uuid };
 }
 
 /**

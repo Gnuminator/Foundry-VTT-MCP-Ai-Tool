@@ -94,6 +94,17 @@ describe('POST /api/test/live-sweep (I-016)', () => {
     expect(calls).toEqual([{ mode: 'cleanup', since: 1234 }]);
   });
 
+  it('passes the token and actor ids of the set-up modes as strings', async () => {
+    const { base, calls } = await start(true);
+    await post(base, '/api/control', { action: 'set-gm-actions', value: true });
+    await post(base, '/api/test/live-sweep', { mode: 'combat', tokenIds: ['t1', 2] });
+    await post(base, '/api/test/live-sweep', { mode: 'concentration', actorIds: ['a1', 'a2'] });
+    expect(calls).toEqual([
+      { mode: 'combat', tokenIds: ['t1', '2'] },
+      { mode: 'concentration', actorIds: ['a1', 'a2'] },
+    ]);
+  });
+
   it('answers 501 when the bridge cannot clean up', async () => {
     const { base } = await start(false);
     await post(base, '/api/control', { action: 'set-gm-actions', value: true });

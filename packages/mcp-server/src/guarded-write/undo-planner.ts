@@ -176,6 +176,8 @@ function laterOf(item: Item): LaterChange {
 interface Collected {
   events: DocEvent[];
   notes: string[];
+  /** The documents Foundry and dnd5e removed or changed with an AI change (`aiFollowUps`). */
+  followUps: Set<string>;
 }
 
 /**
@@ -231,6 +233,10 @@ function aiEvents(
   nextOrder: () => number
 ): void {
   for (const r of results) {
+    if (r.kind === 'delete' && r.alreadyGone) {
+      out.notes.push(`Not restored: ${r.name ?? r.uuid} (it was already gone when the undo ran)`);
+      continue;
+    }
     if (r.kind === 'delete' && !r.deleted) {
       out.notes.push(`Not restored: ${r.name ?? r.uuid} (its data was not kept)`);
       continue;
@@ -405,7 +411,8 @@ export class UndoPlanner {
       justThis,
       justThis && touching.length > 0,
       notes,
-      users
+      users,
+      collected.followUps
     );
     if (ops.length === 0) {
       const why = notes.length > 0 ? notes.join('; ') : 'everything is already as it was before';
@@ -505,17 +512,25 @@ export class UndoPlanner {
   }
 
   private async collect(worldId: string, set: Item[]): Promise<Collected> {
-    const out: Collected = { events: [], notes: [] };
+    const out: Collected = { events: [], notes: [], followUps: new Set() };
     let order = 0;
     const nextOrder = (): number => (order += 1);
     for (const item of set) {
       if (item.action) recordEvents(item, item.action.records, out, nextOrder);
       else if (item.entry) {
         aiEvents(item, await this.audit.resultsWithDeleted(worldId, item.entry), out, nextOrder);
-        // What Foundry and dnd5e did with the AI change (a combatant gone with its token, the
-        // dependents of an ended concentration) comes back with it.
+        // What Foundry and dnd5e did with the AI change on other things (a combatant gone with
+        // its token, the dependents of an ended concentration) comes back with it.
         const followUps = (await this.changeHistory.aiFollowUps?.(item.entry.changeId)) ?? [];
+        const before = out.events.length;
         recordEvents(item, followUps, out, nextOrder);
+        const added = out.events.length - before;
+        if (added > 0) {
+          for (const r of followUps) out.followUps.add(r.uuid);
+          out.notes.push(
+            `Also restored with "${item.summary}": ${added} ${added === 1 ? 'thing' : 'things'} Foundry and dnd5e removed or changed with it`
+          );
+        }
       }
     }
     return out;
@@ -530,7 +545,8 @@ export class UndoPlanner {
     justThis: boolean,
     laterTouches: boolean,
     notes: string[],
-    users?: UserNames
+    users?: UserNames,
+    followUps: ReadonlySet<string> = new Set()
   ): Promise<{ ops: GuardedOp[]; resolved: NetChange[] }> {
     // A document inside one that is deleted goes with it.
     const deleted = folded.filter(n => n.kind === 'delete').map(n => n.uuid);
@@ -565,7 +581,8 @@ export class UndoPlanner {
         if (change.parentUuid && recreated.has(change.parentUuid)) {
           notes.push(`Not restored: ${who} (what it belonged to is restored in the same step)`);
         } else if (snap.idTaken) {
-          if (justThis)
+          // A follow-up Foundry or dnd5e made again by itself is left as it is, in every scope.
+          if (justThis && !followUps.has(change.uuid))
             throw new Error(`${who} cannot be restored: a document with its id exists again`);
           notes.push(`Skipped: ${who} exists again`);
         } else if (!snap.exists) {

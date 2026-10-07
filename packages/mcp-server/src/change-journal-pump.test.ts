@@ -494,6 +494,27 @@ describe('ChangeJournalPump.pollOnce', () => {
     });
   });
 
+  it('sees a wrap between the pages of one poll', async () => {
+    for (let i = 0; i < 600; i++) foundry.add({ key: `k-${i}`, t: T0 + i });
+    const serve = foundry.query.getMockImplementation()!;
+    let pages = 0;
+    foundry.query.mockImplementation((method: string, data: unknown): Promise<unknown> => {
+      pages += 1;
+      const response = serve(method, data);
+      // After the first page (seq 1 to 500) was served, the ring drops its oldest 502
+      // records: 501 and 502 are gone before the second page asks for them.
+      if (pages === 1) foundry.evictOldest(502);
+      return response;
+    });
+    const pump = makePump();
+    expect(await pump.pollOnce()).toBe(598);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Change journal records lost: the ring buffer wrapped before the pump read them',
+      expect.objectContaining({ expectedFrom: 501, oldestSeq: 503 })
+    );
+    expect(await pump.historyStart('w1')).toBe(T0 + 502);
+  });
+
   it('a page of exactly 500 asks once more and stops on the empty page', async () => {
     for (let i = 0; i < 500; i++) foundry.add({ key: `k-${i}`, t: T0 + i });
     expect(await makePump().pollOnce()).toBe(500);

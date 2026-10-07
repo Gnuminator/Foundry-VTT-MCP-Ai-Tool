@@ -97,6 +97,11 @@ export interface GuardedOpResult {
   after?: PathValue[];
   /** delete: full source data before deletion (for undo). */
   deleted?: Record<string, unknown>;
+  /**
+   * delete in an undo or redo: the document was already gone when the op ran (dnd5e removes an
+   * effect's dependents by itself), so nothing was deleted and there is no `deleted` data.
+   */
+  alreadyGone?: true;
   /** create: `_stats.modifiedTime` of the new document (undo conflict check). */
   modifiedTime?: number | null;
 }

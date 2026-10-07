@@ -178,7 +178,7 @@ async function tool(name, args = {}, { destructive = false } = {}) {
   return result;
 }
 
-/** The dashboard's test-world helper (snapshot, combat, cleanup). */
+/** The dashboard's test-world helper (snapshot, combat, concentration, cleanup). */
 async function helper(body) {
   const { status, data } = await http('/api/test/live-sweep', {
     method: 'POST',
@@ -636,6 +636,63 @@ async function tokenTools() {
     assert(!(await wolfConditions()).includes('prone'), 'prone still on after taking it off');
     return 'on, cleared, clear undone, taken off again';
   });
+  await step(
+    'plan-actor-change clear-conditions (an AI-ended concentration: dependent goes, undo, redo)',
+    async () => {
+      needWolf();
+      if (!ctx.npcId) skip('no sweep NPC to hold the dependent effect');
+      const effectNames = async actorId => {
+        const r = await tool('get-active-effects', { identifier: actorId });
+        return ((r && r.effects) || []).map(e => String(e.name));
+      };
+      const made = await helper({
+        mode: 'concentration',
+        actorIds: [ctx.wolfActorId, ctx.npcId],
+      });
+      const concentrating = `${PREFIX} Concentrating`;
+      const held = `${PREFIX} Held`;
+      assert((await effectNames(ctx.npcId)).includes(held), 'the dependent effect was not made');
+      // The AI ends the concentration: dnd5e removes the dependent on the NPC by itself.
+      const ended = await planAndApply({
+        action: 'clear-conditions',
+        targets: [ctx.wolfTokenId],
+        conditions: [concentrating],
+      });
+      assert(
+        !(await effectNames(ctx.wolfActorId)).includes(concentrating),
+        'the concentration effect is still there'
+      );
+      let npcEffects = await effectNames(ctx.npcId);
+      for (let i = 0; i < 10 && npcEffects.includes(held); i += 1) {
+        await new Promise(r => setTimeout(r, 300));
+        npcEffects = await effectNames(ctx.npcId);
+      }
+      assert(!npcEffects.includes(held), 'dnd5e did not remove the dependent effect');
+      // Undo: both come back (the dependent from the change journal's follow-up record; the
+      // pump needs a moment to have it).
+      await new Promise(r => setTimeout(r, 1500));
+      const undone = await undo(ended.change);
+      assert(
+        (await effectNames(ctx.wolfActorId)).includes(concentrating),
+        'the concentration effect did not come back'
+      );
+      assert(
+        (await effectNames(ctx.npcId)).includes(held),
+        'the dependent effect did not come back with the undo'
+      );
+      // Redo (undo the undo): both go again in one plan, the dependent before the effect.
+      await undo(undone);
+      assert(
+        !(await effectNames(ctx.wolfActorId)).includes(concentrating),
+        'the concentration effect is still there after the redo'
+      );
+      assert(
+        !(await effectNames(ctx.npcId)).includes(held),
+        'the dependent effect is still there after the redo'
+      );
+      return `${made.effectUuid} ended, dependent gone; undone (both back); redone (both gone)`;
+    }
+  );
   await step('plan-token-change update (a torch: light 40/20, undo)', async () => {
     needWolf();
     const { plan, change } = await planAndApply(

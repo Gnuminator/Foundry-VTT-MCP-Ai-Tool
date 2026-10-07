@@ -759,6 +759,94 @@ describe('applyGuardedOps: undo', () => {
     expect(gmChangeEvents(undo.changeId)[0].description).toBe('Undid: Undo test change');
   });
 
+  /**
+   * Two actors: Strahd concentrates (an effect that names its dependent), Ireena holds the
+   * dependent effect. The fake plays dnd5e's part: deleting the concentration effect deletes
+   * its dependent too, as the system does in the active GM's browser.
+   */
+  function concentrationPair(withLink: boolean): {
+    conc: FakeDoc;
+    held: FakeDoc;
+    deletions: string[];
+  } {
+    const strahd = addActor({ name: 'Strahd' });
+    const ireena = addActor();
+    const held = makeDoc('ActiveEffect', { name: 'Hold Person' }, ireena);
+    const conc = makeDoc(
+      'ActiveEffect',
+      {
+        name: 'Concentrating',
+        ...(withLink ? { flags: { dnd5e: { dependents: [{ uuid: held.uuid }] } } } : {}),
+      },
+      strahd
+    );
+    const deletions: string[] = [];
+    const heldDelete = held.delete.bind(held);
+    held.delete = (): Promise<FakeDoc> => {
+      deletions.push('held');
+      return heldDelete();
+    };
+    const concDelete = conc.delete.bind(conc);
+    conc.delete = async (): Promise<FakeDoc> => {
+      deletions.push('conc');
+      if (registry.has(held.uuid)) await heldDelete();
+      return concDelete();
+    };
+    return { conc, held, deletions };
+  }
+
+  it('deletes a dependent before the effect whose dnd5e data names it', async () => {
+    const { conc, held, deletions } = concentrationPair(true);
+    const ops: GuardedOp[] = [
+      { kind: 'delete', uuid: conc.uuid },
+      { kind: 'delete', uuid: held.uuid },
+    ];
+    const result = await applyGuardedOps(await request(ops, { mode: 'undo' }));
+    expect(deletions).toEqual(['held', 'conc']);
+    expect(registry.has(conc.uuid)).toBe(false);
+    expect(registry.has(held.uuid)).toBe(false);
+    // Results in plan order, each with its data.
+    expect(result.results.map(r => [r.index, r.uuid])).toEqual([
+      [0, conc.uuid],
+      [1, held.uuid],
+    ]);
+    expect(result.results[1].deleted).toMatchObject({ name: 'Hold Person' });
+  });
+
+  it('takes a document that is already gone as deleted in an undo (dnd5e removed it first), never in an apply', async () => {
+    const undoCase = concentrationPair(false);
+    const undone = await applyGuardedOps(
+      await request(
+        [
+          { kind: 'delete', uuid: undoCase.conc.uuid },
+          { kind: 'delete', uuid: undoCase.held.uuid },
+        ],
+        { mode: 'undo' }
+      )
+    );
+    expect(undoCase.deletions).toEqual(['conc']);
+    expect(undone.results[1]).toMatchObject({
+      kind: 'delete',
+      uuid: undoCase.held.uuid,
+      documentName: 'ActiveEffect',
+      parentUuid: undoCase.held.parent?.uuid,
+      alreadyGone: true,
+    });
+    expect(undone.results[1].deleted).toBeUndefined();
+
+    const applyCase = concentrationPair(false);
+    await expect(
+      applyGuardedOps(
+        await request([
+          { kind: 'delete', uuid: applyCase.conc.uuid },
+          { kind: 'delete', uuid: applyCase.held.uuid },
+        ])
+      )
+    ).rejects.toThrow(/Op 1 \(delete\) failed: Document not found/);
+    // The rollback put the concentration effect back.
+    expect(registry.has(applyCase.conc.uuid)).toBe(true);
+  });
+
   it('a second change to the same actor leaves the rules tag alone, so the first undo still works (F5)', async () => {
     const actor = addActor();
     const first = await applyGuardedOps(

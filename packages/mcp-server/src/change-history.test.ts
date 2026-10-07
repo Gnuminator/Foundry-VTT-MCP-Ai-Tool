@@ -470,6 +470,95 @@ describe('buildActions', () => {
     ]);
   });
 
+  it('hands the planner only the follow-ups on other things, and reads the dependents link from sources only', () => {
+    const dependentsOf = (...uuids: string[]): Record<string, unknown> => ({
+      flags: { dnd5e: { dependents: uuids.map(uuid => ({ uuid })) } },
+    });
+    const ai = rec({
+      actionId: 'G',
+      changeId: 'chg-4',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.e1',
+      parentUuid: 'Actor.a2',
+      name: 'Concentrating: Hold Person',
+      rootUuid: 'Actor.a2',
+      rootName: 'Strahd',
+      data: dependentsOf('Actor.a1.ActiveEffect.e2'),
+    });
+    const held = rec({
+      actionId: 'G',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.e2',
+      parentUuid: 'Actor.a1',
+      name: 'Hold Person',
+      data: { name: 'Hold Person' },
+    });
+    // dnd5e's derived record on the AI's own target (Bloodied going with an HP change in the
+    // same burst) stays in the action but is not a follow-up: Foundry makes it again by itself.
+    const bloodied = rec({
+      actionId: 'G',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.b1',
+      parentUuid: 'Actor.a2',
+      name: 'Bloodied',
+      rootUuid: 'Actor.a2',
+      rootName: 'Strahd',
+      data: { name: 'Bloodied' },
+    });
+    const [action] = buildActions([ai, bloodied, held]);
+    expect(action.records).toEqual([ai, bloodied, held]);
+    expect(action.followUps).toEqual([held]);
+
+    // A dependent too large to keep does not switch the burst to the kind rule: a delete the
+    // link does not name is still the person's own action.
+    const oversizeHeld = { ...held, data: undefined, oversize: true };
+    const unrelated = rec({
+      actionId: 'G',
+      op: 'delete',
+      documentName: 'Token',
+      uuid: 'Scene.s1.Token.t2',
+      parentUuid: 'Scene.s1',
+      name: 'Bat',
+      rootUuid: 'Scene.s1',
+      rootName: 'Castle',
+    });
+    const split = buildActions([ai, oversizeHeld, unrelated]);
+    expect(split.map(a => a.records)).toEqual([[ai, oversizeHeld], [unrelated]]);
+    expect(split[0].followUps).toEqual([oversizeHeld]);
+
+    // An AI item delete: the concentration effect dnd5e ended on the same actor is a follow-up
+    // too, and its dependents with it; the derived record still is not.
+    const item = rec({
+      actionId: 'G',
+      changeId: 'chg-4',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'Item',
+      uuid: 'Actor.a2.Item.i1',
+      parentUuid: 'Actor.a2',
+      name: 'Wand of Hold Person',
+      rootUuid: 'Actor.a2',
+      rootName: 'Strahd',
+      data: { name: 'Wand of Hold Person' },
+    });
+    const concentration = {
+      ...ai,
+      changeId: undefined,
+      changeMode: undefined,
+      data: { statuses: ['concentrating'], ...dependentsOf('Actor.a1.ActiveEffect.e2') },
+    };
+    const viaItem = buildActions([item, concentration, bloodied, held]);
+    expect(viaItem.map(a => a.records)).toEqual([[item, concentration, bloodied, held]]);
+    expect(viaItem[0].followUps).toEqual([concentration, held]);
+
+    // A person's action has none.
+    expect(buildActions([hpChange(20, 18, { actionId: 'H' })])[0].followUps).toEqual([]);
+  });
+
   it('names the owner in an ownership line when the user is known', () => {
     const owner = rec({
       before: [val('ownership.u2', 0)],

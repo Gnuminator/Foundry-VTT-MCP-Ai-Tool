@@ -126,11 +126,7 @@ beforeEach((): void => {
       humanActions: (): Promise<ChangeAction[]> => Promise.resolve(buildActions(records)),
       historyStart: (): Promise<number> => Promise.resolve(historyStart),
       aiFollowUps: (changeId: string): Promise<ChangeRecord[]> =>
-        Promise.resolve(
-          buildActions(records)
-            .find(a => a.changeId === changeId)
-            ?.records.filter(r => !r.changeId) ?? []
-        ),
+        Promise.resolve(buildActions(records).find(a => a.changeId === changeId)?.followUps ?? []),
     },
     guardedWrites: { createPlan } as never,
     audit: {
@@ -317,6 +313,133 @@ describe('just-this', () => {
     );
     // The follow-ups are not a person's action: nothing else to list.
     expect(view.later).toEqual([]);
+  });
+
+  it("leaves dnd5e's derived records on the AI's own target alone, and skips a follow-up that exists again", async () => {
+    const deleted = { _id: 'e1', name: 'Concentrating' };
+    ring.push(
+      entry('chg-1', 1, {
+        results: [
+          {
+            index: 0,
+            kind: 'delete',
+            uuid: 'Actor.a.ActiveEffect.e1',
+            documentName: 'ActiveEffect',
+            name: 'Concentrating',
+            parentUuid: 'Actor.a',
+            deleted,
+          },
+        ],
+      })
+    );
+    records.push(
+      rec(1, {
+        actionId: 'F',
+        changeId: 'chg-1',
+        changeMode: 'apply',
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a.ActiveEffect.e1',
+        parentUuid: 'Actor.a',
+        name: 'Concentrating',
+        data: { ...deleted, flags: { dnd5e: { dependents: [{ uuid: 'Scene.s1.Token.t9' }] } } },
+      }),
+      // dnd5e took Bloodied off Ireena in the same burst: not replayed (dnd5e makes it again).
+      rec(1, {
+        actionId: 'F',
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a.ActiveEffect.bloodied',
+        parentUuid: 'Actor.a',
+        name: 'Bloodied',
+        data: { _id: 'bloodied', name: 'Bloodied' },
+      }),
+      // The summoned wolf went with the concentration, and was summoned again since.
+      rec(1, {
+        actionId: 'F',
+        op: 'delete',
+        documentName: 'Token',
+        uuid: 'Scene.s1.Token.t9',
+        parentUuid: 'Scene.s1',
+        name: 'Wolf',
+        rootUuid: 'Scene.s1',
+        rootName: 'Castle',
+        data: { _id: 't9', name: 'Wolf' },
+      })
+    );
+    foundry.add('Scene.s1', 'Scene', { name: 'Castle' });
+    foundry.add('Scene.s1.Token.t9', 'Token', { _id: 't9', name: 'Wolf' });
+    await plan('chg-1', 'just-this');
+    expect(planInput().ops).toEqual([
+      expect.objectContaining({
+        kind: 'create',
+        documentName: 'ActiveEffect',
+        parentUuid: 'Actor.a',
+        data: { _id: 'e1', name: 'Concentrating' },
+      }),
+    ]);
+    expect(planInput().notes).toContainEqual(
+      'Also restored with "AI chg-1": 1 thing Foundry and dnd5e removed or changed with it'
+    );
+    expect(planInput().notes).toContainEqual('Skipped: Wolf exists again');
+  });
+
+  it('a redo deletes the follow-ups the undo re-created', async () => {
+    ring.push(
+      entry('chg-1', 1, {
+        results: [
+          {
+            index: 0,
+            kind: 'delete',
+            uuid: 'Actor.a.ActiveEffect.e1',
+            documentName: 'ActiveEffect',
+            name: 'Concentrating',
+            parentUuid: 'Actor.a',
+            deleted: { _id: 'e1', name: 'Concentrating' },
+          },
+        ],
+      }),
+      entry('chg-u', 2, {
+        mode: 'undo',
+        undoOf: 'chg-1',
+        results: [
+          {
+            index: 0,
+            kind: 'create',
+            uuid: 'Actor.a.ActiveEffect.e1',
+            documentName: 'ActiveEffect',
+            name: 'Concentrating',
+            parentUuid: 'Actor.a',
+            modifiedTime: 7,
+          },
+          {
+            index: 1,
+            kind: 'create',
+            uuid: 'Scene.s1.Token.t9',
+            documentName: 'Token',
+            name: 'Wolf',
+            parentUuid: 'Scene.s1',
+            modifiedTime: 8,
+          },
+        ],
+      })
+    );
+    foundry.add('Actor.a.ActiveEffect.e1', 'ActiveEffect', {
+      _id: 'e1',
+      name: 'Concentrating',
+      _stats: { modifiedTime: 7 },
+    });
+    foundry.add('Scene.s1', 'Scene', { name: 'Castle' });
+    foundry.add('Scene.s1.Token.t9', 'Token', {
+      _id: 't9',
+      name: 'Wolf',
+      _stats: { modifiedTime: 8 },
+    });
+    await plan('chg-u');
+    expect(planInput().ops).toEqual([
+      { kind: 'delete', uuid: 'Actor.a.ActiveEffect.e1' },
+      { kind: 'delete', uuid: 'Scene.s1.Token.t9' },
+    ]);
   });
 
   it('undoes an AI undo entry too (the redo of an AI undo)', async () => {

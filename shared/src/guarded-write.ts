@@ -97,6 +97,11 @@ export interface GuardedOpResult {
   after?: PathValue[];
   /** delete: full source data before deletion (for undo). */
   deleted?: Record<string, unknown>;
+  /**
+   * delete in an undo or redo: the document was already gone when the op ran (dnd5e removes an
+   * effect's dependents by itself), so nothing was deleted and there is no `deleted` data.
+   */
+  alreadyGone?: true;
   /** create: `_stats.modifiedTime` of the new document (undo conflict check). */
   modifiedTime?: number | null;
 }
@@ -156,8 +161,14 @@ export type GuardedRisk = 'write' | 'destructive';
  * - update: restore every recorded `before` value; a path that was absent is unset.
  * - create: delete the created document.
  * - delete: re-create it from the stored source data, keeping its id.
+ *
+ * A delete marked `alreadyGone` removed nothing (dnd5e had already taken the document), so it
+ * has no inverse: callers leave it out ({@link isNoOpResult}); asking for one is a bug.
  */
 export function inverseGuardedOp(executed: GuardedOpResult): GuardedOp {
+  if (isNoOpResult(executed)) {
+    throw new Error(`${executed.uuid} was already gone when it was deleted; nothing to reverse`);
+  }
   switch (executed.kind) {
     case 'update': {
       const changes: Record<string, unknown> = {};
@@ -181,6 +192,11 @@ export function inverseGuardedOp(executed: GuardedOpResult): GuardedOp {
       return op;
     }
   }
+}
+
+/** An executed op that changed nothing: a delete whose document was already gone. */
+export function isNoOpResult(executed: GuardedOpResult): boolean {
+  return executed.kind === 'delete' && executed.alreadyGone === true;
 }
 
 /**

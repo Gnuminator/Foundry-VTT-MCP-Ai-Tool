@@ -1090,6 +1090,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     const request: Record<string, unknown> = { mode: readStr(body.mode, 'cleanup') };
     if (typeof body.since === 'number') request.since = body.since;
     if (Array.isArray(body.tokenIds)) request.tokenIds = body.tokenIds.map(String);
+    if (Array.isArray(body.actorIds)) request.actorIds = body.actorIds.map(String);
     client
       .liveSweep(request)
       .then(result => res.json({ ok: true, result }))

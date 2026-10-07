@@ -17,17 +17,17 @@
  * confirms with `apply-planned-change`. The resulting audit entry names what it undid (`undoes`), so
  * undoing it again is the redo, and `computeUndoState` makes the changes live again.
  */
-import type { GuardedOp, OpSnapshot, PathValue } from '@gnuminator/shared';
+import type { ChangeRecord, GuardedOp, OpSnapshot, PathValue } from '@gnuminator/shared';
 
 import {
   CHANGE_HISTORY_DAYS,
+  historyStartLabel,
   labelOf,
   undoBlocker,
   type ChangeAction,
   type ChangeHistory,
   type UserNames,
 } from '../change-history.js';
-import { localDateKey } from '../event-pump.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { AuditEntry, AuditLog } from '../vault/audit.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
@@ -81,10 +81,11 @@ export interface UndoPlanView extends PlanView {
 export interface UndoPlannerOptions {
   /**
    * `userNames` is optional: without it, ownership lines name users by id. `historyStart` is
-   * optional: without it, a rewind may reach back past the kept history.
+   * optional: without it, a rewind may reach back past the kept history. `aiFollowUps` is
+   * optional: without it, Foundry's own follow-ups of an AI change are not put back with it.
    */
   changeHistory: Pick<ChangeHistory, 'humanActions'> &
-    Partial<Pick<ChangeHistory, 'userNames' | 'historyStart'>>;
+    Partial<Pick<ChangeHistory, 'userNames' | 'historyStart' | 'aiFollowUps'>>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   audit: Pick<AuditLog, 'ring' | 'resultsWithDeleted'>;
   worldIds: Pick<WorldIdResolver, 'current'>;
@@ -175,13 +176,23 @@ function laterOf(item: Item): LaterChange {
 interface Collected {
   events: DocEvent[];
   notes: string[];
+  /** The documents Foundry and dnd5e removed or changed with an AI change (`aiFollowUps`). */
+  followUps: Set<string>;
 }
 
-/** People's records as document events; records that cannot be put back are left out and said. */
-function humanEvents(item: Item, out: Collected, nextOrder: () => number): void {
-  for (const r of item.action?.records ?? []) {
+/**
+ * Journal records as document events for `item` (a person's action, or Foundry's and dnd5e's
+ * follow-ups of an AI change); records that cannot be put back are left out and said.
+ */
+function recordEvents(
+  item: Item,
+  records: ChangeRecord[],
+  out: Collected,
+  nextOrder: () => number
+): void {
+  for (const r of records) {
     if (r.changeId) continue;
-    const what = r.name ?? r.rootName ?? r.uuid;
+    const what = r.name ?? (r.rootName ? `${r.documentName} on ${r.rootName}` : r.uuid);
     if (r.oversize) {
       out.notes.push(`Kept as it is: ${what} (the details of the change were too large to keep)`);
       continue;
@@ -222,6 +233,10 @@ function aiEvents(
   nextOrder: () => number
 ): void {
   for (const r of results) {
+    if (r.kind === 'delete' && r.alreadyGone) {
+      out.notes.push(`Not restored: ${r.name ?? r.uuid} (it was already gone when the undo ran)`);
+      continue;
+    }
     if (r.kind === 'delete' && !r.deleted) {
       out.notes.push(`Not restored: ${r.name ?? r.uuid} (its data was not kept)`);
       continue;
@@ -396,7 +411,8 @@ export class UndoPlanner {
       justThis,
       justThis && touching.length > 0,
       notes,
-      users
+      users,
+      collected.followUps
     );
     if (ops.length === 0) {
       const why = notes.length > 0 ? notes.join('; ') : 'everything is already as it was before';
@@ -443,14 +459,14 @@ export class UndoPlanner {
    */
   private checkHistoryStart(target: Item, scope: UndoScope, start: number, notes: string[]): void {
     if (!(target.t < start)) return;
-    const day = localDateKey(start);
+    const from = historyStartLabel(start);
     if (scope !== 'just-this') {
       throw new Error(
-        `People's changes before ${day} are no longer in the history (it keeps ${CHANGE_HISTORY_DAYS} days, less when the change journal's size cap is reached), so not every change since "${target.summary}" is known. Undo just this change instead, or undo the later changes one by one.`
+        `People's changes before ${from} are no longer in the history (it keeps ${CHANGE_HISTORY_DAYS} days, less when the change journal's size cap is reached or its records were lost), so not every change since "${target.summary}" is known. Undo just this change instead, or undo the later changes one by one.`
       );
     }
     notes.push(
-      `People's changes before ${day} are no longer in the history: a later change to the same thing may not be listed`
+      `People's changes before ${from} are no longer in the history: a later change to the same thing may not be listed`
     );
   }
 
@@ -496,13 +512,25 @@ export class UndoPlanner {
   }
 
   private async collect(worldId: string, set: Item[]): Promise<Collected> {
-    const out: Collected = { events: [], notes: [] };
+    const out: Collected = { events: [], notes: [], followUps: new Set() };
     let order = 0;
     const nextOrder = (): number => (order += 1);
     for (const item of set) {
-      if (item.action) humanEvents(item, out, nextOrder);
+      if (item.action) recordEvents(item, item.action.records, out, nextOrder);
       else if (item.entry) {
         aiEvents(item, await this.audit.resultsWithDeleted(worldId, item.entry), out, nextOrder);
+        // What Foundry and dnd5e did with the AI change on other things (a combatant gone with
+        // its token, the dependents of an ended concentration) comes back with it.
+        const followUps = (await this.changeHistory.aiFollowUps?.(item.entry.changeId)) ?? [];
+        const before = out.events.length;
+        recordEvents(item, followUps, out, nextOrder);
+        const added = out.events.length - before;
+        if (added > 0) {
+          for (const r of followUps) out.followUps.add(r.uuid);
+          out.notes.push(
+            `Also restored with "${item.summary}": ${added} ${added === 1 ? 'thing' : 'things'} Foundry and dnd5e removed or changed with it`
+          );
+        }
       }
     }
     return out;
@@ -517,7 +545,8 @@ export class UndoPlanner {
     justThis: boolean,
     laterTouches: boolean,
     notes: string[],
-    users?: UserNames
+    users?: UserNames,
+    followUps: ReadonlySet<string> = new Set()
   ): Promise<{ ops: GuardedOp[]; resolved: NetChange[] }> {
     // A document inside one that is deleted goes with it.
     const deleted = folded.filter(n => n.kind === 'delete').map(n => n.uuid);
@@ -552,7 +581,8 @@ export class UndoPlanner {
         if (change.parentUuid && recreated.has(change.parentUuid)) {
           notes.push(`Not restored: ${who} (what it belonged to is restored in the same step)`);
         } else if (snap.idTaken) {
-          if (justThis)
+          // A follow-up Foundry or dnd5e made again by itself is left as it is, in every scope.
+          if (justThis && !followUps.has(change.uuid))
             throw new Error(`${who} cannot be restored: a document with its id exists again`);
           notes.push(`Skipped: ${who} exists again`);
         } else if (!snap.exists) {

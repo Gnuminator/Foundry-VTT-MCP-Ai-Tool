@@ -106,6 +106,8 @@ export interface GuardedOpResult {
   after?: PathValue[];
   /** delete: full source data before deletion (for undo). */
   deleted?: Record<string, unknown>;
+  /** delete in an undo: the document was already gone, nothing was deleted (no `deleted`). */
+  alreadyGone?: true;
   /** create: `_stats.modifiedTime` of the new document (undo conflict check). */
   modifiedTime?: number | null;
 }
@@ -510,7 +512,12 @@ async function executeDelete(
   changeMode?: ChangeWriteMode
 ): Promise<GuardedOpResult> {
   const doc = await resolve(op.uuid);
-  if (!doc) throw new Error(`Document not found: ${op.uuid}`);
+  if (!doc) {
+    // In an undo or redo a document that is already gone is as wanted: dnd5e deletes an
+    // effect's dependents by itself in the active GM's browser when the effect goes.
+    if (req.mode === 'undo') return goneResult(op, index);
+    throw new Error(`Document not found: ${op.uuid}`);
+  }
   const deleted = sourceOf(doc);
   const result: GuardedOpResult = {
     index,
@@ -521,12 +528,84 @@ async function executeDelete(
     parentUuid: doc.parent?.uuid ?? null,
     deleted,
   };
-  await doc.delete(writeMarker(req, changeMode));
+  try {
+    await doc.delete(writeMarker(req, changeMode));
+  } catch (error) {
+    // Gone between the lookup and the delete (dnd5e again): its data was read in time.
+    if (req.mode === 'undo' && !(await resolve(op.uuid))) return result;
+    throw error;
+  }
   return result;
 }
 
-/** The op that reverses an executed op (used for rollback here and undo in the backend). */
+/** The result of a delete whose document was already gone (undo and redo only). */
+function goneResult(op: GuardedDeleteOp, index: number): GuardedOpResult {
+  const parts = op.uuid.split('.');
+  return {
+    index,
+    kind: 'delete',
+    uuid: op.uuid,
+    documentName: parts.length >= 2 ? parts[parts.length - 2] : 'Document',
+    name: null,
+    parentUuid: parts.length >= 4 ? parts.slice(0, -2).join('.') : null,
+    alreadyGone: true,
+  };
+}
+
+/** The uuids a document's dnd5e data names as its dependents (`flags.dnd5e.dependents`). */
+function dependentUuidsOf(doc: FoundryDocument): string[] {
+  const flags = sourceOf(doc).flags as { dnd5e?: { dependents?: unknown } } | undefined;
+  const list = flags?.dnd5e?.dependents;
+  if (!Array.isArray(list)) return [];
+  return list
+    .map(d => (d as { uuid?: unknown } | null)?.uuid)
+    .filter((u): u is string => typeof u === 'string');
+}
+
+/**
+ * The order to run the ops in: as planned, except that a delete goes before the delete of
+ * the document whose dnd5e dependents name it. dnd5e deletes an effect's dependents (the
+ * effects, templates and summons of an ended concentration) by itself when the effect goes;
+ * a plan that deletes both (the undo of what re-created them, a redo) would otherwise find
+ * the dependent gone. The deletes keep the positions the plan gave them.
+ */
+async function executionOrder(ops: GuardedOp[]): Promise<number[]> {
+  const order = ops.map((_, i) => i);
+  const deletes = ops.flatMap((op, i) => (op.kind === 'delete' ? [{ op, i }] : []));
+  if (deletes.length < 2) return order;
+  const indexOf = new Map(deletes.map(d => [d.op.uuid, d.i]));
+  const first = new Map<number, number[]>();
+  for (const { op, i } of deletes) {
+    const doc = await resolve(op.uuid);
+    const named = doc ? dependentUuidsOf(doc) : [];
+    first.set(
+      i,
+      named.map(u => indexOf.get(u)).filter((j): j is number => j !== undefined && j !== i)
+    );
+  }
+  const sorted: number[] = [];
+  const seen = new Set<number>();
+  const visit = (i: number): void => {
+    if (seen.has(i)) return;
+    seen.add(i);
+    for (const j of first.get(i) ?? []) visit(j);
+    sorted.push(i);
+  };
+  for (const { i } of deletes) visit(i);
+  deletes.forEach(({ i }, k) => {
+    order[i] = sorted[k];
+  });
+  return order;
+}
+
+/**
+ * The op that reverses an executed op (used for rollback here and undo in the backend). A
+ * delete marked `alreadyGone` removed nothing and has no inverse; the rollback skips it.
+ */
 export function inverseOf(executed: GuardedOpResult): GuardedOp {
+  if (executed.kind === 'delete' && executed.alreadyGone) {
+    throw new Error(`${executed.uuid} was already gone when it was deleted; nothing to reverse`);
+  }
   switch (executed.kind) {
     case 'update': {
       const changes: Record<string, unknown> = {};
@@ -563,6 +642,7 @@ async function rollback(done: Executed[], original: GuardedApplyRequest): Promis
     expected: [],
   };
   for (const { result } of [...done].reverse()) {
+    if (result.alreadyGone) continue;
     try {
       await executeOp(inverseOf(result), result.index, undoReq, 'rollback');
     } catch (error) {
@@ -635,7 +715,8 @@ async function runGuardedApply(
   }
 
   const done: Executed[] = [];
-  for (const [index, op] of ops.entries()) {
+  for (const index of await executionOrder(ops)) {
+    const op = ops[index];
     try {
       done.push({ op, result: await executeOp(op, index, req) });
     } catch (error) {
@@ -659,7 +740,9 @@ async function runGuardedApply(
       documents: done.map(d => d.result.uuid),
     },
   });
-  return { changeId: req.changeId, mode: req.mode, appliedAt, results: done.map(d => d.result) };
+  // In plan order (the deletes may have run in another order).
+  const results = done.map(d => d.result).sort((a, b) => a.index - b.index);
+  return { changeId: req.changeId, mode: req.mode, appliedAt, results };
 }
 
 /**

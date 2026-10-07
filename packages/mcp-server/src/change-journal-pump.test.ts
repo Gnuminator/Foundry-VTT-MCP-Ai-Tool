@@ -397,6 +397,78 @@ describe('ChangeJournalPump.pollOnce', () => {
     );
   });
 
+  it('moves the history start to the oldest record still held when the buffer wrapped, and keeps it', async () => {
+    foundry.add({ key: 'a', t: T0 });
+    await makePump().pollOnce();
+    expect(await makePump().historyStart('w1')).toBe(0);
+
+    foundry.add({ key: 'b', t: T0 + 1000 });
+    foundry.add({ key: 'c', t: T0 + 2000 });
+    foundry.add({ key: 'd', t: T0 + 3000 });
+    foundry.evictOldest(2); // 'b' is lost; 'c' is the oldest the buffer still holds
+    const pump = makePump();
+    await pump.pollOnce();
+    expect(await pump.historyStart('w1')).toBe(T0 + 2000);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Change journal records lost: the ring buffer wrapped before the pump read them',
+      expect.objectContaining({ completeFrom: new Date(T0 + 2000).toISOString() })
+    );
+    const saved = await store.read<{ completeFrom?: number }>('w1', 'gm', CHANGE_PUMP_STATE_FILE);
+    expect(saved?.data.completeFrom).toBe(T0 + 2000);
+
+    // A fresh process reads it back; a later poll without loss leaves it alone.
+    foundry.add({ key: 'e', t: T0 + 4000 });
+    const next = makePump();
+    await next.pollOnce();
+    expect(await next.historyStart('w1')).toBe(T0 + 2000);
+
+    // The later of the two starts wins: a file removed by age the day before does not lower it.
+    await store.appendLines(
+      'w1',
+      'gm',
+      changeJournalFileName(localDateKey(T0 - 30 * 24 * 60 * 60 * 1000)),
+      [{ key: 'old' }]
+    );
+    const retained = makePump({ now: () => T0 + 5000 });
+    await retained.pollOnce();
+    expect(await retained.historyStart('w1')).toBe(T0 + 2000);
+
+    // A smaller time (a later loss with an older clock) never lowers the stored start.
+    foundry.add({ key: 'f', t: T0 + 1500 });
+    foundry.add({ key: 'g', t: T0 + 1600 });
+    foundry.evictOldest(foundry.records.length - 1); // 'f' is lost after 'e' was read
+    const later = makePump();
+    await later.pollOnce();
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+    expect(await later.historyStart('w1')).toBe(T0 + 2000);
+  });
+
+  it('records lost records after a reload and on first contact too (the buffer wrapped before the pump saw it)', async () => {
+    foundry.add({ key: 'a', t: T0 });
+    foundry.add({ key: 'b', t: T0 + 1000 });
+    foundry.evictOldest(1); // the GM browser ran before the bridge first polled
+    const first = makePump();
+    expect(await first.pollOnce()).toBe(1);
+    expect(await first.historyStart('w1')).toBe(T0 + 1000);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Change journal records lost: the ring buffer wrapped before the pump read them',
+      expect.objectContaining({ expectedFrom: 1, oldestSeq: 2 })
+    );
+
+    // A reload whose new buffer already wrapped before the pump read it.
+    foundry.reload('client-2');
+    foundry.add({ key: 'c', t: T0 + 2000 });
+    foundry.add({ key: 'd', t: T0 + 3000 });
+    foundry.evictOldest(1);
+    const after = makePump();
+    expect(await after.pollOnce()).toBe(1);
+    expect(await after.historyStart('w1')).toBe(T0 + 3000);
+    expect(logger.warn).toHaveBeenLastCalledWith(
+      'Change journal records lost: the ring buffer wrapped before the pump read them',
+      expect.objectContaining({ clientId: 'client-2', expectedFrom: 1, oldestSeq: 2 })
+    );
+  });
+
   it('does not warn about loss across a clientId change', async () => {
     foundry.add({ key: 'a' });
     await makePump().pollOnce();
@@ -420,6 +492,27 @@ describe('ChangeJournalPump.pollOnce', () => {
       sinceSeq: 1203,
       limit: 500,
     });
+  });
+
+  it('sees a wrap between the pages of one poll', async () => {
+    for (let i = 0; i < 600; i++) foundry.add({ key: `k-${i}`, t: T0 + i });
+    const serve = foundry.query.getMockImplementation()!;
+    let pages = 0;
+    foundry.query.mockImplementation((method: string, data: unknown): Promise<unknown> => {
+      pages += 1;
+      const response = serve(method, data);
+      // After the first page (seq 1 to 500) was served, the ring drops its oldest 502
+      // records: 501 and 502 are gone before the second page asks for them.
+      if (pages === 1) foundry.evictOldest(502);
+      return response;
+    });
+    const pump = makePump();
+    expect(await pump.pollOnce()).toBe(598);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Change journal records lost: the ring buffer wrapped before the pump read them',
+      expect.objectContaining({ expectedFrom: 501, oldestSeq: 503 })
+    );
+    expect(await pump.historyStart('w1')).toBe(T0 + 502);
   });
 
   it('a page of exactly 500 asks once more and stops on the empty page', async () => {

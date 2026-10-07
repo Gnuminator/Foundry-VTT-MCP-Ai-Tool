@@ -78,7 +78,7 @@ import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/i
 import { EventPump, eventPumpSettings } from './event-pump.js';
 import { PlayLogPump, playLogSettings } from './play-log-pump.js';
 import { ChangeJournalPump, changeJournalSettings } from './change-journal-pump.js';
-import { ChangeHistory } from './change-history.js';
+import { ChangeHistory, journalLinks } from './change-history.js';
 import { UsageLog, handleRecordUsage } from './usage-log.js';
 import {
   handleCharacterSheet,
@@ -344,11 +344,7 @@ async function startBackend(): Promise<void> {
     guardedWrites,
     logger,
     ...(FOUNDRY_LINK_ENABLED && changeJournalConfig.enabled
-      ? {
-          pullNow: (): Promise<void> => changeJournalPump?.pullNow() ?? Promise.resolve(),
-          journalStart: (worldId: string): Promise<number> =>
-            changeJournalPump?.historyStart(worldId) ?? Promise.resolve(0),
-        }
+      ? journalLinks((): ChangeJournalPump | null => changeJournalPump)
       : {}),
   });
   if (obsidianVaultDir && changeJournalConfig.enabled) {

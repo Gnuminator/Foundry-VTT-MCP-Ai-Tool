@@ -31,6 +31,7 @@ import {
   GUARDED_OP_KINDS,
   expectedAfterApply,
   inverseGuardedOp,
+  isNoOpResult,
   type GuardedApplyOutcome,
   type GuardedApplyRequest,
   type GuardedApplyResult,
@@ -814,11 +815,17 @@ export class GuardedWriteService {
     entry: AuditEntry,
     requestedBy?: string
   ): Promise<AppliedChange> {
-    const results = [...(await this.audit.resultsWithDeleted(worldId, entry))].reverse();
+    const executed = [...(await this.audit.resultsWithDeleted(worldId, entry))].reverse();
     const records = [...(entry.vaultOps ?? [])].reverse();
-    if (results.length === 0 && records.length === 0) {
+    if (executed.length === 0 && records.length === 0) {
       throw new Error(`Change ${entry.changeId} has nothing to undo`);
     }
+    // A delete that found its document already gone (dnd5e took it first) removed nothing, so
+    // there is nothing to put back: it stays out of the undo instead of becoming a blank create.
+    const results = executed.filter(r => !isNoOpResult(r));
+    const leftAlone = executed
+      .filter(isNoOpResult)
+      .map(r => `Left alone: ${r.name ?? r.uuid} (it was already gone when the change ran)`);
     const summary = `Undo: ${entry.summary}`;
     if (records.length > 0) await this.requireFeatureEnabled(entry.feature, true);
     const vault =
@@ -852,9 +859,12 @@ export class GuardedWriteService {
       target: entry.target,
       mode: 'undo',
       appliedAt: foundry?.appliedAt ?? new Date(this.now()).toISOString(),
-      diff: entry.diff
-        .filter(line => !line.startsWith(SHOW_DIFF_PREFIX))
-        .map(line => `undone: ${line}`),
+      diff: [
+        ...entry.diff
+          .filter(line => !line.startsWith(SHOW_DIFF_PREFIX))
+          .map(line => `undone: ${line}`),
+        ...leftAlone,
+      ],
       undoOf: entry.changeId,
       ...(requestedBy ? { requestedBy } : {}),
       ...(foundry ? { results: foundry.results } : {}),
@@ -914,16 +924,19 @@ export class GuardedWriteService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (!foundry) throw error;
-      const done = [...foundry.results].reverse();
+      // A delete that found nothing to delete has nothing to roll back.
+      const done = [...foundry.results].reverse().filter(r => !isNoOpResult(r));
       try {
-        await this.executeInFoundry({
-          changeId: `${foundry.changeId}-rollback`,
-          feature,
-          mode: 'undo',
-          summary: 'Roll back (vault write failed)',
-          ops: done.map(inverseGuardedOp),
-          expected: done.map(expectedAfterApply),
-        });
+        if (done.length > 0) {
+          await this.executeInFoundry({
+            changeId: `${foundry.changeId}-rollback`,
+            feature,
+            mode: 'undo',
+            summary: 'Roll back (vault write failed)',
+            ops: done.map(inverseGuardedOp),
+            expected: done.map(expectedAfterApply),
+          });
+        }
       } catch (rollbackError) {
         throw new Error(
           `The vault write failed (${message}) and the Foundry part could not be rolled back: ${

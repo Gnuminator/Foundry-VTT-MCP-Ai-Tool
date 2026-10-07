@@ -378,7 +378,8 @@ export function opOf(change: NetChange, paths?: PathValue[]): GuardedOp {
 }
 
 /**
- * Deletes first (deepest first, so an item goes before its actor), then updates, then creates
+ * Deletes first (deepest first, so an item goes before its actor; among equals the module
+ * puts a dnd5e dependent before the effect that names it), then updates, then creates
  * (shallowest first, so a parent is back before its children). Stable inside each group.
  */
 export function orderOps(ops: readonly GuardedOp[]): GuardedOp[] {

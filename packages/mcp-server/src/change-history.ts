@@ -20,13 +20,18 @@
  *
  * Foundry's own follow-ups on other things are kept with the AI change too: deleting a token
  * removes its combatant and moves the turn (root Combat, not the token's scene), so records on a
- * Combat in an AI burst are never split off as a person's action. A GM's own click on the
- * tracker within the action gap of an AI write, in the bridge's browser, is the one case this
- * cannot tell apart (it is then hidden under the AI change, not undone with it).
+ * Combat in an AI burst are never split off as a person's action. The same goes for dnd5e's
+ * dependent deletes: when the AI deleted an effect or an item, the effects on other actors, the
+ * templates, regions and summoned tokens dnd5e removes with it (in the active GM's browser)
+ * stay with the AI change, and the undo planner puts them back with it (`aiFollowUps`). A GM's
+ * own click on the tracker within the action gap of such an AI write, in the bridge's browser,
+ * is the one case this cannot tell apart (it is then hidden under the AI change). When the
+ * active GM is another browser, dnd5e's dependent deletes run there and show as that person's
+ * action.
  *
  * `historyStart()` says from when the history is complete: the pump's retention can remove
- * files inside the span when they exceed the byte cap, and the undo planner refuses a rewind
- * that reaches back before that.
+ * files inside the span when they exceed the byte cap, the module's buffer can wrap before the
+ * pump read it, and the undo planner refuses a rewind that reaches back before that.
  *
  * Read-only. The undo planner (`guarded-write/undo-planner.ts`) reads the actions from here
  * (`humanActions`); `undoBlocker` says which of them can be undone, and `list()` marks what is
@@ -36,6 +41,7 @@ import type { ChangeRecord, PathValue } from '@gnuminator/shared';
 
 import {
   CHANGE_JOURNAL_RETENTION_DAYS,
+  type ChangeJournalPump,
   changeJournalFileName,
   dateKeyStart,
   isChangeRecord,
@@ -64,6 +70,24 @@ export const OWN_ACTION_SUFFIX = ':own';
  * token deletes its combatant and may move the turn): never split off as a person's own action.
  */
 const CASCADE_ROOT_KINDS: ReadonlySet<string> = new Set(['Combat']);
+/**
+ * Document kinds dnd5e 6 deletes as dependents of an effect or item delete (ending concentration
+ * removes the effects it put on other actors, its templates and its summoned tokens; a region
+ * can be one too), in the active GM's browser. In an AI burst where the AI deleted an effect or
+ * an item, the deletes of the documents the deleted ones name as their dependents
+ * (`flags.dnd5e.dependents`, followed through: an item, its concentration effect, that effect's
+ * dependents) stay with the AI change instead of becoming the bridge user's own action; when a
+ * deleted document's data was too large to keep, any delete of these kinds in the burst does
+ * (see the file comment).
+ */
+const DEPENDENT_DELETE_KINDS: ReadonlySet<string> = new Set([
+  'ActiveEffect',
+  'Region',
+  'MeasuredTemplate',
+  'Token',
+]);
+/** The AI deletes whose dependents dnd5e removes (see DEPENDENT_DELETE_KINDS). */
+const DEPENDENT_SOURCE_KINDS: ReadonlySet<string> = new Set(['ActiveEffect', 'Item']);
 
 /** User id to user name, as the journal records have seen them (for ownership lines). */
 export type UserNames = ReadonlyMap<string, string>;
@@ -90,6 +114,13 @@ export interface ChangeAction {
   things: ChangeThing[];
   /** Set when any record was made by an AI guarded write. */
   changeId?: string;
+  /**
+   * An AI change's follow-ups: what Foundry and dnd5e removed or changed with it on other
+   * things (a cascade root, the dependents of an ended concentration), for the undo planner to
+   * put back with it. dnd5e's derived records on the AI's own targets (Bloodied) are in
+   * `records` but not here: Foundry makes them again by itself. Empty for a person's action.
+   */
+  followUps: ChangeRecord[];
   summary: string;
   lines: string[];
 }
@@ -244,6 +275,82 @@ function isCascade(r: ChangeRecord): boolean {
   return kind !== null && CASCADE_ROOT_KINDS.has(kind);
 }
 
+/** The uuids a deleted document's data names as its dnd5e dependents. */
+function dependentUuidsOf(r: ChangeRecord): string[] {
+  const flags = r.data?.flags as { dnd5e?: { dependents?: unknown } } | undefined;
+  const list = flags?.dnd5e?.dependents;
+  if (!Array.isArray(list)) return [];
+  return list
+    .map(d => (d as { uuid?: unknown } | null)?.uuid)
+    .filter((u): u is string => typeof u === 'string');
+}
+
+/** A deleted effect's data says it was a concentration effect, or it named dependents. */
+function isConcentrationEffect(r: ChangeRecord): boolean {
+  const statuses = r.data?.statuses;
+  return (
+    (Array.isArray(statuses) && statuses.includes('concentrating')) ||
+    dependentUuidsOf(r).length > 0
+  );
+}
+
+/**
+ * Which deletes in a burst dnd5e made as dependents of the AI's effect or item delete (see
+ * DEPENDENT_DELETE_KINDS): the documents named in `flags.dnd5e.dependents` of the AI's deleted
+ * documents and of the same-root deletes that went with them (an item's concentration effect,
+ * which counts as a dependent itself), followed through. When a source lost its data
+ * (oversize), every delete of a dependent kind in the burst counts, since the link cannot be
+ * read; a dependent without data only cannot be followed further.
+ */
+function dependentDeletes(
+  group: ChangeRecord[],
+  aiRoots: ReadonlySet<string>
+): (r: ChangeRecord) => boolean {
+  const sources = group.filter(
+    r => r.changeId && r.op === 'delete' && DEPENDENT_SOURCE_KINDS.has(r.documentName)
+  );
+  if (sources.length === 0) return (): boolean => false;
+  const itemSource = sources.some(r => r.documentName === 'Item');
+  const linked = new Set<string>();
+  // The records whose data names the dependents: the sources and, when the AI deleted an item,
+  // the concentration effect dnd5e ended with it on the same actor (a dependent itself).
+  const chain = new Set(sources);
+  let unreadable = false;
+  const sameRoot = group.filter(r => !r.changeId && r.op === 'delete' && aiRoots.has(r.rootUuid));
+  for (const r of sameRoot) {
+    if (itemSource && r.documentName === 'ActiveEffect' && isConcentrationEffect(r)) {
+      linked.add(r.uuid);
+      chain.add(r);
+    }
+  }
+  const queue = [...sources, ...sameRoot];
+  for (let i = 0; i < queue.length; i += 1) {
+    const r = queue[i];
+    if (chain.has(r) && (r.oversize === true || !r.data)) unreadable = true;
+    for (const uuid of dependentUuidsOf(r)) {
+      if (linked.has(uuid)) continue;
+      linked.add(uuid);
+      queue.push(...group.filter(x => x.uuid === uuid && x.op === 'delete' && !x.changeId));
+    }
+  }
+  return (r: ChangeRecord): boolean =>
+    r.op === 'delete' &&
+    DEPENDENT_DELETE_KINDS.has(r.documentName) &&
+    (linked.has(r.uuid) || unreadable);
+}
+
+/**
+ * The local date of `ms`, with the time of day (`YYYY-MM-DD HH:MM`) unless it is midnight: the
+ * history start is a day when retention removed a file, a time when the buffer wrapped.
+ */
+export function historyStartLabel(ms: number): string {
+  const d = new Date(ms);
+  const date = localDateKey(ms);
+  if (d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0) return date;
+  const two = (n: number): string => String(n).padStart(2, '0');
+  return `${date} ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
 function isEmptyValue(v: PathValue): boolean {
   return !v.present || v.value === null || v.value === 0 || v.value === '';
 }
@@ -339,9 +446,11 @@ export function undoBlocker(action: ChangeAction): string | null {
 /**
  * Group records into actions by `actionId` (records keep their order; actions are in the
  * order of their first record). Records of a guarded write that was rolled back are left out.
- * In a burst with an AI write, a person's records on things the AI did not touch become an
- * action of their own (`<actionId>:own`, right after the AI's); Foundry's own cascades (a
- * combatant removed with its token) stay with the AI's.
+ * In a burst with AI writes, each AI change is an action of its own (`<actionId>`, then
+ * `<actionId>:2` and so on) with the records that followed it; a person's records on things the
+ * AI did not touch become one action of their own (`<actionId>:own`, after the AI's); Foundry's
+ * own cascades (a combatant removed with its token) and dnd5e's dependent deletes (the effects,
+ * templates and summons that go when the AI deleted an effect or an item) stay with the AI's.
  */
 export function buildActions(records: ChangeRecord[], users?: UserNames): ChangeAction[] {
   const rolledBack = new Set<string>();
@@ -356,20 +465,46 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
     else groups.set(r.actionId, [r]);
   }
 
-  const split: Array<[string, ChangeRecord[]]> = [];
+  const split: Array<[string, ChangeRecord[], ChangeRecord[]]> = [];
   for (const [actionId, group] of groups) {
-    const aiRoots = new Set(group.filter(r => r.changeId).map(r => r.rootUuid));
-    if (aiRoots.size === 0) {
-      split.push([actionId, group]);
+    if (!group.some(r => r.changeId)) {
+      split.push([actionId, group, []]);
       continue;
     }
-    const own = group.filter(r => !r.changeId && !aiRoots.has(r.rootUuid) && !isCascade(r));
-    split.push([actionId, own.length > 0 ? group.filter(r => !own.includes(r)) : group]);
-    if (own.length > 0) split.push([`${actionId}${OWN_ACTION_SUFFIX}`, own]);
+    // A burst with AI writes: one action per AI change (fast consecutive writes share a burst),
+    // each with the records that followed it until the next AI change; what came before the
+    // first AI record, and what each change did not touch, is the person's own action.
+    const own: ChangeRecord[] = [];
+    const segments: Array<{ changeId: string; records: ChangeRecord[] }> = [];
+    for (const r of group) {
+      const current = segments[segments.length - 1];
+      if (r.changeId && r.changeId !== current?.changeId) {
+        segments.push({ changeId: r.changeId, records: [r] });
+      } else if (current) current.records.push(r);
+      else own.push(r);
+    }
+    segments.forEach((segment, i) => {
+      const aiRoots = new Set(segment.records.filter(r => r.changeId).map(r => r.rootUuid));
+      const dependents = dependentDeletes(segment.records, aiRoots);
+      const followUps = segment.records.filter(r => !r.changeId && (isCascade(r) || dependents(r)));
+      const theirs = segment.records.filter(
+        r => !r.changeId && !aiRoots.has(r.rootUuid) && !followUps.includes(r)
+      );
+      own.push(...theirs);
+      split.push([
+        i === 0 ? actionId : `${actionId}:${i + 1}`,
+        theirs.length > 0 ? segment.records.filter(r => !theirs.includes(r)) : segment.records,
+        followUps,
+      ]);
+    });
+    if (own.length > 0) {
+      const ownSet = new Set(own);
+      split.push([`${actionId}${OWN_ACTION_SUFFIX}`, group.filter(r => ownSet.has(r)), []]);
+    }
   }
 
   const actions: ChangeAction[] = [];
-  for (const [actionId, group] of split) {
+  for (const [actionId, group, followUps] of split) {
     const first = group[0];
     const things = new Map<string, ChangeThing>();
     for (const r of group) {
@@ -390,6 +525,7 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
       records: group,
       things: [...things.values()],
       ...(changeId ? { changeId } : {}),
+      followUps,
       summary,
       lines,
     });
@@ -422,11 +558,27 @@ export interface ChangeHistoryOptions {
   /** Fetch the newest journal records first (the pump's `pullNow`); absent when the journal is off. */
   pullNow?: () => Promise<void>;
   /**
-   * Local midnight (epoch ms) of the first day whose journal file is complete (the pump's
-   * `historyStart`), 0 when nothing was removed; absent when the journal is off.
+   * Epoch ms from which the pump's records are complete (its `historyStart`: local midnight of
+   * the first day retention left whole, or `completeFrom` after the module's buffer wrapped,
+   * whichever is later), 0 when neither happened; absent when the journal is off.
    */
   journalStart?: (worldId: string) => Promise<number>;
   now?: () => number;
+}
+
+/**
+ * The history's links to the change-journal pump, for the backend: `pullNow` and `journalStart`
+ * delegate to the pump the getter returns at call time (the pump is made after the history,
+ * once the Foundry link starts) and stand in for it while there is none.
+ */
+export function journalLinks(
+  pump: () => Pick<ChangeJournalPump, 'pullNow' | 'historyStart'> | null
+): Required<Pick<ChangeHistoryOptions, 'pullNow' | 'journalStart'>> {
+  return {
+    pullNow: (): Promise<void> => pump()?.pullNow() ?? Promise.resolve(),
+    journalStart: (worldId: string): Promise<number> =>
+      pump()?.historyStart(worldId) ?? Promise.resolve(0),
+  };
 }
 
 export class ChangeHistory {
@@ -477,6 +629,32 @@ export class ChangeHistory {
     return (await this.actionsFor(worldId)).filter(a => !a.changeId);
   }
 
+  /**
+   * Foundry's and dnd5e's own follow-ups of an AI change on other things (the combatant that
+   * went with a token, the dependents of an ended concentration; see `ChangeAction.followUps`),
+   * for the undo planner to put back with it. Empty when the journal has none. No pull:
+   * `humanActions` (called first by the planner) fetched the newest records.
+   */
+  async aiFollowUps(changeId: string): Promise<ChangeRecord[]> {
+    const worldId = await this.worldIds.current();
+    const action = (await this.actionsFor(worldId)).find(a => a.changeId === changeId);
+    return action ? action.followUps : [];
+  }
+
+  /** The readable lines of every AI change's follow-ups (see `aiFollowUps`), by changeId. */
+  private async followUpLines(worldId: string): Promise<Map<string, string[]>> {
+    const users = (await this.load(worldId)).users;
+    const lines = new Map<string, string[]>();
+    for (const action of await this.actionsFor(worldId)) {
+      if (!action.changeId || action.followUps.length === 0) continue;
+      lines.set(
+        action.changeId,
+        action.followUps.flatMap(r => describeRecord(r, users))
+      );
+    }
+    return lines;
+  }
+
   /** User names by id, as seen in the records of the current world (no pull). */
   async userNames(): Promise<UserNames> {
     const worldId = await this.worldIds.current();
@@ -514,7 +692,7 @@ export class ChangeHistory {
     const start = await this.historyStart();
     if (start > cutoff && source !== 'ai') {
       notes.push(
-        `People's changes before ${localDateKey(start)} are gone: the change journal's size cap removed them.`
+        `People's changes before ${historyStartLabel(start)} are gone: the change journal lost them (its size cap removed old files, or Foundry's buffer wrapped before the bridge read it).`
       );
     }
 
@@ -622,6 +800,7 @@ export class ChangeHistory {
         const oldest = Date.parse(recent[recent.length - 1].appliedAt);
         if (Number.isFinite(oldest)) aiFrom = oldest;
       }
+      const followUps = await this.followUpLines(worldId);
       for (const change of recent) {
         const at = Date.parse(change.appliedAt);
         if (Number.isFinite(at) && at < from) continue;
@@ -631,7 +810,10 @@ export class ChangeHistory {
           const hit = change.documents?.some(d => d === wanted || d.startsWith(`${wanted}.`));
           if (!hit) continue;
         }
-        entries.push({ at: Number.isFinite(at) ? at : 0, item: aiItem(change) });
+        entries.push({
+          at: Number.isFinite(at) ? at : 0,
+          item: aiItem(change, followUps.get(change.changeId) ?? []),
+        });
       }
     }
     return { entries, aiFrom };
@@ -739,10 +921,12 @@ function touches(r: ChangeRecord, uuid: string): boolean {
   );
 }
 
-function aiItem(change: RecentChange): AiChangeItem {
-  const { summary, lines } = summarizeLines(
-    change.diff.length > 0 ? change.diff : [change.summary]
-  );
+/** An AI change as a list item; `followUps` are the lines of what Foundry and dnd5e did with it. */
+function aiItem(change: RecentChange, followUps: string[] = []): AiChangeItem {
+  const { summary, lines } = summarizeLines([
+    ...(change.diff.length > 0 ? change.diff : [change.summary]),
+    ...followUps,
+  ]);
   // An undo made with undo-change (the AI tab, the toast) took back exactly the one it undoes.
   const covers =
     (change.undoes?.actions?.length ?? 0) + (change.undoes?.changes?.length ?? 0) ||

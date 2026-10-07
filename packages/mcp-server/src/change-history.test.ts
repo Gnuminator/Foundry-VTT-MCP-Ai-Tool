@@ -5,7 +5,11 @@ import * as path from 'path';
 import type { ChangeRecord, PathValue } from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { changeJournalFileName } from './change-journal-pump.js';
+import {
+  CHANGE_JOURNAL_RETENTION_DAYS,
+  ChangeJournalPump,
+  changeJournalFileName,
+} from './change-journal-pump.js';
 import {
   CHANGE_HISTORY_DAYS,
   ChangeHistory,
@@ -13,6 +17,8 @@ import {
   OWN_ACTION_SUFFIX,
   buildActions,
   describeRecord,
+  historyStartLabel,
+  journalLinks,
   labelOf,
   undoBlocker,
 } from './change-history.js';
@@ -79,6 +85,13 @@ function aiChange(overrides: Partial<RecentChange> = {}): RecentChange {
     ...overrides,
   };
 }
+
+describe('historyStartLabel', () => {
+  it('says a day for midnight and adds the time otherwise', () => {
+    expect(historyStartLabel(new Date(2026, 9, 5).getTime())).toBe('2026-10-05');
+    expect(historyStartLabel(new Date(2026, 9, 5, 9, 7, 30).getTime())).toBe('2026-10-05 09:07');
+  });
+});
 
 describe('describeRecord', () => {
   it('reads an HP change with its label', () => {
@@ -344,6 +357,274 @@ describe('buildActions', () => {
     expect(actions[1]).toMatchObject({ records: [own] });
   });
 
+  it("keeps dnd5e's dependent deletes with the AI change that deleted an effect or an item", () => {
+    // The AI ends concentration on Strahd: dnd5e removes the effect it put on Ireena, the spell's
+    // template, its region and the summoned token, in the GM browser that is the bridge's.
+    const dependentsOf = (...uuids: string[]): Record<string, unknown> => ({
+      flags: { dnd5e: { dependents: uuids.map(uuid => ({ uuid })) } },
+    });
+    const ai = rec({
+      actionId: 'E',
+      changeId: 'chg-3',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.e1',
+      parentUuid: 'Actor.a2',
+      name: 'Concentrating: Hold Person',
+      rootUuid: 'Actor.a2',
+      rootName: 'Strahd',
+      data: dependentsOf(
+        'Actor.a1.ActiveEffect.e2',
+        'Scene.s1.MeasuredTemplate.m1',
+        'Scene.s1.Region.r1',
+        'Scene.s1.Token.t9'
+      ),
+    });
+    const dependents = [
+      rec({
+        actionId: 'E',
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a1.ActiveEffect.e2',
+        parentUuid: 'Actor.a1',
+        name: 'Hold Person',
+      }),
+      rec({
+        actionId: 'E',
+        op: 'delete',
+        documentName: 'MeasuredTemplate',
+        uuid: 'Scene.s1.MeasuredTemplate.m1',
+        parentUuid: 'Scene.s1',
+        name: null,
+        rootUuid: 'Scene.s1',
+        rootName: 'Castle',
+      }),
+      rec({
+        actionId: 'E',
+        op: 'delete',
+        documentName: 'Region',
+        uuid: 'Scene.s1.Region.r1',
+        parentUuid: 'Scene.s1',
+        name: 'Darkness',
+        rootUuid: 'Scene.s1',
+        rootName: 'Castle',
+      }),
+      rec({
+        actionId: 'E',
+        op: 'delete',
+        documentName: 'Token',
+        uuid: 'Scene.s1.Token.t9',
+        parentUuid: 'Scene.s1',
+        name: 'Wolf (summoned)',
+        rootUuid: 'Scene.s1',
+        rootName: 'Castle',
+      }),
+    ];
+    // The GM's own HP edit of Ireena in the same burst still splits off, and so does a delete
+    // the AI's effect does not name as a dependent (the GM removed another token just then).
+    const own = hpChange(20, 18, { actionId: 'E' });
+    const unrelated = rec({
+      ...dependents[3],
+      uuid: 'Scene.s1.Token.t2',
+      name: 'Bat',
+    });
+    const actions = buildActions([ai, ...dependents, own, unrelated]);
+    expect(actions.map(a => a.actionId)).toEqual(['E', `E${OWN_ACTION_SUFFIX}`]);
+    expect(actions[0]).toMatchObject({ changeId: 'chg-3', records: [ai, ...dependents] });
+    expect(actions[1]).toMatchObject({ records: [own, unrelated] });
+
+    // An AI item delete counts as a source, followed through its concentration effect (deleted
+    // with it on the same actor) to that effect's dependents.
+    const item = rec({
+      ...ai,
+      documentName: 'Item',
+      uuid: 'Actor.a2.Item.i1',
+      name: 'Wand of Hold Person',
+      data: { name: 'Wand of Hold Person' },
+    });
+    const concentration = rec({ ...ai, changeId: undefined, changeMode: undefined });
+    const viaItem = buildActions([item, concentration, ...dependents, unrelated]);
+    expect(viaItem.map(a => a.actionId)).toEqual(['E', `E${OWN_ACTION_SUFFIX}`]);
+    expect(viaItem[0].records).toEqual([item, concentration, ...dependents]);
+    expect(viaItem[1].records).toEqual([unrelated]);
+
+    // When the deleted document's data was too large to keep, the link cannot be read: every
+    // delete of a dependent kind in the burst stays with the AI change.
+    const oversize = rec({ ...ai, data: undefined, oversize: true });
+    expect(buildActions([oversize, ...dependents, unrelated, own]).map(a => a.records)).toEqual([
+      [oversize, ...dependents, unrelated],
+      [own],
+    ]);
+
+    // Without an AI effect or item delete, the same deletes are the person's own action.
+    const update = rec({ ...ai, op: 'update', before: [val('disabled', false)] });
+    expect(buildActions([update, ...dependents]).map(a => a.actionId)).toEqual([
+      'E',
+      `E${OWN_ACTION_SUFFIX}`,
+    ]);
+    const creates = dependents.map(r => ({ ...r, op: 'create' as const }));
+    expect(buildActions([ai, ...creates]).map(a => a.actionId)).toEqual([
+      'E',
+      `E${OWN_ACTION_SUFFIX}`,
+    ]);
+  });
+
+  it('hands the planner only the follow-ups on other things, and reads the dependents link from sources only', () => {
+    const dependentsOf = (...uuids: string[]): Record<string, unknown> => ({
+      flags: { dnd5e: { dependents: uuids.map(uuid => ({ uuid })) } },
+    });
+    const ai = rec({
+      actionId: 'G',
+      changeId: 'chg-4',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.e1',
+      parentUuid: 'Actor.a2',
+      name: 'Concentrating: Hold Person',
+      rootUuid: 'Actor.a2',
+      rootName: 'Strahd',
+      data: dependentsOf('Actor.a1.ActiveEffect.e2'),
+    });
+    const held = rec({
+      actionId: 'G',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.e2',
+      parentUuid: 'Actor.a1',
+      name: 'Hold Person',
+      data: { name: 'Hold Person' },
+    });
+    // dnd5e's derived record on the AI's own target (Bloodied going with an HP change in the
+    // same burst) stays in the action but is not a follow-up: Foundry makes it again by itself.
+    const bloodied = rec({
+      actionId: 'G',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.b1',
+      parentUuid: 'Actor.a2',
+      name: 'Bloodied',
+      rootUuid: 'Actor.a2',
+      rootName: 'Strahd',
+      data: { name: 'Bloodied' },
+    });
+    const [action] = buildActions([ai, bloodied, held]);
+    expect(action.records).toEqual([ai, bloodied, held]);
+    expect(action.followUps).toEqual([held]);
+
+    // A dependent too large to keep does not switch the burst to the kind rule: a delete the
+    // link does not name is still the person's own action.
+    const oversizeHeld = { ...held, data: undefined, oversize: true };
+    const unrelated = rec({
+      actionId: 'G',
+      op: 'delete',
+      documentName: 'Token',
+      uuid: 'Scene.s1.Token.t2',
+      parentUuid: 'Scene.s1',
+      name: 'Bat',
+      rootUuid: 'Scene.s1',
+      rootName: 'Castle',
+    });
+    const split = buildActions([ai, oversizeHeld, unrelated]);
+    expect(split.map(a => a.records)).toEqual([[ai, oversizeHeld], [unrelated]]);
+    expect(split[0].followUps).toEqual([oversizeHeld]);
+
+    // An AI item delete: the concentration effect dnd5e ended on the same actor is a follow-up
+    // too, and its dependents with it; the derived record still is not.
+    const item = rec({
+      actionId: 'G',
+      changeId: 'chg-4',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'Item',
+      uuid: 'Actor.a2.Item.i1',
+      parentUuid: 'Actor.a2',
+      name: 'Wand of Hold Person',
+      rootUuid: 'Actor.a2',
+      rootName: 'Strahd',
+      data: { name: 'Wand of Hold Person' },
+    });
+    const concentration = {
+      ...ai,
+      changeId: undefined,
+      changeMode: undefined,
+      data: { statuses: ['concentrating'], ...dependentsOf('Actor.a1.ActiveEffect.e2') },
+    };
+    const viaItem = buildActions([item, concentration, bloodied, held]);
+    expect(viaItem.map(a => a.records)).toEqual([[item, concentration, bloodied, held]]);
+    expect(viaItem[0].followUps).toEqual([concentration, held]);
+
+    // A person's action has none.
+    expect(buildActions([hpChange(20, 18, { actionId: 'H' })])[0].followUps).toEqual([]);
+  });
+
+  it('gives each AI change in one burst its own action and follow-ups', () => {
+    // Two AI changes 100 ms apart share a burst: the GM's prep edit before them, the first
+    // change's ended concentration with its dependent, then a second change on another actor
+    // with a dependent of its own, and a token delete the GM made in between.
+    const prep = hpChange(20, 18, { actionId: 'K' });
+    const first = rec({
+      actionId: 'K',
+      changeId: 'chg-5',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.e1',
+      parentUuid: 'Actor.a2',
+      name: 'Concentrating: Hold Person',
+      rootUuid: 'Actor.a2',
+      rootName: 'Strahd',
+      data: { flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e2' }] } } },
+    });
+    const firstDependent = rec({
+      actionId: 'K',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.e2',
+      parentUuid: 'Actor.a1',
+      name: 'Hold Person',
+      data: { name: 'Hold Person' },
+    });
+    const gmToken = rec({
+      actionId: 'K',
+      op: 'delete',
+      documentName: 'Token',
+      uuid: 'Scene.s1.Token.t2',
+      parentUuid: 'Scene.s1',
+      name: 'Bat',
+      rootUuid: 'Scene.s1',
+      rootName: 'Castle',
+    });
+    const second = rec({
+      ...first,
+      changeId: 'chg-6',
+      uuid: 'Actor.a3.ActiveEffect.e3',
+      parentUuid: 'Actor.a3',
+      name: 'Concentrating: Bless',
+      rootUuid: 'Actor.a3',
+      rootName: 'Ismark',
+      data: { flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e4' }] } } },
+    });
+    const secondDependent = rec({
+      ...firstDependent,
+      uuid: 'Actor.a1.ActiveEffect.e4',
+      name: 'Bless',
+      data: { name: 'Bless' },
+    });
+    const actions = buildActions([prep, first, firstDependent, gmToken, second, secondDependent]);
+    expect(actions.map(a => [a.actionId, a.changeId])).toEqual([
+      ['K', 'chg-5'],
+      ['K:2', 'chg-6'],
+      [`K${OWN_ACTION_SUFFIX}`, undefined],
+    ]);
+    expect(actions[0].records).toEqual([first, firstDependent]);
+    expect(actions[0].followUps).toEqual([firstDependent]);
+    expect(actions[1].records).toEqual([second, secondDependent]);
+    expect(actions[1].followUps).toEqual([secondDependent]);
+    expect(actions[2].records).toEqual([prep, gmToken]);
+  });
+
   it('names the owner in an ownership line when the user is known', () => {
     const owner = rec({
       before: [val('ownership.u2', 0)],
@@ -565,6 +846,104 @@ describe('ChangeHistory.list', () => {
     expect(await pruned.historyStart()).toBe(twoDaysAgo);
     expect((await pruned.list()).note).toMatch(/before 2026-10-05 are gone/);
     expect((await pruned.list({ source: 'ai' })).note).toBeUndefined();
+
+    // A start inside a day (the module's buffer wrapped) is said with its time.
+    const wrapped = makeHistory({ journalStart: NOW - 2 * 60 * MIN });
+    expect((await wrapped.list()).note).toMatch(/before 2026-10-07 10:00 are gone/);
+    expect((await wrapped.list()).note).toMatch(/buffer wrapped/);
+  });
+
+  it('leaves the start at the span cutoff with no note when the pump only removed files by age', async () => {
+    const cutoff = NOW - CHANGE_HISTORY_DAYS * DAY;
+    const day = (back: number): string => localDateKey(NOW - back * DAY);
+    const seed = (back: number, size = 10): Promise<void> =>
+      store.appendLines('w1', 'gm', changeJournalFileName(day(back)), [
+        { key: `${day(back)}-1`, pad: 'x'.repeat(size) },
+      ]);
+    const emptyJournal = {
+      query: (): Promise<unknown> =>
+        Promise.resolve({
+          success: true,
+          clientId: 'c1',
+          records: [],
+          oldestSeq: 0,
+          latestSeq: 0,
+        }),
+      isConnected: (): boolean => true,
+    };
+    const worldIds = { current: (): Promise<string> => Promise.resolve('w1') };
+    const makePump = (maxBytes?: number): ChangeJournalPump =>
+      new ChangeJournalPump({
+        foundryClient: emptyJournal,
+        worldIds,
+        store,
+        logger,
+        now: () => NOW,
+        ...(maxBytes !== undefined ? { maxBytes } : {}),
+      });
+
+    // Two files older than the span go; the oldest kept day starts before the cutoff.
+    await seed(CHANGE_JOURNAL_RETENTION_DAYS + 2);
+    await seed(CHANGE_JOURNAL_RETENTION_DAYS + 1);
+    await seed(CHANGE_JOURNAL_RETENTION_DAYS);
+    await seed(1);
+    const pump = makePump();
+    await pump.pollOnce();
+    expect(await pump.historyStart('w1')).toBeLessThan(cutoff);
+    const history = makeHistory({ pullNow: null, journalStart: undefined });
+    const linked = new ChangeHistory({
+      store,
+      worldIds,
+      guardedWrites: {
+        listRecentChanges: (): Promise<RecentChange[]> => Promise.resolve(audit),
+        undoState: (): Promise<UndoState> => Promise.resolve(undoState),
+      },
+      logger,
+      ...journalLinks(() => pump),
+      now: (): number => NOW,
+    });
+    expect(await linked.historyStart()).toBe(cutoff);
+    expect(await history.historyStart()).toBe(cutoff);
+    expect((await linked.list()).note).toBeUndefined();
+
+    // The size cap removing a file inside the span moves the start and says so.
+    await seed(3, 1000);
+    await seed(2, 1000);
+    const capped = makePump(1500);
+    await capped.pollOnce();
+    expect(await capped.historyStart('w1')).toBe(new Date(2026, 9, 5).getTime());
+    const cappedHistory = new ChangeHistory({
+      store,
+      worldIds,
+      guardedWrites: {
+        listRecentChanges: (): Promise<RecentChange[]> => Promise.resolve(audit),
+        undoState: (): Promise<UndoState> => Promise.resolve(undoState),
+      },
+      logger,
+      ...journalLinks(() => capped),
+      now: (): number => NOW,
+    });
+    expect(await cappedHistory.historyStart()).toBe(new Date(2026, 9, 5).getTime());
+    expect((await cappedHistory.list()).note).toMatch(/before 2026-10-05 are gone/);
+  });
+
+  it('links the history to a pump that is made later, and stands in while there is none', async () => {
+    let pump: Pick<ChangeJournalPump, 'pullNow' | 'historyStart'> | null = null;
+    const links = journalLinks(() => pump);
+    await expect(links.pullNow()).resolves.toBeUndefined();
+    expect(await links.journalStart('w1')).toBe(0);
+    const pulled = vi.fn(() => Promise.resolve());
+    pump = { pullNow: pulled, historyStart: (): Promise<number> => Promise.resolve(123) };
+    await links.pullNow();
+    expect(pulled).toHaveBeenCalledOnce();
+    expect(await links.journalStart('w1')).toBe(123);
+  });
+
+  it('is wired to the pump in the backend (the history gets the pump links)', async () => {
+    const backend = await fsp.readFile(new URL('./backend.ts', import.meta.url), 'utf8');
+    const wiring =
+      /new ChangeHistory\(\{[\s\S]*?journalLinks\([\s\S]*?changeJournalPump[\s\S]*?\}\);/;
+    expect(backend).toMatch(wiring);
   });
 
   it('skips lines of the files that are not change records', async () => {
@@ -619,6 +998,48 @@ describe('ChangeHistory.list', () => {
     audit = [aiChange()];
     const { changes } = await makeHistory().list();
     expect(changes.map(c => c.id)).toEqual(['chg-1', 'act:human']);
+  });
+
+  it('lists what Foundry and dnd5e did with an AI change under it, and hands the planner those records', async () => {
+    const aiDelete = rec({
+      actionId: 'F',
+      changeId: 'chg-f',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.e1',
+      parentUuid: 'Actor.a2',
+      name: 'Concentrating: Hold Person',
+      rootUuid: 'Actor.a2',
+      rootName: 'Strahd',
+      data: { flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e2' }] } } },
+    });
+    const dependent = rec({
+      actionId: 'F',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.e2',
+      parentUuid: 'Actor.a1',
+      name: 'Hold Person',
+      data: { name: 'Hold Person' },
+    });
+    await writeDay([aiDelete, dependent]);
+    audit = [
+      aiChange({
+        changeId: 'chg-f',
+        summary: 'End concentration: Strahd',
+        diff: ['Strahd: effect "Concentrating: Hold Person" removed'],
+      }),
+    ];
+    const history = makeHistory();
+    const { changes } = await history.list();
+    expect(changes.map(c => c.id)).toEqual(['chg-f']);
+    expect(changes[0].lines).toEqual([
+      'Strahd: effect "Concentrating: Hold Person" removed',
+      'Ireena: effect "Hold Person" removed',
+    ]);
+    expect(await history.aiFollowUps('chg-f')).toEqual([dependent]);
+    expect(await history.aiFollowUps('chg-nope')).toEqual([]);
   });
 
   it('filters by source, person, thing and since', async () => {

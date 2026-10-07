@@ -73,4 +73,18 @@ describe('inverse ops', () => {
   it('module rollback and backend undo build the same inverse ops', () => {
     for (const sample of samples) expect(inverseOf(sample)).toEqual(inverseGuardedOp(sample));
   });
+
+  it('neither side reverses a delete that found its document already gone', () => {
+    const gone: GuardedOpResult = {
+      index: 4,
+      kind: 'delete',
+      uuid: 'Actor.a.ActiveEffect.e',
+      documentName: 'ActiveEffect',
+      name: null,
+      parentUuid: 'Actor.a',
+      alreadyGone: true,
+    };
+    expect(() => inverseOf(gone)).toThrow(/already gone/);
+    expect(() => inverseGuardedOp(gone)).toThrow(/already gone/);
+  });
 });

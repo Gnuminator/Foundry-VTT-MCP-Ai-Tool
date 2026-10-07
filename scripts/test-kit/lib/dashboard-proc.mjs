@@ -6,9 +6,12 @@
  * are taken out of the child's environment, so the dashboard comes back in the normal single user mode.
  *
  * Only the test dashboard port is allowed (3100); the live bridge ports are refused. The tokens are
- * only ever put in the child's environment: never in an argument, a log line or an error message.
+ * only ever put in the child's environment of start.ps1 (stop.ps1 gets none): never in an argument, a
+ * log line or an error message. Nothing is stopped unless this checkout has a built dashboard to start
+ * again, and stop.ps1 itself kills the recorded pid only when it owns the dashboard port.
  */
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { LIVE_BRIDGE_PORTS } from './contract.mjs';
 import { EnvError } from './errors.mjs';
@@ -16,6 +19,9 @@ import { TEST_DASHBOARD_PORT } from './targets.mjs';
 
 /** The environment variables that turn the player/GM split on. */
 export const SPLIT_ENV_KEYS = ['GM_DASHBOARD_TOKEN', 'PLAYER_DASHBOARD_TOKEN'];
+
+/** The built dashboard server start.ps1 runs, relative to the repo root. */
+export const DASHBOARD_SERVER = ['packages', 'cogm-dashboard', 'dist', 'server.js'];
 
 /**
  * Refuses every port but the test dashboard's (and always the live bridge ports).
@@ -146,7 +152,8 @@ async function until(fn, timeoutMs, pollMs) {
  *   probe?: typeof probeDashboard,
  *   timeoutMs?: number,
  *   downTimeoutMs?: number,
- *   pollMs?: number
+ *   pollMs?: number,
+ *   exists?: (file: string) => boolean
  * }} opts
  * @returns {Promise<void>}
  */
@@ -160,15 +167,27 @@ export async function restartDashboard(tokens, opts) {
     timeoutMs = 60000,
     downTimeoutMs = 15000,
     pollMs = 500,
+    exists = existsSync,
   } = opts;
   assertTestDashboardPort(port);
   const childEnv = dashboardEnv(env, tokens);
   const mode = tokens ? 'split' : 'normal';
 
-  const stopped = await run(scriptArgs(repoRoot, 'stop'), childEnv, repoRoot);
+  // start.ps1 serves the dashboard from this checkout: without a build here it would throw after the
+  // stop and leave the dashboard down. Say so before anything is stopped.
+  const server = path.join(repoRoot, ...DASHBOARD_SERVER);
+  if (!exists(server)) {
+    throw new EnvError(
+      `REFUSED: the dashboard is not built in ${repoRoot} (${DASHBOARD_SERVER.join('/')} is missing), so start.ps1 could not bring it back. Run "npm run build" there first; the running dashboard was left alone.`
+    );
+  }
+
+  // stop.ps1 needs no token; it kills the recorded pid only when that pid owns the dashboard port,
+  // and refuses (exit 1, "REFUSED: ..." on stderr) when another process has the port or the pid.
+  const stopped = await run(scriptArgs(repoRoot, 'stop'), dashboardEnv(env, null), repoRoot);
   if (stopped.code !== 0) {
     throw new EnvError(
-      `could not stop the test dashboard (stop.ps1 exited ${stopped.code}): ${stopped.stderr.trim().slice(0, 300)}`
+      `could not stop the test dashboard (stop.ps1 exited ${stopped.code}): ${stopped.stderr.trim().slice(0, 400)}`
     );
   }
   const down = await until(async () => !(await probe(port)), downTimeoutMs, pollMs);

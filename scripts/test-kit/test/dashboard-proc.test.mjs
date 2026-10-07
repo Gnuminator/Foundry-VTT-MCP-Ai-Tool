@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import {
+  DASHBOARD_SERVER,
   SPLIT_ENV_KEYS,
   assertTestDashboardPort,
   dashboardEnv,
@@ -93,16 +94,18 @@ function stubs({ stopCode = 0, startCode = 0, stopsAnswering = true, comesUp = t
       return { code: startCode, stdout: '', stderr: startCode ? 'no start' : '' };
     },
     probe: async () => answering,
+    exists: () => true,
   };
 }
 
-test('restartDashboard stops, then starts, with the tokens only in the start environment of the split', async () => {
+test('restartDashboard stops, then starts; the split tokens go to start.ps1 only, never to stop.ps1', async () => {
   const s = stubs();
   await restartDashboard(TOKENS, {
     repoRoot: 'C:\\repo',
     env: { PATH: 'p' },
     run: s.run,
     probe: s.probe,
+    exists: s.exists,
     timeoutMs: 200,
     pollMs: 5,
   });
@@ -110,6 +113,9 @@ test('restartDashboard stops, then starts, with the tokens only in the start env
     s.calls.map(c => c.which),
     ['stop', 'start']
   );
+  assert.equal('GM_DASHBOARD_TOKEN' in s.calls[0].env, false, 'stop.ps1 gets no GM token');
+  assert.equal('PLAYER_DASHBOARD_TOKEN' in s.calls[0].env, false, 'stop.ps1 gets no player token');
+  assert.equal(s.calls[0].env.PATH, 'p');
   assert.equal(s.calls[1].env.GM_DASHBOARD_TOKEN, 'gm-test-token');
   assert.equal(s.calls[1].env.PLAYER_DASHBOARD_TOKEN, 'player-test-token');
   assert.equal(s.calls[1].cwd, 'C:\\repo');
@@ -128,6 +134,7 @@ test('restartDashboard in the normal mode takes the tokens out of the environmen
     env: { GM_DASHBOARD_TOKEN: 'left-over', PLAYER_DASHBOARD_TOKEN: 'left-over-2', PATH: 'p' },
     run: s.run,
     probe: s.probe,
+    exists: s.exists,
     timeoutMs: 200,
     pollMs: 5,
   });
@@ -151,6 +158,45 @@ test('restartDashboard refuses another port before it runs anything', async () =
   assert.equal(s.calls.length, 0);
 });
 
+test('restartDashboard refuses a checkout without a built dashboard before it stops anything', async () => {
+  const s = stubs();
+  const asked = [];
+  await assert.rejects(
+    restartDashboard(TOKENS, {
+      repoRoot: 'C:\\repo',
+      run: s.run,
+      probe: s.probe,
+      exists: file => {
+        asked.push(file);
+        return false;
+      },
+    }),
+    e => e instanceof EnvError && /not built in C:\\repo/.test(e.message) && /left alone/.test(e.message)
+  );
+  assert.equal(s.calls.length, 0, 'stop.ps1 never ran');
+  assert.deepEqual(asked, [path.join('C:\\repo', ...DASHBOARD_SERVER)]);
+});
+
+test('a refusal from stop.ps1 (another process owns the port or the pid) reaches the error message', async () => {
+  const s = stubs();
+  const run = async (args, env, cwd) => {
+    const r = await s.run(args, env, cwd);
+    return s.calls.at(-1).which === 'stop'
+      ? {
+          code: 1,
+          stdout: '',
+          stderr:
+            'REFUSED: dashboard : the recorded pid 4242 (node) does not own port 3100 (pid 777 does); nothing stopped.',
+        }
+      : r;
+  };
+  await assert.rejects(
+    restartDashboard(TOKENS, { repoRoot: 'C:\\repo', run, probe: s.probe, exists: s.exists, pollMs: 5 }),
+    e => e instanceof EnvError && /could not stop/.test(e.message) && /REFUSED: dashboard/.test(e.message)
+  );
+  assert.equal(s.calls.length, 1, 'start.ps1 never ran after the refusal');
+});
+
 test('restartDashboard fails with an EnvError that says what went wrong', async () => {
   const opts = { repoRoot: 'C:\\repo', timeoutMs: 60, downTimeoutMs: 60, pollMs: 5 };
   await assert.rejects(
@@ -160,7 +206,7 @@ test('restartDashboard fails with an EnvError that says what went wrong', async 
   // A dashboard that keeps answering was not started by start.ps1 (its pid is unknown).
   const stuck = stubs({ stopsAnswering: false });
   await assert.rejects(
-    restartDashboard(TOKENS, { ...opts, run: stuck.run, probe: stuck.probe }),
+    restartDashboard(TOKENS, { ...opts, run: stuck.run, probe: stuck.probe, exists: stuck.exists }),
     e => e instanceof EnvError && /not started by scripts\/test-env\/start\.ps1/.test(e.message)
   );
   assert.equal(stuck.calls.length, 1, 'start is never run when the stop did not take');
@@ -181,6 +227,7 @@ test('restartDashboard error messages never contain a token', async () => {
       repoRoot: 'C:\\repo',
       run: s.run,
       probe: s.probe,
+      exists: s.exists,
       timeoutMs: 60,
       pollMs: 5,
     });

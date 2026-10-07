@@ -309,8 +309,7 @@ export const DASHBOARD_CONTROLS = [
     needs: 'picker-tool',
     selector: '#tool-form .ref-open',
     expect: '#tool-form .ref-menu',
-    optional: true,
-    why: 'needs a tool whose form has a Pick button',
+    // Required: the tool runner always has tools with a Pick button (plan-actor-change and more).
   },
   {
     name: 'dash.tools.pick-choice',
@@ -678,7 +677,11 @@ export const DASHBOARD_CONTROLS = [
   },
 ];
 
-/** The player page (/player). The sweep reloads it with no stored name before each row. */
+/**
+ * The player page (/player). The sweep reloads it with no stored name before each row. The name
+ * picker rows are required: every kit world has the kit player user, so the bridge always knows a
+ * player name.
+ */
 export const PLAYER_CONTROLS = [
   { name: 'player.main.view', how: 'view', expect: '#combat' },
   {
@@ -687,8 +690,6 @@ export const PLAYER_CONTROLS = [
     selector: '#who-list .who-pick:text-is("Skip")',
     restore: false,
     expect: '#who',
-    optional: true,
-    why: 'the name picker shows only when the bridge knows player names',
   },
   {
     name: 'player.who.change',
@@ -696,8 +697,6 @@ export const PLAYER_CONTROLS = [
     reach: ['player.who.skip'],
     restore: false,
     expect: '#who-picker',
-    optional: true,
-    why: 'the name picker shows only when the bridge knows player names',
   },
   {
     name: 'player.who.pick',
@@ -706,8 +705,6 @@ export const PLAYER_CONTROLS = [
     selector: '#who-list .who-pick:not(:text-is("Skip"))',
     restore: false,
     expect: '#who-name',
-    optional: true,
-    why: 'the name picker shows only when the bridge knows player names',
   },
   {
     name: 'player.handouts.open',

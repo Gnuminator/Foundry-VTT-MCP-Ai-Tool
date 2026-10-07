@@ -156,6 +156,25 @@ function Test-PortOpen([int]$Port) {
   }
 }
 
+# The pid of the process listening on 127.0.0.1:<port>, or $null when nothing listens (or it
+# cannot be told). stop.ps1 kills a recorded pid only when it is this listener: a pid from an
+# old pids.json may have been reused by another process (another session's node, Claude
+# Desktop's backend).
+function Get-PortOwner([int]$Port) {
+  try {
+    if ($IsWindows) {
+      $conn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop | Select-Object -First 1
+      if ($conn) { return [int]$conn.OwningProcess }
+      return $null
+    }
+    $out = & lsof -t -iTCP:$Port -sTCP:LISTEN 2>$null | Select-Object -First 1
+    if ($out) { return [int]$out }
+    return $null
+  } catch {
+    return $null
+  }
+}
+
 function Wait-PortOpen([int]$Port, [int]$TimeoutSeconds) {
   $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
   while ((Get-Date) -lt $deadline) {

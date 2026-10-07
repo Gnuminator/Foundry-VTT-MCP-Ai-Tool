@@ -18,3 +18,11 @@
   party group when the world has none, so no flow is skipped for a switch or a missing group. The page
   the login split opens with no token keeps its expected 401 errors out of the report, and the player
   checks delete their canary token by id.
+- **Safer test dashboard restart (slice 4 review):** `scripts/test-env/stop.ps1` stops a recorded pid
+  only when it owns that service's port (a stale pid that another process has by now is refused with
+  exit code 1 and forgotten); the kit refuses to restart the dashboard from a checkout with no built
+  dashboard and leaves a split it did not make alone. A write flow that is refused for a switch the run
+  turned on itself now fails instead of skipping; the login split reads the player page once it has
+  drawn and checks that the no-token page logs nothing but 401 and failed-resource errors; the control
+  sweep fails a row on a console error even when the row was skipped, and the Pick button and the
+  player name picker are required rows.

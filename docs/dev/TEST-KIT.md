@@ -238,12 +238,18 @@ in Recent Changes and on the toast, the Tarokka, Party and Handouts drawers, a m
 read Foundry or the bridge to see the change is there, undo it and read again; they put everything back, also
 after a failure (the throwaway handout journal and the "Kit Party" group stay in the kit world). The Tarokka,
 handouts and party features are switched on for the run and put back afterwards; a flow skips itself with the
-reason when the world still lacks something (a switch this module version does not have). The page the login
+reason when the world still lacks something (a switch the run does not manage), but a refusal that names a
+switch the run turned on itself (those three features, GM Actions) fails the flow. The page the login
 split opens with no token is meant to fail: its console errors are attached to the scenario instead of the
-report's console list, and every page is closed before a restart. The login split restarts the test
+report's console list and checked there (each one must be a 401 or a failed resource with no status; a script
+error fails the step), and every page is closed before a restart. The login split restarts the test
 dashboard (`lib/dashboard-proc.mjs`: `stop.ps1` and `start.ps1 -Only dashboard`) with two random tokens made
-at run time, checks three states in a fresh Edge with no cookies, and restarts it in the normal mode on
-the way out, also after a failure, so the split never stays on.
+at run time, checks three states in a fresh Edge with no cookies (the player page is read once it has drawn
+its world line), and restarts it in the normal mode on the way out, also after a failure, so the split never
+stays on. The restart is guarded three ways: the kit refuses before stopping anything when its own checkout has
+no built dashboard (`start.ps1` would leave it down), it skips itself when the dashboard already runs in a
+split it did not make (it cannot put those tokens back), and `stop.ps1` kills a recorded pid only when that pid
+owns the service's port (a stale pid may belong to another process by now; it is refused and forgotten).
 
 `dashboard-controls` and `player-rendered` also need a real browser and skip themselves against the fake.
 The control sweep walks a classification table (`lib/dashboard-controls.mjs`) with one row for every
@@ -254,7 +260,10 @@ toggle it and put it back, check it is present (Obsidian and Foundry links, the 
 the controls that failed; the `controls` attachment has one row per control (pass, fail or skip with the
 reason), and the report links one screenshot per drawer, view, moment and During layout for a person to
 look at (no pixel comparison). A control that depends on data (a boss in the combat, a stored Tarokka reading,
-AI on) is skipped with a note when it is not on the screen, never failed. The sweep puts the page back after
+AI on) is skipped with a note when it is not on the screen, never failed; a console error during a row fails
+it even so (the sweep waits a moment after each row so a late error lands on the row that caused it). The
+tool runner's Pick button and the player page's name picker are required rows: every kit world has tools with
+a picker and the kit player user. The sweep puts the page back after
 each control: the theme, the During layout and any open drawer. `player-rendered` places a hidden token with a
 canary name in a combat, opens `/player`, waits for the page to draw the combat and checks that neither the
 HTML nor the text of the page names the canary or the monsters' true names.

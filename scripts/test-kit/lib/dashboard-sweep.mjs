@@ -407,12 +407,17 @@ export async function runRow(ctx, row) {
   } finally {
     await undoTheme().catch(() => {});
   }
+  // Let a late console error (a request the row's click started) land on this row, not the next one.
+  if (t.browser) await page.waitForTimeout(SETTLE_MS).catch(() => {});
   const grown = t.browser ? t.browser.consoleErrors(page).slice(errorsBefore) : [];
-  if (grown.length && result.status !== 'skip') {
+  if (grown.length) {
+    // A console error fails the row whatever else happened, also a skipped one (the page erred
+    // while the row looked for its control).
+    const also = result.status === 'pass' ? '' : ` (and ${result.status}: ${result.note})`;
     result = {
       ...result,
       status: 'fail',
-      note: `console error: ${grown[0].message.replace(/\s+/g, ' ').slice(0, 160)}${result.status === 'fail' ? ` (and: ${result.note})` : ''}`,
+      note: `console error: ${grown[0].message.replace(/\s+/g, ' ').slice(0, 160)}${also}`,
     };
   }
   return result;

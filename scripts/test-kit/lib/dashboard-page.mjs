@@ -16,11 +16,18 @@ export class Refused extends Error {
 }
 
 /**
- * Whether a refusal says a switch is off (the world lacks something): the flow is skipped, not failed.
+ * Whether a refusal says a switch is off that the run does not control (the world lacks something):
+ * such a flow is skipped, not failed. A refusal that names one of the `managed` switches (the features
+ * the scenario itself switched on for the run, or GM Actions) is a failure: the run turned it on, so
+ * "off" means the switch did not take or the dashboard did not see it.
  * @param {string} message
+ * @param {string[]} [managed] the feature ids and names the scenario switched on for the run
  */
-export function isSwitchedOff(message) {
-  return /switched off|switch\b[^.]*\bon\b|is off|disabled|not enabled|turned off/i.test(message);
+export function isSwitchedOff(message, managed = []) {
+  if (!/switched off|switch\b[^.]*\bon\b|is off|disabled|not enabled|turned off/i.test(message)) {
+    return false;
+  }
+  return !managed.some(id => new RegExp(`\\b${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(message));
 }
 
 /** Collapses white space. @param {string | null | undefined} text */

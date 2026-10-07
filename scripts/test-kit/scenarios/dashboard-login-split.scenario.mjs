@@ -79,6 +79,20 @@ export default {
       return { status: res.status, data };
     };
 
+    // A dashboard that already runs in the split got its tokens from its own environment; the kit
+    // cannot put them back, so it leaves such a dashboard alone (before any clean-up is registered).
+    await t.step('the test dashboard runs in the normal mode', async () => {
+      const health = await call('/api/health');
+      if (health.status !== 200)
+        t.skip(`the dashboard does not answer /api/health (${health.status})`);
+      if (health.data?.splitEnabled === true) {
+        t.skip(
+          'the test dashboard already runs in split mode (tokens from its own environment): the kit cannot put them back, so it leaves the dashboard as it is'
+        );
+      }
+      return 'normal mode, restart allowed';
+    });
+
     /** GM Actions are in the dashboard's memory only: a restart switches them off, so put them back. */
     const before = await t.http('/api/tools');
     const gmActionsBefore = before.status === 200 && before.data?.gmActionsEnabled === true;
@@ -165,6 +179,19 @@ export default {
           'no-token-console',
           refused.map(e => `${scrub(e.message).slice(0, 200)} (${scrub(e.source)})`)
         );
+        // Every error of that page must be the expected kind: a request the dashboard refused with
+        // 401, or a resource that failed with no status (a request cut off). A script error
+        // (pageerror) or any other status is a real problem.
+        const expectedError = (/** @type {{message: string, source: string}} */ e) =>
+          e.source !== 'pageerror' &&
+          /Failed to load resource/.test(e.message) &&
+          (!/status of \d+/.test(e.message) || /status of 401\b/.test(e.message));
+        const stray = refused.filter(e => !expectedError(e));
+        t.check(
+          stray.length === 0,
+          `${stray.length} console error(s) of the no-token page are not 401 or failed-resource errors`,
+          stray.map(e => `${scrub(e.message).slice(0, 200)} (${scrub(e.source)})`)
+        );
         t.check(seen.apiStatus === 401, `the page's own /api/state call answers ${seen.apiStatus}`);
         t.check(
           !/Bridge: connected/.test(seen.bridge),
@@ -209,11 +236,43 @@ export default {
             fresh: true,
             viewport: VIEWPORT,
           });
-          await page.waitForTimeout(3000);
+          // Wait for the page to draw (as player-rendered does): the world line and a status that
+          // is past "connecting", so the absences below are checked on a loaded page, not an empty one.
+          await page.waitForSelector('#world', { state: 'visible', timeout: 15000 });
+          await page
+            .waitForFunction(
+              () => {
+                const status = document.querySelector('#status')?.textContent ?? '';
+                const world = document.querySelector('#world')?.textContent?.trim() ?? '';
+                // The page's placeholder for "no world yet" is a lone dash (U+2014).
+                const drawnWorld =
+                  world !== '' && !(world.length === 1 && world.codePointAt(0) === 0x2014);
+                return !/connecting/i.test(status) && drawnWorld;
+              },
+              undefined,
+              { timeout: 30000 }
+            )
+            .catch(() => {
+              /* checked below, with what the page says */
+            });
+          await page.waitForTimeout(300);
+          const drawn = await page.evaluate(() => ({
+            status: document.querySelector('#status')?.textContent?.trim() ?? '',
+            world: document.querySelector('#world')?.textContent?.trim() ?? '',
+          }));
           const gmControls = await page.locator('[data-track^="dash."]').count();
           const gmButton = await page.locator('#btn-gm').count();
           const text = await page.evaluate(() => document.body.innerText);
           await shot(page, 'player-page-player-token.png');
+          t.check(
+            !/connecting/i.test(drawn.status),
+            `the player page is past "connecting" (status "${drawn.status}")`
+          );
+          t.check(
+            drawn.world !== '' &&
+              !(drawn.world.length === 1 && drawn.world.codePointAt(0) === 0x2014),
+            `the player page shows the world line ("${drawn.world}")`
+          );
           t.equal(gmControls, 0, 'GM controls (data-track "dash.*") on the player page');
           t.equal(gmButton, 0, 'the GM Actions button on the player page');
           t.check(!/GM Actions/i.test(text), 'the player page text names GM Actions');

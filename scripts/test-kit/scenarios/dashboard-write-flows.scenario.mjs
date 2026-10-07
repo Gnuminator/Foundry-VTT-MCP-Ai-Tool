@@ -11,8 +11,9 @@
  * what they were. The throwaway handout journal and the kit party group stay in the kit world (named in
  * HANDOUT_JOURNAL and PARTY_GROUP; reused on the next run, a rebuild wipes the group).
  *
- * A flow that needs something the world still lacks (a switch this module version does not have, a
- * player who already has a link) is skipped with the reason. A real browser is needed: skipped against the fake.
+ * A flow that needs something the world still lacks (a switch this run does not manage, a player who
+ * already has a link) is skipped with the reason; a refusal that names a switch the run turned on
+ * itself (FLOW_FEATURES, GM Actions) fails the flow. A real browser is needed: skipped against the fake.
  */
 import { randomBytes } from 'node:crypto';
 import { KIT_PLAYER_USER } from '../lib/contract.mjs';
@@ -45,6 +46,8 @@ const HANDOUT_PAGE = 'Kit Handout';
 const PARTY_GROUP = 'Kit Party';
 /** The guarded features the drawer flows write through. */
 const FLOW_FEATURES = ['tarokka', 'handouts', 'party'];
+/** The switches this run turns on itself: a refusal that names one of them fails the flow. */
+const RUN_SWITCHES = [...FLOW_FEATURES, 'GM Actions'];
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
@@ -117,7 +120,8 @@ export default {
 
     /**
      * One flow: a step that goes on after a failure, with a screenshot and a console error check.
-     * A refusal that says a switch is off skips the flow instead of failing it.
+     * A refusal that says a switch is off skips the flow instead of failing it, unless it names a
+     * switch this run turned on itself (FLOW_FEATURES, GM Actions): then the flow fails.
      * @param {string} label @param {string} file @param {() => Promise<string | void>} fn
      */
     const flow = async (label, file, fn) => {
@@ -137,7 +141,7 @@ export default {
               );
               return detail;
             } catch (e) {
-              if (e instanceof Refused && isSwitchedOff(e.message)) {
+              if (e instanceof Refused && isSwitchedOff(e.message, RUN_SWITCHES)) {
                 t.skip(`the dashboard refused: ${e.message}`);
               }
               throw e;

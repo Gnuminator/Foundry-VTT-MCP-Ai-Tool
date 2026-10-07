@@ -18,6 +18,16 @@
  * A failed apply and its rollback (a `changeId` with any `rollback` record) cancel out and are
  * hidden.
  *
+ * Foundry's own follow-ups on other things are kept with the AI change too: deleting a token
+ * removes its combatant and moves the turn (root Combat, not the token's scene), so records on a
+ * Combat in an AI burst are never split off as a person's action. A GM's own click on the
+ * tracker within the action gap of an AI write, in the bridge's browser, is the one case this
+ * cannot tell apart (it is then hidden under the AI change, not undone with it).
+ *
+ * `historyStart()` says from when the history is complete: the pump's retention can remove
+ * files inside the span when they exceed the byte cap, and the undo planner refuses a rewind
+ * that reaches back before that.
+ *
  * Read-only. The undo planner (`guarded-write/undo-planner.ts`) reads the actions from here
  * (`humanActions`); `undoBlocker` says which of them can be undone, and `list()` marks what is
  * already undone from the audit log's derived undo state.
@@ -47,6 +57,11 @@ export const MAX_ACTION_LINES = 8;
  * touched other things (see the file comment): their own action, undoable on its own.
  */
 export const OWN_ACTION_SUFFIX = ':own';
+/**
+ * Root document kinds Foundry itself writes to as a follow-up of a change elsewhere (deleting a
+ * token deletes its combatant and may move the turn): never split off as a person's own action.
+ */
+const CASCADE_ROOT_KINDS: ReadonlySet<string> = new Set(['Combat']);
 
 /** User id to user name, as the journal records have seen them (for ownership lines). */
 export type UserNames = ReadonlyMap<string, string>;
@@ -113,7 +128,7 @@ export interface AiChangeItem {
   undoneBy?: string;
   undoneAt?: string;
   documents?: string[];
-  /** For an undo made with plan-undo-changes: how many changes it took back (undoing it brings them all back). */
+  /** For an undo: how many changes it took back (undoing it brings them all back); 1 for an undo-change undo. */
   covers?: number;
 }
 
@@ -195,11 +210,22 @@ function subjectOf(r: ChangeRecord): { subject: string; inner: string } {
   };
 }
 
-/** A nameless root (a Combat) by its kind, read from its uuid (`Combat.cb1` gives `Combat`). */
-function rootLabel(rootUuid: string): string {
+/** The document kind of a root uuid (`Combat.cb1` gives `Combat`), or null. */
+function rootKind(rootUuid: string): string | null {
   const parts = rootUuid.split('.');
-  const kind = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+  return parts.length >= 2 ? parts[parts.length - 2] : null;
+}
+
+/** A nameless root (a Combat) by its kind, read from its uuid. */
+function rootLabel(rootUuid: string): string {
+  const kind = rootKind(rootUuid);
   return kind ? documentLabel(kind) : 'Something';
+}
+
+/** Foundry's own follow-up of an AI write on another thing (see CASCADE_ROOT_KINDS). */
+function isCascade(r: ChangeRecord): boolean {
+  const kind = rootKind(r.rootUuid);
+  return kind !== null && CASCADE_ROOT_KINDS.has(kind);
 }
 
 function isEmptyValue(v: PathValue): boolean {
@@ -298,7 +324,8 @@ export function undoBlocker(action: ChangeAction): string | null {
  * Group records into actions by `actionId` (records keep their order; actions are in the
  * order of their first record). Records of a guarded write that was rolled back are left out.
  * In a burst with an AI write, a person's records on things the AI did not touch become an
- * action of their own (`<actionId>:own`, right after the AI's).
+ * action of their own (`<actionId>:own`, right after the AI's); Foundry's own cascades (a
+ * combatant removed with its token) stay with the AI's.
  */
 export function buildActions(records: ChangeRecord[], users?: UserNames): ChangeAction[] {
   const rolledBack = new Set<string>();
@@ -320,7 +347,7 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
       split.push([actionId, group]);
       continue;
     }
-    const own = group.filter(r => !r.changeId && !aiRoots.has(r.rootUuid));
+    const own = group.filter(r => !r.changeId && !aiRoots.has(r.rootUuid) && !isCascade(r));
     split.push([actionId, own.length > 0 ? group.filter(r => !own.includes(r)) : group]);
     if (own.length > 0) split.push([`${actionId}${OWN_ACTION_SUFFIX}`, own]);
   }
@@ -378,6 +405,11 @@ export interface ChangeHistoryOptions {
   logger: Logger;
   /** Fetch the newest journal records first (the pump's `pullNow`); absent when the journal is off. */
   pullNow?: () => Promise<void>;
+  /**
+   * Local midnight (epoch ms) of the first day whose journal file is complete (the pump's
+   * `historyStart`), 0 when nothing was removed; absent when the journal is off.
+   */
+  journalStart?: (worldId: string) => Promise<number>;
   now?: () => number;
 }
 
@@ -387,6 +419,7 @@ export class ChangeHistory {
   private readonly guardedWrites: ChangeHistoryOptions['guardedWrites'];
   private readonly logger: Logger;
   private readonly pullNow: ChangeHistoryOptions['pullNow'];
+  private readonly journalStart: ChangeHistoryOptions['journalStart'];
   private readonly now: () => number;
   private readonly worlds = new Map<string, WorldIndex>();
 
@@ -396,7 +429,20 @@ export class ChangeHistory {
     this.guardedWrites = options.guardedWrites;
     this.logger = options.logger.child({ component: 'ChangeHistory' });
     this.pullNow = options.pullNow;
+    this.journalStart = options.journalStart;
     this.now = options.now ?? ((): number => Date.now());
+  }
+
+  /**
+   * Epoch ms from which people's changes are all known: the span's cutoff, or later when the
+   * pump's retention removed a file inside the span (the byte cap). Changes before it may be
+   * missing, so a rewind must not reach back past it.
+   */
+  async historyStart(): Promise<number> {
+    const cutoff = this.now() - CHANGE_HISTORY_DAYS * DAY_MS;
+    if (!this.journalStart) return cutoff;
+    const worldId = await this.worldIds.current();
+    return Math.max(cutoff, await this.journalStart(worldId));
   }
 
   /** The pump's `onAppended`: add what it just wrote. Ignored until the first read loaded the files. */
@@ -450,6 +496,12 @@ export class ChangeHistory {
     const sinceMs = options.sinceIso ? Date.parse(options.sinceIso) : Number.NaN;
     const from = Number.isFinite(sinceMs) ? Math.max(sinceMs, cutoff) : cutoff;
     const worldId = await this.worldIds.current();
+    const start = await this.historyStart();
+    if (start > cutoff && source !== 'ai') {
+      notes.push(
+        `People's changes before ${localDateKey(start)} are gone: the change journal's size cap removed them.`
+      );
+    }
 
     const entries: Array<{ at: number; item: ChangeListItem }> = [];
     if (source !== 'ai') {
@@ -611,7 +663,10 @@ function aiItem(change: RecentChange): AiChangeItem {
   const { summary, lines } = summarizeLines(
     change.diff.length > 0 ? change.diff : [change.summary]
   );
-  const covers = (change.undoes?.actions?.length ?? 0) + (change.undoes?.changes?.length ?? 0);
+  // An undo made with undo-change (the AI tab, the toast) took back exactly the one it undoes.
+  const covers =
+    (change.undoes?.actions?.length ?? 0) + (change.undoes?.changes?.length ?? 0) ||
+    (change.undoOf ? 1 : 0);
   return {
     kind: 'ai',
     id: change.changeId,

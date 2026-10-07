@@ -338,7 +338,11 @@ async function startBackend(): Promise<void> {
     guardedWrites,
     logger,
     ...(FOUNDRY_LINK_ENABLED && changeJournalConfig.enabled
-      ? { pullNow: (): Promise<void> => changeJournalPump?.pullNow() ?? Promise.resolve() }
+      ? {
+          pullNow: (): Promise<void> => changeJournalPump?.pullNow() ?? Promise.resolve(),
+          journalStart: (worldId: string): Promise<number> =>
+            changeJournalPump?.historyStart(worldId) ?? Promise.resolve(0),
+        }
       : {}),
   });
   const undoPlanner = new UndoPlanner({

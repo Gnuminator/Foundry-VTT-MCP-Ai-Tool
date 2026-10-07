@@ -20,12 +20,14 @@
 import type { GuardedOp, OpSnapshot, PathValue } from '@gnuminator/shared';
 
 import {
+  CHANGE_HISTORY_DAYS,
   labelOf,
   undoBlocker,
   type ChangeAction,
   type ChangeHistory,
   type UserNames,
 } from '../change-history.js';
+import { localDateKey } from '../event-pump.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { AuditEntry, AuditLog } from '../vault/audit.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
@@ -77,8 +79,12 @@ export interface UndoPlanView extends PlanView {
 }
 
 export interface UndoPlannerOptions {
-  /** `userNames` is optional: without it, ownership lines name users by id. */
-  changeHistory: Pick<ChangeHistory, 'humanActions'> & Partial<Pick<ChangeHistory, 'userNames'>>;
+  /**
+   * `userNames` is optional: without it, ownership lines name users by id. `historyStart` is
+   * optional: without it, a rewind may reach back past the kept history.
+   */
+  changeHistory: Pick<ChangeHistory, 'humanActions'> &
+    Partial<Pick<ChangeHistory, 'userNames' | 'historyStart'>>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   audit: Pick<AuditLog, 'ring' | 'resultsWithDeleted'>;
   worldIds: Pick<WorldIdResolver, 'current'>;
@@ -354,6 +360,8 @@ export class UndoPlanner {
     const items = [...actions.map(humanItem), ...ring.filter(e => e.results?.length).map(aiItem)];
     items.sort((a, b) => a.t - b.t);
     const target = this.resolveTarget(request.id, items, ring, actions, state);
+    const notes: string[] = [];
+    this.checkHistoryStart(target, scope, (await this.changeHistory.historyStart?.()) ?? 0, notes);
     const touches = (i: Item): boolean => i.roots.some(root => target.roots.includes(root));
     // Everything after the target, undone or not: an undone change and the undo that took it back
     // both lie after it and cancel out in the fold. Leaving out only the undone one would restore
@@ -362,7 +370,6 @@ export class UndoPlanner {
     // What the GM sees as later changes (the dialog, and the number adjustment of `just-this`).
     const touching = since.filter(i => !state.has(i.id) && touches(i));
 
-    const notes: string[] = [];
     const chosen =
       scope === 'just-this' ? [] : scope === 'world-since' ? since : since.filter(touches);
     const skipped = chosen.filter(i => this.skipItem(i, notes));
@@ -429,6 +436,24 @@ export class UndoPlanner {
 
   // -------------------------------------------------------------------------
 
+  /**
+   * People's changes before `start` are gone (the journal keeps CHANGE_HISTORY_DAYS days, less
+   * when its size cap removed files inside them), so a set that starts before it would skip
+   * them without a word: refused. `just-this` undoes one change and only says it.
+   */
+  private checkHistoryStart(target: Item, scope: UndoScope, start: number, notes: string[]): void {
+    if (!(target.t < start)) return;
+    const day = localDateKey(start);
+    if (scope !== 'just-this') {
+      throw new Error(
+        `People's changes before ${day} are no longer in the history (it keeps ${CHANGE_HISTORY_DAYS} days, less when the change journal's size cap is reached), so not every change since "${target.summary}" is known. Undo just this change instead, or undo the later changes one by one.`
+      );
+    }
+    notes.push(
+      `People's changes before ${day} are no longer in the history: a later change to the same thing may not be listed`
+    );
+  }
+
   private resolveTarget(
     id: string,
     items: Item[],
@@ -441,7 +466,7 @@ export class UndoPlanner {
       const action = actions.find(a => `act:${a.actionId}` === id);
       if (!action) {
         throw new Error(
-          `No change ${id} in the last days of history (it may be older than 7 days)`
+          `No change ${id} in the kept history (people's changes are kept ${CHANGE_HISTORY_DAYS} days, less when the change journal's size cap is reached)`
         );
       }
       if (undone) throw new Error(`Change ${id} was already undone (${undone.undoneBy})`);

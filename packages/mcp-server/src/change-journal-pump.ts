@@ -27,7 +27,12 @@
  * Retention: once a day (and on the first poll) the pump removes journal files older
  * than `CHANGE_JOURNAL_RETENTION_DAYS` (the span the history index lists) and, while
  * the files still hold more than `maxBytes` in all, the oldest ones (never the newest).
- * Records can be 256 KB each, and the Pi's vault is an SD card.
+ * Records can be 256 KB each, and the Pi's vault is an SD card. The day after the newest
+ * removed file is kept in the state file as `historyFrom`: the history is complete from
+ * that day on (`historyStart`), and the undo planner refuses a rewind that reaches back
+ * before it. Records older than it are not written again (a re-pull from seq 0 after a GM
+ * browser reload would otherwise recreate a removed file). A file that cannot be removed
+ * (a Windows lock) is retried after `RETENTION_RETRY_MS`, the others are still removed.
  *
  * On by default; `FOUNDRY_AI_CHANGE_JOURNAL=off` disables it. The poll interval is
  * `FOUNDRY_AI_EVENT_POLL_MS`, shared with the event pump; the byte cap is
@@ -55,8 +60,23 @@ const MAX_PAGES = 20;
 export const CHANGE_JOURNAL_RETENTION_DAYS = 7;
 /** Default cap on the journal files' total size (`FOUNDRY_AI_CHANGE_JOURNAL_MAX_MB`). */
 export const DEFAULT_CHANGE_JOURNAL_MAX_BYTES = 64 * 1024 * 1024;
+/** How long after a failed file removal the retention run is tried again. */
+export const RETENTION_RETRY_MS = 10 * 60 * 1000;
 
 const JOURNAL_FILE = /^changes-(\d{4}-\d{2}-\d{2})\.jsonl$/;
+
+/** Local midnight of a `YYYY-MM-DD` date key, as epoch ms (NaN for anything else). */
+export function dateKeyStart(dateKey: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!m) return Number.NaN;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
+}
+
+/** The date key of the local day after `dateKey` (noon-based, so a DST shift never skips a date). */
+function nextDateKey(dateKey: string): string {
+  const d = new Date(dateKeyStart(dateKey));
+  return localDateKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 12).getTime());
+}
 
 /** The vault file of one local day's records (area `gm`). */
 export function changeJournalFileName(dateKey: string): string {
@@ -73,6 +93,15 @@ interface ChangePumpState {
   clientId: string | null;
   /** The sequence number of the last record the pump has read. */
   lastSeq: number;
+  /**
+   * The local date (`YYYY-MM-DD`) from which the kept files are complete: the day after the
+   * newest file retention removed. Absent until a file was removed.
+   */
+  historyFrom?: string;
+}
+
+interface PumpState extends ChangePumpState {
+  worldId: string;
 }
 
 export interface ChangeJournalPumpOptions {
@@ -137,12 +166,14 @@ export class ChangeJournalPump {
   private readonly now: () => number;
   private timer: NodeJS.Timeout | null = null;
   private inFlight: Promise<number> | null = null;
-  private state: { worldId: string; clientId: string | null; lastSeq: number } | null = null;
+  private state: PumpState | null = null;
   /** Keys already on disk for `<worldId>::<dateKey>`, read from the file once per process. */
   private readonly writtenKeys = new Map<string, Set<string>>();
   private lastError: string | null = null;
-  /** The world and local day of the last retention run (one run per day). */
+  /** The world and local day of the last complete retention run (one run per day). */
   private lastRetention: { worldId: string; dateKey: string } | null = null;
+  /** Set after a failed removal: no retention run before this time. */
+  private retentionRetryAt = 0;
 
   constructor(options: ChangeJournalPumpOptions) {
     this.foundry = options.foundryClient;
@@ -203,6 +234,18 @@ export class ChangeJournalPump {
     if (this.lastError) throw new Error(this.lastError);
   }
 
+  /**
+   * Local midnight (epoch ms) of the first day whose journal file is complete, or 0 when
+   * retention has never removed a file of this world. The history index and the undo
+   * planner treat anything before it as unknown.
+   */
+  async historyStart(worldId: string): Promise<number> {
+    const state = await this.loadState(worldId);
+    if (!state.historyFrom) return 0;
+    const start = dateKeyStart(state.historyFrom);
+    return Number.isFinite(start) ? start : 0;
+  }
+
   private async poll(): Promise<number> {
     if (!this.foundry.isConnected()) return 0;
     const worldId = await this.worldIds.current();
@@ -247,7 +290,7 @@ export class ChangeJournalPump {
         this.logger.warn('Change journal dropped invalid records', { worldId, count: invalid });
       }
 
-      const batch = await this.appendByDate(worldId, valid);
+      const batch = await this.appendByDate(worldId, valid, state.historyFrom);
       written += batch.length;
       appended.push(...batch);
 
@@ -274,16 +317,27 @@ export class ChangeJournalPump {
   /**
    * Remove journal files older than the retention span and, while the rest hold more than
    * `maxBytes`, the oldest ones (the newest file always stays). Runs once per local day; a
-   * failure is logged and never fails the poll (the records were already written).
+   * failure is logged and never fails the poll (the records were already written). A file
+   * that could not be removed is tried again after RETENTION_RETRY_MS.
    */
   private async retain(worldId: string): Promise<void> {
-    const today = localDateKey(this.now());
+    const now = this.now();
+    const today = localDateKey(now);
     if (this.lastRetention?.worldId === worldId && this.lastRetention.dateKey === today) return;
+    if (now < this.retentionRetryAt) return;
     this.lastRetention = { worldId, dateKey: today };
     try {
-      const removed = await this.removeOldFiles(worldId);
+      const { removed, failed } = await this.removeOldFiles(worldId);
       if (removed.length > 0) {
         this.logger.info('Change journal files removed', { worldId, files: removed });
+      }
+      if (failed.length > 0) {
+        this.lastRetention = null;
+        this.retentionRetryAt = now + RETENTION_RETRY_MS;
+        this.logger.warn('Change journal files could not be removed; retrying later', {
+          worldId,
+          files: failed,
+        });
       }
     } catch (error) {
       this.logger.warn('Change journal retention failed', {
@@ -293,7 +347,7 @@ export class ChangeJournalPump {
     }
   }
 
-  private async removeOldFiles(worldId: string): Promise<string[]> {
+  private async removeOldFiles(worldId: string): Promise<{ removed: string[]; failed: string[] }> {
     const now = new Date(this.now());
     // Noon, so a daylight-saving shift never moves the date.
     const oldestKept = localDateKey(
@@ -318,18 +372,32 @@ export class ChangeJournalPump {
     }
     let total = [...sizes.values()].reduce((sum, n) => sum + n, 0);
     const removed: string[] = [];
+    const failed: string[] = [];
+    const state = await this.loadState(worldId);
+    let historyFrom = state.historyFrom;
     for (let i = 0; i < files.length; i += 1) {
       const { file, date } = files[i];
       const last = i === files.length - 1;
       const tooOld = date < oldestKept;
       const tooBig = total > this.maxBytes && !last;
       if (!tooOld && !tooBig) continue;
-      await this.store.remove(worldId, 'gm', file);
+      try {
+        await this.store.remove(worldId, 'gm', file);
+      } catch (error) {
+        failed.push(`${file}: ${error instanceof Error ? error.message : String(error)}`);
+        continue;
+      }
       this.writtenKeys.delete(`${worldId}::${date}`);
       total -= sizes.get(file) ?? 0;
       removed.push(file);
+      const from = nextDateKey(date);
+      if (!historyFrom || from > historyFrom) historyFrom = from;
     }
-    return removed;
+    if (historyFrom && historyFrom !== state.historyFrom) {
+      state.historyFrom = historyFrom;
+      await this.saveState(worldId);
+    }
+    return { removed, failed };
   }
 
   private async fetchPage(sinceSeq: number): Promise<ChangeJournalResponse> {
@@ -343,12 +411,32 @@ export class ChangeJournalPump {
     return response;
   }
 
-  /** Group by local date, drop duplicate keys (against the file and within the batch), append. */
-  private async appendByDate(worldId: string, records: ChangeRecord[]): Promise<ChangeRecord[]> {
+  /**
+   * Group by local date, drop duplicate keys (against the file and within the batch) and records
+   * of days before `historyFrom` (their file was removed; writing them again would recreate a
+   * part of it), append.
+   */
+  private async appendByDate(
+    worldId: string,
+    records: ChangeRecord[],
+    historyFrom?: string
+  ): Promise<ChangeRecord[]> {
     const byDate = new Map<string, ChangeRecord[]>();
+    let skipped = 0;
     for (const record of records) {
       const date = localDateKey(record.t);
+      if (historyFrom && date < historyFrom) {
+        skipped += 1;
+        continue;
+      }
       byDate.set(date, [...(byDate.get(date) ?? []), record]);
+    }
+    if (skipped > 0) {
+      this.logger.info('Change journal skipped records of removed days', {
+        worldId,
+        count: skipped,
+        historyFrom,
+      });
     }
 
     const written: ChangeRecord[] = [];
@@ -395,20 +483,27 @@ export class ChangeJournalPump {
     }
   }
 
-  private async loadState(
-    worldId: string
-  ): Promise<{ worldId: string; clientId: string | null; lastSeq: number }> {
+  private async loadState(worldId: string): Promise<PumpState> {
     if (this.state?.worldId === worldId) return this.state;
     const saved = await this.store.read<ChangePumpState>(worldId, 'gm', CHANGE_PUMP_STATE_FILE);
     const clientId = typeof saved?.data.clientId === 'string' ? saved.data.clientId : null;
     const lastSeq = typeof saved?.data.lastSeq === 'number' ? saved.data.lastSeq : 0;
-    this.state = { worldId, clientId, lastSeq };
+    const historyFrom =
+      typeof saved?.data.historyFrom === 'string' &&
+      Number.isFinite(dateKeyStart(saved.data.historyFrom))
+        ? saved.data.historyFrom
+        : undefined;
+    this.state = { worldId, clientId, lastSeq, ...(historyFrom ? { historyFrom } : {}) };
     return this.state;
   }
 
   private async saveState(worldId: string): Promise<void> {
     if (!this.state || this.state.worldId !== worldId) return;
-    const data: ChangePumpState = { clientId: this.state.clientId, lastSeq: this.state.lastSeq };
+    const data: ChangePumpState = {
+      clientId: this.state.clientId,
+      lastSeq: this.state.lastSeq,
+      ...(this.state.historyFrom ? { historyFrom: this.state.historyFrom } : {}),
+    };
     await this.store.write(worldId, 'gm', CHANGE_PUMP_STATE_FILE, data);
   }
 }

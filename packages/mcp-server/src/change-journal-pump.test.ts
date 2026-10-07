@@ -10,9 +10,11 @@ import {
   CHANGE_PUMP_STATE_FILE,
   ChangeJournalPump,
   DEFAULT_CHANGE_JOURNAL_MAX_BYTES,
+  RETENTION_RETRY_MS,
   changeJournalDateOf,
   changeJournalFileName,
   changeJournalSettings,
+  dateKeyStart,
 } from './change-journal-pump.js';
 import { localDateKey } from './event-pump.js';
 import { VaultStore } from './vault/store.js';
@@ -221,6 +223,69 @@ describe('ChangeJournalPump retention', () => {
     expect(await store.list('w1', 'gm')).toEqual(
       [CHANGE_PUMP_STATE_FILE, changeJournalFileName(day(0))].sort()
     );
+  });
+
+  it('records the day after the newest removed file as the history start, and skips records of removed days', async () => {
+    await seedFile(day(3), 20, 100);
+    await seedFile(day(2), 20, 100);
+    await seedFile(day(1), 20, 100);
+    const pump = makePump({ now: () => NOW, maxBytes: 3000 });
+    expect(await pump.historyStart('w1')).toBe(0);
+    await pump.pollOnce();
+    expect(await pump.historyStart('w1')).toBe(dateKeyStart(day(1)));
+    const saved = await store.read<{ historyFrom?: string }>('w1', 'gm', CHANGE_PUMP_STATE_FILE);
+    expect(saved?.data.historyFrom).toBe(day(1));
+
+    // The GM browser reloads and reports everything it still holds, including a record of a
+    // removed day: that day's file must not come back.
+    foundry.reload('client-2');
+    foundry.add({ t: dateKeyStart(day(2)) + 60_000, key: 'old' });
+    foundry.add({ t: NOW - 1000, key: 'new' });
+    await pump.pollOnce();
+    expect(await store.list('w1', 'gm')).toEqual(
+      [CHANGE_PUMP_STATE_FILE, changeJournalFileName(day(1)), changeJournalFileName(day(0))].sort()
+    );
+    expect(await loggedKeys(day(0))).toEqual(['new']);
+    expect(logger.info).toHaveBeenCalledWith(
+      'Change journal skipped records of removed days',
+      expect.objectContaining({ count: 1, historyFrom: day(1) })
+    );
+
+    // A fresh process reads the start from the state file.
+    expect(await makePump({ now: () => NOW }).historyStart('w1')).toBe(dateKeyStart(day(1)));
+  });
+
+  it('keeps removing the other files when one cannot be removed, and tries that one again later', async () => {
+    const stuck = changeJournalFileName(day(CHANGE_JOURNAL_RETENTION_DAYS + 2));
+    await seedFile(day(CHANGE_JOURNAL_RETENTION_DAYS + 2), 1);
+    await seedFile(day(CHANGE_JOURNAL_RETENTION_DAYS + 1), 1);
+    await seedFile(day(1), 1);
+    const remove = store.remove.bind(store);
+    let fails = 1;
+    vi.spyOn(store, 'remove').mockImplementation((worldId, area, file) => {
+      if (file === stuck && fails > 0) {
+        fails -= 1;
+        return Promise.reject(new Error('EBUSY: resource busy or locked'));
+      }
+      return remove(worldId, area, file);
+    });
+    let now = NOW;
+    const pump = makePump({ now: () => now });
+    await pump.pollOnce();
+    expect(await store.list('w1', 'gm')).toEqual(
+      [CHANGE_PUMP_STATE_FILE, stuck, changeJournalFileName(day(1))].sort()
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Change journal files could not be removed; retrying later',
+      expect.objectContaining({ files: [expect.stringContaining('EBUSY')] })
+    );
+    // Not before the retry delay.
+    now += RETENTION_RETRY_MS - 1000;
+    await pump.pollOnce();
+    expect(await store.list('w1', 'gm')).toContain(stuck);
+    now += 2000;
+    await pump.pollOnce();
+    expect(await store.list('w1', 'gm')).not.toContain(stuck);
   });
 
   it('runs once per local day', async () => {

@@ -2,7 +2,12 @@
 
 - **Journal files are kept 7 days and capped:** the backend removes `changes-<date>.jsonl` files
   older than the history span once a day, and the oldest ones while the files hold more than
-  64 MB in all (`FOUNDRY_AI_CHANGE_JOURNAL_MAX_MB`; the Pi's vault is an SD card).
+  64 MB in all (`FOUNDRY_AI_CHANGE_JOURNAL_MAX_MB`; the Pi's vault is an SD card). It remembers
+  from which day the history is complete: `list-changes` says when the cap removed days inside
+  the span, and "Everything since" or a rewind to a change before that day is refused instead
+  of silently skipping people's changes. A file that cannot be removed is retried later.
+- **Foundry's own follow-ups stay with the AI change:** when the AI deletes a token in combat,
+  the combatant Foundry removes (and the turn it moves) no longer show as the GM's own change.
 - **The GM browser's journal buffer is capped at 32 MB** besides its 5000 records, and record
   sizes are measured in UTF-8 bytes.
 - **Two updates to one document in the same server millisecond** are two records: an update's

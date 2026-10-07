@@ -111,15 +111,15 @@ const cancel: DialogButton = { action: ACTION_CANCEL, label: 'Cancel' };
 
 /** Undo one change: what will be reverted. The undo is refused if the thing was edited since. */
 export function undoPlanDialog(row: ChangeRow, plan: UndoPlan, rewind = false): DialogSpec {
+  const advanced = rewind
+    ? advancedRewind('This also undoes what everyone at the table did since then, on anything.')
+    : '';
   return {
     title: 'Undo change',
     content:
       `<p>Undo this change?</p><p><strong>${escapeHtml(row.summary)}</strong></p>` +
       `${list(plan.lines)}${notesHtml(plan.notes)}` +
-      '<p>If something was edited since, the undo is refused and nothing is changed.</p>' +
-      (rewind
-        ? advancedRewind('This also undoes what everyone at the table did since then, on anything.')
-        : ''),
+      `<p>If something was edited since, the undo is refused and nothing is changed.</p>${advanced}`,
     buttons: [{ action: ACTION_YES, label: 'Undo', default: true }, cancel],
   };
 }
@@ -146,8 +146,7 @@ export function redoDialog(row: ChangeRow, undo?: ChangeRow): DialogSpec {
   return {
     title: 'Redo change',
     content:
-      `<p>Bring this change back?</p><p><strong>${escapeHtml(row.summary)}</strong></p>` +
-      whole +
+      `<p>Bring this change back?</p><p><strong>${escapeHtml(row.summary)}</strong></p>${whole}` +
       '<p>This undoes the undo. If something was edited since, it is refused and nothing is changed.</p>',
     buttons: [{ action: ACTION_YES, label: 'Redo', default: true }, cancel],
   };
@@ -163,6 +162,9 @@ export function laterChoiceDialog(row: ChangeRow, later: readonly LaterChange[])
         )})</li>`
     )
     .join('');
+  const advanced = advancedRewind(
+    'This also undoes what everyone else at the table did since then, on anything.'
+  );
   return {
     title: 'Undo change',
     content:
@@ -171,10 +173,7 @@ export function laterChoiceDialog(row: ChangeRow, later: readonly LaterChange[])
       '<p>These came after it:</p>' +
       `<div class="fmb-ai-scroll"><ul class="fmb-ai-diff">${items}</ul></div>` +
       '<p><strong>Just this</strong> undoes only this change and keeps the later ones. ' +
-      '<strong>Everything since</strong> undoes this change and the later ones too.</p>' +
-      advancedRewind(
-        'This also undoes what everyone else at the table did since then, on anything.'
-      ),
+      `<strong>Everything since</strong> undoes this change and the later ones too.</p>${advanced}`,
     buttons: [
       { action: CHOICE_JUST_THIS, label: 'Just this', default: true },
       { action: CHOICE_EVERYTHING_SINCE, label: 'Everything since' },

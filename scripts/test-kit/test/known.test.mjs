@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { NOT_BUILT, classifyBuildError } from '../lib/advancement.mjs';
-import { knownAttachment, knownFile, loadKnown, splitKnown, validateKnown } from '../lib/known.mjs';
+import { knownAlsoOf, knownAttachment, knownFile, loadKnown, splitKnown, validateKnown } from '../lib/known.mjs';
 import { pickCoverage, pickSummary } from '../lib/picks.mjs';
 import { knownMarkdown, picksMarkdown } from '../lib/report.mjs';
 
@@ -217,4 +217,38 @@ test('picks: coverage per class and choice, with the options no hero picked', ()
     })
   ).join('\n');
   assert.match(md, /\| bard \| Bard: Skills \| 2 \| 3 \| 2 \| skills:dec \|/);
+});
+
+test('known: a profile also uses the lists it names in knownAlso, its own entries first', () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'kit-known-also-'));
+  const dir = path.join(home, 'licensed', 'profiles');
+  mkdirSync(dir, { recursive: true });
+  /** @param {string} id @param {unknown} body */
+  const put = (id, body) => writeFileSync(path.join(dir, id), JSON.stringify(body));
+  // "mine" inherits "base"; "base" names "deeper", which is one level too far and is ignored.
+  put('mine.json', { id: 'mine', knownAlso: ['base', 'absent'] });
+  put('mine.known.json', [{ ...ENTRY, id: 'mine-own' }]);
+  put('base.json', { id: 'base', knownAlso: ['deeper'] });
+  put('base.known.json', [{ ...ENTRY, id: 'base-one' }]);
+  put('deeper.json', { id: 'deeper' });
+  put('deeper.known.json', [{ ...ENTRY, id: 'deeper-one' }]);
+  assert.deepEqual(knownAlsoOf('mine', home), ['base', 'absent']);
+  assert.deepEqual(knownAlsoOf('nope', home), []);
+  assert.deepEqual(
+    loadKnown('mine', { home }).map(e => e.id),
+    ['mine-own', 'base-one']
+  );
+  // Loaded on its own, "base" inherits its one level ("deeper") like any profile.
+  assert.deepEqual(
+    loadKnown('base', { home }).map(e => e.id),
+    ['base-one', 'deeper-one']
+  );
+  // The same id in two lists is an error, so an entry is never counted twice.
+  put('base.known.json', [{ ...ENTRY, id: 'mine-own' }]);
+  assert.throws(() => loadKnown('mine', { home }), /"mine-own" is in the lists of both "mine" and "base"/);
+  // With a file given, only that file is read.
+  assert.deepEqual(
+    loadKnown('mine', { home, file: path.join(dir, 'base.known.json') }).map(e => e.id),
+    ['mine-own']
+  );
 });

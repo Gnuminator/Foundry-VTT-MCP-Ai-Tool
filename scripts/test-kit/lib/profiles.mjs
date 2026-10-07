@@ -62,6 +62,17 @@ export function validateProfile(p) {
         problems.push(`packs.${kind} is empty`);
     }
   }
+  if (o.knownAlso !== undefined) {
+    const k = o.knownAlso;
+    if (
+      !Array.isArray(k) ||
+      k.some(/** @param {unknown} id */ id => typeof id !== 'string' || !PROFILE_ID_RE.test(id))
+    ) {
+      problems.push('knownAlso must be a list of profile ids');
+    } else if (k.includes(o.id)) {
+      problems.push('knownAlso must not name the profile itself');
+    }
+  }
   if (o.select !== undefined) {
     const s = o.select;
     if (!s || typeof s !== 'object') problems.push('select must be an object');

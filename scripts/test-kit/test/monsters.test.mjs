@@ -259,6 +259,9 @@ test('judgeRow: a good creature has no problem, a bad one has CONTENT problems',
     ]
   );
   assert.ok(bad.every(p => p.kind === 'CONTENT'));
+  // Every evidence ends with the monster's pack, so a known entry can name the pack it covers.
+  assert.ok(bad.every(p => p.evidence.endsWith('; in p.m')));
+  assert.equal(bad[1].evidence, 'Wolf: "blob"; in p.m');
   // A challenge rating 0 creature may carry nothing at all (a mount); above 0 it is a problem.
   assert.deepEqual(judgeRow(row({ cr: 0, items: 0 })), []);
   assert.deepEqual(
@@ -774,6 +777,17 @@ test('runOddCheck: a probe is always deleted, also when the check throws', async
   assert.deepEqual(calls, ['createMonster', 'inspectFeatures', 'deleteMonsters']);
   assert.equal(r.failed[0].problems[0].kind, 'KIT');
   assert.match(r.failed[0].problems[0].evidence, /kaboom/);
+  // The monster's pack ends every evidence, for the known list.
+  assert.match(r.failed[0].problems[0].evidence, /; in p\.m$/);
+  const content = {
+    ...boom,
+    run: async () => ({
+      problems: [{ kind: 'CONTENT', what: 'x', evidence: 'Wolf: the feature has no activity to use' }],
+      notes: [],
+    }),
+  };
+  const r2 = await runOddCheck(content, [row()], io);
+  assert.equal(r2.failed[0].problems[0].evidence, 'Wolf: the feature has no activity to use; in p.m');
 });
 
 test('pickOddRows: smoke takes two per check and one per movement mode; full takes all', () => {

@@ -76,18 +76,69 @@ export function validateKnown(list) {
 }
 
 /**
- * Loads the known list of a profile. A missing file is an empty list; a broken one throws.
- * @param {string} profileId
- * @param {{home?: string, file?: string}} [opts]
+ * Reads and validates one known list file. A missing file is an empty list; a broken one throws.
+ * @param {string} where
  * @returns {KnownEntry[]}
  */
-export function loadKnown(profileId, { home, file } = {}) {
-  const where = file ?? knownFile(profileId, home);
+function readKnownFile(where) {
   if (!existsSync(where)) return [];
   const list = JSON.parse(readFileSync(where, 'utf8'));
   const problems = validateKnown(list);
   if (problems.length) throw new Error(`${where} is not valid: ${problems.join('; ')}`);
   return list;
+}
+
+/**
+ * The profile ids whose known lists a profile also uses (`knownAlso` in its file): a licensed
+ * profile includes the system's own packs, so the srd list's findings about dnd5e data apply to
+ * it too. Read straight from the file, so a known list loads without the whole profile; a profile
+ * that is not there, or has no such field, inherits nothing.
+ * @param {string} profileId
+ * @param {string} [home]
+ * @returns {string[]}
+ */
+export function knownAlsoOf(profileId, home) {
+  const where = profileFile(profileId, home);
+  if (!existsSync(where)) return [];
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(where, 'utf8'));
+  } catch {
+    return [];
+  }
+  const also = parsed?.knownAlso;
+  if (!Array.isArray(also)) return [];
+  return also.filter(id => typeof id === 'string' && id && id !== profileId);
+}
+
+/**
+ * Loads the known list of a profile: its own entries first, then the lists of the profiles it
+ * names in `knownAlso` (one level, in that order), so a specific entry of the profile's own list
+ * is checked before an inherited one. An id listed twice across the lists is an error. A missing
+ * file is an empty list; a broken one throws. With `file`, only that file is read.
+ * @param {string} profileId
+ * @param {{home?: string, file?: string}} [opts]
+ * @returns {KnownEntry[]}
+ */
+export function loadKnown(profileId, { home, file } = {}) {
+  if (file) return readKnownFile(file);
+  const own = readKnownFile(knownFile(profileId, home));
+  const lists = [{ id: profileId, list: own }];
+  for (const other of knownAlsoOf(profileId, home))
+    lists.push({ id: other, list: readKnownFile(knownFile(other, home)) });
+  /** @type {Map<string, string>} entry id -> the profile whose list has it */
+  const seen = new Map();
+  for (const { id, list } of lists) {
+    for (const e of list) {
+      const first = seen.get(e.id);
+      if (first !== undefined && first !== id)
+        throw new Error(
+          `known entry "${e.id}" is in the lists of both "${first}" and "${id}" (knownAlso of ${profileId})`
+        );
+      seen.set(e.id, id);
+    }
+  }
+  return lists.flatMap(l => l.list);
 }
 
 /** @param {KnownEntry} e @param {string} what */

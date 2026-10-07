@@ -293,6 +293,9 @@ test('judgeCast: a spell with no activity is a problem only when it lost one', (
   assert.deepEqual(kinds(judgeCast(entry({ name: 'Zap', hints: ['attack'] }), none)), [
     'CONTENT the spell has no activity',
   ]);
+  // The spell's pack ends the evidence, so a known entry can name the pack it covers.
+  const lost = judgeCast(entry({ name: 'Zap', packId: 'mod.spells', hints: ['attack'] }), none);
+  assert.match(lost[0].evidence, /^Zap \(level 1\): no system counterpart.*; in mod\.spells$/);
 });
 
 test('refusalOfCast and throwKind classify by what the system said', () => {

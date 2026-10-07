@@ -151,12 +151,28 @@ export const isStatBlock = m =>
   m.cr === null || m.cr === undefined || (!m.creatureType && !(m.hp > 0));
 
 /**
- * The data problems of one monster: what the import must have for every creature. All CONTENT.
+ * Names the monster's pack at the end of every problem's evidence ("...; in aitool-content.monsters"),
+ * so a known entry (lib/known.mjs) can tell the same monster in two packs apart.
+ * @param {Problem[]} problems
+ * @param {MonsterRow} m
+ * @returns {Problem[]}
+ */
+export const inPack = (problems, m) =>
+  problems.map(p => ({ ...p, evidence: `${p.evidence}; in ${m.packId}` }));
+
+/**
+ * The data problems of one monster: what the import must have for every creature. All CONTENT,
+ * each with the monster's pack at the end of its evidence.
  * A stat block (no challenge rating) only has its pools and movement checked.
  * @param {MonsterRow} m
  * @returns {Problem[]}
  */
 export function judgeRow(m) {
+  return inPack(judgeRowData(m), m);
+}
+
+/** @param {MonsterRow} m @returns {Problem[]} */
+function judgeRowData(m) {
   /** @type {Problem[]} */
   const problems = [];
   const who = m.name;
@@ -1114,7 +1130,8 @@ export async function runOddCheck(check, rows, io) {
     }
     if (outcome.skip) continue;
     checked.push(row);
-    if (outcome.problems.length) failed.push({ row, problems: outcome.problems });
+    // The pack at the end of each evidence: a known entry can then tell two packs' copies apart.
+    if (outcome.problems.length) failed.push({ row, problems: inPack(outcome.problems, row) });
     if (outcome.notes.length) notes.push({ name: row.name, note: outcome.notes.join('; ') });
   }
   return { checked, failed, notes };

@@ -275,10 +275,16 @@ export function judgeCast(entry, res, reference) {
   } else if (cast.skipped) {
     // Left out with a reason (every activity of the spell asks for a dialog): not a problem.
   } else if (cast.noActivities) {
-    // A description-only spell is expected; one that lost its activity is CONTENT, with the reason.
+    // A description-only spell is expected; one that lost its activity is CONTENT, with the reason
+    // and the spell's pack, so a known entry (lib/known.mjs) can name the pack it covers.
     const kind = classifyNoActivity(entry, reference);
     if (!kind.expected)
-      bad(problems, 'CONTENT', 'the spell has no activity', `${who}: ${kind.why}`);
+      bad(
+        problems,
+        'CONTENT',
+        'the spell has no activity',
+        `${who}: ${kind.why}; in ${entry.packId}`
+      );
   } else if (cast.threw) {
     bad(problems, throwKind(cast.threw), 'the cast threw', `${who}: ${cast.threw}`);
   } else if (!cast.ok) {
@@ -287,7 +293,12 @@ export function judgeCast(entry, res, reference) {
       .map((/** @type {any} */ n) => n.message);
     const text = errors.join(' / ') || 'the cast returned nothing and gave no message';
     const refusal = refusalOfCast(text, cast);
-    bad(problems, refusal.kind, 'the system refused the cast', `${who}: ${text}${refusal.note}`);
+    bad(
+      problems,
+      refusal.kind,
+      'the system refused the cast',
+      `${who}: ${text}${refusal.note}; in ${entry.packId}`
+    );
   } else {
     if (!cast.chatCard) bad(problems, 'SYSTEM', 'no chat card', `${who}: the cast posted no card`);
     // A slot is taken when the activity consumes one and the spell has a level; never for a cantrip.

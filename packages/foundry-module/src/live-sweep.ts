@@ -97,6 +97,7 @@ interface SweepActor {
 
 interface SweepEffect {
   uuid: string;
+  update(data: Record<string, unknown>): Promise<unknown>;
 }
 
 /** World collections whose sweep-made documents are found by name, with their type. */
@@ -241,16 +242,15 @@ async function concentration(actorIds: unknown): Promise<SweepConcentrationResul
   const caster = ids[0] ? actors?.get(ids[0]) : undefined;
   const target = ids[1] ? actors?.get(ids[1]) : undefined;
   if (!caster || !target) throw new Error('concentration needs two actor ids: caster, target');
-  const [dependent] = await target.createEmbeddedDocuments('ActiveEffect', [
-    { name: `${SWEEP_PREFIX} Held`, img: 'icons/svg/paralysis.svg' },
-  ]);
+  // dnd5e 6 follows the link only to an effect whose `origin` is the concentration effect
+  // (ActiveEffect5e#getDependents), so the caster's effect comes first.
   const [effect] = await caster.createEmbeddedDocuments('ActiveEffect', [
-    {
-      name: `${SWEEP_PREFIX} Concentrating`,
-      img: 'icons/svg/aura.svg',
-      flags: { dnd5e: { dependents: [{ uuid: dependent.uuid }] } },
-    },
+    { name: `${SWEEP_PREFIX} Concentrating`, img: 'icons/svg/aura.svg' },
   ]);
+  const [dependent] = await target.createEmbeddedDocuments('ActiveEffect', [
+    { name: `${SWEEP_PREFIX} Held`, img: 'icons/svg/paralysis.svg', origin: effect.uuid },
+  ]);
+  await effect.update({ 'flags.dnd5e.dependents': [{ uuid: dependent.uuid }] });
   return { mode: 'concentration', effectUuid: effect.uuid, dependentUuid: dependent.uuid };
 }
 

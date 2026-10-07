@@ -15,7 +15,7 @@ describe('list-changes', () => {
     expect(rest).toEqual([]);
     expect(tool?.name).toBe('list-changes');
     expect(tool?.description).toContain('not available yet');
-    expect(tool?.description).not.toMatch(/—/);
+    expect(tool?.description).not.toContain(String.fromCharCode(0x2014));
   });
 
   it('defaults to 30 changes from everyone', async () => {

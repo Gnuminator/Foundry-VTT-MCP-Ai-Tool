@@ -215,3 +215,33 @@ test(
     assert.equal(offset.Message, '2026-10-07T16:22:28.1569560Z|');
   }
 );
+
+test(
+  'pids.started.json: a damaged file or entry is skipped, never thrown (start.ps1 and stop.ps1 must still run)',
+  { skip: !hasPwsh && 'pwsh is missing' },
+  () => {
+    const good = '"y": {"pid": 7, "started": "2026-10-07T16:22:28Z"}';
+    const out = decide([
+      { StartsFile: '{}' },
+      { StartsFile: '' },
+      { StartsFile: '[]' },
+      { StartsFile: 'not json' },
+      { StartsFile: '"text"' },
+      { StartsFile: '{"x": null}' },
+      { StartsFile: '{"x": 5}' },
+      { StartsFile: '{"x": {"pid": 42}}' },
+      { StartsFile: '{"x": {"started": "2026-10-07T16:22:28Z"}}' },
+      { StartsFile: '{"x": {"pid": "abc", "started": "2026-10-07T16:22:28Z"}}' },
+      { StartsFile: '{"x": {"pid": 42, "started": "nope"}}' },
+      // The bad entries beside a good one cost only themselves.
+      { StartsFile: `{"x": {"pid": 42, "started": "nope"}, "z": {"pid": 1}, ${good}}` },
+    ]);
+    assert.ok(
+      out.every(o => o.Action === 'starts'),
+      out.map(o => o.Action).join(',')
+    );
+    const messages = out.map(o => o.Message);
+    assert.deepEqual(messages.slice(0, 11), ['', '', '', '', '', '', '', '', '', '', '']);
+    assert.equal(messages[11], 'y');
+  }
+);

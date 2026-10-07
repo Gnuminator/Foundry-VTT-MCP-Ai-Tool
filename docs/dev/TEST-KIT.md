@@ -249,11 +249,14 @@ its world line), and restarts it in the normal mode on the way out, also after a
 stays on. The restart is guarded three ways: the kit refuses before stopping anything when its own checkout has
 no built dashboard (`start.ps1` would leave it down), it skips itself when the dashboard already runs in a
 split it did not make (it cannot put those tokens back), and `stop.ps1` kills a recorded pid only when it is
-ours: a node process that owns the service's port, a process whose command line shows the service `start.ps1`
-starts (ours, but not on its port yet), or the `cmd.exe` wrapper whose node child owns the port. A stale pid
-that another process holds by now is reported as not running and forgotten; one that holds our port, or one
-whose command line cannot be read, is refused with exit code 1 (the pid is kept when it may still be ours), and
-`reset-demo-world.ps1` stops on that refusal instead of copying over an open world.
+ours: a node process that owns the service's port or whose command line shows the service `start.ps1` starts
+(ours, but not on its port yet), or the `cmd.exe` wrapper with our command line (its node child is stopped
+first). `start.ps1` records each process's start time next to its pid, so a pid another process holds by now
+(another start time, or another command line) is reported as not running and forgotten; one that holds our
+port, or one whose command line cannot be read and listens on nothing, is refused with exit code 1 (the pid is
+kept in the second case), and `reset-demo-world.ps1` stops on that refusal instead of copying over an open
+world. The decision is a pure function (`Resolve-StopAction` in `config.ps1`) with a table test
+(`stop-decision.test.mjs`, through `pwsh`).
 
 `dashboard-controls` and `player-rendered` also need a real browser and skip themselves against the fake.
 The control sweep walks a classification table (`lib/dashboard-controls.mjs`) with one row for every

@@ -228,13 +228,73 @@ function Wait-PortOpen([int]$Port, [int]$TimeoutSeconds) {
   return $false
 }
 
+# pids.json: { "<service>": <pid>, "<service>.started": "<the process start time, ISO 8601>" }.
+# The start time tells a reused pid (after a reboot, or any other program) from the process we
+# started; an entry without one (an older file) is judged by the port and the command line alone.
 function Read-Pids {
   if (Test-Path $TestEnv.PidFile) {
     $h = @{}
-    (Get-Content $TestEnv.PidFile -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $h[$_.Name] = [int]$_.Value }
+    (Get-Content $TestEnv.PidFile -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object {
+      if ($_.Name -like '*.started') { $h[$_.Name] = [string]$_.Value } else { $h[$_.Name] = [int]$_.Value }
+    }
     return $h
   }
   return @{}
+}
+
+# The start time of a process as ISO 8601 text, or $null when it cannot be read.
+function Get-ProcessStartTime([int]$ProcessId) {
+  try {
+    $p = Get-Process -Id $ProcessId -ErrorAction Stop
+    return $p.StartTime.ToUniversalTime().ToString('o')
+  } catch {
+    return $null
+  }
+}
+
+# What stop.ps1 does with one recorded pid, from facts alone (no process is touched here, so the
+# table is unit-tested: scripts/test-env/stop-decision.cases.ps1). The facts:
+#   Name           the service (foundry, bridge, dashboard)
+#   ProcessId      the recorded pid
+#   Exists         whether a process with that pid runs
+#   ProcessName    its name (node, cmd, pwsh, ...)
+#   StartTime      its start time (ISO 8601) or $null when it cannot be read
+#   RecordedStart  the start time pids.json recorded, or $null (an older file)
+#   Owners         the pids listening on the service's port
+#   CommandLine    the process's command line, or $null when it cannot be read
+#   ChildNode      for a cmd.exe wrapper: the pid of its node child whose command line is ours, or $null
+# The answer: Action = none | stop | stop-wrapper | refuse | refuse-keep, and Message.
+#   none          nothing to stop; the pid is forgotten
+#   stop          our process: stop it
+#   stop-wrapper  our cmd.exe wrapper (start.ps1 could not find node's pid): stop ChildNode, then it
+#   refuse        not ours, and it holds our port: stderr, exit 1, the pid is forgotten
+#   refuse-keep   cannot tell (no command line, nothing on the port): stderr, exit 1, the pid is kept
+function Resolve-StopAction([hashtable]$F) {
+  $who = "the recorded pid $($F.ProcessId) ($($F.ProcessName))"
+  if (-not $F.Exists) { return @{ Action = 'none'; Message = 'not running' } }
+  if ($F.RecordedStart -and $F.StartTime) {
+    $recorded = [DateTime]::Parse($F.RecordedStart, $null, 'RoundtripKind')
+    $actual = [DateTime]::Parse($F.StartTime, $null, 'RoundtripKind')
+    if ([Math]::Abs(($actual - $recorded).TotalSeconds) -gt 2) {
+      return @{ Action = 'none'; Message = "not running (pid $($F.ProcessId) was reused by $($F.ProcessName), started at another time)" }
+    }
+  }
+  $isNode = $F.ProcessName -match '^node'
+  $isCmd = $F.ProcessName -match '^cmd'
+  $ours = Test-OurServiceCommandLine $F.Name $F.CommandLine
+  $onPort = @($F.Owners) -contains [int]$F.ProcessId
+  if ($isNode -and ($onPort -or $ours)) { return @{ Action = 'stop'; Message = 'ours' } }
+  if ($isCmd -and $ours) {
+    if ($F.ChildNode) { return @{ Action = 'stop-wrapper'; Message = "the cmd.exe wrapper and its node child (pid $($F.ChildNode))" } }
+    return @{ Action = 'stop'; Message = 'the cmd.exe wrapper (its node child is gone)' }
+  }
+  if ($onPort) {
+    return @{ Action = 'refuse'; Message = "REFUSED: $($F.Name) : $who holds port $($F.Port) but is not the service we started; nothing stopped. If that is yours, stop it yourself; the stale pid is forgotten." }
+  }
+  if ($F.CommandLine) {
+    return @{ Action = 'none'; Message = "not running (pid $($F.ProcessId) is now $($F.ProcessName), not the service we started)" }
+  }
+  return @{ Action = 'refuse-keep'; Message = "REFUSED: $($F.Name) : $who listens on nothing and its command line cannot be read, so it is left alone (it may still be ours, loading). Check it with Get-Process -Id $($F.ProcessId) and run stop.ps1 again; the pid is kept." }
 }
 
 function Write-Pids([hashtable]$Pids) {

@@ -70,7 +70,11 @@ export default {
               body: { action: 'set-gm-actions', value: false },
             });
           });
-          await page.locator('#btn-gm').click();
+          // Set, not toggled: a click would turn GM Actions off if they came on in between.
+          await t.http('/api/control', {
+            method: 'POST',
+            body: { action: 'set-gm-actions', value: true },
+          });
           await page.waitForFunction(
             () => /:\s*on/i.test(document.querySelector('#btn-gm')?.textContent ?? ''),
             undefined,

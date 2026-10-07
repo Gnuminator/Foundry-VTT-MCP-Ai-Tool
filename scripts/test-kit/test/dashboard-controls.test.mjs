@@ -21,7 +21,14 @@ import {
   surfaceOf,
   unclassified,
 } from '../lib/dashboard-controls.mjs';
-import { NEVER_CLICK, selectorOf, shotName, wantsShot } from '../lib/dashboard-sweep.mjs';
+import {
+  NEVER_CLICK,
+  Skip,
+  selectorOf,
+  shotName,
+  walkReach,
+  wantsShot,
+} from '../lib/dashboard-sweep.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const pub = path.join(root, 'packages', 'cogm-dashboard', 'public');
@@ -47,10 +54,15 @@ test('unclassified() reports a missing and a stale name', () => {
   ];
   assert.deepEqual(unclassified(extra), [{ name: 'dash.brand.new', problem: 'missing' }]);
   const fewer = catalog.filter(c => c.name !== 'dash.party.view');
-  assert.deepEqual(unclassified(fewer), [{ name: 'dash.party.view', problem: 'not in the catalog' }]);
+  assert.deepEqual(unclassified(fewer), [
+    { name: 'dash.party.view', problem: 'not in the catalog' },
+  ]);
   // A new module entry needs no row.
   assert.deepEqual(
-    unclassified([...catalog, { name: 'module.x.y', kind: 'action', surface: 'module', file: 'x' }]),
+    unclassified([
+      ...catalog,
+      { name: 'module.x.y', kind: 'action', surface: 'module', file: 'x' },
+    ]),
     []
   );
 });
@@ -67,8 +79,13 @@ test('a row matches the kind of its catalog entry', () => {
     if (!r) continue;
     if (c.kind === 'view') assert.equal(r.how, 'view', `${c.name} is a view`);
     else if (c.kind === 'error') assert.equal(r.how, 'error', `${c.name} is an error`);
-    else if (c.kind === 'shortcut') assert.ok(['shortcut', 'skip'].includes(r.how), `${c.name} is a shortcut`);
-    else assert.ok(!['view', 'error', 'shortcut'].includes(r.how), `${c.name} is an action, not ${r.how}`);
+    else if (c.kind === 'shortcut')
+      assert.ok(['shortcut', 'skip'].includes(r.how), `${c.name} is a shortcut`);
+    else
+      assert.ok(
+        !['view', 'error', 'shortcut'].includes(r.how),
+        `${c.name} is an action, not ${r.how}`
+      );
   }
 });
 
@@ -86,8 +103,15 @@ test('every reach names a row of the same surface that is not a write, error or 
     for (const name of r.reach ?? []) {
       const step = byName.get(name);
       assert.ok(step, `${r.name}: reach "${name}" is not in the table`);
-      assert.equal(surfaceOf(name), surfaceOf(r.name), `${r.name}: reach "${name}" is on another page`);
-      assert.ok(!NEVER_CLICK.includes(step.how), `${r.name}: reach "${name}" is a ${step.how} row, never clicked`);
+      assert.equal(
+        surfaceOf(name),
+        surfaceOf(r.name),
+        `${r.name}: reach "${name}" is on another page`
+      );
+      assert.ok(
+        !NEVER_CLICK.includes(step.how),
+        `${r.name}: reach "${name}" is a ${step.how} row, never clicked`
+      );
       assert.notEqual(name, r.name, `${r.name} reaches itself`);
     }
   }
@@ -103,7 +127,11 @@ test('rows say what they need: reasons, keys and checks', () => {
       assert.ok(r.gone || r.expect, `${r.name}: a shortcut needs expect or gone`);
     }
     if (r.how === 'view') assert.ok(r.expect, `${r.name}: a view needs expect`);
-    if (r.how === 'open') assert.ok(r.expect || r.gone || r.changes, `${r.name}: an open row needs expect, gone or changes`);
+    if (r.how === 'open')
+      assert.ok(
+        r.expect || r.gone || r.changes,
+        `${r.name}: an open row needs expect, gone or changes`
+      );
     if (['write', 'error', 'skip'].includes(r.how))
       assert.ok(!r.reach && !r.expect && !r.gone, `${r.name}: a ${r.how} row is never driven`);
   }
@@ -124,16 +152,26 @@ test('expect and gone selectors point at ids and classes the front end has', () 
   const playerFiles = read('player.html') + read('player.js');
   for (const r of CONTROLS) {
     const files = r.name.startsWith('player.') ? playerFiles : dashboardFiles;
-    for (const sel of [r.expect, r.gone, r.selector, typeof r.changes === 'string' ? r.changes : undefined]) {
+    for (const sel of [
+      r.expect,
+      r.gone,
+      r.selector,
+      typeof r.changes === 'string' ? r.changes : undefined,
+    ]) {
       if (!sel) continue;
       for (const m of sel.matchAll(/#([a-z][a-z0-9-]*)/g)) {
         assert.ok(
-          files.includes(`id="${m[1]}"`) || files.includes(`'${m[1]}'`) || files.includes(`$('${m[1]}')`),
+          files.includes(`id="${m[1]}"`) ||
+            files.includes(`'${m[1]}'`) ||
+            files.includes(`$('${m[1]}')`),
           `${r.name}: id "${m[1]}" in "${sel}" is not in the page files`
         );
       }
       for (const m of sel.matchAll(/\.([a-z][a-z0-9-]*)/g)) {
-        assert.ok(files.includes(m[1]), `${r.name}: class "${m[1]}" in "${sel}" is not in the page files`);
+        assert.ok(
+          files.includes(m[1]),
+          `${r.name}: class "${m[1]}" in "${sel}" is not in the page files`
+        );
       }
     }
   }
@@ -155,7 +193,10 @@ test('a control with a data-track mark in the page is found by it', () => {
 test('rows are grouped in run order, and the trial runs before the During layouts', () => {
   const groups = groupedRows('dashboard').map(g => g.group);
   assert.ok(groups.indexOf('trial') < groups.indexOf('during'), groups.join(','));
-  assert.deepEqual(groupedRows('player').map(g => g.group), ['main', 'who', 'handouts', 'footer']);
+  assert.deepEqual(
+    groupedRows('player').map(g => g.group),
+    ['main', 'who', 'handouts', 'footer']
+  );
   assert.equal(groupOf('dash.tools.close'), 'tools');
   assert.equal(
     groupedRows('dashboard').reduce((n, g) => n + g.rows.length, 0),
@@ -171,6 +212,28 @@ test('the sweep names screenshots and picks the pages worth one', () => {
   assert.ok(wantsShot(byName.get('dash.moment.after')));
   assert.ok(wantsShot(byName.get('dash.during.layout-toggle')));
   assert.ok(!wantsShot(byName.get('dash.tools.close')));
+});
+
+test('walkReach: no tool with a Pick button fails a required row and skips an optional one', async () => {
+  // A page where every control is there and clickable, but the tool list is empty.
+  const locator = {
+    first: () => locator,
+    nth: () => locator,
+    waitFor: async () => {},
+    click: async () => {},
+    count: async () => 0,
+  };
+  const page = { locator: () => locator, waitForTimeout: async () => {} };
+  const required = byName.get('dash.tools.pick-open');
+  const optional = byName.get('dash.shortcut.escape-picker');
+  assert.ok(required && !required.optional && optional?.optional);
+  await assert.rejects(
+    walkReach(page, required),
+    e => !(e instanceof Skip) && /Pick button/.test(e.message)
+  );
+  await assert.rejects(walkReach(page, optional), e => e instanceof Skip);
+  // A row with no picker need walks its reach and resolves.
+  await walkReach(page, byName.get('dash.tools.back'));
 });
 
 test('the counts per how add up', () => {

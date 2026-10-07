@@ -73,6 +73,7 @@ function Stop-TestServer {
   if ($running -and $running -ne $DemoWorld -and -not $Force) {
     throw "Foundry is running world '$running', not $DemoWorld. Another session may be using the test server; ask first, then rerun with -Force."
   }
+  $global:LASTEXITCODE = 0
   & (Join-Path $PSScriptRoot 'stop.ps1')
   if ($LASTEXITCODE) {
     throw "stop.ps1 refused to stop the test server (exit $LASTEXITCODE); nothing is copied while Foundry may still hold the world open."

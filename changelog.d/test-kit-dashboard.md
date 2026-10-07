@@ -30,9 +30,11 @@
   I-109 controls (the AI and Everyone tabs, the person filter, the Everyone rows' Undo, Redo and
   lines, and the undo window's Cancel, Just this, Everything since, Advanced, the rewind questions,
   the destructive tick and Escape) are classified; the sweep turns GM Actions on for the run and
-  walks the undo window read-only (Apply and Redo stay with the guarded undo checks). `stop.ps1`
-  also stops our own process when its command line shows the service but it is not on its port
-  yet (and the `cmd.exe` wrapper whose node child owns the port), reports a pid another process
-  holds as not running instead of refusing, compares against every listener on the port, keeps the
-  pid when it cannot tell, and `reset-demo-world.ps1` stops on a refusal instead of copying over an
-  open world.
+  walks the undo window read-only (Apply and Redo stay with the guarded undo checks). `start.ps1`
+  records each service's start time next to its pid, and `stop.ps1` decides from facts
+  (`Resolve-StopAction`, table-tested): it stops our node process by its port or its command line
+  (not on its port yet), the `cmd.exe` wrapper with our command line and its node child, reports a
+  pid another process holds (another start time or command line) as not running, refuses a
+  stranger on our port, keeps the pid when it cannot tell, and `reset-demo-world.ps1` stops on a
+  refusal instead of copying over an open world. The control sweep sets GM Actions on instead of
+  toggling the button.

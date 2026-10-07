@@ -41,7 +41,7 @@ export function wantsShot(row) {
 /** Rows a test may never click. */
 export const NEVER_CLICK = ['write', 'error', 'skip'];
 
-class Skip extends Error {}
+export class Skip extends Error {}
 
 /**
  * @param {import('playwright-core').Page} page
@@ -200,7 +200,7 @@ async function waitEnabled(control, timeout) {
  * @param {import('playwright-core').Page} page
  * @param {ControlRow} row
  */
-async function walkReach(page, row) {
+export async function walkReach(page, row) {
   let pickerDone = false;
   const ensurePicker = async () => {
     if (row.needs !== 'picker-tool' || pickerDone) return;

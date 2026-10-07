@@ -8,19 +8,23 @@
  * dashboard and in Foundry (D-067).
  *
  * Written like the other generated notes (front matter with the ownership marker, so an edited
- * note is left alone), but apart from the Obsidian export (`export.ts`): its own folder, its
- * own debounce, no link conventions of its own. The notes of days the history no longer holds
- * stay as they were written; nothing is deleted. Re-rendered shortly after the change-journal
- * pump appended records or a guarded write was applied or undone, when
- * `FOUNDRY_AI_OBSIDIAN_DIR` names the GM's vault.
+ * note is left alone and simply stops being updated), but apart from the Obsidian export
+ * (`export.ts`): its own folder, its own debounce, no link conventions of its own. Text from
+ * Foundry is escaped (`md-escape.ts`). Only whole days are rendered (`byDay`): a day the history
+ * no longer holds in full is not touched, so its note stays as it was last written, and today
+ * never replaces a note that holds more changes than the history does now; nothing is deleted.
+ * Re-rendered shortly after the change-journal pump appended records or a guarded write was
+ * applied or undone, when `FOUNDRY_AI_OBSIDIAN_DIR` names the GM's vault.
  */
+import { promises as fsp } from 'fs';
 import * as path from 'path';
 
 import type { ChangeDay, ChangeListItem } from '../change-history.js';
 import type { Logger } from '../logger.js';
 
+import { escapeInlineText, escapeLineStart } from './md-escape.js';
 import { campaignDir, NoteWriter, type WrittenCache } from './note-writer.js';
-import { checkMarkdownOwnership, neutralizeTemplater, withGeneratedHash } from './ownership.js';
+import { checkMarkdownOwnership, withGeneratedHash } from './ownership.js';
 import { frontmatter, generatedProps, GENERATED_BANNER } from './render.js';
 
 export const EVERYONE_FOLDER = 'AI Tool/Everyone';
@@ -49,24 +53,45 @@ function who(item: ChangeListItem): string {
   return item.requestedBy ? `AI, asked by ${item.requestedBy}` : 'AI';
 }
 
-function state(item: ChangeListItem): string {
+/** Text from Foundry (names, summaries, lines) as inert Markdown (the O4 rule, `md-escape.ts`). */
+const esc = escapeInlineText;
+
+/**
+ * How the change was undone. An AI change carries who and when. A person's change only knows the
+ * id of the undo entry: it is looked up among the day's changes (the undo is an AI change made
+ * for someone), else the undo lies on another day.
+ */
+function state(item: ChangeListItem, byId: ReadonlyMap<string, ChangeListItem>): string {
   if (!item.undone) return '';
-  const when = item.kind === 'ai' && item.undoneAt ? ` ${clock(item.undoneAt)}` : '';
-  return ` · undone${when}${item.undoneBy ? ` by ${item.undoneBy}` : ''}`;
+  if (item.kind === 'ai') {
+    const when = item.undoneAt ? ` ${clock(item.undoneAt)}` : '';
+    return ` · undone${when}${item.undoneBy ? ` by ${esc(item.undoneBy)}` : ''}`;
+  }
+  const undo = item.undoneBy ? byId.get(item.undoneBy) : undefined;
+  if (!undo || undo.kind !== 'ai') return ' · undone later';
+  return ` · undone ${clock(undo.at)} by ${esc(undo.requestedBy ?? 'AI')}`;
 }
 
 /** One change as a list item with its lines below (left out when the summary says it all). */
-function renderItem(item: ChangeListItem): string[] {
-  const head = `- **${clock(item.at)}** ${neutralizeTemplater(who(item))} · ${neutralizeTemplater(item.summary)}${neutralizeTemplater(state(item))} ^${blockId(item.id)}`;
+function renderItem(item: ChangeListItem, byId: ReadonlyMap<string, ChangeListItem>): string[] {
+  const head = `- **${clock(item.at)}** ${esc(who(item))} · ${esc(item.summary)}${state(item, byId)} ^${blockId(item.id)}`;
   const lines = item.lines.filter(line => line !== item.summary);
   if (item.lines.length <= 1 || lines.length === 0) return [head];
-  return [head, ...item.lines.map(line => `  - ${neutralizeTemplater(line)}`)];
+  return [head, ...item.lines.map(line => `  - ${escapeLineStart(esc(line))}`)];
 }
 
 /** The note of one day. */
 export function renderEveryoneNote(worldId: string, day: ChangeDay): string {
   const changes = day.changes;
+  const byId = new Map(changes.map(c => [c.id, c]));
   const people = [...new Set(changes.map(who))].sort();
+  const partial =
+    day.incompleteBefore !== undefined
+      ? [
+          `Changes before ${clock(new Date(day.incompleteBefore).toISOString())} may be missing: the bridge's change history is only complete from then.`,
+          '',
+        ]
+      : [];
   const newest = changes.reduce<string | null>(
     (max, c) => (max === null || c.at > max ? c.at : max),
     null
@@ -93,14 +118,22 @@ export function renderEveryoneNote(worldId: string, day: ChangeDay): string {
       '',
       `Everything that changed in Foundry on this day: the players, the GM and the AI, oldest first (the server's local time). Undo any of them in the dashboard (Recent Changes, Everyone tab) or in Foundry's Changes window, not here.`,
       '',
-      ...changes.flatMap(renderItem),
+      ...partial,
+      ...changes.flatMap(c => renderItem(c, byId)),
       '',
     ].join('\n')
   );
 }
 
+/** The `changes` count in an existing note's front matter, or null. */
+function changesCountOf(text: string): number | null {
+  const m = /^changes: (\d+)$/m.exec(text);
+  return m ? Number(m[1]) : null;
+}
+
 export interface EveryoneNotesOptions {
-  changeHistory: { byDay(): Promise<ChangeDay[]> };
+  /** `byDay` gives null when `worldId` is not the current world (the history reads that one). */
+  changeHistory: { byDay(worldId: string): Promise<ChangeDay[] | null> };
   vaultDir: string;
   logger: Pick<Logger, 'info' | 'warn'>;
   debounceMs?: number;
@@ -180,27 +213,41 @@ export class EveryoneNotes {
     errors: Array<{ path: string; error: string }>;
   }> {
     const w = this.state(worldId);
-    const { vaultDir, changeHistory } = this.options;
-    const writer = new NoteWriter(
-      campaignDir(vaultDir, worldId),
-      path.resolve(vaultDir),
-      worldId,
-      w.cache
-    );
-    const days = await changeHistory.byDay();
-    for (const day of days) {
-      await writer.owned(
-        everyoneNotePath(day.date),
-        renderEveryoneNote(worldId, day),
-        checkMarkdownOwnership
-      );
-    }
-    return {
+    const { vaultDir, changeHistory, logger } = this.options;
+    const root = campaignDir(vaultDir, worldId);
+    const writer = new NoteWriter(root, path.resolve(vaultDir), worldId, w.cache);
+    const result = {
       written: writer.written,
       unchanged: writer.unchanged,
       skipped: writer.skipped,
       errors: writer.errors,
     };
+    // The history reads the current world: a render scheduled for another world (the GM
+    // switched worlds inside the debounce) must not land in that world's folder.
+    const days = await changeHistory.byDay(worldId);
+    if (days === null) {
+      logger.info('Everyone notes skipped: not the current world', { worldId });
+      return result;
+    }
+    await writer.assertRealFence(EVERYONE_FOLDER);
+    for (const day of days) {
+      const relPath = everyoneNotePath(day.date);
+      // A day that may be missing changes never replaces a note that holds more of them: the
+      // note may be the only copy left (the journal's records are gone, the AI ring moved on).
+      if (day.incompleteBefore !== undefined) {
+        const existing = await fsp.readFile(path.join(root, relPath), 'utf8').catch(() => null);
+        const held = existing === null ? null : changesCountOf(existing);
+        if (held !== null && held > day.changes.length) {
+          writer.skipped.push({
+            path: relPath,
+            reason: `the note holds ${held} changes, the history only ${day.changes.length} now`,
+          });
+          continue;
+        }
+      }
+      await writer.owned(relPath, renderEveryoneNote(worldId, day), checkMarkdownOwnership);
+    }
+    return result;
   }
 
   private state(worldId: string): WorldState {

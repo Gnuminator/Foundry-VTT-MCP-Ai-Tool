@@ -15,7 +15,8 @@ text, so it stays on your PC. The players get vaults of their own without the se
   Library (monsters, spells, rules), session notes and stats, and under `Everyone` one note per
   day with every change the players, you and the AI made in Foundry (who, when, what; undo it in
   the dashboard, not here). The tool rewrites these, so don't plan your game in them. A note you
-  did edit stays where it is and is listed in `_status.md`.
+  did edit stays where it is and is listed in `_status.md`; an edited day note under `Everyone`
+  is not listed there, it just stops being updated.
 - **The Prep folder:** yours. The tool never changes your notes there. Your session plans and
   notes on NPCs, places and quests go here, and Claude reads them when you prepare a session (see
   the [cookbook](cookbook.md), "Tip for Obsidian"). Prep/Templates has a template for an NPC, a

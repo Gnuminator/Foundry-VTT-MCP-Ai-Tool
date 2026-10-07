@@ -37,6 +37,7 @@ import type { ChangeRecord, PathValue } from '@gnuminator/shared';
 import {
   CHANGE_JOURNAL_RETENTION_DAYS,
   changeJournalFileName,
+  dateKeyStart,
   isChangeRecord,
 } from './change-journal-pump.js';
 import { localDateKey } from './event-pump.js';
@@ -45,6 +46,7 @@ import type { UndoState } from './guarded-write/undo-state.js';
 import { actionKey } from './guarded-write/undo-state.js';
 import { formatValue } from './guarded-write/values.js';
 import type { Logger } from './logger.js';
+import { AUDIT_RING_SIZE } from './vault/audit.js';
 import type { VaultStore } from './vault/store.js';
 import type { WorldIdResolver } from './vault/world-id.js';
 
@@ -157,6 +159,13 @@ export interface ChangeDay {
   /** `YYYY-MM-DD`, the bridge's local date. */
   date: string;
   changes: ChangeListItem[];
+  /**
+   * Set when the day may be missing changes before this time (epoch ms): the history is only
+   * known to be complete from there (the span cutoff, a day the size cap removed, lost records,
+   * or the AI audit ring being full). Only today is returned in that state; an older day that
+   * is not whole is left out, so its note stays as it was last written.
+   */
+  incompleteBefore?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -509,7 +518,7 @@ export class ChangeHistory {
       );
     }
 
-    const entries = await this.collect(options, from);
+    const { entries } = await this.collect(options, from);
     entries.sort((a, b) => b.at - a.at);
     return {
       changes: entries.slice(0, limit).map(e => e.item),
@@ -518,32 +527,62 @@ export class ChangeHistory {
   }
 
   /**
-   * Everyone's changes of the kept span grouped by local day, oldest day first and oldest
-   * change first within a day; no filter, no limit, no pull (for the GM vault's daily notes,
-   * rendered right after the pump appended). Days without changes are left out.
+   * Everyone's changes grouped by local day, oldest day first and oldest change first within a
+   * day (by each change's own start time); no filter, no limit, no pull (for the GM vault's
+   * daily notes, rendered right after the pump appended). Only whole days are returned: a day
+   * that begins before the time the history is complete from (the span cutoff, a day the size
+   * cap removed, lost records, or the oldest entry of a full AI audit ring) is left out, so its
+   * note stays as it was last written instead of being cut down with every render; today is
+   * always returned, marked `incompleteBefore` when it is such a day. Days without changes are
+   * left out. Null when `worldId` is not the current world (the index reads the current one).
    */
-  async byDay(): Promise<ChangeDay[]> {
-    const cutoff = this.now() - CHANGE_HISTORY_DAYS * DAY_MS;
-    const entries = await this.collect({}, cutoff);
-    entries.sort((a, b) => a.at - b.at);
-    const days = new Map<string, ChangeListItem[]>();
-    for (const { at, item } of entries) {
+  async byDay(worldId: string): Promise<ChangeDay[] | null> {
+    if (worldId !== (await this.worldIds.current())) return null;
+    const now = this.now();
+    const cutoff = now - CHANGE_HISTORY_DAYS * DAY_MS;
+    const { entries, aiFrom } = await this.collect({}, cutoff);
+    const completeFrom = Math.max(await this.historyStart(), aiFrom);
+    const today = localDateKey(now);
+    const days = new Map<string, Array<{ at: number; item: ChangeListItem }>>();
+    for (const entry of entries) {
+      const started = Date.parse(entry.item.at);
+      const at = Number.isFinite(started) ? started : entry.at;
       const date = localDateKey(at);
-      days.set(date, [...(days.get(date) ?? []), item]);
+      let list = days.get(date);
+      if (!list) {
+        list = [];
+        days.set(date, list);
+      }
+      list.push({ at, item: entry.item });
     }
-    return [...days.entries()]
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-      .map(([date, changes]) => ({ date, changes }));
+    const result: ChangeDay[] = [];
+    for (const [date, list] of [...days.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
+      const midnight = dateKeyStart(date);
+      const whole = midnight >= completeFrom;
+      if (!whole && date !== today) continue;
+      list.sort((a, b) => a.at - b.at);
+      result.push({
+        date,
+        changes: list.map(l => l.item),
+        ...(whole ? {} : { incompleteBefore: completeFrom }),
+      });
+    }
+    return result;
   }
 
-  /** The matching changes of both sources, with the time they sort by (the human action's last record). */
+  /**
+   * The matching changes of both sources, with the time they sort by (the human action's last
+   * record), and `aiFrom`: the time of the oldest AI change when the audit ring is full (older
+   * AI changes have fallen out of it), 0 otherwise.
+   */
   private async collect(
     options: ChangeListOptions,
     from: number
-  ): Promise<Array<{ at: number; item: ChangeListItem }>> {
+  ): Promise<{ entries: Array<{ at: number; item: ChangeListItem }>; aiFrom: number }> {
     const source = options.source ?? 'all';
     const worldId = await this.worldIds.current();
     const entries: Array<{ at: number; item: ChangeListItem }> = [];
+    let aiFrom = 0;
     if (source !== 'ai') {
       const undoState = await this.guardedWrites.undoState();
       for (const action of await this.actionsFor(worldId)) {
@@ -577,7 +616,13 @@ export class ChangeHistory {
       }
     }
     if (source !== 'human') {
-      for (const change of await this.guardedWrites.listRecentChanges(500)) {
+      const recent = await this.guardedWrites.listRecentChanges(AUDIT_RING_SIZE);
+      if (recent.length >= AUDIT_RING_SIZE) {
+        // Newest first: the last one is the oldest the ring still holds.
+        const oldest = Date.parse(recent[recent.length - 1].appliedAt);
+        if (Number.isFinite(oldest)) aiFrom = oldest;
+      }
+      for (const change of recent) {
         const at = Date.parse(change.appliedAt);
         if (Number.isFinite(at) && at < from) continue;
         if (!matchesPerson(options, null, change.requestedBy ?? null)) continue;
@@ -589,7 +634,7 @@ export class ChangeHistory {
         entries.push({ at: Number.isFinite(at) ? at : 0, item: aiItem(change) });
       }
     }
-    return entries;
+    return { entries, aiFrom };
   }
 
   // -------------------------------------------------------------------------

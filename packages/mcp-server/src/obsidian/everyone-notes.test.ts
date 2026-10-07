@@ -4,7 +4,18 @@ import * as path from 'path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { AiChangeItem, ChangeDay, HumanChangeItem } from '../change-history.js';
+import type { ChangeRecord } from '@gnuminator/shared';
+
+import {
+  ChangeHistory,
+  type AiChangeItem,
+  type ChangeDay,
+  type HumanChangeItem,
+} from '../change-history.js';
+import { changeJournalFileName } from '../change-journal-pump.js';
+import type { RecentChange } from '../guarded-write/service.js';
+import type { UndoState } from '../guarded-write/undo-state.js';
+import { VaultStore } from '../vault/store.js';
 
 import {
   EveryoneNotes,
@@ -90,8 +101,9 @@ describe('renderEveryoneNote', () => {
       '- **19:50** AI, asked by GM (dashboard) · Strahd: HP 50 -> 40 · undone 19:50 by GM (dashboard) ^chg-1'
     );
     expect(text).toContain('  - Strahd: HP 50 -> 40\n  - Strahd: effect "Bloodied" added');
+    // The undo entry chg-9 is not among the day's changes: it lies on another day.
     expect(text).toContain(
-      'Gamemaster (GM) · Token "Wolf 2" moved and 1 more change · undone by chg-9 ^act-a2-own'
+      'Gamemaster (GM) · Token "Wolf 2" moved and 1 more change · undone later ^act-a2-own'
     );
     expect(text).toContain('  - Deleted Combatant "Wolf 2" from Combat');
     // A one-line change does not repeat its summary below.
@@ -107,6 +119,49 @@ describe('renderEveryoneNote', () => {
     expect(text).not.toContain('<%');
     expect(text).toContain('&lt;% evil %&gt;'.replace('&gt;', '>'));
   });
+
+  it('escapes Markdown in names, summaries and lines (no wikilinks, tags, HTML or tables from Foundry)', () => {
+    const nasty = '[[Strahd]] #tag <b>x</b> a|b';
+    const text = renderEveryoneNote('w1', {
+      date: '2026-10-07',
+      changes: [
+        human({ by: nasty, summary: nasty, lines: [nasty, '# not a heading', '- not a list'] }),
+        ai({ undoneBy: nasty, undone: true, lines: [] }),
+      ],
+    });
+    // The body is inert Markdown; the `people` property keeps the user name as the GM set it.
+    const body = text.slice(text.indexOf("\n# Everyone's changes"));
+    expect(body).not.toContain('[[Strahd]]');
+    expect(body).not.toContain('<b>');
+    expect(body).not.toMatch(/\s#tag/);
+    expect(body).toContain('\\[\\[Strahd\\]\\] \\#tag &lt;b>x&lt;/b> a\\|b');
+    expect(text).toContain('  - \\# not a heading');
+    expect(text).toContain('  - \\- not a list');
+    expect(text).toContain('undone by \\[\\[Strahd\\]\\]');
+  });
+
+  it("names who undid a person's change and when, from the undo entry in the same note", () => {
+    const text = renderEveryoneNote('w1', {
+      date: '2026-10-07',
+      changes: [
+        human({ undone: true, undoneBy: 'chg-9' }),
+        ai({ id: 'chg-9', mode: 'undo', requestedBy: 'GM (dashboard)', summary: 'Undo: Ireena' }),
+      ],
+    });
+    expect(text).toContain('Ireena · Ireena: HP 10 -> 5 · undone 19:50 by GM (dashboard) ^act-a1');
+  });
+
+  it('says from when a partial day is complete', () => {
+    const text = renderEveryoneNote('w1', {
+      date: '2026-10-07',
+      changes: [human()],
+      incompleteBefore: new Date(2026, 9, 7, 10, 5).getTime(),
+    });
+    expect(text).toContain('Changes before 10:05 may be missing');
+    expect(renderEveryoneNote('w1', { date: '2026-10-07', changes: [human()] })).not.toContain(
+      'may be missing'
+    );
+  });
 });
 
 describe('EveryoneNotes', () => {
@@ -118,7 +173,10 @@ describe('EveryoneNotes', () => {
     extra: { debounceMs?: number; maxWaitMs?: number; now?: () => number } = {}
   ): EveryoneNotes {
     return new EveryoneNotes({
-      changeHistory: { byDay: (): Promise<ChangeDay[]> => Promise.resolve(days) },
+      changeHistory: {
+        byDay: (worldId: string): Promise<ChangeDay[] | null> =>
+          Promise.resolve(worldId === 'w1' ? days : null),
+      },
       vaultDir,
       logger,
       ...extra,
@@ -208,6 +266,53 @@ describe('EveryoneNotes', () => {
     expect(logger.info).toHaveBeenCalledTimes(1);
   });
 
+  it('writes nothing for a world that is not the current one', async () => {
+    const notes = make();
+    const result = await notes.renderNow('w2');
+    expect(result.written).toEqual([]);
+    expect(logger.info).toHaveBeenCalledWith('Everyone notes skipped: not the current world', {
+      worldId: 'w2',
+    });
+    await expect(fsp.stat(path.join(vaultDir, 'Campaigns', 'w2'))).rejects.toThrow();
+  });
+
+  it('reports a write failure (a file where the folder should be) and keeps going', async () => {
+    await fsp.mkdir(path.join(vaultDir, 'Campaigns', 'w1', 'AI Tool'), { recursive: true });
+    await fsp.writeFile(path.join(vaultDir, 'Campaigns', 'w1', EVERYONE_FOLDER), 'in the way');
+    const result = await make().renderNow('w1');
+    expect(result.written).toEqual([]);
+    expect(result.errors.map(e => e.path).sort()).toEqual([
+      everyoneNotePath('2026-10-06'),
+      everyoneNotePath('2026-10-07'),
+    ]);
+  });
+
+  it('never replaces the note of a partial day with one that holds fewer changes', async () => {
+    const notes = make();
+    await notes.renderNow('w1');
+    const before = await note('2026-10-07');
+    expect(before).toContain('changes: 2');
+    // The history lost one of today's changes (its buffer wrapped): the note keeps both.
+    days[1] = {
+      date: '2026-10-07',
+      changes: [ai()],
+      incompleteBefore: new Date(2026, 9, 7, 19, 45).getTime(),
+    };
+    const result = await notes.renderNow('w1');
+    expect(result.written).toEqual([]);
+    expect(result.skipped).toEqual([
+      {
+        path: everyoneNotePath('2026-10-07'),
+        reason: 'the note holds 2 changes, the history only 1 now',
+      },
+    ]);
+    expect(await note('2026-10-07')).toBe(before);
+    // More changes than the note holds: written, with the partial-day line.
+    days[1].changes.push(ai({ id: 'chg-2' }), ai({ id: 'chg-3' }));
+    expect((await notes.renderNow('w1')).written).toEqual([everyoneNotePath('2026-10-07')]);
+    expect(await note('2026-10-07')).toContain('Changes before 19:45 may be missing');
+  });
+
   it('logs a failed render and keeps going', async () => {
     const notes = new EveryoneNotes({
       changeHistory: { byDay: (): Promise<ChangeDay[]> => Promise.reject(new Error('down')) },
@@ -221,5 +326,79 @@ describe('EveryoneNotes', () => {
       worldId: 'w1',
       error: 'down',
     });
+  });
+});
+
+describe('EveryoneNotes with the real history', () => {
+  let dataDir: string;
+  let vaultDir: string;
+
+  beforeEach(async () => {
+    dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'everyone-notes-data-'));
+    vaultDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'everyone-notes-vault-'));
+  });
+
+  afterEach(async () => {
+    await fsp.rm(dataDir, { recursive: true, force: true });
+    await fsp.rm(vaultDir, { recursive: true, force: true });
+  });
+
+  function record(seq: number, t: number, actionId: string): ChangeRecord {
+    return {
+      v: 1,
+      key: `update:Actor.a1:${seq}`,
+      seq,
+      t,
+      actionId,
+      op: 'update',
+      userId: 'u1',
+      userName: 'Ireena',
+      userIsGM: false,
+      documentName: 'Actor',
+      uuid: 'Actor.a1',
+      parentUuid: null,
+      name: 'Ireena',
+      rootUuid: 'Actor.a1',
+      rootName: 'Ireena',
+      sceneId: null,
+      before: [{ path: 'system.attributes.hp.value', present: true, value: 10 + seq }],
+      after: [{ path: 'system.attributes.hp.value', present: true, value: 9 + seq }],
+    };
+  }
+
+  it('leaves the note of a day that left the kept span byte-identical (the cutoff moved past it)', async () => {
+    const store = new VaultStore({ dataDir });
+    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+    logger.child = (): unknown => logger;
+    let now = new Date(2026, 9, 6, 23, 0).getTime();
+    const history = new ChangeHistory({
+      store,
+      worldIds: { current: (): Promise<string> => Promise.resolve('w1') },
+      guardedWrites: {
+        listRecentChanges: (): Promise<RecentChange[]> => Promise.resolve([]),
+        undoState: (): Promise<UndoState> => Promise.resolve(new Map()),
+      },
+      logger,
+      now: (): number => now,
+    });
+    // Seven days back: a change in the morning and one in the afternoon.
+    const day = new Date(2026, 8, 30);
+    await store.appendLines('w1', 'gm', changeJournalFileName('2026-09-30'), [
+      record(1, day.getTime() + 8 * 60 * 60_000, 'morning'),
+      record(2, day.getTime() + 16 * 60 * 60_000, 'afternoon'),
+    ]);
+    const notes = new EveryoneNotes({ changeHistory: history, vaultDir, logger });
+    expect((await notes.renderNow('w1')).written).toEqual([everyoneNotePath('2026-09-30')]);
+    const file = path.join(vaultDir, 'Campaigns', 'w1', everyoneNotePath('2026-09-30'));
+    const written = await fsp.readFile(file, 'utf8');
+    expect(written).toContain('changes: 2');
+
+    // Past midnight: the cutoff is now inside that day, the morning change left the index.
+    now = new Date(2026, 9, 7, 3, 0).getTime();
+    const again = new EveryoneNotes({ changeHistory: history, vaultDir, logger });
+    const result = await again.renderNow('w1');
+    expect(result.written).toEqual([]);
+    expect(await fsp.readFile(file, 'utf8')).toBe(written);
+    await store.flush();
   });
 });

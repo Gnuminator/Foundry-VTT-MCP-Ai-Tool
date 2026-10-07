@@ -489,13 +489,63 @@ describe('ChangeHistory.list', () => {
       records.push(hpChange(10 - i, 9 - i, { actionId: `a${i}`, t: NOW - (50 - i) * MIN }));
     await writeDay(records);
     audit = [aiChange({ changeId: 'chg-x', appliedAt: new Date(NOW - 44.5 * MIN).toISOString() })];
-    const days = await makeHistory().byDay();
+    const days = (await makeHistory().byDay('w1'))!;
     expect(days.map(d => d.date)).toEqual(['2026-10-06', '2026-10-07']);
     expect(days[0].changes.map(c => c.id)).toEqual(['act:old']);
     expect(days[1].changes.length).toBe(41);
     expect(days[1].changes[0].id).toBe('act:a0');
     expect(days[1].changes[6].id).toBe('chg-x');
+    expect(days.every(d => d.incompleteBefore === undefined)).toBe(true);
     expect(pullNow).not.toHaveBeenCalled();
+    // The history reads the current world: another world gets nothing, not the current one's days.
+    expect(await makeHistory().byDay('w2')).toBeNull();
+  });
+
+  it('puts an action that runs past midnight on the day it started, in order by its start', async () => {
+    const lateStart = new Date(2026, 9, 6, 23, 58).getTime();
+    await writeDay([
+      hpChange(11, 5, { actionId: 'cross', t: lateStart }),
+      hpChange(5, 4, { actionId: 'cross', t: lateStart + 4 * MIN }),
+      hpChange(20, 19, { actionId: 'evening', t: lateStart - 60 * MIN }),
+    ]);
+    const days = (await makeHistory().byDay('w1'))!;
+    expect(days.map(d => d.date)).toEqual(['2026-10-06']);
+    expect(days[0].changes.map(c => [c.id, c.at.slice(11, 16)])).toEqual([
+      ['act:evening', new Date(lateStart - 60 * MIN).toISOString().slice(11, 16)],
+      ['act:cross', new Date(lateStart).toISOString().slice(11, 16)],
+    ]);
+  });
+
+  it('leaves out a day that is no longer whole, and marks today when it is not', async () => {
+    // Seven days back: its midnight is before the cutoff (NOW - 7 days, at noon), so the day's
+    // note must stay as it was written; today is still returned.
+    const weekAgo = new Date(2026, 8, 30, 14).getTime();
+    await writeDay([
+      hpChange(11, 5, { actionId: 'old', t: weekAgo }),
+      hpChange(10, 9, { actionId: 'today', t: NOW - 10 * MIN }),
+    ]);
+    expect((await makeHistory().byDay('w1'))!.map(d => d.date)).toEqual(['2026-10-07']);
+
+    // The size cap removed a file inside the span: a day that starts before the new start is
+    // left out too, and today is whole.
+    const yesterday = new Date(2026, 9, 6, 20).getTime();
+    await writeDay([hpChange(8, 7, { actionId: 'yday', t: yesterday })]);
+    const pruned = makeHistory({ journalStart: new Date(2026, 9, 7).getTime() });
+    expect((await pruned.byDay('w1'))!.map(d => [d.date, d.incompleteBefore])).toEqual([
+      ['2026-10-07', undefined],
+    ]);
+
+    // The AI audit ring is full and its oldest entry is from this morning: older AI changes are
+    // gone, so yesterday is left out and today is marked incomplete from that time.
+    audit = Array.from({ length: 500 }, (_, i) =>
+      aiChange({ changeId: `chg-${i}`, appliedAt: new Date(NOW - (i + 1) * MIN).toISOString() })
+    );
+    const ringFrom = NOW - 500 * MIN;
+    const full = (await makeHistory().byDay('w1'))!;
+    expect(full.map(d => [d.date, d.incompleteBefore])).toEqual([['2026-10-07', ringFrom]]);
+    expect(full[0].changes.length).toBe(501);
+    // `list()` is not affected by the ring's size.
+    expect((await makeHistory().list({ limit: 200 })).changes.length).toBe(200);
   });
 
   it('counts an undo-change undo (the AI tab, the toast) as covering the one change it undid', async () => {

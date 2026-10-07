@@ -254,9 +254,10 @@ export class FoundryConnector {
   /**
    * A `module-request` frame: the bridge-linked browser asks for one of a short
    * list of tools on behalf of a GM's Foundry window. The active socket may ask, and so
-   * may any other socket whose hello says `isBridgeUser: true` (in Any-GM mode every GM
-   * tab does, and Foundry may hand the request to any tab of the same user). A socket
-   * without a hello (an older module) or with `isBridgeUser: false` is refused with
+   * may any other socket whose hello says `isBridgeUser: true` and names the active socket's
+   * world (in Any-GM mode every GM tab does, and Foundry may hand the request to any tab of
+   * the same user). A socket without a hello (an older module), with `isBridgeUser: false`
+   * or from another world is refused with
    * MODULE_NOT_ACTIVE_LINK_ERROR. The answer goes back on the same socket as a
    * `module-reply`; the tools still run through the active socket.
    */
@@ -275,7 +276,12 @@ export class FoundryConnector {
     const requestedBy = data.requestedBy.userName || data.requestedBy.userId;
     this.logger.info('Module request', { tool: data.tool, requestedBy });
 
-    if (ws !== this.foundrySocket && this.sockets.get(ws)?.hello?.isBridgeUser !== true) {
+    // A non-active socket is served only when its hello says it is a bridge user of the same
+    // world as the active link.
+    const hello = this.sockets.get(ws)?.hello;
+    const servedNonActive =
+      hello?.isBridgeUser === true && hello.worldId === this.activeHello()?.worldId;
+    if (ws !== this.foundrySocket && !servedNonActive) {
       this.replyToModule(ws, id, { success: false, error: MODULE_NOT_ACTIVE_LINK_ERROR });
       return;
     }

@@ -234,7 +234,8 @@ export const ModuleHelloFrameSchema = z.object({
     isBridgeUser: z.boolean(),
     moduleVersion: z.string(),
     worldId: z.string(),
-    capabilities: z.array(z.string().max(100)).max(50).optional(),
+    // A bad list (too long, wrong type) costs only the capabilities, never the whole hello.
+    capabilities: z.array(z.string().max(100)).max(50).optional().catch(undefined),
   }),
 });
 

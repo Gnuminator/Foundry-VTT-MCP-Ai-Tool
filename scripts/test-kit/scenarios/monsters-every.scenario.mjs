@@ -12,17 +12,19 @@
  * - the bridge tool get-character agrees with Foundry (challenge rating, type, size, hit points,
  *   armor class, legendary pool, spells).
  *
- * Failures are classified KIT, CONTENT or SYSTEM (lib/monsters.mjs). The `smoke` size takes a
+ * Failures are classified KIT, CONTENT or SYSTEM (lib/monsters.mjs). CONTENT and SYSTEM problems
+ * on the profile's known list (lib/known.mjs) are counted, not failed. The `smoke` size takes a
  * sample (the first monster of each challenge rating band, creature type, size and trait);
  * `full` and `long` take every monster. Monster names stay in the local report.
  */
 import { FAILURE_KINDS, countByKind, problemText } from '../lib/advancement.mjs';
+import { knownAttachment, loadKnown, splitKnown } from '../lib/known.mjs';
 import {
   crBand,
   fmtCr,
-  isStatBlock,
   judgeBridge,
   judgeCopy,
+  judgeNoAction,
   monstersOf,
   planMonsterUse,
   sampleMonsters,
@@ -70,6 +72,9 @@ export default {
       if (current) await t.gm('deleteMonsters', { actorIds: [current] }).catch(() => {});
     });
 
+    const knownList = loadKnown(t.kit.profile);
+    /** @type {Map<string, number>} known entry id -> problems it covered in this run */
+    const hits = new Map();
     /** @type {import('../lib/advancement.mjs').Problem[]} */
     const allProblems = [];
     /** @type {Array<{monster: string, pack: string, cr: string, problems: string[]}>} */
@@ -110,12 +115,7 @@ export default {
             }
             if (!plan.planned) {
               withoutAction += 1;
-              if (!isStatBlock(row))
-                problems.push({
-                  kind: 'CONTENT',
-                  what: 'no action to use',
-                  evidence: `${row.name}: ${facts.items.length} items, ${plan.skipped.length} activities left out, none usable`,
-                });
+              problems.push(...judgeNoAction(row, facts, plan));
               detail = 'no usable action';
             } else {
               const result = await t.gm('exerciseActor', {
@@ -155,13 +155,14 @@ export default {
             current = null;
           }
 
+          const { fresh, known } = splitKnown(problems, knownList, 'monsters-every', hits);
           const band = crBand(row.cr);
           byBand[band] ??= { monsters: 0, failed: 0 };
           byBand[band].monsters += 1;
-          if (problems.length) {
+          if (fresh.length) {
             byBand[band].failed += 1;
-            allProblems.push(...problems);
-            for (const p of problems) {
+            allProblems.push(...fresh);
+            for (const p of fresh) {
               const key = `${p.kind} ${p.what}`;
               whatBy[key] = (whatBy[key] ?? 0) + 1;
             }
@@ -169,11 +170,14 @@ export default {
               monster: row.name,
               pack: row.packId,
               cr: fmtCr(row.cr),
-              problems: problems.map(p => `[${p.kind}] ${p.what}: ${p.evidence}`),
+              problems: fresh.map(p => `[${p.kind}] ${p.what}: ${p.evidence}`),
             });
           }
-          t.check(problems.length === 0, problemText(problems, 6), { problems });
-          return detail;
+          t.check(fresh.length === 0, problemText(fresh, 6), { problems: fresh });
+          const note = known.length
+            ? `; ${known.length} known finding(s): ${[...new Set(known.map(k => k.id))].join(', ')}`
+            : '';
+          return `${detail}${note}`;
         },
         { continueOnFail: true }
       );
@@ -198,9 +202,11 @@ export default {
       byBand,
       failed: failed.slice(0, 500),
     });
+    t.attach('known', knownAttachment(knownList, 'monsters-every', hits));
     t.log(
       `${rows.length} monsters probed, ${used} actions used, ${failed.length} monsters failed ` +
-        `(${FAILURE_KINDS.map(k => `${k} ${byKind[k]}`).join(', ')})`
+        `(${FAILURE_KINDS.map(k => `${k} ${byKind[k]}`).join(', ')}), ` +
+        `${[...hits.values()].reduce((a, b) => a + b, 0)} known findings`
     );
   },
 };

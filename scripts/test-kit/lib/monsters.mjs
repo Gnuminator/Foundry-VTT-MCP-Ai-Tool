@@ -421,6 +421,30 @@ export function planMonsterUse(facts) {
 }
 
 /**
+ * The problem when the broad pass found nothing to use. A stat block is never held to it. A
+ * challenge rating 0 creature whose items carry no activity at all has nothing to do by design (a
+ * mount, a familiar, a summoned servant: Giant Fly, Sea Horse, Unseen Servant), so that is a note,
+ * not a problem. Anything else with no usable action is CONTENT: the import lost the actions, or
+ * every one of them needs a dialog.
+ * @param {MonsterRow} row
+ * @param {MonsterFacts} facts
+ * @param {ReturnType<typeof planMonsterUse>} plan
+ * @returns {Problem[]}
+ */
+export function judgeNoAction(row, facts, plan) {
+  if (plan.planned || isStatBlock(row)) return [];
+  const activities = facts.items.reduce((n, i) => n + i.activities.length, 0);
+  if (row.cr === 0 && activities === 0) return [];
+  return [
+    {
+      kind: 'CONTENT',
+      what: 'no action to use',
+      evidence: `${row.name}: ${facts.items.length} items, ${plan.skipped.length} activities left out, none usable`,
+    },
+  ];
+}
+
+/**
  * The world copy against the compendium row it came from: what create-from-compendium must keep.
  * A difference is SYSTEM (Foundry or the system changed the data on the way).
  * @param {MonsterRow} row

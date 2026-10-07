@@ -51,7 +51,11 @@ export function stubToolRouterDeps(): ToolRouterDeps {
   return {
     actorCreationTools: new ActorCreationTools(base),
     campaignManagementTools: new CampaignManagementTools(foundryClient, logger),
-    changeHistoryTools: new ChangeHistoryTools({ changeHistory: {} as any, logger }),
+    changeHistoryTools: new ChangeHistoryTools({
+      changeHistory: {} as any,
+      undoPlanner: {} as any,
+      logger,
+    }),
     characterTools: new CharacterTools(base),
     chatLogTools: new ChatLogTools(base),
     combatResolutionTools: new CombatResolutionTools(base),

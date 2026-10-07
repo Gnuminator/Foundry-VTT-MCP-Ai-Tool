@@ -6,11 +6,11 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 85 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 86 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
-| [Core](#core) | `foundry-mcp` | 21 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
+| [Core](#core) | `foundry-mcp` | 22 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
 | [Play](#play) | `foundry-mcp-play` | 29 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 7 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. |
@@ -178,7 +178,7 @@ Parameters:
 
 ### list-changes
 
-List everyone's recent changes in Foundry (players, the GM and the AI) from the last 7 days, newest first: who, what and when, as readable lines such as "Ireena: HP 10 -> 5". Filter by person, by thing (a document uuid) and by AI or human. Read-only. Undo of a player's or GM's change is not available yet; an AI change can be undone with undo-change using its id.
+List everyone's recent changes in Foundry (players, the GM and the AI) from the last 7 days, newest first: who, what and when, as readable lines such as "Ireena: HP 10 -> 5". Filter by person, by thing (a document uuid) and by AI or human. Read-only. Each change has an id; undo it with plan-undo-changes (anyone's change) or, for an AI change, undo-change.
 
 Parameters:
 
@@ -187,6 +187,16 @@ Parameters:
 - `thing` (string): Only changes to this document uuid (an actor, token, scene, ...) and anything on it, such as its items and effects.
 - `source` (string): Which changes to list: all (default), only the AI's, or only people's. One of: `all`, `ai`, `human`. Default: `all`.
 - `since` (string): Only changes at or after this time (ISO 8601, e.g. 2026-10-06T19:00:00Z).
+
+### plan-undo-changes
+
+Plan undoing one change from list-changes (by anyone: a player, the GM or the AI), or everything since it on the same thing. Scope just-this (default) keeps what changed after it and lists those later changes; everything-since also undoes later changes to the same thing; world-since rewinds the whole table and needs rewindTable. Apply with apply-planned-change; undoing that change again is the redo.
+
+Parameters:
+
+- `id` (string, required): The change to undo: its id from list-changes.
+- `scope` (string): just-this (default), everything-since or world-since. One of: `just-this`, `everything-since`, `world-since`. Default: `just-this`.
+- `rewindTable` (boolean): Must be true for world-since: rewind everything at the table.
 
 ### undo-change
 

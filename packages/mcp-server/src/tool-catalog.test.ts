@@ -26,8 +26,8 @@ const deps = stubToolRouterDeps();
 const tools = collectToolDefinitions(deps);
 
 describe('tool catalog', () => {
-  it('lists exactly 85 tools; control methods such as record_usage are not tools', () => {
-    expect(tools).toHaveLength(85);
+  it('lists exactly 86 tools; control methods such as record_usage are not tools', () => {
+    expect(tools).toHaveLength(86);
     for (const method of [
       'record_usage',
       'session_switches',

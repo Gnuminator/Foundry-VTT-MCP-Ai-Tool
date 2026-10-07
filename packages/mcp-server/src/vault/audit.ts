@@ -47,9 +47,15 @@ export interface AuditEntry {
   rulesVersion?: RulesVersion;
   /** undo entries: the change they reverted. */
   undoOf?: string;
+  /**
+   * undo-planner entries (feature `change-undo`, I-109): the journal actions (`actions`, the
+   * actionIds of people's changes) and audit changes (`changes`, changeIds) this entry undid.
+   * `computeUndoState` reads it to tell what is undone and what an undo of this entry brings back.
+   */
+  undoes?: { actions?: string[]; changes?: string[] };
   /** Entries asked for by a person in a GM's window in Foundry (a module request): who. Absent for the control channel (Claude or the dashboard). */
   requestedBy?: string;
-  /** apply entries that were undone. */
+  /** apply entries that were undone (informational: the live state comes from `computeUndoState`). */
   undoneBy?: string;
   undoneAt?: string;
   /** foundry: per-op results from the module (before/after, deleted data). */
@@ -87,6 +93,7 @@ export interface AuditHistoryLine {
   diff: string[];
   rulesVersion?: RulesVersion;
   undoOf?: string;
+  undoes?: { actions?: string[]; changes?: string[] };
   requestedBy?: string;
 }
 
@@ -104,6 +111,7 @@ function historyLine(entry: AuditEntry): AuditHistoryLine {
     diff: entry.diff,
     ...(entry.rulesVersion !== undefined ? { rulesVersion: entry.rulesVersion } : {}),
     ...(entry.undoOf !== undefined ? { undoOf: entry.undoOf } : {}),
+    ...(entry.undoes !== undefined ? { undoes: entry.undoes } : {}),
     ...(entry.requestedBy !== undefined ? { requestedBy: entry.requestedBy } : {}),
   };
 }
@@ -154,6 +162,12 @@ export class AuditLog {
     await this.store.appendLines(worldId, 'gm', AUDIT_HISTORY_FILE, [historyLine(stored)]);
     await this.removeBackups(worldId, dropped);
     return stored;
+  }
+
+  /** The whole ring, oldest first (the order `computeUndoState` wants). */
+  async ring(worldId: string): Promise<AuditEntry[]> {
+    const envelope = await this.store.read<AuditData>(worldId, 'gm', AUDIT_FILE);
+    return envelope?.data.entries ?? [];
   }
 
   /** Newest first. */

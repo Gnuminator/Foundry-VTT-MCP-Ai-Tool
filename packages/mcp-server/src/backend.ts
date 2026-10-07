@@ -72,6 +72,7 @@ import { TarokkaService } from './tarokka/service.js';
 import { HandoutsService, handleRecordHandoutSeen } from './handouts/service.js';
 import { SecretTermsService } from './secret-terms.js';
 import { GuardedWriteService } from './guarded-write/service.js';
+import { UndoPlanner } from './guarded-write/undo-planner.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
 import { EventPump, eventPumpSettings } from './event-pump.js';
 import { PlayLogPump, playLogSettings } from './play-log-pump.js';
@@ -339,7 +340,14 @@ async function startBackend(): Promise<void> {
       ? { pullNow: (): Promise<void> => changeJournalPump?.pullNow() ?? Promise.resolve() }
       : {}),
   });
-  const changeHistoryTools = new ChangeHistoryTools({ changeHistory, logger });
+  const undoPlanner = new UndoPlanner({
+    changeHistory,
+    guardedWrites,
+    audit: auditLog,
+    worldIds,
+    foundryClient,
+  });
+  const changeHistoryTools = new ChangeHistoryTools({ changeHistory, undoPlanner, logger });
   const tarokkaService = new TarokkaService({
     guardedWrites,
     store: vaultStore,

@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "id": "dnd5e-srd-monk-self-restoration",
+    "scenario": "heroes-advancement",
+    "kind": "CONTENT",
+    "what": "1 grant uuid(s) do not resolve",
+    "match": "Compendium.dnd5e.classes24.Item.phbmnkSelfrestor",
+    "why": "dnd5e 6.0.5: the SRD 2024 Monk class grants Self-Restoration at level 10 by a uuid that has no entry in dnd5e.classes24, so every Monk of level 10 or higher misses that one feature. System data, nothing for us to fix; seen on every srd full run since 2026-10-06 03:52. Remove the entry when a dnd5e release ships the item (the run then lists it as unseen)."
+  }
+]

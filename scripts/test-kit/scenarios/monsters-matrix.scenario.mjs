@@ -11,6 +11,7 @@
  * report, they do not fail the scenario.
  */
 import { FAILURE_KINDS, countByKind, problemText } from '../lib/advancement.mjs';
+import { knownAttachment, loadKnown, splitKnown } from '../lib/known.mjs';
 import {
   CR_BANDS,
   CREATURE_TYPES,
@@ -90,12 +91,18 @@ export default {
     });
 
     await t.step('every monster has the data every creature needs', async () => {
+      // CONTENT problems on the profile's known list (lib/known.mjs) are counted, not failed.
+      const knownList = loadKnown(t.kit.profile);
+      /** @type {Map<string, number>} known entry id -> problems it covered */
+      const hits = new Map();
       /** @type {import('../lib/advancement.mjs').Problem[]} */
       const problems = [];
       /** @type {Array<{monster: string, pack: string, problems: string[]}>} */
       const bad = [];
+      let knownCount = 0;
       for (const row of rows) {
-        const own = judgeRow(row);
+        const { fresh: own, known } = splitKnown(judgeRow(row), knownList, 'monsters-matrix', hits);
+        knownCount += known.length;
         if (!own.length) continue;
         problems.push(...own);
         bad.push({
@@ -104,6 +111,7 @@ export default {
           problems: own.map(p => `[${p.kind}] ${p.what}: ${p.evidence}`),
         });
       }
+      t.attach('known', knownAttachment(knownList, 'monsters-matrix', hits));
       const byKind = countByKind(problems);
       /** @type {Record<string, number>} */
       const byWhat = {};
@@ -123,7 +131,7 @@ export default {
         `${bad.length} of ${rows.length} monsters: ${problemText(problems, 4)}`,
         { byWhat }
       );
-      return `${rows.length} monsters`;
+      return `${rows.length} monsters${knownCount ? `; ${knownCount} known finding(s): ${[...hits.keys()].join(', ')}` : ''}`;
     });
   },
 };

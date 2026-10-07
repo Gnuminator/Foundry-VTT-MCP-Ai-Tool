@@ -168,7 +168,9 @@ export function judgeRow(m) {
       bad(problems, 'CONTENT', 'unknown creature type', `${who}: "${m.creatureType}"`);
     if (!(m.hp > 0)) bad(problems, 'CONTENT', 'no hit points', `${who}: ${m.hp}`);
     if (!(m.ac > 0)) bad(problems, 'CONTENT', 'no armor class', `${who}: ${m.ac}`);
-    if (!(m.items > 0)) bad(problems, 'CONTENT', 'no items', `${who} has no features or attacks`);
+    // A challenge rating 0 creature may carry nothing at all (the Giant Fly is a mount).
+    if (!(m.items > 0) && m.cr !== 0)
+      bad(problems, 'CONTENT', 'no items', `${who} has no features or attacks`);
   }
   if (!SIZES.includes(m.size)) bad(problems, 'CONTENT', 'unknown size', `${who}: "${m.size}"`);
   if (m.legact > 0 && m.odd.legendaryActivities === 0)
@@ -525,7 +527,8 @@ export function judgeBridge(row, reply, notes = []) {
   same('type', reply?.type, 'npc');
   if (!isStatBlock(row)) {
     same('challenge rating', stats.challengeRating, row.cr);
-    same('creature type', stats.creatureType, row.creatureType);
+    // A creature with no type (the SRD Unseen Servant) is "" in Foundry and left out by the bridge.
+    same('creature type', stats.creatureType ?? '', row.creatureType ?? '');
     same('hit point maximum', stats.hitPoints?.max, row.hp);
     same('armor class', stats.armorClass, row.ac);
   }

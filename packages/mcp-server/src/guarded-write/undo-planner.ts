@@ -140,7 +140,11 @@ function aiItem(entry: AuditEntry): Item {
     id: entry.changeId,
     kind: 'ai',
     t: Date.parse(entry.appliedAt),
-    by: 'AI',
+    // An undo or redo a person asked for in a Foundry window is theirs, as the window shows it.
+    by:
+      entry.requestedBy && (entry.mode === 'undo' || entry.feature === UNDO_FEATURE)
+        ? entry.requestedBy
+        : 'AI',
     summary: entry.summary,
     roots,
     thingName: root?.name ?? null,
@@ -191,6 +195,13 @@ function humanEvents(item: Item, out: Collected, nextOrder: () => number): void 
   }
 }
 
+/** The module's own rules-version stamp, written along with a guarded write: not the GM's change. */
+function isOwnStamp(path: string): boolean {
+  return (
+    path === 'flags.foundry-mcp-bridge.rules' || path.startsWith('flags.foundry-mcp-bridge.rules.')
+  );
+}
+
 function aiEvents(
   item: Item,
   results: NonNullable<AuditEntry['results']>,
@@ -211,8 +222,8 @@ function aiEvents(
       documentName: r.documentName,
       parentUuid: r.parentUuid,
       name: r.name,
-      ...(r.before ? { before: r.before } : {}),
-      ...(r.after ? { after: r.after } : {}),
+      ...(r.before ? { before: r.before.filter(v => !isOwnStamp(v.path)) } : {}),
+      ...(r.after ? { after: r.after.filter(v => !isOwnStamp(v.path)) } : {}),
       ...(r.deleted ? { source: r.deleted } : {}),
       ...(r.modifiedTime !== undefined ? { modifiedTime: r.modifiedTime } : {}),
     });
@@ -315,12 +326,17 @@ export class UndoPlanner {
     const items = [...actions.map(humanItem), ...ring.filter(e => e.results?.length).map(aiItem)];
     items.sort((a, b) => a.t - b.t);
     const target = this.resolveTarget(request.id, items, ring, actions, state);
-    const live = items.filter(i => !state.has(i.id));
-    const later = live.filter(i => i.id !== target.id && i.t > target.t);
-    const touching = later.filter(i => i.roots.some(root => target.roots.includes(root)));
+    const touches = (i: Item): boolean => i.roots.some(root => target.roots.includes(root));
+    // Everything after the target, undone or not: an undone change and the undo that took it back
+    // both lie after it and cancel out in the fold. Leaving out only the undone one would restore
+    // the undo's "before" (the state after the change), not the state before the target.
+    const since = items.filter(i => i.id !== target.id && i.t > target.t);
+    // What the GM sees as later changes (the dialog, and the number adjustment of `just-this`).
+    const touching = since.filter(i => !state.has(i.id) && touches(i));
 
     const notes: string[] = [];
-    const chosen = scope === 'just-this' ? [] : scope === 'world-since' ? later : touching;
+    const chosen =
+      scope === 'just-this' ? [] : scope === 'world-since' ? since : since.filter(touches);
     const set = [target, ...chosen.filter(i => !this.skipItem(i, notes))];
 
     const collected = await this.collect(worldId, set);
@@ -352,7 +368,7 @@ export class UndoPlanner {
     }
     const view = await this.guardedWrites.createPlan({
       feature: UNDO_FEATURE,
-      summary: this.summaryOf(scope, target, set.length),
+      summary: this.summaryOf(scope, target, set.filter(i => !state.has(i.id)).length),
       ops,
       notes,
       pathLabels,
@@ -362,7 +378,8 @@ export class UndoPlanner {
     return {
       ...view,
       scope,
-      count: set.length,
+      // The changes the GM sees as live; an undone one and its undo cancel out.
+      count: set.filter(i => !state.has(i.id)).length,
       later: justThis ? [...touching].reverse().slice(0, MAX_LATER).map(laterOf) : [],
     };
   }

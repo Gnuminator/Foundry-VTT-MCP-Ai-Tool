@@ -323,6 +323,78 @@ describe('world-since', () => {
   });
 });
 
+describe('undone changes inside a since-set (live check 2026-10-07)', () => {
+  it('lets an undone change and its undo cancel out, also for a delete and its restore', async () => {
+    foundry.add('Actor.b', 'Actor', { name: 'Wolf', system: { attributes: { hp: { value: 1 } } } });
+    foundry.add('Actor.a.Item.n', 'Item', { name: 'Rope', system: { quantity: 1 } });
+    foundry.edit('Actor.a', num(HP, 10));
+    records.push(
+      rec(1, {
+        actionId: 'wolf',
+        uuid: 'Actor.b',
+        rootUuid: 'Actor.b',
+        name: 'Wolf',
+        rootName: 'Wolf',
+        before: [num(HP, 3)],
+        after: [num(HP, 1)],
+      }),
+      hp(2, 10, 5, 'hit'),
+      itemRecord(3, 'drop', { op: 'delete', data: { _id: 'n', name: 'Rope' } })
+    );
+    ring.push(
+      entry('U1', 4, {
+        feature: 'change-undo',
+        undoes: { actions: ['hit'] },
+        results: [actorUpdate([num(HP, 5)], [num(HP, 10)])],
+      }),
+      entry('U2', 5, {
+        feature: 'change-undo',
+        undoes: { actions: ['drop'] },
+        results: [itemResult('create', 'Actor.a.Item.n', 'Rope')],
+      })
+    );
+    const view = await plan('act:wolf', 'world-since', true);
+    // Ireena is back at 10 and the rope is back: only the wolf's own change is left to undo.
+    expect(opsOf()).toEqual([{ kind: 'update', uuid: 'Actor.b', changes: { [HP]: 3 }, unset: [] }]);
+    // The undone changes and their undos cancel out: the count is what the GM sees as live.
+    expect(view.count).toBe(3);
+    expect(planInput().undoes).toEqual({ actions: ['wolf', 'hit', 'drop'], changes: ['U1', 'U2'] });
+  });
+
+  it('names the person behind a window undo among the later changes', async () => {
+    records.push(hp(1, 12, 10, 'first'));
+    ring.push(
+      entry('U1', 2, {
+        feature: 'change-undo',
+        requestedBy: 'Danni',
+        undoes: { actions: [] },
+        results: [actorUpdate([num(HP, 10)], [num(HP, 9)])],
+      })
+    );
+    foundry.edit('Actor.a', num(HP, 9));
+    const view = await plan('act:first', 'just-this');
+    expect(view.later.map(l => l.by)).toEqual(['Danni']);
+  });
+
+  it('leaves the module rules stamp out of an AI change', async () => {
+    const stamp = 'flags.foundry-mcp-bridge.rules';
+    ring.push(
+      entry('chg', 1, {
+        results: [
+          actorUpdate(
+            [num(HP, 10), gone(stamp)],
+            [num(HP, 5), { path: stamp, present: true, value: { version: '2024' } }]
+          ),
+        ],
+      })
+    );
+    await plan('chg', 'just-this');
+    expect(opsOf()).toEqual([
+      { kind: 'update', uuid: 'Actor.a', changes: { [HP]: 10 }, unset: [] },
+    ]);
+  });
+});
+
 describe('guards on one change', () => {
   it('refuses to restore a document whose id exists again', async () => {
     records.push(rec(1, { actionId: 'd', op: 'delete', data: { _id: 'a', name: 'Ireena' } }));
@@ -370,7 +442,7 @@ describe('what a new undo says it undid', () => {
     threeEntries();
     await plan('T', 'world-since', true);
     expect(opsOf()[0]).toMatchObject({ changes: { [HP]: 12 } });
-    expect(planInput().undoes).toEqual({ changes: ['T', 'E1', 'A'] });
+    expect(planInput().undoes).toEqual({ changes: ['T', 'A', 'E1'] });
     // A is undone (by E1): it cannot be planned on its own.
     await expect(plan('A', 'just-this')).rejects.toThrow(/already undone \(E1\)/);
   });

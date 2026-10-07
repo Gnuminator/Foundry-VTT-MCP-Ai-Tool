@@ -314,6 +314,21 @@ Only guarded changes are listed here: damage, healing, conditions, resources and
 edits and deletes are, while changes from other tools (rolls, new actors) are not and cannot be
 undone here.
 
+**The Everyone tab.** When the AI Tool on the server is new enough, Recent Changes has two tabs:
+**AI** (the list above) and **Everyone**, which also lists what the players and you did in Foundry
+over the last 7 days, such as hit points, items and tokens. Pick a person in the list above the rows
+to see only their changes. Each row shows who, when, what changed and, under "N line(s)", the
+details. **Undo** works on anyone's change. It first shows what it will put back, and you confirm.
+If something changed on the same thing since, it says "This is not the latest change to ..." and
+lists those later changes, and you choose **Just this** (keeps the later changes), **Everything
+since** (puts the thing back to how it was before this change) or **Cancel**. Under **Advanced**
+(in the first question, whichever it is), **Rewind the whole table to here** undoes every change at
+the table since then; it shows how many changes that is and asks twice. An undone change is marked
+"Undone by ...", with **Redo** to put it back when that is still possible. When it was undone
+together with other changes (Everything since or a rewind), Redo says so and brings all of them
+back. Undo needs GM Actions on, like everything that changes the game. The same list is in Foundry
+too, as the **Changes** window (below).
+
 ### The same list inside Foundry
 
 You do not need the dashboard open to see or undo what changed. In Foundry's left toolbar (the

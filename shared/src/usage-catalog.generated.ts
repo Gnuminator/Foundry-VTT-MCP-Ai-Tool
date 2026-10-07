@@ -39,10 +39,34 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/app.js',
   },
   {
+    name: 'dash.changes.everyone-redo',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.changes.everyone-show-lines',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.changes.everyone-undo',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
     name: 'dash.changes.open-obsidian',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.changes.person',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
   },
   {
     name: 'dash.changes.refresh',
@@ -55,6 +79,18 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.changes.tab-ai',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.changes.tab-everyone',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
   },
   {
     name: 'dash.changes.undo',
@@ -627,6 +663,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/app.js',
   },
   {
+    name: 'dash.shortcut.escape-undo',
+    kind: 'shortcut',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
     name: 'dash.tarokka.close',
     kind: 'action',
     surface: 'dashboard',
@@ -809,6 +851,54 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   {
     name: 'dash.trial.view',
     kind: 'view',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.undo.advanced',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.undo.apply',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.undo.cancel',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.undo.destructive-check',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.undo.everything-since',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.undo.just-this',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.undo.next',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.undo.rewind',
+    kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/app.js',
   },

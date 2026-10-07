@@ -1,6 +1,20 @@
 // Co-GM dashboard client. Vanilla ES module — no build step.
 
 import { applyTheme, currentMist, setMist } from './theme.js';
+import {
+  EVERYONE_LIMIT,
+  dialogFor,
+  filterChanges,
+  filterOptions,
+  firstStage,
+  needsDestructive,
+  nextStep,
+  planArgs,
+  redoConfirm,
+  rowView,
+  validFilter,
+  FILTER_ALL,
+} from './changes-everyone.js';
 // Connects to the server's SSE stream and renders three live panes plus the
 // "ask the co-GM" control. All mutations go through the server's REST endpoints.
 
@@ -169,6 +183,15 @@ const els = {
   changesBody: $('changes-body'),
   changesMeta: $('changes-meta'),
   changesRefresh: $('changes-refresh'),
+  changesToolbar: $('changes-toolbar'),
+  changesPerson: $('changes-person'),
+  // Undo window (Everyone tab)
+  undoBackdrop: $('undo-backdrop'),
+  undoTitle: $('undo-title'),
+  undoBody: $('undo-body'),
+  undoDestructive: $('undo-destructive'),
+  undoDestructiveCheck: $('undo-destructive-check'),
+  undoActions: $('undo-actions'),
   // Play session control (O2)
   sessionStatus: $('session-status'),
   btnSession: $('btn-session'),
@@ -216,6 +239,13 @@ let toolCatalog = [];
 let toolsLoaded = false;
 let confirmResolver = null;
 let recentChanges = [];
+// Recent Changes has two tabs when the bridge has `list-changes` (I-109): AI (the guarded changes
+// above) and Everyone (players, the GM and the AI, each with Undo).
+let changesTab = 'ai';
+let everyoneChanges = [];
+let everyoneSupported = false;
+let everyonePerson = FILTER_ALL;
+let undoResolver = null;
 let tarokkaView = null;
 let changesReloadTimer = null;
 
@@ -1852,14 +1882,37 @@ function scheduleChangesReload() {
     void loadRecentChanges();
   }, 400);
 }
+let changesError = { ai: '', everyone: '' };
+let everyoneNote = '';
 async function loadRecentChanges() {
+  changesError.ai = '';
   try {
     const result = await callReadTool('list-recent-changes', { limit: 20 });
     recentChanges = Array.isArray(result && result.changes) ? result.changes : [];
-    renderRecentChanges();
   } catch (err) {
-    els.changesMeta.textContent = '—';
-    els.changesBody.innerHTML = `<p class="empty">Couldn't load changes: ${escapeHtml(String(err.message || err))}</p>`;
+    changesError.ai = String(err.message || err);
+  }
+  await loadEveryoneChanges();
+  renderRecentChanges();
+}
+// The Everyone tab needs the bridge's list-changes tool: an older bridge has none and the tab
+// stays hidden. The list is read only while the tab is open.
+async function loadEveryoneChanges() {
+  changesError.everyone = '';
+  if (!toolsLoaded) await loadTools();
+  everyoneSupported = toolCatalog.some(t => t.name === 'list-changes');
+  if (!everyoneSupported) {
+    everyoneChanges = [];
+    changesTab = 'ai';
+    return;
+  }
+  if (changesTab !== 'everyone') return;
+  try {
+    const result = await callReadTool('list-changes', { limit: EVERYONE_LIMIT });
+    everyoneChanges = Array.isArray(result && result.changes) ? result.changes : [];
+    everyoneNote = result && typeof result.note === 'string' ? result.note : '';
+  } catch (err) {
+    changesError.everyone = String(err.message || err);
   }
 }
 function changeState(c) {
@@ -1873,6 +1926,23 @@ function obsidianChangeUrl(c) {
   return month ? obsidianFileUrl(`AI Tool/Changes/${month}`) : null;
 }
 function renderRecentChanges() {
+  els.changesToolbar.hidden = !everyoneSupported;
+  for (const tab of els.changesToolbar.querySelectorAll('[data-changes-tab]')) {
+    tab.setAttribute('aria-pressed', String(tab.dataset.changesTab === changesTab));
+  }
+  els.changesPerson.hidden = !everyoneSupported || changesTab !== 'everyone';
+  if (changesTab === 'everyone') {
+    renderEveryoneChanges();
+    return;
+  }
+  renderAiChanges();
+}
+function renderAiChanges() {
+  if (changesError.ai) {
+    els.changesMeta.textContent = '—';
+    els.changesBody.innerHTML = `<p class="empty">Couldn't load changes: ${escapeHtml(changesError.ai)}</p>`;
+    return;
+  }
   els.changesMeta.textContent = `${recentChanges.length} shown`;
   if (recentChanges.length === 0) {
     els.changesBody.innerHTML = '<p class="empty">No guarded changes yet.</p>';
@@ -1914,6 +1984,199 @@ function renderRecentChanges() {
         </div>`;
     })
     .join('');
+}
+
+// --- Recent Changes, Everyone tab (I-109) ---
+// Everyone's changes with an Undo each. The helpers that decide what to show and which step comes
+// next are in changes-everyone.js (tested); this part draws them and makes the calls.
+function renderEveryoneChanges() {
+  if (changesError.everyone) {
+    els.changesMeta.textContent = '-';
+    els.changesBody.innerHTML = `<p class="empty">Couldn't load changes: ${escapeHtml(changesError.everyone)}</p>`;
+    return;
+  }
+  everyonePerson = validFilter(everyoneChanges, everyonePerson);
+  els.changesPerson.innerHTML = filterOptions(everyoneChanges)
+    .map(
+      o =>
+        `<option value="${escapeHtml(o.value)}"${o.value === everyonePerson ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
+    )
+    .join('');
+  const list = filterChanges(everyoneChanges, everyonePerson);
+  els.changesMeta.textContent = `${list.length} shown`;
+  const note = everyoneNote ? `<p class="empty">${escapeHtml(everyoneNote)}</p>` : '';
+  if (list.length === 0) {
+    els.changesBody.innerHTML =
+      note ||
+      `<p class="empty">${everyoneChanges.length === 0 ? 'No changes in the last 7 days.' : 'No changes by this person.'}</p>`;
+    return;
+  }
+  els.changesBody.innerHTML =
+    note +
+    list
+      .map(c => {
+        const row = rowView(c, everyoneChanges);
+        const time = new Date(row.at).toLocaleString();
+        const undo = row.canUndo
+          ? `<button type="button" class="btn btn-small" data-track="dash.changes.everyone-undo" data-ev-undo="${escapeHtml(row.id)}">Undo</button>`
+          : '';
+        const redo = row.redoId
+          ? `<button type="button" class="btn btn-small" data-track="dash.changes.everyone-redo" data-ev-redo="${escapeHtml(row.id)}" title="Put this change back">Redo</button>`
+          : '';
+        const lines = row.lines.map(line => `<li>${escapeHtml(line)}</li>`).join('');
+        const details = lines
+          ? `<details><summary data-track="dash.changes.everyone-show-lines">${row.lines.length} line(s)</summary><ul class="change-diff">${lines}</ul></details>`
+          : '';
+        const badge = row.undone
+          ? `<span class="change-badge">${escapeHtml(row.undoneText)}</span>`
+          : '';
+        return `
+        <div class="change-entry ${row.undone ? 'state-undone' : 'state-applied'}">
+          <div class="change-head">
+            <span class="change-summary">${escapeHtml(row.summary)}</span>
+            <span class="change-actions">${undo}${redo}</span>
+          </div>
+          <div class="change-meta">
+            <span class="change-who">${escapeHtml(row.who)}</span>
+            <span>${escapeHtml(time)}</span>
+            ${badge}
+          </div>
+          ${details}
+        </div>`;
+      })
+      .join('');
+}
+
+const UNDO_BUTTON_TRACK = {
+  cancel: 'data-track="dash.undo.cancel"',
+  'just-this': 'data-track="dash.undo.just-this"',
+  'everything-since': 'data-track="dash.undo.everything-since"',
+  rewind: 'data-track="dash.undo.rewind"',
+  next: 'data-track="dash.undo.next"',
+  apply: 'data-track="dash.undo.apply"',
+};
+function undoLaterLine(l) {
+  const when = l.at ? `${new Date(l.at).toLocaleString()}, ` : '';
+  return `${when}${l.by}: ${l.summary}`;
+}
+function undoButton(b) {
+  const classes = ['btn', b.primary ? 'btn-primary' : '', b.danger ? 'btn-danger' : '']
+    .filter(Boolean)
+    .join(' ');
+  const gate = b.needsCheck ? ' data-needs-check disabled' : '';
+  return `<button type="button" class="${classes}" ${UNDO_BUTTON_TRACK[b.key] || ''} data-undo-key="${escapeHtml(b.key)}"${gate}>${escapeHtml(b.label)}</button>`;
+}
+// Shows one stage of the undo flow; resolves with the key of the button pressed (null: closed).
+function showUndoDialog(model) {
+  els.undoTitle.textContent = model.title;
+  const parts = [];
+  if (model.intro) parts.push(`<p class="modal-summary">${escapeHtml(model.intro)}</p>`);
+  if (model.later && model.later.length > 0) {
+    const items = model.later.map(l => `<li>${escapeHtml(undoLaterLine(l))}</li>`).join('');
+    parts.push(`<p>${escapeHtml(model.laterTitle)}</p><ul class="undo-later">${items}</ul>`);
+  }
+  if (model.lines.length > 0) {
+    const items = model.lines
+      .map(l => `<li${l.note ? ' class="undo-note"' : ''}>${escapeHtml(l.text)}</li>`)
+      .join('');
+    parts.push(`<ul class="change-diff">${items}</ul>`);
+  }
+  if (model.advanced) {
+    parts.push(
+      `<details class="undo-advanced"><summary data-track="dash.undo.advanced">${escapeHtml(model.advanced.title)}</summary><p>${escapeHtml(model.advanced.text)}</p>${undoButton({ ...model.advanced.button, danger: true })}</details>`
+    );
+  }
+  els.undoBody.innerHTML = parts.join('');
+  els.undoActions.innerHTML = model.buttons.map(undoButton).join('');
+  els.undoDestructive.hidden = !model.destructive;
+  els.undoDestructiveCheck.checked = false;
+  els.undoBackdrop.hidden = false;
+  return new Promise(resolve => {
+    undoResolver = resolve;
+  });
+}
+function closeUndoDialog(key) {
+  els.undoBackdrop.hidden = true;
+  const r = undoResolver;
+  undoResolver = null;
+  if (r) r(key);
+}
+// Undo anyone's change: plan it, then walk the choice (just this, everything since, or the
+// advanced rewind) until the GM applies a plan or cancels. Nothing changes before "apply".
+// One flow at a time: a second click while one runs is ignored.
+let everyoneUndoBusy = false;
+async function undoFromEveryone(id) {
+  if (everyoneUndoBusy) return;
+  everyoneUndoBusy = true;
+  try {
+    await undoFlow(id);
+  } finally {
+    everyoneUndoBusy = false;
+  }
+}
+async function undoFlow(id) {
+  const change = everyoneChanges.find(c => c.id === id);
+  if (!change) return;
+  if (!settings.gmActionsEnabled) {
+    usage.trackTool('apply-planned-change', 'error', 'gm-actions-off');
+    toast('GM Actions are off. Turn them on to run this.', 'warn');
+    openDrawer();
+    return;
+  }
+  const row = rowView(change, everyoneChanges);
+  const planFor = async scope => {
+    try {
+      const plan = await callReadTool('plan-undo-changes', planArgs(id, scope));
+      usage.trackTool('plan-undo-changes', 'ok');
+      return plan;
+    } catch (err) {
+      usage.trackTool('plan-undo-changes', 'error', toolErrorCode(err));
+      toast(`✗ ${String(err.message || err)}`, 'err');
+      return null;
+    }
+  };
+  let plan = await planFor({ scope: 'just-this' });
+  if (!plan) return;
+  let stage = firstStage(plan);
+  for (;;) {
+    const key = await showUndoDialog(dialogFor(stage, plan, row));
+    const step = nextStep(stage, key);
+    if (step.done) return;
+    if (step.apply) {
+      // The window was the confirmation (and the second one when the plan is destructive).
+      await runTool(
+        'apply-planned-change',
+        { planId: plan.planId },
+        needsDestructive(plan) ? 'destructive' : 'write',
+        { skipConfirm: true }
+      );
+      return;
+    }
+    if (step.plan) {
+      const next = await planFor(step.plan);
+      if (!next) continue;
+      plan = next;
+    }
+    stage = step.stage;
+  }
+}
+// Redo: undoing the undo. It asks first, like Undo in the AI tab.
+function redoFromEveryone(id) {
+  const change = everyoneChanges.find(c => c.id === id);
+  const row = change && rowView(change, everyoneChanges);
+  if (!row || !row.redoId) return;
+  void runTool(
+    'undo-change',
+    { changeId: row.redoId },
+    'destructive',
+    redoConfirm(change, everyoneChanges)
+  );
+}
+function setChangesTab(tab) {
+  if (tab === changesTab) return;
+  changesTab = tab;
+  renderRecentChanges();
+  void loadRecentChanges();
 }
 
 // --- Handouts drawer (GM only; I-039) ---
@@ -3105,7 +3368,38 @@ els.tarokkaShow.addEventListener('change', () => {
   renderPreflightButton();
   if (!els.preflightDrawer.hidden) renderPreflight();
 });
+els.changesToolbar.addEventListener('click', e => {
+  const tab = e.target.closest('[data-changes-tab]');
+  if (tab) setChangesTab(tab.dataset.changesTab);
+});
+els.changesPerson.addEventListener('change', () => {
+  everyonePerson = els.changesPerson.value;
+  renderRecentChanges();
+});
+els.undoBackdrop.addEventListener('click', e => {
+  if (e.target === els.undoBackdrop) {
+    closeUndoDialog(null);
+    return;
+  }
+  const btn = e.target.closest('[data-undo-key]');
+  if (btn && !btn.disabled) closeUndoDialog(btn.dataset.undoKey);
+});
+els.undoDestructiveCheck.addEventListener('change', () => {
+  for (const b of els.undoActions.querySelectorAll('[data-needs-check]')) {
+    b.disabled = !els.undoDestructiveCheck.checked;
+  }
+});
 els.changesBody.addEventListener('click', e => {
+  const evUndo = e.target.closest('[data-ev-undo]');
+  if (evUndo) {
+    void undoFromEveryone(evUndo.dataset.evUndo);
+    return;
+  }
+  const evRedo = e.target.closest('[data-ev-redo]');
+  if (evRedo) {
+    redoFromEveryone(evRedo.dataset.evRedo);
+    return;
+  }
   const btn = e.target.closest('[data-undo]');
   if (!btn) return;
   const change = recentChanges.find(c => c.changeId === btn.dataset.undo);
@@ -3125,7 +3419,10 @@ els.modalDestructiveCheck.addEventListener('change', () => {
 });
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  if (!els.modalBackdrop.hidden) {
+  if (!els.undoBackdrop.hidden) {
+    usage.trackShortcut('dash.shortcut.escape-undo');
+    closeUndoDialog(null);
+  } else if (!els.modalBackdrop.hidden) {
     usage.trackShortcut('dash.shortcut.escape-modal');
     closeModal(false);
   } else if (shown(els.prepDrawer)) {
@@ -4263,7 +4560,8 @@ $('layout-tour-stop').addEventListener('click', () => endTour(null));
 document.addEventListener(
   'keydown',
   e => {
-    if (e.key !== 'Escape' || !tour || !els.modalBackdrop.hidden) return;
+    if (e.key !== 'Escape' || !tour || !els.modalBackdrop.hidden || !els.undoBackdrop.hidden)
+      return;
     if ([els.drawer, els.tarokkaDrawer, ...OPENERS.keys()].some(shown)) return;
     endTour(null);
   },

@@ -1997,6 +1997,92 @@ body {
   font-size: var(--fs-2xs);
 }
 
+/* Recent Changes: the AI / Everyone tabs, the person filter, the rows and the undo window (I-109) */
+.changes-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  padding: 0.35rem 0.6rem 0;
+}
+.changes-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+}
+.changes-tab {
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--fs-xs);
+  padding: 0.2rem 0.8rem;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+.changes-tab:hover {
+  color: var(--text);
+}
+.changes-tab[aria-pressed='true'] {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+.changes-person {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  font-size: var(--fs-xs);
+}
+.change-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex: none;
+}
+.change-badge {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.change-who {
+  color: var(--text-mid);
+  font-weight: 500;
+}
+.modal-wide {
+  width: min(560px, 100%);
+}
+.modal-wide .modal-body {
+  max-height: 60vh;
+  overflow: auto;
+}
+.undo-later {
+  margin: 0.4rem 0 0;
+  padding: 0 0 0 1.1rem;
+  font-size: var(--fs-xs);
+}
+.undo-later li {
+  margin-bottom: 0.2rem;
+}
+.undo-note {
+  color: var(--text-dim);
+  font-style: italic;
+}
+.undo-advanced {
+  margin-top: 0.8rem;
+  font-size: var(--fs-xs);
+}
+.undo-advanced summary {
+  cursor: pointer;
+  color: var(--text-dim);
+}
+.undo-advanced p {
+  margin: 0.4rem 0;
+}
+.btn-danger {
+  border-color: color-mix(in srgb, var(--bad) 55%, transparent);
+  color: var(--bad);
+}
+
 /* --- Tarokka drawer ------------------------------------------------------ */
 .tarokka-actions {
   display: flex;

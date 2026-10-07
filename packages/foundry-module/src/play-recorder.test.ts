@@ -704,6 +704,20 @@ describe('scene token snapshots', () => {
     ]);
   });
 
+  it('records the activated scene, not the one the canvas still shows', () => {
+    setupScene();
+    world.addScene({ id: 'sceneB', name: 'Scene B', tokens: [] });
+    Hooks.callAll('canvasReady');
+    world.setActiveScene('sceneB');
+    // updateScene fires before the canvas switches: the canvas still shows sceneA.
+    Hooks.callAll('updateScene', { id: 'sceneB', name: 'Scene B' }, { active: true });
+    const scenes = recorder.getPlayRecords({}).records.filter(r => r.kind === 'scene');
+    expect(scenes.map(r => [r.sceneId, r.data?.sceneName, r.data?.active])).toEqual([
+      ['sceneA', 'Scene', false],
+      ['sceneB', 'Scene B', true],
+    ]);
+  });
+
   it('snapshots the active scene for a joining player, and marks who is a GM', () => {
     setupScene();
     world.addScene({

@@ -1850,19 +1850,21 @@ export class PlayRecorder {
     this.viewedSceneActive = active;
     const t = Date.now();
     const name = sceneName ?? game.scenes.get(sceneId)?.name ?? null;
-    this.push(
-      this.build({
-        kind: 'scene',
-        key: playRecordKeys.scene(sceneId, t),
-        t,
-        data: {
-          sceneName: name,
-          active,
-          players: onlinePlayerIds(),
-          tokens: sceneTokensOf(sceneId),
-        },
-      })
-    );
+    const record = this.build({
+      kind: 'scene',
+      key: playRecordKeys.scene(sceneId, t),
+      t,
+      data: {
+        sceneName: name,
+        active,
+        players: onlinePlayerIds(),
+        tokens: sceneTokensOf(sceneId),
+      },
+    });
+    // The recorded scene, not the canvas: activating a scene fires updateScene before the
+    // canvas switches to it, so the canvas still shows the previous one.
+    record.sceneId = sceneId;
+    this.push(record);
   }
 
   private onUpdateWorldTime(

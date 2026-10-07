@@ -21,3 +21,5 @@
   turn records carry `data.hidden` when made through a token hidden from players. A GM client
   without a canvas records the active scene (with the players online) at load. Older records lack
   these and still read fine (their sessions list nothing).
+- **Scene records name the right scene:** a `scene` record made when the GM activates a scene
+  now carries that scene's id; it used to carry the id of the scene the canvas still showed.

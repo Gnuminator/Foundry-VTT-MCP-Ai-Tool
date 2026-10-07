@@ -405,7 +405,7 @@ export class UndoPlanner {
       ops,
       notes,
       pathLabels,
-      undoes: this.undoes(set, items, ring),
+      undoes: this.undoes(set, items, ring, state),
       ...(scope === 'world-since' ? { risk: 'destructive' as const } : {}),
     });
     return {
@@ -563,20 +563,24 @@ export class UndoPlanner {
   /**
    * What the new audit entry says it undid: the set, plus what an undone undo in the set had
    * undone when that lies after the first change (the rewind goes past it, so it stays undone).
+   * A live undo in the set is taken back, so its targets come back: they are not added.
    */
   private undoes(
     set: Item[],
     items: Item[],
-    ring: AuditEntry[]
+    ring: AuditEntry[],
+    state: UndoState
   ): { actions?: string[]; changes?: string[] } {
     const oldest = Math.min(...set.map(i => i.t));
     const timeOf = new Map(items.map(i => [i.id, i.t]));
     for (const entry of ring) timeOf.set(entry.changeId, Date.parse(entry.appliedAt));
-    const targets = set.flatMap(i => [
-      ...(i.entry?.undoOf ? [i.entry.undoOf] : []),
-      ...(i.entry?.undoes?.changes ?? []),
-      ...(i.entry?.undoes?.actions ?? []).map(actionKey),
-    ]);
+    const targets = set
+      .filter(i => state.has(i.id))
+      .flatMap(i => [
+        ...(i.entry?.undoOf ? [i.entry.undoOf] : []),
+        ...(i.entry?.undoes?.changes ?? []),
+        ...(i.entry?.undoes?.actions ?? []).map(actionKey),
+      ]);
     const extra = targets.filter(id => (timeOf.get(id) ?? 0) > oldest);
     const ids = distinct([...set.map(i => i.id), ...extra]);
     const actionIds = ids.filter(id => id.startsWith('act:')).map(id => id.slice(4));

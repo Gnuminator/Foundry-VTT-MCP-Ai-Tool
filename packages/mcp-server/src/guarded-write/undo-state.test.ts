@@ -166,9 +166,35 @@ describe('redoFeatures', () => {
   it('refuses when a change on the way has left the ring, or asks the legacy feature', () => {
     // The planned undo is still there, the change it undid is not: what comes back is unknown.
     const p = entry('p', { feature: UNDO_FEATURE, undoes: { changes: ['gone'] } });
-    expect(redoFeatures([p], ['p'])).toEqual({ features: [], unknown: true });
+    expect(redoFeatures([p], ['p'])).toEqual({
+      features: [],
+      refusal: 'it would bring back a change that is no longer in the recent history',
+    });
     // A legacy undo names its original's feature: that switch is required.
     const u = entry('u', { feature: 'ownership', mode: 'undo', undoOf: 'gone' });
-    expect(redoFeatures([u], ['u'])).toEqual({ features: ['ownership'], unknown: false });
+    expect(redoFeatures([u], ['u'])).toEqual({ features: ['ownership'], refusal: null });
+  });
+
+  it('needs no switch when a change that left the ring would only be taken back', () => {
+    // P undid A (gone now), R redid P; undoing R takes A back again.
+    const p = entry('p', { feature: UNDO_FEATURE, undoes: { changes: ['gone'] } });
+    const r = entry('r', { feature: UNDO_FEATURE, mode: 'undo', undoOf: 'p' });
+    expect(redoFeatures([p, r], ['r'])).toEqual({ features: [], refusal: null });
+  });
+
+  it('refuses instead of walking forever through many rewinds to the same point', () => {
+    // Each rewind undid the original and every earlier rewind: 2^n paths without a cap.
+    const ring: AuditEntry[] = [entry('a', { feature: 'ownership' })];
+    for (let i = 1; i <= 25; i += 1) {
+      ring.push(
+        entry(`w${i}`, {
+          feature: UNDO_FEATURE,
+          undoes: { changes: ['a', ...ring.slice(1).map(e => e.changeId)] },
+        })
+      );
+    }
+    expect(redoFeatures(ring, ['w25']).refusal).toBe(
+      'the chain of undos and rewinds behind it is too long to check'
+    );
   });
 });

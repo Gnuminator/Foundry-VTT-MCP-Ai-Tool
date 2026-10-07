@@ -685,10 +685,7 @@ export class GuardedWriteService {
       const undone = computeUndoState(ring).get(changeId);
       if (undone) throw new Error(`Change ${changeId} was already undone (${undone.undoneBy})`);
       // A redo puts the original change back: its feature's switch must be on.
-      await this.requireRedoSwitches(
-        ring.some(e => e.changeId === changeId) ? ring : [...ring, entry],
-        [changeId]
-      );
+      await this.requireRedoSwitches(ring, [changeId]);
       const guard = this.undoGuards.get(entry.feature);
       const reason = guard ? await guard(worldId, entry) : null;
       if (reason) throw new Error(`Conflict, nothing was written: ${reason}`);
@@ -1096,9 +1093,9 @@ export class GuardedWriteService {
   /** A redo must respect the switches of the changes it brings back (see `redoFeatures`). */
   private async requireRedoSwitches(ring: AuditEntry[], ids: readonly string[]): Promise<void> {
     const check = redoFeatures(ring, ids);
-    if (check.unknown) {
+    if (check.refusal) {
       throw new Error(
-        'This would bring back a change that is no longer in the recent history, so its feature switch cannot be checked; nothing was written'
+        `Its feature switches cannot be checked: ${check.refusal}. Nothing was written.`
       );
     }
     for (const feature of check.features) await this.requireFeatureEnabled(feature);

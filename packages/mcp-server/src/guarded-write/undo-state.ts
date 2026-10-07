@@ -24,14 +24,15 @@ export type UndoState = Map<string, UndoMark>;
 /** The feature of an undo-planner entry (I-109). */
 export const UNDO_FEATURE = 'change-undo';
 
-/** Deepest undo chain `redoFeatures` follows (a real chain is a handful of links). */
+/** Deepest undo chain and most visits `redoFeatures` makes (a real chain is a few links). */
 const MAX_UNDO_LINKS = 50;
+const MAX_UNDO_VISITS = 10_000;
 
 export interface RedoCheck {
   /** The features whose switches must be on. */
   features: string[];
-  /** A change on the way has left the ring, so what comes back is not known: refuse. */
-  unknown: boolean;
+  /** Why what comes back cannot be known (a change on the way left the history): refuse. */
+  refusal: string | null;
 }
 
 /** An original change (a feature's own apply), as opposed to an entry that undid others. */
@@ -56,14 +57,22 @@ export function redoFeatures(ring: readonly AuditEntry[], ids: readonly string[]
   const byId = new Map(ring.map(e => [e.changeId, e]));
   const net = new Map<string, { feature: string; n: number }>();
   const always = new Set<string>();
-  let unknown = false;
+  let refusal: string | null = null;
+  let visits = 0;
   // `sign` +1: the change at `id` is put back (re-applied); -1: it is taken back (undone).
   const walk = (id: string, sign: 1 | -1, via: AuditEntry | null, depth: number): void => {
+    visits += 1;
+    if (visits > MAX_UNDO_VISITS || depth > MAX_UNDO_LINKS) {
+      refusal ??= 'the chain of undos and rewinds behind it is too long to check';
+      return;
+    }
     const entry = byId.get(id);
-    if (!entry || depth > MAX_UNDO_LINKS) {
-      // A legacy undo carries its original's feature: require that switch, to be safe.
+    if (!entry) {
+      // Gone from the history. Taking it back needs no switch; putting it back does: a legacy
+      // undo carries its original's feature, anything else cannot be checked.
+      if (sign === -1) return;
       if (via && via.feature !== UNDO_FEATURE) always.add(via.feature);
-      else unknown = true;
+      else refusal ??= 'it would bring back a change that is no longer in the recent history';
       return;
     }
     if (isOriginal(entry)) {
@@ -77,7 +86,7 @@ export function redoFeatures(ring: readonly AuditEntry[], ids: readonly string[]
   };
   for (const id of ids) walk(id, -1, null, 0);
   for (const { feature, n } of net.values()) if (n > 0) always.add(feature);
-  return { features: [...always], unknown };
+  return { features: [...always], refusal };
 }
 
 /** The key the change list and `computeUndoState` use for a journal action. */

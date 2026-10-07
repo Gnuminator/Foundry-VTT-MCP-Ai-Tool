@@ -12,6 +12,7 @@ import { VaultStore } from '../vault/store.js';
 
 import { GuardedWriteService, type PlanInput, type PlanView } from './service.js';
 import { UndoPlanner, type UndoPlanView } from './undo-planner.js';
+import { redoFeatures } from './undo-state.js';
 
 // The scopes beyond one change: everything since, world since, folding, ordering, `undoes`.
 
@@ -447,6 +448,38 @@ describe('a deleted token with changes inside it (#187 review)', () => {
       },
     ]);
     expect(planInput().notes).toEqual([]);
+  });
+});
+
+describe('a live rewind inside the set (#187 review)', () => {
+  it("does not claim the rewind's other targets as undone, so their switch is checked", async () => {
+    // T and C change Ireena; B (ownership) changes the Wolf; P0 rewinds C and B.
+    foundry.add('Actor.b', 'Actor', { name: 'Wolf', ownership: { u1: 0 } });
+    foundry.edit('Actor.a', num(HP, 8));
+    const wolf = (before: number, after: number): GuardedOpResult => ({
+      index: 0,
+      kind: 'update',
+      uuid: 'Actor.b',
+      documentName: 'Actor',
+      name: 'Wolf',
+      parentUuid: null,
+      before: [num('ownership.u1', before)],
+      after: [num('ownership.u1', after)],
+    });
+    records.push(hp(1, 10, 8, 't'), hp(2, 8, 5, 'c'));
+    ring.push(
+      entry('chg-b', 3, { feature: 'ownership', results: [wolf(0, 3)] }),
+      entry('p0', 4, {
+        feature: 'change-undo',
+        results: [actorUpdate([num(HP, 5)], [num(HP, 8)]), wolf(3, 0)],
+        undoes: { actions: ['c'], changes: ['chg-b'] },
+      })
+    );
+    await plan('act:t', 'everything-since');
+    // Taking P0 back brings B back on the Wolf: B is not undone by this plan.
+    const undoes = planInput().undoes;
+    expect(undoes).toEqual({ actions: ['t', 'c'], changes: ['p0'] });
+    expect(redoFeatures(ring, undoes?.changes ?? []).features).toEqual(['ownership']);
   });
 });
 

@@ -98,6 +98,19 @@ describe('describeRecord', () => {
     expect(describeRecord(rec({ ...combatant, rootName: '' }))[0]).toMatch(/^Combat: /);
   });
 
+  it('skips a field that only went from empty to empty (temp HP null -> 0)', () => {
+    const r = rec({
+      before: [val('system.attributes.hp.temp', null), val('system.attributes.hp.value', 11)],
+      after: [val('system.attributes.hp.temp', 0), val('system.attributes.hp.value', 6)],
+    });
+    expect(describeRecord(r)).toEqual(['Ireena: HP 11 -> 6']);
+    const only = rec({
+      before: [val('system.attributes.hp.temp', null)],
+      after: [val('system.attributes.hp.temp', 0)],
+    });
+    expect(describeRecord(only)).toEqual(['Ireena changed']);
+  });
+
   it('names a plain path when it has no label, and says "now" without a before value', () => {
     expect(
       describeRecord(
@@ -347,6 +360,15 @@ describe('ChangeHistory.list', () => {
   it('does not list the records of an AI change as a human action, and hides a rolled-back one', async () => {
     await writeDay([
       hpChange(11, 5, { actionId: 'ai', changeId: 'chg-1', changeMode: 'apply' }),
+      // dnd5e's own follow-up in the same burst (Bloodied added) belongs to the AI change.
+      rec({
+        actionId: 'ai',
+        op: 'create',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a1.ActiveEffect.e1',
+        parentUuid: 'Actor.a1',
+        name: 'Bloodied',
+      }),
       hpChange(11, 5, { actionId: 'bad', changeId: 'chg-x', changeMode: 'apply' }),
       hpChange(5, 11, { actionId: 'bad-undo', changeId: 'chg-x', changeMode: 'rollback' }),
       hpChange(3, 2, { actionId: 'human' }),

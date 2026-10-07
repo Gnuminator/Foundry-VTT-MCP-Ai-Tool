@@ -166,6 +166,10 @@ function rootLabel(rootUuid: string): string {
   return kind ? documentLabel(kind) : 'Something';
 }
 
+function isEmptyValue(v: PathValue): boolean {
+  return !v.present || v.value === null || v.value === 0 || v.value === '';
+}
+
 function beforeOf(r: ChangeRecord, path: string): PathValue | undefined {
   return r.before?.find(v => v.path === path);
 }
@@ -200,6 +204,8 @@ export function describeRecord(r: ChangeRecord): string[] {
   for (const a of after) {
     const named = labelOf(a.path) ?? a.path;
     const before = beforeOf(r, a.path);
+    // dnd5e fills empty fields on the way (temp HP null -> 0): no news for the reader.
+    if (before && isEmptyValue(before) && isEmptyValue(a)) continue;
     lines.push(
       before
         ? `${prefix}${named} ${formatValue(before)} -> ${formatValue(a)}`
@@ -353,7 +359,9 @@ export class ChangeHistory {
     const entries: Array<{ at: number; item: ChangeListItem }> = [];
     if (source !== 'ai') {
       for (const action of await this.actionsFor(worldId)) {
-        if (action.records.every(r => r.changeId)) continue;
+        // An action with any AI record is the AI change's: the rest are the system's own
+        // follow-ups in the same burst (dnd5e adds or removes Bloodied after an HP change).
+        if (action.changeId) continue;
         if (action.tEnd < from) continue;
         if (!matchesPerson(options, action.userId, action.userName)) continue;
         if (options.thingUuid && !action.records.some(r => touches(r, options.thingUuid!)))

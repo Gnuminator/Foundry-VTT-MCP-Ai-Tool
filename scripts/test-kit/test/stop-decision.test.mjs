@@ -121,6 +121,28 @@ test(
       facts({ RecordedStart: '2026-10-07T18:00:00.0000000+02:00' }),
       // 17 start times a second apart (two reads of one process): still ours
       facts({ RecordedStart: '2026-10-07T16:00:01.0000000Z' }),
+      // 18 a start time was recorded but the process's cannot be read: the command line alone no
+      //    longer vouches for a node that is not on its port
+      facts({ StartTime: null, Owners: [] }),
+      // 19 the same, but on its port: the port vouches for it
+      facts({ StartTime: null }),
+      // 20 a cmd.exe with another command line whose child holds our port: a reused pid, not our wrapper
+      facts({
+        ProcessName: 'cmd',
+        CommandLine: 'C:\\WINDOWS\\system32\\cmd.exe /c "npm run dev"',
+        Owners: [777],
+        RecordedStart: null,
+      }),
+      // 21 a wrapper with our command line whose start time does not match: the pid was reused
+      facts({
+        ProcessName: 'cmd',
+        CommandLine: WRAPPER,
+        Owners: [501],
+        ChildNode: 501,
+        StartTime: '2026-10-07T18:30:00.0000000Z',
+      }),
+      // 22 refuse-keep with a recorded start present: nothing readable, nothing on the port
+      facts({ StartTime: null, CommandLine: null, Owners: [] }),
     ];
     const got = decide(cases).map(d => d.Action);
     assert.deepEqual(got, [
@@ -142,6 +164,11 @@ test(
       'none',
       'stop',
       'stop',
+      'refuse-keep',
+      'stop',
+      'none',
+      'none',
+      'refuse-keep',
     ]);
     const messages = decide(cases).map(d => d.Message);
     assert.match(messages[3], /reused by pwsh, started at another time/);
@@ -152,5 +179,23 @@ test(
     assert.match(messages[12], /is now node, not the service/);
     assert.match(messages[14], /holds port 31514/);
     assert.match(messages[15], /reused by node, started at another time/);
+    assert.match(messages[18], /cannot be checked/);
+    assert.match(messages[20], /is now cmd, not the service/);
+    assert.match(messages[21], /reused by cmd, started at another time/);
+    assert.match(messages[22], /the pid is kept/);
+  }
+);
+
+test(
+  'pids.started.json round trip: a start time comes back as the same UTC instant (ConvertFrom-Json makes it a DateTime)',
+  { skip: !hasPwsh && 'pwsh is missing' },
+  () => {
+    const [utc, offset] = decide([
+      { RoundTrip: '2026-10-07T16:22:28.1569560Z' },
+      { RoundTrip: '2026-10-07T18:22:28.1569560+02:00' },
+    ]);
+    assert.equal(utc.Action, 'roundtrip');
+    assert.equal(utc.Message, '2026-10-07T16:22:28.1569560Z');
+    assert.equal(offset.Message, '2026-10-07T16:22:28.1569560Z');
   }
 );

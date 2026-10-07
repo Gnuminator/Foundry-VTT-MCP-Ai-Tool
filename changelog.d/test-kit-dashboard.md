@@ -31,7 +31,7 @@
   lines, and the undo window's Cancel, Just this, Everything since, Advanced, the rewind questions,
   the destructive tick and Escape) are classified; the sweep turns GM Actions on for the run and
   walks the undo window read-only (Apply and Redo stay with the guarded undo checks). `start.ps1`
-  records each service's start time next to its pid, and `stop.ps1` decides from facts
+  records each service's start time in `pids.started.json`, and `stop.ps1` decides from facts
   (`Resolve-StopAction`, table-tested): it stops our node process by its port or its command line
   (not on its port yet), the `cmd.exe` wrapper with our command line and its node child, reports a
   pid another process holds (another start time or command line) as not running, refuses a

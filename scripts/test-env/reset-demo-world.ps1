@@ -78,6 +78,9 @@ function Stop-TestServer {
   if ($LASTEXITCODE) {
     throw "stop.ps1 refused to stop the test server (exit $LASTEXITCODE); nothing is copied while Foundry may still hold the world open."
   }
+  if (Test-PortOpen $TestEnv.FoundryPort) {
+    throw "Something still listens on port $($TestEnv.FoundryPort) after stop.ps1 (a Foundry start.ps1 did not record, or another program); nothing is copied while it may hold the world open."
+  }
 }
 
 # robocopy /MIR: make $To an exact copy of $From. Exit codes below 8 are success.

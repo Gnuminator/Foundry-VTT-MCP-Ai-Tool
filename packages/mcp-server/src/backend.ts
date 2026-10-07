@@ -89,6 +89,7 @@ import {
 import { SessionNotesService, controlError, handleSessionNotes } from './session-notes/index.js';
 import { UsagePump } from './usage-pump.js';
 import { ObsidianAutoRender, obsidianAutoRenderSettings } from './obsidian/auto-render.js';
+import { EveryoneNotes } from './obsidian/everyone-notes.js';
 import { ObsidianMirrorPump } from './obsidian/mirror-pump.js';
 import { mirrorEnvSettings } from './obsidian/mirror-settings.js';
 import { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
@@ -319,13 +320,18 @@ async function startBackend(): Promise<void> {
     logger,
     onAppended: renderObsidian,
   });
+  // Everyone's daily notes in the GM vault (I-109 PR 6); made below once the change history exists.
+  let everyoneNotes: EveryoneNotes | null = null;
   const guardedWrites = new GuardedWriteService({
     foundryClient,
     worldIds,
     store: vaultStore,
     audit: auditLog,
     logger,
-    onRecorded: renderObsidian,
+    onRecorded: (worldId: string): void => {
+      renderObsidian(worldId);
+      everyoneNotes?.schedule(worldId);
+    },
   });
   const guardedChangeTools = new GuardedChangeTools({ guardedWrites, foundryClient, logger });
   // Everyone's recent changes (I-109): the change-journal pump fills the vault, this index reads it.
@@ -345,6 +351,9 @@ async function startBackend(): Promise<void> {
         }
       : {}),
   });
+  if (obsidianVaultDir && changeJournalConfig.enabled) {
+    everyoneNotes = new EveryoneNotes({ changeHistory, vaultDir: obsidianVaultDir, logger });
+  }
   const undoPlanner = new UndoPlanner({
     changeHistory,
     guardedWrites,
@@ -550,7 +559,10 @@ async function startBackend(): Promise<void> {
         logger,
         intervalMs: changeJournalConfig.intervalMs,
         maxBytes: changeJournalConfig.maxBytes,
-        onAppended: (worldId, records) => changeHistory.addRecords(worldId, records),
+        onAppended: (worldId, records): void => {
+          changeHistory.addRecords(worldId, records);
+          everyoneNotes?.schedule(worldId);
+        },
       });
       changeJournalPump.start();
     } else {
@@ -790,6 +802,7 @@ async function startBackend(): Promise<void> {
     usagePump?.stop();
     mirrorPump?.stop();
     obsidianRender?.stop();
+    everyoneNotes?.stop();
     foundryClient.disconnect();
     releaseLock();
     process.exit(0);
@@ -802,6 +815,7 @@ async function startBackend(): Promise<void> {
     usagePump?.stop();
     mirrorPump?.stop();
     obsidianRender?.stop();
+    everyoneNotes?.stop();
     foundryClient.disconnect();
     releaseLock();
     process.exit(0);

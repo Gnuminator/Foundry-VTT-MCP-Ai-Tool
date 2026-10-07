@@ -69,6 +69,9 @@ export async function resetDashboard(page) {
       if (shown(el)) /** @type {HTMLElement} */ (el).click();
     };
     if (shown(document.querySelector('#modal-backdrop'))) press('#modal-cancel');
+    // The undo window closes on a click on its backdrop (I-109); Recent Changes goes back to the AI tab.
+    press('#undo-backdrop');
+    if (document.querySelector('#changes-tab-everyone[aria-pressed="true"]')) press('#changes-tab-ai');
     press('#layout-tour-stop');
     // A selected combatant stays selected: clear it, so the next click selects instead of unselecting.
     press('#combat-actions .ca-btn.ghost');
@@ -203,7 +206,10 @@ async function walkReach(page, row) {
     if (row.needs !== 'picker-tool' || pickerDone) return;
     pickerDone = true;
     const tool = await openPickerTool(page);
-    if (!tool) throw new Skip('no tool in the runner has a Pick button');
+    if (tool) return;
+    // A required row (pick-open) fails: the runner always has tools with a Pick button.
+    if (row.optional) throw new Skip('no tool in the runner has a Pick button');
+    throw new Error('no tool in the runner has a Pick button');
   };
   for (const name of row.reach ?? []) {
     if (name === 'dash.tools.pick-open') await ensurePicker();
@@ -223,6 +229,8 @@ async function walkReach(page, row) {
       throw new Error(`could not click "${name}" on the way`);
     }
     await page.waitForTimeout(80);
+    // A slow step loads from the bridge (the undo window plans first): wait for what it opens.
+    if (step.slow && step.expect) await waitVisible(page, step.expect, SLOW_MS);
   }
   await ensurePicker();
 }

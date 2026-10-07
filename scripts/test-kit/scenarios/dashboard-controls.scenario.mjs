@@ -59,7 +59,25 @@ export default {
             throw new Error('the dashboard never connected to its bridge');
           });
         await page.waitForTimeout(800);
-        return `${CONTROLS.length} controls in the table`;
+        // GM Actions on for the run (the Everyone tab's Undo opens its window only then), put back
+        // afterwards. The sweep never clicks a write row, so nothing else changes.
+        const tools = await t.http('/api/tools');
+        const gmWasOn = tools.status === 200 && tools.data?.gmActionsEnabled === true;
+        if (!gmWasOn) {
+          t.cleanup(async () => {
+            await t.http('/api/control', {
+              method: 'POST',
+              body: { action: 'set-gm-actions', value: false },
+            });
+          });
+          await page.locator('#btn-gm').click();
+          await page.waitForFunction(
+            () => /:\s*on/i.test(document.querySelector('#btn-gm')?.textContent ?? ''),
+            undefined,
+            { timeout: 10000 }
+          );
+        }
+        return `${CONTROLS.length} controls in the table; GM Actions ${gmWasOn ? 'were on' : 'turned on (put back at the end)'}`;
       });
 
       await sweepGroups({ t, page, surface: 'dashboard', groups: groupedRows('dashboard'), results });

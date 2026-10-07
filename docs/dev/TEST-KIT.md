@@ -248,8 +248,12 @@ at run time, checks three states in a fresh Edge with no cookies (the player pag
 its world line), and restarts it in the normal mode on the way out, also after a failure, so the split never
 stays on. The restart is guarded three ways: the kit refuses before stopping anything when its own checkout has
 no built dashboard (`start.ps1` would leave it down), it skips itself when the dashboard already runs in a
-split it did not make (it cannot put those tokens back), and `stop.ps1` kills a recorded pid only when that pid
-owns the service's port (a stale pid may belong to another process by now; it is refused and forgotten).
+split it did not make (it cannot put those tokens back), and `stop.ps1` kills a recorded pid only when it is
+ours: a node process that owns the service's port, a process whose command line shows the service `start.ps1`
+starts (ours, but not on its port yet), or the `cmd.exe` wrapper whose node child owns the port. A stale pid
+that another process holds by now is reported as not running and forgotten; one that holds our port, or one
+whose command line cannot be read, is refused with exit code 1 (the pid is kept when it may still be ours), and
+`reset-demo-world.ps1` stops on that refusal instead of copying over an open world.
 
 `dashboard-controls` and `player-rendered` also need a real browser and skip themselves against the fake.
 The control sweep walks a classification table (`lib/dashboard-controls.mjs`) with one row for every
@@ -263,8 +267,10 @@ look at (no pixel comparison). A control that depends on data (a boss in the com
 AI on) is skipped with a note when it is not on the screen, never failed; a console error during a row fails
 it even so (the sweep waits a moment after each row so a late error lands on the row that caused it). The
 tool runner's Pick button and the player page's name picker are required rows: every kit world has tools with
-a picker and the kit player user. The sweep puts the page back after
-each control: the theme, the During layout and any open drawer. `player-rendered` places a hidden token with a
+a picker and the kit player user. The sweep turns GM Actions on for the run (put back afterwards) so the
+Everyone tab's Undo opens its window, and walks that window read-only: Just this, Everything since and the
+rewind under Advanced only plan, Apply is never clicked. The sweep puts the page back after
+each control: the theme, the During layout, any open drawer, the undo window and the AI tab of Recent Changes. `player-rendered` places a hidden token with a
 canary name in a combat, opens `/player`, waits for the page to draw the combat and checks that neither the
 HTML nor the text of the page names the canary or the monsters' true names.
 

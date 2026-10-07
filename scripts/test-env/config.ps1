@@ -156,23 +156,67 @@ function Test-PortOpen([int]$Port) {
   }
 }
 
-# The pid of the process listening on 127.0.0.1:<port>, or $null when nothing listens (or it
-# cannot be told). stop.ps1 kills a recorded pid only when it is this listener: a pid from an
-# old pids.json may have been reused by another process (another session's node, Claude
-# Desktop's backend).
-function Get-PortOwner([int]$Port) {
+# The pids of the processes listening on <port> (every address: a service may listen on more than
+# one), empty when nothing listens or it cannot be told. stop.ps1 kills a recorded pid only when it
+# is one of these listeners or its command line shows the service we started: a pid from an old
+# pids.json may have been reused by another process (another session's node, Claude Desktop's
+# backend).
+function Get-PortOwners([int]$Port) {
   try {
     if ($IsWindows) {
-      $conn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop | Select-Object -First 1
-      if ($conn) { return [int]$conn.OwningProcess }
+      $conns = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop)
+      return @($conns | ForEach-Object { [int]$_.OwningProcess } | Sort-Object -Unique)
+    }
+    $out = @(& lsof -t -iTCP:$Port -sTCP:LISTEN 2>$null)
+    return @($out | Where-Object { $_ } | ForEach-Object { [int]$_ } | Sort-Object -Unique)
+  } catch {
+    return @()
+  }
+}
+
+# The command line of a process, or $null when it cannot be read (gone, or no access).
+function Get-ProcessCommandLine([int]$ProcessId) {
+  try {
+    if ($IsWindows) {
+      $p = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction Stop
+      if ($p -and $p.CommandLine) { return [string]$p.CommandLine }
       return $null
     }
-    $out = & lsof -t -iTCP:$Port -sTCP:LISTEN 2>$null | Select-Object -First 1
-    if ($out) { return [int]$out }
+    $raw = Get-Content "/proc/$ProcessId/cmdline" -Raw -ErrorAction Stop
+    if ($raw) { return ($raw -replace "`0", ' ').Trim() }
     return $null
   } catch {
     return $null
   }
+}
+
+# The parent pid of a process, or $null.
+function Get-ParentProcessId([int]$ProcessId) {
+  try {
+    if ($IsWindows) {
+      $p = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction Stop
+      if ($p) { return [int]$p.ParentProcessId }
+      return $null
+    }
+    $out = & ps -o ppid= -p $ProcessId 2>$null
+    if ($out) { return [int]("$out".Trim()) }
+    return $null
+  } catch {
+    return $null
+  }
+}
+
+# Whether a command line is the test service start.ps1 starts under that name (the script and, for
+# Foundry and the bridge, the test port). A process of ours that is not (yet) on its port (Foundry
+# still loading, a start that timed out) is still ours to stop.
+function Test-OurServiceCommandLine([string]$Name, [string]$CommandLine) {
+  if (-not $CommandLine) { return $false }
+  switch ($Name) {
+    'foundry'   { return ($CommandLine -match 'main\.js' -and $CommandLine -match "--port=$($TestEnv.FoundryPort)(\s|$)") }
+    'bridge'    { return ($CommandLine -match 'standalone\.js' -and $CommandLine -match "--port\s+$($TestEnv.ControlPort)(\s|$)") }
+    'dashboard' { return ($CommandLine -match 'cogm-dashboard[\\/]dist[\\/]server\.js') }
+  }
+  return $false
 }
 
 function Wait-PortOpen([int]$Port, [int]$TimeoutSeconds) {

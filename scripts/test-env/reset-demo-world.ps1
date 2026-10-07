@@ -74,6 +74,9 @@ function Stop-TestServer {
     throw "Foundry is running world '$running', not $DemoWorld. Another session may be using the test server; ask first, then rerun with -Force."
   }
   & (Join-Path $PSScriptRoot 'stop.ps1')
+  if ($LASTEXITCODE) {
+    throw "stop.ps1 refused to stop the test server (exit $LASTEXITCODE); nothing is copied while Foundry may still hold the world open."
+  }
 }
 
 # robocopy /MIR: make $To an exact copy of $From. Exit codes below 8 are success.

@@ -89,6 +89,10 @@ const PARTY = [MOMENT_BEFORE, ADV, 'dash.header.party']; // overlay in Before an
 const HANDOUTS = [MOMENT_BEFORE, ADV, 'dash.header.handouts']; // overlay in Before
 const AI = [ADV, 'dash.header.show-ai'];
 const PLAYER_LINKS = [ADV, 'dash.header.player-links'];
+const EVERYONE = [MOMENT_DURING, 'dash.changes.tab-everyone'];
+/** The undo window of the Everyone tab, open on the first change that can still be undone. */
+const UNDO_WINDOW = [...EVERYONE, 'dash.changes.everyone-undo'];
+const UNDO_APPLY = '#undo-actions [data-undo-key="apply"]';
 const PICKER = [...TOOLS];
 const PICKER_OPEN = [...TOOLS, 'dash.tools.pick-open'];
 const LAYOUT_TOUR = [ADV, 'dash.header.layout-tour'];
@@ -226,6 +230,47 @@ export const DASHBOARD_CONTROLS = [
     why: 'opens Obsidian; shown only with a recent change and a known vault',
   },
   { name: 'dash.changes.undo', how: 'write', why: WRITE_FLOW },
+  // The Everyone tab (I-109): the toolbar shows once the bridge serves list-changes; the person
+  // select shows with the Everyone tab. Undo opens the undo window (a plan, nothing changes before
+  // Apply); Redo asks in the confirm window first, like Undo in the AI tab. The sweep puts the AI tab
+  // back before every row (resetDashboard).
+  {
+    name: 'dash.changes.tab-everyone',
+    how: 'open',
+    reach: [MOMENT_DURING],
+    expect: '#changes-person',
+    optional: true,
+    why: 'the Everyone tab shows only when the bridge serves list-changes',
+  },
+  { name: 'dash.changes.tab-ai', how: 'open', reach: EVERYONE, gone: '#changes-person' },
+  {
+    name: 'dash.changes.person',
+    how: 'toggle',
+    reach: EVERYONE,
+    why: 'has more than one option only with a change by a person in the last 7 days',
+  },
+  {
+    name: 'dash.changes.everyone-show-lines',
+    how: 'toggle',
+    reach: EVERYONE,
+    expect: '#changes-body .change-diff',
+    optional: true,
+    why: 'needs a change in the last 7 days with diff lines',
+  },
+  {
+    name: 'dash.changes.everyone-undo',
+    how: 'open',
+    reach: EVERYONE,
+    expect: '#undo-backdrop',
+    optional: true,
+    slow: true,
+    why: 'needs a change in the last 7 days that can still be undone (and GM Actions on)',
+  },
+  {
+    name: 'dash.changes.everyone-redo',
+    how: 'write',
+    why: 'puts an undone change back after the confirm window; the guarded undo checks cover it',
+  },
 
   // --- the combat strip (only with a live combat; the buttons need GM Actions and Combat buttons on) ---
   {
@@ -617,6 +662,74 @@ export const DASHBOARD_CONTROLS = [
     why: 'the destructive tick of the confirm window; the write checks cover it',
   },
 
+  // --- the undo window (I-109, from Undo on the Everyone tab) ---
+  // Its stages: choose (Just this / Everything since, only when later changes touched the same
+  // thing), confirm (Cancel / Undo = apply), and under Advanced the table rewind: rewind-1
+  // (Continue) and rewind-2 (the destructive tick, then apply). Every step but Apply only plans
+  // (a read) or moves on; Apply changes the game and stays with the guarded undo checks.
+  {
+    name: 'dash.undo.cancel',
+    how: 'open',
+    reach: UNDO_WINDOW,
+    gone: '#undo-backdrop',
+    optional: true,
+    why: 'needs the undo window',
+  },
+  {
+    name: 'dash.undo.just-this',
+    how: 'open',
+    reach: UNDO_WINDOW,
+    expect: UNDO_APPLY,
+    optional: true,
+    why: 'shown only when later changes touched the same thing',
+  },
+  {
+    name: 'dash.undo.everything-since',
+    how: 'open',
+    reach: UNDO_WINDOW,
+    expect: UNDO_APPLY,
+    optional: true,
+    slow: true,
+    why: 'shown only when later changes touched the same thing',
+  },
+  {
+    name: 'dash.undo.advanced',
+    how: 'toggle',
+    reach: UNDO_WINDOW,
+    expect: '.undo-advanced [data-undo-key="rewind"]',
+    optional: true,
+    why: 'the Advanced fold shows only when the change is the latest on its thing or asks to choose',
+  },
+  {
+    name: 'dash.undo.rewind',
+    how: 'open',
+    reach: [...UNDO_WINDOW, 'dash.undo.advanced'],
+    expect: '#undo-actions [data-undo-key="next"]',
+    optional: true,
+    slow: true,
+    why: 'under Advanced in the undo window; it only plans the rewind',
+  },
+  {
+    name: 'dash.undo.next',
+    how: 'open',
+    reach: [...UNDO_WINDOW, 'dash.undo.advanced', 'dash.undo.rewind'],
+    expect: '#undo-destructive-check',
+    optional: true,
+    why: 'the second rewind question; its Apply stays disabled until the tick',
+  },
+  {
+    name: 'dash.undo.destructive-check',
+    how: 'toggle',
+    reach: [...UNDO_WINDOW, 'dash.undo.advanced', 'dash.undo.rewind', 'dash.undo.next'],
+    optional: true,
+    why: 'the destructive tick of the rewind; Apply is never clicked',
+  },
+  {
+    name: 'dash.undo.apply',
+    how: 'write',
+    why: 'applies the undo plan: it changes the game; the guarded undo checks cover it',
+  },
+
   // --- Escape ---
   {
     name: 'dash.shortcut.escape-handouts',
@@ -629,6 +742,15 @@ export const DASHBOARD_CONTROLS = [
     name: 'dash.shortcut.escape-modal',
     how: 'skip',
     why: 'closes the confirm window, which opens only from a write flow',
+  },
+  {
+    name: 'dash.shortcut.escape-undo',
+    how: 'shortcut',
+    reach: UNDO_WINDOW,
+    key: 'Escape',
+    gone: '#undo-backdrop',
+    optional: true,
+    why: 'needs the undo window',
   },
   {
     name: 'dash.shortcut.escape-party',

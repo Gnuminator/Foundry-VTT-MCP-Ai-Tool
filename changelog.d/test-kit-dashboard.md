@@ -26,3 +26,13 @@
   drawn and checks that the no-token page logs nothing but 401 and failed-resource errors; the control
   sweep fails a row on a console error even when the row was skipped, and the Pick button and the
   player name picker are required rows.
+- **The control sweep covers the Everyone tab and the undo window (slice 4 delta review):** the
+  I-109 controls (the AI and Everyone tabs, the person filter, the Everyone rows' Undo, Redo and
+  lines, and the undo window's Cancel, Just this, Everything since, Advanced, the rewind questions,
+  the destructive tick and Escape) are classified; the sweep turns GM Actions on for the run and
+  walks the undo window read-only (Apply and Redo stay with the guarded undo checks). `stop.ps1`
+  also stops our own process when its command line shows the service but it is not on its port
+  yet (and the `cmd.exe` wrapper whose node child owns the port), reports a pid another process
+  holds as not running instead of refusing, compares against every listener on the port, keeps the
+  pid when it cannot tell, and `reset-demo-world.ps1` stops on a refusal instead of copying over an
+  open world.

@@ -246,16 +246,20 @@ describe('bridge-hello (what the bridge supports)', () => {
       data: { ...base, capabilities: [MODULE_CAPABILITY_AI_CHANGES_SIGNAL] },
     };
     expect(ModuleHelloFrameSchema.parse(withCaps)).toEqual(withCaps);
+    // A bad list costs only the capabilities: the hello still parses, as if none were sent.
     for (const capabilities of [
       'x',
       [1],
       Array.from({ length: 51 }, () => 'a'),
       ['a'.repeat(101)],
     ]) {
-      expect(
-        ModuleHelloFrameSchema.safeParse({ type: 'module-hello', data: { ...base, capabilities } })
-          .success
-      ).toBe(false);
+      const parsed = ModuleHelloFrameSchema.safeParse({
+        type: 'module-hello',
+        data: { ...base, capabilities },
+      });
+      expect(parsed.success).toBe(true);
+      expect(parsed.success && parsed.data.data.capabilities).toBeUndefined();
+      expect(parsed.success && parsed.data.data.worldId).toBe('w');
     }
   });
 

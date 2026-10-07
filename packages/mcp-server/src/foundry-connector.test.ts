@@ -39,7 +39,8 @@ class FakeSocket extends EventEmitter {
     userName: string,
     isBridgeUser: boolean,
     moduleVersion = '0.19.0',
-    capabilities?: string[]
+    capabilities?: string[],
+    worldId = 'w'
   ): void {
     this.say({
       type: 'module-hello',
@@ -48,7 +49,7 @@ class FakeSocket extends EventEmitter {
         userName,
         isBridgeUser,
         moduleVersion,
-        worldId: 'w',
+        worldId,
         ...(capabilities ? { capabilities } : {}),
       },
     });
@@ -310,23 +311,31 @@ describe('module capabilities (I-108 follow-ups)', () => {
     expect(connector.activeModuleHasCapability(MODULE_CAPABILITY_AI_CHANGES_SIGNAL)).toBe(false);
   });
 
-  it('still accepts a hello without capabilities and ignores a malformed capabilities list', () => {
+  it('still accepts a hello without capabilities', () => {
     const a = connect();
     a.hello('Claude', true);
     expect(connector.getConnectionInfo().userName).toBe('Claude');
-    const b = connect();
-    b.say({
-      type: 'module-hello',
-      data: {
-        userId: 'x',
-        userName: 'Bad',
-        isBridgeUser: true,
-        moduleVersion: '1',
-        worldId: 'w',
-        capabilities: 'nope',
-      },
-    });
-    expect(connector.getConnectionInfo().userName).not.toBe('Bad');
+  });
+
+  it('a malformed capabilities list costs only the capabilities, not the hello', () => {
+    const tooMany = Array.from({ length: 51 }, (_, i) => `c${i}`);
+    for (const capabilities of ['nope', [1], tooMany, ['a'.repeat(101)]]) {
+      const b = connect();
+      b.say({
+        type: 'module-hello',
+        data: {
+          userId: 'x',
+          userName: 'Bad',
+          isBridgeUser: true,
+          moduleVersion: '1',
+          worldId: 'w',
+          capabilities,
+        },
+      });
+      expect(connector.getConnectionInfo().userName).toBe('Bad');
+      expect(connector.activeModuleHasCapability(MODULE_CAPABILITY_AI_CHANGES_SIGNAL)).toBe(false);
+      b.drop();
+    }
   });
 });
 
@@ -404,6 +413,24 @@ describe('module requests (I-108)', () => {
       { type: 'module-reply', id: 'req-1', data: { success: true, data: { changes: [] } } },
     ]);
     expect(newer.sent).toEqual([]);
+  });
+
+  it('refuses a non-active bridge-user socket from another world, serves the same world', async () => {
+    const handler = vi.fn(async () => ({ changes: [] }));
+    connector.setModuleRequestHandler(handler);
+    const elsewhere = connect();
+    elsewhere.hello('Danni', true, '0.19.0', undefined, 'other-world');
+    const sameWorld = connect();
+    sameWorld.hello('Danni', true, '0.19.0', undefined, 'w');
+    const active = connect();
+    active.hello('Danni', true, '0.19.0', undefined, 'w');
+    elsewhere.say(requestFrame('list-recent-changes', {}, 'r1'));
+    sameWorld.say(requestFrame('list-recent-changes', {}, 'r2'));
+    await flush();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(elsewhere.sent[0].data).toEqual({ success: false, error: MODULE_NOT_ACTIVE_LINK_ERROR });
+    expect(sameWorld.sent[0].data).toEqual({ success: true, data: { changes: [] } });
+    expect(active.sent).toEqual([]);
   });
 
   it('still refuses a non-active socket with no hello (an older module)', async () => {

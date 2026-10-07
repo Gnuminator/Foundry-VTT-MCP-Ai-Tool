@@ -300,7 +300,9 @@ export class SocketBridge {
   /**
    * Whether the linked bridge answers `tool`. A bridge that lists `module-request:<tool>`
    * entries is taken at its word; one with only the plain `module-request` capability (the
-   * first I-108 build) answers just the legacy tools (the AI changes window).
+   * first I-108 build) answers just the legacy tools (the AI changes window). Builds from main
+   * between #182 and #184 (06b2348 and 010b3ab, never deployed) send only the plain
+   * `module-request` and so land here too: "Update the AI Tool bridge" is correct advice for them.
    */
   private bridgeSupportsTool(tool: string): boolean {
     const caps = this.bridgeCapabilities;

@@ -172,6 +172,21 @@ async function waitGone(page, selector, timeout) {
 }
 
 /**
+ * True once the control is enabled. A tab that loads on open disables its own
+ * button until the load ends (Prep refresh, Preflight run), so wait for it.
+ * @param {import('playwright-core').Locator} control
+ * @param {number} timeout
+ */
+async function waitEnabled(control, timeout) {
+  const end = Date.now() + timeout;
+  for (;;) {
+    if (await control.isEnabled()) return true;
+    if (Date.now() >= end) return false;
+    await new Promise(resolve => setTimeout(resolve, SETTLE_MS));
+  }
+}
+
+/**
  * Click the reach chain of a row in order.
  * @param {import('playwright-core').Page} page
  * @param {ControlRow} row
@@ -344,7 +359,7 @@ export async function runRow(ctx, row) {
         if (row.optional) throw new Skip(`not on the screen: ${row.why ?? 'depends on the data'}`);
         throw new Error(`control ${selectorOf(row)} is not on the screen`);
       }
-      if (!(await control.isEnabled())) {
+      if (!(await waitEnabled(control, row.optional ? OPTIONAL_MS : wait))) {
         if (row.optional) throw new Skip(`disabled: ${row.why ?? 'depends on the data'}`);
         throw new Error('the control is disabled');
       }

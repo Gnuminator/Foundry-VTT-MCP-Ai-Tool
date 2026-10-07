@@ -12,9 +12,11 @@ import {
   MAX_ACTION_LINES,
   buildActions,
   describeRecord,
+  undoBlocker,
 } from './change-history.js';
 import { localDateKey } from './event-pump.js';
 import type { RecentChange } from './guarded-write/service.js';
+import type { UndoState } from './guarded-write/undo-state.js';
 import { VaultStore } from './vault/store.js';
 
 const NOW = new Date(2026, 9, 7, 12, 0, 0).getTime();
@@ -263,6 +265,7 @@ describe('ChangeHistory.list', () => {
   let store: VaultStore;
   let logger: any;
   let audit: RecentChange[];
+  let undoState: UndoState;
   let pullNow: ReturnType<typeof vi.fn>;
 
   async function writeDay(records: ChangeRecord[]): Promise<void> {
@@ -281,7 +284,10 @@ describe('ChangeHistory.list', () => {
     return new ChangeHistory({
       store,
       worldIds: { current: (): Promise<string> => Promise.resolve('w1') },
-      guardedWrites: { listRecentChanges: (): Promise<RecentChange[]> => Promise.resolve(audit) },
+      guardedWrites: {
+        listRecentChanges: (): Promise<RecentChange[]> => Promise.resolve(audit),
+        undoState: (): Promise<UndoState> => Promise.resolve(undoState),
+      },
       logger,
       ...(pull ? { pullNow: pull } : {}),
       now: () => NOW,
@@ -295,6 +301,7 @@ describe('ChangeHistory.list', () => {
     logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
     logger.child = (): unknown => logger;
     audit = [];
+    undoState = new Map();
     pullNow = vi.fn(() => Promise.resolve());
   });
 
@@ -319,6 +326,8 @@ describe('ChangeHistory.list', () => {
       isGM: false,
       summary: 'Ireena: HP 5 -> 3',
       records: 1,
+      canUndo: true,
+      undone: false,
     });
     expect(changes[0]?.at).toBe(new Date(NOW - MIN).toISOString());
   });
@@ -462,5 +471,71 @@ describe('ChangeHistory.list', () => {
     await loading;
     const ids = (await history.list()).changes.map(c => c.id);
     expect(ids).toEqual(['act:late', 'act:early']);
+  });
+});
+
+describe('undoBlocker', () => {
+  const actionOf = (...records: ChangeRecord[]): ReturnType<typeof buildActions>[number] =>
+    buildActions(records)[0];
+
+  it('lets an action with a recorded before value, a create or a delete with data through', () => {
+    expect(undoBlocker(actionOf(hpChange(10, 5)))).toBeNull();
+    expect(undoBlocker(actionOf(rec({ op: 'create' })))).toBeNull();
+    expect(undoBlocker(actionOf(rec({ op: 'delete', data: { _id: 'a1' } })))).toBeNull();
+  });
+
+  it('blocks an oversize record, a delete without data and an update with nothing before', () => {
+    const mixed = actionOf(
+      hpChange(10, 5, { actionId: 'x' }),
+      rec({ actionId: 'x', oversize: true })
+    );
+    expect(undoBlocker(mixed)).toMatch(/too large/);
+    expect(undoBlocker(actionOf(rec({ op: 'delete' })))).toMatch(/not recorded/);
+    const unknown = actionOf(rec({ unknownBefore: ['system.attributes.hp.value'] }));
+    expect(undoBlocker(unknown)).toMatch(/not recorded/);
+  });
+
+  it('says the AI made an action that holds only its records', () => {
+    expect(undoBlocker(actionOf(hpChange(1, 2, { changeId: 'chg-1' })))).toMatch(/AI/);
+  });
+});
+
+describe('ChangeHistory.list undo state', () => {
+  it('marks undone actions, and says an action with no usable record cannot be undone', async () => {
+    const dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'change-history-'));
+    const store = new VaultStore({ dataDir });
+    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+    logger.child = (): unknown => logger;
+    try {
+      await store.appendLines('w1', 'gm', changeJournalFileName(localDateKey(NOW - MIN)), [
+        hpChange(10, 5, { actionId: 'a', t: NOW - 3 * MIN }),
+        rec({ actionId: 'b', t: NOW - 2 * MIN, oversize: true }),
+        hpChange(5, 3, { actionId: 'c', t: NOW - MIN }),
+      ]);
+      const undoneAt = new Date(NOW).toISOString();
+      const history = new ChangeHistory({
+        store,
+        worldIds: { current: (): Promise<string> => Promise.resolve('w1') },
+        guardedWrites: {
+          listRecentChanges: (): Promise<RecentChange[]> => Promise.resolve([]),
+          undoState: (): Promise<UndoState> =>
+            Promise.resolve(new Map([['act:c', { undoneBy: 'chg-9', undoneAt }]])),
+        },
+        logger,
+        now: (): number => NOW,
+      });
+      const { changes } = await history.list();
+      expect(changes.map(c => [c.id, (c as { canUndo: boolean }).canUndo])).toEqual([
+        ['act:c', false],
+        ['act:b', false],
+        ['act:a', true],
+      ]);
+      expect(changes[0]).toMatchObject({ undone: true, undoneBy: 'chg-9' });
+      expect(changes[1]).toMatchObject({ undone: false });
+      expect((await history.humanActions()).map(a => a.actionId)).toEqual(['a', 'b', 'c']);
+    } finally {
+      await store.flush();
+      await fsp.rm(dataDir, { recursive: true, force: true });
+    }
   });
 });

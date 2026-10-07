@@ -52,6 +52,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'apply-planned-change',
       'list-recent-changes',
       'list-changes',
+      'plan-undo-changes',
       'undo-change',
       'open-in-foundry',
       'check-secret-terms',

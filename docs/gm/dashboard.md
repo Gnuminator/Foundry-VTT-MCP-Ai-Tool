@@ -308,7 +308,7 @@ Every guarded change that was applied, newest first, up to 20. Each row shows:
 
 **Undo** asks for the second confirmation and needs GM Actions on. It puts back the values from
 before the change. It refuses, and writes nothing, if the same thing was changed again since.
-Undo works even when the feature's switch is off. Click **↻** to reload the list.
+Undo works even when the feature's switch is off; Redo needs it on. Click **↻** to reload the list.
 
 Only guarded changes are listed here: damage, healing, conditions, resources and token moves,
 edits and deletes are, while changes from other tools (rolls, new actors) are not and cannot be

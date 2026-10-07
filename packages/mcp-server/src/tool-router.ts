@@ -136,6 +136,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'apply-planned-change': args => deps.guardedChangeTools.handleApplyPlannedChange(args),
     'list-recent-changes': args => deps.guardedChangeTools.handleListRecentChanges(args),
     'list-changes': args => deps.changeHistoryTools.handleListChanges(args),
+    'plan-undo-changes': args => deps.changeHistoryTools.handlePlanUndoChanges(args),
     'undo-change': args => deps.guardedChangeTools.handleUndoChange(args),
     'open-in-foundry': args => deps.guardedChangeTools.handleOpenInFoundry(args),
     'list-scenes': args => deps.sceneTools.listScenes(args),

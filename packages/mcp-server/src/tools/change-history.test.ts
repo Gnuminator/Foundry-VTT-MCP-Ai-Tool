@@ -2,20 +2,34 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ChangeHistoryTools } from './change-history.js';
 
-function makeTools(): { tools: ChangeHistoryTools; list: ReturnType<typeof vi.fn> } {
+const EM_DASH = String.fromCharCode(0x2014);
+
+function makeTools(): {
+  tools: ChangeHistoryTools;
+  list: ReturnType<typeof vi.fn>;
+  plan: ReturnType<typeof vi.fn>;
+} {
   const logger: any = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   logger.child = (): unknown => logger;
   const list = vi.fn(() => Promise.resolve({ changes: [] }));
-  return { tools: new ChangeHistoryTools({ changeHistory: { list }, logger }), list };
+  const plan = vi.fn(() => Promise.resolve({ planId: 'plan-1' }));
+  return {
+    tools: new ChangeHistoryTools({
+      changeHistory: { list },
+      undoPlanner: { plan } as any,
+      logger,
+    }),
+    list,
+    plan,
+  };
 }
 
 describe('list-changes', () => {
-  it('is one read-only tool that does not promise undo of human changes', () => {
-    const [tool, ...rest] = makeTools().tools.getToolDefinitions();
-    expect(rest).toEqual([]);
+  it('is read-only and points at plan-undo-changes for undoing a change', () => {
+    const [tool] = makeTools().tools.getToolDefinitions();
     expect(tool?.name).toBe('list-changes');
-    expect(tool?.description).toContain('not available yet');
-    expect(tool?.description).not.toContain(String.fromCharCode(0x2014));
+    expect(tool?.description).toContain('plan-undo-changes');
+    expect(tool?.description).not.toContain(EM_DASH);
   });
 
   it('defaults to 30 changes from everyone', async () => {
@@ -48,5 +62,38 @@ describe('list-changes', () => {
     await expect(tools.handleListChanges({ limit: 201 })).rejects.toThrow();
     await expect(tools.handleListChanges({ source: 'robots' })).rejects.toThrow();
     await expect(tools.handleListChanges({ since: 'yesterday-ish' })).rejects.toThrow();
+  });
+});
+
+describe('plan-undo-changes', () => {
+  it('needs an id and offers the three scopes', () => {
+    const tool = makeTools()
+      .tools.getToolDefinitions()
+      .find(t => t.name === 'plan-undo-changes');
+    expect(tool?.inputSchema.required).toEqual(['id']);
+    expect((tool?.inputSchema.properties.scope as { enum: string[] }).enum).toEqual([
+      'just-this',
+      'everything-since',
+      'world-since',
+    ]);
+    expect(tool?.description).not.toContain(EM_DASH);
+  });
+
+  it('plans just-this by default and passes rewindTable on', async () => {
+    const { tools, plan } = makeTools();
+    await tools.handlePlanUndoChanges({ id: ' act:a1 ' });
+    expect(plan).toHaveBeenCalledWith({ id: 'act:a1', scope: 'just-this' });
+    await tools.handlePlanUndoChanges({ id: 'chg-1', scope: 'world-since', rewindTable: true });
+    expect(plan).toHaveBeenLastCalledWith({
+      id: 'chg-1',
+      scope: 'world-since',
+      rewindTable: true,
+    });
+  });
+
+  it('rejects a missing id and an unknown scope', async () => {
+    const { tools } = makeTools();
+    await expect(tools.handlePlanUndoChanges({})).rejects.toThrow();
+    await expect(tools.handlePlanUndoChanges({ id: 'x', scope: 'galaxy' })).rejects.toThrow();
   });
 });

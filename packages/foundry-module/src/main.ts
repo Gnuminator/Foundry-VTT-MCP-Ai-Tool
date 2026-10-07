@@ -128,6 +128,12 @@ class FoundryMCPBridge {
         hint: 'Lets the dashboard and the AI change which players own or can see an actor.',
         defaultEnabled: true,
       });
+      registerGuardedFeature({
+        id: 'change-undo',
+        name: 'AI Tool: Undo for everything',
+        hint: "Lets the AI Tool undo and redo anyone's changes (players', yours and the AI's) from the Changes list: one change, or everything since on the same thing. Each undo is confirmed first and logged, and can be undone again.",
+        defaultEnabled: true,
+      });
       Hooks.on('clientSettingChanged', (key: string) => {
         void onTarokkaSettingChanged(key, sendTarokkaOffer).catch(error => {
           console.warn(`[${MODULE_ID}] Tarokka offer failed:`, error);

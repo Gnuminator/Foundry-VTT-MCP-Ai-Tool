@@ -188,6 +188,20 @@ describe('AuditLog', () => {
     expect(lines[1]).not.toHaveProperty('requestedBy');
   });
 
+  it('keeps undoes in the ring and on the history line, and ring() lists oldest first', async () => {
+    const undoes = { actions: ['x1'], changes: ['c0'] };
+    await audit.append('w1', entry('c1', { undoes }));
+    await audit.append('w1', entry('c2'));
+    expect((await audit.get('w1', 'c1'))?.undoes).toEqual(undoes);
+    const lines = (await store.readLines('w1', 'gm', AUDIT_HISTORY_FILE)) as Array<
+      Record<string, unknown>
+    >;
+    expect(lines[0]).toMatchObject({ changeId: 'c1', undoes });
+    expect(lines[1]).not.toHaveProperty('undoes');
+    expect((await audit.ring('w1')).map(e => e.changeId)).toEqual(['c1', 'c2']);
+    expect(await audit.ring('nobody')).toEqual([]);
+  });
+
   // 505 real atomic writes: about 7s on a Windows disk with Defender, past the 5s default.
   it('keeps every history line even past the ring size (append-only, never trimmed)', async () => {
     for (let i = 0; i < AUDIT_RING_SIZE + 5; i++) {

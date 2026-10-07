@@ -45,11 +45,12 @@ import {
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
 import type { AuditEntry, AuditLog, VaultOpRecord } from '../vault/audit.js';
-import { AUDIT_FILE, AUDIT_HISTORY_FILE } from '../vault/audit.js';
+import { AUDIT_FILE, AUDIT_HISTORY_FILE, AUDIT_RING_SIZE } from '../vault/audit.js';
 import { assertFileName } from '../vault/paths.js';
 import type { VaultEnvelope, VaultStore } from '../vault/store.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
 
+import { computeUndoState, redoFeatures, UNDO_FEATURE, type UndoState } from './undo-state.js';
 import {
   formatValue,
   parseDataPath,
@@ -123,6 +124,16 @@ export interface PlanInput {
    * player who can see it. Undo takes back the change, never the popup.
    */
   showToPlayers?: { uuid: string; users: string[] };
+  /**
+   * The undo planner (I-109): the journal actions and audit changes this plan undoes. Carried onto
+   * the audit entry the apply records, so the history can tell what is undone.
+   */
+  undoes?: { actions?: string[]; changes?: string[] };
+  /**
+   * Extra plain lines for the diff (kind `note`), for things the ops do not show: what an undo kept
+   * on purpose, what it could not restore. They are part of the diff text the audit entry keeps.
+   */
+  notes?: string[];
 }
 
 /** Where a change is written. */
@@ -163,6 +174,7 @@ interface StoredPlan extends PlanView {
   vaultExpected: PathValue[];
   rulesVersion?: RulesVersion;
   showToPlayers?: { uuid: string; users: string[] };
+  undoes?: { actions?: string[]; changes?: string[] };
   createdMs: number;
 }
 
@@ -556,6 +568,17 @@ export class GuardedWriteService {
       });
     }
 
+    for (const note of input.notes ?? []) {
+      if (typeof note !== 'string' || !note.trim()) continue;
+      diff.push({
+        op: ops.length + vaultOps.length,
+        kind: 'note',
+        target: '',
+        label: '',
+        text: note.trim(),
+      });
+    }
+
     // Removing a status effect (an ActiveEffect, e.g. Prone) is everyday play, not destructive:
     // it needs one confirm (F5, D-082). Any other delete raises the plan to destructive.
     const deletes =
@@ -582,6 +605,7 @@ export class GuardedWriteService {
       createdMs,
       ...(input.rulesVersion ? { rulesVersion: input.rulesVersion } : {}),
       ...(showToPlayers ? { showToPlayers } : {}),
+      ...(input.undoes ? { undoes: input.undoes } : {}),
     };
 
     this.prune();
@@ -656,10 +680,12 @@ export class GuardedWriteService {
       const worldId = await this.worldIds.current();
       const entry = await this.audit.get(worldId, changeId);
       if (!entry) throw new Error(`No recorded change ${changeId} in world "${worldId}"`);
-      if (entry.mode !== 'apply')
-        throw new Error('An undo cannot be undone; plan the change again');
-      if (entry.undoneBy)
-        throw new Error(`Change ${changeId} was already undone (${entry.undoneBy})`);
+      // An undo entry can be undone too: that is the redo (its inverse puts the change back).
+      const ring = await this.audit.ring(worldId);
+      const undone = computeUndoState(ring).get(changeId);
+      if (undone) throw new Error(`Change ${changeId} was already undone (${undone.undoneBy})`);
+      // A redo puts the original change back: its feature's switch must be on.
+      await this.requireRedoSwitches(ring, [changeId]);
       const guard = this.undoGuards.get(entry.feature);
       const reason = guard ? await guard(worldId, entry) : null;
       if (reason) throw new Error(`Conflict, nothing was written: ${reason}`);
@@ -668,15 +694,24 @@ export class GuardedWriteService {
     });
   }
 
+  /** What is undone in the current world (see `computeUndoState`). */
+  async undoState(): Promise<UndoState> {
+    return computeUndoState(await this.audit.ring(await this.worldIds.current()));
+  }
+
   async listRecentChanges(limit = 20): Promise<RecentChange[]> {
     const worldId = await this.worldIds.current();
-    const entries = await this.audit.list(worldId, Math.min(Math.max(limit, 1), 500));
-    return entries.map(e => ({
-      ...this.appliedView(e),
-      ...(e.undoneBy ? { undoneBy: e.undoneBy } : {}),
-      ...(e.undoneAt ? { undoneAt: e.undoneAt } : {}),
-      canUndo: e.mode === 'apply' && !e.undoneBy,
-    }));
+    const ring = await this.audit.ring(worldId);
+    const state = computeUndoState(ring);
+    const shown = ring.slice(-Math.min(Math.max(limit, 1), AUDIT_RING_SIZE)).reverse();
+    return shown.map(e => {
+      const undone = state.get(e.changeId);
+      return {
+        ...this.appliedView(e),
+        ...(undone ? { undoneBy: undone.undoneBy, undoneAt: undone.undoneAt } : {}),
+        canUndo: !undone && ((e.results?.length ?? 0) > 0 || (e.vaultOps?.length ?? 0) > 0),
+      };
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -693,6 +728,10 @@ export class GuardedWriteService {
       before: plan.vaultExpected[i],
       after: vaultTarget(op),
     }));
+    // A planned undo that takes back an undo redoes the original change: its switch must be on.
+    if (plan.feature === UNDO_FEATURE && (plan.undoes?.changes?.length ?? 0) > 0) {
+      await this.requireRedoSwitches(await this.audit.ring(worldId), plan.undoes?.changes ?? []);
+    }
     // Vault part: feature switch + conflict check before anything is written.
     let vault: PreparedVaultWrite | null = null;
     if (records.length > 0) {
@@ -732,6 +771,7 @@ export class GuardedWriteService {
       ...(foundry ? { results: foundry.results } : {}),
       ...(records.length > 0 ? { vaultOps: records } : {}),
       ...(plan.rulesVersion ? { rulesVersion: plan.rulesVersion } : {}),
+      ...(plan.undoes ? { undoes: plan.undoes } : {}),
     };
     await this.record(worldId, entry, () => this.audit.append(worldId, entry));
     await this.notifyRecorded(worldId, entry.changeId);
@@ -1048,6 +1088,17 @@ export class GuardedWriteService {
     } catch {
       return false;
     }
+  }
+
+  /** A redo must respect the switches of the changes it brings back (see `redoFeatures`). */
+  private async requireRedoSwitches(ring: AuditEntry[], ids: readonly string[]): Promise<void> {
+    const check = redoFeatures(ring, ids);
+    if (check.refusal) {
+      throw new Error(
+        `Its feature switches cannot be checked: ${check.refusal}. Nothing was written.`
+      );
+    }
+    for (const feature of check.features) await this.requireFeatureEnabled(feature);
   }
 
   private async requireFeatureEnabled(feature: string, undo = false): Promise<void> {

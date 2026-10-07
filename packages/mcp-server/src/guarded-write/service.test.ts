@@ -465,15 +465,85 @@ describe('undo (Foundry ops)', () => {
     ]);
 
     const [undoRow, original] = await service.listRecentChanges();
-    expect(undoRow).toMatchObject({ changeId: undone.changeId, canUndo: false });
+    // An undo can itself be undone (the redo), so its row stays undoable.
+    expect(undoRow).toMatchObject({ changeId: undone.changeId, canUndo: true });
     expect(original).toMatchObject({ undoneBy: undone.changeId, canUndo: false });
     await expect(service.undo(applied.changeId, { confirm: true })).rejects.toThrow(
       /already undone/
     );
-    await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
-      /cannot be undone/
-    );
     await expect(service.undo('chg-nope', { confirm: true })).rejects.toThrow(/No recorded change/);
+  });
+
+  it('redoes a change by undoing its undo, and undoes it again', async () => {
+    const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    const undone = await service.undo(applied.changeId, { confirm: true });
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+
+    const redone = await service.undo(undone.changeId, { confirm: true });
+    expect(redone).toMatchObject({ mode: 'undo', undoOf: undone.changeId });
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+    await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
+      /already undone/
+    );
+
+    // The original is live again, the first undo is the undone one.
+    const rows = await service.listRecentChanges();
+    expect(rows.find(r => r.changeId === applied.changeId)).toMatchObject({ canUndo: true });
+    expect(rows.find(r => r.changeId === applied.changeId)?.undoneBy).toBeUndefined();
+    expect(rows.find(r => r.changeId === undone.changeId)).toMatchObject({
+      canUndo: false,
+      undoneBy: redone.changeId,
+    });
+
+    const again = await service.undo(applied.changeId, { confirm: true });
+    expect(again.undoOf).toBe(applied.changeId);
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect((await service.undoState()).get(applied.changeId)?.undoneBy).toBe(again.changeId);
+  });
+
+  it("refuses a redo while the original feature's switch is off (undo-change and a planned undo)", async () => {
+    const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    foundry.features[0].enabled = false;
+    // The undo itself works with the switch off.
+    const undone = await service.undo(applied.changeId, { confirm: true });
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+
+    await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
+      /"test-feature" feature is switched off/
+    );
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    const redoPlan = await plan([HP_UPDATE], {
+      feature: 'change-undo',
+      undoes: { changes: [undone.changeId] },
+    });
+    await expect(service.applyPlan(redoPlan.planId, { confirm: true })).rejects.toThrow(
+      /"test-feature" feature is switched off/
+    );
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+
+    foundry.features[0].enabled = true;
+    await service.undo(undone.changeId, { confirm: true });
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+  });
+
+  it('carries the undoes of a plan and notes onto the audit entry and the diff', async () => {
+    const p = await plan([HP_UPDATE], {
+      notes: ['Kept, changed later: Ireena: HP stays 3'],
+      undoes: { actions: ['x1'], changes: ['chg-old'] },
+    });
+    expect(p.diff.at(-1)).toMatchObject({
+      kind: 'note',
+      text: 'Kept, changed later: Ireena: HP stays 3',
+    });
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    const entry = await audit.get('curse-of-strahd', applied.changeId);
+    expect(entry?.undoes).toEqual({ actions: ['x1'], changes: ['chg-old'] });
+    expect(entry?.diff.at(-1)).toBe('Kept, changed later: Ireena: HP stays 3');
+    const state = await service.undoState();
+    expect(state.get('act:x1')?.undoneBy).toBe(applied.changeId);
+    // A plain apply has no undoes.
+    const plain = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    expect((await audit.get('curse-of-strahd', plain.changeId))?.undoes).toBeUndefined();
   });
 
   it('records who asked for an undo on its audit entry, and nothing for Claude', async () => {

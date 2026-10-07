@@ -14,13 +14,17 @@
  * audit log, never as a human action. A failed apply and its rollback (a `changeId` with any
  * `rollback` record) cancel out and are hidden.
  *
- * Read-only. Undo of human changes comes in a later part.
+ * Read-only. The undo planner (`guarded-write/undo-planner.ts`) reads the actions from here
+ * (`humanActions`); `undoBlocker` says which of them can be undone, and `list()` marks what is
+ * already undone from the audit log's derived undo state.
  */
 import type { ChangeRecord, PathValue } from '@gnuminator/shared';
 
 import { changeJournalFileName } from './change-journal-pump.js';
 import { localDateKey } from './event-pump.js';
 import { pathLabel, type RecentChange } from './guarded-write/service.js';
+import type { UndoState } from './guarded-write/undo-state.js';
+import { actionKey } from './guarded-write/undo-state.js';
 import { formatValue } from './guarded-write/values.js';
 import type { Logger } from './logger.js';
 import type { VaultStore } from './vault/store.js';
@@ -70,6 +74,11 @@ export interface HumanChangeItem {
   lines: string[];
   things: ChangeThing[];
   records: number;
+  /** Not undone yet, and every record needed is there (see `undoBlocker`). */
+  canUndo: boolean;
+  undone: boolean;
+  /** The changeId of the undo entry that undid it. */
+  undoneBy?: string;
 }
 
 export interface AiChangeItem {
@@ -123,7 +132,7 @@ const EXTRA_LABELS: Array<[RegExp, string]> = [
   [/^disabled$/, 'disabled'],
 ];
 
-function labelOf(path: string): string | null {
+export function labelOf(path: string): string | null {
   const known = pathLabel(path);
   if (known) return known;
   return EXTRA_LABELS.find(([re]) => re.test(path))?.[1] ?? null;
@@ -238,6 +247,27 @@ export function summarizeLines(all: string[]): { summary: string; lines: string[
 // ---------------------------------------------------------------------------
 // Actions
 
+/** A record of an update that can be put back: it has at least one recorded `before` value. */
+function recordUndoable(r: ChangeRecord): boolean {
+  if (r.op === 'create') return true;
+  if (r.op === 'delete') return !!r.data;
+  return (r.before?.length ?? 0) > 0;
+}
+
+/**
+ * Why people's change cannot be undone, or null when it can: some record was too large to keep,
+ * or nothing in it has the old values (the AI's own records belong to the audit entry).
+ */
+export function undoBlocker(action: ChangeAction): string | null {
+  const records = action.records.filter(r => !r.changeId);
+  if (records.length === 0) return 'the AI made it; undo it by its change id';
+  if (records.some(r => r.oversize)) {
+    return 'part of it was too large to keep, so it cannot be put back exactly';
+  }
+  if (!records.some(recordUndoable)) return 'the values before it were not recorded';
+  return null;
+}
+
 /**
  * Group records into actions by `actionId` (records keep their order; actions are in the
  * order of their first record). Records of a guarded write that was rolled back are left out.
@@ -299,7 +329,10 @@ interface WorldIndex {
 export interface ChangeHistoryOptions {
   store: VaultStore;
   worldIds: Pick<WorldIdResolver, 'current'>;
-  guardedWrites: { listRecentChanges(limit?: number): Promise<RecentChange[]> };
+  guardedWrites: {
+    listRecentChanges(limit?: number): Promise<RecentChange[]>;
+    undoState(): Promise<UndoState>;
+  };
   logger: Logger;
   /** Fetch the newest journal records first (the pump's `pullNow`); absent when the journal is off. */
   pullNow?: () => Promise<void>;
@@ -332,9 +365,16 @@ export class ChangeHistory {
     else this.ingest(index, records);
   }
 
-  /** Everyone's recent changes, newest first. */
-  async list(options: ChangeListOptions = {}): Promise<ChangeListResult> {
-    const notes: string[] = [];
+  /** People's actions of the last days (not the AI's), oldest first, after fetching the newest records. */
+  async humanActions(): Promise<ChangeAction[]> {
+    await this.pull([]);
+    const worldId = await this.worldIds.current();
+    // Same rule as `list()`: an action with an AI record is the AI change's.
+    return (await this.actionsFor(worldId)).filter(a => !a.changeId);
+  }
+
+  /** Fetch the newest journal records; says in `notes` when that did not work. */
+  private async pull(notes: string[]): Promise<void> {
     if (this.pullNow) {
       try {
         await this.pullNow();
@@ -349,6 +389,12 @@ export class ChangeHistory {
         'The change journal is switched off on this bridge (FOUNDRY_AI_CHANGE_JOURNAL=off), so only AI changes are listed.'
       );
     }
+  }
+
+  /** Everyone's recent changes, newest first. */
+  async list(options: ChangeListOptions = {}): Promise<ChangeListResult> {
+    const notes: string[] = [];
+    await this.pull(notes);
 
     const limit = Math.min(Math.max(Math.floor(options.limit ?? 30), 1), 200);
     const source = options.source ?? 'all';
@@ -359,6 +405,7 @@ export class ChangeHistory {
 
     const entries: Array<{ at: number; item: ChangeListItem }> = [];
     if (source !== 'ai') {
+      const undoState = await this.guardedWrites.undoState();
       for (const action of await this.actionsFor(worldId)) {
         // An action with any AI record is the AI change's: the rest are the system's own
         // follow-ups in the same burst (dnd5e adds or removes Bloodied after an HP change).
@@ -367,6 +414,7 @@ export class ChangeHistory {
         if (!matchesPerson(options, action.userId, action.userName)) continue;
         if (options.thingUuid && !action.records.some(r => touches(r, options.thingUuid!)))
           continue;
+        const undone = undoState.get(actionKey(action.actionId));
         entries.push({
           at: action.tEnd,
           item: {
@@ -380,6 +428,9 @@ export class ChangeHistory {
             lines: action.lines,
             things: action.things,
             records: action.records.filter(r => !r.changeId).length,
+            canUndo: !undone && undoBlocker(action) === null,
+            undone: !!undone,
+            ...(undone ? { undoneBy: undone.undoneBy } : {}),
           },
         });
       }

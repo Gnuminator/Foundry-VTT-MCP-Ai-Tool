@@ -5,6 +5,7 @@
  * features used once.
  */
 import { problemText } from './advancement.mjs';
+import { loadKnown } from './known.mjs';
 import { checkOrigin, sampleEvenly } from './origins.mjs';
 import {
   STANDARD_ARRAY,
@@ -38,7 +39,10 @@ export async function runOriginList(t, kind) {
   if (!hostClass) t.skip('the profile has no class to build a hero with');
   const list = t.size === 'smoke' ? sampleEvenly(rows.entries, SMOKE_COUNT[kind]) : rows.entries;
   t.log(`${list.length} of ${rows.entries.length} ${kind} entries (${t.size})`);
-  const ledger = newLedger(kind, expectedFindings());
+  const ledger = newLedger(kind, expectedFindings(), {
+    list: loadKnown(t.kit.profile),
+    scenario: `origins-${kind}`,
+  });
   /** @type {Record<string, number>} */
   const leftOut = {};
   /** @type {Set<string>} */
@@ -141,6 +145,7 @@ export async function runOriginList(t, kind) {
     leftOut,
     problemsByKind: byKind,
     expectedFindings: ledger.expectedCounts,
+    knownFindings: ledger.known(),
     failed: ledger.failed,
     notes: [...notes].slice(0, 80),
   });

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { classifyBuildError, countByKind } from './advancement.mjs';
 import { selectContent } from './builder.mjs';
 import { judgeUse, planUses } from './features.mjs';
+import { knownAttachment, splitKnown } from './known.mjs';
 import { loadExpected } from './studio-expected.mjs';
 import { splitExpected } from './studio-compare.mjs';
 import { descendants, itemsOfLabels, selectOrigins, withIds } from './origins.mjs';
@@ -125,17 +126,21 @@ export async function useGranted(t, { actorId, facts, build, rootLabel }) {
 }
 
 /**
- * The bookkeeping of a scenario: every problem found, split by the expected-findings list.
+ * The bookkeeping of a scenario: every problem found, split by the expected-findings list and then
+ * by the profile's known list (lib/known.mjs), which holds content that stays on one PC.
  * @param {string} category
  * @param {Array<{id: string, kind: 'KIT'|'CONTENT'|'SYSTEM'|'STUDIO', why: string}>} expected
+ * @param {{list: import('./known.mjs').KnownEntry[], scenario: string}} [known]
  */
-export function newLedger(category, expected) {
+export function newLedger(category, expected, known = { list: [], scenario: '' }) {
   /** @type {Array<import('./advancement.mjs').Problem & {id: string}>} */
   const all = [];
   /** @type {Record<string, number>} */
   const expectedCounts = {};
   /** @type {Array<{name: string, problems: string[]}>} */
   const failed = [];
+  /** @type {Map<string, number>} */
+  const knownHits = new Map();
   return {
     all,
     expectedCounts,
@@ -151,14 +156,22 @@ export function newLedger(category, expected) {
       const split = splitExpected(/** @type {any} */ (ided), expected);
       for (const [id, n] of Object.entries(split.counts))
         expectedCounts[id] = (expectedCounts[id] ?? 0) + n;
-      if (split.fresh.length)
+      const { fresh, known: hits } = splitKnown(
+        /** @type {import('./advancement.mjs').Problem[]} */ (/** @type {unknown} */ (split.fresh)),
+        known.list,
+        known.scenario
+      );
+      for (const k of hits) knownHits.set(k.id, (knownHits.get(k.id) ?? 0) + 1);
+      if (fresh.length)
         failed.push({
           name,
-          problems: split.fresh.map(p => `[${p.kind}] ${p.what}: ${p.evidence}`),
+          problems: fresh.map(p => `[${p.kind}] ${p.what}: ${p.evidence}`),
         });
-      return /** @type {import('./advancement.mjs').Problem[]} */ (
-        /** @type {unknown} */ (split.fresh)
-      );
+      return fresh;
+    },
+    /** The known-list attachment: matches per entry and the entries this run did not see. */
+    known() {
+      return knownAttachment(known.list, known.scenario, knownHits);
     },
     /** Problems by kind, over everything found. */
     byKind() {

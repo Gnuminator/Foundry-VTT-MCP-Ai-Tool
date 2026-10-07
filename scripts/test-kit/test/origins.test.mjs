@@ -261,6 +261,42 @@ test('the ledger splits findings by the expected list: same id and kind is accep
   );
 });
 
+test('the ledger counts a problem on the profile known list as known, not failed', () => {
+  const list = [
+    {
+      id: 'pack-uses-not-set',
+      scenario: 'origins-species',
+      kind: /** @type {const} */ ('CONTENT'),
+      match: 'none are set; from some-pack.',
+      why: 'test',
+    },
+  ];
+  const ledger = newLedger('species', [], { list, scenario: 'origins-species' });
+  const fresh = ledger.file('Goblin', [
+    {
+      kind: 'CONTENT',
+      what: 'the system refused the use',
+      evidence: 'Nimble Escape: none are set; from some-pack.species',
+    },
+    { kind: 'KIT', what: 'the GM action failed', evidence: 'none are set; from some-pack.species' },
+  ]);
+  assert.deepEqual(
+    fresh.map(p => p.kind),
+    ['KIT']
+  );
+  assert.deepEqual(ledger.known(), {
+    entries: 1,
+    matched: { 'pack-uses-not-set': { kind: 'CONTENT', problems: 1, why: 'test' } },
+    unseen: [],
+  });
+  const other = newLedger('feats', [], { list, scenario: 'origins-feats' });
+  assert.equal(
+    other.file('Lucky', [{ kind: 'CONTENT', what: 'x', evidence: 'none are set; from some-pack.' }])
+      .length,
+    1
+  );
+});
+
 test('the shipped expected-findings list loads', () => {
   assert.ok(Array.isArray(loadExpected(ORIGINS_EXPECTED_FILE)));
 });

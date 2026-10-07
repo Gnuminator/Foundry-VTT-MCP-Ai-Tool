@@ -432,6 +432,14 @@ describe('update records: values', () => {
 // --- Create and delete ---------------------------------------------------------
 
 describe('create and delete records', () => {
+  it('records nothing for a compendium document', () => {
+    const actor = makeActor();
+    actor.pack = 'world.monsters';
+    simulateUpdate(actor, { name: 'Renamed' });
+    simulateDelete(actor);
+    expect(records()).toEqual([]);
+  });
+
   it('keeps the full source of a delete and keys it by the last modifiedTime', () => {
     const actor = makeActor();
     actor._source.system.notes = 'secret';

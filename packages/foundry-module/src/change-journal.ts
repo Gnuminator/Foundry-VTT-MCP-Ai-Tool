@@ -65,6 +65,7 @@ interface DocLike {
   isToken?: unknown;
   token?: unknown;
   toObject?: unknown;
+  pack?: unknown;
 }
 
 function asDoc(v: unknown): DocLike | null {
@@ -389,7 +390,8 @@ export class ChangeJournal {
     if (game.user?.isGM !== true) return;
     const d = asDoc(doc);
     const uuid = str(d?.uuid);
-    if (!d || !uuid) return;
+    // A compendium edit is library upkeep, not a change at the table.
+    if (!d || !uuid || str(d.pack)) return;
     const id = str(d.id);
 
     const serverTime = statsTime(d, op === 'create' ? 'createdTime' : 'modifiedTime');

@@ -110,15 +110,28 @@ function changes(n: number | null): string {
 const cancel: DialogButton = { action: ACTION_CANCEL, label: 'Cancel' };
 
 /** Undo one change: what will be reverted. The undo is refused if the thing was edited since. */
-export function undoPlanDialog(row: ChangeRow, plan: UndoPlan): DialogSpec {
+export function undoPlanDialog(row: ChangeRow, plan: UndoPlan, rewind = false): DialogSpec {
   return {
     title: 'Undo change',
     content:
       `<p>Undo this change?</p><p><strong>${escapeHtml(row.summary)}</strong></p>` +
       `${list(plan.lines)}${notesHtml(plan.notes)}` +
-      '<p>If something was edited since, the undo is refused and nothing is changed.</p>',
+      '<p>If something was edited since, the undo is refused and nothing is changed.</p>' +
+      (rewind
+        ? advancedRewind('This also undoes what everyone at the table did since then, on anything.')
+        : ''),
     buttons: [{ action: ACTION_YES, label: 'Undo', default: true }, cancel],
   };
+}
+
+/** The Advanced section with the whole-table rewind (its button answers with CHOICE_REWIND). */
+function advancedRewind(explain: string): string {
+  return (
+    '<details class="fmb-ai-advanced"><summary>Advanced</summary>' +
+    `<p>${explain}</p>` +
+    `<button type="button" class="fmb-ai-btn" data-choice="${CHOICE_REWIND}">` +
+    'Rewind the whole table to here</button></details>'
+  );
 }
 
 /** Bring a change back (undo the undo that took it back). */
@@ -159,10 +172,9 @@ export function laterChoiceDialog(row: ChangeRow, later: readonly LaterChange[])
       `<div class="fmb-ai-scroll"><ul class="fmb-ai-diff">${items}</ul></div>` +
       '<p><strong>Just this</strong> undoes only this change and keeps the later ones. ' +
       '<strong>Everything since</strong> undoes this change and the later ones too.</p>' +
-      '<details class="fmb-ai-advanced"><summary>Advanced</summary>' +
-      '<p>This also undoes what everyone else at the table did since then, on anything.</p>' +
-      `<button type="button" class="fmb-ai-btn" data-choice="${CHOICE_REWIND}">` +
-      'Rewind the whole table to here</button></details>',
+      advancedRewind(
+        'This also undoes what everyone else at the table did since then, on anything.'
+      ),
     buttons: [
       { action: CHOICE_JUST_THIS, label: 'Just this', default: true },
       { action: CHOICE_EVERYTHING_SINCE, label: 'Everything since' },

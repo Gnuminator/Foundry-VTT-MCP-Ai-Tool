@@ -471,6 +471,29 @@ describe('AiChangesController: undo', () => {
         expect(deps.ask).toHaveBeenCalledTimes(answers.length);
       }
     });
+
+    it('is under Advanced in the plain confirm too, when nothing came later on the thing', async () => {
+      const plain = {
+        'plan-undo-changes': (args: Record<string, unknown>): Record<string, unknown> =>
+          args.scope === 'world-since'
+            ? routes['plan-undo-changes'](args)
+            : planView({ later: [] }),
+      };
+      const deps = makeDeps(['rewind', 'yes', 'yes'], plain);
+      const c = await loaded(deps);
+
+      await c.undo('c1');
+
+      const first = deps.ask.mock.calls[0]?.[0] as DialogSpec;
+      expect(first.content).toContain('Undo this change?');
+      expect(first.content).toContain('data-choice="rewind"');
+      expect(deps.request).toHaveBeenNthCalledWith(2, 'plan-undo-changes', {
+        id: 'c1',
+        scope: 'world-since',
+        rewindTable: true,
+      });
+      expect(deps.notifyInfo).toHaveBeenCalledWith('Rewound the table: 12 changes undone');
+    });
   });
 
   it('ignores an unknown id, a row that cannot be undone and a second click while busy', async () => {

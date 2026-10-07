@@ -237,8 +237,13 @@ export class AiChangesController {
         return this.apply(plan, `Undone ${plural(plan.count, 'change')}`);
       }
       if (choice !== CHOICE_JUST_THIS) return false;
+      if (!(await this.confirm(undoPlanDialog(row, plan)))) return false;
+      return this.apply(plan, `Undone: ${row.summary}`);
     }
-    if (!(await this.confirm(undoPlanDialog(row, plan)))) return false;
+    // The latest change on its thing: a plain confirm, with the rewind under Advanced too.
+    const choice = await this.deps.ask(undoPlanDialog(row, plan, true));
+    if (choice === CHOICE_REWIND) return this.rewind(row);
+    if (choice !== ACTION_YES) return false;
     return this.apply(plan, `Undone: ${row.summary}`);
   }
 

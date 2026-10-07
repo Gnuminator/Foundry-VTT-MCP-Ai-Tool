@@ -7,6 +7,7 @@ import { QueryHandlers } from './queries.js';
 import { ModuleSettings, isBridgeUser, registerSettingsUsageHooks } from './settings.js';
 import { CampaignHooks } from './campaign-hooks.js';
 import { eventTracker } from './session-events.js';
+import { changeJournal } from './change-journal.js';
 import { playRecorder } from './play-recorder.js';
 import { USAGE_SOCKET_TYPE, trackUsage, usageRecorder } from './usage-recorder.js';
 import { diagnostics } from './diagnostics.js';
@@ -153,6 +154,11 @@ class FoundryMCPBridge {
       // the session/stats notes. Runs only on a GM client; seeds its shadow
       // copies at 'ready'.
       playRecorder.registerHooks();
+
+      // The change journal (I-109): who changed what, with the values before and after, for
+      // full undo. Its pre-hooks must run on every client (players too); the post-hooks that
+      // build records check the GM role when they run.
+      changeJournal.registerHooks();
 
       // Expose data access globally for settings UI
       (window as any).foundryMCPBridge.dataAccess = this.queryHandlers.dataAccess;

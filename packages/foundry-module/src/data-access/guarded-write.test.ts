@@ -666,6 +666,72 @@ describe('applyGuardedOps: rollback', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Change journal marker (I-109)
+// ---------------------------------------------------------------------------
+
+describe('applyGuardedOps: change journal marker', () => {
+  const marker = (changeId: string, changeMode: string): Record<string, unknown> => ({
+    [MODULE_ID]: { changeId, changeMode },
+  });
+
+  it('puts the changeId and mode on every write of an apply', async () => {
+    const actor = addActor();
+    const victim = addActor({ name: 'Victim' });
+    const updateSpy = vi.spyOn(actor, 'update');
+    const deleteSpy = vi.spyOn(victim, 'delete');
+    const embeddedSpy = vi.spyOn(actor, 'createEmbeddedDocuments');
+    const createSpy = vi.spyOn(g.CONFIG.Actor.documentClass, 'create');
+    const req = await request([
+      { kind: 'update', uuid: actor.uuid, changes: { name: 'Changed' } },
+      { kind: 'create', documentName: 'Item', parentUuid: actor.uuid, data: { name: 'Rope' } },
+      { kind: 'create', documentName: 'Actor', data: { name: 'Wolf' } },
+      { kind: 'delete', uuid: victim.uuid },
+    ]);
+    await applyGuardedOps(req);
+    const expected = marker(req.changeId, 'apply');
+    expect(updateSpy.mock.calls[0][1]).toEqual(expected);
+    expect(embeddedSpy.mock.calls[0][2]).toEqual(expected);
+    expect(createSpy.mock.calls[0][1]).toEqual(expected);
+    expect(deleteSpy.mock.calls[0][0]).toEqual(expected);
+  });
+
+  it('keeps keepId and marks an undo', async () => {
+    const actor = addActor();
+    const applied = await applyGuardedOps(await request([{ kind: 'delete', uuid: actor.uuid }]));
+    const createSpy = vi.spyOn(g.CONFIG.Actor.documentClass, 'create');
+    const undo = undoRequest(applied);
+    await applyGuardedOps(undo);
+    expect(createSpy.mock.calls[0][1]).toEqual({
+      keepId: true,
+      ...marker(undo.changeId, 'undo'),
+    });
+  });
+
+  it('rolls back with the original changeId and mode rollback', async () => {
+    const a = addActor({ name: 'A' });
+    const b = addActor({ name: 'B' });
+    const victim = addActor({ name: 'Victim' });
+    const updateSpy = vi.spyOn(a, 'update');
+    const createSpy = vi.spyOn(g.CONFIG.Actor.documentClass, 'create');
+    const req = await request([
+      { kind: 'update', uuid: a.uuid, changes: { name: 'A2' } },
+      { kind: 'delete', uuid: victim.uuid },
+      { kind: 'update', uuid: b.uuid, changes: { name: 'B2' } },
+    ]);
+    b.failUpdates = true;
+    await expect(applyGuardedOps(req)).rejects.toThrow(/rolled back/);
+    expect(updateSpy.mock.calls.map(c => c[1])).toEqual([
+      marker(req.changeId, 'apply'),
+      marker(req.changeId, 'rollback'),
+    ]);
+    expect(createSpy.mock.calls[0][1]).toEqual({
+      keepId: true,
+      ...marker(req.changeId, 'rollback'),
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Undo
 // ---------------------------------------------------------------------------
 
@@ -991,7 +1057,14 @@ describe('ownership key removal (F5 L3)', () => {
     );
     expect(actor.source.ownership).toEqual({ default: 0, u2: 3 });
     expect(updateSpy.mock.calls).toEqual([
-      [{ ownership: { default: 0, u2: 3 } }, { diff: false, recursive: false }],
+      [
+        { ownership: { default: 0, u2: 3 } },
+        {
+          diff: false,
+          recursive: false,
+          [MODULE_ID]: { changeId: expect.any(String), changeMode: 'undo' },
+        },
+      ],
     ]);
     // The recorded after value reads the final state: the entry is gone.
     expect(result.results[0].after).toContainEqual({ path: 'ownership.u1', present: false });
@@ -1038,7 +1111,11 @@ describe('ownership key removal (F5 L3)', () => {
     expect(Object.keys(updateSpy.mock.calls[0][0])).not.toContain('ownership.-=u1');
     expect(updateSpy.mock.calls[1]).toEqual([
       { ownership: { default: 0, u2: 3 } },
-      { diff: false, recursive: false },
+      {
+        diff: false,
+        recursive: false,
+        [MODULE_ID]: { changeId: expect.any(String), changeMode: 'apply' },
+      },
     ]);
     expect(actor.source.flags.x).not.toHaveProperty('y');
   });

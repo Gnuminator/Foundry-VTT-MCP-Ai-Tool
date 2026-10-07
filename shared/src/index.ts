@@ -32,3 +32,4 @@ export * from './ownership.js';
 export * from './character-sheet.js';
 export * from './scene-change.js';
 export * from './space-status.js';
+export * from './change-journal.js';

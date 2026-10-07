@@ -226,6 +226,18 @@ describe('buildChangeRow', () => {
     expect(rows[1]).toMatchObject({ state: 'undone', canUndo: false, undoneByWho: 'Danni' });
   });
 
+  it('shows an undo a person asked for in a window as theirs, not as the AI', () => {
+    const rows = buildRows({
+      changes: [
+        aiItem({ id: 'u1', feature: 'change-undo', summary: 'Undo: x', requestedBy: 'Danni' }),
+        aiItem({ id: 'u2', feature: 'change-undo', summary: 'Undo: y', requestedBy: '' }),
+      ],
+    });
+    expect(rows[0]).toMatchObject({ isAi: false, who: 'Danni', feature: '' });
+    // Claude asked for this one (no Foundry window): still the AI's.
+    expect(rows[1]).toMatchObject({ isAi: true, feature: 'change undo' });
+  });
+
   it('offers Redo on an undone change when the undo entry is itself live and undoable', () => {
     const changes = (undoer: Record<string, unknown>): unknown => ({
       changes: [

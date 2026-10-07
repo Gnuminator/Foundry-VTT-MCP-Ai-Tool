@@ -225,6 +225,10 @@ export function buildChangeRow(
   legacy = false
 ): ChangeRow {
   const isUndo = entry.mode === 'undo';
+  // An undo a person asked for in a Foundry window is theirs, not the AI's.
+  const personUndo =
+    entry.kind === 'ai' && entry.feature === 'change-undo' && entry.requestedBy !== '';
+  const isAi = entry.kind === 'ai' && !personUndo;
   const undoer = entry.undone ? byId.get(entry.undoneBy) : undefined;
   const redoable = !legacy && undoer !== undefined && undoer.canUndo && !undoer.undone;
   return {
@@ -232,10 +236,10 @@ export function buildChangeRow(
     time: formatLocalTime(entry.at),
     at: entry.at,
     summary: isUndo ? `Undo of ${entry.summary.replace(/^Undo:\s*/, '')}` : entry.summary,
-    feature: entry.kind === 'ai' ? readableFeature(entry.feature) : '',
+    feature: isAi ? readableFeature(entry.feature) : '',
     isUndo,
-    isAi: entry.kind === 'ai',
-    who: entry.by,
+    isAi,
+    who: personUndo ? entry.requestedBy : entry.by,
     requestedBy: entry.requestedBy,
     thing: entry.thing,
     state: entry.undone ? 'undone' : '',

@@ -559,6 +559,72 @@ describe('buildActions', () => {
     expect(buildActions([hpChange(20, 18, { actionId: 'H' })])[0].followUps).toEqual([]);
   });
 
+  it('gives each AI change in one burst its own action and follow-ups', () => {
+    // Two AI changes 100 ms apart share a burst: the GM's prep edit before them, the first
+    // change's ended concentration with its dependent, then a second change on another actor
+    // with a dependent of its own, and a token delete the GM made in between.
+    const prep = hpChange(20, 18, { actionId: 'K' });
+    const first = rec({
+      actionId: 'K',
+      changeId: 'chg-5',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.e1',
+      parentUuid: 'Actor.a2',
+      name: 'Concentrating: Hold Person',
+      rootUuid: 'Actor.a2',
+      rootName: 'Strahd',
+      data: { flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e2' }] } } },
+    });
+    const firstDependent = rec({
+      actionId: 'K',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.e2',
+      parentUuid: 'Actor.a1',
+      name: 'Hold Person',
+      data: { name: 'Hold Person' },
+    });
+    const gmToken = rec({
+      actionId: 'K',
+      op: 'delete',
+      documentName: 'Token',
+      uuid: 'Scene.s1.Token.t2',
+      parentUuid: 'Scene.s1',
+      name: 'Bat',
+      rootUuid: 'Scene.s1',
+      rootName: 'Castle',
+    });
+    const second = rec({
+      ...first,
+      changeId: 'chg-6',
+      uuid: 'Actor.a3.ActiveEffect.e3',
+      parentUuid: 'Actor.a3',
+      name: 'Concentrating: Bless',
+      rootUuid: 'Actor.a3',
+      rootName: 'Ismark',
+      data: { flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e4' }] } } },
+    });
+    const secondDependent = rec({
+      ...firstDependent,
+      uuid: 'Actor.a1.ActiveEffect.e4',
+      name: 'Bless',
+      data: { name: 'Bless' },
+    });
+    const actions = buildActions([prep, first, firstDependent, gmToken, second, secondDependent]);
+    expect(actions.map(a => [a.actionId, a.changeId])).toEqual([
+      ['K', 'chg-5'],
+      ['K:2', 'chg-6'],
+      [`K${OWN_ACTION_SUFFIX}`, undefined],
+    ]);
+    expect(actions[0].records).toEqual([first, firstDependent]);
+    expect(actions[0].followUps).toEqual([firstDependent]);
+    expect(actions[1].records).toEqual([second, secondDependent]);
+    expect(actions[1].followUps).toEqual([secondDependent]);
+    expect(actions[2].records).toEqual([prep, gmToken]);
+  });
+
   it('names the owner in an ownership line when the user is known', () => {
     const owner = rec({
       before: [val('ownership.u2', 0)],

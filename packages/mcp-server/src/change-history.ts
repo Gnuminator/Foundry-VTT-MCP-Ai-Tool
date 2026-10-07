@@ -446,10 +446,11 @@ export function undoBlocker(action: ChangeAction): string | null {
 /**
  * Group records into actions by `actionId` (records keep their order; actions are in the
  * order of their first record). Records of a guarded write that was rolled back are left out.
- * In a burst with an AI write, a person's records on things the AI did not touch become an
- * action of their own (`<actionId>:own`, right after the AI's); Foundry's own cascades (a
- * combatant removed with its token) and dnd5e's dependent deletes (the effects, templates and
- * summons that go when the AI deleted an effect or an item) stay with the AI's.
+ * In a burst with AI writes, each AI change is an action of its own (`<actionId>`, then
+ * `<actionId>:2` and so on) with the records that followed it; a person's records on things the
+ * AI did not touch become one action of their own (`<actionId>:own`, after the AI's); Foundry's
+ * own cascades (a combatant removed with its token) and dnd5e's dependent deletes (the effects,
+ * templates and summons that go when the AI deleted an effect or an item) stay with the AI's.
  */
 export function buildActions(records: ChangeRecord[], users?: UserNames): ChangeAction[] {
   const rolledBack = new Set<string>();
@@ -466,18 +467,40 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
 
   const split: Array<[string, ChangeRecord[], ChangeRecord[]]> = [];
   for (const [actionId, group] of groups) {
-    const aiRoots = new Set(group.filter(r => r.changeId).map(r => r.rootUuid));
-    if (aiRoots.size === 0) {
+    if (!group.some(r => r.changeId)) {
       split.push([actionId, group, []]);
       continue;
     }
-    const dependents = dependentDeletes(group, aiRoots);
-    const followUps = group.filter(r => !r.changeId && (isCascade(r) || dependents(r)));
-    const own = group.filter(
-      r => !r.changeId && !aiRoots.has(r.rootUuid) && !followUps.includes(r)
-    );
-    split.push([actionId, own.length > 0 ? group.filter(r => !own.includes(r)) : group, followUps]);
-    if (own.length > 0) split.push([`${actionId}${OWN_ACTION_SUFFIX}`, own, []]);
+    // A burst with AI writes: one action per AI change (fast consecutive writes share a burst),
+    // each with the records that followed it until the next AI change; what came before the
+    // first AI record, and what each change did not touch, is the person's own action.
+    const own: ChangeRecord[] = [];
+    const segments: Array<{ changeId: string; records: ChangeRecord[] }> = [];
+    for (const r of group) {
+      const current = segments[segments.length - 1];
+      if (r.changeId && r.changeId !== current?.changeId) {
+        segments.push({ changeId: r.changeId, records: [r] });
+      } else if (current) current.records.push(r);
+      else own.push(r);
+    }
+    segments.forEach((segment, i) => {
+      const aiRoots = new Set(segment.records.filter(r => r.changeId).map(r => r.rootUuid));
+      const dependents = dependentDeletes(segment.records, aiRoots);
+      const followUps = segment.records.filter(r => !r.changeId && (isCascade(r) || dependents(r)));
+      const theirs = segment.records.filter(
+        r => !r.changeId && !aiRoots.has(r.rootUuid) && !followUps.includes(r)
+      );
+      own.push(...theirs);
+      split.push([
+        i === 0 ? actionId : `${actionId}:${i + 1}`,
+        theirs.length > 0 ? segment.records.filter(r => !theirs.includes(r)) : segment.records,
+        followUps,
+      ]);
+    });
+    if (own.length > 0) {
+      const ownSet = new Set(own);
+      split.push([`${actionId}${OWN_ACTION_SUFFIX}`, group.filter(r => ownSet.has(r)), []]);
+    }
   }
 
   const actions: ChangeAction[] = [];

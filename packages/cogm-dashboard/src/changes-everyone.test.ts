@@ -299,6 +299,7 @@ describe('the undo choice', () => {
       expect(h.rewindCount(rewind)).toBe(12);
       expect(h.rewindCount(plan({ summary: 'Rewind the table to 19:00: 1 change' }))).toBe(1);
       expect(h.rewindCount(plan({ summary: 'Something else' }))).toBeNull();
+      expect(h.rewindCount(plan({ summary: 'Something else', count: 7 }))).toBe(7);
       expect(h.rewindButtonLabel(1)).toBe('Undo 1 change');
       expect(h.rewindButtonLabel(null)).toBe('Undo all changes');
     });

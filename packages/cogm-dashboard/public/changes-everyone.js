@@ -117,8 +117,12 @@ export function needsDestructive(plan) {
   );
 }
 
-/** How many changes a rewind plan undoes: the number in its summary ("...: 12 changes"). */
+/**
+ * How many changes a rewind plan undoes: the plan view's `count`; a plan from a bridge without it
+ * falls back to the number in its summary ("...: 12 changes").
+ */
 export function rewindCount(plan) {
+  if (plan && Number.isInteger(plan.count) && plan.count >= 0) return plan.count;
   const m = /:\s*(\d+)\s+changes?\s*$/.exec((plan && plan.summary) || '');
   return m ? Number(m[1]) : null;
 }

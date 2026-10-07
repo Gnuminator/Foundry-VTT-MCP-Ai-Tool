@@ -19,7 +19,13 @@
  */
 import type { GuardedOp, OpSnapshot, PathValue } from '@gnuminator/shared';
 
-import { labelOf, undoBlocker, type ChangeAction, type ChangeHistory } from '../change-history.js';
+import {
+  labelOf,
+  undoBlocker,
+  type ChangeAction,
+  type ChangeHistory,
+  type UserNames,
+} from '../change-history.js';
 import type { FoundryClient } from '../foundry-client.js';
 import type { AuditEntry, AuditLog } from '../vault/audit.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
@@ -71,7 +77,8 @@ export interface UndoPlanView extends PlanView {
 }
 
 export interface UndoPlannerOptions {
-  changeHistory: Pick<ChangeHistory, 'humanActions'>;
+  /** `userNames` is optional: without it, ownership lines name users by id. */
+  changeHistory: Pick<ChangeHistory, 'humanActions'> & Partial<Pick<ChangeHistory, 'userNames'>>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   audit: Pick<AuditLog, 'ring' | 'resultsWithDeleted'>;
   worldIds: Pick<WorldIdResolver, 'current'>;
@@ -274,7 +281,8 @@ function checkedPaths(
   net: NetUpdate,
   snapshot: OpSnapshot,
   justThis: boolean,
-  notes: string[]
+  notes: string[],
+  users?: UserNames
 ): PathValue[] {
   const valueAt = (path: string): PathValue =>
     snapshot.values?.find(v => v.path === path) ?? { path, present: false };
@@ -287,7 +295,7 @@ function checkedPaths(
       const adjusted = adjustedNumber(p, now, valueAt);
       if (adjusted === null) {
         notes.push(
-          `Kept, changed later: ${who}: ${labelOf(p.path) ?? p.path} stays ${formatValue(now)}`
+          `Kept, changed later: ${who}: ${labelOf(p.path, users) ?? p.path} stays ${formatValue(now)}`
         );
       } else if (now.present && adjusted !== now.value) {
         keep.push({ path: p.path, present: true, value: adjusted });
@@ -341,6 +349,7 @@ export class UndoPlanner {
     const ring = await this.audit.ring(worldId);
     const state = computeUndoState(ring);
     const actions = await this.changeHistory.humanActions();
+    const users = await this.changeHistory.userNames?.();
 
     const items = [...actions.map(humanItem), ...ring.filter(e => e.results?.length).map(aiItem)];
     items.sort((a, b) => a.t - b.t);
@@ -379,7 +388,8 @@ export class UndoPlanner {
       foldEvents(events),
       justThis,
       justThis && touching.length > 0,
-      notes
+      notes,
+      users
     );
     if (ops.length === 0) {
       const why = notes.length > 0 ? notes.join('; ') : 'everything is already as it was before';
@@ -395,7 +405,7 @@ export class UndoPlanner {
     for (const net of resolved) {
       if (net.kind !== 'update') continue;
       for (const p of net.paths) {
-        const label = labelOf(p.path);
+        const label = labelOf(p.path, users);
         if (label) pathLabels[p.path] = label;
       }
     }
@@ -481,7 +491,8 @@ export class UndoPlanner {
     folded: NetChange[],
     justThis: boolean,
     laterTouches: boolean,
-    notes: string[]
+    notes: string[],
+    users?: UserNames
   ): Promise<{ ops: GuardedOp[]; resolved: NetChange[] }> {
     // A document inside one that is deleted goes with it.
     const deleted = folded.filter(n => n.kind === 'delete').map(n => n.uuid);
@@ -523,7 +534,7 @@ export class UndoPlanner {
           notes.push(`Not restored: ${who} (what it belonged to is gone)`);
         } else {
           for (const child of change.unrecorded ?? []) {
-            const labels = child.paths.map(path => labelOf(path) ?? path).join(', ');
+            const labels = child.paths.map(path => labelOf(path, users) ?? path).join(', ');
             notes.push(`Not recorded, kept: ${child.name ?? child.uuid}: ${labels}`);
           }
           keep(change, opOf(change));
@@ -539,9 +550,9 @@ export class UndoPlanner {
         if (justThis && changedSince) notes.push(`${who}: later changes to it go with it`);
         keep(change, opOf(change));
       } else {
-        const paths = checkedPaths(change, snap, justThis, notes);
+        const paths = checkedPaths(change, snap, justThis, notes, users);
         if (change.unrecorded.length > 0) {
-          const labels = change.unrecorded.map(path => labelOf(path) ?? path).join(', ');
+          const labels = change.unrecorded.map(path => labelOf(path, users) ?? path).join(', ');
           notes.push(`Not recorded, kept: ${who}: ${labels}`);
         }
         if (paths.length > 0) keep(change, opOf(change, paths));

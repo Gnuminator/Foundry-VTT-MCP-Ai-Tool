@@ -1,11 +1,15 @@
 import * as net from 'net';
 import { EventEmitter } from 'events';
+import { DASHBOARD_REQUESTER } from '@gnuminator/shared';
 import type {
   ControlResponse,
   RecordUsageResult,
   ToolResultPayload,
   UsageEvent,
 } from '@gnuminator/shared';
+
+/** The writes the backend records with a person's name: the dashboard says the GM asked. */
+const NAMED_WRITES = new Set(['apply-planned-change', 'undo-change']);
 import type { Logger } from '../logger.js';
 import type { SessionNotesAction } from '../session-notes-route.js';
 
@@ -268,7 +272,10 @@ export class McpControlClient extends EventEmitter {
     args: Record<string, unknown> = {},
     options: { timeoutMs?: number } = {}
   ): Promise<T> {
-    const payload = (await this.send('call_tool', { name, args }, options.timeoutMs)) as
+    const params = NAMED_WRITES.has(name)
+      ? { name, args, requestedBy: DASHBOARD_REQUESTER }
+      : { name, args };
+    const payload = (await this.send('call_tool', params, options.timeoutMs)) as
       | ToolResultPayload
       | undefined;
     const text = payload?.content?.[0]?.text;

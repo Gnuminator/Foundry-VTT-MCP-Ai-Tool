@@ -6,8 +6,11 @@ import type { ChangeRecord } from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  CHANGE_JOURNAL_RETENTION_DAYS,
   CHANGE_PUMP_STATE_FILE,
   ChangeJournalPump,
+  DEFAULT_CHANGE_JOURNAL_MAX_BYTES,
+  changeJournalDateOf,
   changeJournalFileName,
   changeJournalSettings,
 } from './change-journal-pump.js';
@@ -86,7 +89,11 @@ let foundry: FakeModule;
 let logger: any;
 
 function makePump(
-  extra: Partial<{ onAppended: (worldId: string, records: ChangeRecord[]) => void }> = {}
+  extra: Partial<{
+    onAppended: (worldId: string, records: ChangeRecord[]) => void;
+    now: () => number;
+    maxBytes: number;
+  }> = {}
 ): ChangeJournalPump {
   return new ChangeJournalPump({
     foundryClient: foundry,
@@ -119,8 +126,12 @@ afterEach(async () => {
 });
 
 describe('changeJournalSettings', () => {
-  it('is on by default and shares the event pump interval', () => {
-    expect(changeJournalSettings({})).toEqual({ enabled: true, intervalMs: 5000 });
+  it('is on by default, shares the event pump interval and caps the files at 64 MB', () => {
+    expect(changeJournalSettings({})).toEqual({
+      enabled: true,
+      intervalMs: 5000,
+      maxBytes: DEFAULT_CHANGE_JOURNAL_MAX_BYTES,
+    });
   });
 
   it('can be switched off and reads FOUNDRY_AI_EVENT_POLL_MS for its interval', () => {
@@ -129,6 +140,103 @@ describe('changeJournalSettings', () => {
     }
     expect(changeJournalSettings({ FOUNDRY_AI_EVENT_POLL_MS: '15000' }).intervalMs).toBe(15000);
     expect(changeJournalSettings({ FOUNDRY_AI_EVENT_POLL_MS: '10' }).intervalMs).toBe(1000);
+  });
+
+  it('reads FOUNDRY_AI_CHANGE_JOURNAL_MAX_MB for the byte cap and ignores nonsense', () => {
+    expect(changeJournalSettings({ FOUNDRY_AI_CHANGE_JOURNAL_MAX_MB: '8' }).maxBytes).toBe(
+      8 * 1024 * 1024
+    );
+    expect(changeJournalSettings({ FOUNDRY_AI_CHANGE_JOURNAL_MAX_MB: '0.5' }).maxBytes).toBe(
+      512 * 1024
+    );
+    for (const bad of ['', 'lots', '0', '-3']) {
+      expect(changeJournalSettings({ FOUNDRY_AI_CHANGE_JOURNAL_MAX_MB: bad }).maxBytes).toBe(
+        DEFAULT_CHANGE_JOURNAL_MAX_BYTES
+      );
+    }
+  });
+});
+
+describe('changeJournalDateOf', () => {
+  it('reads the date of a journal file and nothing else', () => {
+    expect(changeJournalDateOf('changes-2026-10-07.jsonl')).toBe('2026-10-07');
+    expect(changeJournalDateOf(CHANGE_PUMP_STATE_FILE)).toBeNull();
+    expect(changeJournalDateOf('changes-2026-10-07.jsonl.tmp')).toBeNull();
+    expect(changeJournalDateOf('audit-log.jsonl')).toBeNull();
+  });
+});
+
+describe('ChangeJournalPump retention', () => {
+  const day = (back: number): string => localDateKey(new Date(2026, 9, 7 - back, 12).getTime());
+  const NOW = new Date(2026, 9, 7, 20, 0, 0).getTime();
+
+  async function seedFile(date: string, lines: number, size = 10): Promise<void> {
+    const values = Array.from({ length: lines }, (_, i) => ({
+      key: `${date}-${i}`,
+      pad: 'x'.repeat(size),
+    }));
+    await store.appendLines('w1', 'gm', changeJournalFileName(date), values);
+  }
+
+  it('removes files older than the retention span on the first poll, and keeps the rest', async () => {
+    await seedFile(day(CHANGE_JOURNAL_RETENTION_DAYS + 2), 1);
+    await seedFile(day(CHANGE_JOURNAL_RETENTION_DAYS + 1), 1);
+    await seedFile(day(CHANGE_JOURNAL_RETENTION_DAYS), 1);
+    await seedFile(day(1), 1);
+    await store.write('w1', 'gm', 'other.json', { keep: true });
+    const pump = makePump({ now: () => NOW });
+    await pump.pollOnce();
+    expect(await store.list('w1', 'gm')).toEqual(
+      [
+        CHANGE_PUMP_STATE_FILE,
+        'other.json',
+        changeJournalFileName(day(CHANGE_JOURNAL_RETENTION_DAYS)),
+        changeJournalFileName(day(1)),
+      ].sort()
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      'Change journal files removed',
+      expect.objectContaining({
+        files: [
+          changeJournalFileName(day(CHANGE_JOURNAL_RETENTION_DAYS + 2)),
+          changeJournalFileName(day(CHANGE_JOURNAL_RETENTION_DAYS + 1)),
+        ],
+      })
+    );
+  });
+
+  it('removes the oldest files while the total is over the byte cap, never the newest', async () => {
+    await seedFile(day(3), 20, 100);
+    await seedFile(day(2), 20, 100);
+    await seedFile(day(1), 20, 100);
+    const pump = makePump({ now: () => NOW, maxBytes: 3000 });
+    await pump.pollOnce();
+    expect(await store.list('w1', 'gm')).toEqual(
+      [CHANGE_PUMP_STATE_FILE, changeJournalFileName(day(1))].sort()
+    );
+    // A cap too small for even the newest file still keeps that file.
+    await seedFile(day(0), 20, 100);
+    const tiny = makePump({ now: () => NOW, maxBytes: 1 });
+    await tiny.pollOnce();
+    expect(await store.list('w1', 'gm')).toEqual(
+      [CHANGE_PUMP_STATE_FILE, changeJournalFileName(day(0))].sort()
+    );
+  });
+
+  it('runs once per local day', async () => {
+    let now = NOW;
+    const pump = makePump({ now: () => now });
+    await pump.pollOnce();
+    await seedFile(day(CHANGE_JOURNAL_RETENTION_DAYS + 1), 1);
+    await pump.pollOnce();
+    expect(await store.list('w1', 'gm')).toContain(
+      changeJournalFileName(day(CHANGE_JOURNAL_RETENTION_DAYS + 1))
+    );
+    now += 24 * 60 * 60 * 1000;
+    await pump.pollOnce();
+    expect(await store.list('w1', 'gm')).not.toContain(
+      changeJournalFileName(day(CHANGE_JOURNAL_RETENTION_DAYS + 1))
+    );
   });
 });
 

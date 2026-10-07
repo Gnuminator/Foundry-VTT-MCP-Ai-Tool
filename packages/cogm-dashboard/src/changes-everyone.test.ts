@@ -25,6 +25,7 @@ interface Change {
   requestedBy?: string;
   mode?: string;
   feature?: string;
+  covers?: number;
   things?: Array<{ uuid: string; name: string | null }>;
 }
 
@@ -191,11 +192,17 @@ describe('rows, badge and redo', () => {
       diff: ['Ireena: HP 10 -> 5'],
     });
     const lines = ['Ireena: HP 5 -> 10', 'Ireena: Poisoned removed', 'Wolf: moved back'];
-    const since = ai('u1', { summary: 'Undo since 19:00: 3 changes', lines });
+    const since = ai('u1', { summary: 'Undo since 19:00: 3 changes', lines, covers: 3 });
     const many = h.redoConfirm(row, [row, since]);
-    expect(many.summary).toContain('brings back all 3 changes');
+    expect(many.summary).toContain('brings all of them back');
     expect(many.summary).toContain('"Undo since 19:00: 3 changes"');
     expect(many.diff).toEqual(lines);
+    // A plain undo of one change with two lines (HP and Bloodied) is not "several changes".
+    const two = ai('u1', { summary: 'Undo: 4 damage', lines: lines.slice(0, 2), covers: 1 });
+    expect(h.redoConfirm(row, [row, two]).summary).toBe('Redo: Anna did something');
+    // An older bridge sends no count: more than one line is the hint.
+    const old = ai('u1', { summary: 'Undo since 19:00: 3 changes', lines });
+    expect(h.redoConfirm(row, [row, old]).summary).toContain('brings all of them back');
   });
 
   it('names the thing a change touched', () => {

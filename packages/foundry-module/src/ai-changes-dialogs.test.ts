@@ -34,6 +34,7 @@ const row = buildChangeRow({
   canUndo: true,
   undone: false,
   undoneBy: '',
+  coversSeveral: false,
 } satisfies ChangeEntry);
 
 function plan(over: Partial<UndoPlan> = {}): UndoPlan {
@@ -112,11 +113,15 @@ describe('the dialogs', () => {
       id: 'u1',
       summary: 'Undo since 10:20: 6 changes on Ireena',
       diff: ['a', 'b', 'c'],
+      coversSeveral: true,
     };
     const d = redoDialog(row, undo);
     expect(d.content).toContain('Undo since 10:20: 6 changes on Ireena');
-    expect(d.content).toContain('The redo brings back all 3 changes.');
-    expect(redoDialog(row, { ...undo, diff: ['a'] }).content).not.toContain('brings back all');
+    expect(d.content).toContain('The redo brings all of them back.');
+    // A plain undo of one change with two lines (HP and Bloodied) says nothing of the kind.
+    expect(redoDialog(row, { ...undo, coversSeveral: false }).content).not.toContain(
+      'brings all of them back'
+    );
   });
 
   it('later changes: "not the latest", who and what came after, three buttons, rewind under Advanced', () => {

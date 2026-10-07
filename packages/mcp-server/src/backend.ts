@@ -19,6 +19,7 @@ import { createAiChangesAnnouncer, createModuleRequestHandler } from './module-r
 
 import { config } from './config.js';
 
+import { MAX_REQUESTER_LENGTH } from '@gnuminator/shared';
 import type { ControlRequest, ToolResultPayload } from '@gnuminator/shared';
 
 import { Logger } from './logger.js';
@@ -544,6 +545,7 @@ async function startBackend(): Promise<void> {
         store: vaultStore,
         logger,
         intervalMs: changeJournalConfig.intervalMs,
+        maxBytes: changeJournalConfig.maxBytes,
         onAppended: (worldId, records) => changeHistory.addRecords(worldId, records),
       });
       changeJournalPump.start();
@@ -616,14 +618,23 @@ async function startBackend(): Promise<void> {
           }
 
           if (msg.method === 'call_tool') {
-            const { name, args } = (msg.params || {}) as { name: string; args?: any };
+            const { name, args, requestedBy } = (msg.params || {}) as {
+              name: string;
+              args?: any;
+              requestedBy?: unknown;
+            };
 
             try {
               const route = toolRouter[name];
               if (!route) {
                 throw new Error(`Unknown tool: ${name}`);
               }
-              const result = await route(args);
+              // The dashboard says who asked (a GM's undo there is theirs, not the AI's).
+              const requester =
+                typeof requestedBy === 'string'
+                  ? requestedBy.trim().slice(0, MAX_REQUESTER_LENGTH)
+                  : '';
+              const result = await route(args, requester ? { requestedBy: requester } : undefined);
 
               const payload: ToolResultPayload = {
                 content: [

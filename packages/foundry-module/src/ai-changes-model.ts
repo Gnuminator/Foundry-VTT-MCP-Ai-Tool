@@ -22,7 +22,7 @@ export interface ChangeEntry {
   lines: string[];
   feature: string;
   mode: 'apply' | 'undo';
-  /** Who asked, when a GM did it from a window in Foundry (absent for Claude and the dashboard). */
+  /** Who asked, when a GM did it from a window in Foundry or the dashboard (absent for Claude). */
   requestedBy: string;
   /** The first thing it touched, by name ("Ireena"), or empty. */
   thing: string;
@@ -30,6 +30,11 @@ export interface ChangeEntry {
   undone: boolean;
   /** The changeId of the undo entry that undid it. */
   undoneBy: string;
+  /**
+   * For an undo entry: it took back more than one change (the backend's `covers` count; an older
+   * bridge sends none, then more than one line is the hint), so a redo brings all of them back.
+   */
+  coversSeveral: boolean;
 }
 
 /** What the window shows for one entry. */
@@ -60,6 +65,8 @@ export interface ChangeRow {
   canUndo: boolean;
   /** The change that took this one back, when the Redo button is offered (undoing that brings this back). */
   redoId: string;
+  /** An undo entry that took back more than one change (see `ChangeEntry.coversSeveral`). */
+  coversSeveral: boolean;
 }
 
 /** A person the "Show" filter can pick. */
@@ -167,6 +174,7 @@ function parseEntry(raw: unknown): ChangeEntry | null {
   const mode = c.mode === 'undo' ? 'undo' : 'apply';
   if (isNew) {
     const kind = c.kind === 'human' ? 'human' : 'ai';
+    const lines = textLines(c.lines);
     return {
       id,
       kind,
@@ -174,7 +182,7 @@ function parseEntry(raw: unknown): ChangeEntry | null {
       by: kind === 'ai' ? 'AI' : text(c.by),
       userId: text(c.userId),
       summary: text(c.summary),
-      lines: textLines(c.lines),
+      lines,
       feature: text(c.feature),
       mode,
       requestedBy: text(c.requestedBy),
@@ -182,9 +190,11 @@ function parseEntry(raw: unknown): ChangeEntry | null {
       canUndo: c.canUndo === true,
       undone: c.undone === true || undoneBy !== '',
       undoneBy,
+      coversSeveral: typeof c.covers === 'number' ? c.covers > 1 : lines.length > 1,
     };
   }
   // The AI-only list of an older bridge.
+  const diff = textLines(c.diff);
   return {
     id,
     kind: 'ai',
@@ -192,7 +202,7 @@ function parseEntry(raw: unknown): ChangeEntry | null {
     by: 'AI',
     userId: '',
     summary: text(c.summary),
-    lines: textLines(c.diff),
+    lines: diff,
     feature: text(c.feature),
     mode,
     requestedBy: text(c.requestedBy),
@@ -200,6 +210,7 @@ function parseEntry(raw: unknown): ChangeEntry | null {
     canUndo: c.canUndo === true,
     undone: undoneBy !== '',
     undoneBy,
+    coversSeveral: diff.length > 1,
   };
 }
 
@@ -255,6 +266,7 @@ export function buildChangeRow(
     diff: entry.lines,
     canUndo: entry.canUndo && !entry.undone && !isUndo,
     redoId: redoable ? undoer.id : '',
+    coversSeveral: entry.coversSeveral,
   };
 }
 
@@ -351,12 +363,16 @@ export function renderChangesHtml(view: ChangesView): string {
   } else if (view.status === 'loading' && rows.length === 0) {
     notice = '<p class="fmb-ai-notice">Loading the changes...</p>';
   } else if (view.status === 'ready' && rows.length === 0) {
+    // A page can be full of rows the filter hides; a later page may still have some.
+    const morePages = view.rows.length > 0 && canShowMore(view);
     notice = `<p class="fmb-ai-notice">${
       view.legacy
         ? 'No AI changes yet.'
         : view.filter === FILTER_ALL
           ? 'No changes yet.'
-          : 'No changes match this filter.'
+          : morePages
+            ? 'No changes match this filter on this page. Show more may find some.'
+            : 'No changes match this filter.'
     }</p>`;
   }
   if (view.note !== '' && view.status !== 'error') {

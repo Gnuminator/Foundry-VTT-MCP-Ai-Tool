@@ -11,8 +11,12 @@
  * `list()` merges those human actions with the AI changes of the guarded-write audit log
  * (`listRecentChanges`) into one newest-first list. The journal marks the records an AI
  * guarded write made (`changeId`); those belong to the AI change and are listed from the
- * audit log, never as a human action. A failed apply and its rollback (a `changeId` with any
- * `rollback` record) cancel out and are hidden.
+ * audit log, never as a human action. Records without the mark in the same burst are the
+ * system's own follow-ups when they touch a thing the AI wrote (dnd5e adds Bloodied after an
+ * HP change) and belong to the AI change too; on any other thing they are a person's own
+ * change made in the same browser within the action gap, split into an action of their own.
+ * A failed apply and its rollback (a `changeId` with any `rollback` record) cancel out and are
+ * hidden.
  *
  * Read-only. The undo planner (`guarded-write/undo-planner.ts`) reads the actions from here
  * (`humanActions`); `undoBlocker` says which of them can be undone, and `list()` marks what is
@@ -20,7 +24,11 @@
  */
 import type { ChangeRecord, PathValue } from '@gnuminator/shared';
 
-import { changeJournalFileName } from './change-journal-pump.js';
+import {
+  CHANGE_JOURNAL_RETENTION_DAYS,
+  changeJournalFileName,
+  isChangeRecord,
+} from './change-journal-pump.js';
 import { localDateKey } from './event-pump.js';
 import { pathLabel, type RecentChange } from './guarded-write/service.js';
 import type { UndoState } from './guarded-write/undo-state.js';
@@ -30,10 +38,18 @@ import type { Logger } from './logger.js';
 import type { VaultStore } from './vault/store.js';
 import type { WorldIdResolver } from './vault/world-id.js';
 
-/** How many days of changes the index keeps and lists. */
-export const CHANGE_HISTORY_DAYS = 7;
+/** How many days of changes the index keeps and lists (the pump keeps the files as long). */
+export const CHANGE_HISTORY_DAYS = CHANGE_JOURNAL_RETENTION_DAYS;
 /** Most readable lines an action carries (the last one says how many more there were). */
 export const MAX_ACTION_LINES = 8;
+/**
+ * Appended to the actionId of a person's records that shared a burst with an AI write but
+ * touched other things (see the file comment): their own action, undoable on its own.
+ */
+export const OWN_ACTION_SUFFIX = ':own';
+
+/** User id to user name, as the journal records have seen them (for ownership lines). */
+export type UserNames = ReadonlyMap<string, string>;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -97,6 +113,8 @@ export interface AiChangeItem {
   undoneBy?: string;
   undoneAt?: string;
   documents?: string[];
+  /** For an undo made with plan-undo-changes: how many changes it took back (undoing it brings them all back). */
+  covers?: number;
 }
 
 export type ChangeListItem = HumanChangeItem | AiChangeItem;
@@ -132,7 +150,15 @@ const EXTRA_LABELS: Array<[RegExp, string]> = [
   [/^disabled$/, 'disabled'],
 ];
 
-export function labelOf(path: string): string | null {
+const OWNERSHIP_PATH = /^ownership\.([A-Za-z0-9]+)$/;
+
+/** The readable label of a path, or null. With `users`, an ownership line names the user. */
+export function labelOf(path: string, users?: UserNames): string | null {
+  const owner = OWNERSHIP_PATH.exec(path)?.[1];
+  if (owner && owner !== 'default') {
+    const name = users?.get(owner);
+    if (name) return `ownership for ${name}`;
+  }
   const known = pathLabel(path);
   if (known) return known;
   return EXTRA_LABELS.find(([re]) => re.test(path))?.[1] ?? null;
@@ -185,7 +211,7 @@ function beforeOf(r: ChangeRecord, path: string): PathValue | undefined {
 }
 
 /** The readable lines of one record: one per changed path for an update, one for a create or delete. */
-export function describeRecord(r: ChangeRecord): string[] {
+export function describeRecord(r: ChangeRecord, users?: UserNames): string[] {
   const { subject, inner } = subjectOf(r);
   const target = inner ? `${subject}: ${inner}` : subject;
 
@@ -212,7 +238,7 @@ export function describeRecord(r: ChangeRecord): string[] {
   const prefix = inner ? `${subject}: ${inner} ` : `${subject}: `;
   const lines: string[] = [];
   for (const a of after) {
-    const named = labelOf(a.path) ?? a.path;
+    const named = labelOf(a.path, users) ?? a.path;
     const before = beforeOf(r, a.path);
     // dnd5e fills empty fields on the way (temp HP null -> 0): no news for the reader.
     if (before && isEmptyValue(before) && isEmptyValue(a)) continue;
@@ -224,7 +250,7 @@ export function describeRecord(r: ChangeRecord): string[] {
   }
   if (lines.length === 0) {
     for (const path of r.unknownBefore ?? [])
-      lines.push(`${prefix}${labelOf(path) ?? path} changed`);
+      lines.push(`${prefix}${labelOf(path, users) ?? path} changed`);
   }
   return lines.length > 0 ? lines : [`${target} changed`];
 }
@@ -271,8 +297,10 @@ export function undoBlocker(action: ChangeAction): string | null {
 /**
  * Group records into actions by `actionId` (records keep their order; actions are in the
  * order of their first record). Records of a guarded write that was rolled back are left out.
+ * In a burst with an AI write, a person's records on things the AI did not touch become an
+ * action of their own (`<actionId>:own`, right after the AI's).
  */
-export function buildActions(records: ChangeRecord[]): ChangeAction[] {
+export function buildActions(records: ChangeRecord[], users?: UserNames): ChangeAction[] {
   const rolledBack = new Set<string>();
   for (const r of records)
     if (r.changeId && r.changeMode === 'rollback') rolledBack.add(r.changeId);
@@ -285,8 +313,20 @@ export function buildActions(records: ChangeRecord[]): ChangeAction[] {
     else groups.set(r.actionId, [r]);
   }
 
-  const actions: ChangeAction[] = [];
+  const split: Array<[string, ChangeRecord[]]> = [];
   for (const [actionId, group] of groups) {
+    const aiRoots = new Set(group.filter(r => r.changeId).map(r => r.rootUuid));
+    if (aiRoots.size === 0) {
+      split.push([actionId, group]);
+      continue;
+    }
+    const own = group.filter(r => !r.changeId && !aiRoots.has(r.rootUuid));
+    split.push([actionId, own.length > 0 ? group.filter(r => !own.includes(r)) : group]);
+    if (own.length > 0) split.push([`${actionId}${OWN_ACTION_SUFFIX}`, own]);
+  }
+
+  const actions: ChangeAction[] = [];
+  for (const [actionId, group] of split) {
     const first = group[0];
     const things = new Map<string, ChangeThing>();
     for (const r of group) {
@@ -295,7 +335,7 @@ export function buildActions(records: ChangeRecord[]): ChangeAction[] {
     const changeId = group.find(r => r.changeId)?.changeId;
     // The text describes what people did: the AI's own records are listed from the audit log.
     const { summary, lines } = summarizeLines(
-      group.filter(r => !r.changeId).flatMap(describeRecord)
+      group.filter(r => !r.changeId).flatMap(r => describeRecord(r, users))
     );
     actions.push({
       actionId,
@@ -320,6 +360,8 @@ export function buildActions(records: ChangeRecord[]): ChangeAction[] {
 interface WorldIndex {
   records: ChangeRecord[];
   keys: Set<string>;
+  /** Every user the records have named, by id (kept through pruning: names stay useful). */
+  users: Map<string, string>;
   /** Set while the files are being read; appends that arrive meanwhile wait in `pending`. */
   loading: Promise<void> | null;
   pending: ChangeRecord[];
@@ -373,6 +415,12 @@ export class ChangeHistory {
     return (await this.actionsFor(worldId)).filter(a => !a.changeId);
   }
 
+  /** User names by id, as seen in the records of the current world (no pull). */
+  async userNames(): Promise<UserNames> {
+    const worldId = await this.worldIds.current();
+    return (await this.load(worldId)).users;
+  }
+
   /** Fetch the newest journal records; says in `notes` when that did not work. */
   private async pull(notes: string[]): Promise<void> {
     if (this.pullNow) {
@@ -408,7 +456,8 @@ export class ChangeHistory {
       const undoState = await this.guardedWrites.undoState();
       for (const action of await this.actionsFor(worldId)) {
         // An action with any AI record is the AI change's: the rest are the system's own
-        // follow-ups in the same burst (dnd5e adds or removes Bloodied after an HP change).
+        // follow-ups on the same things (dnd5e adds or removes Bloodied after an HP change);
+        // `buildActions` already split off a person's records on other things.
         if (action.changeId) continue;
         if (action.tEnd < from) continue;
         if (!matchesPerson(options, action.userId, action.userName)) continue;
@@ -461,7 +510,7 @@ export class ChangeHistory {
   private async actionsFor(worldId: string): Promise<ChangeAction[]> {
     const index = await this.load(worldId);
     this.prune(index);
-    index.actions ??= buildActions(index.records);
+    index.actions ??= buildActions(index.records, index.users);
     return index.actions;
   }
 
@@ -471,6 +520,7 @@ export class ChangeHistory {
       const created: WorldIndex = {
         records: [],
         keys: new Set(),
+        users: new Map(),
         loading: null,
         pending: [],
         actions: null,
@@ -508,7 +558,7 @@ export class ChangeHistory {
         'gm',
         changeJournalFileName(localDateKey(day.getTime()))
       );
-      for (const line of lines) out.push(line as ChangeRecord);
+      for (const line of lines) if (isChangeRecord(line)) out.push(line);
     }
     return out;
   }
@@ -519,6 +569,10 @@ export class ChangeHistory {
       if (typeof record?.key !== 'string' || index.keys.has(record.key)) continue;
       index.keys.add(record.key);
       index.records.push(record);
+      if (record.userId && record.userName) {
+        if (index.users.get(record.userId) !== record.userName) index.actions = null;
+        index.users.set(record.userId, record.userName);
+      }
       added = true;
     }
     if (added) index.actions = null;
@@ -557,6 +611,7 @@ function aiItem(change: RecentChange): AiChangeItem {
   const { summary, lines } = summarizeLines(
     change.diff.length > 0 ? change.diff : [change.summary]
   );
+  const covers = (change.undoes?.actions?.length ?? 0) + (change.undoes?.changes?.length ?? 0);
   return {
     kind: 'ai',
     id: change.changeId,
@@ -572,5 +627,6 @@ function aiItem(change: RecentChange): AiChangeItem {
     ...(change.undoneBy ? { undoneBy: change.undoneBy } : {}),
     ...(change.undoneAt ? { undoneAt: change.undoneAt } : {}),
     ...(change.documents ? { documents: change.documents } : {}),
+    ...(covers > 0 ? { covers } : {}),
   };
 }

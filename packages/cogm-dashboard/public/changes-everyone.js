@@ -238,20 +238,29 @@ export function dialogFor(stage, plan, change) {
 }
 
 /**
+ * Whether an undo entry took back more than one change: its `covers` count when the backend
+ * sends one (plan-undo-changes entries); for an older entry, more than one line is the hint.
+ */
+export function coversSeveral(undo) {
+  if (!undo) return false;
+  if (typeof undo.covers === 'number') return undo.covers > 1;
+  return Array.isArray(undo.lines) && undo.lines.length > 1;
+}
+
+/**
  * What the Redo confirm shows. Redo undoes the undo entry, and one undo can cover several
- * changes (Everything since, a rewind): then all of them come back, so it says how many and
- * lists the undo entry's lines instead of this row's.
+ * changes (Everything since, a rewind): then all of them come back, so it says so and lists
+ * the undo entry's lines instead of this row's.
  */
 export function redoConfirm(change, all) {
   const row = rowView(change, all);
   const undo = redoTarget(change, all);
-  const undoLines = undo && Array.isArray(undo.lines) ? undo.lines : [];
-  if (undoLines.length > 1) {
+  if (coversSeveral(undo)) {
     return {
       summary:
         `Redo: ${row.summary}. It was undone together with other changes in ` +
-        `"${summaryOf(undo)}"; the redo brings back all ${undoLines.length} changes.`,
-      diff: undoLines,
+        `"${summaryOf(undo)}"; the redo brings all of them back (the lines below).`,
+      diff: Array.isArray(undo.lines) ? undo.lines : [],
     };
   }
   return { summary: `Redo: ${row.summary}`, diff: row.lines };

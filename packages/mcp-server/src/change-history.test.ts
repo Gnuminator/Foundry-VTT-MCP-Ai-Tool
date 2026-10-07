@@ -10,8 +10,10 @@ import {
   CHANGE_HISTORY_DAYS,
   ChangeHistory,
   MAX_ACTION_LINES,
+  OWN_ACTION_SUFFIX,
   buildActions,
   describeRecord,
+  labelOf,
   undoBlocker,
 } from './change-history.js';
 import { localDateKey } from './event-pump.js';
@@ -258,6 +260,53 @@ describe('buildActions', () => {
     expect(actions.map(a => a.actionId)).toEqual(['G']);
     expect(actions[0]?.changeId).toBe('chg-ok');
   });
+
+  it("splits a person's records on other things out of an AI burst, and keeps the follow-ups", () => {
+    const ai = hpChange(11, 5, { actionId: 'B', changeId: 'chg-1', changeMode: 'apply' });
+    // dnd5e's Bloodied on the same actor: the AI change's own follow-up.
+    const bloodied = rec({
+      actionId: 'B',
+      op: 'create',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.e1',
+      parentUuid: 'Actor.a1',
+      name: 'Bloodied',
+    });
+    // The GM's own edit of another actor within the action gap, in the bridge's browser.
+    const own = hpChange(20, 18, {
+      actionId: 'B',
+      uuid: 'Actor.a2',
+      rootUuid: 'Actor.a2',
+      name: 'Strahd',
+      rootName: 'Strahd',
+      userName: 'Gamemaster',
+      userIsGM: true,
+    });
+    const later = hpChange(3, 2, { actionId: 'C' });
+    const actions = buildActions([ai, bloodied, own, later]);
+    expect(actions.map(a => a.actionId)).toEqual(['B', `B${OWN_ACTION_SUFFIX}`, 'C']);
+    expect(actions[0]).toMatchObject({ changeId: 'chg-1', records: [ai, bloodied] });
+    expect(actions[1]).toMatchObject({
+      records: [own],
+      userName: 'Gamemaster',
+      summary: 'Strahd: HP 20 -> 18',
+      things: [{ uuid: 'Actor.a2', name: 'Strahd' }],
+    });
+    expect(actions[1]?.changeId).toBeUndefined();
+    expect(undoBlocker(actions[1])).toBeNull();
+  });
+
+  it('names the owner in an ownership line when the user is known', () => {
+    const owner = rec({
+      before: [val('ownership.u2', 0)],
+      after: [val('ownership.u2', 3)],
+    });
+    const users = new Map([['u2', 'Anna']]);
+    expect(describeRecord(owner)).toEqual(['Ireena: ownership for user u2 0 -> 3']);
+    expect(describeRecord(owner, users)).toEqual(['Ireena: ownership for Anna 0 -> 3']);
+    expect(buildActions([owner], users)[0]?.lines).toEqual(['Ireena: ownership for Anna 0 -> 3']);
+    expect(labelOf('ownership.default', users)).toBe('default ownership');
+  });
 });
 
 describe('ChangeHistory.list', () => {
@@ -364,6 +413,53 @@ describe('ChangeHistory.list', () => {
       undone: true,
       undoneBy: 'chg-3',
     });
+  });
+
+  it('says how many changes an undo took back, and leaves it out otherwise', async () => {
+    audit = [
+      aiChange({
+        changeId: 'undo-1',
+        feature: 'change-undo',
+        undoes: { actions: ['a1', 'a2'], changes: ['chg-0'] },
+      }),
+      aiChange({ changeId: 'chg-0', appliedAt: new Date(NOW - 9 * MIN).toISOString() }),
+    ];
+    const { changes } = await makeHistory().list({ source: 'ai' });
+    expect(changes[0]).toMatchObject({ id: 'undo-1', covers: 3 });
+    expect(changes[1]).not.toHaveProperty('covers');
+  });
+
+  it('skips lines of the files that are not change records', async () => {
+    await writeDay([hpChange(10, 5, { actionId: 'ok' })]);
+    await store.appendLines('w1', 'gm', changeJournalFileName(localDateKey(NOW - 10 * MIN)), [
+      { key: 'junk', note: 'not a record' },
+      'text',
+      null,
+    ]);
+    const { changes } = await makeHistory().list();
+    expect(changes.map(c => c.id)).toEqual(['act:ok']);
+  });
+
+  it("lists a GM edit made within the action gap of an AI write as the GM's own, undoable change", async () => {
+    await writeDay([
+      hpChange(11, 5, { actionId: 'ai', changeId: 'chg-1', changeMode: 'apply' }),
+      hpChange(20, 18, {
+        actionId: 'ai',
+        uuid: 'Actor.a2',
+        rootUuid: 'Actor.a2',
+        name: 'Strahd',
+        rootName: 'Strahd',
+        userName: 'Gamemaster',
+        userIsGM: true,
+      }),
+    ]);
+    audit = [aiChange()];
+    const history = makeHistory();
+    const { changes } = await history.list();
+    expect(changes.map(c => c.id)).toEqual(['chg-1', `act:ai${OWN_ACTION_SUFFIX}`]);
+    expect(changes[1]).toMatchObject({ kind: 'human', by: 'Gamemaster', canUndo: true });
+    expect((await history.humanActions()).map(a => a.actionId)).toEqual([`ai${OWN_ACTION_SUFFIX}`]);
+    expect(await history.userNames()).toEqual(new Map([['u1', 'Gamemaster']]));
   });
 
   it('does not list the records of an AI change as a human action, and hides a rolled-back one', async () => {

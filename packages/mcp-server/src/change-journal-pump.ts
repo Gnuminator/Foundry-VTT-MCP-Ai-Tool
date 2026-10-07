@@ -24,9 +24,17 @@
  * records that were written, so the history index (`change-history.ts`) stays
  * current without re-reading the files.
  *
+ * Retention: once a day (and on the first poll) the pump removes journal files older
+ * than `CHANGE_JOURNAL_RETENTION_DAYS` (the span the history index lists) and, while
+ * the files still hold more than `maxBytes` in all, the oldest ones (never the newest).
+ * Records can be 256 KB each, and the Pi's vault is an SD card.
+ *
  * On by default; `FOUNDRY_AI_CHANGE_JOURNAL=off` disables it. The poll interval is
- * `FOUNDRY_AI_EVENT_POLL_MS`, shared with the event pump.
+ * `FOUNDRY_AI_EVENT_POLL_MS`, shared with the event pump; the byte cap is
+ * `FOUNDRY_AI_CHANGE_JOURNAL_MAX_MB` (default 64).
  */
+import { promises as fsp } from 'fs';
+
 import {
   CHANGE_JOURNAL_MAX_LIMIT,
   CHANGE_JOURNAL_VERSION,
@@ -43,10 +51,21 @@ import type { WorldIdResolver } from './vault/world-id.js';
 export const CHANGE_PUMP_STATE_FILE = 'changes-pump-state.json';
 /** Pages one poll may read: the module buffer holds 5000 records, so 10 pages is everything. */
 const MAX_PAGES = 20;
+/** Days of journal files kept; the history index (`change-history.ts`) lists the same span. */
+export const CHANGE_JOURNAL_RETENTION_DAYS = 7;
+/** Default cap on the journal files' total size (`FOUNDRY_AI_CHANGE_JOURNAL_MAX_MB`). */
+export const DEFAULT_CHANGE_JOURNAL_MAX_BYTES = 64 * 1024 * 1024;
+
+const JOURNAL_FILE = /^changes-(\d{4}-\d{2}-\d{2})\.jsonl$/;
 
 /** The vault file of one local day's records (area `gm`). */
 export function changeJournalFileName(dateKey: string): string {
   return `changes-${dateKey}.jsonl`;
+}
+
+/** The date key of a journal file name, or null for any other file. */
+export function changeJournalDateOf(file: string): string | null {
+  return JOURNAL_FILE.exec(file)?.[1] ?? null;
 }
 
 interface ChangePumpState {
@@ -62,23 +81,30 @@ export interface ChangeJournalPumpOptions {
   store: VaultStore;
   logger: Logger;
   intervalMs?: number;
+  /** Most bytes the journal files may hold in all (default DEFAULT_CHANGE_JOURNAL_MAX_BYTES). */
+  maxBytes?: number;
   /**
    * Called after a successful non-empty append, with the records written (grouped by
    * date, in pump order). A throwing listener is caught and logged; it never breaks
    * the pump.
    */
   onAppended?: (worldId: string, records: ChangeRecord[]) => void;
+  now?: () => number;
 }
 
-/** Whether the pump is on, and its interval, from the environment. */
+/** Whether the pump is on, its interval and its byte cap, from the environment. */
 export function changeJournalSettings(env: NodeJS.ProcessEnv = process.env): {
   enabled: boolean;
   intervalMs: number;
+  maxBytes: number;
 } {
   const enabled = !/^(off|false|0|no)$/i.test(env.FOUNDRY_AI_CHANGE_JOURNAL?.trim() ?? '');
   const parsed = Number.parseInt(env.FOUNDRY_AI_EVENT_POLL_MS ?? '', 10);
   const intervalMs = Number.isFinite(parsed) ? Math.max(1000, parsed) : DEFAULT_EVENT_POLL_MS;
-  return { enabled, intervalMs };
+  const mb = Number.parseFloat(env.FOUNDRY_AI_CHANGE_JOURNAL_MAX_MB ?? '');
+  const maxBytes =
+    Number.isFinite(mb) && mb > 0 ? Math.round(mb * 1024 * 1024) : DEFAULT_CHANGE_JOURNAL_MAX_BYTES;
+  return { enabled, intervalMs, maxBytes };
 }
 
 const OPS: readonly unknown[] = ['create', 'update', 'delete'];
@@ -106,13 +132,17 @@ export class ChangeJournalPump {
   private readonly store: VaultStore;
   private readonly logger: Logger;
   private readonly intervalMs: number;
+  private readonly maxBytes: number;
   private readonly onAppended: ChangeJournalPumpOptions['onAppended'];
+  private readonly now: () => number;
   private timer: NodeJS.Timeout | null = null;
   private inFlight: Promise<number> | null = null;
   private state: { worldId: string; clientId: string | null; lastSeq: number } | null = null;
   /** Keys already on disk for `<worldId>::<dateKey>`, read from the file once per process. */
   private readonly writtenKeys = new Map<string, Set<string>>();
   private lastError: string | null = null;
+  /** The world and local day of the last retention run (one run per day). */
+  private lastRetention: { worldId: string; dateKey: string } | null = null;
 
   constructor(options: ChangeJournalPumpOptions) {
     this.foundry = options.foundryClient;
@@ -120,7 +150,9 @@ export class ChangeJournalPump {
     this.store = options.store;
     this.logger = options.logger.child({ component: 'ChangeJournalPump' });
     this.intervalMs = options.intervalMs ?? DEFAULT_EVENT_POLL_MS;
+    this.maxBytes = options.maxBytes ?? DEFAULT_CHANGE_JOURNAL_MAX_BYTES;
     this.onAppended = options.onAppended;
+    this.now = options.now ?? ((): number => Date.now());
   }
 
   start(): void {
@@ -235,7 +267,69 @@ export class ChangeJournalPump {
     }
 
     if (appended.length > 0) this.notifyAppended(worldId, appended);
+    await this.retain(worldId);
     return written;
+  }
+
+  /**
+   * Remove journal files older than the retention span and, while the rest hold more than
+   * `maxBytes`, the oldest ones (the newest file always stays). Runs once per local day; a
+   * failure is logged and never fails the poll (the records were already written).
+   */
+  private async retain(worldId: string): Promise<void> {
+    const today = localDateKey(this.now());
+    if (this.lastRetention?.worldId === worldId && this.lastRetention.dateKey === today) return;
+    this.lastRetention = { worldId, dateKey: today };
+    try {
+      const removed = await this.removeOldFiles(worldId);
+      if (removed.length > 0) {
+        this.logger.info('Change journal files removed', { worldId, files: removed });
+      }
+    } catch (error) {
+      this.logger.warn('Change journal retention failed', {
+        worldId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async removeOldFiles(worldId: string): Promise<string[]> {
+    const now = new Date(this.now());
+    // Noon, so a daylight-saving shift never moves the date.
+    const oldestKept = localDateKey(
+      new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - CHANGE_JOURNAL_RETENTION_DAYS,
+        12
+      ).getTime()
+    );
+    // `list` sorts by name, and the names sort by date.
+    const files = (await this.store.list(worldId, 'gm'))
+      .map(file => ({ file, date: changeJournalDateOf(file) }))
+      .filter((f): f is { file: string; date: string } => f.date !== null);
+    const sizes = new Map<string, number>();
+    for (const { file } of files) {
+      try {
+        sizes.set(file, (await fsp.stat(this.store.filePath(worldId, 'gm', file))).size);
+      } catch {
+        sizes.set(file, 0);
+      }
+    }
+    let total = [...sizes.values()].reduce((sum, n) => sum + n, 0);
+    const removed: string[] = [];
+    for (let i = 0; i < files.length; i += 1) {
+      const { file, date } = files[i];
+      const last = i === files.length - 1;
+      const tooOld = date < oldestKept;
+      const tooBig = total > this.maxBytes && !last;
+      if (!tooOld && !tooBig) continue;
+      await this.store.remove(worldId, 'gm', file);
+      this.writtenKeys.delete(`${worldId}::${date}`);
+      total -= sizes.get(file) ?? 0;
+      removed.push(file);
+    }
+    return removed;
   }
 
   private async fetchPage(sinceSeq: number): Promise<ChangeJournalResponse> {

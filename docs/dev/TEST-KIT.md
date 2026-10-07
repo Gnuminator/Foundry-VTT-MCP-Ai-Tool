@@ -265,8 +265,8 @@ no roll after the card, no action cost. Each use is judged (`judgeUse` in `lib/f
   compendium, so a known-list entry can name the content it is about),
 - a chat card was posted,
 - the item's uses went up by what the activity says it consumes (when that is a plain number). Uses
-  that only recover on combat periods (each turn, the start or end of a turn: Sneak Attack, Gathered
-  Swarm) are spent only in combat, as in dnd5e, and the kit uses features outside combat, so it
+  that only recover on combat periods (each turn, the start or end of a turn: Sneak Attack and other
+  once-per-turn features) are spent only in combat, as in dnd5e, and the kit uses features outside combat, so it
   expects 0 for them,
 - the hero is exactly as before: uses, activity uses, slots, hit points, hit dice, effects, new
   items and the chat messages the use created are put back, and the GM action says when that failed
@@ -763,15 +763,20 @@ an empty list. An entry:
   "id": "some-pack-uses-not-set",
   "scenario": "heroes-features-use",
   "kind": "CONTENT",
-  "what": "the system refused the use",
+  "what": ["the system refused the use", "uses consumed"],
+  "max": 530,
   "match": "none are set; from some-module.classes",
   "why": "the pack's features spend their own uses, but the items have none set"
 }
 ```
 
-A problem is known when the scenario and kind are equal, `what` is equal (when the entry sets it), and
-the problem's evidence contains `match`. A `KIT` problem is never known. A step whose problems are all
-known passes and names the entries in its detail; the report's "Known findings" section lists how
+A problem is known when the scenario and kind are equal, the problem's `what` is the entry's `what`
+(or one of them, when it is a list), and the problem's evidence contains `match`. `what` is required,
+so an entry covers only the problem it names; where one problem packs several items ("2 grant(s)
+missing: ..."), put the count in `what`, so a new item beside the old one fails. `max` (optional)
+caps the problems an entry may cover in one run, and the ones over it fail: give a pack-wide entry a
+`max` near the count a `full` run sees, so new findings of its kind are not absorbed. A `KIT` problem
+is never known, and neither is a hero that was not built. A step whose problems are all known passes and names the entries in its detail; the report's "Known findings" section lists how
 often each entry matched and the entries a run did not see (normal in `smoke`; in `full` the content
 may have been fixed, so remove the entry).
 

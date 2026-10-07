@@ -165,7 +165,7 @@ async function describeClass(args) {
   let skillsChosen = 0;
   const found = new Map();
   // A grant inside a pack may name its item by a short "Item.<id>" uuid; Foundry finds it in the
-  // granting document's own pack (the PHB College of Dance grants its Unarmed Strike that way).
+  // granting document's own pack (a 2024 subclass grants its Unarmed Strike by a short uuid that way).
   const resolve = async (uuid, owner) => {
     const full =
       owner?.pack && /^Item\.[^.]+$/.test(String(uuid)) ? `Compendium.${owner.pack}.${uuid}` : uuid;

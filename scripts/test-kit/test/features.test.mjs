@@ -181,7 +181,7 @@ test('planUses uses features with activities and leaves out the ones that need a
   assert.match(plan.skipped[1].why, /cannot be used/);
 });
 
-test('planUses leaves out spending an item that starts empty by design (Arcane Ward), not filling it', () => {
+test('planUses leaves out spending an item that starts empty by design (a ward a rest empties), not filling it', () => {
   const act = (/** @type {string} */ id, /** @type {string} */ value) => ({
     id,
     type: 'utility',
@@ -944,7 +944,10 @@ test('refusalKind tells the imported data from the system', () => {
     'SYSTEM'
   );
   assert.equal(refusalKind('something else happened', withUses(3, 0)).kind, 'SYSTEM');
-  const imported = { ...item({ identifier: 'x' }), sourceUuid: 'Compendium.some-module.classes.Item.abc' };
+  const imported = {
+    ...item({ identifier: 'x' }),
+    sourceUuid: 'Compendium.some-module.classes.Item.abc',
+  };
   assert.equal(
     refusalKind('No uses on X available to spend, 1 required.', imported).note,
     ' (the item has no uses at this level, or none are set; from some-module.classes)'

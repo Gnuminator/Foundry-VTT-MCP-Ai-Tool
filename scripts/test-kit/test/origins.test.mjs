@@ -267,6 +267,7 @@ test('the ledger counts a problem on the profile known list as known, not failed
       id: 'pack-uses-not-set',
       scenario: 'origins-species',
       kind: /** @type {const} */ ('CONTENT'),
+      what: 'the system refused the use',
       match: 'none are set; from some-pack.',
       why: 'test',
     },

@@ -346,7 +346,7 @@ export const SKIP_ACTIVITY_TYPES = {
 };
 
 /**
- * An item whose uses a rest takes away ("loseAll", like Arcane Ward's hit points) and that a fresh
+ * An item whose uses a rest takes away ("loseAll", like a ward whose hit points a rest empties) and that a fresh
  * hero has with every use spent: it is empty until another of its activities fills it. Pure.
  * @param {FeatureItem} item
  */
@@ -502,12 +502,18 @@ export function refusalKind(text, item) {
   const max = item.uses?.max;
   const from = packOf(item);
   if (/could not be found/i.test(text)) {
-    return { kind: 'CONTENT', note: ` (the activity consumes an item the actor does not have${from})` };
+    return {
+      kind: 'CONTENT',
+      note: ` (the activity consumes an item the actor does not have${from})`,
+    };
   }
   const needs = Number(/([0-9]+) required/i.exec(text)?.[1] ?? 0);
   const usesLimit = /no uses on|not enough uses/i.test(text);
   if (usesLimit && (!item.uses || !max)) {
-    return { kind: 'CONTENT', note: ` (the item has no uses at this level, or none are set${from})` };
+    return {
+      kind: 'CONTENT',
+      note: ` (the item has no uses at this level, or none are set${from})`,
+    };
   }
   if (usesLimit && needs > (max ?? 0)) {
     return {

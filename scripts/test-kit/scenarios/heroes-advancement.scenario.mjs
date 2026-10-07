@@ -31,9 +31,7 @@ export default {
     const hits = new Map();
     /** @param {import('../lib/advancement.mjs').Problem[]} problems */
     const split = problems => {
-      const { fresh, known } = splitKnown(problems, knownList, 'heroes-advancement');
-      for (const k of known) hits.set(k.id, (hits.get(k.id) ?? 0) + 1);
-      return { fresh, known };
+      return splitKnown(problems, knownList, 'heroes-advancement', hits);
     };
     /** @param {Array<{id: string}>} known */
     const knownNote = known =>
@@ -48,10 +46,11 @@ export default {
         label,
         async () => {
           if (hero.buildError || !hero.actorId) {
-            const { fresh, known } = split([classifyBuildError(hero.buildError ?? 'no actor')]);
-            results.push({ hero, problems: fresh });
-            t.check(fresh.length === 0, problemText(fresh));
-            return `not built${knownNote(known)}`;
+            // Never known (lib/known.mjs): a hero that did not build always fails.
+            const problems = [classifyBuildError(hero.buildError ?? 'no actor')];
+            results.push({ hero, problems });
+            t.check(false, problemText(problems));
+            return 'not built';
           }
           const { expected } = await t.gm('describeClass', {
             classUuid: hero.classUuid,

@@ -75,8 +75,7 @@ export default {
             used += 1;
             problems.push(...judgeUse(planned, result));
           }
-          const { fresh, known } = splitKnown(problems, knownList, 'heroes-features-use');
-          for (const k of known) hits.set(k.id, (hits.get(k.id) ?? 0) + 1);
+          const { fresh, known } = splitKnown(problems, knownList, 'heroes-features-use', hits);
           allProblems.push(...fresh);
           if (fresh.length) failed.push({ hero: hero.name, problems: fresh });
           t.check(fresh.length === 0, problemText(fresh, 6), { problems: fresh });

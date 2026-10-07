@@ -156,12 +156,12 @@ export function newLedger(category, expected, known = { list: [], scenario: '' }
       const split = splitExpected(/** @type {any} */ (ided), expected);
       for (const [id, n] of Object.entries(split.counts))
         expectedCounts[id] = (expectedCounts[id] ?? 0) + n;
-      const { fresh, known: hits } = splitKnown(
+      const { fresh } = splitKnown(
         /** @type {import('./advancement.mjs').Problem[]} */ (/** @type {unknown} */ (split.fresh)),
         known.list,
-        known.scenario
+        known.scenario,
+        knownHits
       );
-      for (const k of hits) knownHits.set(k.id, (knownHits.get(k.id) ?? 0) + 1);
       if (fresh.length)
         failed.push({
           name,

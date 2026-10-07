@@ -22,6 +22,9 @@ const ABILITIES = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 /** @param {unknown} v */
 const text = v => (v === null || v === undefined ? 'none' : String(v));
 
+/** The `what` of a hero the builder could not build. Never known (lib/known.mjs): it always fails. */
+export const NOT_BUILT = 'the hero was not built';
+
 /**
  * The kind of a hero the builder could not build, from the error it recorded.
  * @param {string} message
@@ -38,7 +41,7 @@ export function classifyBuildError(message) {
   )
     kind = 'CONTENT';
   else if (/ failed: |refused|advancement manager closed/i.test(m)) kind = 'SYSTEM';
-  return { kind, what: 'the hero was not built', evidence: m };
+  return { kind, what: NOT_BUILT, evidence: m };
 }
 
 /**

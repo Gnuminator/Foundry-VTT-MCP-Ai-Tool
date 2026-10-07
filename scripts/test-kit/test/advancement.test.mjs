@@ -204,7 +204,16 @@ test('a Trait pool with nothing left is a note when the builder said so, not a f
 test('picked items must be on the actor', () => {
   const f = fixture();
   f.actor.items = f.actor.items.filter(i => i.name !== 'Protector');
-  assert.deepEqual(kinds(run(f)), ['SYSTEM picked items missing']);
+  assert.deepEqual(kinds(run(f)), ['SYSTEM 1 picked item(s) missing']);
+});
+
+test('picked items missing: the count is in what, and a long list is cut with a mark', () => {
+  const f = fixture();
+  const names = Array.from({ length: 8 }, (_, i) => `Pick ${i + 1}`);
+  f.hero.picks[2].chosen = names;
+  const problem = run(f).problems.find(p => /picked item/.test(p.what));
+  assert.equal(problem?.what, '8 picked item(s) missing');
+  assert.match(problem?.evidence ?? '', /^Pick 1, .*Pick 6, ... were chosen/);
 });
 
 test('scale values, spell slots, pact slots, saves and skills', () => {

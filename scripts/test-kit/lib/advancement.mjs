@@ -229,8 +229,9 @@ export function checkHero({ hero, expected, actor }) {
   if (lacking.length) {
     bad(
       'SYSTEM',
-      'picked items missing',
-      `${lacking.slice(0, 6).join(', ')} were chosen but are not on the actor`
+      // The count is in `what`, so a known entry for one item does not cover a new one beside it.
+      `${lacking.length} picked item(s) missing`,
+      `${lacking.slice(0, 6).join(', ')}${lacking.length > 6 ? ', ...' : ''} were chosen but are not on the actor`
     );
   }
 

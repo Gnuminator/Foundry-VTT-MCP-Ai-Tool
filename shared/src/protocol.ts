@@ -210,7 +210,16 @@ export interface ModuleHelloData {
   /** The Foundry module version (`game.modules.get(id).version`). */
   moduleVersion: string;
   worldId: string;
+  /**
+   * What this module build can do beyond the base protocol (e.g.
+   * {@link MODULE_CAPABILITY_AI_CHANGES_SIGNAL}). Optional: older modules send none, and the
+   * backend then skips the features that need one.
+   */
+  capabilities?: string[] | undefined;
 }
+
+/** The module answers the `foundry-mcp-bridge.aiChangesUpdated` signal query (I-108). */
+export const MODULE_CAPABILITY_AI_CHANGES_SIGNAL = 'ai-changes-signal' as const;
 
 export interface ModuleHelloFrame {
   type: typeof MODULE_HELLO_TYPE;
@@ -225,6 +234,7 @@ export const ModuleHelloFrameSchema = z.object({
     isBridgeUser: z.boolean(),
     moduleVersion: z.string(),
     worldId: z.string(),
+    capabilities: z.array(z.string().max(100)).max(50).optional(),
   }),
 });
 
@@ -260,9 +270,17 @@ export type ModuleRequestTool = (typeof MODULE_REQUEST_TOOLS)[number];
 export const MODULE_REQUEST_MAX_ARGS_BYTES = 20_000;
 
 /**
- * The bridge's reply when a `module-request` arrives on a socket that is not the
- * active link (with several GM browsers open, only the newest bridge-user socket is
- * served). The module treats it like "not connected": it asks the next candidate.
+ * The tools a bridge that sends only the plain `module-request` capability (the first
+ * I-108 build, before per-tool capabilities) answers. A module that sees no
+ * {@link BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX} entry allows only these.
+ */
+export const MODULE_REQUEST_LEGACY_TOOLS = ['list-recent-changes', 'undo-change'] as const;
+
+/**
+ * The bridge's reply when a `module-request` arrives on a socket that is not allowed
+ * to ask: neither the active link nor a bridge-user tab (a hello with
+ * `isBridgeUser: true`; in Any-GM mode every GM tab says so, and each is served).
+ * The module treats it like "not connected": it asks the next candidate.
  */
 export const MODULE_NOT_ACTIVE_LINK_ERROR = 'Not the active bridge link';
 
@@ -276,6 +294,13 @@ export const BRIDGE_HELLO_TYPE = 'bridge-hello' as const;
 
 /** The bridge answers `module-request` frames (I-108). */
 export const BRIDGE_CAPABILITY_MODULE_REQUEST = 'module-request' as const;
+
+/**
+ * Prefix of the per-tool capability: `module-request:<tool>` for every tool in
+ * {@link MODULE_REQUEST_TOOLS} the bridge answers. A bridge that sends none (the first
+ * I-108 build) answers only {@link MODULE_REQUEST_LEGACY_TOOLS}.
+ */
+export const BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX = 'module-request:' as const;
 
 export interface BridgeHelloData {
   capabilities: string[];

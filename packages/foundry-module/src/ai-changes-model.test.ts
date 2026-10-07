@@ -85,6 +85,7 @@ describe('buildChangeRow', () => {
       summary: 'Ireena: 5 damage',
       feature: 'live play',
       isUndo: false,
+      requestedBy: '',
       state: '',
       diff: ['Ireena hp 20 -> 15'],
       canUndo: true,
@@ -183,6 +184,33 @@ describe('renderChangesHtml', () => {
     expect(html).toContain('<span class="fmb-ai-state">undone</span>');
     expect(html).not.toContain('data-action="undo"');
     expect(html).toContain('fmb-ai-undone');
+  });
+
+  it('shows who asked as "by <name>", escaped, and nothing when Claude or the dashboard did', () => {
+    const plain = renderChangesHtml(view({ rows: [buildChangeRow(change())] }));
+    expect(plain).not.toContain('by ');
+    const html = renderChangesHtml(
+      view({
+        rows: [
+          buildChangeRow(change({ requestedBy: 'Danni' })),
+          buildChangeRow(change({ changeId: 'c2', requestedBy: '<img src=x onerror=1>' })),
+        ],
+      })
+    );
+    expect(html).toContain('<span class="fmb-ai-tag">by Danni</span>');
+    expect(html).not.toContain('<img');
+    expect(html).toContain('by &lt;img');
+  });
+
+  it('reads requestedBy from the backend result and ignores a non-string one', () => {
+    const [a, b] = parseChanges({
+      changes: [
+        { changeId: 'a', requestedBy: 'Danni' },
+        { changeId: 'b', requestedBy: 42 },
+      ],
+    });
+    expect(a?.requestedBy).toBe('Danni');
+    expect(b).not.toHaveProperty('requestedBy');
   });
 
   it('offers Show more only on a full first page', () => {

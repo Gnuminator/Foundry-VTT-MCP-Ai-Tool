@@ -416,7 +416,11 @@ function copyNote(title: string, copy: HandoutCopyView, warning?: string): strin
   );
 }
 
+/** Called after the reveal queue changed (a page queued or taken off), whoever asked. */
+export type QueueChangedListener = () => void | Promise<void>;
+
 export class HandoutsService {
+  private readonly queueListeners: QueueChangedListener[] = [];
   private readonly guardedWrites: HandoutsServiceOptions['guardedWrites'];
   private readonly store: VaultStore;
   private readonly worldIds: HandoutsServiceOptions['worldIds'];
@@ -580,6 +584,27 @@ export class HandoutsService {
     });
   }
 
+  /**
+   * Also call `listener` after every successful `queuePage` and `unqueuePage` (from Claude, the
+   * dashboard or a module request). Queue changes record no audit entry, so this is how an open
+   * Handouts window in Foundry learns of them. The listener is not awaited and its errors (sync or
+   * async) are swallowed: it must never fail the queue change.
+   */
+  addQueueChangedListener(listener: QueueChangedListener): void {
+    this.queueListeners.push(listener);
+  }
+
+  private notifyQueueChanged(): void {
+    for (const listener of this.queueListeners) {
+      try {
+        const result = listener();
+        if (result) result.catch(() => undefined);
+      } catch {
+        // A listener must never fail the queue change.
+      }
+    }
+  }
+
   /** Stage a page for a later one-click reveal (I-039). Changes nothing in Foundry. */
   async queuePage(args: {
     pageUuid?: unknown;
@@ -592,6 +617,7 @@ export class HandoutsService {
     const [page] = [...(await this.pagesFor([pageUuid])).values()];
     if (!page?.exists) throw new Error('That journal page does not exist in Foundry');
     const { replaced } = await this.queue.add(pageUuid, sceneId, players);
+    this.notifyQueueChanged();
     const title = page.name ?? pageIdOf(pageUuid);
     const who = players
       ? ` for ${players.length === 1 ? '1 player' : `${players.length} players`}`
@@ -609,6 +635,7 @@ export class HandoutsService {
     const pageUuid = assertPageUuid(args.pageUuid);
     const removed = await this.queue.remove(pageUuid);
     if (!removed) throw new Error('That page is not in the reveal queue');
+    this.notifyQueueChanged();
     return { queued: false, pageUuid, note: 'Removed from the reveal queue.' };
   }
 

@@ -1890,6 +1890,8 @@ function renderRecentChanges() {
       const details = diff
         ? `<details><summary data-track="dash.changes.show-diff">${lines.length} line(s)</summary><ul class="change-diff">${diff}</ul></details>`
         : '';
+      // Set only for a change a GM made from the AI changes or Handouts window in Foundry.
+      const by = c.requestedBy ? `<span>by ${escapeHtml(c.requestedBy)}</span>` : '';
       const obsidianUrl = obsidianChangeUrl(c);
       const obsidianLink = obsidianUrl
         ? `<a class="link-btn" data-track="dash.changes.open-obsidian" href="${escapeHtml(obsidianUrl)}" target="_blank" rel="noopener" title="Open this month's change log in Obsidian">📓</a>`
@@ -1905,6 +1907,7 @@ function renderRecentChanges() {
             <span>${escapeHtml(c.feature)}</span>
             <span>${escapeHtml(c.target)}</span>
             <span>${escapeHtml(time)}</span>
+            ${by}
             ${obsidianLink}
           </div>
           ${details}

@@ -153,7 +153,7 @@ export class GuardedChangeTools {
     return Promise.resolve({ plans: this.guardedWrites.listPlans() });
   }
 
-  /** `requestedBy`: who asked, when it was not Claude (a GM's window in Foundry). */
+  /** `requestedBy`: who asked, from a GM's window in Foundry; absent for the control channel (Claude or the dashboard). */
   async handleApplyPlannedChange(args: unknown, requestedBy?: string): Promise<AppliedChange> {
     const params = z
       .object({
@@ -189,7 +189,7 @@ export class GuardedChangeTools {
     return { changes: await this.guardedWrites.listRecentChanges(limit ?? 20) };
   }
 
-  /** `requestedBy`: who asked, when it was not Claude (a GM's "AI changes" window in Foundry). */
+  /** `requestedBy`: who asked, from a GM's window in Foundry; absent for the control channel (Claude or the dashboard). */
   async handleUndoChange(args: unknown, requestedBy?: string): Promise<AppliedChange> {
     const params = z
       .object({ changeId: z.string().min(1), confirm: z.boolean().optional() })

@@ -31,7 +31,12 @@ export interface ModuleHelloData {
   isBridgeUser: boolean;
   moduleVersion: string;
   worldId: string;
+  /** What this build can do beyond the base protocol (mirror of the shared `capabilities`). */
+  capabilities?: string[];
 }
+
+/** This module answers the `aiChangesUpdated` signal query (mirror of `MODULE_CAPABILITY_AI_CHANGES_SIGNAL`). */
+export const MODULE_CAPABILITY_AI_CHANGES_SIGNAL = 'ai-changes-signal' as const;
 
 /**
  * Frames for module-initiated requests (I-108): the bridge-linked browser asks
@@ -52,12 +57,16 @@ export const MODULE_REQUEST_TOOLS = [
 ] as const;
 export type ModuleRequestTool = (typeof MODULE_REQUEST_TOOLS)[number];
 
-/** The backend's reply when a request reaches a socket that is not the active link (mirror of `MODULE_NOT_ACTIVE_LINK_ERROR`). */
+/** Tools a bridge with only the plain `module-request` capability answers (mirror of `MODULE_REQUEST_LEGACY_TOOLS`). */
+export const MODULE_REQUEST_LEGACY_TOOLS = ['list-recent-changes', 'undo-change'] as const;
+
+/** The backend's reply when a request reaches a socket that may not ask (mirror of `MODULE_NOT_ACTIVE_LINK_ERROR`). */
 export const MODULE_NOT_ACTIVE_LINK_ERROR = 'Not the active bridge link';
 
 /** Backend → module frame listing what the bridge understands (mirrors of the shared constants). */
 export const BRIDGE_HELLO_TYPE = 'bridge-hello' as const;
 export const BRIDGE_CAPABILITY_MODULE_REQUEST = 'module-request' as const;
+export const BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX = 'module-request:' as const;
 
 /** What a GM sees when the linked bridge is too old to answer module requests. */
 export const BRIDGE_TOO_OLD_MESSAGE = 'Update the AI Tool bridge to use this window.';

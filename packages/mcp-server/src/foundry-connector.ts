@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 import {
   BRIDGE_CAPABILITY_MODULE_REQUEST,
+  BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX,
   BRIDGE_HELLO_TYPE,
   MODULE_NOT_ACTIVE_LINK_ERROR,
   MODULE_REPLY_TYPE,
@@ -226,7 +227,16 @@ export class FoundryConnector {
    * fast against an older bridge (which never sends this). Older modules ignore it.
    */
   private sendBridgeHello(ws: WebSocket): void {
-    const data: BridgeHelloData = { capabilities: [BRIDGE_CAPABILITY_MODULE_REQUEST] };
+    // `module-request` plus one `module-request:<tool>` per tool this bridge answers, so a module
+    // can tell "tool not served by this (older) bridge" from "tool not allowed".
+    const data: BridgeHelloData = {
+      capabilities: [
+        BRIDGE_CAPABILITY_MODULE_REQUEST,
+        ...MODULE_REQUEST_TOOLS.map(
+          tool => `${BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX}${tool}`
+        ),
+      ],
+    };
     try {
       ws.send(JSON.stringify({ type: BRIDGE_HELLO_TYPE, data }));
     } catch (error) {
@@ -243,8 +253,12 @@ export class FoundryConnector {
 
   /**
    * A `module-request` frame: the bridge-linked browser asks for one of a short
-   * list of tools on behalf of a GM's Foundry window. Only the active socket may
-   * ask; the answer goes back on the same socket as a `module-reply`.
+   * list of tools on behalf of a GM's Foundry window. The active socket may ask, and so
+   * may any other socket whose hello says `isBridgeUser: true` (in Any-GM mode every GM
+   * tab does, and Foundry may hand the request to any tab of the same user). A socket
+   * without a hello (an older module) or with `isBridgeUser: false` is refused with
+   * MODULE_NOT_ACTIVE_LINK_ERROR. The answer goes back on the same socket as a
+   * `module-reply`; the tools still run through the active socket.
    */
   private async handleModuleRequest(message: unknown, ws: WebSocket): Promise<void> {
     const parsed = ModuleRequestFrameSchema.safeParse(message);
@@ -261,7 +275,7 @@ export class FoundryConnector {
     const requestedBy = data.requestedBy.userName || data.requestedBy.userId;
     this.logger.info('Module request', { tool: data.tool, requestedBy });
 
-    if (ws !== this.foundrySocket) {
+    if (ws !== this.foundrySocket && this.sockets.get(ws)?.hello?.isBridgeUser !== true) {
       this.replyToModule(ws, id, { success: false, error: MODULE_NOT_ACTIVE_LINK_ERROR });
       return;
     }
@@ -345,6 +359,14 @@ export class FoundryConnector {
       if (ws.readyState === WebSocket.OPEN) n += 1;
     }
     return n;
+  }
+
+  /**
+   * Whether the active socket's `module-hello` lists `capability`. False with no active
+   * socket, no hello (an older module) or a hello without capabilities.
+   */
+  activeModuleHasCapability(capability: string): boolean {
+    return this.activeHello()?.capabilities?.includes(capability) === true;
   }
 
   private activeHello(): ModuleHelloData | null {

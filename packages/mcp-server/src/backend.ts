@@ -450,10 +450,21 @@ async function startBackend(): Promise<void> {
   // A `module-request` from the linked browser runs through the same dispatch table as the
   // control channel's call_tool (MODULE_REQUEST_TOOLS only; an undo records who asked).
   foundryClient.setModuleRequestHandler(
-    createModuleRequestHandler({ toolRouter, guardedChangeTools, guardedWrites })
+    createModuleRequestHandler({
+      toolRouter,
+      guardedChangeTools,
+      guardedWrites,
+      tarokkaPositionRevealed: async position => {
+        const reading = (await tarokkaService.getReading()).reading;
+        return reading?.positions.find(p => p.position === position)?.revealed === true;
+      },
+    })
   );
-  // After every recorded apply or undo the module's "AI changes" windows fetch the list again.
-  guardedWrites.addRecordedListener(createAiChangesAnnouncer(foundryClient, logger));
+  // After every recorded apply or undo, and every Handouts queue change (which records nothing),
+  // the module's windows fetch again.
+  const announceAiChanges = createAiChangesAnnouncer(foundryClient, logger);
+  guardedWrites.addRecordedListener(announceAiChanges);
+  handouts.addQueueChangedListener(announceAiChanges);
   const allTools = collectToolDefinitions(toolDeps);
   allToolNames = allTools.map(t => t.name);
 

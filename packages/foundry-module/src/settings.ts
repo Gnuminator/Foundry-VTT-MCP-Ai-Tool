@@ -1,4 +1,9 @@
-import { MODULE_ID, DEFAULT_CONFIG, type ModuleHelloData } from './constants.js';
+import {
+  MODULE_ID,
+  DEFAULT_CONFIG,
+  MODULE_CAPABILITY_AI_CHANGES_SIGNAL,
+  type ModuleHelloData,
+} from './constants.js';
 import type { BridgeConfig } from './socket-bridge.js';
 import { trackUsage } from './usage-recorder.js';
 
@@ -37,6 +42,8 @@ export function buildModuleHello(bridgeUserId: unknown): ModuleHelloData {
     isBridgeUser: isBridgeUser(bridgeUserId, user?.id),
     moduleVersion: game.modules.get(MODULE_ID)?.version ?? 'unknown',
     worldId: game.world?.id ?? '',
+    // The backend sends the `aiChangesUpdated` query only to a module that lists this (I-108).
+    capabilities: [MODULE_CAPABILITY_AI_CHANGES_SIGNAL],
   };
 }
 

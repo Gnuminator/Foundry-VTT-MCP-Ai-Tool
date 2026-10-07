@@ -11,8 +11,9 @@
  * note is left alone and simply stops being updated), but apart from the Obsidian export
  * (`export.ts`): its own folder, its own debounce, no link conventions of its own. Text from
  * Foundry is escaped (`md-escape.ts`). Only whole days are rendered (`byDay`): a day the history
- * no longer holds in full is not touched, so its note stays as it was last written, and today
- * never replaces a note that holds more changes than the history does now; nothing is deleted.
+ * no longer holds in full is not touched, so its note stays as it was last written, and when today
+ * may be missing changes, the items its note holds that the history lost are carried over from
+ * the note (`carriedBlocks`); nothing is deleted.
  * Re-rendered shortly after the change-journal pump appended records or a guarded write was
  * applied or undone, when `FOUNDRY_AI_OBSIDIAN_DIR` names the GM's vault.
  */
@@ -53,8 +54,68 @@ function who(item: ChangeListItem): string {
   return item.requestedBy ? `AI, asked by ${item.requestedBy}` : 'AI';
 }
 
-/** Text from Foundry (names, summaries, lines) as inert Markdown (the O4 rule, `md-escape.ts`). */
-const esc = escapeInlineText;
+/**
+ * Text from Foundry (names, summaries, lines) as inert Markdown (the O4 rule, `md-escape.ts`), on
+ * one line: a newline in a name would break the list item.
+ */
+function esc(text: string): string {
+  return escapeInlineText(text.replace(/[\r\n]+/g, ' '));
+}
+
+/** The text back from `esc`, for the `people` property (the head of a carried block holds it escaped). */
+function unesc(text: string): string {
+  return text.replace(/\\(.)/g, '$1').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+}
+
+/** A `people` value: a plain name, never a link (`[[x]]` in a property is a graph link). */
+function personName(name: string): string {
+  return name.replace(/[[\]]/g, '');
+}
+
+/** A list item of an existing note, kept when the history no longer holds the change (`carriedBlocks`). */
+export interface CarriedBlock {
+  /** The block id (`^id` at the head's end). */
+  id: string;
+  /** `HH:MM` from the head, for the order. */
+  time: string;
+  who: string;
+  isAi: boolean;
+  undone: boolean;
+  /** The head line and the lines below it, as they were. */
+  text: string[];
+}
+
+const BLOCK_HEAD = /^- \*\*(\d\d:\d\d|\?\?:\?\?)\*\* (.*) \^([A-Za-z0-9-]+)$/;
+
+/**
+ * The list items of a note this renderer wrote, read back. For a day that may be missing changes
+ * (the audit ring full, records lost), the items the history no longer holds are carried over
+ * from the note, which may be their only copy.
+ */
+export function carriedBlocks(noteText: string): CarriedBlock[] {
+  const blocks: CarriedBlock[] = [];
+  let current: CarriedBlock | null = null;
+  for (const line of noteText.split('\n')) {
+    const head = BLOCK_HEAD.exec(line);
+    if (head) {
+      const whoText = head[2].split(' · ')[0];
+      current = {
+        id: head[3],
+        time: head[1],
+        who: unesc(whoText),
+        isAi: whoText === 'AI' || whoText.startsWith('AI, asked by '),
+        undone: head[2].includes(' · undone'),
+        text: [line],
+      };
+      blocks.push(current);
+    } else if (current && line.startsWith('  - ')) {
+      current.text.push(line);
+    } else {
+      current = null;
+    }
+  }
+  return blocks;
+}
 
 /**
  * How the change was undone. An AI change carries who and when. A person's change only knows the
@@ -80,11 +141,29 @@ function renderItem(item: ChangeListItem, byId: ReadonlyMap<string, ChangeListIt
   return [head, ...item.lines.map(line => `  - ${escapeLineStart(esc(line))}`)];
 }
 
-/** The note of one day. */
-export function renderEveryoneNote(worldId: string, day: ChangeDay): string {
+/**
+ * The note of one day. `carried` are the items of the existing note the history no longer holds
+ * (a day that may be missing changes); they keep their place by time, before a new item of the
+ * same minute.
+ */
+export function renderEveryoneNote(
+  worldId: string,
+  day: ChangeDay,
+  carried: CarriedBlock[] = []
+): string {
   const changes = day.changes;
   const byId = new Map(changes.map(c => [c.id, c]));
-  const people = [...new Set(changes.map(who))].sort();
+  const blocks = [
+    ...carried.map(b => ({ time: b.time, text: b.text })),
+    ...changes.map(c => ({ time: clock(c.at), text: renderItem(c, byId) })),
+  ].sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+  const people = [
+    ...new Set([...changes.map(who), ...carried.map(b => b.who)].map(personName)),
+  ].sort();
+  const count = (
+    ofChange: (c: ChangeListItem) => boolean,
+    ofBlock: (b: CarriedBlock) => boolean
+  ): number => changes.filter(ofChange).length + carried.filter(ofBlock).length;
   const partial =
     day.incompleteBefore !== undefined
       ? [
@@ -101,10 +180,19 @@ export function renderEveryoneNote(worldId: string, day: ChangeDay): string {
     worldId,
     {
       date: day.date,
-      changes: changes.length,
-      by_people: changes.filter(c => c.kind === 'human').length,
-      by_ai: changes.filter(c => c.kind === 'ai').length,
-      undone: changes.filter(c => c.undone).length,
+      changes: blocks.length,
+      by_people: count(
+        c => c.kind === 'human',
+        b => !b.isAi
+      ),
+      by_ai: count(
+        c => c.kind === 'ai',
+        b => b.isAi
+      ),
+      undone: count(
+        c => c.undone,
+        b => b.undone
+      ),
       people,
     },
     newest
@@ -119,16 +207,10 @@ export function renderEveryoneNote(worldId: string, day: ChangeDay): string {
       `Everything that changed in Foundry on this day: the players, the GM and the AI, oldest first (the server's local time). Undo any of them in the dashboard (Recent Changes, Everyone tab) or in Foundry's Changes window, not here.`,
       '',
       ...partial,
-      ...changes.flatMap(c => renderItem(c, byId)),
+      ...blocks.flatMap(b => b.text),
       '',
     ].join('\n')
   );
-}
-
-/** The `changes` count in an existing note's front matter, or null. */
-function changesCountOf(text: string): number | null {
-  const m = /^changes: (\d+)$/m.exec(text);
-  return m ? Number(m[1]) : null;
 }
 
 export interface EveryoneNotesOptions {
@@ -232,20 +314,22 @@ export class EveryoneNotes {
     await writer.assertRealFence(EVERYONE_FOLDER);
     for (const day of days) {
       const relPath = everyoneNotePath(day.date);
-      // A day that may be missing changes never replaces a note that holds more of them: the
-      // note may be the only copy left (the journal's records are gone, the AI ring moved on).
+      // A day that may be missing changes keeps the items its note already holds and the history
+      // does not any more: the note may be their only copy (the journal's records are gone, the
+      // AI ring moved on).
+      let carried: CarriedBlock[] = [];
       if (day.incompleteBefore !== undefined) {
         const existing = await fsp.readFile(path.join(root, relPath), 'utf8').catch(() => null);
-        const held = existing === null ? null : changesCountOf(existing);
-        if (held !== null && held > day.changes.length) {
-          writer.skipped.push({
-            path: relPath,
-            reason: `the note holds ${held} changes, the history only ${day.changes.length} now`,
-          });
-          continue;
+        if (existing !== null && checkMarkdownOwnership(existing).owned) {
+          const have = new Set(day.changes.map(c => blockId(c.id)));
+          carried = carriedBlocks(existing).filter(b => !have.has(b.id));
         }
       }
-      await writer.owned(relPath, renderEveryoneNote(worldId, day), checkMarkdownOwnership);
+      await writer.owned(
+        relPath,
+        renderEveryoneNote(worldId, day, carried),
+        checkMarkdownOwnership
+      );
     }
     return result;
   }

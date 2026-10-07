@@ -18,6 +18,7 @@ import type { UndoState } from '../guarded-write/undo-state.js';
 import { VaultStore } from '../vault/store.js';
 
 import {
+  carriedBlocks,
   EveryoneNotes,
   EVERYONE_FOLDER,
   everyoneNotePath,
@@ -138,6 +139,33 @@ describe('renderEveryoneNote', () => {
     expect(text).toContain('  - \\# not a heading');
     expect(text).toContain('  - \\- not a list');
     expect(text).toContain('undone by \\[\\[Strahd\\]\\]');
+  });
+
+  it('keeps a name with a newline on one line, and no link in the people property', () => {
+    const text = renderEveryoneNote('w1', {
+      date: '2026-10-07',
+      changes: [human({ by: 'Ire\nena', summary: 'line one\r\nline two' })],
+    });
+    expect(text).toContain('- **19:42** Ire ena · line one line two ^act-a1');
+    const linked = renderEveryoneNote('w1', {
+      date: '2026-10-07',
+      changes: [human({ by: '[[Strahd]]' })],
+    });
+    expect(linked).toContain('people:\n  - "Strahd"');
+    expect(linked).not.toContain('[[Strahd]]');
+  });
+
+  it('reads the list items of a note back (carriedBlocks)', () => {
+    const day: ChangeDay = {
+      date: '2026-10-07',
+      changes: [human({ by: '[[Strahd]] <b>' }), ai({ undone: true, undoneBy: 'GM' })],
+    };
+    const blocks = carriedBlocks(renderEveryoneNote('w1', day));
+    expect(blocks.map(b => [b.id, b.time, b.who, b.isAi, b.undone, b.text.length])).toEqual([
+      ['act-a1', '19:42', '[[Strahd]] <b>', false, false, 1],
+      ['chg-1', '19:50', 'AI', true, true, 3],
+    ]);
+    expect(blocks[1].text[0]).toMatch(/^- \*\*19:50\*\* AI · .* \^chg-1$/);
   });
 
   it("names who undid a person's change and when, from the undo entry in the same note", () => {
@@ -287,30 +315,43 @@ describe('EveryoneNotes', () => {
     ]);
   });
 
-  it('never replaces the note of a partial day with one that holds fewer changes', async () => {
+  it('carries the items of a partial day the history no longer holds over from its note', async () => {
     const notes = make();
     await notes.renderNow('w1');
-    const before = await note('2026-10-07');
-    expect(before).toContain('changes: 2');
-    // The history lost one of today's changes (its buffer wrapped): the note keeps both.
+    expect(await note('2026-10-07')).toContain('changes: 2');
+    // The history lost the person's change (its buffer wrapped, the AI ring moved on): the note
+    // keeps it, in its place, with the counts and the partial-day line.
     days[1] = {
       date: '2026-10-07',
-      changes: [ai()],
+      changes: [ai({ undone: true, undoneBy: 'GM (dashboard)', undoneAt: LATER })],
       incompleteBefore: new Date(2026, 9, 7, 19, 45).getTime(),
     };
-    const result = await notes.renderNow('w1');
-    expect(result.written).toEqual([]);
-    expect(result.skipped).toEqual([
-      {
-        path: everyoneNotePath('2026-10-07'),
-        reason: 'the note holds 2 changes, the history only 1 now',
-      },
-    ]);
-    expect(await note('2026-10-07')).toBe(before);
-    // More changes than the note holds: written, with the partial-day line.
-    days[1].changes.push(ai({ id: 'chg-2' }), ai({ id: 'chg-3' }));
     expect((await notes.renderNow('w1')).written).toEqual([everyoneNotePath('2026-10-07')]);
-    expect(await note('2026-10-07')).toContain('Changes before 19:45 may be missing');
+    let text = await note('2026-10-07');
+    expect(text).toContain('Changes before 19:45 may be missing');
+    expect(text).toContain('- **19:42** Ireena · Ireena: HP 10 -> 5 ^act-a1');
+    expect(text).toContain('undone 19:50 by GM (dashboard) ^chg-1');
+    expect(text.indexOf('^act-a1')).toBeLessThan(text.indexOf('^chg-1'));
+    expect(text).toContain('changes: 2');
+    expect(text).toContain('by_people: 1');
+    expect(text).toContain('by_ai: 1');
+    expect(text).toContain('undone: 1');
+    expect(text).toContain('people:\n  - "AI"\n  - "Ireena"');
+    // More changes later: the carried item survives every render, in order.
+    days[1].changes.push(ai({ id: 'chg-2', at: new Date(2026, 9, 7, 19, 42).toISOString() }));
+    expect((await notes.renderNow('w1')).written).toEqual([everyoneNotePath('2026-10-07')]);
+    text = await note('2026-10-07');
+    expect(text).toContain('changes: 3');
+    expect(text).toContain('by_ai: 2');
+    expect(text.indexOf('^act-a1')).toBeLessThan(text.indexOf('^chg-2'));
+    expect(text.indexOf('^chg-2')).toBeLessThan(text.indexOf('^chg-1'));
+    expect(text).toContain('  - Strahd: effect "Bloodied" added\n- **19:50**');
+    expect(checkMarkdownOwnership(text)).toEqual({ owned: true, legacy: false });
+    // A whole day carries nothing over: the history is the truth.
+    delete days[1].incompleteBefore;
+    days[1].changes = [ai()];
+    await notes.renderNow('w1');
+    expect(await note('2026-10-07')).not.toContain('^act-a1');
   });
 
   it('logs a failed render and keeps going', async () => {

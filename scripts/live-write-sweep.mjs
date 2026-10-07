@@ -674,9 +674,12 @@ async function tokenTools() {
       // which the pump needs a moment to have.
       await new Promise(r => setTimeout(r, 1500));
       const undone = await planAndApply({ id: ended.change.changeId }, 'plan-undo-changes');
+      const planNotes = (undone.plan.diff || [])
+        .filter(d => d && d.kind === 'note')
+        .map(d => String(d.text || ""));
       assert(
-        (undone.plan.notes || []).some(n => /^Also restored with /.test(n)),
-        `no "Also restored" note in ${brief(undone.plan.notes)}`
+        planNotes.some(n => /Also restored with /.test(n)),
+        `no "Also restored" note in ${brief(undone.plan.diff)}`
       );
       assert(
         (await effectNames(ctx.wolfActorId)).includes(concentrating),

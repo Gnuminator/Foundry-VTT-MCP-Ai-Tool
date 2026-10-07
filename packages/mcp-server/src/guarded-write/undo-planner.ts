@@ -4,9 +4,9 @@
  * `id` is a change from `list-changes`: `act:<actionId>` (a player's or the GM's own action, from
  * the change journal) or an audit changeId (the AI's, any mode). Three scopes:
  *
- *   - `just-this`: only that change. Values that changed since are not overwritten: a number is
- *     adjusted by this change's part (HP 10 -> 5 undone after a later 5 -> 3 gives 8), anything
- *     else stays and is listed.
+ *   - `just-this`: only that change. Values that changed since are not overwritten: an amount (hit
+ *     points, uses, currency, ...) is adjusted by this change's part (HP 10 -> 5 undone after a
+ *     later 5 -> 3 gives 8), anything else stays and is listed.
  *   - `everything-since`: that change and every later change to the same things (an actor with its
  *     items and effects, a token, a scene object, a journal), all taken back to how they were
  *     before the first one.
@@ -34,10 +34,10 @@ import {
   type NetChange,
   type NetUpdate,
 } from './undo-fold.js';
-import { actionKey, computeUndoState, type UndoState } from './undo-state.js';
+import { actionKey, computeUndoState, UNDO_FEATURE, type UndoState } from './undo-state.js';
 import { formatValue, samePathValue } from './values.js';
 
-export const UNDO_FEATURE = 'change-undo';
+export { UNDO_FEATURE };
 /** Most later changes a `just-this` plan view lists. */
 export const MAX_LATER = 20;
 /** Most ops one plan holds (the service's limit; checked first for a clear message). */
@@ -233,7 +233,24 @@ function aiEvents(
 // ---------------------------------------------------------------------------
 // Checking a net change against how the document is now
 
-/** The new value for a number another change touched since: this change's part is taken back. */
+/**
+ * Amounts that add up, so a later change on top can keep its part: hit points, temporary hit
+ * points, uses, spell slots, hit dice, currency, quantity, experience and death saves. Codes and
+ * positions (a door's state, ownership levels, x and y, disposition, the combat turn) are not
+ * amounts: 2 + (0 - 1) would turn a locked door into an open one.
+ */
+const AMOUNT_PATH =
+  /^system\.(attributes\.hp\.(value|temp)|attributes\.death\.(success|failure)|currency\.[a-z]+|quantity|uses\.(value|spent)|spells\.[a-z0-9]+\.value|resources\.[a-z]+\.value|hd\.spent|details\.xp\.value)$/;
+
+/** A path to adjust: a known amount, or a `.value` with a numeric `.max` beside it. */
+function isAmountPath(path: string, valueAt: (path: string) => PathValue): boolean {
+  if (AMOUNT_PATH.test(path)) return true;
+  if (!path.endsWith('.value')) return false;
+  const max = valueAt(`${path.slice(0, -'.value'.length)}.max`);
+  return max.present && isNumber(max.value);
+}
+
+/** The new value for an amount another change touched since: this change's part is taken back. */
 function adjustedNumber(
   net: NetUpdate['paths'][number],
   now: PathValue,
@@ -242,6 +259,7 @@ function adjustedNumber(
   const { before, after } = net;
   if (!before.present || !after?.present || !now.present) return null;
   if (!isNumber(before.value) || !isNumber(after.value) || !isNumber(now.value)) return null;
+  if (!isAmountPath(net.path, valueAt)) return null;
   let value = Math.max(0, now.value + (before.value - after.value));
   if (net.path.endsWith('.value')) {
     const max = valueAt(`${net.path.slice(0, -'.value'.length)}.max`);
@@ -337,13 +355,24 @@ export class UndoPlanner {
     const notes: string[] = [];
     const chosen =
       scope === 'just-this' ? [] : scope === 'world-since' ? since : since.filter(touches);
-    const set = [target, ...chosen.filter(i => !this.skipItem(i, notes))];
+    const skipped = chosen.filter(i => this.skipItem(i, notes));
+    const set = [target, ...chosen.filter(i => !skipped.includes(i))];
+    // A skipped change stays live, so the documents it wrote stay as they are: restoring an older
+    // value there would take back its Foundry part while the history shows it live.
+    const keptDocs = new Set(skipped.flatMap(i => (i.entry?.results ?? []).map(r => r.uuid)));
 
     const collected = await this.collect(worldId, set);
     notes.unshift(...collected.notes);
     const justThis = scope === 'just-this';
+    const folded = foldEvents(collected.events).filter(net => {
+      if (!keptDocs.has(net.uuid)) return true;
+      notes.push(
+        `Kept as it is: ${net.name ?? net.uuid} (a change that is not undone wrote to it)`
+      );
+      return false;
+    });
     const { ops, resolved } = await this.resolveOps(
-      foldEvents(collected.events),
+      folded,
       justThis,
       justThis && touching.length > 0,
       notes

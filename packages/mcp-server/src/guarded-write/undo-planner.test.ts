@@ -260,6 +260,31 @@ describe('just-this', () => {
     ]);
   });
 
+  it('adjusts only amounts: a later code or a negative number is kept, not added up', async () => {
+    records.push(
+      rec(1, {
+        actionId: 'open',
+        before: [num('flags.door.ds', 0), num('system.attributes.hp.tempmax', 0)],
+        after: [num('flags.door.ds', 1), num('system.attributes.hp.tempmax', -2)],
+      }),
+      rec(2, {
+        actionId: 'lock',
+        before: [num('flags.door.ds', 1), num('system.attributes.hp.tempmax', -2)],
+        after: [num('flags.door.ds', 2), num('system.attributes.hp.tempmax', -5)],
+      })
+    );
+    foundry.edit('Actor.a', num('flags.door.ds', 2));
+    foundry.edit('Actor.a', num('system.attributes.hp.tempmax', -5));
+    // 2 + (0 - 1) = 1 would open a locked door; -5 + 2 = -3 is not what anyone set.
+    const error = await plan('act:open').then(
+      () => '',
+      (e: Error) => e.message
+    );
+    expect(error).toMatch(/^There is nothing to undo: /);
+    expect(error).toContain('Kept, changed later: Ireena: flags.door.ds stays 2');
+    expect(error).toMatch(/stays -5/);
+  });
+
   it('keeps a value that is not a number when it changed later, and says so', async () => {
     records.push(
       rec(1, {

@@ -8,7 +8,7 @@
  *
  *   - created in the set (and still there): delete it; created and deleted in the set: nothing;
  *   - deleted in the set: create it again from the stored source (with its id), with the values of
- *     older updates in the set put back first;
+ *     older updates in the set put back first, its children's changes too (folded into the source);
  *   - otherwise: one update that restores, for each path, the `before` of the OLDEST change that
  *     touched it. Paths the journal knows changed but not from what (`unknownBefore`) stay as they are.
  */
@@ -229,7 +229,110 @@ export function foldEvents(events: readonly DocEvent[]): NetChange[] {
       if (net.paths.length > 0 || net.unrecorded.length > 0) out.push(net);
     }
   }
-  return out;
+  return foldIntoRecreated(out);
+}
+
+// ---------------------------------------------------------------------------
+// Children of a document that comes back
+
+/** The source key of each embedded collection, by document type. */
+const COLLECTIONS: Record<string, string> = {
+  Item: 'items',
+  ActiveEffect: 'effects',
+  Token: 'tokens',
+  Tile: 'tiles',
+  Wall: 'walls',
+  Drawing: 'drawings',
+  Note: 'notes',
+  AmbientLight: 'lights',
+  AmbientSound: 'sounds',
+  MeasuredTemplate: 'templates',
+  Region: 'regions',
+  RegionBehavior: 'behaviors',
+  JournalEntryPage: 'pages',
+  Combatant: 'combatants',
+  TableResult: 'results',
+  PlaylistSound: 'sounds',
+  Card: 'cards',
+};
+
+/**
+ * The object at `parts` (type, id, type, id, ...) inside a parent's source, or null. An Actor
+ * inside a token is the token's synthetic actor: its changes live in the token's `delta`.
+ */
+function locate(
+  data: Record<string, unknown>,
+  parts: readonly string[]
+): Record<string, unknown> | null {
+  let node: Record<string, unknown> = data;
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const [type, id] = [parts[i], parts[i + 1]];
+    if (type === 'Actor') {
+      if (!isPlainObject(node.delta)) return null;
+      node = node.delta;
+      continue;
+    }
+    const list = COLLECTIONS[type] ? node[COLLECTIONS[type]] : undefined;
+    if (!Array.isArray(list)) return null;
+    const found: unknown = list.find(d => isPlainObject(d) && d._id === id);
+    if (!isPlainObject(found)) return null;
+    node = found;
+  }
+  return node;
+}
+
+/** The array a document at `parts` sits in, inside a parent's source, or null. */
+function locateList(data: Record<string, unknown>, parts: readonly string[]): unknown[] | null {
+  const owner = locate(data, parts.slice(0, -2));
+  const key = COLLECTIONS[parts[parts.length - 2] ?? ''];
+  if (!owner || !key) return null;
+  const list = owner[key];
+  return Array.isArray(list) ? list : null;
+}
+
+/** Put one child's net change into its re-created parent's source; false when it cannot be found. */
+function foldChild(
+  data: Record<string, unknown>,
+  parts: readonly string[],
+  child: NetChange
+): boolean {
+  if (child.kind === 'update') {
+    const target = locate(data, parts);
+    if (!target) return false;
+    for (const p of child.paths) setAtPath(target, p.before);
+    return true;
+  }
+  const list = locateList(data, parts);
+  if (!list) return false;
+  const id = parts[parts.length - 1];
+  const at = list.findIndex(d => isPlainObject(d) && d._id === id);
+  if (at >= 0) list.splice(at, 1);
+  if (child.kind === 'create') list.push(structuredClone(child.data));
+  return true;
+}
+
+/**
+ * A document that comes back is created from its source as it was when it was deleted, so the
+ * earlier changes inside it (a token's synthetic actor damaged, Bloodied added) are folded into
+ * that source instead of being ops of their own on documents that do not exist yet. Parents go
+ * first, so a child that comes back takes its own children along. What cannot be found in the
+ * source stays an op of its own (the planner says why it is skipped).
+ */
+function foldIntoRecreated(out: NetChange[]): NetChange[] {
+  const recreated = out
+    .filter((n): n is NetCreate => n.kind === 'create')
+    .sort((a, b) => depthOf(a.uuid) - depthOf(b.uuid));
+  if (recreated.length === 0) return out;
+  const absorbed = new Set<NetChange>();
+  for (const child of [...out].sort((a, b) => depthOf(a.uuid) - depthOf(b.uuid))) {
+    const parent = recreated.find(
+      p => p !== child && !absorbed.has(p) && child.uuid.startsWith(`${p.uuid}.`)
+    );
+    if (!parent) continue;
+    const parts = child.uuid.slice(parent.uuid.length + 1).split('.');
+    if (foldChild(parent.data, parts, child)) absorbed.add(child);
+  }
+  return out.filter(n => !absorbed.has(n));
 }
 
 // ---------------------------------------------------------------------------

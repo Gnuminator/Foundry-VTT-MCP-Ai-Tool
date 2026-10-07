@@ -501,6 +501,31 @@ describe('undo (Foundry ops)', () => {
     expect((await service.undoState()).get(applied.changeId)?.undoneBy).toBe(again.changeId);
   });
 
+  it("refuses a redo while the original feature's switch is off (undo-change and a planned undo)", async () => {
+    const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    foundry.features[0].enabled = false;
+    // The undo itself works with the switch off.
+    const undone = await service.undo(applied.changeId, { confirm: true });
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+
+    await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
+      /"test-feature" feature is switched off/
+    );
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    const redoPlan = await plan([HP_UPDATE], {
+      feature: 'change-undo',
+      undoes: { changes: [undone.changeId] },
+    });
+    await expect(service.applyPlan(redoPlan.planId, { confirm: true })).rejects.toThrow(
+      /"test-feature" feature is switched off/
+    );
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+
+    foundry.features[0].enabled = true;
+    await service.undo(undone.changeId, { confirm: true });
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+  });
+
   it('carries the undoes of a plan and notes onto the audit entry and the diff', async () => {
     const p = await plan([HP_UPDATE], {
       notes: ['Kept, changed later: Ireena: HP stays 3'],

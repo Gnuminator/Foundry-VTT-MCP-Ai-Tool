@@ -50,7 +50,7 @@ import { assertFileName } from '../vault/paths.js';
 import type { VaultEnvelope, VaultStore } from '../vault/store.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
 
-import { computeUndoState, type UndoState } from './undo-state.js';
+import { computeUndoState, redoFeatures, UNDO_FEATURE, type UndoState } from './undo-state.js';
 import {
   formatValue,
   parseDataPath,
@@ -681,8 +681,13 @@ export class GuardedWriteService {
       const entry = await this.audit.get(worldId, changeId);
       if (!entry) throw new Error(`No recorded change ${changeId} in world "${worldId}"`);
       // An undo entry can be undone too: that is the redo (its inverse puts the change back).
-      const undone = computeUndoState(await this.audit.ring(worldId)).get(changeId);
+      const ring = await this.audit.ring(worldId);
+      const undone = computeUndoState(ring).get(changeId);
       if (undone) throw new Error(`Change ${changeId} was already undone (${undone.undoneBy})`);
+      // A redo puts the original change back: its feature's switch must be on.
+      for (const feature of redoFeatures(ring, [changeId])) {
+        await this.requireFeatureEnabled(feature);
+      }
       const guard = this.undoGuards.get(entry.feature);
       const reason = guard ? await guard(worldId, entry) : null;
       if (reason) throw new Error(`Conflict, nothing was written: ${reason}`);
@@ -725,6 +730,13 @@ export class GuardedWriteService {
       before: plan.vaultExpected[i],
       after: vaultTarget(op),
     }));
+    // A planned undo that takes back an undo redoes the original change: its switch must be on.
+    if (plan.feature === UNDO_FEATURE && (plan.undoes?.changes?.length ?? 0) > 0) {
+      const ring = await this.audit.ring(worldId);
+      for (const feature of redoFeatures(ring, plan.undoes?.changes ?? [])) {
+        await this.requireFeatureEnabled(feature);
+      }
+    }
     // Vault part: feature switch + conflict check before anything is written.
     let vault: PreparedVaultWrite | null = null;
     if (records.length > 0) {

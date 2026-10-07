@@ -200,6 +200,83 @@ describe('foldEvents', () => {
   });
 });
 
+describe('foldEvents, a parent that comes back', () => {
+  it("folds a token's synthetic actor and an effect created on it into the token's source", () => {
+    const token = 'Scene.s.Token.t';
+    const actor = `${token}.Actor.x`;
+    const net = foldEvents([
+      ev({
+        op: 'update',
+        uuid: actor,
+        before: [num('system.attributes.hp.value', 11)],
+        after: [num('system.attributes.hp.value', 4)],
+      }),
+      ev({ op: 'create', uuid: `${actor}.ActiveEffect.bl`, parentUuid: actor }),
+      ev({
+        op: 'delete',
+        uuid: token,
+        parentUuid: 'Scene.s',
+        source: {
+          _id: 't',
+          name: 'Wolf',
+          delta: {
+            system: { attributes: { hp: { value: 4 } } },
+            effects: [
+              { _id: 'bl', name: 'Bloodied' },
+              { _id: 'other', name: 'Prone' },
+            ],
+          },
+        },
+      }),
+    ]);
+    // One op: the token comes back undamaged, without Bloodied; the older Prone stays.
+    expect(net).toHaveLength(1);
+    expect(net[0]).toMatchObject({ kind: 'create', uuid: token });
+    expect(net[0]?.kind === 'create' && net[0].data).toEqual({
+      _id: 't',
+      name: 'Wolf',
+      delta: {
+        system: { attributes: { hp: { value: 11 } } },
+        effects: [{ _id: 'other', name: 'Prone' }],
+      },
+    });
+  });
+
+  it('puts a deleted child back into its parent, and its own changes along with it', () => {
+    const net = foldEvents([
+      ev({
+        op: 'update',
+        uuid: 'Actor.a.Item.i',
+        before: [num('system.uses.spent', 0)],
+        after: [num('system.uses.spent', 2)],
+      }),
+      ev({
+        op: 'delete',
+        uuid: 'Actor.a.Item.i',
+        parentUuid: 'Actor.a',
+        source: { _id: 'i', system: { uses: { spent: 2 } } },
+      }),
+      ev({ op: 'delete', uuid: 'Actor.a', source: { _id: 'a', items: [] } }),
+    ]);
+    expect(net).toHaveLength(1);
+    expect(net[0]?.kind === 'create' && net[0].data).toEqual({
+      _id: 'a',
+      items: [{ _id: 'i', system: { uses: { spent: 0 } } }],
+    });
+  });
+
+  it('keeps a child as its own op when it is not in the source', () => {
+    const net = foldEvents([
+      ev({ op: 'update', uuid: 'Actor.a.Item.gone', before: [num('x', 1)], after: [num('x', 2)] }),
+      ev({ op: 'delete', uuid: 'Actor.a', source: { _id: 'a', items: [] } }),
+    ]);
+    expect(net.map(n => `${n.kind} ${n.uuid}`)).toEqual([
+      'update Actor.a.Item.gone',
+      'create Actor.a',
+    ]);
+  });
+});
+
 describe('orderOps', () => {
   it('deletes embedded documents first, then updates, then creates parents before children', () => {
     const ops: GuardedOp[] = [

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { AuditEntry } from '../vault/audit.js';
 
-import { actionKey, computeUndoState } from './undo-state.js';
+import { actionKey, computeUndoState, redoFeatures, UNDO_FEATURE } from './undo-state.js';
 
 let clock = Date.parse('2026-10-07T10:00:00Z');
 
@@ -82,25 +82,55 @@ describe('computeUndoState', () => {
     expect(computeUndoState([a, e1, e2]).get('a')?.undoneBy).toBe('e2');
   });
 
-  it('orders by appliedAt first, then by ring order', () => {
+  it('goes by ring order, not by appliedAt (the clocks can differ)', () => {
     const same = '2026-10-07T12:00:00.000Z';
     const a = entry('a', { appliedAt: same });
     const u1 = entry('u1', { mode: 'undo', undoOf: 'a', appliedAt: same });
     const redo = entry('r', { mode: 'undo', undoOf: 'u1', appliedAt: same });
     // Same time: ring order decides, so r is newest and a is live.
     expect(computeUndoState([a, u1, redo]).has('a')).toBe(false);
-    // The ring may hold entries out of time order; the time wins.
+    // The redo came from a browser whose clock is behind: it is still the newest in the ring.
     const t1 = entry('t1', { appliedAt: '2026-10-07T11:00:00.000Z' });
     const t2 = entry('t2', {
       mode: 'undo',
       undoOf: 't1',
-      appliedAt: '2026-10-07T11:00:01.000Z',
+      appliedAt: '2026-10-07T11:00:05.000Z',
     });
     const t3 = entry('t3', {
       mode: 'undo',
       undoOf: 't2',
       appliedAt: '2026-10-07T11:00:02.000Z',
     });
-    expect(computeUndoState([t3, t1, t2]).has('t1')).toBe(false);
+    const state = computeUndoState([t1, t2, t3]);
+    expect(state.has('t1')).toBe(false);
+    expect(state.get('t2')?.undoneBy).toBe('t3');
+  });
+});
+
+describe('redoFeatures', () => {
+  it('names the feature a redo brings back, and nothing for a plain undo', () => {
+    const own = entry('own', { feature: 'ownership' });
+    const undo = entry('u', { feature: 'ownership', mode: 'undo', undoOf: 'own' });
+    // Undoing the undo redoes the ownership change: its switch must be on.
+    expect(redoFeatures([own, undo], ['u'])).toEqual(['ownership']);
+    // Undoing the change itself is a plain undo.
+    expect(redoFeatures([own, undo], ['own'])).toEqual([]);
+    // A change and its undo taken back together cancel out.
+    expect(redoFeatures([own, undo], ['own', 'u'])).toEqual([]);
+  });
+
+  it('looks through a planned undo to the AI changes it undid', () => {
+    const own = entry('own', { feature: 'ownership' });
+    const hp = entry('hp', { feature: 'live-play' });
+    const planned = entry('p', {
+      feature: UNDO_FEATURE,
+      undoes: { changes: ['own', 'hp'], actions: ['a1'] },
+    });
+    expect(redoFeatures([own, hp, planned], ['p']).sort()).toEqual(['live-play', 'ownership']);
+    // A redo of a planned undo, taken back again, is an undo: no switch.
+    const redo = entry('r', { feature: UNDO_FEATURE, mode: 'undo', undoOf: 'p' });
+    expect(redoFeatures([own, hp, planned, redo], ['r'])).toEqual([]);
+    // Unknown ids are ignored.
+    expect(redoFeatures([], ['nope'])).toEqual([]);
   });
 });

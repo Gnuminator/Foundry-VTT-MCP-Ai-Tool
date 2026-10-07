@@ -294,11 +294,10 @@ describe('everything-since', () => {
         vaultOps: [{ file: 'f.json', path: 'p', before: gone('p'), after: num('p', 1) }],
       })
     );
-    await plan('act:first', 'everything-since');
-    expect(planInput().undoes).toEqual({ actions: ['first'] });
-    expect(planInput().notes).toEqual([
-      'Not undone: "Reveal the page" also wrote to the AI Tool\'s own data (undo it with undo-change)',
-    ]);
+    // The skipped change stays live, so the actor it wrote keeps its HP: nothing is left to undo.
+    await expect(plan('act:first', 'everything-since')).rejects.toThrow(
+      /Not undone: "Reveal the page" also wrote to the AI Tool's own data.*Kept as it is: .*a change that is not undone wrote to it/
+    );
   });
 });
 

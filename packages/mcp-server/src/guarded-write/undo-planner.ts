@@ -17,7 +17,7 @@
  * confirms with `apply-planned-change`. The resulting audit entry names what it undid (`undoes`), so
  * undoing it again is the redo, and `computeUndoState` makes the changes live again.
  */
-import type { GuardedOp, OpSnapshot, PathValue } from '@gnuminator/shared';
+import type { ChangeRecord, GuardedOp, OpSnapshot, PathValue } from '@gnuminator/shared';
 
 import {
   CHANGE_HISTORY_DAYS,
@@ -81,10 +81,11 @@ export interface UndoPlanView extends PlanView {
 export interface UndoPlannerOptions {
   /**
    * `userNames` is optional: without it, ownership lines name users by id. `historyStart` is
-   * optional: without it, a rewind may reach back past the kept history.
+   * optional: without it, a rewind may reach back past the kept history. `aiFollowUps` is
+   * optional: without it, Foundry's own follow-ups of an AI change are not put back with it.
    */
   changeHistory: Pick<ChangeHistory, 'humanActions'> &
-    Partial<Pick<ChangeHistory, 'userNames' | 'historyStart'>>;
+    Partial<Pick<ChangeHistory, 'userNames' | 'historyStart' | 'aiFollowUps'>>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   audit: Pick<AuditLog, 'ring' | 'resultsWithDeleted'>;
   worldIds: Pick<WorldIdResolver, 'current'>;
@@ -177,11 +178,19 @@ interface Collected {
   notes: string[];
 }
 
-/** People's records as document events; records that cannot be put back are left out and said. */
-function humanEvents(item: Item, out: Collected, nextOrder: () => number): void {
-  for (const r of item.action?.records ?? []) {
+/**
+ * Journal records as document events for `item` (a person's action, or Foundry's and dnd5e's
+ * follow-ups of an AI change); records that cannot be put back are left out and said.
+ */
+function recordEvents(
+  item: Item,
+  records: ChangeRecord[],
+  out: Collected,
+  nextOrder: () => number
+): void {
+  for (const r of records) {
     if (r.changeId) continue;
-    const what = r.name ?? r.rootName ?? r.uuid;
+    const what = r.name ?? (r.rootName ? `${r.documentName} on ${r.rootName}` : r.uuid);
     if (r.oversize) {
       out.notes.push(`Kept as it is: ${what} (the details of the change were too large to keep)`);
       continue;
@@ -500,9 +509,13 @@ export class UndoPlanner {
     let order = 0;
     const nextOrder = (): number => (order += 1);
     for (const item of set) {
-      if (item.action) humanEvents(item, out, nextOrder);
+      if (item.action) recordEvents(item, item.action.records, out, nextOrder);
       else if (item.entry) {
         aiEvents(item, await this.audit.resultsWithDeleted(worldId, item.entry), out, nextOrder);
+        // What Foundry and dnd5e did with the AI change (a combatant gone with its token, the
+        // dependents of an ended concentration) comes back with it.
+        const followUps = (await this.changeHistory.aiFollowUps?.(item.entry.changeId)) ?? [];
+        recordEvents(item, followUps, out, nextOrder);
       }
     }
     return out;

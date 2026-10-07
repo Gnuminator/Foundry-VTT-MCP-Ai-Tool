@@ -34,12 +34,14 @@
  * browser reload would otherwise recreate a removed file). A file that cannot be removed
  * (a Windows lock) is retried after `RETENTION_RETRY_MS`, the others are still removed.
  *
- * Lost records: when the module's ring buffer wrapped before the pump read it (the "records
- * lost" warning), the state keeps `completeFrom`, the time of the oldest record the buffer still
- * held, and `historyStart` moves up to it, so a rewind across the gap is refused instead of
- * skipping changes without a word. Known gaps it cannot see: a GM browser reload while the
- * bridge was down loses the old page's unread records with no trace (the new `clientId` is
- * also what a plain reload looks like), and nothing is recorded while the journal is off.
+ * Lost records: when the buffer no longer holds the record after the one the pump asked for
+ * (the ring wrapped before the pump read it, on any page; or, after a reload or on first
+ * contact, before the pump ever saw the new buffer), the "records lost" warning is logged and
+ * the state keeps `completeFrom`, the time of the oldest record the buffer still held;
+ * `historyStart` moves up to it, so a rewind across the gap is refused instead of skipping
+ * changes without a word. Known gaps it cannot see: a GM browser reload while the bridge was
+ * down loses the old page's unread records with no trace (the new `clientId` is also what a
+ * plain reload looks like), and nothing is recorded while the journal is off.
  *
  * On by default; `FOUNDRY_AI_CHANGE_JOURNAL=off` disables it. The poll interval is
  * `FOUNDRY_AI_EVENT_POLL_MS`, shared with the event pump; the byte cap is
@@ -281,9 +283,13 @@ export class ChangeJournalPump {
         state.clientId = response.clientId;
         sinceSeq = 0;
         response = await this.fetchPage(0);
-      } else if (page === 0 && state.clientId !== null && response.oldestSeq > state.lastSeq + 1) {
-        // The lost records all came before the oldest one the buffer still holds (its records
-        // are in order of their seq), so the history is complete again from that record's time.
+      }
+      // The buffer no longer holds the record after the one asked for: records were lost (the
+      // ring wrapped before the pump read them, on any page; after a reload or on first contact,
+      // before the pump ever saw the new buffer). The lost records all came before the oldest
+      // one the buffer still holds (its records are in order of their seq), so the history is
+      // complete again from that record's time.
+      if (response.oldestSeq > sinceSeq + 1) {
         const oldest = Array.isArray(response.records) ? response.records[0] : undefined;
         const oldestT = (oldest as { t?: unknown } | undefined)?.t;
         const completeFrom = typeof oldestT === 'number' && oldestT > 0 ? oldestT : this.now();
@@ -296,7 +302,7 @@ export class ChangeJournalPump {
           {
             worldId,
             clientId: response.clientId,
-            expectedFrom: state.lastSeq + 1,
+            expectedFrom: sinceSeq + 1,
             oldestSeq: response.oldestSeq,
             completeFrom: new Date(completeFrom).toISOString(),
           }

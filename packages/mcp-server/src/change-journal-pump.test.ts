@@ -432,6 +432,41 @@ describe('ChangeJournalPump.pollOnce', () => {
     const retained = makePump({ now: () => T0 + 5000 });
     await retained.pollOnce();
     expect(await retained.historyStart('w1')).toBe(T0 + 2000);
+
+    // A smaller time (a later loss with an older clock) never lowers the stored start.
+    foundry.add({ key: 'f', t: T0 + 1500 });
+    foundry.add({ key: 'g', t: T0 + 1600 });
+    foundry.evictOldest(foundry.records.length - 1); // 'f' is lost after 'e' was read
+    const later = makePump();
+    await later.pollOnce();
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+    expect(await later.historyStart('w1')).toBe(T0 + 2000);
+  });
+
+  it('records lost records after a reload and on first contact too (the buffer wrapped before the pump saw it)', async () => {
+    foundry.add({ key: 'a', t: T0 });
+    foundry.add({ key: 'b', t: T0 + 1000 });
+    foundry.evictOldest(1); // the GM browser ran before the bridge first polled
+    const first = makePump();
+    expect(await first.pollOnce()).toBe(1);
+    expect(await first.historyStart('w1')).toBe(T0 + 1000);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Change journal records lost: the ring buffer wrapped before the pump read them',
+      expect.objectContaining({ expectedFrom: 1, oldestSeq: 2 })
+    );
+
+    // A reload whose new buffer already wrapped before the pump read it.
+    foundry.reload('client-2');
+    foundry.add({ key: 'c', t: T0 + 2000 });
+    foundry.add({ key: 'd', t: T0 + 3000 });
+    foundry.evictOldest(1);
+    const after = makePump();
+    expect(await after.pollOnce()).toBe(1);
+    expect(await after.historyStart('w1')).toBe(T0 + 3000);
+    expect(logger.warn).toHaveBeenLastCalledWith(
+      'Change journal records lost: the ring buffer wrapped before the pump read them',
+      expect.objectContaining({ clientId: 'client-2', expectedFrom: 1, oldestSeq: 2 })
+    );
   });
 
   it('does not warn about loss across a clientId change', async () => {

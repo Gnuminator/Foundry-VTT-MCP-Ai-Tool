@@ -125,6 +125,12 @@ beforeEach((): void => {
     changeHistory: {
       humanActions: (): Promise<ChangeAction[]> => Promise.resolve(buildActions(records)),
       historyStart: (): Promise<number> => Promise.resolve(historyStart),
+      aiFollowUps: (changeId: string): Promise<ChangeRecord[]> =>
+        Promise.resolve(
+          buildActions(records)
+            .find(a => a.changeId === changeId)
+            ?.records.filter(r => !r.changeId) ?? []
+        ),
     },
     guardedWrites: { createPlan } as never,
     audit: {
@@ -230,6 +236,87 @@ describe('just-this', () => {
     ]);
     expect(planInput().undoes).toEqual({ changes: ['chg-1'] });
     expect(planInput().summary).toBe('Undo: AI chg-1');
+  });
+
+  it('puts back what dnd5e deleted with an AI change, and says what it cannot', async () => {
+    // The AI ends concentration (an effect delete, in the audit log); dnd5e removed the
+    // summoned token and a template with it (journal records of the same burst, not the AI's).
+    foundry.add('Scene.s1', 'Scene', { name: 'Castle' });
+    ring.push(
+      entry('chg-1', 1, {
+        results: [
+          {
+            index: 0,
+            kind: 'delete',
+            uuid: 'Actor.a.ActiveEffect.e1',
+            documentName: 'ActiveEffect',
+            name: 'Concentrating',
+            parentUuid: 'Actor.a',
+            deleted: { name: 'Concentrating', _id: 'e1' },
+          },
+        ],
+      })
+    );
+    records.push(
+      rec(1, {
+        actionId: 'F',
+        changeId: 'chg-1',
+        changeMode: 'apply',
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a.ActiveEffect.e1',
+        parentUuid: 'Actor.a',
+        name: 'Concentrating',
+        data: {
+          flags: {
+            dnd5e: {
+              dependents: [{ uuid: 'Scene.s1.Token.t9' }, { uuid: 'Scene.s1.MeasuredTemplate.m1' }],
+            },
+          },
+        },
+      }),
+      rec(1, {
+        actionId: 'F',
+        op: 'delete',
+        documentName: 'Token',
+        uuid: 'Scene.s1.Token.t9',
+        parentUuid: 'Scene.s1',
+        name: 'Wolf',
+        rootUuid: 'Scene.s1',
+        rootName: 'Castle',
+        data: { _id: 't9', name: 'Wolf' },
+      }),
+      rec(1, {
+        actionId: 'F',
+        op: 'delete',
+        documentName: 'MeasuredTemplate',
+        uuid: 'Scene.s1.MeasuredTemplate.m1',
+        parentUuid: 'Scene.s1',
+        name: null,
+        rootUuid: 'Scene.s1',
+        rootName: 'Castle',
+      })
+    );
+    const view = await plan('chg-1');
+    expect(planInput().ops).toEqual([
+      expect.objectContaining({
+        kind: 'create',
+        documentName: 'ActiveEffect',
+        parentUuid: 'Actor.a',
+        data: { name: 'Concentrating', _id: 'e1' },
+      }),
+      expect.objectContaining({
+        kind: 'create',
+        documentName: 'Token',
+        parentUuid: 'Scene.s1',
+        data: { _id: 't9', name: 'Wolf' },
+      }),
+    ]);
+    expect(planInput().notes).toContainEqual(
+      expect.stringMatching(/Not restored: MeasuredTemplate on Castle \(its data was not kept\)/)
+    );
+    // The follow-ups are not a person's action: nothing else to list.
+    expect(view.later).toEqual([]);
   });
 
   it('undoes an AI undo entry too (the redo of an AI undo)', async () => {

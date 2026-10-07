@@ -235,12 +235,13 @@ function aiEvents(
 
 /**
  * Amounts that add up, so a later change on top can keep its part: hit points, temporary hit
- * points, uses, spell slots, hit dice, currency, quantity, experience and death saves. Codes and
+ * points, uses (an item's and its activities'), spell slots, hit dice, currency, quantity,
+ * experience and death saves. Codes and
  * positions (a door's state, ownership levels, x and y, disposition, the combat turn) are not
  * amounts: 2 + (0 - 1) would turn a locked door into an open one.
  */
 const AMOUNT_PATH =
-  /^system\.(attributes\.hp\.(value|temp)|attributes\.death\.(success|failure)|currency\.[a-z]+|quantity|uses\.(value|spent)|spells\.[a-z0-9]+\.value|resources\.[a-z]+\.value|hd\.spent|details\.xp\.value)$/;
+  /^system\.(attributes\.hp\.(value|temp)|attributes\.death\.(success|failure)|currency\.[a-z]+|quantity|uses\.(value|spent)|activities\.[A-Za-z0-9]+\.uses\.spent|spells\.[a-z0-9]+\.value|resources\.[a-z]+\.value|hd\.spent|details\.xp\.value)$/;
 
 /** A path to adjust: a known amount, or a `.value` with a numeric `.max` beside it. */
 function isAmountPath(path: string, valueAt: (path: string) => PathValue): boolean {
@@ -364,15 +365,18 @@ export class UndoPlanner {
     const collected = await this.collect(worldId, set);
     notes.unshift(...collected.notes);
     const justThis = scope === 'just-this';
-    const folded = foldEvents(collected.events).filter(net => {
-      if (!keptDocs.has(net.uuid)) return true;
-      notes.push(
-        `Kept as it is: ${net.name ?? net.uuid} (a change that is not undone wrote to it)`
-      );
+    // Left out before the fold, so a kept document inside one that comes back stays as it is too.
+    const keptNames = new Map<string, string>();
+    const events = collected.events.filter(e => {
+      if (!keptDocs.has(e.uuid)) return true;
+      keptNames.set(e.uuid, e.name ?? keptNames.get(e.uuid) ?? e.uuid);
       return false;
     });
+    for (const name of keptNames.values()) {
+      notes.push(`Kept as it is: ${name} (a change that is not undone wrote to it)`);
+    }
     const { ops, resolved } = await this.resolveOps(
-      folded,
+      foldEvents(events),
       justThis,
       justThis && touching.length > 0,
       notes
@@ -517,7 +521,13 @@ export class UndoPlanner {
           notes.push(`Skipped: ${who} exists again`);
         } else if (!snap.exists) {
           notes.push(`Not restored: ${who} (what it belonged to is gone)`);
-        } else keep(change, opOf(change));
+        } else {
+          for (const child of change.unrecorded ?? []) {
+            const labels = child.paths.map(path => labelOf(path) ?? path).join(', ');
+            notes.push(`Not recorded, kept: ${child.name ?? child.uuid}: ${labels}`);
+          }
+          keep(change, opOf(change));
+        }
       } else if (!snap.exists) {
         // A document the set created is already gone (dnd5e removes Bloodied by itself): as wanted.
         if (change.kind !== 'delete') notes.push(`Skipped: ${who} no longer exists`);

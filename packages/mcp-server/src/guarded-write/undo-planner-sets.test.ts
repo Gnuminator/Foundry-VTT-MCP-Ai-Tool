@@ -394,6 +394,62 @@ describe('undone changes inside a since-set (live check 2026-10-07)', () => {
   });
 });
 
+describe('a deleted token with changes inside it (#187 review)', () => {
+  it('brings the token back as it was, its synthetic actor and Bloodied folded into the token', async () => {
+    foundry.add('Scene.s', 'Scene', { name: 'Village' });
+    const token = 'Scene.s.Token.t';
+    const actor = `${token}.Actor.x`;
+    const wolf = { rootUuid: token, rootName: 'Wolf', name: 'Wolf' };
+    records.push(
+      rec(1, {
+        ...wolf,
+        actionId: 'hit',
+        uuid: actor,
+        parentUuid: token,
+        before: [num(HP, 11)],
+        after: [num(HP, 4)],
+      }),
+      rec(1, {
+        ...wolf,
+        actionId: 'hit',
+        op: 'create',
+        uuid: `${actor}.ActiveEffect.bl`,
+        documentName: 'ActiveEffect',
+        name: 'Bloodied',
+        parentUuid: actor,
+      }),
+      rec(2, {
+        ...wolf,
+        actionId: 'del',
+        op: 'delete',
+        uuid: token,
+        documentName: 'Token',
+        parentUuid: 'Scene.s',
+        data: {
+          _id: 't',
+          name: 'Wolf',
+          delta: { system: { attributes: { hp: { value: 4 } } }, effects: [{ _id: 'bl' }] },
+        },
+      })
+    );
+    await plan('act:hit', 'world-since', true);
+    expect(opsOf()).toEqual([
+      {
+        kind: 'create',
+        documentName: 'Token',
+        parentUuid: 'Scene.s',
+        keepId: true,
+        data: {
+          _id: 't',
+          name: 'Wolf',
+          delta: { system: { attributes: { hp: { value: 11 } } }, effects: [] },
+        },
+      },
+    ]);
+    expect(planInput().notes).toEqual([]);
+  });
+});
+
 describe('guards on one change', () => {
   it('refuses to restore a document whose id exists again', async () => {
     records.push(rec(1, { actionId: 'd', op: 'delete', data: { _id: 'a', name: 'Ireena' } }));

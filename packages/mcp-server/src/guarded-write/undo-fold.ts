@@ -58,6 +58,8 @@ export interface NetCreate {
   name: string | null;
   parentUuid: string | null;
   data: Record<string, unknown>;
+  /** Children folded into `data` that had paths whose old value was never recorded (kept). */
+  unrecorded?: Array<{ uuid: string; name: string | null; paths: string[] }>;
 }
 
 export interface NetPath {
@@ -330,7 +332,18 @@ function foldIntoRecreated(out: NetChange[]): NetChange[] {
     );
     if (!parent) continue;
     const parts = child.uuid.slice(parent.uuid.length + 1).split('.');
-    if (foldChild(parent.data, parts, child)) absorbed.add(child);
+    if (!foldChild(parent.data, parts, child)) continue;
+    absorbed.add(child);
+    // What the child could not put back is still said, by the parent that carries it now.
+    const unrecorded =
+      child.kind === 'update'
+        ? child.unrecorded.length > 0
+          ? [{ uuid: child.uuid, name: child.name, paths: child.unrecorded }]
+          : []
+        : child.kind === 'create'
+          ? (child.unrecorded ?? [])
+          : [];
+    if (unrecorded.length > 0) parent.unrecorded = [...(parent.unrecorded ?? []), ...unrecorded];
   }
   return out.filter(n => !absorbed.has(n));
 }

@@ -24,35 +24,60 @@ export type UndoState = Map<string, UndoMark>;
 /** The feature of an undo-planner entry (I-109). */
 export const UNDO_FEATURE = 'change-undo';
 
+/** Deepest undo chain `redoFeatures` follows (a real chain is a handful of links). */
+const MAX_UNDO_LINKS = 50;
+
+export interface RedoCheck {
+  /** The features whose switches must be on. */
+  features: string[];
+  /** A change on the way has left the ring, so what comes back is not known: refuse. */
+  unknown: boolean;
+}
+
+/** An original change (a feature's own apply), as opposed to an entry that undid others. */
+function isOriginal(entry: AuditEntry): boolean {
+  return entry.mode === 'apply' && entry.feature !== UNDO_FEATURE;
+}
+
+/** The audit changes an undo entry took back (people's actions need no switch). */
+function targetsOf(entry: AuditEntry): string[] {
+  if (entry.mode === 'undo') return entry.undoOf ? [entry.undoOf] : [];
+  return entry.undoes?.changes ?? [];
+}
+
 /**
  * The features whose changes come back when the audit changes `ids` are undone together: undoing
- * an undo is a redo, and a redo must respect the original feature's switch. Undoing a feature's
- * undo entry redoes that feature; undoing an undo-planner entry redoes the AI changes it undid.
- * A change whose undo is undone in the same step cancels out and needs no switch.
+ * an undo is a redo, and a redo must respect the original feature's switch. The undo links are
+ * followed all the way down: undoing an entry re-applies what it undid, and re-applying an undo
+ * takes its targets back again. Each original change is counted +1 when it comes back and -1 when
+ * it is taken back, so a change and its undo in the same step cancel out and need no switch.
  */
-export function redoFeatures(ring: readonly AuditEntry[], ids: readonly string[]): string[] {
+export function redoFeatures(ring: readonly AuditEntry[], ids: readonly string[]): RedoCheck {
   const byId = new Map(ring.map(e => [e.changeId, e]));
-  const inSet = new Set(ids);
-  const features = new Set<string>();
-  for (const id of ids) {
+  const net = new Map<string, { feature: string; n: number }>();
+  const always = new Set<string>();
+  let unknown = false;
+  // `sign` +1: the change at `id` is put back (re-applied); -1: it is taken back (undone).
+  const walk = (id: string, sign: 1 | -1, via: AuditEntry | null, depth: number): void => {
     const entry = byId.get(id);
-    if (!entry) continue;
-    if (entry.feature !== UNDO_FEATURE) {
-      if (entry.mode === 'undo' && !(entry.undoOf && inSet.has(entry.undoOf))) {
-        features.add(entry.feature);
-      }
-      continue;
+    if (!entry || depth > MAX_UNDO_LINKS) {
+      // A legacy undo carries its original's feature: require that switch, to be safe.
+      if (via && via.feature !== UNDO_FEATURE) always.add(via.feature);
+      else unknown = true;
+      return;
     }
-    if (entry.mode !== 'apply') continue;
-    for (const undone of entry.undoes?.changes ?? []) {
-      const original = byId.get(undone);
-      if (!original || inSet.has(undone)) continue;
-      if (original.mode === 'apply' && original.feature !== UNDO_FEATURE) {
-        features.add(original.feature);
-      }
+    if (isOriginal(entry)) {
+      const seen = net.get(id) ?? { feature: entry.feature, n: 0 };
+      seen.n += sign;
+      net.set(id, seen);
+      return;
     }
-  }
-  return [...features];
+    // An undo entry: taking it back re-applies its targets, putting it back takes them back.
+    for (const target of targetsOf(entry)) walk(target, sign === -1 ? 1 : -1, entry, depth + 1);
+  };
+  for (const id of ids) walk(id, -1, null, 0);
+  for (const { feature, n } of net.values()) if (n > 0) always.add(feature);
+  return { features: [...always], unknown };
 }
 
 /** The key the change list and `computeUndoState` use for a journal action. */

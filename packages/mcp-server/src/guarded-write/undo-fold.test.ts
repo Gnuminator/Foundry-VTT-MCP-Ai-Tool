@@ -265,6 +265,34 @@ describe('foldEvents, a parent that comes back', () => {
     });
   });
 
+  it('puts a grandchild back under a child that comes back, and carries unrecorded paths', () => {
+    const net = foldEvents([
+      ev({
+        op: 'update',
+        uuid: 'Actor.a.Item.i.ActiveEffect.e',
+        before: [num('disabled', 0)],
+        after: [num('disabled', 1)],
+        unknownBefore: ['changes'],
+      }),
+      ev({
+        op: 'delete',
+        uuid: 'Actor.a.Item.i',
+        parentUuid: 'Actor.a',
+        source: { _id: 'i', effects: [{ _id: 'e', disabled: 1 }] },
+      }),
+      ev({ op: 'delete', uuid: 'Actor.a', source: { _id: 'a', items: [] } }),
+    ]);
+    expect(net).toHaveLength(1);
+    const [parent] = net;
+    expect(parent?.kind === 'create' && parent.data).toEqual({
+      _id: 'a',
+      items: [{ _id: 'i', effects: [{ _id: 'e', disabled: 0 }] }],
+    });
+    expect(parent?.kind === 'create' && parent.unrecorded).toEqual([
+      { uuid: 'Actor.a.Item.i.ActiveEffect.e', name: 'Thing', paths: ['changes'] },
+    ]);
+  });
+
   it('keeps a child as its own op when it is not in the source', () => {
     const net = foldEvents([
       ev({ op: 'update', uuid: 'Actor.a.Item.gone', before: [num('x', 1)], after: [num('x', 2)] }),

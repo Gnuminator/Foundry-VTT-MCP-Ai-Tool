@@ -81,6 +81,14 @@ test('validateProfile accepts a good profile and names each problem of a bad one
     validateProfile(profile({ select: { rules: ['2024'], skipIds: '^x', skipNames: ['A'] } })),
     []
   );
+  // knownAlso: other profiles whose known lists count too; plain ids, never the profile itself.
+  assert.deepEqual(validateProfile(profile({ knownAlso: ['srd'] })), []);
+  assert.match(validateProfile(profile({ knownAlso: 'srd' })).join(), /knownAlso must be a list/);
+  assert.match(validateProfile(profile({ knownAlso: ['Bad Id'] })).join(), /knownAlso must be/);
+  assert.match(
+    validateProfile(profile({ knownAlso: ['mine'] })).join(),
+    /must not name the profile itself/
+  );
 });
 
 test('a world that is not a kit world is refused, also the everyday test worlds', () => {

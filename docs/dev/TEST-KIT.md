@@ -800,10 +800,11 @@ change Actor Studio to make the kit green.
 
 A `CONTENT` or `SYSTEM` failure that is understood and reported goes on the profile's known list, so
 the next run counts it instead of failing on it, and a new failure stands out. `heroes-advancement`,
-`heroes-features-use`, `heroes-multiclass`, the origins scenarios, `monsters-matrix`, `monsters-every`
-and `monsters-odd` read the list (`lib/known.mjs`; the origins ones after their own `data/origins-expected.json`);
+`heroes-features-use`, `heroes-multiclass`, the origins scenarios, `monsters-matrix`, `monsters-every`,
+`monsters-odd` and `spells-cast-all` read the list (`lib/known.mjs`; the origins ones after their own `data/origins-expected.json`);
 `heroes-studio` keeps its own (`data/studio-expected.json`). In `monsters-odd` a monster whose
-problems are all known is counted in the check's `known` number and does not fail the check.
+problems are all known is counted in the check's `known` number and does not fail the check; in
+`spells-cast-all` a spell whose problems are all known does the same for its level.
 
 | Profile    | Known list                                                    |
 | ---------- | ------------------------------------------------------------- |
@@ -811,7 +812,12 @@ problems are all known is counted in the check's `known` number and does not fai
 | a local id | `<kit home>\licensed\profiles\<id>.known.json` (this PC only) |
 
 The licensed list names licensed features, so it stays on this PC like its profile. A missing file is
-an empty list. An entry:
+an empty list. A profile that includes the system's own packs also has the system's findings, so its
+file names the profiles whose lists count too: `"knownAlso": ["srd"]` in the licensed profile. The
+profile's own entries are checked first, then the inherited ones (one level); an id in two lists is
+an error. A monster finding ends with the monster's pack (`...; in aitool-content.monsters`) and a
+spell finding with the spell's pack, so an entry's `match` can name the pack and the same creature in
+two packs is told apart. An entry:
 
 ```json
 {

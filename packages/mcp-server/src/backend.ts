@@ -58,6 +58,7 @@ import { EncounterTools } from './tools/encounter.js';
 import { SceneChangeTools } from './tools/scene-change.js';
 import { DiagnosticsTools } from './tools/diagnostics.js';
 import { GuardedChangeTools } from './tools/guarded-changes.js';
+import { ChangeHistoryTools } from './tools/change-history.js';
 import { TarokkaTools } from './tools/tarokka.js';
 import { PlaySessionTools } from './tools/play-session.js';
 import { PlayStatsTools } from './tools/play-stats.js';
@@ -74,6 +75,8 @@ import { GuardedWriteService } from './guarded-write/service.js';
 import { AuditLog, VaultStore, WorldIdResolver, resolveDataDir } from './vault/index.js';
 import { EventPump, eventPumpSettings } from './event-pump.js';
 import { PlayLogPump, playLogSettings } from './play-log-pump.js';
+import { ChangeJournalPump, changeJournalSettings } from './change-journal-pump.js';
+import { ChangeHistory } from './change-history.js';
 import { UsageLog, handleRecordUsage } from './usage-log.js';
 import {
   handleCharacterSheet,
@@ -323,6 +326,20 @@ async function startBackend(): Promise<void> {
     onRecorded: renderObsidian,
   });
   const guardedChangeTools = new GuardedChangeTools({ guardedWrites, foundryClient, logger });
+  // Everyone's recent changes (I-109): the change-journal pump fills the vault, this index reads it.
+  // The pump starts below once the Foundry link does; `list-changes` pulls the newest records through it.
+  const changeJournalConfig = changeJournalSettings();
+  let changeJournalPump: ChangeJournalPump | null = null;
+  const changeHistory = new ChangeHistory({
+    store: vaultStore,
+    worldIds,
+    guardedWrites,
+    logger,
+    ...(FOUNDRY_LINK_ENABLED && changeJournalConfig.enabled
+      ? { pullNow: (): Promise<void> => changeJournalPump?.pullNow() ?? Promise.resolve() }
+      : {}),
+  });
+  const changeHistoryTools = new ChangeHistoryTools({ changeHistory, logger });
   const tarokkaService = new TarokkaService({
     guardedWrites,
     store: vaultStore,
@@ -433,6 +450,7 @@ async function startBackend(): Promise<void> {
     sessionLogTools,
     combatResolutionTools,
     encounterTools,
+    changeHistoryTools,
     guardedChangeTools,
     tarokkaTools,
     playSessionTools,
@@ -509,6 +527,20 @@ async function startBackend(): Promise<void> {
       playLogPump.start();
     } else {
       logger.info('Play log disabled (FOUNDRY_AI_PLAY_LOG=off)');
+    }
+    // The change journal (I-109; FOUNDRY_AI_CHANGE_JOURNAL=off disables it): every change anyone made.
+    if (changeJournalConfig.enabled) {
+      changeJournalPump = new ChangeJournalPump({
+        foundryClient,
+        worldIds,
+        store: vaultStore,
+        logger,
+        intervalMs: changeJournalConfig.intervalMs,
+        onAppended: (worldId, records) => changeHistory.addRecords(worldId, records),
+      });
+      changeJournalPump.start();
+    } else {
+      logger.info('Change journal disabled (FOUNDRY_AI_CHANGE_JOURNAL=off)');
     }
     if (usageLog.enabled) {
       usagePump = new UsagePump({
@@ -731,6 +763,7 @@ async function startBackend(): Promise<void> {
   process.on('SIGINT', () => {
     eventPump?.stop();
     playLogPump?.stop();
+    changeJournalPump?.stop();
     usagePump?.stop();
     mirrorPump?.stop();
     obsidianRender?.stop();
@@ -742,6 +775,7 @@ async function startBackend(): Promise<void> {
   process.on('SIGTERM', () => {
     eventPump?.stop();
     playLogPump?.stop();
+    changeJournalPump?.stop();
     usagePump?.stop();
     mirrorPump?.stop();
     obsidianRender?.stop();

@@ -9,6 +9,7 @@ import { vi } from 'vitest';
 import type { ToolRouterDeps } from '../tool-router.js';
 import { ActorCreationTools } from '../tools/actor-creation.js';
 import { CampaignManagementTools } from '../tools/campaign-management.js';
+import { ChangeHistoryTools } from '../tools/change-history.js';
 import { CharacterTools } from '../tools/character.js';
 import { ChatLogTools } from '../tools/chat-log.js';
 import { CombatResolutionTools } from '../tools/combat-resolution.js';
@@ -50,6 +51,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
   return {
     actorCreationTools: new ActorCreationTools(base),
     campaignManagementTools: new CampaignManagementTools(foundryClient, logger),
+    changeHistoryTools: new ChangeHistoryTools({ changeHistory: {} as any, logger }),
     characterTools: new CharacterTools(base),
     chatLogTools: new ChatLogTools(base),
     combatResolutionTools: new CombatResolutionTools(base),

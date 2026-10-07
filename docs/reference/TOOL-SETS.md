@@ -4,7 +4,7 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 84 tools. Their definitions are about 90,700 characters of JSON, roughly 22,000 to
+The bridge has 85 tools. Their definitions are about 91,800 characters of JSON, roughly 22,000 to
 29,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
@@ -14,14 +14,14 @@ what the conversation needs. The switches are remembered for new chats.
 
 | Set       | Claude Desktop entry | Tools | Size (characters) | For                                                                                          |
 | --------- | -------------------- | ----- | ----------------- | -------------------------------------------------------------------------------------------- |
-| **core**  | `foundry-mcp`        | 20    | about 12,800      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
+| **core**  | `foundry-mcp`        | 21    | about 13,900      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
 | **play**  | `foundry-mcp-play`   | 29    | about 26,400      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
 | **prep**  | `foundry-mcp-prep`   | 20    | about 19,600      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
 | **build** | `foundry-mcp-build`  | 7     | about 25,200      | Making NPCs, monsters and items, from a compendium or from scratch.                          |
 | **admin** | `foundry-mcp-admin`  | 8     | about 6,500       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
 
-A prep chat with core and prep on carries about 32,500 characters instead of 90,700. Core alone is
-about 14% of everything.
+A prep chat with core and prep on carries about 33,600 characters instead of 91,800. Core alone is
+about 15% of everything.
 
 The dashboard is not affected: it reads the bridge directly and always has every tool.
 
@@ -34,7 +34,7 @@ code disagree. Each tool's description and parameters are in the [tool reference
   `search-character-items`, `list-scenes`, `get-current-scene`, `get-token-positions`,
   `get-combat-state`, `list-journals`, `search-journals`, `search-compendium`,
   `get-compendium-item`, `list-compendium-packs`, `get-planned-change`, `apply-planned-change`,
-  `list-recent-changes`, `undo-change`, `open-in-foundry`, `check-secret-terms`
+  `list-recent-changes`, `list-changes`, `undo-change`, `open-in-foundry`, `check-secret-terms`
 - **play:** `switch-scene`, `use-item`, `request-player-rolls`, `request-ability-check`,
   `request-attack-roll`, `roll-npc-check`, `get-token-details`, `get-available-conditions`,
   `get-chat-log`, `get-combat-play-by-play`, `send-chat-message`, `get-character-resources`,

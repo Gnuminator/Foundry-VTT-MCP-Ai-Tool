@@ -810,14 +810,5 @@ a.btn {
   #moment-after {
     grid-template-columns: minmax(0, 1fr);
   }
-  #moment-during {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      'strip'
-      'feed'
-      'side';
-  }
-  #moment-during .slot-feed .pane {
-    height: 60vh;
-  }
+  /* During has its own narrow rules (max-width 899px, above): its slots need their areas. */
 }

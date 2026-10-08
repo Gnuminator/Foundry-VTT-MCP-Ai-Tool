@@ -9,6 +9,9 @@ Hi! Your GM uses Foundry AI Tool next to Foundry. For you, Foundry works exactly
 page explains the extra bits: what you can see, what gets recorded, and what an AI reads. Short
 how-tos are in the [player cookbook](cookbook.md).
 
+New to the table? Start with [Join the game](join.md) (the address, logging in, Discord), then
+[Make your character](make-a-character.md).
+
 ## What you see
 
 **The player page.** A read-only web page. It is not available to you yet: today it only opens on
@@ -65,24 +68,38 @@ from it are in the GM's Obsidian notes. None of it is stored in the Foundry worl
 - **Dashboard commentary, only if an API key is set.** The GM's dashboard can comment on the game
   by itself, but only with a separate paid API key. Then recent game events and the combat state go
   to Anthropic automatically. It is off unless the GM turns it on.
-- **Session recordings, only when started.** A session is recorded only when someone types
-  `/record start` in Discord. The bot then joins the voice channel and posts a notice, and it
-  stops at `/record stop`. It records one audio track per person, and only while your microphone
-  sends sound: when you are muted, nothing of yours is recorded. You can ask not to be recorded;
-  then your track is left out.
-  - The audio stays on the table's own PC. Turning it into text (speech to text) also runs there,
-    not in the cloud.
+- **Session recordings, only with your yes, and only when started.** See
+  [Recording and your consent](#recording-and-your-consent) below. A session is recorded only when
+  someone types `/record start` in Discord. The bot then joins the voice channel and posts a
+  notice, and it stops at `/record stop`. It records one audio track per person, and only while
+  your microphone sends sound: when you are muted, nothing of yours is recorded.
+  - The audio passes through Discord and the table's home server (the Orange Pi), which deletes
+    its copy 7 days after the PC has copied it. It is kept on the PC of the player who runs the
+    tool. Turning it into text (speech to text) runs on that PC, not in the cloud.
   - The text then goes to Claude, under the Claude account of whoever runs the notes step, to
     write a cleaned transcript, notes per scene and a short recap, in Danish and English.
-  - The notes then go into a Foundry journal only the GM can open. The recap for players is a
-    draft until the GM has read it and revealed it: then it shows up with the other handouts.
-    Things the GM says that are meant for the GM only are kept out of it.
+  - The notes then go into a Foundry journal only the GM can open, and into the GM's notes (an
+    Obsidian vault), which also reach the GM's own PC. The recap for players is a draft until the
+    GM has read it and revealed it: then it shows up with the other handouts. Things the GM says
+    that are meant for the GM only are kept out of it.
+
+## Recording and your consent
+
+Before the first recorded session, the player who runs the tool posts a message in Discord that
+says exactly what is recorded, and each player replies yes or no in writing. No reply counts as
+no. In short: your own voice track is recorded; it passes through Discord and the Pi (deleted there
+7 days after the PC copies it) and is kept on that player's PC; transcripts and notes go into the
+GM's notes, which also reach the GM's PC; the recordings are kept to train and test the table's own
+speech tools until you ask for yours to be deleted. You can say no: then your track is deleted
+after each session, before anything is turned into text, and the notes are written without you.
+You can also change your mind later: your tracks are deleted and the transcripts and notes written
+again without you.
 
 ## How long it is kept
 
-For the campaign. When the campaign ends, the GM decides what to keep. Recorded audio is the
-exception: it is deleted 14 days after the GM approves that session's notes. The transcript and
-the notes stay with the rest of the campaign notes.
+For the campaign. When the campaign ends, the GM decides what to keep. Recorded audio is kept
+until you ask for yours to be deleted (see [Recording and your consent](#recording-and-your-consent)).
+The transcript and the notes stay with the rest of the campaign notes.
 
 ## Having your data removed
 

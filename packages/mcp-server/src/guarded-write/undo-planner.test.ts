@@ -183,6 +183,14 @@ describe('refusals', () => {
     historyStart = T0 + 5 * MIN;
     leftOut.add('chg-del').add('chg-upd');
     await expect(plan('chg-del')).rejects.toThrow(/can no longer be undone here/);
+    // A compendium item is not journaled and has no follow-ups: only the note.
+    ring.push(
+      entry('chg-pack', 3, {
+        results: [{ ...del, uuid: 'Compendium.world.items.Item.i9', parentUuid: null }],
+      })
+    );
+    leftOut.add('chg-pack');
+    await expect(plan('chg-pack')).resolves.toMatchObject({ scope: 'just-this' });
     // No item or effect deleted: undone with the note that its follow-ups do not come back.
     await expect(plan('chg-upd')).resolves.toMatchObject({ scope: 'just-this' });
     expect(planInput().notes).toContainEqual(

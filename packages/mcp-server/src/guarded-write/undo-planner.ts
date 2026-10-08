@@ -493,8 +493,12 @@ export class UndoPlanner {
         `People's changes before ${from} are no longer in the history (it keeps ${CHANGE_HISTORY_DAYS} days, less when the change journal's size cap is reached or its records were lost), so not every change since "${target.summary}" is known. Undo just this change instead, or undo the later changes one by one.`
       );
     }
+    // A compendium document is not journaled and has no dnd5e follow-ups at the table.
     const deletedItemOrEffect = (target.entry?.results ?? []).some(
-      r => r.kind === 'delete' && DEPENDENT_SOURCE_KINDS.has(r.documentName)
+      r =>
+        r.kind === 'delete' &&
+        DEPENDENT_SOURCE_KINDS.has(r.documentName) &&
+        !r.uuid.startsWith('Compendium.')
     );
     if (leftOut && deletedItemOrEffect) {
       throw new Error(

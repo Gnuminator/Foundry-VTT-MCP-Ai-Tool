@@ -828,6 +828,9 @@ export class ChangeHistory {
     if (index.droppedChanges.has(changeId)) return true;
     if (!this.journalStart || at === undefined) return false;
     if (at < this.now() - CHANGE_HISTORY_DAYS * DAY_MS) return false;
+    // Lost records lie before the start: a newer change's records may just not be pulled yet.
+    const start = Math.max(index.trimmedBefore, await this.journalStart(worldId));
+    if (at >= start) return false;
     return !index.records.some(r => r.changeId === changeId);
   }
 

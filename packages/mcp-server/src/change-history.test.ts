@@ -1365,6 +1365,8 @@ describe('ChangeHistory.list', () => {
     expect(await on.changeLeftOut('chg-x')).toBe(false);
     expect(await on.changeLeftOut('chg-x', NOW - 8 * DAY)).toBe(false);
     expect(await makeHistory().changeLeftOut('chg-x', NOW - 90 * MIN)).toBe(false);
+    // A change after the start whose records are not pulled yet (an AI delete just now).
+    expect(await on.changeLeftOut('chg-new', NOW)).toBe(false);
   });
 
   it('remembers the AI changes some of whose records it left out', async () => {

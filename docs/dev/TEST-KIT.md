@@ -270,7 +270,11 @@ the controls that failed; the `controls` attachment has one row per control (pas
 reason), and the report links one screenshot per drawer, view, moment and During layout for a person to
 look at (no pixel comparison). A control that depends on data (a boss in the combat, a stored Tarokka reading,
 AI on) is skipped with a note when it is not on the screen, never failed; a console error during a row fails
-it even so (the sweep waits a moment after each row so a late error lands on the row that caused it). The
+it even so (the sweep waits a moment after each row so a late error lands on the row that caused it). A
+dashboard API request that answers 400 or more is recorded as `HTTP <status> <method> <path> <tool>:
+<error>` (the tool's name and the server's error, never its arguments) in place of the browser's bare
+"Failed to load resource" line. A row whose drawer starts its own run on opening (Prep, Pre-flight) waits
+for that run to end (`idle`) before it clicks, because the run's redraw would undo the click. The
 tool runner's Pick button and the player page's name picker are required rows: every kit world has tools with
 a picker and the kit player user. The sweep turns GM Actions on for the run (put back afterwards) so the
 Everyone tab's Undo opens its window, and walks that window read-only: Just this, Everything since and the

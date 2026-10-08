@@ -180,12 +180,15 @@ export default {
           refused.map(e => `${scrub(e.message).slice(0, 200)} (${scrub(e.source)})`)
         );
         // Every error of that page must be the expected kind: a request the dashboard refused with
-        // 401, or a resource that failed with no status (a request cut off). A script error
-        // (pageerror) or any other status is a real problem.
+        // 401 (an /api/ one is recorded as "HTTP 401 ..." by the response listener), or a resource
+        // that failed with no status (a request cut off). A script error (pageerror) or any other
+        // status is a real problem.
         const expectedError = (/** @type {{message: string, source: string}} */ e) =>
-          e.source !== 'pageerror' &&
-          /Failed to load resource/.test(e.message) &&
-          (!/status of \d+/.test(e.message) || /status of 401\b/.test(e.message));
+          e.source === 'response'
+            ? /^HTTP 401 /.test(e.message)
+            : e.source !== 'pageerror' &&
+              /Failed to load resource/.test(e.message) &&
+              (!/status of \d+/.test(e.message) || /status of 401\b/.test(e.message));
         const stray = refused.filter(e => !expectedError(e));
         t.check(
           stray.length === 0,

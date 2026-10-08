@@ -26,6 +26,46 @@ export function redact(text) {
   return String(text ?? '').replace(/([?&](?:token|cogm_token)=)[^&#\s"']+/gi, '$1<token>');
 }
 
+/** @param {string | undefined} url */
+function isApi(url) {
+  try {
+    return new URL(String(url)).pathname.startsWith('/api/');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * One line for a failed dashboard API request: status, method, path, the tool it named (never its
+ * arguments) and the error the server sent, so the report says which tool failed and why.
+ * @param {import('playwright-core').Response} res
+ */
+export async function describeFailed(res) {
+  const req = res.request();
+  let tool = '';
+  try {
+    const name = JSON.parse(req.postData() ?? '{}')?.name;
+    if (typeof name === 'string') tool = ` ${name}`;
+  } catch {
+    // not JSON
+  }
+  let error = '';
+  try {
+    const body = await res.text();
+    try {
+      const parsed = JSON.parse(body);
+      error = String(parsed?.error ?? body);
+    } catch {
+      error = body;
+    }
+  } catch {
+    // the body is gone (the page navigated)
+  }
+  const path = new URL(res.url()).pathname;
+  const said = error ? `: ${error.replace(/\s+/g, ' ').slice(0, 200)}` : '';
+  return `HTTP ${res.status()} ${req.method()} ${path}${tool}${said}`;
+}
+
 /**
  * @param {{
  *   dashboardUrl: string,
@@ -74,7 +114,13 @@ export function createKitBrowser({
     page.on('console', msg => {
       if (msg.type() !== 'error') return;
       const loc = msg.location();
+      // A failed /api/ request is recorded by the response listener with its tool and error instead.
+      if (/^Failed to load resource/.test(msg.text()) && isApi(loc?.url)) return;
       record(msg.text(), loc?.url ? `${loc.url}:${loc.lineNumber ?? 0}` : 'console');
+    });
+    page.on('response', async res => {
+      if (res.status() < 400 || !isApi(res.url())) return;
+      record(await describeFailed(res), 'response');
     });
     page.on('pageerror', err => {
       record(String(/** @type {any} */ (err)?.stack || err), 'pageerror');

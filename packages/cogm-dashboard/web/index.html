@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Foundry AI Tool (new dashboard)</title>
+    <!-- The old page's stylesheets and themes (The Veil, D-085), served by the dashboard from
+         public/. Absolute URLs, so the build leaves them as they are. -->
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/moments.css" />
+    <link rel="stylesheet" href="/themes/brand.css" />
+    <link rel="stylesheet" href="/themes/veil.css" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- The usage log (I-084) is the old page's script; it reads data-track on clicks. -->
+    <script
+      src="/usage.js"
+      data-usage-endpoint="/api/usage"
+      data-usage-surface="dashboard"
+      data-usage-token-key="cogm_token"
+    ></script>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>

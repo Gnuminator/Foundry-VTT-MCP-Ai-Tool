@@ -559,6 +559,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     })
   );
 
+  // The React dashboard (D-109), next to the old pages until the default switches: a static
+  // shell like index.html; its data comes from the same routes, with the same token.
+  app.use('/next', express.static(config.webDir));
+
   // Clean URL for the read-only player view (the static file is also at /player.html).
   // sendFile skips the static hook, so the route sets the page header itself; Express matches
   // routes case-insensitively and with an optional trailing slash (`/PLAYER`, `/player/`).

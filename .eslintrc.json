@@ -55,6 +55,12 @@
         "@typescript-eslint/no-unsafe-argument": "off",
         "@typescript-eslint/no-unsafe-return": "off"
       }
+    },
+    {
+      "files": ["packages/cogm-dashboard/web/**/*.ts", "packages/cogm-dashboard/web/**/*.tsx"],
+      "env": { "browser": true },
+      "plugins": ["react-hooks"],
+      "extends": ["plugin:react-hooks/recommended"]
     }
   ],
   "env": {

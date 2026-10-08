@@ -1,0 +1,5 @@
+# The wiki build (docs/wiki/mkdocs.yml). Pinned; bump together and check `mkdocs build --strict`.
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+pymdown-extensions==12.1
+Markdown==3.11

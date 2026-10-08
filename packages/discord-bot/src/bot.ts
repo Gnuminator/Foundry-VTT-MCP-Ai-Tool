@@ -206,7 +206,7 @@ export class RecorderBot {
     const guild = i.guild;
     const member = guild ? await guild.members.fetch(i.user.id) : undefined;
     const channel = member?.voice.channel;
-    if (!guild || !channel || channel.type !== ChannelType.GuildVoice) {
+    if (!guild || channel?.type !== ChannelType.GuildVoice) {
       await i.reply({ content: 'Join a voice channel first.', flags: MessageFlags.Ephemeral });
       return;
     }

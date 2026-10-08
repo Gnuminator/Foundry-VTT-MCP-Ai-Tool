@@ -166,6 +166,6 @@ export async function sessionSwitches(data: unknown): Promise<SessionSwitchesRes
     case 'end':
       return await end();
     default:
-      throw new Error(`Unknown action: ${String(action)}`);
+      throw new Error(`Unknown action: ${typeof action === 'string' ? action : typeof action}`);
   }
 }

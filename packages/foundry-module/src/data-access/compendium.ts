@@ -529,28 +529,20 @@ export class CompendiumDataAccess {
       const enhancedResult = await this.listCreaturesByCriteria(criteria);
 
       // The enhanced index is already filtered — no extra name filtering needed.
-      return enhancedResult.creatures.map(
-        creature =>
-          ({
-            id: creature.id || creature.name,
-            name: creature.name,
-            type: creature.type || 'npc',
-            pack: creature.pack,
-            packLabel: creature.packLabel || creature.pack,
-            description: creature.description || '',
-            hasImage: creature.hasImage || !!creature.img,
-            summary: `CR ${creature.challengeRating} ${creature.creatureType} from ${creature.packLabel}`,
-            challengeRating: creature.challengeRating,
-            creatureType: creature.creatureType,
-            size: creature.size,
-            hasLegendaryActions: creature.hasLegendaryActions,
-          }) as CompendiumSearchResult & {
-            challengeRating: number;
-            creatureType: string;
-            size: string;
-            hasLegendaryActions: boolean;
-          }
-      );
+      return enhancedResult.creatures.map(creature => ({
+        id: creature.id || creature.name,
+        name: creature.name,
+        type: creature.type || 'npc',
+        pack: creature.pack,
+        packLabel: creature.packLabel || creature.pack,
+        description: creature.description || '',
+        hasImage: creature.hasImage || !!creature.img,
+        summary: `CR ${creature.challengeRating} ${creature.creatureType} from ${creature.packLabel}`,
+        challengeRating: creature.challengeRating,
+        creatureType: creature.creatureType,
+        size: creature.size,
+        hasLegendaryActions: creature.hasLegendaryActions,
+      }));
     } catch (error) {
       console.warn(`[${MODULE_ID}] Enhanced search failed, falling back to basic search:`, error);
       return null;

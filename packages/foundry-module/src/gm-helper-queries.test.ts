@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 function addUser(opts: Record<string, unknown>): any {
-  const user = makeUser(opts as any);
+  const user = makeUser(opts);
   world.users.set(user.id, user);
   return user;
 }

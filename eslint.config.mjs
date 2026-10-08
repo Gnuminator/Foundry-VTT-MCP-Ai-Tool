@@ -4,6 +4,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettierRecommended from 'eslint-plugin-prettier/recommended';
 import reactHooks from 'eslint-plugin-react-hooks';
+import vitest from '@vitest/eslint-plugin';
 import globals from 'globals';
 import { defineConfig } from 'eslint/config';
 
@@ -71,18 +72,23 @@ export default defineConfig(
       'no-useless-assignment': 'warn',
       'no-constant-binary-expression': 'warn',
       'preserve-caught-error': 'warn',
-      '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
-      '@typescript-eslint/prefer-optional-chain': 'warn',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'error',
+      '@typescript-eslint/prefer-optional-chain': 'error',
       '@typescript-eslint/prefer-promise-reject-errors': 'warn',
-      '@typescript-eslint/no-base-to-string': 'warn',
-      '@typescript-eslint/unbound-method': 'warn',
-      '@typescript-eslint/no-duplicate-type-constituents': 'warn',
+      '@typescript-eslint/no-base-to-string': 'error',
+      '@typescript-eslint/unbound-method': 'error',
+      '@typescript-eslint/no-duplicate-type-constituents': 'error',
       '@typescript-eslint/only-throw-error': 'warn',
     },
   },
   {
     files: ['**/*.test.ts', '**/test-support/**/*.ts'],
+    plugins: { vitest },
     rules: {
+      // `expect(mock.method).toHaveBeenCalled()` is not an unbound call; the vitest version of
+      // the rule knows that and still checks everything else.
+      '@typescript-eslint/unbound-method': 'off',
+      'vitest/unbound-method': 'error',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',

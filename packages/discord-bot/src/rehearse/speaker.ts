@@ -42,7 +42,7 @@ export class SpeakerBot {
 
   async join(channelId: string, timeoutMs = 30_000): Promise<void> {
     const channel = await this.client.channels.fetch(channelId);
-    if (!channel || channel.type !== ChannelType.GuildVoice) {
+    if (channel?.type !== ChannelType.GuildVoice) {
       throw new Error(
         `speaker ${this.index}: ${channelId} is not a voice channel this bot can see`
       );

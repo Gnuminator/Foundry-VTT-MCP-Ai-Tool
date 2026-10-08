@@ -104,7 +104,11 @@ export function generatedProps(
 /** Text safe inside a Markdown table cell, and neutralized against Templater. */
 export function cell(value: unknown): string {
   const text =
-    typeof value === 'string' ? value : value === null || value === undefined ? '' : String(value);
+    typeof value === 'string'
+      ? value
+      : typeof value === 'number' || typeof value === 'boolean'
+        ? String(value)
+        : '';
   return neutralizeTemplater(text.replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').trim());
 }
 

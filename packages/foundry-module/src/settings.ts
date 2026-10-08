@@ -120,7 +120,7 @@ export class ModuleSettings {
             height: 'auto',
             resizable: false,
             closeOnSubmit: false,
-          } as any);
+          });
         }
 
         getData(): any {

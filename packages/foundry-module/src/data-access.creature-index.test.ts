@@ -119,7 +119,7 @@ function installStorageStubs(): void {
   g.fetch = vi.fn(async (url: string, init?: any) => {
     disk.fetchCalls.push({ url, init });
     // DELETE (invalidate path) just succeeds; it clears the file.
-    if (init && init.method === 'DELETE') {
+    if (init?.method === 'DELETE') {
       disk.content = null;
       return { ok: true, status: 200 };
     }
@@ -599,7 +599,7 @@ describe('PersistentCreatureIndex — persistence', () => {
     const second = await index.getEnhancedIndex();
     expect(second).toHaveLength(1);
     // browse + a GET fetch happened on the load path.
-    expect(disk.fetchCalls.some(c => !c.init || c.init.method !== 'DELETE')).toBe(true);
+    expect(disk.fetchCalls.some(c => c.init?.method !== 'DELETE')).toBe(true);
   });
 });
 
@@ -748,7 +748,7 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
     await Promise.resolve();
 
     // A DELETE fetch was issued against the index path; the file is cleared.
-    expect(disk.fetchCalls.some(c => c.init && c.init.method === 'DELETE')).toBe(true);
+    expect(disk.fetchCalls.some(c => c.init?.method === 'DELETE')).toBe(true);
     expect(disk.content).toBeNull();
   });
 
@@ -758,13 +758,13 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
 
     const index = new PersistentCreatureIndex();
     await index.getEnhancedIndex();
-    const deletesBefore = disk.fetchCalls.filter(c => c.init && c.init.method === 'DELETE').length;
+    const deletesBefore = disk.fetchCalls.filter(c => c.init?.method === 'DELETE').length;
 
     fireHook('createDocument', { pack: 'world.monsters', type: 'npc' });
     await Promise.resolve();
     await Promise.resolve();
 
-    const deletesAfter = disk.fetchCalls.filter(c => c.init && c.init.method === 'DELETE').length;
+    const deletesAfter = disk.fetchCalls.filter(c => c.init?.method === 'DELETE').length;
     expect(deletesAfter).toBe(deletesBefore); // no DELETE issued
     expect(disk.content).not.toBeNull(); // file untouched
   });
@@ -782,7 +782,7 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(disk.fetchCalls.some(c => c.init && c.init.method === 'DELETE')).toBe(false);
+    expect(disk.fetchCalls.some(c => c.init?.method === 'DELETE')).toBe(false);
     expect(disk.content).not.toBeNull();
   });
 
@@ -797,7 +797,7 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(disk.fetchCalls.some(c => c.init && c.init.method === 'DELETE')).toBe(true);
+    expect(disk.fetchCalls.some(c => c.init?.method === 'DELETE')).toBe(true);
   });
 
   it('ignores a createCompendium hook for a non-Actor pack', async () => {
@@ -811,6 +811,6 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(disk.fetchCalls.some(c => c.init && c.init.method === 'DELETE')).toBe(false);
+    expect(disk.fetchCalls.some(c => c.init?.method === 'DELETE')).toBe(false);
   });
 });

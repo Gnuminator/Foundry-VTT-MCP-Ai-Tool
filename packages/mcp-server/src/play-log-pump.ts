@@ -266,7 +266,7 @@ export class PlayLogPump {
   }
 
   private async saveState(worldId: string): Promise<void> {
-    if (!this.state || this.state.worldId !== worldId) return;
+    if (this.state?.worldId !== worldId) return;
     const data: PlayPumpState = { clientId: this.state.clientId, lastSeq: this.state.lastSeq };
     await this.store.write(worldId, 'sessions', PLAY_PUMP_STATE_FILE, data);
   }

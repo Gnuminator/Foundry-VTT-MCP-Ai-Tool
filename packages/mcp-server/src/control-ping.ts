@@ -84,7 +84,7 @@ export async function waitForControlChannel(
       )) as {
         ok?: boolean;
       };
-      if (result && result.ok === true) return true;
+      if (result?.ok === true) return true;
     } catch {
       // not up yet
     }

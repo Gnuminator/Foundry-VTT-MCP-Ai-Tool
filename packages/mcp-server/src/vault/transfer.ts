@@ -57,7 +57,7 @@ export interface ImportResult {
 
 function validateBundle(raw: unknown): VaultBundle {
   const bundle = raw as Partial<VaultBundle> | null;
-  if (!bundle || bundle.format !== VAULT_BUNDLE_FORMAT) {
+  if (bundle?.format !== VAULT_BUNDLE_FORMAT) {
     throw new Error('Not a Foundry AI Tool vault bundle');
   }
   if (bundle.version !== VAULT_BUNDLE_VERSION) {

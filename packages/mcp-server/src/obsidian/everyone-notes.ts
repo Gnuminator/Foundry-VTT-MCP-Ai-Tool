@@ -165,7 +165,7 @@ function state(item: ChangeListItem, byId: ReadonlyMap<string, ChangeListItem>):
     return ` · undone${when}${item.undoneBy ? ` by ${esc(item.undoneBy)}` : ''}`;
   }
   const undo = item.undoneBy ? byId.get(item.undoneBy) : undefined;
-  if (!undo || undo.kind !== 'ai') return ' · undone later';
+  if (undo?.kind !== 'ai') return ' · undone later';
   return ` · undone ${clock(undo.at)} by ${esc(undo.requestedBy ?? 'AI')}`;
 }
 

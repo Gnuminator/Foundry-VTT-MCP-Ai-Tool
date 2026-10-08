@@ -115,7 +115,7 @@ interface SceneInfo {
 }
 
 function currentScene(): SceneInfo {
-  const scenes = rec(rec(game as unknown)?.scenes);
+  const scenes = rec(rec(game)?.scenes);
   const scene = rec(scenes?.current) ?? rec(scenes?.active);
   if (!scene) throw new Error('No current scene: open the scene with the tokens first');
   const grid = rec(scene.grid);
@@ -278,8 +278,9 @@ function checkValue(field: TokenField, value: unknown): string | number | boolea
 function show(field: TokenField, value: unknown): string {
   if (field === 'disposition' && typeof value === 'number')
     return DISPOSITIONS[value] ?? String(value);
-  if (value === undefined || value === null || value === '') return 'none';
-  return String(value);
+  if (typeof value === 'string') return value === '' ? 'none' : value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return value === undefined || value === null ? 'none' : JSON.stringify(value);
 }
 
 function planUpdate(
@@ -337,7 +338,7 @@ function planUpdate(
 
 /** Combatants of any encounter that stand for this token. */
 function combatantsOf(scene: SceneInfo, token: TokenRef): Rec[] {
-  const combats = contentsOf(rec(game as unknown)?.combats);
+  const combats = contentsOf(rec(game)?.combats);
   return combats.flatMap(combat =>
     contentsOf(rec(combat)?.combatants)
       .map(rec)

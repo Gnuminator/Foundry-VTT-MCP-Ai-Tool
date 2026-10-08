@@ -165,7 +165,7 @@ class BackendClient {
     let backendPath: string | null = null;
 
     try {
-      const backendUrl = new URL('./backend.js', import.meta.url as any);
+      const backendUrl = new URL('./backend.js', import.meta.url);
 
       backendPath = fileURLToPath(backendUrl);
     } catch {
@@ -432,7 +432,7 @@ async function startWrapper() {
       return {
         content: [{ type: 'text', text: `Error: ${e?.message || 'Backend unavailable'}` }],
         isError: true,
-      } as any;
+      };
     }
   });
 

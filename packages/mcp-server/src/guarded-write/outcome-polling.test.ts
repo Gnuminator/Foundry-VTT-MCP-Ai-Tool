@@ -46,7 +46,7 @@ beforeEach(async () => {
         if (method === OUTCOME) return outcomeImpl(data);
         return foundry.query(method, data);
       }),
-    } as any,
+    },
     worldIds: { current: async (): Promise<string> => 'curse-of-strahd' },
     store,
     audit: new AuditLog(store),

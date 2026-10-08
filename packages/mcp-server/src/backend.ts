@@ -128,7 +128,7 @@ function acquireLock(): boolean {
     try {
       lockFd = fs.openSync(LOCK_FILE, 'wx');
     } catch (err: any) {
-      if (err && err.code === 'EEXIST') {
+      if (err?.code === 'EEXIST') {
         try {
           const lockData = fs.readFileSync(LOCK_FILE, 'utf8');
 
@@ -707,7 +707,7 @@ async function startBackend(): Promise<void> {
             try {
               const result = await foundryClient.query(
                 'foundry-mcp-bridge.liveSweep',
-                (msg.params ?? {}) as Record<string, unknown>
+                msg.params ?? {}
               );
               socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
             } catch (e: unknown) {

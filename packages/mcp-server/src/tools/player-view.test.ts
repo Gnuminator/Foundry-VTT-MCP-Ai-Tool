@@ -26,9 +26,9 @@ function makeTools(): {
   logger.child = (): unknown => logger;
   const tools = new PlayerViewTools({
     handouts: handouts as never,
-    secretTerms: secretTerms as never,
-    foundryClient: foundryClient as never,
-    worldIds: worldIds as never,
+    secretTerms,
+    foundryClient,
+    worldIds,
     logger,
   });
   return { tools, handouts, secretTerms, foundryClient, worldIds };

@@ -306,7 +306,7 @@ export class TarokkaService {
     reading ??= this.fromRoll(config);
 
     const previous = file.current;
-    if (previous && previous.readingId === reading.readingId) {
+    if (previous?.readingId === reading.readingId) {
       // Re-import of the same deal: keep what was revealed for unchanged cards.
       for (const position of TAROKKA_POSITIONS) {
         const before = previous.positions[position];

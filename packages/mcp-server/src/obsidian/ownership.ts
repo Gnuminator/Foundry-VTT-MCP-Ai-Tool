@@ -133,9 +133,9 @@ export function checkCanvasOwnership(existingText: string): OwnershipResult {
   const doc = parsed as Partial<CanvasMarkerDoc> | null;
   if (!doc || !Array.isArray(doc.nodes))
     return { owned: false, reason: 'not written by the AI Tool' };
-  const marker = doc.nodes.find(node => node && node.id === 'generated');
+  const marker = doc.nodes.find(node => node?.id === 'generated');
   const text = typeof marker?.text === 'string' ? marker.text : null;
-  if (text === null || !text.includes(`generated_by: ${GENERATED_BY}`)) {
+  if (!text?.includes(`generated_by: ${GENERATED_BY}`)) {
     return { owned: false, reason: 'not written by the AI Tool' };
   }
   const match = /^generated_hash: ([0-9a-f]+)$/m.exec(text);

@@ -37,7 +37,11 @@
  * (`humanActions`); `undoBlocker` says which of them can be undone, and `list()` marks what is
  * already undone from the audit log's derived undo state.
  */
-import type { ChangeRecord, PathValue } from '@gnuminator/shared';
+import {
+  CHANGE_JOURNAL_ACTION_GAP_MS,
+  type ChangeRecord,
+  type PathValue,
+} from '@gnuminator/shared';
 
 import {
   CHANGE_JOURNAL_RETENTION_DAYS,
@@ -94,7 +98,7 @@ const DEPENDENT_DELETE_KINDS: ReadonlySet<string> = new Set([
   'Token',
 ]);
 /** The AI deletes whose dependents dnd5e removes (see DEPENDENT_DELETE_KINDS). */
-const DEPENDENT_SOURCE_KINDS: ReadonlySet<string> = new Set(['ActiveEffect', 'Item']);
+export const DEPENDENT_SOURCE_KINDS: ReadonlySet<string> = new Set(['ActiveEffect', 'Item']);
 
 /** User id to user name, as the journal records have seen them (for ownership lines). */
 export type UserNames = ReadonlyMap<string, string>;
@@ -314,6 +318,71 @@ function concentrationItemUuid(r: ChangeRecord): string | null {
   return typeof data?.origin === 'string' && data.origin ? data.origin : null;
 }
 
+/** The id after the last `Item.` in a uuid (`.Item.<id>.Activity.<id>` too), or null. */
+function lastItemId(uuid: string): string | null {
+  const parts = uuid.split('.');
+  const at = parts.lastIndexOf('Item');
+  return at >= 0 && parts[at + 1] ? parts[at + 1] : null;
+}
+
+/** An item by its actor and id (`<rootUuid>|<itemId>`): a stale or base-actor uuid still matches. */
+function itemKey(rootUuid: string, uuid: string): string | null {
+  const id = lastItemId(uuid);
+  return id ? `${rootUuid}|${id}` : null;
+}
+
+/** The items the AI changes of one burst deleted. */
+interface BurstItems {
+  uuids: ReadonlySet<string>;
+  /** The same items by `itemKey`. */
+  keys: ReadonlySet<string>;
+  /**
+   * A deleted cached spell (dnd5e's `flags.dnd5e.cachedFor`, `.Item.<id>.Activity.<id>`: the
+   * wand or scroll it was cast from) by its `itemKey`, to the `itemKey` of the item it was cached for.
+   */
+  cachedFor: ReadonlyMap<string, string>;
+}
+
+function burstItemsOf(ai: ChangeRecord[], all: ChangeRecord[]): BurstItems {
+  const deleted = ai.filter(r => r.op === 'delete' && r.documentName === 'Item');
+  const cachedFor = new Map<string, string>();
+  for (const r of all) {
+    if (r.op !== 'delete' || r.documentName !== 'Item') continue;
+    const flags = r.data?.flags as { dnd5e?: { cachedFor?: unknown } } | undefined;
+    const from = flags?.dnd5e?.cachedFor;
+    const key = itemKey(r.rootUuid, r.uuid);
+    const granting = typeof from === 'string' ? itemKey(r.rootUuid, from) : null;
+    if (key && granting) cachedFor.set(key, granting);
+  }
+  return {
+    uuids: new Set(deleted.map(r => r.uuid)),
+    keys: new Set(deleted.flatMap(r => itemKey(r.rootUuid, r.uuid) ?? [])),
+    cachedFor,
+  };
+}
+
+/**
+ * Whether a concentration effect on an actor this change touched belongs to this change, by the
+ * spell its data names (`own`: the `itemKey`s of the change's own item deletes). dnd5e ends
+ * concentration by item id, so a name that is no deleted uuid is matched by actor and id, and a
+ * cached spell by the item it was cast from. A name no AI change of the burst deleted, or none at
+ * all, leaves the actor rule.
+ */
+function namesOwnSpell(
+  r: ChangeRecord,
+  items: ReadonlySet<string>,
+  own: ReadonlySet<string>,
+  burst: BurstItems
+): boolean {
+  const spell = concentrationItemUuid(r);
+  if (spell === null || items.has(spell)) return true;
+  if (burst.uuids.has(spell)) return false;
+  const key = itemKey(r.rootUuid, spell);
+  if (!key) return true;
+  const named = burst.cachedFor.get(key) ?? key;
+  return !burst.keys.has(named) || own.has(named);
+}
+
 /** The dnd5e dependents link of one AI change, read from its deleted documents. */
 interface DependentsLink {
   /** The uuids the chain names, followed through the burst's deletes. */
@@ -337,7 +406,7 @@ function dependentsLink(
   sources: ChangeRecord[],
   others: ChangeRecord[],
   aiRoots: ReadonlySet<string>,
-  burstItems: ReadonlySet<string>
+  burstItems: BurstItems
 ): DependentsLink {
   const linked = new Set<string>();
   const roots = sources.filter(
@@ -348,21 +417,20 @@ function dependentsLink(
   // The records whose data names the dependents: the sources and, when the AI deleted an item,
   // the concentration effect dnd5e ended with it on the same actor (a dependent itself). dnd5e
   // names the spell on that effect: when one of the burst's AI changes deleted that item, only
-  // that change ended it. dnd5e ends concentration by item id, so the name may be an item no AI
-  // change deleted (the cached spell of a deleted wand, a base-actor uuid on an unlinked token):
-  // then the actor rule holds.
+  // that change ended it (see `namesOwnSpell`).
   const chain = new Set(roots);
   let unreadable = false;
   if (itemSource) {
-    const items = new Set(roots.filter(r => r.documentName === 'Item').map(r => r.uuid));
+    const own = roots.filter(r => r.documentName === 'Item');
+    const items = new Set(own.map(r => r.uuid));
+    const ownKeys = new Set(own.flatMap(r => itemKey(r.rootUuid, r.uuid) ?? []));
     for (const r of others) {
-      const spell = concentrationItemUuid(r);
       if (
         r.op === 'delete' &&
         aiRoots.has(r.rootUuid) &&
         r.documentName === 'ActiveEffect' &&
         isConcentrationEffect(r) &&
-        (spell === null || items.has(spell) || !burstItems.has(spell))
+        namesOwnSpell(r, items, ownKeys, burstItems)
       ) {
         linked.add(r.uuid);
         chain.add(r);
@@ -552,10 +620,9 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
     }
     const others = group.filter(r => !r.changeId);
     const at = (r: ChangeRecord): number => position.get(r) ?? -1;
-    const burstItems: ReadonlySet<string> = new Set(
-      segments.flatMap(s =>
-        s.ai.filter(r => r.op === 'delete' && r.documentName === 'Item').map(r => r.uuid)
-      )
+    const burstItems = burstItemsOf(
+      segments.flatMap(s => s.ai),
+      group
     );
     const links = segments.map((segment, i) => {
       const aiRoots: ReadonlySet<string> = new Set(segment.ai.map(r => r.rootUuid));
@@ -654,6 +721,10 @@ interface WorldIndex {
    * or not at all, so their later records are left out too.
    */
   dropped: Set<string>;
+  /** The AI changes (`changeId`) some of whose records were left out (`markTrimmed`). */
+  droppedChanges: Set<string>;
+  /** The journal start (`journalStart`) the actions at its edge were last left out for. */
+  journalFrom: number;
   /** The size cap warning was logged (once per world). */
   warned: boolean;
   /** Every user the records have named, by id (kept through pruning: names stay useful). */
@@ -737,9 +808,22 @@ export class ChangeHistory {
   async historyStart(): Promise<number> {
     const cutoff = this.now() - CHANGE_HISTORY_DAYS * DAY_MS;
     const worldId = await this.worldIds.current();
-    const { trimmedBefore: trimmed } = await this.load(worldId);
-    if (!this.journalStart) return Math.max(cutoff, trimmed);
-    return Math.max(cutoff, trimmed, await this.journalStart(worldId));
+    const index = await this.load(worldId);
+    await this.leaveOutAtJournalStart(worldId, index);
+    if (!this.journalStart) return Math.max(cutoff, index.trimmedBefore);
+    return Math.max(cutoff, index.trimmedBefore, await this.journalStart(worldId));
+  }
+
+  /**
+   * True when the history left out records of this AI change (a size cap, a day's cut, the
+   * journal start): what Foundry and dnd5e did with it (`aiFollowUps`) may be missing.
+   */
+  async changeLeftOut(changeId: string): Promise<boolean> {
+    const worldId = await this.worldIds.current();
+    const index = await this.load(worldId);
+    await this.leaveOutAtJournalStart(worldId, index);
+    this.prune(index);
+    return index.droppedChanges.has(changeId);
   }
 
   /** The pump's `onAppended`: add what it just wrote. Ignored until the first read loaded the files. */
@@ -954,6 +1038,7 @@ export class ChangeHistory {
 
   private async actionsFor(worldId: string): Promise<ChangeAction[]> {
     const index = await this.load(worldId);
+    await this.leaveOutAtJournalStart(worldId, index);
     this.prune(index);
     index.actions ??= buildActions(index.records, index.users);
     return index.actions;
@@ -969,6 +1054,8 @@ export class ChangeHistory {
         chars: 0,
         trimmedBefore: 0,
         dropped: new Set(),
+        droppedChanges: new Set(),
+        journalFrom: 0,
         warned: false,
         users: new Map(),
         loading: null,
@@ -1117,6 +1204,33 @@ export class ChangeHistory {
     this.trim(index);
   }
 
+  /**
+   * Leave out (whole) every action with a record within the action gap after the journal start:
+   * retention removed the day before it, or the module's buffer wrapped just before it, so such an
+   * action may have begun with records that are gone (one browser's records of one action are less
+   * than CHANGE_JOURNAL_ACTION_GAP_MS apart). Their later arrivals stay out too.
+   */
+  private async leaveOutAtJournalStart(worldId: string, index: WorldIndex): Promise<void> {
+    const start = (await this.journalStart?.(worldId)) ?? 0;
+    if (start <= index.journalFrom) return;
+    index.journalFrom = start;
+    const edge = new Set(
+      index.records
+        .filter(r => r.t >= start && r.t - start <= CHANGE_JOURNAL_ACTION_GAP_MS)
+        .map(r => r.actionId)
+    );
+    if (edge.size === 0) return;
+    index.records = index.records.filter(r => {
+      if (!edge.has(r.actionId)) return true;
+      index.chars -= index.sizes.get(r) ?? 0;
+      index.keys.delete(r.key);
+      markTrimmed(index, r);
+      return false;
+    });
+    for (const id of edge) index.dropped.add(id);
+    index.actions = null;
+  }
+
   /** Leave out the actions that began before the span (whole: the cutoff may fall inside one). */
   private prune(index: WorldIndex): void {
     const cutoff = this.now() - CHANGE_HISTORY_DAYS * DAY_MS;
@@ -1136,6 +1250,7 @@ export class ChangeHistory {
 
 /** A record was left out for the size cap: the history is complete only after it. */
 function markTrimmed(index: WorldIndex, dropped: ChangeRecord): void {
+  if (dropped.changeId) index.droppedChanges.add(dropped.changeId);
   if (dropped.t + 1 > index.trimmedBefore) index.trimmedBefore = dropped.t + 1;
 }
 

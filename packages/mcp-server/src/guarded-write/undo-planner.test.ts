@@ -79,6 +79,8 @@ let ring: AuditEntry[];
 let records: ChangeRecord[];
 /** What the history says it is complete from (0: everything the tests hold). */
 let historyStart = 0;
+/** The AI changes the history says it left records of out. */
+let leftOut: Set<string>;
 let foundry: FakeFoundry;
 let createPlan: ReturnType<typeof vi.fn>;
 let planner: UndoPlanner;
@@ -100,6 +102,7 @@ beforeEach((): void => {
   ring = [];
   records = [];
   historyStart = 0;
+  leftOut = new Set();
   foundry = new FakeFoundry();
   foundry.add('Actor.a', 'Actor', {
     name: 'Ireena',
@@ -125,6 +128,7 @@ beforeEach((): void => {
     changeHistory: {
       humanActions: (): Promise<ChangeAction[]> => Promise.resolve(buildActions(records)),
       historyStart: (): Promise<number> => Promise.resolve(historyStart),
+      changeLeftOut: (changeId: string): Promise<boolean> => Promise.resolve(leftOut.has(changeId)),
       aiFollowUps: (changeId: string): Promise<ChangeRecord[]> =>
         Promise.resolve(buildActions(records).find(a => a.changeId === changeId)?.followUps ?? []),
     },
@@ -160,6 +164,30 @@ describe('refusals', () => {
     historyStart = T0;
     await plan('chg-old', 'everything-since');
     expect(planInput().notes ?? []).not.toContainEqual(expect.stringMatching(/no longer/));
+  });
+
+  it('refuses just-this on an AI item or effect delete whose records the history left out', async () => {
+    const del: GuardedOpResult = {
+      index: 0,
+      kind: 'delete',
+      uuid: 'Actor.a.Item.i1',
+      documentName: 'Item',
+      name: 'Hold Person',
+      parentUuid: 'Actor.a',
+      deleted: { _id: 'i1', name: 'Hold Person' },
+    };
+    ring.push(
+      entry('chg-del', 1, { results: [del] }),
+      entry('chg-upd', 2, { results: [update('Actor.a', [num(HP, 12)], [num(HP, 5)])] })
+    );
+    historyStart = T0 + 5 * MIN;
+    leftOut.add('chg-del').add('chg-upd');
+    await expect(plan('chg-del')).rejects.toThrow(/can no longer be undone here/);
+    // No item or effect deleted: undone with the note that its follow-ups do not come back.
+    await expect(plan('chg-upd')).resolves.toMatchObject({ scope: 'just-this' });
+    expect(planInput().notes).toContainEqual(
+      expect.stringMatching(/no longer in the history and does not come back/)
+    );
   });
 
   it('refuses a change that is already undone, from the derived state', async () => {

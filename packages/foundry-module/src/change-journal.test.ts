@@ -12,6 +12,8 @@ import { createTestWorld, type TestWorld } from './test-support/foundry-mock/ind
 import { ChangeJournal, changedPaths } from './change-journal.js';
 import {
   CHANGE_JOURNAL_ACTION_GAP_MS,
+  CHANGE_JOURNAL_ACTION_MAX_MS,
+  CHANGE_JOURNAL_ACTION_MAX_OPS,
   CHANGE_JOURNAL_DOCUMENTS,
   CHANGE_JOURNAL_MAX_BUFFER_BYTES,
   CHANGE_JOURNAL_MAX_LIMIT,
@@ -218,6 +220,31 @@ describe('pre-hooks: the stash', () => {
     expect(ids[2]).toBe(ids[0]);
     expect(ids[3]).not.toBe(ids[0]);
     expect(records().map(r => r.actionId)).toEqual(ids);
+  });
+
+  it('starts a new actionId in a stream with no gap once the action is too old or too long', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const actor = makeActor();
+    const idOf = (o: ReturnType<typeof simulateUpdate>): string => o[MODULE_ID].journal.actionId;
+    // Too old: one change every 200 ms.
+    const start = 5_000_000;
+    vi.setSystemTime(start);
+    const first = idOf(simulateUpdate(actor, { name: 'S0' }));
+    let step = 1;
+    for (; step * 200 < CHANGE_JOURNAL_ACTION_MAX_MS; step += 1) {
+      vi.setSystemTime(start + step * 200);
+      expect(idOf(simulateUpdate(actor, { name: `S${step}` }))).toBe(first);
+    }
+    vi.setSystemTime(start + step * 200);
+    const next = idOf(simulateUpdate(actor, { name: 'S-next' }));
+    expect(next).not.toBe(first);
+    // Too long: many operations at one instant.
+    vi.setSystemTime(start + 10 * CHANGE_JOURNAL_ACTION_MAX_MS);
+    const burst = idOf(simulateUpdate(actor, { name: 'B0' }));
+    for (let i = 1; i < CHANGE_JOURNAL_ACTION_MAX_OPS; i += 1) {
+      expect(idOf(simulateUpdate(actor, { name: `B${i}` }))).toBe(burst);
+    }
+    expect(idOf(simulateUpdate(actor, { name: 'B-next' }))).not.toBe(burst);
   });
 
   it('keeps an actionId already in the stash and one before value per document id', () => {

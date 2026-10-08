@@ -21,6 +21,7 @@ import type { ChangeRecord, GuardedOp, OpSnapshot, PathValue } from '@gnuminator
 
 import {
   CHANGE_HISTORY_DAYS,
+  DEPENDENT_SOURCE_KINDS,
   historyStartLabel,
   labelOf,
   undoBlocker,
@@ -83,9 +84,11 @@ export interface UndoPlannerOptions {
    * `userNames` is optional: without it, ownership lines name users by id. `historyStart` is
    * optional: without it, a rewind may reach back past the kept history. `aiFollowUps` is
    * optional: without it, Foundry's own follow-ups of an AI change are not put back with it.
+   * `changeLeftOut` is optional: without it, an AI change before the history start is undone
+   * with a note only.
    */
   changeHistory: Pick<ChangeHistory, 'humanActions'> &
-    Partial<Pick<ChangeHistory, 'userNames' | 'historyStart' | 'aiFollowUps'>>;
+    Partial<Pick<ChangeHistory, 'userNames' | 'historyStart' | 'aiFollowUps' | 'changeLeftOut'>>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
   audit: Pick<AuditLog, 'ring' | 'resultsWithDeleted'>;
   worldIds: Pick<WorldIdResolver, 'current'>;
@@ -384,7 +387,15 @@ export class UndoPlanner {
     items.sort((a, b) => a.t - b.t);
     const target = this.resolveTarget(request.id, items, ring, actions, state);
     const notes: string[] = [];
-    this.checkHistoryStart(target, scope, (await this.changeHistory.historyStart?.()) ?? 0, notes);
+    this.checkHistoryStart(
+      target,
+      scope,
+      (await this.changeHistory.historyStart?.()) ?? 0,
+      target.entry
+        ? ((await this.changeHistory.changeLeftOut?.(target.entry.changeId)) ?? false)
+        : false,
+      notes
+    );
     const touches = (i: Item): boolean => i.roots.some(root => target.roots.includes(root));
     // Everything after the target, undone or not: an undone change and the undo that took it back
     // both lie after it and cancel out in the fold. Leaving out only the undone one would restore
@@ -463,9 +474,18 @@ export class UndoPlanner {
   /**
    * People's changes before `start` are gone (the journal keeps CHANGE_HISTORY_DAYS days, less
    * when its size cap removed files inside them), so a set that starts before it would skip
-   * them without a word: refused. `just-this` undoes one change and only says it.
+   * them without a word: refused. `just-this` undoes one change and only says it, unless the
+   * history left out the AI change's own records (`leftOut`): then what Foundry and dnd5e did with
+   * it does not come back, so one that deleted an item or effect (whose dependents dnd5e may have
+   * ended with it) is refused too.
    */
-  private checkHistoryStart(target: Item, scope: UndoScope, start: number, notes: string[]): void {
+  private checkHistoryStart(
+    target: Item,
+    scope: UndoScope,
+    start: number,
+    leftOut: boolean,
+    notes: string[]
+  ): void {
     if (!(target.t < start)) return;
     const from = historyStartLabel(start);
     if (scope !== 'just-this') {
@@ -473,8 +493,20 @@ export class UndoPlanner {
         `People's changes before ${from} are no longer in the history (it keeps ${CHANGE_HISTORY_DAYS} days, less when the change journal's size cap is reached or its records were lost), so not every change since "${target.summary}" is known. Undo just this change instead, or undo the later changes one by one.`
       );
     }
+    const deletedItemOrEffect = (target.entry?.results ?? []).some(
+      r => r.kind === 'delete' && DEPENDENT_SOURCE_KINDS.has(r.documentName)
+    );
+    if (leftOut && deletedItemOrEffect) {
+      throw new Error(
+        `"${target.summary}" can no longer be undone here: the history no longer holds what Foundry and dnd5e did with it (people's changes before ${from} are gone), so what dnd5e ended with the deleted item or effect, such as concentration, would not come back. Put it back by hand.`
+      );
+    }
     notes.push(
-      `People's changes before ${from} are no longer in the history: a later change to the same thing may not be listed`
+      `People's changes before ${from} are no longer in the history: a later change to the same thing may not be listed${
+        leftOut
+          ? ', and what Foundry and dnd5e did with it is no longer in the history and does not come back'
+          : ''
+      }`
     );
   }
 

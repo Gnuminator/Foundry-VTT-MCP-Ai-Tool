@@ -58,6 +58,14 @@ export const CHANGE_JOURNAL_MAX_RECORD_BYTES = 256 * 1024;
 export const CHANGE_JOURNAL_ACTION_GAP_MS = 300;
 
 /**
+ * A steady stream of changes (a module or macro that updates a document several times a second)
+ * never leaves a gap: the browser starts a new `actionId` once its current one is this old, or
+ * after this many operations, so one action never grows without end.
+ */
+export const CHANGE_JOURNAL_ACTION_MAX_MS = 30_000;
+export const CHANGE_JOURNAL_ACTION_MAX_OPS = 2000;
+
+/**
  * Document types the journal covers. The module registers hooks only for the
  * names that exist in `CONFIG` on the running core. Never covered: ChatMessage
  * (rolls are not un-rolled; their effects are), User, Setting, Folder, Macro,

@@ -1,6 +1,8 @@
 import { MODULE_ID } from './constants.js';
 import {
   CHANGE_JOURNAL_ACTION_GAP_MS,
+  CHANGE_JOURNAL_ACTION_MAX_MS,
+  CHANGE_JOURNAL_ACTION_MAX_OPS,
   CHANGE_JOURNAL_DOCUMENTS,
   CHANGE_JOURNAL_MAX_BUFFER_BYTES,
   CHANGE_JOURNAL_MAX_LIMIT,
@@ -300,6 +302,9 @@ export class ChangeJournal {
   /** This browser's current change group and when its last change happened. */
   private actionId: string | null = null;
   private lastChangeAt = 0;
+  /** When the current change group began, and how many operations it holds. */
+  private actionStartedAt = 0;
+  private actionOps = 0;
 
   /**
    * Register the hooks once (safe to call more than once), for every covered
@@ -358,12 +363,23 @@ export class ChangeJournal {
     return typeof userId === 'string' && typeof own === 'string' && userId === own;
   }
 
-  /** This browser's change group: a new one when the previous change is older than the gap. */
+  /**
+   * This browser's change group: a new one when the previous change is older than the gap, or
+   * when the group is too old or holds too many operations (a stream with no gap).
+   */
   private currentActionId(): string {
     const now = Date.now();
-    if (this.actionId === null || now - this.lastChangeAt > CHANGE_JOURNAL_ACTION_GAP_MS) {
+    if (
+      this.actionId === null ||
+      now - this.lastChangeAt > CHANGE_JOURNAL_ACTION_GAP_MS ||
+      now - this.actionStartedAt >= CHANGE_JOURNAL_ACTION_MAX_MS ||
+      this.actionOps >= CHANGE_JOURNAL_ACTION_MAX_OPS
+    ) {
       this.actionId = randomId();
+      this.actionStartedAt = now;
+      this.actionOps = 0;
     }
+    this.actionOps += 1;
     this.lastChangeAt = now;
     return this.actionId;
   }

@@ -888,6 +888,58 @@ describe('buildActions', () => {
       expect(staleActions.map(x => x.changeId)).toEqual(['chg-b']);
       expect(staleActions[0].followUps).toEqual([stale, depB]);
     });
+
+    it('files a wand or stale-uuid concentration to its own change when a later change deleted another item', () => {
+      const named = (origin: string): ChangeRecord => {
+        const plain = concentration();
+        return { ...plain, data: { ...plain.data, origin } };
+      };
+      const dagger = (): ChangeRecord =>
+        ai('chg-b', {
+          documentName: 'Item',
+          uuid: 'Actor.a2.Item.i1',
+          name: 'Dagger',
+          data: { name: 'Dagger' },
+        });
+      // (a) A deletes the wand, B the dagger; dnd5e deletes the cached spell (cast from the wand's
+      // activity) and its concentration, which names the cached spell.
+      const wand = ai('chg-a', {
+        documentName: 'Item',
+        uuid: 'Actor.a2.Item.w1',
+        name: 'Wand of Hold Person',
+        data: { name: 'Wand of Hold Person' },
+      });
+      const b = dagger();
+      const cached = rec({
+        actionId: 'P',
+        op: 'delete',
+        documentName: 'Item',
+        uuid: 'Actor.a2.Item.k1',
+        name: 'Hold Person',
+        ...strahd,
+        data: { name: 'Hold Person', flags: { dnd5e: { cachedFor: '.Item.w1.Activity.act1' } } },
+      });
+      const viaWand = named('Actor.a2.Item.k1');
+      const depA = dependent();
+      const wandActions = buildActions([wand, b, cached, viaWand, depA]);
+      expect(wandActions.map(x => x.changeId)).toEqual(['chg-a', 'chg-b']);
+      expect(wandActions[0].followUps).toEqual(expect.arrayContaining([viaWand, depA]));
+      expect(wandActions[1].followUps).toEqual([]);
+      // (b) A deletes the token actor's spell, B the dagger; the effect names the base actor's uuid.
+      const tokenSpell = ai('chg-a', {
+        documentName: 'Item',
+        uuid: 'Scene.s1.Token.t1.Actor.a2.Item.i2',
+        name: 'Hold Person',
+        data: { name: 'Hold Person' },
+      });
+      const b2 = dagger();
+      const stale = named('Actor.a2.Item.i2');
+      const depB = dependent();
+      const staleActions = buildActions([tokenSpell, b2, stale, depB]);
+      expect(staleActions.map(x => x.changeId)).toEqual(['chg-a', 'chg-b']);
+      expect(staleActions[0].followUps).toEqual([stale, depB]);
+      expect(staleActions[1].followUps).toEqual([]);
+    });
   });
 
   it('files a combatant delete to the latest change that deleted its token, and never to a later change', () => {
@@ -1269,6 +1321,44 @@ describe('ChangeHistory.list', () => {
     const wrapped = makeHistory({ journalStart: NOW - 2 * 60 * MIN });
     expect((await wrapped.list()).note).toMatch(/before 2026-10-07 10:00 are gone/);
     expect((await wrapped.list()).note).toMatch(/buffer wrapped/);
+  });
+
+  it('leaves out, whole, an action with a record within the action gap after the journal start', async () => {
+    // Retention removed yesterday: an action that began before midnight kept only its later part.
+    const midnight = new Date(2026, 9, 7).getTime();
+    const straddle = [
+      hpChange(10, 9, { actionId: 'straddle', t: midnight + 100 }),
+      hpChange(9, 8, { actionId: 'straddle', t: midnight + 350 }),
+    ];
+    const clean = hpChange(8, 7, { actionId: 'clean', t: midnight + 5000 });
+    await writeDay([...straddle, clean]);
+    const history = makeHistory({ journalStart: midnight });
+    expect((await history.list()).changes.map(c => c.id)).toEqual(['act:clean']);
+    expect(await history.historyStart()).toBe(midnight + 351);
+    // A later arrival of the same action stays out too.
+    history.addRecords('w1', [hpChange(8, 6, { actionId: 'straddle', t: midnight + 600 })]);
+    expect((await history.list()).changes.map(c => c.id)).toEqual(['act:clean']);
+    expect(await history.historyStart()).toBe(midnight + 601);
+  });
+
+  it('remembers the AI changes some of whose records it left out', async () => {
+    const old = rec({
+      actionId: 'old',
+      changeId: 'chg-old',
+      changeMode: 'apply',
+      t: NOW - 60 * MIN,
+    });
+    const kept = hpChange(5, 4, {
+      actionId: 'kept',
+      changeId: 'chg-kept',
+      changeMode: 'apply',
+      t: NOW - 5 * MIN,
+    });
+    await writeDay([old, kept]);
+    const history = makeHistory({ maxChars: 1 });
+    expect(await history.changeLeftOut('chg-old')).toBe(true);
+    expect(await history.changeLeftOut('chg-kept')).toBe(false);
+    expect(await history.changeLeftOut('chg-other')).toBe(false);
   });
 
   it('leaves the start at the span cutoff with no note when the pump only removed files by age', async () => {

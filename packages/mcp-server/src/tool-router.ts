@@ -262,8 +262,17 @@ export interface ToolResultLike {
   isError?: boolean;
 }
 
-/** Parameters that ask for less or for a later part, named first in the cut note. */
-const NARROWING_PARAMS = ['limit', 'since', 'sinceTimestamp', 'pageId', 'filter', 'query'];
+/** Parameters that ask for less or for a different part, named first in the cut note. */
+const NARROWING_PARAMS = [
+  'limit',
+  'since',
+  'sinceTimestamp',
+  'eventType',
+  'actorName',
+  'session',
+  'filter',
+  'query',
+];
 
 /** What the cut note tells Claude to do next, from the tool's own parameters. */
 function nextPageHint(
@@ -281,13 +290,13 @@ function nextPageHint(
     ...NARROWING_PARAMS.filter(p => params.includes(p)),
     ...params.filter(p => !NARROWING_PARAMS.includes(p)),
   ];
-  return `call ${name} again for a smaller or later part with its parameters: ${ordered.join(', ')}.`;
+  return `call ${name} again with: ${ordered.join(', ')}.`;
 }
 
 /**
  * The size guard for every tool result Claude receives: text over `maxChars`
  * (all text parts together) is cut, and a note says how much was left out and
- * how to fetch the next page. A result within the cap comes back unchanged
+ * how to see less or a different part. A result within the cap comes back unchanged
  * (the same object). The dashboard reads results in full; only the MCP wrapper
  * applies this.
  */
@@ -315,11 +324,14 @@ export function capToolResult<T extends ToolResultLike>(
     left -= keep;
     return { ...part, text: part.text.slice(0, keep) };
   });
+  // Drop text parts the cap emptied (a part that was empty to begin with stays).
+  const kept = content.filter((part, i) => part.text !== '' || result.content[i]?.text === '');
   const shown = maxChars - left;
   const note =
     `[Result cut: showing the first ${shown.toLocaleString('en-US')} of ` +
     `${total.toLocaleString('en-US')} characters, the most one call returns. ` +
-    `To fetch the next page, ${nextPageHint(tool, name)}]`;
-  content.push({ type: 'text', text: note });
-  return { ...result, content };
+    'The JSON above is incomplete; do not treat missing fields or items as absent. ' +
+    `To see less or a different part, ${nextPageHint(tool, name)}]`;
+  kept.push({ type: 'text', text: note });
+  return { ...result, content: kept };
 }

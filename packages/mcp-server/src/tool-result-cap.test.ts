@@ -41,7 +41,10 @@ describe('capToolResult', () => {
     expect(out.content[0]?.text).toHaveLength(TOOL_RESULT_MAX_CHARS);
     const note = out.content.at(-1)?.text ?? '';
     expect(note).toContain('showing the first 100,000 of 250,000 characters');
-    expect(note).toContain('To fetch the next page, call get-chat-log again');
+    expect(note).toContain('The JSON above is incomplete');
+    expect(note).toContain(
+      'To see less or a different part, call get-chat-log again with: limit, sinceTimestamp'
+    );
     // The original is not changed.
     expect(big.content[0]?.text).toHaveLength(250_000);
   });
@@ -50,6 +53,11 @@ describe('capToolResult', () => {
     const out = capToolResult(textResult('a'.repeat(60), 'b'.repeat(60)), 'x', undefined, 100);
     expect(out.content.map(p => p.text?.length)).toEqual([60, 40, expect.any(Number)]);
     expect(allText(out).startsWith('a'.repeat(60) + 'b'.repeat(40))).toBe(true);
+  });
+
+  it('drops text parts the cap emptied', () => {
+    const out = capToolResult(textResult('a'.repeat(20), 'b'.repeat(20)), 'x', undefined, 10);
+    expect(out.content.map(p => p.text?.slice(0, 1))).toEqual(['a', '[']);
   });
 
   it('keeps isError and parts without text', () => {
@@ -68,14 +76,14 @@ describe('capToolResult', () => {
     expect(out.content[0]?.text).toBe('a'.repeat(9));
   });
 
-  it('names the tool parameters for the next page, narrowing ones first', () => {
+  it('names the tool parameters for a smaller part, narrowing ones first', () => {
     const out = capToolResult(
       textResult('a'.repeat(20)),
       'list-changes',
       byName.get('list-changes'),
       10
     );
-    expect(out.content.at(-1)?.text).toMatch(/its parameters: limit, since, /);
+    expect(out.content.at(-1)?.text).toMatch(/again with: limit, since, /);
   });
 
   it('says so when a tool has no parameters to ask for less', () => {
@@ -105,10 +113,10 @@ describe('the biggest tools', () => {
     'search-compendium': 'limit',
     'list-creatures-by-criteria': 'limit',
     'list-ref-choices': 'limit',
-    'list-journals': 'pageId',
+    'list-journals': 'journalId',
   };
 
-  it('each offers a parameter to fetch less, and the cut note names it first', () => {
+  it('each offers a parameter to fetch less, and the cut note names it', () => {
     for (const [name, param] of Object.entries(BIGGEST)) {
       const tool = byName.get(name);
       expect(tool, name).toBeDefined();
@@ -117,7 +125,7 @@ describe('the biggest tools', () => {
 
       const out = capToolResult(textResult('{"x":1}'.repeat(60_000)), name, tool);
       expect(allText(out).length, name).toBeLessThan(TOOL_RESULT_MAX_CHARS + 500);
-      expect(out.content.at(-1)?.text, name).toContain(`its parameters: ${param}`);
+      expect(out.content.at(-1)?.text, name).toMatch(new RegExp(`again with: (.*, )?${param}[,.]`));
     }
   });
 });

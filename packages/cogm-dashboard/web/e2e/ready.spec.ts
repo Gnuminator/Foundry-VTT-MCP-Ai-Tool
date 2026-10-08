@@ -248,3 +248,45 @@ test('the real route answers with the bridge down', async ({ page }) => {
   await expect(chips(block)).toHaveText(['○ GM Actions']);
   await expect(block.locator('#btn-ready')).toBeEnabled();
 });
+
+test('while a change is out both buttons wait, and a double click sends once', async ({ page }) => {
+  await fakeStream(page, []);
+  const fakes = await fakeReady(page, {
+    switches: switches(OFF),
+    gmActionsEnabled: true,
+    error: null,
+  });
+  // Hold the POST open until the test lets it go (registered last, so it answers first).
+  let release: () => void = () => undefined;
+  const held = new Promise<void>(resolve => (release = resolve));
+  await page.route('**/api/session/switches', async (route, request: Request) => {
+    if (request.method() !== 'POST') return route.fallback();
+    fakes.posts.push(request.postDataJSON());
+    await held;
+    return route.fulfill({
+      json: {
+        ok: true,
+        switches: switches(ON, { changed: ['writes', 'handouts'] }),
+        gmActionsEnabled: true,
+        gmActionsChanged: false,
+      },
+    });
+  });
+  const block = await openReady(page);
+
+  // Two clicks in one task, before React re-renders the button as disabled.
+  await block.locator('#btn-ready').evaluate((b: HTMLButtonElement) => {
+    b.click();
+    b.click();
+  });
+  await expect(block.locator('#btn-ready')).toBeDisabled();
+  await expect(block.locator('#btn-ready-off')).toBeDisabled();
+  await expect.poll(() => fakes.posts.length).toBe(1);
+
+  release();
+  await expect(
+    page.getByText('✓ Ready for session. Turned on: Changes from the tool, Handouts (writes)')
+  ).toBeVisible();
+  await expect(block.locator('#btn-ready-off')).toBeEnabled();
+  expect(fakes.posts).toEqual([{ action: 'ready' }]);
+});

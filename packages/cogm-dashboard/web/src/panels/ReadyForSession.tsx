@@ -3,7 +3,7 @@
 // starts the session log. The switches live in the module (`/api/session/switches`); GM Actions
 // come from the stream's `settings` event, which the server sends again after each change.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { JSX } from 'react';
+import { useRef, type JSX } from 'react';
 
 import { useToast } from '../components/Toasts';
 import { api, errorText } from '../lib/api';
@@ -62,7 +62,10 @@ async function callTool<T>(name: string, args: Record<string, unknown>): Promise
   return data.result as T;
 }
 
-/** Whether a play session is open (get-play-session), polled each minute as the old page does. */
+/**
+ * Whether a play session is open (get-play-session), polled each minute as the old page does. A
+ * failed poll keeps the last answer (a query keeps its data on error), as the old page does.
+ */
 function usePlaySessionOpen(): { open: boolean; refetch: () => Promise<unknown> } {
   const query = useQuery({
     queryKey: PLAY_SESSION_KEY,
@@ -92,6 +95,8 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
   const gmActions = settings?.gmActionsEnabled ?? read.data?.gmActionsEnabled ?? false;
   const readError = read.error ? errorText(read.error) : (read.data?.error ?? null);
 
+  // Set before the first re-render disables the buttons, so a fast double click sends once.
+  const sending = useRef(false);
   const write = useMutation({
     mutationFn: (action: SwitchAction) =>
       api<SwitchesWrite>('/api/session/switches', {
@@ -136,7 +141,10 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
       void read.refetch();
     },
     // The pre-flight row "Ready for session" follows.
-    onSettled: () => onChanged(),
+    onSettled: () => {
+      sending.current = false;
+      onChanged();
+    },
   });
 
   const startLog = useMutation({
@@ -150,6 +158,11 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
   });
 
   const busy = write.isPending;
+  const send = (action: SwitchAction): void => {
+    if (sending.current) return;
+    sending.current = true;
+    write.mutate(action);
+  };
   const allOn = list.length > 0 && list.every(s => s.on) && gmActions;
   // Ready turned something on (the module remembers it), or GM Actions are on.
   const readyIsOn = Boolean(state?.ready) || gmActions;
@@ -175,7 +188,7 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
           id="btn-ready"
           data-track="dash.ready.turn-on"
           disabled={allOn || busy}
-          onClick={() => write.mutate('ready')}
+          onClick={() => send('ready')}
         >
           {allOn ? '✓ Ready for tonight' : 'Ready for session'}
         </button>
@@ -185,7 +198,7 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
             id="btn-ready-off"
             data-track="dash.ready.turn-off"
             disabled={busy}
-            onClick={() => write.mutate('end')}
+            onClick={() => send('end')}
           >
             Turn them off again
           </button>

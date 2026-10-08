@@ -342,7 +342,8 @@ export function PreflightDrawer({
       <ReadyBlock
         onChanged={() => {
           // A quiet run, as when Foundry comes back: the row follows, a failure changes nothing.
-          if (result.data) {
+          // Read at settle time: a run may have finished while the switches call was out.
+          if (queryClient.getQueryData(PREFLIGHT_KEY)) {
             queryClient
               .fetchQuery({ queryKey: PREFLIGHT_KEY, queryFn: fetchPreflight, staleTime: 0 })
               .catch(() => undefined);

@@ -664,8 +664,8 @@ world as the Assistant GM instead:
 - Every run is logged to the journal: the file, its sha256, dry run or not, the script's log lines
   and its result. A copy of each script stays in `/var/lib/foundry-ai-tool/gm-scripts`, named by
   time and sha256. `journalctl -t foundry-ai-tool-gm-script` lists the runs.
-- While the script runs, the Assistant GM service is stopped (one login per user, one Chromium on
-  the Pi) and the script's browser holds the bridge link; the service starts again afterwards, also
+- While the script runs, the Assistant GM service is stopped (one Chromium on the Pi, one browser
+  holding the bridge link) and the script's browser holds that link; the service starts again afterwards, also
   after a failure.
 - A run that is not a dry run changes the campaign world: a `dietpi-backup 1` snapshot and the
   user's OK come first (CLAUDE.md, the Pi rule).

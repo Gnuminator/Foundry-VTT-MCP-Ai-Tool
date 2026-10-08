@@ -10,7 +10,7 @@
 # OK come first (CLAUDE.md, the Pi rule).
 #
 # What it does: keeps a copy of the script under $TOOL_DATA/gm-scripts (named by time and sha256),
-# stops the Assistant GM service (one login per user, and one Chromium on the Pi), runs
+# stops the Assistant GM service (one Chromium on the Pi, one browser holding the bridge link), runs
 # `assistant-gm.mjs script` as the foundry user in a transient systemd unit, so the file, its
 # sha256, the mode and the result land in the journal, prints that log, and starts the service
 # again, also when the script fails.

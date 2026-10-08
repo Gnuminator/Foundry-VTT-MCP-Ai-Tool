@@ -78,6 +78,20 @@ jobs:
         # Each PR adds its CHANGELOG entry as a file in changelog.d/ (D-089); this checks the format.
         run: npm run changelog:check
 
+      - name: GM coach skill
+        # The GM's "Foundry GM coach" skill zip (D-097): tests, then a build kept as a download.
+        run: |
+          node --test tools/gm-coach/build.test.mjs
+          node tools/gm-coach/build.mjs
+
+      - name: Keep the GM coach zip
+        if: matrix.node == '22'
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundry-gm-coach
+          path: tools/gm-coach/dist/foundry-gm-coach.zip
+          retention-days: 30
+
       - name: Build (all workspaces)
         run: npm run build
 

@@ -36,6 +36,7 @@
     "docs:lint": "markdownlint-cli2",
     "docs:links": "node scripts/check-links.mjs",
     "docs:tools": "node scripts/docs-tools.mjs",
+    "gm-coach": "node tools/gm-coach/build.mjs",
     "usage:catalog": "node scripts/usage-catalog.mjs",
     "usage:catalog:check": "node scripts/usage-catalog.mjs --check",
     "live:roundtrip": "node scripts/live-roundtrip.mjs",

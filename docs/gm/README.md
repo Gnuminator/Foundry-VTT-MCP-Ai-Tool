@@ -15,6 +15,7 @@ play.
 | [The dashboard](dashboard.md)                          | Every panel and button on the dashboard, what it does and when to use it.             |
 | [Features and when to turn them on](features.md)       | Each feature switch, what it does, and the moment to turn it on.                      |
 | [Asking Claude](asking-claude.md)                      | Good requests, the ready-made prompts, how Claude's changes are approved, its limits. |
+| [Your GM coach in Claude](gm-coach.md)                 | Add the Foundry GM coach skill to your Claude account, and how to ask it.             |
 | [Cookbook](cookbook.md)                                | Ready-to-use requests and clicks before, during and after a session.                  |
 | [Your Obsidian vault](obsidian.md)                     | What is in your vault, where your prep goes, and connecting the plugin to the server. |
 | [Prepare session 0](prepare-session-0.md)              | Set up the world so players can make their characters, and run the night.             |

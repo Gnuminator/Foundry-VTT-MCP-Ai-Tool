@@ -25,6 +25,24 @@ export interface ModuleErrorLog {
   warns: number;
 }
 
+/** The bridge link (feed/types.ts BridgeStatus on the server). */
+export interface BridgeStatus {
+  controlChannel: 'connected' | 'disconnected';
+  foundry: 'reachable' | 'unreachable' | 'unknown';
+  lastError: string | null;
+  lastPollAt: string | null;
+  foundryDownSince: string | null;
+}
+
+export const BRIDGE_STATUS_KEY = ['stream', 'status'] as const;
+
+/** The dashboard's own settings (app.ts settingsPayload, GM only); fields the page uses so far. */
+export interface DashboardSettings {
+  gmActionsEnabled: boolean;
+}
+
+export const SETTINGS_KEY = ['stream', 'settings'] as const;
+
 /** The old page keeps 150 entries on screen; the server keeps the newest 100. */
 export const MAX_ERROR_ENTRIES = 150;
 
@@ -56,18 +74,28 @@ function onErrors(queryClient: QueryClient, data: unknown): void {
   );
 }
 
+/** One handler per event this page uses; each puts the event into the query cache. */
+const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void> = {
+  errors: onErrors,
+  status: (queryClient, data) => queryClient.setQueryData(BRIDGE_STATUS_KEY, data as BridgeStatus),
+  settings: (queryClient, data) =>
+    queryClient.setQueryData(SETTINGS_KEY, data as DashboardSettings),
+};
+
 /** Opens the stream while the page is open. Mounted once, in App. */
 export function useDashboardStream(): void {
   const queryClient = useQueryClient();
   useEffect(() => {
     const source = new EventSource(streamUrl());
-    source.addEventListener('errors', e => {
-      try {
-        onErrors(queryClient, JSON.parse((e as MessageEvent<string>).data));
-      } catch {
-        // A broken event is skipped; the next one carries on.
-      }
-    });
+    for (const [event, handle] of Object.entries(HANDLERS)) {
+      source.addEventListener(event, e => {
+        try {
+          handle(queryClient, JSON.parse((e as MessageEvent<string>).data));
+        } catch {
+          // A broken event is skipped; the next one carries on.
+        }
+      });
+    }
     return () => source.close();
   }, [queryClient]);
 }
@@ -87,4 +115,28 @@ export function useModuleErrors(): ModuleErrorLog {
     gcTime: Infinity,
   });
   return data ?? EMPTY_LOG;
+}
+
+/** The bridge link as the stream last reported it; undefined until the first status event. */
+export function useBridgeStatus(): BridgeStatus | undefined {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: BRIDGE_STATUS_KEY,
+    queryFn: () => queryClient.getQueryData<BridgeStatus>(BRIDGE_STATUS_KEY) ?? null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data ?? undefined;
+}
+
+/** The dashboard settings as the stream last sent them; undefined until the first one. */
+export function useDashboardSettings(): DashboardSettings | undefined {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: SETTINGS_KEY,
+    queryFn: () => queryClient.getQueryData<DashboardSettings>(SETTINGS_KEY) ?? null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data ?? undefined;
 }

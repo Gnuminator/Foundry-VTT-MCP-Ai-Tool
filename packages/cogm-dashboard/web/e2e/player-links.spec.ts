@@ -2,7 +2,7 @@
 // paths, against a fake of the /api/player-links routes (me-route.ts) in the browser.
 import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes } from './support';
+import { GM_TOKEN, fakeCommonRoutes, toast } from './support';
 
 interface FakePlayer {
   userId: string;
@@ -75,9 +75,6 @@ const row = (page: Page, name: string): Locator =>
     .getByRole('dialog', { name: 'Player links' })
     .getByRole('listitem')
     .filter({ hasText: name });
-
-/** A toast in the stack (Radix also repeats its text in a screen-reader live region). */
-const toast = (page: Page, text: string): Locator => page.locator('.toast-stack').getByText(text);
 
 test.beforeEach(async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);

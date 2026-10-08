@@ -1,10 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type JSX } from 'react';
 
+import { DrawerBackdrop } from './components/Drawer';
 import { HelpProvider } from './components/Help';
 import { useHelp } from './components/HelpButton';
 import { ModuleDiagnosticsPane } from './panels/ModuleDiagnostics';
 import { PlayerLinksPane } from './panels/PlayerLinks';
+import { PrepDrawer } from './panels/Prep';
+import {
+  PreflightButton,
+  PreflightDrawer,
+  VersionBanner,
+  usePreflightOnReconnect,
+} from './panels/Preflight';
 import { api } from './lib/api';
 import { useDashboardStream } from './lib/stream';
 import { applyTheme } from './lib/theme';
@@ -49,9 +57,17 @@ export function App(): JSX.Element {
   );
 }
 
+/** The drawers this page has so far; each one's open state. */
+type DrawerName = 'preflight' | 'prep';
+const NO_DRAWERS: Record<DrawerName, boolean> = { preflight: false, prep: false };
+
 function Dashboard(): JSX.Element {
   useWorldTheme();
   useDashboardStream();
+  usePreflightOnReconnect();
+  const [drawers, setDrawers] = useState(NO_DRAWERS);
+  const setDrawer = (name: DrawerName, open: boolean): void =>
+    setDrawers(d => ({ ...d, [name]: open }));
   const openHelp = useHelp();
   const [linksOpen, setLinksOpen] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
@@ -71,6 +87,20 @@ function Dashboard(): JSX.Element {
           </div>
         </div>
         <div className="controls">
+          <PreflightButton
+            open={drawers.preflight}
+            onToggle={() => setDrawer('preflight', !drawers.preflight)}
+          />
+          <button
+            id="btn-prep"
+            className="btn"
+            data-track="dash.header.prep"
+            title="Session prep: last session, open threads, next session notes (GM only)"
+            aria-expanded={drawers.prep}
+            onClick={() => setDrawer('prep', !drawers.prep)}
+          >
+            📋 Prep
+          </button>
           <button
             className="btn"
             data-track="dash.header.player-links"
@@ -105,8 +135,22 @@ function Dashboard(): JSX.Element {
         This is the new dashboard, still being built. Panels move here one at a time; the full
         dashboard is still at the main address.
       </div>
+      <VersionBanner />
       <PlayerLinksPane open={linksOpen} onOpenChange={setLinksOpen} />
       <ModuleDiagnosticsPane open={diagOpen} onOpenChange={setDiagOpen} />
+      <DrawerBackdrop
+        shown={Object.values(drawers).some(Boolean)}
+        onClose={() => setDrawers(NO_DRAWERS)}
+      />
+      <PreflightDrawer
+        open={drawers.preflight}
+        onOpenChange={open => setDrawer('preflight', open)}
+      />
+      <PrepDrawer
+        open={drawers.prep}
+        onOpenChange={open => setDrawer('prep', open)}
+        onOpenPreflight={() => setDrawers(d => ({ ...d, prep: false, preflight: true }))}
+      />
     </>
   );
 }

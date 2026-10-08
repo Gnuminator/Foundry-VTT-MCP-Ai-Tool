@@ -66,9 +66,19 @@ export function hasTrait(trait, entry) {
 }
 
 /**
+ * The rules version a full compendium entry says it follows ('2024', '2014' or '').
+ * @param {any} entry
+ */
+export function entryRules(entry) {
+  const source = entry?.fullData?.system?.source ?? entry?.system?.source ?? {};
+  return String(source.rules ?? '');
+}
+
+/**
  * Picks the monsters for the matrix, deterministically: per cell, the creatures the criteria
  * match, restricted to the matrix pack, sorted by name then id; the first one nobody picked
- * before (and that has the required trait) wins.
+ * before (that has the required trait, and follows the matrix's rules version when it names one)
+ * wins.
  * @param {{tool: (name: string, args?: object) => Promise<any>}} dashboard
  * @param {any} matrix  the `monsters` part of the matrix file
  * @param {(m: string) => void} [log]
@@ -88,12 +98,13 @@ export async function selectMonsters(dashboard, matrix, log = () => {}) {
       .sort(byNameThenId);
     let chosen = null;
     for (const candidate of candidates) {
-      if (cell.require) {
+      if (cell.require || matrix.rules) {
         const entry = await dashboard.tool('get-compendium-item', {
           packId: matrix.pack,
           itemId: candidate.id,
         });
-        if (!hasTrait(cell.require, entry)) continue;
+        if (matrix.rules && entryRules(entry) !== matrix.rules) continue;
+        if (cell.require && !hasTrait(cell.require, entry)) continue;
       }
       chosen = candidate;
       break;
@@ -576,7 +587,11 @@ export async function buildKit({
     firstPlayable.owner = KIT_PLAYER_USER;
   }
 
-  const picks = await selectMonsters(dashboard, matrix.monsters, log);
+  // A profile may name its own monster pack (a licensed one: its imported Monster Manual).
+  const monsterMatrix = profile.matrixMonsters
+    ? { ...matrix.monsters, excludeIdPattern: '(?!)', ...profile.matrixMonsters }
+    : matrix.monsters;
+  const picks = await selectMonsters(dashboard, monsterMatrix, log);
   const monsters = [];
   const gmActionsBefore = await dashboard.getGmActions();
   if (!gmActionsBefore) await dashboard.setGmActions(true);

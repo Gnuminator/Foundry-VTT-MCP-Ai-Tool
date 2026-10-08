@@ -1,7 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HERO_PLAN } from '../lib/contract.mjs';
-import { heroAbilities, planHeroes, selectContent } from '../lib/builder.mjs';
+import {
+  heroAbilities,
+  planHeroes,
+  entryRules,
+  selectContent,
+  selectMonsters,
+} from '../lib/builder.mjs';
 
 /** One index row. @param {{name: string, type: string, cls?: string, rules?: string, pack?: string, id?: string, identifier?: string}} o */
 function row(o) {
@@ -301,4 +307,34 @@ test('heroAbilities: a class that needs two abilities gets 15 and 14', () => {
 test('heroAbilities: no primary ability falls back to the spellcasting ability, then Strength', () => {
   assert.equal(heroAbilities({ primaryAbility: [], spellcasting: { ability: 'wis' } }).wis, 15);
   assert.deepEqual(heroAbilities(null), { str: 15, dex: 14, con: 13, int: 10, wis: 12, cha: 8 });
+});
+
+test('selectMonsters: a matrix with rules skips the other version of the same monster', async () => {
+  const creatures = [
+    { id: 'a2014', name: 'Aboleth', pack: { id: 'c.m' }, challengeRating: 10, creatureType: 'aberration', size: 'lg' },
+    { id: 'b2024', name: 'Aboleth', pack: { id: 'c.m' }, challengeRating: 10, creatureType: 'aberration', size: 'lg' },
+    { id: 'x', name: 'Aboleth', pack: { id: 'other.pack' }, challengeRating: 10, creatureType: 'aberration', size: 'lg' },
+  ];
+  const rules = { a2014: '2014', b2024: '2024', x: '2024' };
+  const asked = [];
+  const dashboard = {
+    tool: async (name, args) => {
+      asked.push([name, args.itemId ?? null]);
+      if (name === 'list-creatures-by-criteria') return { creatures };
+      return { fullData: { system: { source: { rules: rules[args.itemId] } } } };
+    },
+  };
+  const cells = [{ cell: 'legendary', criteria: { hasLegendaryActions: true } }];
+  const picked = await selectMonsters(dashboard, { pack: 'c.m', excludeIdPattern: '(?!)', rules: '2024', cells });
+  assert.deepEqual(
+    picked.map(p => [p.cell, p.packId, p.itemId, p.name]),
+    [['legendary', 'c.m', 'b2024', 'Aboleth']]
+  );
+  // Without rules the first by name then id wins and no entry is fetched.
+  asked.length = 0;
+  const plain = await selectMonsters(dashboard, { pack: 'c.m', excludeIdPattern: '(?!)', cells });
+  assert.equal(plain[0].itemId, 'a2014');
+  assert.deepEqual(asked, [['list-creatures-by-criteria', null]]);
+  assert.equal(entryRules({ system: { source: { rules: '2014' } } }), '2014');
+  assert.equal(entryRules(null), '');
 });

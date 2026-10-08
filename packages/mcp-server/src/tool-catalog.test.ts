@@ -124,6 +124,37 @@ describe('tool catalog', () => {
       tools.length
     );
     within10(docFile, 'total size', grab(docFile, doc, /about ([\d,]+) characters of JSON/), total);
+    // The token range is the character count at about 4.2 and 3.2 characters per token.
+    within10(
+      docFile,
+      'low token estimate',
+      grab(docFile, doc, /about ([\d,]+) to\s+[\d,]+\s+tokens/),
+      total / 4.2
+    );
+    within10(
+      docFile,
+      'high token estimate',
+      grab(docFile, doc, /about [\d,]+ to\s+([\d,]+)\s+tokens/),
+      total / 3.2
+    );
+    const corePrep = size(filterToolsBySets(tools, resolveToolSets('core,prep')));
+    within10(
+      docFile,
+      'core and prep size',
+      grab(docFile, doc, /core and prep on carries about ([\d,]+) characters/),
+      corePrep
+    );
+    within10(
+      docFile,
+      'total in the core and prep sentence',
+      grab(docFile, doc, /characters instead of ([\d,]+)\./),
+      total
+    );
+    const corePercent = (100 * size(filterToolsBySets(tools, resolveToolSets('core')))) / total;
+    expect(
+      Math.abs(grab(docFile, doc, /Core alone is\s+about (\d+)% of everything/) - corePercent),
+      `${docFile}: core share, measured ${corePercent.toFixed(1)}%; update the number`
+    ).toBeLessThanOrEqual(2);
     for (const set of TOOL_SET_NAMES) {
       const row = new RegExp(
         String.raw`^\| \*\*${set}\*\*\s*\|[^|]*\|\s*([\d,]+)\s*\|\s*about ([\d,]+)\s*\|`,
@@ -145,6 +176,14 @@ describe('tool catalog', () => {
     expect(
       grab(readmeFile, readme, /([\d,]+) tools in five sets/),
       `${readmeFile}: tool count`
+    ).toBe(tools.length);
+    expect(
+      grab(readmeFile, readme, /([\d,]+) tools let Claude/),
+      `${readmeFile}: tool count in the feature list`
+    ).toBe(tools.length);
+    expect(
+      grab(readmeFile, readme, /serves all ([\d,]+) tools/),
+      `${readmeFile}: tool count in the setup section`
     ).toBe(tools.length);
     expect(
       grab(readmeFile, readme, /all ([\d,]+) tools are about/),

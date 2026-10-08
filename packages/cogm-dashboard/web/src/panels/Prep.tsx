@@ -474,7 +474,7 @@ export function PrepDrawer({
     if (!open) return;
     usage().trackView('dash.prep.view');
     void load();
-    return () => usage().endView('dash.prep.view');
+    return (): void => usage().endView('dash.prep.view');
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per opening
   }, [open]);
 

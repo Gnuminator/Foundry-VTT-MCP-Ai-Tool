@@ -146,6 +146,26 @@ jobs:
         # redaction (GM vs player) + the write-surface auth gate over HTTP.
         run: node scripts/cogm-split-smoke-test.mjs
 
+      - name: Install Chromium for the dashboard browser tests
+        if: matrix.node == '22'
+        run: npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium
+
+      - name: Dashboard browser tests (React dashboard)
+        # Playwright against the built dashboard at /next/ (packages/cogm-dashboard/web, D-109):
+        # the real server with no bridge, the /api routes faked in the browser. Once per run.
+        if: matrix.node == '22'
+        run: npm run test:e2e -w @gnuminator/cogm-dashboard
+
+      - name: Keep the browser test report
+        if: failure() && matrix.node == '22'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-playwright-report
+          path: |
+            packages/cogm-dashboard/playwright-report
+            packages/cogm-dashboard/test-results
+          retention-days: 14
+
       - name: Validate Foundry module manifest
         run: node scripts/validate-manifest.js
 

@@ -1,0 +1,14 @@
+/* Only what the React markup needs on top of the old stylesheets (styles.css, moments.css and the
+   themes, linked by index.html). The look itself stays in those files. */
+
+/* Radix renders the toast stack as a list. */
+ol.toast-stack {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The full-dashboard link sits with the header buttons. */
+a.btn {
+  text-decoration: none;
+}

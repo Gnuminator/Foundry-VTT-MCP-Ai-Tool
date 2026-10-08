@@ -60,6 +60,7 @@ without touching the rest of the app.
 | `src/sse.ts`                     | Server-Sent Events hub                                            |
 | `src/server.ts`                  | Express wiring, REST + SSE endpoints                              |
 | `public/`                        | Vanilla-JS dashboard (no build step)                              |
+| `web/`                           | The React dashboard (preview at `/next/`, built by Vite)          |
 
 ## Setup
 
@@ -94,6 +95,26 @@ built server), `npm run typecheck`, `npm run lint`.
 
 > Tip: from the repo root you can run it without `cd` via
 > `npm run dev --workspace=packages/cogm-dashboard`.
+
+## The React dashboard (preview at `/next/`)
+
+The dashboard pages are moving to React + TypeScript (D-109), one panel at a time. The new page
+lives in `web/` and is served at **`/next/`**, next to the old page at `/`, until every panel has
+moved and the default switches. It uses Radix UI primitives (unstyled), TanStack Query for the
+data, and the old stylesheets and themes as they are (it links `styles.css`, `moments.css` and
+`themes/` from `public/`), so it looks the same. It talks to the same routes with the same GM
+token. Ported so far: Player links.
+
+- `npm run build` also builds it (Vite) into `dist/web`; the server serves that folder at
+  `/next/`. The Docker image and the Pi get it with the rest of `dist/`.
+- `npm run dev:web` runs Vite on <http://localhost:5173/next/> with hot reload and passes `/api`
+  and the old assets to a running dashboard (`COGM_DEV_TARGET`, default the test dashboard on
+  `http://127.0.0.1:3100`).
+- `npm run test:e2e` runs the Playwright browser tests in `web/e2e` against the built server
+  (no bridge; each test fakes the routes it needs). Build first. They need Playwright's Chromium
+  (`npx playwright install chromium`) or `PLAYWRIGHT_CHANNEL=msedge`. CI runs them on Node 22.
+- Usage names go in `data-track="..."` as string literals, as on the old page;
+  `npm run usage:catalog` scans `web/src` too.
 
 The dashboard runs **without** an API key too — you still get the live feed and
 combat tracker; only the AI panes are disabled until a key is set.

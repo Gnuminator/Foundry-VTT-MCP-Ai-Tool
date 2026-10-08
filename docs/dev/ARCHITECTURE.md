@@ -557,6 +557,9 @@ it talks to the backend's control channel directly and calls the Anthropic API i
   thing that ever holds the Anthropic key.
 - **A pure browser client.** HTML/CSS/JS that renders the live feed, the combat tracker,
   streamed AI commentary, and the GM-action surface. It only ever talks to its own server.
+  The pages are being rewritten in React + TypeScript + Vite (D-109, `web/`), served at
+  `/next/` next to the old pages until every panel has moved (package README, "The React
+  dashboard").
 
 **The live feed (`feed/`).** `McpControlClient` is a hardened, **read-only, never-spawning**
 control-channel client (it dials `31414`, never starts a backend). It is built for a backend

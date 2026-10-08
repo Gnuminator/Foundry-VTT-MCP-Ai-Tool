@@ -7,6 +7,7 @@
  * which controls were never used.
  *
  *   dashboard and /player   packages/cogm-dashboard/public/*.{html,js}
+ *                           packages/cogm-dashboard/web/src/**\/*.{ts,tsx} (the React dashboard, D-109)
  *     data-track="dash.x.y"                      kind `action` (or `data-track-kind="view"`)
  *     track('kind', 'name')  trackView('name')  trackShortcut('name')  trackError('name')
  *   Foundry module          packages/foundry-module/src/**\/*.ts (not tests)
@@ -14,8 +15,8 @@
  *
  * Names must be string literals. A call with a computed name, a name that does
  * not match the contract, or one on the wrong surface is an error (exit 1): the
- * catalogue cannot list what it cannot read. `usage.js` and `usage-recorder.ts`
- * (the definitions) are not scanned.
+ * catalogue cannot list what it cannot read. `usage.js`, `web/src/lib/usage.ts` and
+ * `usage-recorder.ts` (the definitions) are not scanned.
  *
  *   node scripts/usage-catalog.mjs            write the generated file
  *   node scripts/usage-catalog.mjs --check    exit 1 when the file is stale or a name is bad
@@ -38,8 +39,14 @@ const SURFACE_PREFIX = [
 ];
 const OUTPUT = 'shared/src/usage-catalog.generated.ts';
 const DASHBOARD_DIR = 'packages/cogm-dashboard/public';
+const WEB_DIR = 'packages/cogm-dashboard/web/src';
 const MODULE_DIR = 'packages/foundry-module/src';
-const DEFINITION_FILES = new Set([`${DASHBOARD_DIR}/usage.js`, `${MODULE_DIR}/usage-recorder.ts`]);
+const DEFINITION_FILES = new Set([
+  `${DASHBOARD_DIR}/usage.js`,
+  `${WEB_DIR}/lib/usage.ts`,
+  `${MODULE_DIR}/usage-recorder.ts`,
+]);
+const isSource = n => !/\.(test|spec)\.tsx?$/.test(n) && !n.endsWith('.d.ts');
 
 function walk(dir, accept, out = []) {
   if (!existsSync(dir)) return out;
@@ -148,10 +155,8 @@ export function scanRepo(root) {
   const byName = new Map();
   const files = [
     ...walk(path.join(root, DASHBOARD_DIR), n => /\.(html|js)$/.test(n)),
-    ...walk(
-      path.join(root, MODULE_DIR),
-      n => /\.ts$/.test(n) && !/\.(test|spec)\.ts$/.test(n) && !n.endsWith('.d.ts')
-    ),
+    ...walk(path.join(root, WEB_DIR), n => /\.tsx?$/.test(n) && isSource(n)),
+    ...walk(path.join(root, MODULE_DIR), n => /\.ts$/.test(n) && isSource(n)),
   ].sort();
 
   for (const abs of files) {

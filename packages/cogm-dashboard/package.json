@@ -8,12 +8,15 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "node scripts/build-help.mjs --soft && tsx watch src/server.ts",
-    "build": "tsc && node scripts/build-help.mjs",
+    "dev:web": "vite --config web/vite.config.ts",
+    "build": "tsc && node scripts/build-help.mjs && vite build --config web/vite.config.ts",
+    "build:web": "vite build --config web/vite.config.ts",
     "start": "node dist/server.js",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix"
+    "test:e2e": "playwright test -c web",
+    "typecheck": "tsc --noEmit && tsc -p web --noEmit",
+    "lint": "eslint src web --ext .ts,.tsx",
+    "lint:fix": "eslint src web --ext .ts,.tsx --fix"
   },
   "dependencies": {
     "@anthropic-ai/sdk": ">=0.40.0",
@@ -23,11 +26,21 @@
     "htmlparser2": "^10.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "~1.63.0",
+    "@radix-ui/react-dialog": "^1.2.0",
+    "@radix-ui/react-toast": "^1.2.24",
+    "@tanstack/react-query": "^5.104.1",
     "@types/express": "^4.17.21",
     "@types/node": "^22.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
     "marked": "^15.0.12",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vite": "^8.3.4"
   },
   "engines": {
     "node": ">=22"

@@ -58,7 +58,7 @@ COPY docs/gm/                 ./docs/gm/
 COPY scripts/check-links.mjs  ./scripts/
 
 # Build all workspaces. Produces dist/ under each package.
-# cogm-dashboard build also copies public/ assets to its dist/.
+# The cogm-dashboard build also puts the React dashboard (web/, Vite) in its dist/web.
 RUN npm run build
 
 # ── Stage 2: runtime ────────────────────────────────────────────────────────

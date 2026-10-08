@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
   One pass of the automatic session pipeline: transcribe finished recordings, write missing
-  notes, delete audio past its retention date (D-072). Safe to run often; it does nothing when
-  nothing is due.
+  notes, hand the notes to the bridge. Safe to run often; it does nothing when nothing is due.
+  Nothing here deletes audio: recordings are kept on this PC (D-097).
 
 .DESCRIPTION
   Meant for a scheduled task (for example every hour while the PC is on). For each folder in the
@@ -18,7 +18,6 @@
      notes\approved.json once the GM revealed or approved the Recap. A bridge that is not
      running only means "next pass" (FOUNDRY_AI_CONTROL_PORT picks the port, FVTT_WORLD the
      world while Foundry is closed).
-  4. Always: `session-notes cleanup --yes` (audio 14 days after the GM's approval).
 
   A lock file keeps two passes from overlapping. The report goes to the console and to
   <sessions>\auto.log.
@@ -53,9 +52,7 @@ if (-not $DryRun) { Set-Content -Path $lock -Value $PID }
 function Invoke-Notes([string[]]$argList) {
   # Python's output goes straight to the console (and the log); only the exit code is returned.
   $env:PYTHONPATH = Join-Path $here 'src'
-  & python -m session_notes @argList 2>&1 |
-    Where-Object { "$_" -notmatch '^No session has audio' } |
-    ForEach-Object { Say "  $_" }
+  & python -m session_notes @argList 2>&1 | ForEach-Object { Say "  $_" }
   return $LASTEXITCODE
 }
 
@@ -110,9 +107,6 @@ try {
       }
     }
   }
-
-  $cleanupArgs = if ($DryRun) { @('cleanup') } else { @('cleanup', '--yes') }
-  $null = Invoke-Notes $cleanupArgs
 } finally {
   if (-not $DryRun) { Remove-Item $lock -ErrorAction SilentlyContinue }
 }

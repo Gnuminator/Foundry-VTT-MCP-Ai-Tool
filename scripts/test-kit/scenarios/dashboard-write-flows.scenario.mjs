@@ -661,18 +661,17 @@ export default {
         const since = now();
         const before = await damageThroughForm(h, 2);
         await damageThroughForm(h, 3);
-        // Not only the undoable ones: a later change may block the plain undo of the older one,
-        // which is what the window's choice is for.
-        const list = await waitFor(
-          async () => {
-            const found = listOf(await t.tool('list-recent-changes', { limit: 50 }), 'changes')
+        // The older damage by its summary: `since` has slack, so the previous flow's changes can be
+        // in the list too. Not only the undoable ones: a later change may block the plain undo of
+        // the older one, which is what the window's choice is for.
+        const first = await waitFor(
+          async () =>
+            listOf(await t.tool('list-recent-changes', { limit: 50 }), 'changes')
               .filter(c => c.mode === 'apply' && String(c.appliedAt) >= since)
-              .sort((a, b) => String(b.appliedAt).localeCompare(String(a.appliedAt)));
-            return found.length >= 2 ? found : null;
-          },
-          { label: 'the two changes in list-recent-changes', timeoutMs: 15000 }
+              .sort((a, b) => String(b.appliedAt).localeCompare(String(a.appliedAt)))
+              .find(c => String(c.summary).includes(h.name) && /\b2 damage\b/.test(c.summary)),
+          { label: 'the older damage change in list-recent-changes', timeoutMs: 15000 }
         );
-        const first = list[list.length - 1];
         const hp = async () => total(await readHero(h));
         const both = total(before) - 5;
 
@@ -784,7 +783,8 @@ export default {
         await applyUndo();
         await undoClosed();
         // The undo is a change of its own; the put-back must not undo it again.
-        for (const change of await changesSince(since)) keep.add(change.changeId);
+        const kept = (await changesSince(since))[0];
+        if (kept) keep.add(kept.changeId);
         t.equal(total(await readHero(h)), total(before), `${h.name} HP after Everything since`);
         return `${h.name}: back to ${total(before)}`;
       }

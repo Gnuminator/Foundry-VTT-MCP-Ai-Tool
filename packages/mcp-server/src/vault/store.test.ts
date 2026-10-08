@@ -160,13 +160,21 @@ describe('VaultStore lists, lines and removal', () => {
     // Each line is `{"n":i}` plus a newline: 8 characters.
     expect(await store.keepLastLines('w1', 'gm', 'k.jsonl', 100)).toBe(0);
     const dropped: unknown[] = [];
-    const keeping = store.keepLastLines('w1', 'gm', 'k.jsonl', 24, v => {
-      dropped.push(v);
+    const kept: unknown[] = [];
+    let renamedYet: boolean | null = null;
+    const keeping = store.keepLastLines('w1', 'gm', 'k.jsonl', 24, {
+      onDropped: v => dropped.push(v),
+      onKept: v => kept.push(v),
+      beforeRename: async () => {
+        renamedYet = (await store.readLines('w1', 'gm', 'k.jsonl')).length !== 6;
+      },
     });
     const appending = store.appendLines('w1', 'gm', 'k.jsonl', [{ n: 6 }]);
     expect(await keeping).toBe(3);
     await appending;
     expect(dropped).toEqual([{ n: 0 }, { n: 1 }, { n: 2 }]);
+    expect(kept).toEqual([{ n: 3 }, { n: 4 }, { n: 5 }]);
+    expect(renamedYet).toBe(false);
     expect(await store.readLines('w1', 'gm', 'k.jsonl')).toEqual([
       { n: 3 },
       { n: 4 },
@@ -178,6 +186,34 @@ describe('VaultStore lists, lines and removal', () => {
     expect(await store.readLines('w1', 'gm', 'k.jsonl')).toEqual([{ n: 6 }]);
     expect(await store.keepLastLines('w1', 'gm', 'none.jsonl', 1)).toBe(0);
     expect(await store.list('w1', 'gm')).toEqual(['k.jsonl']);
+    // A failing beforeRename leaves the file as it was and its temp file removed.
+    await store.appendLines('w1', 'gm', 'k.jsonl', [{ n: 7 }]);
+    await expect(
+      store.keepLastLines('w1', 'gm', 'k.jsonl', 1, {
+        beforeRename: () => Promise.reject(new Error('no state')),
+      })
+    ).rejects.toThrow('no state');
+    expect(await store.readLines('w1', 'gm', 'k.jsonl')).toEqual([{ n: 6 }, { n: 7 }]);
+    expect(await fsp.readdir(path.join(dataDir, 'w1', 'gm'))).toEqual(['k.jsonl']);
+  });
+
+  it('removes only old temp files of the given prefix', async () => {
+    const store = makeStore();
+    const dir = path.join(dataDir, 'w1', 'gm');
+    await fsp.mkdir(dir, { recursive: true });
+    const old = '.changes-2026-10-07.jsonl.12.abc.tmp';
+    for (const name of [old, '.changes-2026-10-08.jsonl.12.def.tmp', '.other.json.12.a.tmp']) {
+      await fsp.writeFile(path.join(dir, name), 'x');
+    }
+    const hourAgo = new Date(Date.now() - 3_600_000);
+    await fsp.utimes(path.join(dir, old), hourAgo, hourAgo);
+    await fsp.utimes(path.join(dir, '.other.json.12.a.tmp'), hourAgo, hourAgo);
+    expect(await store.removeStaleTemps('w1', 'gm', 'changes-', 600_000)).toEqual([old]);
+    expect((await fsp.readdir(dir)).sort()).toEqual([
+      '.changes-2026-10-08.jsonl.12.def.tmp',
+      '.other.json.12.a.tmp',
+    ]);
+    expect(await store.removeStaleTemps('w2', 'gm', 'changes-', 0)).toEqual([]);
   });
 
   it('reads JSON lines one at a time with their length, across CRLF, blank and bad lines', async () => {

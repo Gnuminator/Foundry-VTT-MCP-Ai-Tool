@@ -77,6 +77,13 @@ async function eachRawLine(
   }
 }
 
+/** The callbacks of `VaultStore.keepLastLines`. */
+export interface KeepLastLinesHooks {
+  onDropped?: (value: unknown) => void;
+  onKept?: (value: unknown) => void;
+  beforeRename?: () => Promise<void>;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -222,14 +229,17 @@ export class VaultStore {
    * Keep only the newest lines of a `.jsonl` file that fit in `maxChars` (the last line always
    * stays), rewritten atomically inside the file's queue so no append is lost. Each line left
    * out that parses goes to `onDropped`. Returns how many lines were left out (0: unchanged).
+   * `onKept` gets each kept line that parses, `beforeRename` runs once both are done and before
+   * the new file replaces the old one (a rejection leaves the file as it was).
    */
   async keepLastLines(
     worldId: string,
     area: VaultArea,
     file: string,
     maxChars: number,
-    onDropped: (value: unknown) => void = (): void => undefined
+    hooks: KeepLastLinesHooks = {}
   ): Promise<number> {
+    const { onDropped, onKept, beforeRename } = hooks;
     if (!file.endsWith('.jsonl')) throw new Error(`Not a .jsonl file: ${file}`);
     const full = this.filePath(worldId, area, file);
     return this.enqueue(full, async () => {
@@ -253,13 +263,17 @@ export class VaultStore {
         let index = 0;
         let chunk: string[] = [];
         await eachRawLine(full, async line => {
-          if (index < skip) {
+          const hook = index < skip ? onDropped : onKept;
+          if (hook) {
+            let value: unknown;
             try {
-              onDropped(JSON.parse(line));
+              value = JSON.parse(line);
             } catch {
-              // A bad line is left out with the rest.
+              // A bad line goes to no hook.
             }
-          } else {
+            if (value !== undefined) hook(value);
+          }
+          if (index >= skip) {
             chunk.push(line);
             if (chunk.length >= 1000) {
               await out.write(`${chunk.join('\n')}\n`);
@@ -274,6 +288,7 @@ export class VaultStore {
         await out.close();
       }
       try {
+        await beforeRename?.();
         await this.renameWithRetry(tmp, full);
       } catch (error) {
         await fsp.unlink(tmp).catch(() => undefined);
@@ -308,6 +323,41 @@ export class VaultStore {
       if (errorCode(error) === 'ENOENT') return [];
       throw error;
     }
+  }
+
+  /**
+   * Remove the temp files a crash left behind for files whose names start with `prefix`
+   * (`.<file>.<pid>.<hex>.tmp`, see `write` and `keepLastLines`) once they are older than
+   * `olderThanMs`, so a rewrite still running is never touched. Returns the names removed.
+   */
+  async removeStaleTemps(
+    worldId: string,
+    area: VaultArea,
+    prefix: string,
+    olderThanMs: number
+  ): Promise<string[]> {
+    const dir = path.join(worldDir(this.dataDir, worldId), area);
+    let names: string[];
+    try {
+      names = await fsp.readdir(dir);
+    } catch (error) {
+      if (errorCode(error) === 'ENOENT') return [];
+      throw error;
+    }
+    const removed: string[] = [];
+    const before = Date.now() - olderThanMs;
+    for (const name of names) {
+      if (!name.startsWith(`.${prefix}`) || !name.endsWith('.tmp')) continue;
+      const full = path.join(dir, name);
+      try {
+        if ((await fsp.stat(full)).mtimeMs > before) continue;
+        await fsp.unlink(full);
+        removed.push(name);
+      } catch {
+        // Gone already, or locked: the next pass tries again.
+      }
+    }
+    return removed;
   }
 
   /** World ids that have a vault directory. */

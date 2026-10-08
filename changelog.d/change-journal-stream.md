@@ -8,4 +8,5 @@
   (`FOUNDRY_AI_CHANGE_JOURNAL_MAX_MB`, 64 MB) of the newest records; when it leaves older ones
   out, the list says from when it is complete and a rewind stops there. A day's journal file
   that grows past the cap keeps its newest half (retention never removed the newest file, so a
-  heavy day grew without limit, on the Pi's SD card too).
+  heavy day grew without limit, on the Pi's SD card too). Both caps leave an action out whole,
+  never in part, so Undo never puts back only some of a bulk change.

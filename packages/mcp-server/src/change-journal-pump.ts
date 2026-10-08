@@ -33,8 +33,9 @@
  * before it. Records older than it are not written again (a re-pull from seq 0 after a GM
  * browser reload would otherwise recreate a removed file). A file that cannot be removed
  * (a Windows lock) is retried after `RETENTION_RETRY_MS`, the others are still removed.
- * A day's file that an append takes over `maxBytes` keeps its newest half (`capDays`), and
- * `completeFrom` moves past the records it lost, as for lost records below.
+ * A day's file that an append takes over `maxBytes` keeps its newest half (`capDays`),
+ * `completeFrom` moves past the records it lost, as for lost records below, and the actions
+ * the cut went through are kept as `cutActions`, which the history leaves out whole.
  *
  * Lost records: when the buffer no longer holds the record after the one the pump asked for
  * (the ring wrapped before the pump read it, on any page; or, after a reload or on first
@@ -73,6 +74,10 @@ export const CHANGE_JOURNAL_RETENTION_DAYS = 7;
 export const DEFAULT_CHANGE_JOURNAL_MAX_BYTES = 64 * 1024 * 1024;
 /** How long after a failed file removal the retention run is tried again. */
 export const RETENTION_RETRY_MS = 10 * 60 * 1000;
+/** Most action ids `cutActions` keeps (the newest); a cut adds a few. */
+export const MAX_CUT_ACTIONS = 200;
+/** A temp file of a day's rewrite older than this was left by a crash. */
+const STALE_TEMP_MS = 10 * 60 * 1000;
 
 const JOURNAL_FILE = /^changes-(\d{4}-\d{2}-\d{2})\.jsonl$/;
 
@@ -115,6 +120,17 @@ interface ChangePumpState {
    * before it). Absent until records were lost. `historyStart` takes the later of the two.
    */
   completeFrom?: number;
+  /**
+   * Epoch ms after the newest record a day's cap (`capDays`) removed: a record older than it
+   * is never written again (after a restart only the file's keys say what was written).
+   */
+  cappedBefore?: number;
+  /**
+   * The actions a day's cap cut through (some records removed, some kept, or the newest removed
+   * one, which may still be running): the history leaves their other records out, so no part of
+   * an action is ever undone on its own. The newest MAX_CUT_ACTIONS.
+   */
+  cutActions?: string[];
 }
 
 interface PumpState extends ChangePumpState {
@@ -263,6 +279,11 @@ export class ChangeJournalPump {
     return Math.max(Number.isFinite(fromFiles) ? fromFiles : 0, state.completeFrom ?? 0);
   }
 
+  /** The actions a day's cap cut through (`cutActions`): the history leaves them out. */
+  async cutActions(worldId: string): Promise<ReadonlySet<string>> {
+    return new Set((await this.loadState(worldId)).cutActions ?? []);
+  }
+
   private async poll(): Promise<number> {
     if (!this.foundry.isConnected()) return 0;
     const worldId = await this.worldIds.current();
@@ -322,15 +343,11 @@ export class ChangeJournalPump {
         this.logger.warn('Change journal dropped invalid records', { worldId, count: invalid });
       }
 
-      const batch = await this.appendByDate(worldId, valid, state.historyFrom);
+      const batch = await this.appendByDate(worldId, valid, state.historyFrom, state.cappedBefore);
       written += batch.length;
       appended.push(...batch);
       // A day's file over the cap keeps its newest half; the history is complete after the rest.
-      const capFrom = await this.capDays(worldId, batch);
-      if (capFrom > (state.completeFrom ?? 0)) {
-        state.completeFrom = capFrom;
-        lost = true;
-      }
+      if (await this.capDays(worldId, batch, state)) lost = true;
 
       // The cursor follows the last record of the page; a short page is the end.
       const lastRead = rawRecords.reduce<number>(
@@ -366,6 +383,11 @@ export class ChangeJournalPump {
     if (now < this.retentionRetryAt) return;
     this.lastRetention = { worldId, dateKey: today };
     try {
+      // A crash during a day's cap leaves its temp file (up to half the cap) behind.
+      const temps = await this.store.removeStaleTemps(worldId, 'gm', 'changes-', STALE_TEMP_MS);
+      if (temps.length > 0) {
+        this.logger.info('Change journal temp files removed', { worldId, files: temps });
+      }
       const { removed, failed } = await this.removeOldFiles(worldId);
       if (removed.length > 0) {
         this.logger.info('Change journal files removed', { worldId, files: removed });
@@ -453,28 +475,33 @@ export class ChangeJournalPump {
   /**
    * Group by local date, drop duplicate keys (against the file and within the batch) and records
    * of days before `historyFrom` (their file was removed; writing them again would recreate a
-   * part of it), append.
+   * part of it) or from before `cappedBefore` (a day's cap removed them; written again at the
+   * end of the file, the next cut would keep them and drop newer ones), append.
    */
   private async appendByDate(
     worldId: string,
     records: ChangeRecord[],
-    historyFrom?: string
+    historyFrom?: string,
+    cappedBefore?: number
   ): Promise<ChangeRecord[]> {
     const byDate = new Map<string, ChangeRecord[]>();
     let skipped = 0;
     for (const record of records) {
       const date = localDateKey(record.t);
-      if (historyFrom && date < historyFrom) {
+      const removedDay = historyFrom !== undefined && date < historyFrom;
+      const capped = cappedBefore !== undefined && record.t < cappedBefore;
+      if (removedDay || capped) {
         skipped += 1;
         continue;
       }
       byDate.set(date, [...(byDate.get(date) ?? []), record]);
     }
     if (skipped > 0) {
-      this.logger.info('Change journal skipped records of removed days', {
+      this.logger.info('Change journal skipped records it had removed', {
         worldId,
         count: skipped,
         historyFrom,
+        ...(cappedBefore ? { cappedBefore: new Date(cappedBefore).toISOString() } : {}),
       });
     }
 
@@ -500,11 +527,18 @@ export class ChangeJournalPump {
   /**
    * The files the batch was written to that now hold more than `maxBytes` keep their newest
    * half (a heavy day: a world import, a bulk delete with every document's data; retention
-   * never removes the newest file). Returns the time after the newest record left out, 0 when
-   * none was. The keys stay in `writtenKeys`, so a re-pull does not write those records again.
+   * never removes the newest file). The state's `completeFrom` and `cappedBefore` move past
+   * the newest record left out and `cutActions` takes the actions the cut went through; the
+   * state is saved before the new file replaces the old one, and put back when that fails (the
+   * records are then still there). Returns whether a file was cut. The keys stay in
+   * `writtenKeys`, so a re-pull does not write those records again.
    */
-  private async capDays(worldId: string, batch: ChangeRecord[]): Promise<number> {
-    let completeFrom = 0;
+  private async capDays(
+    worldId: string,
+    batch: ChangeRecord[],
+    state: PumpState
+  ): Promise<boolean> {
+    let cut = false;
     for (const date of new Set(batch.map(r => localDateKey(r.t)))) {
       const file = changeJournalFileName(date);
       let size: number;
@@ -514,24 +548,59 @@ export class ChangeJournalPump {
         continue;
       }
       if (size <= this.maxBytes) continue;
+      let from = 0;
+      let newest: string | null = null;
+      const droppedIds = new Set<string>();
+      const through = new Set<string>();
+      const before: Pick<ChangePumpState, 'completeFrom' | 'cappedBefore' | 'cutActions'> = {
+        ...(state.completeFrom ? { completeFrom: state.completeFrom } : {}),
+        ...(state.cappedBefore ? { cappedBefore: state.cappedBefore } : {}),
+        ...(state.cutActions ? { cutActions: state.cutActions } : {}),
+      };
       try {
         const dropped = await this.store.keepLastLines(
           worldId,
           'gm',
           file,
           Math.floor(this.maxBytes / 2),
-          value => {
-            const t = (value as { t?: unknown } | null)?.t;
-            if (typeof t === 'number' && t + 1 > completeFrom) completeFrom = t + 1;
+          {
+            onDropped: value => {
+              const r = value as { t?: unknown; actionId?: unknown } | null;
+              if (typeof r?.t === 'number' && r.t + 1 > from) from = r.t + 1;
+              if (typeof r?.actionId === 'string') {
+                droppedIds.add(r.actionId);
+                newest = r.actionId;
+              }
+            },
+            onKept: value => {
+              const id = (value as { actionId?: unknown } | null)?.actionId;
+              if (typeof id === 'string' && droppedIds.has(id)) through.add(id);
+            },
+            beforeRename: async () => {
+              if (newest) through.add(newest);
+              if (from > (state.completeFrom ?? 0)) state.completeFrom = from;
+              if (from > (state.cappedBefore ?? 0)) state.cappedBefore = from;
+              const ids = [...(state.cutActions ?? []).filter(id => !through.has(id)), ...through];
+              if (ids.length > 0) state.cutActions = ids.slice(-MAX_CUT_ACTIONS);
+              await this.saveState(worldId);
+            },
           }
         );
+        cut = true;
         this.logger.warn('Change journal day over the size cap: its oldest records were removed', {
           worldId,
           file,
           removed: dropped,
-          completeFrom: new Date(completeFrom).toISOString(),
+          completeFrom: new Date(from).toISOString(),
+          cutActions: through.size,
         });
       } catch (error) {
+        // Not cut: the records are all still there.
+        delete state.completeFrom;
+        delete state.cappedBefore;
+        delete state.cutActions;
+        Object.assign(state, before);
+        await this.saveState(worldId).catch(() => undefined);
         this.logger.warn('Change journal day could not be capped', {
           worldId,
           file,
@@ -539,7 +608,7 @@ export class ChangeJournalPump {
         });
       }
     }
-    return completeFrom;
+    return cut;
   }
 
   private async loadWrittenKeys(worldId: string, date: string): Promise<Set<string>> {
@@ -581,12 +650,21 @@ export class ChangeJournalPump {
       typeof saved?.data.completeFrom === 'number' && saved.data.completeFrom > 0
         ? saved.data.completeFrom
         : undefined;
+    const cappedBefore =
+      typeof saved?.data.cappedBefore === 'number' && saved.data.cappedBefore > 0
+        ? saved.data.cappedBefore
+        : undefined;
+    const cutActions = Array.isArray(saved?.data.cutActions)
+      ? saved.data.cutActions.filter((id): id is string => typeof id === 'string')
+      : [];
     this.state = {
       worldId,
       clientId,
       lastSeq,
       ...(historyFrom ? { historyFrom } : {}),
       ...(completeFrom ? { completeFrom } : {}),
+      ...(cappedBefore ? { cappedBefore } : {}),
+      ...(cutActions.length > 0 ? { cutActions } : {}),
     };
     return this.state;
   }
@@ -598,6 +676,8 @@ export class ChangeJournalPump {
       lastSeq: this.state.lastSeq,
       ...(this.state.historyFrom ? { historyFrom: this.state.historyFrom } : {}),
       ...(this.state.completeFrom ? { completeFrom: this.state.completeFrom } : {}),
+      ...(this.state.cappedBefore ? { cappedBefore: this.state.cappedBefore } : {}),
+      ...(this.state.cutActions?.length ? { cutActions: this.state.cutActions } : {}),
     };
     await this.store.write(worldId, 'gm', CHANGE_PUMP_STATE_FILE, data);
   }

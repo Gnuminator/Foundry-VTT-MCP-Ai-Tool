@@ -551,6 +551,13 @@ interface WorldIndex {
   chars: number;
   /** Epoch ms from which no record was left out for the size cap (0: none was). */
   trimmedBefore: number;
+  /**
+   * The actions left out (the size cap, or the journal's `cutActions`): an action is kept whole
+   * or not at all, so their later records are left out too.
+   */
+  dropped: Set<string>;
+  /** The size cap warning was logged (once per world). */
+  warned: boolean;
   /** Every user the records have named, by id (kept through pruning: names stay useful). */
   users: Map<string, string>;
   /** Set while the files are being read; appends that arrive meanwhile wait in `pending`. */
@@ -575,6 +582,8 @@ export interface ChangeHistoryOptions {
    * whichever is later), 0 when neither happened; absent when the journal is off.
    */
   journalStart?: (worldId: string) => Promise<number>;
+  /** The actions the journal's day cap cut through (the pump's `cutActions`): left out whole. */
+  journalCutActions?: (worldId: string) => Promise<ReadonlySet<string>>;
   /** Most records to hold, as their journal lines' length (default DEFAULT_CHANGE_HISTORY_MAX_CHARS). */
   maxChars?: number;
   now?: () => number;
@@ -586,12 +595,14 @@ export interface ChangeHistoryOptions {
  * once the Foundry link starts) and stand in for it while there is none.
  */
 export function journalLinks(
-  pump: () => Pick<ChangeJournalPump, 'pullNow' | 'historyStart'> | null
-): Required<Pick<ChangeHistoryOptions, 'pullNow' | 'journalStart'>> {
+  pump: () => Pick<ChangeJournalPump, 'pullNow' | 'historyStart' | 'cutActions'> | null
+): Required<Pick<ChangeHistoryOptions, 'pullNow' | 'journalStart' | 'journalCutActions'>> {
   return {
     pullNow: (): Promise<void> => pump()?.pullNow() ?? Promise.resolve(),
     journalStart: (worldId: string): Promise<number> =>
       pump()?.historyStart(worldId) ?? Promise.resolve(0),
+    journalCutActions: (worldId: string): Promise<ReadonlySet<string>> =>
+      pump()?.cutActions(worldId) ?? Promise.resolve(new Set<string>()),
   };
 }
 
@@ -602,6 +613,7 @@ export class ChangeHistory {
   private readonly logger: Logger;
   private readonly pullNow: ChangeHistoryOptions['pullNow'];
   private readonly journalStart: ChangeHistoryOptions['journalStart'];
+  private readonly journalCutActions: ChangeHistoryOptions['journalCutActions'];
   private readonly maxChars: number;
   private readonly now: () => number;
   private readonly worlds = new Map<string, WorldIndex>();
@@ -613,6 +625,7 @@ export class ChangeHistory {
     this.logger = options.logger.child({ component: 'ChangeHistory' });
     this.pullNow = options.pullNow;
     this.journalStart = options.journalStart;
+    this.journalCutActions = options.journalCutActions;
     this.maxChars = options.maxChars ?? DEFAULT_CHANGE_HISTORY_MAX_CHARS;
     this.now = options.now ?? ((): number => Date.now());
   }
@@ -855,6 +868,8 @@ export class ChangeHistory {
         sizes: new WeakMap(),
         chars: 0,
         trimmedBefore: 0,
+        dropped: new Set(),
+        warned: false,
         users: new Map(),
         loading: null,
         pending: [],
@@ -885,10 +900,14 @@ export class ChangeHistory {
    * The records of the last CHANGE_HISTORY_DAYS days (and the part of the day before), oldest
    * first, read line by line and at most `maxChars` of the newest: the oldest are left out while
    * the files are read, so a huge day never sits in memory whole. Their sizes go into `sizes`.
+   * An action is kept whole or not at all: the rest of one the cap reached, and the actions the
+   * journal's day cap cut through, are left out too.
    */
   private async readFiles(worldId: string, index: WorldIndex): Promise<ChangeRecord[]> {
+    for (const id of (await this.journalCutActions?.(worldId)) ?? []) index.dropped.add(id);
     const today = new Date(this.now());
-    let out: ChangeRecord[] = [];
+    // A slot is cleared once its record is left out, so a large one is not held to the end.
+    let out: Array<ChangeRecord | undefined> = [];
     let first = 0;
     let chars = 0;
     for (let back = CHANGE_HISTORY_DAYS; back >= 0; back--) {
@@ -897,13 +916,21 @@ export class ChangeHistory {
       const file = changeJournalFileName(localDateKey(day.getTime()));
       await this.store.forEachLine(worldId, 'gm', file, (line, size) => {
         if (!isChangeRecord(line)) return;
+        if (index.dropped.has(line.actionId)) {
+          markTrimmed(index, line);
+          return;
+        }
         out.push(line);
         index.sizes.set(line, size);
         chars += size;
         while (chars > this.maxChars && out.length - first > 1) {
-          chars -= index.sizes.get(out[first]) ?? 0;
-          markTrimmed(index, out[first]);
+          const dropped = out[first];
+          out[first] = undefined;
           first += 1;
+          if (!dropped) continue;
+          chars -= index.sizes.get(dropped) ?? 0;
+          markTrimmed(index, dropped);
+          index.dropped.add(dropped.actionId);
         }
         if (first > 1024 && first > out.length / 2) {
           out = out.slice(first);
@@ -911,29 +938,50 @@ export class ChangeHistory {
         }
       });
     }
+    const kept: ChangeRecord[] = [];
+    for (let i = first; i < out.length; i += 1) {
+      const r = out[i];
+      if (!r) continue;
+      // The kept part of an action the cap reached (its records need not be next to each other).
+      if (index.dropped.has(r.actionId)) markTrimmed(index, r);
+      else kept.push(r);
+    }
     if (index.trimmedBefore > 0) this.warnTrimmed(index);
-    return out.slice(first);
+    return kept;
   }
 
-  /** Leave the oldest records out while they hold more than `maxChars` (the newest one stays). */
+  /**
+   * Leave the oldest records out while they hold more than `maxChars` (the newest one stays),
+   * with every other record of their actions, so no action is ever kept in part.
+   */
   private trim(index: WorldIndex): void {
     if (index.chars <= this.maxChars) return;
-    // Said once: while a bulk change runs, every poll trims a little more.
-    const first = index.trimmedBefore === 0;
     let drop = 0;
+    const ids = new Set<string>();
     while (index.chars > this.maxChars && drop < index.records.length - 1) {
       const dropped = index.records[drop];
       index.chars -= index.sizes.get(dropped) ?? 0;
       index.keys.delete(dropped.key);
       markTrimmed(index, dropped);
+      ids.add(dropped.actionId);
       drop += 1;
     }
-    index.records = index.records.slice(drop);
+    index.records = index.records.slice(drop).filter(r => {
+      if (!ids.has(r.actionId)) return true;
+      index.chars -= index.sizes.get(r) ?? 0;
+      index.keys.delete(r.key);
+      markTrimmed(index, r);
+      return false;
+    });
+    for (const id of ids) index.dropped.add(id);
     index.actions = null;
-    if (first) this.warnTrimmed(index);
+    this.warnTrimmed(index);
   }
 
+  /** Said once per world: while a bulk change runs, every poll trims a little more. */
   private warnTrimmed(index: WorldIndex): void {
+    if (index.warned) return;
+    index.warned = true;
     this.logger.warn('Change history over its size cap: the oldest records were left out', {
       maxChars: this.maxChars,
       completeFrom: new Date(index.trimmedBefore).toISOString(),
@@ -944,6 +992,11 @@ export class ChangeHistory {
     let added = false;
     for (const record of records) {
       if (typeof record?.key !== 'string' || index.keys.has(record.key)) continue;
+      if (index.dropped.has(record.actionId)) {
+        // The rest of an action already left out: keeping it would keep that action in part.
+        markTrimmed(index, record);
+        continue;
+      }
       index.keys.add(record.key);
       index.records.push(record);
       let size = index.sizes.get(record);
@@ -962,10 +1015,17 @@ export class ChangeHistory {
     this.trim(index);
   }
 
+  /** Leave out the actions that began before the span (whole: the cutoff may fall inside one). */
   private prune(index: WorldIndex): void {
     const cutoff = this.now() - CHANGE_HISTORY_DAYS * DAY_MS;
-    if (!index.records.some(r => r.t < cutoff)) return;
-    index.records = index.records.filter(r => r.t >= cutoff);
+    const old = new Set(index.records.filter(r => r.t < cutoff).map(r => r.actionId));
+    if (old.size === 0) return;
+    index.records = index.records.filter(r => {
+      if (!old.has(r.actionId)) return true;
+      // Inside the span: the history is complete only after it.
+      if (r.t >= cutoff) markTrimmed(index, r);
+      return false;
+    });
     index.keys = new Set(index.records.map(r => r.key));
     index.chars = index.records.reduce((sum, r) => sum + (index.sizes.get(r) ?? 0), 0);
     index.actions = null;

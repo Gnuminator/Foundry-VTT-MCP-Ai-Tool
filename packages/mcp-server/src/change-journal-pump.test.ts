@@ -247,7 +247,7 @@ describe('ChangeJournalPump retention', () => {
     );
     expect(await loggedKeys(day(0))).toEqual(['new']);
     expect(logger.info).toHaveBeenCalledWith(
-      'Change journal skipped records of removed days',
+      'Change journal skipped records it had removed',
       expect.objectContaining({ count: 1, historyFrom: day(1) })
     );
 
@@ -468,6 +468,57 @@ describe('ChangeJournalPump.pollOnce', () => {
     foundry.clientId = 'reloaded';
     await pump.pollOnce();
     expect(await loggedKeys(date)).toEqual(keys);
+  });
+
+  it('keeps the actions a day cap cut through, and after a restart never writes removed records again', async () => {
+    // k5 to k8 are one action: the cut removes k0 to k6 and keeps k7 to k9.
+    const ids = ['x-0', 'x-1', 'x-2', 'x-3', 'x-4', 'big', 'big', 'big', 'big', 'zzz'];
+    ids.forEach((actionId, i) => foundry.add({ key: `k${i}`, actionId, t: T0 + i * 1000 }));
+    // The longest line (seq 10): half the cap holds three lines.
+    const lineSize = JSON.stringify(foundry.records[9]).length + 1;
+    const pump = makePump({ maxBytes: lineSize * 6 });
+    await pump.pollOnce();
+    const date = localDateKey(T0);
+    expect(await loggedKeys(date)).toEqual(['k7', 'k8', 'k9']);
+    expect([...(await pump.cutActions('w1'))]).toEqual(['big']);
+    expect(await pump.historyStart('w1')).toBe(T0 + 6000 + 1);
+
+    // The state was saved: a restarted bridge knows the cut, and a re-pull of everything the
+    // buffer still holds (its keys are no longer in the file) appends nothing.
+    const restarted = makePump({ maxBytes: lineSize * 6 });
+    expect([...(await restarted.cutActions('w1'))]).toEqual(['big']);
+    foundry.clientId = 'reloaded';
+    await restarted.pollOnce();
+    expect(await loggedKeys(date)).toEqual(['k7', 'k8', 'k9']);
+  });
+
+  it('leaves the state as it was when the cut file cannot replace the old one', async () => {
+    for (let i = 0; i < 10; i++) foundry.add({ key: `k${i}`, t: T0 + i * 1000 });
+    const lineSize = JSON.stringify(foundry.records[0]).length + 1;
+    const pump = makePump({ maxBytes: lineSize * 6 });
+    // The rename fails after the state with the cut was saved (Windows EPERM while a reader has
+    // the file open): the state goes back, the records are all still there.
+    const real = store.keepLastLines.bind(store);
+    let savedCut: number | undefined;
+    vi.spyOn(store, 'keepLastLines').mockImplementationOnce((w, a, f, max, hooks) =>
+      real(w, a, f, max, {
+        ...hooks,
+        beforeRename: async () => {
+          await hooks?.beforeRename?.();
+          savedCut = await makePump().historyStart('w1');
+          throw new Error('EPERM: operation not permitted, rename');
+        },
+      })
+    );
+    await pump.pollOnce();
+    expect(savedCut).toBeGreaterThan(0);
+    expect(await loggedKeys(localDateKey(T0))).toHaveLength(10);
+    expect(await pump.historyStart('w1')).toBe(0);
+    expect(await makePump().historyStart('w1')).toBe(0);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Change journal day could not be capped',
+      expect.objectContaining({ error: expect.stringContaining('EPERM') })
+    );
   });
 
   it('records lost records after a reload and on first contact too (the buffer wrapped before the pump saw it)', async () => {

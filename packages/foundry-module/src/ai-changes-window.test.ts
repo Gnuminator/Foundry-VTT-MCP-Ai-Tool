@@ -106,7 +106,7 @@ function makeDeps(
     ask: vi.fn((_spec: DialogSpec) => Promise.resolve(queue.shift() ?? 'cancel')),
     notifyInfo: vi.fn(),
     notifyError: vi.fn(),
-  } as Deps;
+  };
 }
 
 function names(deps: Deps): string[] {

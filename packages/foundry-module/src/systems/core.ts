@@ -91,7 +91,7 @@ export function sceneHasLevels(scene: Scene): boolean {
 export function currentLevelId(scene: Scene): string | undefined {
   if (!sceneHasLevels(scene)) return undefined;
   const cv = typeof canvas === 'undefined' ? undefined : canvas;
-  if (cv?.scene && cv.scene.id === scene.id && cv.level?.id) return cv.level.id;
+  if (cv?.scene?.id === scene.id && cv.level?.id) return cv.level.id;
   const initial = scene.initialLevel;
   if (typeof initial === 'string' && initial) return initial;
   if (initial && typeof initial === 'object' && initial.id) return initial.id;
@@ -170,7 +170,11 @@ export function effectChanges(effect: ActiveEffect): EffectChange[] {
       typeof change.type === 'string'
         ? change.type
         : (LEGACY_CHANGE_MODES[Number(change.mode)] ?? 'custom');
-    const normalized: EffectChange = { key: String(change.key ?? ''), type, value: change.value };
+    const normalized: EffectChange = {
+      key: typeof change.key === 'string' ? change.key : '',
+      type,
+      value: change.value,
+    };
     if (typeof change.priority === 'number') normalized.priority = change.priority;
     if (typeof change.phase === 'string') normalized.phase = change.phase;
     return normalized;

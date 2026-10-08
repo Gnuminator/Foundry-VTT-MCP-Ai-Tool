@@ -493,7 +493,7 @@ describe("OwnershipTools.handleToolCall('list-actor-ownership')", () => {
     const consoleErr = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { tools } = makeTools(() => {
-      // eslint-disable-next-line @typescript-eslint/no-throw-literal
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw 'oops';
     });
 

@@ -162,7 +162,7 @@ export class AiChangesController {
    */
   async undo(changeId: string): Promise<void> {
     const row = this.view.rows.find(r => r.id === changeId);
-    if (!row || !row.canUndo) return;
+    if (!row?.canUndo) return;
     await this.run(changeId, async () => {
       if (this.view.legacy) {
         if (!(await this.confirm(undoPlanDialog(row, legacyPlan(row))))) return false;

@@ -150,7 +150,7 @@ export function bindHostname(bindHost: string): string | null {
   const text = bindHost.trim();
   if (text === '') return null;
   const parsed = parseHostPort(net.isIPv6(text) ? `[${text}]` : text);
-  if (!parsed || parsed.port !== null) return null;
+  if (parsed?.port !== null) return null;
   if (parsed.hostname === '0.0.0.0' || parsed.hostname === '[::]') return null;
   return parsed.hostname;
 }

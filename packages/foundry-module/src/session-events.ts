@@ -1104,7 +1104,7 @@ export class EventTracker {
 
     return {
       success: true,
-      combatActive: !!(combat && combat.started),
+      combatActive: !!combat?.started,
       totalRounds,
       rounds,
       significantEvents,

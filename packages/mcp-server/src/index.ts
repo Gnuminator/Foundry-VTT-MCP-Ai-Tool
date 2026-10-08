@@ -4,7 +4,11 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  type CallToolResult,
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 
 import { config } from './config.js';
 
@@ -167,7 +171,7 @@ class BackendClient {
     let backendPath: string | null = null;
 
     try {
-      const backendUrl = new URL('./backend.js', import.meta.url as any);
+      const backendUrl = new URL('./backend.js', import.meta.url);
 
       backendPath = fileURLToPath(backendUrl);
     } catch {
@@ -437,12 +441,12 @@ async function startWrapper() {
 
       // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
       const toolName = String(name);
-      return capToolResult(res, toolName, listedTools.get(toolName));
+      return capToolResult(res, toolName, listedTools.get(toolName)) as unknown as CallToolResult;
     } catch (e: any) {
       return {
         content: [{ type: 'text', text: `Error: ${e?.message || 'Backend unavailable'}` }],
         isError: true,
-      } as any;
+      };
     }
   });
 

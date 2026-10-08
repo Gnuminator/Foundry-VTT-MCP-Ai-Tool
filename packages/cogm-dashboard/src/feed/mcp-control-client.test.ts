@@ -113,7 +113,7 @@ describe('McpControlClient.recordUsage (I-084)', () => {
           if (req.method === 'ping') {
             socket.write(`${JSON.stringify({ id: req.id, result: { ok: true } })}\n`);
           } else if (req.method === 'record_usage') {
-            frames.push(req as unknown as Record<string, unknown>);
+            frames.push(req);
             const reply = known
               ? { id: req.id, result: { accepted: 1, dropped: 0 } }
               : { id: req.id, error: { message: `Unknown method: ${req.method}` } };

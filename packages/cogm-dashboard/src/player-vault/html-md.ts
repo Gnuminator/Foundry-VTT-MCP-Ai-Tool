@@ -364,7 +364,7 @@ function renderTable(el: DomNode & ElementNode, depth: number): string {
     else if (name === 'thead' || name === 'tbody' || name === 'tfoot') {
       for (const inner of c.children) {
         const r = elementOf(inner);
-        if (r && r.name.toLowerCase() === 'tr') rows.push(r);
+        if (r?.name.toLowerCase() === 'tr') rows.push(r);
       }
     }
   }

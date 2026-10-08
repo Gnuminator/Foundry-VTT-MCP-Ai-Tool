@@ -441,7 +441,7 @@ export function installFoundryGlobals(world: TestWorld): () => void {
       // An unlinked token's synthetic actor: `Scene.s.Token.t.Actor.a` resolves to `token.actor`.
       if (embeddedType === 'Actor') {
         const synthetic = (doc as any).actor as AnyDoc | undefined;
-        doc = synthetic && synthetic.id === embeddedId ? synthetic : undefined;
+        doc = synthetic?.id === embeddedId ? synthetic : undefined;
         continue;
       }
       const key = embeddedKeys[embeddedType] ?? `${embeddedType.toLowerCase()}s`;

@@ -65,7 +65,7 @@ function embeddedUuid(scene: SceneDoc, documentName: string, id: string): string
 }
 
 function rec(value: unknown): { action?: unknown } | null {
-  return value !== null && typeof value === 'object' ? (value as { action?: unknown }) : null;
+  return value !== null && typeof value === 'object' ? value : null;
 }
 
 /** The value when it is a non-empty string, else undefined (so `??` can pick a default). */
@@ -74,7 +74,7 @@ function nonEmpty(value: unknown): string | undefined {
 }
 
 function quoted(name: unknown): string {
-  return `"${String(name ?? '')}"`;
+  return `"${typeof name === 'string' ? name : ''}"`;
 }
 
 // ---------------------------------------------------------------------------

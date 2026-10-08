@@ -123,7 +123,7 @@ describe('FoundryDataAccess — getSessionLog: filters forwarded', () => {
 describe('FoundryDataAccess — getSessionLog: return shape', () => {
   it('returns { success: true, count, events } where events is the spy return value', async () => {
     const events = [makeEvent('2026-01-01T10:00:00.000Z'), makeEvent('2026-01-01T10:01:00.000Z')];
-    vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events as any);
+    vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events);
 
     const result = await da.getSessionLog({});
 
@@ -144,7 +144,7 @@ describe('FoundryDataAccess — getSessionLog: return shape', () => {
       makeEvent('2026-01-01T10:01:00.000Z'),
       makeEvent('2026-01-01T10:02:00.000Z'),
     ];
-    vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events as any);
+    vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events);
 
     const result = await da.getSessionLog({ limit: 3 });
 
@@ -218,7 +218,7 @@ describe('FoundryDataAccess — getRecentEvents: filters forwarded', () => {
 describe('FoundryDataAccess — getRecentEvents: return shape', () => {
   it('returns the standard envelope fields: success, count, events, latestTimestamp, serverTime', async () => {
     const events = [makeEvent('2026-01-01T10:00:00.000Z')];
-    vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events as any);
+    vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events);
 
     const result = await da.getRecentEvents({});
 
@@ -253,7 +253,7 @@ describe('FoundryDataAccess — getRecentEvents: latestTimestamp', () => {
       makeEvent('2026-01-01T10:05:00.000Z'),
       makeEvent('2026-01-01T10:10:00.000Z'),
     ];
-    vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events as any);
+    vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events);
 
     const result = await da.getRecentEvents({});
 
@@ -262,7 +262,7 @@ describe('FoundryDataAccess — getRecentEvents: latestTimestamp', () => {
 
   it('returns latestTimestamp from the last element even with a single event', async () => {
     const events = [makeEvent('2026-06-16T08:30:00.000Z')];
-    vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events as any);
+    vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events);
 
     const result = await da.getRecentEvents({});
 
@@ -288,7 +288,7 @@ describe('FoundryDataAccess — getRecentEvents: latestTimestamp', () => {
 
   it('count matches the number of events returned by the tracker', async () => {
     const events = [makeEvent('2026-01-01T10:00:00.000Z'), makeEvent('2026-01-01T10:01:00.000Z')];
-    vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events as any);
+    vi.spyOn(eventTracker, 'getSessionLog').mockReturnValue(events);
 
     const result = await da.getRecentEvents({ limit: 2 });
 

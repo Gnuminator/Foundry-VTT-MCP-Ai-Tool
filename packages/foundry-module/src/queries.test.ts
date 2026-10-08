@@ -321,7 +321,7 @@ describe('QueryHandlers — GM gate', () => {
       const short = fullName.slice(MODULE_ID.length + 1);
       try {
         const res: any = await bridgeHandlers.get(fullName)!({});
-        const denied = res && res.error === 'Access denied' && res.success === false;
+        const denied = res?.error === 'Access denied' && res.success === false;
         if (!denied) ungated.push(short);
       } catch {
         ungated.push(short);

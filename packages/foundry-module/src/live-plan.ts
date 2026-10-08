@@ -80,7 +80,7 @@ function contentsOf(collection: unknown): unknown[] {
 }
 
 function localize(key: string): string {
-  const i18n = rec(rec(game as unknown)?.i18n);
+  const i18n = rec(rec(game)?.i18n);
   const fn = i18n?.localize;
   return typeof fn === 'function' ? String(fn.call(i18n, key)) : key;
 }
@@ -113,7 +113,7 @@ function asActor(value: unknown): LiveActor | null {
  */
 function resolveTargets(identifiers: string[]): Target[] {
   if (identifiers.length === 0) throw new Error('Name at least one target (a token or an actor)');
-  const g = rec(game as unknown);
+  const g = rec(game);
   const scene = rec(rec(g?.scenes)?.current);
   const tokens = contentsOf(scene?.tokens);
   const actors = contentsOf(g?.actors);
@@ -228,7 +228,7 @@ function hpText(before: Hp, after: Hp): string {
 
 function damageTypeLabel(type: string | undefined): string {
   if (!type) return '';
-  const config = rec(rec(rec(CONFIG as unknown)?.DND5E)?.damageTypes);
+  const config = rec(rec(rec(CONFIG)?.DND5E)?.damageTypes);
   const label = str(rec(config?.[type])?.label);
   return ` ${(label ? localize(label) : type).toLowerCase()}`;
 }
@@ -367,7 +367,7 @@ function effectUuid(effect: Rec): string | null {
 
 /** The data of a status effect, as `ActiveEffect.fromStatusEffect` builds it (id kept). */
 async function statusEffectData(id: string): Promise<Rec> {
-  const cls = rec(rec(rec(CONFIG as unknown)?.ActiveEffect)?.documentClass);
+  const cls = rec(rec(rec(CONFIG)?.ActiveEffect)?.documentClass);
   const from = cls?.fromStatusEffect;
   if (typeof from === 'function') {
     const effect = rec(await (from as (id: string) => Promise<unknown>).call(cls, id));
@@ -591,7 +591,7 @@ function resourcePlan(actor: LiveActor, resource: string, value: number): Resour
     const r = rec(resources?.[key]);
     if (!r) continue;
     const label = (str(r.label) ?? '').toLowerCase();
-    if (key === name || label === name || (label && label.includes(name))) {
+    if (key === name || label === name || label?.includes(name)) {
       const max = num(r.max);
       check(max);
       return {
@@ -684,7 +684,7 @@ function names(targets: Target[]): string {
 
 /** Build the plan for one request. Throws when nothing would change. */
 export async function planLiveChange(data: unknown): Promise<LiveChangePlan> {
-  const system = rec(rec(game as unknown)?.system);
+  const system = rec(rec(game)?.system);
   if (system && system.id !== 'dnd5e') {
     throw new Error('Live play changes need the dnd5e game system');
   }

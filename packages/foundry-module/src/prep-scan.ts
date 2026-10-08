@@ -277,7 +277,7 @@ function scanNextSession(journals: unknown[]): PrepNextSession | null {
 
 function scanBosses(): PrepBoss[] {
   const out: PrepBoss[] = [];
-  for (const scene of contentsOf(rec(game as unknown)?.scenes)) {
+  for (const scene of contentsOf(rec(game)?.scenes)) {
     const s = rec(scene);
     if (!s) continue;
     for (const token of contentsOf(s.tokens)) {
@@ -309,7 +309,7 @@ function scanBosses(): PrepBoss[] {
 
 /** `getPrepScan`: quests, campaign parts, the Next session journal and bosses. GM client only (gated by the caller). */
 export function getPrepScan(): PrepScan {
-  const journals = contentsOf(rec(game as unknown)?.journal);
+  const journals = contentsOf(rec(game)?.journal);
   return {
     schema: 1,
     computedAt: Date.now(),

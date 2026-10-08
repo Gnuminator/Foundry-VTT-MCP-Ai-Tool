@@ -20,7 +20,7 @@ function makeTools(): {
   logger.child = (): unknown => logger;
   const tools = new GuardedChangeTools({
     guardedWrites: guardedWrites as never,
-    foundryClient: { query } as never,
+    foundryClient: { query },
     logger,
   });
   return { tools, guardedWrites, query, logger };

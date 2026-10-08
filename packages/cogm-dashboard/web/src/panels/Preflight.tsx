@@ -264,7 +264,7 @@ export function PreflightDrawer({
     // Ticks may have changed on the old page since this one loaded.
     setTicks(readTicks());
     void run();
-    return () => usage().endView('dash.preflight.view');
+    return (): void => usage().endView('dash.preflight.view');
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per opening
   }, [open]);
 

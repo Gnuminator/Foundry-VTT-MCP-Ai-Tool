@@ -325,23 +325,23 @@ function deleteTime(): RecordTime {
 /** An actor's embedded items as a plain array, whatever collection shape it is. */
 function actorItems(actor: ActorLike): ItemLike[] {
   const items = actor.items;
-  if (Array.isArray(items)) return items as unknown as ItemLike[];
+  if (Array.isArray(items)) return items as ItemLike[];
   const contents = asRecord(items)?.contents;
-  return Array.isArray(contents) ? (contents as unknown as ItemLike[]) : [];
+  return Array.isArray(contents) ? (contents as ItemLike[]) : [];
 }
 
 /** A combat's combatants as a plain array. */
 function combatantsOf(combat: CombatLike): CombatantLike[] {
   const combatants = combat.combatants;
   const list = Array.isArray(combatants) ? combatants : asRecord(combatants)?.contents;
-  return Array.isArray(list) ? (list as unknown as CombatantLike[]) : [];
+  return Array.isArray(list) ? (list as CombatantLike[]) : [];
 }
 
 /** A scene's tokens as a plain array. */
 function tokensOf(scene: { tokens?: unknown } | null | undefined): TokenDocLike[] {
   const contents = asRecord(scene)?.tokens;
   const list = Array.isArray(contents) ? contents : asRecord(contents)?.contents;
-  return Array.isArray(list) ? (list as unknown as TokenDocLike[]) : [];
+  return Array.isArray(list) ? (list as TokenDocLike[]) : [];
 }
 
 /** The id of the active scene (the one players see), or null. */
@@ -1870,11 +1870,7 @@ export class PlayRecorder {
    * tells a GM-only preview (false) from the scene the players see (true); `players` lists the
    * players online at that moment ("Seen in" counts only what players saw).
    */
-  private maybeRecordScene(
-    sceneId: string | null,
-    active: boolean,
-    sceneName?: string | undefined
-  ): void {
+  private maybeRecordScene(sceneId: string | null, active: boolean, sceneName?: string): void {
     if (!sceneId) return;
     if (sceneId === this.viewedSceneId && active === this.viewedSceneActive) return;
     this.viewedSceneId = sceneId;

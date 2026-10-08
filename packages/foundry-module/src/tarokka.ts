@@ -168,7 +168,7 @@ export function readTarokkaReadingLocal(): ProviderReading | null {
 /** Validate a reading received from another client (helper query payload). */
 export function parseProviderReading(data: unknown): ProviderReading {
   const r = data as Partial<ProviderReading> | null | undefined;
-  if (!r || r.source !== 'tarokka-reading' || typeof r.readingId !== 'string') {
+  if (r?.source !== 'tarokka-reading' || typeof r.readingId !== 'string') {
     throw new Error('Invalid payload: expected a tarokka-reading reading');
   }
   if (!READING_ID.test(r.readingId)) throw new Error('Invalid payload: bad readingId');

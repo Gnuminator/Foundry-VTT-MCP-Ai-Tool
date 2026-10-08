@@ -113,7 +113,7 @@ describe('FoundryDataAccess — listScenes', () => {
       active: false,
       levels,
       initialLevel: 'lvl0',
-    } as any);
+    });
 
     const result = await da.listScenes();
 

@@ -108,8 +108,14 @@ const FILTER_USER_PREFIX = 'user:';
 export function escapeHtml(value: unknown): string {
   const foundryEscape = (globalThis as { foundry?: { utils?: { escapeHTML?: unknown } } }).foundry
     ?.utils?.escapeHTML;
-  if (typeof foundryEscape === 'function') return String(foundryEscape(String(value ?? '')));
-  return String(value ?? '').replace(
+  const text =
+    typeof value === 'string'
+      ? value
+      : typeof value === 'number' || typeof value === 'boolean'
+        ? String(value)
+        : '';
+  if (typeof foundryEscape === 'function') return String(foundryEscape(text));
+  return text.replace(
     /[&<>"']/g,
     c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;' })[c] as string
   );

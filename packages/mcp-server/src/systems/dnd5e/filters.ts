@@ -133,7 +133,7 @@ export function matchesDnD5eFilters(creature: any, filters: DnD5eFilters): boole
   // Creature Type filter
   if (filters.creatureType) {
     const creatureType = creature.systemData?.creatureType;
-    if (!creatureType || creatureType.toLowerCase() !== filters.creatureType.toLowerCase()) {
+    if (creatureType?.toLowerCase() !== filters.creatureType.toLowerCase()) {
       return false;
     }
   }

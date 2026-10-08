@@ -164,7 +164,7 @@ export class UsagePump {
   }
 
   private async saveState(worldId: string): Promise<void> {
-    if (!this.state || this.state.worldId !== worldId) return;
+    if (this.state?.worldId !== worldId) return;
     const data: UsagePumpState = { clientId: this.state.clientId, lastSeq: this.state.lastSeq };
     await this.store.write(worldId, 'sessions', USAGE_PUMP_STATE_FILE, data);
   }

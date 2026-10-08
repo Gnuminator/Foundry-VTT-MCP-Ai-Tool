@@ -41,7 +41,7 @@ function setup(): {
     ),
   };
   const tools = new RefChoiceTools({
-    foundryClient: { query } as any,
+    foundryClient: { query },
     guardedWrites,
     logger,
   });

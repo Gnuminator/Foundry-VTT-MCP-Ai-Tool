@@ -119,8 +119,8 @@ export function rulesTagUpdateIfChanged(
 ): Record<string, unknown> {
   const update = rulesTagUpdate(doc, gmChoice, at);
   const next = update[RULES_FLAG_PATH] as RulesTag | undefined;
-  const current = readRulesTag(doc as unknown as FoundryDocument);
-  if (next && current && current.version === next.version && current.source === next.source) {
+  const current = readRulesTag(doc);
+  if (next && current?.version === next.version && current.source === next.source) {
     return {};
   }
   return update;

@@ -56,8 +56,9 @@ the snapshot schema and no string over 200 characters.
   usage: { days: [{ date: "YYYY-MM-DD", main: Tokens, sub: Tokens }] },   // this week, local dates
   plan: { source: "plugin"|"get_usage"|null, asOf: ISO|null,
           windows: [{ kind, label, percentUsed, resetsAt }] },
-  lock: { state: "no-script"|"free"|"held", holder, session, since, purpose,
-          queue: [{ holder, session, since, purpose }] },
+  lock: { state: "no-script"|"free"|"held"|"unreadable", holder, session, since, purpose,
+          old,                                   // over 4 hours: maybe a crashed session
+          queue: [{ holder, session, since, purpose, old }] },
   prs: { asOf, error, items: [PrItem], mainRuns: [RunItem] },
 }
 
@@ -75,8 +76,9 @@ PrItem = { number, title, state, draft, branch, headSha, updatedAt, url,
 RunItem = { workflow, title, status, conclusion, headSha, createdAt }
 ```
 
-States: **busy** when the session process is live and says busy; **waiting** when it is live and idle
-under an hour; **stale** when idle an hour or more, or when the process is gone. The lane cap counts
+States: **busy** when the session process is live and says busy and the session was active in the
+last 30 minutes (a crashed session's file can say busy forever once Windows reuses its pid);
+**waiting** when it is live and idle under an hour; **stale** when idle an hour or more, or when the process is gone. The lane cap counts
 sessions not titled "CLOSED ..." with activity in the last hour, minus the steward (the session
 titled "... fixes and stewardship").
 

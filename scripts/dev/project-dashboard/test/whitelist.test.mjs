@@ -155,6 +155,16 @@ test('a snapshot built from messy transcripts passes the whitelist and holds no 
   assert.deepEqual(again.prs.items, []);
 });
 
+test('concurrent cached builds share one scan', async () => {
+  const { paths } = makeEnv();
+  const [a, b] = await Promise.all([buildSnapshot({ paths }), buildSnapshot({ paths })]);
+  assert.equal(a, b);
+  assert.deepEqual(
+    fs.readdirSync(paths.dataDir).filter(f => f.endsWith('.tmp')),
+    []
+  );
+});
+
 test('assertWhitelisted rejects an unknown key and an over-long string', async () => {
   const { paths, proj } = makeEnv();
   fs.writeFileSync(path.join(proj, 's1.jsonl'), assistant('m1', '2026-10-08T11:30:00.000Z') + '\n');

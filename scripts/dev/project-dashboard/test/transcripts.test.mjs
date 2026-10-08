@@ -148,8 +148,14 @@ test('old messages are not kept and worktree folders of the slug are scanned', a
   const env = setup();
   const wt = path.join(env.projectsDir, SLUG + '--claude-worktrees-x');
   const other = path.join(env.projectsDir, 'C--other-repo');
+  const sibling = path.join(env.projectsDir, SLUG + '-Backup');
   fs.mkdirSync(wt, { recursive: true });
   fs.mkdirSync(other, { recursive: true });
+  fs.mkdirSync(sibling, { recursive: true });
+  fs.writeFileSync(
+    path.join(sibling, 'b1.jsonl'),
+    assistant('sib', '2026-10-08T09:00:00.000Z') + '\n'
+  );
   fs.writeFileSync(
     path.join(wt, 'w1.jsonl'),
     assistant('old', '2026-09-01T10:00:00.000Z') +
@@ -248,4 +254,20 @@ test('branch and cwd come from assistant records, the latest wins, and they surv
   const r3 = await scan(env, JSON.parse(JSON.stringify(r2.state)));
   assert.equal(r3.sessions[0].branch, 'main');
   assert.equal(r3.sessions[0].cwd, '/fake/repo');
+});
+
+test('a non-assistant line counts its own (last) timestamp, not a nested one', async () => {
+  const env = setup();
+  const line = JSON.stringify({
+    type: 'user',
+    toolUseResult: { timestamp: '2026-10-01T00:00:00.000Z' },
+    timestamp: '2026-10-08T11:00:00.000Z',
+  });
+  fs.writeFileSync(
+    path.join(env.proj, 's1.jsonl'),
+    assistant('m1', '2026-10-08T10:00:00.000Z') + '\n' + line + '\n'
+  );
+  const r = await scan(env, null);
+  assert.equal(r.sessions[0].firstTs, '2026-10-08T10:00:00.000Z');
+  assert.equal(r.sessions[0].lastTs, '2026-10-08T11:00:00.000Z');
 });

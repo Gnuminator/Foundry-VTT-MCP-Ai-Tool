@@ -13,6 +13,7 @@ let server;
 let port;
 let lastOpts;
 let failNext = false;
+let leakNext = false;
 
 // fetch() cannot set the Host header, so use http.request.
 function request({ method = 'GET', path = '/', host } = {}) {
@@ -42,6 +43,7 @@ before(async () => {
     buildSnapshot: async opts => {
       lastOpts = opts;
       if (failNext) throw new Error('boom');
+      if (leakNext) return { ...FAKE, prompt: 'FAKE-PROMPT-TEXT' };
       return FAKE;
     },
   });
@@ -74,6 +76,18 @@ test('/snapshot.json returns the fake snapshot, uncached, asking for PRs', async
   assert.deepEqual(JSON.parse(res.body), FAKE);
   assert.equal(res.headers['cache-control'], 'no-store');
   assert.deepEqual(lastOpts, { withPrs: true });
+});
+
+test('a snapshot outside the whitelist is not served', async () => {
+  leakNext = true;
+  try {
+    const res = await request({ path: '/snapshot.json' });
+    assert.equal(res.status, 500);
+    assert.ok(!res.body.includes('FAKE-PROMPT-TEXT'));
+    assert.ok(res.body.length < 200);
+  } finally {
+    leakNext = false;
+  }
 });
 
 test('a failing snapshot gives a short 500', async () => {

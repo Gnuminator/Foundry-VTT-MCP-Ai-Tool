@@ -198,3 +198,21 @@ test('rows are sorted by last activity, newest first, and the table prints the n
   assert.ok(out.startsWith('b | stale'));
   assert.ok(formatLanesTable(res.rows, 10, NOW).includes('ctx 123,456'));
 });
+
+test('a busy session file with no activity for 30 minutes is not trusted (pid reuse)', () => {
+  const res = lanes(
+    [
+      agg('fresh'),
+      agg('crashed', { lastTs: min(45), lastRequestTs: min(45) }),
+      agg('gone', { lastTs: min(600) }),
+    ],
+    [
+      liveOf('fresh', { status: 'busy', updatedAt: NOW.getTime() - 60000 }),
+      liveOf('crashed', { status: 'busy', updatedAt: NOW.getTime() - 45 * 60000 }),
+      liveOf('gone', { status: 'busy', updatedAt: NOW.getTime() - 600 * 60000, pid: 99 }),
+    ]
+  );
+  assert.equal(rowOf(res, 'fresh').state, 'busy');
+  assert.equal(rowOf(res, 'crashed').state, 'waiting');
+  assert.equal(rowOf(res, 'gone').state, 'stale');
+});

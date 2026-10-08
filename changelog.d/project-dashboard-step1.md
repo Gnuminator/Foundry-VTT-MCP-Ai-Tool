@@ -12,3 +12,5 @@
   no status line.
 - **Test server lock (D-101, D-102):** `pwsh scripts/test-env/lock.ps1 take | release | queue |
 leave | status` keeps `lock.json` in the test environment's root; `status.ps1` shows the holder.
+  `take -Force` takes over from a crashed holder or skips a dead queue head (entries older than 4
+  hours are flagged), and a damaged `lock.json` is refused instead of read as free.

@@ -1,6 +1,6 @@
 // PRs and CI through the gh CLI (read-only). Cached for 60 s; a failed call keeps the last good data.
 //
-//   getPrs({ now, force, run }) -> { asOf, error, items: [PrItem], mainRuns: [RunItem] }
+//   getPrs({ now, force, run, signal }) -> { asOf, error, items: [PrItem], mainRuns: [RunItem] }
 //
 // `run(file, args)` returns the stdout text (a promise); the default runs gh without a shell.
 import { execFile } from 'node:child_process';
@@ -131,12 +131,12 @@ export function parseRunList(json) {
   return runs;
 }
 
-function defaultRun(file, args) {
+function defaultRun(file, args, { signal } = {}) {
   return new Promise((resolve, reject) => {
     execFile(
       file,
       args,
-      { timeout: TIMEOUT_MS, windowsHide: true, maxBuffer: 16 * 1024 * 1024 },
+      { timeout: TIMEOUT_MS, windowsHide: true, maxBuffer: 16 * 1024 * 1024, signal },
       (err, stdout, stderr) => {
         if (err) {
           err.stderr = stderr;
@@ -169,11 +169,14 @@ export function resetPrCache() {
   lastGood = { items: null, mainRuns: null, asOf: null };
 }
 
-export async function getPrs({ now = new Date(), force = false, run = defaultRun } = {}) {
+export async function getPrs({ now = new Date(), force = false, run = defaultRun, signal } = {}) {
   const nowMs = now.getTime();
   if (!force && cache && nowMs - cache.at < CACHE_MS && nowMs >= cache.at) return cache.data;
 
-  const [prResult, runResult] = await Promise.allSettled([run('gh', PR_ARGS), run('gh', RUN_ARGS)]);
+  const [prResult, runResult] = await Promise.allSettled([
+    run('gh', PR_ARGS, { signal }),
+    run('gh', RUN_ARGS, { signal }),
+  ]);
   let error = null;
 
   if (prResult.status === 'fulfilled') {

@@ -4,6 +4,9 @@ const AMBER = 200000;
 const RED = 250000;
 const REUSE_LIMIT = 150000;
 const MAX_LANES = 3;
+// A session file that says busy with no activity for this long is not trusted: after a crash,
+// Windows may give the dead session's pid to another process, which would keep it busy forever.
+const BUSY_STALE_MS = 30 * 60 * 1000;
 
 function toMs(v) {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
@@ -98,7 +101,11 @@ export function buildLanes({ transcripts, live, prs, repoRoot, now = new Date(),
     const title = cut(lv?.name || agg?.title || '(untitled)');
     const context = agg?.context || 0;
     const state =
-      alive && lv.status === 'busy' ? 'busy' : alive && idleMs < HOUR ? 'waiting' : 'stale';
+      alive && lv.status === 'busy' && idleMs < BUSY_STALE_MS
+        ? 'busy'
+        : alive && idleMs < HOUR
+          ? 'waiting'
+          : 'stale';
     const lastReqMs = toMs(agg?.lastRequestTs);
     let cacheColdAt = null;
     let cacheMinutesLeft = null;

@@ -22,12 +22,17 @@ const GH_TIMEOUT_MS = 6000;
 // For one-shot runs: ask gh for the PRs but never wait long for it.
 async function getPrsWithTimeout(opts) {
   const { getPrs } = await import('./gh.mjs');
+  // Aborting kills the gh children, so a slow gh never outlives the command.
+  const controller = new AbortController();
   let timer;
   const limit = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error('gh did not answer in time')), GH_TIMEOUT_MS);
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error('gh did not answer in time'));
+    }, GH_TIMEOUT_MS);
   });
   try {
-    return await Promise.race([getPrs(opts), limit]);
+    return await Promise.race([getPrs({ ...opts, signal: controller.signal }), limit]);
   } finally {
     clearTimeout(timer);
   }

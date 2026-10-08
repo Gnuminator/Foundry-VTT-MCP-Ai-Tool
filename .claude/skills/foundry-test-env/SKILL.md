@@ -99,6 +99,10 @@ pwsh scripts/test-env/lock.ps1 leave -Session <local_id>       # drop out of the
 ```
 
 `take` exits 1 and says who holds it when it is taken; the queue head gets the next `take`.
+A crashed session's lock or queue entry (status and the dashboard flag entries older than 4 hours):
+`take -Force` takes over from the holder and skips the queue head, `leave -Session <their id>`
+drops a dead queue entry. A `lock.json` that cannot be read is refused until `take -Force` or
+`release -Force` starts a fresh lock; check with the other sessions first.
 
 ## Next steps
 

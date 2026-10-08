@@ -8,6 +8,8 @@ import { buildLanes } from './lanes.mjs';
 const CACHE_MS = 10000;
 const MAX_STRING = 200;
 let cache = null;
+let inFlight = null; // { key, promise }: concurrent requests share one build
+let tmpCounter = 0;
 
 const EMPTY_PRS = () => ({ asOf: null, error: null, items: [], mainRuns: [] });
 const EMPTY_PLAN = () => ({ source: null, asOf: null, windows: [] });
@@ -17,6 +19,7 @@ const EMPTY_LOCK = () => ({
   session: null,
   since: null,
   purpose: null,
+  old: false,
   queue: [],
 });
 
@@ -36,7 +39,8 @@ async function loadScanState(dataDir) {
 
 async function writeAtomic(file, text) {
   await fs.mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
+  tmpCounter += 1;
+  const tmp = `${file}.${process.pid}.${tmpCounter}.tmp`;
   await fs.writeFile(tmp, text);
   await fs.rename(tmp, file);
 }
@@ -88,6 +92,23 @@ export async function buildSnapshot({
   const cacheKey = `${paths.dataDir}|${withPrs}`;
   if (useCache && !force && cache && cache.key === cacheKey && Date.now() - cache.at < CACHE_MS)
     return cache.snap;
+  if (useCache && !force && inFlight && inFlight.key === cacheKey) return inFlight.promise;
+  const promise = build({ paths, now, withPrs, deps, useCache, cacheKey });
+  if (useCache && !force) {
+    inFlight = { key: cacheKey, promise };
+    promise.then(
+      () => {
+        if (inFlight?.promise === promise) inFlight = null;
+      },
+      () => {
+        if (inFlight?.promise === promise) inFlight = null;
+      }
+    );
+  }
+  return promise;
+}
+
+async function build({ paths, now, withPrs, deps, useCache, cacheKey }) {
   const at = now || new Date();
   const warnings = [];
 
@@ -123,7 +144,7 @@ export async function buildSnapshot({
   }
   let lock = EMPTY_LOCK();
   try {
-    lock = await (await pick(deps, 'readLock', './lock.mjs'))(paths.testEnvRoot);
+    lock = await (await pick(deps, 'readLock', './lock.mjs'))(paths.testEnvRoot, { now: at });
   } catch (err) {
     warnings.push(`lock unavailable: ${shortText(err)}`);
   }
@@ -153,7 +174,7 @@ export async function writeSnapshot(dataDir, snap) {
 
 // Allowed keys. 's' = scalar (string/number/boolean/null), [x] = array of x, {..} = object.
 const TOKENS = { input: 's', output: 's', cacheRead: 's', cacheWrite: 's' };
-const LOCK_ENTRY = { holder: 's', session: 's', since: 's', purpose: 's' };
+const LOCK_ENTRY = { holder: 's', session: 's', since: 's', purpose: 's', old: 's' };
 const SCHEMA = {
   version: 's',
   generatedAt: 's',

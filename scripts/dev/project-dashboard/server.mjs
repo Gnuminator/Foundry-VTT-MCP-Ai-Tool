@@ -4,6 +4,7 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { assertWhitelisted } from './snapshot.mjs';
 
 export const DEFAULT_PORT = 3200;
 
@@ -93,7 +94,10 @@ export function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', buildSnap
       if (pathname === '/snapshot.json') {
         let json;
         try {
-          json = JSON.stringify(await buildSnapshot({ withPrs: true }));
+          const snap = await buildSnapshot({ withPrs: true });
+          // The same whitelist check as snapshot.json on disk: nothing else leaves the server.
+          assertWhitelisted(snap);
+          json = JSON.stringify(snap);
         } catch (err) {
           const msg = String(err?.message ?? err)
             .slice(0, 120)

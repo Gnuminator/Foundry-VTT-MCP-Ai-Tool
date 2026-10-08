@@ -6,7 +6,7 @@ import path from 'node:path';
 
 const KEEP_DAYS = 8;
 const CHUNK = 4 * 1024 * 1024;
-const TS_RE = /"timestamp":"([^"]+)"/;
+const TS_KEY = '"timestamp":"';
 const STATE_VERSION = 1;
 
 function freshState() {
@@ -98,8 +98,12 @@ function processLine(line, entry, cutoffMs) {
     applyRecord(rec, entry, cutoffMs);
     return;
   }
-  const m = TS_RE.exec(line);
-  if (m) noteTs(entry.agg, m[1]);
+  // The record's own timestamp is its last "timestamp" key (nested content may hold others).
+  const at = line.lastIndexOf(TS_KEY);
+  if (at === -1) return;
+  const start = at + TS_KEY.length;
+  const end = line.indexOf('"', start);
+  if (end > start) noteTs(entry.agg, line.slice(start, end));
 }
 
 // Read [offset, size) in chunks, call onLine for each complete line; returns the new offset.
@@ -180,7 +184,8 @@ export async function scanTranscripts({ projectsDir, slug, state, now = new Date
   const cutoffMs = now.getTime() - KEEP_DAYS * 86400000;
   const nextFiles = {};
   const folders = (await listDir(projectsDir)).filter(
-    d => d.isDirectory() && (d.name === slug || d.name.startsWith(slug + '-'))
+    // The main checkout and its worktrees; a sibling folder ("<project>-Backup") is another project.
+    d => d.isDirectory() && (d.name === slug || d.name.startsWith(slug + '--claude-worktrees-'))
   );
   for (const folder of folders) {
     const dir = path.join(projectsDir, folder.name);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readPlan } from '../plan.mjs';
 import { readLock } from '../lock.mjs';
@@ -142,6 +142,7 @@ test('readLock: no script', () => {
     session: null,
     since: null,
     purpose: null,
+    old: false,
     queue: [],
   });
 });
@@ -156,6 +157,7 @@ test('readLock: free when lock.json is missing or has no holder', () => {
     session: null,
     since: null,
     purpose: null,
+    old: false,
     queue: [],
   });
   writeJson(root, 'lock.json', {
@@ -165,10 +167,10 @@ test('readLock: free when lock.json is missing or has no holder', () => {
     purpose: null,
     queue: [{ holder: 'B', session: 's2', since: '2026-10-08T10:00:00Z', purpose: 'later' }],
   });
-  const lock = readLock(root, { scriptPath: script });
+  const lock = readLock(root, { scriptPath: script, now: new Date('2026-10-08T15:00:00Z') });
   assert.equal(lock.state, 'free');
   assert.deepEqual(lock.queue, [
-    { holder: 'B', session: 's2', since: '2026-10-08T10:00:00Z', purpose: 'later' },
+    { holder: 'B', session: 's2', since: '2026-10-08T10:00:00Z', purpose: 'later', old: true },
   ]);
 });
 
@@ -183,12 +185,38 @@ test('readLock: held, with long strings cut to 120 characters', () => {
     purpose: 'P'.repeat(300),
     queue: [],
   });
-  const lock = readLock(root, { scriptPath: script });
+  const lock = readLock(root, { scriptPath: script, now: new Date('2026-10-08T11:00:00Z') });
   assert.equal(lock.state, 'held');
-  assert.deepEqual(Object.keys(lock), ['state', 'holder', 'session', 'since', 'purpose', 'queue']);
+  assert.deepEqual(Object.keys(lock), [
+    'state',
+    'holder',
+    'session',
+    'since',
+    'purpose',
+    'old',
+    'queue',
+  ]);
+  assert.equal(lock.old, false);
+  assert.equal(
+    readLock(root, { scriptPath: script, now: new Date('2026-10-08T14:00:00Z') }).old,
+    true,
+    'four hours after since the holder is flagged old'
+  );
   assert.equal(lock.holder.length, 120);
   assert.equal(lock.purpose.length, 120);
   assert.equal(lock.session, 's1');
+});
+
+test('readLock: a damaged lock.json is unreadable, never free', () => {
+  const root = tmp('pd-lock-');
+  const script = path.join(root, 'lock.ps1');
+  fs.writeFileSync(script, '');
+  for (const body of ['{ not json', '[]', 'null', '"text"']) {
+    fs.writeFileSync(path.join(root, 'lock.json'), body);
+    assert.equal(readLock(root, { scriptPath: script }).state, 'unreadable', body);
+  }
+  fs.writeFileSync(path.join(root, 'lock.json'), '\uFEFF{"holder":"A","session":"s","queue":[]}');
+  assert.equal(readLock(root, { scriptPath: script }).state, 'held', 'a BOM is tolerated');
 });
 
 test('readLock: the repo has the lock script', () => {
@@ -298,5 +326,105 @@ test(
 
     // no leftovers from the serialisation
     assert.deepEqual(fs.readdirSync(root).sort(), ['lock.json']);
+  }
+);
+
+function psAsync(root, args) {
+  return new Promise(resolve => {
+    const child = spawn(
+      'pwsh',
+      ['-NoProfile', '-NonInteractive', '-File', LOCK_PS1, ...args, '-Root', root],
+      { stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+    let out = '';
+    child.stdout.on('data', d => (out += d));
+    child.stderr.on('data', d => (out += d));
+    child.on('close', code => resolve({ code, out }));
+  });
+}
+
+test(
+  'lock.ps1: five parallel takes, exactly one wins',
+  { skip: !havePwsh && 'pwsh not on PATH' },
+  async () => {
+    const root = tmp('pd-lockrace-');
+    const runs = await Promise.all(
+      [1, 2, 3, 4, 5].map(i =>
+        psAsync(root, ['take', '-Holder', `Lane ${i}`, '-Session', `s${i}`, '-Purpose', 'race'])
+      )
+    );
+    const winners = runs.filter(r => r.code === 0);
+    assert.equal(winners.length, 1, runs.map(r => `${r.code}: ${r.out}`).join('\n'));
+    assert.ok(runs.every(r => r.code === 0 || r.code === 1));
+    const lock = readLock(root, { scriptPath: LOCK_PS1 });
+    assert.equal(lock.state, 'held');
+    assert.match(winners[0].out, new RegExp(lock.holder));
+    assert.deepEqual(fs.readdirSync(root).sort(), ['lock.json']);
+  }
+);
+
+test(
+  'lock.ps1: a damaged lock.json is refused until -Force; -Force takes over a holder and skips the queue head',
+  { skip: !havePwsh && 'pwsh not on PATH' },
+  () => {
+    const root = tmp('pd-lockforce-');
+    fs.writeFileSync(path.join(root, 'lock.json'), '{ damaged');
+    let r = ps(root, ['take', '-Holder', 'Lane A', '-Session', 'sa', '-Purpose', 'x']);
+    assert.equal(r.code, 1);
+    assert.match(r.out, /cannot be read/);
+    assert.match(r.out, /-Force/);
+    assert.equal(ps(root, ['queue', '-Holder', 'Lane A', '-Session', 'sa']).code, 1);
+    assert.match(ps(root, ['status']).out, /cannot be read/);
+    assert.equal(fs.readFileSync(path.join(root, 'lock.json'), 'utf8'), '{ damaged');
+
+    r = ps(root, ['take', '-Holder', 'Lane A', '-Session', 'sa', '-Purpose', 'x', '-Force']);
+    assert.equal(r.code, 0, r.out);
+    assert.equal(readLock(root, { scriptPath: LOCK_PS1 }).holder, 'Lane A');
+
+    // A crashed holder: refused with a hint, then taken over with -Force.
+    r = ps(root, ['take', '-Holder', 'Lane B', '-Session', 'sb', '-Purpose', 'y']);
+    assert.equal(r.code, 1);
+    assert.match(r.out, /take -Force/);
+    r = ps(root, ['take', '-Holder', 'Lane B', '-Session', 'sb', '-Purpose', 'y', '-Force']);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /Took the lock over from Lane A/);
+    assert.equal(readLock(root, { scriptPath: LOCK_PS1 }).holder, 'Lane B');
+
+    // A dead queue head: the refusal names leave and -Force; -Force skips it.
+    assert.equal(ps(root, ['queue', '-Holder', 'Dead', '-Session', 'sd']).code, 0);
+    assert.equal(ps(root, ['release', '-Session', 'sb']).code, 0);
+    r = ps(root, ['take', '-Holder', 'Lane C', '-Session', 'sc']);
+    assert.equal(r.code, 1);
+    assert.match(r.out, /leave -Session sd/);
+    r = ps(root, ['take', '-Holder', 'Lane C', '-Session', 'sc', '-Force']);
+    assert.equal(r.code, 0, r.out);
+    const lock = readLock(root, { scriptPath: LOCK_PS1 });
+    assert.equal(lock.holder, 'Lane C');
+    assert.deepEqual(
+      lock.queue.map(q => q.session),
+      ['sd']
+    );
+  }
+);
+
+test(
+  'lock.ps1: a .lck left by a crashed run is cleared after 60 s; a fresh one blocks',
+  { skip: !havePwsh && 'pwsh not on PATH' },
+  () => {
+    const root = tmp('pd-locklck-');
+    const lck = path.join(root, 'lock.json.lck');
+    fs.writeFileSync(lck, '');
+    const old = new Date(Date.now() - 120 * 1000);
+    fs.utimesSync(lck, old, old);
+    let r = ps(root, ['take', '-Holder', 'Lane A', '-Session', 'sa']);
+    assert.equal(r.code, 0, r.out);
+    assert.ok(!fs.existsSync(lck));
+
+    fs.writeFileSync(lck, '');
+    r = ps(root, ['release', '-Session', 'sa']);
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /within 5 seconds/);
+    assert.equal(readLock(root, { scriptPath: LOCK_PS1 }).holder, 'Lane A');
+    fs.rmSync(lck);
   }
 );

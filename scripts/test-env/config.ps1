@@ -383,17 +383,23 @@ function Resolve-StopAction([hashtable]$F) {
 # The test server lock, <Root>/lock.json (written only by lock.ps1, which serialises its writes):
 #   { holder, session, since, purpose, queue: [ { holder, session, since, purpose } ] }
 # Returns Holder, Session, Since (UTC ISO 8601 text), Purpose and Queue (a list of the same four
-# fields); a missing or unreadable file is a free lock with an empty queue.
+# fields); a missing file is a free lock with an empty queue. A file that cannot be read as a
+# lock sets Unreadable: lock.ps1 then refuses take and queue without -Force, so a damaged file is
+# never silently treated as free.
 function Read-TestLock([string]$Root = $TestEnv.Root) {
-  $lock = [pscustomobject]@{ Holder = $null; Session = $null; Since = $null; Purpose = $null; Queue = @() }
+  $lock = [pscustomobject]@{ Holder = $null; Session = $null; Since = $null; Purpose = $null; Queue = @(); Unreadable = $false }
   $file = Join-Path $Root 'lock.json'
   if (-not (Test-Path $file)) { return $lock }
   try {
     $parsed = Get-Content $file -Raw | ConvertFrom-Json
   } catch {
+    $lock.Unreadable = $true
     return $lock
   }
-  if ($null -eq $parsed -or $parsed -isnot [pscustomobject]) { return $lock }
+  if ($null -eq $parsed -or $parsed -isnot [pscustomobject]) {
+    $lock.Unreadable = $true
+    return $lock
+  }
   $field = {
     param($o, [string]$name)
     $p = $o.PSObject.Properties[$name]
@@ -434,16 +440,25 @@ function Get-LockMinutes([string]$Since) {
 # One line for status.ps1: "free" or "held by <holder> since <since> (<N> min) for <purpose>",
 # plus ", queue: N waiting" when somebody waits.
 function Get-TestLockLine($Lock) {
+  if ($Lock.Unreadable) { return 'lock.json cannot be read (lock.ps1 take -Force starts a fresh lock)' }
   $text = 'free'
   if ($Lock.Holder) {
     $mins = Get-LockMinutes $Lock.Since
     $text = "held by $($Lock.Holder) since $($Lock.Since)"
     if ($null -ne $mins) { $text += " ($mins min)" }
     if ($Lock.Purpose) { $text += " for $($Lock.Purpose)" }
+    if (Test-LockOld $Lock.Since) { $text += ' (old: maybe a crashed session)' }
   }
   $waiting = @($Lock.Queue).Count
   if ($waiting -gt 0) { $text += ", queue: $waiting waiting" }
   return $text
+}
+
+# A holder or queue entry older than this is flagged: probably a crashed session.
+$LockOldHours = 4
+function Test-LockOld([string]$Since) {
+  $mins = Get-LockMinutes $Since
+  return ($null -ne $mins -and $mins -ge $LockOldHours * 60)
 }
 
 function Write-Pids([hashtable]$Pids) {

@@ -228,10 +228,22 @@ function renderLock(now) {
   const parts = [el('h2', { text: 'Test server lock', attrs: { id: 'lock-h' } })];
   if (lock.state === 'no-script') {
     parts.push(el('p', { cls: 'muted', text: 'No lock script yet' }));
+  } else if (lock.state === 'unreadable') {
+    parts.push(el('p', { cls: 'lock-state held', text: 'lock.json cannot be read' }));
+    parts.push(
+      el('p', {
+        cls: 'small muted',
+        text: 'Nobody can tell who holds the test server. Check with the lanes, then lock.ps1 take -Force starts a fresh lock.',
+      })
+    );
   } else if (lock.state === 'free') {
     parts.push(el('p', { cls: 'lock-state free', text: 'Free' }));
   } else {
-    parts.push(el('p', { cls: 'lock-state held', text: 'Held' }));
+    parts.push(
+      el('p', { cls: 'lock-state held', text: 'Held ' }, [
+        lock.old ? badge('old: maybe crashed (take -Force)', 'amber') : null,
+      ])
+    );
     const dl = el('dl', { cls: 'kv' });
     dl.append(
       el('dt', { text: 'Holder' }),
@@ -251,7 +263,12 @@ function renderLock(now) {
         q.purpose,
         q.since ? ago(q.since, now) : '',
       ].filter(Boolean);
-      ol.append(el('li', { text: bits.join(' - ') }));
+      ol.append(
+        el('li', {}, [
+          document.createTextNode(bits.join(' - ')),
+          q.old ? badge('old: maybe crashed', 'amber') : null,
+        ])
+      );
     }
     parts.push(ol);
   }

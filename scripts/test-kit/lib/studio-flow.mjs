@@ -10,13 +10,11 @@ import {
   applyStudioSettings,
   clickTab,
   closeStudio,
-  nameDocuments,
   narrowSources,
   openCreationWindow,
   packOfUuid,
-  pickFromSelect,
+  pickByUuid,
   rootOf,
-  shownAs,
   typeAbilities,
   until,
   windowState,
@@ -348,25 +346,19 @@ export const pumpStatus = page => page.evaluate(studioPump, { op: 'status' });
  */
 export async function createInStudio(page, o) {
   const log = o.log ?? (() => {});
-  const docs = await nameDocuments(page, {
-    species: o.speciesUuid,
-    background: o.backgroundUuid,
-    class: o.classUuid,
-  });
   const before = await page.evaluate(() => game.actors.map(a => a.id));
   await openCreationWindow(page);
   await typeAbilities(page, o.abilities ?? KIT_ABILITIES);
   await clickTab(page, '(Species|Race)');
-  await pickFromSelect(page, 'race-select', shownAs(docs.species.name));
+  log(`species: ${await pickByUuid(page, 'race-select', o.speciesUuid)}`);
   await clickTab(page, 'Background');
-  await pickFromSelect(page, 'background-select', shownAs(docs.background.name));
+  await pickByUuid(page, 'background-select', o.backgroundUuid);
   await clickTab(page, 'Class');
-  await pickFromSelect(page, 'characterClass-select', shownAs(docs.class.name));
+  await pickByUuid(page, 'characterClass-select', o.classUuid);
   // A class that gets its subclass at level 1 shows the subclass drop-down in this tab.
   await sleep(1500);
   if (o.subclassUuid && (await windowState(page)).subclassSelect) {
-    const sub = await nameDocuments(page, { subclass: o.subclassUuid });
-    await pickFromSelect(page, 'subClass-select', shownAs(sub.subclass.name));
+    await pickByUuid(page, 'subClass-select', o.subclassUuid);
   }
   await rootOf(page).locator('.character-name-input').fill(o.name);
   await sleep(500);
@@ -432,8 +424,7 @@ export async function levelUpInStudio(page, o) {
     { what: 'the subclass drop-down or the Add Level button', timeoutMs: 20000 }
   );
   if (st.subclassSelect && o.subclassUuid) {
-    const doc = await nameDocuments(page, { subclass: o.subclassUuid });
-    await pickFromSelect(page, 'subClass-select', shownAs(doc.subclass.name));
+    await pickByUuid(page, 'subClass-select', o.subclassUuid);
   } else if (st.subclassSelect) {
     throw new KitAssertion('Actor Studio asks for a subclass at this level and none was given');
   }

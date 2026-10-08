@@ -250,28 +250,121 @@ export async function typeAbilities(page, scores = KIT_ABILITIES) {
 }
 
 /**
- * Pick an entry from one of the window's drop-downs (species, background, class, subclass) by the
- * name it shows.
- * @param {import('playwright-core').Page} page
- * @param {string} selectId  race-select, background-select, characterClass-select or subClass-select
- * @param {string} name
+ * The drop-down's options carry no uuid in the page (each is a div with a label and an index), so
+ * the entry the plan names is found by what the page does expose: the label, the group heading
+ * (source book and pack label) and the order. `choosePick` is the pure part, tested offline.
+ *
+ * Order of attempts: (1) a label equal to the full name ("Elf, High") inside the pack's group, when
+ * the module shows lineages; (2) the shortened label ("Elf") by the entry's position among the
+ * pack's same-type entries that shorten the same way, in pack order (the module sorts equal labels
+ * stably, so pack order survives). When the counts do not line up the position cannot be trusted
+ * and the pick fails loudly; the sheet judge (judgeSheet) checks the species item's origin too.
+ * @param {{shown: Array<{label: string, group: string}>, name: string, uuid: string, group?: string,
+ *   peers?: Array<{uuid: string, name: string}>}} o
+ *   shown: the options in the order the page lists them; peers: same-type entries of the uuid's pack in pack order
+ * @returns {{index: number, how: string} | {index: -1, why: string}}
  */
-export async function pickFromSelect(page, selectId, name) {
+export function choosePick({ shown, name, uuid, group = '', peers = [] }) {
+  const full = stripTags(name);
+  const short = shownAs(name);
+  const indexed = shown.map((s, index) => ({ ...s, index }));
+  const pool =
+    group && indexed.some(s => s.group === group)
+      ? indexed.filter(s => s.group === group)
+      : indexed;
+  /** @param {typeof pool} hits @param {typeof peers} same @param {string} how */
+  const byPosition = (hits, same, how) => {
+    if (same.length <= 1) return { index: hits[0].index, how };
+    if (hits.length !== same.length) return null;
+    return { index: hits[same.findIndex(p => p.uuid === uuid)]?.index ?? -1, how };
+  };
+  if (full !== short) {
+    const hits = pool.filter(s => s.label === full);
+    if (hits.length) {
+      const got = byPosition(
+        hits,
+        peers.filter(p => stripTags(p.name) === full),
+        `full label "${full}"`
+      );
+      if (got && got.index >= 0) return got;
+    }
+  }
+  const hits = pool.filter(s => s.label === short);
+  const same = peers.filter(p => shownAs(p.name) === short);
+  if (hits.length) {
+    const got = byPosition(hits, same, `label "${short}" by position`);
+    if (got && got.index >= 0) return got;
+    return {
+      index: -1,
+      why: `"${name}" cannot be told apart: the list has ${hits.length} "${short}" entries for ${same.length} in the pack`,
+    };
+  }
+  return {
+    index: -1,
+    why: `"${name}" is not in the list (it shows: ${pool
+      .slice(0, 12)
+      .map(s => s.label)
+      .join(', ')})`,
+  };
+}
+
+/** A name without its "(Legacy)" and "[tag]" parts, as the module's first cleaning step leaves it. @param {string} name */
+export function stripTags(name) {
+  return String(name ?? '')
+    .replace(/\s*[[(][\w\s]+[\])]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Pick an entry from one of the window's drop-downs by its document uuid (see choosePick for how
+ * the entry is found when the page shows no uuid).
+ * @param {import('playwright-core').Page} page
+ * @param {string} selectId
+ * @param {string} uuid
+ * @returns {Promise<string>}  how it was found
+ */
+export async function pickByUuid(page, selectId, uuid) {
+  const target = await page.evaluate(async uuid => {
+    const doc = await fromUuid(uuid);
+    const packId = /^Compendium\.([^.]+\.[^.]+)\./.exec(uuid)?.[1];
+    const pack = packId ? game.packs.get(packId) : null;
+    const peers = pack
+      ? [...pack.index.values()]
+          .filter(e => e.type === doc?.type)
+          .map(e => ({ uuid: e.uuid, name: e.name }))
+      : [];
+    const group = pack
+      ? [pack.metadata?.flags?.dnd5e?.sourceBook, pack.metadata?.label]
+          .map(v => (v == null ? '' : String(v).trim()))
+          .filter(Boolean)
+          .join(' ')
+      : '';
+    return { name: doc?.name ?? '', group, peers };
+  }, uuid);
+  if (!target.name) throw new KitAssertion(`Actor Studio: no document ${uuid}`);
   const select = rootOf(page).locator(`#${selectId}`);
   await select.locator('.selected-option').click();
   await sleep(400);
-  const labels = select.locator('.option .option-label');
-  await labels.first().waitFor({ timeout: 15000 });
-  const shown = (await labels.allInnerTexts()).map(s => s.trim());
-  const index = shown.findIndex(s => s === name);
-  if (index < 0) {
+  await select.locator('.option .option-label').first().waitFor({ timeout: 15000 });
+  const shown = await select.evaluate(el => {
+    let group = '';
+    /** @type {Array<{label: string, group: string}>} */
+    const out = [];
+    for (const n of el.querySelectorAll('.group-label, .option')) {
+      if (n.classList.contains('group-label')) group = (n.textContent ?? '').trim();
+      else out.push({ label: (n.querySelector('.option-label')?.textContent ?? '').trim(), group });
+    }
+    return out;
+  });
+  const pick = choosePick({ shown, uuid, ...target });
+  if (pick.index < 0) {
     await page.keyboard.press('Escape');
-    throw new KitAssertion(
-      `Actor Studio: "${name}" is not in the ${selectId} list (it shows: ${shown.slice(0, 12).join(', ')})`
-    );
+    throw new KitAssertion(`Actor Studio, ${selectId}: ${'why' in pick ? pick.why : ''}`);
   }
-  await select.locator('.option').nth(index).click();
+  await select.locator('.option').nth(pick.index).click();
   await sleep(700);
+  return 'how' in pick ? pick.how : '';
 }
 
 /** How the module shows a name in its drop-downs (it strips "(Legacy)" and ", subtitle"). @param {string} name */

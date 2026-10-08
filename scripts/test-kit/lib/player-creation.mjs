@@ -12,9 +12,10 @@ export const PLAYER_ROLE = 1;
  * @typedef {{
  *   name: string, ownership: Record<string, number>, level: number,
  *   classes: Array<{identifier: string, levels: number, hitDie: number, firstLevelHp: unknown}>,
- *   species: string[], backgrounds: string[],
+ *   species: string[], speciesSources?: Array<string | null>, backgrounds: string[],
  *   hp: {value: number, max: number}, conMod: number, ac: number, gp: number,
  *   items: Array<{name: string, type: string}>,
+ *   duplicates?: Array<{name: string, type: string, count: number, origins: Array<string | null>}>,
  *   spells: Array<{name: string, identifier: string, level: number, origin: string | null}>,
  *   armor: Array<{name: string, equipped: boolean}>
  * }} Sheet
@@ -46,12 +47,39 @@ export function readSheet(page, actorId) {
             i.system.advancement?.find?.(adv => adv.type === 'HitPoints')?.value?.['1'] ?? null,
         })),
       species: items.filter(i => i.type === 'race').map(i => i.name),
+      // The compendium entry each species item was copied from (the uuid the player picked).
+      speciesSources: items
+        .filter(i => i.type === 'race')
+        .map(i => i._stats?.compendiumSource ?? i.flags?.dnd5e?.sourceId ?? null),
       backgrounds: items.filter(i => i.type === 'background').map(i => i.name),
       hp: { value: a.system.attributes.hp.value, max: a.system.attributes.hp.max },
       conMod: a.system.abilities.con.mod,
       ac: a.system.attributes.ac?.value ?? 0,
       gp: a.system.currency?.gp ?? 0,
       items: items.map(i => ({ name: i.name, type: i.type })),
+      // Items that appear more than once under the same name and type, with what granted each copy
+      // (the advancement's item, else the raw flag, else null: not granted by an advancement).
+      duplicates: (() => {
+        const seen = new Map();
+        for (const i of items) {
+          const key = `${i.type}|${i.name}`;
+          if (!seen.has(key)) seen.set(key, []);
+          seen.get(key).push(i);
+        }
+        return [...seen.values()]
+          .filter(list => list.length > 1)
+          .map(list => ({
+            name: list[0].name,
+            type: list[0].type,
+            count: list.length,
+            origins: list.map(i => {
+              const flag = i.flags?.dnd5e?.advancementOrigin;
+              if (!flag) return null;
+              const granter = a.items.get(String(flag).split('.')[0]);
+              return granter ? `${granter.type}:${granter.name}` : String(flag);
+            }),
+          }));
+      })(),
       // Where a spell came from: the item whose advancement granted it (a species trait, a feat),
       // else the system's sourceItem ('race:forest-gnome'), else null. Actor Studio's Spells tab
       // sets neither, so its picks (the class's spells) read null.
@@ -127,7 +155,8 @@ export function turnOffTrackingFor(page, studio, userName) {
 /**
  * The checks on one new character. Problems fail the step; notes are only reported.
  * @param {{sheet: Sheet, playerId: string, classIdentifier: string, planned: string[],
- *   spellList: string[] | null, pumpErrors?: string[]}} o
+ *   spellList: string[] | null, pumpErrors?: string[], speciesUuid?: string}} o
+ *   speciesUuid: the species the plan picked; the sheet's species item must come from it
  * @returns {{problems: Array<{what: string, evidence: string}>, notes: string[]}}
  */
 export function judgeSheet({
@@ -137,6 +166,7 @@ export function judgeSheet({
   planned,
   spellList,
   pumpErrors = [],
+  speciesUuid = '',
 }) {
   /** @type {Array<{what: string, evidence: string}>} */
   const problems = [];
@@ -157,6 +187,12 @@ export function judgeSheet({
   }
   if (sheet.species.length !== 1)
     bad('the character has no species', sheet.species.join(', ') || 'none');
+  else if (speciesUuid && !(sheet.speciesSources ?? []).includes(speciesUuid)) {
+    bad(
+      'the species is not the one picked',
+      `picked ${speciesUuid}; the sheet has ${sheet.species[0]} from ${(sheet.speciesSources ?? []).join(', ') || 'no source'}`
+    );
+  }
   if (sheet.backgrounds.length !== 1)
     bad('the character has no background', sheet.backgrounds.join(', ') || 'none');
   const hitDie = cls[0]?.hitDie ?? 0;
@@ -209,6 +245,11 @@ export function judgeSheet({
   if (sheet.armor.length && !sheet.armor.some(a => a.equipped)) {
     notes.push(
       `the starting armor arrives unequipped (${sheet.armor.map(a => a.name).join(', ')}; AC ${sheet.ac}): the player equips it on the sheet`
+    );
+  }
+  for (const d of sheet.duplicates ?? []) {
+    notes.push(
+      `${d.name} (${d.type}) is on the sheet ${d.count} times, granted by: ${d.origins.map(o => o ?? 'no advancement').join(', ')}`
     );
   }
   notes.push(

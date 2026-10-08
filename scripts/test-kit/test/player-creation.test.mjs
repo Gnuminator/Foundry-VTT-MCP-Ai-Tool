@@ -124,6 +124,45 @@ test('judgeSheet: pump errors fail; unequipped starting armor is a note', () => 
   assert.match(v.notes[0], /starting armor arrives unequipped \(Chain Mail; AC 12\)/);
 });
 
+test('judgeSheet: the species item must come from the species that was picked', () => {
+  const high = 'Compendium.dnd5e.origins24.Item.elfHigh';
+  const drow = 'Compendium.dnd5e.origins24.Item.elfDrow';
+  const o = fixture();
+  o.sheet.speciesSources = [high];
+  assert.deepEqual(judgeSheet({ ...o, speciesUuid: high }).problems, []);
+  const wrong = judgeSheet({ ...o, speciesUuid: drow }).problems;
+  assert.equal(wrong.length, 1);
+  assert.equal(wrong[0].what, 'the species is not the one picked');
+  assert.match(wrong[0].evidence, /picked .*elfDrow; the sheet has Elf from .*elfHigh/);
+  // A species with no recorded source cannot be the picked one.
+  o.sheet.speciesSources = [null];
+  assert.match(
+    judgeSheet({ ...o, speciesUuid: high }).problems[0].evidence,
+    /from no source|from $/
+  );
+  // Without a picked uuid the check stays off (other callers).
+  assert.deepEqual(judgeSheet(o).problems, []);
+});
+
+test('judgeSheet: an item that appears twice is a note with what granted each copy, not a problem', () => {
+  const o = fixture();
+  o.sheet.duplicates = [
+    {
+      name: "Hunter's Mark",
+      type: 'spell',
+      count: 2,
+      origins: ['class:Ranger', null],
+    },
+  ];
+  const v = judgeSheet(o);
+  assert.deepEqual(v.problems, []);
+  assert.ok(
+    v.notes.includes(
+      "Hunter's Mark (spell) is on the sheet 2 times, granted by: class:Ranger, no advancement"
+    )
+  );
+});
+
 test('playerStudioSettings: equipment on, class and origin lists narrowed, equipment packs kept', () => {
   const profile = {
     packs: {

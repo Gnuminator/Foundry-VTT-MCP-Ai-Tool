@@ -289,8 +289,8 @@ tags: [dev/test-kit]
 # Test kit runs
 
 Written by the kit run command (\`npm run kit:run\`, D-102 line 5); do not edit it by hand. Newest
-first, the last ${MAX_ROWS} runs of every PC. Only counts and scenario ids are here; the full report
-(report.html) stays on the PC that ran it, in the folder in the last column.
+first, the last ${MAX_ROWS} runs of every PC. Only counts, scenario ids and the local report folder
+are here; the full report (report.html) stays on the PC that ran it, in that folder.
 
 | When (local) | PC | Run | Git | Result | Failing scenarios | Report folder |
 | --- | --- | --- | --- | --- | --- | --- |

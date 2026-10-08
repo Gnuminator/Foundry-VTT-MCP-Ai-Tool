@@ -847,6 +847,47 @@ describe('buildActions', () => {
       expect(reverse[0].followUps).toEqual([]);
       expect(reverse[1].followUps).toEqual([spell, dep]);
     });
+
+    it('keeps the actor rule when the effect names a spell no AI change deleted', () => {
+      const named = (origin: string): ChangeRecord => {
+        const plain = concentration();
+        return { ...plain, data: { ...plain.data, origin } };
+      };
+      // (a) The AI deletes a wand; dnd5e deletes the wand's cached spell, whose concentration names
+      // the cached spell, not the wand.
+      const wand = ai('chg-a', {
+        documentName: 'Item',
+        uuid: 'Actor.a2.Item.w1',
+        name: 'Wand of Hold Person',
+        data: { name: 'Wand of Hold Person' },
+      });
+      const cached = rec({
+        actionId: 'P',
+        op: 'delete',
+        documentName: 'Item',
+        uuid: 'Actor.a2.Item.k1',
+        name: 'Hold Person',
+        ...strahd,
+        data: { name: 'Hold Person' },
+      });
+      const viaWand = named('Actor.a2.Item.k1');
+      const depA = dependent();
+      const wandActions = buildActions([wand, cached, viaWand, depA]);
+      expect(wandActions.map(x => x.changeId)).toEqual(['chg-a']);
+      expect(wandActions[0].followUps).toEqual(expect.arrayContaining([viaWand, depA]));
+      // (b) A stale uuid: the effect names the base actor's item, the delete is the token actor's.
+      const tokenSpell = ai('chg-b', {
+        documentName: 'Item',
+        uuid: 'Scene.s1.Token.t1.Actor.a2.Item.i2',
+        name: 'Hold Person',
+        data: { name: 'Hold Person' },
+      });
+      const stale = named('Actor.a2.Item.i2');
+      const depB = dependent();
+      const staleActions = buildActions([tokenSpell, stale, depB]);
+      expect(staleActions.map(x => x.changeId)).toEqual(['chg-b']);
+      expect(staleActions[0].followUps).toEqual([stale, depB]);
+    });
   });
 
   it('files a combatant delete to the latest change that deleted its token, and never to a later change', () => {

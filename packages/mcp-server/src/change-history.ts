@@ -329,7 +329,8 @@ interface DependentsLink {
 function dependentsLink(
   sources: ChangeRecord[],
   others: ChangeRecord[],
-  aiRoots: ReadonlySet<string>
+  aiRoots: ReadonlySet<string>,
+  burstItems: ReadonlySet<string>
 ): DependentsLink {
   const linked = new Set<string>();
   const roots = sources.filter(
@@ -339,7 +340,10 @@ function dependentsLink(
   const itemSource = roots.some(r => r.documentName === 'Item');
   // The records whose data names the dependents: the sources and, when the AI deleted an item,
   // the concentration effect dnd5e ended with it on the same actor (a dependent itself). dnd5e
-  // names the spell on that effect: then only the change that deleted that item ended it.
+  // names the spell on that effect: when one of the burst's AI changes deleted that item, only
+  // that change ended it. dnd5e ends concentration by item id, so the name may be an item no AI
+  // change deleted (the cached spell of a deleted wand, a base-actor uuid on an unlinked token):
+  // then the actor rule holds.
   const chain = new Set(roots);
   let unreadable = false;
   if (itemSource) {
@@ -351,7 +355,7 @@ function dependentsLink(
         aiRoots.has(r.rootUuid) &&
         r.documentName === 'ActiveEffect' &&
         isConcentrationEffect(r) &&
-        (spell === null || items.has(spell))
+        (spell === null || items.has(spell) || !burstItems.has(spell))
       ) {
         linked.add(r.uuid);
         chain.add(r);
@@ -541,10 +545,15 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
     }
     const others = group.filter(r => !r.changeId);
     const at = (r: ChangeRecord): number => position.get(r) ?? -1;
+    const burstItems: ReadonlySet<string> = new Set(
+      segments.flatMap(s =>
+        s.ai.filter(r => r.op === 'delete' && r.documentName === 'Item').map(r => r.uuid)
+      )
+    );
     const links = segments.map((segment, i) => {
       const aiRoots: ReadonlySet<string> = new Set(segment.ai.map(r => r.rootUuid));
       const since = others.filter(r => at(r) >= i);
-      return { aiRoots, link: dependentsLink(segment.ai, since, aiRoots) };
+      return { aiRoots, link: dependentsLink(segment.ai, since, aiRoots, burstItems) };
     });
     // Only a change that started at or before a record arrived can own it; of those, the latest
     // whose data ties it (a change that deleted the same thing again later owns its own cascade).

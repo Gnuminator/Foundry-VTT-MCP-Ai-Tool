@@ -141,7 +141,7 @@ export async function rehearse(
       recorderClient.isReady() ? r() : recorderClient.once('clientReady', () => r())
     );
     const channel = await recorderClient.channels.fetch(cfg.channelId);
-    if (!channel || channel.type !== ChannelType.GuildVoice) {
+    if (channel?.type !== ChannelType.GuildVoice) {
       throw new Error(`REHEARSAL_CHANNEL_ID ${cfg.channelId} is not a voice channel`);
     }
     const { clock, startNs } = startClock();

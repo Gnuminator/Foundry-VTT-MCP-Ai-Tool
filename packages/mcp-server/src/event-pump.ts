@@ -231,7 +231,7 @@ export class EventPump {
   }
 
   private async saveState(worldId: string): Promise<void> {
-    if (!this.state || this.state.worldId !== worldId) return;
+    if (this.state?.worldId !== worldId) return;
     const data: PumpState = {
       cursorMs: this.state.cursorMs,
       boundaryIds: [...this.state.boundary.keys()],

@@ -16,7 +16,7 @@ from pathlib import Path
 from .claude_runner import ClaudeCli, ClaudeError
 from .model import clock, load_timeline
 from .publish import publish
-from .retention import RETENTION_DAYS, approve, cleanup
+from .retention import approve, cleanup
 from .run import Options, Writer
 from .scenes import split_scenes
 
@@ -26,6 +26,17 @@ EXIT_PAUSED = 75
 def sessions_root() -> Path:
     root = os.environ.get("FVTT_SESSIONS_DIR")
     return Path(root) if root else Path.home() / "Documents" / "FoundrySessions"
+
+
+def positive_days(text: str) -> int:
+    """`cleanup --days`: a whole number of at least 1, so a slip like 0 cannot delete everything."""
+    try:
+        days = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a whole number: {text!r}") from None
+    if days < 1:
+        raise argparse.ArgumentTypeError(f"must be 1 or more, got {days}")
+    return days
 
 
 def resolve_session(target: str) -> Path:
@@ -53,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
     show = sub.add_parser("scenes", help="show the scene split, no Claude call")
     show.add_argument("session")
     show.add_argument("--scene-gap", type=float, default=90.0)
-    ok = sub.add_parser("approve", help="mark the notes approved (starts the audio retention clock)")
+    ok = sub.add_parser("approve", help="mark the notes approved (audio is kept, D-097)")
     ok.add_argument("session")
     ok.add_argument("--by", default="GM")
     pub = sub.add_parser(
@@ -64,9 +75,16 @@ def main(argv: list[str] | None = None) -> int:
     pub.add_argument("--world", help="Foundry world id, needed while Foundry is closed")
     pub.add_argument("--restage", action="store_true", help="stage again (only while staged)")
     clean = sub.add_parser(
-        "cleanup", help=f"delete audio {RETENTION_DAYS} days after approval (D-072)"
+        "cleanup",
+        help="manual: delete audio of sessions approved at least --days ago (audio is kept by "
+        "default, D-097; nothing runs this automatically)",
     )
-    clean.add_argument("--days", type=int, default=RETENTION_DAYS)
+    clean.add_argument(
+        "--days",
+        type=positive_days,
+        required=True,
+        help="only sessions approved at least this many days ago (1 or more)",
+    )
     clean.add_argument("--yes", action="store_true", help="really delete (default: only list)")
     args = parser.parse_args(argv)
 
@@ -80,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"{len(item.files)} audio file(s)"
             )
         if not items:
-            print("No session has audio past its retention date.")
+            print(f"No session approved {args.days}+ days ago has audio.")
         elif not args.yes:
             print("Nothing deleted. Run again with --yes to delete.")
         return 0
@@ -92,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
         except FileNotFoundError as exc:
             print(exc, file=sys.stderr)
             return 1
-        print(f"Approved: {path}. Audio is deleted by `cleanup` after {RETENTION_DAYS} days.")
+        print(f"Approved: {path}. The audio is kept (D-097).")
         return 0
     if args.cmd == "publish":
         try:

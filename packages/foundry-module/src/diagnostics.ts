@@ -1,4 +1,5 @@
 import { MODULE_ID } from './constants.js';
+import { logInfo } from './log.js';
 
 /**
  * Diagnostics — captures runtime errors/warnings from the Foundry client so the
@@ -61,7 +62,7 @@ export class Diagnostics {
       const origError = console.error.bind(console);
       const origWarn = console.warn.bind(console);
 
-      console.error = (...args: any[]) => {
+      console.error = (...args: any[]): void => {
         try {
           this.captureConsole('error', args);
         } catch {
@@ -69,7 +70,7 @@ export class Diagnostics {
         }
         origError(...args);
       };
-      console.warn = (...args: any[]) => {
+      console.warn = (...args: any[]): void => {
         try {
           this.captureConsole('warn', args);
         } catch {
@@ -107,7 +108,7 @@ export class Diagnostics {
         }
       });
 
-      console.log(`[${MODULE_ID}] Diagnostics installed (${this.buffer.length} buffered)`);
+      logInfo(`[${MODULE_ID}] Diagnostics installed (${this.buffer.length} buffered)`);
     } catch (error) {
       console.warn(`[${MODULE_ID}] Failed to install diagnostics:`, error);
     }

@@ -28,16 +28,16 @@ import {
 // ---------------------------------------------------------------------------
 
 /** Build a minimal creature object with only the fields matchesDnD5eFilters reads. */
-function makeCreature(
-  overrides: Partial<{
-    challengeRating: number;
-    creatureType: string;
-    size: string;
-    alignment: string;
-    hasLegendaryActions: boolean;
-    hasSpellcasting: boolean;
-  }> = {}
-) {
+type CreatureOverrides = Partial<{
+  challengeRating: number;
+  creatureType: string;
+  size: string;
+  alignment: string;
+  hasLegendaryActions: boolean;
+  hasSpellcasting: boolean;
+}>;
+
+function makeCreature(overrides: CreatureOverrides = {}): { systemData: CreatureOverrides } {
   return { systemData: overrides };
 }
 

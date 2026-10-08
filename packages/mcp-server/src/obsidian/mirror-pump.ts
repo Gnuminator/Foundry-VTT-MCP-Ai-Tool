@@ -1081,7 +1081,7 @@ export class ObsidianMirrorPump {
     if (note.sig !== row.sig) return true;
     // A page note the GM deleted comes back once its journal is fetched again.
     const expected = state.expectedPages.get(row.uuid);
-    return expected !== undefined && expected.some(uuid => !state.pages.has(uuid));
+    return expected?.some(uuid => !state.pages.has(uuid)) ?? false;
   }
 
   private async reconcile(cycle: Cycle): Promise<void> {

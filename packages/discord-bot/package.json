@@ -18,7 +18,7 @@
     "convert": "node dist/cli.js convert",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src"
   },
   "dependencies": {
     "@discordjs/voice": "0.19.2",

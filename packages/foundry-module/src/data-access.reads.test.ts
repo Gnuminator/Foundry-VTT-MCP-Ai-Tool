@@ -172,7 +172,7 @@ describe('FoundryDataAccess — getActiveScene', () => {
       active: true,
       levels,
       initialLevel: 'lvl0',
-    } as any);
+    });
     world.setActiveScene(scene.id);
 
     const result = await da.getActiveScene();

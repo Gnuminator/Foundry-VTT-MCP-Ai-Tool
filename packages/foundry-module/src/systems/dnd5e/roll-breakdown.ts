@@ -162,7 +162,7 @@ function itemFromActor(actor: ActorLike | null, itemUuid: string | undefined): I
         : [];
     for (const raw of list) {
       const candidate = asRecord(raw);
-      if (candidate && str(candidate.uuid) === itemUuid) return candidate as ItemLike;
+      if (candidate && str(candidate.uuid) === itemUuid) return candidate;
     }
   } catch {
     // ignore; label inference just falls back to "modifier"
@@ -406,7 +406,7 @@ function partText(part: RollBreakdownPart, isFirst: boolean): string {
 /** dnd5e's own name for a skill key ("prc" -> "Perception"), else the key in capitals. */
 function skillName(key: string): string {
   try {
-    const skills = asRecord(asRecord(asRecord(globalThis as unknown)?.CONFIG)?.DND5E)?.skills;
+    const skills = asRecord(asRecord(asRecord(globalThis)?.CONFIG)?.DND5E)?.skills;
     const label = str(asRecord(asRecord(skills)?.[key])?.label);
     if (label) return label;
   } catch {

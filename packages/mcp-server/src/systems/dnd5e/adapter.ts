@@ -63,7 +63,7 @@ export class DnD5eAdapter implements SystemAdapter {
     );
   }
 
-  getFilterSchema() {
+  getFilterSchema(): typeof DnD5eFiltersSchema {
     return DnD5eFiltersSchema;
   }
 

@@ -4,7 +4,11 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  type CallToolResult,
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 
 import { config } from './config.js';
 
@@ -66,7 +70,7 @@ class BackendClient {
 
   private backendProcess: ChildProcess | null = null;
 
-  log(msg: string, meta?: any) {
+  log(msg: string, meta?: any): void {
     try {
       const dir = path.dirname(this.logFile);
 
@@ -167,7 +171,7 @@ class BackendClient {
     let backendPath: string | null = null;
 
     try {
-      const backendUrl = new URL('./backend.js', import.meta.url as any);
+      const backendUrl = new URL('./backend.js', import.meta.url);
 
       backendPath = fileURLToPath(backendUrl);
     } catch {
@@ -225,7 +229,7 @@ class BackendClient {
     // Don't unref since we want to monitor the process
   }
 
-  private onData(chunk: string) {
+  private onData(chunk: string): void {
     this.buffer += chunk;
 
     let idx: number;
@@ -274,7 +278,7 @@ class BackendClient {
     }
   }
 
-  private rejectAll(err: any) {
+  private rejectAll(err: any): void {
     for (const [, p] of this.pending) p.reject(err);
 
     this.pending.clear();
@@ -284,7 +288,7 @@ class BackendClient {
 
   send(method: string, params: any): Promise<any> {
     return new Promise((resolve, reject) => {
-      void (async () => {
+      void (async (): Promise<void> => {
         try {
           await this.ensure();
         } catch (e) {
@@ -314,7 +318,7 @@ class BackendClient {
     });
   }
 
-  cleanup() {
+  cleanup(): void {
     this.log('cleanup(): shutting down backend');
 
     if (this.backendProcess && !this.backendProcess.killed) {
@@ -335,7 +339,7 @@ class BackendClient {
   }
 }
 
-async function startWrapper() {
+async function startWrapper(): Promise<void> {
   const backend = new BackendClient();
 
   // Pre-connect to backend BEFORE initializing MCP server
@@ -437,12 +441,12 @@ async function startWrapper() {
 
       // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
       const toolName = String(name);
-      return capToolResult(res, toolName, listedTools.get(toolName));
+      return capToolResult(res, toolName, listedTools.get(toolName)) as unknown as CallToolResult;
     } catch (e: any) {
       return {
         content: [{ type: 'text', text: `Error: ${e?.message || 'Backend unavailable'}` }],
         isError: true,
-      } as any;
+      };
     }
   });
 

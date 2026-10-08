@@ -31,7 +31,9 @@ const planParams = z.object({
 function levelName(value: unknown, present = true): string {
   if (!present || value === undefined || value === null) return 'default';
   const name = LEVEL_NAMES.find(n => OWNERSHIP_LEVELS[n] === value);
-  return name ?? String(value);
+  return (
+    name ?? (typeof value === 'number' || typeof value === 'string' ? String(value) : 'unknown')
+  );
 }
 
 /** Actor picker for assign/remove: a world actor, or a bulk phrase `resolveActors` expands. */

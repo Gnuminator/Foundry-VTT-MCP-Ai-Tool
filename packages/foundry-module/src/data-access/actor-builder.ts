@@ -1,5 +1,6 @@
 import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
+import { logInfo } from '../log.js';
 import { isDnd5eV6 } from '../systems/dnd5e/version.js';
 import {
   slugify,
@@ -126,7 +127,7 @@ export class ActorBuilderDataAccess {
       // Set targets using Foundry's targeting system
       if (tokenIds.length > 0 && game.user) {
         await (game.user as any).updateTokenTargets(tokenIds);
-        console.log(`[foundry-mcp-bridge] Set targets: ${resolvedTargetNames.join(', ')}`);
+        logInfo(`[foundry-mcp-bridge] Set targets: ${resolvedTargetNames.join(', ')}`);
       }
     }
 

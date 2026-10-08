@@ -273,7 +273,7 @@ function paceChange(
     );
   }
   const current = group.pace;
-  if (current && current.value === pace && !current.slowed) {
+  if (current?.value === pace && !current.slowed) {
     throw new Error(`${group.name} already travels at ${current.label} pace`);
   }
   const label = option?.label ?? pace;

@@ -1,5 +1,6 @@
 import { MODULE_ID } from '../constants.js';
 import { trackUsage } from '../usage-recorder.js';
+import { logInfo } from '../log.js';
 import type {
   DnD5eCreatureIndex,
   EnhancedCreatureIndex,
@@ -167,7 +168,7 @@ export class PersistentCreatureIndex {
 
     const currentSystem = (game as any).system.id;
     if (existingIndex.metadata.gameSystem !== currentSystem) {
-      console.log(
+      logInfo(
         `[${this.moduleId}] System changed from ${existingIndex.metadata.gameSystem} to ${currentSystem}, index invalidated`
       );
       return false;
@@ -232,7 +233,7 @@ export class PersistentCreatureIndex {
   private registerFoundryHooks(): void {
     if (this.hooksRegistered) return;
 
-    const onCreatureDoc = (document: any) => {
+    const onCreatureDoc = (document: any): void => {
       if (document.pack && CREATURE_TYPES.has(document.type)) {
         void this.invalidateIndex();
       }
@@ -241,7 +242,7 @@ export class PersistentCreatureIndex {
     Hooks.on('updateDocument', onCreatureDoc);
     Hooks.on('deleteDocument', onCreatureDoc);
 
-    const onActorPack = (pack: any) => {
+    const onActorPack = (pack: any): void => {
       if (pack.metadata.type === 'Actor') {
         void this.invalidateIndex();
       }
@@ -286,7 +287,7 @@ export class PersistentCreatureIndex {
     }
 
     const gameSystem = (game as any).system.id;
-    console.log(`[${this.moduleId}] Building enhanced creature index for system: ${gameSystem}`);
+    logInfo(`[${this.moduleId}] Building enhanced creature index for system: ${gameSystem}`);
 
     if (gameSystem !== 'dnd5e') {
       throw new Error(

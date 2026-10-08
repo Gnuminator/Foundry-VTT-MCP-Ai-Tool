@@ -19,7 +19,7 @@ function gmChange(id: string): SessionEvent {
     actorId: null,
     description: 'Applied: Strahd attention in Vallaki 2 -> 3',
     details: { changeId: 'chg-1', feature: 'strahd-attention', mode: 'apply' },
-  } as SessionEvent;
+  };
 }
 
 function damage(id: string): SessionEvent {

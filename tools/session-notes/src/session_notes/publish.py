@@ -12,7 +12,7 @@ as a GM's Foundry client is connected with writes and the session-notes switch o
    ``MCP_CONTROL_HOST``, default 127.0.0.1, the Pi's Tailscale name once the bridge runs there),
    once per session.
 3. asks for the status and, when the GM approved the notes (revealed the Recap, or "Approve
-   without revealing"), writes ``notes/approved.json``, which starts the audio clock (D-072).
+   without revealing"), writes ``notes/approved.json`` (the audio is kept, D-097).
 
 Exit codes: 0 done, 1 error, 3 the bridge cannot take it now (not running, or Foundry closed and
 no ``FVTT_WORLD`` set); the next pass tries again.
@@ -299,7 +299,7 @@ def describe(item: dict[str, Any]) -> str:
     status = item.get("status")
     if status == "approved":
         how = "the Recap was revealed" if item.get("approvedBy") == "reveal" else "approved"
-        return f"{item['sessionId']}: approved in Foundry ({how}); audio clock started"
+        return f"{item['sessionId']}: approved in Foundry ({how})"
     if status == "in-foundry":
         return f"{item['sessionId']}: in Foundry, waiting for the GM to reveal or approve the Recap"
     waiting = item.get("waitingFor") or []

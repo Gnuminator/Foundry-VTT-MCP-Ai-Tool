@@ -1,6 +1,7 @@
 import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 import { trackUsage } from '../usage-recorder.js';
+import { logDebug, logInfo } from '../log.js';
 
 /** Outcome of resolving a roll-request target (a player user and/or character). */
 interface ResolveResult {
@@ -245,7 +246,7 @@ export class PlayerRollsDataAccess {
     // Diagnostic: confirms the render hook reached us and how many buttons it saw.
     // If a player clicks and nothing happens, check the console for this line:
     // absent => the renderChatMessageHTML hook never attached handlers on their client.
-    console.debug(
+    logDebug(
       `[${MODULE_ID}] attachRollButtonHandlers: ${html.find('.mcp-roll-button').length} button(s) for user "${game.user?.name}" (GM=${isGM})`
     );
 
@@ -351,7 +352,7 @@ export class PlayerRollsDataAccess {
       try {
         // Diagnostic: surface the exact formula before parsing (helps catch
         // malformed formulas like "1d20+[object Object]").
-        console.log(`[${MODULE_ID}] Executing roll with formula:`, rollFormula);
+        logInfo(`[${MODULE_ID}] Executing roll with formula:`, rollFormula);
 
         // Create and evaluate the roll, validating first for a clear error.
         const RollCls: any = Roll;

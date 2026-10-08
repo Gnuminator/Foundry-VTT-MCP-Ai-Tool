@@ -41,10 +41,10 @@ again later; finished scenes are kept in `notes/.work/` and are not redone.
 
 `auto.ps1` does one pass over the sessions folder: it transcribes finished Discord recordings
 (`raw\session.json` present, audio, no timeline yet; names from Foundry when the bridge answers),
-writes notes where they are missing, publishes finished notes to the bridge (below), and runs
-`cleanup --yes`. It does nothing when nothing is due,
-never runs twice at once (a lock file), and logs to `<sessions>\auto.log`. Try it with
-`pwsh tools/session-notes/auto.ps1 -DryRun`. With the recorder on the Orange Pi (D-068), set `FVTT_PI_HOST`
+writes notes where they are missing and publishes finished notes to the bridge (below). It never
+deletes audio (D-097). It does nothing when nothing is due, never runs twice at once (a lock
+file), and logs to `<sessions>\auto.log`. Try it with `pwsh tools/session-notes/auto.ps1 -DryRun`.
+With the recorder on the Orange Pi (D-068), set `FVTT_PI_HOST`
 (normally `foundry-pi`): the pass first runs `pull.ps1`, which copies finished recordings from the
 Pi over SSH, checks every file's SHA-256 and marks them pulled there (the Pi deletes them 7 days
 later; see the bot's README). Set `MCP_CONTROL_HOST` to the Pi's Tailscale name so `publish`
@@ -84,21 +84,50 @@ it writes `notes/approved.json` (below). Exit code 3 means "not now, try again l
 is not running, or Foundry is closed and no world is set); `--restage` sends the notes again while
 they are still only staged.
 
-## Approval and audio retention (D-072)
+## Approval, and keeping the audio (D-097)
 
 ```bash
 python -m session_notes approve <session>   # the GM has read the notes and the recap
-python -m session_notes cleanup             # list sessions whose audio is due for deletion
-python -m session_notes cleanup --yes       # delete it
 ```
 
-`approve` writes `notes/approved.json`. `cleanup` looks through the sessions folder and, for every
-session approved more than 14 days ago (`--days` to change), deletes the audio only: `.ogg`,
-`.flac`, `.wav` and the other audio types, the recorder's `raw/*.rec` packet files and Craig
-zips. Transcripts, the timeline, the notes and the recorder's event log stay. The deleted files are
-listed in `notes/audio-deleted.json`. Without `--yes` nothing is deleted. The scheduled task runs
-`cleanup --yes` once a day. `publish` writes the same approval marker once the GM revealed or
-approved the Recap in Foundry.
+`approve` writes `notes/approved.json`; `publish` writes the same marker once the GM revealed or
+approved the Recap in Foundry. It starts no clock: **the audio is kept** on this PC. Before session 0
+each player is asked for a written yes that their own track is kept, also as training data, until
+they ask for it to be deleted. Nothing in this tool deletes audio by itself.
+
+The Pi is different: `pull.ps1` deletes a session's copy on the Pi 7 days after this PC pulled it.
+
+`cleanup` is a manual tool for the day you decide to free disk space. It has no default and needs
+`--days N`; it lists the sessions approved at least N days ago and, with `--yes`, deletes their
+audio only (every audio file, the recorder's `raw/*.rec` packet files and Craig zips). Transcripts,
+the timeline, the notes and the recorder's event log stay, and the deleted files are listed in
+`notes/audio-deleted.json`. It deletes every speaker's audio in those sessions, so it is not the
+way to handle a withdrawal.
+
+### A player withdraws
+
+A "no" is handled by hand; there is no switch in the bot. For each session folder in
+`<sessions>\` (`FVTT_SESSIONS_DIR`, default `Documents\FoundrySessions`):
+
+1. Find the player's track. The recorder writes one file per speaker, named
+   `<n>-<discord username>.ogg` (the converted track) and `raw/<n>-<discord username>.rec` (the
+   packets as received). `<n>` is the order in which people first spoke, so it differs per
+   session; the name is the Discord username in lower case, with odd characters turned into `_`.
+   If the name is not clear, `raw/session.json` lists each track with its file, Discord username,
+   display name and user id, and `speakers.json` maps the track name to the player's display name.
+2. Delete both audio files, and `transcripts/json/<name>.json`, the speech to text of that track
+   (the name without the `<n>-` prefix). A Craig zip (`craig-*.zip`), if there is one, holds every
+   speaker's audio in one archive and cannot be split: delete the whole zip.
+3. Edit by hand what quotes them. The merged `timeline/timeline.jsonl` and `timeline.md` mix every
+   speaker in one file, with the speaker name on each line, and the notes (`notes/*.md`,
+   `notes.json`) and the pages already in the Foundry journal and the GM vault retell what they
+   said. The recorder's `raw/events.jsonl` and `raw/session.json` hold the username and user id.
+   There is no tool for this: remove their lines from the timeline and run
+   `python -m session_notes run <session>` again, or edit the notes by hand.
+4. If the Pi still has the session (it was not pulled yet, or less than 7 days ago), delete the
+   same files there, in `/var/lib/foundry-ai-tool/recordings/<session>/`.
+
+The same applies to any copy you made yourself, for example in a backup or a training data set.
 
 ## Speed and cost
 

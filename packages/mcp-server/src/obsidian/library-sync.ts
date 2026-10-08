@@ -637,7 +637,7 @@ export class LibrarySync {
     deadline: number
   ): Promise<RefreshStepResult> {
     const key = packs.join('\n');
-    if (this.run === null || this.run.packsKey !== key) {
+    if (this.run?.packsKey !== key) {
       this.run = {
         packsKey: key,
         packs: [...packs],
@@ -745,7 +745,7 @@ export class LibrarySync {
       const checks: string[] = [];
       for (const row of rows.values()) {
         const note = scan.notes.get(row.uuid);
-        if (!note || !note.path.startsWith(FENCE_PREFIX)) continue;
+        if (!note?.path.startsWith(FENCE_PREFIX)) continue;
         if (!inFolder(note.path, libraryCategory(row).folder)) checks.push(row.uuid);
       }
       run.moveChecks = checks.reverse();
@@ -872,8 +872,7 @@ export class LibrarySync {
         const note = scan.notes.get(row.uuid);
         return (
           force ||
-          !note ||
-          note.sig !== row.sig ||
+          note?.sig !== row.sig ||
           carried.has(row.uuid) ||
           affected(row.uuid) ||
           moves.has(row.uuid)
@@ -1169,7 +1168,7 @@ export class LibrarySync {
     const world = this.world;
     const row = world.rows.get(doc.uuid);
     const notePath = world.paths.get(doc.uuid);
-    if (!row || !notePath || !notePath.startsWith(FENCE_PREFIX)) return false;
+    if (!row || !notePath?.startsWith(FENCE_PREFIX)) return false;
     const lookups = new Set<string>();
     let committed = false;
     deps.owner?.begin(doc.uuid);

@@ -295,7 +295,8 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.combat.reaction',
     how: 'toggle',
-    reach: [MOMENT_DURING],
+    // The R buttons show only with Boss prompts on; the reach click leaves them on for the run.
+    reach: [MOMENT_DURING, 'dash.combat.boss-prompts'],
     changes: true,
     optional: true,
     why: 'only shown with Boss prompts on and a combat',

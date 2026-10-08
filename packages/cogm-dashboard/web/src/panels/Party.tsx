@@ -301,7 +301,7 @@ export function PartyDrawer({
   useEffect(() => {
     if (!open) return;
     usage().trackView('dash.party.view');
-    return () => usage().endView('dash.party.view');
+    return (): void => usage().endView('dash.party.view');
   }, [open]);
 
   // A failed load empties the sections and says why under Members, as on the old page.

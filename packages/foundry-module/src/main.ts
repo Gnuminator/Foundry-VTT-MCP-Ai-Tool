@@ -23,6 +23,7 @@ import { PARTY_FEATURE_ID } from './party-scan.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
 import { TAROKKA_FEATURE_ID, onTarokkaSettingChanged } from './tarokka.js';
+import { logInfo } from './log.js';
 // Connection control now handled through settings menu
 
 /** How long the "MCP server not found" notice stays quiet after it was shown (per browser). */
@@ -77,7 +78,7 @@ class FoundryMCPBridge {
    */
   async initialize(): Promise<void> {
     try {
-      console.log(`[${MODULE_ID}] Initializing Foundry MCP Bridge...`);
+      logInfo(`[${MODULE_ID}] Initializing Foundry MCP Bridge...`);
 
       // Register module settings
       this.settings.registerSettings();
@@ -170,7 +171,7 @@ class FoundryMCPBridge {
       (window as any).foundryMCPBridge.dataAccess = this.queryHandlers.dataAccess;
 
       this.isInitialized = true;
-      console.log(`[${MODULE_ID}] Module initialized successfully`);
+      logInfo(`[${MODULE_ID}] Module initialized successfully`);
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to initialize:`, error);
       trackUsage('error', 'module.error.init', { code: 'init-failed' });
@@ -186,11 +187,11 @@ class FoundryMCPBridge {
     try {
       // SECURITY: silent access gate. GM-only unless allowNonGmAccess is enabled.
       if (!this.isBridgeAllowedForUser()) {
-        console.log(`[${MODULE_ID}] Module ready (user access restricted)`);
+        logInfo(`[${MODULE_ID}] Module ready (user access restricted)`);
         return;
       }
 
-      console.log(`[${MODULE_ID}] Foundry ready, checking bridge status...`);
+      logInfo(`[${MODULE_ID}] Foundry ready, checking bridge status...`);
 
       // Offer the world's GM users in the Bridge User setting.
       this.settings.refreshBridgeUserChoices();
@@ -216,7 +217,7 @@ class FoundryMCPBridge {
       // Auto-build enhanced creature index if enabled and not exists
       await this.checkAndBuildEnhancedIndex();
 
-      console.log(`[${MODULE_ID}] Module ready`);
+      logInfo(`[${MODULE_ID}] Module ready`);
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed during ready:`, error);
     }
@@ -243,7 +244,7 @@ class FoundryMCPBridge {
         const indexExists = browseResult.files.some((f: any) => f.endsWith(indexFilename));
 
         if (!indexExists) {
-          console.log(
+          logInfo(
             `[${MODULE_ID}] Enhanced creature index not found, building automatically for better UX...`
           );
           ui.notifications?.info('Building enhanced creature index for faster searches...');
@@ -253,11 +254,11 @@ class FoundryMCPBridge {
             await this.queryHandlers.dataAccess.rebuildEnhancedCreatureIndex();
           }
         } else {
-          console.log(`[${MODULE_ID}] Enhanced creature index exists, ready for instant searches`);
+          logInfo(`[${MODULE_ID}] Enhanced creature index exists, ready for instant searches`);
         }
       } catch (error) {
         // World directory might not exist yet, that's okay
-        console.log(
+        logInfo(
           `[${MODULE_ID}] Could not check for enhanced index file (world directory may not exist yet)`
         );
       }
@@ -283,12 +284,12 @@ class FoundryMCPBridge {
     // One bridge user holds the link (PB-02). Other GMs skip it quietly.
     const bridgeUserId = this.settings.getSetting('bridgeUserId');
     if (!isBridgeUser(bridgeUserId, game.user?.id)) {
-      console.log(`[${MODULE_ID}] Not the bridge user; this browser does not start the link`);
+      logInfo(`[${MODULE_ID}] Not the bridge user; this browser does not start the link`);
       return;
     }
 
     if (this.socketBridge?.isConnected() || this.isConnecting) {
-      console.log(`[${MODULE_ID}] Bridge already running or connecting`);
+      logInfo(`[${MODULE_ID}] Bridge already running or connecting`);
       return;
     }
 
@@ -303,7 +304,7 @@ class FoundryMCPBridge {
     let dialled = false;
 
     try {
-      console.log(`[${MODULE_ID}] Starting MCP bridge...`);
+      logInfo(`[${MODULE_ID}] Starting MCP bridge...`);
 
       const config = this.settings.getBridgeConfig();
 
@@ -321,7 +322,7 @@ class FoundryMCPBridge {
 
       // Log connection details for debugging
       const connectionInfo = this.socketBridge.getConnectionInfo();
-      console.log(
+      logInfo(
         `[${MODULE_ID}] Bridge started successfully - Type: ${connectionInfo.type}, State: ${connectionInfo.state}`
       );
 
@@ -338,7 +339,7 @@ class FoundryMCPBridge {
       if (this.settings.getSetting('enableNotifications')) {
         ui.notifications.info('🔗 MCP Bridge connected successfully');
       }
-      console.log(
+      logInfo(
         `[${MODULE_ID}] GM connection established - Bridge active for user: ${game.user?.name}`
       );
     } catch (error) {
@@ -375,12 +376,12 @@ class FoundryMCPBridge {
 
   private stopNow(): void {
     if (!this.socketBridge) {
-      console.log(`[${MODULE_ID}] Bridge not running`);
+      logInfo(`[${MODULE_ID}] Bridge not running`);
       return;
     }
 
     try {
-      console.log(`[${MODULE_ID}] Stopping MCP bridge...`);
+      logInfo(`[${MODULE_ID}] Stopping MCP bridge...`);
 
       // Stop heartbeat monitoring
       this.stopHeartbeat();
@@ -394,7 +395,7 @@ class FoundryMCPBridge {
       // Update settings display with disconnected status
       this.settings.updateConnectionStatusDisplay(false, 0);
 
-      console.log(`[${MODULE_ID}] Bridge stopped`);
+      logInfo(`[${MODULE_ID}] Bridge stopped`);
 
       // Show disconnection notification based on user preference
       if (this.settings.getSetting('enableNotifications')) {
@@ -409,7 +410,7 @@ class FoundryMCPBridge {
    * Restart the bridge with current settings
    */
   async restart(): Promise<void> {
-    console.log(`[${MODULE_ID}] Restarting bridge...`);
+    logInfo(`[${MODULE_ID}] Restarting bridge...`);
 
     await this.stop();
 
@@ -451,7 +452,7 @@ class FoundryMCPBridge {
       this.performHeartbeat();
     }, interval);
 
-    console.log(`[${MODULE_ID}] Heartbeat monitoring started (${interval}ms interval)`);
+    logInfo(`[${MODULE_ID}] Heartbeat monitoring started (${interval}ms interval)`);
   }
 
   /**
@@ -461,7 +462,7 @@ class FoundryMCPBridge {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
-      console.log(`[${MODULE_ID}] Heartbeat monitoring stopped`);
+      logInfo(`[${MODULE_ID}] Heartbeat monitoring stopped`);
     }
   }
 
@@ -507,14 +508,14 @@ class FoundryMCPBridge {
    * Cleanup when module is disabled or world is closed
    */
   async cleanup(): Promise<void> {
-    console.log(`[${MODULE_ID}] Cleaning up...`);
+    logInfo(`[${MODULE_ID}] Cleaning up...`);
 
     await this.stop();
     this.queryHandlers.unregisterHandlers();
     unregisterGmHelperQueries();
     this.campaignHooks.unregister();
 
-    console.log(`[${MODULE_ID}] Cleanup complete`);
+    logInfo(`[${MODULE_ID}] Cleanup complete`);
   }
 }
 
@@ -726,10 +727,10 @@ window.addEventListener('beforeunload', () => {
 if (typeof window !== 'undefined') {
   (window as any).foundryMCPDebug = {
     bridge: foundryMCPBridge,
-    getStatus: () => foundryMCPBridge.getStatus(),
-    start: () => foundryMCPBridge.start(),
-    stop: () => foundryMCPBridge.stop(),
-    restart: () => foundryMCPBridge.restart(),
+    getStatus: (): unknown => foundryMCPBridge.getStatus(),
+    start: (): Promise<void> => foundryMCPBridge.start(),
+    stop: (): Promise<void> => foundryMCPBridge.stop(),
+    restart: (): Promise<void> => foundryMCPBridge.restart(),
   };
 }
 

@@ -14,6 +14,7 @@ import {
   type ModuleRequester,
 } from './constants.js';
 import { bridgeHandlers } from './bridge-handlers.js';
+import { logInfo } from './log.js';
 
 export interface BridgeConfig {
   enabled: boolean;
@@ -129,7 +130,7 @@ export class SocketBridge {
         ws = new WebSocket(wsUrl);
         this.ws = ws;
 
-        ws.onopen = () => {
+        ws.onopen = (): void => {
           if (!isCurrent()) return;
           clearTimeout(connectTimeout);
           this.connectionState = CONNECTION_STATES.CONNECTED;
@@ -141,7 +142,7 @@ export class SocketBridge {
           resolve();
         };
 
-        ws.onerror = error => {
+        ws.onerror = (error): void => {
           clearTimeout(connectTimeout);
           if (!isCurrent()) return;
           // Use more informative message for connection failures
@@ -154,7 +155,7 @@ export class SocketBridge {
           reject(new Error('WebSocket connection failed'));
         };
 
-        ws.onclose = event => {
+        ws.onclose = (event): void => {
           clearTimeout(connectTimeout);
           if (!isCurrent()) return;
           this.log(`Disconnected: ${event.reason || 'Connection closed'}`);
@@ -167,7 +168,7 @@ export class SocketBridge {
         };
       } catch (error) {
         clearTimeout(connectTimeout);
-        this.log(`Failed to create WebSocket: ${error}`);
+        this.log(`Failed to create WebSocket: ${String(error)}`);
         this.ws = null;
         this.connectionState = CONNECTION_STATES.DISCONNECTED;
         this.scheduleReconnect();
@@ -197,12 +198,12 @@ export class SocketBridge {
   private setupEventHandlers(): void {
     if (!this.ws) return;
 
-    this.ws.onmessage = event => {
+    this.ws.onmessage = (event): void => {
       try {
         const message = JSON.parse(event.data);
         void this.handleMessage(message);
       } catch (error) {
-        this.log(`Failed to parse message: ${error}`);
+        this.log(`Failed to parse message: ${String(error)}`);
       }
     };
   }
@@ -230,7 +231,7 @@ export class SocketBridge {
       }
     } catch (error) {
       console.error(`[foundry-mcp-bridge] ERROR in handleMessage:`, error);
-      this.log(`Error handling message: ${error}`);
+      this.log(`Error handling message: ${String(error)}`);
     }
   }
 
@@ -438,7 +439,7 @@ export class SocketBridge {
       }
       this.log(`Sent message via ${this.activeConnectionType}: ${message.type}`);
     } catch (error) {
-      this.log(`Failed to send message: ${error}`);
+      this.log(`Failed to send message: ${String(error)}`);
     }
   }
 
@@ -474,7 +475,7 @@ export class SocketBridge {
 
   private log(message: string): void {
     if (this.config.debugLogging) {
-      console.log(`[${MODULE_ID}] Socket Bridge: ${message}`);
+      logInfo(`[${MODULE_ID}] Socket Bridge: ${message}`);
     }
   }
 }

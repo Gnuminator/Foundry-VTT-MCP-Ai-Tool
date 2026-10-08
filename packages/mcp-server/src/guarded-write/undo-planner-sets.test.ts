@@ -152,14 +152,14 @@ beforeEach((): void => {
     changeHistory: {
       humanActions: (): Promise<ChangeAction[]> => Promise.resolve(buildActions(records)),
     },
-    guardedWrites: { createPlan } as never,
+    guardedWrites: { createPlan },
     audit: {
       ring: (): Promise<AuditEntry[]> => Promise.resolve(ring),
       resultsWithDeleted: (_world: string, e: AuditEntry): Promise<GuardedOpResult[]> =>
         Promise.resolve(e.results ?? []),
     },
     worldIds: { current: (): Promise<string> => Promise.resolve('w1') },
-    foundryClient: foundry as never,
+    foundryClient: foundry,
   });
 });
 
@@ -578,7 +578,7 @@ describe('plan, apply, redo with the real service', () => {
     });
     const worldIds = { current: (): Promise<string> => Promise.resolve('curse-of-strahd') };
     const service = new GuardedWriteService({
-      foundryClient: foundry as never,
+      foundryClient: foundry,
       worldIds,
       store,
       audit,
@@ -591,7 +591,7 @@ describe('plan, apply, redo with the real service', () => {
       guardedWrites: service,
       audit,
       worldIds,
-      foundryClient: foundry as never,
+      foundryClient: foundry,
     });
     records.push(hp(1, 10, 5, 'x'));
 

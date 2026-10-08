@@ -48,7 +48,7 @@ function setup(
     debounceMs: opts.debounceMs ?? 1000,
     maxWaitMs: opts.maxWaitMs ?? 5000,
     now: (): number => Date.now(),
-    exportWorld: exportWorld as unknown as ExportFn,
+    exportWorld,
   });
   return { render, exportWorld, calls, logger };
 }

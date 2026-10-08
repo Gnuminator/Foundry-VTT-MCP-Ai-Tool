@@ -322,9 +322,9 @@ describe('searchLinkCandidates', () => {
         ],
       }) as never
     );
-    world.addScene({ id: 's1', name: 'Vallaki Town', uuid: 'Scene.s1' } as never);
-    world.addActor({ id: 'a1', name: 'Baron of Vallaki', uuid: 'Actor.a1' } as never);
-    world.addActor({ id: 'a2', name: 'Someone Else', uuid: 'Actor.a2' } as never);
+    world.addScene({ id: 's1', name: 'Vallaki Town', uuid: 'Scene.s1' });
+    world.addActor({ id: 'a1', name: 'Baron of Vallaki', uuid: 'Actor.a1' });
+    world.addActor({ id: 'a2', name: 'Someone Else', uuid: 'Actor.a2' });
 
     const { candidates } = searchLinkCandidates({ query: 'vallaki' });
     expect(candidates.map(c => [c.documentName, c.uuid])).toEqual([

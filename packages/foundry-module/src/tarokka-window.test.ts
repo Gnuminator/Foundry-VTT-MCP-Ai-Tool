@@ -424,7 +424,7 @@ describe('the window class on a fake ApplicationV2', () => {
         )
       ),
     };
-    setBridgeLink({ isConnected: () => true, request: link.request } as any);
+    setBridgeLink({ isConnected: () => true, request: link.request });
     resetTarokkaWindowForTests();
   });
 

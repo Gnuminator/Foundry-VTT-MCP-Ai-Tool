@@ -220,7 +220,7 @@ export class PlayerVaultService {
     if (typeof client.characterSheet !== 'function') return [];
     try {
       const record = asRecord(await client.characterSheet(userId));
-      if (!record || record.userId !== userId || !Array.isArray(record.sheets)) return null;
+      if (record?.userId !== userId || !Array.isArray(record.sheets)) return null;
       return record.sheets as CharacterSheet[];
     } catch {
       return null;

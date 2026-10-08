@@ -61,13 +61,13 @@ function contentsOf(collection: unknown): unknown[] {
 }
 
 function localize(key: string): string {
-  const i18n = rec(rec(game as unknown)?.i18n);
+  const i18n = rec(rec(game)?.i18n);
   const fn = i18n?.localize;
   return typeof fn === 'function' ? String(fn.call(i18n, key)) : key;
 }
 
 function dnd5eConfig(): Rec | null {
-  return rec(rec(CONFIG as unknown)?.DND5E);
+  return rec(rec(CONFIG)?.DND5E);
 }
 
 // ---------------------------------------------------------------------------
@@ -75,7 +75,7 @@ function dnd5eConfig(): Rec | null {
 // ---------------------------------------------------------------------------
 
 function activeScene(): Rec | null {
-  const scenes = rec(rec(game as unknown)?.scenes);
+  const scenes = rec(rec(game)?.scenes);
   const active = rec(scenes?.active);
   if (active) return active;
   return (
@@ -95,7 +95,7 @@ function sceneById(id: string | null): Rec | null {
 }
 
 function currentCombat(): Rec | null {
-  return rec(rec(game as unknown)?.combat);
+  return rec(rec(game)?.combat);
 }
 
 function combatantsOf(combat: Rec | null): Rec[] {
@@ -249,7 +249,7 @@ function paceOf(group: Rec): PartyPace | null {
 
 function restVariant(): string {
   try {
-    const settings = rec(rec(game as unknown)?.settings);
+    const settings = rec(rec(game)?.settings);
     const get = settings?.get;
     const value: unknown =
       typeof get === 'function' ? get.call(settings, 'dnd5e', 'restVariant') : null;
@@ -354,14 +354,14 @@ function groupOf(
 export function getPartyState(): PartyState {
   const warnings: string[] = [];
   if (!dnd5eConfig()) warnings.push('The dnd5e system is not loaded, so there are no parties.');
-  const actors = rec(rec(game as unknown)?.actors);
+  const actors = rec(rec(game)?.actors);
   const primaryId = str(rec(actors?.party)?.id);
   const combat = currentCombat();
   const scene = tokenScene(combat);
   const groups: PartyGroup[] = [];
   for (const actor of contentsOf(actors)) {
     const a = rec(actor);
-    if (!a || a.type !== 'group') continue;
+    if (a?.type !== 'group') continue;
     try {
       const group = groupOf(a, primaryId, scene, combat);
       if (group) groups.push(group);

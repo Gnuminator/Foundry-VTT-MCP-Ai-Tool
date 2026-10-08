@@ -157,7 +157,7 @@ function viewedScene(): Rec | null {
 
 function canvasFor(scene: Rec): Rec | null {
   const c = rec((globalThis as Rec).canvas);
-  return c && c.ready === true && rec(c.scene)?.id === scene.id ? c : null;
+  return c?.ready === true && rec(c.scene)?.id === scene.id ? c : null;
 }
 
 function tokenRect(token: Rec, size: number): Rect | null {
@@ -249,8 +249,7 @@ export async function planPartyPlacement(data: unknown): Promise<PartyPlacement>
   if (user?.isGM !== true) throw new Error('Only a GM can place the party');
   const actors = rec((game as unknown as Rec).actors) as { get?: (id: string) => unknown } | null;
   const group = rec(actors?.get?.(String(request.groupId ?? '')));
-  if (!group || group.type !== 'group')
-    throw new Error(`No group actor with id "${request.groupId}"`);
+  if (group?.type !== 'group') throw new Error(`No group actor with id "${request.groupId}"`);
   const scene = viewedScene();
   if (!scene) throw new Error('No scene is being viewed: open the scene in Foundry first');
   const grid = scene.grid as GridLike & {

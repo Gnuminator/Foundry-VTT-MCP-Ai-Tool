@@ -79,8 +79,8 @@ beforeEach(() => {
   query = vi.fn(() => Promise.resolve(state()));
   createPlan = vi.fn((input: unknown) => Promise.resolve({ planId: 'p1', input }));
   tools = new PartyTools({
-    foundryClient: { query } as any,
-    guardedWrites: { createPlan } as any,
+    foundryClient: { query },
+    guardedWrites: { createPlan },
     logger: logger(),
   });
 });

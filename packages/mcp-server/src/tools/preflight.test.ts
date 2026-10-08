@@ -62,7 +62,7 @@ function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<ty
         userName: 'Claude',
         moduleVersion: setup.moduleVersion === undefined ? '1.2.3' : setup.moduleVersion,
       }),
-    } as unknown as PreflightToolsOptions['foundryClient'],
+    },
     secretTerms: new SecretTermsService({
       store: {} as never,
       sources: [{ category: 'tarokka-card', terms: () => Promise.resolve(setup.terms ?? []) }],

@@ -77,9 +77,10 @@ function onErrors(queryClient: QueryClient, data: unknown): void {
 /** One handler per event this page uses; each puts the event into the query cache. */
 const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void> = {
   errors: onErrors,
-  status: (queryClient, data) => queryClient.setQueryData(BRIDGE_STATUS_KEY, data as BridgeStatus),
+  status: (queryClient, data) =>
+    queryClient.setQueryData<BridgeStatus>(BRIDGE_STATUS_KEY, data as BridgeStatus),
   settings: (queryClient, data) =>
-    queryClient.setQueryData(SETTINGS_KEY, data as DashboardSettings),
+    queryClient.setQueryData<DashboardSettings>(SETTINGS_KEY, data as DashboardSettings),
 };
 
 /** Opens the stream while the page is open. Mounted once, in App. */

@@ -54,8 +54,8 @@ beforeEach(() => {
   );
   autoApplyEnabled = vi.fn(() => Promise.resolve(false));
   tools = new LivePlayTools({
-    foundryClient: { query } as any,
-    guardedWrites: { createPlan, autoApplyEnabled } as any,
+    foundryClient: { query },
+    guardedWrites: { createPlan, autoApplyEnabled },
     logger: logger(),
   });
 });

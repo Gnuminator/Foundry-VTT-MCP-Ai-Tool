@@ -274,7 +274,7 @@ export class CompendiumTools {
       // Try alternative argument structures that MCP might send
       if (typeof args === 'string') {
         parsedArgs = schema.parse({ query: args });
-      } else if (args && typeof args.query === 'undefined' && typeof args === 'object') {
+      } else if (args && typeof args === 'object' && typeof args.query === 'undefined') {
         // Handle case where arguments might be nested differently
         const firstKey = Object.keys(args)[0];
         if (firstKey && typeof args[firstKey] === 'string') {

@@ -42,7 +42,7 @@ function dnd5eConfig(): Rec | null {
 }
 
 function dnd5eUtils(): Dnd5eUtils {
-  return (rec(dig(globalThis, 'dnd5e', 'utils')) ?? {}) as Dnd5eUtils;
+  return rec(dig(globalThis, 'dnd5e', 'utils')) ?? {};
 }
 
 /** `game.i18n.localize`; `fallback` (default the key) when Foundry has no such string. */

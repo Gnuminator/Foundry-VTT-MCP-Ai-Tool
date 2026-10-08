@@ -510,7 +510,7 @@ describe('DnD5eAdapter', () => {
   // -------------------------------------------------------------------------
   describe('extractCharacterStats()', () => {
     /** Minimal NPC actor data shaped like Foundry's actor.toObject() */
-    function makeNpcActorData(overrides?: Record<string, any>) {
+    function makeNpcActorData(overrides?: Record<string, any>): Record<string, any> {
       return {
         name: 'Goblin Boss',
         type: 'npc',

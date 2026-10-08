@@ -523,7 +523,7 @@ export class FoundryConnector {
   }
 
   async query(method: string, data?: any, options: QueryOptions = {}): Promise<any> {
-    const isConnected = this.foundrySocket && this.foundrySocket.readyState === WebSocket.OPEN;
+    const isConnected = this.foundrySocket?.readyState === WebSocket.OPEN;
 
     if (!isConnected) {
       throw new Error('Not connected to Foundry VTT module');
@@ -572,8 +572,7 @@ export class FoundryConnector {
   sendToFoundry(message: any): void {
     if (
       this.activeConnectionType === 'websocket' &&
-      this.foundrySocket &&
-      this.foundrySocket.readyState === WebSocket.OPEN
+      this.foundrySocket?.readyState === WebSocket.OPEN
     ) {
       this.foundrySocket.send(JSON.stringify(message));
     } else {

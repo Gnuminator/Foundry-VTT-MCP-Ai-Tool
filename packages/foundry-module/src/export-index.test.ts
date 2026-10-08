@@ -124,25 +124,25 @@ function idRows(data?: unknown): ExportIdEntry[] {
 
 function actorRow(response: ExportIndexResponse, id: string): ExportActorEntry {
   const entry = (response.entries as ExportEntry[]).find(e => e.id === id);
-  if (!entry || entry.kind !== 'actor') throw new Error(`no actor entry ${id}`);
+  if (entry?.kind !== 'actor') throw new Error(`no actor entry ${id}`);
   return entry;
 }
 
 function sceneRow(response: ExportIndexResponse, id: string): ExportSceneEntry {
   const entry = (response.entries as ExportEntry[]).find(e => e.id === id);
-  if (!entry || entry.kind !== 'scene') throw new Error(`no scene entry ${id}`);
+  if (entry?.kind !== 'scene') throw new Error(`no scene entry ${id}`);
   return entry;
 }
 
 function journalRow(response: ExportIndexResponse, id: string): ExportJournalEntry {
   const entry = (response.entries as ExportEntry[]).find(e => e.id === id);
-  if (!entry || entry.kind !== 'journal') throw new Error(`no journal entry ${id}`);
+  if (entry?.kind !== 'journal') throw new Error(`no journal entry ${id}`);
   return entry;
 }
 
 function itemRow(response: ExportIndexResponse, id: string): ExportItemEntry {
   const entry = (response.entries as ExportEntry[]).find(e => e.id === id);
-  if (!entry || entry.kind !== 'item') throw new Error(`no item entry ${id}`);
+  if (entry?.kind !== 'item') throw new Error(`no item entry ${id}`);
   return entry;
 }
 
@@ -2041,8 +2041,7 @@ function walk(data: object): ExportIndexResponse[] {
 }
 
 const rank = { actor: 0, scene: 1, journal: 2, item: 3 } as const;
-const rankOf = (e: ExportEntry | ExportIdEntry): number =>
-  rank['kind' in e ? e.kind : 'actor'] as number;
+const rankOf = (e: ExportEntry | ExportIdEntry): number => rank['kind' in e ? e.kind : 'actor'];
 const idOf = (e: ExportEntry | ExportIdEntry): string =>
   'id' in e ? e.id : (e.uuid.split('.').pop() ?? '');
 

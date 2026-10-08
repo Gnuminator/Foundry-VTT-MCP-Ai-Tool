@@ -100,8 +100,8 @@ function processLine(line, entry, cutoffMs) {
     applyRecord(rec, entry, cutoffMs);
     return;
   }
-  // The record's own timestamp is its last "timestamp" key (nested content may hold others).
-  const at = line.lastIndexOf(TS_KEY);
+  // The record's own timestamp comes first; nested content (toolUseResult) follows it.
+  const at = line.indexOf(TS_KEY);
   if (at === -1) return;
   const start = at + TS_KEY.length;
   const end = line.indexOf('"', start);
@@ -229,6 +229,13 @@ export async function scanTranscripts({ projectsDir, slug, state, now = new Date
 
   const sessions = [];
   const messages = new Map();
+  // The newest subagent record per session: a lane whose subagent works is not idle.
+  const subLast = new Map();
+  for (const entry of Object.values(nextFiles)) {
+    if (entry.kind !== 'sub' || !entry.agg.lastTs) continue;
+    const have = subLast.get(entry.agg.sessionId);
+    if (!have || entry.agg.lastTs > have) subLast.set(entry.agg.sessionId, entry.agg.lastTs);
+  }
   for (const [file, entry] of Object.entries(nextFiles)) {
     for (const [id, m] of Object.entries(entry.msgs)) {
       const have = messages.get(id);
@@ -236,7 +243,7 @@ export async function scanTranscripts({ projectsDir, slug, state, now = new Date
         messages.set(id, { ts: m.ts, tokens: m.tokens, sub: m.sub });
     }
     if (entry.kind !== 'main') continue;
-    const agg = { ...entry.agg };
+    const agg = { ...entry.agg, subLastTs: subLast.get(entry.agg.sessionId) || null };
     if (!agg.title) {
       const dir = path.dirname(file);
       const t = await readJson(path.join(dir, agg.sessionId, 'custom-title.json'));

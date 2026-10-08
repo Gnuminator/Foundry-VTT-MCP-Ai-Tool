@@ -213,6 +213,12 @@ test('a busy session file with no activity for 30 minutes is not trusted (pid re
     ]
   );
   assert.equal(rowOf(res, 'fresh').state, 'busy');
+  // A quiet main thread while a subagent works is still busy.
+  const sub = lanes(
+    [agg('sub', { lastTs: min(45), lastRequestTs: min(45), subLastTs: min(2) })],
+    [liveOf('sub', { status: 'busy', updatedAt: NOW.getTime() - 45 * 60000 })]
+  );
+  assert.equal(rowOf(sub, 'sub').state, 'busy');
   assert.equal(rowOf(res, 'crashed').state, 'waiting');
   assert.equal(rowOf(res, 'gone').state, 'stale');
 });

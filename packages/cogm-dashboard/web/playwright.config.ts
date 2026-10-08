@@ -24,7 +24,8 @@ export default defineConfig({
   outputDir: path.join(packageDir, 'test-results'),
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 1 : 0,
+  // No retries: a flaky test fails the run (the trace shows why) instead of passing quietly.
+  retries: 0,
   reporter: process.env.CI
     ? [
         ['list'],

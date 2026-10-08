@@ -43,6 +43,7 @@ import { DashboardPrefsStore, parsePrefsChange } from './dashboard-prefs.js';
 import { THEMES, ThemeStore, isTheme } from './theme.js';
 import { PlayerLogStore } from './player-vault/log-store.js';
 import { PlayerVaultService } from './player-vault/service.js';
+import * as fs from 'fs';
 import * as path from 'path';
 
 /**
@@ -560,8 +561,26 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   );
 
   // The React dashboard (D-109), next to the old pages until the default switches: a static
-  // shell like index.html; its data comes from the same routes, with the same token.
-  app.use('/next', express.static(config.webDir));
+  // shell like index.html; its data comes from the same routes, with the same token. Vite puts a
+  // content hash in every file name under assets/, so those are cached for good; index.html is
+  // checked on every load so a new build shows up at once.
+  if (!fs.existsSync(path.join(config.webDir, 'index.html'))) {
+    logger.warn('The new dashboard is not built: /next/ will not load', { webDir: config.webDir });
+  }
+  app.use(
+    '/next',
+    express.static(config.webDir, {
+      setHeaders: (res, filePath) => {
+        const inAssets = path.relative(path.join(config.webDir, 'assets'), filePath);
+        res.setHeader(
+          'Cache-Control',
+          inAssets.startsWith('..') || path.isAbsolute(inAssets)
+            ? 'no-cache'
+            : 'public, max-age=31536000, immutable'
+        );
+      },
+    })
+  );
 
   // Clean URL for the read-only player view (the static file is also at /player.html).
   // sendFile skips the static hook, so the route sets the page header itself; Express matches

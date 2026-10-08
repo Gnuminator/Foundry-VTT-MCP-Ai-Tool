@@ -15,7 +15,9 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- The usage log (I-084) is the old page's script; it reads data-track on clicks. -->
+    <!-- The usage log (I-084) is the old page's script; it reads data-track on clicks. The same
+         surface as the old page on purpose: the server forces it for GM tokens anyway, and one
+         set of dashboard.* names keeps the counts comparable across the switch. -->
     <script
       src="/usage.js"
       data-usage-endpoint="/api/usage"

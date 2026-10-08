@@ -34,6 +34,8 @@ export default defineConfig({
   build: {
     outDir: fileURLToPath(new URL('../dist/web', import.meta.url)),
     emptyOutDir: true,
+    // Kept on purpose: the repo is public, and readable stack traces in a GM's browser are worth
+    // the few hundred KB on Docker and the Pi.
     sourcemap: true,
   },
   server: {

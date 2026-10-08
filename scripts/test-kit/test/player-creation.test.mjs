@@ -91,7 +91,9 @@ test('judgeSheet: spells off the class spell list are a problem; no list, no che
   assert.match(p[0].what, /not on the wizard spell list/);
   assert.match(p[0].evidence, /1 of 2: Bless/);
   o.spellList = null;
-  assert.deepEqual(judgeSheet(o).problems, []);
+  const v = judgeSheet(o);
+  assert.deepEqual(v.problems, []);
+  assert.ok(v.notes.some(n => /no wizard spell list .*2 spells were not checked/.test(n)));
 });
 
 test('judgeSheet: only spells the class gave are judged; species and feat spells are a note', () => {

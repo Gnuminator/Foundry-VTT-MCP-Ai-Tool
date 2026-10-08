@@ -96,6 +96,35 @@ export function spellListOf(page, classIdentifier) {
 }
 
 /**
+ * Turns Actor Studio's per-user `usage-tracking` off for another user, from the GM page, before that
+ * user joins (kit init only reaches the GM users). A user-scope setting is a Setting document with a
+ * `user` field, so the GM writes the player's document directly; the module's onChange (a confirm
+ * dialog) never runs on the player's page.
+ * @param {import('playwright-core').Page} page  the GM page
+ * @param {string} studio  the module id
+ * @param {string} userName
+ * @returns {Promise<'turned off' | 'already off' | null>}  null: no such user or setting
+ */
+export function turnOffTrackingFor(page, studio, userName) {
+  return page.evaluate(
+    async ({ studio, userName }) => {
+      const key = `${studio}.usage-tracking`;
+      const user = game.users.getName(userName);
+      if (!user || !game.settings.settings.has(key)) return null;
+      const doc = game.settings.storage.get('user').getSetting(key, user.id);
+      if (doc) {
+        if (doc.value === false) return 'already off';
+        await doc.update({ value: 'false' });
+      } else {
+        await CONFIG.Setting.documentClass.create({ key, user: user.id, value: 'false' });
+      }
+      return 'turned off';
+    },
+    { studio, userName }
+  );
+}
+
+/**
  * The checks on one new character. Problems fail the step; notes are only reported.
  * @param {{sheet: Sheet, playerId: string, classIdentifier: string, planned: string[],
  *   spellList: string[] | null, pumpErrors?: string[]}} o
@@ -165,6 +194,10 @@ export function judgeSheet({
         `spells that are not on the ${classIdentifier} spell list`,
         `${off.length} of ${fromClass.length}: ${off.map(s => s.name).join(', ')}`
       );
+  } else if (fromClass.length) {
+    notes.push(
+      `the system has no ${classIdentifier} spell list (dnd5e.registry.spellLists): the class's ${fromClass.length} spells were not checked`
+    );
   }
   if (other.length) {
     notes.push(

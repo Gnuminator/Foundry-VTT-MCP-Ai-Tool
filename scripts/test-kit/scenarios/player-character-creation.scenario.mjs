@@ -4,8 +4,9 @@
  * opens Actor Studio from the Actors tab and builds a level-1 character of the 2024 rules (abilities,
  * species, background, class, the advancement questions, the starting equipment and the spells),
  * then checks the sheet on the GM side: the player owns it, one level of the class, species and
- * background, level-1 hit points, the planned starting equipment on the sheet, every spell on the
- * class's spell list, and no console errors on the player's page.
+ * background, level-1 hit points, the planned starting equipment on the sheet, every spell the
+ * class gave on its spell list (species and feat spells may be off it), and no console errors on
+ * the player's page.
  *
  * What the table must set up for this (the scenario sets it for the run and puts it back):
  * - the Player role needs Foundry's "Create New Actors" permission (Actor Studio refuses without it);
@@ -22,6 +23,7 @@ import {
   playerStudioSettings,
   readSheet,
   spellListOf,
+  turnOffTrackingFor,
 } from '../lib/player-creation.mjs';
 import { loadProfile } from '../lib/profiles.mjs';
 import { chooseHeroes, pickOrigin } from '../lib/studio-compare.mjs';
@@ -30,7 +32,6 @@ import {
   STUDIO_MODULE,
   applyStudioSettings,
   narrowSources,
-  packOfUuid,
   readStudioSettings,
   restorable,
   studioInfo,
@@ -132,6 +133,9 @@ export default {
           }, PLAYER_ROLE);
         }
 
+        // Actor Studio's usage tracking off for the player before it joins (never put back).
+        const tracking = await turnOffTrackingFor(gmPage, STUDIO_MODULE, KIT_PLAYER_USER);
+
         // Actor Studio as the table sets it for session 0, put back after the run.
         const settings = playerStudioSettings(studioSettingsFor(profile), packs, narrowSources);
         const saved = await readStudioSettings(gmPage, Object.keys(settings));
@@ -142,7 +146,7 @@ export default {
         return (
           `${info.title} ${info.version}; Player role ${granted ? 'had' : 'lacked'} Create New Actors` +
           `${granted ? '' : ' (granted for the run)'}; packs ${packs.class}, ${packs.species}, ${packs.background}; ` +
-          `${plan.length} classes to build`
+          `${plan.length} classes to build; usage tracking for ${KIT_PLAYER_USER}: ${tracking ?? 'no setting'}`
         );
       }
     );
@@ -259,8 +263,10 @@ export default {
           });
           for (const n of verdict.notes) t.log(`${c.identifier}: ${n}`);
           t.check(
-            !made.equipment || made.equipment.inventory.length > 0,
-            'the Equipment tab planned no items'
+            made.equipment && made.equipment.inventory.length > 0,
+            made.equipment
+              ? 'the Equipment tab planned no items'
+              : 'the Equipment tab never showed (starting equipment untested)'
           );
           t.check(
             verdict.problems.length === 0,

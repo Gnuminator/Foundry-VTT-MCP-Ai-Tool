@@ -1,0 +1,5 @@
+{
+  "name": "foundry-ai-tool-dev",
+  "owner": { "name": "Gnuminator" },
+  "plugins": [{ "name": "plan-meter", "source": "./" }]
+}

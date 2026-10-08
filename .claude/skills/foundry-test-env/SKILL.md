@@ -83,6 +83,27 @@ After changing code:
 - Backend or dashboard: `npm run build`, then `stop.ps1 -Only bridge` / `-Only dashboard`
   and `start.ps1 -Only ...` again.
 
+## Test server lock
+
+Several sessions share this one test server. Before any live test (starting services, joining the
+world, changing test data) take the lock, and release it when done; if somebody holds it, queue
+instead of testing in parallel. `status.ps1` shows it on the `Lock:` line, and the project
+dashboard shows it too. Use your session title as `-Holder` and your session id as `-Session`.
+
+```
+pwsh scripts/test-env/lock.ps1 status
+pwsh scripts/test-env/lock.ps1 take -Holder "<session title>" -Session <local_id> -Purpose "<text>"
+pwsh scripts/test-env/lock.ps1 release -Session <local_id>     # -Force only for a lock whose holder is gone
+pwsh scripts/test-env/lock.ps1 queue -Holder "<session title>" -Session <local_id> -Purpose "<text>"
+pwsh scripts/test-env/lock.ps1 leave -Session <local_id>       # drop out of the queue
+```
+
+`take` exits 1 and says who holds it when it is taken; the queue head gets the next `take`.
+A crashed session's lock or queue entry (status and the dashboard flag entries older than 4 hours):
+`take -Force` takes over from the holder and skips the queue head, `leave -Session <their id>`
+drops a dead queue entry. A `lock.json` that cannot be read is refused until `take -Force` or
+`release -Force` starts a fresh lock; check with the other sessions first.
+
 ## Next steps
 
 - Testing the AI Tool (calling tools, guarded writes, dashboard, pickers, vault, the M0+M1 smoke

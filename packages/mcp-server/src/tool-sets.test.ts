@@ -117,7 +117,8 @@ describe('toolSetInstructions', () => {
       );
       expect(text.trimEnd().split('\n').pop()).toMatch(/^Answer in the same language/);
     }
-    expect(toolSetInstructions(resolveToolSets('prep'))).not.toContain('the GM writes in');
+    for (const raw of ['all', 'core', 'play', 'prep', 'build', 'admin'])
+      expect(toolSetInstructions(resolveToolSets(raw))).not.toContain('the GM writes in');
   });
 
   it('says nothing about other connectors when serving every set', () => {

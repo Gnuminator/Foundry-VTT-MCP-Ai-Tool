@@ -236,6 +236,7 @@ const LANGUAGE_LINE =
 export function toolSetInstructions(selection: Pick<ToolSetSelection, 'sets' | 'all'>): string {
   const intro =
     'Foundry AI Tool: access to the Foundry VTT game (D&D 5e). Writes go through plan, confirm and undo.';
+  // Serving every set: no other connector to name, so no switch-first text.
   if (selection.all) return `${intro} This connector serves every tool set.\n${LANGUAGE_LINE}`;
   const lines = [intro, 'This connector serves:'];
   for (const set of selection.sets)

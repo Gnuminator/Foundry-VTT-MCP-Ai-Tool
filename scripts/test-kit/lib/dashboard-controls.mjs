@@ -214,6 +214,14 @@ export const DASHBOARD_CONTROLS = [
     why: 'saves hintDismissed for the world; only shown during a session before a layout was picked',
   },
   { name: 'dash.help.during-layouts', how: 'open', reach: [MOMENT_DURING], expect: '#pane-help' },
+  // The "?" app.js adds to each panel heading (help-links.json); the diagnostics one stands for all.
+  {
+    name: 'dash.help.panel',
+    how: 'open',
+    reach: [ADV, 'dash.header.show-diagnostics'],
+    selector: '#pane-diagnostics .help-q',
+    expect: '#pane-help',
+  },
 
   // --- Recent Changes ---
   { name: 'dash.changes.refresh', how: 'read', reach: [MOMENT_DURING], expect: '#changes-body' },

@@ -22,7 +22,9 @@ play.
 | [After each session](after-session.md)                 | A checklist for right after play.                                                     |
 | [When a character dies](death-and-new-characters.md)   | The moment of death, a death log, and bringing in a new character.                    |
 | [Never do this, only do this if](never-and-only-if.md) | Short rules, each with its reason.                                                    |
+| [Game night runbook](game-night-runbook.md)            | One page for the night: what to do when something fails, and when to call for help.   |
 | [Troubleshooting](troubleshooting.md)                  | Symptom, likely cause and fix.                                                        |
+| [Claude Free or Pro](claude-plans.md)                  | What works on the free Claude plan, its limits, and what Pro adds.                    |
 
 What players see and what the tool records about them: [player guide](../player/README.md) and
 the [player cookbook](../player/cookbook.md).

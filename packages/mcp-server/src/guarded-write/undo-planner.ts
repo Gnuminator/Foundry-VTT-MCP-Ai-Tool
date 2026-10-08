@@ -229,12 +229,20 @@ function isOwnStamp(path: string): boolean {
 function aiEvents(
   item: Item,
   results: NonNullable<AuditEntry['results']>,
+  followUps: ReadonlySet<string>,
   out: Collected,
   nextOrder: () => number
 ): void {
   for (const r of results) {
     if (r.kind === 'delete' && r.alreadyGone) {
-      out.notes.push(`Not restored: ${r.name ?? r.uuid} (it was already gone when the undo ran)`);
+      // dnd5e had removed it before the undo's delete ran. When the journal holds that removal
+      // as a follow-up of this change, the follow-up puts it back; otherwise say so (the module
+      // knows no name for a document it never saw).
+      if (!followUps.has(r.uuid)) {
+        out.notes.push(
+          `Not restored: ${r.name ?? `${r.documentName} ${r.uuid}`} (it was already gone when the undo ran)`
+        );
+      }
       continue;
     }
     if (r.kind === 'delete' && !r.deleted) {
@@ -408,7 +416,7 @@ export class UndoPlanner {
     }
     const { ops, resolved } = await this.resolveOps(
       foldEvents(events),
-      justThis,
+      scope,
       justThis && touching.length > 0,
       notes,
       users,
@@ -518,10 +526,16 @@ export class UndoPlanner {
     for (const item of set) {
       if (item.action) recordEvents(item, item.action.records, out, nextOrder);
       else if (item.entry) {
-        aiEvents(item, await this.audit.resultsWithDeleted(worldId, item.entry), out, nextOrder);
         // What Foundry and dnd5e did with the AI change on other things (a combatant gone with
         // its token, the dependents of an ended concentration) comes back with it.
         const followUps = (await this.changeHistory.aiFollowUps?.(item.entry.changeId)) ?? [];
+        aiEvents(
+          item,
+          await this.audit.resultsWithDeleted(worldId, item.entry),
+          new Set(followUps.map(r => r.uuid)),
+          out,
+          nextOrder
+        );
         const before = out.events.length;
         recordEvents(item, followUps, out, nextOrder);
         const added = out.events.length - before;
@@ -542,12 +556,18 @@ export class UndoPlanner {
    */
   private async resolveOps(
     folded: NetChange[],
-    justThis: boolean,
+    scope: UndoScope,
     laterTouches: boolean,
     notes: string[],
     users?: UserNames,
     followUps: ReadonlySet<string> = new Set()
   ): Promise<{ ops: GuardedOp[]; resolved: NetChange[] }> {
+    const justThis = scope === 'just-this';
+    // A follow-up's root (a Combat) is not among the things the set was chosen by, so a later
+    // change to it is not in the set: in `everything-since` its newer values are kept as in
+    // `just-this`. A rewind undoes everything anyway.
+    const keepLater = (uuid: string): boolean =>
+      justThis || (scope === 'everything-since' && followUps.has(uuid));
     // A document inside one that is deleted goes with it.
     const deleted = folded.filter(n => n.kind === 'delete').map(n => n.uuid);
     const net = folded.filter(n => !deleted.some(parent => n.uuid.startsWith(`${parent}.`)));
@@ -605,7 +625,7 @@ export class UndoPlanner {
         if (justThis && changedSince) notes.push(`${who}: later changes to it go with it`);
         keep(change, opOf(change));
       } else {
-        const paths = checkedPaths(change, snap, justThis, notes, users);
+        const paths = checkedPaths(change, snap, keepLater(change.uuid), notes, users);
         if (change.unrecorded.length > 0) {
           const labels = change.unrecorded.map(path => labelOf(path, users) ?? path).join(', ');
           notes.push(`Not recorded, kept: ${who}: ${labels}`);

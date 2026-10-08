@@ -168,6 +168,30 @@ describe('renderEveryoneNote', () => {
     expect(blocks[1].text[0]).toMatch(/^- \*\*19:50\*\* AI · .* \^chg-1$/);
   });
 
+  it('tells who from the summary when a name or summary holds the separator, and a player named AI from the AI', () => {
+    const day: ChangeDay = {
+      date: '2026-10-07',
+      changes: [
+        human({ by: 'Ana · Bo', summary: 'Ireena: HP 10 -> 5 · undone?' }),
+        human({ id: 'act:a2', by: 'AI' }),
+        human({ id: 'act:a3', by: 'AI', isGM: true }),
+        ai({ requestedBy: 'GM (dashboard)' }),
+      ],
+    };
+    const text = renderEveryoneNote('w1', day);
+    expect(text).toContain('Ana &middot; Bo · Ireena: HP 10 -> 5 &middot; undone? ^act-a1');
+    expect(text).toContain(
+      'people:\n  - "AI (GM)"\n  - "AI (player)"\n  - "AI, asked by GM (dashboard)"\n  - "Ana · Bo"'
+    );
+    const blocks = carriedBlocks(text);
+    expect(blocks.map(b => [b.who, b.summary, b.isAi, b.undone])).toEqual([
+      ['Ana · Bo', 'Ireena: HP 10 -> 5 &middot; undone?', false, false],
+      ['AI (player)', 'Ireena: HP 10 -> 5', false, false],
+      ['AI (GM)', 'Ireena: HP 10 -> 5', false, false],
+      ['AI, asked by GM (dashboard)', 'Strahd: HP 50 -> 40', true, false],
+    ]);
+  });
+
   it("names who undid a person's change and when, from the undo entry in the same note", () => {
     const text = renderEveryoneNote('w1', {
       date: '2026-10-07',
@@ -347,6 +371,38 @@ describe('EveryoneNotes', () => {
     expect(text.indexOf('^chg-2')).toBeLessThan(text.indexOf('^chg-1'));
     expect(text).toContain('  - Strahd: effect "Bloodied" added\n- **19:50**');
     expect(checkMarkdownOwnership(text)).toEqual({ owned: true, legacy: false });
+    // The history regroups the lost change under a longer id (its records split from an AI
+    // burst), then under a new id with the same minute and summary: the note holds it once.
+    days[1].changes.push(human({ id: 'act:a1:own' }));
+    await notes.renderNow('w1');
+    text = await note('2026-10-07');
+    expect(text).toContain('^act-a1-own');
+    expect(text).not.toContain('^act-a1\n');
+    expect(text).toContain('changes: 3');
+    days[1].changes[days[1].changes.length - 1] = human({ id: 'act:b7' });
+    await notes.renderNow('w1');
+    text = await note('2026-10-07');
+    expect(text).toContain('^act-b7');
+    expect(text).not.toContain('^act-a1-own');
+    expect(text).toContain('changes: 3');
+    // Someone else made the same change in the same minute: two items, the carried one stays.
+    days[1].changes[days[1].changes.length - 1] = human({ id: 'act:c9', by: 'Ismark' });
+    await notes.renderNow('w1');
+    text = await note('2026-10-07');
+    expect(text).toContain('^act-b7');
+    expect(text).toContain('- **19:42** Ismark · Ireena: HP 10 -> 5 ^act-c9');
+    expect(text).toContain('changes: 4');
+    // The same minute and summary under the AI's name is the attribution changing: held once.
+    days[1].changes[days[1].changes.length - 1] = ai({
+      id: 'chg-9',
+      at: AT,
+      summary: 'Ireena: HP 10 -> 5',
+    });
+    await notes.renderNow('w1');
+    text = await note('2026-10-07');
+    expect(text).toContain('^chg-9');
+    expect(text).not.toContain('^act-b7');
+    expect(text).toContain('changes: 3');
     // A whole day carries nothing over: the history is the truth.
     delete days[1].incompleteBefore;
     days[1].changes = [ai()];

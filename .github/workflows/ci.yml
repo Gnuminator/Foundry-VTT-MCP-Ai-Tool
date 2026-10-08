@@ -79,6 +79,11 @@ jobs:
         # scanner's pure functions (scripts/pi/world-refs.mjs) and bash -n on stage 11.
         run: node --test scripts/pi/world-refs.test.mjs
 
+      - name: Pi Assistant GM
+        # assistant-gm.mjs: the service mode is unchanged, GM script mode takes only a local file and
+        # its dry run holds back every write; bash -n on gm-script.sh (docs/dev/PI-SETUP.md, "GM scripts").
+        run: node --test scripts/pi/assistant-gm.test.mjs
+
       - name: Changelog fragments
         # Each PR adds its CHANGELOG entry as a file in changelog.d/ (D-089); this checks the format.
         run: npm run changelog:check

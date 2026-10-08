@@ -646,6 +646,39 @@ What stage 11 does with it:
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).
 
+## GM scripts
+
+Some world changes need a GM in the browser (a module's own import, a script that places map pins),
+and on the Pi nobody types the Gamemaster's password. `gm-script.sh` runs one GM script in the running
+world as the Assistant GM instead:
+
+- The script is a local file on the Pi (copy it with `scp` first). It is the body of an async
+  function that gets `args` (`args.dryRun`, `args.log(text)`) and returns something JSON can hold.
+  Nothing over the network can start a script: no endpoint, no port, and the bridge and the
+  dashboard cannot trigger it.
+- **Dry run first** (`DRY_RUN=1`): every write is held back (documents, settings, file uploads,
+  new folders) and listed in the log, while reads work, so the script can report what it would
+  change. A script should still check `args.dryRun` itself.
+- `ENABLE_MODULES="id ..."` enables installed modules in the world before the script runs (a dry
+  run only reports it).
+- Every run is logged to the journal: the file, its sha256, dry run or not, the script's log lines
+  and its result. A copy of each script stays in `/var/lib/foundry-ai-tool/gm-scripts`, named by
+  time and sha256. `journalctl -t foundry-ai-tool-gm-script` lists the runs.
+- While the script runs, the Assistant GM service is stopped (one login per user, one Chromium on
+  the Pi) and the script's browser holds the bridge link; the service starts again afterwards, also
+  after a failure.
+- A run that is not a dry run changes the campaign world: a `dietpi-backup 1` snapshot and the
+  user's OK come first (CLAUDE.md, the Pi rule).
+
+```bash
+scp my-script.js foundry-pi:/root/
+cat scripts/pi/remote/lib.sh scripts/pi/remote/gm-script.sh | ssh foundry-pi 'GM_SCRIPT=/root/my-script.js DRY_RUN=1 bash -s'
+cat scripts/pi/remote/lib.sh scripts/pi/remote/gm-script.sh | ssh foundry-pi 'GM_SCRIPT=/root/my-script.js bash -s'
+```
+
+Scripts that hold book or campaign text (room names, pin lists) stay on the PC and the Pi, never in
+this repository.
+
 ## The first load after an update
 
 After a dnd5e or Foundry update, the world migrates in the first GM browser that opens it. On the Pi

@@ -41,6 +41,7 @@ import type { SceneTools } from './tools/scene.js';
 import type { SessionLogTools } from './tools/session-log.js';
 import type { TarokkaTools } from './tools/tarokka.js';
 import type { TokenManipulationTools } from './tools/token-manipulation.js';
+import { type ToolAnnotations, withToolHints } from './tool-hints.js';
 
 /** The tool instances backend.ts constructs and the router dispatches to. */
 export interface ToolRouterDeps {
@@ -203,15 +204,18 @@ export interface ToolDefinitionLike {
   name: string;
   description?: string | undefined;
   inputSchema: unknown;
+  /** MCP tool annotations (tool-hints.ts): title and read/write hints. */
+  annotations?: ToolAnnotations | undefined;
 }
 
 /**
  * Every tool definition, in the order the backend lists them. Pure, like the
  * router, so the tool catalog test can check all tools (picker annotations,
- * one route per tool).
+ * one route per tool, read/write hints). Each tool gets its MCP annotations
+ * from tool-hints.ts.
  */
 export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike[] {
-  return [
+  return withToolHints([
     ...deps.characterTools.getToolDefinitions(),
     ...deps.compendiumTools.getToolDefinitions(),
     ...deps.sceneTools.getToolDefinitions(),
@@ -246,7 +250,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.livePlayTools.getToolDefinitions(),
     ...deps.sceneChangeTools.getToolDefinitions(),
     ...deps.refChoiceTools.getToolDefinitions(),
-  ];
+  ]);
 }
 
 /**

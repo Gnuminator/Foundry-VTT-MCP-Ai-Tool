@@ -30,25 +30,33 @@ to [Join the game](../player/join.md).
 2. In the row **Create Actors**, tick the **Player** column.
 3. Click **Save Configuration**.
 
+![User Permission Configuration with Create Actors ticked for the Player role](../images/guides/user-permissions.png)
+
 Without this, Actor Studio tells a player "User requires the 'Create New Actors' permission".
 
 ## 3. Point Actor Studio at the 2024 Player's Handbook
 
-Settings tab, **Game Settings**, the **Actor Studio** category.
+Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (AI Tool fork)**.
 
-1. **Compendium Sources**, **Select sources**. Tick only the packs of the Player's Handbook module:
+![The Actor Studio category in Game Settings with its Configure buttons](../images/guides/studio-settings.png)
 
-   | Row                                           | Tick                              |
-   | --------------------------------------------- | --------------------------------- |
-   | Species Compendia, Species Features Compendia | Character Origins (PHB)           |
-   | Background Compendia                          | Character Origins (PHB)           |
-   | Class Compendia, Subclass Compendia           | Character Classes (PHB)           |
-   | Spell Compendia                               | Spells (PHB)                      |
-   | Feat Compendia                                | Feats and Character Origins (PHB) |
-   | Equipment Compendia                           | Equipment (PHB)                   |
+1. **Compendium Sources**, **Select sources**. The window opens with **Show Selected Only**
+   ticked, so it lists only the packs already in use: untick it to see them all. Tick only the
+   packs of the Player's Handbook module (their names end in `[dnd-players-handbook]`):
+
+   | Row                                           | Tick              |
+   | --------------------------------------------- | ----------------- |
+   | Species Compendia, Species Features Compendia | Character Origins |
+   | Background Compendia                          | Character Origins |
+   | Class Compendia, Subclass Compendia           | Character Classes |
+   | Spell Compendia                               | Spells            |
+   | Feat Compendia                                | Feats             |
+   | Equipment Compendia                           | Equipment         |
 
    Untick the D&D 5e system's own packs (the older free rules), or every list shows each choice
-   twice. Click **Save**.
+   twice. Click **Save**, then **Yes** when Foundry asks to reload.
+
+   ![Compendium Sources with the Player's Handbook packs ticked in every row](../images/guides/studio-sources.png)
 
 2. **Configure ability scores**: tick the methods you allow (**Allow standard array**, **Allow
    point buy**, **Allow rolling**, **Allow manual input**). Manual input lets a player type any

@@ -33,8 +33,11 @@ heart: each choice in the builder shows its description.
 
 1. In the sidebar on the right, click the **Actors** tab (the person icon).
 2. At the top of that tab, click the **Actor Studio** button (its logo, under **Create Actor**).
-3. The first time, a welcome window opens. Tick **Don't show this message again** and close it,
-   then click the Actor Studio button again.
+
+![The Actors tab with the Actor Studio logo button under Create Actor](../images/guides/studio-button.png)
+
+The first time you log in, an Actor Studio welcome window opens by itself. Tick **Don't show this
+message again** and close it.
 
 The builder window has the tabs **Abilities**, **Species**, **Background** and **Class**, a
 **Character Name** box at the bottom and a bar that says how far you are.
@@ -51,12 +54,17 @@ The builder window has the tabs **Abilities**, **Species**, **Background** and *
 
 Don't add anything for your background yet: the builder asks for that later.
 
+![The Abilities tab with the standard array, Intelligence highest for a wizard](../images/guides/studio-abilities.png)
+
 ## 3. Species
 
 Open the **Species** list and pick one. Its description and traits show below.
 
-Elf and Tiefling appear three times each: one per lineage (for example High, Drow and Wood elf).
-The description under the list says which one you picked.
+![The Species tab with Elf picked; the description shows below the list](../images/guides/studio-species.png)
+
+Some species appear more than once, one entry per lineage: Elf (Drow, High, Wood), Gnome (Forest,
+Rock) and Tiefling (Abyssal, Chthonic, Infernal). The list shows the lineage after the name, for
+example "Elf, High". Pick the one you want.
 
 ## 4. Background
 
@@ -87,15 +95,21 @@ The builder walks through what your species, background and class give you, one 
 picked nothing, and then your character simply misses that choice. Look for text like "Select 1
 more Skill Proficiency": it must be gone before you click Next. **Previous** goes back a step.
 
+![An Advancements step that still says Select 1 more Skill Proficiency](../images/guides/studio-advancement.png)
+
 The steps you will see, roughly in this order:
 
 - **Species traits:** for example a skill to choose (an elf picks Insight, Perception or Survival),
   and a spellcasting ability for species magic.
 - **Background ability scores:** raise the three listed scores: one by 2 and another by 1, or all
-  three by 1. Click **+** under the scores until it says **0 Points Remaining**.
+  three by 1. Click **+** next to the scores until it says **0 Points Remaining**.
+
+  ![The background ability score step at 0 Points Remaining](../images/guides/studio-background-scores.png)
+
 - **Languages, skills and tools** from your background.
 - **The background's feat.** Some feats ask for more choices. Magic Initiate, for example, asks for
-  two cantrips and a level-1 spell: pick them all.
+  a level-1 spell and two cantrips: pick them all. Its spell picker can show the same spell several
+  times, once per book; pick the copy from the 2024 Player's Handbook, or ask the GM.
 - **Class:** hit points, saving throws, **skills to choose** (most classes pick two), weapon and
   armour training, and your level-1 class features.
 
@@ -110,6 +124,8 @@ Next comes the **Equipment** tab.
    green. The bar at the bottom reaches **100% Complete**.
 4. Click **Confirm**.
 
+![The Equipment tab: Starting Gold options on the left, the Planned Inventory on the right, 100% Complete](../images/guides/studio-equipment.png)
+
 ## 9. Spells (spellcasters only)
 
 If your class casts spells at level 1, the **Spells** tab opens. At the top it says how many you
@@ -118,6 +134,8 @@ may pick, for example "Cantrips: 0/3, Spells: 0/6".
 1. Click **[+] Cantrips** to open the list, then the **+** at the right of each cantrip you want.
 2. Do the same under **[+] Level 1**.
 3. When both counters are full, click **Finalize Spells**.
+
+![The Spells tab with the counters Cantrips 0/3 and Spells 0/6 and the cantrip list](../images/guides/studio-spells.png)
 
 Your character sheet opens.
 
@@ -137,7 +155,9 @@ Look over the sheet before you call it done. Ask the GM if anything looks wrong.
 **Prepare your spells.** Classes that prepare spells (for example wizard, cleric, druid) start with
 none prepared. On the **Spells** tab the card at the top says how many you may prepare. Click the
 small button at the right end of a spell's row to prepare it; hover over it to see whether a spell
-is prepared.
+is prepared ("Prepared" or "Not Prepared").
+
+![The Spells tab of the character sheet, the pointer on a spell's prepare button showing Prepared](../images/guides/sheet-prepare-spell.png)
 
 ## 11. Make it your character
 
@@ -147,6 +167,8 @@ Foundry needs to know which character is yours, so it uses it for your rolls and
    Configuration**.
 2. Under **Player Character**, pick your new character.
 3. Click **Save Player Configuration**.
+
+![User Configuration with the new character picked under Player Character](../images/guides/user-config.png)
 
 The Players list now shows your name with the character's name in brackets.
 

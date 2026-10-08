@@ -137,6 +137,159 @@ export async function completeSpellsTab(page, { rotation, log = () => {} }) {
   return { ...counts, names };
 }
 
+/**
+ * One step in the Equipment tab (the 2024 rules' starting equipment, shown when the module's
+ * equipment selection is on), run inside the page. In order: take "Equipment + gold" over the gold
+ * only option for the background and the class (`wealth`), pick an option in an open item picker,
+ * open a picker that has nothing picked yet, pick in a "Choose one..." group, and last press the
+ * footer's Confirm. The module listens for mousedown on the gold options and the footer button,
+ * click on the rest. Picks follow the kit's rotation rule (`index`).
+ * @param {{root: string, wealth: 'equipment'|'gold', index: number}} a
+ * @returns {{did: 'gold'|'pick'|'open'|'choose'|'confirm'|'', what: string}}
+ */
+function equipmentStep({ root, wealth, index }) {
+  const r = document.querySelector(root);
+  if (!r) return { did: '', what: 'the window is closed' };
+  const visible = el => el.offsetParent !== null;
+  const press = (el, type) =>
+    el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true }));
+  const text = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  for (const group of r.querySelectorAll('.gold-section .equipment-group')) {
+    const options = [...group.querySelectorAll('button.option')].filter(visible);
+    if (!options.length || options.some(o => o.classList.contains('selected'))) continue;
+    const want = options.find(o => /equipment/i.test(text(o)) === (wealth === 'equipment'));
+    const target = want ?? options[0];
+    if (target.disabled) continue;
+    press(target, 'mousedown');
+    return { did: 'gold', what: `${text(group.querySelector('.group-label'))}: ${text(target)}` };
+  }
+  const dropdown = [...r.querySelectorAll('.options-dropdown')].find(visible);
+  if (dropdown) {
+    const options = [...dropdown.querySelectorAll('.option')].filter(visible);
+    if (options.length) {
+      const target = options[index % options.length];
+      press(target, 'click');
+      return { did: 'pick', what: text(target) };
+    }
+  }
+  for (const item of r.querySelectorAll('.equipment-config-item')) {
+    const select = item.querySelector('.equipment-select .selected-option');
+    if (select && visible(select) && select.querySelector('.placeholder')) {
+      press(select, 'click');
+      return { did: 'open', what: text(item.querySelector('.name')) };
+    }
+  }
+  for (const group of r.querySelectorAll('.equipment-flow .equipment-group')) {
+    if (!/choose one/i.test(text(group.querySelector('.group-label')))) continue;
+    const options = [...group.querySelectorAll('.equipment-item.option')].filter(
+      o => visible(o) && !o.classList.contains('disabled')
+    );
+    if (!options.length) continue;
+    const target = options[index % options.length];
+    press(target, 'click');
+    return { did: 'choose', what: text(target) };
+  }
+  // An "All of the following" group with an open item: a click opens the picker of "any gaming
+  // set", and takes a plain gold line ("5 GP"), which some groups need before they count as done.
+  // Gold lines come last: a group often marks its gold itself once the rest is picked.
+  const unpicked = [...r.querySelectorAll('.equipment-flow .equipment-group')]
+    .filter(g => /all of the following/i.test(text(g.querySelector('.group-label'))))
+    .flatMap(g => [...g.querySelectorAll('.equipment-item.option')])
+    .filter(
+      o =>
+        visible(o) &&
+        !o.classList.contains('selected') &&
+        !o.classList.contains('disabled') &&
+        !o.hasAttribute('data-kit-clicked')
+    );
+  const gold = o => /^\d+\s*gp$/i.test(text(o));
+  const open = unpicked.find(o => !gold(o));
+  if (open) {
+    open.setAttribute('data-kit-clicked', '1');
+    press(open, 'click');
+    return { did: 'choose', what: text(open) };
+  }
+  const confirm = [...r.querySelectorAll('.footer-container button')].find(
+    b => visible(b) && !b.disabled && /confirm/i.test(text(b))
+  );
+  if (confirm) {
+    press(confirm, 'mousedown');
+    return { did: 'confirm', what: text(confirm) };
+  }
+  const coins = unpicked.find(gold);
+  if (coins) {
+    coins.setAttribute('data-kit-clicked', '1');
+    press(coins, 'click');
+    return { did: 'choose', what: text(coins) };
+  }
+  return { did: '', what: '' };
+}
+
+/**
+ * Answer the Equipment tab: the gold choices, every equipment choice and item picker, then Confirm.
+ * Returns what was picked and the planned inventory the tab showed before Confirm.
+ * @param {import('playwright-core').Page} page
+ * @param {{rotation: number, wealth?: 'equipment'|'gold', timeoutMs?: number, log?: (m: string) => void}} o
+ * @returns {Promise<{picks: string[], inventory: string[]}>}
+ */
+export async function completeEquipmentTab(
+  page,
+  { rotation, wealth = 'equipment', timeoutMs = 90000, log = () => {} }
+) {
+  const end = Date.now() + timeoutMs;
+  const picks = [];
+  let inventory = [];
+  let k = 0;
+  let idle = 0;
+  while (Date.now() < end) {
+    inventory = await page.evaluate(
+      root =>
+        // The rows are icon, name, weight, quantity; the empty table has one "No items selected" cell.
+        [...(document.querySelector(root)?.querySelectorAll('.inventory-table tbody tr') ?? [])]
+          .map(row =>
+            (row.querySelectorAll('td')[1]?.textContent ?? '').replace(/\s+/g, ' ').trim()
+          )
+          .filter(Boolean),
+      STUDIO_ROOT
+    );
+    const step = await page.evaluate(equipmentStep, {
+      root: STUDIO_ROOT,
+      wealth,
+      index: rotation + k,
+    });
+    if (step.did === 'confirm') {
+      log(`equipment: ${picks.length} choices, ${inventory.length} items planned; confirmed`);
+      return { picks, inventory };
+    }
+    if (step.did) {
+      if (step.did !== 'open') picks.push(`${step.did}: ${step.what}`);
+      if (step.did === 'pick' || step.did === 'choose') k += 1;
+      idle = 0;
+    } else if (++idle > 20) {
+      break;
+    }
+    await sleep(step.did ? 700 : 500);
+  }
+  const st = await windowState(page);
+  throw new KitAssertion(
+    `Actor Studio: the Equipment tab did not reach Confirm (picks: ${picks.join('; ') || 'none'}; ` +
+      `footer: ${(st.footer ?? []).map(b => b.label).join(', ')})`
+  );
+}
+
+/** Whether the Equipment tab is the active tab and still open for input. @param {import('playwright-core').Page} page */
+async function equipmentShowing(page) {
+  return page.evaluate(root => {
+    const r = document.querySelector(root);
+    const active = r?.querySelector('.tabs-list button.active');
+    return (
+      !!active &&
+      /equipment/i.test(active.textContent) &&
+      !r.querySelector('.equipment-flow.readonly')
+    );
+  }, STUDIO_ROOT);
+}
+
 /** Whether the Spells tab is showing. @param {import('playwright-core').Page} page */
 async function spellsShowing(page) {
   const st = await windowState(page);
@@ -151,14 +304,23 @@ async function spellsShowing(page) {
  * Wait for the window to finish what it is doing: it closes, answering the Spells tab when that
  * shows. Throws when it stands still too long.
  * @param {import('playwright-core').Page} page
- * @param {{rotation: number, timeoutMs?: number, log?: (m: string) => void}} o
+ * With `equipment`, the Equipment tab is answered when it shows (the module's equipment selection on).
+ * @param {{rotation: number, equipment?: boolean, timeoutMs?: number, log?: (m: string) => void}} o
  */
-export async function finishWindow(page, { rotation, timeoutMs = 240000, log = () => {} }) {
+export async function finishWindow(
+  page,
+  { rotation, equipment = false, timeoutMs = 240000, log = () => {} }
+) {
   const end = Date.now() + timeoutMs;
   let spells = null;
+  /** @type {{picks: string[], inventory: string[]} | null} */
+  let gear = null;
   for (;;) {
     const st = await windowState(page);
-    if (!st.open) return { closed: true, spells };
+    if (!st.open) return { closed: true, spells, equipment: gear };
+    if (equipment && !gear && (await equipmentShowing(page))) {
+      gear = await completeEquipmentTab(page, { rotation, log });
+    }
     if (!spells && (await spellsShowing(page))) {
       spells = await completeSpellsTab(page, { rotation, log });
     }
@@ -181,8 +343,8 @@ export const pumpStatus = page => page.evaluate(studioPump, { op: 'status' });
  * @param {import('playwright-core').Page} page
  * @param {{name: string, classUuid: string, speciesUuid: string, backgroundUuid: string, rotation: number,
  *   featPackIds?: string[], subclassUuid?: string, abilities?: Record<string, number>,
- *   prefer?: Record<string, string[]>, log?: (m: string) => void}} o
- * @returns {Promise<{actorId: string, pump: any, spells: any}>}
+ *   prefer?: Record<string, string[]>, equipment?: boolean, log?: (m: string) => void}} o
+ * @returns {Promise<{actorId: string, pump: any, spells: any, equipment: {picks: string[], inventory: string[]} | null}>}
  */
 export async function createInStudio(page, o) {
   const log = o.log ?? (() => {});
@@ -220,7 +382,7 @@ export async function createInStudio(page, o) {
     what: 'the Create Character button',
     timeoutMs: 20000,
   });
-  const done = await finishWindow(page, { rotation: o.rotation, log });
+  const done = await finishWindow(page, { rotation: o.rotation, equipment: o.equipment, log });
   await sleep(1500);
   const actorId = await page.evaluate(
     ({ before, name }) => {
@@ -230,7 +392,7 @@ export async function createInStudio(page, o) {
     { before, name: o.name }
   );
   if (!actorId) throw new KitAssertion(`Actor Studio: no actor named "${o.name}" after creation`);
-  return { actorId, pump: await pumpStatus(page), spells: done.spells };
+  return { actorId, pump: await pumpStatus(page), spells: done.spells, equipment: done.equipment };
 }
 
 /** Stop the answer pump and return what it picked. @param {import('playwright-core').Page} page */

@@ -124,8 +124,15 @@ describe('tool hints (I-124)', () => {
     }
   });
 
-  it('marks applying, undoing and overwriting as destructive', () => {
-    for (const name of ['apply-planned-change', 'undo-change', 'update-quest-journal']) {
+  it('marks applying, undoing, overwriting and spending as destructive', () => {
+    for (const name of [
+      'apply-planned-change',
+      'undo-change',
+      'update-quest-journal',
+      'use-item',
+      'set-initiative',
+      'manage-rest',
+    ]) {
       expect(toolAnnotations(name)?.destructiveHint, name).toBe(true);
     }
   });

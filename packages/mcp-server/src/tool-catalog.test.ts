@@ -65,7 +65,7 @@ describe('tool catalog', () => {
     // I-124 raised core and prep by 2,000 for the tool hints (title, readOnlyHint, destructiveHint).
     const budget = {
       core: 17_000,
-      play: 30_000,
+      play: 30_000, // about 29,100 with the I-124 hints: close
       prep: 22_000,
       build: 28_000,
       admin: 8_000,

@@ -9,11 +9,14 @@
  *   `plan-*` tools count as reads: a plan only stages a change (it expires
  *   after 15 minutes); `apply-planned-change` makes it, so the prompt stays on
  *   the apply. Opening a sheet on the GM's screen changes nothing either.
- * - `write`: adds to or changes the world, the bridge vault or a log (chat
- *   messages, rolls, combat turns, rests, new documents, a session marker).
- * - `destructive`: can delete something or overwrite stored text: applying a
- *   plan (plans may delete), undo, journal page updates, world item updates,
- *   clearing the error buffer.
+ * - `write`: adds to the world, the bridge vault or a log and changes nothing
+ *   already there beyond moving play along (chat messages, rolls, the combat
+ *   turn, new documents, a session marker).
+ * - `destructive`: can delete something or overwrite stored values (MCP:
+ *   destructiveHint false means additive only): applying a plan (plans may
+ *   delete), undo, using an item (spends charges, can delete a spent
+ *   consumable), setting initiative, rests (reset HP and resources), journal
+ *   page updates, world item updates, clearing the error buffer.
  *
  * `openWorldHint` and `idempotentHint` are left out: I-124 asks for these
  * three, and core and prep sit close to their size budgets.
@@ -67,7 +70,7 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
   'check-secret-terms': { title: 'Check secret terms', kind: 'read' },
   // play
   'switch-scene': { title: 'Switch scene', kind: 'write' },
-  'use-item': { title: 'Use item', kind: 'write' },
+  'use-item': { title: 'Use item', kind: 'destructive' },
   'request-player-rolls': { title: 'Request player rolls', kind: 'write' },
   'request-ability-check': { title: 'Request ability check', kind: 'write' },
   'request-attack-roll': { title: 'Request attack roll', kind: 'write' },
@@ -80,7 +83,7 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
   'get-character-resources': { title: 'Get character resources', kind: 'read' },
   'get-active-effects': { title: 'Get active effects', kind: 'read' },
   'advance-combat-turn': { title: 'Advance combat turn', kind: 'write' },
-  'set-initiative': { title: 'Set initiative', kind: 'write' },
+  'set-initiative': { title: 'Set initiative', kind: 'destructive' },
   'roll-initiative-for-npcs': { title: 'Roll initiative', kind: 'write' },
   'measure-distance': { title: 'Measure distance', kind: 'read' },
   'get-targets': { title: 'Get GM targets', kind: 'read' },
@@ -89,7 +92,7 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
   'plan-token-change': { title: 'Plan token change', kind: 'read' },
   'roll-saving-throws': { title: 'Roll NPC saving throws', kind: 'write' },
   'use-npc-activity': { title: 'Use NPC attack or activity', kind: 'write' },
-  'manage-rest': { title: 'Run a rest', kind: 'write' },
+  'manage-rest': { title: 'Run a rest', kind: 'destructive' },
   'get-party': { title: 'Get party', kind: 'read' },
   'plan-party-change': { title: 'Plan party change', kind: 'read' },
   'plan-scene-change': { title: 'Plan scene dressing', kind: 'read' },

@@ -287,7 +287,7 @@ Parameters:
 
 Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry VTT for the GM to configure options and confirm. Optionally specify targets by name. Returns immediately with status "initiated" - tell the user to check Foundry for any dialogs. Use get-character or search-character-items first to see available items/spells.
 
-Kind: changes something. Title: Use item.
+Kind: changes something and can delete or overwrite. Title: Use item.
 
 Parameters:
 
@@ -439,7 +439,7 @@ Parameters:
 
 Set or override a combatant's initiative value in the active combat.
 
-Kind: changes something. Title: Set initiative.
+Kind: changes something and can delete or overwrite. Title: Set initiative.
 
 Parameters:
 
@@ -573,7 +573,7 @@ Parameters:
 
 Run a short or long rest for one or more characters, restoring HP, hit dice, spell slots, and limited-use features per 5e rules, without opening dialogs. D&D 5e only.
 
-Kind: changes something. Title: Run a rest.
+Kind: changes something and can delete or overwrite. Title: Run a rest.
 
 Parameters:
 

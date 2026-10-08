@@ -36,6 +36,13 @@ export interface BridgeStatus {
 
 export const BRIDGE_STATUS_KEY = ['stream', 'status'] as const;
 
+/** The dashboard's own settings (app.ts settingsPayload, GM only); fields the page uses so far. */
+export interface DashboardSettings {
+  gmActionsEnabled: boolean;
+}
+
+export const SETTINGS_KEY = ['stream', 'settings'] as const;
+
 /** The old page keeps 150 entries on screen; the server keeps the newest 100. */
 export const MAX_ERROR_ENTRIES = 150;
 
@@ -71,6 +78,8 @@ function onErrors(queryClient: QueryClient, data: unknown): void {
 const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void> = {
   errors: onErrors,
   status: (queryClient, data) => queryClient.setQueryData(BRIDGE_STATUS_KEY, data as BridgeStatus),
+  settings: (queryClient, data) =>
+    queryClient.setQueryData(SETTINGS_KEY, data as DashboardSettings),
 };
 
 /** Opens the stream while the page is open. Mounted once, in App. */
@@ -114,6 +123,18 @@ export function useBridgeStatus(): BridgeStatus | undefined {
   const { data } = useQuery({
     queryKey: BRIDGE_STATUS_KEY,
     queryFn: () => queryClient.getQueryData<BridgeStatus>(BRIDGE_STATUS_KEY) ?? null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data ?? undefined;
+}
+
+/** The dashboard settings as the stream last sent them; undefined until the first one. */
+export function useDashboardSettings(): DashboardSettings | undefined {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: SETTINGS_KEY,
+    queryFn: () => queryClient.getQueryData<DashboardSettings>(SETTINGS_KEY) ?? null,
     staleTime: Infinity,
     gcTime: Infinity,
   });

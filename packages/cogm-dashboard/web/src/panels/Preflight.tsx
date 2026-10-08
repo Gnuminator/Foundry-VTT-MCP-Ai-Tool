@@ -9,6 +9,7 @@ import { Drawer, DrawerClose } from '../components/Drawer';
 import { api, errorText } from '../lib/api';
 import { useBridgeStatus } from '../lib/stream';
 import { usage } from '../lib/usage';
+import { ReadyBlock } from './ReadyForSession';
 
 type CheckStatus = 'ok' | 'warn' | 'fail' | 'info' | 'unknown';
 
@@ -244,6 +245,7 @@ export function PreflightDrawer({
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
   const result = usePreflightResult();
+  const queryClient = useQueryClient();
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [ticks, setTicks] = useState(readTicks);
@@ -337,6 +339,17 @@ export function PreflightDrawer({
       }
     >
       {summary}
+      <ReadyBlock
+        onChanged={() => {
+          // A quiet run, as when Foundry comes back: the row follows, a failure changes nothing.
+          // Read at settle time: a run may have finished while the switches call was out.
+          if (queryClient.getQueryData(PREFLIGHT_KEY)) {
+            queryClient
+              .fetchQuery({ queryKey: PREFLIGHT_KEY, queryFn: fetchPreflight, staleTime: 0 })
+              .catch(() => undefined);
+          }
+        }}
+      />
       <h3 className="preflight-h">Checked by the tool</h3>
       <ul className="preflight-list" aria-label="Checked by the tool">
         {runError !== null ? (

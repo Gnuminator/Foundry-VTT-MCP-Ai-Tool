@@ -938,6 +938,8 @@ export class ChangeHistory {
         }
       });
     }
+    // A day's cut made while the files were read: the actions it went through go too.
+    for (const id of (await this.journalCutActions?.(worldId)) ?? []) index.dropped.add(id);
     const kept: ChangeRecord[] = [];
     for (let i = first; i < out.length; i += 1) {
       const r = out[i];

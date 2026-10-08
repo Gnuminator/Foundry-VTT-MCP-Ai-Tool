@@ -662,7 +662,8 @@ describe('ChangeHistory.list', () => {
       pullNow?: (() => Promise<void>) | null;
       journalStart?: number;
       maxChars?: number;
-      cutActions?: string[];
+      /** What each read of the journal's cut actions returns (the last one repeats). */
+      cutActions?: string[][];
     } = {}
   ): ChangeHistory {
     const pull = extra.pullNow === null ? undefined : (extra.pullNow ?? pullNow);
@@ -681,8 +682,10 @@ describe('ChangeHistory.list', () => {
       ...(extra.maxChars !== undefined ? { maxChars: extra.maxChars } : {}),
       ...(extra.cutActions
         ? {
-            journalCutActions: (): Promise<ReadonlySet<string>> =>
-              Promise.resolve(new Set(extra.cutActions)),
+            journalCutActions: (): Promise<ReadonlySet<string>> => {
+              const reads = extra.cutActions!;
+              return Promise.resolve(new Set(reads.length > 1 ? reads.shift() : reads[0]));
+            },
           }
         : {}),
       now: () => NOW,
@@ -779,9 +782,13 @@ describe('ChangeHistory.list', () => {
     expect(await history.historyStart()).toBe(at(7) + 1);
 
     // The actions the journal's day cap cut through are left out whole.
-    const cut = makeHistory({ cutActions: ['mid'] });
+    const cut = makeHistory({ cutActions: [['mid']] });
     expect((await cut.list()).changes.map(c => c.id)).toEqual(['act:last', 'act:bulk', 'act:s0']);
     expect(await cut.historyStart()).toBe(mid.t + 1);
+    // A cut made while the files were being read counts too.
+    const during = makeHistory({ cutActions: [[], ['bulk']] });
+    expect((await during.list()).changes.map(c => c.id)).toEqual(['act:last', 'act:mid', 'act:s0']);
+    expect(await during.historyStart()).toBe(bulk[3].t + 1);
   });
 
   it('leaves out the whole action when a live append takes the history over its cap', async () => {

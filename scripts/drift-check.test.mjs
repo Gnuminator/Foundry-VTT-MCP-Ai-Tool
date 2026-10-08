@@ -1,6 +1,6 @@
 /**
- * scripts/drift-check.mjs: trial-merges the newest main, runs the guards on the result and puts
- * the branch back. Runs against throwaway git repos (a bare "origin" and a clone) with stand-in
+ * scripts/drift-check.mjs: trial-merges the newest main in a throwaway worktree, runs the guards
+ * there and removes it. Runs against throwaway git repos (a bare "origin" and a clone) with stand-in
  * guards, so no real guard and no network is involved.
  */
 import { test } from 'node:test';
@@ -34,16 +34,21 @@ function commit(dir, file, text, message) {
 
 /** A bare origin with main, a clone on branch "lane", and a second clone that pushes to main. */
 function repos() {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'drift-check-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'drift-test-'));
   const origin = path.join(tmp, 'origin.git');
   const lane = path.join(tmp, 'lane');
   const other = path.join(tmp, 'other');
   git(tmp, 'init', '-q', '--bare', '-b', 'main', origin);
   git(tmp, 'clone', '-q', origin, lane);
   commit(lane, 'shared.txt', 'base\n', 'base');
+  commit(lane, '.gitignore', 'node_modules/\n', 'ignore node_modules');
   git(lane, 'push', '-q', 'origin', 'HEAD:main');
+  git(lane, 'config', 'branch.main.remote', 'origin');
   git(lane, 'checkout', '-q', '-b', 'lane');
   commit(lane, 'lane.txt', 'lane work\n', 'lane work');
+  // An untracked node_modules the throwaway worktree borrows (a junction) and must not delete.
+  fs.mkdirSync(path.join(lane, 'node_modules'));
+  fs.writeFileSync(path.join(lane, 'node_modules', 'marker.txt'), 'installed\n');
   git(tmp, 'clone', '-q', origin, other);
   return { tmp, lane, other };
 }
@@ -56,17 +61,25 @@ function run(cwd, checks) {
 }
 
 const passes = name => ({ name, command: 'node -e "process.exit(0)"' });
-/** A guard that passes only when main's new file is in the tree (so it ran on the merge). */
+/** A guard that passes only on the merge (main's new file) with the borrowed node_modules. */
 const seesMain = {
   name: 'sees main',
-  command: "node -e \"process.exit(require('fs').existsSync('main.txt') ? 0 : 3)\"",
+  command:
+    "node -e \"const f = require('fs'); process.exit(f.existsSync('main.txt') && f.existsSync('node_modules/marker.txt') ? 0 : 3)\"",
 };
 
-/** HEAD, a clean tree and no merge in progress: the branch is exactly as before. */
+/** The lane is untouched: same HEAD, clean, no merge, no extra worktree, node_modules intact. */
 function assertRestored(lane, head) {
   assert.equal(git(lane, 'rev-parse', 'HEAD'), head);
   assert.equal(git(lane, 'status', '--porcelain'), '');
   assert.equal(fs.existsSync(path.join(lane, '.git', 'MERGE_HEAD')), false);
+  assert.equal(git(lane, 'worktree', 'list').split('\n').length, 1, 'the worktree is removed');
+  assert.equal(fs.existsSync(path.join(lane, 'main.txt')), false, 'main never reaches the lane');
+  assert.equal(
+    fs.readFileSync(path.join(lane, 'node_modules', 'marker.txt'), 'utf8'),
+    'installed\n',
+    'node_modules survives the cleanup'
+  );
 }
 
 test('a branch that already has main runs the guards as is', () => {
@@ -81,7 +94,7 @@ test('a branch that already has main runs the guards as is', () => {
   }
 });
 
-test('a newer main is merged for the guards, then the merge is undone', () => {
+test('a newer main is merged for the guards, in a throwaway worktree, and the lane is untouched', () => {
   const { tmp, lane, other } = repos();
   try {
     commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
@@ -97,7 +110,7 @@ test('a newer main is merged for the guards, then the merge is undone', () => {
   }
 });
 
-test('a guard that fails only with main merged in fails the check, and the merge is undone', () => {
+test('a guard that fails only with main merged in fails the check, and the lane is untouched', () => {
   const { tmp, lane, other } = repos();
   try {
     commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
@@ -148,13 +161,51 @@ test('uncommitted changes are refused before anything is fetched or merged', () 
   }
 });
 
-test('the remote is --remote, else the remote local main tracks, else origin', () => {
+test('the remote is --remote, else what local main tracks, else aitool, else none', () => {
   const { tmp, lane } = repos();
   try {
-    assert.equal(pickRemote(lane, 'aitool'), 'aitool');
-    assert.equal(pickRemote(lane, undefined), 'origin');
-    git(lane, 'config', 'branch.main.remote', 'aitool');
+    assert.equal(pickRemote(lane, 'upstream'), 'upstream');
+    assert.equal(pickRemote(lane, undefined), 'origin', 'local main tracks origin here');
+    git(lane, 'config', '--unset', 'branch.main.remote');
+    assert.equal(pickRemote(lane, undefined), null, 'origin is never guessed');
+    git(lane, 'remote', 'add', 'aitool', 'https://example.invalid/x.git');
     assert.equal(pickRemote(lane, undefined), 'aitool');
+    git(lane, 'remote', 'remove', 'aitool');
+    git(lane, 'remote', 'add', 'gh', 'https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git');
+    assert.equal(pickRemote(lane, undefined), 'gh', 'a remote whose URL is this repository');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('no remote for main stops before anything is merged', () => {
+  const { tmp, lane } = repos();
+  try {
+    git(lane, 'config', '--unset', 'branch.main.remote');
+    const { code, out } = run(lane, [passes('never')]);
+    assert.equal(code, 2);
+    assert.match(out, /no remote for this repository found; pass --remote NAME/);
+    assert.doesNotMatch(out, /never/);
+    const named = runDriftCheck({ cwd: lane, remote: 'missing', checks: [], log: () => {} });
+    assert.equal(named, 2, 'a --remote that does not exist fails the fetch');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a worktree a killed run left behind is removed, and its node_modules target kept', () => {
+  const { tmp, lane, other } = repos();
+  try {
+    commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const stale = path.join(tmp, 'drift-check-stale');
+    git(lane, 'worktree', 'add', '-q', '--detach', stale, 'HEAD');
+    fs.symlinkSync(path.join(lane, 'node_modules'), path.join(stale, 'node_modules'), 'junction');
+    const head = git(lane, 'rev-parse', 'HEAD');
+    const { code, out } = run(lane, [seesMain]);
+    assert.equal(code, 0, out);
+    assert.equal(fs.existsSync(stale), false, 'the stale worktree is gone');
+    assertRestored(lane, head);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

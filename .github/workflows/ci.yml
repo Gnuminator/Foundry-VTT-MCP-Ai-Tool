@@ -63,6 +63,11 @@ jobs:
         # one line per forced alert.
         run: node --test .claude/hooks/start-alerts.test.mjs
 
+      - name: Drift check script
+        # scripts/drift-check.mjs, which lanes run before "PR ready": trial merge of main, guards,
+        # undo; against throwaway git repos.
+        run: node --test scripts/drift-check.test.mjs
+
       - name: Pi space check
         # The storage space check (stage 10, the nightly backup's pre-check, scripts/pi/space-check.ps1):
         # bash -n on the stage scripts, the checker's JSON against a fake df, the PC helper's levels

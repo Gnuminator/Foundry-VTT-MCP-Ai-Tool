@@ -80,6 +80,11 @@ After changing code:
 
 - Module: `pwsh scripts/test-env/sync-module.ps1` (builds and copies), then reload
   `http://localhost:30001/game` in the pane (the session stays logged in).
+- Module, sync on save: `pwsh scripts/test-env/sync-module.ps1 -Watch -Session <local_id>` (start
+  it with `run_in_background`). It runs the module's TypeScript build in watch mode and copies the
+  module after every build change, but only while that session holds the test server lock; without
+  the lock it prints who holds it and copies the waiting change once you hold it. It never takes
+  the lock. `-NoBuild` watches a build you run yourself. Stop it when your test is done.
 - Backend or dashboard: `npm run build`, then `stop.ps1 -Only bridge` / `-Only dashboard`
   and `start.ps1 -Only ...` again.
 

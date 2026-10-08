@@ -817,8 +817,8 @@ export class ChangeHistory {
   /**
    * True when the history left out records of this AI change (a size cap, a day's cut, the
    * journal start), or holds none of them although the change (`at`, epoch ms) is inside the span
-   * and the journal is on (the journal lost them: a day's cut read after a restart, retention, a
-   * buffer wrap): what Foundry and dnd5e did with it (`aiFollowUps`) may be missing.
+   * but before the history start and the journal is on (the journal lost them before that start):
+   * what Foundry and dnd5e did with it (`aiFollowUps`) may be missing.
    */
   async changeLeftOut(changeId: string, at?: number): Promise<boolean> {
     const worldId = await this.worldIds.current();

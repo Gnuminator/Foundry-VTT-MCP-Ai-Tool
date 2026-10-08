@@ -104,7 +104,20 @@ describe('toolSetInstructions', () => {
     expect(text).toContain('switch on');
     for (const set of ['core', 'play', 'build', 'admin'] as const)
       expect(text).toContain(`- ${TOOL_SETS[set].title}:`);
-    expect(text).toContain('do not work around it');
+    expect(text).toContain('first say which set to switch on, before looking anything up');
+    expect(text).toContain('some may be on already');
+    expect(text).toContain('Do not stand in for it');
+  });
+
+  it('puts the v4a language line in every connector (D-114)', () => {
+    for (const raw of ['all', 'core', 'play', 'prep', 'build', 'admin']) {
+      const text = toolSetInstructions(resolveToolSets(raw));
+      expect(text).toContain(
+        "Answer in the same language as the user's latest message: English gets English, Danish gets Danish (not Norwegian or Swedish). Keep the English game terms (attack, saving throw, hit points, token)."
+      );
+      expect(text.trimEnd().split('\n').pop()).toMatch(/^Answer in the same language/);
+    }
+    expect(toolSetInstructions(resolveToolSets('prep'))).not.toContain('the GM writes in');
   });
 
   it('says nothing about other connectors when serving every set', () => {

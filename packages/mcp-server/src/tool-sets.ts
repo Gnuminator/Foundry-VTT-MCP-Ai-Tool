@@ -221,6 +221,14 @@ export function filterToolsBySets<T extends { name: string }>(
 }
 
 /**
+ * Reply-language line for every connector's instructions (D-114, the tool-pick
+ * test's v4a wording). Naming both languages keeps Danish replies out of
+ * Norwegian and Swedish without turning English requests into Danish ones.
+ */
+const LANGUAGE_LINE =
+  "Answer in the same language as the user's latest message: English gets English, Danish gets Danish (not Norwegian or Swedish). Keep the English game terms (attack, saving throw, hit points, token).";
+
+/**
  * The MCP `instructions` for a wrapper serving part of the tools: which sets
  * this connector holds and which other connectors hold the rest, so Claude can
  * tell the GM which switch to turn on instead of guessing with the wrong tool.
@@ -228,19 +236,20 @@ export function filterToolsBySets<T extends { name: string }>(
 export function toolSetInstructions(selection: Pick<ToolSetSelection, 'sets' | 'all'>): string {
   const intro =
     'Foundry AI Tool: access to the Foundry VTT game (D&D 5e). Writes go through plan, confirm and undo.';
-  if (selection.all) return `${intro} This connector serves every tool set.`;
+  if (selection.all) return `${intro} This connector serves every tool set.\n${LANGUAGE_LINE}`;
   const lines = [intro, 'This connector serves:'];
   for (const set of selection.sets)
     lines.push(`- ${TOOL_SETS[set].title}: ${TOOL_SETS[set].purpose}`);
   const others = TOOL_SET_NAMES.filter(set => !selection.sets.includes(set));
   if (others.length > 0) {
     lines.push(
-      'Other Foundry AI Tool connectors, which the GM can switch on in this chat (Search and tools menu):'
+      'Other Foundry AI Tool sets (each is its own connector; the GM switches them on in the Search and tools menu, and some may be on already):'
     );
     for (const set of others) lines.push(`- ${TOOL_SETS[set].title}: ${TOOL_SETS[set].purpose}`);
     lines.push(
-      'If a request needs a tool from a set that is switched off, say which set to switch on; do not work around it with other tools.'
+      'If a request needs a tool that is not in your tool list, first say which set to switch on, before looking anything up. Do not stand in for it with other tools; after naming the set you may offer what the sets that are on can show.'
     );
   }
+  lines.push(LANGUAGE_LINE);
   return lines.join('\n');
 }

@@ -62,7 +62,7 @@ export class CombatTools {
       {
         name: 'roll-initiative-for-npcs',
         description:
-          'Roll initiative for combatants in the active combat and populate the tracker. scope "npcs" (default) rolls for non-player combatants, "all" rolls for everyone, "missing" only rolls for combatants without an initiative value. Pass combatantIds to roll separate initiative for exactly those combatants (overrides scope).',
+          'Roll initiative for combatants in the active combat and populate the tracker. scope "npcs" (default) rolls for non-player combatants, "all" rolls for everyone, "missing" only rolls for combatants without an initiative value. Pass combatantIds to roll separate initiative for exactly those combatants (overrides scope). Use this for "roll initiative for the monsters" (the enemies, the goblins; Danish "monstrene"): those words mean the NPC combatants, not a name.',
         inputSchema: {
           type: 'object',
           properties: {

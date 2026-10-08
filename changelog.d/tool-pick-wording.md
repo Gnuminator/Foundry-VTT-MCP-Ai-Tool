@@ -1,0 +1,3 @@
+### MCP server (D-114)
+
+- **Tool wording from the tool-pick test:** every connector's instructions now tell Claude to answer in the language of the latest message (English gets English, Danish gets Danish, not Norwegian or Swedish) and, when a request needs a tool that is not in its list, to name the set to switch on before looking anything up. `roll-initiative-for-npcs` says that "the monsters" are the NPC combatants, not a name, and `plan-actor-change` says it does not level up characters. In the test, wrong-language replies to Danish requests went from 27 of 74 (Haiku) and 21 of 137 (Sonnet) to 0, and switch tests went from 65 to 68 of 68 (Haiku) with no loss in tool pick.

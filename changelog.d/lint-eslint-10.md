@@ -9,7 +9,7 @@
   a value was stringified). In tests, `@vitest/eslint-plugin`'s `unbound-method` replaces the
   typescript-eslint one, since `expect(mock.method)` is not an unbound call. The other new
   findings (stricter nullish checks, return types, preserve-caught-error and a few more) are
-  warnings the lint ratchet counts; the baseline goes from 5999 to 6463.
+  warnings the lint ratchet counts; the baseline goes from 5999 to 6464.
 - **Deliberate follow-ups for the lint zero sweep:** `reportUnusedDisableDirectives` is off,
   `no-unused-vars` has `caughtErrors: 'none'`, and the dashboard's React code has only the two
   classic hook rules (rules-of-hooks, exhaustive-deps). Each is switched on once its hits are

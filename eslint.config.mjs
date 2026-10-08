@@ -11,6 +11,9 @@ import { defineConfig } from 'eslint/config';
 export default defineConfig(
   {
     ignores: [
+      // ESLint 8 skipped dot-folders by default, flat config does not: without this,
+      // `eslint .` also lints sibling worktrees under `.claude/worktrees/`.
+      '**/.*/**',
       '**/dist/**',
       '**/build/**',
       '**/node_modules/**',

@@ -50,6 +50,8 @@ const PARTY_GROUP = 'Kit Party';
 const FLOW_FEATURES = ['tarokka', 'handouts', 'party'];
 /** The switches this run turns on itself: a refusal that names one of them fails the flow. */
 const RUN_SWITCHES = [...FLOW_FEATURES, 'GM Actions'];
+/** The most undos the put-back makes (a guard against a change that never leaves the list). */
+const PUT_BACK_CAP = 50;
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
@@ -247,8 +249,13 @@ export default {
         .filter(([, on]) => !on)
         .map(([id]) => id);
       t.cleanup(async () => {
-        for (const change of await changesSince(startedAt)) {
-          if (!keep.has(change.changeId)) await t.guarded.undo(change.changeId);
+        // The list is read again after each undo: undoing a change can make an older one undoable
+        // again (a failed flow leaves an undo live that hid the change before it).
+        for (let i = 0; i < PUT_BACK_CAP; i++) {
+          const change = (await changesSince(startedAt)).find(c => !keep.has(c.changeId));
+          if (!change) break;
+          await t.guarded.undo(change.changeId);
+          keep.add(change.changeId);
         }
         for (const fn of late.reverse()) await fn();
       });

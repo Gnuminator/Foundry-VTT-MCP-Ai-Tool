@@ -8,7 +8,7 @@
  * Operations" is on and the `session-notes` switch is on. Every put is a guarded change (Recent
  * Changes, Live Feed, Undo); its Undo refuses when the GM edited a page or the Recap was already
  * revealed. The Recap page is queued for reveal; revealing it stays the GM's (destructive,
- * confirmed) action and marks the session approved, which starts the audio clock (D-072).
+ * confirmed) action and marks the session approved (the audio is kept, D-097).
  */
 import { MODULE_ID, type GuardedOp, type OpSnapshot } from '@gnuminator/shared';
 
@@ -278,7 +278,7 @@ export class SessionNotesService {
     return this.exclusivePut(() => this.putNow(worldId, sessionId, false));
   }
 
-  /** `approve` (dashboard): "Approve without revealing" starts the audio clock too. */
+  /** `approve` (dashboard): "Approve without revealing" marks it approved too. */
   async approve(params: Record<string, unknown>): Promise<NotesItem> {
     const sessionId = assertSessionId(params.sessionId);
     const worldId = await this.currentWorld();

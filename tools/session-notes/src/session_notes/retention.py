@@ -1,10 +1,15 @@
-"""Audio retention (D-072): recorded audio is deleted 14 days after the GM approves the notes.
+"""Approval marker, and a manual audio cleanup (D-097): recorded audio is kept.
 
 ``approve`` marks a session's notes as approved (``notes/approved.json``); the later journal
-reveal flow for the player recap writes the same marker. ``cleanup`` finds sessions whose
-approval is older than the retention period and deletes their audio only: every audio file and
-the recorder's raw packet files. Transcripts, the timeline and the notes stay. What was deleted
-is written to ``notes/audio-deleted.json``. Nothing is deleted without ``apply=True``.
+reveal flow for the player recap writes the same marker. Approval does not start a deletion
+clock: the players agreed in writing that the recordings are kept (as training data) until
+someone asks for theirs to be deleted. Nothing calls ``cleanup`` automatically.
+
+``cleanup`` is a manual tool for the day the user decides to free disk space. It needs an
+explicit number of days, finds sessions approved at least that long ago and deletes their audio
+only: every audio file and the recorder's raw packet files. Transcripts, the timeline and the
+notes stay. What was deleted is written to ``notes/audio-deleted.json``. Nothing is deleted
+without ``apply=True``.
 """
 
 from __future__ import annotations
@@ -14,7 +19,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-RETENTION_DAYS = 14
 AUDIO_SUFFIXES = frozenset(
     {".wav", ".flac", ".ogg", ".oga", ".opus", ".mp3", ".m4a", ".aac", ".wma", ".rec", ".webm"}
 )
@@ -72,9 +76,7 @@ class CleanupItem:
         return sum(f.stat().st_size for f in self.files if f.exists())
 
 
-def due_sessions(
-    root: Path, days: int = RETENTION_DAYS, now: datetime | None = None
-) -> list[CleanupItem]:
+def due_sessions(root: Path, days: int, now: datetime | None = None) -> list[CleanupItem]:
     cutoff = (now or _now()) - timedelta(days=days)
     items = []
     for session in sorted(p for p in root.iterdir() if p.is_dir()):
@@ -88,7 +90,7 @@ def due_sessions(
 
 
 def cleanup(
-    root: Path, days: int = RETENTION_DAYS, apply: bool = False, now: datetime | None = None
+    root: Path, days: int, apply: bool = False, now: datetime | None = None
 ) -> list[CleanupItem]:
     """Return what is due; delete it only when ``apply`` is true."""
     items = due_sessions(root, days, now)

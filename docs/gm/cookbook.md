@@ -228,8 +228,8 @@ These need the **play** set switched on.
   press "Ready for session". The Live Feed and Recent Changes show it, with an Undo.
 - **Tip:** read the Recap page before anyone else does. It waits in the reveal queue; press
   **Reveal next** when it is fine, and the players get it in "Handouts". Revealing it, or
-  **Approve without revealing** on the dashboard, starts the clock that deletes the recorded
-  audio 14 days later. The transcript stays on the PC.
+  **Approve without revealing** on the dashboard, marks the session approved. The recorded audio
+  stays on the PC (D-097); it is only deleted if a player asks for theirs to be.
 
 ## When a recipe goes wrong
 

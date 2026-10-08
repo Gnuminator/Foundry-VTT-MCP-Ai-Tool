@@ -16,7 +16,9 @@ npm run vault:sync -- push -m "message" <path in the vault>...   # the vault wra
 
 While it serves the page, the server also works in the background every 5 minutes, whether the
 page is open or not: it updates the measured Usage rows, refreshes the versions when due and pushes
-the two Usage notes to the vault when they changed (at most once an hour).
+the two Usage notes to the vault when they changed (at most once an hour). One such run at a time
+per data folder (`housekeeping.lock`; a lock older than 10 minutes is taken over), so
+`--usage-log` while the server runs waits instead of overwriting the push state.
 
 Node 22, no dependencies beyond Node's own modules.
 
@@ -60,17 +62,24 @@ lies within an hour). The note column is the session title. Rows start at local 
 day the page first ran. The weekly summary covers one plan week (from the weekly reset): sessions,
 peaks over 200k and 250k, tokens by main thread and subagents, tokens per day, the last weekly %.
 Both notes go to the vault (`Dev/Foundry AI Tool/Usage log (measured).md` and `Usage weekly
-(measured).md`); each PC rewrites only its own `## PC <name>` section. Vault folder:
+(measured).md`); each PC rewrites only its own `## PC <name>` section. The name is
+`PROJECT_DASHBOARD_PC`, else the host name when `usage-log.json` was first made (a renamed PC keeps
+its old name until the variable is set; an old section stays until deleted by hand). Vault folder:
 `PROJECT_DASHBOARD_VAULT`, else `FOUNDRY_AI_OBSIDIAN_DIR`, else `~/Documents/Obsidian/vault`;
 `PROJECT_DASHBOARD_VAULT=off` turns the writes off.
 
 **Vault wrapper** (`vault.mjs`, D-102 line 8). `npm run vault:sync -- push -m "message" <paths>`
 pulls with `--rebase --autostash`, adds only the given paths, commits only them and pushes (one
-retry after a rejected push). The page calls it in its strict form: it waits, and warns on the
-page, while anything outside its own two notes is changed in the vault (Obsidian's `.obsidian/`
-UI state does not count) or a git command is running there; it discards its own files before the
-pull and writes them again after it, so a pull never has to merge them. A failed push takes back
-only its own unpushed commit.
+retry after a rejected push). Like a plain `git push`, the push also carries any other local
+commits not pushed yet. A rebase stopped on a conflict is aborted only when this pull started it;
+an autostash that does not apply again is reported (the edits are in `git stash`). The page calls
+it in its strict form, which never stashes (fetch, then fast-forward only): it waits, and warns on
+the page, while anything outside its own two notes is changed in the vault (Obsidian's
+`.obsidian/` UI state does not count), while a git command is running there, while the vault holds
+local commits not pushed yet, or when an incoming change touches a file edited here. It discards
+its own files before the pull and writes them again after it, so a pull never has to merge them;
+after a rejected push it takes its commit back, fast-forwards and writes them once more. A failed
+push takes back only its own unpushed commit.
 
 **Session-notes watchdog** (`watchdog.mjs`, D-102 line 6). Recording folders `*-discord` in
 `FVTT_SESSIONS_DIR` (default `~/Documents/FoundrySessions`): `recording` (no

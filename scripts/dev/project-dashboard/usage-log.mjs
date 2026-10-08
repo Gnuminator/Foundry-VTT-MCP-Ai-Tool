@@ -59,7 +59,14 @@ function cutTitle(t) {
   return s.length > 120 ? s.slice(0, 119) + '…' : s;
 }
 
-export function emptyUsageState(now = new Date(), pc = os.hostname()) {
+// The PC's section name: PROJECT_DASHBOARD_PC, else the host name when the state was first made
+// (kept in the state, so renaming the PC changes nothing until the variable is set). A section
+// under an old name stays in the notes until someone deletes it by hand.
+export function pcName(env = process.env) {
+  return String(env.PROJECT_DASHBOARD_PC || os.hostname()).slice(0, 60);
+}
+
+export function emptyUsageState(now = new Date(), pc = pcName()) {
   return {
     version: STATE_VERSION,
     pc: String(pc).slice(0, 60),
@@ -75,14 +82,17 @@ export function emptyUsageState(now = new Date(), pc = os.hostname()) {
   };
 }
 
-export function loadUsageState(dataDir, now = new Date()) {
+export function loadUsageState(dataDir, now = new Date(), env = process.env) {
   try {
     const s = JSON.parse(fs.readFileSync(path.join(dataDir, 'usage-log.json'), 'utf8'));
-    if (s && s.version === STATE_VERSION && s.sessions && typeof s.sessions === 'object') return s;
+    if (s && s.version === STATE_VERSION && s.sessions && typeof s.sessions === 'object') {
+      if (env.PROJECT_DASHBOARD_PC) s.pc = pcName(env);
+      return s;
+    }
   } catch {
     // no state yet
   }
-  return emptyUsageState(now);
+  return emptyUsageState(now, pcName(env));
 }
 
 export function saveUsageState(dataDir, state) {

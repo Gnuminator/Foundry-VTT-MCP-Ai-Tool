@@ -217,16 +217,23 @@ function defaultRun(file, args) {
         maxBuffer: 4 * 1024 * 1024,
       },
       (err, stdout, stderr) => {
-        // cat exits non-zero when one file is missing, but the rest of stdout is still useful.
-        if (err && !String(stdout || '').trim()) {
-          err.stderr = stderr;
-          reject(err);
-        } else {
-          resolve(stdout);
-        }
+        const out = sshOutcome(err, stdout, stderr);
+        if (out.error) reject(out.error);
+        else resolve(out.stdout);
       }
     );
   });
+}
+
+// cat exits non-zero when one file is missing, but the rest of stdout is still useful. A killed
+// ssh (the 15 s timeout) always fails, even with partial output: a half-read list would show the
+// missing modules as absent.
+export function sshOutcome(err, stdout, stderr) {
+  if (err && (err.killed || !String(stdout || '').trim())) {
+    err.stderr = stderr;
+    return { error: err };
+  }
+  return { stdout };
 }
 
 function shortError(err) {

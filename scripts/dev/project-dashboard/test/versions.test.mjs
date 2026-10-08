@@ -15,6 +15,7 @@ import {
   readPcVersions,
   readPiVersions,
   splitJsonStream,
+  sshOutcome,
 } from '../versions.mjs';
 
 function tmp() {
@@ -250,6 +251,17 @@ test('readPiVersions keeps partial output when cat fails on one file', async () 
     res.items.map(i => i.id),
     ['alpha']
   );
+});
+
+test('a killed ssh fails even with partial output; a cat error with output does not', () => {
+  const partial = JSON.stringify(MOD_A);
+  const killed = sshOutcome(Object.assign(new Error('x'), { killed: true }), partial, '');
+  assert.ok(killed.error?.killed);
+  const missing = sshOutcome(Object.assign(new Error('x'), { code: 1 }), partial, 'cat: no file');
+  assert.equal(missing.stdout, partial);
+  const empty = sshOutcome(Object.assign(new Error('x'), { code: 255 }), '', 'denied');
+  assert.equal(empty.error.stderr, 'denied');
+  assert.deepEqual(sshOutcome(null, partial, ''), { stdout: partial });
 });
 
 test('readPiVersions turns failures into short errors', async () => {

@@ -5,6 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   emptyUsageState,
+  loadUsageState,
+  saveUsageState,
+  pcName,
   updateUsageState,
   usageRows,
   usageSummary,
@@ -215,4 +218,14 @@ test('no vault: push state off, nothing written', async () => {
   await syncUsageToVault({ state: st, vaultDir: null, now: new Date(T0) });
   assert.equal(st.push.state, 'off');
   assert.equal(usageWarning(usageSummary(st)), null);
+});
+
+test('PROJECT_DASHBOARD_PC names the section, also for a state saved under the old name', () => {
+  assert.equal(pcName({ PROJECT_DASHBOARD_PC: 'Desk' }), 'Desk');
+  assert.equal(pcName({}), os.hostname().slice(0, 60));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pd-pc-'));
+  assert.equal(loadUsageState(dir, new Date(T0), { PROJECT_DASHBOARD_PC: 'New' }).pc, 'New');
+  saveUsageState(dir, emptyUsageState(new Date(T0), 'Old'));
+  assert.equal(loadUsageState(dir, new Date(T0), {}).pc, 'Old');
+  assert.equal(loadUsageState(dir, new Date(T0), { PROJECT_DASHBOARD_PC: 'New' }).pc, 'New');
 });

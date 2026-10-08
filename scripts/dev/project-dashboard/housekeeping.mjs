@@ -4,27 +4,67 @@
 //
 //   runHousekeeping({ paths, forcePush }) -> the push state { state, detail, at }
 //   startHousekeeping({ paths }) -> { stop }
+//
+// One run at a time per data folder (`housekeeping.lock`), so `--usage-log` while the server
+// runs cannot overwrite the other run's push bookkeeping. A lock older than 10 minutes is left
+// over from a crash and is taken over.
+import fs from 'node:fs';
+import path from 'node:path';
 import { buildSnapshot } from './snapshot.mjs';
 import { loadUsageState, saveUsageState, syncUsageToVault } from './usage-log.mjs';
 
 export const TICK_MS = 5 * 60 * 1000;
+const STALE_LOCK_MS = 10 * 60 * 1000;
+
+function takeLock(dataDir, nowMs) {
+  fs.mkdirSync(dataDir, { recursive: true });
+  const file = path.join(dataDir, 'housekeeping.lock');
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      fs.writeFileSync(file, String(process.pid), { flag: 'wx' });
+      return () => fs.rmSync(file, { force: true });
+    } catch (err) {
+      if (err?.code !== 'EEXIST') throw err;
+      let age = 0;
+      try {
+        age = nowMs - fs.statSync(file).mtimeMs;
+      } catch {
+        continue; // released meanwhile
+      }
+      if (age < STALE_LOCK_MS) return null;
+      fs.rmSync(file, { force: true });
+    }
+  }
+  return null;
+}
 
 export async function runHousekeeping({ paths, forcePush = false, deps = {} }) {
-  await (deps.buildSnapshot || buildSnapshot)({
-    paths,
-    force: true,
-    withVersions: true,
-    updateUsage: true,
-  });
-  const state = loadUsageState(paths.dataDir);
-  await (deps.syncUsageToVault || syncUsageToVault)({
-    state,
-    vaultDir: paths.vaultDir,
-    now: new Date(),
-    force: forcePush,
-  });
-  saveUsageState(paths.dataDir, state);
-  return state.push;
+  const release = takeLock(paths.dataDir, Date.now());
+  if (!release)
+    return {
+      state: 'waiting',
+      detail: 'another housekeeping run is busy',
+      at: new Date().toISOString(),
+    };
+  try {
+    await (deps.buildSnapshot || buildSnapshot)({
+      paths,
+      force: true,
+      withVersions: true,
+      updateUsage: true,
+    });
+    const state = loadUsageState(paths.dataDir);
+    await (deps.syncUsageToVault || syncUsageToVault)({
+      state,
+      vaultDir: paths.vaultDir,
+      now: new Date(),
+      force: forcePush,
+    });
+    saveUsageState(paths.dataDir, state);
+    return state.push;
+  } finally {
+    release();
+  }
 }
 
 export function startHousekeeping({ paths, intervalMs = TICK_MS, log = console.log }) {

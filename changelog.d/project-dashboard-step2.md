@@ -8,4 +8,5 @@
   within 24 hours, amber when paused on the usage limit).
 - **Vault wrapper (D-102):** `npm run vault:sync -- push -m "message" <paths>` pulls with autostash,
   commits only the given paths and pushes. The dashboard uses it hourly at most, and only while
-  the rest of the vault is clean (it waits and warns otherwise).
+  the rest of the vault is clean and nothing is left unpushed (it waits and warns otherwise); its
+  pull never stashes, only fast-forwards.

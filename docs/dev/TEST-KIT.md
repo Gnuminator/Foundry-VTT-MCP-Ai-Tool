@@ -276,7 +276,7 @@ scenarios with their own sizes, named in the table and in the text after it.
 | `heroes-features-use`       | Every feature of every hero can be used once with no dialog; the hero is put back.                                                                                           |
 | `heroes-features-deep`      | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.                                                                                             |
 | `heroes-studio`             | A hero per class built in Actor Studio's own windows equals the raw kit hero.                                                                                                |
-| `player-character-creation` | As the kit player in its own browser, a level-1 character per class in Actor Studio: species, background, starting equipment, spells; the sheet is checked on the GM side.   |
+| `player-character-creation` | As the kit player in its own browser, a level-1 character per class in Actor Studio: species, background, starting equipment, spells; sheet and species origin are checked.  |
 | `monsters-every`            | Every monster of every pack of the profile is copied in, uses one action and is deleted.                                                                                     |
 | `monsters-matrix`           | The monsters by CR band, type, size and trait, the gaps, and the data every creature needs.                                                                                  |
 | `monsters-odd`              | Legendary actions and resistance, lair, regeneration, shapechangers, movement, recharge, multiattack, spells.                                                                |

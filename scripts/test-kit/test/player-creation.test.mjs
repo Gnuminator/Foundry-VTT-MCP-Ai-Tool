@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { judgeSheet, playerStudioSettings } from '../lib/player-creation.mjs';
+import { findDuplicates, judgeSheet, playerStudioSettings } from '../lib/player-creation.mjs';
 import { narrowSources, studioSettingsFor } from '../lib/studio.mjs';
 
 /** A level-1 wizard sheet that passes every check; tests break one thing. */
@@ -122,6 +122,92 @@ test('judgeSheet: pump errors fail; unequipped starting armor is a note', () => 
     { what: 'an advancement answer failed', evidence: 'no option for Skills' },
   ]);
   assert.match(v.notes[0], /starting armor arrives unequipped \(Chain Mail; AC 12\)/);
+});
+
+test('judgeSheet: the species item must come from the species that was picked', () => {
+  const high = 'Compendium.dnd5e.origins24.Item.elfHigh';
+  const drow = 'Compendium.dnd5e.origins24.Item.elfDrow';
+  const o = fixture();
+  o.sheet.speciesSources = [high];
+  assert.deepEqual(judgeSheet({ ...o, speciesUuid: high }).problems, []);
+  const wrong = judgeSheet({ ...o, speciesUuid: drow }).problems;
+  assert.equal(wrong.length, 1);
+  assert.equal(wrong[0].what, 'the species is not the one picked');
+  assert.match(wrong[0].evidence, /picked .*elfDrow; the sheet has Elf from .*elfHigh/);
+  // A species with no recorded source cannot be the picked one.
+  o.sheet.speciesSources = [null];
+  assert.match(
+    judgeSheet({ ...o, speciesUuid: high }).problems[0].evidence,
+    /from no source|from $/
+  );
+  // Without a picked uuid the check stays off (other callers).
+  assert.deepEqual(judgeSheet(o).problems, []);
+});
+
+test("judgeSheet: an item that appears twice is a note with each copy's type and granter", () => {
+  const o = fixture();
+  o.sheet.duplicates = [
+    { name: "Hunter's Mark", types: ['spell', 'feat'], count: 2, origins: ['class:Ranger', null] },
+  ];
+  const v = judgeSheet(o);
+  assert.deepEqual(v.problems, []);
+  assert.ok(
+    v.notes.includes(
+      "Hunter's Mark is on the sheet 2 times: spell from class:Ranger, feat from no advancement"
+    ),
+    v.notes.join(' | ')
+  );
+});
+
+test('findDuplicates: one name across types counts; gear and Cast activity copies do not', () => {
+  const copy = (name, type, origin = null, cached = false) => ({ name, type, origin, cached });
+  assert.deepEqual(
+    findDuplicates([
+      copy("Hunter's Mark", 'spell', 'feat:Favored Enemy'),
+      copy("Hunter's Mark", 'spell', null, true),
+      copy('Oil', 'consumable'),
+      copy('Oil', 'consumable'),
+      copy('Dagger', 'weapon'),
+      copy('Dagger', 'weapon'),
+      copy('Magic Initiate', 'feat', 'background:Guide'),
+      copy('Magic Initiate', 'spell'),
+    ]),
+    [
+      {
+        name: 'Magic Initiate',
+        types: ['feat', 'spell'],
+        count: 2,
+        origins: ['background:Guide', null],
+      },
+    ]
+  );
+  assert.deepEqual(
+    findDuplicates([copy('Shield', 'spell', 'class:Wizard'), copy('Shield', 'spell')]).map(
+      d => d.count
+    ),
+    [2]
+  );
+});
+
+test('judgeSheet: the class and background items must come from the entries that were picked', () => {
+  const o = fixture();
+  const fighter24 = 'Compendium.p.classes.Item.fighter24';
+  const fighter14 = 'Compendium.dnd5e.classes.Item.fighter14';
+  const sage = 'Compendium.p.origins.Item.sage';
+  o.sheet.classSources = [fighter24];
+  o.sheet.backgroundSources = [sage];
+  assert.deepEqual(judgeSheet({ ...o, classUuid: fighter24, backgroundUuid: sage }).problems, []);
+  const wrong = judgeSheet({
+    ...o,
+    classUuid: fighter14,
+    backgroundUuid: 'Compendium.x.Item.y',
+  }).problems.map(p => p.what);
+  assert.deepEqual(wrong, [
+    'the class is not the one picked',
+    'the background is not the one picked',
+  ]);
+  // Without picked uuids the checks stay off (other callers).
+  assert.deepEqual(judgeSheet(o).problems, []);
 });
 
 test('playerStudioSettings: equipment on, class and origin lists narrowed, equipment packs kept', () => {

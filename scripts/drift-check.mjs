@@ -15,8 +15,9 @@
  * A merge conflict names the files: merge main into the branch yourself, resolve, push, and run it
  * again. The worktree borrows this checkout's node_modules (junctions), so workspace packages
  * resolve to this checkout's build; when main changed package-lock.json those would not match, so
- * it asks for the real merge and `npm ci` first. A worktree left by a killed run is removed by the
- * next run.
+ * it asks for the real merge and `npm ci` first (a lockfile change made by the branch itself does
+ * not count). A worktree left by a killed run is removed by the next run; one whose run is still
+ * alive (another lane's, same repository) and younger than an hour is left alone.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -47,6 +48,10 @@ export const CHECKS = [
 
 const REPO_URL = /github\.com[/:]Gnuminator\/Foundry-VTT-MCP-Ai-Tool(\.git)?$/i;
 const WORKTREE_PREFIX = 'drift-check-';
+/** Written into each drift-check worktree: the pid of the run that owns it. */
+const PID_FILE = '.drift-check-pid';
+/** A drift-check worktree older than this is abandoned even if its pid was reused. */
+const STALE_MS = 60 * 60 * 1000;
 /** Windows reports a child stopped by Ctrl+C as STATUS_CONTROL_C_EXIT, not as a signal. */
 const CTRL_C_EXIT = 3221225786;
 
@@ -111,13 +116,46 @@ function listPackages(dir) {
   }
 }
 
+/** @param {number} pid */
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    // EPERM: the process exists but belongs to someone else.
+    return /** @type {NodeJS.ErrnoException} */ (e).code === 'EPERM';
+  }
+}
+
+/**
+ * Whether a drift-check worktree is abandoned: its run's pid is gone, or it is older than an hour.
+ * Lanes share one repository's worktree list, so a live run of another lane must stay. A worktree
+ * with no pid file yet (just created) is judged by its age alone.
+ * @param {string} dir
+ */
+function isStale(dir) {
+  const file = path.join(dir, PID_FILE);
+  try {
+    const age = Date.now() - fs.statSync(file).mtimeMs;
+    const pid = Number.parseInt(fs.readFileSync(file, 'utf8'), 10);
+    return age > STALE_MS || !Number.isInteger(pid) || !pidAlive(pid);
+  } catch {
+    try {
+      return Date.now() - fs.statSync(dir).mtimeMs > STALE_MS;
+    } catch {
+      return true; // the folder is gone; only git's record is left
+    }
+  }
+}
+
 /** Worktrees a killed run left behind. @param {string} cwd */
 function staleWorktrees(cwd) {
   return git(cwd, ['worktree', 'list', '--porcelain'])
     .out.split('\n')
     .filter(l => l.startsWith('worktree '))
     .map(l => l.slice('worktree '.length))
-    .filter(p => path.basename(p).startsWith(WORKTREE_PREFIX));
+    .filter(p => path.basename(p).startsWith(WORKTREE_PREFIX))
+    .filter(isStale);
 }
 
 /**
@@ -159,8 +197,10 @@ export function runDriftCheck({ cwd, remote, checks = CHECKS, log = console.log 
   }
 
   // The worktree borrows this checkout's node_modules, which would not match main's lockfile (a
-  // new ESLint, say) and give false results.
-  if (!git(cwd, ['diff', '--quiet', 'HEAD', main, '--', 'package-lock.json']).ok) {
+  // new ESLint, say) and give false results. Only a lockfile change on main since the branch point
+  // counts: a branch that bumped a dependency itself still matches its own node_modules.
+  const base = git(cwd, ['merge-base', 'HEAD', main]);
+  if (!base.ok || !git(cwd, ['diff', '--quiet', base.out, main, '--', 'package-lock.json']).ok) {
     log(`drift-check: ${main} (${mainSha.out}) changed package-lock.json.`);
     log('Merge main into the branch, run `npm ci`, and run this again.');
     return 2;
@@ -180,6 +220,7 @@ export function runDriftCheck({ cwd, remote, checks = CHECKS, log = console.log 
       log(`drift-check: git worktree add failed: ${added.err}`);
       return 2;
     }
+    fs.writeFileSync(path.join(dir, PID_FILE), String(process.pid));
     // git wants an identity even for --no-commit; the trial merge is never committed.
     const merge = git(dir, [
       '-c',

@@ -5,7 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -58,6 +58,12 @@ function run(cwd, checks) {
   const lines = [];
   const code = runDriftCheck({ cwd, checks, log: l => lines.push(l) });
   return { code, out: lines.join('\n') };
+}
+
+/** A pid that belonged to a process that has exited. */
+function deadPid() {
+  const child = spawnSync(process.execPath, ['-e', '0']);
+  return child.pid;
 }
 
 const passes = name => ({ name, command: 'node -e "process.exit(0)"' });
@@ -218,10 +224,56 @@ test('a worktree a killed run left behind is removed, and its node_modules targe
     const stale = path.join(tmp, 'drift-check-stale');
     git(lane, 'worktree', 'add', '-q', '--detach', stale, 'HEAD');
     fs.symlinkSync(path.join(lane, 'node_modules'), path.join(stale, 'node_modules'), 'junction');
+    fs.writeFileSync(path.join(stale, '.drift-check-pid'), String(deadPid()));
     const head = git(lane, 'rev-parse', 'HEAD');
     const { code, out } = run(lane, [seesMain]);
     assert.equal(code, 0, out);
     assert.equal(fs.existsSync(stale), false, 'the stale worktree is gone');
+    assertRestored(lane, head);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a fresh worktree of a live run (another lane) is left alone', () => {
+  const { tmp, lane, other } = repos();
+  try {
+    commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const busy = path.join(tmp, 'drift-check-busy');
+    git(lane, 'worktree', 'add', '-q', '--detach', busy, 'HEAD');
+    fs.writeFileSync(path.join(busy, '.drift-check-pid'), String(process.pid));
+    const { code, out } = run(lane, [seesMain]);
+    assert.equal(code, 0, out);
+    assert.equal(fs.existsSync(busy), true, 'the live run keeps its worktree');
+    assert.match(git(lane, 'worktree', 'list'), /drift-check-busy/);
+    // Once its run is gone it counts as stale and the next run removes it.
+    fs.writeFileSync(path.join(busy, '.drift-check-pid'), String(deadPid()));
+    assert.equal(run(lane, [seesMain]).code, 0);
+    assert.equal(fs.existsSync(busy), false, 'a dead pid makes it stale');
+    // A live pid does not save a worktree older than an hour (the pid may have been reused).
+    git(lane, 'worktree', 'add', '-q', '--detach', busy, 'HEAD');
+    const pidFile = path.join(busy, '.drift-check-pid');
+    fs.writeFileSync(pidFile, String(process.pid));
+    const old = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    fs.utimesSync(pidFile, old, old);
+    assert.equal(run(lane, [seesMain]).code, 0);
+    assert.equal(fs.existsSync(busy), false, 'an old worktree is stale');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a branch that changed package-lock.json itself is not refused', () => {
+  const { tmp, lane, other } = repos();
+  try {
+    commit(lane, 'package-lock.json', '{"bumped": true}\n', 'lane bumps a dependency');
+    commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const head = git(lane, 'rev-parse', 'HEAD');
+    const { code, out } = run(lane, [seesMain]);
+    assert.equal(code, 0, out);
+    assert.doesNotMatch(out, /changed package-lock\.json/);
     assertRestored(lane, head);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });

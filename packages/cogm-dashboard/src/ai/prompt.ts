@@ -2,7 +2,7 @@ import type { Tone } from '../config.js';
 import type { ModuleError, SessionEvent, WorldInfo } from '../feed/types.js';
 
 /**
- * Prompt construction and event-significance rules for the AI co-GM.
+ * Prompt construction and event-significance rules for the AI commentary.
  *
  * The system prompt is split into two parts at call time:
  *  - a large STATIC block (persona + rules + 5e reference + campaign context)
@@ -33,7 +33,7 @@ export function isSignificant(event: SessionEvent): boolean {
   return SIGNIFICANT_EVENT_TYPES.has(event.eventType);
 }
 
-const PERSONA = `You are "Co-GM", an AI assistant sitting beside a tabletop Game Master while a session is live. You watch a streaming feed of game events and the combat tracker, and you offer brief, sharp observations to help the GM run a better game.
+const PERSONA = `You are the AI behind the dashboard's "AI commentary" panel, an assistant sitting beside a tabletop Game Master while a session is live. You watch a streaming feed of game events and the combat tracker, and you offer brief, sharp observations to help the GM run a better game.
 
 Your job is to be the GM's second pair of eyes — never the rules engine, never the dice, never the player. You SURFACE things worth noticing and SUGGEST options; you never adjudicate outcomes or take actions.
 
@@ -70,7 +70,7 @@ const DND5E_REFERENCE = `Reference — D&D 5e (2014) conditions you may see in t
 
 Tactical cues worth flagging: a target dropping below half HP; a PC at 0 HP making death saves; action economy swings (a creature stunned/paralyzed loses its whole turn); concentration at risk; a chokepoint or AoE opportunity; a low-on-resources caster.`;
 
-const GM_PLAYBOOK = `Co-GM playbook — the lenses you reason through before you speak.
+const GM_PLAYBOOK = `Commentary playbook: the lenses you reason through before you speak.
 
 WHEN TO SPEAK vs STAY SILENT. You see every event, but you comment on few. Speak when a moment changes the picture: a turning point in the fight, a creature one hit from dropping, a condition that flips the action economy, a resource worth spending now, a stake the table should feel, or a clean opportunity the GM might miss in the noise. Stay silent on routine misses, chip damage, and bookkeeping. Silence is a valid, frequent output — but you are only invoked when something already looked significant, so when asked, give your best single read rather than hedging.
 
@@ -149,7 +149,7 @@ const MONSTER_TACTICS = `Monster archetypes — how each fights and what counter
 Encounter-math heuristics:
 - A fight is usually decided once one side has lost its action economy — half its effective attackers gone, or its key controller/leader down. When the outcome is no longer in doubt, suggest narrating the finish.
 - Incoming damage matters more than a health bar: a full-HP wizard the enemy can reach is in more danger than a bloodied fighter behind cover.
-- Watch the round count — long fights drag; a co-GM nudge to escalate (reinforcements, a hazard, a morale break) or wrap up keeps the table engaged.`;
+- Watch the round count — long fights drag; a nudge to escalate (reinforcements, a hazard, a morale break) or wrap up keeps the table engaged.`;
 
 const COMMENT_EXAMPLES = `Examples of the register to aim for (do not reuse these verbatim — they show length, specificity, and stance).
 
@@ -233,7 +233,7 @@ What just happened: ${trigger}
 Give ONE short ${tone} comment for the GM about the most important thing right now. Output only the comment.`;
 }
 
-/** Assemble the volatile user turn for an "ask the co-GM" question. */
+/** Assemble the volatile user turn for an "Ask the AI" question. */
 export function buildAskUserMessage(tone: Tone, context: string, question: string): string {
   return `${toneGuidance(tone)}
 
@@ -254,7 +254,7 @@ export function isSignificantError(error: ModuleError): boolean {
 }
 
 /**
- * Volatile user turn for a diagnostics comment. Reframes the co-GM as a Foundry
+ * Volatile user turn for a diagnostics comment. Reframes the AI as a Foundry
  * technical assistant for this one turn (the cached system block is unchanged,
  * so the prompt cache stays warm).
  */

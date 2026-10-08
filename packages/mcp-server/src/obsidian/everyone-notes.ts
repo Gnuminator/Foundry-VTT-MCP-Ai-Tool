@@ -138,7 +138,8 @@ export function carriedBlocks(noteText: string): CarriedBlock[] {
  * A block of the existing note is the fresh item `c`, so it is not carried beside it: the same
  * id, or an id that regrouping lengthened or shortened (`act:x` beside `act:x:own` when a
  * person's records were split from an AI burst on a later render), or the same minute and
- * summary under a new id (the attribution changed).
+ * summary under a new id by the same person, or with the AI on one side (the attribution
+ * changed). Two people who made the same change in one minute are two items.
  */
 function sameItem(block: CarriedBlock, c: ChangeListItem): boolean {
   const id = blockId(c.id);
@@ -146,7 +147,9 @@ function sameItem(block: CarriedBlock, c: ChangeListItem): boolean {
     block.id === id ||
     id.startsWith(`${block.id}-`) ||
     block.id.startsWith(`${id}-`) ||
-    (block.time === clock(c.at) && block.summary === esc(c.summary))
+    (block.time === clock(c.at) &&
+      block.summary === esc(c.summary) &&
+      (block.who === unesc(esc(who(c))) || block.isAi || c.kind === 'ai'))
   );
 }
 

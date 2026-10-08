@@ -385,6 +385,24 @@ describe('EveryoneNotes', () => {
     expect(text).toContain('^act-b7');
     expect(text).not.toContain('^act-a1-own');
     expect(text).toContain('changes: 3');
+    // Someone else made the same change in the same minute: two items, the carried one stays.
+    days[1].changes[days[1].changes.length - 1] = human({ id: 'act:c9', by: 'Ismark' });
+    await notes.renderNow('w1');
+    text = await note('2026-10-07');
+    expect(text).toContain('^act-b7');
+    expect(text).toContain('- **19:42** Ismark · Ireena: HP 10 -> 5 ^act-c9');
+    expect(text).toContain('changes: 4');
+    // The same minute and summary under the AI's name is the attribution changing: held once.
+    days[1].changes[days[1].changes.length - 1] = ai({
+      id: 'chg-9',
+      at: AT,
+      summary: 'Ireena: HP 10 -> 5',
+    });
+    await notes.renderNow('w1');
+    text = await note('2026-10-07');
+    expect(text).toContain('^chg-9');
+    expect(text).not.toContain('^act-b7');
+    expect(text).toContain('changes: 3');
     // A whole day carries nothing over: the history is the truth.
     delete days[1].incompleteBefore;
     days[1].changes = [ai()];

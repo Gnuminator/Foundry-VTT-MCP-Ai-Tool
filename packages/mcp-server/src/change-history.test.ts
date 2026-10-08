@@ -703,6 +703,158 @@ describe('buildActions', () => {
     expect(actions[1].followUps).toEqual([gmCombatant]);
   });
 
+  describe('two AI changes on one actor in one burst', () => {
+    const strahd = { parentUuid: 'Actor.a2', rootUuid: 'Actor.a2', rootName: 'Strahd' };
+    const ai = (changeId: string, o: Partial<ChangeRecord>): ChangeRecord =>
+      rec({ actionId: 'P', changeId, changeMode: 'apply', op: 'delete', ...strahd, ...o });
+    const spellA = (): ChangeRecord =>
+      ai('chg-a', {
+        documentName: 'Item',
+        uuid: 'Actor.a2.Item.i1',
+        name: 'Dagger',
+        data: { name: 'Dagger' },
+      });
+    const spellB = (): ChangeRecord =>
+      ai('chg-b', {
+        documentName: 'Item',
+        uuid: 'Actor.a2.Item.i2',
+        name: 'Hold Person',
+        data: { name: 'Hold Person' },
+      });
+    const concentration = (): ChangeRecord =>
+      rec({
+        actionId: 'P',
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a2.ActiveEffect.c1',
+        name: 'Concentrating: Hold Person',
+        ...strahd,
+        data: {
+          statuses: ['concentrating'],
+          flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e2' }] } },
+        },
+      });
+    const dependent = (): ChangeRecord =>
+      rec({
+        actionId: 'P',
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a1.ActiveEffect.e2',
+        parentUuid: 'Actor.a1',
+        name: 'Hold Person',
+        data: { name: 'Hold Person' },
+      });
+
+    it("files another change's concentration chain to that change, not to an earlier condition removal", () => {
+      // (a) A removes a condition on Strahd; B deletes his concentration spell.
+      const condition = ai('chg-a', {
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a2.ActiveEffect.x1',
+        name: 'Frightened',
+        data: { name: 'Frightened' },
+      });
+      const b = spellB();
+      const conc = concentration();
+      const dep = dependent();
+      const actions = buildActions([condition, b, conc, dep]);
+      expect(actions.map(a => a.changeId)).toEqual(['chg-a', 'chg-b']);
+      expect(actions[0].records).toEqual([condition]);
+      expect(actions[0].followUps).toEqual([]);
+      expect(actions[1].records).toEqual([b, conc, dep]);
+      expect(actions[1].followUps).toEqual([conc, dep]);
+    });
+
+    it('files the concentration chain to the later item delete that ended it, not the first item delete', () => {
+      // (b) A deletes an item on Strahd; B deletes his concentration spell.
+      const a = spellA();
+      const b = spellB();
+      const conc = concentration();
+      const dep = dependent();
+      const actions = buildActions([a, b, conc, dep]);
+      expect(actions[0].records).toEqual([a]);
+      expect(actions[0].followUps).toEqual([]);
+      expect(actions[1].records).toEqual([b, conc, dep]);
+      expect(actions[1].followUps).toEqual([conc, dep]);
+    });
+
+    it('still files a late concentration chain to the item delete that ended it', () => {
+      // B (an HP change elsewhere) lands before the chain of A's concentration spell comes through.
+      const a = ai('chg-a', {
+        documentName: 'Item',
+        uuid: 'Actor.a2.Item.i2',
+        name: 'Hold Person',
+        data: { name: 'Hold Person' },
+      });
+      const hpB = hpChange(20, 18, {
+        actionId: 'P',
+        changeId: 'chg-b',
+        changeMode: 'apply',
+        uuid: 'Actor.a3',
+        rootUuid: 'Actor.a3',
+        rootName: 'Ismark',
+        name: 'Ismark',
+      });
+      const conc = concentration();
+      const dep = dependent();
+      const actions = buildActions([a, hpB, conc, dep]);
+      expect(actions[0].records).toEqual([a, conc, dep]);
+      expect(actions[0].followUps).toEqual([conc, dep]);
+      expect(actions[1].records).toEqual([hpB]);
+    });
+  });
+
+  it('files a combatant delete to the latest change that deleted its token, and never to a later change', () => {
+    const token = (changeId: string, op: ChangeRecord['op']): ChangeRecord =>
+      rec({
+        actionId: 'Q',
+        changeId,
+        changeMode: 'apply',
+        op,
+        documentName: 'Token',
+        uuid: 'Scene.s1.Token.t1',
+        parentUuid: 'Scene.s1',
+        name: 'Wolf',
+        rootUuid: 'Scene.s1',
+        rootName: 'Castle',
+        sceneId: 's1',
+        data: { _id: 't1', name: 'Wolf' },
+      });
+    const combatant = (id: string): ChangeRecord =>
+      rec({
+        actionId: 'Q',
+        op: 'delete',
+        documentName: 'Combatant',
+        uuid: `Combat.c1.Combatant.${id}`,
+        parentUuid: 'Combat.c1',
+        name: 'Wolf',
+        rootUuid: 'Combat.c1',
+        rootName: null,
+        sceneId: 's1',
+        data: { _id: id, tokenId: 't1', sceneId: 's1' },
+      });
+    // (d) A person removed the wolf from the tracker before A: their own action.
+    const early = combatant('cb0');
+    const a = token('chg-a', 'delete');
+    const cbA = combatant('cb1');
+    // (c) B (an undo) re-creates the token and its combatant, C deletes it again.
+    const b = token('chg-b', 'create');
+    const cbB = rec({ ...combatant('cb2'), changeId: 'chg-b', changeMode: 'apply', op: 'create' });
+    const c = token('chg-c', 'delete');
+    const cbC = combatant('cb2');
+    const actions = buildActions([early, a, cbA, b, cbB, c, cbC]);
+    expect(actions.map(x => [x.actionId, x.changeId])).toEqual([
+      ['Q', 'chg-a'],
+      ['Q:2', 'chg-b'],
+      ['Q:3', 'chg-c'],
+      [`Q${OWN_ACTION_SUFFIX}`, undefined],
+    ]);
+    expect(actions[0].followUps).toEqual([cbA]);
+    expect(actions[1].followUps).toEqual([]);
+    expect(actions[2].records).toEqual([c, cbC]);
+    expect(actions[2].followUps).toEqual([cbC]);
+    expect(actions[3].records).toEqual([early]);
+  });
+
   it('names the owner in an ownership line when the user is known', () => {
     const owner = rec({
       before: [val('ownership.u2', 0)],

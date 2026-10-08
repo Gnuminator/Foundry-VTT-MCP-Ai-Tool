@@ -307,7 +307,8 @@ interface DependentsLink {
  * (see DEPENDENT_DELETE_KINDS): the documents named in `flags.dnd5e.dependents` of the change's
  * deleted documents (`sources`, its own records) and of the same-root deletes that went with
  * them (an item's concentration effect, which counts as a dependent itself), followed through
- * `others` (the burst's records that are not the AI's, wherever they arrived). When a source
+ * `others` (the burst's records that are not the AI's and arrived from the change's start on,
+ * as late as they may come). When a source
  * lost its data (oversize), the link cannot be read and every delete of a dependent kind that
  * arrived with the change counts (`isDependentDelete`); a dependent without data only cannot be
  * followed further.
@@ -327,14 +328,21 @@ function dependentsLink(
   // the concentration effect dnd5e ended with it on the same actor (a dependent itself).
   const chain = new Set(roots);
   let unreadable = false;
-  const sameRoot = others.filter(r => r.op === 'delete' && aiRoots.has(r.rootUuid));
-  for (const r of sameRoot) {
-    if (itemSource && r.documentName === 'ActiveEffect' && isConcentrationEffect(r)) {
-      linked.add(r.uuid);
-      chain.add(r);
+  if (itemSource) {
+    for (const r of others) {
+      if (
+        r.op === 'delete' &&
+        aiRoots.has(r.rootUuid) &&
+        r.documentName === 'ActiveEffect' &&
+        isConcentrationEffect(r)
+      ) {
+        linked.add(r.uuid);
+        chain.add(r);
+      }
     }
   }
-  const queue = [...roots, ...sameRoot];
+  // Only the chain's dependents count: another delete on the same actor is no part of it.
+  const queue = [...chain];
   for (let i = 0; i < queue.length; i += 1) {
     const r = queue[i];
     if (chain.has(r) && (r.oversize === true || !r.data)) unreadable = true;
@@ -500,9 +508,9 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
     // A burst with AI writes: one action per AI change (fast consecutive writes share a burst),
     // each with the records that followed it until the next AI change. Foundry's and dnd5e's
     // follow-ups are unawaited round trips that may land after the next change's first record,
-    // so a follow-up the data ties to its change goes there wherever it arrived: a document in
-    // the change's dnd5e dependents chain, and a Combatant whose data names a Token the change
-    // deleted. The rest is filed by position; what came before the first AI record, and what a
+    // so a follow-up the data ties to its change goes there however late it arrived: a document
+    // in the change's dnd5e dependents chain, and a Combatant whose data names a Token the change
+    // deleted (never to a change that started after it). The rest is filed by position; what came before the first AI record, and what a
     // change did not touch, is the person's own action.
     const own: ChangeRecord[] = [];
     const segments: Array<{ changeId: string; ai: ChangeRecord[] }> = [];
@@ -515,23 +523,31 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
       else current.ai.push(r);
     }
     const others = group.filter(r => !r.changeId);
-    const links = segments.map(segment => {
+    const at = (r: ChangeRecord): number => position.get(r) ?? -1;
+    const links = segments.map((segment, i) => {
       const aiRoots: ReadonlySet<string> = new Set(segment.ai.map(r => r.rootUuid));
-      return { aiRoots, link: dependentsLink(segment.ai, others, aiRoots) };
+      const since = others.filter(r => at(r) >= i);
+      return { aiRoots, link: dependentsLink(segment.ai, since, aiRoots) };
     });
+    // Only a change that started at or before a record arrived can own it; of those, the latest
+    // whose data ties it (a change that deleted the same thing again later owns its own cascade).
+    const latestOwner = (r: ChangeRecord, owns: (i: number) => boolean): number => {
+      for (let i = at(r); i >= 0; i -= 1) if (owns(i)) return i;
+      return -1;
+    };
     const segmentOf = (r: ChangeRecord): number => {
-      const linked = links.findIndex(({ link }) => link.linked.has(r.uuid));
-      if (linked >= 0 && r.op === 'delete' && DEPENDENT_DELETE_KINDS.has(r.documentName)) {
-        return linked;
+      if (r.op === 'delete' && DEPENDENT_DELETE_KINDS.has(r.documentName)) {
+        const linked = latestOwner(r, i => links[i].link.linked.has(r.uuid));
+        if (linked >= 0) return linked;
       }
       const token = combatantTokenUuid(r);
       if (token) {
-        const deleter = segments.findIndex(s =>
-          s.ai.some(a => a.op === 'delete' && a.uuid === token)
+        const deleter = latestOwner(r, i =>
+          segments[i].ai.some(a => a.op === 'delete' && a.uuid === token)
         );
         if (deleter >= 0) return deleter;
       }
-      return position.get(r) ?? -1;
+      return at(r);
     };
     const filed = new Map<number, ChangeRecord[]>();
     for (const r of others) {

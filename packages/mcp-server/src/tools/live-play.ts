@@ -153,7 +153,7 @@ export class LivePlayTools {
       {
         name: 'plan-actor-change',
         description:
-          'Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e works out resistances, vulnerabilities, immunities and temp HP; the result previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM\'s request says "go ahead", apply it in the same turn. D&D 5e only.',
+          'Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e works out resistances, vulnerabilities, immunities and temp HP; the result previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM\'s request says "go ahead", apply it in the same turn. D&D 5e only. It does not level up characters: a level-up happens on the character sheet in Foundry, so say that.',
         inputSchema: {
           type: 'object',
           properties: {

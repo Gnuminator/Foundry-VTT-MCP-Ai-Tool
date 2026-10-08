@@ -888,7 +888,13 @@ describe('ChangeHistory.list', () => {
   }
 
   function makeHistory(
-    extra: { pullNow?: (() => Promise<void>) | null; journalStart?: number } = {}
+    extra: {
+      pullNow?: (() => Promise<void>) | null;
+      journalStart?: number;
+      maxChars?: number;
+      /** What each read of the journal's cut actions returns (the last one repeats). */
+      cutActions?: string[][];
+    } = {}
   ): ChangeHistory {
     const pull = extra.pullNow === null ? undefined : (extra.pullNow ?? pullNow);
     return new ChangeHistory({
@@ -902,6 +908,15 @@ describe('ChangeHistory.list', () => {
       ...(pull ? { pullNow: pull } : {}),
       ...(extra.journalStart !== undefined
         ? { journalStart: (): Promise<number> => Promise.resolve(extra.journalStart!) }
+        : {}),
+      ...(extra.maxChars !== undefined ? { maxChars: extra.maxChars } : {}),
+      ...(extra.cutActions
+        ? {
+            journalCutActions: (): Promise<ReadonlySet<string>> => {
+              const reads = extra.cutActions!;
+              return Promise.resolve(new Set(reads.length > 1 ? reads.shift() : reads[0]));
+            },
+          }
         : {}),
       now: () => NOW,
     });
@@ -943,6 +958,92 @@ describe('ChangeHistory.list', () => {
       undone: false,
     });
     expect(changes[0]?.at).toBe(new Date(NOW - MIN).toISOString());
+  });
+
+  it('holds at most its size cap of the newest records, and says from when it is complete', async () => {
+    // A bulk delete can fill a day's file past what one string holds: the history reads it line
+    // by line and keeps the newest records within its cap.
+    const records = Array.from({ length: 10 }, (_, i) =>
+      hpChange(20 - i, 19 - i, { actionId: `b${i}`, t: NOW - (20 - i) * MIN })
+    );
+    await writeDay(records);
+    const size = (r: ChangeRecord): number => JSON.stringify(r).length;
+    const cap = size(records[7]) + size(records[8]) + size(records[9]);
+    const history = makeHistory({ maxChars: cap });
+    const { changes, note } = await history.list();
+    expect(changes.map(c => c.id)).toEqual(['act:b9', 'act:b8', 'act:b7']);
+    const start = records[6].t + 1;
+    expect(await history.historyStart()).toBe(start);
+    expect(note).toContain(`before ${historyStartLabel(start)} are gone`);
+    expect(note).toContain('left the oldest records out');
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+
+    // Live appends past the cap leave the oldest out too, and the warning is not repeated.
+    const later = hpChange(5, 4, { actionId: 'b10', t: NOW - MIN });
+    history.addRecords('w1', [later]);
+    const after = await history.list();
+    expect(after.changes.map(c => c.id)).toEqual(['act:b10', 'act:b9']);
+    expect(await history.historyStart()).toBe(records[8].t + 1);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+
+    // Under the cap nothing is left out and there is no note.
+    const roomy = makeHistory();
+    expect((await roomy.list()).changes).toHaveLength(10);
+    expect((await roomy.list()).note).toBeUndefined();
+  });
+
+  it('never keeps part of an action: the cap, the journal cut and the span leave one out whole', async () => {
+    const size = (r: ChangeRecord): number => JSON.stringify(r).length;
+    // A bulk action the cap reaches: its newer records (with another action between) go too.
+    const at = (i: number): number => NOW - (30 - i) * MIN;
+    const s0 = hpChange(9, 8, { actionId: 's0', t: at(0) });
+    const bulk = [1, 2, 4, 5].map(i => hpChange(9, 8, { actionId: 'bulk', t: at(i) }));
+    const mid = hpChange(9, 8, { actionId: 'mid', t: at(3) });
+    const last = hpChange(9, 8, { actionId: 'last', t: at(6) });
+    const records = [s0, bulk[0], bulk[1], mid, bulk[2], bulk[3], last];
+    await writeDay(records);
+    const cap = size(mid) + size(bulk[2]) + size(bulk[3]) + size(last);
+    const history = makeHistory({ maxChars: cap });
+    expect((await history.list()).changes.map(c => c.id)).toEqual(['act:last', 'act:mid']);
+    expect(await history.historyStart()).toBe(bulk[3].t + 1);
+    // A late record of the action left out stays out.
+    history.addRecords('w1', [hpChange(9, 8, { actionId: 'bulk', t: at(7) })]);
+    expect((await history.list()).changes.map(c => c.id)).toEqual(['act:last', 'act:mid']);
+    expect(await history.historyStart()).toBe(at(7) + 1);
+
+    // The actions the journal's day cap cut through are left out whole.
+    const cut = makeHistory({ cutActions: [['mid']] });
+    expect((await cut.list()).changes.map(c => c.id)).toEqual(['act:last', 'act:bulk', 'act:s0']);
+    expect(await cut.historyStart()).toBe(mid.t + 1);
+    // A cut made while the files were being read counts too.
+    const during = makeHistory({ cutActions: [[], ['bulk']] });
+    expect((await during.list()).changes.map(c => c.id)).toEqual(['act:last', 'act:mid', 'act:s0']);
+    expect(await during.historyStart()).toBe(bulk[3].t + 1);
+  });
+
+  it('leaves out the whole action when a live append takes the history over its cap', async () => {
+    const size = (r: ChangeRecord): number => JSON.stringify(r).length;
+    const p0 = hpChange(9, 8, { actionId: 'p', t: NOW - 3 * MIN });
+    const q0 = hpChange(9, 8, { actionId: 'q', t: NOW - 2 * MIN });
+    await writeDay([p0, q0]);
+    const history = makeHistory({ maxChars: size(p0) + size(q0) + 10 });
+    expect((await history.list()).changes.map(c => c.id)).toEqual(['act:q', 'act:p']);
+    const p1 = hpChange(8, 7, { actionId: 'p', t: NOW - MIN });
+    history.addRecords('w1', [p1]);
+    expect((await history.list()).changes.map(c => c.id)).toEqual(['act:q']);
+    expect(await history.historyStart()).toBe(p1.t + 1);
+  });
+
+  it('leaves an action that began before the span out whole', async () => {
+    const span = CHANGE_HISTORY_DAYS * DAY;
+    const old = [
+      hpChange(9, 8, { actionId: 'old', t: NOW - span - MIN }),
+      hpChange(8, 7, { actionId: 'old', t: NOW - span + MIN }),
+    ];
+    await writeDay([...old, hpChange(7, 6, { actionId: 'new', t: NOW - MIN })]);
+    const history = makeHistory();
+    expect((await history.list()).changes.map(c => c.id)).toEqual(['act:new']);
+    expect(await history.historyStart()).toBe(old[1].t + 1);
   });
 
   it('merges AI changes from the audit log and keeps their undo fields', async () => {

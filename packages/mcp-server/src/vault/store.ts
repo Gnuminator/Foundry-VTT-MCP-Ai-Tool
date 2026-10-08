@@ -14,6 +14,7 @@
 import { randomBytes } from 'crypto';
 import { promises as fsp } from 'fs';
 import * as path from 'path';
+import { createInterface } from 'readline';
 
 import {
   VAULT_AREAS,
@@ -45,6 +46,42 @@ const DEFAULT_RETRY_DELAYS = [10, 25, 50, 100, 200, 400];
 
 function errorCode(error: unknown): string | undefined {
   return (error as NodeJS.ErrnoException | undefined)?.code;
+}
+
+/**
+ * Each non-blank line of a file, read from a stream (a missing file has none): never the whole
+ * file as one string, which a change journal day can outgrow (512 MB).
+ */
+async function eachRawLine(
+  full: string,
+  onLine: (line: string) => void | Promise<void>
+): Promise<void> {
+  let handle: fsp.FileHandle;
+  try {
+    handle = await fsp.open(full, 'r');
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') return;
+    throw error;
+  }
+  const lines = createInterface({
+    input: handle.createReadStream({ encoding: 'utf8' }),
+    crlfDelay: Infinity,
+  });
+  try {
+    for await (const line of lines) {
+      if (line.trim()) await onLine(line);
+    }
+  } finally {
+    lines.close();
+    await handle.close().catch(() => undefined);
+  }
+}
+
+/** The callbacks of `VaultStore.keepLastLines`. */
+export interface KeepLastLinesHooks {
+  onDropped?: (value: unknown) => void;
+  onKept?: (value: unknown) => void;
+  beforeRename?: () => Promise<void>;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -158,24 +195,107 @@ export class VaultStore {
 
   /** Read a `.jsonl` file as parsed values (missing file: empty). Bad lines are skipped. */
   async readLines(worldId: string, area: VaultArea, file: string): Promise<unknown[]> {
-    const full = this.filePath(worldId, area, file);
-    let text: string;
-    try {
-      text = await fsp.readFile(full, 'utf8');
-    } catch (error) {
-      if (errorCode(error) === 'ENOENT') return [];
-      throw error;
-    }
     const values: unknown[] = [];
-    for (const line of text.split('\n')) {
-      if (!line.trim()) continue;
+    await this.forEachLine(worldId, area, file, value => {
+      values.push(value);
+    });
+    return values;
+  }
+
+  /**
+   * Read a `.jsonl` file one line at a time (missing file: nothing), never as one string: a
+   * change journal day can be larger than the longest string Node holds (512 MB). `chars` is
+   * the line's length. Bad lines are skipped.
+   */
+  async forEachLine(
+    worldId: string,
+    area: VaultArea,
+    file: string,
+    onLine: (value: unknown, chars: number) => void
+  ): Promise<void> {
+    await eachRawLine(this.filePath(worldId, area, file), line => {
+      let value: unknown;
       try {
-        values.push(JSON.parse(line));
+        value = JSON.parse(line);
       } catch {
         // A torn last line after a crash; the rest of the log is still usable.
+        return;
       }
-    }
-    return values;
+      onLine(value, line.length);
+    });
+  }
+
+  /**
+   * Keep only the newest lines of a `.jsonl` file that fit in `maxChars` (the last line always
+   * stays), rewritten atomically inside the file's queue so no append is lost. Each line left
+   * out that parses goes to `onDropped`. Returns how many lines were left out (0: unchanged).
+   * `onKept` gets each kept line that parses, `beforeRename` runs once both are done and before
+   * the new file replaces the old one (a rejection leaves the file as it was).
+   */
+  async keepLastLines(
+    worldId: string,
+    area: VaultArea,
+    file: string,
+    maxChars: number,
+    hooks: KeepLastLinesHooks = {}
+  ): Promise<number> {
+    const { onDropped, onKept, beforeRename } = hooks;
+    if (!file.endsWith('.jsonl')) throw new Error(`Not a .jsonl file: ${file}`);
+    const full = this.filePath(worldId, area, file);
+    return this.enqueue(full, async () => {
+      const sizes: number[] = [];
+      await eachRawLine(full, line => {
+        sizes.push(line.length + 1);
+      });
+      let kept = sizes.reduce((sum, n) => sum + n, 0);
+      let skip = 0;
+      while (kept > maxChars && skip < sizes.length - 1) {
+        kept -= sizes[skip];
+        skip += 1;
+      }
+      if (skip === 0) return 0;
+      const tmp = path.join(
+        path.dirname(full),
+        `.${path.basename(full)}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`
+      );
+      const out = await fsp.open(tmp, 'w');
+      try {
+        let index = 0;
+        let chunk: string[] = [];
+        await eachRawLine(full, async line => {
+          const hook = index < skip ? onDropped : onKept;
+          if (hook) {
+            let value: unknown;
+            try {
+              value = JSON.parse(line);
+            } catch {
+              // A bad line goes to no hook.
+            }
+            if (value !== undefined) hook(value);
+          }
+          if (index >= skip) {
+            chunk.push(line);
+            if (chunk.length >= 1000) {
+              await out.write(`${chunk.join('\n')}\n`);
+              chunk = [];
+            }
+          }
+          index += 1;
+        });
+        if (chunk.length > 0) await out.write(`${chunk.join('\n')}\n`);
+        await out.sync();
+      } finally {
+        await out.close();
+      }
+      try {
+        await beforeRename?.();
+        await this.renameWithRetry(tmp, full);
+      } catch (error) {
+        await fsp.unlink(tmp).catch(() => undefined);
+        throw error;
+      }
+      return skip;
+    });
   }
 
   /** Delete a file (no error when it is already gone). */
@@ -203,6 +323,41 @@ export class VaultStore {
       if (errorCode(error) === 'ENOENT') return [];
       throw error;
     }
+  }
+
+  /**
+   * Remove the temp files a crash left behind for files whose names start with `prefix`
+   * (`.<file>.<pid>.<hex>.tmp`, see `write` and `keepLastLines`) once they are older than
+   * `olderThanMs`, so a rewrite still running is never touched. Returns the names removed.
+   */
+  async removeStaleTemps(
+    worldId: string,
+    area: VaultArea,
+    prefix: string,
+    olderThanMs: number
+  ): Promise<string[]> {
+    const dir = path.join(worldDir(this.dataDir, worldId), area);
+    let names: string[];
+    try {
+      names = await fsp.readdir(dir);
+    } catch (error) {
+      if (errorCode(error) === 'ENOENT') return [];
+      throw error;
+    }
+    const removed: string[] = [];
+    const before = Date.now() - olderThanMs;
+    for (const name of names) {
+      if (!name.startsWith(`.${prefix}`) || !name.endsWith('.tmp')) continue;
+      const full = path.join(dir, name);
+      try {
+        if ((await fsp.stat(full)).mtimeMs > before) continue;
+        await fsp.unlink(full);
+        removed.push(name);
+      } catch {
+        // Gone already, or locked: the next pass tries again.
+      }
+    }
+    return removed;
   }
 
   /** World ids that have a vault directory. */

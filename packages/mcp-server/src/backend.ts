@@ -343,6 +343,7 @@ async function startBackend(): Promise<void> {
     worldIds,
     guardedWrites,
     logger,
+    maxChars: changeJournalConfig.maxBytes,
     ...(FOUNDRY_LINK_ENABLED && changeJournalConfig.enabled
       ? journalLinks((): ChangeJournalPump | null => changeJournalPump)
       : {}),

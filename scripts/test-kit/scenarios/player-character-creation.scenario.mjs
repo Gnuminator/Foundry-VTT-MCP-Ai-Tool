@@ -249,6 +249,8 @@ export default {
             spellList,
             pumpErrors: made.pump?.errors ?? [],
             speciesUuid: sp,
+            classUuid: c.uuid,
+            backgroundUuid: bg,
           });
           const seconds = Math.round((Date.now() - started) / 1000);
           results.push({

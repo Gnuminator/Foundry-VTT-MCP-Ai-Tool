@@ -15,7 +15,8 @@ export const PLAYER_ROLE = 1;
  *   species: string[], speciesSources?: Array<string | null>, backgrounds: string[],
  *   hp: {value: number, max: number}, conMod: number, ac: number, gp: number,
  *   items: Array<{name: string, type: string}>,
- *   duplicates?: Array<{name: string, type: string, count: number, origins: Array<string | null>}>,
+ *   duplicates?: Array<{name: string, types: string[], count: number, origins: Array<string | null>}>,
+ *   classSources?: Array<string | null>, backgroundSources?: Array<string | null>,
  *   spells: Array<{name: string, identifier: string, level: number, origin: string | null}>,
  *   armor: Array<{name: string, equipped: boolean}>
  * }} Sheet
@@ -26,8 +27,8 @@ export const PLAYER_ROLE = 1;
  * @param {string} actorId
  * @returns {Promise<Sheet>}
  */
-export function readSheet(page, actorId) {
-  return page.evaluate(id => {
+export async function readSheet(page, actorId) {
+  const { copies, ...sheet } = await page.evaluate(id => {
     const a = game.actors.get(id);
     if (!a) throw new Error(`no actor ${id}`);
     const items = [...a.items];
@@ -57,29 +58,25 @@ export function readSheet(page, actorId) {
       ac: a.system.attributes.ac?.value ?? 0,
       gp: a.system.currency?.gp ?? 0,
       items: items.map(i => ({ name: i.name, type: i.type })),
-      // Items that appear more than once under the same name and type, with what granted each copy
-      // (the advancement's item, else the raw flag, else null: not granted by an advancement).
-      duplicates: (() => {
-        const seen = new Map();
-        for (const i of items) {
-          const key = `${i.type}|${i.name}`;
-          if (!seen.has(key)) seen.set(key, []);
-          seen.get(key).push(i);
-        }
-        return [...seen.values()]
-          .filter(list => list.length > 1)
-          .map(list => ({
-            name: list[0].name,
-            type: list[0].type,
-            count: list.length,
-            origins: list.map(i => {
-              const flag = i.flags?.dnd5e?.advancementOrigin;
-              if (!flag) return null;
-              const granter = a.items.get(String(flag).split('.')[0]);
-              return granter ? `${granter.type}:${granter.name}` : String(flag);
-            }),
-          }));
-      })(),
+      // Each item's type, whether dnd5e keeps it for a Cast activity, and what granted it (the
+      // advancement's item, else the raw flag, else null); findDuplicates reads these.
+      copies: items.map(i => {
+        const flag = i.flags?.dnd5e?.advancementOrigin;
+        const granter = flag ? a.items.get(String(flag).split('.')[0]) : null;
+        return {
+          name: i.name,
+          type: i.type,
+          cached: !!i.flags?.dnd5e?.cachedFor,
+          origin: !flag ? null : granter ? `${granter.type}:${granter.name}` : String(flag),
+        };
+      }),
+      // Where each class and background item was copied from (the uuids the player picked).
+      classSources: items
+        .filter(i => i.type === 'class')
+        .map(i => i._stats?.compendiumSource ?? i.flags?.dnd5e?.sourceId ?? null),
+      backgroundSources: items
+        .filter(i => i.type === 'background')
+        .map(i => i._stats?.compendiumSource ?? i.flags?.dnd5e?.sourceId ?? null),
       // Where a spell came from: the item whose advancement granted it (a species trait, a feat),
       // else the system's sourceItem ('race:forest-gnome'), else null. Actor Studio's Spells tab
       // sets neither, so its picks (the class's spells) read null.
@@ -100,6 +97,35 @@ export function readSheet(page, actorId) {
         .map(i => ({ name: i.name, equipped: !!i.system.equipped })),
     };
   }, actorId);
+  return { ...sheet, duplicates: findDuplicates(copies) };
+}
+
+/**
+ * Features and spells that appear more than once under the same name (any type: a feat and a spell
+ * of one name count together), with each copy's type and what granted it. Gear is left out (two
+ * Oil flasks are fine), and so are the copies dnd5e keeps for a Cast activity (flags.dnd5e.cachedFor:
+ * Favored Enemy's free Hunter's Mark next to the one its ItemGrant gives).
+ * @param {Array<{name: string, type: string, cached: boolean, origin: string | null}>} copies
+ * @returns {NonNullable<Sheet['duplicates']>}
+ */
+export function findDuplicates(copies) {
+  const gear = ['weapon', 'equipment', 'consumable', 'tool', 'loot', 'container'];
+  /** @type {Map<string, typeof copies>} */
+  const seen = new Map();
+  for (const c of copies) {
+    if (gear.includes(c.type) || c.cached) continue;
+    const list = seen.get(c.name) ?? [];
+    list.push(c);
+    seen.set(c.name, list);
+  }
+  return [...seen.values()]
+    .filter(list => list.length > 1)
+    .map(list => ({
+      name: list[0].name,
+      types: list.map(c => c.type),
+      count: list.length,
+      origins: list.map(c => c.origin),
+    }));
 }
 
 /**
@@ -155,8 +181,10 @@ export function turnOffTrackingFor(page, studio, userName) {
 /**
  * The checks on one new character. Problems fail the step; notes are only reported.
  * @param {{sheet: Sheet, playerId: string, classIdentifier: string, planned: string[],
- *   spellList: string[] | null, pumpErrors?: string[], speciesUuid?: string}} o
- *   speciesUuid: the species the plan picked; the sheet's species item must come from it
+ *   spellList: string[] | null, pumpErrors?: string[], speciesUuid?: string, classUuid?: string,
+ *   backgroundUuid?: string}} o
+ *   speciesUuid, classUuid, backgroundUuid: what the plan picked; the sheet's species, class and
+ *   background items must come from those entries (a 2014 and a 2024 Fighter share an identifier)
  * @returns {{problems: Array<{what: string, evidence: string}>, notes: string[]}}
  */
 export function judgeSheet({
@@ -167,6 +195,8 @@ export function judgeSheet({
   spellList,
   pumpErrors = [],
   speciesUuid = '',
+  classUuid = '',
+  backgroundUuid = '',
 }) {
   /** @type {Array<{what: string, evidence: string}>} */
   const problems = [];
@@ -184,6 +214,11 @@ export function judgeSheet({
       `the character does not have exactly one level of ${classIdentifier}`,
       cls.map(c => `${c.identifier} ${c.levels}`).join(', ') || 'no class'
     );
+  } else if (classUuid && !(sheet.classSources ?? []).includes(classUuid)) {
+    bad(
+      'the class is not the one picked',
+      `picked ${classUuid}; the sheet's class is from ${(sheet.classSources ?? []).join(', ') || 'no source'}`
+    );
   }
   if (sheet.species.length !== 1)
     bad('the character has no species', sheet.species.join(', ') || 'none');
@@ -195,6 +230,12 @@ export function judgeSheet({
   }
   if (sheet.backgrounds.length !== 1)
     bad('the character has no background', sheet.backgrounds.join(', ') || 'none');
+  else if (backgroundUuid && !(sheet.backgroundSources ?? []).includes(backgroundUuid)) {
+    bad(
+      'the background is not the one picked',
+      `picked ${backgroundUuid}; the sheet has ${sheet.backgrounds[0]} from ${(sheet.backgroundSources ?? []).join(', ') || 'no source'}`
+    );
+  }
   const hitDie = cls[0]?.hitDie ?? 0;
   if (hitDie) {
     // The total can be higher (the Tough feat, a species trait), never lower.
@@ -249,7 +290,7 @@ export function judgeSheet({
   }
   for (const d of sheet.duplicates ?? []) {
     notes.push(
-      `${d.name} (${d.type}) is on the sheet ${d.count} times, granted by: ${d.origins.map(o => o ?? 'no advancement').join(', ')}`
+      `${d.name} is on the sheet ${d.count} times: ${d.types.map((type, k) => `${type} from ${d.origins[k] ?? 'no advancement'}`).join(', ')}`
     );
   }
   notes.push(

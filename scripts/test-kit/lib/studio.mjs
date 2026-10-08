@@ -268,15 +268,20 @@ export function choosePick({ shown, name, uuid, group = '', peers = [] }) {
   const full = stripTags(name);
   const short = shownAs(name);
   const indexed = shown.map((s, index) => ({ ...s, index }));
-  const pool =
-    group && indexed.some(s => s.group === group)
-      ? indexed.filter(s => s.group === group)
-      : indexed;
+  const inGroup = !!group && indexed.some(s => s.group === group);
+  const pool = inGroup ? indexed.filter(s => s.group === group) : indexed;
+  // Said in every answer, so the run log shows which heading matched (or that none did and the
+  // whole list was searched, where a 2014 and a 2024 entry can share a label).
+  const where = !group
+    ? ''
+    : inGroup
+      ? ` in group "${group}"`
+      : ` (no "${group}" group in the list, all ${indexed.length} entries searched)`;
   /** @param {typeof pool} hits @param {typeof peers} same @param {string} how */
   const byPosition = (hits, same, how) => {
-    if (same.length <= 1) return { index: hits[0].index, how };
+    if (same.length <= 1) return { index: hits[0].index, how: how + where };
     if (hits.length !== same.length) return null;
-    return { index: hits[same.findIndex(p => p.uuid === uuid)]?.index ?? -1, how };
+    return { index: hits[same.findIndex(p => p.uuid === uuid)]?.index ?? -1, how: how + where };
   };
   if (full !== short) {
     const hits = pool.filter(s => s.label === full);
@@ -296,7 +301,7 @@ export function choosePick({ shown, name, uuid, group = '', peers = [] }) {
     if (got && got.index >= 0) return got;
     return {
       index: -1,
-      why: `"${name}" cannot be told apart: the list has ${hits.length} "${short}" entries for ${same.length} in the pack`,
+      why: `"${name}" cannot be told apart: the list has ${hits.length} "${short}" entries for ${same.length} in the pack${where}`,
     };
   }
   return {

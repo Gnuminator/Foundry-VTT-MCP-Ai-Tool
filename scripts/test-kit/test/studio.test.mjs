@@ -372,7 +372,10 @@ test('choosePick: a lineage shown in full is found by its full label, not the fi
   ]);
   const pick = (/** @type {string} */ uuid, /** @type {string} */ name) =>
     choosePick({ shown, name, uuid, group: GROUP, peers: SPECIES_PACK });
-  assert.deepEqual(pick('u.high', 'Elf, High'), { index: 1, how: 'full label "Elf, High"' });
+  assert.deepEqual(pick('u.high', 'Elf, High'), {
+    index: 1,
+    how: `full label "Elf, High" in group "${GROUP}"`,
+  });
   assert.equal(pick('u.wood', 'Elf, Wood').index, 2);
   assert.equal(pick('u.rock', 'Gnome, Rock').index, 4);
   assert.equal(pick('u.human', 'Human').index, 5);
@@ -401,6 +404,20 @@ test("choosePick: another pack's entries are ignored by group; unequal counts fa
     peers: SPECIES_PACK,
   });
   assert.equal(got.index, 4);
+  assert.equal('how' in got ? got.how : '', `label "Elf" by position in group "${GROUP}"`);
+  // No heading matches: the whole list is searched, and the answer says so.
+  const nogroup = choosePick({
+    shown: other,
+    name: 'Gnome, Rock',
+    uuid: 'u.rock',
+    group: GROUP,
+    peers: SPECIES_PACK,
+  });
+  assert.equal(nogroup.index, -1);
+  assert.match(
+    'why' in nogroup ? nogroup.why : '',
+    /no "PHB 2024 Species" group in the list, all 2 entries searched/
+  );
   // Two "Elf" entries in the group for three elves in the pack: the position cannot be trusted.
   const short = listed(['Elf', 'Elf', 'Gnome', 'Gnome', 'Human']);
   const bad = choosePick({
@@ -412,6 +429,54 @@ test("choosePick: another pack's entries are ignored by group; unequal counts fa
   });
   assert.equal(bad.index, -1);
   assert.match('why' in bad ? bad.why : '', /2 "Elf" entries for 3 in the pack/);
+});
+
+/**
+ * The species drop-down as the test server showed it on 2026-10-09 (PHB 2024 origins pack, one
+ * heading "Character Origins": the pack has no sourceBook flag, so the heading is its label alone),
+ * with Actor Studio 2.10.5-aitool.4 before (labels cut at the comma) and after the label fix.
+ */
+const REAL_GROUP = 'Character Origins';
+const REAL_PACK = [
+  'Aasimar',
+  'Dragonborn',
+  'Dwarf',
+  'Elf, Drow',
+  'Elf, High',
+  'Elf, Wood',
+  'Gnome, Forest',
+  'Gnome, Rock',
+  'Goliath',
+  'Halfling',
+  'Human',
+  'Orc',
+  'Tiefling, Abyssal',
+  'Tiefling, Chthonic',
+  'Tiefling, Infernal',
+].map(name => ({ uuid: `u.${name}`, name }));
+
+test('choosePick: the real species drop-down, before and after the label fix', () => {
+  const fixed = listed(
+    REAL_PACK.map(p => p.name),
+    REAL_GROUP
+  );
+  const cut = listed(
+    REAL_PACK.map(p => shownAs(p.name)),
+    REAL_GROUP
+  );
+  const pick = (/** @type {typeof fixed} */ shown, /** @type {string} */ name) =>
+    choosePick({ shown, name, uuid: `u.${name}`, group: REAL_GROUP, peers: REAL_PACK });
+  assert.deepEqual(pick(fixed, 'Elf, High'), {
+    index: 4,
+    how: 'full label "Elf, High" in group "Character Origins"',
+  });
+  assert.equal(pick(fixed, 'Tiefling, Chthonic').index, 13);
+  assert.deepEqual(pick(cut, 'Elf, High'), {
+    index: 4,
+    how: 'label "Elf" by position in group "Character Origins"',
+  });
+  assert.equal(pick(cut, 'Gnome, Rock').index, 7);
+  assert.equal(pick(cut, 'Aasimar').index, 0);
 });
 
 test('choosePick: a plain name, a legacy twin and a missing entry', () => {

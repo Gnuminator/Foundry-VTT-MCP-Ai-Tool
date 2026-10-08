@@ -53,7 +53,7 @@ test('runs the checks on open and shows the verdict', async ({ page }) => {
 
   await expect(drawer.getByRole('status')).toHaveText('Not ready: 1 to fix, 1 to look at.');
   await expect(drawer.getByRole('status')).toHaveClass(/pf-fail/);
-  await expect(drawer.locator('.drawer-sub')).toHaveText(/^GM only\. Last run \d\d:\d\d\.$/);
+  await expect(drawer.locator('.drawer-sub')).toHaveText(/^GM only\. Last run \d\d.\d\d\.$/);
 
   const items = drawer.getByRole('list', { name: 'Checked by the tool' }).getByRole('listitem');
   await expect(items.locator('.pf-label')).toHaveText([
@@ -112,6 +112,22 @@ test('a failed run shows the server message', async ({ page }) => {
   await expect(header(page)).toHaveText('✈ Pre-flight');
 });
 
+test('a failed run after a good one drops the old verdict', async ({ page }) => {
+  await fakeStream(page, []);
+  let calls = 0;
+  await page.route('**/api/preflight', route => {
+    calls += 1;
+    return calls === 1
+      ? route.fulfill({ json: { ready: true, checks: [CHECKS[0]], scan: null } })
+      : route.fulfill({ status: 500, json: { error: 'Bridge gone.' } });
+  });
+  const drawer = await openPreflight(page);
+  await expect(drawer.getByRole('status')).toHaveText('Ready for the session.');
+  await drawer.getByRole('button', { name: '↻ Run checks' }).click();
+  await expect(drawer.getByText("Couldn't run the checks: Bridge gone.")).toBeVisible();
+  await expect(drawer.getByRole('status')).toHaveCount(0);
+});
+
 test('the versions check failing raises the page banner', async ({ page }) => {
   await fakeStream(page, []);
   const versions = { ...CHECKS[0], status: 'fail', detail: 'The module is 0.20.0; update it.' };
@@ -162,7 +178,7 @@ test('runs quietly when Foundry becomes reachable, before the drawer opens', asy
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('the drawer closes with ✕, Escape, the backdrop and its header button', async ({ page }) => {
+test('the drawer closes with ✕, Escape and the backdrop', async ({ page }) => {
   await fakeStream(page, []);
   await fakePreflight(page, { ready: true, checks: [], scan: null });
   const drawer = await openPreflight(page);

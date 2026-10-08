@@ -283,8 +283,9 @@ export function PreflightDrawer({
         ? `GM only. Last run ${lastRun(result.dataUpdatedAt)}.`
         : 'GM only. Run it before the players join.';
 
+  // A failed run shows its error, not the verdict of the run before it.
   let summary: JSX.Element | null = null;
-  if (data) {
+  if (data && runError === null) {
     const { fails, warns } = counts(data);
     summary = (
       <div

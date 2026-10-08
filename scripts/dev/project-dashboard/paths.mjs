@@ -44,8 +44,17 @@ export function getPaths(env = process.env) {
     claudeDir,
     projectsDir: path.join(claudeDir, 'projects'),
     sessionsDir: path.join(claudeDir, 'sessions'),
+    // Play-session recordings for the session-notes watchdog.
+    recordingsDir: env.FVTT_SESSIONS_DIR || path.join(home, 'Documents', 'FoundrySessions'),
     repoRoot,
     slug: slugify(repoRoot),
     testEnvRoot: readTestEnvRoot(repoRoot),
+    // The Obsidian vault the measured Usage notes go to; PROJECT_DASHBOARD_VAULT=off turns it off.
+    vaultDir:
+      env.PROJECT_DASHBOARD_VAULT === 'off'
+        ? null
+        : env.PROJECT_DASHBOARD_VAULT ||
+          env.FOUNDRY_AI_OBSIDIAN_DIR ||
+          path.join(home, 'Documents', 'Obsidian', 'vault'),
   };
 }

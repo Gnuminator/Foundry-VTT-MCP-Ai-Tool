@@ -367,6 +367,188 @@ function renderTokens() {
   replace('tokens', ...parts);
 }
 
+// ---- measured usage log ----
+
+const PUSH_TEXT = {
+  pushed: 'pushed',
+  nothing: 'up to date',
+  waiting: 'waiting',
+  error: 'push failed',
+  off: 'off (no vault)',
+  never: 'not pushed yet',
+};
+
+function renderUsageLog(now) {
+  const u = snap.usageLog || { rows: [], push: { state: 'never' } };
+  const push = u.push || { state: 'never' };
+  const cls = push.state === 'error' ? 'red' : push.state === 'waiting' ? 'amber' : 'green';
+  const head = el('div', { cls: 'panel-head' }, [
+    el('h2', { text: 'Usage log (measured)', attrs: { id: 'usagelog-h' } }),
+    badge(PUSH_TEXT[push.state] || push.state, push.state === 'never' ? 'grey' : cls),
+  ]);
+  const parts = [head];
+  const rows = u.rows || [];
+  if (!rows.length) {
+    parts.push(
+      el('p', {
+        cls: 'muted',
+        text: 'No rows yet: a row is written when a session starts or ends.',
+      })
+    );
+  } else {
+    const body = el('tbody');
+    for (const r of rows) {
+      body.append(
+        el('tr', {}, [
+          el('td', { cls: 'nowrap', text: `${clock(r.at)} (${ago(r.at, now)})` }),
+          el('td', { cls: 'title', text: r.title, attrs: { title: r.title } }),
+          el('td', { cls: 'nowrap', text: r.event }),
+          el('td', { cls: 'num', text: fmtTokens(r.context) }),
+          el('td', { cls: 'num muted', text: fmtTokens(r.peak) }),
+        ])
+      );
+    }
+    const headRow = el('tr', {}, [
+      th('When'),
+      th('Session'),
+      th('Event'),
+      th('Context', 'num'),
+      th('Peak', 'num'),
+    ]);
+    parts.push(
+      el('div', { cls: 'tablewrap' }, [el('table', {}, [el('thead', {}, [headRow]), body])])
+    );
+  }
+  const bits = [`Vault note: ${u.file || ''}`];
+  if (push.at) bits.push(`last push attempt ${ago(push.at, now)}: ${push.detail || push.state}`);
+  if (u.nextPushAt && push.state !== 'waiting')
+    bits.push(`next push in ${until(u.nextPushAt, now)} at the earliest`);
+  parts.push(el('div', { cls: 'small muted sub-note', text: bits.join('. ') }));
+  replace('usagelog', ...parts);
+}
+
+// ---- versions ----
+
+function versionTable(rows) {
+  const head = el('tr', {}, [th('Package'), th('PC test'), th('Pi'), th('Newest'), th('')]);
+  const body = el('tbody');
+  for (const r of rows) {
+    const note =
+      r.status === 'behind' ? 'update' : r.status === 'differs' ? 'PC and Pi differ' : '';
+    body.append(
+      el('tr', {}, [
+        el('td', { cls: 'title', text: r.title || r.id, attrs: { title: r.id } }),
+        el('td', { cls: 'mono small', text: r.pc || '-' }),
+        el('td', { cls: 'mono small', text: r.pi || '-' }),
+        el('td', {
+          cls: 'mono small',
+          text: r.newest || '?',
+          attrs: r.minCore ? { title: `needs Foundry ${r.minCore} or newer` } : {},
+        }),
+        el('td', { cls: `nowrap small status-${r.status}`, text: note }),
+      ])
+    );
+  }
+  return el('div', { cls: 'tablewrap' }, [el('table', {}, [el('thead', {}, [head]), body])]);
+}
+
+function renderVersions(now) {
+  const v = snap.versions || { rows: [], pc: {}, pi: {}, newest: {}, foundry: {} };
+  const rows = v.rows || [];
+  const key = rows.filter(
+    r => r.kind !== 'module' || r.pi || r.status === 'behind' || r.status === 'differs'
+  );
+  const rest = rows.filter(r => !key.includes(r));
+  const behind = rows.filter(r => r.status === 'behind').length;
+  const head = el('div', { cls: 'panel-head' }, [
+    el('h2', { text: 'Versions', attrs: { id: 'versions-h' } }),
+    behind ? badge(`${behind} behind`, 'amber') : badge('all current', 'green'),
+  ]);
+  const parts = [head];
+  const f = v.foundry || {};
+  if (f.newestAny && f.newestAny !== f.newestStable)
+    parts.push(
+      el('p', {
+        cls: 'small amber-text',
+        text: `Foundry ${f.newestAny} is out on the ${f.newestAnyChannel || 'test'} channel (newest stable ${f.newestStable || '?'}).`,
+      })
+    );
+  if (!rows.length) parts.push(el('p', { cls: 'muted', text: 'No versions read yet.' }));
+  else parts.push(versionTable(key));
+  if (rest.length)
+    parts.push(
+      el('details', {}, [
+        el('summary', { text: `${rest.length} more modules, current and only on the PC` }),
+        versionTable(rest),
+      ])
+    );
+  const notes = [];
+  if (v.pc && v.pc.error) notes.push(`PC: ${v.pc.error}`);
+  if (v.pi && v.pi.error) notes.push(`Pi: ${v.pi.error}`);
+  if (v.pi && v.pi.asOf) notes.push(`Pi read ${ago(v.pi.asOf, now)}`);
+  if (v.newest && v.newest.asOf) notes.push(`online check ${ago(v.newest.asOf, now)}`);
+  if (v.newest && v.newest.errors) notes.push(`${v.newest.errors} lookups failed`);
+  notes.push('Test kit: no kit run recorded yet');
+  parts.push(el('div', { cls: 'small muted sub-note', text: notes.join('. ') }));
+  replace('versions', ...parts);
+}
+
+// ---- session-notes watchdog ----
+
+const WD_TEXT = {
+  'no-folder': 'No recordings folder on this PC',
+  'no-recordings': 'No recordings yet',
+  ok: 'All recordings have notes',
+  waiting: 'Notes due within 24 h',
+  paused: 'Paused on the usage limit',
+  missed: 'Notes missed',
+};
+const ITEM_TEXT = {
+  recording: 'recording',
+  empty: 'no audio',
+  done: 'notes done',
+  paused: 'paused',
+  waiting: 'waiting',
+  missed: 'missed',
+};
+
+function renderWatchdog(now) {
+  const w = snap.watchdog || { state: 'no-recordings', items: [] };
+  const parts = [el('h2', { text: 'Session notes', attrs: { id: 'watchdog-h' } })];
+  parts.push(el('p', { cls: `wd-state ${w.state}`, text: WD_TEXT[w.state] || w.state }));
+  const items = (w.items || []).slice(0, 5);
+  if (items.length) {
+    const ul = el('ul', { cls: 'plain small' });
+    for (const it of items) {
+      const cls =
+        it.state === 'missed'
+          ? 'red'
+          : it.state === 'paused'
+            ? 'amber'
+            : it.state === 'done'
+              ? 'green'
+              : 'grey';
+      ul.append(
+        el('li', {}, [
+          badge(ITEM_TEXT[it.state] || it.state, cls),
+          el('span', { cls: 'mono', text: ` ${it.name}` }),
+        ])
+      );
+    }
+    parts.push(ul);
+  }
+  parts.push(
+    el('div', {
+      cls: 'small muted sub-note',
+      // auto.ps1 writes auto.log only when a pass does something, so this is not a heartbeat.
+      text: w.lastPass
+        ? `Automatic runs last logged work ${ago(w.lastPass, now)}`
+        : 'No automatic run logged',
+    })
+  );
+  replace('watchdog', ...parts);
+}
+
 // ---- frame ----
 
 function renderWarnings() {
@@ -383,6 +565,9 @@ function render() {
     renderLanes(now);
     renderPlan(now);
     renderLock(now);
+    renderWatchdog(now);
+    renderUsageLog(now);
+    renderVersions(now);
     renderPrs(now);
     renderTokens();
     replace(

@@ -29,6 +29,7 @@
     "kit:test": "node --test \"scripts/test-kit/test/*.test.mjs\"",
     "project-dashboard": "node scripts/dev/project-dashboard/cli.mjs",
     "project-dashboard:test": "node --test \"scripts/dev/project-dashboard/test/*.test.mjs\"",
+    "vault:sync": "node scripts/dev/project-dashboard/vault.mjs",
     "emdash:ratchet": "node scripts/em-dash-guard.mjs",
     "validate:manifest": "node scripts/validate-manifest.js",
     "version:sync": "node scripts/sync-version.mjs",

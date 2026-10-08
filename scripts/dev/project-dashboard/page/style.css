@@ -80,7 +80,8 @@ h2 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing
   padding: 8px 16px 12px;
   align-items: start;
 }
-.side { display: grid; gap: 12px; min-width: 0; }
+.side { display: grid; gap: 12px; min-width: 0; align-content: start; }
+.maincol { display: grid; gap: 12px; min-width: 0; align-content: start; }
 
 @media (max-width: 1150px) {
   .grid { grid-template-columns: minmax(0, 1fr); }
@@ -196,3 +197,13 @@ ul.plain li:last-child { border-bottom: 0; }
 .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
 
 .footer { padding: 0 16px 16px; color: var(--muted); font-size: 11px; }
+
+/* versions, watchdog, usage log */
+td.status-behind { color: var(--amber); font-weight: 650; }
+td.status-differs { color: var(--blue); font-weight: 650; }
+td.status-unknown, td.status-ok { color: var(--muted); }
+.wd-state { font-weight: 650; }
+.wd-state.missed { color: var(--red); }
+.wd-state.paused, .wd-state.waiting { color: var(--amber); }
+.wd-state.ok { color: var(--green); }
+.sub-note { margin: 6px 0 0; }

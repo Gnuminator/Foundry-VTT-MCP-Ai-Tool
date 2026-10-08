@@ -77,7 +77,11 @@ export function buildLanes({ transcripts, live, prs, repoRoot, now = new Date(),
   for (const a of sessions) {
     const ls = liveById.get(a.sessionId);
     const lv = ls ? pickLive(ls) : null;
-    const lastMs = Math.max(toMs(a.lastTs) || 0, lv ? toMs(lv.updatedAt) || 0 : 0);
+    const lastMs = Math.max(
+      toMs(a.lastTs) || 0,
+      toMs(a.subLastTs) || 0,
+      lv ? toMs(lv.updatedAt) || 0 : 0
+    );
     if (lv?.alive || nowMs - lastMs <= days * 86400000) ids.add(a.sessionId);
   }
   for (const [id, ls] of liveById) {
@@ -93,6 +97,7 @@ export function buildLanes({ transcripts, live, prs, repoRoot, now = new Date(),
     const lv = ls ? pickLive(ls) : null;
     const lastMs = Math.max(
       toMs(agg?.lastTs) || 0,
+      toMs(agg?.subLastTs) || 0,
       lv ? toMs(lv.updatedAt) || 0 : 0,
       agg || !lv ? 0 : toMs(lv.startedAt) || 0
     );

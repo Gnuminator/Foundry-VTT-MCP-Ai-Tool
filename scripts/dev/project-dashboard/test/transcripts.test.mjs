@@ -256,12 +256,13 @@ test('branch and cwd come from assistant records, the latest wins, and they surv
   assert.equal(r3.sessions[0].cwd, '/fake/repo');
 });
 
-test('a non-assistant line counts its own (last) timestamp, not a nested one', async () => {
+test('a non-assistant line counts its own (first) timestamp, not a nested one', async () => {
   const env = setup();
+  // As in real transcripts: the record's timestamp, then toolUseResult with its own.
   const line = JSON.stringify({
     type: 'user',
-    toolUseResult: { timestamp: '2026-10-01T00:00:00.000Z' },
     timestamp: '2026-10-08T11:00:00.000Z',
+    toolUseResult: { timestamp: '2026-10-01T00:00:00.000Z' },
   });
   fs.writeFileSync(
     path.join(env.proj, 's1.jsonl'),

@@ -178,6 +178,23 @@ test('the remote is --remote, else what local main tracks, else aitool, else non
   }
 });
 
+test('a main with a new package-lock.json asks for the real merge and npm ci first', () => {
+  const { tmp, lane, other } = repos();
+  try {
+    commit(other, 'package-lock.json', '{"new": true}\n', 'dependency bump');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const head = git(lane, 'rev-parse', 'HEAD');
+    const { code, out } = run(lane, [passes('never')]);
+    assert.equal(code, 2, out);
+    assert.match(out, /changed package-lock\.json/);
+    assert.match(out, /run `npm ci`/);
+    assert.doesNotMatch(out, /never/);
+    assertRestored(lane, head);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('no remote for main stops before anything is merged', () => {
   const { tmp, lane } = repos();
   try {

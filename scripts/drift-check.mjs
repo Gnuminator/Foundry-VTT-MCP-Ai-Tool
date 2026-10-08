@@ -14,8 +14,9 @@
  * is this repository. It checks the last commit, so it needs a clean working tree (commit first).
  * A merge conflict names the files: merge main into the branch yourself, resolve, push, and run it
  * again. The worktree borrows this checkout's node_modules (junctions), so workspace packages
- * resolve to this checkout's build; when main changed package-lock.json, run `npm ci` after the
- * real merge. A worktree left by a killed run is removed by the next run.
+ * resolve to this checkout's build; when main changed package-lock.json those would not match, so
+ * it asks for the real merge and `npm ci` first. A worktree left by a killed run is removed by the
+ * next run.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -157,6 +158,14 @@ export function runDriftCheck({ cwd, remote, checks = CHECKS, log = console.log 
     return runChecks(cwd, checks, log, main, mainSha.out, false);
   }
 
+  // The worktree borrows this checkout's node_modules, which would not match main's lockfile (a
+  // new ESLint, say) and give false results.
+  if (!git(cwd, ['diff', '--quiet', 'HEAD', main, '--', 'package-lock.json']).ok) {
+    log(`drift-check: ${main} (${mainSha.out}) changed package-lock.json.`);
+    log('Merge main into the branch, run `npm ci`, and run this again.');
+    return 2;
+  }
+
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), WORKTREE_PREFIX));
   const cleanup = () => removeWorktree(cwd, dir);
   const onSignal = () => {
@@ -171,7 +180,6 @@ export function runDriftCheck({ cwd, remote, checks = CHECKS, log = console.log 
       log(`drift-check: git worktree add failed: ${added.err}`);
       return 2;
     }
-    const lockChanged = !git(cwd, ['diff', '--quiet', 'HEAD', main, '--', 'package-lock.json']).ok;
     // git wants an identity even for --no-commit; the trial merge is never committed.
     const merge = git(dir, [
       '-c',
@@ -200,7 +208,6 @@ export function runDriftCheck({ cwd, remote, checks = CHECKS, log = console.log 
       fs.symlinkSync(path.join(cwd, rel), link, 'junction');
     }
     log(`drift-check: trial merge of ${main} (${mainSha.out}) in a throwaway worktree.`);
-    if (lockChanged) log('  main changed package-lock.json: run `npm ci` after the real merge.');
     return runChecks(dir, checks, log, main, mainSha.out, true);
   } finally {
     process.off('SIGTERM', onSignal);

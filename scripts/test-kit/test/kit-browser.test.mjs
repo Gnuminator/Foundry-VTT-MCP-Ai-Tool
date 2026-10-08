@@ -42,7 +42,7 @@ function fakePage(log, name) {
       handlers[ev] = fn;
     },
     emit(ev, arg) {
-      handlers[ev]?.(arg);
+      return handlers[ev]?.(arg);
     },
     async setViewportSize(v) {
       log.push(['viewport', name, v]);
@@ -140,6 +140,47 @@ test('console and page errors are recorded per page, with the page kind, and go 
   // copies: changing a returned entry changes nothing
   browser.consoleErrors(dash)[0].message = 'changed';
   assert.equal(browser.consoleErrors(dash)[0].message, 'boom');
+});
+
+const response = (status, url, { method = 'POST', postData = null, body = '' } = {}) => ({
+  status: () => status,
+  url: () => url,
+  text: async () => body,
+  request: () => ({ method: () => method, postData: () => postData }),
+});
+
+test('a failed /api/ request is recorded once, with its tool and error, never its arguments', async () => {
+  const sink = [];
+  const { browser } = createKitBrowser({
+    dashboardUrl: 'http://d',
+    context: fakeContext([], 'gm'),
+    scenarioId: 's1',
+    sink,
+  });
+  const dash = await browser.open('/');
+  const api = 'http://d/api/tool';
+  // the browser's own line for it is left out: the response listener says more
+  dash.emit('console', consoleMsg('Failed to load resource: the server responded with a status of 422', api));
+  await dash.emit(
+    'response',
+    response(422, api, {
+      postData: JSON.stringify({ name: 'undo-change', args: { changeId: 'secret-arg' } }),
+      body: JSON.stringify({ ok: false, error: 'No change with id x' }),
+    })
+  );
+  await dash.emit('response', response(200, api));
+  await dash.emit('response', response(404, 'http://d/missing.png', { method: 'GET' }));
+  dash.emit('console', consoleMsg('Failed to load resource: 404', 'http://d/missing.png'));
+  await dash.emit('response', response(401, 'http://d/api/state', { method: 'GET', body: 'nope' }));
+  assert.deepEqual(
+    browser.consoleErrors(dash).map(e => [e.message, e.source]),
+    [
+      ['HTTP 422 POST /api/tool undo-change: No change with id x', 'response'],
+      ['Failed to load resource: 404', 'http://d/missing.png:3'],
+      ['HTTP 401 GET /api/state: nope', 'response'],
+    ]
+  );
+  assert.ok(!JSON.stringify(sink).includes('secret-arg'));
 });
 
 test('fresh opens one separate Edge per scenario; close closes pages and it, never the GM context', async () => {

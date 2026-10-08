@@ -85,6 +85,9 @@ const PREFLIGHT = [MOMENT_DURING, ADV, 'dash.header.preflight']; // overlay in D
 const PREP = [MOMENT_DURING, ADV, 'dash.header.prep']; // overlay in During
 /** The Prep drawer has finished loading (its Refresh button is disabled while it loads). */
 const PREP_IDLE = '#prep-refresh:not([disabled])';
+// Opening the drawer starts a run that redraws the findings (closed) when it ends; on a big world it
+// ends after the click, so wait for it first.
+const PREFLIGHT_IDLE = '#preflight-run:not([disabled])';
 const PARTY = [MOMENT_BEFORE, ADV, 'dash.header.party']; // overlay in Before and After
 const HANDOUTS = [MOMENT_BEFORE, ADV, 'dash.header.handouts']; // overlay in Before
 const AI = [ADV, 'dash.header.show-ai'];
@@ -477,6 +480,7 @@ export const DASHBOARD_CONTROLS = [
   },
   {
     name: 'dash.preflight.show-findings',
+    idle: PREFLIGHT_IDLE,
     how: 'toggle',
     reach: PREFLIGHT,
     expect: '#preflight-findings li',

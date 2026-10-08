@@ -1522,8 +1522,70 @@ describe('Seen in presence and hidden tokens', () => {
     const awayRecord = recorder
       .getPlayRecords({})
       .records.find(r => r.kind === 'hp' && r.actor?.uuid === 'Actor.away');
-    expect(awayRecord).toBeDefined();
-    expect(awayRecord?.data).toBeUndefined();
+    // No token on the active scene: the players cannot see it (Strahd's sheet edited elsewhere).
+    expect(awayRecord?.data).toEqual({ hidden: true });
+  });
+
+  it('never marks a PC without a token on the active scene', () => {
+    world.addScene({ id: 'sceneA', tokens: [] });
+    world.setActiveScene('sceneA');
+    const pc = npcActor({ id: 'hero', type: 'character' });
+    world.actors.add(pc);
+    expect(hpChange(pc)?.data).toBeUndefined();
+  });
+
+  it('marks an unlinked token on a scene other than the active one', () => {
+    world.addScene({
+      id: 'sceneB',
+      tokens: [makeToken({ id: 't1', uuid: 'Scene.sceneB.Token.t1', actorId: 'amb' })],
+    });
+    world.addScene({ id: 'sceneA', tokens: [] });
+    world.setActiveScene('sceneA');
+    const actor = npcActor({
+      id: 'amb',
+      uuid: 'Scene.sceneB.Token.t1.Actor.amb',
+      isToken: true,
+      tokenUuid: 'Scene.sceneB.Token.t1',
+    });
+    expect(hpChange(actor)?.data).toEqual({ hidden: true });
+  });
+
+  /** The `combat-turn` record for a turn of `combatant`, whose actor has a visible token on sceneA. */
+  function combatTurn(combatant: Record<string, unknown>): PlayRecord | undefined {
+    world.addScene({ id: 'sceneA', tokens: [makeToken({ id: 't1', actorId: 'wolf' })] });
+    world.addScene({ id: 'sceneB', tokens: [] });
+    world.setActiveScene('sceneA');
+    const actor = npcActor({ id: 'wolf' });
+    world.actors.add(actor);
+    const combat: any = {
+      id: 'combat1',
+      round: 1,
+      turn: 1,
+      combatants: { size: 1 },
+      combatant: { name: 'Wolf', actor, ...combatant },
+      _stats: { modifiedTime: Date.now() },
+    };
+    Hooks.callAll('updateCombat', combat, { turn: 1 }, {}, 'u1');
+    return recorder.getPlayRecords({}).records.find(r => r.kind === 'combat-turn');
+  }
+
+  it('decides a combat turn by the combatant, not the actor', () => {
+    const token = { id: 't1', hidden: false };
+    expect(combatTurn({ token, sceneId: 'sceneA' })?.data?.hidden).toBeUndefined();
+
+    restore();
+    setup();
+    // Hidden in the tracker while the actor's token is visible.
+    expect(combatTurn({ hidden: true, token, sceneId: 'sceneA' })?.data?.hidden).toBe(true);
+
+    restore();
+    setup();
+    // The combatant's own token is on a scene the players do not see.
+    expect(combatTurn({ token, sceneId: 'sceneB' })?.data?.hidden).toBe(true);
+
+    restore();
+    setup();
+    expect(combatTurn({ token: { id: 't1', hidden: true } })?.data?.hidden).toBe(true);
   });
 
   it('records the active scene and who is online at load when there is no canvas', () => {

@@ -387,8 +387,9 @@ timeline die with the browser, one hit logs both `damage-roll` and `damage`, `de
   built from these by id, never by name, and count only while a player is online (presence is
   walked through the whole log, across session-start markers and gaps, and reset by the next
   `scene` record): table records (rolls, item use and chat that are not whispered or blind; HP,
-  conditions and combat turns not marked `data.hidden`, which the module sets when the record's
-  token is hidden) and the visible tokens of the active scene. GM lifecycle work and scene
+  conditions and combat turns not marked `data.hidden`, which the module sets when the players
+  cannot see the token: hidden, or not on the active scene, and an NPC with no token there; a
+  combat turn goes by the combatant's own tracker flag and token) and the visible tokens of the active scene. GM lifecycle work and scene
   previews never count. A GM client without a canvas records the active scene at load.
 - **Kinds:** rolls (attack, damage, save, check, skill, tool, initiative, death save, hit die), spell
   casts (level, slot, upcast), slots, class resources, hit dice, item uses/charges/quantity, loot,

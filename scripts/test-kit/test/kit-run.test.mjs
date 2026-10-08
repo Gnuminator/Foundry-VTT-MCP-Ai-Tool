@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,6 +14,7 @@ import {
   noteRow,
   parseArgs,
   resultText,
+  staleKitLock,
   updateNote,
   writeLastRun,
   writeVaultNote,
@@ -49,7 +51,7 @@ function fakeRun(answers = {}) {
   return { run, calls };
 }
 
-function setup(answers, { states = [DOWN, UP], opts = {} } = {}) {
+function setup(answers, { states = [DOWN, UP], opts = {}, deps: extra = {} } = {}) {
   const home = mkdtempSync(path.join(os.tmpdir(), 'kit-run-'));
   const fake = fakeRun({
     'kit.mjs all': args => {
@@ -75,6 +77,9 @@ function setup(answers, { states = [DOWN, UP], opts = {} } = {}) {
       vault.push(r);
       return { state: 'pushed', detail: 'pushed 1 file' };
     },
+    signals: new EventEmitter(),
+    exit: () => {},
+    ...extra,
   };
   const o = { ...parseArgs([]), ...opts };
   return {
@@ -234,6 +239,94 @@ test('a failed build stops before the environment; --keep-up and --no-build skip
     assert.equal(k.fake.calls.filter(c => c === 'stop.ps1').length, 1);
   } finally {
     k.cleanup();
+  }
+});
+
+test('a signal during the build: the step stops, no environment change, the lock is released', async () => {
+  const signals = new EventEmitter();
+  const t = setup(
+    {
+      npm: () => {
+        signals.emit('SIGTERM', 'SIGTERM');
+        return { code: 1, stderr: 'killed' };
+      },
+    },
+    { deps: { signals } }
+  );
+  try {
+    const { code, result } = await kitRun(t.o, t.deps);
+    assert.equal(code, 1);
+    assert.equal(result.state, 'error');
+    assert.equal(result.detail, 'interrupted');
+    assert.deepEqual(t.fake.calls.slice(2), ['lock.ps1 take', 'npm run', 'lock.ps1 release']);
+    assert.equal(lastRun(t.home).last.detail, 'interrupted');
+    assert.equal(signals.listenerCount('SIGINT'), 0);
+    assert.equal(signals.listenerCount('SIGTERM'), 0);
+  } finally {
+    t.cleanup();
+  }
+});
+
+test('Ctrl+C while waiting for the lock: leaves the queue at once; a second one exits', async () => {
+  const signals = new EventEmitter();
+  const exits = [];
+  let naps = 0;
+  const t = setup(
+    { 'lock.ps1 take': { code: 1, stderr: 'Test server lock is held by lane X.' } },
+    {
+      opts: { wait: 120 },
+      deps: {
+        signals,
+        exit: c => exits.push(c),
+        sleep: async () => {
+          naps += 1;
+          signals.emit('SIGINT', 'SIGINT');
+          signals.emit('SIGINT', 'SIGINT');
+        },
+      },
+    }
+  );
+  try {
+    const { code, result } = await kitRun(t.o, t.deps);
+    assert.equal(code, 3);
+    assert.equal(naps, 1);
+    assert.equal(result.detail, 'interrupted while waiting for the lock');
+    assert.deepEqual(t.fake.calls.slice(2), ['lock.ps1 take', 'lock.ps1 queue', 'lock.ps1 leave']);
+    assert.deepEqual(exits, [130]);
+  } finally {
+    t.cleanup();
+  }
+});
+
+test('nightly: a stale lock of an earlier kit run is taken over; a fresh one or a lane is not', async () => {
+  const held = (session, min) =>
+    `Test server lock is held by kit run (session ${session}) since 2026-10-08T01:30:00Z (${min} min ago) for kit run.`;
+  assert.equal(staleKitLock(held('kit-run-20261008-033000', 500), 420), true);
+  assert.equal(staleKitLock(held('kit-run-20261008-033000', 300), 420), false);
+  assert.equal(staleKitLock(held('local_abc', 900), 420), false);
+  assert.equal(staleKitLock(held('kit-run-20261008-033000', 900), null), false);
+
+  const stale = {
+    'lock.ps1 take': args =>
+      args.includes('-Force')
+        ? { code: 0, stdout: 'Took the lock over from kit run.\nLock taken by kit run.' }
+        : { code: 1, stderr: held('kit-run-20261008-033000', 500) },
+  };
+  const n = setup(stale, { opts: { nightly: true, wait: 120, size: 'full' } });
+  try {
+    const { code } = await kitRun(n.o, n.deps);
+    assert.equal(code, 0);
+    assert.deepEqual(n.fake.calls.slice(2, 4), ['lock.ps1 take', 'lock.ps1 take']);
+    assert.equal(n.fake.calls.at(-1), 'lock.ps1 release');
+  } finally {
+    n.cleanup();
+  }
+  const d = setup(stale);
+  try {
+    assert.equal((await kitRun(d.o, d.deps)).code, 3);
+    assert.equal(d.fake.calls.filter(c => c === 'lock.ps1 take').length, 1);
+  } finally {
+    d.cleanup();
   }
 });
 

@@ -8,4 +8,5 @@
   environment on the kit world, runs the test kit, stops the environment, releases the lock and
   records the result in `<kit home>/last-run.json` and the vault note `Test kit runs.md`. On
   demand, or overnight with `--nightly` (`scripts/test-kit/register-nightly.ps1` registers the
-  scheduled task).
+  scheduled task, hidden, no catch-up run in the day). Ctrl+C or a closed console stops the
+  current step and still releases the lock; the nightly run takes over a stale kit run lock.

@@ -13,10 +13,11 @@
  * 3 the lock was not free.
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { EnvError } from './lib/errors.mjs';
 import { loadProfile } from './lib/profiles.mjs';
@@ -38,7 +39,8 @@ Usage: npm run kit:run -- [options]
   --size smoke|full|long   kit size (default smoke; --nightly makes it full)
   --profile <id>           content profile (default srd); it picks the kit world
   --wait <minutes>         when the lock is taken: queue and wait this long (default 0: give up)
-  --nightly                the overnight run: --size full, --wait 120, and a skipped run is recorded
+  --nightly                the overnight run: --size full, --wait 120, a skipped run is recorded,
+                           and a kit run lock older than 7 hours (a killed run) is taken over
   --session <id>           the lock's session id (default KIT_RUN_SESSION, else kit-run-<time>);
                            pass your own when you already hold the lock, it is then kept
   --holder <name>          the name on the lock (default "kit run")
@@ -95,13 +97,18 @@ function stamp(d) {
 }
 
 /** Runs a program; resolves { code, stdout, stderr }. `echo` copies its output to ours. */
-export function defaultRun(file, args, { cwd = REPO_ROOT, echo = false, shell = false } = {}) {
+export function defaultRun(
+  file,
+  args,
+  { cwd = REPO_ROOT, echo = false, shell = false, signal } = {}
+) {
   return new Promise(resolve => {
     const env = { ...process.env };
     // npm and node children use the same Node as this command (the portable Node 22).
     const pathKey = Object.keys(env).find(k => k.toUpperCase() === 'PATH') || 'PATH';
     env[pathKey] = `${path.dirname(process.execPath)}${path.delimiter}${env[pathKey] || ''}`;
-    const child = spawn(file, args, { cwd, env, shell, windowsHide: true });
+    // `signal` stops the child when the run is interrupted (the build and the kit only).
+    const child = spawn(file, args, { cwd, env, shell, windowsHide: true, signal });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', b => {
@@ -133,7 +140,17 @@ function firstLine(text, fallback = '') {
 }
 
 /**
- * Takes the lock. With waitMs, a refusal joins the queue and tries again every minute.
+ * A lock left by an earlier kit run that is older than `afterMin` minutes: that run was killed
+ * without a signal (the scheduled task's time limit), so nobody will release it.
+ */
+export function staleKitLock(stderr, afterMin) {
+  const m = /\(session (kit-run-\S+)\) since \S+ \((\d+) min ago\)/.exec(stderr || '');
+  return Boolean(m && afterMin != null && Number(m[2]) > afterMin);
+}
+
+/**
+ * Takes the lock. With waitMs, a refusal joins the queue and tries again every minute; `stopped`
+ * ends the wait early. With takeOverAfterMin, a stale lock of an earlier kit run is taken over.
  * @returns {Promise<{ok: boolean, already: boolean, detail: string}>}
  */
 export async function takeLock({
@@ -144,16 +161,23 @@ export async function takeLock({
   waitMs = 0,
   sleep,
   now = Date.now,
+  stopped = () => false,
+  takeOverAfterMin = null,
 }) {
   const lockArgs = cmd => [cmd, '-Holder', holder, '-Session', session, '-Purpose', purpose];
   const until = now() + waitMs;
   let queued = false;
+  const leave = async () => {
+    if (queued) await pwsh(run, 'lock.ps1', ['leave', '-Session', session]);
+  };
   for (;;) {
-    const r = await pwsh(run, 'lock.ps1', lockArgs('take'));
+    let r = await pwsh(run, 'lock.ps1', lockArgs('take'));
+    if (r.code !== 0 && staleKitLock(r.stderr, takeOverAfterMin))
+      r = await pwsh(run, 'lock.ps1', [...lockArgs('take'), '-Force']);
     if (r.code === 0)
       return { ok: true, already: /already hold/i.test(r.stdout), detail: firstLine(r.stdout) };
     if (now() >= until) {
-      if (queued) await pwsh(run, 'lock.ps1', ['leave', '-Session', session]);
+      await leave();
       return { ok: false, already: false, detail: firstLine(r.stderr, 'the lock was refused') };
     }
     if (!queued) {
@@ -161,6 +185,10 @@ export async function takeLock({
       queued = true;
     }
     await sleep(Math.min(60000, Math.max(0, until - now())));
+    if (stopped()) {
+      await leave();
+      return { ok: false, already: false, detail: 'interrupted while waiting for the lock' };
+    }
   }
 }
 
@@ -292,7 +320,10 @@ export function writeLastRun(home, r) {
   const ran = r.state === 'passed' || r.state === 'failed';
   const doc = { version: 1, last: entry, lastRun: ran ? entry : (prev?.lastRun ?? null) };
   mkdirSync(home, { recursive: true });
-  writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
+  // Temp file plus rename: the control center never reads a half-written file.
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
+  renameSync(tmp, file);
   return file;
 }
 
@@ -332,6 +363,14 @@ async function gitInfo(run) {
   };
 }
 
+// SIGHUP is a closed console on Windows; SIGBREAK is Ctrl+Break (Windows only).
+const SIGNALS = [
+  'SIGINT',
+  'SIGTERM',
+  'SIGHUP',
+  ...(process.platform === 'win32' ? ['SIGBREAK'] : []),
+];
+
 class Stop extends Error {
   constructor(state, detail) {
     super(detail);
@@ -347,12 +386,14 @@ export async function kitRun(o, deps = {}) {
   const {
     run = defaultRun,
     fetchImpl = fetch,
-    sleep = ms => new Promise(r => setTimeout(r, ms)),
+    sleep = (ms, signal) => delay(ms, undefined, { signal }).catch(() => {}),
     now = () => new Date(),
     log = line => console.log(`kit:run ${line}`),
     home = kitHome(),
     state = () => envState(fetchImpl),
     writeVault = writeVaultNote,
+    signals = process,
+    exit = code => process.exit(code),
   } = deps;
   // An unknown profile stops here, before the lock and without a record.
   const profile = loadProfile(o.profile);
@@ -369,12 +410,24 @@ export async function kitRun(o, deps = {}) {
   let r = { ...base, world: profile.world, state: 'error', detail: '' };
   let took = false;
   let envTouched = false;
+  // Ctrl+C, Ctrl+Break, a closed console or a kill: stop the current step, then the finally block
+  // stops the environment and releases the lock. A second signal exits at once.
   let interrupted = false;
-  const onSignal = () => {
+  const abort = new AbortController();
+  const onSignal = sig => {
+    if (interrupted) {
+      log(`${sig} again: exiting now; check the test server lock (lock.ps1 status)`);
+      exit(130);
+      return;
+    }
     interrupted = true;
-    log('interrupted: cleaning up (stop the environment, release the lock)');
+    abort.abort();
+    log(`${sig}: cleaning up (stop the environment, release the lock)`);
   };
-  process.on('SIGINT', onSignal);
+  const halt = () => {
+    if (interrupted) throw new Stop('error', 'interrupted');
+  };
+  for (const sig of SIGNALS) signals.on(sig, onSignal);
   try {
     const lock = await takeLock({
       run,
@@ -382,12 +435,16 @@ export async function kitRun(o, deps = {}) {
       holder: o.holder,
       purpose: `kit run: ${o.size} ${o.profile}${o.nightly ? ' (nightly)' : ''}`,
       waitMs: o.wait * 60000,
-      sleep,
+      sleep: ms => sleep(ms, abort.signal),
       now: () => now().getTime(),
+      stopped: () => interrupted,
+      // The scheduled task stops a run after 6 hours without a signal; its lock is stale by 7.
+      takeOverAfterMin: o.nightly ? 7 * 60 : null,
     });
     if (!lock.ok) throw new Stop('skipped', lock.detail);
     took = !lock.already;
     log(lock.detail);
+    halt();
 
     const before = await state();
     if (before.foundry)
@@ -396,24 +453,31 @@ export async function kitRun(o, deps = {}) {
       );
     if (o.build) {
       log('npm run build ...');
-      const b = await run('npm', ['run', 'build'], { shell: process.platform === 'win32' });
+      const b = await run('npm', ['run', 'build'], {
+        shell: process.platform === 'win32',
+        signal: abort.signal,
+      });
+      halt();
       if (b.code !== 0)
         throw new Stop('error', `npm run build failed: ${firstLine(b.stderr, 'see the console')}`);
     }
     const sync = await pwsh(run, 'sync-module.ps1', ['-NoBuild']);
+    halt();
     if (sync.code !== 0)
       throw new Stop('error', `sync-module.ps1 failed: ${firstLine(sync.stderr)}`);
     const stop = await pwsh(run, 'stop.ps1', []);
     if (stop.code !== 0) throw new Stop('env', `stop.ps1 refused: ${firstLine(stop.stderr)}`);
     envTouched = true;
+    halt();
     const start = await pwsh(run, 'start.ps1', ['-World', profile.world], { echo: true });
+    halt();
     if (start.code !== 0) throw new Stop('env', `start.ps1 failed: ${firstLine(start.stderr)}`);
     const up = await state();
     const down = Object.keys(PORTS).filter(k => !up[k]);
     if (down.length) throw new Stop('env', `not listening after start.ps1: ${down.join(', ')}`);
     if (up.world !== profile.world)
       throw new Stop('env', `Foundry runs world ${up.world || 'none'}, not ${profile.world}`);
-    if (interrupted) throw new Stop('error', 'interrupted');
+    halt();
 
     const dir = newRunDir(home, o.size);
     r.reportDir = dir;
@@ -430,7 +494,7 @@ export async function kitRun(o, deps = {}) {
         '--report-dir',
         dir,
       ],
-      { echo: true }
+      { echo: true, signal: abort.signal }
     );
     r = readReport(dir, r);
     const envLine = kit.stderr.split(/\r?\n/).find(l => l.startsWith('ENV '));
@@ -458,7 +522,7 @@ export async function kitRun(o, deps = {}) {
       const rel = await pwsh(run, 'lock.ps1', ['release', '-Session', session]);
       log(rel.code === 0 ? 'lock released' : `lock release failed: ${firstLine(rel.stderr)}`);
     }
-    process.off('SIGINT', onSignal);
+    for (const sig of SIGNALS) signals.off(sig, onSignal);
   }
   r = { ...r, finishedAt: now().toISOString(), durationMs: now().getTime() - started.getTime() };
   if (r.state === 'skipped') r.durationMs = 0;

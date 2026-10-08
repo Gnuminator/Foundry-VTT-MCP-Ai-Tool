@@ -234,6 +234,20 @@ test('no control center: a fresh snapshot file is used, an old one is not', asyn
 test('worktree paths map to the main checkout', () => {
   assert.equal(mainCheckout('C:\\p\\Foundry\\.claude\\worktrees\\x'), 'C:\\p\\Foundry');
   assert.equal(mainCheckout('/p/Foundry'), '/p/Foundry');
+  // A worktree anywhere: its .git file names the main checkout.
+  const root = mkdtempSync(path.join(os.tmpdir(), 'start-alerts-wt-'));
+  try {
+    const main = path.join(root, 'Foundry');
+    const wt = path.join(root, 'elsewhere', 'wt');
+    mkdirSync(wt, { recursive: true });
+    writeFileSync(
+      path.join(wt, '.git'),
+      `gitdir: ${main.replaceAll('\\', '/')}/.git/worktrees/wt\n`
+    );
+    assert.equal(mainCheckout(wt), main);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('the hook as a process: silent when clean, JSON when an alert fires', () => {

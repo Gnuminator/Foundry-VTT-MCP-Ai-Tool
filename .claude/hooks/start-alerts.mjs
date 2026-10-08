@@ -31,8 +31,12 @@ const LOCK_OLD_MS = 4 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 3000;
 const VAULT_MASTER = path.join('Dev', 'Foundry AI Tool', 'repo-docs', 'CLAUDE.md');
 
-// A worktree (.claude/worktrees/<name>) belongs to the main checkout above it.
+// A worktree belongs to the main checkout: its .git file reads "gitdir: <main>/.git/worktrees/<name>"
+// (no git call). Without that file, a path under .claude/worktrees/ maps to the folder above.
 export function mainCheckout(dir) {
+  const git = readText(path.join(dir, '.git'));
+  const g = git && /^gitdir:\s*(.+?)[\\/]\.git[\\/]worktrees[\\/][^\\/\r\n]+\s*$/m.exec(git);
+  if (g) return path.resolve(dir, g[1]);
   const m = /[\\/]\.claude[\\/]worktrees[\\/]/.exec(dir);
   return m ? dir.slice(0, m.index) : dir;
 }

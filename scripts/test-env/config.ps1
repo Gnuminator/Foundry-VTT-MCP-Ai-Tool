@@ -461,6 +461,26 @@ function Test-LockOld([string]$Since) {
   return ($null -ne $mins -and $mins -ge $LockOldHours * 60)
 }
 
+# What sync-module.ps1 -Watch does with a pending module change, from the lock alone: it syncs only
+# while this session holds the lock, and it never takes the lock. Returns Action (sync | wait), Key
+# (the same key means the same wait, so the watch says it once) and Message.
+function Resolve-WatchSync($Lock, [string]$Session) {
+  if ($Lock.Unreadable) {
+    return @{ Action = 'wait'; Key = 'unreadable'; Message = 'Waiting: lock.json cannot be read, so nobody can tell who holds the test server (lock.ps1 status). Not synced.' }
+  }
+  if ($Lock.Holder -and $Lock.Session -eq $Session) {
+    return @{ Action = 'sync'; Key = 'mine'; Message = 'This session holds the lock.' }
+  }
+  if ($Lock.Holder) {
+    $since = if ($Lock.Since) { " since $($Lock.Since)" } else { '' }
+    $mins = Get-LockMinutes $Lock.Since
+    if ($null -ne $mins) { $since += " ($mins min)" }
+    $for = if ($Lock.Purpose) { " for $($Lock.Purpose)" } else { '' }
+    return @{ Action = 'wait'; Key = "other:$($Lock.Session)"; Message = "Waiting: the test server lock is held by $($Lock.Holder) (session $($Lock.Session))$since$for. Not synced; the change syncs once this session holds the lock." }
+  }
+  return @{ Action = 'wait'; Key = 'free'; Message = "Waiting: the test server lock is free, but this session does not hold it. Not synced; take it with: pwsh scripts/test-env/lock.ps1 take -Holder `"<session title>`" -Session $Session -Purpose `"...`" (the watch never takes it)." }
+}
+
 function Write-Pids([hashtable]$Pids) {
   New-Item -ItemType Directory -Force $TestEnv.LogDir | Out-Null
   $Pids | ConvertTo-Json | Set-Content $TestEnv.PidFile

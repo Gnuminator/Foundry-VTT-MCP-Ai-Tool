@@ -1,16 +1,26 @@
 {
-  "total": 5999,
+  "total": 6716,
   "rules": {
-    "@typescript-eslint/explicit-function-return-type": 240,
+    "@typescript-eslint/explicit-function-return-type": 293,
+    "@typescript-eslint/no-base-to-string": 11,
+    "@typescript-eslint/no-duplicate-type-constituents": 1,
     "@typescript-eslint/no-explicit-any": 976,
+    "@typescript-eslint/no-unnecessary-type-assertion": 88,
     "@typescript-eslint/no-unsafe-argument": 167,
     "@typescript-eslint/no-unsafe-assignment": 1442,
-    "@typescript-eslint/no-unsafe-call": 273,
+    "@typescript-eslint/no-unsafe-call": 274,
     "@typescript-eslint/no-unsafe-member-access": 2591,
-    "@typescript-eslint/no-unsafe-return": 162,
-    "@typescript-eslint/prefer-nullish-coalescing": 52,
+    "@typescript-eslint/no-unsafe-return": 126,
+    "@typescript-eslint/only-throw-error": 3,
+    "@typescript-eslint/prefer-nullish-coalescing": 440,
+    "@typescript-eslint/prefer-optional-chain": 62,
+    "@typescript-eslint/prefer-promise-reject-errors": 6,
     "@typescript-eslint/require-await": 60,
     "@typescript-eslint/restrict-template-expressions": 7,
-    "no-console": 29
+    "@typescript-eslint/unbound-method": 85,
+    "no-console": 29,
+    "no-constant-binary-expression": 1,
+    "no-useless-assignment": 16,
+    "preserve-caught-error": 38
   }
 }

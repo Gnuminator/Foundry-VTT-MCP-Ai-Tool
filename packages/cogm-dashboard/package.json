@@ -15,8 +15,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test -c web",
     "typecheck": "tsc --noEmit && tsc -p web --noEmit",
-    "lint": "eslint src web --ext .ts,.tsx",
-    "lint:fix": "eslint src web --ext .ts,.tsx --fix"
+    "lint": "eslint src web",
+    "lint:fix": "eslint src web --fix"
   },
   "dependencies": {
     "@anthropic-ai/sdk": ">=0.40.0",

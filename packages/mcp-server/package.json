@@ -19,8 +19,8 @@
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix"
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix"
   },
   "dependencies": {
     "@gnuminator/shared": "*",

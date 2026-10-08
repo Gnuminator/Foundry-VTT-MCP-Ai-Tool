@@ -9,7 +9,7 @@
     "build": "node esbuild.config.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src"
   },
   "devDependencies": {
     "esbuild": "^0.27.7",

@@ -153,6 +153,33 @@ describe('VaultStore lists, lines and removal', () => {
     await expect(store.appendLines('w1', 'sessions', 'd.json', [1])).rejects.toThrow(/jsonl/);
   });
 
+  it('keeps the newest lines that fit, hands over the rest, and loses no append made meanwhile', async () => {
+    const store = makeStore();
+    const rows = Array.from({ length: 6 }, (_, i) => ({ n: i }));
+    await store.appendLines('w1', 'gm', 'k.jsonl', rows);
+    // Each line is `{"n":i}` plus a newline: 8 characters.
+    expect(await store.keepLastLines('w1', 'gm', 'k.jsonl', 100)).toBe(0);
+    const dropped: unknown[] = [];
+    const keeping = store.keepLastLines('w1', 'gm', 'k.jsonl', 24, v => {
+      dropped.push(v);
+    });
+    const appending = store.appendLines('w1', 'gm', 'k.jsonl', [{ n: 6 }]);
+    expect(await keeping).toBe(3);
+    await appending;
+    expect(dropped).toEqual([{ n: 0 }, { n: 1 }, { n: 2 }]);
+    expect(await store.readLines('w1', 'gm', 'k.jsonl')).toEqual([
+      { n: 3 },
+      { n: 4 },
+      { n: 5 },
+      { n: 6 },
+    ]);
+    // The last line always stays, and a missing file is left alone.
+    expect(await store.keepLastLines('w1', 'gm', 'k.jsonl', 1)).toBe(3);
+    expect(await store.readLines('w1', 'gm', 'k.jsonl')).toEqual([{ n: 6 }]);
+    expect(await store.keepLastLines('w1', 'gm', 'none.jsonl', 1)).toBe(0);
+    expect(await store.list('w1', 'gm')).toEqual(['k.jsonl']);
+  });
+
   it('reads JSON lines one at a time with their length, across CRLF, blank and bad lines', async () => {
     const store = makeStore();
     await fsp.mkdir(path.join(dataDir, 'w1', 'gm'), { recursive: true });

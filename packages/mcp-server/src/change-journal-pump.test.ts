@@ -443,6 +443,33 @@ describe('ChangeJournalPump.pollOnce', () => {
     expect(await later.historyStart('w1')).toBe(T0 + 2000);
   });
 
+  it("keeps the newest half of a day's file that grew over the cap, and moves the history start", async () => {
+    for (let i = 0; i < 10; i++) foundry.add({ key: `k${i}`, t: T0 + i * 1000 });
+    const lineSize = JSON.stringify(foundry.records[0]).length + 1;
+    const maxBytes = lineSize * 6;
+    const pump = makePump({ maxBytes });
+    await pump.pollOnce();
+    const date = localDateKey(T0);
+    const keys = await loggedKeys(date);
+    const text = await fsp.readFile(
+      store.filePath('w1', 'gm', changeJournalFileName(date)),
+      'utf8'
+    );
+    expect(text.length).toBeLessThanOrEqual(maxBytes / 2);
+    expect(keys[keys.length - 1]).toBe('k9');
+    const firstKept = Number(keys[0].slice(1));
+    expect(await pump.historyStart('w1')).toBe(T0 + (firstKept - 1) * 1000 + 1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Change journal day over the size cap: its oldest records were removed',
+      expect.objectContaining({ removed: firstKept })
+    );
+
+    // A re-pull from seq 0 (a GM browser reload) does not write the removed records again.
+    foundry.clientId = 'reloaded';
+    await pump.pollOnce();
+    expect(await loggedKeys(date)).toEqual(keys);
+  });
+
   it('records lost records after a reload and on first contact too (the buffer wrapped before the pump saw it)', async () => {
     foundry.add({ key: 'a', t: T0 });
     foundry.add({ key: 'b', t: T0 + 1000 });

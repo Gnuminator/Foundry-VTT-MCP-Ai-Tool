@@ -33,6 +33,8 @@
  * before it. Records older than it are not written again (a re-pull from seq 0 after a GM
  * browser reload would otherwise recreate a removed file). A file that cannot be removed
  * (a Windows lock) is retried after `RETENTION_RETRY_MS`, the others are still removed.
+ * A day's file that an append takes over `maxBytes` keeps its newest half (`capDays`), and
+ * `completeFrom` moves past the records it lost, as for lost records below.
  *
  * Lost records: when the buffer no longer holds the record after the one the pump asked for
  * (the ring wrapped before the pump read it, on any page; or, after a reload or on first
@@ -323,6 +325,12 @@ export class ChangeJournalPump {
       const batch = await this.appendByDate(worldId, valid, state.historyFrom);
       written += batch.length;
       appended.push(...batch);
+      // A day's file over the cap keeps its newest half; the history is complete after the rest.
+      const capFrom = await this.capDays(worldId, batch);
+      if (capFrom > (state.completeFrom ?? 0)) {
+        state.completeFrom = capFrom;
+        lost = true;
+      }
 
       // The cursor follows the last record of the page; a short page is the end.
       const lastRead = rawRecords.reduce<number>(
@@ -487,6 +495,51 @@ export class ChangeJournalPump {
       written.push(...toAppend);
     }
     return written;
+  }
+
+  /**
+   * The files the batch was written to that now hold more than `maxBytes` keep their newest
+   * half (a heavy day: a world import, a bulk delete with every document's data; retention
+   * never removes the newest file). Returns the time after the newest record left out, 0 when
+   * none was. The keys stay in `writtenKeys`, so a re-pull does not write those records again.
+   */
+  private async capDays(worldId: string, batch: ChangeRecord[]): Promise<number> {
+    let completeFrom = 0;
+    for (const date of new Set(batch.map(r => localDateKey(r.t)))) {
+      const file = changeJournalFileName(date);
+      let size: number;
+      try {
+        size = (await fsp.stat(this.store.filePath(worldId, 'gm', file))).size;
+      } catch {
+        continue;
+      }
+      if (size <= this.maxBytes) continue;
+      try {
+        const dropped = await this.store.keepLastLines(
+          worldId,
+          'gm',
+          file,
+          Math.floor(this.maxBytes / 2),
+          value => {
+            const t = (value as { t?: unknown } | null)?.t;
+            if (typeof t === 'number' && t + 1 > completeFrom) completeFrom = t + 1;
+          }
+        );
+        this.logger.warn('Change journal day over the size cap: its oldest records were removed', {
+          worldId,
+          file,
+          removed: dropped,
+          completeFrom: new Date(completeFrom).toISOString(),
+        });
+      } catch (error) {
+        this.logger.warn('Change journal day could not be capped', {
+          worldId,
+          file,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return completeFrom;
   }
 
   private async loadWrittenKeys(worldId: string, date: string): Promise<Set<string>> {

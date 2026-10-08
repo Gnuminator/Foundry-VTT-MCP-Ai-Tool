@@ -48,6 +48,35 @@ function errorCode(error: unknown): string | undefined {
   return (error as NodeJS.ErrnoException | undefined)?.code;
 }
 
+/**
+ * Each non-blank line of a file, read from a stream (a missing file has none): never the whole
+ * file as one string, which a change journal day can outgrow (512 MB).
+ */
+async function eachRawLine(
+  full: string,
+  onLine: (line: string) => void | Promise<void>
+): Promise<void> {
+  let handle: fsp.FileHandle;
+  try {
+    handle = await fsp.open(full, 'r');
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') return;
+    throw error;
+  }
+  const lines = createInterface({
+    input: handle.createReadStream({ encoding: 'utf8' }),
+    crlfDelay: Infinity,
+  });
+  try {
+    for await (const line of lines) {
+      if (line.trim()) await onLine(line);
+    }
+  } finally {
+    lines.close();
+    await handle.close().catch(() => undefined);
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -177,34 +206,81 @@ export class VaultStore {
     file: string,
     onLine: (value: unknown, chars: number) => void
   ): Promise<void> {
-    const full = this.filePath(worldId, area, file);
-    let handle: fsp.FileHandle;
-    try {
-      handle = await fsp.open(full, 'r');
-    } catch (error) {
-      if (errorCode(error) === 'ENOENT') return;
-      throw error;
-    }
-    const lines = createInterface({
-      input: handle.createReadStream({ encoding: 'utf8' }),
-      crlfDelay: Infinity,
-    });
-    try {
-      for await (const line of lines) {
-        if (!line.trim()) continue;
-        let value: unknown;
-        try {
-          value = JSON.parse(line);
-        } catch {
-          // A torn last line after a crash; the rest of the log is still usable.
-          continue;
-        }
-        onLine(value, line.length);
+    await eachRawLine(this.filePath(worldId, area, file), line => {
+      let value: unknown;
+      try {
+        value = JSON.parse(line);
+      } catch {
+        // A torn last line after a crash; the rest of the log is still usable.
+        return;
       }
-    } finally {
-      lines.close();
-      await handle.close().catch(() => undefined);
-    }
+      onLine(value, line.length);
+    });
+  }
+
+  /**
+   * Keep only the newest lines of a `.jsonl` file that fit in `maxChars` (the last line always
+   * stays), rewritten atomically inside the file's queue so no append is lost. Each line left
+   * out that parses goes to `onDropped`. Returns how many lines were left out (0: unchanged).
+   */
+  async keepLastLines(
+    worldId: string,
+    area: VaultArea,
+    file: string,
+    maxChars: number,
+    onDropped: (value: unknown) => void = (): void => undefined
+  ): Promise<number> {
+    if (!file.endsWith('.jsonl')) throw new Error(`Not a .jsonl file: ${file}`);
+    const full = this.filePath(worldId, area, file);
+    return this.enqueue(full, async () => {
+      const sizes: number[] = [];
+      await eachRawLine(full, line => {
+        sizes.push(line.length + 1);
+      });
+      let kept = sizes.reduce((sum, n) => sum + n, 0);
+      let skip = 0;
+      while (kept > maxChars && skip < sizes.length - 1) {
+        kept -= sizes[skip];
+        skip += 1;
+      }
+      if (skip === 0) return 0;
+      const tmp = path.join(
+        path.dirname(full),
+        `.${path.basename(full)}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`
+      );
+      const out = await fsp.open(tmp, 'w');
+      try {
+        let index = 0;
+        let chunk: string[] = [];
+        await eachRawLine(full, async line => {
+          if (index < skip) {
+            try {
+              onDropped(JSON.parse(line));
+            } catch {
+              // A bad line is left out with the rest.
+            }
+          } else {
+            chunk.push(line);
+            if (chunk.length >= 1000) {
+              await out.write(`${chunk.join('\n')}\n`);
+              chunk = [];
+            }
+          }
+          index += 1;
+        });
+        if (chunk.length > 0) await out.write(`${chunk.join('\n')}\n`);
+        await out.sync();
+      } finally {
+        await out.close();
+      }
+      try {
+        await this.renameWithRetry(tmp, full);
+      } catch (error) {
+        await fsp.unlink(tmp).catch(() => undefined);
+        throw error;
+      }
+      return skip;
+    });
   }
 
   /** Delete a file (no error when it is already gone). */

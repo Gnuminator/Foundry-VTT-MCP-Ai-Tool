@@ -667,7 +667,8 @@ export class QueryHandlers {
       const requestData: any = {
         packId: data.packId,
         itemId: data.itemId,
-        customNames: data.customNames ?? [],
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- keep `||`: a non-array falsy value (for example '') must still fall back to [] (behaviour-neutral sweep)
+        customNames: data.customNames || [],
         quantity: data.quantity || 1,
         addToScene: data.addToScene || false,
       };
@@ -715,7 +716,7 @@ export class QueryHandlers {
 
       return await this.dataAccess.addActorsToScene({
         actorIds: data.actorIds,
-        placement: data.placement ?? 'random',
+        placement: data.placement || 'random',
         hidden: data.hidden || false,
       });
     });

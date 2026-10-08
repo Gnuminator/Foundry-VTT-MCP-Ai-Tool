@@ -249,7 +249,7 @@ export class CombatDataAccess {
       if (ids.length > 0) await combat.rollInitiative(ids);
       scope = 'selected';
     } else {
-      scope = data.scope ?? 'npcs';
+      scope = data.scope || 'npcs';
       if (scope === 'all') {
         await combat.rollAll();
       } else if (scope === 'missing') {
@@ -460,7 +460,7 @@ export class CombatDataAccess {
       throw new Error('No party levels available — pass partyLevels.');
     }
 
-    const difficulty = data.difficulty ?? 'moderate';
+    const difficulty = data.difficulty || 'moderate';
     let xpBudget = 0;
     let model = 'unknown';
 

@@ -142,7 +142,7 @@ the full lists: [docs/reference/TOOL-SETS.md](docs/reference/TOOL-SETS.md).
 
 | Set       | Tools | What it covers                                                                                                                           |
 | --------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **core**  | 20    | Look-ups (world, characters, scenes, tokens, combat state, journals, compendiums) and the change safety net: plan, apply, undo           |
+| **core**  | 22    | Look-ups (world, characters, scenes, tokens, combat state, journals, compendiums) and the change safety net: plan, apply, undo           |
 | **play**  | 29    | Live play: tokens, initiative and turns, rolls, damage and healing, conditions, resources, rests, the party, chat, mood, map notes, loot |
 | **prep**  | 20    | Prep and recaps: quests and journals, encounter budgets, Tarokka, handouts and the player view, session log, play stats                  |
 | **build** | 7     | NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells                                           |

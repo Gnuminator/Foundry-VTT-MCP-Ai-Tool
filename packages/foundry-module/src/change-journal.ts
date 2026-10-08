@@ -1,6 +1,8 @@
 import { MODULE_ID } from './constants.js';
 import {
   CHANGE_JOURNAL_ACTION_GAP_MS,
+  CHANGE_JOURNAL_ACTION_MAX_MS,
+  CHANGE_JOURNAL_ACTION_MAX_OPS,
   CHANGE_JOURNAL_DOCUMENTS,
   CHANGE_JOURNAL_MAX_BUFFER_BYTES,
   CHANGE_JOURNAL_MAX_LIMIT,
@@ -300,6 +302,11 @@ export class ChangeJournal {
   /** This browser's current change group and when its last change happened. */
   private actionId: string | null = null;
   private lastChangeAt = 0;
+  /** When the current change group began, and how many operations it holds. */
+  private actionStartedAt = 0;
+  private actionOps = 0;
+  /** The last operation carried the guarded-write marker (an AI change was applying). */
+  private lastGuarded = false;
 
   /**
    * Register the hooks once (safe to call more than once), for every covered
@@ -358,13 +365,30 @@ export class ChangeJournal {
     return typeof userId === 'string' && typeof own === 'string' && userId === own;
   }
 
-  /** This browser's change group: a new one when the previous change is older than the gap. */
-  private currentActionId(): string {
+  /**
+   * This browser's change group: a new one when the previous change is older than the gap, or
+   * when the group is too old or holds too many operations (a stream with no gap). The second
+   * rule never splits a guarded write from the operation after it (`guarded`: this one carries
+   * the guarded-write marker): dnd5e's follow-ups of an AI change stay in its group, however
+   * long the apply runs.
+   */
+  private currentActionId(guarded: boolean): string {
     const now = Date.now();
-    if (this.actionId === null || now - this.lastChangeAt > CHANGE_JOURNAL_ACTION_GAP_MS) {
+    const plain = !guarded && !this.lastGuarded;
+    if (
+      this.actionId === null ||
+      now - this.lastChangeAt > CHANGE_JOURNAL_ACTION_GAP_MS ||
+      (plain &&
+        (now - this.actionStartedAt >= CHANGE_JOURNAL_ACTION_MAX_MS ||
+          this.actionOps >= CHANGE_JOURNAL_ACTION_MAX_OPS))
+    ) {
       this.actionId = randomId();
+      this.actionStartedAt = now;
+      this.actionOps = 0;
     }
+    this.actionOps += 1;
     this.lastChangeAt = now;
+    this.lastGuarded = guarded;
     return this.actionId;
   }
 
@@ -383,11 +407,13 @@ export class ChangeJournal {
       opts[MODULE_ID] = ns;
     }
     const journal = asRecord(ns.journal);
+    const guarded = markerOf(options).changeId !== undefined;
     if (journal && str(journal.actionId)) {
       this.lastChangeAt = Date.now();
+      this.lastGuarded = guarded;
       return journal as unknown as NonNullable<ChangeJournalOptions['journal']>;
     }
-    const made = { actionId: this.currentActionId() };
+    const made = { actionId: this.currentActionId(guarded) };
     ns.journal = made;
     return made;
   }

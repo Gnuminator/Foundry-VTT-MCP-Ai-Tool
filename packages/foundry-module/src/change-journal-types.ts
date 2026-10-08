@@ -24,6 +24,10 @@ export const CHANGE_JOURNAL_MAX_RECORD_BYTES = 256 * 1024;
 /** Two changes from this browser closer together than this share an `actionId`. */
 export const CHANGE_JOURNAL_ACTION_GAP_MS = 300;
 
+/** A new `actionId` once the current one is this old or holds this many operations (a stream). */
+export const CHANGE_JOURNAL_ACTION_MAX_MS = 30_000;
+export const CHANGE_JOURNAL_ACTION_MAX_OPS = 2000;
+
 /** Document types the journal covers (hooks are registered for the names present in `CONFIG`). */
 export const CHANGE_JOURNAL_DOCUMENTS = [
   'Actor',

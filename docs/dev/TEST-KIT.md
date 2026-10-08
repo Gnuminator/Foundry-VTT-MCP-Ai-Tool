@@ -329,7 +329,9 @@ the controls that failed; the `controls` attachment has one row per control (pas
 reason), and the report links one screenshot per drawer, view, moment and During layout for a person to
 look at (no pixel comparison). A control that depends on data (a boss in the combat, a stored Tarokka reading,
 AI on) is skipped with a note when it is not on the screen, never failed; a console error during a row fails
-it even so (the sweep waits a moment after each row so a late error lands on the row that caused it). A
+it even so (the sweep waits a moment after each row so a late error lands on the row that caused it). The boss is provided: when the kit has its scene and a `legendary` monster, the sweep starts a
+combat of that monster and a hero with Combat buttons on (both put back afterwards), and the six combat strip
+rows (Boss prompts, reaction, select a combatant, the selection's Clear, Condition and Damage) must then pass. A
 dashboard API request that answers 400 or more is recorded as `HTTP <status> <method> <path> <tool>:
 <error>` (the tool's name and the server's error, never its arguments) in place of the browser's bare
 "Failed to load resource" line. A row whose drawer starts its own run on opening (Prep, Pre-flight) waits

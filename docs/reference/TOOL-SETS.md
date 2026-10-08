@@ -4,8 +4,8 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 86 tools. Their definitions are about 93,300 characters of JSON, roughly 22,000 to
-29,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
+The bridge has 86 tools. Their definitions are about 99,900 characters of JSON, about 24,000 to
+31,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
 So the tools are split into five sets. Each set is its own entry in Claude Desktop's
@@ -14,13 +14,13 @@ what the conversation needs. The switches are remembered for new chats.
 
 | Set       | Claude Desktop entry | Tools | Size (characters) | For                                                                                          |
 | --------- | -------------------- | ----- | ----------------- | -------------------------------------------------------------------------------------------- |
-| **core**  | `foundry-mcp`        | 22    | about 15,000      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
-| **play**  | `foundry-mcp-play`   | 29    | about 26,400      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
-| **prep**  | `foundry-mcp-prep`   | 20    | about 19,600      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
-| **build** | `foundry-mcp-build`  | 7     | about 25,200      | Making NPCs, monsters and items, from a compendium or from scratch.                          |
-| **admin** | `foundry-mcp-admin`  | 8     | about 6,500       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
+| **core**  | `foundry-mcp`        | 22    | about 16,500      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
+| **play**  | `foundry-mcp-play`   | 29    | about 29,100      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
+| **prep**  | `foundry-mcp-prep`   | 20    | about 21,400      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
+| **build** | `foundry-mcp-build`  | 7     | about 25,800      | Making NPCs, monsters and items, from a compendium or from scratch.                          |
+| **admin** | `foundry-mcp-admin`  | 8     | about 7,100       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
 
-A prep chat with core and prep on carries about 35,000 characters instead of 93,300. Core alone is
+A prep chat with core and prep on carries about 37,900 characters instead of 99,900. Core alone is
 about 16% of everything.
 
 The dashboard is not affected: it reads the bridge directly and always has every tool.
@@ -86,6 +86,9 @@ tool.
 
 - Put it in exactly one set in `tool-sets.ts`. The tool catalog test fails otherwise, and also
   when a set grows past its size budget.
+- Give it a title and a kind (read, write or destructive) in `tool-hints.ts`. Claude Desktop
+  lets the GM allow the read-only tools once and keeps asking before the others; a test fails
+  when a tool has no entry or a write is marked read-only.
 - A new feature gets **one tool with an `action` parameter** (like `manage-world-items`), not a
   handful of small tools.
 - A prompt names only tools from its own set and core (checked by the prompt tests).

@@ -64,7 +64,8 @@ Open the **Species** list and pick one. Its description and traits show below.
 
 Some species appear more than once, one entry per lineage: Elf (Drow, High, Wood), Gnome (Forest,
 Rock) and Tiefling (Abyssal, Chthonic, Infernal). The list shows the lineage after the name, for
-example "Elf, High". Pick the one you want.
+example "Elf, High". Pick the one you want. If your list shows plain "Elf" three times instead,
+pick one and read the description under the list: it names the lineage you picked.
 
 ## 4. Background
 
@@ -89,7 +90,8 @@ choice, finish anyway and tell the GM.
 ## 7. Advancements: answer each step
 
 The builder walks through what your species, background and class give you, one step at a time
-("Step 2 of 4"). Some steps only tell you what you get; click **Next**. Others ask you to choose.
+("Step 2 of 3"; the number of steps depends on your choices). Some steps only tell you what you
+get; click **Next**. Others ask you to choose.
 
 **Pick everything a step asks for before you click Next.** The Next button works even when you have
 picked nothing, and then your character simply misses that choice. Look for text like "Select 1

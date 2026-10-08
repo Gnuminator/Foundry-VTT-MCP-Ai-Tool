@@ -129,6 +129,18 @@ function renderProperties(schema: JsonSchema, indent: string): string[] {
   });
 }
 
+/** The read/write hint as one line (tool-hints.ts), so the GM sees which tools Claude Desktop asks about. */
+function renderKind(tool: ToolDefinitionLike): string[] {
+  const hints = tool.annotations;
+  if (!hints) return [];
+  const kind = hints.readOnlyHint
+    ? 'read-only'
+    : hints.destructiveHint
+      ? 'changes something and can delete or overwrite'
+      : 'changes something';
+  return [`Kind: ${kind}. Title: ${hints.title}.`, ''];
+}
+
 function renderTool(tool: ToolDefinitionLike): string[] {
   const schema = (tool.inputSchema ?? {}) as JsonSchema;
   const params = renderProperties(schema, '');
@@ -137,6 +149,7 @@ function renderTool(tool: ToolDefinitionLike): string[] {
     '',
     ...renderDescription(tool.description),
     '',
+    ...renderKind(tool),
     ...(params.length > 0 ? ['Parameters:', '', ...params] : ['No parameters.']),
     '',
   ];

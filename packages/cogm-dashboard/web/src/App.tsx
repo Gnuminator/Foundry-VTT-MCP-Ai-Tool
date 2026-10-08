@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState, type JSX } from 'react';
+import { useCallback, useEffect, useState, type JSX } from 'react';
 
 import { DrawerBackdrop } from './components/Drawer';
 import { HelpProvider } from './components/Help';
 import { useHelp } from './components/HelpButton';
 import { ModuleDiagnosticsPane } from './panels/ModuleDiagnostics';
+import { PartyDrawer } from './panels/Party';
 import { PlayerLinksPane } from './panels/PlayerLinks';
 import { PrepDrawer } from './panels/Prep';
 import {
@@ -14,6 +15,7 @@ import {
   usePreflightOnReconnect,
 } from './panels/Preflight';
 import { api } from './lib/api';
+import { GmActionsGateContext } from './lib/guarded';
 import { useDashboardStream } from './lib/stream';
 import { applyTheme } from './lib/theme';
 
@@ -58,8 +60,8 @@ export function App(): JSX.Element {
 }
 
 /** The drawers this page has so far; each one's open state. */
-type DrawerName = 'preflight' | 'prep';
-const NO_DRAWERS: Record<DrawerName, boolean> = { preflight: false, prep: false };
+type DrawerName = 'preflight' | 'prep' | 'party';
+const NO_DRAWERS: Record<DrawerName, boolean> = { preflight: false, prep: false, party: false };
 
 function Dashboard(): JSX.Element {
   useWorldTheme();
@@ -71,9 +73,12 @@ function Dashboard(): JSX.Element {
   const openHelp = useHelp();
   const [linksOpen, setLinksOpen] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
+  // A guarded change refused for GM Actions opens Pre-flight, whose Ready for session turns them
+  // on (the old page opens the Tool runner's gate; that drawer is not here yet).
+  const openGmActionsGate = useCallback(() => setDrawers(d => ({ ...d, preflight: true })), []);
 
   return (
-    <>
+    <GmActionsGateContext.Provider value={openGmActionsGate}>
       <header className="topbar">
         <div className="brand">
           <span className="brand-icon" aria-hidden="true">
@@ -100,6 +105,16 @@ function Dashboard(): JSX.Element {
             onClick={() => setDrawer('prep', !drawers.prep)}
           >
             📋 Prep
+          </button>
+          <button
+            id="btn-party"
+            className="btn"
+            data-track="dash.header.party"
+            title="The party: members at a glance, travel pace, combat and rests (GM only)"
+            aria-expanded={drawers.party}
+            onClick={() => setDrawer('party', !drawers.party)}
+          >
+            🛡 Party
           </button>
           <button
             className="btn"
@@ -151,6 +166,7 @@ function Dashboard(): JSX.Element {
         onOpenChange={open => setDrawer('prep', open)}
         onOpenPreflight={() => setDrawers(d => ({ ...d, prep: false, preflight: true }))}
       />
-    </>
+      <PartyDrawer open={drawers.party} onOpenChange={open => setDrawer('party', open)} />
+    </GmActionsGateContext.Provider>
   );
 }

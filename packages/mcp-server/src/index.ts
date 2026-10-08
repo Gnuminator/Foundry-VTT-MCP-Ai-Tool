@@ -4,7 +4,11 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  type CallToolResult,
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 
 import { config } from './config.js';
 
@@ -16,6 +20,8 @@ import {
 } from './control-target.js';
 
 import { PROMPTS_CAPABILITY, registerPromptHandlers } from './prompts/register.js';
+
+import { type ToolDefinitionLike, type ToolResultLike, capToolResult } from './tool-router.js';
 
 import {
   TOOL_SETS_ENV,
@@ -392,6 +398,10 @@ async function startWrapper(): Promise<void> {
     process.exit(0);
   });
 
+  // The tools this entry listed, by name: the result size guard names a tool's own parameters
+  // when it cuts a result.
+  const listedTools = new Map<string, ToolDefinitionLike>();
+
   mcp.setRequestHandler(ListToolsRequestSchema, async () => {
     try {
       const res = await backend.send('list_tools', {});
@@ -409,7 +419,9 @@ async function startWrapper(): Promise<void> {
         (res.tools || []) as Parameters<typeof stripToolRefs>[0],
         TOOL_SET_SELECTION
       );
-      return { tools: stripToolRefs(listed) };
+      const served = stripToolRefs(listed);
+      for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
+      return { tools: served };
     } catch (e) {
       // Log but return empty to remain MCP-compliant
 
@@ -425,9 +437,11 @@ async function startWrapper(): Promise<void> {
     const { name, arguments: args } = request.params as any;
 
     try {
-      const res = await backend.send('call_tool', { name, args: args ?? {} });
+      const res = (await backend.send('call_tool', { name, args: args ?? {} })) as ToolResultLike;
 
-      return res;
+      // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
+      const toolName = String(name);
+      return capToolResult(res, toolName, listedTools.get(toolName)) as unknown as CallToolResult;
     } catch (e: any) {
       return {
         content: [{ type: 'text', text: `Error: ${e?.message || 'Backend unavailable'}` }],

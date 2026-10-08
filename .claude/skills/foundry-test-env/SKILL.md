@@ -104,6 +104,10 @@ A crashed session's lock or queue entry (status and the dashboard flag entries o
 drops a dead queue entry. A `lock.json` that cannot be read is refused until `take -Force` or
 `release -Force` starts a fresh lock; check with the other sessions first.
 
+A whole test kit run with the lock taken and released for you: `npm run kit:run` (options and
+exit codes in `docs/dev/TEST-KIT.md`, "The kit run command"). It restarts the test environment on
+the kit world and stops it afterwards.
+
 ## Next steps
 
 - Testing the AI Tool (calling tools, guarded writes, dashboard, pickers, vault, the M0+M1 smoke

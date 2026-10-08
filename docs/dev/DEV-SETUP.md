@@ -67,6 +67,16 @@ drop (`npm run lint:ratchet -- --update`, `npm run emdash:ratchet -- --update`).
 Then paste the **handoff prompt** to continue (Phase 8 → Phase 9). Keep **Claude Desktop only for
 _playing_** (its `foundry-mcp` AI-GM tools); do development here.
 
+**Start alerts.** A project hook (`.claude/hooks/start-alerts.mjs`, in `.claude/settings.json`)
+runs when a session starts, resumes or clears. It prints nothing when all is fine, and otherwise
+up to nine short lines: the main checkout's `CLAUDE.md` differs from the vault master
+(`Dev/Foundry AI Tool/repo-docs/CLAUDE.md`), who holds the test server lock, lanes of this
+project at 200k context or more, and a missed or paused session-notes run. The lanes and the
+session notes come from the control center on `127.0.0.1:3200` (or its `snapshot.json` when that
+is under 30 minutes old); when neither answers on a PC that has the control center, one line says
+so. Check it by hand with `node .claude/hooks/start-alerts.mjs` (the `START_ALERTS_*` variables
+in its header point it at other folders).
+
 ## 5. (Later) running the bridge + dashboard from VS Code
 
 For live work, in a terminal here:

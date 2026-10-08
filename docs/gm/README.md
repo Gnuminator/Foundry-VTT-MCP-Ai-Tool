@@ -17,6 +17,7 @@ play.
 | [Asking Claude](asking-claude.md)                      | Good requests, the ready-made prompts, how Claude's changes are approved, its limits. |
 | [Cookbook](cookbook.md)                                | Ready-to-use requests and clicks before, during and after a session.                  |
 | [Your Obsidian vault](obsidian.md)                     | What is in your vault, where your prep goes, and connecting the plugin to the server. |
+| [Prepare session 0](prepare-session-0.md)              | Set up the world so players can make their characters, and run the night.             |
 | [Before each session](before-session.md)               | A checklist for the 15 minutes before play.                                           |
 | [After each session](after-session.md)                 | A checklist for right after play.                                                     |
 | [When a character dies](death-and-new-characters.md)   | The moment of death, a death log, and bringing in a new character.                    |

@@ -61,7 +61,7 @@ describe('tool catalog', () => {
   });
 
   it('keeps each tool set within its size budget (characters of JSON Claude Desktop receives)', () => {
-    // Budgets with some room; all tools were about 92,500 characters at 95 tools (before F5 replaced four tools with one). Raise one only on purpose.
+    // Budgets with some room. Raise one only on purpose.
     // I-124 raised core and prep by 2,000 for the tool hints (title, readOnlyHint, destructiveHint).
     const budget = {
       core: 17_000,
@@ -93,6 +93,115 @@ describe('tool catalog', () => {
       const block = rest.slice(0, end);
       const named = [...block.matchAll(/`([^`]+)`/g)].map(m => m[1]);
       expect(named, set).toEqual([...TOOL_SETS[set].tools]);
+    }
+  });
+
+  it('keeps the tool counts and sizes in README.md and docs/reference/TOOL-SETS.md true', () => {
+    const read = (path: string): string =>
+      readFileSync(fileURLToPath(new URL(`../../../${path}`, import.meta.url)), 'utf8').replace(
+        /\r\n/g,
+        '\n'
+      );
+    const num = (text: string): number => Number(text.replace(/,/g, ''));
+    const size = (value: unknown): number => JSON.stringify(stripToolRefs(value)).length;
+    const within10 = (file: string, what: string, written: number, actual: number): void => {
+      expect(
+        Math.abs(written - actual) / actual,
+        `${file}: ${what} says ${written}, measured ${actual}; update the number`
+      ).toBeLessThanOrEqual(0.1);
+    };
+    /** The first capture group of `pattern` in `text`, or a failure naming the file. */
+    const grab = (file: string, text: string, pattern: RegExp): number => {
+      const match = pattern.exec(text);
+      expect(match, `${file}: no text matching ${pattern}`).not.toBeNull();
+      return num(match![1]);
+    };
+    const total = size(tools);
+
+    const docFile = 'docs/reference/TOOL-SETS.md';
+    const doc = read(docFile);
+    expect(grab(docFile, doc, /The bridge has ([\d,]+) tools\./), `${docFile}: tool count`).toBe(
+      tools.length
+    );
+    within10(docFile, 'total size', grab(docFile, doc, /about ([\d,]+) characters of JSON/), total);
+    // The token range is the character count at about 4.2 and 3.2 characters per token.
+    within10(
+      docFile,
+      'low token estimate',
+      grab(docFile, doc, /about ([\d,]+) to\s+[\d,]+\s+tokens/),
+      total / 4.2
+    );
+    within10(
+      docFile,
+      'high token estimate',
+      grab(docFile, doc, /about [\d,]+ to\s+([\d,]+)\s+tokens/),
+      total / 3.2
+    );
+    const corePrep = size(filterToolsBySets(tools, resolveToolSets('core,prep')));
+    within10(
+      docFile,
+      'core and prep size',
+      grab(docFile, doc, /core and prep on carries about ([\d,]+) characters/),
+      corePrep
+    );
+    within10(
+      docFile,
+      'total in the core and prep sentence',
+      grab(docFile, doc, /characters instead of ([\d,]+)\./),
+      total
+    );
+    const corePercent = (100 * size(filterToolsBySets(tools, resolveToolSets('core')))) / total;
+    expect(
+      Math.abs(grab(docFile, doc, /Core alone is\s+about (\d+)% of everything/) - corePercent),
+      `${docFile}: core share, measured ${corePercent.toFixed(1)}%; update the number`
+    ).toBeLessThanOrEqual(2);
+    for (const set of TOOL_SET_NAMES) {
+      const row = new RegExp(
+        String.raw`^\| \*\*${set}\*\*\s*\|[^|]*\|\s*([\d,]+)\s*\|\s*about ([\d,]+)\s*\|`,
+        'm'
+      );
+      const match = row.exec(doc);
+      expect(match, `${docFile}: no table row for ${set}`).not.toBeNull();
+      expect(num(match![1]), `${docFile}: tool count of ${set}`).toBe(TOOL_SETS[set].tools.length);
+      within10(
+        docFile,
+        `size of ${set}`,
+        num(match![2]),
+        size(filterToolsBySets(tools, resolveToolSets(set)))
+      );
+    }
+
+    const readmeFile = 'README.md';
+    const readme = read(readmeFile);
+    expect(
+      grab(readmeFile, readme, /([\d,]+) tools in five sets/),
+      `${readmeFile}: tool count`
+    ).toBe(tools.length);
+    expect(
+      grab(readmeFile, readme, /([\d,]+) tools let Claude/),
+      `${readmeFile}: tool count in the feature list`
+    ).toBe(tools.length);
+    expect(
+      grab(readmeFile, readme, /serves all ([\d,]+) tools/),
+      `${readmeFile}: tool count in the setup section`
+    ).toBe(tools.length);
+    expect(
+      grab(readmeFile, readme, /all ([\d,]+) tools are about/),
+      `${readmeFile}: tool count in the size sentence`
+    ).toBe(tools.length);
+    within10(
+      readmeFile,
+      'total size',
+      grab(readmeFile, readme, /tools are about ([\d,]+) characters/),
+      total
+    );
+    for (const set of TOOL_SET_NAMES) {
+      const row = new RegExp(String.raw`^\| \*\*${set}\*\*\s*\|\s*([\d,]+)\s*\|`, 'm');
+      const match = row.exec(readme);
+      expect(match, `${readmeFile}: no table row for ${set}`).not.toBeNull();
+      expect(num(match![1]), `${readmeFile}: tool count of ${set}`).toBe(
+        TOOL_SETS[set].tools.length
+      );
     }
   });
 });

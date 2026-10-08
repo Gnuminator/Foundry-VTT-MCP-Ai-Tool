@@ -272,7 +272,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.changes.everyone-redo',
     how: 'write',
-    why: 'puts an undone change back after the confirm window; the guarded undo checks cover it',
+    why: 'puts an undone change back after the confirm window; dashboard-write-flows (i) clicks it',
   },
 
   // --- the combat strip (only with a live combat; the buttons need GM Actions and Combat buttons on) ---
@@ -657,13 +657,13 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.modal.cancel',
     how: 'write',
-    why: 'the confirm window opens only from a write flow; its checks cover it',
+    why: 'the confirm window opens only from a write flow; dashboard-write-flows (i) clicks it',
   },
   { name: 'dash.modal.confirm', how: 'write', why: 'confirms a write; the write checks cover it' },
   {
     name: 'dash.modal.destructive-check',
     how: 'write',
-    why: 'the destructive tick of the confirm window; the write checks cover it',
+    why: 'the destructive tick of the confirm window; dashboard-write-flows (a) and (i) tick it',
   },
 
   // --- the undo window (I-109, from Undo on the Everyone tab) ---
@@ -731,7 +731,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.undo.apply',
     how: 'write',
-    why: 'applies the undo plan: it changes the game; the guarded undo checks cover it',
+    why: 'applies the undo plan: it changes the game; dashboard-write-flows (h) and (j) click it',
   },
 
   // --- Escape ---
@@ -745,7 +745,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.shortcut.escape-modal',
     how: 'skip',
-    why: 'closes the confirm window, which opens only from a write flow',
+    why: 'closes the confirm window, which opens only from a write flow; dashboard-write-flows (i) presses it',
   },
   {
     name: 'dash.shortcut.escape-undo',

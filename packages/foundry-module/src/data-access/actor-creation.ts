@@ -269,7 +269,7 @@ export class ActorCreationDataAccess {
         try {
           const sceneResult = await this.addActorsToScene({
             actorIds: createdActors.map(a => a.id),
-            placement: placement?.type || 'grid',
+            placement: placement?.type ?? 'grid',
             hidden: false,
             ...(placement?.coordinates && { coordinates: placement.coordinates }),
           });

@@ -11,7 +11,7 @@
  * `Folder`/`game`); `window` and `WebSocket` are installed per-test.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import { SocketBridge, type BridgeConfig } from './socket-bridge.js';
 import { bridgeHandlers } from './bridge-handlers.js';
@@ -35,7 +35,10 @@ function makeConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig {
 }
 
 /** A bridge pre-set to CONNECTED over a fake websocket, so `sendMessage` fires. */
-function connectedBridge(overrides: Partial<BridgeConfig> = {}) {
+function connectedBridge(overrides: Partial<BridgeConfig> = {}): {
+  bridge: Record<string, any>;
+  ws: { send: Mock; close: Mock };
+} {
   const bridge = new SocketBridge(makeConfig(overrides)) as any;
   const ws = { send: vi.fn(), close: vi.fn() };
   bridge.connectionState = CONNECTION_STATES.CONNECTED;
@@ -45,7 +48,7 @@ function connectedBridge(overrides: Partial<BridgeConfig> = {}) {
 }
 
 /** Install a fake global WebSocket whose instances expose the assigned handlers. */
-function installFakeWebSocket() {
+function installFakeWebSocket(): { last: () => Record<string, any> } {
   const instances: any[] = [];
   class FakeWebSocket {
     onopen: any;
@@ -59,7 +62,7 @@ function installFakeWebSocket() {
     }
   }
   (globalThis as any).WebSocket = FakeWebSocket;
-  return { last: () => instances[instances.length - 1] };
+  return { last: (): Record<string, any> => instances[instances.length - 1] };
 }
 
 beforeEach(() => {

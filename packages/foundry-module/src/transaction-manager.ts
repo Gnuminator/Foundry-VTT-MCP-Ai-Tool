@@ -187,7 +187,7 @@ export class TransactionManager {
       case 'delete':
         return this.revertDelete(action);
       default:
-        throw new Error(`Unknown action type: ${action.type}`);
+        throw new Error(`Unknown action type: ${String(action.type)}`);
     }
   }
 

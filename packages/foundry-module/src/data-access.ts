@@ -154,7 +154,15 @@ export class FoundryDataAccess {
     return this.worldReads.getWorldInfo();
   }
 
-  async getAvailablePacks() {
+  async getAvailablePacks(): Promise<
+    Array<{
+      id: string;
+      label: string;
+      type: string;
+      system: string | undefined;
+      private: boolean | undefined;
+    }>
+  > {
     return this.worldReads.getAvailablePacks();
   }
 

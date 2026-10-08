@@ -64,7 +64,7 @@ class BackendClient {
 
   private backendProcess: ChildProcess | null = null;
 
-  log(msg: string, meta?: any) {
+  log(msg: string, meta?: any): void {
     try {
       const dir = path.dirname(this.logFile);
 
@@ -223,7 +223,7 @@ class BackendClient {
     // Don't unref since we want to monitor the process
   }
 
-  private onData(chunk: string) {
+  private onData(chunk: string): void {
     this.buffer += chunk;
 
     let idx: number;
@@ -272,7 +272,7 @@ class BackendClient {
     }
   }
 
-  private rejectAll(err: any) {
+  private rejectAll(err: any): void {
     for (const [, p] of this.pending) p.reject(err);
 
     this.pending.clear();
@@ -282,7 +282,7 @@ class BackendClient {
 
   send(method: string, params: any): Promise<any> {
     return new Promise((resolve, reject) => {
-      void (async () => {
+      void (async (): Promise<void> => {
         try {
           await this.ensure();
         } catch (e) {
@@ -312,7 +312,7 @@ class BackendClient {
     });
   }
 
-  cleanup() {
+  cleanup(): void {
     this.log('cleanup(): shutting down backend');
 
     if (this.backendProcess && !this.backendProcess.killed) {
@@ -333,7 +333,7 @@ class BackendClient {
   }
 }
 
-async function startWrapper() {
+async function startWrapper(): Promise<void> {
   const backend = new BackendClient();
 
   // Pre-connect to backend BEFORE initializing MCP server

@@ -56,9 +56,15 @@ export default defineConfig(
       '@typescript-eslint/no-unsafe-call': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
       '@typescript-eslint/no-unsafe-return': 'warn',
-      '@typescript-eslint/require-await': 'warn',
+      // Async methods without await are kept for a uniform async API; forgotten awaits are caught
+      // by no-floating-promises (an error).
+      '@typescript-eslint/require-await': 'off',
       '@typescript-eslint/restrict-template-expressions': 'warn',
-      '@typescript-eslint/prefer-nullish-coalescing': 'warn',
+      // `||` on primitives is a deliberate fallback for '', 0 and false.
+      '@typescript-eslint/prefer-nullish-coalescing': [
+        'warn',
+        { ignorePrimitives: { string: true, number: true, boolean: true, bigint: true } },
+      ],
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/await-thenable': 'error',
       'no-console': ['warn', { allow: ['warn', 'error'] }],

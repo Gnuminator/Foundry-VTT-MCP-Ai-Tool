@@ -22,10 +22,10 @@ function fire(event: string, ...args: any[]): void {
 beforeEach(() => {
   hooks = {};
   (globalThis as any).Hooks = {
-    on: (name: string, cb: HookFn) => {
+    on: (name: string, cb: HookFn): void => {
       (hooks[name] ??= []).push(cb);
     },
-    once: (_name: string, _cb: HookFn) => {
+    once: (_name: string, _cb: HookFn): void => {
       // no-op in tests; we don't fire 'ready' so seedCaches stays inert
     },
   };
@@ -34,9 +34,9 @@ beforeEach(() => {
     DICE_ROLL_MODES: { PUBLIC: 'publicroll', PRIVATE: 'gmroll' },
   };
   (globalThis as any).game = {
-    settings: { get: () => 200 },
-    actors: { get: () => undefined },
-    users: { get: (id: string) => ({ name: `User-${id}` }) },
+    settings: { get: (): number => 200 },
+    actors: { get: (): undefined => undefined },
+    users: { get: (id: string): { name: string } => ({ name: `User-${id}` }) },
   };
   // Ensure foundry.utils is absent so getProp uses its manual fallback.
   delete (globalThis as any).foundry;
@@ -253,7 +253,7 @@ describe('EventTracker chat parsing', () => {
   });
 
   it('trims the chat buffer to the configured size', () => {
-    (globalThis as any).game.settings.get = () => 3;
+    (globalThis as any).game.settings.get = (): number => 3;
     const t = new EventTracker();
     t.registerHooks();
     for (let i = 0; i < 10; i++) {

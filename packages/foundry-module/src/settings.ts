@@ -112,7 +112,7 @@ export class ModuleSettings {
       hint: 'The Enhanced Creature Index pre-computes creature statistics for instant filtering by Challenge Rating, creature type, and abilities. This enables AI models to quickly find creatures matching specific criteria without loading every compendium entry.',
       icon: 'fas fa-search-plus',
       type: class extends FormApplication {
-        static get defaultOptions() {
+        static get defaultOptions(): Record<string, unknown> {
           return foundry.utils.mergeObject(super.defaultOptions, {
             title: 'Enhanced Creature Index Settings',
             template: `modules/${MODULE_ID}/templates/enhanced-index-menu.html`,
@@ -133,7 +133,7 @@ export class ModuleSettings {
           };
         }
 
-        activateListeners(html: JQuery) {
+        activateListeners(html: JQuery): void {
           super.activateListeners(html);
           trackUsage('view', 'module.settings.enhanced-index-open');
           html.find('.rebuild-index-btn').click(() => {
@@ -146,7 +146,7 @@ export class ModuleSettings {
           });
         }
 
-        async _updateObject(_event: Event, formData: any) {
+        async _updateObject(_event: Event, formData: any): Promise<void> {
           trackUsage('action', 'module.settings.enhanced-index-save');
           await game.settings.set(
             MODULE_ID,

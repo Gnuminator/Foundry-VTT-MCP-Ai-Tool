@@ -179,7 +179,7 @@ describe('FoundryDataAccess — getModules compatibility issues', () => {
     // Inject isNewerVersion locally so the max-core branch fires.
     // coreVer='13.331', comp.maximum='12.999' → isNewer('13.331','12.999')=true
     (globalThis as any).foundry.utils.isNewerVersion = (a: string, b: string): boolean => {
-      const toNum = (v: string) => v.split('.').map(Number);
+      const toNum = (v: string): number[] => v.split('.').map(Number);
       const [aMaj, aMin = 0] = toNum(a);
       const [bMaj, bMin = 0] = toNum(b);
       return aMaj !== bMaj ? aMaj > bMaj : aMin > bMin;
@@ -225,7 +225,7 @@ describe('FoundryDataAccess — getModules compatibility issues', () => {
 
     // isNewer(comp.minimum, coreVer) → isNewer('14.0','13.331')=true
     (globalThis as any).foundry.utils.isNewerVersion = (a: string, b: string): boolean => {
-      const toNum = (v: string) => v.split('.').map(Number);
+      const toNum = (v: string): number[] => v.split('.').map(Number);
       const [aMaj, aMin = 0] = toNum(a);
       const [bMaj, bMin = 0] = toNum(b);
       return aMaj !== bMaj ? aMaj > bMaj : aMin > bMin;

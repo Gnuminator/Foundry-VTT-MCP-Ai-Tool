@@ -58,7 +58,7 @@ afterEach(() => {
 });
 
 /** A short tick so a fire-and-forget `.use()/.toMessage()` promise resolves. */
-const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+const flush = (): Promise<unknown> => new Promise(resolve => setTimeout(resolve, 0));
 
 // ===========================================================================
 // useItem
@@ -413,7 +413,11 @@ describe('FoundryDataAccess — setActorSpellcasting', () => {
 // ===========================================================================
 
 /** Build an Item-typed pack of spells the importer can index + fetch. */
-function addSpellPack(id: string, label: string, spells: Array<{ id: string; name: string }>) {
+function addSpellPack(
+  id: string,
+  label: string,
+  spells: Array<{ id: string; name: string }>
+): ReturnType<typeof world.addPack> {
   return world.addPack({
     id,
     label,
@@ -562,7 +566,11 @@ describe('FoundryDataAccess — addSpellsToActor', () => {
 // ===========================================================================
 
 /** Build an Item-typed pack of features the importer can index + fetch. */
-function addFeaturePack(id: string, label: string, feats: Array<{ id: string; name: string }>) {
+function addFeaturePack(
+  id: string,
+  label: string,
+  feats: Array<{ id: string; name: string }>
+): ReturnType<typeof world.addPack> {
   return world.addPack({
     id,
     label,

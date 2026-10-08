@@ -101,7 +101,15 @@ export class WorldReadsDataAccess {
    * creatures, spells, or items. `private` distinguishes packs the GM has
    * hidden from players — relevant when deciding what to surface.
    */
-  async getAvailablePacks() {
+  async getAvailablePacks(): Promise<
+    Array<{
+      id: string;
+      label: string;
+      type: string;
+      system: string | undefined;
+      private: boolean | undefined;
+    }>
+  > {
     return Array.from(game.packs.values()).map(pack => ({
       id: pack.metadata.id,
       label: pack.metadata.label,

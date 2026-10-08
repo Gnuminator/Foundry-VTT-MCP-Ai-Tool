@@ -38,7 +38,7 @@ afterEach(() => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeHero() {
+function makeHero(): ReturnType<typeof makeActor> {
   return makeActor({
     id: 'actor1xxxxxxxxxxx', // 16 chars → id-lookup branch
     name: 'Aldric',

@@ -25,6 +25,8 @@ const env = (name, fallback) => {
 const FOUNDRY_URL = env('FOUNDRY_URL', 'http://127.0.0.1:30000').replace(/\/$/, '');
 const MODULE_ID = 'foundryvtt-actor-studio';
 const EQUIPMENT_PACK = 'dnd-players-handbook.equipment';
+// CONST.USER_ROLES.PLAYER and TRUSTED: the roles that may create actors (and so open Actor Studio).
+const PLAYER_ROLES = [1, 2];
 
 const log = msg => console.log(`[player-creation] ${msg}`);
 
@@ -52,9 +54,11 @@ function readState({ moduleId, pack }) {
 }
 
 // Runs in the browser: changes only what differs; returns what it changed.
-async function applyState({ moduleId, pack }) {
+async function applyState({ moduleId, pack, roles }) {
   const changed = [];
-  const roles = [CONST.USER_ROLES.PLAYER, CONST.USER_ROLES.TRUSTED];
+  if (roles.join() !== [CONST.USER_ROLES.PLAYER, CONST.USER_ROLES.TRUSTED].join()) {
+    throw new Error(`the player roles are ${JSON.stringify(CONST.USER_ROLES)} in this Foundry`);
+  }
 
   const permissions = JSON.parse(JSON.stringify(game.settings.get('core', 'permissions')));
   const current = permissions.ACTOR_CREATE;
@@ -107,7 +111,7 @@ function blockers(state, world) {
 function mismatches(before, after) {
   const problems = [];
   const roles = after.actorCreate ?? [];
-  for (const role of [1, 2]) {
+  for (const role of PLAYER_ROLES) {
     if (!roles.includes(role))
       problems.push(`ACTOR_CREATE lacks role ${role}: ${JSON.stringify(roles)}`);
   }
@@ -166,7 +170,7 @@ async function main() {
       page.waitForFunction(() => globalThis.game?.ready === true, null, { timeout: 120_000 });
     await ready();
 
-    const args = { moduleId: MODULE_ID, pack: EQUIPMENT_PACK };
+    const args = { moduleId: MODULE_ID, pack: EQUIPMENT_PACK, roles: PLAYER_ROLES };
     const before = await page.evaluate(readState, args);
     log(`world ${before.world}, joined as ${before.user} (GM: ${before.isGM})`);
     const problems = blockers(before, world);

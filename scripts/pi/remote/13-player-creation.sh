@@ -10,18 +10,21 @@
 # Env: WORLD (curse-of-strahd), KIT_WORLD (strahd-kit; empty skips it), SETTINGS_DRIVER (the uploaded .mjs,
 #   default /root/player-creation-settings.mjs), STUDIO_VERSION + STUDIO_SHA256 (override the pinned build; give
 #   both or neither), STUDIO_ZIP (a local zip under /var/lib/foundry-import/ instead of the download; needs
-#   STUDIO_SHA256, and the zip's module.json must say STUDIO_VERSION).
+#   STUDIO_SHA256, and the zip's module.json must say STUDIO_VERSION), FORCE (1 stops Foundry even when people
+#   are online; default 0 refuses).
 # What it does:
 #   A. The pinned build (below) comes from the fork's GitHub release, must match STUDIO_SHA256, and is inspected
 #      before anything is extracted (no absolute paths, no .., no links, module.json says id foundryvtt-actor-studio
 #      and the pinned version). If that version is already installed, part A is skipped. Otherwise the services
 #      stop, the old module folder moves to /var/lib/foundry-import/prev-<stamp>/modules/ (never deleted) and the
 #      new one takes its place, owned by the Foundry user like the other modules.
-#   B. For each world (Foundry runs it, headless Chromium joins as the world's GM with the login in
+#   Before anything stops: with the Assistant GM browser stopped, /api/status must count no one online.
+#   B. For each world, the kit copy first so a failure stops the run before the real world (Foundry runs it, headless Chromium joins as the world's GM with the login in
 #      /etc/foundry-ai-tool/world-<id>.env, never printed): Foundry's ACTOR_CREATE permission includes the Player
 #      and Trusted Player roles (the roles already there stay), Actor Studio's enableEquipmentSelection is on and
 #      its equipment source is dnd-players-handbook.equipment. The values before and after are printed and read
 #      back after a reload (player-creation-settings.mjs). Safe to run again: nothing changes the second time.
+#      Before each world starts, its settings database is copied to /var/lib/foundry-import/prev-<stamp>/worlds/.
 #   Afterwards options.json launches the world it launched before, Foundry and the Assistant GM browser start
 #   and the stage waits for "joined world". If the run fails after Foundry was stopped, options.json is put back
 #   (and the old module, if the install had not finished) and both start again. Space is checked first (20%
@@ -43,6 +46,7 @@ WORLD="${WORLD:-curse-of-strahd}"
 KIT_WORLD="${KIT_WORLD-strahd-kit}"
 STUDIO_ZIP="${STUDIO_ZIP:-}"
 SETTINGS_DRIVER="${SETTINGS_DRIVER:-/root/player-creation-settings.mjs}"
+FORCE="${FORCE:-0}"
 IMPORT=/var/lib/foundry-import
 data="$FOUNDRY_DATA/Data"
 options="$FOUNDRY_DATA/Config/options.json"
@@ -56,6 +60,8 @@ for id in "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"}; do
   [[ "$id" =~ ^[a-z0-9-]+$ ]] || die "'$id' is not a valid world id (lowercase letters, digits, dashes)"
 done
 [ -z "$KIT_WORLD" ] || [ "$KIT_WORLD" != "$WORLD" ] || die "KIT_WORLD must differ from WORLD"
+case "$SETTINGS_DRIVER" in /root/*.mjs) ;; *) die "SETTINGS_DRIVER must be a .mjs file under /root/ (got $SETTINGS_DRIVER)" ;; esac
+case "$SETTINGS_DRIVER" in */../* | */..) die "SETTINGS_DRIVER must not hold .." ;; esac
 id "$FOUNDRY_USER" >/dev/null 2>&1 || die "no user $FOUNDRY_USER: run stage 1 first"
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
 [ -x "$NODE_DIR/bin/node" ] || die "no Node at $NODE_DIR: run stage 2 first"
@@ -114,8 +120,10 @@ check_space() { # $1 a path on the filesystem, $2 what to call it
 
 # What part B needs. Checked before anything is stopped or changed.
 run_b=0
-worlds=("$WORLD")
+# The kit copy goes first: a failure there stops the run before the real world is touched.
+worlds=()
 [ -z "$KIT_WORLD" ] || worlds+=("$KIT_WORLD")
+worlds+=("$WORLD")
 if have_systemd; then
   run_b=1
   for id in "${worlds[@]}"; do
@@ -149,6 +157,7 @@ install -d -m 700 "$work"
 install_state=0
 stopped=0
 was_foundry=0
+foundry_stopped=0
 was_gm_browser=0
 on_exit() {
   if [ "$install_state" = 1 ]; then
@@ -164,8 +173,10 @@ on_exit() {
       set_world "$orig_world" || true
       warn "options.json restored to launch '${orig_world:-no world}'"
     fi
-    if [ "$was_foundry" = 1 ]; then
+    if [ "$was_foundry" = 1 ] && [ "$foundry_stopped" = 1 ]; then
       systemctl restart foundry.service || true
+    elif [ "$was_foundry" = 1 ]; then
+      : # never stopped (for example people were online): leave it running
     else
       systemctl stop foundry.service 2>/dev/null || true
     fi
@@ -193,10 +204,10 @@ else
   ok "installed: ${installed_version:-nothing}; wanted: $STUDIO_VERSION"
 fi
 
+check_space "$IMPORT" "$IMPORT"
+check_space "$FOUNDRY_DATA" "$FOUNDRY_DATA"
 if [ "$need_install" = 1 ]; then
   apt_install unzip curl ca-certificates
-  check_space "$IMPORT" "$IMPORT"
-  check_space "$FOUNDRY_DATA" "$FOUNDRY_DATA"
   zip="$work/module.zip"
   if [ -n "$STUDIO_ZIP" ]; then
     zip="$STUDIO_ZIP"
@@ -266,9 +277,26 @@ if have_systemd; then
   systemctl is-active --quiet foundry.service && was_foundry=1
   systemctl is-active --quiet foundry-ai-tool-gm-browser.service && was_gm_browser=1
   say "stopping the Assistant GM browser and Foundry"
-  systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
-  systemctl stop foundry.service
   stopped=1
+  systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
+  # Nobody may be playing: with the Assistant GM browser gone, /api/status counts the people still online.
+  if [ "$was_foundry" = 1 ]; then
+    online=""
+    for _ in $(seq 1 10); do
+      online="$(curl -fs http://127.0.0.1:30000/api/status 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const u=JSON.parse(s).users;process.stdout.write(String(Number.isInteger(u)?u:0))}catch{process.stdout.write("0")}})')" || online=0
+      [ "${online:-0}" -gt 0 ] || break
+      sleep 2
+    done
+    if [ "${online:-0}" -gt 0 ]; then
+      if [ "$FORCE" = 1 ]; then
+        warn "$online user(s) still online; FORCE=1, stopping Foundry anyway"
+      else
+        die "$online user(s) are online in Foundry: run this when nobody plays (or FORCE=1 to stop Foundry anyway)"
+      fi
+    fi
+  fi
+  foundry_stopped=1
+  systemctl stop foundry.service
 fi
 
 if [ "$need_install" = 1 ]; then
@@ -304,6 +332,14 @@ wait_for_world() { # $1 world id
 world_settings() { # $1 world id: Foundry runs it, the GM's browser sets and verifies the settings
   local id="$1" envf="$TOOL_ETC/world-$1.env"
   say "player creation settings in $id"
+  # Foundry is stopped here, so the settings database can be copied as it is.
+  if [ -d "$data/worlds/$id/data/settings" ]; then
+    install -d -m 700 "$prev" "$prev/worlds" "$prev/worlds/$id"
+    cp -a "$data/worlds/$id/data/settings" "$prev/worlds/$id/settings"
+    ok "the settings of $id before this run: $prev/worlds/$id/settings"
+  else
+    warn "$id has no data/settings folder to back up"
+  fi
   set_world "$id"
   systemctl start foundry.service
   wait_for_world "$id"

@@ -248,3 +248,78 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.refChoiceTools.getToolDefinitions(),
   ];
 }
+
+/**
+ * Most characters of tool result text one call hands Claude (D-109, round C
+ * Q11). Claude Desktop handles about 150,000 per call; this leaves room for
+ * the cut note and the rest of the turn.
+ */
+export const TOOL_RESULT_MAX_CHARS = 100_000;
+
+/** A tool call's result as MCP carries it (the control channel's `ToolResultPayload`). */
+export interface ToolResultLike {
+  content: Array<{ type: string; text?: string }>;
+  isError?: boolean;
+}
+
+/** Parameters that ask for less or for a later part, named first in the cut note. */
+const NARROWING_PARAMS = ['limit', 'since', 'sinceTimestamp', 'pageId', 'filter', 'query'];
+
+/** What the cut note tells Claude to do next, from the tool's own parameters. */
+function nextPageHint(
+  tool: Pick<ToolDefinitionLike, 'name' | 'inputSchema'> | undefined,
+  name: string
+): string {
+  const schema = (tool?.inputSchema ?? {}) as { properties?: Record<string, unknown> };
+  const params = Object.keys(schema.properties ?? {});
+  if (params.length === 0) {
+    return tool
+      ? `${name} has no parameters to ask for less; ask the GM which part they need, or use a narrower tool.`
+      : `call ${name} again with narrower arguments (a filter, a smaller limit, one id or page).`;
+  }
+  const ordered = [
+    ...NARROWING_PARAMS.filter(p => params.includes(p)),
+    ...params.filter(p => !NARROWING_PARAMS.includes(p)),
+  ];
+  return `call ${name} again for a smaller or later part with its parameters: ${ordered.join(', ')}.`;
+}
+
+/**
+ * The size guard for every tool result Claude receives: text over `maxChars`
+ * (all text parts together) is cut, and a note says how much was left out and
+ * how to fetch the next page. A result within the cap comes back unchanged
+ * (the same object). The dashboard reads results in full; only the MCP wrapper
+ * applies this.
+ */
+export function capToolResult<T extends ToolResultLike>(
+  result: T,
+  name: string,
+  tool?: Pick<ToolDefinitionLike, 'name' | 'inputSchema'>,
+  maxChars: number = TOOL_RESULT_MAX_CHARS
+): T {
+  if (!result || !Array.isArray(result.content)) return result;
+  const total = result.content.reduce(
+    (sum, part) => sum + (typeof part.text === 'string' ? part.text.length : 0),
+    0
+  );
+  if (total <= maxChars) return result;
+
+  let left = maxChars;
+  const content = result.content.map(part => {
+    if (typeof part.text !== 'string') return part;
+    let keep = Math.min(part.text.length, left);
+    // Never split a surrogate pair (an emoji or other astral character).
+    if (keep > 0 && keep < part.text.length && /[\uD800-\uDBFF]/.test(part.text[keep - 1] ?? '')) {
+      keep -= 1;
+    }
+    left -= keep;
+    return { ...part, text: part.text.slice(0, keep) };
+  });
+  const shown = maxChars - left;
+  const note =
+    `[Result cut: showing the first ${shown.toLocaleString('en-US')} of ` +
+    `${total.toLocaleString('en-US')} characters, the most one call returns. ` +
+    `To fetch the next page, ${nextPageHint(tool, name)}]`;
+  content.push({ type: 'text', text: note });
+  return { ...result, content };
+}

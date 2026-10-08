@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, type JSX } from 'react';
 
 import { useToast } from '../components/Toasts';
-import { api, errorText } from '../lib/api';
+import { api, callTool, errorText } from '../lib/api';
 import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from '../lib/stream';
 
 interface SessionSwitch {
@@ -50,16 +50,6 @@ const shortName = (name: string): string => name.replace(/^AI Tool: /, '');
 
 function switchNames(list: SessionSwitch[], ids: string[]): string[] {
   return ids.map(id => shortName(list.find(s => s.id === id)?.name ?? id));
-}
-
-/** A dashboard route that runs a bridge tool (POST /api/tool); the result, or the error thrown. */
-async function callTool<T>(name: string, args: Record<string, unknown>): Promise<T> {
-  const data = await api<{ ok?: boolean; result?: T; error?: string }>('/api/tool', {
-    method: 'POST',
-    body: JSON.stringify({ name, args }),
-  });
-  if (!data.ok) throw new Error(data.error ?? 'The tool did not answer.');
-  return data.result as T;
 }
 
 /**

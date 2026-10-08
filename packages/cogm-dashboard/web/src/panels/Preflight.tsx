@@ -11,7 +11,7 @@ import { useBridgeStatus } from '../lib/stream';
 import { usage } from '../lib/usage';
 import { ReadyBlock } from './ReadyForSession';
 
-type CheckStatus = 'ok' | 'warn' | 'fail' | 'info' | 'unknown';
+export type CheckStatus = 'ok' | 'warn' | 'fail' | 'info' | 'unknown';
 
 interface PreflightCheck {
   id: string;
@@ -34,7 +34,7 @@ interface PreflightResult {
 
 const PREFLIGHT_KEY = ['preflight'] as const;
 
-const ICONS: Record<CheckStatus, string> = {
+export const PREFLIGHT_ICONS: Record<CheckStatus, string> = {
   ok: '✓',
   warn: '!',
   fail: '✗',
@@ -96,7 +96,7 @@ function usePreflightResult(): ReturnType<typeof useQuery<PreflightResult>> {
 }
 
 function statusOf(check: PreflightCheck): CheckStatus {
-  return check.status in ICONS ? (check.status as CheckStatus) : 'unknown';
+  return check.status in PREFLIGHT_ICONS ? (check.status as CheckStatus) : 'unknown';
 }
 
 function counts(result: PreflightResult): { fails: number; warns: number } {
@@ -172,7 +172,7 @@ function CheckItem({ check }: { check: PreflightCheck }): JSX.Element {
   return (
     <li className={`preflight-item pf-${status}`}>
       <span className="pf-icon" title={status}>
-        {ICONS[status]}
+        {PREFLIGHT_ICONS[status]}
       </span>
       <span className="pf-text">
         <span className="pf-label">{check.label}</span>

@@ -247,6 +247,31 @@ describe('pre-hooks: the stash', () => {
     expect(idOf(simulateUpdate(actor, { name: 'B-next' }))).not.toBe(burst);
   });
 
+  it('never starts a new actionId inside a guarded write or right after one', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const actor = makeActor();
+    const idOf = (o: ReturnType<typeof simulateUpdate>): string => o[MODULE_ID].journal.actionId;
+    const guarded = (): SimulateOptions => ({
+      options: { [MODULE_ID]: { changeId: 'chg-long', changeMode: 'apply' } },
+    });
+    // A long apply: one guarded op every 200 ms for twice the action's age limit.
+    const start = 7_000_000;
+    vi.setSystemTime(start);
+    const first = idOf(simulateUpdate(actor, { name: 'G0' }, guarded()));
+    let t = start;
+    for (let i = 1; t - start < 2 * CHANGE_JOURNAL_ACTION_MAX_MS; i += 1) {
+      t += 200;
+      vi.setSystemTime(t);
+      expect(idOf(simulateUpdate(actor, { name: `G${i}` }, guarded()))).toBe(first);
+    }
+    // dnd5e's follow-up right after the last guarded op stays in the group; the next plain op
+    // starts a new one.
+    vi.setSystemTime((t += 100));
+    expect(idOf(simulateUpdate(actor, { name: 'follow-up' }))).toBe(first);
+    vi.setSystemTime((t += 100));
+    expect(idOf(simulateUpdate(actor, { name: 'plain' }))).not.toBe(first);
+  });
+
   it('keeps an actionId already in the stash and one before value per document id', () => {
     const one = makeActor('act1', 'One');
     const two = makeActor('act2', 'Two');

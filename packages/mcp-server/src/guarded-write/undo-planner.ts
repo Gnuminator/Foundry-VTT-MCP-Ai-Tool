@@ -392,7 +392,7 @@ export class UndoPlanner {
       scope,
       (await this.changeHistory.historyStart?.()) ?? 0,
       target.entry
-        ? ((await this.changeHistory.changeLeftOut?.(target.entry.changeId)) ?? false)
+        ? ((await this.changeHistory.changeLeftOut?.(target.entry.changeId, target.t)) ?? false)
         : false,
       notes
     );

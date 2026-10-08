@@ -1323,22 +1323,48 @@ describe('ChangeHistory.list', () => {
     expect((await wrapped.list()).note).toMatch(/buffer wrapped/);
   });
 
-  it('leaves out, whole, an action with a record within the action gap after the journal start', async () => {
+  it('leaves out, whole, an action with a record within a few seconds after the journal start', async () => {
     // Retention removed yesterday: an action that began before midnight kept only its later part.
     const midnight = new Date(2026, 9, 7).getTime();
     const straddle = [
-      hpChange(10, 9, { actionId: 'straddle', t: midnight + 100 }),
-      hpChange(9, 8, { actionId: 'straddle', t: midnight + 350 }),
+      // Over the 300 ms gap after the start in server time: the browser measured the gap.
+      hpChange(10, 9, { actionId: 'straddle', t: midnight + 2000 }),
+      hpChange(9, 8, { actionId: 'straddle', t: midnight + 2350 }),
     ];
     const clean = hpChange(8, 7, { actionId: 'clean', t: midnight + 5000 });
     await writeDay([...straddle, clean]);
     const history = makeHistory({ journalStart: midnight });
     expect((await history.list()).changes.map(c => c.id)).toEqual(['act:clean']);
-    expect(await history.historyStart()).toBe(midnight + 351);
+    expect(await history.historyStart()).toBe(midnight + 2351);
     // A later arrival of the same action stays out too.
-    history.addRecords('w1', [hpChange(8, 6, { actionId: 'straddle', t: midnight + 600 })]);
+    history.addRecords('w1', [hpChange(8, 6, { actionId: 'straddle', t: midnight + 2600 })]);
     expect((await history.list()).changes.map(c => c.id)).toEqual(['act:clean']);
-    expect(await history.historyStart()).toBe(midnight + 601);
+    expect(await history.historyStart()).toBe(midnight + 2601);
+    // An edge action that arrives only after the start was seen (the pump moves the start before
+    // it appends) is left out the same way.
+    history.addRecords('w1', [
+      hpChange(7, 6, { actionId: 'late', t: midnight + 1000 }),
+      hpChange(6, 5, { actionId: 'late', t: midnight + 1200 }),
+    ]);
+    expect((await history.list()).changes.map(c => c.id)).toEqual(['act:clean']);
+  });
+
+  it('counts an AI change as left out when the journal lost all of its own records', async () => {
+    // A day's cut read after a restart kept only dnd5e's follow-up of the AI delete.
+    const followUp = rec({
+      actionId: 'P',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.c1',
+      t: NOW - 30 * MIN,
+    });
+    await writeDay([followUp]);
+    const on = makeHistory({ journalStart: NOW - 60 * MIN });
+    expect(await on.changeLeftOut('chg-x', NOW - 90 * MIN)).toBe(true);
+    // Not without its time, outside the span, or with the journal off.
+    expect(await on.changeLeftOut('chg-x')).toBe(false);
+    expect(await on.changeLeftOut('chg-x', NOW - 8 * DAY)).toBe(false);
+    expect(await makeHistory().changeLeftOut('chg-x', NOW - 90 * MIN)).toBe(false);
   });
 
   it('remembers the AI changes some of whose records it left out', async () => {

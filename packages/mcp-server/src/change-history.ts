@@ -816,14 +816,19 @@ export class ChangeHistory {
 
   /**
    * True when the history left out records of this AI change (a size cap, a day's cut, the
-   * journal start): what Foundry and dnd5e did with it (`aiFollowUps`) may be missing.
+   * journal start), or holds none of them although the change (`at`, epoch ms) is inside the span
+   * and the journal is on (the journal lost them: a day's cut read after a restart, retention, a
+   * buffer wrap): what Foundry and dnd5e did with it (`aiFollowUps`) may be missing.
    */
-  async changeLeftOut(changeId: string): Promise<boolean> {
+  async changeLeftOut(changeId: string, at?: number): Promise<boolean> {
     const worldId = await this.worldIds.current();
     const index = await this.load(worldId);
     await this.leaveOutAtJournalStart(worldId, index);
     this.prune(index);
-    return index.droppedChanges.has(changeId);
+    if (index.droppedChanges.has(changeId)) return true;
+    if (!this.journalStart || at === undefined) return false;
+    if (at < this.now() - CHANGE_HISTORY_DAYS * DAY_MS) return false;
+    return !index.records.some(r => r.changeId === changeId);
   }
 
   /** The pump's `onAppended`: add what it just wrote. Ignored until the first read loaded the files. */
@@ -1179,10 +1184,18 @@ export class ChangeHistory {
 
   private ingest(index: WorldIndex, records: ChangeRecord[]): void {
     let added = false;
+    const edge = new Set<string>();
     for (const record of records) {
       if (typeof record?.key !== 'string' || index.keys.has(record.key)) continue;
       if (index.dropped.has(record.actionId)) {
         // The rest of an action already left out: keeping it would keep that action in part.
+        markTrimmed(index, record);
+        continue;
+      }
+      if (atJournalEdge(index, record)) {
+        // Arrived after the start moved (the pump sets it before it appends).
+        edge.add(record.actionId);
+        index.dropped.add(record.actionId);
         markTrimmed(index, record);
         continue;
       }
@@ -1201,33 +1214,37 @@ export class ChangeHistory {
       added = true;
     }
     if (added) index.actions = null;
+    this.leaveOutActions(index, edge);
     this.trim(index);
   }
 
   /**
-   * Leave out (whole) every action with a record within the action gap after the journal start:
-   * retention removed the day before it, or the module's buffer wrapped just before it, so such an
-   * action may have begun with records that are gone (one browser's records of one action are less
-   * than CHANGE_JOURNAL_ACTION_GAP_MS apart). Their later arrivals stay out too.
+   * Leave out (whole) every action with a record within JOURNAL_START_MARGIN_MS after the journal
+   * start: retention removed the day before it, or the module's buffer wrapped just before it, so
+   * such an action may have begun with records that are gone. Run when the start moves; `ingest`
+   * leaves out the edge records that arrive later the same way. Their later arrivals stay out too.
    */
   private async leaveOutAtJournalStart(worldId: string, index: WorldIndex): Promise<void> {
     const start = (await this.journalStart?.(worldId)) ?? 0;
     if (start <= index.journalFrom) return;
     index.journalFrom = start;
-    const edge = new Set(
-      index.records
-        .filter(r => r.t >= start && r.t - start <= CHANGE_JOURNAL_ACTION_GAP_MS)
-        .map(r => r.actionId)
+    this.leaveOutActions(
+      index,
+      new Set(index.records.filter(r => atJournalEdge(index, r)).map(r => r.actionId))
     );
-    if (edge.size === 0) return;
+  }
+
+  /** Leave out these actions whole: their held records now, their later arrivals in `ingest`. */
+  private leaveOutActions(index: WorldIndex, ids: ReadonlySet<string>): void {
+    if (ids.size === 0) return;
     index.records = index.records.filter(r => {
-      if (!edge.has(r.actionId)) return true;
+      if (!ids.has(r.actionId)) return true;
       index.chars -= index.sizes.get(r) ?? 0;
       index.keys.delete(r.key);
       markTrimmed(index, r);
       return false;
     });
-    for (const id of edge) index.dropped.add(id);
+    for (const id of ids) index.dropped.add(id);
     index.actions = null;
   }
 
@@ -1246,6 +1263,22 @@ export class ChangeHistory {
     index.chars = index.records.reduce((sum, r) => sum + (index.sizes.get(r) ?? 0), 0);
     index.actions = null;
   }
+}
+
+/**
+ * How far after the journal start an action may still have lost its first records: the module's
+ * gap (CHANGE_JOURNAL_ACTION_GAP_MS) is measured in the browser, `t` is the server's time, so
+ * a busy server or a slow round trip can spread one action's records further apart.
+ */
+const JOURNAL_START_MARGIN_MS = 10 * CHANGE_JOURNAL_ACTION_GAP_MS;
+
+/** A record within JOURNAL_START_MARGIN_MS after the journal start the index last saw. */
+function atJournalEdge(index: WorldIndex, r: ChangeRecord): boolean {
+  return (
+    index.journalFrom > 0 &&
+    r.t >= index.journalFrom &&
+    r.t - index.journalFrom <= JOURNAL_START_MARGIN_MS
+  );
 }
 
 /** A record was left out for the size cap: the history is complete only after it. */

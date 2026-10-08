@@ -80,7 +80,17 @@ export function runDriftCheck({ cwd, remote, checks = CHECKS, log = console.log,
     log(`drift-check: the branch already contains ${main} (${mainSha.out}).`);
   } else {
     const lockChanged = !git(cwd, ['diff', '--quiet', 'HEAD', main, '--', 'package-lock.json']).ok;
-    const merge = git(cwd, ['merge', '--no-commit', '--no-ff', main]);
+    // git wants an identity even for --no-commit; the trial merge is never committed.
+    const merge = git(cwd, [
+      '-c',
+      'user.name=drift-check',
+      '-c',
+      'user.email=drift-check@localhost',
+      'merge',
+      '--no-commit',
+      '--no-ff',
+      main,
+    ]);
     if (!merge.ok) {
       const conflicts = git(cwd, ['diff', '--name-only', '--diff-filter=U']).out;
       git(cwd, ['merge', '--abort']);

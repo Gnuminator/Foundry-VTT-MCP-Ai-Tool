@@ -1,8 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type JSX } from 'react';
 
+import { HelpProvider } from './components/Help';
+import { useHelp } from './components/HelpButton';
+import { ModuleDiagnosticsPane } from './panels/ModuleDiagnostics';
 import { PlayerLinksPane } from './panels/PlayerLinks';
 import { api } from './lib/api';
+import { useDashboardStream } from './lib/stream';
 import { applyTheme } from './lib/theme';
 
 /** The README brand's mark (docs/images/brand/logo.svg), coloured by themes/brand.css. */
@@ -38,8 +42,19 @@ function useWorldTheme(): void {
  * at a time; until the default switches, the old page stays the full dashboard.
  */
 export function App(): JSX.Element {
+  return (
+    <HelpProvider>
+      <Dashboard />
+    </HelpProvider>
+  );
+}
+
+function Dashboard(): JSX.Element {
   useWorldTheme();
+  useDashboardStream();
+  const openHelp = useHelp();
   const [linksOpen, setLinksOpen] = useState(false);
+  const [diagOpen, setDiagOpen] = useState(false);
 
   return (
     <>
@@ -65,6 +80,22 @@ export function App(): JSX.Element {
           >
             🔗 Player links
           </button>
+          <button
+            className="btn"
+            data-track="dash.header.show-diagnostics"
+            title="Errors and warnings from Foundry modules"
+            aria-expanded={diagOpen}
+            onClick={() => setDiagOpen(open => !open)}
+          >
+            🩺 Module diagnostics
+          </button>
+          <button
+            className="btn"
+            data-track="dash.header.guides"
+            onClick={() => openHelp('README')}
+          >
+            📖 GM guides
+          </button>
           <a className="btn" href="/">
             Full dashboard
           </a>
@@ -75,6 +106,7 @@ export function App(): JSX.Element {
         dashboard is still at the main address.
       </div>
       <PlayerLinksPane open={linksOpen} onOpenChange={setLinksOpen} />
+      <ModuleDiagnosticsPane open={diagOpen} onOpenChange={setDiagOpen} />
     </>
   );
 }

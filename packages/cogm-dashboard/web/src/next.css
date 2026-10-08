@@ -12,3 +12,9 @@ ol.toast-stack {
 a.btn {
   text-decoration: none;
 }
+
+/* A pane's title and its help "?" stay together on the left of the head. */
+.pane-title {
+  display: flex;
+  align-items: center;
+}

@@ -5,9 +5,9 @@ name: Wiki
 # not a ci.yml job, so docs merges and code merges stay apart.
 #
 # Every run builds the site with --strict (a broken link or anchor fails it) and keeps it as the
-# artifact `wiki-site`. Publishing to GitHub Pages runs only on main and only once the repository
-# variable WIKI_PAGES is "true" (set after the user's OK, with Settings, Pages, Source: GitHub
-# Actions).
+# artifact `wiki-site`. Publishing to GitHub Pages runs only on main (a push or a manual run)
+# and only once the repository variable WIKI_PAGES is "true" (set after the user's OK, with
+# Settings, Pages, Source: GitHub Actions).
 on:
   push:
     branches: [main]
@@ -66,14 +66,14 @@ jobs:
           retention-days: 30
 
       - name: Hand the site to Pages
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.WIKI_PAGES == 'true'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.WIKI_PAGES == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: build/wiki/site
 
   deploy:
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.WIKI_PAGES == 'true'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.WIKI_PAGES == 'true'
     runs-on: ubuntu-latest
     permissions:
       pages: write

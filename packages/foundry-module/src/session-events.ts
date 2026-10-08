@@ -10,6 +10,7 @@ import { describeMessageRolls } from './systems/dnd5e/roll-breakdown.js';
 import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
 import { eventVisibilityFor, playerFacingSceneName } from './player-visibility.js';
 import { EffectEventDeduper } from './effect-dedupe.js';
+import { logInfo } from './log.js';
 import type { EventVisibility } from '@gnuminator/shared';
 
 /**
@@ -296,7 +297,7 @@ export class EventTracker {
         }
       });
 
-      console.log(`[${MODULE_ID}] EventTracker hooks registered`);
+      logInfo(`[${MODULE_ID}] EventTracker hooks registered`);
     } catch (error) {
       console.error(`[${MODULE_ID}] Failed to register EventTracker hooks:`, error);
     }
@@ -1028,7 +1029,15 @@ export class EventTracker {
 
     const relevant = chat.filter(e => e.timestampMs >= startMs && (e.isRoll || e.damage !== null));
 
-    const summarizeAction = (e: ChatLogEntry) => {
+    const summarizeAction = (
+      e: ChatLogEntry
+    ): {
+      actor: string;
+      summary: string;
+      timestamp: string;
+      rollTotal: number | null;
+      damage: number | null;
+    } => {
       const parts: string[] = [];
       if (e.flavor) parts.push(e.flavor);
       if (e.roll) {

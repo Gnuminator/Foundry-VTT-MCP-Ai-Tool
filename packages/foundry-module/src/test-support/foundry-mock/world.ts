@@ -83,7 +83,7 @@ export class TestWorld {
    */
   private register(coll: MockCollection<AnyDoc>, doc: AnyDoc): AnyDoc {
     coll.add(doc);
-    (doc as any).delete = () => {
+    (doc as any).delete = (): Promise<AnyDoc> => {
       coll.delete(doc.id ?? '');
       return Promise.resolve(doc);
     };
@@ -331,9 +331,9 @@ export function installFoundryGlobals(world: TestWorld): () => void {
       randomID: (length = 16): string =>
         `r${String((randomIdSeq += 1)).padStart(Math.max(1, length - 1), '0')}`.slice(0, length),
       mergeObject: (original: any, other: any = {}) => ({ ...original, ...other }),
-      getProperty: (obj: any, path: string) =>
+      getProperty: (obj: any, path: string): unknown =>
         path.split('.').reduce((node, key) => (node == null ? undefined : node[key]), obj),
-      setProperty: (obj: any, path: string, value: unknown) => {
+      setProperty: (obj: any, path: string, value: unknown): boolean => {
         const parts = path.split('.');
         let node = obj;
         for (let i = 0; i < parts.length - 1; i++) node = node[parts[i]] ??= {};
@@ -341,7 +341,7 @@ export function installFoundryGlobals(world: TestWorld): () => void {
         return true;
       },
       isEmpty: (v: any) => v == null || (typeof v === 'object' && Object.keys(v).length === 0),
-      expandObject: (flat: Record<string, any>) => {
+      expandObject: (flat: Record<string, any>): Record<string, unknown> => {
         const out: any = {};
         for (const [path, value] of Object.entries(flat)) {
           const parts = path.split('.');
@@ -355,22 +355,30 @@ export function installFoundryGlobals(world: TestWorld): () => void {
   };
   const hooks: Record<string, Array<(...a: any[]) => void>> = {};
   g.Hooks = {
-    on: (name: string, cb: (...a: any[]) => void) => (hooks[name] ??= []).push(cb),
-    once: () => undefined,
-    off: () => undefined,
-    call: (name: string, ...args: any[]) => (hooks[name] ?? []).forEach(cb => cb(...args)),
-    callAll: (name: string, ...args: any[]) => (hooks[name] ?? []).forEach(cb => cb(...args)),
+    on: (name: string, cb: (...a: any[]) => void): number => (hooks[name] ??= []).push(cb),
+    once: (): undefined => undefined,
+    off: (): undefined => undefined,
+    call: (name: string, ...args: any[]): void => (hooks[name] ?? []).forEach(cb => cb(...args)),
+    callAll: (name: string, ...args: any[]): void => (hooks[name] ?? []).forEach(cb => cb(...args)),
   };
   // Document-class globals. The static factories register new documents into the
   // world (so they're findable + deletable, e.g. for rollback). Foundry's `create`
   // accepts a single object or an array; `createDocuments`/`updateDocuments`/
   // `deleteDocuments` are the batched forms used by the world-item write paths.
-  const firstOf = (data: any) => (Array.isArray(data) ? data[0] : data);
-  const asArray = (v: any) => (Array.isArray(v) ? v : v == null ? [] : [v]);
-  const docClass = (addOne: (d: any) => AnyDoc, coll: MockCollection<AnyDoc>) => ({
-    create: async (data: any) => addOne(firstOf(data)),
-    createDocuments: async (arr: any[] = []) => asArray(arr).map(d => addOne(d)),
-    updateDocuments: async (updates: any[] = []) => {
+  const firstOf = (data: any): Record<string, any> => (Array.isArray(data) ? data[0] : data);
+  const asArray = (v: any): any[] => (Array.isArray(v) ? v : v == null ? [] : [v]);
+  const docClass = (
+    addOne: (d: any) => AnyDoc,
+    coll: MockCollection<AnyDoc>
+  ): {
+    create: (data: any) => Promise<AnyDoc>;
+    createDocuments: (arr?: any[]) => Promise<AnyDoc[]>;
+    updateDocuments: (updates?: any[]) => Promise<AnyDoc[]>;
+    deleteDocuments: (ids?: string[]) => Promise<string[]>;
+  } => ({
+    create: async (data: any): Promise<AnyDoc> => addOne(firstOf(data)),
+    createDocuments: async (arr: any[] = []): Promise<AnyDoc[]> => asArray(arr).map(d => addOne(d)),
+    updateDocuments: async (updates: any[] = []): Promise<AnyDoc[]> => {
       const out: AnyDoc[] = [];
       for (const u of asArray(updates)) {
         const doc = coll.get(u?._id ?? u?.id);
@@ -382,7 +390,7 @@ export function installFoundryGlobals(world: TestWorld): () => void {
       }
       return out;
     },
-    deleteDocuments: async (ids: string[] = []) => {
+    deleteDocuments: async (ids: string[] = []): Promise<string[]> => {
       asArray(ids).forEach(id => coll.delete(id));
       return ids;
     },
@@ -393,7 +401,7 @@ export function installFoundryGlobals(world: TestWorld): () => void {
   g.Folder = docClass(d => world.addFolder(d), world.folders);
   g.JournalEntry = docClass(d => world.addJournal(d), world.journal);
   g.ChatMessage = {
-    create: async (data: any) => world.addMessage(firstOf(data)),
+    create: async (data: any): Promise<AnyDoc> => world.addMessage(firstOf(data)),
     // Foundry's getSpeaker({scene,actor,token,alias}) — we only need the alias
     // (the world/GM voice falls back to actor.name) for the chat write paths.
     getSpeaker: ({ actor, alias, token, scene }: any = {}) => ({
@@ -403,9 +411,17 @@ export function installFoundryGlobals(world: TestWorld): () => void {
       alias: alias ?? actor?.name ?? null,
     }),
   };
-  g.Combat = function MockCombat() {};
-  g.Roll = function MockRoll(formula: string) {
-    return { formula, evaluate: async () => ({ total: 0 }), total: 0 };
+  g.Combat = function MockCombat(): void {};
+  g.Roll = function MockRoll(formula: string): {
+    formula: string;
+    evaluate: () => Promise<{ total: number }>;
+    total: number;
+  } {
+    return {
+      formula,
+      evaluate: async (): Promise<{ total: number }> => ({ total: 0 }),
+      total: 0,
+    };
   };
   // Async resolution mirrors fromUuidSync below (assigned before any test calls it).
   g.fromUuid = async (uuid: string): Promise<AnyDoc | null> => g.fromUuidSync(uuid);

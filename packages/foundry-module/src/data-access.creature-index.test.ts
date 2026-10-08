@@ -75,18 +75,18 @@ function installStorageStubs(): void {
 
   // Replace ui.notifications with stubs returning a removable notification object
   // (the build path holds onto the return value and calls `.remove()` on it).
-  const makeNote = () => ({ remove: () => undefined });
+  const makeNote = (): { remove: () => undefined } => ({ remove: () => undefined });
   g.ui = {
     notifications: {
-      info: (m: string) => {
+      info: (m: string): ReturnType<typeof makeNote> => {
         world.notifications.push({ level: 'info', message: m });
         return makeNote();
       },
-      warn: (m: string) => {
+      warn: (m: string): ReturnType<typeof makeNote> => {
         world.notifications.push({ level: 'warn', message: m });
         return makeNote();
       },
-      error: (m: string) => {
+      error: (m: string): ReturnType<typeof makeNote> => {
         world.notifications.push({ level: 'error', message: m });
         return makeNote();
       },

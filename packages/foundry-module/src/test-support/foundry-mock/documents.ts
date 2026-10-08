@@ -17,7 +17,7 @@
  * Test-only: excluded from the shipped build (see `tsconfig.json`).
  */
 
-import { MockCollection } from './collection.js';
+import { MockCollection, type Identified } from './collection.js';
 
 /** Anything shaped enough to live in a {@link MockCollection}. */
 type AnyDoc = Record<string, any> & { id?: string | null; name?: string | null };
@@ -47,7 +47,7 @@ function bindCollectionDeletes(coll: MockCollection<AnyDoc>): MockCollection<Any
   coll.forEach(member => {
     const m = member as any;
     if (typeof m.delete !== 'function') {
-      m.delete = () => {
+      m.delete = (): Promise<AnyDoc> => {
         coll.delete(m.id);
         return Promise.resolve(m);
       };
@@ -140,28 +140,28 @@ function withDocumentMethods<T extends AnyDoc>(doc: T): T {
       hasPlayerOwnerOverride = value;
     },
   });
-  d.getFlag = (scope: string, key: string) => d.flags?.[scope]?.[key];
-  d.setFlag = (scope: string, key: string, value: unknown) => {
+  d.getFlag = (scope: string, key: string): unknown => d.flags?.[scope]?.[key];
+  d.setFlag = (scope: string, key: string, value: unknown): Promise<AnyDoc> => {
     (d.flags[scope] ??= {})[key] = value;
     return Promise.resolve(d);
   };
-  d.unsetFlag = (scope: string, key: string) => {
+  d.unsetFlag = (scope: string, key: string): Promise<AnyDoc> => {
     delete d.flags?.[scope]?.[key];
     return Promise.resolve(d);
   };
-  d.update = (changes: Record<string, any>) => {
+  d.update = (changes: Record<string, any>): Promise<AnyDoc> => {
     applyFlatChanges(d, changes);
     return Promise.resolve(d);
   };
-  d.toObject = () => stripMethods(d);
+  d.toObject = (): AnyDoc => stripMethods(d);
 
-  d.createEmbeddedDocuments = (type: string, dataArray: any[] = []) => {
+  d.createEmbeddedDocuments = (type: string, dataArray: any[] = []): Promise<AnyDoc[]> => {
     const key = EMBEDDED_COLLECTIONS[type] ?? `${type.toLowerCase()}s`;
     const coll: MockCollection<AnyDoc> = (d[key] ??= new MockCollection<AnyDoc>());
     const created = dataArray.map(data => {
       const childId = data._id ?? data.id ?? randomId(type.toLowerCase());
       const child = withDocumentMethods({ ...data, id: childId, _id: childId });
-      child.delete = () => {
+      child.delete = (): Promise<AnyDoc> => {
         coll.delete(childId);
         return Promise.resolve(child);
       };
@@ -170,7 +170,7 @@ function withDocumentMethods<T extends AnyDoc>(doc: T): T {
     });
     return Promise.resolve(created);
   };
-  d.updateEmbeddedDocuments = (type: string, updates: any[] = []) => {
+  d.updateEmbeddedDocuments = (type: string, updates: any[] = []): Promise<AnyDoc[]> => {
     const key = EMBEDDED_COLLECTIONS[type] ?? `${type.toLowerCase()}s`;
     const coll: MockCollection<AnyDoc> | undefined = d[key];
     const updated: AnyDoc[] = [];
@@ -184,7 +184,7 @@ function withDocumentMethods<T extends AnyDoc>(doc: T): T {
     }
     return Promise.resolve(updated);
   };
-  d.deleteEmbeddedDocuments = (type: string, ids: string[] = []) => {
+  d.deleteEmbeddedDocuments = (type: string, ids: string[] = []): Promise<string[]> => {
     const key = EMBEDDED_COLLECTIONS[type] ?? `${type.toLowerCase()}s`;
     const coll: MockCollection<AnyDoc> | undefined = d[key];
     ids.forEach(id => coll?.delete(id));
@@ -490,7 +490,7 @@ export function makePack(opts: MakePackOptions = {}): AnyDoc {
   // Foundry compendium index entries carry `_id` (the canonical id field), plus
   // name/type/img and any configured index fields — NOT a bare `id`. Mirror that
   // so consumers that read `entry._id` / `entry.img` behave as they do live.
-  const buildIndex = () =>
+  const buildIndex = (): MockCollection<Identified> =>
     new MockCollection(
       documents.map(d => {
         const da = d as any;

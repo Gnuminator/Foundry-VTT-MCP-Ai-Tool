@@ -45,7 +45,20 @@ afterEach(() => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeEvent(timestamp: string, eventType = 'combat-start', actorName: string | null = null) {
+function makeEvent(
+  timestamp: string,
+  eventType = 'combat-start',
+  actorName: string | null = null
+): {
+  id: string;
+  timestamp: string;
+  timestampMs: number;
+  eventType: string;
+  actorName: string | null;
+  actorId: null;
+  description: string;
+  details: Record<string, never>;
+} {
   return {
     id: `evt-${timestamp}`,
     timestamp,

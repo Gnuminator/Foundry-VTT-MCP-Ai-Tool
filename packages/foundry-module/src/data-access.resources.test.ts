@@ -46,7 +46,7 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // Helper: a fully-loaded character with all resource types populated
 // ---------------------------------------------------------------------------
-function richActor() {
+function richActor(): ReturnType<typeof makeActor> {
   return makeActor({
     id: 'aaaaaaaaaaaaaaaa', // 16 chars → id-lookup branch
     name: 'Thoradin',

@@ -42,12 +42,24 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 /** A minimal HP block for makeActor system override. */
-function hp(value: number, max = 20, temp = 0) {
+function hp(
+  value: number,
+  max = 20,
+  temp = 0
+): { attributes: { hp: { value: number; max: number; temp: number } } } {
   return { attributes: { hp: { value, max, temp } } };
 }
 
 /** An HP block that also carries death-save counters. */
-function hpDowned(success = 0, failure = 0) {
+function hpDowned(
+  success = 0,
+  failure = 0
+): {
+  attributes: {
+    hp: { value: number; max: number; temp: number };
+    death: { success: number; failure: number };
+  };
+} {
   return { attributes: { hp: { value: 0, max: 20, temp: 0 }, death: { success, failure } } };
 }
 

@@ -55,7 +55,7 @@ async function addJournalWithPages(
   id: string,
   name: string,
   pageSpecs: Array<{ id?: string; name: string; type?: string; content?: string }>
-) {
+): Promise<ReturnType<typeof world.addJournal>> {
   const journal = world.addJournal({ id, name });
   for (const spec of pageSpecs) {
     await (journal as any).createEmbeddedDocuments('JournalEntryPage', [

@@ -27,7 +27,7 @@ let restore: () => void;
 let qh: QueryHandlers;
 
 /** Replace the real FoundryDataAccess with a stub carrying validateFoundryState. */
-function stubDataAccess(overrides: Record<string, any> = {}) {
+function stubDataAccess(overrides: Record<string, any> = {}): Record<string, any> {
   const stub: any = { validateFoundryState: vi.fn(), ...overrides };
   (qh as any).dataAccess = stub;
   return stub;
@@ -37,7 +37,7 @@ function stubDataAccess(overrides: Record<string, any> = {}) {
 const queries = (): Record<string, any> =>
   new Proxy({} as Record<string, any>, {
     get: (_target, key: string) => bridgeHandlers.get(key),
-    set: (_target, key: string, value) => {
+    set: (_target, key: string, value): boolean => {
       bridgeHandlers.set(key, value);
       return true;
     },
@@ -126,7 +126,7 @@ describe('QueryHandlers — registration', () => {
   });
 
   it('unregisterHandlers removes only the module-prefixed keys', () => {
-    queries()['core.someOtherQuery'] = () => {};
+    queries()['core.someOtherQuery'] = (): void => {};
     qh.registerHandlers();
     expect(qh.getRegisteredMethods().length).toBeGreaterThan(0);
 

@@ -380,6 +380,72 @@ function Resolve-StopAction([hashtable]$F) {
   return @{ Action = 'refuse-keep'; Message = "REFUSED: $($F.Name) : $who listens on nothing and its command line cannot be read, so it is left alone (it may still be ours, loading). Check it with Get-Process -Id $($F.ProcessId) and run stop.ps1 again; the pid is kept." }
 }
 
+# The test server lock, <Root>/lock.json (written only by lock.ps1, which serialises its writes):
+#   { holder, session, since, purpose, queue: [ { holder, session, since, purpose } ] }
+# Returns Holder, Session, Since (UTC ISO 8601 text), Purpose and Queue (a list of the same four
+# fields); a missing or unreadable file is a free lock with an empty queue.
+function Read-TestLock([string]$Root = $TestEnv.Root) {
+  $lock = [pscustomobject]@{ Holder = $null; Session = $null; Since = $null; Purpose = $null; Queue = @() }
+  $file = Join-Path $Root 'lock.json'
+  if (-not (Test-Path $file)) { return $lock }
+  try {
+    $parsed = Get-Content $file -Raw | ConvertFrom-Json
+  } catch {
+    return $lock
+  }
+  if ($null -eq $parsed -or $parsed -isnot [pscustomobject]) { return $lock }
+  $field = {
+    param($o, [string]$name)
+    $p = $o.PSObject.Properties[$name]
+    if ($null -eq $p -or $null -eq $p.Value -or "$($p.Value)" -eq '') { return $null }
+    if ($name -eq 'since') { try { return ConvertTo-UtcInstant $p.Value } catch { return $null } }
+    return [string]$p.Value
+  }
+  $lock.Holder = & $field $parsed 'holder'
+  $lock.Session = & $field $parsed 'session'
+  $lock.Since = & $field $parsed 'since'
+  $lock.Purpose = & $field $parsed 'purpose'
+  $queue = @()
+  $qp = $parsed.PSObject.Properties['queue']
+  if ($qp -and $null -ne $qp.Value) {
+    foreach ($e in @($qp.Value)) {
+      if ($null -eq $e -or $e -isnot [pscustomobject]) { continue }
+      $queue += [pscustomobject]@{
+        Holder = & $field $e 'holder'; Session = & $field $e 'session'
+        Since = & $field $e 'since'; Purpose = & $field $e 'purpose'
+      }
+    }
+  }
+  $lock.Queue = $queue
+  return $lock
+}
+
+# Whole minutes since a UTC ISO 8601 text, or $null.
+function Get-LockMinutes([string]$Since) {
+  if (-not $Since) { return $null }
+  try {
+    $t = [DateTime]::Parse($Since, [Globalization.CultureInfo]::InvariantCulture, 'RoundtripKind').ToUniversalTime()
+    return [int][Math]::Max(0, [Math]::Floor(([DateTime]::UtcNow - $t).TotalMinutes))
+  } catch {
+    return $null
+  }
+}
+
+# One line for status.ps1: "free" or "held by <holder> since <since> (<N> min) for <purpose>",
+# plus ", queue: N waiting" when somebody waits.
+function Get-TestLockLine($Lock) {
+  $text = 'free'
+  if ($Lock.Holder) {
+    $mins = Get-LockMinutes $Lock.Since
+    $text = "held by $($Lock.Holder) since $($Lock.Since)"
+    if ($null -ne $mins) { $text += " ($mins min)" }
+    if ($Lock.Purpose) { $text += " for $($Lock.Purpose)" }
+  }
+  $waiting = @($Lock.Queue).Count
+  if ($waiting -gt 0) { $text += ", queue: $waiting waiting" }
+  return $text
+}
+
 function Write-Pids([hashtable]$Pids) {
   New-Item -ItemType Directory -Force $TestEnv.LogDir | Out-Null
   $Pids | ConvertTo-Json | Set-Content $TestEnv.PidFile

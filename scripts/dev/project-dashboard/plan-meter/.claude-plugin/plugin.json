@@ -1,0 +1,5 @@
+{
+  "name": "plan-meter",
+  "version": "0.1.0",
+  "description": "Writes the 5-hour and weekly plan figures to the Foundry AI Tool project dashboard's data folder."
+}

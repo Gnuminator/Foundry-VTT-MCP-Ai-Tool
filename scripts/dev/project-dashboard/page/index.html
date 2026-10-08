@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project dashboard</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <h1>Project dashboard</h1>
+  <span id="status" class="status" role="status"></span>
+</header>
+<div id="warnings" class="warnings" hidden></div>
+<main class="grid">
+  <section id="lanes" class="panel lanes" aria-labelledby="lanes-h"></section>
+  <div class="side">
+    <section id="plan" class="panel" aria-labelledby="plan-h"></section>
+    <section id="lock" class="panel" aria-labelledby="lock-h"></section>
+    <section id="prs" class="panel" aria-labelledby="prs-h"></section>
+    <section id="tokens" class="panel" aria-labelledby="tokens-h"></section>
+  </div>
+</main>
+<footer id="footer" class="footer"></footer>
+<script src="/app.js" defer></script>
+</body>
+</html>

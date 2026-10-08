@@ -85,6 +85,10 @@ jobs:
         # The test kit's engine and its fake (scripts/test-kit): needs the build, the fake reads the tool catalog from it.
         run: npm run kit:test
 
+      - name: Project dashboard tests
+        # The local developer dashboard (scripts/dev/project-dashboard): transcript scan, lanes, snapshot whitelist.
+        run: npm run project-dashboard:test
+
       - name: Test kit scenario check
         # Every scenario file in scripts/test-kit/scenarios loads, validates and names only tools in tool-sets.ts.
         run: node scripts/test-kit/kit.mjs check

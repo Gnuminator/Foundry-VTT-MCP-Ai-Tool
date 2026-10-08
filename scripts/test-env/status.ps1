@@ -26,6 +26,7 @@ Write-Host "Foundry app:  $(if ($main) { $main } else { 'not installed' })"
 Write-Host "Test world:   $(if (Test-Path (Join-Path $TestEnv.DataDir 'Data' 'worlds' $TestEnv.WorldId)) { $TestEnv.WorldId } else { 'not created' })"
 Write-Host "Module copy:  $(if (Test-Path $manifest) { 'v' + (Get-Content $manifest -Raw | ConvertFrom-Json).version } else { 'not synced' })"
 Write-Host "Logs:         $($TestEnv.LogDir)"
+Write-Host "Lock:         $(Get-TestLockLine (Read-TestLock))"
 $blocked = Test-FoundryFirewallBlock
 if ($blocked -ne $null) {
   Write-Host "Firewall:     $(if ($blocked) { "port $($TestEnv.FoundryPort) blocked from the network" } else { "port $($TestEnv.FoundryPort) reachable from the network (GM decision; optional rule: $(Get-FirewallCommand))" })"

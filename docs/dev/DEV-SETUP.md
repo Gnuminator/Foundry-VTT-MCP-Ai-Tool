@@ -46,6 +46,11 @@ node scripts/validate-manifest.js
 If a workspace build emits nothing, delete stale `*.tsbuildinfo` and rebuild. The **Vitest** extension
 also gives you a Testing sidebar: run or debug any test inline once it indexes.
 
+The Python tools under `tools/` (narration, session notes, session pipeline, transcriber) have their
+own tests; CI's `python-tests` job runs them on Python 3.12 with pytest, numpy and ffmpeg. Locally,
+from a tool's folder: `python -m pytest` (on Windows `python`, never `python3`, which can hang on
+the Store stub).
+
 After changing a tool's description or parameters, run `npm run docs:tools`: it regenerates
 [docs/reference/tools.md](../reference/tools.md), and the mcp-server tests fail while that page is stale.
 

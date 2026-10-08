@@ -345,6 +345,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.help.panel',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/HelpButton.tsx',
+  },
+  {
     name: 'dash.help.view',
     kind: 'view',
     surface: 'dashboard',

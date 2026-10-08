@@ -18,6 +18,8 @@ It never searches the web, and it has no book or campaign text.
 
 You need the file `foundry-gm-coach.zip` from the tool admin.
 
+<!-- wiki:coach-download -->
+
 1. In Claude (the desktop app or claude.ai), open **Settings**, **Capabilities**, and switch on
    **Code execution and file creation**. Skills need it.
 2. Open **Customize**, **Skills**.

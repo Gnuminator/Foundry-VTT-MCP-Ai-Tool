@@ -301,6 +301,19 @@ function isConcentrationEffect(r: ChangeRecord): boolean {
   );
 }
 
+/**
+ * The spell a deleted concentration effect stands for, from its data: dnd5e 6 writes the item's
+ * uuid as the effect's `origin` and as `flags.dnd5e.item.uuid`. Null when the data names none.
+ */
+function concentrationItemUuid(r: ChangeRecord): string | null {
+  const data = r.data as
+    | { origin?: unknown; flags?: { dnd5e?: { item?: { uuid?: unknown } } } }
+    | undefined;
+  const fromFlag = data?.flags?.dnd5e?.item?.uuid;
+  if (typeof fromFlag === 'string' && fromFlag) return fromFlag;
+  return typeof data?.origin === 'string' && data.origin ? data.origin : null;
+}
+
 /** The dnd5e dependents link of one AI change, read from its deleted documents. */
 interface DependentsLink {
   /** The uuids the chain names, followed through the burst's deletes. */
@@ -323,7 +336,8 @@ interface DependentsLink {
 function dependentsLink(
   sources: ChangeRecord[],
   others: ChangeRecord[],
-  aiRoots: ReadonlySet<string>
+  aiRoots: ReadonlySet<string>,
+  burstItems: ReadonlySet<string>
 ): DependentsLink {
   const linked = new Set<string>();
   const roots = sources.filter(
@@ -332,16 +346,23 @@ function dependentsLink(
   if (roots.length === 0) return { linked, unreadable: false };
   const itemSource = roots.some(r => r.documentName === 'Item');
   // The records whose data names the dependents: the sources and, when the AI deleted an item,
-  // the concentration effect dnd5e ended with it on the same actor (a dependent itself).
+  // the concentration effect dnd5e ended with it on the same actor (a dependent itself). dnd5e
+  // names the spell on that effect: when one of the burst's AI changes deleted that item, only
+  // that change ended it. dnd5e ends concentration by item id, so the name may be an item no AI
+  // change deleted (the cached spell of a deleted wand, a base-actor uuid on an unlinked token):
+  // then the actor rule holds.
   const chain = new Set(roots);
   let unreadable = false;
   if (itemSource) {
+    const items = new Set(roots.filter(r => r.documentName === 'Item').map(r => r.uuid));
     for (const r of others) {
+      const spell = concentrationItemUuid(r);
       if (
         r.op === 'delete' &&
         aiRoots.has(r.rootUuid) &&
         r.documentName === 'ActiveEffect' &&
-        isConcentrationEffect(r)
+        isConcentrationEffect(r) &&
+        (spell === null || items.has(spell) || !burstItems.has(spell))
       ) {
         linked.add(r.uuid);
         chain.add(r);
@@ -531,10 +552,15 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
     }
     const others = group.filter(r => !r.changeId);
     const at = (r: ChangeRecord): number => position.get(r) ?? -1;
+    const burstItems: ReadonlySet<string> = new Set(
+      segments.flatMap(s =>
+        s.ai.filter(r => r.op === 'delete' && r.documentName === 'Item').map(r => r.uuid)
+      )
+    );
     const links = segments.map((segment, i) => {
       const aiRoots: ReadonlySet<string> = new Set(segment.ai.map(r => r.rootUuid));
       const since = others.filter(r => at(r) >= i);
-      return { aiRoots, link: dependentsLink(segment.ai, since, aiRoots) };
+      return { aiRoots, link: dependentsLink(segment.ai, since, aiRoots, burstItems) };
     });
     // Only a change that started at or before a record arrived can own it; of those, the latest
     // whose data ties it (a change that deleted the same thing again later owns its own cascade).

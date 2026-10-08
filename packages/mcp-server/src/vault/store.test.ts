@@ -153,6 +153,34 @@ describe('VaultStore lists, lines and removal', () => {
     await expect(store.appendLines('w1', 'sessions', 'd.json', [1])).rejects.toThrow(/jsonl/);
   });
 
+  it('reads JSON lines one at a time with their length, across CRLF, blank and bad lines', async () => {
+    const store = makeStore();
+    await fsp.mkdir(path.join(dataDir, 'w1', 'gm'), { recursive: true });
+    await fsp.writeFile(
+      path.join(dataDir, 'w1', 'gm', 'c.jsonl'),
+      '{"a":1}\r\n\r\nnot json\n{"b":"æ"}\n{"torn":'
+    );
+    const seen: Array<[unknown, number]> = [];
+    await store.forEachLine('w1', 'gm', 'c.jsonl', (value, chars) => {
+      seen.push([value, chars]);
+    });
+    expect(seen).toEqual([
+      [{ a: 1 }, 7],
+      [{ b: 'æ' }, 9],
+    ]);
+    let calls = 0;
+    await store.forEachLine('w1', 'gm', 'none.jsonl', () => {
+      calls += 1;
+    });
+    expect(calls).toBe(0);
+    // A throw from the callback is the caller's, not a bad line to skip.
+    await expect(
+      store.forEachLine('w1', 'gm', 'c.jsonl', () => {
+        throw new Error('stop');
+      })
+    ).rejects.toThrow('stop');
+  });
+
   it('removes files, tolerating missing ones', async () => {
     const store = makeStore();
     await store.write('w1', 'backups', 'x.json', 1);

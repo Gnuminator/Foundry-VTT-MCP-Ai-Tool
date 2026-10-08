@@ -41,6 +41,7 @@ import type { ChangeRecord, PathValue } from '@gnuminator/shared';
 
 import {
   CHANGE_JOURNAL_RETENTION_DAYS,
+  DEFAULT_CHANGE_JOURNAL_MAX_BYTES,
   type ChangeJournalPump,
   changeJournalFileName,
   dateKeyStart,
@@ -58,6 +59,12 @@ import type { WorldIdResolver } from './vault/world-id.js';
 
 /** How many days of changes the index keeps and lists (the pump keeps the files as long). */
 export const CHANGE_HISTORY_DAYS = CHANGE_JOURNAL_RETENTION_DAYS;
+/**
+ * Default cap on the records the history holds in memory, as the length of their journal lines
+ * (about bytes): the pump's cap on its files. A bulk delete (every deleted actor's data in its
+ * record) can fill one day's file far past it.
+ */
+export const DEFAULT_CHANGE_HISTORY_MAX_CHARS = DEFAULT_CHANGE_JOURNAL_MAX_BYTES;
 /** Most readable lines an action carries (the last one says how many more there were). */
 export const MAX_ACTION_LINES = 8;
 /**
@@ -539,6 +546,11 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
 interface WorldIndex {
   records: ChangeRecord[];
   keys: Set<string>;
+  /** Each record's journal line length (`DEFAULT_CHANGE_HISTORY_MAX_CHARS`), and their sum. */
+  sizes: WeakMap<ChangeRecord, number>;
+  chars: number;
+  /** Epoch ms from which no record was left out for the size cap (0: none was). */
+  trimmedBefore: number;
   /** Every user the records have named, by id (kept through pruning: names stay useful). */
   users: Map<string, string>;
   /** Set while the files are being read; appends that arrive meanwhile wait in `pending`. */
@@ -563,6 +575,8 @@ export interface ChangeHistoryOptions {
    * whichever is later), 0 when neither happened; absent when the journal is off.
    */
   journalStart?: (worldId: string) => Promise<number>;
+  /** Most records to hold, as their journal lines' length (default DEFAULT_CHANGE_HISTORY_MAX_CHARS). */
+  maxChars?: number;
   now?: () => number;
 }
 
@@ -588,6 +602,7 @@ export class ChangeHistory {
   private readonly logger: Logger;
   private readonly pullNow: ChangeHistoryOptions['pullNow'];
   private readonly journalStart: ChangeHistoryOptions['journalStart'];
+  private readonly maxChars: number;
   private readonly now: () => number;
   private readonly worlds = new Map<string, WorldIndex>();
 
@@ -598,19 +613,22 @@ export class ChangeHistory {
     this.logger = options.logger.child({ component: 'ChangeHistory' });
     this.pullNow = options.pullNow;
     this.journalStart = options.journalStart;
+    this.maxChars = options.maxChars ?? DEFAULT_CHANGE_HISTORY_MAX_CHARS;
     this.now = options.now ?? ((): number => Date.now());
   }
 
   /**
    * Epoch ms from which people's changes are all known: the span's cutoff, or later when the
-   * pump's retention removed a file inside the span (the byte cap). Changes before it may be
-   * missing, so a rewind must not reach back past it.
+   * pump's retention removed a file inside the span (the byte cap) or the history left its
+   * oldest records out (its own size cap). Changes before it may be missing, so a rewind must
+   * not reach back past it.
    */
   async historyStart(): Promise<number> {
     const cutoff = this.now() - CHANGE_HISTORY_DAYS * DAY_MS;
-    if (!this.journalStart) return cutoff;
     const worldId = await this.worldIds.current();
-    return Math.max(cutoff, await this.journalStart(worldId));
+    const { trimmedBefore: trimmed } = await this.load(worldId);
+    if (!this.journalStart) return Math.max(cutoff, trimmed);
+    return Math.max(cutoff, trimmed, await this.journalStart(worldId));
   }
 
   /** The pump's `onAppended`: add what it just wrote. Ignored until the first read loaded the files. */
@@ -692,7 +710,7 @@ export class ChangeHistory {
     const start = await this.historyStart();
     if (start > cutoff && source !== 'ai') {
       notes.push(
-        `People's changes before ${historyStartLabel(start)} are gone: the change journal lost them (its size cap removed old files, or Foundry's buffer wrapped before the bridge read it).`
+        `People's changes before ${historyStartLabel(start)} are gone: the change journal lost them (its size cap removed old files or left the oldest records out, or Foundry's buffer wrapped before the bridge read it).`
       );
     }
 
@@ -834,6 +852,9 @@ export class ChangeHistory {
       const created: WorldIndex = {
         records: [],
         keys: new Set(),
+        sizes: new WeakMap(),
+        chars: 0,
+        trimmedBefore: 0,
         users: new Map(),
         loading: null,
         pending: [],
@@ -841,7 +862,7 @@ export class ChangeHistory {
       };
       index = created;
       this.worlds.set(worldId, created);
-      created.loading = this.readFiles(worldId).then(
+      created.loading = this.readFiles(worldId, created).then(
         records => {
           this.ingest(created, records);
           this.ingest(created, created.pending);
@@ -860,21 +881,63 @@ export class ChangeHistory {
     return index;
   }
 
-  /** The records of the last CHANGE_HISTORY_DAYS days (and the part of the day before), oldest first. */
-  private async readFiles(worldId: string): Promise<ChangeRecord[]> {
+  /**
+   * The records of the last CHANGE_HISTORY_DAYS days (and the part of the day before), oldest
+   * first, read line by line and at most `maxChars` of the newest: the oldest are left out while
+   * the files are read, so a huge day never sits in memory whole. Their sizes go into `sizes`.
+   */
+  private async readFiles(worldId: string, index: WorldIndex): Promise<ChangeRecord[]> {
     const today = new Date(this.now());
-    const out: ChangeRecord[] = [];
+    let out: ChangeRecord[] = [];
+    let first = 0;
+    let chars = 0;
     for (let back = CHANGE_HISTORY_DAYS; back >= 0; back--) {
       // Noon of that day, so a daylight-saving shift never repeats or skips a date.
       const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() - back, 12);
-      const lines = await this.store.readLines(
-        worldId,
-        'gm',
-        changeJournalFileName(localDateKey(day.getTime()))
-      );
-      for (const line of lines) if (isChangeRecord(line)) out.push(line);
+      const file = changeJournalFileName(localDateKey(day.getTime()));
+      await this.store.forEachLine(worldId, 'gm', file, (line, size) => {
+        if (!isChangeRecord(line)) return;
+        out.push(line);
+        index.sizes.set(line, size);
+        chars += size;
+        while (chars > this.maxChars && out.length - first > 1) {
+          chars -= index.sizes.get(out[first]) ?? 0;
+          markTrimmed(index, out[first]);
+          first += 1;
+        }
+        if (first > 1024 && first > out.length / 2) {
+          out = out.slice(first);
+          first = 0;
+        }
+      });
     }
-    return out;
+    if (index.trimmedBefore > 0) this.warnTrimmed(index);
+    return out.slice(first);
+  }
+
+  /** Leave the oldest records out while they hold more than `maxChars` (the newest one stays). */
+  private trim(index: WorldIndex): void {
+    if (index.chars <= this.maxChars) return;
+    // Said once: while a bulk change runs, every poll trims a little more.
+    const first = index.trimmedBefore === 0;
+    let drop = 0;
+    while (index.chars > this.maxChars && drop < index.records.length - 1) {
+      const dropped = index.records[drop];
+      index.chars -= index.sizes.get(dropped) ?? 0;
+      index.keys.delete(dropped.key);
+      markTrimmed(index, dropped);
+      drop += 1;
+    }
+    index.records = index.records.slice(drop);
+    index.actions = null;
+    if (first) this.warnTrimmed(index);
+  }
+
+  private warnTrimmed(index: WorldIndex): void {
+    this.logger.warn('Change history over its size cap: the oldest records were left out', {
+      maxChars: this.maxChars,
+      completeFrom: new Date(index.trimmedBefore).toISOString(),
+    });
   }
 
   private ingest(index: WorldIndex, records: ChangeRecord[]): void {
@@ -883,6 +946,12 @@ export class ChangeHistory {
       if (typeof record?.key !== 'string' || index.keys.has(record.key)) continue;
       index.keys.add(record.key);
       index.records.push(record);
+      let size = index.sizes.get(record);
+      if (size === undefined) {
+        size = JSON.stringify(record).length;
+        index.sizes.set(record, size);
+      }
+      index.chars += size;
       if (record.userId && record.userName) {
         if (index.users.get(record.userId) !== record.userName) index.actions = null;
         index.users.set(record.userId, record.userName);
@@ -890,6 +959,7 @@ export class ChangeHistory {
       added = true;
     }
     if (added) index.actions = null;
+    this.trim(index);
   }
 
   private prune(index: WorldIndex): void {
@@ -897,8 +967,14 @@ export class ChangeHistory {
     if (!index.records.some(r => r.t < cutoff)) return;
     index.records = index.records.filter(r => r.t >= cutoff);
     index.keys = new Set(index.records.map(r => r.key));
+    index.chars = index.records.reduce((sum, r) => sum + (index.sizes.get(r) ?? 0), 0);
     index.actions = null;
   }
+}
+
+/** A record was left out for the size cap: the history is complete only after it. */
+function markTrimmed(index: WorldIndex, dropped: ChangeRecord): void {
+  if (dropped.t + 1 > index.trimmedBefore) index.trimmedBefore = dropped.t + 1;
 }
 
 function matchesPerson(

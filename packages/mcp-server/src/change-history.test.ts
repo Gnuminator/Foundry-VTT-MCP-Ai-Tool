@@ -658,7 +658,11 @@ describe('ChangeHistory.list', () => {
   }
 
   function makeHistory(
-    extra: { pullNow?: (() => Promise<void>) | null; journalStart?: number } = {}
+    extra: {
+      pullNow?: (() => Promise<void>) | null;
+      journalStart?: number;
+      maxChars?: number;
+    } = {}
   ): ChangeHistory {
     const pull = extra.pullNow === null ? undefined : (extra.pullNow ?? pullNow);
     return new ChangeHistory({
@@ -673,6 +677,7 @@ describe('ChangeHistory.list', () => {
       ...(extra.journalStart !== undefined
         ? { journalStart: (): Promise<number> => Promise.resolve(extra.journalStart!) }
         : {}),
+      ...(extra.maxChars !== undefined ? { maxChars: extra.maxChars } : {}),
       now: () => NOW,
     });
   }
@@ -713,6 +718,38 @@ describe('ChangeHistory.list', () => {
       undone: false,
     });
     expect(changes[0]?.at).toBe(new Date(NOW - MIN).toISOString());
+  });
+
+  it('holds at most its size cap of the newest records, and says from when it is complete', async () => {
+    // A bulk delete can fill a day's file past what one string holds: the history reads it line
+    // by line and keeps the newest records within its cap.
+    const records = Array.from({ length: 10 }, (_, i) =>
+      hpChange(20 - i, 19 - i, { actionId: `b${i}`, t: NOW - (20 - i) * MIN })
+    );
+    await writeDay(records);
+    const size = (r: ChangeRecord): number => JSON.stringify(r).length;
+    const cap = size(records[7]) + size(records[8]) + size(records[9]);
+    const history = makeHistory({ maxChars: cap });
+    const { changes, note } = await history.list();
+    expect(changes.map(c => c.id)).toEqual(['act:b9', 'act:b8', 'act:b7']);
+    const start = records[6].t + 1;
+    expect(await history.historyStart()).toBe(start);
+    expect(note).toContain(`before ${historyStartLabel(start)} are gone`);
+    expect(note).toContain('left the oldest records out');
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+
+    // Live appends past the cap leave the oldest out too, and the warning is not repeated.
+    const later = hpChange(5, 4, { actionId: 'b10', t: NOW - MIN });
+    history.addRecords('w1', [later]);
+    const after = await history.list();
+    expect(after.changes.map(c => c.id)).toEqual(['act:b10', 'act:b9']);
+    expect(await history.historyStart()).toBe(records[8].t + 1);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+
+    // Under the cap nothing is left out and there is no note.
+    const roomy = makeHistory();
+    expect((await roomy.list()).changes).toHaveLength(10);
+    expect((await roomy.list()).note).toBeUndefined();
   });
 
   it('merges AI changes from the audit log and keeps their undo fields', async () => {

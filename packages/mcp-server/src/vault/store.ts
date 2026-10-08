@@ -14,6 +14,7 @@
 import { randomBytes } from 'crypto';
 import { promises as fsp } from 'fs';
 import * as path from 'path';
+import { createInterface } from 'readline';
 
 import {
   VAULT_AREAS,
@@ -158,24 +159,52 @@ export class VaultStore {
 
   /** Read a `.jsonl` file as parsed values (missing file: empty). Bad lines are skipped. */
   async readLines(worldId: string, area: VaultArea, file: string): Promise<unknown[]> {
+    const values: unknown[] = [];
+    await this.forEachLine(worldId, area, file, value => {
+      values.push(value);
+    });
+    return values;
+  }
+
+  /**
+   * Read a `.jsonl` file one line at a time (missing file: nothing), never as one string: a
+   * change journal day can be larger than the longest string Node holds (512 MB). `chars` is
+   * the line's length. Bad lines are skipped.
+   */
+  async forEachLine(
+    worldId: string,
+    area: VaultArea,
+    file: string,
+    onLine: (value: unknown, chars: number) => void
+  ): Promise<void> {
     const full = this.filePath(worldId, area, file);
-    let text: string;
+    let handle: fsp.FileHandle;
     try {
-      text = await fsp.readFile(full, 'utf8');
+      handle = await fsp.open(full, 'r');
     } catch (error) {
-      if (errorCode(error) === 'ENOENT') return [];
+      if (errorCode(error) === 'ENOENT') return;
       throw error;
     }
-    const values: unknown[] = [];
-    for (const line of text.split('\n')) {
-      if (!line.trim()) continue;
-      try {
-        values.push(JSON.parse(line));
-      } catch {
-        // A torn last line after a crash; the rest of the log is still usable.
+    const lines = createInterface({
+      input: handle.createReadStream({ encoding: 'utf8' }),
+      crlfDelay: Infinity,
+    });
+    try {
+      for await (const line of lines) {
+        if (!line.trim()) continue;
+        let value: unknown;
+        try {
+          value = JSON.parse(line);
+        } catch {
+          // A torn last line after a crash; the rest of the log is still usable.
+          continue;
+        }
+        onLine(value, line.length);
       }
+    } finally {
+      lines.close();
+      await handle.close().catch(() => undefined);
     }
-    return values;
   }
 
   /** Delete a file (no error when it is already gone). */

@@ -493,12 +493,12 @@ export class ChangeJournalPump {
     const cacheKey = `${worldId}::${date}`;
     const cached = this.writtenKeys.get(cacheKey);
     if (cached) return cached;
-    const lines = await this.store.readLines(worldId, 'gm', changeJournalFileName(date));
+    // Line by line, keys only: a day's file can hold more than one string can.
     const keys = new Set<string>();
-    for (const line of lines) {
+    await this.store.forEachLine(worldId, 'gm', changeJournalFileName(date), line => {
       const key = (line as { key?: unknown } | null)?.key;
       if (typeof key === 'string') keys.add(key);
-    }
+    });
     this.writtenKeys.set(cacheKey, keys);
     return keys;
   }

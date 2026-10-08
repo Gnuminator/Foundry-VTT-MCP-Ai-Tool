@@ -26,6 +26,7 @@
     "lint:fix": "eslint . --ext .ts,.tsx,.js --fix",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
     "kit": "node scripts/test-kit/kit.mjs",
+    "kit:run": "node scripts/test-kit/kit-run.mjs",
     "kit:test": "node --test \"scripts/test-kit/test/*.test.mjs\"",
     "project-dashboard": "node scripts/dev/project-dashboard/cli.mjs",
     "project-dashboard:test": "node --test \"scripts/dev/project-dashboard/test/*.test.mjs\"",

@@ -82,6 +82,8 @@ export function studioSettingsFor(profile) {
       spells: p.spells,
       feats: p.feats,
       items: ['dnd5e.items'],
+      // The starting equipment choices read this list (any gaming set, a martial weapon).
+      equipment: p.equipment ?? ['dnd5e.equipment24'],
     },
     forceTakeAverageHitPoints: true,
     milestoneLeveling: true,

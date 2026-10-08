@@ -57,6 +57,14 @@ export function validateProfile(p) {
         problems.push(`packs.${kind} must be a list of pack ids like "dnd5e.classes24"`);
       }
     }
+    // Optional: the starting equipment packs (Actor Studio's equipment choices).
+    const gear = o.packs.equipment;
+    if (
+      gear !== undefined &&
+      (!Array.isArray(gear) || gear.some(id => typeof id !== 'string' || !PACK_ID_RE.test(id)))
+    ) {
+      problems.push('packs.equipment must be a list of pack ids like "dnd5e.equipment24"');
+    }
     for (const kind of ['classes', 'subclasses']) {
       if (Array.isArray(o.packs[kind]) && !o.packs[kind].length)
         problems.push(`packs.${kind} is empty`);

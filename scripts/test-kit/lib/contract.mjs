@@ -40,7 +40,7 @@ export const DEFAULT_KIT_WORLD = 'ai-tool-kit-srd';
  * @property {string} world            the kit world it builds in (one of KIT_WORLDS)
  * @property {string} title            world title when the world is created
  * @property {string[]} modules        modules to enable besides foundry-mcp-bridge (e.g. a local content module)
- * @property {{classes: string[], subclasses: string[], species: string[], backgrounds: string[], monsters: string[], spells: string[], feats: string[]}} packs
+ * @property {{classes: string[], subclasses: string[], species: string[], backgrounds: string[], monsters: string[], spells: string[], feats: string[], equipment?: string[]}} packs
  *   compendium ids per kind, searched in order; the first pack that has an entry wins for duplicates
  * @property {{rules: Array<'2024'|'2014'>, skipNames?: string[], skipIds?: string}} [select]
  *   which rules versions count (both = 2024 plus legacy that remain), names to skip, and an id regex to skip
@@ -336,6 +336,9 @@ export const GM_ACTIONS = {
  * @property {KitManifest} kit        what the builder made
  * @property {import('playwright-core').Page | null} page  the Foundry GM page, for a scenario that must click in a Foundry
  *   window (Actor Studio); null against the fake
+ * @property {((user: string) => Promise<{page: import('playwright-core').Page, consoleErrors: () => Array<{at: string, message: string, source: string}>,
+ *   close: () => Promise<void>}>) | null} joinFoundry   (additive) join the kit world as another user (the kit player) in its own
+ *   headless Edge; the runner closes it after the scenario's cleanups. Null against the fake
  * @property {KitBrowser | null} browser   dashboard pages in a real Edge (slice 4); null against the fake
  * @property {(message: string) => void} log
  * @property {(name: string, data: unknown) => void} attach   JSON attachment in the report

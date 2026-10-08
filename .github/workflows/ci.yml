@@ -58,6 +58,11 @@ jobs:
         # The Pi safety hook (.claude/hooks/guard-remote-commands.mjs) against the real stage scripts.
         run: node --test .claude/hooks/guard-remote-commands.test.mjs
 
+      - name: Start alerts hook
+        # The SessionStart hook (.claude/hooks/start-alerts.mjs, D-102 line 3): silent when clean,
+        # one line per forced alert.
+        run: node --test .claude/hooks/start-alerts.test.mjs
+
       - name: Pi space check
         # The storage space check (stage 10, the nightly backup's pre-check, scripts/pi/space-check.ps1):
         # bash -n on the stage scripts, the checker's JSON against a fake df, the PC helper's levels

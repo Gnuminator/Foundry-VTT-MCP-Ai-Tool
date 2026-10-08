@@ -21,7 +21,8 @@ class TimedOut extends Error {}
  * @typedef {import('./contract.mjs').Scenario} Scenario
  * @typedef {import('./contract.mjs').ScenarioResult} ScenarioResult
  * @typedef {import('./contract.mjs').StepResult} StepResult
- * @typedef {{call: (action: string, args?: object) => Promise<any>, page?: import('playwright-core').Page}} GmLike
+ * @typedef {{call: (action: string, args?: object) => Promise<any>, page?: import('playwright-core').Page,
+ *   joinAs?: (user: string) => Promise<import('./gm.mjs').FoundryJoin>}} GmLike
  * @typedef {{state: () => Promise<any>, html: () => Promise<string>}} PlayerLike
  * @typedef {object} RunOptions
  * @property {ReturnType<typeof import('./dashboard.mjs').createDashboardClient>} dashboard
@@ -165,9 +166,14 @@ async function runOne({ scenario, file }, opts, consoleSink) {
   }
 
   const kitBrowser = opts.browserFactory ? opts.browserFactory(scenario.id, consoleSink) : null;
+  /** @type {import('./gm.mjs').FoundryJoin[]} */
+  const joined = [];
 
   /** @param {string} text */
-  const safeName = text => String(text).toLowerCase().replace(/[^a-z0-9._-]/g, '-');
+  const safeName = text =>
+    String(text)
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, '-');
 
   /** @type {PlayerLike} */
   const player = opts.player || {
@@ -216,6 +222,13 @@ async function runOne({ scenario, file }, opts, consoleSink) {
     http: (path, o) => dashboard.http(path, o),
     kit: /** @type {any} */ (manifest),
     page: gm?.page ?? null,
+    joinFoundry: gm?.joinAs
+      ? async user => {
+          const j = await /** @type {NonNullable<GmLike['joinAs']>} */ (gm.joinAs)(user);
+          joined.push(j);
+          return j;
+        }
+      : null,
     browser: kitBrowser ? kitBrowser.browser : null,
     log(message) {
       if (timedOut) return;
@@ -311,6 +324,7 @@ async function runOne({ scenario, file }, opts, consoleSink) {
 
   // The dashboard pages and a fresh Edge of this scenario go last, after the cleanups that may use them.
   if (kitBrowser) await Promise.resolve(kitBrowser.close()).catch(() => {});
+  for (const j of joined) await j.close().catch(() => {});
 
   // --- the module's console errors during this scenario ---
   if (gm) {

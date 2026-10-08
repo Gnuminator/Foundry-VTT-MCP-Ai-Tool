@@ -89,6 +89,55 @@ enable it (the `heroes-studio` scenario fails with that advice when the module i
 The kit opens its own GM page first. The bridge only has a Foundry link while that page is open.
 The test server is shared: run one live job at a time. See the `foundry-test-env` skill.
 
+### The kit run command
+
+`npm run kit:run` does all of the above in one go, on demand or overnight (D-102 line 5):
+
+1. takes the test server lock (`scripts/test-env/lock.ps1`; with `--wait <minutes>` it queues and
+   waits, otherwise a taken lock ends the run with exit code 3),
+2. runs `npm run build` and copies the module into the test Foundry (`sync-module.ps1 -NoBuild`),
+3. stops the test environment and starts it again on the profile's kit world, so the bridge and the
+   dashboard run this checkout's code,
+4. runs `kit.mjs all` (build, then the scenarios) with the report in `<kit home>/reports/`,
+5. stops the test environment again and releases the lock (also after a failure; Ctrl+C,
+   Ctrl+Break, a closed console or a kill signal stops the current step and cleans up the same way,
+   a second Ctrl+C exits at once and may leave the lock held),
+6. records the result in `<kit home>/last-run.json` (the control center's versions panel shows it)
+   and as a row in the vault note `Dev/Foundry AI Tool/Test kit runs.md`, through the vault
+   wrapper. Only counts, failing scenario ids and the local report folder go there.
+
+```powershell
+npm run kit:run                              # smoke, srd profile
+npm run kit:run -- --size full --wait 30     # full; queue for up to 30 minutes
+npm run kit:run -- --nightly                 # the overnight run: full, waits up to 2 hours
+```
+
+| Option             | Meaning                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| `--size`           | `smoke` (default), `full` or `long`.                                                  |
+| `--profile <id>`   | The content profile (default `srd`); it picks the kit world.                          |
+| `--wait <minutes>` | Queue for the lock and wait this long. Default 0.                                     |
+| `--nightly`        | `--size full --wait 120`, a skipped run is recorded, a stale kit run lock taken over. |
+| `--session <id>`   | The lock's session id. Pass your own when you already hold the lock: it stays yours.  |
+| `--holder <name>`  | The name on the lock (default `kit run`).                                             |
+| `--no-build`       | Skip `npm run build`; the last build is still copied into Foundry.                    |
+| `--keep-up`        | Leave the test environment running afterwards.                                        |
+| `--no-vault`       | Write `last-run.json` only.                                                           |
+
+Exit codes: 0 all passed, 1 a scenario failed or a step broke (build, module copy), 2 the
+environment was not ready, 3 the lock was not free. An on-demand run that found the lock taken
+leaves no record. Run it from a checkout with its own `npm ci` (the main checkout for the nightly
+run); it tests that checkout's code.
+
+**Overnight:** `pwsh scripts/test-kit/register-nightly.ps1` registers the Windows scheduled task
+"Foundry AI Tool kit run" (every night at 03:30, `-At 04:00` for another time, `-Remove` to take
+it away, `-WhatIf` to see what it would register). It runs `kit-run.mjs --nightly` in the main
+checkout with the portable Node 22 while you are logged on, in a hidden console, and appends its
+output to `<kit home>\nightly.log`. A PC that is asleep, off or logged off at that time skips the
+night; a missed run is not started later, so it never stops a test server you use during the day.
+The task stops a run after 6 hours without warning, which leaves its lock behind: the next nightly
+run takes over a kit run lock older than 7 hours, and the start alerts hook shows it until then.
+
 ## Content profiles
 
 A profile says where the builder finds its content: the packs for classes, subclasses, species,
@@ -216,33 +265,34 @@ scenarios are in `long` as well. The spell scenarios use the sizes differently: 
 thirty spells, `full` and `long` cast them all. The dashboard scenarios at the end of the table are real-browser
 scenarios with their own sizes, named in the table and in the text after it.
 
-| Id                      | What it proves                                                                                                                                                               |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bridge-health`         | The bridge, dashboard and module agree: health, world, module version, all tools, the kit.                                                                                   |
-| `compendium-monsters`   | Every kit monster matches its compendium entry and has a token on the scene.                                                                                                 |
-| `guarded-damage-undo`   | A guarded damage change applies, is listed, undoes exactly, and healing stops at the max.                                                                                    |
-| `scripted-fight`        | A short fight shows up the same way in combat state, play-by-play, session log and stats.                                                                                    |
-| `player-no-spoilers`    | A hidden token and monster HP never reach the player screen; the player's hero shows HP.                                                                                     |
-| `heroes-advancement`    | Every hero has what its class and subclass give at its level.                                                                                                                |
-| `heroes-features-use`   | Every feature of every hero can be used once with no dialog; the hero is put back.                                                                                           |
-| `heroes-features-deep`  | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.                                                                                             |
-| `heroes-studio`         | A hero per class built in Actor Studio's own windows equals the raw kit hero.                                                                                                |
-| `monsters-every`        | Every monster of every pack of the profile is copied in, uses one action and is deleted.                                                                                     |
-| `monsters-matrix`       | The monsters by CR band, type, size and trait, the gaps, and the data every creature needs.                                                                                  |
-| `monsters-odd`          | Legendary actions and resistance, lair, regeneration, shapechangers, movement, recharge, multiattack, spells.                                                                |
-| `origins-species`       | Every species gives its size, speed, senses, traits and features; each feature can be used.                                                                                  |
-| `origins-backgrounds`   | Every background gives its ability scores, proficiencies and origin feat.                                                                                                    |
-| `origins-feats`         | Every feat can be taken by a hero that meets its prerequisites and does what its data says.                                                                                  |
-| `heroes-multiclass`     | Multiclass heroes get the reduced proficiencies, the combined slots and the features of both classes.                                                                        |
-| `spells-cast-all`       | Every spell of the profile's spell packs can be cast once; the caster is put back.                                                                                           |
-| `spells-deep`           | 31 rule checks on SRD spells: attacks, saves, areas, concentration, upcasting, slots.                                                                                        |
-| `dashboard-write-flows` | The dashboard's write flows clicked in Edge: confirm, Undo, the undo window (Just this, Everything since, Redo), Tarokka, party, handouts, notes, links. Full and long only. |
-| `dashboard-login-split` | With a GM and a player token: no token gets nothing, `/player` has no GM controls, the GM token works. Runs last.                                                            |
-| `dashboard-controls`    | Every dashboard and player control is there, opens what it should and logs no console error. Full and long only.                                                             |
-| `player-rendered`       | The drawn player page shows no hidden token, true monster name or canary. Smoke and full.                                                                                    |
+| Id                          | What it proves                                                                                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bridge-health`             | The bridge, dashboard and module agree: health, world, module version, all tools, the kit.                                                                                   |
+| `compendium-monsters`       | Every kit monster matches its compendium entry and has a token on the scene.                                                                                                 |
+| `guarded-damage-undo`       | A guarded damage change applies, is listed, undoes exactly, and healing stops at the max.                                                                                    |
+| `scripted-fight`            | A short fight shows up the same way in combat state, play-by-play, session log and stats.                                                                                    |
+| `player-no-spoilers`        | A hidden token and monster HP never reach the player screen; the player's hero shows HP.                                                                                     |
+| `heroes-advancement`        | Every hero has what its class and subclass give at its level.                                                                                                                |
+| `heroes-features-use`       | Every feature of every hero can be used once with no dialog; the hero is put back.                                                                                           |
+| `heroes-features-deep`      | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.                                                                                             |
+| `heroes-studio`             | A hero per class built in Actor Studio's own windows equals the raw kit hero.                                                                                                |
+| `player-character-creation` | As the kit player in its own browser, a level-1 character per class in Actor Studio: species, background, starting equipment, spells; the sheet is checked on the GM side.   |
+| `monsters-every`            | Every monster of every pack of the profile is copied in, uses one action and is deleted.                                                                                     |
+| `monsters-matrix`           | The monsters by CR band, type, size and trait, the gaps, and the data every creature needs.                                                                                  |
+| `monsters-odd`              | Legendary actions and resistance, lair, regeneration, shapechangers, movement, recharge, multiattack, spells.                                                                |
+| `origins-species`           | Every species gives its size, speed, senses, traits and features; each feature can be used.                                                                                  |
+| `origins-backgrounds`       | Every background gives its ability scores, proficiencies and origin feat.                                                                                                    |
+| `origins-feats`             | Every feat can be taken by a hero that meets its prerequisites and does what its data says.                                                                                  |
+| `heroes-multiclass`         | Multiclass heroes get the reduced proficiencies, the combined slots and the features of both classes.                                                                        |
+| `spells-cast-all`           | Every spell of the profile's spell packs can be cast once; the caster is put back.                                                                                           |
+| `spells-deep`               | 31 rule checks on SRD spells: attacks, saves, areas, concentration, upcasting, slots.                                                                                        |
+| `dashboard-write-flows`     | The dashboard's write flows clicked in Edge: confirm, Undo, the undo window (Just this, Everything since, Redo), Tarokka, party, handouts, notes, links. Full and long only. |
+| `dashboard-login-split`     | With a GM and a player token: no token gets nothing, `/player` has no GM controls, the GM token works. Runs last.                                                            |
+| `dashboard-controls`        | Every dashboard and player control is there, opens what it should and logs no console error. Full and long only.                                                             |
+| `player-rendered`           | The drawn player page shows no hidden token, true monster name or canary. Smoke and full.                                                                                    |
 
 `dashboard-write-flows` and `dashboard-login-split` need a real browser (`t.browser`), so against the fake
-they skip themselves. The write flows click the real page (the tool runner form and its confirm window, Undo
+they skip themselves; so does `player-character-creation` (`t.joinFoundry`). The write flows click the real page (the tool runner form and its confirm window, Undo
 in Recent Changes and on the toast, the Tarokka, Party and Handouts drawers, a map note, the player links),
 read Foundry or the bridge to see the change is there, undo it and read again; they put everything back, also
 after a failure (the throwaway handout journal and the "Kit Party" group stay in the kit world). The Tarokka,

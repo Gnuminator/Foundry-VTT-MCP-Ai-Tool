@@ -55,7 +55,9 @@ night runs out, play on without it: everything can be done by hand in Foundry
 | Research, Claude Code | Included. Not needed for this tool.                                   |
 | Price                 | 20 USD a month, or 200 USD a year (prices in other currencies vary).  |
 
-Skills, connectors, the desktop app and memory are the same on both plans.
+Skills, desktop extensions (the local kind of connection this tool uses), the desktop app and
+memory are the same on both plans. Custom connectors (remote, by web address) are limited to one
+on Free; the tool does not use them.
 
 **When Pro is worth it:** when you hit the limit during prep or on game night more than now and
 then, or when you want Claude at the table for the whole evening. Try Free first.

@@ -73,6 +73,25 @@ export function validateProfile(p) {
       problems.push('knownAlso must not name the profile itself');
     }
   }
+  if (o.matrixMonsters !== undefined) {
+    const m = o.matrixMonsters;
+    if (!m || typeof m !== 'object') problems.push('matrixMonsters must be an object');
+    else {
+      if (typeof m.pack !== 'string' || !PACK_ID_RE.test(m.pack)) {
+        problems.push('matrixMonsters.pack must be a pack id like "dnd5e.actors24"');
+      }
+      if (m.rules !== undefined && m.rules !== '2024' && m.rules !== '2014') {
+        problems.push('matrixMonsters.rules must be "2024" or "2014"');
+      }
+      if (m.excludeIdPattern !== undefined) {
+        try {
+          new RegExp(m.excludeIdPattern);
+        } catch {
+          problems.push('matrixMonsters.excludeIdPattern must be a regular expression');
+        }
+      }
+    }
+  }
   if (o.select !== undefined) {
     const s = o.select;
     if (!s || typeof s !== 'object') problems.push('select must be an object');

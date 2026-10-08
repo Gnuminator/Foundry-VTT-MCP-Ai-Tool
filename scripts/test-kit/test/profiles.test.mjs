@@ -89,6 +89,29 @@ test('validateProfile accepts a good profile and names each problem of a bad one
     validateProfile(profile({ knownAlso: ['mine'] })).join(),
     /must not name the profile itself/
   );
+  // matrixMonsters: the build's monster matrix from the profile's own pack, optionally one rules version.
+  assert.deepEqual(
+    validateProfile(profile({ matrixMonsters: { pack: 'c.monsters', rules: '2024' } })),
+    []
+  );
+  assert.match(validateProfile(profile({ matrixMonsters: 'c.monsters' })).join(), /an object/);
+  assert.match(
+    validateProfile(profile({ matrixMonsters: { pack: 'nopoint' } })).join(),
+    /matrixMonsters.pack/
+  );
+  assert.match(
+    validateProfile(profile({ matrixMonsters: { pack: 'c.m', rules: '2020' } })).join(),
+    /matrixMonsters.rules/
+  );
+  assert.match(
+    validateProfile(profile({ matrixMonsters: { pack: 'c.m', excludeIdPattern: '(' } })).join(),
+    /excludeIdPattern/
+  );
+});
+
+test('strahd-kit, the throwaway copy of the campaign world, is a kit world; the campaign is not', () => {
+  assert.deepEqual(validateProfile(profile({ world: 'strahd-kit' })), []);
+  assert.match(validateProfile(profile({ world: 'curse-of-strahd' })).join(), /world must be/);
 });
 
 test('a world that is not a kit world is refused, also the everyday test worlds', () => {

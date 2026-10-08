@@ -100,6 +100,7 @@ names pack ids and module ids only, never book text. A profile file is JSON; the
 | ---------- | ------------------------------------------------------- | ---------------------- |
 | `srd`      | `scripts/test-kit/data/profiles/srd.json` (in the repo) | `ai-tool-kit-srd`      |
 | a local id | `<kit home>\licensed\profiles\<id>.json` (this PC only) | `ai-tool-kit-licensed` |
+| a local id | `<kit home>\licensed\profiles\<id>.json` (this PC only) | `strahd-kit`           |
 
 - **Only the `srd` profile is in the repo.** It uses the packs that ship with the system.
 - **A licensed profile never goes into a repo or the vault.** It lives under the kit home, next to
@@ -108,6 +109,14 @@ names pack ids and module ids only, never book text. A profile file is JSON; the
 - **A profile's world must be a kit world** (`KIT_WORLDS` in the contract). A profile for any other
   world is refused, so a bad profile cannot build into the everyday test world or a real campaign.
 - **An unknown profile is an environment error** (exit code 2) that names the file it looked for.
+- **A profile may pick the matrix monsters** with `"matrixMonsters": {"pack": "<pack id>", "rules":
+"2024"}`: the build's monster matrix then picks from that pack instead of `dnd5e.actors24` (the
+  matrix file's pack), and only entries whose `system.source.rules` is that version. The licensed
+  profile names its imported Monster Manual, so its kit monsters do not come from the system's SRD
+  copies, whose features name the Monster Manual module's ids.
+- **`strahd-kit` is a throwaway copy of the campaign world** for the licensed Curse of Strahd
+  scenarios (the same name as the Pi's test copy). It is made again from the campaign world whenever
+  it is needed, with the world id and title changed; the campaign world itself is never a kit world.
 
 The folder layout on this PC:
 
@@ -1013,7 +1022,8 @@ When you change a tool's result shape, change the fake with it.
 ## Safety guards
 
 - **Kit worlds only.** The kit builds and writes only in the worlds listed in `KIT_WORLDS`
-  (`ai-tool-kit-srd` and `ai-tool-kit-licensed`). It never touches a real campaign,
+  (`ai-tool-kit-srd`, `ai-tool-kit-licensed` and `strahd-kit`, the throwaway copy of the campaign
+  world). It never touches a real campaign,
   `ai-tool-test` or `ai-tool-kit`.
 - **The wipe is by flag.** Every document the builder makes carries the flag `world.testKit`. A
   rebuild deletes only documents with that flag.

@@ -21,7 +21,7 @@ import {
   readUsageCatalog,
 } from '../lib/dashboard-controls.mjs';
 import { sweepGroups } from '../lib/dashboard-sweep.mjs';
-import { tokenHeroes } from '../lib/helpers.mjs';
+import { tokenHeroes, waitFor } from '../lib/helpers.mjs';
 
 const VIEWPORT = { width: 1440, height: 900 };
 
@@ -124,11 +124,21 @@ export default {
               body: { action: 'set-prefs', value: { combatButtons: false } },
             });
           });
-          const set = await t.http('/api/control', {
-            method: 'POST',
-            body: { action: 'set-prefs', value: { combatButtons: true } },
-          });
-          t.check(set.status === 200, 'Combat buttons turned on', set);
+          // The server answers 409 until it has read the world from the bridge (just after a
+          // Foundry restart or a module sync), so the first tries may be refused.
+          /** @type {any} */
+          let set = null;
+          await waitFor(
+            async () => {
+              set = await t.http('/api/control', {
+                method: 'POST',
+                body: { action: 'set-prefs', value: { combatButtons: true } },
+              });
+              return set.status !== 409;
+            },
+            { label: 'the dashboard to know the world (set-prefs answers 409 before)' }
+          );
+          t.check(set?.status === 200, 'Combat buttons turned on', set);
         }
         t.cleanup(async () => {
           await t.gm('endCombats');

@@ -81,7 +81,8 @@ jobs:
 
       - name: Pi Assistant GM
         # assistant-gm.mjs: the service mode is unchanged, GM script mode takes only a local file and
-        # its dry run holds back every write; bash -n on gm-script.sh (docs/dev/PI-SETUP.md, "GM scripts").
+        # its dry run lets only known reads through; gm-script.sh refuses a real run without a passed
+        # dry run (stand-ins for systemd) (docs/dev/PI-SETUP.md, "GM scripts").
         run: node --test scripts/pi/assistant-gm.test.mjs
 
       - name: Changelog fragments

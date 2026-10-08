@@ -29,15 +29,18 @@ export async function runHousekeeping({ paths, forcePush = false, deps = {} }) {
 
 export function startHousekeeping({ paths, intervalMs = TICK_MS, log = console.log }) {
   let running = false;
-  let lastLine = '';
+  let lastAt = null;
+  const startedMs = Date.now();
   const tick = async () => {
     if (running) return;
     running = true;
     try {
       const push = await runHousekeeping({ paths });
-      const line = push ? `Usage notes: ${push.state} (${push.detail})` : '';
-      if (line && line !== lastLine) log(line);
-      lastLine = line;
+      // Log only attempts made by this server run, once each (the state keeps older ones).
+      const atMs = Date.parse(push?.at ?? '');
+      if (push && push.at !== lastAt && atMs >= startedMs - 1000)
+        log(`Usage notes: ${push.state} (${push.detail})`);
+      lastAt = push?.at ?? null;
     } catch (err) {
       log(`Housekeeping failed: ${String(err?.message || err).slice(0, 150)}`);
     } finally {

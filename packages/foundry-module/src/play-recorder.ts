@@ -143,6 +143,7 @@ interface TokenDocLike {
   actorId?: unknown;
   actorLink?: unknown;
   hidden?: unknown;
+  parent?: unknown;
   x?: unknown;
   y?: unknown;
 }
@@ -150,6 +151,9 @@ interface TokenDocLike {
 interface CombatantLike {
   name?: unknown;
   actor?: unknown;
+  hidden?: unknown;
+  token?: unknown;
+  sceneId?: unknown;
 }
 
 interface CombatLike {
@@ -381,25 +385,45 @@ const HIDDEN_FLAG_KINDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Whether the players cannot see this actor's token: the record's own token for an unlinked
- * actor, or for a world actor every one of its tokens on the active scene (false when it has
- * none there).
+ * Whether the players cannot see this actor's token. Only the active scene (the one players
+ * see) counts: an unlinked actor's own token is hidden or on another scene; a world actor has
+ * no token there or every one of them is hidden. A PC without a token there still counts as
+ * seen (its players see its sheet). With no active scene, only the token's own flag decides.
  */
 function actorTokenHidden(ref: PlayActorRef): boolean {
   try {
+    const activeId = activeSceneId();
     if (ref.tokenUuid) {
       const [, sceneId] = ref.tokenUuid.split('.');
+      if (activeId && sceneId !== activeId) return !ref.isPC;
       const scene = sceneId ? game.scenes.get(sceneId) : undefined;
       const token = tokensOf(scene).find(t => str(t.uuid) === ref.tokenUuid);
       return bool(token?.hidden);
     }
     const parts = ref.uuid.split('.');
-    if (parts.length !== 2 || parts[0] !== 'Actor') return false;
-    const sceneId = activeSceneId();
-    const tokens = tokensOf(sceneId ? game.scenes.get(sceneId) : undefined).filter(
-      t => str(t.actorId) === parts[1]
-    );
-    return tokens.length > 0 && tokens.every(t => bool(t.hidden));
+    if (!activeId || parts.length !== 2 || parts[0] !== 'Actor') return false;
+    const tokens = tokensOf(game.scenes.get(activeId)).filter(t => str(t.actorId) === parts[1]);
+    if (tokens.length === 0) return !ref.isPC;
+    return tokens.every(t => bool(t.hidden));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the players cannot see this combatant's turn: hidden in the tracker, its token hidden,
+ * or its token on a scene other than the active one. A combatant without a token counts as seen
+ * (the tracker shows it).
+ */
+function combatantHidden(combatant: CombatantLike): boolean {
+  try {
+    if (bool(combatant.hidden)) return true;
+    const token = shape<TokenDocLike>(combatant.token);
+    if (!token) return false;
+    if (bool(token.hidden)) return true;
+    const activeId = activeSceneId();
+    const sceneId = str(combatant.sceneId) ?? str(asRecord(token.parent)?.id);
+    return Boolean(activeId && sceneId && sceneId !== activeId);
   } catch {
     return false;
   }
@@ -679,6 +703,8 @@ interface BuildOpts {
   roll?: PlayRollInfo | undefined;
   source?: PlayRecord['source'] | undefined;
   data?: Record<string, unknown> | undefined;
+  /** Decides the `data.hidden` flag instead of the actor's tokens (a combatant's own state). */
+  hidden?: boolean | undefined;
 }
 
 const MAX_BUFFER = 5000;
@@ -987,7 +1013,11 @@ export class PlayRecorder {
     if (opts.source) record.source = opts.source;
     if (opts.data) record.data = opts.data;
     // "Seen in" skips state changes the players could not see (a hidden ambusher's HP).
-    if (opts.actor && HIDDEN_FLAG_KINDS.has(opts.kind) && actorTokenHidden(opts.actor)) {
+    if (
+      opts.actor &&
+      HIDDEN_FLAG_KINDS.has(opts.kind) &&
+      (opts.hidden ?? actorTokenHidden(opts.actor))
+    ) {
       record.data = { ...(record.data ?? {}), hidden: true };
     }
     return record;
@@ -1790,6 +1820,7 @@ export class PlayRecorder {
         actor: actor ? this.actorRefFor(actor) : undefined,
         combat: { id: combatId, round, turn },
         data: { combatantName: str(combatant?.name) ?? null },
+        hidden: combatant ? combatantHidden(combatant) : undefined,
       })
     );
   }

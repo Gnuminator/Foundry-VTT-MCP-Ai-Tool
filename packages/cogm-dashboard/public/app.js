@@ -2812,7 +2812,11 @@ function renderPreflight() {
         ? `Ready, with ${warns} to look at.`
         : 'Ready for the session.';
   els.preflightAuto.innerHTML = checks.map(preflightItem).join('');
+  // A run redraws the findings; a list the GM opened stays open.
+  const wasOpen = Boolean(els.preflightFindings.querySelector('details.preflight-findings[open]'));
   els.preflightFindings.innerHTML = preflightFindings(r.scan);
+  const details = els.preflightFindings.querySelector('details.preflight-findings');
+  if (details && wasOpen) details.open = true;
 }
 function renderPreflightManual() {
   const ticks = readPreflightTicks();

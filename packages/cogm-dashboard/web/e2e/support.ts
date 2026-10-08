@@ -31,3 +31,29 @@ export async function fakeStream(
  */
 export const toast = (page: Page, text: string): Locator =>
   page.locator('.toast-stack').getByText(text);
+
+/** One POST /api/tool body: the tool, its args and the confirm flags of a write. */
+export interface ToolCall {
+  name: string;
+  args: Record<string, unknown>;
+  confirm?: boolean;
+  confirmDestructive?: boolean;
+}
+
+/** Answers POST /api/tool by tool name and records each call. */
+export async function fakeTools(
+  page: Page,
+  answer: (call: ToolCall) => { status?: number; json: unknown }
+): Promise<ToolCall[]> {
+  const calls: ToolCall[] = [];
+  await page.route('**/api/tool', route => {
+    const call = route.request().postDataJSON() as ToolCall;
+    calls.push(call);
+    const { status = 200, json } = answer(call);
+    return route.fulfill({ status, json });
+  });
+  return calls;
+}
+
+/** A tool's answer when it worked. */
+export const ok = (result: unknown): { json: unknown } => ({ json: { ok: true, result } });

@@ -381,7 +381,7 @@ describe('gm-script.sh', { skip: !hasBash && 'no bash here' }, () => {
     writeFileSync(path.join(root, 'tool/gm-browser/assistant-gm.mjs'), '');
     writeFileSync(path.join(root, 'etc/assistant-gm.env'), '');
     writeFileSync(path.join(root, 'script.js'), 'return 1;\n');
-    sh('systemctl', 'exit 1');
+    sh('systemctl', `echo "$*" >> "${root}/systemctl"; exit 1`);
     sh('systemd-run', `echo "$*" >> "${root}/runs"; exit "\${FAKE_EXIT:-0}"`);
     sh('journalctl', `case " $* " in *" -t "*) cat "${root}/journal" 2>/dev/null ;; esac; exit 0`);
     sh('logger', `echo "\${@: -1}" >> "${root}/journal"`);
@@ -423,6 +423,7 @@ describe('gm-script.sh', { skip: !hasBash && 'no bash here' }, () => {
       /no passed dry run of this script .*DRY_RUN=1 first.*NO_DRY_RUN_REASON/
     );
     assert.equal(runs(), '');
+    assert.deepEqual(readdirSync(path.join(root, 'data/gm-scripts')), []);
   });
 
   test('a passed dry run leaves a marker, then the real run of the same file goes ahead', () => {
@@ -436,6 +437,11 @@ describe('gm-script.sh', { skip: !hasBash && 'no bash here' }, () => {
     );
     const real = gmScript({});
     assert.equal(real.status, 0, real.stderr);
+    // The trap stops the script's unit before it would start the service again (an SSH drop).
+    assert.match(
+      readFileSync(path.join(root, 'systemctl'), 'utf8'),
+      /^stop foundry-ai-tool-gm-script-\d{8}-\d{6}$/m
+    );
     assert.match(real.stdout, /a dry run of this script .* passed before/);
     assert.match(runs().split('\n')[1], new RegExp(`script \\S+-${sha12}\\.js$`));
   });

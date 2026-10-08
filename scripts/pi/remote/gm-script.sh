@@ -39,25 +39,31 @@ for id in ${ENABLE_MODULES:-}; do
 done
 
 stamp="$(date +%Y%m%d-%H%M%S)"
-sha="$(sha256sum "$script_src" | cut -d' ' -f1)"
-sha12="${sha:0:12}"
 store="$TOOL_DATA/gm-scripts"
 tag=foundry-ai-tool-gm-script
+install -d -m 755 "$store"
+# Copy first and hash the copy: the copy is what runs, so a change to the source after this point
+# cannot slip past the dry-run check.
+incoming="$store/incoming-$stamp-$$.js"
+install -m 644 "$script_src" "$incoming"
+sha="$(sha256sum "$incoming" | cut -d' ' -f1)"
+sha12="${sha:0:12}"
 
 # A real run only after a dry run of the same file passed (a marker here, or the journal).
+# grep -c reads the whole journal (grep -q could stop early and fail the pipe under pipefail).
 if [ -z "$dry_run" ]; then
   if compgen -G "$store/*-$sha12-dry-run.ok" >/dev/null \
-    || journalctl -t "$tag" -o cat --no-pager 2>/dev/null | grep -q " sha256 $sha (dry run) exit 0$"; then
+    || journalctl -t "$tag" -o cat --no-pager 2>/dev/null | grep -c " sha256 $sha (dry run) exit 0$" >/dev/null; then
     ok "a dry run of this script (sha256 $sha12) passed before"
   elif [ -n "${NO_DRY_RUN_REASON:-}" ]; then
     warn "no dry run of this script (sha256 $sha12); going ahead because NO_DRY_RUN_REASON is set: $NO_DRY_RUN_REASON"
     logger -t "$tag" "real run of $script_src sha256 $sha WITHOUT a dry run: $NO_DRY_RUN_REASON"
   else
+    rm -f -- "$incoming"
     die "no passed dry run of this script (sha256 $sha12): run it with DRY_RUN=1 first (in an emergency, NO_DRY_RUN_REASON=\"why\" skips this check and logs the reason)"
   fi
 fi
 
-install -d -m 755 "$store"
 mode="for real"
 copy="$store/$stamp-$sha12.js"
 flags=()
@@ -66,7 +72,7 @@ if [ -n "$dry_run" ]; then
   copy="$store/$stamp-$sha12-dry-run.js"
   flags=(--dry-run)
 fi
-install -m 644 "$script_src" "$copy"
+mv -- "$incoming" "$copy"
 args=(script "$copy" "${flags[@]}" "${modules[@]}")
 say "GM script $script_src (sha256 $sha, $mode), kept as $copy"
 logger -t "$tag" "start $script_src sha256 $sha ($mode)"
@@ -77,14 +83,17 @@ if systemctl is-active --quiet "$service"; then
   systemctl stop "$service"
   ok "stopped $service for the run"
 fi
+unit="foundry-ai-tool-gm-script-$stamp"
+# Also when SSH drops during the run: stop the script's unit first, so the service's browser never
+# runs beside a script that is still going.
 restore() {
+  systemctl stop "$unit" 2>/dev/null || true
   if [ "$was_active" = 1 ]; then
     systemctl start "$service" && ok "started $service again" || warn "$service did not start: journalctl -u $service -n 50"
   fi
 }
 trap restore EXIT
 
-unit="foundry-ai-tool-gm-script-$stamp"
 status=0
 systemd-run --quiet --wait --collect --unit="$unit" \
   --uid="$FOUNDRY_USER" --gid="$FOUNDRY_USER" \

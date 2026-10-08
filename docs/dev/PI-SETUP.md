@@ -658,16 +658,19 @@ world as the Assistant GM instead:
   dashboard cannot trigger it.
 - **Dry run first** (`DRY_RUN=1`): only known reads go through (an allow list: document and
   compendium reads, folder listings, template loads, the server's clock and status, GET and HEAD
-  requests); every other write or
-  event is held back and listed in the log, also ones the list does not know. The page checks the
-  list, and Node checks it again on Foundry's socket and on every HTTP request, where the page
-  cannot change the check. Reads work, so the script can report what it would change. A script
-  should still check `args.dryRun` itself. The dry run guards against a script's mistakes; it is not
-  a sandbox for a hostile script, so read a script before you run it.
+  requests); every other write or event is held back and listed in the log, also ones the list
+  does not know. The page's guard checks the list, the script's browser checks it again on
+  Foundry's socket, and the browser holds back every HTTP request that is not GET or HEAD (the one
+  rule that runs outside the page). Reads work, so the script can report what it would change. A
+  script should still check `args.dryRun` itself. The dry run guards against a script's mistakes;
+  it is not a sandbox for a script that sets out to get around it, so read a script before you run
+  it.
 - **A real run needs a passed dry run of the same file** (the same sha256): `gm-script.sh` looks
   for the marker a passed dry run leaves in `/var/lib/foundry-ai-tool/gm-scripts`, or for its end
-  line in the journal, and refuses otherwise. In an emergency `NO_DRY_RUN_REASON="why"` skips the
-  check; the reason goes to the journal.
+  line in the journal, and refuses otherwise. The hash is taken from the kept copy, which is the
+  file that runs. A passed dry run does not expire and does not record `ENABLE_MODULES`: dry-run
+  again after a long gap or with other modules. In an emergency `NO_DRY_RUN_REASON="why"` skips
+  the check; the reason goes to the journal.
 - `ENABLE_MODULES="id ..."` enables installed modules in the world before the script runs (a dry
   run only reports it).
 - Every run is logged to the journal: the file, its sha256, dry run or not, the script's log lines

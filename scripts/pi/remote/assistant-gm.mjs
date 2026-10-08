@@ -369,7 +369,7 @@ const ENGINE_CONTROL = new Set(['1', '2', '3', '5', '6']);
 
 /**
  * One frame the page sends on Foundry's socket (socket.io 4 over engine.io 4), checked in Node
- * during a dry run, where the page cannot change the check: engine.io's own packets, socket.io
+ * during a dry run, a second check behind the page's guard: engine.io's own packets, socket.io
  * connect and disconnect and acks (the page answering the server) pass, an event passes only when
  * isReadEvent allows it, and anything else is held back, binary frames and frames that do not
  * parse included. Returns { pass, label, reply }: reply is the ack frame to send the page for a
@@ -411,8 +411,10 @@ export function dryRunFrame(frame) {
 }
 
 /**
- * Network rules for the script's browser, set before it opens Foundry. Node applies them, so the
- * page cannot switch them off:
+ * Network rules for the script's browser, set before it opens Foundry. They guard against a
+ * script's mistakes, not against a script that sets out to get around them: Playwright routes
+ * WebSockets by replacing WebSocket inside the page (a Worker could still open a native one);
+ * only the HTTP rule runs outside the page.
  * - every WebSocket that does not go to Foundry is closed at once: the bridge link (the
  *   foundry-mcp-bridge module dials it in the bridge user's browser) never opens in script mode,
  *   so no AI tool call runs in the script's browser while the script runs;

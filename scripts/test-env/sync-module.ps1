@@ -14,6 +14,10 @@
 # the session -Session holds the test server lock (lock.ps1), so a half-saved edit never reaches
 # another lane's live test. Otherwise it waits, says who holds the lock, and copies once this
 # session holds it. It never takes the lock itself. Ctrl+C stops it.
+# The build runs with --noEmitOnError (a save with type errors changes nothing, tsc prints the
+# errors) through tsc-watch-child.cjs, which exits when this pwsh is gone, even after a hard kill.
+# With the build, the first copy waits for its first output, so an older dist/ is never copied;
+# with -NoBuild the existing build is copied at once.
 # -Root and -Source are for the tests: the lock is read from <Root>/lock.json and the module goes
 # to <Root>/modules/foundry-mcp-bridge; -Source replaces packages/foundry-module.
 param(
@@ -93,12 +97,16 @@ try {
     $tsc = Join-Path $RepoRoot 'node_modules' 'typescript' 'bin' 'tsc'
     if (-not (Test-Path $tsc)) { throw "TypeScript not found at $tsc (run npm ci in this checkout)." }
     $build = Start-Process -FilePath $node -NoNewWindow -PassThru -ArgumentList @(
-      "`"$tsc`"", '-p', "`"$(Join-Path $source 'tsconfig.json')`"", '--watch', '--preserveWatchOutput')
+      "`"$(Join-Path $PSScriptRoot 'tsc-watch-child.cjs')`"", $PID, "`"$tsc`"",
+      '-p', "`"$(Join-Path $source 'tsconfig.json')`"", '--watch', '--preserveWatchOutput', '--noEmitOnError')
   }
   Write-Stamped "Watching $source for module build changes; syncing to $dest only while session $Session holds the test server lock. Ctrl+C stops."
+  if ($build) { Write-Stamped "Build watch started (pid $($build.Id)); the first copy waits for its first build." }
 
   $fingerprint = Get-BuildFingerprint
-  $pending = $true  # the first sync: the test server may hold an older build
+  # Without the build, copy the existing build at once (the test server may hold an older one).
+  # With it, wait for tsc's first output: the dist/ on disk may be older than the source.
+  $pending = [bool]$NoBuild
   $changedAt = [DateTime]::MinValue
   $said = $null
   while ($true) {
@@ -130,7 +138,7 @@ try {
         }
       }
     }
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 1000
   }
 } finally {
   if ($build -and -not $build.HasExited) { Stop-Process -Id $build.Id -Force -ErrorAction SilentlyContinue }

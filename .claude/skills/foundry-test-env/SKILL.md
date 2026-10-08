@@ -84,7 +84,8 @@ After changing code:
   it with `run_in_background`). It runs the module's TypeScript build in watch mode and copies the
   module after every build change, but only while that session holds the test server lock; without
   the lock it prints who holds it and copies the waiting change once you hold it. It never takes
-  the lock. `-NoBuild` watches a build you run yourself. Stop it when your test is done.
+  the lock. A save with type errors builds nothing and is not copied (the log shows the tsc
+  errors). `-NoBuild` watches a build you run yourself. Stop it when your test is done.
 - Backend or dashboard: `npm run build`, then `stop.ps1 -Only bridge` / `-Only dashboard`
   and `start.ps1 -Only ...` again.
 

@@ -94,6 +94,24 @@ test('judgeSheet: spells off the class spell list are a problem; no list, no che
   assert.deepEqual(judgeSheet(o).problems, []);
 });
 
+test('judgeSheet: only spells the class gave are judged; species and feat spells are a note', () => {
+  const o = fixture();
+  o.sheet.spells.push(
+    { name: 'Minor Illusion', identifier: 'minor-illusion', level: 0, origin: 'race:forest-gnome' },
+    { name: 'Bless', identifier: 'bless', level: 1, origin: 'feat:magic-initiate' },
+    { name: 'Shield', identifier: 'shield', level: 1, origin: 'class:wizard' },
+    { name: 'Cure Wounds', identifier: 'cure-wounds', level: 1, origin: 'subclass:evoker' }
+  );
+  const v = judgeSheet(o);
+  assert.equal(v.problems.length, 1);
+  assert.match(v.problems[0].evidence, /^2 of 3: Shield, Cure Wounds$/);
+  assert.ok(
+    v.notes.includes(
+      'spells from other sources, not judged against the class list: Minor Illusion (race:forest-gnome), Bless (feat:magic-initiate)'
+    )
+  );
+});
+
 test('judgeSheet: pump errors fail; unequipped starting armor is a note', () => {
   const o = fixture();
   o.sheet.armor = [{ name: 'Chain Mail', equipped: false }];

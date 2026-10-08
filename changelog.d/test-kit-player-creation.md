@@ -5,8 +5,8 @@
   in Actor Studio, the way players will at session 0: abilities, species, background, class, the
   advancement questions, the starting equipment and the spells. The GM side then checks the sheet:
   the player owns it, one level of the class, species and background, level-1 hit points, every
-  planned item on the sheet, every spell on the class's spell list, no console errors on the player
-  page. It grants the Player role "Create New Actors" (Actor Studio needs it) and turns on Actor
+  planned item on the sheet, every spell the class gave on its spell list (species and feat spells
+  may be off it), no console errors on the player page. It grants the Player role "Create New Actors" (Actor Studio needs it) and turns on Actor
   Studio's starting equipment for the run, and puts both back. Smoke builds a fighter and a wizard,
   full every 2024 class.
 - **Actor Studio's Equipment tab driven by the kit:** the gold choices, the equipment choices, the

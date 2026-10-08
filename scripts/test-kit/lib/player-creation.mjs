@@ -15,7 +15,7 @@ export const PLAYER_ROLE = 1;
  *   species: string[], backgrounds: string[],
  *   hp: {value: number, max: number}, conMod: number, ac: number, gp: number,
  *   items: Array<{name: string, type: string}>,
- *   spells: Array<{name: string, identifier: string, level: number}>,
+ *   spells: Array<{name: string, identifier: string, level: number, origin: string | null}>,
  *   armor: Array<{name: string, equipped: boolean}>
  * }} Sheet
  */
@@ -52,9 +52,21 @@ export function readSheet(page, actorId) {
       ac: a.system.attributes.ac?.value ?? 0,
       gp: a.system.currency?.gp ?? 0,
       items: items.map(i => ({ name: i.name, type: i.type })),
+      // Where a spell came from: the item whose advancement granted it (a species trait, a feat),
+      // else the system's sourceItem ('race:forest-gnome'), else null. Actor Studio's Spells tab
+      // sets neither, so its picks (the class's spells) read null.
       spells: items
         .filter(i => i.type === 'spell')
-        .map(i => ({ name: i.name, identifier: i.system.identifier, level: i.system.level })),
+        .map(i => {
+          const flag = i.flags?.dnd5e?.advancementOrigin;
+          const granter = flag ? a.items.get(String(flag).split('.')[0]) : null;
+          const origin = granter
+            ? `${granter.type}:${granter.system.identifier ?? granter.name}`
+            : i.system.sourceItem
+              ? String(i.system.sourceItem)
+              : null;
+          return { name: i.name, identifier: i.system.identifier, level: i.system.level, origin };
+        }),
       armor: items
         .filter(i => i.type === 'equipment' && armorTypes.includes(i.system.type?.value))
         .map(i => ({ name: i.name, equipped: !!i.system.equipped })),
@@ -141,14 +153,23 @@ export function judgeSheet({
   const names = new Set(sheet.items.map(i => i.name));
   const missing = planned.filter(n => !names.has(n));
   if (missing.length) bad('planned starting equipment is not on the sheet', missing.join(', '));
+  // Only the spells the class gave are judged against its list: a species or feat spell (Forest
+  // Gnome's Minor Illusion on a paladin) is allowed off it.
+  const fromClass = sheet.spells.filter(s => !s.origin || /^(class|subclass):/.test(s.origin));
+  const other = sheet.spells.filter(s => !fromClass.includes(s));
   if (spellList) {
     const allowed = new Set(spellList);
-    const off = sheet.spells.filter(s => !allowed.has(s.identifier));
+    const off = fromClass.filter(s => !allowed.has(s.identifier));
     if (off.length)
       bad(
         `spells that are not on the ${classIdentifier} spell list`,
-        `${off.length} of ${sheet.spells.length}: ${off.map(s => s.name).join(', ')}`
+        `${off.length} of ${fromClass.length}: ${off.map(s => s.name).join(', ')}`
       );
+  }
+  if (other.length) {
+    notes.push(
+      `spells from other sources, not judged against the class list: ${other.map(s => `${s.name} (${s.origin})`).join(', ')}`
+    );
   }
   for (const e of pumpErrors) bad('an advancement answer failed', e);
 

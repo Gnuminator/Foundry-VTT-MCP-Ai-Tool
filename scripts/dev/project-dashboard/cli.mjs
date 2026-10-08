@@ -38,6 +38,36 @@ async function getPrsWithTimeout(opts) {
   }
 }
 
+function formatVersionsTable(v) {
+  const lines = [
+    `Foundry newest: ${v.foundry.newestStable ?? '?'} stable${
+      v.foundry.newestAny && v.foundry.newestAny !== v.foundry.newestStable
+        ? `, ${v.foundry.newestAny} ${v.foundry.newestAnyChannel}`
+        : ''
+    }`,
+  ];
+  for (const r of v.rows) {
+    lines.push(
+      [
+        r.status.padEnd(7),
+        (r.pc ?? '-').padEnd(16),
+        (r.pi ?? '-').padEnd(16),
+        (r.newest ?? '?').padEnd(16),
+        r.id,
+      ].join(' | ')
+    );
+  }
+  lines.splice(
+    1,
+    0,
+    ['status ', 'PC'.padEnd(16), 'Pi'.padEnd(16), 'newest'.padEnd(16), 'id'].join(' | ')
+  );
+  if (v.pc.error) lines.push(`PC: ${v.pc.error}`);
+  if (v.pi.error) lines.push(`Pi: ${v.pi.error}`);
+  if (v.newest.errors) lines.push(`online check: ${v.newest.errors} lookups failed`);
+  return lines.join('\n');
+}
+
 async function main() {
   if (args.includes('--lanes')) {
     const next = flagValue('--lanes');
@@ -57,11 +87,24 @@ async function main() {
     for (const w of snap.warnings) console.log(`warning: ${w}`);
     process.exit(0);
   }
+  if (args.includes('--usage-log')) {
+    const { runHousekeeping } = await import('./housekeeping.mjs');
+    const push = await runHousekeeping({ paths, forcePush: true });
+    console.log(`Usage notes: ${push.state} (${push.detail})`);
+    process.exit(push.state === 'pushed' || push.state === 'nothing' ? 0 : 1);
+  }
+  if (args.includes('--versions')) {
+    const { getVersions } = await import('./versions.mjs');
+    const v = await getVersions({ paths, force: args.includes('--refresh') });
+    console.log(formatVersionsTable(v));
+    process.exit(0);
+  }
   if (args.includes('--snapshot') || args.includes('--json')) {
     const snap = await buildSnapshot({
       paths,
       now: new Date(),
       withPrs: true,
+      withVersions: true,
       deps: { getPrs: getPrsWithTimeout },
     });
     assertWhitelisted(snap);
@@ -82,7 +125,12 @@ async function main() {
       fail('Ports 31414-31416 belong to the live bridge; pick another port.');
   }
   const { startServer } = await import('./server.mjs');
-  await startServer({ port, buildSnapshot: opts => buildSnapshot({ paths, ...opts }) });
+  const { startHousekeeping } = await import('./housekeeping.mjs');
+  await startServer({
+    port,
+    buildSnapshot: opts => buildSnapshot({ paths, withVersions: true, ...opts }),
+  });
+  startHousekeeping({ paths });
 }
 
 main().catch(err => fail(err?.stack || String(err)));

@@ -4,6 +4,14 @@ import path from 'node:path';
 import { scanTranscripts } from './transcripts.mjs';
 import { readLiveSessions } from './sessions.mjs';
 import { buildLanes } from './lanes.mjs';
+import { readWatchdog, sessionsDirFrom, watchdogWarning } from './watchdog.mjs';
+import {
+  loadUsageState,
+  saveUsageState,
+  updateUsageState,
+  usageSummary,
+  usageWarning,
+} from './usage-log.mjs';
 
 const CACHE_MS = 10000;
 const MAX_STRING = 200;
@@ -13,6 +21,13 @@ let tmpCounter = 0;
 
 const EMPTY_PRS = () => ({ asOf: null, error: null, items: [], mainRuns: [] });
 const EMPTY_PLAN = () => ({ source: null, asOf: null, windows: [] });
+const EMPTY_VERSIONS = () => ({
+  pc: { asOf: null, error: null },
+  pi: { asOf: null, error: null },
+  newest: { asOf: null, errors: 0 },
+  foundry: { newestStable: null, newestAny: null, newestAnyChannel: null },
+  rows: [],
+});
 const EMPTY_LOCK = () => ({
   state: 'no-script',
   holder: null,
@@ -85,15 +100,26 @@ export async function buildSnapshot({
   paths,
   now,
   withPrs = false,
+  withVersions = false,
+  updateUsage = false,
   force = false,
   deps = {},
 } = {}) {
   const useCache = !now && Object.keys(deps).length === 0;
-  const cacheKey = `${paths.dataDir}|${withPrs}`;
+  const cacheKey = `${paths.dataDir}|${withPrs}|${withVersions}`;
   if (useCache && !force && cache && cache.key === cacheKey && Date.now() - cache.at < CACHE_MS)
     return cache.snap;
   if (useCache && !force && inFlight && inFlight.key === cacheKey) return inFlight.promise;
-  const promise = build({ paths, now, withPrs, deps, useCache, cacheKey });
+  const promise = build({
+    paths,
+    now,
+    withPrs,
+    withVersions,
+    updateUsage,
+    deps,
+    useCache,
+    cacheKey,
+  });
   if (useCache && !force) {
     inFlight = { key: cacheKey, promise };
     promise.then(
@@ -108,7 +134,7 @@ export async function buildSnapshot({
   return promise;
 }
 
-async function build({ paths, now, withPrs, deps, useCache, cacheKey }) {
+async function build({ paths, now, withPrs, withVersions, updateUsage, deps, useCache, cacheKey }) {
   const at = now || new Date();
   const warnings = [];
 
@@ -150,8 +176,43 @@ async function build({ paths, now, withPrs, deps, useCache, cacheKey }) {
   }
 
   const lanes = buildLanes({ transcripts: scanned, live, prs, repoRoot: paths.repoRoot, now: at });
+
+  let versions = EMPTY_VERSIONS();
+  if (withVersions) {
+    try {
+      versions = await (await pick(deps, 'getVersions', './versions.mjs'))({ paths, now: at });
+    } catch (err) {
+      warnings.push(`versions unavailable: ${shortText(err)}`);
+    }
+  }
+
+  const watchdog = (deps.readWatchdog || readWatchdog)({
+    dir: paths.recordingsDir || sessionsDirFrom(),
+    now: at,
+  });
+  const wdWarning = watchdogWarning(watchdog);
+  if (wdWarning) warnings.push(wdWarning);
+
+  const usageState = loadUsageState(paths.dataDir, at);
+  if (updateUsage) {
+    updateUsageState(usageState, {
+      sessions: scanned.sessions,
+      lanes,
+      plan,
+      messages: scanned.messages,
+      now: at,
+    });
+    try {
+      saveUsageState(paths.dataDir, usageState);
+    } catch (err) {
+      warnings.push(`usage rows not saved: ${shortText(err)}`);
+    }
+  }
+  const usageLog = usageSummary(usageState);
+  const usWarning = usageWarning(usageLog, at.getTime());
+  if (usWarning) warnings.push(usWarning);
   const snap = {
-    version: 1,
+    version: 2,
     generatedAt: at.toISOString(),
     project: { slug: paths.slug, root: paths.repoRoot },
     warnings,
@@ -160,6 +221,9 @@ async function build({ paths, now, withPrs, deps, useCache, cacheKey }) {
     plan,
     lock,
     prs,
+    versions,
+    watchdog,
+    usageLog,
   };
   if (useCache) cache = { key: cacheKey, at: Date.now(), snap };
   return snap;
@@ -212,6 +276,38 @@ const SCHEMA = {
     windows: [{ kind: 's', label: 's', percentUsed: 's', resetsAt: 's' }],
   },
   lock: { state: 's', ...LOCK_ENTRY, queue: [LOCK_ENTRY] },
+  versions: {
+    pc: { asOf: 's', error: 's' },
+    pi: { asOf: 's', error: 's' },
+    newest: { asOf: 's', errors: 's' },
+    foundry: { newestStable: 's', newestAny: 's', newestAnyChannel: 's' },
+    rows: [
+      {
+        id: 's',
+        kind: 's',
+        title: 's',
+        pc: 's',
+        pi: 's',
+        newest: 's',
+        minCore: 's',
+        status: 's',
+      },
+    ],
+  },
+  watchdog: {
+    dir: 's',
+    state: 's',
+    lastPass: 's',
+    items: [{ name: 's', state: 's', finishedAt: 's' }],
+  },
+  usageLog: {
+    file: 's',
+    since: 's',
+    rows: [{ at: 's', title: 's', event: 's', context: 's', peak: 's' }],
+    push: { state: 's', detail: 's', at: 's' },
+    waitingSince: 's',
+    nextPushAt: 's',
+  },
   prs: {
     asOf: 's',
     error: 's',

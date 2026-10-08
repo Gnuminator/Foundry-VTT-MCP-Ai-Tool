@@ -18,6 +18,7 @@ function makeEnv() {
     PROJECT_DASHBOARD_DATA: path.join(root, 'data'),
     CLAUDE_CONFIG_DIR: path.join(root, 'claude'),
     PROJECT_DASHBOARD_REPO: repoRoot,
+    FVTT_SESSIONS_DIR: path.join(root, 'recordings'),
   };
   const paths = getPaths(env);
   const proj = path.join(paths.projectsDir, paths.slug);
@@ -126,8 +127,41 @@ test('a snapshot built from messy transcripts passes the whitelist and holds no 
   fs.writeFileSync(path.join(paths.sessionsDir, '111.abcdef.key'), KEY_SECRET);
   fs.writeFileSync(path.join(paths.sessionsDir, '222.json'), '{ not json');
 
-  const snap = await buildSnapshot({ paths, now: NOW, withPrs: true, deps });
+  const versions = {
+    pc: { asOf: NOW.toISOString(), error: null },
+    pi: { asOf: null, error: 'ssh to foundry-pi timed out after 15 s' },
+    newest: { asOf: NOW.toISOString(), errors: 0 },
+    foundry: { newestStable: '14.368', newestAny: '14.368', newestAnyChannel: 'stable' },
+    rows: [
+      {
+        id: 'dnd5e',
+        kind: 'system',
+        title: 'D&D Fifth Edition',
+        pc: '6.0.5',
+        pi: null,
+        newest: '6.0.6',
+        minCore: '14.367',
+        status: 'behind',
+      },
+    ],
+  };
+  const snap = await buildSnapshot({
+    paths,
+    now: NOW,
+    withPrs: true,
+    withVersions: true,
+    updateUsage: true,
+    deps: { ...deps, getVersions: async () => versions },
+  });
   assert.equal(assertWhitelisted(snap), true);
+  assert.equal(snap.version, 2);
+  assert.equal(snap.versions.rows[0].status, 'behind');
+  assert.equal(snap.watchdog.state, 'no-folder');
+  assert.deepEqual(
+    snap.usageLog.rows.map(r => [r.event, r.title]),
+    [['start', 'Live name']]
+  );
+  assert.ok(!fs.readFileSync(path.join(paths.dataDir, 'usage-log.json'), 'utf8').includes(SECRET));
   const text = JSON.stringify(snap);
   assert.ok(!text.includes(SECRET));
   assert.ok(!text.includes(KEY_SECRET));

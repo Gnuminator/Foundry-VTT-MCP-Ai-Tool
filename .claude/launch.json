@@ -10,6 +10,13 @@
       "name": "dashboard-test",
       "url": "http://localhost:3100",
       "port": 3100
+    },
+    {
+      "name": "project-dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "project-dashboard"],
+      "url": "http://127.0.0.1:3200",
+      "port": 3200
     }
   ]
 }

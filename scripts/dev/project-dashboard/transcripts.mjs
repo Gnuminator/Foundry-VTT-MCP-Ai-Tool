@@ -7,7 +7,7 @@ import path from 'node:path';
 const KEEP_DAYS = 8;
 const CHUNK = 4 * 1024 * 1024;
 const TS_KEY = '"timestamp":"';
-const STATE_VERSION = 1;
+const STATE_VERSION = 2;
 
 function freshState() {
   return { version: STATE_VERSION, files: {} };
@@ -20,6 +20,7 @@ function freshAgg(sessionId, folder) {
     firstTs: null,
     lastTs: null,
     lastRequestTs: null,
+    firstContext: 0,
     context: 0,
     peak: 0,
     model: null,
@@ -74,6 +75,7 @@ function applyRecord(rec, entry, cutoffMs) {
     const ctx = tokens.input + tokens.cacheRead + tokens.cacheWrite;
     if (ctx > 0) {
       agg.lastRequestTs = ts || agg.lastRequestTs;
+      if (!agg.firstContext) agg.firstContext = ctx;
       agg.context = ctx;
       if (ctx > agg.peak) agg.peak = ctx;
       if (model && model !== '<synthetic>') agg.model = model;

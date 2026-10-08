@@ -188,9 +188,35 @@ export async function keepChatNotificationsQuiet(page) {
 }
 
 /**
+ * A Foundry page of another user (a player), in its own throwaway Edge.
+ * @typedef {{page: import('playwright-core').Page, consoleErrors: () => Array<{at: string, message: string, source: string}>, close: () => Promise<void>}} FoundryJoin
+ */
+
+/**
+ * Join the kit world as another passwordless user in a separate headless Edge (no shared cookies
+ * with the GM page). The caller closes it.
+ * @param {{foundryUrl: string, world: string, user: string, headless?: boolean}} o
+ * @returns {Promise<FoundryJoin>}
+ */
+export async function joinAs({ foundryUrl, world, user, headless = true }) {
+  await assertKitWorld(foundryUrl, world);
+  const browser = await launchBrowser({ headless });
+  const errors = collectErrors(browser.page);
+  try {
+    await keepChatNotificationsQuiet(browser.page);
+    await joinGame(browser.page, { foundryUrl, user });
+  } catch (err) {
+    await browser.close();
+    throw err;
+  }
+  return { page: browser.page, consoleErrors: () => [...errors], close: () => browser.close() };
+}
+
+/**
  * Open a GM session in the kit world.
  * @param {{foundryUrl: string, world: string, user?: string, headless?: boolean, log?: (m: string) => void}} o
- * @returns {Promise<{call: (action: string, args?: object) => Promise<any>, close: () => Promise<void>, page: import('playwright-core').Page}>}
+ * @returns {Promise<{call: (action: string, args?: object) => Promise<any>, close: () => Promise<void>, page: import('playwright-core').Page,
+ *   joinAs: (user: string) => Promise<FoundryJoin>}>}
  */
 export async function openGmSession({
   foundryUrl,
@@ -223,6 +249,7 @@ export async function openGmSession({
   return {
     page: browser.page,
     close: () => browser.close(),
+    joinAs: user => joinAs({ foundryUrl, world, user, headless }),
     async call(action, args = {}) {
       if (!(action in GM_ACTIONS)) throw new Error(`Unknown GM action "${action}".`);
       if (action === GM_ACTIONS.consoleErrors) {

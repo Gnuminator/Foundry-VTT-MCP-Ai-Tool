@@ -1,12 +1,14 @@
 /**
  * The dashboard's write flows, clicked in a real browser (slice 4). Every flow drives the REAL page
  * (the tool runner form, the confirm window, the toast Undo, Recent Changes Undo, the Tarokka, Party and
- * Handouts drawers, the player links), then reads Foundry (or the bridge) to see that the change is
- * really there, undoes it, and reads again to see that it is exactly gone. Each flow is one step that
- * goes on after a failure, checks the page logged no new console error, and attaches one screenshot.
+ * Handouts drawers, the player links, the Everyone tab's undo window and Redo), then reads Foundry (or
+ * the bridge) to see that the change is really there, undoes it, and reads again to see that it is
+ * exactly gone. Each flow is one step that goes on after a failure, checks the page logged no new
+ * console error, and attaches one screenshot.
  *
  * Put-back: every guarded change applied after the scenario started and still undoable is undone at
- * the end (newest first), the reveal queue entry and the player link this scenario made are removed,
+ * the end (newest first; not an undo the undo-window flows applied and kept, see `keep`), the reveal
+ * queue entry and the player link this scenario made are removed,
  * and GM Actions and the drawers' feature switches (FLOW_FEATURES, switched on for the run) go back to
  * what they were. The throwaway handout journal and the kit party group stay in the kit world (named in
  * HANDOUT_JOURNAL and PARTY_GROUP; reused on the next run, a rebuild wipes the group).
@@ -59,6 +61,8 @@ export default {
   needs: ['heroes', 'scene'],
   tools: [
     'list-recent-changes',
+    'list-changes',
+    'plan-undo-changes',
     'plan-actor-change',
     'plan-scene-change',
     'apply-planned-change',
@@ -108,6 +112,13 @@ export default {
      * @type {Array<() => Promise<void>>}
      */
     const late = [];
+
+    /**
+     * Changes the put-back leaves alone: an undo applied through the undo window is itself an
+     * undoable change, and undoing it again at the end would bring back what the flow took away.
+     * @type {Set<string>}
+     */
+    const keep = new Set();
 
     /** @param {string} name */
     const shot = async name => {
@@ -167,14 +178,19 @@ export default {
     const readHero = h => t.gm('readActor', { actorId: h.actorId, sceneId, tokenId: h.tokenId });
     const total = (/** @type {any} */ s) => s.hp.value + (s.hp.temp || 0);
 
-    /** Damage the hero by 2 through the tool runner form and the confirm window; returns the HP before. @param {any} h */
-    const damageThroughForm = async h => {
+    /**
+     * Damage the hero through the tool runner form and the confirm window; returns the HP before.
+     * @param {any} h @param {number} [amount]
+     */
+    const damageThroughForm = async (h, amount = 2) => {
       const before = await readHero(h);
-      if (before.hp.value < 5) t.skip(`${h.name} has only ${before.hp.value} HP`);
+      if (before.hp.value < amount + 3) t.skip(`${h.name} has only ${before.hp.value} HP`);
+      // A toast from an earlier change in the same flow would end the waits below too early.
+      await markToasts(page);
       await openToolForm(page, 'plan-actor-change', {
         action: 'damage',
         targets: h.name,
-        amount: 2,
+        amount,
       });
       await submitToolForm(page);
       const { modal } = await settleWrite(page);
@@ -190,7 +206,11 @@ export default {
       t.check(/Applied/.test(toast), `the toast says "${toast}"`);
       await closeTools(page);
       const after = await readHero(h);
-      t.equal(total(after), total(before) - 2, `${h.name} HP in Foundry after 2 damage`);
+      t.equal(
+        total(after),
+        total(before) - amount,
+        `${h.name} HP in Foundry after ${amount} damage`
+      );
       return before;
     };
 
@@ -227,7 +247,9 @@ export default {
         .filter(([, on]) => !on)
         .map(([id]) => id);
       t.cleanup(async () => {
-        for (const change of await changesSince(startedAt)) await t.guarded.undo(change.changeId);
+        for (const change of await changesSince(startedAt)) {
+          if (!keep.has(change.changeId)) await t.guarded.undo(change.changeId);
+        }
         for (const fn of late.reverse()) await fn();
       });
       await showDuring(page);
@@ -562,6 +584,209 @@ export default {
         const gone = (await links()).find((/** @type {any} */ p) => p.userId === player.userId);
         t.check(!gone?.link, 'the link is removed');
         return 'link made and removed';
+      }
+    );
+
+    // --- (h) to (j): the Everyone tab's undo window and Redo (I-109) ----------------------------
+    // Two damage changes on one hero; the older one is undone through the window. Its stages: choose
+    // (Just this / Everything since, because a later change touched the same hero), then confirm.
+
+    /** A button of the undo window by its key (cancel, just-this, everything-since, apply). @param {string} key */
+    const undoKey = key => page.locator(`#undo-actions [data-undo-key="${key}"]`);
+
+    /** Waits for the undo window and reads it. */
+    const readUndo = async () => {
+      await page.locator('#undo-backdrop').waitFor({ state: 'visible', timeout: 20000 });
+      return {
+        title: squash(await page.locator('#undo-title').textContent()),
+        body: squash(await page.locator('#undo-body').innerText()),
+        keys: await page
+          .locator('#undo-actions [data-undo-key]')
+          .evaluateAll(els => els.map(el => el.getAttribute('data-undo-key') ?? '')),
+      };
+    };
+
+    const undoClosed = () =>
+      page.locator('#undo-backdrop').waitFor({ state: 'hidden', timeout: 10000 });
+
+    /**
+     * The Undo or Redo button of one change on the Everyone tab of Recent Changes; refreshes the
+     * list until the row shows it.
+     * @param {'undo' | 'redo'} kind @param {string} id
+     */
+    const everyoneButton = async (kind, id) => {
+      await openCard(page, 'changes');
+      const tab = page.locator('#changes-tab-everyone');
+      if (!(await tab.isVisible()))
+        t.skip('no Everyone tab: the bridge does not serve list-changes');
+      if ((await tab.getAttribute('aria-pressed')) !== 'true') await tab.click();
+      const button = page.locator(`#changes-body [data-ev-${kind}="${id}"]`);
+      await waitFor(
+        async () => {
+          if (await button.isVisible()) return true;
+          await page.locator('#changes-refresh').click();
+          return false;
+        },
+        {
+          label: `the ${kind === 'undo' ? 'Undo' : 'Redo'} button on the Everyone tab`,
+          timeoutMs: 30000,
+        }
+      );
+      return button;
+    };
+
+    /** Presses Undo in the undo window (ticking the destructive box when it asks) and waits for the toast. */
+    const applyUndo = async () => {
+      const apply = undoKey('apply');
+      if (await page.locator('#undo-destructive').isVisible()) {
+        t.check(await apply.isDisabled(), 'Undo waits for the destructive tick');
+        await page.locator('#undo-destructive-check').check();
+      }
+      await markToasts(page);
+      await apply.click();
+      await waitToast(page, 'ok');
+    };
+
+    /**
+     * What (h) leaves for (i) and (j): the hero, its HP before both changes and the older change.
+     * @type {{h: any, before: any, first: any} | null}
+     */
+    let pair = null;
+
+    await flow(
+      'Everyone tab: the older of two changes asks to choose; Cancel and Escape change nothing, Just this takes back only its part',
+      'flow-h-undo-just-this.png',
+      async () => {
+        const h = hero();
+        const since = now();
+        const before = await damageThroughForm(h, 2);
+        await damageThroughForm(h, 3);
+        // The older damage by its summary: `since` has slack, so the previous flow's changes can be
+        // in the list too. Not only the undoable ones: a later change may block the plain undo of
+        // the older one, which is what the window's choice is for.
+        const first = await waitFor(
+          async () =>
+            listOf(await t.tool('list-recent-changes', { limit: 50 }), 'changes')
+              .filter(c => c.mode === 'apply' && String(c.appliedAt) >= since)
+              .sort((a, b) => String(b.appliedAt).localeCompare(String(a.appliedAt)))
+              .find(c => String(c.summary).includes(h.name) && /\b2 damage\b/.test(c.summary)),
+          { label: 'the older damage change in list-recent-changes', timeoutMs: 15000 }
+        );
+        const hp = async () => total(await readHero(h));
+        const both = total(before) - 5;
+
+        const undo = await everyoneButton('undo', first.changeId);
+        await undo.click();
+        const choose = await readUndo();
+        t.check(
+          /not the latest change/i.test(choose.body),
+          'the window says this is not the latest change',
+          choose.body
+        );
+        t.check(
+          choose.keys.includes('just-this') && choose.keys.includes('everything-since'),
+          'the window offers Just this and Everything since',
+          choose.keys
+        );
+        await undoKey('cancel').click();
+        await undoClosed();
+        t.equal(await hp(), both, `${h.name} HP after Cancel`);
+
+        await undo.click();
+        await readUndo();
+        await page.keyboard.press('Escape');
+        await undoClosed();
+        t.equal(await hp(), both, `${h.name} HP after Escape`);
+
+        await undo.click();
+        await readUndo();
+        await undoKey('just-this').click();
+        await undoKey('apply').waitFor({ state: 'visible', timeout: 20000 });
+        const confirm = await readUndo();
+        t.check(
+          /Undo this change/i.test(confirm.title),
+          `the confirm stage is titled "${confirm.title}"`
+        );
+        await applyUndo();
+        await undoClosed();
+        t.equal(
+          await hp(),
+          total(before) - 3,
+          `${h.name} HP after Just this (only its 2 come back)`
+        );
+        pair = { h, before, first };
+        return `${h.name}: ${total(before)} to ${both}; Just this on the older change gives ${total(before) - 3}`;
+      }
+    );
+
+    await flow(
+      'Everyone tab Redo: Escape and Cancel in the confirm window keep it undone, Confirm puts it back',
+      'flow-i-redo.png',
+      async () => {
+        if (!pair) t.skip('needs the Just this flow (h) before it');
+        const { h, before, first } = pair;
+        const hp = async () => total(await readHero(h));
+        const hidden = () =>
+          page.locator('#modal-backdrop').waitFor({ state: 'hidden', timeout: 10000 });
+
+        const redo = await everyoneButton('redo', first.changeId);
+        await redo.click();
+        const modal = await readModal(page);
+        t.check(/Redo/.test(modal.body), 'the window says what comes back', modal.body);
+        t.check(modal.destructive, 'Redo asks for the destructive tick');
+        t.check(
+          await page.locator('#modal-confirm').isDisabled(),
+          'Confirm waits for the destructive tick'
+        );
+        await page.keyboard.press('Escape');
+        await hidden();
+        t.equal(await hp(), total(before) - 3, `${h.name} HP after Escape`);
+
+        await redo.click();
+        await readModal(page);
+        await page.locator('#modal-cancel').click();
+        await hidden();
+        t.equal(await hp(), total(before) - 3, `${h.name} HP after Cancel`);
+
+        await redo.click();
+        await readModal(page);
+        await markToasts(page);
+        await confirmModal(page);
+        await waitToast(page, 'ok');
+        t.equal(await hp(), total(before) - 5, `${h.name} HP after Redo (its 2 are taken again)`);
+        return `${h.name}: Escape and Cancel kept ${total(before) - 3}; Redo gives ${total(before) - 5}`;
+      }
+    );
+
+    await flow(
+      'Everyone tab: Everything since takes the hero back to before both changes',
+      'flow-j-undo-everything-since.png',
+      async () => {
+        if (!pair) t.skip('needs the Just this flow (h) before it');
+        const { h, before, first } = pair;
+        const since = now();
+        const undo = await everyoneButton('undo', first.changeId);
+        await undo.click();
+        const choose = await readUndo();
+        t.check(
+          choose.keys.includes('everything-since'),
+          'the window offers Everything since',
+          choose.keys
+        );
+        await undoKey('everything-since').click();
+        await undoKey('apply').waitFor({ state: 'visible', timeout: 20000 });
+        const confirm = await readUndo();
+        t.check(
+          /Undo everything since/i.test(confirm.title),
+          `the confirm stage is titled "${confirm.title}"`
+        );
+        await applyUndo();
+        await undoClosed();
+        // The undo is a change of its own; the put-back must not undo it again.
+        const kept = (await changesSince(since))[0];
+        if (kept) keep.add(kept.changeId);
+        t.equal(total(await readHero(h)), total(before), `${h.name} HP after Everything since`);
+        return `${h.name}: back to ${total(before)}`;
       }
     );
   },

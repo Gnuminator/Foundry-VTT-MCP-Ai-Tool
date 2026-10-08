@@ -3,7 +3,7 @@
 // the stream's settings event, the pre-flight row following, and Start the session log.
 import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, toast } from './support';
 
 const OFF = [
   { id: 'writes', name: 'AI Tool: Changes from the tool', on: false },
@@ -121,7 +121,8 @@ test('Ready turns them on, says what changed, and the pre-flight row follows', a
   await block.locator('#btn-ready').click();
   await expect.poll(() => fakes.posts).toEqual([{ action: 'ready' }]);
   await expect(
-    page.getByText(
+    toast(
+      page,
       '✓ Ready for session. Turned on: Changes from the tool, Handouts (writes), GM Actions'
     )
   ).toBeVisible();
@@ -160,7 +161,7 @@ test('Turn them off again says what it turned off', async ({ page }) => {
 
   await block.locator('#btn-ready-off').click();
   await expect.poll(() => fakes.posts).toEqual([{ action: 'end' }]);
-  await expect(page.getByText('✓ Turned off again: Handouts (writes), GM Actions')).toBeVisible();
+  await expect(toast(page, '✓ Turned off again: Handouts (writes), GM Actions')).toBeVisible();
   await expect(chips(block)).toHaveText([
     '✓ Changes from the tool',
     '○ Handouts (writes)',
@@ -189,16 +190,14 @@ test('a switch Foundry dropped and a failed call both raise error toasts', async
   const block = await openReady(page);
 
   await block.locator('#btn-ready').click();
+  await expect(toast(page, '✓ Ready for session. Turned on: Changes from the tool')).toBeVisible();
   await expect(
-    page.getByText('✓ Ready for session. Turned on: Changes from the tool')
-  ).toBeVisible();
-  await expect(
-    page.getByText('✗ Foundry did not change: Handouts (writes). Check the module settings.')
+    toast(page, '✗ Foundry did not change: Handouts (writes). Check the module settings.')
   ).toBeVisible();
   await expect(block.locator('#btn-ready')).toBeEnabled();
 
   await block.locator('#btn-ready').click();
-  await expect(page.getByText('✗ Ready for session: The bridge is not connected.')).toBeVisible();
+  await expect(toast(page, '✗ Ready for session: The bridge is not connected.')).toBeVisible();
 });
 
 test('GM Actions follow the stream, and a failed read shows in the note', async ({ page }) => {
@@ -231,7 +230,7 @@ test('Start the session log starts it and then hides', async ({ page }) => {
 
   open = true;
   await block.locator('#btn-ready-log').click();
-  await expect(page.getByText('✓ Play session started')).toBeVisible();
+  await expect(toast(page, '✓ Play session started')).toBeVisible();
   await expect
     .poll(() => fakes.tools)
     .toContainEqual({ name: 'mark-play-session', args: { action: 'start' } });
@@ -285,7 +284,7 @@ test('while a change is out both buttons wait, and a double click sends once', a
 
   release();
   await expect(
-    page.getByText('✓ Ready for session. Turned on: Changes from the tool, Handouts (writes)')
+    toast(page, '✓ Ready for session. Turned on: Changes from the tool, Handouts (writes)')
   ).toBeVisible();
   await expect(block.locator('#btn-ready-off')).toBeEnabled();
   expect(fakes.posts).toEqual([{ action: 'ready' }]);

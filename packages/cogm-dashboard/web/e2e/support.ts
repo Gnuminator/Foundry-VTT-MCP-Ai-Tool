@@ -1,6 +1,6 @@
 // Shared bits of the browser tests: the GM token the test server runs with, and fakes for the
 // routes every page load calls.
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 export const GM_TOKEN = 'e2e-gm-token';
 
@@ -24,3 +24,10 @@ export async function fakeStream(
     route.fulfill({ status: 200, contentType: 'text/event-stream', body })
   );
 }
+
+/**
+ * A toast in the stack. Radix also repeats each toast's text in a screen-reader live region
+ * outside the stack, so a page-wide getByText can match twice.
+ */
+export const toast = (page: Page, text: string): Locator =>
+  page.locator('.toast-stack').getByText(text);

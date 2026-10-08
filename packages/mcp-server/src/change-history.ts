@@ -294,6 +294,19 @@ function isConcentrationEffect(r: ChangeRecord): boolean {
   );
 }
 
+/**
+ * The spell a deleted concentration effect stands for, from its data: dnd5e 6 writes the item's
+ * uuid as the effect's `origin` and as `flags.dnd5e.item.uuid`. Null when the data names none.
+ */
+function concentrationItemUuid(r: ChangeRecord): string | null {
+  const data = r.data as
+    | { origin?: unknown; flags?: { dnd5e?: { item?: { uuid?: unknown } } } }
+    | undefined;
+  const fromFlag = data?.flags?.dnd5e?.item?.uuid;
+  if (typeof fromFlag === 'string' && fromFlag) return fromFlag;
+  return typeof data?.origin === 'string' && data.origin ? data.origin : null;
+}
+
 /** The dnd5e dependents link of one AI change, read from its deleted documents. */
 interface DependentsLink {
   /** The uuids the chain names, followed through the burst's deletes. */
@@ -325,16 +338,20 @@ function dependentsLink(
   if (roots.length === 0) return { linked, unreadable: false };
   const itemSource = roots.some(r => r.documentName === 'Item');
   // The records whose data names the dependents: the sources and, when the AI deleted an item,
-  // the concentration effect dnd5e ended with it on the same actor (a dependent itself).
+  // the concentration effect dnd5e ended with it on the same actor (a dependent itself). dnd5e
+  // names the spell on that effect: then only the change that deleted that item ended it.
   const chain = new Set(roots);
   let unreadable = false;
   if (itemSource) {
+    const items = new Set(roots.filter(r => r.documentName === 'Item').map(r => r.uuid));
     for (const r of others) {
+      const spell = concentrationItemUuid(r);
       if (
         r.op === 'delete' &&
         aiRoots.has(r.rootUuid) &&
         r.documentName === 'ActiveEffect' &&
-        isConcentrationEffect(r)
+        isConcentrationEffect(r) &&
+        (spell === null || items.has(spell))
       ) {
         linked.add(r.uuid);
         chain.add(r);

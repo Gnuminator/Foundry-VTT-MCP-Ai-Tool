@@ -801,6 +801,52 @@ describe('buildActions', () => {
       expect(actions[0].followUps).toEqual([conc, dep]);
       expect(actions[1].records).toEqual([hpB]);
     });
+
+    it('files a concentration effect that names its spell to the change that deleted that spell', () => {
+      // A deletes the spell, B the dagger, and dnd5e's concentration delete comes after B started:
+      // the effect names the spell (origin and flags.dnd5e.item.uuid), so it stays with A.
+      const a = ai('chg-a', {
+        documentName: 'Item',
+        uuid: 'Actor.a2.Item.i2',
+        name: 'Hold Person',
+        data: { name: 'Hold Person' },
+      });
+      const b = ai('chg-b', {
+        documentName: 'Item',
+        uuid: 'Actor.a2.Item.i1',
+        name: 'Dagger',
+        data: { name: 'Dagger' },
+      });
+      const named = (data: Record<string, unknown>): ChangeRecord => {
+        const plain = concentration();
+        return { ...plain, data: { ...plain.data, ...data } };
+      };
+      for (const conc of [
+        named({ origin: 'Actor.a2.Item.i2' }),
+        named({
+          flags: {
+            dnd5e: {
+              item: { uuid: 'Actor.a2.Item.i2' },
+              dependents: [{ uuid: 'Actor.a1.ActiveEffect.e2' }],
+            },
+          },
+        }),
+      ]) {
+        const dep = dependent();
+        const actions = buildActions([a, b, conc, dep]);
+        expect(actions.map(x => x.changeId)).toEqual(['chg-a', 'chg-b']);
+        expect(actions[0].records).toEqual([a, conc, dep]);
+        expect(actions[0].followUps).toEqual([conc, dep]);
+        expect(actions[1].records).toEqual([b]);
+        expect(actions[1].followUps).toEqual([]);
+      }
+      // Case (b) with the spell named: B deleted the spell, A only the dagger.
+      const spell = named({ origin: 'Actor.a2.Item.i2' });
+      const dep = dependent();
+      const reverse = buildActions([spellA(), spellB(), spell, dep]);
+      expect(reverse[0].followUps).toEqual([]);
+      expect(reverse[1].followUps).toEqual([spell, dep]);
+    });
   });
 
   it('files a combatant delete to the latest change that deleted its token, and never to a later change', () => {

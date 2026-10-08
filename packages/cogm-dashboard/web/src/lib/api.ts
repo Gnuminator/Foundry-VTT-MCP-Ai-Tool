@@ -30,11 +30,24 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
-/** A dashboard route that runs a bridge tool (POST /api/tool); the result, or the error thrown. */
-export async function callTool<T>(name: string, args: Record<string, unknown>): Promise<T> {
+/** The confirm flags POST /api/tool wants for a write (confirm) or a delete (both). */
+export interface ToolConfirm {
+  confirm?: boolean;
+  confirmDestructive?: boolean;
+}
+
+/**
+ * A dashboard route that runs a bridge tool (POST /api/tool); the result, or the error thrown
+ * (an ApiError with the HTTP status when the route refused it).
+ */
+export async function callTool<T>(
+  name: string,
+  args: Record<string, unknown>,
+  confirm: ToolConfirm = {}
+): Promise<T> {
   const data = await api<{ ok?: boolean; result?: T; error?: string }>('/api/tool', {
     method: 'POST',
-    body: JSON.stringify({ name, args }),
+    body: JSON.stringify({ name, args, ...confirm }),
   });
   if (!data.ok) throw new Error(data.error ?? 'The tool did not answer.');
   return data.result as T;

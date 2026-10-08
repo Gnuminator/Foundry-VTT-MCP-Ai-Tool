@@ -1,7 +1,8 @@
 /**
- * Tool sets (PB-12): the 92 tools split into five groups, so a Claude Desktop
- * conversation carries only the tool definitions it needs (all 92 are about
- * 89,000 characters of JSON, some 22,000 to 29,000 tokens, before anyone types).
+ * Tool sets (PB-12): the tools split into five groups, so a Claude Desktop
+ * conversation carries only the tool definitions it needs (all of them together
+ * are a lot of JSON before anyone types). The current counts and sizes are in
+ * docs/reference/TOOL-SETS.md, which the tool catalog test keeps true.
  *
  * Each Claude Desktop entry runs the stdio wrapper (`index.ts`) with
  * `FOUNDRY_AI_TOOL_SETS` naming its sets; Claude Desktop then shows one switch

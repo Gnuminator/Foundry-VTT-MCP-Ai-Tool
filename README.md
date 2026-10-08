@@ -136,13 +136,13 @@ The bridge and the dashboard are decoupled, so they can run where it suits the t
 ## MCP tools
 
 86 tools in five sets. Each set is its own entry in Claude Desktop, with its own switch in the
-**Search and tools** menu; all 86 tools are about 93,300 characters of definitions that Claude
+**Search and tools** menu; all 86 tools are about 99,900 characters of definitions that Claude
 would otherwise read at the start of every chat. The dashboard always has every tool. Details and
 the full lists: [docs/reference/TOOL-SETS.md](docs/reference/TOOL-SETS.md).
 
 | Set       | Tools | What it covers                                                                                                                           |
 | --------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **core**  | 20    | Look-ups (world, characters, scenes, tokens, combat state, journals, compendiums) and the change safety net: plan, apply, undo           |
+| **core**  | 22    | Look-ups (world, characters, scenes, tokens, combat state, journals, compendiums) and the change safety net: plan, apply, undo           |
 | **play**  | 29    | Live play: tokens, initiative and turns, rolls, damage and healing, conditions, resources, rests, the party, chat, mood, map notes, loot |
 | **prep**  | 20    | Prep and recaps: quests and journals, encounter budgets, Tarokka, handouts and the player view, session log, play stats                  |
 | **build** | 7     | NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells                                           |

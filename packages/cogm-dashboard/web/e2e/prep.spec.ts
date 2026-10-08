@@ -3,7 +3,7 @@
 // empty and failed states, and the jump to Pre-flight.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok } from './support';
 
 const DIGEST = {
   schema: 1,
@@ -69,28 +69,6 @@ const DIGEST = {
 };
 
 const ALL_BEATS = { ...DIGEST, action: 'last-session' };
-
-interface ToolCall {
-  name: string;
-  args: Record<string, unknown>;
-}
-
-/** Answers POST /api/tool by tool name and records each call. */
-async function fakeTools(
-  page: Page,
-  answer: (call: ToolCall) => { status?: number; json: unknown }
-): Promise<ToolCall[]> {
-  const calls: ToolCall[] = [];
-  await page.route('**/api/tool', route => {
-    const call = route.request().postDataJSON() as ToolCall;
-    calls.push(call);
-    const { status = 200, json } = answer(call);
-    return route.fulfill({ status, json });
-  });
-  return calls;
-}
-
-const ok = (result: unknown): { json: unknown } => ({ json: { ok: true, result } });
 
 async function openPrep(page: Page): Promise<Locator> {
   await page.goto(`/next/?token=${GM_TOKEN}`);
@@ -242,6 +220,20 @@ test('shows the empty states without Foundry', async ({ page }) => {
   await expect(drawer.getByText('A Tarokka reading exists.')).toHaveCount(0);
 });
 
+test('campaign parts without Foundry, and no Next session field at all', async ({ page }) => {
+  // nextSession missing (undefined) means the bridge never asked Foundry: nothing shows.
+  await fakeTools(page, () => ok({ ...DIGEST, openCampaignParts: null, nextSession: undefined }));
+  const drawer = await openPrep(page);
+
+  await expect(
+    drawer.getByText('Needs Foundry: campaign parts are not loaded.', { exact: true })
+  ).toBeVisible();
+  await expect(drawer.locator('.preflight-h', { hasText: 'Next session notes' })).toBeVisible();
+  await expect(drawer.getByText(/Create a GM-only journal/)).toHaveCount(0);
+  await expect(drawer.getByText('Players can see this journal')).toHaveCount(0);
+  await expect(drawer.locator('.prep-note')).toHaveCount(0);
+});
+
 test('a failed load says why and a refresh recovers', async ({ page }) => {
   let fail = true;
   await fakeTools(page, () =>
@@ -276,6 +268,7 @@ test('"Open Pre-flight" swaps to the Pre-flight drawer; Escape closes Prep', asy
   await expect(page.locator('#btn-prep')).toHaveAttribute('aria-expanded', 'false');
 
   await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeHidden();
   await page.locator('#btn-prep').click();
   await expect(drawer).toBeVisible();
   await page.keyboard.press('Escape');

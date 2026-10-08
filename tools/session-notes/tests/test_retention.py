@@ -62,11 +62,11 @@ def test_cli_cleanup_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ca
     s = make_session(tmp_path, "old", None)
     approve(s, now=datetime.now(timezone.utc) - timedelta(days=30))  # the CLI uses the real clock
     monkeypatch.setenv("FVTT_SESSIONS_DIR", str(tmp_path))
-    assert main(["cleanup", "--days", "14"]) == 0
+    assert main(["cleanup", "--days", "20"]) == 0
     out = capsys.readouterr().out
     assert "would delete" in out and "Nothing deleted" in out
     assert (tmp_path / "old" / "1-anna.ogg").exists()
-    assert main(["cleanup", "--days", "14", "--yes"]) == 0
+    assert main(["cleanup", "--days", "20", "--yes"]) == 0
     assert not (tmp_path / "old" / "1-anna.ogg").exists()
 
 
@@ -78,6 +78,21 @@ def test_cli_cleanup_needs_days(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     for argv in (["cleanup"], ["cleanup", "--yes"]):
         with pytest.raises(SystemExit) as exc:
             main(argv)
+        assert exc.value.code == 2
+        assert "--days" in capsys.readouterr().err
+    assert (s / "1-anna.ogg").exists()
+
+
+def test_cli_cleanup_rejects_bad_days(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """--days 0 or below would delete every approved session's audio; it must refuse."""
+    s = make_session(tmp_path, "old", None)
+    approve(s, now=datetime.now(timezone.utc) - timedelta(days=30))
+    monkeypatch.setenv("FVTT_SESSIONS_DIR", str(tmp_path))
+    for bad in ("0", "-3", "abc"):
+        with pytest.raises(SystemExit) as exc:
+            main(["cleanup", "--days", bad, "--yes"])
         assert exc.value.code == 2
         assert "--days" in capsys.readouterr().err
     assert (s / "1-anna.ogg").exists()

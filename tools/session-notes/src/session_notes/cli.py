@@ -28,6 +28,17 @@ def sessions_root() -> Path:
     return Path(root) if root else Path.home() / "Documents" / "FoundrySessions"
 
 
+def positive_days(text: str) -> int:
+    """`cleanup --days`: a whole number of at least 1, so a slip like 0 cannot delete everything."""
+    try:
+        days = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a whole number: {text!r}") from None
+    if days < 1:
+        raise argparse.ArgumentTypeError(f"must be 1 or more, got {days}")
+    return days
+
+
 def resolve_session(target: str) -> Path:
     path = Path(target)
     if path.is_dir():
@@ -69,7 +80,10 @@ def main(argv: list[str] | None = None) -> int:
         "default, D-097; nothing runs this automatically)",
     )
     clean.add_argument(
-        "--days", type=int, required=True, help="only sessions approved at least this many days ago"
+        "--days",
+        type=positive_days,
+        required=True,
+        help="only sessions approved at least this many days ago (1 or more)",
     )
     clean.add_argument("--yes", action="store_true", help="really delete (default: only list)")
     args = parser.parse_args(argv)

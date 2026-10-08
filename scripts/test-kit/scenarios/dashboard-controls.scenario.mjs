@@ -8,6 +8,10 @@
  *
  * One screenshot per drawer, view, moment and During layout goes into the report for a person to
  * review (no pixel comparison).
+ *
+ * The combat strip's controls only show with a live combat: when the kit has its scene and a
+ * legendary monster, the sweep runs during a combat of that boss and one hero, with Combat buttons
+ * on (both put back at the end), and the six combat rows must then pass instead of being skipped.
  */
 import {
   CONTROLS,
@@ -17,17 +21,30 @@ import {
   readUsageCatalog,
 } from '../lib/dashboard-controls.mjs';
 import { sweepGroups } from '../lib/dashboard-sweep.mjs';
+import { tokenHeroes } from '../lib/helpers.mjs';
 
 const VIEWPORT = { width: 1440, height: 900 };
+
+/** The combat strip rows that need a combat with a boss; they must pass when the sweep seeds one. */
+export const BOSS_COMBAT_ROWS = [
+  'dash.combat.boss-prompts',
+  'dash.combat.reaction',
+  'dash.combat.select-combatant',
+  'dash.combat.selection-clear',
+  'dash.combat.selection-condition',
+  'dash.combat.selection-damage',
+];
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
   id: 'dashboard-controls',
-  title: 'Every dashboard and player control is there, opens what it should and logs no console error',
+  title:
+    'Every dashboard and player control is there, opens what it should and logs no console error',
   sizes: ['full', 'long'],
   tags: ['dashboard', 'player'],
   needs: [],
   tools: [],
+  gmActions: ['startCombat', 'endCombats'],
   timeoutMs: 600000,
 
   async run(t) {
@@ -84,7 +101,70 @@ export default {
         return `${CONTROLS.length} controls in the table; GM Actions ${gmWasOn ? 'were on' : 'turned on (put back at the end)'}`;
       });
 
-      await sweepGroups({ t, page, surface: 'dashboard', groups: groupedRows('dashboard'), results });
+      /** @type {string | null} */
+      let combatNote = null;
+      await t.step('a combat with a boss for the combat strip', async () => {
+        const boss = t.kit?.monsters?.find(m => m.cell === 'legendary' && m.tokenId);
+        const hero = t.kit ? tokenHeroes(t.kit)[0] : undefined;
+        const sceneId = t.kit?.scene?.sceneId;
+        if (!boss || !hero || !sceneId || !t.page) {
+          combatNote = t.page
+            ? 'no kit scene with a legendary monster and a hero token'
+            : 'no GM session in Foundry';
+          return `${combatNote}: the combat rows are skipped`;
+        }
+        // Combat buttons are a per-world screen choice; read it from the page, set it, put it back.
+        const buttonsWereOn = await page.evaluate(() =>
+          /:\s*on/i.test(document.querySelector('#btn-combat-buttons')?.textContent ?? '')
+        );
+        if (!buttonsWereOn) {
+          t.cleanup(async () => {
+            await t.http('/api/control', {
+              method: 'POST',
+              body: { action: 'set-prefs', value: { combatButtons: false } },
+            });
+          });
+          const set = await t.http('/api/control', {
+            method: 'POST',
+            body: { action: 'set-prefs', value: { combatButtons: true } },
+          });
+          t.check(set.status === 200, 'Combat buttons turned on', set);
+        }
+        t.cleanup(async () => {
+          await t.gm('endCombats');
+        });
+        await t.gm('startCombat', { sceneId, tokenIds: [boss.tokenId, hero.tokenId] });
+        await page
+          .waitForFunction(
+            () => {
+              const toggle = document.querySelector('#boss-toggle');
+              return !!toggle && !(/** @type {HTMLElement} */ (toggle).hidden);
+            },
+            undefined,
+            { timeout: 20000 }
+          )
+          .catch(() => {
+            throw new Error(`the dashboard shows no Boss prompts toggle for ${boss.name}`);
+          });
+        return `${boss.name} (legendary) and ${hero.name} in combat; Combat buttons ${buttonsWereOn ? 'were on' : 'turned on (put back at the end)'}`;
+      });
+
+      await sweepGroups({
+        t,
+        page,
+        surface: 'dashboard',
+        groups: groupedRows('dashboard'),
+        results,
+      });
+
+      if (!combatNote) {
+        await t.step('the combat strip rows ran during the boss combat', async () => {
+          for (const name of BOSS_COMBAT_ROWS) {
+            const row = results.find(r => r.name === name);
+            t.check(row?.status === 'pass', `${name} passed`, row ?? 'not in the results');
+          }
+        });
+      }
 
       /** @type {import('playwright-core').Page} */
       let playerPage;
@@ -103,7 +183,13 @@ export default {
       });
     } finally {
       for (const m of moduleSkips(catalog)) {
-        results.push({ name: m.name, group: 'module', how: 'skip', status: 'skip', note: m.why ?? '' });
+        results.push({
+          name: m.name,
+          group: 'module',
+          how: 'skip',
+          status: 'skip',
+          note: m.why ?? '',
+        });
       }
       t.attach('controls', results);
       const count = (/** @type {string} */ s) => results.filter(r => r.status === s).length;

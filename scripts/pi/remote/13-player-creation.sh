@@ -273,13 +273,15 @@ fi
 
 if [ "$need_install" = 1 ]; then
   say "installing Actor Studio $STUDIO_VERSION"
-  install_state=1
   install -d -m 755 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$data/modules"
   if [ -e "$studio_dir" ]; then
     install -d -m 700 "$prev" "$prev/modules"
     mv "$studio_dir" "$prev/modules/$MODULE_ID"
     ok "the old $MODULE_ID (${installed_version:-no version}) moved to $prev/modules/$MODULE_ID"
   fi
+  # Only now: a failure before this point leaves the old folder where it was, and on_exit must not
+  # remove it (state 1 removes $studio_dir, which from here on is at most a part of the new copy).
+  install_state=1
   mv "$work/extract" "$studio_dir"
   install_state=2
   ok "$MODULE_ID $STUDIO_VERSION installed in $studio_dir"

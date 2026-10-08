@@ -24,11 +24,15 @@ Look things up (world, characters, scenes, journals, compendiums, combat) and re
 
 Get basic information about the Foundry world and system
 
+Kind: read-only. Title: Get world info.
+
 No parameters.
 
 ### list-characters
 
 List all available characters with basic information
+
+Kind: read-only. Title: List characters.
 
 Parameters:
 
@@ -38,6 +42,8 @@ Parameters:
 
 Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status, attunement status) without descriptions. Perfect for filtering (e.g., equipped weapons, prepared spells), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects.
 
+Kind: read-only. Title: Get character.
+
 Parameters:
 
 - `identifier` (string, required): Character name or ID to look up
@@ -45,6 +51,8 @@ Parameters:
 ### get-character-entity
 
 Retrieve full details for a specific entity from a character. Works for items (feats, equipment, spells), actions (strikes, special abilities), or effects/conditions. Returns complete description and all system data. Use this after get-character when you need detailed information about a specific entity.
+
+Kind: read-only. Title: Get character item or effect.
 
 Parameters:
 
@@ -54,6 +62,8 @@ Parameters:
 ### search-character-items
 
 Search within a character's items, spells, actions, and effects. More token-efficient than get-character when you need specific items. Supports text search (name/description) and type filtering. Returns matching items with full details including targeting info for spells. Use this to find specific spells, equipment, feats, or abilities without loading the entire character.
+
+Kind: read-only. Title: Search character items.
 
 Parameters:
 
@@ -67,6 +77,8 @@ Parameters:
 
 List all available Foundry VTT scenes with their details
 
+Kind: read-only. Title: List scenes.
+
 Parameters:
 
 - `filter` (string): Optional filter to search scene names (case-insensitive). Default: `""`.
@@ -75,6 +87,8 @@ Parameters:
 ### get-current-scene
 
 Get information about the currently active scene, including tokens and layout
+
+Kind: read-only. Title: Get current scene.
 
 Parameters:
 
@@ -85,6 +99,8 @@ Parameters:
 
 List all tokens on a scene with their positions and status. For each token: name, actor ID, token ID, grid coordinates (x/y and grid cell), elevation, category (player character / npc / enemy), visibility (hidden or visible), current HP, and conditions. Defaults to the active scene.
 
+Kind: read-only. Title: Get token positions.
+
 Parameters:
 
 - `sceneId` (string): Optional scene ID; defaults to the active scene.
@@ -93,11 +109,15 @@ Parameters:
 
 Get the full current combat state: whether combat is active, the round number, whose turn it is (with their initiative, HP, and conditions), and the complete initiative order. For each combatant: name, initiative, current/max HP, conditions, whether they are a player character or NPC/enemy, and whether they have acted this round. Combatants at 0 HP include their death save status.
 
+Kind: read-only. Title: Get combat state.
+
 No parameters.
 
 ### list-journals
 
 List all journal entries, or read a specific journal/page. Without parameters: lists all journals with their pages (id, name, type). With journalId: reads the journal's first text page content and shows all available pages. With journalId + pageId: reads a specific page's full content.
+
+Kind: read-only. Title: List or read journals.
 
 Parameters:
 
@@ -110,6 +130,8 @@ Parameters:
 
 Search through all pages of all journal entries for specific content or keywords. Returns which specific page matched, so you can read it with list-journals using journalId + pageId.
 
+Kind: read-only. Title: Search journals.
+
 Parameters:
 
 - `searchQuery` (string, required): Text to search for in journal entries
@@ -118,6 +140,8 @@ Parameters:
 ### search-compendium
 
 Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.
+
+Kind: read-only. Title: Search compendiums.
 
 Parameters:
 
@@ -136,6 +160,8 @@ Parameters:
 
 Retrieve detailed information about a specific compendium item. Use compact mode for UI performance when full details are not needed.
 
+Kind: read-only. Title: Get compendium item.
+
 Parameters:
 
 - `packId` (string, required): ID of the compendium pack containing the item
@@ -146,6 +172,8 @@ Parameters:
 
 List all available compendium packs
 
+Kind: read-only. Title: List compendium packs.
+
 Parameters:
 
 - `type` (string): Optional filter by pack type
@@ -154,6 +182,8 @@ Parameters:
 
 Show a pending planned change (from a plan-\* tool): what it will change as a readable diff, its risk ("write" or "destructive") and when it expires (15 minutes). Without planId, lists all pending plans. Read-only.
 
+Kind: read-only. Title: Show planned change.
+
 Parameters:
 
 - `planId` (string): The planId returned by a plan-\* tool.
@@ -161,6 +191,8 @@ Parameters:
 ### apply-planned-change
 
 Apply a pending planned change after the GM has seen its diff and agreed. Requires confirm: true, plus confirmDestructive: true when the plan risk is "destructive" (it deletes something). Fails without writing anything if the affected documents changed since the plan was made, if "Allow Write Operations" or the feature is switched off in the module settings. The change is recorded and can be undone with undo-change. When the plan also pops a page up on the players' screens (showNow), the result has shown: { ok: true } or { ok: false, error }, and undo does not take the popup back.
+
+Kind: changes something and can delete or overwrite. Title: Apply planned change.
 
 Parameters:
 
@@ -172,6 +204,8 @@ Parameters:
 
 List recently applied guarded changes for the current world (newest first): summary, diff, when, and whether each can still be undone. Read-only.
 
+Kind: read-only. Title: List recent AI changes.
+
 Parameters:
 
 - `limit` (integer): Maximum number of changes to return (default 20, max 500). Default: `20`.
@@ -179,6 +213,8 @@ Parameters:
 ### list-changes
 
 List everyone's recent changes in Foundry (players, the GM and the AI) from the last 7 days, newest first: who, what and when, as readable lines such as "Ireena: HP 10 -> 5". Filter by person, by thing (a document uuid) and by AI or human. Read-only. Each change has an id; undo it with plan-undo-changes (anyone's change) or, for an AI change, undo-change.
+
+Kind: read-only. Title: List all recent changes.
 
 Parameters:
 
@@ -192,6 +228,8 @@ Parameters:
 
 Plan undoing one change from list-changes (by anyone: a player, the GM or the AI), or everything since it on the same thing. Scope just-this (default) keeps what changed after it and lists those later changes; everything-since also undoes later changes to the same thing; world-since rewinds the whole table and needs rewindTable. Apply with apply-planned-change; undoing that change again is the redo.
 
+Kind: read-only. Title: Plan undoing changes.
+
 Parameters:
 
 - `id` (string, required): The change to undo: its id from list-changes.
@@ -202,6 +240,8 @@ Parameters:
 
 Undo an applied change (by changeId from list-recent-changes), restoring the previous values. Requires confirm: true. Refuses instead of overwriting if the documents were edited since the change.
 
+Kind: changes something and can delete or overwrite. Title: Undo change.
+
 Parameters:
 
 - `changeId` (string, required): The changeId to undo.
@@ -211,6 +251,8 @@ Parameters:
 
 Open a document (journal page, scene, actor, item) on a GM's Foundry screen, by uuid. Only the GM sees it; nothing is changed. Opening on another GM's client needs Foundry 14.352 or newer.
 
+Kind: read-only. Title: Open in Foundry.
+
 Parameters:
 
 - `uuid` (string, required): Document uuid, e.g. JournalEntry.abc.JournalEntryPage.def
@@ -219,6 +261,8 @@ Parameters:
 ### check-secret-terms
 
 Check free text for whole-phrase, case-insensitive matches against known secret terms (currently the dealt Tarokka cards' names and the GM's name overrides for them). Use before sending a whisper or any GM-typed text toward players. Read-only.
+
+Kind: read-only. Title: Check secret terms.
 
 Parameters:
 
@@ -232,6 +276,8 @@ Run the table live: tokens, combat turns, rolls, damage, conditions, resources, 
 
 Switch to a different Foundry VTT scene by name or ID
 
+Kind: changes something. Title: Switch scene.
+
 Parameters:
 
 - `scene_identifier` (string, required): Scene name or ID to switch to
@@ -240,6 +286,8 @@ Parameters:
 ### use-item
 
 Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry VTT for the GM to configure options and confirm. Optionally specify targets by name. Returns immediately with status "initiated" - tell the user to check Foundry for any dialogs. Use get-character or search-character-items first to see available items/spells.
+
+Kind: changes something. Title: Use item.
 
 Parameters:
 
@@ -252,6 +300,8 @@ Parameters:
 ### request-player-rolls
 
 Request dice rolls from players with interactive buttons. Creates roll buttons in Foundry chat that players can click. VISIBILITY WORKFLOW: Before calling this function, ensure the user has specified whether they want a public or private roll. If they have already specified "public" or "private" in their request (e.g., "public performance check", "private stealth roll"), you can proceed directly. If the visibility is ambiguous or unspecified, ask: "Do you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible to player and GM only)?" and wait for their answer. Supports character-to-player resolution and GM fallback.
+
+Kind: changes something. Title: Request player rolls.
 
 Parameters:
 
@@ -267,6 +317,8 @@ Parameters:
 
 Request an ability check from a player, posting a clickable roll button to their chat. Shows the DC when provided. Use for checks like "Perception check to notice the ambush".
 
+Kind: changes something. Title: Request ability check.
+
 Parameters:
 
 - `targetPlayer` (string, required): Player name or character name to request the roll from.
@@ -279,6 +331,8 @@ Parameters:
 
 Request an attack roll for a specific weapon or spell from a player, posting a clickable roll button to their chat.
 
+Kind: changes something. Title: Request attack roll.
+
 Parameters:
 
 - `targetPlayer` (string, required): Player name or character name to request the roll from.
@@ -288,6 +342,8 @@ Parameters:
 ### roll-npc-check
 
 Roll directly for an NPC actor (no player prompt) and post the result to chat. Supports ability checks, saving throws, skill checks, and attacks.
+
+Kind: changes something. Title: Roll NPC check.
 
 Parameters:
 
@@ -300,6 +356,8 @@ Parameters:
 
 Get detailed information about a specific token including all properties and linked actor data
 
+Kind: read-only. Title: Get token details.
+
 Parameters:
 
 - `tokenId` (string, required): The ID of the token to get details for
@@ -308,11 +366,15 @@ Parameters:
 
 Get a list of all available status effects/conditions that can be applied to tokens in the current game system
 
+Kind: read-only. Title: List conditions.
+
 No parameters.
 
 ### get-chat-log
 
 Retrieve recent Foundry chat messages from the module's in-memory buffer. This is where dice rolls, ability uses, damage events, and combat narration live. Each message includes the speaker, message type, content, flavor text, and, for rolls, the formula, total, individual die results, critical/fumble status, advantage/disadvantage, and any damage total and types. Use this to follow what happened in the game.
+
+Kind: read-only. Title: Get chat log.
 
 Parameters:
 
@@ -325,11 +387,15 @@ Parameters:
 
 Return a structured, human-readable summary of the current or most recent combat encounter, reconstructed from the chat-log buffer and the recorded turn timeline. Includes each round broken into turns (who acted and what they did with roll/damage results), significant events (downed/dead/stabilized combatants, conditions applied/removed), and a final summary with total rounds and total damage dealt by each actor.
 
+Kind: read-only. Title: Get combat play-by-play.
+
 No parameters.
 
 ### send-chat-message
 
 Post a message to the Foundry chat as a specific character or as the GM/world. Supports in-character (ic), out-of-character (ooc), emote, and whisper message types.
+
+Kind: changes something. Title: Send chat message.
 
 Parameters:
 
@@ -343,6 +409,8 @@ Parameters:
 
 Get a clean, structured view of a character's limited-use resources: spell slots per level (max/current/expended), class resources (Sorcery Points, Ki, Rages, Bardic Inspiration, Channel Divinity, Superiority Dice, etc.), item charges, current concentration (and on which spell), hit dice, and death save successes/failures when at 0 HP.
 
+Kind: read-only. Title: Get character resources.
+
 Parameters:
 
 - `identifier` (string, required): Character name or actor ID.
@@ -350,6 +418,8 @@ Parameters:
 ### get-active-effects
 
 List all active effects on an actor: name and icon, whether each is a condition (Blinded, Poisoned, etc.) vs a buff/debuff (Mage Armor, Haste, etc.), remaining duration (rounds/turns/seconds) where tracked, which attributes it modifies and by how much, and whether it requires concentration.
+
+Kind: read-only. Title: Get active effects.
 
 Parameters:
 
@@ -359,6 +429,8 @@ Parameters:
 
 Advance combat to the next combatant's turn. Optionally jump directly to a specific combatant with skipTo (their name or actor ID).
 
+Kind: changes something. Title: Advance combat turn.
+
 Parameters:
 
 - `skipTo` (string): Optional combatant name or actor ID to jump to.
@@ -366,6 +438,8 @@ Parameters:
 ### set-initiative
 
 Set or override a combatant's initiative value in the active combat.
+
+Kind: changes something. Title: Set initiative.
 
 Parameters:
 
@@ -376,6 +450,8 @@ Parameters:
 
 Roll initiative for combatants in the active combat and populate the tracker. scope "npcs" (default) rolls for non-player combatants, "all" rolls for everyone, "missing" only rolls for combatants without an initiative value. Pass combatantIds to roll separate initiative for exactly those combatants (overrides scope). Use this for "roll initiative for the monsters" (the enemies, the goblins; Danish "monstrene"): those words mean the NPC combatants, not a name.
 
+Kind: changes something. Title: Roll initiative.
+
 Parameters:
 
 - `scope` (string): Which combatants to roll for (default "npcs"). One of: `npcs`, `all`, `missing`.
@@ -384,6 +460,8 @@ Parameters:
 ### measure-distance
 
 Measure the distance in the scene's grid units (e.g. feet) between two tokens on the active scene, using the scene's grid configuration.
+
+Kind: read-only. Title: Measure distance.
 
 Parameters:
 
@@ -394,11 +472,15 @@ Parameters:
 
 Return the tokens the GM currently has targeted in Foundry, with each target's AC and HP. Useful before use-npc-activity so an attack can resolve hit/miss against the actual target's AC.
 
+Kind: read-only. Title: Get GM targets.
+
 No parameters.
 
 ### get-recent-events
 
 Low-latency "what happened since timestamp X" delta of session events, for situational awareness during play. Returns the events plus `latestTimestamp`, which you pass back as `sinceTimestamp` next time to poll incrementally for only new events.
+
+Kind: read-only. Title: Get recent events.
 
 Parameters:
 
@@ -409,6 +491,8 @@ Parameters:
 ### plan-actor-change
 
 Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e works out resistances, vulnerabilities, immunities and temp HP; the result previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM's request says "go ahead", apply it in the same turn. D&D 5e only. It does not level up characters: a level-up happens on the character sheet in Foundry, so say that.
+
+Kind: read-only. Title: Plan damage, healing or conditions.
 
 Parameters:
 
@@ -428,6 +512,8 @@ Parameters:
 ### plan-token-change
 
 Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). If the request says "go ahead", apply it in the same turn (a delete still needs the destructive confirm).
+
+Kind: read-only. Title: Plan token change.
 
 Parameters:
 
@@ -459,6 +545,8 @@ Parameters:
 
 Roll saving throws (or ability checks / skill checks) for one or more NPC actors using dnd5e system rules, optionally against a DC, reporting each total and pass/fail. Use for "all the goblins roll a DEX save vs DC 15". D&D 5e only.
 
+Kind: changes something. Title: Roll NPC saving throws.
+
 Parameters:
 
 - `targets` (array of string, required): Token names (preferred) or actor names/IDs to roll for.
@@ -472,6 +560,8 @@ Parameters:
 
 Trigger an NPC's attack (or other item activity) and report the attack roll total, hit/miss vs an AC, critical, and damage. Use for running the monster side of combat. D&D 5e only.
 
+Kind: changes something. Title: Use NPC attack or activity.
+
 Parameters:
 
 - `actorName` (string, required): NPC actor name or ID. A token on the current scene with this name or ID (or the only token made from this actor) is used first, so an unlinked token spends its own uses.
@@ -483,6 +573,8 @@ Parameters:
 
 Run a short or long rest for one or more characters, restoring HP, hit dice, spell slots, and limited-use features per 5e rules, without opening dialogs. D&D 5e only.
 
+Kind: changes something. Title: Run a rest.
+
 Parameters:
 
 - `targets` (array of string, required): Character names or IDs to rest.
@@ -493,11 +585,15 @@ Parameters:
 
 GM ONLY. The dnd5e party (group actors, the primary party first): each member's HP, AC, passive Perception, conditions, exhaustion, hit dice and tokens on the current scene (and whether they are in the encounter), the travel pace and whether a slowed member forces slow pace, plus the current encounter. Read-only.
 
+Kind: read-only. Title: Get party.
+
 No parameters.
 
 ### plan-party-change
 
 Plan one party action; nothing changes until apply-planned-change (the GM confirms, and the "AI Tool: Party (writes)" switch must be on). action "pace": set the travel pace ("pace": slow, normal or fast). "add-to-combat": add the members' tokens on the current scene to the encounter (starts one when there is none). "rest-request": post dnd5e's short or long rest request card ("rest"), which each player clicks to rest. "place": put the members who have no token on the scene the GM is viewing onto the free squares nearest a spot: the centre of the GM's view (default), a token or map note ("at" token or note, "target" its name) or a square ("at" grid, gridX, gridY); "hidden" for a surprise entrance. Uses the primary party unless groupId names another group. Returns a planId; undo-change reverts it (a rest request card only while nobody has rested from it).
+
+Kind: read-only. Title: Plan party change.
 
 Parameters:
 
@@ -514,6 +610,8 @@ Parameters:
 ### plan-scene-change
 
 Plan scene dressing on the current scene: an area-of-effect template ("template"), clearing templates ("clear-templates"), darkness and global light ("mood"), a map pin ("note", "remove-note") or loot for a character ("loot"). Apply it with apply-planned-change, revert it with undo-change; the GM sees every change in Recent Changes. If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM's request says "go ahead", apply it in the same turn (removing something still needs the destructive confirm). A template result lists tokensInside; a loot result lists skippedItems that were left out (bad UUID, not an Item, or no target character).
+
+Kind: read-only. Title: Plan scene dressing.
 
 Parameters:
 
@@ -552,6 +650,8 @@ Parameters:
 
 Play (default) or stop a playlist by name. Direct, with nothing to undo. Use to change the music as the story moves.
 
+Kind: changes something. Title: Play or stop playlist.
+
 Parameters:
 
 - `playlistName` (string, required): Playlist to control by name.
@@ -560,6 +660,8 @@ Parameters:
 ### mark-play-session
 
 GM ONLY. Mark the start or end of a play session by appending a line to the bridge vault's own session log (sessions/&lt;date>.jsonl). Touches only that log, never game state or Foundry. Used to group session notes and stats.
+
+Kind: changes something. Title: Mark play session start or end.
 
 Parameters:
 
@@ -573,6 +675,8 @@ Prepare sessions and write recaps: quests and journals, encounter budgets, the T
 ### create-quest-journal
 
 Create a new quest journal entry with AI-generated content based on natural language description
+
+Kind: changes something. Title: Create quest journal.
 
 Parameters:
 
@@ -605,6 +709,8 @@ Quest-style HTML examples:
 - Plain text: "The party discovered the secret chamber"
 - Avoid: "\*\*The party\*\* discovered the \*secret chamber\*" (Markdown will be stripped)
 
+Kind: changes something and can delete or overwrite. Title: Update quest journal.
+
 Parameters:
 
 - `journalId` (string, required): ID of the quest journal to update
@@ -617,6 +723,8 @@ Parameters:
 
 Link an existing quest journal to an NPC in the world
 
+Kind: changes something. Title: Link quest to NPC.
+
 Parameters:
 
 - `journalId` (string, required): ID of the quest journal entry
@@ -626,6 +734,8 @@ Parameters:
 ### create-campaign-dashboard
 
 Create a comprehensive campaign dashboard journal with navigation, progress tracking, and part management
+
+Kind: changes something. Title: Create campaign dashboard.
 
 Parameters:
 
@@ -648,6 +758,8 @@ Parameters:
 
 Compute the party's XP budget for an encounter difficulty and suggest creature CRs to fill it (uses dnd5e's 2024 encounter math when available, else the 2014 DMG thresholds). Returns the budget and CR suggestions; follow up with list-creatures-by-criteria / search-compendium to pick actual creatures. D&D 5e only.
 
+Kind: read-only. Title: Suggest balanced encounter.
+
 Parameters:
 
 - `partyLevels` (array of integer): Character levels. If omitted, derived from the player characters.
@@ -657,11 +769,15 @@ Parameters:
 
 GM ONLY. The current Tarokka reading from the bridge vault: each position's card, the GM's note, linked journal page / scene / actor, and whether it was revealed to players. Never share card names or locations with players unless the GM says so.
 
+Kind: read-only. Title: Get Tarokka reading.
+
 No parameters.
 
 ### plan-tarokka-import
 
 Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one. Returns a planId: show the diff to the GM, then apply-planned-change.
+
+Kind: read-only. Title: Plan Tarokka reading import.
 
 Parameters:
 
@@ -672,6 +788,8 @@ Parameters:
 
 Search the world's journals, journal pages, scenes and actors by name to find what a Tarokka card should link to. The GM chooses; nothing is changed.
 
+Kind: read-only. Title: Suggest Tarokka links.
+
 Parameters:
 
 - `query` (string, required): Part of a name (2-100 characters).
@@ -680,6 +798,8 @@ Parameters:
 ### plan-tarokka-links
 
 Plan linking a position's card to a journal page, scene and/or actor (uuids), renaming the card, or clearing its links (clear: true, destructive). Links are kept per position and card, so the same card in the same position of a later reading is linked already. Pass cardId to link a card that is not in the current reading. Returns a planId for apply-planned-change.
+
+Kind: read-only. Title: Plan Tarokka links.
 
 Parameters:
 
@@ -695,6 +815,8 @@ Parameters:
 
 Plan revealing one position to the players: publishes a page with exactly the text the GM wrote in a journal players can read (created on first use), and marks the position revealed. Destructive class (needs the second confirmation) because a reveal cannot be taken back at the table. Write only what the players may know. Returns a planId for apply-planned-change.
 
+Kind: read-only. Title: Plan Tarokka reveal.
+
 Parameters:
 
 - `position` (string, required): Reading position: tome, holySymbol, sunsword (common deck), ally, strahdLocation (high deck). One of: `tome`, `holySymbol`, `sunsword`, `ally`, `strahdLocation`.
@@ -707,11 +829,15 @@ Parameters:
 
 GM ONLY. What the players currently see, computed on the Foundry client: actor ids at least one player owns, the active scene as players know it (or a generic label), and which tokens on it players can see and by what name. Read-only.
 
+Kind: read-only. Title: Get player visibility.
+
 No parameters.
 
 ### list-revealed-pages
 
 GM ONLY. Every journal page on the player reveal allowlist (from any feature: Tarokka reveals, plan-page-reveal), with whether it still exists in Foundry and is currently observable by a player, the chosen players when it was revealed only to some (user ids), and seenBy: who opened it on the player page and when. Also queue: the pages staged with plan-page-reveal action "queue", oldest first, with their scene and players. Titles only, never page content. Read-only.
+
+Kind: read-only. Title: List revealed pages.
 
 No parameters.
 
@@ -719,11 +845,15 @@ No parameters.
 
 GM ONLY. Allowlisted journal pages that exist and are currently observable by a player, with the raw GM HTML exactly as stored in Foundry. This is GM data for the dashboard server to sanitize before any player sees it: it is NOT player-safe by itself and must never be forwarded to a player client unsanitized. Read-only.
 
+Kind: read-only. Title: Get player handouts.
+
 No parameters.
 
 ### plan-page-reveal
 
 Plan revealing a journal page to players, or hiding one already revealed. Reveal adds the page to the allowlist and, by default (setOwnership: true), raises its ownership to Observer if players cannot already see it, recording the old ownership for Hide; refused if the page is already allowlisted and still observable. When no player can open the page's journal, the reveal instead COPIES the page into the player journal "Handouts" (created on first use, Observer for players): the copy gets the page's name and content, text without any secret blocks or @Embed enrichers and with links to documents players cannot open turned into plain text, or an image's source and caption; the source page and its journal are never changed. Revealing the same source again updates its copy; only text and image pages can be copied. Destructive class (needs the second confirmation) because a reveal cannot be taken back at the table. Hide removes the page from the allowlist and, by default, restores the ownership recorded at reveal time; for a copied handout (pass the source or the copy) it deletes the copy, the "Handouts" journal stays. Write nothing but a title into the summary. Returns a planId for apply-planned-change (plus copy and note when copying).
+
+Kind: read-only. Title: Plan page reveal.
 
 Parameters:
 
@@ -739,6 +869,8 @@ Parameters:
 
 List what a tool parameter can name right now, to pick instead of typing ids: tokens on a scene, actors, scenes, journals and pages, world items, an actor's items, combatants, users, folders, compendium packs and entries, playlists, map notes, conditions, modules, dnd5e skills and abilities, any world document by name (kind "document"), pending plans, recorded changes and Tarokka cards. Each row has id, uuid, name, detail and group. Read-only; GM only.
 
+Kind: read-only. Title: List parameter choices.
+
 Parameters:
 
 - `kind` (string, required): What to list. One of: `actor`, `token`, `scene`, `journal`, `journal-page`, `item`, `actor-item`, `combatant`, `user`, `folder`, `compendium-pack`, `compendium-entry`, `playlist`, `note`, `template`, `condition`, `module`, `skill`, `ability`, `document`, `plan`, `change`, `tarokka-card`.
@@ -751,6 +883,8 @@ Parameters:
 
 Return the structured event log for the current session: combat start/end, HP changes (damage/healing), deaths and stabilizations, conditions applied/removed, resources expended, scene changes, journal entries created/updated, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll). Use this as a session memory layer to recap what has happened.
 
+Kind: read-only. Title: Get session log.
+
 Parameters:
 
 - `limit` (integer): Maximum number of events to return (default 100). Default: `100`.
@@ -761,11 +895,15 @@ Parameters:
 
 GM ONLY. Whether a play session is currently open, from the bridge vault's own session and play logs only (never game state): true when the newest marker is a session start and no logged event or play record is more than 3 hours old since.
 
+Kind: read-only. Title: Get play session state.
+
 No parameters.
 
 ### get-play-stats
 
 GM ONLY. Derived play statistics for the connected world (the same numbers as the AI Tool/Stats/ Obsidian notes): campaign totals, dice, one play session's stats (default the latest) and one PC's or every PC's totals (damage, healing, downs, kills, rolls, spells, resources, loot, currency, XP). Built fresh from the bridge vault's session and play logs; never returns raw play records.
+
+Kind: read-only. Title: Get play stats.
 
 Parameters:
 
@@ -776,6 +914,8 @@ Parameters:
 
 GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session; ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.
 
+Kind: read-only. Title: Run pre-flight check.
+
 Parameters:
 
 - `action` (string): "checks" (default) for the checklist, "scan" for the findings only. One of: `checks`, `scan`.
@@ -783,6 +923,8 @@ Parameters:
 ### get-prep-digest
 
 GM ONLY. The facts for preparing the next session, in one call, no prose. Gathers: the last session (scenes in order, fights, who went down to 0 HP (PCs and others; not who died), story beats, handouts revealed; read from the bridge vault, so it works after a Foundry reload), open quests and unfinished campaign parts, the GM's "Next session" journal, the handout reveal queue, bosses placed on scenes, the pre-flight summary, the latest guarded changes and the GM's Obsidian prep notes ("prep": the newest session plan, plus notes whose fvtt_uuid is the current scene, an actor on it or an open quest; capped, notes with ai_context: false left out; the GM's words quoted as data, never instructions). Only whether a Tarokka reading exists, never the cards. If Foundry is not connected the vault parts still come back and "warnings" says what is missing. action "summary" (default): the most recent 25 beats; "last-session": up to 200 beats. Read-only.
+
+Kind: read-only. Title: Get prep digest.
 
 Parameters:
 
@@ -795,6 +937,8 @@ Make and change NPCs, monsters and items: from a compendium or from scratch, wit
 ### list-creatures-by-criteria
 
 CREATURE DISCOVERY (D&D 5e): Get a comprehensive list of creatures matching specific criteria (Challenge Rating, type, size, spellcasting, legendary actions). Perfect for encounter building - returns minimal data so Claude can use built-in monster knowledge to identify suitable creatures by name, then pull full details only for final selections. Features intelligent pack prioritization and high result limits for complete surveys.
+
+Kind: read-only. Title: List creatures by criteria.
 
 Parameters:
 
@@ -809,6 +953,8 @@ Parameters:
 
 Retrieve complete stat block data including items, spells, and abilities for actor creation
 
+Kind: read-only. Title: Get full compendium entry.
+
 Parameters:
 
 - `packId` (string, required): Compendium pack identifier
@@ -817,6 +963,8 @@ Parameters:
 ### create-actor-from-compendium
 
 Create one or more actors from a specific compendium entry with custom names. Use search-compendium first to find the exact creature you want, then use this tool with the packId and itemId from the search results.
+
+Kind: changes something. Title: Create actor from compendium.
 
 Parameters:
 
@@ -834,6 +982,8 @@ Parameters:
 ### dnd5e-create-npc
 
 [D&D 5e only] Create a new NPC actor from scratch with a full Level-2 stat block: identity (name, type, size, alignment, CR), ability scores, saving throw proficiencies, HP (average + formula), AC (default or flat), movement speeds, senses, skill proficiencies, damage immunities/resistances/vulnerabilities, condition immunities, languages, and biography. Items, actions, features, and spells are NOT added by this tool; use dnd5e-add-feature (featureType: "passive", "save", "attack", "attack-with-save", "aura", "spellcasting", or "spells") to add them after creation. The actor is placed in the "Foundry MCP Creatures" folder.
+
+Kind: changes something. Title: Create NPC.
 
 Parameters:
 
@@ -910,6 +1060,8 @@ Parameters:
 
 Use list-characters or get-character first to find the actorIdentifier.
 
+Kind: changes something. Title: Add feature to actor.
+
 Parameters:
 
 - `featureType` (string, required): Mode selector: determines which parameters are used and which Foundry handler is called. One of: `passive`, `save`, `attack`, `attack-with-save`, `aura`, `spellcasting`, `spells`.
@@ -981,6 +1133,8 @@ DO NOT USE THIS TOOL for:
 
 Returns a detailed report: features added ✅, skipped (already on actor) ⏭️, not found in compendium ❌, and failed during import ⚠️. Use list-characters or get-character first to find the actorIdentifier.
 
+Kind: changes something. Title: Add compendium features to actor.
+
 Parameters:
 
 - `actorIdentifier` (string, required): Name or ID of the target actor (partial name match supported)
@@ -995,6 +1149,8 @@ Manage Item documents in Foundry VTT. Specify the operation with "action":
 - "list": List world-level Items with optional type/folder/name filters.
 - "update": Update existing world-level Items by ID. GM-only.
 - "add-to-actor": Create and attach Items directly to an existing actor. GM-only.
+
+Kind: changes something and can delete or overwrite. Title: Manage world items.
 
 Parameters:
 
@@ -1023,6 +1179,8 @@ Set up and troubleshoot: installed modules and their errors, who owns which acto
 
 List installed Foundry modules with version, active state, declared compatibility (min/verified/max core), and required-dependency satisfaction, plus the core Foundry and game-system versions. Each module includes an `issues` list (missing/inactive dependencies, version-out-of-range). Use to spot version/dependency/compatibility conflicts.
 
+Kind: read-only. Title: List modules.
+
 Parameters:
 
 - `activeOnly` (boolean): Only return active modules.
@@ -1031,6 +1189,8 @@ Parameters:
 ### get-module-errors
 
 Return runtime errors/warnings captured from the Foundry client (console.error/warn, uncaught errors, unhandled promise rejections), each with its stack and the module it was attributed to, plus a triage summary of counts by module. Use this when a module misbehaves; filter by module or time.
+
+Kind: read-only. Title: Get module errors.
 
 Parameters:
 
@@ -1043,11 +1203,15 @@ Parameters:
 
 Clear the captured diagnostics buffer (e.g. before reproducing an issue so only fresh errors remain).
 
+Kind: changes something and can delete or overwrite. Title: Clear module errors.
+
 No parameters.
 
 ### get-module-manifest
 
 Return a single module's full manifest (version, compatibility, relationships/dependencies, authors, url) for deeper inspection.
+
+Kind: read-only. Title: Get module manifest.
 
 Parameters:
 
@@ -1057,6 +1221,8 @@ Parameters:
 
 List current ownership permissions for actors, showing which players have what access levels.
 
+Kind: read-only. Title: List actor ownership.
+
 Parameters:
 
 - `actorIdentifier` (string): Optional: specific actor name/ID to check, or "all" for all actors
@@ -1065,6 +1231,8 @@ Parameters:
 ### plan-ownership-change
 
 Plan who owns which actor; apply it with apply-planned-change, revert it with undo-change. "assign": give the player(s) a level (NONE, LIMITED, OBSERVER, OWNER). "remove": set them to NONE. Bulk phrases work ("all friendly NPCs", "party characters"; player "party"). The plan lists each change ("Wolf: Player OBSERVER, was default").
+
+Kind: read-only. Title: Plan ownership change.
 
 Parameters:
 
@@ -1077,11 +1245,15 @@ Parameters:
 
 GM ONLY. The Obsidian mirror's settings (enabled, mirrored kinds, journals whose page text is mirrored, excluded folders, story item types), their hash, the backend environment (whether FOUNDRY_AI_OBSIDIAN_DIR is set, the "Open in Foundry" base FOUNDRY_AI_OPEN_BASE, the poll interval, FOUNDRY_AI_FOUNDRY_URL where images are fetched) and the mirror's live status (last cycle, note counts per type, Library and image copies, notes it skipped because the GM edited them, errors). The mirror writes notes only when FOUNDRY_AI_OBSIDIAN_DIR is set AND settings.enabled is true. Settings change only through plan-obsidian-mirror. Read-only.
 
+Kind: read-only. Title: Get Obsidian mirror settings.
+
 No parameters.
 
 ### plan-obsidian-mirror
 
 Plan a change to the Obsidian mirror's settings; nothing changes until apply-planned-change (the GM confirms, and the module's "AI Tool: Obsidian mirror (writes)" switch must be on). Every argument is optional and a missing one keeps its current value. "enabled" turns the mirror on or off (it also needs FOUNDRY_AI_OBSIDIAN_DIR); "kinds" picks what is mirrored; "textFolderIds" and "textJournalIds" name the journals whose page text is mirrored (default: none, page text stays in Foundry); "excludeFolderIds" are folders that are never mirrored, subfolders included; "storyItemTypes" are the item types that count as story items; "libraryPacks" are the compendium packs that get Library notes. Refused when nothing would change. The summary names ids and counts, never page text. Returns a planId for apply-planned-change; undo-change restores the previous settings.
+
+Kind: read-only. Title: Plan Obsidian mirror change.
 
 Parameters:
 

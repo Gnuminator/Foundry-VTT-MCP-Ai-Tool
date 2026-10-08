@@ -62,10 +62,11 @@ describe('tool catalog', () => {
 
   it('keeps each tool set within its size budget (characters of JSON Claude Desktop receives)', () => {
     // Budgets with some room; all tools were about 92,500 characters at 95 tools (before F5 replaced four tools with one). Raise one only on purpose.
+    // I-124 raised core and prep by 2,000 for the tool hints (title, readOnlyHint, destructiveHint).
     const budget = {
-      core: 15_000,
+      core: 17_000,
       play: 30_000,
-      prep: 20_000,
+      prep: 22_000,
       build: 28_000,
       admin: 8_000,
     } as const;

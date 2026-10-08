@@ -72,7 +72,11 @@ export function useDashboardStream(): void {
   }, [queryClient]);
 }
 
-/** The module errors the stream has brought so far. */
+/**
+ * The module errors the stream has brought so far. They live only in the query cache (the server
+ * replays its buffer on connect, not on demand), so a queryClient.clear() empties the pane until
+ * the next errors event or reconnect.
+ */
 export function useModuleErrors(): ModuleErrorLog {
   const queryClient = useQueryClient();
   const { data } = useQuery({

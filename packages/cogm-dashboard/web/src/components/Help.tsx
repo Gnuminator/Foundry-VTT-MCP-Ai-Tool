@@ -29,9 +29,10 @@ function HelpHtml({ html, anchor }: { html: string; anchor: string }): JSX.Eleme
 
 /** The help pane and the context that opens it. Wraps the page once, in App. */
 export function HelpProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [target, setTarget] = useState<{ page: string; anchor: string } | null>(null);
-  const open = target !== null;
-  const page = target?.page ?? '';
+  // The last page stays after closing, so the pane never flashes "Help" or "Loading" on its way out.
+  const [target, setTarget] = useState({ page: '', anchor: '' });
+  const [open, setOpen] = useState(false);
+  const page = target.page;
 
   const help = useQuery({
     queryKey: ['help', page],
@@ -49,8 +50,12 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
   }, [open]);
 
   const openHelp: OpenHelp = to => {
-    const [toPage = '', anchor = ''] = to.split('#');
-    setTarget({ page: toPage, anchor });
+    // Only the first # splits: an anchor may hold one itself.
+    const hash = to.indexOf('#');
+    setTarget(
+      hash < 0 ? { page: to, anchor: '' } : { page: to.slice(0, hash), anchor: to.slice(hash + 1) }
+    );
+    setOpen(true);
   };
 
   return (
@@ -58,9 +63,7 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
       {children}
       <OverlayPane
         open={open}
-        onOpenChange={next => {
-          if (!next) setTarget(null);
-        }}
+        onOpenChange={setOpen}
         title={help.data?.title ?? 'Help'}
         closeLabel="Close help"
         id="pane-help"
@@ -72,7 +75,7 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
         ) : help.isError ? (
           <p className="empty">Couldn&apos;t load the help: {errorText(help.error)}</p>
         ) : (
-          <HelpHtml html={help.data.html} anchor={target?.anchor ?? ''} />
+          <HelpHtml html={help.data.html} anchor={target.anchor} />
         )}
       </OverlayPane>
     </HelpContext.Provider>

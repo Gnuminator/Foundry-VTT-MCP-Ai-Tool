@@ -48,6 +48,16 @@ async function until(check, what, ms = 20000) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+/** A file's text, or null while it does not exist (between two syncs). @param {string} file */
+function read(file) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
+  }
+}
+
 test(
   'sync-module.ps1 -Watch syncs only while this session holds the lock',
   { skip: !hasPwsh && 'pwsh is missing', timeout: 120000 },
@@ -112,9 +122,13 @@ test(
 
       // This session takes the lock: the pending build is copied with the test manifest.
       writeLock(lockRoot, held(ME, 'Module sync'));
-      await until(
-        () => fs.existsSync(mainDest) && fs.readFileSync(mainDest, 'utf8') === 'v1',
-        'the first sync'
+      // "Synced" is printed only after the whole copy is in place (built aside, then moved in).
+      await until(said('Synced module'), 'the first sync');
+      assert.equal(read(mainDest), 'v1');
+      assert.equal(
+        fs.existsSync(path.join(lockRoot, 'module-sync-staging')),
+        false,
+        'no staging left'
       );
       const manifest = JSON.parse(
         fs.readFileSync(path.join(lockRoot, 'modules', 'foundry-mcp-bridge', 'module.json'), 'utf8')
@@ -128,7 +142,7 @@ test(
 
       // A save while holding the lock syncs.
       fs.writeFileSync(mainSrc, 'v2');
-      await until(() => fs.readFileSync(mainDest, 'utf8') === 'v2', 'the sync of a save');
+      await until(() => read(mainDest) === 'v2', 'the sync of a save');
 
       // A save after the lock is released does not; the watch says so and does not take it.
       writeLock(lockRoot, FREE);
@@ -157,10 +171,7 @@ test(
 
       // Holding the lock again syncs the waiting save.
       writeLock(lockRoot, held(ME, 'Module sync'));
-      await until(
-        () => fs.readFileSync(mainDest, 'utf8') === 'v4 with even more bytes',
-        'the sync after waiting'
-      );
+      await until(() => read(mainDest) === 'v4 with even more bytes', 'the sync after waiting');
     } finally {
       child.kill();
       fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
@@ -259,11 +270,7 @@ test(
 
       // Fixed: synced.
       fs.writeFileSync(ts, 'export const v: string = "built-3";\n');
-      await until(
-        () => fs.existsSync(mainDest) && /built-3/.test(fs.readFileSync(mainDest, 'utf8')),
-        'the sync of the fix',
-        30000
-      );
+      await until(() => /built-3/.test(read(mainDest) ?? ''), 'the sync of the fix', 30000);
 
       // A hard kill of the watch (TaskStop, a closed window) takes tsc with it.
       assert.ok(alive(tscPid), 'tsc runs while the watch runs');

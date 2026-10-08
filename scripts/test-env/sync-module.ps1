@@ -35,13 +35,16 @@ $source = if ($Source) { $Source } else { Join-Path $RepoRoot 'packages' 'foundr
 $dest = if ($Root) { Join-Path $Root 'modules' 'foundry-mcp-bridge' } else { $TestEnv.ModuleDir }
 $lockRoot = if ($Root) { $Root } else { $TestEnv.Root }
 $parts = 'dist', 'lang', 'styles', 'templates'
+# The copy is built here, outside Foundry's modules folder (Foundry never sees a second
+# foundry-mcp-bridge), on the same drive, then moved over the old copy in one step.
+$stage = Join-Path $lockRoot 'module-sync-staging'
 
 function Copy-ModuleBuild {
-  if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
-  New-Item -ItemType Directory -Force $dest | Out-Null
+  if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
+  New-Item -ItemType Directory -Force $stage | Out-Null
   foreach ($item in $parts) {
     $from = Join-Path $source $item
-    if (Test-Path $from) { Copy-Item -Recurse $from (Join-Path $dest $item) }
+    if (Test-Path $from) { Copy-Item -Recurse $from (Join-Path $stage $item) }
   }
 
   $manifest = Get-Content (Join-Path $source 'module.json') -Raw | ConvertFrom-Json -AsHashtable
@@ -50,7 +53,11 @@ function Copy-ModuleBuild {
   # A test copy must never update itself from the release manifest.
   $manifest.Remove('manifest')
   $manifest.Remove('download')
-  $manifest | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $dest 'module.json')
+  $manifest | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $stage 'module.json')
+
+  if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
+  New-Item -ItemType Directory -Force (Split-Path $dest) | Out-Null
+  Move-Item -LiteralPath $stage -Destination $dest
   return $manifest.version
 }
 

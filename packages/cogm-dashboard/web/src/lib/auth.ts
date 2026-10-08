@@ -36,6 +36,11 @@ function readToken(): string {
 
 const token = readToken();
 
+/** The live stream's address: EventSource sends no headers, so the token goes in the query. */
+export function streamUrl(): string {
+  return token ? `/api/stream?token=${encodeURIComponent(token)}` : '/api/stream';
+}
+
 /** The header the REST routes read the GM token from (none without the split). */
 export function authHeaders(): Record<string, string> {
   return token ? { 'X-CoGM-Token': token } : {};

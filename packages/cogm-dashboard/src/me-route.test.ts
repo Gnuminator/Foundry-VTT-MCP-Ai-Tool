@@ -137,6 +137,17 @@ describe('/api/me and the player links', () => {
       (await fetch(`${base}/api/player-links/${PLAYER}`, { method: 'POST', headers: asPlayer }))
         .status
     ).toBe(403);
+    // With a player token set, a caller with no token (or a wrong one) is nobody: 401.
+    for (const headers of [{}, { 'X-CoGM-Token': 'not-a-token' }]) {
+      const res = await fetch(`${base}/api/player-links`, { headers });
+      expect(res.status).toBe(401);
+      expect(await res.json()).toMatchObject({ code: 'gm-required' });
+      for (const method of ['POST', 'DELETE']) {
+        expect(
+          (await fetch(`${base}/api/player-links/${TAMSIN}`, { method, headers })).status
+        ).toBe(401);
+      }
+    }
     const key = keyOf(list.players[1].link!);
     const del = await fetch(`${base}/api/player-links/${TAMSIN}`, {
       method: 'DELETE',

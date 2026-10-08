@@ -1,0 +1,60 @@
+# The Foundry AI Tool wiki (D-097 decision 5). Not built from here directly:
+# `node scripts/wiki/stage.mjs` copies docs/gm and docs/player into build/wiki/src and writes
+# build/wiki/mkdocs.yml (this file plus docs_dir, site_dir and the nav), then
+# `python -m mkdocs build --strict -f build/wiki/mkdocs.yml` builds build/wiki/site.
+site_name: Foundry AI Tool
+site_description: Guides for the GM and the players of a Foundry VTT game run with Foundry AI Tool.
+site_url: https://gnuminator.github.io/Foundry-VTT-MCP-Ai-Tool/
+repo_url: https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool
+repo_name: Foundry-VTT-MCP-Ai-Tool
+edit_uri: ''
+
+theme:
+  name: material
+  language: en
+  logo: assets/logo.svg
+  favicon: assets/favicon.png
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - content.code.copy
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: blue grey
+      accent: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: blue grey
+      accent: deep orange
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+      # Anchors the GitHub way, so `page.md#a-heading` links work on GitHub, in the dashboard
+      # help and here alike.
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+
+# Every link and anchor must resolve; --strict turns these warnings into a failed build.
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn

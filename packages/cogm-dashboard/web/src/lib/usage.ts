@@ -6,6 +6,9 @@ type UsageKind = 'view' | 'action' | 'tool' | 'shortcut' | 'error';
 
 interface CogmUsage {
   track(kind: UsageKind, name: string, extra?: { code?: string; outcome?: string }): void;
+  /** A view (drawer, panel) is open from now until endView; only its visible time counts. */
+  trackView(name: string): void;
+  endView(name: string): void;
 }
 
 declare global {
@@ -14,7 +17,11 @@ declare global {
   }
 }
 
-const noop: CogmUsage = { track: () => undefined };
+const noop: CogmUsage = {
+  track: () => undefined,
+  trackView: () => undefined,
+  endView: () => undefined,
+};
 
 export function usage(): CogmUsage {
   return window.cogmUsage ?? noop;

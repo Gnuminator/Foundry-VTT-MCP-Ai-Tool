@@ -30,6 +30,16 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+/** A dashboard route that runs a bridge tool (POST /api/tool); the result, or the error thrown. */
+export async function callTool<T>(name: string, args: Record<string, unknown>): Promise<T> {
+  const data = await api<{ ok?: boolean; result?: T; error?: string }>('/api/tool', {
+    method: 'POST',
+    body: JSON.stringify({ name, args }),
+  });
+  if (!data.ok) throw new Error(data.error ?? 'The tool did not answer.');
+  return data.result as T;
+}
+
 /** The message of anything thrown, for a toast or an inline error. */
 export function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);

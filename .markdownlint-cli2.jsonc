@@ -33,6 +33,8 @@
   "ignores": [
     "**/node_modules/**",
     "**/dist/**",
+    // Generated: the staged wiki (scripts/wiki/stage.mjs).
+    "build/**",
     // History is never rewritten.
     "docs/history/**",
     // Claude's own skills and their unverified reference drafts.

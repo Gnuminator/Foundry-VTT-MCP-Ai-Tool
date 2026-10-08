@@ -5,12 +5,15 @@ description: Guides for a GM running a game with Foundry AI Tool, written for so
 
 # GM guides
 
+**New to running Foundry?** Spend [your first hour as GM](first-hour.md) on a set reading order.
+
 **Start here:** read [Getting started](getting-started.md) once, then use the
 [before-session](before-session.md) and [after-session](after-session.md) checklists every time you
 play.
 
 | Page                                                   | What it is for                                                                        |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| [Your first hour as GM](first-hour.md)                 | A set reading order: Foundry's own guides for the basics, our pages for the tool.     |
 | [Getting started](getting-started.md)                  | What the tool is, its parts, how they fit together, a glossary, and today's setup.    |
 | [The dashboard](dashboard.md)                          | Every panel and button on the dashboard, what it does and when to use it.             |
 | [Features and when to turn them on](features.md)       | Each feature switch, what it does, and the moment to turn it on.                      |

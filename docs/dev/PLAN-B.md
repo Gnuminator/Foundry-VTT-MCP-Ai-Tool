@@ -38,7 +38,13 @@ Two port sets:
 Game night uses the Pi's own ports, so the world, the module and the tunnel need no changes.
 `start.ps1 -GameNight` refuses while the Pi's Foundry still answers: two copies of the world must
 never run at once. Every start refuses a port that is taken, or one that belongs to the test server
-(30001, 31514 to 31516, 3100) or the project dashboard (3200).
+(30001, 31514 to 31516, 3100) or the project dashboard (3200). The game-night ports include the
+live bridge ports 31414 and 31415, an exception to the PC rule that the user granted for
+`-GameNight` only (2026-10-09).
+
+**Licence:** Plan B uses the test server's licence file (one key may run several test servers at
+once). Real players never join the test server, and they join Plan B only on a game night
+(`-GameNight`). A rehearsal is for you alone, so it may run beside the test server.
 
 ## Ready in advance (once, and after each Pi update)
 

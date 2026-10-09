@@ -283,6 +283,11 @@ describe('spellPrepared (dnd5e 6 method + prepared)', () => {
     expect(spellPrepared({ level: 2, method: 'pact', prepared: 1 })).toBe(true);
   });
 
+  it('counts NPC spells as ready (feat-granted, method "spell", prepared 0)', () => {
+    expect(spellPrepared({ level: 1, method: 'spell', prepared: 0 }, 'npc')).toBe(true);
+    expect(spellPrepared({ level: 1, method: 'spell', prepared: 0 }, 'character')).toBe(false);
+  });
+
   it('follows CONFIG.DND5E.spellcasting[method].prepares when the config is there', () => {
     g.CONFIG = {
       DND5E: { spellcasting: { spell: { prepares: true }, homebrew: { prepares: true } } },

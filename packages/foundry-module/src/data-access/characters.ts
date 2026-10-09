@@ -170,7 +170,10 @@ export class CharacterDataAccess {
       // Type-specific fields + category filtering. A category mismatch skips
       // the item entirely (mirrors the original `continue`-based control flow).
       if (item.type === 'spell') {
-        if (!this.applySpellFields(result, itemSystem, systemId, searchCategory)) continue;
+        if (
+          !this.applySpellFields(result, itemSystem, systemId, searchCategory, str(rec(actor).type))
+        )
+          continue;
       } else if (this.isEquipmentType(item.type)) {
         if (!this.applyEquipmentFields(result, itemSystem, searchCategory)) continue;
       }
@@ -392,10 +395,12 @@ export class CharacterDataAccess {
     result: any,
     itemSystem: any,
     systemId: string,
-    searchCategory?: string
+    searchCategory?: string,
+    actorType?: string
   ): boolean {
     result.level = itemSystem?.level?.value ?? itemSystem?.level ?? 0;
-    if (systemId === 'dnd5e' && itemSystem) result.prepared = spellPrepared(rec(itemSystem));
+    if (systemId === 'dnd5e' && itemSystem)
+      result.prepared = spellPrepared(rec(itemSystem), actorType);
 
     if (systemId === 'dnd5e') {
       const targeting = this.extractDnD5eSpellTargeting(itemSystem);
@@ -547,7 +552,7 @@ export class CharacterDataAccess {
     const spellsByClass: Record<string, SpellInfo[]> = {};
     for (const spell of spellItems) {
       const key = this.spellClassKey(actor, spell) || 'general';
-      (spellsByClass[key] ??= []).push(this.toSpellInfo(spell));
+      (spellsByClass[key] ??= []).push(this.toSpellInfo(spell, actor.type));
     }
 
     // One entry per spellcasting class.
@@ -651,15 +656,15 @@ export class CharacterDataAccess {
   private bySpellLevelThenName = (a: SpellInfo, b: SpellInfo): number =>
     a.level - b.level || a.name.localeCompare(b.name);
 
-  /** SpellInfo for one spell; `prepared` follows dnd5e 6 `method` + `prepared`. */
-  private toSpellInfo(spell: Item): SpellInfo {
+  /** SpellInfo for one spell; `prepared` follows dnd5e 6 `method` + `prepared` (NPC spells are ready). */
+  private toSpellInfo(spell: Item, actorType?: string): SpellInfo {
     const spellSystem = rec(spell.system);
     const targeting = this.extractDnD5eSpellTargeting(spellSystem);
     return {
       id: spell.id || '',
       name: spell.name || '',
       level: num(spellSystem.level, 0),
-      prepared: spellPrepared(spellSystem),
+      prepared: spellPrepared(spellSystem, actorType),
       traits: [], // dnd5e doesn't use pf2e-style traits
       actionCost: str(rec(spellSystem.activation).type) || undefined,
       range: targeting.range,

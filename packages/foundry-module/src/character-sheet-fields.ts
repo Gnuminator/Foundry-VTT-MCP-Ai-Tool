@@ -184,9 +184,11 @@ export function spellMethodPrepares(method: string): boolean {
 
 /**
  * Whether a spell is ready to cast: a cantrip, a spell whose method never prepares (innate, at
- * will, ritual), or a prepared or always-prepared spell (`prepared` 1 or 2 in dnd5e 6).
+ * will, ritual), or a prepared or always-prepared spell (`prepared` 1 or 2 in dnd5e 6). NPCs
+ * never prepare: their spells (often granted by a feat, `method` "spell", `prepared` 0) are ready.
  */
-export function spellPrepared(system: Rec): boolean {
+export function spellPrepared(system: Rec, actorType?: string): boolean {
+  if (actorType === 'npc') return true;
   if (num(system.level, 0) === 0) return true;
   const method = str(system.method);
   if (method && !spellMethodPrepares(method)) return true;

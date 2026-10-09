@@ -434,6 +434,27 @@ describe('FoundryDataAccess — getCharacterInfo', () => {
     ]);
   });
 
+  it('lists NPC spells as ready (feat-granted, method "spell", prepared 0)', async () => {
+    world.actors.add(
+      makeActor({
+        name: 'Vampire',
+        type: 'npc',
+        items: [
+          makeItem({
+            name: 'Charm Person',
+            type: 'spell',
+            system: { level: 1, sourceItem: 'feat:charm', method: 'spell', prepared: 0 },
+          }),
+        ],
+      })
+    );
+    const info = await da.getCharacterInfo('Vampire');
+    expect(info.spellcasting).toHaveLength(1);
+    expect(info.spellcasting![0].spells.map(s => [s.name, s.prepared])).toEqual([
+      ['Charm Person', true],
+    ]);
+  });
+
   it('reads a subclass caster (Eldritch Knight) from the subclass spellcasting', async () => {
     world.actors.add(
       makeActor({

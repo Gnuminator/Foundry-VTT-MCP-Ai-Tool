@@ -7,7 +7,8 @@
   land in "general"; spells from species or feats show under "Other Spells" instead of
   vanishing, and each class entry carries its spell save DC and attack bonus. Subclass
   casters (Eldritch Knight, Arcane Trickster) get their own class entry from the subclass's
-  spellcasting.
+  spellcasting. NPC spells read as ready (NPCs never prepare; dnd5e 6 stores their
+  feat-granted spells as unprepared).
 - **dnd5e 6 resources:** a character's hit die type is read from its class items (it was
   empty for player characters; a multiclass shows "d10/d8"), NPC hit dice read the numeric
   die, and recharge abilities read as "recharge 5-6" from `uses.recovery`.

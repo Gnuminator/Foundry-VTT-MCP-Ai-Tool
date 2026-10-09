@@ -72,6 +72,12 @@ export const KIT_FLAG_KEY = 'testKit';
 export const KIT_GM_USER = 'Kit GM';
 /** A player user for player-side checks (passwordless, PLAYER role). */
 export const KIT_PLAYER_USER = 'Kit Player';
+/**
+ * A GM user for Claude sessions in the browser pane (passwordless, GAMEMASTER role), named as in
+ * the everyday test world. The kit itself never joins as it, so a session can look around while a
+ * run holds `Kit GM`. Kept as test data.
+ */
+export const KIT_CLAUDE_USER = 'Claude';
 
 /**
  * GM actions: the only way a scenario or the builder runs code inside Foundry. Each runs in the

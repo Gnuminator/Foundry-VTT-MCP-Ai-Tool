@@ -1,18 +1,18 @@
 {
-  "total": 4944,
+  "total": 4114,
   "rules": {
     "@typescript-eslint/explicit-function-return-type": 181,
-    "@typescript-eslint/no-explicit-any": 837,
-    "@typescript-eslint/no-unsafe-argument": 160,
-    "@typescript-eslint/no-unsafe-assignment": 1156,
-    "@typescript-eslint/no-unsafe-call": 227,
-    "@typescript-eslint/no-unsafe-member-access": 2198,
-    "@typescript-eslint/no-unsafe-return": 115,
+    "@typescript-eslint/no-explicit-any": 695,
+    "@typescript-eslint/no-unsafe-argument": 133,
+    "@typescript-eslint/no-unsafe-assignment": 927,
+    "@typescript-eslint/no-unsafe-call": 163,
+    "@typescript-eslint/no-unsafe-member-access": 1846,
+    "@typescript-eslint/no-unsafe-return": 102,
     "@typescript-eslint/only-throw-error": 3,
-    "@typescript-eslint/prefer-nullish-coalescing": 10,
+    "@typescript-eslint/prefer-nullish-coalescing": 9,
     "@typescript-eslint/prefer-promise-reject-errors": 6,
     "no-constant-binary-expression": 1,
-    "no-useless-assignment": 16,
-    "preserve-caught-error": 34
+    "no-useless-assignment": 15,
+    "preserve-caught-error": 33
   }
 }

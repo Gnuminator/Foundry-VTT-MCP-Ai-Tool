@@ -82,7 +82,7 @@ The rest of this document walks each part and then traces two requests end-to-en
 
 Both listen on `127.0.0.1` by default. The Foundry link (31415) opens to other
 interfaces only with `FOUNDRY_LINK_HOST`; the dashboard (3000) only with `DASHBOARD_HOST`
-plus a `GM_DASHBOARD_TOKEN` (it refuses to start otherwise).
+plus a `GM_DASHBOARD_TOKEN` of at least 32 characters (it refuses to start otherwise).
 
 > **Wire identifiers are frozen contracts.** The Foundry module id `foundry-mcp-bridge`, the
 > Foundry settings namespace `foundry-mcp-bridge`, the game-socket channel

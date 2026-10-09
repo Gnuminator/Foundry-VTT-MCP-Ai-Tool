@@ -58,7 +58,7 @@ services:
       # ── Dashboard ──────────────────────────────────────────────────────────
       PORT: "3000"
       # Listen inside the container so the cloudflared sidecar can reach it.
-      # Refused at startup unless GM_DASHBOARD_TOKEN below is set.
+      # Refused at startup unless GM_DASHBOARD_TOKEN below is set (32 characters or more).
       DASHBOARD_HOST: "0.0.0.0"
 
       # !! Runtime secrets — do NOT hardcode here; pass via .env or Docker Secrets !!

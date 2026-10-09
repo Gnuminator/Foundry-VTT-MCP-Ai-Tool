@@ -9,17 +9,17 @@ A personal-only test server (the Foundry licence allows a second instance for th
 owner's own testing). Everything is separate from the live campaign, which runs on a
 hosting service and is driven by Claude Desktop's bridge on 31414-31416.
 
-| Part        | Where                                                                                                                                  |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Foundry 14  | `http://localhost:30001`, app `C:\FoundryTest\app`, data `C:\FoundryTest\data`                                                         |
-| Test world  | id `ai-tool-test`, title "AI Tool Test", dnd5e 6.0.5, Modern Rules (2024)                                                              |
-| Users       | `Claude` (Gamemaster, no password), `Player` (Player, no password), `Gamemaster` (the GM's)                                            |
-| Test data   | PC `Test Hero` (level 3 Fighter, max HP 28 set by hand); world actor `Wolf` with unlinked tokens `Wolf 1`-`Wolf 3`, scene "Test Arena" |
-| Test bridge | control `31514`, Foundry link `31515`                                                                                                  |
-| Dashboard   | `http://localhost:3100`                                                                                                                |
-| Vault       | `C:\FoundryTest\vault`                                                                                                                 |
-| Obsidian    | `C:\FoundryTest\obsidian` (throwaway vault the test bridge renders notes into; `ObsidianDir`)                                          |
-| Logs, PIDs  | `C:\FoundryTest\logs` (`<service>.out.log`, `.err.log`, `pids.json`)                                                                   |
+| Part        | Where                                                                                                                                                                                                                                                           |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Foundry 14  | `http://localhost:30001`, app `C:\FoundryTest\app`, data `C:\FoundryTest\data`                                                                                                                                                                                  |
+| Test world  | id `ai-tool-test`, title "AI Tool Test", dnd5e 6.0.5, Modern Rules (2024)                                                                                                                                                                                       |
+| Users       | `Claude` (Gamemaster, no password), `Player` (Player, no password), `Gamemaster` (the GM's)                                                                                                                                                                     |
+| Test data   | PC `Test Hero` (level 3 Fighter, max HP 28 set by hand); world actor `Wolf` with unlinked tokens `Wolf 1`-`Wolf 3`, scene "Test Arena"; `Test Cleric` and `Test Wizard` (level 1 casters, spell save DC 13, attack +5; kept for caster checks; DESKTOP-I4QNKRH) |
+| Test bridge | control `31514`, Foundry link `31515`                                                                                                                                                                                                                           |
+| Dashboard   | `http://localhost:3100`                                                                                                                                                                                                                                         |
+| Vault       | `C:\FoundryTest\vault`                                                                                                                                                                                                                                          |
+| Obsidian    | `C:\FoundryTest\obsidian` (throwaway vault the test bridge renders notes into; `ObsidianDir`)                                                                                                                                                                   |
+| Logs, PIDs  | `C:\FoundryTest\logs` (`<service>.out.log`, `.err.log`, `pids.json`)                                                                                                                                                                                            |
 
 This environment is per PC: the Foundry licence is per owner, so each PC gets its own copy set up
 separately with the GM. World data, users and test data are not shared between machines, even

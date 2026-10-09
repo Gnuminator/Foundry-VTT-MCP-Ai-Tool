@@ -781,10 +781,10 @@ describe('buildStatBlock: sections', () => {
     ]);
   });
 
-  it('reads the older system activation when the item has no activity', () => {
+  it('ignores an item-level system.activation (dnd5e 6 feats have none): a trait', () => {
     const items = [feature({ name: 'Old Reflex', legacyActivation: 'reaction' })];
     const block = buildStatBlock(weasel({ items }), null, BIG_BUDGET);
-    expect(block.sections.map(s => s.key)).toEqual(['reaction']);
+    expect(block.sections.map(s => s.key)).toEqual(['trait']);
   });
 
   it('appends the uses label to the name', () => {

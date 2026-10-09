@@ -219,10 +219,10 @@ export class CharacterDataAccess {
   }
 
   /**
-   * Fetch one entity (item, action, or effect) belonging to a character, in
-   * full. The character is resolved by id or case-insensitive name; the entity
-   * by id or case-insensitive name, searched items → actions → effects in that
-   * order. Both "character not found" and "entity not found" surface wrapped in
+   * Fetch one entity (item or effect) belonging to a character, in full. The
+   * character is resolved by id or case-insensitive name; the entity by id or
+   * case-insensitive name, searched items → effects in that order (dnd5e has no
+   * `system.actions`; actions are item activities). Both "character not found" and "entity not found" surface wrapped in
    * a `Failed to get character entity: …` error.
    */
   async getCharacterEntity(data: {
@@ -244,7 +244,6 @@ export class CharacterDataAccess {
 
       const found =
         this.findItemEntity(character, data.entityIdentifier) ??
-        this.findActionEntity(character, data.entityIdentifier) ??
         this.findEffectEntity(character, data.entityIdentifier);
 
       if (found) {
@@ -370,8 +369,11 @@ export class CharacterDataAccess {
 
   // ===== searchCharacterItems internals =====
 
+  /** dnd5e 6 physical item types (armor is `equipment`; `backpack` is the old `container` name). */
   private isEquipmentType(type: string): boolean {
-    return ['weapon', 'armor', 'equipment', 'consumable', 'backpack', 'loot'].includes(type);
+    return ['weapon', 'equipment', 'consumable', 'tool', 'container', 'backpack', 'loot'].includes(
+      type
+    );
   }
 
   /** A string description for query matching (handles `description.value` shapes). */
@@ -398,7 +400,7 @@ export class CharacterDataAccess {
     searchCategory?: string,
     actorType?: string
   ): boolean {
-    result.level = itemSystem?.level?.value ?? itemSystem?.level ?? 0;
+    result.level = num(itemSystem?.level, 0); // dnd5e 6 `SpellData.level` is a number
     if (systemId === 'dnd5e' && itemSystem)
       result.prepared = spellPrepared(rec(itemSystem), actorType);
 
@@ -461,22 +463,6 @@ export class CharacterDataAccess {
         system: entity.system,
       },
     };
-  }
-
-  /** Find an action in `system.actions` (array or record) and return it, else null. */
-  private findActionEntity(character: any, entityIdentifier: string): any {
-    const rawActions = character.system?.actions;
-    if (!rawActions) return null;
-
-    const actions = Array.isArray(rawActions) ? rawActions : Object.values(rawActions || {});
-    const entity = actions.find(
-      (action: any) =>
-        action.id === entityIdentifier ||
-        action.name?.toLowerCase() === entityIdentifier.toLowerCase()
-    );
-    if (!entity) return null;
-
-    return { success: true, entityType: 'action', entity };
   }
 
   /**
@@ -699,9 +685,9 @@ export class CharacterDataAccess {
   }
 
   /**
-   * Derive human-readable range/target/area strings from a dnd5e spell's
-   * `range`/`target`/`target.template` data. Area-template spells whose target
-   * is unset or "point" are reported as targeting an "area".
+   * Derive human-readable range/target/area strings from a dnd5e 6 spell's
+   * `range`, `target.affects` and `target.template` data. Area-template spells
+   * without a target count (or targeting a point) are reported as an "area".
    */
   private extractDnD5eSpellTargeting(spellSystem: any): {
     range?: string;
@@ -722,20 +708,20 @@ export class CharacterDataAccess {
       result.range = `${rangeValue} ${rangeUnits}`;
     }
 
-    const targetType = spellSystem?.target?.type;
-    const targetValue = spellSystem?.target?.value;
-    if (targetType === 'self') {
+    // dnd5e 6 keeps individual targets in `target.affects` ({type, count, choice, special})
+    // next to the area in `target.template`.
+    const affects = rec(rec(spellSystem?.target).affects);
+    const affectsType = str(affects.type);
+    const count = num(affects.count, 0);
+    const nouns = SPELL_TARGET_NOUNS[affectsType];
+    if (affectsType === 'self') {
       result.target = 'self';
-    } else if (targetType === 'creature' || targetType === 'ally' || targetType === 'enemy') {
-      result.target = targetValue
-        ? `${targetValue} ${targetType}${targetValue > 1 ? 's' : ''}`
-        : targetType;
-    } else if (targetType === 'object') {
-      result.target = targetValue ? `${targetValue} object${targetValue > 1 ? 's' : ''}` : 'object';
-    } else if (targetType === 'space' || targetType === 'point') {
+    } else if (affectsType === 'space') {
       result.target = 'point';
-    } else if (targetType) {
-      result.target = targetType;
+    } else if (nouns) {
+      result.target = count ? `${count} ${count > 1 ? nouns[1] : nouns[0]}` : nouns[0];
+    } else if (affectsType) {
+      result.target = affectsType;
     }
 
     const areaType = spellSystem?.target?.template?.type;
@@ -743,7 +729,8 @@ export class CharacterDataAccess {
     const areaUnits = spellSystem?.target?.template?.units || 'ft';
     if (areaType && areaSize) {
       result.area = `${areaSize}-${areaUnits} ${areaType}`;
-      if (!result.target || result.target === 'point') {
+      // "each creature in the area" reads as the area; a counted target keeps its count.
+      if (!count || result.target === 'point') {
         result.target = 'area';
       }
     }
@@ -751,3 +738,14 @@ export class CharacterDataAccess {
     return result;
   }
 }
+
+/** Singular and plural nouns for dnd5e 6 `CONFIG.DND5E.individualTargetTypes` keys. */
+const SPELL_TARGET_NOUNS: Record<string, [string, string]> = {
+  ally: ['ally', 'allies'],
+  enemy: ['enemy', 'enemies'],
+  creature: ['creature', 'creatures'],
+  object: ['object', 'objects'],
+  creatureOrObject: ['creature or object', 'creatures or objects'],
+  any: ['target', 'targets'],
+  willing: ['willing creature', 'willing creatures'],
+};

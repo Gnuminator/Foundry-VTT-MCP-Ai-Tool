@@ -5,7 +5,7 @@
  *   1. character look-up by id
  *   2. character look-up by name (case-insensitive)
  *   3. entity found in items — by id, by name (case-insensitive)
- *   4. entity found in system.actions — array form, by id, by name
+ *   4. no system.actions lookup (dnd5e 6 has none)
  *   5. entity found in effects — by id, by name (case-insensitive)
  *   6. character-not-found error
  *   7. entity-not-found error
@@ -179,59 +179,24 @@ describe('getCharacterEntity — item branch', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Actions branch (system.actions — array form)
+// No actions branch: dnd5e 6 has no `system.actions` (actions are item activities)
 // ---------------------------------------------------------------------------
 
-describe('getCharacterEntity — actions branch', () => {
-  function makeHeroWithActions(): ReturnType<typeof makeActor> {
-    return makeActor({
-      id: 'hero000000000001',
-      name: 'Brynn',
-      type: 'character',
-      items: [], // no items → action search is reached
-      system: {
-        actions: [
-          { id: 'action01', name: 'Multiattack', type: 'action' },
-          { id: 'action02', name: 'Claw', type: 'action' },
-        ],
-      },
-      effects: [],
-    });
-  }
-
-  it('returns the action shape when found in system.actions array by id', async () => {
-    world.actors.add(makeHeroWithActions());
-    const result = await da.getCharacterEntity({
-      characterIdentifier: 'Brynn',
-      entityIdentifier: 'action01',
-    });
-    expect(result).toEqual({
-      success: true,
-      entityType: 'action',
-      entity: { id: 'action01', name: 'Multiattack', type: 'action' },
-    });
-  });
-
-  it('returns the action shape when found by case-insensitive name', async () => {
-    world.actors.add(makeHeroWithActions());
-    const result = await da.getCharacterEntity({
-      characterIdentifier: 'Brynn',
-      entityIdentifier: 'claw', // lower-case
-    });
-    expect(result.success).toBe(true);
-    expect(result.entityType).toBe('action');
-    expect(result.entity.name).toBe('Claw');
-  });
-
-  it('skips actions search when character has no system.actions and falls through to effects', async () => {
-    // Hero has effects but no system.actions — the if-guard is skipped entirely
-    world.actors.add(makeHero()); // system has no .actions property
-    const result = await da.getCharacterEntity({
-      characterIdentifier: 'Aldric',
-      entityIdentifier: 'Bless',
-    });
-    // Should find the effect, not throw
-    expect(result.entityType).toBe('effect');
+describe('getCharacterEntity — no system.actions lookup', () => {
+  it('does not search a stray system.actions; the lookup goes items → effects', async () => {
+    world.actors.add(
+      makeActor({
+        id: 'hero000000000001',
+        name: 'Brynn',
+        type: 'character',
+        items: [],
+        system: { actions: [{ id: 'action01', name: 'Multiattack', type: 'action' }] },
+        effects: [],
+      })
+    );
+    await expect(
+      da.getCharacterEntity({ characterIdentifier: 'Brynn', entityIdentifier: 'Multiattack' })
+    ).rejects.toThrow('Entity not found: "Multiattack"');
   });
 });
 

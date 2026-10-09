@@ -2,6 +2,7 @@ import { ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 import type {
   CharacterEffect,
+  CharacterEntityResult,
   CharacterInfo,
   CharacterItem,
   SpellcastingEntry,
@@ -10,6 +11,7 @@ import type {
 import { detectRulesVersion, readRulesTag } from '../systems/dnd5e/rules-version.js';
 import { effectChanges, effectDuration, effectImg } from '../systems/core.js';
 import { num, rec, spellPrepared, str } from '../character-sheet-fields.js';
+import { itemEntityDetails } from './item-entity.js';
 
 /**
  * Character/actor inspection domain for `FoundryDataAccess`.
@@ -41,15 +43,7 @@ export class CharacterDataAccess {
    * free of cycles, sensitive fields, and deprecated-accessor warnings.
    */
   async getCharacterInfo(identifier: string): Promise<CharacterInfo> {
-    let world: Actor | undefined;
-    let notFound: unknown;
-    try {
-      world = this.resolveActorById16OrName(identifier);
-    } catch (err) {
-      notFound = err;
-    }
-    const actor = (shared.findSceneTokenActor(identifier, world?.id) as Actor | undefined) ?? world;
-    if (!actor) throw notFound;
+    const actor = this.resolveCharacter(identifier);
 
     const characterData: CharacterInfo = {
       id: actor.id || '',
@@ -220,48 +214,43 @@ export class CharacterDataAccess {
 
   /**
    * Fetch one entity (item or effect) belonging to a character, in full. The
-   * character is resolved by id or case-insensitive name; the entity by id or
-   * case-insensitive name, searched items → effects in that order (dnd5e has no
-   * `system.actions`; actions are item activities). Both "character not found"
-   * and "entity not found" surface wrapped in a `Failed to get character
-   * entity: …` error.
+   * character resolves as in {@link getCharacterInfo} (id, name, unique partial
+   * name; a token on the current scene wins); the entity by id or
+   * case-insensitive name, items first, then effects. dnd5e 6 has no
+   * `system.actions`: actions are item activities, summarized on the item.
+   * Throws when either is missing; the query handler adds the
+   * `Failed to get character entity:` prefix.
    */
   async getCharacterEntity(data: {
     characterIdentifier: string;
     entityIdentifier: string;
-  }): Promise<any> {
+  }): Promise<CharacterEntityResult> {
     shared.validateFoundryState();
-
-    try {
-      const actors = game.actors?.contents || [];
-      const character = actors.find(
-        (actor: any) =>
-          actor.id === data.characterIdentifier ||
-          actor.name.toLowerCase() === data.characterIdentifier.toLowerCase()
-      );
-      if (!character) {
-        throw new Error(`Character not found: "${data.characterIdentifier}"`);
-      }
-
-      const found =
-        this.findItemEntity(character, data.entityIdentifier) ??
-        this.findEffectEntity(character, data.entityIdentifier);
-
-      if (found) {
-        return found;
-      }
-
-      throw new Error(
-        `Entity not found: "${data.entityIdentifier}" in character "${character.name}"`
-      );
-    } catch (error) {
-      throw new Error(
-        `Failed to get character entity: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    const character = this.resolveCharacter(data.characterIdentifier);
+    const found =
+      this.findItemEntity(character, data.entityIdentifier) ??
+      this.findEffectEntity(character, data.entityIdentifier);
+    if (found) return found;
+    throw new Error(
+      `Entity not found: "${data.entityIdentifier}" in character "${character.name}"`
+    );
   }
 
   // ===== getCharacterInfo internals =====
+
+  /** The world actor by {@link resolveActorById16OrName}, or its token on the current scene. */
+  private resolveCharacter(identifier: string): Actor {
+    let world: Actor | undefined;
+    let notFound: unknown;
+    try {
+      world = this.resolveActorById16OrName(identifier);
+    } catch (err) {
+      notFound = err;
+    }
+    const actor = (shared.findSceneTokenActor(identifier, world?.id) as Actor | undefined) ?? world;
+    if (!actor) throw notFound;
+    return actor;
+  }
 
   /**
    * Resolve an actor by identifier, forgivingly. Order:
@@ -443,25 +432,30 @@ export class CharacterDataAccess {
 
   // ===== getCharacterEntity internals =====
 
-  /** Find an item by id or name and return the item entity envelope, else null. */
-  private findItemEntity(character: any, entityIdentifier: string): any {
-    const items = character.items?.contents || [];
-    const entity = items.find(
-      (item: any) =>
-        item.id === entityIdentifier || item.name.toLowerCase() === entityIdentifier.toLowerCase()
+  /**
+   * Find an item by id or name and return the item entity envelope, else null: the dnd5e 6
+   * details ({@link itemEntityDetails}: level, rarity, uses, activities...) plus the sanitized
+   * `system`.
+   */
+  private findItemEntity(character: Actor, entityIdentifier: string): CharacterEntityResult | null {
+    const needle = entityIdentifier.toLowerCase();
+    const entity = character.items.contents.find(
+      item => item.id === entityIdentifier || item.name?.toLowerCase() === needle
     );
     if (!entity) return null;
 
+    const system = rec(entity.system);
     return {
       success: true,
       entityType: 'item',
       entity: {
-        id: entity.id,
-        name: entity.name,
+        id: entity.id ?? '',
+        name: entity.name ?? '',
         type: entity.type,
-        img: entity.img,
-        description: entity.system?.description?.value || entity.system?.description || '',
-        system: entity.system,
+        ...(entity.img ? { img: entity.img } : {}),
+        description: this.itemDescription(system),
+        ...itemEntityDetails(entity.type, system),
+        system: shared.sanitizeData(entity.system),
       },
     };
   }
@@ -474,7 +468,7 @@ export class CharacterDataAccess {
    * either removes (`icon`) or moves (`duration` shape, `changes` lives at
    * `system.changes`).
    */
-  private findEffectEntity(character: any, entityIdentifier: string): any {
+  private findEffectEntity(character: any, entityIdentifier: string): CharacterEntityResult | null {
     const effects = character.effects?.contents || [];
     const entity = effects.find(
       (effect: any) =>
@@ -492,6 +486,9 @@ export class CharacterDataAccess {
       entity: {
         id: entity.id,
         name: entity.name || entity.label,
+        ...(typeof entity.description === 'string' && entity.description
+          ? { description: entity.description }
+          : {}),
         icon: effectImg(entity as ActiveEffect),
         disabled: entity.disabled,
         duration: norm

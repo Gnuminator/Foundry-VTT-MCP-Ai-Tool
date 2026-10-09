@@ -350,103 +350,62 @@ describe('CharacterTools.handleGetCharacter', () => {
 // ---------------------------------------------------------------------------
 
 describe('CharacterTools.handleGetCharacterEntity', () => {
-  const baseChar = {
-    id: 'char1',
-    name: 'Ember',
-    type: 'character',
-    img: null,
-    items: [
-      {
-        id: 'item1',
-        name: 'Fireball',
-        type: 'spell',
-        img: 'icons/fire.png',
-        system: {
-          description: { value: 'A ball of fire erupts.' },
-          traits: { value: ['fire', 'evocation'], rarity: 'common' },
-          level: { value: 3 },
-          quantity: 1,
+  // The module's getCharacterEntity envelope for a dnd5e 6 spell (Test Cleric's Guiding Bolt).
+  const itemEnvelope = {
+    success: true,
+    entityType: 'item',
+    entity: {
+      id: 'item1',
+      name: 'Guiding Bolt',
+      type: 'spell',
+      img: 'icons/bolt.webp',
+      description: '<p>A flash of light streaks toward a creature.</p>',
+      level: 1,
+      school: 'evo',
+      activities: [
+        {
+          id: 'act1',
+          name: '',
+          type: 'attack',
+          activation: '1 Action',
+          toHit: '+5',
+          damage: '4d6 Radiant',
         },
-      },
-    ],
-    actions: [{ name: 'Strike', type: 'action', traits: ['attack'], itemId: 'item1' }],
-    effects: [
-      {
-        id: 'eff1',
-        name: 'Blessed',
-        description: 'You are blessed.',
-        traits: ['divine'],
-        duration: null,
-      },
-    ],
+      ],
+      system: { level: 1, school: 'evo' },
+    },
   };
 
-  it('dispatches getCharacterInfo and returns item entity shape', async () => {
-    const { tools, query } = makeTools(() => ({ ...baseChar }));
+  it('dispatches getCharacterEntity and returns the entity with its entityType', async () => {
+    const { tools, query } = makeTools(() => itemEnvelope);
     const result = await tools.handleGetCharacterEntity({
-      characterIdentifier: 'Ember',
-      entityIdentifier: 'Fireball',
+      characterIdentifier: 'Test Cleric',
+      entityIdentifier: 'Guiding Bolt',
     });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCharacterInfo', {
-      characterName: 'Ember',
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCharacterEntity', {
+      characterIdentifier: 'Test Cleric',
+      entityIdentifier: 'Guiding Bolt',
     });
-    expect(result.entityType).toBe('item');
-    expect(result.id).toBe('item1');
-    expect(result.name).toBe('Fireball');
-    expect(result.description).toBe('A ball of fire erupts.');
-    expect(result.traits).toEqual(['fire', 'evocation']);
-    expect(result.rarity).toBe('common');
-    expect(result.level).toBe(3);
+    expect(result).toEqual({ entityType: 'item', ...itemEnvelope.entity });
+    expect(result).not.toHaveProperty('traits');
+    expect(result).not.toHaveProperty('actionType');
   });
 
-  it('finds item by id (not just name)', async () => {
-    const { tools } = makeTools(() => ({ ...baseChar }));
+  it('returns an effect entity the same way', async () => {
+    const effect = { id: 'eff1', name: 'Bless', disabled: false, changes: [] };
+    const { tools } = makeTools(() => ({ success: true, entityType: 'effect', entity: effect }));
     const result = await tools.handleGetCharacterEntity({
-      characterIdentifier: 'Ember',
-      entityIdentifier: 'item1',
+      characterIdentifier: 'Test Cleric',
+      entityIdentifier: 'Bless',
     });
-    expect(result.entityType).toBe('item');
-    expect(result.name).toBe('Fireball');
+    expect(result).toEqual({ entityType: 'effect', ...effect });
   });
 
-  it('finds action entity by name when not in items', async () => {
-    const charNoItemMatch = {
-      ...baseChar,
-      items: [], // No items → falls through to actions
-    };
-    const { tools } = makeTools(() => charNoItemMatch);
-    const result = await tools.handleGetCharacterEntity({
-      characterIdentifier: 'Ember',
-      entityIdentifier: 'Strike',
-    });
-    expect(result.entityType).toBe('action');
-    expect(result.name).toBe('Strike');
-    expect(result.traits).toEqual(['attack']);
-  });
-
-  it('finds effect entity by name when not in items or actions', async () => {
-    const charNoItemOrAction = {
-      ...baseChar,
-      items: [],
-      actions: [],
-    };
-    const { tools } = makeTools(() => charNoItemOrAction);
-    const result = await tools.handleGetCharacterEntity({
-      characterIdentifier: 'Ember',
-      entityIdentifier: 'Blessed',
-    });
-    expect(result.entityType).toBe('effect');
-    expect(result.name).toBe('Blessed');
-  });
-
-  it('throws when entity is not found in any collection', async () => {
-    const { tools } = makeTools(() => ({ ...baseChar, items: [], actions: [], effects: [] }));
+  it('turns a GM-gate refusal into an error', async () => {
+    const { tools } = makeTools(() => ({ error: 'Access denied', success: false }));
     await expect(
-      tools.handleGetCharacterEntity({
-        characterIdentifier: 'Ember',
-        entityIdentifier: 'NonExistent',
-      })
-    ).rejects.toThrow('Entity "NonExistent" not found on character "Ember"');
+      tools.handleGetCharacterEntity({ characterIdentifier: 'A', entityIdentifier: 'B' })
+    ).rejects.toThrow('Failed to retrieve entity "B" from character "A": Access denied');
   });
 
   it('throws ZodError when characterIdentifier is missing', async () => {
@@ -467,20 +426,27 @@ describe('CharacterTools.handleGetCharacterEntity', () => {
 
   it('wraps query errors as "Failed to retrieve entity …"', async () => {
     const { tools } = makeTools(() => {
-      throw new Error('bridge down');
+      throw new Error('Entity not found: "Axe" in character "Test Cleric"');
     });
     await expect(
       tools.handleGetCharacterEntity({
-        characterIdentifier: 'Ember',
-        entityIdentifier: 'Fireball',
+        characterIdentifier: 'Test Cleric',
+        entityIdentifier: 'Axe',
       })
-    ).rejects.toThrow('Failed to retrieve entity "Fireball" from character "Ember": bridge down');
+    ).rejects.toThrow(
+      'Failed to retrieve entity "Axe" from character "Test Cleric": Entity not found: "Axe" in character "Test Cleric"'
+    );
+  });
+
+  it('says to update the module when it has no getCharacterEntity handler', async () => {
+    const { tools } = makeTools(() => {
+      throw new Error('No handler found for query: foundry-mcp-bridge.getCharacterEntity');
+    });
+    await expect(
+      tools.handleGetCharacterEntity({ characterIdentifier: 'A', entityIdentifier: 'B' })
+    ).rejects.toThrow(/older than the bridge; update the module/);
   });
 });
-
-// ---------------------------------------------------------------------------
-// handleListCharacters
-// ---------------------------------------------------------------------------
 
 describe('CharacterTools.handleListCharacters', () => {
   it('dispatches listActors with type and returns formatted list', async () => {

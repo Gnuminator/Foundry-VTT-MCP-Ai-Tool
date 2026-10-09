@@ -50,14 +50,14 @@ Parameters:
 
 ### get-character-entity
 
-Retrieve full details for a specific entity from a character. Works for items (feats, equipment, spells), actions (strikes, special abilities), or effects/conditions. Returns complete description and all system data. Use this after get-character when you need detailed information about a specific entity.
+Retrieve full details for one item or effect of a character. Items (spells, weapons, equipment, features) come with their dnd5e details (spell level, rarity, quantity, equipped, attunement, uses left) and their activities (attacks with to-hit, saves with DC, damage formulas, activation, range, target), plus the complete description and system data. Effects come with duration and changes. Use this after get-character when you need detailed information about a specific entity.
 
 Kind: read-only. Title: Get character item or effect.
 
 Parameters:
 
 - `characterIdentifier` (string, required): Character name or ID
-- `entityIdentifier` (string, required): Entity name or ID (can be item ID, action name, spell name, or effect name)
+- `entityIdentifier` (string, required): Item or effect name or ID (a spell, weapon, feature or effect)
 
 ### search-character-items
 

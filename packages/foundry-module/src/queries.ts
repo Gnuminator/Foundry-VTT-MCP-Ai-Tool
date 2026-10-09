@@ -345,6 +345,7 @@ export class QueryHandlers {
       `${modulePrefix}.searchCharacterItems`,
       this.handleSearchCharacterItems.bind(this)
     );
+    handlers.set(`${modulePrefix}.getCharacterEntity`, this.handleGetCharacterEntity.bind(this));
 
     // Item authoring on actor sheets
     handlers.set(`${modulePrefix}.addActorItems`, this.handleAddActorItems.bind(this));
@@ -1054,6 +1055,21 @@ export class QueryHandlers {
         type: data.type,
         category: data.category,
         limit: data.limit,
+      });
+    });
+  }
+
+  /** One item (with its dnd5e 6 activities) or effect of a character, in full. */
+  private async handleGetCharacterEntity(data: {
+    characterIdentifier: string;
+    entityIdentifier: string;
+  }): Promise<any> {
+    return this.withGmGate('Failed to get character entity', async () => {
+      if (!data?.characterIdentifier) throw new Error('characterIdentifier is required');
+      if (!data?.entityIdentifier) throw new Error('entityIdentifier is required');
+      return await this.dataAccess.getCharacterEntity({
+        characterIdentifier: data.characterIdentifier,
+        entityIdentifier: data.entityIdentifier,
       });
     });
   }

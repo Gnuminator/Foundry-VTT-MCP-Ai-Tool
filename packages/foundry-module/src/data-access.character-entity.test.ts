@@ -118,10 +118,19 @@ describe('getCharacterEntity — character look-up', () => {
     expect(result.success).toBe(true);
   });
 
-  it('throws "Character not found" wrapped in the outer error when character is missing', async () => {
+  it('throws "Character not found" when the character is missing (the query handler adds the prefix)', async () => {
     await expect(
       da.getCharacterEntity({ characterIdentifier: 'Nobody', entityIdentifier: 'Sword' })
-    ).rejects.toThrow('Failed to get character entity: Character not found: "Nobody"');
+    ).rejects.toThrow('Character not found: Nobody');
+  });
+
+  it('resolves a unique partial name, as get-character does', async () => {
+    world.actors.add(makeHero());
+    const result = await da.getCharacterEntity({
+      characterIdentifier: 'Ald',
+      entityIdentifier: 'Longsword',
+    });
+    expect(result.entity.name).toBe('Longsword');
   });
 });
 
@@ -145,6 +154,7 @@ describe('getCharacterEntity — item branch', () => {
         type: 'weapon',
         img: 'longsword.webp',
         description: 'A trusty blade.',
+        equipped: true,
         system: {
           description: { value: 'A trusty blade.' },
           equipped: true,
@@ -175,6 +185,66 @@ describe('getCharacterEntity — item branch', () => {
     // The method does: entity.system?.description?.value || entity.system?.description || ''
     // 'Plain text description'.value is undefined → falls through to the string itself
     expect(result.entity.description).toBe('Plain text description');
+  });
+
+  it('adds the dnd5e 6 details: spell level, uses and activities from their labels', async () => {
+    world.actors.add(
+      makeActor({
+        id: 'cleric0000000000',
+        name: 'Test Cleric',
+        type: 'character',
+        items: [
+          makeItem({
+            id: 'guiding000000000',
+            name: 'Guiding Bolt',
+            type: 'spell',
+            system: {
+              level: 1,
+              school: 'evo',
+              uses: { spent: 1, max: 3, recovery: [{ period: 'lr', type: 'recoverAll' }] },
+              activities: {
+                contents: [
+                  {
+                    id: 'attack0000000000',
+                    name: '',
+                    type: 'attack',
+                    activation: { type: 'action', value: 1 },
+                    labels: {
+                      activation: '1 Action',
+                      range: '120 ft',
+                      target: '1 Creature',
+                      toHit: '+5',
+                      damage: [{ formula: '4d6', label: '4d6 Radiant' }],
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+        ],
+      })
+    );
+    const result = await da.getCharacterEntity({
+      characterIdentifier: 'Test Cleric',
+      entityIdentifier: 'guiding bolt',
+    });
+    expect(result.entityType).toBe('item');
+    expect(result.entity).toMatchObject({
+      level: 1,
+      school: 'evo',
+      uses: { value: 2, max: 3 },
+      activities: [
+        {
+          id: 'attack0000000000',
+          type: 'attack',
+          activation: '1 Action',
+          range: '120 ft',
+          target: '1 Creature',
+          toHit: '+5',
+          damage: '4d6 Radiant',
+        },
+      ],
+    });
   });
 });
 
@@ -311,15 +381,13 @@ describe('getCharacterEntity — effects branch', () => {
 // ---------------------------------------------------------------------------
 
 describe('getCharacterEntity — entity not-found error', () => {
-  it('throws "Entity not found" wrapped in outer error when no branch matches', async () => {
+  it('throws "Entity not found" when no branch matches', async () => {
     world.actors.add(makeHero());
     await expect(
       da.getCharacterEntity({
         characterIdentifier: 'Aldric',
         entityIdentifier: 'Phantom Dagger',
       })
-    ).rejects.toThrow(
-      'Failed to get character entity: Entity not found: "Phantom Dagger" in character "Aldric"'
-    );
+    ).rejects.toThrow('Entity not found: "Phantom Dagger" in character "Aldric"');
   });
 });

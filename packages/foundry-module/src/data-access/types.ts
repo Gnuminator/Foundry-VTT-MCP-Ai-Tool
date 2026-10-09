@@ -6,6 +6,8 @@
  * `FoundryDataAccess` facade and its domain modules pass around.
  */
 
+import type { ItemEntityDetails } from './item-entity.js';
+
 export interface CharacterInfo {
   id: string;
   name: string;
@@ -73,6 +75,15 @@ export interface CharacterEffect {
     remaining?: number;
   };
 }
+
+/** `getCharacterEntity`: one item (with its dnd5e 6 details) or one effect, in full. */
+export type CharacterEntityResult =
+  | {
+      success: true;
+      entityType: 'item';
+      entity: CharacterItem & ItemEntityDetails & { description: string };
+    }
+  | { success: true; entityType: 'effect'; entity: Record<string, unknown> };
 
 export interface CompendiumSearchResult {
   id: string;

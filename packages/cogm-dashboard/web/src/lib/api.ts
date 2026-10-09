@@ -56,11 +56,15 @@ export async function callTool<T>(
   args: Record<string, unknown>,
   confirm: ToolConfirm = {}
 ): Promise<T> {
-  const data = await api<{ ok?: boolean; result?: T; error?: string }>('/api/tool', {
+  const data = await api<{ ok?: boolean; result?: T; error?: string; kind?: string }>('/api/tool', {
     method: 'POST',
     body: JSON.stringify({ name, args, ...confirm }),
   });
-  if (!data.ok) throw new Error(data.error ?? 'The tool did not answer.');
+  // The server sends failures with a 4xx or 5xx today; a 200 that still says ok: false keeps its
+  // kind, so it is not logged or worded as a network error.
+  if (!data.ok) {
+    throw new ApiError(data.error ?? 'The tool did not answer.', 200, field(data, 'kind'));
+  }
   return data.result as T;
 }
 

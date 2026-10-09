@@ -13,6 +13,29 @@ import { effectChanges, effectDuration, effectImg } from '../systems/core.js';
 import { num, rec, spellPrepared, str } from '../character-sheet-fields.js';
 import { itemEntityDetails } from './item-entity.js';
 
+/** One `searchCharacterItems` match: an item, a spell or an effect. */
+interface SearchMatch {
+  id: string;
+  name: string;
+  type: string;
+  description?: string;
+  // For spells
+  level?: number;
+  prepared?: boolean;
+  expended?: boolean;
+  range?: string;
+  target?: string;
+  area?: string;
+  actionCost?: string;
+  traits?: string[];
+  // For items
+  quantity?: number;
+  equipped?: boolean;
+  invested?: boolean;
+  // For actions
+  actionType?: string;
+}
+
 /**
  * Character/actor inspection domain for `FoundryDataAccess`.
  *
@@ -50,7 +73,7 @@ export class CharacterDataAccess {
       name: actor.name || '',
       type: actor.type,
       ...(actor.img ? { img: actor.img } : {}),
-      system: shared.sanitizeData((actor as any).system),
+      system: shared.sanitizeData(actor.system),
       items: actor.items.map(item => this.summarizeItem(item)),
       effects: actor.effects.map(effect => this.summarizeEffect(effect)),
     };
@@ -132,7 +155,7 @@ export class CharacterDataAccess {
     }
 
     const systemId = game.system.id;
-    const matches: Array<any> = [];
+    const matches: SearchMatch[] = [];
 
     const searchQuery = query?.toLowerCase().trim();
     const searchType = type?.toLowerCase().trim();
@@ -156,7 +179,7 @@ export class CharacterDataAccess {
       const description = this.itemDescription(itemSystem);
       if (!matchesQuery(item.name) && !matchesQuery(description)) continue;
 
-      const result: any = { id: item.id, name: item.name, type: item.type };
+      const result: SearchMatch = { id: item.id, name: item.name, type: item.type };
       if (description) {
         result.description = this.truncateDescription(description);
       }
@@ -185,9 +208,9 @@ export class CharacterDataAccess {
         if (!matchesQuery(effectName)) continue;
         matches.push({
           id: effect.id,
-          name: effectName,
+          name: effectName as string,
           type: 'effect',
-          description: legacy.description || undefined,
+          description: (legacy.description || undefined) as string,
         });
       }
     }
@@ -198,7 +221,7 @@ export class CharacterDataAccess {
       query?: string;
       type?: string;
       category?: string;
-      matches: any[];
+      matches: SearchMatch[];
       totalMatches: number;
     } = {
       characterId: actor.id || '',
@@ -295,7 +318,7 @@ export class CharacterDataAccess {
   }
 
   /** Item summary for the dossier: identity + sanitized system data. */
-  private summarizeItem(item: any): CharacterItem {
+  private summarizeItem(item: Item): CharacterItem {
     return {
       id: item.id,
       name: item.name,
@@ -314,13 +337,14 @@ export class CharacterDataAccess {
    * straight off the live `effect.duration` getter, which computes it the same
    * way on both versions (verified `client/documents/active-effect.mjs:405`).
    */
-  private summarizeEffect(effect: any): CharacterEffect {
+  private summarizeEffect(effect: ActiveEffect): CharacterEffect {
     const dur = effect.duration;
-    const icon = effectImg(effect as ActiveEffect);
-    const norm = dur ? effectDuration(effect as ActiveEffect) : null;
+    const icon = effectImg(effect);
+    const norm = dur ? effectDuration(effect) : null;
+    const remaining = rec(dur).remaining;
     return {
       id: effect.id,
-      name: effect.name || effect.label || 'Unknown Effect',
+      name: (effect.name || rec(effect).label || 'Unknown Effect') as string,
       ...(icon ? { icon } : {}),
       disabled: effect.disabled,
       ...(norm
@@ -330,7 +354,7 @@ export class CharacterDataAccess {
               // `exactOptionalPropertyTypes`: spread in only when present,
               // rather than assigning `undefined` to the optional field.
               ...(norm.value != null ? { duration: norm.value } : {}),
-              ...(dur.remaining != null ? { remaining: dur.remaining } : {}),
+              ...(remaining != null ? { remaining: remaining as number } : {}),
             },
           }
         : {}),
@@ -341,12 +365,14 @@ export class CharacterDataAccess {
    * dnd5e equipped-item toggles: any item exposing `system.equipped` is reported
    * as a toggle carrying its current equipped state.
    */
-  private extractEquippedToggles(actor: any): any[] {
-    const toggles: any[] = [];
+  private extractEquippedToggles(
+    actor: Actor
+  ): Array<{ itemId: string; itemName: string; type: string; enabled: unknown }> {
+    const toggles: Array<{ itemId: string; itemName: string; type: string; enabled: unknown }> = [];
 
-    actor.items.forEach((item: any) => {
-      const sys = item.system;
-      if (sys?.equipped !== undefined) {
+    actor.items.forEach(item => {
+      const sys = rec(item.system);
+      if (sys.equipped !== undefined) {
         toggles.push({
           itemId: item.id,
           itemName: item.name,
@@ -369,8 +395,9 @@ export class CharacterDataAccess {
   }
 
   /** A string description for query matching (handles `description.value` shapes). */
-  private itemDescription(itemSystem: any): string {
-    const raw = itemSystem?.description?.value || itemSystem?.description;
+  private itemDescription(itemSystem: unknown): string {
+    const description = rec(itemSystem).description;
+    const raw = rec(description).value || description;
     return typeof raw === 'string' ? raw : '';
   }
 
@@ -386,13 +413,13 @@ export class CharacterDataAccess {
    * mismatch).
    */
   private applySpellFields(
-    result: any,
-    itemSystem: any,
+    result: SearchMatch,
+    itemSystem: unknown,
     systemId: string,
     searchCategory?: string,
     actorType?: string
   ): boolean {
-    result.level = num(itemSystem?.level, 0); // dnd5e 6 `SpellData.level` is a number
+    result.level = num(rec(itemSystem).level, 0); // dnd5e 6 `SpellData.level` is a number
     if (systemId === 'dnd5e' && itemSystem)
       result.prepared = spellPrepared(rec(itemSystem), actorType);
 
@@ -401,7 +428,7 @@ export class CharacterDataAccess {
       if (targeting.range) result.range = targeting.range;
       if (targeting.target) result.target = targeting.target;
       if (targeting.area) result.area = targeting.area;
-      result.actionCost = itemSystem?.activation?.type;
+      result.actionCost = rec(rec(itemSystem).activation).type as string;
     }
 
     // dnd5e recognizes only cantrip/prepared; any other category is inert.
@@ -420,9 +447,14 @@ export class CharacterDataAccess {
    * Populate equipment-specific fields on a search result and apply the
    * equipment category filter. Returns `false` when the item should be skipped.
    */
-  private applyEquipmentFields(result: any, itemSystem: any, searchCategory?: string): boolean {
-    result.quantity = itemSystem?.quantity ?? 1;
-    result.equipped = itemSystem?.equipped ?? false;
+  private applyEquipmentFields(
+    result: SearchMatch,
+    itemSystem: unknown,
+    searchCategory?: string
+  ): boolean {
+    const sys = rec(itemSystem);
+    result.quantity = (sys.quantity ?? 1) as number;
+    result.equipped = (sys.equipped ?? false) as boolean;
 
     // dnd5e recognizes only `equipped`; any other category is inert.
     if (searchCategory) {
@@ -484,28 +516,33 @@ export class CharacterDataAccess {
    * either removes (`icon`) or moves (`duration` shape, `changes` lives at
    * `system.changes`).
    */
-  private findEffectEntity(character: any, entityIdentifier: string): CharacterEntityResult | null {
+  private findEffectEntity(
+    character: Actor,
+    entityIdentifier: string
+  ): CharacterEntityResult | null {
     const effects = character.effects?.contents || [];
     const entity = effects.find(
-      (effect: any) =>
+      effect =>
         effect.id === entityIdentifier ||
         effect.name?.toLowerCase() === entityIdentifier.toLowerCase()
     );
     if (!entity) return null;
 
     const rawDuration = entity.duration as Record<string, unknown> | undefined;
-    const norm = rawDuration ? effectDuration(entity as ActiveEffect) : null;
+    const norm = rawDuration ? effectDuration(entity) : null;
+    // `label` (pre-v11 name) and `description` have no declaration.
+    const legacy = rec(entity);
 
     return {
       success: true,
       entityType: 'effect',
       entity: {
         id: entity.id,
-        name: entity.name || entity.label,
-        ...(typeof entity.description === 'string' && entity.description
-          ? { description: entity.description }
+        name: entity.name || legacy.label,
+        ...(typeof legacy.description === 'string' && legacy.description
+          ? { description: legacy.description }
           : {}),
-        icon: effectImg(entity as ActiveEffect),
+        icon: effectImg(entity),
         disabled: entity.disabled,
         duration: norm
           ? {
@@ -515,7 +552,7 @@ export class CharacterDataAccess {
               expired: norm.expired,
             }
           : rawDuration,
-        changes: effectChanges(entity as ActiveEffect).map(c => ({
+        changes: effectChanges(entity).map(c => ({
           key: c.key,
           mode: c.type,
           type: c.type,
@@ -537,7 +574,6 @@ export class CharacterDataAccess {
    */
   private extractSpellcastingData(actor: Actor): SpellcastingEntry[] {
     const entries: SpellcastingEntry[] = [];
-    const actorAny = actor as any;
     const systemId = game.system.id;
 
     const spellItems = actor.items.filter(item => item.type === 'spell');
@@ -546,7 +582,7 @@ export class CharacterDataAccess {
     }
 
     const classes = actor.items.filter(item => item.type === 'class');
-    const spellSlots = actorAny.system?.spells || {};
+    const spellSlots = rec(actor.system).spells || {};
 
     // Bucket each spell under its originating class identifier (or 'general').
     const spellsByClass: Record<string, SpellInfo[]> = {};
@@ -682,20 +718,27 @@ export class CharacterDataAccess {
    * included; returns `undefined` when there are none.
    */
   private extractDnD5eSpellSlots(
-    spellsData: any
+    spellsData: unknown
   ): Record<string, { value: number; max: number }> | undefined {
     const slots: Record<string, { value: number; max: number }> = {};
+    const data = rec(spellsData);
 
     for (let level = 1; level <= 9; level++) {
-      const slotData = spellsData?.[`spell${level}`];
-      if (slotData && (slotData.max > 0 || slotData.value > 0)) {
-        slots[`level${level}`] = { value: slotData.value ?? 0, max: slotData.max ?? 0 };
+      const slotData = rec(data[`spell${level}`]);
+      if (num(slotData.max, 0) > 0 || num(slotData.value, 0) > 0) {
+        slots[`level${level}`] = {
+          value: (slotData.value ?? 0) as number,
+          max: (slotData.max ?? 0) as number,
+        };
       }
     }
 
-    const pactSlot = spellsData?.pact;
-    if (pactSlot && (pactSlot.max > 0 || pactSlot.value > 0)) {
-      slots['pact'] = { value: pactSlot.value ?? 0, max: pactSlot.max ?? 0 };
+    const pactSlot = rec(data.pact);
+    if (num(pactSlot.max, 0) > 0 || num(pactSlot.value, 0) > 0) {
+      slots['pact'] = {
+        value: (pactSlot.value ?? 0) as number,
+        max: (pactSlot.max ?? 0) as number,
+      };
     }
 
     return Object.keys(slots).length > 0 ? slots : undefined;
@@ -707,28 +750,30 @@ export class CharacterDataAccess {
    * without a target count (or targeting a point) are reported as an "area";
    * a self-targeted spell keeps "self" next to its area.
    */
-  private extractDnD5eSpellTargeting(spellSystem: any): {
+  private extractDnD5eSpellTargeting(spellSystem: unknown): {
     range?: string;
     target?: string;
     area?: string;
   } {
     const result: { range?: string; target?: string; area?: string } = {};
 
-    const rangeValue = spellSystem?.range?.value;
-    const rangeUnits = spellSystem?.range?.units;
+    const sys = rec(spellSystem);
+    const range = rec(sys.range);
+    const rangeValue = range.value;
+    const rangeUnits = range.units;
     if (rangeUnits === 'self') {
       result.range = 'Self';
     } else if (rangeUnits === 'touch') {
       result.range = 'Touch';
     } else if (rangeUnits === 'spec') {
-      result.range = spellSystem?.range?.special || 'Special';
+      result.range = (range.special || 'Special') as string;
     } else if (rangeValue && rangeUnits) {
-      result.range = `${rangeValue} ${rangeUnits}`;
+      result.range = `${rangeValue as string} ${rangeUnits as string}`;
     }
 
     // dnd5e 6 keeps individual targets in `target.affects` ({type, count, choice, special})
     // next to the area in `target.template`.
-    const affects = rec(rec(spellSystem?.target).affects);
+    const affects = rec(rec(sys.target).affects);
     const affectsType = str(affects.type);
     const count = num(affects.count, 0);
     const nouns = SPELL_TARGET_NOUNS[affectsType];
@@ -742,11 +787,12 @@ export class CharacterDataAccess {
       result.target = affectsType;
     }
 
-    const areaType = spellSystem?.target?.template?.type;
-    const areaSize = spellSystem?.target?.template?.size;
-    const areaUnits = spellSystem?.target?.template?.units || 'ft';
+    const template = rec(rec(sys.target).template);
+    const areaType = template.type;
+    const areaSize = template.size;
+    const areaUnits = template.units || 'ft';
     if (areaType && areaSize) {
-      result.area = `${areaSize}-${areaUnits} ${areaType}`;
+      result.area = `${areaSize as string}-${areaUnits as string} ${areaType as string}`;
       // "each creature in the area" reads as the area; a counted target keeps its count,
       // and a self-centred spell (Detect Magic, Globe of Invulnerability) stays "self".
       if (result.target !== 'self' && (!count || result.target === 'point')) {

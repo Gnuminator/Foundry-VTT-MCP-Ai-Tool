@@ -29,7 +29,9 @@ import type {
 /**
  * dnd5e 6 Item fields the server's search summaries read (spell level and school, weapon
  * damage, armor type and AC, rarity, price). dnd5e's own index holds only `container`,
- * `identifier` and `source`, so they are requested once per Item pack.
+ * `identifier` and `source`, so they are requested for an Item pack once a search matches
+ * a name in it. Rarity is `rarity` in older pack data and the `rarities` list in data
+ * written by dnd5e 6.
  */
 export const ITEM_SUMMARY_FIELDS = [
   'system.level',
@@ -38,6 +40,7 @@ export const ITEM_SUMMARY_FIELDS = [
   'system.type.value',
   'system.armor.value',
   'system.rarity',
+  'system.rarities',
   'system.price',
 ];
 
@@ -48,10 +51,19 @@ interface IndexedPack {
   getIndex(options: { fields?: string[] }): Promise<unknown>;
 }
 
-export class CompendiumDataAccess {
-  /** Item packs whose index already holds {@link ITEM_SUMMARY_FIELDS}. */
-  private readonly summaryIndexed = new Set<string>();
+/** A pack as the name search walks it. */
+interface SearchPack extends IndexedPack {
+  metadata: { id: string; type: string; label: string };
+  index: { values(): Iterable<unknown>; get(id: string): unknown };
+}
 
+/** A pack and the index entries whose names matched. */
+interface PackHits {
+  pack: SearchPack;
+  entries: Array<{ _id?: string }>;
+}
+
+export class CompendiumDataAccess {
   constructor(private persistentIndex: PersistentCreatureIndex) {}
 
   /**
@@ -106,12 +118,12 @@ export class CompendiumDataAccess {
       throw new Error('Search query must contain valid search terms');
     }
 
-    const results: CompendiumSearchResult[] = [];
-
-    for (const pack of this.searchablePacks(packType)) {
+    // Name matches against each pack's plain index, at most 100 in all
+    const hits: PackHits[] = [];
+    let found = 0;
+    for (const pack of await this.loadIndexes(this.searchablePacks(packType))) {
+      const entries: PackHits['entries'] = [];
       try {
-        await this.loadIndex(pack as IndexedPack);
-
         for (const entry of Array.from(pack.index.values())) {
           try {
             const typedEntry = entry as any;
@@ -137,7 +149,8 @@ export class CompendiumDataAccess {
               continue;
             }
 
-            results.push(this.toIndexResult(typedEntry, pack));
+            entries.push(entry as PackHits['entries'][number]);
+            found += 1;
           } catch (entryError) {
             console.warn(
               `[${MODULE_ID}] Error processing entry in pack ${pack.metadata.id}:`,
@@ -146,13 +159,30 @@ export class CompendiumDataAccess {
             continue;
           }
 
-          if (results.length >= 100) break;
+          if (found >= 100) break;
         }
       } catch (error) {
         console.warn(`[${MODULE_ID}] Failed to search pack ${pack.metadata.id}:`, error);
       }
 
-      if (results.length >= 100) break;
+      if (entries.length > 0) hits.push({ pack, entries });
+      if (found >= 100) break;
+    }
+
+    // Summary fields only for the Item packs that matched, all at once
+    await Promise.all(
+      hits
+        .filter(hit => hit.pack.metadata.type === 'Item')
+        .map(hit => this.loadSummaryFields(hit.pack))
+    );
+
+    const results: CompendiumSearchResult[] = [];
+    for (const { pack, entries } of hits) {
+      for (const entry of entries) {
+        // A fresh index may hold a new object for the entry; the old one still has the name
+        const indexed = pack.index.get(entry._id ?? '') ?? entry;
+        results.push(this.toIndexResult(indexed, pack));
+      }
     }
 
     results.sort((a, b) => this.compareSearchResults(a, b, filters, query));
@@ -160,7 +190,7 @@ export class CompendiumDataAccess {
   }
 
   /** Packs eligible for a search: type-matched (when given) and never Scenes. */
-  private searchablePacks(packType?: string): any[] {
+  private searchablePacks(packType?: string): SearchPack[] {
     return Array.from(game.packs.values()).filter(pack => {
       if (packType && pack.metadata.type !== packType) return false;
       return pack.metadata.type !== 'Scene';
@@ -173,13 +203,35 @@ export class CompendiumDataAccess {
     return searchTerms.every(term => !!term && typeof term === 'string' && lower.includes(term));
   }
 
-  /** Index a pack for the name search: Item packs once with {@link ITEM_SUMMARY_FIELDS}. */
-  private async loadIndex(pack: IndexedPack): Promise<void> {
-    if (pack.metadata.type === 'Item' && !this.summaryIndexed.has(pack.metadata.id)) {
+  /**
+   * The packs whose plain index is ready, indexing the others in parallel. A pack that
+   * fails to index is left out of the search.
+   */
+  private async loadIndexes(packs: SearchPack[]): Promise<SearchPack[]> {
+    const ready = await Promise.all(
+      packs.map(async pack => {
+        try {
+          if (!pack.indexed) await pack.getIndex({});
+          return pack;
+        } catch (error) {
+          console.warn(`[${MODULE_ID}] Failed to index pack ${pack.metadata.id}:`, error);
+          return null;
+        }
+      })
+    );
+    return ready.filter((pack): pack is SearchPack => pack !== null);
+  }
+
+  /**
+   * Add {@link ITEM_SUMMARY_FIELDS} to an Item pack's index. Foundry returns at once when
+   * the pack already holds them, and asks again after anything replaced its indexed
+   * fields, so no cache is kept here. On failure the results keep their plain entries.
+   */
+  private async loadSummaryFields(pack: IndexedPack): Promise<void> {
+    try {
       await pack.getIndex({ fields: ITEM_SUMMARY_FIELDS });
-      this.summaryIndexed.add(pack.metadata.id);
-    } else if (!pack.indexed) {
-      await pack.getIndex({});
+    } catch (error) {
+      console.warn(`[${MODULE_ID}] No summary fields for pack ${pack.metadata.id}:`, error);
     }
   }
 
@@ -648,7 +700,7 @@ function summarySystem(system: unknown): Record<string, unknown> {
   const sys =
     system !== null && typeof system === 'object' ? (system as Record<string, unknown>) : {};
   const out: Record<string, unknown> = {};
-  for (const key of ['level', 'school', 'damage', 'type', 'armor', 'rarity', 'price']) {
+  for (const key of ['level', 'school', 'damage', 'type', 'armor', 'rarity', 'rarities', 'price']) {
     if (sys[key] !== undefined && sys[key] !== null) out[key] = sys[key];
   }
   return out;

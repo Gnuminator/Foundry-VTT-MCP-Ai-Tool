@@ -438,13 +438,27 @@ export class CharacterDataAccess {
    * `system`.
    */
   private findItemEntity(character: Actor, entityIdentifier: string): CharacterEntityResult | null {
+    const items = character.items.contents;
     const needle = entityIdentifier.toLowerCase();
-    const entity = character.items.contents.find(
-      item => item.id === entityIdentifier || item.name?.toLowerCase() === needle
-    );
+    const named = items.filter(item => item.name?.toLowerCase() === needle);
+    if (!items.some(item => item.id === entityIdentifier) && named.length > 1) {
+      const shown = named.map(item => `${item.name} (${item.id})`).join(', ');
+      throw new Error(
+        `Multiple items in "${character.name}" match "${entityIdentifier}": ${shown}. ` +
+          `Use the item id.`
+      );
+    }
+    const entity = items.find(item => item.id === entityIdentifier) ?? named[0];
     if (!entity) return null;
 
     const system = rec(entity.system);
+    // The description goes out once, as `entity.description`
+    const sanitized = rec(shared.sanitizeData(entity.system));
+    const sanitizedDescription = rec(sanitized.description);
+    if ('value' in sanitizedDescription) {
+      const { value: _html, ...rest } = sanitizedDescription;
+      sanitized.description = rest;
+    }
     return {
       success: true,
       entityType: 'item',
@@ -455,7 +469,7 @@ export class CharacterDataAccess {
         ...(entity.img ? { img: entity.img } : {}),
         description: this.itemDescription(system),
         ...itemEntityDetails(entity.type, system),
-        system: shared.sanitizeData(entity.system),
+        system: sanitized,
       },
     };
   }

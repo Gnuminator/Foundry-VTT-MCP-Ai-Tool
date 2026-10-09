@@ -264,39 +264,112 @@ describe('FoundryDataAccess — searchCompendium — name matching', () => {
 });
 
 describe('FoundryDataAccess: searchCompendium, Item summary fields (dnd5e 6)', () => {
-  it('indexes Item packs once with the summary fields and returns their system', async () => {
-    const entry = {
-      _id: 'chain',
-      name: 'Chain Mail',
-      type: 'equipment',
-      system: {
-        identifier: 'chain-mail',
-        source: { book: 'SRD' },
-        type: { value: 'heavy' },
-        armor: { value: 16 },
-        price: { value: 75, denomination: 'gp' },
-      },
-    };
-    const pack = world.addPack({ id: 'dnd5e.items', label: 'Items', type: 'Item' });
+  const chainMail = {
+    _id: 'chain',
+    name: 'Chain Mail',
+    type: 'equipment',
+    system: {
+      identifier: 'chain-mail',
+      source: { book: 'SRD' },
+      type: { value: 'heavy' },
+      armor: { value: 16 },
+      price: { value: 75, denomination: 'gp' },
+    },
+  };
+
+  /**
+   * An Item pack that indexes like Foundry 14's CompendiumCollection: the plain index holds
+   * names only, `getIndex` asks the server again only for fields it has not indexed yet.
+   */
+  function itemPack(
+    id: string,
+    entries: Array<Record<string, any>>,
+    fail?: 'fields' | 'all'
+  ): { pack: ReturnType<TestWorld['addPack']>; server: ReturnType<typeof vi.fn> } {
+    const pack = world.addPack({ id, label: id, type: 'Item' });
+    const indexedFields = new Set<string>();
+    pack.indexed = false;
     pack.index = new Map();
-    pack.getIndex = vi.fn(async () => {
-      pack.index = new Map([[entry._id, entry]]);
+    const server = vi.fn(async (fields: string[]) => {
+      if (fail === 'all' || (fail === 'fields' && fields.length > 0)) throw new Error('timeout');
+      pack.index = new Map(
+        entries.map(e => [
+          e._id,
+          fields.length > 0 ? { ...e } : { _id: e._id, name: e.name, type: e.type },
+        ])
+      );
+    });
+    pack.getIndex = vi.fn(async ({ fields = [] }: { fields?: string[] } = {}) => {
+      if (pack.indexed && fields.every(f => indexedFields.has(f))) return pack.index;
+      await server(fields);
+      fields.forEach(f => indexedFields.add(f));
+      pack.indexed = true;
       return pack.index;
     });
+    return { pack, server };
+  }
+
+  it('asks for the summary fields once a name matches, and returns their system', async () => {
+    const { pack, server } = itemPack('dnd5e.items', [chainMail]);
 
     const first = await da.searchCompendium('chain mail');
     await da.searchCompendium('chain');
 
-    expect(pack.getIndex).toHaveBeenCalledTimes(1);
     expect(pack.getIndex).toHaveBeenCalledWith({ fields: ITEM_SUMMARY_FIELDS });
+    expect(server).toHaveBeenCalledTimes(2); // the plain index, then the fields once
     expect(ITEM_SUMMARY_FIELDS).toEqual(
-      expect.arrayContaining(['system.type.value', 'system.armor.value', 'system.damage.base'])
+      expect.arrayContaining([
+        'system.type.value',
+        'system.armor.value',
+        'system.damage.base',
+        'system.rarity',
+        'system.rarities',
+      ])
     );
     expect(first[0].system).toEqual({
       type: { value: 'heavy' },
       armor: { value: 16 },
       price: { value: 75, denomination: 'gp' },
     });
+  });
+
+  it('leaves Item packs without a name match on their plain index', async () => {
+    const items = itemPack('dnd5e.items', [chainMail]);
+    const loot = itemPack('world.loot', [
+      { _id: 'cloak', name: 'Cloak of Displacement', type: 'equipment', system: {} },
+    ]);
+
+    const results = await da.searchCompendium('chain');
+
+    expect(results.map(r => r.name)).toEqual(['Chain Mail']);
+    expect(items.pack.getIndex).toHaveBeenCalledWith({ fields: ITEM_SUMMARY_FIELDS });
+    expect(loot.pack.getIndex).not.toHaveBeenCalledWith({ fields: ITEM_SUMMARY_FIELDS });
+  });
+
+  it('keeps the plain entries when the summary fields request fails', async () => {
+    itemPack('dnd5e.items', [chainMail], 'fields');
+
+    const results = await da.searchCompendium('chain');
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ name: 'Chain Mail', system: {} });
+  });
+
+  it('passes the dnd5e 6 rarities list through', async () => {
+    itemPack('world.loot', [
+      { _id: 'cloak', name: 'Cloak', type: 'equipment', system: { rarities: ['veryRare'] } },
+    ]);
+    const results = await da.searchCompendium('cloak');
+    expect(results[0].system).toEqual({ rarities: ['veryRare'] });
+  });
+
+  it('searches the other packs when one fails to index', async () => {
+    itemPack('broken.items', [chainMail], 'all');
+    itemPack('dnd5e.items', [chainMail]);
+
+    const results = await da.searchCompendium('chain');
+
+    expect(results.map(r => r.pack)).toEqual(['dnd5e.items']);
   });
 
   it('sends no system for Actor packs', async () => {

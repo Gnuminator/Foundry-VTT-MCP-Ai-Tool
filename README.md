@@ -118,7 +118,7 @@ The bridge and the dashboard are decoupled, so they can run where it suits the t
 
 - **Loopback by default.** The bridge's Foundry link and the dashboard listen on `127.0.0.1` only.
   `FOUNDRY_LINK_HOST` / `DASHBOARD_HOST` open them to other interfaces; the dashboard refuses a
-  non-loopback address without `GM_DASHBOARD_TOKEN`, and answers only host names on its allowlist
+  non-loopback address without a `GM_DASHBOARD_TOKEN` of at least 32 characters, and answers only host names on its allowlist
   (`DASHBOARD_ALLOWED_HOSTS`).
 - **Standalone bridge.** Run the bridge without Claude Desktop: `npm run bridge:standalone` (host and
   port injectable; Windows service scaffold in [`deploy/windows/`](deploy/windows/)).
@@ -243,6 +243,7 @@ closed, start the bridge standalone first: `npm run bridge:standalone`.
 | [ARCHITECTURE.md](docs/dev/ARCHITECTURE.md)             | The system from first principles: the wire contracts, GM-gating, guarded writes    |
 | [REMOTE-ACCESS.md](docs/dev/REMOTE-ACCESS.md)           | Remote access setup and deploy templates                                           |
 | [PI-SETUP.md](docs/dev/PI-SETUP.md)                     | Bringing up the Orange Pi home server                                              |
+| [PLAN-B.md](docs/dev/PLAN-B.md)                         | The Pi is down on game night: Foundry on the admin's PC from last night's backup   |
 | [CHANGELOG.md](CHANGELOG.md) · [CREDITS.md](CREDITS.md) | Releases · attribution                                                             |
 
 ---

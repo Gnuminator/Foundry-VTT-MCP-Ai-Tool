@@ -107,9 +107,12 @@ const openedAt = (iso: string): string =>
 export function HandoutsDrawer({
   open,
   onOpenChange,
+  onQueuePage,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** "+ Queue a page": the Tool runner on plan-page-reveal, queue, for the active scene if known. */
+  onQueuePage: (sceneId: string | null) => void;
 }): JSX.Element {
   const toast = useToast();
   const runChange = useGuardedChange();
@@ -326,17 +329,16 @@ export function HandoutsDrawer({
             />{' '}
             Show it now
           </label>
-          {/* Queueing a page needs the Tool runner (plan-page-reveal, action queue), which is
-              still on the full dashboard. */}
-          <a
+          {/* Opens the Tool runner with the form filled in; the GM picks the page and runs it. */}
+          <button
             className="btn"
             id="handouts-add"
-            href="/"
             data-track="dash.handouts.queue-page"
-            title="Queue a page on the full dashboard: its Handouts drawer has + Queue a page"
+            title="Queue a page for later: opens the tool runner on plan-page-reveal"
+            onClick={() => onQueuePage(s?.activeSceneId ?? null)}
           >
             + Queue a page
-          </a>
+          </button>
           <button
             className="btn"
             id="handouts-refresh"

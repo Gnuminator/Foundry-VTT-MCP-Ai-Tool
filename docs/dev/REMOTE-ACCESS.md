@@ -261,7 +261,7 @@ the remote-hosting topology.
 | Variable                       | Default                          | What it controls                                                                      |
 | ------------------------------ | -------------------------------- | ------------------------------------------------------------------------------------- |
 | `PORT`                         | `3000`                           | HTTP port the dashboard binds. Cloudflare Tunnel proxies this.                        |
-| `DASHBOARD_HOST`               | `127.0.0.1`                      | Listen address. Any non-loopback value is refused without `GM_DASHBOARD_TOKEN`.       |
+| `DASHBOARD_HOST`               | `127.0.0.1`                      | Listen address. Non-loopback needs a `GM_DASHBOARD_TOKEN` of 32 or more characters.   |
 | `DASHBOARD_ALLOWED_HOSTS`      | _(unset)_                        | Extra host names it answers to, e.g. the tunnel's public name (Host check).           |
 | `MCP_CONTROL_HOST`             | `127.0.0.1`                      | Where the dashboard connects for the control channel.                                 |
 | `MCP_CONTROL_PORT`             | `31414`                          | Control channel port (must match the backend).                                        |

@@ -24,11 +24,24 @@ function permissionName(level: number): string {
  * by probing `testUserPermission` from OWNER down to OBSERVER and LIMITED.
  * Returns 0 (NONE) when no positive tier matches.
  */
-function resolvePermissionTier(actor: any, user: any): number {
+function resolvePermissionTier(actor: Actor, user: User): number {
   if (actor.testUserPermission(user, 'OWNER')) return 3;
   if (actor.testUserPermission(user, 'OBSERVER')) return 2;
   if (actor.testUserPermission(user, 'LIMITED')) return 1;
   return 0;
+}
+
+/** One actor's ownership entry as returned by `getActorOwnership`. */
+interface ActorOwnershipEntry {
+  id: string;
+  name: string;
+  type: string;
+  ownership: Array<{
+    userId: string;
+    userName: string;
+    permission: string;
+    numericPermission: number;
+  }>;
 }
 
 /** Guarded feature id (mirror of the shared `OWNERSHIP_FEATURE_ID`, F5 L3). */
@@ -65,31 +78,33 @@ export class OwnershipPlayersDataAccess {
   async getActorOwnership(data: {
     actorIdentifier?: string;
     playerIdentifier?: string;
-  }): Promise<any> {
+  }): Promise<ActorOwnershipEntry[]> {
     shared.validateFoundryState();
 
     try {
       // Resolve the actor list.
-      const actors: any[] =
+      const actors: Actor[] =
         data.actorIdentifier && data.actorIdentifier !== 'all'
-          ? [shared.findActorByIdentifier(data.actorIdentifier)].filter(Boolean)
+          ? (
+              [shared.findActorByIdentifier(data.actorIdentifier)] as Array<Actor | undefined>
+            ).filter((a): a is Actor => !!a)
           : Array.from(game.actors || []);
 
       // Resolve the user list (non-GM users only).
-      let users: any[];
+      let users: User[];
       if (data.playerIdentifier) {
         const resolved =
           game.users?.getName(data.playerIdentifier) ?? game.users?.get(data.playerIdentifier);
         users = resolved && !resolved.isGM ? [resolved] : [];
       } else {
-        users = Array.from(game.users || []).filter((u: any) => !u.isGM);
+        users = Array.from(game.users || []).filter(u => !u.isGM);
       }
 
-      return actors.map((actor: any) => ({
+      return actors.map(actor => ({
         id: actor.id,
         name: actor.name,
         type: actor.type,
-        ownership: users.map((user: any) => {
+        ownership: users.map(user => {
           const tier = resolvePermissionTier(actor, user);
           return {
             userId: user.id,
@@ -116,12 +131,12 @@ export class OwnershipPlayersDataAccess {
     shared.validateFoundryState();
 
     try {
-      const scene = game.scenes?.find((s: any) => s.active);
+      const scene = game.scenes?.find(s => s.active);
       if (!scene) return [];
 
       return scene.tokens
-        .filter((token: any) => token.disposition === 1)
-        .map((token: any) => ({
+        .filter(token => token.disposition === 1)
+        .map(token => ({
           id: token.actor?.id || token.id || '',
           name: token.name || token.actor?.name || 'Unknown',
         }))
@@ -142,8 +157,8 @@ export class OwnershipPlayersDataAccess {
 
     try {
       return Array.from(game.actors || [])
-        .filter((actor: any) => actor.hasPlayerOwner && actor.type === 'character')
-        .map((actor: any) => ({ id: actor.id || '', name: actor.name || 'Unknown' }))
+        .filter(actor => actor.hasPlayerOwner && actor.type === 'character')
+        .map(actor => ({ id: actor.id || '', name: actor.name || 'Unknown' }))
         .filter((c: { id: string }) => c.id);
     } catch (error) {
       console.error(`[${MODULE_ID}] Error getting party characters:`, error);
@@ -161,8 +176,8 @@ export class OwnershipPlayersDataAccess {
 
     try {
       return Array.from(game.users || [])
-        .filter((user: any) => user.active && !user.isGM)
-        .map((user: any) => ({ id: user.id || '', name: user.name || 'Unknown' }))
+        .filter(user => user.active && !user.isGM)
+        .map(user => ({ id: user.id || '', name: user.name || 'Unknown' }))
         .filter((u: { id: string }) => u.id);
     } catch (error) {
       console.error(`[${MODULE_ID}] Error getting connected players:`, error);
@@ -196,26 +211,26 @@ export class OwnershipPlayersDataAccess {
       // Step 1: match against user names (GMs excluded).
       const players: Array<{ id: string; name: string }> = [];
       for (const user of game.users || []) {
-        if ((user as any).isGM) continue;
-        const uname = (user as any).name?.toLowerCase() ?? '';
+        if (user.isGM) continue;
+        const uname = user.name?.toLowerCase() ?? '';
         if (uname === search || (allowPartialMatch && uname.includes(search))) {
-          players.push({ id: (user as any).id || '', name: (user as any).name || 'Unknown' });
+          players.push({ id: user.id || '', name: user.name || 'Unknown' });
         }
       }
 
       // Step 2: fall back to character-owner lookup only when no direct match found.
       if (players.length === 0 && includeCharacterOwners) {
         for (const actor of game.actors || []) {
-          if ((actor as any).type !== 'character') continue;
-          const aname = (actor as any).name?.toLowerCase() ?? '';
+          if (actor.type !== 'character') continue;
+          const aname = actor.name?.toLowerCase() ?? '';
           if (aname !== search && !(allowPartialMatch && aname.includes(search))) continue;
 
           // Find the non-GM owner of this character.
           const owner = game.users?.find(
-            (user: any) => (actor as any).testUserPermission(user, 'OWNER') && !user.isGM
+            user => actor.testUserPermission(user, 'OWNER') && !user.isGM
           );
-          if (owner && !players.some(p => p.id === (owner as any).id)) {
-            players.push({ id: (owner as any).id || '', name: (owner as any).name || 'Unknown' });
+          if (owner && !players.some(p => p.id === owner.id)) {
+            players.push({ id: owner.id || '', name: owner.name || 'Unknown' });
           }
         }
       }
@@ -237,7 +252,7 @@ export class OwnershipPlayersDataAccess {
     shared.validateFoundryState();
 
     try {
-      const actor = shared.findActorByIdentifier(data.identifier);
+      const actor = shared.findActorByIdentifier(data.identifier) as Actor | undefined;
       return actor ? { id: actor.id, name: actor.name } : null;
     } catch (error) {
       console.error(`[${MODULE_ID}] Error finding actor:`, error);

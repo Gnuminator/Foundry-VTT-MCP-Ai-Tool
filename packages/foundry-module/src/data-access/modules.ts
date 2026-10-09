@@ -1,5 +1,5 @@
 import * as shared from './shared.js';
-import { diagnostics } from '../diagnostics.js';
+import { diagnostics, type DiagnosticEntry } from '../diagnostics.js';
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -24,6 +24,57 @@ interface ModuleSummary {
   requires: RequiredDep[];
   issues: string[];
 }
+
+/** The one `foundry.utils` member read here; optional because the test harness omits it. */
+interface FoundryVersionUtils {
+  isNewerVersion?: (a: unknown, b: unknown) => boolean;
+}
+
+/** Result of `getModules`. */
+interface ModulesResult {
+  success: true;
+  foundryVersion: string;
+  system: { id: string | null; version: string | null };
+  moduleCount: number;
+  activeCount: number;
+  modulesWithIssues: number;
+  modules: ModuleSummary[];
+}
+
+/** Result of `getModuleErrors`. */
+interface ModuleErrorsResult {
+  success: true;
+  count: number;
+  summary: ReturnType<typeof diagnostics.summary>;
+  errors: DiagnosticEntry[];
+}
+
+/** Result of `getModuleManifest`. */
+interface ModuleManifestResult {
+  success: true;
+  manifest: {
+    id: string;
+    title: string;
+    version: string;
+    active: boolean;
+    compatibility: unknown;
+    relationships: unknown;
+    authors: unknown;
+    description: unknown;
+    url: unknown;
+    flags: unknown;
+  };
+}
+
+/** Manifest members the Foundry declaration does not list yet (`FoundryPackage`). */
+interface ModuleManifestFields extends FoundryModule {
+  readonly authors?: unknown;
+  readonly description?: unknown;
+  readonly url?: unknown;
+}
+
+/** The `compatibility` block of a package as the declaration types it. */
+type ModuleCompatibility = NonNullable<FoundryModule['compatibility']>;
 
 // ---------------------------------------------------------------------------
 // Module inspection / diagnostics domain
@@ -63,18 +114,21 @@ export class ModulesDataAccess {
    * installed modules, even when `activeOnly` or `withIssuesOnly` narrow the
    * returned `modules` array. `moduleCount` reflects the filtered list length.
    */
-  async getModules(data: { activeOnly?: boolean; withIssuesOnly?: boolean }): Promise<any> {
+  async getModules(data: {
+    activeOnly?: boolean;
+    withIssuesOnly?: boolean;
+  }): Promise<ModulesResult> {
     shared.validateFoundryState();
 
     const coreVer = game.version;
-    const sys = game.system as any;
+    const sys = game.system;
 
     // Wrap `foundry.utils.isNewerVersion` so any absence or exception is
     // absorbed: returns false rather than throwing.
     const isNewer = this.buildIsNewerVersion();
 
     // Build the full (unfiltered) inventory.
-    const all: ModuleSummary[] = Array.from((game.modules as any).values()).map((m: any) =>
+    const all: ModuleSummary[] = Array.from(game.modules.values()).map(m =>
       this.summarizeModule(m, sys, coreVer, isNewer)
     );
 
@@ -109,7 +163,7 @@ export class ModulesDataAccess {
     moduleId?: string;
     sinceTimestamp?: string;
     limit?: number;
-  }): Promise<any> {
+  }): Promise<ModuleErrorsResult> {
     shared.validateFoundryState();
 
     const filters = this.buildErrorFilters(data);
@@ -124,7 +178,7 @@ export class ModulesDataAccess {
   }
 
   /** Drain the diagnostics buffer and report how many entries were cleared. */
-  async clearModuleErrors(): Promise<any> {
+  async clearModuleErrors(): Promise<{ success: true; cleared: number }> {
     shared.validateFoundryState();
     return { success: true, cleared: diagnostics.clear() };
   }
@@ -138,10 +192,10 @@ export class ModulesDataAccess {
    * the value is a plain JSON-safe object. `authors` and the `relationships` lists
    * are `Set`s on a real package (v11+, incl. v14), so they become arrays first.
    */
-  async getModuleManifest(data: { moduleId: string }): Promise<any> {
+  async getModuleManifest(data: { moduleId: string }): Promise<ModuleManifestResult> {
     shared.validateFoundryState();
 
-    const m = (game.modules as any).get(data.moduleId);
+    const m = game.modules.get(data.moduleId) as ModuleManifestFields | undefined;
     if (!m) throw new Error(`Module not found: ${data.moduleId}`);
 
     return {
@@ -190,7 +244,8 @@ export class ModulesDataAccess {
    * returns `true` when version string `a` is strictly newer than `b`.
    */
   private buildIsNewerVersion(): (a: unknown, b: unknown) => boolean {
-    const fu = (globalThis as any).foundry?.utils;
+    const fu = (globalThis as unknown as { foundry?: { utils?: FoundryVersionUtils } }).foundry
+      ?.utils;
     return (a: unknown, b: unknown): boolean => {
       try {
         return !!(a && b && fu?.isNewerVersion?.(a, b));
@@ -205,8 +260,8 @@ export class ModulesDataAccess {
    * and compat-issue collection included.
    */
   private summarizeModule(
-    m: any,
-    sys: any,
+    m: FoundryModule,
+    sys: FoundrySystem,
     coreVer: string,
     isNewer: (a: unknown, b: unknown) => boolean
   ): ModuleSummary {
@@ -215,7 +270,7 @@ export class ModulesDataAccess {
 
     this.collectCompatIssues(m.compatibility, coreVer, isNewer, issues);
 
-    const comp = m.compatibility || {};
+    const comp: ModuleCompatibility = m.compatibility ?? {};
     return {
       id: m.id,
       title: m.title,
@@ -239,16 +294,17 @@ export class ModulesDataAccess {
    * installed and active). Unresolved deps are flagged as missing; resolved but
    * inactive deps are flagged as inactive. Both conditions push to `issues`.
    */
-  private resolveRequires(m: any, sys: any, issues: string[]): RequiredDep[] {
-    const rel = m.relationships || {};
-    const requiresRaw: any[] = Array.from(rel.requires ?? []);
+  private resolveRequires(m: FoundryModule, sys: FoundrySystem, issues: string[]): RequiredDep[] {
+    const rel = m.relationships ?? {};
+    const requiresRaw: unknown[] = Array.from((rel['requires'] ?? []) as Iterable<unknown>);
 
-    return requiresRaw.map((r: any) => {
-      const depId: string = r.id ?? r;
+    return requiresRaw.map(r => {
+      const idField = typeof r === 'object' && r !== null ? (r as { id?: unknown }).id : undefined;
+      const depId = (idField ?? r) as string;
 
       // The system itself can appear as a dependency; resolve it specially.
       const isSystemDep = depId === sys?.id;
-      const dep = (game.modules as any).get(depId) || (isSystemDep ? sys : null);
+      const dep: FoundryPackage | null = game.modules.get(depId) ?? (isSystemDep ? sys : null);
 
       const installed = !!dep;
       // System deps are always considered active; otherwise read the dep's flag.
@@ -273,12 +329,12 @@ export class ModulesDataAccess {
    * are generated in that environment.
    */
   private collectCompatIssues(
-    compatibility: any,
+    compatibility: ModuleCompatibility | undefined,
     coreVer: string,
     isNewer: (a: unknown, b: unknown) => boolean,
     issues: string[]
   ): void {
-    const comp = compatibility || {};
+    const comp: ModuleCompatibility = compatibility ?? {};
 
     // Core is NEWER than the declared maximum → likely incompatible. A bare
     // generation ("14") means every 14.x build, as Foundry itself reads it.
@@ -288,7 +344,7 @@ export class ModulesDataAccess {
       ? Number.parseInt(String(coreVer).split('.')[0] ?? '', 10) > Number(max)
       : max !== '' && isNewer(coreVer, max);
     if (exceedsMax) {
-      issues.push(`may be incompatible: declares max core ${comp.maximum}, running ${coreVer}`);
+      issues.push(`may be incompatible: declares max core ${max}, running ${coreVer}`);
     }
 
     // Declared minimum is NEWER than the running core → requires a later core.

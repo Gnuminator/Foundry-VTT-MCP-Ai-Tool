@@ -32,13 +32,13 @@ ready (nothing is listening, the wrong world, a refused target).
 node scripts/test-kit/kit.mjs <command> [options]
 ```
 
-| Command | What it does                                                                   |
-| ------- | ------------------------------------------------------------------------------ |
-| `init`  | Creates the kit world's files and its users (Kit GM, Kit Player). Run it once. |
-| `build` | Opens the GM session and builds the kit. Writes the manifest.                  |
-| `run`   | Runs the scenarios against the built kit and writes a report.                  |
-| `all`   | `build`, then `run`.                                                           |
-| `check` | Loads and validates every scenario against the tool catalog. Needs no Foundry. |
+| Command | What it does                                                                                                            |
+| ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `init`  | Creates the kit world's files and its users (Kit GM, Claude, Kit Player; passwordless, kept as test data). Run it once. |
+| `build` | Opens the GM session and builds the kit. Writes the manifest.                                                           |
+| `run`   | Runs the scenarios against the built kit and writes a report.                                                           |
+| `all`   | `build`, then `run`.                                                                                                    |
+| `check` | Loads and validates every scenario against the tool catalog. Needs no Foundry.                                          |
 
 | Option                     | Meaning                                                                    |
 | -------------------------- | -------------------------------------------------------------------------- |

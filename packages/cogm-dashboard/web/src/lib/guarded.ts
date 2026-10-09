@@ -1,11 +1,12 @@
 // Guarded changes from the dashboard's own buttons (D-077): a plan-* tool turns one click into a
 // plan, apply-planned-change carries it out, and the toast that says so has an Undo button
 // (undo-change). Recent Changes keeps the full history. Port of the old page's planThenApply,
-// runTool and undoToast (public/app.js) for one-click plans; the confirm dialog for the other
-// plans comes with the Tool runner.
+// runTool, confirmAction and undoToast (public/app.js): an ordinary write plan applies in the same
+// click, any other plan (a reveal, a delete) opens the confirm window first.
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext } from 'react';
 
+import { useConfirm } from '../components/ConfirmDialog';
 import { useToast } from '../components/Toasts';
 import { ApiError, callTool, errorText, type ToolConfirm } from './api';
 import { useDashboardSettings } from './stream';
@@ -29,6 +30,22 @@ interface Plan {
   providerNote?: string;
   /** Plans that change nothing in Foundry apply at once and say so here. */
   note?: string;
+  summary?: string;
+  diff?: { text?: string }[];
+  /** A live-play plan's own per-target lines ("Wolf 2: 12 fire damage, 6 taken"). */
+  targets?: { line?: string }[];
+}
+
+/**
+ * What a plan says it will change, one line each, as the old page shows it: a live-play plan's
+ * per-target lines, else its diff. Null when the answer lists neither.
+ */
+function planLines(plan: Plan): string[] | null {
+  if (Array.isArray(plan.targets) && plan.targets.length > 0) {
+    return plan.targets.map(t => String(t?.line ?? ''));
+  }
+  if (Array.isArray(plan.diff)) return plan.diff.map(d => String(d?.text ?? ''));
+  return null;
 }
 
 /** What apply-planned-change and undo-change answer; the fields used here. */
@@ -56,7 +73,7 @@ function doneText(name: string, result: Applied | null): string {
  * The usage code of a failed call, as the old page logs it: the server's kind (tool, timeout,
  * channel), else the HTTP status, else a network error.
  */
-const failCode = (err: unknown): string =>
+export const failCode = (err: unknown): string =>
   err instanceof ApiError ? (err.kind ?? String(err.status)) : 'network';
 
 /**
@@ -75,8 +92,8 @@ const RECENT_CHANGES_HINT = 'It may have applied; check Recent Changes on the fu
 
 /**
  * Returns run(planTool, args): plans the change, applies it in the same click when the plan is
- * an ordinary write, and shows the result. It resolves once the change is in or refused; errors
- * end up in toasts, never thrown.
+ * an ordinary write, asks in the confirm window first for any other plan, and shows the result.
+ * It resolves once the change is in, refused or cancelled; errors end up in toasts, never thrown.
  */
 export function useGuardedChange(): (
   planTool: string,
@@ -86,6 +103,7 @@ export function useGuardedChange(): (
   const queryClient = useQueryClient();
   const settings = useDashboardSettings();
   const openGate = useContext(GmActionsGateContext);
+  const askConfirm = useConfirm();
   // Off until the stream says otherwise, as on the old page: a click before the first settings
   // event would plan and then be refused at apply, leaving the plan behind.
   const gmActionsOff = settings?.gmActionsEnabled !== true;
@@ -147,6 +165,38 @@ export function useGuardedChange(): (
         changed();
       };
 
+      /**
+       * The confirm window for a plan that is not an ordinary write: the flags to apply it with,
+       * or null when the GM cancelled or the plan did not load. A plan answer without its summary
+       * and lines is read again with get-planned-change, as the old page's apply path does.
+       */
+      const confirmPlan = async (plan: Plan, planId: string): Promise<ToolConfirm | null> => {
+        let shown = plan;
+        let lines = planLines(plan);
+        if (lines === null || typeof plan.summary !== 'string') {
+          try {
+            shown = (await callTool<Plan | null>('get-planned-change', { planId })) ?? {};
+          } catch (err) {
+            usage().trackTool('apply-planned-change', 'error', failCode(err));
+            toast(`✗ Can't load the plan: ${errorText(err)}`, 'err');
+            return null;
+          }
+          lines = planLines(shown) ?? lines ?? [];
+        }
+        const destructive = (shown.risk ?? plan.risk) === 'destructive';
+        const ok = await askConfirm({
+          summary: typeof shown.summary === 'string' ? shown.summary : plan.summary,
+          diff: lines,
+          destructive,
+        });
+        if (!ok) {
+          // The plan stays on the bridge until it expires, as on the old page.
+          usage().trackTool('apply-planned-change', 'cancelled');
+          return null;
+        }
+        return destructive ? { confirm: true, confirmDestructive: true } : { confirm: true };
+      };
+
       // The old page plans first and is refused at apply, leaving a plan behind; asking first
       // leaves none. The server still checks (the 403 below).
       if (gmActionsOff) {
@@ -169,21 +219,12 @@ export function useGuardedChange(): (
         changed();
         return;
       }
-      if (plan.risk !== 'write') {
-        // A deleting plan needs the confirm dialog, which comes with the Tool runner.
-        usage().trackTool('apply-planned-change', 'cancelled');
-        toast(
-          'This change needs a confirm step this page does not have yet. Use the full dashboard.',
-          'warn'
-        );
-        return;
-      }
+      // The click is the confirmation for an ordinary write; anything else asks first.
+      const flags =
+        plan.risk === 'write' ? { confirm: true } : await confirmPlan(plan, plan.planId);
+      if (!flags) return;
 
-      const applied = await write(
-        'apply-planned-change',
-        { planId: plan.planId },
-        { confirm: true }
-      );
+      const applied = await write('apply-planned-change', { planId: plan.planId }, flags);
       if (!applied) return;
       const changeId = applied.changeId;
       if (changeId) {
@@ -200,6 +241,6 @@ export function useGuardedChange(): (
       }
       changed();
     },
-    [toast, queryClient, openGate, gmActionsOff]
+    [toast, queryClient, openGate, gmActionsOff, askConfirm]
   );
 }

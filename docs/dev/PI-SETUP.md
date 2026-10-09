@@ -674,8 +674,9 @@ installs it into `/opt/foundry-ai-tool/gm-browser/` and removes the upload; run 
   version is already installed, part A is skipped and nothing is downloaded. Otherwise the services
   stop, the old module folder moves to `/var/lib/foundry-import/prev-<time>/modules/` (never deleted;
   put back by itself if the swap fails) and the new one takes its place, owned by `foundry`.
-  `PINNED_SHA256` is `PENDING-RELEASE` until the `2.10.5-aitool.4` release exists; the stage then
-  refuses to run unless it is given `STUDIO_ZIP` (a `.zip` under `/var/lib/foundry-import/`) and
+  The pinned build is the fork's `2.10.5-aitool.4` release (its `module.zip` checksum is in the
+  script). A pinned checksum of `PENDING-RELEASE` (for a newer build whose release does not exist
+  yet) makes the stage refuse to run unless it is given `STUDIO_ZIP` (a `.zip` under `/var/lib/foundry-import/`) and
   `STUDIO_SHA256` (and `STUDIO_VERSION` when the zip is not the pinned version). `STUDIO_VERSION` and
   `STUDIO_SHA256` together, without a zip, download that release instead (both or neither).
 - **B. The settings, in `WORLD` (default `curse-of-strahd`) and `KIT_WORLD` (default `strahd-kit`;

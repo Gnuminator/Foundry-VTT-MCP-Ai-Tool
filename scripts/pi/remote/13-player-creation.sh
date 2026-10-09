@@ -33,11 +33,11 @@
 require_root
 require_arm64
 
-# The pinned build. PENDING-RELEASE means the release does not exist yet: the stage then refuses to run unless
-# the environment gives it a zip and a checksum (STUDIO_ZIP and STUDIO_SHA256). Replace both when the release
-# is published (sha256sum of its module.zip).
+# The pinned build: the fork's 2.10.5-aitool.4 release (tag on aitool/fixes 852f7c55), sha256sum of its
+# module.zip. For a newer build, set PINNED_SHA256=PENDING-RELEASE until its release exists: the stage then
+# refuses to run unless the environment gives it a zip and a checksum (STUDIO_ZIP and STUDIO_SHA256).
 PINNED_VERSION=2.10.5-aitool.4
-PINNED_SHA256=PENDING-RELEASE
+PINNED_SHA256=199369173897aa8e0c0973900bd43b298ba1a054e3638dd122ea371c7ae442ea
 MODULE_ID=foundryvtt-actor-studio
 RELEASE_BASE=https://github.com/Gnuminator/foundryvtt-actor-studio/releases/download
 MAX_ZIP_BYTES=209715200 # 200 MiB, far above the real module (about 7 MB unpacked)

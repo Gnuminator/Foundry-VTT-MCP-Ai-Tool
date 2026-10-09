@@ -12,8 +12,8 @@
   stay), Actor Studio's `enableEquipmentSelection`, and its equipment source
   `dnd-players-handbook.equipment`; it reads the values back after a reload and fails on any
   mismatch. `options.json` goes back to the world it launched before, and a failed run puts it, the
-  old module, Foundry and the Assistant GM browser back. Until the `aitool.4` release exists the
-  pinned checksum is `PENDING-RELEASE` and the stage refuses to run without `STUDIO_ZIP` and
-  `STUDIO_SHA256`. Tested in an ARM64 container (download and checksum of `aitool.3`, skip on a
+  old module, Foundry and the Assistant GM browser back. The pinned build is the fork's
+  `2.10.5-aitool.4` release, checked against its SHA-256; a pinned `PENDING-RELEASE` (a build
+  without a release yet) makes the stage refuse to run without `STUDIO_ZIP` and `STUDIO_SHA256`. Tested in an ARM64 container (download and checksum of `aitool.3`, skip on a
   second run, wrong checksum, `..`, absolute, backslash and symlink zips, a failed swap, and the
   restore path with a faked systemd); the in-browser part is syntax-checked only.

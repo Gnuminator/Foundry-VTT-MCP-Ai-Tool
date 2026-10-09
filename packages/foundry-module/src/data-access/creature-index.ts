@@ -1,6 +1,7 @@
 import { MODULE_ID } from '../constants.js';
 import { trackUsage } from '../usage-recorder.js';
 import { logInfo } from '../log.js';
+import { rec, str } from '../character-sheet-fields.js';
 import type {
   DnD5eCreatureIndex,
   EnhancedCreatureIndex,
@@ -633,11 +634,9 @@ export class PersistentCreatureIndex {
    * The biography HTML as a string. dnd5e 6 stores `details.biography` as `{value, public}`;
    * a plain string (older data) is taken as is.
    */
-  private biographyText(system: any): string {
-    const bio = system?.details?.biography;
-    if (typeof bio === 'string') return bio;
-    if (typeof bio?.value === 'string') return bio.value;
-    return '';
+  private biographyText(system: unknown): string {
+    const bio = rec(rec(system).details).biography;
+    return typeof bio === 'string' ? bio : str(rec(bio).value);
   }
 
   private fallbackRecord(doc: any, pack: any): DnD5eCreatureIndex {

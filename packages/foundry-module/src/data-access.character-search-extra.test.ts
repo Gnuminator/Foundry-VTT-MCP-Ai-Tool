@@ -47,8 +47,7 @@ afterEach(() => {
 
 // ---------------------------------------------------------------------------
 // Fixture: a dnd5e caster with prepared/unprepared/default spells + equipment.
-// `makeItem`'s `_source.system` defaults to a clone of `system`, so raw
-// `preparation.prepared` is whatever we put under `system.preparation`.
+// dnd5e 6 shapes: `method` + `prepared` (0 unprepared, 1 prepared, 2 always).
 // ---------------------------------------------------------------------------
 
 function makeCaster(): ReturnType<typeof makeActor> {
@@ -59,17 +58,17 @@ function makeCaster(): ReturnType<typeof makeActor> {
       makeItem({
         name: 'Prepared Bolt',
         type: 'spell',
-        system: { level: 2, preparation: { prepared: true }, activation: { type: 'action' } },
+        system: { level: 2, method: 'spell', prepared: 1, activation: { type: 'action' } },
       }),
       makeItem({
         name: 'Unprepared Ray',
         type: 'spell',
-        system: { level: 2, preparation: { prepared: false }, activation: { type: 'action' } },
+        system: { level: 2, method: 'spell', prepared: 0, activation: { type: 'action' } },
       }),
       makeItem({
         name: 'Default Spell',
         type: 'spell',
-        system: { level: 4, activation: { type: 'action' } },
+        system: { level: 4, method: 'innate', prepared: 0, activation: { type: 'action' } },
       }),
       makeItem({
         name: 'Spark',
@@ -116,7 +115,7 @@ describe('searchCharacterItems — dnd5e spell fields', () => {
     expect(cantrip.matches[0].level).toBe(0);
   });
 
-  it('reads prepared from raw preparation.prepared; undefined when absent', async () => {
+  it('reads prepared from dnd5e 6 method + prepared (innate spells are ready)', async () => {
     world.actors.add(makeCaster());
 
     const prepared = await da.searchCharacterItems({
@@ -138,7 +137,7 @@ describe('searchCharacterItems — dnd5e spell fields', () => {
       type: 'spell',
       query: 'Default Spell',
     });
-    expect(noPrep.matches[0].prepared).toBeUndefined();
+    expect(noPrep.matches[0].prepared).toBe(true);
   });
 });
 
@@ -157,14 +156,14 @@ describe('searchCharacterItems — dnd5e spell categories', () => {
     expect(names(result)).toEqual(['Spark']);
   });
 
-  it('category="prepared" excludes only spells with preparation.prepared === false', async () => {
+  it('category="prepared" excludes only spells that are not ready to cast', async () => {
     world.actors.add(makeCaster());
     const result = await da.searchCharacterItems({
       characterIdentifier: 'Caster',
       type: 'spell',
       category: 'prepared',
     });
-    // Unprepared Ray (prepared === false) is dropped; the rest default to prepared.
+    // Unprepared Ray (prepared 0, method spell) is dropped; innate Default Spell stays.
     expect(names(result)).toEqual(['Default Spell', 'Prepared Bolt', 'Spark']);
   });
 

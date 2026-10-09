@@ -9,6 +9,7 @@ import type {
 } from './types.js';
 import { detectRulesVersion, readRulesTag } from '../systems/dnd5e/rules-version.js';
 import { effectChanges, effectDuration, effectImg } from '../systems/core.js';
+import { num, rec, spellPrepared, str } from '../character-sheet-fields.js';
 
 /**
  * Character/actor inspection domain for `FoundryDataAccess`.
@@ -169,7 +170,7 @@ export class CharacterDataAccess {
       // Type-specific fields + category filtering. A category mismatch skips
       // the item entirely (mirrors the original `continue`-based control flow).
       if (item.type === 'spell') {
-        if (!this.applySpellFields(result, item, itemSystem, systemId, searchCategory)) continue;
+        if (!this.applySpellFields(result, itemSystem, systemId, searchCategory)) continue;
       } else if (this.isEquipmentType(item.type)) {
         if (!this.applyEquipmentFields(result, itemSystem, searchCategory)) continue;
       }
@@ -389,14 +390,12 @@ export class CharacterDataAccess {
    */
   private applySpellFields(
     result: any,
-    item: any,
     itemSystem: any,
     systemId: string,
     searchCategory?: string
   ): boolean {
     result.level = itemSystem?.level?.value ?? itemSystem?.level ?? 0;
-    const itemRaw = item._source?.system;
-    result.prepared = itemSystem?.prepared ?? itemRaw?.preparation?.prepared;
+    if (systemId === 'dnd5e' && itemSystem) result.prepared = spellPrepared(rec(itemSystem));
 
     if (systemId === 'dnd5e') {
       const targeting = this.extractDnD5eSpellTargeting(itemSystem);
@@ -524,11 +523,12 @@ export class CharacterDataAccess {
   // ===== dnd5e spellcasting extraction =====
 
   /**
-   * Build dnd5e spellcasting entries. Spells are grouped by their source class
-   * (via `sourceItem`/`sourceClass`, defaulting to `general`); one entry is
-   * emitted per spellcasting class (progression !== 'none') carrying that
-   * class's slots + spells. When no class-based entry can be formed but the
-   * actor has spells, a single general "Spellcasting" entry is emitted instead.
+   * Build dnd5e spellcasting entries. Spells are grouped by the identifier of the class that
+   * grants them (dnd5e 6 `sourceItem` "class:wizard", a subclass resolved to its class, or the
+   * system's own `classIdentifier`); one entry is emitted per spellcasting class
+   * (progression !== 'none') carrying that class's slots + spells. Spells no class entry takes
+   * (species, feats, innate) go into one more entry: "Spellcasting" when there is no class
+   * entry, "Other Spells" next to class entries.
    */
   private extractSpellcastingData(actor: Actor): SpellcastingEntry[] {
     const entries: SpellcastingEntry[] = [];
@@ -543,88 +543,107 @@ export class CharacterDataAccess {
     const classes = actor.items.filter(item => item.type === 'class');
     const spellSlots = actorAny.system?.spells || {};
 
-    // Bucket each spell under its originating class (or 'general').
+    // Bucket each spell under its originating class identifier (or 'general').
     const spellsByClass: Record<string, SpellInfo[]> = {};
     for (const spell of spellItems) {
-      const spellSystem = spell.system;
-      const spellRaw = (spell as any)._source?.system || spellSystem;
-      const sourceItem = spellSystem?.sourceItem;
-      const sourceClass =
-        (sourceItem
-          ? typeof sourceItem === 'string'
-            ? sourceItem
-            : sourceItem.identifier || sourceItem.id
-          : spellRaw?.sourceClass) || 'general';
-
-      (spellsByClass[sourceClass] ??= []).push(this.toClassSpellInfo(spell, spellSystem, spellRaw));
+      const key = this.spellClassKey(actor, spell) || 'general';
+      (spellsByClass[key] ??= []).push(this.toSpellInfo(spell));
     }
 
     // One entry per spellcasting class.
+    const used = new Set<string>();
     for (const classItem of classes) {
-      const classSystem = classItem.system;
-      if (
-        classSystem?.spellcasting?.progression &&
-        classSystem.spellcasting.progression !== 'none'
-      ) {
+      const spellcasting = rec(rec(classItem.system).spellcasting);
+      const progression = str(spellcasting.progression);
+      if (progression && progression !== 'none') {
         const className = classItem.name || 'Unknown';
-        const classSpells =
-          spellsByClass[classItem.id || ''] || spellsByClass[className.toLowerCase()] || [];
+        const key = this.classKey(classItem);
+        used.add(key);
 
         entries.push({
           id: classItem.id || '',
           name: `${className} Spellcasting`,
-          type: classSystem?.spellcasting?.type || 'prepared',
-          ability: classSystem?.spellcasting?.ability || undefined,
+          // dnd5e 6 `spellcasting.type` is the method ("spell" or "pact"); both prepare spells.
+          type: spellcasting.type === 'pact' ? 'pact' : 'prepared',
+          ability: str(spellcasting.ability) || undefined,
+          dc: typeof spellcasting.save === 'number' ? spellcasting.save : undefined,
+          attack: typeof spellcasting.attack === 'number' ? spellcasting.attack : undefined,
           slots: this.extractDnD5eSpellSlots(spellSlots),
-          spells: classSpells.sort(this.bySpellLevelThenName),
+          spells: (spellsByClass[key] ?? []).sort(this.bySpellLevelThenName),
         });
       }
     }
 
-    // Fallback: a general entry when there are spells but no class entry formed.
-    if (entries.length === 0 && spellItems.length > 0) {
-      const allSpells = spellItems.map(spell => this.toGeneralSpellInfo(spell, spell.system));
+    // Spells no class entry took: one more entry, so none drop out of the list.
+    const rest = Object.entries(spellsByClass)
+      .filter(([key]) => !used.has(key))
+      .flatMap(([, spells]) => spells);
+    if (rest.length > 0) {
+      const alone = entries.length === 0;
       entries.push({
-        id: 'spellcasting',
-        name: 'Spellcasting',
-        type: 'prepared',
-        slots: this.extractDnD5eSpellSlots(spellSlots),
-        spells: allSpells.sort(this.bySpellLevelThenName),
+        id: alone ? 'spellcasting' : 'other-spells',
+        name: alone ? 'Spellcasting' : 'Other Spells',
+        type: alone ? 'prepared' : 'other',
+        slots: alone ? this.extractDnD5eSpellSlots(spellSlots) : undefined,
+        spells: rest.sort(this.bySpellLevelThenName),
       });
     }
 
     return entries;
   }
 
+  /** A class item's identifier (`identifier` getter, `system.identifier`, or its slugged name). */
+  private classKey(classItem: unknown): string {
+    const item = rec(classItem);
+    const id = str(item.identifier) || str(rec(item.system).identifier);
+    if (id) return id;
+    return str(item.name)
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
+  /**
+   * The identifier of the class a spell belongs to, or '' when no class grants it. Uses dnd5e
+   * 6's `SpellData#classIdentifier` getter when present (it also follows advancement roots);
+   * otherwise parses `sourceItem` ("class:wizard", or "subclass:evoker" resolved through the
+   * actor's subclass item to its `classIdentifier`).
+   */
+  private spellClassKey(actor: Actor, spell: unknown): string {
+    const sys = rec(rec(spell).system);
+    const own = str(sys.classIdentifier);
+    if (own) return own;
+    const source = str(sys.sourceItem);
+    const sep = source.indexOf(':');
+    if (sep < 0) return '';
+    const type = source.slice(0, sep);
+    const identifier = source.slice(sep + 1);
+    if (type === 'class') return identifier;
+    if (type === 'subclass') {
+      const subclass = actor.items.find(
+        item => item.type === 'subclass' && this.classKey(item) === identifier
+      );
+      return str(rec(subclass?.system).classIdentifier);
+    }
+    return '';
+  }
+
   /** Stable spell ordering: by level, then alphabetically by name. */
   private bySpellLevelThenName = (a: SpellInfo, b: SpellInfo): number =>
     a.level - b.level || a.name.localeCompare(b.name);
 
-  /** SpellInfo for a class-grouped spell (prefers raw preparation data). */
-  private toClassSpellInfo(spell: any, spellSystem: any, spellRaw: any): SpellInfo {
+  /** SpellInfo for one spell; `prepared` follows dnd5e 6 `method` + `prepared`. */
+  private toSpellInfo(spell: Item): SpellInfo {
+    const spellSystem = rec(spell.system);
     const targeting = this.extractDnD5eSpellTargeting(spellSystem);
     return {
       id: spell.id || '',
       name: spell.name || '',
-      level: spellSystem?.level || 0,
-      prepared: spellSystem?.prepared ?? spellRaw?.preparation?.prepared ?? true,
+      level: num(spellSystem.level, 0),
+      prepared: spellPrepared(spellSystem),
       traits: [], // dnd5e doesn't use pf2e-style traits
-      actionCost: spellSystem?.activation?.type || undefined,
-      range: targeting.range,
-      target: targeting.target,
-      area: targeting.area,
-    };
-  }
-
-  /** SpellInfo for the general (no-class) fallback entry. */
-  private toGeneralSpellInfo(spell: any, spellSystem: any): SpellInfo {
-    const targeting = this.extractDnD5eSpellTargeting(spellSystem);
-    return {
-      id: spell.id || '',
-      name: spell.name || '',
-      level: spellSystem?.level || 0,
-      prepared: spellSystem?.preparation?.prepared ?? true,
-      actionCost: spellSystem?.activation?.type || undefined,
+      actionCost: str(rec(spellSystem.activation).type) || undefined,
       range: targeting.range,
       target: targeting.target,
       area: targeting.area,

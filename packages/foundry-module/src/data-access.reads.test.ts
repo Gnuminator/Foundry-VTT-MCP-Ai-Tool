@@ -217,17 +217,39 @@ describe('FoundryDataAccess — getCharacterInfo', () => {
       },
       items: [
         makeItem({ id: 'sword', name: 'Longsword', type: 'weapon', system: { equipped: true } }),
+        // dnd5e 6 shapes: the class id is random, spells point at it by `sourceItem`.
         makeItem({
-          id: 'wizard',
+          id: 'Xq3cls0000000001',
           name: 'Wizard',
           type: 'class',
-          system: { spellcasting: { progression: 'full', ability: 'int', type: 'prepared' } },
+          system: {
+            identifier: 'wizard',
+            spellcasting: {
+              progression: 'full',
+              ability: 'int',
+              type: 'spell',
+              save: 14,
+              attack: 6,
+            },
+          },
         }),
         makeItem({
           id: 'fireball',
           name: 'Fireball',
           type: 'spell',
-          system: { level: 3, sourceClass: 'wizard', activation: { type: 'action' } },
+          system: {
+            level: 3,
+            sourceItem: 'class:wizard',
+            method: 'spell',
+            prepared: 1,
+            activation: { type: 'action' },
+          },
+        }),
+        makeItem({
+          id: 'shield',
+          name: 'Shield',
+          type: 'spell',
+          system: { level: 1, sourceItem: 'class:wizard', method: 'spell', prepared: 0 },
         }),
       ],
       effects: [makeEffect({ id: 'bless', name: 'Bless', disabled: false })],
@@ -258,7 +280,7 @@ describe('FoundryDataAccess — getCharacterInfo', () => {
     const info = await da.getCharacterInfo('Silvera');
 
     expect(info.system).toMatchObject({ attributes: { hp: { value: 24, max: 24 } } });
-    expect(info.items.map(i => i.name)).toEqual(['Longsword', 'Wizard', 'Fireball']);
+    expect(info.items.map(i => i.name)).toEqual(['Longsword', 'Wizard', 'Fireball', 'Shield']);
     expect(info.effects).toEqual([{ id: 'bless', name: 'Bless', disabled: false }]);
   });
 
@@ -334,7 +356,81 @@ describe('FoundryDataAccess — getCharacterInfo', () => {
     expect(info.spellcasting).toHaveLength(1);
     const entry = info.spellcasting![0];
     expect(entry.name).toBe('Wizard Spellcasting');
+    expect(entry.type).toBe('prepared');
     expect(entry.ability).toBe('int');
-    expect(entry.spells.map(s => s.name)).toEqual(['Fireball']);
+    expect(entry.dc).toBe(14);
+    expect(entry.attack).toBe(6);
+    expect(entry.spells.map(s => [s.name, s.prepared])).toEqual([
+      ['Shield', false],
+      ['Fireball', true],
+    ]);
+  });
+
+  it('groups subclass, pact and innate spells (dnd5e 6 sourceItem and method)', async () => {
+    world.actors.add(
+      makeActor({
+        name: 'Multi',
+        type: 'character',
+        items: [
+          makeItem({
+            id: 'Xq3cls0000000002',
+            name: 'Cleric',
+            type: 'class',
+            system: {
+              identifier: 'cleric',
+              spellcasting: { progression: 'full', ability: 'wis', type: 'spell' },
+            },
+          }),
+          makeItem({
+            id: 'Xq3sub0000000002',
+            name: 'Life Domain',
+            type: 'subclass',
+            system: { identifier: 'life-domain', classIdentifier: 'cleric' },
+          }),
+          makeItem({
+            id: 'Xq3cls0000000003',
+            name: 'Warlock',
+            type: 'class',
+            system: {
+              identifier: 'warlock',
+              spellcasting: { progression: 'pact', ability: 'cha', type: 'pact' },
+            },
+          }),
+          makeItem({
+            name: 'Bless',
+            type: 'spell',
+            system: { level: 1, sourceItem: 'subclass:life-domain', method: 'spell', prepared: 2 },
+          }),
+          makeItem({
+            name: 'Hex',
+            type: 'spell',
+            system: { level: 1, sourceItem: 'class:warlock', method: 'pact', prepared: 0 },
+          }),
+          makeItem({
+            name: 'Misty Step',
+            type: 'spell',
+            system: { level: 2, sourceItem: 'race:eladrin', method: 'innate', prepared: 0 },
+          }),
+        ],
+      })
+    );
+    const info = await da.getCharacterInfo('Multi');
+    const byName = Object.fromEntries(info.spellcasting!.map(e => [e.name, e]));
+    expect(Object.keys(byName)).toEqual([
+      'Cleric Spellcasting',
+      'Warlock Spellcasting',
+      'Other Spells',
+    ]);
+    expect(byName['Cleric Spellcasting'].spells.map(s => [s.name, s.prepared])).toEqual([
+      ['Bless', true],
+    ]);
+    expect(byName['Warlock Spellcasting'].type).toBe('pact');
+    expect(byName['Warlock Spellcasting'].spells.map(s => [s.name, s.prepared])).toEqual([
+      ['Hex', false],
+    ]);
+    // Innate spells are ready without preparing.
+    expect(byName['Other Spells'].spells.map(s => [s.name, s.prepared])).toEqual([
+      ['Misty Step', true],
+    ]);
   });
 });

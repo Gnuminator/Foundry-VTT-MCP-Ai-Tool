@@ -60,12 +60,11 @@ Don't add anything for your background yet: the builder asks for that later.
 
 Open the **Species** list and pick one. Its description and traits show below.
 
-![The Species tab with Elf picked; the description shows below the list](../images/guides/studio-species.png)
+![The Species tab with "Elf, High" picked; the description shows below the list](../images/guides/studio-species.png)
 
 Some species appear more than once, one entry per lineage: Elf (Drow, High, Wood), Gnome (Forest,
 Rock) and Tiefling (Abyssal, Chthonic, Infernal). The list shows the lineage after the name, for
-example "Elf, High". Pick the one you want. If your list shows plain "Elf" three times instead,
-pick one and read the description under the list: it names the lineage you picked.
+example "Elf, High". Pick the one you want.
 
 ## 4. Background
 

@@ -1,7 +1,8 @@
 // The Party drawer on the React dashboard: the get-party read (POST /api/tool, faked here), the
 // member rows and sections, the group picker, the empty and failed states, the four one-click
-// changes (plan-party-change, then apply-planned-change) with the Undo toast, and the refusals:
-// GM Actions off, a failed plan, a 403 at apply, a plan that needs a confirm.
+// changes (plan-party-change, then apply-planned-change) with the Undo toast, the refusals (GM
+// Actions off or not heard yet, a failed plan, a 403 at apply, a plan that needs a confirm), an
+// apply that times out, and Escape with a toast up.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import {
@@ -322,6 +323,70 @@ test('with GM Actions off nothing is planned and Pre-flight opens', async ({ pag
   expect(names(calls).filter(n => n !== 'get-play-session')).toEqual(['get-party']);
 });
 
+test('before the stream says GM Actions are on, a click plans nothing', async ({ page }) => {
+  await fakeStream(page, []);
+  await fakePreflight(page);
+  const calls = await fakeTools(page, bridge);
+  const drawer = await openParty(page);
+
+  await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
+  await expect(
+    toast(page, 'GM Actions are off. Ready for session in Pre-flight turns them on.')
+  ).toBeVisible();
+  expect(names(calls).filter(n => n !== 'get-play-session')).toEqual(['get-party']);
+});
+
+test('an applied change without a changeId shows no Undo', async ({ page }) => {
+  await fakeStream(page, gmActions(true));
+  await fakeTools(page, call =>
+    call.name === 'apply-planned-change' ? ok({ summary: 'Travel pace set to Fast' }) : bridge(call)
+  );
+  const drawer = await openParty(page);
+
+  await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
+  await expect(toast(page, '✓ Applied: Travel pace set to Fast')).toBeVisible();
+  await expect(page.locator('.toast-stack .toast-action')).toHaveCount(0);
+});
+
+test('an apply that times out says it may have applied and reloads the party', async ({ page }) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, call =>
+    call.name === 'apply-planned-change'
+      ? { status: 502, json: { ok: false, kind: 'timeout', error: 'Timed out' } }
+      : bridge(call)
+  );
+  const drawer = await openParty(page);
+
+  await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
+  await expect(
+    toast(
+      page,
+      '✗ apply-planned-change timed out. It may have applied; check Recent Changes on the full dashboard.'
+    )
+  ).toBeVisible();
+  await expect
+    .poll(() => names(calls))
+    .toEqual(['get-party', 'plan-party-change', 'apply-planned-change', 'get-party']);
+  await expect(page.locator('.toast-stack .toast-action')).toHaveCount(0);
+});
+
+test('Escape after a change closes the drawer and keeps the Undo toast', async ({ page }) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, bridge);
+  const drawer = await openParty(page);
+
+  await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
+  await expect(toast(page, '✓ Applied: Travel pace set to Fast')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+  await expect(page.locator('.drawer-backdrop')).toHaveCount(0);
+  await expect(toast(page, '✓ Applied: Travel pace set to Fast')).toBeVisible();
+
+  await page.locator('.toast-stack .toast-undo .toast-action').click();
+  await expect(toast(page, '✓ Undid: Travel pace set to Fast')).toBeVisible();
+  expect(calls.filter(c => c.name === 'undo-change')).toHaveLength(1);
+});
+
 test('a failed plan, a refused apply and a plan that needs a confirm all say so', async ({
   page,
 }) => {
@@ -390,12 +455,10 @@ test('Open shows the actor in Foundry; Escape closes the drawer', async ({ page 
   await rows.nth(0).getByRole('button', { name: 'Open' }).click();
   await expect(toast(page, '✗ open-in-foundry: No such actor')).toBeVisible();
 
-  // Radix toasts are layers too: while one shows, Escape closes it first.
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.toast-stack .toast')).toHaveCount(0);
-  await expect(drawer).toBeVisible();
+  // The toast is the top Radix layer, but Escape goes to the drawer and the toast stays.
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
+  await expect(toast(page, '✗ open-in-foundry: No such actor')).toBeVisible();
   await expect(page.locator('#btn-party')).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('.drawer-backdrop')).toHaveCount(0);
 });

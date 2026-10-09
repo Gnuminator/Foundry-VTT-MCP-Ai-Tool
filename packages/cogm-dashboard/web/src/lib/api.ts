@@ -1,15 +1,26 @@
 import { authHeaders } from './auth';
 
-/** A failed dashboard route: the server's own message when it sent one, else `HTTP <status>`. */
+/**
+ * A failed dashboard route: the server's own message when it sent one, else `HTTP <status>`.
+ * `kind` is what failed when POST /api/tool reached the bridge: `tool`, `timeout` or `channel`.
+ */
 export class ApiError extends Error {
   constructor(
     message: string,
-    readonly status: number
+    readonly status: number,
+    readonly kind?: string
   ) {
     super(message);
     this.name = 'ApiError';
   }
 }
+
+/** A string field of a JSON body, if it has one. */
+const field = (body: unknown, key: string): string | undefined => {
+  if (!body || typeof body !== 'object') return undefined;
+  const value: unknown = (body as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : undefined;
+};
 
 /**
  * Calls a dashboard route with the GM token and returns its JSON body. Errors carry the server's
@@ -21,11 +32,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, { ...init, headers: { ...headers, ...init.headers } });
   const body: unknown = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const message =
-      body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
-        ? body.error
-        : `HTTP ${res.status}`;
-    throw new ApiError(message, res.status);
+    throw new ApiError(
+      field(body, 'error') ?? `HTTP ${res.status}`,
+      res.status,
+      field(body, 'kind')
+    );
   }
   return body as T;
 }

@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import type { ComponentProps, JSX, ReactElement, ReactNode } from 'react';
 
+import { useEscapeClose } from '../lib/escape';
 import { HelpButton } from './HelpButton';
 
 interface DrawerProps {
@@ -50,6 +51,10 @@ export function Drawer({
   bodyClassName,
   children,
 }: DrawerProps): JSX.Element {
+  useEscapeClose(open, () => {
+    onEscape?.();
+    onOpenChange(false);
+  });
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange} modal={false}>
       <Dialog.Content

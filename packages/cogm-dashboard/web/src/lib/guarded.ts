@@ -52,9 +52,12 @@ function doneText(name: string, result: Applied | null): string {
   return `✓ ${name}`;
 }
 
-/** The usage code of a failed call: the HTTP status, else a network error. */
+/**
+ * The usage code of a failed call, as the old page logs it: the server's kind (tool, timeout,
+ * channel), else the HTTP status, else a network error.
+ */
 const failCode = (err: unknown): string =>
-  err instanceof ApiError ? String(err.status) : 'network';
+  err instanceof ApiError ? (err.kind ?? String(err.status)) : 'network';
 
 /**
  * Returns run(planTool, args): plans the change, applies it in the same click when the plan is
@@ -69,7 +72,9 @@ export function useGuardedChange(): (
   const queryClient = useQueryClient();
   const settings = useDashboardSettings();
   const openGate = useContext(GmActionsGateContext);
-  const gmActionsOff = settings?.gmActionsEnabled === false;
+  // Off until the stream says otherwise, as on the old page: a click before the first settings
+  // event would plan and then be refused at apply, leaving the plan behind.
+  const gmActionsOff = settings?.gmActionsEnabled !== true;
 
   return useCallback(
     async (planTool, args) => {
@@ -79,7 +84,13 @@ export function useGuardedChange(): (
         openGate();
       };
 
-      /** Runs a write tool with its confirm flags; null when it failed (the toast says why). */
+      const changed = (): void => void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
+
+      /**
+       * Runs a write tool with its confirm flags; null when it failed (the toast says why). A
+       * failure past the gate may still have landed in Foundry (a timeout above all), so it
+       * refreshes what the panels show.
+       */
       const write = async (
         name: string,
         args: Record<string, unknown>,
@@ -90,16 +101,25 @@ export function useGuardedChange(): (
           usage().trackTool(name, 'ok');
           return result ?? {};
         } catch (err) {
-          if (err instanceof ApiError && err.status === 403) gateClosed(name, '403');
-          else {
+          if (err instanceof ApiError && err.status === 403) {
+            gateClosed(name, '403');
+            return null;
+          }
+          if (err instanceof ApiError && err.kind === 'timeout') {
+            // The bridge stopped waiting after about 4 minutes; Foundry may still have done it.
+            usage().trackTool(name, 'error', 'timeout');
+            toast(
+              `✗ ${name} timed out. It may have applied; check Recent Changes on the full dashboard.`,
+              'err'
+            );
+          } else {
             usage().trackTool(name, 'error', failCode(err));
             toast(`✗ ${name}: ${errorText(err)}`, 'err');
           }
+          changed();
           return null;
         }
       };
-
-      const changed = (): void => void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
 
       // The click on Undo is the confirmation, as on the old page.
       const undo = async (changeId: string): Promise<void> => {

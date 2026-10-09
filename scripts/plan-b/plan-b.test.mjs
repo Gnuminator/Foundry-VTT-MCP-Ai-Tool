@@ -250,6 +250,85 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     });
   });
 
+  test('push-back decision: only a played, stopped copy goes back, with the snapshot time in UTC', () => {
+    const r = ps(`
+      $json = '{"world":"curse-of-strahd","snapshot":{"id":"abc","time":"2026-10-09T04:30:12.3456789+02:00"},"restoredAt":"2026-10-09T18:00:00+02:00","played":true,"playedAt":"2026-10-09","ports":{"Foundry":30000,"Control":31414}}'
+      $played = $json | ConvertFrom-Json
+      $rehearsal = ($json -replace '"played":true', '"played":false') | ConvertFrom-Json
+      $rehearsalPorts = ($json -replace '"Foundry":30000', '"Foundry":30100') | ConvertFrom-Json
+      $noPorts = ($json -replace ',"ports":\\{[^}]*\\}', '') | ConvertFrom-Json
+      $noSnap = ($json -replace '"time":"[^"]*"', '"time":null') | ConvertFrom-Json
+      $badWorld = ($json -replace 'curse-of-strahd', '../x') | ConvertFrom-Json
+      $utc = ($json -replace '\\+02:00"', 'Z"') | ConvertFrom-Json
+      @{
+        ok = Resolve-PlanBPushBack $played
+        utc = (Resolve-PlanBPushBack $utc).BasedOn
+        none = Resolve-PlanBPushBack $null
+        cleaned = Resolve-PlanBPushBack ([pscustomobject]@{ cleanedAt = 'x'; restoredAt = $null })
+        rehearsal = Resolve-PlanBPushBack $rehearsal
+        running = Resolve-PlanBPushBack $played -Running @('foundry', 'bridge')
+        runningEmpty = (Resolve-PlanBPushBack $played -Running @('')).Ok
+        port = (Resolve-PlanBPushBack $rehearsalPorts).FoundryPort
+        noPorts = (Resolve-PlanBPushBack $noPorts).FoundryPort
+        noSnap = Resolve-PlanBPushBack $noSnap
+        badWorld = (Resolve-PlanBPushBack $badWorld).Ok
+      }`);
+    assert.equal(r.ok.Ok, true);
+    assert.equal(r.ok.World, 'curse-of-strahd');
+    assert.equal(r.ok.BasedOn, '2026-10-09T02:30:12.345Z');
+    assert.equal(r.ok.FoundryPort, 30000);
+    assert.equal(r.ok.PlayedAt, '2026-10-09');
+    assert.equal(r.utc, '2026-10-09T04:30:12.345Z');
+    assert.equal(r.none.Ok, false);
+    assert.equal(r.cleaned.Ok, false);
+    assert.match(r.cleaned.Message, /no Plan B restore/);
+    assert.equal(r.rehearsal.Ok, false);
+    assert.match(r.rehearsal.Message, /never played/);
+    assert.equal(r.running.Ok, false);
+    assert.match(r.running.Message, /foundry, bridge.*stop\.ps1/);
+    assert.equal(r.runningEmpty, true);
+    assert.equal(r.port, 30100);
+    assert.equal(r.noPorts, 30000);
+    assert.equal(r.noSnap.Ok, false);
+    assert.match(r.noSnap.Message, /snapshot time/);
+    assert.equal(r.badWorld, false);
+  });
+
+  test('push-back.ps1 refuses a copy that was never played, and hands a played one to push-world -PushBack', () => {
+    const root = mkdtempSync(path.join(tmp, 'push-back-'));
+    const state = {
+      world: 'curse-of-strahd',
+      snapshot: { id: 'abc', short: 'abc', time: '2026-10-09T04:30:00+02:00' },
+      restoredAt: '2026-10-09T18:00:00+02:00',
+      played: false,
+      playedAt: null,
+      services: null,
+    };
+    const run = () =>
+      spawnSync(
+        'pwsh',
+        ['-NoProfile', '-NonInteractive', '-File', path.join(here, 'push-back.ps1'), '-Root', root],
+        { encoding: 'utf8' }
+      );
+    writeFileSync(path.join(root, 'state.json'), JSON.stringify(state));
+    const rehearsal = run();
+    assert.equal(rehearsal.status, 1, rehearsal.stdout);
+    assert.match(rehearsal.stderr, /REFUSED: .*never played/);
+
+    // Played: it gets as far as push-world, which looks for Plan B's Data folder (none in this test).
+    writeFileSync(
+      path.join(root, 'state.json'),
+      JSON.stringify({ ...state, played: true, playedAt: '2026-10-09' })
+    );
+    const played = run();
+    assert.notEqual(played.status, 0);
+    assert.match(played.stdout, /based on the Pi backup of 2026-10-09T02:30:00\.000Z/);
+    assert.match(
+      played.stderr + played.stdout,
+      /no Data folder at .*push-back-[^\\/]*[\\/]data[\\/]Data/
+    );
+  });
+
   test('clean decision: played data stays until it is back on the Pi; data with no restore is never ours', () => {
     const r = ps(`
       $played = [pscustomobject]@{ restoredAt = 'x'; played = $true; playedAt = '2026-12-06' }

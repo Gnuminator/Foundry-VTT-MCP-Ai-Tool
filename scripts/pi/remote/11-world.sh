@@ -5,7 +5,14 @@
 # Take a snapshot first (dietpi-backup 1) and get the user's OK: this stops Foundry for a few minutes.
 # Env: BUNDLE (required, a .tar under /var/lib/foundry-import/), WORLD (curse-of-strahd), KIT_WORLD (strahd-kit; empty
 #   skips it), KIT_TITLE, LAUNCH (the world Foundry starts with; WORLD or KIT_WORLD, default WORLD),
-#   REPLACE_WORLD (1 replaces an existing WORLD; default 0 keeps it), GM_USER (the world's GM, default Gamemaster).
+#   REPLACE_WORLD (1 replaces an existing WORLD; default 0 keeps it), GM_USER (the world's GM, default Gamemaster),
+#   REPLACE_NEWER (push-back only: 1 replaces the Pi's world even when it changed after the Plan B snapshot).
+# A Plan B push-back (docs/dev/PLAN-B.md, "After the night"; built by scripts/plan-b/push-back.ps1) brings the
+# world back from the PC with the Pi's own GM password: its MANIFEST.txt says "gm-password: kept (push-back)" and
+# "based-on-snapshot: <the Pi backup Plan B restored>". Such a bundle needs REPLACE_WORLD=1, KIT_WORLD= (empty)
+# and the Pi's $TOOL_ETC/world-<WORLD>.env, else nothing changes. After Foundry stops, a change check scans a copy
+# of the Pi's world: a document created or changed after the snapshot time stops the run (Foundry starts again
+# on the old world) unless REPLACE_NEWER=1. A plain bundle runs as before.
 # What it does: checks the tar before it extracts (no links or devices, no paths outside Data/, no env or cookie
 # files, no ddb-importer or bridge module), checks every checksum, moves the old copies to
 # /var/lib/foundry-import/prev-<stamp> (never deleted), installs, gives the worlds a generated GM password in a
@@ -24,6 +31,7 @@ KIT_TITLE="${KIT_TITLE:-Curse of Strahd (test copy for kit runs)}"
 LAUNCH="${LAUNCH:-$WORLD}"
 REPLACE_WORLD="${REPLACE_WORLD:-0}"
 GM_USER="${GM_USER:-Gamemaster}"
+REPLACE_NEWER="${REPLACE_NEWER:-0}"
 IMPORT=/var/lib/foundry-import
 data="$FOUNDRY_DATA/Data"
 options="$FOUNDRY_DATA/Config/options.json"
@@ -163,6 +171,26 @@ extras="$(LC_ALL=C comm -23 "$work/found" "$work/listed" | head -n 3)"
 [ -z "$extras" ] || die "files in the bundle that SHA256SUMS does not list, for example: $extras"
 [ -f "Data/worlds/$WORLD/world.json" ] || die "the bundle has no Data/worlds/$WORLD/world.json"
 ok "all $(wc -l <"$work/listed") files match"
+
+# A Plan B push-back: the world keeps the Pi's own GM password, so only the Pi's world (whose env file holds
+# that password) can take it, and the kit world is skipped (its env file holds another password, so its
+# provisioning would fail halfway through the run). Checked here, before Foundry stops.
+pushback=0
+based_on=""
+if [ -f MANIFEST.txt ] && grep -q '^gm-password:' MANIFEST.txt; then
+  grep -qx 'gm-password: kept (push-back)' MANIFEST.txt || die "MANIFEST.txt has a gm-password: line this stage does not know"
+  pushback=1
+  based_on="$(sed -n 's/^based-on-snapshot: //p' MANIFEST.txt | head -n1)"
+  [[ "$based_on" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$ ]] ||
+    die "a push-back bundle needs a based-on-snapshot: line in MANIFEST.txt (ISO time in UTC); build it with scripts/plan-b/push-back.ps1. Nothing was changed"
+  [ "$REPLACE_WORLD" = 1 ] || die "this is a Plan B push-back (its Gamemaster keeps the Pi's password): run it with REPLACE_WORLD=1 KIT_WORLD= . Nothing was changed"
+  [ -z "$KIT_WORLD" ] || die "a push-back skips the kit world (its GM password file holds another password): add KIT_WORLD= . Nothing was changed"
+  [ -f "$TOOL_ETC/world-$WORLD.env" ] || die "a push-back needs $TOOL_ETC/world-$WORLD.env (the Pi's GM password, which the pushed world keeps): it is missing. Nothing was changed"
+  case "$REPLACE_NEWER" in 0 | 1) ;; *) die "REPLACE_NEWER must be 0 or 1" ;; esac
+  ok "a Plan B push-back of $WORLD, based on the Pi backup of $based_on (REPLACE_WORLD=1, no kit world, $TOOL_ETC/world-$WORLD.env present)"
+elif [ "$REPLACE_NEWER" != 0 ]; then
+  warn "REPLACE_NEWER is for a Plan B push-back only; this bundle is not one, so it is ignored"
+fi
 modules=()
 for d in Data/modules/*/; do [ -d "$d" ] && modules+=("$(basename "$d")"); done
 assets=()
@@ -189,6 +217,102 @@ if have_systemd; then
   systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
   systemctl stop foundry.service
   stopped=1
+fi
+
+# The push-back's change check (docs/dev/PLAN-B.md, "After the night", the rule for the push-back): the Pi's
+# world must not hold a document created or changed after the Pi backup Plan B restored, or that work would be
+# lost; REPLACE_NEWER=1
+# replaces it anyway (the old copy still goes to prev). Foundry is stopped, so the LevelDB is not in use; a copy
+# is scanned (opening a LevelDB writes to it) with Foundry's own classic-level. Only collection, name and time
+# are printed. File times would not work: LevelDB rewrites its LOG and MANIFEST on every open. A document
+# deleted on the Pi leaves no trace, so a delete alone is not seen.
+newer_count=0
+if [ "$pushback" = 1 ]; then
+  say "change check: did $WORLD on the Pi change after the Pi backup of $based_on?"
+  if [ ! -d "$data/worlds/$WORLD" ]; then
+    ok "there is no $WORLD on the Pi: nothing to compare"
+  else
+    install -d -m 700 "$work/pi-world"
+    for sub in data packs; do
+      [ ! -d "$data/worlds/$WORLD/$sub" ] || cp -a "$data/worlds/$WORLD/$sub" "$work/pi-world/$sub"
+    done
+    find "$work/pi-world" -type f -name LOCK -delete
+    scan_rc=0
+    node --input-type=module - "$FOUNDRY_APP/node_modules/classic-level" "$work/pi-world" "$based_on" >"$work/changes" <<'NODE' || scan_rc=$?
+import { existsSync, readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+const [levelPath, root, since] = process.argv.slice(2);
+const sinceMs = Date.parse(since);
+if (!Number.isFinite(sinceMs)) {
+  console.error(`not a time: ${since}`);
+  process.exit(1);
+}
+const { ClassicLevel } = createRequire(path.join(levelPath, 'noop.js'))(levelPath);
+// Names only, short and printable: no document content leaves this script.
+const clean = v => String(v ?? '').replace(/[^\p{L}\p{N} ._'()/:-]/gu, '?').slice(0, 60);
+const newer = [];
+let docs = 0;
+let dbs = 0;
+for (const sub of ['data', 'packs']) {
+  const dir = path.join(root, sub);
+  if (!existsSync(dir)) continue;
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const db = path.join(dir, e.name);
+    if (!e.isDirectory() || !existsSync(path.join(db, 'CURRENT'))) continue;
+    dbs++;
+    const level = new ClassicLevel(db, { createIfMissing: false, valueEncoding: 'utf8' });
+    await level.open();
+    try {
+      for await (const [key, raw] of level.iterator()) {
+        docs++;
+        let doc;
+        try {
+          doc = JSON.parse(raw);
+        } catch {
+          continue;
+        }
+        const s = (doc && doc._stats) || {};
+        const t = Math.max(Number(s.modifiedTime) || 0, Number(s.createdTime) || 0);
+        if (t <= sinceMs) continue;
+        const m = /^!([^!]+)!/.exec(key);
+        const where = (sub === 'packs' ? `pack:${e.name}/` : '') + (m ? m[1] : e.name);
+        const name = doc.name ?? doc.key ?? doc._id ?? key;
+        newer.push({ t, line: `${clean(where)} ${clean(name)} ${new Date(t).toISOString()}` });
+      }
+    } finally {
+      await level.close();
+    }
+  }
+}
+newer.sort((a, b) => b.t - a.t);
+console.log(`${newer.length} ${docs} ${dbs}`);
+for (const n of newer.slice(0, 5)) console.log(n.line);
+process.exit(newer.length ? 3 : 0);
+NODE
+    read -r newer_count scanned_docs scanned_dbs <"$work/changes" || true
+    newer_count="${newer_count:-0}" scanned_docs="${scanned_docs:-0}" scanned_dbs="${scanned_dbs:-0}"
+    case "$scan_rc" in
+      0) ok "nothing newer than $based_on ($scanned_docs documents in $scanned_dbs databases)" ;;
+      3)
+        warn "documents in the Pi's $WORLD created or changed after $based_on: $newer_count (newest first, up to 5; collection, name, time):"
+        sed -n '2,6p' "$work/changes" | while IFS= read -r line; do printf '      %s\n' "$line" >&2; done
+        if [ "$REPLACE_NEWER" = 1 ]; then
+          warn "REPLACE_NEWER=1: the Pi's $WORLD is replaced anyway; its copy goes to $prev"
+        else
+          die "the Pi's $WORLD changed after the Pi backup Plan B restored: someone played or prepared on the Pi, and a push-back would lose that. Nothing was replaced. Ask the user; only with their OK to lose those changes run again with REPLACE_NEWER=1 (the Pi's copy is kept in $IMPORT/prev-<time> either way)"
+        fi
+        ;;
+      *)
+        if [ "$REPLACE_NEWER" = 1 ]; then
+          warn "the change check could not read the Pi's $WORLD (exit $scan_rc, see above); REPLACE_NEWER=1, so the run goes on"
+        else
+          die "the change check could not read the Pi's $WORLD (exit $scan_rc, see above). Nothing was replaced"
+        fi
+        ;;
+    esac
+    rm -rf "${work:?}/pi-world"
+  fi
 fi
 install -d -m 700 "$prev"
 store_prev() { # $1 path under $data, $2 name inside prev
@@ -360,6 +484,13 @@ fi
 
 say "summary"
 echo "    world $WORLD: $real_state"
+if [ "$pushback" = 1 ]; then
+  if [ "$newer_count" -gt 0 ] 2>/dev/null; then
+    echo "    push-back based on $based_on: $newer_count newer Pi documents replaced (REPLACE_NEWER=1; the Pi's copy is in prev)"
+  else
+    echo "    push-back based on $based_on: nothing on the Pi was newer"
+  fi
+fi
 [ -z "$KIT_WORLD" ] || echo "    kit world $KIT_WORLD: reset ($KIT_TITLE)"
 for id in "${modules[@]}"; do
   echo "    module $id $(node -e 'try{process.stdout.write(require(process.argv[1]).version||"")}catch{}' "$data/modules/$id/module.json")"

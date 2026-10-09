@@ -35,7 +35,16 @@
                        is really missing on disk and matches is not a problem for world-refs and is only listed. A wrong-case path, or one outside the bundle that exists on disk, stays a problem. No
                        .., no leading slash. The list is written into MANIFEST.txt (allow-missing:).
 .PARAMETER GmUser     The world's GM user (default Gamemaster). Stage 11 joins it with an empty password, so it must have none here
-                       (the hash Foundry 14 stores for a user with no password does not count as one).
+                       (the hash Foundry 14 stores for a user with no password does not count as one), except with -PushBack.
+.PARAMETER PushBack   A Plan B push-back (docs/dev/PLAN-B.md, "After the night"): the world goes back to the Pi it came from,
+                       so its Gamemaster keeps the Pi's password. world-refs reports the password but does not refuse it,
+                       MANIFEST.txt says "gm-password: kept (push-back)" and "based-on-snapshot: <time>", and the stage 11
+                       command printed at the end replaces the Pi's world (REPLACE_WORLD=1) and skips the kit world
+                       (KIT_WORLD=). Stage 11 refuses such a bundle without those settings, and refuses it when the
+                       Pi's world changed after the snapshot time. scripts/plan-b/push-back.ps1 calls this.
+.PARAMETER BasedOnSnapshot  With -PushBack only (required there): the time of the Pi backup Plan B restored, ISO 8601
+                       (state.json snapshot.time). Written into MANIFEST.txt in UTC for stage 11's change check.
+.PARAMETER LevelModule  classic-level for world-refs (default the test server's, C:\FoundryTest\app\node_modules\classic-level).
 .PARAMETER SkipRefs    FOR TESTS ONLY: skip the asset scan (the script's own test uses a fake Data folder with no
                        LevelDB). The real run never uses it, because the scan is what proves nothing is left behind.
 #>
@@ -52,6 +61,9 @@ param(
   [string[]]$AllowSettingKeys = @(),
   [string[]]$AllowMissing = @(),
   [string]$GmUser = 'Gamemaster',
+  [switch]$PushBack,
+  [string]$BasedOnSnapshot = '',
+  [string]$LevelModule = '',
   [switch]$SkipRefs
 )
 
@@ -79,6 +91,18 @@ foreach ($id in $Modules) {
   if ($id -eq 'foundry-mcp-bridge') { Fail 'foundry-mcp-bridge is not shipped: stage 5 installs it from the release' }
   if ($id -eq 'ddb-importer') { Fail 'ddb-importer is not shipped: its settings can hold the D&D Beyond cookie, so it stays on this PC' }
 }
+$basedOn = $null
+if ($PushBack) {
+  if (-not $BasedOnSnapshot) { Fail '-PushBack needs -BasedOnSnapshot <the time of the Pi backup Plan B restored> (scripts/plan-b/push-back.ps1 gives it)' }
+  $parsed = [datetimeoffset]::MinValue
+  if (-not [datetimeoffset]::TryParse($BasedOnSnapshot, [CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$parsed)) {
+    Fail "-BasedOnSnapshot '$BasedOnSnapshot' is not an ISO 8601 time"
+  }
+  $basedOn = $parsed.UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [CultureInfo]::InvariantCulture)
+} elseif ($BasedOnSnapshot) {
+  Fail '-BasedOnSnapshot belongs to -PushBack only'
+}
+if ($LevelModule -and -not (Test-Path -LiteralPath $LevelModule -PathType Container)) { Fail "no classic-level folder at $LevelModule" }
 $worldSrc = Join-Path $DataPath "worlds\$World"
 if (-not (Test-Path -LiteralPath (Join-Path $worldSrc 'world.json'))) { Fail "no world.json in $worldSrc" }
 foreach ($id in $Modules) {
@@ -99,10 +123,14 @@ if ($SkipRefs) {
 } else {
   Step 'scanning the world and the module packs for asset paths (scripts/pi/world-refs.mjs)'
   $AllowMissingArgs = if ($AllowMissing.Count) { @('--allow-missing', ($AllowMissing -join ',')) } else { @() }
-  $refsJson = & node (Join-Path $PSScriptRoot 'world-refs.mjs') --data $DataPath --world $World --modules ($Modules -join ',') --allow-secret-keys ($AllowSettingKeys -join ',') $AllowMissingArgs --gm-user $GmUser --json
+  # A push-back keeps the Gamemaster's password (the Pi's own); stage 11 joins with the Pi's env file.
+  $PushBackArgs = if ($PushBack) { @('--gm-password-ok') } else { @() }
+  $LevelArgs = if ($LevelModule) { @('--level-module', $LevelModule) } else { @() }
+  $refsJson = & node (Join-Path $PSScriptRoot 'world-refs.mjs') --data $DataPath --world $World --modules ($Modules -join ',') --allow-secret-keys ($AllowSettingKeys -join ',') $AllowMissingArgs --gm-user $GmUser $PushBackArgs $LevelArgs --json
   $refsRc = $LASTEXITCODE
   if ($refsRc -eq 1 -or -not $refsJson) { Fail "world-refs failed to run (exit $refsRc); see the message above" }
   $refs = ($refsJson -join "`n") | ConvertFrom-Json
+  if ($PushBack -and $refs.gmUser.hasPassword) { Write-Host "    $GmUser has a password: kept (push-back; stage 11 joins with the Pi's world env file)" }
   Write-Host ("    {0} asset paths in {1} databases; per root: {2}" -f $refs.pathCount, $refs.dbsScanned, (($refs.counts.PSObject.Properties | ForEach-Object { "$($_.Name) $($_.Value)" }) -join ', '))
   if ($refs.allowedMissingCount) {
     Write-Host "    $($refs.allowedMissingCount) known missing paths allowed by -AllowMissing (not problems; first $($refs.allowedMissing.Count)):" -ForegroundColor Yellow
@@ -219,6 +247,9 @@ $manifest = @(
   "files: $($files.Count)", "bytes: $bytes", "built (UTC): $([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ', [CultureInfo]::InvariantCulture))",
   "repo commit: $(if ($sha) { $sha } else { 'unknown' })")
 if ($AllowMissing.Count) { $manifest += "allow-missing: $($AllowMissing -join ', ')" }
+# Stage 11 reads these two lines: a kept password needs REPLACE_WORLD=1, the Pi's env file and no kit
+# world, and the Pi's world must not have changed after the snapshot time (else REPLACE_NEWER=1).
+if ($PushBack) { $manifest += @('gm-password: kept (push-back)', "based-on-snapshot: $basedOn") }
 [System.IO.File]::WriteAllText((Join-Path $stage 'MANIFEST.txt'), ($manifest -join "`n") + "`n", $utf8)
 
 Step 'tar (no compression)'
@@ -248,4 +279,10 @@ if ($LASTEXITCODE -ne 0) { Fail 'ssh to the Pi failed' }
 & scp -q $bundle "${PiHost}:/var/lib/foundry-import/$remoteName"
 if ($LASTEXITCODE -ne 0) { Fail 'scp failed' }
 Write-Host 'uploaded. Stage 11 has NOT been run. After a snapshot (dietpi-backup 1) and your OK:' -ForegroundColor Green
-Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World bash -s'"
+if ($PushBack) {
+  Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World REPLACE_WORLD=1 KIT_WORLD= bash -s'"
+  Write-Host "It refuses if the Pi's world changed after $basedOn (it lists what changed). Only with your OK to lose those"
+  Write-Host 'Pi-side changes: add REPLACE_NEWER=1. The Pi''s old copy is kept in /var/lib/foundry-import/prev-<time> either way.'
+} else {
+  Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World bash -s'"
+}

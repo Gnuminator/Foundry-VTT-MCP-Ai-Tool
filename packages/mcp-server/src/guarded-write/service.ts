@@ -28,19 +28,21 @@
 import { randomBytes } from 'crypto';
 
 import {
-  GUARDED_OP_KINDS,
+  type BridgeAnswer,
   expectedAfterApply,
-  inverseGuardedOp,
-  isNoOpResult,
+  GUARDED_OP_KINDS,
   type GuardedApplyOutcome,
   type GuardedApplyRequest,
   type GuardedApplyResult,
   type GuardedFeatureState,
   type GuardedOp,
   type GuardedRisk,
+  inverseGuardedOp,
+  isNoOpResult,
   type OpSnapshot,
   type PathValue,
   type RulesVersion,
+  unwrapBridgeReply,
 } from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
@@ -256,14 +258,6 @@ function sleep(ms: number): Promise<void> {
 
 function newId(prefix: string, now: number): string {
   return `${prefix}-${now.toString(36)}-${randomBytes(4).toString('hex')}`;
-}
-
-function unwrap<T>(response: unknown, what: string): T {
-  const r = response as { success?: unknown; error?: unknown } | null | undefined;
-  if (r && typeof r === 'object' && r.success === false) {
-    throw new Error(`${what}: ${typeof r.error === 'string' ? r.error : 'refused by Foundry'}`);
-  }
-  return response as T;
 }
 
 function validateShowToPlayers(show: unknown): { uuid: string; users: string[] } {
@@ -519,7 +513,7 @@ export class GuardedWriteService {
     const diff: DiffLine[] = [];
     let expected: OpSnapshot[] = [];
     if (ops.length > 0) {
-      expected = unwrap<OpSnapshot[]>(
+      expected = unwrapBridgeReply(
         await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', { ops }),
         'Snapshot refused'
       );
@@ -790,7 +784,7 @@ export class GuardedWriteService {
     users: string[];
   }): Promise<NonNullable<AppliedChange['shown']>> {
     try {
-      unwrap<unknown>(
+      unwrapBridgeReply(
         await this.foundry.query(
           'foundry-mcp-bridge.showJournalPage',
           { uuid: show.uuid, userIds: show.users },
@@ -949,7 +943,7 @@ export class GuardedWriteService {
   }
 
   private async executeInFoundry(request: GuardedApplyRequest): Promise<GuardedApplyResult> {
-    let response: unknown;
+    let response: BridgeAnswer<'foundry-mcp-bridge.applyGuardedOps'>;
     try {
       response = await this.foundry.query('foundry-mcp-bridge.applyGuardedOps', request, {
         timeoutMs: this.applyTimeoutMs,
@@ -964,7 +958,7 @@ export class GuardedWriteService {
       return this.awaitApplyOutcome(request);
     }
     return this.checkApplyResult(
-      unwrap<GuardedApplyResult>(response, 'Foundry refused the change'),
+      unwrapBridgeReply(response, 'Foundry refused the change'),
       request
     );
   }
@@ -996,7 +990,7 @@ export class GuardedWriteService {
       await sleep(this.outcomePollIntervalMs);
       let outcome: GuardedApplyOutcome | null = null;
       try {
-        const response = unwrap<GuardedApplyOutcome | null>(
+        const response = unwrapBridgeReply(
           await this.foundry.query('foundry-mcp-bridge.guardedApplyOutcome', {
             changeId: request.changeId,
           }),
@@ -1092,7 +1086,7 @@ export class GuardedWriteService {
    */
   async autoApplyEnabled(feature: string): Promise<boolean> {
     try {
-      const features = unwrap<GuardedFeatureState[]>(
+      const features = unwrapBridgeReply(
         await this.foundry.query('foundry-mcp-bridge.listGuardedFeatures'),
         'Feature list refused'
       );
@@ -1119,7 +1113,7 @@ export class GuardedWriteService {
   private async requireFeatureEnabled(feature: string, undo = false): Promise<void> {
     let features: GuardedFeatureState[];
     try {
-      features = unwrap<GuardedFeatureState[]>(
+      features = unwrapBridgeReply(
         await this.foundry.query('foundry-mcp-bridge.listGuardedFeatures'),
         'Feature list refused'
       );

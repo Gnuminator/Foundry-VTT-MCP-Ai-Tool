@@ -28,6 +28,7 @@ import type {
   CompendiumEntryFull,
   SceneTokenPlacement,
   TokenPlacementResult,
+  CharacterEntityResult,
 } from './data-access/types.js';
 
 export class FoundryDataAccess {
@@ -454,7 +455,7 @@ export class FoundryDataAccess {
   async getCharacterEntity(data: {
     characterIdentifier: string;
     entityIdentifier: string;
-  }): Promise<any> {
+  }): Promise<CharacterEntityResult> {
     return this.characters.getCharacterEntity(data);
   }
 

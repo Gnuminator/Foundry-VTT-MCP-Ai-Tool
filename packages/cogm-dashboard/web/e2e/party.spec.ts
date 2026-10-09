@@ -379,18 +379,18 @@ test('an apply whose answer got lost says it may have applied; a tool error does
   // Registered last, so it answers first: each apply fails in its own way.
   const fails = [
     // The bridge link dropped after the send.
-    (route: Route) =>
+    (route: Route): Promise<void> =>
       route.fulfill({
         status: 502,
         json: { ok: false, kind: 'channel', error: 'The bridge link closed.' },
       }),
     // A proxy gave up waiting (Cloudflare 524), with its own HTML page.
-    (route: Route) =>
+    (route: Route): Promise<void> =>
       route.fulfill({ status: 524, contentType: 'text/html', body: '<html>A timeout</html>' }),
     // The network failed.
-    (route: Route) => route.abort('connectionreset'),
+    (route: Route): Promise<void> => route.abort('connectionreset'),
     // A 200 that still says ok: false is the tool's own no.
-    (route: Route) =>
+    (route: Route): Promise<void> =>
       route.fulfill({ json: { ok: false, kind: 'tool', error: 'Nothing to change' } }),
   ];
   await page.route('**/api/tool', route => {

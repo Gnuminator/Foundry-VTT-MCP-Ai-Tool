@@ -4,5 +4,7 @@
   roll, resources and effects, actor creation, player roll buttons, creature index, world items
   and scene sound files use the typed Foundry declarations instead of `any`, with local types for
   the dnd5e roll and rest methods and result types for their replies. ESLint warnings drop from
-  4966 to 4137; these seven files have none left. No behaviour changes: a few `||` became `??`
+  4944 to 4114; these seven files have none left. No behaviour changes: a few `||` became `??`
   only where the value is an object or an array.
+- **Bridge contract tidy-up (#262 review):** game system detection logs a GM-gate refusal (a
+  non-GM client holds the bridge) at warn instead of error, since it asks again on every call.

@@ -1,7 +1,7 @@
 import { MODULE_ID } from '../constants.js';
 import { trackUsage } from '../usage-recorder.js';
 import { logInfo } from '../log.js';
-import { plainText, rec } from '../character-sheet-fields.js';
+import { num, plainText, rec, str } from '../character-sheet-fields.js';
 import type {
   DnD5eCreatureIndex,
   EnhancedCreatureIndex,
@@ -10,7 +10,7 @@ import type {
 } from './types.js';
 
 /** dnd5e document types that count as "creatures" for the index. */
-const CREATURE_TYPES = new Set(['npc', 'character', 'creature']);
+const CREATURE_TYPES = new Set(['npc', 'character']);
 
 /** A dismissible progress notification (Foundry's `ui.notifications.info` return value). */
 interface RemovableNote {
@@ -431,176 +431,62 @@ export class PersistentCreatureIndex {
   }
 
   /**
-   * Flatten one creature document into an index record. Every field read is
-   * defensive (system data shapes vary across modules/versions); on any failure
-   * it returns a safe fallback record (counted as one extraction error) rather
-   * than dropping the creature. Reads the canonical `_id` field.
+   * Flatten one creature document into an index record. Reads the prepared dnd5e 6 fields
+   * (verified against dnd5e.mjs 6.0.5 `NPCData` / `CharacterData`); on any failure it returns
+   * a safe fallback record (counted as one extraction error) rather than dropping the
+   * creature. Reads the canonical `_id` field.
    */
   private extractDnD5eCreatureData(
     doc: any,
     pack: any
   ): { creature: DnD5eCreatureIndex; errors: number } {
     try {
-      const system = doc.system || {};
+      const system = rec(doc.system);
+      const details = rec(system.details);
+      const attributes = rec(system.attributes);
 
-      // Challenge rating — many shapes; null/strings normalized to a number.
-      let challengeRating =
-        system.details?.cr ??
-        system.details?.cr?.value ??
-        system.cr?.value ??
-        system.cr ??
-        system.attributes?.cr?.value ??
-        system.attributes?.cr ??
-        system.challenge?.rating ??
-        system.challenge?.cr ??
-        0;
-      if (challengeRating === null || challengeRating === undefined) {
-        challengeRating = 0;
-      }
-      if (typeof challengeRating === 'string') {
-        if (challengeRating === '1/8') challengeRating = 0.125;
-        else if (challengeRating === '1/4') challengeRating = 0.25;
-        else if (challengeRating === '1/2') challengeRating = 0.5;
-        else challengeRating = parseFloat(challengeRating) || 0;
-      }
-      challengeRating = Number(challengeRating) || 0;
+      // `details.cr` is a nullable NumberField on NPCs (fractions stored as 0.125 etc.);
+      // characters have none.
+      const challengeRating = num(details.cr, 0);
 
-      // Creature type — nullish/empty coalesced to 'unknown', forced to string.
-      let creatureType =
-        system.details?.type?.value ??
-        system.details?.type ??
-        system.type?.value ??
-        system.type ??
-        system.race?.value ??
-        system.race ??
-        system.details?.race ??
-        'unknown';
-      if (creatureType === null || creatureType === undefined || creatureType === '') {
-        creatureType = 'unknown';
-      }
-      if (typeof creatureType !== 'string') {
-        creatureType = String(creatureType || 'unknown');
-      }
+      // `details.type` is a CreatureTypeField ({value, subtype, swarm, custom}); characters
+      // get it from their species item during data preparation (humanoid without one).
+      const creatureType = str(rec(details.type).value) || 'unknown';
 
-      // Size — first truthy candidate. Default and fallback are dnd5e's own
-      // storage key ('med'), not the display word ('medium'): `system.traits.size`
-      // is an ActorSizeField (StringField) whose value is one of dnd5e's short
-      // keys (tiny, sm, med, lg, huge, grg) with initial "med" — never the full
-      // word. Storing the raw key here keeps the index aligned with
-      // CONFIG.DND5E.actorSizes and with the backend filter (filters.ts), which
-      // now accepts both spellings and normalizes to this key.
-      // verified: dnd5e.mjs 6.0.5 — TraitsField.common.size = new ActorSizeField({
-      //   required: true, initial: "med" }); CONFIG.DND5E.actorSizes keys are
-      //   tiny/sm/med/lg/huge/grg (fullKey small/medium/large/gargantuan).
-      let size =
-        system.traits?.size?.value ||
-        system.traits?.size ||
-        system.size?.value ||
-        system.size ||
-        system.details?.size ||
-        'med';
-      if (typeof size !== 'string') {
-        size = String(size || 'med');
-      }
+      // `traits.size` is an ActorSizeField holding dnd5e's short key (tiny, sm, med, lg,
+      // huge, grg; initial "med"), kept as the key to match CONFIG.DND5E.actorSizes and the
+      // backend filter (filters.ts).
+      const size = str(rec(system.traits).size) || 'med';
 
-      const hitPoints =
-        system.attributes?.hp?.max ||
-        system.hp?.max ||
-        system.attributes?.hp?.value ||
-        system.hp?.value ||
-        system.health?.max ||
-        system.health?.value ||
-        0;
+      const hp = rec(attributes.hp);
+      const hitPoints = num(hp.max, 0) || num(hp.value, 0);
+      const armorClass = num(rec(attributes.ac).value, 0) || 10;
+      const alignment = str(details.alignment) || 'unaligned';
 
-      const armorClass =
-        system.attributes?.ac?.value ||
-        system.ac?.value ||
-        system.attributes?.ac ||
-        system.ac ||
-        system.armor?.value ||
-        system.armor ||
-        10;
-
-      let alignment =
-        system.details?.alignment?.value ||
-        system.details?.alignment ||
-        system.alignment?.value ||
-        system.alignment ||
-        'unaligned';
-      if (typeof alignment !== 'string') {
-        alignment = String(alignment || 'unaligned');
-      }
-
-      // Spellcasting — PRE-EXISTING BUG (plan `creature-index.ts:520-535`):
-      // `system.spells` and `system.attributes.spellcasting` are truthy
-      // *containers* dnd5e always populates, even for non-casters, so testing
-      // their mere presence made `hasSpells` always true. Both dnd5e 5.3 and
-      // 6.0 give every NPC/character a fixed `system.spells` map (spell1..9 +
-      // pact, each `{value: 0, override: null}` by default) and a
-      // `system.attributes.spellcasting` StringField that is "" (blank) when
-      // there is no caster ability set. The real signal is a nonzero slot or a
-      // spell item. Not the ability: the 2024 monsters (`dnd5e.actors24`) set
-      // one on every NPC (a Wolf has "str"; seen live on 6.0.5), and their
-      // casters (Mage, Lich, dragons) cast from spell items, not slots.
-      // verified: dnd5e.mjs 6.0.5 — SpellcastingTemplate schema:
-      //   `spells: new MappingField(new SchemaField({value: NumberField(initial 0),
-      //   override: NumberField}), { initialKeys: spellLevels })` (always present,
-      //   default value 0); AttributesFields.creature `spellcasting: new
-      //   StringField({ required: true, blank: true })` (default "").
-      const asRecord = (v: unknown): Record<string, unknown> | undefined =>
-        v && typeof v === 'object' ? (v as Record<string, unknown>) : undefined;
+      // Spellcasting: `system.spells` (spell1..9 + pact, `{value, override}` plus prepared
+      // `max`) and `attributes.spellcasting` (a StringField, "" for non-casters) exist on
+      // every creature, so their presence says nothing. The signal is a nonzero slot or a
+      // spell item. Not the ability: the 2024 monsters (`dnd5e.actors24`) set one on every
+      // NPC (a Wolf has "str"; seen live on 6.0.5), and their casters (Mage, Lich, dragons)
+      // cast from spell items, not slots.
       const isPositiveNumber = (v: unknown): boolean => typeof v === 'number' && v > 0;
-
-      const spellsRecord = asRecord(system.spells);
-      const hasSpellSlotValue = spellsRecord
-        ? Object.values(spellsRecord).some(slot => {
-            const s = asRecord(slot);
-            return s
-              ? isPositiveNumber(s.value) || isPositiveNumber(s.max) || isPositiveNumber(s.override)
-              : typeof slot === 'number' && slot > 0;
-          })
-        : false;
+      const hasSpellSlotValue = Object.values(rec(system.spells)).some(slot => {
+        const s = rec(slot);
+        return isPositiveNumber(s.value) || isPositiveNumber(s.max) || isPositiveNumber(s.override);
+      });
       const items: unknown = doc.items;
       const itemList: unknown[] = Array.isArray(items)
         ? items
-        : Array.isArray(asRecord(items)?.contents)
-          ? (asRecord(items)!.contents as unknown[])
+        : Array.isArray(rec(items).contents)
+          ? (rec(items).contents as unknown[])
           : [];
-      const hasSpellItem = itemList.some(item => asRecord(item)?.type === 'spell');
+      const hasSpellItem = itemList.some(item => rec(item).type === 'spell');
+      const hasSpells = hasSpellSlotValue || hasSpellItem;
 
-      const hasSpells = !!(
-        hasSpellSlotValue ||
-        hasSpellItem ||
-        (system.details?.spellLevel && system.details.spellLevel > 0) ||
-        (system.resources?.spell && system.resources.spell.max > 0) ||
-        (system.traits?.spellcasting && system.traits.spellcasting !== false) ||
-        system.details?.spellcaster
-      );
-
-      // Legendary actions — PRE-EXISTING BUG (plan `creature-index.ts:520-535`):
-      // `system.resources.legact` is always a `{max, spent}` container on every
-      // NPC in both dnd5e 5.3 and 6.0 (default `max: 0`), so testing its mere
-      // presence made `hasLegendaryActions` always true. Only a positive max
-      // means the creature actually has legendary actions. `legres` is
-      // *legendary resistance* (a different trait) and must not be read as a
-      // legendary-actions signal — the old fallback chain conflated the two.
-      // verified: dnd5e.mjs 6.0.5 — NPCData.resources = new SchemaField({
-      //   legact: new SchemaField({ max: NumberField({initial: 0}), spent: ... }),
-      //   legres: new SchemaField({ max: NumberField({initial: 0}), ... }), ... }).
-      const legendaryActionMax = (block: unknown): number => {
-        const b = asRecord(block);
-        if (!b) return 0;
-        if (typeof b.max === 'number') return b.max;
-        if (typeof b.value === 'number') return b.value;
-        return 0;
-      };
-
-      const hasLegendaryActions = !!(
-        legendaryActionMax(system.resources?.legact) > 0 ||
-        (typeof system.legendary === 'number' && system.legendary > 0) ||
-        (typeof system.details?.legendary === 'number' && system.details.legendary > 0) ||
-        (typeof system.traits?.legendary === 'number' && system.traits.legendary > 0)
-      );
+      // Legendary actions: `resources.legact` is a `{max, spent}` container on every NPC
+      // (initial max 0), so only a positive max counts. `legres` is legendary resistance, a
+      // different trait.
+      const hasLegendaryActions = num(rec(rec(system.resources).legact).max, 0) > 0;
 
       return {
         creature: {
@@ -629,7 +515,6 @@ export class PersistentCreatureIndex {
     }
   }
 
-  /** Safe default record used when extraction throws (fallback HP is 1, not 0). */
   /**
    * The biography as plain text (no tags or secret blocks), so the description search matches
    * words, not markup. dnd5e 6 stores `details.biography` as `{value, public}`; a plain string
@@ -640,6 +525,7 @@ export class PersistentCreatureIndex {
     return plainText(typeof bio === 'string' ? bio : rec(bio).value, 2000);
   }
 
+  /** Safe default record used when extraction throws (fallback HP is 1, not 0). */
   private fallbackRecord(doc: any, pack: any): DnD5eCreatureIndex {
     return {
       id: doc._id,

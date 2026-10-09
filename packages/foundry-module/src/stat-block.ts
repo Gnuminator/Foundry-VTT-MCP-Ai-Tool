@@ -361,14 +361,14 @@ function skillsText(skills: unknown): string {
   return parts.sort((a, b) => a.localeCompare(b)).join(', ');
 }
 
-/** Read `item.system.activities` (a Collection) for the first activity's activation type. */
+/**
+ * Read `item.system.activities` (a Collection) for the first activity's activation type. dnd5e 6
+ * feats and weapons have no item-level `system.activation` (only spells keep one).
+ */
 function firstActivation(item: Rec): string | null {
   const activities = dig(item, 'system', 'activities');
   const first = contentsOf(activities)[0] ?? null;
-  return (
-    nonEmpty(dig(first, 'activation', 'type')) ??
-    nonEmpty(dig(item, 'system', 'activation', 'type'))
-  );
+  return nonEmpty(dig(first, 'activation', 'type'));
 }
 
 function hasProperty(item: Rec, key: string): boolean {

@@ -207,13 +207,14 @@ export function useGuardedTools(): GuardedTools {
       }
     };
 
-    // The click on Undo is the confirmation, as on the old page.
-    const undo = async (changeId: string): Promise<void> => {
+    // The click on Undo is the confirmation, as on the old page. A refusal says what the run
+    // that made the toast would have said (its gate text), and opens the same gate.
+    const undo = async (changeId: string, options: GuardedOptions): Promise<void> => {
       const sent = await send(
         'undo-change',
         { changeId },
         { confirm: true, confirmDestructive: true },
-        {}
+        options
       );
       if ('outcome' in sent) return;
       toast(doneText('undo-change', sent.result), 'ok');
@@ -272,7 +273,7 @@ export function useGuardedTools(): GuardedTools {
       if (changeId) {
         toast(doneText('apply-planned-change', applied), 'ok', {
           label: 'Undo',
-          onClick: () => void undo(changeId),
+          onClick: () => void undo(changeId, options),
         });
       } else {
         toast(doneText('apply-planned-change', applied), 'ok');

@@ -3,7 +3,7 @@
  * about first, read from the live item so derived values (uses left, to-hit, save DC, damage
  * formulas) are already computed by the system. The full `system` still travels next to them.
  */
-import type { SheetUses } from '@gnuminator/shared';
+import type { ActivitySummary, ItemEntityDetails } from '@gnuminator/shared';
 import { contentsOf } from '../doc-read.js';
 import {
   labelText,
@@ -15,34 +15,7 @@ import {
   type Rec,
 } from '../character-sheet-fields.js';
 
-/** One activity (attack, save, damage, heal, cast, utility...) as its labels show it. */
-export interface ActivitySummary {
-  id: string;
-  name: string;
-  type: string;
-  activation?: string;
-  range?: string;
-  target?: string;
-  toHit?: string;
-  save?: string;
-  damage?: string;
-  uses?: SheetUses;
-}
-
-export interface ItemEntityDetails {
-  /** Spell level (0 for cantrips). */
-  level?: number;
-  /** Spell school key ("evo"). */
-  school?: string;
-  rarity?: string;
-  quantity?: number;
-  equipped?: boolean;
-  /** "required" or "optional" when the item can be attuned. */
-  attunement?: string;
-  attuned?: boolean;
-  uses?: SheetUses;
-  activities?: ActivitySummary[];
-}
+export type { ActivitySummary, ItemEntityDetails };
 
 /** The activities of a dnd5e 6 item: a live Collection, or a plain object keyed by id (source). */
 function activityList(activities: unknown): Rec[] {

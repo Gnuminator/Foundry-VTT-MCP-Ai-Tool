@@ -1,6 +1,7 @@
 // The Pre-flight drawer on the React dashboard: the tool's checks (/api/preflight, faked here
 // except in the last test), the summary and header verdict, the findings, the hand checklist in
-// localStorage, the quiet run when Foundry comes back, and how the drawer closes.
+// localStorage, the browser's own Tarokka check, the quiet run when Foundry comes back, and how the
+// drawer closes.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { GM_TOKEN, fakeCommonRoutes, fakeStream } from './support';
@@ -61,8 +62,9 @@ test('runs the checks on open and shows the verdict', async ({ page }) => {
     'Starting scene',
     'Ready for session',
     'A new check',
+    'Tarokka cards hidden',
   ]);
-  await expect(items.locator('.pf-icon')).toHaveText(['✓', '✗', '!', '?']);
+  await expect(items.locator('.pf-icon')).toHaveText(['✓', '✗', '!', '?', '✓']);
   await expect(items.nth(1)).toHaveClass(/pf-fail/);
   await expect(items.nth(3)).toHaveClass(/pf-unknown/);
   await expect(items.nth(1).locator('.pf-detail')).toHaveText('No scene is active.');
@@ -110,6 +112,10 @@ test('a failed run shows the server message', async ({ page }) => {
   ).toBeVisible();
   await expect(drawer.locator('.drawer-sub')).toHaveText('GM only. The checks did not run.');
   await expect(header(page)).toHaveText('✈ Pre-flight');
+  // This browser's own check still shows: it needs no server.
+  const tarokka = drawer.locator('.preflight-item', { hasText: 'Tarokka cards hidden' });
+  await expect(tarokka).toHaveClass(/pf-ok/);
+  await expect(tarokka.locator('.pf-detail')).toHaveText('Show cards is not ticked.');
 });
 
 test('a failed run after a good one drops the old verdict', async ({ page }) => {

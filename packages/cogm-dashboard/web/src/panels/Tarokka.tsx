@@ -83,9 +83,18 @@ const MIN_QUERY = 2;
 export function TarokkaDrawer({
   open,
   onOpenChange,
+  showCards,
+  onShowCardsChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Show cards lives in App, so Pre-flight (open over this drawer) can warn while it is on.
+   * Never stored, and off again whenever this drawer closes: the cards show only while the GM
+   * looks at them on purpose.
+   */
+  showCards: boolean;
+  onShowCardsChange: (shown: boolean) => void;
 }): JSX.Element {
   const toast = useToast();
   const runChange = useGuardedChange();
@@ -99,9 +108,6 @@ export function TarokkaDrawer({
     retry: false,
   });
   const obsidianUrl = useObsidianFileUrl('AI Tool/Tarokka/Current reading');
-  // Never stored, and off again whenever the drawer closes: the cards show only while the GM
-  // looks at them on purpose.
-  const [showCards, setShowCards] = useState(false);
   // One change at a time in the whole drawer, the reload after it included. A reveal planned for
   // one card must not land on the card a New reading deals while its confirm window is open: the
   // bridge's check would pass, as a new card is unrevealed too. The ref also catches a double
@@ -114,8 +120,9 @@ export function TarokkaDrawer({
     usage().trackView('dash.tarokka.view');
     return (): void => {
       usage().endView('dash.tarokka.view');
-      setShowCards(false);
+      onShowCardsChange(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per opening
   }, [open]);
 
   // Reloads after every attempt, as Handouts does: a cancelled or failed change may still mean
@@ -214,7 +221,7 @@ export function TarokkaDrawer({
               id="tarokka-show"
               data-track="dash.tarokka.show-cards"
               checked={showCards}
-              onChange={e => setShowCards(e.target.checked)}
+              onChange={e => onShowCardsChange(e.target.checked)}
             />{' '}
             Show cards
           </label>

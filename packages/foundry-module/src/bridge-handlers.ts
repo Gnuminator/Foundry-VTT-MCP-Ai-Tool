@@ -14,6 +14,13 @@
  * (`foundry-mcp-bridge.<method>`) are unchanged.
  */
 
+import type {
+  BridgeAnswer,
+  BridgeMethod,
+  BridgeRequest,
+  UntypedBridgeMethod,
+} from '@gnuminator/shared';
+
 /**
  * A bridge handler: receives the query payload, returns the result. Payloads
  * are untyped wire data; each handler declares and validates its own shape.
@@ -21,10 +28,25 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- see above
 export type BridgeHandler = (data: any) => unknown;
 
+/**
+ * A handler for a method of the bridge contract (`shared/src/bridge-queries.ts`): the
+ * compiler checks its reply against the contract. The request is what the backend sends;
+ * a handler that validates wire data itself may still take `unknown`.
+ */
+export type TypedBridgeHandler<M extends BridgeMethod> = (
+  data: BridgeRequest<M>
+) => BridgeAnswer<M> | Promise<BridgeAnswer<M>>;
+
 export class BridgeHandlerTable {
   private readonly handlers = new Map<string, BridgeHandler>();
 
-  set(method: string, handler: BridgeHandler): void {
+  /** Register a handler for a method of the bridge contract. */
+  on<M extends BridgeMethod>(method: M, handler: TypedBridgeHandler<M>): void {
+    this.handlers.set(method, handler as BridgeHandler);
+  }
+
+  /** Register a handler for a method the contract does not type yet. */
+  set<M extends string>(method: UntypedBridgeMethod<M>, handler: BridgeHandler): void {
     this.handlers.set(method, handler);
   }
 

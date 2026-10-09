@@ -2,7 +2,8 @@
 // its empty and failed states, Show cards (hidden names never on the page), the Open buttons,
 // Import, New reading and a link pick in one click with Undo, Reveal through the confirm window
 // (the destructive tick, both flags, Cancel, Show it now), open forms kept across reloads, the
-// GM Actions gate, the Obsidian link from the stream, and Escape.
+// GM Actions gate (and Pre-flight beside the drawer warning while Show cards is ticked), the
+// Obsidian link from the stream, and Escape.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import {
@@ -734,11 +735,17 @@ test('with GM Actions off nothing is planned; the gate opens Pre-flight', async 
   await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
   await expect(toast(page, gate)).toBeVisible();
   await expect(preflight).toBeVisible();
+  // Pre-flight opens on top of the drawer that asked for it; Escape hands the top back.
+  await expect(preflight).toHaveClass(/drawer-top/);
+  await expect(drawer).not.toHaveClass(/drawer-top/);
   await page.keyboard.press('Escape');
   await expect(preflight).toBeHidden();
+  await expect(drawer).toHaveClass(/drawer-top/);
 
   await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
   await expect(toast(page, gate)).toHaveCount(2);
+  await page.keyboard.press('Escape');
+  await expect(preflight).toBeHidden();
 
   // Searching is a read and still works; the pick is gated.
   const tome = pos(drawer, 'tome');
@@ -748,6 +755,8 @@ test('with GM Actions off nothing is planned; the gate opens Pre-flight', async 
   await tome.locator('.tarokka-candidate').first().getByRole('button', { name: 'Link' }).click();
   await expect(toast(page, gate)).toHaveCount(3);
   await expect(tome.locator('.tarokka-candidate')).toHaveCount(4);
+  await page.keyboard.press('Escape');
+  await expect(preflight).toBeHidden();
 
   await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
   await tome.getByPlaceholder('Exactly what the players may read').fill('Text');
@@ -758,6 +767,45 @@ test('with GM Actions off nothing is planned; the gate opens Pre-flight', async 
   expect(plans(calls)).toEqual([]);
   expect(names(calls)).not.toContain('apply-planned-change');
   expect(names(calls)).toContain('suggest-tarokka-links');
+});
+
+test('Pre-flight beside the drawer warns while Show cards is ticked, and Hide cards unticks it', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(false));
+  await fakeTools(page, bridge);
+  const drawer = await openTarokka(page);
+  const show = drawer.getByRole('checkbox', { name: 'Show cards' });
+  await show.check();
+
+  // The gate opens Pre-flight with Tarokka still open: the two drawers side by side.
+  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
+  await expect(preflight).toBeVisible();
+  const row = preflight.locator('.preflight-item', { hasText: 'Tarokka cards hidden' });
+  await expect(row).toHaveClass(/pf-warn/);
+  await expect(row.locator('.pf-detail')).toHaveText(
+    'Show cards is ticked in the Tarokka drawer. Hide them before players can see your screen.'
+  );
+  await expect(preflight.getByRole('status')).toHaveText('Ready, with 1 to look at.');
+
+  await row.getByRole('button', { name: 'Hide cards' }).click();
+  await expect(show).not.toBeChecked();
+  await expect(drawer.locator('.tarokka-card.veiled')).toHaveCount(5);
+  for (const secret of SECRETS) expect(await page.content()).not.toContain(secret);
+  await expect(row).toHaveClass(/pf-ok/);
+  await expect(row.locator('.pf-detail')).toHaveText('Show cards is not ticked.');
+  await expect(row.getByRole('button')).toHaveCount(0);
+  await expect(preflight.getByRole('status')).toHaveText('Ready for the session.');
+
+  // Escape gives Tarokka the top back; ticked again, the next time Pre-flight opens it warns.
+  await page.keyboard.press('Escape');
+  await expect(preflight).toBeHidden();
+  await show.check();
+  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await expect(preflight).toBeVisible();
+  await expect(row).toHaveClass(/pf-warn/);
+  await expect(row.getByRole('button', { name: 'Hide cards' })).toBeVisible();
 });
 
 test('the Obsidian link shows once the stream sent the vault and the world', async ({ page }) => {

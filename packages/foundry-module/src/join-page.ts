@@ -12,8 +12,11 @@
  *
  * The GM applies or removes it from the module settings ("Join page look"). Inside a running
  * world a GM may save world details through Foundry's own `/setup` "editWorld" request (the
- * same one Edit World uses), so no admin password is needed. Not an AI write: a GM click on
- * the world's own settings, outside plan, confirm and undo.
+ * same one Edit World uses), so no admin password is needed. When the server has an admin
+ * password, Foundry 14 answers that request with 401 and saves it anyway (its admin check sets
+ * the status and carries on), so the reply's world data is the verdict, not the status: the
+ * change counts as saved only when the reply has it. Not an AI write: a GM click on the world's
+ * own settings, outside plan, confirm and undo.
  *
  * Planning is pure (tested); {@link applyJoinLook} takes its Foundry pieces as deps.
  */
@@ -99,6 +102,24 @@ export interface JoinPageDeps {
   notifyError(message: string): void;
 }
 
+/**
+ * What Foundry's reply lacks of the change, or null when it kept all of it. The look is
+ * compared, not the exact text (Foundry may tidy the HTML). The background is checked only when
+ * one was sent: a cleared background comes back as the system's picture.
+ */
+export function lostFromReply(change: JoinPageChange, reply: WorldJoinFields): string | null {
+  const wanted = hasVeilLook({ id: change.id, description: change.description });
+  if (hasVeilLook(reply) !== wanted) {
+    return wanted
+      ? 'the style line in the description (Foundry removed it)'
+      : 'the description without the style line';
+  }
+  if (typeof change.background === 'string' && !reply.background?.endsWith(change.background)) {
+    return 'the background picture';
+  }
+  return null;
+}
+
 function replyError(reply: unknown): string | null {
   if (!reply || typeof reply !== 'object') return 'Foundry sent no reply.';
   const error = (reply as { error?: unknown }).error;
@@ -128,6 +149,11 @@ export async function applyJoinLook(
     return false;
   }
   deps.updateWorld(reply as Record<string, unknown>);
+  const lost = lostFromReply(change, reply as WorldJoinFields);
+  if (lost) {
+    deps.notifyError(`The join page look was not saved: Foundry did not keep ${lost}.`);
+    return false;
+  }
   deps.notifyInfo(
     look === 'veil'
       ? 'The Veil is on the join page. Players see it the next time they open the join page.'
@@ -170,17 +196,40 @@ export function joinPageDialogHtml(world: WorldJoinFields): string {
 // Foundry side: the settings menu dialog and the real deps
 // ---------------------------------------------------------------------------
 
-/** Foundry's pieces for {@link applyJoinLook}: `game.world` and a POST to `/setup`. */
+/**
+ * The loaded world's join page details. Foundry fills an empty world background with the
+ * system's picture when it loads the world, so that picture counts as no background of the
+ * world's own (the dialog then ticks The Veil picture, and Back has nothing to clear).
+ */
+export function currentWorld(): WorldJoinFields {
+  const world = game.world;
+  const systemBackground = (game.system as { background?: string | null } | undefined)?.background;
+  const background =
+    world.background && world.background !== systemBackground ? world.background : null;
+  return {
+    id: world.id,
+    description: world.description,
+    background,
+    joinTheme: world.joinTheme,
+  };
+}
+
+/** Foundry's pieces for {@link applyJoinLook}: the loaded world and a POST to `/setup`. */
 export function foundryJoinDeps(): JoinPageDeps {
   return {
-    world: () => game.world,
+    world: currentWorld,
     submit: async (change): Promise<unknown> => {
       const response = await fetch(foundry.utils.getRoute('setup'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(change),
       });
-      return response.json() as Promise<unknown>;
+      // Not response.ok: a saved change can come back as 401 (see the top of this file).
+      try {
+        return (await response.json()) as unknown;
+      } catch {
+        throw new Error(`Foundry answered ${response.status} ${response.statusText}`.trim());
+      }
     },
     updateWorld: saved => void game.world.updateSource(saved),
     notifyInfo: message => void ui.notifications.info(message),
@@ -199,7 +248,7 @@ export function createJoinPageMenu(): new () => object {
   const api = foundry.applications.api as { DialogV2: DialogV2Class };
   return class JoinPageMenu extends api.DialogV2 {
     constructor() {
-      const world = game.world;
+      const world = currentWorld();
       const veil: DialogButtonCallback = async (_event, button) => {
         trackUsage('action', 'module.join-page.veil');
         const box = button.form?.elements.namedItem('useBackground') as {

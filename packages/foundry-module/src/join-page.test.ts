@@ -14,8 +14,10 @@ import {
   VEIL_STYLE_LINE,
   applyJoinLook,
   createJoinPageMenu,
+  currentWorld,
   hasVeilLook,
   joinPageDialogHtml,
+  lostFromReply,
   planJoinPage,
   stripJoinStyle,
   type JoinPageDeps,
@@ -145,6 +147,50 @@ describe('applyJoinLook', () => {
     expect(await applyJoinLook('default', {}, deps)).toBe(false);
     expect(deps.errors[0]).toBe('The join page look was not saved: offline');
   });
+
+  it('reports a style line Foundry removed, and still syncs the loaded world', async () => {
+    const reply = { id: 'w', description: '', background: VEIL_BACKGROUND };
+    const deps = fakeDeps({ id: 'w', description: '' }, reply);
+    expect(await applyJoinLook('veil', {}, deps)).toBe(false);
+    expect(deps.saved).toEqual([reply]);
+    expect(deps.info).toEqual([]);
+    expect(deps.errors[0]).toBe(
+      'The join page look was not saved: Foundry did not keep the style line in the description (Foundry removed it).'
+    );
+  });
+
+  it('reports a background Foundry did not keep', async () => {
+    const reply = { id: 'w', description: `${VEIL_STYLE_LINE}\n`, background: null };
+    const deps = fakeDeps({ id: 'w', description: '' }, reply);
+    expect(await applyJoinLook('veil', {}, deps)).toBe(false);
+    expect(deps.errors[0]).toContain('did not keep the background picture');
+  });
+});
+
+describe('lostFromReply', () => {
+  it("accepts tidied HTML and the system's picture after a cleared background", () => {
+    const veil = planJoinPage({ id: 'w', description: DESCRIPTION }, 'veil');
+    const tidied = {
+      id: 'w',
+      description: `${VEIL_STYLE_LINE}<p>Welcome to <strong>Barovia</strong>.</p>`,
+      background: `/${VEIL_BACKGROUND}`,
+    };
+    expect(lostFromReply(veil, tidied)).toBeNull();
+    const back = planJoinPage(
+      { id: 'w', description: `${VEIL_STYLE_LINE}\n`, background: VEIL_BACKGROUND },
+      'default'
+    );
+    expect(back.background).toBeNull();
+    const reply = { id: 'w', description: '', background: 'systems/dnd5e/ui/official/banner.webp' };
+    expect(lostFromReply(back, reply)).toBeNull();
+  });
+
+  it('names a style line that is still there after Back', () => {
+    const back = planJoinPage({ id: 'w', description: `${VEIL_STYLE_LINE}\n` }, 'default');
+    expect(lostFromReply(back, { id: 'w', description: `${VEIL_STYLE_LINE}\n` })).toBe(
+      'the description without the style line'
+    );
+  });
 });
 
 describe('joinPageDialogHtml', () => {
@@ -214,7 +260,9 @@ describe('createJoinPageMenu', () => {
 
   it('Apply posts editWorld to /setup with the checkbox choice', async () => {
     const world = worldWith({ id: 'w', description: DESCRIPTION, background: null });
-    const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ id: 'w' }) });
+    const saved = { id: 'w', description: `${VEIL_STYLE_LINE}\n${DESCRIPTION}` };
+    // Foundry answers 401 when the server has an admin password, and still saves.
+    const fetchMock = vi.fn().mockResolvedValue({ status: 401, json: async () => saved });
     vi.stubGlobal('fetch', fetchMock);
     const Menu = createJoinPageMenu();
     new Menu();
@@ -229,7 +277,40 @@ describe('createJoinPageMenu', () => {
       id: 'w',
       description: `${VEIL_STYLE_LINE}\n${DESCRIPTION}`,
     });
-    expect(world.updateSource).toHaveBeenCalledWith({ id: 'w' });
+    expect(world.updateSource).toHaveBeenCalledWith(saved);
+    expect(testWorld.notifications.filter(n => n.level === 'error')).toEqual([]);
+  });
+
+  it('reports a reply that is not JSON with its status', async () => {
+    const world = worldWith({ id: 'w', description: DESCRIPTION, background: null });
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 500,
+      statusText: 'Internal Server Error',
+      json: async () => {
+        throw new SyntaxError('Unexpected token <');
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const Menu = createJoinPageMenu();
+    new Menu();
+    await options?.buttons[0].callback(new Event('click'), { form: null });
+    expect(world.updateSource).not.toHaveBeenCalled();
+    expect(testWorld.notifications).toContainEqual({
+      level: 'error',
+      message: 'The join page look was not saved: Foundry answered 500 Internal Server Error',
+    });
+  });
+
+  it("treats the system's picture as no background of the world's own", () => {
+    const banner = 'systems/dnd5e/ui/official/banner.webp';
+    g.game.system = { ...g.game.system, background: banner };
+    worldWith({ description: DESCRIPTION, background: banner });
+    expect(currentWorld().background).toBeNull();
+    new (createJoinPageMenu())();
+    expect(options?.content).toContain('name="useBackground" checked');
+    expect(options?.buttons.map((b: { action: string }) => b.action)).toEqual(['veil', 'cancel']);
+    worldWith({ background: 'worlds/w/cover.webp' });
+    expect(currentWorld().background).toBe('worlds/w/cover.webp');
   });
 });
 
@@ -248,11 +329,14 @@ describe('the join page files', () => {
 
   it('styles only the join page (the setup screen shows the description too)', () => {
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@font-face\s*\{[^}]*\}/g, '');
-    const selectors = [...body.matchAll(/(^|\})\s*([^{}@]+)\{/g)].map(m => m[2].trim());
+    // After `}` or `{`, so the rules inside @media blocks are checked too.
+    const selectors = [...body.matchAll(/(^|[{}])\s*([^{}@]+)\{/g)].map(m => m[2].trim());
     expect(selectors.length).toBeGreaterThan(5);
+    const mediaAt = body.indexOf('@media');
+    expect(selectors.some(s => body.lastIndexOf(s) > mediaAt)).toBe(true);
     for (const group of selectors) {
       for (const selector of group.split(/,(?![^(]*\))/))
-        expect(selector.trim(), selector).toMatch(/^body\.join\b/);
+        expect(selector.trim(), selector).toMatch(/^body\.join(?![\w-])/);
     }
   });
 

@@ -12,6 +12,10 @@ import {
   type QueryOptions,
 } from './foundry-connector.js';
 
+/** The reply of a method the bridge contract does not type yet. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped until each method joins the contract
+type UntypedBridgeReply = any;
+
 export interface FoundryQuery {
   method: string;
   data?: unknown;
@@ -73,8 +77,8 @@ export class FoundryClient {
   query<M extends string>(
     method: UntypedBridgeMethod<M>,
     data?: unknown,
-    options?: QueryOptions // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped until each method joins the contract
-  ): Promise<any>;
+    options?: QueryOptions
+  ): Promise<UntypedBridgeReply>;
   async query(method: string, data?: unknown, options?: QueryOptions): Promise<unknown> {
     if (!this.connector.isConnected()) {
       throw new Error(

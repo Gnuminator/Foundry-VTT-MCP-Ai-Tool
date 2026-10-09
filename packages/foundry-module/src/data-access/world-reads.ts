@@ -4,6 +4,17 @@ import type { SceneInfo, SceneToken, WorldInfo } from './types.js';
 import { sceneBackgroundSrc } from '../systems/core.js';
 
 /**
+ * Scene members the shared `Scene` declaration does not list. Read from the live
+ * document, so each is typed the way Foundry exposes it.
+ */
+interface SceneExtraFields {
+  img?: string | null;
+  padding: number;
+  navigation: boolean;
+  sounds: { size: number };
+}
+
+/**
  * Read-only world and scene domain for `FoundryDataAccess`.
  *
  * Backs the tools that give an AI model a quick orientation to the live game:
@@ -16,17 +27,6 @@ import { sceneBackgroundSrc } from '../systems/core.js';
  * `|| ''`-style fallbacks because partially-populated documents appear in the
  * wild, and we want concise tool output rather than `null`-polluted objects.
  */
-/**
- * Scene members the shared `Scene` declaration does not list. Read from the live
- * document, so each is typed the way Foundry exposes it.
- */
-interface SceneExtraFields {
-  img?: string | null;
-  padding: number;
-  navigation: boolean;
-  sounds: { size: number };
-}
-
 export class WorldReadsDataAccess {
   // ===== PUBLIC READS =====
 

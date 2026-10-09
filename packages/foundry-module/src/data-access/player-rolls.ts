@@ -2,7 +2,7 @@ import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 import { trackUsage } from '../usage-recorder.js';
 import { logDebug, logInfo } from '../log.js';
-import { rec } from '../doc-read.js';
+import { dig, rec, type Rec } from '../doc-read.js';
 
 /** A roll button's persisted state (world setting `rollStates`, keyed by button id). */
 interface RollButtonState {
@@ -104,7 +104,7 @@ export class PlayerRollsDataAccess {
         content: rollButtonHtml,
         // The button is posted by the GM user, not an actor: speak as the user's name.
         speaker: ChatMessage.getSpeaker({ alias: game.user.name }),
-        style: (CONST as any).CHAT_MESSAGE_STYLES?.OTHER || 0, // Use style instead of deprecated type
+        style: CONST.CHAT_MESSAGE_STYLES?.OTHER || 0, // Use style instead of deprecated type
         whisper: whisperTargets,
         flags: {
           [MODULE_ID]: {
@@ -151,7 +151,7 @@ export class PlayerRollsDataAccess {
     dc?: number;
     isPublic: boolean;
     reason?: string;
-  }): Promise<any> {
+  }): Promise<{ success: boolean; message: string; error?: string }> {
     const flavorParts: string[] = [];
     if (data.reason) flavorParts.push(data.reason);
     if (data.dc != null) flavorParts.push(`DC ${data.dc}`);
@@ -171,7 +171,7 @@ export class PlayerRollsDataAccess {
     targetPlayer: string;
     weaponOrSpellName: string;
     isPublic: boolean;
-  }): Promise<any> {
+  }): Promise<{ success: boolean; message: string; error?: string }> {
     return this.requestPlayerRolls({
       rollType: 'attack',
       rollTarget: data.weaponOrSpellName,
@@ -192,10 +192,18 @@ export class PlayerRollsDataAccess {
     rollType: string;
     rollTarget: string;
     isPublic: boolean;
-  }): Promise<any> {
+  }): Promise<{
+    success: boolean;
+    actorName: string;
+    rollType: string;
+    rollTarget: string;
+    formula: string;
+    total: number;
+    isPublic: boolean;
+  }> {
     shared.validateFoundryState();
 
-    const actor = shared.findActorByIdentifier(data.actorName);
+    const actor = shared.findActorByIdentifier(data.actorName) as Actor | undefined;
     if (!actor) {
       throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.actorName}`);
     }
@@ -203,12 +211,12 @@ export class PlayerRollsDataAccess {
     let formula: string;
     if (data.rollType === 'attack') {
       const item = actor.items.find(
-        (i: any) =>
+        i =>
           i.name.toLowerCase() === data.rollTarget.toLowerCase() ||
           i.name.toLowerCase().includes(data.rollTarget.toLowerCase())
       );
       let bonus = '';
-      const toHit = item?.labels?.toHit;
+      const toHit = dig(item, 'labels', 'toHit');
       if (toHit && typeof toHit === 'string') {
         const trimmed = toHit.replace(/\s+/g, '');
         bonus = trimmed.startsWith('+') || trimmed.startsWith('-') ? trimmed : `+${trimmed}`;
@@ -218,11 +226,10 @@ export class PlayerRollsDataAccess {
       formula = this.buildRollFormula(data.rollType, data.rollTarget, '', actor);
     }
 
-    const RollCls: any = (globalThis as any).Roll;
-    const roll = new RollCls(formula, actor.getRollData());
+    const roll = new Roll(formula, actor.getRollData());
     await roll.evaluate();
 
-    const speaker = (ChatMessage as any).getSpeaker({ actor });
+    const speaker = ChatMessage.getSpeaker({ actor });
 
     await roll.toMessage(
       { speaker, flavor: `${data.rollTarget} (${data.rollType})` },
@@ -265,8 +272,8 @@ export class PlayerRollsDataAccess {
     // IMPORTANT: Skip styling for buttons that are already in rolled state
     html.find('.mcp-roll-button').each((_index, element) => {
       const button = $(element);
-      const targetUserId = button.data('target-user-id');
-      const isPublicRollRaw = button.data('is-public');
+      const targetUserId = button.data('target-user-id') as string | undefined;
+      const isPublicRollRaw: unknown = button.data('is-public');
       const isPublicRoll = isPublicRollRaw === true || isPublicRollRaw === 'true';
 
       // Note: No need to check for rolled state - ChatMessage.update() replaces buttons with completion status
@@ -303,7 +310,7 @@ export class PlayerRollsDataAccess {
     });
 
     // Attach click handlers to roll buttons
-    const onRollButtonClick = async (event: any): Promise<void> => {
+    const onRollButtonClick = async (event: JQuery.ClickEvent): Promise<void> => {
       const button = $(event.currentTarget);
 
       // Ignore clicks on disabled buttons
@@ -317,7 +324,7 @@ export class PlayerRollsDataAccess {
       button.text('🎲 Rolling...');
 
       // Check if this button is already being processed by another user
-      const buttonId = button.data('button-id');
+      const buttonId = button.data('button-id') as string | undefined;
       if (buttonId && this.isRollButtonProcessing(buttonId)) {
         button.text('🎲 Processing...');
         return;
@@ -338,12 +345,13 @@ export class PlayerRollsDataAccess {
 
       // Read via attr() to avoid jQuery .data() coercion (it JSON-parses values
       // that look like numbers/arrays/objects, which can mangle a roll formula).
-      const rollFormula = button.attr('data-roll-formula') ?? button.data('roll-formula');
-      const rollLabel = button.attr('data-roll-label') ?? button.data('roll-label');
-      const isPublicRaw = button.data('is-public');
+      const rollFormula = (button.attr('data-roll-formula') ??
+        button.data('roll-formula')) as string;
+      const rollLabel = (button.attr('data-roll-label') ?? button.data('roll-label')) as string;
+      const isPublicRaw: unknown = button.data('is-public');
       const isPublic = isPublicRaw === true || isPublicRaw === 'true'; // Convert to proper boolean
-      const characterId = button.data('character-id');
-      const targetUserId = button.data('target-user-id');
+      const characterId = button.data('character-id') as string | undefined;
+      const targetUserId = button.data('target-user-id') as string | undefined;
       const isGmRoll = game.user?.isGM || false; // Determine if this is a GM executing the roll
 
       // Check if user has permission to execute this roll
@@ -364,11 +372,10 @@ export class PlayerRollsDataAccess {
         logInfo(`[${MODULE_ID}] Executing roll with formula:`, rollFormula);
 
         // Create and evaluate the roll, validating first for a clear error.
-        const RollCls: any = Roll;
-        if (typeof RollCls.validate === 'function' && !RollCls.validate(rollFormula)) {
+        if (typeof Roll.validate === 'function' && !Roll.validate(rollFormula)) {
           throw new Error(`Invalid roll formula: "${rollFormula}"`);
         }
-        const roll = new RollCls(rollFormula);
+        const roll = new Roll(rollFormula);
         await roll.evaluate();
 
         // Get the character for speaker info
@@ -382,7 +389,7 @@ export class PlayerRollsDataAccess {
             whisperTargets.push(targetUserId);
           }
           // Add all active GMs
-          const gmUsers = game.users?.filter((u: User) => u.isGM && u.active);
+          const gmUsers = game.users?.filter(u => u.isGM && u.active);
           if (gmUsers) {
             for (const gm of gmUsers) {
               if (gm.id && !whisperTargets.includes(gm.id)) {
@@ -392,7 +399,7 @@ export class PlayerRollsDataAccess {
           }
         }
 
-        const messageData: any = {
+        const messageData: Record<string, unknown> = {
           speaker: ChatMessage.getSpeaker({ actor: character }),
           flavor: `${rollLabel} ${isGmRoll ? '(GM Override)' : ''}`,
           ...(whisperTargets.length > 0 ? { whisper: whisperTargets } : {}),
@@ -409,7 +416,7 @@ export class PlayerRollsDataAccess {
         await roll.toMessage(messageData, { create: true, ...visibility });
 
         // Update the ChatMessage to reflect rolled state
-        const buttonId = button.data('button-id');
+        const buttonId = button.data('button-id') as string | undefined;
         if (buttonId && game.user?.id) {
           try {
             await this.updateRollButtonMessage(buttonId, game.user.id, rollLabel);
@@ -443,7 +450,7 @@ export class PlayerRollsDataAccess {
         }
       }
     };
-    html.find('.mcp-roll-button').on('click', (event: any) => void onRollButtonClick(event));
+    html.find('.mcp-roll-button').on('click', event => void onRollButtonClick(event));
   }
 
   // ===========================================================================
@@ -501,10 +508,10 @@ export class PlayerRollsDataAccess {
   }
 
   /** Read a button's roll state from a chat message's module flags, or null. */
-  getRollStateFromMessage(chatMessage: any, buttonId: string): any {
+  getRollStateFromMessage(chatMessage: unknown, buttonId: string): unknown {
     try {
-      const rollButtons = chatMessage.getFlag(MODULE_ID, 'rollButtons');
-      return rollButtons?.[buttonId] || null;
+      const rollButtons = (chatMessage as ChatMessage).getFlag(MODULE_ID, 'rollButtons');
+      return dig(rollButtons, buttonId) || null;
     } catch (error) {
       console.error(`[${MODULE_ID}] Error getting roll state from message:`, error);
       return null;
@@ -559,8 +566,11 @@ export class PlayerRollsDataAccess {
 
       // Mark the button rolled in the message flags.
       const currentFlags = chatMessage.flags || {};
-      const moduleFlags = (currentFlags[MODULE_ID] ?? {}) as Record<string, any>;
-      const rollButtons = (moduleFlags.rollButtons ?? {}) as Record<string, any>;
+      const moduleFlags: Rec = currentFlags[MODULE_ID] ?? {};
+      const rollButtons = (moduleFlags.rollButtons ?? {}) as Record<
+        string,
+        Record<string, unknown> | undefined
+      >;
       rollButtons[buttonId] = {
         ...rollButtons[buttonId],
         rolled: true,
@@ -614,7 +624,7 @@ export class PlayerRollsDataAccess {
    * LEGACY: no-op. ChatMessage.update() already broadcasts to every client, so
    * an explicit roll-state broadcast is no longer needed.
    */
-  broadcastRollState(_buttonId: string, _rollState: any): void {
+  broadcastRollState(_buttonId: string, _rollState: unknown): void {
     // Intentionally empty — superseded by ChatMessage.update() auto-sync.
   }
 
@@ -769,7 +779,7 @@ export class PlayerRollsDataAccess {
     if (targetUserId) {
       targets.push(targetUserId);
     }
-    const gmUsers = game.users?.filter((u: User) => u.isGM && u.active);
+    const gmUsers = game.users?.filter(u => u.isGM && u.active);
     if (gmUsers) {
       for (const gm of gmUsers) {
         if (gm.id && !targets.includes(gm.id)) {
@@ -797,11 +807,12 @@ export class PlayerRollsDataAccess {
     // Coerce a roll-data field to a finite number. In dnd5e v5 some fields that
     // were plain numbers are now objects (e.g. abilities.<x>.save), so a naive
     // `1d20+${field}` produced "1d20+[object Object]" and broke Roll parsing.
-    const toMod = (v: any): number => {
+    const toMod = (v: unknown): number => {
       if (v == null) return 0;
       if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
       if (typeof v === 'object') {
-        const inner = v.value ?? v.total ?? v.mod ?? v.bonus;
+        const o = v as Rec;
+        const inner = o.value ?? o.total ?? o.mod ?? o.bonus;
         const n = Number(inner);
         return Number.isFinite(n) ? n : 0;
       }
@@ -813,18 +824,18 @@ export class PlayerRollsDataAccess {
 
     if (character) {
       // Foundry's getRollData() gives calculated modifiers (incl. active effects).
-      const rollData = character.getRollData() as any;
+      const rollData = character.getRollData();
 
       switch (rollType) {
         case 'ability': {
-          const abilityMod = toMod(rollData.abilities?.[rollTarget]?.mod);
+          const abilityMod = toMod(dig(rollData, 'abilities', rollTarget, 'mod'));
           baseFormula = `1d20${signed(abilityMod)}`;
           break;
         }
 
         case 'skill': {
           const skillCode = this.getSkillCode(rollTarget);
-          const skillMod = toMod(rollData.skills?.[skillCode]?.total);
+          const skillMod = toMod(dig(rollData, 'skills', skillCode, 'total'));
           baseFormula = `1d20${signed(skillMod)}`;
           break;
         }
@@ -834,9 +845,9 @@ export class PlayerRollsDataAccess {
           // compute the save modifier from ability mod + proficiency rather than
           // reading `.save` directly (which omitted save proficiency, e.g. a
           // creature's DEX save came out +2 instead of +7).
-          const ability = rollData.abilities?.[rollTarget] ?? {};
+          const ability: Rec = rec(dig(rollData, 'abilities', rollTarget)) ?? {};
           const mod = toMod(ability.mod);
-          const prof = toMod(rollData.attributes?.prof ?? rollData.prof);
+          const prof = toMod(dig(rollData, 'attributes', 'prof') ?? rollData.prof);
           const proficient = toMod(ability.proficient); // 0 / 0.5 / 1 / 2
           const computed = mod + Math.round(proficient * prof);
           // Prefer a directly-exposed numeric save total if it's larger (covers
@@ -847,7 +858,9 @@ export class PlayerRollsDataAccess {
         }
 
         case 'initiative': {
-          const initMod = toMod(rollData.attributes?.init?.mod ?? rollData.abilities?.dex?.mod);
+          const initMod = toMod(
+            dig(rollData, 'attributes', 'init', 'mod') ?? dig(rollData, 'abilities', 'dex', 'mod')
+          );
           baseFormula = `1d20${signed(initMod)}`;
           break;
         }

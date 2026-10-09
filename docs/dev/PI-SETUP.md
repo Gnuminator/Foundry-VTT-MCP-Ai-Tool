@@ -671,7 +671,9 @@ installs it into `/opt/foundry-ai-tool/gm-browser/` and removes the upload; run 
   the checksum. Before anything is extracted the stage lists it: no absolute paths, no `..`, no
   backslashes, no links or other special entries, a `module.json` at the top, a size limit and enough
   free space. Then `module.json` must say id `foundryvtt-actor-studio` and the pinned version. If that
-  version is already installed, part A is skipped and nothing is downloaded. Otherwise the services
+  version is already installed, part A is skipped and nothing is downloaded. A newer installed build
+  (Foundry's own Update follows the fork's latest release) stops the stage unless
+  `ALLOW_DOWNGRADE=1`. Otherwise the services
   stop, the old module folder moves to `/var/lib/foundry-import/prev-<time>/modules/` (never deleted;
   put back by itself if the swap fails) and the new one takes its place, owned by `foundry`.
   The pinned build is the fork's `2.10.5-aitool.4` release (its `module.zip` checksum is in the
@@ -685,13 +687,17 @@ installs it into `/opt/foundry-ai-tool/gm-browser/` and removes the upload; run 
   (never printed, passed in the environment and not on a command line). It sets
   `core.permissions` so `ACTOR_CREATE` includes Player and Trusted Player (roles already there stay),
   and Actor Studio's world settings `enableEquipmentSelection` = true and `compendiumSources` with
-  `equipment` = `["dnd-players-handbook.equipment"]` (the other sources keep their values). It prints
+  `equipment` = `["dnd-players-handbook.equipment"]` (the other sources keep their values), and
+  turns Actor Studio's per-user `usage-tracking` off for every user who has it saved as on. It prints
   the values before and after, reloads the world and reads them back, and the stage stops with an
   error on any mismatch, if Actor Studio is not switched on in the world, or if that pack is not in
   the world. A second run changes nothing.
+- **Before anything stops** the Assistant GM browser stops and Foundry's `/api/status` must answer
+  and count nobody online; otherwise the stage stops (`FORCE=1` stops Foundry anyway).
 - **Afterwards** `options.json` launches the world it launched before the run, Foundry and the
-  Assistant GM browser start, and the stage waits for "joined world". If the run fails after Foundry
-  was stopped, `options.json`, Foundry and the Assistant GM browser are put back as they were. Free
+  Assistant GM browser start again if they ran before, and the stage waits for "joined world". If the
+  run fails after Foundry was stopped, `options.json`, Foundry and the Assistant GM browser are put
+  back as they were. Free
   space is checked first (the 20 % rule). Without systemd (a test container) part B is skipped with a
   warning. **Run it after stage 11, every time:** stage 11 always swaps in the PC's copy of each
   module, `foundryvtt-actor-studio` included, and resets `strahd-kit` from the bundle, so the fork

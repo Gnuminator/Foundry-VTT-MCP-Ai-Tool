@@ -11,23 +11,26 @@
 #   default /root/player-creation-settings.mjs), STUDIO_VERSION + STUDIO_SHA256 (override the pinned build; give
 #   both or neither), STUDIO_ZIP (a local zip under /var/lib/foundry-import/ instead of the download; needs
 #   STUDIO_SHA256, and the zip's module.json must say STUDIO_VERSION), FORCE (1 stops Foundry even when people
-#   are online; default 0 refuses).
+#   are online; default 0 refuses), ALLOW_DOWNGRADE (1 replaces an installed build newer than STUDIO_VERSION;
+#   default 0 refuses).
 # What it does:
 #   A. The pinned build (below) comes from the fork's GitHub release, must match STUDIO_SHA256, and is inspected
 #      before anything is extracted (no absolute paths, no .., no links, module.json says id foundryvtt-actor-studio
 #      and the pinned version). If that version is already installed, part A is skipped. Otherwise the services
 #      stop, the old module folder moves to /var/lib/foundry-import/prev-<stamp>/modules/ (never deleted) and the
 #      new one takes its place, owned by the Foundry user like the other modules.
-#   Before anything stops: with the Assistant GM browser stopped, /api/status must count no one online.
+#   Before anything stops: with the Assistant GM browser stopped, /api/status must answer and count no one
+#   online (FORCE=1 overrides both).
 #   B. For each world, the kit copy first so a failure stops the run before the real world (Foundry runs it, headless Chromium joins as the world's GM with the login in
 #      /etc/foundry-ai-tool/world-<id>.env, never printed): Foundry's ACTOR_CREATE permission includes the Player
 #      and Trusted Player roles (the roles already there stay), Actor Studio's enableEquipmentSelection is on and
 #      its equipment source is dnd-players-handbook.equipment. The values before and after are printed and read
 #      back after a reload (player-creation-settings.mjs). Safe to run again: nothing changes the second time.
 #      Before each world starts, its settings database is copied to /var/lib/foundry-import/prev-<stamp>/worlds/.
-#   Afterwards options.json launches the world it launched before, Foundry and the Assistant GM browser start
-#   and the stage waits for "joined world". If the run fails after Foundry was stopped, options.json is put back
-#   (and the old module, if the install had not finished) and both start again. Space is checked first (20%
+#   Afterwards options.json launches the world it launched before, and Foundry and the Assistant GM browser
+#   start again if they ran before the stage (the stage waits for "joined world"). If the run fails after Foundry
+#   was stopped, options.json is put back (and the old module, if the install had not finished) and both are put
+#   back the same way. A build newer than the pinned one is never replaced without ALLOW_DOWNGRADE=1. Space is checked first (20%
 #   free warns, under 5% stops). Without systemd (a test container) part B is skipped with a warning.
 
 require_root
@@ -47,6 +50,7 @@ KIT_WORLD="${KIT_WORLD-strahd-kit}"
 STUDIO_ZIP="${STUDIO_ZIP:-}"
 SETTINGS_DRIVER="${SETTINGS_DRIVER:-/root/player-creation-settings.mjs}"
 FORCE="${FORCE:-0}"
+ALLOW_DOWNGRADE="${ALLOW_DOWNGRADE:-0}"
 IMPORT=/var/lib/foundry-import
 data="$FOUNDRY_DATA/Data"
 options="$FOUNDRY_DATA/Config/options.json"
@@ -184,6 +188,7 @@ on_exit() {
       systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service || true
     fi
     warn "the run did not finish: Foundry and the Assistant GM browser are back as they were before it"
+    if [ "$install_state" = 2 ]; then warn "Actor Studio $STUDIO_VERSION stays installed (part A had finished)"; fi
     if [ -d "$prev" ]; then warn "old copies are in $prev"; fi
   fi
   rm -rf "${work:?}"
@@ -200,6 +205,14 @@ need_install=1
 if [ "$installed_version" = "$STUDIO_VERSION" ]; then
   need_install=0
   ok "$MODULE_ID $installed_version is already installed: part A skipped"
+elif [ -n "$installed_version" ] &&
+  [ "$(printf '%s\n' "$STUDIO_VERSION" "$installed_version" | sort -V | tail -n1)" = "$installed_version" ]; then
+  # Foundry's own Update (the manifest points at the fork's latest release) can install a newer build.
+  if [ "$ALLOW_DOWNGRADE" = 1 ]; then
+    warn "installed $installed_version is newer than $STUDIO_VERSION; ALLOW_DOWNGRADE=1, replacing it"
+  else
+    die "installed $MODULE_ID $installed_version is newer than $STUDIO_VERSION: pin the newer release in this script, or ALLOW_DOWNGRADE=1 to go back"
+  fi
 else
   ok "installed: ${installed_version:-nothing}; wanted: $STUDIO_VERSION"
 fi
@@ -280,14 +293,22 @@ if have_systemd; then
   stopped=1
   systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
   # Nobody may be playing: with the Assistant GM browser gone, /api/status counts the people still online.
+  # An answer that cannot be read counts as "?" (unknown), not as nobody; the setup screen has no users field
+  # and counts as 0.
   if [ "$was_foundry" = 1 ]; then
     online=""
     for _ in $(seq 1 10); do
-      online="$(curl -fs http://127.0.0.1:30000/api/status 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const u=JSON.parse(s).users;process.stdout.write(String(Number.isInteger(u)?u:0))}catch{process.stdout.write("0")}})')" || online=0
-      [ "${online:-0}" -gt 0 ] || break
+      online="$(curl -fs http://127.0.0.1:30000/api/status 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const u=JSON.parse(s).users;process.stdout.write(String(Number.isInteger(u)?u:0))}catch{process.stdout.write("?")}})')" || online="?"
+      [ "$online" != 0 ] || break
       sleep 2
     done
-    if [ "${online:-0}" -gt 0 ]; then
+    if [ "$online" = "?" ]; then
+      if [ "$FORCE" = 1 ]; then
+        warn "cannot read who is online (/api/status); FORCE=1, stopping Foundry anyway"
+      else
+        die "cannot read who is online in Foundry (/api/status on port 30000): check it runs, or FORCE=1 to stop Foundry anyway"
+      fi
+    elif [ "$online" != 0 ]; then
       if [ "$FORCE" = 1 ]; then
         warn "$online user(s) still online; FORCE=1, stopping Foundry anyway"
       else
@@ -353,9 +374,12 @@ world_settings() { # $1 world id: Foundry runs it, the GM's browser sets and ver
       echo "ERROR: $envf has no GM_USER and GM_PASSWORD" >&2
       exit 1
     }
-    # The login stays in the environment (exported by the sourced file), never on a command line.
-    export WORLD="$id" HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium
-    runuser -u "$FOUNDRY_USER" -- node "$driver_dir/player-creation-settings.mjs"
+    # The login stays in the environment (exported by the sourced file), never on a command line. runuser
+    # resets HOME to the Foundry user's home (the Foundry data folder), so env sets it after the switch.
+    export WORLD="$id"
+    runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
+      FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
+      node "$driver_dir/player-creation-settings.mjs"
   ) || die "the settings for $id failed or did not verify (see the lines above)"
   ok "$id: settings set and read back"
   systemctl stop foundry.service
@@ -367,26 +391,39 @@ if [ "$run_b" = 1 ]; then
   say "Foundry launches ${orig_world:-no world} again"
   set_world "$orig_world"
   ok "options.json launches ${orig_world:-no world}"
+  # Foundry and the Assistant GM browser end as they were before the run (the same as on_exit).
   since="$(date '+%Y-%m-%d %H:%M:%S')"
-  systemctl restart foundry.service
-  if [ -n "$orig_world" ]; then
-    wait_for_world "$orig_world"
-    ok "$orig_world is running"
-  fi
-  enable_unit foundry-ai-tool-gm-browser.service
-  joined=0
-  for _ in $(seq 1 45); do
-    if journalctl -u foundry-ai-tool-gm-browser --since "$since" --no-pager | grep -q 'joined world'; then
-      joined=1
-      break
+  if [ "$was_foundry" = 1 ]; then
+    systemctl restart foundry.service
+    if [ -n "$orig_world" ]; then
+      wait_for_world "$orig_world"
+      ok "$orig_world is running"
     fi
-    sleep 2
-  done
-  journalctl -u foundry-ai-tool-gm-browser -n 5 --no-pager | grep 'assistant-gm' || true
-  if [ "$joined" = 1 ]; then
-    ok "the Assistant GM browser joined the world"
   else
-    warn "no 'joined world' yet; see: journalctl -u foundry-ai-tool-gm-browser -n 30"
+    ok "Foundry was not running before this run: left stopped"
+  fi
+  if [ "$was_gm_browser" = 1 ]; then
+    systemctl restart foundry-ai-tool-gm-browser.service
+    sleep 2
+    systemctl is-active --quiet foundry-ai-tool-gm-browser.service || die "the Assistant GM browser did not start; see: journalctl -u foundry-ai-tool-gm-browser -n 50"
+  else
+    ok "the Assistant GM browser was not running before this run: left off"
+  fi
+  if [ "$was_gm_browser" = 1 ] && [ "$was_foundry" = 1 ] && [ -n "$orig_world" ]; then
+    joined=0
+    for _ in $(seq 1 45); do
+      if journalctl -u foundry-ai-tool-gm-browser --since "$since" --no-pager | grep -q 'joined world'; then
+        joined=1
+        break
+      fi
+      sleep 2
+    done
+    journalctl -u foundry-ai-tool-gm-browser -n 5 --no-pager | grep 'assistant-gm' || true
+    if [ "$joined" = 1 ]; then
+      ok "the Assistant GM browser joined the world"
+    else
+      warn "no 'joined world' yet; see: journalctl -u foundry-ai-tool-gm-browser -n 30"
+    fi
   fi
 else
   warn "no systemd here (a test container?): part B was skipped, and Foundry and the Assistant GM browser were not touched"

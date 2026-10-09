@@ -10,10 +10,15 @@
   (`scripts/pi/remote/player-creation-settings.mjs`, login from `world-<id>.env`, never printed) and
   sets Foundry's `ACTOR_CREATE` permission for Player and Trusted Player (the roles already there
   stay), Actor Studio's `enableEquipmentSelection`, and its equipment source
-  `dnd-players-handbook.equipment`; it reads the values back after a reload and fails on any
+  `dnd-players-handbook.equipment`, and turns Actor Studio's per-user `usage-tracking` off for
+  every user who has it saved as on; it reads the values back after a reload and fails on any
   mismatch. `options.json` goes back to the world it launched before, and a failed run puts it, the
   old module, Foundry and the Assistant GM browser back. The pinned build is the fork's
   `2.10.5-aitool.4` release, checked against its SHA-256; a pinned `PENDING-RELEASE` (a build
-  without a release yet) makes the stage refuse to run without `STUDIO_ZIP` and `STUDIO_SHA256`. Tested in an ARM64 container (download and checksum of `aitool.3`, skip on a
-  second run, wrong checksum, `..`, absolute, backslash and symlink zips, a failed swap, and the
-  restore path with a faked systemd); the in-browser part is syntax-checked only.
+  without a release yet) makes the stage refuse to run without `STUDIO_ZIP` and `STUDIO_SHA256`. Tested in an ARM64 container (download and checksum of `aitool.3` and the
+  pinned `aitool.4`, skip on a second run, wrong checksum, `..`, absolute, backslash and symlink
+  zips, a failed swap, and the restore path with a faked systemd); the in-browser part ran twice
+  against the PC test server's licensed kit world. The stage refuses to stop Foundry while people
+  are online or when `/api/status` cannot be read (`FORCE=1` overrides), never replaces a newer
+  installed build without `ALLOW_DOWNGRADE=1`, and leaves Foundry and the Assistant GM browser as
+  it found them (stopped stays stopped).

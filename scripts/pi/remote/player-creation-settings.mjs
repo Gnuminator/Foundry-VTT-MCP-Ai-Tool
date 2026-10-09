@@ -4,7 +4,8 @@
 // assistant-gm.mjs does) and sets, through Foundry's own settings API:
 //   - core.permissions: ACTOR_CREATE includes the Player and Trusted Player roles (the roles already there stay);
 //   - Actor Studio, world settings: enableEquipmentSelection = true, and compendiumSources with
-//     equipment = ["dnd-players-handbook.equipment"] (every other source keeps its value).
+//     equipment = ["dnd-players-handbook.equipment"] (every other source keeps its value);
+//   - Actor Studio's per-user usage-tracking: every saved value that is not false becomes false.
 // It prints the values before and after, reloads the world and reads them back, and exits 1 on any mismatch.
 // A second run changes nothing. Passwords are never printed.
 //
@@ -30,12 +31,21 @@ const PLAYER_ROLES = [1, 2];
 
 const log = msg => console.log(`[player-creation] ${msg}`);
 
-// Runs in the browser: the three values this script cares about, plus what must exist for them to work.
+// Runs in the browser: the values this script cares about, plus what must exist for them to work.
+// trackingOn: how many users have Actor Studio's usage-tracking saved as anything but false (a saved
+// per-user value overrides the off default); null when the module does not register the setting.
 function readState({ moduleId, pack }) {
   const settings = game.settings;
   const registered = key => settings.settings.has(`${moduleId}.${key}`);
   const permissions = settings.get('core', 'permissions');
+  const trackingKey = `${moduleId}.usage-tracking`;
+  const trackingOn = settings.settings.has(trackingKey)
+    ? settings.storage
+        .get('user')
+        .contents.filter(doc => doc.key === trackingKey && doc.user && doc.value !== false).length
+    : null;
   return {
+    trackingOn,
     world: game.world.id,
     user: game.user.name,
     isGM: game.user.isGM,
@@ -82,6 +92,17 @@ async function applyState({ moduleId, pack, roles }) {
     await game.settings.set(moduleId, 'compendiumSources', { ...sources, equipment: [pack] });
     changed.push('compendiumSources.equipment');
   }
+
+  // Usage tracking stays off for every user (D-113): each saved per-user value that is not false is
+  // set to false, the same way the test kit's turnOffTrackingFor does it.
+  const trackingKey = `${moduleId}.usage-tracking`;
+  if (game.settings.settings.has(trackingKey)) {
+    const on = game.settings.storage
+      .get('user')
+      .contents.filter(doc => doc.key === trackingKey && doc.user && doc.value !== false);
+    for (const doc of on) await doc.update({ value: 'false' });
+    if (on.length) changed.push(`usage-tracking off for ${on.length} user(s)`);
+  }
   return changed;
 }
 
@@ -90,6 +111,7 @@ const show = state =>
     ACTOR_CREATE: state.actorCreate,
     enableEquipmentSelection: state.enableEquipmentSelection,
     'compendiumSources.equipment': state.compendiumSources?.equipment ?? null,
+    'usage-tracking on (users)': state.trackingOn,
   });
 
 // The problems that stop the settings from working, as a list of plain sentences.
@@ -118,6 +140,7 @@ function mismatches(before, after) {
   for (const role of before.actorCreate ?? []) {
     if (!roles.includes(role)) problems.push(`ACTOR_CREATE lost role ${role}`);
   }
+  if (after.trackingOn) problems.push(`usage-tracking is still on for ${after.trackingOn} user(s)`);
   if (after.enableEquipmentSelection !== true)
     problems.push('enableEquipmentSelection is not true');
   const sources = after.compendiumSources ?? {};

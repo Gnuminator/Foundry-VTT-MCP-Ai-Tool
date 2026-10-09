@@ -260,6 +260,9 @@ export async function typeAbilities(page, scores = KIT_ABILITIES) {
  * pack's same-type entries that shorten the same way, in pack order (the module sorts equal labels
  * stably, so pack order survives). When the counts do not line up the position cannot be trusted
  * and the pick fails loudly; the sheet judge (judgeSheet) checks the species item's origin too.
+ * Without the pack's heading in the list (or with no pack, a world item) several equal labels fail,
+ * since they may come from other books; a lone label is taken. A full label that is on the list but
+ * cannot be placed fails at once; the short label is only tried when the full one is not shown.
  * @param {{shown: Array<{label: string, group: string}>, name: string, uuid: string, group?: string,
  *   peers?: Array<{uuid: string, name: string}>}} o
  *   shown: the options in the order the page lists them; peers: same-type entries of the uuid's pack in pack order
@@ -280,19 +283,28 @@ export function choosePick({ shown, name, uuid, group = '', peers = [] }) {
       : ` (no "${group}" group in the list, all ${indexed.length} entries searched)`;
   /** @param {typeof pool} hits @param {typeof peers} same @param {string} how */
   const byPosition = (hits, same, how) => {
-    if (same.length <= 1) return { index: hits[0].index, how: how + where };
+    if (same.length <= 1) {
+      // Without the pack's heading in the list (or with no pack at all, group '') the hits may come
+      // from other books (a 2014 and a 2024 twin share a label), so several hits fail. A lone hit
+      // is taken even though it may still be from another book; judgeSheet checks the item's origin.
+      if (!inGroup && hits.length > 1) return null;
+      return { index: hits[0].index, how: how + where };
+    }
     if (hits.length !== same.length) return null;
     return { index: hits[same.findIndex(p => p.uuid === uuid)]?.index ?? -1, how: how + where };
   };
   if (full !== short) {
     const hits = pool.filter(s => s.label === full);
     if (hits.length) {
-      const got = byPosition(
-        hits,
-        peers.filter(p => stripTags(p.name) === full),
-        `full label "${full}"`
-      );
+      const same = peers.filter(p => stripTags(p.name) === full);
+      const got = byPosition(hits, same, `full label "${full}"`);
       if (got && got.index >= 0) return got;
+      // The full name is on the list but cannot be placed: say so, instead of falling through to
+      // the short label (which the list may not show at all).
+      return {
+        index: -1,
+        why: `"${name}" cannot be told apart: the list has ${hits.length} "${full}" entries for ${same.length} in the pack${where}`,
+      };
     }
   }
   const hits = pool.filter(s => s.label === short);

@@ -179,13 +179,15 @@ export class CharacterDataAccess {
     if (!searchType || searchType === 'effect') {
       for (const effect of actor.effects || []) {
         if (matches.length >= limit) break;
-        const effectAny = effect;
-        if (!matchesQuery(effectAny.name || effectAny.label)) continue;
+        // `label` (pre-v11 name) and `description` have no declaration.
+        const legacy = rec(effect);
+        const effectName: unknown = effect.name || legacy.label;
+        if (!matchesQuery(effectName)) continue;
         matches.push({
-          id: effectAny.id,
-          name: effectAny.name || effectAny.label,
+          id: effect.id,
+          name: effectName,
           type: 'effect',
-          description: effectAny.description || undefined,
+          description: legacy.description || undefined,
         });
       }
     }
@@ -247,7 +249,7 @@ export class CharacterDataAccess {
     } catch (err) {
       notFound = err;
     }
-    const actor = (shared.findSceneTokenActor(identifier, world?.id) as Actor | undefined) ?? world;
+    const actor = shared.findSceneTokenActor(identifier, world?.id) ?? world;
     if (!actor) throw notFound;
     return actor;
   }

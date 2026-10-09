@@ -195,7 +195,7 @@ export class ActorBuilderDataAccess {
     const { actorIdentifier, itemIdentifier, targets, options = {} } = params;
 
     // Find the actor
-    const actor = shared.findActorByIdentifier(actorIdentifier) as Actor | undefined;
+    const actor = shared.findActorByIdentifier(actorIdentifier);
     if (!actor) {
       throw new Error(`Actor not found: ${actorIdentifier}`);
     }
@@ -369,7 +369,7 @@ export class ActorBuilderDataAccess {
 
     try {
       // 1. Lookup actor
-      const actor = shared.findActorByIdentifier(data.actorIdentifier) as Actor | undefined;
+      const actor = shared.findActorByIdentifier(data.actorIdentifier);
       if (!actor) {
         throw new Error(`Actor not found: "${data.actorIdentifier}"`);
       }
@@ -717,7 +717,7 @@ export class ActorBuilderDataAccess {
 
     try {
       // 1. Resolve actor
-      const actor = (await shared.findActorByIdentifier(data.actorIdentifier)) as Actor | undefined;
+      const actor = shared.findActorByIdentifier(data.actorIdentifier);
       if (!actor) {
         throw new Error(`Actor not found: "${data.actorIdentifier}"`);
       }
@@ -925,7 +925,7 @@ export class ActorBuilderDataAccess {
 
     try {
       // 1. Resolve actor
-      const actor = (await shared.findActorByIdentifier(data.actorIdentifier)) as Actor | undefined;
+      const actor = shared.findActorByIdentifier(data.actorIdentifier);
       if (!actor) {
         throw new Error(`Actor not found: "${data.actorIdentifier}"`);
       }
@@ -1077,7 +1077,7 @@ export class ActorBuilderDataAccess {
 
     try {
       // 1. Resolve actor
-      const actor = (await shared.findActorByIdentifier(data.actorIdentifier)) as Actor | undefined;
+      const actor = shared.findActorByIdentifier(data.actorIdentifier);
       if (!actor) {
         throw new Error(`Actor not found: "${data.actorIdentifier}"`);
       }
@@ -1151,7 +1151,7 @@ export class ActorBuilderDataAccess {
 
     try {
       // 1. Resolve actor
-      const actor = (await shared.findActorByIdentifier(data.actorIdentifier)) as Actor | undefined;
+      const actor = shared.findActorByIdentifier(data.actorIdentifier);
       if (!actor) {
         throw new Error(`Actor not found: "${data.actorIdentifier}"`);
       }
@@ -1398,7 +1398,7 @@ export class ActorBuilderDataAccess {
 
     try {
       // 1. Resolve actor
-      const actor = shared.findActorByIdentifier(data.actorIdentifier) as Actor | undefined;
+      const actor = shared.findActorByIdentifier(data.actorIdentifier);
       if (!actor) {
         throw new Error(`Actor not found: "${data.actorIdentifier}"`);
       }
@@ -1682,7 +1682,7 @@ export class ActorBuilderDataAccess {
     shared.requireDnd5e(opts.operation);
 
     try {
-      const actor = shared.findActorByIdentifier(data.actorIdentifier) as Actor | undefined;
+      const actor = shared.findActorByIdentifier(data.actorIdentifier);
       if (!actor) {
         throw new Error(`Actor not found: "${data.actorIdentifier}"`);
       }

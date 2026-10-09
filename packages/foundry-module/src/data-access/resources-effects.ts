@@ -161,7 +161,7 @@ export class ResourcesEffectsDataAccess {
   async getCharacterResources(data: { identifier: string }): Promise<CharacterResourcesResult> {
     shared.validateFoundryState();
 
-    const actor = shared.findActorByIdentifier(data.identifier) as Actor | undefined;
+    const actor = shared.findActorByIdentifier(data.identifier);
     if (!actor) {
       throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.identifier}`);
     }
@@ -190,7 +190,7 @@ export class ResourcesEffectsDataAccess {
   async getActiveEffects(data: { identifier: string }): Promise<ActiveEffectsResult> {
     shared.validateFoundryState();
 
-    const actor = shared.findActorByIdentifier(data.identifier) as Actor | undefined;
+    const actor = shared.findActorByIdentifier(data.identifier);
     if (!actor) {
       throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.identifier}`);
     }

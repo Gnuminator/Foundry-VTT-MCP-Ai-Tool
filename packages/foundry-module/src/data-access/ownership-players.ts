@@ -85,9 +85,7 @@ export class OwnershipPlayersDataAccess {
       // Resolve the actor list.
       const actors: Actor[] =
         data.actorIdentifier && data.actorIdentifier !== 'all'
-          ? (
-              [shared.findActorByIdentifier(data.actorIdentifier)] as Array<Actor | undefined>
-            ).filter((a): a is Actor => !!a)
+          ? [shared.findActorByIdentifier(data.actorIdentifier)].filter((a): a is Actor => !!a)
           : Array.from(game.actors || []);
 
       // Resolve the user list (non-GM users only).
@@ -252,7 +250,7 @@ export class OwnershipPlayersDataAccess {
     shared.validateFoundryState();
 
     try {
-      const actor = shared.findActorByIdentifier(data.identifier) as Actor | undefined;
+      const actor = shared.findActorByIdentifier(data.identifier);
       return actor ? { id: actor.id, name: actor.name } : null;
     } catch (error) {
       console.error(`[${MODULE_ID}] Error finding actor:`, error);

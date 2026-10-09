@@ -223,7 +223,7 @@ export function validateFoundryState(): void {
 }
 
 /** Resolve an actor by id, exact name, or partial name match. */
-export function findActorByIdentifier(identifier: string): any {
+export function findActorByIdentifier(identifier: string): Actor | undefined {
   return (
     game.actors?.get(identifier) ??
     game.actors?.getName(identifier) ??
@@ -233,19 +233,14 @@ export function findActorByIdentifier(identifier: string): any {
   );
 }
 
-/** The parts of a scene and its tokens that {@link findSceneTokenActor} reads. */
-interface TargetScene {
-  tokens: { contents: { id?: string; name?: string; actorId?: string; actor?: unknown }[] };
-}
-
 /**
  * Resolve a damage/roll target to an Actor. Prefers a token on the current
  * scene (so unlinked NPC tokens use their own synthetic actor/HP), then the one
  * token on that scene made from the world actor named or id'd (the dashboard's
  * actor picker sends ids), then falls back to that world actor.
  */
-export function resolveTargetActor(identifier: string): any {
-  const worldActor = findActorByIdentifier(identifier) as { id?: string } | undefined;
+export function resolveTargetActor(identifier: string): Actor | undefined {
+  const worldActor = findActorByIdentifier(identifier);
   return findSceneTokenActor(identifier, worldActor?.id) ?? worldActor;
 }
 
@@ -255,8 +250,12 @@ export function resolveTargetActor(identifier: string): any {
  * Several tokens from one actor are ambiguous: `undefined` then, so callers keep the
  * world actor. A linked token's actor is the world actor itself.
  */
-export function findSceneTokenActor(identifier: string, worldActorId?: string): unknown {
-  const scene = (game.scenes as unknown as { current?: TargetScene } | undefined)?.current;
+export function findSceneTokenActor(
+  identifier: string,
+  worldActorId?: string
+): Actor | null | undefined {
+  // `?.`: test mocks may have no scenes collection.
+  const scene = game.scenes?.current;
   if (!scene) return undefined;
   const tokens = scene.tokens.contents;
   const lower = identifier.toLowerCase();

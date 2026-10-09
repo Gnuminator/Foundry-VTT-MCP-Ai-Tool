@@ -1,7 +1,7 @@
 // The Party drawer on the React dashboard: the get-party read (POST /api/tool, faked here), the
 // member rows and sections, the group picker, the empty and failed states, the four one-click
 // changes (plan-party-change, then apply-planned-change) with the Undo toast, the refusals (GM
-// Actions off or not heard yet, a failed plan, a 403 at apply, a plan that needs a confirm), an
+// Actions off or not heard yet, a failed plan, a 403 at apply, a plan that asks first), an
 // apply that times out or whose answer got lost, the gate seeded from Pre-flight's read, and
 // Escape with a toast up.
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
@@ -523,17 +523,24 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeHidden();
 
+  // A destructive plan asks in the confirm window first; Cancel applies nothing.
   answer = (call): ToolAnswer =>
-    call.name === 'plan-party-change' ? ok({ ...PLAN, risk: 'destructive' }) : bridge(call);
+    call.name === 'plan-party-change'
+      ? ok({
+          ...PLAN,
+          risk: 'destructive',
+          summary: 'Travel pace set to Fast',
+          diff: [{ text: 'Pace: Normal to Fast' }],
+        })
+      : bridge(call);
   const before = calls.length;
   await expect(fast).toBeEnabled();
   await fast.click();
-  await expect(
-    toast(
-      page,
-      'This change needs a confirm step this page does not have yet. Use the full dashboard.'
-    )
-  ).toBeVisible();
+  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
+  await expect(confirm.locator('.change-diff li')).toHaveText(['Pace: Normal to Fast']);
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  await expect(confirm).toBeHidden();
+  await expect(fast).toBeEnabled();
   expect(names(calls.slice(before))).toEqual(['plan-party-change']);
 });
 

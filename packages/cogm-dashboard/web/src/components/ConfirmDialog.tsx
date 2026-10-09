@@ -23,10 +23,21 @@ export interface ConfirmRequest {
   diff: string[];
   /** A delete, a reveal or a hide: Confirm waits for the "I understand" tick. */
   destructive: boolean;
+  /**
+   * What had focus when the change started (the button clicked), read before the panel disabled
+   * it: by the time the window opens, a disabled button has already lost focus to the page body.
+   */
+  returnTo?: HTMLElement | null;
 }
 
 /** Opens the window; true when the GM confirmed, false on Cancel, Escape or a click outside. */
 export type AskConfirm = (request: ConfirmRequest) => Promise<boolean>;
+
+/** The element with focus, or null when it is the page body (nothing to go back to). */
+export function focusedElement(): HTMLElement | null {
+  const active = document.activeElement;
+  return active instanceof HTMLElement && active !== document.body ? active : null;
+}
 
 const ConfirmContext = createContext<AskConfirm>(() => Promise.resolve(false));
 
@@ -47,7 +58,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
     resolve?.(ok);
   }, []);
 
-  // Where focus goes back to on close: what had it when the window opened.
+  // Where focus goes back to on close: what had it when the change started.
   const returnTo = useRef<HTMLElement | null>(null);
 
   const ask = useCallback<AskConfirm>(next => {
@@ -55,8 +66,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
     if (resolver.current) {
       resolver.current(false);
     } else {
-      const active = document.activeElement;
-      returnTo.current = active instanceof HTMLElement && active !== document.body ? active : null;
+      returnTo.current = next.returnTo ?? focusedElement();
     }
     setTicked(false);
     setRequest(next);
@@ -73,15 +83,34 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
     answer(false);
   });
 
-  // Radix gives focus back to what had it, but a button the change disabled (Reveal next while
-  // the reveal runs) cannot take it and focus would land on the page body. Then the panel the
-  // button sits in (a drawer) takes it, and the panel may hand it on once the change is over.
+  // Radix would give focus back to what had it when the window opened, which is the page body
+  // once the panel disabled the button clicked. So focus goes back here: to that button if it is
+  // enabled, else to the panel it sits in (a drawer) until the change is over and the button is
+  // enabled again. If the button stays disabled (nothing left to reveal), the panel keeps focus.
   const restoreFocus = (event: Event): void => {
     const back = returnTo.current;
     returnTo.current = null;
-    if (back?.isConnected && !back.matches(':disabled')) return;
     event.preventDefault();
-    back?.closest<HTMLElement>('[role="dialog"]')?.focus();
+    if (!back?.isConnected) return;
+    if (!back.matches(':disabled')) {
+      back.focus();
+      return;
+    }
+    const panel = back.closest<HTMLElement>('[role="dialog"]');
+    if (!panel) return;
+    panel.focus();
+    const done = (): void => {
+      watch.disconnect();
+      panel.removeEventListener('focusout', done);
+    };
+    const watch = new MutationObserver(() => {
+      if (back.matches(':disabled')) return;
+      done();
+      if (document.activeElement === panel) back.focus();
+    });
+    watch.observe(back, { attributes: true, attributeFilter: ['disabled'] });
+    // The GM moved focus on (or the panel closed): leave it where it went.
+    panel.addEventListener('focusout', done);
   };
 
   const destructive = request?.destructive === true;

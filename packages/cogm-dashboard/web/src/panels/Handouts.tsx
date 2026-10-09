@@ -159,17 +159,22 @@ export function HandoutsDrawer({
     };
     // Reloads after every attempt, as the old page does: a cancelled or failed reveal may still
     // have changed the queue. An apply already started a reload (GAME_STATE_KEY); this joins it.
+    // The button waits for the reload, so it never offers the page just revealed a second time.
     void runChange('plan-page-reveal', args).finally(() => {
-      revealingRef.current = false;
-      setRevealing(false);
       setShowNow(false);
-      void handouts.refetch({ cancelRefetch: false }).finally(() => setRefocus(true));
+      void handouts.refetch({ cancelRefetch: false }).finally(() => {
+        revealingRef.current = false;
+        setRevealing(false);
+        setRefocus(true);
+      });
     });
   };
 
-  // The confirm window hands focus to the drawer while Reveal next is still disabled. Once the
-  // reveal is over and the queue reloaded, the button takes it back if there is a next page, else
-  // the drawer keeps it (never the page body). Focus the GM moved elsewhere meanwhile stays put.
+  // The confirm window parks focus on the drawer while Reveal next is disabled and gives it back
+  // when the button is enabled again. A reveal that never opened the window (a failed plan) leaves
+  // focus on the page body, where the disabled button dropped it. Either way, once the reveal is
+  // over and the queue reloaded, the button takes focus if there is a next page, else the drawer
+  // does (never the page body). Focus the GM moved elsewhere meanwhile stays put.
   const [refocus, setRefocus] = useState(false);
   const nextRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {

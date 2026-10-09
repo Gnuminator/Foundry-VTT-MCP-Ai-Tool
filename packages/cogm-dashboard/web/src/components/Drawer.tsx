@@ -18,6 +18,11 @@ interface DrawerProps {
   help?: string;
   /** Escape closed it (the panel reports its own dash.shortcut.escape-<name>). */
   onEscape?: () => void;
+  /**
+   * Escape is about to close it: true when the panel used the key itself (it closed a menu of its
+   * own), and the drawer stays open.
+   */
+  onEscapeKey?: () => boolean;
   /** The bar under the head (.tarokka-actions on the old page). */
   actions?: ReactNode;
   bodyClassName?: string;
@@ -47,11 +52,13 @@ export function Drawer({
   close,
   help,
   onEscape,
+  onEscapeKey,
   actions,
   bodyClassName,
   children,
 }: DrawerProps): JSX.Element {
   useEscapeClose(open, () => {
+    if (onEscapeKey?.()) return;
     onEscape?.();
     onOpenChange(false);
   });
@@ -61,7 +68,10 @@ export function Drawer({
         asChild
         aria-describedby={undefined}
         onInteractOutside={e => e.preventDefault()}
-        onEscapeKeyDown={() => onEscape?.()}
+        onEscapeKeyDown={e => {
+          if (onEscapeKey?.()) e.preventDefault();
+          else onEscape?.();
+        }}
       >
         <aside id={id} className="drawer">
           <div className="drawer-head">

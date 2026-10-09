@@ -259,6 +259,9 @@ export async function typeAbilities(page, scores = KIT_ABILITIES) {
  * pack's same-type entries that shorten the same way, in pack order (the module sorts equal labels
  * stably, so pack order survives). When the counts do not line up the position cannot be trusted
  * and the pick fails loudly; the sheet judge (judgeSheet) checks the species item's origin too.
+ * Without the pack's heading in the list (or with no pack, a world item) several equal labels fail,
+ * since they may come from other books; a lone label is taken. A full label that is on the list but
+ * cannot be placed fails at once; the short label is only tried when the full one is not shown.
  * @param {{shown: Array<{label: string, group: string}>, name: string, uuid: string, group?: string,
  *   peers?: Array<{uuid: string, name: string}>}} o
  *   shown: the options in the order the page lists them; peers: same-type entries of the uuid's pack in pack order

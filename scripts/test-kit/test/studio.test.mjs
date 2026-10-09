@@ -431,6 +431,17 @@ test("choosePick: another pack's entries are ignored by group; unequal counts fa
     'why' in twins ? twins.why : '',
     /2 "Goliath" entries for 1 in the pack \(no "PHB 2024 Species" group in the list/
   );
+  // No heading matches but only one book shows "Goliath": the lone hit is taken (judgeSheet checks
+  // where the item came from).
+  const lone = choosePick({
+    shown: [...listed(['Goliath'], '2014 SRD Races'), ...listed(['Human'], 'Other Origins')],
+    name: 'Goliath',
+    uuid: 'u.goliath',
+    group: GROUP,
+    peers: [{ uuid: 'u.goliath', name: 'Goliath' }],
+  });
+  assert.equal(lone.index, 0);
+  assert.match('how' in lone ? lone.how : '', /no "PHB 2024 Species" group in the list/);
   // No heading matches and two books both show "Elf, High" in full: the full-label answer says so,
   // instead of falling through to "Elf" (which this list does not show).
   const fullTwins = choosePick({
@@ -444,6 +455,33 @@ test("choosePick: another pack's entries are ignored by group; unequal counts fa
   assert.match(
     'why' in fullTwins ? fullTwins.why : '',
     /"Elf, High" cannot be told apart: the list has 2 "Elf, High" entries for 1 in the pack \(no "PHB 2024 Species" group/
+  );
+  // The heading is there and shows "Elf, High" twice for one in the pack: the first is taken (the
+  // group already rules out other books).
+  const inGroupTwice = choosePick({
+    shown: listed(['Elf, High', 'Elf, High', 'Human']),
+    name: 'Elf, High',
+    uuid: 'u.high',
+    group: GROUP,
+    peers: SPECIES_PACK,
+  });
+  assert.equal(inGroupTwice.index, 0);
+  // The heading is there, the full label is shown, but three "Elf, High" entries for two in the
+  // pack cannot be placed: the pick fails at once instead of trying the short label "Elf".
+  const unplaced = choosePick({
+    shown: listed(['Elf', 'Elf, High', 'Elf, High', 'Elf, High']),
+    name: 'Elf, High',
+    uuid: 'u.high',
+    group: GROUP,
+    peers: [
+      { uuid: 'u.high', name: 'Elf, High' },
+      { uuid: 'u.high-legacy', name: 'Elf, High (Legacy)' },
+    ],
+  });
+  assert.equal(unplaced.index, -1);
+  assert.match(
+    'why' in unplaced ? unplaced.why : '',
+    /3 "Elf, High" entries for 2 in the pack in group "PHB 2024 Species"/
   );
   // Two "Elf" entries in the group for three elves in the pack: the position cannot be trusted.
   const short = listed(['Elf', 'Elf', 'Gnome', 'Gnome', 'Human']);

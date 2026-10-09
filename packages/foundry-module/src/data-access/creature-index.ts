@@ -616,7 +616,7 @@ export class PersistentCreatureIndex {
           hasSpells,
           hasLegendaryActions,
           alignment: alignment.toLowerCase(),
-          description: doc.system?.details?.biography || doc.system?.description || '',
+          description: this.biographyText(doc.system),
           img: doc.img,
         },
         errors: 0,
@@ -629,6 +629,17 @@ export class PersistentCreatureIndex {
   }
 
   /** Safe default record used when extraction throws (fallback HP is 1, not 0). */
+  /**
+   * The biography HTML as a string. dnd5e 6 stores `details.biography` as `{value, public}`;
+   * a plain string (older data) is taken as is.
+   */
+  private biographyText(system: any): string {
+    const bio = system?.details?.biography;
+    if (typeof bio === 'string') return bio;
+    if (typeof bio?.value === 'string') return bio.value;
+    return '';
+  }
+
   private fallbackRecord(doc: any, pack: any): DnD5eCreatureIndex {
     return {
       id: doc._id,

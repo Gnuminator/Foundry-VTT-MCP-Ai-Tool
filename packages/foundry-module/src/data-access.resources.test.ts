@@ -54,7 +54,8 @@ function richActor(): ReturnType<typeof makeActor> {
     system: {
       attributes: {
         hp: { value: 30, max: 45 },
-        hd: { max: 5, value: 3, denomination: 'd8' },
+        // dnd5e 6 PC: derived HitDice (max, value), no denomination of its own.
+        hd: { max: 5, value: 3 },
         death: { success: 0, failure: 0 },
       },
       spells: {
@@ -71,17 +72,22 @@ function richActor(): ReturnType<typeof makeActor> {
       },
     },
     items: [
-      // Item charge — dnd5e v3 style (uses.spent)
+      makeItem({
+        name: 'Cleric',
+        type: 'class',
+        system: { levels: 5, hd: { denomination: 'd8', spent: 2 } },
+      }),
+      // Item charge — dnd5e 6 (uses.spent; uses.value derived)
       makeItem({
         name: 'Healing Word',
         type: 'feat',
-        system: { uses: { max: 3, spent: 1, per: 'sr' } },
+        system: { uses: { max: 3, spent: 1, value: 2, recovery: [{ period: 'sr' }] } },
       }),
-      // Item charge — legacy style (uses.value)
+      // Item charge — no spent (falls back to uses.value)
       makeItem({
         name: 'Action Surge',
         type: 'feat',
-        system: { uses: { max: 1, value: 0, per: 'sr' } },
+        system: { uses: { max: 1, value: 0, recovery: [{ period: 'sr' }] } },
       }),
       // No uses.max → must be excluded
       makeItem({
@@ -235,7 +241,7 @@ describe('FoundryDataAccess — getCharacterResources', () => {
     world.actors.add(richActor());
     const res = await da.getCharacterResources({ identifier: 'Thoradin' });
     const hw = res.itemCharges.find((c: any) => c.itemName === 'Healing Word');
-    // uses.value is absent → current = max(0, 3 - 1) = 2
+    // current = max(0, 3 - 1) = 2
     expect(hw).toEqual({ itemName: 'Healing Word', charges: 2, max: 3, recharge: 'sr' });
   });
 
@@ -254,7 +260,7 @@ describe('FoundryDataAccess — getCharacterResources', () => {
     expect(names).not.toContain('Passive Perception');
   });
 
-  it('reads recharge from uses.recovery[0].period when uses.per is absent', async () => {
+  it('reads recharge from uses.recovery[0].period', async () => {
     world.actors.add(
       makeActor({
         name: 'RecoveryActor',
@@ -274,7 +280,7 @@ describe('FoundryDataAccess — getCharacterResources', () => {
     expect(res.itemCharges[0].recharge).toBe('dawn');
   });
 
-  it('reads recharge from system.recharge.value when per and recovery are absent', async () => {
+  it('reads a recharge ability from a recovery period "recharge" (dnd5e 6)', async () => {
     world.actors.add(
       makeActor({
         name: 'RechargeActor',
@@ -284,15 +290,25 @@ describe('FoundryDataAccess — getCharacterResources', () => {
             name: 'Breath Weapon',
             type: 'feat',
             system: {
-              uses: { max: 1, value: 0 },
-              recharge: { value: 5 },
+              uses: { max: 1, spent: 1, recovery: [{ period: 'recharge', formula: '5' }] },
             },
+          }),
+          makeItem({
+            name: 'Tail Lash',
+            type: 'feat',
+            system: { uses: { max: 1, spent: 0, recovery: [{ period: 'recharge' }] } },
           }),
         ],
       })
     );
     const res = await da.getCharacterResources({ identifier: 'RechargeActor' });
-    expect(res.itemCharges[0].recharge).toBe(5);
+    expect(res.itemCharges[0]).toEqual({
+      itemName: 'Breath Weapon',
+      charges: 0,
+      max: 1,
+      recharge: 'recharge 5-6',
+    });
+    expect(res.itemCharges[1].recharge).toBe('recharge 6');
   });
 
   // -------------------------------------------------------------------------
@@ -371,10 +387,27 @@ describe('FoundryDataAccess — getCharacterResources', () => {
   // Hit dice
   // -------------------------------------------------------------------------
 
-  it('reads hit dice directly from system.attributes.hd when present', async () => {
+  it('reads hit dice from system.attributes.hd and the die type from the class item', async () => {
     world.actors.add(richActor());
     const res = await da.getCharacterResources({ identifier: 'Thoradin' });
     expect(res.hitDice).toEqual({ total: 5, available: 3, dieType: 'd8' });
+  });
+
+  it('reads an NPC die type from attributes.hd.denomination (a number in dnd5e 6)', async () => {
+    world.actors.add(
+      makeActor({
+        name: 'Ogre',
+        type: 'npc',
+        system: {
+          attributes: {
+            hp: { value: 59, max: 59 },
+            hd: { max: 7, value: 7, spent: 0, denomination: 10 },
+          },
+        },
+      })
+    );
+    const res = await da.getCharacterResources({ identifier: 'Ogre' });
+    expect(res.hitDice).toEqual({ total: 7, available: 7, dieType: 'd10' });
   });
 
   it('sums hit dice from class items when system.attributes.hd is absent', async () => {
@@ -389,19 +422,19 @@ describe('FoundryDataAccess — getCharacterResources', () => {
           makeItem({
             name: 'Fighter',
             type: 'class',
-            system: { levels: 5, hitDiceUsed: 2, hitDice: 'd10' },
+            system: { levels: 5, hd: { denomination: 'd10', spent: 2 } },
           }),
           makeItem({
             name: 'Rogue',
             type: 'class',
-            system: { levels: 3, hitDiceUsed: 1, hitDice: 'd8' },
+            system: { levels: 3, hd: { denomination: 'd8', spent: 1 } },
           }),
         ],
       })
     );
     const res = await da.getCharacterResources({ identifier: 'MultiClass' });
-    // total = 5+3=8, available = (5-2)+(3-1)=5, dieType = last class encountered = 'd8'
-    expect(res.hitDice).toEqual({ total: 8, available: 5, dieType: 'd8' });
+    // total = 5+3=8, available = (5-2)+(3-1)=5, die types largest first
+    expect(res.hitDice).toEqual({ total: 8, available: 5, dieType: 'd10/d8' });
   });
 
   it('leaves hitDice null when no hd attribute and no class items', async () => {

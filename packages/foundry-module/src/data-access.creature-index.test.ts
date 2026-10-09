@@ -259,7 +259,7 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
             cr: 24,
             type: { value: 'Dragon' },
             alignment: 'Chaotic Evil',
-            biography: 'A terrifying wyrm.',
+            biography: { value: '<p>A terrifying wyrm.</p>', public: '' }, // dnd5e 6 shape
           },
           traits: { size: 'GARGANTUAN' },
           attributes: { hp: { max: 546 }, ac: { value: 22 }, spellcasting: 'cha' },
@@ -286,7 +286,7 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
       hasSpells: true, // it has a spell item (the casting ability alone does not count)
       hasLegendaryActions: true, // resources.legact.max > 0
       alignment: 'chaotic evil', // lower-cased
-      description: 'A terrifying wyrm.',
+      description: '<p>A terrifying wyrm.</p>', // the biography's value, not the object
       img: 'dragon.webp',
     });
   });

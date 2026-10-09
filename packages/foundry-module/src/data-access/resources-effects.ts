@@ -179,11 +179,12 @@ export class ResourcesEffectsDataAccess {
   /**
    * Collect item charge information from every item with a usable `uses.max > 0`.
    *
-   * Current charge logic:
-   *   - When `uses.value` is present (legacy style): `current = uses.value`.
-   *   - Otherwise (dnd5e v3 `spent` style): `current = max(0, max - spent)`.
+   * dnd5e 6 stores `uses.spent` (`uses.value` is derived), so `current = max(0, max - spent)`,
+   * falling back to `uses.value` when `spent` is missing.
    *
-   * Recharge source priority: `uses.per` → `uses.recovery[0].period` → `system.recharge.value`.
+   * Recharge is the first `uses.recovery` period ("lr", "sr", "dawn", ...); a recharge ability
+   * (period "recharge", formula the lowest roll) reads as "recharge 5-6". dnd5e 6 has no
+   * `uses.per` or `system.recharge` (both migrated into `uses.recovery`).
    */
   private readItemCharges(actor: any): any[] {
     const charges: any[] = [];
@@ -196,13 +197,16 @@ export class ResourcesEffectsDataAccess {
       if (!Number.isFinite(max) || max <= 0) continue;
 
       const current =
-        uses.value != null ? Number(uses.value) : Math.max(0, max - (Number(uses.spent) || 0));
+        uses.spent != null
+          ? Math.max(0, max - (Number(uses.spent) || 0))
+          : Math.max(0, Number(uses.value) || 0);
 
-      const recharge =
-        uses.per ||
-        (Array.isArray(uses.recovery) ? uses.recovery[0]?.period : undefined) ||
-        item.system?.recharge?.value ||
-        null;
+      const recovery = Array.isArray(uses.recovery) ? uses.recovery[0] : undefined;
+      let recharge: string | null = recovery?.period || null;
+      if (recharge === 'recharge') {
+        const low = parseInt(String(recovery.formula ?? '6'), 10);
+        recharge = Number.isFinite(low) && low < 6 ? `recharge ${low}-6` : 'recharge 6';
+      }
 
       charges.push({ itemName: item.name, charges: current, max, recharge });
     }
@@ -264,33 +268,44 @@ export class ResourcesEffectsDataAccess {
   }
 
   /**
-   * Read hit dice. Prefers the consolidated `system.attributes.hd` object
-   * (Foundry/dnd5e supplies `max`, `value`, and `denomination`); when absent,
-   * aggregates across `class`-type items (`levels`, `hitDiceUsed`, `hitDice`).
+   * Read hit dice. Prefers the derived `system.attributes.hd` (`max`, `value`). The die type
+   * comes from the class items' `system.hd.denomination` ("d8"; a multiclass gives "d10/d8",
+   * largest first); a PC's `attributes.hd` has no denomination, an NPC's is a number (8).
+   * Without `attributes.hd` totals are summed from the class items (`levels`, `hd.spent`).
    * Returns `null` when neither source has data.
    */
   private readHitDice(sys: any, actor: any): any {
-    // Primary source: consolidated hd object.
+    let total = 0;
+    let available = 0;
+    const faces = new Set<number>();
+    for (const item of actor.items) {
+      if (item.type !== 'class') continue;
+      const c = item.system ?? {};
+      const levels = Number(c.levels) || 0;
+      total += levels;
+      available += Math.max(0, levels - (Number(c.hd?.spent) || 0));
+      const face = parseInt(String(c.hd?.denomination ?? '').replace(/^d/i, ''), 10);
+      if (Number.isFinite(face) && face > 0) faces.add(face);
+    }
+    let dieType: string | null = faces.size
+      ? [...faces]
+          .sort((a, b) => b - a)
+          .map(f => `d${f}`)
+          .join('/')
+      : null;
+
+    // Primary source: the derived hd object.
     const hd = sys.attributes?.hd;
     if (hd && typeof hd === 'object') {
       const max = hd.max ?? null;
       const value = hd.value ?? null;
       if (max != null || value != null) {
-        return { total: max, available: value, dieType: hd.denomination || null };
-      }
-    }
-
-    // Fallback: sum across class items.
-    let total = 0;
-    let available = 0;
-    let dieType: string | null = null;
-
-    for (const item of actor.items) {
-      if (item.type === 'class') {
-        const c = item.system ?? {};
-        total += c.levels ?? 0;
-        available += (c.levels ?? 0) - (c.hitDiceUsed ?? 0);
-        dieType = c.hitDice || dieType;
+        if (!dieType && typeof hd.denomination === 'number' && hd.denomination > 0) {
+          dieType = `d${hd.denomination}`;
+        } else if (!dieType && typeof hd.denomination === 'string' && hd.denomination) {
+          dieType = hd.denomination;
+        }
+        return { total: max, available: value, dieType };
       }
     }
 

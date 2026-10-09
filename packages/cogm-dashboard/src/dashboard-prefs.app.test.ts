@@ -165,3 +165,27 @@ describe('set-prefs on /api/control', () => {
     expect(player.text()).not.toContain('duringLayout');
   });
 });
+
+describe('prefs on /api/state', () => {
+  async function getState(h: Harness, token: string): Promise<Record<string, unknown>> {
+    const res = await fetch(`http://127.0.0.1:${h.port}/api/state`, {
+      headers: { 'x-cogm-token': token },
+    });
+    return (await res.json()) as Record<string, unknown>;
+  }
+
+  it('is null before the world is known, then the saved choices', async () => {
+    const h = await start();
+    expect((await getState(h, GM_TOKEN)).prefs).toBeNull();
+    await loadWorld(h);
+    expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ combatButtons: false });
+    await setPrefs(h, GM_TOKEN, { combatButtons: true });
+    expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ combatButtons: true });
+  });
+
+  it('never reaches the player role', async () => {
+    const h = await start();
+    await loadWorld(h);
+    expect(await getState(h, PLAYER_TOKEN)).not.toHaveProperty('prefs');
+  });
+});

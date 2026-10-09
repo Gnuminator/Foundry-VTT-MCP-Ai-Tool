@@ -132,14 +132,14 @@ beforeEach((): void => {
       aiFollowUps: (changeId: string): Promise<ChangeRecord[]> =>
         Promise.resolve(buildActions(records).find(a => a.changeId === changeId)?.followUps ?? []),
     },
-    guardedWrites: { createPlan } as never,
+    guardedWrites: { createPlan },
     audit: {
       ring: (): Promise<AuditEntry[]> => Promise.resolve(ring),
       resultsWithDeleted: (_world: string, e: AuditEntry): Promise<GuardedOpResult[]> =>
         Promise.resolve(e.results ?? []),
     },
     worldIds: { current: (): Promise<string> => Promise.resolve('w1') },
-    foundryClient: foundry as never,
+    foundryClient: foundry,
   });
 });
 

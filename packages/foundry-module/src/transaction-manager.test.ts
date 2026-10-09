@@ -10,7 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
-import { TransactionManager, type TransactionAction } from './transaction-manager.js';
+import { TransactionManager } from './transaction-manager.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -274,7 +274,7 @@ describe('TransactionManager — rollback (error handling)', () => {
     const id = tm.startTransaction('t');
     tm.addAction(id, {
       type: 'create',
-      entityType: 'Scene' as TransactionAction['entityType'],
+      entityType: 'Scene',
       entityId: 's1',
     });
     const result = await tm.rollbackTransaction(id);

@@ -72,7 +72,7 @@ interface DocLike {
 }
 
 function asDoc(v: unknown): DocLike | null {
-  return asRecord(v) as DocLike | null;
+  return asRecord(v);
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {

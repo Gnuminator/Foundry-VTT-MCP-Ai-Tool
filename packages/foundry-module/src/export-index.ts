@@ -205,7 +205,7 @@ interface ConstShape {
 }
 
 function constants(): ConstShape {
-  return typeof CONST === 'undefined' ? {} : (CONST as unknown as ConstShape);
+  return typeof CONST === 'undefined' ? {} : CONST;
 }
 
 /** `USER_ROLES.NONE`: a user with this role is banned (`common/documents/user.mjs:113`). */
@@ -443,7 +443,7 @@ function folderOf(doc: Rec): Rec | null {
   if (asObject) return asObject;
   const id = nonEmpty(direct) ?? nonEmpty(dig(doc, '_source', 'folder'));
   if (!id) return null;
-  const folders = rec(rec(game as unknown)?.folders);
+  const folders = rec(rec(game)?.folders);
   const get = folders?.get;
   const found =
     typeof get === 'function' ? rec((get as (key: string) => unknown).call(folders, id)) : null;
@@ -503,7 +503,7 @@ function atLeast(level: PlayerAccess, minimum: 'limited' | 'observer'): boolean 
 }
 
 function usersSignature(): string {
-  const users = contentsOf(rec(game as unknown)?.users);
+  const users = contentsOf(rec(game)?.users);
   const rows = users
     .map(user => {
       const role = num(user.role);
@@ -596,7 +596,7 @@ function createdOf(doc: Rec): number | null {
 
 function buildHolderIndex(): HolderIndex {
   const index: HolderIndex = { bySource: new Map(), byName: new Map() };
-  const actors = contentsOf(rec(game as unknown)?.actors);
+  const actors = contentsOf(rec(game)?.actors);
   for (const actor of actors) {
     const actorId = str(actor.id);
     if (!actorId) continue;
@@ -715,7 +715,7 @@ function effectiveTime(ctx: Context, kind: ExportKind, doc: Rec, uuid: string): 
 }
 
 function worldCollection(kind: ExportKind): unknown {
-  const world = rec(game as unknown);
+  const world = rec(game);
   switch (kind) {
     case 'actor':
       return world?.actors;
@@ -889,7 +889,7 @@ function actorFields(ctx: Context, c: Candidate, withStatBlock: boolean): ActorB
   const system = doc.system;
   const tokenName = token ? str(token.name) : null;
   const playerName = token
-    ? tokenNameForPlayers(token as Parameters<typeof tokenNameForPlayers>[0], pc)
+    ? tokenNameForPlayers(token, pc)
     : pc
       ? sourceName(doc)
       : UNKNOWN_CREATURE;
@@ -900,7 +900,7 @@ function actorFields(ctx: Context, c: Candidate, withStatBlock: boolean): ActorB
   const built = {
     ...commonFields(ctx, c, access, atLeast(access, 'observer'), true),
     kind: 'actor' as const,
-    actorType: (npc ? 'npc' : 'character') as ExportActorEntry['actorType'],
+    actorType: npc ? ('npc' as const) : ('character' as const),
     pc,
     owners: ctx.players
       .filter(user => permitted(doc, user, 'OWNER'))
@@ -956,7 +956,7 @@ function noteLabel(note: Rec): string | null {
  * actor behind it (`actorId`); a token whose actor is gone keeps its name only.
  */
 function sceneTokens(doc: Rec): ExportSceneToken[] {
-  const actors = rec(rec(game as unknown)?.actors);
+  const actors = rec(rec(game)?.actors);
   const get = actors?.get;
   const rows = new Map<string, ExportSceneToken>();
   for (const token of contentsOf(doc.tokens)) {
@@ -1065,7 +1065,7 @@ function nameKey(name: string): string {
 
 function buildNpcIndex(): NpcIndex {
   const index: NpcIndex = { bySource: new Map(), byName: new Map() };
-  for (const actor of contentsOf(rec(game as unknown)?.actors)) {
+  for (const actor of contentsOf(rec(game)?.actors)) {
     if (actor.type !== 'npc' || !nonEmpty(actor.id)) continue;
     for (const source of new Set(actorSources(actor))) {
       if (!source.startsWith('Compendium.')) continue;
@@ -1084,11 +1084,11 @@ function buildNpcIndex(): NpcIndex {
 
 /** The pack's index entry name for an Actor pack, else null (`CompendiumCollection#index`). */
 function compendiumActorName(collection: string, id: string): string | null {
-  const packs = rec(rec(game as unknown)?.packs);
+  const packs = rec(rec(game)?.packs);
   const get = packs?.get;
   const pack =
     typeof get === 'function' ? rec((get as (k: string) => unknown).call(packs, collection)) : null;
-  if (!pack || pack.documentName !== 'Actor') return null;
+  if (pack?.documentName !== 'Actor') return null;
   const index = rec(pack.index);
   const lookup = index?.get;
   const entry =
@@ -1365,7 +1365,7 @@ export function getExportIndex(data: unknown): ExportIndexResponse | ExportIndex
   const request = normalizeRequest(data);
   if ('success' in request) return request;
 
-  const world = rec(game as unknown);
+  const world = rec(game);
   const ctx: Context = {
     request,
     players: contentsOf(world?.users).filter(user => user.isGM !== true),

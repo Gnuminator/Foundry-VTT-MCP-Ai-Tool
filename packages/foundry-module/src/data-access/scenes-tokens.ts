@@ -336,7 +336,7 @@ export class ScenesTokensDataAccess {
       throw new Error(`Token not found: ${data.toTokenName}`);
     }
 
-    const center = (t: any) => ({
+    const center = (t: any): { x: number; y: number } => ({
       x: t.x + ((t.width ?? 1) * gridSize) / 2,
       y: t.y + ((t.height ?? 1) * gridSize) / 2,
     });

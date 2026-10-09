@@ -41,7 +41,7 @@ function setWorldSettings(docs: Array<Record<string, unknown>>): void {
   const settings = (globalThis as unknown as { game: { settings: Record<string, unknown> } }).game
     .settings;
   settings.storage = {
-    get: (scope: string): unknown => (scope === 'world' ? new MockCollection(docs as never) : null),
+    get: (scope: string): unknown => (scope === 'world' ? new MockCollection(docs) : null),
   };
 }
 

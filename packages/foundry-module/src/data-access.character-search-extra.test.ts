@@ -51,7 +51,7 @@ afterEach(() => {
 // `preparation.prepared` is whatever we put under `system.preparation`.
 // ---------------------------------------------------------------------------
 
-function makeCaster() {
+function makeCaster(): ReturnType<typeof makeActor> {
   return makeActor({
     name: 'Caster',
     type: 'character',
@@ -90,7 +90,8 @@ function makeCaster() {
   });
 }
 
-const names = (r: { matches: Array<{ name: string }> }) => r.matches.map(m => m.name).sort();
+const names = (r: { matches: Array<{ name: string }> }): string[] =>
+  r.matches.map(m => m.name).sort();
 
 // ---------------------------------------------------------------------------
 // Spell fields — level + prepared (dnd5e sources)

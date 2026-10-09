@@ -507,8 +507,8 @@ The Pi records the Discord voice channel but does not transcribe: it has no grap
 to text runs on this PC (faster-whisper). After `/record stop` the bot converts the recording on the
 Pi. This PC's session pipeline (`tools/session-notes/auto.ps1`, with `FVTT_PI_HOST=foundry-pi`) then
 copies every finished recording over SSH through Tailscale, checks each file, and marks it copied on
-the Pi; the Pi deletes copied recordings after 7 days. The recorded audio on this PC is deleted 14
-days after the GM approves the session's notes (D-072). Details:
+the Pi; the Pi deletes copied recordings after 7 days. The recorded audio on this PC is kept (D-097):
+nothing deletes it automatically, only a player's request does. Details:
 [the bot's README](../../packages/discord-bot/README.md#on-the-orange-pi-d-068).
 
 ## Your UniFi gateway
@@ -701,8 +701,59 @@ Tested on 2026-10-08 in an ARM64 Debian 13 container: the download and checksum 
 `2.10.5-aitool.3`, a second run that skips, a wrong checksum, zips with `..`, an absolute path, a
 backslash and a symlink, a wrong id and version, a failed swap that puts the old folder back, and the
 settings loop with a faked systemd and a stand-in for the browser script. The browser script itself
-(`player-creation-settings.mjs`) was only syntax-checked there; it runs for the first time on a real
-Foundry world.
+(`player-creation-settings.mjs`) was only syntax-checked there; on 2026-10-09 it ran twice against the
+PC test server's licensed kit world. The same day the container installed the pinned
+`2.10.5-aitool.4` release (download, checksum, swap of an older folder), skipped it on a second
+run, refused a wrong checksum and still refused a `PENDING-RELEASE` pin.
+
+## GM scripts
+
+Some world changes need a GM in the browser (a module's own import, a script that places map pins),
+and on the Pi nobody types the Gamemaster's password. `gm-script.sh` runs one GM script in the running
+world as the Assistant GM instead:
+
+- The script is a local file on the Pi (copy it with `scp` first). It is the body of an async
+  function that gets `args` (`args.dryRun`, `args.log(text)`) and returns something JSON can hold.
+  Nothing over the network can start a script: no endpoint, no port, and the bridge and the
+  dashboard cannot trigger it.
+- **Dry run first** (`DRY_RUN=1`): only known reads go through (an allow list: document and
+  compendium reads, folder listings, template loads, the server's clock and status, GET and HEAD
+  requests); every other write or event is held back and listed in the log, also ones the list
+  does not know. The page's guard checks the list, the script's browser checks it again on
+  Foundry's socket, and the browser holds back every HTTP request that is not GET or HEAD (the one
+  rule that runs outside the page). Reads work, so the script can report what it would change. A
+  script should still check `args.dryRun` itself. The dry run guards against a script's mistakes;
+  it is not a sandbox for a script that sets out to get around it, so read a script before you run
+  it.
+- **A real run needs a passed dry run of the same file** (the same sha256): `gm-script.sh` looks
+  for the marker a passed dry run leaves in `/var/lib/foundry-ai-tool/gm-scripts`, or for its end
+  line in the journal, and refuses otherwise. The hash is taken from the kept copy, which is the
+  file that runs. A passed dry run does not expire and does not record `ENABLE_MODULES`: dry-run
+  again after a long gap or with other modules. In an emergency `NO_DRY_RUN_REASON="why"` skips
+  the check; the reason goes to the journal.
+- `ENABLE_MODULES="id ..."` enables installed modules in the world before the script runs (a dry
+  run only reports it).
+- Every run is logged to the journal: the file, its sha256, dry run or not, the script's log lines
+  and its result. A copy of each script stays in `/var/lib/foundry-ai-tool/gm-scripts`, named by
+  time and sha256 (`<time>-<sha12>.js`, `<time>-<sha12>-dry-run.js` and, after a passed dry run,
+  `<time>-<sha12>-dry-run.ok`). `journalctl -t foundry-ai-tool-gm-script` lists the runs.
+- While the script runs, the Assistant GM service is stopped (one Chromium on the Pi) and **the
+  bridge link is down**: the script's browser closes every WebSocket that does not go to Foundry,
+  so the foundry-mcp-bridge module cannot open its link there. No AI tool call reaches the world
+  during the run (the bridge has no Foundry link), and nothing the bridge sends can mix with the
+  script's writes. The service starts again afterwards, also after a failure, and the link comes
+  back with it.
+- A run that is not a dry run changes the campaign world: a `dietpi-backup 1` snapshot and the
+  user's OK come first (CLAUDE.md, the Pi rule).
+
+```bash
+scp my-script.js foundry-pi:/root/
+cat scripts/pi/remote/lib.sh scripts/pi/remote/gm-script.sh | ssh foundry-pi 'GM_SCRIPT=/root/my-script.js DRY_RUN=1 bash -s'
+cat scripts/pi/remote/lib.sh scripts/pi/remote/gm-script.sh | ssh foundry-pi 'GM_SCRIPT=/root/my-script.js bash -s'
+```
+
+Scripts that hold book or campaign text (room names, pin lists) stay on the PC and the Pi, never in
+this repository.
 
 ## The first load after an update
 

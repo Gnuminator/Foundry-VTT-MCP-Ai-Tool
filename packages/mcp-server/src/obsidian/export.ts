@@ -155,7 +155,7 @@ async function loadSessionEvents(
     const stat = await fsp.stat(full).catch(() => null);
     if (!stat) continue;
     const cached = cache.logs.get(file);
-    if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+    if (cached?.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
       for (const item of cached.events) all.push(item);
       continue;
     }
@@ -193,7 +193,7 @@ async function loadPlayRecords(
     const stat = await fsp.stat(full).catch(() => null);
     if (!stat) continue;
     const cached = cache.playLogs.get(file);
-    if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+    if (cached?.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
       for (const item of cached.records) all.push(item);
       continue;
     }
@@ -233,7 +233,7 @@ async function loadUsageEvents(
     const stat = await fsp.stat(full).catch(() => null);
     if (!stat) continue;
     const cached = cache.usageLogs.get(file);
-    if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+    if (cached?.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
       for (const item of cached.events) all.push(item);
       continue;
     }

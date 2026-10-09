@@ -190,7 +190,7 @@ describe('liveSweep (I-016)', () => {
     const calls: unknown[] = [];
     const folder = world.addFolder({ id: 'f1', name: `${SWEEP_PREFIX} (safe to delete)` });
     const plainDelete = folder.delete as () => Promise<unknown>;
-    folder.delete = (options: unknown) => {
+    folder.delete = (options: unknown): Promise<unknown> => {
       calls.push(options);
       return plainDelete();
     };

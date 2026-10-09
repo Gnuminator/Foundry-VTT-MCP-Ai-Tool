@@ -78,8 +78,8 @@ function addPlayerCharacter(opts: {
 }): any {
   const actor = world.addActor({ id: opts.id, name: opts.name, type: 'character' });
   actor.hasPlayerOwner = true;
-  actor.testUserPermission = (user: any, _level: any) => user?.id === opts.ownerUserId;
-  actor.getRollData = () => opts.rollData ?? {};
+  actor.testUserPermission = (user: any, _level: any): boolean => user?.id === opts.ownerUserId;
+  actor.getRollData = (): Record<string, unknown> => opts.rollData ?? {};
   return actor;
 }
 
@@ -99,7 +99,7 @@ function installRollSpy(total = 14): {
     this.evaluate = evaluate;
     this.toMessage = toMessage;
   } as any;
-  (globalThis as any).Roll.validate = () => true;
+  (globalThis as any).Roll.validate = (): boolean => true;
   return { toMessage, evaluate, ctorArgs };
 }
 
@@ -232,8 +232,10 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
     // character exists, has no player owner => found:true, user omitted
     const actor = world.addActor({ id: 'npc1', name: 'Goblin Boss', type: 'npc' });
     actor.hasPlayerOwner = false;
-    actor.testUserPermission = () => false;
-    actor.getRollData = () => ({ abilities: { dex: { mod: 1 } } });
+    actor.testUserPermission = (): boolean => false;
+    actor.getRollData = (): { abilities: { dex: { mod: number } } } => ({
+      abilities: { dex: { mod: 1 } },
+    });
 
     const result = await da.requestPlayerRolls({
       rollType: 'ability',
@@ -346,7 +348,9 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
   it('rolls a public ability check and returns the roll summary', async () => {
     const roll = installRollSpy(17);
     const actor = world.addActor({ id: 'npc1', name: 'Bandit', type: 'npc' });
-    actor.getRollData = () => ({ abilities: { dex: { mod: 2 } } });
+    actor.getRollData = (): { abilities: { dex: { mod: number } } } => ({
+      abilities: { dex: { mod: 2 } },
+    });
 
     const result = await da.rollNpcCheck({
       actorName: 'Bandit',
@@ -377,7 +381,9 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
   it('uses gmroll rollMode for a private (non-public) roll', async () => {
     const roll = installRollSpy(9);
     const actor = world.addActor({ id: 'npc2', name: 'Cultist', type: 'npc' });
-    actor.getRollData = () => ({ abilities: { str: { mod: 0 } } });
+    actor.getRollData = (): { abilities: { str: { mod: number } } } => ({
+      abilities: { str: { mod: 0 } },
+    });
 
     await da.rollNpcCheck({
       actorName: 'Cultist',
@@ -408,7 +414,7 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
     const sword = makeItem({ id: 'i1', name: 'Scimitar', type: 'weapon' });
     (sword as any).labels = { toHit: '+4' };
     const actor = world.addActor({ id: 'npc3', name: 'Raider', type: 'npc', items: [sword] });
-    actor.getRollData = () => ({});
+    actor.getRollData = (): Record<string, never> => ({});
 
     const result = await da.rollNpcCheck({
       actorName: 'Raider',
@@ -475,7 +481,7 @@ describe('FoundryDataAccess — getRollState', () => {
 describe('FoundryDataAccess — getRollStateFromMessage', () => {
   it('reads the rollButtons[buttonId] entry from a message flag', () => {
     const chatMessage = {
-      getFlag: (scope: string, key: string) =>
+      getFlag: (scope: string, key: string): Record<string, { rolled: boolean }> | undefined =>
         scope === MODULE_ID && key === 'rollButtons' ? { 'btn-1': { rolled: true } } : undefined,
     };
 
@@ -483,13 +489,13 @@ describe('FoundryDataAccess — getRollStateFromMessage', () => {
   });
 
   it('returns null when the button id is absent from the flag', () => {
-    const chatMessage = { getFlag: () => ({ other: {} }) };
+    const chatMessage = { getFlag: (): { other: Record<string, never> } => ({ other: {} }) };
     expect(da.getRollStateFromMessage(chatMessage, 'btn-1')).toBeNull();
   });
 
   it('returns null and swallows the error when getFlag throws', () => {
     const chatMessage = {
-      getFlag: () => {
+      getFlag: (): never => {
         throw new Error('boom');
       },
     };
@@ -521,7 +527,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       content: '<original/>',
       flags: { [MODULE_ID]: { rollButtons: { 'btn-1': { rolled: false } } } },
     });
-    (msg as any).canUserModify = () => true;
+    (msg as any).canUserModify = (): boolean => true;
     da.saveRollButtonMessageId('btn-1', 'm1');
 
     await da.updateRollButtonMessage('btn-1', 'gm', 'DEX Check');
@@ -544,7 +550,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       content: 'x',
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
-    (msg as any).canUserModify = () => true;
+    (msg as any).canUserModify = (): boolean => true;
     da.saveRollButtonMessageId('btn-2', 'm2');
 
     await da.updateRollButtonMessage('btn-2', 'u1', 'STR Save');
@@ -562,7 +568,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       content: 'x',
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
-    (msg as any).canUserModify = () => false;
+    (msg as any).canUserModify = (): boolean => false;
     da.saveRollButtonMessageId('btn-3', 'm3');
 
     const emitSpy = vi.spyOn((globalThis as any).game.socket, 'emit');
@@ -590,7 +596,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       content: 'x',
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
-    (msg as any).canUserModify = () => false;
+    (msg as any).canUserModify = (): boolean => false;
     da.saveRollButtonMessageId('btn-4', 'm4');
 
     await expect(da.updateRollButtonMessage('btn-4', 'u1', 'Roll')).rejects.toThrow(
@@ -610,7 +616,7 @@ describe('FoundryDataAccess — legacy roll-state redirects', () => {
       content: 'x',
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
-    (msg as any).canUserModify = () => true;
+    (msg as any).canUserModify = (): boolean => true;
     da.saveRollButtonMessageId('btn-5', 'm5');
 
     await da.saveRollState('btn-5', 'gm');
@@ -630,7 +636,7 @@ describe('FoundryDataAccess — legacy roll-state redirects', () => {
       content: 'x',
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
-    (msg as any).canUserModify = () => true;
+    (msg as any).canUserModify = (): boolean => true;
     da.saveRollButtonMessageId('btn-6', 'm6');
 
     expect(da.requestRollStateSave('btn-6', 'gm')).toBeUndefined();

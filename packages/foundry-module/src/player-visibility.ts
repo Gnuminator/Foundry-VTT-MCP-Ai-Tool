@@ -94,7 +94,7 @@ function isTokenLike(value: unknown): value is TokenLike {
 }
 
 function asActorLike(value: unknown): ActorLike | null {
-  return value !== null && typeof value === 'object' ? (value as ActorLike) : null;
+  return value !== null && typeof value === 'object' ? value : null;
 }
 
 /** `collection.contents` (Foundry `Collection#contents`) read defensively, without touching `any`. */

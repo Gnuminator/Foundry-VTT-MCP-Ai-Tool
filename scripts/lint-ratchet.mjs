@@ -4,7 +4,7 @@
  *
  * CI used to run `eslint --quiet`, which hides warnings, so nothing stopped the
  * warning count from growing. This script lints the repo exactly like
- * `npm run lint` (`eslint . --ext .ts,.tsx,.js`), fails on any error, and compares
+ * `npm run lint` (`eslint .`, flat config in `eslint.config.mjs`), fails on any error, and compares
  * the warning count per rule with the committed baseline
  * (`scripts/lint-baseline.json`). A rule whose count rises (or a rule that is
  * new to the baseline) fails the run.
@@ -28,7 +28,7 @@ const baselinePath = path.join(repoRoot, 'scripts', 'lint-baseline.json');
 const update = process.argv.includes('--update');
 const allowIncrease = process.argv.includes('--allow-increase');
 
-const eslint = new ESLint({ cwd: repoRoot, extensions: ['.ts', '.tsx', '.js'] });
+const eslint = new ESLint({ cwd: repoRoot });
 const results = await eslint.lintFiles(['.']);
 
 const errorResults = ESLint.getErrorResults(results);

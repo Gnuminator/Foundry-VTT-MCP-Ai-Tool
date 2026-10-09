@@ -82,7 +82,7 @@ export class VoiceRecorder {
     this.subscribed.clear();
     const { receiver } = connection;
     // Must happen before the networking layer attaches the UDP listener (see rtp-tap.ts).
-    this.tap = installRtpTap(receiver as unknown as { onUdpMessage?: unknown }, (ssrc, pt) => {
+    this.tap = installRtpTap(receiver, (ssrc, pt) => {
       const userId = receiver.ssrcMap.get(ssrc)?.userId;
       session.log({ type: 'udp_ssrc', ssrc, payloadType: pt, userId: userId ?? null });
     });

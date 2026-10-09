@@ -4,7 +4,11 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  type CallToolResult,
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 
 import { config } from './config.js';
 
@@ -16,6 +20,8 @@ import {
 } from './control-target.js';
 
 import { PROMPTS_CAPABILITY, registerPromptHandlers } from './prompts/register.js';
+
+import { type ToolDefinitionLike, type ToolResultLike, capToolResult } from './tool-router.js';
 
 import {
   TOOL_SETS_ENV,
@@ -64,7 +70,7 @@ class BackendClient {
 
   private backendProcess: ChildProcess | null = null;
 
-  log(msg: string, meta?: any) {
+  log(msg: string, meta?: any): void {
     try {
       const dir = path.dirname(this.logFile);
 
@@ -165,7 +171,7 @@ class BackendClient {
     let backendPath: string | null = null;
 
     try {
-      const backendUrl = new URL('./backend.js', import.meta.url as any);
+      const backendUrl = new URL('./backend.js', import.meta.url);
 
       backendPath = fileURLToPath(backendUrl);
     } catch {
@@ -223,7 +229,7 @@ class BackendClient {
     // Don't unref since we want to monitor the process
   }
 
-  private onData(chunk: string) {
+  private onData(chunk: string): void {
     this.buffer += chunk;
 
     let idx: number;
@@ -272,7 +278,7 @@ class BackendClient {
     }
   }
 
-  private rejectAll(err: any) {
+  private rejectAll(err: any): void {
     for (const [, p] of this.pending) p.reject(err);
 
     this.pending.clear();
@@ -282,7 +288,7 @@ class BackendClient {
 
   send(method: string, params: any): Promise<any> {
     return new Promise((resolve, reject) => {
-      void (async () => {
+      void (async (): Promise<void> => {
         try {
           await this.ensure();
         } catch (e) {
@@ -312,7 +318,7 @@ class BackendClient {
     });
   }
 
-  cleanup() {
+  cleanup(): void {
     this.log('cleanup(): shutting down backend');
 
     if (this.backendProcess && !this.backendProcess.killed) {
@@ -333,7 +339,7 @@ class BackendClient {
   }
 }
 
-async function startWrapper() {
+async function startWrapper(): Promise<void> {
   const backend = new BackendClient();
 
   // Pre-connect to backend BEFORE initializing MCP server
@@ -392,6 +398,10 @@ async function startWrapper() {
     process.exit(0);
   });
 
+  // The tools this entry listed, by name: the result size guard names a tool's own parameters
+  // when it cuts a result.
+  const listedTools = new Map<string, ToolDefinitionLike>();
+
   mcp.setRequestHandler(ListToolsRequestSchema, async () => {
     try {
       const res = await backend.send('list_tools', {});
@@ -409,7 +419,9 @@ async function startWrapper() {
         (res.tools || []) as Parameters<typeof stripToolRefs>[0],
         TOOL_SET_SELECTION
       );
-      return { tools: stripToolRefs(listed) };
+      const served = stripToolRefs(listed);
+      for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
+      return { tools: served };
     } catch (e) {
       // Log but return empty to remain MCP-compliant
 
@@ -425,14 +437,16 @@ async function startWrapper() {
     const { name, arguments: args } = request.params as any;
 
     try {
-      const res = await backend.send('call_tool', { name, args: args ?? {} });
+      const res = (await backend.send('call_tool', { name, args: args ?? {} })) as ToolResultLike;
 
-      return res;
+      // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
+      const toolName = String(name);
+      return capToolResult(res, toolName, listedTools.get(toolName)) as unknown as CallToolResult;
     } catch (e: any) {
       return {
         content: [{ type: 'text', text: `Error: ${e?.message || 'Backend unavailable'}` }],
         isError: true,
-      } as any;
+      };
     }
   });
 

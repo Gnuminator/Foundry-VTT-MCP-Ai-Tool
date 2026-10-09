@@ -601,7 +601,7 @@ export class CampaignManagementTools {
 
     return part.dependencies.some((depId: string) => {
       const depPart = campaign.parts.find((p: CampaignPart) => p.id === depId);
-      return !depPart || depPart.status !== 'completed';
+      return depPart?.status !== 'completed';
     });
   }
 

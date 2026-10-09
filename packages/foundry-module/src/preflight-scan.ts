@@ -249,7 +249,7 @@ export function scanSettings(settings: readonly StoredSetting[]): PreflightSetti
 
 /** World-scope Setting documents (`game.settings.storage.get("world")`), user settings left out. */
 function storedWorldSettings(): StoredSetting[] {
-  const settings = rec(rec(game as unknown)?.settings);
+  const settings = rec(rec(game)?.settings);
   const storage = settings?.storage;
   const getter = rec(storage)?.get;
   const world: unknown =
@@ -297,7 +297,7 @@ function pushName(out: PlayerVisibleName[], name: PlayerVisibleName): void {
 /** The names at least one player can see in Foundry right now. */
 export function collectPlayerVisibleNames(): PlayerVisibleName[] {
   const out: PlayerVisibleName[] = [];
-  const g = rec(game as unknown);
+  const g = rec(game);
 
   for (const playlist of contentsOf(g?.playlists)) {
     const p = rec(playlist);
@@ -330,7 +330,7 @@ export function collectPlayerVisibleNames(): PlayerVisibleName[] {
     const t = rec(token);
     if (!t || t.hidden === true) continue;
     const ownedByPlayer = rec(t.actor)?.hasPlayerOwner === true;
-    const name = tokenNameForPlayers(t as Parameters<typeof tokenNameForPlayers>[0], ownedByPlayer);
+    const name = tokenNameForPlayers(t, ownedByPlayer);
     if (name === UNKNOWN_CREATURE) continue;
     pushName(out, { kind: 'token', id: str(t.id) ?? '', name });
   }
@@ -442,7 +442,7 @@ interface ModuleLike {
 }
 
 function installedModules(): ModuleLike[] {
-  const modules = rec(game as unknown)?.modules;
+  const modules = rec(game)?.modules;
   const values = rec(modules)?.values;
   const list: unknown[] =
     typeof values === 'function'
@@ -458,9 +458,7 @@ function installedModules(): ModuleLike[] {
 export function scanModules(modules: readonly ModuleLike[]): PreflightModuleFinding[] {
   const findings: PreflightModuleFinding[] = [];
   for (const rule of MODULE_RULES) {
-    const match = modules.find(
-      m => rule.ids.includes(m.id) || (rule.title !== undefined && rule.title.test(m.title))
-    );
+    const match = modules.find(m => rule.ids.includes(m.id) || rule.title?.test(m.title));
     const active = match?.active === true;
     if (rule.missing ? active : !active) continue;
     findings.push({

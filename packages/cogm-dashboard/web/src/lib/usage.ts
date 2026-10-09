@@ -6,6 +6,8 @@ type UsageKind = 'view' | 'action' | 'tool' | 'shortcut' | 'error';
 
 interface CogmUsage {
   track(kind: UsageKind, name: string, extra?: { code?: string; outcome?: string }): void;
+  /** A bridge tool run (tool.<name>): ok, error with a code, or cancelled. */
+  trackTool(toolName: string, outcome: 'ok' | 'error' | 'cancelled', code?: string): void;
   /** A view (drawer, panel) is open from now until endView; only its visible time counts. */
   trackView(name: string): void;
   endView(name: string): void;
@@ -19,6 +21,7 @@ declare global {
 
 const noop: CogmUsage = {
   track: () => undefined,
+  trackTool: () => undefined,
   trackView: () => undefined,
   endView: () => undefined,
 };

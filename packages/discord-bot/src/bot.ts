@@ -46,7 +46,8 @@ export const RECORD_COMMAND = new SlashCommandBuilder()
 
 const NOTICE =
   'Recording started: this voice channel is recorded, one track per person, for the session ' +
-  'notes. The audio stays on the GM side and is deleted after the notes are approved.';
+  "notes. Your track is kept on the organiser's PC, also as training data, until you ask to " +
+  'have it deleted.';
 
 interface Active {
   session: RecordingSession;
@@ -206,7 +207,7 @@ export class RecorderBot {
     const guild = i.guild;
     const member = guild ? await guild.members.fetch(i.user.id) : undefined;
     const channel = member?.voice.channel;
-    if (!guild || !channel || channel.type !== ChannelType.GuildVoice) {
+    if (!guild || channel?.type !== ChannelType.GuildVoice) {
       await i.reply({ content: 'Join a voice channel first.', flags: MessageFlags.Ephemeral });
       return;
     }

@@ -170,7 +170,7 @@ def test_publish_writes_approved_json_once_approved(tmp_path: Path) -> None:
         outcome = publish(s, port=bridge.port)
     finally:
         bridge.close()
-    assert outcome.code == 0 and "audio clock started" in outcome.message
+    assert outcome.code == 0 and "approved in Foundry" in outcome.message
     marker = json.loads((s / "notes" / "approved.json").read_text(encoding="utf-8"))
     assert marker["approved_at"].startswith("2026-10-05T19:00:00")
     assert marker["by"] == "reveal (Foundry)"

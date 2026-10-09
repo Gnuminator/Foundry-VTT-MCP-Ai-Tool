@@ -114,7 +114,7 @@ const fakeClient = {
         ],
       },
       'check-secret-terms': {
-        matches: String(args.text ?? '').includes(CANARY.tarokka)
+        matches: (typeof args.text === 'string' ? args.text : '').includes(CANARY.tarokka)
           ? [{ category: 'tarokka-card', term: CANARY.tarokka }]
           : [],
       },

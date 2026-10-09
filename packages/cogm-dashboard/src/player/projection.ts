@@ -195,7 +195,7 @@ export function projectCombat(
   visibility: PlayerVisibility | null,
   opts: PlayerViewConfig
 ): PlayerCombat | null {
-  if (!combat || !combat.active) return null;
+  if (!combat?.active) return null;
   const pcActors = new Set(visibility?.pcActorIds ?? []);
   const visibleTokens = new Map((visibility?.tokens ?? []).map(t => [t.tokenId, t] as const));
   const combatants: PlayerCombatant[] = [];

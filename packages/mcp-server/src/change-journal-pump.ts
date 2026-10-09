@@ -670,7 +670,7 @@ export class ChangeJournalPump {
   }
 
   private async saveState(worldId: string): Promise<void> {
-    if (!this.state || this.state.worldId !== worldId) return;
+    if (this.state?.worldId !== worldId) return;
     const data: ChangePumpState = {
       clientId: this.state.clientId,
       lastSeq: this.state.lastSeq,

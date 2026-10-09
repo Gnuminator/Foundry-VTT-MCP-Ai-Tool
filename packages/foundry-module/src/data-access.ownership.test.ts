@@ -48,7 +48,7 @@ describe('FoundryDataAccess — getActorOwnership', () => {
     name: string;
     type?: string;
     ownership?: Record<string, number>;
-  }) {
+  }): ReturnType<typeof world.addActor> {
     const ownership = opts.ownership ?? {};
     const levelMap: Record<string, number> = { OWNER: 3, OBSERVER: 2, LIMITED: 1 };
     return world.addActor({

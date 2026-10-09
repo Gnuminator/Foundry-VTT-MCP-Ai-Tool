@@ -3864,10 +3864,10 @@ function renderSessionNotes() {
     // The bridge refuses Undo once the players have the Recap (D-087), so no button then.
     if (n.changeId && !n.recapRevealed) actions.push(NOTES_BUTTONS.undo);
   } else if (n.status === 'approved') {
-    // Approval stays once the audio clock started; whether the notes are in Foundry is
-    // journalUuid (an Undo removes the whole put).
+    // Approval stays once given (the audio is kept either way, D-097); whether the notes are in
+    // Foundry is journalUuid (an Undo removes the whole put).
     status = 'Approved';
-    line = `Approved ${n.approvedBy === 'reveal' ? 'by revealing the Recap' : ''} ${notesTime(n.approvedAt)}. The recording's audio is deleted 14 days later.`;
+    line = `Approved ${n.approvedBy === 'reveal' ? 'by revealing the Recap' : ''} ${notesTime(n.approvedAt)}. The recording's audio is kept.`;
     if (!n.journalUuid) {
       line += ' The notes are not in Foundry now: they were taken out with Undo.';
       if (!n.autoPut) actions.push(NOTES_BUTTONS.put);
@@ -3967,7 +3967,7 @@ notesEls.actions.addEventListener('click', async e => {
       else toast('✓ The notes are in Foundry.', 'ok');
     } else if (action === 'approve') {
       await notesRequest(`/api/session-notes/${id}/approve`);
-      toast('✓ Approved. The audio is deleted 14 days later.', 'ok');
+      toast('✓ Approved. The audio is kept.', 'ok');
     }
   } catch (err) {
     toast(`✗ ${String(err.message || err)}`, 'err', err.code);

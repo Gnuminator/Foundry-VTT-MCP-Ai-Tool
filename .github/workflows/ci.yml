@@ -63,6 +63,11 @@ jobs:
         # one line per forced alert.
         run: node --test .claude/hooks/start-alerts.test.mjs
 
+      - name: Drift check script
+        # scripts/drift-check.mjs, which lanes run before "PR ready": trial merge of main, guards,
+        # undo; against throwaway git repos.
+        run: node --test scripts/drift-check.test.mjs
+
       - name: Pi space check
         # The storage space check (stage 10, the nightly backup's pre-check, scripts/pi/space-check.ps1):
         # bash -n on the stage scripts, the checker's JSON against a fake df, the PC helper's levels
@@ -78,6 +83,12 @@ jobs:
         # push-world.ps1 and stage 11 (docs/dev/PI-SETUP.md, "Licensed content"): the asset path
         # scanner's pure functions (scripts/pi/world-refs.mjs) and bash -n on stage 11.
         run: node --test scripts/pi/world-refs.test.mjs
+
+      - name: Pi Assistant GM
+        # assistant-gm.mjs: the service mode is unchanged, GM script mode takes only a local file and
+        # its dry run lets only known reads through; gm-script.sh refuses a real run without a passed
+        # dry run (stand-ins for systemd) (docs/dev/PI-SETUP.md, "GM scripts").
+        run: node --test scripts/pi/assistant-gm.test.mjs
 
       - name: Changelog fragments
         # Each PR adds its CHANGELOG entry as a file in changelog.d/ (D-089); this checks the format.
@@ -173,6 +184,41 @@ jobs:
 
       - name: Validate Foundry module manifest
         run: node scripts/validate-manifest.js
+
+  python-tests:
+    # The Python tools under tools/ (narration, session notes, session pipeline, transcriber), D-109.
+    # Their unit tests need only pytest, numpy and ffmpeg: the model packages (faster-whisper,
+    # ctranslate2, torch, chatterbox) are imported lazily, and fakes stand in for the models and
+    # for claude -p. Every tools/<name>/ with a pyproject.toml and a tests/ folder runs, so a new
+    # tool is picked up without editing this job.
+    runs-on: ubuntu-latest
+    name: python-tests (Python 3.12)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pytest, numpy and ffmpeg
+        # ffmpeg: the narration render tests skip without it.
+        run: |
+          python -m pip install --quiet 'pytest>=8' numpy
+          command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg)
+
+      - name: Unit tests (tools/*)
+        run: |
+          status=0
+          ran=0
+          for dir in tools/*/; do
+            [ -f "$dir/pyproject.toml" ] && [ -d "$dir/tests" ] || continue
+            echo "::group::$dir"
+            (cd "$dir" && python -m pytest -p no:cacheprovider -rs) || status=1
+            echo "::endgroup::"
+            ran=$((ran + 1))
+          done
+          [ "$ran" -gt 0 ] || { echo "No Python test folders found under tools/"; exit 1; }
+          exit $status
 
   build-test-arm:
     # The Orange Pi is ARM (aarch64) and runs Node 24: the same steps on an ARM runner

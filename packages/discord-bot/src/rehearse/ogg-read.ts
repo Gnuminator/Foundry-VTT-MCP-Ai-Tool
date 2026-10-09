@@ -36,9 +36,9 @@ export function readOggOpus(file: Buffer): OggOpus {
     pos = body;
   }
   const head = packets[0];
-  if (!head || head.toString('latin1', 0, 8) !== 'OpusHead') throw new Error('No OpusHead packet');
+  if (head?.toString('latin1', 0, 8) !== 'OpusHead') throw new Error('No OpusHead packet');
   const tags = packets[1];
-  if (!tags || tags.toString('latin1', 0, 8) !== 'OpusTags') throw new Error('No OpusTags packet');
+  if (tags?.toString('latin1', 0, 8) !== 'OpusTags') throw new Error('No OpusTags packet');
   return { preSkip: head.readUInt16LE(10), channels: head.readUInt8(9), packets: packets.slice(2) };
 }
 

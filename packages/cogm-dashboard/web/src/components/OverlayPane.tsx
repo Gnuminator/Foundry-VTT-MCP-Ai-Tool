@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import type { JSX, ReactNode } from 'react';
 
+import { useEscapeClose } from '../lib/escape';
 import { HelpButton } from './HelpButton';
 
 interface OverlayPaneProps {
@@ -41,6 +42,7 @@ export function OverlayPane({
   note,
   children,
 }: OverlayPaneProps): JSX.Element {
+  useEscapeClose(open, () => onOpenChange(false));
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange} modal={false}>
       <Dialog.Content

@@ -406,7 +406,7 @@ export default class FoundryAiToolPlugin extends Plugin {
   }
 
   private noteFor(file: TFile | null): FoundryNote | null {
-    if (!file || file.extension !== 'md') return null;
+    if (file?.extension !== 'md') return null;
     return foundryNoteFrom(this.app.metadataCache.getFileCache(file)?.frontmatter);
   }
 

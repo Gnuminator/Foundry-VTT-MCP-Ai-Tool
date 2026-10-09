@@ -13,8 +13,8 @@
   3. move it to <sessions>\<name> (auto.ps1 then transcribes it and writes the notes);
   4. mark it pulled on the Pi (an empty `.pulled` file in the session folder).
 
-  Pulled sessions are deleted on the Pi -KeepDays days after the pull (default 7): the audio's
-  real retention clock (D-072, 14 days after the GM's approval) runs on the PC. A session folder
+  Pulled sessions are deleted on the Pi -KeepDays days after the pull (default 7): the PC keeps
+  the audio (D-097: recordings are kept until a player asks for theirs to be deleted). A session folder
   that already exists on the PC is never overwritten.
 
   Needs: the OpenSSH client (built into Windows) and key login to the Pi as its SSH user from the

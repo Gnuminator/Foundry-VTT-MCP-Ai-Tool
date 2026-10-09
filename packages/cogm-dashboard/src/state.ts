@@ -98,7 +98,7 @@ export class GameState {
   buildContext(maxRecentEvents = 25): string {
     const lines: string[] = [];
 
-    if (this.combatState && this.combatState.active) {
+    if (this.combatState?.active) {
       const { round, turn, current, combatants } = this.combatState;
       lines.push(`# Combat — round ${round}, turn ${turn}`);
       if (current) {

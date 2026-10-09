@@ -46,7 +46,7 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 /** A well-rounded character used across multiple tests. */
-function makeHero() {
+function makeHero(): ReturnType<typeof makeActor> {
   return makeActor({
     id: 'hero000000000000', // 16 chars — exercises the id-lookup branch
     name: 'Aldric',
@@ -183,7 +183,7 @@ describe('getCharacterEntity — item branch', () => {
 // ---------------------------------------------------------------------------
 
 describe('getCharacterEntity — actions branch', () => {
-  function makeHeroWithActions() {
+  function makeHeroWithActions(): ReturnType<typeof makeActor> {
     return makeActor({
       id: 'hero000000000001',
       name: 'Brynn',

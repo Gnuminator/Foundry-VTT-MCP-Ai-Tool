@@ -282,7 +282,7 @@ describe('ObsidianMirrorPump with the Library and images', () => {
     await pump.tick();
     expect(await read('AI Tool/Foundry/NPCs/Wolf.md')).not.toContain('[!statblock]');
     // The GM ignores the whole mirror folder; the guard looks again after its cache expires.
-    runner = () => Promise.resolve({ code: 0, stdout: '', stderr: '' });
+    runner = (): ReturnType<GitRunner> => Promise.resolve({ code: 0, stdout: '', stderr: '' });
     clock += 6 * 60_000;
     await pump.tick();
     const wolf = (await read('AI Tool/Foundry/NPCs/Wolf.md')) ?? '';

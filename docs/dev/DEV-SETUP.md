@@ -16,7 +16,7 @@ VS Code reads `.vscode/extensions.json` and offers the recommended set in a noti
 installed them. The repo's `.vscode/settings.json` then configures them automatically:
 
 - **Prettier** is the default formatter with **format-on-save** (matches `.prettierrc` + CI's `format:check`).
-- **ESLint** auto-fixes on save and resolves the right config per workspace (`.eslintrc.json`).
+- **ESLint** auto-fixes on save and resolves the right config per workspace (`eslint.config.mjs` at the repo root).
 - **TypeScript** uses the workspace version (`node_modules/typescript`). If VS Code prompts
   **"Use Workspace Version"**, accept it. (Or: open any `.ts` file → `Ctrl+Shift+P` →
   "TypeScript: Select TypeScript Version" → Use Workspace Version.)
@@ -45,6 +45,11 @@ node scripts/validate-manifest.js
 
 If a workspace build emits nothing, delete stale `*.tsbuildinfo` and rebuild. The **Vitest** extension
 also gives you a Testing sidebar: run or debug any test inline once it indexes.
+
+The Python tools under `tools/` (narration, session notes, session pipeline, transcriber) have their
+own tests; CI's `python-tests` job runs them on Python 3.12 with pytest, numpy and ffmpeg. Locally,
+from a tool's folder: `python -m pytest` (on Windows `python`, never `python3`, which can hang on
+the Store stub).
 
 After changing a tool's description or parameters, run `npm run docs:tools`: it regenerates
 [docs/reference/tools.md](../reference/tools.md), and the mcp-server tests fail while that page is stale.

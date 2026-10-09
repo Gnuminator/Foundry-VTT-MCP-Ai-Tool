@@ -286,7 +286,7 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
       hasSpells: true, // it has a spell item (the casting ability alone does not count)
       hasLegendaryActions: true, // resources.legact.max > 0
       alignment: 'chaotic evil', // lower-cased
-      description: '<p>A terrifying wyrm.</p>', // the biography's value, not the object
+      description: 'A terrifying wyrm.', // the biography's value as plain text, not the object
       img: 'dragon.webp',
     });
   });
@@ -559,7 +559,7 @@ describe('PersistentCreatureIndex — persistence', () => {
     await index.rebuildIndex();
 
     const saved = JSON.parse(disk.content!);
-    expect(saved.metadata.version).toBe('1.1.0');
+    expect(saved.metadata.version).toBe('1.2.0');
     expect(saved.metadata.gameSystem).toBe('dnd5e');
     expect(saved.metadata.totalCreatures).toBe(1);
     // Map serialized to entries array.

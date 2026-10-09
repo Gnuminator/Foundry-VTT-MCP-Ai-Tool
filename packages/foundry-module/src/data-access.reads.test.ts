@@ -433,4 +433,56 @@ describe('FoundryDataAccess — getCharacterInfo', () => {
       ['Misty Step', true],
     ]);
   });
+
+  it('reads a subclass caster (Eldritch Knight) from the subclass spellcasting', async () => {
+    world.actors.add(
+      makeActor({
+        name: 'Knight',
+        type: 'character',
+        items: [
+          makeItem({
+            id: 'Xq3cls0000000004',
+            name: 'Fighter',
+            type: 'class',
+            system: { identifier: 'fighter', spellcasting: { progression: 'none', ability: '' } },
+          }),
+          makeItem({
+            id: 'Xq3sub0000000004',
+            name: 'Eldritch Knight',
+            type: 'subclass',
+            system: {
+              identifier: 'eldritch-knight',
+              classIdentifier: 'fighter',
+              spellcasting: {
+                progression: 'third',
+                ability: 'int',
+                type: 'spell',
+                save: 12,
+                attack: 4,
+              },
+            },
+          }),
+          makeItem({
+            name: 'Shield',
+            type: 'spell',
+            system: {
+              level: 1,
+              sourceItem: 'subclass:eldritch-knight',
+              method: 'spell',
+              prepared: 1,
+            },
+          }),
+        ],
+      })
+    );
+    const info = await da.getCharacterInfo('Knight');
+    expect(info.spellcasting).toHaveLength(1);
+    const entry = info.spellcasting![0];
+    expect(entry.name).toBe('Fighter Spellcasting');
+    expect(entry.type).toBe('prepared');
+    expect(entry.ability).toBe('int');
+    expect(entry.dc).toBe(12);
+    expect(entry.attack).toBe(4);
+    expect(entry.spells.map(s => [s.name, s.prepared])).toEqual([['Shield', true]]);
+  });
 });

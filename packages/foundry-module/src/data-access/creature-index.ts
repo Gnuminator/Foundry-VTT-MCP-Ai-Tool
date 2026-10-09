@@ -1,7 +1,7 @@
 import { MODULE_ID } from '../constants.js';
 import { trackUsage } from '../usage-recorder.js';
 import { logInfo } from '../log.js';
-import { rec, str } from '../character-sheet-fields.js';
+import { plainText, rec } from '../character-sheet-fields.js';
 import type {
   DnD5eCreatureIndex,
   EnhancedCreatureIndex,
@@ -36,7 +36,7 @@ export class PersistentCreatureIndex {
   private moduleId: string = MODULE_ID;
   // 1.1.0 (M3): sizes stored as dnd5e keys ('med'), hasSpells/hasLegendaryActions
   // fixed; a bump makes worlds rebuild an index persisted by an older module.
-  private readonly INDEX_VERSION = '1.1.0';
+  private readonly INDEX_VERSION = '1.2.0';
   private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
   private buildInProgress = false;
   private hooksRegistered = false;
@@ -631,12 +631,13 @@ export class PersistentCreatureIndex {
 
   /** Safe default record used when extraction throws (fallback HP is 1, not 0). */
   /**
-   * The biography HTML as a string. dnd5e 6 stores `details.biography` as `{value, public}`;
-   * a plain string (older data) is taken as is.
+   * The biography as plain text (no tags or secret blocks), so the description search matches
+   * words, not markup. dnd5e 6 stores `details.biography` as `{value, public}`; a plain string
+   * (older data) is read as is.
    */
   private biographyText(system: unknown): string {
     const bio = rec(rec(system).details).biography;
-    return typeof bio === 'string' ? bio : str(rec(bio).value);
+    return plainText(typeof bio === 'string' ? bio : rec(bio).value, 2000);
   }
 
   private fallbackRecord(doc: any, pack: any): DnD5eCreatureIndex {

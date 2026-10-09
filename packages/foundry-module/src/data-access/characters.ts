@@ -553,11 +553,11 @@ export class CharacterDataAccess {
     // One entry per spellcasting class.
     const used = new Set<string>();
     for (const classItem of classes) {
-      const spellcasting = rec(rec(classItem.system).spellcasting);
+      const key = this.classKey(classItem);
+      const spellcasting = this.effectiveSpellcasting(actor, classItem, key);
       const progression = str(spellcasting.progression);
       if (progression && progression !== 'none') {
         const className = classItem.name || 'Unknown';
-        const key = this.classKey(classItem);
         used.add(key);
 
         entries.push({
@@ -590,6 +590,24 @@ export class CharacterDataAccess {
     }
 
     return entries;
+  }
+
+  /**
+   * A class's spellcasting as dnd5e 6's `Item5e#spellcasting` resolves it: the subclass's when
+   * its progression is not "none" (Eldritch Knight, Arcane Trickster), else the class's own.
+   */
+  private effectiveSpellcasting(
+    actor: Actor,
+    classItem: Item,
+    key: string
+  ): Record<string, unknown> {
+    const subclass = actor.items.find(
+      item => item.type === 'subclass' && str(rec(item.system).classIdentifier) === key
+    );
+    const subclassSC = rec(rec(subclass?.system).spellcasting);
+    const subProgression = str(subclassSC.progression);
+    if (subProgression && subProgression !== 'none') return subclassSC;
+    return rec(rec(classItem.system).spellcasting);
   }
 
   /** A class item's identifier (`identifier` getter, `system.identifier`, or its slugged name). */

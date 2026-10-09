@@ -16,6 +16,7 @@ import {
   VersionBanner,
   usePreflightOnReconnect,
 } from './panels/Preflight';
+import { TarokkaDrawer } from './panels/Tarokka';
 import { api } from './lib/api';
 import { GmActionsGateContext } from './lib/guarded';
 import { useDashboardStream } from './lib/stream';
@@ -64,12 +65,13 @@ export function App(): JSX.Element {
 }
 
 /** The drawers this page has so far; each one's open state. */
-type DrawerName = 'preflight' | 'prep' | 'party' | 'handouts';
+type DrawerName = 'preflight' | 'prep' | 'party' | 'handouts' | 'tarokka';
 const NO_DRAWERS: Record<DrawerName, boolean> = {
   preflight: false,
   prep: false,
   party: false,
   handouts: false,
+  tarokka: false,
 };
 
 function Dashboard(): JSX.Element {
@@ -136,6 +138,16 @@ function Dashboard(): JSX.Element {
             📜 Handouts
           </button>
           <button
+            id="btn-tarokka"
+            className="btn"
+            data-track="dash.header.tarokka"
+            title="Tarokka reading (GM only)"
+            aria-expanded={drawers.tarokka}
+            onClick={() => setDrawer('tarokka', !drawers.tarokka)}
+          >
+            🃏 Tarokka
+          </button>
+          <button
             className="btn"
             data-track="dash.header.player-links"
             title="Each player's private link to their own character sheet (GM only)"
@@ -187,6 +199,7 @@ function Dashboard(): JSX.Element {
       />
       <PartyDrawer open={drawers.party} onOpenChange={open => setDrawer('party', open)} />
       <HandoutsDrawer open={drawers.handouts} onOpenChange={open => setDrawer('handouts', open)} />
+      <TarokkaDrawer open={drawers.tarokka} onOpenChange={open => setDrawer('tarokka', open)} />
     </GmActionsGateContext.Provider>
   );
 }

@@ -93,12 +93,14 @@ const RECENT_CHANGES_HINT = 'It may have applied; check Recent Changes on the fu
 /**
  * Returns run(planTool, args): plans the change, applies it in the same click when the plan is
  * an ordinary write, asks in the confirm window first for any other plan, and shows the result.
- * It resolves once the change is in, refused or cancelled; errors end up in toasts, never thrown.
+ * It resolves to true once the change is in (or the plan said there was nothing to change) and to
+ * false when it was refused, cancelled or failed; errors end up in toasts, never thrown. A panel can
+ * close its form on true and keep the draft on false.
  */
 export function useGuardedChange(): (
   planTool: string,
   args: Record<string, unknown>
-) => Promise<void> {
+) => Promise<boolean> {
   const toast = useToast();
   const queryClient = useQueryClient();
   const settings = useDashboardSettings();
@@ -206,7 +208,7 @@ export function useGuardedChange(): (
       // leaves none. The server still checks (the 403 below).
       if (gmActionsOff) {
         gateClosed('apply-planned-change', 'gm-actions-off');
-        return;
+        return false;
       }
 
       let plan: Plan | null;
@@ -215,22 +217,22 @@ export function useGuardedChange(): (
       } catch (err) {
         usage().trackTool(planTool, 'error', failCode(err));
         toast(`✗ ${planTool}: ${errorText(err)}`, 'err');
-        return;
+        return false;
       }
       usage().trackTool(planTool, 'ok');
       if (plan?.providerNote) toast(plan.providerNote, 'warn');
       if (!plan || typeof plan.planId !== 'string' || !plan.planId) {
         toast(typeof plan?.note === 'string' ? `✓ ${plan.note}` : `✓ ${planTool}`, 'ok');
         changed();
-        return;
+        return true;
       }
       // The click is the confirmation for an ordinary write; anything else asks first.
       const flags =
         plan.risk === 'write' ? { confirm: true } : await confirmPlan(plan, plan.planId);
-      if (!flags) return;
+      if (!flags) return false;
 
       const applied = await write('apply-planned-change', { planId: plan.planId }, flags);
-      if (!applied) return;
+      if (!applied) return false;
       const changeId = applied.changeId;
       if (changeId) {
         toast(doneText('apply-planned-change', applied), 'ok', {
@@ -245,6 +247,7 @@ export function useGuardedChange(): (
         toast(`Revealed, but the popup failed: ${applied.shown.error ?? ''}`, 'warn');
       }
       changed();
+      return true;
     },
     [toast, queryClient, openGate, gmActionsOff, askConfirm]
   );

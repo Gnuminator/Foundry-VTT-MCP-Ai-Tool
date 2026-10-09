@@ -143,11 +143,12 @@ export function plainText(html: unknown, max = 600): string {
     .replace(/<(br|\/p|\/li|\/h[1-6])\s*\/?>/gi, '\n')
     .replace(TAG, '')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    // Last, so `&amp;lt;` (a literal "&lt;" in the text) stays "&lt;" and never decodes twice.
+    .replace(/&amp;/g, '&')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s*\n+/g, '\n')
     .trim();

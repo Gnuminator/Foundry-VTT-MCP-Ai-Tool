@@ -251,6 +251,12 @@ describe('stripSecrets and plainText', () => {
     expect(plainText('<p title="a>b">one</p><div class="secret">two<p>three</p>')).toBe('one');
   });
 
+  it('decodes each entity once: an escaped "&lt;" stays text', () => {
+    expect(plainText('<p>Use &amp;lt;b&amp;gt; &amp;amp; &lt;i&gt;</p>')).toBe(
+      'Use &lt;b&gt; &amp; <i>'
+    );
+  });
+
   it('reads the class attribute, not data-class', () => {
     expect(plainText('<div data-class="x" class="secret">hidden</div><p>shown</p>')).toBe('shown');
   });

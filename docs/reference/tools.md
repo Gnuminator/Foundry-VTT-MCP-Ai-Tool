@@ -703,9 +703,9 @@ For Foundry VTT v13 ProseMirror editor compatibility:
 
 Quest-style HTML examples:
 
-- Sections: "&lt;h2 class=\"spaced\">New Discovery&lt;/h2>"
-- GM Notes: "&lt;div class=\"gmnote\">&lt;p>GM info here&lt;/p>&lt;/div>"
-- Player Info: "&lt;div class=\"readaloud\">&lt;p>Player-facing content&lt;/p>&lt;/div>"
+- Sections: "&lt;h2 class=\\"spaced\\">New Discovery&lt;/h2>"
+- GM Notes: "&lt;div class=\\"gmnote\\">&lt;p>GM info here&lt;/p>&lt;/div>"
+- Player Info: "&lt;div class=\\"readaloud\\">&lt;p>Player-facing content&lt;/p>&lt;/div>"
 - Plain text: "The party discovered the secret chamber"
 - Avoid: "\*\*The party\*\* discovered the \*secret chamber\*" (Markdown will be stripped)
 

@@ -153,8 +153,8 @@ test('weekWindow follows the weekly reset and falls back to Monday', () => {
 test('renderNotes keeps other PCs sections and escapes pipes in titles', () => {
   const st = emptyUsageState(new Date(T0), 'PC1');
   updateUsageState(st, {
-    sessions: [session('s1', 'A | B', T0 + 60000, T0 + H)],
-    lanes: { rows: [lane('s1', 'A | B', 1, T0 + H)] },
+    sessions: [session('s1', 'A | B \\| C', T0 + 60000, T0 + H)],
+    lanes: { rows: [lane('s1', 'A | B \\| C', 1, T0 + H)] },
     plan: plan(T0 + H, 10, 20),
     messages: msgs,
     now: new Date(T0 + H),
@@ -163,7 +163,7 @@ test('renderNotes keeps other PCs sections and escapes pipes in titles', () => {
   const out = renderNotes(st, T0 + H, { log: existing, weekly: '' });
   assert.match(out.log, /## PC PC2\n\nrow from pc2/);
   assert.match(out.log, /## PC PC1/);
-  assert.match(out.log, /A \\\| B/);
+  assert.match(out.log, /A \\\| B \\\\\\\| C/);
   assert.match(out.weekly, /Tokens, main thread: 0\.0M/);
   assert.match(out.weekly, /\(current\)/);
   const again = renderNotes(st, T0 + H, { log: out.log, weekly: out.weekly });

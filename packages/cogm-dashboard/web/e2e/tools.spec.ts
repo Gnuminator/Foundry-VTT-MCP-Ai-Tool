@@ -13,6 +13,7 @@ import {
   ok,
   toast,
   type ToolCall,
+  fromMenu,
 } from './support';
 
 const PAGE_UUID = 'JournalEntry.j1.JournalEntryPage.p1';
@@ -216,7 +217,7 @@ async function fakeCatalog(page: Page, gmActionsEnabled = true): Promise<void> {
 
 async function openTools(page: Page): Promise<Locator> {
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-tools').click();
+  await fromMenu(page, 'btn-tools');
   const drawer = page.getByRole('dialog', { name: '🛠 Tool Runner' });
   await expect(drawer).toBeVisible();
   return drawer;
@@ -506,7 +507,7 @@ test('an Undo GM Actions refuse with the drawer open under another brings it to 
   await expect(toast(page, '✓ Applied: Damage: 5 to Wolf')).toBeVisible();
 
   // The backdrop covers the header; from the keyboard a second drawer opens beside the first.
-  await page.locator('#btn-party').press('Enter');
+  await fromMenu(page, 'btn-party', true);
   const party = page.getByRole('dialog', { name: '🛡 Party' });
   await expect(party).toHaveClass(/drawer-top/);
   await page.locator('.toast-stack .toast-undo .toast-action').click();
@@ -754,7 +755,7 @@ test('Escape closes an open Pick… list, then the confirm window, then the draw
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
   // The form survives closing the drawer.
-  await page.locator('#btn-tools').click();
+  await fromMenu(page, 'btn-tools');
   await expect(drawer.locator('#tool-detail-name')).toHaveText('plan-actor-change');
   await expect(field(drawer, 'targets')).toHaveValue('Wolf');
 });
@@ -789,7 +790,7 @@ test('+ Queue a page opens the Tool runner filled in, names shown, and queues on
     return bridge(call);
   });
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-handouts').click();
+  await fromMenu(page, 'btn-handouts');
   const handouts = page.getByRole('dialog', { name: '📜 Handouts' });
   await expect(handouts.locator('#handouts-queue')).toContainText('Nothing queued');
   await handouts.locator('#handouts-add').click();
@@ -824,7 +825,7 @@ test('+ Queue a page opens the Tool runner filled in, names shown, and queues on
   // A second click fills the form in fresh.
   await field(drawer, 'action').selectOption('hide');
   await drawer.getByRole('button', { name: 'Close' }).click();
-  await page.locator('#btn-handouts').click();
+  await fromMenu(page, 'btn-handouts');
   await handouts.locator('#handouts-add').click();
   await expect(field(drawer, 'action')).toHaveValue('queue');
   await expect(field(drawer, 'pageUuid')).toHaveValue('');
@@ -841,7 +842,7 @@ test('a request for a tool the catalog lacks says so and shows the list', async 
     return bridge(call);
   });
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-handouts').click();
+  await fromMenu(page, 'btn-handouts');
   await page.locator('#handouts-add').click();
   await expect(toast(page, 'Tool "plan-page-reveal" isn\'t in the catalog.')).toBeVisible();
   const drawer = page.getByRole('dialog', { name: '🛠 Tool Runner' });

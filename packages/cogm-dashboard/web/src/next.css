@@ -45,3 +45,17 @@ a.btn {
 .drawer.drawer-top {
   z-index: 51;
 }
+
+/* The Advanced menu (AdvancedMenu.tsx): Radix places it under the button, so the old page's own
+   placement (moments.css .advanced-menu: absolute, right 0, below the button) is undone. */
+.advanced-menu[data-radix-menu-content] {
+  position: relative;
+  top: auto;
+  right: auto;
+}
+/* The entry under the pointer or the arrow keys looks like a hovered button. */
+.advanced-menu [role='menuitem'][data-highlighted] {
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
+  color: var(--on-strong);
+}

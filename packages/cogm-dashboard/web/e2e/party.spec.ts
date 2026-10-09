@@ -14,6 +14,7 @@ import {
   ok,
   toast,
   type ToolCall,
+  fromMenu,
 } from './support';
 
 const IREENA = {
@@ -93,7 +94,7 @@ const names = (calls: ToolCall[]): string[] => calls.map(c => c.name);
 
 async function openParty(page: Page): Promise<Locator> {
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-party').click();
+  await fromMenu(page, 'btn-party');
   const drawer = page.getByRole('dialog', { name: '🛡 Party' });
   await expect(drawer).toBeVisible();
   return drawer;
@@ -442,7 +443,7 @@ test('Pre-flight reading GM Actions on opens the gate before the stream says so'
   await page.keyboard.press('Escape');
   await expect(preflight).toBeHidden();
 
-  await page.locator('#btn-party').click();
+  await fromMenu(page, 'btn-party');
   const drawer = page.getByRole('dialog', { name: '🛡 Party' });
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(toast(page, '✓ Applied: Travel pace set to Fast')).toBeVisible();
@@ -464,7 +465,7 @@ test('the stream saying GM Actions are off wins over the Pre-flight read', async
   await expect(preflight.locator('#ready-switches')).toHaveText('○ GM Actions');
   await page.keyboard.press('Escape');
 
-  await page.locator('#btn-party').click();
+  await fromMenu(page, 'btn-party');
   const drawer = page.getByRole('dialog', { name: '🛡 Party' });
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(
@@ -618,6 +619,5 @@ test('Open shows the actor in Foundry; Escape closes the drawer', async ({ page 
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
   await expect(toast(page, '✗ open-in-foundry: No such actor')).toBeVisible();
-  await expect(page.locator('#btn-party')).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('.drawer-backdrop')).toHaveCount(0);
 });

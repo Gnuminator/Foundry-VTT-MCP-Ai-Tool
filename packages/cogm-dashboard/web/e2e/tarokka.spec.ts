@@ -14,6 +14,7 @@ import {
   ok,
   toast,
   type ToolCall,
+  fromMenu,
 } from './support';
 
 // The subtitle shows the reading's time in the browser's locale and zone.
@@ -177,7 +178,7 @@ const gmActions = (on: boolean): { event: string; data: unknown }[] => [
 
 async function openTarokka(page: Page): Promise<Locator> {
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-tarokka').click();
+  await fromMenu(page, 'btn-tarokka');
   const drawer = page.getByRole('dialog', { name: '🃏 Tarokka' });
   await expect(drawer).toBeVisible();
   return drawer;
@@ -294,7 +295,7 @@ test('Show cards shows names, ids and notes, and hides them again on untick and 
   await expect(drawer.locator('.tarokka-note')).toHaveCount(2);
   await drawer.locator('#tarokka-close').click();
   await expect(drawer).toBeHidden();
-  await page.locator('#btn-tarokka').click();
+  await fromMenu(page, 'btn-tarokka');
   await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
   await expect(show).not.toBeChecked();
   await expect(drawer.locator('.tarokka-card.veiled')).toHaveCount(5);
@@ -818,7 +819,7 @@ test('the gate brings Pre-flight to the top when it is open under Tarokka', asyn
   await page.locator('#btn-preflight').press('Enter');
   const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
   await expect(preflight).toHaveClass(/drawer-top/);
-  await page.locator('#btn-tarokka').press('Enter');
+  await fromMenu(page, 'btn-tarokka', true);
   const drawer = page.getByRole('dialog', { name: '🃏 Tarokka' });
   await expect(drawer).toHaveClass(/drawer-top/);
   await expect(preflight).not.toHaveClass(/drawer-top/);
@@ -839,7 +840,7 @@ test('closing a drawer that is not on top leaves the top one where it is', async
   await fakeTools(page, bridge);
   await page.goto(`/next/?token=${GM_TOKEN}`);
   await page.locator('#btn-preflight').press('Enter');
-  await page.locator('#btn-tarokka').press('Enter');
+  await fromMenu(page, 'btn-tarokka', true);
   const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
   const drawer = page.getByRole('dialog', { name: '🃏 Tarokka' });
   await expect(drawer).toHaveClass(/drawer-top/);
@@ -897,7 +898,6 @@ test('Escape closes the confirm window first, then the drawer', async ({ page })
 
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
-  await expect(page.locator('#btn-tarokka')).toHaveAttribute('aria-expanded', 'false');
 });
 
 /** Holds every call to one tool until release() is called, then answers it with result. */

@@ -6,7 +6,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext } from 'react';
 
-import { useConfirm } from '../components/ConfirmDialog';
+import { focusedElement, useConfirm } from '../components/ConfirmDialog';
 import { useToast } from '../components/Toasts';
 import { ApiError, callTool, errorText, type ToolConfirm } from './api';
 import { useDashboardSettings } from './stream';
@@ -110,6 +110,10 @@ export function useGuardedChange(): (
 
   return useCallback(
     async (planTool, args) => {
+      // The button clicked, read now: the panel disables it in the same click, and the confirm
+      // window gives focus back to it (or to its panel) when it closes.
+      const startedFrom = focusedElement();
+
       const gateClosed = (name: string, code: string): void => {
         usage().trackTool(name, 'error', code);
         toast(GATE_TEXT, 'warn');
@@ -188,6 +192,7 @@ export function useGuardedChange(): (
           summary: typeof shown.summary === 'string' ? shown.summary : plan.summary,
           diff: lines,
           destructive,
+          returnTo: startedFrom,
         });
         if (!ok) {
           // The plan stays on the bridge until it expires, as on the old page.

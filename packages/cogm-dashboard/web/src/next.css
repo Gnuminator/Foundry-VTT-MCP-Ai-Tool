@@ -18,3 +18,18 @@ a.btn {
   display: flex;
   align-items: center;
 }
+
+/* The Tool runner: the list and the form scroll on their own under the gate bar, as in the old
+   drawer (the shared drawer body scrolls as a whole). */
+.tarokka-body.tool-runner-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.tool-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}

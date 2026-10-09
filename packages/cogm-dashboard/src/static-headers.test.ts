@@ -18,7 +18,7 @@ import { createDashboard, PLAYER_CSP, type Dashboard } from './app.js';
 import { config, type Config } from './config.js';
 import { Logger } from './logger.js';
 import { OPEN_PAGE_CSP } from './open-route.js';
-import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
+import { staticHeaders, type BigStat, type StaticHeaderGroup } from './static-headers.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
@@ -189,6 +189,36 @@ describe('staticHeaders', () => {
     const other = recorder();
     hook(other.res, 'C:\\public\\OPEN~1.HTM', statOf('open.html'));
     expect(other.set).toEqual({ 'X-Other': 'open' });
+  });
+
+  it('tells files apart whose NTFS ids round to the same number', () => {
+    // A reuse counter above 31 puts the id over 2^53; 2^58 + 5 and 2^58 + 6 are one double.
+    const exact: Record<string, { dev: bigint; ino: bigint }> = {
+      'player.html': { dev: 7n, ino: 2n ** 58n + 5n },
+      'player.js': { dev: 7n, ino: 2n ** 58n + 6n },
+      'PLAYER~1.HTM': { dev: 7n, ino: 2n ** 58n + 5n },
+    };
+    const statBig: BigStat = filePath => {
+      const id = exact[path.basename(filePath)];
+      if (!id) throw new Error(`ENOENT ${filePath}`);
+      return id;
+    };
+    const rounded = (name: string): unknown => ({
+      dev: Number(exact[name].dev),
+      ino: Number(exact[name].ino),
+    });
+    expect(rounded('player.js')).toEqual(rounded('player.html'));
+
+    const hook = staticHeaders(PUBLIC_DIR, [player], statBig);
+    const js = recorder();
+    hook(js.res, path.join(PUBLIC_DIR, 'player.js'), rounded('player.js'));
+    expect(js.set).toEqual({});
+    const short = recorder();
+    hook(short.res, path.join(PUBLIC_DIR, 'PLAYER~1.HTM'), rounded('PLAYER~1.HTM'));
+    expect(short.set).toEqual({ 'X-Group': 'player' });
+    const gone = recorder();
+    hook(gone.res, path.join(PUBLIC_DIR, 'deleted.bin'), rounded('player.html'));
+    expect(gone.set).toEqual({});
   });
 
   it('leaves every other file alone, and survives odd stat values', () => {

@@ -21,9 +21,10 @@ Checked on Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 and the 2024 Player'
 Ask your GM, or read the session 0 message, for:
 
 - **How you get your ability scores.** The standard array (15, 14, 13, 12, 10, 8), point buy, or
-  rolling. The builder only offers the methods the GM switched on.
-- **Which options are allowed.** Usually everything in the 2024 Player's Handbook. Some tables add
-  or remove species, backgrounds or classes.
+  rolling. The GM may ask the table first: the standard array gives balanced characters, rolling
+  can give very strong or very weak ones. The builder only offers the methods the GM switched on.
+- **Which options are allowed.** Usually everything in the 2024 Player's Handbook; our table keeps
+  to it. Some tables add or remove species, backgrounds or classes.
 - **Anything special about the campaign.** Some campaigns suggest backgrounds or character ideas.
 
 Have a rough idea of your class, species and background. You don't need to know the rules by
@@ -160,6 +161,9 @@ small button at the right end of a spell's row to prepare it; hover over it to s
 is prepared ("Prepared" or "Not Prepared").
 
 ![The Spells tab of the character sheet, the pointer on a spell's prepare button showing Prepared](../images/guides/sheet-prepare-spell.png)
+
+**Know your character.** Before the first session, read through your features and spells once.
+Knowing what your character can do is your job, so the game doesn't stop to look things up.
 
 ## 11. Make it your character
 

@@ -218,9 +218,9 @@ export class CompendiumDataAccess {
     return a.name.localeCompare(b.name);
   }
 
-  /** Only NPC/creature entries with at least one defined filter are worth filtering. */
+  /** Only dnd5e 6 actor entries (npc, character) with a defined filter are worth filtering. */
   private shouldApplyFilters(entry: any, filters: any): boolean {
-    if (entry.type !== 'npc' && entry.type !== 'character' && entry.type !== 'creature') {
+    if (entry.type !== 'npc' && entry.type !== 'character') {
       return false;
     }
     return Object.keys(filters).some(key => filters[key] !== undefined);

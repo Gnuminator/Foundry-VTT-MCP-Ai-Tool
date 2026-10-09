@@ -5,6 +5,7 @@ import {
   creatureSizeWord,
   flatHasSpells,
   hasLegendaryActions,
+  isArmorEquipment,
   movementSummary,
   sizeWord,
   spellSchoolName,
@@ -353,5 +354,63 @@ describe('CompendiumTools.handleGetCompendiumItem formatting (M3)', () => {
     expect(result.results[0].summary).toContain('1d8 slashing damage');
     expect(result.results[1].summary).toContain('Evocation');
     expect(result.results[1].summary).not.toContain('evo');
+  });
+
+  // dnd5e 6 stores armor as `equipment` with an armor `type.value` (dnd5e 6.0.5 Chain Mail).
+  const chainMail = {
+    id: 'chain',
+    name: 'Chain Mail',
+    type: 'equipment',
+    pack: 'dnd5e.equipment24',
+    packLabel: 'Equipment',
+    system: {
+      type: { value: 'heavy' },
+      armor: { value: 16, dex: 0 },
+      strength: 13,
+      properties: ['stealthDisadvantage'],
+      price: { value: 75, denomination: 'gp' },
+    },
+  };
+
+  it('search results summarise dnd5e 6 armor and shields (equipment) with their AC', async () => {
+    const shield = {
+      ...chainMail,
+      id: 'shield',
+      name: 'Shield',
+      system: { type: { value: 'shield' }, armor: { value: 2 }, properties: [] },
+    };
+    const ring = { ...chainMail, id: 'ring', name: 'Ring', system: { type: { value: 'ring' } } };
+    const { tools } = makeTools(withDnd5e([chainMail, shield, ring]));
+    const result = await tools.handleSearchCompendium({ query: 'armor' });
+    expect(result.results[0].summary).toBe('equipment from Equipment • AC 16 • 75 gp');
+    expect(result.results[1].summary).toBe('equipment from Equipment • AC +2');
+    expect(result.results[2].summary).toBe('equipment from Equipment');
+  });
+
+  it('full mode reports dnd5e 6 armor properties (type, AC, strength, stealth)', async () => {
+    const { tools } = makeTools(withDnd5e(chainMail));
+    const result = await tools.handleGetCompendiumItem({
+      packId: 'dnd5e.equipment24',
+      itemId: 'chain',
+    });
+    expect(result.properties).toMatchObject({
+      armorType: 'heavy',
+      armorClass: { value: 16, dex: 0 },
+      strengthRequirement: 13,
+      stealthDisadvantage: true,
+    });
+  });
+});
+
+describe('isArmorEquipment', () => {
+  it.each([
+    [{ type: { value: 'heavy' } }, true],
+    [{ type: { value: 'shield' } }, true],
+    [{ type: { value: 'natural' } }, true],
+    [{ type: { value: 'ring' } }, false],
+    [{ type: {} }, false],
+    [undefined, false],
+  ])('%j -> %s', (system, expected) => {
+    expect(isArmorEquipment(system)).toBe(expected);
   });
 });

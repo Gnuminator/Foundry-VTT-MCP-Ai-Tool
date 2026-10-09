@@ -16,6 +16,8 @@ import {
   describeFilters,
 } from '../utils/compendium-filters.js';
 import {
+  armorClassSummary,
+  armorProperties,
   creatureSizeWord,
   flatHasSpells,
   hasLegendaryActions,
@@ -725,15 +727,16 @@ export class CompendiumTools {
         if (damage) parts.push(damage);
         break;
       }
-      case 'armor':
-        if (system.armor?.value) parts.push(`AC ${system.armor.value}`);
-        break;
       case 'equipment':
-      case 'item':
+      case 'item': {
+        // dnd5e 6 armor and shields are `equipment` with an armor `type.value`
+        const ac = armorClassSummary(system);
+        if (ac) parts.push(ac);
         if (system.rarity) parts.push(system.rarity);
         if (system.price?.value)
           parts.push(`${system.price.value} ${system.price.denomination || 'gp'}`);
         break;
+      }
     }
 
     return parts.join(' • ');
@@ -908,10 +911,9 @@ export class CompendiumTools {
       if (system.properties) properties.weaponProperties = system.properties;
     }
 
-    // Armor-specific properties
-    if (item.type.toLowerCase() === 'armor') {
-      if (system.armor) properties.armorClass = system.armor;
-      if (system.stealth) properties.stealthDisadvantage = system.stealth;
+    // Armor-specific properties: dnd5e 6 armor is `equipment` with an armor `type.value`
+    if (item.type.toLowerCase() === 'equipment') {
+      Object.assign(properties, armorProperties(system));
     }
 
     return properties;

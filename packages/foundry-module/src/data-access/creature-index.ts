@@ -158,7 +158,7 @@ export class PersistentCreatureIndex {
 
   /**
    * A persisted index is valid only when every dimension still matches the live
-   * world: schema version, game system, and — per currently-loaded Actor pack —
+   * world: schema version, game system, and (per currently-loaded Actor pack)
    * a fingerprint equal to the saved one. Any added, removed, or changed pack
    * invalidates it (forcing a rebuild on the next read).
    */
@@ -255,7 +255,7 @@ export class PersistentCreatureIndex {
   }
 
   /**
-   * Invalidate by deleting the persisted file so the next read rebuilds — but
+   * Invalidate by deleting the persisted file so the next read rebuilds, but
    * only when the `autoRebuildIndex` setting is on. Best-effort: a missing file
    * or a failed delete is ignored.
    */
@@ -269,7 +269,7 @@ export class PersistentCreatureIndex {
           await fetch(this.indexFilePath(), { method: 'DELETE' });
         }
       } catch {
-        // File doesn't exist or deletion failed — that's okay.
+        // File doesn't exist or deletion failed: that's okay.
       }
     } catch (error) {
       console.warn(`[${this.moduleId}] Failed to invalidate index:`, error);

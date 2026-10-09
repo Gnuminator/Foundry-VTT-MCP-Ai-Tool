@@ -182,7 +182,7 @@ describe('getCharacterEntity — item branch', () => {
 // No actions branch: dnd5e 6 has no `system.actions` (actions are item activities)
 // ---------------------------------------------------------------------------
 
-describe('getCharacterEntity — no system.actions lookup', () => {
+describe('getCharacterEntity: no system.actions lookup', () => {
   it('does not search a stray system.actions; the lookup goes items → effects', async () => {
     world.actors.add(
       makeActor({

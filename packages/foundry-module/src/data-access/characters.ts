@@ -19,7 +19,7 @@ import { num, rec, spellPrepared, str } from '../character-sheet-fields.js';
  *     toggles, and dnd5e spellcasting), sanitized for tool output.
  *   - {@link searchCharacterItems} — a token-efficient filtered slice of an
  *     actor's items/spells/actions/effects (by query, type, and category).
- *   - {@link getCharacterEntity} — one specific item/action/effect in full.
+ *   - {@link getCharacterEntity} — one specific item or effect in full.
  *
  * Foundry documents are duck-typed throughout (`game.actors`, `actor.items`,
  * `actor.effects` are Collections; `system` is system-specific), so reads use
@@ -222,8 +222,9 @@ export class CharacterDataAccess {
    * Fetch one entity (item or effect) belonging to a character, in full. The
    * character is resolved by id or case-insensitive name; the entity by id or
    * case-insensitive name, searched items → effects in that order (dnd5e has no
-   * `system.actions`; actions are item activities). Both "character not found" and "entity not found" surface wrapped in
-   * a `Failed to get character entity: …` error.
+   * `system.actions`; actions are item activities). Both "character not found"
+   * and "entity not found" surface wrapped in a `Failed to get character
+   * entity: …` error.
    */
   async getCharacterEntity(data: {
     characterIdentifier: string;
@@ -642,7 +643,10 @@ export class CharacterDataAccess {
   private bySpellLevelThenName = (a: SpellInfo, b: SpellInfo): number =>
     a.level - b.level || a.name.localeCompare(b.name);
 
-  /** SpellInfo for one spell; `prepared` follows dnd5e 6 `method` + `prepared` (NPC spells are ready). */
+  /**
+   * SpellInfo for one spell; `prepared` follows dnd5e 6 `method` + `prepared`
+   * (NPC spells are ready).
+   */
   private toSpellInfo(spell: Item, actorType?: string): SpellInfo {
     const spellSystem = rec(spell.system);
     const targeting = this.extractDnD5eSpellTargeting(spellSystem);
@@ -687,7 +691,8 @@ export class CharacterDataAccess {
   /**
    * Derive human-readable range/target/area strings from a dnd5e 6 spell's
    * `range`, `target.affects` and `target.template` data. Area-template spells
-   * without a target count (or targeting a point) are reported as an "area".
+   * without a target count (or targeting a point) are reported as an "area";
+   * a self-targeted spell keeps "self" next to its area.
    */
   private extractDnD5eSpellTargeting(spellSystem: any): {
     range?: string;
@@ -729,8 +734,9 @@ export class CharacterDataAccess {
     const areaUnits = spellSystem?.target?.template?.units || 'ft';
     if (areaType && areaSize) {
       result.area = `${areaSize}-${areaUnits} ${areaType}`;
-      // "each creature in the area" reads as the area; a counted target keeps its count.
-      if (!count || result.target === 'point') {
+      // "each creature in the area" reads as the area; a counted target keeps its count,
+      // and a self-centred spell (Detect Magic, Globe of Invulnerability) stays "self".
+      if (result.target !== 'self' && (!count || result.target === 'point')) {
         result.target = 'area';
       }
     }

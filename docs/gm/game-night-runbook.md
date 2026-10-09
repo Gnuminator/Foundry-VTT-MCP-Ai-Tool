@@ -79,15 +79,16 @@ gives you a new address.
 1. Tell the players in Discord: "The server is down, we take a 15-minute break."
 2. Call the tool admin right away. They start plan B.
 3. When the tool admin posts the new address, everyone opens it and logs in as usual: same user
-   names, same passwords.
+   names, same passwords. The first visit may ask for an email code again, as on the first night.
 4. Anything that happened tonight before the crash is not in last night's backup. Check
    hit points, spell slots and items with the players and set them by hand. Your chat log and
    the players' memories are the record.
 5. If plan B does not work within about 30 minutes, play on in Discord with real dice, or end the
    night early.
 
-The tool admin's technical steps for plan B are not written yet. They come with the plan B
-rehearsal before the first online night (D-097, decision 6).
+On a plan B night your own Claude and the dashboard do not reach the game: play by hand in
+Foundry. Your changes are kept, and the tool admin moves the world back to the home server before
+the next session. The tool admin's steps are in [Plan B](../dev/PLAN-B.md).
 
 ## When to call for help
 

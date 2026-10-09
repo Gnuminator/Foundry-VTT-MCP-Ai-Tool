@@ -60,6 +60,20 @@ const failCode = (err: unknown): string =>
   err instanceof ApiError ? (err.kind ?? String(err.status)) : 'network';
 
 /**
+ * Whether a failed write may still have landed in Foundry: the request went out but the answer
+ * did not come back. The bridge stopped waiting (timeout), the bridge link dropped after the send
+ * (channel, a 502), a proxy gave up (a 5xx without a kind, such as a Cloudflare 524 after about
+ * 100 s), or the network failed (not an ApiError). A tool error or a 4xx is a clear no.
+ */
+export function mayHaveApplied(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return true;
+  if (err.kind === 'timeout' || err.kind === 'channel') return true;
+  return err.kind === undefined && err.status >= 500;
+}
+
+const RECENT_CHANGES_HINT = 'It may have applied; check Recent Changes on the full dashboard.';
+
+/**
  * Returns run(planTool, args): plans the change, applies it in the same click when the plan is
  * an ordinary write, and shows the result. It resolves once the change is in or refused; errors
  * end up in toasts, never thrown.
@@ -105,15 +119,15 @@ export function useGuardedChange(): (
             gateClosed(name, '403');
             return null;
           }
+          usage().trackTool(name, 'error', failCode(err));
           if (err instanceof ApiError && err.kind === 'timeout') {
             // The bridge stopped waiting after about 4 minutes; Foundry may still have done it.
-            usage().trackTool(name, 'error', 'timeout');
-            toast(
-              `✗ ${name} timed out. It may have applied; check Recent Changes on the full dashboard.`,
-              'err'
-            );
+            toast(`✗ ${name} timed out. ${RECENT_CHANGES_HINT}`, 'err');
+          } else if (mayHaveApplied(err)) {
+            const text = errorText(err).trim();
+            const stop = /[.!?]$/.test(text) ? '' : '.';
+            toast(`✗ ${name}: ${text}${stop} ${RECENT_CHANGES_HINT}`, 'err');
           } else {
-            usage().trackTool(name, 'error', failCode(err));
             toast(`✗ ${name}: ${errorText(err)}`, 'err');
           }
           changed();

@@ -2,8 +2,9 @@
 // member rows and sections, the group picker, the empty and failed states, the four one-click
 // changes (plan-party-change, then apply-planned-change) with the Undo toast, the refusals (GM
 // Actions off or not heard yet, a failed plan, a 403 at apply, a plan that needs a confirm), an
-// apply that times out, and Escape with a toast up.
-import { expect, test, type Locator, type Page } from '@playwright/test';
+// apply that times out or whose answer got lost, the gate seeded from Pre-flight's read, and
+// Escape with a toast up.
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
 import {
   GM_TOKEN,
@@ -368,6 +369,108 @@ test('an apply that times out says it may have applied and reloads the party', a
     .poll(() => names(calls))
     .toEqual(['get-party', 'plan-party-change', 'apply-planned-change', 'get-party']);
   await expect(page.locator('.toast-stack .toast-action')).toHaveCount(0);
+});
+
+test('an apply whose answer got lost says it may have applied; a tool error does not', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, bridge);
+  // Registered last, so it answers first: each apply fails in its own way.
+  const fails = [
+    // The bridge link dropped after the send.
+    (route: Route) =>
+      route.fulfill({
+        status: 502,
+        json: { ok: false, kind: 'channel', error: 'The bridge link closed.' },
+      }),
+    // A proxy gave up waiting (Cloudflare 524), with its own HTML page.
+    (route: Route) =>
+      route.fulfill({ status: 524, contentType: 'text/html', body: '<html>A timeout</html>' }),
+    // The network failed.
+    (route: Route) => route.abort('connectionreset'),
+    // A 200 that still says ok: false is the tool's own no.
+    (route: Route) =>
+      route.fulfill({ json: { ok: false, kind: 'tool', error: 'Nothing to change' } }),
+  ];
+  await page.route('**/api/tool', route => {
+    const call = route.request().postDataJSON() as ToolCall;
+    if (call.name !== 'apply-planned-change') return route.fallback();
+    calls.push(call);
+    return fails.shift()!(route);
+  });
+  const drawer = await openParty(page);
+  const fast = drawer.locator('#party-pace').getByRole('button', { name: 'Fast' });
+  const hint = 'It may have applied; check Recent Changes on the full dashboard.';
+
+  await fast.click();
+  await expect(
+    toast(page, `✗ apply-planned-change: The bridge link closed. ${hint}`)
+  ).toBeVisible();
+  await expect(fast).toBeEnabled();
+  await fast.click();
+  await expect(toast(page, `✗ apply-planned-change: HTTP 524. ${hint}`)).toBeVisible();
+  await expect(fast).toBeEnabled();
+  await fast.click();
+  await expect(toast(page, `✗ apply-planned-change: Failed to fetch. ${hint}`)).toBeVisible();
+  await expect(fast).toBeEnabled();
+  await fast.click();
+  await expect(
+    page
+      .locator('.toast-stack')
+      .getByText('✗ apply-planned-change: Nothing to change', { exact: true })
+  ).toBeVisible();
+  // Each failure past the gate reloads the party, in case it landed.
+  await expect.poll(() => names(calls).filter(n => n === 'get-party').length).toBe(5);
+});
+
+test('Pre-flight reading GM Actions on opens the gate before the stream says so', async ({
+  page,
+}) => {
+  await fakeStream(page, []);
+  await page.route('**/api/preflight', route =>
+    route.fulfill({ json: { ready: true, checks: [], scan: null } })
+  );
+  await page.route('**/api/session/switches', route =>
+    route.fulfill({ json: { switches: { switches: [] }, gmActionsEnabled: true, error: null } })
+  );
+  const calls = await fakeTools(page, bridge);
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+  await page.locator('#btn-preflight').click();
+  const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
+  await expect(preflight.locator('#ready-switches')).toHaveText('✓ GM Actions');
+  await page.keyboard.press('Escape');
+  await expect(preflight).toBeHidden();
+
+  await page.locator('#btn-party').click();
+  const drawer = page.getByRole('dialog', { name: '🛡 Party' });
+  await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
+  await expect(toast(page, '✓ Applied: Travel pace set to Fast')).toBeVisible();
+  expect(names(calls)).toContain('apply-planned-change');
+});
+
+test('the stream saying GM Actions are off wins over the Pre-flight read', async ({ page }) => {
+  await fakeStream(page, gmActions(false));
+  await page.route('**/api/preflight', route =>
+    route.fulfill({ json: { ready: true, checks: [], scan: null } })
+  );
+  await page.route('**/api/session/switches', route =>
+    route.fulfill({ json: { switches: { switches: [] }, gmActionsEnabled: true, error: null } })
+  );
+  const calls = await fakeTools(page, bridge);
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+  await page.locator('#btn-preflight').click();
+  const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
+  await expect(preflight.locator('#ready-switches')).toHaveText('○ GM Actions');
+  await page.keyboard.press('Escape');
+
+  await page.locator('#btn-party').click();
+  const drawer = page.getByRole('dialog', { name: '🛡 Party' });
+  await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
+  await expect(
+    toast(page, 'GM Actions are off. Ready for session in Pre-flight turns them on.')
+  ).toBeVisible();
+  expect(names(calls)).not.toContain('plan-party-change');
 });
 
 test('Escape after a change closes the drawer and keeps the Undo toast', async ({ page }) => {

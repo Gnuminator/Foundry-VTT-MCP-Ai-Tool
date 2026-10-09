@@ -556,9 +556,17 @@ export class TarokkaService {
           : `Reveal Tarokka ${label} to players (page "${title}")`,
       ops,
       ...(vaultOps.length > 0 ? { vaultOps } : {}),
-      // Pin the reading: if it is replaced before the apply, this card's text must not go out
-      // (a fresh reading has the same before-values, and a re-reveal has no vault ops at all).
-      vaultChecks: [{ file: TAROKKA_FILE, path: 'current.readingId', value: current.readingId }],
+      // Pin the reading and this position's card: if either changes before the apply, this
+      // card's text must not go out (a fresh reading, or a re-import of the same deal with another
+      // card here, has the same before-values, and a re-reveal has no vault ops at all).
+      vaultChecks: [
+        { file: TAROKKA_FILE, path: 'current.readingId', value: current.readingId },
+        {
+          file: TAROKKA_FILE,
+          path: `current.positions.${position}.cardId`,
+          value: current.positions[position].cardId,
+        },
+      ],
       risk: 'destructive',
       ...(args.showNow ? { showToPlayers: { uuid: targetPageUuid, users: [] } } : {}),
     });

@@ -569,6 +569,7 @@ export class GuardedWriteService {
     for (const check of checks) {
       const expectedValue: PathValue = { path: check.path, present: true, value: check.value };
       const current = await this.store.read(worldId, 'gm', check.file);
+      if (!current) throw new Error(`Conflict: ${check.file} is missing; plan it again`);
       if (!samePathValue(readDataPath(current?.data, check.path), expectedValue)) {
         throw new Error(
           `Conflict: ${check.file} ${check.path} changed while the plan was made; plan it again`

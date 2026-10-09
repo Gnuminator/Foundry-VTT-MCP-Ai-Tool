@@ -460,6 +460,30 @@ describe('reveal', () => {
     });
   });
 
+  it('pins the card too: a re-import of the same deal with another card here writes nothing', async () => {
+    const plan = await tarokka.planReveal({ position: 'tome', text: 'One.' });
+    expect(plan.diff.some(d => d.path?.endsWith('.cardId'))).toBe(false);
+    // Same readingId, only the tome card differs: the import keeps the id and resets the tome.
+    foundry.handlers['foundry-mcp-bridge.getTarokkaReading'] = (): unknown => ({
+      available: true,
+      reading: {
+        ...TR_READING,
+        slots: TR_READING.slots.map(s =>
+          s.position === 'tome' ? { ...s, cardId: 'stars-5', cardName: null, gmNote: null } : s
+        ),
+      },
+    });
+    await apply((await tarokka.planImport({})).planId);
+    const reading = (await tarokka.getReading()).reading!;
+    expect(reading.readingId).toBe('tr-abcDEF123456');
+    expect(reading.positions[0].cardId).toBe('stars-5');
+    await expect(apply(plan.planId, true)).rejects.toThrow(
+      /Conflict, nothing was written: tarokka\.json current\.positions\.tome\.cardId changed since/
+    );
+    expect(foundry.docs.has(plan.pageUuid)).toBe(false);
+    expect((await tarokka.getReading()).reading!.positions[0].revealed).toBe(false);
+  });
+
   it('validates the request', async () => {
     await expect(tarokka.planReveal({ position: 'x', text: 'a' })).rejects.toThrow(/position/);
     await expect(tarokka.planReveal({ position: 'tome', text: '  ' })).rejects.toThrow(

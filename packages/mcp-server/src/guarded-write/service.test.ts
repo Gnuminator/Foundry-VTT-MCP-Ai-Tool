@@ -1019,7 +1019,24 @@ describe('vault checks', () => {
     );
     await expect(
       plan([HP_UPDATE], { vaultChecks: [{ file: 'none.json', path: 'x', value: 1 }] })
-    ).rejects.toThrow(/none.json x changed while the plan was made/);
+    ).rejects.toThrow(/Conflict: none.json is missing; plan it again/);
+  });
+
+  it('records a vault op that sets the value it already has, without rewriting the file', async () => {
+    const p = await plan([HP_UPDATE], {
+      vaultOps: [{ kind: 'vault-set', file: 'reading.json', path: 'current.id', value: 'r1' }],
+    });
+    const update = vi.spyOn(store, 'update');
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect(update.mock.calls.some(([, , file]) => file === 'reading.json')).toBe(false);
+    expect((await audit.get(W, applied.changeId))?.vaultOps).toEqual([
+      {
+        file: 'reading.json',
+        path: 'current.id',
+        before: { path: 'current.id', present: true, value: 'r1' },
+        after: { path: 'current.id', present: true, value: 'r1' },
+      },
+    ]);
   });
 
   it('validates vault checks', async () => {

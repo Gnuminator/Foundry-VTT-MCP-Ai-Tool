@@ -647,6 +647,11 @@ What the live runs taught the kit (all KIT, fixed): dnd5e 6 keeps a species' spe
 `senses.ranges`, and the speeds are strings ("30"); an advancement of a higher level (a species feature at level 5, a feat that
 learns more spells as you level) waits for the hero and is not checked at level 1; a module's copy of a system item has the same
 item id in another pack (a note, not a mix-up); a granted feature may raise a sense (superior darkvision).
+The 2026-10-09 licensed run found one more (KIT, fixed): dnd5e finishes two writes after a new item is created without
+awaiting them (the species links itself as `system.details.race`; Cast activities add their cached spell copies), and the next
+advancement manager writes its clone of the actor back whole and deletes items the clone lacks. A background manager started
+before those writes landed erased the species link (no speed, no senses) and deleted Air Genasi's Shocking Grasp (8 of 79
+species on a slow run). `createHero` now waits for both after each manager and fails the build if they never come.
 
 What is left in the `licensed` profile, all findings about the content and not kit failures: CONTENT, 24 species features whose
 attack or utility activity spends an item use but the item has none set (no uses to spend), 5 feats of the same kind, 1 feat whose

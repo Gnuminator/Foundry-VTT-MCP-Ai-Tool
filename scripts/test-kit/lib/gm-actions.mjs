@@ -742,11 +742,45 @@ async function createHero(args) {
     },
   };
 
+  // dnd5e finishes two things after a new item is created without awaiting them: a species item
+  // links itself (system.details.race, from its _onCreate), and an item with Cast activities adds
+  // its cached spell copies (onCreateActivities). The next manager clones the actor and writes the
+  // clone back whole (diff: false, and items missing from the clone are deleted), so a manager
+  // started before those writes land erases the species link (no speeds, no senses) and deletes the
+  // spells. A player clicking through the forms is far slower; the kit starts the next manager
+  // within ~100 ms and lost that race on a slow run (8 species, 2026-10-09).
+  const settleCreated = async (actor, label) => {
+    const race = actor.itemTypes.race[0];
+    const unlinked = () => !!race && actor._source.system.details?.race !== race.id;
+    const uncached = () =>
+      actor.items.contents.flatMap(item =>
+        (item.system.activities?.getByType?.('cast') ?? []).filter(
+          a => a.spell?.uuid && !a.cachedSpell && fromUuidSync(a.spell.uuid)
+        )
+      );
+    const until = Date.now() + 10000;
+    while (unlinked() || uncached().length) {
+      if (Date.now() > until) {
+        if (unlinked())
+          throw new Error(
+            `createHero: ${label}: the species ${race.name} is not linked to the actor (system.details.race)`
+          );
+        throw new Error(
+          `createHero: ${label}: no cached spell for ${uncached()
+            .map(a => `${a.item.name}: ${a.name}`)
+            .join(', ')}`
+        );
+      }
+      await sleep(50);
+    }
+  };
+
   // Run one manager to the end, answering every choice.
   const runManager = async (actor, itemData, label) => {
     const mgr = Manager.forNewItem(actor, itemData, { automaticApplication: true });
     if (!mgr.steps.length) {
       await actor.createEmbeddedDocuments('Item', [itemData]);
+      await settleCreated(actor, label);
       return;
     }
     let done = false;
@@ -796,6 +830,7 @@ async function createHero(args) {
           mgr.element?.querySelector('[data-action="next"],[data-action="complete"]') ?? button
         ).click();
       }
+      await settleCreated(actor, label);
     } finally {
       Hooks.off('dnd5e.advancementManagerComplete', hook);
       if (mgr.rendered) await mgr.close({ skipConfirmation: true });

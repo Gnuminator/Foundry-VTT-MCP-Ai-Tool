@@ -14,6 +14,11 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only token for every job: CI checks out and tests, it never writes to the repo
+# (upload-artifact uses the runner's own artifact token, not GITHUB_TOKEN).
+permissions:
+  contents: read
+
 jobs:
   build-test:
     runs-on: ubuntu-latest

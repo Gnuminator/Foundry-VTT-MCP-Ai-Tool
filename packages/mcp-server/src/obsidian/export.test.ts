@@ -748,6 +748,9 @@ describe('render helpers', () => {
   it('makes table cells safe, and neutralizes a Templater tag', () => {
     expect(cell('a|b\nc')).toBe('a\\|b c');
     expect(cell('<% tp.file.title %>')).toBe('&lt;% tp.file.title %>');
+    // A trailing backslash in the data cannot cancel the pipe's escape.
+    expect(cell('a\\|b')).toBe('a\\\\\\|b');
+    expect(cell('C:\\Foundry')).toBe('C:\\\\Foundry');
   });
 
   it('makes file names safe (reserved names, link-breaking characters, collisions handled by callers)', () => {

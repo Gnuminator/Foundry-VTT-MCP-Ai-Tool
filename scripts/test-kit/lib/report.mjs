@@ -119,7 +119,7 @@ function esc(s) {
 
 /** @param {unknown} s */
 function mdCell(s) {
-  return String(s).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+  return String(s).replace(/[\\|]/g, '\\$&').replace(/\r?\n/g, ' ');
 }
 
 const STATUS_WORD = { pass: 'PASS', fail: 'FAIL', skip: 'SKIP', error: 'ERROR' };

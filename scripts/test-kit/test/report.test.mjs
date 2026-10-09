@@ -35,7 +35,7 @@ function results() {
     },
     {
       id: 'bad-one',
-      title: 'Broken <b>title</b> | pipe',
+      title: 'Broken <b>title</b> \\| pipe',
       file: 'b.scenario.mjs',
       licensed: false,
       tags: ['module', 'player'],
@@ -136,7 +136,8 @@ test('markdown has the table, the failure details and the console errors', () =>
   assert.match(md, /\*\*1 passed, 2 failed, 1 skipped\*\* of 4/);
   assert.match(md, /\| Scenario \| Tags \| Status \| Time \|/);
   assert.match(md, /\| ok-one: Fine \| bridge \| PASS \| 120 ms \|/);
-  assert.match(md, /Broken <b>title<\/b> \\\| pipe/);
+  // The backslash before the pipe is escaped too, so it cannot cancel the pipe's escape.
+  assert.match(md, /Broken <b>title<\/b> \\\\\\\| pipe/);
   assert.match(md, /### bad-one: .* \(FAIL\)/);
   assert.match(md, /FAIL step <script>/);
   assert.match(md, /"error": "<img src=x onerror=1>"/);

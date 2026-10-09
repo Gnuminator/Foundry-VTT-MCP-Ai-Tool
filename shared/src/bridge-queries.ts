@@ -17,7 +17,6 @@
 import type { ChangeJournalResponse } from './change-journal.js';
 import type { CharacterEntityResult } from './character-entity.js';
 import type { CharacterSheetsResult } from './character-sheet.js';
-import { MODULE_ID } from './constants.js';
 import type { ExportIndexRequest, ExportIndexResponse } from './export-index.js';
 import type {
   GuardedApplyOutcome,
@@ -36,9 +35,6 @@ import type {
 import type { PlayRecordsResponse } from './play-log.js';
 import type { PageForPlayers } from './player-view.js';
 import type { UsageRecordsResponse } from './usage.js';
-
-/** Prefix of every bridge query method on the wire. */
-export const BRIDGE_QUERY_PREFIX = `${MODULE_ID}.` as const;
 
 /**
  * A refusal the module sends as the handler's reply (inside a successful `mcp-response`): the
@@ -118,6 +114,8 @@ export interface EnsureJournalFolderReply {
 /**
  * The typed bridge queries: wire method to request and reply. The reply is what the handler
  * returns when it does not refuse; every method may also answer with a {@link BridgeRefusal}.
+ * `request: undefined` means the backend sends no data; the module's dispatcher then hands the
+ * handler `{}` (`data.data || {}` in `socket-bridge.ts`), so such handlers ignore their argument.
  */
 export interface BridgeQueryMap {
   'foundry-mcp-bridge.ping': { request: undefined; reply: BridgePingReply };
@@ -200,11 +198,3 @@ export type BridgeQueryArgs<M extends BridgeMethod> =
 /** A method string that the contract does not type (yet); `never` for a typed one. */
 export type UntypedBridgeMethod<M extends string> = M &
   ([M] extends [BridgeMethod] ? never : unknown);
-
-/**
- * Anything that can send typed bridge queries: the backend's `FoundryClient`, and the narrow
- * dependency the services take (so tests can pass a stub).
- */
-export interface BridgeQuerier {
-  query<M extends BridgeMethod>(method: M, ...args: BridgeQueryArgs<M>): Promise<BridgeAnswer<M>>;
-}

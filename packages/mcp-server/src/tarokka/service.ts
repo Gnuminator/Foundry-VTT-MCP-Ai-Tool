@@ -456,10 +456,10 @@ export class TarokkaService {
     if (pageUuid) probes.push({ kind: 'delete', uuid: pageUuid });
     const snapshots =
       probes.length > 0
-        ? unwrapBridgeReply(
+        ? (unwrapBridgeReply(
             await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', { ops: probes }),
             'Snapshot refused'
-          )
+          ) ?? [])
         : [];
     const journalExists = journalUuid ? snapshots[0]?.exists === true : false;
     const pageExists = pageUuid ? snapshots[journalUuid ? 1 : 0]?.exists === true : false;

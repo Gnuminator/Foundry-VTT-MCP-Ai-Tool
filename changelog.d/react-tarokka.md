@@ -8,4 +8,8 @@
   blurred placeholder, and the box unticks when the drawer closes. An open link search or reveal
   draft now survives a reload, a failed reload keeps the reading under the error, and a link
   search shorter than two characters says so without asking the bridge. With GM Actions off
-  nothing is planned. The 📓 Obsidian link shows once the vault and the world are known.
+  nothing is planned. The 📓 Obsidian link shows once the vault and the world are known. One
+  change runs at a time in the drawer: while a reveal waits on its plan or its confirm window,
+  Import, New reading and the other Link and Reveal buttons wait too, so a reveal can no longer
+  land on a card a new reading just dealt. A reveal that went in closes its form and clears the
+  text, so a second click cannot plan it again as an update of the players' page.

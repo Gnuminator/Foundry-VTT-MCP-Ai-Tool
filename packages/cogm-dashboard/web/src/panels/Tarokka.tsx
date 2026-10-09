@@ -48,8 +48,11 @@ interface LinkCandidate {
 /** What a link search shows: the matches, or why there are none to show. */
 type SearchResult = { candidates: LinkCandidate[] } | { error: string };
 
-/** Runs a guarded change, then the reload after it; resolves once both are over. */
-type RunChange = (planTool: string, args: Record<string, unknown>) => Promise<void>;
+/**
+ * Runs a guarded change, then the reload after it. Resolves once both are over, to whether the
+ * change went in; to false at once when another change in the drawer is still running.
+ */
+type RunChange = (planTool: string, args: Record<string, unknown>) => Promise<boolean>;
 
 const LINK_LABELS: Record<string, string> = {
   journalPageUuid: 'Journal',
@@ -99,9 +102,12 @@ export function TarokkaDrawer({
   // Never stored, and off again whenever the drawer closes: the cards show only while the GM
   // looks at them on purpose.
   const [showCards, setShowCards] = useState(false);
-  // One import at a time; the ref also catches a double click before the re-render.
-  const [importing, setImporting] = useState(false);
-  const importingRef = useRef(false);
+  // One change at a time in the whole drawer, the reload after it included. A reveal planned for
+  // one card must not land on the card a New reading deals while its confirm window is open: the
+  // bridge's check would pass, as a new card is unrevealed too. The ref also catches a double
+  // click before the re-render.
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -114,20 +120,23 @@ export function TarokkaDrawer({
 
   // Reloads after every attempt, as Handouts does: a cancelled or failed change may still mean
   // the reading moved (another tab, Claude). An apply already started a reload (GAME_STATE_KEY);
-  // this joins it. The caller's button stays disabled until the reload is in.
+  // this joins it. Every change button stays disabled until the reload is in.
   const change: RunChange = async (planTool, args) => {
-    await runChange(planTool, args);
-    await tarokka.refetch({ cancelRefetch: false });
+    if (busyRef.current) return false;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const done = await runChange(planTool, args);
+      await tarokka.refetch({ cancelRefetch: false });
+      return done;
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
   };
 
   const importReading = (source: 'tarokka-reading' | 'builtin-roll'): void => {
-    if (importingRef.current) return;
-    importingRef.current = true;
-    setImporting(true);
-    void change('plan-tarokka-import', { source }).finally(() => {
-      importingRef.current = false;
-      setImporting(false);
-    });
+    void change('plan-tarokka-import', { source });
   };
 
   // Opens the document on the GM's own Foundry screen; nothing changes, so no reload.
@@ -172,7 +181,7 @@ export function TarokkaDrawer({
             className="btn"
             id="tarokka-import"
             data-track="dash.tarokka.import"
-            disabled={importing}
+            disabled={busy}
             onClick={() => importReading('tarokka-reading')}
           >
             Import from tarokka-reading
@@ -181,7 +190,7 @@ export function TarokkaDrawer({
             className="btn"
             id="tarokka-roll"
             data-track="dash.tarokka.roll"
-            disabled={importing}
+            disabled={busy}
             onClick={() => importReading('builtin-roll')}
           >
             New reading (built-in roll)
@@ -229,6 +238,7 @@ export function TarokkaDrawer({
               key={`${p.position}:${p.cardId}`}
               p={p}
               showCards={showCards}
+              busy={busy}
               change={change}
               openDocument={openDocument}
             />
@@ -243,17 +253,21 @@ export function TarokkaDrawer({
 function PositionCard({
   p,
   showCards,
+  busy,
   change,
   openDocument,
 }: {
   p: TarokkaPosition;
   showCards: boolean;
+  /** A change in the drawer is running: every change button waits for it. */
+  busy: boolean;
   change: RunChange;
   openDocument: (uuid: string) => void;
 }): JSX.Element {
   const toast = useToast();
   // One form at a time per position, as on the old page. Both drafts live here, so switching
-  // forms, a reload or a change keeps what was typed; Link… or Reveal… again closes the form.
+  // forms, a reload or a failed or cancelled change keeps what was typed; Link… or Reveal… again
+  // closes the form. A reveal that went in closes it and clears the draft.
   const [form, setForm] = useState<'link' | 'reveal' | null>(null);
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<SearchResult | null>(null);
@@ -262,12 +276,11 @@ function PositionCard({
   const [text, setText] = useState('');
   // "Show it now" is off unless ticked for this reveal, and goes back to off after every attempt.
   const [showNow, setShowNow] = useState(false);
-  // One change at a time per position; the ref also catches a double click.
-  const [busy, setBusy] = useState(false);
-  const busyRef = useRef(false);
 
   const queryRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const revealToggleRef = useRef<HTMLButtonElement>(null);
+  const revealFormRef = useRef<HTMLDivElement>(null);
 
   // A form takes focus when it opens.
   useEffect(() => {
@@ -302,24 +315,13 @@ function PositionCard({
     );
   };
 
-  const start = (): boolean => {
-    if (busyRef.current) return false;
-    busyRef.current = true;
-    setBusy(true);
-    return true;
-  };
-  const finish = (): void => {
-    busyRef.current = false;
-    setBusy(false);
-  };
-
   const pick = (c: LinkCandidate): void => {
-    if (!start()) return;
-    // The results stay: a scene and an actor can be linked from one search.
+    // The form and its results stay, also after a link went in: a scene and an actor can be
+    // linked from one search, and a second pick is an ordinary write with its own Undo.
     void change('plan-tarokka-links', {
       position: p.position,
       [linkField(c.documentName)]: c.uuid,
-    }).finally(finish);
+    });
   };
 
   const planReveal = (): void => {
@@ -329,15 +331,26 @@ function PositionCard({
       toast('Write the text the players will read first.', 'warn');
       return;
     }
-    if (!start()) return;
     void change('plan-tarokka-reveal', {
       position: p.position,
       text: body,
       ...(pageTitle ? { title: pageTitle } : {}),
       ...(showNow ? { showNow: true } : {}),
-    }).finally(() => {
-      finish();
+    }).then(done => {
       setShowNow(false);
+      if (!done) return;
+      // The text is on the players' page now. Kept in the form, one more click would plan it
+      // again as an update of that page.
+      setForm(null);
+      setTitle('');
+      setText('');
+      // Plan reveal goes with the form, so focus moves to Reveal… when it was in the form or
+      // parked on the drawer or the page (the confirm window does that while the button is
+      // disabled), and stays where the GM moved it otherwise.
+      const toggle = revealToggleRef.current;
+      const active = document.activeElement;
+      const parked = !active || active.contains(toggle) || revealFormRef.current?.contains(active);
+      if (toggle && parked) toggle.focus();
     });
   };
 
@@ -410,6 +423,7 @@ function PositionCard({
           type="button"
           className="btn btn-small"
           data-track="dash.tarokka.reveal"
+          ref={revealToggleRef}
           aria-expanded={form === 'reveal'}
           onClick={() => toggleForm('reveal')}
         >
@@ -463,7 +477,7 @@ function PositionCard({
         </form>
       )}
       {form === 'reveal' && (
-        <div className="tarokka-form" data-form={p.position}>
+        <div className="tarokka-form" data-form={p.position} ref={revealFormRef}>
           <input
             className="field-control"
             type="text"

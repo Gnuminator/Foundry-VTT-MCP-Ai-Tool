@@ -613,10 +613,10 @@ test('Reveal asks first; Cancel keeps the draft, Confirm applies with both flags
     confirm: true,
     confirmDestructive: true,
   });
-  // The reading reloads once; the form stays with its draft (Reveal… again closes it).
+  // The reading reloads once. The text is on the players' page now, so the form closes and the
+  // draft goes: one more click must not plan it again as an update of that page.
   await expect.poll(() => loads(calls)).toBe(loaded + 2);
-  await expect(text).toHaveValue('  A heavy tome waits in the cellar.  ');
-  await expect(showNow).not.toBeChecked();
+  await expect(tome.locator('.tarokka-form')).toHaveCount(0);
 
   await page.locator('.toast-stack .toast-undo .toast-action').click();
   await expect(toast(page, '✓ Undid ch-rv1')).toBeVisible();
@@ -628,13 +628,19 @@ test('Reveal asks first; Cancel keeps the draft, Confirm applies with both flags
   });
   await expect.poll(() => loads(calls)).toBe(loaded + 3);
 
+  // Reveal… opens an empty form.
   await revealButton.click();
-  await expect(tome.locator('.tarokka-form')).toHaveCount(0);
+  await expect(text).toHaveValue('');
+  await expect(title).toHaveValue('');
+  await expect(showNow).not.toBeChecked();
 });
 
-// Focus after the confirm window is the window's own (#251: useGuardedChange records the clicked button and
-// hands focus back once it is enabled again); this drawer builds nothing of its own for it.
-test('focus goes back to Plan reveal after the confirm window', async ({ page }) => {
+// Focus after a Cancel is the confirm window's own (#251: useGuardedChange records the clicked
+// button and hands focus back once it is enabled again). After a reveal that went in, Plan reveal
+// goes with its form, so the drawer moves focus to Reveal….
+test('focus goes back to Plan reveal after a Cancel, and to Reveal… after a reveal', async ({
+  page,
+}) => {
   await fakeStream(page, gmActions(true));
   await fakeTools(page, bridge);
   const drawer = await openTarokka(page);
@@ -651,7 +657,7 @@ test('focus goes back to Plan reveal after the confirm window', async ({ page })
   await confirm.getByRole('checkbox').check();
   await confirm.getByRole('button', { name: 'Run destructive action' }).click();
   await expect(toast(page, '✓ Applied: Revealed Tome and shown to players')).toBeVisible();
-  await expect(planButton).toBeFocused();
+  await expect(tome.getByRole('button', { name: 'Reveal…', exact: true })).toBeFocused();
 });
 
 test('a popup that fails says so; the reveal still went in', async ({ page }) => {
@@ -800,4 +806,173 @@ test('Escape closes the confirm window first, then the drawer', async ({ page })
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
   await expect(page.locator('#btn-tarokka')).toHaveAttribute('aria-expanded', 'false');
+});
+
+/** Holds every call to one tool until release() is called, then answers it with result. */
+async function holdTool(
+  page: Page,
+  calls: ToolCall[],
+  name: string,
+  result: unknown
+): Promise<() => void> {
+  let release: () => void = () => undefined;
+  const held = new Promise<void>(resolve => (release = resolve));
+  // Registered last, so it answers before fakeTools.
+  await page.route('**/api/tool', async route => {
+    const call = route.request().postDataJSON() as ToolCall;
+    if (call.name !== name) return route.fallback();
+    calls.push(call);
+    await held;
+    return route.fulfill({ json: { ok: true, result } });
+  });
+  return release;
+}
+
+test('one change at a time: a reveal waiting on its plan or its confirm holds every other change', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, bridge);
+  // The reveal plan waits, as a slow Foundry snapshot would.
+  const releasePlan = await holdTool(page, calls, 'plan-tarokka-reveal', REVEAL_PLAN);
+  const drawer = await openTarokka(page);
+  // By id: the drawer is hidden from the accessibility tree while the confirm window is open.
+  const importButton = page.locator('#tarokka-import');
+  const rollButton = page.locator('#tarokka-roll');
+  const tome = pos(drawer, 'tome');
+  const ally = pos(drawer, 'ally');
+  await ally.getByRole('button', { name: 'Link…' }).click();
+  await ally.getByPlaceholder('Search journals, pages, scenes, actors…').fill('Vall');
+  await ally.getByRole('button', { name: 'Search' }).click();
+  const allyLink = ally.locator('.tarokka-candidate').first().getByRole('button', { name: 'Link' });
+  await expect(allyLink).toBeEnabled();
+  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await tome.getByPlaceholder('Exactly what the players may read').fill('Text');
+  const planButton = tome.getByRole('button', { name: 'Plan reveal…' });
+
+  await planButton.click();
+  await expect.poll(() => plans(calls).length).toBe(1);
+  // While the plan is out: no import, no new reading, no link, no second reveal.
+  await expect(importButton).toBeDisabled();
+  await expect(rollButton).toBeDisabled();
+  await expect(allyLink).toBeDisabled();
+  await expect(planButton).toBeDisabled();
+
+  releasePlan();
+  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
+  await expect(confirm).toBeVisible();
+  // Still held while the confirm window is open.
+  await expect(importButton).toBeDisabled();
+  await expect(rollButton).toBeDisabled();
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+
+  // Free again once the reload after the Cancel is in.
+  await expect(importButton).toBeEnabled();
+  await expect(rollButton).toBeEnabled();
+  await expect(allyLink).toBeEnabled();
+  await expect(planButton).toBeEnabled();
+  expect(plans(calls).map(c => c.name)).toEqual(['plan-tarokka-reveal']);
+  expect(names(calls)).not.toContain('apply-planned-change');
+
+  // The other way round: an import holds the position buttons until its reload is in.
+  const releaseLoad = await holdTool(page, calls, 'get-tarokka-reading', READING);
+  await importButton.click();
+  await expect(toast(page, '✓ Applied: Stored a reading')).toBeVisible();
+  await expect(planButton).toBeDisabled();
+  await expect(allyLink).toBeDisabled();
+  releaseLoad();
+  await expect(planButton).toBeEnabled();
+  await expect(allyLink).toBeEnabled();
+});
+
+test('an apply the bridge refuses says why, has no Undo, reloads and keeps the draft', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  const refusal = 'The "tarokka" feature is switched off in the module settings';
+  const calls = await fakeTools(page, call =>
+    call.name === 'apply-planned-change'
+      ? { status: 422, json: { ok: false, kind: 'tool', error: refusal } }
+      : bridge(call)
+  );
+  const drawer = await openTarokka(page);
+  const tome = pos(drawer, 'tome');
+  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  const text = tome.getByPlaceholder('Exactly what the players may read');
+  await text.fill('Text');
+  const planButton = tome.getByRole('button', { name: 'Plan reveal…' });
+  const loaded = loads(calls);
+
+  await planButton.click();
+  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
+  await confirm.getByRole('checkbox').check();
+  await confirm.getByRole('button', { name: 'Run destructive action' }).click();
+  // A clear no: no "may have applied" hint, no Undo.
+  await expect(toast(page, `✗ apply-planned-change: ${refusal}`)).toBeVisible();
+  await expect(page.locator('.toast-stack .toast-undo')).toHaveCount(0);
+  await expect.poll(() => loads(calls)).toBeGreaterThan(loaded);
+  // The draft stays for another try, and every button is free again.
+  await expect(text).toHaveValue('Text');
+  await expect(planButton).toBeEnabled();
+  const roll = drawer.getByRole('button', { name: 'New reading (built-in roll)' });
+  await expect(roll).toBeEnabled();
+
+  // A new reading refused the same way.
+  await roll.click();
+  await expect(toast(page, `✗ apply-planned-change: ${refusal}`)).toHaveCount(2);
+  await expect(page.locator('.toast-stack .toast-undo')).toHaveCount(0);
+  await expect(roll).toBeEnabled();
+});
+
+test('an apply that times out says it may have applied, reloads and keeps the draft', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, call =>
+    call.name === 'apply-planned-change'
+      ? { status: 502, json: { ok: false, kind: 'timeout', error: 'Timed out' } }
+      : bridge(call)
+  );
+  const drawer = await openTarokka(page);
+  const tome = pos(drawer, 'tome');
+  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  const text = tome.getByPlaceholder('Exactly what the players may read');
+  await text.fill('Text');
+  const loaded = loads(calls);
+  await tome.getByRole('button', { name: 'Plan reveal…' }).click();
+  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
+  await confirm.getByRole('checkbox').check();
+  await confirm.getByRole('button', { name: 'Run destructive action' }).click();
+  await expect(
+    toast(
+      page,
+      '✗ apply-planned-change timed out. It may have applied; check Recent Changes on the full dashboard.'
+    )
+  ).toBeVisible();
+  // The reload shows whether it went in; the form stays, as nothing says it did.
+  await expect.poll(() => loads(calls)).toBeGreaterThan(loaded);
+  await expect(text).toHaveValue('Text');
+  await expect(tome.getByRole('button', { name: 'Plan reveal…' })).toBeEnabled();
+});
+
+test('Enter right after the confirm window opens applies nothing', async ({ page }) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, bridge);
+  const drawer = await openTarokka(page);
+  const tome = pos(drawer, 'tome');
+  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await tome.getByPlaceholder('Exactly what the players may read').fill('Text');
+  await tome.getByRole('button', { name: 'Plan reveal…' }).click();
+  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
+  await expect(confirm).toBeVisible();
+
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  // Enter neither ticks the box nor runs the change.
+  await expect(confirm).toBeVisible();
+  await expect(confirm.getByRole('checkbox')).not.toBeChecked();
+  await expect(confirm.getByRole('button', { name: 'Run destructive action' })).toBeDisabled();
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  await expect(confirm).toBeHidden();
+  expect(names(calls)).not.toContain('apply-planned-change');
 });

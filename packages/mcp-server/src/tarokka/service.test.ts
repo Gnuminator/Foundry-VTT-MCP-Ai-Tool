@@ -424,6 +424,42 @@ describe('reveal', () => {
     ).rejects.toThrow(/showNow must be/);
   });
 
+  /** Replace the current reading with a fresh deal of the same cards under another id. */
+  async function replaceReading(): Promise<void> {
+    foundry.handlers['foundry-mcp-bridge.getTarokkaReading'] = (): unknown => ({
+      available: true,
+      reading: { ...TR_READING, readingId: 'newDEAL98765' },
+    });
+    await apply((await tarokka.planImport({})).planId);
+    expect((await tarokka.getReading()).reading?.readingId).toBe('tr-newDEAL98765');
+  }
+
+  it('pins the reading: a reveal planned for a replaced reading writes nothing', async () => {
+    const plan = await tarokka.planReveal({ position: 'tome', text: 'One.' });
+    // The pin is no diff line: the GM sees only what changes.
+    expect(plan.diff.some(d => d.path === 'current.readingId')).toBe(false);
+    await replaceReading();
+    const reveals = await vaultData(REVEALS_FILE);
+    await expect(apply(plan.planId, true)).rejects.toThrow(
+      /Conflict, nothing was written: tarokka\.json current\.readingId changed since/
+    );
+    expect(foundry.docs.has(plan.pageUuid)).toBe(false);
+    expect(await vaultData(REVEALS_FILE)).toEqual(reveals);
+    expect((await tarokka.getReading()).reading!.positions[0].revealed).toBe(false);
+  });
+
+  it('pins the reading for a re-reveal too (no vault ops of its own)', async () => {
+    const first = await tarokka.planReveal({ position: 'tome', text: 'One.' });
+    await apply(first.planId, true);
+    const edit = await tarokka.planReveal({ position: 'tome', text: 'One, revised.' });
+    expect(edit.target).toBe('foundry');
+    await replaceReading();
+    await expect(apply(edit.planId, true)).rejects.toThrow(/current\.readingId changed since/);
+    expect(foundry.docs.get(first.pageUuid)?.source).toMatchObject({
+      text: { content: '<p>One.</p>' },
+    });
+  });
+
   it('validates the request', async () => {
     await expect(tarokka.planReveal({ position: 'x', text: 'a' })).rejects.toThrow(/position/);
     await expect(tarokka.planReveal({ position: 'tome', text: '  ' })).rejects.toThrow(

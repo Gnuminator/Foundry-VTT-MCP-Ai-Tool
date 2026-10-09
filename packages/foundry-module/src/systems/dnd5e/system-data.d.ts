@@ -256,9 +256,8 @@ declare global {
     /** null in source on NPCs/vehicles until set */ value: number | null; // 9622
     /** Characters: manual override of the calculated max (84127). NPC/vehicle: the stored max. */
     max: number | null; // 9617
-    /** null once cleared (no `nullable: false`); dnd5e reads it as `parseInt(hp.temp) || 0` (43518) */ temp:
-      | number
-      | null; // 9618
+    /** null once cleared (no `nullable: false`); dnd5e reads it as `parseInt(hp.temp) || 0` (43518) */
+    temp: number | null; // 9618
     tempmax: number | null; // 9619
     /** Damage threshold (NPC, vehicle) */ dt?: number; // 9616
     /** Mishap threshold (vehicle only) */ mt?: number; // 11894

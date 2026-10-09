@@ -45,6 +45,21 @@ test('the helper scripts the user runs over SSH (set-*.sh) pass the guard too', 
   }
 });
 
+test('gm-script.sh passes the guard as documented (dry run and real run)', () => {
+  for (const env of ['GM_SCRIPT=/root/my-script.js DRY_RUN=1', 'GM_SCRIPT=/root/my-script.js']) {
+    const command = `cat scripts/pi/remote/lib.sh scripts/pi/remote/gm-script.sh | ssh foundry-pi '${env} bash -s'`;
+    assert.equal(kind(command), 'allow', `${env}: ${JSON.stringify(decide(command, repo))}`);
+  }
+});
+
+test('every script in scripts/pi/remote is one of the kinds checked above', () => {
+  const dir = path.join(repo, 'scripts', 'pi', 'remote');
+  const known = n =>
+    /^\d+-.*\.sh$/.test(n) || /^set-.*\.sh$/.test(n) || n === 'lib.sh' || n === 'gm-script.sh';
+  const unchecked = readdirSync(dir).filter(n => n.endsWith('.sh') && !known(n));
+  assert.deepEqual(unchecked, [], 'add a guard test for each new script the user runs over SSH');
+});
+
 test('commands whose only target is this machine (a test container) pass', () => {
   const k = '-i /root/.ssh/testkey -o StrictHostKeyChecking=no';
   for (const c of [

@@ -3,7 +3,7 @@
 // the /player secret-terms check); the hand checklist stays in this browser, under the same
 // localStorage key as the old page, so ticks carry over between the two pages.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX, type RefObject } from 'react';
 
 import { Drawer, DrawerClose } from '../components/Drawer';
 import { api, errorText } from '../lib/api';
@@ -184,14 +184,20 @@ function tarokkaCheck(shown: boolean): PreflightCheck {
 
 function CheckItem({
   check,
+  itemRef,
   children,
 }: {
   check: PreflightCheck;
+  /** Given, the row can take the focus (Hide cards hands it there as the button goes). */
+  itemRef?: RefObject<HTMLLIElement | null>;
   children?: JSX.Element | false;
 }): JSX.Element {
   const status = statusOf(check);
   return (
-    <li className={`preflight-item pf-${status}`}>
+    <li
+      className={`preflight-item pf-${status}`}
+      {...(itemRef ? { ref: itemRef, tabIndex: -1 } : {})}
+    >
       <span className="pf-icon" title={status}>
         {PREFLIGHT_ICONS[status]}
       </span>
@@ -314,6 +320,7 @@ export function PreflightDrawer({
 
   // A failed run shows its error, not the verdict of the run before it.
   const local = tarokkaCheck(tarokkaShown);
+  const localRow = useRef<HTMLLIElement>(null);
   let summary: JSX.Element | null = null;
   if (data && runError === null) {
     const { fails, warns } = counts({ ...data, checks: [...data.checks, local] });
@@ -388,12 +395,16 @@ export function PreflightDrawer({
           <li className="empty">Not run yet.</li>
         )}
         {/* This browser's own check: shown whether or not the server's run worked. */}
-        <CheckItem check={local}>
+        <CheckItem check={local} itemRef={localRow}>
           {tarokkaShown && (
             <button
-              className="btn btn-small"
+              className="btn btn-small pf-action"
               data-track="dash.preflight.hide-tarokka"
-              onClick={onHideTarokka}
+              onClick={() => {
+                onHideTarokka();
+                // The button goes with the warning: the row keeps the focus, and reads the new state.
+                localRow.current?.focus();
+              }}
             >
               Hide cards
             </button>

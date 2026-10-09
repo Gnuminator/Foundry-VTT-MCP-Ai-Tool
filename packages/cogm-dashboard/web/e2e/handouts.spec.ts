@@ -14,6 +14,7 @@ import {
   ok,
   toast,
   type ToolCall,
+  fromMenu,
 } from './support';
 
 // The seen ticks show the time in the browser's zone.
@@ -152,7 +153,7 @@ const gmActions = (on: boolean): { event: string; data: unknown }[] => [
 
 async function openHandouts(page: Page): Promise<Locator> {
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-handouts').click();
+  await fromMenu(page, 'btn-handouts');
   const drawer = page.getByRole('dialog', { name: '📜 Handouts' });
   await expect(drawer).toBeVisible();
   return drawer;

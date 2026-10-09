@@ -2,7 +2,7 @@
 // paths, against a fake of the /api/player-links routes (me-route.ts) in the browser.
 import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, toast } from './support';
+import { GM_TOKEN, fakeCommonRoutes, toast, fromMenu } from './support';
 
 interface FakePlayer {
   userId: string;
@@ -66,7 +66,7 @@ const twoPlayers = (): FakePlayer[] => [
 
 async function openLinks(page: Page): Promise<void> {
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.getByRole('button', { name: '🔗 Player links' }).click();
+  await fromMenu(page, 'btn-show-links');
   await expect(page.getByRole('dialog', { name: 'Player links' })).toBeVisible();
 }
 
@@ -184,6 +184,6 @@ test('the panel closes with ✕, with Escape and with its header button', async 
   await expect(dialog).toBeHidden();
 
   await openLinks(page);
-  await page.getByRole('button', { name: '🔗 Player links' }).click();
+  await fromMenu(page, 'btn-show-links');
   await expect(dialog).toBeHidden();
 });

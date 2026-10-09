@@ -13,6 +13,7 @@ import {
   ok,
   toast,
   type ToolCall,
+  fromMenu,
 } from './support';
 
 const PAGE_UUID = 'JournalEntry.j1.JournalEntryPage.p1';
@@ -216,7 +217,7 @@ async function fakeCatalog(page: Page, gmActionsEnabled = true): Promise<void> {
 
 async function openTools(page: Page): Promise<Locator> {
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-tools').click();
+  await fromMenu(page, 'btn-tools');
   const drawer = page.getByRole('dialog', { name: '🛠 Tool Runner' });
   await expect(drawer).toBeVisible();
   return drawer;
@@ -462,7 +463,7 @@ test('an Undo GM Actions refuse after the drawer closed opens the Tool runner ag
   await fakeCatalog(page);
   const calls = await fakeTools(page, call =>
     call.name === 'undo-change'
-      ? { status: 403, json: { ok: false, error: 'GM Actions are off.' } }
+      ? { status: 403, json: { code: 'gm-actions-disabled', error: 'GM Actions are off.' } }
       : bridge(call)
   );
   const drawer = await openTools(page);
@@ -482,7 +483,43 @@ test('an Undo GM Actions refuse after the drawer closed opens the Tool runner ag
   ).toBeVisible();
   await expect(drawer).toBeVisible();
   await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeHidden();
+  // The page takes the server's word: the gate bar shows, and has the focus.
+  await expect(drawer.locator('#gm-gate-enable')).toBeFocused();
   expect(named(calls, 'undo-change')).toHaveLength(1);
+});
+
+test('an Undo GM Actions refuse with the drawer open under another brings it to the top', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  await fakeCatalog(page);
+  await fakeTools(page, call =>
+    call.name === 'undo-change'
+      ? { status: 403, json: { code: 'gm-actions-disabled', error: 'GM Actions are off.' } }
+      : bridge(call)
+  );
+  const drawer = await openTools(page);
+  await openTool(drawer, 'plan-actor-change');
+  await field(drawer, 'action').selectOption('damage');
+  await field(drawer, 'targets').fill('Wolf');
+  await drawer.locator('#tool-run').click();
+  await confirmWindow(page).getByRole('button', { name: 'Confirm' }).click();
+  await expect(toast(page, '✓ Applied: Damage: 5 to Wolf')).toBeVisible();
+
+  // The backdrop covers the header; from the keyboard a second drawer opens beside the first.
+  await fromMenu(page, 'btn-party', true);
+  const party = page.getByRole('dialog', { name: '🛡 Party' });
+  await expect(party).toHaveClass(/drawer-top/);
+  await page.locator('.toast-stack .toast-undo .toast-action').click();
+  await expect(drawer).toHaveClass(/drawer-top/);
+  await expect(party).not.toHaveClass(/drawer-top/);
+  await expect(drawer.locator('#gm-gate-enable')).toBeFocused();
+  // Escape follows the top: the Tool runner closes first, then Party.
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+  await expect(party).toHaveClass(/drawer-top/);
+  await page.keyboard.press('Escape');
+  await expect(party).toBeHidden();
 });
 
 test('Enter in a field never applies a change without the confirm window', async ({ page }) => {
@@ -718,7 +755,7 @@ test('Escape closes an open Pick… list, then the confirm window, then the draw
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
   // The form survives closing the drawer.
-  await page.locator('#btn-tools').click();
+  await fromMenu(page, 'btn-tools');
   await expect(drawer.locator('#tool-detail-name')).toHaveText('plan-actor-change');
   await expect(field(drawer, 'targets')).toHaveValue('Wolf');
 });
@@ -753,7 +790,7 @@ test('+ Queue a page opens the Tool runner filled in, names shown, and queues on
     return bridge(call);
   });
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-handouts').click();
+  await fromMenu(page, 'btn-handouts');
   const handouts = page.getByRole('dialog', { name: '📜 Handouts' });
   await expect(handouts.locator('#handouts-queue')).toContainText('Nothing queued');
   await handouts.locator('#handouts-add').click();
@@ -788,7 +825,7 @@ test('+ Queue a page opens the Tool runner filled in, names shown, and queues on
   // A second click fills the form in fresh.
   await field(drawer, 'action').selectOption('hide');
   await drawer.getByRole('button', { name: 'Close' }).click();
-  await page.locator('#btn-handouts').click();
+  await fromMenu(page, 'btn-handouts');
   await handouts.locator('#handouts-add').click();
   await expect(field(drawer, 'action')).toHaveValue('queue');
   await expect(field(drawer, 'pageUuid')).toHaveValue('');
@@ -805,7 +842,7 @@ test('a request for a tool the catalog lacks says so and shows the list', async 
     return bridge(call);
   });
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-handouts').click();
+  await fromMenu(page, 'btn-handouts');
   await page.locator('#handouts-add').click();
   await expect(toast(page, 'Tool "plan-page-reveal" isn\'t in the catalog.')).toBeVisible();
   const drawer = page.getByRole('dialog', { name: '🛠 Tool Runner' });

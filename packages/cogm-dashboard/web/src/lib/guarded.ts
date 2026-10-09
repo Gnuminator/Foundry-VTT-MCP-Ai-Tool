@@ -9,7 +9,7 @@ import { createContext, useCallback, useContext, useMemo } from 'react';
 import { focusedElement, useConfirm } from '../components/ConfirmDialog';
 import { useToast } from '../components/Toasts';
 import { ApiError, callTool, errorText, type ToolConfirm } from './api';
-import { useDashboardSettings } from './stream';
+import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from './stream';
 import { usage } from './usage';
 
 /**
@@ -186,6 +186,14 @@ export function useGuardedTools(): GuardedTools {
         return { result: result ?? {} };
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) {
+          // The server says GM Actions are off, whatever the page last heard: the gates show
+          // (the Tool runner's bar too) until the stream says otherwise.
+          if (err.code === 'gm-actions-disabled') {
+            queryClient.setQueryData<DashboardSettings | null>(SETTINGS_KEY, old => ({
+              ...old,
+              gmActionsEnabled: false,
+            }));
+          }
           return { outcome: refuse(name, '403', options) };
         }
         usage().trackTool(name, 'error', failCode(err));

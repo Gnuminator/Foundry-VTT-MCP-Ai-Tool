@@ -1,8 +1,40 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import type { ComponentProps, JSX, ReactElement, ReactNode } from 'react';
+import {
+  useLayoutEffect,
+  useSyncExternalStore,
+  type ComponentProps,
+  type JSX,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 
 import { useEscapeClose } from '../lib/escape';
 import { HelpButton } from './HelpButton';
+
+// Every drawer sits in the same place, so without help the one later in the page covers the
+// others: the GM Actions gate would open Pre-flight under the drawer that asked for it. The drawer
+// opened last goes on top instead, the same one Escape closes first.
+let openOrder: string[] = [];
+const listeners = new Set<() => void>();
+const subscribe = (listener: () => void): (() => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+const topDrawer = (): string | undefined => openOrder.at(-1);
+function setOpenOrder(next: string[]): void {
+  openOrder = next;
+  for (const listener of listeners) listener();
+}
+
+/** Whether this drawer is the one opened last of those open now. */
+function useOnTop(id: string, open: boolean): boolean {
+  useLayoutEffect(() => {
+    if (!open) return;
+    setOpenOrder([...openOrder.filter(d => d !== id), id]);
+    return (): void => setOpenOrder(openOrder.filter(d => d !== id));
+  }, [id, open]);
+  return useSyncExternalStore(subscribe, topDrawer) === id;
+}
 
 interface DrawerProps {
   open: boolean;
@@ -62,6 +94,7 @@ export function Drawer({
     onEscape?.();
     onOpenChange(false);
   });
+  const onTop = useOnTop(id, open);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange} modal={false}>
       <Dialog.Content
@@ -73,7 +106,7 @@ export function Drawer({
           else onEscape?.();
         }}
       >
-        <aside id={id} className="drawer">
+        <aside id={id} className={onTop ? 'drawer drawer-top' : 'drawer'}>
           <div className="drawer-head">
             <div>
               <div className="pane-title">

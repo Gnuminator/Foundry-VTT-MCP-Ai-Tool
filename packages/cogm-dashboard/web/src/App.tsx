@@ -86,6 +86,8 @@ function Dashboard(): JSX.Element {
   const openHelp = useHelp();
   const [linksOpen, setLinksOpen] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
+  // Tarokka's Show cards, here so Pre-flight can warn while it is on (both drawers can be open).
+  const [tarokkaShown, setTarokkaShown] = useState(false);
   // A guarded change refused for GM Actions opens Pre-flight, whose Ready for session turns them
   // on (the old page opens the Tool runner's gate; the Tool runner points at its own gate bar).
   const openGmActionsGate = useCallback(() => setDrawers(d => ({ ...d, preflight: true })), []);
@@ -205,6 +207,8 @@ function Dashboard(): JSX.Element {
       <PreflightDrawer
         open={drawers.preflight}
         onOpenChange={open => setDrawer('preflight', open)}
+        tarokkaShown={tarokkaShown}
+        onHideTarokka={() => setTarokkaShown(false)}
       />
       <PrepDrawer
         open={drawers.prep}
@@ -224,7 +228,12 @@ function Dashboard(): JSX.Element {
           setDrawers(d => ({ ...d, handouts: false, tools: true }));
         }}
       />
-      <TarokkaDrawer open={drawers.tarokka} onOpenChange={open => setDrawer('tarokka', open)} />
+      <TarokkaDrawer
+        open={drawers.tarokka}
+        onOpenChange={open => setDrawer('tarokka', open)}
+        showCards={tarokkaShown}
+        onShowCardsChange={setTarokkaShown}
+      />
       <ToolsDrawer
         open={drawers.tools}
         onOpenChange={open => setDrawer('tools', open)}

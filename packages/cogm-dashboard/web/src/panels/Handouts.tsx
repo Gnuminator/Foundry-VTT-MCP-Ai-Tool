@@ -157,14 +157,41 @@ export function HandoutsDrawer({
       ...(s.activeSceneId ? { sceneId: s.activeSceneId } : {}),
       ...(showNow ? { showNow: true } : {}),
     };
+    // Reloads after every attempt, as the old page does: a cancelled or failed reveal may still
+    // have changed the queue. An apply already started a reload (GAME_STATE_KEY); this joins it.
+    // The button waits for the reload, so it never offers the page just revealed a second time.
     void runChange('plan-page-reveal', args).finally(() => {
-      revealingRef.current = false;
-      setRevealing(false);
       setShowNow(false);
+      void handouts.refetch({ cancelRefetch: false }).finally(() => {
+        revealingRef.current = false;
+        setRevealing(false);
+        setRefocus(true);
+      });
     });
   };
 
+  // The confirm window parks focus on the drawer while Reveal next is disabled and gives it back
+  // when the button is enabled again. A reveal that never opened the window (a failed plan) leaves
+  // focus on the page body, where the disabled button dropped it. Either way, once the reveal is
+  // over and the queue reloaded, the button takes focus if there is a next page, else the drawer
+  // does (never the page body). Focus the GM moved elsewhere meanwhile stays put.
+  const [refocus, setRefocus] = useState(false);
+  const nextRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!refocus) return;
+    setRefocus(false);
+    const button = nextRef.current;
+    if (!button) return;
+    const drawer = button.closest<HTMLElement>('[role="dialog"]');
+    const active = document.activeElement;
+    if (active !== document.body && active !== drawer && active !== button) return;
+    if (button.disabled) drawer?.focus();
+    else button.focus();
+  }, [refocus]);
+
   // Not a guarded change: no plan to apply and nothing changes in Foundry, so no GM Actions gate.
+  // The old page says nothing when it works; the toast here says the row went on purpose, as
+  // a guarded change reports its result.
   const unqueue = (uuid: string): void => {
     setRemoving(uuid);
     callTool<QueueChange | null>('plan-page-reveal', { action: 'unqueue', pageUuid: uuid })
@@ -282,6 +309,7 @@ export function HandoutsDrawer({
           <button
             className="btn btn-primary"
             id="handouts-next"
+            ref={nextRef}
             data-track="dash.handouts.reveal-next"
             disabled={!next || revealing}
             onClick={revealNext}

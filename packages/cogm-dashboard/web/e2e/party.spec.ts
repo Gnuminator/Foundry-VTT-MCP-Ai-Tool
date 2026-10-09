@@ -542,6 +542,45 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
   await expect(confirm).toBeHidden();
   await expect(fast).toBeEnabled();
   expect(names(calls.slice(before))).toEqual(['plan-party-change']);
+  // The button was disabled when the window opened; focus goes back to it, not the page body.
+  await expect(fast).toBeFocused();
+});
+
+test('after the confirm window, the drawer holds focus until the button is back', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, call =>
+    call.name === 'plan-party-change'
+      ? ok({ ...PLAN, risk: 'destructive', summary: 'Travel pace set to Fast', diff: [] })
+      : bridge(call)
+  );
+  // The apply waits until released, so the change is still running when the window closes.
+  let release!: () => void;
+  const released = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  await page.route('**/api/tool', async (route: Route): Promise<void> => {
+    const call = route.request().postDataJSON() as ToolCall;
+    if (call.name !== 'apply-planned-change') return route.fallback();
+    await released;
+    return route.fallback();
+  });
+  const drawer = await openParty(page);
+  const fast = drawer.locator('#party-pace').getByRole('button', { name: 'Fast' });
+
+  await fast.click();
+  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
+  await confirm.getByRole('checkbox').check();
+  await confirm.getByRole('button', { name: 'Run destructive action' }).click();
+  await expect(confirm).toBeHidden();
+  await expect(fast).toBeDisabled();
+  await expect(drawer).toBeFocused();
+
+  release();
+  await expect(toast(page, '✓ Applied: Travel pace set to Fast')).toBeVisible();
+  await expect(fast).toBeFocused();
+  expect(names(calls)).toContain('apply-planned-change');
 });
 
 test('Open shows the actor in Foundry; Escape closes the drawer', async ({ page }) => {

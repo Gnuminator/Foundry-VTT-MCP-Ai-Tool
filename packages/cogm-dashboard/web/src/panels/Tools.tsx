@@ -13,7 +13,7 @@ import {
   useState,
   type JSX,
   type ReactNode,
-  type RefObject,
+  type RefCallback,
 } from 'react';
 
 import { Drawer, DrawerClose, raiseDrawer } from '../components/Drawer';
@@ -78,8 +78,9 @@ export function ToolsDrawer(props: {
   request: ToolRequest | null;
 }): JSX.Element {
   // A change refused for GM Actions points at the gate bar in this drawer, not at Pre-flight.
-  // Open, the drawer comes to the top and the bar takes the focus once it has drawn (a refusal
-  // from the server draws it with the same render). An Undo from a toast can be refused after the
+  // Open, the drawer comes to the top and the bar takes the focus as soon as it is there (a
+  // refusal from the server turns GM Actions off in the settings cache, which may draw the bar a
+  // render after the gate was asked for). An Undo from a toast can be refused after the
   // drawer closed: it opens again, and the bar takes the focus in place of Radix's open autofocus
   // (which would otherwise run after anything done here).
   const gateButton = useRef<HTMLButtonElement>(null);
@@ -100,11 +101,19 @@ export function ToolsDrawer(props: {
     raiseDrawer('tools-drawer');
     setGateAsked(n => n + 1);
   }, [onOpenChange]);
+  // Asked with the drawer open: the bar may be up already (the effect focuses it) or draw a
+  // render later, when the refusal's settings change reaches it (the ref callback focuses it).
   useEffect(() => {
-    if (!gatePending.current || !isOpen.current) return;
+    if (!gatePending.current || !isOpen.current || !gateButton.current) return;
     gatePending.current = false;
-    gateButton.current?.focus();
+    gateButton.current.focus();
   }, [gateAsked]);
+  const gateButtonRef = useCallback((button: HTMLButtonElement | null) => {
+    gateButton.current = button;
+    if (!button || !gatePending.current || !isOpen.current) return;
+    gatePending.current = false;
+    button.focus();
+  }, []);
   const onOpenAutoFocus = useCallback((event: Event) => {
     if (!gatePending.current) return;
     gatePending.current = false;
@@ -114,7 +123,7 @@ export function ToolsDrawer(props: {
   }, []);
   return (
     <GmActionsGateContext.Provider value={focusGate}>
-      <ToolRunner {...props} gateButton={gateButton} onOpenAutoFocus={onOpenAutoFocus} />
+      <ToolRunner {...props} gateButton={gateButtonRef} onOpenAutoFocus={onOpenAutoFocus} />
     </GmActionsGateContext.Provider>
   );
 }
@@ -129,7 +138,7 @@ function ToolRunner({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   request: ToolRequest | null;
-  gateButton: RefObject<HTMLButtonElement | null>;
+  gateButton: RefCallback<HTMLButtonElement>;
   onOpenAutoFocus: (event: Event) => void;
 }): JSX.Element {
   const toast = useToast();

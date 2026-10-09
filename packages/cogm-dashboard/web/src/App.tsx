@@ -94,10 +94,12 @@ function Dashboard(): JSX.Element {
   const [drawers, setDrawers] = useState(NO_DRAWERS);
   const setDrawer = (name: DrawerName, open: boolean): void =>
     setDrawers(d => ({ ...d, [name]: open }));
-  // The Advanced menu opens a drawer, as on the old page; one already open comes to the top.
+  // The Advanced menu opens a drawer, as on the old page; one already open comes to the top and
+  // takes the focus (the menu keeps its own close from moving it, and nothing opens to take it).
   const openDrawer = (name: DrawerName): void => {
     setDrawer(name, true);
     raiseDrawer(DRAWER_IDS[name]);
+    if (drawers[name]) document.getElementById(DRAWER_IDS[name])?.focus();
   };
   const openHelp = useHelp();
   const [linksOpen, setLinksOpen] = useState(false);

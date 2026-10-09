@@ -35,7 +35,7 @@ a.btn {
 }
 
 /* A Pre-flight row's own button (Hide cards) sits at the right end of the row. */
-.preflight-item > .btn-small {
+.preflight-item > .pf-action {
   flex: none;
   margin-left: auto;
   align-self: center;

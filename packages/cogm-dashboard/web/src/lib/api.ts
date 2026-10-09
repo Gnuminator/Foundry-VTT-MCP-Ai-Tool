@@ -8,7 +8,9 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly kind?: string
+    readonly kind?: string,
+    /** The server's own name for the refusal (`gm-actions-disabled`), when it sends one. */
+    readonly code?: string
   ) {
     super(message);
     this.name = 'ApiError';
@@ -35,7 +37,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError(
       field(body, 'error') ?? `HTTP ${res.status}`,
       res.status,
-      field(body, 'kind')
+      field(body, 'kind'),
+      field(body, 'code')
     );
   }
   return body as T;

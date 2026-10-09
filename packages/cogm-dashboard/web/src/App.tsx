@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
 import { ConfirmProvider } from './components/ConfirmDialog';
-import { DrawerBackdrop } from './components/Drawer';
+import { DrawerBackdrop, raiseDrawer } from './components/Drawer';
 import { HelpProvider } from './components/Help';
 import { useHelp } from './components/HelpButton';
 import { HandoutsDrawer } from './panels/Handouts';
@@ -90,7 +90,11 @@ function Dashboard(): JSX.Element {
   const [tarokkaShown, setTarokkaShown] = useState(false);
   // A guarded change refused for GM Actions opens Pre-flight, whose Ready for session turns them
   // on (the old page opens the Tool runner's gate; the Tool runner points at its own gate bar).
-  const openGmActionsGate = useCallback(() => setDrawers(d => ({ ...d, preflight: true })), []);
+  // Already open under another drawer, it comes to the top.
+  const openGmActionsGate = useCallback(() => {
+    setDrawers(d => ({ ...d, preflight: true }));
+    raiseDrawer('preflight-drawer');
+  }, []);
   // Another panel opens the Tool runner on a tool with its form filled in.
   const [toolRequest, setToolRequest] = useState<ToolRequest | null>(null);
 

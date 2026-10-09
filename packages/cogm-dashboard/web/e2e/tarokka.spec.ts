@@ -790,6 +790,8 @@ test('Pre-flight beside the drawer warns while Show cards is ticked, and Hide ca
   await expect(preflight.getByRole('status')).toHaveText('Ready, with 1 to look at.');
 
   await row.getByRole('button', { name: 'Hide cards' }).click();
+  // The button goes with the warning; the row keeps the focus.
+  await expect(row).toBeFocused();
   await expect(show).not.toBeChecked();
   await expect(drawer.locator('.tarokka-card.veiled')).toHaveCount(5);
   for (const secret of SECRETS) expect(await page.content()).not.toContain(secret);
@@ -806,6 +808,48 @@ test('Pre-flight beside the drawer warns while Show cards is ticked, and Hide ca
   await expect(preflight).toBeVisible();
   await expect(row).toHaveClass(/pf-warn/);
   await expect(row.getByRole('button', { name: 'Hide cards' })).toBeVisible();
+});
+
+test('the gate brings Pre-flight to the top when it is open under Tarokka', async ({ page }) => {
+  await fakeStream(page, gmActions(false));
+  await fakeTools(page, bridge);
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+  // The backdrop covers the header; from the keyboard a second drawer opens beside the first.
+  await page.locator('#btn-preflight').press('Enter');
+  const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
+  await expect(preflight).toHaveClass(/drawer-top/);
+  await page.locator('#btn-tarokka').press('Enter');
+  const drawer = page.getByRole('dialog', { name: '🃏 Tarokka' });
+  await expect(drawer).toHaveClass(/drawer-top/);
+  await expect(preflight).not.toHaveClass(/drawer-top/);
+
+  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await expect(preflight).toHaveClass(/drawer-top/);
+  await expect(drawer).not.toHaveClass(/drawer-top/);
+  // Escape follows the top, not the order the drawers first opened in.
+  await page.keyboard.press('Escape');
+  await expect(preflight).toBeHidden();
+  await expect(drawer).toHaveClass(/drawer-top/);
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+});
+
+test('closing a drawer that is not on top leaves the top one where it is', async ({ page }) => {
+  await fakeStream(page, gmActions(false));
+  await fakeTools(page, bridge);
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+  await page.locator('#btn-preflight').press('Enter');
+  await page.locator('#btn-tarokka').press('Enter');
+  const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
+  const drawer = page.getByRole('dialog', { name: '🃏 Tarokka' });
+  await expect(drawer).toHaveClass(/drawer-top/);
+
+  // The Pre-flight button again closes the drawer underneath.
+  await page.locator('#btn-preflight').press('Enter');
+  await expect(preflight).toBeHidden();
+  await expect(drawer).toHaveClass(/drawer-top/);
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
 });
 
 test('the Obsidian link shows once the stream sent the vault and the world', async ({ page }) => {

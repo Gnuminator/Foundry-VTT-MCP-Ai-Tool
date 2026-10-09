@@ -462,7 +462,7 @@ test('an Undo GM Actions refuse after the drawer closed opens the Tool runner ag
   await fakeCatalog(page);
   const calls = await fakeTools(page, call =>
     call.name === 'undo-change'
-      ? { status: 403, json: { ok: false, error: 'GM Actions are off.' } }
+      ? { status: 403, json: { code: 'gm-actions-disabled', error: 'GM Actions are off.' } }
       : bridge(call)
   );
   const drawer = await openTools(page);
@@ -482,7 +482,43 @@ test('an Undo GM Actions refuse after the drawer closed opens the Tool runner ag
   ).toBeVisible();
   await expect(drawer).toBeVisible();
   await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeHidden();
+  // The page takes the server's word: the gate bar shows, and has the focus.
+  await expect(drawer.locator('#gm-gate-enable')).toBeFocused();
   expect(named(calls, 'undo-change')).toHaveLength(1);
+});
+
+test('an Undo GM Actions refuse with the drawer open under another brings it to the top', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  await fakeCatalog(page);
+  await fakeTools(page, call =>
+    call.name === 'undo-change'
+      ? { status: 403, json: { code: 'gm-actions-disabled', error: 'GM Actions are off.' } }
+      : bridge(call)
+  );
+  const drawer = await openTools(page);
+  await openTool(drawer, 'plan-actor-change');
+  await field(drawer, 'action').selectOption('damage');
+  await field(drawer, 'targets').fill('Wolf');
+  await drawer.locator('#tool-run').click();
+  await confirmWindow(page).getByRole('button', { name: 'Confirm' }).click();
+  await expect(toast(page, '✓ Applied: Damage: 5 to Wolf')).toBeVisible();
+
+  // The backdrop covers the header; from the keyboard a second drawer opens beside the first.
+  await page.locator('#btn-party').press('Enter');
+  const party = page.getByRole('dialog', { name: '🛡 Party' });
+  await expect(party).toHaveClass(/drawer-top/);
+  await page.locator('.toast-stack .toast-undo .toast-action').click();
+  await expect(drawer).toHaveClass(/drawer-top/);
+  await expect(party).not.toHaveClass(/drawer-top/);
+  await expect(drawer.locator('#gm-gate-enable')).toBeFocused();
+  // Escape follows the top: the Tool runner closes first, then Party.
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+  await expect(party).toHaveClass(/drawer-top/);
+  await page.keyboard.press('Escape');
+  await expect(party).toBeHidden();
 });
 
 test('Enter in a field never applies a change without the confirm window', async ({ page }) => {

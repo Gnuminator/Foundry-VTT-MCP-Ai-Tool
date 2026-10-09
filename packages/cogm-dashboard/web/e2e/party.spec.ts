@@ -519,9 +519,19 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
   await expect(
     toast(page, 'GM Actions are off. Ready for session in Pre-flight turns them on.')
   ).toBeVisible();
-  await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeVisible();
+  const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
+  await expect(preflight).toBeVisible();
+  // The page takes the server's word: GM Actions show as off until Ready for session turns them on.
+  await expect(preflight.locator('#ready-switches')).toHaveText('○ GM Actions');
+  await page.route('**/api/session/switches', route =>
+    route.fulfill({
+      json: { switches: { switches: [] }, gmActionsEnabled: true, gmActionsChanged: true },
+    })
+  );
+  await preflight.locator('#btn-ready').click();
+  await expect(toast(page, '✓ Ready for session. Turned on: GM Actions')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeHidden();
+  await expect(preflight).toBeHidden();
 
   // A destructive plan asks in the confirm window first; Cancel applies nothing.
   answer = (call): ToolAnswer =>

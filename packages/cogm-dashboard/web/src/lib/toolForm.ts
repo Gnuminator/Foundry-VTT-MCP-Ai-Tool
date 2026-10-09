@@ -1,6 +1,7 @@
 // The Tool runner's form logic, without React: the catalog's categories, the form a tool's input
 // schema gives, and the args a filled form sends. Port of the old page's categoryOf, buildControl,
 // pickerRef and collectArgs (public/app.js), with numbers checked before they are sent.
+import { CONFIRM_FORWARDED_TOOLS } from '../../../src/tool-policy';
 
 /** One bridge tool as GET /api/tools lists it (app.ts ToolInfo). */
 export interface ToolInfo {
@@ -86,14 +87,8 @@ export const isPlanTool = (name: string): boolean => /^plan-/.test(name);
 export const isQueueCall = (name: string, args: Record<string, unknown>): boolean =>
   name === 'plan-page-reveal' && (args['action'] === 'queue' || args['action'] === 'unqueue');
 
-/**
- * The tools whose own `confirm` and `confirmDestructive` args the server sets from the confirm
- * window's flags (tool-policy.ts CONFIRM_FORWARDED_TOOLS): the form never asks for them.
- */
-const CONFIRM_FORWARDED_TOOLS: ReadonlySet<string> = new Set([
-  'apply-planned-change',
-  'undo-change',
-]);
+// CONFIRM_FORWARDED_TOOLS: the tools whose own `confirm` and `confirmDestructive` args the server
+// sets from the confirm window's flags. The form never asks for them.
 const CONFIRM_FLAGS = ['confirm', 'confirmDestructive'];
 
 /**

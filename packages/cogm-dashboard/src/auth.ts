@@ -60,12 +60,14 @@ export function extractToken(req: AuthRequest): string | undefined {
   return parseCookie(headerValue(req, 'cookie'), TOKEN_COOKIE);
 }
 
-/** Constant-time string compare (avoids leaking token length/contents via timing). */
+/**
+ * Constant-time string compare. Both sides are hashed first, so the compare always runs on
+ * 32-byte digests and timing leaks neither the token's contents nor its length.
+ */
 function safeEqual(a: string, b: string): boolean {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ab.length !== bb.length) return false;
-  return crypto.timingSafeEqual(ab, bb);
+  const ah = crypto.createHash('sha256').update(a).digest();
+  const bh = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(ah, bh);
 }
 
 /** Resolve the caller's role, or null if the split is active and they're unauthorized. */

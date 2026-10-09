@@ -2,6 +2,7 @@ import { ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 import type {
   CharacterEffect,
+  CharacterEntityResult,
   CharacterInfo,
   CharacterItem,
   SpellcastingEntry,
@@ -9,6 +10,8 @@ import type {
 } from './types.js';
 import { detectRulesVersion, readRulesTag } from '../systems/dnd5e/rules-version.js';
 import { effectChanges, effectDuration, effectImg } from '../systems/core.js';
+import { num, rec, spellPrepared, str } from '../character-sheet-fields.js';
+import { itemEntityDetails } from './item-entity.js';
 
 /**
  * Character/actor inspection domain for `FoundryDataAccess`.
@@ -18,7 +21,7 @@ import { effectChanges, effectDuration, effectImg } from '../systems/core.js';
  *     toggles, and dnd5e spellcasting), sanitized for tool output.
  *   - {@link searchCharacterItems} — a token-efficient filtered slice of an
  *     actor's items/spells/actions/effects (by query, type, and category).
- *   - {@link getCharacterEntity} — one specific item/action/effect in full.
+ *   - {@link getCharacterEntity} — one specific item or effect in full.
  *
  * Foundry documents are duck-typed throughout (`game.actors`, `actor.items`,
  * `actor.effects` are Collections; `system` is system-specific), so reads use
@@ -40,15 +43,7 @@ export class CharacterDataAccess {
    * free of cycles, sensitive fields, and deprecated-accessor warnings.
    */
   async getCharacterInfo(identifier: string): Promise<CharacterInfo> {
-    let world: Actor | undefined;
-    let notFound: unknown;
-    try {
-      world = this.resolveActorById16OrName(identifier);
-    } catch (err) {
-      notFound = err;
-    }
-    const actor = (shared.findSceneTokenActor(identifier, world?.id) as Actor | undefined) ?? world;
-    if (!actor) throw notFound;
+    const actor = this.resolveCharacter(identifier);
 
     const characterData: CharacterInfo = {
       id: actor.id || '',
@@ -169,7 +164,10 @@ export class CharacterDataAccess {
       // Type-specific fields + category filtering. A category mismatch skips
       // the item entirely (mirrors the original `continue`-based control flow).
       if (item.type === 'spell') {
-        if (!this.applySpellFields(result, item, itemSystem, systemId, searchCategory)) continue;
+        if (
+          !this.applySpellFields(result, itemSystem, systemId, searchCategory, str(rec(actor).type))
+        )
+          continue;
       } else if (this.isEquipmentType(item.type)) {
         if (!this.applyEquipmentFields(result, itemSystem, searchCategory)) continue;
       }
@@ -215,49 +213,44 @@ export class CharacterDataAccess {
   }
 
   /**
-   * Fetch one entity (item, action, or effect) belonging to a character, in
-   * full. The character is resolved by id or case-insensitive name; the entity
-   * by id or case-insensitive name, searched items → actions → effects in that
-   * order. Both "character not found" and "entity not found" surface wrapped in
-   * a `Failed to get character entity: …` error.
+   * Fetch one entity (item or effect) belonging to a character, in full. The
+   * character resolves as in {@link getCharacterInfo} (id, name, unique partial
+   * name; a token on the current scene wins); the entity by id or
+   * case-insensitive name, items first, then effects. dnd5e 6 has no
+   * `system.actions`: actions are item activities, summarized on the item.
+   * Throws when either is missing; the query handler adds the
+   * `Failed to get character entity:` prefix.
    */
   async getCharacterEntity(data: {
     characterIdentifier: string;
     entityIdentifier: string;
-  }): Promise<any> {
+  }): Promise<CharacterEntityResult> {
     shared.validateFoundryState();
-
-    try {
-      const actors = game.actors?.contents || [];
-      const character = actors.find(
-        (actor: any) =>
-          actor.id === data.characterIdentifier ||
-          actor.name.toLowerCase() === data.characterIdentifier.toLowerCase()
-      );
-      if (!character) {
-        throw new Error(`Character not found: "${data.characterIdentifier}"`);
-      }
-
-      const found =
-        this.findItemEntity(character, data.entityIdentifier) ??
-        this.findActionEntity(character, data.entityIdentifier) ??
-        this.findEffectEntity(character, data.entityIdentifier);
-
-      if (found) {
-        return found;
-      }
-
-      throw new Error(
-        `Entity not found: "${data.entityIdentifier}" in character "${character.name}"`
-      );
-    } catch (error) {
-      throw new Error(
-        `Failed to get character entity: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    const character = this.resolveCharacter(data.characterIdentifier);
+    const found =
+      this.findItemEntity(character, data.entityIdentifier) ??
+      this.findEffectEntity(character, data.entityIdentifier);
+    if (found) return found;
+    throw new Error(
+      `Entity not found: "${data.entityIdentifier}" in character "${character.name}"`
+    );
   }
 
   // ===== getCharacterInfo internals =====
+
+  /** The world actor by {@link resolveActorById16OrName}, or its token on the current scene. */
+  private resolveCharacter(identifier: string): Actor {
+    let world: Actor | undefined;
+    let notFound: unknown;
+    try {
+      world = this.resolveActorById16OrName(identifier);
+    } catch (err) {
+      notFound = err;
+    }
+    const actor = (shared.findSceneTokenActor(identifier, world?.id) as Actor | undefined) ?? world;
+    if (!actor) throw notFound;
+    return actor;
+  }
 
   /**
    * Resolve an actor by identifier, forgivingly. Order:
@@ -366,8 +359,11 @@ export class CharacterDataAccess {
 
   // ===== searchCharacterItems internals =====
 
+  /** dnd5e 6 physical item types (armor is `equipment`; `backpack` is the old `container` name). */
   private isEquipmentType(type: string): boolean {
-    return ['weapon', 'armor', 'equipment', 'consumable', 'backpack', 'loot'].includes(type);
+    return ['weapon', 'equipment', 'consumable', 'tool', 'container', 'backpack', 'loot'].includes(
+      type
+    );
   }
 
   /** A string description for query matching (handles `description.value` shapes). */
@@ -389,14 +385,14 @@ export class CharacterDataAccess {
    */
   private applySpellFields(
     result: any,
-    item: any,
     itemSystem: any,
     systemId: string,
-    searchCategory?: string
+    searchCategory?: string,
+    actorType?: string
   ): boolean {
-    result.level = itemSystem?.level?.value ?? itemSystem?.level ?? 0;
-    const itemRaw = item._source?.system;
-    result.prepared = itemSystem?.prepared ?? itemRaw?.preparation?.prepared;
+    result.level = num(itemSystem?.level, 0); // dnd5e 6 `SpellData.level` is a number
+    if (systemId === 'dnd5e' && itemSystem)
+      result.prepared = spellPrepared(rec(itemSystem), actorType);
 
     if (systemId === 'dnd5e') {
       const targeting = this.extractDnD5eSpellTargeting(itemSystem);
@@ -436,43 +432,46 @@ export class CharacterDataAccess {
 
   // ===== getCharacterEntity internals =====
 
-  /** Find an item by id or name and return the item entity envelope, else null. */
-  private findItemEntity(character: any, entityIdentifier: string): any {
-    const items = character.items?.contents || [];
-    const entity = items.find(
-      (item: any) =>
-        item.id === entityIdentifier || item.name.toLowerCase() === entityIdentifier.toLowerCase()
-    );
+  /**
+   * Find an item by id or name and return the item entity envelope, else null: the dnd5e 6
+   * details ({@link itemEntityDetails}: level, rarity, uses, activities...) plus the sanitized
+   * `system`.
+   */
+  private findItemEntity(character: Actor, entityIdentifier: string): CharacterEntityResult | null {
+    const items = character.items.contents;
+    const needle = entityIdentifier.toLowerCase();
+    const named = items.filter(item => item.name?.toLowerCase() === needle);
+    if (!items.some(item => item.id === entityIdentifier) && named.length > 1) {
+      const shown = named.map(item => `${item.name} (${item.id})`).join(', ');
+      throw new Error(
+        `Multiple items in "${character.name}" match "${entityIdentifier}": ${shown}. ` +
+          `Use the item id.`
+      );
+    }
+    const entity = items.find(item => item.id === entityIdentifier) ?? named[0];
     if (!entity) return null;
 
+    const system = rec(entity.system);
+    // The description goes out once, as `entity.description`
+    const sanitized = rec(shared.sanitizeData(entity.system));
+    const sanitizedDescription = rec(sanitized.description);
+    if ('value' in sanitizedDescription) {
+      const { value: _html, ...rest } = sanitizedDescription;
+      sanitized.description = rest;
+    }
     return {
       success: true,
       entityType: 'item',
       entity: {
-        id: entity.id,
-        name: entity.name,
+        id: entity.id ?? '',
+        name: entity.name ?? '',
         type: entity.type,
-        img: entity.img,
-        description: entity.system?.description?.value || entity.system?.description || '',
-        system: entity.system,
+        ...(entity.img ? { img: entity.img } : {}),
+        description: this.itemDescription(system),
+        ...itemEntityDetails(entity.type, system),
+        system: sanitized,
       },
     };
-  }
-
-  /** Find an action in `system.actions` (array or record) and return it, else null. */
-  private findActionEntity(character: any, entityIdentifier: string): any {
-    const rawActions = character.system?.actions;
-    if (!rawActions) return null;
-
-    const actions = Array.isArray(rawActions) ? rawActions : Object.values(rawActions || {});
-    const entity = actions.find(
-      (action: any) =>
-        action.id === entityIdentifier ||
-        action.name?.toLowerCase() === entityIdentifier.toLowerCase()
-    );
-    if (!entity) return null;
-
-    return { success: true, entityType: 'action', entity };
   }
 
   /**
@@ -483,7 +482,7 @@ export class CharacterDataAccess {
    * either removes (`icon`) or moves (`duration` shape, `changes` lives at
    * `system.changes`).
    */
-  private findEffectEntity(character: any, entityIdentifier: string): any {
+  private findEffectEntity(character: any, entityIdentifier: string): CharacterEntityResult | null {
     const effects = character.effects?.contents || [];
     const entity = effects.find(
       (effect: any) =>
@@ -501,6 +500,9 @@ export class CharacterDataAccess {
       entity: {
         id: entity.id,
         name: entity.name || entity.label,
+        ...(typeof entity.description === 'string' && entity.description
+          ? { description: entity.description }
+          : {}),
         icon: effectImg(entity as ActiveEffect),
         disabled: entity.disabled,
         duration: norm
@@ -524,11 +526,12 @@ export class CharacterDataAccess {
   // ===== dnd5e spellcasting extraction =====
 
   /**
-   * Build dnd5e spellcasting entries. Spells are grouped by their source class
-   * (via `sourceItem`/`sourceClass`, defaulting to `general`); one entry is
-   * emitted per spellcasting class (progression !== 'none') carrying that
-   * class's slots + spells. When no class-based entry can be formed but the
-   * actor has spells, a single general "Spellcasting" entry is emitted instead.
+   * Build dnd5e spellcasting entries. Spells are grouped by the identifier of the class that
+   * grants them (dnd5e 6 `sourceItem` "class:wizard", a subclass resolved to its class, or the
+   * system's own `classIdentifier`); one entry is emitted per spellcasting class
+   * (progression !== 'none') carrying that class's slots + spells. Spells no class entry takes
+   * (species, feats, innate) go into one more entry: "Spellcasting" when there is no class
+   * entry, "Other Spells" next to class entries.
    */
   private extractSpellcastingData(actor: Actor): SpellcastingEntry[] {
     const entries: SpellcastingEntry[] = [];
@@ -543,88 +546,128 @@ export class CharacterDataAccess {
     const classes = actor.items.filter(item => item.type === 'class');
     const spellSlots = actorAny.system?.spells || {};
 
-    // Bucket each spell under its originating class (or 'general').
+    // Bucket each spell under its originating class identifier (or 'general').
     const spellsByClass: Record<string, SpellInfo[]> = {};
     for (const spell of spellItems) {
-      const spellSystem = spell.system;
-      const spellRaw = (spell as any)._source?.system || spellSystem;
-      const sourceItem = spellSystem?.sourceItem;
-      const sourceClass =
-        (sourceItem
-          ? typeof sourceItem === 'string'
-            ? sourceItem
-            : sourceItem.identifier || sourceItem.id
-          : spellRaw?.sourceClass) || 'general';
-
-      (spellsByClass[sourceClass] ??= []).push(this.toClassSpellInfo(spell, spellSystem, spellRaw));
+      const key = this.spellClassKey(actor, spell) || 'general';
+      (spellsByClass[key] ??= []).push(this.toSpellInfo(spell, actor.type));
     }
 
     // One entry per spellcasting class.
+    const used = new Set<string>();
     for (const classItem of classes) {
-      const classSystem = classItem.system;
-      if (
-        classSystem?.spellcasting?.progression &&
-        classSystem.spellcasting.progression !== 'none'
-      ) {
+      const key = this.classKey(classItem);
+      const spellcasting = this.effectiveSpellcasting(actor, classItem, key);
+      const progression = str(spellcasting.progression);
+      if (progression && progression !== 'none') {
         const className = classItem.name || 'Unknown';
-        const classSpells =
-          spellsByClass[classItem.id || ''] || spellsByClass[className.toLowerCase()] || [];
+        used.add(key);
 
         entries.push({
           id: classItem.id || '',
           name: `${className} Spellcasting`,
-          type: classSystem?.spellcasting?.type || 'prepared',
-          ability: classSystem?.spellcasting?.ability || undefined,
+          // dnd5e 6 `spellcasting.type` is the method ("spell" or "pact"); both prepare spells.
+          type: spellcasting.type === 'pact' ? 'pact' : 'prepared',
+          ability: str(spellcasting.ability) || undefined,
+          dc: typeof spellcasting.save === 'number' ? spellcasting.save : undefined,
+          attack: typeof spellcasting.attack === 'number' ? spellcasting.attack : undefined,
           slots: this.extractDnD5eSpellSlots(spellSlots),
-          spells: classSpells.sort(this.bySpellLevelThenName),
+          spells: (spellsByClass[key] ?? []).sort(this.bySpellLevelThenName),
         });
       }
     }
 
-    // Fallback: a general entry when there are spells but no class entry formed.
-    if (entries.length === 0 && spellItems.length > 0) {
-      const allSpells = spellItems.map(spell => this.toGeneralSpellInfo(spell, spell.system));
+    // Spells no class entry took: one more entry, so none drop out of the list.
+    const rest = Object.entries(spellsByClass)
+      .filter(([key]) => !used.has(key))
+      .flatMap(([, spells]) => spells);
+    if (rest.length > 0) {
+      const alone = entries.length === 0;
       entries.push({
-        id: 'spellcasting',
-        name: 'Spellcasting',
-        type: 'prepared',
-        slots: this.extractDnD5eSpellSlots(spellSlots),
-        spells: allSpells.sort(this.bySpellLevelThenName),
+        id: alone ? 'spellcasting' : 'other-spells',
+        name: alone ? 'Spellcasting' : 'Other Spells',
+        type: alone ? 'prepared' : 'other',
+        slots: alone ? this.extractDnD5eSpellSlots(spellSlots) : undefined,
+        spells: rest.sort(this.bySpellLevelThenName),
       });
     }
 
     return entries;
   }
 
+  /**
+   * A class's spellcasting as dnd5e 6's `Item5e#spellcasting` resolves it: the subclass's when
+   * its progression is not "none" (Eldritch Knight, Arcane Trickster), else the class's own.
+   */
+  private effectiveSpellcasting(
+    actor: Actor,
+    classItem: Item,
+    key: string
+  ): Record<string, unknown> {
+    const subclass = actor.items.find(
+      item => item.type === 'subclass' && str(rec(item.system).classIdentifier) === key
+    );
+    const subclassSC = rec(rec(subclass?.system).spellcasting);
+    const subProgression = str(subclassSC.progression);
+    if (subProgression && subProgression !== 'none') return subclassSC;
+    return rec(rec(classItem.system).spellcasting);
+  }
+
+  /** A class item's identifier (`identifier` getter, `system.identifier`, or its slugged name). */
+  private classKey(classItem: unknown): string {
+    const item = rec(classItem);
+    const id = str(item.identifier) || str(rec(item.system).identifier);
+    if (id) return id;
+    return str(item.name)
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
+  /**
+   * The identifier of the class a spell belongs to, or '' when no class grants it. Uses dnd5e
+   * 6's `SpellData#classIdentifier` getter when present (it also follows advancement roots);
+   * otherwise parses `sourceItem` ("class:wizard", or "subclass:evoker" resolved through the
+   * actor's subclass item to its `classIdentifier`).
+   */
+  private spellClassKey(actor: Actor, spell: unknown): string {
+    const sys = rec(rec(spell).system);
+    const own = str(sys.classIdentifier);
+    if (own) return own;
+    const source = str(sys.sourceItem);
+    const sep = source.indexOf(':');
+    if (sep < 0) return '';
+    const type = source.slice(0, sep);
+    const identifier = source.slice(sep + 1);
+    if (type === 'class') return identifier;
+    if (type === 'subclass') {
+      const subclass = actor.items.find(
+        item => item.type === 'subclass' && this.classKey(item) === identifier
+      );
+      return str(rec(subclass?.system).classIdentifier);
+    }
+    return '';
+  }
+
   /** Stable spell ordering: by level, then alphabetically by name. */
   private bySpellLevelThenName = (a: SpellInfo, b: SpellInfo): number =>
     a.level - b.level || a.name.localeCompare(b.name);
 
-  /** SpellInfo for a class-grouped spell (prefers raw preparation data). */
-  private toClassSpellInfo(spell: any, spellSystem: any, spellRaw: any): SpellInfo {
+  /**
+   * SpellInfo for one spell; `prepared` follows dnd5e 6 `method` + `prepared`
+   * (NPC spells are ready).
+   */
+  private toSpellInfo(spell: Item, actorType?: string): SpellInfo {
+    const spellSystem = rec(spell.system);
     const targeting = this.extractDnD5eSpellTargeting(spellSystem);
     return {
       id: spell.id || '',
       name: spell.name || '',
-      level: spellSystem?.level || 0,
-      prepared: spellSystem?.prepared ?? spellRaw?.preparation?.prepared ?? true,
+      level: num(spellSystem.level, 0),
+      prepared: spellPrepared(spellSystem, actorType),
       traits: [], // dnd5e doesn't use pf2e-style traits
-      actionCost: spellSystem?.activation?.type || undefined,
-      range: targeting.range,
-      target: targeting.target,
-      area: targeting.area,
-    };
-  }
-
-  /** SpellInfo for the general (no-class) fallback entry. */
-  private toGeneralSpellInfo(spell: any, spellSystem: any): SpellInfo {
-    const targeting = this.extractDnD5eSpellTargeting(spellSystem);
-    return {
-      id: spell.id || '',
-      name: spell.name || '',
-      level: spellSystem?.level || 0,
-      prepared: spellSystem?.preparation?.prepared ?? true,
-      actionCost: spellSystem?.activation?.type || undefined,
+      actionCost: str(rec(spellSystem.activation).type) || undefined,
       range: targeting.range,
       target: targeting.target,
       area: targeting.area,
@@ -657,9 +700,10 @@ export class CharacterDataAccess {
   }
 
   /**
-   * Derive human-readable range/target/area strings from a dnd5e spell's
-   * `range`/`target`/`target.template` data. Area-template spells whose target
-   * is unset or "point" are reported as targeting an "area".
+   * Derive human-readable range/target/area strings from a dnd5e 6 spell's
+   * `range`, `target.affects` and `target.template` data. Area-template spells
+   * without a target count (or targeting a point) are reported as an "area";
+   * a self-targeted spell keeps "self" next to its area.
    */
   private extractDnD5eSpellTargeting(spellSystem: any): {
     range?: string;
@@ -680,20 +724,20 @@ export class CharacterDataAccess {
       result.range = `${rangeValue} ${rangeUnits}`;
     }
 
-    const targetType = spellSystem?.target?.type;
-    const targetValue = spellSystem?.target?.value;
-    if (targetType === 'self') {
+    // dnd5e 6 keeps individual targets in `target.affects` ({type, count, choice, special})
+    // next to the area in `target.template`.
+    const affects = rec(rec(spellSystem?.target).affects);
+    const affectsType = str(affects.type);
+    const count = num(affects.count, 0);
+    const nouns = SPELL_TARGET_NOUNS[affectsType];
+    if (affectsType === 'self') {
       result.target = 'self';
-    } else if (targetType === 'creature' || targetType === 'ally' || targetType === 'enemy') {
-      result.target = targetValue
-        ? `${targetValue} ${targetType}${targetValue > 1 ? 's' : ''}`
-        : targetType;
-    } else if (targetType === 'object') {
-      result.target = targetValue ? `${targetValue} object${targetValue > 1 ? 's' : ''}` : 'object';
-    } else if (targetType === 'space' || targetType === 'point') {
+    } else if (affectsType === 'space') {
       result.target = 'point';
-    } else if (targetType) {
-      result.target = targetType;
+    } else if (nouns) {
+      result.target = count ? `${count} ${count > 1 ? nouns[1] : nouns[0]}` : nouns[0];
+    } else if (affectsType) {
+      result.target = affectsType;
     }
 
     const areaType = spellSystem?.target?.template?.type;
@@ -701,7 +745,9 @@ export class CharacterDataAccess {
     const areaUnits = spellSystem?.target?.template?.units || 'ft';
     if (areaType && areaSize) {
       result.area = `${areaSize}-${areaUnits} ${areaType}`;
-      if (!result.target || result.target === 'point') {
+      // "each creature in the area" reads as the area; a counted target keeps its count,
+      // and a self-centred spell (Detect Magic, Globe of Invulnerability) stays "self".
+      if (result.target !== 'self' && (!count || result.target === 'point')) {
         result.target = 'area';
       }
     }
@@ -709,3 +755,14 @@ export class CharacterDataAccess {
     return result;
   }
 }
+
+/** Singular and plural nouns for dnd5e 6 `CONFIG.DND5E.individualTargetTypes` keys. */
+const SPELL_TARGET_NOUNS: Record<string, [string, string]> = {
+  ally: ['ally', 'allies'],
+  enemy: ['enemy', 'enemies'],
+  creature: ['creature', 'creatures'],
+  object: ['object', 'objects'],
+  creatureOrObject: ['creature or object', 'creatures or objects'],
+  any: ['target', 'targets'],
+  willing: ['willing creature', 'willing creatures'],
+};

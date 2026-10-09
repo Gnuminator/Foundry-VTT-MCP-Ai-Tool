@@ -78,7 +78,7 @@ export class CharacterTools {
       {
         name: 'get-character-entity',
         description:
-          'Retrieve full details for a specific entity from a character. Works for items (feats, equipment, spells), actions (strikes, special abilities), or effects/conditions. Returns complete description and all system data. Use this after get-character when you need detailed information about a specific entity.',
+          'Retrieve full details for one item or effect of a character. Items (spells, weapons, equipment, features) come with their dnd5e details (spell level, rarity, quantity, equipped, attunement, uses left) and their activities (attacks with to-hit, saves with DC, damage formulas, activation, range, target), plus the complete description and system data. Effects come with duration and changes. Use this after get-character when you need detailed information about a specific entity.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -89,8 +89,7 @@ export class CharacterTools {
             },
             entityIdentifier: {
               type: 'string',
-              description:
-                'Entity name or ID (can be item ID, action name, spell name, or effect name)',
+              description: 'Item or effect name or ID (a spell, weapon, feature or effect)',
               ...toolRef('actor-item', 'id', { parent: 'characterIdentifier' }),
             },
           },
@@ -262,12 +261,12 @@ export class CharacterTools {
             type: {
               type: 'string',
               description:
-                'Filter by item type: "spell", "weapon", "armor", "equipment", "consumable", "feat", "feature", "action", "effect", or system-specific types. Leave empty to search all types.',
+                'Filter by dnd5e item type: "spell", "weapon", "equipment" (armor and shields too), "consumable", "tool", "loot", "container", "feat" (features), "class", "subclass", "background", "race" (species), or "effect" for active effects. Leave empty to search all types.',
             },
             category: {
               type: 'string',
               description:
-                'Additional category filter. For spells: "cantrip", "prepared", "innate", "focus". For items: "equipped", "carried", "invested".',
+                'Additional category filter. For spells: "cantrip" or "prepared". For weapons and equipment: "equipped".',
             },
             limit: {
               type: 'number',
@@ -320,104 +319,19 @@ export class CharacterTools {
     this.logger.info('Getting character entity', { characterIdentifier, entityIdentifier });
 
     try {
-      // First get the character
-      const characterData = await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', {
-        characterName: characterIdentifier,
-      });
-
-      // Try to find the entity in different collections
-      let entity = null;
-      let entityType = null;
-
-      // 1. Try to find as an item (by ID or name)
-      entity = characterData.items?.find(
-        (i: any) =>
-          i.id === entityIdentifier || i.name.toLowerCase() === entityIdentifier.toLowerCase()
+      const result: unknown = await this.foundryClient.query(
+        'foundry-mcp-bridge.getCharacterEntity',
+        { characterIdentifier, entityIdentifier }
       );
-      if (entity) {
-        entityType = 'item';
-      }
-
-      // 2. Try to find as an action (by name)
-      if (!entity && characterData.actions) {
-        entity = characterData.actions.find(
-          (a: any) => a.name.toLowerCase() === entityIdentifier.toLowerCase()
-        );
-        if (entity) {
-          entityType = 'action';
-        }
-      }
-
-      // 3. Try to find as an effect (by name)
-      if (!entity && characterData.effects) {
-        entity = characterData.effects.find(
-          (e: any) => e.name.toLowerCase() === entityIdentifier.toLowerCase()
-        );
-        if (entity) {
-          entityType = 'effect';
-        }
-      }
-
-      if (!entity) {
-        throw new Error(
-          `Entity "${entityIdentifier}" not found on character "${characterIdentifier}". Tried items, actions, and effects.`
-        );
-      }
-
-      this.logger.debug('Successfully retrieved entity', {
-        entityType,
-        entityName: entity.name,
-      });
-
-      // Return full entity details based on type
-      if (entityType === 'item') {
-        return {
-          entityType: 'item',
-          id: entity.id,
-          name: entity.name,
-          type: entity.type,
-          description: entity.system?.description?.value || entity.system?.description || '',
-          traits: entity.system?.traits?.value || [],
-          rarity: entity.system?.traits?.rarity || 'common',
-          level: entity.system?.level?.value ?? entity.system?.level,
-          actionType: entity.system?.actionType?.value,
-          actions: entity.system?.actions?.value,
-          quantity: entity.system?.quantity || 1,
-          equipped: entity.system?.equipped,
-          attunement: entity.system?.attunement,
-          hasImage: !!entity.img,
-          // Include full system data for advanced use cases
-          system: entity.system,
-        };
-      } else if (entityType === 'action') {
-        return {
-          entityType: 'action',
-          name: entity.name,
-          type: entity.type,
-          itemId: entity.itemId,
-          traits: entity.traits || [],
-          variants: entity.variants || [],
-          ready: entity.ready,
-          description: entity.description || 'Action from character strikes/abilities',
-        };
-      } else if (entityType === 'effect') {
-        return {
-          entityType: 'effect',
-          id: entity.id,
-          name: entity.name,
-          description: entity.description || entity.name,
-          traits: entity.traits || [],
-          duration: entity.duration,
-          // Include full effect data
-          ...entity,
-        };
-      }
-
-      return entity;
+      return flattenEntityResult(result);
     } catch (error) {
       this.logger.error('Failed to get character entity', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      const hint = /No handler found for query/.test(message)
+        ? ' The Foundry AI Tool module in this world is older than the bridge; update the module.'
+        : '';
       throw new Error(
-        `Failed to retrieve entity "${entityIdentifier}" from character "${characterIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to retrieve entity "${entityIdentifier}" from character "${characterIdentifier}": ${message}${hint}`
       );
     }
   }
@@ -1057,4 +971,22 @@ export class CharacterTools {
       hasIcon: !!(effect.icon ?? effect.img),
     }));
   }
+}
+
+/**
+ * The module's `getCharacterEntity` envelope (`{success, entityType, entity}`) as the tool
+ * result: `entityType` next to the entity's own fields. A GM-gate refusal (`{success: false,
+ * error}`) becomes an error.
+ */
+export function flattenEntityResult(result: unknown): Record<string, unknown> {
+  const envelope =
+    result !== null && typeof result === 'object' ? (result as Record<string, unknown>) : {};
+  if (envelope.success !== true) {
+    throw new Error(typeof envelope.error === 'string' ? envelope.error : 'No entity returned');
+  }
+  const entity =
+    envelope.entity !== null && typeof envelope.entity === 'object'
+      ? (envelope.entity as Record<string, unknown>)
+      : {};
+  return { entityType: envelope.entityType, ...entity };
 }

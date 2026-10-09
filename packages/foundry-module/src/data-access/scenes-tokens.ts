@@ -1,6 +1,7 @@
 import { ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 import { sceneBackgroundSrc } from '../systems/core.js';
+import { rec } from '../doc-read.js';
 
 /** Normalize a thrown value to a message string for wrapped error reporting. */
 function errorMessage(error: unknown): string {
@@ -12,8 +13,114 @@ const SCENE_VIEW_WAIT_MS = 2000;
 
 /** A normalized hit-point block as surfaced to tool callers. */
 interface HpSnapshot {
-  value: any;
-  max: any;
+  value: number | null;
+  max: number | null;
+}
+
+/** One entry of the `listScenes` result. */
+interface SceneSummary {
+  id: string;
+  name: string;
+  active: boolean;
+  dimensions: { width: number; height: number };
+  gridSize: number;
+  background: string;
+  walls: number;
+  tokens: number;
+  lighting: number;
+  sounds: number;
+  navigation: boolean;
+}
+
+/** Scene fields the declarations omit: the legacy `img` background, the nav flag and the sounds collection. */
+interface SceneLegacyFields {
+  img?: string;
+  navigation?: boolean;
+  sounds?: { size?: number };
+}
+
+/** The `getTokenDetails` result. */
+interface TokenDetails {
+  success: true;
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  scale: number;
+  alpha: number;
+  hidden: boolean;
+  disposition: number;
+  elevation: number;
+  lockRotation: boolean;
+  img: string | null | undefined;
+  actorId: string | undefined;
+  actorData: { name: string; type: string; img: string } | null;
+  actorLink: boolean;
+}
+
+/** One token entry of the `getTokenPositions` result. */
+interface TokenPosition {
+  tokenId: string;
+  name: string;
+  actorId: string | null;
+  x: number;
+  y: number;
+  gridX: number;
+  gridY: number;
+  elevation: number;
+  category: 'pc' | 'enemy' | 'npc';
+  hidden: boolean;
+  hp: HpSnapshot | null;
+  conditions: string[];
+}
+
+/** The `getTokenPositions` result. */
+interface TokenPositions {
+  success: true;
+  sceneId: string;
+  sceneName: string;
+  gridSize: number;
+  gridDistance: number | null;
+  gridUnits: string;
+  tokenCount: number;
+  tokens: TokenPosition[];
+}
+
+/** The `measureDistance` result. */
+interface DistanceResult {
+  success: true;
+  from: string;
+  to: string;
+  distance: number | null;
+  units: string;
+  approximate?: true;
+}
+
+/** The `getTargets` result. */
+interface TargetsResult {
+  success: true;
+  count: number;
+  targets: Array<{
+    tokenId: string;
+    name: string;
+    actorId: string | null;
+    ac: number | null;
+    hp: HpSnapshot | null;
+  }>;
+}
+
+/** The slice of the canvas global `measureDistance` calls for Foundry's own grid math. */
+interface MeasuringCanvas {
+  ready?: boolean;
+  scene?: { id?: string } | null;
+  grid?: {
+    measurePath?: (
+      waypoints: Array<{ x: number; y: number }>
+    ) => { distance?: number | null } | null | undefined;
+  };
 }
 
 /**
@@ -34,8 +141,8 @@ export class ScenesTokensDataAccess {
   // --- Shared internals ------------------------------------------------------
 
   /** The scene currently on the canvas, or throw `message` when there is none. */
-  private requireCurrentScene(message: string): any {
-    const scene = (game.scenes as any)?.current;
+  private requireCurrentScene(message: string): Scene {
+    const scene = game.scenes?.current;
     if (!scene) {
       throw new Error(message);
     }
@@ -43,7 +150,7 @@ export class ScenesTokensDataAccess {
   }
 
   /** Look up a token in `scene` by id, or throw the standard not-found error. */
-  private requireToken(scene: any, tokenId: string): any {
+  private requireToken(scene: Scene, tokenId: string): TokenDocument {
     const token = scene.tokens.get(tokenId);
     if (!token) {
       throw new Error(`Token ${tokenId} not found in current scene`);
@@ -52,7 +159,7 @@ export class ScenesTokensDataAccess {
   }
 
   /** Normalize a dnd5e `hp` block to `{ value, max }` (nulls for gaps), or null. */
-  private hpSnapshot(hp: any): HpSnapshot | null {
+  private hpSnapshot(hp: Dnd5eHitPoints | null | undefined): HpSnapshot | null {
     return hp ? { value: hp.value ?? null, max: hp.max ?? null } : null;
   }
 
@@ -68,44 +175,47 @@ export class ScenesTokensDataAccess {
    */
   async listScenes(
     options: { filter?: string; include_active_only?: boolean } = {}
-  ): Promise<any[]> {
+  ): Promise<SceneSummary[]> {
     shared.validateFoundryState();
 
     try {
       let scenes = game.scenes?.contents || [];
 
       if (options.include_active_only) {
-        scenes = scenes.filter((scene: any) => scene.active);
+        scenes = scenes.filter(scene => scene.active);
       }
 
       if (options.filter) {
         const filterLower = options.filter.toLowerCase();
-        scenes = scenes.filter((scene: any) => scene.name.toLowerCase().includes(filterLower));
+        scenes = scenes.filter(scene => scene.name.toLowerCase().includes(filterLower));
       }
 
-      return scenes.map((scene: any) => ({
-        id: scene.id,
-        name: scene.name,
-        active: scene.active,
-        // `dimensions` is the computed canvas size; fall back to the stored
-        // width/height when the scene isn't the one on the canvas.
-        dimensions: {
-          width: scene.dimensions?.width || scene.width || 0,
-          height: scene.dimensions?.height || scene.height || 0,
-        },
-        gridSize: scene.grid?.size || 100,
-        // Prefer the resolved background (`sceneBackgroundSrc`: the current Scene
-        // Level's background on v14, `_source.background.src` on v13);
-        // `scene.img` is the legacy field.
-        background: (sceneBackgroundSrc(scene as Scene) ?? '') || scene.img || '',
-        walls: scene.walls?.size || 0,
-        tokens: scene.tokens?.size || 0,
-        lighting: scene.lights?.size || 0,
-        sounds: scene.sounds?.size || 0,
-        navigation: scene.navigation || false,
-      }));
+      return scenes.map((scene): SceneSummary => {
+        const legacy = scene as unknown as SceneLegacyFields;
+        return {
+          id: scene.id,
+          name: scene.name,
+          active: scene.active,
+          // `dimensions` is the computed canvas size; fall back to the stored
+          // width/height when the scene isn't the one on the canvas.
+          dimensions: {
+            width: scene.dimensions?.width || scene.width || 0,
+            height: scene.dimensions?.height || scene.height || 0,
+          },
+          gridSize: scene.grid?.size || 100,
+          // Prefer the resolved background (`sceneBackgroundSrc`: the current Scene
+          // Level's background on v14, `_source.background.src` on v13);
+          // `scene.img` is the legacy field.
+          background: (sceneBackgroundSrc(scene) ?? '') || legacy.img || '',
+          walls: scene.walls?.size || 0,
+          tokens: scene.tokens?.size || 0,
+          lighting: scene.lights?.size || 0,
+          sounds: legacy.sounds?.size || 0,
+          navigation: legacy.navigation || false,
+        };
+      });
     } catch (error) {
-      throw new Error(`Failed to list scenes: ${errorMessage(error)}`);
+      throw new Error(`Failed to list scenes: ${errorMessage(error)}`, { cause: error });
     }
   }
 
@@ -114,13 +224,18 @@ export class ScenesTokensDataAccess {
    * not explicitly `false` and a canvas is available, pan/zoom the canvas to fit
    * the newly active scene.
    */
-  async switchScene(options: { scene_identifier: string; optimize_view?: boolean }): Promise<any> {
+  async switchScene(options: { scene_identifier: string; optimize_view?: boolean }): Promise<{
+    success: true;
+    sceneId: string;
+    sceneName: string;
+    dimensions: { width: number; height: number };
+  }> {
     shared.validateFoundryState();
 
     try {
       const scenes = game.scenes?.contents || [];
       const targetScene = scenes.find(
-        (scene: any) =>
+        scene =>
           scene.id === options.scene_identifier ||
           scene.name.toLowerCase() === options.scene_identifier.toLowerCase()
       );
@@ -141,12 +256,12 @@ export class ScenesTokensDataAccess {
         sceneId: targetScene.id,
         sceneName: targetScene.name,
         dimensions: {
-          width: (targetScene.dimensions as any)?.width || (targetScene as any).width || 0,
-          height: (targetScene.dimensions as any)?.height || (targetScene as any).height || 0,
+          width: targetScene.dimensions?.width || targetScene.width || 0,
+          height: targetScene.dimensions?.height || targetScene.height || 0,
         },
       };
     } catch (error) {
-      throw new Error(`Failed to switch scene: ${errorMessage(error)}`);
+      throw new Error(`Failed to switch scene: ${errorMessage(error)}`, { cause: error });
     }
   }
 
@@ -157,7 +272,7 @@ export class ScenesTokensDataAccess {
    * I-016). The tools act on the viewed scene, so wait briefly for the view to follow and
    * view the scene ourselves when it does not.
    */
-  private async followView(scene: any, waitMs = SCENE_VIEW_WAIT_MS): Promise<void> {
+  private async followView(scene: Scene, waitMs = SCENE_VIEW_WAIT_MS): Promise<void> {
     // Headless callers (tests) have no canvas and nothing to view.
     if (typeof canvas === 'undefined' || !canvas) return;
     const scenes = game.scenes as unknown as { viewed?: { id?: string } | null } | undefined;
@@ -175,7 +290,7 @@ export class ScenesTokensDataAccess {
    * Center and zoom the canvas to fit `scene`. No-op unless a canvas is mounted
    * (so it's safe to call headless — e.g. the test harness has no canvas).
    */
-  private async panCanvasToScene(scene: any): Promise<void> {
+  private async panCanvasToScene(scene: Scene): Promise<void> {
     // `typeof` guard: headless callers (tests) may have no `canvas` global at all.
     const cv = typeof canvas === 'undefined' ? undefined : canvas;
     if (!cv?.scene) {
@@ -192,7 +307,7 @@ export class ScenesTokensDataAccess {
       return;
     }
 
-    await cv.pan({
+    cv.pan({
       x: width / 2,
       y: height / 2,
       // Fit the whole scene on screen without ever zooming past 1:1.
@@ -211,7 +326,7 @@ export class ScenesTokensDataAccess {
    * appearance, and a small snapshot of its linked actor (or null when
    * unlinked). The flat shape matches what the MCP server's token tools expect.
    */
-  async getTokenDetails(data: { tokenId: string }): Promise<any> {
+  async getTokenDetails(data: { tokenId: string }): Promise<TokenDetails> {
     shared.validateFoundryState();
 
     try {
@@ -245,7 +360,7 @@ export class ScenesTokensDataAccess {
         actorLink: token.actorLink,
       };
     } catch (error) {
-      throw new Error(`Failed to get token details: ${errorMessage(error)}`);
+      throw new Error(`Failed to get token details: ${errorMessage(error)}`, { cause: error });
     }
   }
 
@@ -254,24 +369,28 @@ export class ScenesTokensDataAccess {
    * in both pixels and grid coordinates, with category (pc / enemy / npc), HP,
    * and active conditions — the tactical snapshot the co-GM map view consumes.
    */
-  async getTokenPositions(data: { sceneId?: string }): Promise<any> {
+  async getTokenPositions(data: { sceneId?: string }): Promise<TokenPositions> {
     shared.validateFoundryState();
 
-    const scene: any = data.sceneId ? game.scenes?.get(data.sceneId) : (game.scenes as any).current;
+    const scene = data.sceneId ? game.scenes?.get(data.sceneId) : game.scenes.current;
     if (!scene) {
       throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
     }
 
-    const grid = scene.grid || {};
+    const grid: Partial<Scene['grid']> = scene.grid || {};
     const gridSize = grid.size || 100;
 
-    const tokens = scene.tokens.map((t: any) => {
+    const tokens = scene.tokens.map((t): TokenPosition => {
       const actor = t.actor;
       const isPC = !!actor?.hasPlayerOwner && actor?.type === 'character';
       // The stored position: on Foundry 14 `t.x`/`t.y` lag behind while a move animates (and
       // stay behind in a browser tab that is not drawing), the source is where the token is.
-      const x = t._source?.x ?? t.x;
-      const y = t._source?.y ?? t.y;
+      const source = rec(t._source);
+      const sourceX = source?.x;
+      const sourceY = source?.y;
+      const sourceElevation = source?.elevation;
+      const x = typeof sourceX === 'number' ? sourceX : t.x;
+      const y = typeof sourceY === 'number' ? sourceY : t.y;
       return {
         tokenId: t.id,
         name: t.name,
@@ -280,7 +399,7 @@ export class ScenesTokensDataAccess {
         y,
         gridX: Math.floor(x / gridSize),
         gridY: Math.floor(y / gridSize),
-        elevation: t._source?.elevation ?? t.elevation ?? 0,
+        elevation: (typeof sourceElevation === 'number' ? sourceElevation : t.elevation) ?? 0,
         category: isPC ? 'pc' : t.disposition === -1 ? 'enemy' : 'npc',
         hidden: t.hidden ?? false,
         hp: this.hpSnapshot(actor?.system?.attributes?.hp),
@@ -310,22 +429,25 @@ export class ScenesTokensDataAccess {
    * approximation — flagged `approximate: true` — for hex grids, whose true
    * distance needs the on-canvas grid.
    */
-  async measureDistance(data: { fromTokenName: string; toTokenName: string }): Promise<any> {
+  async measureDistance(data: {
+    fromTokenName: string;
+    toTokenName: string;
+  }): Promise<DistanceResult> {
     shared.validateFoundryState();
 
-    const scene: any = (game.scenes as any).current;
+    const scene = game.scenes.current;
     if (!scene) {
       throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
     }
 
-    const grid = scene.grid || {};
+    const grid: Partial<Scene['grid']> = scene.grid || {};
     const gridSize = grid.size || 100;
     const gridDistance = grid.distance ?? 5;
     const units = grid.units || 'ft';
 
-    const findToken = (name: string): any =>
-      scene.tokens.find((t: any) => t.name?.toLowerCase() === name.toLowerCase()) ||
-      scene.tokens.find((t: any) => t.name?.toLowerCase().includes(name.toLowerCase()));
+    const findToken = (name: string): TokenDocument | undefined =>
+      scene.tokens.find(t => t.name?.toLowerCase() === name.toLowerCase()) ??
+      scene.tokens.find(t => t.name?.toLowerCase().includes(name.toLowerCase()));
 
     const from = findToken(data.fromTokenName);
     if (!from) {
@@ -336,7 +458,7 @@ export class ScenesTokensDataAccess {
       throw new Error(`Token not found: ${data.toTokenName}`);
     }
 
-    const center = (t: any): { x: number; y: number } => ({
+    const center = (t: TokenDocument): { x: number; y: number } => ({
       x: t.x + ((t.width ?? 1) * gridSize) / 2,
       y: t.y + ((t.height ?? 1) * gridSize) / 2,
     });
@@ -348,7 +470,7 @@ export class ScenesTokensDataAccess {
 
     // Prefer Foundry's grid measurement when this scene is the one on the canvas.
     try {
-      const canvasAny = (globalThis as any).canvas;
+      const canvasAny = (globalThis as unknown as { canvas?: MeasuringCanvas }).canvas;
       if (
         canvasAny?.ready &&
         canvasAny.scene?.id === scene.id &&
@@ -391,14 +513,14 @@ export class ScenesTokensDataAccess {
    * with AC and HP — used to resolve attack targets without the caller passing
    * coordinates or stat blocks.
    */
-  async getTargets(): Promise<any> {
+  async getTargets(): Promise<TargetsResult> {
     shared.validateFoundryState();
 
-    const targets = Array.from((game.user as any)?.targets ?? []);
+    const targets = Array.from(game.user?.targets ?? []);
     return {
       success: true,
       count: targets.length,
-      targets: targets.map((t: any) => ({
+      targets: targets.map(t => ({
         tokenId: t.id,
         name: t.name,
         actorId: t.actor?.id ?? null,

@@ -233,7 +233,7 @@ interface ItemShadow {
   type: string;
   usesSpent: number | null;
   quantity: number | null;
-  /** Class items only (`system.hd.spent` / legacy `system.hitDiceUsed`). */
+  /** Class items only (`system.hd.spent`). */
   hdSpent: number | null;
 }
 
@@ -894,13 +894,11 @@ export class PlayRecorder {
       const uuid = str(item.uuid);
       if (!uuid || shadow.items.has(uuid)) return;
       const sys = asRecord(item.system);
-      const usesSpent = numOrNull(getPath(sys, 'uses.spent') ?? getPath(sys, 'uses.value'));
+      // dnd5e 6 stores `uses.spent`; `uses.value` is derived and never in an update diff.
+      const usesSpent = numOrNull(getPath(sys, 'uses.spent'));
       const quantity = numOrNull(getPath(sys, 'quantity'));
       const itemType = str(item.type) ?? 'item';
-      const hdSpent =
-        itemType === 'class'
-          ? numOrNull(getPath(sys, 'hd.spent') ?? getPath(sys, 'hitDiceUsed'))
-          : null;
+      const hdSpent = itemType === 'class' ? numOrNull(getPath(sys, 'hd.spent')) : null;
       shadow.items.set(uuid, {
         uuid,
         name: str(item.name) ?? 'Item',
@@ -1505,7 +1503,6 @@ export class PlayRecorder {
     const itemRef = this.itemRefFor(item);
 
     const usesSpent = num(getPath(changed, 'system.uses.spent'));
-    const usesValueLegacy = num(getPath(changed, 'system.uses.value'));
     if (usesSpent !== undefined) {
       this.diffItemScalar(
         'item-uses',
@@ -1513,16 +1510,6 @@ export class PlayRecorder {
         'usesSpent',
         'system.uses.spent',
         usesSpent,
-        ctx,
-        itemRef
-      );
-    } else if (usesValueLegacy !== undefined) {
-      this.diffItemScalar(
-        'item-uses',
-        itemShadow,
-        'usesSpent',
-        'system.uses.value',
-        usesValueLegacy,
         ctx,
         itemRef
       );
@@ -1543,7 +1530,6 @@ export class PlayRecorder {
 
     if (str(item.type) === 'class') {
       const hdSpent = num(getPath(changed, 'system.hd.spent'));
-      const hdLegacy = num(getPath(changed, 'system.hitDiceUsed'));
       if (hdSpent !== undefined) {
         this.diffItemScalar(
           'hit-dice',
@@ -1551,16 +1537,6 @@ export class PlayRecorder {
           'hdSpent',
           'system.hd.spent',
           hdSpent,
-          ctx,
-          itemRef
-        );
-      } else if (hdLegacy !== undefined) {
-        this.diffItemScalar(
-          'hit-dice',
-          itemShadow,
-          'hdSpent',
-          'system.hitDiceUsed',
-          hdLegacy,
           ctx,
           itemRef
         );

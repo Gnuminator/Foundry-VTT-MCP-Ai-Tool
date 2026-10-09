@@ -307,7 +307,7 @@ describe('items on actors', () => {
     expect(created.after).toBe(2);
   });
 
-  it('tracks item uses spent (4+) and legacy uses value', () => {
+  it('tracks item uses spent (dnd5e 6)', () => {
     const actor = makeFixtureActor();
     world.actors.add(actor);
     const item = makeFixtureItem({ system: { uses: { spent: 0, max: 3 } } });
@@ -331,7 +331,7 @@ describe('items on actors', () => {
     expect(record).toMatchObject({ before: 3, after: 2, delta: -1 });
   });
 
-  it('tracks hit dice spent (4+ and legacy) on class items only', () => {
+  it('tracks hit dice spent on class items only', () => {
     const actor = makeFixtureActor();
     world.actors.add(actor);
     const classItem = makeFixtureItem({ type: 'class', system: { levels: 3, hd: { spent: 0 } } });

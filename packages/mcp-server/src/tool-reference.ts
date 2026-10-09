@@ -32,11 +32,14 @@ export function claudeDesktopEntry(set: ToolSetName): string {
   return set === 'core' ? 'foundry-mcp' : `foundry-mcp-${set}`;
 }
 
-/** Escape `<` and `*` outside code spans: HTML examples and "**bold**" in descriptions show as text. */
+/**
+ * Escape `<`, `*` and `\` outside code spans: HTML examples and "**bold**" in descriptions show as
+ * text, and a backslash in a description cannot cancel the escape of the `*` after it.
+ */
 function escapeText(text: string): string {
   return text
     .split('`')
-    .map((part, i) => (i % 2 === 0 ? part.replace(/</g, '&lt;').replace(/\*/g, '\\*') : part))
+    .map((part, i) => (i % 2 === 0 ? part.replace(/[\\*]/g, '\\$&').replace(/</g, '&lt;') : part))
     .join('`');
 }
 

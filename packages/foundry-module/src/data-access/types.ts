@@ -6,6 +6,10 @@
  * `FoundryDataAccess` facade and its domain modules pass around.
  */
 
+import type { CharacterItem } from '@gnuminator/shared';
+
+export type { CharacterEntityResult, CharacterItem } from '@gnuminator/shared';
+
 export interface CharacterInfo {
   id: string;
   name: string;
@@ -52,14 +56,6 @@ export interface SpellInfo {
   range?: string | undefined; // "touch", "self", "60 feet", etc.
   target?: string | undefined; // "1 creature", "self", "area", etc.
   area?: string | undefined; // "20-foot radius", "30-foot cone", etc. (for template spells)
-}
-
-export interface CharacterItem {
-  id: string;
-  name: string;
-  type: string;
-  img?: string;
-  system: Record<string, unknown>;
 }
 
 export interface CharacterEffect {

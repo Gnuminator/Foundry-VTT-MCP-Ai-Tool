@@ -5,6 +5,8 @@ import {
   creatureSizeWord,
   flatHasSpells,
   hasLegendaryActions,
+  isArmorEquipment,
+  itemRarityLabel,
   movementSummary,
   sizeWord,
   spellSchoolName,
@@ -117,6 +119,25 @@ describe('spellSchoolName', () => {
     expect(spellSchoolName('Chronomancy')).toBe('Chronomancy');
     expect(spellSchoolName('')).toBeUndefined();
     expect(spellSchoolName(undefined)).toBeUndefined();
+  });
+});
+
+describe('itemRarityLabel', () => {
+  it('labels the six dnd5e rarity keys', () => {
+    expect(
+      ['common', 'uncommon', 'rare', 'veryRare', 'legendary', 'artifact'].map(itemRarityLabel)
+    ).toEqual(['Common', 'Uncommon', 'Rare', 'Very Rare', 'Legendary', 'Artifact']);
+  });
+
+  it('reads the first entry of a dnd5e 6 rarities list', () => {
+    expect(itemRarityLabel(['veryRare'])).toBe('Very Rare');
+    expect(itemRarityLabel([])).toBeUndefined();
+  });
+
+  it('passes unknown rarities through and rejects blanks', () => {
+    expect(itemRarityLabel('Mythic')).toBe('Mythic');
+    expect(itemRarityLabel('')).toBeUndefined();
+    expect(itemRarityLabel(undefined)).toBeUndefined();
   });
 });
 
@@ -347,11 +368,128 @@ describe('CompendiumTools.handleGetCompendiumItem formatting (M3)', () => {
         packLabel: 'SRD Spells',
         system: { level: 1, school: 'evo' },
       },
+      {
+        id: 'ray',
+        name: 'Ray of Frost',
+        type: 'spell',
+        pack: 'dnd5e.spells',
+        packLabel: 'SRD Spells',
+        system: { level: 0, school: 'evo' },
+      },
     ];
     const { tools } = makeTools(withDnd5e(hits));
     const result = await tools.handleSearchCompendium({ query: 'fire' });
     expect(result.results[0].summary).toContain('1d8 slashing damage');
     expect(result.results[1].summary).toContain('Evocation');
     expect(result.results[1].summary).not.toContain('evo');
+    expect(result.results[2].summary).toBe('spell from SRD Spells • Cantrip • Evocation');
+  });
+
+  // dnd5e 6 stores armor as `equipment` with an armor `type.value` (dnd5e 6.0.5 Chain Mail).
+  const chainMail = {
+    id: 'chain',
+    name: 'Chain Mail',
+    type: 'equipment',
+    pack: 'dnd5e.equipment24',
+    packLabel: 'Equipment',
+    system: {
+      type: { value: 'heavy' },
+      armor: { value: 16, dex: 0 },
+      strength: 13,
+      properties: ['stealthDisadvantage'],
+      price: { value: 75, denomination: 'gp' },
+    },
+  };
+
+  it('search results summarise dnd5e 6 armor and shields (equipment) with their AC', async () => {
+    const shield = {
+      ...chainMail,
+      id: 'shield',
+      name: 'Shield',
+      system: { type: { value: 'shield' }, armor: { value: 2 }, properties: [] },
+    };
+    const ring = { ...chainMail, id: 'ring', name: 'Ring', system: { type: { value: 'ring' } } };
+    const { tools } = makeTools(withDnd5e([chainMail, shield, ring]));
+    const result = await tools.handleSearchCompendium({ query: 'armor' });
+    expect(result.results[0].summary).toBe('equipment from Equipment • AC 16 • 75 gp');
+    expect(result.results[1].summary).toBe('equipment from Equipment • AC +2');
+    expect(result.results[2].summary).toBe('equipment from Equipment');
+  });
+
+  it('full mode reports dnd5e 6 armor properties (type, AC, strength, stealth)', async () => {
+    const { tools } = makeTools(withDnd5e(chainMail));
+    const result = await tools.handleGetCompendiumItem({
+      packId: 'dnd5e.equipment24',
+      itemId: 'chain',
+    });
+    expect(result.properties).toMatchObject({
+      armorType: 'heavy',
+      armorClass: { value: 16, dex: 0 },
+      strengthRequirement: 13,
+      stealthDisadvantage: true,
+    });
+  });
+  it('search results show an item rarity as a label, from pack or dnd5e 6 source data', async () => {
+    const hits = [
+      {
+        id: 'cloak',
+        name: 'Cloak of Displacement',
+        type: 'equipment',
+        pack: 'dnd5e.items',
+        packLabel: 'SRD Items',
+        system: { rarity: 'veryRare', price: { value: 6000, denomination: 'gp' } },
+      },
+      {
+        id: 'potion',
+        name: 'Potion of Healing',
+        type: 'equipment',
+        pack: 'world.loot',
+        packLabel: 'Loot',
+        system: { rarities: ['common'] },
+      },
+    ];
+    const { tools } = makeTools(withDnd5e(hits));
+    const result = await tools.handleSearchCompendium({ query: 'of' });
+    expect(result.results[0].summary).toBe('equipment from SRD Items • Very Rare • 6000 gp');
+    expect(result.results[1].summary).toBe('equipment from Loot • Common');
+  });
+
+  it("a blank rarity falls through to dnd5e 6's rarities list", async () => {
+    const cloak = {
+      id: 'cloak',
+      name: 'Cloak of Displacement',
+      type: 'equipment',
+      pack: 'world.loot',
+      packLabel: 'Loot',
+      system: { rarity: '', rarities: ['veryRare'] },
+    };
+    const { tools } = makeTools(withDnd5e([cloak]));
+    const result = await tools.handleSearchCompendium({ query: 'cloak' });
+    expect(result.results[0].summary).toBe('equipment from Loot • Very Rare');
+  });
+
+  it('full mode reports the same rarity label as the search summary', async () => {
+    const detail = (system: Record<string, unknown>): Promise<any> =>
+      makeTools(
+        withDnd5e({ ...chainMail, id: 'cloak', name: 'Cloak', system })
+      ).tools.handleGetCompendiumItem({ packId: 'dnd5e.items', itemId: 'cloak' });
+    expect((await detail({ rarity: 'veryRare' })).properties.rarity).toBe('Very Rare');
+    expect((await detail({ rarity: '', rarities: ['uncommon'] })).properties.rarity).toBe(
+      'Uncommon'
+    );
+    expect((await detail({})).properties).not.toHaveProperty('rarity');
+  });
+});
+
+describe('isArmorEquipment', () => {
+  it.each([
+    [{ type: { value: 'heavy' } }, true],
+    [{ type: { value: 'shield' } }, true],
+    [{ type: { value: 'natural' } }, true],
+    [{ type: { value: 'ring' } }, false],
+    [{ type: {} }, false],
+    [undefined, false],
+  ])('%j -> %s', (system, expected) => {
+    expect(isArmorEquipment(system)).toBe(expected);
   });
 });

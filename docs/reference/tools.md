@@ -50,14 +50,14 @@ Parameters:
 
 ### get-character-entity
 
-Retrieve full details for a specific entity from a character. Works for items (feats, equipment, spells), actions (strikes, special abilities), or effects/conditions. Returns complete description and all system data. Use this after get-character when you need detailed information about a specific entity.
+Retrieve full details for one item or effect of a character. Items (spells, weapons, equipment, features) come with their dnd5e details (spell level, rarity, quantity, equipped, attunement, uses left) and their activities (attacks with to-hit, saves with DC, damage formulas, activation, range, target), plus the complete description and system data. Effects come with duration and changes. Use this after get-character when you need detailed information about a specific entity.
 
 Kind: read-only. Title: Get character item or effect.
 
 Parameters:
 
 - `characterIdentifier` (string, required): Character name or ID
-- `entityIdentifier` (string, required): Entity name or ID (can be item ID, action name, spell name, or effect name)
+- `entityIdentifier` (string, required): Item or effect name or ID (a spell, weapon, feature or effect)
 
 ### search-character-items
 
@@ -69,8 +69,8 @@ Parameters:
 
 - `characterIdentifier` (string, required): Character name or ID to search within
 - `query` (string): Text to search for in item names and descriptions (case-insensitive). Leave empty to return all items of specified type.
-- `type` (string): Filter by item type: "spell", "weapon", "armor", "equipment", "consumable", "feat", "feature", "action", "effect", or system-specific types. Leave empty to search all types.
-- `category` (string): Additional category filter. For spells: "cantrip", "prepared", "innate", "focus". For items: "equipped", "carried", "invested".
+- `type` (string): Filter by dnd5e item type: "spell", "weapon", "equipment" (armor and shields too), "consumable", "tool", "loot", "container", "feat" (features), "class", "subclass", "background", "race" (species), or "effect" for active effects. Leave empty to search all types.
+- `category` (string): Additional category filter. For spells: "cantrip" or "prepared". For weapons and equipment: "equipped".
 - `limit` (number): Maximum number of results to return (default: 20)
 
 ### list-scenes
@@ -703,9 +703,9 @@ For Foundry VTT v13 ProseMirror editor compatibility:
 
 Quest-style HTML examples:
 
-- Sections: "&lt;h2 class=\"spaced\">New Discovery&lt;/h2>"
-- GM Notes: "&lt;div class=\"gmnote\">&lt;p>GM info here&lt;/p>&lt;/div>"
-- Player Info: "&lt;div class=\"readaloud\">&lt;p>Player-facing content&lt;/p>&lt;/div>"
+- Sections: "&lt;h2 class=\\"spaced\\">New Discovery&lt;/h2>"
+- GM Notes: "&lt;div class=\\"gmnote\\">&lt;p>GM info here&lt;/p>&lt;/div>"
+- Player Info: "&lt;div class=\\"readaloud\\">&lt;p>Player-facing content&lt;/p>&lt;/div>"
 - Plain text: "The party discovered the secret chamber"
 - Avoid: "\*\*The party\*\* discovered the \*secret chamber\*" (Markdown will be stripped)
 

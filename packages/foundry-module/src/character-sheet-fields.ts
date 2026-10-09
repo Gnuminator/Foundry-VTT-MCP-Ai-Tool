@@ -143,11 +143,12 @@ export function plainText(html: unknown, max = 600): string {
     .replace(/<(br|\/p|\/li|\/h[1-6])\s*\/?>/gi, '\n')
     .replace(TAG, '')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    // Last, so `&amp;lt;` (a literal "&lt;" in the text) stays "&lt;" and never decodes twice.
+    .replace(/&amp;/g, '&')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s*\n+/g, '\n')
     .trim();
@@ -171,14 +172,29 @@ export function usesOf(system: Rec): SheetUses | null {
   return { value: Math.max(0, Math.min(max, value)), max, recovery };
 }
 
-/** Whether a spell counts as ready to cast (prepared, always prepared, innate, pact, at will). */
-export function spellPrepared(system: Rec): boolean {
+/**
+ * Whether a dnd5e 6 spellcasting method needs preparing (`CONFIG.DND5E.spellcasting[m].prepares`,
+ * as the system's `SpellData#canPrepare`): `spell` and `pact` do; `atwill`, `innate` and `ritual`
+ * do not. Without the config (tests) the 6.0 defaults apply.
+ */
+export function spellMethodPrepares(method: string): boolean {
+  const config = rec(dnd5eConfig().spellcasting)[method];
+  if (config && typeof config === 'object') return (config as Rec).prepares === true;
+  return method === 'spell' || method === 'pact';
+}
+
+/**
+ * Whether a spell is ready to cast: a cantrip, a spell whose method never prepares (innate, at
+ * will, ritual), or a prepared or always-prepared spell (`prepared` 1 or 2 in dnd5e 6). NPCs
+ * never prepare: their spells (often granted by a feat, `method` "spell", `prepared` 0) are ready.
+ */
+export function spellPrepared(system: Rec, actorType?: string): boolean {
+  if (actorType === 'npc') return true;
   if (num(system.level, 0) === 0) return true;
-  if (typeof system.prepared === 'number') return system.prepared >= 1;
+  const method = str(system.method);
+  if (method && !spellMethodPrepares(method)) return true;
   if (typeof system.prepared === 'boolean') return system.prepared;
-  const prep = rec(system.preparation);
-  const mode = str(prep.mode);
-  return prep.prepared === true || ['always', 'innate', 'pact', 'atwill'].includes(mode);
+  return num(system.prepared, 0) >= 1;
 }
 
 /** A labels value (dnd5e's computed `item.labels.*`) as text. */

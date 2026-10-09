@@ -371,6 +371,27 @@ describe('QueryHandlers — handler convention', () => {
     );
   });
 
+  it('handleGetCharacterEntity delegates and prefixes failures (get-character-entity)', async () => {
+    const entity = { success: true, entityType: 'item', entity: { id: 'i1', name: 'Mace' } };
+    const da = stubDataAccess({
+      getCharacterEntity: vi
+        .fn()
+        .mockResolvedValueOnce(entity)
+        .mockRejectedValueOnce(new Error('Entity not found: "Axe" in character "Test Cleric"')),
+    });
+    const args = { characterIdentifier: 'Test Cleric', entityIdentifier: 'Mace' };
+    expect(await (qh as any).handleGetCharacterEntity(args)).toEqual(entity);
+    expect(da.getCharacterEntity).toHaveBeenCalledWith(args);
+    await expect(
+      (qh as any).handleGetCharacterEntity({ ...args, entityIdentifier: 'Axe' })
+    ).rejects.toThrow(
+      'Failed to get character entity: Entity not found: "Axe" in character "Test Cleric"'
+    );
+    await expect(
+      (qh as any).handleGetCharacterEntity({ characterIdentifier: 'Test Cleric' })
+    ).rejects.toThrow('Failed to get character entity: entityIdentifier is required');
+  });
+
   it('handleListActors filters by type only when supplied', async () => {
     stubDataAccess({
       listActors: vi.fn().mockResolvedValue([

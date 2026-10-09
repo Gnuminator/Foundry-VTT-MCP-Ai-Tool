@@ -23,4 +23,25 @@ describe('detectGameSystem', () => {
     expect(await detectGameSystem(client)).toBe('dnd5e');
     expect(query).toHaveBeenCalledTimes(2);
   });
+
+  it('does not cache a refusal from the GM gate as other', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ success: false, error: 'Access denied' })
+      .mockResolvedValue({ system: 'dnd5e' });
+    const client = { query } as any;
+    expect(await detectGameSystem(client)).toBe('other');
+    expect(await detectGameSystem(client)).toBe('dnd5e');
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+
+  it('logs a GM-gate refusal at warn, not error (it re-asks on every call)', async () => {
+    const query = vi.fn().mockResolvedValue({ success: false, error: 'Access denied' });
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    expect(await detectGameSystem({ query } as any, logger as any)).toBe('other');
+    expect(logger.warn).toHaveBeenCalledWith('World info refused, game system not detected yet', {
+      error: 'Access denied',
+    });
+    expect(logger.error).not.toHaveBeenCalled();
+  });
 });

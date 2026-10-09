@@ -16,9 +16,12 @@ import {
   describeFilters,
 } from '../utils/compendium-filters.js';
 import {
+  armorClassSummary,
+  armorProperties,
   creatureSizeWord,
   flatHasSpells,
   hasLegendaryActions,
+  itemRarityLabel,
   movementSummary,
   sizeWord,
   spellSchoolName,
@@ -716,7 +719,8 @@ export class CompendiumTools {
     // Add relevant summary information based on item type
     switch (item.type.toLowerCase()) {
       case 'spell':
-        if (system.level) parts.push(`Level ${system.level}`);
+        if (system.level === 0) parts.push('Cantrip');
+        else if (system.level) parts.push(`Level ${system.level}`);
         if (system.school) parts.push(spellSchoolName(system.school) ?? system.school);
         break;
       case 'weapon': {
@@ -725,15 +729,18 @@ export class CompendiumTools {
         if (damage) parts.push(damage);
         break;
       }
-      case 'armor':
-        if (system.armor?.value) parts.push(`AC ${system.armor.value}`);
-        break;
       case 'equipment':
-      case 'item':
-        if (system.rarity) parts.push(system.rarity);
+      case 'item': {
+        // dnd5e 6 armor and shields are `equipment` with an armor `type.value`
+        const ac = armorClassSummary(system);
+        if (ac) parts.push(ac);
+        // '' rarity with a filled rarities list still gets a label
+        const rarity = itemRarityLabel(system.rarity) ?? itemRarityLabel(system.rarities);
+        if (rarity) parts.push(rarity);
         if (system.price?.value)
           parts.push(`${system.price.value} ${system.price.denomination || 'gp'}`);
         break;
+      }
     }
 
     return parts.join(' • ');
@@ -887,7 +894,9 @@ export class CompendiumTools {
     const properties: any = {};
 
     // Common properties across different item types
-    if (system.rarity) properties.rarity = system.rarity;
+    // The same label as the search summary ("Very Rare"), from rarity or dnd5e 6 rarities
+    const rarity = itemRarityLabel(system.rarity) ?? itemRarityLabel(system.rarities);
+    if (rarity) properties.rarity = rarity;
     if (system.price) properties.price = system.price;
     if (system.weight) properties.weight = system.weight;
     if (system.quantity) properties.quantity = system.quantity;
@@ -908,10 +917,9 @@ export class CompendiumTools {
       if (system.properties) properties.weaponProperties = system.properties;
     }
 
-    // Armor-specific properties
-    if (item.type.toLowerCase() === 'armor') {
-      if (system.armor) properties.armorClass = system.armor;
-      if (system.stealth) properties.stealthDisadvantage = system.stealth;
+    // Armor-specific properties: dnd5e 6 armor is `equipment` with an armor `type.value`
+    if (item.type.toLowerCase() === 'equipment') {
+      Object.assign(properties, armorProperties(system));
     }
 
     return properties;

@@ -5,7 +5,7 @@
  *   1. character look-up by id
  *   2. character look-up by name (case-insensitive)
  *   3. entity found in items — by id, by name (case-insensitive)
- *   4. entity found in system.actions — array form, by id, by name
+ *   4. no system.actions lookup (dnd5e 6 has none)
  *   5. entity found in effects — by id, by name (case-insensitive)
  *   6. character-not-found error
  *   7. entity-not-found error
@@ -118,10 +118,19 @@ describe('getCharacterEntity — character look-up', () => {
     expect(result.success).toBe(true);
   });
 
-  it('throws "Character not found" wrapped in the outer error when character is missing', async () => {
+  it('throws "Character not found" when the character is missing (the query handler adds the prefix)', async () => {
     await expect(
       da.getCharacterEntity({ characterIdentifier: 'Nobody', entityIdentifier: 'Sword' })
-    ).rejects.toThrow('Failed to get character entity: Character not found: "Nobody"');
+    ).rejects.toThrow('Character not found: Nobody');
+  });
+
+  it('resolves a unique partial name, as get-character does', async () => {
+    world.actors.add(makeHero());
+    const result = await da.getCharacterEntity({
+      characterIdentifier: 'Ald',
+      entityIdentifier: 'Longsword',
+    });
+    expect(result.entity.name).toBe('Longsword');
   });
 });
 
@@ -145,8 +154,9 @@ describe('getCharacterEntity — item branch', () => {
         type: 'weapon',
         img: 'longsword.webp',
         description: 'A trusty blade.',
+        equipped: true,
         system: {
-          description: { value: 'A trusty blade.' },
+          description: {}, // the HTML goes out once, as entity.description
           equipped: true,
         },
       },
@@ -176,62 +186,87 @@ describe('getCharacterEntity — item branch', () => {
     // 'Plain text description'.value is undefined → falls through to the string itself
     expect(result.entity.description).toBe('Plain text description');
   });
+
+  it('adds the dnd5e 6 details: spell level, uses and activities from their labels', async () => {
+    world.actors.add(
+      makeActor({
+        id: 'cleric0000000000',
+        name: 'Test Cleric',
+        type: 'character',
+        items: [
+          makeItem({
+            id: 'guiding000000000',
+            name: 'Guiding Bolt',
+            type: 'spell',
+            system: {
+              level: 1,
+              school: 'evo',
+              uses: { spent: 1, max: 3, recovery: [{ period: 'lr', type: 'recoverAll' }] },
+              activities: {
+                contents: [
+                  {
+                    id: 'attack0000000000',
+                    name: '',
+                    type: 'attack',
+                    activation: { type: 'action', value: 1 },
+                    labels: {
+                      activation: '1 Action',
+                      range: '120 ft',
+                      target: '1 Creature',
+                      toHit: '+5',
+                      damage: [{ formula: '4d6', label: '4d6 Radiant' }],
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+        ],
+      })
+    );
+    const result = await da.getCharacterEntity({
+      characterIdentifier: 'Test Cleric',
+      entityIdentifier: 'guiding bolt',
+    });
+    expect(result.entityType).toBe('item');
+    expect(result.entity).toMatchObject({
+      level: 1,
+      school: 'evo',
+      uses: { value: 2, max: 3 },
+      activities: [
+        {
+          id: 'attack0000000000',
+          type: 'attack',
+          activation: '1 Action',
+          range: '120 ft',
+          target: '1 Creature',
+          toHit: '+5',
+          damage: '4d6 Radiant',
+        },
+      ],
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
-// Actions branch (system.actions — array form)
+// No actions branch: dnd5e 6 has no `system.actions` (actions are item activities)
 // ---------------------------------------------------------------------------
 
-describe('getCharacterEntity — actions branch', () => {
-  function makeHeroWithActions(): ReturnType<typeof makeActor> {
-    return makeActor({
-      id: 'hero000000000001',
-      name: 'Brynn',
-      type: 'character',
-      items: [], // no items → action search is reached
-      system: {
-        actions: [
-          { id: 'action01', name: 'Multiattack', type: 'action' },
-          { id: 'action02', name: 'Claw', type: 'action' },
-        ],
-      },
-      effects: [],
-    });
-  }
-
-  it('returns the action shape when found in system.actions array by id', async () => {
-    world.actors.add(makeHeroWithActions());
-    const result = await da.getCharacterEntity({
-      characterIdentifier: 'Brynn',
-      entityIdentifier: 'action01',
-    });
-    expect(result).toEqual({
-      success: true,
-      entityType: 'action',
-      entity: { id: 'action01', name: 'Multiattack', type: 'action' },
-    });
-  });
-
-  it('returns the action shape when found by case-insensitive name', async () => {
-    world.actors.add(makeHeroWithActions());
-    const result = await da.getCharacterEntity({
-      characterIdentifier: 'Brynn',
-      entityIdentifier: 'claw', // lower-case
-    });
-    expect(result.success).toBe(true);
-    expect(result.entityType).toBe('action');
-    expect(result.entity.name).toBe('Claw');
-  });
-
-  it('skips actions search when character has no system.actions and falls through to effects', async () => {
-    // Hero has effects but no system.actions — the if-guard is skipped entirely
-    world.actors.add(makeHero()); // system has no .actions property
-    const result = await da.getCharacterEntity({
-      characterIdentifier: 'Aldric',
-      entityIdentifier: 'Bless',
-    });
-    // Should find the effect, not throw
-    expect(result.entityType).toBe('effect');
+describe('getCharacterEntity: no system.actions lookup', () => {
+  it('does not search a stray system.actions; the lookup goes items → effects', async () => {
+    world.actors.add(
+      makeActor({
+        id: 'hero000000000001',
+        name: 'Brynn',
+        type: 'character',
+        items: [],
+        system: { actions: [{ id: 'action01', name: 'Multiattack', type: 'action' }] },
+        effects: [],
+      })
+    );
+    await expect(
+      da.getCharacterEntity({ characterIdentifier: 'Brynn', entityIdentifier: 'Multiattack' })
+    ).rejects.toThrow('Entity not found: "Multiattack"');
   });
 });
 
@@ -345,16 +380,46 @@ describe('getCharacterEntity — effects branch', () => {
 // Entity not found
 // ---------------------------------------------------------------------------
 
+describe('getCharacterEntity: items with the same name', () => {
+  function twinDaggers(): ReturnType<typeof makeActor> {
+    return makeActor({
+      id: 'twin000000000000',
+      name: 'Vex',
+      type: 'character',
+      items: [
+        makeItem({ id: 'dagger0000000001', name: 'Dagger', type: 'weapon', system: {} }),
+        makeItem({ id: 'dagger0000000002', name: 'Dagger', type: 'weapon', system: {} }),
+      ],
+    });
+  }
+
+  it('lists the ids instead of picking one', async () => {
+    world.actors.add(twinDaggers());
+    await expect(
+      da.getCharacterEntity({ characterIdentifier: 'Vex', entityIdentifier: 'dagger' })
+    ).rejects.toThrow(
+      'Multiple items in "Vex" match "dagger": Dagger (dagger0000000001), Dagger (dagger0000000002). Use the item id.'
+    );
+  });
+
+  it('still finds one of them by id', async () => {
+    world.actors.add(twinDaggers());
+    const result = await da.getCharacterEntity({
+      characterIdentifier: 'Vex',
+      entityIdentifier: 'dagger0000000002',
+    });
+    expect(result.entity.id).toBe('dagger0000000002');
+  });
+});
+
 describe('getCharacterEntity — entity not-found error', () => {
-  it('throws "Entity not found" wrapped in outer error when no branch matches', async () => {
+  it('throws "Entity not found" when no branch matches', async () => {
     world.actors.add(makeHero());
     await expect(
       da.getCharacterEntity({
         characterIdentifier: 'Aldric',
         entityIdentifier: 'Phantom Dagger',
       })
-    ).rejects.toThrow(
-      'Failed to get character entity: Entity not found: "Phantom Dagger" in character "Aldric"'
-    );
+    ).rejects.toThrow('Entity not found: "Phantom Dagger" in character "Aldric"');
   });
 });

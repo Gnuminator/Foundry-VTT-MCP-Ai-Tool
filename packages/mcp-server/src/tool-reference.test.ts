@@ -65,4 +65,13 @@ describe('tool reference page', () => {
       .join('\n');
     expect(outsideCode).not.toMatch(/<[a-z/]/i);
   });
+
+  it('escapes a backslash before a star, so the star stays text', () => {
+    const [first, ...rest] = tools;
+    const page = renderToolReference([
+      { ...first, description: 'Path C:\\x\\*y and **bold** and `a\\*b`' },
+      ...rest,
+    ]);
+    expect(page).toContain('Path C:\\\\x\\\\\\*y and \\*\\*bold\\*\\* and `a\\*b`');
+  });
 });

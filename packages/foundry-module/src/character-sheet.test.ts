@@ -4,7 +4,12 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { plainText, stripSecrets } from './character-sheet-fields.js';
+import {
+  plainText,
+  spellMethodPrepares,
+  spellPrepared,
+  stripSecrets,
+} from './character-sheet-fields.js';
 import { characterSheets, projectCharacterSheet, type SheetActor } from './character-sheet.js';
 
 const g = globalThis as any;
@@ -246,6 +251,12 @@ describe('stripSecrets and plainText', () => {
     expect(plainText('<p title="a>b">one</p><div class="secret">two<p>three</p>')).toBe('one');
   });
 
+  it('decodes each entity once: an escaped "&lt;" stays text', () => {
+    expect(plainText('<p>Use &amp;lt;b&amp;gt; &amp;amp; &lt;i&gt;</p>')).toBe(
+      'Use &lt;b&gt; &amp; <i>'
+    );
+  });
+
   it('reads the class attribute, not data-class', () => {
     expect(plainText('<div data-class="x" class="secret">hidden</div><p>shown</p>')).toBe('shown');
   });
@@ -254,5 +265,41 @@ describe('stripSecrets and plainText', () => {
     expect(
       plainText('<p class="lead">Hello <em>there</em></p><ul><li>one</li><li>two</li></ul>')
     ).toBe('Hello there\none\ntwo');
+  });
+});
+
+describe('spellPrepared (dnd5e 6 method + prepared)', () => {
+  const savedConfig = g.CONFIG;
+  afterEach(() => {
+    g.CONFIG = savedConfig;
+  });
+
+  it('counts cantrips and spells from non-preparing methods as ready', () => {
+    expect(spellPrepared({ level: 0, method: 'spell', prepared: 0 })).toBe(true);
+    for (const method of ['innate', 'atwill', 'ritual']) {
+      expect(spellPrepared({ level: 3, method, prepared: 0 })).toBe(true);
+    }
+  });
+
+  it('reads prepared 0/1/2 for spell and pact methods', () => {
+    expect(spellPrepared({ level: 1, method: 'spell', prepared: 0 })).toBe(false);
+    expect(spellPrepared({ level: 1, method: 'spell', prepared: 1 })).toBe(true);
+    expect(spellPrepared({ level: 1, method: 'spell', prepared: 2 })).toBe(true);
+    expect(spellPrepared({ level: 2, method: 'pact', prepared: 0 })).toBe(false);
+    expect(spellPrepared({ level: 2, method: 'pact', prepared: 1 })).toBe(true);
+  });
+
+  it('counts NPC spells as ready (feat-granted, method "spell", prepared 0)', () => {
+    expect(spellPrepared({ level: 1, method: 'spell', prepared: 0 }, 'npc')).toBe(true);
+    expect(spellPrepared({ level: 1, method: 'spell', prepared: 0 }, 'character')).toBe(false);
+  });
+
+  it('follows CONFIG.DND5E.spellcasting[method].prepares when the config is there', () => {
+    g.CONFIG = {
+      DND5E: { spellcasting: { spell: { prepares: true }, homebrew: { prepares: true } } },
+    };
+    expect(spellMethodPrepares('homebrew')).toBe(true);
+    expect(spellPrepared({ level: 1, method: 'homebrew', prepared: 0 })).toBe(false);
+    expect(spellMethodPrepares('innate')).toBe(false);
   });
 });

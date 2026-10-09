@@ -40,7 +40,7 @@ export class JournalDataAccess {
   > {
     shared.validateFoundryState();
 
-    return game.journal.map((journal: any) => ({
+    return game.journal.map(journal => ({
       id: journal.id || '',
       name: journal.name || '',
       type: 'JournalEntry',
@@ -76,7 +76,7 @@ export class JournalDataAccess {
     const allPages = this.summarizePages(journal);
     const pageCount = allPages.length;
 
-    const firstText = journal.pages.find((page: any) => page.type === 'text');
+    const firstText = journal.pages.find(page => page.type === 'text');
     if (!firstText) {
       // No prose to surface — return the manifest only, omitting currentPage/note.
       return { content: '', allPages, pageCount };
@@ -207,7 +207,7 @@ export class JournalDataAccess {
       result = { success: true, pageId: page.id, pageName: page.name };
     } else {
       // Mode 3: overwrite the first text page, or seed one if absent.
-      const firstText = journal.pages.find((page: any) => page.type === 'text');
+      const firstText = journal.pages.find(page => page.type === 'text');
       if (firstText) {
         await firstText.update(this.contentUpdate(firstText, request.content));
         result = { success: true, pageId: firstText.id, pageName: firstText.name };
@@ -223,9 +223,9 @@ export class JournalDataAccess {
   // ===== internals =====
 
   /** id/name/type summary for each page, defaulting missing types to `'text'`. */
-  private summarizePages(journal: any): PageSummary[] {
+  private summarizePages(journal: JournalEntry): PageSummary[] {
     return (
-      journal.pages?.map((page: any) => ({
+      journal.pages?.map(page => ({
         id: page.id || '',
         name: page.name || '',
         type: page.type || 'text',
@@ -264,7 +264,11 @@ export class JournalDataAccess {
   }
 
   /** Append a single text page to a journal and return the created page (if any). */
-  private async createTextPage(journal: any, name: string, content: string): Promise<any> {
+  private async createTextPage(
+    journal: JournalEntry,
+    name: string,
+    content: string
+  ): Promise<FoundryDocument | undefined> {
     const created = await journal.createEmbeddedDocuments('JournalEntryPage', [
       { type: 'text', name, text: { content } },
     ]);

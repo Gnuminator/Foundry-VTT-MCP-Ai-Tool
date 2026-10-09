@@ -1,17 +1,20 @@
 /**
  * The kit's own worlds: create a world's folder (world.json only; Foundry makes the databases on
  * first launch) and provision it once it runs (the bridge module and the profile's modules on,
- * kit users, bridge user). Never deletes anything and refuses worlds that are not in KIT_WORLDS.
- * The world and its title come from the content profile (profiles.mjs).
+ * kit users Kit GM, Claude and Kit Player, bridge user). Never deletes anything and refuses worlds
+ * that are not in KIT_WORLDS. The world and its title come from the content profile (profiles.mjs).
  */
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { KIT_GM_USER, KIT_PLAYER_USER, KIT_WORLDS } from './contract.mjs';
+import { KIT_CLAUDE_USER, KIT_GM_USER, KIT_PLAYER_USER, KIT_WORLDS } from './contract.mjs';
 import { EnvError } from './errors.mjs';
 import { assertKitWorld, collectErrors, joinGame, launchBrowser, waitForGame } from './gm.mjs';
+import { turnOffTrackingFor } from './player-creation.mjs';
+import { LOOPBACK_HOSTS, TEST_FOUNDRY_URL } from './targets.mjs';
 
 const MODULE_ID = 'foundry-mcp-bridge';
 const DEFAULT_GM = 'Gamemaster';
+const STUDIO_MODULE = 'foundryvtt-actor-studio';
 
 /** Same versions as the everyday test world (C:/FoundryTest/data/Data/worlds/ai-tool-test). */
 const WORLD_JSON = {
@@ -51,12 +54,44 @@ export function initWorld({ dataDir, profile, log = () => {} }) {
 }
 
 /**
+ * Refuses to provision any Foundry but the PC's test Foundry (TEST_FOUNDRY_URL on Windows).
+ * Provisioning makes passwordless GMs (Kit GM, Claude): fine on the PC's test server, an open GM
+ * login on a host others can reach. A loopback address alone does not prove that: on the Pi
+ * 127.0.0.1:30000 is the port the tunnel serves, and an SSH forward makes the Pi look local. A
+ * remote target (the Pi's strahd-kit) needs a way to give its GMs passwords before it can be
+ * provisioned (docs/dev/TEST-KIT.md, "Safety guards"); there is no opt-out.
+ * @param {string} foundryUrl
+ * @param {{platform?: string}} [o]  `platform`: for the tests (default process.platform)
+ */
+export function assertLocalProvision(foundryUrl, { platform = process.platform } = {}) {
+  let url;
+  try {
+    url = new URL(foundryUrl);
+  } catch {
+    throw new EnvError(`REFUSED: provisioning: "${foundryUrl}" is not a URL.`);
+  }
+  const test = new URL(TEST_FOUNDRY_URL);
+  const port = url.port || (url.protocol === 'https:' ? '443' : '80');
+  const isTestFoundry =
+    platform === 'win32' &&
+    url.protocol === test.protocol &&
+    LOOPBACK_HOSTS.includes(url.hostname) &&
+    port === test.port;
+  if (!isTestFoundry) {
+    throw new EnvError(
+      `REFUSED: provisioning makes passwordless GMs; ${url.host} on ${platform} is not the PC's test Foundry (${TEST_FOUNDRY_URL} on Windows).`
+    );
+  }
+}
+
+/**
  * Provision the running kit world. Idempotent: a second run changes nothing.
  * @param {{foundryUrl: string, world: string, modules?: string[], log?: (m: string) => void}} o
  *   `modules`: the profile's modules; they and the modules they require are enabled with the bridge
  * @returns {Promise<{changed: string[], users: string[], bridgeUser: string, modules: string[]}>}
  */
 export async function provisionWorld({ foundryUrl, world, modules = [], log = () => {} }) {
+  assertLocalProvision(foundryUrl);
   await assertKitWorld(foundryUrl, world);
   const browser = await launchBrowser();
   const { page } = browser;
@@ -113,7 +148,7 @@ export async function provisionWorld({ foundryUrl, world, modules = [], log = ()
     }
 
     const result = await page.evaluate(
-      async ({ id, gmName, playerName, want }) => {
+      async ({ id, gmName, claudeName, playerName, want }) => {
         for (const m of want) {
           if (!game.modules.get(m)?.active) throw new Error(`${m} is not active after enabling it`);
         }
@@ -130,6 +165,7 @@ export async function provisionWorld({ foundryUrl, world, modules = [], log = ()
           return game.users.getName(name);
         };
         const gm = await ensure(gmName, CONST.USER_ROLES.GAMEMASTER);
+        await ensure(claudeName, CONST.USER_ROLES.GAMEMASTER);
         await ensure(playerName, CONST.USER_ROLES.PLAYER);
         if (game.settings.get(id, 'bridgeUserId') !== gm.id) {
           await game.settings.set(id, 'bridgeUserId', gm.id);
@@ -141,31 +177,25 @@ export async function provisionWorld({ foundryUrl, world, modules = [], log = ()
           users: game.users.map(u => `${u.name} (role ${u.role})`),
         };
       },
-      { id: MODULE_ID, gmName: KIT_GM_USER, playerName: KIT_PLAYER_USER, want: wanted.want }
+      {
+        id: MODULE_ID,
+        gmName: KIT_GM_USER,
+        claudeName: KIT_CLAUDE_USER,
+        playerName: KIT_PLAYER_USER,
+        want: wanted.want,
+      }
     );
     changed.push(...result.done);
 
     // Actor Studio posts anonymous usage data to its author's server while its per-user setting
-    // `usage-tracking` is on (the default). Turn it off for the user that joined; a fresh world joins
-    // as the default GM first, so join again as the kit GM and do it for that user too.
-    const turnOffTracking = () =>
-      page.evaluate(async studio => {
-        const key = `${studio}.usage-tracking`;
-        if (!game.modules.get(studio)?.active || !game.settings.settings.has(key)) return null;
-        if (game.settings.get(studio, 'usage-tracking') === false) return false;
-        await game.settings.set(studio, 'usage-tracking', false);
-        return true;
-      }, 'foundryvtt-actor-studio');
+    // `usage-tracking` is on (the default). Turn it off for the user that joined and for every kit
+    // user, written from this GM page so none of them has to join first. Nothing happens when Actor
+    // Studio is not active (its setting is not registered).
     const tracked = [];
-    if ((await turnOffTracking()) === true) tracked.push(hasKitGm ? KIT_GM_USER : DEFAULT_GM);
-    if (!hasKitGm && wanted.want.includes('foundryvtt-actor-studio')) {
-      try {
-        await joinAs(KIT_GM_USER);
-        hasKitGm = true;
-        if ((await turnOffTracking()) === true) tracked.push(KIT_GM_USER);
-      } catch {
-        log(`could not join as ${KIT_GM_USER} to turn off usage tracking: run init again`);
-      }
+    const joined = hasKitGm ? KIT_GM_USER : DEFAULT_GM;
+    for (const name of new Set([joined, KIT_GM_USER, KIT_CLAUDE_USER, KIT_PLAYER_USER])) {
+      if ((await turnOffTrackingFor(page, STUDIO_MODULE, name)) === 'turned off')
+        tracked.push(name);
     }
     if (tracked.length) {
       changed.push(`turned off Actor Studio usage tracking for ${tracked.join(', ')}`);

@@ -268,7 +268,7 @@ export function projectCharacterSheet(actor: SheetActor): CharacterSheet {
       spells.length > 0 || slots.length > 0
         ? {
             ability: castAbility ? configLabel(cfg.abilities, castAbility) : null,
-            dc: numOrNull(spellAttr.dc ?? attr.spelldc),
+            dc: numOrNull(spellAttr.dc),
             attack: numOrNull(spellAttr.attack),
           }
         : { ability: null, dc: null, attack: null },

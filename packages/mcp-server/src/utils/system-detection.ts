@@ -6,6 +6,8 @@
  * Any non-dnd5e world is reported as 'other' so tools can refuse it cleanly.
  */
 
+import { isBridgeRefusal } from '@gnuminator/shared';
+
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 
@@ -34,8 +36,17 @@ export async function detectGameSystem(
   }
 
   try {
-    const worldInfo = await foundryClient.query('foundry-mcp-bridge.getWorldInfo');
-    const systemId = (worldInfo.system ?? '').toLowerCase();
+    const reply: unknown = await foundryClient.query('foundry-mcp-bridge.getWorldInfo');
+    if (isBridgeRefusal(reply)) {
+      // The GM gate refused (a non-GM client holds the bridge). Not cached as 'other', so every
+      // call asks again until a GM joins: log at warn, not error, to keep the log readable.
+      if (logger) {
+        logger.warn('World info refused, game system not detected yet', { error: reply.error });
+      }
+      return 'other';
+    }
+    const worldInfo = reply as { system?: unknown } | null;
+    const systemId = typeof worldInfo?.system === 'string' ? worldInfo.system.toLowerCase() : '';
 
     cachedSystemId = systemId;
     cachedSystem = systemId === 'dnd5e' ? 'dnd5e' : 'other';

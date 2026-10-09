@@ -2,7 +2,7 @@
 // by the build), the "?" that opens a pane's own heading, and the error path.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, fromMenu } from './support';
 
 const helpPane = (page: Page): Locator => page.locator('#pane-help');
 
@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
 
 test('GM guides opens the guide index from the server', async ({ page }) => {
   const request = page.waitForRequest(req => req.url().endsWith('/api/help/README'));
-  await page.getByRole('button', { name: '📖 GM guides' }).click();
+  await fromMenu(page, 'btn-guides');
   expect((await request).headers()['x-cogm-token']).toBe(GM_TOKEN);
 
   const pane = page.getByRole('dialog', { name: 'GM guides' });
@@ -28,7 +28,7 @@ test('GM guides opens the guide index from the server', async ({ page }) => {
 });
 
 test('the "?" on a pane opens its heading in the guide', async ({ page }) => {
-  await page.getByRole('button', { name: '🩺 Module diagnostics' }).click();
+  await fromMenu(page, 'btn-show-diag');
   await page
     .getByRole('dialog', { name: 'Module Diagnostics' })
     .getByRole('button', { name: 'Help for this panel' })
@@ -50,7 +50,7 @@ test('a guide that cannot load says why, and the next open asks again', async ({
       json: { error: 'The help is built with npm run build (dist/help.json).' },
     });
   });
-  await page.getByRole('button', { name: '📖 GM guides' }).click();
+  await fromMenu(page, 'btn-guides');
   await expect(
     helpPane(page).getByText(
       "Couldn't load the help: The help is built with npm run build (dist/help.json)."
@@ -59,6 +59,6 @@ test('a guide that cannot load says why, and the next open asks again', async ({
   await expect(helpPane(page).getByRole('heading', { level: 2 })).toHaveText('Help');
 
   await page.getByRole('button', { name: 'Close help' }).click();
-  await page.getByRole('button', { name: '📖 GM guides' }).click();
+  await fromMenu(page, 'btn-guides');
   await expect.poll(() => calls).toBe(2);
 });

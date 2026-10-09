@@ -1,7 +1,7 @@
 // The Party drawer on the React dashboard: the get-party read (POST /api/tool, faked here), the
 // member rows and sections, the group picker, the empty and failed states, the four one-click
 // changes (plan-party-change, then apply-planned-change) with the Undo toast, the refusals (GM
-// Actions off or not heard yet, a failed plan, a 403 at apply, a plan that needs a confirm), an
+// Actions off or not heard yet, a failed plan, a 403 at apply, a plan that asks first), an
 // apply that times out or whose answer got lost, the gate seeded from Pre-flight's read, and
 // Escape with a toast up.
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
@@ -14,6 +14,7 @@ import {
   ok,
   toast,
   type ToolCall,
+  fromMenu,
 } from './support';
 
 const IREENA = {
@@ -93,7 +94,7 @@ const names = (calls: ToolCall[]): string[] => calls.map(c => c.name);
 
 async function openParty(page: Page): Promise<Locator> {
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-party').click();
+  await fromMenu(page, 'btn-party');
   const drawer = page.getByRole('dialog', { name: '🛡 Party' });
   await expect(drawer).toBeVisible();
   return drawer;
@@ -442,7 +443,7 @@ test('Pre-flight reading GM Actions on opens the gate before the stream says so'
   await page.keyboard.press('Escape');
   await expect(preflight).toBeHidden();
 
-  await page.locator('#btn-party').click();
+  await fromMenu(page, 'btn-party');
   const drawer = page.getByRole('dialog', { name: '🛡 Party' });
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(toast(page, '✓ Applied: Travel pace set to Fast')).toBeVisible();
@@ -464,7 +465,7 @@ test('the stream saying GM Actions are off wins over the Pre-flight read', async
   await expect(preflight.locator('#ready-switches')).toHaveText('○ GM Actions');
   await page.keyboard.press('Escape');
 
-  await page.locator('#btn-party').click();
+  await fromMenu(page, 'btn-party');
   const drawer = page.getByRole('dialog', { name: '🛡 Party' });
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(
@@ -519,22 +520,78 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
   await expect(
     toast(page, 'GM Actions are off. Ready for session in Pre-flight turns them on.')
   ).toBeVisible();
-  await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeVisible();
+  const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
+  await expect(preflight).toBeVisible();
+  // The page takes the server's word: GM Actions show as off until Ready for session turns them on.
+  await expect(preflight.locator('#ready-switches')).toHaveText('○ GM Actions');
+  await page.route('**/api/session/switches', route =>
+    route.fulfill({
+      json: { switches: { switches: [] }, gmActionsEnabled: true, gmActionsChanged: true },
+    })
+  );
+  await preflight.locator('#btn-ready').click();
+  await expect(toast(page, '✓ Ready for session. Turned on: GM Actions')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeHidden();
+  await expect(preflight).toBeHidden();
 
+  // A destructive plan asks in the confirm window first; Cancel applies nothing.
   answer = (call): ToolAnswer =>
-    call.name === 'plan-party-change' ? ok({ ...PLAN, risk: 'destructive' }) : bridge(call);
+    call.name === 'plan-party-change'
+      ? ok({
+          ...PLAN,
+          risk: 'destructive',
+          summary: 'Travel pace set to Fast',
+          diff: [{ text: 'Pace: Normal to Fast' }],
+        })
+      : bridge(call);
   const before = calls.length;
   await expect(fast).toBeEnabled();
   await fast.click();
-  await expect(
-    toast(
-      page,
-      'This change needs a confirm step this page does not have yet. Use the full dashboard.'
-    )
-  ).toBeVisible();
+  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
+  await expect(confirm.locator('.change-diff li')).toHaveText(['Pace: Normal to Fast']);
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  await expect(confirm).toBeHidden();
+  await expect(fast).toBeEnabled();
   expect(names(calls.slice(before))).toEqual(['plan-party-change']);
+  // The button was disabled when the window opened; focus goes back to it, not the page body.
+  await expect(fast).toBeFocused();
+});
+
+test('after the confirm window, the drawer holds focus until the button is back', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, call =>
+    call.name === 'plan-party-change'
+      ? ok({ ...PLAN, risk: 'destructive', summary: 'Travel pace set to Fast', diff: [] })
+      : bridge(call)
+  );
+  // The apply waits until released, so the change is still running when the window closes.
+  let release!: () => void;
+  const released = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  await page.route('**/api/tool', async (route: Route): Promise<void> => {
+    const call = route.request().postDataJSON() as ToolCall;
+    if (call.name !== 'apply-planned-change') return route.fallback();
+    await released;
+    return route.fallback();
+  });
+  const drawer = await openParty(page);
+  const fast = drawer.locator('#party-pace').getByRole('button', { name: 'Fast' });
+
+  await fast.click();
+  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
+  await confirm.getByRole('checkbox').check();
+  await confirm.getByRole('button', { name: 'Run destructive action' }).click();
+  await expect(confirm).toBeHidden();
+  await expect(fast).toBeDisabled();
+  await expect(drawer).toBeFocused();
+
+  release();
+  await expect(toast(page, '✓ Applied: Travel pace set to Fast')).toBeVisible();
+  await expect(fast).toBeFocused();
+  expect(names(calls)).toContain('apply-planned-change');
 });
 
 test('Open shows the actor in Foundry; Escape closes the drawer', async ({ page }) => {
@@ -562,6 +619,5 @@ test('Open shows the actor in Foundry; Escape closes the drawer', async ({ page 
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
   await expect(toast(page, '✗ open-in-foundry: No such actor')).toBeVisible();
-  await expect(page.locator('#btn-party')).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('.drawer-backdrop')).toHaveCount(0);
 });

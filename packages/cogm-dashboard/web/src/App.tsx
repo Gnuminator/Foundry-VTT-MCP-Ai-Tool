@@ -1,9 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
-import { DrawerBackdrop } from './components/Drawer';
+import { AdvancedItem, AdvancedLabel, AdvancedMenu } from './components/AdvancedMenu';
+import { ConfirmProvider } from './components/ConfirmDialog';
+import { DrawerBackdrop, raiseDrawer } from './components/Drawer';
 import { HelpProvider } from './components/Help';
 import { useHelp } from './components/HelpButton';
+import { HandoutsDrawer } from './panels/Handouts';
 import { ModuleDiagnosticsPane } from './panels/ModuleDiagnostics';
 import { PartyDrawer } from './panels/Party';
 import { PlayerLinksPane } from './panels/PlayerLinks';
@@ -14,6 +17,8 @@ import {
   VersionBanner,
   usePreflightOnReconnect,
 } from './panels/Preflight';
+import { TarokkaDrawer } from './panels/Tarokka';
+import { ToolsDrawer, type ToolRequest } from './panels/Tools';
 import { api } from './lib/api';
 import { GmActionsGateContext } from './lib/guarded';
 import { useDashboardStream } from './lib/stream';
@@ -54,14 +59,33 @@ function useWorldTheme(): void {
 export function App(): JSX.Element {
   return (
     <HelpProvider>
-      <Dashboard />
+      <ConfirmProvider>
+        <Dashboard />
+      </ConfirmProvider>
     </HelpProvider>
   );
 }
 
 /** The drawers this page has so far; each one's open state. */
-type DrawerName = 'preflight' | 'prep' | 'party';
-const NO_DRAWERS: Record<DrawerName, boolean> = { preflight: false, prep: false, party: false };
+type DrawerName = 'preflight' | 'prep' | 'party' | 'handouts' | 'tarokka' | 'tools';
+const NO_DRAWERS: Record<DrawerName, boolean> = {
+  preflight: false,
+  prep: false,
+  party: false,
+  handouts: false,
+  tarokka: false,
+  tools: false,
+};
+
+/** Each drawer's element id (Drawer `id`), for raiseDrawer. */
+const DRAWER_IDS: Record<DrawerName, string> = {
+  preflight: 'preflight-drawer',
+  prep: 'prep-drawer',
+  party: 'party-drawer',
+  handouts: 'handouts-drawer',
+  tarokka: 'tarokka-drawer',
+  tools: 'tools-drawer',
+};
 
 function Dashboard(): JSX.Element {
   useWorldTheme();
@@ -70,12 +94,25 @@ function Dashboard(): JSX.Element {
   const [drawers, setDrawers] = useState(NO_DRAWERS);
   const setDrawer = (name: DrawerName, open: boolean): void =>
     setDrawers(d => ({ ...d, [name]: open }));
+  // The Advanced menu opens a drawer, as on the old page; one already open comes to the top.
+  const openDrawer = (name: DrawerName): void => {
+    setDrawer(name, true);
+    raiseDrawer(DRAWER_IDS[name]);
+  };
   const openHelp = useHelp();
   const [linksOpen, setLinksOpen] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
+  // Tarokka's Show cards, here so Pre-flight can warn while it is on (both drawers can be open).
+  const [tarokkaShown, setTarokkaShown] = useState(false);
   // A guarded change refused for GM Actions opens Pre-flight, whose Ready for session turns them
-  // on (the old page opens the Tool runner's gate; that drawer is not here yet).
-  const openGmActionsGate = useCallback(() => setDrawers(d => ({ ...d, preflight: true })), []);
+  // on (the old page opens the Tool runner's gate; the Tool runner points at its own gate bar).
+  // Already open under another drawer, it comes to the top.
+  const openGmActionsGate = useCallback(() => {
+    setDrawers(d => ({ ...d, preflight: true }));
+    raiseDrawer(DRAWER_IDS.preflight);
+  }, []);
+  // Another panel opens the Tool runner on a tool with its form filled in.
+  const [toolRequest, setToolRequest] = useState<ToolRequest | null>(null);
 
   return (
     <GmActionsGateContext.Provider value={openGmActionsGate}>
@@ -96,51 +133,95 @@ function Dashboard(): JSX.Element {
             open={drawers.preflight}
             onToggle={() => setDrawer('preflight', !drawers.preflight)}
           />
-          <button
-            id="btn-prep"
-            className="btn"
-            data-track="dash.header.prep"
-            title="Session prep: last session, open threads, next session notes (GM only)"
-            aria-expanded={drawers.prep}
-            onClick={() => setDrawer('prep', !drawers.prep)}
-          >
-            📋 Prep
-          </button>
-          <button
-            id="btn-party"
-            className="btn"
-            data-track="dash.header.party"
-            title="The party: members at a glance, travel pace, combat and rests (GM only)"
-            aria-expanded={drawers.party}
-            onClick={() => setDrawer('party', !drawers.party)}
-          >
-            🛡 Party
-          </button>
-          <button
-            className="btn"
-            data-track="dash.header.player-links"
-            title="Each player's private link to their own character sheet (GM only)"
-            aria-expanded={linksOpen}
-            onClick={() => setLinksOpen(open => !open)}
-          >
-            🔗 Player links
-          </button>
-          <button
-            className="btn"
-            data-track="dash.header.show-diagnostics"
-            title="Errors and warnings from Foundry modules"
-            aria-expanded={diagOpen}
-            onClick={() => setDiagOpen(open => !open)}
-          >
-            🩺 Module diagnostics
-          </button>
-          <button
-            className="btn"
-            data-track="dash.header.guides"
-            onClick={() => openHelp('README')}
-          >
-            📖 GM guides
-          </button>
+          <AdvancedMenu>
+            <AdvancedItem onSelect={() => openHelp('README')}>
+              <button id="btn-guides" className="btn" data-track="dash.header.guides">
+                📖 GM guides
+              </button>
+            </AdvancedItem>
+            <AdvancedLabel>Panels</AdvancedLabel>
+            <AdvancedItem onSelect={() => openDrawer('prep')}>
+              <button
+                id="btn-prep"
+                className="btn"
+                data-track="dash.header.prep"
+                title="Session prep: last session, open threads, next session notes (GM only)"
+              >
+                📋 Prep
+              </button>
+            </AdvancedItem>
+            <AdvancedItem onSelect={() => openDrawer('party')}>
+              <button
+                id="btn-party"
+                className="btn"
+                data-track="dash.header.party"
+                title="The party: members at a glance, travel pace, combat and rests (GM only)"
+              >
+                🛡 Party
+              </button>
+            </AdvancedItem>
+            <AdvancedItem onSelect={() => openDrawer('handouts')}>
+              <button
+                id="btn-handouts"
+                className="btn"
+                data-track="dash.header.handouts"
+                title="Handout queue and who has seen what (GM only)"
+              >
+                📜 Handouts
+              </button>
+            </AdvancedItem>
+            <AdvancedItem onSelect={() => openDrawer('tarokka')}>
+              <button
+                id="btn-tarokka"
+                className="btn"
+                data-track="dash.header.tarokka"
+                title="Tarokka reading (GM only)"
+              >
+                🃏 Tarokka
+              </button>
+            </AdvancedItem>
+            <AdvancedLabel>Tools</AdvancedLabel>
+            <AdvancedItem onSelect={() => openDrawer('tools')}>
+              <button
+                id="btn-tools"
+                className="btn"
+                data-track="dash.header.tools"
+                title="Open the tool runner (run any bridge tool)"
+              >
+                🛠 Tools
+              </button>
+            </AdvancedItem>
+            <AdvancedItem
+              onSelect={() => {
+                setDiagOpen(!diagOpen);
+                return !diagOpen;
+              }}
+            >
+              <button
+                id="btn-show-diag"
+                className="btn"
+                data-track="dash.header.show-diagnostics"
+                title="Errors and warnings from Foundry modules"
+              >
+                🩺 Module diagnostics
+              </button>
+            </AdvancedItem>
+            <AdvancedItem
+              onSelect={() => {
+                setLinksOpen(!linksOpen);
+                return !linksOpen;
+              }}
+            >
+              <button
+                id="btn-show-links"
+                className="btn"
+                data-track="dash.header.player-links"
+                title="Each player's private link to their own character sheet (GM only)"
+              >
+                🔗 Player links
+              </button>
+            </AdvancedItem>
+          </AdvancedMenu>
           <a className="btn" href="/">
             Full dashboard
           </a>
@@ -160,6 +241,8 @@ function Dashboard(): JSX.Element {
       <PreflightDrawer
         open={drawers.preflight}
         onOpenChange={open => setDrawer('preflight', open)}
+        tarokkaShown={tarokkaShown}
+        onHideTarokka={() => setTarokkaShown(false)}
       />
       <PrepDrawer
         open={drawers.prep}
@@ -167,6 +250,29 @@ function Dashboard(): JSX.Element {
         onOpenPreflight={() => setDrawers(d => ({ ...d, prep: false, preflight: true }))}
       />
       <PartyDrawer open={drawers.party} onOpenChange={open => setDrawer('party', open)} />
+      <HandoutsDrawer
+        open={drawers.handouts}
+        onOpenChange={open => setDrawer('handouts', open)}
+        onQueuePage={sceneId => {
+          setToolRequest(r => ({
+            name: 'plan-page-reveal',
+            prefill: { action: 'queue', ...(sceneId ? { sceneId } : {}) },
+            seq: (r?.seq ?? 0) + 1,
+          }));
+          setDrawers(d => ({ ...d, handouts: false, tools: true }));
+        }}
+      />
+      <TarokkaDrawer
+        open={drawers.tarokka}
+        onOpenChange={open => setDrawer('tarokka', open)}
+        showCards={tarokkaShown}
+        onShowCardsChange={setTarokkaShown}
+      />
+      <ToolsDrawer
+        open={drawers.tools}
+        onOpenChange={open => setDrawer('tools', open)}
+        request={toolRequest}
+      />
     </GmActionsGateContext.Provider>
   );
 }

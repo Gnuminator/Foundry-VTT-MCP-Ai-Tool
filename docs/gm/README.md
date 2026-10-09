@@ -21,6 +21,7 @@ play.
 | [Your GM coach in Claude](gm-coach.md)                 | Add the Foundry GM coach skill to your Claude account, and how to ask it.             |
 | [Cookbook](cookbook.md)                                | Ready-to-use requests and clicks before, during and after a session.                  |
 | [Your Obsidian vault](obsidian.md)                     | What is in your vault, where your prep goes, and connecting the plugin to the server. |
+| [Prep and expectations](prep-and-expectations.md)      | What to prepare, the expectations talk, ability scores and a session 0 agenda.        |
 | [Prepare session 0](prepare-session-0.md)              | Set up the world so players can make their characters, and run the night.             |
 | [Before each session](before-session.md)               | A checklist for the 15 minutes before play.                                           |
 | [After each session](after-session.md)                 | A checklist for right after play.                                                     |

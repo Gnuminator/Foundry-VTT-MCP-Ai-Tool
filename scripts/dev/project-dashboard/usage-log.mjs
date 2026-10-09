@@ -287,7 +287,7 @@ const fmt = n => (Number.isFinite(n) ? Number(n).toLocaleString('en-US') : '');
 const pct = n => (Number.isFinite(n) ? String(Math.round(n)) : '');
 const mtok = n => (n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : `${(n / 1e6).toFixed(1)}M`);
 const NAMES_SHOWN = 8;
-const cell = s => String(s || '').replace(/\|/g, '\\|');
+const cell = s => String(s || '').replace(/[\\|]/g, '\\$&');
 
 function logSection(state) {
   const lines = [

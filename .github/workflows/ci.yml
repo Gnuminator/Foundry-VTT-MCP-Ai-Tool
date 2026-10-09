@@ -14,6 +14,11 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only token for every job: CI checks out and tests, it never writes to the repo
+# (upload-artifact uses the runner's own artifact token, not GITHUB_TOKEN).
+permissions:
+  contents: read
+
 jobs:
   build-test:
     runs-on: ubuntu-latest
@@ -89,6 +94,12 @@ jobs:
         # its dry run lets only known reads through; gm-script.sh refuses a real run without a passed
         # dry run (stand-ins for systemd) (docs/dev/PI-SETUP.md, "GM scripts").
         run: node --test scripts/pi/assistant-gm.test.mjs
+
+      - name: Plan B scripts
+        # scripts/plan-b (docs/dev/PLAN-B.md, D-097 item 6): every script parses; ports and refusals, the
+        # newest-backup choice, the version match, the module port flag, the stop and clean decisions and
+        # the Claude Desktop connector switch (the PowerShell part is skipped where pwsh 7 is missing).
+        run: node --test scripts/plan-b/plan-b.test.mjs
 
       - name: Changelog fragments
         # Each PR adds its CHANGELOG entry as a file in changelog.d/ (D-089); this checks the format.

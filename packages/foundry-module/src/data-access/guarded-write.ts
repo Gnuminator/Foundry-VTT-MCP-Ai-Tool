@@ -489,7 +489,7 @@ async function executeCreate(
     const parent = await resolve(op.parentUuid);
     if (!parent) throw new Error(`Parent not found: ${op.parentUuid}`);
     const docs = await parent.createEmbeddedDocuments(op.documentName, [data], operation);
-    created = docs[0] as FoundryDocument | undefined;
+    created = docs[0];
   } else {
     created = await documentClassFor(op.documentName).create(data, operation);
   }

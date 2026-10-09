@@ -190,20 +190,20 @@ describe('PersistentCreatureIndex — constructor', () => {
 // ===========================================================================
 
 describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
-  it('builds an index from Actor packs and returns one record per npc/character/creature', async () => {
+  it('builds an index from Actor packs and returns one record per npc/character', async () => {
     addMonsterPack([
       makeActor({ id: 'g1', name: 'Goblin', type: 'npc' }),
       makeActor({ id: 'h1', name: 'Hero', type: 'character' }),
-      makeActor({ id: 'c1', name: 'Creature', type: 'creature' }),
-      // non-creature type is skipped by extractDnD5eDataFromPack
+      // dnd5e 6 actor types that are not creatures are skipped by extractDnD5eDataFromPack
       makeActor({ id: 'v1', name: 'Vehicle', type: 'vehicle' }),
+      makeActor({ id: 'p1', name: 'Party', type: 'group' }),
     ]);
 
     const index = new PersistentCreatureIndex();
     const creatures = await index.rebuildIndex();
 
     const names = creatures.map(c => c.name).sort();
-    expect(names).toEqual(['Creature', 'Goblin', 'Hero']);
+    expect(names).toEqual(['Goblin', 'Hero']);
   });
 
   it('ignores non-Actor packs entirely', async () => {
@@ -259,7 +259,7 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
             cr: 24,
             type: { value: 'Dragon' },
             alignment: 'Chaotic Evil',
-            biography: 'A terrifying wyrm.',
+            biography: { value: '<p>A terrifying wyrm.</p>', public: '' }, // dnd5e 6 shape
           },
           traits: { size: 'GARGANTUAN' },
           attributes: { hp: { max: 546 }, ac: { value: 22 }, spellcasting: 'cha' },
@@ -286,16 +286,17 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
       hasSpells: true, // it has a spell item (the casting ability alone does not count)
       hasLegendaryActions: true, // resources.legact.max > 0
       alignment: 'chaotic evil', // lower-cased
-      description: 'A terrifying wyrm.',
+      description: 'A terrifying wyrm.', // the biography's value as plain text, not the object
       img: 'dragon.webp',
     });
   });
 
-  it('parses fractional CR strings (1/8, 1/4, 1/2) into numbers', async () => {
+  it('reads fractional CRs as dnd5e 6 stores them (NumberField: 0.125, 0.25, 0.5)', async () => {
     addMonsterPack([
-      makeActor({ id: 'a', name: 'Eighth', type: 'npc', system: { details: { cr: '1/8' } } }),
-      makeActor({ id: 'b', name: 'Quarter', type: 'npc', system: { details: { cr: '1/4' } } }),
-      makeActor({ id: 'c', name: 'Half', type: 'npc', system: { details: { cr: '1/2' } } }),
+      makeActor({ id: 'a', name: 'Eighth', type: 'npc', system: { details: { cr: 0.125 } } }),
+      makeActor({ id: 'b', name: 'Quarter', type: 'npc', system: { details: { cr: 0.25 } } }),
+      makeActor({ id: 'c', name: 'Half', type: 'npc', system: { details: { cr: 0.5 } } }),
+      makeActor({ id: 'd', name: 'Unset', type: 'npc', system: { details: { cr: null } } }),
     ]);
 
     const index = new PersistentCreatureIndex();
@@ -304,6 +305,7 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
     expect(byName['Eighth'].challengeRating).toBe(0.125);
     expect(byName['Quarter'].challengeRating).toBe(0.25);
     expect(byName['Half'].challengeRating).toBe(0.5);
+    expect(byName['Unset'].challengeRating).toBe(0);
   });
 
   it('applies defaults for a bare creature (no system fields)', async () => {
@@ -325,13 +327,16 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
     });
   });
 
-  it('detects spells via a nonzero system.spells slot and legendary via a numeric system.legendary', async () => {
+  it('detects spells via a nonzero system.spells slot (prepared max) and legendary via resources.legact.max', async () => {
     addMonsterPack([
       makeActor({
         id: 'caster',
         name: 'Caster',
         type: 'npc',
-        system: { spells: { spell1: { value: 4 } }, legendary: 3 },
+        system: {
+          spells: { spell1: { value: 0, override: null, max: 4 } },
+          resources: { legact: { max: 3, spent: 0 } },
+        },
       }),
     ]);
 
@@ -559,7 +564,7 @@ describe('PersistentCreatureIndex — persistence', () => {
     await index.rebuildIndex();
 
     const saved = JSON.parse(disk.content!);
-    expect(saved.metadata.version).toBe('1.1.0');
+    expect(saved.metadata.version).toBe('1.2.0');
     expect(saved.metadata.gameSystem).toBe('dnd5e');
     expect(saved.metadata.totalCreatures).toBe(1);
     // Map serialized to entries array.

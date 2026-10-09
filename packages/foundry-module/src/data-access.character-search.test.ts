@@ -53,8 +53,8 @@ function makeHero(): ReturnType<typeof makeActor> {
       makeItem({
         id: 'item02xxxxxxxxxx',
         name: 'Leather Armor',
-        type: 'armor',
-        system: { quantity: 1, equipped: true },
+        type: 'equipment', // dnd5e 6 armor is `equipment` with `type.value` "light"
+        system: { quantity: 1, equipped: true, type: { value: 'light' } },
       }),
       makeItem({
         id: 'item03xxxxxxxxxx',
@@ -66,8 +66,7 @@ function makeHero(): ReturnType<typeof makeActor> {
           description: { value: 'A bright streak flashes from your finger to a point.' },
           range: { value: 150, units: 'ft' },
           target: {
-            type: 'enemy',
-            value: null,
+            affects: { type: 'creature', count: '', choice: false, special: '' },
             template: { type: 'sphere', size: 20, units: 'ft' },
           },
         },
@@ -81,7 +80,7 @@ function makeHero(): ReturnType<typeof makeActor> {
           activation: { type: 'action' },
           description: { value: 'You touch a willing creature who is not wearing armor.' },
           range: { value: null, units: 'touch' },
-          target: { type: 'creature', value: 1 },
+          target: { affects: { type: 'willing', count: 1 }, template: { type: '' } },
         },
       }),
       makeItem({
@@ -285,10 +284,9 @@ describe('searchCharacterItems — spell fields (dnd5e)', () => {
     expect(fb.actionCost).toBe('action');
     expect(fb.range).toBe('150 ft');
     // area: template.size + units + type → "20-ft sphere"
-    // target stays "enemy" because it was already set before the area check
-    // (area only overrides target when it's unset or "point")
+    // an uncounted target inside a template ("each creature") reads as the area
     expect(fb.area).toBe('20-ft sphere');
-    expect(fb.target).toBe('enemy');
+    expect(fb.target).toBe('area');
     expect(fb.description).toContain('bright streak');
   });
 
@@ -302,6 +300,79 @@ describe('searchCharacterItems — spell fields (dnd5e)', () => {
 
     expect(result.matches).toHaveLength(1);
     expect(result.matches[0].range).toBe('Touch');
+    expect(result.matches[0].target).toBe('1 willing creature');
+  });
+
+  // dnd5e 6 `target.affects` shapes as Bless, Charm Person, Shield, Magic Missile and a
+  // counted area spell store them (checked against dnd5e 6.0.5 TargetField).
+  it.each([
+    [{ affects: { type: 'creature', count: 3, choice: true } }, '3 creatures', undefined],
+    [{ affects: { type: 'creature', count: 1 } }, '1 creature', undefined],
+    [{ affects: { type: 'self' } }, 'self', undefined],
+    [{ affects: { type: 'enemy', count: '' } }, 'enemy', undefined],
+    [{ affects: { type: 'space' } }, 'point', undefined],
+    [{ affects: { type: 'creatureOrObject', count: 2 } }, '2 creatures or objects', undefined],
+    [
+      {
+        affects: { type: 'creature', count: 2 },
+        template: { type: 'line', size: 60, units: 'ft' },
+      },
+      '2 creatures',
+      '60-ft line',
+    ],
+    [
+      { affects: { type: 'space' }, template: { type: 'cube', size: 15, units: 'ft' } },
+      'area',
+      '15-ft cube',
+    ],
+    // FormulaField: dnd5e 6 stores the count as a string.
+    [{ affects: { type: 'creature', count: '3', choice: true } }, '3 creatures', undefined],
+    // Detect Magic / Globe of Invulnerability (spells24): self plus a radius stays "self".
+    [
+      {
+        affects: { type: 'self', count: '' },
+        template: { type: 'radius', size: '30', units: 'ft' },
+      },
+      'self',
+      '30-ft radius',
+    ],
+    // Spirit Guardians (creature) and Aura of Life (ally): no count, so the area.
+    [
+      {
+        affects: { type: 'creature', count: '', choice: true },
+        template: { type: 'radius', size: '15', units: 'ft' },
+      },
+      'area',
+      '15-ft radius',
+    ],
+    [
+      {
+        affects: { type: 'ally', count: '' },
+        template: { type: 'radius', size: '30', units: 'ft' },
+      },
+      'area',
+      '30-ft radius',
+    ],
+    [{ affects: { type: '' }, template: { type: '' } }, undefined, undefined],
+  ])('reads dnd5e 6 target %j', async (target, expectedTarget, expectedArea) => {
+    world.actors.add(
+      makeActor({
+        id: 'actor2xxxxxxxxxxx',
+        name: 'Caster',
+        type: 'character',
+        items: [
+          makeItem({
+            id: 'item11xxxxxxxxxx',
+            name: 'Probe',
+            type: 'spell',
+            system: { level: 1, range: { value: 30, units: 'ft' }, target },
+          }),
+        ],
+      })
+    );
+    const result = await da.searchCharacterItems({ characterIdentifier: 'Caster', type: 'spell' });
+    expect(result.matches[0].target).toBe(expectedTarget);
+    expect(result.matches[0].area).toBe(expectedArea);
   });
 
   it('level=0 for cantrips', async () => {

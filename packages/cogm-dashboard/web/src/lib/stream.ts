@@ -39,9 +39,19 @@ export const BRIDGE_STATUS_KEY = ['stream', 'status'] as const;
 /** The dashboard's own settings (app.ts settingsPayload, GM only); fields the page uses so far. */
 export interface DashboardSettings {
   gmActionsEnabled: boolean;
+  /** The Obsidian vault the "Open in Obsidian" links point into; null when the mirror is off. */
+  obsidian?: { vault: string } | null;
 }
 
 export const SETTINGS_KEY = ['stream', 'settings'] as const;
+
+/** The Foundry world (app.ts world event, GM only); null while Foundry is not reachable. */
+export interface WorldInfo {
+  id: string;
+  title?: string;
+}
+
+export const WORLD_KEY = ['stream', 'world'] as const;
 
 /** The old page keeps 150 entries on screen; the server keeps the newest 100. */
 export const MAX_ERROR_ENTRIES = 150;
@@ -74,13 +84,27 @@ function onErrors(queryClient: QueryClient, data: unknown): void {
   );
 }
 
+/**
+ * The Handouts drawer's data, under GAME_STATE_KEY (guarded.ts) so an apply or an undo refetches
+ * it too. Spelled out here because guarded.ts imports this file.
+ */
+export const HANDOUTS_KEY = ['game', 'handouts'] as const;
+
+/** The Tarokka drawer's reading, under GAME_STATE_KEY for the same reason. */
+export const TAROKKA_KEY = ['game', 'tarokka'] as const;
+
 /** One handler per event this page uses; each puts the event into the query cache. */
 const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void> = {
   errors: onErrors,
+  // A player opened a handout for the first time (GM only, no payload): the drawer reloads its
+  // seen ticks when it is open. A closed drawer loads afresh on its next opening anyway.
+  'handouts-seen': queryClient => void queryClient.invalidateQueries({ queryKey: HANDOUTS_KEY }),
   status: (queryClient, data) =>
     queryClient.setQueryData<BridgeStatus>(BRIDGE_STATUS_KEY, data as BridgeStatus),
   settings: (queryClient, data) =>
     queryClient.setQueryData<DashboardSettings>(SETTINGS_KEY, data as DashboardSettings),
+  world: (queryClient, data) =>
+    queryClient.setQueryData<WorldInfo | null>(WORLD_KEY, (data as WorldInfo | null) ?? null),
 };
 
 /** Opens the stream while the page is open. Mounted once, in App. */
@@ -140,4 +164,28 @@ export function useDashboardSettings(): DashboardSettings | undefined {
     gcTime: Infinity,
   });
   return data ?? undefined;
+}
+
+/** The world as the stream last reported it; null until the first world event or while away. */
+export function useWorld(): WorldInfo | null {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: WORLD_KEY,
+    queryFn: () => queryClient.getQueryData<WorldInfo | null>(WORLD_KEY) ?? null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data ?? null;
+}
+
+/**
+ * An obsidian:// link to a note in this world's folder of the vault (the old page's
+ * obsidianFileUrl), or null until both the vault name and the world id are known.
+ */
+export function useObsidianFileUrl(relativePath: string): string | null {
+  const vault = useDashboardSettings()?.obsidian?.vault;
+  const worldId = useWorld()?.id;
+  if (!vault || !worldId) return null;
+  const file = `Campaigns/${worldId}/${relativePath}`;
+  return `obsidian://open?vault=${encodeURIComponent(vault)}&file=${encodeURIComponent(file)}`;
 }

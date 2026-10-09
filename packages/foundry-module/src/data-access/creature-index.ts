@@ -1,6 +1,7 @@
 import { MODULE_ID } from '../constants.js';
 import { trackUsage } from '../usage-recorder.js';
 import { logInfo } from '../log.js';
+import { num, plainText, rec, str } from '../character-sheet-fields.js';
 import type {
   DnD5eCreatureIndex,
   EnhancedCreatureIndex,
@@ -9,7 +10,17 @@ import type {
 } from './types.js';
 
 /** dnd5e document types that count as "creatures" for the index. */
-const CREATURE_TYPES = new Set(['npc', 'character', 'creature']);
+const CREATURE_TYPES = new Set(['npc', 'character']);
+
+/** The fields of a creature document the index reads (a loaded Actor-pack document). */
+interface PackCreatureDoc {
+  _id: string;
+  name: string;
+  type: string;
+  img: string;
+  system?: unknown;
+  items?: unknown;
+}
 
 /** A dismissible progress notification (Foundry's `ui.notifications.info` return value). */
 interface RemovableNote {
@@ -35,7 +46,7 @@ export class PersistentCreatureIndex {
   private moduleId: string = MODULE_ID;
   // 1.1.0 (M3): sizes stored as dnd5e keys ('med'), hasSpells/hasLegendaryActions
   // fixed; a bump makes worlds rebuild an index persisted by an older module.
-  private readonly INDEX_VERSION = '1.1.0';
+  private readonly INDEX_VERSION = '1.2.0';
   private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
   private buildInProgress = false;
   private hooksRegistered = false;
@@ -78,8 +89,8 @@ export class PersistentCreatureIndex {
   }
 
   /** Foundry's FilePicker implementation (browse + upload). */
-  private get filePicker(): any {
-    return (foundry as any).applications.apps.FilePicker.implementation;
+  private get filePicker(): FoundryFilePicker {
+    return foundry.applications.apps.FilePicker.implementation;
   }
 
   /**
@@ -90,7 +101,7 @@ export class PersistentCreatureIndex {
   private async indexFileExists(): Promise<boolean> {
     try {
       const result = await this.filePicker.browse('data', this.worldDir());
-      return result.files.some((f: string) => f.endsWith(this.INDEX_FILENAME));
+      return result.files.some(f => f.endsWith(this.INDEX_FILENAME));
     } catch {
       return false;
     }
@@ -115,12 +126,15 @@ export class PersistentCreatureIndex {
         return null;
       }
 
-      const rawData = await response.json();
+      // On the wire `packFingerprints` is an entries array; it becomes a Map below.
+      const rawData = (await response.json()) as { metadata?: { packFingerprints?: unknown } };
       const metadata = rawData.metadata;
       if (metadata?.packFingerprints) {
-        metadata.packFingerprints = new Map(metadata.packFingerprints);
+        metadata.packFingerprints = new Map(
+          metadata.packFingerprints as Iterable<readonly [string, PackFingerprint]>
+        );
       }
-      return rawData;
+      return rawData as unknown as PersistentEnhancedIndex;
     } catch (error) {
       console.warn(`[${this.moduleId}] Failed to load persisted index from file:`, error);
       return null;
@@ -157,7 +171,7 @@ export class PersistentCreatureIndex {
 
   /**
    * A persisted index is valid only when every dimension still matches the live
-   * world: schema version, game system, and — per currently-loaded Actor pack —
+   * world: schema version, game system, and (per currently-loaded Actor pack)
    * a fingerprint equal to the saved one. Any added, removed, or changed pack
    * invalidates it (forcing a rebuild on the next read).
    */
@@ -166,7 +180,7 @@ export class PersistentCreatureIndex {
       return false;
     }
 
-    const currentSystem = (game as any).system.id;
+    const currentSystem = game.system.id;
     if (existingIndex.metadata.gameSystem !== currentSystem) {
       logInfo(
         `[${this.moduleId}] System changed from ${existingIndex.metadata.gameSystem} to ${currentSystem}, index invalidated`
@@ -195,14 +209,17 @@ export class PersistentCreatureIndex {
   }
 
   /** All loaded Actor-type compendium packs. */
-  private actorPacks(): any[] {
-    return Array.from(game.packs.values()).filter((pack: any) => pack.metadata.type === 'Actor');
+  private actorPacks(): CompendiumCollection[] {
+    return Array.from(game.packs.values()).filter(pack => pack.metadata.type === 'Actor');
   }
 
   /** Fingerprint used to detect whether a pack changed since it was indexed. */
-  private generatePackFingerprint(pack: any): PackFingerprint {
-    const lastModified = pack.metadata.lastModified
-      ? new Date(pack.metadata.lastModified).getTime()
+  private generatePackFingerprint(pack: CompendiumCollection): PackFingerprint {
+    const metadata = pack.metadata as CompendiumMetadata & {
+      lastModified?: string | number | Date;
+    };
+    const lastModified = metadata.lastModified
+      ? new Date(metadata.lastModified).getTime()
       : Date.now();
     return {
       packId: pack.metadata.id,
@@ -214,7 +231,7 @@ export class PersistentCreatureIndex {
   }
 
   /** Cheap content checksum (id + label + size), truncated to 16 chars. */
-  private generatePackChecksum(pack: any): string {
+  private generatePackChecksum(pack: CompendiumCollection): string {
     const data = `${pack.metadata.id}-${pack.metadata.label}-${pack.index?.size || 0}`;
     return btoa(data).slice(0, 16);
   }
@@ -233,8 +250,8 @@ export class PersistentCreatureIndex {
   private registerFoundryHooks(): void {
     if (this.hooksRegistered) return;
 
-    const onCreatureDoc = (document: any): void => {
-      if (document.pack && CREATURE_TYPES.has(document.type)) {
+    const onCreatureDoc = (document: { pack?: unknown; type?: unknown }): void => {
+      if (document.pack && typeof document.type === 'string' && CREATURE_TYPES.has(document.type)) {
         void this.invalidateIndex();
       }
     };
@@ -242,7 +259,7 @@ export class PersistentCreatureIndex {
     Hooks.on('updateDocument', onCreatureDoc);
     Hooks.on('deleteDocument', onCreatureDoc);
 
-    const onActorPack = (pack: any): void => {
+    const onActorPack = (pack: CompendiumCollection): void => {
       if (pack.metadata.type === 'Actor') {
         void this.invalidateIndex();
       }
@@ -254,7 +271,7 @@ export class PersistentCreatureIndex {
   }
 
   /**
-   * Invalidate by deleting the persisted file so the next read rebuilds — but
+   * Invalidate by deleting the persisted file so the next read rebuilds, but
    * only when the `autoRebuildIndex` setting is on. Best-effort: a missing file
    * or a failed delete is ignored.
    */
@@ -268,7 +285,7 @@ export class PersistentCreatureIndex {
           await fetch(this.indexFilePath(), { method: 'DELETE' });
         }
       } catch {
-        // File doesn't exist or deletion failed — that's okay.
+        // File doesn't exist or deletion failed: that's okay.
       }
     } catch (error) {
       console.warn(`[${this.moduleId}] Failed to invalidate index:`, error);
@@ -286,7 +303,7 @@ export class PersistentCreatureIndex {
       throw new Error('Index build already in progress');
     }
 
-    const gameSystem = (game as any).system.id;
+    const gameSystem = game.system.id;
     logInfo(`[${this.moduleId}] Building enhanced creature index for system: ${gameSystem}`);
 
     if (gameSystem !== 'dnd5e') {
@@ -403,13 +420,13 @@ export class PersistentCreatureIndex {
    * extraction failures are absorbed by {@link extractDnD5eCreatureData}.
    */
   private async extractDnD5eDataFromPack(
-    pack: any
+    pack: CompendiumCollection
   ): Promise<{ creatures: DnD5eCreatureIndex[]; errors: number }> {
     const creatures: DnD5eCreatureIndex[] = [];
     let errors = 0;
 
     try {
-      const documents = await pack.getDocuments();
+      const documents = (await pack.getDocuments()) as PackCreatureDoc[];
       for (const doc of documents) {
         if (!CREATURE_TYPES.has(doc.type)) {
           continue;
@@ -430,176 +447,62 @@ export class PersistentCreatureIndex {
   }
 
   /**
-   * Flatten one creature document into an index record. Every field read is
-   * defensive (system data shapes vary across modules/versions); on any failure
-   * it returns a safe fallback record (counted as one extraction error) rather
-   * than dropping the creature. Reads the canonical `_id` field.
+   * Flatten one creature document into an index record. Reads the prepared dnd5e 6 fields
+   * (verified against dnd5e.mjs 6.0.5 `NPCData` / `CharacterData`); on any failure it returns
+   * a safe fallback record (counted as one extraction error) rather than dropping the
+   * creature. Reads the canonical `_id` field.
    */
   private extractDnD5eCreatureData(
-    doc: any,
-    pack: any
+    doc: PackCreatureDoc,
+    pack: CompendiumCollection
   ): { creature: DnD5eCreatureIndex; errors: number } {
     try {
-      const system = doc.system || {};
+      const system = rec(doc.system);
+      const details = rec(system.details);
+      const attributes = rec(system.attributes);
 
-      // Challenge rating — many shapes; null/strings normalized to a number.
-      let challengeRating =
-        system.details?.cr ??
-        system.details?.cr?.value ??
-        system.cr?.value ??
-        system.cr ??
-        system.attributes?.cr?.value ??
-        system.attributes?.cr ??
-        system.challenge?.rating ??
-        system.challenge?.cr ??
-        0;
-      if (challengeRating === null || challengeRating === undefined) {
-        challengeRating = 0;
-      }
-      if (typeof challengeRating === 'string') {
-        if (challengeRating === '1/8') challengeRating = 0.125;
-        else if (challengeRating === '1/4') challengeRating = 0.25;
-        else if (challengeRating === '1/2') challengeRating = 0.5;
-        else challengeRating = parseFloat(challengeRating) || 0;
-      }
-      challengeRating = Number(challengeRating) || 0;
+      // `details.cr` is a nullable NumberField on NPCs (fractions stored as 0.125 etc.);
+      // characters have none.
+      const challengeRating = num(details.cr, 0);
 
-      // Creature type — nullish/empty coalesced to 'unknown', forced to string.
-      let creatureType =
-        system.details?.type?.value ??
-        system.details?.type ??
-        system.type?.value ??
-        system.type ??
-        system.race?.value ??
-        system.race ??
-        system.details?.race ??
-        'unknown';
-      if (creatureType === null || creatureType === undefined || creatureType === '') {
-        creatureType = 'unknown';
-      }
-      if (typeof creatureType !== 'string') {
-        creatureType = String(creatureType || 'unknown');
-      }
+      // `details.type` is a CreatureTypeField ({value, subtype, swarm, custom}); characters
+      // get it from their species item during data preparation (humanoid without one).
+      const creatureType = str(rec(details.type).value) || 'unknown';
 
-      // Size — first truthy candidate. Default and fallback are dnd5e's own
-      // storage key ('med'), not the display word ('medium'): `system.traits.size`
-      // is an ActorSizeField (StringField) whose value is one of dnd5e's short
-      // keys (tiny, sm, med, lg, huge, grg) with initial "med" — never the full
-      // word. Storing the raw key here keeps the index aligned with
-      // CONFIG.DND5E.actorSizes and with the backend filter (filters.ts), which
-      // now accepts both spellings and normalizes to this key.
-      // verified: dnd5e.mjs 6.0.5 — TraitsField.common.size = new ActorSizeField({
-      //   required: true, initial: "med" }); CONFIG.DND5E.actorSizes keys are
-      //   tiny/sm/med/lg/huge/grg (fullKey small/medium/large/gargantuan).
-      let size =
-        system.traits?.size?.value ||
-        system.traits?.size ||
-        system.size?.value ||
-        system.size ||
-        system.details?.size ||
-        'med';
-      if (typeof size !== 'string') {
-        size = String(size || 'med');
-      }
+      // `traits.size` is an ActorSizeField holding dnd5e's short key (tiny, sm, med, lg,
+      // huge, grg; initial "med"), kept as the key to match CONFIG.DND5E.actorSizes and the
+      // backend filter (filters.ts).
+      const size = str(rec(system.traits).size) || 'med';
 
-      const hitPoints =
-        system.attributes?.hp?.max ||
-        system.hp?.max ||
-        system.attributes?.hp?.value ||
-        system.hp?.value ||
-        system.health?.max ||
-        system.health?.value ||
-        0;
+      const hp = rec(attributes.hp);
+      const hitPoints = num(hp.max, 0) || num(hp.value, 0);
+      const armorClass = num(rec(attributes.ac).value, 0) || 10;
+      const alignment = str(details.alignment) || 'unaligned';
 
-      const armorClass =
-        system.attributes?.ac?.value ||
-        system.ac?.value ||
-        system.attributes?.ac ||
-        system.ac ||
-        system.armor?.value ||
-        system.armor ||
-        10;
-
-      let alignment =
-        system.details?.alignment?.value ||
-        system.details?.alignment ||
-        system.alignment?.value ||
-        system.alignment ||
-        'unaligned';
-      if (typeof alignment !== 'string') {
-        alignment = String(alignment || 'unaligned');
-      }
-
-      // Spellcasting — PRE-EXISTING BUG (plan `creature-index.ts:520-535`):
-      // `system.spells` and `system.attributes.spellcasting` are truthy
-      // *containers* dnd5e always populates, even for non-casters, so testing
-      // their mere presence made `hasSpells` always true. Both dnd5e 5.3 and
-      // 6.0 give every NPC/character a fixed `system.spells` map (spell1..9 +
-      // pact, each `{value: 0, override: null}` by default) and a
-      // `system.attributes.spellcasting` StringField that is "" (blank) when
-      // there is no caster ability set. The real signal is a nonzero slot or a
-      // spell item. Not the ability: the 2024 monsters (`dnd5e.actors24`) set
-      // one on every NPC (a Wolf has "str"; seen live on 6.0.5), and their
-      // casters (Mage, Lich, dragons) cast from spell items, not slots.
-      // verified: dnd5e.mjs 6.0.5 — SpellcastingTemplate schema:
-      //   `spells: new MappingField(new SchemaField({value: NumberField(initial 0),
-      //   override: NumberField}), { initialKeys: spellLevels })` (always present,
-      //   default value 0); AttributesFields.creature `spellcasting: new
-      //   StringField({ required: true, blank: true })` (default "").
-      const asRecord = (v: unknown): Record<string, unknown> | undefined =>
-        v && typeof v === 'object' ? (v as Record<string, unknown>) : undefined;
+      // Spellcasting: `system.spells` (spell1..9 + pact, `{value, override}` plus prepared
+      // `max`) and `attributes.spellcasting` (a StringField, "" for non-casters) exist on
+      // every creature, so their presence says nothing. The signal is a nonzero slot or a
+      // spell item. Not the ability: the 2024 monsters (`dnd5e.actors24`) set one on every
+      // NPC (a Wolf has "str"; seen live on 6.0.5), and their casters (Mage, Lich, dragons)
+      // cast from spell items, not slots.
       const isPositiveNumber = (v: unknown): boolean => typeof v === 'number' && v > 0;
-
-      const spellsRecord = asRecord(system.spells);
-      const hasSpellSlotValue = spellsRecord
-        ? Object.values(spellsRecord).some(slot => {
-            const s = asRecord(slot);
-            return s
-              ? isPositiveNumber(s.value) || isPositiveNumber(s.max) || isPositiveNumber(s.override)
-              : typeof slot === 'number' && slot > 0;
-          })
-        : false;
+      const hasSpellSlotValue = Object.values(rec(system.spells)).some(slot => {
+        const s = rec(slot);
+        return isPositiveNumber(s.value) || isPositiveNumber(s.max) || isPositiveNumber(s.override);
+      });
       const items: unknown = doc.items;
       const itemList: unknown[] = Array.isArray(items)
         ? items
-        : Array.isArray(asRecord(items)?.contents)
-          ? (asRecord(items)!.contents as unknown[])
+        : Array.isArray(rec(items).contents)
+          ? (rec(items).contents as unknown[])
           : [];
-      const hasSpellItem = itemList.some(item => asRecord(item)?.type === 'spell');
+      const hasSpellItem = itemList.some(item => rec(item).type === 'spell');
+      const hasSpells = hasSpellSlotValue || hasSpellItem;
 
-      const hasSpells = !!(
-        hasSpellSlotValue ||
-        hasSpellItem ||
-        (system.details?.spellLevel && system.details.spellLevel > 0) ||
-        (system.resources?.spell && system.resources.spell.max > 0) ||
-        (system.traits?.spellcasting && system.traits.spellcasting !== false) ||
-        system.details?.spellcaster
-      );
-
-      // Legendary actions — PRE-EXISTING BUG (plan `creature-index.ts:520-535`):
-      // `system.resources.legact` is always a `{max, spent}` container on every
-      // NPC in both dnd5e 5.3 and 6.0 (default `max: 0`), so testing its mere
-      // presence made `hasLegendaryActions` always true. Only a positive max
-      // means the creature actually has legendary actions. `legres` is
-      // *legendary resistance* (a different trait) and must not be read as a
-      // legendary-actions signal — the old fallback chain conflated the two.
-      // verified: dnd5e.mjs 6.0.5 — NPCData.resources = new SchemaField({
-      //   legact: new SchemaField({ max: NumberField({initial: 0}), spent: ... }),
-      //   legres: new SchemaField({ max: NumberField({initial: 0}), ... }), ... }).
-      const legendaryActionMax = (block: unknown): number => {
-        const b = asRecord(block);
-        if (!b) return 0;
-        if (typeof b.max === 'number') return b.max;
-        if (typeof b.value === 'number') return b.value;
-        return 0;
-      };
-
-      const hasLegendaryActions = !!(
-        legendaryActionMax(system.resources?.legact) > 0 ||
-        (typeof system.legendary === 'number' && system.legendary > 0) ||
-        (typeof system.details?.legendary === 'number' && system.details.legendary > 0) ||
-        (typeof system.traits?.legendary === 'number' && system.traits.legendary > 0)
-      );
+      // Legendary actions: `resources.legact` is a `{max, spent}` container on every NPC
+      // (initial max 0), so only a positive max counts. `legres` is legendary resistance, a
+      // different trait.
+      const hasLegendaryActions = num(rec(rec(system.resources).legact).max, 0) > 0;
 
       return {
         creature: {
@@ -616,7 +519,7 @@ export class PersistentCreatureIndex {
           hasSpells,
           hasLegendaryActions,
           alignment: alignment.toLowerCase(),
-          description: doc.system?.details?.biography || doc.system?.description || '',
+          description: this.biographyText(doc.system),
           img: doc.img,
         },
         errors: 0,
@@ -628,8 +531,18 @@ export class PersistentCreatureIndex {
     }
   }
 
+  /**
+   * The biography as plain text (no tags or secret blocks), so the description search matches
+   * words, not markup. dnd5e 6 stores `details.biography` as `{value, public}`; a plain string
+   * (older data) is read as is.
+   */
+  private biographyText(system: unknown): string {
+    const bio = rec(rec(system).details).biography;
+    return plainText(typeof bio === 'string' ? bio : rec(bio).value, 2000);
+  }
+
   /** Safe default record used when extraction throws (fallback HP is 1, not 0). */
-  private fallbackRecord(doc: any, pack: any): DnD5eCreatureIndex {
+  private fallbackRecord(doc: PackCreatureDoc, pack: CompendiumCollection): DnD5eCreatureIndex {
     return {
       id: doc._id,
       name: doc.name,

@@ -180,7 +180,7 @@ on_exit() {
     if [ "$was_foundry" = 1 ] && [ "$foundry_stopped" = 1 ]; then
       systemctl restart foundry.service || true
     elif [ "$was_foundry" = 1 ]; then
-      : # never stopped (for example people were online): leave it running
+      : # never stopped (people were online) or already back on its world: leave it running
     else
       systemctl stop foundry.service 2>/dev/null || true
     fi
@@ -390,6 +390,7 @@ if [ "$run_b" = 1 ]; then
 
   say "Foundry launches ${orig_world:-no world} again"
   set_world "$orig_world"
+  world_changed=0
   ok "options.json launches ${orig_world:-no world}"
   # Foundry and the Assistant GM browser end as they were before the run (the same as on_exit).
   since="$(date '+%Y-%m-%d %H:%M:%S')"
@@ -399,6 +400,9 @@ if [ "$run_b" = 1 ]; then
       wait_for_world "$orig_world"
       ok "$orig_world is running"
     fi
+    # Foundry is back: a later failure (the Assistant GM browser) must not make on_exit restart it
+    # again and drop the players who joined in the meantime.
+    foundry_stopped=0
   else
     ok "Foundry was not running before this run: left stopped"
   fi

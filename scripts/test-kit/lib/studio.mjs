@@ -121,8 +121,9 @@ export function narrowSources(sources, packs) {
 
 /**
  * Settings that are switched off for good and never put back: the module posts anonymous usage data
- * to its author's server while `usage-tracking` is on (it defaults to on, per user). `kit init` turns
- * it off for the kit GM; a restore must not turn it on again.
+ * to its author's server while `usage-tracking` is on (per user; on by default upstream, off by
+ * default in our fork from 2.10.5-aitool.4). `kit init` turns it off for the kit users; a restore
+ * must not turn it on again.
  */
 export const NEVER_RESTORE = ['usage-tracking'];
 

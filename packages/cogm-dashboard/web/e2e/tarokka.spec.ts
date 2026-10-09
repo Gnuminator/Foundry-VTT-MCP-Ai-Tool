@@ -632,30 +632,27 @@ test('Reveal asks first; Cancel keeps the draft, Confirm applies with both flags
   await expect(tome.locator('.tarokka-form')).toHaveCount(0);
 });
 
-// Focus after the confirm window comes with #251 (useGuardedChange records the clicked button and
+// Focus after the confirm window is the window's own (#251: useGuardedChange records the clicked button and
 // hands focus back once it is enabled again); this drawer builds nothing of its own for it.
-test.fixme(
-  'focus goes back to Plan reveal after the confirm window (needs #251)',
-  async ({ page }) => {
-    await fakeStream(page, gmActions(true));
-    await fakeTools(page, bridge);
-    const drawer = await openTarokka(page);
-    const tome = pos(drawer, 'tome');
-    await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
-    await tome.getByPlaceholder('Exactly what the players may read').fill('Text');
-    const planButton = tome.getByRole('button', { name: 'Plan reveal…' });
-    await planButton.click();
-    const confirm = page.getByRole('dialog', { name: 'Destructive action' });
-    await confirm.getByRole('button', { name: 'Cancel' }).click();
-    await expect(planButton).toBeFocused();
+test('focus goes back to Plan reveal after the confirm window', async ({ page }) => {
+  await fakeStream(page, gmActions(true));
+  await fakeTools(page, bridge);
+  const drawer = await openTarokka(page);
+  const tome = pos(drawer, 'tome');
+  await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
+  await tome.getByPlaceholder('Exactly what the players may read').fill('Text');
+  const planButton = tome.getByRole('button', { name: 'Plan reveal…' });
+  await planButton.click();
+  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  await expect(planButton).toBeFocused();
 
-    await planButton.click();
-    await confirm.getByRole('checkbox').check();
-    await confirm.getByRole('button', { name: 'Run destructive action' }).click();
-    await expect(toast(page, '✓ Applied: Revealed Tome and shown to players')).toBeVisible();
-    await expect(planButton).toBeFocused();
-  }
-);
+  await planButton.click();
+  await confirm.getByRole('checkbox').check();
+  await confirm.getByRole('button', { name: 'Run destructive action' }).click();
+  await expect(toast(page, '✓ Applied: Revealed Tome and shown to players')).toBeVisible();
+  await expect(planButton).toBeFocused();
+});
 
 test('a popup that fails says so; the reveal still went in', async ({ page }) => {
   await fakeStream(page, gmActions(true));

@@ -431,6 +431,20 @@ test("choosePick: another pack's entries are ignored by group; unequal counts fa
     'why' in twins ? twins.why : '',
     /2 "Goliath" entries for 1 in the pack \(no "PHB 2024 Species" group in the list/
   );
+  // No heading matches and two books both show "Elf, High" in full: the full-label answer says so,
+  // instead of falling through to "Elf" (which this list does not show).
+  const fullTwins = choosePick({
+    shown: [...listed(['Elf, High'], '2014 SRD Races'), ...listed(['Elf, High'], 'Other Origins')],
+    name: 'Elf, High',
+    uuid: 'u.high',
+    group: GROUP,
+    peers: SPECIES_PACK,
+  });
+  assert.equal(fullTwins.index, -1);
+  assert.match(
+    'why' in fullTwins ? fullTwins.why : '',
+    /"Elf, High" cannot be told apart: the list has 2 "Elf, High" entries for 1 in the pack \(no "PHB 2024 Species" group/
+  );
   // Two "Elf" entries in the group for three elves in the pack: the position cannot be trusted.
   const short = listed(['Elf', 'Elf', 'Gnome', 'Gnome', 'Human']);
   const bad = choosePick({
@@ -500,8 +514,12 @@ test('choosePick: a plain name, a legacy twin and a missing entry', () => {
   const shown = listed(['Fighter', 'Fighter'], '');
   assert.equal(choosePick({ shown, name: 'Fighter (Legacy)', uuid: 'u.legacy', peers }).index, 1);
   assert.equal(choosePick({ shown, name: 'Fighter', uuid: 'u.fighter', peers }).index, 0);
-  // No peers known (a world item): first label wins, as before.
-  assert.equal(choosePick({ shown, name: 'Fighter', uuid: 'Item.x' }).index, 0);
+  // No pack (a world item, group ''): one hit is taken, two equal labels are not picked blind.
+  const one = listed(['Fighter', 'Wizard'], '');
+  assert.equal(choosePick({ shown: one, name: 'Fighter', uuid: 'Item.x' }).index, 0);
+  const blind = choosePick({ shown, name: 'Fighter', uuid: 'Item.x' });
+  assert.equal(blind.index, -1);
+  assert.match('why' in blind ? blind.why : '', /2 "Fighter" entries for 0 in the pack/);
   const none = choosePick({ shown, name: 'Wizard', uuid: 'u.w', peers });
   assert.equal(none.index, -1);
   assert.match('why' in none ? none.why : '', /not in the list/);

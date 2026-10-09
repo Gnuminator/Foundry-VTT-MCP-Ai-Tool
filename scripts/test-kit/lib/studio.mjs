@@ -280,9 +280,10 @@ export function choosePick({ shown, name, uuid, group = '', peers = [] }) {
   /** @param {typeof pool} hits @param {typeof peers} same @param {string} how */
   const byPosition = (hits, same, how) => {
     if (same.length <= 1) {
-      // The pack's heading is missing, so the hits may come from other books (a 2014 and a 2024
-      // twin share a label): only a single hit can be trusted.
-      if (group && !inGroup && hits.length > 1) return null;
+      // Without the pack's heading in the list (or with no pack at all, group '') the hits may come
+      // from other books (a 2014 and a 2024 twin share a label), so several hits fail. A lone hit
+      // is taken even though it may still be from another book; judgeSheet checks the item's origin.
+      if (!inGroup && hits.length > 1) return null;
       return { index: hits[0].index, how: how + where };
     }
     if (hits.length !== same.length) return null;
@@ -291,12 +292,15 @@ export function choosePick({ shown, name, uuid, group = '', peers = [] }) {
   if (full !== short) {
     const hits = pool.filter(s => s.label === full);
     if (hits.length) {
-      const got = byPosition(
-        hits,
-        peers.filter(p => stripTags(p.name) === full),
-        `full label "${full}"`
-      );
+      const same = peers.filter(p => stripTags(p.name) === full);
+      const got = byPosition(hits, same, `full label "${full}"`);
       if (got && got.index >= 0) return got;
+      // The full name is on the list but cannot be placed: say so, instead of falling through to
+      // the short label (which the list may not show at all).
+      return {
+        index: -1,
+        why: `"${name}" cannot be told apart: the list has ${hits.length} "${full}" entries for ${same.length} in the pack${where}`,
+      };
     }
   }
   const hits = pool.filter(s => s.label === short);

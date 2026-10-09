@@ -10,6 +10,7 @@ import { KIT_CLAUDE_USER, KIT_GM_USER, KIT_PLAYER_USER, KIT_WORLDS } from './con
 import { EnvError } from './errors.mjs';
 import { assertKitWorld, collectErrors, joinGame, launchBrowser, waitForGame } from './gm.mjs';
 import { turnOffTrackingFor } from './player-creation.mjs';
+import { LOOPBACK_HOSTS, TEST_FOUNDRY_URL } from './targets.mjs';
 
 const MODULE_ID = 'foundry-mcp-bridge';
 const DEFAULT_GM = 'Gamemaster';
@@ -53,12 +54,44 @@ export function initWorld({ dataDir, profile, log = () => {} }) {
 }
 
 /**
+ * Refuses to provision any Foundry but the PC's test Foundry (TEST_FOUNDRY_URL on Windows).
+ * Provisioning makes passwordless GMs (Kit GM, Claude): fine on the PC's test server, an open GM
+ * login on a host others can reach. A loopback address alone does not prove that: on the Pi
+ * 127.0.0.1:30000 is the port the tunnel serves, and an SSH forward makes the Pi look local. A
+ * remote target (the Pi's strahd-kit) needs a way to give its GMs passwords before it can be
+ * provisioned (docs/dev/TEST-KIT.md, "Safety guards"); there is no opt-out.
+ * @param {string} foundryUrl
+ * @param {{platform?: string}} [o]  `platform`: for the tests (default process.platform)
+ */
+export function assertLocalProvision(foundryUrl, { platform = process.platform } = {}) {
+  let url;
+  try {
+    url = new URL(foundryUrl);
+  } catch {
+    throw new EnvError(`REFUSED: provisioning: "${foundryUrl}" is not a URL.`);
+  }
+  const test = new URL(TEST_FOUNDRY_URL);
+  const port = url.port || (url.protocol === 'https:' ? '443' : '80');
+  const isTestFoundry =
+    platform === 'win32' &&
+    url.protocol === test.protocol &&
+    LOOPBACK_HOSTS.includes(url.hostname) &&
+    port === test.port;
+  if (!isTestFoundry) {
+    throw new EnvError(
+      `REFUSED: provisioning makes passwordless GMs; ${url.host} on ${platform} is not the PC's test Foundry (${TEST_FOUNDRY_URL} on Windows).`
+    );
+  }
+}
+
+/**
  * Provision the running kit world. Idempotent: a second run changes nothing.
  * @param {{foundryUrl: string, world: string, modules?: string[], log?: (m: string) => void}} o
  *   `modules`: the profile's modules; they and the modules they require are enabled with the bridge
  * @returns {Promise<{changed: string[], users: string[], bridgeUser: string, modules: string[]}>}
  */
 export async function provisionWorld({ foundryUrl, world, modules = [], log = () => {} }) {
+  assertLocalProvision(foundryUrl);
   await assertKitWorld(foundryUrl, world);
   const browser = await launchBrowser();
   const { page } = browser;

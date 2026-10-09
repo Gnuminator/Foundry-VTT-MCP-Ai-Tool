@@ -2,7 +2,7 @@
 // counter, the empty state, the space note and the help "?".
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, fromMenu } from './support';
 
 const at = (minute: number): number => Date.UTC(2026, 9, 8, 19, minute);
 
@@ -35,7 +35,7 @@ const ERRORS = [
 
 async function openDiagnostics(page: Page): Promise<Locator> {
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.getByRole('button', { name: '🩺 Module diagnostics' }).click();
+  await fromMenu(page, 'btn-show-diag');
   const pane = page.getByRole('dialog', { name: 'Module Diagnostics' });
   await expect(pane).toBeVisible();
   return pane;
@@ -114,13 +114,13 @@ test('the pane closes with ✕, Escape and its header button', async ({ page }) 
   await page.getByRole('button', { name: 'Close module diagnostics' }).click();
   await expect(pane).toBeHidden();
 
-  await page.getByRole('button', { name: '🩺 Module diagnostics' }).click();
+  await fromMenu(page, 'btn-show-diag');
   await page.keyboard.press('Escape');
   await expect(pane).toBeHidden();
 
-  await page.getByRole('button', { name: '🩺 Module diagnostics' }).click();
+  await fromMenu(page, 'btn-show-diag');
   await expect(pane).toBeVisible();
-  await page.getByRole('button', { name: '🩺 Module diagnostics' }).click();
+  await fromMenu(page, 'btn-show-diag');
   await expect(pane).toBeHidden();
 });
 

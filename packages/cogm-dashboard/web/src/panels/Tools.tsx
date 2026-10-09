@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type JSX,
@@ -15,7 +16,7 @@ import {
   type RefObject,
 } from 'react';
 
-import { Drawer, DrawerClose } from '../components/Drawer';
+import { Drawer, DrawerClose, raiseDrawer } from '../components/Drawer';
 import { RefPicker } from '../components/RefPicker';
 import { useToast } from '../components/Toasts';
 import { api, callTool, errorText } from '../lib/api';
@@ -77,17 +78,43 @@ export function ToolsDrawer(props: {
   request: ToolRequest | null;
 }): JSX.Element {
   // A change refused for GM Actions points at the gate bar in this drawer, not at Pre-flight.
-  // An Undo from a toast can be refused after the drawer closed: it opens again first, and the
-  // bar is focused once it has drawn.
+  // Open, the drawer comes to the top and the bar takes the focus once it has drawn (a refusal
+  // from the server draws it with the same render). An Undo from a toast can be refused after the
+  // drawer closed: it opens again, and the bar takes the focus in place of Radix's open autofocus
+  // (which would otherwise run after anything done here).
   const gateButton = useRef<HTMLButtonElement>(null);
-  const { onOpenChange } = props;
+  const gatePending = useRef(false);
+  const [gateAsked, setGateAsked] = useState(0);
+  const { open, onOpenChange } = props;
+  // Read when the gate is asked for: an Undo toast keeps the gate from when its change ran.
+  const isOpen = useRef(open);
+  useLayoutEffect(() => {
+    isOpen.current = open;
+  });
   const focusGate = useCallback(() => {
-    onOpenChange(true);
-    requestAnimationFrame(() => gateButton.current?.focus());
+    gatePending.current = true;
+    if (!isOpen.current) {
+      onOpenChange(true);
+      return;
+    }
+    raiseDrawer('tools-drawer');
+    setGateAsked(n => n + 1);
   }, [onOpenChange]);
+  useEffect(() => {
+    if (!gatePending.current || !isOpen.current) return;
+    gatePending.current = false;
+    gateButton.current?.focus();
+  }, [gateAsked]);
+  const onOpenAutoFocus = useCallback((event: Event) => {
+    if (!gatePending.current) return;
+    gatePending.current = false;
+    if (!gateButton.current) return;
+    event.preventDefault();
+    gateButton.current.focus();
+  }, []);
   return (
     <GmActionsGateContext.Provider value={focusGate}>
-      <ToolRunner {...props} gateButton={gateButton} />
+      <ToolRunner {...props} gateButton={gateButton} onOpenAutoFocus={onOpenAutoFocus} />
     </GmActionsGateContext.Provider>
   );
 }
@@ -97,11 +124,13 @@ function ToolRunner({
   onOpenChange,
   request,
   gateButton,
+  onOpenAutoFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   request: ToolRequest | null;
   gateButton: RefObject<HTMLButtonElement | null>;
+  onOpenAutoFocus: (event: Event) => void;
 }): JSX.Element {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -428,6 +457,7 @@ function ToolRunner({
       open={open}
       onOpenChange={onOpenChange}
       id="tools-drawer"
+      onOpenAutoFocus={onOpenAutoFocus}
       title="🛠 Tool Runner"
       sub="Run any Foundry bridge tool"
       help="dashboard#the-tool-runner--tools"

@@ -478,12 +478,21 @@ const remote = path.join(path.dirname(fileURLToPath(import.meta.url)), 'remote')
 const hasBash = spawnSync('bash', ['-c', 'true']).status === 0;
 
 test(
-  'stage 11 and the helpers it runs with parse (bash -n)',
+  'stages 11 and 13 and the helpers they run with parse (bash -n)',
   { skip: !hasBash && 'bash is not available' },
   () => {
-    for (const file of ['lib.sh', '11-world.sh']) {
+    for (const file of ['lib.sh', '11-world.sh', '13-player-creation.sh']) {
       const r = spawnSync('bash', ['-n', path.join(remote, file)], { encoding: 'utf8' });
       assert.equal(r.status, 0, `${file}: ${r.stderr}`);
     }
   }
 );
+
+test('the in-browser script of stage 13 parses (node --check)', () => {
+  const r = spawnSync(
+    process.execPath,
+    ['--check', path.join(remote, 'player-creation-settings.mjs')],
+    { encoding: 'utf8' }
+  );
+  assert.equal(r.status, 0, r.stderr);
+});

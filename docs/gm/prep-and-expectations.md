@@ -5,7 +5,7 @@ description: What to prepare for a session, how to talk expectations through wit
 
 # Prep and expectations
 
-Two questions every new GM asks: "what should I prepare?" and "how do we make sure we all want
+New GMs often ask two things: "what should I prepare?" and "how do we make sure we all want
 the same game?". This page gives a short answer to both, plus an agenda for session 0 that you can
 use, change or ignore. Session 0 is yours to plan: nothing here is a rule.
 
@@ -42,14 +42,15 @@ Most problems at a table come from people wanting different games, not from rule
 before the campaign starts saves a lot. Pick the topics that matter to your group:
 
 - **What everyone enjoys most:** fights, talking to characters, exploring, puzzles, a strong story.
-  The campaign will have all of them; this tells you where to spend time.
+  Most campaigns have all of them; this tells you where to spend time.
 - **Tone:** how dark or scary the game may get. Agree on **lines** (things that never happen in
   the game) and **veils** (things that happen, but off screen). Anyone may say "let's skip this"
   at any time, no questions asked.
 - **Character death:** can it happen, and what then? (See [When a character dies](death-and-new-characters.md).)
 - **One party:** the characters travel together and have a reason to. No fights between players'
   characters unless everyone agrees.
-- **Rules:** the 2024 Player's Handbook. The GM makes a ruling at the table and looks it up after.
+- **Rules:** which book, for example the 2024 Player's Handbook. The GM makes a ruling at the
+  table and looks it up after.
   Knowing what your own character can do is each player's job.
 - **Schedule:** how often you play, how long, and what happens to a character when its player is
   away.
@@ -106,7 +107,7 @@ A message to post in Discord a few days before (change the words to your own):
 Start a new chat for each topic; long chats use up the free plan's limit faster
 ([Claude Free or Pro](claude-plans.md)). You can ask in Danish.
 
-- "GM coach: help me plan session 0. We are four players, online, about three hours. Ask me
+- "GM coach: help me plan session 0. We are [number] players, online, about three hours. Ask me
   questions first, then suggest an agenda."
 - "GM coach: write the questions for our expectations talk, short, so I can post them in Discord."
 - "GM coach: compare the standard array, point buy and rolling for a group of new players."

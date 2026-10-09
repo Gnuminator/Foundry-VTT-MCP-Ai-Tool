@@ -11,11 +11,12 @@ Out of the box players can't do that: they may not create characters, and Actor 
 older free rules instead of the 2024 Player's Handbook. This page sets both up, once, a week or so
 before session 0. It takes about 30 minutes.
 
-**On our server most of it is done already.** In October 2026 the tool admin set up the Strahd
-world on the Orange Pi for character creation: players may create characters, Actor Studio gives
-starting equipment, and it takes that equipment from the Player's Handbook. So for you, steps 2 and 3
-are a check: open each window, compare it with the picture and the table, and change only what
-differs. Steps 1 and 4 are yours to do.
+**On our server part of it is done already.** The admin has already set up character creation:
+players may create characters, Actor Studio gives starting equipment, and it takes that equipment
+from the Player's Handbook. So step 2 is a check, and so are the equipment settings in step 3.
+The other settings in step 3 may still be the defaults: compare each window with the picture and
+the table, and set what differs. The ability score method (step 3, item 2) is your choice. Steps 1
+and 4 are yours to do.
 
 All of it is normal Foundry settings, done as Gamemaster in your browser. Nothing here needs the
 command line or Claude. What session 0 itself holds is yours to plan; [Prep and
@@ -41,7 +42,7 @@ to [Join the game](../player/join.md).
 
 Without this, Actor Studio tells a player "User requires the 'Create New Actors' permission".
 
-## 3. Point Actor Studio at the 2024 Player's Handbook (a check on our server)
+## 3. Point Actor Studio at the 2024 Player's Handbook (partly done on our server)
 
 Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (AI Tool fork)**.
 

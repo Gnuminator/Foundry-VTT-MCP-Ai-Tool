@@ -25,8 +25,11 @@ const TOOLS = [
       type: 'object',
       properties: {
         planId: { type: 'string', 'x-foundry-ref': { kind: 'plan', value: 'id' } },
+        // As the real schema has them: the confirm window answers both, the form never shows them.
+        confirm: { type: 'boolean' },
+        confirmDestructive: { type: 'boolean' },
       },
-      required: ['planId'],
+      required: ['planId', 'confirm'],
     },
     mutates: 'write',
   },
@@ -117,8 +120,8 @@ const TOOLS = [
     description: 'Undo a recorded change.',
     inputSchema: {
       type: 'object',
-      properties: { changeId: { type: 'string' } },
-      required: ['changeId'],
+      properties: { changeId: { type: 'string' }, confirm: { type: 'boolean' } },
+      required: ['changeId', 'confirm'],
     },
     mutates: 'destructive',
   },
@@ -334,6 +337,13 @@ test('the form checks required fields, numbers and JSON before it sends', async 
   await expect(drawer.locator('#tool-form-error')).toHaveText(
     '"squares" must be a whole number. "options" must be valid JSON.'
   );
+  // A number field takes any text (a phone keypad still opens): text that is not a number is
+  // named, never dropped as empty, as a browser number field would.
+  await expect(field(drawer, 'squares')).toHaveAttribute('inputmode', 'numeric');
+  await field(drawer, 'squares').fill('ten');
+  await field(drawer, 'options').fill('');
+  await drawer.locator('#tool-run').click();
+  await expect(drawer.locator('#tool-form-error')).toHaveText('"squares" must be a number.');
   expect(named(calls, 'measure-distance')).toEqual([]);
 
   // An unticked optional box is left out; one that defaults to on is sent as off.
@@ -445,6 +455,36 @@ test('a plan typed by hand always asks: Cancel, then Confirm, the result and Und
   ]);
 });
 
+test('an Undo GM Actions refuse after the drawer closed opens the Tool runner again', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  await fakeCatalog(page);
+  const calls = await fakeTools(page, call =>
+    call.name === 'undo-change'
+      ? { status: 403, json: { ok: false, error: 'GM Actions are off.' } }
+      : bridge(call)
+  );
+  const drawer = await openTools(page);
+  await openTool(drawer, 'plan-actor-change');
+  await field(drawer, 'action').selectOption('damage');
+  await field(drawer, 'targets').fill('Wolf');
+  await drawer.locator('#tool-run').click();
+  await confirmWindow(page).getByRole('button', { name: 'Confirm' }).click();
+  await expect(toast(page, '✓ Applied: Damage: 5 to Wolf')).toBeVisible();
+
+  await drawer.getByRole('button', { name: 'Close' }).click();
+  await expect(drawer).toBeHidden();
+  await page.locator('.toast-stack .toast-undo .toast-action').click();
+  // The Tool runner's own gate text, and its drawer, not Pre-flight.
+  await expect(
+    toast(page, 'GM Actions are off. Enable GM Actions at the top of the Tool Runner.')
+  ).toBeVisible();
+  await expect(drawer).toBeVisible();
+  await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeHidden();
+  expect(named(calls, 'undo-change')).toHaveLength(1);
+});
+
 test('Enter in a field never applies a change without the confirm window', async ({ page }) => {
   await fakeStream(page, gmActions(true));
   await fakeCatalog(page);
@@ -521,7 +561,9 @@ test('a destructive plan waits for the tick and applies with both flags', async 
   ]);
 });
 
-test('a write that is not a plan asks with its args, names in place of ids', async ({ page }) => {
+test('a write that is not a plan asks with its args, names shown with their ids', async ({
+  page,
+}) => {
   await fakeStream(page, gmActions(true));
   await fakeCatalog(page);
   const calls = await fakeTools(page, bridge);
@@ -541,7 +583,7 @@ test('a write that is not a plan asks with its args, names in place of ids', asy
   );
   await expect(confirm.locator('.change-diff li')).toHaveText([
     'title: Find Ireena',
-    'sceneId: Vallaki',
+    'sceneId: Vallaki (s2)',
   ]);
   await confirm.getByRole('button', { name: 'Confirm' }).click();
   await expect(toast(page, '✓ create-quest-journal')).toBeVisible();
@@ -575,8 +617,10 @@ test('a write that is not a plan asks with its args, names in place of ids', asy
   await drawer.locator('#tool-back').click();
   await openTool(drawer, 'undo-change');
   await field(drawer, 'changeId').fill('ch1');
+  await expect(drawer.locator('.field[data-key="confirm"]')).toHaveCount(0);
   await drawer.locator('#tool-run').click();
   const destructive = confirmWindow(page, 'Destructive action');
+  await expect(destructive.locator('.change-diff li')).toHaveText(['changeId: ch1']);
   await expect(destructive.getByRole('button', { name: 'Run destructive action' })).toBeDisabled();
   await destructive.getByRole('checkbox').check();
   await destructive.getByRole('button', { name: 'Run destructive action' }).click();

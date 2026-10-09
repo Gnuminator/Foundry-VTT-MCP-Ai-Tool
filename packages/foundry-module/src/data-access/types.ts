@@ -6,7 +6,9 @@
  * `FoundryDataAccess` facade and its domain modules pass around.
  */
 
-import type { ItemEntityDetails } from './item-entity.js';
+import type { CharacterItem } from '@gnuminator/shared';
+
+export type { CharacterEntityResult, CharacterItem } from '@gnuminator/shared';
 
 export interface CharacterInfo {
   id: string;
@@ -56,14 +58,6 @@ export interface SpellInfo {
   area?: string | undefined; // "20-foot radius", "30-foot cone", etc. (for template spells)
 }
 
-export interface CharacterItem {
-  id: string;
-  name: string;
-  type: string;
-  img?: string;
-  system: Record<string, unknown>;
-}
-
 export interface CharacterEffect {
   id: string;
   name: string;
@@ -75,15 +69,6 @@ export interface CharacterEffect {
     remaining?: number;
   };
 }
-
-/** `getCharacterEntity`: one item (with its dnd5e 6 details) or one effect, in full. */
-export type CharacterEntityResult =
-  | {
-      success: true;
-      entityType: 'item';
-      entity: CharacterItem & ItemEntityDetails & { description: string };
-    }
-  | { success: true; entityType: 'effect'; entity: Record<string, unknown> };
 
 export interface CompendiumSearchResult {
   id: string;

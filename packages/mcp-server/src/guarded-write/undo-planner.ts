@@ -18,6 +18,7 @@
  * undoing it again is the redo, and `computeUndoState` makes the changes live again.
  */
 import type { ChangeRecord, GuardedOp, OpSnapshot, PathValue } from '@gnuminator/shared';
+import { unwrapBridgeReply } from '@gnuminator/shared';
 
 import {
   CHANGE_HISTORY_DAYS,
@@ -108,14 +109,6 @@ interface Item {
   thingName: string | null;
   action?: ChangeAction;
   entry?: AuditEntry;
-}
-
-function unwrap<T>(response: unknown, what: string): T {
-  const r = response as { success?: unknown; error?: unknown } | null | undefined;
-  if (r && typeof r === 'object' && r.success === false) {
-    throw new Error(`${what}: ${typeof r.error === 'string' ? r.error : 'refused by Foundry'}`);
-  }
-  return response as T;
 }
 
 function clock(t: number): string {
@@ -613,7 +606,7 @@ export class UndoPlanner {
         `That would change ${net.length} documents (a plan holds at most ${MAX_PLAN_OPS}). Undo a smaller part.`
       );
     }
-    const snapshots = unwrap<OpSnapshot[]>(
+    const snapshots = unwrapBridgeReply(
       await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', { ops: net.map(probeOf) }),
       'Snapshot refused'
     );

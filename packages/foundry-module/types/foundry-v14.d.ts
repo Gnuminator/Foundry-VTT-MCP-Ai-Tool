@@ -6,10 +6,13 @@
  * described the wrong generation (v9) and pulled in more than 200 packages
  * (including two "critical" dev advisories). Rules for this file:
  *
- * - Declare only what the module touches, typed to the v14 shapes (API docs
- *   built from 14.365, release notes up to 14.368).
- * - Game-system data (`system`) stays `any`: its shape depends on the system and
- *   its version, and is narrowed in `src/systems/` (the version adapter).
+ * - Declare what the module touches, typed to the v14 shapes (API docs built from
+ *   14.365, release notes up to 14.368, source of 14.368). Documents the module
+ *   reads as data (tokens, notes, walls, lights, regions, playlists, tables) and
+ *   rolls live in the sibling `foundry-v14-*.d.ts` files with their full schema.
+ * - Game-system data (`system`) is the empty `FoundryActorSystem` /
+ *   `FoundryItemSystem` here, so this file stays system-agnostic; the system
+ *   adapter augments them (`src/systems/dnd5e/system-data.d.ts`).
  * - Where v13 and v14 differ, the field is optional or documented here, and the
  *   code reads it through the adapter's feature detection.
  *
@@ -55,17 +58,17 @@ declare global {
       embeddedName: string,
       data: Record<string, unknown>[],
       operation?: FoundryOperation
-    ): Promise<any[]>;
+    ): Promise<FoundryDocument[]>;
     updateEmbeddedDocuments(
       embeddedName: string,
       updates: Record<string, unknown>[],
       operation?: FoundryOperation
-    ): Promise<any[]>;
+    ): Promise<FoundryDocument[]>;
     deleteEmbeddedDocuments(
       embeddedName: string,
       ids: string[],
       operation?: FoundryOperation
-    ): Promise<any[]>;
+    ): Promise<FoundryDocument[]>;
   }
 
   /** Static side of a Document class (`Actor.create`, `Item.updateDocuments`, ...). */
@@ -85,14 +88,24 @@ declare global {
     readonly ownership: Record<string, number>;
   }
 
+  /**
+   * Game-system data of an Actor or Item. Empty here; the system adapter augments them
+   * (`src/systems/dnd5e/system-data.d.ts`).
+   */
+  interface FoundryActorSystem {}
+  interface FoundryItemSystem {}
+
   interface Actor extends FoundryWorldDocument {
     readonly type: string;
     img: string;
-    /** System data; narrowed by the version adapter (`src/systems/`). */
-    system: any;
+    system: FoundryActorSystem;
     readonly items: FoundryCollection<Item>;
     readonly effects: FoundryCollection<ActiveEffect>;
-    readonly prototypeToken: Record<string, any>;
+    readonly prototypeToken: FoundryPrototypeToken;
+    /** True for the synthetic actor of an unlinked token. */
+    readonly isToken: boolean;
+    /** The token of a synthetic actor, else null. */
+    readonly token: TokenDocument | null;
     readonly hasPlayerOwner: boolean;
     /** Status ids currently applied (core, v11+). */
     readonly statuses: Set<string>;
@@ -100,14 +113,15 @@ declare global {
       statusId: string,
       options?: { active?: boolean; overlay?: boolean; levels?: number }
     ): Promise<ActiveEffect | boolean | undefined>;
-    getActiveTokens(linked?: boolean, document?: boolean): any[];
+    getActiveTokens(linked?: boolean, document?: false): Token[];
+    getActiveTokens(linked: boolean, document: true): TokenDocument[];
     getRollData(): Record<string, unknown>;
   }
 
   interface Item extends FoundryWorldDocument {
     readonly type: string;
     img: string;
-    system: any;
+    system: FoundryItemSystem;
     readonly effects: FoundryCollection<ActiveEffect>;
     /** The owning actor for embedded items, else null. */
     readonly actor: Actor | null;
@@ -126,7 +140,7 @@ declare global {
     disabled: boolean;
     readonly statuses: Set<string>;
     origin: string | null;
-    system?: any;
+    system?: Record<string, unknown>;
     /** v13 shape (v14 keeps a deprecated compatibility getter). */
     changes?: { key: string; mode?: number; type?: string; value: unknown; priority?: number }[];
     duration: Record<string, any>;
@@ -144,9 +158,9 @@ declare global {
     blind: boolean;
     readonly type?: string;
     readonly isRoll: boolean;
-    readonly rolls: any[];
+    readonly rolls: Roll[];
     readonly visible: boolean;
-    system?: any;
+    system?: Record<string, unknown>;
   }
 
   interface ChatSpeakerData {
@@ -160,7 +174,7 @@ declare global {
     getSpeaker(options?: {
       scene?: Scene | null;
       actor?: Actor | null | undefined;
-      token?: any;
+      token?: TokenDocument | null;
       alias?: string;
     }): ChatSpeakerData;
   }
@@ -172,7 +186,7 @@ declare global {
     readonly role: number;
     readonly character: Actor | null;
     readonly color: unknown;
-    readonly targets: Set<any>;
+    readonly targets: FoundryUserTargets;
     readonly isSelf: boolean;
     hasPermission(permission: string): boolean;
     hasRole(role: string | number, options?: { exact?: boolean }): boolean;
@@ -220,20 +234,30 @@ declare global {
     height: number;
     readonly grid: { size: number; distance: number; units: string; type: number };
     /** Derived canvas dimensions (padding included). */
-    readonly dimensions: { width: number; height: number; sceneWidth: number; sceneHeight: number };
+    readonly dimensions: {
+      width: number;
+      height: number;
+      sceneWidth: number;
+      sceneHeight: number;
+      /** The scene area inside the padding (client/documents/scene.mjs:507). */
+      sceneRect: { x: number; y: number; width: number; height: number };
+    };
     environment: {
       darknessLevel: number;
       darknessLock?: boolean;
       globalLight: { enabled: boolean; bright: boolean; [key: string]: unknown };
       [key: string]: unknown;
     };
-    readonly tokens: FoundryCollection<any>;
-    readonly notes: FoundryCollection<any>;
-    readonly walls: FoundryCollection<any>;
-    readonly lights: FoundryCollection<any>;
-    readonly regions: FoundryCollection<any>;
-    /** v13 only: removed in 14.352 (templates became Regions). */
-    readonly templates?: FoundryCollection<any>;
+    readonly tokens: FoundryCollection<TokenDocument>;
+    readonly notes: FoundryCollection<NoteDocument>;
+    readonly walls: FoundryCollection<WallDocument>;
+    readonly lights: FoundryCollection<AmbientLightDocument>;
+    readonly regions: FoundryCollection<RegionDocument>;
+    /**
+     * v13 only: removed in 14.352 (templates became Regions); 14.368 keeps an empty compat
+     * getter. Read only behind `supportsMeasuredTemplates()`.
+     */
+    readonly templates?: FoundryCollection<FoundryDocument>;
     /** v14 only (14.353+). */
     readonly levels?: FoundryCollection<SceneLevel>;
     /** v14 only: id of the level shown first. */
@@ -245,7 +269,10 @@ declare global {
   interface Combatant extends FoundryDocument {
     name: string;
     readonly actor: Actor | null;
-    readonly token: any;
+    readonly token: TokenDocument | null;
+    readonly tokenId: string | null;
+    readonly sceneId: string | null;
+    readonly actorId: string | null;
     initiative: number | null;
     hidden: boolean;
     defeated: boolean;
@@ -341,7 +368,7 @@ declare global {
   // -------------------------------------------------------------------------
 
   interface ClientSettings {
-    get(namespace: string, key: string): any;
+    get(namespace: string, key: string): unknown;
     set(namespace: string, key: string, value: unknown): Promise<unknown>;
     register(namespace: string, key: string, config: Record<string, unknown>): void;
     registerMenu(namespace: string, key: string, config: Record<string, unknown>): void;
@@ -394,10 +421,10 @@ declare global {
     readonly journal: FoundryCollection<JournalEntry>;
     readonly messages: FoundryCollection<ChatMessage>;
     readonly folders: FoundryCollection<Folder>;
-    readonly playlists: FoundryCollection<any>;
+    readonly playlists: FoundryCollection<PlaylistDocument>;
     readonly combats: FoundryCollection<Combat> & { readonly active?: Combat | null };
     readonly combat: Combat | null;
-    readonly tables: FoundryCollection<any>;
+    readonly tables: FoundryCollection<RollTableDocument>;
     readonly packs: FoundryCollection<CompendiumCollection>;
     readonly settings: ClientSettings;
     readonly socket: {
@@ -546,8 +573,19 @@ declare global {
     /** v14: the level currently viewed. */
     readonly level?: { readonly id: string } | null;
     readonly screenDimensions?: [number, number];
-    readonly tokens?: any;
-    pan(options: { x?: number; y?: number; scale?: number; duration?: number }): Promise<boolean>;
+    /** PIXI stage; `pivot` is the view centre in scene pixels (client/canvas/board.mjs:230). */
+    readonly stage?: { readonly pivot: { x: number; y: number } };
+    /** Undefined until the tokens layer is initialised. */
+    readonly tokens?: TokenLayer;
+    /** Synchronous jump (client/canvas/board.mjs:1756); `animatePan` returns a Promise. */
+    pan(position: { x?: number; y?: number; scale?: number }): void;
+    animatePan(view: {
+      x?: number;
+      y?: number;
+      scale?: number;
+      duration?: number;
+      speed?: number;
+    }): Promise<boolean>;
   }
 
   interface FoundryHooks {
@@ -584,17 +622,6 @@ declare global {
     getData(options?: Record<string, unknown>): unknown;
     activateListeners(html: JQuery): void;
     protected _updateObject(event: Event, formData?: Record<string, unknown>): Promise<unknown>;
-  }
-
-  class Roll {
-    constructor(formula: string, data?: Record<string, unknown>, options?: Record<string, unknown>);
-    readonly formula: string;
-    readonly total: number | undefined;
-    evaluate(options?: Record<string, unknown>): Promise<this>;
-    toMessage(
-      messageData?: Record<string, unknown>,
-      options?: Record<string, unknown>
-    ): Promise<unknown>;
   }
 
   /** Resolve a document by UUID (world, embedded or compendium). */

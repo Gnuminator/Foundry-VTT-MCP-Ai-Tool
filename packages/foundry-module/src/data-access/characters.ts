@@ -548,13 +548,8 @@ export class CharacterDataAccess {
     for (const spell of spellItems) {
       const spellSystem = spell.system;
       const spellRaw = (spell as any)._source?.system || spellSystem;
-      const sourceItem = spellSystem?.sourceItem;
-      const sourceClass =
-        (sourceItem
-          ? typeof sourceItem === 'string'
-            ? sourceItem
-            : sourceItem.identifier || sourceItem.id
-          : spellRaw?.sourceClass) || 'general';
+      // dnd5e 6: `sourceItem` is a "class:<identifier>" string; v5 data had `sourceClass`.
+      const sourceClass = spellSystem?.sourceItem || spellRaw?.sourceClass || 'general';
 
       (spellsByClass[sourceClass] ??= []).push(this.toClassSpellInfo(spell, spellSystem, spellRaw));
     }

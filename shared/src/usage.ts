@@ -98,6 +98,18 @@ export interface UsageEvent {
   count?: number;
 }
 
+/** Reply of the module query `foundry-mcp-bridge.getUsageRecords` (the `PlayRecordsResponse` shape). */
+export interface UsageRecordsResponse {
+  success: boolean;
+  error?: string;
+  /** Random per page load; a new id means the sequence restarted. */
+  clientId: string;
+  /** Events with buffer seq above `sinceSeq`, oldest first, at most `limit`. */
+  records: UsageEvent[];
+  oldestSeq: number;
+  latestSeq: number;
+}
+
 /** File name of one local day's usage log inside the world's `sessions` folder. */
 export function usageLogFileName(dateKey: string): string {
   return `${dateKey}.usage.jsonl`;

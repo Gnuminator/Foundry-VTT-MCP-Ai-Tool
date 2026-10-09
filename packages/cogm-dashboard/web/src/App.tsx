@@ -17,6 +17,7 @@ import {
   usePreflightOnReconnect,
 } from './panels/Preflight';
 import { TarokkaDrawer } from './panels/Tarokka';
+import { ToolsDrawer, type ToolRequest } from './panels/Tools';
 import { api } from './lib/api';
 import { GmActionsGateContext } from './lib/guarded';
 import { useDashboardStream } from './lib/stream';
@@ -65,13 +66,14 @@ export function App(): JSX.Element {
 }
 
 /** The drawers this page has so far; each one's open state. */
-type DrawerName = 'preflight' | 'prep' | 'party' | 'handouts' | 'tarokka';
+type DrawerName = 'preflight' | 'prep' | 'party' | 'handouts' | 'tarokka' | 'tools';
 const NO_DRAWERS: Record<DrawerName, boolean> = {
   preflight: false,
   prep: false,
   party: false,
   handouts: false,
   tarokka: false,
+  tools: false,
 };
 
 function Dashboard(): JSX.Element {
@@ -84,9 +86,13 @@ function Dashboard(): JSX.Element {
   const openHelp = useHelp();
   const [linksOpen, setLinksOpen] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
+  // Tarokka's Show cards, here so Pre-flight can warn while it is on (both drawers can be open).
+  const [tarokkaShown, setTarokkaShown] = useState(false);
   // A guarded change refused for GM Actions opens Pre-flight, whose Ready for session turns them
-  // on (the old page opens the Tool runner's gate; that drawer is not here yet).
+  // on (the old page opens the Tool runner's gate; the Tool runner points at its own gate bar).
   const openGmActionsGate = useCallback(() => setDrawers(d => ({ ...d, preflight: true })), []);
+  // Another panel opens the Tool runner on a tool with its form filled in.
+  const [toolRequest, setToolRequest] = useState<ToolRequest | null>(null);
 
   return (
     <GmActionsGateContext.Provider value={openGmActionsGate}>
@@ -148,6 +154,16 @@ function Dashboard(): JSX.Element {
             🃏 Tarokka
           </button>
           <button
+            id="btn-tools"
+            className="btn"
+            data-track="dash.header.tools"
+            title="Open the tool runner (run any bridge tool)"
+            aria-expanded={drawers.tools}
+            onClick={() => setDrawer('tools', !drawers.tools)}
+          >
+            🛠 Tools
+          </button>
+          <button
             className="btn"
             data-track="dash.header.player-links"
             title="Each player's private link to their own character sheet (GM only)"
@@ -191,6 +207,8 @@ function Dashboard(): JSX.Element {
       <PreflightDrawer
         open={drawers.preflight}
         onOpenChange={open => setDrawer('preflight', open)}
+        tarokkaShown={tarokkaShown}
+        onHideTarokka={() => setTarokkaShown(false)}
       />
       <PrepDrawer
         open={drawers.prep}
@@ -198,8 +216,29 @@ function Dashboard(): JSX.Element {
         onOpenPreflight={() => setDrawers(d => ({ ...d, prep: false, preflight: true }))}
       />
       <PartyDrawer open={drawers.party} onOpenChange={open => setDrawer('party', open)} />
-      <HandoutsDrawer open={drawers.handouts} onOpenChange={open => setDrawer('handouts', open)} />
-      <TarokkaDrawer open={drawers.tarokka} onOpenChange={open => setDrawer('tarokka', open)} />
+      <HandoutsDrawer
+        open={drawers.handouts}
+        onOpenChange={open => setDrawer('handouts', open)}
+        onQueuePage={sceneId => {
+          setToolRequest(r => ({
+            name: 'plan-page-reveal',
+            prefill: { action: 'queue', ...(sceneId ? { sceneId } : {}) },
+            seq: (r?.seq ?? 0) + 1,
+          }));
+          setDrawers(d => ({ ...d, handouts: false, tools: true }));
+        }}
+      />
+      <TarokkaDrawer
+        open={drawers.tarokka}
+        onOpenChange={open => setDrawer('tarokka', open)}
+        showCards={tarokkaShown}
+        onShowCardsChange={setTarokkaShown}
+      />
+      <ToolsDrawer
+        open={drawers.tools}
+        onOpenChange={open => setDrawer('tools', open)}
+        request={toolRequest}
+      />
     </GmActionsGateContext.Provider>
   );
 }

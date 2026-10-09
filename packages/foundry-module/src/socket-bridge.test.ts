@@ -105,7 +105,7 @@ describe('SocketBridge — MCP query dispatch', () => {
 
   it('passes {} to the handler when no data is supplied', async () => {
     const handler = vi.fn().mockResolvedValue(null);
-    bridgeHandlers.set('foundry-mcp-bridge.ping', handler);
+    bridgeHandlers.on('foundry-mcp-bridge.ping', handler);
     const bridge = new SocketBridge(makeConfig()) as any;
 
     await bridge.handleMCPQuery({ method: 'foundry-mcp-bridge.ping' }, vi.fn());

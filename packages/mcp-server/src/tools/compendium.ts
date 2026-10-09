@@ -21,6 +21,7 @@ import {
   creatureSizeWord,
   flatHasSpells,
   hasLegendaryActions,
+  itemRarityLabel,
   movementSummary,
   sizeWord,
   spellSchoolName,
@@ -733,7 +734,9 @@ export class CompendiumTools {
         // dnd5e 6 armor and shields are `equipment` with an armor `type.value`
         const ac = armorClassSummary(system);
         if (ac) parts.push(ac);
-        if (system.rarity) parts.push(system.rarity);
+        // '' rarity with a filled rarities list still gets a label
+        const rarity = itemRarityLabel(system.rarity) ?? itemRarityLabel(system.rarities);
+        if (rarity) parts.push(rarity);
         if (system.price?.value)
           parts.push(`${system.price.value} ${system.price.denomination || 'gp'}`);
         break;
@@ -891,7 +894,9 @@ export class CompendiumTools {
     const properties: any = {};
 
     // Common properties across different item types
-    if (system.rarity) properties.rarity = system.rarity;
+    // The same label as the search summary ("Very Rare"), from rarity or dnd5e 6 rarities
+    const rarity = itemRarityLabel(system.rarity) ?? itemRarityLabel(system.rarities);
+    if (rarity) properties.rarity = rarity;
     if (system.price) properties.price = system.price;
     if (system.weight) properties.weight = system.weight;
     if (system.quantity) properties.quantity = system.quantity;

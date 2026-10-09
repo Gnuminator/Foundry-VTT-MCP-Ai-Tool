@@ -197,7 +197,7 @@ export class ActorCreationDataAccess {
         throw new Error(`Compendium pack "${packId}" not found`);
       }
 
-      const sourceDocument = await pack.getDocument(itemId);
+      const sourceDocument = (await pack.getDocument(itemId)) as Actor | null | undefined;
       if (!sourceDocument) {
         throw new Error(`Document "${itemId}" not found in pack "${packId}"`);
       }
@@ -214,19 +214,21 @@ export class ActorCreationDataAccess {
         );
       }
 
-      const sourceActor = sourceDocument as Actor;
+      const sourceActor = sourceDocument;
 
       // Default to one "<name> Copy"; otherwise cap quantity at the names given.
       const names = customNames.length > 0 ? customNames : [`${sourceActor.name} Copy`];
       const finalQuantity = Math.min(quantity, names.length);
 
-      const createdActors: any[] = [];
+      const createdActors: Array<
+        Pick<CreatedActorInfo, 'id' | 'name' | 'originalName' | 'sourcePackLabel'>
+      > = [];
       const errors: string[] = [];
 
       for (let i = 0; i < finalQuantity; i++) {
         try {
           const customName = names[i] || `${sourceActor.name} ${i + 1}`;
-          const sourceData = sourceActor.toObject() as any;
+          const sourceData: Record<string, unknown> = sourceActor.toObject();
 
           const actorData = {
             name: customName,
@@ -283,7 +285,8 @@ export class ActorCreationDataAccess {
         success: createdActors.length > 0,
         totalCreated: createdActors.length,
         totalRequested: finalQuantity,
-        actors: createdActors,
+        // The compendium-entry path has never reported `type` or `sourcePackId`; the cast keeps that.
+        actors: createdActors as CreatedActorInfo[],
         tokensPlaced,
         errors: errors.length > 0 ? errors : undefined,
       };
@@ -313,7 +316,7 @@ export class ActorCreationDataAccess {
       name: string;
       type: string;
       img?: string;
-      system?: Record<string, any>;
+      system?: Record<string, unknown>;
     }>;
   }): Promise<{
     actorId: string;
@@ -337,24 +340,24 @@ export class ActorCreationDataAccess {
       throw new Error('items array is required and must contain at least one entry');
     }
 
-    const actor = shared.findActorByIdentifier(actorIdentifier);
+    const actor = shared.findActorByIdentifier(actorIdentifier) as Actor | undefined;
     if (!actor) {
       throw new Error(`Actor not found: ${actorIdentifier}`);
     }
 
     // The active system's declared Item types, for a useful pre-flight error.
-    const itemDocTypes = (game as any).system?.documentTypes?.Item;
+    const itemDocTypes: unknown = game.system?.documentTypes?.Item;
     const validTypes: string[] | null =
       itemDocTypes && typeof itemDocTypes === 'object' ? Object.keys(itemDocTypes) : null;
 
     const payload = items.map((it, idx) => this.buildItemPayload(it, idx, validTypes));
 
-    const created = await actor.createEmbeddedDocuments('Item', payload);
+    const created = (await actor.createEmbeddedDocuments('Item', payload)) as Item[];
 
     const result = {
       actorId: actor.id,
       actorName: actor.name,
-      created: (created || []).map((doc: any) => ({
+      created: (created || []).map(doc => ({
         id: doc.id,
         name: doc.name,
         type: doc.type,
@@ -383,7 +386,7 @@ export class ActorCreationDataAccess {
       throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
     }
 
-    const scene = (game.scenes as any).current;
+    const scene = game.scenes.current;
     if (!scene) {
       throw new Error('No active scene found');
     }
@@ -397,9 +400,9 @@ export class ActorCreationDataAccess {
     // explicitly). verified: common/documents/token.mjs:180 (`level: new
     // DocumentIdField({required: true, nullable: false, ...})`), :234
     // (`data.level ??= this.parent?.initialLevel?.id` — the fallback this avoids).
-    const level = currentLevelId(scene as Scene);
+    const level = currentLevelId(scene);
 
-    const tokenData: any[] = [];
+    const tokenData: Record<string, unknown>[] = [];
     const errors: string[] = [];
 
     for (const actorId of placement.actorIds) {
@@ -410,7 +413,7 @@ export class ActorCreationDataAccess {
           continue;
         }
 
-        const tokenDoc = (actor as any).prototypeToken.toObject();
+        const tokenDoc: Record<string, unknown> = actor.prototypeToken.toObject();
         const position = this.calculateTokenPosition(
           placement.placement,
           scene,
@@ -446,7 +449,7 @@ export class ActorCreationDataAccess {
     const result: TokenPlacementResult = {
       success: createdTokens.length > 0,
       tokensCreated: createdTokens.length,
-      tokenIds: createdTokens.map((token: any) => token.id),
+      tokenIds: createdTokens.map(token => token.id),
       ...(errors.length > 0 ? { errors } : {}),
     };
 
@@ -482,10 +485,10 @@ export class ActorCreationDataAccess {
 
   /** Validate + shape one caller-supplied item into a Foundry create payload. */
   private buildItemPayload(
-    it: { name: string; type: string; img?: string; system?: Record<string, any> },
+    it: { name: string; type: string; img?: string; system?: Record<string, unknown> },
     idx: number,
     validTypes: string[] | null
-  ): Record<string, any> {
+  ): Record<string, unknown> {
     if (!it || typeof it.name !== 'string' || it.name.trim().length === 0) {
       throw new Error(`items[${idx}]: "name" is required and must be a non-empty string`);
     }
@@ -499,7 +502,7 @@ export class ActorCreationDataAccess {
       );
     }
 
-    const doc: Record<string, any> = { name: it.name, type: it.type };
+    const doc: Record<string, unknown> = { name: it.name, type: it.type };
     if (it.img) doc.img = it.img;
     if (it.system && typeof it.system === 'object') doc.system = it.system;
     return doc;
@@ -535,9 +538,9 @@ export class ActorCreationDataAccess {
   private async createActorFromSource(
     sourceDoc: CompendiumEntryFull,
     customName: string
-  ): Promise<any> {
+  ): Promise<Actor> {
     try {
-      const actorData = foundry.utils.deepClone(sourceDoc.fullData) as any;
+      const actorData = foundry.utils.deepClone(sourceDoc.fullData);
 
       actorData.name = customName;
       this.prepareTokenCopy(actorData.prototypeToken, customName);
@@ -574,7 +577,7 @@ export class ActorCreationDataAccess {
    */
   private calculateTokenPosition(
     placement: 'random' | 'grid' | 'center' | 'coordinates',
-    scene: any,
+    scene: Scene,
     index: number,
     coordinates?: { x: number; y: number }[]
   ): { x: number; y: number } {

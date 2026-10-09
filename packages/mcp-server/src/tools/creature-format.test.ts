@@ -6,6 +6,7 @@ import {
   flatHasSpells,
   hasLegendaryActions,
   isArmorEquipment,
+  itemRarityLabel,
   movementSummary,
   sizeWord,
   spellSchoolName,
@@ -118,6 +119,25 @@ describe('spellSchoolName', () => {
     expect(spellSchoolName('Chronomancy')).toBe('Chronomancy');
     expect(spellSchoolName('')).toBeUndefined();
     expect(spellSchoolName(undefined)).toBeUndefined();
+  });
+});
+
+describe('itemRarityLabel', () => {
+  it('labels the six dnd5e rarity keys', () => {
+    expect(
+      ['common', 'uncommon', 'rare', 'veryRare', 'legendary', 'artifact'].map(itemRarityLabel)
+    ).toEqual(['Common', 'Uncommon', 'Rare', 'Very Rare', 'Legendary', 'Artifact']);
+  });
+
+  it('reads the first entry of a dnd5e 6 rarities list', () => {
+    expect(itemRarityLabel(['veryRare'])).toBe('Very Rare');
+    expect(itemRarityLabel([])).toBeUndefined();
+  });
+
+  it('passes unknown rarities through and rejects blanks', () => {
+    expect(itemRarityLabel('Mythic')).toBe('Mythic');
+    expect(itemRarityLabel('')).toBeUndefined();
+    expect(itemRarityLabel(undefined)).toBeUndefined();
   });
 });
 
@@ -408,6 +428,56 @@ describe('CompendiumTools.handleGetCompendiumItem formatting (M3)', () => {
       strengthRequirement: 13,
       stealthDisadvantage: true,
     });
+  });
+  it('search results show an item rarity as a label, from pack or dnd5e 6 source data', async () => {
+    const hits = [
+      {
+        id: 'cloak',
+        name: 'Cloak of Displacement',
+        type: 'equipment',
+        pack: 'dnd5e.items',
+        packLabel: 'SRD Items',
+        system: { rarity: 'veryRare', price: { value: 6000, denomination: 'gp' } },
+      },
+      {
+        id: 'potion',
+        name: 'Potion of Healing',
+        type: 'equipment',
+        pack: 'world.loot',
+        packLabel: 'Loot',
+        system: { rarities: ['common'] },
+      },
+    ];
+    const { tools } = makeTools(withDnd5e(hits));
+    const result = await tools.handleSearchCompendium({ query: 'of' });
+    expect(result.results[0].summary).toBe('equipment from SRD Items • Very Rare • 6000 gp');
+    expect(result.results[1].summary).toBe('equipment from Loot • Common');
+  });
+
+  it("a blank rarity falls through to dnd5e 6's rarities list", async () => {
+    const cloak = {
+      id: 'cloak',
+      name: 'Cloak of Displacement',
+      type: 'equipment',
+      pack: 'world.loot',
+      packLabel: 'Loot',
+      system: { rarity: '', rarities: ['veryRare'] },
+    };
+    const { tools } = makeTools(withDnd5e([cloak]));
+    const result = await tools.handleSearchCompendium({ query: 'cloak' });
+    expect(result.results[0].summary).toBe('equipment from Loot • Very Rare');
+  });
+
+  it('full mode reports the same rarity label as the search summary', async () => {
+    const detail = (system: Record<string, unknown>): Promise<any> =>
+      makeTools(
+        withDnd5e({ ...chainMail, id: 'cloak', name: 'Cloak', system })
+      ).tools.handleGetCompendiumItem({ packId: 'dnd5e.items', itemId: 'cloak' });
+    expect((await detail({ rarity: 'veryRare' })).properties.rarity).toBe('Very Rare');
+    expect((await detail({ rarity: '', rarities: ['uncommon'] })).properties.rarity).toBe(
+      'Uncommon'
+    );
+    expect((await detail({})).properties).not.toHaveProperty('rarity');
   });
 });
 

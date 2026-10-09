@@ -22,10 +22,8 @@ export class SceneFxDataAccess {
       throw new Error('playlistName is required');
     }
     const pl =
-      (game.playlists as any)?.getName?.(playlistName) ||
-      (game.playlists as any)?.find?.(
-        (p: any) => p.name?.toLowerCase() === playlistName.toLowerCase()
-      );
+      game.playlists?.getName?.(playlistName) ??
+      game.playlists?.find?.(p => p.name?.toLowerCase() === playlistName.toLowerCase());
     if (!pl) {
       return { success: true, playlist: `Playlist not found: ${playlistName}` };
     }

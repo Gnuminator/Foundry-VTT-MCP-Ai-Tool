@@ -4,6 +4,17 @@ import type { SceneInfo, SceneToken, WorldInfo } from './types.js';
 import { sceneBackgroundSrc } from '../systems/core.js';
 
 /**
+ * Scene members the shared `Scene` declaration does not list. Read from the live
+ * document, so each is typed the way Foundry exposes it.
+ */
+interface SceneExtraFields {
+  img?: string | null;
+  padding: number;
+  navigation: boolean;
+  sounds: { size: number };
+}
+
+/**
  * Read-only world and scene domain for `FoundryDataAccess`.
  *
  * Backs the tools that give an AI model a quick orientation to the live game:
@@ -43,7 +54,7 @@ export class WorldReadsDataAccess {
    * normalized through `shared.getTokenDisposition` to guarantee a number.
    */
   async getActiveScene(): Promise<SceneInfo> {
-    const scene = (game.scenes as any).current;
+    const scene = game.scenes.current as (Scene & SceneExtraFields) | null | undefined;
     if (!scene) {
       throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
     }
@@ -52,23 +63,23 @@ export class WorldReadsDataAccess {
     // background on v14, `_source.background.src` on v13. Spread in only when
     // present — `exactOptionalPropertyTypes` forbids assigning `undefined`
     // itself to the (typed) optional `background` field.
-    const background = sceneBackgroundSrc(scene as Scene);
+    const background = sceneBackgroundSrc(scene);
 
     return {
       id: scene.id,
       name: scene.name,
-      img: scene.img || undefined,
+      ...(scene.img ? { img: scene.img } : {}),
       ...(background ? { background } : {}),
       width: scene.width,
       height: scene.height,
       padding: scene.padding,
       active: scene.active,
       navigation: scene.navigation,
-      tokens: scene.tokens.map((token: any) => this.summarizeToken(token)),
+      tokens: scene.tokens.map(token => this.summarizeToken(token)),
       walls: scene.walls.size,
       lights: scene.lights.size,
       sounds: scene.sounds.size,
-      notes: scene.notes.map((note: any) => ({
+      notes: scene.notes.map(note => ({
         id: note.id,
         text: note.text || '',
         x: note.x,
@@ -129,7 +140,7 @@ export class WorldReadsDataAccess {
    * is coerced to a number through `shared.getTokenDisposition` in case the
    * document carries an unexpected non-numeric value.
    */
-  private summarizeToken(token: any): SceneToken {
+  private summarizeToken(token: TokenDocument): SceneToken {
     return {
       id: token.id,
       name: token.name,
@@ -145,7 +156,7 @@ export class WorldReadsDataAccess {
   }
 
   /** Map a Foundry user document to the lightweight roster entry. */
-  private summarizeUser(user: any): { id: string; name: string; active: boolean; isGM: boolean } {
+  private summarizeUser(user: User): { id: string; name: string; active: boolean; isGM: boolean } {
     return {
       id: user.id || '',
       name: user.name || '',

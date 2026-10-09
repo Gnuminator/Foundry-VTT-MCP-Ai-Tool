@@ -262,12 +262,12 @@ export class CharacterTools {
             type: {
               type: 'string',
               description:
-                'Filter by item type: "spell", "weapon", "armor", "equipment", "consumable", "feat", "feature", "action", "effect", or system-specific types. Leave empty to search all types.',
+                'Filter by dnd5e item type: "spell", "weapon", "equipment" (armor and shields too), "consumable", "tool", "loot", "container", "feat" (features), "class", "subclass", "background", "race" (species), or "effect" for active effects. Leave empty to search all types.',
             },
             category: {
               type: 'string',
               description:
-                'Additional category filter. For spells: "cantrip", "prepared", "innate", "focus". For items: "equipped", "carried", "invested".',
+                'Additional category filter. For spells: "cantrip" or "prepared". For weapons and equipment: "equipped".',
             },
             limit: {
               type: 'number',

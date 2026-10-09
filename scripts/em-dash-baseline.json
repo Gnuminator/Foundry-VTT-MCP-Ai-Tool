@@ -1,5 +1,5 @@
 {
-  "total": 1493,
+  "total": 1488,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -43,7 +43,7 @@
     "packages/foundry-module/src/data-access.actor-builder-items.test.ts": 10,
     "packages/foundry-module/src/data-access.actor-builder-npc.test.ts": 23,
     "packages/foundry-module/src/data-access.actor-creation.test.ts": 17,
-    "packages/foundry-module/src/data-access.character-entity.test.ts": 11,
+    "packages/foundry-module/src/data-access.character-entity.test.ts": 10,
     "packages/foundry-module/src/data-access.character-resolve.test.ts": 2,
     "packages/foundry-module/src/data-access.character-search-extra.test.ts": 10,
     "packages/foundry-module/src/data-access.character-search.test.ts": 8,
@@ -75,7 +75,7 @@
     "packages/foundry-module/src/data-access/chat.ts": 7,
     "packages/foundry-module/src/data-access/combat.ts": 5,
     "packages/foundry-module/src/data-access/compendium.ts": 4,
-    "packages/foundry-module/src/data-access/creature-index.ts": 5,
+    "packages/foundry-module/src/data-access/creature-index.ts": 1,
     "packages/foundry-module/src/data-access/dnd5e-tables.ts": 10,
     "packages/foundry-module/src/data-access/journals.ts": 3,
     "packages/foundry-module/src/data-access/modules.ts": 9,

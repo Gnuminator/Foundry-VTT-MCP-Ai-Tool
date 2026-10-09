@@ -15,6 +15,7 @@ import {
   type TestWorld,
 } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
+import { ITEM_SUMMARY_FIELDS } from './data-access/compendium.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -259,6 +260,54 @@ describe('FoundryDataAccess — searchCompendium — name matching', () => {
 
     // Exact match 'Goblin' should come first
     expect(results[0].name).toBe('Goblin');
+  });
+});
+
+describe('FoundryDataAccess: searchCompendium, Item summary fields (dnd5e 6)', () => {
+  it('indexes Item packs once with the summary fields and returns their system', async () => {
+    const entry = {
+      _id: 'chain',
+      name: 'Chain Mail',
+      type: 'equipment',
+      system: {
+        identifier: 'chain-mail',
+        source: { book: 'SRD' },
+        type: { value: 'heavy' },
+        armor: { value: 16 },
+        price: { value: 75, denomination: 'gp' },
+      },
+    };
+    const pack = world.addPack({ id: 'dnd5e.items', label: 'Items', type: 'Item' });
+    pack.index = new Map();
+    pack.getIndex = vi.fn(async () => {
+      pack.index = new Map([[entry._id, entry]]);
+      return pack.index;
+    });
+
+    const first = await da.searchCompendium('chain mail');
+    await da.searchCompendium('chain');
+
+    expect(pack.getIndex).toHaveBeenCalledTimes(1);
+    expect(pack.getIndex).toHaveBeenCalledWith({ fields: ITEM_SUMMARY_FIELDS });
+    expect(ITEM_SUMMARY_FIELDS).toEqual(
+      expect.arrayContaining(['system.type.value', 'system.armor.value', 'system.damage.base'])
+    );
+    expect(first[0].system).toEqual({
+      type: { value: 'heavy' },
+      armor: { value: 16 },
+      price: { value: 75, denomination: 'gp' },
+    });
+  });
+
+  it('sends no system for Actor packs', async () => {
+    world.addPack({
+      id: 'world.monsters',
+      label: 'Monsters',
+      type: 'Actor',
+      documents: [makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })],
+    });
+    const results = await da.searchCompendium('goblin');
+    expect(results[0]).not.toHaveProperty('system');
   });
 });
 

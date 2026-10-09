@@ -176,3 +176,44 @@ export function weaponDamageSummary(system: unknown): string | undefined {
   }
   return undefined;
 }
+
+/** dnd5e 6 `CONFIG.DND5E.armorTypes` keys: armor and shields are `equipment` items. */
+const ARMOR_TYPES = new Set(['light', 'medium', 'heavy', 'natural', 'shield']);
+
+/** The armor type of an `equipment` item's system data (dnd5e 6 `type.value`), else undefined. */
+function armorType(system: unknown): string | undefined {
+  const value = asRecord(asRecord(system)?.type)?.value;
+  return typeof value === 'string' && ARMOR_TYPES.has(value) ? value : undefined;
+}
+
+/** True when an `equipment` item's system data is armor or a shield. */
+export function isArmorEquipment(system: unknown): boolean {
+  return armorType(system) !== undefined;
+}
+
+/** "AC 16" for armor, "AC +2" for a shield; undefined for other equipment. */
+export function armorClassSummary(system: unknown): string | undefined {
+  const type = armorType(system);
+  const ac = asRecord(asRecord(system)?.armor)?.value;
+  if (!type || !positiveNumber(ac)) return undefined;
+  return `AC ${type === 'shield' ? '+' : ''}${String(ac)}`;
+}
+
+/**
+ * Armor details of an `equipment` item's system data: type, the `armor` block (value, dex,
+ * magicalBonus), the strength requirement and stealth disadvantage (a dnd5e 6 item property).
+ * Undefined for equipment that is not armor.
+ */
+export function armorProperties(system: unknown): Record<string, unknown> | undefined {
+  const type = armorType(system);
+  if (!type) return undefined;
+  const sys = asRecord(system);
+  const props = sys?.properties;
+  const tags: unknown[] = Array.isArray(props) ? props : props instanceof Set ? [...props] : [];
+  return {
+    armorType: type,
+    ...(sys?.armor ? { armorClass: sys.armor } : {}),
+    ...(positiveNumber(sys?.strength) ? { strengthRequirement: sys?.strength } : {}),
+    ...(tags.includes('stealthDisadvantage') ? { stealthDisadvantage: true } : {}),
+  };
+}

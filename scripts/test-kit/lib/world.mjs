@@ -52,13 +52,45 @@ export function initWorld({ dataDir, profile, log = () => {} }) {
   return { created: true, path: dir };
 }
 
+const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost', '[::1]'];
+
+/**
+ * Refuses to provision a Foundry that is not on this machine. Provisioning makes passwordless GMs
+ * (Kit GM, Claude): fine on the PC's test server, an open GM login on a host others can reach (a
+ * future Pi target). Such a target must opt in with `allowRemote` in code, and say how its GMs get
+ * passwords (docs/dev/TEST-KIT.md, "Safety guards").
+ * @param {string} foundryUrl
+ * @param {{allowRemote?: boolean}} [o]
+ */
+export function assertLocalProvision(foundryUrl, { allowRemote = false } = {}) {
+  let host;
+  try {
+    host = new URL(foundryUrl).hostname;
+  } catch {
+    throw new EnvError(`REFUSED: provisioning: "${foundryUrl}" is not a URL.`);
+  }
+  if (!allowRemote && !LOOPBACK_HOSTS.includes(host)) {
+    throw new EnvError(
+      `REFUSED: provisioning makes passwordless GMs; ${host} is not on this machine (loopback only, allowRemote opts in).`
+    );
+  }
+}
+
 /**
  * Provision the running kit world. Idempotent: a second run changes nothing.
- * @param {{foundryUrl: string, world: string, modules?: string[], log?: (m: string) => void}} o
+ * @param {{foundryUrl: string, world: string, modules?: string[], allowRemote?: boolean, log?: (m: string) => void}} o
  *   `modules`: the profile's modules; they and the modules they require are enabled with the bridge
+ *   `allowRemote`: provision a Foundry that is not on loopback (see assertLocalProvision)
  * @returns {Promise<{changed: string[], users: string[], bridgeUser: string, modules: string[]}>}
  */
-export async function provisionWorld({ foundryUrl, world, modules = [], log = () => {} }) {
+export async function provisionWorld({
+  foundryUrl,
+  world,
+  modules = [],
+  allowRemote = false,
+  log = () => {},
+}) {
+  assertLocalProvision(foundryUrl, { allowRemote });
   await assertKitWorld(foundryUrl, world);
   const browser = await launchBrowser();
   const { page } = browser;

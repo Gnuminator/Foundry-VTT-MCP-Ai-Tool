@@ -1086,6 +1086,13 @@ When you change a tool's result shape, change the fake with it.
   with exit code 2 before it changes anything.
 - **GM Actions are turned on for the run and put back** as they were found.
 - **No secrets.** The kit never types a password. The GM and player users are passwordless.
+  `init` creates a missing Kit GM, Claude or Kit Player without a password. A user of that name
+  that is already there keeps its password: a lower-role `Claude` is promoted to Gamemaster, and
+  a password someone gave it stays.
+- **Passwordless GMs only on this machine.** `init` refuses to provision a Foundry that is not on
+  loopback (`127.0.0.1`, `localhost`, `[::1]`), because its passwordless GMs would be an open GM
+  login on a host others can reach. A future remote target (the Pi's `strahd-kit`) has to opt in
+  with `allowRemote` in `provisionWorld` and give its GMs passwords first.
 
 ## What comes next
 

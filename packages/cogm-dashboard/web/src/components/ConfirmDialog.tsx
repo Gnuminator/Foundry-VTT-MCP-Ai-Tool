@@ -47,9 +47,17 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
     resolve?.(ok);
   }, []);
 
+  // Where focus goes back to on close: what had it when the window opened.
+  const returnTo = useRef<HTMLElement | null>(null);
+
   const ask = useCallback<AskConfirm>(next => {
-    // One question at a time: a new one answers the open one with no.
-    resolver.current?.(false);
+    // One question at a time: a new one answers the open one with no (and keeps its way back).
+    if (resolver.current) {
+      resolver.current(false);
+    } else {
+      const active = document.activeElement;
+      returnTo.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    }
     setTicked(false);
     setRequest(next);
     return new Promise<boolean>(resolve => {
@@ -65,6 +73,17 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
     answer(false);
   });
 
+  // Radix gives focus back to what had it, but a button the change disabled (Reveal next while
+  // the reveal runs) cannot take it and focus would land on the page body. Then the panel the
+  // button sits in (a drawer) takes it, and the panel may hand it on once the change is over.
+  const restoreFocus = (event: Event): void => {
+    const back = returnTo.current;
+    returnTo.current = null;
+    if (back?.isConnected && !back.matches(':disabled')) return;
+    event.preventDefault();
+    back?.closest<HTMLElement>('[role="dialog"]')?.focus();
+  };
+
   const destructive = request?.destructive === true;
   return (
     <ConfirmContext.Provider value={ask}>
@@ -78,7 +97,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
         <Dialog.Portal>
           <Dialog.Overlay className="modal-backdrop" id="modal-backdrop">
             {request && (
-              <Dialog.Content className="modal" id="modal" onEscapeKeyDown={escape}>
+              <Dialog.Content
+                className="modal"
+                id="modal"
+                onEscapeKeyDown={escape}
+                onCloseAutoFocus={restoreFocus}
+              >
                 {/* No ids of their own here: Radix names and describes the window by its ids. */}
                 <Dialog.Title asChild>
                   <h3>{destructive ? 'Destructive action' : 'Confirm action'}</h3>

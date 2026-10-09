@@ -2,7 +2,8 @@
 // list-scenes and /api/player/names, faked here), the next entry, the empty and failed states,
 // Remove (no GM Actions needed), Reveal next through the confirm window (the destructive tick,
 // Confirm with both flags, Cancel, Escape with a toast up, Show it now), Undo, and the stream's
-// handouts-seen reloading the open drawer.
+// handouts-seen reloading the open drawer, the reload after every reveal attempt and where focus
+// goes when the confirm window closes.
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
 import {
@@ -397,14 +398,16 @@ test('Reveal next asks first; the tick unlocks Confirm, which applies with both 
 
   await expect(confirm).toBeHidden();
   await expect(toast(page, '✓ Applied: Revealed "Map of Barovia" to every player')).toBeVisible();
+  // Focus waits in the drawer while the button is disabled, then goes back to it.
+  await expect(page.locator('#handouts-next')).toBeFocused();
   expect(calls.find(c => c.name === 'apply-planned-change')).toEqual({
     name: 'apply-planned-change',
     args: { planId: 'rp1' },
     confirm: true,
     confirmDestructive: true,
   });
-  // The apply reloads the drawer, and so does Undo.
-  await expect.poll(() => loads(calls)).toBe(loaded + 1);
+  // The apply reloads the drawer once (the reload after the attempt joins it), and so does Undo.
+  expect(loads(calls)).toBe(loaded + 1);
   await page.locator('.toast-stack .toast-undo .toast-action').click();
   await expect(toast(page, '✓ Undid: Revealed "Map of Barovia" to every player')).toBeVisible();
   expect(calls.find(c => c.name === 'undo-change')).toEqual({
@@ -425,6 +428,8 @@ test('Show it now goes with one reveal; Cancel applies nothing and unticks it', 
   const showNow = drawer.getByRole('checkbox', { name: 'Show it now' });
 
   await showNow.check();
+  await expect(queueRows(drawer)).toHaveCount(4);
+  const loaded = loads(calls);
   await drawer.locator('#handouts-next').click();
   const confirm = page.getByRole('dialog', { name: 'Destructive action' });
   await confirm.getByRole('checkbox').check();
@@ -432,6 +437,9 @@ test('Show it now goes with one reveal; Cancel applies nothing and unticks it', 
   await expect(confirm).toBeHidden();
   await expect(showNow).not.toBeChecked();
   await expect(drawer.locator('#handouts-next')).toBeEnabled();
+  // A cancelled reveal reloads the queue too, and focus goes back to the button.
+  await expect(drawer.locator('#handouts-next')).toBeFocused();
+  expect(loads(calls)).toBe(loaded + 1);
   expect(calls.filter(c => c.name === 'plan-page-reveal').map(c => c.args)).toEqual([
     { action: 'reveal-next', sceneId: 's1', showNow: true },
   ]);
@@ -530,4 +538,46 @@ test('a handouts-seen event reloads the open drawer', async ({ page }) => {
   release();
   await expect(ticks).toHaveText(['✓ Anna', '· Bo']);
   expect(loads(calls)).toBe(2);
+});
+
+test('a failed reveal reloads the queue; with nothing left, focus stays in the drawer', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  let view: unknown = VIEW;
+  let planFails = true;
+  const calls = await fakeTools(page, call => {
+    if (call.name === 'list-revealed-pages') return ok(view);
+    if (call.name === 'plan-page-reveal' && planFails) {
+      return { status: 422, json: { ok: false, error: 'Nothing queued for this scene' } };
+    }
+    return bridge(call);
+  });
+  const drawer = await openHandouts(page);
+  await expect(queueRows(drawer)).toHaveCount(4);
+
+  // Someone else revealed the page meanwhile: the plan fails and the reload shows the queue now.
+  view = { pages: PAGES, queue: [QUEUE[0]] };
+  await drawer.locator('#handouts-next').click();
+  await expect(toast(page, '✗ plan-page-reveal: Nothing queued for this scene')).toBeVisible();
+  await expect(queueRows(drawer).locator('.pf-label')).toHaveText(['Letter from Kolyan']);
+  await expect(drawer.locator('#handouts-next')).toHaveText('Reveal next');
+  await expect(drawer.locator('#handouts-next')).toBeDisabled();
+  await expect(drawer).toBeFocused();
+  expect(loads(calls)).toBe(2);
+
+  // The last page goes: Reveal next stays disabled, so focus stays on the drawer, not the page.
+  view = VIEW;
+  planFails = false;
+  await drawer.getByRole('button', { name: '↻ Refresh' }).click();
+  await expect(drawer.locator('#handouts-next')).toBeEnabled();
+  await drawer.locator('#handouts-next').click();
+  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
+  await confirm.getByRole('checkbox').check();
+  view = { pages: PAGES, queue: [] };
+  await confirm.getByRole('button', { name: 'Run destructive action' }).click();
+  await expect(toast(page, '✓ Applied: Revealed "Map of Barovia" to every player')).toBeVisible();
+  await expect(queueRows(drawer)).toHaveCount(0);
+  await expect(drawer.locator('#handouts-next')).toBeDisabled();
+  await expect(drawer).toBeFocused();
 });

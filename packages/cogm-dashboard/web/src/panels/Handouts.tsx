@@ -157,14 +157,36 @@ export function HandoutsDrawer({
       ...(s.activeSceneId ? { sceneId: s.activeSceneId } : {}),
       ...(showNow ? { showNow: true } : {}),
     };
+    // Reloads after every attempt, as the old page does: a cancelled or failed reveal may still
+    // have changed the queue. An apply already started a reload (GAME_STATE_KEY); this joins it.
     void runChange('plan-page-reveal', args).finally(() => {
       revealingRef.current = false;
       setRevealing(false);
       setShowNow(false);
+      void handouts.refetch({ cancelRefetch: false }).finally(() => setRefocus(true));
     });
   };
 
+  // The confirm window hands focus to the drawer while Reveal next is still disabled. Once the
+  // reveal is over and the queue reloaded, the button takes it back if there is a next page, else
+  // the drawer keeps it (never the page body). Focus the GM moved elsewhere meanwhile stays put.
+  const [refocus, setRefocus] = useState(false);
+  const nextRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!refocus) return;
+    setRefocus(false);
+    const button = nextRef.current;
+    if (!button) return;
+    const drawer = button.closest<HTMLElement>('[role="dialog"]');
+    const active = document.activeElement;
+    if (active !== document.body && active !== drawer && active !== button) return;
+    if (button.disabled) drawer?.focus();
+    else button.focus();
+  }, [refocus]);
+
   // Not a guarded change: no plan to apply and nothing changes in Foundry, so no GM Actions gate.
+  // The old page says nothing when it works; the toast here says the row went on purpose, as
+  // a guarded change reports its result.
   const unqueue = (uuid: string): void => {
     setRemoving(uuid);
     callTool<QueueChange | null>('plan-page-reveal', { action: 'unqueue', pageUuid: uuid })
@@ -282,6 +304,7 @@ export function HandoutsDrawer({
           <button
             className="btn btn-primary"
             id="handouts-next"
+            ref={nextRef}
             data-track="dash.handouts.reveal-next"
             disabled={!next || revealing}
             onClick={revealNext}

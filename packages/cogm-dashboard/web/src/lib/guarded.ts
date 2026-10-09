@@ -187,12 +187,13 @@ export function useGuardedTools(): GuardedTools {
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) {
           // The server says GM Actions are off, whatever the page last heard: the gates show
-          // (the Tool runner's bar too) until the stream says otherwise.
+          // (the Tool runner's bar too) until the stream says otherwise. Before the stream's first
+          // settings there is nothing else to keep: GM Actions stand in alone, as the Tool runner's
+          // catalog and Ready for session do (the Obsidian link waits for the stream).
           if (err.code === 'gm-actions-disabled') {
-            queryClient.setQueryData<DashboardSettings | null>(SETTINGS_KEY, old => ({
-              ...old,
-              gmActionsEnabled: false,
-            }));
+            queryClient.setQueryData<DashboardSettings | null>(SETTINGS_KEY, old =>
+              old ? { ...old, gmActionsEnabled: false } : { gmActionsEnabled: false }
+            );
           }
           return { outcome: refuse(name, '403', options) };
         }

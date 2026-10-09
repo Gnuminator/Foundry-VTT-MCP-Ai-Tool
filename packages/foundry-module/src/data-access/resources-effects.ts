@@ -201,11 +201,18 @@ export class ResourcesEffectsDataAccess {
           ? Math.max(0, max - (Number(uses.spent) || 0))
           : Math.max(0, Number(uses.value) || 0);
 
-      const recovery = Array.isArray(uses.recovery) ? uses.recovery[0] : undefined;
-      let recharge: string | null = recovery?.period || null;
-      if (recharge === 'recharge') {
-        const low = parseInt(String(recovery.formula ?? '6'), 10);
-        recharge = Number.isFinite(low) && low < 6 ? `recharge ${low}-6` : 'recharge 6';
+      // dnd5e finds the recharge entry anywhere in the list (`recovery.find`), not only first.
+      const recovery: Array<{ period?: unknown; formula?: unknown }> = Array.isArray(uses.recovery)
+        ? uses.recovery
+        : [];
+      const rechargeEntry = recovery.find(r => r?.period === 'recharge');
+      let recharge: string | null = null;
+      if (rechargeEntry) {
+        const low = Number(rechargeEntry.formula ?? 6);
+        recharge =
+          Number.isInteger(low) && low >= 1 && low < 6 ? `recharge ${low}-6` : 'recharge 6';
+      } else if (typeof recovery[0]?.period === 'string' && recovery[0].period) {
+        recharge = recovery[0].period;
       }
 
       charges.push({ itemName: item.name, charges: current, max, recharge });

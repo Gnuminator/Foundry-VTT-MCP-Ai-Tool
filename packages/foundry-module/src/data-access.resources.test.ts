@@ -296,7 +296,10 @@ describe('FoundryDataAccess — getCharacterResources', () => {
           makeItem({
             name: 'Tail Lash',
             type: 'feat',
-            system: { uses: { max: 1, spent: 0, recovery: [{ period: 'recharge' }] } },
+            // The recharge entry need not be first.
+            system: {
+              uses: { max: 1, spent: 0, recovery: [{ period: 'lr' }, { period: 'recharge' }] },
+            },
           }),
         ],
       })

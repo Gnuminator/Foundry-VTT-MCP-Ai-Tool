@@ -33,12 +33,13 @@
  * fine).
  */
 import {
-  MODULE_ID,
   type GuardedOp,
   type GuardedUpdateOp,
+  MODULE_ID,
   type OpSnapshot,
   type PageForPlayers,
   type PathValue,
+  unwrapBridgeReply,
 } from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
@@ -206,14 +207,6 @@ interface CopyContent {
   secretsRemoved: number;
   embedsRemoved: number;
   linksUnlinked: number;
-}
-
-function unwrap<T>(response: unknown, what: string): T {
-  const r = response as { success?: unknown; error?: unknown } | null | undefined;
-  if (r && typeof r === 'object' && r.success === false) {
-    throw new Error(`${what}: ${typeof r.error === 'string' ? r.error : 'refused by Foundry'}`);
-  }
-  return response as T;
 }
 
 /** The page id (stable) from a JournalEntryPage uuid: its last id segment. */
@@ -1155,7 +1148,7 @@ export class HandoutsService {
   }
 
   private async snapshot(ops: GuardedOp[]): Promise<OpSnapshot[]> {
-    const result = unwrap<OpSnapshot[]>(
+    const result = unwrapBridgeReply(
       await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', { ops }),
       'Snapshot refused'
     );
@@ -1163,7 +1156,7 @@ export class HandoutsService {
   }
 
   private async pagesFor(uuids: string[]): Promise<Map<string, PageForPlayers>> {
-    const result = unwrap<{ pages?: PageForPlayers[] }>(
+    const result = unwrapBridgeReply(
       await this.foundry.query('foundry-mcp-bridge.getPagesForPlayers', {
         uuids: [...new Set(uuids)],
       }),

@@ -23,4 +23,15 @@ describe('detectGameSystem', () => {
     expect(await detectGameSystem(client)).toBe('dnd5e');
     expect(query).toHaveBeenCalledTimes(2);
   });
+
+  it('does not cache a refusal from the GM gate as other', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ success: false, error: 'Access denied' })
+      .mockResolvedValue({ system: 'dnd5e' });
+    const client = { query } as any;
+    expect(await detectGameSystem(client)).toBe('other');
+    expect(await detectGameSystem(client)).toBe('dnd5e');
+    expect(query).toHaveBeenCalledTimes(2);
+  });
 });

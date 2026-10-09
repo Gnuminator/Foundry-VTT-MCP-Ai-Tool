@@ -36,7 +36,7 @@ export function foundryLinkBindHost(env: NodeJS.ProcessEnv = process.env): strin
 }
 
 interface PendingQuery {
-  resolve: (value: any) => void;
+  resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
   /** The WebSocket the query was sent on. */
@@ -522,7 +522,7 @@ export class FoundryConnector {
     return Promise.resolve();
   }
 
-  async query(method: string, data?: any, options: QueryOptions = {}): Promise<any> {
+  async query(method: string, data?: unknown, options: QueryOptions = {}): Promise<unknown> {
     const isConnected = this.foundrySocket?.readyState === WebSocket.OPEN;
 
     if (!isConnected) {

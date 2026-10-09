@@ -31,7 +31,12 @@
  * On by default; `FOUNDRY_AI_PLAY_LOG=off` disables it. The poll interval is
  * `FOUNDRY_AI_EVENT_POLL_MS`, shared with the event pump.
  */
-import { playLogFileName, type PlayRecord, type PlayRecordsResponse } from '@gnuminator/shared';
+import {
+  isBridgeRefusal,
+  playLogFileName,
+  type PlayRecord,
+  type PlayRecordsResponse,
+} from '@gnuminator/shared';
 
 import { DEFAULT_EVENT_POLL_MS, localDateKey } from './event-pump.js';
 import type { FoundryClient } from './foundry-client.js';
@@ -192,11 +197,11 @@ export class PlayLogPump {
   }
 
   private async fetchRecords(sinceSeq: number): Promise<PlayRecordsResponse> {
-    const response = (await this.foundry.query('foundry-mcp-bridge.getPlayRecords', {
+    const response = await this.foundry.query('foundry-mcp-bridge.getPlayRecords', {
       sinceSeq,
       limit: FETCH_LIMIT,
-    })) as PlayRecordsResponse;
-    if (response?.success === false) {
+    });
+    if (isBridgeRefusal(response)) {
       throw new Error(response.error ?? 'getPlayRecords refused');
     }
     return response;

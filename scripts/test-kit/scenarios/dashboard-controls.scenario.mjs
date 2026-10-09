@@ -113,37 +113,60 @@ export default {
             : 'no GM session in Foundry';
           return `${combatNote}: the combat rows are skipped`;
         }
-        // Combat buttons are a per-world screen choice; read it from the page, set it, put it back.
-        const buttonsWereOn = await page.evaluate(() =>
-          /:\s*on/i.test(document.querySelector('#btn-combat-buttons')?.textContent ?? '')
+        // Combat buttons are a per-world screen choice; read it from the server, set it, put it
+        // back. The page's label is no use here: it reads "off" until the prefs event lands. The
+        // server sends prefs null until it has read the world from the bridge (just after a
+        // Foundry restart or a module sync), so wait for that first.
+        /** @type {any} */
+        const state = await waitFor(
+          async () => {
+            const s = await t.http('/api/state');
+            return s.status === 200 && s.data?.world && s.data.prefs !== null ? s : null;
+          },
+          { label: 'the dashboard to know the world (/api/state prefs null before)' }
         );
+        const buttonsWereOn =
+          state.data.prefs === undefined
+            ? // A dashboard from before /api/state carried prefs: the page is all there is.
+              await page.evaluate(() =>
+                /:\s*on/i.test(document.querySelector('#btn-combat-buttons')?.textContent ?? '')
+              )
+            : state.data.prefs.combatButtons === true;
         if (!buttonsWereOn) {
           t.cleanup(async () => {
-            await t.http('/api/control', {
+            const off = await t.http('/api/control', {
               method: 'POST',
               body: { action: 'set-prefs', value: { combatButtons: false } },
             });
+            if (off.status !== 200) {
+              throw new Error(`Combat buttons not put back off (set-prefs ${off.status})`);
+            }
           });
-          // The server answers 409 until it has read the world from the bridge (just after a
-          // Foundry restart or a module sync), so the first tries may be refused.
-          /** @type {any} */
-          let set = null;
-          await waitFor(
-            async () => {
-              set = await t.http('/api/control', {
-                method: 'POST',
-                body: { action: 'set-prefs', value: { combatButtons: true } },
-              });
-              return set.status !== 409;
-            },
-            { label: 'the dashboard to know the world (set-prefs answers 409 before)' }
-          );
-          t.check(set?.status === 200, 'Combat buttons turned on', set);
+          const set = await t.http('/api/control', {
+            method: 'POST',
+            body: { action: 'set-prefs', value: { combatButtons: true } },
+          });
+          t.check(set.status === 200, 'Combat buttons turned on', set);
         }
+        // The combatant rows are selectable only once the page has the prefs event.
+        await page
+          .waitForFunction(
+            () => /:\s*on/i.test(document.querySelector('#btn-combat-buttons')?.textContent ?? ''),
+            undefined,
+            { timeout: 10000 }
+          )
+          .catch(() => {
+            throw new Error('the dashboard never showed Combat buttons on');
+          });
+        let started = false;
         t.cleanup(async () => {
-          await t.gm('endCombats');
+          const ended = await t.gm('endCombats');
+          if (started && !(ended?.ended >= 1)) {
+            throw new Error(`endCombats ended ${ended?.ended ?? 'no'} combats, expected the boss's`);
+          }
         });
         await t.gm('startCombat', { sceneId, tokenIds: [boss.tokenId, hero.tokenId] });
+        started = true;
         await page
           .waitForFunction(
             () => {

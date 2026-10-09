@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
+import { ConfirmProvider } from './components/ConfirmDialog';
 import { DrawerBackdrop } from './components/Drawer';
 import { HelpProvider } from './components/Help';
 import { useHelp } from './components/HelpButton';
+import { HandoutsDrawer } from './panels/Handouts';
 import { ModuleDiagnosticsPane } from './panels/ModuleDiagnostics';
 import { PartyDrawer } from './panels/Party';
 import { PlayerLinksPane } from './panels/PlayerLinks';
@@ -54,14 +56,21 @@ function useWorldTheme(): void {
 export function App(): JSX.Element {
   return (
     <HelpProvider>
-      <Dashboard />
+      <ConfirmProvider>
+        <Dashboard />
+      </ConfirmProvider>
     </HelpProvider>
   );
 }
 
 /** The drawers this page has so far; each one's open state. */
-type DrawerName = 'preflight' | 'prep' | 'party';
-const NO_DRAWERS: Record<DrawerName, boolean> = { preflight: false, prep: false, party: false };
+type DrawerName = 'preflight' | 'prep' | 'party' | 'handouts';
+const NO_DRAWERS: Record<DrawerName, boolean> = {
+  preflight: false,
+  prep: false,
+  party: false,
+  handouts: false,
+};
 
 function Dashboard(): JSX.Element {
   useWorldTheme();
@@ -117,6 +126,16 @@ function Dashboard(): JSX.Element {
             🛡 Party
           </button>
           <button
+            id="btn-handouts"
+            className="btn"
+            data-track="dash.header.handouts"
+            title="Handout queue and who has seen what (GM only)"
+            aria-expanded={drawers.handouts}
+            onClick={() => setDrawer('handouts', !drawers.handouts)}
+          >
+            📜 Handouts
+          </button>
+          <button
             className="btn"
             data-track="dash.header.player-links"
             title="Each player's private link to their own character sheet (GM only)"
@@ -167,6 +186,7 @@ function Dashboard(): JSX.Element {
         onOpenPreflight={() => setDrawers(d => ({ ...d, prep: false, preflight: true }))}
       />
       <PartyDrawer open={drawers.party} onOpenChange={open => setDrawer('party', open)} />
+      <HandoutsDrawer open={drawers.handouts} onOpenChange={open => setDrawer('handouts', open)} />
     </GmActionsGateContext.Provider>
   );
 }

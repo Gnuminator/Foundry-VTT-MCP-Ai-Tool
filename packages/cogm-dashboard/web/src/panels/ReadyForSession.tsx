@@ -3,7 +3,7 @@
 // starts the session log. The switches live in the module (`/api/session/switches`); GM Actions
 // come from the stream's `settings` event, which the server sends again after each change.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, type JSX } from 'react';
+import { useEffect, useRef, type JSX } from 'react';
 
 import { useToast } from '../components/Toasts';
 import { api, callTool, errorText } from '../lib/api';
@@ -79,6 +79,18 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
   });
   const settings = useDashboardSettings();
   const playSession = usePlaySessionOpen();
+
+  // The GM Actions gate (guarded.ts) reads the stream's settings. Until the first settings event,
+  // seed them from this read, so a click does not say "GM Actions are off" while this block shows
+  // them on. The stream's next event replaces the seed.
+  const readGmActions = read.data?.gmActionsEnabled;
+  useEffect(() => {
+    if (typeof readGmActions !== 'boolean') return;
+    queryClient.setQueryData<DashboardSettings | null>(
+      SETTINGS_KEY,
+      old => old ?? { gmActionsEnabled: readGmActions }
+    );
+  }, [queryClient, readGmActions]);
 
   const state = read.data?.switches ?? null;
   const list = state?.switches ?? [];

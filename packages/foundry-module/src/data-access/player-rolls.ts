@@ -2,6 +2,15 @@ import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 import { trackUsage } from '../usage-recorder.js';
 import { logDebug, logInfo } from '../log.js';
+import { rec } from '../doc-read.js';
+
+/** A roll button's persisted state (world setting `rollStates`, keyed by button id). */
+interface RollButtonState {
+  rolled: boolean;
+  rolledBy?: string;
+  rolledByName?: string;
+  timestamp?: number;
+}
 
 /** Outcome of resolving a roll-request target (a player user and/or character). */
 interface ResolveResult {
@@ -457,14 +466,12 @@ export class PlayerRollsDataAccess {
   }
 
   /** Read a button's persisted roll state from settings, or null. */
-  getRollState(
-    buttonId: string
-  ): { rolled: boolean; rolledBy?: string; rolledByName?: string; timestamp?: number } | null {
+  getRollState(buttonId: string): RollButtonState | null {
     shared.validateFoundryState();
 
     try {
-      const rollStates = game.settings.get(MODULE_ID, 'rollStates') || {};
-      return rollStates[buttonId] || null;
+      const rollStates = rec(game.settings.get(MODULE_ID, 'rollStates')) ?? {};
+      return (rollStates[buttonId] || null) as RollButtonState | null;
     } catch (error) {
       console.error(`[${MODULE_ID}] Error getting roll state:`, error);
       return null;
@@ -474,7 +481,7 @@ export class PlayerRollsDataAccess {
   /** Persist a buttonId → messageId mapping (so the message can be rewritten later). */
   saveRollButtonMessageId(buttonId: string, messageId: string): void {
     try {
-      const buttonMessageMap = game.settings.get(MODULE_ID, 'buttonMessageMap') || {};
+      const buttonMessageMap = rec(game.settings.get(MODULE_ID, 'buttonMessageMap')) ?? {};
       buttonMessageMap[buttonId] = messageId;
       void game.settings.set(MODULE_ID, 'buttonMessageMap', buttonMessageMap);
     } catch (error) {
@@ -485,8 +492,8 @@ export class PlayerRollsDataAccess {
   /** Look up the message id mapped to a roll button, or null. */
   getRollButtonMessageId(buttonId: string): string | null {
     try {
-      const buttonMessageMap = game.settings.get(MODULE_ID, 'buttonMessageMap') || {};
-      return buttonMessageMap[buttonId] || null;
+      const buttonMessageMap = rec(game.settings.get(MODULE_ID, 'buttonMessageMap')) ?? {};
+      return (buttonMessageMap[buttonId] || null) as string | null;
     } catch (error) {
       console.error(`[${MODULE_ID}] Error getting button-message mapping:`, error);
       return null;
@@ -620,12 +627,12 @@ export class PlayerRollsDataAccess {
 
     try {
       const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-      const rollStates = game.settings.get(MODULE_ID, 'rollStates') || {};
+      const rollStates = rec(game.settings.get(MODULE_ID, 'rollStates')) ?? {};
       let cleanedCount = 0;
 
       for (const [buttonId, rollState] of Object.entries(rollStates)) {
         if (rollState && typeof rollState === 'object' && 'timestamp' in rollState) {
-          const timestamp = (rollState as any).timestamp;
+          const timestamp = rollState.timestamp;
           if (typeof timestamp === 'number' && timestamp < thirtyDaysAgo) {
             delete rollStates[buttonId];
             cleanedCount++;

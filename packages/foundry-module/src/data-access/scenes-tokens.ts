@@ -192,7 +192,7 @@ export class ScenesTokensDataAccess {
       return;
     }
 
-    await cv.pan({
+    cv.pan({
       x: width / 2,
       y: height / 2,
       // Fit the whole scene on screen without ever zooming past 1:1.

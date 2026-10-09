@@ -74,9 +74,18 @@ function onErrors(queryClient: QueryClient, data: unknown): void {
   );
 }
 
+/**
+ * The Handouts drawer's data, under GAME_STATE_KEY (guarded.ts) so an apply or an undo refetches
+ * it too. Spelled out here because guarded.ts imports this file.
+ */
+export const HANDOUTS_KEY = ['game', 'handouts'] as const;
+
 /** One handler per event this page uses; each puts the event into the query cache. */
 const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void> = {
   errors: onErrors,
+  // A player opened a handout for the first time (GM only, no payload): the drawer reloads its
+  // seen ticks when it is open. A closed drawer loads afresh on its next opening anyway.
+  'handouts-seen': queryClient => void queryClient.invalidateQueries({ queryKey: HANDOUTS_KEY }),
   status: (queryClient, data) =>
     queryClient.setQueryData<BridgeStatus>(BRIDGE_STATUS_KEY, data as BridgeStatus),
   settings: (queryClient, data) =>

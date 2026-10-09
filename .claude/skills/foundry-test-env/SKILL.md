@@ -114,6 +114,25 @@ A whole test kit run with the lock taken and released for you: `npm run kit:run`
 exit codes in `docs/dev/TEST-KIT.md`, "The kit run command"). It restarts the test environment on
 the kit world and stops it afterwards.
 
+## Kit worlds
+
+The test kit builds in its own worlds (`KIT_WORLDS` in `scripts/test-kit/lib/contract.mjs`),
+never in `ai-tool-test`. Start Foundry on one with `start.ps1 -World <id>`.
+
+| World id               | What it is                                                         |
+| ---------------------- | ------------------------------------------------------------------ |
+| `ai-tool-kit-srd`      | srd profile (SRD content only)                                     |
+| `ai-tool-kit-licensed` | licensed profile (PHB 2024 and the other bought packs, local only) |
+| `strahd-kit`           | strahd profile: a throwaway copy of `curse-of-strahd`, made again  |
+
+`kit init` gives each one three passwordless users and keeps them as test data: `Kit GM`
+(Gamemaster; the kit's builder and runs join as it, and it is the bridge user), `Claude`
+(Gamemaster; for sessions in the browser pane, so you can look around without taking the kit's
+user) and `Kit Player` (Player; owns the kit's first playable hero). Init also turns off Actor
+Studio's usage tracking for all three. A kit world made before `Claude` was added gets it from
+`kit init` again (Foundry running on that world; init changes nothing else that is already
+there). Never touch `ai-tool-kit` (the hand-made licensed import world) or `curse-of-strahd`.
+
 ## Next steps
 
 - Testing the AI Tool (calling tools, guarded writes, dashboard, pickers, vault, the M0+M1 smoke

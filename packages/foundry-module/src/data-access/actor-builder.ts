@@ -20,6 +20,161 @@ import {
   WARLOCK_PACT_TABLE,
 } from './dnd5e-tables.js';
 
+/** The use-like methods a dnd5e item may carry (none are in the core Item declaration). */
+interface UsableItemMethods {
+  use?: (...args: unknown[]) => Promise<unknown>;
+  toChat?: () => Promise<unknown>;
+  toMessage?: (...args: unknown[]) => Promise<unknown>;
+  roll?: () => Promise<unknown>;
+}
+
+/** One damage dice part as the attack, aura and save-feature builders take it. */
+export interface BuilderDamagePart {
+  number: number;
+  denomination: number;
+  type: string;
+}
+
+/** Input of {@link ActorBuilderDataAccess.useItem}. */
+export interface UseItemInput {
+  actorIdentifier: string;
+  itemIdentifier: string;
+  targets?: string[] | undefined; // Target character/token names or IDs. "self" targets the caster.
+  options?:
+    | {
+        consume?: boolean | undefined; // Whether to consume charges/uses
+        configureDialog?: boolean | undefined; // Whether to show configuration dialog
+        skipDialog?: boolean | undefined; // Skip confirmation dialogs (default: true for MCP)
+        spellLevel?: number | undefined; // For spells: cast at higher level
+        versatile?: boolean | undefined; // For versatile weapons: use versatile damage
+      }
+    | undefined;
+}
+
+/** Result of {@link ActorBuilderDataAccess.useItem}. */
+export interface UseItemResult {
+  success: boolean;
+  status?: string;
+  message: string;
+  itemName?: string;
+  actorName?: string;
+  targets?: string[];
+  requiresGMInteraction?: boolean;
+}
+
+/** Input of {@link ActorBuilderDataAccess.addSaveFeatureToActor}. */
+export interface AddSaveFeatureToActorInput {
+  actorIdentifier: string;
+  featureName: string;
+  description: string;
+  activationType: string;
+  saveAbility: string;
+  saveDC: number;
+  damageParts: BuilderDamagePart[];
+  halfOnSave: boolean;
+  areaType: string;
+  areaSize?: number;
+  areaUnits: string;
+  affectsType: string;
+}
+
+/** Result of {@link ActorBuilderDataAccess.addSaveFeatureToActor}. */
+export interface AddSaveFeatureToActorResult {
+  success: boolean;
+  item: { id: string; name: string };
+  actor: { id: string; name: string };
+}
+
+/** Input of {@link ActorBuilderDataAccess.createNpcActor}. */
+export interface CreateNpcActorInput {
+  name: string;
+  creatureType: string;
+  creatureSubtype: string;
+  size: string;
+  alignment: string;
+  cr: string | number;
+  hpAverage: number;
+  hpFormula: string;
+  acMode: string;
+  acValue?: number;
+  abilities: { str: number; dex: number; con: number; int: number; wis: number; cha: number };
+  savingThrows: string[];
+  walkSpeed: number;
+  flySpeed: number;
+  swimSpeed: number;
+  climbSpeed: number;
+  burrowSpeed: number;
+  hover: boolean;
+  darkvision: number;
+  blindsight: number;
+  tremorsense: number;
+  truesight: number;
+  specialSenses: string;
+  skills: Array<{ skill: string; proficiency: string }>;
+  damageImmunities: string[];
+  damageResistances: string[];
+  damageVulnerabilities: string[];
+  conditionImmunities: string[];
+  languages: string[];
+  languagesCustom: string;
+  biography: string;
+  sourceBook: string;
+  sourcePage: string;
+  sourceRules: string;
+}
+
+/** Result of {@link ActorBuilderDataAccess.createNpcActor}. */
+export interface CreateNpcActorResult {
+  success: boolean;
+  actor: { id: string; name: string; cr: string; folder: string | null };
+  warnings: string[];
+}
+
+/** Input of {@link ActorBuilderDataAccess.addAttackToActor}. */
+export interface AddAttackToActorInput {
+  actorIdentifier: string;
+  featureName: string;
+  damageParts: BuilderDamagePart[];
+  properties: string[];
+  attackType?: string;
+  reachFt?: number;
+  rangeFt?: number;
+  longRangeFt?: number;
+  sourceRules?: string;
+  effectiveAbility?: string;
+  description?: string;
+  sourceBook?: string;
+  sourcePage?: string;
+  equipped?: boolean;
+  activationType?: string;
+  weaponClass?: string;
+  attackBonus: number;
+}
+
+/** Result of {@link ActorBuilderDataAccess.addAttackToActor} and {@link ActorBuilderDataAccess.addAuraToActor}. */
+export interface AddBuiltItemResult {
+  success: boolean;
+  actor: { id: string; name: string };
+  item: { id: string; name: string; type: string };
+  warnings: string[];
+}
+
+/** Input of {@link ActorBuilderDataAccess.addAuraToActor}. */
+export interface AddAuraToActorInput {
+  actorIdentifier: string;
+  featureName: string;
+  damageParts: BuilderDamagePart[];
+  areaType: string;
+  areaSize: number;
+  areaUnits?: string;
+  affectsType?: string;
+  activationType?: string;
+  description?: string;
+  sourceRules?: string;
+  sourceBook?: string;
+  sourcePage?: string;
+}
+
 /**
  * Actor-builder domain (D&D 5e). Builds and populates combat-ready actors: NPC
  * stat blocks, weapon/feat activities (attack, attack+save, aura, save, passive),
@@ -34,55 +189,34 @@ export class ActorBuilderDataAccess {
    * Use an item on a character (cast spell, use ability, consume item, etc.)
    * This triggers the item's default use behavior in Foundry VTT
    */
-  async useItem(params: {
-    actorIdentifier: string;
-    itemIdentifier: string;
-    targets?: string[] | undefined; // Target character/token names or IDs. "self" targets the caster.
-    options?:
-      | {
-          consume?: boolean | undefined; // Whether to consume charges/uses
-          configureDialog?: boolean | undefined; // Whether to show configuration dialog
-          skipDialog?: boolean | undefined; // Skip confirmation dialogs (default: true for MCP)
-          spellLevel?: number | undefined; // For spells: cast at higher level
-          versatile?: boolean | undefined; // For versatile weapons: use versatile damage
-        }
-      | undefined;
-  }): Promise<{
-    success: boolean;
-    status?: string;
-    message: string;
-    itemName?: string;
-    actorName?: string;
-    targets?: string[];
-    requiresGMInteraction?: boolean;
-  }> {
+  async useItem(params: UseItemInput): Promise<UseItemResult> {
     shared.validateFoundryState();
 
     const { actorIdentifier, itemIdentifier, targets, options = {} } = params;
 
     // Find the actor
-    const actor = shared.findActorByIdentifier(actorIdentifier);
+    const actor = shared.findActorByIdentifier(actorIdentifier) as Actor | undefined;
     if (!actor) {
       throw new Error(`Actor not found: ${actorIdentifier}`);
     }
 
     // Find the item on the actor
     const item = actor.items.find(
-      (i: any) => i.id === itemIdentifier || i.name.toLowerCase() === itemIdentifier.toLowerCase()
+      i => i.id === itemIdentifier || i.name.toLowerCase() === itemIdentifier.toLowerCase()
     );
 
     if (!item) {
       throw new Error(`Item "${itemIdentifier}" not found on actor "${actor.name}"`);
     }
 
-    const itemAny = item;
+    const itemAny: Item & UsableItemMethods = item;
     const systemId = game.system.id;
 
     // Handle targeting if targets are specified
     const resolvedTargetNames: string[] = [];
     if (targets && targets.length > 0) {
       // Get all tokens on the current scene
-      const scene = (game.scenes as any)?.active;
+      const scene = game.scenes?.active;
       if (!scene) {
         throw new Error('No active scene to find targets on');
       }
@@ -95,7 +229,7 @@ export class ActorBuilderDataAccess {
         if (targetIdentifier.toLowerCase() === 'self') {
           // Find token for the caster actor
           const selfToken = sceneTokens.find(
-            (t: any) => t.actor?.id === actor.id || t.actorId === actor.id
+            t => t.actor?.id === actor.id || t.actorId === actor.id
           );
           if (selfToken) {
             tokenIds.push(selfToken.id);
@@ -110,7 +244,7 @@ export class ActorBuilderDataAccess {
 
         // Find token by name or ID
         const targetToken = sceneTokens.find(
-          (t: any) =>
+          t =>
             t.id === targetIdentifier ||
             t.name?.toLowerCase() === targetIdentifier.toLowerCase() ||
             t.actor?.name?.toLowerCase() === targetIdentifier.toLowerCase()
@@ -126,7 +260,7 @@ export class ActorBuilderDataAccess {
 
       // Set targets using Foundry's targeting system
       if (tokenIds.length > 0 && game.user) {
-        await (game.user as any).updateTokenTargets(tokenIds);
+        await (game.user.updateTokenTargets(tokenIds) as unknown);
         logInfo(`[foundry-mcp-bridge] Set targets: ${resolvedTargetNames.join(', ')}`);
       }
     }
@@ -151,7 +285,7 @@ export class ActorBuilderDataAccess {
           // (Activity#_prepareUsageConfig — `consume` must be `false` or left
           // unset; `config.consume ??= {}` then assigns properties onto it, which
           // throws in strict mode if `consume` is the boolean `true`).
-          const usage: Record<string, any> = {};
+          const usage: Record<string, unknown> = {};
           if (options.consume === false) {
             usage.consume = false;
           }
@@ -201,15 +335,7 @@ export class ActorBuilderDataAccess {
       const targetInfo =
         resolvedTargetNames.length > 0 ? ` targeting ${resolvedTargetNames.join(', ')}` : '';
 
-      const result: {
-        success: boolean;
-        status?: string;
-        message: string;
-        itemName?: string;
-        actorName?: string;
-        targets?: string[];
-        requiresGMInteraction?: boolean;
-      } = {
+      const result: UseItemResult = {
         success: true,
         status: 'initiated',
         message: `Item use initiated for ${actor.name} using ${item.name}${targetInfo}. If a dialog appeared in Foundry VTT, the GM should select options and confirm. The result will appear in chat.`,
@@ -224,7 +350,9 @@ export class ActorBuilderDataAccess {
 
       return result;
     } catch (error) {
-      throw new Error(`Failed to use item "${item.name}": ${this.errorMessage(error)}`);
+      throw new Error(`Failed to use item "${item.name}": ${this.errorMessage(error)}`, {
+        cause: error,
+      });
     }
   }
 
@@ -234,25 +362,14 @@ export class ActorBuilderDataAccess {
    * Add a save-attack feature (feat) to an existing D&D 5e actor.
    * Creates a single save Activity with damage and an optional area template.
    */
-  async addSaveFeatureToActor(data: {
-    actorIdentifier: string;
-    featureName: string;
-    description: string;
-    activationType: string;
-    saveAbility: string;
-    saveDC: number;
-    damageParts: Array<{ number: number; denomination: number; type: string }>;
-    halfOnSave: boolean;
-    areaType: string;
-    areaSize?: number;
-    areaUnits: string;
-    affectsType: string;
-  }): Promise<any> {
+  async addSaveFeatureToActor(
+    data: AddSaveFeatureToActorInput
+  ): Promise<AddSaveFeatureToActorResult> {
     shared.validateFoundryState();
 
     try {
       // 1. Lookup actor
-      const actor = shared.findActorByIdentifier(data.actorIdentifier);
+      const actor = shared.findActorByIdentifier(data.actorIdentifier) as Actor | undefined;
       if (!actor) {
         throw new Error(`Actor not found: "${data.actorIdentifier}"`);
       }
@@ -265,7 +382,7 @@ export class ActorBuilderDataAccess {
       }
 
       // 3. Duplicate check (by name only, regardless of item type)
-      const existing = actor.items.find((i: any) => i.name === data.featureName);
+      const existing = actor.items.find(i => i.name === data.featureName);
       if (existing) {
         throw new Error(
           `Feature "${data.featureName}" already exists on actor "${actor.name}" ` +
@@ -361,7 +478,7 @@ export class ActorBuilderDataAccess {
       };
 
       // 7. Create embedded item
-      const [created] = (await actor.createEmbeddedDocuments('Item', [itemData])) as any[];
+      const [created] = (await actor.createEmbeddedDocuments('Item', [itemData])) as [Item];
 
       // 8. Return structured result
       return {
@@ -377,42 +494,7 @@ export class ActorBuilderDataAccess {
 
   // ===== CREATE NPC ACTOR (D&D 5e) =====
 
-  async createNpcActor(data: {
-    name: string;
-    creatureType: string;
-    creatureSubtype: string;
-    size: string;
-    alignment: string;
-    cr: string | number;
-    hpAverage: number;
-    hpFormula: string;
-    acMode: string;
-    acValue?: number;
-    abilities: { str: number; dex: number; con: number; int: number; wis: number; cha: number };
-    savingThrows: string[];
-    walkSpeed: number;
-    flySpeed: number;
-    swimSpeed: number;
-    climbSpeed: number;
-    burrowSpeed: number;
-    hover: boolean;
-    darkvision: number;
-    blindsight: number;
-    tremorsense: number;
-    truesight: number;
-    specialSenses: string;
-    skills: Array<{ skill: string; proficiency: string }>;
-    damageImmunities: string[];
-    damageResistances: string[];
-    damageVulnerabilities: string[];
-    conditionImmunities: string[];
-    languages: string[];
-    languagesCustom: string;
-    biography: string;
-    sourceBook: string;
-    sourcePage: string;
-    sourceRules: string;
-  }): Promise<any> {
+  async createNpcActor(data: CreateNpcActorInput): Promise<CreateNpcActorResult> {
     shared.validateFoundryState();
 
     try {
@@ -425,7 +507,7 @@ export class ActorBuilderDataAccess {
 
       // 2. Duplicate check by name — only against other NPCs, so a player
       //    character sharing the name does not block NPC creation.
-      const existingActor = game.actors?.find((a: any) => a.name === data.name && a.type === 'npc');
+      const existingActor = game.actors?.find(a => a.name === data.name && a.type === 'npc');
       if (existingActor) {
         throw new Error(
           `NPC "${data.name}" already exists (id: ${existingActor.id}). ` +
@@ -542,7 +624,7 @@ export class ActorBuilderDataAccess {
       };
 
       // 8. Build full actor data
-      const actorData: any = {
+      const actorData: Record<string, unknown> = {
         name: data.name,
         type: 'npc',
         system: {
@@ -628,14 +710,14 @@ export class ActorBuilderDataAccess {
   // Add weapon attack to an existing actor (dnd5e-add-attack-feature)
   // ---------------------------------------------------------------------------
 
-  async addAttackToActor(data: any): Promise<any> {
+  async addAttackToActor(data: AddAttackToActorInput): Promise<AddBuiltItemResult> {
     shared.validateFoundryState();
 
     shared.requireDnd5e('addAttackToActor');
 
     try {
       // 1. Resolve actor
-      const actor = await shared.findActorByIdentifier(data.actorIdentifier);
+      const actor = (await shared.findActorByIdentifier(data.actorIdentifier)) as Actor | undefined;
       if (!actor) {
         throw new Error(`Actor not found: "${data.actorIdentifier}"`);
       }
@@ -646,18 +728,14 @@ export class ActorBuilderDataAccess {
       // 3. Soft validation — collect warnings, never block
       const warnings: string[] = [];
 
-      for (const part of data.damageParts as Array<{
-        number: number;
-        denomination: number;
-        type: string;
-      }>) {
+      for (const part of data.damageParts) {
         if (!ATTACK_DAMAGE_CANONICAL.has(part.type)) {
           const msg = `Unknown damage type "${part.type}" — verify it matches dnd5e system values`;
           warnings.push(msg);
           console.warn(`[${MODULE_ID}] ${msg}`);
         }
       }
-      for (const prop of data.properties as string[]) {
+      for (const prop of data.properties) {
         if (!ATTACK_PROPERTY_CANONICAL.has(prop)) {
           const msg = `Unknown weapon property "${prop}" — verify it matches dnd5e system values`;
           warnings.push(msg);
@@ -669,18 +747,14 @@ export class ActorBuilderDataAccess {
       const activityId: string = foundry.utils.randomID(16);
 
       // 5. Damage parts for the activity (all except the first — which is system.damage.base)
-      const activityDamageParts = (
-        data.damageParts as Array<{ number: number; denomination: number; type: string }>
-      )
-        .slice(1)
-        .map(p => ({
-          types: [p.type],
-          number: p.number,
-          denomination: p.denomination,
-          bonus: '',
-          scaling: { mode: '', number: 1 },
-          custom: { enabled: false },
-        }));
+      const activityDamageParts = data.damageParts.slice(1).map(p => ({
+        types: [p.type],
+        number: p.number,
+        denomination: p.denomination,
+        bonus: '',
+        scaling: { mode: '', number: 1 },
+        custom: { enabled: false },
+      }));
 
       // 6. Range object (system-level — holds the real range/reach)
       const rangeObj =
@@ -695,7 +769,8 @@ export class ActorBuilderDataAccess {
       const classification = sourceRules === '2014' ? 'weapon' : '';
 
       // 8. Build item data
-      const itemData: Record<string, any> = {
+      const firstPart = data.damageParts[0];
+      const itemData: Record<string, unknown> = {
         name: data.featureName,
         type: 'weapon',
         system: {
@@ -744,16 +819,16 @@ export class ActorBuilderDataAccess {
           uses: { value: null, max: '', recovery: [], prompt: true },
           damage: {
             base: {
-              types: [(data.damageParts as any[])[0].type],
-              number: (data.damageParts as any[])[0].number,
-              denomination: (data.damageParts as any[])[0].denomination,
+              types: [firstPart.type],
+              number: firstPart.number,
+              denomination: firstPart.denomination,
               bonus: '',
               scaling: { mode: '', number: 1 },
               custom: { enabled: false },
             },
           },
           type: { value: data.weaponClass ?? 'natural', baseItem: '' },
-          properties: data.properties as string[],
+          properties: data.properties,
           proficient: 1,
           magicalBonus: null,
           ...masteryField,
@@ -817,7 +892,9 @@ export class ActorBuilderDataAccess {
       };
 
       // 9. Create the item on the actor
-      const created = (await actor.createEmbeddedDocuments('Item', [itemData]))[0];
+      const created = (await actor.createEmbeddedDocuments('Item', [itemData]))[0] as
+        | Item
+        | undefined;
       if (!created) {
         throw new Error(
           `Failed to create attack item "${data.featureName}" on actor "${actor.name}"`
@@ -841,14 +918,14 @@ export class ActorBuilderDataAccess {
   // (dnd5e-add-aura-feature)
   // ---------------------------------------------------------------------------
 
-  async addAuraToActor(data: any): Promise<any> {
+  async addAuraToActor(data: AddAuraToActorInput): Promise<AddBuiltItemResult> {
     shared.validateFoundryState();
 
     shared.requireDnd5e('addAuraToActor');
 
     try {
       // 1. Resolve actor
-      const actor = await shared.findActorByIdentifier(data.actorIdentifier);
+      const actor = (await shared.findActorByIdentifier(data.actorIdentifier)) as Actor | undefined;
       if (!actor) {
         throw new Error(`Actor not found: "${data.actorIdentifier}"`);
       }
@@ -859,11 +936,7 @@ export class ActorBuilderDataAccess {
       // 3. Soft validation — collect warnings, never block
       const warnings: string[] = [];
 
-      for (const part of data.damageParts as Array<{
-        number: number;
-        denomination: number;
-        type: string;
-      }>) {
+      for (const part of data.damageParts) {
         if (!AURA_DAMAGE_CANONICAL.has(part.type)) {
           const msg = `Unknown damage type "${part.type}" — verify it matches dnd5e system values`;
           warnings.push(msg);
@@ -879,7 +952,7 @@ export class ActorBuilderDataAccess {
       const activityId: string = foundry.utils.randomID(16);
 
       // 6. Slug identifier
-      const identifier = slugify(data.featureName as string);
+      const identifier = slugify(data.featureName);
 
       // 7. Build item data — schema verified against dnd5e 5.1.8 Banshee Wail
       const itemData = {
@@ -952,9 +1025,7 @@ export class ActorBuilderDataAccess {
               },
               damage: {
                 critical: { allow: false }, // only this key — no bonus, no dice
-                parts: (
-                  data.damageParts as Array<{ number: number; denomination: number; type: string }>
-                ).map(p => ({
+                parts: data.damageParts.map(p => ({
                   types: [p.type],
                   number: p.number,
                   denomination: p.denomination,
@@ -973,7 +1044,7 @@ export class ActorBuilderDataAccess {
       };
 
       // 7. Create embedded item
-      const [created] = (await actor.createEmbeddedDocuments('Item', [itemData])) as any[];
+      const [created] = (await actor.createEmbeddedDocuments('Item', [itemData])) as Item[];
       if (!created) {
         throw new Error(
           `Failed to create aura item "${data.featureName}" on actor "${actor.name}"`

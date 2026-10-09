@@ -167,7 +167,28 @@ export function VersionBanner(): JSX.Element | null {
   );
 }
 
-function CheckItem({ check }: { check: PreflightCheck }): JSX.Element {
+/**
+ * The check this page makes itself, as the old page does: Tarokka's Show cards. It follows the
+ * box live: the GM Actions gate can open this drawer over Tarokka with the cards shown.
+ */
+function tarokkaCheck(shown: boolean): PreflightCheck {
+  return {
+    id: 'tarokka-hidden',
+    label: 'Tarokka cards hidden',
+    status: shown ? 'warn' : 'ok',
+    detail: shown
+      ? 'Show cards is ticked in the Tarokka drawer. Hide them before players can see your screen.'
+      : 'Show cards is not ticked.',
+  };
+}
+
+function CheckItem({
+  check,
+  children,
+}: {
+  check: PreflightCheck;
+  children?: JSX.Element | false;
+}): JSX.Element {
   const status = statusOf(check);
   return (
     <li className={`preflight-item pf-${status}`}>
@@ -178,6 +199,7 @@ function CheckItem({ check }: { check: PreflightCheck }): JSX.Element {
         <span className="pf-label">{check.label}</span>
         <span className="pf-detail">{check.detail}</span>
       </span>
+      {children}
     </li>
   );
 }
@@ -240,9 +262,14 @@ const lastRun = (at: number): string =>
 export function PreflightDrawer({
   open,
   onOpenChange,
+  tarokkaShown,
+  onHideTarokka,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Tarokka's Show cards, which App holds. */
+  tarokkaShown: boolean;
+  onHideTarokka: () => void;
 }): JSX.Element {
   const result = usePreflightResult();
   const queryClient = useQueryClient();
@@ -286,9 +313,10 @@ export function PreflightDrawer({
         : 'GM only. Run it before the players join.';
 
   // A failed run shows its error, not the verdict of the run before it.
+  const local = tarokkaCheck(tarokkaShown);
   let summary: JSX.Element | null = null;
   if (data && runError === null) {
-    const { fails, warns } = counts(data);
+    const { fails, warns } = counts({ ...data, checks: [...data.checks, local] });
     summary = (
       <div
         className={`preflight-summary ${fails > 0 ? 'pf-fail' : warns > 0 ? 'pf-warn' : 'pf-ok'}`}
@@ -359,6 +387,18 @@ export function PreflightDrawer({
         ) : (
           <li className="empty">Not run yet.</li>
         )}
+        {/* This browser's own check: shown whether or not the server's run worked. */}
+        <CheckItem check={local}>
+          {tarokkaShown && (
+            <button
+              className="btn btn-small"
+              data-track="dash.preflight.hide-tarokka"
+              onClick={onHideTarokka}
+            >
+              Hide cards
+            </button>
+          )}
+        </CheckItem>
       </ul>
       {runError === null && <Findings scan={data?.scan ?? null} />}
       <h3 className="preflight-h">Check by hand</h3>

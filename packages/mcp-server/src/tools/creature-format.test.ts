@@ -429,20 +429,6 @@ describe('CompendiumTools.handleGetCompendiumItem formatting (M3)', () => {
       stealthDisadvantage: true,
     });
   });
-});
-
-describe('isArmorEquipment', () => {
-  it.each([
-    [{ type: { value: 'heavy' } }, true],
-    [{ type: { value: 'shield' } }, true],
-    [{ type: { value: 'natural' } }, true],
-    [{ type: { value: 'ring' } }, false],
-    [{ type: {} }, false],
-    [undefined, false],
-  ])('%j -> %s', (system, expected) => {
-    expect(isArmorEquipment(system)).toBe(expected);
-  });
-
   it('search results show an item rarity as a label, from pack or dnd5e 6 source data', async () => {
     const hits = [
       {
@@ -466,5 +452,44 @@ describe('isArmorEquipment', () => {
     const result = await tools.handleSearchCompendium({ query: 'of' });
     expect(result.results[0].summary).toBe('equipment from SRD Items • Very Rare • 6000 gp');
     expect(result.results[1].summary).toBe('equipment from Loot • Common');
+  });
+
+  it("a blank rarity falls through to dnd5e 6's rarities list", async () => {
+    const cloak = {
+      id: 'cloak',
+      name: 'Cloak of Displacement',
+      type: 'equipment',
+      pack: 'world.loot',
+      packLabel: 'Loot',
+      system: { rarity: '', rarities: ['veryRare'] },
+    };
+    const { tools } = makeTools(withDnd5e([cloak]));
+    const result = await tools.handleSearchCompendium({ query: 'cloak' });
+    expect(result.results[0].summary).toBe('equipment from Loot • Very Rare');
+  });
+
+  it('full mode reports the same rarity label as the search summary', async () => {
+    const detail = (system: Record<string, unknown>): Promise<any> =>
+      makeTools(
+        withDnd5e({ ...chainMail, id: 'cloak', name: 'Cloak', system })
+      ).tools.handleGetCompendiumItem({ packId: 'dnd5e.items', itemId: 'cloak' });
+    expect((await detail({ rarity: 'veryRare' })).properties.rarity).toBe('Very Rare');
+    expect((await detail({ rarity: '', rarities: ['uncommon'] })).properties.rarity).toBe(
+      'Uncommon'
+    );
+    expect((await detail({})).properties).not.toHaveProperty('rarity');
+  });
+});
+
+describe('isArmorEquipment', () => {
+  it.each([
+    [{ type: { value: 'heavy' } }, true],
+    [{ type: { value: 'shield' } }, true],
+    [{ type: { value: 'natural' } }, true],
+    [{ type: { value: 'ring' } }, false],
+    [{ type: {} }, false],
+    [undefined, false],
+  ])('%j -> %s', (system, expected) => {
+    expect(isArmorEquipment(system)).toBe(expected);
   });
 });

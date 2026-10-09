@@ -208,9 +208,9 @@ export function currentWorld(): WorldJoinFields {
     world.background && world.background !== systemBackground ? world.background : null;
   return {
     id: world.id,
-    description: world.description,
+    description: world.description ?? null,
     background,
-    joinTheme: world.joinTheme,
+    joinTheme: world.joinTheme ?? null,
   };
 }
 

@@ -21,6 +21,7 @@ import {
   creatureSizeWord,
   flatHasSpells,
   hasLegendaryActions,
+  itemRarityLabel,
   movementSummary,
   sizeWord,
   spellSchoolName,
@@ -733,7 +734,8 @@ export class CompendiumTools {
         // dnd5e 6 armor and shields are `equipment` with an armor `type.value`
         const ac = armorClassSummary(system);
         if (ac) parts.push(ac);
-        if (system.rarity) parts.push(system.rarity);
+        const rarity = itemRarityLabel(system.rarity ?? system.rarities);
+        if (rarity) parts.push(rarity);
         if (system.price?.value)
           parts.push(`${system.price.value} ${system.price.denomination || 'gp'}`);
         break;

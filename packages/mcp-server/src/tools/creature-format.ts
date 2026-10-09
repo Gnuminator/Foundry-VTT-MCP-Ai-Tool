@@ -113,6 +113,30 @@ export function spellSchoolName(school: unknown): string | undefined {
     : school;
 }
 
+const ITEM_RARITY_LABELS: Readonly<Record<string, string>> = {
+  common: 'Common',
+  uncommon: 'Uncommon',
+  rare: 'Rare',
+  veryrare: 'Very Rare',
+  legendary: 'Legendary',
+  artifact: 'Artifact',
+};
+
+/**
+ * An item rarity as a display label. dnd5e keys it in camel case (`veryRare`; verified
+ * against `CONFIG.DND5E.itemRarity` in dnd5e 6.0.5). Pack data stores the string
+ * `rarity`; dnd5e 6 source data holds a `rarities` list, so an array reads its first
+ * entry, as the system's `rarity` getter does. Anything else comes back unchanged.
+ */
+export function itemRarityLabel(rarity: unknown): string | undefined {
+  const value: unknown = Array.isArray(rarity) ? rarity[0] : rarity;
+  if (typeof value !== 'string' || value.trim() === '') return undefined;
+  const key = value.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(ITEM_RARITY_LABELS, key)
+    ? ITEM_RARITY_LABELS[key]
+    : value;
+}
+
 function speedValue(value: unknown): number | string | undefined {
   if (typeof value === 'number') return value > 0 ? value : undefined;
   if (typeof value === 'string' && value.trim() !== '' && value.trim() !== '0') return value.trim();

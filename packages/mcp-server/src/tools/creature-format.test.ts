@@ -6,6 +6,7 @@ import {
   flatHasSpells,
   hasLegendaryActions,
   isArmorEquipment,
+  itemRarityLabel,
   movementSummary,
   sizeWord,
   spellSchoolName,
@@ -118,6 +119,25 @@ describe('spellSchoolName', () => {
     expect(spellSchoolName('Chronomancy')).toBe('Chronomancy');
     expect(spellSchoolName('')).toBeUndefined();
     expect(spellSchoolName(undefined)).toBeUndefined();
+  });
+});
+
+describe('itemRarityLabel', () => {
+  it('labels the six dnd5e rarity keys', () => {
+    expect(
+      ['common', 'uncommon', 'rare', 'veryRare', 'legendary', 'artifact'].map(itemRarityLabel)
+    ).toEqual(['Common', 'Uncommon', 'Rare', 'Very Rare', 'Legendary', 'Artifact']);
+  });
+
+  it('reads the first entry of a dnd5e 6 rarities list', () => {
+    expect(itemRarityLabel(['veryRare'])).toBe('Very Rare');
+    expect(itemRarityLabel([])).toBeUndefined();
+  });
+
+  it('passes unknown rarities through and rejects blanks', () => {
+    expect(itemRarityLabel('Mythic')).toBe('Mythic');
+    expect(itemRarityLabel('')).toBeUndefined();
+    expect(itemRarityLabel(undefined)).toBeUndefined();
   });
 });
 
@@ -421,5 +441,30 @@ describe('isArmorEquipment', () => {
     [undefined, false],
   ])('%j -> %s', (system, expected) => {
     expect(isArmorEquipment(system)).toBe(expected);
+  });
+
+  it('search results show an item rarity as a label, from pack or dnd5e 6 source data', async () => {
+    const hits = [
+      {
+        id: 'cloak',
+        name: 'Cloak of Displacement',
+        type: 'equipment',
+        pack: 'dnd5e.items',
+        packLabel: 'SRD Items',
+        system: { rarity: 'veryRare', price: { value: 6000, denomination: 'gp' } },
+      },
+      {
+        id: 'potion',
+        name: 'Potion of Healing',
+        type: 'equipment',
+        pack: 'world.loot',
+        packLabel: 'Loot',
+        system: { rarities: ['common'] },
+      },
+    ];
+    const { tools } = makeTools(withDnd5e(hits));
+    const result = await tools.handleSearchCompendium({ query: 'of' });
+    expect(result.results[0].summary).toBe('equipment from SRD Items • Very Rare • 6000 gp');
+    expect(result.results[1].summary).toBe('equipment from Loot • Common');
   });
 });

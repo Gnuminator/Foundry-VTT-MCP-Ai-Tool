@@ -256,8 +256,10 @@ declare global {
     /** null in source on NPCs/vehicles until set */ value: number | null; // 9622
     /** Characters: manual override of the calculated max (84127). NPC/vehicle: the stored max. */
     max: number | null; // 9617
-    temp: number; // 9618
-    tempmax: number; // 9619
+    /** null once cleared (no `nullable: false`); dnd5e reads it as `parseInt(hp.temp) || 0` (43518) */ temp:
+      | number
+      | null; // 9618
+    tempmax: number | null; // 9619
     /** Damage threshold (NPC, vehicle) */ dt?: number; // 9616
     /** Mishap threshold (vehicle only) */ mt?: number; // 11894
     /** HP percentage that counts as bloodied (character, NPC; persisted: false) */ bloodied?: number; // 84123, 85259
@@ -448,8 +450,8 @@ declare global {
 
   /** `resources.primary|secondary|tertiary` on characters (makeResourceField, 84437). */
   interface Dnd5eCharacterResource {
-    value: number; // 84439
-    max: number; // 84440
+    value: number | null; // 84439 (NumberField, nullable by default)
+    max: number | null; // 84440
     sr: boolean; // 84441
     lr: boolean; // 84442
     label: string; // 84443

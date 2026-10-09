@@ -203,7 +203,7 @@ export class PlayerRollsDataAccess {
   }> {
     shared.validateFoundryState();
 
-    const actor = shared.findActorByIdentifier(data.actorName) as Actor | undefined;
+    const actor = shared.findActorByIdentifier(data.actorName);
     if (!actor) {
       throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.actorName}`);
     }

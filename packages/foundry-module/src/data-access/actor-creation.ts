@@ -340,7 +340,7 @@ export class ActorCreationDataAccess {
       throw new Error('items array is required and must contain at least one entry');
     }
 
-    const actor = shared.findActorByIdentifier(actorIdentifier) as Actor | undefined;
+    const actor = shared.findActorByIdentifier(actorIdentifier);
     if (!actor) {
       throw new Error(`Actor not found: ${actorIdentifier}`);
     }

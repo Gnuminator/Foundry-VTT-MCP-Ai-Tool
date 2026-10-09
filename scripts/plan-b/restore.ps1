@@ -16,8 +16,9 @@
   4. Copies the test server's licence file once (it is bound to this PC; the Pi's is bound to the
      Pi). Without it Foundry asks for the licence key on the first start.
 
-  Refuses while Plan B runs (stop.ps1 first), and refuses to replace data a game night was played on
-  until it is pushed back to the Pi (-Force moves it aside to <Root>\previous\ instead).
+  Refuses while Plan B runs (stop.ps1 first), refuses a root that holds data but no recorded restore
+  (not Plan B's copy, -Force or not), and refuses to replace data a game night was played on until it
+  is pushed back to the Pi (-Force moves it aside to <Root>\previous\ instead).
   The restic password is read by restic from -PassFile; this script never reads or prints it.
 
 .EXAMPLE
@@ -90,7 +91,12 @@ if ($state -and $state.PSObject.Properties['services'] -and $state.services) {
     }
   }
 }
-$clean = Resolve-PlanBClean $state
+$hasData = [bool]@(@((Join-Path $L.DataDir 'Data'), $L.ToolDir, $L.SecretsDir) | Where-Object { Test-Path -LiteralPath $_ }).Count
+$clean = Resolve-PlanBClean $state -HasData $hasData
+if (-not $clean.Ok -and -not ($state -and $state.PSObject.Properties['restoredAt'] -and $state.restoredAt)) {
+  # Not Plan B's copy: never deleted or moved, -Force or not.
+  throw "refused: $($clean.Message)"
+}
 $moveAside = $false
 if (-not $clean.Ok) {
   if (-not $Force) { throw "refused: $($clean.Message) Or run restore.ps1 -Force to move it aside to $Root\previous\." }
@@ -139,6 +145,8 @@ foreach ($sub in 'vault', 'dashboard') {
 Protect-PlanBPath $L.SecretsDir
 if (Test-Path -LiteralPath $stEnv) {
   Move-Item -LiteralPath $stEnv -Destination $L.AssistantEnv
+  # A moved file keeps the staging folder's permissions: restrict it again.
+  Protect-PlanBPath $L.AssistantEnv
 } else {
   Write-Warning 'the snapshot has no Assistant GM login: the bridge then needs a GM browser of yours (runbook, "No Assistant GM")'
 }

@@ -30,9 +30,13 @@ $PlanBDefaults = [ordered]@{
   World    = 'curse-of-strahd'
   Repo     = 'E:\PiBackup\restic'
   PassFile = if ($env:APPDATA) { Join-Path $env:APPDATA 'foundry-ai-tool' 'restic-pc.pass' } else { '' }
-  # Where the Pi answers when it is up (Tailscale name and address); start.ps1 -GameNight refuses
+  # Where the Pi answers when it is up (Tailscale name and address, and its home network address
+  # from the SSH config; scripts/pi/find-pi.ps1 finds it if it moves). start.ps1 -GameNight refuses
   # while Foundry answers on one of them, so two copies of the world never run at once.
-  PiAddresses = @('foundry-pi.tailf949aa.ts.net', '100.110.82.102')
+  PiAddresses = @('foundry-pi.tailf949aa.ts.net', '100.110.82.102', '192.168.1.191')
+  # Folders Plan B's root must stay out of: the test server (Test-PlanBRoot adds the home folder
+  # and the repo).
+  ForbiddenRoots = @(if ($IsWindows) { 'C:\FoundryTest' })
   # The test server's licence: bound to this PC's host name, so it works for Plan B too (the
   # Pi's own licence is bound to the Pi). Only read, never changed.
   LicenseFrom = if ($IsWindows) { 'C:\FoundryTest\data\Config\license.json' } else { '' }
@@ -104,7 +108,34 @@ $PlanBRestoreIncludes = @(
   '/etc/foundry-ai-tool/assistant-gm.env'
 )
 
+# Whether a folder may be Plan B's root: the scripts delete whole folders under it (restore and
+# stop -Clean), so it must be a folder of its own. Not a drive root, not the user's home, not the
+# test server or the repo, nor a folder inside them, nor one that holds them. Paths are compared
+# without regard to case or a trailing separator.
+function Test-PlanBRoot([string]$Root, [string[]]$Forbidden = @()) {
+  if (-not $Root) { return @{ Ok = $false; Message = 'no Plan B root given' } }
+  $norm = { param($p) ([System.IO.Path]::GetFullPath($p)).TrimEnd('\', '/') }
+  $r = & $norm $Root
+  if ($r -eq '' -or $r -match '^[A-Za-z]:$' -or $r -eq [System.IO.Path]::GetPathRoot($r).TrimEnd('\', '/')) {
+    return @{ Ok = $false; Message = "$Root is a drive root: give Plan B a folder of its own (default $($PlanBDefaults.Root))" }
+  }
+  foreach ($f in @($Forbidden) + @($HOME, $PlanBRepoRoot)) {
+    if (-not $f) { continue }
+    $x = & $norm $f
+    $inside = $r.StartsWith("$x\", [StringComparison]::OrdinalIgnoreCase) -or $r.StartsWith("$x/", [StringComparison]::OrdinalIgnoreCase)
+    $holds = $x.StartsWith("$r\", [StringComparison]::OrdinalIgnoreCase) -or $x.StartsWith("$r/", [StringComparison]::OrdinalIgnoreCase)
+    $same = [string]::Equals($r, $x, [StringComparison]::OrdinalIgnoreCase)
+    # The home folder itself is refused, a folder under it is fine (the default root on Linux).
+    if ($same -or $holds -or ($inside -and $x -ne (& $norm $HOME))) {
+      return @{ Ok = $false; Message = "$Root overlaps $f, which Plan B must never delete: give Plan B a folder of its own (default $($PlanBDefaults.Root))" }
+    }
+  }
+  return @{ Ok = $true; Message = 'ok' }
+}
+
 function Get-PlanBLayout([string]$Root) {
+  $rootOk = Test-PlanBRoot $Root $PlanBDefaults.ForbiddenRoots
+  if (-not $rootOk.Ok) { throw "refused: $($rootOk.Message)" }
   $layout = [ordered]@{
     Root      = $Root
     AppDir    = Join-Path $Root 'app'
@@ -241,18 +272,61 @@ function Resolve-PlanBStop([hashtable]$F) {
   return @{ Action = 'reused'; Message = 'not running (its pid now belongs to another program)' }
 }
 
-# What stop.ps1 -Clean may delete, from the state alone. A rehearsal's copy is a copy of a backup and
-# may go. Data a game night was played on must reach the Pi first (runbook, "After the night"):
-# without -PushedBack the clean refuses.
-function Resolve-PlanBClean($State, [switch]$PushedBack) {
-  $played = $State -and $State.PSObject.Properties['played'] -and $State.played
+# Whether stop.ps1 -Clean (and restore.ps1, which replaces the copy) may delete the data in the root.
+# HasData: one of the folders it would delete exists. Data with no restore recorded in state.json is
+# not Plan B's copy and is never deleted. A rehearsal's copy is a copy of a backup and may go. Data a
+# game night was played on must reach the Pi first (runbook, "After the night"): without
+# -PushedBack the clean refuses.
+function Resolve-PlanBClean($State, [switch]$PushedBack, [bool]$HasData = $true) {
+  if (-not $HasData) { return @{ Ok = $true; Message = 'nothing to delete' } }
+  if (-not $State -or -not $State.PSObject.Properties['restoredAt'] -or -not $State.restoredAt) {
+    return @{ Ok = $false; Message = 'this folder holds data, but state.json records no Plan B restore: it is not a copy restore.ps1 made, so nothing is deleted. Check the -Root you gave.' }
+  }
+  $played = $State.PSObject.Properties['played'] -and $State.played
   if ($played -and -not $PushedBack) {
     return @{ Ok = $false; Message = "this Plan B data was played on (game night $($State.playedAt)). Push the world back to the Pi first (docs/dev/PLAN-B.md, ""After the night""), then run stop.ps1 -Clean -PushedBack." }
   }
   return @{ Ok = $true; Message = 'ok' }
 }
 
+# Whether start.ps1 -GameNight may take the Pi's ports (D-119: only while the Pi is down). Answering:
+# the Pi addresses where Foundry answered. Tailscale: this PC's Tailscale, 'online', 'offline' or
+# 'missing'. Without Tailscale the check cannot see the Pi from outside the home network, so it
+# counts only when the user says the Pi is unplugged (-PiUnplugged). An answer always refuses.
+function Resolve-PiDown([string[]]$Answering = @(), [string]$Tailscale = 'online', [switch]$PiUnplugged) {
+  $up = @($Answering | Where-Object { $_ })
+  if ($up.Count) {
+    return @{ Ok = $false; Message = "the Pi's Foundry answers on $($up -join ', '). Plan B is for a Pi that is down; two copies of the world would split the game. If the Pi is up but broken, unplug it (or stop its Foundry), then start again." }
+  }
+  if ($Tailscale -ne 'online' -and -not $PiUnplugged) {
+    $why = if ($Tailscale -eq 'missing') { 'Tailscale is not installed on this PC' } else { 'this PC''s Tailscale is not connected' }
+    return @{ Ok = $false; Message = "$why, so this check cannot see the Pi when you are away from home. Connect Tailscale and start again, or unplug the Pi and start with -PiUnplugged." }
+  }
+  return @{ Ok = $true; Message = 'the Pi does not answer' }
+}
+
+# Which services start.ps1 waited for in vain: Listening maps a service name to whether its port
+# came up. Empty when all did.
+function Get-PlanBDeadServices($Listening) {
+  return , @($Listening.Keys | Where-Object { -not $Listening[$_] })
+}
+
 # --- processes, files and network (not unit tested) -----------------------------------------------
+
+# This PC's Tailscale: 'online', 'offline' or 'missing' (from tailscale status --json).
+function Get-PlanBTailscaleState {
+  $exe = (Get-Command tailscale -ErrorAction SilentlyContinue).Source
+  if (-not $exe -and $IsWindows) {
+    $exe = Join-Path $env:ProgramFiles 'Tailscale' 'tailscale.exe'
+    if (-not (Test-Path -LiteralPath $exe)) { $exe = $null }
+  }
+  if (-not $exe) { return 'missing' }
+  try {
+    $s = (& $exe status --json 2>$null) -join "`n" | ConvertFrom-Json
+    if ($s.BackendState -eq 'Running' -and $s.Self -and $s.Self.Online) { return 'online' }
+  } catch { }
+  return 'offline'
+}
 
 function Test-PlanBPortOpen([int]$Port, [string]$HostName = '127.0.0.1', [int]$TimeoutMs = 300) {
   $client = [System.Net.Sockets.TcpClient]::new()

@@ -14,6 +14,18 @@ function Get-ConnectorTarget([string]$Text) {
   return @{ Host = $hosts[0].Groups[2].Value; Port = $port; Count = $hosts.Count }
 }
 
+# The connectors (mcpServers entries with MCP_CONTROL_HOST) whose env lacks MCP_NO_SPAWN = 1 or true.
+# Without it a connector pointed at 127.0.0.1 may start a bridge of its own when Plan B's is not up,
+# and that bridge takes the live link port 31415 (control-target.ts, resolveControlTarget).
+function Get-ConnectorsThatSpawn([string]$Text) {
+  $cfg = $Text | ConvertFrom-Json -AsHashtable
+  $servers = if ($cfg -and $cfg.Contains('mcpServers')) { $cfg.mcpServers } else { @{} }
+  return , @($servers.Keys | Sort-Object | Where-Object {
+      $vars = $servers[$_].env
+      $vars -and $vars.Contains('MCP_CONTROL_HOST') -and -not (([string]$vars['MCP_NO_SPAWN']).Trim() -match '^(1|true)$')
+    })
+}
+
 # The text with every MCP_CONTROL_HOST and MCP_CONTROL_PORT set; Changed = how many hosts it set.
 function Set-ConnectorTarget([string]$Text, [string]$HostName, [int]$Port) {
   if ($HostName -notmatch '^[A-Za-z0-9.:-]+$') { throw "not a host name or address: $HostName" }

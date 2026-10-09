@@ -18,8 +18,14 @@
   Rehearsal (the default) uses ports no other part of this PC uses: Foundry 30100, bridge 31614,
   link 31615, dashboard 3300; the module copy in <Root> gets a default port flag for the link.
   -GameNight uses the Pi's ports (30000, 31414, 31415, 3000) and refuses while the Pi's Foundry still
-  answers, so two copies of the world never run at once. It also marks the data as played, so
-  stop.ps1 -Clean and restore.ps1 refuse to delete it before it is back on the Pi.
+  answers (on Tailscale or the home network), so two copies of the world never run at once. The check
+  needs this PC's Tailscale connected, or -PiUnplugged. There is no way past an answering Pi: unplug
+  it first. -GameNight also marks the data as played, so stop.ps1 -Clean and restore.ps1 refuse to
+  delete it before it is back on the Pi.
+
+  -Tunnel starts the spare Cloudflare tunnel. Its routes are fixed in Cloudflare: plan-b.<domain>
+  goes to port 30000 (game night), plan-b-test.<domain> to port 30100 (a rehearsal), so a rehearsal
+  tests the tunnel without the Pi's ports.
 
   Refuses when a port is taken, when the Foundry here is not the version the world was last opened
   with, or when Plan B already runs. Never touches C:\FoundryTest or the Pi.
@@ -27,6 +33,7 @@
 .EXAMPLE
   .\scripts\plan-b\start.ps1
   .\scripts\plan-b\start.ps1 -GameNight -Tunnel -PublicHost plan-b.example.com
+  .\scripts\plan-b\start.ps1 -Tunnel -PublicHost plan-b-test.example.com
 #>
 [CmdletBinding()]
 param(
@@ -36,8 +43,9 @@ param(
   [switch]$Tunnel,
   # The spare tunnel's public name: Foundry builds its links with it (as the Pi does after Part C).
   [string]$PublicHost = '',
-  # Start even though the Pi's Foundry answers (only when you are sure it is not used tonight).
-  [switch]$IgnorePi,
+  # The Pi is unplugged: start -GameNight even though this PC's Tailscale is not connected. The Pi's
+  # addresses are still checked, and an answer still refuses.
+  [switch]$PiUnplugged,
   [switch]$NoAssistantGm
 )
 
@@ -48,7 +56,7 @@ $state = Read-PlanBState $L
 if (-not $state -or -not $state.restoredAt) { throw "nothing restored in $Root yet: run restore.ps1 first" }
 $World = [string]$state.world
 $ports = Get-PlanBPorts -GameNight:$GameNight
-if ($Tunnel -and -not $GameNight) { Write-Warning 'the spare tunnel points at port 30000: with rehearsal ports it reaches nothing. Use -GameNight for a full rehearsal of the tunnel.' }
+if ($Tunnel -and -not $GameNight) { Write-Host "Rehearsal with the spare tunnel: open it at plan-b-test.<domain> (that route reaches port $($ports.Foundry)); plan-b.<domain> reaches nothing tonight." }
 if ($PublicHost -and $PublicHost -notmatch '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$') { throw "-PublicHost must be a host name like plan-b.example.com" }
 
 # --- refusals ---------------------------------------------------------------------------------
@@ -71,10 +79,11 @@ if ($problems.Count) {
   foreach ($p in $problems) { [Console]::Error.WriteLine("REFUSED: $p") }
   exit 1
 }
-if ($GameNight -and -not $IgnorePi) {
+if ($GameNight) {
   $up = @($PlanBDefaults.PiAddresses | Where-Object { Test-PlanBPortOpen 30000 $_ 1500 })
-  if ($up) {
-    [Console]::Error.WriteLine("REFUSED: the Pi's Foundry answers on $($up -join ', '). Plan B is for a Pi that is down; two copies of the world would split the game. If the Pi is up but broken, stop its Foundry first, or use -IgnorePi.")
+  $piDown = Resolve-PiDown $up (Get-PlanBTailscaleState) -PiUnplugged:$PiUnplugged
+  if (-not $piDown.Ok) {
+    [Console]::Error.WriteLine("REFUSED: $($piDown.Message)")
     exit 1
   }
 }
@@ -135,8 +144,10 @@ function Start-PlanBService([string]$Name, [string]$Command, [hashtable]$EnvVars
   Write-PlanBState $L $script:state
 }
 
+$listening = [ordered]@{}
 function Wait-Service([string]$Name, [int]$Port, [int]$Timeout) {
-  if (Wait-PlanBPort $Port $Timeout) { Write-Host ('{0,-12} listening on 127.0.0.1:{1}' -f $Name, $Port) }
+  $script:listening[$Name] = Wait-PlanBPort $Port $Timeout
+  if ($script:listening[$Name]) { Write-Host ('{0,-12} listening on 127.0.0.1:{1}' -f $Name, $Port) }
   else { Write-Host ('{0,-12} NOT listening on {1} after {2} s; see {3}' -f $Name, $Port, $Timeout, (Join-Path $L.LogDir "$Name.err.log")) -ForegroundColor Yellow }
 }
 
@@ -209,3 +220,8 @@ Write-Host "Plan B ($($state.mode)) runs '$World' from the backup of $(([datetim
 Write-Host "Foundry:   http://localhost:$($ports.Foundry)$(if ($PublicHost) { "   players: https://$PublicHost" })"
 Write-Host "Dashboard: http://localhost:$($ports.Dashboard)"
 Write-Host 'Check:     .\scripts\plan-b\check.ps1'
+$dead = Get-PlanBDeadServices $listening
+if ($dead.Count) {
+  [Console]::Error.WriteLine("FAILED: $($dead -join ', ') never started listening (see the lines above). The rest runs; stop.ps1 stops it all.")
+  exit 1
+}

@@ -12,8 +12,9 @@
   (exit 1).
 
   -Clean then deletes the restored data, the logs and the staging folder. It keeps the Foundry app
-  and the licence file for next time. It refuses while anything still runs, and refuses data a game
-  night was played on until you say it is back on the Pi (-PushedBack; runbook, "After the night").
+  and the licence file for next time. It refuses while anything still runs, refuses a folder whose
+  state.json records no restore (it is not Plan B's copy), and refuses data a game night was played
+  on until you say it is back on the Pi (-PushedBack; runbook, "After the night").
 
 .EXAMPLE
   .\scripts\plan-b\stop.ps1
@@ -75,11 +76,13 @@ if ($state -and $state.PSObject.Properties['services'] -and $state.services) {
 
 if ($Clean) {
   if ($refused) { [Console]::Error.WriteLine('REFUSED: not cleaning while a Plan B process may still run'); exit 1 }
-  $ok = Resolve-PlanBClean $state -PushedBack:$PushedBack
+  $targets = @((Join-Path $L.DataDir 'Data'), (Join-Path $L.DataDir 'Logs'), $L.ToolDir, $L.SecretsDir, $L.StagingDir, $L.LogDir)
+  $hasData = [bool]@($targets | Where-Object { Test-Path -LiteralPath $_ }).Count
+  $ok = Resolve-PlanBClean $state -PushedBack:$PushedBack -HasData $hasData
   if (-not $ok.Ok) { [Console]::Error.WriteLine("REFUSED: $($ok.Message)"); exit 1 }
   # Foundry may hold its lock file a moment after the stop.
   Start-Sleep -Seconds 2
-  foreach ($p in @((Join-Path $L.DataDir 'Data'), (Join-Path $L.DataDir 'Logs'), $L.ToolDir, $L.SecretsDir, $L.StagingDir, $L.LogDir)) {
+  foreach ($p in $targets) {
     if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force; Write-Host "removed $p" }
   }
   Write-PlanBState $L ([pscustomobject]@{ cleanedAt = (Get-Date).ToString('o'); restoredAt = $null })

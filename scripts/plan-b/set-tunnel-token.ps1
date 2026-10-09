@@ -39,4 +39,4 @@ New-Item -ItemType Directory -Force -Path (Split-Path $file) | Out-Null
 $token | ConvertFrom-SecureString | Set-Content -LiteralPath $file
 Protect-PlanBPath $file
 Write-Host "Saved (encrypted for your Windows user) in $file."
-Write-Host 'Test it with a rehearsal: .\scripts\plan-b\start.ps1 -GameNight -IgnorePi -Tunnel -PublicHost <the plan-b name> (runbook, "Rehearsal").'
+Write-Host 'Test it with a rehearsal: .\scripts\plan-b\start.ps1 -Tunnel -PublicHost <the plan-b-test name> (runbook, "Rehearsal").'

@@ -41,6 +41,8 @@ $now = Get-ConnectorTarget $text
 if (-not $now.Count) { throw "no connector with MCP_CONTROL_HOST in $ConfigFile" }
 
 if ($To -eq 'planb') {
+  $spawning = Get-ConnectorsThatSpawn $text
+  if ($spawning.Count) { throw "refused: these connectors have no MCP_NO_SPAWN=1 in their env, so they could start a bridge of their own on this PC: $($spawning -join ', '). Add ""MCP_NO_SPAWN"": ""1"" to their env first." }
   $newHost = '127.0.0.1'
   $newPort = (Get-PlanBPorts -GameNight:(-not $Rehearsal)).Control
 } else {

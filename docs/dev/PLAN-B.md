@@ -36,8 +36,10 @@ Two port sets:
 | Game night (`-GameNight`) | 30000   | 31414          | 31415        | 3000      |
 
 Game night uses the Pi's own ports, so the world, the module and the tunnel need no changes.
-`start.ps1 -GameNight` refuses while the Pi's Foundry still answers: two copies of the world must
-never run at once. Every start refuses a port that is taken, or one that belongs to the test server
+`start.ps1 -GameNight` refuses while the Pi's Foundry still answers, on Tailscale or on the home
+network: two copies of the world must never run at once. There is no switch past that: unplug the
+Pi. The check needs this PC's Tailscale connected (away from home it is the only way to see the
+Pi); with Tailscale off, unplug the Pi and add `-PiUnplugged`. Every start refuses a port that is taken, or one that belongs to the test server
 (30001, 31514 to 31516, 3100) or the project dashboard (3200). The game-night ports include the
 live bridge ports 31414 and 31415, an exception to the PC rule that the user granted for
 `-GameNight` only (2026-10-09).
@@ -66,8 +68,9 @@ once). Real players never join the test server, and they join Plan B only on a g
 Open PowerShell 7 in the repo's main checkout.
 
 1. **Is the Pi really down?** Open the game's address yourself. Try one power cycle of the Pi (pull
-   the plug, wait 10 seconds, plug in, wait 3 minutes). If Foundry is not back, go on. Tell the GM
-   to announce a 15-minute break.
+   the plug, wait 10 seconds, plug in, wait 3 minutes). If Foundry is not back, **unplug the Pi and
+   leave it unplugged for the night**, so it cannot come back halfway through and run the old world
+   beside Plan B. Tell the GM to announce a 15-minute break.
 2. **Restore last night's backup:**
 
    ```powershell
@@ -113,8 +116,13 @@ night; changes made by hand in Foundry need no dashboard.
 3. **The world goes back to the Pi before anyone plays there again.** Otherwise the Pi starts from
    its old backup and the Plan B night is lost. This is a Pi change: a session prepares it, takes a
    snapshot and runs it after your OK (the Pi rule in CLAUDE.md). The way is `push-world.ps1` with
-   `-DataPath C:\FoundryPlanB\data\Data` and stage 11 with `REPLACE_WORLD=1`; it is not rehearsed yet
+   `-DataPath C:\FoundryPlanB\data\Data` and stage 11 with `REPLACE_WORLD=1`; it is not built yet
    (follow-up: stage 11 expects a world whose Gamemaster has no password, the Pi's copy has one).
+   Until then, tell the players not to use the Pi's address.
+   **Rule for that push-back:** it must refuse when the Pi's world changed after the backup Plan B
+   restored (`snapshot.time` in `C:\FoundryPlanB\state.json`), unless you tell it to replace the
+   Pi's copy anyway. Someone may have played on the Pi after it came back, and that night would be
+   lost. The Pi's old copy is kept in `/var/lib/foundry-import/prev-<time>` either way.
 4. **Clean up once the world is back on the Pi:** `.\scripts\plan-b\stop.ps1 -Clean -PushedBack`.
    It keeps Foundry and the licence for next time. Without `-PushedBack` it refuses to delete a
    world a night was played on.
@@ -133,9 +141,10 @@ so it can run while the Pi and the test server run.
 ```
 
 The full rehearsal before the first online night (G2) also tests the tunnel with a phone off
-Wi-Fi. It needs the game-night ports and the Pi left alone for that hour:
-`start.ps1 -GameNight -IgnorePi -Tunnel -PublicHost plan-b.<domain>`, a player logs in from the
-phone, then `stop.ps1 -Clean -PushedBack` (nothing was played, so nothing goes back).
+Wi-Fi. It keeps the rehearsal ports and uses the tunnel's rehearsal route, so the Pi keeps running:
+`start.ps1 -Tunnel -PublicHost plan-b-test.<domain>`, log in from the phone at
+`https://plan-b-test.<domain>`, then `stop.ps1 -Clean`. The game-night route (`plan-b`, port 30000)
+is the same tunnel; only the port differs.
 
 ## Spare tunnel (finished once Part C is live)
 
@@ -144,15 +153,18 @@ phone, then `stop.ps1 -Clean -PushedBack` (nothing was played, so nothing goes b
 > Until then Plan B works for players on your home network only.
 
 A second Cloudflare tunnel, `foundry-pc`, runs on your PC only while Plan B runs. It has its own
-name, so on the night nothing in Cloudflare has to change.
+names, so on the night nothing in Cloudflare has to change: `plan-b` reaches the game-night port,
+`plan-b-test` the rehearsal port.
 
 1. **The tunnel.** Zero Trust, Networks, Connectors, Create a tunnel, type `Cloudflared`, name it
    `foundry-pc`, pick Windows and 64-bit. **Do not run the command it shows** (it would install an
    always-on Windows service). Leave the page open.
-2. **Its name.** In that tunnel add a published application route: subdomain `plan-b`, your
-   domain, service `HTTP`, URL `localhost:30000`. As for the Pi, never set "HTTP Host Header".
-3. **Who may open it.** Zero Trust, Access controls, Applications, `Foundry players`: add
-   `plan-b.<domain>` as a second domain of the same application, so the same people get in.
+2. **Its names.** In that tunnel add two published application routes, service `HTTP` each:
+   subdomain `plan-b`, URL `localhost:30000` (game night), and subdomain `plan-b-test`, URL
+   `localhost:30100` (rehearsal). As for the Pi, never set "HTTP Host Header".
+3. **Who may open them.** Zero Trust, Access controls, Applications, `Foundry players`: add
+   `plan-b.<domain>` and `plan-b-test.<domain>` as more domains of the same application, so the
+   same people get in.
 4. **cloudflared on this PC:** `winget install Cloudflare.cloudflared`.
 5. **The token (you, in your own PowerShell window; Claude never sees it):**
 
@@ -173,7 +185,8 @@ name, so on the night nothing in Cloudflare has to change.
 | `restore.ps1`: not a restic repository         | Drive E: is not connected, or the copy task never ran.                                                                                            |
 | `restore.ps1`: Foundry x is needed             | Download that version's Node.js zip from foundryvtt.com and give it with `-FoundryZip`.                                                           |
 | `start.ps1`: REFUSED, a port is in use         | The line names the port. Close what holds it, or (rehearsal only) stop the test server.                                                           |
-| `start.ps1`: REFUSED, the Pi's Foundry answers | The Pi is up. If it is up but broken, stop its Foundry first, or use `-IgnorePi`.                                                                 |
+| `start.ps1`: REFUSED, the Pi's Foundry answers | The Pi is up. If it is up but broken, unplug it and start again.                                                                                  |
+| `start.ps1`: REFUSED, Tailscale not connected  | Connect Tailscale on this PC (tray icon) and start again. Or unplug the Pi and add `-PiUnplugged`.                                                |
 | Foundry asks for a licence key                 | The licence file is missing: copy `C:\FoundryTest\data\Config\license.json` to `C:\FoundryPlanB\data\Config`.                                     |
 | `check.ps1`: module link down after 2 minutes  | See `C:\FoundryPlanB\logs\assistant-gm.out.log`. Or log in to Foundry as the Gamemaster in a browser on your PC: the module there holds the link. |
 | Players get a Cloudflare error                 | `check.ps1` shows whether the tunnel is connected; see `C:\FoundryPlanB\logs\tunnel.err.log`.                                                     |

@@ -32,9 +32,11 @@ function ps(body) {
   const conn = path.join(here, 'connectors-lib.ps1').replace(/'/g, "''");
   writeFileSync(
     file,
-    `$ErrorActionPreference = 'Stop'\n. '${lib}'\n. '${conn}'\n$__r = & {\n${body}\n}\nConvertTo-Json -InputObject $__r -Depth 20 -Compress\n`,
+    `$ErrorActionPreference = 'Stop'\n. '${lib}'\n. '${conn}'\n$__r = & {\n${body}\n}\nConvertTo-Json -InputObject $__r -Depth 20 -Compress\n`
   );
-  const r = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-File', file], { encoding: 'utf8' });
+  const r = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-File', file], {
+    encoding: 'utf8',
+  });
   assert.equal(r.status, 0, `pwsh failed:\n${r.stderr}\n${r.stdout}`);
   const out = r.stdout.trim();
   return out ? JSON.parse(out) : null;
@@ -73,7 +75,11 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.deepEqual(r.game, { Foundry: 30000, Control: 31414, Link: 31415, Dashboard: 3000 });
     assert.deepEqual(r.rehearsalOk, []);
     assert.deepEqual(r.gameOk, []);
-    assert.equal(r.liveWithoutGameNight.length, 2, 'control and link are live ports outside game night');
+    assert.equal(
+      r.liveWithoutGameNight.length,
+      2,
+      'control and link are live ports outside game night'
+    );
     assert.match(r.liveWithoutGameNight[0], /live bridge/);
     assert.equal(r.testServer.length, 2);
     assert.match(r.testServer.join('\n'), /test server's Foundry/);
@@ -85,12 +91,32 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
 
   test('newest backup: the newest snapshot that holds Foundry, or the one asked for', () => {
     const snaps = [
-      { id: 'aaaa1111ffff', short_id: 'aaaa1111', time: '2026-10-08T04:30:07.1+02:00', paths: ['/etc/foundry-ai-tool', '/var/lib/foundry', '/var/lib/foundry-ai-tool'] },
-      { id: 'bbbb2222ffff', short_id: 'bbbb2222', time: '2026-10-09T04:30:07.1+02:00', paths: ['/etc/foundry-ai-tool', '/var/lib/foundry', '/var/lib/foundry-ai-tool'] },
+      {
+        id: 'aaaa1111ffff',
+        short_id: 'aaaa1111',
+        time: '2026-10-08T04:30:07.1+02:00',
+        paths: ['/etc/foundry-ai-tool', '/var/lib/foundry', '/var/lib/foundry-ai-tool'],
+      },
+      {
+        id: 'bbbb2222ffff',
+        short_id: 'bbbb2222',
+        time: '2026-10-09T04:30:07.1+02:00',
+        paths: ['/etc/foundry-ai-tool', '/var/lib/foundry', '/var/lib/foundry-ai-tool'],
+      },
       // Newer, but without Foundry's data (a one-off backup of something else).
-      { id: 'cccc3333ffff', short_id: 'cccc3333', time: '2026-10-09T10:00:00Z', paths: ['/etc/foundry-ai-tool'] },
+      {
+        id: 'cccc3333ffff',
+        short_id: 'cccc3333',
+        time: '2026-10-09T10:00:00Z',
+        paths: ['/etc/foundry-ai-tool'],
+      },
       // The same instant as bbbb in another offset, but earlier: 02:00Z < 02:30Z.
-      { id: 'dddd4444ffff', short_id: 'dddd4444', time: '2026-10-09T02:00:00Z', paths: ['/var/lib/foundry'] },
+      {
+        id: 'dddd4444ffff',
+        short_id: 'dddd4444',
+        time: '2026-10-09T02:00:00Z',
+        paths: ['/var/lib/foundry'],
+      },
     ];
     const json = JSON.stringify(snaps).replace(/'/g, "''");
     const r = ps(`
@@ -102,7 +128,13 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
         notFoundry = $null -eq (Select-PlanBSnapshot $s 'cccc3333')
         none = $null -eq (Select-PlanBSnapshot @() 'latest')
       }`);
-    assert.deepEqual(r, { latest: 'bbbb2222', short: 'aaaa1111', prefix: 'aaaa1111', notFoundry: true, none: true });
+    assert.deepEqual(r, {
+      latest: 'bbbb2222',
+      short: 'aaaa1111',
+      prefix: 'aaaa1111',
+      notFoundry: true,
+      none: true,
+    });
   });
 
   test('Foundry version must match the world exactly (no migration the Pi could not undo)', () => {
@@ -150,8 +182,14 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
         local = Update-FoundryOptions $old 30100 'C:/FoundryPlanB/data' '' | ConvertFrom-Json
       }`);
     assert.deepEqual(
-      { port: r.tunnel.port, upnp: r.tunnel.upnp, hostname: r.tunnel.hostname, proxySSL: r.tunnel.proxySSL, proxyPort: r.tunnel.proxyPort },
-      { port: 30000, upnp: false, hostname: 'plan-b.example.com', proxySSL: true, proxyPort: 443 },
+      {
+        port: r.tunnel.port,
+        upnp: r.tunnel.upnp,
+        hostname: r.tunnel.hostname,
+        proxySSL: r.tunnel.proxySSL,
+        proxyPort: r.tunnel.proxyPort,
+      },
+      { port: 30000, upnp: false, hostname: 'plan-b.example.com', proxySSL: true, proxyPort: 443 }
     );
     assert.equal(r.local.port, 30100);
     assert.equal(r.local.cssTheme, 'dark');
@@ -161,8 +199,14 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
   });
 
   test('env file: comments, quotes and = in values', () => {
-    const r = ps(`ConvertFrom-EnvText "# a comment\`nASSISTANT_GM_USER=Assistant GM\`n\`nASSISTANT_GM_PASSWORD='a=b c'\`nBAD LINE\`nQ=""x"""`);
-    assert.deepEqual(r, { ASSISTANT_GM_USER: 'Assistant GM', ASSISTANT_GM_PASSWORD: 'a=b c', Q: 'x' });
+    const r = ps(
+      `ConvertFrom-EnvText "# a comment\`nASSISTANT_GM_USER=Assistant GM\`n\`nASSISTANT_GM_PASSWORD='a=b c'\`nBAD LINE\`nQ=""x"""`
+    );
+    assert.deepEqual(r, {
+      ASSISTANT_GM_USER: 'Assistant GM',
+      ASSISTANT_GM_PASSWORD: 'a=b c',
+      Q: 'x',
+    });
   });
 
   test('stop decision: only our recorded process is stopped', () => {
@@ -193,27 +237,114 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
           } finally { [Globalization.CultureInfo]::CurrentCulture = $old }
         }
       }`);
-    assert.deepEqual(r, { ours: 'stop', gone: 'gone', reusedTime: 'reused', jitter: 'stop', other: 'reused', noCmd: 'unknown', noTime: 'unknown', caseless: 'stop', roundTrip: 'stop' });
+    assert.deepEqual(r, {
+      ours: 'stop',
+      gone: 'gone',
+      reusedTime: 'reused',
+      jitter: 'stop',
+      other: 'reused',
+      noCmd: 'unknown',
+      noTime: 'unknown',
+      caseless: 'stop',
+      roundTrip: 'stop',
+    });
   });
 
-  test('clean decision: played data stays until it is back on the Pi', () => {
+  test('clean decision: played data stays until it is back on the Pi; data with no restore is never ours', () => {
     const r = ps(`
-      $played = [pscustomobject]@{ played = $true; playedAt = '2026-12-06' }
-      $rehearsal = [pscustomobject]@{ played = $false }
+      $played = [pscustomobject]@{ restoredAt = 'x'; played = $true; playedAt = '2026-12-06' }
+      $rehearsal = [pscustomobject]@{ restoredAt = 'x'; played = $false }
       @{
         rehearsal = (Resolve-PlanBClean $rehearsal).Ok
-        nothing = (Resolve-PlanBClean $null).Ok
-        cleaned = (Resolve-PlanBClean ([pscustomobject]@{ cleanedAt = 'x' })).Ok
+        noState = Resolve-PlanBClean $null
+        noStateNoData = (Resolve-PlanBClean $null -HasData $false).Ok
+        cleaned = (Resolve-PlanBClean ([pscustomobject]@{ cleanedAt = 'x'; restoredAt = $null })).Ok
+        cleanedNoData = (Resolve-PlanBClean ([pscustomobject]@{ cleanedAt = 'x'; restoredAt = $null }) -HasData $false).Ok
+        noStatePushed = (Resolve-PlanBClean $null -PushedBack).Ok
         played = Resolve-PlanBClean $played
         pushed = (Resolve-PlanBClean $played -PushedBack).Ok
       }`);
     assert.equal(r.rehearsal, true);
-    assert.equal(r.nothing, true);
-    assert.equal(r.cleaned, true);
+    assert.equal(
+      r.noState.Ok,
+      false,
+      'a folder with data and no state.json (for example -Root C:\\FoundryTest) is not deleted'
+    );
+    assert.match(r.noState.Message, /no Plan B restore/);
+    assert.equal(r.noStateNoData, true);
+    assert.equal(r.cleaned, false);
+    assert.equal(r.cleanedNoData, true);
+    assert.equal(r.noStatePushed, false, '-PushedBack does not open a folder that is not ours');
     assert.equal(r.played.Ok, false);
     assert.match(r.played.Message, /2026-12-06/);
     assert.match(r.played.Message, /-PushedBack/);
     assert.equal(r.pushed, true);
+  });
+
+  test('root: never a drive root, the home folder, the test server or the repo, nor one that holds them', () => {
+    const r = ps(`
+      $b = Join-Path ([System.IO.Path]::GetTempPath()) 'plan-b-roots'
+      $t = Join-Path $b 'FoundryTest'
+      $sep = [System.IO.Path]::DirectorySeparatorChar
+      @{
+        planB = (Test-PlanBRoot (Join-Path $b 'FoundryPlanB') @($t)).Ok
+        drive = (Test-PlanBRoot ([System.IO.Path]::GetPathRoot($HOME)) @($t)).Ok
+        testServer = (Test-PlanBRoot $t @($t)).Ok
+        inside = (Test-PlanBRoot (Join-Path $t 'data') @($t)).Ok
+        insideCase = (Test-PlanBRoot ($t.ToLowerInvariant() + $sep + 'Data' + $sep) @($t)).Ok
+        holds = (Test-PlanBRoot (Split-Path $HOME) @()).Ok
+        home = (Test-PlanBRoot $HOME @()).Ok
+        underHome = (Test-PlanBRoot (Join-Path $HOME 'plan-b') @()).Ok
+        repo = (Test-PlanBRoot (Join-Path $PlanBRepoRoot 'x') @()).Ok
+        sibling = (Test-PlanBRoot (Join-Path $b 'FoundryTestCopy') @($t)).Ok
+        empty = (Test-PlanBRoot '' @()).Ok
+        layout = $(try { Get-PlanBLayout $HOME | Out-Null; 'ok' } catch { 'refused' })
+      }`);
+    assert.deepEqual(r, {
+      planB: true,
+      drive: false,
+      testServer: false,
+      inside: false,
+      insideCase: false,
+      holds: false,
+      home: false,
+      underHome: true,
+      repo: false,
+      sibling: true,
+      empty: false,
+      layout: 'refused',
+    });
+  });
+
+  test('Pi down (D-119): an answer always refuses; no Tailscale counts only with -PiUnplugged', () => {
+    const r = ps(`
+      @{
+        down = (Resolve-PiDown @() 'online').Ok
+        answers = Resolve-PiDown @('192.168.1.191') 'online'
+        answersUnplugged = (Resolve-PiDown @('100.110.82.102') 'offline' -PiUnplugged).Ok
+        offline = Resolve-PiDown @() 'offline'
+        missing = Resolve-PiDown @() 'missing'
+        unplugged = (Resolve-PiDown @() 'offline' -PiUnplugged).Ok
+      }`);
+    assert.equal(r.down, true);
+    assert.equal(r.answers.Ok, false);
+    assert.match(r.answers.Message, /192\.168\.1\.191/);
+    assert.equal(r.answersUnplugged, false);
+    assert.equal(r.offline.Ok, false);
+    assert.match(r.offline.Message, /-PiUnplugged/);
+    assert.equal(r.missing.Ok, false);
+    assert.match(r.missing.Message, /not installed/);
+    assert.equal(r.unplugged, true);
+  });
+
+  test('start: the services that never listened make it fail', () => {
+    const r = ps(`
+      @{
+        none = (Get-PlanBDeadServices ([ordered]@{ foundry = $true; bridge = $true })).Count
+        some = Get-PlanBDeadServices ([ordered]@{ foundry = $true; bridge = $false; dashboard = $false })
+      }`);
+    assert.equal(r.none, 0);
+    assert.deepEqual(r.some, ['bridge', 'dashboard']);
   });
 
   test('connector switch: only the two values change, the rest of the file stays byte for byte', () => {
@@ -251,6 +382,8 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
         valid = $null -ne ($s.Text | ConvertFrom-Json)
         refusesBadHost = $bad
         none = (Get-ConnectorTarget '{"mcpServers":{}}').Count
+        spawn = Get-ConnectorsThatSpawn $t
+        spawnTrue = Get-ConnectorsThatSpawn '{"mcpServers":{"a":{"env":{"MCP_CONTROL_HOST":"x","MCP_NO_SPAWN":" TRUE "}},"b":{"env":{"OTHER":"1"}}}}'
       }`);
     assert.deepEqual(r.before, { Host: '100.110.82.102', Port: 31414, Count: 2 });
     assert.deepEqual(r.after, { Host: '127.0.0.1', Port: 31614, Count: 2 });
@@ -259,13 +392,25 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.equal(r.valid, true);
     assert.equal(r.refusesBadHost, true);
     assert.equal(r.none, 0);
+    assert.deepEqual(
+      r.spawn,
+      ['foundry-mcp-play'],
+      'the connector without MCP_NO_SPAWN=1 is named'
+    );
+    assert.deepEqual(r.spawnTrue, []);
   });
 
   test('the restore never brings back the Pi licence or other secrets', () => {
     const r = ps(`, $PlanBRestoreIncludes`);
     assert.ok(r.includes('/var/lib/foundry/Data'));
     assert.ok(r.includes('/etc/foundry-ai-tool/assistant-gm.env'));
-    assert.ok(!r.some(p => p === '/var/lib/foundry' || p.startsWith('/var/lib/foundry/Config')), 'not the Pi Config (licence)');
-    assert.ok(!r.some(p => p === '/etc/foundry-ai-tool' || /restic|discord|world-.*\.env/.test(p)), 'no other secrets');
+    assert.ok(
+      !r.some(p => p === '/var/lib/foundry' || p.startsWith('/var/lib/foundry/Config')),
+      'not the Pi Config (licence)'
+    );
+    assert.ok(
+      !r.some(p => p === '/etc/foundry-ai-tool' || /restic|discord|world-.*\.env/.test(p)),
+      'no other secrets'
+    );
   });
 });

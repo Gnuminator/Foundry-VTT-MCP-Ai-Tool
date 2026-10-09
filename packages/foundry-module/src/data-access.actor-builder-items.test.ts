@@ -468,7 +468,7 @@ describe('FoundryDataAccess — addSpellsToActor', () => {
     const embedded = actor.items.contents[0];
     expect(embedded.name).toBe('Fireball');
     expect(embedded.type).toBe('spell');
-    expect(result.added[0]!.itemId).toBe(embedded.id);
+    expect(result.added[0].itemId).toBe(embedded.id);
   });
 
   it('reports a spell missing from all packs in notFound', async () => {
@@ -556,7 +556,7 @@ describe('FoundryDataAccess — addSpellsToActor', () => {
       compendiumPacks: ['world.spellsA', 'world.spellsB'],
     });
 
-    expect(result.added[0]!.packId).toBe('world.spellsA');
+    expect(result.added[0].packId).toBe('world.spellsA');
     expect(actor.items.size).toBe(1);
   });
 });
@@ -612,7 +612,7 @@ describe('FoundryDataAccess — addFeaturesFromCompendium', () => {
     expect(actor.items.size).toBe(1);
     expect(actor.items.contents[0].name).toBe('Pack Tactics');
     expect(actor.items.contents[0].type).toBe('feat');
-    expect(result.added[0]!.itemId).toBe(actor.items.contents[0].id);
+    expect(result.added[0].itemId).toBe(actor.items.contents[0].id);
   });
 
   it('reports a feature missing from all packs in notFound', async () => {

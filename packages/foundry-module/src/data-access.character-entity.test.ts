@@ -156,7 +156,7 @@ describe('getCharacterEntity — item branch', () => {
         description: 'A trusty blade.',
         equipped: true,
         system: {
-          description: { value: 'A trusty blade.' },
+          description: {}, // the HTML goes out once, as entity.description
           equipped: true,
         },
       },
@@ -379,6 +379,38 @@ describe('getCharacterEntity — effects branch', () => {
 // ---------------------------------------------------------------------------
 // Entity not found
 // ---------------------------------------------------------------------------
+
+describe('getCharacterEntity: items with the same name', () => {
+  function twinDaggers(): ReturnType<typeof makeActor> {
+    return makeActor({
+      id: 'twin000000000000',
+      name: 'Vex',
+      type: 'character',
+      items: [
+        makeItem({ id: 'dagger0000000001', name: 'Dagger', type: 'weapon', system: {} }),
+        makeItem({ id: 'dagger0000000002', name: 'Dagger', type: 'weapon', system: {} }),
+      ],
+    });
+  }
+
+  it('lists the ids instead of picking one', async () => {
+    world.actors.add(twinDaggers());
+    await expect(
+      da.getCharacterEntity({ characterIdentifier: 'Vex', entityIdentifier: 'dagger' })
+    ).rejects.toThrow(
+      'Multiple items in "Vex" match "dagger": Dagger (dagger0000000001), Dagger (dagger0000000002). Use the item id.'
+    );
+  });
+
+  it('still finds one of them by id', async () => {
+    world.actors.add(twinDaggers());
+    const result = await da.getCharacterEntity({
+      characterIdentifier: 'Vex',
+      entityIdentifier: 'dagger0000000002',
+    });
+    expect(result.entity.id).toBe('dagger0000000002');
+  });
+});
 
 describe('getCharacterEntity — entity not-found error', () => {
   it('throws "Entity not found" when no branch matches', async () => {

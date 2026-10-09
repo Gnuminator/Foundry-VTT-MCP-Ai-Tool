@@ -98,6 +98,7 @@ export function removeSensitiveFields(
     const DEPRECATED_DND5E_SENSE_KEYS = ['darkvision', 'blindsight', 'tremorsense', 'truesight'];
     const isDnd5eSensesShape =
       keys.includes('ranges') && keys.some(k => DEPRECATED_DND5E_SENSE_KEYS.includes(k));
+    const skipAbilitySave = isAbilityShape(obj);
 
     for (const key of keys) {
       // Skip sensitive and problematic fields entirely
@@ -113,6 +114,10 @@ export function removeSensitiveFields(
       }
 
       if (isDnd5eSensesShape && DEPRECATED_DND5E_SENSE_KEYS.includes(key)) {
+        continue;
+      }
+
+      if (skipAbilitySave && key === 'save') {
         continue;
       }
 
@@ -161,14 +166,18 @@ export function isSensitiveOrProblematicField(key: string): boolean {
     'advancement',
   ];
 
-  // Skip deprecated ability save properties that trigger warnings
-  const deprecatedKeys = [
-    'save', // Skip the deprecated 'save' property on abilities
-  ];
+  return sensitiveKeys.includes(key) || problematicKeys.includes(key);
+}
 
-  return (
-    sensitiveKeys.includes(key) || problematicKeys.includes(key) || deprecatedKeys.includes(key)
-  );
+/**
+ * Whether an object is an actor ability entry (`abilities.str`: `value`, `proficient` and
+ * `save`), whose legacy `save` accessor warned when read. Only that `save` is skipped; an
+ * activity's `save` ({ ability, dc }) is kept.
+ */
+export function isAbilityShape(obj: unknown): boolean {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return false;
+  const keys = Object.keys(obj);
+  return keys.includes('save') && keys.includes('value') && keys.includes('proficient');
 }
 
 /**
@@ -177,12 +186,9 @@ export function isSensitiveOrProblematicField(key: string): boolean {
  */
 export function safeJSONStringify(obj: any): string {
   try {
-    return JSON.stringify(obj, (key, value) => {
-      // Skip deprecated properties during JSON serialization
-      if (key === 'save' && typeof value === 'object' && value !== null) {
-        // If this looks like a deprecated ability save object, skip it
-        return undefined;
-      }
+    return JSON.stringify(obj, function (this: unknown, key: string, value: unknown) {
+      // Skip the legacy ability `save` (the holder is an ability entry), keep every other `save`
+      if (key === 'save' && isAbilityShape(this)) return undefined;
       return value;
     });
   } catch (error) {

@@ -25,3 +25,29 @@ describe('sanitizeData: dnd5e 6 Sets and Collections', () => {
     expect(sanitizeData({ m: new Map([['x', { a: 1 }]]) })).toEqual({ m: [{ a: 1 }] });
   });
 });
+
+describe('sanitizeData: save keys', () => {
+  it("keeps an activity's save (ability and dc)", () => {
+    const activity = {
+      type: 'save',
+      save: { ability: new Set(['dex']), dc: { calculation: 'spellcasting', formula: '' } },
+    };
+    expect(sanitizeData({ activities: new Map([['s1', activity]]) })).toEqual({
+      activities: [
+        {
+          type: 'save',
+          save: { ability: ['dex'], dc: { calculation: 'spellcasting', formula: '' } },
+        },
+      ],
+    });
+  });
+
+  it('drops the save of an ability entry only', () => {
+    const abilities = {
+      str: { value: 16, proficient: 1, mod: 3, save: { value: 5 } },
+    };
+    expect(sanitizeData({ abilities })).toEqual({
+      abilities: { str: { value: 16, proficient: 1, mod: 3 } },
+    });
+  });
+});

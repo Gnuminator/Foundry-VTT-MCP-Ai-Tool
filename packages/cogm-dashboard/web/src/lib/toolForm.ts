@@ -87,6 +87,16 @@ export const isQueueCall = (name: string, args: Record<string, unknown>): boolea
   name === 'plan-page-reveal' && (args['action'] === 'queue' || args['action'] === 'unqueue');
 
 /**
+ * The tools whose own `confirm` and `confirmDestructive` args the server sets from the confirm
+ * window's flags (tool-policy.ts CONFIRM_FORWARDED_TOOLS): the form never asks for them.
+ */
+const CONFIRM_FORWARDED_TOOLS: ReadonlySet<string> = new Set([
+  'apply-planned-change',
+  'undo-change',
+]);
+const CONFIRM_FLAGS = ['confirm', 'confirmDestructive'];
+
+/**
  * The tag on a tool: read, write or destructive as the dashboard gates it, and "plan" for a
  * plan-* tool (a read to the gate, but its apply changes the game, after the confirm window).
  */
@@ -100,10 +110,15 @@ export function paramsOf(tool: ToolInfo): {
   required: string[];
 } {
   const schema = tool.inputSchema;
-  const props =
+  const all =
     schema && typeof schema.properties === 'object' && schema.properties ? schema.properties : {};
   const required = Array.isArray(schema?.required) ? schema.required : [];
-  return { props, required };
+  if (!CONFIRM_FORWARDED_TOOLS.has(tool.name)) return { props: all, required };
+  // The confirm window answers these; the server fills them from its flags (toolArgs).
+  const props = Object.fromEntries(
+    Object.entries(all).filter(([key]) => !CONFIRM_FLAGS.includes(key))
+  );
+  return { props, required: required.filter(key => !CONFIRM_FLAGS.includes(key)) };
 }
 
 /** The picker annotation of a parameter, or null (free text, a tick, or none). */

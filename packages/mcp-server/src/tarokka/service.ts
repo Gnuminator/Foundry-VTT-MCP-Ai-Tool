@@ -24,6 +24,7 @@
 import { randomBytes, randomInt } from 'crypto';
 
 import type { GuardedOp } from '@gnuminator/shared';
+import { unwrapBridgeReply } from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView, VaultOp } from '../guarded-write/service.js';
@@ -455,12 +456,10 @@ export class TarokkaService {
     if (pageUuid) probes.push({ kind: 'delete', uuid: pageUuid });
     const snapshots =
       probes.length > 0
-        ? (unwrap(
-            (await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', {
-              ops: probes,
-            })) as { success?: boolean },
+        ? unwrapBridgeReply(
+            await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', { ops: probes }),
             'Snapshot refused'
-          ) as unknown as Array<{ exists?: boolean }>)
+          )
         : [];
     const journalExists = journalUuid ? snapshots[0]?.exists === true : false;
     const pageExists = pageUuid ? snapshots[journalUuid ? 1 : 0]?.exists === true : false;

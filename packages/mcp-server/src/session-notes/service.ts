@@ -10,7 +10,7 @@
  * revealed. The Recap page is queued for reveal; revealing it stays the GM's (destructive,
  * confirmed) action and marks the session approved (the audio is kept, D-097).
  */
-import { MODULE_ID, type GuardedOp, type OpSnapshot } from '@gnuminator/shared';
+import { type GuardedOp, MODULE_ID, type OpSnapshot, unwrapBridgeReply } from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
 import type { AppliedChange, GuardedWriteService } from '../guarded-write/service.js';
@@ -54,14 +54,6 @@ function fileFor(sessionId: string): string {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function unwrapModule<T>(response: unknown, what: string): T {
-  const r = response as { success?: unknown; error?: unknown } | null | undefined;
-  if (r && typeof r === 'object' && r.success === false) {
-    throw new Error(`${what}: ${typeof r.error === 'string' ? r.error : 'refused by Foundry'}`);
-  }
-  return response as T;
 }
 
 function bad(message: string): SessionNotesError {
@@ -389,7 +381,7 @@ export class SessionNotesService {
       throw new SessionNotesError('feature-off', blockers.message ?? 'Session notes are off');
     }
 
-    const folder = unwrapModule<{ folderId?: unknown }>(
+    const folder = unwrapBridgeReply(
       await this.foundry.query('foundry-mcp-bridge.ensureJournalFolder', { name: NOTES_FOLDER }),
       'Journal folder refused'
     );
@@ -441,7 +433,7 @@ export class SessionNotesService {
         ops.push({ kind: 'delete', uuid });
         ops.push({ kind: 'update', uuid, changes: { 'text.content': p.html } });
       }
-      const snaps = unwrapModule<OpSnapshot[]>(
+      const snaps = unwrapBridgeReply(
         await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', { ops }),
         'Read-back refused'
       );
@@ -526,7 +518,7 @@ export class SessionNotesService {
     }
     const uuids = Object.keys(notes.put.pageTimes);
     if (uuids.length === 0) return null;
-    const snaps = unwrapModule<OpSnapshot[]>(
+    const snaps = unwrapBridgeReply(
       await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', {
         ops: uuids.map(uuid => ({ kind: 'delete', uuid })),
       }),
@@ -558,7 +550,7 @@ export class SessionNotesService {
     if (placed.length === 0 || !this.foundry.isConnected()) return all;
     let snaps: OpSnapshot[];
     try {
-      snaps = unwrapModule<OpSnapshot[]>(
+      snaps = unwrapBridgeReply(
         await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', {
           ops: placed.map(n => ({ kind: 'delete', uuid: n.put!.journalUuid })),
         }),

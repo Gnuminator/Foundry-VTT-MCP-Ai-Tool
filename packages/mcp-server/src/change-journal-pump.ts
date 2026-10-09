@@ -53,6 +53,7 @@
 import { promises as fsp } from 'fs';
 
 import {
+  isBridgeRefusal,
   CHANGE_JOURNAL_MAX_LIMIT,
   CHANGE_JOURNAL_VERSION,
   type ChangeJournalResponse,
@@ -462,11 +463,11 @@ export class ChangeJournalPump {
   }
 
   private async fetchPage(sinceSeq: number): Promise<ChangeJournalResponse> {
-    const response = (await this.foundry.query('foundry-mcp-bridge.getChangeJournal', {
+    const response = await this.foundry.query('foundry-mcp-bridge.getChangeJournal', {
       sinceSeq,
       limit: CHANGE_JOURNAL_MAX_LIMIT,
-    })) as ChangeJournalResponse;
-    if (response?.success === false) {
+    });
+    if (isBridgeRefusal(response)) {
       throw new Error(response.error ?? 'getChangeJournal refused');
     }
     return response;

@@ -418,6 +418,19 @@ test("choosePick: another pack's entries are ignored by group; unequal counts fa
     'why' in nogroup ? nogroup.why : '',
     /no "PHB 2024 Species" group in the list, all 2 entries searched/
   );
+  // No heading matches and two books both show "Goliath" for one in the pack: neither is picked.
+  const twins = choosePick({
+    shown: [...listed(['Goliath'], '2014 SRD Races'), ...listed(['Goliath'], 'Other Origins')],
+    name: 'Goliath',
+    uuid: 'u.goliath',
+    group: GROUP,
+    peers: [{ uuid: 'u.goliath', name: 'Goliath' }],
+  });
+  assert.equal(twins.index, -1);
+  assert.match(
+    'why' in twins ? twins.why : '',
+    /2 "Goliath" entries for 1 in the pack \(no "PHB 2024 Species" group in the list/
+  );
   // Two "Elf" entries in the group for three elves in the pack: the position cannot be trusted.
   const short = listed(['Elf', 'Elf', 'Gnome', 'Gnome', 'Human']);
   const bad = choosePick({

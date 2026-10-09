@@ -279,7 +279,12 @@ export function choosePick({ shown, name, uuid, group = '', peers = [] }) {
       : ` (no "${group}" group in the list, all ${indexed.length} entries searched)`;
   /** @param {typeof pool} hits @param {typeof peers} same @param {string} how */
   const byPosition = (hits, same, how) => {
-    if (same.length <= 1) return { index: hits[0].index, how: how + where };
+    if (same.length <= 1) {
+      // The pack's heading is missing, so the hits may come from other books (a 2014 and a 2024
+      // twin share a label): only a single hit can be trusted.
+      if (group && !inGroup && hits.length > 1) return null;
+      return { index: hits[0].index, how: how + where };
+    }
     if (hits.length !== same.length) return null;
     return { index: hits[same.findIndex(p => p.uuid === uuid)]?.index ?? -1, how: how + where };
   };

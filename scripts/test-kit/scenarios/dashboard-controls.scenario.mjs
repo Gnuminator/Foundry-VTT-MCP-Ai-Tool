@@ -125,13 +125,12 @@ export default {
           },
           { label: 'the dashboard to know the world (/api/state prefs null before)' }
         );
-        const buttonsWereOn =
-          state.data.prefs === undefined
-            ? // A dashboard from before /api/state carried prefs: the page is all there is.
-              await page.evaluate(() =>
-                /:\s*on/i.test(document.querySelector('#btn-combat-buttons')?.textContent ?? '')
-              )
-            : state.data.prefs.combatButtons === true;
+        if (state.data.prefs === undefined) {
+          throw new Error(
+            '/api/state has no prefs: the dashboard is older than this checkout (start it from this worktree)'
+          );
+        }
+        const buttonsWereOn = state.data.prefs.combatButtons === true;
         if (!buttonsWereOn) {
           t.cleanup(async () => {
             const off = await t.http('/api/control', {

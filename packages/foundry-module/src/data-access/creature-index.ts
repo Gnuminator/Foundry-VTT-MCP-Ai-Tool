@@ -12,6 +12,16 @@ import type {
 /** dnd5e document types that count as "creatures" for the index. */
 const CREATURE_TYPES = new Set(['npc', 'character']);
 
+/** The fields of a creature document the index reads (a loaded Actor-pack document). */
+interface PackCreatureDoc {
+  _id: string;
+  name: string;
+  type: string;
+  img: string;
+  system?: unknown;
+  items?: unknown;
+}
+
 /** A dismissible progress notification (Foundry's `ui.notifications.info` return value). */
 interface RemovableNote {
   remove(): void;
@@ -79,8 +89,8 @@ export class PersistentCreatureIndex {
   }
 
   /** Foundry's FilePicker implementation (browse + upload). */
-  private get filePicker(): any {
-    return (foundry as any).applications.apps.FilePicker.implementation;
+  private get filePicker(): FoundryFilePicker {
+    return foundry.applications.apps.FilePicker.implementation;
   }
 
   /**
@@ -91,7 +101,7 @@ export class PersistentCreatureIndex {
   private async indexFileExists(): Promise<boolean> {
     try {
       const result = await this.filePicker.browse('data', this.worldDir());
-      return result.files.some((f: string) => f.endsWith(this.INDEX_FILENAME));
+      return result.files.some(f => f.endsWith(this.INDEX_FILENAME));
     } catch {
       return false;
     }
@@ -116,12 +126,15 @@ export class PersistentCreatureIndex {
         return null;
       }
 
-      const rawData = await response.json();
+      // On the wire `packFingerprints` is an entries array; it becomes a Map below.
+      const rawData = (await response.json()) as { metadata?: { packFingerprints?: unknown } };
       const metadata = rawData.metadata;
       if (metadata?.packFingerprints) {
-        metadata.packFingerprints = new Map(metadata.packFingerprints);
+        metadata.packFingerprints = new Map(
+          metadata.packFingerprints as Iterable<readonly [string, PackFingerprint]>
+        );
       }
-      return rawData;
+      return rawData as unknown as PersistentEnhancedIndex;
     } catch (error) {
       console.warn(`[${this.moduleId}] Failed to load persisted index from file:`, error);
       return null;
@@ -167,7 +180,7 @@ export class PersistentCreatureIndex {
       return false;
     }
 
-    const currentSystem = (game as any).system.id;
+    const currentSystem = game.system.id;
     if (existingIndex.metadata.gameSystem !== currentSystem) {
       logInfo(
         `[${this.moduleId}] System changed from ${existingIndex.metadata.gameSystem} to ${currentSystem}, index invalidated`
@@ -196,14 +209,17 @@ export class PersistentCreatureIndex {
   }
 
   /** All loaded Actor-type compendium packs. */
-  private actorPacks(): any[] {
-    return Array.from(game.packs.values()).filter((pack: any) => pack.metadata.type === 'Actor');
+  private actorPacks(): CompendiumCollection[] {
+    return Array.from(game.packs.values()).filter(pack => pack.metadata.type === 'Actor');
   }
 
   /** Fingerprint used to detect whether a pack changed since it was indexed. */
-  private generatePackFingerprint(pack: any): PackFingerprint {
-    const lastModified = pack.metadata.lastModified
-      ? new Date(pack.metadata.lastModified).getTime()
+  private generatePackFingerprint(pack: CompendiumCollection): PackFingerprint {
+    const metadata = pack.metadata as CompendiumMetadata & {
+      lastModified?: string | number | Date;
+    };
+    const lastModified = metadata.lastModified
+      ? new Date(metadata.lastModified).getTime()
       : Date.now();
     return {
       packId: pack.metadata.id,
@@ -215,7 +231,7 @@ export class PersistentCreatureIndex {
   }
 
   /** Cheap content checksum (id + label + size), truncated to 16 chars. */
-  private generatePackChecksum(pack: any): string {
+  private generatePackChecksum(pack: CompendiumCollection): string {
     const data = `${pack.metadata.id}-${pack.metadata.label}-${pack.index?.size || 0}`;
     return btoa(data).slice(0, 16);
   }
@@ -234,8 +250,8 @@ export class PersistentCreatureIndex {
   private registerFoundryHooks(): void {
     if (this.hooksRegistered) return;
 
-    const onCreatureDoc = (document: any): void => {
-      if (document.pack && CREATURE_TYPES.has(document.type)) {
+    const onCreatureDoc = (document: { pack?: unknown; type?: unknown }): void => {
+      if (document.pack && typeof document.type === 'string' && CREATURE_TYPES.has(document.type)) {
         void this.invalidateIndex();
       }
     };
@@ -243,7 +259,7 @@ export class PersistentCreatureIndex {
     Hooks.on('updateDocument', onCreatureDoc);
     Hooks.on('deleteDocument', onCreatureDoc);
 
-    const onActorPack = (pack: any): void => {
+    const onActorPack = (pack: CompendiumCollection): void => {
       if (pack.metadata.type === 'Actor') {
         void this.invalidateIndex();
       }
@@ -287,7 +303,7 @@ export class PersistentCreatureIndex {
       throw new Error('Index build already in progress');
     }
 
-    const gameSystem = (game as any).system.id;
+    const gameSystem = game.system.id;
     logInfo(`[${this.moduleId}] Building enhanced creature index for system: ${gameSystem}`);
 
     if (gameSystem !== 'dnd5e') {
@@ -404,13 +420,13 @@ export class PersistentCreatureIndex {
    * extraction failures are absorbed by {@link extractDnD5eCreatureData}.
    */
   private async extractDnD5eDataFromPack(
-    pack: any
+    pack: CompendiumCollection
   ): Promise<{ creatures: DnD5eCreatureIndex[]; errors: number }> {
     const creatures: DnD5eCreatureIndex[] = [];
     let errors = 0;
 
     try {
-      const documents = await pack.getDocuments();
+      const documents = (await pack.getDocuments()) as PackCreatureDoc[];
       for (const doc of documents) {
         if (!CREATURE_TYPES.has(doc.type)) {
           continue;
@@ -437,8 +453,8 @@ export class PersistentCreatureIndex {
    * creature. Reads the canonical `_id` field.
    */
   private extractDnD5eCreatureData(
-    doc: any,
-    pack: any
+    doc: PackCreatureDoc,
+    pack: CompendiumCollection
   ): { creature: DnD5eCreatureIndex; errors: number } {
     try {
       const system = rec(doc.system);
@@ -526,7 +542,7 @@ export class PersistentCreatureIndex {
   }
 
   /** Safe default record used when extraction throws (fallback HP is 1, not 0). */
-  private fallbackRecord(doc: any, pack: any): DnD5eCreatureIndex {
+  private fallbackRecord(doc: PackCreatureDoc, pack: CompendiumCollection): DnD5eCreatureIndex {
     return {
       id: doc._id,
       name: doc.name,

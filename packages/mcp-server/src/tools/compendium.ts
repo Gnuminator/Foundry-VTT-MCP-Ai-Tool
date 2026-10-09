@@ -718,7 +718,8 @@ export class CompendiumTools {
     // Add relevant summary information based on item type
     switch (item.type.toLowerCase()) {
       case 'spell':
-        if (system.level) parts.push(`Level ${system.level}`);
+        if (system.level === 0) parts.push('Cantrip');
+        else if (system.level) parts.push(`Level ${system.level}`);
         if (system.school) parts.push(spellSchoolName(system.school) ?? system.school);
         break;
       case 'weapon': {

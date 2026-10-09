@@ -348,12 +348,21 @@ describe('CompendiumTools.handleGetCompendiumItem formatting (M3)', () => {
         packLabel: 'SRD Spells',
         system: { level: 1, school: 'evo' },
       },
+      {
+        id: 'ray',
+        name: 'Ray of Frost',
+        type: 'spell',
+        pack: 'dnd5e.spells',
+        packLabel: 'SRD Spells',
+        system: { level: 0, school: 'evo' },
+      },
     ];
     const { tools } = makeTools(withDnd5e(hits));
     const result = await tools.handleSearchCompendium({ query: 'fire' });
     expect(result.results[0].summary).toContain('1d8 slashing damage');
     expect(result.results[1].summary).toContain('Evocation');
     expect(result.results[1].summary).not.toContain('evo');
+    expect(result.results[2].summary).toBe('spell from SRD Spells • Cantrip • Evocation');
   });
 
   // dnd5e 6 stores armor as `equipment` with an armor `type.value` (dnd5e 6.0.5 Chain Mail).

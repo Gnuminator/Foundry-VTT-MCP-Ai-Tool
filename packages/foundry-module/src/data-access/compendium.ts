@@ -26,7 +26,32 @@ import type {
  * text matching. The {@link PersistentCreatureIndex} is injected so the index can
  * be built/queried without the facade.
  */
+/**
+ * dnd5e 6 Item fields the server's search summaries read (spell level and school, weapon
+ * damage, armor type and AC, rarity, price). dnd5e's own index holds only `container`,
+ * `identifier` and `source`, so they are requested once per Item pack.
+ */
+export const ITEM_SUMMARY_FIELDS = [
+  'system.level',
+  'system.school',
+  'system.damage.base',
+  'system.type.value',
+  'system.armor.value',
+  'system.rarity',
+  'system.price',
+];
+
+/** The parts of a compendium pack the index search reads. */
+interface IndexedPack {
+  metadata: { id: string; type: string };
+  indexed: boolean;
+  getIndex(options: { fields?: string[] }): Promise<unknown>;
+}
+
 export class CompendiumDataAccess {
+  /** Item packs whose index already holds {@link ITEM_SUMMARY_FIELDS}. */
+  private readonly summaryIndexed = new Set<string>();
+
   constructor(private persistentIndex: PersistentCreatureIndex) {}
 
   /**
@@ -85,9 +110,7 @@ export class CompendiumDataAccess {
 
     for (const pack of this.searchablePacks(packType)) {
       try {
-        if (!pack.indexed) {
-          await pack.getIndex({});
-        }
+        await this.loadIndex(pack as IndexedPack);
 
         for (const entry of Array.from(pack.index.values())) {
           try {
@@ -150,6 +173,16 @@ export class CompendiumDataAccess {
     return searchTerms.every(term => !!term && typeof term === 'string' && lower.includes(term));
   }
 
+  /** Index a pack for the name search: Item packs once with {@link ITEM_SUMMARY_FIELDS}. */
+  private async loadIndex(pack: IndexedPack): Promise<void> {
+    if (pack.metadata.type === 'Item' && !this.summaryIndexed.has(pack.metadata.id)) {
+      await pack.getIndex({ fields: ITEM_SUMMARY_FIELDS });
+      this.summaryIndexed.add(pack.metadata.id);
+    } else if (!pack.indexed) {
+      await pack.getIndex({});
+    }
+  }
+
   /** Build a search result from a pack index entry. */
   private toIndexResult(typedEntry: any, pack: any): CompendiumSearchResult {
     return {
@@ -162,6 +195,9 @@ export class CompendiumDataAccess {
       description: typedEntry.description || '',
       hasImage: !!typedEntry.img,
       summary: `${typedEntry.type} from ${pack.metadata.label}`,
+      ...((pack as IndexedPack).metadata.type === 'Item'
+        ? { system: summarySystem((typedEntry as { system?: unknown }).system) }
+        : {}),
     };
   }
 
@@ -605,4 +641,15 @@ export class CompendiumDataAccess {
 
     return fullEntry;
   }
+}
+
+/** The {@link ITEM_SUMMARY_FIELDS} of an Item index entry's `system` (no source or identifier). */
+function summarySystem(system: unknown): Record<string, unknown> {
+  const sys =
+    system !== null && typeof system === 'object' ? (system as Record<string, unknown>) : {};
+  const out: Record<string, unknown> = {};
+  for (const key of ['level', 'school', 'damage', 'type', 'armor', 'rarity', 'price']) {
+    if (sys[key] !== undefined && sys[key] !== null) out[key] = sys[key];
+  }
+  return out;
 }

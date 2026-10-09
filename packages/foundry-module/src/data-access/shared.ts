@@ -71,6 +71,20 @@ export function removeSensitiveFields(
       return obj.map(item => removeSensitiveFields(item, visited, depth + 1));
     }
 
+    // dnd5e 6 keeps item `properties` in a Set and `activities` in a Collection (a Map), which
+    // JSON turns into `{}`: a Set becomes an array, a Map the array of its values (their
+    // `toJSON()`, so a document's parent links are never walked).
+    if (obj instanceof Set) {
+      return [...(obj as Set<unknown>)].map((item): unknown =>
+        removeSensitiveFields(item, visited, depth + 1)
+      );
+    }
+    if (obj instanceof Map) {
+      return [...(obj as Map<unknown, unknown>).values()].map((item): unknown =>
+        removeSensitiveFields(toJSONOrSelf(item), visited, depth + 1)
+      );
+    }
+
     // Create a new sanitized object
     const sanitized: any = {};
 
@@ -352,4 +366,10 @@ export function actorConditionNames(actor: any): string[] {
   } catch {
     return [];
   }
+}
+
+/** A document or data model as its `toJSON()` (plain data, no parent links), else the value. */
+function toJSONOrSelf(value: unknown): unknown {
+  const toJSON = (value as { toJSON?: unknown } | null)?.toJSON;
+  return typeof toJSON === 'function' ? (toJSON as () => unknown).call(value) : value;
 }

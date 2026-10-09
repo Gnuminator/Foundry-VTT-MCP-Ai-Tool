@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import type { JSX, ReactNode } from 'react';
 
-import { useEscapeClose } from '../lib/escape';
+import { closeTopPanel, useEscapeClose } from '../lib/escape';
 import { HelpButton } from './HelpButton';
 
 interface OverlayPaneProps {
@@ -49,6 +49,11 @@ export function OverlayPane({
         asChild
         aria-describedby={undefined}
         onInteractOutside={e => e.preventDefault()}
+        onEscapeKeyDown={e => {
+          // One order for Escape across panes and drawers: the newest open panel (escape.ts).
+          e.preventDefault();
+          closeTopPanel();
+        }}
       >
         <section id={id} className={['pane', 'overlay-pane', className].filter(Boolean).join(' ')}>
           <div className="pane-head">

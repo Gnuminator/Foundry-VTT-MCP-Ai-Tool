@@ -243,6 +243,7 @@ closed, start the bridge standalone first: `npm run bridge:standalone`.
 | [ARCHITECTURE.md](docs/dev/ARCHITECTURE.md)             | The system from first principles: the wire contracts, GM-gating, guarded writes    |
 | [REMOTE-ACCESS.md](docs/dev/REMOTE-ACCESS.md)           | Remote access setup and deploy templates                                           |
 | [PI-SETUP.md](docs/dev/PI-SETUP.md)                     | Bringing up the Orange Pi home server                                              |
+| [PLAN-B.md](docs/dev/PLAN-B.md)                         | The Pi is down on game night: Foundry on the admin's PC from last night's backup   |
 | [CHANGELOG.md](CHANGELOG.md) · [CREDITS.md](CREDITS.md) | Releases · attribution                                                             |
 
 ---

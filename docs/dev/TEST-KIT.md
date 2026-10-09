@@ -1089,10 +1089,13 @@ When you change a tool's result shape, change the fake with it.
   `init` creates a missing Kit GM, Claude or Kit Player without a password. A user of that name
   that is already there keeps its password: a lower-role `Claude` is promoted to Gamemaster, and
   a password someone gave it stays.
-- **Passwordless GMs only on this machine.** `init` refuses to provision a Foundry that is not on
-  loopback (`127.0.0.1`, `localhost`, `[::1]`), because its passwordless GMs would be an open GM
-  login on a host others can reach. A future remote target (the Pi's `strahd-kit`) has to opt in
-  with `allowRemote` in `provisionWorld` and give its GMs passwords first.
+- **Passwordless GMs only on the PC's test Foundry.** `init` provisions only `http://127.0.0.1:30001`
+  (any loopback spelling) on Windows, because its passwordless GMs would be an open GM login on a
+  host others can reach. A loopback address alone is not enough: on the Pi `127.0.0.1:30000` is the
+  port the tunnel serves, and an SSH forward makes the Pi look local, so both are refused. An SSH
+  forward onto port 30001 itself cannot be told apart; never forward the Pi there. A remote target
+  (the Pi's `strahd-kit`) needs a way to give its GMs passwords before `provisionWorld` can serve
+  it; there is no opt-out today.
 
 ## What comes next
 

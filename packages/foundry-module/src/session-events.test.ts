@@ -739,7 +739,7 @@ describe('EventTracker HP cache per actor uuid (unlinked tokens)', () => {
     const devil1 = actor('dev', tokenActorUuid('t1'), 'Ice Devil', 228);
     const devil2 = actor('dev', tokenActorUuid('t2'), 'Ice Devil', 100);
     const hero = actor('p1', 'Actor.p1', 'Silvera', 30);
-    (globalThis as any).game.actors = { contents: [base, hero], get: () => undefined };
+    (globalThis as any).game.actors = { contents: [base, hero], get: (): undefined => undefined };
     (globalThis as any).game.scenes = {
       contents: [
         {

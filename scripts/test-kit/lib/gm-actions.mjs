@@ -25,6 +25,7 @@ import { SPELL_GM_FUNCTIONS } from './gm-spells.mjs';
 
 import { ORIGIN_GM_FUNCTIONS } from './gm-origins.mjs';
 import { inspectBuild } from './inspect-build.mjs';
+import { settleCreated } from './settle-created.mjs';
 import { studioPump } from './studio-pump.mjs';
 
 /** @param {object} _args */
@@ -742,38 +743,11 @@ async function createHero(args) {
     },
   };
 
-  // dnd5e finishes two things after a new item is created without awaiting them: a species item
-  // links itself (system.details.race, from its _onCreate), and an item with Cast activities adds
-  // its cached spell copies (onCreateActivities). The next manager clones the actor and writes the
-  // clone back whole (diff: false, and items missing from the clone are deleted), so a manager
-  // started before those writes land erases the species link (no speeds, no senses) and deletes the
-  // spells. A player clicking through the forms is far slower; the kit starts the next manager
-  // within ~100 ms and lost that race on a slow run (8 species, 2026-10-09).
-  const settleCreated = async (actor, label) => {
-    const race = actor.itemTypes.race[0];
-    const unlinked = () => !!race && actor._source.system.details?.race !== race.id;
-    const uncached = () =>
-      actor.items.contents.flatMap(item =>
-        (item.system.activities?.getByType?.('cast') ?? []).filter(
-          a => a.spell?.uuid && !a.cachedSpell && fromUuidSync(a.spell.uuid)
-        )
-      );
-    const until = Date.now() + 10000;
-    while (unlinked() || uncached().length) {
-      if (Date.now() > until) {
-        if (unlinked())
-          throw new Error(
-            `createHero: ${label}: the species ${race.name} is not linked to the actor (system.details.race)`
-          );
-        throw new Error(
-          `createHero: ${label}: no cached spell for ${uncached()
-            .map(a => `${a.item.name}: ${a.name}`)
-            .join(', ')}`
-        );
-      }
-      await sleep(50);
-    }
-  };
+  // Waits for dnd5e's unawaited species link and cached spells before the next manager clones the
+  // actor (settle-created.mjs has the why; gm.mjs sends its source in args._helpers).
+  const settle = new Function(`return (${args._helpers.settleCreated});`)();
+  const settleCreated = (actor, label) =>
+    settle(actor, label, { resolveUuid: uuid => fromUuid(uuid), sleep });
 
   // Run one manager to the end, answering every choice.
   const runManager = async (actor, itemData, label) => {
@@ -1847,6 +1821,15 @@ async function deleteKitActor(args) {
   await actor.delete();
   return { deleted: true };
 }
+
+/**
+ * Helpers a GM action calls that live in a lib file of their own (so kit:test can reach them).
+ * gm.mjs sends each one's source with the action as `args._helpers.<name>`; the action rebuilds it
+ * with `new Function`. Each helper must be self-contained, like the actions.
+ */
+export const GM_ACTION_HELPERS = {
+  createHero: { settleCreated },
+};
 
 export const GM_ACTION_FUNCTIONS = {
   ...ORIGIN_GM_FUNCTIONS,

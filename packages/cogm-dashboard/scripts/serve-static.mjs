@@ -36,7 +36,14 @@ const server = createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok');
       return;
     }
-    let file = path.join(root, decodeURIComponent(url.pathname));
+    let file;
+    try {
+      file = path.join(root, decodeURIComponent(url.pathname));
+    } catch {
+      // A malformed escape such as "%" or "%E0%A4%A": a bad request, not a crash.
+      res.writeHead(400).end('bad request');
+      return;
+    }
     if (!file.startsWith(root + path.sep) && file !== root) {
       res.writeHead(403).end();
       return;

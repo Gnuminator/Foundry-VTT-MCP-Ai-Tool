@@ -45,16 +45,19 @@ export const PHONE = { width: 390, height: 844 } as const;
 export const themeOf = (story: StoryEntry): 'neutral' | 'veil' =>
   story.tags.includes('veil') ? 'veil' : 'neutral';
 
+export const isPhone = (story: StoryEntry): boolean => story.tags.includes('phone');
+
 /**
  * Opens the story on its own page (iframe.html, the preview without Storybook's chrome), waits
  * until it has rendered and its play step has run, and settles the page the way the app shots do:
  * fonts loaded, the clock fixed, the mouse out of the way, nothing in flight.
  */
 export async function showStory(page: Page, story: StoryEntry): Promise<void> {
-  await page.setViewportSize(story.tags.includes('phone') ? PHONE : DESKTOP);
+  await page.setViewportSize(isPhone(story) ? PHONE : DESKTOP);
   await page.clock.setFixedTime(NOW);
-  const globals = themeOf(story) === 'veil' ? '&globals=theme:veil' : '';
-  await page.goto(`/iframe.html?id=${encodeURIComponent(story.id)}&viewMode=story${globals}`);
+  // No globals in the URL: the story's own `globals` are what the preview applies, so the checks
+  // below see what a person opening the story in Storybook sees.
+  await page.goto(`/iframe.html?id=${encodeURIComponent(story.id)}&viewMode=story`);
   await expect(page.locator('html')).toHaveAttribute('data-theme', themeOf(story));
   // StoryRender's last phase: "finished" once the story rendered and its play step ran.
   await page.waitForFunction(() => {
@@ -65,6 +68,7 @@ export async function showStory(page: Page, story: StoryEntry): Promise<void> {
     ).__STORYBOOK_PREVIEW__?.currentRender?.phase;
     return phase === 'finished' || phase === 'errored' || phase === 'aborted';
   });
+  await expectTagsMatchGlobals(page, story);
   const error = await page
     .locator('.sb-errordisplay:visible')
     .first()
@@ -74,6 +78,37 @@ export async function showStory(page: Page, story: StoryEntry): Promise<void> {
   await page.evaluate(() => document.fonts.ready);
   await page.waitForLoadState('networkidle');
   await page.mouse.move(0, 0);
+}
+
+/**
+ * The story's tags (what this test reads from index.json) and its `globals` (what the preview and
+ * the toolbar use) say the same thing: the theme and the phone screen. Fails both ways round, e.g.
+ * a `veil` tag with no VEIL globals, or PHONE_VIEW globals with no `phone` tag.
+ */
+async function expectTagsMatchGlobals(page: Page, story: StoryEntry): Promise<void> {
+  const resolved = await page.evaluate(() => {
+    type Preview = {
+      currentRender?: { story?: unknown };
+      storyStoreValue?: { getStoryContext: (s: unknown) => { globals?: Record<string, unknown> } };
+    };
+    const preview = (window as unknown as { __STORYBOOK_PREVIEW__?: Preview })
+      .__STORYBOOK_PREVIEW__;
+    const story = preview?.currentRender?.story;
+    return story ? (preview?.storyStoreValue?.getStoryContext(story).globals ?? null) : null;
+  });
+  expect(resolved, `story ${story.id}: could not read its globals from the preview`).not.toBeNull();
+  // No theme global (or the addon's empty default) is the neutral theme.
+  const themeGlobal = resolved?.['theme'];
+  const theme = typeof themeGlobal === 'string' && themeGlobal !== '' ? themeGlobal : 'neutral';
+  expect(
+    theme,
+    `story ${story.id}: tags say theme ${themeOf(story)}, its globals say ${theme} (use VEIL from storybook/modes.ts together with the 'veil' tag)`
+  ).toBe(themeOf(story));
+  const viewport = resolved?.['viewport'] as { value?: string } | undefined;
+  expect(
+    viewport?.value === 'phone',
+    `story ${story.id}: the 'phone' tag and the viewport global must agree (use PHONE_VIEW from storybook/modes.ts together with the 'phone' tag)`
+  ).toBe(isPhone(story));
 }
 
 /**

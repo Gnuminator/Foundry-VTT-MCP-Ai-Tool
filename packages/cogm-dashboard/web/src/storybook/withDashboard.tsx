@@ -9,8 +9,8 @@
 //
 // Nothing here is bundled into the app: only .stories.tsx files and .storybook/ import it.
 import { QueryClient, QueryClientProvider, type QueryKey } from '@tanstack/react-query';
-import type { Decorator } from '@storybook/react-vite';
-import { useEffect, useState, type JSX, type ReactNode } from 'react';
+import type { Decorator, Preview } from '@storybook/react-vite';
+import { useState, type JSX, type ReactNode } from 'react';
 
 import { ConfirmProvider } from '../components/ConfirmDialog';
 import { HelpProvider } from '../components/Help';
@@ -81,8 +81,9 @@ function Dashboard({
   config: DashboardParameters;
   children: ReactNode;
 }): JSX.Element {
-  // Both once per story: the key on this component (below) remounts it when the story changes.
-  const [{ client, restore }] = useState(() => {
+  // Once per story: the key on this component (below) remounts it when the story changes. The
+  // fake fetch is not set up here: that is a side effect, and it belongs to dashboardBeforeEach.
+  const [client] = useState(() => {
     const queryClient = new QueryClient({
       // A story shows what the fake answers; a retry would only delay a failure it is showing.
       defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
@@ -90,9 +91,8 @@ function Dashboard({
     for (const [key, data] of [...DEFAULT_CACHE, ...(config.cache ?? [])]) {
       queryClient.setQueryData(key, data);
     }
-    return { client: queryClient, restore: installFetch(mergeApi(config.api)) };
+    return queryClient;
   });
-  useEffect(() => restore, [restore]);
   return (
     <QueryClientProvider client={client}>
       <TooltipProvider>
@@ -105,6 +105,17 @@ function Dashboard({
     </QueryClientProvider>
   );
 }
+
+/**
+ * Storybook's per-story setup step (registered as `beforeEach` in .storybook/preview.tsx): it
+ * runs once before the story renders and the function it returns runs when the story is torn
+ * down. The fake /api is in place before any component fetches, and a strict-mode double
+ * render cannot swap it out from under the live story.
+ */
+export const dashboardBeforeEach: NonNullable<Preview['beforeEach']> = context => {
+  const config = (context.parameters['dashboard'] ?? {}) as DashboardParameters;
+  return installFetch(mergeApi(config.api));
+};
 
 export const withDashboard: Decorator = (Story, context) => {
   const config = (context.parameters['dashboard'] ?? {}) as DashboardParameters;

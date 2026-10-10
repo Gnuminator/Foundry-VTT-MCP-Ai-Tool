@@ -11,7 +11,7 @@ import '../../public/themes/veil.css';
 import '../src/next.css';
 import './preview.css';
 
-import { withDashboard } from '../src/storybook/withDashboard';
+import { dashboardBeforeEach, withDashboard } from '../src/storybook/withDashboard';
 
 const MISTS = ['calm', 'drift', 'clear'] as const;
 
@@ -25,6 +25,8 @@ const withMist: Decorator = (Story, context) => {
 };
 
 const preview: Preview = {
+  // The fake /api: put in place before the story renders, taken out when it ends.
+  beforeEach: dashboardBeforeEach,
   decorators: [
     // data-theme="neutral" | "veil" on <html>, as theme.ts sets it: the toolbar's Theme.
     withThemeByDataAttribute({
@@ -55,8 +57,16 @@ const preview: Preview = {
     viewport: {
       options: {
         phone: { name: 'Phone (390)', styles: { width: '390px', height: '844px' }, type: 'mobile' },
-        laptop: { name: 'Laptop (1080)', styles: { width: '1080px', height: '800px' }, type: 'desktop' },
-        desktop: { name: 'Desktop (1440)', styles: { width: '1440px', height: '900px' }, type: 'desktop' },
+        laptop: {
+          name: 'Laptop (1080)',
+          styles: { width: '1080px', height: '800px' },
+          type: 'desktop',
+        },
+        desktop: {
+          name: 'Desktop (1440)',
+          styles: { width: '1440px', height: '900px' },
+          type: 'desktop',
+        },
       },
     },
     options: {

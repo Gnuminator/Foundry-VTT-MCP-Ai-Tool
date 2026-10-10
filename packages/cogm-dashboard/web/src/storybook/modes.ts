@@ -11,8 +11,8 @@
 //   export const OnAPhone: Story = { tags: ['phone'], globals: PHONE_VIEW, args: { ... } };
 //   export const Both: Story = { tags: ['veil', 'phone'], globals: { ...VEIL, ...PHONE_VIEW } };
 //
-// The shot test checks the two agree (it opens the story, and fails when the tag says veil and the
-// page is not in the Veil theme).
+// The shot test checks the two agree, both ways round: it opens the story on its own globals and
+// fails when the theme or the phone viewport the globals give is not the one the tags name.
 
 /** The Veil theme (the toolbar's Theme): pair it with `tags: ['veil']`. */
 export const VEIL = { theme: 'veil' } as const;

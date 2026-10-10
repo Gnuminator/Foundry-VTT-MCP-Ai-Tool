@@ -36,7 +36,8 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 
 ## Before the PR
 
-- Keep green (CLAUDE.md lists the commands; `npm run green` once phase 2 of D-122 lands).
+- `npm run green`: everything CI's build-test job runs, quiet (one OK line, or the failing step
+  and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun.
 - `changelog.d/<topic>.md` added; lint and em-dash baselines lowered if counts dropped.
 - `git status --short`: add explicit paths; no binaries, archives, audio, `.env` or downloads.
 - PR description = the handover: what changed, how it was verified (commands, live checks, kit
@@ -58,16 +59,17 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   for one delta round. Lows may go to the Backlog instead.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`).
-- **Merge:** `npm run lane:merge -- <PR>` once phase 2 of D-122 lands (it checks CI on the head
-  commit, the review note for that sha, the changelog and drift, and the merge-train counter).
-  Until then: `gh pr checks <PR>` and read that every check passed on the head commit, then
-  `gh pr merge <PR> --merge --match-head-commit <reviewed sha>` as a separate step. Never chain a
-  merge after a wait. Don't offer the app's PR Auto-fix.
+- **Merge:** from the PR branch, clean and pushed: `npm run lane:merge -- <PR> --dry-run`, then
+  `npm run lane:merge -- <PR>`. It checks CI on the head commit, a review note for that sha (Opus
+  for risky paths), the changelog fragment, `drift:check` and the merge train, then merges with
+  `--match-head-commit`. If the train is full, the planner runs `live:roundtrip` on main first.
+  Never merge by hand around it. Don't offer the app's PR Auto-fix.
 
 ## Context and handover
 
-- Check `get_usage "self"` (context.tokensUsed) after big steps. Plan the handover at 350k, be out
-  by 400k (200k and 250k while weekly usage is above 50%).
+- The context hook prints one line at 350k (plan the handover) and 400k (hand over now); 200k
+  and 250k while the planner has set low mode (weekly usage above 50%). `get_usage "self"` gives
+  the exact number.
 - Handover: half a page to vault `Handoff/<lane> prompt <date>.md` and in full in the chat in a
   fenced block: task, state, open PRs, links, done-when, "follow CLAUDE.md". Findings a successor
   needs go in the vault, not side-session notes (archiving a session deletes those).

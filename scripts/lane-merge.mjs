@@ -405,19 +405,26 @@ export function hasChangelogFragment(files) {
 }
 
 /**
- * Parses `git diff --name-status --no-renames` output.
+ * Parses `git diff -z --name-status --no-renames` output: NUL-separated status and path pairs, so a
+ * path with non-ASCII characters comes through as it is, not quoted. A rename or copy entry (should
+ * --no-renames ever be dropped) carries two paths and yields both.
  * @param {string} text
  * @returns {{ path: string, changeType: string }[]}
  */
 export function parseNameStatus(text) {
   /** @type {{ path: string, changeType: string }[]} */
   const files = [];
-  for (const line of text.split(/\r?\n/)) {
-    const m = /^([A-Z])\d*\t(.+)$/.exec(line);
-    if (!m) continue;
-    const changeType = { A: 'ADDED', M: 'MODIFIED', D: 'DELETED' }[m[1]] ?? 'CHANGED';
-    // A rename or copy line (should --no-renames ever be dropped) names both paths.
-    for (const p of m[2].split('\t')) files.push({ path: p, changeType });
+  const tokens = text.split(String.fromCharCode(0));
+  for (let i = 0; i + 1 < tokens.length; ) {
+    const status = tokens[i].trim();
+    if (!/^[A-Z][0-9]*$/.test(status)) {
+      i += 1;
+      continue;
+    }
+    const changeType = { A: 'ADDED', M: 'MODIFIED', D: 'DELETED' }[status[0]] ?? 'CHANGED';
+    const count = status[0] === 'R' || status[0] === 'C' ? 2 : 1;
+    for (const p of tokens.slice(i + 1, i + 1 + count)) if (p) files.push({ path: p, changeType });
+    i += 1 + count;
   }
   return files;
 }
@@ -857,16 +864,29 @@ export function main(options = {}) {
 
   // The changed files come from the local checkout (gh stops at 100 files and drops renamed-from
   // paths); gh's list is a cross-check, and the union is judged.
-  const fetchError = fetchMain();
+  // Only when this checkout is the PR head: any other checkout would list another branch's files
+  // (the local check below refuses it anyway), so then gh's list is all there is.
+  const local = run('git', ['rev-parse', 'HEAD']);
+  const localHead = local.stdout.trim().toLowerCase();
+  const atHead = local.status === 0 && localHead === head;
+  const fetchError = atHead ? fetchMain() : null;
   /** @type {{ path: string, changeType?: string }[]} */
   let localFiles = [];
   /** @type {string | null} */
   let filesError = fetchError ? `git fetch ${REMOTE} main failed: ${fetchError}` : null;
-  if (!filesError) {
+  if (atHead && !filesError) {
     const base = run('git', ['merge-base', MAIN, 'HEAD']);
     const diff =
       base.status === 0
-        ? run('git', ['diff', '--name-status', '--no-renames', base.stdout.trim(), 'HEAD'])
+        ? run('git', [
+            'diff',
+            '-z',
+            '--no-color',
+            '--name-status',
+            '--no-renames',
+            base.stdout.trim(),
+            'HEAD',
+          ])
         : base;
     if (base.status !== 0 || diff.status !== 0) {
       filesError = `git merge-base/diff against ${MAIN} failed: ${firstLine(diff.stderr || diff.stdout)}`;
@@ -908,9 +928,7 @@ export function main(options = {}) {
   }
 
   // e. This checkout is the PR head and clean.
-  const local = run('git', ['rev-parse', 'HEAD']);
   const status = run('git', ['status', '--porcelain']);
-  const localHead = local.stdout.trim().toLowerCase();
   let localOk = true;
   if (local.status !== 0 || localHead !== head) {
     localOk = false;

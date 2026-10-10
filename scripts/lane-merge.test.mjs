@@ -117,10 +117,10 @@ function gate(o = {}) {
       return o.fetchFail ? { status: 128, stdout: '', stderr: 'no network' } : ok();
     }
     if (key === 'git merge-base aitool/main') return ok('basesha\n');
-    if (key === 'git diff --name-status') {
-      return ok(
-        localPaths.map(p => `${p.startsWith('changelog.d/') ? 'A' : 'M'}\t${p}`).join('\n') + '\n'
-      );
+    if (key === 'git diff -z') {
+      const nul = String.fromCharCode(0);
+      const entry = p => `${p.startsWith('changelog.d/') ? 'A' : 'M'}${nul}${p}${nul}`;
+      return ok(localPaths.map(entry).join(''));
     }
     if (key === 'git rev-parse HEAD') return ok(`${o.localHead ?? HEAD}\n`);
     if (key === 'git status --porcelain') return ok(o.dirty ? ' M a.txt\n?? b.txt\n' : '');
@@ -417,14 +417,48 @@ test('hasChangelogFragment: added or changed fragments only', () => {
   assert.ok(!hasChangelogFragment([{ path: 'changelog.d/x.md', changeType: 'DELETED' }]));
 });
 
-test('parseNameStatus: added, modified, deleted; renames are listed as both sides', () => {
-  assert.deepEqual(parseNameStatus('A\ta.md\nM\tb.ts\nD\tc.ts\n\nR100\told\tnew\n'), [
-    { path: 'a.md', changeType: 'ADDED' },
-    { path: 'b.ts', changeType: 'MODIFIED' },
-    { path: 'c.ts', changeType: 'DELETED' },
-    { path: 'old', changeType: 'CHANGED' },
-    { path: 'new', changeType: 'CHANGED' },
+test('parseNameStatus: NUL separated, non-ASCII paths unquoted, renames list both sides', () => {
+  const nul = String.fromCharCode(0);
+  const z = (...parts) => parts.join(nul) + nul;
+  assert.deepEqual(
+    parseNameStatus(z('A', 'a.md', 'M', 'b.ts', 'D', 'c.ts', 'R100', 'old', 'new')),
+    [
+      { path: 'a.md', changeType: 'ADDED' },
+      { path: 'b.ts', changeType: 'MODIFIED' },
+      { path: 'c.ts', changeType: 'DELETED' },
+      { path: 'old', changeType: 'CHANGED' },
+      { path: 'new', changeType: 'CHANGED' },
+    ]
+  );
+  assert.deepEqual(parseNameStatus(z('M', 'docs/skål/æ.md')), [
+    { path: 'docs/skål/æ.md', changeType: 'MODIFIED' },
   ]);
+  assert.deepEqual(parseNameStatus(''), []);
+});
+
+test('L2: git is asked for NUL separated output, and a non-ASCII path is matched as it is', () => {
+  const r = gate({
+    files: ['packages/foundry-module/src/write-gate.ts', 'docs/skål.md', 'changelog.d/x.md'],
+  });
+  assert.match(r.text, /risky \(the write gate\)/);
+  assert.ok(r.calls.some(c => c.join(' ').startsWith('git diff -z --no-color --name-status')));
+});
+
+test('L1: the local file list is used only when HEAD is the PR head', () => {
+  const r = gate({
+    localHead: OTHER,
+    files: ['packages/foundry-module/src/write-gate.ts', 'changelog.d/x.md'],
+    ghFiles: ['docs/guide.md', 'changelog.d/x.md'],
+  });
+  assert.equal(r.code, 1);
+  assert.ok(!r.calls.some(c => c[0] === 'git' && ['diff', 'merge-base', 'fetch'].includes(c[1])));
+  assert.match(r.text, /local: this checkout is at fffffff, the PR head is 3d24f70/);
+  assert.doesNotMatch(
+    r.text,
+    /risky \(the write gate\)/,
+    "the other branch's files are not judged"
+  );
+  assert.doesNotMatch(r.text, /files: cannot list/);
 });
 
 test('parseArgs', () => {
@@ -633,7 +667,16 @@ test('H3: the changed files come from git, so a risky file past gh 100-file cap 
   );
   assert.match(r.text, /needs an Opus review/);
   const diff = r.calls.find(c => c[0] === 'git' && c[1] === 'diff');
-  assert.deepEqual(diff, ['git', 'diff', '--name-status', '--no-renames', 'basesha', 'HEAD']);
+  assert.deepEqual(diff, [
+    'git',
+    'diff',
+    '-z',
+    '--no-color',
+    '--name-status',
+    '--no-renames',
+    'basesha',
+    'HEAD',
+  ]);
   assert.ok(r.calls.some(c => c.join(' ') === 'git merge-base aitool/main HEAD'));
   // It counts for the merge train, too.
   const train = gate({ files: local, ghFiles: calm, train: trainOf(4) });
@@ -823,8 +866,12 @@ function gateRun() {
     if (key === 'gh pr view') return ok(JSON.stringify(pr));
     if (cmd === 'gh' && args[0] === 'api') return ok(JSON.stringify(RULES));
     if (key === 'git merge-base aitool/main') return ok('basesha\n');
-    if (key === 'git diff --name-status')
-      return ok('M\tpackages/foundry-module/src/main.ts\nA\tchangelog.d/thing.md\n');
+    if (key === 'git diff -z') {
+      const nul = String.fromCharCode(0);
+      return ok(
+        `M${nul}packages/foundry-module/src/main.ts${nul}A${nul}changelog.d/thing.md${nul}`
+      );
+    }
     if (key === 'git rev-parse HEAD') return ok(`${HEAD}\n`);
     if (key === 'git status --porcelain') return ok('');
     if (key === 'git show aitool/main:scripts/drift-check.mjs') return ok(FAKE_DRIFT_SOURCE);

@@ -16,6 +16,7 @@ import {
   ciRunCommands,
   ciUnsupported,
   commandLine,
+  isShellSafe,
   isEntryModule,
   normalizeCommand,
   parseArgs,
@@ -254,10 +255,11 @@ test('main: a TTY gets one progress line per step, cleared at the end', () => {
 
 test('the real runner writes a step output into its log', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'green-test-'));
+  fs.writeFileSync(path.join(tmp, 'probe.js'), 'console.log(42); process.exit(3);');
   const lines = [];
   const code = main({
     argv: [],
-    steps: [{ name: 'echo', cmd: 'node', args: ['-e', 'console.log(42);process.exit(3)'] }],
+    steps: [{ name: 'echo', cmd: 'node', args: ['probe.js'] }],
     cwd: tmp,
     tmpdir: tmp,
     isTTY: false,
@@ -306,12 +308,19 @@ test('ciUnsupported: working-directory is flagged, and the real ci.yml has none 
   assert.deepEqual(ciUnsupported(ciYml), [], 'ciRunCommands would run those from the wrong folder');
 });
 
-test('commandLine: one string, arguments with spaces or shell characters are quoted', () => {
+test('commandLine joins plain words; every step is shell safe so nothing is ever quoted', () => {
   assert.equal(
-    commandLine({ cmd: 'npm', args: ['run', 'a:b', '-w', '@x/y'] }),
+    commandLine({ name: 'x', cmd: 'npm', args: ['run', 'a:b', '-w', '@x/y'] }),
     'npm run a:b -w @x/y'
   );
-  assert.equal(commandLine({ cmd: 'node', args: ['-e', 'a b', 'c&d'] }), 'node -e "a b" "c&d"');
+  for (const step of STEPS) {
+    for (const word of [step.cmd, ...step.args])
+      assert.ok(isShellSafe(word), `${step.name}: ${word}`);
+  }
+  for (const bad of ['a b', 'a"b', "a'b", 'a\\b', 'a&b', 'a|b', 'a;b', 'a(b)', 'a$b', 'a>b', '']) {
+    assert.ok(!isShellSafe(bad), bad);
+    assert.throws(() => commandLine({ name: 'x', cmd: 'node', args: [bad] }), /needs quoting/);
+  }
 });
 
 test('the real runner starts steps without a deprecation warning (shell plus args array)', () => {

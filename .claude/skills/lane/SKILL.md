@@ -61,8 +61,15 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   for one delta round. Lows may go to the Backlog instead.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`).
-- **Merge:** from the PR branch, clean and pushed: `npm run lane:merge -- <PR> --dry-run`, then
-  `npm run lane:merge -- <PR>`. It checks CI on the head commit, a review note for that sha (Opus
+- **Merge:** from the PR branch, clean and pushed, run main's copy of the gate (never the branch's
+  own, so a PR cannot judge itself):
+
+  ```bash
+  git fetch -q aitool main && git show aitool/main:scripts/lane-merge.mjs > "$TMP/lane-merge.mjs"
+  node "$TMP/lane-merge.mjs" <PR> --dry-run   # then again without --dry-run
+  ```
+
+  It checks CI on the head commit, a review note for that sha (Opus
   for risky paths), the changelog fragment, `drift:check` and the merge train, then merges with
   `--match-head-commit`. If the train is full, the planner runs `live:roundtrip` on main first.
   Never merge by hand around it. Don't offer the app's PR Auto-fix.

@@ -282,12 +282,33 @@ function repoRoot() {
   return r.status === 0 && r.stdout.trim() ? path.resolve(r.stdout.trim()) : process.cwd();
 }
 
-/** The command of a step as one shell line; arguments with spaces or shell characters are quoted. @param {Step} step */
-export function commandLine(step) {
-  const quote = (/** @type {string} */ a) =>
-    /[\s"&|<>^()]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a;
-  return [step.cmd, ...step.args.map(quote)].join(' ');
+/**
+ * Is this word safe in a shell line as it is? Letters, digits and `_ @ % + = : , . / -` only: no
+ * space, quote, backslash or shell metacharacter, so a command line never needs quoting.
+ * @param {string} word
+ */
+export function isShellSafe(word) {
+  return /^[A-Za-z0-9_@%+=:,./-]+$/.test(word);
 }
+
+/**
+ * The command of a step as one shell line: the words joined by spaces, nothing quoted. A step with
+ * an unsafe word is a bug in the step list and throws.
+ * @param {Step} step
+ */
+export function commandLine(step) {
+  const words = [step.cmd, ...step.args];
+  const bad = words.filter(w => !isShellSafe(w));
+  if (bad.length > 0) {
+    throw new Error(
+      `step ${step.name}: ${JSON.stringify(bad)} needs quoting; use plain words (put a script in a file)`
+    );
+  }
+  return words.join(' ');
+}
+
+// A step list that would need quoting is refused when the module loads, not in the middle of a run.
+for (const step of STEPS) commandLine(step);
 
 /**
  * Is this module the script node was started with? Real paths on both sides, so a junction or a

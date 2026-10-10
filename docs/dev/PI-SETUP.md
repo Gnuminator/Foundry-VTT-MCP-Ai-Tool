@@ -718,7 +718,7 @@ run, refused a wrong checksum and still refused a `PENDING-RELEASE` pin.
 These checks are now in the repo: `node --test scripts/pi/player-creation.test.mjs` runs the browser
 script against a fake `game` (the three settings, usage-tracking off for every user, a second run
 that changes nothing), and with `PI_STAGE13_CONTAINER=1` it also runs the stage in an ARM64 Debian 13
-container with stand-ins for systemd (`scripts/pi/stage13-container/run-scenarios.sh`; Docker
+container with stand-ins for systemd (`scripts/pi/container-test/stage13-scenarios.sh`; Docker
 needed, about 30 minutes under emulation, a few on an ARM machine): the downgrade guard, an
 unreadable `/api/status`, people online, the setup screen, an install from a local zip, services
 that were off staying off, and a failed Assistant GM browser start that restarts Foundry only once. CI runs both, the container part on the

@@ -3,12 +3,12 @@
 # for systemctl, curl (/api/status and /join), journalctl and sleep make it take its systemd path, and a fake
 # in-browser part replaces the Chromium driver. Each scenario starts from a fresh fake Pi and prints one block
 # that scripts/pi/player-creation.test.mjs reads:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13 bash /repo/scripts/pi/stage13-container/run-scenarios.sh [name ...]
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13 bash /repo/scripts/pi/container-test/stage13-scenarios.sh [name ...]
 # With names, only those scenarios run. Nothing here reaches the network after apt-get: the Actor Studio
 # build comes from a local zip (STUDIO_ZIP), never from GitHub.
 set -uo pipefail
 
-H=/repo/scripts/pi/stage13-container
+H=/repo/scripts/pi/container-test
 STAGE=/repo/scripts/pi/remote/13-player-creation.sh
 LIB=/repo/scripts/pi/remote/lib.sh
 
@@ -50,7 +50,7 @@ fresh_pi() {
   chmod 600 "$TOOL_ETC"/world-*.env
   echo '{}' >"$TOOL_DIR/app/package.json"
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$TOOL_DATA"
-  cp "$H/driver.mjs" /root/player-creation-settings.mjs
+  cp "$H/stage13-driver.mjs" /root/player-creation-settings.mjs
   : >/tmp/calls
 }
 

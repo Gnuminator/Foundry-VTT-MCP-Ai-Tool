@@ -3,7 +3,7 @@
 // - the in-browser part (player-creation-settings.mjs) against a fake `game`: the three settings, and
 //   Actor Studio's per-user usage-tracking turned off (D-113), a second run changing nothing;
 // - with PI_STAGE13_CONTAINER=1 (needs Docker; CI runs it on the ARM runner): the stage itself in a
-//   Debian 13 ARM64 container with stand-ins for systemd (scripts/pi/stage13-container/run-scenarios.sh):
+//   Debian 13 ARM64 container with stand-ins for systemd (scripts/pi/container-test/stage13-scenarios.sh):
 //   the downgrade guard, an unreadable /api/status ("?"), people online, the setup screen, the install
 //   from a local zip, services that were off staying off, and a failed Assistant GM browser start.
 import assert from 'node:assert/strict';
@@ -170,7 +170,7 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
 });
 
 // ---- the stage in an ARM64 container ------------------------------------------------------------------
-// PI_STAGE13_OUTPUT=<file> checks a saved run-scenarios.sh output instead of starting Docker.
+// PI_STAGE13_OUTPUT=<file> checks a saved stage13-scenarios.sh output instead of starting Docker.
 const saved = process.env.PI_STAGE13_OUTPUT;
 const containerReason = saved
   ? false
@@ -191,7 +191,7 @@ function runContainer() {
       `${repo}:/repo:ro`,
       'debian:13',
       'bash',
-      '/repo/scripts/pi/stage13-container/run-scenarios.sh',
+      '/repo/scripts/pi/container-test/stage13-scenarios.sh',
     ],
     { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 45 * 60_000 }
   );

@@ -295,7 +295,7 @@ jobs:
         run: npm test -w @gnuminator/discord-bot
 
       - name: Pi stage 13 in an ARM64 container
-        # scripts/pi/stage13-container/run-scenarios.sh: stage 13 on Debian 13 ARM64 with stand-ins for systemd
+        # scripts/pi/container-test/stage13-scenarios.sh: stage 13 on Debian 13 ARM64 with stand-ins for systemd
         # (the downgrade guard, an unreadable /api/status, services that were off, a failed GM browser start).
         env:
           PI_STAGE13_CONTAINER: 1

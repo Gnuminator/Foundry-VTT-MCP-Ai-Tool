@@ -149,7 +149,10 @@ Tooltip } from 'radix-ui'`), not the single `@radix-ui/react-*` ones. `web/src/u
   `Panel`. Inside a list use `as="li"`; `keepData` keeps showing older rows when a refetch fails;
   `detect` tells the bridge being down (`ApiError.kind === 'channel'`) and GM Actions being off
   from any other error. `EmptyState`, `ErrorState`, `LoadingState` and `Skeleton` are the blocks
-  underneath.
+  underneath. The blocks announce themselves to screen readers: loading and the two standing
+  conditions (the bridge being down, a switch being off) are `role="status"`, an error is
+  `role="alert"`. A panel that renders `QueryState` or a state block inside its body, instead of
+  passing `state=` to `Panel`, gets the same roles; do not add `aria-busy` around them.
 - **Tokens:** the spacing (`--space-1` to `--space-8`, 4 px grid), type (`--text-2xs` to
   `--text-xl`), motion (`--dur-fast`, `--dur-base`, `--dur-slow`, `--ease-out`, `--ease-in-out`,
   and `--ease-mist`, which The Veil sets slower), layer (`--z-drawer`, `--z-drawer-top`,

@@ -73,3 +73,23 @@ test('the close button of a pane has a tooltip and keeps its name', async ({ pag
   await close.click();
   await expect(pane).toBeHidden();
 });
+
+test('the close button of a drawer has the same tooltip and keeps its name', async ({ page }) => {
+  await fromMenu(page, 'btn-party');
+  const drawer = page.getByRole('dialog', { name: '🛡 Party' });
+  await expect(drawer).toBeVisible();
+  const close = drawer.getByRole('button', { name: 'Close' });
+  await close.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await expect(tip(page, 'Close (Esc)')).toBeVisible();
+  const describedBy = await close.getAttribute('aria-describedby');
+  expect(describedBy).toBeTruthy();
+  const description = await page
+    .locator(`[id="${describedBy ?? ''}"]`)
+    .first()
+    .textContent();
+  expect(description).toBe('Close (Esc)');
+  await expect(close).toHaveAccessibleName('Close');
+});

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../lib/api';
 
 import { QueryState, classifyError, panelStateOf, type QueryLike } from './QueryState';
-import { LoadingState } from './states';
+import { ErrorState, LoadingState } from './states';
 
 // auth.ts reads the page's location when it loads; there is no page here.
 vi.mock('../lib/auth', () => ({ authHeaders: (): Record<string, string> => ({}) }));
@@ -105,6 +105,46 @@ describe('QueryState', () => {
 
   it('gives the data to its children when there is something to show', () => {
     expect(render(query({ data: ['a'] }))).toBe('<ul>&lt;a&gt;</ul>');
+  });
+});
+
+describe('ErrorState', () => {
+  it('is an alert for an error, and a status for the two standing conditions', () => {
+    const html = (kind?: 'error' | 'bridge-down' | 'gated'): string =>
+      renderToStaticMarkup(<ErrorState {...(kind ? { kind } : {})}>Nope</ErrorState>);
+    expect(html()).toContain('role="alert"');
+    expect(html('error')).toContain('role="alert"');
+    expect(html('bridge-down')).toContain('role="status"');
+    expect(html('bridge-down')).not.toContain('role="alert"');
+    expect(html('gated')).toContain('role="status"');
+    expect(html('gated')).not.toContain('role="alert"');
+  });
+
+  it.each([
+    ['bridge-down', 'status'],
+    ['gated', 'status'],
+    ['error', 'alert'],
+  ] as const)('keeps the %s role on a span inside an <li>', (kind, role) => {
+    expect(
+      renderToStaticMarkup(
+        <ErrorState as="li" kind={kind}>
+          Nope
+        </ErrorState>
+      )
+    ).toBe(`<li class="empty" data-ui-state="${kind}"><span role="${role}">Nope</span></li>`);
+  });
+
+  it('keeps the role off the <li> itself when the query detects the state', () => {
+    const down = query<string[]>({
+      isError: true,
+      error: new ApiError('no channel', 502, 'channel'),
+    });
+    const html = renderToStaticMarkup(
+      <QueryState query={down} detect as="li" errorLabel="Couldn't load" empty="none">
+        {() => <li>row</li>}
+      </QueryState>
+    );
+    expect(html).toContain('<li class="empty" data-ui-state="bridge-down"><span role="status">');
   });
 });
 

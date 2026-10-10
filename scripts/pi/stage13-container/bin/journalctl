@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+echo "journalctl $*" >>/tmp/calls
+echo "assistant-gm: joined world curse-of-strahd"

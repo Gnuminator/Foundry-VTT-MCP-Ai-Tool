@@ -16,6 +16,7 @@ import { createRequire } from 'node:module';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const env = (name, fallback) => {
   const value = process.env[name] ?? fallback;
@@ -34,7 +35,7 @@ const log = msg => console.log(`[player-creation] ${msg}`);
 // Runs in the browser: the values this script cares about, plus what must exist for them to work.
 // trackingOn: how many users have Actor Studio's usage-tracking saved as anything but false (a saved
 // per-user value overrides the off default); null when the module does not register the setting.
-function readState({ moduleId, pack }) {
+export function readState({ moduleId, pack }) {
   const settings = game.settings;
   const registered = key => settings.settings.has(`${moduleId}.${key}`);
   const permissions = settings.get('core', 'permissions');
@@ -64,7 +65,7 @@ function readState({ moduleId, pack }) {
 }
 
 // Runs in the browser: changes only what differs; returns what it changed.
-async function applyState({ moduleId, pack, roles }) {
+export async function applyState({ moduleId, pack, roles }) {
   const changed = [];
   if (roles.join() !== [CONST.USER_ROLES.PLAYER, CONST.USER_ROLES.TRUSTED].join()) {
     throw new Error(`the player roles are ${JSON.stringify(CONST.USER_ROLES)} in this Foundry`);
@@ -115,7 +116,7 @@ const show = state =>
   });
 
 // The problems that stop the settings from working, as a list of plain sentences.
-function blockers(state, world) {
+export function blockers(state, world) {
   const problems = [];
   if (state.world !== world) problems.push(`joined world ${state.world}, expected ${world}`);
   if (!state.isGM) problems.push(`${state.user} is not a GM`);
@@ -130,7 +131,7 @@ function blockers(state, world) {
 }
 
 // What the settings must look like at the end, checked against what they were at the start.
-function mismatches(before, after) {
+export function mismatches(before, after) {
   const problems = [];
   const roles = after.actorCreate ?? [];
   for (const role of PLAYER_ROLES) {
@@ -217,7 +218,10 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  log(`error: ${err?.message ?? err}`);
-  process.exit(1);
-});
+// Run only as a script (stage 13 runs it with node); the tests import the functions above.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(err => {
+    log(`error: ${err?.message ?? err}`);
+    process.exit(1);
+  });
+}

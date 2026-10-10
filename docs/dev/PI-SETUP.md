@@ -715,6 +715,15 @@ PC test server's licensed kit world. The same day the container installed the pi
 `2.10.5-aitool.4` release (download, checksum, swap of an older folder), skipped it on a second
 run, refused a wrong checksum and still refused a `PENDING-RELEASE` pin.
 
+These checks are now in the repo: `node --test scripts/pi/player-creation.test.mjs` runs the browser
+script against a fake `game` (the three settings, usage-tracking off for every user, a second run
+that changes nothing), and with `PI_STAGE13_CONTAINER=1` it also runs the stage in an ARM64 Debian 13
+container with stand-ins for systemd (`scripts/pi/stage13-container/run-scenarios.sh`; Docker
+needed, about 30 minutes under emulation, a few on an ARM machine): the downgrade guard, an
+unreadable `/api/status`, people online, the setup screen, an install from a local zip, services
+that were off staying off, and a failed Assistant GM browser start that restarts Foundry only once. CI runs both, the container part on the
+ARM runner.
+
 ## GM scripts
 
 Some world changes need a GM in the browser (a module's own import, a script that places map pins),

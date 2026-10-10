@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Stand-in for systemctl (the container has no systemd). Logs each call to /tmp/calls. A unit is active
+# until "stop", active again after "start" or "restart"; /tmp/gmbroken makes the Assistant GM browser
+# fail to come back.
+echo "$*" >>/tmp/calls
+cmd="${1:-}"
+unit=""
+for a in "$@"; do
+  case "$a" in
+    foundry.service | foundry-ai-tool-gm-browser.service) unit="$a" ;;
+  esac
+done
+case "$cmd" in
+  is-active)
+    [ -n "$unit" ] || exit 3
+    [ ! -f "/tmp/stopped-$unit" ] && exit 0
+    exit 3
+    ;;
+  stop) [ -z "$unit" ] || touch "/tmp/stopped-$unit" ;;
+  start | restart)
+    if [ "$unit" = foundry-ai-tool-gm-browser.service ] && [ -f /tmp/gmbroken ]; then
+      touch "/tmp/stopped-$unit"
+      exit 0
+    fi
+    [ -z "$unit" ] || rm -f "/tmp/stopped-$unit"
+    ;;
+esac
+exit 0

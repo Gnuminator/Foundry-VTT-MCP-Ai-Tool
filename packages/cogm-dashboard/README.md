@@ -132,6 +132,14 @@ A new port starts from the components in `web/src/ui` (UI-02), not from raw mark
   a drawer or a pane over the page gets it for free; a panel docked in a view is a `Drawer` too.
   `Card`, `Section`, `Stat` and `Pill` are the pieces inside a body, and `Button` / `IconButton`
   are the buttons.
+- **Radix set (UI-04):** the Radix primitives come from the `radix-ui` package (`import { Dialog,
+Tooltip } from 'radix-ui'`), not the single `@radix-ui/react-*` ones. `web/src/ui` adds three styled
+  wrappers on the tokens: `Tooltip` (one `TooltipProvider` at the root, in `main.tsx`), `Tabs`
+  (`Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`) and `Popover`. Every icon-only button has a
+  `Tooltip`: `IconButton` has one built in (the label, or `tip`), and the "?" in a pane's title is
+  wrapped in it. A tooltip is a hint, not the name: keep the `aria-label` and drop the native
+  `title`. It opens on hover and on a Tab stop, not when the page moves the focus itself, so it
+  never shows in a screenshot. Storybook stories for these come with UI-03.
 - **States:** a panel is in one of six: `ready`, `loading`, `empty`, `error`, `bridge-down` and
   `gated`. Give `Panel` (or `Drawer` / `OverlayPane`) a `state` and, if the default text does not
   fit, a `stateMessage`; anything but `ready` replaces the body. For data from a query, do not

@@ -1,4 +1,4 @@
-import * as Toast from '@radix-ui/react-toast';
+import { Toast } from 'radix-ui';
 import {
   createContext,
   useCallback,

@@ -1,4 +1,4 @@
-import * as Dialog from '@radix-ui/react-dialog';
+import { Dialog } from 'radix-ui';
 import {
   createContext,
   useContext,
@@ -128,7 +128,7 @@ interface DrawerProps {
 export function DrawerClose(props: ComponentProps<'button'>): JSX.Element {
   return (
     <Dialog.Close asChild>
-      <IconButton label="Close" title="Close" {...props}>
+      <IconButton label="Close" {...props}>
         ✕
       </IconButton>
     </Dialog.Close>

@@ -11,6 +11,7 @@ import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
 import { eventVisibilityFor, playerFacingSceneName } from './player-visibility.js';
 import { EffectEventDeduper } from './effect-dedupe.js';
 import { logInfo } from './log.js';
+import { dig, rec, type Rec } from './doc-read.js';
 import type { EventVisibility } from '@gnuminator/shared';
 
 /**
@@ -69,9 +70,19 @@ export interface SessionLogEntry {
   actorName: string | null;
   actorId: string | null;
   description: string;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   /** Stamped at creation (M2): what players may see of this event's subject. */
   visibility?: EventVisibility;
+}
+
+/** A value as it would read inside a template literal (`${value}`), for untyped document data. */
+function text(value: unknown): string {
+  return typeof value === 'string' ? value : String(value);
+}
+
+/** `value || null` for untyped document data that is a string in practice. */
+function orNull(value: unknown): string | null {
+  return value ? (value as string) : null;
 }
 
 /** Stamped on events with no subject actor (combat start/end, journal events). */
@@ -80,6 +91,27 @@ const NO_SUBJECT_VISIBILITY: EventVisibility = {
   tokenVisible: false,
   playerName: null,
 };
+
+/** One chat action inside a combat turn of the play-by-play. */
+export interface PlayByPlayAction {
+  actor: string;
+  summary: string;
+  timestamp: string;
+  rollTotal: number | null;
+  damage: number | null;
+}
+
+export interface PlayByPlayTurn {
+  combatant: string;
+  actions: PlayByPlayAction[];
+}
+
+export interface PlayByPlayEvent {
+  type: string;
+  description: string;
+  actor: string | null;
+  timestamp: string;
+}
 
 export interface CombatTimelineEntry {
   round: number;
@@ -139,7 +171,7 @@ export class EventTracker {
     this.hooksRegistered = true;
 
     try {
-      Hooks.on('createChatMessage', (message: any) => {
+      Hooks.on('createChatMessage', (message: unknown) => {
         try {
           this.onCreateChatMessage(message);
         } catch (error) {
@@ -147,7 +179,7 @@ export class EventTracker {
         }
       });
 
-      Hooks.on('combatStart', (combat: any) => {
+      Hooks.on('combatStart', (combat: unknown) => {
         try {
           this.onCombatStart(combat);
         } catch (error) {
@@ -155,7 +187,7 @@ export class EventTracker {
         }
       });
 
-      Hooks.on('deleteCombat', (combat: any) => {
+      Hooks.on('deleteCombat', (combat: unknown) => {
         try {
           this.onCombatEnd(combat);
         } catch (error) {
@@ -163,7 +195,7 @@ export class EventTracker {
         }
       });
 
-      Hooks.on('updateCombat', (combat: any, changed: any) => {
+      Hooks.on('updateCombat', (combat: unknown, changed: unknown) => {
         try {
           this.onUpdateCombat(combat, changed);
         } catch (error) {
@@ -171,7 +203,7 @@ export class EventTracker {
         }
       });
 
-      Hooks.on('updateActor', (actor: any, changed: any) => {
+      Hooks.on('updateActor', (actor: unknown, changed: unknown) => {
         try {
           this.onUpdateActor(actor, changed);
         } catch (error) {
@@ -229,7 +261,7 @@ export class EventTracker {
         if (typeof uuid === 'string') this.pendingApply.delete(uuid);
       });
 
-      Hooks.on('createActiveEffect', (effect: any) => {
+      Hooks.on('createActiveEffect', (effect: unknown) => {
         try {
           this.onActiveEffect(effect, 'condition-applied');
         } catch (error) {
@@ -237,7 +269,7 @@ export class EventTracker {
         }
       });
 
-      Hooks.on('deleteActiveEffect', (effect: any) => {
+      Hooks.on('deleteActiveEffect', (effect: unknown) => {
         try {
           this.onActiveEffect(effect, 'condition-removed');
         } catch (error) {
@@ -245,13 +277,13 @@ export class EventTracker {
         }
       });
 
-      Hooks.on('updateScene', (scene: any, changed: any) => {
+      Hooks.on('updateScene', (scene: unknown, changed: unknown) => {
         try {
-          if (changed?.active === true) {
-            this.logSessionEvent('scene-change', `Scene changed to "${scene.name}"`, {
+          if (dig(changed, 'active') === true) {
+            this.logSessionEvent('scene-change', `Scene changed to "${text(dig(scene, 'name'))}"`, {
               actorName: null,
               actorId: null,
-              details: { sceneId: scene.id, sceneName: scene.name },
+              details: { sceneId: dig(scene, 'id'), sceneName: dig(scene, 'name') },
               visibility: { ...NO_SUBJECT_VISIBILITY, sceneName: playerFacingSceneName(scene) },
             });
           }
@@ -260,12 +292,13 @@ export class EventTracker {
         }
       });
 
-      Hooks.on('createJournalEntry', (journal: any) => {
+      Hooks.on('createJournalEntry', (journal: unknown) => {
         try {
-          this.logSessionEvent('journal-created', `Journal entry created: "${journal.name}"`, {
+          const name = dig(journal, 'name');
+          this.logSessionEvent('journal-created', `Journal entry created: "${text(name)}"`, {
             actorName: null,
             actorId: null,
-            details: { journalId: journal.id, name: journal.name },
+            details: { journalId: dig(journal, 'id'), name },
             visibility: NO_SUBJECT_VISIBILITY,
           });
         } catch (error) {
@@ -273,12 +306,13 @@ export class EventTracker {
         }
       });
 
-      Hooks.on('updateJournalEntry', (journal: any) => {
+      Hooks.on('updateJournalEntry', (journal: unknown) => {
         try {
-          this.logSessionEvent('journal-updated', `Journal entry updated: "${journal.name}"`, {
+          const name = dig(journal, 'name');
+          this.logSessionEvent('journal-updated', `Journal entry updated: "${text(name)}"`, {
             actorName: null,
             actorId: null,
-            details: { journalId: journal.id, name: journal.name },
+            details: { journalId: dig(journal, 'id'), name },
             visibility: NO_SUBJECT_VISIBILITY,
           });
         } catch (error) {
@@ -338,30 +372,32 @@ export class EventTracker {
     }
   }
 
-  private seedActor(actor: any): void {
+  private seedActor(actor: unknown): void {
     try {
       const k = this.cacheKey(actor);
-      const sys = actor.system;
-      const hpData = (sys?.attributes?.hp ?? null) as { value?: unknown; temp?: unknown } | null;
+      const sys = dig(actor, 'system');
+      const hpData = rec(dig(sys, 'attributes', 'hp'));
       const hp = hpData?.value;
       if (typeof hp === 'number') {
         this.hpCache.set(k, hp);
         this.tempCache.set(k, typeof hpData?.temp === 'number' ? hpData.temp : 0);
       }
 
-      const spells = sys?.spells;
+      const spells = rec(dig(sys, 'spells'));
       if (spells) {
-        for (const [key, value] of Object.entries(spells as Record<string, any>)) {
-          if (typeof value?.value === 'number') {
-            this.resourceCache.set(`${k}:spells.${key}`, value.value);
+        for (const [key, value] of Object.entries(spells)) {
+          const amount = dig(value, 'value');
+          if (typeof amount === 'number') {
+            this.resourceCache.set(`${k}:spells.${key}`, amount);
           }
         }
       }
-      const resources = sys?.resources;
+      const resources = rec(dig(sys, 'resources'));
       if (resources) {
-        for (const [key, value] of Object.entries(resources as Record<string, any>)) {
-          if (typeof value?.value === 'number') {
-            this.resourceCache.set(`${k}:resources.${key}`, value.value);
+        for (const [key, value] of Object.entries(resources)) {
+          const amount = dig(value, 'value');
+          if (typeof amount === 'number') {
+            this.resourceCache.set(`${k}:resources.${key}`, amount);
           }
         }
       }
@@ -384,7 +420,7 @@ export class EventTracker {
   // Chat log
   // ===========================================================================
 
-  private onCreateChatMessage(message: any): void {
+  private onCreateChatMessage(message: unknown): void {
     const entry = this.parseChatMessage(message);
     this.chatLog.push(entry);
 
@@ -474,30 +510,35 @@ export class EventTracker {
     }
   }
 
-  private parseChatMessage(message: any): ChatLogEntry {
-    const timestampMs: number =
-      typeof message.timestamp === 'number' ? message.timestamp : Date.now();
+  private parseChatMessage(message: unknown): ChatLogEntry {
+    const rawTimestamp = dig(message, 'timestamp');
+    const timestampMs: number = typeof rawTimestamp === 'number' ? rawTimestamp : Date.now();
 
-    const speakerName: string =
-      message.speaker?.alias ||
-      message.alias ||
-      (message.speaker?.actor ? game.actors?.get(message.speaker.actor)?.name : null) ||
-      message.author?.name ||
-      message.user?.name ||
-      'Unknown';
+    const speakerActorId = dig(message, 'speaker', 'actor');
+    const speakerActorName =
+      typeof speakerActorId === 'string' ? game.actors?.get(speakerActorId)?.name : undefined;
+    const speakerName: string = (dig(message, 'speaker', 'alias') ||
+      dig(message, 'alias') ||
+      (speakerActorName ?? '') ||
+      dig(message, 'author', 'name') ||
+      dig(message, 'user', 'name') ||
+      'Unknown') as string;
 
-    const actorId: string | null = message.speaker?.actor || null;
+    const actorId: string | null = orNull(speakerActorId);
 
-    const rolls: any[] = Array.isArray(message.rolls) ? message.rolls : [];
-    const isRoll: boolean = (message.isRoll ?? false) || rolls.length > 0;
+    const rawRolls = dig(message, 'rolls');
+    const rolls: unknown[] = Array.isArray(rawRolls) ? rawRolls : [];
+    const isRoll: boolean = Boolean(dig(message, 'isRoll') ?? false) || rolls.length > 0;
 
     const roll = isRoll && rolls.length > 0 ? this.parseRoll(rolls[0]) : null;
     const damage = this.parseDamage(message, rolls);
 
-    const whisperIds: string[] = Array.isArray(message.whisper) ? message.whisper : [];
-    const whisperTo: string[] = whisperIds
-      .map((id: string) => game.users?.get(id)?.name ?? id)
-      .filter((n: any): n is string => typeof n === 'string');
+    const rawWhisper = dig(message, 'whisper');
+    const whisperIds: unknown[] = Array.isArray(rawWhisper) ? rawWhisper : [];
+    const whisperTo: string[] = [];
+    for (const id of whisperIds) {
+      if (typeof id === 'string') whisperTo.push(game.users?.get(id)?.name ?? id);
+    }
 
     const messageType = this.classifyMessage(
       message,
@@ -506,16 +547,17 @@ export class EventTracker {
       whisperTo.length > 0
     );
 
+    const content = dig(message, 'content');
     return {
-      id: message.id || this.nextId(),
+      id: (dig(message, 'id') || this.nextId()) as string,
       timestamp: new Date(timestampMs).toISOString(),
       timestampMs,
       speakerName,
       actorId,
       messageType,
       isRoll,
-      content: typeof message.content === 'string' ? message.content : '',
-      flavor: message.flavor || null,
+      content: typeof content === 'string' ? content : '',
+      flavor: orNull(dig(message, 'flavor')),
       roll,
       damage,
       whisperTo,
@@ -523,7 +565,7 @@ export class EventTracker {
   }
 
   private classifyMessage(
-    message: any,
+    message: unknown,
     isRoll: boolean,
     isDamage: boolean,
     isWhisper: boolean
@@ -532,10 +574,11 @@ export class EventTracker {
     if (isRoll) return 'roll';
     if (isWhisper) return 'whisper';
 
-    const CMS: any = (CONST as any).CHAT_MESSAGE_STYLES || (CONST as any).CHAT_MESSAGE_TYPES || {};
+    const CMS: Record<string, unknown> =
+      rec(CONST.CHAT_MESSAGE_STYLES) ?? rec(dig(CONST, 'CHAT_MESSAGE_TYPES')) ?? {};
     // Use `style` only: in Foundry v13 `message.type` is the document subtype
     // (a string), not the numeric chat style, so reading it would misclassify.
-    const style = message.style;
+    const style = dig(message, 'style');
 
     if (style === CMS.IC) return 'ic';
     if (style === CMS.EMOTE) return 'emote';
@@ -543,47 +586,54 @@ export class EventTracker {
     return 'other';
   }
 
-  private parseRoll(roll: any): ChatRollInfo {
+  private parseRoll(roll: unknown): ChatRollInfo {
     const dice: Array<{ faces: number; results: number[] }> = [];
     let isCritical = false;
     let isFumble = false;
     let advantage: 'advantage' | 'disadvantage' | null = null;
 
     try {
-      const diceTerms: any[] = Array.isArray(roll.dice) ? roll.dice : [];
+      const rawDice = dig(roll, 'dice');
+      const diceTerms: unknown[] = Array.isArray(rawDice) ? rawDice : [];
       for (const term of diceTerms) {
-        const faces = term.faces;
-        const results: number[] = Array.isArray(term.results)
-          ? term.results.map((r: any) => r.result)
-          : [];
+        // Dice terms carry numeric faces and numeric results; read as they are.
+        const faces = dig(term, 'faces') as number;
+        const rawResults = dig(term, 'results');
+        const resultList: unknown[] | null = Array.isArray(rawResults) ? rawResults : null;
+        const results: number[] = resultList ? resultList.map(r => dig(r, 'result') as number) : [];
         dice.push({ faces, results });
 
         // Crit / fumble detection on the d20 only, considering kept (active) results
         if (faces === 20) {
-          const activeResults: number[] = Array.isArray(term.results)
-            ? term.results.filter((r: any) => r.active !== false).map((r: any) => r.result)
+          const activeResults: number[] = resultList
+            ? resultList
+                .filter(r => dig(r, 'active') !== false)
+                .map(r => dig(r, 'result') as number)
             : results;
           if (activeResults.includes(20)) isCritical = true;
           if (activeResults.includes(1)) isFumble = true;
 
           // Advantage / disadvantage from kept-highest/lowest modifiers
-          const mods: string = Array.isArray(term.modifiers) ? term.modifiers.join('') : '';
-          if ((term.number ?? 1) >= 2 && /kh/i.test(mods)) advantage = 'advantage';
-          else if ((term.number ?? 1) >= 2 && /kl/i.test(mods)) advantage = 'disadvantage';
+          const rawModifiers = dig(term, 'modifiers');
+          const mods: string = Array.isArray(rawModifiers) ? rawModifiers.join('') : '';
+          const count = (dig(term, 'number') ?? 1) as number;
+          if (count >= 2 && /kh/i.test(mods)) advantage = 'advantage';
+          else if (count >= 2 && /kl/i.test(mods)) advantage = 'disadvantage';
         }
       }
 
       // dnd5e records advantage explicitly on roll options
-      const advMode = roll.options?.advantageMode;
+      const advMode = dig(roll, 'options', 'advantageMode');
       if (advMode === 1) advantage = 'advantage';
       else if (advMode === -1) advantage = 'disadvantage';
     } catch {
       // best-effort parsing
     }
 
+    const total = dig(roll, 'total');
     return {
-      formula: roll.formula || '',
-      total: typeof roll.total === 'number' ? roll.total : 0,
+      formula: (dig(roll, 'formula') || '') as string,
+      total: typeof total === 'number' ? total : 0,
       dice,
       isCritical,
       isFumble,
@@ -591,11 +641,11 @@ export class EventTracker {
     };
   }
 
-  private parseDamage(message: any, rolls: any[]): ChatDamageInfo | null {
+  private parseDamage(message: unknown, rolls: unknown[]): ChatDamageInfo | null {
     try {
-      const dnd = message.flags?.dnd5e;
-      const flavor: string = message.flavor || '';
-      const rollType = dnd?.roll?.type || dnd?.messageType;
+      const dnd = dig(message, 'flags', 'dnd5e');
+      const flavor = (dig(message, 'flavor') || '') as string;
+      const rollType = dig(dnd, 'roll', 'type') || dig(dnd, 'messageType');
       // dnd5e 6.0 keys damage off the message subtype (`isDamageRoll`), 5.x off flags.
       const isDamage =
         isDamageRoll(message as ChatMessage) ||
@@ -609,23 +659,24 @@ export class EventTracker {
       const types = new Set<string>();
 
       for (const r of rolls) {
-        if (typeof r.total === 'number') total += r.total;
+        const rollTotal = dig(r, 'total');
+        if (typeof rollTotal === 'number') total += rollTotal;
 
         // Each damage roll term may carry a flavor that is the damage type
-        const terms: any[] = Array.isArray(r.terms) ? r.terms : [];
+        const rawTerms = dig(r, 'terms');
+        const terms: unknown[] = Array.isArray(rawTerms) ? rawTerms : [];
         for (const t of terms) {
-          const fl = t.options?.flavor;
+          const fl = dig(t, 'options', 'flavor');
           if (fl && typeof fl === 'string') types.add(fl.toLowerCase());
         }
-        const optType = r.options?.type;
+        const optType = dig(r, 'options', 'type');
         if (optType && typeof optType === 'string') types.add(optType.toLowerCase());
       }
 
       // dnd5e sometimes records the damage types on the message flags
-      const flagTypes = dnd?.roll?.damageTypes || dnd?.damageTypes;
-      if (Array.isArray(flagTypes)) {
-        for (const t of flagTypes) if (typeof t === 'string') types.add(t.toLowerCase());
-      }
+      const flagTypes = dig(dnd, 'roll', 'damageTypes') || dig(dnd, 'damageTypes');
+      const flagTypeList: unknown[] = Array.isArray(flagTypes) ? flagTypes : [];
+      for (const t of flagTypeList) if (typeof t === 'string') types.add(t.toLowerCase());
 
       return { total, types: Array.from(types) };
     } catch {
@@ -643,7 +694,7 @@ export class EventTracker {
     opts: {
       actorName?: string | null;
       actorId?: string | null;
-      details?: Record<string, any>;
+      details?: Record<string, unknown>;
       visibility?: EventVisibility;
     } = {}
   ): void {
@@ -664,37 +715,40 @@ export class EventTracker {
     }
   }
 
-  private onCombatStart(combat: any): void {
-    const combatantCount = combat?.combatants?.size ?? 0;
-    this.logSessionEvent('combat-start', `Combat started with ${combatantCount} combatants`, {
-      details: { combatId: combat?.id, round: combat?.round ?? 1, combatantCount },
+  private onCombatStart(combat: unknown): void {
+    const combatantCount = dig(combat, 'combatants', 'size') ?? 0;
+    this.logSessionEvent('combat-start', `Combat started with ${text(combatantCount)} combatants`, {
+      details: { combatId: dig(combat, 'id'), round: dig(combat, 'round') ?? 1, combatantCount },
       visibility: NO_SUBJECT_VISIBILITY,
     });
     // Seed the timeline with round 1
     this.recordCombatTurn(combat);
   }
 
-  private onCombatEnd(combat: any): void {
-    this.logSessionEvent('combat-end', `Combat ended after ${combat?.round ?? 0} rounds`, {
-      details: { combatId: combat?.id, rounds: combat?.round ?? 0 },
+  private onCombatEnd(combat: unknown): void {
+    const rounds = dig(combat, 'round') ?? 0;
+    this.logSessionEvent('combat-end', `Combat ended after ${text(rounds)} rounds`, {
+      details: { combatId: dig(combat, 'id'), rounds },
       visibility: NO_SUBJECT_VISIBILITY,
     });
   }
 
-  private onUpdateCombat(combat: any, changed: any): void {
-    if (changed?.round !== undefined || changed?.turn !== undefined) {
+  private onUpdateCombat(combat: unknown, changed: unknown): void {
+    if (dig(changed, 'round') !== undefined || dig(changed, 'turn') !== undefined) {
       this.recordCombatTurn(combat);
     }
   }
 
-  private recordCombatTurn(combat: any): void {
+  private recordCombatTurn(combat: unknown): void {
     try {
-      const current = combat?.combatant;
+      const current = dig(combat, 'combatant');
       const entry: CombatTimelineEntry = {
-        round: combat?.round ?? 0,
-        turn: combat?.turn ?? 0,
-        combatantName: current?.name || current?.token?.name || 'Unknown',
-        actorId: current?.actor?.id || null,
+        round: (dig(combat, 'round') ?? 0) as number,
+        turn: (dig(combat, 'turn') ?? 0) as number,
+        combatantName: (dig(current, 'name') ||
+          dig(current, 'token', 'name') ||
+          'Unknown') as string,
+        actorId: orNull(dig(current, 'actor', 'id')),
         timestampMs: Date.now(),
       };
       this.combatTimeline.push(entry);
@@ -707,8 +761,12 @@ export class EventTracker {
     }
   }
 
-  private onUpdateActor(actor: any, changed: any): void {
-    if (!actor?.id) return;
+  private onUpdateActor(actor: unknown, changed: unknown): void {
+    const actorIdValue = dig(actor, 'id');
+    if (!actorIdValue) return;
+    // Foundry actor ids and names are strings; they are recorded as they are.
+    const actorId = actorIdValue as string;
+    const actorName = dig(actor, 'name') as string;
     const visibility = eventVisibilityFor(actor);
 
     // --- HP change detection (hit points and temp HP) ---
@@ -732,7 +790,7 @@ export class EventTracker {
       const tempLost = Math.max(0, prevTemp - toTemp);
       const damage = delta <= 0 ? tempLost - delta : 0;
       if (prev !== undefined && to !== undefined && (damage > 0 || delta > 0)) {
-        const pending = this.takePendingApply((actor as { uuid?: unknown }).uuid);
+        const pending = this.takePendingApply(dig(actor, 'uuid'));
 
         if (damage > 0) {
           const credit = this.damageCredit(pending, damage, to <= 0);
@@ -741,9 +799,9 @@ export class EventTracker {
           const tempCleared = delta === 0 && toTemp === 0 && !credit;
           if (!tempCleared) {
             const toTempText = tempLost > 0 ? ` (${tempLost} to temp HP)` : '';
-            this.logSessionEvent('damage', `${actor.name} took ${damage} damage${toTempText}`, {
-              actorName: actor.name,
-              actorId: actor.id,
+            this.logSessionEvent('damage', `${actorName} took ${damage} damage${toTempText}`, {
+              actorName,
+              actorId,
               details: {
                 amount: damage,
                 from: prev,
@@ -758,9 +816,9 @@ export class EventTracker {
             });
           }
         } else {
-          this.logSessionEvent('healing', `${actor.name} healed ${delta} HP`, {
-            actorName: actor.name,
-            actorId: actor.id,
+          this.logSessionEvent('healing', `${actorName} healed ${delta} HP`, {
+            actorName,
+            actorId,
             details: { amount: delta, from: prev, to },
             visibility,
           });
@@ -770,16 +828,16 @@ export class EventTracker {
       // Death and stabilization detection (hit points only)
       if (prev !== undefined && to !== undefined && prev !== to) {
         if (prev > 0 && to <= 0) {
-          this.logSessionEvent('death', `${actor.name} dropped to 0 HP`, {
-            actorName: actor.name,
-            actorId: actor.id,
+          this.logSessionEvent('death', `${actorName} dropped to 0 HP`, {
+            actorName,
+            actorId,
             details: {},
             visibility,
           });
         } else if (prev <= 0 && to > 0) {
-          this.logSessionEvent('stabilize', `${actor.name} recovered above 0 HP`, {
-            actorName: actor.name,
-            actorId: actor.id,
+          this.logSessionEvent('stabilize', `${actorName} recovered above 0 HP`, {
+            actorName,
+            actorId,
             details: { to },
             visibility,
           });
@@ -791,12 +849,14 @@ export class EventTracker {
     this.detectResourceSpend(actor, changed, visibility);
   }
 
-  private detectResourceSpend(actor: any, changed: any, visibility: EventVisibility): void {
+  private detectResourceSpend(actor: unknown, changed: unknown, visibility: EventVisibility): void {
     try {
-      const spells = this.getProp(changed, 'system.spells');
-      if (spells && typeof spells === 'object') {
-        for (const [key, value] of Object.entries(spells as Record<string, any>)) {
-          const newVal = value?.value;
+      const actorName = dig(actor, 'name') as string;
+      const actorId = dig(actor, 'id') as string;
+      const spells = rec(this.getProp(changed, 'system.spells'));
+      if (spells) {
+        for (const [key, value] of Object.entries(spells)) {
+          const newVal = dig(value, 'value');
           if (typeof newVal !== 'number') continue;
           const cacheKey = `${this.cacheKey(actor)}:spells.${key}`;
           const prev = this.resourceCache.get(cacheKey);
@@ -804,10 +864,10 @@ export class EventTracker {
           if (prev !== undefined && newVal < prev) {
             this.logSessionEvent(
               'resource-spent',
-              `${actor.name} expended a ${key} slot (${prev} → ${newVal})`,
+              `${actorName} expended a ${key} slot (${prev} → ${newVal})`,
               {
-                actorName: actor.name,
-                actorId: actor.id,
+                actorName,
+                actorId,
                 details: { resource: key, from: prev, to: newVal },
                 visibility,
               }
@@ -816,9 +876,9 @@ export class EventTracker {
         }
       }
 
-      const resources = this.getProp(changed, 'system.resources');
-      if (resources && typeof resources === 'object') {
-        for (const [key, value] of Object.entries(resources as Record<string, any>)) {
+      const resources = rec(this.getProp(changed, 'system.resources'));
+      if (resources) {
+        for (const [key, value] of Object.entries(resources)) {
           // dnd5e 6 stores legendary actions and resistances as `spent`; `value` is derived.
           const entry = value as { value?: unknown; spent?: unknown } | null;
           const derived: unknown = this.getProp(actor, `system.resources.${key}.value`);
@@ -835,10 +895,10 @@ export class EventTracker {
           if (prev !== undefined && newVal < prev) {
             this.logSessionEvent(
               'resource-spent',
-              `${actor.name} spent ${prev - newVal} of ${key} (${prev} → ${newVal})`,
+              `${actorName} spent ${prev - newVal} of ${key} (${prev} → ${newVal})`,
               {
-                actorName: actor.name,
-                actorId: actor.id,
+                actorName,
+                actorId,
                 details: { resource: key, from: prev, to: newVal },
                 visibility,
               }
@@ -851,27 +911,27 @@ export class EventTracker {
     }
   }
 
-  private onActiveEffect(effect: any, eventType: string): void {
+  private onActiveEffect(effect: unknown, eventType: string): void {
     try {
-      const parent = effect?.parent;
-      const actorName = parent?.name || null;
-      const actorId = parent?.id || null;
-      const effectName = effect?.name || effect?.label || 'Unknown effect';
+      const parent = dig(effect, 'parent');
+      const actorName = orNull(dig(parent, 'name'));
+      const actorId = orNull(dig(parent, 'id'));
+      const effectName = dig(effect, 'name') || dig(effect, 'label') || 'Unknown effect';
       const verb = eventType === 'condition-applied' ? 'gained' : 'lost';
-      const statuses = Array.from(effect?.statuses ?? []).filter(
+      const statuses = Array.from((dig(effect, 'statuses') ?? []) as Iterable<unknown>).filter(
         (s: unknown): s is string => typeof s === 'string'
       );
       if (
         this.effectDeduper.isDuplicate({
           actor: typeof actorId === 'string' ? actorId : null,
           kind: eventType,
-          name: String(effectName),
+          name: text(effectName),
           statuses,
         })
       ) {
         return;
       }
-      this.logSessionEvent(eventType, `${actorName || 'An actor'} ${verb} "${effectName}"`, {
+      this.logSessionEvent(eventType, `${actorName || 'An actor'} ${verb} "${text(effectName)}"`, {
         actorName,
         actorId,
         details: { effectName, statuses },
@@ -918,14 +978,20 @@ export class EventTracker {
     return null;
   }
 
-  private getProp(obj: any, path: string): any {
+  private getProp(obj: unknown, path: string): unknown {
     try {
-      const fu = (globalThis as any).foundry?.utils;
-      if (fu?.getProperty) return fu.getProperty(obj, path);
+      const fu = (
+        globalThis as {
+          foundry?: { utils?: { getProperty?: (object: object, key: string) => unknown } };
+        }
+      ).foundry?.utils;
+      if (fu?.getProperty) return fu.getProperty(obj as object, path);
     } catch {
       // fall through to manual traversal
     }
-    return path.split('.').reduce((acc, key) => (acc == null ? acc : acc[key]), obj);
+    return path
+      .split('.')
+      .reduce<unknown>((acc, key) => (acc == null ? acc : (acc as Rec)[key]), obj);
   }
 
   // ===========================================================================
@@ -1014,8 +1080,8 @@ export class EventTracker {
     success: true;
     combatActive: boolean;
     totalRounds: number;
-    rounds: Array<{ round: number; turns: any[] }>;
-    significantEvents: any[];
+    rounds: Array<{ round: number; turns: PlayByPlayTurn[] }>;
+    significantEvents: PlayByPlayEvent[];
     summary: { totalRounds: number; damageByActor: Record<string, number>; note: string | null };
   } {
     const chat = this.chatLog.slice();
@@ -1029,15 +1095,7 @@ export class EventTracker {
 
     const relevant = chat.filter(e => e.timestampMs >= startMs && (e.isRoll || e.damage !== null));
 
-    const summarizeAction = (
-      e: ChatLogEntry
-    ): {
-      actor: string;
-      summary: string;
-      timestamp: string;
-      rollTotal: number | null;
-      damage: number | null;
-    } => {
+    const summarizeAction = (e: ChatLogEntry): PlayByPlayAction => {
       const parts: string[] = [];
       if (e.flavor) parts.push(e.flavor);
       if (e.roll) {
@@ -1061,7 +1119,7 @@ export class EventTracker {
       };
     };
 
-    const roundMap = new Map<number, { round: number; turns: any[] }>();
+    const roundMap = new Map<number, { round: number; turns: PlayByPlayTurn[] }>();
 
     const turnWindows = timeline
       .filter(t => t.timestampMs >= startMs)

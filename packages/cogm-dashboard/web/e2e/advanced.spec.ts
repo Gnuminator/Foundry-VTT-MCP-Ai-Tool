@@ -86,10 +86,12 @@ test('with a drawer open, the keyboard opens another on top; Escape closes the m
   await expect(handouts).toHaveClass(/drawer-top/);
   await expect(party).not.toHaveClass(/drawer-top/);
 
-  // Party again from the menu: already open, it comes to the top instead of closing.
+  // Party again from the menu: already open, it comes to the top instead of closing and takes
+  // the focus (not the page body: the menu item it was on is gone).
   await page.locator('#btn-advanced').press('Enter');
   await menu.getByRole('menuitem', { name: '🛡 Party' }).press('Enter');
   await expect(party).toHaveClass(/drawer-top/);
+  await expect(party).toBeFocused();
   await expect(handouts).not.toHaveClass(/drawer-top/);
   await page.keyboard.press('Escape');
   await expect(party).toBeHidden();

@@ -108,6 +108,8 @@ export type EnhancedCreatureIndex = DnD5eCreatureIndex;
 export interface PersistentIndexMetadata {
   version: string;
   timestamp: number;
+  /** Server time the build started (it read the packs from then on); missing in older files. */
+  buildStartedAt?: number;
   packFingerprints: Map<string, PackFingerprint>;
   totalCreatures: number;
   gameSystem: string; // 'dnd5e'

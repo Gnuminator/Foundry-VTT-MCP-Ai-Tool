@@ -354,6 +354,15 @@ export class ModuleSettings {
       default: true,
     });
 
+    // Internal: time (Date.now()) of the last creature change in an Actor pack. A saved
+    // creature index built before it is stale (see creature-index.ts).
+    game.settings.register(this.moduleId, 'creatureIndexDirtyAt', {
+      scope: 'world',
+      config: false,
+      type: Number,
+      default: 0,
+    });
+
     // ============================================================================
     // SECTION 4: CONNECTION BEHAVIOR
     // ============================================================================

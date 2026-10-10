@@ -227,8 +227,9 @@ class FoundryMCPBridge {
    * Start building the enhanced creature index when the persisted copy is missing
    * or stale (an older index version after a module update, changed packs), so
    * the first creature query does not rebuild it inside the 10 s bridge timeout.
-   * Runs only in the bridge GM's browser (the one queries reach) and does not
-   * block `ready`; a query during the build waits on the same build.
+   * Runs in the bridge user's browser, or with "Any GM" in every GM's browser
+   * (the backend may route queries to any of them), and does not block `ready`;
+   * a query during the build waits on the same build.
    */
   private warmEnhancedIndex(): void {
     if (!this.isGMUser()) return;

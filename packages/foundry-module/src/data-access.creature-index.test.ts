@@ -18,8 +18,9 @@
  *     the harness (its `foundry` only carries `.utils`), so we attach a stub
  *     `foundry.applications` locally AFTER install (the whole `foundry` global is
  *     saved/restored by the harness, so this never leaks).
- *   - `globalThis.fetch` — used to read the index file (GET) and delete it
- *     (DELETE on invalidate); stubbed locally with `vi.fn` and restored.
+ *   - `globalThis.fetch` — used to read the index file (GET); stubbed locally
+ *     with `vi.fn` and restored. (Foundry's server ignores DELETE, so the module
+ *     marks the index stale with the `creatureIndexDirtyAt` world setting.)
  *   - `File` / `btoa` — real Node globals; used as-is.
  *
  * A tiny in-memory "disk" wires `upload` (writes) to `fetch`/`browse` (reads) so
@@ -41,7 +42,7 @@ import {
   makeItem,
   type TestWorld,
 } from './test-support/foundry-mock/index.js';
-import { PersistentCreatureIndex } from './data-access/creature-index.js';
+import { DIRTY_STAMP_DEBOUNCE_MS, PersistentCreatureIndex } from './data-access/creature-index.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -66,6 +67,11 @@ interface FakeDisk {
 }
 
 let disk: FakeDisk;
+
+const MODULE = 'foundry-mcp-bridge';
+
+/** Spy on `game.settings.set` (it still stores the value); see {@link stampWrites}. */
+let settingsSet: any;
 
 const INDEX_FILENAME = 'enhanced-creature-index.json';
 
@@ -118,11 +124,6 @@ function installStorageStubs(): void {
   savedFetch = g.fetch;
   g.fetch = vi.fn(async (url: string, init?: any) => {
     disk.fetchCalls.push({ url, init });
-    // DELETE (invalidate path) just succeeds; it clears the file.
-    if (init?.method === 'DELETE') {
-      disk.content = null;
-      return { ok: true, status: 200 };
-    }
     // GET (load path)
     if (disk.fetchNotOk || disk.content === null) {
       return { ok: false, status: 404, json: async () => ({}) };
@@ -146,6 +147,9 @@ beforeEach(() => {
     uploads: [],
   };
   installStorageStubs();
+  // The dirty stamp starts at 0 (never dirty); every settings write is recorded.
+  world.setSetting(MODULE, 'creatureIndexDirtyAt', 0);
+  settingsSet = vi.spyOn((globalThis as any).game.settings, 'set');
 });
 
 afterEach(() => {
@@ -156,6 +160,13 @@ afterEach(() => {
   restore();
   vi.restoreAllMocks();
 });
+
+/** The `creatureIndexDirtyAt` values written through `game.settings.set`, in order. */
+function stampWrites(): unknown[] {
+  return settingsSet.mock.calls
+    .filter((c: unknown[]) => c[0] === MODULE && c[1] === 'creatureIndexDirtyAt')
+    .map((c: unknown[]) => c[2]);
+}
 
 /** Add an Actor pack of monsters and return it. */
 function addMonsterPack(documents: any[], id = 'world.monsters', label = 'Monsters'): any {
@@ -171,17 +182,9 @@ describe('PersistentCreatureIndex — constructor', () => {
     const onSpy = vi.spyOn((globalThis as any).Hooks, 'on');
     const index = new PersistentCreatureIndex();
     expect(index).toBeInstanceOf(PersistentCreatureIndex);
-    // Registers the five pack-change hooks.
+    // Registers Foundry 14's pack-change hook.
     const hookNames = onSpy.mock.calls.map(c => c[0]);
-    expect(hookNames).toEqual(
-      expect.arrayContaining([
-        'createDocument',
-        'updateDocument',
-        'deleteDocument',
-        'createCompendium',
-        'deleteCompendium',
-      ])
-    );
+    expect(hookNames).toContain('updateCompendium');
   });
 });
 
@@ -604,7 +607,7 @@ describe('PersistentCreatureIndex — persistence', () => {
     const second = await index.getEnhancedIndex();
     expect(second).toHaveLength(1);
     // browse + a GET fetch happened on the load path.
-    expect(disk.fetchCalls.some(c => c.init?.method !== 'DELETE')).toBe(true);
+    expect(disk.fetchCalls.length).toBeGreaterThan(0);
   });
 });
 
@@ -700,7 +703,10 @@ describe('PersistentCreatureIndex — index validity / staleness', () => {
       'New Monsters'
     );
 
-    await index.getEnhancedIndex();
+    await expect(index.ensureIndexCurrent()).resolves.toEqual({
+      rebuilt: true,
+      totalCreatures: 2,
+    });
     expect(disk.uploads.length).toBe(1);
   });
 
@@ -713,7 +719,7 @@ describe('PersistentCreatureIndex — index validity / staleness', () => {
     saved.metadata.packFingerprints[0][1].checksum = 'STALECHECKSUM!!!';
     disk.content = JSON.stringify(saved);
 
-    await index.getEnhancedIndex();
+    await expect(index.ensureIndexCurrent()).resolves.toMatchObject({ rebuilt: true });
     expect(disk.uploads.length).toBe(1); // mismatch → rebuild
   });
 
@@ -722,10 +728,106 @@ describe('PersistentCreatureIndex — index validity / staleness', () => {
     // Remove the pack the persisted index fingerprinted.
     world.packs.delete('world.monsters');
 
-    await index.getEnhancedIndex();
     // With no Actor packs left, the rebuild produces an empty index but still
     // persists — the point is that the stale index was rejected (rebuild ran).
+    await expect(index.ensureIndexCurrent()).resolves.toEqual({ rebuilt: true, totalCreatures: 0 });
     expect(disk.uploads.length).toBe(1);
+  });
+
+  it('is not valid when a creature changed after the build started (creatureIndexDirtyAt)', async () => {
+    const index = await seedAndCount();
+    const saved = JSON.parse(disk.content!);
+    saved.metadata.buildStartedAt = 1_000;
+    disk.content = JSON.stringify(saved);
+    world.setSetting(MODULE, 'creatureIndexDirtyAt', 2_000);
+
+    await expect(index.ensureIndexCurrent()).resolves.toMatchObject({ rebuilt: true });
+    expect(disk.uploads.length).toBe(1);
+  });
+
+  it('is valid when the build started after the last creature change (no rebuild)', async () => {
+    const index = await seedAndCount();
+    const saved = JSON.parse(disk.content!);
+    saved.metadata.buildStartedAt = 3_000;
+    disk.content = JSON.stringify(saved);
+    world.setSetting(MODULE, 'creatureIndexDirtyAt', 2_000);
+
+    await expect(index.ensureIndexCurrent()).resolves.toMatchObject({ rebuilt: false });
+    expect(disk.uploads.length).toBe(0);
+  });
+
+  it('is not valid for a saved index without buildStartedAt once any change is stamped', async () => {
+    const index = await seedAndCount();
+    const saved = JSON.parse(disk.content!);
+    delete saved.metadata.buildStartedAt;
+    disk.content = JSON.stringify(saved);
+    world.setSetting(MODULE, 'creatureIndexDirtyAt', 1);
+
+    await expect(index.ensureIndexCurrent()).resolves.toMatchObject({ rebuilt: true });
+  });
+
+  it('getEnhancedIndex serves a stale-but-usable saved index at once and starts one background build', async () => {
+    const index = await seedAndCount();
+    const saved = JSON.parse(disk.content!);
+    saved.creatures[0].name = 'Stale Goblin';
+    saved.metadata.packFingerprints[0][1].documentCount = 999; // pack changed
+    disk.content = JSON.stringify(saved);
+
+    const first = await index.getEnhancedIndex();
+    expect(first.map(c => c.name)).toEqual(['Stale Goblin']); // the stale copy, not waiting
+    // A second read while the build runs still serves the saved copy and starts no second build.
+    const second = await index.getEnhancedIndex();
+    expect(second.map(c => c.name)).toEqual(['Stale Goblin']);
+
+    await vi.waitFor(() => expect(disk.uploads.length).toBe(1));
+    expect(JSON.parse(disk.content).creatures[0].name).toBe('Goblin');
+    // The next read is current and builds nothing more.
+    expect((await index.getEnhancedIndex()).map(c => c.name)).toEqual(['Goblin']);
+    expect(disk.uploads.length).toBe(1);
+  });
+
+  it('a failed background build only warns; the stale index was already served', async () => {
+    const index = await seedAndCount();
+    const saved = JSON.parse(disk.content!);
+    saved.creatures[0].name = 'Stale Goblin';
+    saved.metadata.packFingerprints[0][1].documentCount = 999;
+    disk.content = JSON.stringify(saved);
+    const upload = (globalThis as any).foundry.applications.apps.FilePicker.implementation.upload;
+    upload.mockImplementationOnce(async () => false);
+
+    const creatures = await index.getEnhancedIndex();
+    expect(creatures.map(c => c.name)).toEqual(['Stale Goblin']);
+    await vi.waitFor(() =>
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to rebuild the creature index'),
+        expect.any(Error)
+      )
+    );
+  });
+
+  it('getEnhancedIndex does not serve a saved index of another INDEX_VERSION: it waits for the build', async () => {
+    const index = await seedAndCount();
+    const saved = JSON.parse(disk.content!);
+    saved.metadata.version = '1.1.0';
+    saved.creatures[0].name = 'Stale Goblin';
+    disk.content = JSON.stringify(saved);
+
+    const creatures = await index.getEnhancedIndex();
+    expect(creatures.map(c => c.name)).toEqual(['Goblin']); // the fresh build
+    expect(disk.uploads.length).toBe(1);
+  });
+
+  it('the build records buildStartedAt (Date.now() at its start, not the server uptime clock)', async () => {
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    // Foundry 14's game.time.serverTime counts from the server start: never used.
+    (globalThis as any).game.time = { serverTime: 123_456 };
+    const before = Date.now();
+    const index = new PersistentCreatureIndex();
+    await index.rebuildIndex();
+
+    const { buildStartedAt } = JSON.parse(disk.content!).metadata;
+    expect(buildStartedAt).toBeGreaterThanOrEqual(before);
+    expect(buildStartedAt).toBeLessThanOrEqual(Date.now());
   });
 });
 
@@ -831,6 +933,100 @@ describe('PersistentCreatureIndex: ensureIndexCurrent and the shared build', () 
     expect(disk.uploads.length).toBe(1);
   });
 
+  /** Seed a saved index that is usable but stale (a pack changed), named 'Stale Goblin'. */
+  async function seedStale(): Promise<PersistentCreatureIndex> {
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+    await index.rebuildIndex();
+    const saved = JSON.parse(disk.content!);
+    saved.creatures[0].name = 'Stale Goblin';
+    saved.metadata.packFingerprints[0][1].documentCount = 999;
+    disk.content = JSON.stringify(saved);
+    disk.uploads.length = 0;
+    return index;
+  }
+
+  /** Let pending promise callbacks and zero-delay timers run. */
+  const flush = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
+
+  it('with a build in flight, getEnhancedIndex returns the usable saved index without waiting', async () => {
+    const index = await seedStale();
+    const { uploading, release } = gateUploads();
+
+    const build = index.rebuildIndex();
+    await uploading; // the build is held at its save
+
+    // Resolves while the build is still held: no release() yet.
+    const creatures = await index.getEnhancedIndex();
+    expect(creatures.map(c => c.name)).toEqual(['Stale Goblin']);
+    expect(disk.uploads.length).toBe(0);
+
+    release();
+    await build;
+    expect(disk.uploads.length).toBe(1);
+  });
+
+  it('with a build in flight, ensureIndexCurrent still waits for the build', async () => {
+    const index = await seedStale();
+    const { uploading, release } = gateUploads();
+
+    const build = index.rebuildIndex();
+    await uploading;
+    let settled = false;
+    const ensured = index.ensureIndexCurrent().then(r => {
+      settled = true;
+      return r;
+    });
+    await flush();
+    expect(settled).toBe(false);
+
+    release();
+    await build;
+    await expect(ensured).resolves.toEqual({ rebuilt: true, totalCreatures: 1 });
+  });
+
+  it('with no saved index, getEnhancedIndex waits for the build (cold start)', async () => {
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+    const { uploading, release } = gateUploads();
+
+    const build = index.rebuildIndex();
+    await uploading;
+    let settled = false;
+    const query = index.getEnhancedIndex().then(r => {
+      settled = true;
+      return r;
+    });
+    await flush();
+    expect(settled).toBe(false); // nothing saved to serve, so it waits
+
+    release();
+    await build;
+    expect((await query).map(c => c.name)).toEqual(['Goblin']);
+  });
+
+  it('with a saved index of another INDEX_VERSION and a build in flight, getEnhancedIndex waits', async () => {
+    const index = await seedStale();
+    const saved = JSON.parse(disk.content!);
+    saved.metadata.version = '1.1.0';
+    disk.content = JSON.stringify(saved);
+    const { uploading, release } = gateUploads();
+
+    const build = index.rebuildIndex();
+    await uploading;
+    let settled = false;
+    const query = index.getEnhancedIndex().then(r => {
+      settled = true;
+      return r;
+    });
+    await flush();
+    expect(settled).toBe(false);
+
+    release();
+    await build;
+    expect((await query).map(c => c.name)).toEqual(['Goblin']);
+  });
+
   it('a failed build is not cached: the next call builds again', async () => {
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
     const index = new PersistentCreatureIndex();
@@ -847,92 +1043,310 @@ describe('PersistentCreatureIndex: ensureIndexCurrent and the shared build', () 
 });
 
 // ===========================================================================
-// hooks → invalidateIndex (autoRebuildIndex gate)
+// hooks → creatureIndexDirtyAt stamp (autoRebuildIndex gate, GM browsers only)
 // ===========================================================================
 
 describe('PersistentCreatureIndex — hook-driven invalidation', () => {
   /** Fire a registered Foundry hook through the harness dispatcher. */
-  function fireHook(name: string, payload: any): void {
-    (globalThis as any).Hooks.callAll(name, payload);
+  function fireHook(name: string, ...args: any[]): void {
+    (globalThis as any).Hooks.callAll(name, ...args);
   }
+  const actorPack = { metadata: { type: 'Actor' } };
+  const itemPack = { metadata: { type: 'Item' } };
 
-  it('deletes the persisted file on a compendium-document change when autoRebuildIndex is on', async () => {
-    world.setSetting('foundry-mcp-bridge', 'autoRebuildIndex', true);
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('writes the creatureIndexDirtyAt stamp after the debounce when autoRebuildIndex is on', async () => {
+    world.setSetting(MODULE, 'autoRebuildIndex', true);
+    // Foundry 14's game.time.serverTime counts from the server start: never used.
+    (globalThis as any).game.time = { serverTime: 5_000 };
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
 
     const index = new PersistentCreatureIndex();
     await index.getEnhancedIndex(); // persist a file (disk.content set)
-    expect(disk.content).not.toBeNull();
+    const saved = disk.content;
 
-    fireHook('updateDocument', { pack: 'world.monsters', type: 'npc' });
-    // invalidateIndex is async; let the microtasks settle.
-    await Promise.resolve();
-    await Promise.resolve();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+    fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
+    await vi.advanceTimersByTimeAsync(DIRTY_STAMP_DEBOUNCE_MS - 1);
+    expect(stampWrites()).toEqual([]); // still inside the debounce
 
-    // A DELETE fetch was issued against the index path; the file is cleared.
-    expect(disk.fetchCalls.some(c => c.init?.method === 'DELETE')).toBe(true);
-    expect(disk.content).toBeNull();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(stampWrites()).toEqual([1_700_000_000_000]);
+    expect(settingsSet).toHaveBeenCalledWith(MODULE, 'creatureIndexDirtyAt', 1_700_000_000_000);
+    // The stamp is the whole invalidation: the saved file is left alone.
+    expect(disk.content).toBe(saved);
+    clock.mockRestore();
   });
 
-  it('does NOT delete the file when autoRebuildIndex is off (default/undefined)', async () => {
+  it('writes no stamp when autoRebuildIndex is off (default/undefined)', async () => {
     // autoRebuildIndex unset → game.settings.get returns undefined (falsy).
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
 
     const index = new PersistentCreatureIndex();
     await index.getEnhancedIndex();
-    const deletesBefore = disk.fetchCalls.filter(c => c.init?.method === 'DELETE').length;
 
-    fireHook('createDocument', { pack: 'world.monsters', type: 'npc' });
-    await Promise.resolve();
-    await Promise.resolve();
+    fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
+    await vi.advanceTimersByTimeAsync(10_000);
 
-    const deletesAfter = disk.fetchCalls.filter(c => c.init?.method === 'DELETE').length;
-    expect(deletesAfter).toBe(deletesBefore); // no DELETE issued
+    expect(stampWrites()).toEqual([]);
     expect(disk.content).not.toBeNull(); // file untouched
   });
 
-  it('ignores document changes that are not in a pack or not a creature type', async () => {
-    world.setSetting('foundry-mcp-bridge', 'autoRebuildIndex', true);
+  it("a player's browser writes no stamp and schedules no rebuild", async () => {
+    world.setSetting(MODULE, 'autoRebuildIndex', true);
+    world.setSetting(MODULE, 'enableEnhancedCreatureIndex', true);
+    world.setSetting(MODULE, 'bridgeUserId', 'gm'); // a GM here would rebuild
+    (globalThis as any).game.user.isGM = false;
+    const index = new PersistentCreatureIndex();
+    const rebuild = vi.spyOn(index, 'rebuildIndex').mockResolvedValue([]);
+
+    fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(stampWrites()).toEqual([]);
+    expect(rebuild).not.toHaveBeenCalled();
+  });
+
+  it('ignores changes in a non-Actor pack or to documents that are not creatures', async () => {
+    world.setSetting(MODULE, 'autoRebuildIndex', true);
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
 
     const index = new PersistentCreatureIndex();
     await index.getEnhancedIndex();
 
-    // No `pack` → ignored; wrong type → ignored.
-    fireHook('updateDocument', { type: 'npc' }); // no pack
-    fireHook('updateDocument', { pack: 'world.monsters', type: 'weapon' }); // not a creature
-    await Promise.resolve();
-    await Promise.resolve();
+    fireHook('updateCompendium', itemPack, [{ type: 'npc' }]); // not an Actor pack
+    fireHook('updateCompendium', actorPack, [{ type: 'weapon' }]); // not a creature
+    await vi.advanceTimersByTimeAsync(10_000);
 
-    expect(disk.fetchCalls.some(c => c.init?.method === 'DELETE')).toBe(false);
+    expect(stampWrites()).toEqual([]);
     expect(disk.content).not.toBeNull();
   });
 
-  it('invalidates on a deleteCompendium hook for an Actor pack', async () => {
-    world.setSetting('foundry-mcp-bridge', 'autoRebuildIndex', true);
-    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+  it('writes the stamp when the hook gives no document list', async () => {
+    world.setSetting(MODULE, 'autoRebuildIndex', true);
+    new PersistentCreatureIndex();
 
-    const index = new PersistentCreatureIndex();
-    await index.getEnhancedIndex();
+    fireHook('updateCompendium', actorPack, undefined);
+    await vi.advanceTimersByTimeAsync(DIRTY_STAMP_DEBOUNCE_MS);
 
-    fireHook('deleteCompendium', { metadata: { type: 'Actor' } });
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(disk.fetchCalls.some(c => c.init?.method === 'DELETE')).toBe(true);
+    expect(stampWrites()).toHaveLength(1);
   });
 
-  it('ignores a createCompendium hook for a non-Actor pack', async () => {
-    world.setSetting('foundry-mcp-bridge', 'autoRebuildIndex', true);
-    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+  it('ignores an empty change in an Actor pack', async () => {
+    world.setSetting(MODULE, 'autoRebuildIndex', true);
+    new PersistentCreatureIndex();
 
+    fireHook('updateCompendium', actorPack, []);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(stampWrites()).toEqual([]);
+  });
+
+  it("several changes inside the debounce write one stamp, with the last change's time", async () => {
+    world.setSetting(MODULE, 'autoRebuildIndex', true);
+    let now = 1_000_000;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    new PersistentCreatureIndex();
+
+    fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
+    await vi.advanceTimersByTimeAsync(500);
+    now = 1_000_500;
+    fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
+    await vi.advanceTimersByTimeAsync(500);
+    now = 1_001_000;
+    fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
+    await vi.advanceTimersByTimeAsync(DIRTY_STAMP_DEBOUNCE_MS - 1);
+    expect(stampWrites()).toEqual([]); // each change restarted the quiet time
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(stampWrites()).toEqual([1_001_000]);
+    clock.mockRestore();
+  });
+
+  it('a failed stamp write only logs a warning', async () => {
+    world.setSetting(MODULE, 'autoRebuildIndex', true);
+    new PersistentCreatureIndex();
+    settingsSet.mockRejectedValueOnce(new Error('denied'));
+
+    fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
+    await vi.advanceTimersByTimeAsync(DIRTY_STAMP_DEBOUNCE_MS);
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to mark the creature index stale'),
+      expect.any(Error)
+    );
+  });
+});
+
+// ===========================================================================
+// pack change → background rebuild in the index builder's browser (#283 low 3)
+// ===========================================================================
+
+describe('PersistentCreatureIndex: background rebuild after a pack change', () => {
+  /** Make this browser the index builder: the bridge user, both switches on. */
+  function makeBuilder(): void {
+    world.setSetting(MODULE, 'autoRebuildIndex', true);
+    world.setSetting(MODULE, 'enableEnhancedCreatureIndex', true);
+    world.setSetting(MODULE, 'bridgeUserId', 'gm');
+  }
+
+  function setActiveGm(id: string | null): void {
+    Object.defineProperty((globalThis as any).game.users, 'activeGM', {
+      value: id ? { id } : null,
+      configurable: true,
+    });
+  }
+
+  function newIndexWithSpies(): {
+    index: PersistentCreatureIndex;
+    ensure: ReturnType<typeof vi.spyOn>;
+    rebuild: ReturnType<typeof vi.spyOn>;
+  } {
     const index = new PersistentCreatureIndex();
-    await index.getEnhancedIndex();
+    const ensure = vi
+      .spyOn(index, 'ensureIndexCurrent')
+      .mockResolvedValue({ rebuilt: true, totalCreatures: 1 });
+    const rebuild = vi.spyOn(index, 'rebuildIndex').mockResolvedValue([]);
+    return { index, ensure, rebuild };
+  }
 
-    fireHook('createCompendium', { metadata: { type: 'Item' } });
-    await Promise.resolve();
-    await Promise.resolve();
+  const change = (): void =>
+    (globalThis as any).Hooks.callAll('updateCompendium', { metadata: { type: 'Actor' } }, [
+      { type: 'npc' },
+    ]);
 
-    expect(disk.fetchCalls.some(c => c.init?.method === 'DELETE')).toBe(false);
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('rebuilds once, 5 s after the last change of a burst', async () => {
+    makeBuilder();
+    const { ensure, rebuild } = newIndexWithSpies();
+
+    change();
+    await vi.advanceTimersByTimeAsync(3_000);
+    change();
+    change();
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(rebuild).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(rebuild).toHaveBeenCalledTimes(1);
+    // Forced: an edit keeps the fingerprints, so "is it current?" is not asked.
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('rebuilds after a build that finished inside the quiet time', async () => {
+    makeBuilder();
+    const { index, rebuild } = newIndexWithSpies();
+    let finish!: () => void;
+    (index as any).buildPromise = new Promise<unknown[]>(resolve => {
+      finish = (): void => resolve([]);
+    });
+
+    change();
+    finish();
+    (index as any).buildPromise = null;
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(rebuild).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not rebuild on a system other than dnd5e', async () => {
+    makeBuilder();
+    (globalThis as any).game.system.id = 'pf2e';
+    const { rebuild } = newIndexWithSpies();
+
+    change();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(rebuild).not.toHaveBeenCalled();
+  });
+
+  it('does not rebuild when another user is the bridge user', async () => {
+    makeBuilder();
+    world.setSetting(MODULE, 'bridgeUserId', 'someone-else');
+    const { rebuild } = newIndexWithSpies();
+
+    change();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(rebuild).not.toHaveBeenCalled();
+  });
+
+  it('with "Any GM" rebuilds only in the active GM\'s browser', async () => {
+    makeBuilder();
+    world.setSetting(MODULE, 'bridgeUserId', '');
+    const { rebuild } = newIndexWithSpies();
+
+    setActiveGm('other-gm');
+    change();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(rebuild).not.toHaveBeenCalled();
+
+    setActiveGm('gm');
+    change();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(rebuild).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not rebuild in a player's browser", async () => {
+    makeBuilder();
+    (globalThis as any).game.user.isGM = false;
+    const { rebuild } = newIndexWithSpies();
+
+    change();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(rebuild).not.toHaveBeenCalled();
+  });
+
+  it('does not rebuild when the enhanced index is off', async () => {
+    makeBuilder();
+    world.setSetting(MODULE, 'enableEnhancedCreatureIndex', false);
+    const { rebuild } = newIndexWithSpies();
+
+    change();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(rebuild).not.toHaveBeenCalled();
+  });
+
+  it('follows a build still running at the change with a fresh one', async () => {
+    makeBuilder();
+    const { index, ensure, rebuild } = newIndexWithSpies();
+    let finish!: () => void;
+    (index as any).buildPromise = new Promise<unknown[]>(resolve => {
+      finish = (): void => resolve([]);
+    });
+
+    change();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(rebuild).not.toHaveBeenCalled();
+
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(rebuild).toHaveBeenCalledTimes(1);
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('a failed rebuild only logs a warning', async () => {
+    makeBuilder();
+    const { rebuild } = newIndexWithSpies();
+    rebuild.mockRejectedValue(new Error('upload failed'));
+
+    change();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(rebuild).toHaveBeenCalledTimes(1);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to rebuild the creature index'),
+      expect.any(Error)
+    );
   });
 });

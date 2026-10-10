@@ -691,8 +691,14 @@ test('the module check inside stage 11 never downgrades, and keeps the Pi copy w
       ['1.2', '1.2.0', 'install'],
       ['1.2.0', '1.3.0', 'install'],
       ['V1.2.0', 'v1.4.0', 'install'],
-      ['1.2.0-beta.2', '1.2.0', 'install'],
       ['1.3.0-rc1', '1.2.0', 'keep 1.3.0-rc1 1.2.0'],
+      ['1.2.0', '1.3.0-rc1', 'install'],
+      ['1.2.0-rc1', '1.2.0-rc1', 'install'],
+      // Same numbers, another suffix: a release and its own release candidate, or two pre-releases.
+      ['1.2.0', '1.2.0-rc1', 'unsure 1.2.0 1.2.0-rc1'],
+      ['1.2.0-beta.2', '1.2.0', 'unsure 1.2.0-beta.2 1.2.0'],
+      ['1.0.0-beta', '1.0.0-alpha', 'unsure 1.0.0-beta 1.0.0-alpha'],
+      ['1.2.0+build.5', '1.2', 'unsure 1.2.0+build.5 1.2'],
       ['beta', '1.2.0', 'unsure beta 1.2.0'],
       ['1.2.0', 'latest', 'unsure 1.2.0 latest'],
       ['', '1.2.0', 'unsure ? 1.2.0'],
@@ -726,3 +732,55 @@ test('the in-browser script of stage 13 parses (node --check)', () => {
   );
   assert.equal(r.status, 0, r.stderr);
 });
+
+// Stage 11 reads login names from a world's env file (env_login, between the ENVLOGIN markers): the GM for the
+// push-back change check, the extra GM for the request check and the summary. Cut out and run with bash.
+test(
+  'env_login in stage 11 prints one login name from an env file, never a password',
+  { skip: !hasBash && 'bash is not available' },
+  () => {
+    const text = readFileSync(path.join(remote, '11-world.sh'), 'utf8');
+    const m = /\n(env_login\(\) \{ # ENVLOGIN\n[\s\S]*?\n\} # ENVLOGIN)\n/.exec(text);
+    assert.ok(m, '11-world.sh has no env_login between the ENVLOGIN markers');
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'stage11-envlogin-'));
+    try {
+      const file = (name, body) => {
+        const f = path.join(dir, name);
+        writeFileSync(f, body);
+        return f.replace(/\\/g, '/');
+      };
+      // The run's own GM_USER and EXTRA_GM_USER are set, as in the stage: the file's values win, and a file
+      // without the line prints nothing (never the run's value).
+      const script = [
+        'set -euo pipefail',
+        m[1],
+        'GM_USER=RunGM EXTRA_GM_USER=RunExtra',
+        'env_login "$1" "$2"',
+      ].join('\n');
+      const login = (f, key) => {
+        const r = spawnSync('bash', ['-c', script, 'x', f, key], { encoding: 'utf8' });
+        return { status: r.status, out: r.stdout, err: r.stderr };
+      };
+      const ok = out => ({ status: 0, out, err: '' });
+      const both = file(
+        'both.env',
+        'GM_USER="Game Master"\nGM_PASSWORD="pw1-secret"\nEXTRA_GM_USER="Claude"\nEXTRA_GM_PASSWORD="pw2-secret"\n'
+      );
+      assert.deepEqual(login(both, 'GM_USER'), ok('Game Master'));
+      assert.deepEqual(login(both, 'EXTRA_GM_USER'), ok('Claude'));
+      const gmOnly = file('gm.env', 'GM_USER="Gamemaster"\nGM_PASSWORD="pw1-secret"\n');
+      assert.deepEqual(login(gmOnly, 'GM_USER'), ok('Gamemaster'));
+      assert.deepEqual(login(gmOnly, 'EXTRA_GM_USER'), ok(''));
+      assert.deepEqual(login(file('pw.env', 'GM_PASSWORD="pw1-secret"\n'), 'GM_USER'), ok(''));
+      assert.deepEqual(login(`${dir.replace(/\\/g, '/')}/missing.env`, 'GM_USER'), ok(''));
+      // Only the two login keys: a password key (or any other) is refused and prints nothing.
+      for (const key of ['GM_PASSWORD', 'EXTRA_GM_PASSWORD', 'PATH']) {
+        const r = login(both, key);
+        assert.equal(r.status, 1, key);
+        assert.equal(r.out, '', key);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+);

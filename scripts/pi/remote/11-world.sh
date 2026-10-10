@@ -3,10 +3,19 @@
 # content"). The bundle holds the campaign world, its private modules and the image folders it uses.
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh foundry-pi 'BUNDLE=/var/lib/foundry-import/curse-of-strahd-<stamp>.tar bash -s'
 # Take a snapshot first (dietpi-backup 1) and get the user's OK: this stops Foundry for a few minutes.
-# Env: BUNDLE (required, a .tar under /var/lib/foundry-import/), WORLD (curse-of-strahd), KIT_WORLD (strahd-kit; empty
-#   skips it), KIT_TITLE, LAUNCH (the world Foundry starts with; WORLD or KIT_WORLD, default WORLD),
-#   REPLACE_WORLD (1 replaces an existing WORLD; default 0 keeps it), GM_USER (the world's GM, default Gamemaster),
-#   REPLACE_NEWER (push-back only: 1 replaces the Pi's world even when it changed after the Plan B snapshot).
+# Env: BUNDLE (required, a .tar under /var/lib/foundry-import/), WORLD (curse-of-strahd), KIT_WORLD (a test copy of
+#   WORLD that every run resets; empty skips it; strahd-kit by default, but only for WORLD=curse-of-strahd: another
+#   WORLD must set KIT_WORLD, empty or an id plus KIT_TITLE), KIT_TITLE, LAUNCH (the world Foundry starts with:
+#   WORLD, KIT_WORLD or a world that is already installed; default WORLD), REPLACE_WORLD (1 replaces an existing
+#   WORLD; default 0 keeps it), GM_USER (the world's GM, default Gamemaster), REPLACE_NEWER (push-back only: 1
+#   replaces the Pi's world even when it changed after the Plan B snapshot), EXTRA_GM_USER (a second GM user, for
+#   example Claude, with its own generated password; default none).
+# A second campaign goes in next to the real one with LAUNCH naming the world Foundry keeps launching, for example
+# the Frostmaiden training world (D-118; docs/dev/PI-SETUP.md, "Training world"):
+#   WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
+# EXTRA_GM_USER is added to each world's env file once (EXTRA_GM_USER and EXTRA_GM_PASSWORD) and provisioned as a
+# full GM with that password; a file that already names another extra GM is refused before anything stops. A kept
+# world whose env file lacks the extra GM is provisioned again for it.
 # A Plan B push-back (docs/dev/PLAN-B.md, "After the night"; built by scripts/plan-b/push-back.ps1) brings the
 # world back from the PC with the Pi's own GM password: its MANIFEST.txt says "gm-password: kept (push-back)" and
 # "based-on-snapshot: <the Pi backup Plan B restored>". Such a bundle needs REPLACE_WORLD=1, KIT_WORLD= (empty)
@@ -31,11 +40,19 @@ require_root
 require_arm64
 BUNDLE="${BUNDLE:-}"
 WORLD="${WORLD:-curse-of-strahd}"
-KIT_WORLD="${KIT_WORLD-strahd-kit}"
-KIT_TITLE="${KIT_TITLE:-Curse of Strahd (test copy for kit runs)}"
+# The strahd-kit default is only for the Strahd world: any other WORLD would reset strahd-kit from its own bundle.
+if [ "$WORLD" = curse-of-strahd ]; then
+  KIT_WORLD="${KIT_WORLD-strahd-kit}"
+  KIT_TITLE="${KIT_TITLE:-Curse of Strahd (test copy for kit runs)}"
+else
+  [ "${KIT_WORLD+set}" = set ] || die "WORLD=$WORLD needs KIT_WORLD set: KIT_WORLD= (no test copy) or KIT_WORLD=<id> KIT_TITLE=<title>. Nothing was changed"
+  [ -z "$KIT_WORLD" ] || [ -n "${KIT_TITLE:-}" ] || die "KIT_WORLD=$KIT_WORLD needs a KIT_TITLE for WORLD=$WORLD. Nothing was changed"
+  KIT_TITLE="${KIT_TITLE:-}"
+fi
 LAUNCH="${LAUNCH:-$WORLD}"
 REPLACE_WORLD="${REPLACE_WORLD:-0}"
 GM_USER="${GM_USER:-Gamemaster}"
+EXTRA_GM_USER="${EXTRA_GM_USER:-}"
 REPLACE_NEWER="${REPLACE_NEWER:-0}"
 IMPORT=/var/lib/foundry-import
 data="$FOUNDRY_DATA/Data"
@@ -57,11 +74,42 @@ if [ -n "$KIT_WORLD" ]; then
   [[ "$KIT_WORLD" =~ ^[a-z0-9-]+$ ]] || die "'$KIT_WORLD' is not a valid world id"
   [ "$KIT_WORLD" != "$WORLD" ] || die "KIT_WORLD must differ from WORLD"
 fi
-[ "$LAUNCH" = "$WORLD" ] || { [ -n "$KIT_WORLD" ] && [ "$LAUNCH" = "$KIT_WORLD" ]; } || die "LAUNCH must be $WORLD or the kit world"
+[ "$LAUNCH" = "$WORLD" ] || { [ -n "$KIT_WORLD" ] && [ "$LAUNCH" = "$KIT_WORLD" ]; } ||
+  [ -f "$data/worlds/$LAUNCH/world.json" ] || die "LAUNCH must be $WORLD, the kit world or a world that is already installed"
 [[ "$GM_USER" =~ ^[A-Za-z0-9._\ -]+$ ]] || die "GM_USER has odd characters"
+[ -z "$EXTRA_GM_USER" ] || [[ "$EXTRA_GM_USER" =~ ^[A-Za-z0-9._\ -]+$ ]] || die "EXTRA_GM_USER has odd characters"
 [ -f "$assistant_env" ] && [ -f "$TOOL_DIR/gm-browser/assistant-gm.mjs" ] || die "run stage 5 and 5-check-world first (no Assistant GM yet)"
 [ -d "$data/modules/foundry-mcp-bridge" ] || die "the bridge module is not installed: run stage 5 first"
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
+# One login name from an env file: $1 the file, $2 GM_USER or EXTRA_GM_USER (never a password key). Prints the
+# file's value, empty when the file has no such line or does not exist. Sourced in a subshell, so nothing else
+# from the file (the passwords) reaches this shell. world-refs.test.mjs cuts it out and tests it.
+env_login() { # ENVLOGIN
+  case "$2" in GM_USER | EXTRA_GM_USER) ;; *) return 1 ;; esac
+  [ -f "$1" ] || return 0
+  (
+    unset GM_USER EXTRA_GM_USER
+    # shellcheck disable=SC1090
+    . "$1"
+    printf '%s' "${!2:-}"
+  )
+} # ENVLOGIN
+assistant_name="$(
+  # shellcheck disable=SC1090
+  . "$assistant_env"
+  printf '%s' "${ASSISTANT_GM_USER:-Assistant GM}"
+)"
+# The extra GM must be a third user, and each world keeps the extra GM it was given first.
+if [ -n "$EXTRA_GM_USER" ]; then
+  [ "$EXTRA_GM_USER" != "$assistant_name" ] || die "EXTRA_GM_USER must differ from the Assistant GM. Nothing was changed"
+  for id in "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"}; do
+    envf="$TOOL_ETC/world-$id.env"
+    gm="$(env_login "$envf" GM_USER)"
+    [ "$EXTRA_GM_USER" != "${gm:-$GM_USER}" ] || die "EXTRA_GM_USER must differ from $id's GM (${gm:-$GM_USER}). Nothing was changed"
+    had="$(env_login "$envf" EXTRA_GM_USER)"
+    [ -z "$had" ] || [ "$had" = "$EXTRA_GM_USER" ] || die "$envf already names the extra GM '$had', not '$EXTRA_GM_USER'. Nothing was changed"
+  done
+fi
 bundle_size="$(stat -c %s "$BUNDLE")"
 
 # options.json "world" is what Foundry launches. It is changed while worlds are provisioned, so the first
@@ -212,17 +260,17 @@ for d in Data/modules/*/; do [ -d "$d" ] && modules+=("$(basename "$d")"); done
 # A push-back ships the modules Plan B restored from the Pi backup. One the Pi updated after that backup (its
 # module.json version is higher) is kept: a push-back never downgrades a module. module_check prints one line:
 # "install", "keep <pi> <bundle>" (the Pi's version is higher) or "unsure <pi> <bundle>" (a version that is
-# missing or not numbers, such as "beta" or an unreadable module.json: the Pi's copy is kept, since a downgrade
-# cannot be ruled out). A module the Pi does not have prints "install". world-refs.test.mjs cuts the script out
+# missing or not numbers, such as "beta" or an unreadable module.json, or the same numbers with another pre-release
+# suffix, such as 1.2.0 and 1.2.0-rc1: the Pi's copy is kept, since a downgrade cannot be ruled out). A module the Pi does not have prints "install". world-refs.test.mjs cuts the script out
 # and tests it.
 module_check() { # $1 the Pi's module.json, $2 the bundle's
   node - "$1" "$2" <<'MODVER'
 const fs = require('fs');
 const [piFile, bundleFile] = process.argv.slice(2);
-// "1.2.3", "v1.2.3" and "1.2.3-beta.1" (the part after - or + is ignored) read as numbers; anything else does not.
+// "1.2.3", "v1.2.3" and "1.2.3-beta.1" read as numbers plus a suffix (the part from - or +); anything else does not.
 const parse = v => {
-  const m = /^v?(\d+(?:\.\d+)*)(?:[-+].*)?$/i.exec(v);
-  return m ? m[1].split('.').map(Number) : null;
+  const m = /^v?(\d+(?:\.\d+)*)([-+].*)?$/i.exec(v);
+  return m ? { n: m[1].split('.').map(Number), suffix: m[2] ?? '' } : null;
 };
 const version = file => {
   try {
@@ -240,8 +288,10 @@ if (!fs.existsSync(piFile)) {
   const x = parse(a);
   const y = parse(b);
   let c = 0;
-  if (x && y) for (let i = 0; i < Math.max(x.length, y.length) && !c; i++) c = Math.sign((x[i] ?? 0) - (y[i] ?? 0));
-  console.log(!x || !y ? `unsure ${show(a)} ${show(b)}` : c > 0 ? `keep ${show(a)} ${show(b)}` : 'install');
+  if (x && y) for (let i = 0; i < Math.max(x.n.length, y.n.length) && !c; i++) c = Math.sign((x.n[i] ?? 0) - (y.n[i] ?? 0));
+  // Same numbers, other suffix (1.2.0 and 1.2.0-rc1, or two pre-releases): which is newer is not clear, so unsure.
+  const unsure = !x || !y || (c === 0 && x.suffix !== y.suffix);
+  console.log(unsure ? `unsure ${show(a)} ${show(b)}` : c > 0 ? `keep ${show(a)} ${show(b)}` : 'install');
 }
 MODVER
 }
@@ -313,8 +363,8 @@ fi
 # every open. A document deleted on the Pi leaves no trace, so a delete alone is not seen. A newer Pi document
 # with the same key and the same times in the bundle's world is the bundle's own (an earlier run of this
 # push-back installed it and then failed, or the same world was pushed back before), so it does not count; nor
-# do the documents this stage's own provisioning writes (the GM named in world-<WORLD>.env, the Assistant GM user,
-# the bridge user setting), which a successful or late-failed earlier run changed on the Pi. Those user documents
+# do the documents this stage's own provisioning writes (the GM named in world-<WORLD>.env, the extra GM if any,
+# the Assistant GM user, the bridge user setting), which a successful or late-failed earlier run changed on the Pi. Those user documents
 # are skipped whole, so the GM's own changes to them on the Pi (hotbar, flags) are replaced without a notice; the
 # old copy is in prev (PLAN-B.md says so).
 newer_count=0
@@ -335,20 +385,14 @@ if [ "$pushback" = 1 ]; then
       done
     done
     find "$work/pi-world" "$work/bundle-world" -type f -name LOCK -delete
-    assistant_name="$(
-      # shellcheck disable=SC1090
-      . "$assistant_env"
-      printf '%s' "${ASSISTANT_GM_USER:-Assistant GM}"
-    )"
     # The GM that setup provisions is the one in the world's env file (the guard above checked it exists), which
-    # may differ from this run's GM_USER. Only the name leaves the subshell.
-    gm_name="$(
-      # shellcheck disable=SC1090
-      . "$TOOL_ETC/world-$WORLD.env"
-      printf '%s' "$GM_USER"
-    )"
+    # may differ from this run's GM_USER; the same for the extra GM (the file's, else this run's EXTRA_GM_USER).
+    gm_name="$(env_login "$TOOL_ETC/world-$WORLD.env" GM_USER)"
+    gm_name="${gm_name:-$GM_USER}"
+    extra_name="$(env_login "$TOOL_ETC/world-$WORLD.env" EXTRA_GM_USER)"
+    extra_name="${extra_name:-$EXTRA_GM_USER}"
     node --input-type=module - "$FOUNDRY_APP/node_modules/classic-level" "$work/pi-world" "$work/bundle-world" "$based_on" \
-      "$gm_name" "$assistant_name" >"$work/changes" <<'NODE' || scan_rc=$?
+      "$gm_name" "$assistant_name" ${extra_name:+"$extra_name"} >"$work/changes" <<'NODE' || scan_rc=$?
 import { existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -502,7 +546,11 @@ real_state=installed
 if [ -e "$data/worlds/$WORLD" ] && [ "$REPLACE_WORLD" != 1 ]; then
   real_state=kept
   warn "KEPT: the campaign world $WORLD already exists; it is never replaced without REPLACE_WORLD=1"
-  [ -f "$TOOL_ETC/world-$WORLD.env" ] || todo+=("$WORLD")
+  # A kept world is provisioned again only for what it lacks: its GM login, or the extra GM's.
+  if [ ! -f "$TOOL_ETC/world-$WORLD.env" ] ||
+    { [ -n "$EXTRA_GM_USER" ] && [ -z "$(env_login "$TOOL_ETC/world-$WORLD.env" EXTRA_GM_USER)" ]; }; then
+    todo+=("$WORLD")
+  fi
 else
   store_prev "$data/worlds/$WORLD" "worlds/$WORLD"
   mv "$work/extract/Data/worlds/$WORLD" "$data/worlds/$WORLD"
@@ -528,6 +576,14 @@ provision_world() { # $1 world id
     chmod 600 "$envf"
     ok "wrote $envf"
   fi
+  # The extra GM gets its own password in the same file, added once (the request check refused another name).
+  if [ -n "$EXTRA_GM_USER" ] && [ -z "$(env_login "$envf" EXTRA_GM_USER)" ]; then
+    umask 077
+    printf 'EXTRA_GM_USER="%s"\nEXTRA_GM_PASSWORD="%s"\n' "$EXTRA_GM_USER" "$(new_password)" >>"$envf"
+    umask 022
+    chmod 600 "$envf"
+    ok "added the $EXTRA_GM_USER login to $envf"
+  fi
   set_world "$id"
   if ! have_systemd; then
     warn "no systemd here (a test container?): $id is set in options.json but Foundry was not started and nothing was provisioned"
@@ -546,6 +602,7 @@ provision_world() { # $1 world id
   [ "$up" = 1 ] || die "$id is not running on port 30000 (see: journalctl -u foundry -n 50)"
   ok "$id is running"
   (
+    unset EXTRA_GM_USER EXTRA_GM_PASSWORD # only the file's extra GM (if any) is provisioned
     set -a
     # shellcheck disable=SC1090
     . "$assistant_env"
@@ -556,6 +613,7 @@ provision_world() { # $1 world id
       FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
       ASSISTANT_GM_USER="$ASSISTANT_GM_USER" ASSISTANT_GM_PASSWORD="$ASSISTANT_GM_PASSWORD" \
       PROVISION_GM_USER="$GM_USER" PROVISION_GM_PASSWORD="" PROVISION_GM_NEW_PASSWORD="$GM_PASSWORD" \
+      PROVISION_EXTRA_GM_USER="${EXTRA_GM_USER:-}" PROVISION_EXTRA_GM_PASSWORD="${EXTRA_GM_PASSWORD:-}" \
       node "$TOOL_DIR/gm-browser/assistant-gm.mjs" provision
   ) || die "provisioning $id failed (see the lines above)"
   ok "$id provisioned"
@@ -635,7 +693,8 @@ if [ "$pushback" = 1 ]; then
   esac
 fi
 [ -z "$KIT_WORLD" ] || echo "    kit world $KIT_WORLD: reset ($KIT_TITLE)"
-module_version() { node -e 'try{process.stdout.write(require(process.argv[1]).version||"")}catch{}' "$data/modules/$1/module.json"; }
+# Masked the same way as module_check's warn lines: printable, at most 40 characters.
+module_version() { node -e 'try{process.stdout.write(String(require(process.argv[1]).version||"").replace(/[^\w.+-]/g,"?").slice(0,40))}catch{}' "$data/modules/$1/module.json"; }
 for id in "${modules[@]}"; do
   echo "    module $id $(module_version "$id")"
 done
@@ -649,5 +708,7 @@ echo "    asset folders: ${assets[*]:-none}"
 echo "    Foundry launches: $LAUNCH"
 for id in "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"}; do
   [ ! -f "$TOOL_ETC/world-$id.env" ] || echo "    GM password file for $id: $TOOL_ETC/world-$id.env (the GM reads it with: ssh foundry-pi cat $TOOL_ETC/world-$id.env)"
+  extra="$(env_login "$TOOL_ETC/world-$id.env" EXTRA_GM_USER)"
+  [ -z "$extra" ] || echo "    the extra GM $extra of $id: the same file, EXTRA_GM_PASSWORD"
 done
 echo "    $prev_note"

@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   dryRunFrame,
+  extraGm,
   installDryRunGuard,
   isReadEvent,
   parseScriptArgs,
@@ -63,6 +64,35 @@ describe('service mode', () => {
     const res = cli('serve');
     assert.equal(res.status, 2);
     assert.match(res.stderr, /usage: node assistant-gm\.mjs run\|provision\|script/);
+  });
+});
+
+describe('provision: the extra GM (stage 11 EXTRA_GM_USER, D-118)', () => {
+  const taken = ['Gamemaster', 'Assistant GM'];
+  test('none when neither variable is set', () => {
+    assert.equal(extraGm({}, taken), null);
+    assert.equal(
+      extraGm({ PROVISION_EXTRA_GM_USER: '', PROVISION_EXTRA_GM_PASSWORD: '' }, taken),
+      null
+    );
+  });
+  test('a name and a password make one', () => {
+    assert.deepEqual(
+      extraGm({ PROVISION_EXTRA_GM_USER: 'Claude', PROVISION_EXTRA_GM_PASSWORD: 'pw' }, taken),
+      { name: 'Claude', password: 'pw' }
+    );
+  });
+  test('never a GM without a password, never a name without the other', () => {
+    assert.throws(() => extraGm({ PROVISION_EXTRA_GM_USER: 'Claude' }, taken), /go together/);
+    assert.throws(() => extraGm({ PROVISION_EXTRA_GM_PASSWORD: 'pw' }, taken), /go together/);
+  });
+  test('never the Gamemaster or the Assistant GM', () => {
+    for (const name of taken) {
+      assert.throws(
+        () => extraGm({ PROVISION_EXTRA_GM_USER: name, PROVISION_EXTRA_GM_PASSWORD: 'pw' }, taken),
+        /must differ/
+      );
+    }
   });
 });
 

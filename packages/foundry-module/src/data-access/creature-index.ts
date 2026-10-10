@@ -82,6 +82,8 @@ export class PersistentCreatureIndex {
   /** The pending dirty-stamp write after pack changes (debounced), and its stamp. */
   private dirtyTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingDirtyAt = 0;
+  /** The `pendingDirtyAt` whose stamp write went through. */
+  private stampedDirtyAt = 0;
   /** The index last read from or written to the file, served while a build runs. */
   private loadedIndex: PersistentEnhancedIndex | null = null;
   /** When the last build failed (0 after a success), for {@link BUILD_RETRY_COOLDOWN_MS}. */
@@ -435,12 +437,12 @@ export class PersistentCreatureIndex {
       if (this.dirtyTimer) clearTimeout(this.dirtyTimer);
       this.dirtyTimer = setTimeout(() => {
         this.dirtyTimer = null;
+        const changedAt = this.pendingDirtyAt;
         game.settings
-          .set(
-            this.moduleId,
-            'creatureIndexDirtyAt',
-            Math.max(this.pendingDirtyAt, this.dirtyStamp() + 1)
-          )
+          .set(this.moduleId, 'creatureIndexDirtyAt', Math.max(changedAt, this.dirtyStamp() + 1))
+          .then(() => {
+            this.stampedDirtyAt = changedAt;
+          })
           .catch((error: unknown) => {
             console.warn(`[${this.moduleId}] Failed to mark the creature index stale:`, error);
           });
@@ -455,8 +457,8 @@ export class PersistentCreatureIndex {
    * Rebuild in the background once the packs have been quiet for
    * {@link REBUILD_DEBOUNCE_MS} (an import fires one hook per creature), only in
    * the index builder's browser, on dnd5e and while the enhanced index is on.
-   * It always builds afresh: an edit keeps the pack fingerprints, so a check
-   * for a current index can pass on stale data.
+   * It builds afresh (an edit keeps the pack fingerprints) unless a build since
+   * the change already saw its stamp.
    */
   private scheduleRebuild(): void {
     if (game.system.id !== 'dnd5e') return;
@@ -466,9 +468,11 @@ export class PersistentCreatureIndex {
     this.rebuildTimer = setTimeout(() => {
       this.rebuildTimer = null;
       this.rebuildAfterChange().then(
-        totalCreatures => {
+        ({ rebuilt, totalCreatures }) => {
           logInfo(
-            `[${this.moduleId}] Enhanced creature index rebuilt after a pack change (${totalCreatures} creatures)`
+            rebuilt
+              ? `[${this.moduleId}] Enhanced creature index rebuilt after a pack change (${totalCreatures} creatures)`
+              : `[${this.moduleId}] Enhanced creature index already current after a pack change (${totalCreatures} creatures)`
           );
         },
         (error: unknown) => {
@@ -478,10 +482,22 @@ export class PersistentCreatureIndex {
     }, REBUILD_DEBOUNCE_MS);
   }
 
-  /** A build still running read the packs before the change: wait for it, then build again. */
-  private async rebuildAfterChange(): Promise<number> {
+  /**
+   * Wait for a build in flight, then build again, unless the last change's stamp
+   * went through and the index in memory is current against it: a creature query
+   * after the stamp starts a build, and the timer would otherwise run a second
+   * full build for the same change. A failed stamp write always rebuilds.
+   */
+  private async rebuildAfterChange(): Promise<{ rebuilt: boolean; totalCreatures: number }> {
     await this.buildPromise?.catch(() => undefined);
-    return (await this.rebuildIndex()).length;
+    if (
+      this.stampedDirtyAt === this.pendingDirtyAt &&
+      this.loadedIndex &&
+      this.isIndexValid(this.loadedIndex)
+    ) {
+      return { rebuilt: false, totalCreatures: this.loadedIndex.creatures.length };
+    }
+    return { rebuilt: true, totalCreatures: (await this.rebuildIndex()).length };
   }
 
   // ---- build ----------------------------------------------------------------

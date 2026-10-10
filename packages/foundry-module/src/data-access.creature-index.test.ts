@@ -1446,10 +1446,12 @@ describe('PersistentCreatureIndex: background rebuild after a pack change', () =
     makeBuilder();
     const goblin = makeActor({ id: 'g1', name: 'Goblin', type: 'npc' });
     addMonsterPack([goblin]);
+    const logs = vi.spyOn(console, 'log');
     const index = new PersistentCreatureIndex();
     await index.ensureIndexCurrent();
     const names = async (): Promise<string[]> => (await index.getEnhancedIndex()).map(c => c.name);
 
+    const firstBuild = disk.uploads.length;
     // An edit keeps the creature count, so only the stamp shows the change.
     goblin.name = 'Goblin Boss';
     change();
@@ -1465,6 +1467,53 @@ describe('PersistentCreatureIndex: background rebuild after a pack change', () =
     const uploads = disk.uploads.length;
     expect(await names()).toEqual(['Goblin Boss']);
     expect(disk.uploads.length).toBe(uploads); // current: no further build
+    // One build for the change: the query's build saw the stamp, so the timer skipped its own.
+    expect(uploads - firstBuild).toBe(1);
+    expect(logs).toHaveBeenCalledWith(
+      expect.stringContaining('already current after a pack change')
+    );
+  });
+
+  it('the timer still builds when the build it waited for started before the change was stamped', async () => {
+    makeBuilder();
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+    await index.ensureIndexCurrent();
+    const before = disk.uploads.length;
+
+    // Hold this build at its save so it is still running when the timer fires.
+    const upload = (globalThis as any).foundry.applications.apps.FilePicker.implementation.upload;
+    const save = upload.getMockImplementation();
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => (release = resolve));
+    upload.mockImplementationOnce(async (...args: unknown[]) => {
+      await gate;
+      return save(...args);
+    });
+    const running = index.rebuildIndex(); // saw the old stamp
+    change();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect((index as any).buildPromise).not.toBeNull();
+    release();
+    await running;
+    await vi.waitFor(() => expect(disk.uploads.length).toBe(before + 2));
+    await vi.waitFor(() => expect((index as any).buildPromise).toBeNull());
+    expect(JSON.parse(disk.content!).metadata.dirtyStamp).toBe(
+      (globalThis as any).game.settings.get(MODULE, 'creatureIndexDirtyAt')
+    );
+  });
+
+  it('the timer rebuilds when the stamp write failed, though the index looks current', async () => {
+    makeBuilder();
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+    await index.ensureIndexCurrent();
+    const before = disk.uploads.length;
+    settingsSet.mockRejectedValueOnce(new Error('denied'));
+
+    change();
+    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.waitFor(() => expect(disk.uploads.length).toBe(before + 1));
   });
 
   it('a failed rebuild only logs a warning', async () => {

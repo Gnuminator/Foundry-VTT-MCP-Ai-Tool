@@ -7,5 +7,7 @@
   and parsing the file again. The `creatureIndexDirtyAt` stamp now only goes up, and a build saves
   the stamp it saw instead of its own start time, so clock differences between GM PCs neither hide
   a creature change nor cause extra builds. The warm-up builds once more when the build it waited
-  for turned stale meanwhile. A new test runs the whole loop (edit, stamp, old index served, real
-  rebuild, new index) with no stubbed build.
+  for turned stale meanwhile. The rebuild 5 seconds after a change is skipped when a build since
+  the change (started by a creature query) already has it, so one edit costs one build, not two
+  (seen live: two 14-second builds back to back). A new test runs the whole loop (edit, stamp,
+  old index served, real rebuild, new index) with no stubbed build.

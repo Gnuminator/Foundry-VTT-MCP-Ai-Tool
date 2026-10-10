@@ -29,7 +29,7 @@
                        (the files must still exist on this PC, with the right case); their packs are not scanned. An id may not
                        also be in -Modules. Each needs a module.json on this PC. Written into MANIFEST.txt with this PC's version
                        (pi-modules: id@version); stage 11 refuses the bundle when one is not installed on the Pi or the Pi's copy
-                       is older than that version. Example: -Modules @() -PiModules aitool-content,dnd-players-handbook.
+                       is older than that version. Example: -Modules '' -PiModules aitool-content,dnd-players-handbook.
 .PARAMETER Assets      Extra asset folders under Data, for example ddb-images/adventures/Curse_of_Strahd.
                        They are added to the folders world-refs finds.
 .PARAMETER PiHost      The SSH name of the Pi (default foundry-pi).

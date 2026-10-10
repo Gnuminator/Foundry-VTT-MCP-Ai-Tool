@@ -1,8 +1,9 @@
 // The blocks a panel shows instead of its content: loading, nothing yet, an error, the bridge
 // being down, a switch being off. They render the old page's `.empty` block (styles.css), so a
 // panel that already says "Loading…" or "Couldn't load ..." looks the same after the move.
-// Loading is a polite live region (role=status) and the failures are alerts (role=alert), so a
-// screen reader hears a panel change face. An <li> keeps its list role: the role goes on a span
+// Loading is a polite live region (role=status), and so are the two standing conditions (the
+// bridge being down, a switch being off); an error is an alert (role=alert). A screen reader hears
+// a panel change face. An <li> keeps its list role: the role goes on a span
 // inside it.
 import type { JSX, ReactNode } from 'react';
 
@@ -110,7 +111,10 @@ interface ErrorStateProps extends BlockProps {
   kind?: 'error' | 'bridge-down' | 'gated';
 }
 
-/** Something failed: the message, then the reason when there is one. An alert, every kind. */
+/**
+ * Something failed: the message, then the reason when there is one. An error is an alert; the
+ * bridge being down and a switch being off are standing conditions, so they are a status.
+ */
 export function ErrorState({
   as = 'p',
   className,
@@ -120,7 +124,12 @@ export function ErrorState({
   kind = 'error',
 }: ErrorStateProps): JSX.Element {
   return (
-    <LiveBlock as={as} role="alert" className={className} state={kind}>
+    <LiveBlock
+      as={as}
+      role={kind === 'error' ? 'alert' : 'status'}
+      className={className}
+      state={kind}
+    >
       {children}
       {error !== undefined && (children ? ': ' : '')}
       {error !== undefined && errorText(error)}

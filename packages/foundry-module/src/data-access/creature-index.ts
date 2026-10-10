@@ -18,6 +18,9 @@ export const REBUILD_DEBOUNCE_MS = 5_000;
 /** Quiet time after the last pack change before a GM browser writes the dirty stamp. */
 export const DIRTY_STAMP_DEBOUNCE_MS = 1_000;
 
+/** After a failed build, stale reads start no new background build for this long. */
+export const BUILD_RETRY_COOLDOWN_MS = 60_000;
+
 /**
  * Whether this browser rebuilds the creature index after a pack change: the
  * bridge user's GM browser, the one bridge queries reach. With "Any GM" only the
@@ -79,6 +82,12 @@ export class PersistentCreatureIndex {
   /** The pending dirty-stamp write after pack changes (debounced), and its stamp. */
   private dirtyTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingDirtyAt = 0;
+  /** The `pendingDirtyAt` whose stamp write went through. */
+  private stampedDirtyAt = 0;
+  /** The index last read from or written to the file, served while a build runs. */
+  private loadedIndex: PersistentEnhancedIndex | null = null;
+  /** When the last build failed (0 after a success), for {@link BUILD_RETRY_COOLDOWN_MS}. */
+  private lastFailedBuildAt = 0;
 
   constructor() {
     this.registerFoundryHooks();
@@ -120,25 +129,37 @@ export class PersistentCreatureIndex {
   /**
    * The persisted index when it is current, else the (shared) build's result.
    * Without `waitForCurrent`, a usable but stale saved index is served while the
-   * build runs in the background.
+   * build runs in the background; after a failed build, stale reads start no new
+   * one for {@link BUILD_RETRY_COOLDOWN_MS} (a build that keeps failing would
+   * otherwise run, and show its error, on every query).
    */
   private async resolveIndex(
     waitForCurrent: boolean
   ): Promise<{ creatures: EnhancedCreatureIndex[]; rebuilt: boolean }> {
     if (this.buildPromise) {
       if (!waitForCurrent) {
-        const saved = await this.loadPersistedIndex();
+        // The copy read before the build: the file (several MB) is not parsed again per query.
+        const saved = this.loadedIndex ?? (await this.loadPersistedIndex());
         if (saved && this.isIndexUsable(saved)) {
           return { creatures: saved.creatures, rebuilt: false };
         }
+        return { creatures: await this.buildPromise, rebuilt: true };
       }
-      return { creatures: await this.buildPromise, rebuilt: true };
+      const creatures = await this.buildPromise;
+      // A creature change during the joined build left its result stale: build once more.
+      if (this.loadedIndex && this.isIndexValid(this.loadedIndex)) {
+        return { creatures, rebuilt: true };
+      }
+      return { creatures: await this.startBuild(), rebuilt: true };
     }
     const persisted = await this.loadPersistedIndex();
     if (persisted && this.isIndexValid(persisted)) {
       return { creatures: persisted.creatures, rebuilt: false };
     }
     if (!waitForCurrent && persisted && this.isIndexUsable(persisted)) {
+      if (Date.now() - this.lastFailedBuildAt < BUILD_RETRY_COOLDOWN_MS) {
+        return { creatures: persisted.creatures, rebuilt: false };
+      }
       this.startBuild().then(
         creatures => {
           logInfo(
@@ -156,9 +177,20 @@ export class PersistentCreatureIndex {
 
   /** Start a build, or return the one in flight: one build at a time. */
   private startBuild(): Promise<EnhancedCreatureIndex[]> {
-    this.buildPromise ??= this.buildEnhancedIndex().finally(() => {
-      this.buildPromise = null;
-    });
+    this.buildPromise ??= this.buildEnhancedIndex()
+      .then(
+        creatures => {
+          this.lastFailedBuildAt = 0;
+          return creatures;
+        },
+        (error: unknown) => {
+          this.lastFailedBuildAt = Date.now();
+          throw error;
+        }
+      )
+      .finally(() => {
+        this.buildPromise = null;
+      });
     return this.buildPromise;
   }
 
@@ -220,7 +252,8 @@ export class PersistentCreatureIndex {
           metadata.packFingerprints as Iterable<readonly [string, PackFingerprint]>
         );
       }
-      return rawData as unknown as PersistentEnhancedIndex;
+      this.loadedIndex = rawData as unknown as PersistentEnhancedIndex;
+      return this.loadedIndex;
     } catch (error) {
       console.warn(`[${this.moduleId}] Failed to load persisted index from file:`, error);
       return null;
@@ -266,7 +299,8 @@ export class PersistentCreatureIndex {
   /**
    * A persisted index is valid only when every dimension still matches the live
    * world: schema version, game system, no creature change after its build
-   * started (the `creatureIndexDirtyAt` stamp), and (per currently-loaded Actor
+   * started (no `creatureIndexDirtyAt` stamp above the one the build saw), and
+   * (per currently-loaded Actor
    * pack) a fingerprint equal to the saved one. Any added, removed, or changed
    * pack invalidates it (forcing a rebuild on the next read).
    */
@@ -275,8 +309,7 @@ export class PersistentCreatureIndex {
       return false;
     }
 
-    const dirtyAt: unknown = game.settings.get(this.moduleId, 'creatureIndexDirtyAt');
-    if (typeof dirtyAt === 'number' && dirtyAt > (existingIndex.metadata.buildStartedAt ?? 0)) {
+    if (this.dirtyStamp() > (existingIndex.metadata.dirtyStamp ?? 0)) {
       return false;
     }
 
@@ -306,6 +339,12 @@ export class PersistentCreatureIndex {
     }
 
     return true;
+  }
+
+  /** The `creatureIndexDirtyAt` stamp of the last creature change (0 before any). */
+  private dirtyStamp(): number {
+    const stamp: unknown = game.settings.get(this.moduleId, 'creatureIndexDirtyAt');
+    return typeof stamp === 'number' ? stamp : 0;
   }
 
   /** All loaded Actor-type compendium packs. */
@@ -376,13 +415,18 @@ export class PersistentCreatureIndex {
   /**
    * Mark the persisted index stale, only when the `autoRebuildIndex` setting is
    * on. Foundry's server cannot delete the file (its data route answers GET and
-   * POST only), so every GM browser writes the time of the last change to the
-   * world setting `creatureIndexDirtyAt` instead; an index whose build started
-   * before it is stale in every browser, even when the index builder is offline.
-   * The builder's browser also rebuilds in the background. The time is the
-   * browser's `Date.now()`: Foundry 14's `game.time.serverTime` counts from the
-   * server start, so a stamp from before a restart would stay newer than every
-   * later build. Clock skew between browsers costs at most an extra build.
+   * POST only), so every GM browser writes a stamp for the last change to the
+   * world setting `creatureIndexDirtyAt` instead. A build saves the stamp it saw
+   * before reading the packs; an index whose saved stamp is below the current one
+   * is stale in every browser, even when the index builder is offline. The
+   * builder's browser also rebuilds in the background.
+   *
+   * The stamp only goes up: the browser's `Date.now()`, or the current stamp plus
+   * one when that clock is behind. Stamps are compared with stamps, never with
+   * a browser's clock, so clock skew between GM PCs neither hides a change nor
+   * adds builds. (Foundry 14's `game.time.serverTime` counts from the server
+   * start, so it is no use across restarts.) Two GMs writing in the same moment
+   * can still lower it once; that is the one gap left.
    */
   private markIndexDirty(): void {
     try {
@@ -393,8 +437,12 @@ export class PersistentCreatureIndex {
       if (this.dirtyTimer) clearTimeout(this.dirtyTimer);
       this.dirtyTimer = setTimeout(() => {
         this.dirtyTimer = null;
+        const changedAt = this.pendingDirtyAt;
         game.settings
-          .set(this.moduleId, 'creatureIndexDirtyAt', this.pendingDirtyAt)
+          .set(this.moduleId, 'creatureIndexDirtyAt', Math.max(changedAt, this.dirtyStamp() + 1))
+          .then(() => {
+            this.stampedDirtyAt = changedAt;
+          })
           .catch((error: unknown) => {
             console.warn(`[${this.moduleId}] Failed to mark the creature index stale:`, error);
           });
@@ -409,8 +457,8 @@ export class PersistentCreatureIndex {
    * Rebuild in the background once the packs have been quiet for
    * {@link REBUILD_DEBOUNCE_MS} (an import fires one hook per creature), only in
    * the index builder's browser, on dnd5e and while the enhanced index is on.
-   * It always builds afresh: an edit keeps the pack fingerprints, so a check
-   * for a current index can pass on stale data.
+   * It builds afresh (an edit keeps the pack fingerprints) unless a build since
+   * the change already saw its stamp.
    */
   private scheduleRebuild(): void {
     if (game.system.id !== 'dnd5e') return;
@@ -420,9 +468,11 @@ export class PersistentCreatureIndex {
     this.rebuildTimer = setTimeout(() => {
       this.rebuildTimer = null;
       this.rebuildAfterChange().then(
-        totalCreatures => {
+        ({ rebuilt, totalCreatures }) => {
           logInfo(
-            `[${this.moduleId}] Enhanced creature index rebuilt after a pack change (${totalCreatures} creatures)`
+            rebuilt
+              ? `[${this.moduleId}] Enhanced creature index rebuilt after a pack change (${totalCreatures} creatures)`
+              : `[${this.moduleId}] Enhanced creature index already current after a pack change (${totalCreatures} creatures)`
           );
         },
         (error: unknown) => {
@@ -432,10 +482,22 @@ export class PersistentCreatureIndex {
     }, REBUILD_DEBOUNCE_MS);
   }
 
-  /** A build still running read the packs before the change: wait for it, then build again. */
-  private async rebuildAfterChange(): Promise<number> {
+  /**
+   * Wait for a build in flight, then build again, unless the last change's stamp
+   * went through and the index in memory is current against it: a creature query
+   * after the stamp starts a build, and the timer would otherwise run a second
+   * full build for the same change. A failed stamp write always rebuilds.
+   */
+  private async rebuildAfterChange(): Promise<{ rebuilt: boolean; totalCreatures: number }> {
     await this.buildPromise?.catch(() => undefined);
-    return (await this.rebuildIndex()).length;
+    if (
+      this.stampedDirtyAt === this.pendingDirtyAt &&
+      this.loadedIndex &&
+      this.isIndexValid(this.loadedIndex)
+    ) {
+      return { rebuilt: false, totalCreatures: this.loadedIndex.creatures.length };
+    }
+    return { rebuilt: true, totalCreatures: (await this.rebuildIndex()).length };
   }
 
   // ---- build ----------------------------------------------------------------
@@ -464,8 +526,8 @@ export class PersistentCreatureIndex {
    */
   private async buildDnD5eIndex(): Promise<DnD5eCreatureIndex[]> {
     const startTime = Date.now();
-    // Before the first pack is read: a change after this makes the result stale.
-    const buildStartedAt = Date.now();
+    // Before the first pack is read: a change after this raises the stamp above it.
+    const dirtyStamp = this.dirtyStamp();
     // Single rolling progress notification (replace-in-place). Held in an object
     // so its nullability isn't narrowed away by control-flow analysis.
     const notifier = {
@@ -525,7 +587,7 @@ export class PersistentCreatureIndex {
         metadata: {
           version: this.INDEX_VERSION,
           timestamp: Date.now(),
-          buildStartedAt,
+          dirtyStamp,
           packFingerprints,
           totalCreatures: creatures.length,
           gameSystem: 'dnd5e',
@@ -533,6 +595,7 @@ export class PersistentCreatureIndex {
         creatures,
       };
       await this.savePersistedIndex(persistentIndex);
+      this.loadedIndex = persistentIndex;
 
       const buildTimeSeconds = Math.round((Date.now() - startTime) / 1000);
       const errorText = totalErrors > 0 ? ` (${totalErrors} extraction errors)` : '';

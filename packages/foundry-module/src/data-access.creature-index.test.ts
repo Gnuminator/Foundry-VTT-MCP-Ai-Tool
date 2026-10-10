@@ -42,7 +42,11 @@ import {
   makeItem,
   type TestWorld,
 } from './test-support/foundry-mock/index.js';
-import { DIRTY_STAMP_DEBOUNCE_MS, PersistentCreatureIndex } from './data-access/creature-index.js';
+import {
+  BUILD_RETRY_COOLDOWN_MS,
+  DIRTY_STAMP_DEBOUNCE_MS,
+  PersistentCreatureIndex,
+} from './data-access/creature-index.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -737,7 +741,7 @@ describe('PersistentCreatureIndex — index validity / staleness', () => {
   it('is not valid when a creature changed after the build started (creatureIndexDirtyAt)', async () => {
     const index = await seedAndCount();
     const saved = JSON.parse(disk.content!);
-    saved.metadata.buildStartedAt = 1_000;
+    saved.metadata.dirtyStamp = 1_000;
     disk.content = JSON.stringify(saved);
     world.setSetting(MODULE, 'creatureIndexDirtyAt', 2_000);
 
@@ -745,10 +749,10 @@ describe('PersistentCreatureIndex — index validity / staleness', () => {
     expect(disk.uploads.length).toBe(1);
   });
 
-  it('is valid when the build started after the last creature change (no rebuild)', async () => {
+  it('is valid when the build saw the last creature change (no rebuild)', async () => {
     const index = await seedAndCount();
     const saved = JSON.parse(disk.content!);
-    saved.metadata.buildStartedAt = 3_000;
+    saved.metadata.dirtyStamp = 2_000;
     disk.content = JSON.stringify(saved);
     world.setSetting(MODULE, 'creatureIndexDirtyAt', 2_000);
 
@@ -756,10 +760,10 @@ describe('PersistentCreatureIndex — index validity / staleness', () => {
     expect(disk.uploads.length).toBe(0);
   });
 
-  it('is not valid for a saved index without buildStartedAt once any change is stamped', async () => {
+  it('is not valid for a saved index without dirtyStamp (an older file) once any change is stamped', async () => {
     const index = await seedAndCount();
     const saved = JSON.parse(disk.content!);
-    delete saved.metadata.buildStartedAt;
+    delete saved.metadata.dirtyStamp;
     disk.content = JSON.stringify(saved);
     world.setSetting(MODULE, 'creatureIndexDirtyAt', 1);
 
@@ -779,7 +783,8 @@ describe('PersistentCreatureIndex — index validity / staleness', () => {
     const second = await index.getEnhancedIndex();
     expect(second.map(c => c.name)).toEqual(['Stale Goblin']);
 
-    await vi.waitFor(() => expect(disk.uploads.length).toBe(1));
+    await vi.waitFor(() => expect((index as any).buildPromise).toBeNull());
+    expect(disk.uploads.length).toBe(1);
     expect(JSON.parse(disk.content).creatures[0].name).toBe('Goblin');
     // The next read is current and builds nothing more.
     expect((await index.getEnhancedIndex()).map(c => c.name)).toEqual(['Goblin']);
@@ -817,17 +822,69 @@ describe('PersistentCreatureIndex — index validity / staleness', () => {
     expect(disk.uploads.length).toBe(1);
   });
 
-  it('the build records buildStartedAt (Date.now() at its start, not the server uptime clock)', async () => {
-    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+  it('the build saves the stamp it saw before reading the packs, not a clock', async () => {
+    const pack = addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
     // Foundry 14's game.time.serverTime counts from the server start: never used.
     (globalThis as any).game.time = { serverTime: 123_456 };
-    const before = Date.now();
+    world.setSetting(MODULE, 'creatureIndexDirtyAt', 5_000);
+    // A creature change while the build reads the packs raises the stamp.
+    const read = pack.getDocuments;
+    pack.getDocuments = async (): Promise<unknown> => {
+      world.setSetting(MODULE, 'creatureIndexDirtyAt', 6_000);
+      return read();
+    };
     const index = new PersistentCreatureIndex();
     await index.rebuildIndex();
 
-    const { buildStartedAt } = JSON.parse(disk.content!).metadata;
-    expect(buildStartedAt).toBeGreaterThanOrEqual(before);
-    expect(buildStartedAt).toBeLessThanOrEqual(Date.now());
+    expect(JSON.parse(disk.content!).metadata.dirtyStamp).toBe(5_000);
+    // So the build counts as stale and the warm-up builds again.
+    pack.getDocuments = read;
+    await expect(index.ensureIndexCurrent()).resolves.toMatchObject({ rebuilt: true });
+    expect(JSON.parse(disk.content!).metadata.dirtyStamp).toBe(6_000);
+  });
+
+  it('clock skew between GM PCs does not matter: only stamps are compared', async () => {
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    world.setSetting(MODULE, 'creatureIndexDirtyAt', 2_000_000);
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000); // the builder's clock far behind
+    const index = new PersistentCreatureIndex();
+    await index.rebuildIndex();
+    clock.mockReturnValue(9_000_000_000_000); // and far ahead
+
+    await expect(index.ensureIndexCurrent()).resolves.toMatchObject({ rebuilt: false });
+    world.setSetting(MODULE, 'creatureIndexDirtyAt', 2_000_001); // the next change
+    await expect(index.ensureIndexCurrent()).resolves.toMatchObject({ rebuilt: true });
+    clock.mockRestore();
+  });
+
+  it('after a failed background build, stale reads start no new build for the cooldown', async () => {
+    const index = await seedAndCount();
+    const saved = JSON.parse(disk.content!);
+    saved.creatures[0].name = 'Stale Goblin';
+    saved.metadata.packFingerprints[0][1].documentCount = 999;
+    disk.content = JSON.stringify(saved);
+    const upload = (globalThis as any).foundry.applications.apps.FilePicker.implementation.upload;
+    upload.mockImplementationOnce(async () => false);
+    const errors = (): number => world.notifications.filter(n => n.level === 'error').length;
+
+    await index.getEnhancedIndex();
+    await vi.waitFor(() => expect(errors()).toBe(1));
+    const uploadsAfterFailure = upload.mock.calls.length;
+
+    // Inside the cooldown: the stale copy, no build, no second error.
+    expect((await index.getEnhancedIndex()).map(c => c.name)).toEqual(['Stale Goblin']);
+    expect((await index.getEnhancedIndex()).map(c => c.name)).toEqual(['Stale Goblin']);
+    expect(upload.mock.calls.length).toBe(uploadsAfterFailure);
+    expect(errors()).toBe(1);
+
+    // After it, a read builds again.
+    const later = Date.now() + BUILD_RETRY_COOLDOWN_MS;
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(later);
+    await index.getEnhancedIndex();
+    await vi.waitFor(() => expect((index as any).buildPromise).toBeNull());
+    expect(disk.uploads.length).toBe(1);
+    expect(JSON.parse(disk.content).creatures[0].name).toBe('Goblin');
+    clock.mockRestore();
   });
 });
 
@@ -933,17 +990,19 @@ describe('PersistentCreatureIndex: ensureIndexCurrent and the shared build', () 
     expect(disk.uploads.length).toBe(1);
   });
 
-  /** Seed a saved index that is usable but stale (a pack changed), named 'Stale Goblin'. */
+  /**
+   * Seed a saved index that is usable but stale (a pack changed), named 'Stale
+   * Goblin', and return a new instance (it has no build of its own in memory).
+   */
   async function seedStale(): Promise<PersistentCreatureIndex> {
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
-    const index = new PersistentCreatureIndex();
-    await index.rebuildIndex();
+    await new PersistentCreatureIndex().rebuildIndex();
     const saved = JSON.parse(disk.content!);
     saved.creatures[0].name = 'Stale Goblin';
     saved.metadata.packFingerprints[0][1].documentCount = 999;
     disk.content = JSON.stringify(saved);
     disk.uploads.length = 0;
-    return index;
+    return new PersistentCreatureIndex();
   }
 
   /** Let pending promise callbacks and zero-delay timers run. */
@@ -964,6 +1023,41 @@ describe('PersistentCreatureIndex: ensureIndexCurrent and the shared build', () 
     release();
     await build;
     expect(disk.uploads.length).toBe(1);
+  });
+
+  it('with a build in flight, stale reads serve the copy in memory without reading the file again', async () => {
+    const index = await seedStale();
+    const { uploading, release } = gateUploads();
+
+    expect((await index.getEnhancedIndex()).map(c => c.name)).toEqual(['Stale Goblin']);
+    await uploading; // its background build is held at the save
+    const fetches = disk.fetchCalls.length;
+    for (let i = 0; i < 3; i++) {
+      expect((await index.getEnhancedIndex()).map(c => c.name)).toEqual(['Stale Goblin']);
+    }
+    expect(disk.fetchCalls.length).toBe(fetches);
+
+    release();
+    await vi.waitFor(() => expect(disk.uploads.length).toBe(1));
+    // The new build is the copy in memory now, and current.
+    expect((await index.getEnhancedIndex()).map(c => c.name)).toEqual(['Goblin']);
+  });
+
+  it('ensureIndexCurrent builds again when the build it joined went stale during the wait', async () => {
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+    const { uploading, release } = gateUploads();
+
+    const build = index.rebuildIndex();
+    await uploading;
+    world.setSetting(MODULE, 'creatureIndexDirtyAt', 7); // a creature changed meanwhile
+    const ensured = index.ensureIndexCurrent();
+    release();
+    await build;
+
+    await expect(ensured).resolves.toEqual({ rebuilt: true, totalCreatures: 1 });
+    expect(disk.uploads.length).toBe(2);
+    expect(JSON.parse(disk.content!).metadata.dirtyStamp).toBe(7);
   });
 
   it('with a build in flight, ensureIndexCurrent still waits for the build', async () => {
@@ -1170,6 +1264,18 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
     clock.mockRestore();
   });
 
+  it('the stamp only rises: a browser whose clock is behind writes the current stamp plus one', async () => {
+    world.setSetting(MODULE, 'autoRebuildIndex', true);
+    world.setSetting(MODULE, 'creatureIndexDirtyAt', 5_000_000);
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    new PersistentCreatureIndex();
+
+    fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
+    await vi.advanceTimersByTimeAsync(DIRTY_STAMP_DEBOUNCE_MS);
+    expect(stampWrites()).toEqual([5_000_001]);
+    clock.mockRestore();
+  });
+
   it('a failed stamp write only logs a warning', async () => {
     world.setSetting(MODULE, 'autoRebuildIndex', true);
     new PersistentCreatureIndex();
@@ -1334,6 +1440,80 @@ describe('PersistentCreatureIndex: background rebuild after a pack change', () =
     await vi.advanceTimersByTimeAsync(0);
     expect(rebuild).toHaveBeenCalledTimes(1);
     expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('the whole loop: an edit, the stamp, the old index served, a real rebuild, then the new one', async () => {
+    makeBuilder();
+    const goblin = makeActor({ id: 'g1', name: 'Goblin', type: 'npc' });
+    addMonsterPack([goblin]);
+    const logs = vi.spyOn(console, 'log');
+    const index = new PersistentCreatureIndex();
+    await index.ensureIndexCurrent();
+    const names = async (): Promise<string[]> => (await index.getEnhancedIndex()).map(c => c.name);
+
+    const firstBuild = disk.uploads.length;
+    // An edit keeps the creature count, so only the stamp shows the change.
+    goblin.name = 'Goblin Boss';
+    change();
+    await vi.advanceTimersByTimeAsync(DIRTY_STAMP_DEBOUNCE_MS);
+    expect(stampWrites()).toHaveLength(1);
+    expect(await names()).toEqual(['Goblin']); // the old index, while it rebuilds
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.waitFor(() =>
+      expect(JSON.parse(disk.content!).creatures.map((c: any) => c.name)).toEqual(['Goblin Boss'])
+    );
+    await vi.waitFor(() => expect((index as any).buildPromise).toBeNull());
+    const uploads = disk.uploads.length;
+    expect(await names()).toEqual(['Goblin Boss']);
+    expect(disk.uploads.length).toBe(uploads); // current: no further build
+    // One build for the change: the query's build saw the stamp, so the timer skipped its own.
+    expect(uploads - firstBuild).toBe(1);
+    expect(logs).toHaveBeenCalledWith(
+      expect.stringContaining('already current after a pack change')
+    );
+  });
+
+  it('the timer still builds when the build it waited for started before the change was stamped', async () => {
+    makeBuilder();
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+    await index.ensureIndexCurrent();
+    const before = disk.uploads.length;
+
+    // Hold this build at its save so it is still running when the timer fires.
+    const upload = (globalThis as any).foundry.applications.apps.FilePicker.implementation.upload;
+    const save = upload.getMockImplementation();
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => (release = resolve));
+    upload.mockImplementationOnce(async (...args: unknown[]) => {
+      await gate;
+      return save(...args);
+    });
+    const running = index.rebuildIndex(); // saw the old stamp
+    change();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect((index as any).buildPromise).not.toBeNull();
+    release();
+    await running;
+    await vi.waitFor(() => expect(disk.uploads.length).toBe(before + 2));
+    await vi.waitFor(() => expect((index as any).buildPromise).toBeNull());
+    expect(JSON.parse(disk.content!).metadata.dirtyStamp).toBe(
+      (globalThis as any).game.settings.get(MODULE, 'creatureIndexDirtyAt')
+    );
+  });
+
+  it('the timer rebuilds when the stamp write failed, though the index looks current', async () => {
+    makeBuilder();
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+    await index.ensureIndexCurrent();
+    const before = disk.uploads.length;
+    settingsSet.mockRejectedValueOnce(new Error('denied'));
+
+    change();
+    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.waitFor(() => expect(disk.uploads.length).toBe(before + 1));
   });
 
   it('a failed rebuild only logs a warning', async () => {

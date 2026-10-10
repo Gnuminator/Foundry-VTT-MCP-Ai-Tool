@@ -108,8 +108,11 @@ export type EnhancedCreatureIndex = DnD5eCreatureIndex;
 export interface PersistentIndexMetadata {
   version: string;
   timestamp: number;
-  /** Server time the build started (it read the packs from then on); missing in older files. */
-  buildStartedAt?: number;
+  /**
+   * The `creatureIndexDirtyAt` stamp when the build started, before it read the
+   * packs; a higher stamp means a creature changed since. Missing in older files.
+   */
+  dirtyStamp?: number;
   packFingerprints: Map<string, PackFingerprint>;
   totalCreatures: number;
   gameSystem: string; // 'dnd5e'

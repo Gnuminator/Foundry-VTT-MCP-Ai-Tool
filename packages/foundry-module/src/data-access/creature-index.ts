@@ -16,10 +16,12 @@ const CREATURE_TYPES = new Set(['npc', 'character']);
 export const REBUILD_DEBOUNCE_MS = 5_000;
 
 /**
- * Whether this browser builds the creature index in the background (at `ready`
- * and after a pack change): the bridge user's GM browser, the one bridge
- * queries reach. With "Any GM" only the active GM (`game.users.activeGM`, the
- * active GM with the lowest id) builds, so several GMs online build once.
+ * Whether this browser rebuilds the creature index after a pack change: the
+ * bridge user's GM browser, the one bridge queries reach. With "Any GM" only the
+ * active GM (`game.users.activeGM`, the active GM with the lowest id) rebuilds,
+ * so several GMs online do not all upload a build. (The warm-up at `ready` runs
+ * in every GM browser with "Any GM", since the backend may route queries to any
+ * of them.)
  */
 export function isIndexBuilder(): boolean {
   const user = game.user;
@@ -295,28 +297,28 @@ export class PersistentCreatureIndex {
   // ---- hooks / invalidation -------------------------------------------------
 
   /**
-   * Register the pack-change hooks once. A creature-document mutation in a pack,
-   * or an Actor-pack create/delete, invalidates the persisted index.
+   * Register the pack-change hook once. Foundry 14 calls `updateCompendium`
+   * (pack, documents, operation, userId) in every client after documents in a
+   * pack are created, updated or deleted; a change to a creature in an Actor
+   * pack invalidates the persisted index. (The `createDocument`,
+   * `updateDocument`, `deleteDocument`, `createCompendium` and
+   * `deleteCompendium` hooks used before do not exist in Foundry 14, so pack
+   * changes were never seen.) A new or deleted pack shows up in the pack
+   * fingerprints at the next read.
    */
   private registerFoundryHooks(): void {
     if (this.hooksRegistered) return;
 
-    const onCreatureDoc = (document: { pack?: unknown; type?: unknown }): void => {
-      if (document.pack && typeof document.type === 'string' && CREATURE_TYPES.has(document.type)) {
+    const isCreature = (document: unknown): boolean => {
+      const type = (document as { type?: unknown } | null)?.type;
+      return typeof type === 'string' && CREATURE_TYPES.has(type);
+    };
+    Hooks.on('updateCompendium', (pack: CompendiumCollection, documents: unknown): void => {
+      if (pack?.metadata?.type !== 'Actor') return;
+      if (!Array.isArray(documents) || documents.some(isCreature)) {
         void this.invalidateIndex();
       }
-    };
-    Hooks.on('createDocument', onCreatureDoc);
-    Hooks.on('updateDocument', onCreatureDoc);
-    Hooks.on('deleteDocument', onCreatureDoc);
-
-    const onActorPack = (pack: CompendiumCollection): void => {
-      if (pack.metadata.type === 'Actor') {
-        void this.invalidateIndex();
-      }
-    };
-    Hooks.on('createCompendium', onActorPack);
-    Hooks.on('deleteCompendium', onActorPack);
+    });
 
     this.hooksRegistered = true;
   }
@@ -348,20 +350,21 @@ export class PersistentCreatureIndex {
   /**
    * Rebuild in the background once the packs have been quiet for
    * {@link REBUILD_DEBOUNCE_MS} (an import fires one hook per creature), only in
-   * the index builder's browser and while the enhanced index is on. A build
-   * still running then read the packs before the change, so it is followed by a
-   * fresh one.
+   * the index builder's browser, on dnd5e and while the enhanced index is on.
+   * It always builds afresh: an edit keeps the pack fingerprints, so a check
+   * for a current index can pass on stale data.
    */
   private scheduleRebuild(): void {
+    if (game.system.id !== 'dnd5e') return;
     if (!isIndexBuilder()) return;
     if (!game.settings.get(this.moduleId, 'enableEnhancedCreatureIndex')) return;
     if (this.rebuildTimer) clearTimeout(this.rebuildTimer);
     this.rebuildTimer = setTimeout(() => {
       this.rebuildTimer = null;
       this.rebuildAfterChange().then(
-        ({ rebuilt, totalCreatures }) => {
+        totalCreatures => {
           logInfo(
-            `[${this.moduleId}] Enhanced creature index ${rebuilt ? 'rebuilt' : 'current'} after a pack change (${totalCreatures} creatures)`
+            `[${this.moduleId}] Enhanced creature index rebuilt after a pack change (${totalCreatures} creatures)`
           );
         },
         (error: unknown) => {
@@ -371,12 +374,10 @@ export class PersistentCreatureIndex {
     }, REBUILD_DEBOUNCE_MS);
   }
 
-  private async rebuildAfterChange(): Promise<{ rebuilt: boolean; totalCreatures: number }> {
-    if (this.buildPromise) {
-      await this.buildPromise.catch(() => undefined);
-      return { rebuilt: true, totalCreatures: (await this.rebuildIndex()).length };
-    }
-    return this.ensureIndexCurrent();
+  /** A build still running read the packs before the change: wait for it, then build again. */
+  private async rebuildAfterChange(): Promise<number> {
+    await this.buildPromise?.catch(() => undefined);
+    return (await this.rebuildIndex()).length;
   }
 
   // ---- build ----------------------------------------------------------------

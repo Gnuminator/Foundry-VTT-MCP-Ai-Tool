@@ -236,10 +236,6 @@ describe('main: creature index warm-up at ready (#283)', () => {
     bridge.queryHandlers.dataAccess.ensureEnhancedCreatureIndex = ensure;
   });
 
-  const setActiveGm = (id: string): void => {
-    Object.defineProperty(g.game.users, 'activeGM', { value: { id }, configurable: true });
-  };
-
   it("builds in the bridge user's browser", () => {
     bridge.warmEnhancedIndex();
     expect(ensure).toHaveBeenCalledTimes(1);
@@ -257,13 +253,12 @@ describe('main: creature index warm-up at ready (#283)', () => {
     expect(ensure).not.toHaveBeenCalled();
   });
 
-  it('with "Any GM" builds only in the active GM\'s browser', () => {
+  it('with "Any GM" builds in every GM browser, active GM or not', () => {
     world.setSetting(MODULE_ID, 'bridgeUserId', '');
-    setActiveGm('other-gm');
-    bridge.warmEnhancedIndex();
-    expect(ensure).not.toHaveBeenCalled();
-
-    setActiveGm('gm');
+    Object.defineProperty(g.game.users, 'activeGM', {
+      value: { id: 'other-gm' },
+      configurable: true,
+    });
     bridge.warmEnhancedIndex();
     expect(ensure).toHaveBeenCalledTimes(1);
   });

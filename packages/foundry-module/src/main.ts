@@ -19,7 +19,6 @@ import {
 import { registerGuardedFeature } from './guarded-features.js';
 import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
-import { isIndexBuilder } from './data-access/creature-index.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
@@ -228,12 +227,13 @@ class FoundryMCPBridge {
    * Start building the enhanced creature index when the persisted copy is missing
    * or stale (an older index version after a module update, changed packs), so
    * the first creature query does not rebuild it inside the 10 s bridge timeout.
-   * Runs only in the index builder's browser (the bridge user, or the active GM
-   * with "Any GM", see `isIndexBuilder`) and does not block `ready`; a query
-   * during the build waits on the same build.
+   * Runs in the bridge user's browser, or with "Any GM" in every GM's browser
+   * (the backend may route queries to any of them), and does not block `ready`;
+   * a query during the build waits on the same build.
    */
   private warmEnhancedIndex(): void {
-    if (!isIndexBuilder()) return;
+    if (!this.isGMUser()) return;
+    if (!isBridgeUser(this.settings.getSetting('bridgeUserId'), game.user?.id)) return;
     if (!this.settings.getSetting('enableEnhancedCreatureIndex')) return;
     if (game.system.id !== 'dnd5e') return;
 

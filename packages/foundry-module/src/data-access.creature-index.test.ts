@@ -171,17 +171,9 @@ describe('PersistentCreatureIndex — constructor', () => {
     const onSpy = vi.spyOn((globalThis as any).Hooks, 'on');
     const index = new PersistentCreatureIndex();
     expect(index).toBeInstanceOf(PersistentCreatureIndex);
-    // Registers the five pack-change hooks.
+    // Registers Foundry 14's pack-change hook.
     const hookNames = onSpy.mock.calls.map(c => c[0]);
-    expect(hookNames).toEqual(
-      expect.arrayContaining([
-        'createDocument',
-        'updateDocument',
-        'deleteDocument',
-        'createCompendium',
-        'deleteCompendium',
-      ])
-    );
+    expect(hookNames).toEqual(['updateCompendium']);
   });
 });
 
@@ -852,9 +844,11 @@ describe('PersistentCreatureIndex: ensureIndexCurrent and the shared build', () 
 
 describe('PersistentCreatureIndex — hook-driven invalidation', () => {
   /** Fire a registered Foundry hook through the harness dispatcher. */
-  function fireHook(name: string, payload: any): void {
-    (globalThis as any).Hooks.callAll(name, payload);
+  function fireHook(name: string, ...args: any[]): void {
+    (globalThis as any).Hooks.callAll(name, ...args);
   }
+  const actorPack = { metadata: { type: 'Actor' } };
+  const itemPack = { metadata: { type: 'Item' } };
 
   it('deletes the persisted file on a compendium-document change when autoRebuildIndex is on', async () => {
     world.setSetting('foundry-mcp-bridge', 'autoRebuildIndex', true);
@@ -864,7 +858,7 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
     await index.getEnhancedIndex(); // persist a file (disk.content set)
     expect(disk.content).not.toBeNull();
 
-    fireHook('updateDocument', { pack: 'world.monsters', type: 'npc' });
+    fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
     // invalidateIndex is async; let the microtasks settle.
     await Promise.resolve();
     await Promise.resolve();
@@ -882,7 +876,7 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
     await index.getEnhancedIndex();
     const deletesBefore = disk.fetchCalls.filter(c => c.init?.method === 'DELETE').length;
 
-    fireHook('createDocument', { pack: 'world.monsters', type: 'npc' });
+    fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
     await Promise.resolve();
     await Promise.resolve();
 
@@ -891,16 +885,15 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
     expect(disk.content).not.toBeNull(); // file untouched
   });
 
-  it('ignores document changes that are not in a pack or not a creature type', async () => {
+  it('ignores changes in a non-Actor pack or to documents that are not creatures', async () => {
     world.setSetting('foundry-mcp-bridge', 'autoRebuildIndex', true);
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
 
     const index = new PersistentCreatureIndex();
     await index.getEnhancedIndex();
 
-    // No `pack` → ignored; wrong type → ignored.
-    fireHook('updateDocument', { type: 'npc' }); // no pack
-    fireHook('updateDocument', { pack: 'world.monsters', type: 'weapon' }); // not a creature
+    fireHook('updateCompendium', itemPack, [{ type: 'npc' }]); // not an Actor pack
+    fireHook('updateCompendium', actorPack, [{ type: 'weapon' }]); // not a creature
     await Promise.resolve();
     await Promise.resolve();
 
@@ -908,28 +901,28 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
     expect(disk.content).not.toBeNull();
   });
 
-  it('invalidates on a deleteCompendium hook for an Actor pack', async () => {
+  it('invalidates when the hook gives no document list', async () => {
     world.setSetting('foundry-mcp-bridge', 'autoRebuildIndex', true);
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
 
     const index = new PersistentCreatureIndex();
     await index.getEnhancedIndex();
 
-    fireHook('deleteCompendium', { metadata: { type: 'Actor' } });
+    fireHook('updateCompendium', actorPack, undefined);
     await Promise.resolve();
     await Promise.resolve();
 
     expect(disk.fetchCalls.some(c => c.init?.method === 'DELETE')).toBe(true);
   });
 
-  it('ignores a createCompendium hook for a non-Actor pack', async () => {
+  it('ignores an empty change in an Actor pack', async () => {
     world.setSetting('foundry-mcp-bridge', 'autoRebuildIndex', true);
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
 
     const index = new PersistentCreatureIndex();
     await index.getEnhancedIndex();
 
-    fireHook('createCompendium', { metadata: { type: 'Item' } });
+    fireHook('updateCompendium', actorPack, []);
     await Promise.resolve();
     await Promise.resolve();
 
@@ -972,7 +965,9 @@ describe('PersistentCreatureIndex: background rebuild after a pack change', () =
   }
 
   const change = (): void =>
-    (globalThis as any).Hooks.callAll('updateDocument', { pack: 'world.monsters', type: 'npc' });
+    (globalThis as any).Hooks.callAll('updateCompendium', { metadata: { type: 'Actor' } }, [
+      { type: 'npc' },
+    ]);
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -984,64 +979,90 @@ describe('PersistentCreatureIndex: background rebuild after a pack change', () =
 
   it('rebuilds once, 5 s after the last change of a burst', async () => {
     makeBuilder();
-    const { ensure } = newIndexWithSpies();
+    const { ensure, rebuild } = newIndexWithSpies();
 
     change();
     await vi.advanceTimersByTimeAsync(3_000);
     change();
     change();
     await vi.advanceTimersByTimeAsync(4_999);
-    expect(ensure).not.toHaveBeenCalled();
+    expect(rebuild).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
-    expect(ensure).toHaveBeenCalledTimes(1);
+    expect(rebuild).toHaveBeenCalledTimes(1);
+    // Forced: an edit keeps the fingerprints, so "is it current?" is not asked.
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('rebuilds after a build that finished inside the quiet time', async () => {
+    makeBuilder();
+    const { index, rebuild } = newIndexWithSpies();
+    let finish!: () => void;
+    (index as any).buildPromise = new Promise<unknown[]>(resolve => {
+      finish = (): void => resolve([]);
+    });
+
+    change();
+    finish();
+    (index as any).buildPromise = null;
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(rebuild).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not rebuild on a system other than dnd5e', async () => {
+    makeBuilder();
+    (globalThis as any).game.system.id = 'pf2e';
+    const { rebuild } = newIndexWithSpies();
+
+    change();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(rebuild).not.toHaveBeenCalled();
   });
 
   it('does not rebuild when another user is the bridge user', async () => {
     makeBuilder();
     world.setSetting(MODULE, 'bridgeUserId', 'someone-else');
-    const { ensure, rebuild } = newIndexWithSpies();
+    const { rebuild } = newIndexWithSpies();
 
     change();
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(ensure).not.toHaveBeenCalled();
     expect(rebuild).not.toHaveBeenCalled();
   });
 
   it('with "Any GM" rebuilds only in the active GM\'s browser', async () => {
     makeBuilder();
     world.setSetting(MODULE, 'bridgeUserId', '');
-    const { ensure } = newIndexWithSpies();
+    const { rebuild } = newIndexWithSpies();
 
     setActiveGm('other-gm');
     change();
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(ensure).not.toHaveBeenCalled();
+    expect(rebuild).not.toHaveBeenCalled();
 
     setActiveGm('gm');
     change();
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(ensure).toHaveBeenCalledTimes(1);
+    expect(rebuild).toHaveBeenCalledTimes(1);
   });
 
   it("does not rebuild in a player's browser", async () => {
     makeBuilder();
     (globalThis as any).game.user.isGM = false;
-    const { ensure } = newIndexWithSpies();
+    const { rebuild } = newIndexWithSpies();
 
     change();
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(ensure).not.toHaveBeenCalled();
+    expect(rebuild).not.toHaveBeenCalled();
   });
 
   it('does not rebuild when the enhanced index is off', async () => {
     makeBuilder();
     world.setSetting(MODULE, 'enableEnhancedCreatureIndex', false);
-    const { ensure } = newIndexWithSpies();
+    const { rebuild } = newIndexWithSpies();
 
     change();
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(ensure).not.toHaveBeenCalled();
+    expect(rebuild).not.toHaveBeenCalled();
   });
 
   it('follows a build still running at the change with a fresh one', async () => {
@@ -1064,12 +1085,12 @@ describe('PersistentCreatureIndex: background rebuild after a pack change', () =
 
   it('a failed rebuild only logs a warning', async () => {
     makeBuilder();
-    const { ensure } = newIndexWithSpies();
-    ensure.mockRejectedValue(new Error('upload failed'));
+    const { rebuild } = newIndexWithSpies();
+    rebuild.mockRejectedValue(new Error('upload failed'));
 
     change();
     await vi.advanceTimersByTimeAsync(5_000);
-    expect(ensure).toHaveBeenCalledTimes(1);
+    expect(rebuild).toHaveBeenCalledTimes(1);
     expect(console.warn).toHaveBeenCalledWith(
       expect.stringContaining('Failed to rebuild the creature index'),
       expect.any(Error)

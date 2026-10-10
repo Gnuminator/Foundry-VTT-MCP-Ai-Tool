@@ -32,6 +32,7 @@ import { usage } from '../lib/usage';
 import { Button, IconButton, Tooltip } from '../ui';
 
 import { AdvancedItem, AdvancedLabel } from './AdvancedMenu';
+import { useDuringFolds, type DuringFolds } from './Folds';
 import { useHelp } from './HelpButton';
 import type { Moment } from './Moments';
 import { useToast } from './Toasts';
@@ -60,6 +61,8 @@ export interface DuringController {
   screen: DuringScreen;
   trial: Trial | null;
   hintVisible: boolean;
+  /** Which of the During cards are folded (components/Folds.tsx). */
+  folds: DuringFolds;
   actions: DuringActions;
 }
 
@@ -78,6 +81,7 @@ export function useDuringLayout(moment: Moment | null, pinDuring: () => void): D
   const [trial, setTrial] = useState<Trial | null>(null);
 
   const screen = duringScreen({ prefs, trial, combatActive });
+  const folds = useDuringFolds(screen);
   const sessionKey = session ? hintSessionKey(session) : null;
   const hintVisible = showLayoutHint({
     duringOnScreen: moment === 'during',
@@ -157,7 +161,7 @@ export function useDuringLayout(moment: Moment | null, pinDuring: () => void): D
       });
     },
   };
-  return { prefs, screen, trial, hintVisible, actions };
+  return { prefs, screen, trial, hintVisible, folds, actions };
 }
 
 /** One of the three layout buttons; the choice is pressed when it is the one on screen. */

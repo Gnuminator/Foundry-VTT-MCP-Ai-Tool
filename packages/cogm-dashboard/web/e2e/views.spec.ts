@@ -460,6 +460,8 @@ test('the focus stays on a panel that moves with the moment', async ({ page }) =
   let session = OPEN;
   const calls = await fakeBridge(page, () => session);
   await load(page);
+  // Handouts starts folded in During (Cards); a folded card has nothing to focus.
+  await view(page, 'during').locator('[data-fold="handouts"]').click();
   const add = view(page, 'during').locator('#handouts-add');
   await add.focus();
 

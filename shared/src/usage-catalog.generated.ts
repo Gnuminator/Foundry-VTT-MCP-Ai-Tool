@@ -141,6 +141,30 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.during.fold-changes',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/Folds.tsx',
+  },
+  {
+    name: 'dash.during.fold-feed',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/Folds.tsx',
+  },
+  {
+    name: 'dash.during.fold-handouts',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/Folds.tsx',
+  },
+  {
+    name: 'dash.during.fold-party',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/Folds.tsx',
+  },
+  {
     name: 'dash.during.full-toggle',
     kind: 'action',
     surface: 'dashboard',

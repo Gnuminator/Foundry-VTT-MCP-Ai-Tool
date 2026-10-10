@@ -74,17 +74,24 @@ describe('Panel', () => {
   it.each([
     ['loading', 'role="status"'],
     ['error', 'role="alert"'],
-    ['bridge-down', 'role="alert"'],
-    ['gated', 'role="alert"'],
+    ['bridge-down', 'role="status"'],
+    ['gated', 'role="status"'],
   ] as const)('announces the %s face (%s)', (state, role) => {
     expect(render(state)).toContain(role);
   });
 
-  it('marks the body busy only while loading, and leaves an empty panel quiet', () => {
-    expect(render('loading')).toContain('aria-busy="true"');
-    expect(render('ready')).not.toContain('aria-busy');
-    expect(render('error')).not.toContain('aria-busy');
-    expect(render('empty')).not.toContain('role=');
+  it('never marks the body busy, so the Loading status stays announced', () => {
+    for (const state of ['loading', 'ready', 'empty', 'error', 'bridge-down', 'gated'] as const) {
+      expect(render(state)).not.toContain('aria-busy');
+    }
+  });
+
+  it('leaves an empty or ready panel quiet', () => {
+    for (const state of ['empty', 'ready'] as const) {
+      const html = render(state);
+      expect(html).not.toContain('role="status"');
+      expect(html).not.toContain('role="alert"');
+    }
   });
 
   it('takes the message from the panel when it has one', () => {

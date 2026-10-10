@@ -64,15 +64,19 @@ export function AdvancedMenu({ children }: { children: ReactNode }): JSX.Element
  */
 export function AdvancedItem({
   onSelect,
+  disabled = false,
   children,
 }: {
   onSelect: () => boolean | void;
+  /** Not available now: the arrow keys skip it and it cannot be picked (the child is disabled too). */
+  disabled?: boolean;
   children: ReactElement;
 }): JSX.Element {
   const picked = useContext(PickedContext);
   return (
     <DropdownMenu.Item
       asChild
+      disabled={disabled}
       onSelect={() => {
         if (onSelect() !== false) picked();
       }}

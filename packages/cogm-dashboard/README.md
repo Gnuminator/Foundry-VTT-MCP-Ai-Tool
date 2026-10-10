@@ -104,10 +104,11 @@ moved and the default switches. It uses Radix UI primitives (unstyled), TanStack
 data, and the old stylesheets and themes as they are (it links `styles.css`, `moments.css` and
 `themes/` from `public/`), so it looks the same. It talks to the same routes with the same GM
 token. Ported so far: Player links, Module diagnostics, Pre-flight (with Ready for session),
-Prep, Party, Handouts, Tarokka, the Tool runner, the Advanced menu (its panel and tool entries;
-Pre-flight stays in the header with its status) and the Before / During / After views, with
-Pre-flight, Prep, Party and Handouts docked in them. Still on the old page only: the During
-layouts and folds, Combat Tracker, Live Feed, Recent Changes, the After stats and session notes,
+Prep, Party, Handouts, Tarokka, the Tool runner, the Advanced menu (its panel, During screen and
+tool entries; Pre-flight stays in the header with its status) and the Before / During / After
+views, with Pre-flight, Prep, Party and Handouts docked in them, and the During layouts (the
+switch, the layout trial and the hint). Still on the old page only: the During folds, Combat
+Tracker, Live Feed, Recent Changes, the After stats and session notes,
 the feature cards, the AI commentary and the header's session marker, GM Actions switch and theme
 picker.
 

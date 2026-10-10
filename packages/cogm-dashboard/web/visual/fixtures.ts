@@ -487,6 +487,19 @@ export async function fakeDashboard(page: Page, setup: Setup): Promise<void> {
     },
     { event: 'settings', data: { gmActionsEnabled: true } },
     { event: 'world', data: { id: 'harbor-test', title: 'Harbor Town' } },
+    // A GM who already kept a layout: no trial card on Before, no hint on During (their stories
+    // and the e2e specs cover those), and the layout choices are on.
+    {
+      event: 'prefs',
+      data: {
+        duringLayout: 'layered',
+        duringFull: false,
+        combatButtons: false,
+        layoutPicked: true,
+        hintDismissed: true,
+        hintSessions: [],
+      },
+    },
     ...(setup.moduleErrors
       ? [{ event: 'errors', data: { errors: MODULE_ERRORS, initial: true } }]
       : []),

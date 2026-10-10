@@ -14,7 +14,8 @@
 # of the Pi's world: a document created or changed after the snapshot time stops the run (Foundry starts again
 # on the old world) unless REPLACE_NEWER=1. A document that is the same in the bundle (same key and times, so
 # an earlier run of this push-back installed it) does not count. A module the Pi updated after the snapshot
-# (its module.json version is newer than the bundle's) is kept, not downgraded. A plain bundle runs as before.
+# (its module.json version is newer than the bundle's, or either version cannot be read as numbers) is kept, not
+# downgraded. A plain bundle runs as before.
 # What it does: checks the tar before it extracts (no links or devices, no paths outside Data/, no env or cookie
 # files, no ddb-importer or bridge module), checks every checksum, moves the old copies to
 # /var/lib/foundry-import/prev-<stamp> (never deleted), installs, gives the worlds a generated GM password in a
@@ -209,24 +210,59 @@ fi
 modules=()
 for d in Data/modules/*/; do [ -d "$d" ] && modules+=("$(basename "$d")"); done
 # A push-back ships the modules Plan B restored from the Pi backup. One the Pi updated after that backup (its
-# module.json version is higher) is kept: a push-back never downgrades a module. Prints "<pi> <bundle>" then.
-module_newer() { # $1 the Pi's module.json, $2 the bundle's
-  node -e 'const fs=require("fs");const v=p=>{try{return String(JSON.parse(fs.readFileSync(p,"utf8")).version||"")}catch{return ""}};
-const a=v(process.argv[1]),b=v(process.argv[2]);let c=0;
-if(a&&b){const x=a.split("."),y=b.split(".");for(let i=0;i<Math.max(x.length,y.length)&&!c;i++){const p=parseInt(x[i]||"0",10),q=parseInt(y[i]||"0",10);if(Number.isNaN(p)||Number.isNaN(q))break;c=Math.sign(p-q)}}
-if(c>0)process.stdout.write(a+" "+b)' "$1" "$2"
+# module.json version is higher) is kept: a push-back never downgrades a module. module_check prints one line:
+# "install", "keep <pi> <bundle>" (the Pi's version is higher) or "unsure <pi> <bundle>" (a version that is
+# missing or not numbers, such as "beta" or an unreadable module.json: the Pi's copy is kept, since a downgrade
+# cannot be ruled out). A module the Pi does not have prints "install". world-refs.test.mjs cuts the script out
+# and tests it.
+module_check() { # $1 the Pi's module.json, $2 the bundle's
+  node - "$1" "$2" <<'MODVER'
+const fs = require('fs');
+const [piFile, bundleFile] = process.argv.slice(2);
+// "1.2.3", "v1.2.3" and "1.2.3-beta.1" (the part after - or + is ignored) read as numbers; anything else does not.
+const parse = v => {
+  const m = /^v?(\d+(?:\.\d+)*)(?:[-+].*)?$/i.exec(v);
+  return m ? m[1].split('.').map(Number) : null;
+};
+const version = file => {
+  try {
+    return String(JSON.parse(fs.readFileSync(file, 'utf8')).version ?? '').trim();
+  } catch {
+    return '';
+  }
+};
+const show = v => (v || '?').replace(/[^\w.+-]/g, '?').slice(0, 40);
+if (!fs.existsSync(piFile)) {
+  console.log('install');
+} else {
+  const a = version(piFile);
+  const b = version(bundleFile);
+  const x = parse(a);
+  const y = parse(b);
+  let c = 0;
+  if (x && y) for (let i = 0; i < Math.max(x.length, y.length) && !c; i++) c = Math.sign((x[i] ?? 0) - (y[i] ?? 0));
+  console.log(!x || !y ? `unsure ${show(a)} ${show(b)}` : c > 0 ? `keep ${show(a)} ${show(b)}` : 'install');
+}
+MODVER
 }
 kept_modules=()
+unsure_modules=()
 if [ "$pushback" = 1 ]; then
   install_modules=()
   for id in "${modules[@]}"; do
-    vv="$(module_newer "$data/modules/$id/module.json" "Data/modules/$id/module.json")"
-    if [ -n "$vv" ]; then
-      kept_modules+=("$id")
-      warn "module $id: the Pi has ${vv% *}, newer than the bundle's ${vv#* } (updated on the Pi after the backup): the Pi's copy is kept"
-    else
-      install_modules+=("$id")
-    fi
+    verdict="$(module_check "$data/modules/$id/module.json" "Data/modules/$id/module.json")" || verdict="unsure ? ?"
+    read -r what pi_version bundle_version <<<"$verdict"
+    case "$what" in
+      install) install_modules+=("$id") ;;
+      keep)
+        kept_modules+=("$id")
+        warn "module $id: the Pi has $pi_version, newer than the bundle's $bundle_version (updated on the Pi after the backup): the Pi's copy is kept"
+        ;;
+      *)
+        unsure_modules+=("$id")
+        warn "module $id: the versions cannot be compared (the Pi has ${pi_version:-?}, the bundle ${bundle_version:-?}): the Pi's copy is kept (install the bundle's by hand if it is the right one)"
+        ;;
+    esac
   done
   modules=("${install_modules[@]}")
 fi
@@ -277,8 +313,10 @@ fi
 # every open. A document deleted on the Pi leaves no trace, so a delete alone is not seen. A newer Pi document
 # with the same key and the same times in the bundle's world is the bundle's own (an earlier run of this
 # push-back installed it and then failed, or the same world was pushed back before), so it does not count; nor
-# do the documents this stage's own provisioning writes (the GM_USER and Assistant GM users, the bridge user
-# setting), which a successful or late-failed earlier run changed on the Pi.
+# do the documents this stage's own provisioning writes (the GM named in world-<WORLD>.env, the Assistant GM user,
+# the bridge user setting), which a successful or late-failed earlier run changed on the Pi. Those user documents
+# are skipped whole, so the GM's own changes to them on the Pi (hotbar, flags) are replaced without a notice; the
+# old copy is in prev (PLAN-B.md says so).
 newer_count=0
 same_count=0
 scan_rc=0
@@ -302,8 +340,15 @@ if [ "$pushback" = 1 ]; then
       . "$assistant_env"
       printf '%s' "${ASSISTANT_GM_USER:-Assistant GM}"
     )"
+    # The GM that setup provisions is the one in the world's env file (the guard above checked it exists), which
+    # may differ from this run's GM_USER. Only the name leaves the subshell.
+    gm_name="$(
+      # shellcheck disable=SC1090
+      . "$TOOL_ETC/world-$WORLD.env"
+      printf '%s' "$GM_USER"
+    )"
     node --input-type=module - "$FOUNDRY_APP/node_modules/classic-level" "$work/pi-world" "$work/bundle-world" "$based_on" \
-      "$GM_USER" "$assistant_name" >"$work/changes" <<'NODE' || scan_rc=$?
+      "$gm_name" "$assistant_name" >"$work/changes" <<'NODE' || scan_rc=$?
 import { existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -596,6 +641,9 @@ for id in "${modules[@]}"; do
 done
 for id in "${kept_modules[@]}"; do
   echo "    module $id $(module_version "$id") (the Pi's newer copy kept, not the bundle's)"
+done
+for id in "${unsure_modules[@]}"; do
+  echo "    module $id $(module_version "$id") (the Pi's copy kept: its version and the bundle's cannot be compared)"
 done
 echo "    asset folders: ${assets[*]:-none}"
 echo "    Foundry launches: $LAUNCH"

@@ -733,7 +733,7 @@ describe('PersistentCreatureIndex — index validity / staleness', () => {
 // ensureIndexCurrent (the GM's ready-time warm) + one build at a time
 // ===========================================================================
 
-describe('PersistentCreatureIndex — ensureIndexCurrent and the shared build', () => {
+describe('PersistentCreatureIndex: ensureIndexCurrent and the shared build', () => {
   /**
    * Hold every upload until `release()` so a build stays in flight while the
    * test makes more calls. `uploading` resolves once the build reaches its save.

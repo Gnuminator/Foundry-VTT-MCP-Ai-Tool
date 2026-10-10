@@ -131,17 +131,23 @@ give_other_extra() {
 }
 
 # A module the Pi already has from the campaign bundle, named in the MANIFEST's pi-modules: line (a second world
-# that uses it without shipping it). The sentinel proves the stage never replaces the Pi's copy.
-pimod_installed() {
+# that uses it without shipping it). $1 the Pi's version, $2 the line's entry. The sentinel proves the stage never
+# replaces the Pi's copy.
+pimod_setup() {
   mkdir -p "$data/modules/aitool-content"
-  echo '{"id":"aitool-content","version":"1.0.0"}' >"$data/modules/aitool-content/module.json"
+  echo '{"id":"aitool-content","version":"'"$1"'"}' >"$data/modules/aitool-content/module.json"
   echo "the Pi's own aitool-content" >"$data/modules/aitool-content/sentinel"
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$data/modules/aitool-content"
-  manifest_extra="pi-modules: aitool-content"
+  manifest_extra="pi-modules: $2"
 }
+pimod_installed() { pimod_setup 1.0.0 aitool-content@1.0.0; }  # the same version
+pimod_newer() { pimod_setup 1.2.0 aitool-content@1.1.0; }      # the Pi is ahead of the PC
+pimod_older() { pimod_setup 1.0.0 aitool-content@1.1.0; }      # the Pi is behind the PC: refused
+pimod_unsure() { pimod_setup 1.0.0 aitool-content@beta; }      # not comparable: a warning
+pimod_legacy() { pimod_setup 1.0.0 aitool-content; }           # an older push-world.ps1: no version, a warning
 # The same line, but the Pi does not have the module.
 pimod_missing() {
-  manifest_extra="pi-modules: aitool-content"
+  manifest_extra="pi-modules: aitool-content@1.0.0"
 }
 
 # The bundle ships aitool-content 1.1.0 while the Pi has its own 1.2.0 (with a sentinel, as after the campaign bundle).
@@ -164,10 +170,12 @@ scenario() {
   local name="$1" bw="$2" setup="$3"
   shift 3
   if [ -n "$only" ] && [[ " $only " != *" $name "* ]]; then return 0; fi
-  local rerun=0 env_words=() w
+  # "RERUN:KEY=VALUE" words apply to the second run only (they come after the others, so they win).
+  local rerun=0 env_words=() rerun_words=() w
   for w in "$@"; do
     case "$w" in
       rerun) rerun=1 ;;
+      RERUN:*) rerun_words+=("${w#RERUN:}") ;;
       *) env_words+=("$w") ;;
     esac
   done
@@ -183,7 +191,7 @@ scenario() {
     echo "exit $first_rc"
     env_state
   fi
-  run_stage "$bw" "${env_words[@]}" >/tmp/out.last
+  run_stage "$bw" "${env_words[@]}" "${rerun_words[@]}" >/tmp/out.last
   local rc=$?
   echo "--- output"
   cat /tmp/out.last
@@ -230,10 +238,19 @@ scenario pi-modules-installed frostmaiden-training pimod_installed WORLD=frostma
 scenario pi-modules-missing frostmaiden-training pimod_missing WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
 scenario launch-omitted frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= EXTRA_GM_USER=Claude
 scenario kit-is-campaign frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=curse-of-strahd "KIT_TITLE=Frost kit" LAUNCH=curse-of-strahd
-scenario kit-is-launch frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=strahd-kit "KIT_TITLE=Frost kit" LAUNCH=strahd-kit
+scenario kit-is-launch frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=frost-kit "KIT_TITLE=Frost kit" LAUNCH=frost-kit
+scenario kit-is-strahd-kit frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=strahd-kit "KIT_TITLE=Frost kit" LAUNCH=curse-of-strahd
+scenario launch-empty frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= LAUNCH= EXTRA_GM_USER=Claude
 scenario extra-trailing-space frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd "EXTRA_GM_USER=Claude "
 scenario ship-modules-refused frostmaiden-training ship_module WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
 scenario ship-modules-allowed frostmaiden-training ship_module WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude SHIP_MODULES=1
+scenario pi-modules-newer frostmaiden-training pimod_newer WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+scenario pi-modules-older frostmaiden-training pimod_older WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+scenario pi-modules-unsure frostmaiden-training pimod_unsure WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+scenario pi-modules-legacy frostmaiden-training pimod_legacy WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+scenario ship-campaign-launch-kit curse-of-strahd ship_module LAUNCH=strahd-kit
+scenario ship-second-launch-self frostmaiden-training ship_module WORLD=frostmaiden-training KIT_WORLD= LAUNCH=frostmaiden-training
+scenario provision-fails-campaign curse-of-strahd provision_fails_once REPLACE_WORLD=1 RERUN:REPLACE_WORLD=0 rerun
 scenario provision-fails-then-rerun frostmaiden-training provision_fails_once WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude rerun
 scenario strahd-default curse-of-strahd - REPLACE_WORLD=1
 echo "=== ALL DONE"

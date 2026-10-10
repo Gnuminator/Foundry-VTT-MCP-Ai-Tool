@@ -27,8 +27,9 @@
                        again: stage 11 replaces the Pi's module folders with the bundle's, which could swap out the Pi's own copies.
                        world-refs does not report them as active-but-not-shipped and counts their asset paths as inside the bundle
                        (the files must still exist on this PC, with the right case); their packs are not scanned. An id may not
-                       also be in -Modules. Written into MANIFEST.txt (pi-modules:); stage 11 refuses the bundle when one is not
-                       installed on the Pi. Example: -Modules @() -PiModules aitool-content,dnd-players-handbook.
+                       also be in -Modules. Each needs a module.json on this PC. Written into MANIFEST.txt with this PC's version
+                       (pi-modules: id@version); stage 11 refuses the bundle when one is not installed on the Pi or the Pi's copy
+                       is older than that version. Example: -Modules @() -PiModules aitool-content,dnd-players-handbook.
 .PARAMETER Assets      Extra asset folders under Data, for example ddb-images/adventures/Curse_of_Strahd.
                        They are added to the folders world-refs finds.
 .PARAMETER PiHost      The SSH name of the Pi (default foundry-pi).
@@ -107,6 +108,15 @@ foreach ($id in $PiModules) {
   if ($id -eq 'foundry-mcp-bridge') { Fail 'foundry-mcp-bridge is not a -PiModules entry: stage 5 installs it from the release' }
   if ($id -eq 'ddb-importer') { Fail 'ddb-importer stays on this PC and is not on the Pi' }
 }
+# Stage 11 compares the Pi's copy with this PC's version, so each -PiModules module needs a module.json here.
+$piModuleVersions = @{}
+foreach ($id in $PiModules) {
+  $mj = Join-Path $DataPath "modules\$id\module.json"
+  if (-not (Test-Path -LiteralPath $mj)) { Fail "no module.json for -PiModules module $id under $DataPath\modules (stage 11 compares its version with the Pi's copy)" }
+  $ver = [string](Get-Content -LiteralPath $mj -Raw | ConvertFrom-Json).version
+  if ($ver -notmatch '^[A-Za-z0-9._+-]+$') { Fail "the version '$ver' of -PiModules module $id is empty or has characters stage 11 does not accept (letters, digits, . _ + -)" }
+  $piModuleVersions[$id] = $ver
+}
 $basedOn = $null
 if ($PushBack) {
   if (-not $BasedOnSnapshot) { Fail '-PushBack needs -BasedOnSnapshot <the time of the Pi backup Plan B restored> (scripts/plan-b/push-back.ps1 gives it)' }
@@ -160,7 +170,7 @@ if ($SkipRefs) {
     if ($p.foreignWorlds.Count) { Write-Host ('  other worlds referenced: ' + ($p.foreignWorlds -join ', ')) }
     if ($p.missingCount) { Write-Host "  $($p.missingCount) missing files (first $($p.missing.Count)):"; $p.missing | ForEach-Object { Write-Host "    $_" } }
     if ($p.caseMismatchCount) { Write-Host "  $($p.caseMismatchCount) paths whose letter case differs from the file (the Pi is case-sensitive):"; $p.caseMismatch | ForEach-Object { Write-Host "    $_" } }
-    if ($p.activeNotShipped.Count) { Write-Host ('  modules active in the world but not shipped (turn them off in the world, or add them to -Modules): ' + ($p.activeNotShipped -join ', ')) }
+    if ($p.activeNotShipped.Count) { Write-Host ('  modules active in the world but not shipped (turn them off in the world, add them to -Modules, or to -PiModules if the Pi has them already): ' + ($p.activeNotShipped -join ', ')) }
     if ($p.gmUser.Count) { $p.gmUser | ForEach-Object { Write-Host "  $_" } }
     if ($p.otherPresentCount) { Write-Host "  $($p.otherPresentCount) paths present on disk but outside the bundle (only the modules, the world, ddb-images and tokenizer are copied):"; $p.otherPresent | ForEach-Object { Write-Host "    $_" } }
     if ($p.otherRootsCount) { Write-Host "  $($p.otherRootsCount) paths in unknown roots:"; $p.otherRoots | ForEach-Object { Write-Host "    $_" } }
@@ -264,8 +274,8 @@ $manifest = @(
   "files: $($files.Count)", "bytes: $bytes", "built (UTC): $([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ', [CultureInfo]::InvariantCulture))",
   "repo commit: $(if ($sha) { $sha } else { 'unknown' })")
 if ($AllowMissing.Count) { $manifest += "allow-missing: $($AllowMissing -join ', ')" }
-# Stage 11 checks that each of these is installed on the Pi and not also in the bundle.
-if ($PiModules.Count) { $manifest += "pi-modules: $($PiModules -join ', ')" }
+# Stage 11 checks that each of these is installed on the Pi (with at least this PC's version) and not also in the bundle.
+if ($PiModules.Count) { $manifest += "pi-modules: $(($PiModules | ForEach-Object { "$_@$($piModuleVersions[$_])" }) -join ', ')" }
 # Stage 11 reads these two lines: a kept password needs REPLACE_WORLD=1, the Pi's env file and no kit
 # world, and the Pi's world must not have changed after the snapshot time (else REPLACE_NEWER=1).
 if ($PushBack) { $manifest += @('gm-password: kept (push-back)', "based-on-snapshot: $basedOn") }

@@ -7,20 +7,21 @@
 #   WORLD that every run resets; empty skips it; strahd-kit by default, but only for WORLD=curse-of-strahd: another
 #   WORLD must set KIT_WORLD, empty or an id plus KIT_TITLE), KIT_TITLE, LAUNCH (the world Foundry starts with:
 #   WORLD, KIT_WORLD or a world that is already installed; default WORLD for curse-of-strahd, but another WORLD
-#   must set LAUNCH, so a forgotten LAUNCH can never switch the Pi to the new world; KIT_WORLD may not name
-#   curse-of-strahd or LAUNCH for another WORLD), REPLACE_WORLD (1 replaces an existing WORLD; default 0 keeps
+#   must set LAUNCH to a non-empty id, so a forgotten or empty LAUNCH can never switch the Pi to the new world;
+#   KIT_WORLD may not name curse-of-strahd, strahd-kit (the campaign's test copy) or LAUNCH for another WORLD), REPLACE_WORLD (1 replaces an existing WORLD; default 0 keeps
 #   it), GM_USER (the world's GM, default Gamemaster), REPLACE_NEWER (push-back only: 1 replaces the Pi's world
 #   even when it changed after the Plan B snapshot), EXTRA_GM_USER (a second GM user, for example Claude, with its
 #   own generated password; default none; letters, digits, . _ - and inner spaces), SHIP_MODULES (1 lets a bundle
-#   for a WORLD that is not LAUNCH replace the Pi's modules; default 0 refuses such a bundle, because modules are
-#   shared with the campaign: build it with push-world.ps1 -PiModules instead).
+#   for a WORLD other than curse-of-strahd replace the Pi's modules; default 0 refuses such a bundle, because the
+#   campaign owns the modules: build it with push-world.ps1 -PiModules instead).
 # A second campaign goes in next to the real one with LAUNCH naming the world Foundry keeps launching, for example
 # the Frostmaiden training world (D-118; docs/dev/PI-SETUP.md, "Training world"):
 #   WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
 # EXTRA_GM_USER is added to each world's env file once (EXTRA_GM_USER and EXTRA_GM_PASSWORD) and provisioned as a
 # full GM with that password; a file that already names another extra GM is refused before anything stops. A kept
 # world whose env file lacks the extra GM is provisioned again for it, and so is one whose provisioning did not
-# finish: world-<id>.pending in $TOOL_ETC is written before the env file and removed after provisioning worked.
+# finish: world-<id>.pending in $TOOL_ETC is written for every world of the run before the first one is
+# provisioned and removed after that world's own provisioning worked.
 # A Plan B push-back (docs/dev/PLAN-B.md, "After the night"; built by scripts/plan-b/push-back.ps1) brings the
 # world back from the PC with the Pi's own GM password: its MANIFEST.txt says "gm-password: kept (push-back)" and
 # "based-on-snapshot: <the Pi backup Plan B restored>". Such a bundle needs REPLACE_WORLD=1, KIT_WORLD= (empty)
@@ -54,7 +55,7 @@ else
   [ -z "$KIT_WORLD" ] || [ -n "${KIT_TITLE:-}" ] || die "KIT_WORLD=$KIT_WORLD needs a KIT_TITLE for WORLD=$WORLD. Nothing was changed"
   KIT_TITLE="${KIT_TITLE:-}"
   # Foundry must not switch to a second world by a forgotten LAUNCH: say which world it keeps launching.
-  [ "${LAUNCH+set}" = set ] || die "WORLD=$WORLD needs LAUNCH set to the world Foundry keeps launching, for example LAUNCH=curse-of-strahd. Nothing was changed"
+  [ -n "${LAUNCH:-}" ] || die "WORLD=$WORLD needs LAUNCH set (not empty) to the world Foundry keeps launching, for example LAUNCH=curse-of-strahd. Nothing was changed"
 fi
 LAUNCH="${LAUNCH:-$WORLD}"
 REPLACE_WORLD="${REPLACE_WORLD:-0}"
@@ -84,11 +85,18 @@ if [ -n "$KIT_WORLD" ]; then
   # world Foundry launches (a mix-up of KIT_WORLD and LAUNCH would replace the campaign without REPLACE_WORLD).
   if [ "$WORLD" != curse-of-strahd ]; then
     [ "$KIT_WORLD" != curse-of-strahd ] || die "KIT_WORLD=curse-of-strahd is the campaign: a kit world for WORLD=$WORLD needs another id. Nothing was changed"
+    [ "$KIT_WORLD" != strahd-kit ] || die "KIT_WORLD=strahd-kit is the campaign's test copy: a kit world for WORLD=$WORLD needs another id. Nothing was changed"
     [ "$KIT_WORLD" != "$LAUNCH" ] || die "KIT_WORLD=$KIT_WORLD is the world Foundry launches (LAUNCH): every run resets the kit world, so it needs another id. Nothing was changed"
   fi
 fi
+# For another WORLD the kit world can never be LAUNCH (refused above), so the message does not offer it.
+if [ "$WORLD" = curse-of-strahd ]; then
+  launch_hint="LAUNCH must be $WORLD, the kit world or a world that is already installed"
+else
+  launch_hint="LAUNCH must be $WORLD or a world that is already installed"
+fi
 [ "$LAUNCH" = "$WORLD" ] || { [ -n "$KIT_WORLD" ] && [ "$LAUNCH" = "$KIT_WORLD" ]; } ||
-  [ -f "$data/worlds/$LAUNCH/world.json" ] || die "LAUNCH must be $WORLD, the kit world or a world that is already installed"
+  [ -f "$data/worlds/$LAUNCH/world.json" ] || die "$launch_hint"
 # User names: letters, digits, . _ - and inner spaces only; no space at either end (the Assistant GM trims
 # names, so "Claude " would pass here and fail after Foundry stopped).
 login_re='^[A-Za-z0-9._-]([A-Za-z0-9._ -]*[A-Za-z0-9._-])?$'
@@ -273,28 +281,37 @@ elif [ "$REPLACE_NEWER" != 0 ]; then
   warn "REPLACE_NEWER is for a Plan B push-back only; this bundle is not one, so it is ignored"
 fi
 
-# "pi-modules: a, b" in MANIFEST.txt: modules the world uses that are NOT in this bundle because the Pi has them
-# already (a second world on the campaign bundle's modules). Each must be installed on the Pi and must not also be
-# shipped, or this stage would replace the Pi's copy. Checked here, before Foundry stops.
+# "pi-modules: a@1.0.0, b@2.1" in MANIFEST.txt: modules the world uses that are NOT in this bundle because the Pi has
+# them already (a second world on the campaign bundle's modules), each with the version of the PC's copy the world
+# was checked against (an id alone, from an older push-world.ps1, records no version). Each must be installed on the
+# Pi and must not also be shipped, or this stage would replace the Pi's copy; its version is compared after
+# module_check is defined below. Checked here, before Foundry stops.
 pi_modules=()
+pi_wanted=()
 if [ -f MANIFEST.txt ] && grep -q '^pi-modules:' MANIFEST.txt; then
   pi_line="$(sed -n 's/^pi-modules: *//p' MANIFEST.txt | head -n1)"
   pi_line="${pi_line//,/ }"
-  for id in $pi_line; do
-    [[ "$id" =~ ^[A-Za-z0-9._-]+$ ]] || die "odd module id in the pi-modules: line of MANIFEST.txt: $id. Nothing was changed"
+  for tok in $pi_line; do
+    id="${tok%%@*}"
+    want=""
+    case "$tok" in *@*) want="${tok#*@}" ;; esac
+    [[ "$id" =~ ^[A-Za-z0-9._-]+$ ]] || die "odd module id in the pi-modules: line of MANIFEST.txt: $tok. Nothing was changed"
+    case "$tok" in *@*) [[ "$want" =~ ^[A-Za-z0-9._+-]+$ ]] || die "odd module version in the pi-modules: line of MANIFEST.txt: $tok. Nothing was changed" ;; esac
     [ -f "$data/modules/$id/module.json" ] || die "module $id is not installed on the Pi: install the campaign bundle first, or ship it with -Modules. Nothing was changed"
     [ ! -e "Data/modules/$id" ] || die "module $id is both in the bundle and named in pi-modules: this stage would replace the Pi's copy. Ship it or leave it on the Pi, not both. Nothing was changed"
     pi_modules+=("$id")
+    pi_wanted+=("$want")
   done
   [ "${#pi_modules[@]}" -gt 0 ] || die "MANIFEST.txt has an empty pi-modules: line. Nothing was changed"
   ok "modules already on the Pi, left as they are: ${pi_modules[*]}"
 fi
 modules=()
 for d in Data/modules/*/; do [ -d "$d" ] && modules+=("$(basename "$d")"); done
-# Modules are shared by every world. A bundle for a second world (WORLD is not what Foundry launches) that ships
-# modules would replace the campaign's copies, so it is refused unless SHIP_MODULES=1 says that is meant.
-if [ "$WORLD" != "$LAUNCH" ] && [ "${#modules[@]}" -gt 0 ] && [ "${SHIP_MODULES:-0}" != 1 ]; then
-  die "this bundle for $WORLD (Foundry launches $LAUNCH) ships modules (${modules[*]}), which would replace the Pi's copies that $LAUNCH uses. Build the bundle again with push-world.ps1 -Modules '' -PiModules <ids> (modules the Pi has already), or with the user's OK run with SHIP_MODULES=1. Nothing was changed"
+# Modules are shared by every world and the campaign bundle owns them. A bundle for a second world (WORLD is not
+# curse-of-strahd, whatever Foundry launches) that ships modules would replace the campaign's copies, so it is
+# refused unless SHIP_MODULES=1 says that is meant.
+if [ "$WORLD" != curse-of-strahd ] && [ "${#modules[@]}" -gt 0 ] && [ "${SHIP_MODULES:-0}" != 1 ]; then
+  die "this bundle for $WORLD ships modules (${modules[*]}), which would replace the Pi's copies that curse-of-strahd uses. Build the bundle again with push-world.ps1 -Modules '' -PiModules <ids> (modules the Pi has already), or with the user's OK run with SHIP_MODULES=1. Nothing was changed"
 fi
 # A push-back ships the modules Plan B restored from the Pi backup. One the Pi updated after that backup (its
 # module.json version is higher) is kept: a push-back never downgrades a module. module_check prints one line:
@@ -334,6 +351,26 @@ if (!fs.existsSync(piFile)) {
 }
 MODVER
 }
+# The pi-modules versions: the world was checked against the PC's copy, so a Pi copy that is older may lack a file
+# or compendium entry the world uses. Older is refused; versions that cannot be compared only warn (a note in the
+# MANIFEST of an older push-world.ps1 has no version at all). module_check's first file is the PC's (as a
+# one-line module.json), the second the Pi's: "keep" means the PC's version is the higher one.
+for i in "${!pi_modules[@]}"; do
+  id="${pi_modules[$i]}"
+  want="${pi_wanted[$i]}"
+  if [ -z "$want" ]; then
+    warn "module $id: MANIFEST.txt records no version, so the Pi's copy is not compared with the PC's (build the bundle again with the current push-world.ps1)"
+    continue
+  fi
+  echo '{"version":"'"$want"'"}' >"$work/pc-module.json"
+  verdict="$(module_check "$work/pc-module.json" "$data/modules/$id/module.json")" || verdict="unsure ? ?"
+  read -r what pc_version pi_version <<<"$verdict"
+  case "$what" in
+    install) ok "module $id: the Pi's copy is the PC's version $want or newer" ;;
+    keep) die "the bundle's world was checked against $id $pc_version, the Pi has $pi_version: update it on the Pi first, or ship it. Nothing was changed" ;;
+    *) warn "module $id: the versions cannot be compared (the world was checked against ${pc_version:-?}, the Pi has ${pi_version:-?}): going on" ;;
+  esac
+done
 kept_modules=()
 unsure_modules=()
 if [ "$pushback" = 1 ]; then
@@ -607,9 +644,6 @@ world_up() { curl -fs http://127.0.0.1:30000/join 2>/dev/null | grep -q 'id="joi
 running=""
 provision_world() { # $1 world id
   local id="$1" envf="$TOOL_ETC/world-$1.env" pending="$TOOL_ETC/world-$1.pending"
-  # Record success, not intent: the marker is written before the env file and removed after provisioning worked,
-  # so a failed run followed by a plain rerun provisions this world again with the same passwords.
-  (umask 077 && : >"$pending")
   if [ -f "$envf" ]; then
     ok "$envf exists"
   else
@@ -665,6 +699,11 @@ provision_world() { # $1 world id
   rm -f "$pending"
   ok "$id provisioned"
 }
+
+# Record success, not intent: the markers of every world this run provisions are written before the first one
+# starts (and before any env file) and each is removed after its own provisioning worked, so a failure on one world
+# leaves the others marked too, and a plain rerun provisions them all again with the same passwords.
+for id in "${todo[@]}"; do (umask 077 && : >"$TOOL_ETC/world-$id.pending"); done
 
 say "provisioning (the world that launches goes last)"
 ordered=()

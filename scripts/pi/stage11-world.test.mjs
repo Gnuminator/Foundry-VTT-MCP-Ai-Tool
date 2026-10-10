@@ -7,8 +7,10 @@
 // that keeps the world and changes nothing, a kept world gaining the extra GM, the refusals that must happen
 // before anything stops (a pi-modules module the Pi lacks, another extra GM in the env file, the extra GM named like the GM or the Assistant GM
 // or written with a space at its end, a missing KIT_WORLD, KIT_TITLE or LAUNCH, a KIT_WORLD that names the campaign
-// or the launched world, a second world's bundle that ships a module without SHIP_MODULES=1, a LAUNCH world that is
-// not installed), a failed provisioning followed by a plain rerun that provisions again, no password in the output,
+// or the launched world or strahd-kit, an empty LAUNCH, a bundle for any world but curse-of-strahd that ships a
+// module without SHIP_MODULES=1 while the campaign's own bundle with LAUNCH=strahd-kit does not need it, a LAUNCH world
+// that is not installed, a pi-modules module whose Pi copy is older than the PC version the bundle records), a failed provisioning followed by a plain rerun that provisions again (also for the campaign with its kit copy,
+// where every world of the run is marked), no password in the output,
 // and the old Strahd default (the kit copy reset, no extra GM). Without PI_STAGE11_CONTAINER the file skips.
 // PI_STAGE11_OUTPUT=<file> checks a saved stage11-scenarios.sh output instead of starting Docker.
 import assert from 'node:assert/strict';
@@ -246,10 +248,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
 
   test('launch-not-installed: a LAUNCH world that is not installed is refused before anything stops', () => {
     const r = run('launch-not-installed');
-    assertRefused(
-      r,
-      /LAUNCH must be frostmaiden-training, the kit world or a world that is already installed/
-    );
+    assertRefused(r, /LAUNCH must be frostmaiden-training or a world that is already installed/);
   });
 
   test('launch-omitted: another world without LAUNCH never switches the Pi to it', () => {
@@ -266,7 +265,19 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
 
   test('kit-is-launch: a kit world named like the launched world is refused', () => {
     const r = run('kit-is-launch');
-    assertRefused(r, /KIT_WORLD=strahd-kit is the world Foundry launches/);
+    assertRefused(r, /KIT_WORLD=frost-kit is the world Foundry launches/);
+    assert.match(r.output, /Nothing was changed/);
+  });
+
+  test('kit-is-strahd-kit: the campaign test copy is not a kit world for another world', () => {
+    const r = run('kit-is-strahd-kit');
+    assertRefused(r, /KIT_WORLD=strahd-kit is the campaign's test copy/);
+    assert.match(r.output, /Nothing was changed/);
+  });
+
+  test('launch-empty: LAUNCH set but empty is refused like an unset LAUNCH', () => {
+    const r = run('launch-empty');
+    assertRefused(r, /WORLD=frostmaiden-training needs LAUNCH set \(not empty\)/);
     assert.match(r.output, /Nothing was changed/);
   });
 
@@ -291,6 +302,40 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.match(r.output, /module aitool-content installed/);
     assert.deepEqual(lines(r.modules), ['aitool-content no', 'foundry-mcp-bridge no']);
     assert.equal(r.world, 'curse-of-strahd');
+  });
+
+  test('ship-campaign-launch-kit: the campaign bundle ships its modules with LAUNCH=strahd-kit', () => {
+    const r = run('ship-campaign-launch-kit');
+    assert.equal(r.exit, '0', r.output);
+    assert.doesNotMatch(r.output, /SHIP_MODULES/);
+    assert.match(r.output, /module aitool-content installed/);
+    assert.deepEqual(lines(r.modules), ['aitool-content no', 'foundry-mcp-bridge no']);
+    assert.equal(r.world, 'strahd-kit', 'Foundry starts on the test copy');
+    assert.equal(r.pending, '');
+  });
+
+  test('ship-second-launch-self: a second world that launches itself still may not ship modules', () => {
+    const r = run('ship-second-launch-self');
+    assertRefused(r, /ships modules \(aitool-content\)/);
+    assert.match(r.output, /SHIP_MODULES=1/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(lines(r.modules), ['aitool-content yes', 'foundry-mcp-bridge no']);
+  });
+
+  test('provision-fails-campaign: a failed kit provisioning leaves the swapped campaign marked too', () => {
+    const r = run('provision-fails-campaign');
+    assert.match(r.first.split('\n')[0], /^exit [1-9]/, r.first);
+    const kit =
+      'PROVISION world=strahd-kit gm=Gamemaster new_pw=true extra=- extra_pw=false assistant=Assistant GM';
+    const campaign =
+      'PROVISION world=curse-of-strahd gm=Gamemaster new_pw=true extra=- extra_pw=false assistant=Assistant GM';
+    // The kit goes first and fails; the plain rerun (REPLACE_WORLD=0) keeps the campaign but provisions both.
+    assert.deepEqual(lines(r.provision), [`${kit} FAILED`, kit, campaign]);
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /KEPT: the campaign world curse-of-strahd already exists/);
+    assert.equal(r.pending, '', 'no marker may be left after a finished run');
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.equal(r.leak, 'no');
   });
 
   test('provision-fails-then-rerun: a plain rerun after a failed provisioning provisions again', () => {
@@ -325,6 +370,41 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.deepEqual(lines(r.modules), ['aitool-content yes', 'foundry-mcp-bridge no']);
     assert.equal(r.world, 'curse-of-strahd');
     assert.equal(r.leak, 'no');
+  });
+
+  test('pi-modules-newer: a Pi copy newer than the PC version the world was checked against is fine', () => {
+    const r = run('pi-modules-newer');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(
+      r.output,
+      /module aitool-content: the Pi's copy is the PC's version 1\.1\.0 or newer/
+    );
+    assert.match(r.output, /world frostmaiden-training installed/);
+    assert.deepEqual(lines(r.modules), ['aitool-content yes', 'foundry-mcp-bridge no']);
+  });
+
+  test('pi-modules-older: a Pi copy older than the PC version is refused before anything stops', () => {
+    const r = run('pi-modules-older');
+    assertRefused(
+      r,
+      /checked against aitool-content 1\.1\.0, the Pi has 1\.0\.0: update it on the Pi first, or ship it/
+    );
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(lines(r.modules), ['aitool-content yes', 'foundry-mcp-bridge no']);
+  });
+
+  test('pi-modules-unsure: versions that cannot be compared only warn', () => {
+    const r = run('pi-modules-unsure');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /module aitool-content: the versions cannot be compared/);
+    assert.match(r.output, /world frostmaiden-training installed/);
+  });
+
+  test('pi-modules-legacy: an entry without a version (an older push-world.ps1) warns and goes on', () => {
+    const r = run('pi-modules-legacy');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /module aitool-content: MANIFEST\.txt records no version/);
+    assert.match(r.output, /world frostmaiden-training installed/);
   });
 
   test('pi-modules-missing: a pi-modules module that the Pi lacks is refused before anything stops', () => {

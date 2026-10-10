@@ -658,9 +658,12 @@ Danni's Frostmaiden training world goes in next to the campaign, while Foundry k
 (`-Modules ''` means no modules; from a shell `-Modules @()` does not work with `pwsh -File`, which drops the
 empty array. The three active modules are already on the Pi from the campaign bundle, and stage 11
 replaces the Pi's module folders with the bundle's, so shipping them again could swap out the Pi's
-own copies; `-PiModules` writes them into the bundle's `MANIFEST.txt`, and stage 11 stops before
-anything changes if one is not installed on the Pi). The command push-world prints at the end for
-this world already has the right settings. It is installed with:
+own copies; `-PiModules` writes each one with the version of the PC's copy into the bundle's
+`MANIFEST.txt` (`pi-modules: aitool-content@1.2.0, ...`), and stage 11 stops before anything changes
+if one is not installed on the Pi, or if the Pi's copy is older than the PC's: update it on the Pi
+first, or ship it. A version that cannot be compared only warns). The command push-world prints at the
+end for this world has `KIT_WORLD= LAUNCH=curse-of-strahd`; add `EXTRA_GM_USER=Claude` to it by hand
+(push-world only hints at it). The settings are:
 
 ```bash
 WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
@@ -668,12 +671,13 @@ WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claud
 
 - `LAUNCH` may name any world that is already installed, so the new world is provisioned and
   Foundry goes back to the campaign. For any `WORLD` other than `curse-of-strahd` it must be set
-  (like `KIT_WORLD`), so a forgotten `LAUNCH` can never switch the Pi to the new world. For such a
-  world `KIT_WORLD` may not be `curse-of-strahd` or the `LAUNCH` world either: every run resets the
-  kit world from the bundle.
-- A bundle for a world that is not the `LAUNCH` world and ships any module is refused before
-  anything stops, because modules are shared with the campaign: use `-PiModules` as above, or run with
-  `SHIP_MODULES=1` only when replacing the Pi's modules is meant.
+  and not empty (like `KIT_WORLD`), so a forgotten or empty `LAUNCH` can never switch the Pi to the
+  new world. For such a world `KIT_WORLD` may not be `curse-of-strahd`, `strahd-kit` (the campaign's
+  test copy) or the `LAUNCH` world either: every run resets the kit world from the bundle.
+- A bundle for any world other than `curse-of-strahd` that ships a module is refused before anything
+  stops, because the campaign owns the modules: use `-PiModules` as above, or run with
+  `SHIP_MODULES=1` only when replacing the Pi's modules is meant. The campaign's own bundle ships its
+  modules as always, also with `LAUNCH=strahd-kit`.
 - `EXTRA_GM_USER=Claude` makes a second full GM with its own generated password. Both logins are in
   `/etc/foundry-ai-tool/world-frostmaiden-training.env` (`GM_USER`, `GM_PASSWORD`, `EXTRA_GM_USER`,
   `EXTRA_GM_PASSWORD`; root only, never printed). The extra GM is added to the file once; a run
@@ -681,7 +685,8 @@ WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claud
   anything changes, and so does an extra GM named like the world's GM or the Assistant GM (case
   does not matter) or with a space at either end.
 - If provisioning fails, run the same command again: a `world-<id>.pending` marker in
-  `/etc/foundry-ai-tool/` stays until provisioning has worked, so a plain rerun provisions the kept
+  `/etc/foundry-ai-tool/` is written for every world of the run before the first is provisioned and
+  stays until that world's provisioning has worked, so a plain rerun provisions the kept
   world again with the passwords already in its file (no `REPLACE_WORLD=1` needed). On any failure
   Foundry comes back on the campaign.
 - Only the GM user is checked on the PC (push-world stops unless `Gamemaster` has no password).

@@ -10,8 +10,11 @@
   Stage 13 follows the same `KIT_WORLD` rule.
   `push-world.ps1 -PiModules` names modules the Pi already has so a second world does not ship them
   again; stage 11 refuses the bundle if one is missing on the Pi or is also in the bundle.
-  Review fixes: another `WORLD` must also set `LAUNCH`, `KIT_WORLD` may not be `curse-of-strahd`
-  or the `LAUNCH` world, a second world's bundle that ships modules needs `SHIP_MODULES=1`, an extra
-  GM name with a space at either end is refused, and a failed provisioning is retried by a plain
-  rerun (a `world-<id>.pending` marker stays until it worked). The printed push-world command for
-  another world carries `KIT_WORLD= LAUNCH=curse-of-strahd`, and `-Modules ''` means no modules.
+  Another `WORLD` must also set `LAUNCH` (not empty), `KIT_WORLD` may not be `curse-of-strahd`,
+  `strahd-kit` or the `LAUNCH` world, a bundle for any world but `curse-of-strahd` that ships modules
+  needs `SHIP_MODULES=1`, an extra GM name with a space at either end is refused, and a failed
+  provisioning is retried by a plain rerun (a `world-<id>.pending` marker is written for every world
+  of the run and stays until that world's provisioning worked). `push-world.ps1 -PiModules` records each
+  module with the PC's version (`pi-modules: id@version`), and stage 11 refuses a bundle when the Pi's
+  copy is older than that. The printed push-world command for another world carries
+  `KIT_WORLD= LAUNCH=curse-of-strahd`, and `-Modules ''` means no modules.

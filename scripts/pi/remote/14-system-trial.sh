@@ -246,7 +246,7 @@ undo_rollback() {
   fi
 }
 on_exit() {
-  rm -rf "${work:-/nonexistent-work}"
+  [ -z "$work" ] || rm -rf "${work:?}"
   [ "$stopped" = 1 ] && have_systemd || return 0
   [ -z "$undo" ] || "$undo" || warn "putting things back did not finish (see above)"
   if [ "$was_foundry" = 1 ]; then systemctl restart foundry.service || true; else systemctl stop foundry.service 2>/dev/null || true; fi

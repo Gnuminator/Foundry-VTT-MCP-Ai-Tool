@@ -16,7 +16,9 @@ import {
 } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 import {
+  INDEX_BUILDING_MESSAGE,
   INDEX_CONCURRENCY,
+  INDEX_WAIT_MS,
   ITEM_SUMMARY_FIELDS,
   SUMMARY_FIELDS_BUDGET_MS,
 } from './data-access/compendium.js';
@@ -651,6 +653,98 @@ describe('FoundryDataAccess — listCreaturesByCriteria (enhanced index matching
     expect(await names({ hasSpells: false })).not.toContain('Mage');
     expect(await names({ hasLegendaryActions: true })).toEqual(['Adult Dragon']);
     expect(await names({ size: 'medium', hasSpells: false })).toEqual(['Wolf']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listCreaturesByCriteria while the index builds (#283 review low 2)
+// ---------------------------------------------------------------------------
+
+describe('FoundryDataAccess: listCreaturesByCriteria while the creature index builds', () => {
+  const wolf = {
+    id: 'wolf',
+    name: 'Wolf',
+    type: 'npc',
+    pack: 'world.monsters',
+    packLabel: 'Monsters',
+    challengeRating: 1,
+    creatureType: 'beast',
+    size: 'med',
+  };
+
+  beforeEach(() => {
+    world.setSetting('foundry-mcp-bridge', 'enableEnhancedCreatureIndex', true);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Make the index build take as long as the test says: returns the function that ends it. */
+  function slowIndex(): (creatures: unknown[]) => void {
+    let finish: (creatures: unknown[]) => void = () => {};
+    const index = (da as any).compendium.persistentIndex;
+    vi.spyOn(index, 'getEnhancedIndex').mockImplementation(
+      () => new Promise(resolve => (finish = resolve))
+    );
+    return creatures => finish(creatures);
+  }
+
+  it('says the index is building once the wait passes, inside the 10 s bridge limit', async () => {
+    expect(INDEX_WAIT_MS).toBeLessThan(10_000);
+    slowIndex();
+    const query = da.listCreaturesByCriteria({ creatureType: 'beast' });
+    let outcome: unknown = 'pending';
+    query.then(
+      () => (outcome = 'answered'),
+      (error: Error) => (outcome = error.message)
+    );
+    await vi.advanceTimersByTimeAsync(INDEX_WAIT_MS - 1);
+    expect(outcome).toBe('pending');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(outcome).toBe(INDEX_BUILDING_MESSAGE);
+  });
+
+  it('answers from the index when the build ends within the wait', async () => {
+    const finish = slowIndex();
+    const query = da.listCreaturesByCriteria({ creatureType: 'beast' });
+    await vi.advanceTimersByTimeAsync(INDEX_WAIT_MS - 1000);
+    finish([wolf]);
+    const result = await query;
+    expect(result.creatures.map(c => c.name)).toEqual(['Wolf']);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('lets the build finish for the next query after one timed out', async () => {
+    const finish = slowIndex();
+    const first = da.listCreaturesByCriteria({}).catch((error: Error) => error.message);
+    await vi.advanceTimersByTimeAsync(INDEX_WAIT_MS);
+    expect(await first).toBe(INDEX_BUILDING_MESSAGE);
+    finish([wolf]);
+    const index = (da as any).compendium.persistentIndex;
+    vi.spyOn(index, 'getEnhancedIndex').mockResolvedValue([wolf]);
+    expect((await da.listCreaturesByCriteria({})).creatures.map(c => c.name)).toEqual(['Wolf']);
+  });
+
+  it('still falls back to the basic search when the index fails', async () => {
+    const index = (da as any).compendium.persistentIndex;
+    vi.spyOn(index, 'getEnhancedIndex').mockRejectedValue(new Error('disk full'));
+    const result = await da.listCreaturesByCriteria({});
+    expect(result.searchSummary).toMatchObject({ fallback: true, searchMethod: 'basic_fallback' });
+  });
+
+  it('search-compendium with creature filters falls back to the name search meanwhile', async () => {
+    world.addPack({
+      id: 'world.actors',
+      label: 'Monsters',
+      type: 'Actor',
+      documents: [makeActor({ id: 'w1', name: 'Dire Wolf', type: 'npc' })],
+    });
+    slowIndex();
+    const search = da.searchCompendium('wolf', 'Actor', { creatureType: 'wolf' });
+    await vi.advanceTimersByTimeAsync(INDEX_WAIT_MS);
+    expect((await search).map(r => r.name)).toEqual(['Dire Wolf']);
   });
 });
 

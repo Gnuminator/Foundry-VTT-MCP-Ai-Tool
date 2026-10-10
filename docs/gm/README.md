@@ -11,6 +11,9 @@ description: Guides for a GM running a game with Foundry AI Tool, written for so
 [before-session](before-session.md) and [after-session](after-session.md) checklists every time you
 play.
 
+**From inside Foundry:** Settings tab, **Game Settings**, category **Foundry AI Tool**, the
+**Open the GM guide** button opens these pages in a new browser tab.
+
 | Page                                                   | What it is for                                                                        |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------- |
 | [Your first hour as GM](first-hour.md)                 | A set reading order: Foundry's own guides for the basics, our pages for the tool.     |

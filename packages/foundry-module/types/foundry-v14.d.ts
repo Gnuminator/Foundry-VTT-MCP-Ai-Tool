@@ -618,19 +618,6 @@ declare global {
     };
   }
 
-  /** Application V1 base (deprecated in v14, removed in v16). */
-  class FormApplication {
-    constructor(object?: unknown, options?: Record<string, unknown>);
-    static get defaultOptions(): Record<string, unknown>;
-    readonly element: JQuery;
-    readonly options: Record<string, unknown>;
-    render(force?: boolean, options?: Record<string, unknown>): this;
-    close(options?: Record<string, unknown>): Promise<void>;
-    getData(options?: Record<string, unknown>): unknown;
-    activateListeners(html: JQuery): void;
-    protected _updateObject(event: Event, formData?: Record<string, unknown>): Promise<unknown>;
-  }
-
   /** Resolve a document by UUID (world, embedded or compendium). */
   function fromUuid(
     uuid: string,

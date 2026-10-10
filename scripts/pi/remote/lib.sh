@@ -50,7 +50,7 @@ refuse_during_system_trial() { # $1 the stage, $2... the worlds it launches (non
   local stage="$1" phase id
   shift
   [ -e "$SYSTEM_TRIAL_DIR" ] || return 0
-  phase="$(sed -n 's/^phase=//p' "$SYSTEM_TRIAL_DIR/state" 2>/dev/null | head -n1)"
+  phase="$(sed -n 's/^phase=//p' "$SYSTEM_TRIAL_DIR/state" 2>/dev/null | head -n1)" || phase=""
   [ "$phase" != switched ] || return 0
   if [ "$#" -gt 0 ]; then
     for id in "$@"; do [ "$id" = strahd-kit ] || break; done

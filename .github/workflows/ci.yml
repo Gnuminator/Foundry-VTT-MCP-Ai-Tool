@@ -95,6 +95,11 @@ jobs:
         # dry run (stand-ins for systemd) (docs/dev/PI-SETUP.md, "GM scripts").
         run: node --test scripts/pi/assistant-gm.test.mjs
 
+      - name: Pi system trial guard
+        # refuse_during_system_trial (lib.sh): stages 5-check-world, 11 and 13 refuse to launch a world while a
+        # stage 14 dnd5e trial is open, and stage 5's check world never replaces an installed dnd5e.
+        run: node --test scripts/pi/system-trial-guard.test.mjs
+
       - name: Pi stage 13 settings driver
         # player-creation-settings.mjs against a fake game: the three D-113 settings and usage-tracking off for
         # every user. The stage itself runs in a container on the ARM runner (build-test-arm).

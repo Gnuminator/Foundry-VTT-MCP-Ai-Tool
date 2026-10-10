@@ -354,7 +354,7 @@ export class ModuleSettings {
       default: true,
     });
 
-    // Internal: server time of the last creature change in an Actor pack. A saved
+    // Internal: time (Date.now()) of the last creature change in an Actor pack. A saved
     // creature index built before it is stale (see creature-index.ts).
     game.settings.register(this.moduleId, 'creatureIndexDirtyAt', {
       scope: 'world',

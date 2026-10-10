@@ -18,12 +18,6 @@ export const REBUILD_DEBOUNCE_MS = 5_000;
 /** Quiet time after the last pack change before a GM browser writes the dirty stamp. */
 export const DIRTY_STAMP_DEBOUNCE_MS = 1_000;
 
-/** Foundry's server-synced clock, so stamps from different browsers compare. */
-function serverNow(): number {
-  const serverTime = (game as { time?: { serverTime?: unknown } }).time?.serverTime;
-  return typeof serverTime === 'number' && Number.isFinite(serverTime) ? serverTime : Date.now();
-}
-
 /**
  * Whether this browser rebuilds the creature index after a pack change: the
  * bridge user's GM browser, the one bridge queries reach. With "Any GM" only the
@@ -382,17 +376,20 @@ export class PersistentCreatureIndex {
   /**
    * Mark the persisted index stale, only when the `autoRebuildIndex` setting is
    * on. Foundry's server cannot delete the file (its data route answers GET and
-   * POST only), so every GM browser writes the server time of the last change to
-   * the world setting `creatureIndexDirtyAt` instead; an index whose build
-   * started before it is stale in every browser, even when the index builder is
-   * offline. The builder's browser also rebuilds in the background.
+   * POST only), so every GM browser writes the time of the last change to the
+   * world setting `creatureIndexDirtyAt` instead; an index whose build started
+   * before it is stale in every browser, even when the index builder is offline.
+   * The builder's browser also rebuilds in the background. The time is the
+   * browser's `Date.now()`: Foundry 14's `game.time.serverTime` counts from the
+   * server start, so a stamp from before a restart would stay newer than every
+   * later build. Clock skew between browsers costs at most an extra build.
    */
   private markIndexDirty(): void {
     try {
       if (!game.settings.get(this.moduleId, 'autoRebuildIndex')) {
         return;
       }
-      this.pendingDirtyAt = serverNow();
+      this.pendingDirtyAt = Date.now();
       if (this.dirtyTimer) clearTimeout(this.dirtyTimer);
       this.dirtyTimer = setTimeout(() => {
         this.dirtyTimer = null;
@@ -468,7 +465,7 @@ export class PersistentCreatureIndex {
   private async buildDnD5eIndex(): Promise<DnD5eCreatureIndex[]> {
     const startTime = Date.now();
     // Before the first pack is read: a change after this makes the result stale.
-    const buildStartedAt = serverNow();
+    const buildStartedAt = Date.now();
     // Single rolling progress notification (replace-in-place). Held in an object
     // so its nullability isn't narrowed away by control-flow analysis.
     const notifier = {

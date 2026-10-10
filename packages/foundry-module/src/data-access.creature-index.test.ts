@@ -817,17 +817,10 @@ describe('PersistentCreatureIndex — index validity / staleness', () => {
     expect(disk.uploads.length).toBe(1);
   });
 
-  it('the build records buildStartedAt (server time at its start) in the saved metadata', async () => {
+  it('the build records buildStartedAt (Date.now() at its start, not the server uptime clock)', async () => {
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    // Foundry 14's game.time.serverTime counts from the server start: never used.
     (globalThis as any).game.time = { serverTime: 123_456 };
-    const index = new PersistentCreatureIndex();
-    await index.rebuildIndex();
-
-    expect(JSON.parse(disk.content!).metadata.buildStartedAt).toBe(123_456);
-  });
-
-  it('buildStartedAt falls back to Date.now() without a server clock', async () => {
-    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
     const before = Date.now();
     const index = new PersistentCreatureIndex();
     await index.rebuildIndex();
@@ -1071,6 +1064,7 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
 
   it('writes the creatureIndexDirtyAt stamp after the debounce when autoRebuildIndex is on', async () => {
     world.setSetting(MODULE, 'autoRebuildIndex', true);
+    // Foundry 14's game.time.serverTime counts from the server start: never used.
     (globalThis as any).game.time = { serverTime: 5_000 };
     addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
 
@@ -1078,28 +1072,17 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
     await index.getEnhancedIndex(); // persist a file (disk.content set)
     const saved = disk.content;
 
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
     fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
     await vi.advanceTimersByTimeAsync(DIRTY_STAMP_DEBOUNCE_MS - 1);
     expect(stampWrites()).toEqual([]); // still inside the debounce
 
     await vi.advanceTimersByTimeAsync(1);
-    expect(stampWrites()).toEqual([5_000]);
-    expect(settingsSet).toHaveBeenCalledWith(MODULE, 'creatureIndexDirtyAt', 5_000);
+    expect(stampWrites()).toEqual([1_700_000_000_000]);
+    expect(settingsSet).toHaveBeenCalledWith(MODULE, 'creatureIndexDirtyAt', 1_700_000_000_000);
     // The stamp is the whole invalidation: the saved file is left alone.
     expect(disk.content).toBe(saved);
-  });
-
-  it('uses Date.now() for the stamp without a server clock', async () => {
-    world.setSetting(MODULE, 'autoRebuildIndex', true);
-    const before = Date.now();
-    new PersistentCreatureIndex();
-
-    fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
-    await vi.advanceTimersByTimeAsync(DIRTY_STAMP_DEBOUNCE_MS);
-
-    const [stamp] = stampWrites() as number[];
-    expect(stamp).toBeGreaterThanOrEqual(before);
-    expect(stamp).toBeLessThanOrEqual(Date.now());
+    clock.mockRestore();
   });
 
   it('writes no stamp when autoRebuildIndex is off (default/undefined)', async () => {
@@ -1168,22 +1151,23 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
 
   it("several changes inside the debounce write one stamp, with the last change's time", async () => {
     world.setSetting(MODULE, 'autoRebuildIndex', true);
-    const game = (globalThis as any).game;
-    game.time = { serverTime: 1_000 };
+    let now = 1_000_000;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
     new PersistentCreatureIndex();
 
     fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
     await vi.advanceTimersByTimeAsync(500);
-    game.time.serverTime = 1_400;
+    now = 1_000_500;
     fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
     await vi.advanceTimersByTimeAsync(500);
-    game.time.serverTime = 1_800;
+    now = 1_001_000;
     fireHook('updateCompendium', actorPack, [{ type: 'npc' }]);
     await vi.advanceTimersByTimeAsync(DIRTY_STAMP_DEBOUNCE_MS - 1);
     expect(stampWrites()).toEqual([]); // each change restarted the quiet time
 
     await vi.advanceTimersByTimeAsync(1);
-    expect(stampWrites()).toEqual([1_800]);
+    expect(stampWrites()).toEqual([1_001_000]);
+    clock.mockRestore();
   });
 
   it('a failed stamp write only logs a warning', async () => {

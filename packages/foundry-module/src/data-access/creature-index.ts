@@ -21,14 +21,33 @@ export const DIRTY_STAMP_DEBOUNCE_MS = 1_000;
 /** After a failed build, stale reads start no new background build for this long. */
 export const BUILD_RETRY_COOLDOWN_MS = 60_000;
 
-/** Creatures loaded per `getDocuments` call during a build (the browser runs in between). */
-export const PACK_LOAD_CHUNK_SIZE = 50;
+/** Creatures in a pack's first `getDocuments` call during a build (the browser runs in between). */
+export const PACK_LOAD_CHUNK_SIZE = 25;
 
-/** `items` cut into runs of at most `size`. */
-function chunks<T>(items: readonly T[], size: number): T[][] {
-  const runs: T[][] = [];
-  for (let i = 0; i < items.length; i += size) runs.push(items.slice(i, i + size));
-  return runs;
+/** The build's progress note changes at most this often within one pack. */
+const PROGRESS_INTERVAL_MS = 1_000;
+
+/** Bounds of the adaptive chunk size (see {@link nextChunkSize}). */
+export const PACK_LOAD_MIN_CHUNK = 5;
+export const PACK_LOAD_MAX_CHUNK = 100;
+
+/** The time one chunk load aims for: about the longest freeze a build should cause. */
+export const PACK_LOAD_CHUNK_TARGET_MS = 250;
+
+/**
+ * The size of the next chunk after one of `size` creatures took `elapsedMs`:
+ * as many creatures as fit {@link PACK_LOAD_CHUNK_TARGET_MS} at the measured
+ * time per creature, at most twice the last size, within the bounds. A busy PC
+ * gets small chunks (short freezes), a quiet one big chunks (fewer round trips).
+ */
+export function nextChunkSize(size: number, elapsedMs: number): number {
+  const fit = elapsedMs > 0 ? Math.floor((PACK_LOAD_CHUNK_TARGET_MS * size) / elapsedMs) : size * 2;
+  return Math.max(PACK_LOAD_MIN_CHUNK, Math.min(PACK_LOAD_MAX_CHUNK, size * 2, fit));
+}
+
+/** Whether the page is in a hidden tab or a minimized window (nobody to keep it responsive for). */
+function pageHidden(): boolean {
+  return (globalThis as { document?: { hidden?: boolean } }).document?.hidden === true;
 }
 
 /**
@@ -625,7 +644,19 @@ export class PersistentCreatureIndex {
           }
           packFingerprints.set(pack.metadata.id, this.generatePackFingerprint(pack));
 
-          const { creatures: packCreatures, errors } = await this.extractDnD5eDataFromPack(pack);
+          // A big pack takes a while: say how far it got, at most once a second.
+          let shownAt = Date.now();
+          const { creatures: packCreatures, errors } = await this.extractDnD5eDataFromPack(
+            pack,
+            (loaded, total) => {
+              if (loaded >= total || Date.now() - shownAt < PROGRESS_INTERVAL_MS) return;
+              shownAt = Date.now();
+              notifier.show(
+                `Building creature index... pack ${i + 1}/${actorPacks.length} ` +
+                  `(${pack.metadata.label}): ${loaded}/${total} creatures loaded`
+              );
+            }
+          );
           creatures.push(...packCreatures);
           totalErrors += errors;
 
@@ -686,21 +717,32 @@ export class PersistentCreatureIndex {
 
   /**
    * Extract every creature record from one pack. The creatures listed in the
-   * pack index load {@link PACK_LOAD_CHUNK_SIZE} at a time
-   * (`getDocuments({ _id__in })`), yielding to the browser between chunks: one
-   * `getDocuments()` of a big pack builds every Actor in one go and froze the GM
-   * browser for about 10 s, so a creature query in that time timed out. A chunk
-   * that fails to load yields no creatures (and one error) so the build
-   * continues; per-document extraction failures are absorbed by
-   * {@link extractDnD5eCreatureData}.
+   * pack index load in chunks (`getDocuments({ _id__in })`), yielding to the
+   * browser between chunks: one `getDocuments()` of a big pack builds every
+   * Actor in one go and froze the GM browser for about 10 s, so a creature
+   * query in that time timed out. The first chunk holds
+   * {@link PACK_LOAD_CHUNK_SIZE} creatures, later ones {@link nextChunkSize}.
+   * In a hidden page nobody waits on the freeze, so chunks are the biggest and
+   * there is no yield (a background tab runs the yields far later: a build there
+   * took 3.7 times as long). A chunk that fails to load yields no creatures (and
+   * one error) so the build continues; per-document extraction failures are
+   * absorbed by {@link extractDnD5eCreatureData}. `onChunk` hears the creatures
+   * loaded so far after each chunk.
    */
   private async extractDnD5eDataFromPack(
-    pack: CompendiumCollection
+    pack: CompendiumCollection,
+    onChunk?: (loaded: number, total: number) => void
   ): Promise<{ creatures: DnD5eCreatureIndex[]; errors: number }> {
     const creatures: DnD5eCreatureIndex[] = [];
     let errors = 0;
+    const allIds = this.creatureIds(pack);
+    let size = PACK_LOAD_CHUNK_SIZE;
 
-    for (const ids of chunks(this.creatureIds(pack), PACK_LOAD_CHUNK_SIZE)) {
+    for (let start = 0; start < allIds.length; ) {
+      const hidden = pageHidden();
+      const ids = allIds.slice(start, start + (hidden ? PACK_LOAD_MAX_CHUNK : size));
+      start += ids.length;
+      const began = performance.now();
       try {
         const documents = (await pack.getDocuments({ _id__in: ids })) as PackCreatureDoc[];
         for (const doc of documents) {
@@ -718,7 +760,9 @@ export class PersistentCreatureIndex {
         );
         errors++;
       }
-      await yieldToBrowser();
+      if (!hidden) size = nextChunkSize(ids.length, performance.now() - began);
+      onChunk?.(start, allIds.length);
+      if (!pageHidden()) await yieldToBrowser();
     }
 
     return { creatures, errors };

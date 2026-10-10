@@ -45,7 +45,11 @@ import {
 import {
   BUILD_RETRY_COOLDOWN_MS,
   DIRTY_STAMP_DEBOUNCE_MS,
+  nextChunkSize,
   PACK_LOAD_CHUNK_SIZE,
+  PACK_LOAD_CHUNK_TARGET_MS,
+  PACK_LOAD_MAX_CHUNK,
+  PACK_LOAD_MIN_CHUNK,
   PersistentCreatureIndex,
 } from './data-access/creature-index.js';
 
@@ -542,16 +546,138 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
     );
     const cart = makeActor({ id: 'v1', name: 'Cart', type: 'vehicle' });
     const pack = addMonsterPack([...monsters, cart]);
-    const getDocuments = vi.spyOn(pack, 'getDocuments');
+    // Each creature takes 10 ms to load: a chunk of 25 meets the 250 ms target.
+    let clock = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    const load = pack.getDocuments;
+    const getDocuments = vi.fn(async (query: { _id__in: string[] }): Promise<unknown> => {
+      clock += 10 * query._id__in.length;
+      return load(query);
+    });
+    pack.getDocuments = getDocuments;
 
     const creatures = await new PersistentCreatureIndex().rebuildIndex();
 
     expect(creatures).toHaveLength(120);
-    const queries = getDocuments.mock.calls.map(c => (c[0] as { _id__in: string[] })._id__in);
-    expect(PACK_LOAD_CHUNK_SIZE).toBe(50);
-    expect(queries.map(ids => ids.length)).toEqual([50, 50, 20]);
+    const queries = getDocuments.mock.calls.map(c => c[0]._id__in);
+    expect(PACK_LOAD_CHUNK_SIZE).toBe(25);
+    expect(PACK_LOAD_CHUNK_TARGET_MS).toBe(250);
+    expect(queries.map(ids => ids.length)).toEqual([25, 25, 25, 25, 20]);
+    expect(new Set(queries.flat()).size).toBe(120);
     // The pack index says the cart is no creature: it is never loaded.
     expect(queries.flat()).not.toContain('v1');
+  });
+
+  it('chunks grow on a fast PC and shrink on a slow one', async () => {
+    const pack = addMonsterPack(
+      Array.from({ length: 300 }, (_, i) =>
+        makeActor({ id: `m${i}`, name: `Monster ${i}`, type: 'npc' })
+      )
+    );
+    let clock = 0;
+    let msPerCreature = 1;
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    const load = pack.getDocuments;
+    const sizes: number[] = [];
+    pack.getDocuments = async (query: { _id__in: string[] }): Promise<unknown> => {
+      sizes.push(query._id__in.length);
+      // The PC gets busy from the fourth chunk on.
+      if (sizes.length === 4) msPerCreature = 50;
+      clock += msPerCreature * query._id__in.length;
+      return load(query);
+    };
+
+    await new PersistentCreatureIndex().rebuildIndex();
+
+    // 25, doubling up to the maximum at 1 ms each; 100 at 50 ms each took 5 s,
+    // so the rest goes in the smallest chunks (5 at 50 ms is the 250 ms target).
+    expect(sizes).toEqual([
+      25,
+      50,
+      PACK_LOAD_MAX_CHUNK,
+      100,
+      ...Array(5).fill(PACK_LOAD_MIN_CHUNK),
+    ]);
+  });
+
+  it('yields to the browser after every chunk', async () => {
+    const pack = addMonsterPack(
+      Array.from({ length: 60 }, (_, i) =>
+        makeActor({ id: `m${i}`, name: `Monster ${i}`, type: 'npc' })
+      )
+    );
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    const order: string[] = [];
+    const load = pack.getDocuments;
+    pack.getDocuments = async (query: unknown): Promise<unknown> => {
+      order.push('load');
+      return load(query);
+    };
+    const g = globalThis as { scheduler?: unknown };
+    g.scheduler = { yield: async (): Promise<void> => void order.push('yield') };
+    try {
+      await new PersistentCreatureIndex().rebuildIndex();
+    } finally {
+      delete g.scheduler;
+    }
+
+    // 25, then the 35 left (no time passes, so the chunk size doubles).
+    expect(order).toEqual(['load', 'yield', 'load', 'yield']);
+  });
+
+  it('in a hidden page, loads the biggest chunks and does not yield', async () => {
+    const pack = addMonsterPack(
+      Array.from({ length: 120 }, (_, i) =>
+        makeActor({ id: `m${i}`, name: `Monster ${i}`, type: 'npc' })
+      )
+    );
+    const getDocuments = vi.spyOn(pack, 'getDocuments');
+    const yields = vi.fn(async (): Promise<void> => undefined);
+    const g = globalThis as { scheduler?: unknown; document?: unknown };
+    g.scheduler = { yield: yields };
+    g.document = { hidden: true };
+    try {
+      expect(await new PersistentCreatureIndex().rebuildIndex()).toHaveLength(120);
+    } finally {
+      delete g.scheduler;
+      delete g.document;
+    }
+
+    const sizes = getDocuments.mock.calls.map(c => (c[0] as { _id__in: string[] })._id__in.length);
+    expect(sizes).toEqual([PACK_LOAD_MAX_CHUNK, 20]);
+    expect(yields).not.toHaveBeenCalled();
+  });
+
+  it('shows progress within a big pack, at most once a second', async () => {
+    const pack = addMonsterPack(
+      Array.from({ length: 120 }, (_, i) =>
+        makeActor({ id: `m${i}`, name: `Monster ${i}`, type: 'npc' })
+      )
+    );
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const load = pack.getDocuments;
+      let calls = 0;
+      pack.getDocuments = async (query: unknown): Promise<unknown> => {
+        // The first two chunks take 0.6 s each, the third 1.5 s.
+        vi.setSystemTime(Date.now() + (++calls === 3 ? 1_500 : 600));
+        return load(query);
+      };
+
+      await new PersistentCreatureIndex().rebuildIndex();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const progress = world.notifications
+      .map(n => n.message)
+      .filter(m => m.includes('creatures loaded'));
+    // Chunks of 25, 50 and 45: 75 loaded after 1.2 s; the last chunk ends the
+    // pack (the per-pack note follows).
+    expect(progress).toEqual([
+      'Building creature index... pack 1/1 (Monsters): 75/120 creatures loaded',
+    ]);
   });
 
   it('a chunk that fails to load drops only its own creatures', async () => {
@@ -560,6 +686,8 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
         makeActor({ id: `m${i}`, name: `Monster ${i}`, type: 'npc' })
       )
     );
+    // No time passes: chunks of 25, 50 and 45.
+    vi.spyOn(performance, 'now').mockReturnValue(0);
     const load = pack.getDocuments;
     let calls = 0;
     pack.getDocuments = async (query: unknown): Promise<unknown> => {
@@ -573,6 +701,15 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
     expect(calls).toBe(3);
     expect(creatures).toHaveLength(70);
     expect(creatures.map(c => c.name)).not.toContain('Monster 50');
+  });
+
+  it('nextChunkSize fits the target time, grows at most twofold, within the bounds', () => {
+    expect(nextChunkSize(25, 250)).toBe(25);
+    expect(nextChunkSize(25, 500)).toBe(12);
+    expect(nextChunkSize(25, 100)).toBe(50);
+    expect(nextChunkSize(25, 0)).toBe(50);
+    expect(nextChunkSize(80, 10)).toBe(PACK_LOAD_MAX_CHUNK);
+    expect(nextChunkSize(25, 60_000)).toBe(PACK_LOAD_MIN_CHUNK);
   });
 
   it('calls getIndex when a pack is not yet indexed', async () => {

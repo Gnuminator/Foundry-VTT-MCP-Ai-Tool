@@ -121,3 +121,22 @@ main.moment-views #moment-during.during-no-bar {
 .not-here-yet-text a {
   color: var(--accent-bright);
 }
+
+/* The fold button first in a During card's head (Folds.tsx): the title stays on the left, next to
+   the button, and the head's other items (the count, the actions) stay at the right. */
+#moment-during .pane-head > .fold-btn + * {
+  margin-right: auto;
+}
+
+/* Text for screen readers only: in the page, not on screen. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

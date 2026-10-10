@@ -3,7 +3,7 @@
 // has the same bones. It renders the old page's class names (.pane / .drawer, .pane-head /
 // .drawer-head, .pane-title, .pane-meta, .pane-body / .tarokka-body), which styles.css and
 // moments.css still style; only the foot and the state blocks are new.
-import type { ComponentProps, ElementType, JSX, ReactNode } from 'react';
+import type { ComponentProps, ElementType, JSX, MouseEventHandler, ReactNode } from 'react';
 
 import { HelpButton } from '../components/HelpButton';
 
@@ -52,6 +52,15 @@ interface PanelProps extends Omit<ComponentProps<'section'>, 'title'> {
   /** An error block's "Try again". */
   onRetry?: (() => void) | undefined;
   bodyClassName?: string | undefined;
+  /** Before everything in the head: the fold button of a During card (components/Folds.tsx). */
+  headStart?: ReactNode;
+  /** Gives the body an id, for the fold button's aria-controls. */
+  bodyId?: string | undefined;
+  /**
+   * A click on the title text itself (not the "?"), for a folded During card: a pointer shortcut
+   * to open it. The title is not focusable, so the fold button is the keyboard path.
+   */
+  onTitleClick?: MouseEventHandler<HTMLHeadingElement> | undefined;
 }
 
 /** The block for a state other than `ready`. */
@@ -93,12 +102,20 @@ export function Panel({
   stateMessage,
   onRetry,
   bodyClassName,
+  headStart,
+  bodyId,
+  onTitleClick,
   className,
   children,
   ...rest
 }: PanelProps): JSX.Element {
   const drawer = variant === 'drawer';
-  const heading = <h2 {...(titleId ? { id: titleId } : {})}>{title}</h2>;
+  // A pointer shortcut only: the title is no control, the fold button is.
+  const heading = (
+    <h2 {...(titleId ? { id: titleId } : {})} {...(onTitleClick ? { onClick: onTitleClick } : {})}>
+      {title}
+    </h2>
+  );
   const titleRow = (
     <div className="pane-title">
       {wrapTitle ? wrapTitle(heading) : heading}
@@ -114,6 +131,7 @@ export function Panel({
       {...rest}
     >
       <div className={drawer ? 'drawer-head' : 'pane-head'}>
+        {headStart}
         {drawer ? (
           <div>
             {titleRow}
@@ -126,7 +144,10 @@ export function Panel({
         {actions}
       </div>
       {lead}
-      <div className={cx(drawer ? 'tarokka-body' : 'pane-body', bodyClassName)}>
+      <div
+        className={cx(drawer ? 'tarokka-body' : 'pane-body', bodyClassName)}
+        {...(bodyId ? { id: bodyId } : {})}
+      >
         {showing ? (
           <StateBlock
             state={showing}

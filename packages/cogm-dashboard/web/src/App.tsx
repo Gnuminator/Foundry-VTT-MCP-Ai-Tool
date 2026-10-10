@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState, type JSX, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 
 import { AdvancedItem, AdvancedLabel, AdvancedMenu } from './components/AdvancedMenu';
 import { ConfirmProvider } from './components/ConfirmDialog';
@@ -17,6 +18,7 @@ import {
   raiseDrawer,
   showDocked,
 } from './components/Drawer';
+import { FoldScope } from './components/Folds';
 import { HelpProvider } from './components/Help';
 import { useHelp } from './components/HelpButton';
 import {
@@ -140,6 +142,9 @@ function Dashboard(): JSX.Element {
   // takes the focus (the menu keeps its own close from moving it, and nothing opens to take it).
   // A docked one is already on screen: it scrolls into view and takes the focus instead.
   const openDrawer = (name: DrawerName): void => {
+    // A folded During card opens first (and shows its body) so there is something to focus.
+    if (moment === 'during' && (name === 'party' || name === 'handouts') && docked(name))
+      flushSync(() => during.folds.open(name));
     if (showDocked(DRAWER_IDS[name])) return;
     setDrawer(name, true);
     raiseDrawer(DRAWER_IDS[name]);
@@ -148,7 +153,15 @@ function Dashboard(): JSX.Element {
   // A panel's `open`: docked counts as open, so it loads and counts its view while on screen.
   const shown = (name: DrawerName): boolean => drawers[name] || docked(name);
   const dock = (name: DockName, panel: ReactNode): JSX.Element => (
-    <DockContext.Provider value={dockOf(name)}>{panel}</DockContext.Provider>
+    <DockContext.Provider value={dockOf(name)}>
+      {name === 'party' || name === 'handouts' ? (
+        <FoldScope card={name} folds={during.folds} active={moment === 'during'}>
+          {panel}
+        </FoldScope>
+      ) : (
+        panel
+      )}
+    </DockContext.Provider>
   );
   const openHelp = useHelp();
   const [linksOpen, setLinksOpen] = useState(false);
@@ -305,6 +318,7 @@ function Dashboard(): JSX.Element {
         slotRefs={slotRefs}
         duringScreen={during.screen}
         duringBar={<DuringBar during={during} />}
+        duringFolds={during.folds}
         beforeTop={<LayoutTrialCard during={during} />}
       />
       <LayoutTourGuide during={during} />

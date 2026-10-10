@@ -14,8 +14,11 @@ import {
   type ReactNode,
 } from 'react';
 
+import { FOLD_IDS, foldBodyId, type FoldCard } from '../lib/duringFolds';
 import type { DuringScreen } from '../lib/duringTrial';
 import { usePlaySession, type PlaySession } from '../lib/session';
+
+import { FoldButton, type DuringFolds } from './Folds';
 
 export type Moment = 'before' | 'during' | 'after';
 export type DockName = 'preflight' | 'prep' | 'party' | 'handouts';
@@ -173,17 +176,38 @@ export function MomentTabs({
   );
 }
 
-/** A slot whose panel is not in the new dashboard yet. */
-function NotHereYet({ title, wide = false }: { title: string; wide?: boolean }): JSX.Element {
+/**
+ * A slot whose panel is not in the new dashboard yet. In During, the Live Feed and Recent Changes
+ * placeholders are fold cards already, so the layout and the folds work around them.
+ */
+function NotHereYet({
+  title,
+  wide = false,
+  fold,
+}: {
+  title: string;
+  wide?: boolean;
+  fold?: { card: FoldCard; folds: DuringFolds };
+}): JSX.Element {
+  const folded = fold?.folds.isFolded(fold.card) === true;
+  const classes = ['pane', 'not-here-yet'];
+  if (wide) classes.push('not-here-yet-wide');
+  if (folded) classes.push('is-folded');
   return (
     <section
-      className={wide ? 'pane not-here-yet not-here-yet-wide' : 'pane not-here-yet'}
+      className={classes.join(' ')}
       aria-label={title}
+      {...(fold ? { id: FOLD_IDS[fold.card] } : {})}
     >
       <div className="pane-head">
-        <h2>{title}</h2>
+        {fold && <FoldButton card={fold.card} folds={fold.folds} />}
+        {/* A click on a folded card's title opens it: a pointer shortcut, the button is the
+            keyboard path. */}
+        <h2 {...(fold && folded ? { onClick: () => fold.folds.toggle(fold.card) } : {})}>
+          {title}
+        </h2>
       </div>
-      <p className="not-here-yet-text">
+      <p className="not-here-yet-text" {...(fold ? { id: foldBodyId(fold.card) } : {})}>
         Not in the new dashboard yet. It is on the <a href="/">full dashboard</a>.
       </p>
     </section>
@@ -199,6 +223,7 @@ export function MomentViews({
   slotRefs,
   duringScreen,
   duringBar,
+  duringFolds,
   beforeTop,
 }: {
   moment: Moment | null;
@@ -207,6 +232,11 @@ export function MomentViews({
   duringScreen?: DuringScreen;
   /** The During bar (components/During.tsx), the first row of the During view. */
   duringBar?: ReactNode;
+  /**
+   * The folds of the During cards (components/Folds.tsx). The Live Feed and Recent Changes get a
+   * fold button when given; Handouts and Party fold through FoldScope where they dock.
+   */
+  duringFolds?: DuringFolds;
   /** The layout trial's card, the first thing in Before. */
   beforeTop?: ReactNode;
 }): JSX.Element {
@@ -225,7 +255,7 @@ export function MomentViews({
         <div className="slot" data-slot="prep" ref={slotRefs['before-prep']} />
         <NotHereYet title="Features" wide />
       </section>
-      {/* The folds and the turn strip's rows come with their own panels. */}
+      {/* The turn strip's rows come with their own panel. */}
       <section
         className={duringBar ? 'moment' : 'moment during-no-bar'}
         id="moment-during"
@@ -239,10 +269,16 @@ export function MomentViews({
         {duringBar}
         <div className="slot slot-strip" data-slot="strip" />
         <div className="slot slot-feed" data-slot="feed">
-          <NotHereYet title="Live Feed" />
+          <NotHereYet
+            title="Live Feed"
+            {...(duringFolds ? { fold: { card: 'feed', folds: duringFolds } } : {})}
+          />
         </div>
         <div className="slot slot-changes" data-slot="changes">
-          <NotHereYet title="Recent Changes" />
+          <NotHereYet
+            title="Recent Changes"
+            {...(duringFolds ? { fold: { card: 'changes', folds: duringFolds } } : {})}
+          />
         </div>
         <div
           className="slot slot-handouts"

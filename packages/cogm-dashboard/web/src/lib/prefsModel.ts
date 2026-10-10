@@ -61,6 +61,26 @@ export function applyPrefsChange(prefs: DuringPrefs, change: PrefsChange): Durin
   return { ...prefs, ...fields };
 }
 
+/**
+ * The prefs after a change that was not saved, put back: only the fields of that change, and only
+ * those still showing the change (a newer save that touched the field, or an answer from the
+ * server, already decided it). Everything else stays as it is now, so a failed save never undoes
+ * a newer successful one. `before` is what the page showed before the change.
+ */
+export function rollBackChange(
+  current: DuringPrefs,
+  before: DuringPrefs,
+  change: PrefsChange
+): DuringPrefs {
+  const applied = applyPrefsChange(before, change);
+  const back: DuringPrefs = { ...current };
+  for (const key of Object.keys(change) as (keyof PrefsChange)[]) {
+    if (key === 'hintSession') continue;
+    if (current[key] === applied[key]) Object.assign(back, { [key]: before[key] });
+  }
+  return back;
+}
+
 /** The key that counts a session for the hint: its start time, or null without an open session. */
 export function hintSessionKey(session: {
   open: boolean;

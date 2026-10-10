@@ -56,10 +56,13 @@ async function setup(
     open = true,
     events = [],
     answer,
+    lateAnswer,
   }: {
     open?: boolean;
     events?: Event[];
     answer?: (change: Change) => Promise<{ status: number; error: string } | undefined>;
+    /** Holds the answer back after the change was taken (a slow reply). */
+    lateAnswer?: (change: Change) => Promise<void> | undefined;
   } = {}
 ): Promise<Fakes> {
   await fakeCommonRoutes(page);
@@ -136,7 +139,9 @@ async function setup(
       ...fields,
       hintSessions: hintSession ? [...stored.hintSessions, hintSession] : stored.hintSessions,
     };
-    return route.fulfill({ json: stored });
+    const answered = stored;
+    await lateAnswer?.(body.value);
+    return route.fulfill({ json: answered });
   });
   return { changes, push: release };
 }
@@ -644,5 +649,169 @@ test.describe('the Advanced menu', () => {
     await page.locator('#btn-advanced').press('Enter');
     await expect(page.locator('#btn-combat-buttons')).toBeDisabled();
     await expect(page.locator('#btn-layout-tour')).toBeEnabled();
+  });
+});
+
+test.describe('overlapping saves', () => {
+  test('a failed older save does not undo a newer one that was saved', async ({ page }) => {
+    let failFirst: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (failFirst = resolve));
+    const { changes } = await setup(page, {
+      events: [picked()],
+      answer: async change => {
+        if (change['duringLayout'] !== 'auto') return undefined;
+        await held;
+        return { status: 500, error: 'disk full' };
+      },
+    });
+    await load(page);
+    // The first save (Auto) is on its way and shown at once.
+    await layoutButton(page, 'Auto').click();
+    await expect(during(page)).toHaveAttribute('data-layout', 'auto');
+    // A second one (Combat buttons on) is saved while the first is still out.
+    await page.locator('#btn-advanced').click();
+    await page.locator('#btn-combat-buttons').click();
+    await expect(
+      toast(page, '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.')
+    ).toBeVisible();
+
+    // Now the first one fails: its own field goes back, the second one stays.
+    failFirst();
+    await expect(toast(page, '✗ Could not save the screen choice: disk full')).toBeVisible();
+    await expect(during(page)).toHaveAttribute('data-layout', 'layered');
+    await expect(layoutButton(page, 'Cards')).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('#btn-advanced').click();
+    await expect(page.locator('#btn-combat-buttons')).toHaveText('⚔ Combat buttons: on');
+    expect(changes).toEqual([
+      { duringLayout: 'auto', layoutPicked: true },
+      { combatButtons: true },
+    ]);
+  });
+
+  test('an older answer that arrives late does not overwrite a newer change', async ({ page }) => {
+    let answerFirst: () => void = () => undefined;
+    const held = new Promise<void>(resolve => (answerFirst = resolve));
+    await setup(page, {
+      events: [picked()],
+      lateAnswer: async change => {
+        if (change['duringLayout'] === 'auto') await held;
+      },
+    });
+    await load(page);
+    await layoutButton(page, 'Auto').click();
+    await page.locator('#btn-advanced').click();
+    await page.locator('#btn-combat-buttons').click();
+    await expect(
+      toast(page, '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.')
+    ).toBeVisible();
+    await expect(during(page)).toHaveAttribute('data-layout', 'auto');
+
+    // The first answer (Auto, Combat buttons still off) comes in after the second one.
+    answerFirst();
+    await page.waitForTimeout(300);
+    await expect(during(page)).toHaveAttribute('data-layout', 'auto');
+    await page.locator('#btn-advanced').click();
+    await expect(page.locator('#btn-combat-buttons')).toHaveText('⚔ Combat buttons: on');
+  });
+});
+
+test.describe('the trial and assistive technology', () => {
+  test('the step is announced from a live region that is always in the page', async ({ page }) => {
+    await setup(page, { open: false, events: [prefs()] });
+    await load(page);
+    const live = page.locator('#layout-tour-live');
+    await expect(live).toBeAttached();
+    await expect(live).toHaveAttribute('aria-live', 'polite');
+    await expect(live).toHaveText('');
+    // The visible step line is not a second live region.
+    await expect(page.locator('#layout-tour-step')).not.toHaveAttribute('aria-live', /.*/);
+
+    await page.locator('#btn-layout-trial').click();
+    await expect(live).toHaveText('Layout 1 of 3: Cards');
+    await page.locator('#layout-tour-next').click();
+    await expect(live).toHaveText('Layout 2 of 3: Simple/Full');
+    await page.locator('#layout-tour-stop').click();
+    await expect(live).toHaveText('');
+  });
+
+  test('Use this one hands the focus to the layout button it kept', async ({ page }) => {
+    await setup(page, { events: [picked()] });
+    await load(page);
+    await fromMenu(page, 'btn-layout-tour');
+    await page.locator('#layout-tour-next').click();
+    await page.locator('#layout-tour-next').click();
+    await page.locator('#layout-tour-use').click();
+    await expect(guide(page)).toBeHidden();
+    await expect(layoutButton(page, 'Auto')).toBeFocused();
+  });
+
+  test('Stop hands the focus to the saved layout button', async ({ page }) => {
+    await setup(page, { events: [picked({ duringLayout: 'toggle' })] });
+    await load(page);
+    await fromMenu(page, 'btn-layout-tour');
+    await page.locator('#layout-tour-stop').click();
+    await expect(guide(page)).toBeHidden();
+    await expect(layoutButton(page, 'Simple/Full')).toBeFocused();
+  });
+
+  test('with the During screen away, the focus goes to the Advanced button', async ({ page }) => {
+    await setup(page, { open: false, events: [picked()] });
+    await load(page);
+    await fromMenu(page, 'btn-layout-tour');
+    await expect(guide(page)).toBeVisible();
+    await page.locator('#tab-before').click();
+    await page.locator('#layout-tour-stop').click();
+    await expect(guide(page)).toBeHidden();
+    await expect(page.locator('#btn-advanced')).toBeFocused();
+  });
+
+  test('the reason the buttons are off is their description, not only a title', async ({
+    page,
+  }) => {
+    const { push } = await setup(page, { events: [] });
+    await load(page);
+    await expect(layoutButton(page, 'Auto')).toBeDisabled();
+    await expect(layoutButton(page, 'Auto')).toHaveAccessibleDescription(/not told the dashboard/);
+    await expect(page.locator('#during-not-ready')).toHaveText(/not told the dashboard/);
+
+    push([prefs({ layoutPicked: true })]);
+    await expect(layoutButton(page, 'Auto')).toBeEnabled();
+    await expect(layoutButton(page, 'Auto')).not.toHaveAttribute('aria-describedby', /.*/);
+    await expect(page.locator('#during-not-ready')).toHaveCount(0);
+  });
+
+  test('the Use button and Combat buttons say why they are off too', async ({ page }) => {
+    await setup(page, { events: [] });
+    await load(page);
+    await fromMenu(page, 'btn-layout-tour');
+    await expect(page.locator('#layout-tour-use')).toBeDisabled();
+    await expect(page.locator('#layout-tour-use')).toHaveAccessibleDescription(
+      /not told the dashboard/
+    );
+    await page.locator('#btn-advanced').click();
+    await expect(page.locator('#btn-combat-buttons')).toHaveAccessibleDescription(
+      /not told the dashboard/
+    );
+  });
+});
+
+test.describe('Escape and popups', () => {
+  test('an open tooltip takes the Escape; the trial goes on, and the next Escape ends it', async ({
+    page,
+  }) => {
+    await setup(page, { events: [picked()] });
+    await load(page);
+    await fromMenu(page, 'btn-layout-tour');
+    await expect(guide(page)).toBeVisible();
+
+    // The help "?" has a tooltip; it is open while the pointer rests on it.
+    await page.getByRole('button', { name: 'Help for the During layouts' }).hover();
+    await expect(page.getByRole('tooltip').first()).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('tooltip')).toHaveCount(0);
+    await expect(guide(page)).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(guide(page)).toBeHidden();
   });
 });

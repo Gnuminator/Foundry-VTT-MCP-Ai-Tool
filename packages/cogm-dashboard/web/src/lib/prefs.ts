@@ -7,7 +7,13 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { useCallback } from 'react';
 
 import { api, errorText } from './api';
-import { applyPrefsChange, readPrefs, type DuringPrefs, type PrefsChange } from './prefsModel';
+import {
+  applyPrefsChange,
+  readPrefs,
+  rollBackChange,
+  type DuringPrefs,
+  type PrefsChange,
+} from './prefsModel';
 
 export const PREFS_KEY = ['stream', 'prefs'] as const;
 
@@ -35,9 +41,17 @@ export interface SavePrefsOptions {
 }
 
 /**
+ * Each save gets a number; only the newest save's answer is written to the page. An older answer
+ * arriving after a newer change would put the screen back to an older state until the newer
+ * answer landed (the server's last answer holds every change it took, so the newest says it all).
+ */
+let latestSave = 0;
+
+/**
  * Saves a screen choice for this world. The page shows it at once; the server's answer confirms
- * it. When it is not saved (no world yet, the server is away) the page goes back to what is
- * stored and says so, unless the change is quiet. Resolves to whether it was saved.
+ * it. When it is not saved (no world yet, the server is away) the fields of that change go back
+ * to what they were, unless something newer already changed them, and the page says so, unless
+ * the change is quiet. Resolves to whether it was saved.
  */
 export function useSavePrefs(
   toast: (text: string, kind: 'err') => void
@@ -45,8 +59,10 @@ export function useSavePrefs(
   const queryClient = useQueryClient();
   return useCallback(
     async (change, { quiet = false } = {}) => {
+      const save = ++latestSave;
       const before = queryClient.getQueryData<DuringPrefs>(PREFS_KEY);
-      if (before && Object.keys(change).some(k => k !== 'hintSession')) {
+      const optimistic = before !== undefined && Object.keys(change).some(k => k !== 'hintSession');
+      if (before && optimistic) {
         queryClient.setQueryData<DuringPrefs>(PREFS_KEY, applyPrefsChange(before, change));
       }
       try {
@@ -54,10 +70,15 @@ export function useSavePrefs(
           method: 'POST',
           body: JSON.stringify({ action: 'set-prefs', value: change }),
         });
-        queryClient.setQueryData<DuringPrefs>(PREFS_KEY, readPrefs(answer));
+        if (save === latestSave) {
+          queryClient.setQueryData<DuringPrefs>(PREFS_KEY, readPrefs(answer));
+        }
         return true;
       } catch (err) {
-        if (before) queryClient.setQueryData<DuringPrefs>(PREFS_KEY, before);
+        const current = queryClient.getQueryData<DuringPrefs>(PREFS_KEY);
+        if (before && current && optimistic) {
+          queryClient.setQueryData<DuringPrefs>(PREFS_KEY, rollBackChange(current, before, change));
+        }
         if (!quiet) toast(`✗ Could not save the screen choice: ${errorText(err)}`, 'err');
         return false;
       }

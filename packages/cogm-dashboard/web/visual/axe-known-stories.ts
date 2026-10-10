@@ -96,6 +96,11 @@ export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
     target: '.death-saves',
     reason: 'Danger red #e63946 on the panel #1d212b is 3.86:1 (needs 4.5:1), neutral theme.',
     stories: [
+      'components-during-folds--auto-in-combat',
+      'components-during-folds--auto-in-combat-open-feed',
+      'components-during-folds--cards-open-party',
+      'components-during-folds--cards-phone-open-party',
+      'components-during-folds--full-everything-open',
       'components-during-layouts--page-auto-in-combat',
       'components-during-layouts--page-auto-in-combat-phone',
       'components-during-layouts--page-full',

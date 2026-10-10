@@ -13,7 +13,9 @@ import {
 import { createPortal } from 'react-dom';
 
 import { closeTopPanel, raisePanel, useEscapeClose } from '../lib/escape';
-import { IconButton, Panel, type PanelState } from '../ui';
+import { cx, IconButton, Panel, type PanelState } from '../ui';
+
+import { useCardFold } from './Folds';
 
 // Every drawer sits in the same place, so without help the one later in the page covers the
 // others: the GM Actions gate would open Pre-flight under the drawer that asked for it. The drawer
@@ -162,6 +164,9 @@ export function Drawer({
   children,
 }: DrawerProps): JSX.Element {
   const dockSlot = useContext(DockContext);
+  // In During a docked drawer is a fold card (Folds.tsx): a button first in the head, and a
+  // folded one shows only its head. The body stays mounted, so the data stays.
+  const fold = useCardFold();
   const slot = open ? dockSlot : null;
   const host = useDockHost(slot);
   const floating = open && !dockSlot;
@@ -195,10 +200,17 @@ export function Drawer({
       <Panel
         {...shell}
         titleId={`${id}-title`}
-        className="docked"
+        className={cx('docked', fold?.folded && 'is-folded')}
         role="region"
         aria-labelledby={`${id}-title`}
         tabIndex={-1}
+        {...(fold
+          ? {
+              headStart: fold.button,
+              bodyId: `${id}-body`,
+              onTitleClick: fold.folded ? fold.toggle : undefined,
+            }
+          : {})}
       >
         {children}
       </Panel>,

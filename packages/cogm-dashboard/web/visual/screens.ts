@@ -44,7 +44,15 @@ export const SCREENS: Screen[] = [
     name: 'during',
     moment: 'during',
     fullPage: true,
-    show: inPage('during', 'Brenna', 'Torn ledger page'),
+    // Cards starts with Handouts and Party folded: the shot opens Handouts (Party stays folded,
+    // as it does for a GM on a wide screen) and shows both heads.
+    show: async (page): Promise<void> => {
+      await page.locator('[data-fold="handouts"]').click();
+      await inPage('during', 'Torn ledger page')(page);
+      await expect(
+        page.locator('#party-drawer').getByRole('heading', { name: /Party/ })
+      ).toBeVisible();
+    },
   },
   {
     name: 'after',

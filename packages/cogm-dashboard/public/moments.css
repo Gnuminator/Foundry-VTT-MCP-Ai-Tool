@@ -208,7 +208,8 @@
   overflow-y: auto;
 }
 
-/* ---- Folded cards (During only): the head stays, with its count; a click opens it ---- */
+/* ---- Folded cards (During only): the head stays with its title and fold button; the rest is
+   hidden; a click on the title text or the button opens it ---- */
 .fold-btn {
   display: none;
 }

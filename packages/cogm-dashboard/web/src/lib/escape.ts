@@ -36,6 +36,15 @@ export function hasOpenPanel(): boolean {
   return panels.length > 0;
 }
 
+/**
+ * Whether a Radix popup (a Popover, Tooltip or Select) is open: they are not panels listed here,
+ * but each lives in a popper wrapper while it is open. Escape closes the popup first and leaves
+ * what is behind it alone (the layout trial, for one).
+ */
+export function hasOpenPopper(): boolean {
+  return document.querySelector('[data-radix-popper-content-wrapper]') !== null;
+}
+
 /** Closes the newest open panel, as Escape would without a toast; false when none is open. */
 export function closeTopPanel(): boolean {
   const top = panels.at(-1);

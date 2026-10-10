@@ -128,7 +128,7 @@ interface DrawerProps {
 export function DrawerClose(props: ComponentProps<'button'>): JSX.Element {
   return (
     <Dialog.Close asChild>
-      <IconButton label="Close" {...props}>
+      <IconButton label="Close" tip="Close (Esc)" {...props}>
         ✕
       </IconButton>
     </Dialog.Close>

@@ -40,17 +40,20 @@ export function Button({
 interface IconButtonProps extends Omit<ComponentProps<'button'>, 'aria-label'> {
   /** The accessible name; an icon has no text of its own. */
   label: string;
-  /** What the tooltip says; the label by default. The accessible name stays the label. */
-  tip?: string;
+  /**
+   * What the tooltip says. Radix reads it as the button's description, so it must add to the
+   * label, not repeat it ("Close (Esc)" on a button named "Close"). The name stays the label.
+   */
+  tip: string;
 }
 
 /**
  * A square icon button (`.icon-btn`): the drawer's close, for one. It has a Tooltip (so no native
- * `title`); the `aria-label` is the accessible name.
+ * `title`); the `aria-label` is the accessible name and the tip its description.
  */
 export function IconButton({ label, tip, className, ...rest }: IconButtonProps): JSX.Element {
   return (
-    <Tooltip content={tip ?? label}>
+    <Tooltip content={tip}>
       <button className={cx('icon-btn', className)} aria-label={label} {...rest} />
     </Tooltip>
   );

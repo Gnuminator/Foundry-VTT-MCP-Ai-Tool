@@ -72,7 +72,9 @@ describe('Tooltip', () => {
   it('keeps an icon button named by its label, with no native title', () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
-        <IconButton label="Close help">✕</IconButton>
+        <IconButton label="Close help" tip="Close (Esc)">
+          ✕
+        </IconButton>
       </TooltipProvider>
     );
     expect(html).toContain('aria-label="Close help"');

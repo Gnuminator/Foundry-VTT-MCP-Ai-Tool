@@ -120,6 +120,8 @@ login_re='^[A-Za-z0-9._-]([A-Za-z0-9._ -]*[A-Za-z0-9._-])?$'
 [ -f "$assistant_env" ] && [ -f "$TOOL_DIR/gm-browser/assistant-gm.mjs" ] || die "run stage 5 and 5-check-world first (no Assistant GM yet)"
 [ -d "$data/modules/foundry-mcp-bridge" ] || die "the bridge module is not installed: run stage 5 first"
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
+# Every run resets the kit world and launches worlds: never during an open dnd5e trial (stage 14).
+refuse_during_system_trial "stage 11"
 # One login name from an env file: $1 the file, $2 GM_USER or EXTRA_GM_USER (never a password key). Prints the
 # file's value, empty when the file has no such line or does not exist. Sourced in a subshell, so nothing else
 # from the file (the passwords) reaches this shell. world-refs.test.mjs cuts it out and tests it.

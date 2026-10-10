@@ -7,14 +7,16 @@
 #   assistant-gm.env  the Assistant GM user (read by the foundry-ai-tool-gm-browser service)
 #   check-world.env   the world's Gamemaster user (to join the check world by hand:
 #                     ssh foundry-pi cat /etc/foundry-ai-tool/check-world.env)
-# Nothing is printed. CHECK_WORLD and DND5E_VERSION override the defaults below.
+# Nothing is printed. CHECK_WORLD overrides the world below. dnd5e is installed only when none is: every world on
+# the Pi shares that one folder and migrates to its version, so an installed dnd5e is never replaced here (stage 14
+# changes the version). DND5E_VERSION (default 6.0.5) is the version a first install takes; given while another
+# version is installed, the stage refuses.
 
 require_root
 require_arm64
 [ -f "$TOOL_DIR/gm-browser/assistant-gm.mjs" ] || die "run 5-tool.sh first"
 
 world="${CHECK_WORLD:-pi-check}"
-dnd5e_version="${DND5E_VERSION:-6.0.5}"
 data="$FOUNDRY_DATA/Data"
 options="$FOUNDRY_DATA/Config/options.json"
 export PATH="$NODE_DIR/bin:$PATH"
@@ -22,11 +24,20 @@ export PATH="$NODE_DIR/bin:$PATH"
 json_get() { node -e 'const o=require(process.argv[1]);process.stdout.write(String(o[process.argv[2]]??""))' "$1" "$2"; }
 new_password() { head -c 24 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n'; }
 
-say "the dnd5e system $dnd5e_version"
+# It launches the check world, which would migrate to a dnd5e version on trial.
+refuse_during_system_trial "stage 5's check world"
+
+say "the dnd5e system"
 sys="$data/systems/dnd5e"
-if [ -f "$sys/system.json" ] && [ "$(json_get "$sys/system.json" version)" = "$dnd5e_version" ]; then
-  ok "dnd5e $dnd5e_version already installed"
+installed=""
+[ ! -f "$sys/system.json" ] || installed="$(json_get "$sys/system.json" version)"
+if [ -n "$installed" ]; then
+  [ -z "${DND5E_VERSION:-}" ] || [ "$DND5E_VERSION" = "$installed" ] ||
+    die "dnd5e $installed is installed, not DND5E_VERSION=$DND5E_VERSION: this stage never replaces it (every world runs on it; stage 14 changes the version). Nothing was changed"
+  dnd5e_version="$installed"
+  ok "dnd5e $installed installed (kept; stage 14 changes the version)"
 else
+  dnd5e_version="${DND5E_VERSION:-6.0.5}"
   url="https://github.com/foundryvtt/dnd5e/releases/download/release-$dnd5e_version/dnd5e-release-$dnd5e_version.zip"
   tmp="$(mktemp -d)"
   trap 'rm -rf "${tmp:?}"' EXIT

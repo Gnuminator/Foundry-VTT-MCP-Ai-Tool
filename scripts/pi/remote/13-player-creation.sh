@@ -105,6 +105,9 @@ set_world() {
 }
 orig_world="$(node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.world||"")' "$options")"
 world_changed=0
+# Part B launches each world and then the one launched before: during an open dnd5e trial (stage 14) that may only
+# be the kit world.
+refuse_during_system_trial "stage 13" "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"} ${orig_world:+"$orig_world"}
 json_field() { # $1 a .json file, $2 a top-level key; prints the value when it is a string
   node -e 'try{const v=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))[process.argv[2]];process.stdout.write(typeof v==="string"?v:"")}catch{}' "$1" "$2"
 }

@@ -139,7 +139,7 @@ Tooltip } from 'radix-ui'`), not the single `@radix-ui/react-*` ones. `web/src/u
   `Tooltip`: `IconButton` has one built in (the label, or `tip`), and the "?" in a pane's title is
   wrapped in it. A tooltip is a hint, not the name: keep the `aria-label` and drop the native
   `title`. It opens on hover and on a Tab stop, not when the page moves the focus itself, so it
-  never shows in a screenshot. Storybook stories for these come with UI-03.
+  never shows in a screenshot. Their stories are in `web/src/ui/Radix.stories.tsx` (see "Stories").
 - **States:** a panel is in one of six: `ready`, `loading`, `empty`, `error`, `bridge-down` and
   `gated`. Give `Panel` (or `Drawer` / `OverlayPane`) a `state` and, if the default text does not
   fit, a `stateMessage`; anything but `ready` replaces the body. For data from a query, do not
@@ -166,6 +166,84 @@ Tooltip } from 'radix-ui'`), not the single `@radix-ui/react-*` ones. `web/src/u
 - **Prove it:** a screen that moves onto these components must leave `npm run test:visual` at zero
   diffs. Unit tests for the components render to a string with `react-dom/server`
   (`web/src/ui/*.test.tsx`, run by `npm test`).
+- **Show it:** a new panel gets a `Thing.stories.tsx` next to it (see "Stories").
+
+### Stories
+
+Storybook (UI-03) shows the components and the panels on their own, in every state, with made-up
+data and no bridge. It is for building and reviewing the look: change a component, open its
+stories, flip the theme and the mist in the toolbar. It is a set of dev dependencies of this
+package only: the app build never imports a story, so `dist/`, the Docker image (it installs
+production dependencies only) and the bundle budget do not change.
+
+- `npm run storybook -w @gnuminator/cogm-dashboard` runs it on <http://localhost:6006>.
+- `npm run build-storybook -w @gnuminator/cogm-dashboard` writes the static site to
+  `storybook-static/` (not committed). The wiki workflow builds it and publishes it under
+  `/storybook/` next to the wiki.
+- The preview loads the same stylesheets as the real page, in the same order (`styles.css`,
+  `moments.css`, `themes/brand.css`, `themes/veil.css`, `next.css`), so a story looks as the panel
+  does in the dashboard. The toolbar's **Theme** sets `data-theme` (neutral or veil) on `<html>`
+  and **Mist** sets `data-mist` (calm, drift, clear), as `theme.ts` does.
+- Every story runs inside the providers of `main.tsx` and `App.tsx` (TanStack Query, tooltips,
+  toasts, the help pane, the confirm window) with a fresh `QueryClient` per story, and `fetch` for
+  `/api/...` is replaced by a fake (`web/src/storybook/fakeApi.ts`): nothing leaves the page, and
+  an `/api` call the story did not answer fails with a 404 that names it.
+
+**Writing a story.** A story file sits next to the component (`Party.stories.tsx`) and is found by
+its name; nothing is registered. For a panel that reads from the bridge, say what the bridge
+answers in `parameters.dashboard`:
+
+```tsx
+const meta = {
+  title: 'Panels/Party',
+  parameters: {
+    layout: 'fullscreen',
+    dashboard: { api: { tools: { 'get-party': toolOk(PARTY) } } },
+  },
+  render: () => (
+    <Opened>
+      {(open, onOpenChange) => <PartyDrawer open={open} onOpenChange={onOpenChange} />}
+    </Opened>
+  ),
+} satisfies Meta;
+
+export const Loaded: StoryObj<typeof meta> = {};
+export const Loading: StoryObj<typeof meta> = {
+  parameters: { dashboard: { api: { tools: { 'get-party': pending } } } },
+};
+export const BridgeDown: StoryObj<typeof meta> = {
+  parameters: { dashboard: { api: { tools: { 'get-party': bridgeDown } } } },
+};
+```
+
+- `api.routes` answers `/api/...` routes (a path, `'POST /api/x'`, or a prefix ending in `*`),
+  `api.tools` answers `POST /api/tool` by tool name. `reply`, `toolOk`, `fail`, `bridgeDown`,
+  `gmActionsOff` and `pending` (an answer that never comes, for the loading state) build the
+  answers; a function of the request works too.
+- `cache` seeds query data the live stream normally fills (settings, the bridge link, the world,
+  module errors): pairs of `[query key, data]`, using the keys exported by `lib/stream.ts`.
+- `Opened` holds the `open` state a drawer or pane wants and offers "Reopen" once it is closed.
+- Cover every state a panel can be in (loaded, empty, loading, failed, bridge down, GM Actions
+  off), a long name, eight characters where the panel lists characters, the Veil theme and a phone
+  width. Mark the last two with `modes({ veil: true, phone: true })` from
+  `web/src/storybook/modes.ts`: it sets the toolbar global and a tag (`veil`, `phone`) that the
+  story shots read, because `index.json` lists tags and nothing else.
+- A step that needs a person (open a menu, press Tab for a tooltip) is a `play` function with
+  `storybook/test`. Storybook's own Vitest runner is not used; Playwright runs the stories.
+- **Fixtures** live in `web/src/storybook/fixtures/` and are made up: a harbor town, a lantern
+  crew, SRD-style names. Never text, names or maps from a campaign book (the repo is public), and
+  Tarokka stories use placeholder cards, not the deck. Times are absolute, so a story looks the
+  same on every day.
+
+**Story shots.** `web/visual/stories.spec.ts` reads `storybook-static/index.json` and, for each
+story, takes one screenshot (cropped to the story's content and anything open over it) in the
+story's own theme and size, then runs axe on it. A new story gets a baseline the next time
+`npm run test:visual:update` runs; there is no list to edit. They run in the `stories` project of
+the same Playwright config, so `npm run test:visual` (Docker) and the CI job `dashboard-visual`
+cover them; build the Storybook first (`npm run build-storybook`), and rebuild it after a
+change to a story or a component. Baselines are in `web/visual/__screenshots__/stories/`.
+Serious and critical axe findings fail; the ones already there are listed with the reason in
+`web/visual/axe-known-stories.ts`, as for the app shots.
 
 ### Screenshot tests
 
@@ -188,8 +266,10 @@ helper for those elements.
   image `mcr.microsoft.com/playwright:v<version>-noble`, because fonts and anti-aliasing differ per
   operating system: a Windows or macOS run would differ from the PNGs and from CI.
   `scripts/visual-docker.mjs` takes the image tag from the installed `@playwright/test` version.
-- `npm run build -w @gnuminator/cogm-dashboard` first (the container serves `dist/` from the repo),
-  then `npm run test:visual -w @gnuminator/cogm-dashboard` to check. Extra arguments go to
+- `npm run build -w @gnuminator/cogm-dashboard` and
+  `npm run build-storybook -w @gnuminator/cogm-dashboard` first (the container serves `dist/` and
+  `storybook-static/` from the repo; the Storybook is for the story shots, see "Stories"), then
+  `npm run test:visual -w @gnuminator/cogm-dashboard` to check. Extra arguments go to
   Playwright: `npm run test:visual -w @gnuminator/cogm-dashboard -- -g party`.
 - `npm run test:visual:update -w @gnuminator/cogm-dashboard` writes new baselines after a change
   you meant. Look at the PNGs in the diff, then commit them with the change.

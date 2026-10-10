@@ -49,7 +49,8 @@ jobs:
       - name: Install MkDocs (pinned)
         run: python -m pip install -r docs/wiki/requirements.txt
 
-      # The stage script and the coach build use only Node's own modules: no npm ci needed.
+      # The stage script and the coach build use only Node's own modules: no npm ci needed for
+      # them (only the Storybook steps below install the dashboard's dependencies).
       - name: Test the stage script
         run: node --test scripts/wiki/stage.test.mjs
 
@@ -58,6 +59,30 @@ jobs:
 
       - name: Build the site (strict)
         run: python -m mkdocs build --strict -f build/wiki/mkdocs.yml
+
+      # Storybook for the React dashboard (UI-03), published next to the wiki under /storybook/.
+      # It is a development aid, so a failure in these steps must not stop the wiki: they only
+      # warn, and the site goes out without it. It is added after the strict MkDocs build, so the
+      # wiki's own link check never sees it.
+      - name: Storybook, install the dashboard's dependencies
+        id: storybook-install
+        continue-on-error: true
+        run: npm ci --ignore-scripts --no-audit --no-fund -w @gnuminator/cogm-dashboard
+
+      - name: Storybook, build
+        id: storybook-build
+        if: steps.storybook-install.outcome == 'success'
+        continue-on-error: true
+        run: npm run build-storybook -w @gnuminator/cogm-dashboard
+
+      - name: Storybook, add it to the site
+        run: |
+          if [ -f packages/cogm-dashboard/storybook-static/index.html ]; then
+            cp -r packages/cogm-dashboard/storybook-static build/wiki/site/storybook
+            echo "Storybook added at /storybook/"
+          else
+            echo "::warning::Storybook did not build; the wiki goes out without /storybook/."
+          fi
 
       - name: Keep the site
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

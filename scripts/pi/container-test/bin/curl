@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Stand-in for curl: /api/status answers what /tmp/status holds with the exit code in /tmp/status_rc,
+# /join answers a running world's join page. Anything else (a download) fails.
+url="${*: -1}"
+case "$url" in
+  */api/status)
+    cat /tmp/status
+    exit "$(cat /tmp/status_rc)"
+    ;;
+  */join)
+    echo '<template id="join-game">'
+    exit 0
+    ;;
+esac
+echo "fake curl: unexpected url $url" >&2
+exit 22

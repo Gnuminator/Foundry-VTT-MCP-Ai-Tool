@@ -4,6 +4,7 @@ import {
   MODULE_CAPABILITY_AI_CHANGES_SIGNAL,
   type ModuleHelloData,
 } from './constants.js';
+import { createHelpMenu } from './help-menu.js';
 import { createJoinPageMenu } from './join-page.js';
 import type { BridgeConfig } from './socket-bridge.js';
 import { trackUsage } from './usage-recorder.js';
@@ -193,6 +194,20 @@ export class ModuleSettings {
     // SETTINGS MENU - Detailed Configuration Dialog
     // ============================================================================
 
+    const menus = game.settings as unknown as {
+      registerMenu(namespace: string, key: string, data: Record<string, unknown>): void;
+    };
+
+    // Help (D-108): opens the GM guides on the wiki. First, so it sits at the top of the list.
+    menus.registerMenu(this.moduleId, 'helpMenu', {
+      name: 'Help',
+      label: 'Open the GM guide',
+      hint: 'The guides for the GM in a new browser tab: your first hour, the dashboard, asking Claude, the checklists before and after a session, and what to do when something breaks on game night.',
+      icon: 'fas fa-circle-question',
+      type: createHelpMenu(),
+      restricted: true,
+    });
+
     // Enhanced Creature Index submenu
     (game.settings as any).registerMenu(this.moduleId, 'enhancedIndexMenu', {
       name: 'Enhanced Creature Index',
@@ -204,9 +219,6 @@ export class ModuleSettings {
     });
 
     // Join page look (I-086): The Veil on the players' first screen
-    const menus = game.settings as unknown as {
-      registerMenu(namespace: string, key: string, data: Record<string, unknown>): void;
-    };
     menus.registerMenu(this.moduleId, 'joinPageMenu', {
       name: 'Join page look',
       label: 'Choose join page look',

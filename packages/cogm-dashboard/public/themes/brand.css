@@ -103,6 +103,7 @@
   font-family: var(--font-mono);
 }
 :root:not([data-theme='veil']) .moment-tab[aria-pressed='true'],
+:root:not([data-theme='veil']) .moment-tab[aria-selected='true'],
 :root:not([data-theme='veil']) .layout-switch button[aria-pressed='true'] {
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),

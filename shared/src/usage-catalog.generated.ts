@@ -993,6 +993,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/foundry-module/src/settings.ts',
   },
   {
+    name: 'module.settings.help',
+    kind: 'action',
+    surface: 'module',
+    file: 'packages/foundry-module/src/help-menu.ts',
+  },
+  {
     name: 'module.settings.save',
     kind: 'action',
     surface: 'module',

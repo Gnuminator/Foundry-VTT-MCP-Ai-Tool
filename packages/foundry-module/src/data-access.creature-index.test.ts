@@ -560,9 +560,9 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
 
     expect(creatures).toHaveLength(120);
     const queries = getDocuments.mock.calls.map(c => c[0]._id__in);
-    expect(PACK_LOAD_CHUNK_SIZE).toBe(10);
+    expect(PACK_LOAD_CHUNK_SIZE).toBe(5);
     expect(PACK_LOAD_CHUNK_TARGET_MS).toBe(250);
-    expect(queries.map(ids => ids.length)).toEqual([10, 20, 25, 25, 25, 15]);
+    expect(queries.map(ids => ids.length)).toEqual([5, 10, 20, 25, 25, 25, 10]);
     expect(new Set(queries.flat()).size).toBe(120);
     // The pack index says the cart is no creature: it is never loaded.
     expect(queries.flat()).not.toContain('v1');
@@ -589,9 +589,44 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
 
     await new PersistentCreatureIndex().rebuildIndex();
 
-    // 10, doubling at 1 ms each; 80 at 50 ms each took 4 s, so the rest goes in
+    // 5, doubling at 1 ms each; 40 at 50 ms each took 2 s, so the rest goes in
     // the smallest chunks (5 at 50 ms is the 250 ms target).
-    expect(sizes).toEqual([10, 20, 40, 80, ...Array(30).fill(PACK_LOAD_MIN_CHUNK)]);
+    expect(sizes).toEqual([5, 10, 20, 40, ...Array(45).fill(PACK_LOAD_MIN_CHUNK)]);
+  });
+
+  it('each pack starts at the first chunk size again, not at the last pack size', async () => {
+    const light = addMonsterPack(
+      Array.from({ length: 100 }, (_, i) =>
+        makeActor({ id: `l${i}`, name: `Light ${i}`, type: 'npc' })
+      ),
+      'world.light',
+      'Light'
+    );
+    const heavy = addMonsterPack(
+      Array.from({ length: 10 }, (_, i) =>
+        makeActor({ id: `h${i}`, name: `Heavy ${i}`, type: 'npc' })
+      ),
+      'world.heavy',
+      'Heavy'
+    );
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    const sizes: Record<string, number[]> = { light: [], heavy: [] };
+    for (const [name, pack] of [
+      ['light', light],
+      ['heavy', heavy],
+    ] as const) {
+      const load = pack.getDocuments;
+      pack.getDocuments = async (query: { _id__in: string[] }): Promise<unknown> => {
+        sizes[name].push(query._id__in.length);
+        return load(query);
+      };
+    }
+
+    await new PersistentCreatureIndex().rebuildIndex();
+
+    // The light pack grew to 40 per chunk; the heavy one still starts at 5.
+    expect(sizes.light).toEqual([5, 10, 20, 40, 25]);
+    expect(sizes.heavy).toEqual([PACK_LOAD_CHUNK_SIZE, 5]);
   });
 
   it('yields to the browser after every chunk', async () => {
@@ -615,8 +650,8 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
       delete g.scheduler;
     }
 
-    // 10, 20, then the 30 left (no time passes, so the chunk size doubles).
-    expect(order).toEqual(['load', 'yield', 'load', 'yield', 'load', 'yield']);
+    // 5, 10, 20, then the 25 left (no time passes, so the chunk size doubles).
+    expect(order).toEqual(['load', 'yield', 'load', 'yield', 'load', 'yield', 'load', 'yield']);
   });
 
   it('in a hidden page, loads the biggest chunks and does not yield', async () => {
@@ -666,10 +701,11 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
     const progress = world.notifications
       .map(n => n.message)
       .filter(m => m.includes('creatures loaded'));
-    // Chunks of 10, 20, 40 and 50: 30 loaded after 1.2 s, nothing new 0.6 s
-    // later, and the last chunk ends the pack (the per-pack note follows).
+    // Chunks of 5, 10, 20, 40 and 45: 15 loaded after 1.2 s, 35 too soon after
+    // that, 75 at 2.4 s, and the last chunk ends the pack (the per-pack note follows).
     expect(progress).toEqual([
-      'Building creature index... pack 1/1 (Monsters): 30/120 creatures loaded',
+      'Building creature index... pack 1/1 (Monsters): 15/120 creatures loaded',
+      'Building creature index... pack 1/1 (Monsters): 75/120 creatures loaded',
     ]);
   });
 
@@ -679,7 +715,7 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
         makeActor({ id: `m${i}`, name: `Monster ${i}`, type: 'npc' })
       )
     );
-    // No time passes: chunks of 10, 20, 40 and 50.
+    // No time passes: chunks of 5, 10, 20, 40 and 45.
     vi.spyOn(performance, 'now').mockReturnValue(0);
     const load = pack.getDocuments;
     let calls = 0;
@@ -691,9 +727,9 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
 
     const creatures = await new PersistentCreatureIndex().rebuildIndex();
 
-    expect(calls).toBe(4);
-    expect(creatures).toHaveLength(100);
-    expect(creatures.map(c => c.name)).not.toContain('Monster 10');
+    expect(calls).toBe(5);
+    expect(creatures).toHaveLength(110);
+    expect(creatures.map(c => c.name)).not.toContain('Monster 5');
   });
 
   it('nextChunkSize fits the target time, grows at most twofold, within the bounds', () => {

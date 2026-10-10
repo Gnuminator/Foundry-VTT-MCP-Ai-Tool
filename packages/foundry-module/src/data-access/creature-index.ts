@@ -21,15 +21,21 @@ export const DIRTY_STAMP_DEBOUNCE_MS = 1_000;
 /** After a failed build, stale reads start no new background build for this long. */
 export const BUILD_RETRY_COOLDOWN_MS = 60_000;
 
-/** Creatures in a pack's first `getDocuments` call during a build (the browser runs in between). */
-export const PACK_LOAD_CHUNK_SIZE = 10;
-
-/** The build's progress note changes at most this often within one pack. */
-const PROGRESS_INTERVAL_MS = 1_000;
-
 /** Bounds of the adaptive chunk size (see {@link nextChunkSize}). */
 export const PACK_LOAD_MIN_CHUNK = 5;
 export const PACK_LOAD_MAX_CHUNK = 100;
+
+/**
+ * Creatures in a pack's first `getDocuments` call during a build (the browser
+ * runs in between): the smallest chunk. Each pack starts over instead of
+ * carrying the last pack's size, because packs differ: the 2014 monsters load
+ * at about 7 ms each, the first 2024 monsters at about 60 ms each, so a carried
+ * size of 40 would freeze the browser for over 2 s.
+ */
+export const PACK_LOAD_CHUNK_SIZE = PACK_LOAD_MIN_CHUNK;
+
+/** The build's progress note changes at most this often within one pack. */
+const PROGRESS_INTERVAL_MS = 1_000;
 
 /** The time one chunk load aims for: about the longest freeze a build should cause. */
 export const PACK_LOAD_CHUNK_TARGET_MS = 250;
@@ -39,6 +45,8 @@ export const PACK_LOAD_CHUNK_TARGET_MS = 250;
  * as many creatures as fit {@link PACK_LOAD_CHUNK_TARGET_MS} at the measured
  * time per creature, at most twice the last size, within the bounds. A busy PC
  * gets small chunks (short freezes), a quiet one big chunks (fewer round trips).
+ * The time includes the `getDocuments` round trip to the server, so a GM browser
+ * behind a slow link settles on small chunks: a slower build, but no freeze.
  */
 export function nextChunkSize(size: number, elapsedMs: number): number {
   const fit = elapsedMs > 0 ? Math.floor((PACK_LOAD_CHUNK_TARGET_MS * size) / elapsedMs) : size * 2;

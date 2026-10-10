@@ -202,7 +202,8 @@ test('with the bridge down After still turns into Before when the 12 hours pass'
     });
   });
   await page.clock.fastForward(61_000);
-  await expect.poll(() => failedPolls).toBe(1);
+  // The jump can cover two poll ticks; at least one must have failed.
+  await expect.poll(() => failedPolls).toBeGreaterThanOrEqual(1);
   await expect(tab(page, 'Before')).toHaveAttribute('aria-selected', 'true');
 });
 

@@ -75,7 +75,7 @@ export function OverlayPane({
           stateMessage={stateMessage}
           actions={
             <Dialog.Close asChild>
-              <IconButton className="overlay-close" label={closeLabel} tip="Close">
+              <IconButton className="overlay-close" label={closeLabel} tip="Close (Esc)">
                 ✕
               </IconButton>
             </Dialog.Close>

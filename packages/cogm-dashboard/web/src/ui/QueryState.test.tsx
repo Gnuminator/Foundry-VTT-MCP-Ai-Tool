@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../lib/api';
 
 import { QueryState, classifyError, panelStateOf, type QueryLike } from './QueryState';
+import { LoadingState } from './states';
 
 // auth.ts reads the page's location when it loads; there is no page here.
 vi.mock('../lib/auth', () => ({ authHeaders: (): Record<string, string> => ({}) }));
@@ -76,13 +77,23 @@ describe('QueryState', () => {
 
   it('shows the old .empty block while loading', () => {
     expect(render(query({ isPending: true }))).toBe(
-      '<p class="empty" data-ui-state="loading">Loading…</p>'
+      '<p class="empty" data-ui-state="loading" role="status">Loading…</p>'
+    );
+  });
+
+  it('puts the live role inside an <li>, so the list keeps its items', () => {
+    expect(render(query({ isPending: true }), 'li')).toBe(
+      '<li class="empty" data-ui-state="loading"><span role="status">Loading…</span></li>'
+    );
+    expect(render(query({ isError: true, error: new Error('HTTP 500') }), 'li')).toContain(
+      '<li class="empty" data-ui-state="error"><span role="alert">'
     );
   });
 
   it('says what failed and why', () => {
     const html = render(query({ isError: true, error: new Error('HTTP 500') }));
     expect(html).toContain('class="empty"');
+    expect(html).toContain('role="alert"');
     expect(html).toContain('Couldn&#x27;t load the rows: HTTP 500');
   });
 
@@ -94,5 +105,14 @@ describe('QueryState', () => {
 
   it('gives the data to its children when there is something to show', () => {
     expect(render(query({ data: ['a'] }))).toBe('<ul>&lt;a&gt;</ul>');
+  });
+});
+
+describe('LoadingState', () => {
+  it('keeps its text for screen readers when bars stand in for it', () => {
+    const html = renderToStaticMarkup(<LoadingState skeleton={2}>Loading the party…</LoadingState>);
+    expect(html).toContain('role="status"');
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toMatch(/<span class="[^"]*srOnly[^"]*">Loading the party…<\/span>/);
   });
 });

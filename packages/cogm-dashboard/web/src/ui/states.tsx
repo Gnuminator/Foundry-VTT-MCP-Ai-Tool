@@ -1,6 +1,9 @@
 // The blocks a panel shows instead of its content: loading, nothing yet, an error, the bridge
 // being down, a switch being off. They render the old page's `.empty` block (styles.css), so a
 // panel that already says "Loading…" or "Couldn't load ..." looks the same after the move.
+// Loading is a polite live region (role=status) and the failures are alerts (role=alert), so a
+// screen reader hears a panel change face. An <li> keeps its list role: the role goes on a span
+// inside it.
 import type { JSX, ReactNode } from 'react';
 
 import { errorText } from '../lib/api';
@@ -21,6 +24,34 @@ interface EmptyStateProps extends BlockProps {
   children: ReactNode;
   /** What to do about it (a button); rendered after the text. */
   action?: ReactNode;
+}
+
+/** The block's tag with a live-region role: on the tag itself, or on a span inside an <li>. */
+function LiveBlock({
+  as: Tag,
+  role,
+  className,
+  state,
+  children,
+}: {
+  as: BlockTag;
+  role: 'status' | 'alert';
+  className: string | undefined;
+  state: string;
+  children: ReactNode;
+}): JSX.Element {
+  if (Tag === 'li') {
+    return (
+      <li className={cx('empty', className)} data-ui-state={state}>
+        <span role={role}>{children}</span>
+      </li>
+    );
+  }
+  return (
+    <Tag className={cx('empty', className)} data-ui-state={state} role={role}>
+      {children}
+    </Tag>
+  );
 }
 
 /** Nothing here yet. */
@@ -44,17 +75,27 @@ interface LoadingStateProps extends BlockProps {
   skeleton?: boolean | number;
 }
 
-/** Waiting for an answer. "Loading…" unless told otherwise. */
+/**
+ * Waiting for an answer. "Loading…" unless told otherwise. With `skeleton` the text stays for
+ * screen readers (visually hidden) and the bars show instead.
+ */
 export function LoadingState({
-  as: Tag = 'p',
+  as = 'p',
   className,
   children = 'Loading…',
   skeleton = false,
 }: LoadingStateProps): JSX.Element {
   return (
-    <Tag className={cx('empty', className)} data-ui-state="loading">
-      {skeleton === false ? children : <Skeleton lines={skeleton === true ? 3 : skeleton} />}
-    </Tag>
+    <LiveBlock as={as} role="status" className={className} state="loading">
+      {skeleton === false ? (
+        children
+      ) : (
+        <>
+          <Skeleton lines={skeleton === true ? 3 : skeleton} />
+          <span className={styles.srOnly}>{children}</span>
+        </>
+      )}
+    </LiveBlock>
   );
 }
 
@@ -69,9 +110,9 @@ interface ErrorStateProps extends BlockProps {
   kind?: 'error' | 'bridge-down' | 'gated';
 }
 
-/** Something failed: the message, then the reason when there is one. */
+/** Something failed: the message, then the reason when there is one. An alert, every kind. */
 export function ErrorState({
-  as: Tag = 'p',
+  as = 'p',
   className,
   children,
   error,
@@ -79,7 +120,7 @@ export function ErrorState({
   kind = 'error',
 }: ErrorStateProps): JSX.Element {
   return (
-    <Tag className={cx('empty', className)} data-ui-state={kind}>
+    <LiveBlock as={as} role="alert" className={className} state={kind}>
       {children}
       {error !== undefined && (children ? ': ' : '')}
       {error !== undefined && errorText(error)}
@@ -91,11 +132,14 @@ export function ErrorState({
           </Button>
         </>
       )}
-    </Tag>
+    </LiveBlock>
   );
 }
 
-/** Grey bars where text will be. Decorative: hidden from the accessibility tree. */
+/**
+ * Grey bars where text will be. Decorative: hidden from the accessibility tree (LoadingState keeps
+ * its text for screen readers next to them).
+ */
 export function Skeleton({ lines = 1 }: { lines?: number }): JSX.Element {
   return (
     <span className={styles.skeleton} aria-hidden="true">

@@ -1,4 +1,5 @@
-/* The loading bars (Skeleton). Everything else in states.tsx is the old page's .empty block. */
+/* The loading bars (Skeleton) and the text kept for screen readers next to them. Everything else
+   in states.tsx is the old page's .empty block. */
 .skeleton {
   display: flex;
   flex-direction: column;
@@ -31,4 +32,17 @@
   to {
     background-position: -100% 0;
   }
+}
+
+/* On no pixel, still read: the "Loading…" a skeleton replaces on screen. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

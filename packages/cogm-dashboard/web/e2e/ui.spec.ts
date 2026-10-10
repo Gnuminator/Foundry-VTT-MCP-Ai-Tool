@@ -58,7 +58,17 @@ test('the close button of a pane has a tooltip and keeps its name', async ({ pag
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');
   await expect(close).toBeFocused();
-  await expect(tip(page, 'Close')).toBeVisible();
+  await expect(tip(page, 'Close (Esc)')).toBeVisible();
+  // The tip is the description and says more than the name, so a screen reader does not hear
+  // the name twice.
+  const describedBy = await close.getAttribute('aria-describedby');
+  expect(describedBy).toBeTruthy();
+  const description = await page
+    .locator(`[id="${describedBy ?? ''}"]`)
+    .first()
+    .textContent();
+  expect(description).toBe('Close (Esc)');
+  await expect(close).toHaveAccessibleName('Close module diagnostics');
   await close.hover();
   await close.click();
   await expect(pane).toBeHidden();

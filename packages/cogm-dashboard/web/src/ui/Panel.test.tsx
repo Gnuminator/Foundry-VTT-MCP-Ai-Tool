@@ -71,6 +71,22 @@ describe('Panel', () => {
     expect(html).toContain(`data-panel-state="${state}"`);
   });
 
+  it.each([
+    ['loading', 'role="status"'],
+    ['error', 'role="alert"'],
+    ['bridge-down', 'role="alert"'],
+    ['gated', 'role="alert"'],
+  ] as const)('announces the %s face (%s)', (state, role) => {
+    expect(render(state)).toContain(role);
+  });
+
+  it('marks the body busy only while loading, and leaves an empty panel quiet', () => {
+    expect(render('loading')).toContain('aria-busy="true"');
+    expect(render('ready')).not.toContain('aria-busy');
+    expect(render('error')).not.toContain('aria-busy');
+    expect(render('empty')).not.toContain('role=');
+  });
+
   it('takes the message from the panel when it has one', () => {
     expect(render('empty', 'No module errors captured.')).toContain(
       '<p class="empty" data-ui-state="empty">No module errors captured.</p>'

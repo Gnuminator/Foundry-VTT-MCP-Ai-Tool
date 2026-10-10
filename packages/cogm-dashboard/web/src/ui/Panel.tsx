@@ -126,7 +126,10 @@ export function Panel({
         {actions}
       </div>
       {lead}
-      <div className={cx(drawer ? 'tarokka-body' : 'pane-body', bodyClassName)}>
+      <div
+        className={cx(drawer ? 'tarokka-body' : 'pane-body', bodyClassName)}
+        {...(showing === 'loading' ? { 'aria-busy': true } : {})}
+      >
         {showing ? (
           <StateBlock
             state={showing}

@@ -646,6 +646,30 @@ What stage 11 does with it:
   restarts on the campaign world.
 - The world's GM user is `Gamemaster` (`GM_USER=` for another name) and must have no password on the
   PC when you push, because stage 11 joins as that user once to set the new password.
+- **The `strahd-kit` default is only for `curse-of-strahd`.** Any other `WORLD` must say
+  `KIT_WORLD=` (no test copy) or `KIT_WORLD=<id> KIT_TITLE=<title>`, or the run stops before
+  anything changes, so another bundle can never reset `strahd-kit`.
+
+### Training world (D-118)
+
+Danni's Frostmaiden training world goes in next to the campaign, while Foundry keeps launching
+`curse-of-strahd`. It is a copy of the PC's kit world trimmed to Frostmaiden, pushed with
+`push-world.ps1 -World frostmaiden-training`, then installed with:
+
+```bash
+WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
+```
+
+- `LAUNCH` may name any world that is already installed, so the new world is provisioned and
+  Foundry goes back to the campaign.
+- `EXTRA_GM_USER=Claude` makes a second full GM with its own generated password. Both logins are in
+  `/etc/foundry-ai-tool/world-frostmaiden-training.env` (`GM_USER`, `GM_PASSWORD`, `EXTRA_GM_USER`,
+  `EXTRA_GM_PASSWORD`; root only, never printed). The extra GM is added to the file once; a run
+  again keeps both passwords. A file that already names another extra GM stops the run before
+  anything changes, and so does an extra GM named like the world's GM or the Assistant GM. No
+  passwordless users go to the Pi.
+- Then stage 13 with `WORLD=frostmaiden-training KIT_WORLD=` turns Actor Studio's usage tracking off
+  there too.
 
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).

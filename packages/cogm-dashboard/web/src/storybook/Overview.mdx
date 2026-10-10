@@ -1,0 +1,28 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Dashboard/Overview" />
+
+# The dashboard's stories
+
+These stories show the React dashboard's components and panels on their own, in every state they
+can be in, with made-up data and no bridge. Nothing here talks to Foundry or to the dashboard
+server.
+
+## Look around
+
+- **UI** is the small component set in `web/src/ui`: the panel shell, cards, buttons, the blocks a
+  panel shows while it loads, is empty or has failed, and the Radix tooltip, tabs and popover.
+- **Components** are the shared pieces: drawers, panes over the page, the confirm window, toasts,
+  the Advanced menu, the picker and the Before, During and After views.
+- **Panels** are the ported screens: Party, Handouts, Prep, Pre-flight (with Ready for session),
+  Tarokka (placeholder cards), the Tool runner, Player links and Module diagnostics.
+
+The toolbar's **Theme** switches between the neutral theme and The Veil, and **Mist** sets the
+Veil's mist (calm, drift, clear). The viewport menu has a 390 px phone.
+
+## Make a story
+
+Put `Thing.stories.tsx` next to the component. For a panel that reads from the bridge, say what the
+bridge answers in `parameters.dashboard` (see `web/src/storybook/fakeApi.ts`), and mark a Veil or
+phone story with `tags: ['veil']` and `globals: VEIL` (`web/src/storybook/modes.ts`). Fixtures are
+made up: never text from a campaign book. The dashboard README has the details, under "Stories".

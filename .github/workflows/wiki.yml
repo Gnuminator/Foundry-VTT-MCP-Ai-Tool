@@ -49,7 +49,8 @@ jobs:
       - name: Install MkDocs (pinned)
         run: python -m pip install -r docs/wiki/requirements.txt
 
-      # The stage script and the coach build use only Node's own modules: no npm ci needed.
+      # The stage script and the coach build use only Node's own modules: no npm ci needed for
+      # them (only the Storybook steps below install the dashboard's dependencies).
       - name: Test the stage script
         run: node --test scripts/wiki/stage.test.mjs
 
@@ -58,6 +59,47 @@ jobs:
 
       - name: Build the site (strict)
         run: python -m mkdocs build --strict -f build/wiki/mkdocs.yml
+
+      # Storybook for the React dashboard (UI-03), published next to the wiki under /storybook/.
+      # It is a development aid, so a failure in these steps must not stop the wiki: the site goes
+      # out without it. The failure is not silent, though: a red annotation and a line in the job
+      # summary name the step that failed. It is added after the strict MkDocs build, so the
+      # wiki's own link check never sees it.
+      - name: Storybook, install the dashboard's dependencies
+        id: storybook-install
+        continue-on-error: true
+        run: npm ci --ignore-scripts --no-audit --no-fund -w @gnuminator/cogm-dashboard
+
+      - name: Storybook, build
+        id: storybook-build
+        if: steps.storybook-install.outcome == 'success'
+        continue-on-error: true
+        run: npm run build-storybook -w @gnuminator/cogm-dashboard
+
+      # Only a build that succeeded is copied: a failed build can leave a partial storybook-static.
+      - name: Storybook, add it to the site
+        if: steps.storybook-build.outcome == 'success'
+        run: |
+          test -f packages/cogm-dashboard/storybook-static/index.html
+          cp -r packages/cogm-dashboard/storybook-static build/wiki/site/storybook
+          echo "Storybook added at /storybook/"
+
+      - name: Storybook, say it is missing
+        if: steps.storybook-build.outcome != 'success'
+        env:
+          INSTALL_OUTCOME: ${{ steps.storybook-install.outcome }}
+        run: |
+          if [ "$INSTALL_OUTCOME" != "success" ]; then
+            failed="the install step (npm ci)"
+          else
+            failed="the build step (build-storybook)"
+          fi
+          echo "::error title=Storybook is missing from the wiki::Storybook failed at $failed. The wiki is published without /storybook/, so its link returns 404."
+          {
+            echo "### Storybook is missing from this wiki build"
+            echo ""
+            echo "Failed step: $failed. The wiki itself is fine and goes out without /storybook/, so the link on the home page returns 404 until the next good build."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Keep the site
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

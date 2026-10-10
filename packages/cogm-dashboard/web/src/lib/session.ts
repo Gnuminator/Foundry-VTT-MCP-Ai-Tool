@@ -8,6 +8,8 @@ import { callTool } from './api';
 /** The fields of the bridge's answer this page uses (tools/play-session.ts on the server). */
 export interface PlaySession {
   open: boolean;
+  /** When the open session began (its start marker); null when unknown or closed. */
+  startedAt: string | null;
   /** When a closed session ended (its end marker, or its last activity); null while open. */
   endedAt: string | null;
 }
@@ -29,12 +31,13 @@ export function usePlaySession(): {
   const query = useQuery({
     queryKey: PLAY_SESSION_KEY,
     queryFn: async (): Promise<PlaySession> => {
-      const s = await callTool<{ open?: unknown; endedAt?: unknown } | null>(
+      const s = await callTool<{ open?: unknown; startedAt?: unknown; endedAt?: unknown } | null>(
         'get-play-session',
         {}
       );
       return {
         open: s?.open === true,
+        startedAt: typeof s?.startedAt === 'string' && s.startedAt !== '' ? s.startedAt : null,
         endedAt: typeof s?.endedAt === 'string' ? s.endedAt : null,
       };
     },

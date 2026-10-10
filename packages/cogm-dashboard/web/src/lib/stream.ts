@@ -6,6 +6,7 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { useEffect } from 'react';
 
 import { streamUrl } from './auth';
+import { onPrefs } from './prefs';
 
 /** One Foundry module error or warning (feed/types.ts ModuleError on the server). */
 export interface ModuleError {
@@ -52,6 +53,16 @@ export interface WorldInfo {
 }
 
 export const WORLD_KEY = ['stream', 'world'] as const;
+
+/**
+ * The fight the stream last reported (`combat`, GM only, `{combat}`); null when none is active.
+ * Only whether one is active is used so far: the During layouts change with it.
+ */
+export interface CombatState {
+  active: boolean;
+}
+
+export const COMBAT_KEY = ['stream', 'combat'] as const;
 
 /** The old page keeps 150 entries on screen; the server keeps the newest 100. */
 export const MAX_ERROR_ENTRIES = 150;
@@ -105,6 +116,13 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
     queryClient.setQueryData<DashboardSettings>(SETTINGS_KEY, data as DashboardSettings),
   world: (queryClient, data) =>
     queryClient.setQueryData<WorldInfo | null>(WORLD_KEY, (data as WorldInfo | null) ?? null),
+  // The GM's screen choices for this world (lib/prefs.ts).
+  prefs: onPrefs,
+  combat: (queryClient, data) => {
+    const combat = (data as { combat?: { active?: unknown } | null } | null)?.combat;
+    const state: CombatState | null = combat ? { active: combat.active === true } : null;
+    queryClient.setQueryData<CombatState | null>(COMBAT_KEY, () => state);
+  },
 };
 
 /** Opens the stream while the page is open. Mounted once, in App. */
@@ -176,6 +194,18 @@ export function useWorld(): WorldInfo | null {
     gcTime: Infinity,
   });
   return data ?? null;
+}
+
+/** Whether a fight is running, as the stream last said; false until it says. */
+export function useCombatActive(): boolean {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: COMBAT_KEY,
+    queryFn: () => queryClient.getQueryData<CombatState | null>(COMBAT_KEY) ?? null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data?.active === true;
 }
 
 /**

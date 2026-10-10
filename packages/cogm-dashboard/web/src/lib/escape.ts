@@ -31,6 +31,11 @@ export function raisePanel(id: string): void {
   if (i >= 0) panels.push(...panels.splice(i, 1));
 }
 
+/** Whether a panel listed here is open (a drawer over the page, a pane, the menu, a confirm window). */
+export function hasOpenPanel(): boolean {
+  return panels.length > 0;
+}
+
 /** Closes the newest open panel, as Escape would without a toast; false when none is open. */
 export function closeTopPanel(): boolean {
   const top = panels.at(-1);

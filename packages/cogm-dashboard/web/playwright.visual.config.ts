@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
 
 import { GM_TOKEN } from './e2e/support';
+import { STORYBOOK_PORT } from './visual/stories';
 
 const packageDir = fileURLToPath(new URL('..', import.meta.url));
 const PORT = 3198;
@@ -63,34 +64,55 @@ export default defineConfig({
   },
   projects: [
     // The axe check (axe.spec.ts) runs once, at 1440; the screenshots run at every width.
-    { name: 'desktop-1440', use: { viewport: { width: 1440, height: 900 } } },
+    {
+      name: 'desktop-1440',
+      testIgnore: /stories\.spec/,
+      use: { viewport: { width: 1440, height: 900 } },
+    },
     {
       name: 'laptop-1080',
-      testIgnore: /axe\.spec/,
+      testIgnore: [/axe\.spec/, /stories\.spec/],
       use: { viewport: { width: 1080, height: 800 } },
     },
     {
       name: 'phone-390',
-      testIgnore: /axe\.spec/,
+      testIgnore: [/axe\.spec/, /stories\.spec/],
       use: { viewport: { width: 390, height: 844 } },
     },
-  ],
-  webServer: {
-    command: 'node dist/server.js',
-    cwd: packageDir,
-    url: `http://127.0.0.1:${PORT}/api/health`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-    env: {
-      PORT: String(PORT),
-      DASHBOARD_HOST: '127.0.0.1',
-      // Nothing listens on port 9 (discard): the dashboard runs without a bridge.
-      MCP_CONTROL_HOST: '127.0.0.1',
-      MCP_CONTROL_PORT: '9',
-      GM_DASHBOARD_TOKEN: GM_TOKEN,
-      ANTHROPIC_API_KEY: '',
-      COGM_STATE_DIR: path.join(os.tmpdir(), 'cogm-dashboard-visual'),
-      LOG_LEVEL: 'error',
+    // The story shots and their axe check (stories.spec.ts, UI-03): the built Storybook, served
+    // from storybook-static/. A story sets its own size (a `phone` tag), so this project has none.
+    {
+      name: 'stories',
+      testMatch: /stories\.spec/,
+      use: { baseURL: `http://127.0.0.1:${STORYBOOK_PORT}` },
     },
-  },
+  ],
+  webServer: [
+    {
+      command: 'node dist/server.js',
+      cwd: packageDir,
+      url: `http://127.0.0.1:${PORT}/api/health`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+      env: {
+        PORT: String(PORT),
+        DASHBOARD_HOST: '127.0.0.1',
+        // Nothing listens on port 9 (discard): the dashboard runs without a bridge.
+        MCP_CONTROL_HOST: '127.0.0.1',
+        MCP_CONTROL_PORT: '9',
+        GM_DASHBOARD_TOKEN: GM_TOKEN,
+        ANTHROPIC_API_KEY: '',
+        COGM_STATE_DIR: path.join(os.tmpdir(), 'cogm-dashboard-visual'),
+        LOG_LEVEL: 'error',
+      },
+    },
+    {
+      // The built Storybook: plain files, so a tiny static server is enough.
+      command: `node scripts/serve-static.mjs storybook-static ${STORYBOOK_PORT}`,
+      cwd: packageDir,
+      url: `http://127.0.0.1:${STORYBOOK_PORT}/health`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 15_000,
+    },
+  ],
 });

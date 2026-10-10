@@ -15,8 +15,8 @@
 #   - optional: FOUNDRY_PUBLIC_HOST=play.example.com sets Foundry's proxy options (hostname, proxySSL,
 #     proxyPort 443) so invitation links and A/V use the public name; Foundry restarts if that changes them.
 #   - a check: the service is active and cloudflared reports a connection to Cloudflare.
-# Before any of that, the stage refuses to go on while any world on the Pi has a Gamemaster or Assistant GM
-# with no password (#273; gm_password_check in lib-gm-passwords.sh, read-only; gm-passwords.sh runs it on its own):
+# Before any of that, the stage refuses to go on while Foundry has no administrator password (/setup would be
+# open), or while any world on the Pi has a Gamemaster or Assistant GM with no password (#273; gm_password_check in lib-gm-passwords.sh, read-only; gm-passwords.sh runs it on its own):
 # through the tunnel, anyone past Cloudflare Access could pick that user on the join page.
 # The token: the user runs set-tunnel-token.sh in their own SSH session (it asks for the token without
 # showing it); Claude never types or sees it. Until the file exists, this stage installs everything and
@@ -30,13 +30,15 @@ require_root
 require_arm64
 
 # ---- no GM without a password (#273) ----------------------------------------------------------------
-say "GM passwords in every world"
+say "Foundry's administrator password and the GM passwords in every world"
 declare -F gm_password_check >/dev/null || die "gm_password_check is missing: pipe lib-gm-passwords.sh after lib.sh (see the header). Nothing was changed"
+admin_password_set || die "Foundry has no administrator password ($FOUNDRY_DATA/Config/admin.txt is missing or empty): through the tunnel anyone past Cloudflare Access could open /setup and launch, delete or reinstall worlds. Set one in Foundry (Setup, Configuration, Administrator Password), then run this stage again. Nothing was changed"
+ok "Foundry has an administrator password"
 gm_rc=0
 gm_password_check || gm_rc=$?
 case "$gm_rc" in
   0) ok "every world's Gamemaster and Assistant GM users have a password" ;;
-  3) die "a world above has a Gamemaster or Assistant GM with no password (or no Gamemaster, so its next launch makes one): set a password for each (in that world: Game Settings, User Management), then run this stage again. Nothing was changed" ;;
+  3) die "a world above has a Gamemaster or Assistant GM with no password (or no Gamemaster at all, for example a world that was never launched, whose next launch makes one with no password): set a password for each (in that world: Game Settings, User Management), or launch the world once and set the new Gamemaster's password, or remove a world nobody uses; then run this stage again. Nothing was changed" ;;
   *) die "the GM password check could not read every world (see above): nothing was changed" ;;
 esac
 

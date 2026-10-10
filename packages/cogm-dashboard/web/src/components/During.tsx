@@ -126,11 +126,16 @@ export function useDuringLayout(moment: Moment | null, pinDuring: () => void): D
   // menu or a confirm window (the panels listed in escape.ts), or a popup such as a tooltip or a
   // popover (open in a Radix popper). Capture runs this before they close, so it still sees them
   // open.
+  const savedLayout = useRef(prefs?.duringLayout);
+  savedLayout.current = prefs?.duringLayout;
   useEffect(() => {
     if (!running) return;
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape' || hasOpenPanel() || hasOpenPopper()) return;
+      // The guide hides under the focus: move it on, as Use this one and Stop do.
+      const inGuide = document.getElementById('layout-tour')?.contains(document.activeElement);
       setTrial(null);
+      if (inGuide) focusAfterTrial(savedLayout.current);
     };
     document.addEventListener('keydown', onKey, true);
     return (): void => document.removeEventListener('keydown', onKey, true);
@@ -199,12 +204,13 @@ function LayoutButton({
       type="button"
       data-layout-pick={layout}
       aria-pressed={during.screen.layout === layout}
-      disabled={!ready}
-      // The reason a disabled button is off is also in the page for screen readers, not only in
-      // the title (NotReadyNote).
-      {...(ready ? {} : { 'aria-describedby': NOT_READY_BAR_ID })}
+      // Off with aria-disabled, not disabled: the keyboard still lands on it and a screen reader
+      // reads the reason, which is in the page (NotReadyNote), not only in the title.
+      {...(ready ? {} : { 'aria-disabled': true, 'aria-describedby': NOT_READY_BAR_ID })}
       title={ready ? tip : NOT_READY_TIP}
-      onClick={() => during.actions.pickLayout(layout)}
+      onClick={() => {
+        if (ready) during.actions.pickLayout(layout);
+      }}
       {...rest}
     >
       {children}
@@ -384,10 +390,10 @@ export function LayoutTourGuide({ during }: { during: DuringController }): JSX.E
             className="lamp"
             id="layout-tour-use"
             data-track="dash.trial.use"
-            disabled={!prefs}
             title={prefs ? undefined : NOT_READY_TIP}
-            {...(prefs ? {} : { 'aria-describedby': NOT_READY_TOUR_ID })}
+            {...(prefs ? {} : { 'aria-disabled': true, 'aria-describedby': NOT_READY_TOUR_ID })}
             onClick={() => {
+              if (!prefs) return;
               const kept = step?.layout;
               actions.useStep();
               focusAfterTrial(kept);

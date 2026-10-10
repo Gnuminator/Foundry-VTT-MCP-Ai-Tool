@@ -59,9 +59,7 @@ export async function resetDashboard(page) {
     const shown = /** @param {Element | null} el */ el =>
       !!el &&
       !!(
-        /** @type {HTMLElement} */ (
-          (el).offsetWidth || /** @type {HTMLElement} */ (el).offsetHeight
-        )
+        /** @type {HTMLElement} */ (el.offsetWidth || /** @type {HTMLElement} */ (el).offsetHeight)
       ) &&
       getComputedStyle(el).visibility !== 'hidden';
     const press = /** @param {string} s */ s => {
@@ -71,8 +69,12 @@ export async function resetDashboard(page) {
     if (shown(document.querySelector('#modal-backdrop'))) press('#modal-cancel');
     // The undo window closes on a click on its backdrop (I-109); Recent Changes goes back to the AI tab.
     press('#undo-backdrop');
-    if (document.querySelector('#changes-tab-everyone[aria-pressed="true"]')) press('#changes-tab-ai');
+    if (document.querySelector('#changes-tab-everyone[aria-pressed="true"]'))
+      press('#changes-tab-ai');
     press('#layout-tour-stop');
+    // Opening a During card folds its side cards (wide screens), and the fold rows' restore click
+    // does not reopen them: open Recent Changes again for the rows that read #changes-body.
+    press('.fold-btn[data-fold="changes"][aria-expanded="false"]');
     // A selected combatant stays selected: clear it, so the next click selects instead of unselecting.
     press('#combat-actions .ca-btn.ghost');
     for (const pane of ['#pane-ai', '#pane-diagnostics', '#pane-links', '#pane-help'])

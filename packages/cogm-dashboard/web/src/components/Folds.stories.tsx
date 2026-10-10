@@ -5,6 +5,7 @@ import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { PREFS_KEY } from '../lib/prefs';
 import type { DuringPrefs } from '../lib/prefsModel';
 import { COMBAT_KEY } from '../lib/stream';
+import { FIGHT } from '../storybook/fixtures/combat';
 import { HandoutsDrawer } from '../panels/Handouts';
 import { PartyDrawer } from '../panels/Party';
 import { reply, toolOk } from '../storybook/fakeApi';
@@ -38,10 +39,7 @@ const noop = (): void => undefined;
 function bridge(prefs: DuringPrefs, combat = false): { dashboard: DashboardParameters } {
   return {
     dashboard: {
-      cache: [
-        [PREFS_KEY, prefs] as const,
-        ...(combat ? [[COMBAT_KEY, { active: true }] as const] : []),
-      ],
+      cache: [[PREFS_KEY, prefs] as const, ...(combat ? [[COMBAT_KEY, FIGHT] as const] : [])],
       api: {
         routes: {
           'POST /api/control': setPrefsEcho(prefs),

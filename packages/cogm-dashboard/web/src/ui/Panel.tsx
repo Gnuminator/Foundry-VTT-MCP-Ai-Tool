@@ -56,6 +56,8 @@ interface PanelProps extends Omit<ComponentProps<'section'>, 'title'> {
   headStart?: ReactNode;
   /** Gives the body an id, for the fold button's aria-controls. */
   bodyId?: string | undefined;
+  /** More attributes for the body, e.g. a list role when its children are the items. */
+  bodyProps?: Omit<ComponentProps<'div'>, 'className' | 'id' | 'children'> | undefined;
   /**
    * A click on the title text itself (not the "?"), for a folded During card: a pointer shortcut
    * to open it. The title is not focusable, so the fold button is the keyboard path.
@@ -104,6 +106,7 @@ export function Panel({
   bodyClassName,
   headStart,
   bodyId,
+  bodyProps,
   onTitleClick,
   className,
   children,
@@ -147,6 +150,7 @@ export function Panel({
       <div
         className={cx(drawer ? 'tarokka-body' : 'pane-body', bodyClassName)}
         {...(bodyId ? { id: bodyId } : {})}
+        {...(showing ? {} : bodyProps)}
       >
         {showing ? (
           <StateBlock

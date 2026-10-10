@@ -11,6 +11,7 @@ import {
   keepChange,
   nextLabel,
   nextTrial,
+  showsSampleFight,
   stepLine,
 } from './duringTrial';
 import {
@@ -226,5 +227,16 @@ describe('the prefs', () => {
     );
     // The hint count has nothing to roll back.
     expect(rollBackChange(before, before, { hintSession: 'x' })).toEqual(before);
+  });
+});
+
+describe('the sample fight', () => {
+  it('shows on the Auto step only, and not outside the trial', () => {
+    expect(showsSampleFight(null)).toBe(false);
+    expect(TOUR.map((_, step) => showsSampleFight({ step, full: false }))).toEqual([
+      false,
+      false,
+      true,
+    ]);
   });
 });

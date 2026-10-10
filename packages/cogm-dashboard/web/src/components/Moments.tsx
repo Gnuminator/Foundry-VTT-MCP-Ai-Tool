@@ -225,6 +225,7 @@ export function MomentViews({
   duringBar,
   duringFolds,
   beforeTop,
+  duringStrip,
 }: {
   moment: Moment | null;
   slotRefs: SlotRefs;
@@ -239,6 +240,8 @@ export function MomentViews({
   duringFolds?: DuringFolds;
   /** The layout trial's card, the first thing in Before. */
   beforeTop?: ReactNode;
+  /** The combat strip (components/CombatStrip.tsx), in the strip slot. */
+  duringStrip?: ReactNode;
 }): JSX.Element {
   return (
     <main className="moment-views" id="moment-views" aria-busy={moment === null}>
@@ -255,7 +258,6 @@ export function MomentViews({
         <div className="slot" data-slot="prep" ref={slotRefs['before-prep']} />
         <NotHereYet title="Features" wide />
       </section>
-      {/* The turn strip's rows come with their own panel. */}
       <section
         className={duringBar ? 'moment' : 'moment during-no-bar'}
         id="moment-during"
@@ -267,7 +269,9 @@ export function MomentViews({
         hidden={moment !== 'during'}
       >
         {duringBar}
-        <div className="slot slot-strip" data-slot="strip" />
+        <div className="slot slot-strip" data-slot="strip">
+          {duringStrip}
+        </div>
         <div className="slot slot-feed" data-slot="feed">
           <NotHereYet
             title="Live Feed"

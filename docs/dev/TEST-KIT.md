@@ -647,6 +647,12 @@ What the live runs taught the kit (all KIT, fixed): dnd5e 6 keeps a species' spe
 `senses.ranges`, and the speeds are strings ("30"); an advancement of a higher level (a species feature at level 5, a feat that
 learns more spells as you level) waits for the hero and is not checked at level 1; a module's copy of a system item has the same
 item id in another pack (a note, not a mix-up); a granted feature may raise a sense (superior darkvision).
+The 2026-10-09 licensed run found one more (KIT, fixed): dnd5e finishes two writes after a new item is created without
+awaiting them (the species links itself as `system.details.race`; Cast activities add their cached spell copies), and the next
+advancement manager writes its clone of the actor back whole and deletes items the clone lacks. A background manager started
+before those writes landed erased the species link (no speed, no senses) and deleted Air Genasi's Shocking Grasp (8 of 79
+species on a slow run). `createHero` now waits for both after each manager (`lib/settle-created.mjs`) and fails the build
+if they never come; that failure is SYSTEM (dnd5e never finished its own writes).
 
 What is left in the `licensed` profile, all findings about the content and not kit failures: CONTENT, 24 species features whose
 attack or utility activity spends an item use but the item has none set (no uses to spend), 5 feats of the same kind, 1 feat whose
@@ -988,7 +994,10 @@ Rules of thumb:
   built. A hero with a `buildError` has no actor.
 - **A new GM action** goes into `GM_ACTIONS` in the contract, `lib/gm-actions.mjs` and the fake,
   all three together. An action that changes a hero (`exerciseActor`) puts it back and says whether
-  that worked.
+  that worked. Page code you want kit:test to reach goes in a lib file of its own, listed in
+  `GM_ACTION_HELPERS` (gm-actions.mjs): gm.mjs sends its source with the action as
+  `args._helpers.<name>` and the action rebuilds it with `new Function` (`settleCreated`, used by
+  `createHero`, is the first). It must be self-contained like the actions.
 - A `continueOnFail` step lets the scenario go on after a failure. Use it for lists of
   independent checks, such as one step per monster or per hero.
 

@@ -316,6 +316,18 @@ test('classifyBuildError sorts a build error into a kind and keeps the message',
     'KIT'
   );
   assert.equal(classifyBuildError('invalid HP {"value":0,"max":0}').kind, 'KIT');
+  // dnd5e never finished its own writes after the item was created (settle-created.mjs).
+  assert.equal(
+    classifyBuildError(
+      'createHero: species: the species Elf is not linked to the actor (system.details.race)'
+    ).kind,
+    'SYSTEM'
+  );
+  assert.equal(
+    classifyBuildError('createHero: species: no cached spell for Lineage: Cast Shocking Grasp')
+      .kind,
+    'SYSTEM'
+  );
   assert.equal(classifyBuildError('anything').evidence, 'anything');
 });
 

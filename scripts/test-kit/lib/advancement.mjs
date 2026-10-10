@@ -40,7 +40,13 @@ export function classifyBuildError(message) {
     )
   )
     kind = 'CONTENT';
-  else if (/ failed: |refused|advancement manager closed/i.test(m)) kind = 'SYSTEM';
+  else if (
+    // The last two: dnd5e never finished its own writes after an item was created (settle-created.mjs).
+    / failed: |refused|advancement manager closed|is not linked to the actor|no cached spell/i.test(
+      m
+    )
+  )
+    kind = 'SYSTEM';
   return { kind, what: NOT_BUILT, evidence: m };
 }
 

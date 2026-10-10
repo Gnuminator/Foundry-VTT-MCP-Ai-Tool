@@ -137,8 +137,11 @@ export function useDuringLayout(moment: Moment | null, pinDuring: () => void): D
       if (!trial) return;
       const title = TOUR[trial.step]?.title ?? '';
       setTrial(null);
-      void save(keepChange(trial));
-      toast(`✓ ${title} kept. Switch any time with Layout on the During screen.`, 'ok');
+      // The "kept" line only once it is saved; a failed save has its own error toast.
+      void save(keepChange(trial)).then(saved => {
+        if (saved)
+          toast(`✓ ${title} kept. Switch any time with Layout on the During screen.`, 'ok');
+      });
     },
     stopTrial: () => setTrial(null),
     toggleCombatButtons: () => {

@@ -52,6 +52,21 @@ else
     packages/foundry-module/dist/main.js; do
     [ -f "$build/$f" ] || die "the build of $ref has no $f"
   done
+  # The dev packages (compilers, test runners, Storybook, linters) only serve the build: drop them. The Assistant
+  # GM driver and stages 11 and 13 load playwright-core from this build, so a ref that still lists it as a dev
+  # package (older tags such as v0.21.0) keeps them all.
+  size_before="$(du -sm "$build" | cut -f1)"
+  if (cd "$build" && node -e 'process.exit(require("./package.json").dependencies?.["playwright-core"] ? 0 : 1)'); then
+    if ! (cd "$build" && npm prune --omit=dev --no-audit --no-fund) >>"$log" 2>&1; then
+      tail -n 40 "$log" >&2
+      die "npm prune of the $ref build failed (full log: $log)"
+    fi
+    ok "dev packages removed: $size_before MB -> $(du -sm "$build" | cut -f1) MB"
+  else
+    warn "$ref lists playwright-core as a dev package (the Assistant GM needs it): dev packages kept ($size_before MB)"
+  fi
+  (cd "$build" && node -e 'require.resolve("playwright-core")') >/dev/null 2>&1 ||
+    die "the build of $ref has no playwright-core: the Assistant GM could not start"
   printf '%s\n' "$ref" >"$build/.tool-ref"
   if have_systemd; then
     for unit in foundry-ai-tool-gm-browser foundry-ai-tool-dashboard foundry-ai-tool-bridge; do

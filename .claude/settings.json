@@ -1,4 +1,15 @@
 {
+  "permissions": {
+    "deny": [
+      "mcp__foundry-mcp",
+      "mcp__foundry-mcp-play",
+      "mcp__foundry-mcp-prep",
+      "mcp__foundry-mcp-build",
+      "mcp__foundry-mcp-admin",
+      "mcp__computer-use",
+      "mcp__visualize"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {

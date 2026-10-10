@@ -4,10 +4,9 @@
 //   - the main checkout's CLAUDE.md differs from the vault master (repo-docs/CLAUDE.md),
 //   - the due "Waiting on the user" items (vault Waiting.md, D-122),
 //   - somebody holds the test server lock (or it cannot be read, or a queue waits on a free lock),
-//   - lanes of this project at 200k context or more (busy or waiting, not CLOSED),
 //   - a session-notes run was missed or paused on the usage limit (the watchdog).
 //
-// The lanes and the watchdog come from the control center (GET 127.0.0.1:3200/snapshot.json,
+// The watchdog comes from the control center (GET 127.0.0.1:3200/snapshot.json,
 // Gnuminator/control-center), else from a snapshot.json under 30 minutes old in its data folder.
 // When neither answers and the control center is installed on this PC, one line says so. The
 // lock is read straight from <test env root>/lock.json (written only by scripts/test-env/lock.ps1).
@@ -24,8 +23,6 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const MAX_LINES = 10;
-export const LANE_ALERT = 200_000;
-export const LANE_RED = 250_000;
 const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
 const LOCK_OLD_MS = 4 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 3000;
@@ -226,24 +223,10 @@ export function foundryPart(snap) {
   if (!snap || typeof snap !== 'object') return null;
   if (Array.isArray(snap.projects)) {
     const p = snap.projects.find(x => x && x.pack === 'foundry');
-    return p ? { lanes: p.lanes, watchdog: p.panels?.watchdog } : null;
+    return p ? { watchdog: p.panels?.watchdog } : null;
   }
-  if (snap.lanes) return { lanes: snap.lanes, watchdog: snap.watchdog };
+  if (snap.watchdog) return { watchdog: snap.watchdog };
   return null;
-}
-
-export function lanesAlert(lanes) {
-  const rows = Array.isArray(lanes?.rows) ? lanes.rows : [];
-  const hot = rows
-    .filter(r => r && !r.closed && r.state !== 'stale' && Number(r.context) >= LANE_ALERT)
-    .sort((a, b) => b.context - a.context);
-  if (!hot.length) return null;
-  const shown = hot
-    .slice(0, 3)
-    .map(r => `${clip(r.title || r.sessionId, 45)} ${Math.round(r.context / 1000)}k`);
-  const more = hot.length > 3 ? ` and ${hot.length - 3} more` : '';
-  const red = hot.some(r => r.context >= LANE_RED) ? ' (250k or more: hand over now)' : '';
-  return `Lanes over 200k context: ${shown.join(', ')}${more}${red}.`;
 }
 
 export function watchdogAlert(w) {
@@ -308,11 +291,10 @@ export async function collectAlerts({
   const { snap } = await loadSnapshot({ url: snapshotUrl, file: snapshotFile, now, fetchImpl });
   const part = foundryPart(snap);
   if (part) {
-    add(lanesAlert(part.lanes));
     add(watchdogAlert(part.watchdog));
   } else if (ccDir && existsSync(ccDir)) {
     add(
-      'Control center not answering on 127.0.0.1:3200: lane context and session notes not checked.'
+      'Control center not answering on 127.0.0.1:3200: session notes not checked.'
     );
   }
   return lines.slice(0, MAX_LINES);

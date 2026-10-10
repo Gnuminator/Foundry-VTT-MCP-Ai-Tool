@@ -12,7 +12,6 @@ import {
   collectAlerts,
   foundryPart,
   formatOutput,
-  lanesAlert,
   lockAlert,
   mainCheckout,
   parseWaiting,
@@ -44,16 +43,14 @@ function fixture() {
   };
 }
 
-function lane(title, context, extra = {}) {
-  return { sessionId: `id-${title}`, title, closed: false, state: 'busy', context, ...extra };
-}
+const MISSED = { state: 'missed', items: [{ name: 'r-discord', state: 'missed' }] };
 
-function snapshot({ rows = [], watchdog = { state: 'ok', items: [] } } = {}) {
+function snapshot({ watchdog = { state: 'ok', items: [] } } = {}) {
   return {
     version: 3,
     projects: [
-      { pack: null, lanes: { rows: [lane('other project', 400_000)] }, panels: {} },
-      { pack: 'foundry', lanes: { rows }, panels: { watchdog } },
+      { pack: null, panels: { watchdog: MISSED } },
+      { pack: 'foundry', panels: { watchdog } },
     ],
   };
 }
@@ -290,23 +287,12 @@ test('waiting: collectAlerts puts the line right after the CLAUDE.md alert', asy
   }
 });
 
-test('lanes: only this project, not CLOSED, not stale, 200k and up; 250k says hand over', () => {
-  const rows = [
-    lane('Foundry AI Tool small', 120_000),
-    lane('Foundry AI Tool closed', 300_000, { closed: true }),
-    lane('Foundry AI Tool stale', 300_000, { state: 'stale' }),
-    lane('Foundry AI Tool amber', 210_000, { state: 'waiting' }),
-  ];
-  const part = foundryPart(snapshot({ rows }));
-  assert.equal(lanesAlert(part.lanes), 'Lanes over 200k context: Foundry AI Tool amber 210k.');
-  rows.push(lane('Foundry AI Tool red', 260_000));
-  assert.match(
-    lanesAlert(part.lanes),
-    /red 260k, Foundry AI Tool amber 210k \(250k or more: hand over now\)/
-  );
-  // The old in-repo dashboard snapshot (version 2) has the lanes at the top level.
-  assert.ok(lanesAlert(foundryPart({ version: 2, lanes: { rows } }).lanes));
-  assert.equal(lanesAlert(foundryPart({ version: 3, projects: [] })?.lanes), null);
+test('the Foundry part: only the foundry pack, or the old top-level snapshot', () => {
+  assert.equal(watchdogAlert(foundryPart(snapshot())?.watchdog), null);
+  assert.match(watchdogAlert(foundryPart(snapshot({ watchdog: MISSED })).watchdog), /r-discord/);
+  // The old in-repo dashboard snapshot (version 2) has the watchdog at the top level.
+  assert.ok(watchdogAlert(foundryPart({ version: 2, watchdog: MISSED }).watchdog));
+  assert.equal(foundryPart({ version: 3, projects: [] }), null);
 });
 
 test('watchdog: missed and paused alert, the rest is silent', () => {
@@ -335,19 +321,15 @@ test('every alert forced at once: one line each, ten lines at most', async () =>
       path.join(f.testEnv, 'lock.json'),
       JSON.stringify({ holder: 'kit run', since: NOW.toISOString() })
     );
-    const snap = snapshot({
-      rows: [lane('Lane A', 230_000)],
-      watchdog: { state: 'missed', items: [{ name: 'r-discord', state: 'missed' }] },
-    });
+    const snap = snapshot({ watchdog: MISSED });
     const lines = await collectAlerts(opts(f, { fetchImpl: answer(snap) }));
-    assert.equal(lines.length, 4);
+    assert.equal(lines.length, 3);
     assert.match(lines[0], /^CLAUDE\.md differs/);
     assert.match(lines[1], /^Test server lock: held by kit run/);
-    assert.match(lines[2], /^Lanes over 200k/);
-    assert.match(lines[3], /^Session notes missed/);
+    assert.match(lines[2], /^Session notes missed/);
     const out = JSON.parse(formatOutput(lines));
     assert.equal(out.hookSpecificOutput.hookEventName, 'SessionStart');
-    assert.equal(out.systemMessage.split('\n').length, 5); // the heading plus four alerts
+    assert.equal(out.systemMessage.split('\n').length, 4); // the heading plus three alerts
     assert.ok(formatOutput(Array(20).fill('x')).length > 0);
   } finally {
     f.cleanup();
@@ -358,9 +340,9 @@ test('no control center: a fresh snapshot file is used, an old one is not', asyn
   const f = fixture();
   try {
     const file = path.join(f.root, 'snapshot.json');
-    writeFileSync(file, JSON.stringify(snapshot({ rows: [lane('Lane B', 220_000)] })));
+    writeFileSync(file, JSON.stringify(snapshot({ watchdog: MISSED })));
     const fresh = await collectAlerts(opts(f, { fetchImpl: refused, now: new Date() }));
-    assert.deepEqual(fresh, ['Lanes over 200k context: Lane B 220k.']);
+    assert.deepEqual(fresh, ['Session notes missed for r-discord (no notes run within 24 h).']);
 
     const old = new Date(Date.now() - 2 * 60 * 60 * 1000);
     utimesSync(file, old, old);
@@ -371,7 +353,7 @@ test('no control center: a fresh snapshot file is used, an old one is not', asyn
       opts(f, { fetchImpl: refused, now: new Date(), ccDir: path.join(f.root, 'cc') })
     );
     assert.deepEqual(lines, [
-      'Control center not answering on 127.0.0.1:3200: lane context and session notes not checked.',
+      'Control center not answering on 127.0.0.1:3200: session notes not checked.',
     ]);
   } finally {
     f.cleanup();

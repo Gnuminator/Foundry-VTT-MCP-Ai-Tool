@@ -224,7 +224,7 @@ test.describe('the fold buttons', () => {
     await foldButton(page, 'party').click();
     await expect(party.locator('#party-drawer-body')).toBeVisible();
     await foldButton(page, 'feed').click();
-    await expect(card(page, 'feed').locator('.not-here-yet-text')).toBeHidden();
+    await expect(card(page, 'feed').locator('#pane-feed-body')).toBeHidden();
     await expect(card(page, 'feed').locator('.pane-head')).toBeVisible();
   });
 });

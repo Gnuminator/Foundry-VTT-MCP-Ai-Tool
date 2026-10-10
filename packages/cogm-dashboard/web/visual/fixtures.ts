@@ -354,6 +354,30 @@ const MODULE_ERRORS = [
   },
 ];
 
+/** The session events the stream brings (the Live Feed), oldest first. Made up. */
+const FEED_EVENTS = [
+  ['scene-change', 'The scene is now Harbor Market'],
+  ['combat-start', 'Combat begins in Harbor Market'],
+  ['roll', 'Aldric attacks the smuggler: 17 vs AC 14, hit'],
+  ['damage', 'Smuggler takes 9 slashing damage'],
+  ['condition-applied', 'Smuggler gained "Prone"'],
+  ['healing', 'Brenna heals 6 hit points'],
+  ['gm-roll', 'GM roll for Miller Grim: Stealth 22 (secret)'],
+  ['resource-spent', 'Aldric used a level 1 spell slot'],
+].map(([eventType, description], i) => {
+  const timestampMs = at(18, 30 + i);
+  return {
+    id: `feed-${i + 1}`,
+    timestamp: iso(timestampMs),
+    timestampMs,
+    eventType,
+    actorName: null,
+    actorId: null,
+    description,
+    details: {},
+  };
+});
+
 const TOOLS = [
   {
     name: 'apply-planned-change',
@@ -500,6 +524,7 @@ export async function fakeDashboard(page: Page, setup: Setup): Promise<void> {
         hintSessions: [],
       },
     },
+    { event: 'events', data: { events: FEED_EVENTS, initial: true } },
     ...(setup.moduleErrors
       ? [{ event: 'errors', data: { errors: MODULE_ERRORS, initial: true } }]
       : []),

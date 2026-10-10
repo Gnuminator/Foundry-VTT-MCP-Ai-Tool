@@ -4,8 +4,9 @@ import { expect, userEvent, waitFor, within } from 'storybook/test';
 
 import { PREFS_KEY } from '../lib/prefs';
 import type { DuringPrefs } from '../lib/prefsModel';
-import { COMBAT_KEY } from '../lib/stream';
+import { COMBAT_KEY, FEED_KEY } from '../lib/stream';
 import { FIGHT } from '../storybook/fixtures/combat';
+import { FEED_FEW } from '../storybook/fixtures/feed';
 import { HandoutsDrawer } from '../panels/Handouts';
 import { PartyDrawer } from '../panels/Party';
 import { reply, toolOk } from '../storybook/fakeApi';
@@ -23,8 +24,8 @@ import { MomentViews, useDocks } from './Moments';
 // The folds of the During cards: Live Feed, Recent Changes, Handouts and Party, each with a fold
 // button first in its head. The whole During view is on screen, as the page shows it, with the
 // layout on; the play steps press the fold buttons the way a GM would (the side set on a wide
-// screen, the title click, no side set on a phone). The Live Feed and Recent Changes are still
-// placeholders here, with the same head and button.
+// screen, the title click, no side set on a phone). Recent Changes is still a placeholder
+// here, with the same head and button.
 const meta = {
   title: 'Components/During folds',
   parameters: { layout: 'fullscreen' },
@@ -39,7 +40,11 @@ const noop = (): void => undefined;
 function bridge(prefs: DuringPrefs, combat = false): { dashboard: DashboardParameters } {
   return {
     dashboard: {
-      cache: [[PREFS_KEY, prefs] as const, ...(combat ? [[COMBAT_KEY, FIGHT] as const] : [])],
+      cache: [
+        [PREFS_KEY, prefs] as const,
+        [FEED_KEY, FEED_FEW] as const,
+        ...(combat ? [[COMBAT_KEY, FIGHT] as const] : []),
+      ],
       api: {
         routes: {
           'POST /api/control': setPrefsEcho(prefs),

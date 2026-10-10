@@ -10,9 +10,11 @@ import { HANDOUTS, PLAYERS, SCENES } from '../storybook/fixtures/handouts';
 import { PARTY_OF_EIGHT } from '../storybook/fixtures/party';
 import { PREFLIGHT_OK, SWITCHES_READY } from '../storybook/fixtures/preflight';
 import { PREP } from '../storybook/fixtures/prep';
+import { FEED_FEW } from '../storybook/fixtures/feed';
 import { PHONE_VIEW, VEIL } from '../storybook/modes';
 
 import { DockContext } from './Drawer';
+import { FEED_KEY } from '../lib/stream';
 import { MomentTabs, MomentViews, useDocks, type DockName, type Moment } from './Moments';
 
 const meta = {
@@ -90,6 +92,7 @@ function Page({ initial }: { initial: Moment | null }): JSX.Element {
 }
 
 const bridge = {
+  cache: [[FEED_KEY, FEED_FEW] as const],
   api: {
     routes: {
       '/api/preflight': reply(PREFLIGHT_OK),

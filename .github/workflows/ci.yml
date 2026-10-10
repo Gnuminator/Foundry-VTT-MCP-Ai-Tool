@@ -409,6 +409,14 @@ jobs:
           PI_STAGE11_CONTAINER: 1
         run: node --test scripts/pi/stage11-world.test.mjs
 
+      - name: Pi stage 14 in an ARM64 container
+        # scripts/pi/container-test/system-trial-scenarios.sh: stage 14 on Debian 13 ARM64 with stand-ins for systemd
+        # and a fake Foundry (the dnd5e trial, switch and rollback, the refusals before anything stops, a failed trial
+        # that puts everything back, a rollback that stops halfway and is finished by a rerun).
+        env:
+          PI_SYSTEM_TRIAL_CONTAINER: 1
+        run: node --test scripts/pi/system-trial.test.mjs
+
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs
 

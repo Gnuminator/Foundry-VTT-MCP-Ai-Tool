@@ -477,13 +477,23 @@ for id in "${restore[@]}"; do
   [[ "$id" =~ ^[a-z0-9-]+$ ]] && [ -d "$TRIAL/worlds/$id" ] || die "no copy of '$id' in $TRIAL/worlds. Nothing was changed"
 done
 launched_before="${launched_before:-$CAMPAIGN}"
-archive="$IMPORT/prev-$stamp-system-trial"
-echo "    $SYSTEM $installed to $from; reset from the trial's copies: ${restore[*]}; then Foundry launches $launched_before"
+# A rerun keeps using the first run's archive, so everything the rollback kept stays in one folder.
+archive="$(state_get archive)"
+case "$phase:$archive" in
+  rolling-back:"$IMPORT"/prev-*-system-trial) [ -d "$archive" ] || archive="$IMPORT/prev-$stamp-system-trial" ;;
+  *) archive="$IMPORT/prev-$stamp-system-trial" ;;
+esac
+if [ -d "$old" ]; then
+  echo "    $SYSTEM $installed to $from; reset from the trial's copies: ${restore[*]}; then Foundry launches $launched_before"
+else
+  echo "    $SYSTEM $from is back already; reset from the trial's copies: ${restore[*]}; then Foundry launches $launched_before"
+fi
 check_space "$IMPORT" "$IMPORT"
 stop_services
 undo=undo_rollback
 state_set phase rolling-back
 state_set restore "${restore[*]}"
+state_set archive "$archive"
 install -d -m 700 "$archive" "$archive/worlds"
 if [ -d "$old" ]; then
   mv "$sysdir" "$archive/$SYSTEM-$installed"
@@ -505,4 +515,4 @@ stopped=0
 trap - EXIT
 say "summary"
 echo "    $SYSTEM $from runs again; Foundry launches $launched_before"
-echo "    kept in $archive: $SYSTEM $installed, the worlds that ran on it and the trial folder; remove later, only with the user's OK"
+echo "    kept in $archive: $SYSTEM $to, the worlds that ran on it and the trial folder; remove later, only with the user's OK"

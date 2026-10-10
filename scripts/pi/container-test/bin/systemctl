@@ -23,6 +23,11 @@ case "$cmd" in
       exit 0
     fi
     [ -z "$unit" ] || rm -f "/tmp/stopped-$unit"
+    # Stage 14 scenarios: /tmp/fake_foundry_opens makes a started Foundry open the world options.json names.
+    if [ "$unit" = foundry.service ] && [ -f /tmp/fake_foundry_opens ]; then
+      world="$(sed -n 's/.*"world": *"\([^"]*\)".*/\1/p' /var/lib/foundry/Config/options.json)"
+      [ -z "$world" ] || /usr/local/sbin/fake-foundry-open "$world"
+    fi
     ;;
 esac
 exit 0

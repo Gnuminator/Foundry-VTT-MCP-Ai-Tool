@@ -8,14 +8,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type JSX,
   type ReactNode,
-  type RefObject,
+  type RefCallback,
 } from 'react';
 
-import { Drawer, DrawerClose } from '../components/Drawer';
+import { Drawer, DrawerClose, raiseDrawer } from '../components/Drawer';
 import { RefPicker } from '../components/RefPicker';
 import { useToast } from '../components/Toasts';
 import { api, callTool, errorText } from '../lib/api';
@@ -77,11 +78,52 @@ export function ToolsDrawer(props: {
   request: ToolRequest | null;
 }): JSX.Element {
   // A change refused for GM Actions points at the gate bar in this drawer, not at Pre-flight.
+  // Open, the drawer comes to the top and the bar takes the focus as soon as it is there (a
+  // refusal from the server turns GM Actions off in the settings cache, which may draw the bar a
+  // render after the gate was asked for). An Undo from a toast can be refused after the
+  // drawer closed: it opens again, and the bar takes the focus in place of Radix's open autofocus
+  // (which would otherwise run after anything done here).
   const gateButton = useRef<HTMLButtonElement>(null);
-  const focusGate = useCallback(() => gateButton.current?.focus(), []);
+  const gatePending = useRef(false);
+  const [gateAsked, setGateAsked] = useState(0);
+  const { open, onOpenChange } = props;
+  // Read when the gate is asked for: an Undo toast keeps the gate from when its change ran.
+  const isOpen = useRef(open);
+  useLayoutEffect(() => {
+    isOpen.current = open;
+  });
+  const focusGate = useCallback(() => {
+    gatePending.current = true;
+    if (!isOpen.current) {
+      onOpenChange(true);
+      return;
+    }
+    raiseDrawer('tools-drawer');
+    setGateAsked(n => n + 1);
+  }, [onOpenChange]);
+  // Asked with the drawer open: the bar may be up already (the effect focuses it) or draw a
+  // render later, when the refusal's settings change reaches it (the ref callback focuses it).
+  useEffect(() => {
+    if (!gatePending.current || !isOpen.current || !gateButton.current) return;
+    gatePending.current = false;
+    gateButton.current.focus();
+  }, [gateAsked]);
+  const gateButtonRef = useCallback((button: HTMLButtonElement | null) => {
+    gateButton.current = button;
+    if (!button || !gatePending.current || !isOpen.current) return;
+    gatePending.current = false;
+    button.focus();
+  }, []);
+  const onOpenAutoFocus = useCallback((event: Event) => {
+    if (!gatePending.current) return;
+    gatePending.current = false;
+    if (!gateButton.current) return;
+    event.preventDefault();
+    gateButton.current.focus();
+  }, []);
   return (
     <GmActionsGateContext.Provider value={focusGate}>
-      <ToolRunner {...props} gateButton={gateButton} />
+      <ToolRunner {...props} gateButton={gateButtonRef} onOpenAutoFocus={onOpenAutoFocus} />
     </GmActionsGateContext.Provider>
   );
 }
@@ -91,11 +133,13 @@ function ToolRunner({
   onOpenChange,
   request,
   gateButton,
+  onOpenAutoFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   request: ToolRequest | null;
-  gateButton: RefObject<HTMLButtonElement | null>;
+  gateButton: RefCallback<HTMLButtonElement>;
+  onOpenAutoFocus: (event: Event) => void;
 }): JSX.Element {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -219,14 +263,20 @@ function ToolRunner({
       .finally(() => setEnabling(false));
   };
 
-  /** The confirm window's lines: the args, with the names the pickers know for their values. */
+  /**
+   * The confirm window's lines: the args, with the names the pickers know for their values and
+   * the value itself after the name, so two scenes or tokens of the same name stay apart.
+   */
   const confirmLines = (t: ToolInfo, args: Record<string, unknown>): string[] =>
     Object.keys(args).length === 0
       ? argLines(args)
       : Object.entries(args).map(([key, value]) => {
           const known = namesOf(t.name, key);
-          const named = (v: unknown): string =>
-            typeof v === 'string' ? (known.get(v) ?? v) : JSON.stringify(v);
+          const named = (v: unknown): string => {
+            if (typeof v !== 'string') return JSON.stringify(v);
+            const name = known.get(v);
+            return name === undefined || name === v ? v : `${name} (${v})`;
+          };
           return `${key}: ${Array.isArray(value) ? value.map(named).join(', ') : named(value)}`;
         });
 
@@ -384,7 +434,9 @@ function ToolRunner({
       <p className="tool-detail-desc" id="tool-detail-desc">
         {tool.description}
       </p>
+      {/* Keyed by tool: a picker's own state (Show all, its filter) never carries to another. */}
       <ToolForm
+        key={tool.name}
         tool={tool}
         draft={drafts[tool.name] ?? startDraft(tool)}
         setField={setField}
@@ -414,6 +466,7 @@ function ToolRunner({
       open={open}
       onOpenChange={onOpenChange}
       id="tools-drawer"
+      onOpenAutoFocus={onOpenAutoFocus}
       title="🛠 Tool Runner"
       sub="Run any Foundry bridge tool"
       help="dashboard#the-tool-runner--tools"
@@ -547,8 +600,12 @@ function ToolForm({
       ) : (
         <input
           {...common}
-          type={def.type === 'number' || def.type === 'integer' ? 'number' : 'text'}
-          step={def.type === 'integer' ? 1 : def.type === 'number' ? 'any' : undefined}
+          // Text, not type=number: a browser number field reads "" for text that is not a
+          // number, so an optional field would be dropped without a word. collectArgs checks it.
+          type="text"
+          inputMode={
+            def.type === 'integer' ? 'numeric' : def.type === 'number' ? 'decimal' : undefined
+          }
           value={text(key)}
           onChange={e => setField(key, e.target.value)}
         />

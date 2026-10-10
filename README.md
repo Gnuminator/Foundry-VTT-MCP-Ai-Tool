@@ -118,8 +118,8 @@ The bridge and the dashboard are decoupled, so they can run where it suits the t
 
 - **Loopback by default.** The bridge's Foundry link and the dashboard listen on `127.0.0.1` only.
   `FOUNDRY_LINK_HOST` / `DASHBOARD_HOST` open them to other interfaces; the dashboard refuses a
-  non-loopback address without a `GM_DASHBOARD_TOKEN` of at least 32 characters, and answers only host names on its allowlist
-  (`DASHBOARD_ALLOWED_HOSTS`).
+  non-loopback address without a `GM_DASHBOARD_TOKEN` of at least 32 characters, and answers only
+  host names on its allowlist (`DASHBOARD_ALLOWED_HOSTS`).
 - **Standalone bridge.** Run the bridge without Claude Desktop: `npm run bridge:standalone` (host and
   port injectable; Windows service scaffold in [`deploy/windows/`](deploy/windows/)).
 - **Player vs GM split.** With a GM token (or a Cloudflare Access email allow-list) the GM surface

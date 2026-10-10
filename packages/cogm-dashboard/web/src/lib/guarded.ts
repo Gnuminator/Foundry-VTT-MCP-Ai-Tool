@@ -9,7 +9,7 @@ import { createContext, useCallback, useContext, useMemo } from 'react';
 import { focusedElement, useConfirm } from '../components/ConfirmDialog';
 import { useToast } from '../components/Toasts';
 import { ApiError, callTool, errorText, type ToolConfirm } from './api';
-import { useDashboardSettings } from './stream';
+import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from './stream';
 import { usage } from './usage';
 
 /**
@@ -186,6 +186,15 @@ export function useGuardedTools(): GuardedTools {
         return { result: result ?? {} };
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) {
+          // The server says GM Actions are off, whatever the page last heard: the gates show
+          // (the Tool runner's bar too) until the stream says otherwise. Before the stream's first
+          // settings there is nothing else to keep: GM Actions stand in alone, as the Tool runner's
+          // catalog and Ready for session do (the Obsidian link waits for the stream).
+          if (err.code === 'gm-actions-disabled') {
+            queryClient.setQueryData<DashboardSettings | null>(SETTINGS_KEY, old =>
+              old ? { ...old, gmActionsEnabled: false } : { gmActionsEnabled: false }
+            );
+          }
           return { outcome: refuse(name, '403', options) };
         }
         usage().trackTool(name, 'error', failCode(err));
@@ -207,13 +216,14 @@ export function useGuardedTools(): GuardedTools {
       }
     };
 
-    // The click on Undo is the confirmation, as on the old page.
-    const undo = async (changeId: string): Promise<void> => {
+    // The click on Undo is the confirmation, as on the old page. A refusal says what the run
+    // that made the toast would have said (its gate text), and opens the same gate.
+    const undo = async (changeId: string, options: GuardedOptions): Promise<void> => {
       const sent = await send(
         'undo-change',
         { changeId },
         { confirm: true, confirmDestructive: true },
-        {}
+        options
       );
       if ('outcome' in sent) return;
       toast(doneText('undo-change', sent.result), 'ok');
@@ -272,7 +282,7 @@ export function useGuardedTools(): GuardedTools {
       if (changeId) {
         toast(doneText('apply-planned-change', applied), 'ok', {
           label: 'Undo',
-          onClick: () => void undo(changeId),
+          onClick: () => void undo(changeId, options),
         });
       } else {
         toast(doneText('apply-planned-change', applied), 'ok');

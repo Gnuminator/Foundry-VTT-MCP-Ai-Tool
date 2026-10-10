@@ -1,7 +1,111 @@
 import { ERROR_MESSAGES } from '../constants.js';
+import { dig } from '../doc-read.js';
 import * as shared from './shared.js';
 import { effectChanges, effectDuration, effectImg, type EffectChange } from '../systems/core.js';
 import { statusEffectList } from '../systems/dnd5e/status-effects.js';
+
+/** One `CONFIG.statusEffects` entry as {@link ResourcesEffectsDataAccess.getAvailableConditions} lists it. */
+interface ConditionEntry {
+  id: string;
+  name: unknown;
+  icon: unknown;
+  description: unknown;
+}
+
+interface AvailableConditionsResult {
+  success: true;
+  gameSystem: string | undefined;
+  conditions: ConditionEntry[];
+}
+
+interface SpellSlotEntry {
+  max: number;
+  current: number;
+  expended: number;
+  /** Pact magic only. */
+  level?: number | null;
+}
+
+interface ClassResourceEntry {
+  key: string;
+  label: string;
+  max: number | null;
+  current: number | null;
+}
+
+interface ItemChargeEntry {
+  itemName: string;
+  charges: number;
+  max: number;
+  recharge: string | null;
+}
+
+type ConcentrationState =
+  | { active: false }
+  | { active: true; spell: string | null; remaining: unknown };
+
+interface HitDiceState {
+  total: number | null;
+  available: number | null;
+  dieType: string | null;
+}
+
+interface CharacterResourcesResult {
+  success: true;
+  actorId: string;
+  actorName: string;
+  system: string | undefined;
+  spellSlots: Record<string, SpellSlotEntry>;
+  classResources: ClassResourceEntry[];
+  itemCharges: ItemChargeEntry[];
+  concentration: ConcentrationState;
+  hitDice: HitDiceState | null;
+  deathSaves: { successes: number; failures: number } | null;
+}
+
+interface DescribedEffect {
+  id: string;
+  name: string;
+  icon: string | null;
+  disabled: boolean;
+  isCondition: boolean;
+  type: 'condition' | 'buff/debuff';
+  statuses: string[];
+  duration: {
+    rounds: number | null;
+    turns: number | null;
+    seconds: number | null;
+    remaining: number | null;
+  };
+  changes: Array<{ key: string; mode: string; type: string; value: unknown }>;
+  requiresConcentration: boolean;
+}
+
+interface ActiveEffectsResult {
+  success: true;
+  actorId: string;
+  actorName: string;
+  count: number;
+  effects: DescribedEffect[];
+}
+
+/**
+ * An effect's display name: `name`, else the v13-and-earlier `label` (removed from the
+ * declarations, still on old data), else empty.
+ */
+function effectLabel(effect: ActiveEffect): string {
+  const legacy = (effect as unknown as { label?: string }).label;
+  return effect.name || legacy || '';
+}
+
+/**
+ * An actor's effects as an array. Foundry hands a collection (`contents`); partial documents in
+ * the wild may carry a plain array.
+ */
+function effectsOf(actor: Actor): ActiveEffect[] {
+  const effects = actor.effects as FoundryCollection<ActiveEffect> | ActiveEffect[] | undefined;
+  return (Array.isArray(effects) ? effects : effects?.contents) ?? [];
+}
 
 /**
  * Character resources + active effects/conditions domain for `FoundryDataAccess`.
@@ -26,16 +130,16 @@ export class ResourcesEffectsDataAccess {
    * — verified `dnd5e.mjs:96370` `_configureStatusEffects`; read only through
    * {@link statusEffectList}).
    */
-  async getAvailableConditions(): Promise<any> {
+  async getAvailableConditions(): Promise<AvailableConditionsResult> {
     shared.validateFoundryState();
 
     try {
-      const rawConditions: any[] = statusEffectList();
+      const rawConditions = statusEffectList();
 
       return {
         success: true,
         gameSystem: game.system?.id,
-        conditions: rawConditions.map((c: any) => ({
+        conditions: rawConditions.map(c => ({
           id: c.id,
           name: c.name || c.label || c.id,
           icon: c.icon || c.img,
@@ -44,7 +148,8 @@ export class ResourcesEffectsDataAccess {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -53,7 +158,7 @@ export class ResourcesEffectsDataAccess {
    * Read all tracked numeric resources for an actor: spell slots, class resources,
    * item charges, concentration status, hit dice, and death saves (only when downed).
    */
-  async getCharacterResources(data: { identifier: string }): Promise<any> {
+  async getCharacterResources(data: { identifier: string }): Promise<CharacterResourcesResult> {
     shared.validateFoundryState();
 
     const actor = shared.findActorByIdentifier(data.identifier);
@@ -61,8 +166,7 @@ export class ResourcesEffectsDataAccess {
       throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.identifier}`);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const sys: any = actor.system ?? {};
+    const sys: FoundryActorSystem = actor.system ?? {};
 
     return {
       success: true,
@@ -83,7 +187,7 @@ export class ResourcesEffectsDataAccess {
    * (condition vs buff/debuff based on `CONFIG.statusEffects`), duration fields,
    * AE changes, and whether it requires concentration.
    */
-  async getActiveEffects(data: { identifier: string }): Promise<any> {
+  async getActiveEffects(data: { identifier: string }): Promise<ActiveEffectsResult> {
     shared.validateFoundryState();
 
     const actor = shared.findActorByIdentifier(data.identifier);
@@ -96,14 +200,11 @@ export class ResourcesEffectsDataAccess {
     // (dnd5e 6.0) storage shape.
     const knownStatusIds = new Set<string>(
       statusEffectList()
-        .map((s: any) => s.id)
+        .map(s => s.id)
         .filter(Boolean)
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const effectList: any[] = actor.effects?.contents ?? actor.effects ?? [];
-
-    const effects = effectList.map((e: any) => this.describeEffect(e, knownStatusIds));
+    const effects = effectsOf(actor).map(e => this.describeEffect(e, knownStatusIds));
 
     return {
       success: true,
@@ -121,9 +222,9 @@ export class ResourcesEffectsDataAccess {
    * A slot is only included when it has a non-zero max OR a non-zero current value.
    * Pact magic is only included when `pact.max > 0`.
    */
-  private readSpellSlots(sys: any): Record<string, any> {
-    const slots: Record<string, any> = {};
-    const spells = sys.spells ?? {};
+  private readSpellSlots(sys: FoundryActorSystem): Record<string, SpellSlotEntry> {
+    const slots: Record<string, SpellSlotEntry> = {};
+    const spells: Dnd5eSpellSlots = sys.spells ?? {};
 
     for (let level = 1; level <= 9; level++) {
       const slot = spells[`spell${level}`];
@@ -155,11 +256,11 @@ export class ResourcesEffectsDataAccess {
    * An entry is included only when it has a non-empty label OR a non-zero max.
    * The label falls back to the resource key when blank.
    */
-  private readClassResources(sys: any): any[] {
-    const result: any[] = [];
-    const resources = sys.resources ?? {};
+  private readClassResources(sys: FoundryActorSystem): ClassResourceEntry[] {
+    const result: ClassResourceEntry[] = [];
+    const resources: Dnd5eResources = sys.resources ?? {};
 
-    for (const key of ['primary', 'secondary', 'tertiary']) {
+    for (const key of ['primary', 'secondary', 'tertiary'] as const) {
       const r = resources[key];
       if (!r) continue;
       const hasLabel = !!r.label;
@@ -186,8 +287,8 @@ export class ResourcesEffectsDataAccess {
    * (period "recharge", formula the lowest roll) reads as "recharge 5-6". dnd5e 6 has no
    * `uses.per` or `system.recharge` (both migrated into `uses.recovery`).
    */
-  private readItemCharges(actor: any): any[] {
-    const charges: any[] = [];
+  private readItemCharges(actor: Actor): ItemChargeEntry[] {
+    const charges: ItemChargeEntry[] = [];
 
     for (const item of actor.items) {
       const uses = item.system?.uses;
@@ -238,21 +339,18 @@ export class ResourcesEffectsDataAccess {
    * (`dnd5e.mjs:8268`) when the item can't be resolved (e.g. it was deleted).
    * Remaining time: `duration.remaining` → `duration.seconds`.
    */
-  private readConcentration(actor: any): any {
+  private readConcentration(actor: Actor): ConcentrationState {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      const effectList: any[] = actor.effects?.contents ?? actor.effects ?? [];
-
-      const conc = effectList.find(
-        (e: any) =>
+      const conc = effectsOf(actor).find(
+        e =>
           e.statuses?.has?.('concentrating') ||
-          /concentrat/i.test(e.name || e.label || '') ||
+          /concentrat/i.test(effectLabel(e)) ||
           !!e.flags?.dnd5e?.itemData
       );
 
       if (!conc) return { active: false };
 
-      const itemUuid: unknown = conc.flags?.dnd5e?.item?.uuid ?? conc.origin;
+      const itemUuid: unknown = dig(conc.flags, 'dnd5e', 'item', 'uuid') ?? conc.origin;
       let spellName: string | null = null;
       if (typeof itemUuid === 'string' && itemUuid && typeof fromUuidSync === 'function') {
         try {
@@ -267,7 +365,7 @@ export class ResourcesEffectsDataAccess {
       return {
         active: true,
         spell: spellName,
-        remaining: conc.duration?.remaining ?? conc.duration?.seconds ?? null,
+        remaining: dig(conc.duration, 'remaining') ?? dig(conc.duration, 'seconds') ?? null,
       };
     } catch {
       return { active: false };
@@ -281,7 +379,7 @@ export class ResourcesEffectsDataAccess {
    * Without `attributes.hd` totals are summed from the class items (`levels`, `hd.spent`).
    * Returns `null` when neither source has data.
    */
-  private readHitDice(sys: any, actor: any): any {
+  private readHitDice(sys: FoundryActorSystem, actor: Actor): HitDiceState | null {
     let total = 0;
     let available = 0;
     const faces = new Set<number>();
@@ -307,10 +405,12 @@ export class ResourcesEffectsDataAccess {
       const max = hd.max ?? null;
       const value = hd.value ?? null;
       if (max != null || value != null) {
-        if (!dieType && typeof hd.denomination === 'number' && hd.denomination > 0) {
-          dieType = `d${hd.denomination}`;
-        } else if (!dieType && typeof hd.denomination === 'string' && hd.denomination) {
-          dieType = hd.denomination;
+        // A PC's `hd` has no denomination, an NPC's is a number; older data may hold a string.
+        const denomination: unknown = hd.denomination;
+        if (!dieType && typeof denomination === 'number' && denomination > 0) {
+          dieType = `d${denomination}`;
+        } else if (!dieType && typeof denomination === 'string' && denomination) {
+          dieType = denomination;
         }
         return { total: max, available: value, dieType };
       }
@@ -323,7 +423,7 @@ export class ResourcesEffectsDataAccess {
    * Return death save counts only when `hp.value <= 0`; otherwise `null`.
    * Both `success` and `failure` default to 0 when the `death` attribute is absent.
    */
-  private readDeathSaves(sys: any): any {
+  private readDeathSaves(sys: FoundryActorSystem): { successes: number; failures: number } | null {
     const hp = sys.attributes?.hp;
     if (!hp || (hp.value ?? 1) > 0) return null;
 
@@ -351,13 +451,13 @@ export class ResourcesEffectsDataAccess {
    * the live `effect.duration` getter (present, and correct, on both
    * versions).
    */
-  private describeEffect(e: any, knownStatusIds: Set<string>): any {
+  private describeEffect(e: ActiveEffect, knownStatusIds: Set<string>): DescribedEffect {
     const statuses: string[] = Array.from(e.statuses ?? []);
     const isCondition = statuses.some(s => knownStatusIds.has(s));
 
-    const normDuration = effectDuration(e as ActiveEffect);
+    const normDuration = effectDuration(e);
     const rawRemaining = (e.duration as Record<string, unknown> | undefined)?.remaining;
-    const changes = effectChanges(e as ActiveEffect).map((c: EffectChange) => ({
+    const changes = effectChanges(e).map((c: EffectChange) => ({
       key: c.key,
       mode: c.type,
       type: c.type,
@@ -365,12 +465,12 @@ export class ResourcesEffectsDataAccess {
     }));
 
     const requiresConcentration =
-      !!e.flags?.dnd5e?.concentration || /concentrat/i.test(e.name || e.label || '');
+      !!e.flags?.dnd5e?.concentration || /concentrat/i.test(effectLabel(e));
 
     return {
       id: e.id,
-      name: e.name || e.label || 'Unknown Effect',
-      icon: effectImg(e as ActiveEffect),
+      name: effectLabel(e) || 'Unknown Effect',
+      icon: effectImg(e),
       disabled: e.disabled ?? false,
       isCondition,
       type: isCondition ? 'condition' : 'buff/debuff',

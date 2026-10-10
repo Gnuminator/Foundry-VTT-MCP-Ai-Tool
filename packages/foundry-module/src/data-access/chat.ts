@@ -214,7 +214,7 @@ export class ChatDataAccess {
       actor = game.actors?.get(data.speakerActorId) ?? null;
     }
     if (!actor && data.speakerActorName) {
-      actor = (shared.findActorByIdentifier(data.speakerActorName) as Actor | undefined) ?? null;
+      actor = shared.findActorByIdentifier(data.speakerActorName) ?? null;
     }
 
     const speaker = resolveSpeaker(actor);

@@ -12,7 +12,12 @@
  * Shares `FOUNDRY_AI_EVENT_POLL_MS` with the other pumps; `FOUNDRY_AI_USAGE_LOG=off`
  * disables it (see `usage-log.ts`).
  */
-import { sanitizeUsageEvent, type PlayRecordsResponse, type UsageEvent } from '@gnuminator/shared';
+import {
+  isBridgeRefusal,
+  sanitizeUsageEvent,
+  type UsageEvent,
+  type UsageRecordsResponse,
+} from '@gnuminator/shared';
 
 import { DEFAULT_EVENT_POLL_MS } from './event-pump.js';
 import type { FoundryClient } from './foundry-client.js';
@@ -141,12 +146,12 @@ export class UsagePump {
     return events.length;
   }
 
-  private async fetchRecords(sinceSeq: number): Promise<PlayRecordsResponse> {
-    const response = (await this.foundry.query(QUERY, {
+  private async fetchRecords(sinceSeq: number): Promise<UsageRecordsResponse> {
+    const response = await this.foundry.query(QUERY, {
       sinceSeq,
       limit: FETCH_LIMIT,
-    })) as PlayRecordsResponse;
-    if (response?.success === false) {
+    });
+    if (isBridgeRefusal(response)) {
       throw new Error(response.error ?? 'getUsageRecords refused');
     }
     return response;

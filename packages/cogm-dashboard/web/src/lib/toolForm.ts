@@ -1,6 +1,7 @@
 // The Tool runner's form logic, without React: the catalog's categories, the form a tool's input
 // schema gives, and the args a filled form sends. Port of the old page's categoryOf, buildControl,
 // pickerRef and collectArgs (public/app.js), with numbers checked before they are sent.
+import { CONFIRM_FORWARDED_TOOLS } from '../../../src/tool-policy';
 
 /** One bridge tool as GET /api/tools lists it (app.ts ToolInfo). */
 export interface ToolInfo {
@@ -86,6 +87,10 @@ export const isPlanTool = (name: string): boolean => /^plan-/.test(name);
 export const isQueueCall = (name: string, args: Record<string, unknown>): boolean =>
   name === 'plan-page-reveal' && (args['action'] === 'queue' || args['action'] === 'unqueue');
 
+// CONFIRM_FORWARDED_TOOLS: the tools whose own `confirm` and `confirmDestructive` args the server
+// sets from the confirm window's flags. The form never asks for them.
+const CONFIRM_FLAGS = ['confirm', 'confirmDestructive'];
+
 /**
  * The tag on a tool: read, write or destructive as the dashboard gates it, and "plan" for a
  * plan-* tool (a read to the gate, but its apply changes the game, after the confirm window).
@@ -100,10 +105,15 @@ export function paramsOf(tool: ToolInfo): {
   required: string[];
 } {
   const schema = tool.inputSchema;
-  const props =
+  const all =
     schema && typeof schema.properties === 'object' && schema.properties ? schema.properties : {};
   const required = Array.isArray(schema?.required) ? schema.required : [];
-  return { props, required };
+  if (!CONFIRM_FORWARDED_TOOLS.has(tool.name)) return { props: all, required };
+  // The confirm window answers these; the server fills them from its flags (toolArgs).
+  const props = Object.fromEntries(
+    Object.entries(all).filter(([key]) => !CONFIRM_FLAGS.includes(key))
+  );
+  return { props, required: required.filter(key => !CONFIRM_FLAGS.includes(key)) };
 }
 
 /** The picker annotation of a parameter, or null (free text, a tick, or none). */

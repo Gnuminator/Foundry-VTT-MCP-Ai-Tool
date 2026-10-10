@@ -916,6 +916,146 @@ describe('mixed plans', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Vault checks (pins the plan was built on)
+// ---------------------------------------------------------------------------
+
+describe('vault checks', () => {
+  const W = 'curse-of-strahd';
+  const PIN = { file: 'reading.json', path: 'current.id', value: 'r1' };
+
+  beforeEach(async () => {
+    await store.write(W, 'gm', 'reading.json', { current: { id: 'r1', seen: false } });
+  });
+
+  function pinned(extra: Record<string, unknown> = {}): Promise<PlanView> {
+    return plan([HP_UPDATE], { vaultChecks: [PIN], ...extra });
+  }
+
+  it('adds no diff line, keeps the target, and records no vault ops', async () => {
+    const p = await pinned();
+    expect(p.target).toBe('foundry');
+    expect(p.diff.map(d => d.text)).toEqual([
+      'Actor "Ireena": system.hp: 10 → 4',
+      'Actor "Ireena": flags.foundry-mcp-bridge.attitude: "friendly" → (unset)',
+    ]);
+    const update = vi.spyOn(store, 'update');
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+    // A check-only file is compared, never rewritten (no Obsidian mirror churn).
+    expect(update.mock.calls.some(([, , file]) => file === 'reading.json')).toBe(false);
+    const entry = await audit.get(W, applied.changeId);
+    expect(entry?.vaultOps).toBeUndefined();
+    expect(entry?.diff).toEqual(p.diff.map(d => d.text));
+    // Undo takes back only the Foundry part.
+    await service.undo(applied.changeId, { confirm: true });
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect((await store.read(W, 'gm', 'reading.json'))?.data).toEqual({
+      current: { id: 'r1', seen: false },
+    });
+  });
+
+  it('refuses and writes nothing when a pinned value changed before the apply', async () => {
+    const p = await pinned({
+      vaultOps: [{ kind: 'vault-set', file: 'reading.json', path: 'current.seen', value: true }],
+    });
+    expect(p.target).toBe('mixed');
+    await store.write(W, 'gm', 'reading.json', { current: { id: 'r2', seen: false } });
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
+      /Conflict, nothing was written: reading.json current.id changed since/
+    );
+    expect(foundry.calls.some(([m]) => m.endsWith('applyGuardedOps'))).toBe(false);
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect((await store.read(W, 'gm', 'reading.json'))?.data).toEqual({
+      current: { id: 'r2', seen: false },
+    });
+  });
+
+  it('writes the vault ops on a pinned file when the pin holds, and records only them', async () => {
+    const p = await pinned({
+      vaultOps: [{ kind: 'vault-set', file: 'reading.json', path: 'current.seen', value: true }],
+    });
+    expect(p.diff.map(d => d.text).at(-1)).toBe('gm/reading.json: current.seen: false → true');
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect((await store.read(W, 'gm', 'reading.json'))?.data).toEqual({
+      current: { id: 'r1', seen: true },
+    });
+    expect((await audit.get(W, applied.changeId))?.vaultOps).toEqual([
+      {
+        file: 'reading.json',
+        path: 'current.seen',
+        before: { path: 'current.seen', present: true, value: false },
+        after: { path: 'current.seen', present: true, value: true },
+      },
+    ]);
+  });
+
+  it('needs the feature switch for a pin, like a vault op', async () => {
+    const p = await pinned();
+    foundry.features[0].enabled = false;
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(/switched off/);
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+  });
+
+  it('rolls the Foundry part back when a pinned file changes during the apply', async () => {
+    const p = await pinned();
+    const real = foundry.query.getMockImplementation()!;
+    foundry.query.mockImplementation(async (method: string, data?: any) => {
+      const result = await real(method, data);
+      if (method.endsWith('applyGuardedOps') && data?.mode === 'apply') {
+        await store.write(W, 'gm', 'reading.json', { current: { id: 'r2' } });
+      }
+      return result;
+    });
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
+      /reading.json changed during the write.*rolled back/
+    );
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(await service.listRecentChanges()).toEqual([]);
+  });
+
+  it('refuses at plan time when the pinned value already differs', async () => {
+    await expect(plan([HP_UPDATE], { vaultChecks: [{ ...PIN, value: 'r0' }] })).rejects.toThrow(
+      /Conflict: reading.json current.id changed while the plan was made/
+    );
+    await expect(
+      plan([HP_UPDATE], { vaultChecks: [{ file: 'none.json', path: 'x', value: 1 }] })
+    ).rejects.toThrow(/Conflict: none.json is missing; plan it again/);
+  });
+
+  it('records a vault op that sets the value it already has, without rewriting the file', async () => {
+    const p = await plan([HP_UPDATE], {
+      vaultOps: [{ kind: 'vault-set', file: 'reading.json', path: 'current.id', value: 'r1' }],
+    });
+    const update = vi.spyOn(store, 'update');
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    expect(update.mock.calls.some(([, , file]) => file === 'reading.json')).toBe(false);
+    expect((await audit.get(W, applied.changeId))?.vaultOps).toEqual([
+      {
+        file: 'reading.json',
+        path: 'current.id',
+        before: { path: 'current.id', present: true, value: 'r1' },
+        after: { path: 'current.id', present: true, value: 'r1' },
+      },
+    ]);
+  });
+
+  it('validates vault checks', async () => {
+    const cases: Array<[unknown, RegExp]> = [
+      ['x', /must be a list/],
+      [[null], /needs file and path/],
+      [[{ file: '../a.json', path: 'x', value: 1 }], /file name/],
+      [[{ file: 'a.jsonl', path: 'x', value: 1 }], /\.json files/],
+      [[{ file: 'audit.json', path: 'x', value: 1 }], /Reserved/],
+      [[{ file: 'a.json', path: '__proto__.x', value: 1 }], /Invalid vault path/],
+      [[{ file: 'a.json', path: 'x' }], /needs a value/],
+    ];
+    for (const [vaultChecks, message] of cases) {
+      await expect(plan([HP_UPDATE], { vaultChecks })).rejects.toThrow(message);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // onRecorded
 // ---------------------------------------------------------------------------
 

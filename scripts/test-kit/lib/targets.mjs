@@ -11,7 +11,7 @@ import { EnvError } from './errors.mjs';
 
 export const TEST_DASHBOARD_PORT = 3100;
 export const TEST_FOUNDRY_URL = 'http://127.0.0.1:30001';
-const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost', '[::1]'];
+export const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost', '[::1]'];
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 

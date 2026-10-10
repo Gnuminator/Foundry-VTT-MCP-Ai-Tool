@@ -1,3 +1,9 @@
+import type {
+  BridgeAnswer,
+  BridgePingReply,
+  BridgeRefusal,
+  BridgeRequest,
+} from '@gnuminator/shared';
 import { MODULE_ID } from './constants.js';
 import { bridgeHandlers } from './bridge-handlers.js';
 import { announceAiChangesUpdated } from './ai-changes-signal.js';
@@ -80,10 +86,13 @@ export class QueryHandlers {
    * Handlers that diverge from this shape stay bespoke: `ping` (ungated) and
    * `createJournalEntry` (no validateFoundryState).
    */
-  private async withGmGate(errorPrefix: string, body: () => Promise<any>): Promise<any> {
+  private async withGmGate<T>(
+    errorPrefix: string,
+    body: () => Promise<T>
+  ): Promise<T | BridgeRefusal> {
     const gmCheck = this.validateGMAccess();
     if (!gmCheck.allowed) {
-      return { error: 'Access denied', success: false };
+      return { error: 'Access denied', success: false as const };
     }
     try {
       this.dataAccess.validateFoundryState();
@@ -126,40 +135,40 @@ export class QueryHandlers {
     handlers.set(`${modulePrefix}.getWorldInfo`, this.handleGetWorldInfo.bind(this));
 
     // Utility queries
-    handlers.set(`${modulePrefix}.ping`, this.handlePing.bind(this));
+    handlers.on(`${modulePrefix}.ping`, this.handlePing.bind(this));
 
     // Guarded writes (plan/apply/undo): the backend plans and audits; these run
     // the Foundry side (snapshot, checked apply/undo, feed event, feature list).
-    handlers.set(`${modulePrefix}.snapshotGuardedOps`, (data: { ops?: unknown } | undefined) =>
+    handlers.on(`${modulePrefix}.snapshotGuardedOps`, (data: { ops?: unknown } | undefined) =>
       this.withGmGate('Failed to snapshot planned change', () => snapshotGuardedOps(data?.ops))
     );
-    handlers.set(`${modulePrefix}.applyGuardedOps`, (data: unknown) =>
+    handlers.on(`${modulePrefix}.applyGuardedOps`, (data: unknown) =>
       this.withGmGate('Failed to apply planned change', () => applyGuardedOps(data))
     );
-    handlers.set(`${modulePrefix}.guardedApplyOutcome`, (data: unknown) =>
+    handlers.on(`${modulePrefix}.guardedApplyOutcome`, (data: unknown) =>
       this.withGmGate('Failed to read the apply outcome', () =>
         Promise.resolve(guardedApplyOutcome(data))
       )
     );
-    handlers.set(`${modulePrefix}.logGmChange`, (data: unknown) =>
+    handlers.on(`${modulePrefix}.logGmChange`, (data: unknown) =>
       this.withGmGate('Failed to log change', () => Promise.resolve(logGmChange(data)))
     );
     // The backend recorded an apply or undo: tell the GM clients' "Changes" windows (I-108).
-    handlers.set(`${modulePrefix}.aiChangesUpdated`, () =>
+    handlers.on(`${modulePrefix}.aiChangesUpdated`, () =>
       this.withGmGate('Failed to announce the change', () => {
         announceAiChangesUpdated();
         return Promise.resolve({ announced: true });
       })
     );
-    handlers.set(`${modulePrefix}.ensureJournalFolder`, (data: unknown) =>
+    handlers.on(`${modulePrefix}.ensureJournalFolder`, (data: unknown) =>
       this.withGmGate('Failed to find or create the journal folder', () =>
         ensureJournalFolder(data)
       )
     );
-    handlers.set(`${modulePrefix}.showJournalPage`, (data: unknown) =>
+    handlers.on(`${modulePrefix}.showJournalPage`, (data: unknown) =>
       this.withGmGate('Failed to show the page to the players', () => showJournalPage(data))
     );
-    handlers.set(`${modulePrefix}.listGuardedFeatures`, () =>
+    handlers.on(`${modulePrefix}.listGuardedFeatures`, () =>
       this.withGmGate('Failed to list features', () => Promise.resolve(listGuardedFeatures()))
     );
 
@@ -196,7 +205,7 @@ export class QueryHandlers {
         Promise.resolve(computePlayerVisibility())
       )
     );
-    handlers.set(
+    handlers.on(
       `${modulePrefix}.${PLAYER_VIEW_QUERIES.pages}`,
       (data: { uuids?: unknown } | undefined) =>
         this.withGmGate('Failed to get pages for players', () =>
@@ -259,14 +268,14 @@ export class QueryHandlers {
     // My character (I-096): the sheets of the characters one player owns, for the dashboard's
     // /me page. Read-only; the dashboard maps the player's link key to the user id. Not an MCP
     // tool (the control method `character_sheet`). GM client only.
-    handlers.set(`${modulePrefix}.${CHARACTER_SHEET_QUERY}`, (data: unknown) =>
+    handlers.on(`${modulePrefix}.${CHARACTER_SHEET_QUERY}`, (data: unknown) =>
       this.withGmGate('Character sheet failed', () => characterSheets(data))
     );
 
     // Obsidian mirror (O4, read-only): the export index of PCs, NPCs, scenes,
     // journals and story items. GM client only, even with allowNonGmAccess
     // (getExportIndex refuses non-GM clients itself).
-    handlers.set(`${modulePrefix}.${EXPORT_INDEX_QUERY}`, (data: unknown) =>
+    handlers.on(`${modulePrefix}.${EXPORT_INDEX_QUERY}`, (data: unknown) =>
       this.withGmGate('Failed to build the export index', () =>
         Promise.resolve(getExportIndex(data))
       )
@@ -274,10 +283,10 @@ export class QueryHandlers {
 
     // Obsidian Library (read-only): compendium content of the packs the GM picked. GM client
     // only, like the export index (both queries refuse non-GM clients themselves).
-    handlers.set(`${modulePrefix}.${LIBRARY_INDEX_QUERY}`, (data: unknown) =>
+    handlers.on(`${modulePrefix}.${LIBRARY_INDEX_QUERY}`, (data: unknown) =>
       this.withGmGate('Failed to build the Library index', () => getLibraryIndex(data))
     );
-    handlers.set(`${modulePrefix}.${LIBRARY_DOCUMENTS_QUERY}`, (data: unknown) =>
+    handlers.on(`${modulePrefix}.${LIBRARY_DOCUMENTS_QUERY}`, (data: unknown) =>
       this.withGmGate('Failed to read Library documents', () => getLibraryDocuments(data))
     );
 
@@ -345,7 +354,7 @@ export class QueryHandlers {
       `${modulePrefix}.searchCharacterItems`,
       this.handleSearchCharacterItems.bind(this)
     );
-    handlers.set(`${modulePrefix}.getCharacterEntity`, this.handleGetCharacterEntity.bind(this));
+    handlers.on(`${modulePrefix}.getCharacterEntity`, this.handleGetCharacterEntity.bind(this));
 
     // Item authoring on actor sheets
     handlers.set(`${modulePrefix}.addActorItems`, this.handleAddActorItems.bind(this));
@@ -421,7 +430,7 @@ export class QueryHandlers {
     handlers.set(`${modulePrefix}.getRecentEvents`, this.handleGetRecentEvents.bind(this));
 
     // O3: full play log (raw records behind the session/stats notes)
-    handlers.set(
+    handlers.on(
       `${modulePrefix}.getPlayRecords`,
       (data: { sinceSeq?: unknown; limit?: unknown } | undefined) =>
         this.withGmGate('Failed to get play records', () =>
@@ -430,7 +439,7 @@ export class QueryHandlers {
     );
 
     // I-109: change journal (every create, update and delete with before and after, for full undo)
-    handlers.set(
+    handlers.on(
       `${modulePrefix}.getChangeJournal`,
       (data: { sinceSeq?: unknown; limit?: unknown } | undefined) =>
         this.withGmGate('Failed to get the change journal', () =>
@@ -439,7 +448,7 @@ export class QueryHandlers {
     );
 
     // I-084: usage log (module controls used; buffer on the bridge-holding GM client)
-    handlers.set(
+    handlers.on(
       `${modulePrefix}.getUsageRecords`,
       (data: { sinceSeq?: unknown; limit?: unknown } | undefined) =>
         this.withGmGate('Failed to get usage records', () =>
@@ -616,15 +625,15 @@ export class QueryHandlers {
   /**
    * Handle ping request
    */
-  private async handlePing(): Promise<any> {
-    return {
+  private handlePing(): Promise<BridgePingReply> {
+    return Promise.resolve({
       status: 'ok',
       timestamp: Date.now(),
       module: MODULE_ID,
       foundryVersion: game.version,
       worldId: game.world?.id,
       userId: game.user?.id,
-    };
+    });
   }
 
   /**
@@ -1060,10 +1069,9 @@ export class QueryHandlers {
   }
 
   /** One item (with its dnd5e 6 activities) or effect of a character, in full. */
-  private async handleGetCharacterEntity(data: {
-    characterIdentifier: string;
-    entityIdentifier: string;
-  }): Promise<any> {
+  private async handleGetCharacterEntity(
+    data: BridgeRequest<'foundry-mcp-bridge.getCharacterEntity'>
+  ): Promise<BridgeAnswer<'foundry-mcp-bridge.getCharacterEntity'>> {
     return this.withGmGate('Failed to get character entity', async () => {
       if (!data?.characterIdentifier) throw new Error('characterIdentifier is required');
       if (!data?.entityIdentifier) throw new Error('entityIdentifier is required');

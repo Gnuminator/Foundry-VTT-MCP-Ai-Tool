@@ -2,7 +2,8 @@
 // its empty and failed states, Show cards (hidden names never on the page), the Open buttons,
 // Import, New reading and a link pick in one click with Undo, Reveal through the confirm window
 // (the destructive tick, both flags, Cancel, Show it now), open forms kept across reloads, the
-// GM Actions gate, the Obsidian link from the stream, and Escape.
+// GM Actions gate (and Pre-flight beside the drawer warning while Show cards is ticked), the
+// Obsidian link from the stream, and Escape.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import {
@@ -13,6 +14,7 @@ import {
   ok,
   toast,
   type ToolCall,
+  fromMenu,
 } from './support';
 
 // The subtitle shows the reading's time in the browser's locale and zone.
@@ -176,7 +178,7 @@ const gmActions = (on: boolean): { event: string; data: unknown }[] => [
 
 async function openTarokka(page: Page): Promise<Locator> {
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-tarokka').click();
+  await fromMenu(page, 'btn-tarokka');
   const drawer = page.getByRole('dialog', { name: '🃏 Tarokka' });
   await expect(drawer).toBeVisible();
   return drawer;
@@ -293,7 +295,7 @@ test('Show cards shows names, ids and notes, and hides them again on untick and 
   await expect(drawer.locator('.tarokka-note')).toHaveCount(2);
   await drawer.locator('#tarokka-close').click();
   await expect(drawer).toBeHidden();
-  await page.locator('#btn-tarokka').click();
+  await fromMenu(page, 'btn-tarokka');
   await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
   await expect(show).not.toBeChecked();
   await expect(drawer.locator('.tarokka-card.veiled')).toHaveCount(5);
@@ -734,11 +736,17 @@ test('with GM Actions off nothing is planned; the gate opens Pre-flight', async 
   await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
   await expect(toast(page, gate)).toBeVisible();
   await expect(preflight).toBeVisible();
+  // Pre-flight opens on top of the drawer that asked for it; Escape hands the top back.
+  await expect(preflight).toHaveClass(/drawer-top/);
+  await expect(drawer).not.toHaveClass(/drawer-top/);
   await page.keyboard.press('Escape');
   await expect(preflight).toBeHidden();
+  await expect(drawer).toHaveClass(/drawer-top/);
 
   await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
   await expect(toast(page, gate)).toHaveCount(2);
+  await page.keyboard.press('Escape');
+  await expect(preflight).toBeHidden();
 
   // Searching is a read and still works; the pick is gated.
   const tome = pos(drawer, 'tome');
@@ -748,6 +756,8 @@ test('with GM Actions off nothing is planned; the gate opens Pre-flight', async 
   await tome.locator('.tarokka-candidate').first().getByRole('button', { name: 'Link' }).click();
   await expect(toast(page, gate)).toHaveCount(3);
   await expect(tome.locator('.tarokka-candidate')).toHaveCount(4);
+  await page.keyboard.press('Escape');
+  await expect(preflight).toBeHidden();
 
   await tome.getByRole('button', { name: 'Reveal…', exact: true }).click();
   await tome.getByPlaceholder('Exactly what the players may read').fill('Text');
@@ -758,6 +768,89 @@ test('with GM Actions off nothing is planned; the gate opens Pre-flight', async 
   expect(plans(calls)).toEqual([]);
   expect(names(calls)).not.toContain('apply-planned-change');
   expect(names(calls)).toContain('suggest-tarokka-links');
+});
+
+test('Pre-flight beside the drawer warns while Show cards is ticked, and Hide cards unticks it', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(false));
+  await fakeTools(page, bridge);
+  const drawer = await openTarokka(page);
+  const show = drawer.getByRole('checkbox', { name: 'Show cards' });
+  await show.check();
+
+  // The gate opens Pre-flight with Tarokka still open: the two drawers side by side.
+  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
+  await expect(preflight).toBeVisible();
+  const row = preflight.locator('.preflight-item', { hasText: 'Tarokka cards hidden' });
+  await expect(row).toHaveClass(/pf-warn/);
+  await expect(row.locator('.pf-detail')).toHaveText(
+    'Show cards is ticked in the Tarokka drawer. Hide them before players can see your screen.'
+  );
+  await expect(preflight.getByRole('status')).toHaveText('Ready, with 1 to look at.');
+
+  await row.getByRole('button', { name: 'Hide cards' }).click();
+  // The button goes with the warning; the row keeps the focus.
+  await expect(row).toBeFocused();
+  await expect(show).not.toBeChecked();
+  await expect(drawer.locator('.tarokka-card.veiled')).toHaveCount(5);
+  for (const secret of SECRETS) expect(await page.content()).not.toContain(secret);
+  await expect(row).toHaveClass(/pf-ok/);
+  await expect(row.locator('.pf-detail')).toHaveText('Show cards is not ticked.');
+  await expect(row.getByRole('button')).toHaveCount(0);
+  await expect(preflight.getByRole('status')).toHaveText('Ready for the session.');
+
+  // Escape gives Tarokka the top back; ticked again, the next time Pre-flight opens it warns.
+  await page.keyboard.press('Escape');
+  await expect(preflight).toBeHidden();
+  await show.check();
+  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await expect(preflight).toBeVisible();
+  await expect(row).toHaveClass(/pf-warn/);
+  await expect(row.getByRole('button', { name: 'Hide cards' })).toBeVisible();
+});
+
+test('the gate brings Pre-flight to the top when it is open under Tarokka', async ({ page }) => {
+  await fakeStream(page, gmActions(false));
+  await fakeTools(page, bridge);
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+  // The backdrop covers the header; from the keyboard a second drawer opens beside the first.
+  await page.locator('#btn-preflight').press('Enter');
+  const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
+  await expect(preflight).toHaveClass(/drawer-top/);
+  await fromMenu(page, 'btn-tarokka', true);
+  const drawer = page.getByRole('dialog', { name: '🃏 Tarokka' });
+  await expect(drawer).toHaveClass(/drawer-top/);
+  await expect(preflight).not.toHaveClass(/drawer-top/);
+
+  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await expect(preflight).toHaveClass(/drawer-top/);
+  await expect(drawer).not.toHaveClass(/drawer-top/);
+  // Escape follows the top, not the order the drawers first opened in.
+  await page.keyboard.press('Escape');
+  await expect(preflight).toBeHidden();
+  await expect(drawer).toHaveClass(/drawer-top/);
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+});
+
+test('closing a drawer that is not on top leaves the top one where it is', async ({ page }) => {
+  await fakeStream(page, gmActions(false));
+  await fakeTools(page, bridge);
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+  await page.locator('#btn-preflight').press('Enter');
+  await fromMenu(page, 'btn-tarokka', true);
+  const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
+  const drawer = page.getByRole('dialog', { name: '🃏 Tarokka' });
+  await expect(drawer).toHaveClass(/drawer-top/);
+
+  // The Pre-flight button again closes the drawer underneath.
+  await page.locator('#btn-preflight').press('Enter');
+  await expect(preflight).toBeHidden();
+  await expect(drawer).toHaveClass(/drawer-top/);
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
 });
 
 test('the Obsidian link shows once the stream sent the vault and the world', async ({ page }) => {
@@ -805,7 +898,6 @@ test('Escape closes the confirm window first, then the drawer', async ({ page })
 
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
-  await expect(page.locator('#btn-tarokka')).toHaveAttribute('aria-expanded', 'false');
 });
 
 /** Holds every call to one tool until release() is called, then answers it with result. */

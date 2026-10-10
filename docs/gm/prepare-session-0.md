@@ -80,7 +80,24 @@ Leave usage tracking off: our copy of Actor Studio has it off for everyone.
 Our table keeps to the 2024 Player's Handbook. If you ever allow more (for example older species
 in our own content module), tick those packs too and tell the players.
 
-## 4. Try it as a player
+## 4. Give the join page the campaign look (optional)
+
+The join page is the first screen your players see when they open the game link. One click gives
+it The Veil: the castle in the mist as the background picture and a lamplit line above your world
+description.
+
+1. Settings tab, **Game Settings**, category **Foundry AI Tool**, the **Choose join page look**
+   button.
+2. Keep or change **The lamplit line** (one short line).
+3. Leave **Use The Veil picture as the world background** ticked, or untick it to keep your own
+   picture.
+4. Click **Apply The Veil**.
+
+Your description text stays as it is. **Back to Foundry's look** in the same window removes the
+line and the picture again. If you later save the description in **Edit World** and the line
+disappears or loses its colours, open the window again and apply it.
+
+## 5. Try it as a player
 
 Make one character yourself as a player, so you know what they see and it works before the night.
 

@@ -963,6 +963,18 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/foundry-module/src/main.ts',
   },
   {
+    name: 'module.join-page.default',
+    kind: 'action',
+    surface: 'module',
+    file: 'packages/foundry-module/src/join-page.ts',
+  },
+  {
+    name: 'module.join-page.veil',
+    kind: 'action',
+    surface: 'module',
+    file: 'packages/foundry-module/src/join-page.ts',
+  },
+  {
     name: 'module.settings.enhanced-index-open',
     kind: 'view',
     surface: 'module',

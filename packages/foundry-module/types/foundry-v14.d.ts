@@ -403,6 +403,11 @@ declare global {
     readonly id: string;
     readonly title: string;
     readonly system?: string;
+    /** The join page details (I-086): description HTML, background path, join theme. */
+    readonly description?: string;
+    readonly background?: string | null;
+    readonly joinTheme?: string;
+    updateSource(changes: Record<string, unknown>): unknown;
   }
 
   interface Game {
@@ -517,6 +522,8 @@ declare global {
     objectsEqual(a: unknown, b: unknown): boolean;
     isEmpty(value: unknown): boolean;
     isNewerVersion(v1: string | number, v0: string | number): boolean;
+    /** A server path with the route prefix, e.g. `getRoute('setup')` is `/setup`. */
+    getRoute(path: string): string;
   }
 
   interface FoundryFilePicker {

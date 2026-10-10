@@ -581,6 +581,11 @@ test('a gate request the bar never answers expires: the next opening focuses as 
   await drawer.getByRole('button', { name: 'Close' }).click();
   await expect(drawer).toBeHidden();
   setGmActions(false);
+  // The stream comes back every 100 ms. The first answer after the flip may have been built
+  // just before it, so wait for two: the second one carries GM Actions off, and the page has
+  // taken the first by then. Only then reopen.
+  await page.waitForResponse('**/api/stream**');
+  await page.waitForResponse('**/api/stream**');
   await fromMenu(page, 'btn-tools');
   await expect(drawer.locator('#gm-gate')).toBeVisible();
   await expect(drawer.locator('#gm-gate-enable')).not.toBeFocused();

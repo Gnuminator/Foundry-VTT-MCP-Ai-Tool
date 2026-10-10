@@ -15,6 +15,7 @@ import {
   findSubclass,
   uuidOf,
 } from './classes.mjs';
+import { CREATURES } from './compendium.mjs';
 import { fakeExerciseActor, fakeFeatures, fakeInspectFeatures } from './features.mjs';
 import {
   fakeAddToHero,
@@ -508,6 +509,9 @@ const ACTIONS = {
     w.actors.get(args.actorId)?.sheet?.monster
       ? fakeExerciseMonster(w, args)
       : fakeExerciseActor(w, args),
+
+  // The fake has no index to build: it is always current.
+  ensureCreatureIndex: () => ({ rebuilt: false, totalCreatures: CREATURES.length, seconds: 0 }),
 
   listMonsters: (w, args) => fakeListMonsters(w, args),
 

@@ -655,6 +655,69 @@ test(
   }
 );
 
+// Stage 11's push-back module check (keep a module the Pi updated after the backup) is a node script inside the
+// stage as well: cut out and run here with two module.json files.
+function stage11ModuleCheck(dir) {
+  const text = readFileSync(path.join(remote, '11-world.sh'), 'utf8');
+  const m = /<<'MODVER'\n([\s\S]*?)\nMODVER\n/.exec(text);
+  assert.ok(m, "11-world.sh has no <<'MODVER' module check");
+  const file = path.join(dir, 'module-check.cjs');
+  writeFileSync(file, m[1] + '\n');
+  return file;
+}
+
+test('the module check inside stage 11 never downgrades, and keeps the Pi copy when unsure', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'stage11-modver-'));
+  try {
+    const script = stage11ModuleCheck(dir);
+    const manifest = (name, content) => {
+      const file = path.join(dir, `${name}.json`);
+      writeFileSync(file, typeof content === 'string' ? content : JSON.stringify(content));
+      return file;
+    };
+    const check = (pi, bundle) => {
+      const r = spawnSync(process.execPath, [script, pi, bundle], { encoding: 'utf8' });
+      assert.equal(r.status, 0, r.stderr);
+      return r.stdout.trim();
+    };
+    const v = (name, version) => manifest(name, { id: 'm', version });
+    for (const [pi, bundle, want] of [
+      ['1.2.0', '1.1.9', 'keep 1.2.0 1.1.9'],
+      ['1.10.0', '1.9.0', 'keep 1.10.0 1.9.0'],
+      ['2.0', '1.9.9', 'keep 2.0 1.9.9'],
+      ['1.2.0.1', '1.2.0', 'keep 1.2.0.1 1.2.0'],
+      ['v1.3', '1.2', 'keep v1.3 1.2'],
+      ['1.2.0', '1.2.0', 'install'],
+      ['1.2', '1.2.0', 'install'],
+      ['1.2.0', '1.3.0', 'install'],
+      ['V1.2.0', 'v1.4.0', 'install'],
+      ['1.2.0-beta.2', '1.2.0', 'install'],
+      ['1.3.0-rc1', '1.2.0', 'keep 1.3.0-rc1 1.2.0'],
+      ['beta', '1.2.0', 'unsure beta 1.2.0'],
+      ['1.2.0', 'latest', 'unsure 1.2.0 latest'],
+      ['', '1.2.0', 'unsure ? 1.2.0'],
+      ['1.x', '1.2', 'unsure 1.x 1.2'],
+    ])
+      assert.equal(check(v('pi', pi), v('bundle', bundle)), want, `Pi ${pi}, bundle ${bundle}`);
+    assert.equal(check(manifest('pi', '{not json'), v('bundle', '1.0.0')), 'unsure ? 1.0.0');
+    assert.equal(check(manifest('pi', { id: 'm' }), v('bundle', '1.0.0')), 'unsure ? 1.0.0');
+    assert.equal(check(v('pi', '1.0.0'), path.join(dir, 'missing.json')), 'unsure 1.0.0 ?');
+    // No copy on the Pi: nothing to keep.
+    assert.equal(check(path.join(dir, 'missing.json'), v('bundle', '1.0.0')), 'install');
+    // A version is printed in a warn line: odd characters are masked and long ones cut.
+    assert.equal(
+      check(v('pi', '1.0 $(rm -rf /)'), v('bundle', '1.0')),
+      'unsure 1.0???rm?-rf??? 1.0'
+    );
+    assert.equal(
+      check(v('pi', 'x'.repeat(80)), v('bundle', '1.0')),
+      `unsure ${'x'.repeat(40)} 1.0`
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('the in-browser script of stage 13 parses (node --check)', () => {
   const r = spawnSync(
     process.execPath,

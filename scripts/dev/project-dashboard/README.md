@@ -7,7 +7,6 @@ installer or the Pi.
 
 ```bash
 npm run project-dashboard              # serve the page on http://127.0.0.1:3200
-npm run project-dashboard -- --lanes   # print the lanes table (10 rows; --lanes 20 for more)
 npm run project-dashboard -- --snapshot  # scan once, write snapshot.json, print its path
 npm run project-dashboard -- --versions  # print the versions table (--refresh reads the Pi and online now)
 npm run project-dashboard -- --usage-log # update the measured Usage rows and push the two notes now
@@ -31,7 +30,7 @@ copy, where a server started from a normal terminal cannot see them.
 
 | File                  | Written by            | Holds                                                                               |
 | --------------------- | --------------------- | ----------------------------------------------------------------------------------- |
-| `snapshot.json`       | the scanner           | the page's whole state (schema below); the contract the steward and hooks read      |
+| `snapshot.json`       | the scanner           | the page's whole state (schema below); the contract the start hook reads            |
 | `scan-state.json`     | the scanner           | byte offsets and per-file totals, so each scan reads only new lines                 |
 | `plan.json`           | the plan meter plugin | the 5-hour and weekly % with reset times, after every turn of any session           |
 | `get-usage-plan.json` | a session, by hand    | the `plan` object of the `get_usage` tool (only the Fable weekly meter needs it)    |
@@ -111,7 +110,7 @@ the snapshot schema and no string over 200 characters.
   warnings: [string],                            // e.g. "sessions format changed"
   lanes: {
     rows: [LaneRow],                             // newest activity first, CLOSED ones included
-    cap: { used, max: 3, steward: sessionId|null },
+    cap: { used, max: 3 },
   },
   usage: { days: [{ date: "YYYY-MM-DD", main: Tokens, sub: Tokens }] },   // this week, local dates
   plan: { source: "plugin"|"get_usage"|null, asOf: ISO|null,
@@ -148,14 +147,13 @@ RunItem = { workflow, title, status, conclusion, headSha, createdAt }
 States: **busy** when the session process is live and says busy and the session (main thread or a subagent) was active in the
 last 30 minutes (a crashed session's file can say busy forever once Windows reuses its pid);
 **waiting** when it is live and idle under an hour; **stale** when idle an hour or more, or when the process is gone. The lane cap counts
-sessions not titled "CLOSED ..." with activity in the last hour, minus the steward (the session
-titled "... fixes and stewardship").
+sessions not titled "CLOSED ..." with activity in the last hour.
 
 ## Files
 
 | File               | Does                                                                    |
 | ------------------ | ----------------------------------------------------------------------- |
-| `cli.mjs`          | entry point: serve, `--lanes`, `--snapshot`                             |
+| `cli.mjs`          | entry point: serve, `--snapshot`, `--versions`, `--usage-log`           |
 | `paths.mjs`        | data folder, Claude folders, project slug, test environment root        |
 | `transcripts.mjs`  | incremental transcript scan (byte offsets, restart when a file shrinks) |
 | `sessions.mjs`     | live sessions from `~/.claude/sessions`                                 |

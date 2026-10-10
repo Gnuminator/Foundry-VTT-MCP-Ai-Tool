@@ -267,7 +267,7 @@ const SCHEMA = {
         pr: 's',
       },
     ],
-    cap: { used: 's', max: 's', steward: 's' },
+    cap: { used: 's', max: 's' },
   },
   usage: { days: [{ date: 's', main: TOKENS, sub: TOKENS }] },
   plan: {

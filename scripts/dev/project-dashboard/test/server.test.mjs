@@ -7,7 +7,7 @@ import { startServer, DEFAULT_PORT } from '../server.mjs';
 const FAKE = {
   version: 1,
   generatedAt: '2026-10-08T10:00:00.000Z',
-  lanes: { rows: [], cap: { used: 0, max: 3, steward: null } },
+  lanes: { rows: [], cap: { used: 0, max: 3 } },
 };
 let server;
 let port;

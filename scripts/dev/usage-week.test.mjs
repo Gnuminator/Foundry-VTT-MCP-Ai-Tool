@@ -348,7 +348,7 @@ test('targets line: every figure marked ok or over', async () => {
     const r = await buildReport({ root: f.projects, now: NOW, days: 7, prs, usageLog: LOG });
     const line = formatTargets(r.targets);
     assert.match(line, /^Targets \(D-122\): /);
-    assert.match(line, /startup 45k ok \(<=45k\)/); // exactly on the target
+    assert.match(line, /startup 45k ok \(<=75k\)/);
     assert.match(line, /share 78% over \(<20%\)/);
     assert.match(line, /M\/PR 0\.5 ok \(<=18\)/);
     assert.match(line, /sessions\/day 0\.3 ok \(~15\)/);

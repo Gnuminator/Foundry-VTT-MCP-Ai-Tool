@@ -65,10 +65,12 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   own, so a PR cannot judge itself):
 
   ```bash
-  git fetch -q aitool main && git show aitool/main:scripts/lane-merge.mjs > "$TMP/lane-merge.mjs"
-  node "$TMP/lane-merge.mjs" <PR> --dry-run   # then again without --dry-run
+  g=$(cygpath -m "$(mktemp --suffix=.mjs)") && git fetch -q aitool main && git show aitool/main:scripts/lane-merge.mjs > "$g" && test -s "$g" && node "$g" <PR> --dry-run
   ```
 
+  Then the same line without `--dry-run`. One `&&` chain, so an empty or failed copy never runs.
+  Only a `lane:merge: OK #<PR>` line (dry run) or `lane:merge: merged #<PR>` line means success;
+  anything else, or no output, is a refusal.
   It checks CI on the head commit, a review note for that sha (Opus
   for risky paths), the changelog fragment, `drift:check` and the merge train, then merges with
   `--match-head-commit`. If the train is full, the planner runs `live:roundtrip` on main first.

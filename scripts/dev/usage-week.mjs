@@ -38,7 +38,7 @@ export const PROJECT_DIR = 'C--Users-chris-Documents-Claude-Code-Projects-Foundr
 export const MIN_TURNS = 3;
 export const RESET_DROP = 3;
 export const TARGETS = {
-  startup: 45_000,
+  startup: 75_000, // Claude Desktop floor about 74k (D-122 phase 3 log); headless starts are about 38k
   share: 0.2,
   tokensPerPrM: 18,
   sessionsPerDay: 15,
@@ -443,7 +443,7 @@ const COLUMNS = [
 export function formatTargets(targets) {
   const mark = t => (t.ok === null ? 'n/a' : t.ok ? 'ok' : 'over');
   const text = {
-    startup: t => `startup ${kilo(t.value)} ${mark(t)} (<=45k)`,
+    startup: t => `startup ${kilo(t.value)} ${mark(t)} (<=75k)`,
     'startup share': t => `share ${pct(t.value)} ${mark(t)} (<20%)`,
     'M tokens per PR': t => `M/PR ${num(t.value, 1)} ${mark(t)} (<=18)`,
     'sessions a day': t => `sessions/day ${num(t.value, 1)} ${mark(t)} (~15)`,

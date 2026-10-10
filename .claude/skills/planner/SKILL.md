@@ -71,8 +71,8 @@ the roundtrip before any Pi deploy too. Tell the user what was merged.
 
 ## Weekly check
 
-`npm run usage:week` (`--days N`, `--json`) against the D-122 targets: startup 45k or less, startup
-share under 20%, 18M tokens or less per merged PR, about 15 sessions a day, about 14% of the
-weekly limit per day. First check 2026-10-17. A rule or tool that does not move them is removed.
+`npm run usage:week` (`--days N`, `--json`) against the D-122 targets: startup 75k or less
+(Claude Desktop's floor; the share is the lever), startup share under 20%, 18M tokens or less per
+merged PR, about 15 sessions a day, about 14% of the weekly limit per day. First check 2026-10-17. A rule or tool that does not move them is removed.
 While weekly usage is above 50%, write `~/.foundry-ai-tool/context-thresholds.json` as
 `{ "plan": 200000, "out": 250000 }` (the context hook's low mode); delete it below 50%.

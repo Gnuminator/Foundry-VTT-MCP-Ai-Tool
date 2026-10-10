@@ -21,8 +21,13 @@ beforeEach(() => {
     registered.set(`${ns}.${key}`, config);
   };
   g.game.settings.registerMenu = vi.fn();
-  g.FormApplication = class {};
-  g.foundry.applications = { api: { DialogV2: class {} } };
+  g.foundry.applications = {
+    api: {
+      ApplicationV2: class {},
+      HandlebarsApplicationMixin: (B: unknown): unknown => B,
+      DialogV2: class {},
+    },
+  };
   const on = g.Hooks.on;
   g.Hooks.on = (name: string, cb: (...a: any[]) => void): unknown => {
     hookNames.push(name);
@@ -33,7 +38,6 @@ beforeEach(() => {
 
 afterEach(() => {
   restore();
-  delete g.FormApplication;
 });
 
 describe('ModuleSettings — access defaults', () => {

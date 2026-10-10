@@ -95,6 +95,11 @@ jobs:
         # dry run (stand-ins for systemd) (docs/dev/PI-SETUP.md, "GM scripts").
         run: node --test scripts/pi/assistant-gm.test.mjs
 
+      - name: Pi stage 13 settings driver
+        # player-creation-settings.mjs against a fake game: the three D-113 settings and usage-tracking off for
+        # every user. The stage itself runs in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/player-creation.test.mjs
+
       - name: Plan B scripts
         # scripts/plan-b (docs/dev/PLAN-B.md, D-097 item 6): every script parses; ports and refusals, the
         # newest-backup choice, the version match, the module port flag, the stop and clean decisions and
@@ -288,6 +293,13 @@ jobs:
       - name: Unit tests (discord-bot)
         # Recorder file format, Ogg writer and the silence-padding timeline.
         run: npm test -w @gnuminator/discord-bot
+
+      - name: Pi stage 13 in an ARM64 container
+        # scripts/pi/container-test/stage13-scenarios.sh: stage 13 on Debian 13 ARM64 with stand-ins for systemd
+        # (the downgrade guard, an unreadable /api/status, services that were off, a failed GM browser start).
+        env:
+          PI_STAGE13_CONTAINER: 1
+        run: node --test scripts/pi/player-creation.test.mjs
 
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs

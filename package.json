@@ -63,6 +63,9 @@
     "size:analyze": "npm run bundle:server && npx esbuild-analyzer packages/mcp-server/dist/backend.bundle.cjs",
     "prepare": "husky"
   },
+  "dependencies": {
+    "playwright-core": "^1.63.0"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.0.0",
@@ -78,7 +81,6 @@
     "lint-staged": "^16.4.0",
     "madge": "^8.0.0",
     "markdownlint-cli2": "^0.23.3",
-    "playwright-core": "^1.63.0",
     "prettier": "^3.0.0",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.71.1",

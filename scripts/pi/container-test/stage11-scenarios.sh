@@ -41,6 +41,7 @@ data="$FOUNDRY_DATA/Data"
 
 fresh_pi() {
   rm -rf "${FOUNDRY_DATA:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" "${IMPORT:?}" /tmp/bundle-src
+  manifest_extra=""
   rm -f /tmp/stopped-* /tmp/calls /tmp/provision /tmp/out.first /tmp/out.last
   mkdir -p "$data/worlds" "$data/modules/foundry-mcp-bridge" "$FOUNDRY_DATA/Config"
   echo '{"world":"curse-of-strahd"}' >"$FOUNDRY_DATA/Config/options.json"
@@ -67,7 +68,7 @@ fresh_pi() {
 }
 
 # A bundle tar the way scripts/pi/push-world.ps1 builds it (tar -cf <bundle> -C <stage> . : entries start with ./):
-# MANIFEST.txt, SHA256SUMS over every file under Data/, Data/worlds/<id>/world.json and one data file.
+# MANIFEST.txt (plus the line in $manifest_extra, if a scenario set one), SHA256SUMS over every file under Data/, Data/worlds/<id>/world.json and one data file.
 # Sets BUNDLE_PATH. $1 the world id.
 make_bundle() {
   local w="$1" src=/tmp/bundle-src
@@ -76,6 +77,7 @@ make_bundle() {
   printf '{"id":"%s","title":"%s (bundle)"}\n' "$w" "$w" >"$src/Data/worlds/$w/world.json"
   echo "bundle copy of $w" >"$src/Data/worlds/$w/data/note.txt"
   printf 'world: %s\nmodules:\nasset folders:\nfiles: 2\n' "$w" >"$src/MANIFEST.txt"
+  [ -z "$manifest_extra" ] || printf '%s\n' "$manifest_extra" >>"$src/MANIFEST.txt"
   (cd "$src" && find Data -type f | LC_ALL=C sort | xargs sha256sum >SHA256SUMS)
   install -d -m 700 "$IMPORT"
   BUNDLE_PATH="$IMPORT/$w-$RANDOM.tar"
@@ -120,6 +122,20 @@ leak_check() {
 
 give_other_extra() {
   printf 'EXTRA_GM_USER="Other"\nEXTRA_GM_PASSWORD="osecret"\n' >>"$TOOL_ETC/world-curse-of-strahd.env"
+}
+
+# A module the Pi already has from the campaign bundle, named in the MANIFEST's pi-modules: line (a second world
+# that uses it without shipping it). The sentinel proves the stage never replaces the Pi's copy.
+pimod_installed() {
+  mkdir -p "$data/modules/aitool-content"
+  echo '{"id":"aitool-content","version":"1.0.0"}' >"$data/modules/aitool-content/module.json"
+  echo "the Pi's own aitool-content" >"$data/modules/aitool-content/sentinel"
+  chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$data/modules/aitool-content"
+  manifest_extra="pi-modules: aitool-content"
+}
+# The same line, but the Pi does not have the module.
+pimod_missing() {
+  manifest_extra="pi-modules: aitool-content"
 }
 
 # name, the world the bundle holds, a setup function ("-" for none), then the environment for the stage
@@ -168,6 +184,11 @@ scenario() {
   for w in "$data"/worlds/*/; do
     node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1]+"world.json","utf8"));console.log(j.id+"="+j.title)' "$w"
   done
+  echo "--- modules"
+  for w in "$data"/modules/*/; do
+    [ -d "$w" ] || continue
+    if [ -f "$w/sentinel" ]; then echo "$(basename "$w") yes"; else echo "$(basename "$w") no"; fi
+  done
   echo "--- leak"
   leak_check /tmp/out.last /tmp/out.first
   echo "=== END $name"
@@ -183,5 +204,7 @@ scenario extra-is-assistant curse-of-strahd - KIT_WORLD= "EXTRA_GM_USER=Assistan
 scenario kit-default-refused frostmaiden-training - WORLD=frostmaiden-training
 scenario kit-needs-title frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=frost-kit
 scenario launch-not-installed frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= LAUNCH=nope
+scenario pi-modules-installed frostmaiden-training pimod_installed WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
+scenario pi-modules-missing frostmaiden-training pimod_missing WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
 scenario strahd-default curse-of-strahd - REPLACE_WORLD=1
 echo "=== ALL DONE"

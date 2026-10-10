@@ -22,6 +22,12 @@
 .PARAMETER DataPath    Foundry's Data folder on this PC (default C:\FoundryTest\data\Data).
 .PARAMETER World       The world id to ship (default curse-of-strahd).
 .PARAMETER Modules     Module ids to ship (default aitool-content, dnd-players-handbook, foundryvtt-actor-studio).
+.PARAMETER PiModules  Module ids the world uses that are ALREADY installed on the Pi (from the campaign bundle) and must not be shipped
+                       again: stage 11 replaces the Pi's module folders with the bundle's, which could swap out the Pi's own copies.
+                       world-refs does not report them as active-but-not-shipped and counts their asset paths as inside the bundle
+                       (the files must still exist on this PC, with the right case); their packs are not scanned. An id may not
+                       also be in -Modules. Written into MANIFEST.txt (pi-modules:); stage 11 refuses the bundle when one is not
+                       installed on the Pi. Example: -Modules @() -PiModules aitool-content,dnd-players-handbook.
 .PARAMETER Assets      Extra asset folders under Data, for example ddb-images/adventures/Curse_of_Strahd.
                        They are added to the folders world-refs finds.
 .PARAMETER PiHost      The SSH name of the Pi (default foundry-pi).
@@ -54,6 +60,7 @@ param(
   [string]$DataPath = 'C:\FoundryTest\data\Data',
   [string]$World = 'curse-of-strahd',
   [string[]]$Modules = @('aitool-content', 'dnd-players-handbook', 'foundryvtt-actor-studio'),
+  [string[]]$PiModules = @(),
   [string[]]$Assets = @(),
   [string]$PiHost = 'foundry-pi',
   [string]$OutDir = '',
@@ -84,6 +91,7 @@ Step 'checking the request'
 if (-not (Test-Path -LiteralPath $DataPath -PathType Container)) { Fail "no Data folder at $DataPath" }
 $DataPath = (Resolve-Path -LiteralPath $DataPath).Path
 $Modules = @($Modules | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+$PiModules = @($PiModules | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $Assets = @($Assets | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 foreach ($id in @($World) + $Modules) {
   if ($id -notmatch '^[a-z0-9-]+$') { Fail "id '$id' is not lowercase letters, digits and dashes (the ids stage 11 accepts)" }
@@ -91,6 +99,12 @@ foreach ($id in @($World) + $Modules) {
 foreach ($id in $Modules) {
   if ($id -eq 'foundry-mcp-bridge') { Fail 'foundry-mcp-bridge is not shipped: stage 5 installs it from the release' }
   if ($id -eq 'ddb-importer') { Fail 'ddb-importer is not shipped: its settings can hold the D&D Beyond cookie, so it stays on this PC' }
+}
+foreach ($id in $PiModules) {
+  if ($id -notmatch '^[A-Za-z0-9._-]+$') { Fail "-PiModules id '$id' is not letters, digits, dots, dashes and underscores" }
+  if ($Modules -contains $id) { Fail "module $id is in both -Modules and -PiModules: ship it, or leave it on the Pi, not both" }
+  if ($id -eq 'foundry-mcp-bridge') { Fail 'foundry-mcp-bridge is not a -PiModules entry: stage 5 installs it from the release' }
+  if ($id -eq 'ddb-importer') { Fail 'ddb-importer stays on this PC and is not on the Pi' }
 }
 $basedOn = $null
 if ($PushBack) {
@@ -126,8 +140,9 @@ if ($SkipRefs) {
   $AllowMissingArgs = if ($AllowMissing.Count) { @('--allow-missing', ($AllowMissing -join ',')) } else { @() }
   # A push-back keeps the Gamemaster's password (the Pi's own); stage 11 joins with the Pi's env file.
   $PushBackArgs = if ($PushBack) { @('--gm-password-ok') } else { @() }
+  $PiModuleArgs = if ($PiModules.Count) { @('--pi-modules', ($PiModules -join ',')) } else { @() }
   $LevelArgs = if ($LevelModule) { @('--level-module', $LevelModule) } else { @() }
-  $refsJson = & node (Join-Path $PSScriptRoot 'world-refs.mjs') --data $DataPath --world $World --modules ($Modules -join ',') --allow-secret-keys ($AllowSettingKeys -join ',') $AllowMissingArgs --gm-user $GmUser $PushBackArgs $LevelArgs --json
+  $refsJson = & node (Join-Path $PSScriptRoot 'world-refs.mjs') --data $DataPath --world $World --modules ($Modules -join ',') --allow-secret-keys ($AllowSettingKeys -join ',') $AllowMissingArgs $PiModuleArgs --gm-user $GmUser $PushBackArgs $LevelArgs --json
   $refsRc = $LASTEXITCODE
   if ($refsRc -eq 1 -or -not $refsJson) { Fail "world-refs failed to run (exit $refsRc); see the message above" }
   $refs = ($refsJson -join "`n") | ConvertFrom-Json
@@ -140,7 +155,7 @@ if ($SkipRefs) {
   if ($refsRc -ne 0) {
     $p = $refs.problems
     Write-Host 'world-refs found problems:' -ForegroundColor Red
-    if ($p.foreignModules.Count) { Write-Host ('  modules not in -Modules: ' + ($p.foreignModules -join ', ')) }
+    if ($p.foreignModules.Count) { Write-Host ('  modules not in -Modules or -PiModules: ' + ($p.foreignModules -join ', ')) }
     if ($p.foreignWorlds.Count) { Write-Host ('  other worlds referenced: ' + ($p.foreignWorlds -join ', ')) }
     if ($p.missingCount) { Write-Host "  $($p.missingCount) missing files (first $($p.missing.Count)):"; $p.missing | ForEach-Object { Write-Host "    $_" } }
     if ($p.caseMismatchCount) { Write-Host "  $($p.caseMismatchCount) paths whose letter case differs from the file (the Pi is case-sensitive):"; $p.caseMismatch | ForEach-Object { Write-Host "    $_" } }
@@ -248,6 +263,8 @@ $manifest = @(
   "files: $($files.Count)", "bytes: $bytes", "built (UTC): $([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ', [CultureInfo]::InvariantCulture))",
   "repo commit: $(if ($sha) { $sha } else { 'unknown' })")
 if ($AllowMissing.Count) { $manifest += "allow-missing: $($AllowMissing -join ', ')" }
+# Stage 11 checks that each of these is installed on the Pi and not also in the bundle.
+if ($PiModules.Count) { $manifest += "pi-modules: $($PiModules -join ', ')" }
 # Stage 11 reads these two lines: a kept password needs REPLACE_WORLD=1, the Pi's env file and no kit
 # world, and the Pi's world must not have changed after the snapshot time (else REPLACE_NEWER=1).
 if ($PushBack) { $manifest += @('gm-password: kept (push-back)', "based-on-snapshot: $basedOn") }
@@ -287,3 +304,4 @@ if ($PushBack) {
 } else {
   Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World bash -s'"
 }
+if ($PiModules.Count) { Write-Host "Modules left as they are on the Pi (not in the bundle): $($PiModules -join ', ')" }

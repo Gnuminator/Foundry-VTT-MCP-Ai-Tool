@@ -255,6 +255,23 @@ if [ -f MANIFEST.txt ] && grep -q '^gm-password:' MANIFEST.txt; then
 elif [ "$REPLACE_NEWER" != 0 ]; then
   warn "REPLACE_NEWER is for a Plan B push-back only; this bundle is not one, so it is ignored"
 fi
+
+# "pi-modules: a, b" in MANIFEST.txt: modules the world uses that are NOT in this bundle because the Pi has them
+# already (a second world on the campaign bundle's modules). Each must be installed on the Pi and must not also be
+# shipped, or this stage would replace the Pi's copy. Checked here, before Foundry stops.
+pi_modules=()
+if [ -f MANIFEST.txt ] && grep -q '^pi-modules:' MANIFEST.txt; then
+  pi_line="$(sed -n 's/^pi-modules: *//p' MANIFEST.txt | head -n1)"
+  pi_line="${pi_line//,/ }"
+  for id in $pi_line; do
+    [[ "$id" =~ ^[A-Za-z0-9._-]+$ ]] || die "odd module id in the pi-modules: line of MANIFEST.txt: $id. Nothing was changed"
+    [ -f "$data/modules/$id/module.json" ] || die "module $id is not installed on the Pi: install the campaign bundle first, or ship it with -Modules. Nothing was changed"
+    [ ! -e "Data/modules/$id" ] || die "module $id is both in the bundle and named in pi-modules: this stage would replace the Pi's copy. Ship it or leave it on the Pi, not both. Nothing was changed"
+    pi_modules+=("$id")
+  done
+  [ "${#pi_modules[@]}" -gt 0 ] || die "MANIFEST.txt has an empty pi-modules: line. Nothing was changed"
+  ok "modules already on the Pi, left as they are: ${pi_modules[*]}"
+fi
 modules=()
 for d in Data/modules/*/; do [ -d "$d" ] && modules+=("$(basename "$d")"); done
 # A push-back ships the modules Plan B restored from the Pi backup. One the Pi updated after that backup (its

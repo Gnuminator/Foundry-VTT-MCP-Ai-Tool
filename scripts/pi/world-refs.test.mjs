@@ -445,6 +445,74 @@ test('an unknown-root path that exists on disk is always a problem, allowed or n
   }
 });
 
+test('--pi-modules: not unshipped, asset paths count as inside the bundle but must exist on disk', () => {
+  const active = ['aitool-content', 'dnd-players-handbook', 'ddb-importer', 'foundry-mcp-bridge'];
+  assert.deepEqual(unshippedActive(active, [], ['aitool-content', 'dnd-players-handbook']), [
+    'ddb-importer',
+  ]);
+  assert.deepEqual(unshippedActive(active, []), [
+    'aitool-content',
+    'dnd-players-handbook',
+    'ddb-importer',
+  ]);
+
+  const root = mkdtempSync(path.join(os.tmpdir(), 'world-refs-pimod-'));
+  try {
+    mkdirSync(path.join(root, 'modules', 'aitool-content', 'art'), { recursive: true });
+    writeFileSync(path.join(root, 'modules', 'aitool-content', 'art', 'a.webp'), 'x');
+    const paths = new Set([
+      'modules/aitool-content/art/a.webp',
+      'modules/aitool-content/art/gone.webp',
+      'modules/aitool-content/ART/a.webp',
+      'modules/other-mod/a.png',
+    ]);
+    const check = p => checkExactPath(root, p, new Map());
+    const s = summarize(paths, { world: 'w', modules: [], piModules: ['aitool-content'], check });
+    // no "outside the bundle" problem for the Pi module, but a wrong reference is still caught
+    assert.deepEqual([...s.problems.foreignModules], ['other-mod']);
+    assert.deepEqual(s.problems.missing.sort(), [
+      'modules/aitool-content/art/gone.webp',
+      'modules/other-mod/a.png',
+    ]);
+    assert.equal(s.problems.caseMismatch.length, 1);
+    assert.match(s.problems.caseMismatch[0], /modules\/aitool-content\/ART\/a\.webp/);
+    // without the option the same module is foreign
+    const plain = summarize(paths, { world: 'w', modules: [], check });
+    assert.deepEqual([...plain.problems.foreignModules], ['aitool-content', 'other-mod']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('--pi-modules on the command line: parsed, validated, never also in --modules', () => {
+  const base = ['--world', 'frostmaiden-training'];
+  assert.deepEqual(parseArgs(base).piModules, []);
+  assert.deepEqual(
+    parseArgs([...base, '--pi-modules', 'aitool-content,,dnd-players-handbook']).piModules,
+    ['aitool-content', 'dnd-players-handbook']
+  );
+  assert.deepEqual(parseArgs([...base, '--modules', 'a', '--pi-modules', 'b']).modules, ['a']);
+  assert.throws(() => parseArgs([...base, '--pi-modules', 'bad/id']), /bad module id/);
+  assert.throws(
+    () => parseArgs([...base, '--modules', 'a,b', '--pi-modules', 'b']),
+    /both --modules and --pi-modules/
+  );
+});
+
+test('--pi-modules: their packs and module.json are not scanned (they are not in the bundle)', () => {
+  const src = readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), 'world-refs.mjs'),
+    'utf8'
+  );
+  // the pack and module.json lists are built from o.modules only
+  assert.match(src, /o\.modules\.flatMap\(m => levelDbFolders/);
+  assert.match(
+    src,
+    /\.\.\.o\.modules\.map\(m => path\.join\(o\.data, 'modules', m, 'module\.json'\)\)/
+  );
+  assert.doesNotMatch(src, /o\.piModules\.(?:flatMap|map)/);
+});
+
 test('validateAllowMissing refuses patterns that are too broad or misplace the star', () => {
   for (const ok of [
     'ddb-images/adventures/Curse_of_Strahd/*',

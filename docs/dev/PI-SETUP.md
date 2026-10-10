@@ -654,7 +654,11 @@ What stage 11 does with it:
 
 Danni's Frostmaiden training world goes in next to the campaign, while Foundry keeps launching
 `curse-of-strahd`. It is a copy of the PC's kit world trimmed to Frostmaiden, pushed with
-`push-world.ps1 -World frostmaiden-training`, then installed with:
+`push-world.ps1 -World frostmaiden-training -Modules @() -PiModules aitool-content,dnd-players-handbook,foundryvtt-actor-studio`
+(the three active modules are already on the Pi from the campaign bundle, and stage 11 replaces the
+Pi's module folders with the bundle's, so shipping them again could swap out the Pi's own copies;
+`-PiModules` writes them into the bundle's `MANIFEST.txt`, and stage 11 stops before anything changes
+if one is not installed on the Pi), then installed with:
 
 ```bash
 WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude

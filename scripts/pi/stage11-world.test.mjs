@@ -5,7 +5,7 @@
 // (scripts/pi/container-test/stage11-scenarios.sh). Covered: the Frostmaiden training world with an extra GM
 // (its env file, one provisioning call, options.json back on the real world, the kit world untouched), a rerun
 // that keeps the world and changes nothing, a kept world gaining the extra GM, the refusals that must happen
-// before anything stops (another extra GM in the env file, the extra GM named like the GM or the Assistant GM,
+// before anything stops (a pi-modules module the Pi lacks, another extra GM in the env file, the extra GM named like the GM or the Assistant GM,
 // a missing KIT_WORLD or KIT_TITLE, a LAUNCH world that is not installed), no password in the output, and the
 // old Strahd default (the kit copy reset, no extra GM). Without PI_STAGE11_CONTAINER the file skips.
 // PI_STAGE11_OUTPUT=<file> checks a saved stage11-scenarios.sh output instead of starting Docker.
@@ -79,6 +79,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
           after: part('env after'),
           sentinels: part('sentinels'),
           worlds: part('worlds'),
+          modules: part('modules'),
           leak: part('leak'),
         });
       }
@@ -245,6 +246,24 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
       r,
       /LAUNCH must be frostmaiden-training, the kit world or a world that is already installed/
     );
+  });
+
+  test('pi-modules-installed: a module named in pi-modules stays the Pi copy and the world installs', () => {
+    const r = run('pi-modules-installed');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /modules already on the Pi, left as they are: aitool-content/);
+    assert.match(r.output, /world frostmaiden-training installed/);
+    assert.doesNotMatch(r.output, /module aitool-content installed/);
+    assert.deepEqual(lines(r.modules), ['aitool-content yes', 'foundry-mcp-bridge no']);
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.equal(r.leak, 'no');
+  });
+
+  test('pi-modules-missing: a pi-modules module that the Pi lacks is refused before anything stops', () => {
+    const r = run('pi-modules-missing');
+    assertRefused(r, /module aitool-content is not installed on the Pi/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(lines(r.modules), ['foundry-mcp-bridge no']);
   });
 
   test('strahd-default: the old behaviour: kit copy reset, both worlds provisioned, no extra GM anywhere', () => {

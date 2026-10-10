@@ -2,6 +2,7 @@
 #
 #   pwsh scripts/test-env/stop.ps1
 #   pwsh scripts/test-env/stop.ps1 -Only dashboard
+#   pwsh scripts/test-env/stop.ps1 -Server B         test server B (default A)
 #
 # A recorded pid is stopped when it is still the process start.ps1 started: a node process that
 # owns the service's port or whose command line shows the service (ours, but not on its port yet:
@@ -13,7 +14,10 @@
 # exit code 1 (the pid is kept in the second case). A kill that did not take, or a port still open
 # after our process was stopped (an orphaned child), is refused the same way. The decision table is
 # Resolve-StopAction in config.ps1.
-param([ValidateSet('all', 'foundry', 'bridge', 'dashboard')] [string]$Only = 'all')
+param(
+  [ValidateSet('all', 'foundry', 'bridge', 'dashboard')] [string]$Only = 'all',
+  [ValidateSet('A', 'B')] [string]$Server
+)
 
 . (Join-Path $PSScriptRoot 'config.ps1')
 $pids = Read-Pids

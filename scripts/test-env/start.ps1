@@ -5,19 +5,22 @@
 #   pwsh scripts/test-env/start.ps1 -NoWorld          Foundry at the setup screen
 #   pwsh scripts/test-env/start.ps1 -World ai-tool-kit Foundry into another world (e.g. the
 #                                                      test kit world with DDB imports)
+#   pwsh scripts/test-env/start.ps1 -Server B         test server B (kit runs; default A, or
+#                                                      the FOUNDRY_TEST_SERVER variable)
 #
 # Refuses to start a service whose port is already taken, and never uses the
 # live bridge ports 31414-31416.
 param(
   [ValidateSet('all', 'foundry', 'bridge', 'dashboard')] [string]$Only = 'all',
   [switch]$NoWorld,
-  [ValidatePattern('^[a-z0-9][a-z0-9-]{0,63}$')] [string]$World = ''
+  [ValidatePattern('^[a-z0-9][a-z0-9-]{0,63}$')] [string]$World = '',
+  [ValidateSet('A', 'B')] [string]$Server
 )
 
 . (Join-Path $PSScriptRoot 'config.ps1')
 Assert-SafePorts
 if ($World -and -not (Test-Path (Join-Path $TestEnv.DataDir 'Data' 'worlds' $World))) {
-  throw "No world '$World' under $(Join-Path $TestEnv.DataDir 'Data' 'worlds'); nothing started."
+  throw "No world '$World' under $(Join-Path $TestEnv.DataDir 'Data' 'worlds') (server $($TestEnv.Server)); nothing started."
 }
 New-Item -ItemType Directory -Force $TestEnv.LogDir, $TestEnv.VaultDir | Out-Null
 $node = Get-NodeExe
@@ -108,9 +111,9 @@ if ($Only -in 'all', 'bridge') {
 }
 
 if ($Only -in 'all', 'dashboard') {
-  $server = Join-Path $RepoRoot 'packages' 'cogm-dashboard' 'dist' 'server.js'
-  if (-not (Test-Path $server)) { throw 'Dashboard not built: run setup.ps1.' }
-  Start-TestService 'dashboard' $TestEnv.DashboardPort @("`"$server`"") @{
+  $dashboardServer = Join-Path $RepoRoot 'packages' 'cogm-dashboard' 'dist' 'server.js'
+  if (-not (Test-Path $dashboardServer)) { throw 'Dashboard not built: run setup.ps1.' }
+  Start-TestService 'dashboard' $TestEnv.DashboardPort @("`"$dashboardServer`"") @{
     PORT             = $TestEnv.DashboardPort
     DASHBOARD_HOST   = '127.0.0.1'
     MCP_CONTROL_HOST = '127.0.0.1'
@@ -120,5 +123,6 @@ if ($Only -in 'all', 'dashboard') {
 }
 
 Write-Host ''
+Write-Host "Server:    $($TestEnv.Server)"
 Write-Host "Foundry:   http://localhost:$($TestEnv.FoundryPort)"
 Write-Host "Dashboard: http://localhost:$($TestEnv.DashboardPort)"

@@ -1,15 +1,26 @@
 # Shared settings for the local test environment (dot-source this file).
 #
-# A personal-only test setup, separate from the live campaign in every way:
-#   Foundry (Node.js build)  http://localhost:30001, own data folder
-#   test bridge              control 31514, Foundry link 31515
-#   co-GM dashboard          http://localhost:3100
-#   bridge vault             <Root>/vault
+# A personal-only test setup, separate from the live campaign in every way. Two test servers
+# share this PC's Foundry install and licence (scripts/test-env/servers.json has their ports):
+#   server A (the default, quick checks and live:roundtrip)
+#     Foundry (Node.js build)  http://localhost:30001, data C:\FoundryTest\data
+#     test bridge              control 31514, Foundry link 31515
+#     co-GM dashboard          http://localhost:3100
+#   server B (kit runs and soak runs; npm run kit:run uses it)
+#     Foundry                  http://localhost:30002, data C:\FoundryTestB\data
+#     test bridge              control 31524, Foundry link 31525
+#     co-GM dashboard          http://localhost:3101
+#   bridge vault               <Root>/vault; the lock is <Root>/lock.json, one per server
 # The live bridge ports 31414-31416 are never used; every script refuses to run
-# if a test port collides with them.
+# if a test port collides with them or with the other server's ports.
 #
-# Override any value in scripts/test-env/local.json (gitignored), e.g.
-#   { "Root": "D:\\FoundryTest", "FoundryPort": 30002 }
+# Which server: the calling script's -Server A|B (a $Server variable in the scope that
+# dot-sources this file), else the environment variable FOUNDRY_TEST_SERVER, else A.
+# Override any value in scripts/test-env/local.json (server A) or local.B.json (server B), both
+# gitignored, e.g.
+#   { "Root": "D:\\FoundryTest", "FoundryPort": 30003 }
+# Server B runs A's Foundry install (AppDir) unless local.B.json names another, and uses A's
+# AdminUser/AdminPassword unless local.B.json has its own (its admin.txt is a copy of A's).
 # Works with PowerShell 7 on Windows and Linux (for the later Orange Pi move).
 
 Set-StrictMode -Version Latest
@@ -18,35 +29,70 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path
 $LivePorts = @(31414, 31415, 31416)
 
-$settings = [ordered]@{
-  Root          = if ($IsWindows) { 'C:\FoundryTest' } else { Join-Path $HOME 'foundry-test' }
-  WorldId       = 'ai-tool-test'
-  FoundryPort   = 30001
-  ControlPort   = 31514
-  LinkPort      = 31515
-  DashboardPort = 3100
-  # Throwaway Obsidian vault the test bridge renders notes into (never the GM's
-  # vault). Empty string = Obsidian auto-render off. Default: <Root>/obsidian.
-  ObsidianDir   = $null
-  # Optional: this test server's own admin login, for setup-screen tasks
-  # (install packages, create worlds). Only ever put a password here that is
-  # used for nothing else. Never printed by the scripts; local.json is gitignored.
-  AdminUser     = $null
-  AdminPassword = $null
+$TestServers = Get-Content (Join-Path $PSScriptRoot 'servers.json') -Raw | ConvertFrom-Json
+$TestServerName = 'A'
+$serverChoice = Get-Variable -Name Server -ValueOnly -ErrorAction SilentlyContinue
+if ($serverChoice) { $TestServerName = [string]$serverChoice }
+elseif ($env:FOUNDRY_TEST_SERVER) { $TestServerName = [string]$env:FOUNDRY_TEST_SERVER }
+$TestServerName = $TestServerName.Trim().ToUpperInvariant()
+if (-not $TestServerName -or -not $TestServers.PSObject.Properties[$TestServerName]) {
+  throw "Unknown test server '$TestServerName' (scripts/test-env/servers.json has $(@($TestServers.PSObject.Properties.Name) -join ', '))."
 }
-$localFile = Join-Path $PSScriptRoot 'local.json'
-if (Test-Path $localFile) {
-  $local = Get-Content $localFile -Raw | ConvertFrom-Json
-  foreach ($p in $local.PSObject.Properties) {
-    if ($p.Name -eq 'WebrtcPort') { continue }  # retired setting (WebRTC was removed); ignore an old local.json
-    if (-not $settings.Contains($p.Name)) { throw "Unknown setting '$($p.Name)' in $localFile" }
-    $settings[$p.Name] = $p.Value
+
+# The settings of one server: its servers.json entry, then its local file.
+function Get-TestServerSettings([string]$Name) {
+  $def = $TestServers.$Name
+  $s = [ordered]@{
+    Root          = if ($IsWindows) { [string]$def.Root } else { Join-Path $HOME ([string]$def.HomeRoot) }
+    # The Foundry Node.js build. Default: <Root>/app for A; A's AppDir for the other servers.
+    AppDir        = $null
+    WorldId       = 'ai-tool-test'
+    FoundryPort   = [int]$def.FoundryPort
+    ControlPort   = [int]$def.ControlPort
+    LinkPort      = [int]$def.LinkPort
+    DashboardPort = [int]$def.DashboardPort
+    # Throwaway Obsidian vault the test bridge renders notes into (never the GM's
+    # vault). Empty string = Obsidian auto-render off. Default: <Root>/obsidian.
+    ObsidianDir   = $null
+    # Optional: this test server's own admin login, for setup-screen tasks
+    # (install packages, create worlds). Only ever put a password here that is
+    # used for nothing else. Never printed by the scripts; local.json is gitignored.
+    AdminUser     = $null
+    AdminPassword = $null
   }
+  $file = Join-Path $PSScriptRoot $(if ($Name -eq 'A') { 'local.json' } else { "local.$Name.json" })
+  if (Test-Path $file) {
+    $local = Get-Content $file -Raw | ConvertFrom-Json
+    foreach ($p in $local.PSObject.Properties) {
+      if ($p.Name -eq 'WebrtcPort') { continue }  # retired setting (WebRTC was removed); ignore an old local.json
+      if (-not $s.Contains($p.Name)) { throw "Unknown setting '$($p.Name)' in $file" }
+      $s[$p.Name] = $p.Value
+    }
+  }
+  return $s
+}
+
+$settingsA = Get-TestServerSettings 'A'
+if (-not $settingsA.AppDir) { $settingsA.AppDir = Join-Path $settingsA.Root 'app' }
+$settings = if ($TestServerName -eq 'A') { $settingsA } else { Get-TestServerSettings $TestServerName }
+if (-not $settings.AppDir) { $settings.AppDir = $settingsA.AppDir }
+if (-not $settings.AdminPassword -and $settingsA.AdminPassword) {
+  $settings.AdminUser = $settingsA.AdminUser
+  $settings.AdminPassword = $settingsA.AdminPassword
+}
+# The other servers' ports: a server must never take one of them.
+$OtherServerPorts = @()
+foreach ($name in @($TestServers.PSObject.Properties.Name | Where-Object { $_ -ne $TestServerName })) {
+  $o = if ($name -eq 'A') { $settingsA } else { Get-TestServerSettings $name }
+  $OtherServerPorts += @([int]$o.FoundryPort, [int]$o.ControlPort, [int]$o.LinkPort, [int]$o.DashboardPort)
 }
 
 $TestEnv = [pscustomobject]@{
+  Server        = $TestServerName
+  # What to add to a script's command line so it acts on this server ('' for A, the default).
+  ServerArg     = if ($TestServerName -eq 'A') { '' } else { " -Server $TestServerName" }
   Root          = $settings.Root
-  AppDir        = Join-Path $settings.Root 'app'
+  AppDir        = [string]$settings.AppDir
   DataDir       = Join-Path $settings.Root 'data'
   VaultDir      = Join-Path $settings.Root 'vault'
   LogDir        = Join-Path $settings.Root 'logs'
@@ -71,6 +117,7 @@ function Assert-SafePorts {
   $ports = @($TestEnv.FoundryPort, $TestEnv.ControlPort, $TestEnv.LinkPort, $TestEnv.DashboardPort)
   foreach ($port in $ports) {
     if ($LivePorts -contains $port) { throw "Test port $port is a live bridge port (31414-31416). Pick another in local.json." }
+    if ($OtherServerPorts -contains $port) { throw "Test port $port belongs to another test server (servers.json). Pick another in this server's local file." }
   }
   if (($ports | Select-Object -Unique).Count -ne $ports.Count) { throw 'Test ports must all be different.' }
 }
@@ -478,7 +525,7 @@ function Resolve-WatchSync($Lock, [string]$Session) {
     $for = if ($Lock.Purpose) { " for $($Lock.Purpose)" } else { '' }
     return @{ Action = 'wait'; Key = "other:$($Lock.Session)"; Message = "Waiting: the test server lock is held by $($Lock.Holder) (session $($Lock.Session))$since$for. Not synced; the change syncs once this session holds the lock." }
   }
-  return @{ Action = 'wait'; Key = 'free'; Message = "Waiting: the test server lock is free, but this session does not hold it. Not synced; take it with: pwsh scripts/test-env/lock.ps1 take -Holder `"<session title>`" -Session $Session -Purpose `"...`" (the watch never takes it)." }
+  return @{ Action = 'wait'; Key = 'free'; Message = "Waiting: the test server lock is free, but this session does not hold it. Not synced; take it with: pwsh scripts/test-env/lock.ps1 take$($TestEnv.ServerArg) -Holder `"<session title>`" -Session $Session -Purpose `"...`" (the watch never takes it)." }
 }
 
 function Write-Pids([hashtable]$Pids) {

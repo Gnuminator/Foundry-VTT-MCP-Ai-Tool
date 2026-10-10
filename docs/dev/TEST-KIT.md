@@ -87,13 +87,42 @@ The `srd` profile lists the Actor Studio module under `modules`; run `kit init` 
 enable it (the `heroes-studio` scenario fails with that advice when the module is not active).
 
 The kit opens its own GM page first. The bridge only has a Foundry link while that page is open.
-The test server is shared: run one live job at a time. See the `foundry-test-env` skill.
+Each test server is shared: run one live job at a time on it. See the `foundry-test-env` skill.
+
+### Two test servers
+
+This PC has two test servers with the same Foundry install and licence
+(`scripts/test-env/servers.json`). Server A (`C:\FoundryTest`, Foundry 30001, bridge 31514 and
+31515, dashboard 3100) is for quick checks and `npm run live:roundtrip`. Server B
+(`C:\FoundryTestB`, Foundry 30002, bridge 31524 and 31525, dashboard 3101) is for kit runs and
+soak runs, so a 70-minute kit run never blocks a roundtrip. Each has its own data folder, module
+copy, vault, logs and lock (`<Root>\lock.json`). Nobody plays on B.
+
+Every test-env script takes `-Server A|B` (default A, or the `FOUNDRY_TEST_SERVER` environment
+variable); the kit (`kit.mjs`) reads `FOUNDRY_TEST_SERVER` and talks to that server's dashboard and
+Foundry. `npm run kit:run` uses B unless `--server A`. The kit home stays shared (reports,
+`last-run.json`, licensed profiles); the kit manifests are per server (`<kit home>\worlds` for A,
+`<kit home>\worlds-B` for B), because each server has its own copy of the kit worlds.
+
+`pwsh scripts/test-env/server-b.ps1` sets B up from A and refreshes it: A's licence, admin login and
+packages (systems, modules, assets; mirrored, so B gets A's versions), the everyday world and the
+kit worlds B does not have yet, with their manifests. `-World <id>` copies one world again (after a
+`kit init` or a fresh licensed import on A). It refuses while B's Foundry runs and skips a world
+A's Foundry has open. Run it after a package update on A (D-098 keeps the newest versions).
+
+```powershell
+$env:FOUNDRY_TEST_SERVER = 'B'
+pwsh scripts/test-env/start.ps1 -World ai-tool-kit-srd   # -Server B from the variable
+node scripts/test-kit/kit.mjs all --profile srd
+pwsh scripts/test-env/stop.ps1
+```
 
 ### The kit run command
 
-`npm run kit:run` does all of the above in one go, on demand or overnight (D-102 line 5):
+`npm run kit:run` does all of the above in one go, on demand or overnight (D-102 line 5), on test
+server B unless `--server A` (every step below acts on that server):
 
-1. takes the test server lock (`scripts/test-env/lock.ps1`; with `--wait <minutes>` it queues and
+1. takes the test server's lock (`scripts/test-env/lock.ps1`; with `--wait <minutes>` it queues and
    waits, otherwise a taken lock ends the run with exit code 3),
 2. runs `npm run build` and copies the module into the test Foundry (`sync-module.ps1 -NoBuild`),
 3. stops the test environment and starts it again on the profile's kit world, so the bridge and the
@@ -114,6 +143,7 @@ npm run kit:run -- --nightly                 # the overnight run: full, waits up
 
 | Option             | Meaning                                                                               |
 | ------------------ | ------------------------------------------------------------------------------------- |
+| `--server A\|B`    | The test server (default B; A stays free for quick checks).                           |
 | `--size`           | `smoke` (default), `full` or `long`.                                                  |
 | `--profile <id>`   | The content profile (default `srd`); it picks the kit world.                          |
 | `--wait <minutes>` | Queue for the lock and wait this long. Default 0.                                     |

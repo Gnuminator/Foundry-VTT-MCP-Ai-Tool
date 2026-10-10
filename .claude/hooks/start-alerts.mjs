@@ -84,6 +84,24 @@ export function testEnvRootFor(repoRoot, env = process.env) {
   return process.platform === 'win32' ? 'C:\\FoundryTest' : path.join(os.homedir(), 'foundry-test');
 }
 
+// Test server B's root: START_ALERTS_TEST_ROOT_B, else none when START_ALERTS_TEST_ROOT is set (a
+// test), else Root from local.B.json, else the default.
+export function testEnvRootBFor(repoRoot, env = process.env) {
+  if (env.START_ALERTS_TEST_ROOT_B) return env.START_ALERTS_TEST_ROOT_B;
+  if (env.START_ALERTS_TEST_ROOT) return null;
+  try {
+    const root = JSON.parse(
+      readFileSync(path.join(repoRoot, 'scripts', 'test-env', 'local.B.json'), 'utf8')
+    )?.Root;
+    if (typeof root === 'string' && root) return root;
+  } catch {
+    // no local.B.json: the default
+  }
+  return process.platform === 'win32'
+    ? 'C:\\FoundryTestB'
+    : path.join(os.homedir(), 'foundry-test-b');
+}
+
 export function vaultDirFor(env = process.env) {
   if (env.START_ALERTS_VAULT) return env.START_ALERTS_VAULT;
   if (env.PROJECT_DASHBOARD_VAULT && env.PROJECT_DASHBOARD_VAULT !== 'off')
@@ -222,6 +240,7 @@ export async function collectAlerts({
   repoRoot,
   vaultDir,
   testEnvRoot,
+  testEnvRootB = null,
   snapshotUrl,
   snapshotFile,
   ccDir,
@@ -234,6 +253,11 @@ export async function collectAlerts({
   };
   add(claudeMdAlert({ repoRoot, vaultDir }));
   add(lockAlert(readLockFile(testEnvRoot), now));
+  // Test server B (kit runs, scripts/test-env/servers.json) has a lock of its own.
+  if (testEnvRootB)
+    add(
+      lockAlert(readLockFile(testEnvRootB), now)?.replace(/^Test server lock/, 'Test server B lock')
+    );
   const { snap } = await loadSnapshot({ url: snapshotUrl, file: snapshotFile, now, fetchImpl });
   const part = foundryPart(snap);
   if (part) {
@@ -269,6 +293,7 @@ export function optionsFrom(env = process.env) {
     repoRoot,
     vaultDir: vaultDirFor(env),
     testEnvRoot: testEnvRootFor(repoRoot, env),
+    testEnvRootB: testEnvRootBFor(repoRoot, env),
     snapshotUrl: url === 'off' ? null : url,
     snapshotFile: env.START_ALERTS_SNAPSHOT_FILE || path.join(dataDir, 'snapshot.json'),
     ccDir:

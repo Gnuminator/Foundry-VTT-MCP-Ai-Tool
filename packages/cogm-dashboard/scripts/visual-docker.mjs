@@ -7,8 +7,10 @@
 //   npm run test:visual -w @gnuminator/cogm-dashboard -- -g "party"   extra arguments go to Playwright
 //
 // The image tag is the installed @playwright/test version (the image carries the browsers that
-// version expects), so a Playwright bump needs no edit here. Needs Docker and a built dashboard
-// (`npm run build -w @gnuminator/cogm-dashboard`): the container serves dist/ from the repo.
+// version expects), so a Playwright bump needs no edit here. Needs Docker, a built dashboard
+// (`npm run build -w @gnuminator/cogm-dashboard`) and a built Storybook
+// (`npm run build-storybook -w @gnuminator/cogm-dashboard`): the container serves dist/ and
+// storybook-static/ from the repo. Rebuild the Storybook after a change to a story or a component.
 //
 // How the container sees the repo: the repo is mounted at /work, but node_modules is not the host's
 // (Windows has junctions and platform files there). The root node_modules and the dashboard's own
@@ -33,6 +35,12 @@ const extra = args.filter(a => a !== '--update');
 
 if (!existsSync(path.join(packageDir, 'dist', 'web', 'index.html'))) {
   console.error('dist/ is not built. Run: npm run build -w @gnuminator/cogm-dashboard');
+  process.exit(2);
+}
+if (!existsSync(path.join(packageDir, 'storybook-static', 'index.json'))) {
+  console.error(
+    'storybook-static/ is not built (the story shots need it). Run: npm run build-storybook -w @gnuminator/cogm-dashboard'
+  );
   process.exit(2);
 }
 

@@ -21,7 +21,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { EnvError } from './lib/errors.mjs';
 import { loadProfile } from './lib/profiles.mjs';
-import { kitHome } from './lib/targets.mjs';
+import { kitHome, TEST_SERVERS, testServer } from './lib/targets.mjs';
 import { newConsoleGroups, newRunDir } from './lib/report.mjs';
 import { pushPaths, vaultDirFrom } from '../dev/project-dashboard/vault.mjs';
 
@@ -30,12 +30,21 @@ const REPO_ROOT = path.resolve(here, '..', '..');
 const TEST_ENV = path.join(REPO_ROOT, 'scripts', 'test-env');
 export const NOTE = 'Dev/Foundry AI Tool/Test kit runs.md';
 export const MAX_ROWS = 40;
-const PORTS = { foundry: 30001, bridge: 31514, dashboard: 3100 };
+/** Kit runs go to test server B, so server A stays free for quick checks and live:roundtrip. */
+export const DEFAULT_SERVER = 'B';
+
+/** The ports a run checks on its test server. @param {string} server */
+export function serverPorts(server) {
+  const s = testServer(server);
+  return { foundry: s.foundryPort, bridge: s.controlPort, dashboard: s.dashboardPort };
+}
 
 export const HELP = `kit:run: take the test server lock, run the test kit, record the result, release the lock.
 
 Usage: npm run kit:run -- [options]
 
+  --server A|B             the test server (default B, so A stays free for quick checks;
+                           scripts/test-env/servers.json has the ports, server-b.ps1 sets B up)
   --size smoke|full|long   kit size (default smoke; --nightly makes it full)
   --profile <id>           content profile (default srd); it picks the kit world
   --wait <minutes>         when the lock is taken: queue and wait this long (default 0: give up)
@@ -54,6 +63,7 @@ export function parseArgs(argv) {
   const o = {
     size: null,
     profile: 'srd',
+    server: DEFAULT_SERVER,
     wait: null,
     nightly: false,
     session: process.env.KIT_RUN_SESSION || null,
@@ -74,6 +84,7 @@ export function parseArgs(argv) {
     if (a === '--help' || a === '-h') o.help = true;
     else if (a === '--size') o.size = value(a);
     else if (a === '--profile') o.profile = value(a);
+    else if (a === '--server') o.server = value(a).toUpperCase();
     else if (a === '--wait') o.wait = Number(value(a));
     else if (a === '--nightly') o.nightly = true;
     else if (a === '--session') o.session = value(a);
@@ -85,6 +96,8 @@ export function parseArgs(argv) {
   }
   o.size ??= o.nightly ? 'full' : 'smoke';
   o.wait ??= o.nightly ? 120 : 0;
+  if (!Object.hasOwn(TEST_SERVERS, o.server))
+    throw new Error(`--server must be one of ${Object.keys(TEST_SERVERS).join(', ')}`);
   if (!['smoke', 'full', 'long'].includes(o.size))
     throw new Error('--size must be smoke, full or long');
   if (!Number.isFinite(o.wait) || o.wait < 0) throw new Error('--wait must be minutes, 0 or more');
@@ -100,10 +113,10 @@ function stamp(d) {
 export function defaultRun(
   file,
   args,
-  { cwd = REPO_ROOT, echo = false, shell = false, signal } = {}
+  { cwd = REPO_ROOT, echo = false, shell = false, signal, env: extraEnv = {} } = {}
 ) {
   return new Promise(resolve => {
-    const env = { ...process.env };
+    const env = { ...process.env, ...extraEnv };
     // npm and node children use the same Node as this command (the portable Node 22).
     const pathKey = Object.keys(env).find(k => k.toUpperCase() === 'PATH') || 'PATH';
     env[pathKey] = `${path.dirname(process.execPath)}${path.delimiter}${env[pathKey] || ''}`;
@@ -149,7 +162,7 @@ export function staleKitLock(stderr, afterMin) {
 }
 
 /**
- * Takes the lock. With waitMs, a refusal joins the queue and tries again every minute; `stopped`
+ * Takes the lock (of the test server `server`). With waitMs, a refusal joins the queue and tries again every minute; `stopped`
  * ends the wait early. With takeOverAfterMin, a stale lock of an earlier kit run is taken over.
  * @returns {Promise<{ok: boolean, already: boolean, detail: string}>}
  */
@@ -158,17 +171,28 @@ export async function takeLock({
   session,
   holder,
   purpose,
+  server = 'A',
   waitMs = 0,
   sleep,
   now = Date.now,
   stopped = () => false,
   takeOverAfterMin = null,
 }) {
-  const lockArgs = cmd => [cmd, '-Holder', holder, '-Session', session, '-Purpose', purpose];
+  const lockArgs = cmd => [
+    cmd,
+    '-Holder',
+    holder,
+    '-Session',
+    session,
+    '-Purpose',
+    purpose,
+    '-Server',
+    server,
+  ];
   const until = now() + waitMs;
   let queued = false;
   const leave = async () => {
-    if (queued) await pwsh(run, 'lock.ps1', ['leave', '-Session', session]);
+    if (queued) await pwsh(run, 'lock.ps1', ['leave', '-Session', session, '-Server', server]);
   };
   for (;;) {
     let r = await pwsh(run, 'lock.ps1', lockArgs('take'));
@@ -205,13 +229,13 @@ export function portOpen(port, host = '127.0.0.1', timeoutMs = 1000) {
   });
 }
 
-async function envState(fetchImpl = fetch) {
+async function envState(fetchImpl = fetch, ports = serverPorts('A')) {
   const state = {};
-  for (const [name, port] of Object.entries(PORTS)) state[name] = await portOpen(port);
+  for (const [name, port] of Object.entries(ports)) state[name] = await portOpen(port);
   state.world = null;
   if (state.foundry) {
     try {
-      const s = await (await fetchImpl(`http://127.0.0.1:${PORTS.foundry}/api/status`)).json();
+      const s = await (await fetchImpl(`http://127.0.0.1:${ports.foundry}/api/status`)).json();
       state.world = typeof s.world === 'string' && s.world ? s.world : null;
     } catch {
       // Foundry still loading: no world yet
@@ -271,7 +295,7 @@ export function noteRow(r) {
   return `| ${[
     localTime(r.at),
     r.pc,
-    `${r.size} ${r.profile}${r.nightly ? ' nightly' : ''}`,
+    `${r.size} ${r.profile}${r.nightly ? ' nightly' : ''}${r.server ? ` on ${r.server}` : ''}`,
     `${r.git}${r.branch ? ` (${r.branch})` : ''}`,
     resultText(r),
     shown,
@@ -384,17 +408,24 @@ class Stop extends Error {
  */
 export async function kitRun(o, deps = {}) {
   const {
-    run = defaultRun,
+    run: baseRun = defaultRun,
     fetchImpl = fetch,
     sleep = (ms, signal) => delay(ms, undefined, { signal }).catch(() => {}),
     now = () => new Date(),
     log = line => console.log(`kit:run ${line}`),
     home = kitHome(),
-    state = () => envState(fetchImpl),
+    state = () => envState(fetchImpl, serverPorts(o.server)),
     writeVault = writeVaultNote,
     signals = process,
     exit = code => process.exit(code),
   } = deps;
+  // Every child (the build, the test-env scripts, the kit) works on the run's test server.
+  const server = o.server || DEFAULT_SERVER;
+  const ports = serverPorts(server);
+  /** @type {typeof defaultRun} */
+  const run = (file, args, opts = {}) =>
+    baseRun(file, args, { ...opts, env: { ...opts.env, FOUNDRY_TEST_SERVER: server } });
+  const onServer = ['-Server', server];
   // An unknown profile stops here, before the lock and without a record.
   const profile = loadProfile(o.profile);
   const started = now();
@@ -404,6 +435,7 @@ export async function kitRun(o, deps = {}) {
     pc: process.env.COMPUTERNAME || os.hostname(),
     size: o.size,
     profile: o.profile,
+    server,
     nightly: o.nightly,
     ...(await gitInfo(run)),
   };
@@ -434,6 +466,7 @@ export async function kitRun(o, deps = {}) {
       session,
       holder: o.holder,
       purpose: `kit run: ${o.size} ${o.profile}${o.nightly ? ' (nightly)' : ''}`,
+      server,
       waitMs: o.wait * 60000,
       sleep: ms => sleep(ms, abort.signal),
       now: () => now().getTime(),
@@ -461,19 +494,21 @@ export async function kitRun(o, deps = {}) {
       if (b.code !== 0)
         throw new Stop('error', `npm run build failed: ${firstLine(b.stderr, 'see the console')}`);
     }
-    const sync = await pwsh(run, 'sync-module.ps1', ['-NoBuild']);
+    const sync = await pwsh(run, 'sync-module.ps1', ['-NoBuild', ...onServer]);
     halt();
     if (sync.code !== 0)
       throw new Stop('error', `sync-module.ps1 failed: ${firstLine(sync.stderr)}`);
-    const stop = await pwsh(run, 'stop.ps1', []);
+    const stop = await pwsh(run, 'stop.ps1', onServer);
     if (stop.code !== 0) throw new Stop('env', `stop.ps1 refused: ${firstLine(stop.stderr)}`);
     envTouched = true;
     halt();
-    const start = await pwsh(run, 'start.ps1', ['-World', profile.world], { echo: true });
+    const start = await pwsh(run, 'start.ps1', ['-World', profile.world, ...onServer], {
+      echo: true,
+    });
     halt();
     if (start.code !== 0) throw new Stop('env', `start.ps1 failed: ${firstLine(start.stderr)}`);
     const up = await state();
-    const down = Object.keys(PORTS).filter(k => !up[k]);
+    const down = Object.keys(ports).filter(k => !up[k]);
     if (down.length) throw new Stop('env', `not listening after start.ps1: ${down.join(', ')}`);
     if (up.world !== profile.world)
       throw new Stop('env', `Foundry runs world ${up.world || 'none'}, not ${profile.world}`);
@@ -515,11 +550,11 @@ export async function kitRun(o, deps = {}) {
         : { ...r, state: 'error', detail: firstLine(err?.message) };
   } finally {
     if (envTouched && !o.keepUp) {
-      const stop = await pwsh(run, 'stop.ps1', []);
+      const stop = await pwsh(run, 'stop.ps1', onServer);
       if (stop.code !== 0) log(`stop.ps1 refused afterwards: ${firstLine(stop.stderr)}`);
     }
     if (took) {
-      const rel = await pwsh(run, 'lock.ps1', ['release', '-Session', session]);
+      const rel = await pwsh(run, 'lock.ps1', ['release', '-Session', session, ...onServer]);
       log(rel.code === 0 ? 'lock released' : `lock release failed: ${firstLine(rel.stderr)}`);
     }
     for (const sig of SIGNALS) signals.off(sig, onSignal);

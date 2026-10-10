@@ -21,7 +21,7 @@ import {
 } from './lib/contract.mjs';
 import { DEFAULT_COVERAGE_CAP } from './lib/coverage.mjs';
 import { EnvError, KitToolError } from './lib/errors.mjs';
-import { foundryDataDir, kitHome, resolveTarget } from './lib/targets.mjs';
+import { foundryDataDir, kitHome, kitWorldsDir, resolveTarget } from './lib/targets.mjs';
 import { loadProfile } from './lib/profiles.mjs';
 import { createDashboardClient } from './lib/dashboard.mjs';
 import { loadToolCatalog } from './lib/catalog.mjs';
@@ -62,7 +62,8 @@ Options
   --headed                 show the GM browser window
   --help                   this text
 
-Only the test dashboard (127.0.0.1:3100) and the test Foundry (127.0.0.1:30001) are used; the live
+Only one test server's dashboard and Foundry are used: FOUNDRY_TEST_SERVER=A (the default,
+127.0.0.1:3100 and 127.0.0.1:30001) or B (3101 and 30002; npm run kit:run uses B); the live
 bridge ports 31414 to 31416 are refused. Kit home: env TEST_KIT_HOME or C:\\FoundryTest\\test-kit.
 Exit codes: 0 all passed, 1 a scenario failed, 2 environment not ready or target refused.`;
 
@@ -231,7 +232,7 @@ export async function waitForLink(dashboard, world, timeoutMs = 30000) {
 
 /** @param {string} world */
 function manifestPath(world) {
-  return path.join(kitHome(), 'worlds', world, 'manifest.json');
+  return path.join(kitWorldsDir(), world, 'manifest.json');
 }
 
 /** @param {string} file */
@@ -343,7 +344,7 @@ async function cmdInit(o) {
     .catch(() => null);
   if (running !== o.world) {
     throw new EnvError(
-      `world files are ready; start Foundry on ${o.world} (pwsh scripts/test-env/start.ps1 -World ${o.world}) and run init again to provision it`
+      `world files are ready; start Foundry on ${o.world} (pwsh scripts/test-env/start.ps1 -World ${o.world}${target.server === 'A' ? '' : ` -Server ${target.server}`}) and run init again to provision it`
     );
   }
   await provisionWorld({

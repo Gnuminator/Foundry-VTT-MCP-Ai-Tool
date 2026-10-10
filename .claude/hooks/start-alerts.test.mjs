@@ -85,6 +85,24 @@ test('a clean start is silent', async () => {
   }
 });
 
+test('test server B: its own lock alerts under its own name', async () => {
+  const f = fixture();
+  const rootB = path.join(f.root, 'test-env-b');
+  try {
+    mkdirSync(rootB, { recursive: true });
+    assert.deepEqual(await collectAlerts(opts(f, { testEnvRootB: rootB })), []);
+    writeFileSync(
+      path.join(rootB, 'lock.json'),
+      JSON.stringify({ holder: 'kit run', since: NOW.toISOString(), queue: [] })
+    );
+    const lines = await collectAlerts(opts(f, { testEnvRootB: rootB }));
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /^Test server B lock: held by kit run/);
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('CLAUDE.md: line endings and trailing space do not count, a real change does', () => {
   const f = fixture();
   try {

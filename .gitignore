@@ -103,6 +103,7 @@ VISUAL-CONFIRMATION.md
 
 # Local test environment overrides (paths/ports on this machine)
 scripts/test-env/local.json
+scripts/test-env/local.*.json
 
 # Git worktrees for parallel Claude sessions and worker agents
 .claude/worktrees/

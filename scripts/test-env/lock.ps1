@@ -6,6 +6,7 @@
 #   pwsh scripts/test-env/lock.ps1 release -Session <local_id> [-Force]
 #   pwsh scripts/test-env/lock.ps1 queue -Holder "<session title>" -Session <local_id> -Purpose "<text>"
 #   pwsh scripts/test-env/lock.ps1 leave -Session <local_id>
+#   ... -Server B   test server B's lock (<B's Root>/lock.json); default A, or FOUNDRY_TEST_SERVER
 #
 # State is <Root>/lock.json: { holder, session, since, purpose, queue: [ { holder, session, since, purpose } ] }.
 # Every change is serialised through lock.json.lck and written as lock.json.tmp, then moved over
@@ -21,12 +22,16 @@ param(
   [string]$Session,
   [string]$Purpose,
   [switch]$Force,
-  [string]$Root
+  [string]$Root,
+  [ValidateSet('A', 'B')] [string]$Server
 )
 . (Join-Path $PSScriptRoot 'config.ps1')
 
 $lockRoot = if ($Root) { $Root } else { $TestEnv.Root }
 $lockFile = Join-Path $lockRoot 'lock.json'
+$label = if ($TestEnv.Server -eq 'A') { 'Test server lock' } else { "Test server $($TestEnv.Server) lock" }
+$cmd = "pwsh scripts/test-env/lock.ps1"
+$sv = $TestEnv.ServerArg
 
 function Limit([string]$Text) {
   $t = $Text.Trim()
@@ -104,7 +109,7 @@ function New-FreeLock {
 # Refuses (returns $true) when lock.json cannot be read and -Force was not given.
 function Test-Unreadable($Lock) {
   if (-not $Lock.Unreadable -or $Force) { return $false }
-  [Console]::Error.WriteLine("$lockFile cannot be read as a lock, so nobody can tell who holds the test server. Check with the other sessions, then start a fresh lock: pwsh scripts/test-env/lock.ps1 take -Holder `"...`" -Session <id> -Purpose `"...`" -Force")
+  [Console]::Error.WriteLine("$lockFile cannot be read as a lock, so nobody can tell who holds the test server. Check with the other sessions, then start a fresh lock: $cmd take$sv -Holder `"...`" -Session <id> -Purpose `"...`" -Force")
   return $true
 }
 
@@ -116,13 +121,13 @@ function Old-Note($Entry) {
 function Show-Status {
   $lock = Read-TestLock $lockRoot
   if ($lock.Unreadable) {
-    Write-Host "Test server lock: $lockFile cannot be read (take -Force or release -Force starts a fresh lock)"
+    Write-Host "${label}: $lockFile cannot be read (take -Force or release -Force starts a fresh lock)"
     return
   }
   if (-not $lock.Holder) {
-    Write-Host 'Test server lock: free'
+    Write-Host "${label}: free"
   } else {
-    Write-Host "Test server lock: held by $($lock.Holder) (session $($lock.Session))$(Old-Note $lock)"
+    Write-Host "${label}: held by $($lock.Holder) (session $($lock.Session))$(Old-Note $lock)"
     Write-Host "  since:   $(Format-Since $lock)"
     Write-Host "  purpose: $(if ($lock.Purpose) { $lock.Purpose } else { '(none given)' })"
   }
@@ -157,16 +162,16 @@ function Invoke-Take {
   if ($lock.Holder -and $Force) {
     $takenFrom = "$($lock.Holder) (session $($lock.Session), since $(Format-Since $lock))"
   } elseif ($lock.Holder) {
-    [Console]::Error.WriteLine("Test server lock is held by $($lock.Holder) (session $($lock.Session)) since $(Format-Since $lock) for $(if ($lock.Purpose) { $lock.Purpose } else { 'no stated purpose' }).$(Old-Note $lock)")
-    [Console]::Error.WriteLine("Wait, or join the queue: pwsh scripts/test-env/lock.ps1 queue -Holder `"$Holder`" -Session $Session -Purpose `"...`"")
+    [Console]::Error.WriteLine("$label is held by $($lock.Holder) (session $($lock.Session)) since $(Format-Since $lock) for $(if ($lock.Purpose) { $lock.Purpose } else { 'no stated purpose' }).$(Old-Note $lock)")
+    [Console]::Error.WriteLine("Wait, or join the queue: $cmd queue$sv -Holder `"$Holder`" -Session $Session -Purpose `"...`"")
     [Console]::Error.WriteLine('If that session has crashed, take it over with take -Force.')
     return 1
   }
   $queue = @($lock.Queue)
   if (-not $Force -and $queue.Count -gt 0 -and $queue[0].Session -ne $me) {
     $head = $queue[0]
-    [Console]::Error.WriteLine("Test server lock is free, but it is $($head.Holder)'s turn (session $($head.Session), waiting since $(Format-Since $head)).$(Old-Note $head)")
-    [Console]::Error.WriteLine("Join the queue: pwsh scripts/test-env/lock.ps1 queue -Holder `"$Holder`" -Session $Session -Purpose `"...`"")
+    [Console]::Error.WriteLine("$label is free, but it is $($head.Holder)'s turn (session $($head.Session), waiting since $(Format-Since $head)).$(Old-Note $head)")
+    [Console]::Error.WriteLine("Join the queue: $cmd queue$sv -Holder `"$Holder`" -Session $Session -Purpose `"...`"")
     [Console]::Error.WriteLine("If that session is gone, drop its entry (leave -Session $($head.Session)) or take the lock with take -Force.")
     return 1
   }
@@ -177,7 +182,7 @@ function Invoke-Take {
   $lock.Purpose = Limit $Purpose
   Write-Lock $lock
   if ($takenFrom) { Write-Host "Took the lock over from $takenFrom." }
-  Write-Host "Lock taken by $($lock.Holder) (session $me). Release it when done: pwsh scripts/test-env/lock.ps1 release -Session $me"
+  Write-Host "Lock taken by $($lock.Holder) (session $me). Release it when done: $cmd release$sv -Session $me"
   return 0
 }
 

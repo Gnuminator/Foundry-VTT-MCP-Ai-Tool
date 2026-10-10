@@ -21,6 +21,26 @@ hosting service and is driven by Claude Desktop's bridge on 31414-31416.
 | Obsidian    | `C:\FoundryTest\obsidian` (throwaway vault the test bridge renders notes into; `ObsidianDir`)                                                                                                                                                                   |
 | Logs, PIDs  | `C:\FoundryTest\logs` (`<service>.out.log`, `.err.log`, `pids.json`)                                                                                                                                                                                            |
 
+### Two test servers (A and B)
+
+The table above is **server A**, the default: quick checks, `live:roundtrip`, manual tests in the
+browser pane. **Server B** runs kit runs and soak runs, so a long kit run never blocks A:
+
+| Part      | Server B                                                                              |
+| --------- | ------------------------------------------------------------------------------------- |
+| Foundry   | `http://localhost:30002`, A's app (`C:\FoundryTest\app`), data `C:\FoundryTestB\data` |
+| Bridge    | control `31524`, Foundry link `31525`                                                 |
+| Dashboard | `http://localhost:3101`                                                               |
+| Rest      | vault, obsidian, logs and lock under `C:\FoundryTestB`                                |
+
+Ports live in `scripts/test-env/servers.json` (read by the scripts and the kit). Every script takes
+`-Server A|B` (default A, or the `FOUNDRY_TEST_SERVER` environment variable), and each server has
+its own lock: take B's with `lock.ps1 take -Server B ...`. `npm run kit:run` uses B by default.
+`pwsh scripts/test-env/server-b.ps1` creates or refreshes B from A (licence and admin login files,
+packages mirrored, the everyday and kit worlds B lacks; `-World <id>` copies one again). Overrides
+for B go in `scripts/test-env/local.B.json`. Nobody plays on B; the browser pane can open it at
+`http://localhost:30002` (join as `Claude` or `Kit GM`, passwordless).
+
 This environment is per PC: the Foundry licence is per owner, so each PC gets its own copy set up
 separately with the GM. World data, users and test data are not shared between machines, even
 though the scripts and skills are in git.
@@ -110,9 +130,10 @@ A crashed session's lock or queue entry (status and the dashboard flag entries o
 drops a dead queue entry. A `lock.json` that cannot be read is refused until `take -Force` or
 `release -Force` starts a fresh lock; check with the other sessions first.
 
-A whole test kit run with the lock taken and released for you: `npm run kit:run` (options and
-exit codes in `docs/dev/TEST-KIT.md`, "The kit run command"). It restarts the test environment on
-the kit world and stops it afterwards.
+Each server has its own lock (`<Root>\lock.json`); add `-Server B` to every `lock.ps1` call for
+server B. A whole test kit run with B's lock taken and released for you: `npm run kit:run`
+(options and exit codes in `docs/dev/TEST-KIT.md`, "The kit run command"; `--server A` runs it on
+A). It restarts that server's test environment on the kit world and stops it afterwards.
 
 ## Kit worlds
 

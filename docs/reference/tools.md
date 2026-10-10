@@ -893,7 +893,7 @@ Parameters:
 
 ### get-play-session
 
-GM ONLY. Whether a play session is currently open, from the bridge vault's own session and play logs only (never game state): true when the newest marker is a session start and no logged event or play record is more than 3 hours old since.
+GM ONLY. Whether a play session is currently open, from the bridge vault's own session and play logs only (never game state): true when the newest marker is a session start and no logged event or play record is more than 3 hours old since. A closed session also gives endedAt: its end marker, or its last activity when it went quiet.
 
 Kind: read-only. Title: Get play session state.
 

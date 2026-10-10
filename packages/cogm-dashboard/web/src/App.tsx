@@ -1,11 +1,27 @@
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useState, type JSX } from 'react';
+import { useCallback, useEffect, useState, type JSX, type ReactNode } from 'react';
 
 import { AdvancedItem, AdvancedLabel, AdvancedMenu } from './components/AdvancedMenu';
 import { ConfirmProvider } from './components/ConfirmDialog';
-import { DrawerBackdrop, raiseDrawer } from './components/Drawer';
+import {
+  DockContext,
+  DrawerBackdrop,
+  isDocked,
+  raiseDrawer,
+  showDocked,
+} from './components/Drawer';
 import { HelpProvider } from './components/Help';
 import { useHelp } from './components/HelpButton';
+import {
+  DOCKS,
+  MomentTabs,
+  MomentViews,
+  useDocks,
+  useFocusAfterMoment,
+  useMoment,
+  type DockName,
+  type Moment,
+} from './components/Moments';
 import { HandoutsDrawer } from './panels/Handouts';
 import { ModuleDiagnosticsPane } from './panels/ModuleDiagnostics';
 import { PartyDrawer } from './panels/Party';
@@ -87,20 +103,44 @@ const DRAWER_IDS: Record<DrawerName, string> = {
   tools: 'tools-drawer',
 };
 
+/** A drawer open over the page is closed when its moment docks it: it sits in the page now. */
+function undock(drawers: Record<DrawerName, boolean>, moment: Moment): Record<DrawerName, boolean> {
+  const docked = DOCKS[moment].filter(name => drawers[name]);
+  if (docked.length === 0) return drawers;
+  return { ...drawers, ...Object.fromEntries(docked.map(name => [name, false])) };
+}
+
 function Dashboard(): JSX.Element {
   useWorldTheme();
   useDashboardStream();
   usePreflightOnReconnect();
+  const { moment, pick } = useMoment();
+  const { slotRefs, dockOf } = useDocks(moment);
   const [drawers, setDrawers] = useState(NO_DRAWERS);
+  const [seenMoment, setSeenMoment] = useState(moment);
+  if (moment !== seenMoment) {
+    setSeenMoment(moment);
+    if (moment) setDrawers(d => undock(d, moment));
+  }
+  useFocusAfterMoment(moment);
+  const docked = (name: DrawerName): boolean =>
+    name !== 'tarokka' && name !== 'tools' && dockOf(name) !== null;
   const setDrawer = (name: DrawerName, open: boolean): void =>
     setDrawers(d => ({ ...d, [name]: open }));
   // The Advanced menu opens a drawer, as on the old page; one already open comes to the top and
   // takes the focus (the menu keeps its own close from moving it, and nothing opens to take it).
+  // A docked one is already on screen: it scrolls into view and takes the focus instead.
   const openDrawer = (name: DrawerName): void => {
+    if (showDocked(DRAWER_IDS[name])) return;
     setDrawer(name, true);
     raiseDrawer(DRAWER_IDS[name]);
     if (drawers[name]) document.getElementById(DRAWER_IDS[name])?.focus();
   };
+  // A panel's `open`: docked counts as open, so it loads and counts its view while on screen.
+  const shown = (name: DrawerName): boolean => drawers[name] || docked(name);
+  const dock = (name: DockName, panel: ReactNode): JSX.Element => (
+    <DockContext.Provider value={dockOf(name)}>{panel}</DockContext.Provider>
+  );
   const openHelp = useHelp();
   const [linksOpen, setLinksOpen] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
@@ -109,10 +149,30 @@ function Dashboard(): JSX.Element {
   // A guarded change refused for GM Actions opens Pre-flight, whose Ready for session turns them
   // on (the old page opens the Tool runner's gate; the Tool runner points at its own gate bar).
   // Already open under another drawer, it comes to the top.
+  // Docked in Before, the drawers over the page close so it shows, and it takes the focus once
+  // they are gone.
+  const [showPreflight, setShowPreflight] = useState(0);
+  useEffect(() => {
+    if (showPreflight > 0) showDocked(DRAWER_IDS.preflight);
+  }, [showPreflight]);
   const openGmActionsGate = useCallback(() => {
+    if (isDocked(DRAWER_IDS.preflight)) {
+      setDrawers(NO_DRAWERS);
+      setShowPreflight(n => n + 1);
+      return;
+    }
     setDrawers(d => ({ ...d, preflight: true }));
     raiseDrawer(DRAWER_IDS.preflight);
   }, []);
+  // Prep's "Open Pre-flight": Prep closes when it floats, and Pre-flight opens. In Before both
+  // sit in the page: Pre-flight scrolls into view and takes the focus.
+  const openPreflightFromPrep = (): void => {
+    if (showDocked(DRAWER_IDS.preflight)) {
+      setDrawer('prep', false);
+      return;
+    }
+    setDrawers(d => ({ ...d, prep: false, preflight: true }));
+  };
   // Another panel opens the Tool runner on a tool with its form filled in.
   const [toolRequest, setToolRequest] = useState<ToolRequest | null>(null);
 
@@ -130,10 +190,13 @@ function Dashboard(): JSX.Element {
             <p className="subtitle">New dashboard (preview)</p>
           </div>
         </div>
+        <MomentTabs moment={moment} onPick={pick} />
         <div className="controls">
           <PreflightButton
-            open={drawers.preflight}
-            onToggle={() => setDrawer('preflight', !drawers.preflight)}
+            open={shown('preflight')}
+            onToggle={() => {
+              if (!showDocked(DRAWER_IDS.preflight)) setDrawer('preflight', !drawers.preflight);
+            }}
           />
           <AdvancedMenu>
             <AdvancedItem onSelect={() => openHelp('README')}>
@@ -234,36 +297,49 @@ function Dashboard(): JSX.Element {
         dashboard is still at the main address.
       </div>
       <VersionBanner />
+      <MomentViews moment={moment} slotRefs={slotRefs} />
       <PlayerLinksPane open={linksOpen} onOpenChange={setLinksOpen} />
       <ModuleDiagnosticsPane open={diagOpen} onOpenChange={setDiagOpen} />
       <DrawerBackdrop
-        shown={Object.values(drawers).some(Boolean)}
+        shown={(Object.keys(drawers) as DrawerName[]).some(n => drawers[n] && !docked(n))}
         onClose={() => setDrawers(NO_DRAWERS)}
       />
-      <PreflightDrawer
-        open={drawers.preflight}
-        onOpenChange={open => setDrawer('preflight', open)}
-        tarokkaShown={tarokkaShown}
-        onHideTarokka={() => setTarokkaShown(false)}
-      />
-      <PrepDrawer
-        open={drawers.prep}
-        onOpenChange={open => setDrawer('prep', open)}
-        onOpenPreflight={() => setDrawers(d => ({ ...d, prep: false, preflight: true }))}
-      />
-      <PartyDrawer open={drawers.party} onOpenChange={open => setDrawer('party', open)} />
-      <HandoutsDrawer
-        open={drawers.handouts}
-        onOpenChange={open => setDrawer('handouts', open)}
-        onQueuePage={sceneId => {
-          setToolRequest(r => ({
-            name: 'plan-page-reveal',
-            prefill: { action: 'queue', ...(sceneId ? { sceneId } : {}) },
-            seq: (r?.seq ?? 0) + 1,
-          }));
-          setDrawers(d => ({ ...d, handouts: false, tools: true }));
-        }}
-      />
+      {dock(
+        'preflight',
+        <PreflightDrawer
+          open={shown('preflight')}
+          onOpenChange={open => setDrawer('preflight', open)}
+          tarokkaShown={tarokkaShown}
+          onHideTarokka={() => setTarokkaShown(false)}
+        />
+      )}
+      {dock(
+        'prep',
+        <PrepDrawer
+          open={shown('prep')}
+          onOpenChange={open => setDrawer('prep', open)}
+          onOpenPreflight={openPreflightFromPrep}
+        />
+      )}
+      {dock(
+        'party',
+        <PartyDrawer open={shown('party')} onOpenChange={open => setDrawer('party', open)} />
+      )}
+      {dock(
+        'handouts',
+        <HandoutsDrawer
+          open={shown('handouts')}
+          onOpenChange={open => setDrawer('handouts', open)}
+          onQueuePage={sceneId => {
+            setToolRequest(r => ({
+              name: 'plan-page-reveal',
+              prefill: { action: 'queue', ...(sceneId ? { sceneId } : {}) },
+              seq: (r?.seq ?? 0) + 1,
+            }));
+            setDrawers(d => ({ ...d, handouts: false, tools: true }));
+          }}
+        />
+      )}
       <TarokkaDrawer
         open={drawers.tarokka}
         onOpenChange={open => setDrawer('tarokka', open)}

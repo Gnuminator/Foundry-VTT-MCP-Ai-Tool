@@ -65,7 +65,7 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   own, so a PR cannot judge itself):
 
   ```bash
-  g=$(mktemp) && git fetch -q aitool main && git show aitool/main:scripts/lane-merge.mjs > "$g" && test -s "$g" && node "$g" <PR> --dry-run
+  g=$(cygpath -m "$(mktemp --suffix=.mjs)") && git fetch -q aitool main && git show aitool/main:scripts/lane-merge.mjs > "$g" && test -s "$g" && node "$g" <PR> --dry-run
   ```
 
   Then the same line without `--dry-run`. One `&&` chain, so an empty or failed copy never runs.

@@ -153,7 +153,7 @@ function renderLanes(now) {
     el('h2', { text: 'Lanes', attrs: { id: 'lanes-h' } }),
     el('span', {
       cls: over ? 'cap over' : 'cap',
-      text: `Lanes ${cap.used} / ${cap.max} (+ steward)`,
+      text: `Lanes ${cap.used} / ${cap.max}`,
     }),
   ]);
   const parts = [head];

@@ -152,7 +152,11 @@ Tooltip } from 'radix-ui'`), not the single `@radix-ui/react-*` ones. `web/src/u
   underneath. The blocks announce themselves to screen readers: loading and the two standing
   conditions (the bridge being down, a switch being off) are `role="status"`, an error is
   `role="alert"`. A panel that renders `QueryState` or a state block inside its body, instead of
-  passing `state=` to `Panel`, gets the same roles; do not add `aria-busy` around them.
+  passing `state=` to `Panel`, gets the same roles. Do not put `aria-busy` on an element that
+  holds a state block: a busy parent can make a screen reader hold back the message inside it
+  (the page's `<main>` is busy only while it shows its own plain "Checking the play session…"
+  line). How promptly a reader speaks a `role="status"` change is up to the reader, so treat the
+  announcement as best effort.
 - **Tokens:** the spacing (`--space-1` to `--space-8`, 4 px grid), type (`--text-2xs` to
   `--text-xl`), motion (`--dur-fast`, `--dur-base`, `--dur-slow`, `--ease-out`, `--ease-in-out`,
   and `--ease-mist`, which The Veil sets slower), layer (`--z-drawer`, `--z-drawer-top`,

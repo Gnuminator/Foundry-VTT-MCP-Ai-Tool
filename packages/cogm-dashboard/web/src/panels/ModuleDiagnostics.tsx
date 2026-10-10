@@ -74,16 +74,14 @@ export function ModuleDiagnosticsPane({
       id="pane-diagnostics"
       help="dashboard#module-diagnostics"
       note={<SpaceNote />}
+      state={log.entries.length === 0 ? 'empty' : 'ready'}
+      stateMessage="No module errors captured."
     >
-      {log.entries.length === 0 ? (
-        <p className="empty">No module errors captured.</p>
-      ) : (
-        <div role="list" aria-label="Module errors">
-          {log.entries.map(e => (
-            <ErrorEntry key={e.id} error={e} />
-          ))}
-        </div>
-      )}
+      <div role="list" aria-label="Module errors">
+        {log.entries.map(e => (
+          <ErrorEntry key={e.id} error={e} />
+        ))}
+      </div>
     </OverlayPane>
   );
 }

@@ -10,6 +10,7 @@ import { useToast } from '../components/Toasts';
 import { callTool, errorText } from '../lib/api';
 import { GAME_STATE_KEY, useGuardedChange } from '../lib/guarded';
 import { usage } from '../lib/usage';
+import { Button, Pill, QueryState } from '../ui';
 
 interface PartyToken {
   hidden: boolean;
@@ -107,9 +108,9 @@ function MemberRow({
         {chips.length > 0 && (
           <div className="conditions">
             {chips.map((c, i) => (
-              <span key={i} className="condition-chip">
+              <Pill key={i} variant="condition">
                 {c}
-              </span>
+              </Pill>
             ))}
           </div>
         )}
@@ -131,14 +132,14 @@ function MemberRow({
           </div>
         </div>
       )}
-      <button
+      <Button
         type="button"
-        className="btn btn-small"
+        size="sm"
         data-track="dash.party.open-actor"
         onClick={() => onOpen(m.uuid)}
       >
         Open
-      </button>
+      </Button>
     </li>
   );
 }
@@ -167,17 +168,17 @@ function Pace({
       {options.length > 0 && (
         <div className="party-buttons">
           {options.map(o => (
-            <button
+            <Button
               key={o.value}
               type="button"
-              className="btn btn-small"
+              size="sm"
               data-track="dash.party.pace"
               // A slowed party can still pick its set pace again.
               disabled={busy || (o.value === pace.value && !pace.slowed)}
               onClick={() => act({ action: 'pace', pace: o.value })}
             >
               {o.label}
-            </button>
+            </Button>
           ))}
         </div>
       )}
@@ -210,30 +211,30 @@ function Combat({
     <>
       <p className="pf-detail">{where}</p>
       <div className="party-buttons">
-        <button
+        <Button
           type="button"
-          className="btn btn-small"
+          size="sm"
           data-track="dash.party.add-to-combat"
           disabled={busy || toAdd === 0}
           onClick={() => act({ action: 'add-to-combat' })}
         >
           {label}
-        </button>
+        </Button>
       </div>
       <p className="pf-detail">
         Puts everyone without a token on the scene you are looking at in Foundry next to each other,
         around the centre of your view. Undo removes them again.
       </p>
       <div className="party-buttons">
-        <button
+        <Button
           type="button"
-          className="btn btn-small"
+          size="sm"
           data-track="dash.party.place"
           disabled={busy}
           onClick={() => act({ action: 'place' })}
         >
           Place the party here
-        </button>
+        </Button>
       </div>
     </>
   );
@@ -248,24 +249,24 @@ function Rest({ g, busy, act }: { g: PartyGroup; busy: boolean; act: Act }): JSX
         removes the card while nobody has used it.
       </p>
       <div className="party-buttons">
-        <button
+        <Button
           type="button"
-          className="btn btn-small"
+          size="sm"
           data-track="dash.party.rest-short"
           disabled={busy || !cards.short}
           onClick={() => act({ action: 'rest-request', rest: 'short' })}
         >
           Short rest request
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="btn btn-small"
+          size="sm"
           data-track="dash.party.rest-long"
           disabled={busy || !cards.long}
           onClick={() => act({ action: 'rest-request', rest: 'long' })}
         >
           Long rest request
-        </button>
+        </Button>
       </div>
     </>
   );
@@ -338,23 +339,25 @@ export function PartyDrawer({
           : `GM only. ${g.name}, level ${g.level}, ${members.length} ${members.length === 1 ? 'member' : 'members'}.${g.primary ? '' : ' Not the primary party.'}`;
 
   const sceneName = s?.scene ? s.scene.name : '';
-  const memberBlock = party.isError ? (
-    <p className="empty">Couldn&apos;t load the party: {errorText(party.error)}</p>
-  ) : !s ? (
-    <p className="empty">Loading…</p>
-  ) : !g ? (
-    <p className="empty">
-      No party yet. In Foundry, create an Actor of type Group, drag the characters onto it, then
-      right-click it in the Actors tab and set it as the primary party.
-    </p>
-  ) : members.length === 0 ? (
-    <p className="empty">The group has no members. Drag characters onto it in Foundry.</p>
-  ) : (
-    <ul className="preflight-list" aria-label="Members">
-      {members.map(m => (
-        <MemberRow key={m.actorId || m.uuid} m={m} sceneName={sceneName} onOpen={openActor} />
-      ))}
-    </ul>
+  const memberBlock = (
+    <QueryState
+      query={party}
+      errorLabel="Couldn't load the party"
+      isEmpty={() => !g || members.length === 0}
+      empty={() =>
+        !g
+          ? 'No party yet. In Foundry, create an Actor of type Group, drag the characters onto it, then right-click it in the Actors tab and set it as the primary party.'
+          : 'The group has no members. Drag characters onto it in Foundry.'
+      }
+    >
+      {() => (
+        <ul className="preflight-list" aria-label="Members">
+          {members.map(m => (
+            <MemberRow key={m.actorId || m.uuid} m={m} sceneName={sceneName} onOpen={openActor} />
+          ))}
+        </ul>
+      )}
+    </QueryState>
   );
 
   return (
@@ -370,15 +373,15 @@ export function PartyDrawer({
       bodyClassName="party-body"
       actions={
         <>
-          <button
-            className="btn btn-primary"
+          <Button
+            variant="primary"
             id="party-refresh"
             data-track="dash.party.refresh"
             disabled={party.isFetching}
             onClick={() => void party.refetch()}
           >
             ↻ Refresh
-          </button>
+          </Button>
           {groups.length > 1 && g && (
             <select
               id="party-group"

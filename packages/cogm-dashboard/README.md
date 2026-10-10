@@ -123,6 +123,42 @@ picker.
 - Usage names go in `data-track="..."` as string literals, as on the old page;
   `npm run usage:catalog` scans `web/src` too.
 
+### Building a panel
+
+A new port starts from the components in `web/src/ui` (UI-02), not from raw markup:
+
+- **Shell:** `Panel` is the one frame for a panel: a head (title, the "?" help, a line under the
+  title, a status, the actions), a body and a foot. `Drawer` and `OverlayPane` are built on it, so
+  a drawer or a pane over the page gets it for free; a panel docked in a view is a `Drawer` too.
+  `Card`, `Section`, `Stat` and `Pill` are the pieces inside a body, and `Button` / `IconButton`
+  are the buttons.
+- **States:** a panel is in one of six: `ready`, `loading`, `empty`, `error`, `bridge-down` and
+  `gated`. Give `Panel` (or `Drawer` / `OverlayPane`) a `state` and, if the default text does not
+  fit, a `stateMessage`; anything but `ready` replaces the body. For data from a query, do not
+  write "Loading…" and "Couldn't load ..." by hand: wrap the content in
+  `<QueryState query={q} errorLabel="Couldn't load the party" isEmpty={...} empty="...">` (it
+  takes a function of the data as its child), or call `panelStateOf(q)` to get the state for
+  `Panel`. Inside a list use `as="li"`; `keepData` keeps showing older rows when a refetch fails;
+  `detect` tells the bridge being down (`ApiError.kind === 'channel'`) and GM Actions being off
+  from any other error. `EmptyState`, `ErrorState`, `LoadingState` and `Skeleton` are the blocks
+  underneath.
+- **Tokens:** the spacing (`--space-1` to `--space-8`, 4 px grid), type (`--text-2xs` to
+  `--text-xl`), motion (`--dur-fast`, `--dur-base`, `--dur-slow`, `--ease-out`, `--ease-in-out`,
+  and `--ease-mist`, which The Veil sets slower), layer (`--z-drawer`, `--z-drawer-top`,
+  `--z-confirm`, `--z-popover`, `--z-toast`, ...) and focus (`--focus-ring`) tokens live in
+  `public/themes/brand.css` (The Veil's overrides in `veil.css`). Use them in new rules instead of
+  numbers; never write a `z-index` number in a component or in `next.css`.
+- **Styles:** a new rule goes in a CSS Module next to its component (`Thing.module.css`, Vite
+  built in) and reads the tokens. Do not edit `public/styles.css` or `public/moments.css`: the old
+  page shares them. The components render the old class names (`.pane`, `.drawer`, `.pane-title`,
+  `.empty`, `.btn`, ...), so those files still style them.
+- **Keep what the tests and the guide rely on:** the outer classes, the DOM where an old CSS
+  selector depends on it, every element `id`, every `data-track="dash...."` name (written out as a
+  string literal at the call site, the test kit clicks them), roles and accessible names.
+- **Prove it:** a screen that moves onto these components must leave `npm run test:visual` at zero
+  diffs. Unit tests for the components render to a string with `react-dom/server`
+  (`web/src/ui/*.test.tsx`, run by `npm test`).
+
 ### Screenshot tests
 
 `web/visual` photographs the React page with Playwright's `toHaveScreenshot`: the three moments

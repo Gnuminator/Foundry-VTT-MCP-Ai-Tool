@@ -39,6 +39,7 @@ import { api } from './lib/api';
 import { GmActionsGateContext } from './lib/guarded';
 import { useDashboardStream } from './lib/stream';
 import { applyTheme } from './lib/theme';
+import { Button } from './ui';
 
 /** The README brand's mark (docs/images/brand/logo.svg), coloured by themes/brand.css. */
 function BrandMark(): JSX.Element {
@@ -200,61 +201,56 @@ function Dashboard(): JSX.Element {
           />
           <AdvancedMenu>
             <AdvancedItem onSelect={() => openHelp('README')}>
-              <button id="btn-guides" className="btn" data-track="dash.header.guides">
+              <Button id="btn-guides" data-track="dash.header.guides">
                 📖 GM guides
-              </button>
+              </Button>
             </AdvancedItem>
             <AdvancedLabel>Panels</AdvancedLabel>
             <AdvancedItem onSelect={() => openDrawer('prep')}>
-              <button
+              <Button
                 id="btn-prep"
-                className="btn"
                 data-track="dash.header.prep"
                 title="Session prep: last session, open threads, next session notes (GM only)"
               >
                 📋 Prep
-              </button>
+              </Button>
             </AdvancedItem>
             <AdvancedItem onSelect={() => openDrawer('party')}>
-              <button
+              <Button
                 id="btn-party"
-                className="btn"
                 data-track="dash.header.party"
                 title="The party: members at a glance, travel pace, combat and rests (GM only)"
               >
                 🛡 Party
-              </button>
+              </Button>
             </AdvancedItem>
             <AdvancedItem onSelect={() => openDrawer('handouts')}>
-              <button
+              <Button
                 id="btn-handouts"
-                className="btn"
                 data-track="dash.header.handouts"
                 title="Handout queue and who has seen what (GM only)"
               >
                 📜 Handouts
-              </button>
+              </Button>
             </AdvancedItem>
             <AdvancedItem onSelect={() => openDrawer('tarokka')}>
-              <button
+              <Button
                 id="btn-tarokka"
-                className="btn"
                 data-track="dash.header.tarokka"
                 title="Tarokka reading (GM only)"
               >
                 🃏 Tarokka
-              </button>
+              </Button>
             </AdvancedItem>
             <AdvancedLabel>Tools</AdvancedLabel>
             <AdvancedItem onSelect={() => openDrawer('tools')}>
-              <button
+              <Button
                 id="btn-tools"
-                className="btn"
                 data-track="dash.header.tools"
                 title="Open the tool runner (run any bridge tool)"
               >
                 🛠 Tools
-              </button>
+              </Button>
             </AdvancedItem>
             <AdvancedItem
               onSelect={() => {
@@ -262,14 +258,13 @@ function Dashboard(): JSX.Element {
                 return !diagOpen;
               }}
             >
-              <button
+              <Button
                 id="btn-show-diag"
-                className="btn"
                 data-track="dash.header.show-diagnostics"
                 title="Errors and warnings from Foundry modules"
               >
                 🩺 Module diagnostics
-              </button>
+              </Button>
             </AdvancedItem>
             <AdvancedItem
               onSelect={() => {
@@ -277,14 +272,13 @@ function Dashboard(): JSX.Element {
                 return !linksOpen;
               }}
             >
-              <button
+              <Button
                 id="btn-show-links"
-                className="btn"
                 data-track="dash.header.player-links"
                 title="Each player's private link to their own character sheet (GM only)"
               >
                 🔗 Player links
-              </button>
+              </Button>
             </AdvancedItem>
           </AdvancedMenu>
           <a className="btn" href="/">

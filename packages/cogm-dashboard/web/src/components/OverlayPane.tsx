@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import type { JSX, ReactNode } from 'react';
 
 import { closeTopPanel, useEscapeClose } from '../lib/escape';
-import { HelpButton } from './HelpButton';
+import { IconButton, Panel, type PanelState } from '../ui';
 
 interface OverlayPaneProps {
   open: boolean;
@@ -21,6 +21,10 @@ interface OverlayPaneProps {
   help?: string;
   /** A line between the head and the body (e.g. the diagnostics space note). */
   note?: ReactNode;
+  /** Which face of the panel to show (Panel's states); the children show when it is ready. */
+  state?: PanelState;
+  /** What the state says instead of its default. */
+  stateMessage?: ReactNode;
   children: ReactNode;
 }
 
@@ -40,6 +44,8 @@ export function OverlayPane({
   bodyClassName,
   help,
   note,
+  state,
+  stateMessage,
   children,
 }: OverlayPaneProps): JSX.Element {
   useEscapeClose(open, () => onOpenChange(false));
@@ -55,23 +61,28 @@ export function OverlayPane({
           closeTopPanel();
         }}
       >
-        <section id={id} className={['pane', 'overlay-pane', className].filter(Boolean).join(' ')}>
-          <div className="pane-head">
-            {/* The old page puts the "?" inside the h2; beside it keeps the pane's name the title. */}
-            <div className="pane-title">
-              <Dialog.Title asChild>
-                <h2>{title}</h2>
-              </Dialog.Title>
-              {help !== undefined && <HelpButton page={help} />}
-            </div>
-            {meta !== undefined && <span className="pane-meta">{meta}</span>}
-            <Dialog.Close className="icon-btn overlay-close" title="Close" aria-label={closeLabel}>
-              ✕
+        <Panel
+          id={id}
+          className={['overlay-pane', className].filter(Boolean).join(' ')}
+          title={title}
+          // The old page puts the "?" inside the h2; beside it keeps the pane's name the title.
+          wrapTitle={h2 => <Dialog.Title asChild>{h2}</Dialog.Title>}
+          help={help}
+          status={meta}
+          lead={note}
+          bodyClassName={bodyClassName}
+          state={state}
+          stateMessage={stateMessage}
+          actions={
+            <Dialog.Close asChild>
+              <IconButton className="overlay-close" label={closeLabel} title="Close">
+                ✕
+              </IconButton>
             </Dialog.Close>
-          </div>
-          {note}
-          <div className={['pane-body', bodyClassName].filter(Boolean).join(' ')}>{children}</div>
-        </section>
+          }
+        >
+          {children}
+        </Panel>
       </Dialog.Content>
     </Dialog.Root>
   );

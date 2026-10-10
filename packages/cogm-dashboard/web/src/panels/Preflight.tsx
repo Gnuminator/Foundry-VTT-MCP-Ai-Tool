@@ -9,6 +9,7 @@ import { Drawer, DrawerClose } from '../components/Drawer';
 import { api, errorText } from '../lib/api';
 import { useBridgeStatus } from '../lib/stream';
 import { usage } from '../lib/usage';
+import { Button, EmptyState, ErrorState } from '../ui';
 import { ReadyBlock } from './ReadyForSession';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail' | 'info' | 'unknown';
@@ -142,16 +143,16 @@ export function PreflightButton({
       ? `✈ Pre-flight: ${fails} to fix`
       : '✈ Pre-flight: ready';
   return (
-    <button
+    <Button
       id="btn-preflight"
-      className={fails > 0 ? 'btn preflight-bad' : 'btn'}
+      className={fails > 0 ? 'preflight-bad' : undefined}
       data-track="dash.header.preflight"
       title="Pre-flight check before the players join (GM only)"
       aria-expanded={open}
       onClick={onToggle}
     >
       {label}
-    </button>
+    </Button>
   );
 }
 
@@ -351,16 +352,15 @@ export function PreflightDrawer({
       bodyClassName="preflight-body"
       actions={
         <>
-          <button
-            className="btn btn-primary"
+          <Button
+            variant="primary"
             data-track="dash.preflight.run"
             disabled={running}
             onClick={() => void run()}
           >
             ↻ Run checks
-          </button>
-          <button
-            className="btn"
+          </Button>
+          <Button
             data-track="dash.preflight.clear-ticks"
             title="Untick the manual items for a new session"
             onClick={() => {
@@ -369,7 +369,7 @@ export function PreflightDrawer({
             }}
           >
             Clear ticks
-          </button>
+          </Button>
         </>
       }
     >
@@ -388,17 +388,20 @@ export function PreflightDrawer({
       <h3 className="preflight-h">Checked by the tool</h3>
       <ul className="preflight-list" aria-label="Checked by the tool">
         {runError !== null ? (
-          <li className="empty">Couldn&apos;t run the checks: {runError}</li>
+          <ErrorState as="li" error={runError}>
+            Couldn&apos;t run the checks
+          </ErrorState>
         ) : data ? (
           data.checks.map(c => <CheckItem key={c.id} check={c} />)
         ) : (
-          <li className="empty">Not run yet.</li>
+          <EmptyState as="li">Not run yet.</EmptyState>
         )}
         {/* This browser's own check: shown whether or not the server's run worked. */}
         <CheckItem check={local} itemRef={localRow}>
           {tarokkaShown && (
-            <button
-              className="btn btn-small pf-action"
+            <Button
+              size="sm"
+              className="pf-action"
               data-track="dash.preflight.hide-tarokka"
               onClick={() => {
                 onHideTarokka();
@@ -407,7 +410,7 @@ export function PreflightDrawer({
               }}
             >
               Hide cards
-            </button>
+            </Button>
           )}
         </CheckItem>
       </ul>

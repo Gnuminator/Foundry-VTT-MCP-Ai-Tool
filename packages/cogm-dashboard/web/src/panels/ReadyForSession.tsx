@@ -9,6 +9,7 @@ import { useToast } from '../components/Toasts';
 import { api, callTool, errorText } from '../lib/api';
 import { usePlaySession } from '../lib/session';
 import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from '../lib/stream';
+import { Button } from '../ui';
 
 interface SessionSwitch {
   id: string;
@@ -170,36 +171,35 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
   return (
     <div className="ready-block" id="ready-block">
       <div className="ready-actions">
-        <button
-          className={allOn ? 'btn lamp is-ready' : 'btn lamp'}
+        <Button
+          className={allOn ? 'lamp is-ready' : 'lamp'}
           id="btn-ready"
           data-track="dash.ready.turn-on"
           disabled={allOn || busy}
           onClick={() => send('ready')}
         >
           {allOn ? '✓ Ready for tonight' : 'Ready for session'}
-        </button>
+        </Button>
         {readyIsOn && (
-          <button
-            className="btn"
+          <Button
             id="btn-ready-off"
             data-track="dash.ready.turn-off"
             disabled={busy}
             onClick={() => send('end')}
           >
             Turn them off again
-          </button>
+          </Button>
         )}
         {playSession.session?.open !== true && (
-          <button
-            className="btn btn-quiet"
+          <Button
+            variant="quiet"
             id="btn-ready-log"
             data-track="dash.ready.start-log"
             disabled={startLog.isPending}
             onClick={() => startLog.mutate()}
           >
             Start the session log
-          </button>
+          </Button>
         )}
       </div>
       <p className="ready-note" id="ready-note">

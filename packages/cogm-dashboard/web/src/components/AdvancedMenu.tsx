@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import { useEscapeClose } from '../lib/escape';
+import { Button } from '../ui';
 
 /** Tells the menu an entry opened a panel, so the focus stays in that panel. */
 const PickedContext = createContext<() => void>(() => undefined);
@@ -30,9 +31,9 @@ export function AdvancedMenu({ children }: { children: ReactNode }): JSX.Element
     <div className="advanced" id="advanced">
       <DropdownMenu.Root open={open} onOpenChange={setOpen} modal={false}>
         <DropdownMenu.Trigger asChild>
-          <button id="btn-advanced" className="btn" data-track="dash.header.advanced">
+          <Button id="btn-advanced" data-track="dash.header.advanced">
             Advanced ▾
-          </button>
+          </Button>
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content

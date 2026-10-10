@@ -101,6 +101,9 @@
   --font-display: 'Gloock', Georgia, 'Times New Roman', serif;
   --font-mono: 'Red Hat Mono', ui-monospace, Consolas, monospace;
 
+  /* Motion: the mist settles slowly, a long soft ease for fades (brand.css has the other tokens). */
+  --ease-mist: cubic-bezier(0.25, 0.1, 0.1, 1);
+
   /* Player page tokens (player.html has its own names) */
   --panel: #1f2321;
   --panel-2: var(--veil-raised);

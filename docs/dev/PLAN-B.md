@@ -135,8 +135,19 @@ night; changes made by hand in Foundry need no dashboard.
    world alone changes nothing (measured 2026-10-09: Foundry started, the Assistant GM joined and
    the bridge linked, and none of the world's 11,032 documents changed), so the list shows real
    work; a module added later that writes a setting at start could show up too. A document that
-   was only deleted on the Pi leaves no trace and is not seen. The Pi's old copy is kept in
+   was only deleted on the Pi leaves no trace and is not seen, and neither is a file in the world
+   folder outside its databases (an image uploaded into `worlds/<id>/`, an edit to `world.json`);
+   such a change usually comes with a document change, which is seen. The Pi's old copy is kept in
    `/var/lib/foundry-import/prev-<time>` either way.
+   If the run fails after the world was swapped in (for example the Assistant GM cannot join),
+   stage 11 says so: the pushed world is installed and Foundry runs it. Fix the cause and run the
+   same command again. The change check then passes without `REPLACE_NEWER=1`: it skips documents
+   that are the same in the bundle and the users and setting stage 11 provisions itself. Restore
+   Plan B fresh for each night; a second push-back of a world that was changed again on the PC
+   lists those changes.
+   **Modules:** the bundle carries the modules Plan B restored from the Pi backup. One that was
+   updated on the Pi after that backup (a higher version in its `module.json`) is kept and named
+   in the output; a push-back never downgrades a module.
 
 4. **Clean up once the world is back on the Pi:** `.\scripts\plan-b\stop.ps1 -Clean -PushedBack`.
    It keeps Foundry and the licence for next time. Without `-PushedBack` it refuses to delete a

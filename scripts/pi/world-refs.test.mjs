@@ -582,16 +582,21 @@ test(
       ]);
       // an empty folder that is no LevelDB is skipped
       mkdirSync(path.join(dir, 'world', 'data', 'empty'), { recursive: true });
-      const run = time =>
-        spawnSync(process.execPath, [script, levelPath, path.join(dir, 'world'), time], {
-          encoding: 'utf8',
-        });
+      // args: the Pi's world, the bundle's world (a missing folder is an empty world), the snapshot time,
+      // then the user names stage 11 provisions
+      const run = (time, bundle = path.join(dir, 'no-bundle'), ...names) =>
+        spawnSync(
+          process.execPath,
+          [script, levelPath, path.join(dir, 'world'), bundle, time, ...names],
+          { encoding: 'utf8' }
+        );
 
       const r = run('2026-10-09T02:30:00.000Z');
       assert.equal(r.status, 3, r.stderr);
       const lines = r.stdout.trim().split('\n');
-      // count of newer documents, documents scanned (the non-JSON value too), LevelDB folders
-      assert.equal(lines[0], '4 7 3');
+      // newer documents, documents scanned (the non-JSON value too), LevelDB folders, newer ones the same in
+      // the bundle, newer ones stage 11 provisions itself
+      assert.equal(lines[0], '4 7 3 0 0');
       assert.deepEqual(lines.slice(1), [
         `pack:lore/journal Pack page?with a newline ${new Date(since + 9000).toISOString()}`,
         `actors.items New dagger ${new Date(since + 5000).toISOString()}`,
@@ -602,9 +607,48 @@ test(
 
       const later = run('2026-10-09T02:30:09.000Z');
       assert.equal(later.status, 0, later.stderr);
-      assert.equal(later.stdout.trim(), '0 7 3');
+      assert.equal(later.stdout.trim(), '0 7 3 0 0');
 
       assert.equal(run('yesterday-ish').status, 1);
+
+      // A rerun on a world an earlier push-back installed: a document with the same key and times in the
+      // bundle is the bundle's own, and the users and setting stage 11 provisions do not count either.
+      await put(path.join(dir, 'world', 'data', 'users'), [
+        ['!users!u1', { _id: 'u1', name: 'Gamemaster', ...stats(since - 9e6, since + 4000) }],
+        ['!users!u2', { _id: 'u2', name: 'Player', ...stats(since - 9e6, since + 3000) }],
+      ]);
+      await put(path.join(dir, 'world', 'data', 'settings'), [
+        [
+          '!settings!s3',
+          { _id: 's3', key: 'foundry-mcp-bridge.bridgeUserId', ...stats(since - 5, since + 7) },
+        ],
+      ]);
+      await put(path.join(dir, 'bundle', 'data', 'actors'), [
+        ['!actors!a2', { _id: 'a2', name: 'Changed Ismark', ...stats(since - 9e6, since + 2000) }],
+        // same key, other time: the Pi's copy changed again after the push-back
+        [
+          '!actors.items!a1.i1',
+          { _id: 'i1', name: 'New dagger', ...stats(since + 5000, since + 4000) },
+        ],
+      ]);
+      const again = run(
+        '2026-10-09T02:30:00.000Z',
+        path.join(dir, 'bundle'),
+        'Gamemaster',
+        'Assistant GM'
+      );
+      assert.equal(again.status, 3, again.stderr);
+      const againLines = again.stdout.trim().split('\n');
+      assert.equal(againLines[0], '4 10 4 1 2');
+      assert.deepEqual(
+        againLines.slice(1).map(l => l.replace(/ \S+$/, '')),
+        [
+          'pack:lore/journal Pack page?with a newline',
+          'actors.items New dagger',
+          'users Player',
+          'settings core.time',
+        ]
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

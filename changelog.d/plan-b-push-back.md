@@ -7,4 +7,6 @@
   Stage 11 takes such a bundle only with `REPLACE_WORLD=1 KIT_WORLD=` and the Pi's world env file,
   and refuses when the Pi's world has a document created or changed after that backup (it lists
   up to five, names only) unless `REPLACE_NEWER=1`. The Pi's old copy goes to `prev-<time>` either
-  way. Runbook: `docs/dev/PLAN-B.md`, "After the night".
+  way. A rerun after a late failure passes the check (documents the same as in the bundle and the
+  ones stage 11 provisions do not count), and a module the Pi updated after the backup is kept, never
+  downgraded. Runbook: `docs/dev/PLAN-B.md`, "After the night".

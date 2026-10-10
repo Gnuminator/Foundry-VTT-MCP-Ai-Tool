@@ -41,7 +41,8 @@
                        MANIFEST.txt says "gm-password: kept (push-back)" and "based-on-snapshot: <time>", and the stage 11
                        command printed at the end replaces the Pi's world (REPLACE_WORLD=1) and skips the kit world
                        (KIT_WORLD=). Stage 11 refuses such a bundle without those settings, and refuses it when the
-                       Pi's world changed after the snapshot time. scripts/plan-b/push-back.ps1 calls this.
+                       Pi's world changed after the snapshot time. A module the Pi updated after the snapshot (a
+                       higher module.json version) is kept, not downgraded. scripts/plan-b/push-back.ps1 calls this.
 .PARAMETER BasedOnSnapshot  With -PushBack only (required there): the time of the Pi backup Plan B restored, ISO 8601
                        (state.json snapshot.time). Written into MANIFEST.txt in UTC for stage 11's change check.
 .PARAMETER LevelModule  classic-level for world-refs (default the test server's, C:\FoundryTest\app\node_modules\classic-level).

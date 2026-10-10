@@ -150,6 +150,31 @@ pimod_missing() {
   manifest_extra="pi-modules: aitool-content@1.0.0"
 }
 
+pimod_suffix_older() { pimod_setup 2.10.5-aitool.3 aitool-content@2.10.5-aitool.4; } # same numbers, lower -aitool.n on the Pi: refused
+pimod_suffix_newer() { pimod_setup 2.10.5-aitool.5 aitool-content@2.10.5-aitool.4; } # higher -aitool.n on the Pi: fine
+
+# An installed world $1 that is not a kit copy of anything (a real world: no kitOf marker). The sentinel proves the
+# stage never resets it.
+installed_world() {
+  mkdir -p "$data/worlds/$1/data"
+  echo '{"id":"'"$1"'","title":"'"$1"' (on the Pi)"}' >"$data/worlds/$1/world.json"
+  echo "the Pi's own $1" >"$data/worlds/$1/sentinel"
+  chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$data/worlds/$1"
+}
+# The Assistant GM driver of a Pi whose stage 5 ran before D-118: the stand-in with the extra GM variables stripped
+# (the real old driver ignored PROVISION_EXTRA_GM_USER and PROVISION_EXTRA_GM_PASSWORD).
+old_driver() {
+  sed 's/PROVISION_EXTRA_GM_/IGNORED_EXTRA_GM_/g' "$H/stage11-provision.mjs" >"$TOOL_DIR/gm-browser/assistant-gm.mjs"
+}
+# The old driver, and an env file for the training world that already names an extra GM (an earlier run wrote it).
+old_driver_env() {
+  old_driver
+  printf 'GM_USER="Gamemaster"\nGM_PASSWORD="gsecret1"\nEXTRA_GM_USER="Claude"\nEXTRA_GM_PASSWORD="xsecret"\n' >"$TOOL_ETC/world-frostmaiden-training.env"
+  chmod 600 "$TOOL_ETC/world-frostmaiden-training.env"
+}
+training_installed() { installed_world frostmaiden-training; }
+frost_kit_unmarked() { installed_world frost-kit; }
+
 # The bundle ships aitool-content 1.1.0 while the Pi has its own 1.2.0 (with a sentinel, as after the campaign bundle).
 ship_module() {
   mkdir -p "$data/modules/aitool-content"
@@ -210,6 +235,15 @@ scenario() {
   for w in curse-of-strahd strahd-kit; do
     if [ -f "$data/worlds/$w/sentinel" ]; then echo "$w yes"; else echo "$w no"; fi
   done
+  for w in frostmaiden-training frost-kit; do
+    if [ -d "$data/worlds/$w" ]; then
+      if [ -f "$data/worlds/$w/sentinel" ]; then echo "$w yes"; else echo "$w no"; fi
+    fi
+  done
+  echo "--- kitof"
+  for w in "$data"/worlds/*/; do
+    node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1]+"world.json","utf8"));const f=j.flags&&j.flags["foundry-ai-tool"];console.log(j.id+" kitOf="+((f&&f.kitOf)||"-"))' "$w"
+  done
   echo "--- worlds"
   for w in "$data"/worlds/*/; do
     node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1]+"world.json","utf8"));console.log(j.id+"="+j.title)' "$w"
@@ -253,4 +287,14 @@ scenario ship-second-launch-self frostmaiden-training ship_module WORLD=frostmai
 scenario provision-fails-campaign curse-of-strahd provision_fails_once REPLACE_WORLD=1 RERUN:REPLACE_WORLD=0 rerun
 scenario provision-fails-then-rerun frostmaiden-training provision_fails_once WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude rerun
 scenario strahd-default curse-of-strahd - REPLACE_WORLD=1
+scenario kit-names-installed curse-of-strahd training_installed KIT_WORLD=frostmaiden-training KIT_TITLE=x
+scenario kit-names-installed-replace curse-of-strahd training_installed KIT_WORLD=frostmaiden-training KIT_TITLE=x REPLACE_KIT=1
+scenario kit-copy-rerun frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=frost-kit "KIT_TITLE=Frost kit" LAUNCH=curse-of-strahd rerun
+scenario kit-unmarked frostmaiden-training frost_kit_unmarked WORLD=frostmaiden-training KIT_WORLD=frost-kit "KIT_TITLE=Frost kit" LAUNCH=curse-of-strahd
+scenario kit-is-strahd-kit-replace frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=strahd-kit "KIT_TITLE=Frost kit" LAUNCH=curse-of-strahd REPLACE_KIT=1
+scenario pi-modules-suffix-older frostmaiden-training pimod_suffix_older WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+scenario pi-modules-suffix-newer frostmaiden-training pimod_suffix_newer WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+scenario old-driver-extra frostmaiden-training old_driver WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
+scenario old-driver-env frostmaiden-training old_driver_env WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+scenario old-driver-plain frostmaiden-training old_driver WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
 echo "=== ALL DONE"

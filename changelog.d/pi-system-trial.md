@@ -7,6 +7,12 @@
   `strahd-kit` from the copy. A world launched during the trial is not reset unless `RESTORE_MIGRATED=1`,
   and a rollback that stops halfway finishes on a second run. `MODE=status` shows where a trial stands.
   Nothing runs with people online (`FORCE=1` overrides), and a failed run puts back what ran before it.
+  The trial and the switch wait for dnd5e's data migration in the Assistant GM browser when the new version
+  asks for one, and a failed run launches a world again only on the version that world runs on. The copies'
+  bytes are checked against the free space first, one run goes at a time, and every run is logged.
+- **No other stage launches a world during a trial:** stages 5-check-world, 11 and 13 refuse to run while a
+  trial is open, and stage 5's check world no longer replaces an installed dnd5e (a rerun after a switch used
+  to put 6.0.5 back under migrated worlds).
 - **The Assistant GM driver declares its features:** `assistant-gm.mjs` has a
   `// assistant-gm features: extra-gm` line, and stage 11 checks that line instead of looking for an
   environment variable's name anywhere in the file (a comment no longer counts). A driver installed before

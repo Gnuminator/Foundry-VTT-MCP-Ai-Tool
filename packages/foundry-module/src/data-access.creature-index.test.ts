@@ -936,3 +936,143 @@ describe('PersistentCreatureIndex — hook-driven invalidation', () => {
     expect(disk.fetchCalls.some(c => c.init?.method === 'DELETE')).toBe(false);
   });
 });
+
+// ===========================================================================
+// pack change → background rebuild in the index builder's browser (#283 low 3)
+// ===========================================================================
+
+describe('PersistentCreatureIndex: background rebuild after a pack change', () => {
+  const MODULE = 'foundry-mcp-bridge';
+
+  /** Make this browser the index builder: the bridge user, both switches on. */
+  function makeBuilder(): void {
+    world.setSetting(MODULE, 'autoRebuildIndex', true);
+    world.setSetting(MODULE, 'enableEnhancedCreatureIndex', true);
+    world.setSetting(MODULE, 'bridgeUserId', 'gm');
+  }
+
+  function setActiveGm(id: string | null): void {
+    Object.defineProperty((globalThis as any).game.users, 'activeGM', {
+      value: id ? { id } : null,
+      configurable: true,
+    });
+  }
+
+  function newIndexWithSpies(): {
+    index: PersistentCreatureIndex;
+    ensure: ReturnType<typeof vi.spyOn>;
+    rebuild: ReturnType<typeof vi.spyOn>;
+  } {
+    const index = new PersistentCreatureIndex();
+    const ensure = vi
+      .spyOn(index, 'ensureIndexCurrent')
+      .mockResolvedValue({ rebuilt: true, totalCreatures: 1 });
+    const rebuild = vi.spyOn(index, 'rebuildIndex').mockResolvedValue([]);
+    return { index, ensure, rebuild };
+  }
+
+  const change = (): void =>
+    (globalThis as any).Hooks.callAll('updateDocument', { pack: 'world.monsters', type: 'npc' });
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('rebuilds once, 5 s after the last change of a burst', async () => {
+    makeBuilder();
+    const { ensure } = newIndexWithSpies();
+
+    change();
+    await vi.advanceTimersByTimeAsync(3_000);
+    change();
+    change();
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(ensure).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(ensure).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not rebuild when another user is the bridge user', async () => {
+    makeBuilder();
+    world.setSetting(MODULE, 'bridgeUserId', 'someone-else');
+    const { ensure, rebuild } = newIndexWithSpies();
+
+    change();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(ensure).not.toHaveBeenCalled();
+    expect(rebuild).not.toHaveBeenCalled();
+  });
+
+  it('with "Any GM" rebuilds only in the active GM\'s browser', async () => {
+    makeBuilder();
+    world.setSetting(MODULE, 'bridgeUserId', '');
+    const { ensure } = newIndexWithSpies();
+
+    setActiveGm('other-gm');
+    change();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(ensure).not.toHaveBeenCalled();
+
+    setActiveGm('gm');
+    change();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(ensure).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not rebuild in a player's browser", async () => {
+    makeBuilder();
+    (globalThis as any).game.user.isGM = false;
+    const { ensure } = newIndexWithSpies();
+
+    change();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('does not rebuild when the enhanced index is off', async () => {
+    makeBuilder();
+    world.setSetting(MODULE, 'enableEnhancedCreatureIndex', false);
+    const { ensure } = newIndexWithSpies();
+
+    change();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('follows a build still running at the change with a fresh one', async () => {
+    makeBuilder();
+    const { index, ensure, rebuild } = newIndexWithSpies();
+    let finish!: () => void;
+    (index as any).buildPromise = new Promise<unknown[]>(resolve => {
+      finish = (): void => resolve([]);
+    });
+
+    change();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(rebuild).not.toHaveBeenCalled();
+
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(rebuild).toHaveBeenCalledTimes(1);
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('a failed rebuild only logs a warning', async () => {
+    makeBuilder();
+    const { ensure } = newIndexWithSpies();
+    ensure.mockRejectedValue(new Error('upload failed'));
+
+    change();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(ensure).toHaveBeenCalledTimes(1);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to rebuild the creature index'),
+      expect.any(Error)
+    );
+  });
+});

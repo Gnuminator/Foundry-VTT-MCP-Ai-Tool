@@ -12,6 +12,23 @@ import type {
 /** dnd5e document types that count as "creatures" for the index. */
 const CREATURE_TYPES = new Set(['npc', 'character']);
 
+/** Quiet time after the last pack change before the background rebuild starts. */
+export const REBUILD_DEBOUNCE_MS = 5_000;
+
+/**
+ * Whether this browser builds the creature index in the background (at `ready`
+ * and after a pack change): the bridge user's GM browser, the one bridge
+ * queries reach. With "Any GM" only the active GM (`game.users.activeGM`, the
+ * active GM with the lowest id) builds, so several GMs online build once.
+ */
+export function isIndexBuilder(): boolean {
+  const user = game.user;
+  if (!user?.isGM) return false;
+  const bridgeUserId: unknown = game.settings.get(MODULE_ID, 'bridgeUserId');
+  if (typeof bridgeUserId === 'string' && bridgeUserId !== '') return bridgeUserId === user.id;
+  return game.users?.activeGM?.id === user.id;
+}
+
 /** The fields of a creature document the index reads (a loaded Actor-pack document). */
 interface PackCreatureDoc {
   _id: string;
@@ -51,6 +68,8 @@ export class PersistentCreatureIndex {
   /** The build in flight, shared by every caller until it settles. */
   private buildPromise: Promise<EnhancedCreatureIndex[]> | null = null;
   private hooksRegistered = false;
+  /** The pending background rebuild after pack changes (debounced). */
+  private rebuildTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.registerFoundryHooks();
@@ -305,7 +324,8 @@ export class PersistentCreatureIndex {
   /**
    * Invalidate by deleting the persisted file so the next read rebuilds, but
    * only when the `autoRebuildIndex` setting is on. Best-effort: a missing file
-   * or a failed delete is ignored.
+   * or a failed delete is ignored. The index builder's browser then rebuilds in
+   * the background, so the next creature query does not wait on the build.
    */
   private async invalidateIndex(): Promise<void> {
     try {
@@ -319,9 +339,44 @@ export class PersistentCreatureIndex {
       } catch {
         // File doesn't exist or deletion failed: that's okay.
       }
+      this.scheduleRebuild();
     } catch (error) {
       console.warn(`[${this.moduleId}] Failed to invalidate index:`, error);
     }
+  }
+
+  /**
+   * Rebuild in the background once the packs have been quiet for
+   * {@link REBUILD_DEBOUNCE_MS} (an import fires one hook per creature), only in
+   * the index builder's browser and while the enhanced index is on. A build
+   * still running then read the packs before the change, so it is followed by a
+   * fresh one.
+   */
+  private scheduleRebuild(): void {
+    if (!isIndexBuilder()) return;
+    if (!game.settings.get(this.moduleId, 'enableEnhancedCreatureIndex')) return;
+    if (this.rebuildTimer) clearTimeout(this.rebuildTimer);
+    this.rebuildTimer = setTimeout(() => {
+      this.rebuildTimer = null;
+      this.rebuildAfterChange().then(
+        ({ rebuilt, totalCreatures }) => {
+          logInfo(
+            `[${this.moduleId}] Enhanced creature index ${rebuilt ? 'rebuilt' : 'current'} after a pack change (${totalCreatures} creatures)`
+          );
+        },
+        (error: unknown) => {
+          console.warn(`[${this.moduleId}] Failed to rebuild the creature index:`, error);
+        }
+      );
+    }, REBUILD_DEBOUNCE_MS);
+  }
+
+  private async rebuildAfterChange(): Promise<{ rebuilt: boolean; totalCreatures: number }> {
+    if (this.buildPromise) {
+      await this.buildPromise.catch(() => undefined);
+      return { rebuilt: true, totalCreatures: (await this.rebuildIndex()).length };
+    }
+    return this.ensureIndexCurrent();
   }
 
   // ---- build ----------------------------------------------------------------

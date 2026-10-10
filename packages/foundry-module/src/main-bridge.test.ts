@@ -225,3 +225,70 @@ describe('main: "MCP server not found" notice (PB-03)', () => {
     expect(fake.state.instances).toHaveLength(0);
   });
 });
+
+describe('main: creature index warm-up at ready (#283)', () => {
+  let ensure: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    world.setSetting(MODULE_ID, 'enableEnhancedCreatureIndex', true);
+    world.setSetting(MODULE_ID, 'bridgeUserId', 'gm');
+    ensure = vi.fn().mockResolvedValue({ rebuilt: true, totalCreatures: 3 });
+    bridge.queryHandlers.dataAccess.ensureEnhancedCreatureIndex = ensure;
+  });
+
+  const setActiveGm = (id: string): void => {
+    Object.defineProperty(g.game.users, 'activeGM', { value: { id }, configurable: true });
+  };
+
+  it("builds in the bridge user's browser", () => {
+    bridge.warmEnhancedIndex();
+    expect(ensure).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips a player's browser", () => {
+    g.game.user.isGM = false;
+    bridge.warmEnhancedIndex();
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('skips when another user is the bridge user', () => {
+    world.setSetting(MODULE_ID, 'bridgeUserId', 'someone-else');
+    bridge.warmEnhancedIndex();
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('with "Any GM" builds only in the active GM\'s browser', () => {
+    world.setSetting(MODULE_ID, 'bridgeUserId', '');
+    setActiveGm('other-gm');
+    bridge.warmEnhancedIndex();
+    expect(ensure).not.toHaveBeenCalled();
+
+    setActiveGm('gm');
+    bridge.warmEnhancedIndex();
+    expect(ensure).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips when the enhanced index is off', () => {
+    world.setSetting(MODULE_ID, 'enableEnhancedCreatureIndex', false);
+    bridge.warmEnhancedIndex();
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('skips a system other than dnd5e', () => {
+    g.game.system.id = 'pf2e';
+    bridge.warmEnhancedIndex();
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('a failed build only logs a warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    ensure.mockRejectedValue(new Error('upload failed'));
+    bridge.warmEnhancedIndex();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to build the enhanced creature index'),
+      expect.any(Error)
+    );
+  });
+});

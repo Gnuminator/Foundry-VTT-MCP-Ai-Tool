@@ -78,6 +78,25 @@ interface PackHits {
   entries: Array<{ _id?: string }>;
 }
 
+/**
+ * How long a creature query waits for the enhanced index. The bridge answers within 10 s, but a
+ * build (the first load after a module update, or after a compendium change) takes 37 s on the
+ * PC and longer on the Pi, so a query that would wait it out says so instead (#283 review low 2).
+ */
+export const INDEX_WAIT_MS = 8000;
+
+/** What a creature query answers while the index builds; the build carries on. */
+export const INDEX_BUILDING_MESSAGE =
+  'The creature index is building (after a module update or a compendium change). Try again in a minute.';
+
+/** Thrown by {@link CompendiumDataAccess.listCreaturesByCriteria} while the index builds. */
+export class CreatureIndexBuildingError extends Error {
+  constructor() {
+    super(INDEX_BUILDING_MESSAGE);
+    this.name = 'CreatureIndexBuildingError';
+  }
+}
+
 export class CompendiumDataAccess {
   /** Summary field requests still running, by pack id: concurrent searches share one. */
   private summaryInFlight = new Map<string, Promise<void>>();
@@ -406,7 +425,9 @@ export class CompendiumDataAccess {
   /**
    * List creatures matching structured criteria. Uses the persistent enhanced
    * index for instant filtering when enabled; otherwise (and on any enhanced
-   * failure) falls back to a keyword search via {@link searchCompendium}.
+   * failure) falls back to a keyword search via {@link searchCompendium}. Throws
+   * {@link CreatureIndexBuildingError} when the index is not ready within
+   * {@link INDEX_WAIT_MS}.
    */
   async listCreaturesByCriteria(criteria: {
     challengeRating?: number | { min?: number; max?: number };
@@ -423,7 +444,7 @@ export class CompendiumDataAccess {
     }
 
     try {
-      const enhancedCreatures = await this.persistentIndex.getEnhancedIndex();
+      const enhancedCreatures = await this.enhancedIndexWithin(INDEX_WAIT_MS);
 
       const filteredCreatures = enhancedCreatures
         .filter(creature => this.passesEnhancedCriteria(creature, criteria))
@@ -439,8 +460,25 @@ export class CompendiumDataAccess {
 
       return { creatures: results, searchSummary };
     } catch (error) {
+      if (error instanceof CreatureIndexBuildingError) throw error;
       console.error(`[${MODULE_ID}] Enhanced creature search failed:`, error);
       return this.fallbackBasicCreatureSearch(criteria, limit);
+    }
+  }
+
+  /**
+   * The enhanced index, or {@link CreatureIndexBuildingError} when it takes longer than `ms`
+   * (a build is running). The build keeps going and is shared, so a later query gets it.
+   */
+  private async enhancedIndexWithin(ms: number): Promise<EnhancedCreatureIndex[]> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const building = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new CreatureIndexBuildingError()), ms);
+    });
+    try {
+      return await Promise.race([this.persistentIndex.getEnhancedIndex(), building]);
+    } finally {
+      clearTimeout(timer);
     }
   }
 

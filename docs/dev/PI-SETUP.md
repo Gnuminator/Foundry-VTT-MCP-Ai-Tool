@@ -646,6 +646,55 @@ What stage 11 does with it:
   restarts on the campaign world.
 - The world's GM user is `Gamemaster` (`GM_USER=` for another name) and must have no password on the
   PC when you push, because stage 11 joins as that user once to set the new password.
+- **The `strahd-kit` default is only for `curse-of-strahd`.** Any other `WORLD` must say
+  `KIT_WORLD=` (no test copy) or `KIT_WORLD=<id> KIT_TITLE=<title>`, or the run stops before
+  anything changes, so another bundle can never reset `strahd-kit`.
+
+### Training world (D-118)
+
+Danni's Frostmaiden training world goes in next to the campaign, while Foundry keeps launching
+`curse-of-strahd`. It is a copy of the PC's kit world trimmed to Frostmaiden, pushed with
+`push-world.ps1 -World frostmaiden-training -Modules '' -PiModules aitool-content,dnd-players-handbook,foundryvtt-actor-studio`
+(`-Modules ''` means no modules; from a shell `-Modules @()` does not work with `pwsh -File`, which drops the
+empty array. The three active modules are already on the Pi from the campaign bundle, and stage 11
+replaces the Pi's module folders with the bundle's, so shipping them again could swap out the Pi's
+own copies; `-PiModules` writes each one with the version of the PC's copy into the bundle's
+`MANIFEST.txt` (`pi-modules: aitool-content@1.2.0, ...`), and stage 11 stops before anything changes
+if one is not installed on the Pi, or if the Pi's copy is older than the PC's: update it on the Pi
+first, or ship it. A version that cannot be compared only warns). The command push-world prints at the
+end for this world has `KIT_WORLD= LAUNCH=curse-of-strahd`; add `EXTRA_GM_USER=Claude` to it by hand
+(push-world only hints at it). The settings are:
+
+```bash
+WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
+```
+
+- `LAUNCH` may name any world that is already installed, so the new world is provisioned and
+  Foundry goes back to the campaign. For any `WORLD` other than `curse-of-strahd` it must be set
+  and not empty (like `KIT_WORLD`), so a forgotten or empty `LAUNCH` can never switch the Pi to the
+  new world. For such a world `KIT_WORLD` may not be `curse-of-strahd`, `strahd-kit` (the campaign's
+  test copy) or the `LAUNCH` world either: every run resets the kit world from the bundle.
+- A bundle for any world other than `curse-of-strahd` that ships a module is refused before anything
+  stops, because the campaign owns the modules: use `-PiModules` as above, or run with
+  `SHIP_MODULES=1` only when replacing the Pi's modules is meant. The campaign's own bundle ships its
+  modules as always, also with `LAUNCH=strahd-kit`.
+- `EXTRA_GM_USER=Claude` makes a second full GM with its own generated password. Both logins are in
+  `/etc/foundry-ai-tool/world-frostmaiden-training.env` (`GM_USER`, `GM_PASSWORD`, `EXTRA_GM_USER`,
+  `EXTRA_GM_PASSWORD`; root only, never printed). The extra GM is added to the file once; a run
+  again keeps both passwords. A file that already names another extra GM stops the run before
+  anything changes, and so does an extra GM named like the world's GM or the Assistant GM (case
+  does not matter) or with a space at either end.
+- If provisioning fails, run the same command again: a `world-<id>.pending` marker in
+  `/etc/foundry-ai-tool/` is written for every world of the run before the first is provisioned and
+  stays until that world's provisioning has worked, so a plain rerun provisions the kept
+  world again with the passwords already in its file (no `REPLACE_WORLD=1` needed). On any failure
+  Foundry comes back on the campaign.
+- Only the GM user is checked on the PC (push-world stops unless `Gamemaster` has no password).
+  Other users in the copy, such as the test server's passwordless `Player`, go to the Pi as they are,
+  so delete them in the copy first, or give them a password in Foundry on the Pi afterwards.
+- Then stage 13 with `WORLD=frostmaiden-training KIT_WORLD=` turns Actor Studio's usage tracking off
+  there too. Like stage 11, stage 13 only defaults `KIT_WORLD` to `strahd-kit` for
+  `curse-of-strahd`: any other world must set it, so a training run cannot change strahd-kit.
 
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).

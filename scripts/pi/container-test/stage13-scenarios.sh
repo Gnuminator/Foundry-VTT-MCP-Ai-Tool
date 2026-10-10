@@ -45,7 +45,7 @@ fresh_pi() {
   rm -f /tmp/stopped-* /tmp/gmbroken /tmp/calls /tmp/status /tmp/status_rc
   mkdir -p "$FOUNDRY_DATA/Config" "$FOUNDRY_DATA/Data/worlds" "$FOUNDRY_DATA/Data/modules"
   echo '{"world":"curse-of-strahd"}' >"$FOUNDRY_DATA/Config/options.json"
-  for w in curse-of-strahd strahd-kit; do
+  for w in curse-of-strahd strahd-kit frostmaiden-training; do
     mkdir -p "$FOUNDRY_DATA/Data/worlds/$w/data/settings"
     echo '{"id":"'"$w"'"}' >"$FOUNDRY_DATA/Data/worlds/$w/world.json"
     echo dummy >"$FOUNDRY_DATA/Data/worlds/$w/data/settings/000001.log"
@@ -56,7 +56,7 @@ fresh_pi() {
   fi
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$FOUNDRY_DATA"
   mkdir -p "$TOOL_ETC" "$TOOL_DIR/app" "$TOOL_DATA"
-  for w in curse-of-strahd strahd-kit; do
+  for w in curse-of-strahd strahd-kit frostmaiden-training; do
     printf 'GM_USER=Gamemaster\nGM_PASSWORD=secret123\n' >"$TOOL_ETC/world-$w.env"
   done
   chmod 600 "$TOOL_ETC"/world-*.env
@@ -131,4 +131,6 @@ scenario upgrade "$U0" 0 2.10.5 "" localzip
 scenario foundry-off "$U0" 0 "" "foundry"
 scenario services-off "$U0" 0 "" "foundry gm"
 scenario gm-browser-fails "$U0" 0 "" "" gmbroken
+scenario training-needs-kit-world "$U0" 0 "" "" WORLD=frostmaiden-training
+scenario training-world "$U0" 0 "" "" WORLD=frostmaiden-training KIT_WORLD=
 echo "=== ALL DONE"

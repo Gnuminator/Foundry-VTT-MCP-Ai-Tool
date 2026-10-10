@@ -13,7 +13,8 @@
 // Environment: TOOL_APP (the built tool, for playwright-core), FOUNDRY_URL, CHROMIUM,
 // GM_BROWSER_PROFILE, ASSISTANT_GM_USER, ASSISTANT_GM_PASSWORD; provision also reads
 // PROVISION_GM_USER, PROVISION_GM_PASSWORD (empty for a fresh world's Gamemaster) and
-// PROVISION_GM_NEW_PASSWORD (set on that user afterwards). Passwords are never printed.
+// PROVISION_GM_NEW_PASSWORD (set on that user afterwards), and optionally PROVISION_EXTRA_GM_USER plus
+// PROVISION_EXTRA_GM_PASSWORD (a second GM with its own password). Passwords are never printed.
 
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -160,12 +161,28 @@ async function run() {
   }
 }
 
+/**
+ * The extra GM that provision creates (PROVISION_EXTRA_GM_USER and PROVISION_EXTRA_GM_PASSWORD, both or neither;
+ * stage 11's EXTRA_GM_USER, D-118), or null. Never a GM without a password, never one of the other two users.
+ */
+export function extraGm(environment, taken) {
+  const name = (environment.PROVISION_EXTRA_GM_USER ?? '').trim();
+  const password = environment.PROVISION_EXTRA_GM_PASSWORD ?? '';
+  if (!name && !password) return null;
+  if (!name || !password) {
+    throw new Error('PROVISION_EXTRA_GM_USER and PROVISION_EXTRA_GM_PASSWORD go together');
+  }
+  if (taken.includes(name)) throw new Error(`the extra GM must differ from ${taken.join(' and ')}`);
+  return { name, password };
+}
+
 async function provision() {
   const gmUser = env('PROVISION_GM_USER', 'Gamemaster');
   const gmPassword = env('PROVISION_GM_PASSWORD', '');
   const gmNewPassword = env('PROVISION_GM_NEW_PASSWORD', '');
   const assistant = env('ASSISTANT_GM_USER', 'Assistant GM');
   const assistantPassword = env('ASSISTANT_GM_PASSWORD');
+  const extra = extraGm(process.env, [gmUser, assistant]);
   // A throwaway profile, so the Gamemaster's session never lands in the Assistant GM's profile.
   const profile = mkdtempSync(join(tmpdir(), 'assistant-gm-provision-'));
   const context = await launch(profile);
@@ -194,12 +211,24 @@ async function provision() {
     }
 
     const result = await page.evaluate(
-      async ({ id, name, password, role, gmPassword }) => {
+      async ({ id, name, password, role, gmPassword, extra }) => {
         if (!game.modules.get(id)?.active) throw new Error(`${id} is not active after enabling it`);
         let user = game.users.getName(name);
         if (user) await user.update({ role, password });
         else user = await User.implementation.create({ name, role, password });
         await game.settings.set(id, 'bridgeUserId', user.id);
+        if (extra) {
+          // A second full GM (D-118), with its own password: never one without a password.
+          const gm = CONST.USER_ROLES.GAMEMASTER;
+          const other = game.users.getName(extra.name);
+          if (other) await other.update({ role: gm, password: extra.password });
+          else
+            await User.implementation.create({
+              name: extra.name,
+              role: gm,
+              password: extra.password,
+            });
+        }
         if (gmPassword) await game.user.update({ password: gmPassword });
         return {
           bridgeUser: game.settings.get(id, 'bridgeUserId') === user.id,
@@ -212,6 +241,7 @@ async function provision() {
         password: assistantPassword,
         role: ASSISTANT_ROLE,
         gmPassword: gmNewPassword,
+        extra,
       }
     );
     log(`module active; bridge user is ${assistant}: ${result.bridgeUser}`);

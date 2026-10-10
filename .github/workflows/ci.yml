@@ -301,6 +301,13 @@ jobs:
           PI_STAGE13_CONTAINER: 1
         run: node --test scripts/pi/player-creation.test.mjs
 
+      - name: Pi stage 11 in an ARM64 container
+        # scripts/pi/container-test/stage11-scenarios.sh: stage 11 on Debian 13 ARM64 with stand-ins for systemd
+        # and the Assistant GM (the training world with an extra GM, a rerun, the refusals before anything stops).
+        env:
+          PI_STAGE11_CONTAINER: 1
+        run: node --test scripts/pi/stage11-world.test.mjs
+
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs
 

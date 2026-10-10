@@ -325,6 +325,34 @@ describe('searchCharacterItems — spell fields (dnd5e)', () => {
       'area',
       '15-ft cube',
     ],
+    // FormulaField: dnd5e 6 stores the count as a string.
+    [{ affects: { type: 'creature', count: '3', choice: true } }, '3 creatures', undefined],
+    // Detect Magic / Globe of Invulnerability (spells24): self plus a radius stays "self".
+    [
+      {
+        affects: { type: 'self', count: '' },
+        template: { type: 'radius', size: '30', units: 'ft' },
+      },
+      'self',
+      '30-ft radius',
+    ],
+    // Spirit Guardians (creature) and Aura of Life (ally): no count, so the area.
+    [
+      {
+        affects: { type: 'creature', count: '', choice: true },
+        template: { type: 'radius', size: '15', units: 'ft' },
+      },
+      'area',
+      '15-ft radius',
+    ],
+    [
+      {
+        affects: { type: 'ally', count: '' },
+        template: { type: 'radius', size: '30', units: 'ft' },
+      },
+      'area',
+      '30-ft radius',
+    ],
     [{ affects: { type: '' }, template: { type: '' } }, undefined, undefined],
   ])('reads dnd5e 6 target %j', async (target, expectedTarget, expectedArea) => {
     world.actors.add(

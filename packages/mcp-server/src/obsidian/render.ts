@@ -109,7 +109,9 @@ export function cell(value: unknown): string {
       : typeof value === 'number' || typeof value === 'boolean'
         ? String(value)
         : '';
-  return neutralizeTemplater(text.replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').trim());
+  // The backslash is escaped with the pipe: data ending in `\` must not turn `\|` into `\\|`,
+  // an escaped backslash followed by a live column break.
+  return neutralizeTemplater(text.replace(/\r?\n/g, ' ').replace(/[\\|]/g, '\\$&').trim());
 }
 
 /** A string safe as a file name on Windows, Linux and in Obsidian links. */

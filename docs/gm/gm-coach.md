@@ -7,8 +7,9 @@ description: Add the Foundry GM coach skill to your own Claude account, how to a
 
 The **Foundry GM coach** is a skill for your own Claude account: a set of pages about Foundry 14,
 the D&D 5e system and this tool, plus instructions for Claude to answer from them. Ask it things
-like "where do I give a player permission to open doors?" or "how do I start combat?". It works
-on the free Claude plan.
+like "where do I give a player permission to open doors?" or "how do I start combat?". It also
+helps you plan: what to prepare for a session, the expectations talk with your players and session
+0 ([Prep and expectations](prep-and-expectations.md)). It works on the free Claude plan.
 
 It answers from its pages first and says so. When the pages don't cover something, it may answer
 from general knowledge but tells you, because many guides online describe older Foundry versions.
@@ -34,6 +35,10 @@ Foundry; to be sure, start with "GM coach:".
 - "GM coach: a player can't see the map, what do I check?"
 - "GM coach: how do I give the players a handout?"
 - "GM coach: walk me through starting a combat and rolling initiative."
+- "GM coach: help me plan session 0. Ask me questions first."
+
+When you plan with it, it asks a few questions and suggests options; the choices are yours. You can
+ask in Danish.
 
 Check its answer against the screen. If it names a button you can't find, say so: it then tells
 you whether that part was checked in a live game.

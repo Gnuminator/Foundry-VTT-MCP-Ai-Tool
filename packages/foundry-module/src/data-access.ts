@@ -17,6 +17,28 @@ import { CompendiumDataAccess } from './data-access/compendium.js';
 import { CombatDataAccess } from './data-access/combat.js';
 import { ActorCreationDataAccess } from './data-access/actor-creation.js';
 import { ActorBuilderDataAccess } from './data-access/actor-builder.js';
+import type {
+  AddAttackToActorInput,
+  AddAttackWithSaveToActorInput,
+  AddAttackWithSaveToActorResult,
+  AddAuraToActorInput,
+  AddBuiltItemResult,
+  AddFeaturesFromCompendiumInput,
+  AddPassiveFeatureToActorInput,
+  AddPassiveFeatureToActorResult,
+  AddSaveFeatureToActorInput,
+  AddSaveFeatureToActorResult,
+  AddSpellsToActorInput,
+  CompendiumImportResult,
+  CreateNpcActorInput,
+  CreateNpcActorResult,
+  SetActorSpellcastingInput,
+  SetActorSpellcastingResult,
+  UseItemInput,
+  UseItemResult,
+  UseNpcActivityInput,
+  UseNpcActivityResult,
+} from './data-access/actor-builder.js';
 import { PlayerRollsDataAccess } from './data-access/player-rolls.js';
 import type {
   CharacterInfo,
@@ -28,6 +50,7 @@ import type {
   CompendiumEntryFull,
   SceneTokenPlacement,
   TokenPlacementResult,
+  CharacterEntityResult,
 } from './data-access/types.js';
 
 export class FoundryDataAccess {
@@ -454,7 +477,7 @@ export class FoundryDataAccess {
   async getCharacterEntity(data: {
     characterIdentifier: string;
     entityIdentifier: string;
-  }): Promise<any> {
+  }): Promise<CharacterEntityResult> {
     return this.characters.getCharacterEntity(data);
   }
 
@@ -470,88 +493,21 @@ export class FoundryDataAccess {
    * Move a token to a new position
    */
 
-  async useItem(params: {
-    actorIdentifier: string;
-    itemIdentifier: string;
-    targets?: string[] | undefined;
-    options?:
-      | {
-          consume?: boolean | undefined;
-          configureDialog?: boolean | undefined;
-          skipDialog?: boolean | undefined;
-          spellLevel?: number | undefined;
-          versatile?: boolean | undefined;
-        }
-      | undefined;
-  }): Promise<{
-    success: boolean;
-    status?: string;
-    message: string;
-    itemName?: string;
-    actorName?: string;
-    targets?: string[];
-    requiresGMInteraction?: boolean;
-  }> {
+  async useItem(params: UseItemInput): Promise<UseItemResult> {
     return this.actorBuilder.useItem(params);
   }
 
   // ===== D&D 5E FEATURE CREATION =====
 
-  async addSaveFeatureToActor(data: {
-    actorIdentifier: string;
-    featureName: string;
-    description: string;
-    activationType: string;
-    saveAbility: string;
-    saveDC: number;
-    damageParts: Array<{ number: number; denomination: number; type: string }>;
-    halfOnSave: boolean;
-    areaType: string;
-    areaSize?: number;
-    areaUnits: string;
-    affectsType: string;
-  }): Promise<any> {
+  async addSaveFeatureToActor(
+    data: AddSaveFeatureToActorInput
+  ): Promise<AddSaveFeatureToActorResult> {
     return this.actorBuilder.addSaveFeatureToActor(data);
   }
 
   // ===== CREATE NPC ACTOR (D&D 5e) =====
 
-  async createNpcActor(data: {
-    name: string;
-    creatureType: string;
-    creatureSubtype: string;
-    size: string;
-    alignment: string;
-    cr: string | number;
-    hpAverage: number;
-    hpFormula: string;
-    acMode: string;
-    acValue?: number;
-    abilities: { str: number; dex: number; con: number; int: number; wis: number; cha: number };
-    savingThrows: string[];
-    walkSpeed: number;
-    flySpeed: number;
-    swimSpeed: number;
-    climbSpeed: number;
-    burrowSpeed: number;
-    hover: boolean;
-    darkvision: number;
-    blindsight: number;
-    tremorsense: number;
-    truesight: number;
-    specialSenses: string;
-    skills: Array<{ skill: string; proficiency: string }>;
-    damageImmunities: string[];
-    damageResistances: string[];
-    damageVulnerabilities: string[];
-    conditionImmunities: string[];
-    languages: string[];
-    languagesCustom: string;
-    biography: string;
-    sourceBook: string;
-    sourcePage: string;
-    sourceRules: string;
-  }): Promise<any> {
+  async createNpcActor(data: CreateNpcActorInput): Promise<CreateNpcActorResult> {
     return this.actorBuilder.createNpcActor(data);
   }
 
@@ -559,7 +515,7 @@ export class FoundryDataAccess {
   // Add weapon attack to an existing actor (dnd5e-add-attack-feature)
   // ---------------------------------------------------------------------------
 
-  async addAttackToActor(data: any): Promise<any> {
+  async addAttackToActor(data: AddAttackToActorInput): Promise<AddBuiltItemResult> {
     return this.actorBuilder.addAttackToActor(data);
   }
 
@@ -568,7 +524,7 @@ export class FoundryDataAccess {
   // (dnd5e-add-aura-feature)
   // ---------------------------------------------------------------------------
 
-  async addAuraToActor(data: any): Promise<any> {
+  async addAuraToActor(data: AddAuraToActorInput): Promise<AddBuiltItemResult> {
     return this.actorBuilder.addAuraToActor(data);
   }
 
@@ -577,7 +533,9 @@ export class FoundryDataAccess {
   // No activities, no mechanics — pure description displayed on the sheet.
   // ---------------------------------------------------------------------------
 
-  async addPassiveFeatureToActor(data: any): Promise<any> {
+  async addPassiveFeatureToActor(
+    data: AddPassiveFeatureToActorInput
+  ): Promise<AddPassiveFeatureToActorResult> {
     return this.actorBuilder.addPassiveFeatureToActor(data);
   }
 
@@ -587,7 +545,9 @@ export class FoundryDataAccess {
   // Two activities: attack (sort:0) + save (sort:1)
   // ---------------------------------------------------------------------------
 
-  async addAttackWithSaveToActor(data: any): Promise<any> {
+  async addAttackWithSaveToActor(
+    data: AddAttackWithSaveToActorInput
+  ): Promise<AddAttackWithSaveToActorResult> {
     return this.actorBuilder.addAttackWithSaveToActor(data);
   }
 
@@ -595,7 +555,7 @@ export class FoundryDataAccess {
   // Set actor spellcasting (ability + slot counts)
   // ---------------------------------------------------------------------------
 
-  async setActorSpellcasting(data: any): Promise<any> {
+  async setActorSpellcasting(data: SetActorSpellcastingInput): Promise<SetActorSpellcastingResult> {
     return this.actorBuilder.setActorSpellcasting(data);
   }
 
@@ -603,7 +563,7 @@ export class FoundryDataAccess {
   // Add spells from compendium packs to an actor
   // ---------------------------------------------------------------------------
 
-  async addSpellsToActor(data: any): Promise<any> {
+  async addSpellsToActor(data: AddSpellsToActorInput): Promise<CompendiumImportResult> {
     return this.actorBuilder.addSpellsToActor(data);
   }
 
@@ -611,7 +571,9 @@ export class FoundryDataAccess {
   // Add features from compendium packs to an actor
   // ---------------------------------------------------------------------------
 
-  async addFeaturesFromCompendium(data: any): Promise<any> {
+  async addFeaturesFromCompendium(
+    data: AddFeaturesFromCompendiumInput
+  ): Promise<CompendiumImportResult> {
     return this.actorBuilder.addFeaturesFromCompendium(data);
   }
 
@@ -752,12 +714,7 @@ export class FoundryDataAccess {
     return this.combat.rollSavingThrows(data);
   }
 
-  async useNpcActivity(data: {
-    actorName: string;
-    itemName: string;
-    targetAC?: number;
-    isPublic?: boolean;
-  }): Promise<any> {
+  async useNpcActivity(data: UseNpcActivityInput): Promise<UseNpcActivityResult> {
     return this.actorBuilder.useNpcActivity(data);
   }
 

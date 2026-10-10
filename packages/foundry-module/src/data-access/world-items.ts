@@ -57,7 +57,7 @@ export class WorldItemsDataAccess {
 
     const result: ItemSummary[] = [];
 
-    for (const item of (game as any).items) {
+    for (const item of game.items) {
       if (type && item.type !== type) continue;
       if (folderId && item.folder?.id !== folderId) continue;
       if (nameLower && !(item.name ?? '').toLowerCase().includes(nameLower)) continue;
@@ -84,7 +84,7 @@ export class WorldItemsDataAccess {
       id: string;
       name?: string;
       img?: string;
-      system?: Record<string, any>;
+      system?: Record<string, unknown>;
       folder?: string;
     }>;
   }): Promise<{
@@ -103,7 +103,7 @@ export class WorldItemsDataAccess {
     const folderCache = new Map<string, string>();
 
     // Build the payload array, validating and resolving folders as we go.
-    const payload: Array<Record<string, any>> = [];
+    const payload: Array<Record<string, unknown>> = [];
 
     for (let idx = 0; idx < updates.length; idx++) {
       const upd = updates[idx];
@@ -111,12 +111,12 @@ export class WorldItemsDataAccess {
         throw new Error(`updates[${idx}]: "id" is required and must be a non-empty string`);
       }
 
-      const item = (game as any).items?.get(upd.id);
+      const item = game.items?.get(upd.id);
       if (!item) {
         throw new Error(`updates[${idx}]: Item "${upd.id}" not found in world`);
       }
 
-      const patch: Record<string, any> = { _id: upd.id };
+      const patch: Record<string, unknown> = { _id: upd.id };
       if (upd.name !== undefined) patch.name = upd.name;
       if (upd.img !== undefined) patch.img = upd.img;
       if (upd.system !== undefined) patch.system = upd.system;
@@ -127,10 +127,10 @@ export class WorldItemsDataAccess {
       payload.push(patch);
     }
 
-    const updated = await (Item as any).updateDocuments(payload);
+    const updated = await Item.updateDocuments(payload);
 
     const result = {
-      updated: (updated ?? []).map((doc: any) => ({
+      updated: (updated ?? []).map(doc => ({
         id: doc.id,
         name: doc.name,
         type: doc.type,
@@ -154,7 +154,7 @@ export class WorldItemsDataAccess {
       name: string;
       type: string;
       img?: string;
-      system?: Record<string, any>;
+      system?: Record<string, unknown>;
     }>;
     folder?: string;
   }): Promise<{
@@ -189,14 +189,14 @@ export class WorldItemsDataAccess {
         );
       }
 
-      const doc: Record<string, any> = { name: it.name, type: it.type };
+      const doc: Record<string, unknown> = { name: it.name, type: it.type };
       if (it.img) doc.img = it.img;
       if (it.system && typeof it.system === 'object') doc.system = it.system;
       return doc;
     });
 
     // Resolve or create the target folder (once for the whole batch).
-    let folderDoc: any = null;
+    let folderDoc: Folder | null = null;
     if (folder && folder.trim().length > 0) {
       folderDoc = await this.resolveOrCreateItemFolder(folder.trim());
       for (const doc of payload) {
@@ -204,12 +204,12 @@ export class WorldItemsDataAccess {
       }
     }
 
-    const created = await (Item as any).createDocuments(payload);
+    const created = await Item.createDocuments(payload);
 
     const result = {
-      folderId: folderDoc ? (folderDoc.id as string) : null,
-      folderName: folderDoc ? (folderDoc.name as string) : null,
-      created: (created ?? []).map((doc: any) => ({
+      folderId: folderDoc ? folderDoc.id : null,
+      folderName: folderDoc ? folderDoc.name : null,
+      created: (created ?? []).map(doc => ({
         id: doc.id,
         name: doc.name,
         type: doc.type,
@@ -226,7 +226,7 @@ export class WorldItemsDataAccess {
    * `img` is only included in the output object when the field is truthy — a
    * test asserts `not.toHaveProperty('img')` for items with an empty/null img.
    */
-  private summarizeItem(item: any): ItemSummary {
+  private summarizeItem(item: Item): ItemSummary {
     return {
       id: item.id ?? '',
       name: item.name ?? '',
@@ -241,11 +241,10 @@ export class WorldItemsDataAccess {
    * Find an Item-type folder by name or id from `game.folders`. Returns
    * `undefined` when none match (callers handle the missing-folder branch).
    */
-  private findItemFolder(nameOrId: string): any {
+  private findItemFolder(nameOrId: string): Folder | null {
     return (
-      (game as any).folders?.find(
-        (f: any) => f.type === 'Item' && (f.name === nameOrId || f.id === nameOrId)
-      ) ?? null
+      game.folders?.find(f => f.type === 'Item' && (f.name === nameOrId || f.id === nameOrId)) ??
+      null
     );
   }
 
@@ -269,11 +268,12 @@ export class WorldItemsDataAccess {
    * Find an existing Item folder by name-or-id, or create a bare one when none
    * exists. Returns the folder document (always has `.id` + `.name`).
    */
-  private async resolveOrCreateItemFolder(nameOrId: string): Promise<any> {
+  private async resolveOrCreateItemFolder(nameOrId: string): Promise<Folder> {
     const existing = this.findItemFolder(nameOrId);
     if (existing) return existing;
 
-    return (Folder as any).create({ name: nameOrId, type: 'Item', parent: null });
+    // Foundry resolves a created folder here; the declaration allows `undefined` for a vetoed create.
+    return Folder.create({ name: nameOrId, type: 'Item', parent: null }) as Promise<Folder>;
   }
 
   /**
@@ -282,7 +282,7 @@ export class WorldItemsDataAccess {
    * accepted). Used by {@link createWorldItems} to validate input.
    */
   private resolveValidItemTypes(): string[] | null {
-    const itemDocTypes = (game as any).system?.documentTypes?.Item;
+    const itemDocTypes: Record<string, unknown> | undefined = game.system?.documentTypes?.Item;
     if (itemDocTypes && typeof itemDocTypes === 'object') {
       return Object.keys(itemDocTypes);
     }

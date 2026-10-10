@@ -240,6 +240,9 @@ restic restore latest --target E:\Restore --include /var/lib/foundry/Data/worlds
 restic restore <snapshot-id> --target E:\Restore --include /etc/foundry-ai-tool/<file>
 ```
 
+If the Pi itself is down on game night, these copies are what [Plan B](PLAN-B.md) runs Foundry from on
+this PC.
+
 Copy a restored world to the Pi only with Foundry stopped, and keep the owner `foundry:foundry`
 (`chown -R foundry:foundry` on the world folder); both steps need your OK under the Pi safety rule.
 

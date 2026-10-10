@@ -12,6 +12,7 @@ import {
   ModuleHelloFrameSchema,
   ModuleRequestFrameSchema,
   type BridgeHelloData,
+  type BridgeQueryOptions,
   type ModuleHelloData,
   type ModuleReplyData,
   type ModuleRequestData,
@@ -36,7 +37,7 @@ export function foundryLinkBindHost(env: NodeJS.ProcessEnv = process.env): strin
 }
 
 interface PendingQuery {
-  resolve: (value: any) => void;
+  resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
   /** The WebSocket the query was sent on. */
@@ -58,9 +59,8 @@ export const LINK_DOWN_WARN_MS = 5 * 60 * 1000;
 /** How often the link state is re-checked. */
 const LINK_WATCH_INTERVAL_MS = 5000;
 
-export interface QueryOptions {
-  timeoutMs?: number;
-}
+/** Per-query options; the shared contract's {@link BridgeQueryOptions}. */
+export type QueryOptions = BridgeQueryOptions;
 
 /**
  * Runs one tool for a `module-request` frame (the backend wires in the same
@@ -522,7 +522,7 @@ export class FoundryConnector {
     return Promise.resolve();
   }
 
-  async query(method: string, data?: any, options: QueryOptions = {}): Promise<any> {
+  async query(method: string, data?: unknown, options: QueryOptions = {}): Promise<unknown> {
     const isConnected = this.foundrySocket?.readyState === WebSocket.OPEN;
 
     if (!isConnected) {

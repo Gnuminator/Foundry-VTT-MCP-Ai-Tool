@@ -28,19 +28,21 @@
 import { randomBytes } from 'crypto';
 
 import {
-  GUARDED_OP_KINDS,
+  type BridgeAnswer,
   expectedAfterApply,
-  inverseGuardedOp,
-  isNoOpResult,
+  GUARDED_OP_KINDS,
   type GuardedApplyOutcome,
   type GuardedApplyRequest,
   type GuardedApplyResult,
   type GuardedFeatureState,
   type GuardedOp,
   type GuardedRisk,
+  inverseGuardedOp,
+  isNoOpResult,
   type OpSnapshot,
   type PathValue,
   type RulesVersion,
+  unwrapBridgeReply,
 } from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
@@ -100,6 +102,17 @@ export interface VaultDeleteOp {
 
 export type VaultOp = VaultSetOp | VaultDeleteOp;
 
+/**
+ * A GM vault value the plan was built on, e.g. the id of the Tarokka reading a reveal is for.
+ * Never written: no diff line, nothing in the audit entry, nothing to undo. The apply refuses
+ * when it changed since, like a vault op whose before-value changed.
+ */
+export interface VaultCheck {
+  file: string;
+  path: string;
+  value: unknown;
+}
+
 export interface PlanInput {
   feature: string;
   summary: string;
@@ -107,6 +120,11 @@ export interface PlanInput {
   ops?: GuardedOp[];
   /** GM vault ops. With `ops` too, both parts are applied and undone together. */
   vaultOps?: VaultOp[];
+  /**
+   * Vault values the plan depends on (pins). `createPlan` refuses when one already differs (the
+   * caller read it earlier); the apply refuses, writing nothing, when one changed since.
+   */
+  vaultChecks?: VaultCheck[];
   rulesVersion?: RulesVersion;
   /**
    * Raise the plan to destructive (second confirmation) even without deletes,
@@ -173,6 +191,8 @@ interface StoredPlan extends PlanView {
   expected: OpSnapshot[];
   vaultOps: VaultOp[];
   vaultExpected: PathValue[];
+  /** Pinned vault values (`PlanInput.vaultChecks`), checked again at apply. */
+  vaultChecks: Array<{ file: string; expected: PathValue }>;
   rulesVersion?: RulesVersion;
   showToPlayers?: { uuid: string; users: string[] };
   undoes?: { actions?: string[]; changes?: string[] };
@@ -258,14 +278,6 @@ function newId(prefix: string, now: number): string {
   return `${prefix}-${now.toString(36)}-${randomBytes(4).toString('hex')}`;
 }
 
-function unwrap<T>(response: unknown, what: string): T {
-  const r = response as { success?: unknown; error?: unknown } | null | undefined;
-  if (r && typeof r === 'object' && r.success === false) {
-    throw new Error(`${what}: ${typeof r.error === 'string' ? r.error : 'refused by Foundry'}`);
-  }
-  return response as T;
-}
-
 function validateShowToPlayers(show: unknown): { uuid: string; users: string[] } {
   const { uuid, users } = (show ?? {}) as { uuid?: unknown; users?: unknown };
   if (
@@ -312,6 +324,23 @@ function validateVaultOps(ops: unknown): VaultOp[] {
     }
   }
   return ops as VaultOp[];
+}
+
+function validateVaultChecks(checks: unknown): VaultCheck[] {
+  if (!Array.isArray(checks)) throw new Error('vaultChecks must be a list');
+  if (checks.length > MAX_OPS) throw new Error(`A plan may hold at most ${MAX_OPS} vault checks`);
+  for (const check of checks as VaultCheck[]) {
+    if (!check || typeof check !== 'object') throw new Error('A vault check needs file and path');
+    assertFileName(check.file);
+    if (!check.file.endsWith('.json'))
+      throw new Error(`Vault checks read .json files: ${check.file}`);
+    if (RESERVED_VAULT_FILES.has(check.file)) throw new Error(`Reserved vault file: ${check.file}`);
+    parseDataPath(check.path);
+    if (check.value === undefined) {
+      throw new Error(`A vault check needs a value (${check.file} ${check.path})`);
+    }
+  }
+  return checks as VaultCheck[];
 }
 
 /** The value a vault op leaves at its path. */
@@ -513,13 +542,14 @@ export class GuardedWriteService {
       input.showToPlayers === undefined ? undefined : validateShowToPlayers(input.showToPlayers);
     const ops = input.ops === undefined ? [] : validateFoundryOps(input.ops);
     const vaultOps = input.vaultOps === undefined ? [] : validateVaultOps(input.vaultOps);
+    const checks = input.vaultChecks === undefined ? [] : validateVaultChecks(input.vaultChecks);
     const worldId = await this.worldIds.current();
     const createdMs = this.now();
 
     const diff: DiffLine[] = [];
     let expected: OpSnapshot[] = [];
     if (ops.length > 0) {
-      expected = unwrap<OpSnapshot[]>(
+      expected = unwrapBridgeReply(
         await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', { ops }),
         'Snapshot refused'
       );
@@ -527,6 +557,19 @@ export class GuardedWriteService {
         throw new Error('Foundry returned an unexpected snapshot');
       }
       diff.push(...foundryDiff(ops, expected, input.pathLabels));
+    }
+    // The caller read its pinned values before the Foundry round trip: they must still hold.
+    const vaultChecks: StoredPlan['vaultChecks'] = [];
+    for (const check of checks) {
+      const expectedValue: PathValue = { path: check.path, present: true, value: check.value };
+      const current = await this.store.read(worldId, 'gm', check.file);
+      if (!current) throw new Error(`Conflict: ${check.file} is missing; plan it again`);
+      if (!samePathValue(readDataPath(current?.data, check.path), expectedValue)) {
+        throw new Error(
+          `Conflict: ${check.file} ${check.path} changed while the plan was made; plan it again`
+        );
+      }
+      vaultChecks.push({ file: check.file, expected: expectedValue });
     }
     const vaultExpected: PathValue[] = [];
     for (const [i, op] of vaultOps.entries()) {
@@ -605,6 +648,7 @@ export class GuardedWriteService {
       expected,
       vaultOps,
       vaultExpected,
+      vaultChecks,
       createdMs,
       ...(input.rulesVersion ? { rulesVersion: input.rulesVersion } : {}),
       ...(showToPlayers ? { showToPlayers } : {}),
@@ -735,13 +779,21 @@ export class GuardedWriteService {
     if (plan.feature === UNDO_FEATURE && (plan.undoes?.changes?.length ?? 0) > 0) {
       await this.requireRedoSwitches(await this.audit.ring(worldId), plan.undoes?.changes ?? []);
     }
+    // Pinned values go first, as records that leave their value as it is: a check that no longer
+    // holds refuses the whole change, and the audit entry keeps only the real vault ops.
+    const checks: VaultOpRecord[] = plan.vaultChecks.map(c => ({
+      file: c.file,
+      path: c.expected.path,
+      before: c.expected,
+      after: c.expected,
+    }));
     // Vault part: feature switch + conflict check before anything is written.
     let vault: PreparedVaultWrite | null = null;
-    if (records.length > 0) {
+    if (records.length > 0 || checks.length > 0) {
       await this.requireFeatureEnabled(plan.feature);
       vault = await this.prepareVaultWrite(
         worldId,
-        records,
+        [...checks, ...records],
         r => r.before,
         r => r.after
       );
@@ -790,7 +842,7 @@ export class GuardedWriteService {
     users: string[];
   }): Promise<NonNullable<AppliedChange['shown']>> {
     try {
-      unwrap<unknown>(
+      unwrapBridgeReply(
         await this.foundry.query(
           'foundry-mcp-bridge.showJournalPage',
           { uuid: show.uuid, userIds: show.users },
@@ -949,7 +1001,7 @@ export class GuardedWriteService {
   }
 
   private async executeInFoundry(request: GuardedApplyRequest): Promise<GuardedApplyResult> {
-    let response: unknown;
+    let response: BridgeAnswer<'foundry-mcp-bridge.applyGuardedOps'>;
     try {
       response = await this.foundry.query('foundry-mcp-bridge.applyGuardedOps', request, {
         timeoutMs: this.applyTimeoutMs,
@@ -964,7 +1016,7 @@ export class GuardedWriteService {
       return this.awaitApplyOutcome(request);
     }
     return this.checkApplyResult(
-      unwrap<GuardedApplyResult>(response, 'Foundry refused the change'),
+      unwrapBridgeReply(response, 'Foundry refused the change'),
       request
     );
   }
@@ -996,7 +1048,7 @@ export class GuardedWriteService {
       await sleep(this.outcomePollIntervalMs);
       let outcome: GuardedApplyOutcome | null = null;
       try {
-        const response = unwrap<GuardedApplyOutcome | null>(
+        const response = unwrapBridgeReply(
           await this.foundry.query('foundry-mcp-bridge.guardedApplyOutcome', {
             changeId: request.changeId,
           }),
@@ -1071,6 +1123,15 @@ export class GuardedWriteService {
 
   private async commitVaultWrite(worldId: string, vault: PreparedVaultWrite): Promise<void> {
     for (const [file, before] of vault.current) {
+      if (stableStringify(vault.simulated.get(file)) === stableStringify(before?.data)) {
+        // Only checked (a pin), nothing to write: compare again instead of rewriting the file,
+        // which would only churn the Obsidian mirror.
+        const now = await this.store.read(worldId, 'gm', file);
+        if (stableStringify(now?.data) !== stableStringify(before?.data)) {
+          throw new Error(`${file} changed during the write`);
+        }
+        continue;
+      }
       await this.store.update(worldId, 'gm', file, before?.schema ?? 1, envelope => {
         if (stableStringify(envelope?.data) !== stableStringify(before?.data)) {
           throw new Error(`${file} changed during the write`);
@@ -1092,7 +1153,7 @@ export class GuardedWriteService {
    */
   async autoApplyEnabled(feature: string): Promise<boolean> {
     try {
-      const features = unwrap<GuardedFeatureState[]>(
+      const features = unwrapBridgeReply(
         await this.foundry.query('foundry-mcp-bridge.listGuardedFeatures'),
         'Feature list refused'
       );
@@ -1119,7 +1180,7 @@ export class GuardedWriteService {
   private async requireFeatureEnabled(feature: string, undo = false): Promise<void> {
     let features: GuardedFeatureState[];
     try {
-      features = unwrap<GuardedFeatureState[]>(
+      features = unwrapBridgeReply(
         await this.foundry.query('foundry-mcp-bridge.listGuardedFeatures'),
         'Feature list refused'
       );

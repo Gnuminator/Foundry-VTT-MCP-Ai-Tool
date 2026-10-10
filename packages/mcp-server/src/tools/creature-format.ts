@@ -113,6 +113,30 @@ export function spellSchoolName(school: unknown): string | undefined {
     : school;
 }
 
+const ITEM_RARITY_LABELS: Readonly<Record<string, string>> = {
+  common: 'Common',
+  uncommon: 'Uncommon',
+  rare: 'Rare',
+  veryrare: 'Very Rare',
+  legendary: 'Legendary',
+  artifact: 'Artifact',
+};
+
+/**
+ * An item rarity as a display label. dnd5e keys it in camel case (`veryRare`; verified
+ * against `CONFIG.DND5E.itemRarity` in dnd5e 6.0.5). Pack data stores the string
+ * `rarity`; dnd5e 6 source data holds a `rarities` list, so an array reads its first
+ * entry, as the system's `rarity` getter does. Anything else comes back unchanged.
+ */
+export function itemRarityLabel(rarity: unknown): string | undefined {
+  const value: unknown = Array.isArray(rarity) ? rarity[0] : rarity;
+  if (typeof value !== 'string' || value.trim() === '') return undefined;
+  const key = value.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(ITEM_RARITY_LABELS, key)
+    ? ITEM_RARITY_LABELS[key]
+    : value;
+}
+
 function speedValue(value: unknown): number | string | undefined {
   if (typeof value === 'number') return value > 0 ? value : undefined;
   if (typeof value === 'string' && value.trim() !== '' && value.trim() !== '0') return value.trim();
@@ -175,4 +199,45 @@ export function weaponDamageSummary(system: unknown): string | undefined {
     return `${String(parts[0][0])} ${String(parts[0][1])} damage`;
   }
   return undefined;
+}
+
+/** dnd5e 6 `CONFIG.DND5E.armorTypes` keys: armor and shields are `equipment` items. */
+const ARMOR_TYPES = new Set(['light', 'medium', 'heavy', 'natural', 'shield']);
+
+/** The armor type of an `equipment` item's system data (dnd5e 6 `type.value`), else undefined. */
+function armorType(system: unknown): string | undefined {
+  const value = asRecord(asRecord(system)?.type)?.value;
+  return typeof value === 'string' && ARMOR_TYPES.has(value) ? value : undefined;
+}
+
+/** True when an `equipment` item's system data is armor or a shield. */
+export function isArmorEquipment(system: unknown): boolean {
+  return armorType(system) !== undefined;
+}
+
+/** "AC 16" for armor, "AC +2" for a shield; undefined for other equipment. */
+export function armorClassSummary(system: unknown): string | undefined {
+  const type = armorType(system);
+  const ac = asRecord(asRecord(system)?.armor)?.value;
+  if (!type || !positiveNumber(ac)) return undefined;
+  return `AC ${type === 'shield' ? '+' : ''}${String(ac)}`;
+}
+
+/**
+ * Armor details of an `equipment` item's system data: type, the `armor` block (value, dex,
+ * magicalBonus), the strength requirement and stealth disadvantage (a dnd5e 6 item property).
+ * Undefined for equipment that is not armor.
+ */
+export function armorProperties(system: unknown): Record<string, unknown> | undefined {
+  const type = armorType(system);
+  if (!type) return undefined;
+  const sys = asRecord(system);
+  const props = sys?.properties;
+  const tags: unknown[] = Array.isArray(props) ? props : props instanceof Set ? [...props] : [];
+  return {
+    armorType: type,
+    ...(sys?.armor ? { armorClass: sys.armor } : {}),
+    ...(positiveNumber(sys?.strength) ? { strengthRequirement: sys?.strength } : {}),
+    ...(tags.includes('stealthDisadvantage') ? { stealthDisadvantage: true } : {}),
+  };
 }

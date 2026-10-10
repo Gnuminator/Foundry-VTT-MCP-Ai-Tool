@@ -26,7 +26,62 @@ import type {
  * text matching. The {@link PersistentCreatureIndex} is injected so the index can
  * be built/queried without the facade.
  */
+/**
+ * dnd5e 6 Item fields the server's search summaries read (spell level and school, weapon
+ * damage, armor type and AC, rarity, price). dnd5e's own index holds only `container`,
+ * `identifier` and `source`, so they are requested for an Item pack once a search matches
+ * a name in it. Rarity is `rarity` in older pack data and the `rarities` list in data
+ * written by dnd5e 6.
+ */
+export const ITEM_SUMMARY_FIELDS = [
+  'system.level',
+  'system.school',
+  'system.damage.base',
+  'system.type.value',
+  'system.armor.value',
+  'system.rarity',
+  'system.rarities',
+  'system.price',
+];
+
+/**
+ * How long a search waits for the summary fields. The bridge's query timeout is 10 s, and a
+ * common word ("potion") on a licensed world can match most Item packs, which a slow host
+ * (the Pi) may not re-index in time. Past the budget the search returns the plain entries;
+ * Foundry still finishes the requests, so the next search has the summaries.
+ */
+export const SUMMARY_FIELDS_BUDGET_MS = 4000;
+
+/**
+ * Packs indexed at once when a search finds some without an index. Foundry indexes every pack
+ * when the world loads, so this is mostly packs added or re-created since; the cap keeps a
+ * slow host from getting one request per pack in the same moment.
+ */
+export const INDEX_CONCURRENCY = 6;
+
+/** The parts of a compendium pack the index search reads. */
+interface IndexedPack {
+  metadata: { id: string; type: string };
+  indexed: boolean;
+  getIndex(options: { fields?: string[] }): Promise<unknown>;
+}
+
+/** A pack as the name search walks it. */
+interface SearchPack extends IndexedPack {
+  metadata: { id: string; type: string; label: string };
+  index: { values(): Iterable<unknown>; get(id: string): unknown };
+}
+
+/** A pack and the index entries whose names matched. */
+interface PackHits {
+  pack: SearchPack;
+  entries: Array<{ _id?: string }>;
+}
+
 export class CompendiumDataAccess {
+  /** Summary field requests still running, by pack id: concurrent searches share one. */
+  private summaryInFlight = new Map<string, Promise<void>>();
+
   constructor(private persistentIndex: PersistentCreatureIndex) {}
 
   /**
@@ -81,14 +136,12 @@ export class CompendiumDataAccess {
       throw new Error('Search query must contain valid search terms');
     }
 
-    const results: CompendiumSearchResult[] = [];
-
-    for (const pack of this.searchablePacks(packType)) {
+    // Name matches against each pack's plain index, at most 100 in all
+    const hits: PackHits[] = [];
+    let found = 0;
+    for (const pack of await this.loadIndexes(this.searchablePacks(packType))) {
+      const entries: PackHits['entries'] = [];
       try {
-        if (!pack.indexed) {
-          await pack.getIndex({});
-        }
-
         for (const entry of Array.from(pack.index.values())) {
           try {
             const typedEntry = entry as any;
@@ -114,7 +167,8 @@ export class CompendiumDataAccess {
               continue;
             }
 
-            results.push(this.toIndexResult(typedEntry, pack));
+            entries.push(entry as PackHits['entries'][number]);
+            found += 1;
           } catch (entryError) {
             console.warn(
               `[${MODULE_ID}] Error processing entry in pack ${pack.metadata.id}:`,
@@ -123,13 +177,38 @@ export class CompendiumDataAccess {
             continue;
           }
 
-          if (results.length >= 100) break;
+          if (found >= 100) break;
         }
       } catch (error) {
         console.warn(`[${MODULE_ID}] Failed to search pack ${pack.metadata.id}:`, error);
       }
 
-      if (results.length >= 100) break;
+      if (entries.length > 0) hits.push({ pack, entries });
+      if (found >= 100) break;
+    }
+
+    // Summary fields only for the Item packs that matched, all at once, within the budget
+    const itemPacks = hits.filter(hit => hit.pack.metadata.type === 'Item').map(hit => hit.pack);
+    if (itemPacks.length > 0) {
+      const loaded = await withinBudget(
+        Promise.all(itemPacks.map(pack => this.loadSummaryFields(pack))),
+        SUMMARY_FIELDS_BUDGET_MS
+      );
+      if (!loaded) {
+        console.warn(
+          `[${MODULE_ID}] Summary fields for ${itemPacks.length} pack(s) took over ` +
+            `${SUMMARY_FIELDS_BUDGET_MS} ms; returning plain entries (the next search has them)`
+        );
+      }
+    }
+
+    const results: CompendiumSearchResult[] = [];
+    for (const { pack, entries } of hits) {
+      for (const entry of entries) {
+        // A fresh index may hold a new object for the entry; the old one still has the name
+        const indexed = pack.index.get(entry._id ?? '') ?? entry;
+        results.push(this.toIndexResult(indexed, pack));
+      }
     }
 
     results.sort((a, b) => this.compareSearchResults(a, b, filters, query));
@@ -137,7 +216,7 @@ export class CompendiumDataAccess {
   }
 
   /** Packs eligible for a search: type-matched (when given) and never Scenes. */
-  private searchablePacks(packType?: string): any[] {
+  private searchablePacks(packType?: string): SearchPack[] {
     return Array.from(game.packs.values()).filter(pack => {
       if (packType && pack.metadata.type !== packType) return false;
       return pack.metadata.type !== 'Scene';
@@ -148,6 +227,46 @@ export class CompendiumDataAccess {
   private nameMatchesAllTerms(name: string, searchTerms: string[]): boolean {
     const lower = name.toLowerCase();
     return searchTerms.every(term => !!term && typeof term === 'string' && lower.includes(term));
+  }
+
+  /**
+   * The packs whose plain index is ready, indexing the others {@link INDEX_CONCURRENCY} at a
+   * time. A pack that fails to index is left out of the search.
+   */
+  private async loadIndexes(packs: SearchPack[]): Promise<SearchPack[]> {
+    const ready = await mapWithLimit(packs, INDEX_CONCURRENCY, async pack => {
+      try {
+        if (!pack.indexed) await pack.getIndex({});
+        return pack;
+      } catch (error) {
+        console.warn(`[${MODULE_ID}] Failed to index pack ${pack.metadata.id}:`, error);
+        return null;
+      }
+    });
+    return ready.filter((pack): pack is SearchPack => pack !== null);
+  }
+
+  /**
+   * Add {@link ITEM_SUMMARY_FIELDS} to an Item pack's index. Foundry returns at once when
+   * the pack already holds them, and asks again after anything replaced its indexed
+   * fields, so no cache is kept here; a request still running is shared. On failure the
+   * results keep their plain entries.
+   */
+  private loadSummaryFields(pack: IndexedPack): Promise<void> {
+    const id = pack.metadata.id;
+    const running = this.summaryInFlight.get(id);
+    if (running) return running;
+    const request = (async (): Promise<void> => {
+      try {
+        await pack.getIndex({ fields: ITEM_SUMMARY_FIELDS });
+      } catch (error) {
+        console.warn(`[${MODULE_ID}] No summary fields for pack ${id}:`, error);
+      } finally {
+        this.summaryInFlight.delete(id);
+      }
+    })();
+    this.summaryInFlight.set(id, request);
+    return request;
   }
 
   /** Build a search result from a pack index entry. */
@@ -162,6 +281,9 @@ export class CompendiumDataAccess {
       description: typedEntry.description || '',
       hasImage: !!typedEntry.img,
       summary: `${typedEntry.type} from ${pack.metadata.label}`,
+      ...((pack as IndexedPack).metadata.type === 'Item'
+        ? { system: summarySystem((typedEntry as { system?: unknown }).system) }
+        : {}),
     };
   }
 
@@ -218,9 +340,9 @@ export class CompendiumDataAccess {
     return a.name.localeCompare(b.name);
   }
 
-  /** Only NPC/creature entries with at least one defined filter are worth filtering. */
+  /** Only dnd5e 6 actor entries (npc, character) with a defined filter are worth filtering. */
   private shouldApplyFilters(entry: any, filters: any): boolean {
-    if (entry.type !== 'npc' && entry.type !== 'character' && entry.type !== 'creature') {
+    if (entry.type !== 'npc' && entry.type !== 'character') {
       return false;
     }
     return Object.keys(filters).some(key => filters[key] !== undefined);
@@ -605,4 +727,46 @@ export class CompendiumDataAccess {
 
     return fullEntry;
   }
+}
+
+/** True when `work` settles within `ms`; false when the budget ran out first. */
+async function withinBudget(work: Promise<unknown>, ms: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<false>(resolve => {
+    timer = setTimeout(() => resolve(false), ms);
+  });
+  try {
+    return await Promise.race([work.then(() => true), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** `items.map(fn)` with at most `limit` calls running at once; results keep the input order. */
+async function mapWithLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+/** The {@link ITEM_SUMMARY_FIELDS} of an Item index entry's `system` (no source or identifier). */
+function summarySystem(system: unknown): Record<string, unknown> {
+  const sys =
+    system !== null && typeof system === 'object' ? (system as Record<string, unknown>) : {};
+  const out: Record<string, unknown> = {};
+  for (const key of ['level', 'school', 'damage', 'type', 'armor', 'rarity', 'rarities', 'price']) {
+    if (sys[key] !== undefined && sys[key] !== null) out[key] = sys[key];
+  }
+  return out;
 }

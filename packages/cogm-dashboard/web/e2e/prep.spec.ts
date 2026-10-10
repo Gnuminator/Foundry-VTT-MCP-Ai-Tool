@@ -3,7 +3,7 @@
 // empty and failed states, and the jump to Pre-flight.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok, fromMenu } from './support';
 
 const DIGEST = {
   schema: 1,
@@ -72,7 +72,7 @@ const ALL_BEATS = { ...DIGEST, action: 'last-session' };
 
 async function openPrep(page: Page): Promise<Locator> {
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-prep').click();
+  await fromMenu(page, 'btn-prep');
   const drawer = page.getByRole('dialog', { name: '📋 Prep' });
   await expect(drawer).toBeVisible();
   return drawer;
@@ -265,11 +265,10 @@ test('"Open Pre-flight" swaps to the Pre-flight drawer; Escape closes Prep', asy
   await drawer.getByRole('button', { name: 'Open Pre-flight' }).click();
   await expect(drawer).toBeHidden();
   await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeVisible();
-  await expect(page.locator('#btn-prep')).toHaveAttribute('aria-expanded', 'false');
 
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeHidden();
-  await page.locator('#btn-prep').click();
+  await fromMenu(page, 'btn-prep');
   await expect(drawer).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();

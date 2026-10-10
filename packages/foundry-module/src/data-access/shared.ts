@@ -1,4 +1,5 @@
 import { MODULE_ID, TOKEN_DISPOSITIONS } from '../constants.js';
+import { rec } from '../character-sheet-fields.js';
 
 /**
  * Cross-cutting data-access helpers, as stateless free functions.
@@ -15,13 +16,15 @@ import { MODULE_ID, TOKEN_DISPOSITIONS } from '../constants.js';
  * fields and round-trip through a getter-safe JSON serializer. Returns `{}` on
  * failure rather than throwing.
  */
-export function sanitizeData(data: any): any {
+export function sanitizeData(data: unknown): Record<string, unknown> {
+  // Typed as an object for the callers (a `system`, `flags`...); a null or primitive passes
+  // through unchanged.
   if (data === null || data === undefined) {
-    return data;
+    return data as unknown as Record<string, unknown>;
   }
 
   if (typeof data !== 'object') {
-    return data;
+    return data as unknown as Record<string, unknown>;
   }
 
   try {
@@ -30,7 +33,7 @@ export function sanitizeData(data: any): any {
 
     // Use custom JSON serializer to avoid deprecated property warnings
     const jsonString = safeJSONStringify(sanitized);
-    return JSON.parse(jsonString);
+    return JSON.parse(jsonString) as Record<string, unknown>;
   } catch (error) {
     console.warn(`[${MODULE_ID}] Failed to sanitize data:`, error);
     return {};
@@ -42,10 +45,10 @@ export function sanitizeData(data: any): any {
  * Returns a sanitized copy instead of modifying the original.
  */
 export function removeSensitiveFields(
-  obj: any,
+  obj: unknown,
   visited: WeakSet<object> = new WeakSet(),
   depth: number = 0
-): any {
+): unknown {
   // Handle primitives
   if (obj === null || typeof obj !== 'object') {
     return obj;
@@ -68,15 +71,32 @@ export function removeSensitiveFields(
   try {
     // Handle arrays
     if (Array.isArray(obj)) {
-      return obj.map(item => removeSensitiveFields(item, visited, depth + 1));
+      return (obj as unknown[]).map((item): unknown =>
+        removeSensitiveFields(item, visited, depth + 1)
+      );
+    }
+
+    // dnd5e 6 keeps item `properties` in a Set and `activities` in a Collection (a Map), which
+    // JSON turns into `{}`: a Set becomes an array, a Map the array of its values (their
+    // `toJSON()`, so a document's parent links are never walked).
+    if (obj instanceof Set) {
+      return [...(obj as Set<unknown>)].map((item): unknown =>
+        removeSensitiveFields(item, visited, depth + 1)
+      );
+    }
+    if (obj instanceof Map) {
+      return [...(obj as Map<unknown, unknown>).values()].map((item): unknown =>
+        removeSensitiveFields(toJSONOrSelf(item), visited, depth + 1)
+      );
     }
 
     // Create a new sanitized object
-    const sanitized: any = {};
+    const sanitized: Record<string, unknown> = {};
 
     // Use Object.keys (does not invoke getters) so we can filter deprecated
     // accessor properties before reading their values.
     const keys = Object.keys(obj);
+    const source = obj as Record<string, unknown>;
 
     // dnd5e 5.3 moved senses.darkvision/blindsight/tremorsense/truesight to
     // senses.ranges.*. The legacy keys remain as deprecated getters that
@@ -84,6 +104,7 @@ export function removeSensitiveFields(
     const DEPRECATED_DND5E_SENSE_KEYS = ['darkvision', 'blindsight', 'tremorsense', 'truesight'];
     const isDnd5eSensesShape =
       keys.includes('ranges') && keys.some(k => DEPRECATED_DND5E_SENSE_KEYS.includes(k));
+    const skipAbilitySave = isAbilityShape(obj);
 
     for (const key of keys) {
       // Skip sensitive and problematic fields entirely
@@ -102,8 +123,12 @@ export function removeSensitiveFields(
         continue;
       }
 
+      if (skipAbilitySave && key === 'save') {
+        continue;
+      }
+
       // Recursively sanitize the value (read only after filter to avoid getter-triggered warnings)
-      sanitized[key] = removeSensitiveFields(obj[key], visited, depth + 1);
+      sanitized[key] = removeSensitiveFields(source[key], visited, depth + 1);
     }
 
     return sanitized;
@@ -147,28 +172,29 @@ export function isSensitiveOrProblematicField(key: string): boolean {
     'advancement',
   ];
 
-  // Skip deprecated ability save properties that trigger warnings
-  const deprecatedKeys = [
-    'save', // Skip the deprecated 'save' property on abilities
-  ];
+  return sensitiveKeys.includes(key) || problematicKeys.includes(key);
+}
 
-  return (
-    sensitiveKeys.includes(key) || problematicKeys.includes(key) || deprecatedKeys.includes(key)
-  );
+/**
+ * Whether an object is an actor ability entry (`abilities.str`: `value`, `proficient` and
+ * `save`), whose legacy `save` accessor warned when read. Only that `save` is skipped; an
+ * activity's `save` ({ ability, dc }) is kept.
+ */
+export function isAbilityShape(obj: unknown): boolean {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return false;
+  const keys = Object.keys(obj);
+  return keys.includes('save') && keys.includes('value') && keys.includes('proficient');
 }
 
 /**
  * Custom JSON serializer that drops deprecated Foundry accessor properties
  * (e.g. the legacy ability `save`) so reading them never logs warnings.
  */
-export function safeJSONStringify(obj: any): string {
+export function safeJSONStringify(obj: unknown): string {
   try {
-    return JSON.stringify(obj, (key, value) => {
-      // Skip deprecated properties during JSON serialization
-      if (key === 'save' && typeof value === 'object' && value !== null) {
-        // If this looks like a deprecated ability save object, skip it
-        return undefined;
-      }
+    return JSON.stringify(obj, function (this: unknown, key: string, value: unknown) {
+      // Skip the legacy ability `save` (the holder is an ability entry), keep every other `save`
+      if (key === 'save' && isAbilityShape(this)) return undefined;
       return value;
     });
   } catch (error) {
@@ -178,7 +204,7 @@ export function safeJSONStringify(obj: any): string {
 }
 
 /** Coerce a token disposition to a number, defaulting to neutral. */
-export function getTokenDisposition(disposition: any): number {
+export function getTokenDisposition(disposition: unknown): number {
   if (typeof disposition === 'number') {
     return disposition;
   }
@@ -203,7 +229,7 @@ export function validateFoundryState(): void {
 }
 
 /** Resolve an actor by id, exact name, or partial name match. */
-export function findActorByIdentifier(identifier: string): any {
+export function findActorByIdentifier(identifier: string): Actor | undefined {
   return (
     game.actors?.get(identifier) ??
     game.actors?.getName(identifier) ??
@@ -213,19 +239,14 @@ export function findActorByIdentifier(identifier: string): any {
   );
 }
 
-/** The parts of a scene and its tokens that {@link findSceneTokenActor} reads. */
-interface TargetScene {
-  tokens: { contents: { id?: string; name?: string; actorId?: string; actor?: unknown }[] };
-}
-
 /**
  * Resolve a damage/roll target to an Actor. Prefers a token on the current
  * scene (so unlinked NPC tokens use their own synthetic actor/HP), then the one
  * token on that scene made from the world actor named or id'd (the dashboard's
  * actor picker sends ids), then falls back to that world actor.
  */
-export function resolveTargetActor(identifier: string): any {
-  const worldActor = findActorByIdentifier(identifier) as { id?: string } | undefined;
+export function resolveTargetActor(identifier: string): Actor | undefined {
+  const worldActor = findActorByIdentifier(identifier);
   return findSceneTokenActor(identifier, worldActor?.id) ?? worldActor;
 }
 
@@ -235,8 +256,12 @@ export function resolveTargetActor(identifier: string): any {
  * Several tokens from one actor are ambiguous: `undefined` then, so callers keep the
  * world actor. A linked token's actor is the world actor itself.
  */
-export function findSceneTokenActor(identifier: string, worldActorId?: string): unknown {
-  const scene = (game.scenes as unknown as { current?: TargetScene } | undefined)?.current;
+export function findSceneTokenActor(
+  identifier: string,
+  worldActorId?: string
+): Actor | null | undefined {
+  // `?.`: test mocks may have no scenes collection.
+  const scene = game.scenes?.current;
   if (!scene) return undefined;
   const tokens = scene.tokens.contents;
   const lower = identifier.toLowerCase();
@@ -258,7 +283,7 @@ export async function getOrCreateFolder(
 ): Promise<string | null> {
   try {
     // Look for existing folder
-    const existingFolder = game.folders?.find((f: any) => f.name === folderName && f.type === type);
+    const existingFolder = game.folders?.find(f => f.name === folderName && f.type === type);
 
     if (existingFolder) {
       return existingFolder.id;
@@ -341,15 +366,21 @@ export function rollToMessageOptions(
 }
 
 /** Names of an actor's active, status-bearing (non-disabled) condition effects. */
-export function actorConditionNames(actor: any): string[] {
+export function actorConditionNames(actor: Actor | null | undefined): string[] {
   if (!actor) return [];
   try {
     const effs = actor.effects?.contents ?? actor.effects ?? [];
     return effs
-      .filter((e: any) => (e.statuses?.size ?? 0) > 0 && !e.disabled)
-      .map((e: any) => e.name || e.label)
-      .filter((n: any): n is string => typeof n === 'string');
+      .filter(e => (e.statuses?.size ?? 0) > 0 && !e.disabled)
+      .map((e): unknown => e.name || rec(e).label)
+      .filter((n): n is string => typeof n === 'string');
   } catch {
     return [];
   }
+}
+
+/** A document or data model as its `toJSON()` (plain data, no parent links), else the value. */
+function toJSONOrSelf(value: unknown): unknown {
+  const toJSON = (value as { toJSON?: unknown } | null)?.toJSON;
+  return typeof toJSON === 'function' ? (toJSON as () => unknown).call(value) : value;
 }

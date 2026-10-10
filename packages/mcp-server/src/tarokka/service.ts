@@ -24,6 +24,7 @@
 import { randomBytes, randomInt } from 'crypto';
 
 import type { GuardedOp } from '@gnuminator/shared';
+import { unwrapBridgeReply } from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView, VaultOp } from '../guarded-write/service.js';
@@ -455,12 +456,10 @@ export class TarokkaService {
     if (pageUuid) probes.push({ kind: 'delete', uuid: pageUuid });
     const snapshots =
       probes.length > 0
-        ? (unwrap(
-            (await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', {
-              ops: probes,
-            })) as { success?: boolean },
+        ? (unwrapBridgeReply(
+            await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', { ops: probes }),
             'Snapshot refused'
-          ) as unknown as Array<{ exists?: boolean }>)
+          ) ?? [])
         : [];
     const journalExists = journalUuid ? snapshots[0]?.exists === true : false;
     const pageExists = pageUuid ? snapshots[journalUuid ? 1 : 0]?.exists === true : false;
@@ -556,6 +555,17 @@ export class TarokkaService {
           : `Reveal Tarokka ${label} to players (page "${title}")`,
       ops,
       ...(vaultOps.length > 0 ? { vaultOps } : {}),
+      // Pin the reading and this position's card: if either changes before the apply, this
+      // card's text must not go out (a fresh reading, or a re-import of the same deal with another
+      // card here, has the same before-values, and a re-reveal has no vault ops at all).
+      vaultChecks: [
+        { file: TAROKKA_FILE, path: 'current.readingId', value: current.readingId },
+        {
+          file: TAROKKA_FILE,
+          path: `current.positions.${position}.cardId`,
+          value: current.positions[position].cardId,
+        },
+      ],
       risk: 'destructive',
       ...(args.showNow ? { showToPlayers: { uuid: targetPageUuid, users: [] } } : {}),
     });

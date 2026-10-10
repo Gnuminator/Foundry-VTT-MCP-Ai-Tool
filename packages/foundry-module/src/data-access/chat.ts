@@ -1,5 +1,5 @@
 import * as shared from './shared.js';
-import { eventTracker } from '../session-events.js';
+import { eventTracker, type ChatLogEntry } from '../session-events.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,6 +27,16 @@ interface ChatMessageStyles {
 // Private helpers
 // ---------------------------------------------------------------------------
 
+/** What `sendChatMessage` reports back. */
+interface SendChatMessageResult {
+  success: true;
+  messageId: string | null;
+  speaker: string | null;
+  messageType: string;
+  whisperedTo: string[];
+  warning?: string;
+}
+
 /**
  * Resolve a speaker object for the chat message.
  *
@@ -36,10 +46,10 @@ interface ChatMessageStyles {
  * so the current user's display name appears in chat — `getSpeaker` does NOT
  * accept a `user` key, only `{ scene, actor, token, alias }`.
  */
-function resolveSpeaker(actor: any): any {
+function resolveSpeaker(actor: Actor | null): ChatSpeakerData {
   return actor
-    ? (ChatMessage as any).getSpeaker({ actor })
-    : (ChatMessage as any).getSpeaker({ alias: game.user?.name });
+    ? ChatMessage.getSpeaker({ actor })
+    : ChatMessage.getSpeaker({ alias: game.user?.name });
 }
 
 /**
@@ -52,8 +62,16 @@ function resolveSpeaker(actor: any): any {
  *   OTHER=0, OOC=1, IC=2, EMOTE=3
  */
 function resolveStyle(type: string): number {
-  const CMS: ChatMessageStyles =
-    (CONST as any).CHAT_MESSAGE_STYLES || (CONST as any).CHAT_MESSAGE_TYPES || {};
+  const consts = CONST as unknown as {
+    CHAT_MESSAGE_STYLES?: ChatMessageStyles;
+    CHAT_MESSAGE_TYPES?: ChatMessageStyles;
+  };
+  let CMS: ChatMessageStyles = {};
+  if (consts.CHAT_MESSAGE_STYLES) {
+    CMS = consts.CHAT_MESSAGE_STYLES;
+  } else if (consts.CHAT_MESSAGE_TYPES) {
+    CMS = consts.CHAT_MESSAGE_TYPES;
+  }
 
   switch (type) {
     case 'ooc':
@@ -80,15 +98,13 @@ function resolveWhisperTargets(targets: string[]): { ids: string[]; warning: str
   const ids: string[] = [];
 
   for (const name of targets) {
-    const user = game.users?.find((u: any) => u.name?.toLowerCase() === String(name).toLowerCase());
+    const user = game.users?.find(u => u.name?.toLowerCase() === String(name).toLowerCase());
     if (user?.id) ids.push(user.id);
   }
 
   if (ids.length === 0) {
     // No requested targets resolved — whisper to GM(s) to prevent public post.
-    const gmIds = (game.users?.filter((u: any) => u.isGM) ?? [])
-      .map((u: any) => u.id)
-      .filter(Boolean) as string[];
+    const gmIds = (game.users?.filter(u => u.isGM) ?? []).map(u => u.id).filter(Boolean);
     if (gmIds.length > 0) {
       return {
         ids: gmIds,
@@ -144,7 +160,7 @@ export class ChatDataAccess {
     speakerName?: string;
     messageType?: string;
     sinceTimestamp?: string;
-  }): Promise<any> {
+  }): Promise<{ success: true; count: number; messages: ChatLogEntry[] }> {
     shared.validateFoundryState();
 
     // Build the filters object by hand, omitting any key that is undefined.
@@ -184,7 +200,7 @@ export class ChatDataAccess {
     speakerActorName?: string;
     messageType?: string;
     whisperTargets?: string[];
-  }): Promise<any> {
+  }): Promise<SendChatMessageResult> {
     shared.validateFoundryState();
 
     // Validate early — empty string is also invalid.
@@ -193,12 +209,12 @@ export class ChatDataAccess {
     }
 
     // --- Resolve speaker actor ---
-    let actor: any = null;
+    let actor: Actor | null = null;
     if (data.speakerActorId) {
       actor = game.actors?.get(data.speakerActorId) ?? null;
     }
     if (!actor && data.speakerActorName) {
-      actor = shared.findActorByIdentifier(data.speakerActorName);
+      actor = shared.findActorByIdentifier(data.speakerActorName) ?? null;
     }
 
     const speaker = resolveSpeaker(actor);
@@ -222,14 +238,14 @@ export class ChatDataAccess {
     }
 
     // --- Create the ChatMessage document ---
-    const messageData: any = { content, speaker, style };
+    const messageData: Record<string, unknown> = { content, speaker, style };
     if (type === 'whisper') {
       // Never post a whisper without recipients (an empty array is public).
       if (whisper.length === 0) throw new Error('Refusing to post a whisper with no recipient');
       messageData.whisper = whisper;
     }
 
-    const created: any = await (ChatMessage as any).create(messageData);
+    const created = await ChatMessage.create(messageData);
 
     return {
       success: true,

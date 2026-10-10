@@ -525,6 +525,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.preflight.hide-tarokka',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/Preflight.tsx',
+  },
+  {
     name: 'dash.preflight.manual-tick',
     kind: 'action',
     surface: 'dashboard',

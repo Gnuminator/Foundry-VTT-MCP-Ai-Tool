@@ -103,7 +103,11 @@ lives in `web/` and is served at **`/next/`**, next to the old page at `/`, unti
 moved and the default switches. It uses Radix UI primitives (unstyled), TanStack Query for the
 data, and the old stylesheets and themes as they are (it links `styles.css`, `moments.css` and
 `themes/` from `public/`), so it looks the same. It talks to the same routes with the same GM
-token. Ported so far: Player links.
+token. Ported so far: Player links, Module diagnostics, Pre-flight (with Ready for session),
+Prep, Party, Handouts, Tarokka, the Tool runner and the Advanced menu (its panel and tool entries;
+Pre-flight stays in the header with its status). Still on the old page only: the Before / During /
+After views with docking, Combat Tracker, Live Feed, Recent Changes, the AI commentary and the
+header's session marker, GM Actions switch and theme picker.
 
 - `npm run build` also builds it (Vite) into `dist/web`; the server serves that folder at
   `/next/`. The Docker image and the Pi get it with the rest of `dist/`.

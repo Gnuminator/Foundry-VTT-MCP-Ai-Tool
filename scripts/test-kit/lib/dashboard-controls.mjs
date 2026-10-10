@@ -496,6 +496,11 @@ export const DASHBOARD_CONTROLS = [
     optional: true,
     why: 'only shown when the scan has findings',
   },
+  {
+    name: 'dash.preflight.hide-tarokka',
+    how: 'skip',
+    why: 'only on the new dashboard (/next/), while Show cards is ticked; e2e tarokka.spec covers it',
+  },
   { name: 'dash.ready.turn-on', how: 'write', why: 'turns the module switches and GM Actions on' },
   {
     name: 'dash.ready.turn-off',

@@ -29,14 +29,15 @@ export async function settleCreated(actor, label, deps) {
   const now = deps.now ?? (() => Date.now());
   const timeoutMs = deps.timeoutMs ?? 10000;
   const intervalMs = deps.intervalMs ?? 50;
-  const race = actor.itemTypes.race?.[0];
   // A spell uuid that resolves to nothing (a pack that is gone) never gets a cached copy: not waited for.
   const exists = new Map();
   const spellExists = async uuid => {
     if (!exists.has(uuid)) exists.set(uuid, !!(await resolveUuid(uuid)));
     return exists.get(uuid);
   };
-  const unlinked = () => !!race && actor._source.system.details?.race !== race.id;
+  // Read on every check: a species replaced mid-wait must link too, not the one seen first.
+  const species = () => actor.itemTypes.race?.[0];
+  const unlinked = race => !!race && actor._source.system.details?.race !== race.id;
   const uncached = async () => {
     const waiting = [];
     for (const item of actor.items.contents)
@@ -47,7 +48,8 @@ export async function settleCreated(actor, label, deps) {
   };
   const until = now() + timeoutMs;
   for (;;) {
-    const isUnlinked = unlinked();
+    const race = species();
+    const isUnlinked = unlinked(race);
     const waiting = await uncached();
     if (!isUnlinked && !waiting.length) return;
     if (now() > until) {

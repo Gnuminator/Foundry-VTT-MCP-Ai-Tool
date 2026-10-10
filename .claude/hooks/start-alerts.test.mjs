@@ -1,5 +1,5 @@
 // Tests for the SessionStart alerts hook (start-alerts.mjs): silent on a clean start, one line per
-// forced alert, at most nine lines, and nothing printed when the hook itself fails.
+// forced alert, at most ten lines, and nothing printed when the hook itself fails.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -15,7 +15,9 @@ import {
   lanesAlert,
   lockAlert,
   mainCheckout,
+  parseWaiting,
   readLockFile,
+  waitingAlert,
   watchdogAlert,
 } from './start-alerts.mjs';
 
@@ -143,6 +145,151 @@ test('lock: free is silent; held, old, unreadable and a waiting queue alert', ()
   }
 });
 
+const WAITING_NOTE = `---
+type: list
+---
+# Waiting on the user
+
+Intro text, not an item.
+
+## W2 Multi-person recorder test (dormant)
+- due: 2026-11-15
+- At session 0.
+
+## W6 Narrator ratings and GM video round 2 notes (G0 blocker, D-108)
+- due: 2026-10-11
+- (a) About 10 minutes.
+
+## W12b Held back until later
+- due: 2026-10-12
+- from: 2026-10-20
+- Text.
+
+## W3 Never printed
+- due: none
+- Text.
+
+## W9 No due line at all
+Just text.
+`;
+
+// Local noon, so the local calendar day is the same in every time zone.
+const DAY = (y, m, d) => new Date(y, m - 1, d, 12, 0, 0);
+
+function writeWaiting(f, text) {
+  mkdirSync(path.join(f.vault, 'Dev', 'Foundry AI Tool'), { recursive: true });
+  writeFileSync(path.join(f.vault, 'Dev', 'Foundry AI Tool', 'Waiting.md'), text);
+}
+
+test('waiting: parses headings with ids like 12b, due, none and from', () => {
+  assert.deepEqual(parseWaiting(WAITING_NOTE), [
+    { id: '2', title: 'Multi-person recorder test (dormant)', due: '2026-11-15', from: null },
+    {
+      id: '6',
+      title: 'Narrator ratings and GM video round 2 notes (G0 blocker, D-108)',
+      due: '2026-10-11',
+      from: null,
+    },
+    { id: '12b', title: 'Held back until later', due: '2026-10-12', from: '2026-10-20' },
+    { id: '3', title: 'Never printed', due: null, from: null },
+    { id: '9', title: 'No due line at all', due: null, from: null },
+  ]);
+  assert.deepEqual(parseWaiting(WAITING_NOTE.replace(/\n/g, '\r\n')).length, 5);
+  assert.deepEqual(parseWaiting(''), []);
+  assert.deepEqual(parseWaiting(null), []);
+});
+
+test('waiting: nothing due is silent; due within 7 days, today and overdue are labelled', () => {
+  const f = fixture();
+  try {
+    writeWaiting(f, WAITING_NOTE);
+    // 2026-10-03 is eight days before W6: not yet.
+    assert.equal(waitingAlert({ vaultDir: f.vault, now: DAY(2026, 10, 3) }), null);
+    // 2026-10-04 is seven days before: due, without a label.
+    assert.equal(
+      waitingAlert({ vaultDir: f.vault, now: DAY(2026, 10, 4) }),
+      'Waiting on the user (vault Waiting.md): W6 Narrator ratings and GM video round 2 note... (due 2026-10-11).'
+    );
+    assert.match(
+      waitingAlert({ vaultDir: f.vault, now: DAY(2026, 10, 11) }),
+      /\(due 2026-10-11, today\)\.$/
+    );
+    assert.match(
+      waitingAlert({ vaultDir: f.vault, now: DAY(2026, 10, 14) }),
+      /\(due 2026-10-11, overdue\)\.$/
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('waiting: a future from date holds the item back; sorted by due date, then id', () => {
+  const f = fixture();
+  try {
+    writeWaiting(f, WAITING_NOTE);
+    const held = waitingAlert({ vaultDir: f.vault, now: DAY(2026, 10, 12) });
+    assert.doesNotMatch(held, /W12b/);
+    const released = waitingAlert({ vaultDir: f.vault, now: DAY(2026, 10, 20) });
+    assert.match(
+      released,
+      /W6 .*overdue\), W12b Held back until later \(due 2026-10-12, overdue\)\.$/
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('waiting: more than four due shows four and the count; the line stays short', () => {
+  const f = fixture();
+  try {
+    const items = [1, 2, 3, 4, 5, 6]
+      .map(
+        n =>
+          `## W${n} A fairly long title for item number ${n} that gets clipped\n- due: 2026-10-0${n}\n`
+      )
+      .join('\n');
+    writeWaiting(f, items);
+    const line = waitingAlert({ vaultDir: f.vault, now: DAY(2026, 10, 9) });
+    assert.match(line, /^Waiting on the user \(vault Waiting.md\): W1 .*, W4 .* and 2 more due\.$/);
+    assert.doesNotMatch(line, /W5/);
+    assert.ok(line.length < 400);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('waiting: no vault or no note is silent and never throws', () => {
+  const f = fixture();
+  try {
+    assert.equal(waitingAlert({ vaultDir: f.vault, now: DAY(2026, 10, 9) }), null);
+    assert.equal(
+      waitingAlert({ vaultDir: path.join(f.root, 'none'), now: DAY(2026, 10, 9) }),
+      null
+    );
+    writeWaiting(f, '## W1 Broken\n- due: 2026-13-45\n');
+    assert.equal(waitingAlert({ vaultDir: f.vault, now: DAY(2026, 10, 9) }), null);
+    assert.equal(waitingAlert({ vaultDir: null, now: DAY(2026, 10, 9) }), null);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('waiting: collectAlerts puts the line right after the CLAUDE.md alert', async () => {
+  const f = fixture();
+  try {
+    writeFileSync(path.join(f.repo, 'CLAUDE.md'), 'old copy\n');
+    writeWaiting(f, WAITING_NOTE);
+    writeFileSync(path.join(f.testEnv, 'lock.json'), JSON.stringify({ holder: 'kit run' }));
+    const lines = await collectAlerts(opts(f, { now: DAY(2026, 10, 11) }));
+    assert.equal(lines.length, 3);
+    assert.match(lines[0], /^CLAUDE\.md differs/);
+    assert.match(lines[1], /^Waiting on the user \(vault Waiting.md\): W6 /);
+    assert.match(lines[2], /^Test server lock/);
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('lanes: only this project, not CLOSED, not stale, 200k and up; 250k says hand over', () => {
   const rows = [
     lane('Foundry AI Tool small', 120_000),
@@ -180,7 +327,7 @@ test('watchdog: missed and paused alert, the rest is silent', () => {
   );
 });
 
-test('every alert forced at once: one line each, nine lines at most', async () => {
+test('every alert forced at once: one line each, ten lines at most', async () => {
   const f = fixture();
   try {
     writeFileSync(path.join(f.repo, 'CLAUDE.md'), 'old copy\n');

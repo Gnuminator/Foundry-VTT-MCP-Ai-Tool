@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Stand-in for cp (stage 14 scenarios): everything goes to /bin/cp, except that when /tmp/cp_fail names a world id and
+# the source of a two-path copy ends in that id, the copy dies once: a cut-short folder (the world.json and an empty
+# data folder) is left at the destination, /tmp/cp_fail is removed, and cp exits 1.
+if [ -f /tmp/cp_fail ]; then
+  want="$(cat /tmp/cp_fail)"
+  paths=()
+  for a in "$@"; do
+    case "$a" in -*) ;; *) paths+=("$a") ;; esac
+  done
+  if [ "${#paths[@]}" = 2 ] && [ -n "$want" ]; then
+    src="${paths[0]%/}"
+    dest="${paths[1]}"
+    if [ "${src##*/}" = "$want" ]; then
+      rm -f /tmp/cp_fail
+      /bin/mkdir -p "$dest/data"
+      [ ! -f "$src/world.json" ] || /bin/cp "$src/world.json" "$dest/world.json"
+      echo "cp: error copying '$src' to '$dest': fake failure (/tmp/cp_fail)" >&2
+      exit 1
+    fi
+  fi
+fi
+exec /bin/cp "$@"

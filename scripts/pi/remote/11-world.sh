@@ -120,6 +120,8 @@ login_re='^[A-Za-z0-9._-]([A-Za-z0-9._ -]*[A-Za-z0-9._-])?$'
 [ -f "$assistant_env" ] && [ -f "$TOOL_DIR/gm-browser/assistant-gm.mjs" ] || die "run stage 5 and 5-check-world first (no Assistant GM yet)"
 [ -d "$data/modules/foundry-mcp-bridge" ] || die "the bridge module is not installed: run stage 5 first"
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
+# Every run resets the kit world and launches worlds: never during an open dnd5e trial (stage 14).
+refuse_during_system_trial "stage 11"
 # One login name from an env file: $1 the file, $2 GM_USER or EXTRA_GM_USER (never a password key). Prints the
 # file's value, empty when the file has no such line or does not exist. Sourced in a subshell, so nothing else
 # from the file (the passwords) reaches this shell. world-refs.test.mjs cuts it out and tests it.
@@ -153,14 +155,14 @@ fi
 # The Assistant GM driver that stage 5 installed creates the extra GM. A driver from before D-118 ignores
 # PROVISION_EXTRA_GM_USER, so the run would end "provisioned" with a password in the env file for a user that does
 # not exist (the training world run of 2026-10-10). Any run that may provision an extra GM (this run's or an env
-# file's) needs a driver that reads it.
+# file's) needs a driver that reads it: one whose "// assistant-gm features:" line names extra-gm.
 needs_extra=0
 [ -z "$EXTRA_GM_USER" ] || needs_extra=1
 for id in "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"}; do
   [ -z "$(env_login "$TOOL_ETC/world-$id.env" EXTRA_GM_USER)" ] || needs_extra=1
 done
-if [ "$needs_extra" = 1 ] && ! grep -q PROVISION_EXTRA_GM_USER "$TOOL_DIR/gm-browser/assistant-gm.mjs"; then
-  die "the Assistant GM driver on the Pi ($TOOL_DIR/gm-browser/assistant-gm.mjs) is older than the extra GM (D-118) and would not create it: run stage 5 again first (scp scripts/pi/remote/assistant-gm.mjs foundry-pi:/root/, then 5-tool.sh). Nothing was changed"
+if [ "$needs_extra" = 1 ] && ! grep -Eq '^// assistant-gm features:( [a-z0-9-]+)* extra-gm( |$)' "$TOOL_DIR/gm-browser/assistant-gm.mjs"; then
+  die "the Assistant GM driver on the Pi ($TOOL_DIR/gm-browser/assistant-gm.mjs) is older than the extra GM (D-118) and would not create it: run stage 5 again first (after a snapshot and the user's OK: scp scripts/pi/remote/assistant-gm.mjs foundry-pi:/root/, then cat scripts/pi/remote/lib.sh scripts/pi/remote/5-tool.sh | ssh foundry-pi 'bash -s'). Nothing was changed"
 fi
 bundle_size="$(stat -c %s "$BUNDLE")"
 

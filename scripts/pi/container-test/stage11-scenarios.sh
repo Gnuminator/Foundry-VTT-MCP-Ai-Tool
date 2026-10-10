@@ -162,9 +162,11 @@ installed_world() {
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$data/worlds/$1"
 }
 # The Assistant GM driver of a Pi whose stage 5 ran before D-118: the stand-in with the extra GM variables stripped
-# (the real old driver ignored PROVISION_EXTRA_GM_USER and PROVISION_EXTRA_GM_PASSWORD).
+# (the real old driver ignored PROVISION_EXTRA_GM_USER and PROVISION_EXTRA_GM_PASSWORD) and no features line. A
+# comment that names the variable stays, so the probe must not match a mere mention of it.
 old_driver() {
-  sed 's/PROVISION_EXTRA_GM_/IGNORED_EXTRA_GM_/g' "$H/stage11-provision.mjs" >"$TOOL_DIR/gm-browser/assistant-gm.mjs"
+  sed -e 's/PROVISION_EXTRA_GM_/IGNORED_EXTRA_GM_/g' -e '/assistant-gm features:/d' "$H/stage11-provision.mjs" >"$TOOL_DIR/gm-browser/assistant-gm.mjs"
+  echo '// an old driver that only names PROVISION_EXTRA_GM_USER in a comment' >>"$TOOL_DIR/gm-browser/assistant-gm.mjs"
 }
 # The old driver, and an env file for the training world that already names an extra GM (an earlier run wrote it).
 old_driver_env() {

@@ -142,6 +142,7 @@ listed).
 | 11. World           | `11-world.sh` installs the bundle `push-world.ps1` built on this PC, after checking the tar and every checksum: the campaign world, its private modules and image folders. An existing campaign world is kept unless `REPLACE_WORLD=1`; a test copy `strahd-kit` is reset every time; old copies go to `/var/lib/foundry-import/prev-<time>`, never deleted. Each world gets a generated GM password (`/etc/foundry-ai-tool/world-<id>.env`) and is provisioned like stage 5. A Plan B push-back keeps the Pi's GM password and needs `REPLACE_WORLD=1 KIT_WORLD=` ([Plan B](PLAN-B.md#after-the-night)). See "Licensed content" | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
 | 12. Tunnel          | Part C (D-075): Cloudflare Tunnel, so players reach Foundry and the GM the dashboard through Cloudflare Access with no router port open (`12-tunnel.sh`). `cloudflared` from Cloudflare's signed apt repository (key pinned), service `foundry-ai-tool-cloudflared` in token mode: a root-only token file read through systemd `LoadCredential`, never an argument or environment variable; no token, no start. `FOUNDRY_PUBLIC_HOST=play.<domain>` sets Foundry's `hostname`, `proxySSL`, `proxyPort` 443. No firewall, SSH, network or Tailscale change                                                                        | **yes:** your OK and a snapshot; then run `set-tunnel-token.sh` yourself over SSH                                                                                                                                                  |
 | 13. Player creation | D-112, D-113: players make level-1 characters in Actor Studio at session 0 (`13-player-creation.sh`). Installs our Actor Studio fork build (`2.10.5-aitool.4`) from its GitHub release, checked against a pinned sha256, and sets the world settings creation needs (Player and Trusted Player may create actors; equipment selection on, from the Player's Handbook pack). See "Player character creation"                                                                                                                                                                                                                      | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
+| 14. System trial    | D-098: a new dnd5e version runs on the kit world `strahd-kit` first (`14-system-trial.sh`, `MODE=trial`, then `switch` or `rollback`). The release zip is pinned by sha256; the old version and a copy of every world are kept until the trial ends. While a trial is open, stages 5-check-world, 11 and 13 refuse to run. See "System trial (stage 14)"                                                                                                                                                                                                                                                                         | **yes:** your OK for each mode (Foundry stops for a minute or two), after a `dietpi-backup 1` snapshot; never on a game-night day                                                                                                  |
 
 Stage 5 in more detail, because it changes how Claude Desktop reaches the game: each entry in
 `%APPDATA%\Claude\claude_desktop_config.json` gets `MCP_CONTROL_HOST` set to the Pi's Tailscale name
@@ -785,6 +786,80 @@ screen, an install from a local zip, services that were off staying off, and a f
 browser start that restarts Foundry only once. CI runs both, the container part on the ARM runner,
 where a missing Docker fails the step instead of skipping it.
 
+## System trial (stage 14)
+
+dnd5e is one folder on the Pi (`/var/lib/foundry/Data/systems/dnd5e`), shared by every world:
+curse-of-strahd, strahd-kit, frostmaiden-training and pi-check all run on the version installed
+there. A world migrates its data the first time it is launched on a new version, and a migrated
+world does not go back. So a new dnd5e version (D-098, never on a game-night day) goes to the kit
+world first, the test kit runs there, and only then does the campaign get it. The version on trial
+is pinned in the script (`PIN_VERSION`, `PIN_URL` and `PIN_SHA256`, the release asset's digest on
+GitHub); the first one is 6.0.6 (the Pi runs 6.0.5). A new version is a new reviewed change to those
+lines.
+
+Each mode except `status` stops Foundry for a minute or two: a `dietpi-backup 1` snapshot and your
+OK first, every time. From the clean main checkout on this PC, with the mode in front of `bash`:
+
+```powershell
+cat scripts/pi/remote/lib.sh scripts/pi/remote/14-system-trial.sh | ssh foundry-pi 'MODE=status bash -s'
+```
+
+- **`MODE=trial`** downloads the pinned zip (or takes `ZIP`, a `.zip` under
+  `/var/lib/foundry-import/`) and checks its sha256, that its `system.json` is dnd5e at the pinned
+  version and that it fits this Foundry (`compatibility.minimum` and `.maximum`). It keeps the
+  installed version in `/var/lib/foundry-import/system-trial/dnd5e-<version>`, copies every world
+  folder there as it is now, installs the new version and launches only `strahd-kit`. Then run the
+  test kit on `strahd-kit`. **Until `switch` or `rollback`, launch no other world**, not the
+  training world either: it would migrate. Stages 5-check-world, 11 and 13 refuse to run while a
+  trial is open (stage 13 only for `WORLD=strahd-kit KIT_WORLD=`), and stage 5's check world never
+  replaces an installed dnd5e, so a rerun after a switch keeps the new version.
+- **`MODE=switch`** (its own snapshot and OK) launches curse-of-strahd on the new version, which
+  migrates the campaign. The training world and pi-check migrate when they are next launched. After a
+  switch the stage has no roll back: going back means restoring the snapshot from before it.
+- **The dnd5e migration runs in the first GM client**, here the Assistant GM browser, not when the
+  server launches a world. When the new version's `flags.needsMigrationVersion` is newer than the
+  launched world's `dnd5e.systemMigrationVersion` setting (or that setting is empty), `trial` and
+  `switch` wait until the setting reaches the new version (read from a copy of the world's settings
+  database) before they report success; a migration that does not end in `MIGRATION_WAIT` seconds
+  (default 1800) counts as a failure and is put back. 6.0.6 asks for none (its
+  `needsMigrationVersion` is 6.0.0), and the stage says so. When the setting cannot be read, the stage
+  warns: wait until the Assistant GM browser shows no migration notice before stopping Foundry or
+  taking a snapshot.
+- **`MODE=rollback`** puts the old version back, resets `strahd-kit` from the trial's copy (its run
+  on the new version is dropped) and launches the world Foundry ran before the trial (curse-of-strahd
+  when it ran none). A world other
+  than the kit that was launched during the trial (a file newer than the trial's start) is refused,
+  because it may be migrated; `RESTORE_MIGRATED=1` puts it back from the copy too, losing its changes
+  since. A rollback that stops halfway says so and saves where it was: run `MODE=rollback` again.
+- **`MODE=status`** is read-only: the trial's phase, the installed version, and each world's system
+  version and whether it was launched since the trial began.
+- **Before anything stops** the request and the trial's state are checked (a second trial, a switch
+  without a trial and a rollback after a switch are refused), the zip is checked as above, the
+  copies must fit (their bytes by `du -sb` against `df`: under 5 % of the disk left over stops, under
+  20 % warns), and nobody may be online (the Assistant GM browser stops and `/api/status` must count
+  nobody; `FORCE=1` stops Foundry anyway). One run at a time (a lock in `/var/lib/foundry-import`).
+- **A failed trial or switch** puts back what ran before it (the old version, `strahd-kit` or
+  curse-of-strahd from the copy, `options.json`) and starts Foundry and the Assistant GM browser as
+  they were, but launches a world again only when the dnd5e folder holds the version that world runs
+  on. If it does not, `options.json` launches no world, Foundry stays stopped and the stage says what
+  to put back by hand. Nothing is deleted: replaced folders go to
+  `/var/lib/foundry-import/prev-<time>-*`, and removing those or the trial folder needs your OK.
+- **Every run is logged** in `/var/lib/foundry-import/system-trial.log`, and a dropped SSH connection
+  does not stop it halfway (the stage ignores hang-up and broken-pipe signals). If a run still ends
+  with the phase at `installing` or `switching` (`MODE=status`; no mode accepts those), read the log
+  and restore the snapshot from before the run.
+
+Not run on the Pi yet. With `PI_SYSTEM_TRIAL_CONTAINER=1`, `node --test scripts/pi/system-trial.test.mjs`
+runs the stage in ARM64 Debian 13 containers with stand-ins for systemd and a fake Foundry that writes
+into the world it opens and migrates its `world.json`
+(`scripts/pi/container-test/system-trial-scenarios.sh`; Docker needed, four containers side by side,
+about 10 minutes under emulation on a PC): a trial from the download and from `ZIP`, a wrong sha256, a
+zip that does not fit this Foundry or holds another version, the version installed already, a second
+trial, a trial that fails after the stop and undoes itself, a rollback (also one that refuses a world
+launched during the trial and one with `RESTORE_MIGRATED=1`), a rollback that stops halfway and a rerun
+that finishes it, the switch and a failed switch, a rollback after a switch, `status`, and people
+online with and without `FORCE=1`. CI runs it on the ARM runner, where a missing Docker fails the step.
+
 ## GM scripts
 
 Some world changes need a GM in the browser (a module's own import, a script that places map pins),
@@ -864,6 +939,7 @@ boot problems for others, so it is not tried.
 | GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                 |
 | Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                           |
 | When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-backup-pulls/<kind>.json`                                            |
+| A dnd5e trial (the old version, world copies; stage 14)      | `/var/lib/foundry-import/system-trial`                                                 |
 
 ## Sources
 

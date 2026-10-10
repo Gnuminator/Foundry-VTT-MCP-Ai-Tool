@@ -1,16 +1,34 @@
 #!/usr/bin/env bash
-# Stand-in for curl: /api/status answers what /tmp/status holds with the exit code in /tmp/status_rc,
-# /join answers a running world's join page. Anything else (a download) fails.
+# Stand-in for curl: /api/status answers what /tmp/status holds with the exit code in /tmp/status_rc (an @SYSVER@ in
+# it becomes the installed dnd5e version), /join answers a running world's join page (an error page when
+# /tmp/join_fail exists, as when no world runs). A download (-o <file>) copies the zip named in /tmp/download_zip and
+# logs its url to /tmp/downloads; without /tmp/download_zip it fails. Anything else fails.
 url="${*: -1}"
+out=""
+prev=""
+for a in "$@"; do
+  [ "$prev" != -o ] || out="$a"
+  prev="$a"
+done
 case "$url" in
   */api/status)
-    cat /tmp/status
+    ver="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' /var/lib/foundry/Data/systems/dnd5e/system.json 2>/dev/null | head -n1)"
+    sed "s/@SYSVER@/${ver:-}/" /tmp/status
     exit "$(cat /tmp/status_rc)"
     ;;
   */join)
+    if [ -f /tmp/join_fail ]; then
+      echo '<html><body>No world is running</body></html>'
+      exit 0
+    fi
     echo '<template id="join-game">'
     exit 0
     ;;
 esac
+if [ -n "$out" ] && [ -f /tmp/download_zip ]; then
+  echo "$url" >>/tmp/downloads
+  cp "$(cat /tmp/download_zip)" "$out"
+  exit 0
+fi
 echo "fake curl: unexpected url $url" >&2
 exit 22

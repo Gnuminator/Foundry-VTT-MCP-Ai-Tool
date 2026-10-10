@@ -94,6 +94,13 @@ describe('provision: the extra GM (stage 11 EXTRA_GM_USER, D-118)', () => {
       );
     }
   });
+  test("declares extra-gm the way stage 11's probe reads it", () => {
+    const stage = readFileSync(path.join(remote, '11-world.sh'), 'utf8');
+    const probe = stage.match(/grep -Eq '([^']+)' "\$TOOL_DIR\/gm-browser\/assistant-gm\.mjs"/);
+    assert.ok(probe, 'stage 11 probes the driver with grep -Eq');
+    assert.match(readFileSync(driver, 'utf8'), new RegExp(probe[1], 'm'));
+    assert.doesNotMatch('// names PROVISION_EXTRA_GM_USER in a comment', new RegExp(probe[1], 'm'));
+  });
 });
 
 describe('script arguments', () => {

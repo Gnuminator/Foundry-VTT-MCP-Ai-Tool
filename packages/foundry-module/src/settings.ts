@@ -167,7 +167,7 @@ export class ModuleSettings {
     menus.registerMenu(this.moduleId, 'joinPageMenu', {
       name: 'Join page look',
       label: 'Choose join page look',
-      hint: "Give Foundry's join page (the first screen players see) the campaign look, The Veil: the mist background picture, the campaign fonts and a lamplit Join button. Your world description stays as it is.",
+      hint: "Give Foundry's join page (the first screen players see) the campaign look, The Veil: the castle in the mist as the background picture and a lamplit line at the top of the world description. Your description text stays as it is.",
       icon: 'fas fa-door-open',
       type: createJoinPageMenu(),
       restricted: true,

@@ -2,13 +2,16 @@
  * Join page look (I-086): The Veil (D-085) on Foundry's join page, the players' first screen.
  *
  * Foundry loads no module code or module styles on /join. It does show three world details
- * there: the background picture, the description (as HTML, unfiltered) and the next session
- * time. So the look lives in the world itself:
+ * there: the background picture, the description (as HTML) and the next session time. So the
+ * look lives in the world itself:
  *
- * - the world background points at `styles/join/veil-background.svg` in this module;
- * - one marked `<style>` line at the top of the description imports `styles/join/veil.css`
- *   from this module (relative URL, so a route prefix still works). The rest of the
- *   description is the GM's text and is never changed.
+ * - the world background points at `styles/join/veil-background.svg` in this module (relative
+ *   path, so a route prefix still works);
+ * - one marked block at the top of the description: a lamplit tagline in The Veil colours.
+ *   The server cleans the description when it saves it (`cleanHTML`, Foundry's HTML
+ *   allowlist): no `<style>` or `<link>`, so the block carries inline styles only, and only
+ *   fonts Foundry's setup CSS loads on /join. The rest of the description is the GM's text and
+ *   is never changed. The full stylesheet waits for I-150 (injected at the edge).
  *
  * The GM applies or removes it from the module settings ("Join page look"). Inside a running
  * world a GM may save world details through Foundry's own `/setup` "editWorld" request (the
@@ -26,13 +29,50 @@ import { trackUsage } from './usage-recorder.js';
 /** Where the join page files live, relative to Foundry's root (works with a route prefix). */
 export const JOIN_ASSET_DIR = `modules/${MODULE_ID}/styles/join`;
 export const VEIL_BACKGROUND = `${JOIN_ASSET_DIR}/veil-background.svg`;
-export const VEIL_STYLESHEET = `${JOIN_ASSET_DIR}/veil.css`;
 
-/** The line this module puts at the top of the description. */
-export const VEIL_STYLE_LINE = `<style data-ai-tool-join="veil">@import url("${VEIL_STYLESHEET}");</style>`;
+/** The tagline when the GM gives none. */
+export const DEFAULT_TAGLINE = 'The mists part. Your table is waiting.';
 
-/** Any line this module put there (any look, any version), plus the space after it. */
-const STYLE_LINE_PATTERN = /<style data-ai-tool-join(?:="[^"]*")?>[\s\S]*?<\/style>\s*/gi;
+/**
+ * The Veil (as in the dashboard's themes/veil.css): a graphite ground, a grey-green hairline,
+ * one warm source (the lamp) on top, bone text. Amiri is the serif Foundry's setup CSS loads on
+ * /join; no quotes in the values, so the server's HTML cleaning leaves them as they are.
+ */
+const VEIL_BLOCK_STYLE = [
+  'margin:0 0 1em',
+  'padding:0.75em 1em',
+  'background:rgb(26 29 28 / 90%)',
+  'border:1px solid rgb(143 163 154 / 24%)',
+  'border-top-color:rgb(242 216 138 / 45%)',
+  'border-radius:4px',
+  'box-shadow:0 0 18px -8px rgb(242 216 138 / 45%)',
+  'text-align:center',
+].join(';');
+const VEIL_TAGLINE_STYLE = [
+  'margin:0',
+  'font-family:Amiri, Georgia, serif',
+  'font-style:italic',
+  'font-size:1.35em',
+  'line-height:1.4',
+  'color:#e8e6df',
+].join(';');
+
+/** The block this module puts at the top of the description, with the GM's tagline. */
+export function veilBlock(tagline: string): string {
+  const text = tagline.trim() || DEFAULT_TAGLINE;
+  // Text escaping as Foundry's cleaning writes it (quotes stay), so the saved block is the same.
+  const html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<div data-ai-tool-join="veil" style="${VEIL_BLOCK_STYLE}"><p style="${VEIL_TAGLINE_STYLE}">${html}</p></div>`;
+}
+
+/**
+ * Anything this module put there (any look, any version, also the old `<style>` line), plus
+ * the space after it. The block never holds another `<div>`, so the first close ends it.
+ */
+const JOIN_BLOCK_PATTERN = /<(div|style)\b[^>]*\bdata-ai-tool-join\b[^>]*>[\s\S]*?<\/\1>\s*/gi;
+
+/** The Veil block with its inline styles still on it. */
+const VEIL_BLOCK_STYLED = /<div\b[^>]*\bdata-ai-tool-join="veil"[^>]*\bstyle="[^"]+"/i;
 
 export type JoinLook = 'veil' | 'default';
 
@@ -53,14 +93,24 @@ export interface JoinPageChange {
   joinTheme?: 'default';
 }
 
-/** The description without this module's style line. */
+/** The description without this module's block. */
 export function stripJoinStyle(description: string | null | undefined): string {
-  return (description ?? '').replace(STYLE_LINE_PATTERN, '');
+  return (description ?? '').replace(JOIN_BLOCK_PATTERN, '');
 }
 
-/** Whether The Veil is on the join page now (the style line is in the description). */
+/** Whether The Veil is on the join page now (the block is in the description). */
 export function hasVeilLook(world: WorldJoinFields): boolean {
   return (world.description ?? '').includes('data-ai-tool-join="veil"');
+}
+
+/** The tagline in The Veil block, or null when there is no block. */
+export function veilTagline(description: string | null | undefined): string | null {
+  const block = (description ?? '').match(
+    /<div\b[^>]*\bdata-ai-tool-join="veil"[^>]*>([\s\S]*?)<\/div>/i
+  );
+  if (!block) return null;
+  const text = (block[1] ?? '').replace(/<[^>]*>/g, '').trim();
+  return text ? unescapeHtml(text) : null;
 }
 
 /** Whether the world background is The Veil picture. */
@@ -68,21 +118,30 @@ export function hasVeilBackground(world: WorldJoinFields): boolean {
   return world.background === VEIL_BACKGROUND;
 }
 
+/** What the GM picks in the dialog. */
+export interface JoinLookOptions {
+  /** The Veil picture as the world background (default true). */
+  useBackground?: boolean;
+  /** The line in the block; blank keeps the current one, else {@link DEFAULT_TAGLINE}. */
+  tagline?: string;
+}
+
 /**
- * The world change for a look. The Veil: the style line on top of the GM's description, The
- * Veil picture when asked for (else the background stays as it is), and Foundry's default join
- * theme when the world uses "Minimal" (it hides the description, and with it the style line).
- * Default: the style line removed, and the background cleared only when it is The Veil picture.
+ * The world change for a look. The Veil: the block on top of the GM's description, The Veil
+ * picture when asked for (else the background stays as it is), and Foundry's default join
+ * theme when the world uses "Minimal" (it hides the description, and with it the block).
+ * Default: the block removed, and the background cleared only when it is The Veil picture.
  */
 export function planJoinPage(
   world: WorldJoinFields,
   look: JoinLook,
-  options: { useBackground?: boolean } = {}
+  options: JoinLookOptions = {}
 ): JoinPageChange {
   const text = stripJoinStyle(world.description);
   const change: JoinPageChange = { action: 'editWorld', id: world.id, description: text };
   if (look === 'veil') {
-    change.description = `${VEIL_STYLE_LINE}\n${text}`;
+    const tagline = options.tagline?.trim() || veilTagline(world.description) || DEFAULT_TAGLINE;
+    change.description = `${veilBlock(tagline)}\n${text}`;
     if (options.useBackground ?? true) change.background = VEIL_BACKGROUND;
     if (world.joinTheme === 'minimal') change.joinTheme = 'default';
   } else if (hasVeilBackground(world)) {
@@ -111,8 +170,11 @@ export function lostFromReply(change: JoinPageChange, reply: WorldJoinFields): s
   const wanted = hasVeilLook({ id: change.id, description: change.description });
   if (hasVeilLook(reply) !== wanted) {
     return wanted
-      ? 'the style line in the description (Foundry removed it)'
-      : 'the description without the style line';
+      ? 'the look block in the description (Foundry removed it)'
+      : 'the description without the look block';
+  }
+  if (wanted && !VEIL_BLOCK_STYLED.test(reply.description ?? '')) {
+    return 'the colours of the look block (Foundry removed its styles)';
   }
   if (typeof change.background === 'string' && !reply.background?.endsWith(change.background)) {
     return 'the background picture';
@@ -130,7 +192,7 @@ function replyError(reply: unknown): string | null {
 /** Apply a look: plan, save through `/setup`, update the loaded world. True when saved. */
 export async function applyJoinLook(
   look: JoinLook,
-  options: { useBackground?: boolean },
+  options: JoinLookOptions,
   deps: JoinPageDeps
 ): Promise<boolean> {
   const change = planJoinPage(deps.world(), look, options);
@@ -170,6 +232,16 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+function unescapeHtml(text: string): string {
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0*39;|&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
+}
+
 /** The dialog text for the world as it is now. */
 export function joinPageDialogHtml(world: WorldJoinFields): string {
   const on = hasVeilLook(world);
@@ -180,15 +252,21 @@ export function joinPageDialogHtml(world: WorldJoinFields): string {
   const backgroundHint = other
     ? `Replaces the current picture (${escapeHtml(other)}). Untick to keep it.`
     : 'The castle in the mist, drawn for this campaign.';
+  const tagline = veilTagline(world.description) ?? DEFAULT_TAGLINE;
   return [
     '<p>The join page is the first screen players see: the world title, its description, the next session time and the login.</p>',
-    '<p>The Veil gives it the campaign look: grey-green mist, the castle picture and a lamplit Join button. Your description text stays as it is; the look is one line added at its top.</p>',
+    '<p>The Veil gives it the campaign look: the castle in the mist as the background picture and a lamplit line at the top of the description. Your description text stays as it is.</p>',
     `<p><strong>${now}</strong></p>`,
+    '<div class="form-group stacked">',
+    '<label for="ai-tool-join-tagline">The lamplit line</label>',
+    `<input type="text" id="ai-tool-join-tagline" name="tagline" maxlength="120" value="${escapeHtml(tagline)}">`,
+    '<p class="hint">One short line, shown above your description. Leave it as it is or write your own.</p>',
+    '</div>',
     '<div class="form-group">',
     `<label><input type="checkbox" name="useBackground"${other ? '' : ' checked'}> Use The Veil picture as the world background</label>`,
     `<p class="hint">${backgroundHint}</p>`,
     '</div>',
-    '<p class="hint">Saving the description in Edit World can drop the look line. If the join page loses the look, open this again and apply it. The next session time is set in Edit World.</p>',
+    '<p class="hint">Saving the description in Edit World can drop the lamplit line or its colours. If the join page loses the look, open this again and apply it. The next session time is set in Edit World.</p>',
   ].join('\n');
 }
 
@@ -251,11 +329,17 @@ export function createJoinPageMenu(): new () => object {
       const world = currentWorld();
       const veil: DialogButtonCallback = async (_event, button) => {
         trackUsage('action', 'module.join-page.veil');
-        const box = button.form?.elements.namedItem('useBackground') as {
-          checked?: unknown;
-        } | null;
+        const field = (name: string): { checked?: unknown; value?: unknown } | null =>
+          (button.form?.elements.namedItem(name) as {
+            checked?: unknown;
+            value?: unknown;
+          } | null) ?? null;
+        const box = field('useBackground');
         const useBackground = typeof box?.checked === 'boolean' ? box.checked : true;
-        return applyJoinLook('veil', { useBackground }, foundryJoinDeps());
+        const line = field('tagline')?.value;
+        const options: JoinLookOptions = { useBackground };
+        if (typeof line === 'string') options.tagline = line;
+        return applyJoinLook('veil', options, foundryJoinDeps());
       };
       const plain: DialogButtonCallback = async () => {
         trackUsage('action', 'module.join-page.default');

@@ -1,17 +1,18 @@
 /**
- * Join page look (I-086): The Veil goes on as one marked style line plus the background, the
- * GM's description text is never changed, and the stylesheet only touches the join page.
+ * Join page look (I-086): The Veil goes on as one marked block plus the background, the GM's
+ * description text is never changed, and the block survives the server's HTML cleaning.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { parseFragment, serialize } from 'parse5';
+import sanitizeHtml from 'sanitize-html';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  DEFAULT_TAGLINE,
   VEIL_BACKGROUND,
-  VEIL_STYLESHEET,
-  VEIL_STYLE_LINE,
   applyJoinLook,
   createJoinPageMenu,
   currentWorld,
@@ -20,6 +21,8 @@ import {
   lostFromReply,
   planJoinPage,
   stripJoinStyle,
+  veilBlock,
+  veilTagline,
   type JoinPageDeps,
   type WorldJoinFields,
 } from './join-page.js';
@@ -29,22 +32,69 @@ const MODULE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const g = globalThis as any;
 
 const DESCRIPTION = '<p>Welcome to <strong>Barovia</strong>.</p>';
+const BLOCK = veilBlock(DEFAULT_TAGLINE);
+
+/**
+ * Foundry 14.368's `cleanHTML` (dist/database/validators.mjs), which `World.update` runs on the
+ * description: parse5 round trip, then sanitize-html with the allowlist from
+ * common/constants.mjs (copied here: the tags, the attributes for every tag, and the few tags
+ * a description uses). The iframe and tooltip transforms are left out (not used here).
+ */
+const FOUNDRY_ALLOWED_TAGS = [
+  'header', 'main', 'section', 'article', 'aside', 'nav', 'footer', 'div', 'address',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'br',
+  'p', 'blockquote', 'summary', 'details', 'span', 'code', 'pre', 'a', 'label', 'abbr', 'cite',
+  'mark', 'q', 'ruby', 'rp', 'rt', 'small', 'time', 'var', 'kbd', 'samp',
+  'dfn', 'sub', 'sup', 'strong', 'em', 'b', 'i', 'u', 's', 'del', 'ins',
+  'ol', 'ul', 'li', 'dl', 'dd', 'dt', 'menu',
+  'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'col', 'colgroup',
+  'figure', 'figcaption', 'caption', 'img', 'picture', 'source',
+]; // prettier-ignore
+const FOUNDRY_ALLOWED_ATTRIBUTES: Record<string, string[]> = {
+  '*': [
+    'class', 'data-*', 'id', 'title', 'style', 'draggable', 'aria-*', 'tabindex', 'dir', 'hidden',
+    'inert', 'role', 'is', 'lang', 'popover', 'autocapitalize', 'autocorrect', 'autofocus',
+    'contenteditable', 'spellcheck', 'translate',
+  ],
+  a: ['href', 'name', 'target', 'rel'],
+  img: ['height', 'src', 'width', 'usemap', 'sizes', 'srcset', 'alt'],
+}; // prettier-ignore
+
+function foundryCleanHtml(html: string): string {
+  return sanitizeHtml(serialize(parseFragment(html)), {
+    allowedTags: FOUNDRY_ALLOWED_TAGS,
+    allowedAttributes: FOUNDRY_ALLOWED_ATTRIBUTES,
+    allowedSchemes: ['http', 'https', 'data', 'mailto', 'obsidian', 'syrinscape-online'],
+    allowedSchemesAppliedToAttributes: ['href', 'src', 'cite'],
+  }).replace(/ \/>/g, '>');
+}
 
 describe('planJoinPage', () => {
-  it('puts the style line on top of the description and sets The Veil picture', () => {
+  it('puts the block on top of the description and sets The Veil picture', () => {
     const change = planJoinPage({ id: 'strahd', description: DESCRIPTION }, 'veil');
     expect(change).toEqual({
       action: 'editWorld',
       id: 'strahd',
-      description: `${VEIL_STYLE_LINE}\n${DESCRIPTION}`,
+      description: `${BLOCK}\n${DESCRIPTION}`,
       background: VEIL_BACKGROUND,
     });
   });
 
-  it('applies twice without adding a second line', () => {
-    const once = planJoinPage({ id: 'w', description: DESCRIPTION }, 'veil');
+  it('applies twice without a second block, and keeps the tagline the GM wrote', () => {
+    const once = planJoinPage({ id: 'w', description: DESCRIPTION }, 'veil', {
+      tagline: 'Night falls on the valley.',
+    });
     const twice = planJoinPage({ id: 'w', description: once.description }, 'veil');
     expect(twice.description).toBe(once.description);
+    expect(veilTagline(twice.description)).toBe('Night falls on the valley.');
+  });
+
+  it('escapes the tagline and falls back to the default when it is blank', () => {
+    const change = planJoinPage({ id: 'w' }, 'veil', { tagline: '<b>Mist</b> & "fog"' });
+    expect(change.description).toContain('&lt;b&gt;Mist&lt;/b&gt; &amp; "fog"');
+    expect(veilTagline(change.description)).toBe('<b>Mist</b> & "fog"');
+    const blank = planJoinPage({ id: 'w' }, 'veil', { tagline: '   ' });
+    expect(veilTagline(blank.description)).toBe(DEFAULT_TAGLINE);
   });
 
   it('keeps the current background when the GM unticks the picture', () => {
@@ -54,7 +104,7 @@ describe('planJoinPage', () => {
       { useBackground: false }
     );
     expect(change).not.toHaveProperty('background');
-    expect(change.description).toBe(`${VEIL_STYLE_LINE}\n`);
+    expect(change.description).toBe(`${BLOCK}\n`);
   });
 
   it('switches a Minimal join page back to the default theme (Minimal hides the description)', () => {
@@ -62,7 +112,7 @@ describe('planJoinPage', () => {
     expect(planJoinPage({ id: 'w' }, 'veil')).not.toHaveProperty('joinTheme');
   });
 
-  it("goes back to Foundry's look: the line removed, the GM's text and picture kept", () => {
+  it("goes back to Foundry's look: the block removed, the GM's text and picture kept", () => {
     const veiled = planJoinPage({ id: 'w', description: DESCRIPTION }, 'veil');
     const back = planJoinPage(
       { id: 'w', description: veiled.description, background: VEIL_BACKGROUND },
@@ -81,17 +131,56 @@ describe('planJoinPage', () => {
     expect(own).not.toHaveProperty('background');
   });
 
-  it('removes any marked line, also from another look or an older version', () => {
-    const text = `<style data-ai-tool-join="old">@import url("x.css");</style>\n${DESCRIPTION}<style data-ai-tool-join>p{}</style>`;
+  it('removes any marked block, also another look or the old style line', () => {
+    const text = `<style data-ai-tool-join="veil">@import url("x.css");</style>\n<div class="x" data-ai-tool-join="old"><p>a</p></div>${DESCRIPTION}<div data-ai-tool-join>b</div>`;
     expect(stripJoinStyle(text)).toBe(DESCRIPTION);
-    expect(stripJoinStyle('<style>p{color:red}</style>')).toBe('<style>p{color:red}</style>');
+    expect(stripJoinStyle('<div class="note"><p>mine</p></div>')).toBe(
+      '<div class="note"><p>mine</p></div>'
+    );
     expect(stripJoinStyle(null)).toBe('');
   });
 
-  it('points at files inside this module, relative to the server root', () => {
-    expect(VEIL_STYLESHEET).toBe('modules/foundry-mcp-bridge/styles/join/veil.css');
+  it('points at the picture inside this module, relative to the server root', () => {
     expect(VEIL_BACKGROUND).toBe('modules/foundry-mcp-bridge/styles/join/veil-background.svg');
-    expect(VEIL_STYLE_LINE).toContain(`@import url("${VEIL_STYLESHEET}")`);
+  });
+});
+
+describe('the Veil block', () => {
+  it('uses inline styles and only fonts Foundry loads on the join page', () => {
+    expect(BLOCK).toMatch(/^<div data-ai-tool-join="veil" style="[^"]+">/);
+    expect(BLOCK).not.toMatch(/<style|<link|class=/);
+    const fonts = [...BLOCK.matchAll(/font-family:([^;"]+)/g)].flatMap(m =>
+      (m[1] ?? '').split(',').map(f => f.trim())
+    );
+    expect(fonts.length).toBeGreaterThan(0);
+    // Amiri is in Foundry's setup CSS (public/css/foundry2.css); the rest are fallbacks.
+    for (const font of fonts) expect(['Amiri', 'Georgia', 'serif']).toContain(font);
+    // No nested div: the strip pattern ends the block at the first </div>.
+    expect(BLOCK.match(/<div\b/g)).toHaveLength(1);
+  });
+
+  it("survives Foundry's HTML cleaning (cleanHTML) as it is", () => {
+    const planned = planJoinPage({ id: 'w', description: DESCRIPTION }, 'veil', {
+      tagline: 'Fog & "lanterns"',
+    }).description;
+    const saved = foundryCleanHtml(planned);
+    expect(saved).toBe(planned);
+    expect(
+      lostFromReply(
+        { action: 'editWorld', id: 'w', description: planned },
+        {
+          id: 'w',
+          description: saved,
+        }
+      )
+    ).toBeNull();
+    expect(veilTagline(saved)).toBe('Fog & "lanterns"');
+    expect(stripJoinStyle(saved)).toBe(foundryCleanHtml(DESCRIPTION));
+  });
+
+  it('is needed: the cleaning drops a <style> element (the old style line)', () => {
+    const old = `<style data-ai-tool-join="veil">@import url("x.css");</style>\n${DESCRIPTION}`;
+    expect(foundryCleanHtml(old)).not.toContain('<style');
   });
 });
 
@@ -124,7 +213,7 @@ describe('applyJoinLook', () => {
   }
 
   it('saves the change through /setup and updates the loaded world', async () => {
-    const saved = { id: 'w', description: `${VEIL_STYLE_LINE}\n`, background: VEIL_BACKGROUND };
+    const saved = { id: 'w', description: `${BLOCK}\n`, background: VEIL_BACKGROUND };
     const deps = fakeDeps({ id: 'w', description: '' }, saved);
     expect(await applyJoinLook('veil', {}, deps)).toBe(true);
     expect(deps.sent).toEqual([planJoinPage({ id: 'w', description: '' }, 'veil')]);
@@ -148,19 +237,26 @@ describe('applyJoinLook', () => {
     expect(deps.errors[0]).toBe('The join page look was not saved: offline');
   });
 
-  it('reports a style line Foundry removed, and still syncs the loaded world', async () => {
+  it('reports a block Foundry removed, and still syncs the loaded world', async () => {
     const reply = { id: 'w', description: '', background: VEIL_BACKGROUND };
     const deps = fakeDeps({ id: 'w', description: '' }, reply);
     expect(await applyJoinLook('veil', {}, deps)).toBe(false);
     expect(deps.saved).toEqual([reply]);
     expect(deps.info).toEqual([]);
     expect(deps.errors[0]).toBe(
-      'The join page look was not saved: Foundry did not keep the style line in the description (Foundry removed it).'
+      'The join page look was not saved: Foundry did not keep the look block in the description (Foundry removed it).'
     );
   });
 
+  it('reports a block that lost its styles', async () => {
+    const bare = `<div data-ai-tool-join="veil"><p>${DEFAULT_TAGLINE}</p></div>\n`;
+    const deps = fakeDeps({ id: 'w', description: '' }, { id: 'w', description: bare });
+    expect(await applyJoinLook('veil', { useBackground: false }, deps)).toBe(false);
+    expect(deps.errors[0]).toContain('did not keep the colours of the look block');
+  });
+
   it('reports a background Foundry did not keep', async () => {
-    const reply = { id: 'w', description: `${VEIL_STYLE_LINE}\n`, background: null };
+    const reply = { id: 'w', description: `${BLOCK}\n`, background: null };
     const deps = fakeDeps({ id: 'w', description: '' }, reply);
     expect(await applyJoinLook('veil', {}, deps)).toBe(false);
     expect(deps.errors[0]).toContain('did not keep the background picture');
@@ -172,12 +268,12 @@ describe('lostFromReply', () => {
     const veil = planJoinPage({ id: 'w', description: DESCRIPTION }, 'veil');
     const tidied = {
       id: 'w',
-      description: `${VEIL_STYLE_LINE}<p>Welcome to <strong>Barovia</strong>.</p>`,
+      description: `${BLOCK}<p>Welcome to <strong>Barovia</strong>.</p>`,
       background: `/${VEIL_BACKGROUND}`,
     };
     expect(lostFromReply(veil, tidied)).toBeNull();
     const back = planJoinPage(
-      { id: 'w', description: `${VEIL_STYLE_LINE}\n`, background: VEIL_BACKGROUND },
+      { id: 'w', description: `${BLOCK}\n`, background: VEIL_BACKGROUND },
       'default'
     );
     expect(back.background).toBeNull();
@@ -185,10 +281,10 @@ describe('lostFromReply', () => {
     expect(lostFromReply(back, reply)).toBeNull();
   });
 
-  it('names a style line that is still there after Back', () => {
-    const back = planJoinPage({ id: 'w', description: `${VEIL_STYLE_LINE}\n` }, 'default');
-    expect(lostFromReply(back, { id: 'w', description: `${VEIL_STYLE_LINE}\n` })).toBe(
-      'the description without the style line'
+  it('names a block that is still there after Back', () => {
+    const back = planJoinPage({ id: 'w', description: `${BLOCK}\n` }, 'default');
+    expect(lostFromReply(back, { id: 'w', description: `${BLOCK}\n` })).toBe(
+      'the description without the look block'
     );
   });
 });
@@ -198,9 +294,17 @@ describe('joinPageDialogHtml', () => {
     const off = joinPageDialogHtml({ id: 'w', description: DESCRIPTION });
     expect(off).toContain("Foundry's own look now");
     expect(off).toContain('name="useBackground" checked');
-    const on = joinPageDialogHtml({ id: 'w', description: `${VEIL_STYLE_LINE}\n` });
-    expect(hasVeilLook({ id: 'w', description: `${VEIL_STYLE_LINE}\n` })).toBe(true);
+    expect(off).toContain(`name="tagline" maxlength="120" value="${DEFAULT_TAGLINE}"`);
+    const on = joinPageDialogHtml({ id: 'w', description: `${BLOCK}\n` });
+    expect(hasVeilLook({ id: 'w', description: `${BLOCK}\n` })).toBe(true);
     expect(on).toContain('The Veil is on the join page now');
+  });
+
+  it('fills in the current tagline, escaped', () => {
+    const description = planJoinPage({ id: 'w' }, 'veil', { tagline: 'Mist "rises"' }).description;
+    expect(joinPageDialogHtml({ id: 'w', description })).toContain(
+      'value="Mist &quot;rises&quot;"'
+    );
   });
 
   it("leaves the GM's own picture unticked and names it, escaped", () => {
@@ -249,7 +353,7 @@ describe('createJoinPageMenu', () => {
     expect(options?.buttons.map((b: { action: string }) => b.action)).toEqual(['veil', 'cancel']);
     expect(options?.window.title).toBe('Join page look');
 
-    worldWith({ description: `${VEIL_STYLE_LINE}\n`, background: VEIL_BACKGROUND });
+    worldWith({ description: `${BLOCK}\n`, background: VEIL_BACKGROUND });
     new Menu();
     expect(options?.buttons.map((b: { action: string }) => b.action)).toEqual([
       'veil',
@@ -258,16 +362,20 @@ describe('createJoinPageMenu', () => {
     ]);
   });
 
-  it('Apply posts editWorld to /setup with the checkbox choice', async () => {
+  it('Apply posts editWorld to /setup with the checkbox and the tagline', async () => {
     const world = worldWith({ id: 'w', description: DESCRIPTION, background: null });
-    const saved = { id: 'w', description: `${VEIL_STYLE_LINE}\n${DESCRIPTION}` };
+    const planned = `${veilBlock('Ravens circle.')}\n${DESCRIPTION}`;
+    const saved = { id: 'w', description: planned };
     // Foundry answers 401 when the server has an admin password, and still saves.
     const fetchMock = vi.fn().mockResolvedValue({ status: 401, json: async () => saved });
     vi.stubGlobal('fetch', fetchMock);
     const Menu = createJoinPageMenu();
     new Menu();
-    const box = { checked: false };
-    const button = { form: { elements: { namedItem: (): { checked: boolean } => box } } };
+    const fields: Record<string, unknown> = {
+      useBackground: { checked: false },
+      tagline: { value: 'Ravens circle.' },
+    };
+    const button = { form: { elements: { namedItem: (name: string): unknown => fields[name] } } };
     await options?.buttons[0].callback(new Event('click'), button);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -275,7 +383,7 @@ describe('createJoinPageMenu', () => {
     expect(JSON.parse(init.body as string)).toEqual({
       action: 'editWorld',
       id: 'w',
-      description: `${VEIL_STYLE_LINE}\n${DESCRIPTION}`,
+      description: planned,
     });
     expect(world.updateSource).toHaveBeenCalledWith(saved);
     expect(testWorld.notifications.filter(n => n.level === 'error')).toEqual([]);
@@ -315,33 +423,10 @@ describe('createJoinPageMenu', () => {
 });
 
 describe('the join page files', () => {
-  const css = readFileSync(join(MODULE_ROOT, 'styles/join/veil.css'), 'utf8');
-
-  it('ships the stylesheet, the picture and every font it names', () => {
+  it('ships the picture, and no stylesheet (option B, I-150, adds one at the edge)', () => {
     expect(existsSync(join(MODULE_ROOT, 'styles/join/veil-background.svg'))).toBe(true);
-    const fonts = [...css.matchAll(/url\('([^']+)'\)/g)].map(m => m[1]);
-    expect(fonts.length).toBeGreaterThan(0);
-    for (const font of fonts)
-      expect(existsSync(join(MODULE_ROOT, 'styles/join', font)), font).toBe(true);
-    expect(existsSync(join(MODULE_ROOT, 'styles/join/fonts/OFL-Gloock.txt'))).toBe(true);
-    expect(existsSync(join(MODULE_ROOT, 'styles/join/fonts/OFL-Spectral.txt'))).toBe(true);
-  });
-
-  it('styles only the join page (the setup screen shows the description too)', () => {
-    const body = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@font-face\s*\{[^}]*\}/g, '');
-    // After `}` or `{`, so the rules inside @media blocks are checked too.
-    const selectors = [...body.matchAll(/(^|[{}])\s*([^{}@]+)\{/g)].map(m => m[2].trim());
-    expect(selectors.length).toBeGreaterThan(5);
-    const mediaAt = body.indexOf('@media');
-    expect(selectors.some(s => body.lastIndexOf(s) > mediaAt)).toBe(true);
-    for (const group of selectors) {
-      for (const selector of group.split(/,(?![^(]*\))/))
-        expect(selector.trim(), selector).toMatch(/^body\.join(?![\w-])/);
-    }
-  });
-
-  it('is not loaded inside the game (module.json styles)', () => {
+    expect(existsSync(join(MODULE_ROOT, 'styles/join/veil.css'))).toBe(false);
     const manifest = JSON.parse(readFileSync(join(MODULE_ROOT, 'module.json'), 'utf8'));
-    expect(manifest.styles).not.toContain('styles/join/veil.css');
+    expect(JSON.stringify(manifest.styles ?? [])).not.toContain('styles/join');
   });
 });

@@ -510,7 +510,11 @@ export function makePack(opts: MakePackOptions = {}): AnyDoc {
     documentName: type,
     indexed: true,
     index: buildIndex(),
-    getDocuments: async () => docs.contents,
+    // Foundry 14 answers a `{ _id__in: [...] }` query with only those documents.
+    getDocuments: async (query?: { _id__in?: string[] }): Promise<AnyDoc[]> => {
+      const ids = query?._id__in;
+      return ids ? docs.contents.filter(d => ids.includes(d.id ?? '')) : docs.contents;
+    },
     getDocument: async (docId: string) => docs.get(docId),
     getIndex: async () => buildIndex(),
     ...rest,

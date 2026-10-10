@@ -21,6 +21,53 @@ export const DIRTY_STAMP_DEBOUNCE_MS = 1_000;
 /** After a failed build, stale reads start no new background build for this long. */
 export const BUILD_RETRY_COOLDOWN_MS = 60_000;
 
+/** Creatures in a pack's first `getDocuments` call during a build (the browser runs in between). */
+export const PACK_LOAD_CHUNK_SIZE = 10;
+
+/** The build's progress note changes at most this often within one pack. */
+const PROGRESS_INTERVAL_MS = 1_000;
+
+/** Bounds of the adaptive chunk size (see {@link nextChunkSize}). */
+export const PACK_LOAD_MIN_CHUNK = 5;
+export const PACK_LOAD_MAX_CHUNK = 100;
+
+/** The time one chunk load aims for: about the longest freeze a build should cause. */
+export const PACK_LOAD_CHUNK_TARGET_MS = 250;
+
+/**
+ * The size of the next chunk after one of `size` creatures took `elapsedMs`:
+ * as many creatures as fit {@link PACK_LOAD_CHUNK_TARGET_MS} at the measured
+ * time per creature, at most twice the last size, within the bounds. A busy PC
+ * gets small chunks (short freezes), a quiet one big chunks (fewer round trips).
+ */
+export function nextChunkSize(size: number, elapsedMs: number): number {
+  const fit = elapsedMs > 0 ? Math.floor((PACK_LOAD_CHUNK_TARGET_MS * size) / elapsedMs) : size * 2;
+  return Math.max(PACK_LOAD_MIN_CHUNK, Math.min(PACK_LOAD_MAX_CHUNK, size * 2, fit));
+}
+
+/** Whether the page is in a hidden tab or a minimized window (nobody to keep it responsive for). */
+function pageHidden(): boolean {
+  return (globalThis as { document?: { hidden?: boolean } }).document?.hidden === true;
+}
+
+/**
+ * Let the browser handle input, rendering and socket messages before going on:
+ * `scheduler.yield()` where the browser has it, else a message-channel task (no
+ * 4 ms timer clamp).
+ */
+function yieldToBrowser(): Promise<void> {
+  const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  if (typeof scheduler?.yield === 'function') return scheduler.yield();
+  return new Promise(resolve => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = (): void => {
+      channel.port1.close();
+      resolve();
+    };
+    channel.port2.postMessage(null);
+  });
+}
+
 /**
  * Whether this browser rebuilds the creature index after a pack change: the
  * bridge user's GM browser, the one bridge queries reach. With "Any GM" only the
@@ -84,10 +131,12 @@ export class PersistentCreatureIndex {
   private pendingDirtyAt = 0;
   /** The `pendingDirtyAt` whose stamp write went through. */
   private stampedDirtyAt = 0;
-  /** The index last read from or written to the file, served while a build runs. */
+  /** The index last read from or written to the file: served while a build runs, and reused while current. */
   private loadedIndex: PersistentEnhancedIndex | null = null;
   /** When the last build failed (0 after a success), for {@link BUILD_RETRY_COOLDOWN_MS}. */
   private lastFailedBuildAt = 0;
+  /** Counts the builds that set `loadedIndex`, so a file read begun before one keeps out. */
+  private builtIndexes = 0;
 
   constructor() {
     this.registerFoundryHooks();
@@ -129,35 +178,43 @@ export class PersistentCreatureIndex {
   /**
    * The persisted index when it is current, else the (shared) build's result.
    * Without `waitForCurrent`, a usable but stale saved index is served while the
-   * build runs in the background; after a failed build, stale reads start no new
-   * one for {@link BUILD_RETRY_COOLDOWN_MS} (a build that keeps failing would
-   * otherwise run, and show its error, on every query).
+   * build runs in the background; after a failed build, reads start no new one
+   * for {@link BUILD_RETRY_COOLDOWN_MS} (a build that keeps failing would
+   * otherwise run, and show its error, on every query): a stale saved index is
+   * served, and with none the read throws.
    */
   private async resolveIndex(
     waitForCurrent: boolean
   ): Promise<{ creatures: EnhancedCreatureIndex[]; rebuilt: boolean }> {
-    if (this.buildPromise) {
+    // Held here: the build can end (and clear `buildPromise`) while the file loads below.
+    const build = this.buildPromise;
+    if (build) {
       if (!waitForCurrent) {
         // The copy read before the build: the file (several MB) is not parsed again per query.
         const saved = this.loadedIndex ?? (await this.loadPersistedIndex());
         if (saved && this.isIndexUsable(saved)) {
           return { creatures: saved.creatures, rebuilt: false };
         }
-        return { creatures: await this.buildPromise, rebuilt: true };
+        return { creatures: await build, rebuilt: true };
       }
-      const creatures = await this.buildPromise;
+      const creatures = await build;
       // A creature change during the joined build left its result stale: build once more.
       if (this.loadedIndex && this.isIndexValid(this.loadedIndex)) {
         return { creatures, rebuilt: true };
       }
       return { creatures: await this.startBuild(), rebuilt: true };
     }
-    const persisted = await this.loadPersistedIndex();
+    // An index in memory that is still current needs no fetch and parse of the file. (Another
+    // GM's newer file differs from it only after a change, and the change's stamp makes it stale.)
+    const persisted =
+      this.loadedIndex && this.isIndexValid(this.loadedIndex)
+        ? this.loadedIndex
+        : await this.loadPersistedIndex();
     if (persisted && this.isIndexValid(persisted)) {
       return { creatures: persisted.creatures, rebuilt: false };
     }
     if (!waitForCurrent && persisted && this.isIndexUsable(persisted)) {
-      if (Date.now() - this.lastFailedBuildAt < BUILD_RETRY_COOLDOWN_MS) {
+      if (this.inBuildCooldown()) {
         return { creatures: persisted.creatures, rebuilt: false };
       }
       this.startBuild().then(
@@ -172,7 +229,17 @@ export class PersistentCreatureIndex {
       );
       return { creatures: persisted.creatures, rebuilt: false };
     }
+    if (!waitForCurrent && this.inBuildCooldown()) {
+      // No usable saved index and a build failed just now: the query falls back to the
+      // basic search instead of running (and failing) a full build every time.
+      throw new Error('The creature index build failed less than a minute ago; not retried yet');
+    }
     return { creatures: await this.startBuild(), rebuilt: true };
+  }
+
+  /** Whether a build failed within the last {@link BUILD_RETRY_COOLDOWN_MS}. */
+  private inBuildCooldown(): boolean {
+    return Date.now() - this.lastFailedBuildAt < BUILD_RETRY_COOLDOWN_MS;
   }
 
   /** Start a build, or return the one in flight: one build at a time. */
@@ -228,11 +295,28 @@ export class PersistentCreatureIndex {
   // ---- load / save ----------------------------------------------------------
 
   /**
-   * Load and deserialize the persisted index, or null when it is absent or
+   * Load the persisted index into `loadedIndex`, or null when it is absent or
+   * unreadable. When a build ended during the read, the build's index is
+   * returned instead: the file was read before its upload, so it is older.
+   */
+  private async loadPersistedIndex(): Promise<PersistentEnhancedIndex | null> {
+    const builtBefore = this.builtIndexes;
+    const loaded = await this.readIndexFile();
+    if (this.builtIndexes !== builtBefore) {
+      return this.loadedIndex;
+    }
+    if (loaded) {
+      this.loadedIndex = loaded;
+    }
+    return loaded;
+  }
+
+  /**
+   * Read and deserialize the index file, or null when it is absent or
    * unreadable. `packFingerprints` is stored as an entries array in JSON and is
    * rehydrated back into a Map here (so `isIndexValid` can `.get(...)` it).
    */
-  private async loadPersistedIndex(): Promise<PersistentEnhancedIndex | null> {
+  private async readIndexFile(): Promise<PersistentEnhancedIndex | null> {
     try {
       if (!(await this.indexFileExists())) {
         return null;
@@ -252,8 +336,7 @@ export class PersistentCreatureIndex {
           metadata.packFingerprints as Iterable<readonly [string, PackFingerprint]>
         );
       }
-      this.loadedIndex = rawData as unknown as PersistentEnhancedIndex;
-      return this.loadedIndex;
+      return rawData as unknown as PersistentEnhancedIndex;
     } catch (error) {
       console.warn(`[${this.moduleId}] Failed to load persisted index from file:`, error);
       return null;
@@ -561,7 +644,19 @@ export class PersistentCreatureIndex {
           }
           packFingerprints.set(pack.metadata.id, this.generatePackFingerprint(pack));
 
-          const { creatures: packCreatures, errors } = await this.extractDnD5eDataFromPack(pack);
+          // A big pack takes a while: say how far it got, at most once a second.
+          let shownAt = Date.now();
+          const { creatures: packCreatures, errors } = await this.extractDnD5eDataFromPack(
+            pack,
+            (loaded, total) => {
+              if (loaded >= total || Date.now() - shownAt < PROGRESS_INTERVAL_MS) return;
+              shownAt = Date.now();
+              notifier.show(
+                `Building creature index... pack ${i + 1}/${actorPacks.length} ` +
+                  `(${pack.metadata.label}): ${loaded}/${total} creatures loaded`
+              );
+            }
+          );
           creatures.push(...packCreatures);
           totalErrors += errors;
 
@@ -596,6 +691,7 @@ export class PersistentCreatureIndex {
       };
       await this.savePersistedIndex(persistentIndex);
       this.loadedIndex = persistentIndex;
+      this.builtIndexes++;
 
       const buildTimeSeconds = Math.round((Date.now() - startTime) / 1000);
       const errorText = totalErrors > 0 ? ` (${totalErrors} extraction errors)` : '';
@@ -620,35 +716,68 @@ export class PersistentCreatureIndex {
   }
 
   /**
-   * Extract every creature record from one pack. A pack-level load failure
-   * yields no creatures (and one error) so the build continues; per-document
-   * extraction failures are absorbed by {@link extractDnD5eCreatureData}.
+   * Extract every creature record from one pack. The creatures listed in the
+   * pack index load in chunks (`getDocuments({ _id__in })`), yielding to the
+   * browser between chunks: one `getDocuments()` of a big pack builds every
+   * Actor in one go and froze the GM browser for about 10 s, so a creature
+   * query in that time timed out. The first chunk holds
+   * {@link PACK_LOAD_CHUNK_SIZE} creatures, later ones {@link nextChunkSize}.
+   * In a hidden page nobody waits on the freeze, so chunks are the biggest and
+   * there is no yield (a background tab runs the yields far later: a build there
+   * took 3.7 times as long). A chunk that fails to load yields no creatures (and
+   * one error) so the build continues; per-document extraction failures are
+   * absorbed by {@link extractDnD5eCreatureData}. `onChunk` hears the creatures
+   * loaded so far after each chunk.
    */
   private async extractDnD5eDataFromPack(
-    pack: CompendiumCollection
+    pack: CompendiumCollection,
+    onChunk?: (loaded: number, total: number) => void
   ): Promise<{ creatures: DnD5eCreatureIndex[]; errors: number }> {
     const creatures: DnD5eCreatureIndex[] = [];
     let errors = 0;
+    const allIds = this.creatureIds(pack);
+    let size = PACK_LOAD_CHUNK_SIZE;
 
-    try {
-      const documents = (await pack.getDocuments()) as PackCreatureDoc[];
-      for (const doc of documents) {
-        if (!CREATURE_TYPES.has(doc.type)) {
-          continue;
+    for (let start = 0; start < allIds.length; ) {
+      const hidden = pageHidden();
+      const ids = allIds.slice(start, start + (hidden ? PACK_LOAD_MAX_CHUNK : size));
+      start += ids.length;
+      const began = performance.now();
+      try {
+        const documents = (await pack.getDocuments({ _id__in: ids })) as PackCreatureDoc[];
+        for (const doc of documents) {
+          if (!CREATURE_TYPES.has(doc.type)) {
+            continue;
+          }
+          const result = this.extractDnD5eCreatureData(doc, pack);
+          creatures.push(result.creature);
+          errors += result.errors;
         }
-        const result = this.extractDnD5eCreatureData(doc, pack);
-        creatures.push(result.creature);
-        errors += result.errors;
+      } catch (error) {
+        console.warn(
+          `[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`,
+          error
+        );
+        errors++;
       }
-    } catch (error) {
-      console.warn(
-        `[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`,
-        error
-      );
-      errors++;
+      if (!hidden) size = nextChunkSize(ids.length, performance.now() - began);
+      onChunk?.(start, allIds.length);
+      if (!pageHidden()) await yieldToBrowser();
     }
 
     return { creatures, errors };
+  }
+
+  /** The ids of the pack index entries that are creatures (or carry no type). */
+  private creatureIds(pack: CompendiumCollection): string[] {
+    const ids: string[] = [];
+    for (const entry of pack.index ?? []) {
+      const { _id, type } = entry as { _id?: unknown; type?: unknown };
+      if (typeof _id !== 'string' || _id === '') continue;
+      if (typeof type === 'string' && !CREATURE_TYPES.has(type)) continue;
+      ids.push(_id);
+    }
+    return ids;
   }
 
   /**

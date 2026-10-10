@@ -53,8 +53,9 @@ is the record). Lows from reviews become S items.
 ## Merges
 
 Lanes merge their own PRs through `npm run lane:merge` once phase 2 of D-122 lands; until then the
-planner merges by hand with the same checks (every CI check read on the head commit, a review note
-for that sha with verdict Merge, changelog fragment present). Merge train: after every 3 to 4
+planner merges by hand with the same checks (`gh pr checks <PR>`: every check passed on the head
+commit; a review note for that sha with verdict Merge; a changelog fragment), then, as a separate
+step, `gh pr merge <PR> --merge --match-head-commit <reviewed sha>`. Merge train: after every 3 to 4
 merges touching the module, bridge link or guarded writes, and before any Pi deploy, run
 `npm run live:roundtrip` (plus `live:sweep` when write handlers changed) on main through the test
 server lock; bisect if red. Tell the user what was merged.

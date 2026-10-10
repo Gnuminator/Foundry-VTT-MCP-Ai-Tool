@@ -1,4 +1,5 @@
 # Gitignored files the Claude desktop app and `claude --worktree` copy into new worktrees.
 # CLAUDE.md is private (gitignored); without this, worktree sessions start without it.
-CLAUDE.md
-.claude/settings.local.json
+/CLAUDE.md
+/.claude/settings.local.json
+/scripts/test-env/local.json

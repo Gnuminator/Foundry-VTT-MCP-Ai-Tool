@@ -6,7 +6,6 @@
 //   - somebody holds the test server lock (or it cannot be read, or a queue waits on a free lock),
 //   - lanes of this project at 200k context or more (busy or waiting, not CLOSED),
 //   - a session-notes run was missed or paused on the usage limit (the watchdog).
-// It prints the due Waiting items (vault Waiting.md, D-122): due within 7 days, or overdue.
 //
 // The lanes and the watchdog come from the control center (GET 127.0.0.1:3200/snapshot.json,
 // Gnuminator/control-center), else from a snapshot.json under 30 minutes old in its data folder.
@@ -326,7 +325,7 @@ export function formatOutput(lines) {
     systemMessage: `Start alerts:\n${text}`,
     hookSpecificOutput: {
       hookEventName: 'SessionStart',
-      additionalContext: `Start alerts (project SessionStart hook, D-102):\n${text}`,
+      additionalContext: `Start alerts (project SessionStart hook, D-102; Waiting items are raised by the planner, not by lanes):\n${text}`,
     },
   });
 }

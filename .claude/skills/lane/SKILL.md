@@ -47,14 +47,22 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 - Risky categories (guarded writes, bridge link, write gate, security, Pi scripts, wire contracts):
   an Opus review subagent. Everything else: a Sonnet review subagent. Give it the PR number, the
   head sha and the area; it is read-only and writes the note.
-- **Review note format** (the merge gate reads it): vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`
-  (round 2: `<PR>-review-round2.md`) containing a line `Head reviewed: \`<sha>\``and a`## Verdict`section whose first bold text is`**Merge.**`, `**Merge after fixes.**`or`**Do not merge.**`, then findings as H/M/L.
+- **Review note format** (the merge gate reads it):
+  - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md` (Opus: `<PR>-opus-review.md`;
+    round 2: `<PR>-review-round2.md`);
+  - a line `Head reviewed: <full sha>`;
+  - a `## Verdict` section whose first bold text is exactly `**Merge.**`, `**Merge after fixes.**`
+    or `**Do not merge.**`;
+  - findings as H1, M1, L1 with file:line and a fix.
 - Fix the findings, push, and send the same reviewer (SendMessage to that subagent) the new head
   for one delta round. Lows may go to the Backlog instead.
+- **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
+  push from a branch made off `aitool/main`).
 - **Merge:** `npm run lane:merge -- <PR>` once phase 2 of D-122 lands (it checks CI on the head
   commit, the review note for that sha, the changelog and drift, and the merge-train counter).
-  Until then the planner merges with the same checks by hand. Never chain a merge after a wait:
-  read every check first. Don't offer the app's PR Auto-fix.
+  Until then: `gh pr checks <PR>` and read that every check passed on the head commit, then
+  `gh pr merge <PR> --merge --match-head-commit <reviewed sha>` as a separate step. Never chain a
+  merge after a wait. Don't offer the app's PR Auto-fix.
 
 ## Context and handover
 

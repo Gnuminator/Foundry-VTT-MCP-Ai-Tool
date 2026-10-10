@@ -257,6 +257,10 @@ test.describe('the layout switch', () => {
       await expect(layoutButton(page, name)).toBeDisabled();
     }
     await expect(layoutButton(page, 'Auto')).toHaveAttribute('title', /not told the dashboard/);
+    // Off but still focusable (aria-disabled), so the keyboard reaches the reason; a click does nothing.
+    await layoutButton(page, 'Auto').focus();
+    await expect(layoutButton(page, 'Auto')).toBeFocused();
+    await layoutButton(page, 'Auto').click({ force: true });
     // No error toast to click into, and nothing was sent.
     expect(changes).toEqual([]);
 
@@ -461,6 +465,16 @@ test.describe('the layout trial', () => {
     await page.keyboard.press('Escape');
     await expect(guide(page)).toBeHidden();
     expect(changes).toEqual([]);
+  });
+
+  test('Escape from inside the guide moves the focus to the layout switch', async ({ page }) => {
+    await setup(page, { open: false, events: [prefs()] });
+    await load(page);
+    await page.locator('#btn-layout-trial').click();
+    await page.locator('#layout-tour-next').focus();
+    await page.keyboard.press('Escape');
+    await expect(guide(page)).toBeHidden();
+    await expect(layoutButton(page, 'Cards')).toBeFocused();
   });
 
   test('Escape closes an open drawer or menu first, not the trial', async ({ page }) => {

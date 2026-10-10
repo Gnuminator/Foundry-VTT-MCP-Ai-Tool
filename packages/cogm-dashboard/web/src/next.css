@@ -205,3 +205,12 @@ main.moment-views #moment-during.during-no-bar {
   border-color: var(--border-strong);
   color: var(--text);
 }
+
+/* During controls that wait for the world are aria-disabled (still focusable, so the reason is
+   read), and look like the disabled buttons of styles.css. */
+.layout-switch button[aria-disabled='true'],
+.btn[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}

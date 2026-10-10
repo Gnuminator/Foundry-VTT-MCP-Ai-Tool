@@ -669,7 +669,8 @@ WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claud
   anything changes, and so does an extra GM named like the world's GM or the Assistant GM. No
   passwordless users go to the Pi.
 - Then stage 13 with `WORLD=frostmaiden-training KIT_WORLD=` turns Actor Studio's usage tracking off
-  there too.
+  there too. Like stage 11, stage 13 only defaults `KIT_WORLD` to `strahd-kit` for
+  `curse-of-strahd`: any other world must set it, so a training run cannot change strahd-kit.
 
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).

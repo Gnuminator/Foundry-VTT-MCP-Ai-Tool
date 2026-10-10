@@ -7,3 +7,4 @@
   anything changes. The `strahd-kit` test copy is the default only for `curse-of-strahd`: any other
   world must set `KIT_WORLD`. The push-back module check keeps the Pi's copy when the numbers match
   but a pre-release suffix differs (1.2.0 and 1.2.0-rc1), and the summary masks module versions.
+  Stage 13 follows the same `KIT_WORLD` rule.

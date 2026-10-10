@@ -9,6 +9,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type JSX, type ReactNod
 import { callTool, errorText } from '../lib/api';
 import { fieldValues, refValue, type RefChoice, type ToolRef } from '../lib/toolForm';
 import { usage } from '../lib/usage';
+import { Button } from '../ui';
 
 /** Kinds that list nothing until the GM types a search (large sets). */
 const SEARCH_KINDS = new Set(['compendium-entry', 'document']);
@@ -229,9 +230,10 @@ export function RefPicker({
     <div className="ref-picker" ref={wrap}>
       <div className="ref-row">
         {children}
-        <button
+        <Button
           type="button"
-          className="btn btn-small ref-open"
+          size="sm"
+          className="ref-open"
           id={`${fieldId}-pick`}
           title="Choose from what exists now (you can still type)"
           aria-expanded={open}
@@ -239,7 +241,7 @@ export function RefPicker({
           onClick={toggle}
         >
           Pick…
-        </button>
+        </Button>
       </div>
       <div className="ref-hint" id={`${fieldId}-hint`} aria-live="polite">
         {hint}
@@ -262,15 +264,16 @@ export function RefPicker({
           />
           <div className="ref-note">{note}</div>
           {narrowsActors && !showAll && (
-            <button
+            <Button
               type="button"
-              className="btn btn-small ref-all"
+              size="sm"
+              className="ref-all"
               data-track="dash.tools.show-all-actors"
               title="List every actor, not only the kinds this tool is for"
               onClick={() => setShowAll(true)}
             >
               Show all actors
-            </button>
+            </Button>
           )}
           <div
             className="ref-list"

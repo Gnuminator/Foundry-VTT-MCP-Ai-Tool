@@ -12,6 +12,7 @@ import { api, callTool, errorText } from '../lib/api';
 import { failCode, useGuardedChange } from '../lib/guarded';
 import { HANDOUTS_KEY } from '../lib/stream';
 import { usage } from '../lib/usage';
+import { Button, QueryState } from '../ui';
 
 /** A player's first open of a handout (handouts/queue.ts SeenEntry on the bridge). */
 interface SeenEntry {
@@ -214,46 +215,48 @@ export function HandoutsDrawer({
       });
   };
 
-  const queueBlock = handouts.isError ? (
-    <li className="empty">Couldn&apos;t load the handouts: {errorText(handouts.error)}</li>
-  ) : !s ? (
-    <li className="empty">Loading…</li>
-  ) : s.queue.length === 0 ? (
-    <li className="empty">
-      Nothing queued. Queue pages during prep, then reveal each in one click.
-    </li>
-  ) : (
-    s.queue.map(q => (
-      <li
-        key={q.entryId}
-        className={`preflight-item${next?.entryId === q.entryId ? ' pf-info' : ''}`}
-      >
-        <span className="pf-text">
-          <span className="pf-label">
-            {q.title || 'Untitled'}
-            {!q.exists && (
-              <>
-                {' '}
-                <span className="pf-detail">(page deleted)</span>
-              </>
-            )}
-          </span>
-          <span className="pf-detail">
-            {q.sceneId ? (s.sceneNames[q.sceneId] ?? 'another scene') : 'any scene'} ·{' '}
-            {audienceText(q.players)}
-          </span>
-        </span>
-        <button
-          type="button"
-          className="btn btn-small"
-          data-track="dash.handouts.unqueue"
-          disabled={removing === q.uuid}
-          onClick={() => unqueue(q.uuid)}
-        >
-          Remove
-        </button>
-      </li>
-    ))
+  const queueBlock = (
+    <QueryState
+      query={handouts}
+      as="li"
+      errorLabel="Couldn't load the handouts"
+      isEmpty={d => d.queue.length === 0}
+      empty="Nothing queued. Queue pages during prep, then reveal each in one click."
+    >
+      {data =>
+        data.queue.map(q => (
+          <li
+            key={q.entryId}
+            className={`preflight-item${next?.entryId === q.entryId ? ' pf-info' : ''}`}
+          >
+            <span className="pf-text">
+              <span className="pf-label">
+                {q.title || 'Untitled'}
+                {!q.exists && (
+                  <>
+                    {' '}
+                    <span className="pf-detail">(page deleted)</span>
+                  </>
+                )}
+              </span>
+              <span className="pf-detail">
+                {q.sceneId ? (data.sceneNames[q.sceneId] ?? 'another scene') : 'any scene'} ·{' '}
+                {audienceText(q.players)}
+              </span>
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              data-track="dash.handouts.unqueue"
+              disabled={removing === q.uuid}
+              onClick={() => unqueue(q.uuid)}
+            >
+              Remove
+            </Button>
+          </li>
+        ))
+      }
+    </QueryState>
   );
 
   const shown = list(s?.pages).filter(p => p.feature === 'handouts' || p.copiedFrom);
@@ -309,8 +312,8 @@ export function HandoutsDrawer({
       onEscape={() => usage().track('shortcut', 'dash.shortcut.escape-handouts')}
       actions={
         <>
-          <button
-            className="btn btn-primary"
+          <Button
+            variant="primary"
             id="handouts-next"
             ref={nextRef}
             data-track="dash.handouts.reveal-next"
@@ -318,7 +321,7 @@ export function HandoutsDrawer({
             onClick={revealNext}
           >
             {next ? `Reveal next: ${next.title || 'Untitled'}` : 'Reveal next'}
-          </button>
+          </Button>
           <label className="show-now" htmlFor="handouts-show-now">
             <input
               type="checkbox"
@@ -330,24 +333,22 @@ export function HandoutsDrawer({
             Show it now
           </label>
           {/* Opens the Tool runner with the form filled in; the GM picks the page and runs it. */}
-          <button
-            className="btn"
+          <Button
             id="handouts-add"
             data-track="dash.handouts.queue-page"
             title="Queue a page for later: opens the tool runner on plan-page-reveal"
             onClick={() => onQueuePage(s?.activeSceneId ?? null)}
           >
             + Queue a page
-          </button>
-          <button
-            className="btn"
+          </Button>
+          <Button
             id="handouts-refresh"
             data-track="dash.handouts.refresh"
             disabled={handouts.isFetching}
             onClick={() => void handouts.refetch()}
           >
             ↻ Refresh
-          </button>
+          </Button>
         </>
       }
     >

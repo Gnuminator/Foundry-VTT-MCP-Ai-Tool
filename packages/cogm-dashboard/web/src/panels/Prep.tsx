@@ -9,6 +9,7 @@ import { Drawer, DrawerClose } from '../components/Drawer';
 import { useToast } from '../components/Toasts';
 import { callTool, errorText } from '../lib/api';
 import { usage } from '../lib/usage';
+import { Button, EmptyState, ErrorState, LoadingState } from '../ui';
 import { PREFLIGHT_ICONS, type CheckStatus } from './Preflight';
 
 type PrepAction = 'summary' | 'last-session';
@@ -112,14 +113,9 @@ type OpenJournal = (journalId: string) => void;
 function OpenButton({ id, onOpen }: { id: string; onOpen: OpenJournal }): JSX.Element | null {
   if (!id) return null;
   return (
-    <button
-      type="button"
-      className="btn btn-small"
-      data-track="dash.prep.open-journal"
-      onClick={() => onOpen(id)}
-    >
+    <Button type="button" size="sm" data-track="dash.prep.open-journal" onClick={() => onOpen(id)}>
       Open
-    </button>
+    </Button>
   );
 }
 
@@ -128,7 +124,7 @@ const SubHead = ({ children }: { children: ReactNode }): JSX.Element => (
 );
 
 const Empty = ({ children }: { children: ReactNode }): JSX.Element => (
-  <p className="empty">{children}</p>
+  <EmptyState>{children}</EmptyState>
 );
 
 function LastSession({
@@ -211,14 +207,9 @@ function LastSession({
         </details>
       )}
       {action === 'summary' && last.beatsTruncated && (
-        <button
-          type="button"
-          className="btn btn-small"
-          data-track="dash.prep.all-beats"
-          onClick={onAllBeats}
-        >
+        <Button type="button" size="sm" data-track="dash.prep.all-beats" onClick={onAllBeats}>
           All beats
-        </button>
+        </Button>
       )}
     </>
   );
@@ -395,14 +386,14 @@ function Ready({
               })}
             </ul>
           )}
-          <button
+          <Button
             type="button"
-            className="btn btn-small"
+            size="sm"
             data-track="dash.prep.open-preflight"
             onClick={onOpenPreflight}
           >
             Open Pre-flight
-          </button>
+          </Button>
         </>
       )}
     </>
@@ -497,7 +488,7 @@ export function PrepDrawer({
   // A failed load empties the sections and says why under "Last session".
   const last =
     loadError !== null ? (
-      <Empty>Couldn&apos;t load the prep digest: {loadError}</Empty>
+      <ErrorState error={loadError}>Couldn&apos;t load the prep digest</ErrorState>
     ) : d ? (
       <LastSession
         last={d.lastSession}
@@ -505,7 +496,7 @@ export function PrepDrawer({
         onAllBeats={() => void load('last-session')}
       />
     ) : (
-      <Empty>Loading…</Empty>
+      <LoadingState />
     );
 
   return (
@@ -520,14 +511,14 @@ export function PrepDrawer({
       onEscape={() => usage().track('shortcut', 'dash.shortcut.escape-prep')}
       bodyClassName="prep-body"
       actions={
-        <button
-          className="btn btn-primary"
+        <Button
+          variant="primary"
           data-track="dash.prep.refresh"
           disabled={loading}
           onClick={() => void load()}
         >
           ↻ Refresh
-        </button>
+        </Button>
       }
     >
       <div>

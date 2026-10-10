@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.test.ts', 'scripts/**/*.test.mjs'],
+    // web/src: the React components' tests, rendered to a string (no DOM, no new framework).
+    include: ['src/**/*.test.ts', 'web/src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
   },
 });

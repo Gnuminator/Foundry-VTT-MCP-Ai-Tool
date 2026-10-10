@@ -15,6 +15,7 @@ import {
 
 import { useEscapeClose } from '../lib/escape';
 import { usage } from '../lib/usage';
+import { Button } from '../ui';
 
 /** What the window shows: the plan's summary and what it will change. */
 export interface ConfirmRequest {
@@ -161,25 +162,24 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
                   </label>
                 )}
                 <div className="modal-actions">
-                  <button
+                  <Button
                     type="button"
-                    className="btn"
                     id="modal-cancel"
                     data-track="dash.modal.cancel"
                     onClick={() => answer(false)}
                   >
                     Cancel
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="btn btn-primary"
+                    variant="primary"
                     id="modal-confirm"
                     data-track="dash.modal.confirm"
                     disabled={destructive && !ticked}
                     onClick={() => answer(true)}
                   >
                     {destructive ? 'Run destructive action' : 'Confirm'}
-                  </button>
+                  </Button>
                 </div>
               </Dialog.Content>
             )}

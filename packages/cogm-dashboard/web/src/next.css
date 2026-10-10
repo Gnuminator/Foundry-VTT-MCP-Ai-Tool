@@ -41,9 +41,10 @@ a.btn {
   align-self: center;
 }
 
-/* The drawer opened last covers the others (Drawer.tsx); still under the confirm window (60). */
+/* The drawer opened last covers the others (Drawer.tsx); still under the confirm window. The
+   layer values are tokens (brand.css): --z-drawer 50, --z-drawer-top 51, --z-confirm 60. */
 .drawer.drawer-top {
-  z-index: 51;
+  z-index: var(--z-drawer-top);
 }
 
 /* The Advanced menu (AdvancedMenu.tsx): Radix places it under the button, so the old page's own
@@ -79,7 +80,7 @@ a.btn {
 }
 /* The header and menu buttons focus a docked drawer to show where it is. */
 .drawer.docked:focus {
-  outline: 2px solid var(--accent);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 

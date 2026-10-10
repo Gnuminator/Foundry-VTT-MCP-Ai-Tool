@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 
 import { streamUrl } from './auth';
 import { bridgeAway, readCombat, type CombatState } from './combat';
+import { EMPTY_FEED, addFeedEvents, readFeedEvents, type FeedLog } from './feed';
 import { onPrefs } from './prefs';
 
 /** One Foundry module error or warning (feed/types.ts ModuleError on the server). */
@@ -60,6 +61,13 @@ export type { CombatState } from './combat';
 
 export const COMBAT_KEY = ['stream', 'combat'] as const;
 
+/**
+ * The session events the stream brought (`events`, GM only), as the Live Feed shows them
+ * (lib/feed.ts). Absent until the first `events` message, which the server sends on every
+ * connect even when empty.
+ */
+export const FEED_KEY = ['stream', 'events'] as const;
+
 /** The old page keeps 150 entries on screen; the server keeps the newest 100. */
 export const MAX_ERROR_ENTRIES = 150;
 
@@ -103,6 +111,11 @@ export const TAROKKA_KEY = ['game', 'tarokka'] as const;
 /** One handler per event this page uses; each puts the event into the query cache. */
 const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void> = {
   errors: onErrors,
+  // Oldest first; the same events come again on a reconnect, and the log adds each id once.
+  events: (queryClient, data) => {
+    const batch = readFeedEvents((data as { events?: unknown } | null)?.events);
+    queryClient.setQueryData<FeedLog>(FEED_KEY, log => addFeedEvents(log ?? EMPTY_FEED, batch));
+  },
   // A player opened a handout for the first time (GM only, no payload): the drawer reloads its
   // seen ticks when it is open. A closed drawer loads afresh on its next opening anyway.
   'handouts-seen': queryClient => void queryClient.invalidateQueries({ queryKey: HANDOUTS_KEY }),
@@ -154,6 +167,18 @@ export function useModuleErrors(): ModuleErrorLog {
     gcTime: Infinity,
   });
   return data ?? EMPTY_LOG;
+}
+
+/** The events the stream has brought so far; null until its first `events` message. */
+export function useFeed(): FeedLog | null {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: FEED_KEY,
+    queryFn: () => queryClient.getQueryData<FeedLog>(FEED_KEY) ?? null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data ?? null;
 }
 
 /** The bridge link as the stream last reported it; undefined until the first status event. */

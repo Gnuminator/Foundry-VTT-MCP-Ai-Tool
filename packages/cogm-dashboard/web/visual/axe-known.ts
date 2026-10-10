@@ -31,6 +31,14 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   },
   {
     rule: 'color-contrast',
+    target: '.sev-damage .event-type, .sev-death .event-type',
+    reason:
+      'Danger red #e63946 on the Damage and Death chip tint #39242f is 3.43:1 (needs 4.5:1), neutral theme: the same danger red and tint as the module error badge above.',
+    screens: ['during', 'preflight', 'prep'],
+    theme: 'neutral',
+  },
+  {
+    rule: 'color-contrast',
     target: '.death-saves',
     reason: 'Danger red #e63946 on the panel #1d212b is 3.86:1 (needs 4.5:1), neutral theme.',
     screens: ['party'],

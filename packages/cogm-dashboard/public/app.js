@@ -251,7 +251,7 @@ let changesReloadTimer = null;
 
 // Play session control (O2)
 let currentWorldId = null;
-let playSession = { open: false, startedAt: null };
+let playSession = { open: false, startedAt: null, endedAt: null };
 
 // ---------------------------------------------------------------------------
 // REST helpers
@@ -509,6 +509,7 @@ async function loadPlaySession({ quiet = true } = {}) {
     playSession = {
       open: !!(result && result.open),
       startedAt: (result && result.startedAt) || null,
+      endedAt: (result && result.endedAt) || null,
     };
     renderSessionControl();
   } catch (err) {
@@ -522,7 +523,6 @@ async function markSession(action) {
   try {
     await callReadTool('mark-play-session', { action });
     toast(action === 'start' ? '✓ Play session started' : '✓ Play session ended', 'ok');
-    if (action === 'end') rememberSessionEnded();
   } catch (err) {
     toast(`✗ mark-play-session: ${String(err.message || err)}`, 'err');
   }
@@ -3987,7 +3987,6 @@ notesEls.actions.addEventListener('click', async e => {
 // the last hours: after); a tab click pins a moment until the session changes.
 // ---------------------------------------------------------------------------
 const MOMENTS = ['before', 'during', 'after'];
-const SESSION_ENDED_KEY = 'cogm_session_ended';
 const AFTER_WINDOW_MS = 12 * 60 * 60 * 1000;
 const DOCKS = {
   before: { preflight: els.preflightDrawer, prep: els.prepDrawer },
@@ -4021,20 +4020,10 @@ function shown(el) {
   return !!el && !el.hidden && !isDocked(el);
 }
 
-function rememberSessionEnded() {
-  try {
-    localStorage.setItem(SESSION_ENDED_KEY, String(Date.now()));
-  } catch {
-    // No storage: "after" lasts until the page reloads.
-  }
-}
+/** A session that ended within the After window, by the end time get-play-session reports. */
 function sessionEndedRecently() {
-  try {
-    const at = Number(localStorage.getItem(SESSION_ENDED_KEY));
-    return at > 0 && Date.now() - at < AFTER_WINDOW_MS;
-  } catch {
-    return false;
-  }
+  const ended = playSession.endedAt ? Date.parse(playSession.endedAt) : NaN;
+  return Number.isFinite(ended) && Date.now() - ended <= AFTER_WINDOW_MS;
 }
 
 function momentFromSession() {
@@ -4046,7 +4035,6 @@ function momentFromSession() {
 function onSessionState() {
   if (lastSessionOpen !== null && lastSessionOpen !== playSession.open) {
     momentPinned = false;
-    if (!playSession.open) rememberSessionEnded();
   }
   lastSessionOpen = playSession.open;
   if (!momentPinned) setMoment(momentFromSession());

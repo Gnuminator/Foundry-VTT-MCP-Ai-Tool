@@ -127,6 +127,9 @@ test('no session: Before, with Pre-flight and Prep in the page', async ({ page }
   const features = view(page, 'before').getByRole('region', { name: 'Features' });
   await expect(features).toContainText('Not in the new dashboard yet.');
   await expect(features.getByRole('link', { name: 'full dashboard' })).toHaveAttribute('href', '/');
+  await expect.poll(() => count(calls, 'get-prep-digest')).toBe(1);
+  // A later poll as the sync point: a late get-party call would have landed by then.
+  await nextPoll(page, calls);
   expect(count(calls, 'get-prep-digest')).toBe(1);
   expect(count(calls, 'get-party')).toBe(0);
 });
@@ -146,6 +149,8 @@ test('an open session: During, with Party and Handouts in the page', async ({ pa
   await expect(page.locator('#prep-drawer')).toHaveCount(0);
   await expect(page.locator('#handouts-close')).toHaveCount(0);
   // Before never showed: its panels did not load.
+  await expect.poll(() => count(calls, 'get-party')).toBe(1);
+  await nextPoll(page, calls);
   expect(count(calls, 'get-prep-digest')).toBe(0);
   expect(count(calls, 'get-party')).toBe(1);
 });
@@ -177,6 +182,40 @@ test('After turns into Before when the 12 hours pass, at the next poll', async (
   await expect(tab(page, 'Before')).toHaveAttribute('aria-selected', 'true');
 });
 
+test('with the bridge down After still turns into Before when the 12 hours pass', async ({
+  page,
+}) => {
+  const endedAt = new Date(NOW - 11 * HOUR - 59 * 60_000).toISOString();
+  await fakeBridge(page, () => ({ open: false, endedAt }));
+  await load(page);
+  await expect(tab(page, 'After')).toHaveAttribute('aria-selected', 'true');
+
+  // From here every poll fails; the window is measured at the failed poll too.
+  let failedPolls = 0;
+  await page.route('**/api/tool', route => {
+    const call = route.request().postDataJSON() as ToolCall;
+    if (call.name !== 'get-play-session') return route.fallback();
+    failedPolls += 1;
+    return route.fulfill({
+      status: 502,
+      json: { ok: false, kind: 'bridge', error: 'Bridge gone' },
+    });
+  });
+  await page.clock.fastForward(61_000);
+  await expect.poll(() => failedPolls).toBe(1);
+  await expect(tab(page, 'Before')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('outside the Veil theme the selected tab keeps its ring and glow', async ({ page }) => {
+  await fakeCommonRoutes(page, 'neutral');
+  await fakeBridge(page, () => closed());
+  await load(page);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'neutral');
+  await expect(tab(page, 'Before')).toHaveAttribute('aria-selected', 'true');
+  await expect(tab(page, 'Before')).not.toHaveCSS('box-shadow', 'none');
+  await expect(tab(page, 'During')).toHaveCSS('box-shadow', 'none');
+});
+
 test('a failed session read shows Before', async ({ page }) => {
   await page.route('**/api/preflight', route =>
     route.fulfill({ json: { ready: true, checks: [], scan: null } })
@@ -194,7 +233,10 @@ test('a failed session read shows Before', async ({ page }) => {
   await expect(view(page, 'before')).toBeVisible();
   // Ready for session mounts with Pre-flight and shares the failed read: no second try.
   await expect(docked(page, '✈ Pre-flight').locator('#ready-block')).toBeVisible();
-  expect(count(calls, 'get-play-session')).toBe(1);
+  await expect.poll(() => count(calls, 'get-play-session')).toBe(1);
+  // The next poll is the sync point: the first read plus that poll, and no extra from Ready.
+  await nextPoll(page, calls);
+  expect(count(calls, 'get-play-session')).toBe(2);
 });
 
 test('a tab pins the moment until the session starts or ends', async ({ page }) => {
@@ -308,6 +350,7 @@ test('the header and menu buttons show a docked panel instead of opening a copy'
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.locator('.drawer-backdrop')).toHaveCount(0);
   // Showing it does not load it again; its Refresh does.
+  await nextPoll(page, calls);
   expect(count(calls, 'get-prep-digest')).toBe(1);
   // Prep's "Open Pre-flight" shows the one beside it.
   await docked(page, '📋 Prep').getByRole('button', { name: 'Open Pre-flight' }).click();
@@ -336,6 +379,7 @@ test('a panel docked in both moments keeps its data; one coming back loads again
   await tab(page, 'After').click();
   await expect(view(page, 'after').getByRole('region', { name: '📋 Prep' })).toBeVisible();
   await expect(view(page, 'before').locator('#prep-drawer')).toHaveCount(0);
+  await nextPoll(page, calls);
   expect(count(calls, 'get-prep-digest')).toBe(1);
 
   // Not in During; back in Before it loads, as when its drawer opens.

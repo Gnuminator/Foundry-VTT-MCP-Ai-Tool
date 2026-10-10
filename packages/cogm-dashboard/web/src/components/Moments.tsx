@@ -52,7 +52,8 @@ export function useMoment(): { moment: Moment | null; pick: (moment: Moment) => 
     setSeenOpen(open);
     if (seenOpen !== undefined) setPinned(null);
   }
-  // The time of the last answer, not the clock: each poll checks the 12 hours again.
+  // The time of the last poll (answered or failed), not the clock: each poll checks the 12 hours
+  // again, also while the bridge is down.
   const fromSession = session ? momentFromSession(session, checkedAt) : failed ? 'before' : null;
   return { moment: pinned ?? fromSession, pick: setPinned };
 }

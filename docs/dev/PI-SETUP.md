@@ -649,6 +649,13 @@ What stage 11 does with it:
 - **The `strahd-kit` default is only for `curse-of-strahd`.** Any other `WORLD` must say
   `KIT_WORLD=` (no test copy) or `KIT_WORLD=<id> KIT_TITLE=<title>`, or the run stops before
   anything changes, so another bundle can never reset `strahd-kit`.
+- **A kit world is only reset if it is a kit copy of the same `WORLD`.** Every reset writes
+  `flags["foundry-ai-tool"].kitOf = <WORLD>` into the kit world's `world.json`. If a world with the
+  `KIT_WORLD` id is already installed and has no such marker for this `WORLD`, the run stops before
+  anything changes, so a campaign run can never overwrite an installed training world from the Strahd
+  bundle. The Pi's older `strahd-kit` counts for `curse-of-strahd` and gets the marker on its next
+  reset. Run with `REPLACE_KIT=1` only when replacing that world is meant; it never lifts the refusal
+  to use `curse-of-strahd`, `strahd-kit` or the `LAUNCH` world as the kit world of another `WORLD`.
 
 ### Training world (D-118)
 
@@ -661,7 +668,9 @@ replaces the Pi's module folders with the bundle's, so shipping them again could
 own copies; `-PiModules` writes each one with the version of the PC's copy into the bundle's
 `MANIFEST.txt` (`pi-modules: aitool-content@1.2.0, ...`), and stage 11 stops before anything changes
 if one is not installed on the Pi, or if the Pi's copy is older than the PC's: update it on the Pi
-first, or ship it. A version that cannot be compared only warns). The command push-world prints at the
+first (the campaign bundle, or stage 13 for actor-studio). Versions compare as numbers; with the same
+numbers, two suffixes like `2.10.5-aitool.4` and `2.10.5-aitool.5` compare their counter, and any other
+suffix mix, like `1.2.0` and `1.2.0-rc1`, cannot be compared and only warns). The command push-world prints at the
 end for this world has `KIT_WORLD= LAUNCH=curse-of-strahd`; add `EXTRA_GM_USER=Claude` to it by hand
 (push-world only hints at it). The settings are:
 

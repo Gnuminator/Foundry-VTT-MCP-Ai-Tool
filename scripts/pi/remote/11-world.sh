@@ -14,6 +14,10 @@
 #   own generated password; default none; letters, digits, . _ - and inner spaces), SHIP_MODULES (1 lets a bundle
 #   for a WORLD other than curse-of-strahd replace the Pi's modules; default 0 refuses such a bundle, because the
 #   campaign owns the modules: build it with push-world.ps1 -PiModules instead).
+# REPLACE_KIT (1 lets the run reset an installed KIT_WORLD that is not a kit copy of WORLD; default 0 refuses it. A kit
+#   copy carries flags.foundry-ai-tool.kitOf = WORLD in its world.json, written by every reset; the Pi's older
+#   strahd-kit counts for WORLD=curse-of-strahd. It lifts only that rule, never the refusal to name curse-of-strahd,
+#   strahd-kit or LAUNCH as KIT_WORLD for another WORLD).
 # A second campaign goes in next to the real one with LAUNCH naming the world Foundry keeps launching, for example
 # the Frostmaiden training world (D-118; docs/dev/PI-SETUP.md, "Training world"):
 #   WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
@@ -36,8 +40,9 @@
 # /var/lib/foundry-import/prev-<stamp> (never deleted), installs, gives the worlds a generated GM password in a
 # root-only file (/etc/foundry-ai-tool/world-<id>.env, never printed), provisions the Assistant GM and the bridge,
 # and starts Foundry on LAUNCH. The real world is never replaced unless REPLACE_WORLD=1; the kit world is always
-# reset to the bundle's copy. Modules are always replaced (old ones go to prev); an image with the same name
-# and other content is copied to prev first. Space is checked first (20% free warns, under 5% stops). If the run
+# reset to the bundle's copy. Modules are replaced (old ones go to prev), except that a push-back keeps a Pi copy
+# that is newer than the bundle's and that a bundle for a second world is refused when it ships modules unless
+# SHIP_MODULES=1; an image with the same name and other content is copied to prev first. Space is checked first (20% free warns, under 5% stops). If the run
 # fails after Foundry was stopped, options.json is put back to the world it launched before the run and Foundry
 # starts again on it. A failure after the world swap leaves the bundle's WORLD installed (the message says so, and
 # the old WORLD is in prev). Safe to run again with the same bundle.
@@ -87,6 +92,16 @@ if [ -n "$KIT_WORLD" ]; then
     [ "$KIT_WORLD" != curse-of-strahd ] || die "KIT_WORLD=curse-of-strahd is the campaign: a kit world for WORLD=$WORLD needs another id. Nothing was changed"
     [ "$KIT_WORLD" != strahd-kit ] || die "KIT_WORLD=strahd-kit is the campaign's test copy: a kit world for WORLD=$WORLD needs another id. Nothing was changed"
     [ "$KIT_WORLD" != "$LAUNCH" ] || die "KIT_WORLD=$KIT_WORLD is the world Foundry launches (LAUNCH): every run resets the kit world, so it needs another id. Nothing was changed"
+  fi
+  # An installed world with the kit world's id must be this WORLD's own kit copy (its world.json says
+  # flags.foundry-ai-tool.kitOf = WORLD), else the reset would replace a real world from this bundle. The Pi's
+  # strahd-kit predates the marker: it counts for WORLD=curse-of-strahd, and the next reset adds the marker.
+  # REPLACE_KIT=1 lifts only this rule, never the refusals above.
+  if [ -e "$data/worlds/$KIT_WORLD" ] && [ "${REPLACE_KIT:-0}" != 1 ]; then
+    kit_of="$(node -e 'try{const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const k=o&&o.flags&&o.flags["foundry-ai-tool"]&&o.flags["foundry-ai-tool"].kitOf;process.stdout.write(typeof k==="string"?k:"")}catch{}' "$data/worlds/$KIT_WORLD/world.json" 2>/dev/null)" || kit_of=""
+    if [ "$kit_of" != "$WORLD" ] && ! { [ "$WORLD" = curse-of-strahd ] && [ "$KIT_WORLD" = strahd-kit ]; }; then
+      die "the installed world $KIT_WORLD is not a kit copy of $WORLD (its world.json has no kitOf=$WORLD): resetting it would replace it from this bundle. Use another KIT_WORLD id, or REPLACE_KIT=1 when replacing it is meant. Nothing was changed"
+    fi
   fi
 fi
 # For another WORLD the kit world can never be LAUNCH (refused above), so the message does not offer it.
@@ -317,8 +332,10 @@ fi
 # module.json version is higher) is kept: a push-back never downgrades a module. module_check prints one line:
 # "install", "keep <pi> <bundle>" (the Pi's version is higher) or "unsure <pi> <bundle>" (a version that is
 # missing or not numbers, such as "beta" or an unreadable module.json, or the same numbers with another pre-release
-# suffix, such as 1.2.0 and 1.2.0-rc1: the Pi's copy is kept, since a downgrade cannot be ruled out). A module the Pi does not have prints "install". world-refs.test.mjs cuts the script out
-# and tests it.
+# suffix, such as 1.2.0 and 1.2.0-rc1: the Pi's copy is kept, since a downgrade cannot be ruled out). The one
+# exception: the same numbers and two suffixes of the form -<word>.<n> with the same word (2.10.5-aitool.4 and
+# 2.10.5-aitool.5) compare n as a number. A module the Pi does not have prints "install". world-refs.test.mjs cuts
+# the script out and tests it.
 module_check() { # $1 the Pi's module.json, $2 the bundle's
   node - "$1" "$2" <<'MODVER'
 const fs = require('fs');
@@ -345,7 +362,10 @@ if (!fs.existsSync(piFile)) {
   const y = parse(b);
   let c = 0;
   if (x && y) for (let i = 0; i < Math.max(x.n.length, y.n.length) && !c; i++) c = Math.sign((x.n[i] ?? 0) - (y.n[i] ?? 0));
-  // Same numbers, other suffix (1.2.0 and 1.2.0-rc1, or two pre-releases): which is newer is not clear, so unsure.
+  // Same numbers and both suffixes "-<word>.<n>" with the same word (2.10.5-aitool.4 and 2.10.5-aitool.5): compare n.
+  // Any other suffix mix (1.2.0 and 1.2.0-rc1, other words, no counter) is not clear, so unsure.
+  const tag = x && y && c === 0 && x.suffix !== y.suffix ? [/^-([A-Za-z]+)\.(\d+)$/.exec(x.suffix), /^-([A-Za-z]+)\.(\d+)$/.exec(y.suffix)] : null;
+  if (tag && tag[0] && tag[1] && tag[0][1] === tag[1][1]) c = Math.sign(Number(tag[0][2]) - Number(tag[1][2]));
   const unsure = !x || !y || (c === 0 && x.suffix !== y.suffix);
   console.log(unsure ? `unsure ${show(a)} ${show(b)}` : c > 0 ? `keep ${show(a)} ${show(b)}` : 'install');
 }
@@ -367,7 +387,7 @@ for i in "${!pi_modules[@]}"; do
   read -r what pc_version pi_version <<<"$verdict"
   case "$what" in
     install) ok "module $id: the Pi's copy is the PC's version $want or newer" ;;
-    keep) die "the bundle's world was checked against $id $pc_version, the Pi has $pi_version: update it on the Pi first, or ship it. Nothing was changed" ;;
+    keep) die "the bundle's world was checked against $id $pc_version, the Pi has $pi_version: update it on the Pi first (the campaign bundle, or stage 13 for actor-studio). Nothing was changed" ;;
     *) warn "module $id: the versions cannot be compared (the world was checked against ${pc_version:-?}, the Pi has ${pi_version:-?}): going on" ;;
   esac
 done
@@ -613,8 +633,8 @@ todo=()
 if [ -n "$KIT_WORLD" ]; then
   store_prev "$data/worlds/$KIT_WORLD" "worlds/$KIT_WORLD"
   cp -a "$work/extract/Data/worlds/$WORLD" "$data/worlds/$KIT_WORLD"
-  node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));o.id=process.argv[2];o.title=process.argv[3];fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' \
-    "$data/worlds/$KIT_WORLD/world.json" "$KIT_WORLD" "$KIT_TITLE"
+  node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));o.id=process.argv[2];o.title=process.argv[3];o.flags=o.flags||{};o.flags["foundry-ai-tool"]=Object.assign({},o.flags["foundry-ai-tool"],{kitOf:process.argv[4]});fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' \
+    "$data/worlds/$KIT_WORLD/world.json" "$KIT_WORLD" "$KIT_TITLE" "$WORLD"
   ok "kit world $KIT_WORLD reset from the bundle"
   todo+=("$KIT_WORLD")
 fi

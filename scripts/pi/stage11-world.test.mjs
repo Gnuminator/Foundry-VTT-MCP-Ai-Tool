@@ -11,7 +11,9 @@
 // module without SHIP_MODULES=1 while the campaign's own bundle with LAUNCH=strahd-kit does not need it, a LAUNCH world
 // that is not installed, a pi-modules module whose Pi copy is older than the PC version the bundle records), a failed provisioning followed by a plain rerun that provisions again (also for the campaign with its kit copy,
 // where every world of the run is marked), no password in the output,
-// and the old Strahd default (the kit copy reset, no extra GM). Without PI_STAGE11_CONTAINER the file skips.
+// and the old Strahd default (the kit copy reset and marked, no extra GM), the kit-copy rule (an installed
+// KIT_WORLD that is not a kit copy of WORLD is refused unless REPLACE_KIT=1; a second world's own kit copy resets twice)
+// and suffix-only module versions (-aitool.n compared as a number). Without PI_STAGE11_CONTAINER the file skips.
 // PI_STAGE11_OUTPUT=<file> checks a saved stage11-scenarios.sh output instead of starting Docker.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -83,6 +85,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
           after: part('env after'),
           pending: part('pending'),
           sentinels: part('sentinels'),
+          kitof: part('kitof'),
           worlds: part('worlds'),
           modules: part('modules'),
           leak: part('leak'),
@@ -387,7 +390,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     const r = run('pi-modules-older');
     assertRefused(
       r,
-      /checked against aitool-content 1\.1\.0, the Pi has 1\.0\.0: update it on the Pi first, or ship it/
+      /checked against aitool-content 1\.1\.0, the Pi has 1\.0\.0: update it on the Pi first \(the campaign bundle, or stage 13 for actor-studio\)/
     );
     assert.match(r.output, /Nothing was changed/);
     assert.deepEqual(lines(r.modules), ['aitool-content yes', 'foundry-mcp-bridge no']);
@@ -414,6 +417,75 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.deepEqual(lines(r.modules), ['foundry-mcp-bridge no']);
   });
 
+  test('pi-modules-suffix-older: the same numbers with a lower -aitool.n on the Pi are refused', () => {
+    const r = run('pi-modules-suffix-older');
+    assertRefused(
+      r,
+      /checked against aitool-content 2\.10\.5-aitool\.4, the Pi has 2\.10\.5-aitool\.3: update it on the Pi first/
+    );
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(lines(r.modules), ['aitool-content yes', 'foundry-mcp-bridge no']);
+  });
+
+  test('pi-modules-suffix-newer: a higher -aitool.n on the Pi is accepted', () => {
+    const r = run('pi-modules-suffix-newer');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(
+      r.output,
+      /module aitool-content: the Pi's copy is the PC's version 2\.10\.5-aitool\.4 or newer/
+    );
+    assert.doesNotMatch(r.output, /cannot be compared/);
+    assert.match(r.output, /world frostmaiden-training installed/);
+    assert.deepEqual(lines(r.modules), ['aitool-content yes', 'foundry-mcp-bridge no']);
+  });
+
+  test('kit-names-installed: a campaign run never resets an installed world that is not its kit copy', () => {
+    const r = run('kit-names-installed');
+    assertRefused(r, /the installed world frostmaiden-training is not a kit copy of curse-of-strahd/);
+    assert.match(r.output, /REPLACE_KIT=1/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.ok(sentinel(r, 'frostmaiden-training'), 'the training world must be untouched');
+    assert.ok(lines(r.worlds).includes('frostmaiden-training=frostmaiden-training (on the Pi)'));
+    assert.ok(lines(r.kitof).includes('frostmaiden-training kitOf=-'), r.kitof);
+  });
+
+  test('kit-names-installed-replace: REPLACE_KIT=1 lets the reset replace it and marks the copy', () => {
+    const r = run('kit-names-installed-replace');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /kit world frostmaiden-training reset from the bundle/);
+    assert.ok(!sentinel(r, 'frostmaiden-training'), 'the training world was replaced on purpose');
+    assert.ok(lines(r.worlds).includes('frostmaiden-training=x'), r.worlds);
+    assert.ok(lines(r.kitof).includes('frostmaiden-training kitOf=curse-of-strahd'), r.kitof);
+    assert.ok(sentinel(r, 'curse-of-strahd'), 'the campaign world is kept');
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.equal(r.leak, 'no');
+  });
+
+  test('kit-copy-rerun: a second world kit copy is reset twice, the marker lets the second run through', () => {
+    const r = run('kit-copy-rerun');
+    assert.equal(r.first.split('\n')[0], 'exit 0', r.first);
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /kit world frost-kit reset from the bundle/);
+    assert.ok(lines(r.kitof).includes('frost-kit kitOf=frostmaiden-training'), r.kitof);
+    assert.ok(lines(r.worlds).includes('frost-kit=Frost kit'), r.worlds);
+    assert.ok(sentinel(r, 'strahd-kit') && sentinel(r, 'curse-of-strahd'));
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.equal(r.leak, 'no');
+  });
+
+  test('kit-unmarked: an installed kit world id without the marker is refused for a second world', () => {
+    const r = run('kit-unmarked');
+    assertRefused(r, /the installed world frost-kit is not a kit copy of frostmaiden-training/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.ok(sentinel(r, 'frost-kit'));
+  });
+
+  test('kit-is-strahd-kit-replace: REPLACE_KIT=1 never lifts the strahd-kit refusal', () => {
+    const r = run('kit-is-strahd-kit-replace');
+    assertRefused(r, /KIT_WORLD=strahd-kit is the campaign's test copy/);
+    assert.match(r.output, /Nothing was changed/);
+  });
+
   test('strahd-default: the old behaviour: kit copy reset, both worlds provisioned, no extra GM anywhere', () => {
     const r = run('strahd-default');
     assert.equal(r.exit, '0', r.output);
@@ -436,6 +508,10 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
       'PROVISION world=strahd-kit gm=Gamemaster new_pw=true extra=- extra_pw=false assistant=Assistant GM',
       'PROVISION world=curse-of-strahd gm=Gamemaster new_pw=true extra=- extra_pw=false assistant=Assistant GM',
     ]);
+    assert.ok(
+      lines(r.kitof).includes('strahd-kit kitOf=curse-of-strahd'),
+      `the legacy strahd-kit gains the marker:\n${r.kitof}`
+    );
     assert.equal(r.world, 'curse-of-strahd');
     assert.equal(r.leak, 'no');
   });

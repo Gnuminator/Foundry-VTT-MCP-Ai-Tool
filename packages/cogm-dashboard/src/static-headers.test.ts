@@ -182,7 +182,17 @@ describe('staticHeaders', () => {
   });
 
   it('matches a group by file identity, whatever the name', () => {
-    const hook = staticHeaders(PUBLIC_DIR, [player, open]);
+    // The short names are made up, so the bigint re-stat (done when an NTFS id is over 2^53,
+    // which depends on the checkout) maps them to the real files.
+    const short: Record<string, string> = {
+      'PLAYER~1.HTM': 'player.html',
+      'OPEN~1.HTM': 'open.html',
+    };
+    const statBig: BigStat = filePath => {
+      const name = path.basename(filePath);
+      return statSync(path.join(PUBLIC_DIR, short[name] ?? name), { bigint: true });
+    };
+    const hook = staticHeaders(PUBLIC_DIR, [player, open], statBig);
     const { res, set } = recorder();
     hook(res, 'C:\\public\\PLAYER~1.HTM', statOf('player.html'));
     expect(set).toEqual({ 'X-Group': 'player' });

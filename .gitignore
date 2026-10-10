@@ -115,3 +115,6 @@ scripts/demo/local.json
 
 # The GM coach skill build (npm run gm-coach)
 tools/gm-coach/dist/
+
+# Storybook build (npm run build-storybook in the dashboard package)
+storybook-static/

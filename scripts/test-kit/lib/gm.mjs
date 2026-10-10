@@ -19,7 +19,7 @@ import {
   LIVE_BRIDGE_PORTS,
 } from './contract.mjs';
 import { EnvError } from './errors.mjs';
-import { GM_ACTION_FUNCTIONS } from './gm-actions.mjs';
+import { GM_ACTION_FUNCTIONS, GM_ACTION_HELPERS } from './gm-actions.mjs';
 
 /** The running world's id from /api/status ('' at the setup screen). */
 export async function activeWorld(foundryUrl) {
@@ -86,6 +86,18 @@ export async function launchBrowser({ headless = true } = {}) {
       }
     },
   };
+}
+
+/**
+ * The source of each lib-file helper a GM action needs (GM_ACTION_HELPERS), keyed by name: a
+ * function cannot cross into the page, its source can.
+ * @param {string} action
+ * @returns {Record<string, string>}
+ */
+export function helperSources(action) {
+  return Object.fromEntries(
+    Object.entries(GM_ACTION_HELPERS[action] ?? {}).map(([name, fn]) => [name, fn.toString()])
+  );
 }
 
 /**
@@ -263,6 +275,7 @@ export async function openGmSession({
       return browser.page.evaluate(fn, {
         ...args,
         _kit: { flagScope: KIT_FLAG_SCOPE, flagKey: KIT_FLAG_KEY },
+        _helpers: helperSources(action),
       });
     },
   };

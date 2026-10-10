@@ -25,6 +25,7 @@ import { SPELL_GM_FUNCTIONS } from './gm-spells.mjs';
 
 import { ORIGIN_GM_FUNCTIONS } from './gm-origins.mjs';
 import { inspectBuild } from './inspect-build.mjs';
+import { settleCreated } from './settle-created.mjs';
 import { studioPump } from './studio-pump.mjs';
 
 /** @param {object} _args */
@@ -742,11 +743,18 @@ async function createHero(args) {
     },
   };
 
+  // Waits for dnd5e's unawaited species link and cached spells before the next manager clones the
+  // actor (settle-created.mjs has the why; gm.mjs sends its source in args._helpers).
+  const settle = new Function(`return (${args._helpers.settleCreated});`)();
+  const settleCreated = (actor, label) =>
+    settle(actor, label, { resolveUuid: uuid => fromUuid(uuid), sleep });
+
   // Run one manager to the end, answering every choice.
   const runManager = async (actor, itemData, label) => {
     const mgr = Manager.forNewItem(actor, itemData, { automaticApplication: true });
     if (!mgr.steps.length) {
       await actor.createEmbeddedDocuments('Item', [itemData]);
+      await settleCreated(actor, label);
       return;
     }
     let done = false;
@@ -796,6 +804,7 @@ async function createHero(args) {
           mgr.element?.querySelector('[data-action="next"],[data-action="complete"]') ?? button
         ).click();
       }
+      await settleCreated(actor, label);
     } finally {
       Hooks.off('dnd5e.advancementManagerComplete', hook);
       if (mgr.rendered) await mgr.close({ skipConfirmation: true });
@@ -1812,6 +1821,15 @@ async function deleteKitActor(args) {
   await actor.delete();
   return { deleted: true };
 }
+
+/**
+ * Helpers a GM action calls that live in a lib file of their own (so kit:test can reach them).
+ * gm.mjs sends each one's source with the action as `args._helpers.<name>`; the action rebuilds it
+ * with `new Function`. Each helper must be self-contained, like the actions.
+ */
+export const GM_ACTION_HELPERS = {
+  createHero: { settleCreated },
+};
 
 export const GM_ACTION_FUNCTIONS = {
   ...ORIGIN_GM_FUNCTIONS,

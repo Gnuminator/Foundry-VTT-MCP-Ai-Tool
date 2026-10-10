@@ -14,6 +14,10 @@
     "start": "node dist/server.js",
     "test": "vitest run",
     "test:e2e": "playwright test -c web",
+    "test:visual": "node scripts/visual-docker.mjs",
+    "test:visual:update": "node scripts/visual-docker.mjs --update",
+    "test:visual:ci": "playwright test -c web/playwright.visual.config.ts",
+    "bundle:budget": "node scripts/bundle-budget.mjs",
     "typecheck": "tsc --noEmit && tsc -p web --noEmit",
     "lint": "eslint src web",
     "lint:fix": "eslint src web --fix"
@@ -26,7 +30,8 @@
     "htmlparser2": "^10.1.0"
   },
   "devDependencies": {
-    "@playwright/test": "~1.63.0",
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "~1.64.0",
     "@radix-ui/react-dialog": "^1.2.0",
     "@radix-ui/react-dropdown-menu": "^2.1.25",
     "@radix-ui/react-toast": "^1.2.24",

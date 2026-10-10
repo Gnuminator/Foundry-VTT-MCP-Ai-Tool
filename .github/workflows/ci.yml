@@ -127,6 +127,13 @@ jobs:
       - name: Build (all workspaces)
         run: npm run build
 
+      - name: Dashboard bundle budget
+        # UI-05: the React dashboard's first-load JS and each lazy chunk against their gzip limits
+        # (packages/cogm-dashboard/scripts/bundle-budget.mjs, limits recorded in the script). Fails
+        # when one grows past its limit; the table also goes to the job summary. Once per run.
+        if: matrix.node == '22'
+        run: npm run bundle:budget -w @gnuminator/cogm-dashboard
+
       - name: Test kit engine tests
         # The test kit's engine and its fake (scripts/test-kit): needs the build, the fake reads the tool catalog from it.
         run: npm run kit:test
@@ -200,6 +207,100 @@ jobs:
 
       - name: Validate Foundry module manifest
         run: node scripts/validate-manifest.js
+
+  visual-changes:
+    # Decides whether dashboard-visual is worth its 2.5 minutes and image pull: only when the
+    # dashboard package, the lockfile or this workflow changed. A job inside one workflow cannot
+    # use `on.paths` (that would skip the whole workflow), so this job reads the diff itself, with
+    # plain git and no third-party action. On a pull request the checkout is the merge commit, and
+    # its first parent is the base branch. Anything that is not a pull request (push to main,
+    # manual run) always runs the screenshots.
+    runs-on: ubuntu-latest
+    name: visual-changes (path filter)
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Did the dashboard, the lockfile or this workflow change?
+        id: filter
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Not a pull request: run the screenshots."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only HEAD^1 HEAD)
+          echo "Changed files against the base:"
+          echo "$changed"
+          if echo "$changed" | grep -qE '^(packages/cogm-dashboard/|package-lock\.json$|\.github/workflows/ci\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing the screenshots depend on changed: skip them."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  dashboard-visual:
+    # UI-01: screenshots of the React dashboard (every moment and drawer, three widths, two themes)
+    # against the baselines in packages/cogm-dashboard/web/visual/__screenshots__, plus an axe
+    # accessibility check. The baselines are Linux-only, made in this same Playwright image (the
+    # image tag must be the installed @playwright/test version; the first step checks it). Advisory:
+    # it is not a required check, but a diff fails the job (no continue-on-error), and the report
+    # with the diff images is kept as an artifact. Refresh the baselines with
+    # `npm run test:visual:update -w @gnuminator/cogm-dashboard` (Docker; see the dashboard README).
+    needs: visual-changes
+    if: needs.visual-changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    name: dashboard-visual (screenshots)
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.0-noble
+    env:
+      # Playwright's browsers read HOME; a container job runs as root.
+      HOME: /root
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        # HUSKY=0: the git hook setup of the root `prepare` script is not needed here.
+        run: npm ci
+        env:
+          HUSKY: '0'
+
+      - name: The image matches the installed Playwright
+        # A Playwright bump changes the image tag above; a mismatch means the wrong browser build.
+        run: |
+          installed=$(node -p "require('@playwright/test/package.json').version")
+          image="1.64.0"
+          if [ "$installed" != "$image" ]; then
+            echo "Installed @playwright/test is $installed but the job image is v$image-noble. Update the image tag in .github/workflows/ci.yml (and rebuild the baselines)."
+            exit 1
+          fi
+
+      - name: Build the dashboard
+        run: |
+          npm run build:shared
+          npm run build -w @gnuminator/cogm-dashboard
+
+      - name: Screenshot tests and axe
+        run: npm run test:visual:ci -w @gnuminator/cogm-dashboard
+
+      - name: Keep the visual report
+        # The HTML report and the diff images (expected, actual, diff) of a failed run.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-visual-report
+          path: |
+            packages/cogm-dashboard/playwright-report/visual
+            packages/cogm-dashboard/test-results/visual
+          retention-days: 14
 
   python-tests:
     # The Python tools under tools/ (narration, session notes, session pipeline, transcriber), D-109.

@@ -2,7 +2,8 @@
 // the search, a read, form checks, a plan typed by hand through the GM Actions gate and the
 // confirm window (Cancel, Confirm, Undo), a destructive plan, a write that is not a plan, a failed
 // plan, an apply the bridge refuses, Pick… lists naming a prefilled value, the Escape order, where
-// focus goes, Enter never applying a change, and "+ Queue a page" in the Handouts drawer.
+// focus goes (a gate request expires), Enter never applying a change, and "+ Queue a page" in the
+// Handouts drawer.
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
 import {
@@ -520,6 +521,71 @@ test('an Undo GM Actions refuse with the drawer open under another brings it to 
   await expect(party).toHaveClass(/drawer-top/);
   await page.keyboard.press('Escape');
   await expect(party).toBeHidden();
+});
+
+/** A stream that ends at once and comes back every 100 ms with the GM Actions state of now. */
+async function liveGmActions(page: Page): Promise<(on: boolean) => void> {
+  let on = true;
+  await page.route('**/api/stream**', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: `retry: 100\n\nevent: settings\ndata: ${JSON.stringify({ gmActionsEnabled: on })}\n\n`,
+    })
+  );
+  return value => {
+    on = value;
+  };
+}
+
+/** Plans a Damage and confirms it; the apply is refused with a 403 that leaves GM Actions on. */
+async function refusedForAnotherReason(page: Page): Promise<Locator> {
+  await fakeCatalog(page);
+  await fakeTools(page, call =>
+    call.name === 'apply-planned-change'
+      ? { status: 403, json: { code: 'forbidden', error: 'Not allowed.' } }
+      : bridge(call)
+  );
+  const drawer = await openTools(page);
+  await openTool(drawer, 'plan-actor-change');
+  await field(drawer, 'action').selectOption('damage');
+  await field(drawer, 'targets').fill('Wolf');
+  await drawer.locator('#tool-run').click();
+  await confirmWindow(page).getByRole('button', { name: 'Confirm' }).click();
+  await expect(
+    toast(page, 'GM Actions are off. Enable GM Actions at the top of the Tool Runner.')
+  ).toBeVisible();
+  // GM Actions stay on: no bar draws, so the request for its focus waits for nothing and expires.
+  await expect(drawer.locator('#gm-gate')).toBeHidden();
+  await page.waitForTimeout(1_500);
+  return drawer;
+}
+
+test('a gate request the bar never answers expires: GM Actions going off later keep the focus', async ({
+  page,
+}) => {
+  const setGmActions = await liveGmActions(page);
+  const drawer = await refusedForAnotherReason(page);
+  await field(drawer, 'targets').fill('Wolf, Ireena');
+  await expect(field(drawer, 'targets')).toBeFocused();
+  setGmActions(false);
+  await expect(drawer.locator('#gm-gate')).toBeVisible();
+  await expect(field(drawer, 'targets')).toBeFocused();
+});
+
+test('a gate request the bar never answers expires: the next opening focuses as usual', async ({
+  page,
+}) => {
+  const setGmActions = await liveGmActions(page);
+  const drawer = await refusedForAnotherReason(page);
+  await drawer.getByRole('button', { name: 'Close' }).click();
+  await expect(drawer).toBeHidden();
+  setGmActions(false);
+  await fromMenu(page, 'btn-tools');
+  await expect(drawer.locator('#gm-gate')).toBeVisible();
+  await expect(drawer.locator('#gm-gate-enable')).not.toBeFocused();
+  // Radix's open autofocus: the first button in the drawer, its help.
+  await expect(drawer.getByRole('button', { name: 'Help for this panel' })).toBeFocused();
 });
 
 test('Enter in a field never applies a change without the confirm window', async ({ page }) => {

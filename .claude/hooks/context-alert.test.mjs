@@ -147,6 +147,20 @@ test('run: silent under the plan line, plan line at 350k, out line at 400k', () 
   }
 });
 
+test('run: a subagent event (agent_id) prints nothing and leaves the state for the main thread', () => {
+  const { root, env, cleanup } = fixture();
+  try {
+    const file = transcript(root, [turn(352_000)]);
+    assert.equal(run(input(file, { agent_id: 'agent-1', agent_type: 'general-purpose' }), env), '');
+    assert.equal(run(input(file, { agent_type: 'Explore' }), env), '');
+    // The main thread still gets its line afterwards.
+    const out = JSON.parse(run(input(file), env));
+    assert.equal(out.systemMessage, 'Context 352k: plan the handover (lane skill).');
+  } finally {
+    cleanup();
+  }
+});
+
 test('run: each line prints once per session (350 then 360 once, then 400 prints the out line)', () => {
   const { root, env, cleanup } = fixture();
   try {

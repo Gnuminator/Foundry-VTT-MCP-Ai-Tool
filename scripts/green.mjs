@@ -156,10 +156,37 @@ export function ciRunCommands(yamlText, job = 'build-test') {
         i = j;
       }
     } else if (rest) {
-      commands.push(rest.replace(/^(['"])(.*)\1$/, '$2'));
+      // A plain (or quoted) scalar can go on over more lines, indented deeper than `run:`; YAML
+      // folds them into one line with spaces.
+      let text = rest;
+      for (let j = i + 1; j < lines.length; j++) {
+        const body = lines[j];
+        if (body.trim() === '' || body.length - body.trimStart().length <= indent) break;
+        text += ` ${body.trim()}`;
+        i = j;
+      }
+      commands.push(text.replace(/^(['"])(.*)\1$/, '$2'));
     }
   }
   return commands.filter(c => normalizeCommand(c) !== 'npm ci');
+}
+
+/**
+ * Parts of a job that change what a `run:` command does and that ciRunCommands does not follow
+ * (`working-directory`). The parity test fails while there are any, so a new one is noticed.
+ * @param {string} yamlText @param {string} [job]
+ * @returns {string[]}
+ */
+export function ciUnsupported(yamlText, job = 'build-test') {
+  const lines = yamlText.split(/\r?\n/);
+  const start = lines.findIndex(l => l.trimEnd() === `  ${job}:`);
+  if (start < 0) return [];
+  const found = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^ {0,2}[A-Za-z_][\w-]*:/.test(lines[i])) break;
+    if (/^\s*(- )?working-directory:/.test(lines[i])) found.push(lines[i].trim());
+  }
+  return found;
 }
 
 /**
@@ -255,13 +282,40 @@ function repoRoot() {
   return r.status === 0 && r.stdout.trim() ? path.resolve(r.stdout.trim()) : process.cwd();
 }
 
+/** The command of a step as one shell line; arguments with spaces or shell characters are quoted. @param {Step} step */
+export function commandLine(step) {
+  const quote = (/** @type {string} */ a) =>
+    /[\s"&|<>^()]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a;
+  return [step.cmd, ...step.args.map(quote)].join(' ');
+}
+
+/**
+ * Is this module the script node was started with? Real paths on both sides, so a junction or a
+ * drive-letter case cannot turn into a silent exit 0.
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function isEntryModule(argv1, self) {
+  if (!argv1) return false;
+  const norm = (/** @type {string} */ p) => {
+    let r;
+    try {
+      r = fs.realpathSync(p);
+    } catch {
+      r = path.resolve(p);
+    }
+    return process.platform === 'win32' ? r.toLowerCase() : r;
+  };
+  return norm(argv1) === norm(self);
+}
+
 /**
  * The default step runner: stdout and stderr of the step go straight to the log file.
  * @param {Step} step @param {number} fd @param {string} cwd
  * @returns {number} exit status (1 when the process could not start or was killed)
  */
 function spawnStep(step, fd, cwd) {
-  const r = spawnSync(step.cmd, step.args, {
+  // One command string with shell: true (a command plus an args array under a shell is DEP0190).
+  const r = spawnSync(commandLine(step), {
     cwd,
     shell: true,
     stdio: ['ignore', fd, fd],
@@ -341,6 +395,10 @@ export function main(options = {}) {
   return 1;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const self = fileURLToPath(import.meta.url);
+if (isEntryModule(process.argv[1], self)) {
   process.exit(main());
+} else if (process.argv[1] && path.basename(process.argv[1]) === path.basename(self)) {
+  console.error(`green: started as ${process.argv[1]} but this module is ${self}`);
+  process.exit(1);
 }

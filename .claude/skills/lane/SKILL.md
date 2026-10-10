@@ -45,15 +45,17 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 
 ## Review and merge
 
-- Risky categories (guarded writes, bridge link, write gate, security, Pi scripts, wire contracts):
-  an Opus review subagent. Everything else: a Sonnet review subagent. Give it the PR number, the
+- Risky categories (guarded writes, bridge link, write gate, security, Pi scripts, wire contracts,
+  the merge gate and CI: `scripts/lane-merge.mjs`, `green.mjs`, `drift-check.mjs`, `.github/`,
+  `.claude/hooks/`): an Opus review subagent. Everything else: a Sonnet review subagent. Give it the PR number, the
   head sha and the area; it is read-only and writes the note.
 - **Review note format** (the merge gate reads it):
-  - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md` (Opus: `<PR>-opus-review.md`;
-    round 2: `<PR>-review-round2.md`);
-  - a line `Head reviewed: <full sha>`;
+  - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
+    Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading
+    `# PR #<PR> Opus review: ...`;
+  - a line `Head reviewed: <full 40-character sha>`;
   - a `## Verdict` section whose first bold text is exactly `**Merge.**`, `**Merge after fixes.**`
-    or `**Do not merge.**`;
+    or `**Do not merge.**` (every note for the head must say Merge);
   - findings as H1, M1, L1 with file:line and a fix.
 - Fix the findings, push, and send the same reviewer (SendMessage to that subagent) the new head
   for one delta round. Lows may go to the Backlog instead.

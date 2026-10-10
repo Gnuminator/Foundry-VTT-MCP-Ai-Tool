@@ -5,6 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,6 +14,9 @@ import {
   STEPS,
   CI_ONLY,
   ciRunCommands,
+  ciUnsupported,
+  commandLine,
+  isEntryModule,
   normalizeCommand,
   parseArgs,
   selectSteps,
@@ -253,7 +257,7 @@ test('the real runner writes a step output into its log', () => {
   const lines = [];
   const code = main({
     argv: [],
-    steps: [{ name: 'echo', cmd: 'node', args: ['-e', '"console.log(42);process.exit(3)"'] }],
+    steps: [{ name: 'echo', cmd: 'node', args: ['-e', 'console.log(42);process.exit(3)'] }],
     cwd: tmp,
     tmpdir: tmp,
     isTTY: false,
@@ -262,4 +266,89 @@ test('the real runner writes a step output into its log', () => {
   assert.equal(code, 1);
   assert.match(lines[0], /FAILED at echo/);
   assert.equal(lines[1], '42');
+});
+
+test('ciRunCommands: a plain multi-line run scalar is folded into one command', () => {
+  const yaml = [
+    'jobs:',
+    '  build-test:',
+    '    steps:',
+    '      - name: Long',
+    '        run: npm run a &&',
+    '          npm run b',
+    '          && npm run c',
+    '        env:',
+    '          X: 1',
+    '      - run: echo "one',
+    '          two"',
+    '      - run: next',
+  ].join('\n');
+  assert.deepEqual(ciRunCommands(yaml), [
+    'npm run a && npm run b && npm run c',
+    'echo "one two"',
+    'next',
+  ]);
+});
+
+test('ciUnsupported: working-directory is flagged, and the real ci.yml has none in build-test', () => {
+  const yaml = [
+    'jobs:',
+    '  build-test:',
+    '    steps:',
+    '      - run: x',
+    '        working-directory: sub',
+    '  other:',
+    '    steps:',
+    '      - run: y',
+    '        working-directory: ignored',
+  ].join('\n');
+  assert.deepEqual(ciUnsupported(yaml), ['working-directory: sub']);
+  assert.deepEqual(ciUnsupported(ciYml), [], 'ciRunCommands would run those from the wrong folder');
+});
+
+test('commandLine: one string, arguments with spaces or shell characters are quoted', () => {
+  assert.equal(
+    commandLine({ cmd: 'npm', args: ['run', 'a:b', '-w', '@x/y'] }),
+    'npm run a:b -w @x/y'
+  );
+  assert.equal(commandLine({ cmd: 'node', args: ['-e', 'a b', 'c&d'] }), 'node -e "a b" "c&d"');
+});
+
+test('the real runner starts steps without a deprecation warning (shell plus args array)', () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const script = `import { main } from ${JSON.stringify(new URL('./green.mjs', import.meta.url).href)};
+process.exit(main({ argv: [], steps: [{ name: 'ok', cmd: 'node', args: ['-e', '1'] }], isTTY: false, log: l => console.log(l), tmpdir: ${JSON.stringify(os.tmpdir())}, cwd: ${JSON.stringify(here)} }));`;
+  const r = spawnSync(
+    process.execPath,
+    ['--throw-deprecation', '--input-type=module', '-e', script],
+    {
+      encoding: 'utf8',
+    }
+  );
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^green: OK, 1 steps/);
+  assert.doesNotMatch(r.stderr, /DEP0190/);
+});
+
+test('isEntryModule: real paths, so a junction or a case difference still starts the script', () => {
+  const self = fileURLToPath(import.meta.url);
+  assert.ok(isEntryModule(self, self));
+  assert.ok(!isEntryModule(undefined, self));
+  assert.ok(!isEntryModule(path.join(os.tmpdir(), 'other.mjs'), self));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'green-junction-'));
+  const link = path.join(dir, 'link');
+  fs.symlinkSync(path.dirname(self), link, 'junction');
+  assert.ok(isEntryModule(path.join(link, path.basename(self)), self));
+  if (process.platform === 'win32') assert.ok(isEntryModule(self.toUpperCase(), self));
+});
+
+test('started through a junction, green still runs (exit code and output, not a silent 0)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'green-junction-'));
+  const link = path.join(dir, 'scripts-link');
+  fs.symlinkSync(path.dirname(fileURLToPath(import.meta.url)), link, 'junction');
+  const r = spawnSync(process.execPath, [path.join(link, 'green.mjs'), '--list'], {
+    encoding: 'utf8',
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^typecheck\n/);
 });

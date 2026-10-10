@@ -178,6 +178,9 @@ export function messageFor(level, context, { plan, out }, eventName) {
 export function run(input, env = process.env) {
   try {
     if (!input || typeof input !== 'object' || !input.transcript_path) return '';
+    // A tool call inside a subagent carries agent_id and reads the parent's transcript: staying quiet
+    // (and leaving the state alone) keeps the line for the main thread.
+    if (input.agent_id || input.agent_type) return '';
     const sessionId = input.session_id || 'unknown';
     const context = contextFromTranscript(input.transcript_path);
     if (context === null) return '';

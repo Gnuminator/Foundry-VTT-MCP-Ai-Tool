@@ -13,34 +13,55 @@
  *                                                      FOUNDRY_AI_OBSIDIAN_DIR, else ~/Documents/Obsidian/vault)
  *   npm run lane:merge -- --train                      print the merge train
  *   npm run lane:merge -- --train-reset <sha>          a green live:roundtrip ran on main at <sha>
+ *                                                      (must be the tip of aitool/main)
  *
  * The checks, in order: (a) the PR is open, not a draft, based on main and mergeable; (b) every CI
- * check passed; (c) a review note for the head commit says Merge, from an Opus review when the PR
- * touches a risky area (RISKY_CATEGORIES, D-101); (d) a changelog.d fragment; (e) this checkout is
- * the PR head, clean, and `npm run drift:check` passes; (f) the merge train (D-121) has room.
- * The merge is `gh pr merge --merge --match-head-commit <head>`. All gh, git and npm calls go
- * through one injectable `run(cmd, args)`.
+ * check passed, including each check the branch ruleset requires (read from the GitHub API);
+ * (c) every review note for the head commit says Merge (full 40-character sha), and one of them is
+ * an Opus review when the PR touches a risky area (RISKY_CATEGORIES, D-101); (d) a changelog.d
+ * fragment; (e) this checkout is the PR head, clean, and drift-check passes; (f) the merge train
+ * (D-121) has room. The merge is `gh pr merge --merge --match-head-commit <head>`.
+ *
+ * The gate does not trust the branch it judges: when this file differs from aitool/main's copy, the
+ * script runs main's copy instead (a temp file, same arguments), and drift-check runs from main's
+ * copy too. The changed files come from `git diff` against the merge base, not from gh (which stops
+ * at 100 files). All gh, git, node and npm calls go through one injectable `run(cmd, args)`.
+ *
+ * The merge train is per PC: its state file lives in ~/.foundry-ai-tool, so lanes on another PC
+ * count their own merges. A lock file next to it serialises the read-check-merge-write.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** Merges allowed on the module, the bridge link or guarded writes between two live round trips. */
 export const TRAIN_SIZE = 4;
 
+/** The remote and branch the gate trusts. */
+const REMOTE = 'aitool';
+const MAIN = `${REMOTE}/main`;
+/** Where the branch ruleset lives. */
+export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
+
 /** Lines of a failed log that are printed. */
 const TAIL_LINES = 30;
 
+/** The relaunched copy (from main) must not relaunch again; it also knows main was just fetched. */
+const ENV_FROM_MAIN = 'LANE_MERGE_FROM_MAIN';
+const ENV_FETCHED = 'LANE_MERGE_FETCHED';
+
 /**
  * Areas where a Sonnet review is not enough (D-101): the counting review note must be an Opus
- * review. Patterns are repo-relative, `/` separated: `**` crosses folders, `*` does not.
+ * review. Patterns are repo-relative, `/` separated: `**` crosses folders, `*` does not. The test
+ * file checks that every pattern still matches a tracked file.
  * @type {{ name: string, patterns: string[] }[]}
  */
 export const RISKY_CATEGORIES = [
   {
     // Guarded writes: plan, apply and undo, in the module, the server and the shared contract.
+    // queries.ts holds the module handlers that call into guarded-write.
     name: 'guarded writes',
     patterns: [
       'packages/foundry-module/src/data-access/guarded-write*',
@@ -48,6 +69,7 @@ export const RISKY_CATEGORIES = [
       'packages/foundry-module/src/transaction-manager*',
       'packages/foundry-module/src/guarded-features*',
       'packages/foundry-module/src/change-journal*',
+      'packages/foundry-module/src/queries.ts',
       'packages/mcp-server/src/guarded-write/**',
       'packages/mcp-server/src/tools/guarded-changes*',
       'packages/mcp-server/src/change-journal-pump*',
@@ -79,15 +101,20 @@ export const RISKY_CATEGORIES = [
     ],
   },
   {
-    // Security: dashboard auth and redaction, secret terms, the player vault writer, guard hooks, CI.
+    // Security: dashboard auth (server and React side) and redaction, secret stripping, the
+    // licensed-content guard, secret terms, the player vault writer, and the React side of guarded
+    // changes (its confirm step).
     name: 'security',
     patterns: [
       'packages/cogm-dashboard/src/auth*',
       'packages/cogm-dashboard/src/redact*',
       'packages/cogm-dashboard/src/player-vault/writer*',
+      'packages/cogm-dashboard/web/src/lib/auth*',
+      'packages/cogm-dashboard/web/src/lib/guarded*',
       'packages/mcp-server/src/secret-terms*',
+      'packages/mcp-server/src/handouts/strip-secrets*',
+      'packages/mcp-server/src/obsidian/licensed-guard*',
       '.claude/hooks/guard-*',
-      '.github/workflows/**',
     ],
   },
   {
@@ -101,9 +128,17 @@ export const RISKY_CATEGORIES = [
     patterns: ['shared/src/**', 'packages/foundry-module/module.json'],
   },
   {
-    // The merge gate and the keep-green script themselves.
+    // The merge gate and everything it executes or trusts: the gate, keep-green, drift-check, CI,
+    // and the hooks and settings that run in every lane.
     name: 'the merge gate',
-    patterns: ['scripts/lane-merge.mjs', 'scripts/green.mjs'],
+    patterns: [
+      'scripts/lane-merge.mjs',
+      'scripts/green.mjs',
+      'scripts/drift-check.mjs',
+      '.github/workflows/**',
+      '.claude/hooks/**',
+      '.claude/settings.json',
+    ],
   },
 ];
 
@@ -168,109 +203,178 @@ export function isTrainRelevant(files) {
   return files.some(f => !isTestFile(f) && matchesAny(f, TRAIN_PATTERNS));
 }
 
-/** Is one hex sha a prefix of the other (both at least 7 characters)? @param {string} a @param {string} b */
-export function shaMatches(a, b) {
-  const x = a.toLowerCase();
-  const y = b.toLowerCase();
-  return x.length >= 7 && y.length >= 7 && (x.startsWith(y) || y.startsWith(x));
-}
+/**
+ * @typedef {{ head: string | null, verdict: string | null, merge: boolean }} VerdictEntry
+ * @typedef {{ name: string, entries: VerdictEntry[], shortHeads: string[], opus: boolean }} ReviewNote
+ */
+
+/** The verdict text, without bold markers, a trailing full stop or case. @param {string} text */
+const verdictKey = text =>
+  text
+    .replace(/\*\*/g, '')
+    .replace(/[.\s]+$/, '')
+    .trim()
+    .toLowerCase();
 
 /**
- * What a review note says.
- * `head`: the sha after `Head reviewed:` (backticked or bare, 7 to 40 hex characters, prose may
- * follow). `verdict`: the first bold text under `## Verdict`. `opus`: the file name or the first
- * `# ` heading contains "opus".
- * @param {string} name @param {string} text
- * @returns {{ name: string, head: string | null, verdict: string | null, merge: boolean, opus: boolean }}
+ * What a review note says. A note can hold several rounds: every `## Verdict` section is one entry,
+ * tied to the last `Head reviewed:` line above it. `Head reviewed:` must carry the full 40-character
+ * sha (backticked or bare, prose may follow); a shorter sha is listed in `shortHeads` and ties
+ * nothing. The verdict is the text after `Verdict` on the heading line (`## Verdict: Do not merge`),
+ * else the first bold text of the section. `opus` is true only for a file named
+ * `<N>-opus-review...` or a first `# ` heading that starts `PR #<N> Opus review`.
+ * @param {string} name @param {string} text @param {number} prNumber
+ * @returns {ReviewNote}
  */
-export function parseReviewNote(name, text) {
+export function parseReviewNote(name, text, prNumber) {
   const lines = text.split(/\r?\n/);
+  /** @type {string | null} */
   let head = null;
-  for (const line of lines) {
-    const m = /Head reviewed:\s*`?([0-9a-f]{7,40})(?![0-9a-z])/i.exec(line);
-    if (m) {
-      head = m[1];
-      break;
+  /** @type {VerdictEntry[]} */
+  const entries = [];
+  /** @type {string[]} */
+  const shortHeads = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const h = /Head reviewed:\s*`?([0-9a-f]+)(?![0-9a-z])/i.exec(line);
+    if (h) {
+      if (h[1].length === 40) head = h[1].toLowerCase();
+      else {
+        head = null;
+        shortHeads.push(h[1].toLowerCase());
+      }
+      continue;
     }
-  }
-  let verdict = null;
-  const at = lines.findIndex(l => /^##\s+Verdict\b/i.test(l));
-  if (at >= 0) {
-    const section = [];
-    for (const l of lines.slice(at + 1)) {
-      if (/^#{1,2}\s/.test(l)) break;
-      section.push(l);
+    const v = /^##\s+Verdict\b(.*)$/i.exec(line);
+    if (!v) continue;
+    let verdict = v[1].replace(/^[\s:\-\u2013]+/, '').trim() || null;
+    if (verdict === null) {
+      const section = [];
+      for (const l of lines.slice(i + 1)) {
+        if (/^#{1,2}\s/.test(l)) break;
+        section.push(l);
+      }
+      const bold = /\*\*(.+?)\*\*/.exec(section.join('\n'));
+      verdict = bold ? bold[1].trim() : null;
     }
-    const bold = /\*\*(.+?)\*\*/.exec(section.join('\n'));
-    verdict = bold ? bold[1].trim() : null;
+    entries.push({ head, verdict, merge: verdict !== null && verdictKey(verdict) === 'merge' });
   }
   const heading = lines.find(l => /^#\s+/.test(l)) ?? '';
   return {
     name,
-    head,
-    verdict,
-    merge: verdict !== null && verdict.replace(/[.\s]+$/, '').toLowerCase() === 'merge',
-    opus: /opus/i.test(name) || /opus/i.test(heading),
+    entries,
+    shortHeads,
+    opus:
+      new RegExp(`^${prNumber}-opus-review`, 'i').test(name) ||
+      new RegExp(`^#\\s+PR\\s+#${prNumber}\\s+Opus review`, 'i').test(heading),
   };
 }
 
-/** Review notes of one PR: the "Reviews ..." folders under Handoff, files named <N>-*review*.md. @param {string} vault @param {number} prNumber */
+/**
+ * Review notes of one PR: the "Reviews ..." folders under Handoff, files named <N>-*review*.md.
+ * Null when the vault folder does not exist.
+ * @param {string} vault @param {number} prNumber
+ * @returns {ReviewNote[] | null}
+ */
 export function findReviewNotes(vault, prNumber) {
   const handoff = path.join(vault, 'Dev', 'Foundry AI Tool', 'Handoff');
   if (!fs.existsSync(vault)) return null;
   if (!fs.existsSync(handoff)) return [];
   const prefix = `${prNumber}-`;
-  /** @type {ReturnType<typeof parseReviewNote>[]} */
+  /** @type {ReviewNote[]} */
   const notes = [];
   for (const dir of fs.readdirSync(handoff, { withFileTypes: true })) {
     if (!dir.isDirectory() || !dir.name.startsWith('Reviews ')) continue;
     const folder = path.join(handoff, dir.name);
     for (const file of fs.readdirSync(folder)) {
       if (!file.endsWith('.md') || !file.startsWith(prefix) || !/review/i.test(file)) continue;
-      notes.push(parseReviewNote(file, fs.readFileSync(path.join(folder, file), 'utf8')));
+      notes.push(parseReviewNote(file, fs.readFileSync(path.join(folder, file), 'utf8'), prNumber));
     }
   }
   return notes;
 }
 
 /**
- * Does a review note for this head commit say Merge (from an Opus review when `needOpus`)?
- * @param {ReturnType<typeof parseReviewNote>[]} notes @param {string} headSha @param {boolean} needOpus
- * @returns {{ ok: boolean, note?: ReturnType<typeof parseReviewNote>, detail: string }}
+ * Do the review notes clear this head commit? Every verdict any note gives for the head must be
+ * Merge (a Merge after fixes or Do not merge in any note refuses), at least one must be a Merge,
+ * and when the PR is risky at least one Merge must come from an Opus review.
+ * @param {ReviewNote[]} notes @param {string} headSha @param {boolean} needOpus
+ * @returns {{ ok: boolean, detail: string }}
  */
 export function judgeReviews(notes, headSha, needOpus) {
-  const forHead = notes.filter(n => n.head && shaMatches(n.head, headSha));
-  const merging = forHead.filter(n => n.merge);
-  const counting = needOpus ? merging.filter(n => n.opus) : merging;
-  if (counting.length > 0) return { ok: true, note: counting[0], detail: counting[0].name };
-  const short = headSha.slice(0, 7);
-  if (merging.length > 0) {
+  const head = headSha.toLowerCase();
+  const short = head.slice(0, 7);
+  const forHead = notes.flatMap(note =>
+    note.entries.filter(e => e.head === head).map(entry => ({ note, entry }))
+  );
+  if (forHead.length === 0) {
+    const seen = notes.map(n => {
+      const heads = [...new Set(n.entries.map(e => e.head).filter(Boolean))].map(h =>
+        h.slice(0, 7)
+      );
+      const tooShort = n.shortHeads.map(
+        h => `${h} (Head reviewed needs the full 40-character sha)`
+      );
+      return `${n.name} reviewed ${[...heads, ...tooShort].join(', ') || 'no head'}`;
+    });
     return {
       ok: false,
-      detail: `only a Sonnet review (${merging.map(n => n.name).join(', ')}) says Merge for ${short}, and this PR needs an Opus review`,
+      detail: `no review note for head ${short}${seen.length ? ` (found ${seen.join('; ')})` : ''}`,
     };
   }
-  if (forHead.length > 0) {
-    const said = forHead.map(n => `${n.name}: ${n.verdict ?? 'no verdict'}`).join('; ');
-    return { ok: false, detail: `no review says Merge for head ${short} (${said})` };
+  const blocking = forHead.filter(x => !x.entry.merge);
+  if (blocking.length > 0) {
+    const said = blocking.map(x => `${x.note.name} says "${x.entry.verdict ?? 'no verdict'}"`);
+    return {
+      ok: false,
+      detail: `${said.join('; ')} for head ${short}; every review must say Merge`,
+    };
   }
-  const seen = notes.map(n => `${n.name} reviewed ${n.head ? n.head.slice(0, 7) : 'no head'}`);
-  return {
-    ok: false,
-    detail: `no review note for head ${short}${seen.length ? ` (found ${seen.join(', ')})` : ''}`,
-  };
+  if (needOpus && !forHead.some(x => x.note.opus)) {
+    const names = [...new Set(forHead.map(x => x.note.name))].join(', ');
+    return {
+      ok: false,
+      detail: `only a Sonnet review (${names}) says Merge for ${short}, and this PR needs an Opus review`,
+    };
+  }
+  return { ok: true, detail: forHead.map(x => x.note.name).join(', ') };
+}
+
+/**
+ * The status check names the branch ruleset requires, from `gh api .../rules/branches/main`.
+ * Null when the answer is not a list of rules or lists no required status checks at all.
+ * @param {string} json
+ * @returns {string[] | null}
+ */
+export function requiredContexts(json) {
+  let rules;
+  try {
+    rules = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(rules)) return null;
+  const contexts = rules
+    .filter(r => r && r.type === 'required_status_checks')
+    .flatMap(r => r.parameters?.required_status_checks ?? [])
+    .map(c => c?.context)
+    .filter(c => typeof c === 'string' && c !== '');
+  return contexts.length > 0 ? [...new Set(contexts)] : null;
 }
 
 /**
  * What is wrong with the CI checks of a PR. Handles both shapes of `statusCheckRollup`: a check run
- * `{ name, status, conclusion }` and a commit status `{ context, state }`.
- * @param {any[]} rollup
- * @returns {{ failing: string[], pending: string[] }}
+ * `{ name, status, conclusion }` and a commit status `{ context, state }`. `required` are names that
+ * must be in the rollup.
+ * @param {any[]} rollup @param {string[]} [required]
+ * @returns {{ failing: string[], pending: string[], missing: string[] }}
  */
-export function rollupProblems(rollup) {
+export function rollupProblems(rollup, required = []) {
   const failing = [];
   const pending = [];
+  const names = new Set();
   for (const c of rollup) {
+    names.add(c.name ?? c.context);
     if (c.state !== undefined && c.status === undefined) {
       const name = c.context ?? c.name ?? 'status';
       const state = String(c.state).toUpperCase();
@@ -287,7 +391,7 @@ export function rollupProblems(rollup) {
       failing.push(`${name} (${conclusion || 'no conclusion'})`);
     }
   }
-  return { failing, pending };
+  return { failing, pending, missing: required.filter(r => !names.has(r)) };
 }
 
 /** Does the PR add or change a `changelog.d/*.md` fragment (not the README)? @param {{ path: string, changeType?: string }[]} files */
@@ -300,16 +404,47 @@ export function hasChangelogFragment(files) {
   );
 }
 
+/**
+ * Parses `git diff --name-status --no-renames` output.
+ * @param {string} text
+ * @returns {{ path: string, changeType: string }[]}
+ */
+export function parseNameStatus(text) {
+  /** @type {{ path: string, changeType: string }[]} */
+  const files = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^([A-Z])\d*\t(.+)$/.exec(line);
+    if (!m) continue;
+    const changeType = { A: 'ADDED', M: 'MODIFIED', D: 'DELETED' }[m[1]] ?? 'CHANGED';
+    // A rename or copy line (should --no-renames ever be dropped) names both paths.
+    for (const p of m[2].split('\t')) files.push({ path: p, changeType });
+  }
+  return files;
+}
+
 /** @typedef {{ lastRoundtrip: { sha: string, at: string } | null, since: { pr: number, sha: string, at: string }[] }} TrainState */
 
-/** The merge train state; an empty train when the file does not exist yet. @param {string} file @returns {TrainState} */
+const TRAIN_FIX = 'fix it or run npm run lane:merge -- --train-reset <sha>';
+
+/**
+ * The merge train state; an empty train when the file does not exist yet. A file that is not JSON,
+ * not an object, or whose `since` is not a list is refused (it is not read as an empty train).
+ * @param {string} file @returns {TrainState}
+ */
 export function readTrain(file) {
   if (!fs.existsSync(file)) return { lastRoundtrip: null, since: [] };
-  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-  return {
-    lastRoundtrip: data.lastRoundtrip ?? null,
-    since: Array.isArray(data.since) ? data.since : [],
-  };
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    throw new Error(`train file unreadable (${file}): ${TRAIN_FIX}`, { cause: e });
+  }
+  const last = data?.lastRoundtrip;
+  const lastOk = last === null || last === undefined || (typeof last === 'object' && last.sha);
+  if (!data || typeof data !== 'object' || !Array.isArray(data.since) || !lastOk) {
+    throw new Error(`train file unreadable (${file}): ${TRAIN_FIX}`);
+  }
+  return { lastRoundtrip: last ?? null, since: data.since };
 }
 
 /** @param {string} file @param {TrainState} state */
@@ -318,17 +453,68 @@ export function writeTrain(file, state) {
   fs.writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`);
 }
 
+/** Wait without spinning. @param {number} ms */
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 /**
- * The real `run`: gh, git and npm. `npm` is a .cmd file on Windows, so it goes through the shell.
+ * An exclusive lock next to the train file (`<file>.lock`, created with `wx`). A lock older than
+ * `staleMs` (default 10 minutes) belongs to a killed run and is taken over. Waits up to `timeoutMs`.
+ * @param {string} file
+ * @param {{ staleMs?: number, timeoutMs?: number, now?: () => number, wait?: (ms: number) => void }} [opts]
+ * @returns {() => void} release
+ */
+export function acquireLock(file, opts = {}) {
+  const { staleMs = 10 * 60 * 1000, timeoutMs = 20_000, now = Date.now, wait = sleep } = opts;
+  const lock = `${file}.lock`;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const started = now();
+  for (;;) {
+    try {
+      const fd = fs.openSync(lock, 'wx');
+      fs.writeSync(fd, JSON.stringify({ pid: process.pid, at: new Date(now()).toISOString() }));
+      fs.closeSync(fd);
+      return () => {
+        try {
+          fs.unlinkSync(lock);
+        } catch {
+          /* already gone */
+        }
+      };
+    } catch (e) {
+      if (/** @type {NodeJS.ErrnoException} */ (e).code !== 'EEXIST') throw e;
+    }
+    try {
+      if (now() - fs.statSync(lock).mtimeMs > staleMs) {
+        fs.unlinkSync(lock);
+        continue;
+      }
+    } catch {
+      continue; // the holder released it between our two calls: try again
+    }
+    if (now() - started >= timeoutMs) {
+      throw new Error(`another lane:merge holds ${lock} (delete it if no merge is running)`);
+    }
+    wait(200);
+  }
+}
+
+/**
+ * The real `run`: gh, git, node and npm. `npm` is a .cmd file on Windows, so it goes through the
+ * shell as one command string (an args array under a shell is deprecated, DEP0190).
  * @param {string} cmd @param {string[]} args
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
 export function defaultRun(cmd, args) {
-  const r = spawnSync(cmd, args, {
-    encoding: 'utf8',
-    shell: cmd === 'npm' && process.platform === 'win32',
-    maxBuffer: 256 * 1024 * 1024,
-  });
+  const r =
+    cmd === 'npm' && process.platform === 'win32'
+      ? spawnSync(['npm', ...args].join(' '), {
+          encoding: 'utf8',
+          shell: true,
+          maxBuffer: 256 * 1024 * 1024,
+        })
+      : spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
   return {
     status: r.status ?? 1,
     stdout: r.stdout ?? '',
@@ -396,12 +582,135 @@ const PR_FIELDS =
 /** @param {string} text */
 const firstLine = text => text.trim().split(/\r?\n/)[0] ?? '';
 
+/** The shell-free runner type of `run`. @typedef {(cmd: string, args: string[]) => { status: number, stdout: string, stderr: string }} Run */
+
+/** Line endings must not make two copies of a file differ. @param {string} text */
+const lf = text => text.replace(/\r\n/g, '\n');
+
+/**
+ * The gate judges a branch, so the branch must not judge itself: when this file differs from
+ * aitool/main's copy, run main's copy (from a temp file, same arguments and folder) and return its
+ * exit code. Main without a gate (bootstrap) runs this copy, with one line saying so. Skipped for the
+ * copy that was itself started from main, and for `--train` (read only).
+ * @param {{ argv: string[], run: Run, selfPath: string, env: Record<string, string | undefined>,
+ *   tmpdir: string, cwd?: string, log: (line: string) => void,
+ *   spawn?: typeof spawnSync, execPath?: string }} o
+ * @returns {{ relaunched: boolean, code: number, fetched: boolean, error: string | null }}
+ */
+export function relaunchFromMain(o) {
+  const {
+    argv,
+    run,
+    selfPath,
+    env,
+    tmpdir,
+    log,
+    spawn = spawnSync,
+    execPath = process.execPath,
+  } = o;
+  const same = { relaunched: false, code: 0, fetched: env[ENV_FETCHED] === '1', error: null };
+  if (env[ENV_FROM_MAIN] === '1' || argv.includes('--train')) return same;
+  const fetch = run('git', ['fetch', REMOTE, 'main']);
+  if (fetch.status !== 0) {
+    return {
+      ...same,
+      error: `git fetch ${REMOTE} main failed (${firstLine(fetch.stderr || fetch.stdout)}); the gate cannot compare itself with main`,
+    };
+  }
+  const show = run('git', ['show', `${MAIN}:scripts/lane-merge.mjs`]);
+  if (show.status !== 0) {
+    log(`lane:merge: ${MAIN} has no merge gate yet (bootstrap); running this checkout's copy`);
+    return { ...same, fetched: true };
+  }
+  if (lf(show.stdout) === lf(fs.readFileSync(selfPath, 'utf8'))) return { ...same, fetched: true };
+  const dir = fs.mkdtempSync(path.join(tmpdir, 'lane-merge-main-'));
+  const file = path.join(dir, 'lane-merge.mjs');
+  fs.writeFileSync(file, show.stdout);
+  log(`lane:merge: this checkout's gate differs from ${MAIN}; running main's copy`);
+  const r = spawn(execPath, [file, ...argv], {
+    cwd: o.cwd ?? process.cwd(),
+    stdio: 'inherit',
+    env: { ...env, [ENV_FROM_MAIN]: '1', [ENV_FETCHED]: '1' },
+  });
+  return { relaunched: true, code: r.status ?? 1, fetched: true, error: null };
+}
+
+/** Run by `node -e`: import main's drift-check copy and run it in the current folder. */
+const DRIFT_RUNNER =
+  'import(process.argv[1]).then(m => process.exit(m.runDriftCheck({ cwd: process.cwd() })), e => { console.error(String(e)); process.exit(1); });';
+
+/** Does a module import another file of the repo (relative specifier)? @param {string} text */
+export function hasRelativeImports(text) {
+  return (
+    /(?:^|\n)\s*(?:import|export)\b[^;]*?\bfrom\s+['"]\.{1,2}\//.test(text) ||
+    /\bimport\s*\(\s*['"]\.{1,2}\//.test(text) ||
+    /(?:^|\n)\s*import\s+['"]\.{1,2}\//.test(text)
+  );
+}
+
+/**
+ * drift-check from main's copy (a temp file), not the branch's own `npm run drift:check`: the branch
+ * could have edited either. Falls back to the local script, with a note, when main's copy has no
+ * `runDriftCheck` export or imports other repo files.
+ * @param {Run} run @param {string} tmpdir @param {string[]} notes
+ */
+function runDrift(run, tmpdir, notes) {
+  const show = run('git', ['show', `${MAIN}:scripts/drift-check.mjs`]);
+  if (show.status !== 0) {
+    notes.push(
+      `drift-check: ${MAIN} has no scripts/drift-check.mjs yet; using this checkout's npm run drift:check`
+    );
+    return run('npm', ['run', 'drift:check']);
+  }
+  if (hasRelativeImports(show.stdout) || !/export function runDriftCheck\b/.test(show.stdout)) {
+    notes.push(
+      `drift-check: main's copy imports other repo files or lacks runDriftCheck; using this checkout's npm run drift:check`
+    );
+    return run('npm', ['run', 'drift:check']);
+  }
+  const dir = fs.mkdtempSync(path.join(tmpdir, 'lane-merge-drift-'));
+  const file = path.join(dir, 'drift-check.mjs');
+  fs.writeFileSync(file, show.stdout);
+  return run('node', ['--input-type=module', '-e', DRIFT_RUNNER, pathToFileURL(file).href]);
+}
+
+/**
+ * Is this module the script node was started with? Real paths on both sides, so a junction or a
+ * drive-letter case cannot turn into a silent exit 0.
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function isEntryModule(argv1, self) {
+  if (!argv1) return false;
+  const norm = (/** @type {string} */ p) => {
+    let r;
+    try {
+      r = fs.realpathSync(p);
+    } catch {
+      r = path.resolve(p);
+    }
+    return process.platform === 'win32' ? r.toLowerCase() : r;
+  };
+  return norm(argv1) === norm(self);
+}
+
+/**
+ * 'run' when started directly, 'import' when another module loaded it, 'mismatch' when the started
+ * file has this file's name but is not this file (the process must then fail, not exit 0 silently).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function entryDecision(argv1, self) {
+  if (isEntryModule(argv1, self)) return 'run';
+  if (argv1 && path.basename(argv1).toLowerCase() === path.basename(self).toLowerCase()) {
+    return 'mismatch';
+  }
+  return 'import';
+}
+
 /**
  * Runs the gate.
  * @param {{
- *   argv?: string[], run?: (cmd: string, args: string[]) => { status: number, stdout: string, stderr: string },
- *   log?: (line: string) => void, env?: Record<string, string | undefined>, home?: string,
- *   tmpdir?: string, now?: () => Date,
+ *   argv?: string[], run?: Run, log?: (line: string) => void, env?: Record<string, string | undefined>,
+ *   home?: string, tmpdir?: string, now?: () => Date, fetched?: boolean, lockTimeoutMs?: number,
  * }} [options]
  * @returns {number} the process exit code
  */
@@ -414,6 +723,8 @@ export function main(options = {}) {
     home = os.homedir(),
     tmpdir = os.tmpdir(),
     now = () => new Date(),
+    fetched = env[ENV_FETCHED] === '1',
+    lockTimeoutMs = 20_000,
   } = options;
   const args = parseArgs(argv);
   if (args.error) {
@@ -422,36 +733,60 @@ export function main(options = {}) {
   }
   const statePath = args.state ?? path.join(home, '.foundry-ai-tool', 'merge-train.json');
   const short = (/** @type {string} */ sha) => sha.slice(0, 7);
+  /** git fetch aitool main, once per run. @returns {string | null} an error, or null */
+  const fetchMain = () => {
+    if (fetched) return null;
+    const f = run('git', ['fetch', REMOTE, 'main']);
+    return f.status === 0 ? null : firstLine(f.stderr || f.stdout) || 'failed';
+  };
+  const message = (/** @type {unknown} */ e) => (e instanceof Error ? e.message : String(e));
 
-  if (args.train || args.trainReset !== null) {
-    let state;
+  if (args.train) {
     try {
-      state = readTrain(statePath);
-      if (args.trainReset !== null) {
-        if (!/^[0-9a-f]{7,40}$/i.test(args.trainReset)) {
-          log(`lane:merge: --train-reset needs a commit sha (7 to 40 hex characters)`);
-          return 2;
-        }
-        state = { lastRoundtrip: { sha: args.trainReset, at: now().toISOString() }, since: [] };
-        writeTrain(statePath, state);
-        log(
-          `lane:merge: merge train reset at ${short(args.trainReset)}; merge train 0/${TRAIN_SIZE}`
-        );
-        return 0;
-      }
-    } catch (e) {
+      const state = readTrain(statePath);
+      const last = state.lastRoundtrip
+        ? `last live:roundtrip at ${short(state.lastRoundtrip.sha)} (${state.lastRoundtrip.at})`
+        : 'no live:roundtrip recorded';
+      const since = state.since.map(s => `#${s.pr}@${short(s.sha)}`).join(', ') || 'none';
       log(
-        `lane:merge: merge train state ${statePath} is unreadable: ${e instanceof Error ? e.message : e}`
+        `lane:merge: merge train ${state.since.length}/${TRAIN_SIZE}; ${last}; merged since: ${since}`
+      );
+      return 0;
+    } catch (e) {
+      log(`lane:merge: ${message(e)}`);
+      return 1;
+    }
+  }
+  if (args.trainReset !== null) {
+    const sha = args.trainReset.toLowerCase();
+    if (!/^[0-9a-f]{7,40}$/.test(sha)) {
+      log('lane:merge: --train-reset needs a commit sha (7 to 40 hex characters)');
+      return 2;
+    }
+    const fetchError = fetchMain();
+    if (fetchError) {
+      log(`lane:merge: train not reset: git fetch ${REMOTE} main failed (${fetchError})`);
+      return 1;
+    }
+    const tip = run('git', ['rev-parse', MAIN]);
+    const tipSha = tip.stdout.trim().toLowerCase();
+    if (tip.status !== 0 || !tipSha.startsWith(sha)) {
+      log(
+        `lane:merge: train not reset: ${short(sha)} is not the tip of ${MAIN} (${tipSha ? short(tipSha) : 'unknown'}); run live:roundtrip on the newest main`
       );
       return 1;
     }
-    const last = state.lastRoundtrip
-      ? `last live:roundtrip at ${short(state.lastRoundtrip.sha)} (${state.lastRoundtrip.at})`
-      : 'no live:roundtrip recorded';
-    const since = state.since.map(s => `#${s.pr}@${short(s.sha)}`).join(', ') || 'none';
-    log(
-      `lane:merge: merge train ${state.since.length}/${TRAIN_SIZE}; ${last}; merged since: ${since}`
-    );
+    let release;
+    try {
+      release = acquireLock(statePath, { timeoutMs: lockTimeoutMs });
+      writeTrain(statePath, { lastRoundtrip: { sha: tipSha, at: now().toISOString() }, since: [] });
+    } catch (e) {
+      log(`lane:merge: train not reset: ${message(e)}`);
+      return 1;
+    } finally {
+      release?.();
+    }
+    log(`lane:merge: merge train reset at ${short(tipSha)}; merge train 0/${TRAIN_SIZE}`);
     return 0;
   }
 
@@ -489,7 +824,7 @@ export function main(options = {}) {
     );
     return finish();
   }
-  const head = String(pr.headRefOid ?? '');
+  const head = String(pr.headRefOid ?? '').toLowerCase();
   if (pr.state !== 'OPEN') failures.push(`pr: #${n} is ${pr.state}, not OPEN`);
   if (pr.isDraft) failures.push(`pr: #${n} is a draft; mark it ready for review`);
   if (pr.baseRefName !== 'main') failures.push(`pr: base is ${pr.baseRefName}, not main`);
@@ -498,31 +833,63 @@ export function main(options = {}) {
       `pr: mergeable is ${pr.mergeable}; merge main into the branch and resolve conflicts`
     );
   }
-  const files = (pr.files ?? []).map((/** @type {any} */ f) => ({ ...f, path: String(f.path) }));
-  const paths = files.map((/** @type {{ path: string }} */ f) => f.path);
 
-  // b. CI.
+  // b. CI: every check green, and every check the branch ruleset requires present.
+  const rules = run('gh', ['api', `repos/${REPO}/rules/branches/main`]);
+  const required = rules.status === 0 ? requiredContexts(rules.stdout) : null;
+  if (required === null) {
+    failures.push(
+      rules.status === 0
+        ? 'ci: the branch ruleset lists no required status checks (or gh api answered something else); refusing'
+        : `ci: cannot read the required checks from the branch ruleset (gh api failed: ${firstLine(rules.stderr || rules.stdout)}); refusing`
+    );
+  }
   const rollup = pr.statusCheckRollup ?? [];
   if (rollup.length === 0) failures.push('ci: no checks reported for this PR yet');
   else {
-    const { failing, pending } = rollupProblems(rollup);
-    if (failing.length > 0 || pending.length > 0) {
-      const parts = [];
-      if (failing.length > 0) parts.push(`failing: ${failing.join(', ')}`);
-      if (pending.length > 0) parts.push(`pending: ${pending.join(', ')}`);
-      failures.push(`ci: ${parts.join('; ')}`);
-    }
+    const { failing, pending, missing } = rollupProblems(rollup, required ?? []);
+    const parts = [];
+    if (failing.length > 0) parts.push(`failing: ${failing.join(', ')}`);
+    if (pending.length > 0) parts.push(`pending: ${pending.join(', ')}`);
+    if (missing.length > 0) parts.push(`required but not reported: ${missing.join(', ')}`);
+    if (parts.length > 0) failures.push(`ci: ${parts.join('; ')}`);
   }
 
-  // c. Review note for the head commit.
+  // The changed files come from the local checkout (gh stops at 100 files and drops renamed-from
+  // paths); gh's list is a cross-check, and the union is judged.
+  const fetchError = fetchMain();
+  /** @type {{ path: string, changeType?: string }[]} */
+  let localFiles = [];
+  /** @type {string | null} */
+  let filesError = fetchError ? `git fetch ${REMOTE} main failed: ${fetchError}` : null;
+  if (!filesError) {
+    const base = run('git', ['merge-base', MAIN, 'HEAD']);
+    const diff =
+      base.status === 0
+        ? run('git', ['diff', '--name-status', '--no-renames', base.stdout.trim(), 'HEAD'])
+        : base;
+    if (base.status !== 0 || diff.status !== 0) {
+      filesError = `git merge-base/diff against ${MAIN} failed: ${firstLine(diff.stderr || diff.stdout)}`;
+    } else localFiles = parseNameStatus(diff.stdout);
+  }
+  const ghFiles = (pr.files ?? []).map((/** @type {any} */ f) => ({ ...f, path: String(f.path) }));
+  const files = [
+    ...localFiles,
+    ...ghFiles.filter(
+      (/** @type {{ path: string }} */ g) => !localFiles.some(l => l.path === g.path)
+    ),
+  ];
+  const paths = files.map(f => f.path);
+
+  // c. Review notes for the head commit.
   const hits = riskyHits(paths);
   for (const h of hits) notes.push(`risky (${h.name}): ${h.file}; an Opus review is required`);
-  /** @type {ReturnType<typeof parseReviewNote>[] | null} */
+  /** @type {ReviewNote[] | null} */
   let reviews = null;
   try {
     reviews = findReviewNotes(vault, n);
   } catch (e) {
-    failures.push(`review: cannot read the vault ${vault}: ${e instanceof Error ? e.message : e}`);
+    failures.push(`review: cannot read the vault ${vault}: ${message(e)}`);
   }
   if (reviews === null) {
     if (!failures.some(f => f.startsWith('review:'))) {
@@ -543,7 +910,7 @@ export function main(options = {}) {
   // e. This checkout is the PR head and clean.
   const local = run('git', ['rev-parse', 'HEAD']);
   const status = run('git', ['status', '--porcelain']);
-  const localHead = local.stdout.trim();
+  const localHead = local.stdout.trim().toLowerCase();
   let localOk = true;
   if (local.status !== 0 || localHead !== head) {
     localOk = false;
@@ -558,25 +925,24 @@ export function main(options = {}) {
       `local: the working tree is not clean (${count} change${count === 1 ? '' : 's'}); commit or stash first`
     );
   }
+  if (filesError) failures.push(`files: cannot list what the PR changes locally: ${filesError}`);
 
-  // f. Merge train.
+  // f. Merge train (read now for the early refusal; read again under the lock before the merge).
   const trainRelevant = isTrainRelevant(paths);
   /** @type {TrainState} */
   let train = { lastRoundtrip: null, since: [] };
   try {
     train = readTrain(statePath);
   } catch (e) {
-    failures.push(`train: ${statePath} is unreadable: ${e instanceof Error ? e.message : e}`);
+    failures.push(`train: ${message(e)}`);
   }
-  if (trainRelevant && train.since.length >= TRAIN_SIZE) {
-    failures.push(
-      `train: merge train full (${train.since.length}/${TRAIN_SIZE}): the planner runs npm run live:roundtrip on main, then npm run lane:merge -- --train-reset <sha>`
-    );
-  }
+  const trainFull = () =>
+    `train: merge train full (${train.since.length}/${TRAIN_SIZE}): the planner runs npm run live:roundtrip on main, then npm run lane:merge -- --train-reset <sha>`;
+  if (trainRelevant && train.since.length >= TRAIN_SIZE) failures.push(trainFull());
 
-  // e (continued). drift:check, the slow one: only when everything above passed.
+  // e (continued). drift-check, the slow one: only when everything above passed.
   if (failures.length === 0 && localOk) {
-    const drift = run('npm', ['run', 'drift:check']);
+    const drift = runDrift(run, tmpdir, notes);
     const logFile = path.join(tmpdir, `lane-merge-${n}-drift-${now().getTime()}.log`);
     const output = `${drift.stdout}${drift.stderr}`;
     try {
@@ -585,11 +951,11 @@ export function main(options = {}) {
       /* the tail below still shows the output */
     }
     if (drift.status !== 0) {
-      failures.push(`drift: npm run drift:check failed (log ${logFile}); last lines below`);
+      failures.push(`drift: drift-check failed (log ${logFile}); last lines below`);
       details.push(...output.replace(/\s+$/, '').split(/\r?\n/).slice(-TAIL_LINES));
     }
   } else if (failures.length > 0) {
-    notes.push('drift:check not run: it is slow, so it runs once the other checks pass');
+    notes.push('drift-check not run: it is slow, so it runs once the other checks pass');
   }
 
   if (failures.length > 0) return finish();
@@ -604,21 +970,42 @@ export function main(options = {}) {
     );
     return 0;
   }
-  const merge = run('gh', ['pr', 'merge', String(n), '--merge', '--match-head-commit', head]);
-  if (merge.status !== 0) {
-    failures.push(
-      `merge: gh pr merge exited ${merge.status}: ${firstLine(merge.stderr || merge.stdout)}`
-    );
-    return finish();
-  }
+  // A module PR takes the train lock around read, merge and write, so two lanes cannot both pass
+  // at 3/4.
+  /** @type {(() => void) | null} */
+  let release = null;
   let warning = '';
-  if (trainRelevant) {
-    train.since.push({ pr: n, sha: head, at: now().toISOString() });
-    try {
-      writeTrain(statePath, train);
-    } catch (e) {
-      warning = `; WARNING: merge train not recorded (${e instanceof Error ? e.message : e})`;
+  try {
+    if (trainRelevant) {
+      try {
+        release = acquireLock(statePath, { timeoutMs: lockTimeoutMs });
+        train = readTrain(statePath);
+      } catch (e) {
+        failures.push(`train: ${message(e)}`);
+        return finish();
+      }
+      if (train.since.length >= TRAIN_SIZE) {
+        failures.push(trainFull());
+        return finish();
+      }
     }
+    const merge = run('gh', ['pr', 'merge', String(n), '--merge', '--match-head-commit', head]);
+    if (merge.status !== 0) {
+      failures.push(
+        `merge: gh pr merge exited ${merge.status}: ${firstLine(merge.stderr || merge.stdout)}`
+      );
+      return finish();
+    }
+    if (trainRelevant) {
+      train.since.push({ pr: n, sha: head, at: now().toISOString() });
+      try {
+        writeTrain(statePath, train);
+      } catch (e) {
+        warning = `; WARNING: merge train not recorded (${message(e)})`;
+      }
+    }
+  } finally {
+    release?.();
   }
   const k = train.since.length;
   const advice =
@@ -631,6 +1018,25 @@ export function main(options = {}) {
   return 0;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.exit(main());
+const self = fileURLToPath(import.meta.url);
+const decision = entryDecision(process.argv[1], self);
+if (decision === 'run') {
+  const gate = relaunchFromMain({
+    argv: process.argv.slice(2),
+    run: defaultRun,
+    selfPath: self,
+    env: process.env,
+    tmpdir: os.tmpdir(),
+    log: console.log,
+  });
+  if (gate.error) {
+    console.log(`lane:merge: NOT merged: ${gate.error}`);
+    process.exit(1);
+  }
+  process.exit(gate.relaunched ? gate.code : main({ fetched: gate.fetched }));
+} else if (decision === 'mismatch') {
+  console.error(
+    `lane:merge: started as ${process.argv[1]} but this module is ${self}; not running`
+  );
+  process.exit(1);
 }

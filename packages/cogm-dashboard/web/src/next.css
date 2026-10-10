@@ -84,9 +84,10 @@ a.btn {
   outline-offset: 2px;
 }
 
-/* During without the bar (layouts) and the turn strip, which are not here yet: their grid rows
-   would leave empty gaps above the cards. They come back with those panels. */
-main.moment-views #moment-during {
+/* A During view shown without its bar (MomentViews without `duringBar`, as the Moments stories do):
+   the bar and strip rows would leave empty gaps above the cards. The page itself always has the
+   bar, and then moments.css places everything per layout. */
+main.moment-views #moment-during.during-no-bar {
   grid-template-rows: auto auto auto 1fr;
   grid-template-areas:
     'feed changes'
@@ -95,7 +96,7 @@ main.moment-views #moment-during {
     'feed .';
 }
 @media (max-width: 899px) {
-  main.moment-views #moment-during {
+  main.moment-views #moment-during.during-no-bar {
     grid-template-rows: none;
     grid-template-areas: 'changes' 'feed' 'handouts' 'party';
   }

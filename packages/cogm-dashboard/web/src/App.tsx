@@ -4,6 +4,13 @@ import { useCallback, useEffect, useState, type JSX, type ReactNode } from 'reac
 import { AdvancedItem, AdvancedLabel, AdvancedMenu } from './components/AdvancedMenu';
 import { ConfirmProvider } from './components/ConfirmDialog';
 import {
+  DuringBar,
+  DuringMenuItems,
+  LayoutTourGuide,
+  LayoutTrialCard,
+  useDuringLayout,
+} from './components/During';
+import {
   DockContext,
   DrawerBackdrop,
   isDocked,
@@ -116,6 +123,7 @@ function Dashboard(): JSX.Element {
   useDashboardStream();
   usePreflightOnReconnect();
   const { moment, pick } = useMoment();
+  const during = useDuringLayout(moment, () => pick('during'));
   const { slotRefs, dockOf } = useDocks(moment);
   const [drawers, setDrawers] = useState(NO_DRAWERS);
   const [seenMoment, setSeenMoment] = useState(moment);
@@ -242,6 +250,7 @@ function Dashboard(): JSX.Element {
                 🃏 Tarokka
               </Button>
             </AdvancedItem>
+            <DuringMenuItems during={during} />
             <AdvancedLabel>Tools</AdvancedLabel>
             <AdvancedItem onSelect={() => openDrawer('tools')}>
               <Button
@@ -291,7 +300,14 @@ function Dashboard(): JSX.Element {
         dashboard is still at the main address.
       </div>
       <VersionBanner />
-      <MomentViews moment={moment} slotRefs={slotRefs} />
+      <MomentViews
+        moment={moment}
+        slotRefs={slotRefs}
+        duringScreen={during.screen}
+        duringBar={<DuringBar during={during} />}
+        beforeTop={<LayoutTrialCard during={during} />}
+      />
+      <LayoutTourGuide during={during} />
       <PlayerLinksPane open={linksOpen} onOpenChange={setLinksOpen} />
       <ModuleDiagnosticsPane open={diagOpen} onOpenChange={setDiagOpen} />
       <DrawerBackdrop

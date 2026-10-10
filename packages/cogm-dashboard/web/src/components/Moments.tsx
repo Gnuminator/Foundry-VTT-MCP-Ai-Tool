@@ -11,8 +11,10 @@ import {
   type ComponentProps,
   type JSX,
   type KeyboardEvent,
+  type ReactNode,
 } from 'react';
 
+import type { DuringScreen } from '../lib/duringTrial';
 import { usePlaySession, type PlaySession } from '../lib/session';
 
 export type Moment = 'before' | 'during' | 'after';
@@ -195,9 +197,18 @@ function NotHereYet({ title, wide = false }: { title: string; wide?: boolean }):
 export function MomentViews({
   moment,
   slotRefs,
+  duringScreen,
+  duringBar,
+  beforeTop,
 }: {
   moment: Moment | null;
   slotRefs: SlotRefs;
+  /** What the During layouts ask of #moment-during (lib/duringTrial.ts); Cards when not given. */
+  duringScreen?: DuringScreen;
+  /** The During bar (components/During.tsx), the first row of the During view. */
+  duringBar?: ReactNode;
+  /** The layout trial's card, the first thing in Before. */
+  beforeTop?: ReactNode;
 }): JSX.Element {
   return (
     <main className="moment-views" id="moment-views" aria-busy={moment === null}>
@@ -209,19 +220,24 @@ export function MomentViews({
         aria-labelledby="tab-before"
         hidden={moment !== 'before'}
       >
+        {beforeTop}
         <div className="slot" data-slot="preflight" ref={slotRefs['before-preflight']} />
         <div className="slot" data-slot="prep" ref={slotRefs['before-prep']} />
         <NotHereYet title="Features" wide />
       </section>
-      {/* The During bar (layouts), the turn strip and the folds come with their own panels. */}
+      {/* The folds and the turn strip's rows come with their own panels. */}
       <section
-        className="moment"
+        className={duringBar ? 'moment' : 'moment during-no-bar'}
         id="moment-during"
         role="tabpanel"
         aria-labelledby="tab-during"
-        data-layout="layered"
+        data-layout={duringScreen?.layout ?? 'layered'}
+        data-context={duringScreen?.context}
+        data-view={duringScreen?.view}
         hidden={moment !== 'during'}
       >
+        {duringBar}
+        <div className="slot slot-strip" data-slot="strip" />
         <div className="slot slot-feed" data-slot="feed">
           <NotHereYet title="Live Feed" />
         </div>

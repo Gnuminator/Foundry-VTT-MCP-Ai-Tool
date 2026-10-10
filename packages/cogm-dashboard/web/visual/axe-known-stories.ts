@@ -26,7 +26,14 @@ export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
     rule: 'color-contrast',
     target: '.menu-label',
     reason: 'Muted text #6b7385 on the menu #1d212b is 3.38:1 (needs 4.5:1), neutral theme.',
-    stories: ['components-advancedmenu--open', 'components-advancedmenu--open-phone'],
+    stories: [
+      'components-advancedmenu--open',
+      'components-advancedmenu--open-phone',
+      'components-during-layouts--menu-combat-buttons-on',
+      'components-during-layouts--menu-open',
+      'components-during-layouts--menu-open-phone',
+      'components-during-layouts--menu-waiting-for-the-world',
+    ],
   },
   {
     rule: 'scrollable-region-focusable',
@@ -89,6 +96,9 @@ export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
     target: '.death-saves',
     reason: 'Danger red #e63946 on the panel #1d212b is 3.86:1 (needs 4.5:1), neutral theme.',
     stories: [
+      'components-during-layouts--page-auto-in-combat',
+      'components-during-layouts--page-auto-in-combat-phone',
+      'components-during-layouts--page-full',
       'panels-party--eight-characters',
       'panels-party--loaded',
       'panels-party--long-names',

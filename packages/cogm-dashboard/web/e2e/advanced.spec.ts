@@ -24,11 +24,13 @@ test('the menu lists the panels and tools in the old page order', async ({ page 
     '🛡 Party',
     '📜 Handouts',
     '🃏 Tarokka',
+    '⚔ Combat buttons: off',
+    '▦ Try the During layouts',
     '🛠 Tools',
     '🩺 Module diagnostics',
     '🔗 Player links',
   ]);
-  await expect(menu.locator('.menu-label')).toHaveText(['Panels', 'Tools']);
+  await expect(menu.locator('.menu-label')).toHaveText(['Panels', 'During screen', 'Tools']);
   // The page's own header keeps Pre-flight (with its status) outside the menu.
   await expect(page.locator('header #btn-preflight')).toBeVisible();
 

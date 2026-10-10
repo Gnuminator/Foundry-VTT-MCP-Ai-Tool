@@ -138,6 +138,8 @@ describe('planJoinPage', () => {
       '<div class="note"><p>mine</p></div>'
     );
     expect(stripJoinStyle(null)).toBe('');
+    // Two blocks in a row (a block applied twice by hand) both go.
+    expect(stripJoinStyle(`${BLOCK}${BLOCK}\n${DESCRIPTION}`)).toBe(DESCRIPTION);
   });
 
   it('points at the picture inside this module, relative to the server root', () => {

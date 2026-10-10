@@ -93,9 +93,18 @@ export interface JoinPageChange {
   joinTheme?: 'default';
 }
 
-/** The description without this module's block. */
+/**
+ * The description without this module's block. Repeated until nothing changes, so a block
+ * that only forms once another is cut out goes too (and the description never keeps a half).
+ */
 export function stripJoinStyle(description: string | null | undefined): string {
-  return (description ?? '').replace(JOIN_BLOCK_PATTERN, '');
+  let text = description ?? '';
+  let before: string;
+  do {
+    before = text;
+    text = text.replace(JOIN_BLOCK_PATTERN, '');
+  } while (text !== before);
+  return text;
 }
 
 /** Whether The Veil is on the join page now (the block is in the description). */
@@ -105,11 +114,12 @@ export function hasVeilLook(world: WorldJoinFields): boolean {
 
 /** The tagline in The Veil block, or null when there is no block. */
 export function veilTagline(description: string | null | undefined): string | null {
+  // The tagline is the block's one paragraph, plain escaped text (no tags inside).
   const block = (description ?? '').match(
-    /<div\b[^>]*\bdata-ai-tool-join="veil"[^>]*>([\s\S]*?)<\/div>/i
+    /<div\b[^>]*\bdata-ai-tool-join="veil"[^>]*>\s*<p\b[^>]*>([^<]*)<\/p>/i
   );
   if (!block) return null;
-  const text = (block[1] ?? '').replace(/<[^>]*>/g, '').trim();
+  const text = (block[1] ?? '').trim();
   return text ? unescapeHtml(text) : null;
 }
 

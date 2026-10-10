@@ -119,8 +119,51 @@ picker.
 - `npm run test:e2e` runs the Playwright browser tests in `web/e2e` against the built server
   (no bridge; each test fakes the routes it needs). Build first. They need Playwright's Chromium
   (`npx playwright install chromium`) or `PLAYWRIGHT_CHANNEL=msedge`. CI runs them on Node 22.
+- `npm run test:visual` runs the screenshot tests in Docker; see "Screenshot tests" below.
 - Usage names go in `data-track="..."` as string literals, as on the old page;
   `npm run usage:catalog` scans `web/src` too.
+
+### Screenshot tests
+
+`web/visual` photographs the React page with Playwright's `toHaveScreenshot`: the three moments
+(Before, During, After), every ported drawer and pane open over the page, the Advanced menu and
+the version banner, each in the neutral and the Veil theme (mist calm) at 1440, 1080 and 390 pixels
+wide. That is 78 baseline PNGs in `web/visual/__screenshots__/<width>/`. The fakes are the e2e
+helpers (`web/e2e/support.ts`); the data in `web/visual/fixtures.ts` is made up, with the clock
+fixed, animations off and the browser in UTC and en-US, so a run is the same every time. The same
+screens also go through axe at 1440 (serious and critical violations fail; the ones already there
+are listed with the reason in `web/visual/axe-known.ts`, and only a new one fails).
+
+- **Run them in Docker, not on the host.** The baselines are made on Linux only, in the Playwright
+  image `mcr.microsoft.com/playwright:v<version>-noble`, because fonts and anti-aliasing differ per
+  operating system: a Windows or macOS run would differ from the PNGs and from CI.
+  `scripts/visual-docker.mjs` takes the image tag from the installed `@playwright/test` version.
+- `npm run build -w @gnuminator/cogm-dashboard` first (the container serves `dist/` from the repo),
+  then `npm run test:visual -w @gnuminator/cogm-dashboard` to check. Extra arguments go to
+  Playwright: `npm run test:visual -w @gnuminator/cogm-dashboard -- -g party`.
+- `npm run test:visual:update -w @gnuminator/cogm-dashboard` writes new baselines after a change
+  you meant. Look at the PNGs in the diff, then commit them with the change.
+- The container mounts the repo at `/work` but keeps its own `node_modules` in two named Docker
+  volumes (`foundry-ai-tool-visual-node-modules`, `foundry-ai-tool-visual-dashboard-node-modules`),
+  filled by `npm ci --ignore-scripts` the first time and again when `package-lock.json` changes.
+  Remove them with `docker volume rm` to start clean. Snapshots and `test-results/visual` are
+  written into the repo.
+- `npm run test:visual:ci` is what runs inside the container (CI uses it directly, in the job
+  `dashboard-visual`). A diff fails that job. The report with the expected, actual and diff
+  images is the artifact `dashboard-visual-report` on the run's summary page (kept 14 days). The
+  job is advisory: it is not in the required checks. After a Playwright bump, change the image
+  tag in `.github/workflows/ci.yml` too (the job's first step fails with a message when they
+  differ) and refresh the baselines.
+
+### Bundle budget
+
+`npm run bundle:budget -w @gnuminator/cogm-dashboard` (after a build) reads `dist/web`, adds up
+the first-load JavaScript (the entry script and the modulepreload links in `index.html`) and
+checks it and every lazy chunk against a gzip limit recorded in `scripts/bundle-budget.mjs`: the
+size on 2026-10-10 plus 10 percent, rounded up to the next KB. A lazy chunk is matched by its name
+without the hash; an unlisted one gets a default limit. It fails when one is over, and CI runs it
+after the build and writes the table to the job summary. To raise a limit on purpose, change the
+constant in the same pull request and say why.
 
 The dashboard runs **without** an API key too — you still get the live feed and
 combat tracker; only the AI panes are disabled until a key is set.

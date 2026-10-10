@@ -68,6 +68,7 @@ coverage/
 
 # Test Output
 test-results/
+playwright-report/
 *test-result*.txt
 
 # Installer Build Output

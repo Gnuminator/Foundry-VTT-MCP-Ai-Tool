@@ -4,6 +4,7 @@ import {
   MODULE_CAPABILITY_AI_CHANGES_SIGNAL,
   type ModuleHelloData,
 } from './constants.js';
+import { createJoinPageMenu } from './join-page.js';
 import type { BridgeConfig } from './socket-bridge.js';
 import { trackUsage } from './usage-recorder.js';
 
@@ -156,6 +157,19 @@ export class ModuleSettings {
           await game.settings.set(MODULE_ID, 'autoRebuildIndex', formData.autoRebuildIndex);
         }
       },
+      restricted: true,
+    });
+
+    // Join page look (I-086): The Veil on the players' first screen
+    const menus = game.settings as unknown as {
+      registerMenu(namespace: string, key: string, data: Record<string, unknown>): void;
+    };
+    menus.registerMenu(this.moduleId, 'joinPageMenu', {
+      name: 'Join page look',
+      label: 'Choose join page look',
+      hint: "Give Foundry's join page (the first screen players see) the campaign look, The Veil: the castle in the mist as the background picture and a lamplit line at the top of the world description. Your description text stays as it is.",
+      icon: 'fas fa-door-open',
+      type: createJoinPageMenu(),
       restricted: true,
     });
 

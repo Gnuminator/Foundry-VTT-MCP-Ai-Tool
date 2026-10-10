@@ -1,5 +1,5 @@
 {
-  "total": 1488,
+  "total": 1486,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -107,7 +107,6 @@
     "packages/foundry-module/src/test-support/play-log-fixtures.ts": 1,
     "packages/foundry-module/src/transaction-manager.test.ts": 4,
     "packages/foundry-module/src/transaction-manager.ts": 5,
-    "packages/foundry-module/templates/enhanced-index-menu.html": 2,
     "packages/mcp-server/src/backend.ts": 3,
     "packages/mcp-server/src/control-ping.ts": 1,
     "packages/mcp-server/src/index.ts": 1,

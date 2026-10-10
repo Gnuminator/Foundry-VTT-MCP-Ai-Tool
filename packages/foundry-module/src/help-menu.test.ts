@@ -10,12 +10,17 @@ let restore: () => void;
 beforeEach(() => {
   world = createTestWorld();
   restore = world.install();
-  g.foundry.applications = { api: { ApplicationV2: class {}, DialogV2: class {} } };
+  g.foundry.applications = {
+    api: {
+      ApplicationV2: class {},
+      HandlebarsApplicationMixin: (B: unknown): unknown => B,
+      DialogV2: class {},
+    },
+  };
 });
 
 afterEach(() => {
   restore();
-  delete g.FormApplication;
 });
 
 describe('settings Help menu', () => {
@@ -35,7 +40,6 @@ describe('settings Help menu', () => {
     const registerMenu = vi.fn();
     g.game.settings.register = vi.fn();
     g.game.settings.registerMenu = registerMenu;
-    g.FormApplication = class {};
     new ModuleSettings().registerSettings();
     const [namespace, key, data] = registerMenu.mock.calls[0] as [string, string, any];
     expect(`${namespace}.${key}`).toBe('foundry-mcp-bridge.helpMenu');

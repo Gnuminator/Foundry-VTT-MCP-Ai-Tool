@@ -95,6 +95,12 @@ jobs:
         # dry run (stand-ins for systemd) (docs/dev/PI-SETUP.md, "GM scripts").
         run: node --test scripts/pi/assistant-gm.test.mjs
 
+      - name: Pi GM password check
+        # gm_password_check in scripts/pi/remote/lib-gm-passwords.sh (#273), against a fake classic-level: Gamemaster and
+        # Assistant GM users with no password in any world, gm-passwords.sh, and stage 12 refusing before it
+        # installs anything.
+        run: node --test scripts/pi/gm-passwords.test.mjs
+
       - name: Pi stage 13 settings driver
         # player-creation-settings.mjs against a fake game: the three D-113 settings and usage-tracking off for
         # every user. The stage itself runs in a container on the ARM runner (build-test-arm).

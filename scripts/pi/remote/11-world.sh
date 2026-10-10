@@ -150,6 +150,18 @@ if [ -n "$EXTRA_GM_USER" ]; then
     [ -z "$had" ] || [ "$had" = "$EXTRA_GM_USER" ] || die "$envf already names the extra GM '$had', not '$EXTRA_GM_USER'. Nothing was changed"
   done
 fi
+# The Assistant GM driver that stage 5 installed creates the extra GM. A driver from before D-118 ignores
+# PROVISION_EXTRA_GM_USER, so the run would end "provisioned" with a password in the env file for a user that does
+# not exist (the training world run of 2026-10-10). Any run that may provision an extra GM (this run's or an env
+# file's) needs a driver that reads it.
+needs_extra=0
+[ -z "$EXTRA_GM_USER" ] || needs_extra=1
+for id in "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"}; do
+  [ -z "$(env_login "$TOOL_ETC/world-$id.env" EXTRA_GM_USER)" ] || needs_extra=1
+done
+if [ "$needs_extra" = 1 ] && ! grep -q PROVISION_EXTRA_GM_USER "$TOOL_DIR/gm-browser/assistant-gm.mjs"; then
+  die "the Assistant GM driver on the Pi ($TOOL_DIR/gm-browser/assistant-gm.mjs) is older than the extra GM (D-118) and would not create it: run stage 5 again first (scp scripts/pi/remote/assistant-gm.mjs foundry-pi:/root/, then 5-tool.sh). Nothing was changed"
+fi
 bundle_size="$(stat -c %s "$BUNDLE")"
 
 # options.json "world" is what Foundry launches. It is changed while worlds are provisioned, so the first

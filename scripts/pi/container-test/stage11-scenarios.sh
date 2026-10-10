@@ -161,6 +161,17 @@ installed_world() {
   echo "the Pi's own $1" >"$data/worlds/$1/sentinel"
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$data/worlds/$1"
 }
+# The Assistant GM driver of a Pi whose stage 5 ran before D-118: the stand-in with the extra GM variables stripped
+# (the real old driver ignored PROVISION_EXTRA_GM_USER and PROVISION_EXTRA_GM_PASSWORD).
+old_driver() {
+  sed 's/PROVISION_EXTRA_GM_/IGNORED_EXTRA_GM_/g' "$H/stage11-provision.mjs" >"$TOOL_DIR/gm-browser/assistant-gm.mjs"
+}
+# The old driver, and an env file for the training world that already names an extra GM (an earlier run wrote it).
+old_driver_env() {
+  old_driver
+  printf 'GM_USER="Gamemaster"\nGM_PASSWORD="gsecret1"\nEXTRA_GM_USER="Claude"\nEXTRA_GM_PASSWORD="xsecret"\n' >"$TOOL_ETC/world-frostmaiden-training.env"
+  chmod 600 "$TOOL_ETC/world-frostmaiden-training.env"
+}
 training_installed() { installed_world frostmaiden-training; }
 frost_kit_unmarked() { installed_world frost-kit; }
 
@@ -283,4 +294,7 @@ scenario kit-unmarked frostmaiden-training frost_kit_unmarked WORLD=frostmaiden-
 scenario kit-is-strahd-kit-replace frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=strahd-kit "KIT_TITLE=Frost kit" LAUNCH=curse-of-strahd REPLACE_KIT=1
 scenario pi-modules-suffix-older frostmaiden-training pimod_suffix_older WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
 scenario pi-modules-suffix-newer frostmaiden-training pimod_suffix_newer WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+scenario old-driver-extra frostmaiden-training old_driver WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
+scenario old-driver-env frostmaiden-training old_driver_env WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+scenario old-driver-plain frostmaiden-training old_driver WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
 echo "=== ALL DONE"

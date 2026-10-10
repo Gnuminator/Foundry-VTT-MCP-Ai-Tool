@@ -486,6 +486,36 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.match(r.output, /Nothing was changed/);
   });
 
+  test('old-driver-extra: an extra GM with a pre-D-118 Assistant GM driver is refused before anything changes', () => {
+    const r = run('old-driver-extra');
+    assertRefused(r, /Assistant GM driver on the Pi .* is older than the extra GM \(D-118\)/);
+    assert.match(r.output, /run stage 5 again first/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(stops(r), []);
+    assert.ok(!r.worlds.includes('frostmaiden-training'), 'the world must not be installed');
+  });
+
+  test('old-driver-env: an env file that already names an extra GM needs the new driver too', () => {
+    const r = run('old-driver-env');
+    assertRefused(r, /Assistant GM driver on the Pi .* is older than the extra GM \(D-118\)/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(stops(r), []);
+    assert.ok(!r.worlds.includes('frostmaiden-training'), 'the world must not be installed');
+  });
+
+  test('old-driver-plain: the old driver is fine when no extra GM is involved', () => {
+    const r = run('old-driver-plain');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /world frostmaiden-training installed/);
+    assert.doesNotMatch(r.output, /older than the extra GM/);
+    assert.equal(
+      r.provision,
+      'PROVISION world=frostmaiden-training gm=Gamemaster new_pw=true extra=- extra_pw=false assistant=Assistant GM'
+    );
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.equal(r.leak, 'no');
+  });
+
   test('strahd-default: the old behaviour: kit copy reset, both worlds provisioned, no extra GM anywhere', () => {
     const r = run('strahd-default');
     assert.equal(r.exit, '0', r.output);

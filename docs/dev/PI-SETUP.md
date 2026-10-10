@@ -692,7 +692,9 @@ WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claud
   `EXTRA_GM_PASSWORD`; root only, never printed). The extra GM is added to the file once; a run
   again keeps both passwords. A file that already names another extra GM stops the run before
   anything changes, and so does an extra GM named like the world's GM or the Assistant GM (case
-  does not matter) or with a space at either end.
+  does not matter) or with a space at either end. `EXTRA_GM_USER` needs the Assistant GM driver
+  from stage 5 at or after #294 (an older driver ignores the extra GM), and stage 11 refuses an older
+  one before anything changes: run stage 5 again first.
 - If provisioning fails, run the same command again: a `world-<id>.pending` marker in
   `/etc/foundry-ai-tool/` is written for every world of the run before the first is provisioned and
   stays until that world's provisioning has worked, so a plain rerun provisions the kept

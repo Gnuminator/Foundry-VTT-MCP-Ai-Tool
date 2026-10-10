@@ -11,3 +11,6 @@
 - **Clearer messages:** the stage 11 header describes how modules are handled now (a push-back keeps newer Pi
   copies, a second world's modules need `SHIP_MODULES=1`), the older-module refusal says where to update, and
   the `-PiModules` example in `push-world.ps1` uses `-Modules ''`.
+- **Old Assistant GM driver is refused:** stage 11 now stops before anything changes when an extra GM is
+  involved (`EXTRA_GM_USER`, or a world's env file that names one) and the installed stage 5 driver predates
+  the extra GM, which it would silently ignore. Run stage 5 again first.

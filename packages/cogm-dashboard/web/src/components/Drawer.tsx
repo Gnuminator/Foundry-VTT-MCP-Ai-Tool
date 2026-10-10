@@ -1,4 +1,4 @@
-import * as Dialog from '@radix-ui/react-dialog';
+import { Dialog } from 'radix-ui';
 import {
   createContext,
   useContext,
@@ -13,7 +13,7 @@ import {
 import { createPortal } from 'react-dom';
 
 import { closeTopPanel, raisePanel, useEscapeClose } from '../lib/escape';
-import { HelpButton } from './HelpButton';
+import { IconButton, Panel, type PanelState } from '../ui';
 
 // Every drawer sits in the same place, so without help the one later in the page covers the
 // others: the GM Actions gate would open Pre-flight under the drawer that asked for it. The drawer
@@ -117,14 +117,20 @@ interface DrawerProps {
   /** The bar under the head (.tarokka-actions on the old page). */
   actions?: ReactNode;
   bodyClassName?: string;
+  /** Which face of the panel to show (Panel's states); the children show when it is ready. */
+  state?: PanelState;
+  /** What the state says instead of its default. */
+  stateMessage?: ReactNode;
   children: ReactNode;
 }
 
 /** The ✕ in a drawer's head. */
 export function DrawerClose(props: ComponentProps<'button'>): JSX.Element {
   return (
-    <Dialog.Close className="icon-btn" title="Close" aria-label="Close" {...props}>
-      ✕
+    <Dialog.Close asChild>
+      <IconButton label="Close" {...props}>
+        ✕
+      </IconButton>
     </Dialog.Close>
   );
 }
@@ -151,6 +157,8 @@ export function Drawer({
   onOpenAutoFocus,
   actions,
   bodyClassName,
+  state,
+  stateMessage,
   children,
 }: DrawerProps): JSX.Element {
   const dockSlot = useContext(DockContext);
@@ -167,40 +175,33 @@ export function Drawer({
     id
   );
   const onTop = useOnTop(id, floating);
-  const head = (titleId?: string): JSX.Element => (
-    <div>
-      <div className="pane-title">
-        {titleId ? (
-          <h2 id={titleId}>{title}</h2>
-        ) : (
-          <Dialog.Title asChild>
-            <h2>{title}</h2>
-          </Dialog.Title>
-        )}
-        {help !== undefined && <HelpButton page={help} />}
-      </div>
-      {sub !== undefined && <span className="drawer-sub">{sub}</span>}
-    </div>
-  );
-  const body = (
-    <>
-      {actions !== undefined && <div className="tarokka-actions">{actions}</div>}
-      <div className={['tarokka-body', bodyClassName].filter(Boolean).join(' ')}>{children}</div>
-    </>
-  );
+  // The bar under the head (.tarokka-actions on the old page).
+  const bar = actions !== undefined ? <div className="tarokka-actions">{actions}</div> : undefined;
+  const shell = {
+    as: 'aside',
+    variant: 'drawer',
+    id,
+    title,
+    help,
+    sub,
+    lead: bar,
+    bodyClassName,
+    state,
+    stateMessage,
+  } as const;
   if (slot) {
     // tabIndex -1: showDocked and the moment change can hand it the focus.
     return createPortal(
-      <aside
-        id={id}
-        className="drawer docked"
+      <Panel
+        {...shell}
+        titleId={`${id}-title`}
+        className="docked"
         role="region"
         aria-labelledby={`${id}-title`}
         tabIndex={-1}
       >
-        <div className="drawer-head">{head(`${id}-title`)}</div>
-        {body}
-      </aside>,
+        {children}
+      </Panel>,
       host
     );
   }
@@ -218,13 +219,14 @@ export function Drawer({
           closeTopPanel();
         }}
       >
-        <aside id={id} className={onTop ? 'drawer drawer-top' : 'drawer'}>
-          <div className="drawer-head">
-            {head()}
-            {close}
-          </div>
-          {body}
-        </aside>
+        <Panel
+          {...shell}
+          wrapTitle={h2 => <Dialog.Title asChild>{h2}</Dialog.Title>}
+          actions={close}
+          {...(onTop ? { className: 'drawer-top' } : {})}
+        >
+          {children}
+        </Panel>
       </Dialog.Content>
     </Dialog.Root>
   );

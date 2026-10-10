@@ -42,6 +42,56 @@
   --mark-node: var(--accent, #4ea1ff);
   --mark-spark: #fe6a1f;
 }
+
+/* ---- Design tokens for the React dashboard's components (web/src/ui, UI-02) ----
+   Only additions: nothing here changes a value the old stylesheets read, and nothing reads these
+   yet on the old page. Spacing is a 4px grid in rem (the old page's 0.5rem gaps are --space-2);
+   the type steps are the sizes the stylesheets already use most (--fs-* in styles.css); motion and
+   layering take today's values. The Veil overrides a token below only where it differs. */
+:root {
+  /* Spacing: 4 8 12 16 20 24 32 40 px at the default root size. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 2rem;
+  --space-8: 2.5rem;
+
+  /* Type: the --fs-* sizes by another name (2xs .66, xs .74, sm .82, base .9, md .98, lg 1.12)
+     and one display size (the After stats' 1.3rem headings). */
+  --text-2xs: var(--fs-2xs);
+  --text-xs: var(--fs-xs);
+  --text-sm: var(--fs-sm);
+  --text-base: var(--fs-base);
+  --text-md: var(--fs-md);
+  --text-lg: var(--fs-lg);
+  --text-xl: 1.3rem;
+
+  /* Motion: the old page's drawer-in curve and its progress-bar curve. */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-mist: var(--ease-in-out);
+
+  /* Layers, back to front. The values are the ones styles.css and moments.css hold today. */
+  --z-header: 5;
+  --z-backdrop: 40;
+  --z-drawer: 50;
+  --z-drawer-top: 51;
+  --z-overlay: 55;
+  --z-confirm: 60;
+  --z-popover: 60;
+  --z-tour: 65;
+  --z-toast: 70;
+
+  /* The keyboard focus ring (.btn:focus-visible on the old page). */
+  --focus-ring: 2px solid var(--accent, #4ea1ff);
+  --focus-ring-offset: 1px;
+}
 :root[data-theme='veil'] {
   --mark-line: var(--veil-bone);
   --mark-node: var(--veil-silver);

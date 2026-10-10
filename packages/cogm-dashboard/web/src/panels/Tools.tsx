@@ -12,7 +12,6 @@ import {
   useRef,
   useState,
   type JSX,
-  type ReactNode,
   type RefCallback,
 } from 'react';
 
@@ -45,6 +44,7 @@ import {
   type ToolInfo,
 } from '../lib/toolForm';
 import { usage } from '../lib/usage';
+import { Button, type QueryLike, QueryState } from '../ui';
 
 /** Another panel asks for a tool with its form filled in (Handouts: + Queue a page). */
 export interface ToolRequest {
@@ -163,6 +163,13 @@ function ToolRunner({
     retry: false,
   });
   const tools = catalog.data?.tools;
+  // The list as the browser sees it: a response without a tools array counts as not loaded.
+  const toolsQuery: QueryLike<ToolInfo[]> = {
+    isPending: catalog.isPending,
+    isError: catalog.isError,
+    error: catalog.error,
+    data: tools,
+  };
 
   // Until the stream sends settings, the catalog's GM Actions state stands in (the stream wins).
   const catalogGmActions = catalog.data?.gmActionsEnabled;
@@ -379,15 +386,16 @@ function ToolRunner({
         onChange={e => setSearch(e.target.value)}
       />
       <div className="tool-list" id="tool-list">
-        {catalog.isError && !tools ? (
-          <p className="empty">Couldn&apos;t load tools: {errorText(catalog.error)}</p>
-        ) : !tools ? (
-          <p className="empty">Loading tools…</p>
-        ) : (
-          ((): ReactNode => {
-            const groups = groupTools(tools, search);
-            if (groups.length === 0) return <p className="empty">No tools match that search.</p>;
-            return groups.map(([cat, list]) => (
+        <QueryState
+          query={toolsQuery}
+          keepData
+          loading="Loading tools…"
+          errorLabel="Couldn't load tools"
+          isEmpty={all => groupTools(all, search).length === 0}
+          empty="No tools match that search."
+        >
+          {all =>
+            groupTools(all, search).map(([cat, list]) => (
               <div key={cat} role="group" aria-label={cat} className="tool-group">
                 <div className="tool-cat">{cat}</div>
                 {list.map(t => {
@@ -410,9 +418,9 @@ function ToolRunner({
                   );
                 })}
               </div>
-            ));
-          })()
-        )}
+            ))
+          }
+        </QueryState>
       </div>
     </div>
   );
@@ -488,17 +496,17 @@ function ToolRunner({
             ⚠ GM Actions are <strong>off</strong>. Reads work; game-changing tools stay blocked
             until you enable them.
           </span>
-          <button
+          <Button
             type="button"
             ref={gateButton}
-            className="btn btn-primary"
+            variant="primary"
             id="gm-gate-enable"
             data-track="dash.tools.enable-gm-actions"
             disabled={enabling}
             onClick={enableGmActions}
           >
             Enable GM Actions
-          </button>
+          </Button>
         </div>
       )}
       {detail ?? browser}
@@ -657,9 +665,9 @@ function ToolForm({
       {keys.map(field)}
       {keys.length === 0 && <p className="field-hint">This tool takes no parameters.</p>}
       <div className="form-actions">
-        <button type="submit" className="btn btn-primary" id="tool-run" disabled={busy}>
+        <Button type="submit" variant="primary" id="tool-run" disabled={busy}>
           {reads ? 'Run' : 'Run…'}
-        </button>
+        </Button>
         <span className="form-error" id="tool-form-error" role="alert">
           {error}
         </span>

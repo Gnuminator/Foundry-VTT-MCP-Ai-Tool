@@ -7,7 +7,8 @@
 # upload, the same way stage 5 handles assistant-gm.mjs). Environment variables go in front of bash:
 #   ... | ssh foundry-pi 'WORLD=curse-of-strahd bash -s'
 # Take a snapshot first (dietpi-backup 1) and get the user's OK: this stops Foundry for a few minutes.
-# Env: WORLD (curse-of-strahd), KIT_WORLD (strahd-kit; empty skips it), SETTINGS_DRIVER (the uploaded .mjs,
+# Env: WORLD (curse-of-strahd), KIT_WORLD (strahd-kit for curse-of-strahd, any other
+#   WORLD must set it; empty skips it), SETTINGS_DRIVER (the uploaded .mjs,
 #   default /root/player-creation-settings.mjs), STUDIO_VERSION + STUDIO_SHA256 (override the pinned build; give
 #   both or neither), STUDIO_ZIP (a local zip under /var/lib/foundry-import/ instead of the download; needs
 #   STUDIO_SHA256, and the zip's module.json must say STUDIO_VERSION), FORCE (1 stops Foundry even when people
@@ -46,7 +47,12 @@ RELEASE_BASE=https://github.com/Gnuminator/foundryvtt-actor-studio/releases/down
 MAX_ZIP_BYTES=209715200 # 200 MiB, far above the real module (about 7 MB unpacked)
 
 WORLD="${WORLD:-curse-of-strahd}"
-KIT_WORLD="${KIT_WORLD-strahd-kit}"
+# The strahd-kit default is only for the Strahd world, as in stage 11: another WORLD would set strahd-kit's settings too.
+if [ "$WORLD" = curse-of-strahd ]; then
+  KIT_WORLD="${KIT_WORLD-strahd-kit}"
+else
+  [ "${KIT_WORLD+set}" = set ] || die "WORLD=$WORLD needs KIT_WORLD set: KIT_WORLD= (no test copy) or KIT_WORLD=<id>. Nothing was changed"
+fi
 STUDIO_ZIP="${STUDIO_ZIP:-}"
 SETTINGS_DRIVER="${SETTINGS_DRIVER:-/root/player-creation-settings.mjs}"
 FORCE="${FORCE:-0}"

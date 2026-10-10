@@ -12,6 +12,7 @@ import { callTool, errorText } from '../lib/api';
 import { useGuardedChange } from '../lib/guarded';
 import { TAROKKA_KEY, useObsidianFileUrl } from '../lib/stream';
 import { usage } from '../lib/usage';
+import { Button, EmptyState, ErrorState, LoadingState } from '../ui';
 
 /** One position of the reading (tarokka/service.ts PositionView on the bridge); fields used. */
 interface TarokkaPosition {
@@ -175,33 +176,30 @@ export function TarokkaDrawer({
       onEscape={() => usage().track('shortcut', 'dash.shortcut.escape-tarokka')}
       actions={
         <>
-          <button
-            className="btn"
+          <Button
             id="tarokka-refresh"
             data-track="dash.tarokka.refresh"
             disabled={tarokka.isFetching}
             onClick={() => void tarokka.refetch()}
           >
             ↻ Refresh
-          </button>
-          <button
-            className="btn"
+          </Button>
+          <Button
             id="tarokka-import"
             data-track="dash.tarokka.import"
             disabled={busy}
             onClick={() => importReading('tarokka-reading')}
           >
             Import from tarokka-reading
-          </button>
-          <button
-            className="btn"
+          </Button>
+          <Button
             id="tarokka-roll"
             data-track="dash.tarokka.roll"
             disabled={busy}
             onClick={() => importReading('builtin-roll')}
           >
             New reading (built-in roll)
-          </button>
+          </Button>
           {obsidianUrl && (
             <a
               id="tarokka-obsidian"
@@ -230,14 +228,14 @@ export function TarokkaDrawer({
     >
       <div id="tarokka-body">
         {tarokka.isError && (
-          <p className="empty">Couldn&apos;t load the reading: {errorText(tarokka.error)}</p>
+          <ErrorState error={tarokka.error}>Couldn&apos;t load the reading</ErrorState>
         )}
         {!view ? (
-          !tarokka.isError && <p className="empty">Loading…</p>
+          !tarokka.isError && <LoadingState />
         ) : !reading ? (
-          <p className="empty">
+          <EmptyState>
             No reading in the vault. Import one from tarokka-reading or deal a new one.
-          </p>
+          </EmptyState>
         ) : (
           reading.positions.map(p => (
             // Keyed by the card too: an open form stays across reloads, but not onto another card.
@@ -385,15 +383,15 @@ function PositionCard({
       <div className="tarokka-row">
         {links.length > 0 ? (
           links.map(([key, uuid]) => (
-            <button
+            <Button
               key={key}
               type="button"
-              className="btn btn-small"
+              size="sm"
               data-track="dash.tarokka.open-document"
               onClick={() => openDocument(uuid)}
             >
               Open {LINK_LABELS[key] ?? key}
-            </button>
+            </Button>
           ))
         ) : (
           <span className="tarokka-badge warn">not linked</span>
@@ -402,14 +400,14 @@ function PositionCard({
           <>
             <span className="tarokka-badge revealed">revealed</span>
             {p.revealPageUuid && (
-              <button
+              <Button
                 type="button"
-                className="btn btn-small"
+                size="sm"
                 data-track="dash.tarokka.open-document"
                 onClick={() => openDocument(p.revealPageUuid ?? '')}
               >
                 Open page
-              </button>
+              </Button>
             )}
           </>
         ) : (
@@ -417,25 +415,25 @@ function PositionCard({
         )}
       </div>
       <div className="tarokka-row">
-        <button
+        <Button
           type="button"
-          className="btn btn-small"
+          size="sm"
           data-track="dash.tarokka.link"
           aria-expanded={form === 'link'}
           onClick={() => toggleForm('link')}
         >
           Link…
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="btn btn-small"
+          size="sm"
           data-track="dash.tarokka.reveal"
           ref={revealToggleRef}
           aria-expanded={form === 'reveal'}
           onClick={() => toggleForm('reveal')}
         >
           Reveal…
-        </button>
+        </Button>
       </div>
       {form === 'link' && (
         <form className="tarokka-form" data-form={p.position} onSubmit={search}>
@@ -448,14 +446,14 @@ function PositionCard({
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
-          <button type="submit" className="btn btn-small" data-track="dash.tarokka.link-search">
+          <Button type="submit" size="sm" data-track="dash.tarokka.link-search">
             Search
-          </button>
+          </Button>
           <div className="tarokka-candidates">
             {result === null ? null : 'error' in result ? (
-              <p className="empty">{result.error}</p>
+              <ErrorState>{result.error}</ErrorState>
             ) : result.candidates.length === 0 ? (
-              <p className="empty">No matches.</p>
+              <EmptyState>No matches.</EmptyState>
             ) : (
               result.candidates.map(c => (
                 <div className="tarokka-candidate" key={c.uuid}>
@@ -468,15 +466,15 @@ function PositionCard({
                       </>
                     )}
                   </span>
-                  <button
+                  <Button
                     type="button"
-                    className="btn btn-small"
+                    size="sm"
                     data-track="dash.tarokka.link-pick"
                     disabled={busy}
                     onClick={() => pick(c)}
                   >
                     Link
-                  </button>
+                  </Button>
                 </div>
               ))
             )}
@@ -511,15 +509,15 @@ function PositionCard({
             />{' '}
             Show it now
           </label>
-          <button
+          <Button
             type="button"
-            className="btn btn-small"
+            size="sm"
             data-track="dash.tarokka.plan-reveal"
             disabled={busy}
             onClick={planReveal}
           >
             Plan reveal…
-          </button>
+          </Button>
         </div>
       )}
     </div>

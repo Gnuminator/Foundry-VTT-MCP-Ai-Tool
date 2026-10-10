@@ -119,8 +119,101 @@ picker.
 - `npm run test:e2e` runs the Playwright browser tests in `web/e2e` against the built server
   (no bridge; each test fakes the routes it needs). Build first. They need Playwright's Chromium
   (`npx playwright install chromium`) or `PLAYWRIGHT_CHANNEL=msedge`. CI runs them on Node 22.
+- `npm run test:visual` runs the screenshot tests in Docker; see "Screenshot tests" below.
 - Usage names go in `data-track="..."` as string literals, as on the old page;
   `npm run usage:catalog` scans `web/src` too.
+
+### Building a panel
+
+A new port starts from the components in `web/src/ui` (UI-02), not from raw markup:
+
+- **Shell:** `Panel` is the one frame for a panel: a head (title, the "?" help, a line under the
+  title, a status, the actions), a body and a foot. `Drawer` and `OverlayPane` are built on it, so
+  a drawer or a pane over the page gets it for free; a panel docked in a view is a `Drawer` too.
+  `Card`, `Section`, `Stat` and `Pill` are the pieces inside a body, and `Button` / `IconButton`
+  are the buttons.
+- **Radix set (UI-04):** the Radix primitives come from the `radix-ui` package (`import { Dialog,
+Tooltip } from 'radix-ui'`), not the single `@radix-ui/react-*` ones. `web/src/ui` adds three styled
+  wrappers on the tokens: `Tooltip` (one `TooltipProvider` at the root, in `main.tsx`), `Tabs`
+  (`Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`) and `Popover`. Every icon-only button has a
+  `Tooltip`: `IconButton` has one built in (the label, or `tip`), and the "?" in a pane's title is
+  wrapped in it. A tooltip is a hint, not the name: keep the `aria-label` and drop the native
+  `title`. It opens on hover and on a Tab stop, not when the page moves the focus itself, so it
+  never shows in a screenshot. Storybook stories for these come with UI-03.
+- **States:** a panel is in one of six: `ready`, `loading`, `empty`, `error`, `bridge-down` and
+  `gated`. Give `Panel` (or `Drawer` / `OverlayPane`) a `state` and, if the default text does not
+  fit, a `stateMessage`; anything but `ready` replaces the body. For data from a query, do not
+  write "Loading…" and "Couldn't load ..." by hand: wrap the content in
+  `<QueryState query={q} errorLabel="Couldn't load the party" isEmpty={...} empty="...">` (it
+  takes a function of the data as its child), or call `panelStateOf(q)` to get the state for
+  `Panel`. Inside a list use `as="li"`; `keepData` keeps showing older rows when a refetch fails;
+  `detect` tells the bridge being down (`ApiError.kind === 'channel'`) and GM Actions being off
+  from any other error. `EmptyState`, `ErrorState`, `LoadingState` and `Skeleton` are the blocks
+  underneath.
+- **Tokens:** the spacing (`--space-1` to `--space-8`, 4 px grid), type (`--text-2xs` to
+  `--text-xl`), motion (`--dur-fast`, `--dur-base`, `--dur-slow`, `--ease-out`, `--ease-in-out`,
+  and `--ease-mist`, which The Veil sets slower), layer (`--z-drawer`, `--z-drawer-top`,
+  `--z-confirm`, `--z-popover`, `--z-toast`, ...) and focus (`--focus-ring`) tokens live in
+  `public/themes/brand.css` (The Veil's overrides in `veil.css`). Use them in new rules instead of
+  numbers; never write a `z-index` number in a component or in `next.css`.
+- **Styles:** a new rule goes in a CSS Module next to its component (`Thing.module.css`, Vite
+  built in) and reads the tokens. Do not edit `public/styles.css` or `public/moments.css`: the old
+  page shares them. The components render the old class names (`.pane`, `.drawer`, `.pane-title`,
+  `.empty`, `.btn`, ...), so those files still style them.
+- **Keep what the tests and the guide rely on:** the outer classes, the DOM where an old CSS
+  selector depends on it, every element `id`, every `data-track="dash...."` name (written out as a
+  string literal at the call site, the test kit clicks them), roles and accessible names.
+- **Prove it:** a screen that moves onto these components must leave `npm run test:visual` at zero
+  diffs. Unit tests for the components render to a string with `react-dom/server`
+  (`web/src/ui/*.test.tsx`, run by `npm test`).
+
+### Screenshot tests
+
+`web/visual` photographs the React page with Playwright's `toHaveScreenshot`: the three moments
+(Before, During, After), every ported drawer and pane open over the page, the Advanced menu and
+the version banner, each in the neutral and the Veil theme (mist calm) at 1440, 1080 and 390 pixels
+wide. That is 78 baseline PNGs in `web/visual/__screenshots__/<width>/`. The fakes are the e2e
+helpers (`web/e2e/support.ts`); the data in `web/visual/fixtures.ts` is made up, with the clock
+fixed, animations off and the browser in UTC and en-US, so a run is the same every time. The same
+screens also go through axe at 1440 (serious and critical violations fail; the ones already there
+are listed with the reason in `web/visual/axe-known.ts`, and only a new one fails; an entry that
+no longer matches on its screen and theme also fails, so the list shrinks as causes are fixed).
+The comparison is near exact: `maxDiffPixels: 0` and a colour `threshold` of 0.02 (Playwright's
+default is 0.2, which lets a nudged grey pass; at 0 the rounded edge of one pill, the Player links
+header, flickered between runs). No `mask` is used today because the clock is fixed and all data
+is faked; a port with values that move on their own (Combat Tracker, Live Feed) adds a `mask`
+helper for those elements.
+
+- **Run them in Docker, not on the host.** The baselines are made on Linux only, in the Playwright
+  image `mcr.microsoft.com/playwright:v<version>-noble`, because fonts and anti-aliasing differ per
+  operating system: a Windows or macOS run would differ from the PNGs and from CI.
+  `scripts/visual-docker.mjs` takes the image tag from the installed `@playwright/test` version.
+- `npm run build -w @gnuminator/cogm-dashboard` first (the container serves `dist/` from the repo),
+  then `npm run test:visual -w @gnuminator/cogm-dashboard` to check. Extra arguments go to
+  Playwright: `npm run test:visual -w @gnuminator/cogm-dashboard -- -g party`.
+- `npm run test:visual:update -w @gnuminator/cogm-dashboard` writes new baselines after a change
+  you meant. Look at the PNGs in the diff, then commit them with the change.
+- The container mounts the repo at `/work` but keeps its own `node_modules` in two named Docker
+  volumes (`foundry-ai-tool-visual-node-modules`, `foundry-ai-tool-visual-dashboard-node-modules`),
+  filled by `npm ci --ignore-scripts` the first time and again when `package-lock.json` changes.
+  Remove them with `docker volume rm` to start clean. Snapshots and `test-results/visual` are
+  written into the repo.
+- `npm run test:visual:ci` is what runs inside the container (CI uses it directly, in the job
+  `dashboard-visual`). A diff fails that job. The report with the expected, actual and diff
+  images is the artifact `dashboard-visual-report` on the run's summary page (kept 14 days). The
+  job is advisory: it is not in the required checks. After a Playwright bump, change the image
+  tag in `.github/workflows/ci.yml` too (the job's first step fails with a message when they
+  differ) and refresh the baselines.
+
+### Bundle budget
+
+`npm run bundle:budget -w @gnuminator/cogm-dashboard` (after a build) reads `dist/web`, adds up
+the first-load JavaScript (the entry script and the modulepreload links in `index.html`) and
+checks it and every lazy chunk against a gzip limit recorded in `scripts/bundle-budget.mjs`: the
+size on 2026-10-10 plus 10 percent, rounded up to the next KB. A lazy chunk is matched by its name
+without the hash; an unlisted one gets a default limit. It fails when one is over, and CI runs it
+after the build and writes the table to the job summary. To raise a limit on purpose, change the
+constant in the same pull request and say why.
 
 The dashboard runs **without** an API key too — you still get the live feed and
 combat tracker; only the AI panes are disabled until a key is set.

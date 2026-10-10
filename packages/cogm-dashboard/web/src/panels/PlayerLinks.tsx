@@ -7,6 +7,7 @@ import type { JSX } from 'react';
 import { OverlayPane } from '../components/OverlayPane';
 import { useToast } from '../components/Toasts';
 import { api, errorText } from '../lib/api';
+import { Button, QueryState } from '../ui';
 
 export interface PlayerLink {
   userId: string;
@@ -62,8 +63,7 @@ function LinkRow({ player }: { player: PlayerLink }): JSX.Element {
       <span className="links-actions">
         {link ? (
           <>
-            <button
-              className="btn"
+            <Button
               data-track="dash.links.copy"
               disabled={busy}
               onClick={() => {
@@ -74,35 +74,33 @@ function LinkRow({ player }: { player: PlayerLink }): JSX.Element {
               }}
             >
               Copy link
-            </button>
-            <button
-              className="btn"
+            </Button>
+            <Button
               data-track="dash.links.replace"
               title="A new link; the old one stops working"
               disabled={busy}
               onClick={() => make.mutate()}
             >
               New link
-            </button>
-            <button
-              className="btn"
+            </Button>
+            <Button
               data-track="dash.links.remove"
               title="The link stops working"
               disabled={busy}
               onClick={() => remove.mutate()}
             >
               Remove
-            </button>
+            </Button>
           </>
         ) : (
-          <button
-            className="btn btn-primary"
+          <Button
+            variant="primary"
             data-track="dash.links.make"
             disabled={busy}
             onClick={() => make.mutate()}
           >
             Make link
-          </button>
+          </Button>
         )}
       </span>
     </li>
@@ -117,28 +115,27 @@ function LinksBody(): JSX.Element {
     staleTime: 0,
   });
 
-  if (links.isPending) return <p className="empty">Loading…</p>;
-  if (links.isError) {
-    return <p className="empty">Could not load the player links: {errorText(links.error)}</p>;
-  }
-  const { players } = links.data;
-  if (players.length === 0) {
-    return (
-      <p className="empty">No players yet. Players appear here once the world has non-GM users.</p>
-    );
-  }
   return (
-    <>
-      <p className="links-note">
-        Send each player their own link (a direct message, not the table chat). It opens their
-        character sheet on a phone or laptop, read-only, and stays up to date during play.
-      </p>
-      <ul className="links-list">
-        {players.map(p => (
-          <LinkRow key={p.userId} player={p} />
-        ))}
-      </ul>
-    </>
+    <QueryState
+      query={links}
+      errorLabel="Could not load the player links"
+      isEmpty={d => d.players.length === 0}
+      empty="No players yet. Players appear here once the world has non-GM users."
+    >
+      {({ players }) => (
+        <>
+          <p className="links-note">
+            Send each player their own link (a direct message, not the table chat). It opens their
+            character sheet on a phone or laptop, read-only, and stays up to date during play.
+          </p>
+          <ul className="links-list">
+            {players.map(p => (
+              <LinkRow key={p.userId} player={p} />
+            ))}
+          </ul>
+        </>
+      )}
+    </QueryState>
   );
 }
 

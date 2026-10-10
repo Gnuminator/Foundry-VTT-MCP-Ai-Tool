@@ -1,0 +1,37 @@
+/* A popover: a card that opens beside its control. The palette tokens make it follow the theme;
+   The Veil's slower curve (--ease-mist) makes it fade in more gently there. */
+.content {
+  z-index: var(--z-popover);
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-elev);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
+  font-size: var(--text-sm);
+  animation: popover-in var(--dur-base) var(--ease-mist);
+}
+
+.content:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content {
+    animation: none;
+  }
+}

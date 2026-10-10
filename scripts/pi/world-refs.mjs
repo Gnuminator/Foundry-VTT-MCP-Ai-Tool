@@ -6,6 +6,11 @@
 //
 //   node scripts/pi/world-refs.mjs --world curse-of-strahd --modules aitool-content,dnd-players-handbook [--json]
 //     --data <Foundry Data dir>   default C:/FoundryTest/data/Data
+//     --pi-modules a,b            modules that are ALREADY installed on the Pi (from the campaign bundle) and are not shipped
+//                                 in this bundle. They are not reported as active-but-not-shipped, and asset paths under
+//                                 modules/<id>/ are not "outside the bundle"; the file must still exist on this PC with the
+//                                 right case, so a wrong reference is caught. Their packs are not scanned. An id may not be
+//                                 in both --modules and --pi-modules.
 //     --level-module <path>       classic-level to use, default the one in C:/FoundryTest/app/node_modules
 //     --allow-secret-keys a,b*    ddb-importer.* setting keys that were reviewed and are not secrets (a trailing * is
 //                                 a prefix). A key with cookie, token, secret, password and so on in its name is
@@ -214,9 +219,11 @@ export function activeModules(docs) {
     .sort();
 }
 
-/** Active modules that are neither shipped nor the bridge (stage 5 installs the bridge). */
-export function unshippedActive(active, modules) {
-  return active.filter(id => id !== 'foundry-mcp-bridge' && !modules.includes(id));
+/** Active modules that are neither shipped, already on the Pi (piModules) nor the bridge (stage 5 installs the bridge). */
+export function unshippedActive(active, modules, piModules = []) {
+  return active.filter(
+    id => id !== 'foundry-mcp-bridge' && !modules.includes(id) && !piModules.includes(id)
+  );
 }
 
 /**
@@ -305,7 +312,10 @@ export function checkExactPath(root, rel, cache = new Map()) {
  * on disk too: if the file is there, push-world would not copy it, so it is always a problem
  * (`otherPresent`), whatever the list says.
  */
-export function summarize(paths, { world, modules, exists, check, allowMissing = [] }) {
+export function summarize(
+  paths,
+  { world, modules, piModules = [], exists, check, allowMissing = [] }
+) {
   const counts = {};
   const folders = new Set();
   const problems = {
@@ -332,7 +342,13 @@ export function summarize(paths, { world, modules, exists, check, allowMissing =
       continue;
     }
     if (c.folder) folders.add(c.folder);
-    if (c.root === 'modules' && c.id !== 'foundry-mcp-bridge' && !modules.includes(c.id))
+    // A module already on the Pi (piModules) counts like a shipped one here; the disk check above still applies.
+    if (
+      c.root === 'modules' &&
+      c.id !== 'foundry-mcp-bridge' &&
+      !modules.includes(c.id) &&
+      !piModules.includes(c.id)
+    )
       problems.foreignModules.add(c.id);
     if (c.root === 'worlds' && c.id !== world) problems.foreignWorlds.add(c.id);
     if (r.state === 'missing') problems.missing.push(p);
@@ -378,6 +394,7 @@ export function parseArgs(argv) {
     data: 'C:/FoundryTest/data/Data',
     world: '',
     modules: [],
+    piModules: [],
     json: false,
     levelModule: '',
     allow: [],
@@ -391,6 +408,7 @@ export function parseArgs(argv) {
     else if (a === '--data') o.data = argv[++i];
     else if (a === '--world') o.world = argv[++i];
     else if (a === '--modules') o.modules = (argv[++i] ?? '').split(',').filter(Boolean);
+    else if (a === '--pi-modules') o.piModules = (argv[++i] ?? '').split(',').filter(Boolean);
     else if (a === '--level-module') o.levelModule = argv[++i];
     else if (a === '--allow-secret-keys') o.allow = (argv[++i] ?? '').split(',').filter(Boolean);
     else if (a === '--allow-missing')
@@ -403,6 +421,13 @@ export function parseArgs(argv) {
     throw new Error('--world <id> is required (lowercase letters, digits, dashes)');
   for (const m of o.modules)
     if (!/^[A-Za-z0-9._-]+$/.test(m)) throw new Error(`bad module id ${m}`);
+  for (const m of o.piModules) {
+    if (!/^[A-Za-z0-9._-]+$/.test(m)) throw new Error(`bad module id ${m} in --pi-modules`);
+    if (o.modules.includes(m))
+      throw new Error(
+        `module ${m} is in both --modules and --pi-modules (ship it, or leave it on the Pi)`
+      );
+  }
   return o;
 }
 
@@ -414,6 +439,7 @@ async function main() {
   if (!existsSync(path.join(worldDir, 'world.json')))
     throw new Error(`no world.json in ${worldDir}`);
 
+  // --pi-modules are neither scanned for packs nor read for module.json: they are not in the bundle.
   const dbs = [
     ...levelDbFolders(path.join(worldDir, 'data')),
     ...levelDbFolders(path.join(worldDir, 'packs')),
@@ -458,6 +484,7 @@ async function main() {
   const s = summarize(paths, {
     world: o.world,
     modules: o.modules,
+    piModules: o.piModules,
     check,
     allowMissing: o.allowMissing,
   });
@@ -467,6 +494,7 @@ async function main() {
   const result = {
     world: o.world,
     modules: o.modules,
+    piModules: o.piModules,
     dbsScanned: dbs.length,
     pathCount: paths.size,
     allowedMissingCount: s.allowedMissing.length,
@@ -485,7 +513,7 @@ async function main() {
       otherPresent: s.problems.otherPresent.slice(0, 50),
       otherPresentCount: s.problems.otherPresent.length,
       secretSettingKeys: secrets,
-      activeNotShipped: unshippedActive(active, o.modules),
+      activeNotShipped: unshippedActive(active, o.modules, o.piModules),
       gmUser: gm.problems,
     },
     gmUser: {
@@ -522,7 +550,9 @@ async function main() {
     );
     console.log('asset folders to copy:\n' + (s.folders.map(f => '  ' + f).join('\n') || '  none'));
     if (p.foreignModules.length)
-      console.log('PROBLEM modules not in --modules: ' + p.foreignModules.join(', '));
+      console.log(
+        'PROBLEM modules not in --modules or --pi-modules: ' + p.foreignModules.join(', ')
+      );
     if (p.foreignWorlds.length)
       console.log('PROBLEM other worlds referenced: ' + p.foreignWorlds.join(', '));
     if (p.missingCount)
@@ -543,7 +573,7 @@ async function main() {
       console.log(
         id === 'ddb-importer'
           ? 'PROBLEM ddb-importer is active in the world: switch it off there after the import (it stays on the PC; its settings can hold the D&D Beyond cookie)'
-          : `PROBLEM active in the world but not shipped: ${id} (ship it with -Modules or switch it off in the world)`
+          : `PROBLEM active in the world but not shipped: ${id} (ship it with -Modules, name it in -PiModules if the Pi has it already, or switch it off in the world)`
       );
     for (const m of p.gmUser) console.log(`PROBLEM ${m}`);
     if (gm.hasPassword && o.gmPasswordOk)

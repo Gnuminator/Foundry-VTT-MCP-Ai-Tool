@@ -395,4 +395,20 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     assert.equal(r.calls.at(-1), 'start foundry-ai-tool-gm-browser.service');
     assert.equal(r.world, 'curse-of-strahd');
   });
+
+  test('another WORLD without KIT_WORLD is refused before anything stops (no strahd-kit default)', () => {
+    const r = run('training-needs-kit-world');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /WORLD=frostmaiden-training needs KIT_WORLD set/);
+    assert.deepEqual(r.calls, []);
+  });
+
+  test('the training world with KIT_WORLD= sets only that world and leaves strahd-kit alone', () => {
+    const r = run('training-world');
+    assert.equal(r.exit, 0, r.output);
+    assert.match(r.output, /WORLD=frostmaiden-training HAS_PW=true/);
+    assert.doesNotMatch(r.output, /WORLD=(strahd-kit|curse-of-strahd) HAS_PW/);
+    assert.doesNotMatch(r.output, /secret123/);
+    assert.equal(r.world, 'curse-of-strahd');
+  });
 });

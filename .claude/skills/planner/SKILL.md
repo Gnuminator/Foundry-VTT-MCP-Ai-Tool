@@ -52,13 +52,12 @@ is the record). Lows from reviews become S items.
 
 ## Merges
 
-Lanes merge their own PRs through `npm run lane:merge` once phase 2 of D-122 lands; until then the
-planner merges by hand with the same checks (`gh pr checks <PR>`: every check passed on the head
-commit; a review note for that sha with verdict Merge; a changelog fragment), then, as a separate
-step, `gh pr merge <PR> --merge --match-head-commit <reviewed sha>`. Merge train: after every 3 to 4
-merges touching the module, bridge link or guarded writes, and before any Pi deploy, run
-`npm run live:roundtrip` (plus `live:sweep` when write handlers changed) on main through the test
-server lock; bisect if red. Tell the user what was merged.
+Lanes merge their own PRs through `npm run lane:merge -- <PR>` (CI on the head commit, review note
+for that sha, changelog, drift, merge train). Merge train: the gate refuses a module, bridge link
+or guarded-write PR once 4 such merges wait; then run `npm run live:roundtrip` (plus `live:sweep`
+when write handlers changed) on main through the test server lock, and on green
+`npm run lane:merge -- --train-reset <main sha>`; bisect if red. `--train` shows the count. Run
+the roundtrip before any Pi deploy too. Tell the user what was merged.
 
 ## Session cleanup
 
@@ -72,6 +71,8 @@ server lock; bisect if red. Tell the user what was merged.
 
 ## Weekly check
 
-`npm run usage:week` (phase 2 of D-122) against the D-122 targets: startup 45k or less, startup
+`npm run usage:week` (`--days N`, `--json`) against the D-122 targets: startup 45k or less, startup
 share under 20%, 18M tokens or less per merged PR, about 15 sessions a day, about 14% of the
 weekly limit per day. First check 2026-10-17. A rule or tool that does not move them is removed.
+While weekly usage is above 50%, write `~/.foundry-ai-tool/context-thresholds.json` as
+`{ "plan": 200000, "out": 250000 }` (the context hook's low mode); delete it below 50%.

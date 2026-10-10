@@ -36,7 +36,8 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 
 ## Before the PR
 
-- Keep green (CLAUDE.md lists the commands; `npm run green` once phase 2 of D-122 lands).
+- `npm run green`: everything CI's build-test job runs, quiet (one OK line, or the failing step
+  and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun.
 - `changelog.d/<topic>.md` added; lint and em-dash baselines lowered if counts dropped.
 - `git status --short`: add explicit paths; no binaries, archives, audio, `.env` or downloads.
 - PR description = the handover: what changed, how it was verified (commands, live checks, kit
@@ -44,30 +45,40 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 
 ## Review and merge
 
-- Risky categories (guarded writes, bridge link, write gate, security, Pi scripts, wire contracts):
-  an Opus review subagent. Everything else: a Sonnet review subagent. Give it the PR number, the
+- Risky categories (guarded writes, bridge link, write gate, security, Pi scripts, wire contracts,
+  the merge gate and CI: `scripts/lane-merge.mjs`, `green.mjs`, `drift-check.mjs`, `.github/`,
+  `.claude/hooks/`): an Opus review subagent. Everything else: a Sonnet review subagent. Give it the PR number, the
   head sha and the area; it is read-only and writes the note.
 - **Review note format** (the merge gate reads it):
-  - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md` (Opus: `<PR>-opus-review.md`;
-    round 2: `<PR>-review-round2.md`);
-  - a line `Head reviewed: <full sha>`;
+  - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
+    Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading
+    `# PR #<PR> Opus review: ...`;
+  - a line `Head reviewed: <full 40-character sha>`;
   - a `## Verdict` section whose first bold text is exactly `**Merge.**`, `**Merge after fixes.**`
-    or `**Do not merge.**`;
+    or `**Do not merge.**` (every note for the head must say Merge);
   - findings as H1, M1, L1 with file:line and a fix.
 - Fix the findings, push, and send the same reviewer (SendMessage to that subagent) the new head
   for one delta round. Lows may go to the Backlog instead.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`).
-- **Merge:** `npm run lane:merge -- <PR>` once phase 2 of D-122 lands (it checks CI on the head
-  commit, the review note for that sha, the changelog and drift, and the merge-train counter).
-  Until then: `gh pr checks <PR>` and read that every check passed on the head commit, then
-  `gh pr merge <PR> --merge --match-head-commit <reviewed sha>` as a separate step. Never chain a
-  merge after a wait. Don't offer the app's PR Auto-fix.
+- **Merge:** from the PR branch, clean and pushed, run main's copy of the gate (never the branch's
+  own, so a PR cannot judge itself):
+
+  ```bash
+  git fetch -q aitool main && git show aitool/main:scripts/lane-merge.mjs > "$TMP/lane-merge.mjs"
+  node "$TMP/lane-merge.mjs" <PR> --dry-run   # then again without --dry-run
+  ```
+
+  It checks CI on the head commit, a review note for that sha (Opus
+  for risky paths), the changelog fragment, `drift:check` and the merge train, then merges with
+  `--match-head-commit`. If the train is full, the planner runs `live:roundtrip` on main first.
+  Never merge by hand around it. Don't offer the app's PR Auto-fix.
 
 ## Context and handover
 
-- Check `get_usage "self"` (context.tokensUsed) after big steps. Plan the handover at 350k, be out
-  by 400k (200k and 250k while weekly usage is above 50%).
+- The context hook prints one line at 350k (plan the handover) and 400k (hand over now); 200k
+  and 250k while the planner has set low mode (weekly usage above 50%). `get_usage "self"` gives
+  the exact number.
 - Handover: half a page to vault `Handoff/<lane> prompt <date>.md` and in full in the chat in a
   fenced block: task, state, open PRs, links, done-when, "follow CLAUDE.md". Findings a successor
   needs go in the vault, not side-session notes (archiving a session deletes those).

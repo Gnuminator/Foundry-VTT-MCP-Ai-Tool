@@ -5,7 +5,7 @@
 // them); the choice is kept per world on the server (lib/prefs.ts), so either page shows it.
 import { useEffect, useRef, useState, type JSX } from 'react';
 
-import { hasOpenPanel } from '../lib/escape';
+import { hasOpenPanel, hasOpenPopper } from '../lib/escape';
 import {
   FIRST_TRIAL,
   TOUR,
@@ -40,6 +40,20 @@ import { useToast } from './Toasts';
 /** What the layout buttons say while the world (and so the saved choice) is not known yet. */
 export const NOT_READY_TIP =
   'Your choice is saved for the world, which Foundry has not told the dashboard yet.';
+
+const NOT_READY_BAR_ID = 'during-not-ready';
+const NOT_READY_TOUR_ID = 'layout-tour-not-ready';
+const NOT_READY_MENU_ID = 'combat-buttons-not-ready';
+
+/** The reason the controls are off, in the page for screen readers (a disabled button gets no
+ * tooltip, and the title is not read as its description everywhere). Only while not ready. */
+function NotReadyNote({ id, show }: { id: string; show: boolean }): JSX.Element | null {
+  return show ? (
+    <span className="visually-hidden" id={id}>
+      {NOT_READY_TIP}
+    </span>
+  ) : null;
+}
 
 export interface DuringActions {
   pickLayout: (layout: DuringLayout) => void;
@@ -109,12 +123,13 @@ export function useDuringLayout(moment: Moment | null, pinDuring: () => void): D
   }, [running]);
 
   // Escape ends the trial, unless it is closing something else: a drawer, a pane, the Advanced
-  // menu or a confirm window (the panels listed in escape.ts). Capture runs this before they
-  // close, so it still sees them open.
+  // menu or a confirm window (the panels listed in escape.ts), or a popup such as a tooltip or a
+  // popover (open in a Radix popper). Capture runs this before they close, so it still sees them
+  // open.
   useEffect(() => {
     if (!running) return;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key !== 'Escape' || hasOpenPanel()) return;
+      if (e.key !== 'Escape' || hasOpenPanel() || hasOpenPopper()) return;
       setTrial(null);
     };
     document.addEventListener('keydown', onKey, true);
@@ -185,6 +200,9 @@ function LayoutButton({
       data-layout-pick={layout}
       aria-pressed={during.screen.layout === layout}
       disabled={!ready}
+      // The reason a disabled button is off is also in the page for screen readers, not only in
+      // the title (NotReadyNote).
+      {...(ready ? {} : { 'aria-describedby': NOT_READY_BAR_ID })}
       title={ready ? tip : NOT_READY_TIP}
       onClick={() => during.actions.pickLayout(layout)}
       {...rest}
@@ -204,6 +222,7 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
   const { screen, hintVisible, prefs, trial, actions } = during;
   return (
     <div className="during-bar" id="during-bar">
+      <NotReadyNote id={NOT_READY_BAR_ID} show={prefs === undefined} />
       <div className="layout-switch" role="group" aria-label="During layout">
         <span className="layout-switch-label">Layout</span>
         <LayoutButton
@@ -317,50 +336,82 @@ export function LayoutTrialCard({ during }: { during: DuringController }): JSX.E
 }
 
 /**
+ * Where the focus goes when the guide closes under it (Use this one, Stop): the layout button on
+ * the During bar, else the button that started the trial if it is still on screen, else the
+ * Advanced button. Without this the focus drops to the page body.
+ */
+function focusAfterTrial(layout: DuringLayout | undefined): void {
+  const visible = (el: Element | null): el is HTMLElement =>
+    el instanceof HTMLElement && el.offsetParent !== null && !el.matches(':disabled');
+  const targets = [
+    layout ? document.querySelector(`.layout-switch [data-layout-pick="${layout}"]`) : null,
+    document.getElementById('btn-layout-trial'),
+    document.getElementById('btn-advanced'),
+  ];
+  targets.find(visible)?.focus();
+}
+
+/**
  * The trial's guide: a small card in the corner, never over the screen. It does not take the
- * focus when it opens; the step line is announced when the step changes.
+ * focus when it opens; the step is announced from a live region that is always in the page (one
+ * that appears together with its text is often not announced), and when Use this one or Stop
+ * closes the guide the focus moves to the layout switch.
  */
 export function LayoutTourGuide({ during }: { during: DuringController }): JSX.Element {
   const { trial, prefs, actions } = during;
   const step = trial ? TOUR[trial.step] : undefined;
   return (
-    <aside
-      className="layout-tour"
-      id="layout-tour"
-      aria-label="Try the During layouts"
-      hidden={!trial}
-    >
-      <p className="layout-tour-step" id="layout-tour-step" aria-live="polite" aria-atomic="true">
-        {trial ? stepLine(trial) : ''}
+    <>
+      <p className="visually-hidden" id="layout-tour-live" aria-live="polite" aria-atomic="true">
+        {trial && step ? `${stepLine(trial)}: ${step.title}` : ''}
       </p>
-      <h3 id="layout-tour-title">{step?.title}</h3>
-      <p className="layout-tour-text" id="layout-tour-text">
-        {step?.text}
-      </p>
-      <div className="ready-actions">
-        <Button
-          className="lamp"
-          id="layout-tour-use"
-          data-track="dash.trial.use"
-          disabled={!prefs}
-          title={prefs ? undefined : NOT_READY_TIP}
-          onClick={actions.useStep}
-        >
-          Use this one
-        </Button>
-        <Button id="layout-tour-next" data-track="dash.trial.next" onClick={actions.nextStep}>
-          {trial ? nextLabel(trial) : 'Next'}
-        </Button>
-        <Button
-          variant="quiet"
-          id="layout-tour-stop"
-          data-track="dash.trial.stop"
-          onClick={actions.stopTrial}
-        >
-          Stop
-        </Button>
-      </div>
-    </aside>
+      <aside
+        className="layout-tour"
+        id="layout-tour"
+        aria-label="Try the During layouts"
+        hidden={!trial}
+      >
+        <p className="layout-tour-step" id="layout-tour-step">
+          {trial ? stepLine(trial) : ''}
+        </p>
+        <h3 id="layout-tour-title">{step?.title}</h3>
+        <p className="layout-tour-text" id="layout-tour-text">
+          {step?.text}
+        </p>
+        <NotReadyNote id={NOT_READY_TOUR_ID} show={!prefs} />
+        <div className="ready-actions">
+          <Button
+            className="lamp"
+            id="layout-tour-use"
+            data-track="dash.trial.use"
+            disabled={!prefs}
+            title={prefs ? undefined : NOT_READY_TIP}
+            {...(prefs ? {} : { 'aria-describedby': NOT_READY_TOUR_ID })}
+            onClick={() => {
+              const kept = step?.layout;
+              actions.useStep();
+              focusAfterTrial(kept);
+            }}
+          >
+            Use this one
+          </Button>
+          <Button id="layout-tour-next" data-track="dash.trial.next" onClick={actions.nextStep}>
+            {trial ? nextLabel(trial) : 'Next'}
+          </Button>
+          <Button
+            variant="quiet"
+            id="layout-tour-stop"
+            data-track="dash.trial.stop"
+            onClick={() => {
+              actions.stopTrial();
+              focusAfterTrial(prefs?.duringLayout);
+            }}
+          >
+            Stop
+          </Button>
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -371,6 +422,7 @@ export function DuringMenuItems({ during }: { during: DuringController }): JSX.E
   return (
     <>
       <AdvancedLabel>During screen</AdvancedLabel>
+      <NotReadyNote id={NOT_READY_MENU_ID} show={!prefs} />
       <AdvancedItem
         disabled={!prefs}
         onSelect={() => {
@@ -384,6 +436,7 @@ export function DuringMenuItems({ during }: { during: DuringController }): JSX.E
           className={on ? 'on' : undefined}
           data-track="dash.header.combat-buttons"
           disabled={!prefs}
+          {...(prefs ? {} : { 'aria-describedby': NOT_READY_MENU_ID })}
           title={
             prefs
               ? "Damage / Heal, Condition and Clear on selected combatants in the turn-order strip. Off by default: dnd5e's chat cards already apply damage."

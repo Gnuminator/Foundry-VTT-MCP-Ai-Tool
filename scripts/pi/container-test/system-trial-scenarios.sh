@@ -2,7 +2,11 @@
 # Stage 14 (scripts/pi/remote/14-system-trial.sh) in a Debian 13 ARM64 container with no systemd: stand-ins for
 # systemctl, curl (/api/status, /join and the release download), journalctl and sleep make it take its systemd
 # path, and a fake Foundry (bin/fake-foundry-open, run by the fake systemctl on every start) writes into the world
-# options.json names and migrates its world.json to the installed dnd5e version. Each scenario starts from a fresh
+# options.json names and migrates its world.json to the installed dnd5e version. dnd5e migrates a world's data when
+# the Assistant GM browser joins it, so the fake systemctl runs bin/fake-dnd5e-migrate on every start of that unit;
+# the stage reads the world's migration setting through a fake classic-level (fake-classic-level/, serving the
+# fake-docs.json files that bin/fake-settings writes). bin/cp and bin/mv fail once on demand (/tmp/cp_fail,
+# /tmp/mv_fail) and /tmp/migration_hangs makes the migration never finish. Each scenario starts from a fresh
 # fake Pi, runs the stage one or more times and prints one block that scripts/pi/system-trial.test.mjs reads:
 #   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/system-trial-scenarios.sh [name ...]
 # (<IMAGE> is the pinned Debian 13 image in system-trial.test.mjs.) With names, only those scenarios run.
@@ -21,6 +25,8 @@ SCENARIOS=(
   trial-fails rollback rollback-migrated-refused rollback-restore-migrated rollback-world-created rollback-halfway
   rollback-no-trial trial-again switch switch-fails switch-twice switch-no-trial rollback-after-switch status
   status-no-trial online-refused online-force status-unreadable bad-env
+  trial-migrating switch-migrating trial-migration-hangs switch-migration-hangs trial-copy-fails
+  rollback-restore-fails rollback-swap-fails run-locked
 )
 
 [ -f /.dockerenv ] || [ -n "${container:-}" ] || {
@@ -41,10 +47,14 @@ apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodej
 }
 mkdir -p /opt/node24/bin
 ln -sf "$(command -v node)" /opt/node24/bin/node
-for f in systemctl curl journalctl sleep fake-foundry-open; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
+for f in systemctl curl journalctl sleep fake-foundry-open fake-settings fake-dnd5e-migrate cp mv; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
 mkdir -p /run/systemd/system # have_systemd() looks for this folder
 
 eval "$(grep -E '^(FOUNDRY_USER|FOUNDRY_APP|FOUNDRY_DATA)=' "$LIB")"
+# Foundry's own classic-level, which the stage loads from $FOUNDRY_APP/node_modules/classic-level.
+rm -rf "${FOUNDRY_APP:?}/node_modules"
+mkdir -p "$FOUNDRY_APP/node_modules"
+cp -r "$H/fake-classic-level" "$FOUNDRY_APP/node_modules/classic-level"
 IMPORT=/var/lib/foundry-import
 TRIAL="$IMPORT/system-trial"
 id "$FOUNDRY_USER" >/dev/null 2>&1 || useradd --system --home-dir "$FOUNDRY_DATA" --shell /usr/sbin/nologin "$FOUNDRY_USER"
@@ -52,23 +62,25 @@ data="$FOUNDRY_DATA/Data"
 sysdir="$data/systems/dnd5e"
 
 # A dnd5e folder: system.json, a file that says which version it is, and a language file.
-# $1 folder, $2 version, $3 compatibility.minimum, $4 compatibility.maximum ("" for none)
+# $1 folder, $2 version, $3 compatibility.minimum, $4 compatibility.maximum ("" for none), $5 flags.needsMigrationVersion
+# ("" for none)
 make_system() {
-  local maxpart=""
+  local maxpart="" flagpart=""
   [ -z "$4" ] || maxpart=",\"maximum\":\"$4\""
+  [ -z "${5:-}" ] || flagpart=",\"flags\":{\"needsMigrationVersion\":\"$5\"}"
   mkdir -p "$1/lang"
-  printf '{"id":"dnd5e","version":"%s","compatibility":{"minimum":"%s","verified":"14.368"%s}}\n' "$2" "$3" "$maxpart" >"$1/system.json"
+  printf '{"id":"dnd5e","version":"%s","compatibility":{"minimum":"%s","verified":"14.368"%s}%s}\n' "$2" "$3" "$maxpart" "$flagpart" >"$1/system.json"
   echo "dnd5e $2 files" >"$1/release.txt"
   echo '{}' >"$1/lang/en.json"
 }
 
 # The release zips under /tmp/zips (outside the import folder, which every scenario wipes).
 # $1 name, $2 version, $3 compatibility.minimum, $4 compatibility.maximum, $5 flat (system.json at the top) or
-# nested (inside a dnd5e folder)
+# nested (inside a dnd5e folder), $6 flags.needsMigrationVersion ("" for none)
 make_zip() {
   local src="/tmp/zip-src/$1"
   rm -rf "${src:?}"
-  make_system "$src/dnd5e" "$2" "$3" "$4"
+  make_system "$src/dnd5e" "$2" "$3" "$4" "${6:-}"
   if [ "$5" = nested ]; then
     (cd "$src" && zip -qr "/tmp/zips/$1.zip" dnd5e)
   else
@@ -77,13 +89,14 @@ make_zip() {
 }
 rm -rf /tmp/zips /tmp/zip-src
 mkdir -p /tmp/zips
-make_zip good 6.0.6 14.367 14 flat
-make_zip nested 6.0.6 14.367 14 nested
+make_zip good 6.0.6 14.367 14 flat 6.0.0 # as the real 6.0.6 release: worlds on 6.0.5 need no migration
+make_zip nested 6.0.6 14.367 14 nested 6.0.0
+make_zip migrating 6.0.6 14.367 14 flat 6.0.6 # a release that migrates the data of every world on 6.0.5
 make_zip toonew 6.0.6 14.369 14 flat
 make_zip maxbelow 6.0.6 14.300 13 flat
 make_zip wrongver 6.0.7 14.367 14 flat
 # The release with one more file in it: same name, other bytes.
-make_zip tampered 6.0.6 14.367 14 flat
+make_zip tampered 6.0.6 14.367 14 flat 6.0.0
 echo "not in the release" >/tmp/zip-src/tampered/dnd5e/extra.txt
 (cd /tmp/zip-src/tampered/dnd5e && rm -f /tmp/zips/tampered.zip && zip -qr /tmp/zips/tampered.zip .)
 
@@ -92,7 +105,7 @@ serve() { echo "/tmp/zips/$1.zip" >/tmp/download_zip; } # what the fake curl del
 
 fresh_pi() {
   rm -rf "${FOUNDRY_DATA:?}" "${IMPORT:?}"
-  rm -f /tmp/stopped-* /tmp/gmbroken /tmp/join_fail /tmp/downloads /tmp/download_zip /tmp/calls /tmp/out.last
+  rm -f /tmp/stopped-* /tmp/gmbroken /tmp/join_fail /tmp/cp_fail /tmp/mv_fail /tmp/migration_hangs /tmp/downloads /tmp/download_zip /tmp/calls /tmp/out.last
   mkdir -p "$data/worlds" "$FOUNDRY_DATA/Config" "$FOUNDRY_APP"
   echo '{"version":"14.368.0"}' >"$FOUNDRY_APP/package.json"
   echo '{"port":30000,"world":"curse-of-strahd"}' >"$FOUNDRY_DATA/Config/options.json"
@@ -103,6 +116,7 @@ fresh_pi() {
     mkdir -p "$data/worlds/$w/data"
     printf '{"id":"%s","title":"%s","system":"dnd5e","systemVersion":"6.0.5"}\n' "$w" "$w" >"$data/worlds/$w/world.json"
     echo original >"$data/worlds/$w/data/marker.txt"
+    fake-settings set "$data/worlds/$w/data/settings" 6.0.5 # dnd5e.systemMigrationVersion, as the last launch left it
     echo "leveldb log of $w" >"$data/worlds/$w/data/LOG"
   done
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$FOUNDRY_DATA"
@@ -117,15 +131,21 @@ fresh_pi() {
 # What the Pi looks like now, one fact per line (stamps are replaced by STAMP, so the block can be compared).
 snap() { # $1 label
   echo "--- $1 state"
-  local f id w stopped trial_state trial_dir
+  local f id w stopped trial_state trial_dir settings copy_settings
+  settings="$(fake-settings dump "$data/worlds")"
+  copy_settings="$(fake-settings dump "$TRIAL/worlds" 2>/dev/null)"
   {
-    echo "system $(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$sysdir/system.json" 2>/dev/null | head -n1) ($(cat "$sysdir/release.txt" 2>/dev/null))"
+    if [ -f "$sysdir/system.json" ]; then
+      echo "system $(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$sysdir/system.json" | head -n1) ($(cat "$sysdir/release.txt" 2>/dev/null))"
+    else
+      echo "system none"
+    fi
     echo "options $(sed -n 's/.*"world": *"\([^"]*\)".*/\1/p' "$FOUNDRY_DATA/Config/options.json")"
     stopped="$(ls /tmp/stopped-* 2>/dev/null | sed 's#/tmp/stopped-##' | paste -sd' ' -)"
     echo "stopped ${stopped:-none}"
     for w in "$data"/worlds/*/; do
       id="$(basename "$w")"
-      echo "world $id systemVersion=$(sed -n 's/.*"systemVersion": *"\([^"]*\)".*/\1/p' "$w/world.json") marker=$(cat "$w/data/marker.txt" 2>/dev/null || echo -) files=$(ls "$w/data" | paste -sd, -) opened=$(cat "$w/data/opened-by-foundry.txt" 2>/dev/null || echo -)"
+      echo "world $id systemVersion=$(sed -n 's/.*"systemVersion": *"\([^"]*\)".*/\1/p' "$w/world.json") marker=$(cat "$w/data/marker.txt" 2>/dev/null || echo -) files=$(ls "$w/data" | grep -vx settings | paste -sd, -) opened=$(cat "$w/data/opened-by-foundry.txt" 2>/dev/null || echo -) setting=$(echo "$settings" | sed -n "s#^$id ##p") gm=$(cat "$w/migrated-by-gm.txt" 2>/dev/null || echo -)"
     done
     f="$(ls "$IMPORT"/*.zip "$IMPORT"/*.part 2>/dev/null | xargs -r -n1 basename | paste -sd' ' -)"
     echo "zips ${f:-none}"
@@ -138,7 +158,7 @@ snap() { # $1 label
       echo "trial-dir $trial_dir"
       for w in "$TRIAL"/worlds/*/; do
         [ -d "$w" ] || continue
-        echo "trial-copy $(basename "$w") systemVersion=$(sed -n 's/.*"systemVersion": *"\([^"]*\)".*/\1/p' "$w/world.json") marker=$(cat "$w/data/marker.txt" 2>/dev/null || echo -) files=$(ls "$w/data" | paste -sd, -)"
+        echo "trial-copy $(basename "$w") systemVersion=$(sed -n 's/.*"systemVersion": *"\([^"]*\)".*/\1/p' "$w/world.json") marker=$(cat "$w/data/marker.txt" 2>/dev/null || echo -) files=$(ls "$w/data" | grep -vx settings | paste -sd, -) setting=$(echo "$copy_settings" | sed -n "s#^$(basename "$w") ##p")"
       done
     else
       echo "trial-state none"
@@ -173,6 +193,8 @@ run_stage() { # $1 label, then KEY=VALUE words for the stage
   grep -v '^journalctl' /tmp/calls || true
   echo "--- $label downloads"
   cat /tmp/downloads 2>/dev/null || true
+  echo "--- $label log"
+  cat "$IMPORT/system-trial.log" 2>/dev/null || echo none
   snap "$label"
 }
 
@@ -341,6 +363,78 @@ s_bad_env() {
   run_stage restore_in_trial MODE=trial RESTORE_MIGRATED=1
   run_stage zip_in_rollback MODE=rollback ZIP=/var/lib/foundry-import/x.zip
   run_stage zip_in_switch MODE=switch ZIP=/var/lib/foundry-import/x.zip
+}
+
+# The release that migrates every world on 6.0.5: the data changes when the Assistant GM browser joins.
+s_trial_migrating() {
+  pin_zip=migrating
+  serve migrating
+  run_stage trial MODE=trial
+}
+s_switch_migrating() {
+  pin_zip=migrating
+  serve migrating
+  run_stage trial MODE=trial
+  kit_run
+  run_stage switch MODE=switch
+}
+# The migration never finishes (the wait is 20 s, which the fake sleep turns into two looks).
+s_trial_migration_hangs() {
+  pin_zip=migrating
+  serve migrating
+  touch /tmp/migration_hangs
+  run_stage trial MODE=trial MIGRATION_WAIT=20
+}
+s_switch_migration_hangs() {
+  pin_zip=migrating
+  serve migrating
+  run_stage trial MODE=trial
+  kit_run
+  touch /tmp/migration_hangs
+  run_stage switch MODE=switch MIGRATION_WAIT=20
+}
+# The copy of one world dies midway (cp leaves a cut-short folder behind).
+s_trial_copy_fails() {
+  echo frostmaiden-training >/tmp/cp_fail
+  run_stage trial MODE=trial
+}
+# The campaign was launched during the trial too, so the rollback resets it from its copy; that copy dies midway, and
+# the rerun finishes (the cut-short folder goes to a numbered name next to the migrated one).
+s_rollback_restore_fails() {
+  run_stage trial MODE=trial
+  kit_run
+  launch_world curse-of-strahd
+  echo curse-of-strahd >/tmp/cp_fail
+  run_stage rollback MODE=rollback RESTORE_MIGRATED=1
+  run_stage rerun MODE=rollback
+}
+# The second move of the system swap (the old version into place) fails, with no dnd5e folder left.
+s_rollback_swap_fails() {
+  run_stage trial MODE=trial
+  kit_run
+  echo dnd5e-6.0.5 >/tmp/mv_fail
+  run_stage rollback MODE=rollback
+  run_stage rerun MODE=rollback
+}
+# Another stage 14 run holds the lock: the run is refused; once it lets go a run goes through.
+s_run_locked() {
+  local lock="$IMPORT/system-trial.lock" holder i
+  install -d -m 700 "$IMPORT"
+  # The subshell takes the lock on fd 8 and becomes the sleep (exec), so killing it lets the lock go.
+  (
+    exec 8>"$lock"
+    flock 8
+    exec /bin/sleep 120
+  ) >/dev/null 2>&1 &
+  holder=$!
+  for i in $(seq 1 40); do
+    flock -n "$lock" true || break
+    /bin/sleep 0.25
+  done
+  run_stage locked MODE=trial
+  kill "$holder" 2>/dev/null
+  wait "$holder" 2>/dev/null
+  run_stage trial MODE=trial
 }
 
 only="$*"

@@ -142,12 +142,17 @@ night; changes made by hand in Foundry need no dashboard.
    If the run fails after the world was swapped in (for example the Assistant GM cannot join),
    stage 11 says so: the pushed world is installed and Foundry runs it. Fix the cause and run the
    same command again. The change check then passes without `REPLACE_NEWER=1`: it skips documents
-   that are the same in the bundle and the users and setting stage 11 provisions itself. Restore
+   that are the same in the bundle and the users and setting stage 11 provisions itself (the GM
+   named in the world's `world-<id>.env` and the Assistant GM). Those two user documents are
+   skipped whole, so a change the GM made to them on the Pi after the backup (hotbar, user flags)
+   is replaced without a notice; the old copy is in `prev-<time>`. Restore
    Plan B fresh for each night; a second push-back of a world that was changed again on the PC
    lists those changes.
    **Modules:** the bundle carries the modules Plan B restored from the Pi backup. One that was
    updated on the Pi after that backup (a higher version in its `module.json`) is kept and named
-   in the output; a push-back never downgrades a module.
+   in the output; a push-back never downgrades a module. When either version cannot be read as
+   numbers (a missing `version`, `beta`, a broken `module.json`), the Pi's copy is kept too and the
+   output says so: install the bundle's copy by hand if it is the right one.
 
 4. **Clean up once the world is back on the Pi:** `.\scripts\plan-b\stop.ps1 -Clean -PushedBack`.
    It keeps Foundry and the licence for next time. Without `-PushedBack` it refuses to delete a

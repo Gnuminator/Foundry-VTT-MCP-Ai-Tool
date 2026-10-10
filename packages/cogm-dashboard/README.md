@@ -132,7 +132,13 @@ wide. That is 78 baseline PNGs in `web/visual/__screenshots__/<width>/`. The fak
 helpers (`web/e2e/support.ts`); the data in `web/visual/fixtures.ts` is made up, with the clock
 fixed, animations off and the browser in UTC and en-US, so a run is the same every time. The same
 screens also go through axe at 1440 (serious and critical violations fail; the ones already there
-are listed with the reason in `web/visual/axe-known.ts`, and only a new one fails).
+are listed with the reason in `web/visual/axe-known.ts`, and only a new one fails; an entry that
+no longer matches on its screen and theme also fails, so the list shrinks as causes are fixed).
+The comparison is near exact: `maxDiffPixels: 0` and a colour `threshold` of 0.02 (Playwright's
+default is 0.2, which lets a nudged grey pass; at 0 the rounded edge of one pill, the Player links
+header, flickered between runs). No `mask` is used today because the clock is fixed and all data
+is faked; a port with values that move on their own (Combat Tracker, Live Feed) adds a `mask`
+helper for those elements.
 
 - **Run them in Docker, not on the host.** The baselines are made on Linux only, in the Playwright
   image `mcr.microsoft.com/playwright:v<version>-noble`, because fonts and anti-aliasing differ per

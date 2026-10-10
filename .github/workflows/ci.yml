@@ -208,6 +208,40 @@ jobs:
       - name: Validate Foundry module manifest
         run: node scripts/validate-manifest.js
 
+  visual-changes:
+    # Decides whether dashboard-visual is worth its 2.5 minutes and image pull: only when the
+    # dashboard package, the lockfile or this workflow changed. A job inside one workflow cannot
+    # use `on.paths` (that would skip the whole workflow), so this job reads the diff itself, with
+    # plain git and no third-party action. On a pull request the checkout is the merge commit, and
+    # its first parent is the base branch. Anything that is not a pull request (push to main,
+    # manual run) always runs the screenshots.
+    runs-on: ubuntu-latest
+    name: visual-changes (path filter)
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Did the dashboard, the lockfile or this workflow change?
+        id: filter
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Not a pull request: run the screenshots."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only HEAD^1 HEAD)
+          echo "Changed files against the base:"
+          echo "$changed"
+          if echo "$changed" | grep -qE '^(packages/cogm-dashboard/|package-lock\.json$|\.github/workflows/ci\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing the screenshots depend on changed: skip them."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   dashboard-visual:
     # UI-01: screenshots of the React dashboard (every moment and drawer, three widths, two themes)
     # against the baselines in packages/cogm-dashboard/web/visual/__screenshots__, plus an axe
@@ -216,6 +250,8 @@ jobs:
     # it is not a required check, but a diff fails the job (no continue-on-error), and the report
     # with the diff images is kept as an artifact. Refresh the baselines with
     # `npm run test:visual:update -w @gnuminator/cogm-dashboard` (Docker; see the dashboard README).
+    needs: visual-changes
+    if: needs.visual-changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     name: dashboard-visual (screenshots)
     container:

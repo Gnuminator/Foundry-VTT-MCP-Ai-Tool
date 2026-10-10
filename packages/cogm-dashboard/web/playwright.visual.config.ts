@@ -44,7 +44,10 @@ export default defineConfig({
     toHaveScreenshot: {
       animations: 'disabled',
       caret: 'hide',
-      // Same pixels in the same image: any difference is a change, so no tolerance.
+      // Same pixels in the same image: any difference is a change. threshold is the per-pixel
+      // colour tolerance: Playwright's default 0.2 lets a nudged grey pass. 0 flickered on the
+      // rounded edge of one pill (Player links header) between identical runs, so 0.02.
+      threshold: 0.02,
       maxDiffPixels: 0,
     },
   },

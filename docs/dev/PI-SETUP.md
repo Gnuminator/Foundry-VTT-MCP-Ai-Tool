@@ -830,7 +830,16 @@ cat scripts/pi/remote/lib.sh scripts/pi/remote/14-system-trial.sh | ssh foundry-
   they were. Nothing is deleted: replaced folders go to `/var/lib/foundry-import/prev-<time>-*`, and
   removing those or the trial folder needs your OK.
 
-TESTS_PLACEHOLDER
+Not run on the Pi yet. With `PI_SYSTEM_TRIAL_CONTAINER=1`, `node --test scripts/pi/system-trial.test.mjs`
+runs the stage in ARM64 Debian 13 containers with stand-ins for systemd and a fake Foundry that writes
+into the world it opens and migrates its `world.json`
+(`scripts/pi/container-test/system-trial-scenarios.sh`; Docker needed, four containers side by side,
+about 10 minutes under emulation on a PC): a trial from the download and from `ZIP`, a wrong sha256, a
+zip that does not fit this Foundry or holds another version, the version installed already, a second
+trial, a trial that fails after the stop and undoes itself, a rollback (also one that refuses a world
+launched during the trial and one with `RESTORE_MIGRATED=1`), a rollback that stops halfway and a rerun
+that finishes it, the switch and a failed switch, a rollback after a switch, `status`, and people
+online with and without `FORCE=1`. CI runs it on the ARM runner, where a missing Docker fails the step.
 
 ## GM scripts
 

@@ -48,7 +48,8 @@ export class PersistentCreatureIndex {
   // fixed; a bump makes worlds rebuild an index persisted by an older module.
   private readonly INDEX_VERSION = '1.2.0';
   private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
-  private buildInProgress = false;
+  /** The build in flight, shared by every caller until it settles. */
+  private buildPromise: Promise<EnhancedCreatureIndex[]> | null = null;
   private hooksRegistered = false;
 
   constructor() {
@@ -61,19 +62,50 @@ export class PersistentCreatureIndex {
    * Return the creature index, rebuilding (and persisting) it only when there is
    * no valid persisted copy. A persisted index is reused verbatim when its
    * version, game system, and every Actor-pack fingerprint still match the live
-   * world; otherwise it is rebuilt.
+   * world; otherwise it is rebuilt. A read during a build waits on that build.
    */
   async getEnhancedIndex(): Promise<EnhancedCreatureIndex[]> {
-    const persisted = await this.loadPersistedIndex();
-    if (persisted && this.isIndexValid(persisted)) {
-      return persisted.creatures;
-    }
-    return this.buildEnhancedIndex();
+    return (await this.resolveIndex()).creatures;
   }
 
-  /** Force a full rebuild, ignoring any persisted/valid index. */
+  /**
+   * Make sure the persisted index is current, building it when it is missing or
+   * stale (an older `INDEX_VERSION`, another system, changed packs). Run from the
+   * GM's `ready` so a bridge query never waits out a rebuild, and awaited by the
+   * test kit before its first creature query. `rebuilt` is false when the
+   * persisted index was already current.
+   */
+  async ensureIndexCurrent(): Promise<{ rebuilt: boolean; totalCreatures: number }> {
+    const { creatures, rebuilt } = await this.resolveIndex();
+    return { rebuilt, totalCreatures: creatures.length };
+  }
+
+  /**
+   * Force a full rebuild, ignoring any persisted/valid index. A build already in
+   * flight is joined rather than started twice.
+   */
   async rebuildIndex(): Promise<EnhancedCreatureIndex[]> {
-    return this.buildEnhancedIndex(true);
+    return this.startBuild();
+  }
+
+  /** The persisted index when it is valid, else the (shared) rebuild's result. */
+  private async resolveIndex(): Promise<{ creatures: EnhancedCreatureIndex[]; rebuilt: boolean }> {
+    if (this.buildPromise) {
+      return { creatures: await this.buildPromise, rebuilt: true };
+    }
+    const persisted = await this.loadPersistedIndex();
+    if (persisted && this.isIndexValid(persisted)) {
+      return { creatures: persisted.creatures, rebuilt: false };
+    }
+    return { creatures: await this.startBuild(), rebuilt: true };
+  }
+
+  /** Start a build, or return the one in flight: one build at a time. */
+  private startBuild(): Promise<EnhancedCreatureIndex[]> {
+    this.buildPromise ??= this.buildEnhancedIndex().finally(() => {
+      this.buildPromise = null;
+    });
+    return this.buildPromise;
   }
 
   // ---- storage location -----------------------------------------------------
@@ -296,13 +328,9 @@ export class PersistentCreatureIndex {
 
   /**
    * Build the index, routed by system. D&D 5e is the only supported system;
-   * anything else throws. A non-forced build is rejected while one is in flight.
+   * anything else throws. Callers go through {@link startBuild} (one at a time).
    */
-  private async buildEnhancedIndex(force = false): Promise<EnhancedCreatureIndex[]> {
-    if (this.buildInProgress && !force) {
-      throw new Error('Index build already in progress');
-    }
-
+  private async buildEnhancedIndex(): Promise<EnhancedCreatureIndex[]> {
     const gameSystem = game.system.id;
     logInfo(`[${this.moduleId}] Building enhanced creature index for system: ${gameSystem}`);
 
@@ -321,8 +349,6 @@ export class PersistentCreatureIndex {
    * the whole build; the index is always persisted, even when empty.
    */
   private async buildDnD5eIndex(): Promise<DnD5eCreatureIndex[]> {
-    this.buildInProgress = true;
-
     const startTime = Date.now();
     // Single rolling progress notification (replace-in-place). Held in an object
     // so its nullability isn't narrowed away by control-flow analysis.
@@ -409,7 +435,6 @@ export class PersistentCreatureIndex {
       ui.notifications?.error(errorMessage);
       throw error;
     } finally {
-      this.buildInProgress = false;
       notifier.clear();
     }
   }

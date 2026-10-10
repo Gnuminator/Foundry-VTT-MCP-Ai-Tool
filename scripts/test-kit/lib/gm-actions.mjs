@@ -1601,6 +1601,26 @@ async function exerciseActor(args) {
 }
 
 /**
+ * Wait for the module's enhanced creature index to be current (see GM_ACTIONS.ensureCreatureIndex).
+ * The module shares one build, so this joins the rebuild it started at `ready`.
+ * @param {object} _args
+ */
+async function ensureCreatureIndex(_args) {
+  if (!game.settings.get('foundry-mcp-bridge', 'enableEnhancedCreatureIndex')) {
+    return { skipped: 'the enhanced creature index setting is off' };
+  }
+  const dataAccess = globalThis.foundryMCPBridge?.dataAccess;
+  if (typeof dataAccess?.ensureEnhancedCreatureIndex !== 'function') {
+    throw new Error(
+      'ensureCreatureIndex: the module has no ensureEnhancedCreatureIndex (sync the module)'
+    );
+  }
+  const started = Date.now();
+  const { rebuilt, totalCreatures } = await dataAccess.ensureEnhancedCreatureIndex();
+  return { rebuilt, totalCreatures, seconds: Math.round((Date.now() - started) / 100) / 10 };
+}
+
+/**
  * The monsters of one compendium pack as facts: one row per actor of type npc, sorted by name then
  * id, `count` rows from `from`. Names, numbers and flags only, never text. Read only. Verified
  * against dnd5e 6.0.5: `system.resources.legact|legres` are `{max, spent}`, `lair` is `{value,
@@ -1855,6 +1875,7 @@ export const GM_ACTION_FUNCTIONS = {
   readActor,
   setFeatureSwitches,
   ensurePartyGroup,
+  ensureCreatureIndex,
   listMonsters,
   createMonster,
   deleteMonsters,

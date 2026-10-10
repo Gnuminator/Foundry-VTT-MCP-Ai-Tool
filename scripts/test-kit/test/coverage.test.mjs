@@ -559,3 +559,41 @@ test('buildKit on the fake: the stock fake class needs no coverage heroes (the r
     await fake.close();
   }
 });
+
+test('buildKit on the fake: waits for the creature index before the first creature query', async () => {
+  const fake = await startFake({ world: 'ai-tool-kit-srd' });
+  try {
+    /** @type {string[]} */
+    const order = [];
+    const real = createDashboardClient({ base: fake.base, token: '' });
+    const dashboard = {
+      ...real,
+      /** @param {string} name @param {any} args */
+      tool: (name, args) => {
+        if (name === 'list-creatures-by-criteria') order.push(name);
+        return real.tool(name, args);
+      },
+    };
+    const gm = {
+      ...fake.gm,
+      /** @param {string} action @param {any} [args] */
+      call: (action, args) => {
+        if (action === 'ensureCreatureIndex') order.push(action);
+        return fake.gm.call(action, args);
+      },
+    };
+    await buildKit({
+      dashboard,
+      gm,
+      world: 'ai-tool-kit-srd',
+      size: 'smoke',
+      profile: loadProfile('srd'),
+      classes: ['fighter'],
+    });
+    assert.equal(order[0], 'ensureCreatureIndex');
+    assert.equal(order.filter(a => a === 'ensureCreatureIndex').length, 1);
+    assert.ok(order.includes('list-creatures-by-criteria'));
+  } finally {
+    await fake.close();
+  }
+});

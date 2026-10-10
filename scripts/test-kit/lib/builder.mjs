@@ -591,6 +591,13 @@ export async function buildKit({
   const monsterMatrix = profile.matrixMonsters
     ? { ...matrix.monsters, excludeIdPattern: '(?!)', ...profile.matrixMonsters }
     : matrix.monsters;
+  // list-creatures-by-criteria reads the module's creature index; a stale one (a module update
+  // bumped its version) rebuilds on the first query and outlasts the 10 s bridge timeout.
+  const index = await gm.call('ensureCreatureIndex');
+  if (index.skipped) log(`creature index: ${index.skipped}`);
+  else if (index.rebuilt) {
+    log(`creature index rebuilt: ${index.totalCreatures} creatures (waited ${index.seconds}s)`);
+  }
   const picks = await selectMonsters(dashboard, monsterMatrix, log);
   const monsters = [];
   const gmActionsBefore = await dashboard.getGmActions();

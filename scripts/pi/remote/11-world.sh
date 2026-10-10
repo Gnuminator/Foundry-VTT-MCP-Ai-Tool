@@ -124,6 +124,8 @@ login_re='^[A-Za-z0-9._-]([A-Za-z0-9._ -]*[A-Za-z0-9._-])?$'
 [ -x "$NODE_DIR/bin/node" ] || die "no Node at $NODE_DIR: run stage 2 first. Nothing was changed"
 [ ! -e "$TOOL_DATA/kit-session.env" ] || die "a kit session is up ($TOOL_DATA/kit-session.env exists): run kit-session.sh MODE=down first. Nothing was changed"
 foundry_can_write "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Nothing was changed"
+# Every run resets the kit world and launches worlds: never during an open dnd5e trial (stage 14).
+refuse_during_system_trial "stage 11"
 # One login name from an env file: $1 the file, $2 GM_USER or EXTRA_GM_USER (never a password key). Prints the
 # file's value, empty when the file has no such line or does not exist. Sourced in a subshell, so nothing else
 # from the file (the passwords) reaches this shell. world-refs.test.mjs cuts it out and tests it.

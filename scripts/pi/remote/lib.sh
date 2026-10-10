@@ -17,11 +17,18 @@ TOOL_DIR=/opt/foundry-ai-tool
 TOOL_ETC=/etc/foundry-ai-tool
 TOOL_DATA=/var/lib/foundry-ai-tool
 
-say() { printf '==> %s\n' "$*"; }
-ok() { printf '    ok: %s\n' "$*"; }
-warn() { printf '    WARNING: %s\n' "$*" >&2; }
+# A write that fails (the SSH connection dropped, stdout is gone) never stops a stage halfway; with STAGE_LOG set
+# (stage 14) every line also goes to that file.
+STAGE_LOG=""
+out() { # $1 the line, $2 1 for stderr
+  if [ "${2:-}" = 1 ]; then printf '%s\n' "$1" >&2 2>/dev/null || true; else printf '%s\n' "$1" 2>/dev/null || true; fi
+  [ -z "$STAGE_LOG" ] || printf '%s %s\n' "$(date '+%F %T')" "$1" >>"$STAGE_LOG" 2>/dev/null || true
+}
+say() { out "==> $*"; }
+ok() { out "    ok: $*"; }
+warn() { out "    WARNING: $*" 1; }
 die() {
-  printf 'ERROR: %s\n' "$*" >&2
+  out "ERROR: $*" 1
   exit 1
 }
 
@@ -33,6 +40,23 @@ require_arm64() {
   local arch
   arch="$(uname -m)"
   [ "$arch" = "aarch64" ] || die "expected an ARM64 board (aarch64), got $arch"
+}
+
+# Stage 14's dnd5e trial (docs/dev/PI-SETUP.md, "System trial (stage 14)"): until MODE=switch or MODE=rollback,
+# only the kit world may be launched, since every world shares the one dnd5e folder and migrates to the version on
+# trial when launched. A stage that launches worlds (or resets the kit) calls this first.
+SYSTEM_TRIAL_DIR=/var/lib/foundry-import/system-trial
+refuse_during_system_trial() { # $1 the stage, $2... the worlds it launches (none: the stage is refused whenever a trial is open)
+  local stage="$1" phase id
+  shift
+  [ -e "$SYSTEM_TRIAL_DIR" ] || return 0
+  phase="$(sed -n 's/^phase=//p' "$SYSTEM_TRIAL_DIR/state" 2>/dev/null | head -n1)"
+  [ "$phase" != switched ] || return 0
+  if [ "$#" -gt 0 ]; then
+    for id in "$@"; do [ "$id" = strahd-kit ] || break; done
+    [ "$id" != strahd-kit ] || return 0
+  fi
+  die "a dnd5e system trial is open ($SYSTEM_TRIAL_DIR, phase ${phase:-unknown}): $stage would launch or reset a world on the version on trial. Finish the trial first (stage 14, MODE=switch or MODE=rollback; MODE=status shows it). Nothing was changed"
 }
 
 # True when systemd runs (not in a test container).

@@ -6,7 +6,11 @@
 # Env: BUNDLE (required, a .tar under /var/lib/foundry-import/), WORLD (curse-of-strahd), KIT_WORLD (strahd-kit; empty
 #   skips it), KIT_TITLE, LAUNCH (the world Foundry starts with; WORLD or KIT_WORLD, default WORLD),
 #   REPLACE_WORLD (1 replaces an existing WORLD; default 0 keeps it), GM_USER (the world's GM, default Gamemaster),
-#   REPLACE_NEWER (push-back only: 1 replaces the Pi's world even when it changed after the Plan B snapshot).
+#   REPLACE_NEWER (push-back only: 1 replaces the Pi's world even when it changed after the Plan B snapshot),
+#   EXTRA_GM_USER (a second GM user, for example Claude, with its own generated password; default none).
+# LAUNCH may also name a world that is already installed (another campaign), so a second world, for example the
+# Frostmaiden training world (D-118: WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+# EXTRA_GM_USER=Claude), goes in next to it while Foundry keeps launching that world.
 # A Plan B push-back (docs/dev/PLAN-B.md, "After the night"; built by scripts/plan-b/push-back.ps1) brings the
 # world back from the PC with the Pi's own GM password: its MANIFEST.txt says "gm-password: kept (push-back)" and
 # "based-on-snapshot: <the Pi backup Plan B restored>". Such a bundle needs REPLACE_WORLD=1, KIT_WORLD= (empty)
@@ -35,6 +39,7 @@ KIT_TITLE="${KIT_TITLE:-Curse of Strahd (test copy for kit runs)}"
 LAUNCH="${LAUNCH:-$WORLD}"
 REPLACE_WORLD="${REPLACE_WORLD:-0}"
 GM_USER="${GM_USER:-Gamemaster}"
+EXTRA_GM_USER="${EXTRA_GM_USER:-}"
 REPLACE_NEWER="${REPLACE_NEWER:-0}"
 IMPORT=/var/lib/foundry-import
 data="$FOUNDRY_DATA/Data"
@@ -56,10 +61,28 @@ if [ -n "$KIT_WORLD" ]; then
   [[ "$KIT_WORLD" =~ ^[a-z0-9-]+$ ]] || die "'$KIT_WORLD' is not a valid world id"
   [ "$KIT_WORLD" != "$WORLD" ] || die "KIT_WORLD must differ from WORLD"
 fi
-[ "$LAUNCH" = "$WORLD" ] || { [ -n "$KIT_WORLD" ] && [ "$LAUNCH" = "$KIT_WORLD" ]; } || die "LAUNCH must be $WORLD or the kit world"
+[ "$LAUNCH" = "$WORLD" ] || { [ -n "$KIT_WORLD" ] && [ "$LAUNCH" = "$KIT_WORLD" ]; } ||
+  [ -f "$data/worlds/$LAUNCH/world.json" ] || die "LAUNCH must be $WORLD, the kit world or a world that is already installed"
 [[ "$GM_USER" =~ ^[A-Za-z0-9._\ -]+$ ]] || die "GM_USER has odd characters"
+if [ -n "$EXTRA_GM_USER" ]; then
+  [[ "$EXTRA_GM_USER" =~ ^[A-Za-z0-9._\ -]+$ ]] || die "EXTRA_GM_USER has odd characters"
+  [ "$EXTRA_GM_USER" != "$GM_USER" ] || die "EXTRA_GM_USER must differ from GM_USER"
+fi
+# The extra GM a world's login file already names (stage 11 appends EXTRA_GM_USER and EXTRA_GM_PASSWORD).
+env_extra_gm() { sed -n 's/^EXTRA_GM_USER="\(.*\)"$/\1/p' "$1" 2>/dev/null; }
 [ -f "$assistant_env" ] && [ -f "$TOOL_DIR/gm-browser/assistant-gm.mjs" ] || die "run stage 5 and 5-check-world first (no Assistant GM yet)"
 [ -d "$data/modules/foundry-mcp-bridge" ] || die "the bridge module is not installed: run stage 5 first"
+if [ -n "$EXTRA_GM_USER" ]; then
+  [ "$EXTRA_GM_USER" != "$(
+    # shellcheck disable=SC1090
+    . "$assistant_env"
+    printf '%s' "${ASSISTANT_GM_USER:-Assistant GM}"
+  )" ] || die "EXTRA_GM_USER must differ from the Assistant GM"
+  for id in "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"}; do
+    had="$(env_extra_gm "$TOOL_ETC/world-$id.env")"
+    [ -z "$had" ] || [ "$had" = "$EXTRA_GM_USER" ] || die "$TOOL_ETC/world-$id.env already names the extra GM '$had', not '$EXTRA_GM_USER'. Nothing was changed"
+  done
+fi
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
 bundle_size="$(stat -c %s "$BUNDLE")"
 
@@ -302,8 +325,10 @@ if [ "$pushback" = 1 ]; then
       . "$assistant_env"
       printf '%s' "${ASSISTANT_GM_USER:-Assistant GM}"
     )"
+    # The extra GM is one of this stage's own users too (EXTRA_GM_USER, or the one an earlier run gave the world).
+    extra_name="${EXTRA_GM_USER:-$(env_extra_gm "$TOOL_ETC/world-$WORLD.env")}"
     node --input-type=module - "$FOUNDRY_APP/node_modules/classic-level" "$work/pi-world" "$work/bundle-world" "$based_on" \
-      "$GM_USER" "$assistant_name" >"$work/changes" <<'NODE' || scan_rc=$?
+      "$GM_USER" "$assistant_name" ${extra_name:+"$extra_name"} >"$work/changes" <<'NODE' || scan_rc=$?
 import { existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -457,7 +482,11 @@ real_state=installed
 if [ -e "$data/worlds/$WORLD" ] && [ "$REPLACE_WORLD" != 1 ]; then
   real_state=kept
   warn "KEPT: the campaign world $WORLD already exists; it is never replaced without REPLACE_WORLD=1"
-  [ -f "$TOOL_ETC/world-$WORLD.env" ] || todo+=("$WORLD")
+  # A kept world is provisioned again only for what it lacks: its GM login, or the extra GM's.
+  if [ ! -f "$TOOL_ETC/world-$WORLD.env" ] ||
+    { [ -n "$EXTRA_GM_USER" ] && ! grep -q '^EXTRA_GM_PASSWORD=' "$TOOL_ETC/world-$WORLD.env"; }; then
+    todo+=("$WORLD")
+  fi
 else
   store_prev "$data/worlds/$WORLD" "worlds/$WORLD"
   mv "$work/extract/Data/worlds/$WORLD" "$data/worlds/$WORLD"
@@ -482,6 +511,13 @@ provision_world() { # $1 world id
     chown root:root "$envf"
     chmod 600 "$envf"
     ok "wrote $envf"
+  fi
+  # The extra GM gets its own password in the same file, added once (the request check refused another name).
+  if [ -n "$EXTRA_GM_USER" ] && ! grep -q '^EXTRA_GM_PASSWORD=' "$envf"; then
+    umask 077
+    printf 'EXTRA_GM_USER="%s"\nEXTRA_GM_PASSWORD="%s"\n' "$EXTRA_GM_USER" "$(new_password)" >>"$envf"
+    umask 022
+    ok "added the $EXTRA_GM_USER login to $envf"
   fi
   set_world "$id"
   if ! have_systemd; then
@@ -511,6 +547,7 @@ provision_world() { # $1 world id
       FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
       ASSISTANT_GM_USER="$ASSISTANT_GM_USER" ASSISTANT_GM_PASSWORD="$ASSISTANT_GM_PASSWORD" \
       PROVISION_GM_USER="$GM_USER" PROVISION_GM_PASSWORD="" PROVISION_GM_NEW_PASSWORD="$GM_PASSWORD" \
+      PROVISION_EXTRA_GM_USER="${EXTRA_GM_USER:-}" PROVISION_EXTRA_GM_PASSWORD="${EXTRA_GM_PASSWORD:-}" \
       node "$TOOL_DIR/gm-browser/assistant-gm.mjs" provision
   ) || die "provisioning $id failed (see the lines above)"
   ok "$id provisioned"
@@ -601,5 +638,7 @@ echo "    asset folders: ${assets[*]:-none}"
 echo "    Foundry launches: $LAUNCH"
 for id in "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"}; do
   [ ! -f "$TOOL_ETC/world-$id.env" ] || echo "    GM password file for $id: $TOOL_ETC/world-$id.env (the GM reads it with: ssh foundry-pi cat $TOOL_ETC/world-$id.env)"
+  extra="$(env_extra_gm "$TOOL_ETC/world-$id.env")"
+  [ -z "$extra" ] || echo "    the extra GM $extra of $id: the same file, EXTRA_GM_PASSWORD"
 done
 echo "    $prev_note"

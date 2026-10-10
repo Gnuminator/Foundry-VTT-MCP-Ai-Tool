@@ -40,14 +40,34 @@ export interface ToolCall {
   confirmDestructive?: boolean;
 }
 
-/** Answers POST /api/tool by tool name and records each call. */
+/**
+ * Leaves get-play-session unanswered (other tool calls go on to the routes registered before).
+ * The moment views then never pick a moment and no panel docks in the page, so a panel's own
+ * spec sees its drawer open over the page. views.spec.ts tests the moments and the docking.
+ * fakeTools does this by itself; a test with its own /api/tool route calls it after that route.
+ */
+export async function holdPlaySession(page: Page): Promise<void> {
+  await page.route('**/api/tool', route => {
+    const call = route.request().postDataJSON() as ToolCall;
+    // Never answered: the read stays in flight until the page closes.
+    if (call.name === 'get-play-session') return;
+    return route.fallback();
+  });
+}
+
+/**
+ * Answers POST /api/tool by tool name and records each call. get-play-session is held, as
+ * holdPlaySession does, unless `playSession` is set: then `answer` gets it too.
+ */
 export async function fakeTools(
   page: Page,
-  answer: (call: ToolCall) => { status?: number; json: unknown }
+  answer: (call: ToolCall) => { status?: number; json: unknown },
+  { playSession = false }: { playSession?: boolean } = {}
 ): Promise<ToolCall[]> {
   const calls: ToolCall[] = [];
   await page.route('**/api/tool', route => {
     const call = route.request().postDataJSON() as ToolCall;
+    if (call.name === 'get-play-session' && !playSession) return;
     calls.push(call);
     const { status = 200, json } = answer(call);
     return route.fulfill({ status, json });

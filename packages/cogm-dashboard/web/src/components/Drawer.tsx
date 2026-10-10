@@ -1,12 +1,16 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import {
+  createContext,
+  useContext,
   useLayoutEffect,
+  useState,
   useSyncExternalStore,
   type ComponentProps,
   type JSX,
   type ReactElement,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 
 import { closeTopPanel, raisePanel, useEscapeClose } from '../lib/escape';
 import { HelpButton } from './HelpButton';
@@ -45,6 +49,48 @@ function useOnTop(id: string, open: boolean): boolean {
     return (): void => setOpenOrder(openOrder.filter(d => d !== id));
   }, [id, open]);
   return useSyncExternalStore(subscribe, topDrawer) === id;
+}
+
+/**
+ * The view slot a drawer sits in (Moments.tsx), or null when it floats. App wraps each panel that
+ * can dock in a provider, so the panels themselves do not know about docking.
+ */
+export const DockContext = createContext<HTMLElement | null>(null);
+
+/**
+ * A wrapper element that holds a docked drawer and moves into whichever slot it docks in. React
+ * portals into the same element all along, so a drawer docked in two moments (Prep in Before and
+ * After) keeps its state and its data when the moment changes; only the wrapper moves.
+ */
+function useDockHost(slot: HTMLElement | null): HTMLElement {
+  const [host] = useState(() => {
+    const el = document.createElement('div');
+    el.className = 'dock-host';
+    return el;
+  });
+  useLayoutEffect(() => {
+    if (!slot) return;
+    slot.appendChild(host);
+    return (): void => host.remove();
+  }, [slot, host]);
+  return host;
+}
+
+/** Whether this drawer sits in the page now. */
+export function isDocked(id: string): boolean {
+  return document.getElementById(id)?.classList.contains('docked') ?? false;
+}
+
+/**
+ * Shows a docked drawer: scrolls it into view and gives it the focus. The header and menu buttons
+ * do this instead of opening a second copy over the page. False when it is not docked.
+ */
+export function showDocked(id: string): boolean {
+  const el = document.getElementById(id);
+  if (!el || !isDocked(id)) return false;
+  el.scrollIntoView({ block: 'nearest' });
+  el.focus({ preventScroll: true });
+  return true;
 }
 
 interface DrawerProps {
@@ -87,6 +133,10 @@ export function DrawerClose(props: ComponentProps<'button'>): JSX.Element {
  * A drawer from the right (the old aside.drawer: Pre-flight, Prep, Party, ...). A non-modal Radix
  * dialog: several can be open, Escape closes the top one (escape.ts), ✕ closes this one, and a click on the
  * backdrop (DrawerBackdrop, in App) closes them all. Other clicks outside leave it open.
+ *
+ * Docked (a DockContext slot is given), it sits in the page instead: a labelled region with no
+ * close button, no backdrop and no place in the Escape order. The panel keeps `open` true while
+ * it is docked, so it loads and counts its view as when it is open.
  */
 export function Drawer({
   open,
@@ -103,8 +153,12 @@ export function Drawer({
   bodyClassName,
   children,
 }: DrawerProps): JSX.Element {
+  const dockSlot = useContext(DockContext);
+  const slot = open ? dockSlot : null;
+  const host = useDockHost(slot);
+  const floating = open && !dockSlot;
   useEscapeClose(
-    open,
+    floating,
     () => {
       if (onEscapeKey?.()) return;
       onEscape?.();
@@ -112,7 +166,44 @@ export function Drawer({
     },
     id
   );
-  const onTop = useOnTop(id, open);
+  const onTop = useOnTop(id, floating);
+  const head = (titleId?: string): JSX.Element => (
+    <div>
+      <div className="pane-title">
+        {titleId ? (
+          <h2 id={titleId}>{title}</h2>
+        ) : (
+          <Dialog.Title asChild>
+            <h2>{title}</h2>
+          </Dialog.Title>
+        )}
+        {help !== undefined && <HelpButton page={help} />}
+      </div>
+      {sub !== undefined && <span className="drawer-sub">{sub}</span>}
+    </div>
+  );
+  const body = (
+    <>
+      {actions !== undefined && <div className="tarokka-actions">{actions}</div>}
+      <div className={['tarokka-body', bodyClassName].filter(Boolean).join(' ')}>{children}</div>
+    </>
+  );
+  if (slot) {
+    // tabIndex -1: showDocked and the moment change can hand it the focus.
+    return createPortal(
+      <aside
+        id={id}
+        className="drawer docked"
+        role="region"
+        aria-labelledby={`${id}-title`}
+        tabIndex={-1}
+      >
+        <div className="drawer-head">{head(`${id}-title`)}</div>
+        {body}
+      </aside>,
+      host
+    );
+  }
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange} modal={false}>
       <Dialog.Content
@@ -129,21 +220,10 @@ export function Drawer({
       >
         <aside id={id} className={onTop ? 'drawer drawer-top' : 'drawer'}>
           <div className="drawer-head">
-            <div>
-              <div className="pane-title">
-                <Dialog.Title asChild>
-                  <h2>{title}</h2>
-                </Dialog.Title>
-                {help !== undefined && <HelpButton page={help} />}
-              </div>
-              {sub !== undefined && <span className="drawer-sub">{sub}</span>}
-            </div>
+            {head()}
             {close}
           </div>
-          {actions !== undefined && <div className="tarokka-actions">{actions}</div>}
-          <div className={['tarokka-body', bodyClassName].filter(Boolean).join(' ')}>
-            {children}
-          </div>
+          {body}
         </aside>
       </Dialog.Content>
     </Dialog.Root>

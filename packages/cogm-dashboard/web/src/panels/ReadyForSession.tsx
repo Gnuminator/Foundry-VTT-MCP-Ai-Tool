@@ -7,6 +7,7 @@ import { useEffect, useRef, type JSX } from 'react';
 
 import { useToast } from '../components/Toasts';
 import { api, callTool, errorText } from '../lib/api';
+import { usePlaySession } from '../lib/session';
 import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from '../lib/stream';
 
 interface SessionSwitch {
@@ -40,7 +41,6 @@ interface SwitchesWrite {
 type SwitchAction = 'ready' | 'end';
 
 const SWITCHES_KEY = ['session-switches'] as const;
-const PLAY_SESSION_KEY = ['play-session'] as const;
 
 const DEFAULT_NOTE =
   'Turns on, for tonight only: changes from the tool, handouts, live play (damage, conditions), the party, Tarokka and GM Actions. End session turns them off again. Every change can still be undone.';
@@ -50,21 +50,6 @@ const shortName = (name: string): string => name.replace(/^AI Tool: /, '');
 
 function switchNames(list: SessionSwitch[], ids: string[]): string[] {
   return ids.map(id => shortName(list.find(s => s.id === id)?.name ?? id));
-}
-
-/**
- * Whether a play session is open (get-play-session), polled each minute as the old page does. A
- * failed poll keeps the last answer (a query keeps its data on error), as the old page does.
- */
-function usePlaySessionOpen(): { open: boolean; refetch: () => Promise<unknown> } {
-  const query = useQuery({
-    queryKey: PLAY_SESSION_KEY,
-    queryFn: async () =>
-      Boolean((await callTool<{ open?: boolean }>('get-play-session', {}))?.open),
-    refetchInterval: 60_000,
-    retry: false,
-  });
-  return { open: query.data === true, refetch: query.refetch };
 }
 
 export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Element {
@@ -78,7 +63,7 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
     staleTime: 0,
   });
   const settings = useDashboardSettings();
-  const playSession = usePlaySessionOpen();
+  const playSession = usePlaySession();
 
   // The GM Actions gate (guarded.ts) reads the stream's settings. Until the first settings event,
   // seed them from this read, so a click does not say "GM Actions are off" while this block shows
@@ -205,7 +190,7 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
             Turn them off again
           </button>
         )}
-        {!playSession.open && (
+        {playSession.session?.open !== true && (
           <button
             className="btn btn-quiet"
             id="btn-ready-log"

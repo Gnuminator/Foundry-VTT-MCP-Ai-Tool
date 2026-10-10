@@ -4,7 +4,7 @@
 // drawer closes.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, holdPlaySession } from './support';
 
 const CHECKS = [
   {
@@ -45,6 +45,8 @@ async function openPreflight(page: Page): Promise<Locator> {
 
 test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
+  // No moment, so Pre-flight opens over the page (docked in Before: views.spec.ts).
+  await holdPlaySession(page);
 });
 
 test('runs the checks on open and shows the verdict', async ({ page }) => {

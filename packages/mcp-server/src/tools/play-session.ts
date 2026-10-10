@@ -44,6 +44,11 @@ export interface GetPlaySessionResult {
   open: boolean;
   startedAt: string | null;
   lastEventAt: string | null;
+  /**
+   * When the newest session ended, for a closed one: its end marker, or its last logged event
+   * or play record when it went quiet without one. Null while open or with no marker at all.
+   */
+  endedAt: string | null;
 }
 
 /** Contract 1 (Obsidian plan O2): a session marker line in `sessions/<date>.jsonl`. */
@@ -160,7 +165,7 @@ export class PlaySessionTools {
       {
         name: 'get-play-session',
         description:
-          "GM ONLY. Whether a play session is currently open, from the bridge vault's own session and play logs only (never game state): true when the newest marker is a session start and no logged event or play record is more than 3 hours old since.",
+          "GM ONLY. Whether a play session is currently open, from the bridge vault's own session and play logs only (never game state): true when the newest marker is a session start and no logged event or play record is more than 3 hours old since. A closed session also gives endedAt: its end marker, or its last activity when it went quiet.",
         inputSchema: { type: 'object', properties: {} },
       },
     ];
@@ -230,12 +235,23 @@ export class PlaySessionTools {
       lastEventAtMs !== null &&
       nowMs - lastEventAtMs <= SESSION_GAP_MS;
 
+    let endedAt: string | null = null;
+    if (!open && newestMarker !== null) {
+      endedAt =
+        newestMarker.eventType === 'session-end'
+          ? newestMarker.timestamp
+          : lastEventAtMs === null
+            ? null
+            : new Date(lastEventAtMs).toISOString();
+    }
+
     return {
       success: true,
       worldId,
       open,
       startedAt: open ? newestMarker!.timestamp : null,
       lastEventAt: lastEventAtMs === null ? null : new Date(lastEventAtMs).toISOString(),
+      endedAt,
     };
   }
 

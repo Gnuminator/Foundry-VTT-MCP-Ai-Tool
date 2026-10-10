@@ -122,6 +122,7 @@ describe('get-play-session', () => {
       open: false,
       startedAt: null,
       lastEventAt: null,
+      endedAt: null,
     });
   });
 
@@ -134,6 +135,7 @@ describe('get-play-session', () => {
       open: true,
       startedAt: new Date(nowMs).toISOString(),
       lastEventAt: new Date(nowMs).toISOString(),
+      endedAt: null,
     });
   });
 
@@ -148,16 +150,33 @@ describe('get-play-session', () => {
       open: false,
       startedAt: null,
       lastEventAt: new Date(nowMs).toISOString(),
+      endedAt: new Date(nowMs).toISOString(),
     });
+  });
+
+  it('keeps the end marker as endedAt when events follow it', async () => {
+    const tools = makeTools();
+    await tools.handleMarkPlaySession({ action: 'start' });
+    nowMs += 60_000;
+    await tools.handleMarkPlaySession({ action: 'end' });
+    const endedAt = new Date(nowMs).toISOString();
+    nowMs += 60_000;
+    await store.appendLines('w1', 'sessions', `${localDateKey(nowMs)}.play.jsonl`, [
+      playRecord(nowMs, 'after-the-end'),
+    ]);
+    expect(await tools.handleGetPlaySession({})).toMatchObject({ open: false, endedAt });
   });
 
   it('closes after a gap of more than 3 hours since the last event, without an end marker', async () => {
     const tools = makeTools();
     await tools.handleMarkPlaySession({ action: 'start' });
+    const startedAt = new Date(nowMs).toISOString();
     nowMs += 3 * 60 * 60 * 1000 + 1;
     const result = await tools.handleGetPlaySession({});
     expect(result.open).toBe(false);
     expect(result.startedAt).toBeNull();
+    // It went quiet: the last activity (here the start marker itself) is when it ended.
+    expect(result.endedAt).toBe(startedAt);
   });
 
   it('stays open exactly at the 3-hour boundary', async () => {
@@ -285,6 +304,7 @@ describe('get-play-session with play records (O3 contract 3)', () => {
       open: false,
       startedAt: null,
       lastEventAt: null,
+      endedAt: null,
     });
   });
 });

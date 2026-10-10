@@ -1,6 +1,7 @@
 // Ready for session inside Pre-flight: the switch chips (/api/session/switches, faked here except
 // in the last test), turning them on and off with the toasts the old page shows, GM Actions from
-// the stream's settings event, the pre-flight row following, and Start the session log.
+// the stream's settings event, the pre-flight row following, and Start the session log. With no
+// session open the page shows Before, where Pre-flight (and Ready inside it) sits in the page.
 import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
 
 import { GM_TOKEN, fakeCommonRoutes, fakeStream, toast } from './support';
@@ -67,10 +68,9 @@ async function fakeReady(
 
 async function openReady(page: Page): Promise<Locator> {
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  await page.locator('#btn-preflight').click();
-  const drawer = page.getByRole('dialog', { name: '✈ Pre-flight' });
-  await expect(drawer).toBeVisible();
-  return drawer.locator('#ready-block');
+  const preflight = page.locator('#moment-before').getByRole('region', { name: '✈ Pre-flight' });
+  await expect(preflight).toBeVisible();
+  return preflight.locator('#ready-block');
 }
 
 const chips = (block: Locator): Locator =>
@@ -234,7 +234,12 @@ test('Start the session log starts it and then hides', async ({ page }) => {
   await expect
     .poll(() => fakes.tools)
     .toContainEqual({ name: 'mark-play-session', args: { action: 'start' } });
-  await expect(block.locator('#btn-ready-log')).toHaveCount(0);
+  // The page moves to During, where Pre-flight opens over the page, without the button.
+  await expect(page.getByRole('tab', { name: 'During' })).toHaveAttribute('aria-selected', 'true');
+  await page.locator('#btn-preflight').click();
+  const drawer = page.getByRole('dialog', { name: '✈ Pre-flight' });
+  await expect(drawer.locator('#ready-block')).toBeVisible();
+  await expect(drawer.locator('#btn-ready-log')).toHaveCount(0);
 });
 
 test('the real route answers with the bridge down', async ({ page }) => {

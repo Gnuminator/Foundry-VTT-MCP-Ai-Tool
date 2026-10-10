@@ -59,3 +59,63 @@ a.btn {
   border-color: var(--accent);
   color: var(--on-strong);
 }
+
+/* The page is a column (styles.css body): the header, the banners, then the views, which scroll
+   on their own (moments.css .moment-views). React's root must not break that column. */
+#root {
+  display: contents;
+}
+
+/* The moment tabs are a tablist here (Moments.tsx), not pressed buttons: the selected tab looks
+   like the old pressed one. */
+.moment-tab[aria-selected='true'] {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+
+/* A docked drawer sits in its slot through a wrapper that moves between slots (Drawer.tsx). */
+.dock-host {
+  display: contents;
+}
+/* The header and menu buttons focus a docked drawer to show where it is. */
+.drawer.docked:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* During without the bar (layouts) and the turn strip, which are not here yet: their grid rows
+   would leave empty gaps above the cards. They come back with those panels. */
+main.moment-views #moment-during {
+  grid-template-rows: auto auto auto 1fr;
+  grid-template-areas:
+    'feed changes'
+    'feed handouts'
+    'feed party'
+    'feed .';
+}
+@media (max-width: 899px) {
+  main.moment-views #moment-during {
+    grid-template-rows: none;
+    grid-template-areas: 'changes' 'feed' 'handouts' 'party';
+  }
+}
+
+/* A slot whose panel is not in the new dashboard yet (Moments.tsx NotHereYet): a short card,
+   never the tall Live Feed pane. */
+#moment-views .slot .pane.not-here-yet,
+#moment-views .pane.not-here-yet {
+  height: auto;
+  min-height: 0;
+}
+.not-here-yet-wide {
+  grid-column: 1 / -1;
+}
+.not-here-yet-text {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+.not-here-yet-text a {
+  color: var(--accent-bright);
+}

@@ -95,6 +95,93 @@ export function registerSettingsUsageHooks(): void {
   });
 }
 
+/** What the Enhanced Index window needs from `ApplicationV2` (the full class is in Foundry). */
+interface EnhancedIndexAppBase {
+  _onFirstRender?(context: unknown, options: unknown): Promise<void> | void;
+}
+type AppV2Class = new (...args: unknown[]) => EnhancedIndexAppBase;
+
+/** The submitted window: `FormDataExtended.object` holds each checkbox as a boolean. */
+interface EnhancedIndexFormData {
+  object: Record<string, unknown>;
+}
+
+/** The values the Enhanced Index template shows. */
+export function enhancedIndexContext(): Record<string, unknown> {
+  return {
+    enableEnhancedCreatureIndex: game.settings.get(MODULE_ID, 'enableEnhancedCreatureIndex'),
+    autoRebuildIndex: game.settings.get(MODULE_ID, 'autoRebuildIndex'),
+  };
+}
+
+/** "Save Settings" in the Enhanced Index window: both switches, window stays open. */
+export async function saveEnhancedIndexSettings(
+  _event: unknown,
+  _form: unknown,
+  formData: EnhancedIndexFormData
+): Promise<void> {
+  trackUsage('action', 'module.settings.enhanced-index-save');
+  await game.settings.set(
+    MODULE_ID,
+    'enableEnhancedCreatureIndex',
+    formData.object.enableEnhancedCreatureIndex === true
+  );
+  await game.settings.set(MODULE_ID, 'autoRebuildIndex', formData.object.autoRebuildIndex === true);
+  ui.notifications?.info('Enhanced Creature Index settings saved');
+}
+
+/** "Rebuild Creature Index" in the Enhanced Index window (`data-action="rebuild"`). */
+export function rebuildEnhancedIndex(): void {
+  trackUsage('action', 'module.settings.enhanced-index-rebuild');
+  const bridge = (
+    globalThis as {
+      foundryMCPBridge?: { dataAccess?: { rebuildEnhancedCreatureIndex?(): unknown } };
+    }
+  ).foundryMCPBridge;
+  if (bridge?.dataAccess?.rebuildEnhancedCreatureIndex) {
+    ui.notifications?.info('Rebuilding enhanced creature index...');
+    void bridge.dataAccess.rebuildEnhancedCreatureIndex();
+  }
+}
+
+/**
+ * The "Enhanced Creature Index" settings menu (D-109): an ApplicationV2 form with a Handlebars
+ * template (v14 deprecates FormApplication). Built at `init`, when Foundry's classes exist;
+ * Foundry opens it with `new type().render(true)`, so each click is a fresh window.
+ */
+export function createEnhancedIndexMenu(): new () => object {
+  const api = foundry.applications.api as {
+    ApplicationV2: AppV2Class;
+    HandlebarsApplicationMixin: (base: AppV2Class) => AppV2Class;
+  };
+  return class EnhancedIndexMenu extends api.HandlebarsApplicationMixin(api.ApplicationV2) {
+    static DEFAULT_OPTIONS = {
+      tag: 'form',
+      window: {
+        title: 'Enhanced Creature Index Settings',
+        icon: 'fas fa-search-plus',
+        resizable: false,
+      },
+      position: { width: 500, height: 'auto' },
+      form: { handler: saveEnhancedIndexSettings, closeOnSubmit: false, submitOnChange: false },
+      actions: { rebuild: rebuildEnhancedIndex },
+    };
+
+    static PARTS = {
+      form: { template: `modules/${MODULE_ID}/templates/enhanced-index-menu.html` },
+    };
+
+    async _prepareContext(): Promise<Record<string, unknown>> {
+      return enhancedIndexContext();
+    }
+
+    async _onFirstRender(context: unknown, options: unknown): Promise<void> {
+      await super._onFirstRender?.(context, options);
+      trackUsage('view', 'module.settings.enhanced-index-open');
+    }
+  };
+}
+
 export class ModuleSettings {
   private moduleId: string = MODULE_ID;
 
@@ -112,51 +199,7 @@ export class ModuleSettings {
       label: 'Configure Enhanced Index',
       hint: 'The Enhanced Creature Index pre-computes creature statistics for instant filtering by Challenge Rating, creature type, and abilities. This enables AI models to quickly find creatures matching specific criteria without loading every compendium entry.',
       icon: 'fas fa-search-plus',
-      type: class extends FormApplication {
-        static get defaultOptions(): Record<string, unknown> {
-          return foundry.utils.mergeObject(super.defaultOptions, {
-            title: 'Enhanced Creature Index Settings',
-            template: `modules/${MODULE_ID}/templates/enhanced-index-menu.html`,
-            width: 500,
-            height: 'auto',
-            resizable: false,
-            closeOnSubmit: false,
-          });
-        }
-
-        getData(): any {
-          return {
-            enableEnhancedCreatureIndex: game.settings.get(
-              MODULE_ID,
-              'enableEnhancedCreatureIndex'
-            ),
-            autoRebuildIndex: game.settings.get(MODULE_ID, 'autoRebuildIndex'),
-          };
-        }
-
-        activateListeners(html: JQuery): void {
-          super.activateListeners(html);
-          trackUsage('view', 'module.settings.enhanced-index-open');
-          html.find('.rebuild-index-btn').click(() => {
-            trackUsage('action', 'module.settings.enhanced-index-rebuild');
-            const bridge = (globalThis as any).foundryMCPBridge;
-            if (bridge?.dataAccess?.rebuildEnhancedCreatureIndex) {
-              ui.notifications?.info('Rebuilding enhanced creature index...');
-              bridge.dataAccess.rebuildEnhancedCreatureIndex();
-            }
-          });
-        }
-
-        async _updateObject(_event: Event, formData: any): Promise<void> {
-          trackUsage('action', 'module.settings.enhanced-index-save');
-          await game.settings.set(
-            MODULE_ID,
-            'enableEnhancedCreatureIndex',
-            formData.enableEnhancedCreatureIndex
-          );
-          await game.settings.set(MODULE_ID, 'autoRebuildIndex', formData.autoRebuildIndex);
-        }
-      },
+      type: createEnhancedIndexMenu(),
       restricted: true,
     });
 

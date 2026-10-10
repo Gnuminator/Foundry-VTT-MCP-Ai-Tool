@@ -8,7 +8,8 @@
 //   from a local zip, services that were off staying off, and a failed Assistant GM browser start.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -154,6 +155,39 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
     assert.match(problems, /module is not active/);
   });
 
+  test('run as a script (also through a symlinked folder), main() runs and stops on the missing TOOL_APP', () => {
+    const script = path.join(repo, 'scripts', 'pi', 'remote', 'player-creation-settings.mjs');
+    const env = { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '' };
+    const direct = spawnSync(process.execPath, [script], { encoding: 'utf8', env });
+    assert.equal(direct.status, 1, direct.stdout + direct.stderr);
+    assert.match(direct.stdout + direct.stderr, /TOOL_APP is not set/);
+
+    // Node gives import.meta.url the real path but keeps the link in argv[1]; the guard must still be true.
+    const dir = mkdtempSync(path.join(tmpdir(), 'pc-link-'));
+    const link = path.join(dir, 'remote');
+    try {
+      symlinkSync(path.dirname(script), link, 'junction');
+      const viaLink = spawnSync(
+        process.execPath,
+        [path.join(link, 'player-creation-settings.mjs')],
+        {
+          encoding: 'utf8',
+          env,
+        }
+      );
+      assert.equal(viaLink.status, 1, viaLink.stdout + viaLink.stderr);
+      assert.match(viaLink.stdout + viaLink.stderr, /TOOL_APP is not set/);
+    } finally {
+      // Remove the link itself first, so the cleanup can never walk into the real folder.
+      try {
+        unlinkSync(link);
+      } catch {
+        /* not created */
+      }
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('mismatches catch a lost role and a changed compendium source', () => {
     globalThis.game = fakeGame();
     const start = readState(ARGS);
@@ -177,6 +211,11 @@ const containerReason = saved
   : !process.env.PI_STAGE13_CONTAINER
     ? 'set PI_STAGE13_CONTAINER=1 to run the stage in a Docker ARM64 container'
     : spawnSync('docker', ['version'], { encoding: 'utf8' }).status !== 0 && 'no Docker here';
+// In CI a missing Docker is a failure, not a skip: the step would go green without running a scenario.
+const noDockerInCi = Boolean(process.env.CI) && containerReason === 'no Docker here';
+// Debian 13 (trixie), pinned by digest so a new upstream image cannot change a required check overnight.
+// Update: docker buildx imagetools inspect debian:13 (the index digest, not one platform's).
+const IMAGE = 'debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5';
 
 // About 30 minutes under QEMU emulation on a PC, a few minutes on an ARM runner.
 function runContainer() {
@@ -189,7 +228,7 @@ function runContainer() {
       'linux/arm64',
       '-v',
       `${repo}:/repo:ro`,
-      'debian:13',
+      IMAGE,
       'bash',
       '/repo/scripts/pi/container-test/stage13-scenarios.sh',
     ],
@@ -197,6 +236,10 @@ function runContainer() {
   );
   return `${res.stdout ?? ''}\n${res.stderr ?? ''}${res.error ? `\n${res.error.message}` : ''}`;
 }
+
+test('the container suite has Docker when CI asks for it', { skip: !noDockerInCi }, () => {
+  assert.fail('PI_STAGE13_CONTAINER=1 and CI are set, but `docker version` failed');
+});
 
 describe('13-player-creation.sh in an ARM64 container', { skip: containerReason }, () => {
   /** @type {Map<string, {output: string, exit: number, calls: string[], world: string, version: string, prev: string[]}>} */

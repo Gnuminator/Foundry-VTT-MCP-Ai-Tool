@@ -3,17 +3,29 @@
 # for systemctl, curl (/api/status and /join), journalctl and sleep make it take its systemd path, and a fake
 # in-browser part replaces the Chromium driver. Each scenario starts from a fresh fake Pi and prints one block
 # that scripts/pi/player-creation.test.mjs reads:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" debian:13 bash /repo/scripts/pi/container-test/stage13-scenarios.sh [name ...]
-# With names, only those scenarios run. Nothing here reaches the network after apt-get: the Actor Studio
-# build comes from a local zip (STUDIO_ZIP), never from GitHub.
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage13-scenarios.sh [name ...]
+# (<IMAGE> is the pinned Debian 13 image in player-creation.test.mjs.) With names, only those scenarios run.
+# Nothing here reaches the network after apt-get: the Actor Studio build comes from a local zip (STUDIO_ZIP),
+# never from GitHub. The stage's node snippets run on Debian 13's own nodejs (20.x) linked as
+# /opt/node24/bin/node, not Node 24 as on the Pi; they use nothing newer than Node 20.
+#
+# DESTRUCTIVE: each scenario wipes the Foundry data folder and the tool's folders, and the fakes go into
+# /usr/local/sbin. It refuses to run anywhere but a container.
 set -uo pipefail
+
+[ -f /.dockerenv ] || [ -n "${container:-}" ] || {
+  echo "REFUSED: run this only in the test container (docker run ..., see the header)"
+  exit 98
+}
 
 H=/repo/scripts/pi/container-test
 STAGE=/repo/scripts/pi/remote/13-player-creation.sh
 LIB=/repo/scripts/pi/remote/lib.sh
 
 export DEBIAN_FRONTEND=noninteractive
-{ apt-get update && apt-get install -y --no-install-recommends nodejs zip unzip curl ca-certificates; } >/dev/null 2>&1 || {
+apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs zip unzip curl ca-certificates; }
+# One retry: a Debian mirror hiccup should not fail a required CI check.
+{ apt_setup || { /bin/sleep 20 && apt_setup; }; } >/dev/null 2>&1 || {
   echo "SETUP FAILED: apt-get"
   exit 99
 }
@@ -29,7 +41,7 @@ id "$FOUNDRY_USER" >/dev/null 2>&1 || useradd --system --home-dir "$FOUNDRY_DATA
 
 # $1 the installed Actor Studio version ("" for the pinned one, "none" for no module)
 fresh_pi() {
-  rm -rf "$FOUNDRY_DATA" "$TOOL_DIR" "$TOOL_ETC" "$TOOL_DATA" "$IMPORT" /root/player-creation-settings.mjs
+  rm -rf "${FOUNDRY_DATA:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" "${IMPORT:?}" /root/player-creation-settings.mjs
   rm -f /tmp/stopped-* /tmp/gmbroken /tmp/calls /tmp/status /tmp/status_rc
   mkdir -p "$FOUNDRY_DATA/Config" "$FOUNDRY_DATA/Data/worlds" "$FOUNDRY_DATA/Data/modules"
   echo '{"world":"curse-of-strahd"}' >"$FOUNDRY_DATA/Config/options.json"
@@ -57,7 +69,7 @@ fresh_pi() {
 # A module zip of the pinned version under $IMPORT; prints the STUDIO_ZIP and STUDIO_SHA256 pair for env.
 local_zip() {
   local dir=/tmp/zip-src zip="$IMPORT/test-studio.zip"
-  rm -rf "$dir" && mkdir -p "$dir/dist"
+  rm -rf "${dir:?}" && mkdir -p "$dir/dist"
   echo '{"id":"foundryvtt-actor-studio","version":"'"$PINNED_VERSION"'"}' >"$dir/module.json"
   echo 'export {};' >"$dir/dist/index.js"
   install -d -m 700 "$IMPORT"

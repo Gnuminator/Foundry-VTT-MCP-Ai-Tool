@@ -13,7 +13,7 @@
 // CHROMIUM (default /usr/bin/chromium), GM_USER, GM_PASSWORD, WORLD (the world id that must be running).
 
 import { createRequire } from 'node:module';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -218,8 +218,11 @@ async function main() {
   }
 }
 
-// Run only as a script (stage 13 runs it with node); the tests import the functions above.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Run only as a script (stage 13 runs it with node); the tests import the functions above. import.meta.url is the
+// real path while argv[1] keeps a symlinked one, so compare against the real path: a false guard would exit 0 and
+// change nothing, and stage 13 would report the settings as set.
+const invokedAs = process.argv[1] ? pathToFileURL(realpathSync(process.argv[1])).href : '';
+if (invokedAs === import.meta.url) {
   main().catch(err => {
     log(`error: ${err?.message ?? err}`);
     process.exit(1);

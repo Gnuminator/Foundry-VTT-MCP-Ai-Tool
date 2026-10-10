@@ -745,7 +745,12 @@ async function createHero(args) {
 
   // Waits for dnd5e's unawaited species link and cached spells before the next manager clones the
   // actor (settle-created.mjs has the why; gm.mjs sends its source in args._helpers).
-  const settle = new Function(`return (${args._helpers.settleCreated});`)();
+  const settleSource = args._helpers?.settleCreated;
+  if (typeof settleSource !== 'string')
+    throw new Error(
+      'createHero: args._helpers.settleCreated is missing (gm.mjs sends it; run createHero through gm.mjs)'
+    );
+  const settle = new Function(`return (${settleSource});`)();
   const settleCreated = (actor, label) =>
     settle(actor, label, { resolveUuid: uuid => fromUuid(uuid), sleep });
 

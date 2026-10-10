@@ -34,6 +34,7 @@ function stubActor({ race, linked = false, casts = [] }) {
     _source: source,
     items: { contents },
     link: () => (source.system.details.race = race.id),
+    linkTo: id => (source.system.details.race = id),
     cache: name => {
       for (const it of contents) for (const a of it.acts) if (a.name === name) a.cachedSpell = {};
     },
@@ -89,6 +90,24 @@ test('settleCreated waits for a species link that lands late', async () => {
   });
   assert.equal(clock.t, 300);
   assert.equal(actor._source.system.details.race, 'race1');
+});
+
+test('settleCreated waits for a species that replaced the first one mid-wait', async () => {
+  const actor = stubActor({ race: ELF });
+  const DWARF = { id: 'race2', name: 'Dwarf' };
+  const clock = fakeClock();
+  // The Elf links, then a Dwarf replaces it before the check: the Dwarf must link too.
+  clock.at(100, () => {
+    actor.link();
+    actor.itemTypes.race = [DWARF];
+  });
+  clock.at(500, () => actor.linkTo('race2'));
+  await settleCreated(actor, 'species', {
+    resolveUuid: exists,
+    sleep: clock.sleep,
+    now: clock.now,
+  });
+  assert.equal(clock.t, 500);
 });
 
 test('settleCreated fails a species that never links, and the error classifies as SYSTEM', async () => {

@@ -22,7 +22,7 @@ export const DIRTY_STAMP_DEBOUNCE_MS = 1_000;
 export const BUILD_RETRY_COOLDOWN_MS = 60_000;
 
 /** Creatures in a pack's first `getDocuments` call during a build (the browser runs in between). */
-export const PACK_LOAD_CHUNK_SIZE = 25;
+export const PACK_LOAD_CHUNK_SIZE = 10;
 
 /** The build's progress note changes at most this often within one pack. */
 const PROGRESS_INTERVAL_MS = 1_000;

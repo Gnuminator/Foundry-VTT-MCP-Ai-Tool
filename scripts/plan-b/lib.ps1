@@ -311,6 +311,37 @@ function Get-PlanBDeadServices($Listening) {
   return , @($Listening.Keys | Where-Object { -not $Listening[$_] })
 }
 
+# Whether push-back.ps1 may build the bundle that takes a played Plan B world back to the Pi, and with
+# what (docs/dev/PLAN-B.md, "After the night"). Running: the recorded services that still run (stop.ps1
+# first: Foundry's LevelDB is in use while it runs). Returns Ok, Message and, when Ok: World, BasedOn (the
+# Pi backup's time in UTC, ISO 8601 with milliseconds, for stage 11's change check) and FoundryPort (the
+# port start.ps1 last used, 30000 when none is recorded).
+function Resolve-PlanBPushBack($State, [string[]]$Running = @()) {
+  if (-not $State -or -not $State.PSObject.Properties['restoredAt'] -or -not $State.restoredAt) {
+    return @{ Ok = $false; Message = 'state.json records no Plan B restore: there is nothing to push back' }
+  }
+  $played = $State.PSObject.Properties['played'] -and $State.played
+  if (-not $played) {
+    return @{ Ok = $false; Message = 'this Plan B copy was never played on a game night (start.ps1 -GameNight): the Pi already has everything in it, so there is nothing to push back' }
+  }
+  $up = @($Running | Where-Object { $_ })
+  if ($up.Count) {
+    return @{ Ok = $false; Message = "Plan B still runs ($($up -join ', ')): run .\scripts\plan-b\stop.ps1 first (Foundry's database is in use while it runs)" }
+  }
+  $world = if ($State.PSObject.Properties['world']) { [string]$State.world } else { '' }
+  if ($world -notmatch '^[a-z0-9-]+$') { return @{ Ok = $false; Message = "state.json names no valid world ('$world')" } }
+  $snap = if ($State.PSObject.Properties['snapshot']) { $State.snapshot } else { $null }
+  if (-not $snap -or -not $snap.PSObject.Properties['time'] -or -not $snap.time) {
+    return @{ Ok = $false; Message = 'state.json records no snapshot time, so the Pi''s world cannot be checked for later changes' }
+  }
+  $basedOn = (ConvertTo-PlanBUtc $snap.time).ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [Globalization.CultureInfo]::InvariantCulture)
+  $port = 30000
+  if ($State.PSObject.Properties['ports'] -and $State.ports -and $State.ports.PSObject.Properties['Foundry'] -and $State.ports.Foundry) {
+    $port = [int]$State.ports.Foundry
+  }
+  return @{ Ok = $true; Message = 'ok'; World = $world; BasedOn = $basedOn; FoundryPort = $port; PlayedAt = [string]$State.playedAt }
+}
+
 # --- processes, files and network (not unit tested) -----------------------------------------------
 
 # This PC's Tailscale: 'online', 'offline' or 'missing' (from tailscale status --json).

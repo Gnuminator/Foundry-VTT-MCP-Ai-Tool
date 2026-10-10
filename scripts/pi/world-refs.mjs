@@ -11,6 +11,9 @@
 //                                 a prefix). A key with cookie, token, secret, password and so on in its name is
 //                                 always a problem, whatever this list says.
 //     --gm-user <name>            the world's GM user (default Gamemaster); stage 11 joins it with an empty password
+//     --gm-password-ok            the GM's password is reported (gmUser.hasPassword) but is not a problem: a Plan B
+//                                 push-back (docs/dev/PLAN-B.md), where the world keeps the Pi's own password and
+//                                 stage 11 joins with the password in the Pi's world env file
 //     --allow-missing a,b*        reviewed "known missing" asset paths: an exact path, or a prefix ending in *. A path
 //                                 that is really missing on disk and matches is not a problem; it is only counted
 //                                 (allowedMissingCount). A wrong-case path, or a path outside the bundle that exists on
@@ -230,8 +233,9 @@ function isEmptyPasswordHash(password, salt) {
  * The world's GM user, as the problems it would cause for stage 11 (which joins with an empty password).
  * users: user documents ({ name, role, password, passwordSalt }). Returns { found, hasPassword, problems }
  * and never any password or salt value. The stored hash of the empty string is not a password.
+ * passwordOk (a Plan B push-back): a password is still reported in hasPassword, but is not a problem.
  */
-export function gmUserCheck(users, name) {
+export function gmUserCheck(users, name, { passwordOk = false } = {}) {
   const gm = users.find(u => u?.name === name && u?.role === 4);
   const problems = [];
   if (!gm) problems.push(`no user named ${name} with the Gamemaster role (role 4)`);
@@ -240,7 +244,7 @@ export function gmUserCheck(users, name) {
     typeof gm.password === 'string' &&
     gm.password !== '' &&
     !isEmptyPasswordHash(gm.password, gm.passwordSalt);
-  if (hasPassword)
+  if (hasPassword && !passwordOk)
     problems.push(`${name} has a password (stage 11 joins with an empty one: clear it first)`);
   return { found: !!gm, hasPassword, problems };
 }
@@ -379,6 +383,7 @@ export function parseArgs(argv) {
     allow: [],
     allowMissing: [],
     gmUser: 'Gamemaster',
+    gmPasswordOk: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -391,6 +396,7 @@ export function parseArgs(argv) {
     else if (a === '--allow-missing')
       o.allowMissing = validateAllowMissing((argv[++i] ?? '').split(',').filter(Boolean));
     else if (a === '--gm-user') o.gmUser = argv[++i];
+    else if (a === '--gm-password-ok') o.gmPasswordOk = true;
     else throw new Error(`unknown argument ${a}`);
   }
   if (!/^[a-z0-9-]+$/.test(o.world))
@@ -457,7 +463,7 @@ async function main() {
   });
   const secrets = secretSettingKeys(settings, o.allow);
   const active = activeModules(settings);
-  const gm = gmUserCheck(users, o.gmUser);
+  const gm = gmUserCheck(users, o.gmUser, { passwordOk: o.gmPasswordOk });
   const result = {
     world: o.world,
     modules: o.modules,
@@ -482,7 +488,12 @@ async function main() {
       activeNotShipped: unshippedActive(active, o.modules),
       gmUser: gm.problems,
     },
-    gmUser: { name: o.gmUser, found: gm.found, hasPassword: gm.hasPassword },
+    gmUser: {
+      name: o.gmUser,
+      found: gm.found,
+      hasPassword: gm.hasPassword,
+      passwordOk: o.gmPasswordOk,
+    },
   };
   const p = result.problems;
   result.ok = !(
@@ -535,6 +546,8 @@ async function main() {
           : `PROBLEM active in the world but not shipped: ${id} (ship it with -Modules or switch it off in the world)`
       );
     for (const m of p.gmUser) console.log(`PROBLEM ${m}`);
+    if (gm.hasPassword && o.gmPasswordOk)
+      console.log(`${o.gmUser} has a password (kept: --gm-password-ok)`);
     if (p.otherRootsCount)
       console.log(
         `PROBLEM ${p.otherRootsCount} paths in unknown roots (first ${p.otherRoots.length}):\n` +

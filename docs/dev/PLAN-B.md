@@ -114,15 +114,41 @@ night; changes made by hand in Foundry need no dashboard.
 1. **Stop:** `.\scripts\plan-b\stop.ps1`. The data stays.
 2. **Claude back to the Pi:** `.\scripts\plan-b\connectors.ps1 -To pi`, then restart Claude Desktop.
 3. **The world goes back to the Pi before anyone plays there again.** Otherwise the Pi starts from
-   its old backup and the Plan B night is lost. This is a Pi change: a session prepares it, takes a
-   snapshot and runs it after your OK (the Pi rule in CLAUDE.md). The way is `push-world.ps1` with
-   `-DataPath C:\FoundryPlanB\data\Data` and stage 11 with `REPLACE_WORLD=1`; it is not built yet
-   (follow-up: stage 11 expects a world whose Gamemaster has no password, the Pi's copy has one).
-   Until then, tell the players not to use the Pi's address.
-   **Rule for that push-back:** it must refuse when the Pi's world changed after the backup Plan B
-   restored (`snapshot.time` in `C:\FoundryPlanB\state.json`), unless you tell it to replace the
-   Pi's copy anyway. Someone may have played on the Pi after it came back, and that night would be
-   lost. The Pi's old copy is kept in `/var/lib/foundry-import/prev-<time>` either way.
+   its old backup and the Plan B night is lost. Until it is back, tell the players not to use the
+   Pi's address. First build and check the bundle on your PC (nothing goes to the Pi):
+
+   ```powershell
+   .\scripts\plan-b\push-back.ps1
+   ```
+
+   It refuses while Plan B still runs (run `stop.ps1` first) and when the copy was never played on
+   a game night. The rest is a Pi change, so a session does it after your OK (the Pi rule in
+   CLAUDE.md): it takes a `dietpi-backup 1` snapshot, runs `push-back.ps1 -Upload`, and then runs
+   the stage 11 command that prints (`REPLACE_WORLD=1 KIT_WORLD=`: the Pi's world is replaced, the
+   kit world is left for the next normal push). Foundry on the Pi stops for a few minutes.
+   **Rule for the push-back:** it refuses when the Pi's world changed after the backup Plan B
+   restored (`snapshot.time` in `C:\FoundryPlanB\state.json`). Someone may have played or prepared
+   on the Pi after it came back, and that work would be lost. Stage 11 then lists up to five of the
+   changed documents (collection, name, time) and replaces nothing. Expect it often: the Pi usually
+   runs for some hours after its 04:30 backup, and the GM's prep through the AI tools counts. You
+   decide: only with your OK does the session run it again with `REPLACE_NEWER=1`. Starting the
+   world alone changes nothing (measured 2026-10-09: Foundry started, the Assistant GM joined and
+   the bridge linked, and none of the world's 11,032 documents changed), so the list shows real
+   work; a module added later that writes a setting at start could show up too. A document that
+   was only deleted on the Pi leaves no trace and is not seen, and neither is a file in the world
+   folder outside its databases (an image uploaded into `worlds/<id>/`, an edit to `world.json`);
+   such a change usually comes with a document change, which is seen. The Pi's old copy is kept in
+   `/var/lib/foundry-import/prev-<time>` either way.
+   If the run fails after the world was swapped in (for example the Assistant GM cannot join),
+   stage 11 says so: the pushed world is installed and Foundry runs it. Fix the cause and run the
+   same command again. The change check then passes without `REPLACE_NEWER=1`: it skips documents
+   that are the same in the bundle and the users and setting stage 11 provisions itself. Restore
+   Plan B fresh for each night; a second push-back of a world that was changed again on the PC
+   lists those changes.
+   **Modules:** the bundle carries the modules Plan B restored from the Pi backup. One that was
+   updated on the Pi after that backup (a higher version in its `module.json`) is kept and named
+   in the output; a push-back never downgrades a module.
+
 4. **Clean up once the world is back on the Pi:** `.\scripts\plan-b\stop.ps1 -Clean -PushedBack`.
    It keeps Foundry and the licence for next time. Without `-PushedBack` it refuses to delete a
    world a night was played on.

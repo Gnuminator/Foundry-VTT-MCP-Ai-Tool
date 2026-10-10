@@ -1,9 +1,11 @@
-// Tests for the pure parts of scripts/pi/world-refs.mjs (no LevelDB):
+// Tests for the pure parts of scripts/pi/world-refs.mjs, and for the stage 11 checks that live next to it
+// (the push-back change check runs against a small LevelDB when Foundry's classic-level is on this PC):
 //   node --test scripts/pi/world-refs.test.mjs
 import assert from 'node:assert/strict';
 import { pbkdf2Sync } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -270,6 +272,21 @@ test('gmUserCheck reports a password or a missing GM, never a value', () => {
   assert.equal(gmUserCheck(users, 'Nobody').problems.length, 1);
 });
 
+test('gmUserCheck passwordOk (Plan B push-back): a password is reported but is not a problem', () => {
+  const users = [{ name: 'Gamemaster', role: 4, password: '$2b$hash', passwordSalt: 'salt' }];
+  const kept = gmUserCheck(users, 'Gamemaster', { passwordOk: true });
+  assert.equal(kept.found, true);
+  assert.equal(kept.hasPassword, true);
+  assert.deepEqual(kept.problems, []);
+  assert.ok(!JSON.stringify(kept).includes('hash') && !JSON.stringify(kept).includes('salt'));
+  // a missing GM stays a problem
+  assert.equal(gmUserCheck(users, 'Nobody', { passwordOk: true }).problems.length, 1);
+  // the flag on the command line
+  const base = ['--world', 'curse-of-strahd'];
+  assert.equal(parseArgs(base).gmPasswordOk, false);
+  assert.equal(parseArgs([...base, '--gm-password-ok']).gmPasswordOk, true);
+});
+
 test('gmUserCheck: the stored hash of an empty password is not a password (Foundry 14)', () => {
   const salt = 'a1b2c3d4e5f60718';
   const hashOf = pw => pbkdf2Sync(pw, salt, 1000, 64, 'sha512').toString('hex');
@@ -484,6 +501,156 @@ test(
     for (const file of ['lib.sh', '11-world.sh', '13-player-creation.sh']) {
       const r = spawnSync('bash', ['-n', path.join(remote, file)], { encoding: 'utf8' });
       assert.equal(r.status, 0, `${file}: ${r.stderr}`);
+    }
+  }
+);
+
+// Stage 11's push-back change check is a node script inside the stage (only lib.sh and the stage travel over
+// SSH). It is cut out here, checked, and run against a small LevelDB when Foundry's classic-level is on this PC.
+function stage11ChangeCheck(dir) {
+  const text = readFileSync(path.join(remote, '11-world.sh'), 'utf8');
+  const m = /<<'NODE' \|\| scan_rc=\$\?\n([\s\S]*?)\nNODE\n/.exec(text);
+  assert.ok(m, "11-world.sh has no <<'NODE' change check");
+  const file = path.join(dir, 'change-check.mjs');
+  writeFileSync(file, m[1] + '\n');
+  return file;
+}
+
+test('the change check inside stage 11 parses (node --check)', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'stage11-check-'));
+  try {
+    const r = spawnSync(process.execPath, ['--check', stage11ChangeCheck(dir)], {
+      encoding: 'utf8',
+    });
+    assert.equal(r.status, 0, r.stderr);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+const levelPath =
+  process.env.FOUNDRY_CLASSIC_LEVEL || 'C:/FoundryTest/app/node_modules/classic-level';
+test(
+  'the change check inside stage 11 lists documents newer than the snapshot, names only',
+  { skip: !existsSync(levelPath) && `no classic-level at ${levelPath}` },
+  async () => {
+    const { ClassicLevel } = createRequire(import.meta.url)(levelPath);
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'stage11-check-'));
+    try {
+      const script = stage11ChangeCheck(dir);
+      const since = Date.parse('2026-10-09T02:30:00Z');
+      const put = async (db, entries) => {
+        mkdirSync(path.dirname(db), { recursive: true });
+        const level = new ClassicLevel(db, { valueEncoding: 'utf8' });
+        await level.open();
+        for (const [k, v] of entries)
+          await level.put(k, typeof v === 'string' ? v : JSON.stringify(v));
+        await level.close();
+      };
+      const stats = (created, modified) => ({
+        _stats: { createdTime: created, modifiedTime: modified },
+      });
+      await put(path.join(dir, 'world', 'data', 'actors'), [
+        ['!actors!a1', { _id: 'a1', name: 'Old Ireena', ...stats(since - 9e6, since - 1e6) }],
+        [
+          '!actors!a2',
+          {
+            _id: 'a2',
+            name: 'Changed Ismark',
+            secret: 'SECRET-HP',
+            ...stats(since - 9e6, since + 2000),
+          },
+        ],
+        [
+          '!actors.items!a1.i1',
+          { _id: 'i1', name: 'New dagger', ...stats(since + 5000, since + 5000) },
+        ],
+        ['!actors!bad', 'not json'],
+      ]);
+      await put(path.join(dir, 'world', 'data', 'settings'), [
+        [
+          '!settings!s1',
+          { _id: 's1', key: 'core.time', value: '1', ...stats(since - 5, since + 1) },
+        ],
+        ['!settings!s2', { _id: 's2', key: 'core.old', value: '2', ...stats(since - 5, since) }],
+      ]);
+      await put(path.join(dir, 'world', 'packs', 'lore'), [
+        [
+          '!journal!j1',
+          { _id: 'j1', name: 'Pack page\nwith a newline', ...stats(since + 9000, null) },
+        ],
+      ]);
+      // an empty folder that is no LevelDB is skipped
+      mkdirSync(path.join(dir, 'world', 'data', 'empty'), { recursive: true });
+      // args: the Pi's world, the bundle's world (a missing folder is an empty world), the snapshot time,
+      // then the user names stage 11 provisions
+      const run = (time, bundle = path.join(dir, 'no-bundle'), ...names) =>
+        spawnSync(
+          process.execPath,
+          [script, levelPath, path.join(dir, 'world'), bundle, time, ...names],
+          { encoding: 'utf8' }
+        );
+
+      const r = run('2026-10-09T02:30:00.000Z');
+      assert.equal(r.status, 3, r.stderr);
+      const lines = r.stdout.trim().split('\n');
+      // newer documents, documents scanned (the non-JSON value too), LevelDB folders, newer ones the same in
+      // the bundle, newer ones stage 11 provisions itself
+      assert.equal(lines[0], '4 7 3 0 0');
+      assert.deepEqual(lines.slice(1), [
+        `pack:lore/journal Pack page?with a newline ${new Date(since + 9000).toISOString()}`,
+        `actors.items New dagger ${new Date(since + 5000).toISOString()}`,
+        `actors Changed Ismark ${new Date(since + 2000).toISOString()}`,
+        `settings core.time ${new Date(since + 1).toISOString()}`,
+      ]);
+      assert.ok(!r.stdout.includes('SECRET-HP') && !r.stdout.includes('Old Ireena'));
+
+      const later = run('2026-10-09T02:30:09.000Z');
+      assert.equal(later.status, 0, later.stderr);
+      assert.equal(later.stdout.trim(), '0 7 3 0 0');
+
+      assert.equal(run('yesterday-ish').status, 1);
+
+      // A rerun on a world an earlier push-back installed: a document with the same key and times in the
+      // bundle is the bundle's own, and the users and setting stage 11 provisions do not count either.
+      await put(path.join(dir, 'world', 'data', 'users'), [
+        ['!users!u1', { _id: 'u1', name: 'Gamemaster', ...stats(since - 9e6, since + 4000) }],
+        ['!users!u2', { _id: 'u2', name: 'Player', ...stats(since - 9e6, since + 3000) }],
+      ]);
+      await put(path.join(dir, 'world', 'data', 'settings'), [
+        [
+          '!settings!s3',
+          { _id: 's3', key: 'foundry-mcp-bridge.bridgeUserId', ...stats(since - 5, since + 7) },
+        ],
+      ]);
+      await put(path.join(dir, 'bundle', 'data', 'actors'), [
+        ['!actors!a2', { _id: 'a2', name: 'Changed Ismark', ...stats(since - 9e6, since + 2000) }],
+        // same key, other time: the Pi's copy changed again after the push-back
+        [
+          '!actors.items!a1.i1',
+          { _id: 'i1', name: 'New dagger', ...stats(since + 5000, since + 4000) },
+        ],
+      ]);
+      const again = run(
+        '2026-10-09T02:30:00.000Z',
+        path.join(dir, 'bundle'),
+        'Gamemaster',
+        'Assistant GM'
+      );
+      assert.equal(again.status, 3, again.stderr);
+      const againLines = again.stdout.trim().split('\n');
+      assert.equal(againLines[0], '4 10 4 1 2');
+      assert.deepEqual(
+        againLines.slice(1).map(l => l.replace(/ \S+$/, '')),
+        [
+          'pack:lore/journal Pack page?with a newline',
+          'actors.items New dagger',
+          'users Player',
+          'settings core.time',
+        ]
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   }
 );

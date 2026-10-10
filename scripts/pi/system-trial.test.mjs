@@ -142,6 +142,8 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
       output: label => part(label, 'output'),
       calls: label => lines(part(label, 'calls')),
       downloads: label => lines(part(label, 'downloads')),
+      /** The stage's log file after that run ("none" when there is none). */
+      log: label => part(label, 'log'),
       /** The state text of a run, and the same without its zips line (a refused run may keep the download). */
       rawState: label => part(label, 'state'),
       state: label => parseState(part(label, 'state')),
@@ -161,6 +163,10 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
       trial: /** @type {Record<string, string>|null} */ (null),
       trialDir: /** @type {string[]} */ ([]),
       worlds: /** @type {Record<string, World>} */ ({}),
+      /** each world's dnd5e.systemMigrationVersion and what the Assistant GM join left in its folder ("-": nothing) */
+      settings: /** @type {Record<string, {setting: string, gm: string}>} */ ({}),
+      /** the same setting in the trial's copies */
+      copySettings: /** @type {Record<string, string>} */ ({}),
       copies: /** @type {Record<string, Omit<World, 'opened'>>} */ ({}),
       prev: /** @type {string[]} */ ([]),
     };
@@ -196,8 +202,13 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
           marker: f.marker,
           files: f.files.split(','),
         };
-        if (kind === 'world') st.worlds[id] = { ...entry, opened: f.opened };
-        else st.copies[id] = entry;
+        if (kind === 'world') {
+          st.worlds[id] = { ...entry, opened: f.opened };
+          st.settings[id] = { setting: f.setting, gm: f.gm };
+        } else {
+          st.copies[id] = entry;
+          st.copySettings[id] = f.setting;
+        }
       } else assert.fail(`odd state line: ${line}`);
     }
     return st;
@@ -294,11 +305,31 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     );
     assert.match(out, /strahd-kit is running/);
     assert.match(out, /Foundry reports dnd5e 6\.0\.6/);
-    assert.doesNotMatch(out, /did not finish/);
+    // The release's needsMigrationVersion (6.0.0) is older than the kit world's setting (6.0.5): no migration to wait for.
+    assert.match(
+      out,
+      /strahd-kit needs no dnd5e data migration for 6\.0\.6 \(needsMigrationVersion 6\.0\.0\)/
+    );
+    assert.doesNotMatch(out, /did not finish|waiting for the dnd5e data migration/);
+    // The first line says the run is logged; the log holds the lines of the run, each with a time.
+    assert.equal(
+      lines(out)[0],
+      '    ok: MODE=trial started (this run is logged in /var/lib/foundry-import/system-trial.log)'
+    );
+    const log = r.log('trial');
+    assert.match(log, /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d {5}ok: MODE=trial started \(this run is logged in /m);
+    assert.match(log, /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ==> checking the request \(MODE=trial\)$/m);
+    assert.match(log, / {4}ok: sha256 matches the pin$/m);
+    assert.match(log, / {4}ok: strahd-kit is running$/m);
+    assert.match(log, / {4}ok: strahd-kit needs no dnd5e data migration for 6\.0\.6/);
+    assert.match(log, / {4}next: run the test kit on strahd-kit, then MODE=switch/);
     assert.deepEqual(r.downloads('trial'), [PIN_URL]);
     const st = r.state('trial');
     assertTrialState(st);
     assert.equal(st.zips, 'dnd5e-release-6.0.6.zip');
+    // Every world keeps its setting (6.0.5); nothing was migrated.
+    for (const id of WORLDS) assert.deepEqual(st.settings[id], { setting: '6.0.5', gm: '-' }, id);
+    for (const id of WORLDS) assert.equal(st.copySettings[id], '6.0.5', `copy of ${id}`);
     // Order: the Assistant GM browser and Foundry stop, Foundry starts on the kit world, then the browser.
     const calls = r.calls('trial');
     const at = c => calls.indexOf(c);

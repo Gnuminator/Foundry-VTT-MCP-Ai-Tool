@@ -28,6 +28,10 @@ case "$cmd" in
       world="$(sed -n 's/.*"world": *"\([^"]*\)".*/\1/p' /var/lib/foundry/Config/options.json)"
       [ -z "$world" ] || /usr/local/sbin/fake-foundry-open "$world"
     fi
+    # Stage 14 scenarios: the Assistant GM browser joining the world is when dnd5e migrates the world's data.
+    if [ "$unit" = foundry-ai-tool-gm-browser.service ] && [ -f /tmp/fake_foundry_opens ]; then
+      /usr/local/sbin/fake-dnd5e-migrate
+    fi
     ;;
 esac
 exit 0

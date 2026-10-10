@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# What the Assistant GM browser does when it joins the world options.json names (stage 14 scenarios): dnd5e migrates
+# the world's data in the first GM client that joins, not when the server launches the world. The rule is dnd5e's
+# own: with the world's systemMigrationVersion (else world.json flags.dnd5e.version) empty, or older than the
+# installed system.json's flags.needsMigrationVersion, the setting becomes the installed version and a marker file
+# says who did it. /tmp/migration_hangs makes the migration never finish (nothing is written).
+data=/var/lib/foundry/Data
+[ ! -f /tmp/migration_hangs ] || exit 0
+world="$(sed -n 's/.*"world": *"\([^"]*\)".*/\1/p' /var/lib/foundry/Config/options.json)"
+[ -n "$world" ] || exit 0
+w="$data/worlds/$world"
+[ -f "$w/world.json" ] || exit 0
+sysjson="$data/systems/dnd5e/system.json"
+ver="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$sysjson" | head -n1)"
+needs="$(sed -n 's/.*"needsMigrationVersion": *"\([^"]*\)".*/\1/p' "$sysjson" | head -n1)"
+cv="$(fake-settings get "$w/data/settings")"
+if [ "$cv" = none ]; then
+  cv="$(sed -n 's/.*"dnd5e": *{ *"version": *"\([^"]*\)".*/\1/p' "$w/world.json" | head -n1)"
+fi
+due=0
+if [ -z "$cv" ]; then
+  due=1
+elif [ -n "$needs" ] && [ "$needs" != "$cv" ] && [ "$(printf '%s\n%s\n' "$needs" "$cv" | sort -V | tail -n1)" = "$needs" ]; then
+  due=1
+fi
+[ "$due" = 1 ] || exit 0
+fake-settings set "$w/data/settings" "$ver"
+echo "migrated to dnd5e $ver by the Assistant GM join" >"$w/migrated-by-gm.txt"

@@ -5,9 +5,11 @@
 // (scripts/pi/container-test/stage11-scenarios.sh). Covered: the Frostmaiden training world with an extra GM
 // (its env file, one provisioning call, options.json back on the real world, the kit world untouched), a rerun
 // that keeps the world and changes nothing, a kept world gaining the extra GM, the refusals that must happen
-// before anything stops (a pi-modules module the Pi lacks, another extra GM in the env file, the extra GM named like the GM or the Assistant GM,
-// a missing KIT_WORLD or KIT_TITLE, a LAUNCH world that is not installed), no password in the output, and the
-// old Strahd default (the kit copy reset, no extra GM). Without PI_STAGE11_CONTAINER the file skips.
+// before anything stops (a pi-modules module the Pi lacks, another extra GM in the env file, the extra GM named like the GM or the Assistant GM
+// or written with a space at its end, a missing KIT_WORLD, KIT_TITLE or LAUNCH, a KIT_WORLD that names the campaign
+// or the launched world, a second world's bundle that ships a module without SHIP_MODULES=1, a LAUNCH world that is
+// not installed), a failed provisioning followed by a plain rerun that provisions again, no password in the output,
+// and the old Strahd default (the kit copy reset, no extra GM). Without PI_STAGE11_CONTAINER the file skips.
 // PI_STAGE11_OUTPUT=<file> checks a saved stage11-scenarios.sh output instead of starting Docker.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -77,6 +79,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
           before: part('env before'),
           first: part('first run'),
           after: part('env after'),
+          pending: part('pending'),
           sentinels: part('sentinels'),
           worlds: part('worlds'),
           modules: part('modules'),
@@ -158,6 +161,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
       r.output,
       /the extra GM Claude of frostmaiden-training: the same file, EXTRA_GM_PASSWORD/
     );
+    assert.equal(r.pending, '', 'no provisioning may be left unfinished');
     assert.equal(r.leak, 'no', 'no password may reach the output');
   });
 
@@ -246,6 +250,70 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
       r,
       /LAUNCH must be frostmaiden-training, the kit world or a world that is already installed/
     );
+  });
+
+  test('launch-omitted: another world without LAUNCH never switches the Pi to it', () => {
+    const r = run('launch-omitted');
+    assertRefused(r, /WORLD=frostmaiden-training needs LAUNCH set/);
+    assert.match(r.output, /Nothing was changed/);
+  });
+
+  test('kit-is-campaign: a kit world named like the campaign is refused', () => {
+    const r = run('kit-is-campaign');
+    assertRefused(r, /KIT_WORLD=curse-of-strahd is the campaign/);
+    assert.match(r.output, /Nothing was changed/);
+  });
+
+  test('kit-is-launch: a kit world named like the launched world is refused', () => {
+    const r = run('kit-is-launch');
+    assertRefused(r, /KIT_WORLD=strahd-kit is the world Foundry launches/);
+    assert.match(r.output, /Nothing was changed/);
+  });
+
+  test('extra-trailing-space: an extra GM name with a space at its end is refused before anything stops', () => {
+    const r = run('extra-trailing-space');
+    assertRefused(r, /EXTRA_GM_USER has odd characters or a space at an end/);
+    assert.match(r.output, /Nothing was changed/);
+  });
+
+  test('ship-modules-refused: a second world that ships a module leaves the Pi modules alone', () => {
+    const r = run('ship-modules-refused');
+    assertRefused(r, /ships modules \(aitool-content\)/);
+    assert.match(r.output, /SHIP_MODULES=1/);
+    assert.match(r.output, /-PiModules/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(lines(r.modules), ['aitool-content yes', 'foundry-mcp-bridge no']);
+  });
+
+  test('ship-modules-allowed: SHIP_MODULES=1 replaces the Pi module on purpose', () => {
+    const r = run('ship-modules-allowed');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /module aitool-content installed/);
+    assert.deepEqual(lines(r.modules), ['aitool-content no', 'foundry-mcp-bridge no']);
+    assert.equal(r.world, 'curse-of-strahd');
+  });
+
+  test('provision-fails-then-rerun: a plain rerun after a failed provisioning provisions again', () => {
+    const r = run('provision-fails-then-rerun');
+    assert.match(r.first.split('\n')[0], /^exit [1-9]/, r.first);
+    const afterFirst = envFiles(r.first.split('\n').slice(1).join('\n'));
+    const frostFirst = afterFirst['world-frostmaiden-training.env'];
+    assert.ok(frostFirst, 'the first run wrote the env file before it failed');
+    assert.deepEqual(frostFirst.keys, EXTRA_KEYS);
+    const call =
+      'PROVISION world=frostmaiden-training gm=Gamemaster new_pw=true extra=Claude extra_pw=true assistant=Assistant GM';
+    assert.deepEqual(lines(r.provision), [`${call} FAILED`, call]);
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /KEPT: the campaign world frostmaiden-training already exists/);
+    assert.match(r.output, /frostmaiden-training provisioned/);
+    assert.deepEqual(
+      envFiles(r.after)['world-frostmaiden-training.env'],
+      frostFirst,
+      'the retry uses the passwords the first run wrote'
+    );
+    assert.equal(r.pending, '', 'the finished provisioning clears its marker');
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.equal(r.leak, 'no');
   });
 
   test('pi-modules-installed: a module named in pi-modules stays the Pi copy and the world installs', () => {

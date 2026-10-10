@@ -222,11 +222,13 @@ async function main() {
 // real path while argv[1] keeps a symlinked one, so compare against the real path: a false guard would exit 0 and
 // change nothing, and stage 13 would report the settings as set.
 // The lookup runs on import too (the tests), where argv[1] need not be a file: then this is not the script.
+// If the real-path lookup fails, the path as given is compared instead, so a real run still matches.
 const invokedAs = (() => {
+  if (!process.argv[1]) return '';
   try {
-    return process.argv[1] ? pathToFileURL(realpathSync(process.argv[1])).href : '';
+    return pathToFileURL(realpathSync(process.argv[1])).href;
   } catch {
-    return '';
+    return pathToFileURL(process.argv[1]).href;
   }
 })();
 if (invokedAs === import.meta.url) {

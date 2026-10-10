@@ -6,16 +6,21 @@
 # Env: BUNDLE (required, a .tar under /var/lib/foundry-import/), WORLD (curse-of-strahd), KIT_WORLD (a test copy of
 #   WORLD that every run resets; empty skips it; strahd-kit by default, but only for WORLD=curse-of-strahd: another
 #   WORLD must set KIT_WORLD, empty or an id plus KIT_TITLE), KIT_TITLE, LAUNCH (the world Foundry starts with:
-#   WORLD, KIT_WORLD or a world that is already installed; default WORLD), REPLACE_WORLD (1 replaces an existing
-#   WORLD; default 0 keeps it), GM_USER (the world's GM, default Gamemaster), REPLACE_NEWER (push-back only: 1
-#   replaces the Pi's world even when it changed after the Plan B snapshot), EXTRA_GM_USER (a second GM user, for
-#   example Claude, with its own generated password; default none).
+#   WORLD, KIT_WORLD or a world that is already installed; default WORLD for curse-of-strahd, but another WORLD
+#   must set LAUNCH, so a forgotten LAUNCH can never switch the Pi to the new world; KIT_WORLD may not name
+#   curse-of-strahd or LAUNCH for another WORLD), REPLACE_WORLD (1 replaces an existing WORLD; default 0 keeps
+#   it), GM_USER (the world's GM, default Gamemaster), REPLACE_NEWER (push-back only: 1 replaces the Pi's world
+#   even when it changed after the Plan B snapshot), EXTRA_GM_USER (a second GM user, for example Claude, with its
+#   own generated password; default none; letters, digits, . _ - and inner spaces), SHIP_MODULES (1 lets a bundle
+#   for a WORLD that is not LAUNCH replace the Pi's modules; default 0 refuses such a bundle, because modules are
+#   shared with the campaign: build it with push-world.ps1 -PiModules instead).
 # A second campaign goes in next to the real one with LAUNCH naming the world Foundry keeps launching, for example
 # the Frostmaiden training world (D-118; docs/dev/PI-SETUP.md, "Training world"):
 #   WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
 # EXTRA_GM_USER is added to each world's env file once (EXTRA_GM_USER and EXTRA_GM_PASSWORD) and provisioned as a
 # full GM with that password; a file that already names another extra GM is refused before anything stops. A kept
-# world whose env file lacks the extra GM is provisioned again for it.
+# world whose env file lacks the extra GM is provisioned again for it, and so is one whose provisioning did not
+# finish: world-<id>.pending in $TOOL_ETC is written before the env file and removed after provisioning worked.
 # A Plan B push-back (docs/dev/PLAN-B.md, "After the night"; built by scripts/plan-b/push-back.ps1) brings the
 # world back from the PC with the Pi's own GM password: its MANIFEST.txt says "gm-password: kept (push-back)" and
 # "based-on-snapshot: <the Pi backup Plan B restored>". Such a bundle needs REPLACE_WORLD=1, KIT_WORLD= (empty)
@@ -32,9 +37,9 @@
 # and starts Foundry on LAUNCH. The real world is never replaced unless REPLACE_WORLD=1; the kit world is always
 # reset to the bundle's copy. Modules are always replaced (old ones go to prev); an image with the same name
 # and other content is copied to prev first. Space is checked first (20% free warns, under 5% stops). If the run
-# fails after Foundry was stopped, options.json is put back and Foundry starts again: on the old world if the
-# run failed before the world swap, on the bundle's world if it failed after it (the message says which; the
-# old world is in prev either way). Safe to run again with the same bundle.
+# fails after Foundry was stopped, options.json is put back to the world it launched before the run and Foundry
+# starts again on it. A failure after the world swap leaves the bundle's WORLD installed (the message says so, and
+# the old WORLD is in prev). Safe to run again with the same bundle.
 
 require_root
 require_arm64
@@ -48,6 +53,8 @@ else
   [ "${KIT_WORLD+set}" = set ] || die "WORLD=$WORLD needs KIT_WORLD set: KIT_WORLD= (no test copy) or KIT_WORLD=<id> KIT_TITLE=<title>. Nothing was changed"
   [ -z "$KIT_WORLD" ] || [ -n "${KIT_TITLE:-}" ] || die "KIT_WORLD=$KIT_WORLD needs a KIT_TITLE for WORLD=$WORLD. Nothing was changed"
   KIT_TITLE="${KIT_TITLE:-}"
+  # Foundry must not switch to a second world by a forgotten LAUNCH: say which world it keeps launching.
+  [ "${LAUNCH+set}" = set ] || die "WORLD=$WORLD needs LAUNCH set to the world Foundry keeps launching, for example LAUNCH=curse-of-strahd. Nothing was changed"
 fi
 LAUNCH="${LAUNCH:-$WORLD}"
 REPLACE_WORLD="${REPLACE_WORLD:-0}"
@@ -73,11 +80,20 @@ done
 if [ -n "$KIT_WORLD" ]; then
   [[ "$KIT_WORLD" =~ ^[a-z0-9-]+$ ]] || die "'$KIT_WORLD' is not a valid world id"
   [ "$KIT_WORLD" != "$WORLD" ] || die "KIT_WORLD must differ from WORLD"
+  # Every run resets the kit world from the bundle, so for another WORLD it may never name the campaign or the
+  # world Foundry launches (a mix-up of KIT_WORLD and LAUNCH would replace the campaign without REPLACE_WORLD).
+  if [ "$WORLD" != curse-of-strahd ]; then
+    [ "$KIT_WORLD" != curse-of-strahd ] || die "KIT_WORLD=curse-of-strahd is the campaign: a kit world for WORLD=$WORLD needs another id. Nothing was changed"
+    [ "$KIT_WORLD" != "$LAUNCH" ] || die "KIT_WORLD=$KIT_WORLD is the world Foundry launches (LAUNCH): every run resets the kit world, so it needs another id. Nothing was changed"
+  fi
 fi
 [ "$LAUNCH" = "$WORLD" ] || { [ -n "$KIT_WORLD" ] && [ "$LAUNCH" = "$KIT_WORLD" ]; } ||
   [ -f "$data/worlds/$LAUNCH/world.json" ] || die "LAUNCH must be $WORLD, the kit world or a world that is already installed"
-[[ "$GM_USER" =~ ^[A-Za-z0-9._\ -]+$ ]] || die "GM_USER has odd characters"
-[ -z "$EXTRA_GM_USER" ] || [[ "$EXTRA_GM_USER" =~ ^[A-Za-z0-9._\ -]+$ ]] || die "EXTRA_GM_USER has odd characters"
+# User names: letters, digits, . _ - and inner spaces only; no space at either end (the Assistant GM trims
+# names, so "Claude " would pass here and fail after Foundry stopped).
+login_re='^[A-Za-z0-9._-]([A-Za-z0-9._ -]*[A-Za-z0-9._-])?$'
+[[ "$GM_USER" =~ $login_re ]] || die "GM_USER has odd characters or a space at an end"
+[ -z "$EXTRA_GM_USER" ] || [[ "$EXTRA_GM_USER" =~ $login_re ]] || die "EXTRA_GM_USER has odd characters or a space at an end. Nothing was changed"
 [ -f "$assistant_env" ] && [ -f "$TOOL_DIR/gm-browser/assistant-gm.mjs" ] || die "run stage 5 and 5-check-world first (no Assistant GM yet)"
 [ -d "$data/modules/foundry-mcp-bridge" ] || die "the bridge module is not installed: run stage 5 first"
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
@@ -101,11 +117,12 @@ assistant_name="$(
 )"
 # The extra GM must be a third user, and each world keeps the extra GM it was given first.
 if [ -n "$EXTRA_GM_USER" ]; then
-  [ "$EXTRA_GM_USER" != "$assistant_name" ] || die "EXTRA_GM_USER must differ from the Assistant GM. Nothing was changed"
+  [ "${EXTRA_GM_USER,,}" != "${assistant_name,,}" ] || die "EXTRA_GM_USER must differ from the Assistant GM. Nothing was changed"
   for id in "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"}; do
     envf="$TOOL_ETC/world-$id.env"
     gm="$(env_login "$envf" GM_USER)"
-    [ "$EXTRA_GM_USER" != "${gm:-$GM_USER}" ] || die "EXTRA_GM_USER must differ from $id's GM (${gm:-$GM_USER}). Nothing was changed"
+    gm="${gm:-$GM_USER}"
+    [ "${EXTRA_GM_USER,,}" != "${gm,,}" ] || die "EXTRA_GM_USER must differ from $id's GM ($gm). Nothing was changed"
     had="$(env_login "$envf" EXTRA_GM_USER)"
     [ -z "$had" ] || [ "$had" = "$EXTRA_GM_USER" ] || die "$envf already names the extra GM '$had', not '$EXTRA_GM_USER'. Nothing was changed"
   done
@@ -177,7 +194,7 @@ on_exit() {
       systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service || true
     fi
     if [ "$world_swapped" = 1 ]; then
-      warn "the run did not finish: Foundry and the Assistant GM browser run as before it, but on the bundle's $WORLD (see above); old copies are in $prev"
+      warn "the run did not finish: Foundry runs ${orig_world:-no world} again and the Assistant GM browser is back as it was; $WORLD from the bundle stays installed (see above); old copies are in $prev"
     else
       warn "the run did not finish: Foundry and the Assistant GM browser are back as they were before it; old copies are in $prev"
     fi
@@ -274,6 +291,11 @@ if [ -f MANIFEST.txt ] && grep -q '^pi-modules:' MANIFEST.txt; then
 fi
 modules=()
 for d in Data/modules/*/; do [ -d "$d" ] && modules+=("$(basename "$d")"); done
+# Modules are shared by every world. A bundle for a second world (WORLD is not what Foundry launches) that ships
+# modules would replace the campaign's copies, so it is refused unless SHIP_MODULES=1 says that is meant.
+if [ "$WORLD" != "$LAUNCH" ] && [ "${#modules[@]}" -gt 0 ] && [ "${SHIP_MODULES:-0}" != 1 ]; then
+  die "this bundle for $WORLD (Foundry launches $LAUNCH) ships modules (${modules[*]}), which would replace the Pi's copies that $LAUNCH uses. Build the bundle again with push-world.ps1 -Modules '' -PiModules <ids> (modules the Pi has already), or with the user's OK run with SHIP_MODULES=1. Nothing was changed"
+fi
 # A push-back ships the modules Plan B restored from the Pi backup. One the Pi updated after that backup (its
 # module.json version is higher) is kept: a push-back never downgrades a module. module_check prints one line:
 # "install", "keep <pi> <bundle>" (the Pi's version is higher) or "unsure <pi> <bundle>" (a version that is
@@ -563,8 +585,10 @@ real_state=installed
 if [ -e "$data/worlds/$WORLD" ] && [ "$REPLACE_WORLD" != 1 ]; then
   real_state=kept
   warn "KEPT: the campaign world $WORLD already exists; it is never replaced without REPLACE_WORLD=1"
-  # A kept world is provisioned again only for what it lacks: its GM login, or the extra GM's.
+  # A kept world is provisioned again only for what it lacks: its GM login, the extra GM's, or a provisioning
+  # that did not finish (world-<id>.pending: the env file may name passwords Foundry never got).
   if [ ! -f "$TOOL_ETC/world-$WORLD.env" ] ||
+    [ -e "$TOOL_ETC/world-$WORLD.pending" ] ||
     { [ -n "$EXTRA_GM_USER" ] && [ -z "$(env_login "$TOOL_ETC/world-$WORLD.env" EXTRA_GM_USER)" ]; }; then
     todo+=("$WORLD")
   fi
@@ -582,7 +606,10 @@ new_password() { head -c 24 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n'; 
 world_up() { curl -fs http://127.0.0.1:30000/join 2>/dev/null | grep -q 'id="join-game"'; }
 running=""
 provision_world() { # $1 world id
-  local id="$1" envf="$TOOL_ETC/world-$1.env"
+  local id="$1" envf="$TOOL_ETC/world-$1.env" pending="$TOOL_ETC/world-$1.pending"
+  # Record success, not intent: the marker is written before the env file and removed after provisioning worked,
+  # so a failed run followed by a plain rerun provisions this world again with the same passwords.
+  (umask 077 && : >"$pending")
   if [ -f "$envf" ]; then
     ok "$envf exists"
   else
@@ -596,6 +623,8 @@ provision_world() { # $1 world id
   # The extra GM gets its own password in the same file, added once (the request check refused another name).
   if [ -n "$EXTRA_GM_USER" ] && [ -z "$(env_login "$envf" EXTRA_GM_USER)" ]; then
     umask 077
+    # A hand-edited file may lack its final newline: the new lines would join the last one.
+    [ -z "$(tail -c1 "$envf")" ] || printf '\n' >>"$envf"
     printf 'EXTRA_GM_USER="%s"\nEXTRA_GM_PASSWORD="%s"\n' "$EXTRA_GM_USER" "$(new_password)" >>"$envf"
     umask 022
     chmod 600 "$envf"
@@ -633,6 +662,7 @@ provision_world() { # $1 world id
       PROVISION_EXTRA_GM_USER="${EXTRA_GM_USER:-}" PROVISION_EXTRA_GM_PASSWORD="${EXTRA_GM_PASSWORD:-}" \
       node "$TOOL_DIR/gm-browser/assistant-gm.mjs" provision
   ) || die "provisioning $id failed (see the lines above)"
+  rm -f "$pending"
   ok "$id provisioned"
 }
 

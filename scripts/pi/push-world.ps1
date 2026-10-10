@@ -21,7 +21,8 @@
 
 .PARAMETER DataPath    Foundry's Data folder on this PC (default C:\FoundryTest\data\Data).
 .PARAMETER World       The world id to ship (default curse-of-strahd).
-.PARAMETER Modules     Module ids to ship (default aitool-content, dnd-players-handbook, foundryvtt-actor-studio).
+.PARAMETER Modules     Module ids to ship (default aitool-content, dnd-players-handbook, foundryvtt-actor-studio). No modules:
+                       -Modules '' (from a shell with pwsh -File, which drops an empty array; empty entries are ignored).
 .PARAMETER PiModules  Module ids the world uses that are ALREADY installed on the Pi (from the campaign bundle) and must not be shipped
                        again: stage 11 replaces the Pi's module folders with the bundle's, which could swap out the Pi's own copies.
                        world-refs does not report them as active-but-not-shipped and counts their asset paths as inside the bundle
@@ -301,6 +302,11 @@ if ($PushBack) {
   Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World REPLACE_WORLD=1 KIT_WORLD= bash -s'"
   Write-Host "It refuses if the Pi's world changed after $basedOn (it lists what changed). Only with your OK to lose those"
   Write-Host 'Pi-side changes: add REPLACE_NEWER=1. The Pi''s old copy is kept in /var/lib/foundry-import/prev-<time> either way.'
+} elseif ($World -ne 'curse-of-strahd') {
+  # A second world beside the campaign: stage 11 wants KIT_WORLD and LAUNCH set explicitly for it.
+  Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World KIT_WORLD= LAUNCH=curse-of-strahd bash -s'"
+  Write-Host '  EXTRA_GM_USER=<name> is optional: put it before bash -s for a second full GM with its own password.'
+  if ($Modules.Count) { Write-Host "  The bundle ships modules ($($Modules -join ', ')): stage 11 refuses that for a second world unless SHIP_MODULES=1, because it replaces the campaign's copies. Better build the bundle again with -Modules '' -PiModules <ids>." }
 } else {
   Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World bash -s'"
 }

@@ -245,11 +245,13 @@ jobs:
   dashboard-visual:
     # UI-01: screenshots of the React dashboard (every moment and drawer, three widths, two themes)
     # against the baselines in packages/cogm-dashboard/web/visual/__screenshots__, plus an axe
-    # accessibility check. The baselines are Linux-only, made in this same Playwright image (the
-    # image tag must be the installed @playwright/test version; the first step checks it). Advisory:
-    # it is not a required check, but a diff fails the job (no continue-on-error), and the report
-    # with the diff images is kept as an artifact. Refresh the baselines with
-    # `npm run test:visual:update -w @gnuminator/cogm-dashboard` (Docker; see the dashboard README).
+    # accessibility check, and (UI-03) a shot and an axe check of every Storybook story, under
+    # web/visual/__screenshots__/stories. The baselines are Linux-only, made in this same
+    # Playwright image (the image tag must be the installed @playwright/test version; the first
+    # step checks it). Advisory: it is not a required check, but a diff fails the job (no
+    # continue-on-error), and the report with the diff images is kept as an artifact. Refresh the
+    # baselines with `npm run test:visual:update -w @gnuminator/cogm-dashboard` (Docker; see the
+    # dashboard README).
     needs: visual-changes
     if: needs.visual-changes.outputs.run == 'true'
     runs-on: ubuntu-latest
@@ -287,6 +289,11 @@ jobs:
         run: |
           npm run build:shared
           npm run build -w @gnuminator/cogm-dashboard
+
+      - name: Build Storybook
+        # UI-03: the story shots (and their axe check) photograph every story of the built
+        # Storybook, so it is built before them.
+        run: npm run build-storybook -w @gnuminator/cogm-dashboard
 
       - name: Screenshot tests and axe
         run: npm run test:visual:ci -w @gnuminator/cogm-dashboard

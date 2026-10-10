@@ -1,0 +1,22 @@
+/* Only what a story needs on top of the dashboard's stylesheets. The real page is a column that
+   fills the window and scrolls inside its views (styles.css: body is 100vh with hidden overflow);
+   a story page must grow and scroll instead, or a tall panel is cut off. A story that wants the
+   page layout wraps itself in .story-app. */
+html,
+body {
+  height: auto;
+  min-height: 100%;
+}
+
+body {
+  display: block;
+  overflow: auto;
+}
+
+/* The page shell of a whole-screen story (the header, the banners and the moment views). */
+.story-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}

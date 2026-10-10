@@ -78,7 +78,7 @@ test('the close button of a drawer has the same tooltip and keeps its name', asy
   await fromMenu(page, 'btn-party');
   const drawer = page.getByRole('dialog', { name: '🛡 Party' });
   await expect(drawer).toBeVisible();
-  const close = drawer.getByRole('button', { name: 'Close' });
+  const close = drawer.getByRole('button', { name: 'Close', exact: true });
   await close.focus();
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');

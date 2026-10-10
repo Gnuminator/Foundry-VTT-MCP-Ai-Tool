@@ -1,4 +1,4 @@
-// Tests for the GM password check (#273): gm_password_check in scripts/pi/remote/lib.sh, the wrapper
+// Tests for the GM password check (#273): gm_password_check in scripts/pi/remote/lib-gm-passwords.sh, the wrapper
 // scripts/pi/remote/gm-passwords.sh and the refusal at the top of scripts/pi/remote/12-tunnel.sh.
 //   node --test scripts/pi/gm-passwords.test.mjs
 // No real LevelDB: each test builds a fake classic-level (reads a fixture.json from the "database" folder), a
@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const lib = path.join(here, 'remote', 'lib.sh');
+const gmLib = path.join(here, 'remote', 'lib-gm-passwords.sh');
 const wrapper = path.join(here, 'remote', 'gm-passwords.sh');
 const stage12 = path.join(here, 'remote', '12-tunnel.sh');
 
@@ -102,14 +103,18 @@ function addWorld(env, id, users, { raw } = {}) {
   writeFileSync(path.join(db, 'fixture.json'), JSON.stringify(entries));
 }
 
-/** Run gm_password_check from lib.sh. Paths go in as positional args. */
+/** Run gm_password_check (lib.sh, then lib-gm-passwords.sh). Paths go in as positional args. */
 function runCheck(env) {
   const script =
-    'source "$1"; FOUNDRY_DATA="$2"; FOUNDRY_APP="$3"; NODE_DIR="$4"; ' +
+    'source "$1"; source "$5"; FOUNDRY_DATA="$2"; FOUNDRY_APP="$3"; NODE_DIR="$4"; ' +
     'rc=0; gm_password_check || rc=$?; echo "rc=$rc"';
-  const res = spawnSync('bash', ['-c', script, 'bash', fwd(lib), env.data, env.app, env.nodeDir], {
-    encoding: 'utf8',
-  });
+  const res = spawnSync(
+    'bash',
+    ['-c', script, 'bash', fwd(lib), env.data, env.app, env.nodeDir, fwd(gmLib)],
+    {
+      encoding: 'utf8',
+    }
+  );
   const m = /rc=(\d+)\s*$/.exec(res.stdout);
   assert.ok(m, `no rc line; stdout=${res.stdout} stderr=${res.stderr}`);
   return { rc: Number(m[1]), out: res.stdout, err: res.stderr };
@@ -119,10 +124,17 @@ function runCheck(env) {
 const override = (extra = '') =>
   `FOUNDRY_DATA="$1"; FOUNDRY_APP="$2"; NODE_DIR="$3"\n` + `require_root() { :; }\n${extra}\n`;
 
-/** Pipe lib.sh + snippet + script into `bash -s`, the way the stages run over ssh. */
+/** Pipe lib.sh + lib-gm-passwords.sh + snippet + script into `bash -s`, the way the stages run over ssh. */
 function runPiped(env, snippet, scriptFile) {
   const input =
-    readFileSync(lib, 'utf8') + '\n' + snippet + '\n' + readFileSync(scriptFile, 'utf8') + '\n';
+    readFileSync(lib, 'utf8') +
+    '\n' +
+    readFileSync(gmLib, 'utf8') +
+    '\n' +
+    snippet +
+    '\n' +
+    readFileSync(scriptFile, 'utf8') +
+    '\n';
   return spawnSync('bash', ['-s', '--', env.data, env.app, env.nodeDir], {
     input,
     encoding: 'utf8',

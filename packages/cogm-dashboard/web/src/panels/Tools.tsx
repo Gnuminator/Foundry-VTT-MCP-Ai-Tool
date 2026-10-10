@@ -58,6 +58,11 @@ const TOOLS_KEY = ['tools'] as const;
 
 const GATE_TEXT = 'GM Actions are off. Enable GM Actions at the top of the Tool Runner.';
 
+/** How long a request for the gate bar's focus waits for the bar to draw. */
+const GATE_PENDING_MS = 1000;
+
+const stillWaiting = (until: number): boolean => performance.now() <= until;
+
 /** What shows under the form: the answer or the error. */
 interface ToolResult {
   tool: string;
@@ -82,9 +87,11 @@ export function ToolsDrawer(props: {
   // refusal from the server turns GM Actions off in the settings cache, which may draw the bar a
   // render after the gate was asked for). An Undo from a toast can be refused after the
   // drawer closed: it opens again, and the bar takes the focus in place of Radix's open autofocus
-  // (which would otherwise run after anything done here).
+  // (which would otherwise run after anything done here). A request lasts a moment only: a refusal
+  // that never draws the bar (a 403 for another reason, or the stream saying GM Actions are on
+  // first) must not take the focus when GM Actions go off later, or at the next opening.
   const gateButton = useRef<HTMLButtonElement>(null);
-  const gatePending = useRef(false);
+  const gatePendingUntil = useRef(0);
   const [gateAsked, setGateAsked] = useState(0);
   const { open, onOpenChange } = props;
   // Read when the gate is asked for: an Undo toast keeps the gate from when its change ran.
@@ -93,7 +100,7 @@ export function ToolsDrawer(props: {
     isOpen.current = open;
   });
   const focusGate = useCallback(() => {
-    gatePending.current = true;
+    gatePendingUntil.current = performance.now() + GATE_PENDING_MS;
     if (!isOpen.current) {
       onOpenChange(true);
       return;
@@ -104,19 +111,19 @@ export function ToolsDrawer(props: {
   // Asked with the drawer open: the bar may be up already (the effect focuses it) or draw a
   // render later, when the refusal's settings change reaches it (the ref callback focuses it).
   useEffect(() => {
-    if (!gatePending.current || !isOpen.current || !gateButton.current) return;
-    gatePending.current = false;
+    if (!stillWaiting(gatePendingUntil.current) || !isOpen.current || !gateButton.current) return;
+    gatePendingUntil.current = 0;
     gateButton.current.focus();
   }, [gateAsked]);
   const gateButtonRef = useCallback((button: HTMLButtonElement | null) => {
     gateButton.current = button;
-    if (!button || !gatePending.current || !isOpen.current) return;
-    gatePending.current = false;
+    if (!button || !stillWaiting(gatePendingUntil.current) || !isOpen.current) return;
+    gatePendingUntil.current = 0;
     button.focus();
   }, []);
   const onOpenAutoFocus = useCallback((event: Event) => {
-    if (!gatePending.current) return;
-    gatePending.current = false;
+    if (!stillWaiting(gatePendingUntil.current)) return;
+    gatePendingUntil.current = 0;
     if (!gateButton.current) return;
     event.preventDefault();
     gateButton.current.focus();

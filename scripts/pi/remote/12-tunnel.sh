@@ -15,6 +15,9 @@
 #   - optional: FOUNDRY_PUBLIC_HOST=play.example.com sets Foundry's proxy options (hostname, proxySSL,
 #     proxyPort 443) so invitation links and A/V use the public name; Foundry restarts if that changes them.
 #   - a check: the service is active and cloudflared reports a connection to Cloudflare.
+# Before any of that, the stage refuses to go on while any world on the Pi has a Gamemaster or Assistant GM
+# with no password (#273; gm_password_check in lib.sh, read-only; gm-passwords.sh runs it on its own):
+# through the tunnel, anyone past Cloudflare Access could pick that user on the join page.
 # The token: the user runs set-tunnel-token.sh in their own SSH session (it asks for the token without
 # showing it); Claude never types or sees it. Until the file exists, this stage installs everything and
 # leaves the service stopped.
@@ -24,6 +27,16 @@
 
 require_root
 require_arm64
+
+# ---- no GM without a password (#273) ----------------------------------------------------------------
+say "GM passwords in every world"
+gm_rc=0
+gm_password_check || gm_rc=$?
+case "$gm_rc" in
+  0) ok "every world's Gamemaster and Assistant GM users have a password" ;;
+  3) die "a world above has a Gamemaster or Assistant GM with no password (or no Gamemaster, so its next launch makes one): set a password for each (in that world: Game Settings, User Management), then run this stage again. Nothing was changed" ;;
+  *) die "the GM password check could not read every world (see above): nothing was changed" ;;
+esac
 
 unit=foundry-ai-tool-cloudflared.service
 token_file="$TOOL_ETC/cloudflared-token"

@@ -57,7 +57,12 @@ Pick the names yourself; `play` and `cogm` are examples. Below, `<domain>` is yo
 6. **Pi: install the tunnel (Claude, with your OK).** Claude takes a `dietpi-backup 1` snapshot, then
    runs stage 12 (`12-tunnel.sh`, see [Orange Pi setup](PI-SETUP.md)). It installs Cloudflare's
    `cloudflared` from Cloudflare's own signed package source and sets it up as a service that stays
-   off until the token is there.
+   off until the token is there. Before anything else it checks every world on the Pi and stops
+   while any Gamemaster or Assistant GM user has no password (anyone past Cloudflare Access could
+   pick that user on the join page). It names the world and the user; set a password in that world
+   (Game Settings, User Management) and run it again. Claude can run the same check on its own at
+   any time; it changes nothing:
+   `cat scripts/pi/remote/lib.sh scripts/pi/remote/gm-passwords.sh | ssh foundry-pi 'bash -s'`.
 7. **Pi: Foundry's public name (Claude, with your OK).** Claude runs the stage again with
    `FOUNDRY_PUBLIC_HOST=play.<domain>`. That sets three Foundry options so invitation links and
    audio and video use the public name: `hostname` = `play.<domain>`, `proxySSL` = true,

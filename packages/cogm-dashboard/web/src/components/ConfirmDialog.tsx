@@ -2,7 +2,7 @@
 // Port of the old page's confirmAction (public/app.js) on its markup and styles (styles.css
 // .modal-backdrop, .modal, .change-diff, .modal-destructive), as a modal Radix dialog: the page
 // behind waits until the GM answers. useGuardedChange (lib/guarded.ts) asks it through useConfirm.
-import * as Dialog from '@radix-ui/react-dialog';
+import { Dialog } from 'radix-ui';
 import {
   createContext,
   useCallback,

@@ -4,6 +4,7 @@ export { Button, IconButton, type ButtonVariant } from './Button';
 export { Card, Pill, Section, Stat } from './Card';
 export { cx } from './cx';
 export { Panel } from './Panel';
+export { Popover } from './Popover';
 export {
   QueryState,
   classifyError,
@@ -12,3 +13,5 @@ export {
   type QueryLike,
 } from './QueryState';
 export { EmptyState, ErrorState, LoadingState, Skeleton, type BlockTag } from './states';
+export { Tabs, TabsContent, TabsList, TabsTrigger } from './Tabs';
+export { Tooltip, TooltipProvider } from './Tooltip';

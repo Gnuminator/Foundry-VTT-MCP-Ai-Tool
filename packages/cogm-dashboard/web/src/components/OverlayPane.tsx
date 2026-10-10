@@ -1,4 +1,4 @@
-import * as Dialog from '@radix-ui/react-dialog';
+import { Dialog } from 'radix-ui';
 import type { JSX, ReactNode } from 'react';
 
 import { closeTopPanel, useEscapeClose } from '../lib/escape';
@@ -75,7 +75,7 @@ export function OverlayPane({
           stateMessage={stateMessage}
           actions={
             <Dialog.Close asChild>
-              <IconButton className="overlay-close" label={closeLabel} title="Close">
+              <IconButton className="overlay-close" label={closeLabel} tip="Close">
                 ✕
               </IconButton>
             </Dialog.Close>

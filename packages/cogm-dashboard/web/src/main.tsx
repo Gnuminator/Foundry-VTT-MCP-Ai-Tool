@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { ToastProvider } from './components/Toasts';
 import { applyCachedTheme } from './lib/theme';
+import { TooltipProvider } from './ui';
 import './next.css';
 
 // Before the first paint: the last theme this browser saw.
@@ -22,9 +23,11 @@ if (!root) throw new Error('index.html has no #root');
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <App />
-      </ToastProvider>
+      <TooltipProvider>
+        <ToastProvider>
+          <App />
+        </ToastProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>
 );

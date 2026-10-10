@@ -1,6 +1,7 @@
 import type { ComponentProps, JSX } from 'react';
 
 import { cx } from './cx';
+import { Tooltip } from './Tooltip';
 
 export type ButtonVariant = 'default' | 'primary' | 'quiet' | 'danger';
 
@@ -39,9 +40,18 @@ export function Button({
 interface IconButtonProps extends Omit<ComponentProps<'button'>, 'aria-label'> {
   /** The accessible name; an icon has no text of its own. */
   label: string;
+  /** What the tooltip says; the label by default. The accessible name stays the label. */
+  tip?: string;
 }
 
-/** A square icon button (`.icon-btn`): the drawer's close, for one. */
-export function IconButton({ label, className, ...rest }: IconButtonProps): JSX.Element {
-  return <button className={cx('icon-btn', className)} aria-label={label} {...rest} />;
+/**
+ * A square icon button (`.icon-btn`): the drawer's close, for one. It has a Tooltip (so no native
+ * `title`); the `aria-label` is the accessible name.
+ */
+export function IconButton({ label, tip, className, ...rest }: IconButtonProps): JSX.Element {
+  return (
+    <Tooltip content={tip ?? label}>
+      <button className={cx('icon-btn', className)} aria-label={label} {...rest} />
+    </Tooltip>
+  );
 }

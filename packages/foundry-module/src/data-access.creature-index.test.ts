@@ -730,6 +730,123 @@ describe('PersistentCreatureIndex — index validity / staleness', () => {
 });
 
 // ===========================================================================
+// ensureIndexCurrent (the GM's ready-time warm) + one build at a time
+// ===========================================================================
+
+describe('PersistentCreatureIndex — ensureIndexCurrent and the shared build', () => {
+  /**
+   * Hold every upload until `release()` so a build stays in flight while the
+   * test makes more calls. `uploading` resolves once the build reaches its save.
+   */
+  function gateUploads(): { uploading: Promise<void>; release: () => void } {
+    const g = globalThis as any;
+    const upload = g.foundry.applications.apps.FilePicker.implementation.upload;
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => (release = resolve));
+    let reached!: () => void;
+    const uploading = new Promise<void>(resolve => (reached = resolve));
+    upload.mockImplementation(async (_source: string, _target: string, file: File) => {
+      reached();
+      await gate;
+      disk.uploads.push(file);
+      disk.content = await file.text();
+      return { path: `worlds/${g.game.world.id}/${INDEX_FILENAME}`, status: 'success' };
+    });
+    return { uploading, release };
+  }
+
+  it('builds and persists the index when it is missing', async () => {
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+
+    await expect(index.ensureIndexCurrent()).resolves.toEqual({
+      rebuilt: true,
+      totalCreatures: 1,
+    });
+    expect(disk.uploads.length).toBe(1);
+  });
+
+  it('rebuilds a stale index persisted by an older module (1.1.0) at the current version', async () => {
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+    await index.rebuildIndex();
+    const currentVersion = JSON.parse(disk.content!).metadata.version;
+    const saved = JSON.parse(disk.content!);
+    saved.metadata.version = '1.1.0';
+    disk.content = JSON.stringify(saved);
+    disk.uploads.length = 0;
+
+    await expect(index.ensureIndexCurrent()).resolves.toEqual({
+      rebuilt: true,
+      totalCreatures: 1,
+    });
+    expect(disk.uploads.length).toBe(1);
+    expect(currentVersion).not.toBe('1.1.0');
+    expect(JSON.parse(disk.content).metadata.version).toBe(currentVersion);
+  });
+
+  it('leaves a current index alone (no rebuild, no upload)', async () => {
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+    await index.rebuildIndex();
+    disk.uploads.length = 0;
+
+    await expect(index.ensureIndexCurrent()).resolves.toEqual({
+      rebuilt: false,
+      totalCreatures: 1,
+    });
+    expect(disk.uploads.length).toBe(0);
+  });
+
+  it('a query during the warm build waits on the same build instead of starting a second', async () => {
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+    const { uploading, release } = gateUploads();
+
+    const warm = index.ensureIndexCurrent();
+    await uploading; // the build is in flight, held at its save
+    const query = index.getEnhancedIndex();
+    const forced = index.rebuildIndex();
+    release();
+
+    await expect(warm).resolves.toEqual({ rebuilt: true, totalCreatures: 1 });
+    expect((await query).map(c => c.name)).toEqual(['Goblin']);
+    expect((await forced).map(c => c.name)).toEqual(['Goblin']);
+    expect(disk.uploads.length).toBe(1);
+  });
+
+  it('two callers that both find the index stale share one build', async () => {
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+    const { uploading, release } = gateUploads();
+
+    // Both start before either has a build in flight (both load the missing file).
+    const first = index.ensureIndexCurrent();
+    const second = index.getEnhancedIndex();
+    await uploading;
+    release();
+
+    await expect(first).resolves.toEqual({ rebuilt: true, totalCreatures: 1 });
+    expect(await second).toHaveLength(1);
+    expect(disk.uploads.length).toBe(1);
+  });
+
+  it('a failed build is not cached: the next call builds again', async () => {
+    addMonsterPack([makeActor({ id: 'g1', name: 'Goblin', type: 'npc' })]);
+    const index = new PersistentCreatureIndex();
+    const upload = (globalThis as any).foundry.applications.apps.FilePicker.implementation.upload;
+    upload.mockImplementationOnce(async () => false); // "File upload failed"
+
+    await expect(index.ensureIndexCurrent()).rejects.toThrow('File upload failed');
+    await expect(index.ensureIndexCurrent()).resolves.toEqual({
+      rebuilt: true,
+      totalCreatures: 1,
+    });
+    expect(disk.uploads.length).toBe(1);
+  });
+});
+
+// ===========================================================================
 // hooks → invalidateIndex (autoRebuildIndex gate)
 // ===========================================================================
 

@@ -214,8 +214,8 @@ class FoundryMCPBridge {
         await this.start();
       }
 
-      // Auto-build enhanced creature index if enabled and not exists
-      await this.checkAndBuildEnhancedIndex();
+      // Rebuild a missing or stale creature index in the background.
+      this.warmEnhancedIndex();
 
       logInfo(`[${MODULE_ID}] Module ready`);
     } catch (error) {
@@ -224,47 +224,28 @@ class FoundryMCPBridge {
   }
 
   /**
-   * Check if enhanced creature index exists and build if needed (better UX)
+   * Start building the enhanced creature index when the persisted copy is missing
+   * or stale (an older index version after a module update, changed packs), so
+   * the first creature query does not rebuild it inside the 10 s bridge timeout.
+   * Runs only in the bridge GM's browser (the one queries reach) and does not
+   * block `ready`; a query during the build waits on the same build.
    */
-  private async checkAndBuildEnhancedIndex(): Promise<void> {
-    try {
-      // Only for GM users
-      if (!this.isGMUser()) return;
+  private warmEnhancedIndex(): void {
+    if (!this.isGMUser()) return;
+    if (!isBridgeUser(this.settings.getSetting('bridgeUserId'), game.user?.id)) return;
+    if (!this.settings.getSetting('enableEnhancedCreatureIndex')) return;
+    if (game.system.id !== 'dnd5e') return;
 
-      // Check if enhanced index is enabled
-      const enhancedIndexEnabled = this.settings.getSetting('enableEnhancedCreatureIndex');
-      if (!enhancedIndexEnabled) return;
-
-      // Check if index file exists
-      const indexFilename = 'enhanced-creature-index.json';
-      try {
-        const browseResult = await (
-          foundry as any
-        ).applications.apps.FilePicker.implementation.browse('data', `worlds/${game.world.id}`);
-        const indexExists = browseResult.files.some((f: any) => f.endsWith(indexFilename));
-
-        if (!indexExists) {
-          logInfo(
-            `[${MODULE_ID}] Enhanced creature index not found, building automatically for better UX...`
-          );
-          ui.notifications?.info('Building enhanced creature index for faster searches...');
-
-          // Trigger index build through data access
-          if (this.queryHandlers?.dataAccess?.rebuildEnhancedCreatureIndex) {
-            await this.queryHandlers.dataAccess.rebuildEnhancedCreatureIndex();
-          }
-        } else {
-          logInfo(`[${MODULE_ID}] Enhanced creature index exists, ready for instant searches`);
-        }
-      } catch (error) {
-        // World directory might not exist yet, that's okay
+    void this.queryHandlers.dataAccess
+      .ensureEnhancedCreatureIndex()
+      .then(({ rebuilt, totalCreatures }) => {
         logInfo(
-          `[${MODULE_ID}] Could not check for enhanced index file (world directory may not exist yet)`
+          `[${MODULE_ID}] Enhanced creature index ${rebuilt ? 'rebuilt' : 'current'} (${totalCreatures} creatures)`
         );
-      }
-    } catch (error) {
-      console.warn(`[${MODULE_ID}] Failed to auto-build enhanced index:`, error);
-    }
+      })
+      .catch(error => {
+        console.warn(`[${MODULE_ID}] Failed to build the enhanced creature index:`, error);
+      });
   }
 
   /**

@@ -225,6 +225,13 @@ export const GM_ACTIONS = {
    */
   listMonsters: 'listMonsters',
   /**
+   * () => {rebuilt: boolean, totalCreatures: number, seconds: number} | {skipped: string} waits, with no bridge
+   * timeout, until the module's creature index is current: it joins the rebuild the module starts at `ready` when
+   * the persisted index is missing or stale, or starts one. `list-creatures-by-criteria` reads that index, and a
+   * rebuild inside the 10 s query timeout fails the query. `skipped` when the index setting is off.
+   */
+  ensureCreatureIndex: 'ensureCreatureIndex',
+  /**
    * ({packId, itemId, name?, folderId?}) => {actorId, name} a world copy of a compendium monster for a probe. It carries
    * the kit flag, so a rebuild wipes it when a run died before deleteMonsters. Name default "Probe <name>".
    */

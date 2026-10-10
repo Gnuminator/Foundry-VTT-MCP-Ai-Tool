@@ -100,6 +100,15 @@ export class FoundryDataAccess {
     }
   }
 
+  /**
+   * Build the enhanced creature index when the persisted copy is missing or
+   * stale, or wait for the build already running. No bridge timeout applies, so
+   * the GM's `ready` and the test kit use it before the first creature query.
+   */
+  async ensureEnhancedCreatureIndex(): Promise<{ rebuilt: boolean; totalCreatures: number }> {
+    return this.persistentIndex.ensureIndexCurrent();
+  }
+
   async getCharacterInfo(identifier: string): Promise<CharacterInfo> {
     return this.characters.getCharacterInfo(identifier);
   }

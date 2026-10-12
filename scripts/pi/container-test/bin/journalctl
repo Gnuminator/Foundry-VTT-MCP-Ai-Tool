@@ -1,3 +1,15 @@
 #!/usr/bin/env bash
+# Stand-in for journalctl. The Assistant GM browser's journal says it joined the campaign world. The Kit GM browser's
+# says it joined strahd-kit as Kit GM once the systemd-run stand-in started it (/tmp/started-kit), unless the scenario
+# made /tmp/kitnojoin. The line carries nothing secret, like the real driver's.
 echo "journalctl $*" >>/tmp/calls
-echo "assistant-gm: joined world curse-of-strahd"
+case "$*" in
+  *foundry-ai-tool-kit-gm-browser*)
+    if [ -f /tmp/started-kit ] && [ ! -f /tmp/kitnojoin ]; then
+      echo "[assistant-gm] joined world strahd-kit as Kit GM (GM: true, module active: true)"
+    fi
+    ;;
+  *)
+    echo "assistant-gm: joined world curse-of-strahd"
+    ;;
+esac

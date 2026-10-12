@@ -827,8 +827,37 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
   (`http://foundry-pi:30000/join`) and the user name. If anything fails after the services stopped,
   `options.json`, Foundry and the Assistant GM browser are put back as they were and the state file
   is removed, even when the ssh session drops in the middle of the run. A run that fails after the
-  world was started may leave `Kit Player` in `strahd-kit`; the stage says so, and `MODE=up` followed
-  by `MODE=down` removes it.
+  world was started may leave `Kit Player` and `Kit GM` in `strahd-kit`; the stage says so, and
+  `MODE=up` followed by `MODE=down` removes them.
+- **The Kit GM (for the test kit's Pi target, `docs/dev/TEST-KIT.md`, "Running it on the Pi").**
+  `MODE=up` also gives the kit a GM of its own, so the kit can call bridge tools against
+  `strahd-kit` without anyone's login:
+  - Before anything stops it also checks that stage 5's `assistant-gm.mjs`, the bridge service and
+    `systemd-run` are there. A leftover password file, browser profile or running Kit GM browser from
+    a cut-off run (no state file) is removed, and the stage prints what it removed.
+  - The password is 16 random bytes as 32 hex characters, made on the Pi, written to
+    `/var/lib/foundry-ai-tool/kit-gm.env` (one line `ASSISTANT_GM_PASSWORD=...`, root only, mode 600,
+    through a temp file and a rename) before the driver runs. It is never printed and never on a
+    command line: the driver gets it in its environment, and the browser unit reads the file.
+  - `ACTION=setup` also enables the `foundry-mcp-bridge` module in `strahd-kit` when it is off
+    (the module stays enabled there afterwards, like the Actor Studio settings; `strahd-kit` is a
+    throwaway copy), creates `Kit GM` as a Gamemaster with that password (an existing `Kit GM` is
+    ours: its role and password are reset), makes it the module's **Bridge User**, reloads and reads
+    it all back, and checks that a throwaway browser can really join as `Kit GM` with the password.
+  - Then a transient unit `foundry-ai-tool-kit-gm-browser` (`systemd-run`, the same properties as
+    the Assistant GM unit: low priority, no new privileges, its own profile folder
+    `/var/lib/foundry-ai-tool/kit-gm-browser`) runs `assistant-gm.mjs run` as `Kit GM` with the
+    canvas off, exactly like the real Assistant GM. The stage waits for "joined world strahd-kit as
+    Kit GM" and then looks for the bridge link on port 31415 (a warning only). A reboot drops the
+    unit and nothing starts it again. If the browser does not join, the run is rolled back like any
+    other failure.
+  - The state file gets a line `KIT_GM_BROWSER=1`. A state file from before this change (no such
+    line) is still accepted by `MODE=down`.
+  - The PC reads the password with `pwsh scripts/pi/fetch-kit-login.ps1` (one read-only ssh command,
+    nothing printed, a file limited to your Windows user). Delete it again after `MODE=down` with
+    `pwsh scripts/pi/fetch-kit-login.ps1 -Remove`.
+  - What the bridge writes while `strahd-kit` is connected goes to the bridge vault's own folder for
+    that world (`<vault>/strahd-kit/`), not to the campaign's.
 - **The player plays.** They join as `Kit Player` and make their character in Actor Studio. When they
   have left the game:
 
@@ -837,17 +866,20 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
   ```
 
 - **`MODE=down`** needs the state file, `strahd-kit` running and nobody online (`FORCE=1` goes on
-  anyway). It stops the Assistant GM browser first, because a reboot during the session starts it on
-  `strahd-kit`, where it would count as a user. With `strahd-kit` still running it runs `kit-session.mjs` with `ACTION=teardown`: the
-  actors that `Kit Player` owns are listed by name and id and deleted, then the user. At most 5
+  anyway). It stops the Kit GM browser first (it would count as online) and the Assistant GM browser
+  too, because a reboot during the session starts that one on `strahd-kit`, where it would count as
+  a user. With `strahd-kit` still running it runs `kit-session.mjs` with `ACTION=teardown`: the
+  actors that `Kit Player` owns are listed by name and id and deleted, then the user; then the
+  Bridge User goes back to "Any GM" if it is `Kit GM`, and `Kit GM` is deleted. At most 5
   actors are deleted; more than that stops the run (`MAX_DELETE=<n>` raises the limit after you have
   looked at them), and nothing else is deleted and no setting is touched. Any actor you give
   `Kit Player` during the session is deleted too; the copy from before the session is in
   `prev-<time>`. If the teardown fails,
-  nothing else changes: Foundry stays on `strahd-kit` and the state file stays, so `MODE=down` can run
-  again. Otherwise Foundry stops, `options.json` launches the world it launched before, the state
-  file is removed, Foundry starts, and the Assistant GM browser starts again if it ran before (the
-  stage waits for "joined world").
+  nothing else changes: Foundry stays on `strahd-kit`, the state file and the Kit GM password file
+  stay and the Kit GM browser stays stopped, so `MODE=down` can run again. Otherwise the password
+  file and the Kit GM browser profile are removed, Foundry stops, `options.json` launches the world
+  it launched before, the state file is removed, Foundry starts, and the Assistant GM browser starts
+  again if it ran before (the stage waits for "joined world").
 - **Anything else as `MODE`** stops with a usage line before anything changes.
 
 Tested the same way as stage 13: `node --test scripts/pi/kit-session.test.mjs` runs the browser
@@ -855,8 +887,14 @@ script against a fake `game` (every decision of the setup and the teardown), and
 `PI_KIT_SESSION_CONTAINER=1` it runs the stage in an ARM64 Debian 13 container with stand-ins for
 systemd (`scripts/pi/container-test/kit-session-scenarios.sh`; Docker needed): up and down, the
 refusals (a session already up, already on `strahd-kit`, people online, a bad `MODE`), a failing
-script putting everything back, and services that were off staying off. The real browser script has
-not run against a live world yet: that is what the first kit session on the Pi is for.
+script putting everything back, and services that were off staying off. For the Kit GM it covers the
+password file (mode, form, never in the output or in any recorded call), the `systemd-run` call, a
+browser that does not join, a dropped ssh session at each new step, the stop order in `MODE=down`, a
+failed teardown and the old state file format; each of those scenarios is proven to fail on the
+stage without the change. The real browser script has not run against a live world yet: that is
+what the first kit session on the Pi is for. Only a live run shows how real systemd treats the
+transient unit (`EnvironmentFile` of a root-only file, `ProtectSystem=full` with the Chromium
+profile) and how Foundry takes the Bridge User setting for a user that was just made.
 
 ## GM scripts
 

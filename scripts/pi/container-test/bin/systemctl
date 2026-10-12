@@ -2,22 +2,37 @@
 # Stand-in for systemctl (the container has no systemd). Logs each call to /tmp/calls. A unit is active
 # until "stop", active again after "start" or "restart"; /tmp/gmbroken makes the Assistant GM browser
 # fail to come back; /tmp/stopfail makes "stop foundry.service" fail.
+# The Kit GM browser is a transient unit: it is active only after the systemd-run stand-in started it (/tmp/started-kit)
+# and until "stop"; /tmp/kitstopfail makes "stop" leave it running. "cat" finds a unit file for the bridge service
+# unless /tmp/nobridge exists.
 echo "$*" >>/tmp/calls
 cmd="${1:-}"
 unit=""
 for a in "$@"; do
   case "$a" in
-    foundry.service | foundry-ai-tool-gm-browser.service) unit="$a" ;;
+    foundry.service | foundry-ai-tool-gm-browser.service | foundry-ai-tool-kit-gm-browser.service) unit="$a" ;;
   esac
 done
 case "$cmd" in
+  cat)
+    [ ! -f /tmp/nobridge ] || exit 1
+    exit 0
+    ;;
   is-active)
     [ -n "$unit" ] || exit 3
+    if [ "$unit" = foundry-ai-tool-kit-gm-browser.service ]; then
+      [ -f /tmp/started-kit ] && exit 0
+      exit 3
+    fi
     [ ! -f "/tmp/stopped-$unit" ] && exit 0
     exit 3
     ;;
   stop)
     if [ "$unit" = foundry.service ] && [ -f /tmp/stopfail ]; then exit 1; fi
+    if [ "$unit" = foundry-ai-tool-kit-gm-browser.service ]; then
+      [ -f /tmp/kitstopfail ] || rm -f /tmp/started-kit
+      exit 0
+    fi
     [ -z "$unit" ] || touch "/tmp/stopped-$unit"
     ;;
   start | restart)

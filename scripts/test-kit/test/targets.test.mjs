@@ -4,6 +4,8 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
+  LOOPBACK_HOSTS,
+  guardUrl,
   resolveTarget,
   kitHome,
   kitWorldsDir,
@@ -77,8 +79,80 @@ test('only kit worlds are allowed', () => {
   );
 });
 
-test('an unknown target name is refused (pi is not implemented)', () => {
-  assert.throws(() => resolveTarget({ name: 'pi', env: {} }), /unknown target/);
+test('an unknown target name is refused; pi is opt-in and never the default', () => {
+  assert.throws(() => resolveTarget({ name: 'mars', env: {} }), /unknown target "mars"/);
+  assert.equal(resolveTarget({ env: {} }).name, 'local');
+  // pi without the explicit game-night flag, with no targets file read at all
+  assert.throws(
+    () =>
+      resolveTarget({ name: 'pi', env: { KIT_TARGETS_FILE: path.join(tmpdir(), 'nope.json') } }),
+    e => e instanceof EnvError && /^REFUSED: pass --not-game-night/.test(e.message)
+  );
+});
+
+test('the pi target goes through resolveTarget: remote host allowed, local ones and live ports not', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'kit-targets-pi-'));
+  const file = path.join(dir, 'kit-targets.json');
+  const env = { KIT_TARGETS_FILE: file };
+  const write = pi => writeFileSync(file, JSON.stringify({ pi }));
+  write({ host: 'foundry-pi' });
+  const t = resolveTarget({ name: 'pi', notGameNight: true, env });
+  assert.equal(t.name, 'pi');
+  assert.equal(t.dashboard, 'http://foundry-pi:3000');
+  assert.equal(t.foundry, 'http://foundry-pi:30000');
+  assert.equal(t.world, 'strahd-kit');
+  // a null world (the CLI default) is the pi world; any other world is refused
+  assert.equal(
+    resolveTarget({ name: 'pi', world: null, notGameNight: true, env }).world,
+    'strahd-kit'
+  );
+  assert.throws(
+    () => resolveTarget({ name: 'pi', world: 'ai-tool-kit-srd', notGameNight: true, env }),
+    /REFUSED: the pi target runs only/
+  );
+  // fake never combines with pi
+  assert.throws(
+    () =>
+      resolveTarget({
+        name: 'pi',
+        fake: true,
+        fakeBase: 'http://127.0.0.1:4000',
+        notGameNight: true,
+        env,
+      }),
+    /REFUSED: the pi target never runs in fake mode/
+  );
+  write({ host: '127.0.0.1' });
+  assert.throws(
+    () => resolveTarget({ name: 'pi', notGameNight: true, env }),
+    /REFUSED: the pi target must be another machine/
+  );
+  write({ host: 'foundry-pi', dashboardPort: 31415 });
+  assert.throws(
+    () => resolveTarget({ name: 'pi', notGameNight: true, env }),
+    /REFUSED: port 31415 is the live bridge/
+  );
+  // the local target stays loopback only, and a remote COGM_BASE is still refused
+  assert.throws(
+    () => resolveTarget({ env: { COGM_BASE: 'http://foundry-pi:3100' } }),
+    /not on this machine/
+  );
+});
+
+test('guardUrl: loopback only by default, remote hosts only when asked, live ports never', () => {
+  assert.equal(guardUrl('http://localhost:3100', { label: 'x' }), 'http://127.0.0.1:3100');
+  assert.throws(() => guardUrl('http://foundry-pi:3000', { label: 'x' }), /loopback only/);
+  assert.equal(
+    guardUrl('http://foundry-pi:3000', { label: 'x', loopbackOnly: false }),
+    'http://foundry-pi:3000'
+  );
+  for (const port of LIVE_BRIDGE_PORTS) {
+    assert.throws(
+      () => guardUrl(`http://foundry-pi:${port}`, { label: 'x', loopbackOnly: false }),
+      /live bridge/
+    );
+  }
+  assert.ok(LOOPBACK_HOSTS.includes('127.0.0.1'));
 });
 
 test('kitHome honours TEST_KIT_HOME', () => {

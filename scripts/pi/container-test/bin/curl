@@ -2,11 +2,15 @@
 # Stand-in for curl: /api/status answers what /tmp/status holds with the exit code in /tmp/status_rc,
 # /join answers a running world's join page. Anything else (a download) fails.
 # Switches (files, set by a scenario): /tmp/gm-counts makes /api/status count the Assistant GM browser as one user
-# while that unit runs; /tmp/joinfail makes /join fail once Foundry was stopped (the world does not come back).
+# while that unit runs; /tmp/kit-counts does the same for the Kit GM browser (/tmp/started-kit); /tmp/joinfail makes /join fail once Foundry was stopped (the world does not come back).
 url="${*: -1}"
 case "$url" in
   */api/status)
     if [ -f /tmp/gm-counts ] && [ ! -f /tmp/stopped-foundry-ai-tool-gm-browser.service ]; then
+      echo '{"active":true,"users":1}'
+      exit 0
+    fi
+    if [ -f /tmp/kit-counts ] && [ -f /tmp/started-kit ]; then
       echo '{"active":true,"users":1}'
       exit 0
     fi

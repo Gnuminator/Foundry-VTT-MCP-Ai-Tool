@@ -17,10 +17,11 @@ import { createFakeGm } from './gm.mjs';
 import { READ_TOOLS } from './tools-read.mjs';
 import { GUARDED_TOOLS } from './tools-guarded.mjs';
 import { COMBAT_TOOLS } from './tools-combat.mjs';
+import { SCENE_TOOLS } from './tools-scene.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
-const TOOLS = { ...READ_TOOLS, ...GUARDED_TOOLS, ...COMBAT_TOOLS };
+const TOOLS = { ...READ_TOOLS, ...GUARDED_TOOLS, ...COMBAT_TOOLS, ...SCENE_TOOLS };
 
 /** Every tool name the fake implements. */
 export const FAKE_TOOL_NAMES = Object.keys(TOOLS);

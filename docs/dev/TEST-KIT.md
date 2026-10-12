@@ -40,19 +40,21 @@ node scripts/test-kit/kit.mjs <command> [options]
 | `all`   | `build`, then `run`.                                                                                                    |
 | `check` | Loads and validates every scenario against the tool catalog. Needs no Foundry.                                          |
 
-| Option                     | Meaning                                                                    |
-| -------------------------- | -------------------------------------------------------------------------- |
-| `--size smoke\|full\|long` | How big the kit is and which scenarios run. Default `smoke`. See "Sizes".  |
-| `--profile <id>`           | The content profile. Default `srd`. It also picks the kit world.           |
-| `--classes a,b`            | Build only these classes (identifier or name). A development filter.       |
-| `--no-coverage`            | Skip the coverage pass (see "Pick coverage").                              |
-| `--coverage-cap <n>`       | The most coverage heroes one run builds. Default 40.                       |
-| `--only a,b`               | Run only these scenario ids.                                               |
-| `--scenarios <dir>`        | An extra scenario folder (repeatable). The repo's own folder is always on. |
-| `--world <id>`             | Only a check: it must match the profile's world, or the run stops.         |
-| `--report-dir <dir>`       | Where the report goes. Default `<kit home>/reports/<time>-<size>`.         |
-| `--fake`                   | Use the in-process fake instead of Foundry (this is what CI does).         |
-| `--headed`                 | Show the GM browser window instead of running it hidden.                   |
+| Option                     | Meaning                                                                                  |
+| -------------------------- | ---------------------------------------------------------------------------------------- |
+| `--size smoke\|full\|long` | How big the kit is and which scenarios run. Default `smoke`. See "Sizes".                |
+| `--profile <id>`           | The content profile. Default `srd`. It also picks the kit world.                         |
+| `--classes a,b`            | Build only these classes (identifier or name). A development filter.                     |
+| `--no-coverage`            | Skip the coverage pass (see "Pick coverage").                                            |
+| `--coverage-cap <n>`       | The most coverage heroes one run builds. Default 40.                                     |
+| `--only a,b`               | Run only these scenario ids.                                                             |
+| `--scenarios <dir>`        | An extra scenario folder (repeatable). The repo's own folder is always on.               |
+| `--world <id>`             | Only a check: it must match the profile's world, or the run stops.                       |
+| `--report-dir <dir>`       | Where the report goes. Default `<kit home>/reports/<time>-<size>`.                       |
+| `--fake`                   | Use the in-process fake instead of Foundry (this is what CI does).                       |
+| `--headed`                 | Show the GM browser window instead of running it hidden.                                 |
+| `--target local\|pi`       | Where to run. Default `local` (this PC's test server). `pi`: see "Running it on the Pi". |
+| `--not-game-night`         | Pi target only: you confirm today is not a game night. Required.                         |
 
 `npm run kit` is a short way to start it. `npm run kit:test` runs the kit's own unit tests.
 
@@ -88,6 +90,56 @@ enable it (the `heroes-studio` scenario fails with that advice when the module i
 
 The kit opens its own GM page first. The bridge only has a Foundry link while that page is open.
 Each test server is shared: run one live job at a time on it. See the `foundry-test-env` skill.
+
+### Running it on the Pi
+
+`--target pi` runs the scenarios that only call bridge tools against the Orange Pi's throwaway
+world `strahd-kit` (I-028: which bridge tools need a canvas that the Pi's headless GM browser, set to
+Foundry's "Disable Canvas", does not have). It is a first slice: no clicking, no build.
+
+1. **The Pi side.** A kit session must be up (docs/dev/PI-SETUP.md, "Kit session"): after a
+   `dietpi-backup 1` snapshot and your OK, `kit-session.sh MODE=up` launches `strahd-kit`, makes the
+   GM user `Kit GM` with a generated password, makes it the module's bridge user, and starts a
+   headless browser that joins as `Kit GM` and holds the bridge link. The real Assistant GM browser
+   stays stopped, so the Claude Desktop connectors see the test world until `MODE=down`.
+2. **The targets file**, outside the repo, `%LOCALAPPDATA%\foundry-ai-tool\kit-targets.json`
+   (`KIT_TARGETS_FILE` overrides the path). Host and ports, and the paths of two files on this PC;
+   no secret is in it, and any other key is refused:
+
+   ```json
+   {
+     "pi": {
+       "host": "foundry-pi",
+       "dashboardPort": 3000,
+       "foundryPort": 30000,
+       "dashboardTokenFile": "C:\\Users\\you\\AppData\\Local\\foundry-ai-tool\\dashboard-token.txt",
+       "kitGmPasswordFile": "C:\\Users\\you\\AppData\\Local\\foundry-ai-tool\\kit-gm-password.txt"
+     }
+   }
+   ```
+
+   `dashboardTokenFile` holds the dashboard's GM token (the Pi dashboard asks for it over Tailscale;
+   you put it there once, the kit sends it as `X-CoGM-Token`). `kitGmPasswordFile` is the
+   per-session `Kit GM` password: `pwsh scripts/pi/fetch-kit-login.ps1` copies it from the Pi with
+   one read-only command, never prints it, and limits the file to your Windows user;
+   `pwsh scripts/pi/fetch-kit-login.ps1 -Remove` deletes it after `MODE=down`. The kit reads both
+   files only where it needs them and never prints them. This slice sends the token only; the
+   password is for the later clicking slice (`lib/gm.mjs` can already type it into the join form of
+   the kit's own throwaway `Kit GM`).
+
+3. **The run:**
+
+   ```powershell
+   node scripts/test-kit/kit.mjs run --target pi --not-game-night --only canvas-tools-headless
+   ```
+
+   `canvas-tools-headless` calls ten read or plan tools (`list-scenes`, `get-current-scene`,
+   `get-token-positions`, `measure-distance`, `get-targets`, `get-token-details`, `get-party`,
+   `plan-party-change`, `plan-scene-change`, `open-in-foundry`), applies nothing, and logs one line per
+   tool: `canvas-probe <tool>: ok`, `FAILED needs-canvas` (the error mentions the canvas),
+   `FAILED other: <message>` or `skipped (<why>)`. A failed probe makes the run exit 1, which is the
+   point; the report lists which tools failed. The same scenario also runs in a normal local kit run,
+   where the canvas exists, so that report is the baseline to compare with.
 
 ### Two test servers
 
@@ -1133,9 +1185,15 @@ When you change a tool's result shape, change the fake with it.
   (server A) or `:30002` (server B), any loopback spelling, on Windows, because its passwordless GMs would be an open GM login on a
   host others can reach. A loopback address alone is not enough: on the Pi `127.0.0.1:30000` is the
   port the tunnel serves, and an SSH forward makes the Pi look local, so both are refused. An SSH
-  forward onto port 30001 or 30002 itself cannot be told apart; never forward the Pi there. A remote target
-  (the Pi's `strahd-kit`) needs a way to give its GMs passwords before `provisionWorld` can serve
-  it; there is no opt-out today.
+  forward onto port 30001 or 30002 itself cannot be told apart; never forward the Pi there. The
+  Pi gets its Kit GM from the kit session stage instead, with a generated password (docs/dev/PI-SETUP.md, "Kit session").
+- **The Pi target is opt-in and narrow.** `--target pi` is never the default. It runs only `run`
+  (no `init`, `build` or `all`: the kit never builds, wipes or provisions on the Pi), only in
+  `strahd-kit`, only the scenarios tagged `tools-only` (no GM browser, no GM actions, no manifest),
+  never with `--fake`, and only with `--not-game-night`. The host must not be this PC, and the same
+  live-port check refuses 31414 to 31416 on either port. The Pi's Foundry must answer and be
+  launching `strahd-kit`, and the connected world must be `strahd-kit`, or the run stops with
+  exit code 2 before it calls a tool.
 
 ## What comes next
 
@@ -1143,5 +1201,5 @@ When you change a tool's result shape, change the fake with it.
 - Dashboard checks in a real browser (Playwright), not only the JSON the dashboard serves.
 - Actor Studio at other levels (1, 11, 17, 20), with equipment and its biography tab on, and a multiclass
   level-up (the plain route is covered by `heroes-multiclass`); the Actor Studio findings above sent to its author.
-- A Pi target: the same kit against the Orange Pi, once the Pi has a kit world.
+- The Pi target beyond tools only: the scenarios that click (needs the kit's own GM browser to join the Pi as `Kit GM` with its password; the plumbing is in `lib/gm.mjs`), and a build on the Pi.
 - The licensed layer: the Curse of Strahd scenarios, kept on this PC only.

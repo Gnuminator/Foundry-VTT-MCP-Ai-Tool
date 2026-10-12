@@ -18,10 +18,12 @@ import {
   KIT_SIZES,
   KIT_WORLDS,
   KIT_FORMAT_VERSION,
+  TOOLS_ONLY_TAG,
 } from './lib/contract.mjs';
 import { DEFAULT_COVERAGE_CAP } from './lib/coverage.mjs';
 import { EnvError, KitToolError } from './lib/errors.mjs';
 import { foundryDataDir, kitHome, kitWorldsDir, resolveTarget } from './lib/targets.mjs';
+import { PI_WORLD, piPreflight, readDashboardToken, reportTarget } from './lib/pi-target.mjs';
 import { loadProfile } from './lib/profiles.mjs';
 import { createDashboardClient } from './lib/dashboard.mjs';
 import { loadToolCatalog } from './lib/catalog.mjs';
@@ -60,16 +62,27 @@ Options
   --report-dir <dir>       where the report goes (default <kit home>/reports/<time>-<size>)
   --fake                   run against the in-process fake instead of Foundry (CI)
   --headed                 show the GM browser window
+  --target local|pi        where to run (default local: this PC's test server). pi is opt-in and
+                           tools-only: only "run", only scenarios tagged tools-only, through the
+                           Orange Pi's dashboard, in its throwaway world ${PI_WORLD}. It needs the
+                           targets file (%LOCALAPPDATA%\\foundry-ai-tool\\kit-targets.json, or env
+                           KIT_TARGETS_FILE: host and ports only) and --not-game-night; it never
+                           builds, wipes or inits, and refuses --fake, --profile and --world
+  --not-game-night         with --target pi: confirm today is not a game night (the kit never runs
+                           on the Pi on a game-night day)
   --help                   this text
 
 Only one test server's dashboard and Foundry are used: FOUNDRY_TEST_SERVER=A (the default,
 127.0.0.1:3100 and 127.0.0.1:30001) or B (3101 and 30002; npm run kit:run uses B); the live
 bridge ports 31414 to 31416 are refused. Kit home: env TEST_KIT_HOME or C:\\FoundryTest\\test-kit.
-Exit codes: 0 all passed, 1 a scenario failed, 2 environment not ready or target refused.`;
+Exit codes: 0 all passed, 1 a scenario failed, 2 environment not ready or target refused.
+
+Example (the Pi's tools-only canvas probe):
+  node scripts/test-kit/kit.mjs run --target pi --not-game-night --size smoke --only canvas-tools-headless`;
 
 /**
  * @param {string[]} argv
- * @returns {{command: string | null, size: string, only: string[], scenarios: string[], world: string | null, profile: string, classes: string[], coverage: boolean, coverageCap: number, reportDir: string | null, fake: boolean, headed: boolean, help: boolean}}
+ * @returns {{command: string | null, size: string, only: string[], scenarios: string[], world: string | null, profile: string, classes: string[], coverage: boolean, coverageCap: number, reportDir: string | null, fake: boolean, headed: boolean, target: 'local' | 'pi', notGameNight: boolean, help: boolean}}
  */
 export function parseArgs(argv) {
   const o = {
@@ -85,6 +98,8 @@ export function parseArgs(argv) {
     reportDir: null,
     fake: false,
     headed: false,
+    target: /** @type {'local' | 'pi'} */ ('local'),
+    notGameNight: false,
     help: false,
   };
   const args = [...argv];
@@ -98,7 +113,14 @@ export function parseArgs(argv) {
     if (a === '--help' || a === '-h') o.help = true;
     else if (a === '--fake') o.fake = true;
     else if (a === '--headed') o.headed = true;
-    else if (a === '--size') o.size = value(a);
+    else if (a === '--not-game-night') o.notGameNight = true;
+    else if (a === '--target') {
+      const v = value(a);
+      if (v !== 'local' && v !== 'pi') {
+        throw new EnvError(`--target must be local or pi, not "${v}"`);
+      }
+      o.target = v;
+    } else if (a === '--size') o.size = value(a);
     else if (a === '--only')
       o.only.push(
         ...value(a)
@@ -266,6 +288,25 @@ async function maybeStartFake({ fake, world }) {
 /** The scenario folders: the repo's own, then the ones named with --scenarios. */
 function scenarioDirs(/** @type {string[]} */ extra) {
   return [REPO_SCENARIOS, ...extra];
+}
+
+/**
+ * Writes the report files and prints the summary lines of a run.
+ * @param {ReturnType<typeof makeReport>} report
+ * @param {string} dir
+ */
+function writeAndSayReport(report, dir) {
+  const files = writeReport(report, dir);
+  const s = report.summary;
+  say('');
+  say(`${s.passed} passed, ${s.failed} failed, ${s.skipped} skipped of ${s.total}`);
+  const con = consoleSections(report);
+  for (const line of consoleSummaryLines(con.run)) say(line);
+  if (con.build.length) {
+    for (const line of consoleSummaryLines(con.build)) say(`build ${line}`);
+  }
+  say(`report: ${files.html}`);
+  return s;
 }
 
 // --- commands -----------------------------------------------------------------
@@ -463,16 +504,7 @@ async function cmdTarget(command, o) {
       results,
       consoleErrors,
     });
-    const files = writeReport(report, dir);
-    const s = report.summary;
-    say('');
-    say(`${s.passed} passed, ${s.failed} failed, ${s.skipped} skipped of ${s.total}`);
-    const con = consoleSections(report);
-    for (const line of consoleSummaryLines(con.run)) say(line);
-    if (con.build.length) {
-      for (const line of consoleSummaryLines(con.build)) say(`build ${line}`);
-    }
-    say(`report: ${files.html}`);
+    const s = writeAndSayReport(report, dir);
     if (envProblem) throw envProblem;
     return s.failed ? EXIT.FAIL : EXIT.PASS;
   } finally {
@@ -482,6 +514,136 @@ async function cmdTarget(command, o) {
     }
     if (fake) await Promise.resolve(fake.close()).catch(() => {});
   }
+}
+
+/**
+ * The options `--target pi` allows: only `run` (or `check`, which needs no target), no fake, the
+ * default profile, no other world than strahd-kit. Everything here exits 2 with a clear message.
+ * @param {ReturnType<typeof parseArgs>} o
+ */
+export function checkPiOptions(o) {
+  if (o.target !== 'pi') return;
+  if (o.command === 'init' || o.command === 'build' || o.command === 'all') {
+    throw new EnvError(
+      `REFUSED: --target pi allows only "run": the Pi's ${PI_WORLD} is made by the kit session, and the kit never builds, wipes or inits there.`
+    );
+  }
+  if (o.command === 'check') return;
+  if (o.fake) throw new EnvError('REFUSED: --target pi never combines with --fake.');
+  if (o.profile !== DEFAULT_PROFILE) {
+    throw new EnvError(
+      `REFUSED: --target pi takes no --profile (its world is fixed: ${PI_WORLD}).`
+    );
+  }
+  if (o.world && o.world !== PI_WORLD) {
+    throw new EnvError(`REFUSED: --target pi runs only in ${PI_WORLD}, not ${o.world}.`);
+  }
+}
+
+/**
+ * The scenarios the pi target may run: tagged `tools-only`, of the size asked for. `--only` must
+ * name such scenarios; anything else is refused with the allowed ids.
+ * @param {Array<{scenario: any, file: string, dir: string}>} all every loaded scenario
+ * @param {{size: string, only: string[]}} o
+ */
+export function selectToolsOnly(all, { size, only }) {
+  const allowed = all.filter(
+    ({ scenario }) => scenario.tags.includes(TOOLS_ONLY_TAG) && scenario.sizes.includes(size)
+  );
+  const allowedIds = allowed.map(({ scenario }) => scenario.id);
+  for (const id of only) {
+    const found = all.find(({ scenario }) => scenario.id === id);
+    if (!found) {
+      throw new EnvError(
+        `--only: no scenario with id "${id}" (the Pi run allows: ${allowedIds.join(', ') || 'none'})`
+      );
+    }
+    if (!allowedIds.includes(id)) {
+      throw new EnvError(
+        `REFUSED: scenario "${id}" is not tools-only at size ${size}; the Pi run allows: ${allowedIds.join(', ') || 'none'}`
+      );
+    }
+  }
+  return only.length ? allowed.filter(({ scenario }) => only.includes(scenario.id)) : allowed;
+}
+
+/**
+ * `run --target pi`: the tools-only scenarios through the Pi's dashboard. No GM browser, no GM
+ * actions switch, no manifest on disk: the Pi's headless Kit GM holds the bridge link.
+ * `deps` lets a test stand in for the Pi (resolve the target to the in-process fake, skip the
+ * Foundry status check); the real run uses the defaults.
+ * @param {ReturnType<typeof parseArgs>} o
+ * @param {{resolve?: typeof resolveTarget, preflight?: typeof piPreflight}} [deps]
+ */
+export async function piRun(o, { resolve = resolveTarget, preflight = piPreflight } = {}) {
+  const startedAt = new Date();
+  const target = resolve({ name: 'pi', world: o.world, notGameNight: o.notGameNight });
+  const catalog = await loadToolCatalog(REPO_ROOT).catch(e => {
+    throw new EnvError(e.message);
+  });
+  const loaded = await loadScenarios(scenarioDirs(o.scenarios), { catalog });
+  if (loaded.problems.length) {
+    for (const p of loaded.problems) say(`PROBLEM ${p}`);
+    say(`${loaded.problems.length} scenario problems; nothing was run`);
+    return EXIT.FAIL;
+  }
+  const list = selectToolsOnly(loaded.scenarios, o);
+  if (!list.length) {
+    say(`no tools-only scenarios for size ${o.size}; nothing to run`);
+    return EXIT.PASS;
+  }
+  say(`target pi: ${target.host}, dashboard ${target.dashboard}, Foundry ${target.foundry}`);
+  await preflight(target);
+  // The token comes from its file when the targets file names one, else COGM_TOKEN as locally.
+  const token = readDashboardToken(target);
+  const dashboard = createDashboardClient({
+    base: target.dashboard,
+    ...(token ? { token } : {}),
+  });
+  await waitForLink(dashboard, target.world);
+  // The scenarios only read t.kit.world; the real manifest belongs to this PC's kit worlds.
+  const manifest = /** @type {any} */ ({
+    version: KIT_FORMAT_VERSION,
+    world: target.world,
+    builtAt: startedAt.toISOString(),
+    systemVersion: '',
+    folders: {},
+    profile: 'pi-tools-only',
+    heroes: [],
+    monsters: [],
+  });
+  const dir = o.reportDir || newRunDir(kitHome(), o.size);
+  mkdirSync(dir, { recursive: true });
+  say(`running ${list.length} tools-only scenarios (${o.size}) in ${target.world} on the Pi`);
+  /** @type {any[]} */
+  let results = [];
+  /** @type {EnvError | null} */
+  let envProblem = null;
+  try {
+    ({ results } = await runScenariosDetailed(list, {
+      dashboard,
+      manifest,
+      fake: false,
+      size: /** @type {'smoke'|'full'|'long'} */ (o.size),
+      log: say,
+    }));
+  } catch (e) {
+    if (!(e instanceof EnvError)) throw e;
+    envProblem = e;
+    results = /** @type {any} */ (e).partialResults || [];
+  }
+  const report = makeReport({
+    size: o.size,
+    target: reportTarget(target),
+    startedAt,
+    gitSha: gitSha(),
+    fake: false,
+    build: null,
+    results,
+  });
+  const s = writeAndSayReport(report, dir);
+  if (envProblem) throw envProblem;
+  return s.failed ? EXIT.FAIL : EXIT.PASS;
 }
 
 /** @param {string[]} argv */
@@ -497,7 +659,9 @@ export async function main(argv) {
       say(HELP);
       return EXIT.ENV;
     }
+    checkPiOptions(o);
     if (o.command === 'check') return await cmdCheck(o);
+    if (o.target === 'pi') return await piRun(o);
     resolveProfile(o);
     if (o.command === 'init') return await cmdInit(o);
     return await cmdTarget(/** @type {'build' | 'run' | 'all'} */ (o.command), o);

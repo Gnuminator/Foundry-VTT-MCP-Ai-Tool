@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Stand-in for ss (the container has no iproute2): the bridge's Foundry port has one established connection, unless the
+# scenario made /tmp/nolink. Not logged to /tmp/calls.
+[ ! -f /tmp/nolink ] || exit 0
+echo "0 0 127.0.0.1:31415 127.0.0.1:50000"

@@ -381,6 +381,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/app.js',
   },
   {
+    name: 'dash.help.wiki',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/Help.tsx',
+  },
+  {
     name: 'dash.links.copy',
     kind: 'action',
     surface: 'dashboard',

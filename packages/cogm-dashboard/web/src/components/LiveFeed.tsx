@@ -60,13 +60,14 @@ function messageFor(face: Exclude<FeedFace, 'ready'>, log: FeedLog | null): stri
  * (80 events), and a burst of hits would queue up one announcement each. The first log the page
  * gets is not announced, and a folded card says nothing (it is hidden).
  */
-function useAnnouncement(log: FeedLog | null): string {
+function useAnnouncement(log: FeedLog | null): { text: string; n: number } {
   const [seenLog, setSeenLog] = useState(log);
-  const [said, setSaid] = useState('');
+  // `n` makes the same line twice in a row a new element, which a live region speaks again.
+  const [said, setSaid] = useState({ text: '', n: 0 });
   if (log !== seenLog) {
     setSeenLog(log);
     const text = announcement(freshEntries(seenLog, log));
-    if (text) setSaid(text);
+    if (text) setSaid({ text, n: said.n + 1 });
   }
   return said;
 }
@@ -105,7 +106,7 @@ export function LiveFeed({ folds }: { folds?: DuringFolds }): JSX.Element {
             {away && face === 'ready' ? FEED_AWAY_TEXT : ''}
           </p>
           <p className="visually-hidden" id="feed-announce" role="status">
-            {said}
+            <span key={said.n}>{said.text}</span>
           </p>
         </>
       }

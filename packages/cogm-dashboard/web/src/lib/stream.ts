@@ -6,7 +6,7 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { useEffect, useState } from 'react';
 
 import { streamUrl } from './auth';
-import { bridgeAway, readCombat, type CombatState } from './combat';
+import { bridgeAway, bridgeBlip, readCombat, type CombatState } from './combat';
 import { EMPTY_FEED, addFeedEvents, readFeedEvents, type FeedLog } from './feed';
 import { onPrefs } from './prefs';
 
@@ -235,27 +235,29 @@ export function useCombatActive(): boolean {
 }
 
 /**
- * How long the bridge has to stay away before the panels say so. One slow poll puts the status on
- * `unknown` for a poll interval (polling-feed.ts handlePollError); that blip should not grey the
- * strip and make a screen reader announce it. Back is shown at once, and so is an away status
- * the panel mounts with.
+ * How long a failed poll has to keep the bridge in doubt before the panels say it is away: a bit
+ * over the 4 s poll interval, so one failed poll that the next one clears is never shown (the
+ * status stays `unknown` until a poll succeeds). Only that doubt waits (bridgeBlip): a dropped
+ * channel or an unreachable Foundry shows at once, and so does back, and so does a status the
+ * panel mounts with.
  */
-export const AWAY_AFTER_MS = 1500;
+export const AWAY_AFTER_MS = 5000;
 
-/** Whether the bridge has been away for AWAY_AFTER_MS (false before the first status). */
+/** Whether the bridge is away, as the stream last said (false before the first status). */
 export function useBridgeAway(): boolean {
-  const away = bridgeAway(useBridgeStatus());
-  // Away from the first render stays away (a page opened while the bridge is down, a story).
-  const [shown, setShown] = useState(away);
+  const status = useBridgeStatus();
+  const away = bridgeAway(status);
+  const blip = away && bridgeBlip(status);
+  const [shown, setShown] = useState(blip);
   useEffect(() => {
-    if (!away) {
+    if (!blip) {
       setShown(false);
       return;
     }
     const timer = setTimeout(() => setShown(true), AWAY_AFTER_MS);
     return (): void => clearTimeout(timer);
-  }, [away]);
-  return away && shown;
+  }, [blip]);
+  return away && (!blip || shown);
 }
 
 /**

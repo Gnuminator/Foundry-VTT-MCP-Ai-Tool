@@ -396,6 +396,19 @@ export function stripMode(combat: CombatState | null, away: boolean): 'none' | '
   return away ? 'stale' : 'live';
 }
 
+/**
+ * Away only because a poll failed: the control channel is up and Foundry's state is unknown (a
+ * timeout or channel error on one poll, polling-feed.ts handlePollError). That is the status that
+ * flickers; a dropped channel or a Foundry that said it is unreachable is not a blip.
+ */
+export function bridgeBlip(
+  status: { controlChannel: string; foundry: string } | undefined
+): boolean {
+  return (
+    status !== undefined && status.controlChannel === 'connected' && status.foundry === 'unknown'
+  );
+}
+
 // --- The trial's sample fight -----------------------------------------------------------------
 
 function sampleCombatant(

@@ -12,8 +12,8 @@ const DASH = String.fromCharCode(0x2014);
 
 const STARTED = '2026-10-10T18:00:00.000Z';
 
-// lib/stream.ts AWAY_AFTER_MS: how long the bridge stays away before the strip says so.
-const AWAY_AFTER_MS = 1500;
+// lib/stream.ts AWAY_AFTER_MS: how long a failed poll keeps the strip from saying so.
+const AWAY_AFTER_MS = 5000;
 
 // The reads the page and the Tool runner make themselves (see `setup`). The strip writes nothing,
 // so a test that clicked its buttons expects no other call, whatever a future write is named, and
@@ -780,7 +780,7 @@ test.describe('the bridge is away', () => {
     await expect(away(page)).toHaveText('');
   });
 
-  test('a fight that ended while the page itself was disconnected goes when the stream is back', async ({
+  test('a `combat: null` on a new stream takes the fight away, with the bridge fine all along', async ({
     page,
   }) => {
     // The server answers every new stream with the fight or `{combat: null}` (app.ts), so a page
@@ -797,26 +797,43 @@ test.describe('the bridge is away', () => {
     await expect(page.locator('#combat-actions .ca-hint')).toBeVisible();
   });
 
-  test('a short blip does not mark the fight old; one that lasts does, and back is at once', async ({
-    page,
-  }) => {
+  test('a failed poll that the next one clears is never shown', async ({ page }) => {
     const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
     await load(page);
-    // One slow poll: the status goes to unknown and comes back within a moment.
+    // One poll fails: the control channel is up and Foundry's state is unknown.
     push([status({ foundry: 'unknown' })]);
+    await page.waitForTimeout(1500);
+    await expect(strip(page)).not.toHaveClass(/is-stale/);
+    await expect(away(page)).toHaveText('');
+    // The next poll succeeds, and nothing was ever shown, even once the wait is over.
     push([BRIDGE_UP]);
     await page.waitForTimeout(AWAY_AFTER_MS + 500);
     await expect(strip(page)).not.toHaveClass(/is-stale/);
     await expect(away(page)).toHaveText('');
+  });
 
-    push([FOUNDRY_AWAY]);
-    await page.waitForTimeout(500);
+  test('doubt that lasts is shown after the wait, and back is at once', async ({ page }) => {
+    const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    await load(page);
+    push([status({ foundry: 'unknown' })]);
+    await page.waitForTimeout(AWAY_AFTER_MS - 1500);
     await expect(away(page)).toHaveText('');
-    await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.');
+    await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.', {
+      timeout: 4000,
+    });
     await expect(strip(page)).toHaveClass(/is-stale/);
     push([BRIDGE_UP]);
     await expect(away(page)).toHaveText('', { timeout: 1000 });
     await expect(strip(page)).not.toHaveClass(/is-stale/);
+  });
+
+  test('a dropped channel or an unreachable Foundry is shown at once', async ({ page }) => {
+    const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    await load(page);
+    push([FOUNDRY_AWAY]);
+    await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.', {
+      timeout: 1000,
+    });
   });
 
   test('without a fight there is nothing to mark', async ({ page }) => {

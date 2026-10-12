@@ -379,7 +379,11 @@ test.describe('keyboard and screen reader', () => {
     // It really scrolls here, and Tab reaches it, since no row has anything to focus.
     const scrolls = await list.evaluate(el => el.scrollHeight > el.clientHeight);
     expect(scrolls).toBe(true);
-    await list.focus();
+    // From the fold button, Tab gets there (nothing else in the card takes it).
+    await page.getByRole('button', { name: 'Fold Live Feed' }).focus();
+    for (let i = 0; i < 5 && !(await list.evaluate(el => el === document.activeElement)); i += 1) {
+      await page.keyboard.press('Tab');
+    }
     await expect(list).toBeFocused();
     await page.keyboard.press('End');
     await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
@@ -397,6 +401,12 @@ test.describe('keyboard and screen reader', () => {
 
     push([events([raw('n1', 100, 'damage', 'Ogre Brute takes 9 damage')])]);
     await expect(said).toHaveText('Ogre Brute takes 9 damage');
+    // The same line again is a new element in the region, which is what makes it spoken again.
+    await said.locator('span').evaluate(el => el.setAttribute('data-heard', 'yes'));
+    push([events([raw('n1b', 101, 'damage', 'Ogre Brute takes 9 damage')])]);
+    await expect(rows(page)).toHaveCount(32);
+    await expect(said).toHaveText('Ogre Brute takes 9 damage');
+    await expect(said.locator('span')).not.toHaveAttribute('data-heard', 'yes');
 
     push([
       events([

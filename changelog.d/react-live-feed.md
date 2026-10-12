@@ -19,6 +19,7 @@
 - **Combat strip fixes (new dashboard):** a page that was disconnected while the fight ended no
   longer keeps showing it as live (the dashboard now answers every new stream with the fight or
   "no fight"). Damage / Heal and Condition send the token, so two "Wolf" rows are two targets, and
-  the Tool runner names them under the field. A short bridge blip no longer greys the strip: it
-  says the bridge is away after about a second and a half. The Enemy tag has a lighter red that
+  the Tool runner names them under the field. One failed poll no longer greys the strip: the
+  panels wait five seconds on "not sure" before they say the bridge is away (a dropped link shows at
+  once). The Live Feed's screen reader line is spoken again when two events read the same. The Enemy tag has a lighter red that
   can be read, and the "bridge away" look keeps the text's contrast.

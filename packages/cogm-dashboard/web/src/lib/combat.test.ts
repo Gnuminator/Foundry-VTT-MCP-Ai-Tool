@@ -11,6 +11,7 @@ import {
   bossLine,
   bossPrompts,
   bridgeAway,
+  bridgeBlip,
   canSelect,
   deathSavesWords,
   hpPercent,
@@ -399,6 +400,14 @@ describe('a fight the bridge cannot confirm', () => {
     expect(bridgeAway({ ...link, controlChannel: 'disconnected' })).toBe(true);
     expect(bridgeAway({ ...link, foundry: 'unreachable' })).toBe(true);
     expect(bridgeAway({ ...link, foundry: 'unknown' })).toBe(true);
+  });
+
+  it('calls only a failed poll with the channel up a blip, the one status that may wait', () => {
+    expect(bridgeBlip(undefined)).toBe(false);
+    expect(bridgeBlip(link)).toBe(false);
+    expect(bridgeBlip({ ...link, foundry: 'unknown' })).toBe(true);
+    expect(bridgeBlip({ ...link, foundry: 'unreachable' })).toBe(false);
+    expect(bridgeBlip({ controlChannel: 'disconnected', foundry: 'unknown' })).toBe(false);
   });
 
   it('keeps the fight on screen, marked stale, and is live again when the bridge is back', () => {

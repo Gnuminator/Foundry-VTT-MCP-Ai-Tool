@@ -20,10 +20,13 @@ interface HelpPage {
 function HelpHtml({
   html,
   anchor,
+  seq,
   onLink,
 }: {
   html: string;
   anchor: string;
+  /** Counts every open, so the same link twice scrolls twice. */
+  seq: number;
   onLink: OpenHelp;
 }): JSX.Element {
   const body = useRef<HTMLDivElement>(null);
@@ -31,13 +34,13 @@ function HelpHtml({
     const target = anchor ? body.current?.querySelector(`[id="${CSS.escape(anchor)}"]`) : null;
     if (target) target.scrollIntoView({ block: 'start' });
     else body.current?.closest('.pane-body')?.scrollTo({ top: 0 });
-  }, [html, anchor]);
+  }, [html, anchor, seq]);
   // Built from the repo's own docs by scripts/build-help.mjs, not from anything a user typed.
   // The guide's own links carry data-help="page#anchor" (the old page's click handler): they open
   // that page in this pane instead of following their href.
   const follow = (e: MouseEvent<HTMLDivElement>): void => {
     const link = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-help]') : null;
-    if (!link?.dataset.help) return;
+    if (!link?.dataset.help || !body.current?.contains(link)) return;
     e.preventDefault();
     onLink(link.dataset.help);
   };
@@ -47,7 +50,7 @@ function HelpHtml({
 /** The help pane and the context that opens it. Wraps the page once, in App. */
 export function HelpProvider({ children }: { children: ReactNode }): JSX.Element {
   // The last page stays after closing, so the pane never flashes "Help" or "Loading" on its way out.
-  const [target, setTarget] = useState({ page: '', anchor: '' });
+  const [target, setTarget] = useState({ page: '', anchor: '', seq: 0 });
   const [open, setOpen] = useState(false);
   const page = target.page;
 
@@ -69,9 +72,9 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
   const openHelp: OpenHelp = to => {
     // Only the first # splits: an anchor may hold one itself.
     const hash = to.indexOf('#');
-    setTarget(
-      hash < 0 ? { page: to, anchor: '' } : { page: to.slice(0, hash), anchor: to.slice(hash + 1) }
-    );
+    const next =
+      hash < 0 ? { page: to, anchor: '' } : { page: to.slice(0, hash), anchor: to.slice(hash + 1) };
+    setTarget(before => ({ ...next, seq: before.seq + 1 }));
     setOpen(true);
   };
 
@@ -103,7 +106,12 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
         ) : help.isError ? (
           <p className="empty">Couldn&apos;t load the help: {errorText(help.error)}</p>
         ) : (
-          <HelpHtml html={help.data.html} anchor={target.anchor} onLink={openHelp} />
+          <HelpHtml
+            html={help.data.html}
+            anchor={target.anchor}
+            seq={target.seq}
+            onLink={openHelp}
+          />
         )}
       </OverlayPane>
     </HelpContext.Provider>

@@ -5,13 +5,19 @@
 
 .DESCRIPTION
   One line per part, OK or a problem with what to do. Exit 0 when Foundry runs the world and the
-  bridge has its link; 1 otherwise. Changes nothing.
+  bridge has its link; 1 otherwise. Changes nothing. Right after start.ps1 the Assistant GM is still
+  joining the world (measured 2026-10-12: 20 to 40 seconds), so while it runs and the link is down
+  the check waits for the link, up to -WaitSeconds, instead of reporting a problem.
 
 .EXAMPLE
   .\scripts\plan-b\check.ps1
 #>
 [CmdletBinding()]
-param([string]$Root = '')
+param(
+  [string]$Root = '',
+  # How long to wait for the module link while the Assistant GM is still joining (0: do not wait).
+  [int]$WaitSeconds = 90
+)
 
 . (Join-Path $PSScriptRoot 'lib.ps1')
 if (-not $Root) { $Root = $PlanBDefaults.Root }
@@ -71,10 +77,21 @@ if (-not $health) {
   Line 'dashboard' $true "http://localhost:$($ports.Dashboard)"
   Line 'bridge' ($health.controlChannel -eq 'connected') "control channel $($health.controlChannel) (port $($ports.Control))"
   $st = Get-Json "http://127.0.0.1:$($ports.Dashboard)/api/state"
+  $agm = $svc | Where-Object Name -eq 'assistant-gm'
+  if ($WaitSeconds -gt 0 -and $agm -and $st -and $st.PSObject.Properties['status'] -and $st.status.foundry -ne 'reachable' -and
+      (Get-Process -Id ([int]$agm.Value.pid) -ErrorAction SilentlyContinue)) {
+    Write-Host "waiting for the Assistant GM to join the world (up to $WaitSeconds seconds)..." -ForegroundColor Gray
+    $until = (Get-Date).AddSeconds($WaitSeconds)
+    while ((Get-Date) -lt $until -and $st.status.foundry -ne 'reachable') {
+      Start-Sleep -Seconds 3
+      $again = Get-Json "http://127.0.0.1:$($ports.Dashboard)/api/state"
+      if ($again -and $again.PSObject.Properties['status']) { $st = $again }
+    }
+  }
   if ($st -and $st.PSObject.Properties['status']) {
     $linked = $st.status.foundry -eq 'reachable'
     $hint = if ($linked) { '' } elseif ($svcNames -contains 'assistant-gm') {
-      " (the Assistant GM joins within a minute; if it stays down see $(Join-Path $L.LogDir 'assistant-gm.out.log'), or log in to Foundry as the GM in a browser on this PC)"
+      " (the Assistant GM has not joined the world yet; see $(Join-Path $L.LogDir 'assistant-gm.out.log'), or log in to Foundry as the GM in a browser on this PC)"
     } else { ' (open Foundry as the GM in a browser on this PC: the module there holds the link)' }
     Line 'module link' $linked "Foundry $($st.status.foundry) through port $($ports.Link)$hint"
   } else {

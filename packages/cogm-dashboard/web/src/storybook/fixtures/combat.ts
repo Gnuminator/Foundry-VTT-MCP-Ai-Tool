@@ -18,6 +18,7 @@ export function combatant(id: string, name: string, over: Partial<Combatant> = {
     defeated: false,
     deathSaves: null,
     boss: null,
+    tokenId: null,
     ...over,
   };
 }

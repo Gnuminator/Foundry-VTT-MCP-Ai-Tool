@@ -112,28 +112,6 @@ export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
   },
   {
     rule: 'color-contrast',
-    target: '.side-enemy',
-    reason:
-      'Danger red #e63946 on the Enemy tag tint is 3.4:1 (needs 4.5:1), neutral theme: the same danger red and tint as the module error badge above.',
-    stories: [
-      'components-combat-strip--boss-fight-phone',
-      'components-combat-strip--boss-fight-prompts-off',
-      'components-combat-strip--boss-fight-prompts-on',
-      'components-combat-strip--boss-reaction-used',
-      'components-combat-strip--bridge-away',
-      'components-combat-strip--bridge-away-phone',
-      'components-combat-strip--bridge-away-picked',
-      'components-combat-strip--combat-buttons-on',
-      'components-combat-strip--death-saves',
-      'components-combat-strip--fight',
-      'components-combat-strip--fight-in-auto',
-      'components-combat-strip--gm-actions-off',
-      'components-combat-strip--prompts-on-no-boss',
-      'components-combat-strip--trial-sample-fight',
-    ],
-  },
-  {
-    rule: 'color-contrast',
     target: '.sev-damage .event-type, .sev-death .event-type',
     reason:
       'Danger red #e63946 on the Damage and Death chip tint #39242f is 3.43:1 (needs 4.5:1), neutral theme: the same danger red and tint as the module error badge above.',

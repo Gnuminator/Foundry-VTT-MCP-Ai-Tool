@@ -16,3 +16,9 @@
   keyboard (Tab to it, then the arrow, Page and End keys). New events are announced as one short
   message per batch, so a burst of hits is not read out one by one, and the events already there
   when the page loads are not read out at all.
+- **Combat strip fixes (new dashboard):** a page that was disconnected while the fight ended no
+  longer keeps showing it as live (the dashboard now answers every new stream with the fight or
+  "no fight"). Damage / Heal and Condition send the token, so two "Wolf" rows are two targets, and
+  the Tool runner names them under the field. A short bridge blip no longer greys the strip: it
+  says the bridge is away after about a second and a half. The Enemy tag has a lighter red that
+  can be read, and the "bridge away" look keeps the text's contrast.

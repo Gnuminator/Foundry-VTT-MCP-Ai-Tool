@@ -26,7 +26,7 @@ import {
   reactionLabel,
   reactionsFor,
   readCombat,
-  selectedNames,
+  selectedTargets,
   showBossToggle,
   showDeathSaves,
   showReaction,
@@ -50,6 +50,7 @@ const who = (over: Partial<Combatant> = {}): Combatant => ({
   defeated: false,
   deathSaves: null,
   boss: null,
+  tokenId: null,
   ...over,
 });
 
@@ -90,6 +91,7 @@ describe('reading a fight off the stream', () => {
           initiative: 18,
           isPC: true,
           category: 'pc',
+          tokenId: 'tok-a',
           hp: { value: 5, max: 9, temp: 2 },
         },
         {
@@ -112,6 +114,7 @@ describe('reading a fight off the stream', () => {
     expect(combat?.turn).toBe(1);
     expect(combat?.combatants.map(c => c.id)).toEqual(['a', 'b']);
     expect(combat?.combatants[0]?.hp).toEqual({ value: 5, max: 9, temp: 2 });
+    expect(combat?.combatants.map(c => c.tokenId)).toEqual(['tok-a', null]);
     expect(combat?.combatants[1]).toMatchObject({
       initiative: null,
       isCurrentTurn: true,
@@ -365,10 +368,17 @@ describe('selecting combatants and the action bar', () => {
     expect(pruneSelection(empty, combat, false)).toBe(empty);
   });
 
-  it('names the picked combatants in the bridge order, and asks the Tool runner for a plan', () => {
+  it('targets the picked combatants in the bridge order, and asks the Tool runner for a plan', () => {
     const combat = fight([who({ id: 'a', name: 'Alder' }), who({ id: 'b', name: 'Bram' })]);
-    expect(selectedNames(combat, new Set(['b', 'a']))).toEqual(['Alder', 'Bram']);
-    expect(selectedNames(null, new Set(['a']))).toEqual([]);
+    expect(selectedTargets(combat, new Set(['b', 'a']))).toEqual(['Alder', 'Bram']);
+    expect(selectedTargets(null, new Set(['a']))).toEqual([]);
+    // Two rows with one name stay two tokens: the token's id is the target.
+    const wolves = fight([
+      who({ id: 'c1', name: 'Wolf', tokenId: 'tok1' }),
+      who({ id: 'c2', name: 'Wolf', tokenId: 'tok2' }),
+      who({ id: 'c3', name: 'Bram' }),
+    ]);
+    expect(selectedTargets(wolves, new Set(['c2', 'c3']))).toEqual(['tok2', 'Bram']);
     expect(planRequest('damage', ['Alder'])).toEqual({
       name: 'plan-actor-change',
       prefill: { action: 'damage', targets: ['Alder'] },

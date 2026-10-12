@@ -156,7 +156,12 @@ export function RefPicker({
 
   const hint = ((): string => {
     if (values.length === 0) return '';
-    if (ref.value === 'name') return values.length > 1 ? `${values.length} selected` : '';
+    if (ref.value === 'name') {
+      // A field that takes names can hold an id (the combat strip prefills token ids): say whose.
+      const byId = new Map(rows.map(r => [r.choice.id, r.choice.name]));
+      if (values.some(v => byId.has(v))) return values.map(v => byId.get(v) ?? v).join(', ');
+      return values.length > 1 ? `${values.length} selected` : '';
+    }
     const named = values.map(v => names.get(v));
     if (!multiple) return named[0] ?? '';
     return values.map((v, i) => named[i] ?? v).join(', ');

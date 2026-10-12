@@ -5,12 +5,28 @@
 // and the stream are faked in the browser; nothing here needs a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, fromMenu, ok } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeTools, fromMenu, ok, type ToolCall } from './support';
 
 // The dash the strip shows for no value.
 const DASH = String.fromCharCode(0x2014);
 
 const STARTED = '2026-10-10T18:00:00.000Z';
+
+// lib/stream.ts AWAY_AFTER_MS: how long the bridge stays away before the strip says so.
+const AWAY_AFTER_MS = 1500;
+
+// The reads the page and the Tool runner make themselves (see `setup`). The strip writes nothing,
+// so a test that clicked its buttons expects no other call, whatever a future write is named, and
+// no call that carries a confirm flag.
+const PAGE_READS = new Set([
+  'get-play-session',
+  'get-party',
+  'list-revealed-pages',
+  'list-scenes',
+  'list-ref-choices',
+]);
+const beyondReads = (calls: ToolCall[]): ToolCall[] =>
+  calls.filter(c => !PAGE_READS.has(c.name) || c.confirm === true || c.confirmDestructive === true);
 
 interface Event {
   event: string;
@@ -34,6 +50,7 @@ interface RawCombatant {
   defeated: boolean;
   deathSaves: { successes: number; failures: number } | null;
   boss?: unknown;
+  tokenId?: string | null;
 }
 
 const who = (id: string, name: string, over: Partial<RawCombatant> = {}): RawCombatant => ({
@@ -105,13 +122,15 @@ interface Options {
   initial?: Event[];
   /** The Boss prompts flag already in the browser. */
   bossFlag?: 'on' | 'off';
+  /** What list-ref-choices answers for the token picker. */
+  tokenChoices?: { id: string; name: string }[];
 }
 
 interface Fakes {
   /** Sends events on the stream after the page loaded. */
   push: (events: Event[]) => void;
   /** The tool calls the page made. */
-  calls: { name: string }[];
+  calls: ToolCall[];
 }
 
 const TOOLS = [
@@ -147,6 +166,7 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
     gmActions = true,
     initial = [],
     bossFlag,
+    tokenChoices = [],
   } = options;
   if (bossFlag) {
     await page.addInitScript(flag => localStorage.setItem('cogm_boss_prompts', flag), bossFlag);
@@ -173,7 +193,7 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
         case 'list-scenes':
           return ok([]);
         case 'list-ref-choices':
-          return ok({ kind: 'token', choices: [], truncated: false });
+          return ok({ kind: 'token', choices: tokenChoices, truncated: false });
         default:
           return ok({});
       }
@@ -479,7 +499,39 @@ test.describe('picking combatants', () => {
     await expect(drawer.locator('#tool-field-targets')).toHaveValue('Goblin Archer\nOgre Brute');
     // Nothing planned or applied: the GM presses Run in the Tool runner.
     await expect(drawer.locator('#tool-run')).toBeVisible();
-    expect(calls.filter(c => /plan-|apply-/.test(c.name))).toEqual([]);
+    expect(beyondReads(calls)).toEqual([]);
+  });
+
+  test('two combatants with one name go in by token id, and the picker hint says whose', async ({
+    page,
+  }) => {
+    const wolves = [
+      who('c1', 'Wolf', { tokenId: 'tok-wolf-1' }),
+      who('c2', 'Brannoc', { isPC: true, category: 'pc', tokenId: 'tok-brannoc' }),
+      who('c3', 'Wolf', { tokenId: 'tok-wolf-2' }),
+      who('c4', 'Tamsin', { category: 'npc' }),
+    ];
+    const { calls } = await setup(page, {
+      combatButtons: true,
+      initial: [fight(wolves)],
+      tokenChoices: [
+        { id: 'tok-wolf-1', name: 'Wolf' },
+        { id: 'tok-brannoc', name: 'Brannoc' },
+        { id: 'tok-wolf-2', name: 'Wolf' },
+      ],
+    });
+    await load(page);
+    await row(page, 'Tamsin').click();
+    await page.locator('.combatant[data-id="c3"]').click();
+    await page.locator('.combatant[data-id="c1"]').click();
+    await page.locator('#combat-actions [data-sel="damage"]').click();
+    const drawer = page.getByRole('dialog', { name: '🛠 Tool Runner' });
+    // The bridge's order; a token id for each wolf, the name for a row without a token.
+    await expect(drawer.locator('#tool-field-targets')).toHaveValue(
+      'tok-wolf-1\ntok-wolf-2\nTamsin'
+    );
+    await expect(drawer.locator('#tool-field-targets-hint')).toHaveText('Wolf, Wolf, Tamsin');
+    expect(beyondReads(calls)).toEqual([]);
   });
 
   test('Condition opens it with the action set to condition', async ({ page }) => {
@@ -491,7 +543,7 @@ test.describe('picking combatants', () => {
     await expect(drawer.locator('#tool-detail-name')).toHaveText('plan-actor-change');
     await expect(drawer.locator('#tool-field-action')).toHaveValue('condition');
     await expect(drawer.locator('#tool-field-targets')).toHaveValue('Brannoc');
-    expect(calls.filter(c => /plan-|apply-/.test(c.name))).toEqual([]);
+    expect(beyondReads(calls)).toEqual([]);
   });
 });
 
@@ -686,7 +738,7 @@ test.describe('the bridge is away', () => {
     await expect(reaction(page, 'Ancient Wyrm')).toHaveAttribute('aria-pressed', 'false');
     await page.locator('#combat-actions [data-sel="clear"]').click({ force: true });
     await expect(page.locator('#combat-actions .ca-count')).toHaveText('2 selected');
-    expect(calls.filter(c => /plan-|apply-/.test(c.name))).toEqual([]);
+    expect(beyondReads(calls)).toEqual([]);
 
     // Back, with a fresh fight: live again.
     push([BRIDGE_UP, fight(BOSS_FIGHT, { turn: 2 })]);
@@ -726,6 +778,45 @@ test.describe('the bridge is away', () => {
     push([BRIDGE_UP, noFight]);
     await expect(strip(page)).toBeHidden();
     await expect(away(page)).toHaveText('');
+  });
+
+  test('a fight that ended while the page itself was disconnected goes when the stream is back', async ({
+    page,
+  }) => {
+    // The server answers every new stream with the fight or `{combat: null}` (app.ts), so a page
+    // that missed the end, with the bridge fine all along, clears its strip.
+    const { push } = await setup(page, { combatButtons: true, initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await row(page, 'Ogre Brute').click();
+    await expect(rows(page)).toHaveCount(4);
+    push([noFight]);
+    await expect(strip(page)).toBeHidden();
+    await expect(away(page)).toHaveText('');
+    push([fight(BOSS_FIGHT)]);
+    await expect(rows(page)).toHaveCount(3);
+    await expect(page.locator('#combat-actions .ca-hint')).toBeVisible();
+  });
+
+  test('a short blip does not mark the fight old; one that lasts does, and back is at once', async ({
+    page,
+  }) => {
+    const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    await load(page);
+    // One slow poll: the status goes to unknown and comes back within a moment.
+    push([status({ foundry: 'unknown' })]);
+    push([BRIDGE_UP]);
+    await page.waitForTimeout(AWAY_AFTER_MS + 500);
+    await expect(strip(page)).not.toHaveClass(/is-stale/);
+    await expect(away(page)).toHaveText('');
+
+    push([FOUNDRY_AWAY]);
+    await page.waitForTimeout(500);
+    await expect(away(page)).toHaveText('');
+    await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.');
+    await expect(strip(page)).toHaveClass(/is-stale/);
+    push([BRIDGE_UP]);
+    await expect(away(page)).toHaveText('', { timeout: 1000 });
+    await expect(strip(page)).not.toHaveClass(/is-stale/);
   });
 
   test('without a fight there is nothing to mark', async ({ page }) => {

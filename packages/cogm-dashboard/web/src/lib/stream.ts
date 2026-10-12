@@ -3,7 +3,7 @@
 // so a panel reads it like any other query and re-renders when it changes. EventSource reconnects
 // by itself; the server replays what a new connection needs (status, recent errors, ...).
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { streamUrl } from './auth';
 import { bridgeAway, readCombat, type CombatState } from './combat';
@@ -234,9 +234,28 @@ export function useCombatActive(): boolean {
   return useCombat()?.active === true;
 }
 
-/** Whether the bridge is away, as the stream's status last said (false before the first one). */
+/**
+ * How long the bridge has to stay away before the panels say so. One slow poll puts the status on
+ * `unknown` for a poll interval (polling-feed.ts handlePollError); that blip should not grey the
+ * strip and make a screen reader announce it. Back is shown at once, and so is an away status
+ * the panel mounts with.
+ */
+export const AWAY_AFTER_MS = 1500;
+
+/** Whether the bridge has been away for AWAY_AFTER_MS (false before the first status). */
 export function useBridgeAway(): boolean {
-  return bridgeAway(useBridgeStatus());
+  const away = bridgeAway(useBridgeStatus());
+  // Away from the first render stays away (a page opened while the bridge is down, a story).
+  const [shown, setShown] = useState(away);
+  useEffect(() => {
+    if (!away) {
+      setShown(false);
+      return;
+    }
+    const timer = setTimeout(() => setShown(true), AWAY_AFTER_MS);
+    return (): void => clearTimeout(timer);
+  }, [away]);
+  return away && shown;
 }
 
 /**

@@ -166,7 +166,7 @@ export class AiChangesController {
     if (!row?.canUndo) return;
     await this.run(changeId, async () => {
       if (this.view.legacy || row.ownData) {
-        if (!(await this.confirm(undoPlanDialog(row, legacyPlan(row))))) return false;
+        if (!(await this.confirm(undoPlanDialog(row, legacyPlan(row, row.ownData))))) return false;
         await this.deps.request('undo-change', { changeId, confirm: true });
         this.deps.notifyInfo(`Undone: ${row.summary}`);
         return true;
@@ -258,13 +258,17 @@ export class AiChangesController {
 }
 
 /** The old bridge's confirm shows the row's own lines (there is no plan to read them from). */
-function legacyPlan(row: ChangeRow): UndoPlan {
+function legacyPlan(row: ChangeRow, ownData = false): UndoPlan {
   return {
     planId: '',
     summary: row.summary,
     count: 1,
     lines: row.diff,
-    notes: [],
+    notes: ownData
+      ? [
+          "This also puts back the AI Tool's own record of it (who may read the page, the Tarokka reading). Players stop seeing it.",
+        ]
+      : [],
     later: [],
     confirmDestructive: false,
   };

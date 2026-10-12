@@ -308,6 +308,47 @@ describe('AiChangesController: undo', () => {
     expect(deps.notifyError).not.toHaveBeenCalled();
   });
 
+  describe('a change that also wrote the AI Tool own data', () => {
+    const reveal = {
+      'list-changes': (): unknown => ({
+        changes: [item('c1', { feature: 'tarokka', ownData: true })],
+      }),
+    };
+
+    it('says the AI Tool own record is put back, in its confirm', async () => {
+      const deps = makeDeps(['yes'], reveal);
+      const c = await loaded(deps);
+      await c.undo('c1');
+      const spec = deps.ask.mock.calls[0]?.[0] as DialogSpec;
+      expect(spec.content).toContain('own record of it');
+    });
+
+    it('sends nothing when the confirm is cancelled', async () => {
+      const deps = makeDeps([], reveal);
+      const c = await loaded(deps);
+      await c.undo('c1');
+      expect(names(deps)).toEqual([]);
+      expect(deps.notifyInfo).not.toHaveBeenCalled();
+      expect(c.view.busyId).toBeNull();
+    });
+
+    it('shows the backend conflict, reloads the list and never plans', async () => {
+      const deps = makeDeps(['yes'], {
+        ...reveal,
+        'undo-change': () => {
+          throw new Error('Conflict, nothing was written: the page was edited since');
+        },
+      });
+      const c = await loaded(deps);
+      await c.undo('c1');
+      expect(names(deps)).toEqual(['undo-change', 'list-changes']);
+      expect(deps.notifyError).toHaveBeenCalledWith(
+        'Conflict, nothing was written: the page was edited since'
+      );
+      expect(c.view.busyId).toBeNull();
+    });
+  });
+
   it("passes the plan's own destructive flag on to the apply", async () => {
     const deps = makeDeps(['yes'], {
       'plan-undo-changes': () =>

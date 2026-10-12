@@ -149,6 +149,12 @@ describe('person filter', () => {
     expect(h.rowView(ai('u3', { mode: 'undo' }), mine).who).toBe('AI');
   });
 
+  it('marks a change that also wrote the AI Tool own data, so its Undo is the plain one', () => {
+    const reveal = { ...ai('r1'), ownData: true } as Change;
+    expect(h.rowView(reveal, [reveal])).toMatchObject({ canUndo: true, ownData: true });
+    expect(h.rowView(ai('c9'), [ai('c9')])).toMatchObject({ ownData: false });
+  });
+
   it('falls back to everyone when the chosen person is no longer in the list', () => {
     expect(h.validFilter(all, h.personFilter('Zed'))).toBe('person:Zed');
     expect(h.validFilter(all, h.personFilter('Gone'))).toBe('all');
@@ -370,6 +376,14 @@ describe('page wiring', () => {
       expect(text).not.toContain('plan-undo-changes');
       expect(text).not.toContain('changes-everyone');
     }
+  });
+
+  it('undoes a change with the AI Tool own data through undo-change, never a plan', () => {
+    const app = read('app.js');
+    const flow = app.slice(app.indexOf('async function undoFlow'));
+    expect(flow.indexOf('if (row.ownData)')).toBeGreaterThan(-1);
+    expect(flow.indexOf('if (row.ownData)')).toBeLessThan(flow.indexOf("'plan-undo-changes'"));
+    expect(flow.slice(0, flow.indexOf("'plan-undo-changes'"))).toContain("'undo-change'");
   });
 
   it('hides the tab unless the bridge has list-changes', () => {

@@ -201,6 +201,20 @@ describe('parseChanges', () => {
     expect(old.coversSeveral).toBe(true);
   });
 
+  it('reads that a change also wrote the AI Tool own data, in both list shapes', () => {
+    const [flagged, plain] = parseChanges({
+      changes: [aiItem({ id: 'r1', ownData: true }), aiItem({ id: 'r2' })],
+    });
+    expect(flagged.ownData).toBe(true);
+    expect(plain.ownData).toBe(false);
+    const [legacy] = parseChanges({
+      changes: [{ changeId: 'r3', summary: 'Reveal', mode: 'apply', canUndo: true, ownData: true }],
+    });
+    expect(legacy.ownData).toBe(true);
+    expect(buildChangeRow(flagged).ownData).toBe(true);
+    expect(buildChangeRow(plain).ownData).toBe(false);
+  });
+
   it('reads the AI-only list of an older bridge (changeId, diff, appliedAt)', () => {
     const [a, b] = parseChanges({
       changes: [

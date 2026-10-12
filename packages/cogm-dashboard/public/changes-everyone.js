@@ -105,6 +105,8 @@ export function rowView(change, all) {
     summary: summaryOf(change),
     lines: Array.isArray(change.lines) ? change.lines : [],
     canUndo: change.canUndo === true && !change.undone,
+    // Also wrote the AI Tool's own data (a reveal): a planned undo cannot take it back, undo-change can.
+    ownData: change.ownData === true,
     undone: change.undone === true,
     undoneText: undoneLabel(change, all),
     redoId: redo ? redo.id : null,

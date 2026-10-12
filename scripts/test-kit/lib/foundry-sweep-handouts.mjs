@@ -11,6 +11,7 @@ import {
   answerNo,
   answerYes,
   closeWindow,
+  notifications,
   openTool,
   readDialog,
   resetControls,
@@ -115,11 +116,20 @@ async function undoFromWindow(gm, known, hint) {
   await answerYes(gm, 'Undo');
   // Not the "Undone" notification: one from the row before can still be on screen. The list reloads
   // after the undo and marks the row.
-  await until(
-    () =>
-      gm.locator(`#fmb-ai-changes .fmb-ai-row.fmb-ai-undone[data-change-id="${row.id}"]`).count(),
-    'the reveal to show as undone in the Changes window'
-  );
+  await until(async () => {
+    if (
+      await gm
+        .locator(`#fmb-ai-changes .fmb-ai-row.fmb-ai-undone[data-change-id="${row.id}"]`)
+        .count()
+    )
+      return true;
+    // A refused undo (a conflict, writes off) only shows as an error notification: fail with its text.
+    const refused = (await notifications(gm)).find(n =>
+      /Conflict|refus|cannot|not allowed/i.test(n)
+    );
+    if (refused) throw new Error(`the Changes window did not undo the reveal: ${refused}`);
+    return false;
+  }, 'the reveal to show as undone in the Changes window');
   const note = 'undone from the Changes window';
   await closeWindow(gm, 'fmb-ai-changes');
   await resetControls(gm);

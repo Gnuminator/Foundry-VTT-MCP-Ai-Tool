@@ -214,3 +214,20 @@ main.moment-views #moment-during.during-no-bar {
   cursor: not-allowed;
   filter: grayscale(0.4);
 }
+
+/* The wiki link in the help pane's head (it exists only in this markup). */
+.help-pane .help-wiki-link {
+  color: var(--accent-bright);
+  font-size: var(--fs-xs);
+}
+
+/* On a phone the wiki link would squeeze a long guide title into five lines: it takes a line of
+   its own under the title and the close button. */
+@media (max-width: 600px) {
+  .help-pane .pane-head {
+    flex-wrap: wrap;
+  }
+  .help-pane .pane-head > .pane-meta {
+    order: 3;
+  }
+}

@@ -77,6 +77,9 @@ Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (A
 
 Leave usage tracking off: our copy of Actor Studio has it off for everyone.
 
+Actor Studio reads these settings when the page loads. If you change one while players have the
+game open, ask them to reload (F5) before they open the builder.
+
 Our table keeps to the 2024 Player's Handbook. If you ever allow more (for example older species
 in our own content module), tick those packs too and tell the players.
 
@@ -118,6 +121,10 @@ expectations](prep-and-expectations.md#a-session-0-agenda-you-can-change).
 - When a player says they are done, open their sheet and go through the checklist in step 10 with
   them. The most common miss: a choice skipped with **Next** (a missing skill or spell). Fix it by
   hand, or delete the character and let them redo it.
+- **Wizards:** the Player's Handbook module's wizard starting equipment has no spellbook. Open the
+  wizard's sheet and its **Inventory** tab. In the **Compendium Packs** tab of the sidebar, click
+  **Open Compendium Browser**, open its **Items** tab, search for "Spellbook" and drag it onto the
+  sheet.
 - Check each player picked their character in **User Configuration** (the Players list shows
   `Name [Character]`).
 - Add portraits: players can't upload pictures, so they send them to you. Open the sheet, click

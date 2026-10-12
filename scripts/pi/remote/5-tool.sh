@@ -15,7 +15,7 @@ require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 [ -f "$FOUNDRY_APP/main.js" ] || die "Foundry is missing: run stage 3 first"
 
-ref="${TOOL_REF:-v0.21.0}"
+ref="${TOOL_REF:-pi-build-2026-10-12}"
 repo="${TOOL_REPO:-https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git}"
 app="$TOOL_DIR/app"
 driver_src="${ASSISTANT_GM_DRIVER:-/root/assistant-gm.mjs}"

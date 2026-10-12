@@ -23,6 +23,10 @@ any problem shows up before the game.
 
 ## 1. Open the game's address
 
+> **Walkthrough to come.** The steps below describe the plan. The step-by-step version with
+> pictures is added once the game server is online and has been tried from outside the GM's own home
+> network. Until then, follow the GM's message if it differs from this page.
+
 Open the address the GM sends you. It looks like `https://play.<our domain>` (the real one is in
 the GM's message).
 
@@ -42,8 +46,9 @@ Foundry's join page opens.
 2. Type your **password**.
 3. Click **Join Game Session**.
 
-The game loads. The first time, a **User Configuration** window may open. You can close it: once
-you have a character, you pick it there (see [Make your character](make-a-character.md)).
+The game loads. The first time, two windows open by themselves: the Actor Studio welcome window
+and Foundry's **User Configuration**. Close both for now. User Configuration comes back every time
+you join until you have a character and have picked it there (see [Make your character](make-a-character.md)).
 
 To leave, close the browser tab. To switch user on the same computer, press **Esc** and choose
 **Log Out**.

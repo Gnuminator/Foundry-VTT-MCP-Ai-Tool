@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Stand-in for systemd-run (the container has no systemd): logs the call to /tmp/calls and, like a real transient unit
+# that started, marks the Kit GM browser as running (/tmp/started-kit, read by the systemctl and journalctl stand-ins).
+# It also records, in /tmp/kit-env-seen, that the EnvironmentFile it was given exists and its mode, so a scenario can
+# see that the file was there when the unit started; it never reads the file's content. /tmp/kitrunfail makes it fail.
+echo "systemd-run $*" >>/tmp/calls
+[ ! -f /tmp/kitrunfail ] || exit 1
+for a in "$@"; do
+  case "$a" in
+    EnvironmentFile=*)
+      f="${a#EnvironmentFile=}"
+      if [ -f "$f" ]; then echo "mode $(stat -c %a "$f")" >/tmp/kit-env-seen; else echo missing >/tmp/kit-env-seen; fi
+      ;;
+  esac
+done
+touch /tmp/started-kit
+exit 0

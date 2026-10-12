@@ -10,14 +10,34 @@
  * documents by name or id only and never carries book text.
  */
 
+import { isToolsOnlyTool } from './dashboard.mjs';
+
 /** Bump when the report or manifest shape changes in a way readers must notice. */
 export const KIT_FORMAT_VERSION = 2;
 
 /** Kit sizes, smallest first (plan: "Three sizes"). A scenario lists the sizes that include it. */
 export const KIT_SIZES = ['smoke', 'full', 'long'];
 
-/** Areas a scenario exercises; the report groups by them. */
-export const KIT_TAGS = ['bridge', 'module', 'dashboard', 'player', 'vault', 'playlog', 'build'];
+/**
+ * Areas a scenario exercises; the report groups by them. Two tags describe how it may run:
+ * `tools-only` marks a scenario that only calls bridge tools through the dashboard (no GM action,
+ * no manifest section, no browser), the only kind `--target pi` runs; `canvas` marks one that
+ * probes tools that may need Foundry's canvas.
+ */
+export const KIT_TAGS = [
+  'bridge',
+  'module',
+  'dashboard',
+  'player',
+  'vault',
+  'playlog',
+  'build',
+  'tools-only',
+  'canvas',
+];
+
+/** The tag of a scenario the pi target may run. */
+export const TOOLS_ONLY_TAG = 'tools-only';
 
 /**
  * Worlds the kit may build in and write to. Never a real campaign, never `ai-tool-test` (the
@@ -410,7 +430,7 @@ export const GM_ACTIONS = {
 /**
  * @typedef {object} KitReport written as report.json (and report.md, report.html) per run
  * @property {number} version
- * @property {{size: string, target: {name: string, dashboard: string, foundry: string, world: string}, startedAt: string, finishedAt: string, durationMs: number, gitSha: string, node: string, fake: boolean}} run
+ * @property {{size: string, target: {name: string, dashboard: string, foundry: string, world: string, server?: string, host?: string}, startedAt: string, finishedAt: string, durationMs: number, gitSha: string, node: string, fake: boolean}} run
  * @property {KitManifest | null} build
  * @property {{passed: number, failed: number, skipped: number, total: number}} summary
  * @property {Array<{at: string, message: string, source: string, scenario?: string, page?: string}>} consoleErrors
@@ -488,6 +508,19 @@ export function validateScenario(s) {
     problems.push('knownConsoleErrors must be a list of regular expressions (text)');
   if (sc.order !== undefined && typeof sc.order !== 'number')
     problems.push('order must be a number');
+  if (
+    Array.isArray(sc.tags) &&
+    sc.tags.includes(TOOLS_ONLY_TAG) &&
+    ((Array.isArray(sc.gmActions) && sc.gmActions.length > 0) ||
+      (Array.isArray(sc.needs) && sc.needs.length > 0))
+  )
+    problems.push('a tools-only scenario must not declare gmActions or needs');
+  if (Array.isArray(sc.tags) && sc.tags.includes(TOOLS_ONLY_TAG) && Array.isArray(sc.tools)) {
+    for (const tool of sc.tools) {
+      if (typeof tool === 'string' && !isToolsOnlyTool(tool))
+        problems.push(`a tools-only scenario may list only read or plan tools, not "${tool}"`);
+    }
+  }
   if (typeof sc.run !== 'function') problems.push('run must be a function');
   return problems;
 }

@@ -2,11 +2,13 @@
 //   node --test scripts/pi/kit-session.test.mjs
 // - the in-browser part (kit-session.mjs) against a fake `game`: every decision of the setup (which settings
 //   differ, what the read-back must show, the checks on the Kit Player user) and of the teardown (which actors
-//   count, the limit, what is deleted, what must be gone afterwards), a second run changing nothing;
+//   count, the limit, what is deleted, what must be gone afterwards), a second run changing nothing, and the Kit GM
+//   (the bridge module enabled, the GM user made or updated with the run's password, the bridge user, the teardown
+//   putting it back to Any GM and deleting the user, every refusal, the password never printed);
 // - with PI_KIT_SESSION_CONTAINER=1 (needs Docker; CI would run it on the ARM runner): the stage itself in a
 //   Debian 13 ARM64 container with stand-ins for systemd (scripts/pi/container-test/kit-session-scenarios.sh): up and
-//   down, every refusal before anything stops, a failing driver putting everything back, services that were off
-//   staying off.
+//   down, every refusal before anything stops, a failing driver or Kit GM browser putting everything back, services
+//   that were off staying off, the Kit GM password file (mode 600, never printed) and the transient Kit GM browser unit.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
@@ -16,22 +18,40 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
+  ANY_GM_CHOICE,
+  BRIDGE_MODULE,
   FLAGS,
+  GM_NAME,
+  GM_ROLE,
   MODULE_ID,
   PACKS,
   PHB_MODULE,
   PLAYER_NAME,
   SETTING_KEYS,
   SOURCES,
+  addSecret,
   applyChanges,
+  bridgeRestoreTarget,
   blockers,
   createPlayer,
   deleteKit,
+  deleteKitGm,
+  enableBridgeModule,
+  joinsWithPassword,
   joinsWithoutPassword,
+  kitGmMismatches,
+  kitGmTeardownMismatches,
+  kitGmTeardownProblems,
+  kitGmUserProblems,
   mismatches,
+  originalBridgeUser,
+  parseKitGmPassword,
   parseMaxDelete,
+  parseOrigBridgeUser,
   playerUserProblems,
+  provisionKitGm,
   readState,
+  redact,
   settingsDiff,
   teardownMismatches,
   teardownProblems,
@@ -44,6 +64,8 @@ const ARGS = {
   packs: PACKS,
   settingKeys: SETTING_KEYS,
   playerName: PLAYER_NAME,
+  gmName: GM_NAME,
+  bridgeModule: BRIDGE_MODULE,
 };
 const TRACKING = `${MODULE_ID}.usage-tracking`;
 const OWNER = 3;
@@ -102,6 +124,10 @@ function fakeGame({
   users = [],
   actors = [],
   world = 'strahd-kit',
+  bridgeInstalled = true,
+  bridgeActive = true,
+  bridgeUserId = ANY_GM_CHOICE,
+  userName = 'Gamemaster',
 } = {}) {
   const values = new Map([
     ['core.permissions', { ACTOR_CREATE: actorCreate, FILES_BROWSE: [2, 3, 4] }],
@@ -114,15 +140,21 @@ function fakeGame({
       .map(k => [k, {}])
   );
   if (tracking) registered.set(TRACKING, {});
+  // The bridge module registers its settings only when it is active.
+  if (bridgeActive) {
+    values.set(`${BRIDGE_MODULE}.bridgeUserId`, bridgeUserId);
+    registered.set(`${BRIDGE_MODULE}.bridgeUserId`, {});
+  }
   const sets = [];
   const game = {
     sets,
     docs,
     world: { id: world },
-    user: { name: 'Gamemaster', isGM },
+    user: { id: 'userGm', name: userName, isGM },
     modules: new Map([
       [MODULE_ID, { active: moduleActive }],
       [PHB_MODULE, { active: phbActive }],
+      ...(bridgeInstalled ? [[BRIDGE_MODULE, { active: bridgeActive }]] : []),
     ]),
     packs: new Map(packs.map(p => [p, {}])),
     users: Collection.from(users),
@@ -138,7 +170,10 @@ function fakeGame({
     },
   };
   // Documents remove themselves from their collection, the way Foundry's do.
-  for (const u of game.users) u.delete = async () => game.users.splice(game.users.indexOf(u), 1);
+  for (const u of game.users) {
+    u.delete = async () => game.users.splice(game.users.indexOf(u), 1);
+    u.update = async change => Object.assign(u, change);
+  }
   for (const a of game.actors) {
     a.deleted = false;
     a.delete = async () => {
@@ -159,6 +194,7 @@ function installGlobals(game) {
       async create(data) {
         const user = { id: `user${game.users.length}`, ...data };
         user.delete = async () => game.users.splice(game.users.indexOf(user), 1);
+        user.update = async change => Object.assign(user, change);
         game.users.push(user);
         return user;
       },
@@ -557,6 +593,555 @@ describe('kit-session.mjs teardown (the in-browser part)', () => {
   });
 });
 
+test("the stage never lets root chown, chmod, install or write through a path in the foundry user's folder", () => {
+  const src = readFileSync(path.join(repo, 'scripts', 'pi', 'remote', 'kit-session.sh'), 'utf8');
+  const code = src.split('\n').filter(l => !/^\s*#/.test(l));
+  const bad = code.filter(
+    l =>
+      /\b(chown|chmod|install|ln|touch|tee)\b/.test(l) &&
+      /\$(\{?)(KIT_GM_PROFILE|TOOL_DATA|STATE)\b/.test(l) &&
+      !/runuser/.test(l)
+  );
+  assert.deepEqual(bad, []);
+  assert.ok(
+    code.some(l => l.includes('runuser -u "$FOUNDRY_USER" -- mkdir -m 700 "$KIT_GM_PROFILE"')),
+    'the profile folder is made by the foundry user'
+  );
+  assert.ok(!code.some(l => /install -d .*-o .*KIT_GM_PROFILE/.test(l)));
+  assert.ok(code.some(l => l.includes('mktemp "$TOOL_ETC/.kit-gm.XXXXXX"')));
+});
+
+describe('kit-session.mjs, the Kit GM (the in-browser part)', () => {
+  before(() => {
+    globalThis.CONST = {
+      USER_ROLES: { NONE: 0, PLAYER: 1, TRUSTED: 2, ASSISTANT: 3, GAMEMASTER: 4 },
+      DOCUMENT_OWNERSHIP_LEVELS: { NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER },
+    };
+  });
+  after(() => {
+    delete globalThis.game;
+    delete globalThis.CONST;
+    delete globalThis.User;
+  });
+
+  const PASSWORD = '0123456789abcdef0123456789abcdef';
+  const gmUser = (over = {}) => ({ id: 'userKitGm', name: GM_NAME, role: 4, ...over });
+  const PROVISION = { moduleId: BRIDGE_MODULE, gmName: GM_NAME, role: GM_ROLE, password: PASSWORD };
+  const DELETE = {
+    moduleId: BRIDGE_MODULE,
+    gmName: GM_NAME,
+    userId: 'userKitGm',
+    anyGm: ANY_GM_CHOICE,
+  };
+  const use = game => {
+    installGlobals(game);
+    return game;
+  };
+
+  test('readState reports the Kit GM users, who joined, and the bridge module and its user', () => {
+    const game = use(
+      fakeGame({
+        users: [gmUser({ active: true }), { id: 'u2', name: 'Gamemaster', role: 4 }],
+        bridgeUserId: 'userKitGm',
+      })
+    );
+    const state = readState(ARGS);
+    assert.deepEqual(state.kitGm, [{ id: 'userKitGm', name: GM_NAME, role: 4, active: true }]);
+    assert.equal(state.userId, game.user.id);
+    assert.equal(state.bridgeModuleInstalled, true);
+    assert.equal(state.bridgeModuleActive, true);
+    assert.equal(state.bridgeUserId, 'userKitGm');
+    // An inactive module registers no setting: the bridge user reads as null, not as an error.
+    use(fakeGame({ bridgeActive: false }));
+    const off = readState(ARGS);
+    assert.equal(off.bridgeModuleInstalled, true);
+    assert.equal(off.bridgeModuleActive, false);
+    assert.equal(off.bridgeUserId, null);
+    assert.deepEqual(off.kitGm, []);
+    use(fakeGame({ bridgeInstalled: false, bridgeActive: false }));
+    assert.equal(readState(ARGS).bridgeModuleInstalled, false);
+  });
+
+  test('blockers: two Kit GMs, a stage joined as Kit GM, and a bridge module that is not installed', () => {
+    use(fakeGame({ users: [gmUser(), gmUser({ id: 'two' })] }));
+    assert.match(
+      blockers(readState(ARGS), 'strahd-kit', 'setup').join('; '),
+      /more than one user is named Kit GM/
+    );
+    assert.match(
+      blockers(readState(ARGS), 'strahd-kit', 'teardown').join('; '),
+      /more than one user is named Kit GM/
+    );
+    use(fakeGame({ userName: GM_NAME }));
+    for (const action of ['setup', 'teardown']) {
+      assert.match(
+        blockers(readState(ARGS), 'strahd-kit', action).join('; '),
+        /joined as Kit GM itself/
+      );
+    }
+    use(fakeGame({ bridgeInstalled: false, bridgeActive: false }));
+    assert.match(
+      blockers(readState(ARGS), 'strahd-kit', 'setup').join('; '),
+      /foundry-mcp-bridge module is not installed/
+    );
+    // The teardown has no use for the module, and an installed but inactive module is enabled by the setup.
+    assert.deepEqual(blockers(readState(ARGS), 'strahd-kit', 'teardown'), []);
+    use(fakeGame({ bridgeActive: false }));
+    assert.deepEqual(blockers(readState(ARGS), 'strahd-kit', 'setup'), []);
+  });
+
+  test('parseKitGmPassword takes 32 lowercase hex characters and nothing else, and never repeats the value', () => {
+    assert.equal(parseKitGmPassword(PASSWORD), PASSWORD);
+    const bad = [
+      undefined,
+      '',
+      PASSWORD.toUpperCase(),
+      `${PASSWORD}0`,
+      PASSWORD.slice(1),
+      'g'.repeat(32),
+    ];
+    for (const value of [...bad, 'tooSecretToPrint']) {
+      assert.throws(
+        () => parseKitGmPassword(value),
+        error => {
+          assert.match(
+            error.message,
+            /KIT_GM_PASSWORD is not set, or is not 32 lowercase hexadecimal/
+          );
+          if (value) assert.ok(!error.message.includes(value), 'the value is not in the error');
+          return true;
+        }
+      );
+    }
+  });
+
+  test('an existing Kit GM is refused while online or above Game Master, and updated otherwise', () => {
+    assert.deepEqual(kitGmUserProblems(gmUser()), []);
+    assert.deepEqual(kitGmUserProblems(gmUser({ role: 3 })), []);
+    assert.match(kitGmUserProblems(gmUser({ active: true })).join('; '), /online right now/);
+    assert.match(kitGmUserProblems(gmUser({ role: 5 })).join('; '), /role 5, above Game Master/);
+    assert.equal(kitGmUserProblems(gmUser({ role: 5, active: true })).length, 2);
+  });
+
+  test('enableBridgeModule turns the module on and keeps the other modules as they are', async () => {
+    const game = use(fakeGame({ bridgeActive: false }));
+    game.settings.get = (ns, key) =>
+      ns === 'core' && key === 'moduleConfiguration'
+        ? { other: true, [BRIDGE_MODULE]: false }
+        : undefined;
+    const written = [];
+    const realSet = game.settings.set;
+    game.settings.set = async (ns, key, value) => {
+      written.push([ns, key, value]);
+      return realSet(ns, key, value);
+    };
+    await enableBridgeModule({ moduleId: BRIDGE_MODULE });
+    assert.deepEqual(written, [
+      ['core', 'moduleConfiguration', { other: true, [BRIDGE_MODULE]: true }],
+    ]);
+  });
+
+  test('provisionKitGm makes Kit GM a Game Master with the password and makes it the bridge user', async () => {
+    const game = use(fakeGame({ users: [{ id: 'userGm', name: 'Gamemaster', role: 4 }] }));
+    const made = await provisionKitGm(PROVISION);
+    const user = game.users.find(u => u.name === GM_NAME);
+    assert.equal(made.id, user.id);
+    assert.equal(user.role, 4);
+    assert.equal(user.password, PASSWORD);
+    assert.equal(game.users.length, 2);
+    assert.deepEqual(game.sets, [`${BRIDGE_MODULE}.bridgeUserId`]);
+    const state = readState(ARGS);
+    assert.equal(state.bridgeUserId, user.id);
+    assert.deepEqual(kitGmMismatches(state), []);
+    assert.equal(JSON.stringify(made).includes(PASSWORD), false, 'the password is not returned');
+  });
+
+  test('a second provision updates the same user: role and password, no second user', async () => {
+    const game = use(fakeGame({ users: [gmUser({ role: 3, password: 'old' })] }));
+    await provisionKitGm(PROVISION);
+    assert.equal(game.users.length, 1);
+    assert.equal(game.users[0].role, 4);
+    assert.equal(game.users[0].password, PASSWORD);
+    assert.equal(readState(ARGS).bridgeUserId, 'userKitGm');
+    await provisionKitGm({ ...PROVISION, password: 'f'.repeat(32) });
+    assert.equal(game.users.length, 1);
+    assert.equal(game.users[0].password, 'f'.repeat(32));
+  });
+
+  test('provisionKitGm looks again and refuses: online, above Game Master, two users, module not active', async () => {
+    for (const [users, extra, reason] of [
+      [[gmUser({ active: true })], {}, /online right now/],
+      [[gmUser({ role: 5 })], {}, /role 5, above 4/],
+      [[gmUser(), gmUser({ id: 'two' })], {}, /more than one user is named Kit GM/],
+      [[], { bridgeActive: false }, /foundry-mcp-bridge is not active/],
+    ]) {
+      const game = use(fakeGame({ users, ...extra }));
+      const snapshot = JSON.stringify(game.users);
+      await assert.rejects(provisionKitGm(PROVISION), reason);
+      assert.equal(JSON.stringify(game.users), snapshot, 'no user changed');
+      assert.deepEqual(game.sets, [], 'no setting changed');
+    }
+  });
+
+  test('kitGmMismatches: one Game Master Kit GM, the module active and Kit GM as the bridge user', () => {
+    const good = {
+      kitGm: [gmUser()],
+      bridgeModuleActive: true,
+      bridgeUserId: 'userKitGm',
+    };
+    assert.deepEqual(kitGmMismatches(good), []);
+    assert.match(
+      kitGmMismatches({ ...good, kitGm: [] }).join('; '),
+      /0 users are named Kit GM, expected 1/
+    );
+    assert.match(
+      kitGmMismatches({ ...good, kitGm: [gmUser(), gmUser({ id: 'two' })] }).join('; '),
+      /2 users are named Kit GM, expected 1/
+    );
+    assert.match(
+      kitGmMismatches({ ...good, kitGm: [gmUser({ role: 3 })] }).join('; '),
+      /Kit GM has role 3, not Game Master \(4\)/
+    );
+    assert.match(
+      kitGmMismatches({ ...good, bridgeModuleActive: false }).join('; '),
+      /foundry-mcp-bridge module is not active/
+    );
+    assert.match(
+      kitGmMismatches({ ...good, bridgeUserId: ANY_GM_CHOICE }).join('; '),
+      /the bridge user is "", not Kit GM/
+    );
+    assert.match(
+      kitGmMismatches({ ...good, bridgeUserId: null }).join('; '),
+      /bridge user is null/
+    );
+  });
+
+  test('kitGmTeardownProblems: nothing without a Kit GM; wrong name, role, own user or online are refused', () => {
+    const state = (kitGm, userId = 'userGm') => ({ kitGm, userId });
+    assert.deepEqual(kitGmTeardownProblems(state([])), []);
+    assert.deepEqual(kitGmTeardownProblems(state([gmUser()])), []);
+    assert.match(
+      kitGmTeardownProblems(state([gmUser({ role: 3 })])).join('; '),
+      /role 3, not Game Master \(4\): refusing to delete it/
+    );
+    assert.match(
+      kitGmTeardownProblems(state([gmUser({ role: 1 })])).join('; '),
+      /refusing to delete it/
+    );
+    assert.match(
+      kitGmTeardownProblems(state([gmUser()], 'userKitGm')).join('; '),
+      /the user this run joined as/
+    );
+    assert.match(
+      kitGmTeardownProblems(state([gmUser({ active: true })])).join('; '),
+      /online right now/
+    );
+    assert.match(
+      kitGmTeardownProblems(state([gmUser({ name: 'Kit GM 2' })])).join('; '),
+      /is not named Kit GM/
+    );
+  });
+
+  test('deleteKitGm puts the bridge user back on Any GM and deletes the user', async () => {
+    const game = use(
+      fakeGame({
+        users: [gmUser(), { id: 'userGm', name: 'Gamemaster', role: 4 }],
+        bridgeUserId: 'userKitGm',
+      })
+    );
+    await deleteKitGm(DELETE);
+    assert.deepEqual(game.sets, [`${BRIDGE_MODULE}.bridgeUserId`]);
+    assert.equal(game.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ANY_GM_CHOICE);
+    assert.deepEqual(
+      game.users.map(u => u.name),
+      ['Gamemaster']
+    );
+    const after = readState(ARGS);
+    assert.deepEqual(kitGmTeardownMismatches({ kitGm: [gmUser()] }, after), []);
+  });
+
+  test('deleteKitGm leaves another bridge user alone, and an unregistered setting untouched', async () => {
+    const other = use(fakeGame({ users: [gmUser()], bridgeUserId: 'someoneElse' }));
+    await deleteKitGm(DELETE);
+    assert.deepEqual(other.sets, []);
+    assert.equal(other.settings.get(BRIDGE_MODULE, 'bridgeUserId'), 'someoneElse');
+    assert.equal(other.users.length, 0);
+    const off = use(fakeGame({ users: [gmUser()], bridgeActive: false }));
+    await deleteKitGm(DELETE);
+    assert.deepEqual(off.sets, []);
+    assert.equal(off.users.length, 0);
+  });
+
+  test('deleteKitGm looks again: wrong user, wrong role, its own user or an online user deletes nothing', async () => {
+    for (const [users, args, reason] of [
+      [[gmUser()], { userId: 'nope' }, /is not Kit GM/],
+      [
+        [gmUser(), { id: 'userGm', name: 'Gamemaster', role: 4 }],
+        { userId: 'userGm' },
+        /is not Kit GM/,
+      ],
+      [[gmUser({ role: 3 })], {}, /not a Game Master \(role 3\)/],
+      [[gmUser({ id: 'userGm' })], { userId: 'userGm' }, /user this page joined as/],
+      [[gmUser({ active: true })], {}, /online right now/],
+    ]) {
+      const game = use(fakeGame({ users, bridgeUserId: 'userKitGm' }));
+      const snapshot = users.length;
+      await assert.rejects(deleteKitGm({ ...DELETE, ...args }), reason);
+      assert.equal(game.users.length, snapshot, 'no user deleted');
+      assert.deepEqual(game.sets, [], 'the bridge user is not touched');
+    }
+  });
+
+  test('kitGmTeardownMismatches: gone, and no longer the bridge user', () => {
+    const before = { kitGm: [gmUser()] };
+    assert.deepEqual(kitGmTeardownMismatches(before, { kitGm: [], bridgeUserId: '' }), []);
+    assert.deepEqual(kitGmTeardownMismatches(before, { kitGm: [], bridgeUserId: null }), []);
+    assert.deepEqual(kitGmTeardownMismatches({ kitGm: [] }, { kitGm: [], bridgeUserId: 'x' }), []);
+    const problems = kitGmTeardownMismatches(before, {
+      kitGm: [gmUser()],
+      bridgeUserId: 'userKitGm',
+    }).join('; ');
+    assert.match(problems, /Kit GM still exists/);
+    assert.match(problems, /the bridge user is still the deleted Kit GM/);
+  });
+
+  test('the whole round trip: setup creates the Kit GM, a second setup keeps one, teardown removes it again', async () => {
+    const game = use(fakeGame({ users: [{ id: 'userGm', name: 'Gamemaster', role: 4 }] }));
+    const before = readState(ARGS);
+    assert.deepEqual(blockers(before, 'strahd-kit', 'setup'), []);
+    await provisionKitGm(PROVISION);
+    await provisionKitGm(PROVISION);
+    const after = readState(ARGS);
+    assert.deepEqual(kitGmMismatches(after), []);
+    assert.equal(game.users.filter(u => u.name === GM_NAME).length, 1);
+    const teardown = readState(ARGS);
+    assert.deepEqual(kitGmTeardownProblems(teardown), []);
+    await deleteKitGm({ ...DELETE, userId: teardown.kitGm[0].id });
+    const gone = readState(ARGS);
+    assert.deepEqual(kitGmTeardownMismatches(teardown, gone), []);
+    assert.equal(gone.bridgeUserId, ANY_GM_CHOICE);
+    assert.deepEqual(
+      game.users.map(u => u.name),
+      ['Gamemaster']
+    );
+  });
+
+  test('a teardown with both a Kit Player and a Kit GM removes both, and nothing else', async () => {
+    const game = use(
+      fakeGame({
+        users: [kitUser(), gmUser(), { id: 'userGm', name: 'Gamemaster', role: 4 }],
+        actors: [actor('a1', 'Mine', { userKit: OWNER }), actor('a2', 'Theirs', { userGm: OWNER })],
+        bridgeUserId: 'userKitGm',
+      })
+    );
+    const before = readState(ARGS);
+    assert.deepEqual(teardownProblems(before, 5), []);
+    assert.deepEqual(kitGmTeardownProblems(before), []);
+    const actorIds = before.ownedActors.map(a => a.id);
+    await deleteKit({ playerName: PLAYER_NAME, userId: before.users[0].id, actorIds });
+    await deleteKitGm({ ...DELETE, userId: before.kitGm[0].id });
+    const after = readState({ ...ARGS, actorIds });
+    assert.deepEqual(teardownMismatches(before, after), []);
+    assert.deepEqual(kitGmTeardownMismatches(before, after), []);
+    assert.deepEqual(
+      game.users.map(u => u.name),
+      ['Gamemaster']
+    );
+    assert.deepEqual(
+      game.actors.map(a => a.id),
+      ['a2']
+    );
+  });
+
+  const ID_A = 'AbCdEfGh01234567';
+  const ID_B = 'ZyXwVuTs76543210';
+
+  test('originalBridgeUser: the user id the setup replaced, Any GM when empty or unregistered, never the Kit GM itself', () => {
+    assert.equal(originalBridgeUser(ID_A, 'userKitGm'), ID_A);
+    assert.equal(originalBridgeUser('', undefined), '');
+    assert.equal(originalBridgeUser(null, undefined), '');
+    assert.equal(
+      originalBridgeUser(ID_A, ID_A),
+      '',
+      'the Kit GM of a cut-off session is not worth restoring'
+    );
+    for (const bad of ['../etc', 'short', 'x'.repeat(17), 'has space 1234567', 42]) {
+      assert.throws(
+        () => originalBridgeUser(bad, undefined),
+        /which is not a user id/,
+        String(bad)
+      );
+    }
+  });
+
+  test('originalBridgeUser: after a cut-off run (the Kit GM is the bridge user) the single Assistant GM stands in', () => {
+    assert.equal(originalBridgeUser(ID_A, ID_A, [ID_B]), ID_B);
+    assert.equal(originalBridgeUser(ID_A, ID_A, []), '', 'no Assistant GM: Any GM');
+    assert.equal(
+      originalBridgeUser(ID_A, ID_A, [ID_B, 'QrStUvWx98765432']),
+      '',
+      'two of them: not a guess'
+    );
+    assert.equal(
+      originalBridgeUser(ID_A, ID_A, ['../etc']),
+      '',
+      'what is not a user id is dropped'
+    );
+    // Not the Kit GM: the setting is what it is, whoever the Assistant GMs are.
+    assert.equal(originalBridgeUser(ID_B, ID_A, [ID_B]), ID_B);
+    assert.equal(originalBridgeUser('', ID_A, [ID_B]), '');
+  });
+
+  test('readState lists the Assistant GM users with role 3 or above as assistantGms', () => {
+    use(
+      fakeGame({
+        users: [
+          { id: 'asst', name: 'Assistant GM', role: 3 },
+          { id: 'asstGm', name: 'Assistant GM', role: 4 },
+          { id: 'asstPlayer', name: 'Assistant GM', role: 1 },
+          { id: 'other', name: 'Someone', role: 4 },
+        ],
+      })
+    );
+    assert.deepEqual(readState(ARGS).assistantGms, ['asst', 'asstGm']);
+  });
+
+  test('parseOrigBridgeUser: unset stays unset (the old state file), empty and an id pass, nothing else does', () => {
+    assert.equal(parseOrigBridgeUser(undefined), undefined);
+    assert.equal(parseOrigBridgeUser(''), '');
+    assert.equal(parseOrigBridgeUser(ID_A), ID_A);
+    for (const bad of ['../etc', ID_A + 'x', ' ' + ID_A, 'a b']) {
+      assert.throws(
+        () => parseOrigBridgeUser(bad),
+        /ORIG_BRIDGE_USER must be a 16 character user id/
+      );
+    }
+  });
+
+  test('bridgeRestoreTarget: the original user when it still exists as a GM, else Any GM', () => {
+    const state = (gmIds, kitGm = [gmUser()]) => ({ gmIds, kitGm });
+    assert.equal(bridgeRestoreTarget(state([ID_A, 'userKitGm']), ID_A), ID_A);
+    assert.equal(
+      bridgeRestoreTarget(state(['userKitGm']), ID_A),
+      '',
+      'the user is gone or below role 3'
+    );
+    assert.equal(bridgeRestoreTarget(state([ID_A]), ''), '');
+    assert.equal(bridgeRestoreTarget(state([ID_A]), undefined), '', 'no ORIG_BRIDGE_USER: Any GM');
+    assert.equal(
+      bridgeRestoreTarget(state(['userKitGm']), 'userKitGm'),
+      '',
+      'never the deleted Kit GM'
+    );
+    assert.equal(bridgeRestoreTarget(state([ID_A], []), ID_A), '');
+  });
+
+  test('readState lists the users with role 3 or above as gmIds', () => {
+    use(
+      fakeGame({
+        users: [
+          gmUser(),
+          { id: 'asst', name: 'Assistant GM', role: 3 },
+          { id: 'trusted', name: 'T', role: 2 },
+          kitUser(),
+        ],
+      })
+    );
+    assert.deepEqual(readState(ARGS).gmIds, ['userKitGm', 'asst']);
+  });
+
+  test('deleteKitGm puts the bridge user back to the original GM; a user that is gone or below role 3 becomes Any GM', async () => {
+    const world = (extra, bridgeUserId = 'userKitGm') =>
+      use(fakeGame({ users: [gmUser(), ...extra], bridgeUserId }));
+    const back = world([{ id: ID_A, name: 'Assistant GM', role: 3 }]);
+    await deleteKitGm({ ...DELETE, bridgeTo: ID_A });
+    assert.equal(back.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ID_A);
+    assert.equal(
+      back.users.some(u => u.name === GM_NAME),
+      false
+    );
+    const gone = world([]);
+    await deleteKitGm({ ...DELETE, bridgeTo: ID_A });
+    assert.equal(gone.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ANY_GM_CHOICE);
+    const player = world([{ id: ID_A, name: 'Pat', role: 1 }]);
+    await deleteKitGm({ ...DELETE, bridgeTo: ID_A });
+    assert.equal(player.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ANY_GM_CHOICE);
+    const kitself = world([]);
+    await deleteKitGm({ ...DELETE, bridgeTo: 'userKitGm' });
+    assert.equal(kitself.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ANY_GM_CHOICE);
+    // Not given: Any GM, as before.
+    const plain = world([{ id: ID_A, name: 'Assistant GM', role: 3 }]);
+    await deleteKitGm(DELETE);
+    assert.equal(plain.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ANY_GM_CHOICE);
+    // Another bridge user stays whatever bridgeTo says.
+    const other = world([{ id: ID_A, name: 'Assistant GM', role: 3 }], ID_B);
+    await deleteKitGm({ ...DELETE, bridgeTo: ID_A });
+    assert.equal(other.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ID_B);
+  });
+
+  test('kitGmTeardownMismatches checks the bridge user against where it had to go back to', () => {
+    const before = { kitGm: [gmUser()], bridgeUserId: 'userKitGm' };
+    const after = bridgeUserId => ({ kitGm: [], bridgeUserId });
+    assert.deepEqual(kitGmTeardownMismatches(before, after(ID_A), ID_A), []);
+    assert.deepEqual(kitGmTeardownMismatches(before, after(''), ''), []);
+    assert.deepEqual(kitGmTeardownMismatches(before, after(null), ''), []);
+    assert.match(
+      kitGmTeardownMismatches(before, after(''), ID_A).join('; '),
+      /the bridge user is "", expected "AbCdEfGh01234567"/
+    );
+    assert.match(kitGmTeardownMismatches(before, after(ID_B), ID_A).join('; '), /expected/);
+    // Another bridge user before: not touched, not checked.
+    assert.deepEqual(
+      kitGmTeardownMismatches({ ...before, bridgeUserId: ID_B }, after(ID_B), ID_A),
+      []
+    );
+    // Without bridgeTo (the old call) only "no longer the Kit GM" is checked.
+    assert.deepEqual(kitGmTeardownMismatches(before, after('')), []);
+  });
+
+  test('log lines have the secrets cut out; a short value is not registered', () => {
+    addSecret('s3cretValueOfTheRun');
+    addSecret('short');
+    addSecret('');
+    assert.equal(redact('join failed: s3cretValueOfTheRun typed'), 'join failed: *** typed');
+    assert.equal(redact('a short word'), 'a short word');
+    assert.equal(redact(new Error('x s3cretValueOfTheRun x')), 'Error: x *** x');
+  });
+
+  test('joinsWithPassword types the password into the form, says whether the game opened, and never repeats it', async () => {
+    const calls = [];
+    const page = ({ opens, breaks }) => ({
+      goto: async url => calls.push(['goto', url]),
+      keyboard: { press: async key => calls.push(['press', key]) },
+      locator: sel => ({
+        fill: async value => {
+          calls.push(['fill', sel, value]);
+          if (breaks && sel === '#join-password') throw new Error(`fill ${value} failed`);
+        },
+        click: async () => calls.push(['click', sel]),
+      }),
+      waitForURL: async () => {
+        if (!opens) throw new Error('timeout');
+      },
+    });
+    const options = { url: 'http://x:30000', user: GM_NAME, password: PASSWORD };
+    assert.equal(await joinsWithPassword(page({ opens: true }), options), true);
+    assert.deepEqual(calls, [
+      ['goto', 'http://x:30000/join'],
+      ['fill', '#join-username', GM_NAME],
+      ['press', 'Escape'],
+      ['fill', '#join-password', PASSWORD],
+      ['click', 'button[name="join"]'],
+    ]);
+    assert.equal(await joinsWithPassword(page({ opens: false }), options), false);
+    await assert.rejects(joinsWithPassword(page({ opens: true, breaks: true }), options), error => {
+      assert.ok(!error.message.includes(PASSWORD), 'the password is not in the error');
+      assert.match(error.message, /did not take the login of Kit GM/);
+      return true;
+    });
+  });
+});
+
 describe('kit-session.mjs, the browser side and the script', () => {
   // A page that records what is done to it; waitForURL answers like the game opening, or not.
   const fakePage = ({ opens }) => {
@@ -612,6 +1197,39 @@ describe('kit-session.mjs, the browser side and the script', () => {
       env: { ...env, ACTION: 'teardown', MAX_DELETE: 'lots' },
     });
     assert.match(maxDelete.stdout + maxDelete.stderr, /MAX_DELETE must be a whole number/);
+
+    // The setup needs the Kit GM password in the environment: 32 lowercase hex characters, checked before the
+    // browser is loaded, and the error never holds what was given.
+    const secret = 'Tooshort-but-secret-0123456789';
+    const noPassword = spawnSync(process.execPath, [script], {
+      encoding: 'utf8',
+      env: { ...env, ACTION: 'setup', TOOL_APP: repo, KIT_GM_PASSWORD: secret },
+    });
+    assert.equal(noPassword.status, 1, noPassword.stdout + noPassword.stderr);
+    assert.match(
+      noPassword.stdout + noPassword.stderr,
+      /KIT_GM_PASSWORD is not set, or is not 32 lowercase hexadecimal characters/
+    );
+    assert.ok(
+      !(noPassword.stdout + noPassword.stderr).includes(secret),
+      'the value is not printed'
+    );
+    // The teardown takes ORIG_BRIDGE_USER (an id or empty) and refuses anything else before the browser is loaded.
+    const origBad = spawnSync(process.execPath, [script], {
+      encoding: 'utf8',
+      env: { ...env, ACTION: 'teardown', ORIG_BRIDGE_USER: '../etc' },
+    });
+    assert.equal(origBad.status, 1, origBad.stdout + origBad.stderr);
+    assert.match(
+      origBad.stdout + origBad.stderr,
+      /ORIG_BRIDGE_USER must be a 16 character user id/
+    );
+    // The teardown does not need it: it gets as far as the next missing variable.
+    const teardown = spawnSync(process.execPath, [script], {
+      encoding: 'utf8',
+      env: { ...env, ACTION: 'teardown', TOOL_APP: repo },
+    });
+    assert.doesNotMatch(teardown.stdout + teardown.stderr, /KIT_GM_PASSWORD/);
 
     // Node gives import.meta.url the real path but keeps the link in argv[1]; the guard must still be true.
     const dir = mkdtempSync(path.join(tmpdir(), 'ks-link-'));
@@ -674,7 +1292,7 @@ test('the container suite has Docker when CI asks for it', { skip: !noDockerInCi
 });
 
 describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () => {
-  /** @type {Map<string, {output: string, exit: number, calls: string[], world: string, state: string[], driver: string[], prev: string[]}>} */
+  /** @type {Map<string, {output: string, exit: number, calls: string[], world: string, state: string[], driver: string[], prev: string[], kitgm: string[]}>} */
   const runs = new Map();
   before(
     () => {
@@ -695,6 +1313,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
           state: lines('state'),
           driver: lines('driver'),
           prev: lines('prev'),
+          kitgm: lines('kitgm'),
         });
       }
     },
@@ -708,12 +1327,48 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
   const count = (calls, call) => calls.filter(c => c === call).length;
   const notJournal = calls => calls.filter(c => !c.startsWith('journalctl'));
   const GM = 'foundry-ai-tool-gm-browser.service';
-  const STATE_UP = ['ORIG_WORLD=curse-of-strahd', 'WAS_GM_BROWSER=1', 'STAMP=<stamp>'];
+  const KIT = 'foundry-ai-tool-kit-gm-browser.service';
+  const STATE_UP = [
+    'ORIG_WORLD=curse-of-strahd',
+    'WAS_GM_BROWSER=1',
+    'STAMP=<stamp>',
+    'KIT_GM_BROWSER=1',
+    'ORIG_BRIDGE_USER=AbCdEfGh01234567',
+  ];
   const PREV_KIT = [
     'worlds/strahd-kit/actors/000001.log',
     'worlds/strahd-kit/settings/000001.log',
     'worlds/strahd-kit/users/000001.log',
   ];
+  // The Kit GM's password file, profile folder and browser, in the shapes the scenarios report (kit-session-scenarios.sh).
+  const FILE_OK = 'env mode 600 owner root lines 1 shape ok';
+  const PROFILE_OK = 'profile mode 700 owner foundry';
+  const KIT_UP = [FILE_OK, 'env-tmp absent', PROFILE_OK, 'unit running'];
+  const KIT_STOPPED_FILES_KEPT = [FILE_OK, 'env-tmp absent', PROFILE_OK, 'unit stopped'];
+  const KIT_GONE = ['env absent', 'env-tmp absent', 'profile absent', 'unit stopped'];
+  const kit = r => r.kitgm.filter(l => /^(env|env-tmp|profile|unit) /.test(l));
+  // Where the passwords (the one the driver was handed, one that was on the Pi before) were found: nowhere.
+  const leaks = r => r.kitgm.filter(l => l.startsWith('leak '));
+  const noLeak = r => {
+    assert.ok(
+      leaks(r).every(l => /^leak output=(0|skipped) calls=0$/.test(l)),
+      leaks(r).join('\n')
+    );
+    assert.doesNotMatch(r.output, /secret123|password=|GM_PASSWORD/i);
+    assert.ok(
+      !r.calls.some(c => /[0-9a-f]{32}/.test(c)),
+      'no 32 hex characters in any recorded call'
+    );
+  };
+  const SYSTEMD_RUN =
+    'systemd-run --unit=foundry-ai-tool-kit-gm-browser --collect --quiet -p User=foundry -p Group=foundry ' +
+    '-p NoNewPrivileges=true -p ProtectSystem=full -p PrivateTmp=true -p ReadWritePaths=/var/lib/foundry-ai-tool ' +
+    '-p Nice=10 -p CPUWeight=20 -p Restart=always -p RestartSec=15 ' +
+    '-p EnvironmentFile=/etc/foundry-ai-tool/kit-gm.env ' +
+    '--setenv=HOME=/var/lib/foundry-ai-tool --setenv=TOOL_APP=/opt/foundry-ai-tool/app ' +
+    '--setenv=FOUNDRY_URL=http://127.0.0.1:30000 --setenv=CHROMIUM=/usr/bin/chromium ' +
+    '--setenv=GM_BROWSER_PROFILE=/var/lib/foundry-ai-tool/kit-gm-browser --setenv=ASSISTANT_GM_USER=Kit GM ' +
+    '/opt/node24/bin/node /opt/foundry-ai-tool/gm-browser/assistant-gm.mjs run';
   // Nothing was changed: no service touched but the Assistant GM browser coming back, options.json as it was.
   const untouched = (r, world) => {
     assert.equal(r.exit, 1, r.output);
@@ -722,16 +1377,30 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(r.world, world);
     assert.doesNotMatch(r.output, /secret123/);
   };
+  // A rolled-back MODE=up: options.json, Foundry and the Assistant GM browser as before, no state file, no Kit GM.
+  const rolledBack = r => {
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(kit(r), KIT_GONE);
+    assert.equal(count(r.calls, 'restart foundry.service'), 1, r.calls.join('\n'));
+    assert.equal(r.calls.at(-1), `start ${GM}`);
+  };
 
   test('up: Foundry runs strahd-kit, the state is saved, the Assistant GM browser stays stopped', () => {
     const r = run('up-ok');
     assert.equal(r.exit, 0, r.output);
-    assert.deepEqual(r.calls, [
+    assert.deepEqual(notJournal(r.calls), [
+      'cat foundry-ai-tool-bridge.service',
+      `is-active ${KIT}`,
+      `stop ${KIT}`,
+      `reset-failed ${KIT}`,
       'is-active --quiet foundry.service',
       `is-active --quiet ${GM}`,
       `stop ${GM}`,
       'stop foundry.service',
       'start foundry.service',
+      `reset-failed ${KIT}`,
+      SYSTEMD_RUN,
     ]);
     assert.equal(r.world, 'strahd-kit');
     assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
@@ -753,6 +1422,66 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     );
   });
 
+  test('up writes the Kit GM password file: root only, mode 600, one line, 32 hex characters, before the driver runs', () => {
+    const r = run('up-ok');
+    assert.deepEqual(kit(r), KIT_UP);
+    // The fake driver saw the file (mode 600) when it ran, and was handed the password in its environment.
+    assert.match(r.output, /HAS_KITPW=true KITPW_SHAPE=true\nDRIVER_SEES .* kit_env=600/);
+    // The password the driver got is the one in the file, and it differs from the fixed pattern fixtures use.
+    assert.ok(r.kitgm.includes('driver-password-is-file yes'), r.kitgm.join('\n'));
+    // The file is made through a mktemp file in /etc/foundry-ai-tool and a rename: no temp file is left.
+    assert.ok(r.kitgm.includes('env-tmp absent'));
+  });
+
+  for (const name of ['up-ok', 'up-leftover', 'up-driver-fails', 'up-kit-not-joined']) {
+    test(`${name}: the Kit GM password is never printed and never on a command line`, () => {
+      const r = run(name);
+      assert.ok(leaks(r).length >= 1, 'the password was looked for');
+      noLeak(r);
+    });
+  }
+
+  test('up says where the password is, and that it is not printed', () => {
+    const r = run('up-ok');
+    assert.match(r.output, /never printed here/);
+    assert.match(r.output, /\/etc\/foundry-ai-tool\/kit-gm\.env \(root only, mode 600\)/);
+  });
+
+  test('up starts the Kit GM browser as a transient unit with the properties of the real Assistant GM unit', () => {
+    const r = run('up-ok');
+    assert.equal(count(r.calls, SYSTEMD_RUN), 1, r.calls.join('\n'));
+    // The file was there, mode 600, when the unit was started.
+    assert.ok(r.kitgm.includes('env-seen-by-unit mode 600'), r.kitgm.join('\n'));
+    // Every hardening and priority property of the real unit (stage 5) is on the transient one.
+    const stage5 = readFileSync(path.join(repo, 'scripts', 'pi', 'remote', '5-tool.sh'), 'utf8');
+    for (const prop of [
+      'NoNewPrivileges=true',
+      'ProtectSystem=full',
+      'PrivateTmp=true',
+      'Nice=10',
+      'CPUWeight=20',
+      'Restart=always',
+      'RestartSec=15',
+    ]) {
+      assert.ok(stage5.split('\n').includes(prop), `5-tool.sh has ${prop}`);
+      assert.ok(SYSTEMD_RUN.includes(`-p ${prop} `), `the transient unit has ${prop}`);
+    }
+    assert.ok(stage5.includes('User=$FOUNDRY_USER') && stage5.includes('Group=$FOUNDRY_USER'));
+    assert.ok(stage5.includes('ReadWritePaths=$TOOL_DATA'));
+    assert.ok(stage5.includes('ExecStart=$NODE_DIR/bin/node $driver_dir/assistant-gm.mjs run'));
+    // The stage waits for the join line and then looks at the bridge link.
+    const journal = r.calls.filter(c => c.startsWith('journalctl'));
+    assert.ok(journal.length >= 1);
+    for (const c of journal) {
+      assert.match(
+        c,
+        /^journalctl -u foundry-ai-tool-kit-gm-browser --since \d{4}-\d\d-\d\d \d\d:\d\d:\d\d --no-pager$/
+      );
+    }
+    assert.match(r.output, /joined world strahd-kit as Kit GM/);
+    assert.match(r.output, /a Foundry connection is established on the bridge's port 31415/);
+  });
+
   test('up with the Assistant GM browser off: it is recorded as off', () => {
     const r = run('up-gm-was-off');
     assert.equal(r.exit, 0, r.output);
@@ -761,6 +1490,8 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
       'ORIG_WORLD=curse-of-strahd',
       'WAS_GM_BROWSER=0',
       'STAMP=<stamp>',
+      'KIT_GM_BROWSER=1',
+      'ORIG_BRIDGE_USER=AbCdEfGh01234567',
     ]);
     assert.ok(!r.calls.some(c => /^(re)?start .*gm-browser/.test(c)));
   });
@@ -772,7 +1503,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(r.world, 'strahd-kit');
   });
 
-  test('up refused when a kit session is up already; nothing changes', () => {
+  test('up refused when a kit session is up already; nothing changes, the Kit GM files stay', () => {
     const r = run('up-state-exists');
     untouched(r, 'curse-of-strahd');
     assert.match(r.output, /a kit session is already up: run MODE=down first/);
@@ -780,6 +1511,12 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
     assert.deepEqual(r.driver, ['upload kept', 'installed no']);
     assert.deepEqual(r.prev, []);
+    assert.deepEqual(
+      kit(r),
+      KIT_UP,
+      'the running session keeps its password file, profile and browser'
+    );
+    noLeak(r);
   });
 
   test('up refused when Foundry launches strahd-kit already', () => {
@@ -790,12 +1527,17 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.deepEqual(r.state, ['absent']);
   });
 
-  test('up refused with someone online (the Assistant GM browser comes back, no state file)', () => {
+  test('up refused with someone online (the Assistant GM browser comes back, no state file, no Kit GM file)', () => {
     const r = run('up-users-online');
     untouched(r, 'curse-of-strahd');
     assert.match(r.output, /2 user\(s\) are online in Foundry/);
     assert.equal(r.calls.at(-1), `start ${GM}`);
     assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(
+      kit(r),
+      KIT_GONE,
+      'the password file is made only after Foundry runs strahd-kit'
+    );
     assert.ok(!r.output.includes('DRIVER'), 'the driver never ran');
   });
 
@@ -813,7 +1555,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.deepEqual(r.state, ['absent']);
   });
 
-  test('up with the driver failing puts options.json, Foundry and the Assistant GM browser back; no state file', () => {
+  test('up with the driver failing puts everything back, the Kit GM browser, file and profile included; no state file', () => {
     const r = run('up-driver-fails');
     assert.equal(r.exit, 1, r.output);
     assert.match(r.output, /the setup of strahd-kit failed or did not verify/);
@@ -821,16 +1563,23 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.match(r.output, /there is no kit session/);
     assert.match(
       r.output,
-      /Kit Player may exist in strahd-kit: MODE=up and then MODE=down removes it/
+      /Kit Player and Kit GM may exist in strahd-kit: MODE=up and then MODE=down removes them/
     );
     assert.equal(r.world, 'curse-of-strahd');
     assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(kit(r), KIT_GONE);
     assert.deepEqual(notJournal(r.calls), [
+      'cat foundry-ai-tool-bridge.service',
+      `is-active ${KIT}`,
+      `stop ${KIT}`,
+      `reset-failed ${KIT}`,
       'is-active --quiet foundry.service',
       `is-active --quiet ${GM}`,
       `stop ${GM}`,
       'stop foundry.service',
       'start foundry.service',
+      `stop ${KIT}`,
+      `reset-failed ${KIT}`,
       'restart foundry.service',
       `is-active --quiet ${GM}`,
       `start ${GM}`,
@@ -846,6 +1595,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(r.world, 'curse-of-strahd');
     assert.ok(!r.calls.some(c => c === `start ${GM}`));
     assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(kit(r), KIT_GONE);
   });
 
   for (const [name, reason, world] of [
@@ -855,6 +1605,11 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     [
       'up-wrong-driver-path',
       /SESSION_DRIVER must be a \.mjs file under \/root\//,
+      'curse-of-strahd',
+    ],
+    [
+      'up-no-gm-driver',
+      /the Assistant GM driver is not installed at \/opt\/foundry-ai-tool\/gm-browser\/assistant-gm\.mjs .*run stage 5 first\. Nothing was changed/,
       'curse-of-strahd',
     ],
     ['bad-mode', /usage: MODE=up .* or MODE=down .*got 'sideways'/, 'curse-of-strahd'],
@@ -867,8 +1622,22 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
       assert.deepEqual(r.calls, []);
       assert.deepEqual(r.state, ['absent']);
       assert.deepEqual(r.prev, []);
+      assert.deepEqual(kit(r), KIT_GONE);
     });
   }
+
+  test('up refused when the bridge service has no unit: nothing stops, nothing is made', () => {
+    const r = run('up-no-bridge-unit');
+    untouched(r, 'curse-of-strahd');
+    assert.match(
+      r.output,
+      /the bridge service \(foundry-ai-tool-bridge\.service\) does not exist: run stage 5 first/
+    );
+    assert.deepEqual(r.calls, ['cat foundry-ai-tool-bridge.service']);
+    assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(r.prev, []);
+    assert.deepEqual(kit(r), KIT_GONE);
+  });
 
   test('the world cannot be changed from the environment', () => {
     const r = run('up-ignores-world-env');
@@ -877,16 +1646,218 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(r.world, 'strahd-kit');
   });
 
-  test('down: the teardown runs while strahd-kit runs, then options.json, Foundry and the GM browser go back', () => {
+  test("up removes a leftover Kit GM file, profile and browser (no state file, so they are nobody's) and says so", () => {
+    const r = run('up-leftover');
+    assert.equal(r.exit, 0, r.output);
+    assert.match(
+      r.output,
+      /removed what an earlier kit session left behind \(there is no state file, so none of it is in use\): \/etc\/foundry-ai-tool\/kit-gm\.env \/etc\/foundry-ai-tool\/\.kit-gm\.stale1 \/var\/lib\/foundry-ai-tool\/kit-gm-browser the unit foundry-ai-tool-kit-gm-browser \(active\)/
+    );
+    // The old browser is stopped before anything else is touched, and a fresh one runs at the end.
+    const calls = notJournal(r.calls);
+    assert.deepEqual(calls.slice(0, 4), [
+      'cat foundry-ai-tool-bridge.service',
+      `is-active ${KIT}`,
+      `stop ${KIT}`,
+      `reset-failed ${KIT}`,
+    ]);
+    assert.equal(count(calls, SYSTEMD_RUN), 1);
+    assert.deepEqual(kit(r), KIT_UP);
+    assert.ok(
+      r.kitgm.includes('driver-password-is-file yes'),
+      'the new password replaced the old file'
+    );
+    assert.equal(leaks(r).length, 2, 'the new and the leftover password were both looked for');
+    noLeak(r);
+    assert.equal(r.world, 'strahd-kit');
+  });
+
+  test('up when the Kit GM browser never joins: everything is put back, the browser, file and profile removed', () => {
+    const r = run('up-kit-not-joined');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(
+      r.output,
+      /the Kit GM browser did not join strahd-kit as Kit GM within 2 minutes \(see: journalctl -u foundry-ai-tool-kit-gm-browser -n 30\)/
+    );
+    assert.match(r.output, /options.json restored to launch 'curse-of-strahd'/);
+    rolledBack(r);
+    assert.ok(r.calls.includes(`stop ${KIT}`), r.calls.join('\n'));
+    // The wait really looked 60 times.
+    assert.equal(r.calls.filter(c => c.startsWith('journalctl -u foundry-ai-tool-kit')).length, 60);
+    noLeak(r);
+  });
+
+  test('up when the unit cannot be started: everything is put back, nothing of the Kit GM stays', () => {
+    const r = run('up-kit-run-fails');
+    assert.notEqual(r.exit, 0, r.output);
+    assert.doesNotMatch(r.output, /summary/);
+    rolledBack(r);
+    assert.ok(r.calls.includes(`stop ${KIT}`));
+    noLeak(r);
+  });
+
+  test('up warns, and goes on, when the bridge link is not established', () => {
+    const r = run('up-no-bridge-link');
+    assert.equal(r.exit, 0, r.output);
+    assert.match(r.output, /no established connection on the bridge's port 31415 yet/);
+    assert.equal(r.world, 'strahd-kit');
+    assert.deepEqual(kit(r), KIT_UP);
+  });
+
+  test("up keeps the password file in /etc/foundry-ai-tool and nothing of it in the foundry user's folder (M2)", () => {
+    const r = run('up-ok');
+    assert.equal(r.exit, 0, r.output);
+    assert.deepEqual(kit(r), KIT_UP); // root:root, mode 600, one line
+    assert.match(r.output, /wrote \/etc\/foundry-ai-tool\/kit-gm\.env/);
+    // /var/lib/foundry-ai-tool holds the state file and the profile folder, never a password file or its temp files.
+    assert.ok(r.kitgm.includes('tooldata kit-gm-browser kit-session.env'), r.kitgm.join('\n'));
+    assert.ok(r.kitgm.includes('env-tmp absent'), 'no temp file is left in /etc/foundry-ai-tool');
+  });
+
+  test('up-plant-links: links the foundry user left where the profile folder goes are replaced, and root touches nothing they point to', () => {
+    const r = run('up-plant-links');
+    assert.equal(r.exit, 0, r.output);
+    assert.ok(r.kitgm.includes('victims root:755 root:644 victim'), r.kitgm.join('\n'));
+    assert.deepEqual(kit(r), KIT_UP); // a real folder, mode 700, owned by foundry
+    assert.match(r.output, /removed what an earlier kit session left behind/);
+  });
+
+  test('up keeps the bridge user it replaced in the state file, and the driver reports it', () => {
+    const r = run('up-ok');
+    assert.ok(r.state.includes('ORIG_BRIDGE_USER=AbCdEfGh01234567'), r.state.join('\n'));
+    assert.match(r.output, /ORIG_BRIDGE_USER=AbCdEfGh01234567/);
+    assert.match(
+      r.output,
+      /the bridge user it replaced \(AbCdEfGh01234567\) is kept in the state file/
+    );
+    // Any GM before: an empty value, still a line (the teardown then restores nothing).
+    const empty = run('up-orig-bridge-empty');
+    assert.equal(empty.exit, 0, empty.output);
+    assert.ok(empty.state.includes('ORIG_BRIDGE_USER='), empty.state.join('\n'));
+    assert.match(empty.output, /the bridge user it replaced \(Any GM\) is kept/);
+  });
+
+  test('set_world is done by the foundry user (M1): links in its folders are not followed, mode and owner of options.json stay', () => {
+    const r = run('up-plant-links');
+    assert.equal(r.exit, 0, r.output);
+    assert.ok(r.kitgm.includes('victims root:755 root:644 victim'), r.kitgm.join('\n'));
+    assert.ok(r.kitgm.includes('options mode 644 owner foundry tmp absent'), r.kitgm.join('\n'));
+    assert.equal(r.world, 'strahd-kit');
+    const up600 = run('up-options-600');
+    assert.equal(up600.exit, 0, up600.output);
+    assert.ok(
+      up600.kitgm.includes('options mode 600 owner foundry tmp absent'),
+      up600.kitgm.join('\n')
+    );
+    const down600 = run('down-options-600');
+    assert.equal(down600.exit, 0, down600.output);
+    assert.equal(down600.world, 'curse-of-strahd');
+    assert.ok(
+      down600.kitgm.includes('options mode 600 owner foundry tmp absent'),
+      down600.kitgm.join('\n')
+    );
+  });
+
+  test('up-options-readonly: when the foundry user cannot write options.json, nothing half written is left and everything is put back', () => {
+    const r = run('up-options-readonly');
+    assert.notEqual(r.exit, 0, r.output);
+    assert.equal(r.world, 'curse-of-strahd', 'options.json is as it was');
+    assert.ok(r.kitgm.includes('options mode 644 owner foundry tmp absent'), r.kitgm.join('\n'));
+    assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(kit(r), KIT_GONE);
+    assert.equal(count(r.calls, 'restart foundry.service'), 1, r.calls.join('\n'));
+    assert.equal(r.calls.at(-1), `start ${GM}`);
+  });
+
+  test('up-orig-bridge-bad: a reported bridge user that is not a user id puts everything back', () => {
+    const r = run('up-orig-bridge-bad');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /the setup reported a bridge user that is not a user id/);
+    rolledBack(r);
+  });
+
+  test('up-orig-bridge-none: a setup that does not report the bridge user puts everything back', () => {
+    const r = run('up-orig-bridge-none');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /the setup did not report the bridge user it replaced/);
+    rolledBack(r);
+  });
+
+  test('up-leftover-activating: a Kit GM unit between restarts is a leftover, stopped before anything else (L6)', () => {
+    const r = run('up-leftover-activating');
+    assert.equal(r.exit, 0, r.output);
+    assert.match(
+      r.output,
+      /removed what an earlier kit session left behind \(there is no state file, so none of it is in use\): the unit foundry-ai-tool-kit-gm-browser \(activating\)/
+    );
+    assert.deepEqual(notJournal(r.calls).slice(0, 4), [
+      'cat foundry-ai-tool-bridge.service',
+      `is-active ${KIT}`,
+      `stop ${KIT}`,
+      `reset-failed ${KIT}`,
+    ]);
+    assert.ok(r.kitgm.includes('unit-activating no'), 'the old unit is gone');
+    assert.deepEqual(kit(r), KIT_UP);
+  });
+
+  test('up-xtrace: run as bash -x, the trace holds neither the GM login nor the Kit GM password (L7)', () => {
+    const r = run('up-xtrace');
+    assert.equal(r.exit, 0, r.output);
+    assert.match(r.output, /^\+ /m, 'the trace really was on');
+    assert.doesNotMatch(r.output, /secret123/);
+    assert.ok(leaks(r).length >= 1);
+    // The trace names the variables but never their values.
+    assert.ok(
+      leaks(r).every(l => l === 'leak output=0 calls=0'),
+      leaks(r).join('\n')
+    );
+    assert.ok(r.kitgm.includes('driver-password-is-file yes'));
+  });
+
+  test('up with the ssh session dropping (SIGPIPE) after the services stopped still restores everything', () => {
+    const r = run('up-pipe-closed');
+    assert.notEqual(r.exit, 0, r.output);
+    assert.doesNotMatch(r.output, /summary/, 'the output really was cut off');
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.state, ['absent']);
+    assert.equal(count(r.calls, 'restart foundry.service'), 1, r.calls.join('\n'));
+    assert.equal(r.calls.at(-1), `start ${GM}`);
+    // The cut falls after options.json was changed: the run was killed after the old world was put back.
+    assert.match(r.output, /strahd-kit is running/);
+  });
+
+  // The cut falls at each of the new steps; the unit was running when it fell at the start and at the wait.
+  for (const [name, last, started] of [
+    ['up-pipe-closed-kit-file', /making the password file for Kit GM/, false],
+    ['up-pipe-closed-kit-driver', /wrote \/etc\/foundry-ai-tool\/kit-gm\.env/, false],
+    ['up-pipe-closed-kit-start', /==> starting the Kit GM browser/, true],
+    ['up-pipe-closed-kit-wait', /started foundry-ai-tool-kit-gm-browser\.service/, true],
+  ]) {
+    test(`${name}: the ssh session drops during the Kit GM steps, everything is still removed and restored`, () => {
+      const r = run(name);
+      assert.notEqual(r.exit, 0, r.output);
+      assert.doesNotMatch(r.output, /summary/, 'the output really was cut off');
+      assert.match(r.output.split('\n').at(-1), last, 'the cut falls here');
+      rolledBack(r);
+      assert.ok(r.calls.includes(`stop ${KIT}`), r.calls.join('\n'));
+      assert.equal(r.calls.includes(SYSTEMD_RUN), started, 'the unit was started or not yet');
+      noLeak(r);
+    });
+  }
+
+  test('down: the Kit GM browser stops first, the teardown runs while strahd-kit runs, then the Kit GM file goes and options.json, Foundry and the GM browser go back', () => {
     const r = run('down-ok');
     assert.equal(r.exit, 0, r.output);
     assert.match(
       r.output,
-      /DRIVER ACTION=teardown WORLD=strahd-kit .* MAX_DELETE= HAS_USER=true HAS_PW=true/
+      /DRIVER ACTION=teardown WORLD=strahd-kit .* MAX_DELETE= HAS_USER=true HAS_PW=true HAS_KITPW=false KITPW_SHAPE=false/
     );
-    assert.match(r.output, /DRIVER_SEES options=strahd-kit foundry_runs=true/);
+    assert.match(r.output, /DRIVER_SEES options=strahd-kit foundry_runs=true kit_env=600/);
     assert.deepEqual(notJournal(r.calls), [
       'is-active --quiet foundry.service',
+      `stop ${KIT}`,
+      `reset-failed ${KIT}`,
+      `is-active --quiet ${KIT}`,
       `stop ${GM}`,
       'stop foundry.service',
       'start foundry.service',
@@ -895,9 +1866,13 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     ]);
     assert.equal(r.world, 'curse-of-strahd');
     assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(kit(r), KIT_GONE);
+    assert.match(r.output, /removed the Kit GM password file and browser profile/);
+    assert.match(r.output, /Kit Player, its actors and Kit GM are gone from strahd-kit/);
     assert.match(r.output, /the Assistant GM browser joined the world/);
     assert.match(r.output, /Foundry launches: curse-of-strahd/);
     assert.doesNotMatch(r.output, /secret123/);
+    noLeak(r);
   });
 
   test('down with the Assistant GM browser off before the session: it stays off', () => {
@@ -906,6 +1881,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.ok(!r.calls.some(c => /^(re)?start .*gm-browser/.test(c)));
     assert.equal(r.world, 'curse-of-strahd');
     assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(kit(r), KIT_GONE);
   });
 
   test('down with no original world: options.json launches no world and the stage does not wait', () => {
@@ -915,6 +1891,48 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.match(r.output, /Foundry launches: no world/);
     assert.ok(!r.calls.some(c => c.startsWith('journalctl')), 'no wait for "joined world"');
     assert.deepEqual(r.state, ['absent']);
+  });
+
+  test('down with a state file from before the Kit GM existed: no Kit GM step, the teardown still runs', () => {
+    const r = run('down-old-state');
+    assert.equal(r.exit, 0, r.output);
+    assert.deepEqual(notJournal(r.calls), [
+      'is-active --quiet foundry.service',
+      `stop ${GM}`,
+      'stop foundry.service',
+      'start foundry.service',
+      `restart ${GM}`,
+      `is-active --quiet ${GM}`,
+    ]);
+    assert.ok(!r.calls.some(c => c.includes('kit-gm')), 'the Kit GM unit is never touched');
+    assert.match(r.output, /DRIVER ACTION=teardown WORLD=strahd-kit .* HAS_KITPW=false/);
+    assert.doesNotMatch(r.output, /removed the Kit GM password file/);
+    assert.doesNotMatch(r.output, /The Kit GM browser is stopped/);
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(kit(r), KIT_GONE);
+  });
+
+  test('down hands the bridge user it replaced to the teardown; a missing line means Any GM, an empty one too', () => {
+    const r = run('down-ok');
+    assert.match(r.output, /DRIVER_SEES .* orig_bridge=set:AbCdEfGh01234567/);
+    const none = run('down-no-orig-bridge');
+    assert.equal(none.exit, 0, none.output);
+    assert.match(none.output, /DRIVER_SEES .* orig_bridge=unset/);
+    assert.deepEqual(none.state, ['absent']);
+    const empty = run('down-empty-orig-bridge');
+    assert.equal(empty.exit, 0, empty.output);
+    assert.match(empty.output, /DRIVER_SEES .* orig_bridge=set:\n/);
+  });
+
+  test('down refused when the ORIG_BRIDGE_USER line is not a user id', () => {
+    const r = run('down-bad-orig-bridge');
+    untouched(r, 'strahd-kit');
+    assert.match(r.output, /holds no valid ORIG_BRIDGE_USER/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(r.calls, []);
+    assert.ok(r.state.includes('ORIG_BRIDGE_USER=../etc'), 'the state file is left as it was');
+    assert.deepEqual(kit(r), KIT_UP);
   });
 
   test('down refused without a state file', () => {
@@ -929,6 +1947,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     untouched(r, 'curse-of-strahd');
     assert.match(r.output, /options.json does not launch strahd-kit/);
     assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
+    assert.deepEqual(kit(r), KIT_UP, 'refused before the Kit GM browser was touched');
   });
 
   test('down refused when the state file holds something it must not trust', () => {
@@ -938,13 +1957,32 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.deepEqual(r.calls, []);
   });
 
-  test('down with the driver failing changes nothing: Foundry stays on strahd-kit, the state stays', () => {
+  test('down refused when the KIT_GM_BROWSER line is not 1 (a missing line is fine, a wrong one is not)', () => {
+    const r = run('down-bad-kit-flag');
+    untouched(r, 'strahd-kit');
+    assert.match(r.output, /holds no valid KIT_GM_BROWSER \(1 or no such line\)/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(r.calls, []);
+    assert.ok(r.state.includes('KIT_GM_BROWSER=maybe'), 'the state file is left as it was');
+  });
+
+  test('down with the driver failing changes nothing else: Foundry stays on strahd-kit, the state and the Kit GM file stay, the Kit GM browser stays stopped', () => {
     const r = run('down-driver-fails');
     untouched(r, 'strahd-kit');
     assert.match(r.output, /the teardown in strahd-kit failed or did not verify/);
     assert.match(r.output, /run MODE=down again/);
-    assert.deepEqual(r.calls, ['is-active --quiet foundry.service', `stop ${GM}`]);
+    assert.match(r.output, /the Kit GM browser stays stopped/);
+    assert.match(r.output, /the state file and the Kit GM password file stay/);
+    assert.deepEqual(r.calls, [
+      'is-active --quiet foundry.service',
+      `stop ${KIT}`,
+      `reset-failed ${KIT}`,
+      `is-active --quiet ${KIT}`,
+      `stop ${GM}`,
+    ]);
     assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
+    assert.deepEqual(kit(r), KIT_STOPPED_FILES_KEPT);
+    noLeak(r);
   });
 
   test('down refused while someone is online (the Kit Player must leave first); FORCE=1 goes on', () => {
@@ -954,12 +1992,15 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
       r.output,
       /1 user\(s\) are online in Foundry: the Kit Player must leave the game first/
     );
+    assert.match(r.output, /the Kit GM browser is stopped now and stays stopped/);
     assert.ok(!r.output.includes('DRIVER'), 'the driver never ran');
     assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
+    assert.deepEqual(kit(r), KIT_STOPPED_FILES_KEPT);
     const force = run('down-users-online-force');
     assert.equal(force.exit, 0, force.output);
     assert.match(force.output, /1 user\(s\) still online; FORCE=1/);
     assert.equal(force.world, 'curse-of-strahd');
+    assert.deepEqual(kit(force), KIT_GONE);
   });
 
   test('down refused when Foundry is not running', () => {
@@ -967,6 +2008,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     untouched(r, 'strahd-kit');
     assert.match(r.output, /Foundry is not running: start it/);
     assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
+    assert.deepEqual(kit(r), KIT_UP, 'refused before the Kit GM browser was touched');
   });
 
   test('down passes MAX_DELETE on to the driver, and refuses one that is not a number', () => {
@@ -986,18 +2028,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(r.world, 'curse-of-strahd');
     assert.deepEqual(r.state, ['absent']);
     assert.equal(count(r.calls, 'start foundry.service'), 1);
-  });
-
-  test('up with the ssh session dropping (SIGPIPE) after the services stopped still restores everything', () => {
-    const r = run('up-pipe-closed');
-    assert.notEqual(r.exit, 0, r.output);
-    assert.doesNotMatch(r.output, /summary/, 'the output really was cut off');
-    assert.equal(r.world, 'curse-of-strahd');
-    assert.deepEqual(r.state, ['absent']);
-    assert.equal(count(r.calls, 'restart foundry.service'), 1, r.calls.join('\n'));
-    assert.equal(r.calls.at(-1), `start ${GM}`);
-    // The cut falls after options.json was changed: the run was killed after the old world was put back.
-    assert.match(r.output, /strahd-kit is running/);
+    assert.deepEqual(kit(r), KIT_GONE);
   });
 
   test('down with the ssh session dropping after options.json was put back still ends with Foundry and the GM browser running', () => {
@@ -1008,20 +2039,37 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.deepEqual(stopping.state, ['absent']);
     assert.equal(count(stopping.calls, 'start foundry.service'), 1, stopping.calls.join('\n'));
     assert.equal(stopping.calls.at(-1), `start ${GM}`);
+    assert.deepEqual(kit(stopping), KIT_GONE);
     // Cut while the campaign world starts: Foundry runs already, the GM browser must still come back.
     const starting = run('down-pipe-closed-starting');
     assert.notEqual(starting.exit, 0, starting.output);
     assert.equal(starting.world, 'curse-of-strahd');
     assert.deepEqual(starting.state, ['absent']);
     assert.ok(starting.calls.includes(`start ${GM}`), starting.calls.join('\n'));
+    assert.deepEqual(kit(starting), KIT_GONE);
+  });
+
+  test('down with the ssh session dropping right after the teardown still removes the Kit GM file and profile; the session stays up for another MODE=down', () => {
+    const r = run('down-pipe-closed-after-teardown');
+    assert.notEqual(r.exit, 0, r.output);
+    assert.match(r.output.split('\n').at(-1), /DRIVER_SEES /);
+    assert.doesNotMatch(r.output, /summary/, 'the output really was cut off');
+    // The files go before the next line is printed; nothing else was put back, so MODE=down can run again.
+    assert.deepEqual(kit(r), KIT_GONE);
+    assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
+    assert.equal(r.world, 'strahd-kit');
+    assert.equal(count(r.calls, 'stop foundry.service'), 0);
   });
 
   test('down stops the Assistant GM browser before it counts who is online', () => {
     const r = run('down-gm-active');
     assert.equal(r.exit, 0, r.output);
     const calls = notJournal(r.calls);
-    assert.deepEqual(calls.slice(0, 3), [
+    assert.deepEqual(calls.slice(0, 6), [
       'is-active --quiet foundry.service',
+      `stop ${KIT}`,
+      `reset-failed ${KIT}`,
+      `is-active --quiet ${KIT}`,
       `stop ${GM}`,
       'stop foundry.service',
     ]);
@@ -1031,6 +2079,40 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     untouched(online, 'strahd-kit');
     assert.ok(online.calls.includes(`stop ${GM}`));
     assert.match(online.output, /2 user\(s\) are online/);
+  });
+
+  test('down stops the Kit GM browser before it counts who is online (it counts as a user while it runs)', () => {
+    const r = run('down-kit-active');
+    assert.equal(r.exit, 0, r.output);
+    const stopKit = r.calls.indexOf(`stop ${KIT}`);
+    assert.ok(stopKit >= 0, 'the Kit GM browser is stopped');
+    assert.ok(stopKit < r.calls.indexOf(`stop ${GM}`), 'the Kit GM browser stops first');
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(kit(r), KIT_GONE);
+  });
+
+  test('down with a real user online is still refused after the Kit GM browser was stopped, and says so', () => {
+    const online = run('down-kit-active-users-online');
+    untouched(online, 'strahd-kit');
+    assert.match(online.output, /2 user\(s\) are online in Foundry/);
+    assert.match(online.output, /the Kit GM browser is stopped now and stays stopped/);
+    assert.ok(online.calls.includes(`stop ${KIT}`));
+    assert.deepEqual(kit(online), KIT_STOPPED_FILES_KEPT);
+  });
+
+  test('down refused when the Kit GM browser cannot be stopped: nothing else is touched', () => {
+    const r = run('down-kit-stop-fails');
+    untouched(r, 'strahd-kit');
+    assert.match(r.output, /the Kit GM browser \(foundry-ai-tool-kit-gm-browser\) did not stop/);
+    assert.deepEqual(r.calls, [
+      'is-active --quiet foundry.service',
+      `stop ${KIT}`,
+      `reset-failed ${KIT}`,
+      `is-active --quiet ${KIT}`,
+    ]);
+    assert.ok(!r.output.includes('DRIVER'), 'the driver never ran');
+    assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
+    assert.deepEqual(kit(r), KIT_UP);
   });
 
   test('down when the campaign world does not come back: the session is over, the GM browser is started', () => {
@@ -1056,5 +2138,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(r.world, 'strahd-kit');
     assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
     assert.ok(!r.calls.some(c => c === `start ${GM}`), 'the GM browser stays off');
+    // The teardown was verified, so the Kit GM file is gone already; a second MODE=down finds nothing to remove.
+    assert.deepEqual(kit(r), KIT_GONE);
   });
 });

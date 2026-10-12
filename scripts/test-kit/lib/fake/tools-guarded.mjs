@@ -11,7 +11,7 @@ import { ToolFailure, addEvent, documentUuid, findTarget, newId, noteHpInStats }
 const FEATURE = 'live-play';
 
 /** @param {World} w @param {string} summary @param {'write' | 'destructive'} risk @param {any[]} diff @param {any[]} ops @param {any[]} targets */
-function createPlan(w, summary, risk, diff, ops, targets) {
+export function createPlan(w, summary, risk, diff, ops, targets) {
   const now = Date.now();
   const view = {
     planId: newId(w, 'plan-'),

@@ -1,17 +1,23 @@
 /**
- * Where the kit may run. The only real target is `local`: one of this PC's test servers
+ * Where the kit may run. The default target is `local`: one of this PC's test servers
  * (scripts/test-env/servers.json), picked with FOUNDRY_TEST_SERVER (A, the default: dashboard
  * 127.0.0.1:3100, Foundry 127.0.0.1:30001; B, where `kit:run` runs: 3101 and 30002). The live
  * bridge ports (31414 to 31416) are refused always, also in fake mode. The world must be one of
  * KIT_WORLDS.
+ *
+ * The only other target is `pi`, opt-in (`--target pi`), tools-only, in the Pi's throwaway world
+ * `strahd-kit`: lib/pi-target.mjs holds its rules and reads its host and ports from a local
+ * targets file outside the repo.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_KIT_WORLD, KIT_WORLDS, LIVE_BRIDGE_PORTS } from './contract.mjs';
+import { DEFAULT_KIT_WORLD, KIT_WORLDS } from './contract.mjs';
 import { EnvError } from './errors.mjs';
+import { LOOPBACK_HOSTS, guardUrl } from './guard-url.mjs';
+import { resolvePiTarget } from './pi-target.mjs';
 
-export const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost', '[::1]'];
+export { LOOPBACK_HOSTS, guardUrl };
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const TEST_ENV_DIR = path.resolve(here, '..', '..', 'test-env');
@@ -68,49 +74,24 @@ export function testServer(name, env = process.env) {
 }
 
 /**
- * Parses a URL, refuses the live bridge ports, and (optionally) anything but loopback.
- * @param {string} raw
- * @param {{label: string, loopbackOnly?: boolean, port?: number}} opts
- * @returns {string} normalised `http://host:port` (localhost becomes 127.0.0.1)
- */
-function guardUrl(raw, { label, loopbackOnly = true, port: onlyPort }) {
-  let url;
-  try {
-    url = new URL(raw);
-  } catch {
-    throw new EnvError(`REFUSED: ${label} "${raw}" is not a URL.`);
-  }
-  const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80));
-  if (LIVE_BRIDGE_PORTS.includes(port)) {
-    throw new EnvError(
-      `REFUSED: port ${port} is the live bridge. The test kit never uses it (${label}).`
-    );
-  }
-  if (loopbackOnly && !LOOPBACK_HOSTS.includes(url.hostname)) {
-    throw new EnvError(`REFUSED: ${label} ${url.host} is not on this machine (loopback only).`);
-  }
-  if (onlyPort !== undefined && port !== onlyPort) {
-    throw new EnvError(
-      `REFUSED: ${label} ${url.host} is not the test dashboard. Only port ${onlyPort} is allowed.`
-    );
-  }
-  // 127.0.0.1 rather than localhost: localhost tries IPv6 first and is slow on Windows.
-  const host = url.hostname === 'localhost' ? '127.0.0.1' : url.hostname;
-  return `${url.protocol}//${host}:${port}`;
-}
-
-/**
- * Resolves a target. `world` defaults to DEFAULT_KIT_WORLD and must be in KIT_WORLDS.
- * @param {{name?: string, fake?: boolean, fakeBase?: string, world?: string, env?: Record<string, string | undefined>}} [opts]
- * @returns {{name: string, dashboard: string, foundry: string, world: string}}
+ * Resolves a target. `world` defaults to DEFAULT_KIT_WORLD (`strahd-kit` for the pi target) and
+ * must be in KIT_WORLDS. The `pi` target is opt-in only and has more guards (see
+ * {@link resolvePiTarget}): `notGameNight` is the user's explicit "today is not a game night".
+ * @param {{name?: string, fake?: boolean, fakeBase?: string, world?: string | null, notGameNight?: boolean, env?: Record<string, string | undefined>}} [opts]
+ * @returns {{name: string, dashboard: string, foundry: string, world: string, server?: string, host?: string, dashboardTokenFile?: string, kitGmPasswordFile?: string, kitGmUser?: string}}
  */
 export function resolveTarget({
   name = 'local',
   fake = false,
   fakeBase,
-  world = DEFAULT_KIT_WORLD,
+  world,
+  notGameNight = false,
   env = process.env,
 } = {}) {
+  if (name === 'pi') {
+    return resolvePiTarget({ world: world ?? undefined, fake, notGameNight, env });
+  }
+  if (world === undefined || world === null) world = DEFAULT_KIT_WORLD;
   if (!KIT_WORLDS.includes(world)) {
     throw new EnvError(
       `REFUSED: world "${world}" is not a kit world. The kit only builds in: ${KIT_WORLDS.join(', ')}.`
@@ -121,11 +102,8 @@ export function resolveTarget({
     const base = guardUrl(fakeBase, { label: 'fake dashboard' });
     return { name: 'fake', dashboard: base, foundry: base, world };
   }
-  // A future `pi` target goes here: read host and port from a local targets file (never the
-  // repo), run the same guardUrl checks (live bridge ports refused), and require an explicit
-  // opt-in flag. Not implemented on purpose: the kit runs on this PC only for now.
   if (name !== 'local') {
-    throw new EnvError(`unknown target "${name}" (only "local" exists)`);
+    throw new EnvError(`unknown target "${name}" (only "local" and "pi" exist)`);
   }
   const server = testServer(undefined, env);
   const dashboard = guardUrl(env.COGM_BASE || `http://127.0.0.1:${server.dashboardPort}`, {

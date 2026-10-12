@@ -127,8 +127,13 @@ export function collectErrors(page) {
 }
 
 /**
- * Join the running world as a passwordless user and wait for `game.ready`.
+ * Join the running world as a user and wait for `game.ready`. A passwordless user (the kit's own
+ * test users) needs no `password`; the field is left alone unless one is given. A password is the
+ * kit's own throwaway Kit GM password from a file (lib/pi-target.mjs `readKitGmPassword`), typed
+ * into the join form and nowhere else: it is not logged, and a failure to type it is reported
+ * without the value (Playwright's own error text would quote it).
  * @param {import('playwright-core').Page} page
+ * @param {{foundryUrl: string, user: string, password?: string, joinTimeoutMs?: number, gameTimeoutMs?: number}} o
  */
 export async function joinGame(
   page,
@@ -139,7 +144,13 @@ export async function joinGame(
   await name.waitFor({ timeout: 30000 });
   await name.fill(user);
   await page.keyboard.press('Escape'); // closes the name autocomplete
-  await page.locator('#join-password').fill(password);
+  if (password) {
+    try {
+      await page.locator('#join-password').fill(password);
+    } catch {
+      throw new EnvError('Could not type the password into the join form.');
+    }
+  }
   await page.locator('button[name="join"]').click();
   await page.waitForURL(/\/game$/, { timeout: joinTimeoutMs });
   await waitForGame(page, gameTimeoutMs);
@@ -225,8 +236,9 @@ export async function joinAs({ foundryUrl, world, user, headless = true }) {
 }
 
 /**
- * Open a GM session in the kit world.
- * @param {{foundryUrl: string, world: string, user?: string, headless?: boolean, log?: (m: string) => void}} o
+ * Open a GM session in the kit world. `password` is for a user that has one (the Pi's Kit GM);
+ * the kit's own passwordless GM needs none.
+ * @param {{foundryUrl: string, world: string, user?: string, password?: string, headless?: boolean, log?: (m: string) => void}} o
  * @returns {Promise<{call: (action: string, args?: object) => Promise<any>, close: () => Promise<void>, page: import('playwright-core').Page,
  *   joinAs: (user: string) => Promise<FoundryJoin>}>}
  */
@@ -234,6 +246,7 @@ export async function openGmSession({
   foundryUrl,
   world,
   user = KIT_GM_USER,
+  password = '',
   headless = true,
   log = () => {},
 }) {
@@ -243,7 +256,7 @@ export async function openGmSession({
   try {
     await keepChatNotificationsQuiet(browser.page);
     log(`joining ${world} as ${user}`);
-    await joinGame(browser.page, { foundryUrl, user });
+    await joinGame(browser.page, { foundryUrl, user, password });
     const who = await browser.page.evaluate(() => ({ isGM: game.user.isGM, name: game.user.name }));
     if (!who.isGM) throw new EnvError(`${user} joined but is not a GM.`);
     await browser.page.evaluate(() => {

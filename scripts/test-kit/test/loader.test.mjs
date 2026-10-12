@@ -111,3 +111,36 @@ test('a missing folder is a problem', async () => {
   const r = await loadScenarios([path.join(tmpdir(), 'kit-no-such-dir-xyz')]);
   assert.match(r.problems[0], /scenario folder not found/);
 });
+
+test('tools-only and canvas are known tags; a tools-only scenario takes no GM action and no manifest section', async () => {
+  const dir = dirWith({
+    'ok.scenario.mjs': scenarioSource({ id: 'only-ok', tags: ['bridge', 'tools-only', 'canvas'] }),
+    'gm.scenario.mjs': scenarioSource({
+      id: 'only-gm',
+      tags: ['bridge', 'tools-only'],
+      gmActions: ['worldStatus'],
+    }),
+    'needs.scenario.mjs': scenarioSource({
+      id: 'only-needs',
+      tags: ['bridge', 'tools-only'],
+      needs: ['scene'],
+    }),
+    'plain.scenario.mjs': scenarioSource({
+      id: 'plain',
+      gmActions: ['worldStatus'],
+      needs: ['scene'],
+    }),
+  });
+  const r = await loadScenarios([dir], { catalog });
+  assert.deepEqual(r.scenarios.map(s => s.scenario.id).sort(), ['only-ok', 'plain']);
+  assert.equal(r.problems.length, 2);
+  const rule = 'a tools-only scenario must not declare gmActions or needs';
+  assert.ok(
+    r.problems.some(p => p === `gm.scenario.mjs: ${rule}`),
+    r.problems.join('\n')
+  );
+  assert.ok(
+    r.problems.some(p => p === `needs.scenario.mjs: ${rule}`),
+    r.problems.join('\n')
+  );
+});

@@ -50,7 +50,7 @@ test('all --fake builds the kit and every scenario passes', () => {
         `${s.id} skipped without saying it needs a real browser`
       );
     }
-    assert.equal(report.summary.passed, 18, `passed ${report.summary.passed}`);
+    assert.equal(report.summary.passed, 19, `passed ${report.summary.passed}`);
     for (const s of report.scenarios) {
       if (needsBrowser.includes(s)) continue;
       assert.equal(s.status, 'pass', `${s.id}: ${s.status}`);
@@ -138,6 +138,81 @@ test('the fake keeps the dashboard rules: GM Actions switch, confirmation, unkno
     // Reads need no confirmation.
     const info = await client.tool('get-world-info', {});
     assert.equal(info.id, 'ai-tool-kit-srd');
+  } finally {
+    await fake.close();
+  }
+});
+
+test('the fake answers the canvas probe tools: scene reads, a template plan, and no party', async () => {
+  const fake = await startFake({ world: 'strahd-kit' });
+  try {
+    const client = createDashboardClient({ base: fake.base, token: '' });
+    // no scene yet: the tools that need one say so
+    await assert.rejects(client.tool('measure-distance', {}), /No active scene/);
+    const w = fake.world;
+    for (const [id, name] of [
+      ['a1', 'Alpha'],
+      ['b1', 'Bravo'],
+    ]) {
+      w.actors.set(id, {
+        id,
+        name,
+        type: 'npc',
+        hp: { value: 5, max: 5, temp: 0 },
+        items: [],
+        cr: 0,
+        creatureType: 'beast',
+        size: 'med',
+        level: 0,
+      });
+    }
+    const { sceneId } = await fake.gm.call('createCombatScene', {
+      name: 'Hall',
+      width: 10,
+      height: 10,
+    });
+    const alpha = await fake.gm.call('placeToken', { sceneId, actorId: 'a1', x: 1, y: 1 });
+    await fake.gm.call('placeToken', { sceneId, actorId: 'b1', x: 4, y: 3 });
+
+    const far = await client.tool('measure-distance', {
+      fromTokenName: 'alpha',
+      toTokenName: 'Bravo',
+    });
+    assert.equal(far.distance, 15); // three squares, 5 ft each
+    assert.deepEqual(await client.tool('get-targets', {}), {
+      success: true,
+      count: 0,
+      targets: [],
+    });
+    const details = await client.tool('get-token-details', { tokenId: alpha.tokenId });
+    assert.equal(details.name, 'Alpha');
+    await assert.rejects(
+      client.tool('get-token-details', { tokenId: 'nope' }),
+      /not found in current scene/
+    );
+    const opened = await client.tool('open-in-foundry', { uuid: `Scene.${sceneId}` });
+    assert.equal(opened.opened, true);
+    await assert.rejects(
+      client.tool('open-in-foundry', { uuid: 'Scene.nope' }),
+      /Document not found/
+    );
+
+    assert.deepEqual((await client.tool('get-party', {})).groups, []);
+    await assert.rejects(
+      client.tool('plan-party-change', { action: 'place' }),
+      /There is no party/
+    );
+    // plan-* tools are reads: no GM Actions switch, no confirmation, and nothing is applied
+    const plan = await client.tool('plan-scene-change', {
+      action: 'template',
+      shape: 'circle',
+      distance: 10,
+      originTokenName: 'Alpha',
+    });
+    assert.ok(plan.planId);
+    assert.deepEqual(plan.tokensInside, []);
+    assert.equal(w.changes.length, 0);
+    assert.equal(w.gmActions, false);
   } finally {
     await fake.close();
   }

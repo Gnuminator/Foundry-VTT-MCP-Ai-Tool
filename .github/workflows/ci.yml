@@ -73,6 +73,18 @@ jobs:
         # undo; against throwaway git repos.
         run: node --test scripts/drift-check.test.mjs
 
+      - name: Context alert hook
+        # .claude/hooks/context-alert.mjs (D-122): one line at the 350k and 400k handover marks.
+        run: node --test .claude/hooks/context-alert.test.mjs
+
+      - name: Merge gate and keep-green scripts
+        # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
+        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs
+
+      - name: Weekly usage report
+        # scripts/dev/usage-week.mjs (D-122 targets) against fixture transcripts.
+        run: node --test scripts/dev/usage-week.test.mjs
+
       - name: Pi space check
         # The storage space check (stage 10, the nightly backup's pre-check, scripts/pi/space-check.ps1):
         # bash -n on the stage scripts, the checker's JSON against a fake df, the PC helper's levels

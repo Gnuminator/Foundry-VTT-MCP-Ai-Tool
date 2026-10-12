@@ -140,3 +140,77 @@ main.moment-views #moment-during.during-no-bar {
   white-space: nowrap;
   border: 0;
 }
+
+/* ---- The combat strip (CombatStrip.tsx) ---- */
+
+/* Conditions show in every layout. moments.css hides them in the strip except in Auto during a
+   fight (the old page); a GM in Cards or Full could not see a condition. Same specificity, and
+   this file loads after, so it wins on this page only. */
+.slot-strip #pane-combat .conditions {
+  display: flex;
+}
+
+/* The name of a row you can pick is a real button, so the keyboard can reach it; it looks like the
+   plain name. The whole row takes the click, and shows the focus ring when the button has it. */
+.combatant-text,
+.combatant-pick {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.combatant-pick {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.combatant-pick:focus-visible {
+  outline: none;
+}
+.combatant:has(.combatant-pick:focus-visible) {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* The bridge is away: the fight stays, marked as the last one seen. */
+.strip-away {
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  font-size: var(--fs-sm);
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+.strip-away:empty {
+  padding: 0;
+  border: 0;
+}
+/* Dimmed with a filter, not opacity: opacity would drop the text under the contrast it needs. */
+#pane-combat.is-stale .pane-body {
+  filter: grayscale(0.9) brightness(0.85);
+}
+#pane-combat.is-stale .combatant {
+  border-style: dashed;
+}
+.reaction-btn[aria-disabled='true'],
+.combat-actions .ca-btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.combat-actions .ca-btn[aria-disabled='true']:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+/* During controls that wait for the world are aria-disabled (still focusable, so the reason is
+   read), and look like the disabled buttons of styles.css. */
+.layout-switch button[aria-disabled='true'],
+.btn[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}

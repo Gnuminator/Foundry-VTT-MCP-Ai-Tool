@@ -39,10 +39,6 @@ function worktreeOf(cwd) {
   return m ? m[1] : null;
 }
 
-function isStewardTitle(title) {
-  return /fixes and stewardship/i.test(title || '');
-}
-
 function cut(s, n = 120) {
   const t = String(s || '')
     .replace(/\s+/g, ' ')
@@ -146,42 +142,6 @@ export function buildLanes({ transcripts, live, prs, repoRoot, now = new Date(),
   }
   rows.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 
-  const steward = rows.find(r => !r.closed && isStewardTitle(r.title)) || null;
-  const used = rows.filter(
-    r => !r.closed && nowMs - Date.parse(r.lastActivity) <= HOUR && r !== steward
-  ).length;
-  return { rows, cap: { used, max: MAX_LANES, steward: steward ? steward.sessionId : null } };
-}
-
-function pad2(n) {
-  return String(n).padStart(2, '0');
-}
-
-function ago(ms) {
-  const m = Math.max(0, Math.floor(ms / 60000));
-  if (m < 100) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  return h < 48 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
-}
-
-export function formatLanesTable(rows, n = 10, now = new Date()) {
-  const ordered = [...rows.filter(r => !r.closed), ...rows.filter(r => r.closed)].slice(0, n);
-  const fmt = v => Number(v).toLocaleString('en-US');
-  return ordered
-    .map(r => {
-      const t = new Date(r.lastActivity);
-      const when = `${pad2(t.getHours())}:${pad2(t.getMinutes())}, ${ago(now.getTime() - t.getTime())}`;
-      return [
-        r.sessionId.slice(0, 8),
-        r.state.padEnd(7),
-        when.padEnd(16),
-        `ctx ${fmt(r.context)}`.padEnd(12),
-        `peak ${fmt(r.peak)}`.padEnd(13),
-        r.level.padEnd(5),
-        r.cacheMinutesLeft == null ? 'cache -' : `cache ${r.cacheMinutesLeft}m`,
-        r.pr == null ? 'PR -' : `PR #${r.pr}`,
-        r.title,
-      ].join(' | ');
-    })
-    .join('\n');
+  const used = rows.filter(r => !r.closed && nowMs - Date.parse(r.lastActivity) <= HOUR).length;
+  return { rows, cap: { used, max: MAX_LANES } };
 }

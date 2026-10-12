@@ -18,6 +18,7 @@ import {
   raiseDrawer,
   showDocked,
 } from './components/Drawer';
+import { CombatStrip, type StripToolRequest } from './components/CombatStrip';
 import { FoldScope } from './components/Folds';
 import { HelpProvider } from './components/Help';
 import { useHelp } from './components/HelpButton';
@@ -46,6 +47,7 @@ import { TarokkaDrawer } from './panels/Tarokka';
 import { ToolsDrawer, type ToolRequest } from './panels/Tools';
 import { api } from './lib/api';
 import { GmActionsGateContext } from './lib/guarded';
+import { showsSampleFight } from './lib/duringTrial';
 import { useDashboardStream } from './lib/stream';
 import { applyTheme } from './lib/theme';
 import { Button } from './ui';
@@ -197,6 +199,12 @@ function Dashboard(): JSX.Element {
   };
   // Another panel opens the Tool runner on a tool with its form filled in.
   const [toolRequest, setToolRequest] = useState<ToolRequest | null>(null);
+  // The combat strip's Damage / Heal and Condition: the Tool runner on plan-actor-change, filled in
+  // for the picked combatants. It plans first; nothing is written until the GM confirms there.
+  const openToolFromStrip = useCallback((request: StripToolRequest): void => {
+    setToolRequest(r => ({ ...request, seq: (r?.seq ?? 0) + 1 }));
+    setDrawers(d => ({ ...d, tools: true }));
+  }, []);
 
   return (
     <GmActionsGateContext.Provider value={openGmActionsGate}>
@@ -320,6 +328,9 @@ function Dashboard(): JSX.Element {
         duringBar={<DuringBar during={during} />}
         duringFolds={during.folds}
         beforeTop={<LayoutTrialCard during={during} />}
+        duringStrip={
+          <CombatStrip sample={showsSampleFight(during.trial)} onOpenTool={openToolFromStrip} />
+        }
       />
       <LayoutTourGuide during={during} />
       <PlayerLinksPane open={linksOpen} onOpenChange={setLinksOpen} />

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildLanes, formatLanesTable } from '../lanes.mjs';
+import { buildLanes } from '../lanes.mjs';
 
 const NOW = new Date('2026-10-08T12:00:00.000Z');
 const ROOT = '/fake/repo';
@@ -119,23 +119,22 @@ test('the cache countdown exists for waiting rows only', () => {
   assert.equal(rowOf(res, 'cold').cacheMinutesLeft, 0);
 });
 
-test('the steward is not counted against the lane cap', () => {
+test('the lane cap counts open sessions active in the last hour', () => {
   const res = lanes(
     [
-      agg('s1', { title: 'Project fixes and stewardship' }),
       agg('l1'),
       agg('l2'),
       agg('old', { lastTs: min(120), lastRequestTs: min(120) }),
       agg('c1', { title: 'CLOSED (handed over 2026-10-07) Something' }),
     ],
-    [liveOf('s1'), liveOf('l1'), liveOf('l2')]
+    [liveOf('l1'), liveOf('l2')]
   );
-  assert.equal(res.cap.steward, 's1');
   assert.equal(res.cap.max, 3);
   assert.equal(res.cap.used, 2);
+  assert.deepEqual(Object.keys(res.cap).sort(), ['max', 'used']);
 });
 
-test('CLOSED titles fold: closed flag, not counted, listed last in the table', () => {
+test('CLOSED titles fold: closed flag, not counted', () => {
   const res = lanes([
     agg('c1', { title: 'CLOSED (handed over) Done thing', lastTs: min(1) }),
     agg('o1', { title: 'Open thing', lastTs: min(30) }),
@@ -144,9 +143,6 @@ test('CLOSED titles fold: closed flag, not counted, listed last in the table', (
   assert.equal(rowOf(res, 'o1').closed, false);
   assert.equal(res.cap.used, 1);
   assert.equal(res.rows[0].sessionId, 'c1');
-  const lines = formatLanesTable(res.rows, 10, NOW).split('\n');
-  assert.ok(lines[0].includes('Open thing'));
-  assert.ok(lines[1].includes('CLOSED'));
 });
 
 test('live name wins over the transcript title; titles are cut at 120 characters', () => {
@@ -187,16 +183,13 @@ test('rows: window of days, live sessions without a transcript, worktree and PR'
   assert.equal(rowOf(res, 'newlive').cacheMinutesLeft, null);
 });
 
-test('rows are sorted by last activity, newest first, and the table prints the numbers', () => {
+test('rows are sorted by last activity, newest first', () => {
   const res = lanes([agg('a', { lastTs: min(50), context: 123456 }), agg('b', { lastTs: min(3) })]);
   assert.deepEqual(
     res.rows.map(r => r.sessionId),
     ['b', 'a']
   );
-  const out = formatLanesTable(res.rows, 1, NOW);
-  assert.equal(out.split('\n').length, 1);
-  assert.ok(out.startsWith('b | stale'));
-  assert.ok(formatLanesTable(res.rows, 10, NOW).includes('ctx 123,456'));
+  assert.equal(rowOf(res, 'a').context, 123456);
 });
 
 test('a busy session file with no activity for 30 minutes is not trusted (pid reuse)', () => {

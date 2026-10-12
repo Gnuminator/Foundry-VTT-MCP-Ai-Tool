@@ -1,10 +1,12 @@
 ### Docs
 
-- **Player character guide matches a real run:** `docs/player/make-a-character.md`
-  now carries the ten snags found when a player built a level-1 character on the test server: the
-  Character Name box starts as the player's own name, two windows open at first join, a blank panel
-  for about 5 seconds after Complete, the Magic Initiate spell picker (pick "PHB 2024", the
-  class filters are locked on for Cleric, Druid and Wizard), only the gold amounts need a click on the
-  Equipment tab, a skill picked twice loses a proficiency, wizards get no spellbook, and the cosmetic
-  oddities. Two new pictures (the name box, the spell picker). The join page notes the two windows
-  and marks the walkthrough as waiting for the game server.
+- **Player guides for session 0 (D-097):** "Join the game" (the address, the email code, the
+  Foundry login, Discord) and "Make your character" (a level-1 character with Actor Studio from the
+  2024 Player's Handbook, step by step, with a check of the finished sheet), tested as a player on
+  the Strahd test copy.
+- **Prepare session 0 (GM):** the one-time world setup (a user per player, Create Actors for
+  players, Actor Studio on the Player's Handbook packs, its spell and equipment steps) and the
+  night itself.
+- **Recording consent in the player guide:** recordings need each player's written yes, are kept
+  until a player asks (D-097 replaces the 14-day delete of D-072), and the path through Discord,
+  the Pi and the PC is spelled out.

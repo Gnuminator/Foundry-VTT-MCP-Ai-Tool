@@ -23,6 +23,14 @@ test('GM guides opens the guide index from the server', async ({ page }) => {
   await expect(pane).toHaveClass(/help-pane/);
   await expect(pane.locator('.help-body h1, .help-body h2').first()).toBeVisible();
 
+  // The same guide is on the wiki; the link opens it in a new tab.
+  const wiki = pane.getByRole('link', { name: 'Open this page on the wiki' });
+  await expect(wiki).toHaveAttribute(
+    'href',
+    'https://gnuminator.github.io/Foundry-VTT-MCP-Ai-Tool/gm/'
+  );
+  await expect(wiki).toHaveAttribute('target', '_blank');
+
   await page.getByRole('button', { name: 'Close help' }).click();
   await expect(pane).toBeHidden();
 });

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type JSX, type ReactNode } from 'react';
 
 import { api, errorText } from '../lib/api';
 import { usage } from '../lib/usage';
+import { wikiUrl } from '../lib/wiki';
 import { HelpContext, type OpenHelp } from './HelpButton';
 import { OverlayPane } from './OverlayPane';
 
@@ -69,6 +70,17 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
         id="pane-help"
         className="help-pane"
         bodyClassName="help-body"
+        meta={
+          <a
+            className="help-wiki-link"
+            href={wikiUrl(page, target.anchor)}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-track="dash.help.wiki"
+          >
+            Open this page on the wiki
+          </a>
+        }
       >
         {help.isPending ? (
           <p className="empty">Loading…</p>

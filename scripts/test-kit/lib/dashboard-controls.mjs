@@ -243,6 +243,11 @@ export const DASHBOARD_CONTROLS = [
     selector: '.fold-btn[data-fold="party"]',
     changes: true,
   },
+  {
+    name: 'dash.help.wiki',
+    how: 'skip',
+    why: 'a link in the help pane of the React dashboard (/next/); the old page the sweep drives has none',
+  },
   { name: 'dash.help.during-layouts', how: 'open', reach: [MOMENT_DURING], expect: '#pane-help' },
   // The "?" app.js adds to each panel heading (help-links.json); the diagnostics one stands for all.
   {

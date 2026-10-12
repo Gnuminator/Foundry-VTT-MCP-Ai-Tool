@@ -21,5 +21,6 @@
   "no fight"). Damage / Heal and Condition send the token, so two "Wolf" rows are two targets, and
   the Tool runner names them under the field. One failed poll no longer greys the strip: the
   panels wait five seconds on "not sure" before they say the bridge is away (a dropped link shows at
-  once). The Live Feed's screen reader line is spoken again when two events read the same. The Enemy tag has a lighter red that
-  can be read, and the "bridge away" look keeps the text's contrast.
+  once, and stays until the bridge is back). The Live Feed's screen reader line is spoken again
+  when two events read the same. The Enemy tag has a lighter red that can be read, and the "bridge
+  away" look keeps the text's contrast.

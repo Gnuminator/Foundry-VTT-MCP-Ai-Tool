@@ -249,14 +249,20 @@ export function useBridgeAway(): boolean {
   const away = bridgeAway(status);
   const blip = away && bridgeBlip(status);
   const [shown, setShown] = useState(blip);
+  // Once shown it stays until the bridge is back: after a dropped link the status goes to
+  // "connected, not sure" (a blip by itself) and must not take the mark off the old fight.
   useEffect(() => {
-    if (!blip) {
+    if (!away) {
       setShown(false);
+      return;
+    }
+    if (!blip) {
+      setShown(true);
       return;
     }
     const timer = setTimeout(() => setShown(true), AWAY_AFTER_MS);
     return (): void => clearTimeout(timer);
-  }, [blip]);
+  }, [away, blip]);
   return away && (!blip || shown);
 }
 

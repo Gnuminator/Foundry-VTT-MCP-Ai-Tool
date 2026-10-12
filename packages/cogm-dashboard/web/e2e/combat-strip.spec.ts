@@ -827,7 +827,26 @@ test.describe('the bridge is away', () => {
     await expect(strip(page)).not.toHaveClass(/is-stale/);
   });
 
-  test('a dropped channel or an unreachable Foundry is shown at once', async ({ page }) => {
+  test('after a dropped channel the reconnect stays marked until a poll succeeds', async ({
+    page,
+  }) => {
+    const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
+    await load(page);
+    push([status({ controlChannel: 'disconnected', foundry: 'unknown' })]);
+    await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.', {
+      timeout: 1000,
+    });
+    // The channel is back, Foundry not yet known: on its own a blip, here still the same outage.
+    push([status({ controlChannel: 'connected', foundry: 'unknown' })]);
+    await page.waitForTimeout(1000);
+    await expect(away(page)).toHaveText('The bridge is away: this is the fight as last seen.');
+    await expect(strip(page)).toHaveClass(/is-stale/);
+    push([BRIDGE_UP]);
+    await expect(away(page)).toHaveText('', { timeout: 1000 });
+    await expect(strip(page)).not.toHaveClass(/is-stale/);
+  });
+
+  test('a Foundry that says it is unreachable is shown at once', async ({ page }) => {
     const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
     await load(page);
     push([FOUNDRY_AWAY]);

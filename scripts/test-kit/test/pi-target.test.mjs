@@ -6,6 +6,9 @@ import path from 'node:path';
 import { EnvError } from '../lib/errors.mjs';
 import {
   MAX_SECRET_LENGTH,
+  assertRemoteHost,
+  isLocalAddress,
+  isThisPc,
   NOT_GAME_NIGHT_MESSAGE,
   PI_DEFAULTS,
   PI_WORLD,
@@ -411,5 +414,119 @@ test('piPreflight refuses a Foundry that is not running a world, does not answer
   await assert.rejects(
     piPreflight(piTarget, { fetchImpl: statusFetch(null, { status: 502 }).fetchImpl }),
     e => e instanceof EnvError && /HTTP 502/.test(e.message)
+  );
+});
+
+// --- "this PC" (review of #329, L2) -------------------------------------------------------------
+
+/** A PC called Gamer-PC with a LAN, a Tailscale and an IPv6 address. */
+const PC = {
+  hostname: 'Gamer-PC',
+  interfaces: {
+    Ethernet: [{ address: '192.168.1.20', family: 'IPv4' }],
+    Tailscale: [
+      { address: '100.101.102.103', family: 'IPv4' },
+      { address: 'fd7a:115c:a1e0::1', family: 'IPv6' },
+    ],
+    Wi: [{ address: 'fe80::1%12', family: 'IPv6' }],
+  },
+};
+
+test('isLocalAddress: loopback, unspecified and every address of the PC, in any spelling', () => {
+  for (const a of [
+    '127.0.0.1',
+    '127.8.8.8',
+    '::1',
+    '[::1]',
+    '::',
+    '0.0.0.0',
+    '::ffff:127.0.0.1',
+    '192.168.1.20',
+    '100.101.102.103',
+    '::ffff:192.168.1.20',
+    'FD7A:115C:A1E0::1',
+    'fe80::1%7',
+  ]) {
+    assert.equal(isLocalAddress(a, PC), true, a);
+  }
+  for (const a of ['100.64.0.7', '192.168.1.21', '203.0.113.9', 'fd7a:115c:a1e0::2']) {
+    assert.equal(isLocalAddress(a, PC), false, a);
+  }
+});
+
+test('isThisPc: the PC name, its first label (a Tailscale name), its addresses', () => {
+  for (const h of [
+    'gamer-pc',
+    'GAMER-PC',
+    'gamer-pc.tail1234.ts.net',
+    'gamer-pc.lan',
+    'localhost',
+    'x.localhost',
+    '192.168.1.20',
+    '100.101.102.103',
+    '127.0.0.1',
+  ]) {
+    assert.equal(isThisPc(h, PC), true, h);
+  }
+  for (const h of ['foundry-pi', 'foundry-pi.tail1234.ts.net', '100.64.0.7', 'gamer-pc2']) {
+    assert.equal(isThisPc(h, PC), false, h);
+  }
+  // a PC name with a domain: its first label counts too
+  assert.equal(isThisPc('gamer-pc', { ...PC, hostname: 'Gamer-PC.corp.example' }), true);
+});
+
+test('the pi target refuses the PC LAN or Tailscale address and its Tailscale name', () => {
+  const addresses = Object.values(os.networkInterfaces())
+    .flat()
+    .filter(i => i && i.family === 'IPv4' && !i.internal)
+    .map(i => i.address);
+  for (const host of [...addresses, `${os.hostname().split('.')[0]}.tail1234.ts.net`]) {
+    if (!/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(host)) continue;
+    refused(() => resolvePiTarget({ ...ok, env: setup({ host }).env }), /another machine/);
+  }
+});
+
+test('assertRemoteHost: every address the name resolves to must be another machine', async () => {
+  const seen = [];
+  const lookup = answer => async (host, opts) => {
+    seen.push([host, opts]);
+    return answer;
+  };
+  await assertRemoteHost('foundry-pi', {
+    ...PC,
+    lookup: lookup([{ address: '100.64.0.7' }, { address: 'fd7a:115c:a1e0::9' }]),
+  });
+  assert.deepEqual(seen, [['foundry-pi', { all: true }]], 'all addresses are asked for');
+  for (const bad of ['127.0.0.1', '100.101.102.103', '192.168.1.20', 'fd7a:115c:a1e0::1']) {
+    await assert.rejects(
+      assertRemoteHost('foundry-pi', {
+        ...PC,
+        lookup: lookup([{ address: '100.64.0.7' }, { address: bad }]),
+      }),
+      e =>
+        e instanceof EnvError &&
+        /^REFUSED: the pi target must be another machine, but foundry-pi resolves to /.test(
+          e.message
+        ) &&
+        e.message.includes(bad),
+      bad
+    );
+  }
+});
+
+test('assertRemoteHost: a name that does not resolve is an EnvError', async () => {
+  const fails = async () => {
+    throw Object.assign(new Error('getaddrinfo ENOTFOUND foundry-pi'), { code: 'ENOTFOUND' });
+  };
+  await assert.rejects(
+    assertRemoteHost('foundry-pi', { ...PC, lookup: fails }),
+    e =>
+      e instanceof EnvError &&
+      /cannot be resolved/.test(e.message) &&
+      !/getaddrinfo/.test(e.message)
+  );
+  await assert.rejects(
+    assertRemoteHost('foundry-pi', { ...PC, lookup: async () => [] }),
+    e => e instanceof EnvError && /cannot be resolved/.test(e.message)
   );
 });

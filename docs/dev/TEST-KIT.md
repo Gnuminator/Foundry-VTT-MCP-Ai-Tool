@@ -1190,8 +1190,13 @@ When you change a tool's result shape, change the fake with it.
 - **The Pi target is opt-in and narrow.** `--target pi` is never the default. It runs only `run`
   (no `init`, `build` or `all`: the kit never builds, wipes or provisions on the Pi), only in
   `strahd-kit`, only the scenarios tagged `tools-only` (no GM browser, no GM actions, no manifest),
-  never with `--fake`, and only with `--not-game-night`. The host must not be this PC, and the same
-  live-port check refuses 31414 to 31416 on either port. The Pi's Foundry must answer and be
+  never with `--fake` or `--scenarios <dir>`, and only with `--not-game-night`. The host must not be this PC, and the same
+  live-port check refuses 31414 to 31416 on either port. A guard sits in front of the dashboard
+  client: a tool call is refused unless the scenario declared the tool and it is a read tool or a
+  `plan-*` tool (`mark-play-session` is not allowed), nothing is confirmed or applied, raw requests
+  are GET only, and before each call the guard checks that the bridge still reports `strahd-kit`
+  (a `MODE=down` during a run stops it instead of sending calls to the campaign). `kit check` also
+  rejects a `tools-only` scenario that declares any other tool. The Pi's Foundry must answer and be
   launching `strahd-kit`, and the connected world must be `strahd-kit`, or the run stops with
   exit code 2 before it calls a tool.
 

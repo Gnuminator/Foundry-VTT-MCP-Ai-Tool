@@ -10,6 +10,8 @@
  * documents by name or id only and never carries book text.
  */
 
+import { isToolsOnlyTool } from './dashboard.mjs';
+
 /** Bump when the report or manifest shape changes in a way readers must notice. */
 export const KIT_FORMAT_VERSION = 2;
 
@@ -513,6 +515,12 @@ export function validateScenario(s) {
       (Array.isArray(sc.needs) && sc.needs.length > 0))
   )
     problems.push('a tools-only scenario must not declare gmActions or needs');
+  if (Array.isArray(sc.tags) && sc.tags.includes(TOOLS_ONLY_TAG) && Array.isArray(sc.tools)) {
+    for (const tool of sc.tools) {
+      if (typeof tool === 'string' && !isToolsOnlyTool(tool))
+        problems.push(`a tools-only scenario may list only read or plan tools, not "${tool}"`);
+    }
+  }
   if (typeof sc.run !== 'function') problems.push('run must be a function');
   return problems;
 }

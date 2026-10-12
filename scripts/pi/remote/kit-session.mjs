@@ -19,19 +19,22 @@
 //       foundry-mcp-bridge.bridgeUserId). A Kit GM that is online right now, or has a role above Game Master, is
 //       refused. The last check is a throwaway browser joining as Kit GM with that password.
 //     It prints the values before and after, reloads the world and reads them back, and exits 1 on any mismatch.
-//     A second run changes nothing but the Kit GM password.
+//     A second run changes nothing but the Kit GM password. When it has verified everything it prints one line,
+//     "ORIG_BRIDGE_USER=<id or empty>": the bridge user it replaced, which the stage keeps for the teardown.
 //   ACTION=teardown  deletes the actors that Kit Player owns (at most 5; MAX_DELETE raises the limit; their names
 //                    and ids are printed first) and then the user Kit Player; then, when Kit GM is the bridge user,
-//                    the bridge user goes back to "Any GM" (the empty value) and the user Kit GM is deleted (it
-//                    must be exactly named, a Game Master, offline and not the user this run joined as). Nothing
-//                    else is deleted and no other setting is touched. Without those users there is nothing to do
+//                    the bridge user goes back to what setup found (ORIG_BRIDGE_USER, when that user still exists
+//                    and is a GM, role 3 or above) or else to "Any GM" (the empty value), and the user Kit GM is
+//                    deleted (it must be exactly named, a Game Master, offline and not the user this run joined
+//                    as). Nothing else is deleted and no other setting is touched. Without those users there is nothing to do
 //                    and the run succeeds. Everything that can refuse is checked before the first delete.
 //
 // Passwords are never printed (a log line has them cut out even when an error message holds one).
 //
 // Environment: ACTION, TOOL_APP (the built tool, for playwright-core), FOUNDRY_URL (default
 // http://127.0.0.1:30000), CHROMIUM (default /usr/bin/chromium), GM_USER, GM_PASSWORD, WORLD (the world id
-// that must be running), KIT_GM_PASSWORD (setup only: 32 lowercase hex characters), MAX_DELETE (teardown only).
+// that must be running), KIT_GM_PASSWORD (setup only: 32 lowercase hex characters), MAX_DELETE and ORIG_BRIDGE_USER (teardown
+// only; the latter is a 16 character user id or empty, and when it is not set at all the bridge user goes back to Any GM).
 
 import { createRequire } from 'node:module';
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
@@ -102,7 +105,7 @@ const log = msg => console.log(`[kit-session] ${redact(msg)}`);
 // ownedActors: for the user named playerName, the actors where that user is an explicit OWNER.
 // leftActors: the ids in actorIds that are still in game.actors (the teardown's read-back: once the user is gone,
 // ownedActors can no longer find its actors, so the ids found before the delete are looked up one by one).
-// kitGm: the users named gmName (online or not); userId: the user this page joined as; bridgeModuleInstalled and
+// gmIds: the ids of the users with role 3 or above; kitGm: the users named gmName (online or not); userId: the user this page joined as; bridgeModuleInstalled and
 // bridgeModuleActive: the bridge module (bridgeModule); bridgeUserId: its world setting, null while the module
 // registers none (it registers its settings only when it is active).
 export function readState({
@@ -139,6 +142,8 @@ export function readState({
         .filter(a => users.some(u => a.ownership?.[u.id] === owner))
         .map(a => ({ id: a.id, name: a.name, type: a.type }))
     : [];
+  // The users that can hold the bridge link: the roles Assistant GM (3) and Game Master (4).
+  const gmIds = game.users.filter(u => u.role >= CONST.USER_ROLES.ASSISTANT).map(u => u.id);
   const kitGm = game.users
     .filter(u => u.name === gmName)
     .map(u => ({ id: u.id, name: u.name, role: u.role, active: u.active === true }));
@@ -150,6 +155,7 @@ export function readState({
     userId: game.user.id ?? null,
     isGM: game.user.isGM,
     kitGm,
+    gmIds,
     bridgeModuleInstalled: game.modules.has(bridgeModule),
     bridgeModuleActive: game.modules.get(bridgeModule)?.active === true,
     bridgeUserId: settings.settings.has(bridgeUserKey)
@@ -251,8 +257,9 @@ export async function provisionKitGm({ moduleId, gmName, role, password }) {
 }
 
 // Deletes the user userId after looking at it once more: exactly gmName, a Game Master, offline, and not the user
-// this page joined as. When it is the bridge user, the bridge user goes back to anyGm first.
-export async function deleteKitGm({ moduleId, gmName, userId, anyGm }) {
+// this page joined as. When it is the bridge user, the bridge user goes back to bridgeTo first (looked at again here:
+// a user that is gone, or below role 3, or the Kit GM itself becomes anyGm).
+export async function deleteKitGm({ moduleId, gmName, userId, anyGm, bridgeTo = anyGm }) {
   const user = game.users.get(userId);
   if (!user || user.name !== gmName) throw new Error(`the user ${userId} is not ${gmName}`);
   if (user.role !== CONST.USER_ROLES.GAMEMASTER) {
@@ -264,7 +271,9 @@ export async function deleteKitGm({ moduleId, gmName, userId, anyGm }) {
     game.settings.settings.has(`${moduleId}.bridgeUserId`) &&
     game.settings.get(moduleId, 'bridgeUserId') === user.id
   ) {
-    await game.settings.set(moduleId, 'bridgeUserId', anyGm);
+    const target = bridgeTo ? game.users.get(bridgeTo) : null;
+    const usable = target && target.id !== user.id && target.role >= CONST.USER_ROLES.ASSISTANT;
+    await game.settings.set(moduleId, 'bridgeUserId', usable ? bridgeTo : anyGm);
   }
   await user.delete();
 }
@@ -516,17 +525,56 @@ export function kitGmTeardownProblems(state) {
   return problems;
 }
 
-// After the teardown the Kit GM is gone and no longer the bridge user (before holds the user as it was). The check
-// only applies when there was a Kit GM.
-export function kitGmTeardownMismatches(before, after) {
+// After the teardown the Kit GM is gone and no longer the bridge user (before holds the user as it was). When it was
+// the bridge user, the bridge user must now be bridgeTo (see bridgeRestoreTarget). The check only applies when there
+// was a Kit GM.
+export function kitGmTeardownMismatches(before, after, bridgeTo) {
   const problems = [];
   const [gm] = before.kitGm;
   if (!gm) return problems;
   if (after.kitGm.length) problems.push(`${GM_NAME} still exists`);
   if (after.bridgeUserId === gm.id) {
     problems.push(`the bridge user is still the deleted ${GM_NAME} (${gm.id})`);
+  } else if (
+    bridgeTo !== undefined &&
+    before.bridgeUserId === gm.id &&
+    (after.bridgeUserId ?? ANY_GM_CHOICE) !== bridgeTo
+  ) {
+    problems.push(
+      `the bridge user is ${JSON.stringify(after.bridgeUserId)}, expected ${JSON.stringify(bridgeTo)}`
+    );
   }
   return problems;
+}
+
+const USER_ID = /^([A-Za-z0-9]{16})?$/;
+
+// Setup: the bridge user it is about to replace, as the id the stage keeps (or empty for "Any GM", also when the
+// setting is not registered yet). The Kit GM itself (a session that was cut off) is not worth restoring. Anything
+// that is not a Foundry user id is refused.
+export function originalBridgeUser(bridgeUserId, kitGmId) {
+  const id = bridgeUserId ?? ANY_GM_CHOICE;
+  if (typeof id !== 'string' || !USER_ID.test(id)) {
+    throw new Error(`the bridge user setting holds ${JSON.stringify(id)}, which is not a user id`);
+  }
+  return id === kitGmId ? ANY_GM_CHOICE : id;
+}
+
+// Teardown: ORIG_BRIDGE_USER from the environment. Not set means the old state file format: undefined (Any GM).
+export function parseOrigBridgeUser(value) {
+  if (value === undefined) return undefined;
+  if (!USER_ID.test(value)) {
+    throw new Error(`ORIG_BRIDGE_USER must be a 16 character user id or empty (got "${value}")`);
+  }
+  return value;
+}
+
+// Teardown: where the bridge user goes back to: the original user when it is not the Kit GM and still exists with
+// role 3 or above (state.gmIds), else Any GM.
+export function bridgeRestoreTarget(state, origId) {
+  const [gm] = state.kitGm;
+  if (!origId || !gm || origId === gm.id) return ANY_GM_CHOICE;
+  return state.gmIds.includes(origId) ? origId : ANY_GM_CHOICE;
 }
 
 // ---- runs in node: the browser ----------------------------------------------------------------------------------
@@ -561,6 +609,8 @@ async function main() {
     throw new Error(`ACTION must be setup or teardown (got "${action}")`);
   }
   const maxDelete = action === 'teardown' ? parseMaxDelete(process.env.MAX_DELETE) : 0;
+  const origBridge =
+    action === 'teardown' ? parseOrigBridgeUser(process.env.ORIG_BRIDGE_USER) : undefined;
   const toolApp = env('TOOL_APP');
   // Checked before the browser is even loaded; the error never holds the value.
   const kitGmPassword = action === 'setup' ? parseKitGmPassword(process.env.KIT_GM_PASSWORD) : '';
@@ -653,6 +703,7 @@ async function main() {
         `${oldGm ? 'update' : 'create'} user ${GM_NAME} (Game Master) as the bridge user`,
       ];
       log(`changing: ${plan.join(', ')}`);
+      let bridgeSeen = before.bridgeUserId;
       if (!before.bridgeModuleActive) {
         await page.evaluate(enableBridgeModule, { moduleId: BRIDGE_MODULE });
         await page.reload({ waitUntil: 'domcontentloaded' });
@@ -662,7 +713,10 @@ async function main() {
           throw new Error(`${BRIDGE_MODULE} is not active after enabling it`);
         }
         log(`${BRIDGE_MODULE} is active`);
+        bridgeSeen = enabled.bridgeUserId;
       }
+      // The bridge user this setup replaces, kept by the stage so the teardown can put it back.
+      const origBridgeUser = originalBridgeUser(bridgeSeen, oldGm?.id);
       if (changes.length) {
         await page.evaluate(applyChanges, { moduleId: MODULE_ID, changes });
       }
@@ -688,6 +742,7 @@ async function main() {
         throw new Error(`${GM_NAME} could not join with the password this run set`);
       }
       log('verified');
+      log(`ORIG_BRIDGE_USER=${origBridgeUser}`);
     } else {
       const [kit] = before.users;
       const [gm] = before.kitGm;
@@ -698,6 +753,7 @@ async function main() {
       const bad = [...teardownProblems(before, maxDelete), ...kitGmTeardownProblems(before)];
       if (bad.length) throw new Error(bad.join('; '));
       const actorIds = before.ownedActors.map(a => a.id);
+      let bridgeTo;
       if (kit) {
         for (const actor of before.ownedActors) {
           log(`deleting actor ${actor.name} (${actor.type}, ${actor.id})`);
@@ -706,13 +762,18 @@ async function main() {
         await page.evaluate(deleteKit, { playerName: PLAYER_NAME, userId: kit.id, actorIds });
       }
       if (gm) {
-        const bridge = before.bridgeUserId === gm.id ? ', the bridge user goes back to Any GM' : '';
+        bridgeTo = bridgeRestoreTarget(before, origBridge);
+        const bridge =
+          before.bridgeUserId === gm.id
+            ? `, the bridge user goes back to ${bridgeTo ? bridgeTo : 'Any GM'}`
+            : '';
         log(`deleting user ${gm.name} (${gm.id})${bridge}`);
         await page.evaluate(deleteKitGm, {
           moduleId: BRIDGE_MODULE,
           gmName: GM_NAME,
           userId: gm.id,
           anyGm: ANY_GM_CHOICE,
+          bridgeTo,
         });
       }
       await page.reload({ waitUntil: 'domcontentloaded' });
@@ -721,7 +782,7 @@ async function main() {
       log(`after:  ${show(after)}`);
       const wrong = [
         ...(kit ? teardownMismatches(before, after) : []),
-        ...kitGmTeardownMismatches(before, after),
+        ...kitGmTeardownMismatches(before, after, bridgeTo),
       ];
       if (wrong.length) throw new Error(`read-back does not match: ${wrong.join('; ')}`);
       log('verified');

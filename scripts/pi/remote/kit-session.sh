@@ -17,21 +17,27 @@
 #   Before anything stops: the world, its GM login (/etc/foundry-ai-tool/world-strahd-kit.env, never printed), the
 #   tool's build, the Assistant GM driver (stage 5: /opt/foundry-ai-tool/gm-browser/assistant-gm.mjs) and the bridge
 #   service must be there, no kit session may be up already (the state file below), Foundry must not launch
-#   strahd-kit already, and space is checked (20% free warns, under 5% stops). A leftover Kit GM password file,
-#   browser profile or running Kit GM browser without a state file (an earlier run that was cut off) is removed, and
-#   what was removed is printed: nothing else uses those names. Then the Assistant GM browser stops, /api/status must
+#   strahd-kit already, and space is checked (20% free warns, under 5% stops). The Kit GM browser unit is stopped
+#   (harmless when it does not exist), and a leftover Kit GM password file, temp file, browser profile or Kit GM
+#   browser unit that is not inactive (running, restarting, failed) without a state file (an earlier run that was
+#   cut off) is removed, and what was removed is printed: nothing else uses those names. Then the Assistant GM browser stops, /api/status must
 #   answer and count no one online (FORCE=1 overrides), and Foundry stops. The state file
 #   /var/lib/foundry-ai-tool/kit-session.env (ORIG_WORLD, WAS_GM_BROWSER, STAMP, KIT_GM_BROWSER=1; mode 600) is
-#   written before options.json changes. strahd-kit's settings, users and actors are copied to
+#   written before options.json changes (through a temp file in /etc/foundry-ai-tool and a rename, so root never
+#   writes through a path the foundry user owns); once the setup has verified, ORIG_BRIDGE_USER=<id or empty>, the
+#   bridge user the setup replaced, is added to it. strahd-kit's settings, users and actors are copied to
 #   /var/lib/foundry-import/prev-<stamp>/worlds/strahd-kit/ (never deleted). options.json launches strahd-kit and
 #   Foundry starts. The password of the Kit GM is made here, with 16 random bytes as 32 hex characters, and written
-#   to /var/lib/foundry-ai-tool/kit-gm.env (one line ASSISTANT_GM_PASSWORD=<hex>, root only, mode 600, through a temp
-#   file and a rename) before the driver runs; it is never printed, and never on a command line. A headless Chromium
+#   to /etc/foundry-ai-tool/kit-gm.env (one line ASSISTANT_GM_PASSWORD=<hex>, root:root, mode 600, through a mktemp
+#   file in that folder and a rename; /etc/foundry-ai-tool is root's, unlike /var/lib/foundry-ai-tool, which the
+#   foundry user owns) before the driver runs; it is never printed, and never on a command line, and the stage's
+#   passwords stay out of an accidental `bash -x` trace. A headless Chromium
 #   joins as the world's GM and runs kit-session.mjs ACTION=setup (the password goes to it in the environment): the
 #   settings character creation needs, the passwordless player user "Kit Player", the bridge module enabled when it is
 #   not, and the GM user "Kit GM" as the module's bridge user. Then the Kit GM browser starts as the transient unit
-#   foundry-ai-tool-kit-gm-browser (systemd-run, the properties of the Assistant GM unit; a reboot drops it and
-#   nothing starts it again), in a fresh profile folder /var/lib/foundry-ai-tool/kit-gm-browser, and the stage waits
+#   foundry-ai-tool-kit-gm-browser (systemd-run, with the hardening and priority properties of the Assistant GM
+#   unit, not its After=/Wants= ordering; a reboot drops it and nothing starts it again), in a fresh profile folder
+#   /var/lib/foundry-ai-tool/kit-gm-browser made by the foundry user, and the stage waits
 #   for "joined world strahd-kit as Kit GM" in its journal and looks for the bridge link on port 31415 (a warning
 #   only). Foundry stays running on strahd-kit and the Assistant GM browser stays stopped (it would join strahd-kit
 #   and move the bridge link, and so the Claude Desktop connectors, to the test world; the Kit GM holds the link
@@ -44,7 +50,9 @@
 #   first (a reboot during the session starts the Assistant GM browser on strahd-kit; the Kit GM browser would count
 #   as online). It runs kit-session.mjs ACTION=teardown while strahd-kit still runs: the actors Kit Player owns (at
 #   most 5) and the user are deleted, the bridge user goes back to "Any GM" when it is the Kit GM, and the user Kit GM
-#   is deleted, nothing else. If that fails, nothing else changes (the state file and the Kit GM password file stay,
+#   is deleted, nothing else. The bridge user goes back to the one the state file names (ORIG_BRIDGE_USER) when
+#   that user still exists and is a GM, else to "Any GM"; a state file without that line means "Any GM". If that
+#   fails, nothing else changes (the state file and the Kit GM password file stay,
 #   Foundry stays on strahd-kit, the Kit GM browser stays stopped) so the stage can run again. Otherwise the Kit GM
 #   password file and the browser profile are removed, Foundry stops, options.json launches ORIG_WORLD again, the
 #   state file is removed, Foundry starts, and the Assistant GM browser starts again if it ran before (the stage waits
@@ -65,6 +73,8 @@ KIT_GM_UNIT=foundry-ai-tool-kit-gm-browser
 FORCE="${FORCE:-0}"
 SESSION_DRIVER="${SESSION_DRIVER:-/root/kit-session.mjs}"
 MAX_DELETE="${MAX_DELETE:-}"
+have_orig_bridge=0 # down: the state file names the bridge user to put back
+orig_bridge=""
 IMPORT=/var/lib/foundry-import
 STATE="$TOOL_DATA/kit-session.env"
 data="$FOUNDRY_DATA/Data"
@@ -72,7 +82,10 @@ options="$FOUNDRY_DATA/Config/options.json"
 driver_dir="$TOOL_DIR/gm-browser"
 driver="$driver_dir/kit-session.mjs"
 gm_driver="$driver_dir/assistant-gm.mjs" # stage 5's Assistant GM driver; the Kit GM browser runs it too
-KIT_GM_ENV="$TOOL_DATA/kit-gm.env"
+# The password file is root's: in /etc/foundry-ai-tool, not in /var/lib/foundry-ai-tool (the foundry user owns that
+# folder, and root would follow a link the foundry user put there). Root only removes things in $TOOL_DATA (rm does
+# not follow links); the profile folder is made by the foundry user.
+KIT_GM_ENV="$TOOL_ETC/kit-gm.env"
 KIT_GM_PROFILE="$TOOL_DATA/kit-gm-browser"
 envf="$TOOL_ETC/world-$KIT_WORLD.env"
 stamp="$(date +%Y%m%d-%H%M%S)"
@@ -170,6 +183,7 @@ check_nobody_online() { # $1 what the people would lose
 # Foundry runs the world; a headless Chromium joins as the world's GM and does ACTION (setup or teardown).
 run_driver() { # $1 setup or teardown
   (
+    { set +x; } 2>/dev/null # a bash -x trace must not show the passwords the sourced file and the lines below hold
     set -a
     # shellcheck disable=SC1090
     . "$envf"
@@ -183,22 +197,36 @@ run_driver() { # $1 setup or teardown
     export WORLD="$KIT_WORLD"
     if [ "$1" = setup ]; then
       # The Kit GM password for this run: read from the file the stage wrote (and checked), into the environment only.
+      { set +x; } 2>/dev/null
       kit_pw_line="$(grep -E '^ASSISTANT_GM_PASSWORD=[0-9a-f]{32}$' "$KIT_GM_ENV")" || {
         echo "ERROR: $KIT_GM_ENV holds no Kit GM password" >&2
         exit 1
       }
       export KIT_GM_PASSWORD="${kit_pw_line#ASSISTANT_GM_PASSWORD=}"
     fi
-    runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
-      FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
-      ACTION="$1" MAX_DELETE="$MAX_DELETE" \
-      node "$driver"
+    # Teardown: the bridge user to put back (only when the state file names one; no variable means "Any GM").
+    unset ORIG_BRIDGE_USER
+    if [ "$1" = teardown ] && [ "$have_orig_bridge" = 1 ]; then export ORIG_BRIDGE_USER="$orig_bridge"; fi
+    if [ "$1" = setup ]; then
+      # Everything the driver prints is also kept in $driver_log (root's, no secrets in it) for the line that reports
+      # the bridge user it replaced.
+      runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
+        FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
+        ACTION="$1" MAX_DELETE="$MAX_DELETE" \
+        node "$driver" 2>&1 | tee -a "$driver_log"
+    else
+      runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
+        FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
+        ACTION="$1" MAX_DELETE="$MAX_DELETE" \
+        node "$driver"
+    fi
   )
 }
 
 # The GM login must exist with both fields, without printing either.
 env_has_login() {
   (
+    { set +x; } 2>/dev/null
     set -a
     # shellcheck disable=SC1090
     . "$envf"
@@ -220,10 +248,24 @@ stop_kit_gm_browser() {
   systemctl reset-failed "$KIT_GM_UNIT.service" 2>/dev/null || true
 }
 
-# The password file and the profile folder go together (and the temp file the password is written through).
+# The password file, the temp files the stage makes in /etc/foundry-ai-tool (.kit-gm.*: the password's, the state
+# file's, the driver log) and the profile folder go together. Only unlinks: nothing here follows a link.
 remove_kit_gm_files() {
-  rm -f "${KIT_GM_ENV:?}" "${KIT_GM_ENV:?}.tmp"
+  rm -f "${KIT_GM_ENV:?}" "${TOOL_ETC:?}"/.kit-gm.*
   rm -rf "${KIT_GM_PROFILE:?}"
+}
+
+# The state file, written through a temp file in /etc/foundry-ai-tool (root's folder; mktemp makes it new, mode 600)
+# and a rename, so root never opens a path in the foundry user's folder. $1 "orig" adds ORIG_BRIDGE_USER.
+write_kit_state() {
+  local t
+  t="$(umask 077 && mktemp "$TOOL_ETC/.kit-gm.XXXXXX")"
+  {
+    printf 'ORIG_WORLD=%s\nWAS_GM_BROWSER=%s\nSTAMP=%s\nKIT_GM_BROWSER=1\n' "$orig_world" "$was_gm_browser" "$stamp"
+    if [ "${1:-}" = orig ]; then printf 'ORIG_BRIDGE_USER=%s\n' "$orig_bridge"; fi
+  } >"$t"
+  chmod 600 "$t"
+  mv -f "$t" "$STATE"
 }
 
 # One line, 32 hex characters, root only. The password is never printed.
@@ -235,11 +277,11 @@ kit_gm_password_ok() {
 }
 
 # Makes the password for this run: 16 random bytes from Node's crypto as 32 hex characters, written under umask 077
-# to a temp file next to the target and renamed, so the target is never half written and never readable by others.
-# It goes to no command line and to no output.
+# to a mktemp file next to the target (in /etc/foundry-ai-tool, root's) and renamed, so the target is never half
+# written and never readable by others. It goes to no command line and to no output.
 make_kit_gm_password() {
-  local tmp="$KIT_GM_ENV.tmp"
-  rm -f "${tmp:?}"
+  local tmp
+  tmp="$(umask 077 && mktemp "$TOOL_ETC/.kit-gm.XXXXXX")"
   (umask 077 && node -e 'process.stdout.write("ASSISTANT_GM_PASSWORD=" + require("crypto").randomBytes(16).toString("hex") + "\n")' >"$tmp")
   chown root:root "$tmp"
   chmod 600 "$tmp"
@@ -247,12 +289,14 @@ make_kit_gm_password() {
   kit_gm_password_ok || die "$KIT_GM_ENV is not the one-line, mode 600 file it should be"
 }
 
-# The Kit GM browser: the Assistant GM driver (stage 5) in a transient unit with the properties of the real unit
-# (5-tool.sh), a fresh profile folder and the password file as its environment file (systemd reads it as root, so
-# it stays root only). A reboot drops the unit; nothing starts it again.
+# The Kit GM browser: the Assistant GM driver (stage 5) in a transient unit with the hardening and priority
+# properties of the real unit (5-tool.sh; not its After=/Wants=: this stage starts it after Foundry and checked the
+# bridge unit), a fresh profile folder and the password file as its environment file (systemd reads it as root, so
+# it stays root only). A reboot drops the unit; nothing starts it again. The profile folder is made by the foundry
+# user (mkdir does not follow a link that is already there), so root never chowns a path in the foundry user's folder.
 start_kit_gm_browser() {
   rm -rf "${KIT_GM_PROFILE:?}"
-  install -d -m 700 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$KIT_GM_PROFILE"
+  runuser -u "$FOUNDRY_USER" -- mkdir -m 700 "$KIT_GM_PROFILE"
   systemctl reset-failed "$KIT_GM_UNIT.service" 2>/dev/null || true
   systemd-run --unit="$KIT_GM_UNIT" --collect --quiet \
     -p User="$FOUNDRY_USER" -p Group="$FOUNDRY_USER" \
@@ -300,12 +344,15 @@ if [ "$MODE" = up ]; then
   # No state file is up (checked above), so a Kit GM password file, browser profile or browser unit that is still
   # there was left by a run that was cut off: nothing else uses these names, so it is removed (and said so).
   leftover=()
-  for path in "$KIT_GM_ENV" "$KIT_GM_ENV.tmp" "$KIT_GM_PROFILE"; do
+  for path in "$KIT_GM_ENV" "$TOOL_ETC"/.kit-gm.* "$KIT_GM_PROFILE"; do
     if [ -e "$path" ] || [ -L "$path" ]; then leftover+=("$path"); fi
   done
-  if systemctl is-active --quiet "$KIT_GM_UNIT.service"; then leftover+=("the running unit $KIT_GM_UNIT"); fi
+  # Anything but inactive (or unknown) counts: running, restarting (activating) or failed units are in the way of
+  # systemd-run too. The stop is always called (harmless when nothing runs).
+  kit_unit_state="$(systemctl is-active "$KIT_GM_UNIT.service" 2>/dev/null || true)"
+  case "$kit_unit_state" in inactive | unknown | "") ;; *) leftover+=("the unit $KIT_GM_UNIT ($kit_unit_state)") ;; esac
+  stop_kit_gm_browser
   if [ "${#leftover[@]}" -gt 0 ]; then
-    stop_kit_gm_browser
     remove_kit_gm_files
     warn "removed what an earlier kit session left behind (there is no state file, so none of it is in use): ${leftover[*]}"
   fi
@@ -322,6 +369,8 @@ if [ "$MODE" = up ]; then
   world_changed=0
   state_written=0
   kit_gm_touched=0
+  driver_log=""
+  orig_bridge=""
   on_exit() {
     # A dropped ssh session closes our output (SIGPIPE, HUP): the steps below must still all run.
     set +e
@@ -347,7 +396,7 @@ if [ "$MODE" = up ]; then
       if [ "$was_gm_browser" = 1 ]; then
         systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service || true
       fi
-      if [ "$state_written" = 1 ]; then rm -f "${STATE:?}"; fi
+      if [ "$state_written" = 1 ]; then rm -f "${STATE:?}" "${TOOL_ETC:?}"/.kit-gm.*; fi
       warn "the run did not finish: Foundry and the Assistant GM browser are back as they were before it, and there is no kit session"
       if [ -d "$prev" ]; then warn "old copies are in $prev"; fi
     fi
@@ -368,8 +417,7 @@ if [ "$MODE" = up ]; then
   # The state file first: from here on, MODE=down knows what to put back, and so does a run that fails.
   state_written=1 # before the write: on_exit removes a half written file too
   # KIT_GM_BROWSER=1: this session has a Kit GM (user, password file, profile folder and browser) for MODE=down to remove.
-  (umask 077 && printf 'ORIG_WORLD=%s\nWAS_GM_BROWSER=%s\nSTAMP=%s\nKIT_GM_BROWSER=1\n' "$orig_world" "$was_gm_browser" "$stamp" >"$STATE")
-  chmod 600 "$STATE"
+  write_kit_state
   ok "state written to $STATE"
 
   # Foundry is stopped, so the world's databases can be copied as they are.
@@ -397,8 +445,17 @@ if [ "$MODE" = up ]; then
   make_kit_gm_password
   ok "wrote $KIT_GM_ENV (root only, mode 600; the password is not printed here)"
 
+  driver_log="$(umask 077 && mktemp "$TOOL_ETC/.kit-gm.XXXXXX")" # root's file; removed by the rollback's .kit-gm.* too
+  have_orig_bridge=0
   run_driver setup || die "the setup of $KIT_WORLD failed or did not verify (see the lines above)"
   ok "$KIT_WORLD: settings, the player user and the GM user $KIT_GM_USER set and read back"
+  # The bridge user the setup replaced (it prints the line only after it verified everything): kept in the state file.
+  grep -q '^\[kit-session\] ORIG_BRIDGE_USER=' "$driver_log" || die "the setup did not report the bridge user it replaced (see the lines above)"
+  orig_bridge="$(sed -n 's/^\[kit-session\] ORIG_BRIDGE_USER=//p' "$driver_log" | tail -n 1)"
+  rm -f "${driver_log:?}"
+  [[ "$orig_bridge" =~ ^([A-Za-z0-9]{16})?$ ]] || die "the setup reported a bridge user that is not a user id: nothing is kept (the run is put back)"
+  write_kit_state orig
+  ok "the bridge user it replaced (${orig_bridge:-Any GM}) is kept in the state file"
 
   say "starting the Kit GM browser (joins $KIT_WORLD as $KIT_GM_USER and holds the bridge link)"
   kit_since="$(date '+%Y-%m-%d %H:%M:%S')"
@@ -438,7 +495,7 @@ if [ "$MODE" = up ]; then
   echo "    The Assistant GM browser is stopped until MODE=down (it would join $KIT_WORLD and move the bridge link to the test world)."
   echo "    A reboot drops the Kit GM browser (nothing starts it again); MODE=down still cleans up."
   echo "    When the player is done and has left the game, run MODE=down: it deletes $PLAYER_NAME and the actors it owns,"
-  echo "    stops the Kit GM browser, deletes $KIT_GM_USER and its password file (the bridge user goes back to Any GM),"
+  echo "    stops the Kit GM browser, deletes $KIT_GM_USER and its password file (the bridge user goes back to what it was),"
   echo "    puts options.json back on ${orig_world:-no world} and starts Foundry and the Assistant GM browser again."
   echo "    $prev_note"
   exit 0
@@ -459,6 +516,13 @@ kit_gm_session=0
 if grep -q '^KIT_GM_BROWSER=' "$STATE"; then
   [ "$(state_value KIT_GM_BROWSER)" = 1 ] || die "$STATE holds no valid KIT_GM_BROWSER (1 or no such line): check the file by hand. Nothing was changed"
   kit_gm_session=1
+fi
+# ORIG_BRIDGE_USER: the bridge user the setup replaced (empty: Any GM). A state file without the line (a session
+# from before it existed) means Any GM. A line that is there must hold a user id or nothing.
+if grep -q '^ORIG_BRIDGE_USER=' "$STATE"; then
+  orig_bridge="$(state_value ORIG_BRIDGE_USER)"
+  [[ "$orig_bridge" =~ ^([A-Za-z0-9]{16})?$ ]] || die "$STATE holds no valid ORIG_BRIDGE_USER (a 16 character user id or nothing): check the file by hand. Nothing was changed"
+  have_orig_bridge=1
 fi
 [ -f "$envf" ] && env_has_login || die "no GM login for $KIT_WORLD in $envf: nothing was changed"
 [ -f "$TOOL_DIR/app/package.json" ] || die "the tool is not built at $TOOL_DIR/app: run stage 5 first"
@@ -571,7 +635,7 @@ fi
 say "summary"
 echo "    The kit session is down. $PLAYER_NAME and the actors it owned are deleted from $KIT_WORLD."
 if [ "$kit_gm_session" = 1 ]; then
-  echo "    The Kit GM browser is stopped, $KIT_GM_USER is deleted (the bridge user is back on Any GM), and its password file and profile folder are removed."
+  echo "    The Kit GM browser is stopped, $KIT_GM_USER is deleted (the bridge user is back as it was), and its password file and profile folder are removed."
 fi
 echo "    Foundry launches: ${orig_world:-no world}"
 echo "    The copies of $KIT_WORLD from before the session, if any, are in $IMPORT/prev-$state_stamp (kept; remove them later, only with the user's OK)"

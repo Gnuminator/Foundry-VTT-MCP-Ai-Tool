@@ -18,6 +18,16 @@ export function isReadTool(name) {
   return READ_RE.test(name) || READ_EXTRA.has(name);
 }
 
+/**
+ * Whether a tool may run in a `tools-only` scenario (the pi target): it reads or plans and
+ * nothing else. That is the dashboard's read class minus `mark-play-session`, which writes the
+ * play log; `plan-*` tools only make a plan and apply nothing.
+ * @param {string} name
+ */
+export function isToolsOnlyTool(name) {
+  return isReadTool(name) && name !== 'mark-play-session';
+}
+
 /** @param {string} name */
 export function isDestructiveTool(name) {
   return DESTRUCTIVE.has(name);

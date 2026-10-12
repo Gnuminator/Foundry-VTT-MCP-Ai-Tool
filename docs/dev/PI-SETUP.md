@@ -836,23 +836,26 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
     `systemd-run` are there. A leftover password file, browser profile or running Kit GM browser from
     a cut-off run (no state file) is removed, and the stage prints what it removed.
   - The password is 16 random bytes as 32 hex characters, made on the Pi, written to
-    `/var/lib/foundry-ai-tool/kit-gm.env` (one line `ASSISTANT_GM_PASSWORD=...`, root only, mode 600,
-    through a temp file and a rename) before the driver runs. It is never printed and never on a
+    `/etc/foundry-ai-tool/kit-gm.env` (one line `ASSISTANT_GM_PASSWORD=...`, root only, mode 600,
+    through a temp file in `/etc/foundry-ai-tool` and a rename, so root never writes through a folder the
+    foundry user owns) before the driver runs. It is never printed and never on a
     command line: the driver gets it in its environment, and the browser unit reads the file.
   - `ACTION=setup` also enables the `foundry-mcp-bridge` module in `strahd-kit` when it is off
     (the module stays enabled there afterwards, like the Actor Studio settings; `strahd-kit` is a
     throwaway copy), creates `Kit GM` as a Gamemaster with that password (an existing `Kit GM` is
     ours: its role and password are reset), makes it the module's **Bridge User**, reloads and reads
     it all back, and checks that a throwaway browser can really join as `Kit GM` with the password.
-  - Then a transient unit `foundry-ai-tool-kit-gm-browser` (`systemd-run`, the same properties as
-    the Assistant GM unit: low priority, no new privileges, its own profile folder
-    `/var/lib/foundry-ai-tool/kit-gm-browser`) runs `assistant-gm.mjs run` as `Kit GM` with the
+  - Then a transient unit `foundry-ai-tool-kit-gm-browser` (`systemd-run`, with the hardening and
+    priority properties of the Assistant GM unit: low priority, no new privileges, its own profile
+    folder `/var/lib/foundry-ai-tool/kit-gm-browser`, made as the foundry user) runs `assistant-gm.mjs run` as `Kit GM` with the
     canvas off, exactly like the real Assistant GM. The stage waits for "joined world strahd-kit as
     Kit GM" and then looks for the bridge link on port 31415 (a warning only). A reboot drops the
     unit and nothing starts it again. If the browser does not join, the run is rolled back like any
     other failure.
-  - The state file gets a line `KIT_GM_BROWSER=1`. A state file from before this change (no such
-    line) is still accepted by `MODE=down`.
+  - The state file gets a line `KIT_GM_BROWSER=1` and a line `ORIG_BRIDGE_USER=<id or empty>`, the
+    Bridge User the world had before (stage 11 sets the Assistant GM there). `MODE=down` puts that
+    user back when it still exists and is a GM, else "Any GM". A state file from before this change
+    (no such lines) is still accepted by `MODE=down` and resets to "Any GM".
   - The PC reads the password with `pwsh scripts/pi/fetch-kit-login.ps1` (one read-only ssh command,
     nothing printed, a file limited to your Windows user). Delete it again after `MODE=down` with
     `pwsh scripts/pi/fetch-kit-login.ps1 -Remove`.

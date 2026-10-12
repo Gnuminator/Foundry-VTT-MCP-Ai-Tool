@@ -31,6 +31,7 @@ import {
   SOURCES,
   addSecret,
   applyChanges,
+  bridgeRestoreTarget,
   blockers,
   createPlayer,
   deleteKit,
@@ -43,8 +44,10 @@ import {
   kitGmTeardownProblems,
   kitGmUserProblems,
   mismatches,
+  originalBridgeUser,
   parseKitGmPassword,
   parseMaxDelete,
+  parseOrigBridgeUser,
   playerUserProblems,
   provisionKitGm,
   readState,
@@ -590,6 +593,24 @@ describe('kit-session.mjs teardown (the in-browser part)', () => {
   });
 });
 
+test("the stage never lets root chown, chmod, install or write through a path in the foundry user's folder", () => {
+  const src = readFileSync(path.join(repo, 'scripts', 'pi', 'remote', 'kit-session.sh'), 'utf8');
+  const code = src.split('\n').filter(l => !/^\s*#/.test(l));
+  const bad = code.filter(
+    l =>
+      /\b(chown|chmod|install|ln|touch|tee)\b/.test(l) &&
+      /\$(\{?)(KIT_GM_PROFILE|TOOL_DATA|STATE)\b/.test(l) &&
+      !/runuser/.test(l)
+  );
+  assert.deepEqual(bad, []);
+  assert.ok(
+    code.some(l => l.includes('runuser -u "$FOUNDRY_USER" -- mkdir -m 700 "$KIT_GM_PROFILE"')),
+    'the profile folder is made by the foundry user'
+  );
+  assert.ok(!code.some(l => /install -d .*-o .*KIT_GM_PROFILE/.test(l)));
+  assert.ok(code.some(l => l.includes('mktemp "$TOOL_ETC/.kit-gm.XXXXXX"')));
+});
+
 describe('kit-session.mjs, the Kit GM (the in-browser part)', () => {
   before(() => {
     globalThis.CONST = {
@@ -932,6 +953,120 @@ describe('kit-session.mjs, the Kit GM (the in-browser part)', () => {
     );
   });
 
+  const ID_A = 'AbCdEfGh01234567';
+  const ID_B = 'ZyXwVuTs76543210';
+
+  test('originalBridgeUser: the user id the setup replaced, Any GM when empty or unregistered, never the Kit GM itself', () => {
+    assert.equal(originalBridgeUser(ID_A, 'userKitGm'), ID_A);
+    assert.equal(originalBridgeUser('', undefined), '');
+    assert.equal(originalBridgeUser(null, undefined), '');
+    assert.equal(
+      originalBridgeUser(ID_A, ID_A),
+      '',
+      'the Kit GM of a cut-off session is not worth restoring'
+    );
+    for (const bad of ['../etc', 'short', 'x'.repeat(17), 'has space 1234567', 42]) {
+      assert.throws(
+        () => originalBridgeUser(bad, undefined),
+        /which is not a user id/,
+        String(bad)
+      );
+    }
+  });
+
+  test('parseOrigBridgeUser: unset stays unset (the old state file), empty and an id pass, nothing else does', () => {
+    assert.equal(parseOrigBridgeUser(undefined), undefined);
+    assert.equal(parseOrigBridgeUser(''), '');
+    assert.equal(parseOrigBridgeUser(ID_A), ID_A);
+    for (const bad of ['../etc', ID_A + 'x', ' ' + ID_A, 'a b']) {
+      assert.throws(
+        () => parseOrigBridgeUser(bad),
+        /ORIG_BRIDGE_USER must be a 16 character user id/
+      );
+    }
+  });
+
+  test('bridgeRestoreTarget: the original user when it still exists as a GM, else Any GM', () => {
+    const state = (gmIds, kitGm = [gmUser()]) => ({ gmIds, kitGm });
+    assert.equal(bridgeRestoreTarget(state([ID_A, 'userKitGm']), ID_A), ID_A);
+    assert.equal(
+      bridgeRestoreTarget(state(['userKitGm']), ID_A),
+      '',
+      'the user is gone or below role 3'
+    );
+    assert.equal(bridgeRestoreTarget(state([ID_A]), ''), '');
+    assert.equal(bridgeRestoreTarget(state([ID_A]), undefined), '', 'no ORIG_BRIDGE_USER: Any GM');
+    assert.equal(
+      bridgeRestoreTarget(state(['userKitGm']), 'userKitGm'),
+      '',
+      'never the deleted Kit GM'
+    );
+    assert.equal(bridgeRestoreTarget(state([ID_A], []), ID_A), '');
+  });
+
+  test('readState lists the users with role 3 or above as gmIds', () => {
+    use(
+      fakeGame({
+        users: [
+          gmUser(),
+          { id: 'asst', name: 'Assistant GM', role: 3 },
+          { id: 'trusted', name: 'T', role: 2 },
+          kitUser(),
+        ],
+      })
+    );
+    assert.deepEqual(readState(ARGS).gmIds, ['userKitGm', 'asst']);
+  });
+
+  test('deleteKitGm puts the bridge user back to the original GM; a user that is gone or below role 3 becomes Any GM', async () => {
+    const world = (extra, bridgeUserId = 'userKitGm') =>
+      use(fakeGame({ users: [gmUser(), ...extra], bridgeUserId }));
+    const back = world([{ id: ID_A, name: 'Assistant GM', role: 3 }]);
+    await deleteKitGm({ ...DELETE, bridgeTo: ID_A });
+    assert.equal(back.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ID_A);
+    assert.equal(
+      back.users.some(u => u.name === GM_NAME),
+      false
+    );
+    const gone = world([]);
+    await deleteKitGm({ ...DELETE, bridgeTo: ID_A });
+    assert.equal(gone.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ANY_GM_CHOICE);
+    const player = world([{ id: ID_A, name: 'Pat', role: 1 }]);
+    await deleteKitGm({ ...DELETE, bridgeTo: ID_A });
+    assert.equal(player.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ANY_GM_CHOICE);
+    const kitself = world([]);
+    await deleteKitGm({ ...DELETE, bridgeTo: 'userKitGm' });
+    assert.equal(kitself.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ANY_GM_CHOICE);
+    // Not given: Any GM, as before.
+    const plain = world([{ id: ID_A, name: 'Assistant GM', role: 3 }]);
+    await deleteKitGm(DELETE);
+    assert.equal(plain.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ANY_GM_CHOICE);
+    // Another bridge user stays whatever bridgeTo says.
+    const other = world([{ id: ID_A, name: 'Assistant GM', role: 3 }], ID_B);
+    await deleteKitGm({ ...DELETE, bridgeTo: ID_A });
+    assert.equal(other.settings.get(BRIDGE_MODULE, 'bridgeUserId'), ID_B);
+  });
+
+  test('kitGmTeardownMismatches checks the bridge user against where it had to go back to', () => {
+    const before = { kitGm: [gmUser()], bridgeUserId: 'userKitGm' };
+    const after = bridgeUserId => ({ kitGm: [], bridgeUserId });
+    assert.deepEqual(kitGmTeardownMismatches(before, after(ID_A), ID_A), []);
+    assert.deepEqual(kitGmTeardownMismatches(before, after(''), ''), []);
+    assert.deepEqual(kitGmTeardownMismatches(before, after(null), ''), []);
+    assert.match(
+      kitGmTeardownMismatches(before, after(''), ID_A).join('; '),
+      /the bridge user is "", expected "AbCdEfGh01234567"/
+    );
+    assert.match(kitGmTeardownMismatches(before, after(ID_B), ID_A).join('; '), /expected/);
+    // Another bridge user before: not touched, not checked.
+    assert.deepEqual(
+      kitGmTeardownMismatches({ ...before, bridgeUserId: ID_B }, after(ID_B), ID_A),
+      []
+    );
+    // Without bridgeTo (the old call) only "no longer the Kit GM" is checked.
+    assert.deepEqual(kitGmTeardownMismatches(before, after('')), []);
+  });
+
   test('log lines have the secrets cut out; a short value is not registered', () => {
     addSecret('s3cretValueOfTheRun');
     addSecret('short');
@@ -1047,6 +1182,16 @@ describe('kit-session.mjs, the browser side and the script', () => {
       !(noPassword.stdout + noPassword.stderr).includes(secret),
       'the value is not printed'
     );
+    // The teardown takes ORIG_BRIDGE_USER (an id or empty) and refuses anything else before the browser is loaded.
+    const origBad = spawnSync(process.execPath, [script], {
+      encoding: 'utf8',
+      env: { ...env, ACTION: 'teardown', ORIG_BRIDGE_USER: '../etc' },
+    });
+    assert.equal(origBad.status, 1, origBad.stdout + origBad.stderr);
+    assert.match(
+      origBad.stdout + origBad.stderr,
+      /ORIG_BRIDGE_USER must be a 16 character user id/
+    );
     // The teardown does not need it: it gets as far as the next missing variable.
     const teardown = spawnSync(process.execPath, [script], {
       encoding: 'utf8',
@@ -1156,6 +1301,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     'WAS_GM_BROWSER=1',
     'STAMP=<stamp>',
     'KIT_GM_BROWSER=1',
+    'ORIG_BRIDGE_USER=AbCdEfGh01234567',
   ];
   const PREV_KIT = [
     'worlds/strahd-kit/actors/000001.log',
@@ -1186,7 +1332,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     'systemd-run --unit=foundry-ai-tool-kit-gm-browser --collect --quiet -p User=foundry -p Group=foundry ' +
     '-p NoNewPrivileges=true -p ProtectSystem=full -p PrivateTmp=true -p ReadWritePaths=/var/lib/foundry-ai-tool ' +
     '-p Nice=10 -p CPUWeight=20 -p Restart=always -p RestartSec=15 ' +
-    '-p EnvironmentFile=/var/lib/foundry-ai-tool/kit-gm.env ' +
+    '-p EnvironmentFile=/etc/foundry-ai-tool/kit-gm.env ' +
     '--setenv=HOME=/var/lib/foundry-ai-tool --setenv=TOOL_APP=/opt/foundry-ai-tool/app ' +
     '--setenv=FOUNDRY_URL=http://127.0.0.1:30000 --setenv=CHROMIUM=/usr/bin/chromium ' +
     '--setenv=GM_BROWSER_PROFILE=/var/lib/foundry-ai-tool/kit-gm-browser --setenv=ASSISTANT_GM_USER=Kit GM ' +
@@ -1213,7 +1359,9 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(r.exit, 0, r.output);
     assert.deepEqual(notJournal(r.calls), [
       'cat foundry-ai-tool-bridge.service',
-      `is-active --quiet ${KIT}`,
+      `is-active ${KIT}`,
+      `stop ${KIT}`,
+      `reset-failed ${KIT}`,
       'is-active --quiet foundry.service',
       `is-active --quiet ${GM}`,
       `stop ${GM}`,
@@ -1249,7 +1397,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.match(r.output, /HAS_KITPW=true KITPW_SHAPE=true\nDRIVER_SEES .* kit_env=600/);
     // The password the driver got is the one in the file, and it differs from the fixed pattern fixtures use.
     assert.ok(r.kitgm.includes('driver-password-is-file yes'), r.kitgm.join('\n'));
-    // The file is made through a temp file and a rename: no temp file is left.
+    // The file is made through a mktemp file in /etc/foundry-ai-tool and a rename: no temp file is left.
     assert.ok(r.kitgm.includes('env-tmp absent'));
   });
 
@@ -1264,7 +1412,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
   test('up says where the password is, and that it is not printed', () => {
     const r = run('up-ok');
     assert.match(r.output, /never printed here/);
-    assert.match(r.output, /\/var\/lib\/foundry-ai-tool\/kit-gm\.env \(root only, mode 600\)/);
+    assert.match(r.output, /\/etc\/foundry-ai-tool\/kit-gm\.env \(root only, mode 600\)/);
   });
 
   test('up starts the Kit GM browser as a transient unit with the properties of the real Assistant GM unit', () => {
@@ -1311,6 +1459,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
       'WAS_GM_BROWSER=0',
       'STAMP=<stamp>',
       'KIT_GM_BROWSER=1',
+      'ORIG_BRIDGE_USER=AbCdEfGh01234567',
     ]);
     assert.ok(!r.calls.some(c => /^(re)?start .*gm-browser/.test(c)));
   });
@@ -1389,7 +1538,9 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.deepEqual(kit(r), KIT_GONE);
     assert.deepEqual(notJournal(r.calls), [
       'cat foundry-ai-tool-bridge.service',
-      `is-active --quiet ${KIT}`,
+      `is-active ${KIT}`,
+      `stop ${KIT}`,
+      `reset-failed ${KIT}`,
       'is-active --quiet foundry.service',
       `is-active --quiet ${GM}`,
       `stop ${GM}`,
@@ -1468,13 +1619,13 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(r.exit, 0, r.output);
     assert.match(
       r.output,
-      /removed what an earlier kit session left behind \(there is no state file, so none of it is in use\): \/var\/lib\/foundry-ai-tool\/kit-gm\.env \/var\/lib\/foundry-ai-tool\/kit-gm\.env\.tmp \/var\/lib\/foundry-ai-tool\/kit-gm-browser the running unit foundry-ai-tool-kit-gm-browser/
+      /removed what an earlier kit session left behind \(there is no state file, so none of it is in use\): \/etc\/foundry-ai-tool\/kit-gm\.env \/etc\/foundry-ai-tool\/\.kit-gm\.stale1 \/var\/lib\/foundry-ai-tool\/kit-gm-browser the unit foundry-ai-tool-kit-gm-browser \(active\)/
     );
     // The old browser is stopped before anything else is touched, and a fresh one runs at the end.
     const calls = notJournal(r.calls);
     assert.deepEqual(calls.slice(0, 4), [
       'cat foundry-ai-tool-bridge.service',
-      `is-active --quiet ${KIT}`,
+      `is-active ${KIT}`,
       `stop ${KIT}`,
       `reset-failed ${KIT}`,
     ]);
@@ -1521,6 +1672,84 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.deepEqual(kit(r), KIT_UP);
   });
 
+  test("up keeps the password file in /etc/foundry-ai-tool and nothing of it in the foundry user's folder (M2)", () => {
+    const r = run('up-ok');
+    assert.equal(r.exit, 0, r.output);
+    assert.deepEqual(kit(r), KIT_UP); // root:root, mode 600, one line
+    assert.match(r.output, /wrote \/etc\/foundry-ai-tool\/kit-gm\.env/);
+    // /var/lib/foundry-ai-tool holds the state file and the profile folder, never a password file or its temp files.
+    assert.ok(r.kitgm.includes('tooldata kit-gm-browser kit-session.env'), r.kitgm.join('\n'));
+    assert.ok(r.kitgm.includes('env-tmp absent'), 'no temp file is left in /etc/foundry-ai-tool');
+  });
+
+  test('up-plant-links: links the foundry user left where the profile folder goes are replaced, and root touches nothing they point to', () => {
+    const r = run('up-plant-links');
+    assert.equal(r.exit, 0, r.output);
+    assert.ok(r.kitgm.includes('victims root:755 root:644 victim'), r.kitgm.join('\n'));
+    assert.deepEqual(kit(r), KIT_UP); // a real folder, mode 700, owned by foundry
+    assert.match(r.output, /removed what an earlier kit session left behind/);
+  });
+
+  test('up keeps the bridge user it replaced in the state file, and the driver reports it', () => {
+    const r = run('up-ok');
+    assert.ok(r.state.includes('ORIG_BRIDGE_USER=AbCdEfGh01234567'), r.state.join('\n'));
+    assert.match(r.output, /ORIG_BRIDGE_USER=AbCdEfGh01234567/);
+    assert.match(
+      r.output,
+      /the bridge user it replaced \(AbCdEfGh01234567\) is kept in the state file/
+    );
+    // Any GM before: an empty value, still a line (the teardown then restores nothing).
+    const empty = run('up-orig-bridge-empty');
+    assert.equal(empty.exit, 0, empty.output);
+    assert.ok(empty.state.includes('ORIG_BRIDGE_USER='), empty.state.join('\n'));
+    assert.match(empty.output, /the bridge user it replaced \(Any GM\) is kept/);
+  });
+
+  test('up-orig-bridge-bad: a reported bridge user that is not a user id puts everything back', () => {
+    const r = run('up-orig-bridge-bad');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /the setup reported a bridge user that is not a user id/);
+    rolledBack(r);
+  });
+
+  test('up-orig-bridge-none: a setup that does not report the bridge user puts everything back', () => {
+    const r = run('up-orig-bridge-none');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /the setup did not report the bridge user it replaced/);
+    rolledBack(r);
+  });
+
+  test('up-leftover-activating: a Kit GM unit between restarts is a leftover, stopped before anything else (L6)', () => {
+    const r = run('up-leftover-activating');
+    assert.equal(r.exit, 0, r.output);
+    assert.match(
+      r.output,
+      /removed what an earlier kit session left behind \(there is no state file, so none of it is in use\): the unit foundry-ai-tool-kit-gm-browser \(activating\)/
+    );
+    assert.deepEqual(notJournal(r.calls).slice(0, 4), [
+      'cat foundry-ai-tool-bridge.service',
+      `is-active ${KIT}`,
+      `stop ${KIT}`,
+      `reset-failed ${KIT}`,
+    ]);
+    assert.ok(r.kitgm.includes('unit-activating no'), 'the old unit is gone');
+    assert.deepEqual(kit(r), KIT_UP);
+  });
+
+  test('up-xtrace: run as bash -x, the trace holds neither the GM login nor the Kit GM password (L7)', () => {
+    const r = run('up-xtrace');
+    assert.equal(r.exit, 0, r.output);
+    assert.match(r.output, /^\+ /m, 'the trace really was on');
+    assert.doesNotMatch(r.output, /secret123/);
+    assert.ok(leaks(r).length >= 1);
+    // The trace names the variables but never their values.
+    assert.ok(
+      leaks(r).every(l => l === 'leak output=0 calls=0'),
+      leaks(r).join('\n')
+    );
+    assert.ok(r.kitgm.includes('driver-password-is-file yes'));
+  });
+
   test('up with the ssh session dropping (SIGPIPE) after the services stopped still restores everything', () => {
     const r = run('up-pipe-closed');
     assert.notEqual(r.exit, 0, r.output);
@@ -1536,7 +1765,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
   // The cut falls at each of the new steps; the unit was running when it fell at the start and at the wait.
   for (const [name, last, started] of [
     ['up-pipe-closed-kit-file', /making the password file for Kit GM/, false],
-    ['up-pipe-closed-kit-driver', /wrote \/var\/lib\/foundry-ai-tool\/kit-gm\.env/, false],
+    ['up-pipe-closed-kit-driver', /wrote \/etc\/foundry-ai-tool\/kit-gm\.env/, false],
     ['up-pipe-closed-kit-start', /==> starting the Kit GM browser/, true],
     ['up-pipe-closed-kit-wait', /started foundry-ai-tool-kit-gm-browser\.service/, true],
   ]) {
@@ -1618,6 +1847,28 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(r.world, 'curse-of-strahd');
     assert.deepEqual(r.state, ['absent']);
     assert.deepEqual(kit(r), KIT_GONE);
+  });
+
+  test('down hands the bridge user it replaced to the teardown; a missing line means Any GM, an empty one too', () => {
+    const r = run('down-ok');
+    assert.match(r.output, /DRIVER_SEES .* orig_bridge=set:AbCdEfGh01234567/);
+    const none = run('down-no-orig-bridge');
+    assert.equal(none.exit, 0, none.output);
+    assert.match(none.output, /DRIVER_SEES .* orig_bridge=unset/);
+    assert.deepEqual(none.state, ['absent']);
+    const empty = run('down-empty-orig-bridge');
+    assert.equal(empty.exit, 0, empty.output);
+    assert.match(empty.output, /DRIVER_SEES .* orig_bridge=set:\n/);
+  });
+
+  test('down refused when the ORIG_BRIDGE_USER line is not a user id', () => {
+    const r = run('down-bad-orig-bridge');
+    untouched(r, 'strahd-kit');
+    assert.match(r.output, /holds no valid ORIG_BRIDGE_USER/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(r.calls, []);
+    assert.ok(r.state.includes('ORIG_BRIDGE_USER=../etc'), 'the state file is left as it was');
+    assert.deepEqual(kit(r), KIT_UP);
   });
 
   test('down refused without a state file', () => {

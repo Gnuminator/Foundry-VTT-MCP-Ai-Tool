@@ -14,6 +14,7 @@
  * files at the moment they are used and never enter a target object, a report or an error message.
  */
 import { readFileSync } from 'node:fs';
+import { lookup as dnsLookup } from 'node:dns/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { KIT_GM_USER } from './contract.mjs';
@@ -63,20 +64,74 @@ export function kitTargetsFile(env = process.env) {
 }
 
 /**
- * Whether a hostname (as the URL parser normalises it: IPv4 forms like 127.1 or 0x7f000001
- * already come out as 127.0.0.1) is this PC.
- * @param {string} hostname
+ * What "this PC" is: its host name and every address of its network cards. Injectable for tests.
+ * @typedef {{hostname?: string, interfaces?: NodeJS.Dict<os.NetworkInterfaceInfo[]>}} LocalIdentity
  */
-function isThisPc(hostname) {
+
+/**
+ * Whether an IP address is loopback, unspecified or one of this PC's own addresses (the LAN
+ * address, the Tailscale address, IPv4-mapped IPv6 included).
+ * @param {string} address
+ * @param {LocalIdentity} [local]
+ */
+export function isLocalAddress(address, { interfaces = os.networkInterfaces() } = {}) {
+  const a = address
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/%.*$/, '')
+    .replace(/^::ffff:/, '');
+  if (a === '::1' || a === '::' || a === '0.0.0.0' || /^127\./.test(a)) return true;
+  return Object.values(interfaces).some(list =>
+    (list ?? []).some(i => i.address.toLowerCase().replace(/%.*$/, '') === a)
+  );
+}
+
+/**
+ * Whether a hostname (as the URL parser normalises it: IPv4 forms like 127.1 or 0x7f000001
+ * already come out as 127.0.0.1) is this PC: loopback, one of its addresses, its host name, or a
+ * name whose first label is its host name (`<pc>.<tailnet>.ts.net`).
+ * @param {string} hostname
+ * @param {LocalIdentity} [local]
+ */
+export function isThisPc(hostname, local = {}) {
   const h = hostname.toLowerCase();
+  const own = (local.hostname ?? os.hostname()).toLowerCase();
   return (
     h === 'localhost' ||
     h.endsWith('.localhost') ||
-    h === '0.0.0.0' ||
     h === '[::1]' ||
-    /^127\./.test(h) ||
-    h === os.hostname().toLowerCase()
+    h === own ||
+    h.split('.')[0] === own.split('.')[0] ||
+    isLocalAddress(h, local)
   );
+}
+
+/**
+ * The name check, with the network: the Pi host is looked up (every address) and refused when any
+ * of them is this PC's. A name that does not resolve is an EnvError too: the run needs the Pi.
+ * @param {string} host
+ * @param {LocalIdentity & {lookup?: (host: string, opts: {all: true}) => Promise<Array<{address: string}>>}} [opts]
+ */
+export async function assertRemoteHost(host, { lookup = dnsLookup, ...local } = {}) {
+  /** @type {Array<{address: string}>} */
+  let found;
+  try {
+    found = await lookup(host, { all: true });
+  } catch {
+    throw new EnvError(
+      `The Pi host ${host} cannot be resolved (is Tailscale connected? check pi.host in the targets file).`
+    );
+  }
+  if (!Array.isArray(found) || !found.length) {
+    throw new EnvError(`The Pi host ${host} cannot be resolved (no address).`);
+  }
+  for (const { address } of found) {
+    if (isLocalAddress(address, local)) {
+      throw new EnvError(
+        `REFUSED: the pi target must be another machine, but ${host} resolves to ${address}, an address of this PC.`
+      );
+    }
+  }
 }
 
 /** A key name safe to show in a message. @param {string} key */

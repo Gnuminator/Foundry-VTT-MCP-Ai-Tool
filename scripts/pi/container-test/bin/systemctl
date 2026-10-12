@@ -3,14 +3,17 @@
 # until "stop", active again after "start" or "restart"; /tmp/gmbroken makes the Assistant GM browser
 # fail to come back; /tmp/stopfail makes "stop foundry.service" fail.
 # The Kit GM browser is a transient unit: it is active only after the systemd-run stand-in started it (/tmp/started-kit)
-# and until "stop"; /tmp/kitstopfail makes "stop" leave it running. "cat" finds a unit file for the bridge service
-# unless /tmp/nobridge exists.
+# and until "stop"; /tmp/kit-activating makes it "activating" (between restarts) until "stop"; /tmp/kitstopfail makes
+# "stop" leave it as it is. "cat" finds a unit file for the bridge service unless /tmp/nobridge exists.
+# is-active prints the state like the real one, unless --quiet is given.
 echo "$*" >>/tmp/calls
 cmd="${1:-}"
 unit=""
+quiet=0
 for a in "$@"; do
   case "$a" in
     foundry.service | foundry-ai-tool-gm-browser.service | foundry-ai-tool-kit-gm-browser.service) unit="$a" ;;
+    --quiet | -q) quiet=1 ;;
   esac
 done
 case "$cmd" in
@@ -19,18 +22,28 @@ case "$cmd" in
     exit 0
     ;;
   is-active)
-    [ -n "$unit" ] || exit 3
-    if [ "$unit" = foundry-ai-tool-kit-gm-browser.service ]; then
-      [ -f /tmp/started-kit ] && exit 0
-      exit 3
+    state=inactive
+    code=3
+    if [ -z "$unit" ]; then
+      state=inactive
+    elif [ "$unit" = foundry-ai-tool-kit-gm-browser.service ]; then
+      if [ -f /tmp/started-kit ]; then
+        state=active
+        code=0
+      elif [ -f /tmp/kit-activating ]; then
+        state=activating
+      fi
+    elif [ ! -f "/tmp/stopped-$unit" ]; then
+      state=active
+      code=0
     fi
-    [ ! -f "/tmp/stopped-$unit" ] && exit 0
-    exit 3
+    [ "$quiet" = 1 ] || echo "$state"
+    exit "$code"
     ;;
   stop)
     if [ "$unit" = foundry.service ] && [ -f /tmp/stopfail ]; then exit 1; fi
     if [ "$unit" = foundry-ai-tool-kit-gm-browser.service ]; then
-      [ -f /tmp/kitstopfail ] || rm -f /tmp/started-kit
+      [ -f /tmp/kitstopfail ] || rm -f /tmp/started-kit /tmp/kit-activating
       exit 0
     fi
     [ -z "$unit" ] || touch "/tmp/stopped-$unit"

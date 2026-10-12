@@ -3,7 +3,7 @@
 // Needs PowerShell 7; the ssh program is a fake script that records its arguments.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
@@ -32,13 +32,13 @@ before(() => {
 });
 after(() => rmSync(tmp, { recursive: true, force: true }));
 
-function run(args, env = {}) {
+function run(args, env = {}, cwd = undefined) {
   const log = path.join(tmp, 'ssh.log');
   rmSync(log, { force: true });
   const r = spawnSync(
     'pwsh',
     ['-NoProfile', '-File', script, '-Ssh', path.join(tmp, 'fake-ssh.ps1'), ...args],
-    { encoding: 'utf8', env: { ...process.env, FAKE_SSH_LOG: log, ...env } }
+    { encoding: 'utf8', cwd, env: { ...process.env, FAKE_SSH_LOG: log, ...env } }
   );
   return { ...r, calls: existsSync(log) ? readFileSync(log, 'utf8') : '' };
 }
@@ -55,7 +55,7 @@ describe('fetch-kit-login.ps1', { skip: !hasPwsh && 'PowerShell 7 is not availab
     assert.equal(lines.length, 1);
     assert.ok(
       lines[0].endsWith(
-        "foundry-pi sed -n 's/^ASSISTANT_GM_PASSWORD=//p' /var/lib/foundry-ai-tool/kit-gm.env"
+        "foundry-pi sed -n 's/^ASSISTANT_GM_PASSWORD=//p' /etc/foundry-ai-tool/kit-gm.env"
       ),
       lines[0]
     );
@@ -83,6 +83,44 @@ describe('fetch-kit-login.ps1', { skip: !hasPwsh && 'PowerShell 7 is not availab
     assert.equal(r.status, 1);
     assert.equal(r.calls, '');
     assert.ok(!existsSync(dest));
+  });
+
+  test('a host name that starts with a dash is refused before ssh runs (it would be an ssh option)', () => {
+    for (const host of ['-Fsomefile', '-oProxyCommand=x', '.hidden']) {
+      const dest = path.join(tmp, 'c2', 'pw.txt');
+      const r = run([`-PiHost:${host}`, '-Destination', dest], { FAKE_SSH_OUT: PASSWORD });
+      assert.equal(r.status, 1, host);
+      assert.equal(r.calls, '', host);
+      assert.ok(!existsSync(dest), host);
+    }
+  });
+
+  test('a relative destination is made absolute from the shell location, and ends up in one place', () => {
+    const base = path.join(tmp, 'rel-base');
+    mkdirSync(base, { recursive: true });
+    const r = run(['-Destination', path.join('sub', 'pw.txt')], { FAKE_SSH_OUT: PASSWORD }, base);
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    assert.equal(readFileSync(path.join(base, 'sub', 'pw.txt'), 'utf8'), PASSWORD);
+    assert.ok(!existsSync(path.join(base, 'sub', 'pw.txt.tmp')), 'no temp file is left');
+    assert.ok(
+      r.stdout.includes(path.join(base, 'sub', 'pw.txt')),
+      'the message names the full path'
+    );
+    assert.ok(!r.stdout.includes(PASSWORD) && !r.stderr.includes(PASSWORD));
+  });
+
+  test('a failure while putting the file in place reports failure and leaves no temp file', () => {
+    // the folder of the destination is an existing file, so it cannot be made
+    const blocker = path.join(tmp, 'blocker');
+    writeFileSync(blocker, 'x');
+    const dest = path.join(blocker, 'pw.txt');
+    const r = run(['-Destination', dest], { FAKE_SSH_OUT: PASSWORD });
+    assert.equal(r.status, 1, r.stderr + r.stdout);
+    assert.match(r.stdout, /could not put the password file in place/);
+    assert.ok(!r.stdout.includes('the Kit GM password is in'));
+    assert.ok(!r.stdout.includes(PASSWORD) && !r.stderr.includes(PASSWORD));
+    assert.ok(!existsSync(`${dest}.tmp`));
+    assert.equal(readFileSync(blocker, 'utf8'), 'x');
   });
 
   test('-Remove deletes the file and succeeds when it is not there', () => {

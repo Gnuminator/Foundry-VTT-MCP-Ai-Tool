@@ -11,6 +11,9 @@ import { EnvError } from '../lib/errors.mjs';
 
 const TOKEN = 'tok-5d2e-SECRET-TEXT';
 
+/** The name lookup of the fake Pi: an address that is not this PC's. */
+const remoteLookup = async () => [{ address: '203.0.113.9' }];
+
 /** A fake Pi: world strahd-kit with one active scene and three tokens. */
 async function fakePi() {
   const fake = await startFake({ world: 'strahd-kit' });
@@ -79,6 +82,7 @@ async function setup(args = [], targetExtra = {}) {
     preflight: async target => {
       calls.preflight.push(target);
     },
+    lookup: remoteLookup,
   };
   const cleanup = async () => {
     await fake.close();
@@ -201,7 +205,11 @@ test('a pi run in a world with no scene skips the probes and still passes', asyn
   const o = parseArgs(['run', '--target', 'pi', '--not-game-night', '--report-dir', dir]);
   try {
     const code = await quietly(() =>
-      piRun(o, { resolve: () => piTarget(fake), preflight: async () => {} })
+      piRun(o, {
+        resolve: () => piTarget(fake),
+        preflight: async () => {},
+        lookup: remoteLookup,
+      })
     );
     assert.equal(code, 0);
     const report = JSON.parse(readFileSync(path.join(dir, 'report.json'), 'utf8'));
@@ -213,5 +221,127 @@ test('a pi run in a world with no scene skips the probes and still passes', asyn
   } finally {
     await fake.close();
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// --- the guard between the scenarios and the Pi (review of #329: M1, M3, L2) ---------------------
+
+/** A scenario folder with one tools-only scenario whose run() body is `body` (source text). */
+function scenarioDir({ tools, body, id = 'probe-scenario' }) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'kit-pi-scn-'));
+  writeFileSync(
+    path.join(dir, `${id}.scenario.mjs`),
+    `export default {
+  id: '${id}',
+  title: 'A test scenario',
+  sizes: ['smoke'],
+  tags: ['bridge', 'tools-only'],
+  needs: [],
+  tools: ${JSON.stringify(tools)},
+  async run(t) {
+${body}
+  },
+};
+`
+  );
+  return dir;
+}
+
+test('--scenarios folders are refused on the Pi, before the Pi is asked for anything', async () => {
+  const t = await setup();
+  try {
+    const o = parseArgs(['run', '--target', 'pi', '--not-game-night', '--scenarios', os.tmpdir()]);
+    await assert.rejects(
+      quietly(() => piRun(o, t.deps)),
+      e =>
+        e instanceof EnvError &&
+        /^REFUSED: --target pi runs only the scenarios of the repo/.test(e.message)
+    );
+    assert.equal(t.calls.resolve.length, 0);
+  } finally {
+    await t.cleanup();
+  }
+});
+
+test('a tools-only scenario that lists a write tool is a load problem: nothing runs', async () => {
+  const t = await setup();
+  const dir = scenarioDir({ tools: ['get-targets', 'apply-planned-change'], body: '' });
+  try {
+    const code = await quietly(() => piRun(t.o, { ...t.deps, dirs: [dir] }));
+    assert.equal(code, 1);
+    assert.equal(t.calls.preflight.length, 0, 'the Pi was not contacted');
+    assert.equal(existsSync(path.join(t.reportDir, 'report.json')), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    await t.cleanup();
+  }
+});
+
+test('a call outside the declared tools is refused at run time and ends the run (exit 2)', async () => {
+  const t = await setup();
+  const dir = scenarioDir({
+    tools: ['get-targets'],
+    body: `    await t.step('sneaks in a write', () => t.tool('apply-planned-change', { planId: 'x' }));`,
+  });
+  try {
+    await assert.rejects(
+      quietly(() => piRun(t.o, { ...t.deps, dirs: [dir] })),
+      e =>
+        e instanceof EnvError &&
+        /scenario "probe-scenario": tool "apply-planned-change" is not in the scenario's declared tools/.test(
+          e.message
+        )
+    );
+    assert.equal(t.fake.world.changes.length, 0);
+    assert.equal(t.fake.world.plans.size, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    await t.cleanup();
+  }
+});
+
+test('the bridge leaving strahd-kit during a run stops the run before the next call (exit 2)', async () => {
+  const t = await setup();
+  const dir = scenarioDir({
+    tools: ['get-targets'],
+    body: `    await t.tool('get-targets', {});
+    globalThis.__flipKitWorld();
+    await t.step('after the flip', () => t.tool('get-targets', {}));
+    globalThis.__afterFlipReached = true;`,
+  });
+  globalThis.__flipKitWorld = () => {
+    t.fake.world.worldId = 'curse-of-strahd';
+  };
+  globalThis.__afterFlipReached = false;
+  try {
+    await assert.rejects(
+      quietly(() => piRun(t.o, { ...t.deps, dirs: [dir], worldCheckTtlMs: 0 })),
+      e =>
+        e instanceof EnvError &&
+        /now reports the world "curse-of-strahd", not strahd-kit/.test(e.message)
+    );
+    assert.equal(globalThis.__afterFlipReached, false);
+    // the report of what ran up to there is still written
+    const report = JSON.parse(readFileSync(path.join(t.reportDir, 'report.json'), 'utf8'));
+    assert.equal(report.scenarios[0].steps.at(-1).status, 'fail');
+  } finally {
+    delete globalThis.__flipKitWorld;
+    delete globalThis.__afterFlipReached;
+    rmSync(dir, { recursive: true, force: true });
+    await t.cleanup();
+  }
+});
+
+test('the Pi host resolving to an address of this PC stops the run before the Pi is contacted', async () => {
+  const t = await setup();
+  try {
+    await assert.rejects(
+      quietly(() => piRun(t.o, { ...t.deps, lookup: async () => [{ address: '127.0.0.1' }] })),
+      e =>
+        e instanceof EnvError && /^REFUSED: the pi target must be another machine/.test(e.message)
+    );
+    assert.equal(t.calls.preflight.length, 0);
+  } finally {
+    await t.cleanup();
   }
 });

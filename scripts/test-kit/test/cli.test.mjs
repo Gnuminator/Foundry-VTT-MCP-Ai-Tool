@@ -132,6 +132,11 @@ test('--target pi refuses everything it must, each with exit 2 and a clear messa
     ],
     ['--profile other', [...pi, '--profile', 'strahd'], /REFUSED: --target pi takes no --profile/],
     [
+      '--scenarios',
+      [...pi, '--scenarios', tmpdir()],
+      /REFUSED: --target pi runs only the scenarios of the repo/,
+    ],
+    [
       'a --only id that is not tools-only',
       [...pi, '--only', 'bridge-health'],
       /REFUSED: scenario "bridge-health" is not tools-only at size smoke; the Pi run allows: canvas-tools-headless/,

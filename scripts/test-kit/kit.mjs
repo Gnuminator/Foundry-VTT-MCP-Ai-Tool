@@ -23,7 +23,14 @@ import {
 import { DEFAULT_COVERAGE_CAP } from './lib/coverage.mjs';
 import { EnvError, KitToolError } from './lib/errors.mjs';
 import { foundryDataDir, kitHome, kitWorldsDir, resolveTarget } from './lib/targets.mjs';
-import { PI_WORLD, piPreflight, readDashboardToken, reportTarget } from './lib/pi-target.mjs';
+import {
+  PI_WORLD,
+  assertRemoteHost,
+  piPreflight,
+  readDashboardToken,
+  reportTarget,
+} from './lib/pi-target.mjs';
+import { createPiGuard } from './lib/pi-guard.mjs';
 import { loadProfile } from './lib/profiles.mjs';
 import { createDashboardClient } from './lib/dashboard.mjs';
 import { loadToolCatalog } from './lib/catalog.mjs';
@@ -67,7 +74,7 @@ Options
                            Orange Pi's dashboard, in its throwaway world ${PI_WORLD}. It needs the
                            targets file (%LOCALAPPDATA%\\foundry-ai-tool\\kit-targets.json, or env
                            KIT_TARGETS_FILE: host and ports only) and --not-game-night; it never
-                           builds, wipes or inits, and refuses --fake, --profile and --world
+                           builds, wipes or inits, and refuses --fake, --scenarios, --profile and any other --world
   --not-game-night         with --target pi: confirm today is not a game night (the kit never runs
                            on the Pi on a game-night day)
   --help                   this text
@@ -570,18 +577,30 @@ export function selectToolsOnly(all, { size, only }) {
 /**
  * `run --target pi`: the tools-only scenarios through the Pi's dashboard. No GM browser, no GM
  * actions switch, no manifest on disk: the Pi's headless Kit GM holds the bridge link.
+ * Every tool call goes through the guard of lib/pi-guard.mjs: only the scenario's declared read
+ * or plan tools, never a confirmation, and only while the bridge is still in strahd-kit. Scenario
+ * folders from `--scenarios` are refused: only the repo's own scenarios run on the Pi.
  * `deps` lets a test stand in for the Pi (resolve the target to the in-process fake, skip the
- * Foundry status check); the real run uses the defaults.
+ * Foundry status check and the name lookup, use a scenario folder of its own); the real run uses
+ * the defaults.
  * @param {ReturnType<typeof parseArgs>} o
- * @param {{resolve?: typeof resolveTarget, preflight?: typeof piPreflight}} [deps]
+ * @param {{resolve?: typeof resolveTarget, preflight?: typeof piPreflight, lookup?: (host: string, opts: {all: true}) => Promise<Array<{address: string}>>, dirs?: string[], worldCheckTtlMs?: number}} [deps]
  */
-export async function piRun(o, { resolve = resolveTarget, preflight = piPreflight } = {}) {
+export async function piRun(
+  o,
+  { resolve = resolveTarget, preflight = piPreflight, lookup, dirs, worldCheckTtlMs } = {}
+) {
+  if (o.scenarios.length) {
+    throw new EnvError(
+      'REFUSED: --target pi runs only the scenarios of the repo, not --scenarios folders.'
+    );
+  }
   const startedAt = new Date();
   const target = resolve({ name: 'pi', world: o.world, notGameNight: o.notGameNight });
   const catalog = await loadToolCatalog(REPO_ROOT).catch(e => {
     throw new EnvError(e.message);
   });
-  const loaded = await loadScenarios(scenarioDirs(o.scenarios), { catalog });
+  const loaded = await loadScenarios(dirs ?? scenarioDirs([]), { catalog });
   if (loaded.problems.length) {
     for (const p of loaded.problems) say(`PROBLEM ${p}`);
     say(`${loaded.problems.length} scenario problems; nothing was run`);
@@ -593,6 +612,7 @@ export async function piRun(o, { resolve = resolveTarget, preflight = piPrefligh
     return EXIT.PASS;
   }
   say(`target pi: ${target.host}, dashboard ${target.dashboard}, Foundry ${target.foundry}`);
+  await assertRemoteHost(target.host, lookup ? { lookup } : {});
   await preflight(target);
   // The token comes from its file when the targets file names one, else COGM_TOKEN as locally.
   const token = readDashboardToken(target);
@@ -601,6 +621,10 @@ export async function piRun(o, { resolve = resolveTarget, preflight = piPrefligh
     ...(token ? { token } : {}),
   });
   await waitForLink(dashboard, target.world);
+  const guard = createPiGuard(dashboard, {
+    world: target.world,
+    ...(worldCheckTtlMs !== undefined ? { ttlMs: worldCheckTtlMs } : {}),
+  });
   // The scenarios only read t.kit.world; the real manifest belongs to this PC's kit worlds.
   const manifest = /** @type {any} */ ({
     version: KIT_FORMAT_VERSION,
@@ -621,7 +645,9 @@ export async function piRun(o, { resolve = resolveTarget, preflight = piPrefligh
   let envProblem = null;
   try {
     ({ results } = await runScenariosDetailed(list, {
-      dashboard,
+      // a scenario gets its own guarded client; the default one has no tools, so it refuses all
+      dashboard: guard.forScenario({ id: 'pi-run', tools: [] }),
+      dashboardFor: scenario => guard.forScenario(scenario),
       manifest,
       fake: false,
       size: /** @type {'smoke'|'full'|'long'} */ (o.size),

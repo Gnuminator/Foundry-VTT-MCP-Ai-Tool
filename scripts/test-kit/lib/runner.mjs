@@ -26,6 +26,8 @@ class TimedOut extends Error {}
  * @typedef {{state: () => Promise<any>, html: () => Promise<string>}} PlayerLike
  * @typedef {object} RunOptions
  * @property {ReturnType<typeof import('./dashboard.mjs').createDashboardClient>} dashboard
+ * @property {(scenario: Scenario) => RunOptions['dashboard']} [dashboardFor]   the client one scenario gets in
+ *   place of `dashboard` (the pi run hands each scenario a guarded one, lib/pi-guard.mjs)
  * @property {GmLike} [gm]
  * @property {PlayerLike} [player]   defaults to /api/player/state and /player on the dashboard
  * @property {import('./contract.mjs').KitManifest | null} [manifest]
@@ -101,7 +103,8 @@ export async function runScenariosDetailed(list, opts) {
  * @returns {Promise<ScenarioResult>}
  */
 async function runOne({ scenario, file }, opts, consoleSink) {
-  const { dashboard, gm, manifest = null, fake = false, size = 'smoke' } = opts;
+  const { gm, manifest = null, fake = false, size = 'smoke' } = opts;
+  const dashboard = opts.dashboardFor ? opts.dashboardFor(scenario) : opts.dashboard;
   const out = opts.log || (() => {});
   const declared = new Set(scenario.gmActions || []);
   const t0 = Date.now();
